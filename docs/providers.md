@@ -19,7 +19,9 @@ OpenRouter is **opt-in**. The default `.env` does not set `OPENROUTER_API_KEY`.
 
 `DEFAULT_PROVIDER=ollama` alone still sends Ollama the OpenRouter id
 `qwen/qwen3.7-flash`. `config/models.yaml` maps champion ids onto local tags.
-`sandbox cutover` prints the effective table.
+`sandbox cutover --agent-model judge=qwen3:14b` is the surgical override
+(`--model` still rewrites every agent). Overlay knobs (temperature, max_tokens,
+…) live in `config/taxonomy.overlay.yaml` and win after the profile rewrite.
 
 ## Health
 

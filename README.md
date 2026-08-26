@@ -7,7 +7,7 @@ A **local-first experiment sandbox** for the [LLM-Mailroom](https://github.com/E
 | Default provider | Ollama (`qwen3:8b`, fallback `qwen3:7b`) |
 | Scoring | [`llm-dojo-scoring` @ v0.9.0](https://github.com/Exios66/llm-dojo-scoring) |
 | Pipeline | [`llm-mailroom`](https://github.com/Exios66/llm-mailroom) (`fetch-deps` @ v0.5.0 source; `[pipeline]` extra = main) |
-| Tracing | Arize Phoenix (local). Langfuse / Braintrust opt-in |
+| Tracing | Langfuse 3 / SDK v4 (`document-pipeline`). Phoenix optional sidecar |
 | Storage | SQLite under `./data` (mailroom default) |
 
 ## Quick start
@@ -17,12 +17,14 @@ pip install -e ".[dev]"
 cp config/.env.example .env
 sandbox fetch-deps                 # clones vendor/llm-mailroom @ v0.5.0 (source tree)
 # optional: pip install -e ".[pipeline]"  # current mailroom main (dojo v0.9.0)
-sandbox up                         # Phoenix + Ollama
+sandbox up                         # Langfuse + Ollama
 sandbox pull-models                # ollama pull qwen3:8b
 sandbox health
+sandbox agents list
 sandbox pilot --mock               # machinery only, no LLM
 sandbox pilot --local              # real local model
 sandbox eval sorter --mock
+sandbox eval pipeline --mock
 ```
 
 CPU-only smoke: pull `llama3.2:3b` and `sandbox cutover --profile ollama --model llama3.2:3b`. GPU recommended for Qwen 8B.
@@ -30,7 +32,7 @@ CPU-only smoke: pull `llama3.2:3b` and `sandbox cutover --profile ollama --model
 ## One-command local path
 
 1. Install
-2. `sandbox up` (compose profiles `phoenix` + `ollama`)
+2. `sandbox up` (compose profiles `langfuse` + `ollama`)
 3. `sandbox pull-models`
 4. `sandbox pilot --mock`
 5. `sandbox pilot --local`
@@ -38,12 +40,12 @@ CPU-only smoke: pull `llama3.2:3b` and `sandbox cutover --profile ollama --model
 ## CLI
 
 ```
-sandbox up | down | health | pull-models | fetch-deps | cutover | profiles
+sandbox up | down | health | pull-models | fetch-deps | cutover | profiles | agents
 sandbox pipeline watcher | pipeline api
 sandbox pilot --mock|--local
 sandbox hf-pilot --check|--mock|--local
 sandbox legalbench --mock|--local
-sandbox eval sorter|extract|chained|pipeline|legalbench [--mock|--local]
+sandbox eval <agent>|extract|chained|pipeline|legalbench [--mock|--local]
 sandbox matrix --providers ollama --models qwen3:8b --prompts sorter_local_v0
 sandbox datasets pull
 sandbox traces export
@@ -53,7 +55,7 @@ sandbox traces export
 
 - [Providers](docs/providers.md) — Ollama, vLLM, Modal, llama.cpp, LM Studio, OpenRouter
 - [Evals](docs/evals.md) — runners, matrix, scoring, experiment log
-- [Tracing](docs/tracing.md) — Phoenix-first, tags, export
+- [Tracing](docs/tracing.md) — Langfuse v4 data model, tags, The-Mailroom
 - [Sister repos](docs/sister-repos.md) — family map
 
 ## Layout

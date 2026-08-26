@@ -28,6 +28,7 @@ class Activation:
     patched_config: bool = False
     patched_prompts: bool = False
     mailroom_src: Path | None = None
+    agent_models: dict[str, str] = field(default_factory=dict)
 
 
 _ACTIVE: Activation | None = None
@@ -76,11 +77,26 @@ def apply_profile_env(profile: dict, *, base_url_override: str | None = None) ->
     )
     if endpoints.base_url_env:
         os.environ.setdefault(endpoints.base_url_env, endpoints.base_url)
-        # Always stamp the profile URL when the env is empty or still the example.
         if not os.environ.get(endpoints.base_url_env):
             os.environ[endpoints.base_url_env] = endpoints.base_url
-    os.environ.setdefault("OBSERVABILITY_PROVIDER", "phoenix")
-    os.environ.setdefault("OBSERVABILITY_ENVIRONMENT", "sandbox")
+    init_pub = os.environ.get("LANGFUSE_INIT_PROJECT_PUBLIC_KEY")
+    init_sec = os.environ.get("LANGFUSE_INIT_PROJECT_SECRET_KEY")
+    if init_pub:
+        os.environ.setdefault("LANGFUSE_PUBLIC_KEY", init_pub)
+    if init_sec:
+        os.environ.setdefault("LANGFUSE_SECRET_KEY", init_sec)
+    if os.environ.get("LANGFUSE_SECRET_KEY"):
+        os.environ.setdefault("OBSERVABILITY_PROVIDER", "langfuse")
+    else:
+        os.environ.setdefault("OBSERVABILITY_PROVIDER", "phoenix")
+    os.environ.setdefault("LANGFUSE_HOST", "http://localhost:3000")
+    mode = (os.environ.get("SANDBOX_RUN_MODE") or "").lower()
+    if mode == "mock":
+        os.environ["OBSERVABILITY_ENVIRONMENT"] = "mock"
+    elif mode == "local":
+        os.environ.setdefault("OBSERVABILITY_ENVIRONMENT", "pilot")
+    else:
+        os.environ.setdefault("OBSERVABILITY_ENVIRONMENT", "pilot")
     os.environ.setdefault("PHOENIX_TRACING", "enabled")
     os.environ.setdefault("PHOENIX_ENDPOINT", "http://localhost:6006/v1/traces")
     os.environ.setdefault("PHOENIX_PROJECT", "mailroom-sandbox")
@@ -94,6 +110,7 @@ def activate(
     prompt_variant: str | None = None,
     base_url: str | None = None,
     load_env_file: bool = True,
+    agent_models: dict[str, str] | None = None,
 ) -> Activation:
     """Load overlay, write runtime taxonomy, patch mailroom, set env.
 
@@ -110,7 +127,9 @@ def activate(
     if mailroom_src is not None:
         _prepend_sys_path(mailroom_src)
 
-    taxonomy = build_merged_taxonomy(profile, model_override=model)
+    taxonomy = build_merged_taxonomy(
+        profile, model_override=model, agent_models=agent_models
+    )
     taxonomy_path = write_runtime_taxonomy(taxonomy)
     os.environ["MAILROOM_TAXONOMY"] = str(taxonomy_path)
     patched = patch_mailroom_config(taxonomy_path)
@@ -128,6 +147,7 @@ def activate(
         patched_config=patched,
         patched_prompts=patched_prompts,
         mailroom_src=mailroom_src,
+        agent_models=dict(agent_models or {}),
     )
     _ACTIVE = activation
     runtime_dir()  # ensure exists

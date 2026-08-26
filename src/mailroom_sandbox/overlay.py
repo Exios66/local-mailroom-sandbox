@@ -103,6 +103,62 @@ def serving_family(profile: dict) -> str:
     return "ollama"
 
 
+AGENT_CONFIG_KEYS = (
+    "provider",
+    "model",
+    "temperature",
+    "max_tokens",
+    "max_input_chars",
+    "reasoning_effort",
+)
+
+
+def parse_agent_models(specs: list[str] | None) -> dict[str, str]:
+    """Parse repeatable CLI ``NAME=tag`` specs into an agent→model map."""
+    out: dict[str, str] = {}
+    for spec in specs or []:
+        if "=" not in spec:
+            raise ValueError(f"Expected NAME=model, got {spec!r}")
+        name, model = spec.split("=", 1)
+        name, model = name.strip(), model.strip()
+        if not name or not model:
+            raise ValueError(f"Expected NAME=model, got {spec!r}")
+        out[name] = model
+    return out
+
+
+def apply_agent_overrides(taxonomy: dict, overrides: dict | None, *, keys: tuple[str, ...] | None = None) -> dict:
+    """Copy selected agent knobs onto the merged taxonomy (missing keys skipped)."""
+    if not overrides:
+        return taxonomy
+    allowed = keys or AGENT_CONFIG_KEYS
+    out = deepcopy(taxonomy)
+    agents = out.setdefault("agents", {})
+    for name, patch in overrides.items():
+        if not isinstance(patch, dict):
+            continue
+        target = agents.setdefault(name, {})
+        if not isinstance(target, dict):
+            continue
+        for key in allowed:
+            if key in patch and patch[key] is not None:
+                target[key] = deepcopy(patch[key])
+    return out
+
+
+def apply_agent_models(taxonomy: dict, agent_models: dict[str, str] | None) -> dict:
+    """Surgical per-agent model tags (CLI ``--agent-model``). Wins last."""
+    if not agent_models:
+        return taxonomy
+    out = deepcopy(taxonomy)
+    agents = out.setdefault("agents", {})
+    for name, model in agent_models.items():
+        target = agents.setdefault(name, {})
+        if isinstance(target, dict):
+            target["model"] = model
+    return out
+
+
 def rewrite_agents(taxonomy: dict, profile: dict, *, model_override: str | None = None) -> dict:
     """Set every agent's provider + model from the profile (judge may differ)."""
     out = deepcopy(taxonomy)
@@ -131,13 +187,22 @@ def build_merged_taxonomy(
     *,
     model_override: str | None = None,
     extra_overlay: dict | None = None,
+    agent_models: dict[str, str] | None = None,
 ) -> dict:
+    from mailroom_sandbox.components import load_components, routing_overlay
+
     base = load_yaml(mailroom_taxonomy_path())
     overlay = load_yaml(config_dir() / "taxonomy.overlay.yaml")
     merged = deep_merge(base, overlay)
+    merged = deep_merge(merged, routing_overlay(load_components()))
     if extra_overlay:
         merged = deep_merge(merged, extra_overlay)
-    return rewrite_agents(merged, profile, model_override=model_override)
+    merged = rewrite_agents(merged, profile, model_override=model_override)
+    # Overlay agent knobs (temp / tokens / optional model) win after rewrite.
+    merged = apply_agent_overrides(merged, overlay.get("agents") or {})
+    # CLI --agent-model is surgical and always wins last.
+    merged = apply_agent_models(merged, agent_models)
+    return merged
 
 
 def write_runtime_taxonomy(taxonomy: dict, dest: Path | None = None) -> Path:
@@ -166,4 +231,29 @@ def agent_assignments(taxonomy: dict) -> list[tuple[str, str, str]]:
     for name, agent in (taxonomy.get("agents") or {}).items():
         if isinstance(agent, dict):
             rows.append((name, str(agent.get("provider", "?")), str(agent.get("model", "?"))))
+    return rows
+
+
+def agent_roster(taxonomy: dict) -> list[dict]:
+    """Merged taxonomy agents plus sandbox component enablement."""
+    from mailroom_sandbox.components import is_enabled, load_components
+
+    components = load_components()
+    rows = []
+    for name, agent in (taxonomy.get("agents") or {}).items():
+        if not isinstance(agent, dict):
+            continue
+        rows.append(
+            {
+                "agent": name,
+                "provider": agent.get("provider"),
+                "model": agent.get("model"),
+                "temperature": agent.get("temperature"),
+                "max_tokens": agent.get("max_tokens"),
+                "max_input_chars": agent.get("max_input_chars"),
+                "reasoning_effort": agent.get("reasoning_effort"),
+                "enabled": is_enabled("agents", name, components),
+                "retired": name in {str(x) for x in (components.get("retired_agents") or [])},
+            }
+        )
     return rows

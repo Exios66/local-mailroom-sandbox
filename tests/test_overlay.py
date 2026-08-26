@@ -63,6 +63,29 @@ def test_model_override():
     assert taxonomy["agents"]["contracts_specialist"]["model"] == "llama3.1:8b"
 
 
+def test_agent_model_surgical_override():
+    from mailroom_sandbox.overlay import parse_agent_models
+
+    profile = load_profile("ollama")
+    taxonomy = build_merged_taxonomy(
+        profile, agent_models=parse_agent_models(["judge=qwen3:14b", "sorter=llama3.1:8b"])
+    )
+    assert taxonomy["agents"]["sorter"]["model"] == "llama3.1:8b"
+    assert taxonomy["agents"]["judge"]["model"] == "qwen3:14b"
+    assert taxonomy["agents"]["contracts_specialist"]["model"] == "qwen3:8b"
+    assert taxonomy["agents"]["sorter"]["temperature"] == 0.1
+
+
+def test_parse_agent_models_rejects_bare_name():
+    from mailroom_sandbox.overlay import parse_agent_models
+
+    try:
+        parse_agent_models(["sorter"])
+    except ValueError:
+        return
+    raise AssertionError("expected ValueError")
+
+
 def test_serving_family():
     assert serving_family(load_profile("vllm-local")) == "vllm"
     assert serving_family(load_profile("modal-vllm")) == "vllm"

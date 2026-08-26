@@ -42,7 +42,26 @@ def fake_structured_payload(user_content: str, expect: dict[str, Any]) -> dict[s
             "reasoning": "mock",
         }
     if "ADJUDICATION REQUEST" in text:
-        return {"decision": "approved", "reasoning": "mock", "resolution_notes": ""}
+        return {
+            "decision": expect.get("boss_decision") or expect.get("expected_decision") or "approved",
+            "reasoning": "mock",
+            "resolution_notes": "",
+        }
+    if "JUDGE VERDICT" in text or "Arbiter" in text:
+        return {
+            "decision": expect.get("arbiter_decision") or expect.get("expected_decision") or "accept_with_caveats",
+            "fields_to_fix": [],
+            "reasoning": "mock",
+            "handoff_summary": "",
+        }
+    if "quality reviewer" in text.lower() or "completeness" in text.lower():
+        return {
+            "completeness": expect.get("expected_score") or 0.98,
+            "completeness_label": expect.get("judge_verdict") or expect.get("expected_verdict") or "complete",
+            "reasoning": "mock",
+        }
+    if "matter-record summary" in text or "compile this into" in text.lower():
+        return {"summary": "mock report", "confidence": 0.9}
     if "Yes" in text and "No" in text and expect.get("legalbench_answer"):
         return {"answer": expect["legalbench_answer"]}
     payload = {"confidence": conf, "mock_extraction": True}

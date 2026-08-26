@@ -19,5 +19,5 @@ Tiny HF JSONL under `hf/` is a **synthetic** one-doc-per-class slice matching
 the `Lucius-Morningstar/docclass-merged` schema (not Hub content). Use
 `sandbox datasets pull` for real Hub rows.
 
-LegalBench fixtures under `legalbench/` are short synthetic Yes/No items for
-offline harness tests, not the Stanford LegalBench corpus.
+Tiny PDF/PNG under `intake/` are original sandbox fixtures (ASCII PDF + 1×1 PNG)
+for offline transcriber / image-extractor wiring tests, not the CUAD pilot.
