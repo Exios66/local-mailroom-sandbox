@@ -8,7 +8,7 @@ base_url_env: GENERIC_BASE_URL
 api_key_env: GENERIC_API_KEY
 default_provider_env: generic
 compose_profiles:
-  - phoenix
+  - langfuse
 pull_models: []
 health:
   models_url: http://localhost:1234/v1/models

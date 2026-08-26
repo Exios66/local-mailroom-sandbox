@@ -1,0 +1,1 @@
+Extract JSON fields for this document class. Return one json object. Use null for unknown scalars and [] for empty lists. Include confidence 0-1. The word json must appear.

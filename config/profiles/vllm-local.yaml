@@ -8,7 +8,7 @@ base_url_env: VLLM_BASE_URL
 api_key_env: VLLM_API_KEY
 default_provider_env: vllm
 compose_profiles:
-  - phoenix
+  - langfuse
   - vllm
 pull_models:
   - Qwen/Qwen3-8B

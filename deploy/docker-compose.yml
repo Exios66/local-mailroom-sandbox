@@ -1,6 +1,40 @@
 # Local-mailroom-sandbox compose stack.
-# Profiles: phoenix (default sink), ollama, vllm, llamacpp, langfuse (optional).
-# GPU is NOT required for phoenix + ollama-on-CPU. vLLM needs an NVIDIA GPU.
+# Profiles: langfuse (default tracing), ollama, vllm, llamacpp, phoenix (optional sidecar).
+# GPU is NOT required for langfuse + ollama-on-CPU. vLLM needs an NVIDIA GPU.
+#
+# Langfuse 3 (web + worker) speaks the Python SDK v4 data model used by
+# llm-mailroom and The-Mailroom. Headless init keys come from the environment
+# (see config/.env.example). Healthchecks never pass credentials as CLI flags.
+
+x-langfuse-env: &langfuse-env
+  NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+  NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-change-me-sandbox}
+  SALT: ${SALT:-change-me-sandbox-salt}
+  ENCRYPTION_KEY: ${ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000000}
+  DATABASE_URL: ${DATABASE_URL:-postgresql://mailroom:mailroom@postgres:5432/mailroom}
+  TELEMETRY_ENABLED: "false"
+  LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "true"
+  CLICKHOUSE_MIGRATION_URL: ${CLICKHOUSE_MIGRATION_URL:-clickhouse://clickhouse:9000}
+  CLICKHOUSE_URL: ${CLICKHOUSE_URL:-http://clickhouse:8123}
+  CLICKHOUSE_USER: ${CLICKHOUSE_USER:-clickhouse}
+  CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-clickhouse}
+  CLICKHOUSE_CLUSTER_ENABLED: "false"
+  LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+  LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+  LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minio}
+  LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-miniosecret}
+  LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio:9000
+  LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+  LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+  LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+  LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
+  LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minio}
+  LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-miniosecret}
+  LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://minio:9000
+  LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+  LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
 
 services:
   phoenix:
@@ -83,22 +117,73 @@ services:
     container_name: sandbox-clickhouse
     profiles: ["langfuse"]
     environment:
-      CLICKHOUSE_DB: langfuse
-      CLICKHOUSE_USER: langfuse
-      CLICKHOUSE_PASSWORD: langfuse
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-clickhouse}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-clickhouse}
     ports:
       - "8123:8123"
       - "9000:9000"
     volumes:
       - clickhouse_data:/var/lib/clickhouse
     healthcheck:
-      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 10
 
-  langfuse-server:
-    image: langfuse/langfuse:2
+  redis:
+    image: redis:7
+    container_name: sandbox-redis
+    profiles: ["langfuse"]
+    command: ["redis-server", "--maxmemory-policy", "noeviction"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    container_name: sandbox-minio
+    profiles: ["langfuse"]
+    entrypoint: sh
+    command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-miniosecret}
+    ports:
+      - "9090:9000"
+      - "9091:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/9000'"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+
+  langfuse-worker:
+    image: langfuse/langfuse-worker:3
+    container_name: sandbox-langfuse-worker
+    profiles: ["langfuse"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      <<: *langfuse-env
+
+  langfuse-web:
+    image: langfuse/langfuse:3
     container_name: sandbox-langfuse
     profiles: ["langfuse"]
     depends_on:
@@ -106,16 +191,22 @@ services:
         condition: service_healthy
       clickhouse:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://mailroom:mailroom@postgres:5432/mailroom
-      NEXTAUTH_SECRET: change-me-sandbox
-      NEXTAUTH_URL: http://localhost:3000
-      SALT: change-me-sandbox-salt
-      CLICKHOUSE_URL: http://clickhouse:8123
-      CLICKHOUSE_USER: langfuse
-      CLICKHOUSE_PASSWORD: langfuse
-      CLICKHOUSE_DB: langfuse
-      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "true"
+      <<: *langfuse-env
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: ${LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT:-http://localhost:9090}
+      LANGFUSE_INIT_ORG_ID: ${LANGFUSE_INIT_ORG_ID:-sandbox-org}
+      LANGFUSE_INIT_ORG_NAME: ${LANGFUSE_INIT_ORG_NAME:-sandbox}
+      LANGFUSE_INIT_PROJECT_ID: ${LANGFUSE_INIT_PROJECT_ID:-sandbox-project}
+      LANGFUSE_INIT_PROJECT_NAME: ${LANGFUSE_INIT_PROJECT_NAME:-mailroom-sandbox}
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_INIT_PROJECT_PUBLIC_KEY:-pk-lf-sandbox}
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_INIT_PROJECT_SECRET_KEY:-sk-lf-sandbox}
+      LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_INIT_USER_EMAIL:-sandbox@localhost}
+      LANGFUSE_INIT_USER_NAME: ${LANGFUSE_INIT_USER_NAME:-sandbox}
+      LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_INIT_USER_PASSWORD:-sandboxlocal}
     ports:
       - "3000:3000"
 
@@ -126,3 +217,5 @@ volumes:
   llamacpp_models:
   pgdata:
   clickhouse_data:
+  redis_data:
+  minio_data:

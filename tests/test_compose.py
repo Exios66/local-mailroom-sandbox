@@ -11,15 +11,19 @@ from mailroom_sandbox.paths import deploy_dir
 def test_compose_file_parses():
     data = yaml.safe_load(compose_file().read_text(encoding="utf-8"))
     services = data["services"]
-    for name in ("phoenix", "ollama", "vllm", "llamacpp", "langfuse-server"):
+    for name in ("phoenix", "ollama", "vllm", "llamacpp", "langfuse-web", "langfuse-worker", "minio", "redis"):
         assert name in services
     assert "phoenix" in services["phoenix"]["profiles"]
     assert "ollama" in services["ollama"]["profiles"]
+    assert "langfuse" in services["langfuse-web"]["profiles"]
+    assert services["langfuse-web"]["image"].endswith(":3")
+    assert services["langfuse-worker"]["image"].endswith("langfuse-worker:3")
     # Default ollama has no GPU reservation (CPU-capable smoke).
     assert "deploy" not in services["ollama"]
     # Healthchecks must not pass credentials as CLI flags (secret scanners).
     raw = compose_file().read_text(encoding="utf-8")
     assert "--password" not in raw
+    assert "LANGFUSE_INIT_PROJECT_PUBLIC_KEY" in raw
 
 
 def test_compose_argv_profiles():
@@ -33,7 +37,7 @@ def test_compose_argv_profiles():
 
 def test_default_profiles_ollama():
     names = default_profiles_for("ollama")
-    assert names == ["phoenix", "ollama"]
+    assert names == ["langfuse", "ollama"]
     assert set(names) <= set(VALID_PROFILES)
 
 

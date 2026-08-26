@@ -28,6 +28,14 @@ def build_parser() -> argparse.ArgumentParser:
     shared.add_argument("--profile", default=os.environ.get("SANDBOX_PROFILE") or "ollama")
     shared.add_argument("--model", default=None, help="Override every agent's model tag")
     shared.add_argument("--prompt", default=None, help="Local prompt variant stem (e.g. sorter_local_v0)")
+    shared.add_argument(
+        "--agent-model",
+        action="append",
+        default=[],
+        dest="agent_models",
+        metavar="NAME=TAG",
+        help="Surgical per-agent model override (repeatable)",
+    )
 
     parser = argparse.ArgumentParser(
         prog="sandbox",
@@ -36,7 +44,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command")
 
-    p = sub.add_parser("up", help="Start compose profiles (phoenix + provider)", parents=[shared])
+    p = sub.add_parser("up", help="Start compose profiles (langfuse + provider)", parents=[shared])
     p.add_argument("--compose-profile", action="append", dest="compose_profiles")
     p.add_argument("-d", "--detach", action="store_true", default=True)
     p.set_defaults(handler=_cmd_up)
@@ -45,7 +53,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--compose-profile", action="append", dest="compose_profiles")
     p.set_defaults(handler=_cmd_down)
 
-    p = sub.add_parser("health", help="Probe the active provider + Phoenix", parents=[shared])
+    p = sub.add_parser("health", help="Probe the active provider + Langfuse", parents=[shared])
     p.set_defaults(handler=_cmd_health)
 
     p = sub.add_parser("pull-models", help="Pull Ollama (or listed) weights", parents=[shared])
@@ -54,10 +62,20 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("fetch-deps", help="Clone llm-mailroom @ v0.5.0 into vendor/", parents=[shared])
     p.add_argument("--entity", action="store_true", help="Also clone llm-entity-extraction")
+    p.add_argument("--visualizer", action="store_true", help="Also clone The-Mailroom (Langfuse observer)")
     p.set_defaults(handler=_cmd_fetch_deps)
 
     p = sub.add_parser("cutover", help="Show effective agent→provider/model assignments", parents=[shared])
     p.set_defaults(handler=_cmd_cutover)
+
+    agents_p = sub.add_parser("agents", help="List or show pipeline agents", parents=[shared])
+    agents_sub = agents_p.add_subparsers(dest="agents_cmd")
+    al = agents_sub.add_parser("list", parents=[shared])
+    al.set_defaults(handler=_cmd_agents_list)
+    ash = agents_sub.add_parser("show", parents=[shared])
+    ash.add_argument("name")
+    ash.set_defaults(handler=_cmd_agents_show)
+    agents_p.set_defaults(handler=_cmd_agents_list)
 
     pipe = sub.add_parser("pipeline", help="Run mailroom watcher or API", parents=[shared])
     pipe_sub = pipe.add_subparsers(dest="pipeline_cmd")
@@ -90,13 +108,21 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--dry-run", action="store_true")
     p.set_defaults(handler=_cmd_legalbench)
 
-    p = sub.add_parser("eval", help="Run a scoring eval", parents=[shared])
-    p.add_argument("task", choices=("sorter", "extract", "chained", "pipeline", "legalbench"))
+    from mailroom_sandbox.eval.agents import EVAL_TASKS
+
+    p = sub.add_parser("eval", help="Run a scoring eval (isolated agent or connected pipeline)", parents=[shared])
+    p.add_argument("task", choices=tuple(EVAL_TASKS))
     p.add_argument("--mock", action="store_true", default=False)
     p.add_argument("--local", action="store_true", default=False)
     p.add_argument("--sample", type=int, default=None)
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--name", dest="experiment_name")
+    p.add_argument(
+        "--connected",
+        action="store_true",
+        default=False,
+        help="Score class + stage + extraction + routing (pipeline default; flag is accepted on pipeline)",
+    )
     p.set_defaults(handler=_cmd_eval)
 
     p = sub.add_parser("matrix", help="provider × model × prompt grid", parents=[shared])
@@ -131,6 +157,12 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _agent_models(args: argparse.Namespace) -> dict[str, str]:
+    from mailroom_sandbox.overlay import parse_agent_models
+
+    return parse_agent_models(getattr(args, "agent_models", None) or [])
+
+
 def _print(obj: object) -> None:
     if isinstance(obj, (dict, list)):
         print(json.dumps(obj, indent=2, default=str))
@@ -160,6 +192,15 @@ def _cmd_health(args: argparse.Namespace) -> int:
     from mailroom_sandbox.overlay import load_profile as _lp
 
     result = health_check(args.profile)
+    host = os.environ.get("LANGFUSE_HOST") or "http://localhost:3000"
+    langfuse = probe_models(
+        {
+            "name": "langfuse",
+            "base_url": host,
+            "health": {"models_url": f"{host.rstrip('/')}/api/public/health"},
+        }
+    )
+    result["langfuse"] = langfuse.as_dict()
     phoenix = probe_models(
         {
             "name": "phoenix",
@@ -193,6 +234,14 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
             vendor_dir() / "llm-entity-extraction",
             "v0.20.0",
         )
+    if getattr(args, "visualizer", False):
+        dest = vendor_dir() / "The-Mailroom"
+        if dest.is_dir() and (dest / ".git").exists():
+            subprocess.run(["git", "-C", str(dest), "pull", "--ff-only"], check=False)
+        else:
+            rc = rc or subprocess.run(
+                ["git", "clone", "--depth", "1", "https://github.com/Exios66/The-Mailroom.git", str(dest)]
+            ).returncode
     return rc
 
 
@@ -205,12 +254,61 @@ def _clone(url: str, dest: Path, tag: str) -> int:
 
 
 def _cmd_cutover(args: argparse.Namespace) -> int:
-    activation = activate(args.profile, model=args.model, prompt_variant=args.prompt)
+    activation = activate(
+        args.profile,
+        model=args.model,
+        prompt_variant=args.prompt,
+        agent_models=_agent_models(args),
+    )
     print(f"profile={activation.profile_name} taxonomy={activation.taxonomy_path}")
     print(f"{'Agent':<35} {'Provider':<15} {'Model'}")
     print("-" * 80)
     for name, provider, model in activation.assignments:
         print(f"{name:<35} {provider:<15} {model}")
+    return 0
+
+
+def _cmd_agents_list(args: argparse.Namespace) -> int:
+    from mailroom_sandbox.eval.agents import RETIRED_AGENTS, SPECS
+    from mailroom_sandbox.overlay import agent_roster, load_yaml
+
+    activation = activate(
+        args.profile,
+        model=args.model,
+        prompt_variant=args.prompt,
+        agent_models=_agent_models(args),
+    )
+    roster = agent_roster(load_yaml(activation.taxonomy_path))
+    evals = sorted(SPECS)
+    _print(
+        {
+            "profile": activation.profile_name,
+            "agents": roster,
+            "eval_tasks": evals,
+            "retired": list(RETIRED_AGENTS),
+        }
+    )
+    return 0
+
+
+def _cmd_agents_show(args: argparse.Namespace) -> int:
+    from mailroom_sandbox.eval.agents import SPECS
+    from mailroom_sandbox.overlay import agent_roster, load_yaml
+
+    activation = activate(
+        args.profile,
+        model=args.model,
+        prompt_variant=args.prompt,
+        agent_models=_agent_models(args),
+    )
+    roster = {row["agent"]: row for row in agent_roster(load_yaml(activation.taxonomy_path))}
+    spec = SPECS.get(args.name)
+    payload = roster.get(args.name, {"agent": args.name, "enabled": False})
+    if spec:
+        payload["observation"] = spec.observation
+        payload["eval_task"] = spec.name
+        payload["dojo_profile"] = spec.dojo_profile
+    _print(payload)
     return 0
 
 
@@ -222,17 +320,17 @@ def _mailroom_env() -> dict[str, str]:
         parts.insert(0, str(src))
     existing = env.get("PYTHONPATH", "")
     env["PYTHONPATH"] = os.pathsep.join(parts + ([existing] if existing else []))
-    env.setdefault("OBSERVABILITY_ENVIRONMENT", "sandbox")
+    env.setdefault("OBSERVABILITY_ENVIRONMENT", os.environ.get("OBSERVABILITY_ENVIRONMENT") or "pilot")
     return env
 
 
 def _cmd_watcher(args: argparse.Namespace) -> int:
-    activate(args.profile, model=args.model, prompt_variant=args.prompt)
+    activate(args.profile, model=args.model, prompt_variant=args.prompt, agent_models=_agent_models(args))
     return subprocess.call([sys.executable, "-m", "pipeline.watcher"], env=_mailroom_env())
 
 
 def _cmd_api(args: argparse.Namespace) -> int:
-    activate(args.profile, model=args.model, prompt_variant=args.prompt)
+    activate(args.profile, model=args.model, prompt_variant=args.prompt, agent_models=_agent_models(args))
     return subprocess.call([sys.executable, "-m", "api.main"], env=_mailroom_env())
 
 
@@ -294,25 +392,31 @@ def _cmd_legalbench(args: argparse.Namespace) -> int:
 
 def _cmd_eval(args: argparse.Namespace) -> int:
     from mailroom_sandbox.eval import runners
+    from mailroom_sandbox.eval.agents import SPECS
 
     mock = args.mock or not args.local
     os.environ["SANDBOX_RUN_MODE"] = "mock" if mock else "local"
-    fn = {
-        "sorter": runners.run_sorter_eval,
-        "extract": runners.run_extract_eval,
-        "chained": runners.run_chained_eval,
-        "pipeline": runners.run_pipeline_eval,
-        "legalbench": runners.run_legalbench_eval,
-    }[args.task]
-    result = fn(
-        mock=mock,
-        sample=args.sample,
-        dry_run=args.dry_run,
-        experiment_name=args.experiment_name or f"sandbox_{args.task}",
-        profile=args.profile,
-        model=args.model,
-        **({"prompt_version": args.prompt} if args.task != "legalbench" else {}),
-    )
+    kwargs = {
+        "mock": mock,
+        "sample": args.sample,
+        "dry_run": args.dry_run,
+        "experiment_name": args.experiment_name or f"sandbox_{args.task}",
+        "profile": args.profile,
+        "model": args.model,
+        "agent_models": _agent_models(args),
+    }
+    if args.task in SPECS:
+        result = runners.run_isolated_eval(args.task, prompt_version=args.prompt, **kwargs)
+    elif args.task == "pipeline":
+        result = runners.run_pipeline_eval(
+            prompt_version=args.prompt, connected=True, **kwargs
+        )
+    elif args.task == "extract":
+        result = runners.run_extract_eval(prompt_version=args.prompt, **kwargs)
+    elif args.task == "chained":
+        result = runners.run_chained_eval(prompt_version=args.prompt, **kwargs)
+    else:
+        result = runners.run_legalbench_eval(**kwargs)
     _print(result)
     return 0
 

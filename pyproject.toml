@@ -27,6 +27,9 @@ dev = [
     "pytest>=8.0",
     "pytest-mock>=3.12",
 ]
+observability = [
+    "langfuse>=4.0,<5",
+]
 deploy = [
     "modal>=0.73",
 ]
@@ -41,7 +44,7 @@ gpu = [
     "mailroom-sandbox[deploy]",
 ]
 all = [
-    "mailroom-sandbox[dev,deploy,evals]",
+    "mailroom-sandbox[dev,deploy,evals,observability]",
 ]
 
 [project.scripts]

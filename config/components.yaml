@@ -1,0 +1,48 @@
+# Sandbox-only component gates and routing knobs.
+# These do not fork the 13-node graph. Isolated evals skip disabled agents.
+# Routing values are merged into data/runtime/taxonomy.yaml after profile rewrite.
+
+nodes:
+  ingest: true
+  review_classify: true
+  judge_verify: true
+  arbiter: true
+  boss_escalation: true
+  human_review: true
+  catalog_write: true
+  archive: true
+  vision: true
+
+agents:
+  sorter: true
+  sorter_reviewer: true
+  arbiter: true
+  contracts_specialist: true
+  corporate_records_specialist: true
+  correspondence_specialist: true
+  compliance_specialist: true
+  insurance_claims_specialist: true
+  reporter: true
+  boss: true
+  pdf_transcriber: true
+  image_extractor: true
+  judge: true
+  intake: true
+  archivist: true
+
+# Retired live-pipeline specialists (dojo still scores historical traces).
+retired_agents:
+  - court_opinions_specialist
+  - due_diligence_specialist
+
+routing:
+  confidence:
+    high: 0.95
+    low: 0.70
+    retry_max: 1
+    conflict_threshold: 0.3
+
+prompts:
+  sorter: sorter_local_v0
+  sorter_reviewer: sorter_reviewer_local_v0
+  judge: judge_local_v0

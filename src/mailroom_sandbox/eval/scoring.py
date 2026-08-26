@@ -78,3 +78,17 @@ def score_legalbench(expected: list[str], predicted: list[str]) -> dict[str, Any
         result = {"result": result}
     result.setdefault("exact_match", accuracy(expected, predicted))
     return result
+
+
+def score_stage(expected: list[str], predicted: list[str]) -> dict[str, Any]:
+    acc = accuracy(expected, predicted)
+    matches = [exact_match(p, e) for p, e in zip(predicted, expected)]
+    return {
+        "stage_correct": acc,
+        "stage_correct_ci": bootstrap_ci(matches) if matches else {},
+        "n": len(expected),
+    }
+
+
+def mean_or_zero(values: list[float]) -> float:
+    return sum(values) / len(values) if values else 0.0

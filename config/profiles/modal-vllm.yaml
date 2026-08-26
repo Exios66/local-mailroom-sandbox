@@ -8,7 +8,7 @@ base_url_env: VLLM_BASE_URL
 api_key_env: VLLM_API_KEY
 default_provider_env: vllm
 compose_profiles:
-  - phoenix
+  - langfuse
 pull_models: []
 health:
   models_url: "{base_url}/models"
