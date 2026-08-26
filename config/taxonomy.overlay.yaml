@@ -1,0 +1,32 @@
+# Local-first overlay applied on top of mailroom's shipped taxonomy.yaml.
+# Agent provider/model values are rewritten by the active profile; this file
+# only carries sandbox-specific knobs that should not mutate the installed
+# package.
+
+vision:
+  enabled: true
+  models:
+    - "qwen/"
+    - "qwen3"
+    - "llava"
+    - "llama-3.2"
+    - "gpt-4o"
+    - "gemini"
+    - "claude"
+
+cost_models:
+  qwen3:8b:
+    input_per_million: 0.0
+    output_per_million: 0.0
+  qwen3:7b:
+    input_per_million: 0.0
+    output_per_million: 0.0
+  Qwen/Qwen3-8B:
+    input_per_million: 0.0
+    output_per_million: 0.0
+  llama3.1:8b:
+    input_per_million: 0.0
+    output_per_million: 0.0
+  deepseek-r1:8b:
+    input_per_million: 0.0
+    output_per_million: 0.0
