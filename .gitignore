@@ -1,0 +1,48 @@
+*.pyc
+__pycache__/
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+
+# Environment (keep committed templates under config/)
+.env
+*.env.local
+config/.env
+
+# Runtime / operator data (fixtures are tracked)
+data/runtime/
+data/cache/
+data/traces/
+data/pipeline/
+data/mailroom.db
+data/checkpoints.db
+data/samples/
+data/*.log
+vendor/*
+!vendor/README.md
+
+# Reports generated at runtime (keep README)
+reports/scores/
+reports/experiment_log.jsonl
+reports/experiment_log.md
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Test
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+
+# Docker
+docker/volumes/

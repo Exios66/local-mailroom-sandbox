@@ -1,0 +1,57 @@
+# OpenRouter champion ids → local serving tags.
+# Used by overlay rewrite and matrix cells so local vs API runs stay comparable.
+
+defaults:
+  ollama: qwen3:8b
+  vllm: Qwen/Qwen3-8B
+  llamacpp: qwen3-8b
+  lmstudio: qwen3-8b
+  openrouter: qwen/qwen3.7-flash
+  fallback_ollama: qwen3:7b
+
+map:
+  qwen/qwen3.7-flash:
+    ollama: qwen3:8b
+    vllm: Qwen/Qwen3-8B
+    llamacpp: qwen3-8b
+    lmstudio: qwen3-8b
+    openrouter: qwen/qwen3.7-flash
+  qwen/qwen-3-7b:
+    ollama: qwen3:7b
+    vllm: Qwen/Qwen3-8B
+    llamacpp: qwen3-7b
+    lmstudio: qwen3-7b
+    openrouter: qwen/qwen-3-7b
+  deepseek/deepseek-v4-flash:
+    ollama: deepseek-r1:8b
+    vllm: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+    llamacpp: deepseek-r1-8b
+    lmstudio: deepseek-r1-8b
+    openrouter: deepseek/deepseek-v4-flash
+  deepseek/deepseek-v4-pro:
+    ollama: deepseek-r1:14b
+    vllm: deepseek-ai/DeepSeek-R1-Distill-Qwen-14B
+    llamacpp: deepseek-r1-14b
+    lmstudio: deepseek-r1-14b
+    openrouter: deepseek/deepseek-v4-pro
+  openai/gpt-4o:
+    ollama: qwen3:8b
+    vllm: Qwen/Qwen3-8B
+    llamacpp: qwen3-8b
+    lmstudio: qwen3-8b
+    openrouter: openai/gpt-4o
+
+# Local catalog (recommendations; not an allowlist).
+local_catalog:
+  ollama:
+    - qwen3:8b
+    - qwen3:7b
+    - qwen3:14b
+    - llama3.1:8b
+    - llama3.2:3b
+    - deepseek-r1:8b
+    - mistral:7b
+  vllm:
+    - Qwen/Qwen3-8B
+    - Qwen/Qwen3-14B
+    - meta-llama/Llama-3.1-8B-Instruct
