@@ -17,6 +17,9 @@ def test_compose_file_parses():
     assert "ollama" in services["ollama"]["profiles"]
     # Default ollama has no GPU reservation (CPU-capable smoke).
     assert "deploy" not in services["ollama"]
+    # Healthchecks must not pass credentials as CLI flags (secret scanners).
+    raw = compose_file().read_text(encoding="utf-8")
+    assert "--password" not in raw
 
 
 def test_compose_argv_profiles():

@@ -16,3 +16,8 @@
   via `sandbox fetch-deps`) still listed dojo v0.7.0 as a pip pin; the sandbox
   follows the current family scoring engine. `pip install -e ".[pipeline]"`
   installs mailroom *main* (same dojo pin).
+
+### Fixed
+
+- ClickHouse compose healthcheck no longer passes database credentials
+  as CLI flags (GitGuardian generic CLI secret detector).
