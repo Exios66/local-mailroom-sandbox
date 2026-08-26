@@ -1,0 +1,128 @@
+# Local-mailroom-sandbox compose stack.
+# Profiles: phoenix (default sink), ollama, vllm, llamacpp, langfuse (optional).
+# GPU is NOT required for phoenix + ollama-on-CPU. vLLM needs an NVIDIA GPU.
+
+services:
+  phoenix:
+    image: arizephoenix/phoenix:latest
+    container_name: sandbox-phoenix
+    profiles: ["phoenix"]
+    ports:
+      - "6006:6006"
+    environment:
+      PHOENIX_WORKING_DIR: /data
+    volumes:
+      - phoenix_data:/data
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: sandbox-ollama
+    profiles: ["ollama"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      OLLAMA_KEEP_ALIVE: 30m
+
+  vllm:
+    image: vllm/vllm-openai:latest
+    container_name: sandbox-vllm
+    profiles: ["vllm"]
+    ports:
+      - "8000:8000"
+    volumes:
+      - hf_cache:/root/.cache/huggingface
+    environment:
+      HUGGING_FACE_HUB_TOKEN: ${HF_TOKEN:-}
+    command:
+      - Qwen/Qwen3-8B
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --max-model-len
+      - "32768"
+      - --disable-log-requests
+    ipc: host
+
+  llamacpp:
+    image: ghcr.io/ggerganov/llama.cpp:server
+    container_name: sandbox-llamacpp
+    profiles: ["llamacpp"]
+    ports:
+      - "8080:8080"
+    environment:
+      LLAMA_ARG_HOST: 0.0.0.0
+      LLAMA_ARG_PORT: "8080"
+      LLAMA_ARG_HF_REPO: ${LLAMACPP_HF_REPO:-Qwen/Qwen3-8B-GGUF}
+      LLAMA_ARG_HF_FILE: ${LLAMACPP_HF_FILE:-}
+    volumes:
+      - llamacpp_models:/models
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: sandbox-postgres
+    profiles: ["langfuse"]
+    environment:
+      POSTGRES_USER: mailroom
+      POSTGRES_PASSWORD: mailroom
+      POSTGRES_DB: mailroom
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mailroom"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24-alpine
+    container_name: sandbox-clickhouse
+    profiles: ["langfuse"]
+    environment:
+      CLICKHOUSE_DB: langfuse
+      CLICKHOUSE_USER: langfuse
+      CLICKHOUSE_PASSWORD: langfuse
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --user langfuse --password langfuse --query 'SELECT 1'"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  langfuse-server:
+    image: langfuse/langfuse:2
+    container_name: sandbox-langfuse
+    profiles: ["langfuse"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://mailroom:mailroom@postgres:5432/mailroom
+      NEXTAUTH_SECRET: change-me-sandbox
+      NEXTAUTH_URL: http://localhost:3000
+      SALT: change-me-sandbox-salt
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: langfuse
+      CLICKHOUSE_PASSWORD: langfuse
+      CLICKHOUSE_DB: langfuse
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "true"
+    ports:
+      - "3000:3000"
+
+volumes:
+  phoenix_data:
+  ollama_data:
+  hf_cache:
+  llamacpp_models:
+  pgdata:
+  clickhouse_data:
