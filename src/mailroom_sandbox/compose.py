@@ -37,7 +37,7 @@ def compose_argv(profiles: list[str], *args: str, docker_bin: str = "docker") ->
 
 def default_profiles_for(sandbox_profile: str) -> list[str]:
     cfg = load_profile(sandbox_profile)
-    names = list(cfg.get("compose_profiles") or ["phoenix"])
+    names = list(cfg.get("compose_profiles") or ["langfuse"])
     return [n for n in names if n in VALID_PROFILES]
 
 

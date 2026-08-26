@@ -80,7 +80,13 @@ def run_matrix(
         "legalbench": runners.run_legalbench_eval,
     }.get(task)
     if runner is None:
-        raise ValueError(f"Unknown matrix task {task!r}")
+        from mailroom_sandbox.eval.agents import SPECS
+
+        if task in SPECS:
+            def runner(**kwargs: Any) -> dict[str, Any]:
+                return runners.run_isolated_eval(task, **kwargs)
+        else:
+            raise ValueError(f"Unknown matrix task {task!r}")
 
     results = []
     for cell in cells:

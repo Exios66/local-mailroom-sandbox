@@ -29,7 +29,10 @@ def fixture_file(row: dict[str, str]) -> Path:
 
 
 def parse_expected_fields(row: dict[str, str]) -> dict | None:
-    raw = (row.get("expected_fields") or "").strip()
+    raw = row.get("expected_fields") or ""
+    if isinstance(raw, dict):
+        return raw
+    raw = str(raw).strip()
     if not raw:
         return None
     try:
@@ -66,6 +69,28 @@ def load_legalbench_fixtures() -> list[dict[str, Any]]:
         if line.strip():
             rows.append(json.loads(line))
     return rows
+
+
+def load_jsonl(path: Path) -> list[dict[str, Any]]:
+    rows = []
+    if not path.is_file():
+        return rows
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            rows.append(json.loads(line))
+    return rows
+
+
+def agent_fixture_path(agent: str) -> Path:
+    return fixtures_dir() / "agents" / f"{agent}.jsonl"
+
+
+def load_agent_fixtures(agent: str) -> list[dict[str, Any]]:
+    return load_jsonl(agent_fixture_path(agent))
+
+
+def intake_dir() -> Path:
+    return fixtures_dir() / "intake"
 
 
 def cache_dir() -> Path:

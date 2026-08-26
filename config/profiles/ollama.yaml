@@ -9,7 +9,7 @@ base_url_env: OLLAMA_BASE_URL
 api_key_env: null
 default_provider_env: ollama
 compose_profiles:
-  - phoenix
+  - langfuse
   - ollama
 pull_models:
   - qwen3:8b

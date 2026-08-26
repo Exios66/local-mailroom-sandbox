@@ -3,12 +3,16 @@
 ## Compose
 
 ```bash
-sandbox up                       # phoenix + ollama (from the ollama profile)
+sandbox up                       # langfuse + ollama (from the ollama profile)
 sandbox up --compose-profile phoenix --compose-profile vllm
 sandbox down
 ```
 
-Profiles: `phoenix`, `ollama`, `vllm`, `llamacpp`, `langfuse`.
+Profiles: `langfuse`, `phoenix`, `ollama`, `vllm`, `llamacpp`.
+
+Langfuse 3 (`langfuse-web` + `langfuse-worker`) is the default tracing sink.
+Phoenix is optional. Headless project keys are `pk-lf-sandbox` / `sk-lf-sandbox`
+(see `config/.env.example`).
 
 vLLM needs an NVIDIA GPU on the host. Ollama runs on CPU for smoke models
 (`llama3.2:3b`); use a GPU host for `qwen3:8b`.

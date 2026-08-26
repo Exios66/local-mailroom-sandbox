@@ -14,3 +14,7 @@ Umbrella map: [llm-mailroom/docs/sister-repos.md](https://github.com/Exios66/llm
 
 Do not duplicate the 13-node graph here. Do not create a second kanban board;
 cross-repo work stays on llm-entity-extraction's MESSAGE_BOARD.
+
+Sandbox traces use the same Langfuse v4 contract as llm-mailroom
+(`document-pipeline` chain, `NODE_OBSERVATION_TYPES`, `mailroom` tag) so
+The-Mailroom can observe local evals. Clone it with `sandbox fetch-deps --visualizer`.
