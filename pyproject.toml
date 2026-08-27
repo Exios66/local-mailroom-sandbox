@@ -15,11 +15,11 @@ dependencies = [
     "structlog>=24.0",
     "pydantic>=2.0",
     "openai>=1.30",
-    # Current family scoring pin (llm-dojo-scoring v0.10.0). The v0.5.0
+    # Current family scoring pin (llm-dojo-scoring v0.11.0). The v0.5.0
     # mailroom *tag* still asks for v0.7.0, so mailroom is not a core pip dep —
     # use `sandbox fetch-deps` (source tree @ v0.5.0) or the `[pipeline]` extra
-    # (mailroom main; matching dojo pin once mailroom lands @v0.10.0).
-    "llm-dojo-scoring @ git+https://github.com/Exios66/llm-dojo-scoring.git@v0.10.0",
+    # (mailroom main; matching dojo pin once mailroom lands @v0.11.0).
+    "llm-dojo-scoring @ git+https://github.com/Exios66/llm-dojo-scoring.git@v0.11.0",
 ]
 
 [project.optional-dependencies]
@@ -34,8 +34,8 @@ deploy = [
     "modal>=0.73",
 ]
 # Current llm-mailroom main. Conflicts with the v0.5.0 tag. Mailroom's
-# pyproject still listed dojo v0.9.0 until its matching @v0.10.0 pin lands;
-# v0.10.0 is additive on v0.9.0.
+# pyproject still listed dojo v0.10.0 until its matching @v0.11.0 pin lands;
+# v0.11.0 is additive on v0.10.0 (formulas / T0 names unchanged).
 pipeline = [
     "mailroom @ git+https://github.com/Exios66/llm-mailroom.git",
 ]
