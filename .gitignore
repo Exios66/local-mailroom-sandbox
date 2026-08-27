@@ -29,6 +29,9 @@ vendor/*
 reports/scores/
 reports/experiment_log.jsonl
 reports/experiment_log.md
+reports/notebooks/*.jsonl
+reports/notebooks/experiment_log.md
+reports/notebooks/mailroom_data/
 
 # IDE / OS
 .vscode/

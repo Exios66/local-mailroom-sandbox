@@ -58,3 +58,6 @@ sandbox traces export    # writes data/traces/export.json (host + last trace ids
 
 Inspect traces in the Langfuse UI. Durable scores also live in
 `reports/experiment_log.jsonl` and `reports/scores/`.
+
+Offline contract demo: [`notebooks/05_tracing_contract.ipynb`](../notebooks/05_tracing_contract.ipynb).
+Wiki: [`docs/wiki/Tracing.md`](wiki/Tracing.md).

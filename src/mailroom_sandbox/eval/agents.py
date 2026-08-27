@@ -52,6 +52,10 @@ def _resolve_fixture_path(row: dict[str, Any], default: Path) -> Path:
 
     alt = repo_root() / path
     return alt if alt.is_file() else default
+
+
+def _doc_text(row: dict[str, Any]) -> str:
+    """Best-effort document text for live invoke and extraction scoring."""
     if row.get("text"):
         return str(row["text"])
     try:
@@ -60,6 +64,11 @@ def _resolve_fixture_path(row: dict[str, Any], default: Path) -> Path:
             return path.read_text(encoding="utf-8")
     except Exception:
         pass
+    raw = row.get("file")
+    if raw:
+        path = Path(str(raw))
+        if path.is_file():
+            return path.read_text(encoding="utf-8")
     return ""
 
 

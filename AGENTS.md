@@ -27,12 +27,14 @@ sandbox eval judge --mock
 sandbox eval pipeline --mock        # connected graph scores
 sandbox matrix --providers ollama --models qwen3:8b --prompts sorter_local_v0 --mock --dry-run
 pytest -v                           # network-free; live LLM tests need SANDBOX_LOCAL_LLM=1
+# notebooks (offline): jupyter notebook notebooks/01_activate_overlay.ipynb
 ```
 
 - Config: `config/profiles/*.yaml` + `config/taxonomy.overlay.yaml` + `config/components.yaml` + `config/models.yaml`.
 - Runtime taxonomy is written to `data/runtime/taxonomy.yaml` (gitignored).
 - Experiment log: `reports/experiment_log.jsonl` (sandbox-local, not a sister-repo mirror).
 - Tracing default: Langfuse 3 / SDK v4 (`OBSERVABILITY_PROVIDER=langfuse`). Phoenix is an optional sidecar. OpenRouter is opt-in.
+- Wiki: [`docs/wiki/Home.md`](docs/wiki/Home.md). Offline demos: [`notebooks/README.md`](notebooks/README.md).
 
 ## Architecture gotchas
 

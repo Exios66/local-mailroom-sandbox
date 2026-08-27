@@ -70,6 +70,10 @@ local models. Pass `--prompt sorter_local_v0` (or `sorter_reviewer_local_v0`,
 `judge_local_v0`). Per-agent prompt stems also live under
 `config/components.yaml` `prompts:`.
 
+Offline walkthroughs: [`notebooks/03_isolated_agent_evals.ipynb`](../notebooks/03_isolated_agent_evals.ipynb),
+[`notebooks/04_pipeline_and_scoring.ipynb`](../notebooks/04_pipeline_and_scoring.ipynb).
+Wiki: [`docs/wiki/Evals.md`](wiki/Evals.md).
+
 ## Component gates
 
 `config/components.yaml` enables/disables isolated evals and overlays

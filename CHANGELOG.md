@@ -22,6 +22,9 @@
   via `sandbox fetch-deps`) still listed dojo v0.7.0 as a pip pin; the sandbox
   follows the current family scoring engine. `pip install -e ".[pipeline]"`
   installs mailroom *main* (matching dojo pin once mailroom lands `@v0.11.0`).
+- In-repo wiki (`docs/wiki/`) with collapsible how-tos, plus six offline
+  Jupyter notebooks covering overlay, fixtures, isolated evals, pipeline
+  scoring, the Langfuse v4 trace contract, and the experiment log.
 
 ### Changed
 
@@ -36,3 +39,5 @@
 
 - ClickHouse compose healthcheck no longer passes database credentials
   as CLI flags (GitGuardian generic CLI secret detector).
+- Isolated specialist evals can score again: `_doc_text()` was accidentally
+  inlined behind an early `return` in `eval/agents.py`.

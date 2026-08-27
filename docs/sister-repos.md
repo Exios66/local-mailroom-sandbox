@@ -18,3 +18,5 @@ cross-repo work stays on llm-entity-extraction's MESSAGE_BOARD.
 Sandbox traces use the same Langfuse v4 contract as llm-mailroom
 (`document-pipeline` chain, `NODE_OBSERVATION_TYPES`, `mailroom` tag) so
 The-Mailroom can observe local evals. Clone it with `sandbox fetch-deps --visualizer`.
+
+In-repo wiki: [`docs/wiki/Home.md`](wiki/Home.md).

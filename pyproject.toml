@@ -26,6 +26,12 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "pytest-mock>=3.12",
+    "mailroom-sandbox[notebooks]",
+]
+notebooks = [
+    "nbformat>=5.10",
+    "nbclient>=0.10",
+    "ipykernel>=6.29",
 ]
 observability = [
     "langfuse>=4.0,<5",
@@ -46,7 +52,7 @@ gpu = [
     "mailroom-sandbox[deploy]",
 ]
 all = [
-    "mailroom-sandbox[dev,deploy,evals,observability]",
+    "mailroom-sandbox[dev,deploy,evals,observability,notebooks]",
 ]
 
 [project.scripts]
