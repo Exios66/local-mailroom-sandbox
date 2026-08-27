@@ -1,7 +1,7 @@
-.PHONY: install test up down health pilot
+.PHONY: install test up down health pilot jupyter prepare
 
 install:
-	pip install -e ".[dev]"
+	pip install -e ".[dev,notebooks]"
 	cp -n config/.env.example .env || true
 
 test:
@@ -18,3 +18,9 @@ health:
 
 pilot:
 	sandbox pilot --mock
+
+jupyter:
+	sandbox up --compose-profile jupyter
+
+prepare:
+	sandbox datasets prepare

@@ -11,10 +11,23 @@ from mailroom_sandbox.paths import deploy_dir
 def test_compose_file_parses():
     data = yaml.safe_load(compose_file().read_text(encoding="utf-8"))
     services = data["services"]
-    for name in ("phoenix", "ollama", "vllm", "llamacpp", "langfuse-web", "langfuse-worker", "minio", "redis"):
+    for name in (
+        "phoenix",
+        "ollama",
+        "vllm",
+        "llamacpp",
+        "langfuse-web",
+        "langfuse-worker",
+        "minio",
+        "redis",
+        "jupyter",
+    ):
         assert name in services
     assert "phoenix" in services["phoenix"]["profiles"]
     assert "ollama" in services["ollama"]["profiles"]
+    assert "jupyter" in services["jupyter"]["profiles"]
+    assert services["jupyter"]["build"]["dockerfile"] == "deploy/Dockerfile"
+    assert services["jupyter"]["image"] == "mailroom-sandbox:offline"
     assert "langfuse" in services["langfuse-web"]["profiles"]
     assert services["langfuse-web"]["image"].endswith(":3")
     assert services["langfuse-worker"]["image"].endswith("langfuse-worker:3")

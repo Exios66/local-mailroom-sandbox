@@ -11,7 +11,7 @@ from mailroom_sandbox.overlay import load_profile
 from mailroom_sandbox.paths import deploy_dir, repo_root
 
 COMPOSE_FILE = "docker-compose.yml"
-VALID_PROFILES = ("phoenix", "ollama", "vllm", "llamacpp", "langfuse")
+VALID_PROFILES = ("phoenix", "ollama", "vllm", "llamacpp", "langfuse", "jupyter")
 
 
 def compose_file() -> Path:

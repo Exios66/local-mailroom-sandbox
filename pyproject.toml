@@ -27,6 +27,12 @@ dev = [
     "pytest>=8.0",
     "pytest-mock>=3.12",
 ]
+notebooks = [
+    "jupyterlab>=4.2",
+    "ipykernel>=6.29",
+    "pandas>=2.2",
+    "matplotlib>=3.8",
+]
 observability = [
     "langfuse>=4.0,<5",
 ]
@@ -44,7 +50,7 @@ gpu = [
     "mailroom-sandbox[deploy]",
 ]
 all = [
-    "mailroom-sandbox[dev,deploy,evals,observability]",
+    "mailroom-sandbox[dev,deploy,evals,observability,notebooks]",
 ]
 
 [project.scripts]

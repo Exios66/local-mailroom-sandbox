@@ -61,7 +61,9 @@ Offline catalog: `data/fixtures/` (see `ATTRIBUTION.md`). Tiny HF slice:
 `data/fixtures/agents/*.jsonl`. Tiny PDF/PNG: `data/fixtures/intake/`.
 
 `sandbox datasets pull` streams a Hub head into `data/cache/` when network is
-allowed.
+allowed. `sandbox datasets prepare` (and notebooks `01`–`03`) clean the offline
+catalog into `data/runtime/prepared/` with no network — see
+[`docs/docker-offline.md`](docker-offline.md).
 
 ## Prompt variants
 
