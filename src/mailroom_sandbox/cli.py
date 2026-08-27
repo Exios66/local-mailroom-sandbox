@@ -143,6 +143,12 @@ def build_parser() -> argparse.ArgumentParser:
     pull.add_argument("--dataset", default="Lucius-Morningstar/docclass-merged")
     pull.add_argument("--max-rows", type=int, default=50)
     pull.set_defaults(handler=_cmd_datasets_pull)
+    prep = ds.add_parser(
+        "prepare",
+        help="Load/clean fixtures into data/runtime/prepared/ (offline, no network)",
+        parents=[shared],
+    )
+    prep.set_defaults(handler=_cmd_datasets_prepare)
     p.set_defaults(handler=_cmd_datasets_help)
 
     p = sub.add_parser("traces", help="Trace helpers", parents=[shared])
@@ -440,7 +446,7 @@ def _cmd_matrix(args: argparse.Namespace) -> int:
 
 
 def _cmd_datasets_help(args: argparse.Namespace) -> int:
-    print("Use: sandbox datasets pull")
+    print("Use: sandbox datasets pull | sandbox datasets prepare")
     return 0
 
 
@@ -450,6 +456,15 @@ def _cmd_datasets_pull(args: argparse.Namespace) -> int:
     path = pull_hf_dataset(args.dataset, max_rows=args.max_rows)
     print(path)
     return 0
+
+
+def _cmd_datasets_prepare(args: argparse.Namespace) -> int:
+    from mailroom_sandbox.prep import prepare_offline_datasets
+
+    activate(args.profile, model=args.model, prompt_variant=args.prompt, agent_models=_agent_models(args))
+    summary = prepare_offline_datasets()
+    _print(summary)
+    return 0 if summary.get("counts", {}).get("fixtures", 0) else 1
 
 
 def _cmd_traces_help(args: argparse.Namespace) -> int:
