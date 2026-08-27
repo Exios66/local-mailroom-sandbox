@@ -26,6 +26,9 @@
   Compose profile `jupyter` for Jupyter Lab on `:8888`, plus dedicated notebooks
   (`notebooks/01`–`03`) and `sandbox datasets prepare` to load/clean/write
   fixtures under `data/runtime/prepared/`.
+- Project Agent Skills under `.cursor/skills/` for tool selection: router plus
+  Langfuse, Braintrust, Apache Phoenix, Ollama, Modal, and Hugging Face
+  (offline-first Hub usage).
 
 ### Fixed
 

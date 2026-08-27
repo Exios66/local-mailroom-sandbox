@@ -8,6 +8,24 @@ Pipeline code lives in [`llm-mailroom`](https://github.com/Exios66/llm-mailroom)
 
 Python 3.11+, no build step.
 
+## Skills (tool selection)
+
+Committed under `.cursor/skills/`. **Read `sandbox-tool-router` first** for any
+provider, tracing, dataset, or deploy task, then open exactly one specialty skill.
+
+| Skill | Appropriate for |
+| --- | --- |
+| `sandbox-tool-router` | Choosing among the stacks below |
+| `ollama` | Default local LLM (prefer over OpenRouter/Modal) |
+| `modal` | Remote GPU vLLM (`sandbox-vllm`) |
+| `langfuse` | Default tracing + The-Mailroom (Langfuse 3 / SDK v4) |
+| `apache-phoenix` | Optional Arize Phoenix OTEL sidecar only |
+| `braintrust` | Opt-in hosted Braintrust (never default offline) |
+| `huggingface` | Hub pulls / weights; offline fixtures first |
+
+Do not use Phoenix or Braintrust as the The-Mailroom sink. Do not use OpenRouter
+unless explicitly opted in.
+
 ## Commands
 
 ```bash
@@ -37,6 +55,7 @@ sandbox up --compose-profile jupyter  # Lab on :8888 (deploy/Dockerfile)
 - Experiment log: `reports/experiment_log.jsonl` (sandbox-local, not a sister-repo mirror).
 - Tracing default: Langfuse 3 / SDK v4 (`OBSERVABILITY_PROVIDER=langfuse`). Phoenix is an optional sidecar. OpenRouter is opt-in.
 - Docker: `deploy/Dockerfile` + Compose profiles including `jupyter` — see `docs/docker-offline.md`.
+- Agent skills: `.cursor/skills/` (router + Langfuse / Braintrust / Phoenix / Ollama / Modal / Hugging Face).
 
 ## Architecture gotchas
 
