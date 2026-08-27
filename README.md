@@ -48,6 +48,7 @@ sandbox legalbench --mock|--local
 sandbox eval <agent>|extract|chained|pipeline|legalbench [--mock|--local]
 sandbox matrix --providers ollama --models qwen3:8b --prompts sorter_local_v0
 sandbox datasets pull
+sandbox datasets prepare   # offline clean → data/runtime/prepared/
 sandbox traces export
 ```
 
@@ -56,6 +57,7 @@ sandbox traces export
 - [Providers](docs/providers.md) — Ollama, vLLM, Modal, llama.cpp, LM Studio, OpenRouter
 - [Evals](docs/evals.md) — runners, matrix, scoring, experiment log
 - [Tracing](docs/tracing.md) — Langfuse v4 data model, tags, The-Mailroom
+- [Docker offline](docs/docker-offline.md) — Dockerfile, Compose `jupyter` profile, prep notebooks
 - [Sister repos](docs/sister-repos.md) — family map
 
 ## Layout
@@ -64,8 +66,21 @@ sandbox traces export
 config/profiles/     provider profiles (local-first defaults)
 config/taxonomy.overlay.yaml
 config/models.yaml   OpenRouter champion → local tag map
-deploy/              compose + Modal vLLM
+deploy/              Dockerfile + compose + Modal vLLM
+notebooks/           offline env setup + data prep + mock smoke
 data/fixtures/       offline samples (see ATTRIBUTION.md)
 src/mailroom_sandbox/
 reports/             sandbox experiment log (not a sister-repo mirror)
 ```
+
+## Offline Docker + notebooks
+
+```bash
+pip install -e ".[dev,notebooks]"
+sandbox up --compose-profile langfuse --compose-profile ollama --compose-profile jupyter
+# Lab → http://127.0.0.1:8888/lab
+# Run notebooks/01 → 02 → 03, or:
+sandbox datasets prepare
+```
+
+See [`docs/docker-offline.md`](docs/docker-offline.md).

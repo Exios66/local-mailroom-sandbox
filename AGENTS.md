@@ -27,12 +27,16 @@ sandbox eval judge --mock
 sandbox eval pipeline --mock        # connected graph scores
 sandbox matrix --providers ollama --models qwen3:8b --prompts sorter_local_v0 --mock --dry-run
 pytest -v                           # network-free; live LLM tests need SANDBOX_LOCAL_LLM=1
+sandbox datasets prepare            # offline JSONL under data/runtime/prepared/
+sandbox up --compose-profile jupyter  # Lab on :8888 (deploy/Dockerfile)
 ```
 
 - Config: `config/profiles/*.yaml` + `config/taxonomy.overlay.yaml` + `config/components.yaml` + `config/models.yaml`.
 - Runtime taxonomy is written to `data/runtime/taxonomy.yaml` (gitignored).
+- Prepared fixtures: `data/runtime/prepared/` via notebooks or `sandbox datasets prepare`.
 - Experiment log: `reports/experiment_log.jsonl` (sandbox-local, not a sister-repo mirror).
 - Tracing default: Langfuse 3 / SDK v4 (`OBSERVABILITY_PROVIDER=langfuse`). Phoenix is an optional sidecar. OpenRouter is opt-in.
+- Docker: `deploy/Dockerfile` + Compose profiles including `jupyter` — see `docs/docker-offline.md`.
 
 ## Architecture gotchas
 

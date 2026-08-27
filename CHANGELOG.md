@@ -22,6 +22,10 @@
   via `sandbox fetch-deps`) still listed dojo v0.7.0 as a pip pin; the sandbox
   follows the current family scoring engine. `pip install -e ".[pipeline]"`
   installs mailroom *main* (same dojo pin).
+- Offline Docker image (`deploy/Dockerfile` → `mailroom-sandbox:offline`) and
+  Compose profile `jupyter` for Jupyter Lab on `:8888`, plus dedicated notebooks
+  (`notebooks/01`–`03`) and `sandbox datasets prepare` to load/clean/write
+  fixtures under `data/runtime/prepared/`.
 
 ### Fixed
 

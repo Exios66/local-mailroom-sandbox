@@ -1,5 +1,6 @@
 # Local-mailroom-sandbox compose stack.
-# Profiles: langfuse (default tracing), ollama, vllm, llamacpp, phoenix (optional sidecar).
+# Profiles: langfuse (default tracing), ollama, vllm, llamacpp, phoenix (optional),
+#           jupyter (offline notebook image built from deploy/Dockerfile).
 # GPU is NOT required for langfuse + ollama-on-CPU. vLLM needs an NVIDIA GPU.
 #
 # Langfuse 3 (web + worker) speaks the Python SDK v4 data model used by
@@ -37,6 +38,37 @@ x-langfuse-env: &langfuse-env
   REDIS_PORT: "6379"
 
 services:
+  # Offline sandbox Jupyter Lab (build deploy/Dockerfile). Use with:
+  #   sandbox up --compose-profile jupyter
+  #   # or alongside the default stack:
+  #   sandbox up --compose-profile langfuse --compose-profile ollama --compose-profile jupyter
+  # Open http://127.0.0.1:8888/lab — notebooks under /workspace/notebooks
+  jupyter:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile
+    image: mailroom-sandbox:offline
+    container_name: sandbox-jupyter
+    profiles: ["jupyter"]
+    ports:
+      - "8888:8888"
+    environment:
+      SANDBOX_ROOT: /workspace
+      MAILROOM_BASE_DIR: /workspace/data
+      SANDBOX_PROFILE: ${SANDBOX_PROFILE:-ollama}
+      # Inside the compose network, talk to sibling services by name.
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434/v1}
+      VLLM_BASE_URL: ${VLLM_BASE_URL:-http://vllm:8000/v1}
+      GENERIC_BASE_URL: ${GENERIC_BASE_URL:-http://llamacpp:8080/v1}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-http://langfuse-web:3000}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-pk-lf-sandbox}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-sk-lf-sandbox}
+      PHOENIX_ENDPOINT: ${PHOENIX_ENDPOINT:-http://phoenix:6006/v1/traces}
+      OBSERVABILITY_PROVIDER: ${OBSERVABILITY_PROVIDER:-langfuse}
+    volumes:
+      - .:/workspace
+    working_dir: /workspace
+
   phoenix:
     image: arizephoenix/phoenix:latest
     container_name: sandbox-phoenix
