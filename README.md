@@ -59,6 +59,7 @@ sandbox traces export
 - [Tracing](docs/tracing.md) — Langfuse v4 data model, tags, The-Mailroom
 - [Docker offline](docs/docker-offline.md) — Dockerfile, Compose `jupyter` profile, prep notebooks
 - [Sister repos](docs/sister-repos.md) — family map
+- [Agent skills](.cursor/skills/README.md) — Langfuse, Phoenix, Braintrust, Ollama, Modal, Hugging Face router
 
 ## Layout
 
