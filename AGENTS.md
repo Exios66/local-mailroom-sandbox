@@ -4,7 +4,7 @@ Local-mailroom-sandbox: a **local-first experiment harness** around the governed
 LLM-Mailroom family. It does **not** reimplement the 13-node LangGraph pipeline.
 Pipeline code lives in [`llm-mailroom`](https://github.com/Exios66/llm-mailroom)
 `v0.5.0`; scoring in [`llm-dojo-scoring`](https://github.com/Exios66/llm-dojo-scoring)
-`v0.9.0`; prompt loops optionally in `llm-entity-extraction`.
+`v0.10.0`; prompt loops optionally in `llm-entity-extraction`.
 
 Python 3.11+, no build step.
 
@@ -40,7 +40,7 @@ pytest -v                           # network-free; live LLM tests need SANDBOX_
 - Mailroom's `pipeline.config.CONFIG_PATH` is hardcoded; the sandbox monkeypatches it.
 - `DEFAULT_PROVIDER` alone is not enough — OpenRouter model ids must be rewritten via the overlay.
 - `--model` overrides every agent; `--agent-model NAME=tag` is surgical and wins last.
-- Scoring is pinned to `llm-dojo-scoring @ v0.9.0`. The `llm-mailroom` **v0.5.0 tag** still depends on dojo v0.7.0, so mailroom is not a core pip dependency (pip cannot satisfy both). `sandbox fetch-deps` clones the v0.5.0 source tree; `pip install -e ".[pipeline]"` installs current mailroom *main* (same dojo pin).
+- Scoring is pinned to `llm-dojo-scoring @ v0.10.0`. The `llm-mailroom` **v0.5.0 tag** still depends on dojo v0.7.0, so mailroom is not a core pip dependency (pip cannot satisfy both). `sandbox fetch-deps` clones the v0.5.0 source tree; `pip install -e ".[pipeline]"` installs current mailroom *main* (matching family pin once mailroom lands `@v0.10.0`).
 - Isolated evals call vendored agent classes when present; otherwise they mock and set `offline_fallback`.
 - `scripts/` and `legalbench/` are not in the installed `mailroom` wheel. `sandbox fetch-deps` supplies `PYTHONPATH` for `sandbox pipeline watcher` / `sandbox pipeline api`.
 - No second kanban board in this repo. Cross-family work stays on llm-entity-extraction's MESSAGE_BOARD.

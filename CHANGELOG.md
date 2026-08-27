@@ -18,10 +18,16 @@
 - Per-agent overlay knobs and `sandbox cutover --agent-model NAME=tag`.
 - Langfuse 3 compose (web + worker + postgres + clickhouse + redis + minio)
   with headless `LANGFUSE_INIT_*` keys matching The-Mailroom filters.
-- Scoring is pinned to `llm-dojo-scoring @ v0.9.0`. Mailroom **v0.5.0** (source
+- Scoring is pinned to `llm-dojo-scoring @ v0.10.0`. Mailroom **v0.5.0** (source
   via `sandbox fetch-deps`) still listed dojo v0.7.0 as a pip pin; the sandbox
   follows the current family scoring engine. `pip install -e ".[pipeline]"`
-  installs mailroom *main* (same dojo pin).
+  installs mailroom *main* (matching dojo pin once mailroom lands `@v0.10.0`).
+
+### Changed
+
+- Scoring pin `llm-dojo-scoring @ v0.9.0` → `@v0.10.0` (tag target `3261cdd`).
+  Additive: specialist field-micro P/R/F1/F2, `score_task("docclass")` now
+  computes `f1_macro`, insurance `determination_consistency` is a real scorer.
 
 ### Fixed
 

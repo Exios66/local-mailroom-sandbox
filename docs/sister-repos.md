@@ -5,7 +5,7 @@ This sandbox is an **orchestrator**. Canonical code stays in the governed family
 | Repository | Role | Pin |
 | --- | --- | --- |
 | [llm-mailroom](https://github.com/Exios66/llm-mailroom) | LangGraph pipeline, agents, prompts, SQLite catalog | `v0.5.0` source via `fetch-deps`; `[pipeline]` extra = main |
-| [llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring) | Deterministic scoring engine | `v0.9.0` |
+| [llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring) | Deterministic scoring engine | `v0.10.0` |
 | [llm-entity-extraction](https://github.com/Exios66/llm-entity-extraction) | Prompt experiment loop (optional `[evals]` extra) | `v0.20.0` |
 | [The-Mailroom](https://github.com/Exios66/The-Mailroom) | Pixel-art visualizer (Langfuse-only) | observer |
 | [Enron-Evaluation-Environment](https://github.com/Exios66/Enron-Evaluation-Environment) | Correspondence corpus feed | Hub datasets |
