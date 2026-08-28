@@ -409,11 +409,19 @@ def run_local_vs_api_eval(
             "pairs": [compared],
             "comparison": compared,
             "headlines": headlines,
+            "table": compared.get("table") or [],
+            "scorecard": compared.get("scorecard"),
+            "cost": compared.get("cost"),
+            "markdown": compared.get("markdown"),
         }
 
     comparison = compared.get("comparison") or {}
     metrics = comparison.get("metrics") or {}
     ttft = (metrics.get("ttft_seconds") or {}) if isinstance(metrics, dict) else {}
+    scorecard = compared.get("scorecard") or comparison.get("scorecard") or {}
+    cost = compared.get("cost") or comparison.get("cost") or {}
+    table = compared.get("table") or comparison.get("table") or []
+    markdown = compared.get("markdown") or comparison.get("markdown")
     scores = {
         "ttft_seconds_local": ttft.get("local"),
         "ttft_seconds_api": ttft.get("api"),
@@ -423,18 +431,17 @@ def run_local_vs_api_eval(
         "gpu_utilization_api": (metrics.get("gpu_utilization") or {}).get("api"),
         "quality": comparison.get("quality"),
         "honest_gaps": comparison.get("honest_gaps") or [],
+        "missing": scorecard.get("missing") or [],
+        "cost_local": (cost.get("local") or {}).get("estimated_cost_usd") if isinstance(cost, dict) else None,
+        "cost_api": (cost.get("api") or {}).get("estimated_cost_usd") if isinstance(cost, dict) else None,
+        "table_n": len(table),
         "local_n": compared.get("local_n"),
         "api_n": compared.get("api_n"),
         "n": (compared.get("local_n") or 0) + (compared.get("api_n") or 0),
     }
-    if ScoreRecord is not None and scores["ttft_delta_local_minus_api"] is not None:
-        emit(
-            ScoreRecord(
-                metric="ttft_seconds",
-                value=float(scores["ttft_delta_local_minus_api"]),
-                agent="local_vs_api",
-                run_id=experiment_name,
-            )
+    if comparison:
+        scoring.emit_local_vs_api_scorecard(
+            comparison, run_id=experiment_name or "sandbox_local_vs_api"
         )
     record = experiment_log.new_record(
         experiment_name=experiment_name or "sandbox_local_vs_api",
@@ -451,6 +458,7 @@ def run_local_vs_api_eval(
         tracing_backend=tracing.tracing_backend(),
         tags=tracing.default_tags("source-serving", "local-vs-api"),
         local_vs_api=compared,
+        serving_markdown=markdown,
         source=source,
     )
     experiment_log.append(record)
