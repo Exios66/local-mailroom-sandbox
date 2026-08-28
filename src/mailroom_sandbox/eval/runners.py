@@ -203,6 +203,16 @@ def run_sorter_eval(
                 run_id=experiment_name,
             )
         )
+        f1 = scores.get("f1_macro")
+        if isinstance(f1, (int, float)):
+            emit(
+                ScoreRecord(
+                    metric="f1_macro",
+                    value=float(f1),
+                    agent="sorter",
+                    run_id=experiment_name,
+                )
+            )
     record = experiment_log.new_record(
         experiment_name=experiment_name or "sandbox_sorter",
         task="sorter",
@@ -340,6 +350,111 @@ def run_legalbench_eval(
     )
     experiment_log.append(record)
     return {**plan, "scores": scores}
+
+
+def run_local_vs_api_eval(
+    *,
+    mock: bool = True,
+    sample: int | None = None,
+    dry_run: bool = False,
+    experiment_name: str | None = None,
+    profile: str | None = None,
+    model: str | None = None,
+    prompt_version: str | None = None,
+    agent_models: dict[str, str] | None = None,
+    from_log: bool = False,
+    connected: bool = False,
+) -> dict[str, Any]:
+    """Compare local (Ollama/vLLM/…) vs API-key (OpenRouter) serving metrics.
+
+    ``--mock`` uses committed fixture timings (no LLM, no ``OPENROUTER_API_KEY``).
+    ``from_log`` partitions ``reports/experiment_log.jsonl`` via dojo
+    ``split_local_api`` / ``get_suite("local_vs_api")``.
+    """
+    del sample, connected, agent_models  # unused; kept for eval kwargs parity
+    from mailroom_sandbox.datasets import load_serving_fixtures
+
+    headlines = scoring.serving_headlines()
+    plan = {
+        "task": "local_vs_api",
+        "suite": "local_vs_api",
+        "mock": mock,
+        "from_log": from_log,
+        "headlines": headlines,
+        "requires_api_key": False,
+        "fingerprint": "fixture-serving-v0",
+    }
+    if dry_run:
+        return plan
+
+    activation = activate(profile, model=model, prompt_variant=prompt_version)
+    if from_log:
+        compared = scoring.compare_from_records(experiment_log.load())
+        source = "experiment_log"
+        local_rec = None
+        api_rec = None
+    else:
+        fixtures = load_serving_fixtures()
+        local_rec = fixtures.get("local") or {}
+        api_rec = fixtures.get("api") or {}
+        if mock:
+            # Fixture path: never call OpenRouter even if a key is in the env.
+            os.environ.setdefault("SANDBOX_RUN_MODE", "mock")
+        compared = scoring.compare_local_vs_api(local_rec, api_rec)
+        source = "fixtures"
+        compared = {
+            "local_n": 1,
+            "api_n": 1,
+            "unknown_n": 0,
+            "pairs": [compared],
+            "comparison": compared,
+            "headlines": headlines,
+        }
+
+    comparison = compared.get("comparison") or {}
+    metrics = comparison.get("metrics") or {}
+    ttft = (metrics.get("ttft_seconds") or {}) if isinstance(metrics, dict) else {}
+    scores = {
+        "ttft_seconds_local": ttft.get("local"),
+        "ttft_seconds_api": ttft.get("api"),
+        "ttft_delta_local_minus_api": ttft.get("delta_local_minus_api"),
+        "tokens_per_second_local": (metrics.get("tokens_per_second") or {}).get("local"),
+        "tokens_per_second_api": (metrics.get("tokens_per_second") or {}).get("api"),
+        "gpu_utilization_api": (metrics.get("gpu_utilization") or {}).get("api"),
+        "quality": comparison.get("quality"),
+        "honest_gaps": comparison.get("honest_gaps") or [],
+        "local_n": compared.get("local_n"),
+        "api_n": compared.get("api_n"),
+        "n": (compared.get("local_n") or 0) + (compared.get("api_n") or 0),
+    }
+    if ScoreRecord is not None and scores["ttft_delta_local_minus_api"] is not None:
+        emit(
+            ScoreRecord(
+                metric="ttft_seconds",
+                value=float(scores["ttft_delta_local_minus_api"]),
+                agent="local_vs_api",
+                run_id=experiment_name,
+            )
+        )
+    record = experiment_log.new_record(
+        experiment_name=experiment_name or "sandbox_local_vs_api",
+        task="local_vs_api",
+        profile=activation.profile_name,
+        provider=os.environ.get("DEFAULT_PROVIDER"),
+        model=model,
+        prompt_version=prompt_version or "mailroom-default",
+        mock=mock,
+        dataset_fingerprint=plan["fingerprint"],
+        n=scores["n"],
+        scores=scores,
+        serving_kind="local",
+        tracing_backend=tracing.tracing_backend(),
+        tags=tracing.default_tags("source-serving", "local-vs-api"),
+        local_vs_api=compared,
+        source=source,
+    )
+    experiment_log.append(record)
+    return {**plan, "scores": scores, "comparison": compared, "record": record}
 
 
 def run_pipeline_eval(

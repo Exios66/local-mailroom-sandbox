@@ -89,6 +89,19 @@ def load_agent_fixtures(agent: str) -> list[dict[str, Any]]:
     return load_jsonl(agent_fixture_path(agent))
 
 
+def serving_fixture_path() -> Path:
+    return fixtures_dir() / "serving" / "local_vs_api.json"
+
+
+def load_serving_fixtures() -> dict[str, Any]:
+    """Synthetic local vs API serving records (no live LLM, no API key)."""
+    path = serving_fixture_path()
+    if not path.is_file():
+        return {}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return payload if isinstance(payload, dict) else {}
+
+
 def intake_dir() -> Path:
     return fixtures_dir() / "intake"
 

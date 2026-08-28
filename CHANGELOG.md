@@ -18,10 +18,14 @@
 - Per-agent overlay knobs and `sandbox cutover --agent-model NAME=tag`.
 - Langfuse 3 compose (web + worker + postgres + clickhouse + redis + minio)
   with headless `LANGFUSE_INIT_*` keys matching The-Mailroom filters.
-- Scoring is pinned to `llm-dojo-scoring @ v0.9.0`. Mailroom **v0.5.0** (source
-  via `sandbox fetch-deps`) still listed dojo v0.7.0 as a pip pin; the sandbox
-  follows the current family scoring engine. `pip install -e ".[pipeline]"`
-  installs mailroom *main* (same dojo pin).
+- Scoring is pinned to `llm-dojo-scoring @ v0.12.0` (local vs API serving
+  suite). Mailroom **v0.5.0** (source via `sandbox fetch-deps`) still listed
+  dojo v0.7.0 as a pip pin; the sandbox follows the current family scoring
+  engine. `pip install -e ".[pipeline]"` installs mailroom *main*.
+- `sandbox eval local_vs_api --mock` compares offline (Ollama/vLLM) vs API-key
+  (OpenRouter) serving metrics via `get_suite("local_vs_api")` without needing
+  `OPENROUTER_API_KEY`. Sorter T0 stays `accuracy` + `f1_macro`; TTFT is never
+  inferred from e2e / n_tokens. GPU/KV/VRAM stay `None` on API-key records.
 - Offline Docker image (`deploy/Dockerfile` → `mailroom-sandbox:offline`) and
   Compose profile `jupyter` for Jupyter Lab on `:8888`, plus dedicated notebooks
   (`notebooks/01`–`03`) and `sandbox datasets prepare` to load/clean/write
