@@ -5,7 +5,7 @@ A **local-first experiment sandbox** for the [LLM-Mailroom](https://github.com/E
 | At a glance | |
 | --- | --- |
 | Default provider | Ollama (`qwen3:8b`, fallback `qwen3:7b`) |
-| Scoring | [`llm-dojo-scoring` @ v0.9.0](https://github.com/Exios66/llm-dojo-scoring) |
+| Scoring | [`llm-dojo-scoring` @ v0.12.0](https://github.com/Exios66/llm-dojo-scoring) |
 | Pipeline | [`llm-mailroom`](https://github.com/Exios66/llm-mailroom) (`fetch-deps` @ v0.5.0 source; `[pipeline]` extra = main) |
 | Tracing | Langfuse 3 / SDK v4 (`document-pipeline`). Phoenix optional sidecar |
 | Storage | SQLite under `./data` (mailroom default) |
@@ -16,7 +16,7 @@ A **local-first experiment sandbox** for the [LLM-Mailroom](https://github.com/E
 pip install -e ".[dev]"
 cp config/.env.example .env
 sandbox fetch-deps                 # clones vendor/llm-mailroom @ v0.5.0 (source tree)
-# optional: pip install -e ".[pipeline]"  # current mailroom main (dojo v0.9.0)
+# optional: pip install -e ".[pipeline]"  # current mailroom main (dojo v0.12.0)
 sandbox up                         # Langfuse + Ollama
 sandbox pull-models                # ollama pull qwen3:8b
 sandbox health
@@ -25,6 +25,7 @@ sandbox pilot --mock               # machinery only, no LLM
 sandbox pilot --local              # real local model
 sandbox eval sorter --mock
 sandbox eval pipeline --mock
+sandbox eval local_vs_api --mock   # Ollama vs OpenRouter serving metrics (no API key)
 ```
 
 CPU-only smoke: pull `llama3.2:3b` and `sandbox cutover --profile ollama --model llama3.2:3b`. GPU recommended for Qwen 8B.
@@ -45,7 +46,8 @@ sandbox pipeline watcher | pipeline api
 sandbox pilot --mock|--local
 sandbox hf-pilot --check|--mock|--local
 sandbox legalbench --mock|--local
-sandbox eval <agent>|extract|chained|pipeline|legalbench [--mock|--local]
+sandbox eval <agent>|extract|chained|pipeline|legalbench|local_vs_api [--mock|--local]
+sandbox eval local_vs_api --from-log   # compare experiment_log local vs API-key runs
 sandbox matrix --providers ollama --models qwen3:8b --prompts sorter_local_v0
 sandbox datasets pull
 sandbox datasets prepare   # offline clean → data/runtime/prepared/

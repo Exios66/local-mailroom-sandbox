@@ -123,6 +123,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=False,
         help="Score class + stage + extraction + routing (pipeline default; flag is accepted on pipeline)",
     )
+    p.add_argument(
+        "--from-log",
+        action="store_true",
+        dest="from_log",
+        help="For local_vs_api: compare experiment_log.jsonl instead of serving fixtures",
+    )
     p.set_defaults(handler=_cmd_eval)
 
     p = sub.add_parser("matrix", help="provider × model × prompt grid", parents=[shared])
@@ -421,6 +427,12 @@ def _cmd_eval(args: argparse.Namespace) -> int:
         result = runners.run_extract_eval(prompt_version=args.prompt, **kwargs)
     elif args.task == "chained":
         result = runners.run_chained_eval(prompt_version=args.prompt, **kwargs)
+    elif args.task == "local_vs_api":
+        result = runners.run_local_vs_api_eval(
+            prompt_version=args.prompt,
+            from_log=bool(getattr(args, "from_log", False)),
+            **kwargs,
+        )
     else:
         result = runners.run_legalbench_eval(**kwargs)
     _print(result)

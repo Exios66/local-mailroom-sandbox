@@ -39,6 +39,7 @@ def test_eval_task_roster_covers_live_agents():
     ):
         assert name in agents.SPECS
     assert "pipeline" in agents.EVAL_TASKS
+    assert "local_vs_api" in agents.EVAL_TASKS
     assert "court_opinions_specialist" not in agents.SPECS
 
 
