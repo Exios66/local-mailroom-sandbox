@@ -29,7 +29,9 @@ def new_record(**fields: Any) -> dict[str, Any]:
         "git": git_snapshot(),
     }
     record.update(fields)
-    return record
+    from mailroom_sandbox.eval.scoring import attach_serving_identity
+
+    return attach_serving_identity(record)
 
 
 def append(record: dict[str, Any], path: Path | None = None) -> Path:
@@ -61,7 +63,8 @@ def regenerate_markdown(jsonl: Path | None = None) -> Path:
             headline = scores.get("accuracy")
         lines.append(
             f"- `{name}` · profile={rec.get('profile')} · "
-            f"provider={rec.get('provider')} · model={rec.get('model')} · "
+            f"provider={rec.get('provider')} · serving={rec.get('serving_kind')} · "
+            f"model={rec.get('model')} · "
             f"prompt={rec.get('prompt_version')} · score={headline} · "
             f"backend={rec.get('tracing_backend')}"
         )

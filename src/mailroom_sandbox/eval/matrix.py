@@ -78,6 +78,7 @@ def run_matrix(
         "chained": runners.run_chained_eval,
         "pipeline": runners.run_pipeline_eval,
         "legalbench": runners.run_legalbench_eval,
+        "local_vs_api": runners.run_local_vs_api_eval,
     }.get(task)
     if runner is None:
         from mailroom_sandbox.eval.agents import SPECS
@@ -100,4 +101,25 @@ def run_matrix(
         if task != "legalbench":
             kwargs["prompt_version"] = cell["prompt"]
         results.append(runner(**kwargs))
-    return {"task": task, "cells": cells, "results": results, "log": str(experiment_log.jsonl_path())}
+    payload: dict[str, Any] = {
+        "task": task,
+        "cells": cells,
+        "results": results,
+        "log": str(experiment_log.jsonl_path()),
+    }
+    records = []
+    for result in results:
+        rec = result.get("record") if isinstance(result, dict) else None
+        if rec:
+            records.append(rec)
+        for nested in ("sorter", "extract"):
+            inner = result.get(nested) if isinstance(result, dict) else None
+            if isinstance(inner, dict) and inner.get("record"):
+                records.append(inner["record"])
+    if records:
+        from mailroom_sandbox.eval import scoring
+
+        compared = scoring.compare_from_records(records)
+        if compared.get("comparison") is not None:
+            payload["local_vs_api"] = compared
+    return payload

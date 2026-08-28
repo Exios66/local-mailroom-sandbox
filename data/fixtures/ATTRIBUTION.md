@@ -21,3 +21,7 @@ the `Lucius-Morningstar/docclass-merged` schema (not Hub content). Use
 
 Tiny PDF/PNG under `intake/` are original sandbox fixtures (ASCII PDF + 1×1 PNG)
 for offline transcriber / image-extractor wiring tests, not the CUAD pilot.
+
+`serving/local_vs_api.json` is a **synthetic** timing pair for the dojo
+`get_suite("local_vs_api")` smoke (Ollama vs OpenRouter identity). Values are
+not live measurements; GPU/KV fields are local-only.

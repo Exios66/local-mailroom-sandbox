@@ -484,7 +484,7 @@ _register(
     )
 )
 
-COMPOSITE_TASKS = ("extract", "chained", "pipeline", "legalbench")
+COMPOSITE_TASKS = ("extract", "chained", "pipeline", "legalbench", "local_vs_api")
 EVAL_TASKS = tuple(SPECS) + COMPOSITE_TASKS
 
 

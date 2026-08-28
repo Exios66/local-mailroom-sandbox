@@ -149,6 +149,115 @@ def test_classification_scoring_smoke():
         ["contract", "correspondence"],
     )
     assert scores["exact_match"] == 1.0
+    assert scores["accuracy"] == 1.0
+    assert scores["f1_macro"] == 1.0
+
+
+def test_dojo_pin_is_v0_12():
+    import llm_dojo_scoring as dojo
+    from llm_dojo_scoring import get_suite, headline_metrics
+    from mailroom_sandbox.paths import repo_root
+
+    pin = (repo_root() / "pyproject.toml").read_text(encoding="utf-8")
+    assert "llm-dojo-scoring.git@v0.12.0" in pin
+    assert dojo.__version__ == "0.12.0"
+    assert headline_metrics("sorter") == ["accuracy", "f1_macro"]
+    assert "ttft_seconds" in headline_metrics("local_vs_api")
+    assert "tokens_per_second" in headline_metrics("local_vs_api")
+    assert "ttft_seconds" not in headline_metrics("sorter")
+    suite = get_suite("local_vs_api")
+    assert suite.kind == "serving"
+
+
+def test_local_vs_api_fixtures_need_no_api_key(tmp_path, monkeypatch):
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.setenv("MAILROOM_BASE_DIR", str(tmp_path))
+    log = tmp_path / "experiment_log.jsonl"
+    monkeypatch.setenv("EXPERIMENT_LOG_PATH", str(log))
+    monkeypatch.setattr(experiment_log, "jsonl_path", lambda: log)
+    monkeypatch.setattr(experiment_log, "md_path", lambda: tmp_path / "experiment_log.md")
+    plan = runners.run_local_vs_api_eval(mock=True, dry_run=True)
+    assert plan["task"] == "local_vs_api"
+    assert plan["requires_api_key"] is False
+    result = runners.run_local_vs_api_eval(mock=True, experiment_name="test_local_vs_api")
+    scores = result["scores"]
+    assert scores["ttft_seconds_local"] == 0.4
+    assert scores["ttft_seconds_api"] == 0.15
+    assert scores["ttft_delta_local_minus_api"] == 0.25
+    assert scores["gpu_utilization_api"] is None
+    gaps = scores["honest_gaps"]
+    assert any("gpu" in g.lower() for g in gaps)
+    comparison = result["comparison"]["comparison"]
+    assert comparison["metrics"]["gpu_utilization"]["api"] is None
+    assert comparison["local"]["identity"]["serving_kind"] == "local"
+    assert comparison["api"]["identity"]["serving_kind"] == "api"
+    # local Ollama slug has no OpenRouter price table
+    assert comparison["local"]["estimated_cost_usd"] is None
+
+
+def test_serving_ttft_not_inferred_from_e2e():
+    run = scoring.score_one_serving_run(
+        {
+            "provider": "ollama",
+            "model": "qwen3:8b",
+            "e2e_latency_seconds": 3.0,
+            "completion_tokens": 60,
+        }
+    )
+    assert run["ttft_seconds"] is None
+    assert run["identity"]["serving_kind"] == "local"
+    assert any("ttft" in g for g in run["honest_gaps"])
+
+
+def test_compare_from_log_pairs_local_and_api(tmp_path, monkeypatch):
+    monkeypatch.setenv("MAILROOM_BASE_DIR", str(tmp_path))
+    log = tmp_path / "experiment_log.jsonl"
+    monkeypatch.setenv("EXPERIMENT_LOG_PATH", str(log))
+    monkeypatch.setattr(experiment_log, "jsonl_path", lambda: log)
+    monkeypatch.setattr(experiment_log, "md_path", lambda: tmp_path / "experiment_log.md")
+    local = experiment_log.new_record(
+        experiment_name="cell_ollama",
+        task="sorter",
+        profile="ollama",
+        provider="ollama",
+        model="qwen3:8b",
+        prompt_version="mailroom-default",
+        dataset_fingerprint="abc123",
+        ttft_seconds=0.5,
+        e2e_latency_seconds=2.0,
+        completion_tokens=40,
+        scores={"exact_match": 1.0, "f1_macro": 1.0},
+    )
+    api = experiment_log.new_record(
+        experiment_name="cell_openrouter",
+        task="sorter",
+        profile="openrouter",
+        provider="openrouter",
+        model="qwen/qwen3.7-flash",
+        prompt_version="mailroom-default",
+        dataset_fingerprint="abc123",
+        ttft_seconds=0.2,
+        e2e_latency_seconds=0.8,
+        completion_tokens=40,
+        gpu_utilization=0.9,
+        scores={"exact_match": 1.0, "f1_macro": 1.0},
+    )
+    experiment_log.append(local)
+    experiment_log.append(api)
+    result = runners.run_local_vs_api_eval(from_log=True, experiment_name="test_from_log")
+    assert result["scores"]["api_n"] == 1
+    assert result["scores"]["local_n"] == 1
+    assert result["scores"]["gpu_utilization_api"] is None
+    assert local["serving_kind"] == "local"
+    assert api["serving_kind"] == "api"
+
+
+def test_cli_local_vs_api_dry_run(capsys):
+    rc = main(["eval", "local_vs_api", "--mock", "--dry-run"])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["task"] == "local_vs_api"
+    assert "ttft_seconds" in payload["headlines"]
 
 
 @pytest.mark.local_llm
