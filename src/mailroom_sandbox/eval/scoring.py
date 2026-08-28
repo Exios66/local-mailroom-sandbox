@@ -6,11 +6,13 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from llm_dojo_scoring import (
+    Emitter,
     LocalManifestSink,
     ScoreRecord,
     accuracy,
     bootstrap_ci,
     classify_serving_kind,
+    emit_serving_scorecard,
     exact_match,
     get_suite,
     headline_metrics,
@@ -209,6 +211,10 @@ def compare_from_records(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]
         "pairs": [],
         "comparison": None,
         "headlines": serving_headlines(),
+        "table": [],
+        "scorecard": None,
+        "cost": None,
+        "markdown": None,
     }
     if not local or not api:
         payload["note"] = (
@@ -219,8 +225,23 @@ def compare_from_records(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]
     pairs = pair_comparable_runs(rows)
     suite = get_suite("local_vs_api")
     payload["pairs"] = [suite.score(left, right) for left, right in pairs]
-    payload["comparison"] = suite.score(local, api)
+    comparison = suite.score(local, api)
+    payload["comparison"] = comparison
+    payload["table"] = comparison.get("table") or []
+    payload["scorecard"] = comparison.get("scorecard")
+    payload["cost"] = comparison.get("cost")
+    payload["markdown"] = comparison.get("markdown")
     return payload
+
+
+def emit_local_vs_api_scorecard(
+    comparison: Mapping[str, Any],
+    *,
+    run_id: str | None = None,
+) -> dict[str, Any]:
+    """Persist local and API T0/T1 as separate scorecards (never averaged)."""
+    em = Emitter(sinks=[LocalManifestSink(scores_path())])
+    return emit_serving_scorecard(comparison, run_id=run_id, emitter=em)
 
 
 def score_one_serving_run(record: Mapping[str, Any]) -> dict[str, Any]:
