@@ -159,8 +159,8 @@ def test_dojo_pin_is_v0_12():
     from mailroom_sandbox.paths import repo_root
 
     pin = (repo_root() / "pyproject.toml").read_text(encoding="utf-8")
-    assert "llm-dojo-scoring.git@v0.12.0" in pin
-    assert dojo.__version__ == "0.12.0"
+    assert "llm-dojo-scoring.git@v0.12.1" in pin
+    assert dojo.__version__ == "0.12.1"
     assert headline_metrics("sorter") == ["accuracy", "f1_macro"]
     assert "ttft_seconds" in headline_metrics("local_vs_api")
     assert "tokens_per_second" in headline_metrics("local_vs_api")
@@ -193,6 +193,20 @@ def test_local_vs_api_fixtures_need_no_api_key(tmp_path, monkeypatch):
     assert comparison["api"]["identity"]["serving_kind"] == "api"
     # local Ollama slug has no OpenRouter price table
     assert comparison["local"]["estimated_cost_usd"] is None
+    rows = {r["metric"]: r for r in comparison["table"]}
+    assert rows["ttft_seconds"]["status"] == "compared"
+    assert rows["gpu_utilization"]["status"] == "local_only"
+    assert rows["gpu_utilization"]["api"] is None
+    assert rows["queue_time_seconds"]["status"] == "missing"
+    assert rows["queue_time_seconds"]["local"] is None
+    card = comparison["scorecard"]
+    assert card["agent"] == "local_vs_api"
+    assert card["cost"]["local"]["estimated_cost_usd"] is None
+    assert "queue_time_seconds" in card["missing"]
+    assert comparison["markdown"].startswith("# local vs API serving scorecard")
+    assert scores["table_n"] == len(comparison["table"])
+    assert scores["cost_local"] is None
+    assert "queue_time_seconds" in scores["missing"]
 
 
 def test_serving_ttft_not_inferred_from_e2e():
@@ -248,8 +262,12 @@ def test_compare_from_log_pairs_local_and_api(tmp_path, monkeypatch):
     assert result["scores"]["api_n"] == 1
     assert result["scores"]["local_n"] == 1
     assert result["scores"]["gpu_utilization_api"] is None
+    assert result["comparison"]["markdown"].startswith("# local vs API serving scorecard")
+    assert result["comparison"]["scorecard"]["cost"]["local"]["estimated_cost_usd"] is None
     assert local["serving_kind"] == "local"
     assert api["serving_kind"] == "api"
+    md = (tmp_path / "experiment_log.md").read_text(encoding="utf-8")
+    assert "local vs API serving scorecard" in md
 
 
 def test_cli_local_vs_api_dry_run(capsys):

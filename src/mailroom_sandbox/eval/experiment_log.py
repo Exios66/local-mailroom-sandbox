@@ -68,6 +68,12 @@ def regenerate_markdown(jsonl: Path | None = None) -> Path:
             f"prompt={rec.get('prompt_version')} · score={headline} · "
             f"backend={rec.get('tracing_backend')}"
         )
+        card = rec.get("serving_markdown")
+        if not card:
+            nested = rec.get("local_vs_api") or {}
+            card = nested.get("markdown") if isinstance(nested, dict) else None
+        if card:
+            lines.extend(["", str(card).rstrip(), ""])
     dest.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return dest
 

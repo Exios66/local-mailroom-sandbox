@@ -31,8 +31,10 @@ sandbox matrix --task sorter --providers ollama,openrouter \
 required for live agent classes). `--mock` uses deterministic fixtures / the fake
 client. `local_vs_api` is importable dojo serving comparison (`get_suite("local_vs_api")`):
 TTFT stays `None` unless recorded; GPU/KV/VRAM are stripped on API-key records;
-local Ollama cost stays `None` without a price table. Sorter headlines stay
-`accuracy` + `f1_macro`.
+local Ollama cost stays `None` without a price table. The suite returns a
+scoring **table** (every T0/T1 metric, missing as `None`), a **scorecard**
+(identity + cost calculations), and markdown for the experiment log.
+Sorter headlines stay `accuracy` + `f1_macro`.
 
 ## Isolated vs connected
 
@@ -59,7 +61,7 @@ llm-entity-extraction. Each record carries profile, provider, `serving_kind`
 (`local` | `api`), model, prompt version, dataset fingerprint, scores +
 bootstrap CI when available, tracing backend, tags, session id, and a git
 snapshot. Mixed local + API-key matrix runs attach a `local_vs_api` block
-from the same importable suite.
+from the same importable suite (table, scorecard, cost, markdown).
 
 Markdown is regenerated next to the JSONL on every append.
 
