@@ -69,3 +69,10 @@ pythonpath = ["src"]
 markers = [
     "local_llm: live test against a local OpenAI-compatible server (skipped unless SANDBOX_LOCAL_LLM=1)",
 ]
+
+# Monorepo dev: resolve family members from the workspace instead of the
+# release git pins above. Plain `pip install .` keeps using the pins.
+[tool.uv.sources]
+llm-dojo-scoring = { workspace = true }
+mailroom = { workspace = true }
+llm-entity-extraction = { workspace = true }
