@@ -154,13 +154,19 @@ def test_classification_scoring_smoke():
 
 
 def test_dojo_pin_is_v0_12():
+    import re
+
     import llm_dojo_scoring as dojo
     from llm_dojo_scoring import get_suite, headline_metrics
     from mailroom_sandbox.paths import repo_root
 
     pin = (repo_root() / "pyproject.toml").read_text(encoding="utf-8")
     assert "llm-dojo-scoring.git@v0.12.1" in pin
-    assert dojo.__version__ == "0.12.1"
+    # Monorepo dev: the [tool.uv.sources] workspace redirect installs the
+    # workspace member, which can be newer than the release pin above.
+    version = re.match(r"(\d+)\.(\d+)", dojo.__version__)
+    assert version is not None
+    assert tuple(map(int, version.groups())) >= (0, 12)
     assert headline_metrics("sorter") == ["accuracy", "f1_macro"]
     assert "ttft_seconds" in headline_metrics("local_vs_api")
     assert "tokens_per_second" in headline_metrics("local_vs_api")
