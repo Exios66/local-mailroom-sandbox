@@ -161,7 +161,7 @@ def test_dojo_pin_is_v0_12():
     from mailroom_sandbox.paths import repo_root
 
     pin = (repo_root() / "pyproject.toml").read_text(encoding="utf-8")
-    assert "llm-dojo-scoring.git@v0.12.1" in pin
+    assert "llm-dojo-scoring.git@v0.12.2" in pin
     # Monorepo dev: the [tool.uv.sources] workspace redirect installs the
     # workspace member, which can be newer than the release pin above.
     version = re.match(r"(\d+)\.(\d+)", dojo.__version__)
