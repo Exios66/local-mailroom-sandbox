@@ -27,6 +27,14 @@ docker build -f deploy/Dockerfile -t mailroom-sandbox:offline .
 docker run --rm -p 8888:8888 -v "$PWD":/workspace mailroom-sandbox:offline
 ```
 
+Image hardening (HUB-015): the sandbox image runs as a **non-root user**
+(`sandbox`, uid 1000) and carries a **HEALTHCHECK** (`curl /lab`). On hosts
+whose first user is not uid 1000, pass `--user "$(id -u):$(id -g)"`. All
+compose images are **version-pinned** (ollama `0.33.2`, vllm `v0.28.0`,
+phoenix `version-20.4.0`, minio `RELEASE.2025-09-07…`, langfuse `3`,
+redis `7`, clickhouse `24-alpine`, pgvector `pg16`) for offline
+reproducibility — bump pins deliberately.
+
 ## Notebooks (dedicated prep path)
 
 | Notebook | Purpose |
