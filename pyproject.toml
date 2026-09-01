@@ -15,10 +15,10 @@ dependencies = [
     "structlog>=24.0",
     "pydantic>=2.0",
     "openai>=1.30",
-    # Current family scoring pin. The v0.5.0 mailroom *tag* still asks for
-    # dojo v0.7.0, so mailroom is not a core pip dep — use `sandbox fetch-deps`
-    # (source tree @ v0.5.0) or the `[pipeline]` extra (mailroom main).
-    "llm-dojo-scoring @ git+https://github.com/Exios66/llm-dojo-scoring.git@v0.12.1",
+    # Current family scoring pin (aligned with llm-mailroom v0.6.0's own pin).
+    # mailroom stays off the core deps so offline installs stay lean — use
+    # `sandbox fetch-deps` (source tree @ v0.6.0) or the `[pipeline]` extra.
+    "llm-dojo-scoring @ git+https://github.com/Exios66/llm-dojo-scoring.git@v0.12.2",
 ]
 
 [project.optional-dependencies]
@@ -38,7 +38,7 @@ observability = [
 deploy = [
     "modal>=0.73",
 ]
-# Current llm-mailroom main. Conflicts with the v0.5.0 tag (dojo v0.7.0).
+# Current llm-mailroom release (v0.6.0 aligns with the family dojo pin).
 pipeline = [
     "mailroom @ git+https://github.com/Exios66/llm-mailroom.git",
 ]

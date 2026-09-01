@@ -5,8 +5,8 @@ A **local-first experiment sandbox** for the [LLM-Mailroom](https://github.com/E
 | At a glance | |
 | --- | --- |
 | Default provider | Ollama (`qwen3:8b`, fallback `qwen3:7b`) |
-| Scoring | [`llm-dojo-scoring` @ v0.12.1](https://github.com/Exios66/llm-dojo-scoring) |
-| Pipeline | [`llm-mailroom`](https://github.com/Exios66/llm-mailroom) (`fetch-deps` @ v0.5.0 source; `[pipeline]` extra = main) |
+| Scoring | [`llm-dojo-scoring` @ v0.12.2](https://github.com/Exios66/llm-dojo-scoring) |
+| Pipeline | [`llm-mailroom`](https://github.com/Exios66/llm-mailroom) (v0.6.0 — `fetch-deps` source or `[pipeline]` extra = main) |
 | Tracing | Langfuse 3 / SDK v4 (`document-pipeline`). Phoenix optional sidecar |
 | Storage | SQLite under `./data` (mailroom default) |
 
@@ -15,8 +15,8 @@ A **local-first experiment sandbox** for the [LLM-Mailroom](https://github.com/E
 ```bash
 pip install -e ".[dev]"
 cp config/.env.example .env
-sandbox fetch-deps                 # clones vendor/llm-mailroom @ v0.5.0 (source tree)
-# optional: pip install -e ".[pipeline]"  # current mailroom main (dojo v0.12.1)
+sandbox fetch-deps                 # clones vendor/llm-mailroom @ v0.6.0 (source tree)
+# optional: pip install -e ".[pipeline]"  # current mailroom main (dojo v0.12.2)
 sandbox up                         # Langfuse + Ollama
 sandbox pull-models                # ollama pull qwen3:8b
 sandbox health

@@ -45,7 +45,8 @@ Sorter headlines stay `accuracy` + `f1_macro`.
 | `sorter` / `sorter_reviewer` | classifier | `classify-document` agent |
 | five live specialists | `.extract()` | `extract-fields` agent |
 | `judge` | completeness judge | `judge-verify` evaluator |
-| `arbiter` / `boss` / `reporter` | named agents | matching agent spans |
+| `arbiter` / `boss` | named agents | matching agent spans |
+| `compile_report` | procedural reporter node (no LLM — HUB-015 reduced profile) | `compile-report` span |
 | `human_review` / `catalog` / `archive` | procedural gold | matching spans |
 | `pipeline` | full graph (or offline mock fallback) | `document-pipeline` chain |
 | `chained` | sorter + extract only | (composite) |

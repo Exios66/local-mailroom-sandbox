@@ -60,7 +60,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("models", nargs="*")
     p.set_defaults(handler=_cmd_pull_models)
 
-    p = sub.add_parser("fetch-deps", help="Clone llm-mailroom @ v0.5.0 into vendor/", parents=[shared])
+    p = sub.add_parser("fetch-deps", help="Clone llm-mailroom @ v0.6.0 into vendor/", parents=[shared])
     p.add_argument("--entity", action="store_true", help="Also clone llm-entity-extraction")
     p.add_argument("--visualizer", action="store_true", help="Also clone The-Mailroom (Langfuse observer)")
     p.set_defaults(handler=_cmd_fetch_deps)
@@ -238,7 +238,7 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
     rc = _clone(
         "https://github.com/Exios66/llm-mailroom.git",
         vendor_dir() / "llm-mailroom",
-        "v0.5.0",
+        "v0.6.0",
     )
     if args.entity:
         rc = rc or _clone(

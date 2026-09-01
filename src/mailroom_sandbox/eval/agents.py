@@ -166,20 +166,48 @@ def _live_boss(row: dict[str, Any]) -> dict[str, Any]:
     return BossAgent().adjudicate(manifest)
 
 
+def _procedural_report(row: dict[str, Any]) -> dict[str, Any]:
+    """Computational procedural reporter — deterministic matter-record
+    assembly with NO LLM call. Sandbox-side mirror of llm-mailroom v0.6.0
+    ``agents.reporter.compile_matter_record`` (the reporter agent is retired;
+    the graph's compile_report node is procedural)."""
+    extracted = row.get("extracted_data") or _mock_extract(row)
+    lines = [
+        f"Document type: {row.get('expected_doc_class') or 'unknown'}",
+        f"Subclass: {row.get('expected_subclass') or 'not stated'}",
+        "Classification confidence: 0.97",
+        "Extraction confidence: 0.9",
+        "",
+        "Extracted fields:",
+    ]
+    for key in sorted(extracted):
+        lines.append(f"- {key}: {extracted[key]}")
+    return {
+        "summary": "\n".join(lines).strip() + "\n",
+        "doc_type": row.get("expected_doc_class") or "unknown",
+        "doc_subclass": row.get("expected_subclass"),
+        "extracted_data": extracted,
+        "classification_confidence": 0.97,
+        "extraction_confidence": 0.9,
+        "procedural": True,
+    }
+
+
 def _live_reporter(row: dict[str, Any]) -> dict[str, Any]:
     from agents.reporter import compile_matter_record  # type: ignore
-    from llm.client import get_llm  # type: ignore
 
-    client, model = get_llm("reporter")
+    # HUB-015: no LLM call. The reporter agent is retired; the pipeline's
+    # compile_report node is the procedural assembler. The upstream function
+    # accepts client/model args for call-site compatibility but ignores them
+    # — we pass none at all.
     return compile_matter_record(
         {
             "doc_type": row.get("expected_doc_class") or "contract",
+            "doc_subclass": row.get("expected_subclass"),
             "extracted_data": row.get("extracted_data") or _mock_extract(row),
             "classification_confidence": 0.97,
             "extraction_confidence": 0.9,
-        },
-        client,
-        model,
+        }
     )
 
 
@@ -438,16 +466,13 @@ _register(
 )
 _register(
     AgentSpec(
-        name="reporter",
+        name="compile_report",
         observation="compile-report",
-        dojo_profile="reporter",
+        kind="nodes",
         load_rows=lambda: _rows_or_agent_jsonl(
             "reporter", lambda: [r for r in load_manifest() if parse_expected_fields(r)][:3]
         ),
-        mock_predict=lambda row: {
-            "summary": f"Mock report for {row.get('id')}",
-            "confidence": 0.9,
-        },
+        mock_predict=_procedural_report,
         live_predict=_live_reporter,
         score_one=_score_keys,
     )
