@@ -68,7 +68,7 @@ sandbox up --compose-profile jupyter  # Lab on :8888 (deploy/Dockerfile)
 - **Reviewers stay enabled** (`sorter_reviewer` + its `sorter_reviewer_local_v0`
   prompt) — the reduced profile removes the reporter, not the reviewers.
 - HF fixture targets (`data/fixtures/hf/docclass_mini.jsonl`) carry the full
-  docclass-merged ground-truth schema: per-doc-type `expected_subclass`
+  mailroom-corpus ground-truth schema: per-doc-type `expected_subclass`
   (corpus strata vocabulary) + `expected_fields` (27-key GT schema subset:
   intent + provenance, sentiment, claims/entity fields) propagated into every
   eval row.
