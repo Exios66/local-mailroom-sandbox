@@ -146,7 +146,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("datasets", help="Dataset helpers", parents=[shared])
     ds = p.add_subparsers(dest="datasets_cmd")
     pull = ds.add_parser("pull", parents=[shared])
-    pull.add_argument("--dataset", default="Lucius-Morningstar/docclass-merged")
+    pull.add_argument("--dataset", default="Lucius-Morningstar/mailroom-corpus")
     pull.add_argument("--max-rows", type=int, default=50)
     pull.set_defaults(handler=_cmd_datasets_pull)
     prep = ds.add_parser(
