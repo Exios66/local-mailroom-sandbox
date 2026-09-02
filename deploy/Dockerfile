@@ -8,7 +8,7 @@
 # harness and notebook extras so you can prepare fixtures and activate profiles
 # without a cloud LLM.
 
-FROM python:3.11-slim-bookworm
+FROM python:3.14-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
