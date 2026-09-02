@@ -14,7 +14,9 @@
 # stack, is Linux-only, and is happiest in its own container or env
 #   (docker compose profile `vllm`, the vllm/vllm-openai image on
 #    Modal/CHTC, or `pip install vllm` on a Linux+CUDA host).
-# For CHTC, pack this env portable-style instead of rebuilding per job:
+# For CHTC, pack this env portable-style instead of rebuilding per job —
+# and BUILD THE ENV ON THE CHTC ACCESS POINT (Linux), never on macOS:
+# the conda-pack tarball must match the execute nodes' RHEL-family glibc.
 #   conda pack -n mailroom-sandbox -o /staging/$USER/mailroom-sandbox.tar.gz
 name: mailroom-sandbox
 channels:
