@@ -92,7 +92,7 @@ def map_model(openrouter_id: str, serving: str, model_map: dict | None = None) -
 def serving_family(profile: dict) -> str:
     """Which column of models.yaml this profile uses (ollama/vllm/llamacpp/...)."""
     name = str(profile.get("name") or profile.get("provider") or "ollama")
-    if name in {"vllm-local", "modal-vllm", "vllm"}:
+    if name in {"vllm-local", "modal-vllm", "vllm-remote", "vllm"}:
         return "vllm"
     if name in {"llamacpp"}:
         return "llamacpp"

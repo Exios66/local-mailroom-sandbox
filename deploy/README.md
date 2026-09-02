@@ -1,5 +1,10 @@
 # Modal + local compose + offline Dockerfile
 
+Remote-serving paths (Modal, SSH-tunneled vLLM, CHTC/HTCondor, conda env)
+have their own guides: [`conda/`](conda/) (environment spec),
+[`htcondor/`](htcondor/) (CHTC job templates), and
+[`../docs/remote-serving.md`](../docs/remote-serving.md) (the overview).
+
 ## Compose
 
 ```bash

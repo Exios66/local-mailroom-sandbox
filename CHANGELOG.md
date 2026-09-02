@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Added
+
+- **HUB-026 — remote-serving integration completeness**: `vllm-remote`
+  profile with a `tunnel:` block + `mailroom_sandbox/tunnel.py`
+  (network-free argv builders, pidfile lifecycle, double-forward guard) +
+  `sandbox tunnel plan/up/status/down`; `deploy/conda/environment.yml`
+  (CPU-first portable env, vLLM deliberately external);
+  `deploy/htcondor/` CHTC job templates — batch eval (in-job vLLM, works
+  on the shared GPU Lab where `condor_ssh_to_job` is unavailable) and an
+  owned-GPU server variant tied to the tunnel profile
+  (`docs/remote-serving.md` is the overview).
+
 ### Changed
 
 - **HUB-015 — reduced agent profile + current-pipeline alignment**: the

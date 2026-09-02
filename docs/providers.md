@@ -8,10 +8,15 @@ points mailroom at `data/runtime/taxonomy.yaml`.
 | --- | --- | --- | --- |
 | `ollama` (default) | `ollama` | `http://localhost:11434/v1` | `qwen3:8b` |
 | `vllm-local` | `vllm` | `http://localhost:8000/v1` | `Qwen/Qwen3-8B` |
+| `vllm-remote` | `vllm` | `http://localhost:18000/v1` (SSH forward) | `Qwen/Qwen3-8B` |
 | `modal-vllm` | `vllm` | Modal `*.modal.run/v1` | `Qwen/Qwen3-8B` |
 | `llamacpp` | `generic` | `http://localhost:8080/v1` | `qwen3-8b` |
 | `lmstudio` | `generic` | `http://localhost:1234/v1` | `qwen3-8b` |
 | `openrouter` | `openrouter` | `https://openrouter.ai/api/v1` | `qwen/qwen3.7-flash` |
+
+Remote serving — Modal deployment, SSH-tunnel workflow (`sandbox tunnel`),
+CHTC/HTCondor job paths, and the portable conda env — is documented in
+[`remote-serving.md`](remote-serving.md).
 
 OpenRouter is **opt-in**. The default `.env` does not set `OPENROUTER_API_KEY`.
 Comparable serving metrics (TTFT, throughput, GPU on local only) are scored
