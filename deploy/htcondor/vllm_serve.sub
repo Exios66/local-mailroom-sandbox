@@ -1,11 +1,11 @@
 # vllm_serve.sub — CHTC/HTCondor SERVER variant (HUB-026).
 #
 # ONLY for researcher-OWNED / prioritized GPU machines: CHTC's shared GPU
-# Lab machines do not allow `condor_ssh_to_job`, so you cannot reach a
-# long-running server there — use vllm_batch_eval.sub on the shared pool.
-# On an owned machine this job serves vLLM for its lifetime and you forward
-# it locally with `condor_ssh_to_job` + the `vllm-remote` profile
-# (see README.md, "Server path").
+# Lab machines do not allow `condor_ssh_to_job` (policy since 2026-04-22),
+# so you cannot reach a long-running server there — use vllm_batch_eval.sub
+# on the shared pool. On an owned machine this job serves vLLM for its
+# lifetime and you forward it locally with `condor_ssh_to_job` + the
+# `vllm-remote` profile (README.md §5).
 #
 #   condor_submit vllm_serve.sub
 
@@ -18,20 +18,24 @@ error = logs/serve_$(Cluster).err
 
 executable = serve_vllm.sh
 should_transfer_files = YES
-when_to_transfer_output = ON_EXITOR_GRACEFUL_REMOVAL
+when_to_transfer_output = ON_EXIT_OR_GRACEFUL_REMOVAL
 
+# Owned machines have nvidia-docker integration; the container carries its
+# own OS/CUDA stack. `environment = "MODEL=..."` overrides the default.
 container_image = docker://vllm/vllm-openai:v0.8.5
 
+# Server jobs are NOT GPU Lab jobs (the Lab caps `long` at 7 days; owned
+# machines have no Lab policy). Keep request_gpus even so — always required.
 +WantGPULab = false
 +GPUJobLength = "long"
 
 request_gpus = 1
-gpus_minimum_memory = 16000
+gpus_minimum_memory = 24000
 request_cpus = 4
 request_memory = 32GB
 request_disk = 40GB
 
-# hold instead of evicting while you are using the server
+# safety valve: rehold a server that has run for a full day unused
 periodic_hold = (NumJobStarts > 0 && time() - JobStartDate > 86400)
 
 queue 1

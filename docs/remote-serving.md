@@ -56,12 +56,15 @@ The forward is an `ssh -N -L` with `ExitOnForwardFailure` + keepalives;
 ## CHTC (HTCondor)
 
 See [`deploy/htcondor/README.md`](../deploy/htcondor/README.md) for the
-full walkthrough. The one constraint that shapes everything:
-**`condor_ssh_to_job` is unavailable on CHTC's shared GPU Lab machines**
-(allowed on researcher-owned machines), so:
+full walkthrough — grounded in CHTC's live docs: access points + Duo/VPN
+login requirements, the GPU Lab roster and job classes (short 12h / medium
+24h / long 7d), container/staging rules, and the one constraint that shapes
+everything: **`condor_ssh_to_job` is unavailable on CHTC's shared GPU Lab
+machines** (allowed on researcher-owned machines), so:
 
 - **Shared pool → batch path** (`vllm_batch_eval.sub`): the job hosts vLLM
-  itself, runs the sandbox evals in-process, transfers `results/` back.
+  itself, runs the sandbox evals in-process, transfers `results/` back
+  (`condor_tail` for monitoring).
 - **Owned machines → server path** (`vllm_serve.sub`): long-lived vLLM job
   + `condor_ssh_to_job` forwarding → the `vllm-remote` profile above.
 
