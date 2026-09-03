@@ -41,7 +41,7 @@ except Exception:  # pragma: no cover — dojo pin always ships this module
     }
     NODE_OBSERVATION_TYPES = {
         "document-pipeline": "chain",
-        "ingest-document": "span",
+        "intake-document": "span",
         "normalize-intake": "span",
         "extract-image-text": "retriever",
         "transcribe-pdf": "retriever",
