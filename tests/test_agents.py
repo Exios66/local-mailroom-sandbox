@@ -32,7 +32,7 @@ def test_eval_task_roster_covers_live_agents():
         "judge",
         "arbiter",
         "boss",
-        "reporter",
+        "compile_report",
         "human_review",
         "catalog",
         "archive",
@@ -41,6 +41,25 @@ def test_eval_task_roster_covers_live_agents():
     assert "pipeline" in agents.EVAL_TASKS
     assert "local_vs_api" in agents.EVAL_TASKS
     assert "court_opinions_specialist" not in agents.SPECS
+    # HUB-015 reduced profile: the reporter AGENT is retired; the compile
+    # stage is the procedural compile_report node (no LLM call).
+    assert "reporter" not in agents.SPECS
+    from mailroom_sandbox.components import is_enabled
+
+    assert not is_enabled("agents", "reporter")
+    assert is_enabled("nodes", "compile_report")
+
+
+def test_procedural_reporter_makes_no_llm_call(tmp_path, monkeypatch):
+    _isolate_log(tmp_path, monkeypatch)
+    monkeypatch.setenv("MAILROOM_BASE_DIR", str(tmp_path))
+    result = runners.run_isolated_eval("compile_report", mock=True)
+    assert result["scores"]["n"] >= 1
+    assert result["scores"]["exact_match"] == 1.0
+    # the procedural assembler must never acquire an LLM client
+    import mailroom_sandbox.eval.agents as agent_mod
+
+    assert "get_llm" not in agent_mod._live_reporter.__code__.co_names
 
 
 def test_isolated_eval_dry_run_and_mock(tmp_path, monkeypatch):

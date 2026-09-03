@@ -8,7 +8,7 @@
 # harness and notebook extras so you can prepare fixtures and activate profiles
 # without a cloud LLM.
 
-FROM python:3.11-slim-bookworm
+FROM python:3.14-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -35,9 +35,18 @@ COPY notebooks ./notebooks
 COPY deploy/README.md ./deploy/README.md
 
 RUN pip install --no-cache-dir -e ".[dev,notebooks]" \
-    && mkdir -p /workspace/data/runtime /workspace/data/cache /workspace/reports
+    && mkdir -p /workspace/data/runtime /workspace/data/cache /workspace/reports \
+    && useradd --create-home --uid 1000 --shell /bin/bash sandbox \
+    && chown -R sandbox:sandbox /workspace
+
+# Bind mounts carry host ownership; on hosts whose first user is not uid 1000,
+# override with --user "$(id -u):$(id -g)" (docker compose: user: "1000:1000").
+USER sandbox
 
 EXPOSE 8888
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD curl -fsS http://127.0.0.1:8888/lab >/dev/null || exit 1
 
 # Tokenless Lab on the compose network; bind only to localhost from the host.
 CMD ["jupyter", "lab", \

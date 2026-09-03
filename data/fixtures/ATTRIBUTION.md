@@ -1,7 +1,7 @@
 # Fixture attribution
 
 Text fixtures in this directory are **copied from**
-[`Exios66/llm-mailroom`](https://github.com/Exios66/llm-mailroom) `v0.5.0`
+[`Exios66/llm-mailroom`](https://github.com/Exios66/llm-mailroom) `v0.6.0`
 (`src/tests/fixtures/` and `docs/examples/sources/`). They are original
 synthetic documents written for that repo unless noted.
 

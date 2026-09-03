@@ -1,36 +1,48 @@
-# local-mailroom-sandbox
+<div align="center">
 
-A **local-first experiment sandbox** for the [LLM-Mailroom](https://github.com/Exios66/llm-mailroom) pipeline. Run the full classify → extract → report → archive graph offline on Ollama, vLLM (local or Modal), llama.cpp, or LM Studio. Swap in OpenRouter when you need an API provider. This repo does **not** fork the pipeline — it overlays config, serving, eval, and scoring around the governed family.
+# 🧪 local-mailroom-sandbox
 
-| At a glance | |
-| --- | --- |
-| Default provider | Ollama (`qwen3:8b`, fallback `qwen3:7b`) |
-| Scoring | [`llm-dojo-scoring` @ v0.12.1](https://github.com/Exios66/llm-dojo-scoring) |
-| Pipeline | [`llm-mailroom`](https://github.com/Exios66/llm-mailroom) (`fetch-deps` @ v0.5.0 source; `[pipeline]` extra = main) |
-| Tracing | Langfuse 3 / SDK v4 (`document-pipeline`). Phoenix optional sidecar |
-| Storage | SQLite under `./data` (mailroom default) |
+**A local-first experiment sandbox for the LLM-Mailroom pipeline — run the full classify → extract → report → archive graph offline on Ollama, vLLM, llama.cpp, or LM Studio.**
 
-## Quick start
+Swap in OpenRouter when you need an API provider. This repo does **not** fork the pipeline — it overlays config, serving, eval, and scoring around the governed family.
+
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Pipeline](https://img.shields.io/badge/pipeline-llm--mailroom%20v0.6.0-blue)](https://github.com/Exios66/llm-mailroom)
+[![Scoring](https://img.shields.io/badge/scoring-llm--dojo--scoring%20v0.12.2-purple)](https://github.com/Exios66/llm-dojo-scoring)
+[![Tracing](https://img.shields.io/badge/tracing-Langfuse%20v4-F5A623)](#tracing)
+
+</div>
+
+---
+
+## At a Glance
+
+<div align="center">
+
+| Component | Default | Notes |
+|:---|:---|:---|
+| **Default provider** | Ollama (`qwen3:8b`) | Fallback `qwen3:7b` |
+| **Scoring** | `llm-dojo-scoring` @ v0.12.2 | Deterministic, field-type-aware |
+| **Pipeline** | `llm-mailroom` v0.6.0 | 13-node LangGraph state machine |
+| **Tracing** | Langfuse 3 / SDK v4 | `document-pipeline` traces |
+| **Storage** | SQLite under `./data` | Mailroom default |
+
+</div>
+
+## Quick Start
 
 ```bash
 pip install -e ".[dev]"
 cp config/.env.example .env
-sandbox fetch-deps                 # clones vendor/llm-mailroom @ v0.5.0 (source tree)
-# optional: pip install -e ".[pipeline]"  # current mailroom main (dojo v0.12.1)
+sandbox fetch-deps                 # clones vendor/llm-mailroom @ v0.6.0
 sandbox up                         # Langfuse + Ollama
 sandbox pull-models                # ollama pull qwen3:8b
 sandbox health
-sandbox agents list
 sandbox pilot --mock               # machinery only, no LLM
 sandbox pilot --local              # real local model
-sandbox eval sorter --mock
-sandbox eval pipeline --mock
-sandbox eval local_vs_api --mock   # Ollama vs OpenRouter serving metrics (no API key)
 ```
 
-CPU-only smoke: pull `llama3.2:3b` and `sandbox cutover --profile ollama --model llama3.2:3b`. GPU recommended for Qwen 8B.
-
-## One-command local path
+## One-Command Local Path
 
 1. Install
 2. `sandbox up` (compose profiles `langfuse` + `ollama`)
@@ -39,6 +51,8 @@ CPU-only smoke: pull `llama3.2:3b` and `sandbox cutover --profile ollama --model
 5. `sandbox pilot --local`
 
 ## CLI
+
+<div align="center">
 
 ```
 sandbox up | down | health | pull-models | fetch-deps | cutover | profiles | agents
@@ -54,14 +68,31 @@ sandbox datasets prepare   # offline clean → data/runtime/prepared/
 sandbox traces export
 ```
 
+</div>
+
+<details>
+<summary>CPU-only smoke test</summary>
+
+Pull `llama3.2:3b` and run:
+
+```bash
+sandbox cutover --profile ollama --model llama3.2:3b
+```
+
+GPU recommended for Qwen 8B.
+
+</details>
+
 ## Docs
 
-- [Providers](docs/providers.md) — Ollama, vLLM, Modal, llama.cpp, LM Studio, OpenRouter
-- [Evals](docs/evals.md) — runners, matrix, scoring, experiment log
-- [Tracing](docs/tracing.md) — Langfuse v4 data model, tags, The-Mailroom
-- [Docker offline](docs/docker-offline.md) — Dockerfile, Compose `jupyter` profile, prep notebooks
-- [Sister repos](docs/sister-repos.md) — family map
-- [Agent skills](.cursor/skills/README.md) — Langfuse, Phoenix, Braintrust, Ollama, Modal, Hugging Face router
+| Guide | Description |
+|:---|:---|
+| [Providers](docs/providers.md) | Ollama, vLLM, Modal, llama.cpp, LM Studio, OpenRouter |
+| [Evals](docs/evals.md) | Runners, matrix, scoring, experiment log |
+| [Tracing](docs/tracing.md) | Langfuse v4 data model, tags, The-Mailroom |
+| [Docker offline](docs/docker-offline.md) | Dockerfile, Compose `jupyter` profile, prep notebooks |
+| [Sister repos](docs/sister-repos.md) | Family map |
+| [Agent skills](.cursor/skills/README.md) | Langfuse, Phoenix, Braintrust, Ollama, Modal, Hugging Face |
 
 ## Layout
 
@@ -76,14 +107,26 @@ src/mailroom_sandbox/
 reports/             sandbox experiment log (not a sister-repo mirror)
 ```
 
-## Offline Docker + notebooks
+## Offline Docker + Notebooks
 
 ```bash
 pip install -e ".[dev,notebooks]"
 sandbox up --compose-profile langfuse --compose-profile ollama --compose-profile jupyter
 # Lab → http://127.0.0.1:8888/lab
-# Run notebooks/01 → 02 → 03, or:
 sandbox datasets prepare
 ```
 
 See [`docs/docker-offline.md`](docs/docker-offline.md).
+
+---
+
+<div align="center">
+
+**[llm-mailroom](https://github.com/Exios66/llm-mailroom)** ·
+**[llm-entity-extraction](https://github.com/Exios66/llm-entity-extraction)** ·
+**[llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring)** ·
+**[The-Mailroom](https://github.com/Exios66/The-Mailroom)**
+
+<sub>Built by the governed evaluation family under <a href="https://github.com/Exios66">@Exios66</a> · 2026</sub>
+
+</div>

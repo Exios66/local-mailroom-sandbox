@@ -73,7 +73,7 @@ def mailroom_taxonomy_path() -> Path:
         return vendored
     raise FileNotFoundError(
         "Could not locate mailroom taxonomy.yaml. Run `sandbox fetch-deps` "
-        "or pip-install mailroom @ v0.5.0."
+        "or pip-install mailroom @ v0.6.0."
     )
 
 
@@ -92,7 +92,7 @@ def map_model(openrouter_id: str, serving: str, model_map: dict | None = None) -
 def serving_family(profile: dict) -> str:
     """Which column of models.yaml this profile uses (ollama/vllm/llamacpp/...)."""
     name = str(profile.get("name") or profile.get("provider") or "ollama")
-    if name in {"vllm-local", "modal-vllm", "vllm"}:
+    if name in {"vllm-local", "modal-vllm", "vllm-remote", "vllm"}:
         return "vllm"
     if name in {"llamacpp"}:
         return "llamacpp"

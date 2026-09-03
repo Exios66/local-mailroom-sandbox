@@ -4,6 +4,34 @@
 
 ### Added
 
+- **HUB-026 — remote-serving integration completeness**: `vllm-remote`
+  profile with a `tunnel:` block + `mailroom_sandbox/tunnel.py`
+  (network-free argv builders, pidfile lifecycle, double-forward guard) +
+  `sandbox tunnel plan/up/status/down`; `deploy/conda/environment.yml`
+  (CPU-first portable env, vLLM deliberately external);
+  `deploy/htcondor/` CHTC job templates — batch eval (in-job vLLM, works
+  on the shared GPU Lab where `condor_ssh_to_job` is unavailable) and an
+  owned-GPU server variant tied to the tunnel profile
+  (`docs/remote-serving.md` is the overview).
+
+### Changed
+
+- **HUB-015 — reduced agent profile + current-pipeline alignment**: the
+  **reporter agent is retired** (moved to `retired_agents`; the compile stage
+  is the computational procedural `compile_report` node — deterministic
+  matter-record assembly, **zero LLM calls**, and the sandbox eval no longer
+  acquires an LLM client for it). **Reviewers stay enabled.** Sandbox surfaces
+  aligned to llm-mailroom **v0.6.0** (`fetch-deps`, docs) and dojo **v0.12.2**.
+  HF fixtures (`data/fixtures/hf/docclass_mini.jsonl`) now carry full
+  docclass-merged ground-truth targets: corpus-strata `expected_subclass` for
+  all 5 doc types + `expected_fields` from the 27-key GT schema (correspondence
+  intent + provenance; insurance claim entities), propagated into every eval
+  row. Dockerfile gains a non-root user + HEALTHCHECK; all four `:latest`
+  compose images pinned (ollama 0.33.2, vllm v0.28.0, phoenix version-20.4.0,
+  minio RELEASE.2025-09-07…).
+
+### Added
+
 - Local-first LLM-Mailroom experiment sandbox: provider profiles (Ollama, vLLM
   local, Modal vLLM, llama.cpp, LM Studio, opt-in OpenRouter), taxonomy overlay
   with OpenRouter→local model map, Docker Compose (Phoenix / Ollama / vLLM /
@@ -18,11 +46,11 @@
 - Per-agent overlay knobs and `sandbox cutover --agent-model NAME=tag`.
 - Langfuse 3 compose (web + worker + postgres + clickhouse + redis + minio)
   with headless `LANGFUSE_INIT_*` keys matching The-Mailroom filters.
-- Scoring is pinned to `llm-dojo-scoring @ v0.12.1` (local vs API serving
-  table + scorecard + cost from [#10](https://github.com/Exios66/llm-dojo-scoring/pull/10)).
-  Mailroom **v0.5.0** (source via `sandbox fetch-deps`) still listed dojo
-  v0.7.0 as a pip pin; the sandbox follows the current family scoring engine.
-  `pip install -e ".[pipeline]"` installs mailroom *main*.
+- Scoring is pinned to `llm-dojo-scoring @ v0.12.2` (local vs API serving
+  table + scorecard + cost from [#10](https://github.com/Exios66/llm-dojo-scoring/pull/10);
+  aligned with llm-mailroom v0.6.0's own pin). Mailroom **v0.6.0** is the
+  `sandbox fetch-deps` source tree; `pip install -e ".[pipeline]"` installs
+  mailroom *main*.
 - `sandbox eval local_vs_api --mock` compares offline (Ollama/vLLM) vs API-key
   (OpenRouter) serving metrics via `get_suite("local_vs_api")` without needing
   `OPENROUTER_API_KEY`. The comparison returns a full T0/T1 **table** (missing

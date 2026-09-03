@@ -22,7 +22,7 @@ def test_deep_merge_nested():
 
 def test_profiles_exist():
     names = list_profiles()
-    for required in ("ollama", "vllm-local", "modal-vllm", "llamacpp", "lmstudio", "openrouter"):
+    for required in ("ollama", "vllm-local", "vllm-remote", "modal-vllm", "llamacpp", "lmstudio", "openrouter"):
         assert required in names
 
 

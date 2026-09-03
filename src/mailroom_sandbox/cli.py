@@ -60,7 +60,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("models", nargs="*")
     p.set_defaults(handler=_cmd_pull_models)
 
-    p = sub.add_parser("fetch-deps", help="Clone llm-mailroom @ v0.5.0 into vendor/", parents=[shared])
+    p = sub.add_parser("fetch-deps", help="Clone llm-mailroom @ v0.6.0 into vendor/", parents=[shared])
     p.add_argument("--entity", action="store_true", help="Also clone llm-entity-extraction")
     p.add_argument("--visualizer", action="store_true", help="Also clone The-Mailroom (Langfuse observer)")
     p.set_defaults(handler=_cmd_fetch_deps)
@@ -146,7 +146,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("datasets", help="Dataset helpers", parents=[shared])
     ds = p.add_subparsers(dest="datasets_cmd")
     pull = ds.add_parser("pull", parents=[shared])
-    pull.add_argument("--dataset", default="Lucius-Morningstar/docclass-merged")
+    pull.add_argument("--dataset", default="Lucius-Morningstar/mailroom-corpus")
     pull.add_argument("--max-rows", type=int, default=50)
     pull.set_defaults(handler=_cmd_datasets_pull)
     prep = ds.add_parser(
@@ -165,6 +165,24 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("profiles", help="List provider profiles", parents=[shared])
     p.set_defaults(handler=_cmd_profiles)
+
+    tun = sub.add_parser(
+        "tunnel",
+        help="SSH local port forward for remote-serving profiles (plan/up/status/down)",
+        parents=[shared],
+    )
+    tun_sub = tun.add_subparsers(dest="tunnel_cmd")
+    # NOTE: the leaf parsers deliberately omit parents=[shared] — a leaf-level
+    # --profile default would clobber the value parsed at the tunnel level.
+    tp = tun_sub.add_parser("plan", help="Print the exact ssh forward command")
+    tp.set_defaults(handler=_cmd_tunnel_plan)
+    tu = tun_sub.add_parser("up", help="Start the detached forward (pidfile under data/runtime/)")
+    tu.set_defaults(handler=_cmd_tunnel_up)
+    ts = tun_sub.add_parser("status", help="Is the forward port answering / pid recorded?")
+    ts.set_defaults(handler=_cmd_tunnel_status)
+    td = tun_sub.add_parser("down", help="Stop the recorded forward")
+    td.set_defaults(handler=_cmd_tunnel_down)
+    tun.set_defaults(handler=_cmd_tunnel_help)
 
     return parser
 
@@ -238,7 +256,7 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
     rc = _clone(
         "https://github.com/Exios66/llm-mailroom.git",
         vendor_dir() / "llm-mailroom",
-        "v0.5.0",
+        "v0.6.0",
     )
     if args.entity:
         rc = rc or _clone(
@@ -493,6 +511,69 @@ def _cmd_traces_export(args: argparse.Namespace) -> int:
 
 def _cmd_profiles(args: argparse.Namespace) -> int:
     _print(list_profiles())
+    return 0
+
+
+def _tunnel_spec(args: argparse.Namespace):
+    from mailroom_sandbox.overlay import load_profile
+    from mailroom_sandbox.tunnel import TunnelError, tunnel_spec
+
+    try:
+        return tunnel_spec(load_profile(args.profile))
+    except TunnelError as exc:
+        print(f"ERROR {exc}")
+        raise SystemExit(1) from exc
+
+
+def _cmd_tunnel_help(args: argparse.Namespace) -> int:
+    print("Use: sandbox tunnel plan | up | status | down")
+    return 0
+
+
+def _cmd_tunnel_plan(args: argparse.Namespace) -> int:
+    from mailroom_sandbox.tunnel import build_ssh_argv
+
+    spec = _tunnel_spec(args)
+    print(" ".join(build_ssh_argv(spec)))
+    print(f"# sandbox side: SANDBOX_PROFILE={spec.profile} (base_url {spec.base_url})")
+    return 0
+
+
+def _cmd_tunnel_up(args: argparse.Namespace) -> int:
+    from mailroom_sandbox.tunnel import spawn
+
+    spec = _tunnel_spec(args)
+    pid = spawn(spec)
+    print(f"tunnel up: pid {pid} forwarding localhost:{spec.local_port} -> {spec.destination}:{spec.remote_port}")
+    print(f"stop with: sandbox tunnel --profile {spec.profile} down")
+    return 0
+
+
+def _cmd_tunnel_status(args: argparse.Namespace) -> int:
+    from mailroom_sandbox.tunnel import is_up, read_pid
+
+    spec = _tunnel_spec(args)
+    _print(
+        {
+            "profile": spec.profile,
+            "local_port": spec.local_port,
+            "destination": spec.destination,
+            "port_answering": is_up(spec.local_port),
+            "pid": read_pid(spec.profile),
+        }
+    )
+    return 0
+
+
+def _cmd_tunnel_down(args: argparse.Namespace) -> int:
+    from mailroom_sandbox.tunnel import terminate
+
+    spec = _tunnel_spec(args)
+    pid = terminate(spec)
+    if pid is None:
+        print(f"no recorded tunnel for profile '{spec.profile}'")
+        return 0
+    print(f"tunnel down: killed pid {pid}")
     return 0
 
 
