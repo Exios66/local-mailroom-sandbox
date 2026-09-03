@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from contextlib import ExitStack
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -18,7 +19,7 @@ from mailroom_sandbox.datasets import (
 )
 from mailroom_sandbox.eval import experiment_log, scoring, tracing
 from mailroom_sandbox.eval.scoring import emit
-from mailroom_sandbox.mock_llm import fake_client
+from mailroom_sandbox.mock_llm import fake_client, fake_structured_payload
 from mailroom_sandbox.runtime import activate, resolve_mailroom_src
 
 try:
@@ -555,6 +556,34 @@ def run_pipeline_eval(
     return {**plan, "scores": scores, "docs": results}
 
 
+def _langchain_mock_patches(expect: dict[str, Any]) -> list:
+    """Mock patches for mailroom v0.6.0's vendored LangChain agents.
+
+    The vendored agents build their own ``ChatOpenAI`` and bypass
+    ``llm.client.get_llm``, so — mirroring mailroom's own test suite — the
+    ``langchain_agents.base_agent.BaseAgent.llm`` property must be patched
+    with the canned ``FakeLangChainLLM`` shipped alongside. The sandbox
+    keeps its marker-driven payload table by overriding ``_run`` to answer
+    through ``fake_structured_payload``. Returns [] when mailroom v0.5.x
+    (no langchain_agents) is resolved instead.
+    """
+    try:
+        import langchain_agents.base_agent as lc_base
+        from langchain_agents.mock import FakeLangChainLLM, user_text_from_messages
+    except Exception:
+        return []
+
+    class _SandboxFakeLLM(FakeLangChainLLM):
+        def _run(self, messages):
+            self.calls += 1
+            text = user_text_from_messages(messages)
+            parsed = fake_structured_payload(text, expect)
+            return self._make_message(parsed)
+
+    fake = _SandboxFakeLLM()
+    return [patch.object(lc_base.BaseAgent, "llm", new=lambda self: fake)]
+
+
 def _run_pipeline_doc(
     row: dict[str, Any],
     *,
@@ -611,9 +640,15 @@ def _run_pipeline_doc(
         "session_id": session_id or matter_id,
     }
     if mock:
-        with patch("llm.client.get_llm", side_effect=_mock_get_llm), patch(
-            "agents.base.get_llm", side_effect=_mock_get_llm
-        ):
+        with ExitStack() as stack:
+            stack.enter_context(
+                patch("llm.client.get_llm", side_effect=_mock_get_llm)
+            )
+            stack.enter_context(
+                patch("agents.base.get_llm", side_effect=_mock_get_llm)
+            )
+            for lc_patch in _langchain_mock_patches(expect):
+                stack.enter_context(lc_patch)
             result = run_pipeline(queued, matter_id, **kwargs)
     else:
         result = run_pipeline(queued, matter_id, **kwargs)
@@ -665,6 +700,11 @@ def hf_rows_as_manifest() -> list[dict[str, str]]:
                 "subdir": "hf",
                 "filename": str(item.get("filename") or f"{item.get('doc_type')}.txt"),
                 "expected_doc_class": str(item.get("doc_type") or item.get("expected_hf_class") or "unknown"),
+                # mailroom-corpus ground-truth alignment: subclass + entity
+                # targets ride through so specialist/judge/reporter evals
+                # score against the corpus GT schema, not ad-hoc keys.
+                "expected_subclass": str(item.get("expected_subclass") or ""),
+                "expected_fields": item.get("expected_fields") or {},
                 "expected_stage": "archived",
                 "text": str(item.get("text") or ""),
             }
