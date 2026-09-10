@@ -13,6 +13,45 @@
   on the shared GPU Lab where `condor_ssh_to_job` is unavailable) and an
   owned-GPU server variant tied to the tunnel profile
   (`docs/remote-serving.md` is the overview).
+- **Modal deploy hardening (SDK 1.5.5 / vLLM v0.28.0)**: `deploy/modal_vllm.py`
+  now pins the Modal SDK (`modal==1.5.5` in the `[deploy]` extra), defaults to
+  `vllm/vllm-openai:v0.28.0` (matching the local compose pin), caches vLLM
+  JIT/CUDA-graph artifacts in a `sandbox-vllm-cache` Volume, pre-warms weights
+  with `modal run deploy/modal_vllm.py::download_model` (HF cache Volume +
+  explicit commit), tags the app for cost allocation, and bounds cost with
+  `max_containers=1` / `min_containers=0` plus configurable scaledown and
+  startup timeouts (`MODAL_VLLM_SCALEDOWN_SECONDS`,
+  `MODAL_VLLM_MAX_CONTAINERS`, `MODAL_VLLM_MIN_CONTAINERS`,
+  `MODAL_VLLM_STARTUP_TIMEOUT_SECONDS`) and an optional
+  `MODAL_VLLM_REVISION` pin. New network-free contract tests
+  (`tests/test_modal_vllm.py`) pin the argv builder, bearer env mapping,
+  secret construction, cost guards, and the SDK/image pins. Docs:
+  `deploy/README.md` (deploy → verify → cost → security → troubleshooting),
+  `.cursor/skills/modal/SKILL.md`, `docs/remote-serving.md`,
+  `config/.env.example`.
+
+- **DMR-027 — sandbox job CLI (`sandbox run`)**: a spec-driven, locked,
+  resumable eval runner over vLLM + Modal + an OTEL trace sink. New
+  `src/mailroom_sandbox/job/` (`spec`, `checkpoint`, `preflight`, `runner`,
+  `otel`, `metrics`, `remote`), `src/mailroom_sandbox/corpus.py`
+  (revision-pinned HF full-corpus/subset loader: default+ground_truth parquet
+  join, `content_sha256` integrity, deterministic strata/limit selection,
+  offline `file://` path), and `src/mailroom_sandbox/prompt_registry.py`
+  (every pipeline agent's prompt: local variants + Langfuse integer-version
+  pins + code default; `sorter`/`contracts_specialist` Family-B
+  `PROMPT_VERSIONS` injection). Preflight resolves/validates all domains,
+  prepares the subset, and writes an immutable `spec.lock.json` (drift
+  refused on resume unless `--force`); the runner checkpoints per item
+  (`items.jsonl` source of truth, atomic `checkpoint.json`, torn-tail
+  self-healing) and resumes after pause/failure. `sandbox run
+  preflight|start|status|resume|cancel|list`, `sandbox prompts list|show`,
+  `sandbox metrics compare` (local/Modal/API buckets, deltas vs API, dojo
+  pairwise comparisons). Modal mode: `deploy/modal_job.py` worker
+  (`sandbox-runs` Volume + `sandbox-job-state` Dict polling, resume via
+  FunctionCall re-attach/re-spawn lease). Deps: `observability` +
+  `opentelemetry-sdk`/`opentelemetry-exporter-otlp-proto-http`; new `hf`
+  extra (`huggingface_hub`, `pyarrow`). Docs: `docs/jobs.md`. ~52 new
+  network-free tests.
 
 ### Changed
 
@@ -29,6 +68,14 @@
   row. Dockerfile gains a non-root user + HEALTHCHECK; all four `:latest`
   compose images pinned (ollama 0.33.2, vllm v0.28.0, phoenix version-20.4.0,
   minio RELEASE.2025-09-07…).
+
+### Fixed
+
+- **Modal SDK 1.5.5 removed `Secret.from_local`** — `deploy/modal_vllm.py`
+  used it and would fail at import/deploy. Knobs are now built with
+  `Secret.from_dict`, which skips absent keys, preserving the optional
+  `HF_TOKEN` / `MODAL_VLLM_API_TOKEN` contract (`from_local_environ` raises
+  on missing names). Regression-guarded by `tests/test_modal_vllm.py`.
 
 ### Added
 
