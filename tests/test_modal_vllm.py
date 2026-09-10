@@ -31,6 +31,7 @@ KNOB_ENV = (
     "MODAL_VLLM_MAX_MODEL_LEN",
     "MODAL_VLLM_GPU_MEMORY_UTILIZATION",
     "MODAL_VLLM_MAX_NUM_SEQS",
+    "MODAL_VLLM_TP_SIZE",
     "MODAL_VLLM_IMAGE_TAG",
     "MODAL_VLLM_REVISION",
     "MODAL_VLLM_API_TOKEN",
@@ -271,6 +272,40 @@ class TestCommandBuilder:
         finally:
             mod.REVISION = original
 
+    def test_tensor_parallel_defaults_to_1_single_gpu(self):
+        """DMR-045: no TP flag on a single-GPU deploy (the default)."""
+        mod = _load_app_module()
+        cmd = mod.build_vllm_command("Qwen/Qwen3-8B")
+        assert "--tensor-parallel-size" not in cmd
+        assert mod.TP_SIZE == "1"
+
+    def test_tensor_parallel_from_gpu_suffix(self, monkeypatch):
+        """DMR-045: MODAL_VLLM_GPU='A100-80GB:2' must derive TP_SIZE=2."""
+        monkeypatch.setenv("MODAL_VLLM_GPU", "A100-80GB:2")
+        mod = _load_app_module()
+        assert mod.TP_SIZE == "2"
+        cmd = mod.build_vllm_command("meta-llama/Llama-3.3-70B-Instruct")
+        assert cmd[cmd.index("--tensor-parallel-size") + 1] == "2"
+
+    def test_tensor_parallel_explicit_override(self, monkeypatch):
+        """DMR-045: explicit MODAL_VLLM_TP_SIZE beats the GPU-suffix default."""
+        monkeypatch.setenv("MODAL_VLLM_GPU", "A100-80GB:2")
+        monkeypatch.setenv("MODAL_VLLM_TP_SIZE", "1")
+        mod = _load_app_module()
+        assert mod.TP_SIZE == "1"
+        cmd = mod.build_vllm_command("Qwen/Qwen3-32B")
+        assert "--tensor-parallel-size" not in cmd
+
+    def test_tensor_parallel_knob_travels_through_secret(self, modal_stub, monkeypatch):
+        """DMR-045: TP_SIZE must reach the container via the deploy Secret."""
+        monkeypatch.setenv("MODAL_VLLM_TP_SIZE", "2")
+        monkeypatch.setenv("MODAL_VLLM_GPU", "A100-80GB:2")
+        mod = _load_app_module()
+        assert len(modal_stub.Secret.calls) == 2
+        for call in modal_stub.Secret.calls:
+            assert call["MODAL_VLLM_TP_SIZE"] == "2"
+        assert "MODAL_VLLM_TP_SIZE" in mod.CONFIG_ENV_KEYS
+
 
 class TestServerEnv:
     def test_api_token_maps_to_vllm_enforcement_var(self, monkeypatch):
@@ -380,6 +415,55 @@ class TestComposeParity:
         assert "--disable-log-requests" not in self._vllm_service()["command"]
         mod = _load_app_module()
         assert "--disable-log-requests" not in mod.build_vllm_command("Qwen/Qwen3-8B")
+
+
+class TestSmokeCheckDiagnostics:
+    """DMR-053: helpful smoke-check errors carry response bodies + hints."""
+
+    def test_401_mentions_bearer_hint(self, monkeypatch):
+        mod = _load_app_module()
+
+        class _Resp:
+            status_code = 401
+            text = "unauthorized"
+
+        monkeypatch.setattr("httpx.get", lambda *a, **k: _Resp())
+        with pytest.raises(SystemExit, match="VLLM_API_KEY"):
+            mod._smoke_check("https://x--sandbox-vllm-serve.modal.run/v1")
+
+    def test_http_error_includes_body(self, monkeypatch):
+        mod = _load_app_module()
+
+        class _Resp:
+            status_code = 503
+            text = "model warming up"
+
+        monkeypatch.setattr("httpx.get", lambda *a, **k: _Resp())
+        with pytest.raises(SystemExit, match="503"):
+            mod._smoke_check("https://x--sandbox-vllm-serve.modal.run/v1")
+
+    def test_non_json_body_reported(self, monkeypatch):
+        mod = _load_app_module()
+
+        class _Resp:
+            status_code = 200
+            text = "not json at all"
+
+            def json(self):
+                raise ValueError("no json")
+
+        monkeypatch.setattr("httpx.get", lambda *a, **k: _Resp())
+        with pytest.raises(SystemExit, match="non-JSON"):
+            mod._smoke_check("https://x--sandbox-vllm-serve.modal.run/v1")
+
+    def test_masked_config_never_prints_token(self, monkeypatch):
+        mod = _load_app_module()
+        monkeypatch.setenv("MODAL_VLLM_API_TOKEN", "super-secret-token")
+        cfg = mod._masked_config()
+        assert cfg["VLLM_API_KEY"] == "set"
+        assert "super-secret-token" not in str(cfg)
+        assert cfg["model"] == "Qwen/Qwen3-8B"
+        monkeypatch.delenv("MODAL_VLLM_API_TOKEN")
 
 
 class TestVersionPins:
