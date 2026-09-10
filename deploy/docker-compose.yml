@@ -8,6 +8,8 @@
 # llm-mailroom and The-Mailroom. Headless init keys come from the environment
 # (see config/.env.example). Healthchecks never pass credentials as CLI flags.
 
+name: mailroom-sandbox
+
 x-langfuse-env: &langfuse-env
   NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
   NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-change-me-sandbox}
@@ -44,15 +46,18 @@ services:
   #   # or alongside the default stack:
   #   sandbox up --compose-profile langfuse --compose-profile ollama --compose-profile jupyter
   # Open http://127.0.0.1:8888/lab — notebooks under /workspace/notebooks
+  # Build context is the package root (..) so `dockerfile: deploy/Dockerfile`
+  # and the `- ..:/workspace` mount both resolve correctly.
   jupyter:
     build:
-      context: .
+      context: ..
       dockerfile: deploy/Dockerfile
     image: mailroom-sandbox:offline
     container_name: sandbox-jupyter
     profiles: ["jupyter"]
     ports:
-      - "8888:8888"
+      - "127.0.0.1:8888:8888"
+    user: "${SANDBOX_UID:-1000}:${SANDBOX_GID:-1000}"
     environment:
       SANDBOX_ROOT: /workspace
       MAILROOM_BASE_DIR: /workspace/data
@@ -60,6 +65,7 @@ services:
       # Inside the compose network, talk to sibling services by name.
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434/v1}
       VLLM_BASE_URL: ${VLLM_BASE_URL:-http://vllm:8000/v1}
+      VLLM_API_KEY: ${VLLM_API_KEY:-}
       GENERIC_BASE_URL: ${GENERIC_BASE_URL:-http://llamacpp:8080/v1}
       LANGFUSE_HOST: ${LANGFUSE_HOST:-http://langfuse-web:3000}
       LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-pk-lf-sandbox}
@@ -67,7 +73,7 @@ services:
       PHOENIX_ENDPOINT: ${PHOENIX_ENDPOINT:-http://phoenix:6006/v1/traces}
       OBSERVABILITY_PROVIDER: ${OBSERVABILITY_PROVIDER:-langfuse}
     volumes:
-      - .:/workspace
+      - ..:/workspace
     working_dir: /workspace
 
   phoenix:
@@ -102,7 +108,10 @@ services:
   # default), pinned for local<->Modal parity. Compose substitution reads the
   # shell env or deploy/.env (the compose project directory):
   #   VLLM_MODEL, VLLM_MAX_MODEL_LEN, VLLM_GPU_MEMORY_UTILIZATION,
-  #   VLLM_MAX_NUM_SEQS, VLLM_API_KEY, HF_TOKEN.
+  #   VLLM_MAX_NUM_SEQS, VLLM_TP_SIZE, VLLM_API_KEY, HF_TOKEN.
+  # Quantization is encoded in the model id (e.g. Qwen/Qwen3-8B-AWQ); the
+  # compose command has no --quantization/--revision substitution (an empty
+  # value would break vLLM boot) — use the Modal app for those knobs.
   vllm:
     image: vllm/vllm-openai:v0.28.0
     container_name: sandbox-vllm
@@ -129,8 +138,20 @@ services:
       - ${VLLM_GPU_MEMORY_UTILIZATION:-0.90}
       - --max-num-seqs
       - ${VLLM_MAX_NUM_SEQS:-256}
+      - --tensor-parallel-size
+      - ${VLLM_TP_SIZE:-1}
       - --no-enable-log-requests
     ipc: host
+    # vLLM needs a real GPU. Requires the NVIDIA container toolkit on the host
+    # (Docker Desktop with GPU support / Linux with nvidia-container-runtime).
+    # Deliberately NOT on the ollama service (CPU-capable smoke).
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 
   llamacpp:
     image: ghcr.io/ggerganov/llama.cpp:server

@@ -9,7 +9,6 @@ existing public eval runner at whole-run granularity.
 
 from __future__ import annotations
 
-import hashlib
 import time
 from typing import Any, Callable
 
@@ -23,17 +22,34 @@ PER_ITEM_TASKS = ("sorter", "legalbench")
 RUNNABLE_TASKS = PER_ITEM_TASKS + ("pipeline", "extract", "chained", "local_vs_api", "isolated")
 
 
-def _predict_row(task: str, row: dict[str, Any], *, mock: bool, model: str | None) -> tuple[Any, bool]:
+def _expected_for(task: str, row: dict[str, Any]) -> str:
+    """Ground-truth label for a row, by task.
+
+    LegalBench rows carry the label in ``answer`` (the corpus QA schema), not
+    ``expected_doc_class`` — reading the wrong field scored every legalbench
+    prediction as wrong (DMR-049 F1).
+    """
+    if task == "legalbench":
+        return str(row.get("answer") or row.get("expected") or "")
+    return str(row.get("expected_doc_class") or "")
+
+
+def _predict_row(
+    task: str,
+    row: dict[str, Any],
+    *,
+    mock: bool,
+    model: str | None,
+    run_id: str | None = None,
+) -> tuple[Any, bool]:
     if task == "sorter":
         if mock:
             return eval_runners._classify_mock(row), True
-        result = eval_runners._run_pipeline_doc(row, mock=False)
+        result = eval_runners._run_pipeline_doc(row, mock=False, run_id=run_id)
         return (result.get("doc_type") or "unknown"), True
     if task == "legalbench":
         if mock:
-            blob = row.get("doc_text") or row.get("text") or ""
-            answer = "Yes" if int(hashlib.md5(blob.encode()).hexdigest()[:2], 16) % 2 else "No"
-            return answer, True
+            return eval_runners._mock_legalbench_answer(row), True
         return eval_runners._live_legalbench_answer(row, model=model), True
     raise ValueError(f"task {task!r} is not a per-item task in v1")
 
@@ -51,8 +67,135 @@ def _task_defaults(store: RunStore) -> dict[str, Any]:
     return lock.get("job", {})
 
 
+def _lock_prompt_source(store: RunStore) -> str:
+    """The lock's default prompt source ('' when the lock has no prompt block)."""
+    lock = store.read_lock() or {}
+    prompt_block = lock.get("prompt") or {}
+    return str((prompt_block.get("default") or {}).get("source") or "code-default")
+
+
+def _lock_prompt_variant(store: RunStore) -> str | None:
+    """The lock's default LOCAL prompt variant stem, when pinned.
+
+    The runners' ``prompt_version`` param is a local variant stem (e.g.
+    ``sorter_local_v0``), never the source string — passing 'code-default'
+    would trigger the prompt-patch machinery. Langfuse/code-default locks
+    pass None (overrides are already applied in-process).
+    """
+    lock = store.read_lock() or {}
+    default = (lock.get("prompt") or {}).get("default") or {}
+    if isinstance(default, dict) and default.get("source") == "local":
+        return str(default.get("file") or "") or None
+    return None
+
+
+def _run_whole_run(
+    store: RunStore,
+    task: str,
+    *,
+    mock: bool,
+    model: str | None,
+    profile: str | None,
+) -> dict[str, Any]:
+    """Delegate a whole-run task to the existing public eval runner.
+
+    Per-item tasks (``sorter``, ``legalbench``) run row-by-row so a
+    pause/error resumes from the last appended item. Everything else in
+    ``RUNNABLE_TASKS`` delegates to the matching ``eval.runners`` function at
+    whole-run granularity: the locked prompt overrides are applied, the runner
+    is invoked with lock-derived kwargs, and a terminal checkpoint + event
+    record the completion. The experiment log record is appended by the
+    delegated runner itself.
+    """
+    from mailroom_sandbox.eval import runners as eval_runners
+
+    lock = store.read_lock() or {}
+    prompt_block = lock.get("prompt") or {}
+    default_ref = _lock_prompt_source(store)
+    prompt_variant = _lock_prompt_variant(store)
+    kwargs: dict[str, Any] = {
+        "mock": mock,
+        "dry_run": False,
+        "experiment_name": f"sandbox_{task}_{store.run_id}",
+        "profile": profile,
+        "model": model,
+        # DMR-053 (plan gap): the delegated runner used to label every whole-run
+        # record 'mailroom-default' even when the lock pinned a local variant —
+        # pass the LOCK's default variant stem so log records carry it.
+        "prompt_version": prompt_variant,
+        "agent_models": None,
+    }
+    try:
+        if task == "pipeline":
+            result = eval_runners.run_pipeline_eval(connected=True, **kwargs)
+        elif task == "extract":
+            result = eval_runners.run_extract_eval(**kwargs)
+        elif task == "chained":
+            result = eval_runners.run_chained_eval(**kwargs)
+        elif task == "local_vs_api":
+            result = eval_runners.run_local_vs_api_eval(**kwargs)
+        elif task == "isolated":
+            result = eval_runners.run_isolated_eval("sorter", **kwargs)
+        else:
+            raise ValueError(f"task {task!r} is not runnable")
+    except Exception as exc:  # noqa: BLE001
+        store.write_checkpoint(
+            state="failed",
+            cursor=0,
+            total=0,
+            last_error={"type": "whole-run", "message": f"{type(exc).__name__}: {str(exc)[:512]}", "at": utc_now(), "retryable": False},
+        )
+        store.append_event("failed", "error", cursor=0, last_error=str(exc)[:512])
+        return {"state": "failed", "task": task, "error": str(exc)[:512], "ok": 0, "errors": 1}
+
+    scores = result.get("scores") or {}
+    # The delegated runner reports how many rows it actually processed; fall
+    # back to the locked dataset length when the runner has no n.
+    processed = result.get("n") if isinstance(result.get("n"), int) else None
+    if processed is None:
+        processed = scores.get("n") if isinstance(scores.get("n"), int) else len(store.dataset_rows())
+    # DMR-053: stamp the returned record with the lock's provenance so the
+    # caller (and the Modal state dict) can pair it with the locked spec even
+    # though the runner appended its own log copy.
+    record = result.get("record") if isinstance(result, dict) else None
+    if isinstance(record, dict):
+        record.setdefault("spec_hash", store.spec_hash() or "")
+        record.setdefault("dataset_fingerprint", _fingerprint(store))
+        record.setdefault("prompt_version", prompt_variant or default_ref)
+        record.setdefault("run_id", store.run_id)
+    store.write_checkpoint(state="done", cursor=processed, total=processed, remote=None)
+    store.append_event("done", "info", cursor=processed, ok_count=processed)
+    return {
+        "state": "done",
+        "task": task,
+        "cursor": processed,
+        "total": processed,
+        "ok": processed,
+        "errors": 0,
+        "scores": scores,
+        "default_prompt_source": default_ref,
+        "spec_hash": store.spec_hash() or "",
+        "dataset_fingerprint": _fingerprint(store),
+        "result": result,
+    }
+
+
 def _max_retries(store: RunStore) -> int:
     return int(_task_defaults(store).get("max_retries", 2))
+
+
+def verify_dataset_lock(store: RunStore) -> None:
+    """Refuse to score when dataset.jsonl drifted from the lock's sha256."""
+    lock = store.read_lock() or {}
+    dataset_block = lock.get("dataset") if isinstance(lock.get("dataset"), dict) else {}
+    expected = str((dataset_block or {}).get("sha256") or "")
+    actual = store.dataset_sha256() or ""
+    if expected and actual and expected != actual:
+        raise RuntimeError(
+            f"dataset.jsonl changed since the lock (lock={expected[:12]} file={actual[:12]}) — "
+            "refusing to score drifted rows; re-run preflight with --force to archive this "
+            "generation and re-lock"
+        )
 
 
 def _fail_fast(store: RunStore) -> bool:
@@ -83,8 +226,11 @@ def _fingerprint(store: RunStore) -> str:
     rows = store.dataset_rows()
     if not rows:
         return ""
-    parts = [f"{r.get('id')}|{r.get('expected_doc_class')}" for r in rows]
-    return hashlib.md5(";".join(sorted(parts)).encode()).hexdigest()[:12]
+    # One canonical fingerprint shared with the eval-run records so
+    # pair_comparable_runs can pair job and eval runs (DMR-049).
+    from mailroom_sandbox.datasets import dataset_fingerprint
+
+    return dataset_fingerprint(rows)
 
 
 def _apply_prompt_overrides(store: RunStore) -> None:
@@ -142,18 +288,40 @@ def run_job(
     mock = _lock_mock(store, True) if mock is None else mock
 
     rows = store.dataset_rows()
+    verify_dataset_lock(store)
     if dry_run:
         return {"state": "dry_run", "task": task, "n": len(rows), "cursor": 0, "total": len(rows)}
     if store.terminal():
         return store.summary()
+
+    # Whole-run tasks delegate to the existing public eval runner; the locked
+    # dataset may legitimately be empty for serving-only tasks (local_vs_api),
+    # so dispatch before the per-item row guard.
+    _apply_prompt_overrides(store)
+    if task not in PER_ITEM_TASKS:
+        if task not in RUNNABLE_TASKS:
+            raise ValueError(f"task {task!r} is not runnable; have {sorted(RUNNABLE_TASKS)}")
+        return _run_whole_run(store, task, mock=mock, model=model, profile=profile)
+
     if not rows:
         store.write_checkpoint(state="done", cursor=0, total=0, remote=None)
         store.append_event("done", "info", cursor=0)
         return {"state": "done", "cursor": 0, "total": 0, "ok": 0, "errors": 0}
 
+    if task == "legalbench":
+        missing = [
+            str(r.get("id") or r.get("filename") or i)
+            for i, r in enumerate(rows)
+            if not r.get("question") or r.get("answer") in (None, "")
+        ]
+        if missing:
+            raise ValueError(
+                f"legalbench rows require question+answer (missing on {len(missing)} row(s), "
+                f"e.g. {missing[:3]}) — this dataset is not a legalbench subset (DMR-049 F6)"
+            )
+
     cursor = store.resume_cursor()
     total = len(rows)
-    _apply_prompt_overrides(store)
 
     # Reconstruct already-completed predictions so final scoring covers all rows.
     completed: dict[int, dict[str, Any]] = {}
@@ -163,7 +331,7 @@ def run_job(
     expected: list[str] = []
     predicted: list[str] = []
     for index, row in enumerate(rows):
-        expected.append(str(row.get("expected_doc_class") or ""))
+        expected.append(_expected_for(task, row))
         done = completed.get(index)
         if done is not None:
             predicted.append(str(done.get("predicted") or ""))
@@ -187,7 +355,7 @@ def run_job(
             while attempt < _max_retries(store) + 1:
                 attempt += 1
                 try:
-                    value, _ = _predict_row(task, row, mock=mock, model=model)
+                    value, _ = _predict_row(task, row, mock=mock, model=model, run_id=store.run_id)
                     error = None
                     break
                 except Exception as exc:  # noqa: BLE001
@@ -206,7 +374,7 @@ def run_job(
             {
                 "item_id": item_id,
                 "index": index,
-                "expected": row.get("expected_doc_class"),
+                "expected": _expected_for(task, row),
                 "predicted": predicted[index],
                 "ok": ok,
                 "error": error,
@@ -246,7 +414,21 @@ def run_job(
             "errors": error_count,
             "last_error": last_error,
         }
-    scores = _score(task, expected, predicted) if expected and predicted else {}
+    ok_by_index = {int(d["index"]): bool(d.get("ok", False)) for d in store.load_items()}
+    # Score only completed, ok rows — a failed row must never count as a wrong
+    # prediction, and the error count is reported explicitly (DMR-049 F4).
+    scored_pairs = [
+        (expected[i], predicted[i])
+        for i in range(len(rows))
+        if ok_by_index.get(i, False) and predicted[i] != ""
+    ]
+    scores = (
+        _score(task, [e for e, _ in scored_pairs], [p for _, p in scored_pairs])
+        if scored_pairs
+        else {}
+    )
+    if error_count:
+        scores["error_count"] = error_count
     record = _build_record(store, task, model, scores, mock=mock)
     experiment_log.append(record)
     store.append_event("done", "info", cursor=final_cursor, ok_count=ok_count)

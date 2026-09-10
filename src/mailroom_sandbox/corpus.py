@@ -12,9 +12,40 @@ from __future__ import annotations
 import hashlib
 import json
 import random
+import re
 from typing import Any
 
 from mailroom_sandbox.job.spec import DatasetSpec, FAMILY_HF_REVISION
+
+_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+
+
+def _resolve_revision(repo: str, revision: str) -> str:
+    """Resolve a Hub revision to a full 40-hex sha.
+
+    A revision that already is a full sha is trusted as-is (no network call —
+    the pinned default is a full sha, so the default path is network-free for
+    resolution). Any other revision (branch/tag/partial sha) is resolved via
+    ``dataset_info``; auth/gating/network failures propagate with context
+    instead of silently floating to the requested string.
+    """
+    if _SHA_RE.fullmatch(revision):
+        return revision
+    import huggingface_hub
+
+    try:
+        info = huggingface_hub.HfApi().dataset_info(repo, revision=revision)
+    except Exception as exc:
+        raise RuntimeError(
+            f"cannot resolve dataset revision {revision!r} for {repo}: "
+            f"{type(exc).__name__}: {exc}"
+        ) from exc
+    resolved = getattr(info, "sha", "") or revision
+    if not _SHA_RE.fullmatch(resolved):
+        raise RuntimeError(
+            f"dataset_info for {repo}@{revision} returned non-sha {resolved!r}"
+        )
+    return resolved
 
 GT_FIELD_LISTS = {
     "insurance_claim": [
@@ -70,11 +101,8 @@ def load_hf_rows(spec: DatasetSpec) -> list[dict[str, Any]]:
     import huggingface_hub
 
     repo = spec.repo
-    revision = spec.effective_revision()
-    try:
-        resolved = huggingface_hub.HfApi().dataset_info(repo, revision=revision).sha
-    except Exception:
-        resolved = revision
+    revision = spec.revision or FAMILY_HF_REVISION
+    resolved = _resolve_revision(repo, revision)
     files = set(huggingface_hub.list_repo_files(repo, revision=resolved, repo_type="dataset"))
 
     def shard(config: str) -> str:
@@ -96,6 +124,13 @@ def load_hf_rows(spec: DatasetSpec) -> list[dict[str, Any]]:
             r["source_revision"] = resolved
         return merged
     if default is not None:
+        if spec.config in ("", "ground_truth"):
+            # The blind rows would be scored as unlabeled (expected_doc_class
+            # "") — a silent 0.0/unknown scorecard. Refuse instead (DMR-049).
+            raise RuntimeError(
+                f"ground_truth config is absent at {repo}@{resolved} for split "
+                f"{spec.split!r} — refusing to prepare blind rows as labeled data"
+            )
         for r in default:
             r["source_revision"] = resolved
         return default
@@ -122,20 +157,30 @@ def normalize_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             content_sha = sha256_text(text)
         expected_fields = row.get("expected_fields")
         if isinstance(expected_fields, str):
-            expected_fields = {}
-        out.append(
-            {
-                "id": str(row.get("id") or row.get("document_id") or row.get("filename")),
-                "filename": str(row.get("filename") or row.get("id")),
-                "doc_text": text,
-                "expected_doc_class": doc_class,
-                "expected_subclass": row.get("expected_subclass"),
-                "expected_fields": dict(expected_fields or {}),
-                "content_sha256": content_sha,
-                "split": row.get("split", ""),
-                "source_revision": row.get("source_revision", ""),
-            }
-        )
+            # Same parser discipline as datasets.parse_expected_fields — a JSON
+            # string is decoded, never silently flattened to {} (DMR-049).
+            try:
+                expected_fields = json.loads(expected_fields) if expected_fields.strip() else {}
+            except json.JSONDecodeError:
+                expected_fields = {}
+        normalized = {
+            "id": str(row.get("id") or row.get("document_id") or row.get("filename")),
+            "filename": str(row.get("filename") or row.get("id")),
+            "doc_text": text,
+            "expected_doc_class": doc_class,
+            "expected_subclass": row.get("expected_subclass"),
+            "expected_stage": row.get("expected_stage"),
+            "expected_fields": dict(expected_fields or {}),
+            "content_sha256": content_sha,
+            "split": row.get("split", ""),
+            "source_revision": row.get("source_revision", ""),
+        }
+        # LegalBench-style rows keep their question/answer for the live path.
+        if row.get("question") is not None:
+            normalized["question"] = row.get("question")
+        if row.get("answer") is not None:
+            normalized["answer"] = row.get("answer")
+        out.append(normalized)
     return out
 
 
@@ -225,13 +270,15 @@ def prepare_subset(spec: DatasetSpec, dest_file) -> dict[str, Any]:
         rows = _read_jsonl(local_file)
         source_meta = {"source": "local", "revision": "offline"}
     else:
-        rows = load_hf(spec)
+        rows = load_hf_rows(spec)
+        resolved = str(rows[0].get("source_revision") or "") if rows else ""
         source_meta = {
             "source": "huggingface",
             "repo": spec.repo,
             "config": spec.config,
             "split": spec.split,
-            "revision": spec.effective_revision(),
+            "revision": spec.revision or FAMILY_HF_REVISION,
+            "revision_resolved": resolved or None,
         }
 
     rows = normalize_rows(rows)
@@ -254,6 +301,7 @@ def prepare_subset(spec: DatasetSpec, dest_file) -> dict[str, Any]:
         "strata_actual": dict(sorted(counts.items())),
         "metadata": source_meta,
         "revision_requested": spec.revision or FAMILY_HF_REVISION,
+        "revision_resolved": source_meta.get("revision_resolved"),
     }
 
 
