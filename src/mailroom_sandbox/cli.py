@@ -20,7 +20,18 @@ def main(argv: list[str] | None = None) -> int:
     if not hasattr(args, "handler"):
         parser.print_help()
         return 0
-    return int(args.handler(args) or 0)
+    try:
+        return int(args.handler(args) or 0)
+    except subprocess.CalledProcessError as exc:
+        # Docker/ollama/ssh failures surface the tool's own message; don't
+        # dump a Python traceback for a missing daemon/container (DMR-058).
+        print(f"command failed ({exc.returncode}): {' '.join(exc.cmd[:3])} …", file=sys.stderr)
+        if exc.stderr:
+            print(exc.stderr.decode() if isinstance(exc.stderr, bytes) else exc.stderr, end="", file=sys.stderr)
+        return 1
+    except FileNotFoundError as exc:
+        print(f"command unavailable: {exc}", file=sys.stderr)
+        return 1
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -381,6 +392,21 @@ _VENDOR_PINS: tuple[tuple[str, str, str], ...] = (
 )
 
 
+def _package_src_dir(clone_root: Path) -> Path | None:
+    """Locate the package dir in a vendored-family clone (DMR-058).
+
+    llm-mailroom keeps ``src/``; llm-dojo-scoring ships the package at the
+    repo root (``llm_dojo_scoring/``) and the snapshot normalizes it under
+    ``src/``. Returns None when the layout is unrecognized — the caller must
+    NOT touch the tracked tree in that case.
+    """
+    for candidate in ("src", "llm_dojo_scoring", "llm_mailroom"):
+        p = clone_root / candidate
+        if p.is_dir():
+            return p
+    return None
+
+
 def _refresh_vendor(name: str, tag: str, url: str) -> int:
     import shutil
 
@@ -408,13 +434,25 @@ def _refresh_vendor(name: str, tag: str, url: str) -> int:
         return 1
     dest = vendor_dir() / name
     dest.mkdir(parents=True, exist_ok=True)
-    # llm-mailroom keeps src/ (minus tests); llm-dojo-scoring keeps the flat
-    # package under src/ — mirror the committed layout.
+    # Mirror the committed layout — llm-mailroom keeps src/; llm-dojo-scoring
+    # ships the package at the repo ROOT (llm_dojo_scoring/) and the snapshot
+    # normalizes it under src/. Validate the source BEFORE touching dest so a
+    # layout surprise can never half-wipe the tracked tree (DMR-058).
+    package_src = _package_src_dir(work)
+    if package_src is None:
+        print(
+            f"!! unexpected layout in {name}@{tag} clone (no src/, llm_dojo_scoring/, "
+            f"or llm_mailroom/ at root) — vendor/{name} left untouched",
+            file=sys.stderr,
+        )
+        shutil.rmtree(work, ignore_errors=True)
+        return 1
     shutil.rmtree(dest / "src", ignore_errors=True)
-    if (work / "src").is_dir():
-        shutil.copytree(work / "src", dest / "src", ignore=shutil.ignore_patterns("tests", "__pycache__", "*.pyc"))
-    else:
-        shutil.copytree(work / name, dest / "src", ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    # The tracked layout is vendor/<name>/src/<pkgdir> for BOTH trees:
+    # llm-mailroom already ships src/<pkgdir>, llm-dojo-scoring ships the
+    # package at the clone root and gets normalized under src/ (DMR-058).
+    dest_src = dest / "src" / package_src.name if package_src.name != "src" else dest / "src"
+    shutil.copytree(package_src, dest_src, ignore=shutil.ignore_patterns("tests", "__pycache__", "*.pyc"))
     head = subprocess.run(
         ["git", "-C", str(work), "rev-parse", "HEAD"],
         capture_output=True,
@@ -574,17 +612,27 @@ def _cmd_legalbench(args: argparse.Namespace) -> int:
     name = f"sandbox_legalbench_{args.task}"
     if args.suite:
         name += f"_n{args.n or 0}_s{args.seed}"
-    result = run_legalbench_eval(
-        mock=mock,
-        sample=args.n,
-        seed=args.seed,
-        task=args.task,
-        suite=args.suite,
-        dry_run=args.dry_run,
-        experiment_name=name,
-        profile=args.profile,
-        model=args.model,
-    )
+    try:
+        result = run_legalbench_eval(
+            mock=mock,
+            sample=args.n,
+            seed=args.seed,
+            task=args.task,
+            suite=args.suite,
+            dry_run=args.dry_run,
+            experiment_name=name,
+            profile=args.profile,
+            model=args.model,
+        )
+    except ValueError as exc:
+        # Loud guard (unwired task / suite without --n / empty rows): clean
+        # one-liner, not a traceback (DMR-058).
+        print(f"error: {exc}")
+        return 1
+    except Exception as exc:  # live-or-loud (DMR-049/058): CorpusUnavailable &
+        # missing-corpus keep naming the fetch command, without a traceback.
+        print(f"error: {type(exc).__name__}: {exc}")
+        return 1
     _print(result)
     return 0
 
@@ -665,6 +713,11 @@ def _cmd_datasets_pull(args: argparse.Namespace) -> int:
             revision=args.revision,
             config=args.config,
         )
+    except ModuleNotFoundError as exc:
+        # The Hub client lives in the [hf]/[dev] extras (offline-first base
+        # install) — say how to get it instead of a bare traceback (DMR-058).
+        print(f"error: {type(exc).__name__}: {exc}\n(hint: pip install -e \".[hf]\" — or -e \".[dev]\")")
+        return 1
     except Exception as exc:  # live-or-loud (DMR-056): a failed pull is exit 1
         print(f"error: {type(exc).__name__}: {exc}")
         return 1
@@ -776,8 +829,12 @@ def _run_load_spec(args) -> tuple[object, Path]:
 
 def _run_id_required(args) -> str:
     run_id = getattr(args, "run_id", None) or ""
+    if not run_id and getattr(args, "config", None):
+        from mailroom_sandbox.job.spec import load_run_spec
+
+        run_id = load_run_spec(args.config).run_id
     if not run_id:
-        raise SystemExit("--run-id <id> is required here")
+        raise SystemExit("--run-id <id> is required here (or pass --config <run.yaml>)")
     return run_id
 
 
