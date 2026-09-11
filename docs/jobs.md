@@ -27,8 +27,12 @@ data/runtime/runs/<run_id>/
 schema: sandbox.run/v1
 run_id: <optional; auto ><task>-<model>-<utc>
 task: sorter                # per-item: sorter | legalbench (resumable row-by-row)
-                            # whole-run: pipeline | extract | chained | local_vs_api | isolated
-                            #   (delegated to the public eval runner; isolated runs the sorter spec)
+                            # whole-run: pipeline | extract | chained | local_vs_api
+                            #   | isolated (sorter spec) | ANY registered agent name
+                            #   (e.g. judge, contracts_specialist — DMR-056: every
+                            #   AgentSpec in eval/agents.py is a whole-run task; a
+                            #   bogus task is rejected at spec parse, never "locks
+                            #   prepared then dies")
 profile: vllm-local         # ollama | vllm-local | vllm-remote | modal-vllm | openrouter
 
 prompt:                     # ALL pipeline agents: local variants + Langfuse + code
@@ -50,8 +54,10 @@ dataset:                    # full mailroom-corpus OR a subset
 engine:
   kind: modal-vllm            # modal-vllm | vllm-local | vllm-remote
   model: Qwen/Qwen3-8B
-  vllm: {max_model_len: 32768, gpu_memory_utilization: 0.90,
+  vllm: {max_model_len: 16384, gpu_memory_utilization: 0.90,
          max_num_seqs: 256, quantization: "", revision: ""}
+  # DMR-056: 16384 default — L4-bf16 8B-class rows cannot hold 32768 (v0.28.0
+  # raises at boot when the KV pool can't fit one request); AWQ rows set 32768.
   modal: {app: sandbox-vllm, gpu: L4, image_tag: v0.28.0,
           scaledown_seconds: 900, max_containers: 1, prewarm: true}
 
@@ -93,13 +99,17 @@ Exit codes: `0` done · `1` failed · `2` paused · `3` drift refused.
    calls. Idempotent: same spec → byte-identical `dataset.jsonl`.
 3. **engine** — vLLM field/range guards (DMR-022 flags, v0.28.0 rules) +
    optional live `/v1/models` probe (`data[0].id == spec.model`) with `--live`.
+   `run start --job-mode modal` probes the engine before firing (DMR-048).
 4. **modal** — GPU/image/`max_containers` guards.
 5. **trace sink** — OTLP contract resolved (Langfuse `/api/public/otel`,
    Basic auth + `x-langfuse-ingestion-version: 4`; Phoenix `/v1/traces`;
    generic `OTEL_EXPORTER_OTLP_ENDPOINT`).
 6. **lock** — `spec.lock.json` written LAST (the commit point) with
    `spec_hash` over the behavioral core. Resume refuses on drift unless
-   `--force`.
+   `--force`. The lock also pins `revision_resolved` + `prompt_text_sha`; a
+   prompt-text change refuses (DMR-049), and `dataset.sha256` is re-verified
+   at worker start and at resume — drift refuses (exit 3) unless `--force`
+   re-locks and archives the old generation.
 
 ## Checkpoint / resume
 
@@ -129,6 +139,22 @@ The worker runs the same checkout code on a CPU container against the
 Modal-hosted `sandbox-vllm` endpoint (the GPU is the serve app). It emits
 OTEL job/item spans to the locked sink. In-container vLLM (GPU job) is a
 documented follow-up.
+
+- `run start --job-mode modal` probes `/v1/models` first (skipped for
+  mock/`--offline`) — a stale `VLLM_BASE_URL` fails fast as
+  `engine_unreachable` (DMR-048).
+- Whole-run tasks (`pipeline`/`extract`/`chained`/agent names) score the
+  LOCKED dataset rows when preflight prepared any (Hub or local) — a Hub
+  spec + `task: pipeline` runs the connected graph on live corpus rows
+  (DMR-056); an empty lock falls back to the runners' fixture defaults.
+- Worker failures land in the state dict with `error`, `traceback_tail`, and
+  runtime `diagnostics`; `SANDBOX_DEBUG=1` enables DEBUG logging in the
+  container — export it BEFORE `modal deploy` (it travels through the deploy
+  Secret; DMR-056); `modal run modal_job.py --debug` prints the app config
+  (DMR-053).
+- Whole-run records are stamped `prompt_version` (the lock's LOCAL variant
+  stem), `spec_hash`, `dataset_fingerprint`, `run_id`; delegated runs used to
+  mislabel every record `mailroom-default` (DMR-053).
 
 ## Metrics: local vs Modal vs API
 
