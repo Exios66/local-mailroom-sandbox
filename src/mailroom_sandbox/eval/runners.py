@@ -152,7 +152,10 @@ def run_isolated_eval(
         )
     mean = scoring.mean_or_zero(matches)
     scores = {"exact_match": mean, "n": len(rows), "offline_fallback": offline, "error_count": errors}
-    if per_row and "overall_extraction_score" in (per_row[0].get("score") or {}):
+    # hub#56: decide overall_extraction_score presence from ANY row, not just
+    # per_row[0] — the old check silently dropped the aggregate when the first
+    # row lacked the key but later rows carried it.
+    if any("overall_extraction_score" in (r.get("score") or {}) for r in per_row):
         scores["overall_extraction_score"] = mean
     tracing.emit_langfuse_score("class_correct" if spec.observation == "classify-document" else "stage_completed", mean)
     tracing.flush_traces()
@@ -672,7 +675,7 @@ def run_pipeline_eval(
 
 
 def _langchain_mock_patches(expect: dict[str, Any]) -> list:
-    """Mock patches for mailroom v0.6.0's vendored LangChain agents.
+    """Mock patches for mailroom v0.7.1's vendored LangChain agents.
 
     The vendored agents build their own ``ChatOpenAI`` and bypass
     ``llm.client.get_llm``, so — mirroring mailroom's own test suite — the
@@ -890,7 +893,7 @@ def hf_rows_as_manifest() -> list[dict[str, str]]:
                 "subdir": "hf",
                 "filename": str(item.get("filename") or f"{item.get('doc_type')}.txt"),
                 "expected_doc_class": str(item.get("doc_type") or item.get("expected_hf_class") or "unknown"),
-                # mailroom-corpus ground-truth alignment: subclass + entity
+                # mailroom-dataset ground-truth alignment: subclass + entity
                 # targets ride through so specialist/judge/reporter evals
                 # score against the corpus GT schema, not ad-hoc keys.
                 "expected_subclass": str(item.get("expected_subclass") or ""),

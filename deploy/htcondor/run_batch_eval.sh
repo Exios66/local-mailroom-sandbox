@@ -3,7 +3,7 @@
 #
 # Runs INSIDE the vLLM container on the execute node:
 #   1. unpack the portable conda env (sandbox deps; conda-pack output)
-#   2. install the eval stack (mailroom v0.6.0 + the sandbox) and PROVE it is
+#   2. install the eval stack (mailroom v0.7.1 + the sandbox) and PROVE it is
 #      importable — a missing stack must fail the job, never silently mock
 #   3. serve the model in-process on localhost:8000 (compose/Modal parity flags)
 #   4. wait for /v1/models health (hard failure on death OR timeout)
@@ -255,5 +255,12 @@ PY
 log "live-or-loud guard passed"
 
 echo "== collect =="
-cp -r reports "$RESULTS_DIR/" 2> /dev/null || true
-log "done: $(ls "$RESULTS_DIR")"
+# hub#56: the artifact copy is part of the deliverable — a silent failure here
+# would let HTCondor transfer results/ without the experiment records and
+# still exit 0. Copy loudly (fail() dumps diagnostics + exits 1).
+if [ -d reports ]; then
+    cp -r reports "$RESULTS_DIR/" || fail "could not copy reports/ into $RESULTS_DIR"
+    log "done: $(ls "$RESULTS_DIR")"
+else
+    fail "no reports/ directory to copy — nothing to transfer"
+fi

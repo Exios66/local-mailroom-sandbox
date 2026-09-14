@@ -28,7 +28,7 @@ Optional extras, only when you need them:
 | `[notebooks]` | Jupyter + pandas/matplotlib | `sandbox up --compose-profile jupyter` |
 
 The family code is **already vendored and tracked** (`vendor/llm-mailroom`
-v0.6.0, `vendor/llm-dojo-scoring` v0.12.2) — a fresh checkout runs offline.
+v0.7.1, `vendor/llm-dojo-scoring` v0.14.0) — a fresh checkout runs offline.
 
 ## 1. The command surface at a glance
 
@@ -110,9 +110,9 @@ sandbox prompts show sorter --variant sorter_local_v0   # local variant stem
 ```bash
 sandbox datasets prepare                # offline: load/clean fixtures → data/runtime/prepared/ (no network)
 sandbox datasets pull                   # LIVE pinned Hub pull (NETWORK):
-#   Lucius-Morningstar/mailroom-corpus@eafe1ab4c0d3 (ground_truth/test) → data/cache/…, sha256-verified
+#   Lucius-Morningstar/mailroom-dataset@fe3a6f96 (ground_truth/test) → data/cache/…, sha256-verified
 sandbox datasets pull --max-rows 50 --config ground_truth --split test --revision <sha-or-tag>
-sandbox datasets pull --dataset Lucius-Morningstar/mailroom-corpus --max-rows 20
+sandbox datasets pull --dataset Lucius-Morningstar/mailroom-dataset --max-rows 20
 ```
 
 - `pull` exits 1 on any failure (live-or-loud) — a clean `error: …` line, with

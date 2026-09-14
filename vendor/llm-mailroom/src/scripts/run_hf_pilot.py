@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """Hugging Face corpus pilot — the runner The-Mailroom orchestrates.
 
-Default corpus is ``Lucius-Morningstar/docclass-merged`` schema **v5** (the
-targeted full 1,210-doc surface). Class × subtype examples come from
+Default corpus is ``Lucius-Morningstar/mailroom-dataset`` schema **v9** (the
+targeted full 3,302-doc surface; v9 = §84 hardened ground_truth on top of
+the frozen v8 base — HUB-028 insurance LOB expansion + full GT conformance,
+hardened at `eafe1ab4`, successor published 2026-09-12 at `46a4d3c240a36671cde0182fff4960f6b8b73aca`).
+Class × subtype
+examples come from
 ``docclass-pilot``. Any other pipeline-ready Lucius-Morningstar dataset
 (``--dataset enron`` / ``claims`` / ``cuad``) can be ingested the same way,
 including the 247k-row Enron correspondence corpus.
@@ -80,6 +84,13 @@ from pipeline.hf_corpora import (  # noqa: E402
 
 DATASET_ID = FULL_CORPUS_ID
 DATASET_REVISION = FULL_CORPUS_REVISION
+# §45 evaluation-trace identity (HUB-022): rides on every pilot trace so any
+# experiment is reproducible from dataset revision + taxonomy surface.
+DATASET_IDENTITY = {
+    "name": DATASET_ID,
+    "revision": DATASET_REVISION,
+    "taxonomy_version": FULL_CORPUS_SCHEMA,
+}
 DATASET_SCHEMA = FULL_CORPUS_SCHEMA
 VIEWER_BASE = "https://datasets-server.huggingface.co"
 HF_CLASSES = HUB_CLASSES
@@ -97,7 +108,7 @@ HF_LOCAL_PACK_CLASSES = (
 )
 # Live taxonomy files MAUD merger rows as merger_agreement (not contract).
 # Exact class match is the only class KPI. Do not import
-# llm_dojo_scoring.mailroom.align_doc_type (v0.11.0 still maps MAUD ≡ CUAD).
+# llm_dojo_scoring.mailroom.align_doc_type (v0.14.0 still maps MAUD ≡ CUAD).
 ALIGN: dict[str, str] = {}
 
 
@@ -670,7 +681,7 @@ def score_row_extraction(extracted: dict | None, expected_fields: dict | None, d
     if not expected_fields or not extracted:
         return None
     try:
-        from observability.field_scoring import get_field_types
+        from llm_dojo_scoring import get_field_types
         from observability.suite_scoring import score_with_suite
 
         scored_class = doc_class
@@ -834,7 +845,7 @@ def render_metrics_markdown(report: dict) -> str:
     honesty = report.get("honesty") or hf_corpus_honesty()
     lines += [
         "",
-        "## Corpus honesty (dojo 0.11.0)",
+        "## Corpus honesty (dojo 0.14.0)",
         "",
         "Gaps are suite metadata, not invented accuracy. `compliance_filing` stays "
         "out of Hub `--real` (zero Hub rows) and is scored by a **local pack** "
@@ -934,8 +945,8 @@ def render_metrics_markdown(report: dict) -> str:
             "",
             "## Per subclass (Hub class × subtype strata)",
             "",
-            "Strata come from the v5 Hub inventories (`docclass-pilot` / "
-            "`docclass-merged`). Predicting `contract` for a `merger_agreement` "
+            "Strata come from the Hub inventories (`docclass-pilot` / "
+            "`mailroom-dataset`). Predicting `contract` for a `merger_agreement` "
             "row is a class miss, not an aligned hit.",
             "",
             "| stratum | n | exact | subclass |",
@@ -1454,8 +1465,8 @@ def check_contract() -> int:
     compliance_gt = expected_fields_for_sample(compliance_sample)
     assert compliance_gt.get("filing_type")
     assert compliance_gt.get("entity_name")
-    assert DATASET_SCHEMA == "v5"
-    assert DATASET_ID == "Lucius-Morningstar/docclass-merged"
+    assert DATASET_SCHEMA == "v9"
+    assert DATASET_ID == "Lucius-Morningstar/mailroom-dataset"
     assert DATASET_REVISION
     pack_classes = set(examples_by_class())
     assert pack_classes == set(HF_CLASSES)
@@ -1560,6 +1571,7 @@ def _run_one(sample: dict, *, mock_mode: bool, session_id: str, run_id: str, mat
             result = run_pipeline(
                 queued, matter_id, source=_trace_source(),
                 ground_truth=ground_truth, session_id=session_id, run_id=run_id,
+                dataset=DATASET_IDENTITY,
             )
     else:
         with patch("llm.client.get_llm", side_effect=rp._real_get_llm), \
@@ -1568,6 +1580,7 @@ def _run_one(sample: dict, *, mock_mode: bool, session_id: str, run_id: str, mat
             result = run_pipeline(
                 queued, matter_id, source=_trace_source(),
                 ground_truth=ground_truth, session_id=session_id, run_id=run_id,
+                dataset=DATASET_IDENTITY,
             )
     wall = time.perf_counter() - started
     predicted = result.get("doc_type")
@@ -1653,15 +1666,15 @@ def main() -> int:
     )
     parser.add_argument(
         "--dataset",
-        default="docclass-merged",
+        default="docclass-merged",  # internal slug (Hub id: mailroom-dataset)
         help="Lucius-Morningstar corpus slug or repo id (default: "
-             "docclass-merged v5). Aliases: v5/full, examples/pilot, "
+             "mailroom-dataset v9). Aliases: v5/v7/v8/v9/full/corpus, examples/pilot, "
              "enron, claims, cuad.",
     )
     parser.add_argument(
         "--examples",
         action="store_true",
-        help="Use docclass-pilot (every class × subclass stratum of v5) "
+        help="Use docclass-pilot (every class × subclass stratum) "
              "instead of the full merged corpus.",
     )
     parser.add_argument("--split", default="train")

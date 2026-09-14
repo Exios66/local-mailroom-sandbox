@@ -114,13 +114,13 @@ def test_datasets_pull_success_prints_rows_and_exit0(monkeypatch, capsys):
         return {
             "rows": 7,
             "sha256": "a" * 64,
-            "revision_resolved": "eafe1ab4c0d3",
+            "revision_resolved": "fe3a6f96",
             "metadata": {"source": "huggingface"},
         }
 
     monkeypatch.setattr("mailroom_sandbox.corpus.prepare_subset", fake_prepare)
     args = _args(
-        dataset="Lucius-Morningstar/mailroom-corpus",
+        dataset="Lucius-Morningstar/mailroom-dataset",
         max_rows=7,
         revision="",
         config="ground_truth",
@@ -142,7 +142,7 @@ def test_datasets_pull_failure_is_exit1(monkeypatch, capsys):
         raise RuntimeError("network down")
 
     monkeypatch.setattr("mailroom_sandbox.corpus.prepare_subset", boom)
-    args = _args(dataset="Lucius-Morningstar/mailroom-corpus", max_rows=5, revision="", config="ground_truth", split="test")
+    args = _args(dataset="Lucius-Morningstar/mailroom-dataset", max_rows=5, revision="", config="ground_truth", split="test")
     assert cli._cmd_datasets_pull(args) == 1
     assert "error: RuntimeError: network down" in capsys.readouterr().out
 
@@ -152,7 +152,7 @@ def test_datasets_pull_zero_rows_refused(monkeypatch, capsys):
         return {"rows": 0, "sha256": "", "revision_resolved": None, "metadata": {}}
 
     monkeypatch.setattr("mailroom_sandbox.corpus.prepare_subset", empty)
-    args = _args(dataset="Lucius-Morningstar/mailroom-corpus", max_rows=5, revision="", config="ground_truth", split="test")
+    args = _args(dataset="Lucius-Morningstar/mailroom-dataset", max_rows=5, revision="", config="ground_truth", split="test")
     assert cli._cmd_datasets_pull(args) == 1
     assert "refusing to write an empty dataset" in capsys.readouterr().out
 
@@ -219,3 +219,53 @@ def test_pull_models_missing_ollama_degrades_cleanly(mocker, capsys):
     mocker.patch("mailroom_sandbox.compose.pull_ollama_models", side_effect=FileNotFoundError("no ollama"))
     assert cli_main(["pull-models"]) == 1
     assert "command unavailable" in capsys.readouterr().err
+
+# ── hub#56: -d/--detach default, phoenix health URL derivation ──────────────
+
+
+def test_up_detach_defaults_to_foreground():
+    """hub#56: `sandbox up` runs in the FOREGROUND by default (the old
+    action='store_true', default=True made -d a permanent no-op)."""
+    import argparse
+
+    parser = cli.build_parser()
+    args = parser.parse_args(["up"])
+    assert args.detach is False, "default must be foreground"
+    args_d = parser.parse_args(["up", "-d"])
+    assert args_d.detach is True
+    args_long = parser.parse_args(["up", "--detach"])
+    assert args_long.detach is True
+
+
+def test_phoenix_health_probe_follows_phoenix_endpoint(monkeypatch, capsys):
+    """hub#56: _cmd_health derives the Phoenix healthz URL from the resolved
+    PHOENIX_ENDPOINT — the old hardcoded localhost probed the wrong server."""
+    monkeypatch.setenv("PHOENIX_ENDPOINT", "https://phoenix.example.com/v1/traces")
+    captured: dict = {}
+
+    class _Probe:
+        def __init__(self, ok=True, url="", detail=""):
+            self.ok, self.url, self.detail = ok, url, detail
+
+        def as_dict(self):
+            return {"ok": self.ok, "url": self.url, "detail": self.detail}
+
+    def _fake_probe(profile, **kw):
+        if profile.get("name") == "phoenix":
+            captured["phoenix_url"] = profile["health"]["models_url"]
+            return _Probe(True, profile["health"]["models_url"])
+        return _Probe(True, profile.get("base_url", ""))
+
+    import mailroom_sandbox.health as health_mod
+
+    monkeypatch.setattr(health_mod, "probe_models", _fake_probe)
+    monkeypatch.setattr(health_mod, "health_check", lambda profile: {"profile": profile, "ok": True, "models": {}, "chat": {}})
+    monkeypatch.setattr("mailroom_sandbox.runtime.load_env_file", lambda: None)
+
+    class _Args:
+        profile = "ollama"
+
+    rc = cli._cmd_health(_Args())
+    assert rc == 0
+    assert captured["phoenix_url"] == "https://phoenix.example.com/healthz"
+    monkeypatch.delenv("PHOENIX_ENDPOINT")

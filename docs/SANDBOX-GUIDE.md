@@ -153,7 +153,7 @@ sandbox cutover --profile ollama --model llama3.2:3b   # all agents
 | `sandbox down` | Stop compose services |
 | `sandbox pull-models` | Pull required Ollama models |
 | `sandbox health` | Probe the active provider |
-| `sandbox fetch-deps` | Optional: refresh the TRACKED vendor snapshots (llm-mailroom v0.6.0 + llm-dojo-scoring v0.12.2) from pinned tags |
+| `sandbox fetch-deps` | Optional: refresh the TRACKED vendor snapshots (llm-mailroom v0.7.1 + llm-dojo-scoring v0.14.0) from pinned tags |
 | `sandbox fetch-deps --visualizer` | Also clone The-Mailroom |
 
 ### Eval commands
@@ -195,12 +195,17 @@ sandbox cutover --profile ollama --model llama3.2:3b   # all agents
 
 ### Tunnel commands
 
+> **Flag placement (hub#56):** `--profile` goes BEFORE the sub-subcommand
+> (`sandbox tunnel --profile vllm-remote plan`) — the leaf parsers omit
+> `parents=[shared]` deliberately, so `sandbox tunnel plan --profile …`
+> rejects the flag.
+
 | Command | Description |
 |---|---|
-| `sandbox tunnel plan --profile vllm-remote` | Print the SSH command |
-| `sandbox tunnel up --profile vllm-remote` | Start SSH forward |
-| `sandbox tunnel status --profile vllm-remote` | Check tunnel status |
-| `sandbox tunnel down --profile vllm-remote` | Stop SSH forward |
+| `sandbox tunnel --profile vllm-remote plan` | Print the SSH command |
+| `sandbox tunnel --profile vllm-remote up` | Start SSH forward |
+| `sandbox tunnel --profile vllm-remote status` | Check tunnel status |
+| `sandbox tunnel --profile vllm-remote down` | Stop SSH forward |
 
 ### Tests
 
@@ -352,10 +357,10 @@ prompt:
 
 dataset:
   provider: huggingface
-  repo: Lucius-Morningstar/mailroom-corpus
+  repo: Lucius-Morningstar/mailroom-dataset
   config: ground_truth
   split: test
-  revision: <pinned-sha>
+  revision: 46a4d3c240a36671cde0182fff4960f6b8b73aca   # pinned (v9 mailroom-dataset GT-closure tip)
   strata: {expected: [insurance_claim, contract]}
   limit: 50
   sample_seed: 42
@@ -513,13 +518,13 @@ sandbox datasets prepare                  # writes to data/runtime/prepared/
 ### HF fixtures
 
 `data/fixtures/hf/docclass_mini.jsonl` — all 5 doc types with full
-mailroom-corpus ground-truth targets (`expected_subclass` + `expected_fields`
+mailroom-dataset ground-truth targets (`expected_subclass` + `expected_fields`
 from the 27-key GT schema).
 
 ### Fetch vendored deps
 
 ```bash
-sandbox fetch-deps                        # optional: refresh tracked vendor snapshots (llm-mailroom v0.6.0 + llm-dojo-scoring v0.12.2)
+sandbox fetch-deps                        # optional: refresh tracked vendor snapshots (llm-mailroom v0.7.1 + llm-dojo-scoring v0.14.0)
 sandbox fetch-deps --visualizer           # also clone The-Mailroom
 ```
 
