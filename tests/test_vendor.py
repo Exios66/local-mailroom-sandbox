@@ -1,7 +1,7 @@
 """DMR-057 self-containment regression tests.
 
 The sandbox must be fully operational from a fresh checkout: the pipeline
-(llm-mailroom@v0.6.0) and scoring engine (llm-dojo-scoring@v0.12.2) ship as
+(llm-mailroom@v0.7.1) and scoring engine (llm-dojo-scoring@v0.15.0) ship as
 TRACKED snapshots under ``vendor/`` and are put on ``sys.path`` at package
 import. No pip git pins, no ``sandbox fetch-deps`` step, no env tricks.
 """
@@ -16,10 +16,12 @@ import pytest
 from mailroom_sandbox.paths import repo_root, vendored_dojo_src, vendored_mailroom_src
 from mailroom_sandbox.runtime import resolve_dojo_src, resolve_mailroom_src
 
-MAILROOM_PIN = "v0.6.0"
-MAILROOM_COMMIT = "3cf9fb921f0048a10d9a15760e2b4d825831a344"
-DOJO_PIN = "v0.12.2"
-DOJO_COMMIT = "6dab61bd0782835cfab33faeae8fc457e119ea62"
+MAILROOM_PIN = "v0.7.1"
+MAILROOM_COMMIT = "2a212e76a62b98f6eba451ff6f3c5bc96039ae37"
+DOJO_PIN = "v0.15.0"
+# hub#62: the dojo vendor snapshot tracks the workspace package (not a fixed
+# upstream tag) — the drift guard (tests/test_vendor_drift.py) enforces it.
+DOJO_COMMIT = "workspace snapshot — see monorepo"
 
 
 def test_vendored_trees_are_tracked_and_pinned():
@@ -56,10 +58,10 @@ def test_agent_prompt_names_merge_vendor_templates_and_static_roster():
     from mailroom_sandbox.prompt_registry import agent_prompt_names
 
     names = agent_prompt_names()
-    # Vendored template keys (v0.6.0 surface)…
+    # Vendored template keys (v0.7.1 surface)…
     assert "sorter_reviewer" in names
     assert "judge-classification" in names
-    # …and the sandbox-only static roster entries v0.6.0 does not template.
+    # …and the sandbox-only static roster entries v0.7.1 does not template.
     assert "relations" in names
     assert "gmail_triage" in names
     assert "intake" in names
@@ -128,3 +130,71 @@ def test_refresh_locates_package_src_for_each_vendored_layout(tmp_path):
     weird = tmp_path / "weird"
     weird.mkdir()
     assert _package_src_dir(weird) is None
+
+def test_docs_claim_current_vendored_pins():
+    """hub#54: no non-vendor tracked file may claim the OLD vendored pins
+    (v0.6.0 / v0.12.2) as the current surface — the docs must name the
+    shipped snapshot pins. Historical release-note entries (CHANGELOG
+    released sections) are allowed to describe the old pins as history."""
+    root = repo_root()
+    # Intentional old-pin references: this test's own string, the
+    # test_live_or_loud assertion that the OLD git-pin form is absent from the
+    # htcondor script, and the run_batch_eval.sh line-142 historical note.
+    allow_substrings = (
+        "test_vendor.py",
+        "test_live_or_loud.py",
+        "the old mailroom@v0.6.0 / llm-dojo-scoring@v0.12.2",
+    )
+    stale = []
+    for path in root.rglob("*"):
+        if not path.is_file() or path.suffix.lower() not in {".py", ".md", ".yaml", ".yml", ".sh"}:
+            continue
+        rel = path.relative_to(root)
+        if "vendor" in rel.parts or "__pycache__" in rel.parts:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        if "v0.6.0" in text or "v0.12.2" in text:
+            if any(s in str(rel) or s in text for s in allow_substrings):
+                continue
+            # CHANGELOG.md is history by definition — released AND in-flight
+            # entries legitimately describe the old pins (HUB-era notes). The
+            # live docs/source surface is what the sweep guards.
+            if rel.name == "CHANGELOG.md":
+                continue
+            stale.append(str(rel))
+    assert not stale, f"stale vendored-pin claims: {stale}"
+
+
+def test_offline_image_bundles_vendor_and_readmes_match_surface():
+    """hub#55: the offline Dockerfile must COPY vendor/ (vendored evals run
+    in-image; a read-only image cannot fetch-deps), .dockerignore must not
+    exclude it, and the boilerplate READMEs must reference the real module
+    surface so following them cannot yield ImportError/FileNotFoundError."""
+    root = repo_root()
+
+    dockerfile = (root / "deploy" / "Dockerfile").read_text()
+    assert "COPY vendor ./vendor" in dockerfile
+    assert ".[dev,notebooks,hf,pipeline]" in dockerfile  # pipeline extra baked
+
+    dockerignore = (root / ".dockerignore").read_text()
+    assert "vendor/*" not in dockerignore.splitlines()
+
+    src_readme = (root / "src" / "README.md").read_text()
+    assert "SandboxPipeline" not in src_readme
+    assert "mailroom_sandbox.activate()" in src_readme
+
+    eval_readme = (root / "src" / "mailroom_sandbox" / "eval" / "README.md").read_text()
+    assert "from mailroom_sandbox.eval import run_evaluation" not in eval_readme
+    assert "runners.run_isolated_eval" in eval_readme
+
+    config_readme = (root / "config" / "README.md").read_text()
+    assert "taxonomy.yaml" not in config_readme.split("##")[0] or "mailroom.taxonomy.base.yaml" in config_readme
+    assert "SANDBOX_PROFILE" in config_readme
+
+    profiles_readme = (root / "config" / "profiles" / "README.md").read_text()
+    assert "MAILROOM_ENV" not in profiles_readme
+    assert "SANDBOX_PROFILE" in profiles_readme
+    assert "ollama.yaml" in profiles_readme and "vllm-remote.yaml" in profiles_readme

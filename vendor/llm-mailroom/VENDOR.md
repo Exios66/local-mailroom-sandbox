@@ -8,8 +8,8 @@ fully operational offline — no `pip install mailroom@git...`, no
 `sandbox fetch-deps` requirement.
 
 - Upstream: https://github.com/Exios66/llm-mailroom
-- Pin: **v0.6.0** (annotated tag)
-- Commit: `3cf9fb921f0048a10d9a15760e2b4d825831a344`
+- Pin: **v0.7.1** (annotated tag)
+- Commit: `2a212e76a62b98f6eba451ff6f3c5bc96039ae37`
 - Layout: upstream `src/` **minus `src/tests/`** (test-only files are never
   imported by the vendored modules); `scripts/` is kept — `legalbench.data`
   imports `scripts.fetch_full_cuad`.

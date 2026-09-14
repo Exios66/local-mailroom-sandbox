@@ -63,16 +63,23 @@ def agent_prompt_names() -> list[str]:
     ``llm.prompts.prompt_templates()`` keys (DMR-057).
 
     The vendored snapshot is always importable now, so the templates are the
-    pipeline's live keys; the static roster keeps the sandbox-only agents
-    (relations / gmail_triage / intake) that v0.6.0 does not template.
+    pipeline's live keys (v0.7.1 templates gmail_triage / intake / relations);
+    the static roster is a superset/backstop that keeps the sandbox-only
+    agents (relations / gmail_triage / intake) registered even when the
+    vendored templates' roster naming differs. The reporter is retired in the
+    vendored graph (see ``config/components.yaml`` ``retired_agents``).
     """
     names = set(STATIC_AGENTS)
     try:
         import llm.prompts as prompts  # type: ignore
 
         names.update(prompts.prompt_templates())
-    except Exception:
-        pass
+    except Exception as exc:  # noqa: BLE001 — live-or-loud (hub#40)
+        logger.warning(
+            "vendored llm.prompts not importable; agent surface degraded to "
+            "the static roster (%s agents): %s",
+            len(names), exc,
+        )
     return sorted(names)
 
 
@@ -228,8 +235,11 @@ def apply_runtime_overrides(resolved_texts: dict[str, str]) -> list[str]:
                 patched.append(agent)
         for agent in patched:
             remainder.pop(agent, None)
-    except Exception:
-        pass
+    except Exception as exc:  # noqa: BLE001 — live-or-loud (hub#40)
+        logger.warning(
+            "prompt overrides not applied for %s (family B import failed): %s",
+            sorted(remainder), exc,
+        )
 
     if remainder:
         try:
@@ -250,6 +260,9 @@ def apply_runtime_overrides(resolved_texts: dict[str, str]) -> list[str]:
 
             prompts.get_managed_prompt = _lookup  # type: ignore[assignment]
             patched.extend(sorted(remainder))
-        except Exception:
-            pass
+        except Exception as exc:  # noqa: BLE001 — live-or-loud (hub#40)
+            logger.warning(
+                "prompt overrides not applied for %s (family A import failed): %s",
+                sorted(remainder), exc,
+            )
     return patched

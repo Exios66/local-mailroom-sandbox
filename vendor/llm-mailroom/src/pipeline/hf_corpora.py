@@ -1,15 +1,23 @@
 """Lucius-Morningstar Hugging Face corpora the mailroom pipeline can ingest.
 
-``Lucius-Morningstar/docclass-merged`` schema **v5** is the targeted full
-corpus (1,210 documents: CUAD contracts, MAUD merger agreements, S-1
-corporate records, Enron correspondence sample, CMS insurance claims).
+``Lucius-Morningstar/mailroom-dataset`` (v1, canonically **v9**) is the
+targeted full corpus (3,302 documents: CUAD contracts + SEC EDGAR EX-10,
+MAUD merger agreements, SEC EDGAR S-1/8-K corporate records, Enron
+correspondence sample, CMS insurance claims + the v8 synthetic LOB
+expansion — GNOTHEIA property, BDR auto — + INSURBIAS auto narratives).
+v9 builds on the v8 base (2,000 rows, frozen as ``mailroom-corpus``) with
+the §84 hardened evaluation-contract columns (identity, provenance, matter)
+on the `ground_truth` config.
+The five-class live taxonomy is unchanged (docs/README.md).
 
 Class × subclass examples come from ``docclass-pilot`` (a deterministic
-stratified slice of that v5 parent — every type and every subtype stratum).
+stratified slice of that parent — every type and every subtype stratum).
 Other published Lucius-Morningstar datasets are first-class pipeline inputs
 too, including the 247k-row Enron correspondence corpus.
 
-``compliance_filing`` has zero Hub rows (honest gap). Court/DD are retired.
+``compliance_filing`` is retired from the canonical five-class surface (zero
+Hub rows; retained in ``taxonomy.yaml`` as ``status: retired`` machinery).
+Court/DD are retired.
 """
 
 from __future__ import annotations
@@ -20,13 +28,26 @@ from pathlib import Path
 from typing import Any
 
 ORG = "Lucius-Morningstar"
-FULL_CORPUS_SCHEMA = "v5"
-FULL_CORPUS_ID = f"{ORG}/docclass-merged"
-FULL_CORPUS_REVISION = "d2c96ecb7c2fe0137bd3baf8e0a677a7864eb5a9"
+FULL_CORPUS_SCHEMA = "v9"
+# Renamed 2026-09-02 per human directive: the Hub repo was `docclass-merged`
+# ("docclass" was always a placeholder) — then `mailroom-corpus` (v8, frozen
+# baseline). The v9 build (2026-09-12) publishes the standalone successor
+# `mailroom-dataset`; the internal corpus SLUG below stays `docclass-merged`
+# (historical traces carry the immutable `source-docclass-merged` tag;
+# slug/aliases are plumbing, not identity).
+FULL_CORPUS_ID = f"{ORG}/mailroom-dataset"
+# v9 tip 46a4d3c2 (2026-09-13: mailroom-dataset v1 GT revision closing the
+# v9 audit-sweep gaps — supporting_documents on the 150 INSURBIAS auto rows,
+# EX-10 cuad dated exception; 3,302 rows, schema unchanged; configs default /
+# ground_truth / bundles / streams / fixtures).
+# Pinned per the corpus plan §44 — never evaluate against unpinned main.
+FULL_CORPUS_REVISION = "46a4d3c240a36671cde0182fff4960f6b8b73aca"
 EXAMPLES_ID = f"{ORG}/docclass-pilot"
 
-# Hub HF classes present in docclass-merged v5. Not the same as the six live
-# taxonomy keys: compliance_filing is live in the pipeline but absent on Hub.
+# Hub HF classes present in mailroom-dataset (v9) — identical to the canonical
+# five-class live taxonomy (docs/README.md). taxonomy.yaml carries a
+# sixth configured entry (compliance_filing, marked status: retired):
+# retained machinery with zero Hub rows, not a corpus class.
 HUB_CLASSES: tuple[str, ...] = (
     "contract",
     "merger_agreement",
@@ -48,7 +69,7 @@ CORPORA: dict[str, dict[str, Any]] = {
         "schema": FULL_CORPUS_SCHEMA,
         "role": "full_corpus",
         "pipeline": True,
-        "n_docs": 1210,
+        "n_docs": 3302,
         "classes": HUB_CLASSES,
         "gt_config": "ground_truth",
         "row_shape": "docclass",
@@ -150,8 +171,16 @@ CORPORA: dict[str, dict[str, Any]] = {
 
 _ALIASES = {
     "v5": "docclass-merged",
+    "v7": "docclass-merged",
+    "v8": "docclass-merged",
     "full": "docclass-merged",
     "merged": "docclass-merged",
+    # renamed 2026-09-02: Hub repo mailroom-corpus (formerly docclass-merged);
+    # 2026-09-12 the v9 successor is published as mailroom-dataset (same shape)
+    "corpus": "docclass-merged",
+    "mailroom-corpus": "docclass-merged",
+    "mailroom-dataset": "docclass-merged",
+    "v9": "docclass-merged",
     "examples": "docclass-pilot",
     "pilot": "docclass-pilot",
     "enron": "enron-correspondence-dedup",
@@ -193,7 +222,7 @@ def active_corpus() -> dict[str, Any]:
 
 
 def adapt_hub_row(row: dict[str, Any], corpus: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Normalize a Hub row into the docclass-merged shape parse_hf_row expects."""
+    """Normalize a Hub row into the mailroom-dataset shape parse_hf_row expects."""
     corp = corpus or active_corpus()
     shape = corp.get("row_shape") or "docclass"
     data = dict(row or {})

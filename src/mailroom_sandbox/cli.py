@@ -57,7 +57,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("up", help="Start compose profiles (langfuse + provider)", parents=[shared])
     p.add_argument("--compose-profile", action="append", dest="compose_profiles")
-    p.add_argument("-d", "--detach", action="store_true", default=True)
+    # hub#56: -d opts in to detached mode; the default is foreground (the old
+    # action='store_true', default=True made -d a permanent no-op and `sandbox
+    # up` could NEVER run in the foreground).
+    p.add_argument("-d", "--detach", action="store_true", default=False)
     p.set_defaults(handler=_cmd_up)
 
     p = sub.add_parser("down", help="Stop compose stack", parents=[shared])
@@ -73,7 +76,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser(
         "fetch-deps",
-        help="Refresh tracked vendor snapshots (llm-mailroom v0.6.0, llm-dojo-scoring v0.12.2) from pinned tags",
+        help="Refresh tracked vendor snapshots (llm-mailroom v0.7.1, llm-dojo-scoring v0.15.0) from pinned tags",
         parents=[shared],
     )
     p.add_argument("--visualizer", action="store_true", help="Also clone The-Mailroom (Langfuse observer)")
@@ -162,7 +165,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("datasets", help="Dataset helpers", parents=[shared])
     ds = p.add_subparsers(dest="datasets_cmd")
     pull = ds.add_parser("pull", parents=[shared], help="Live pinned Hub pull into data/cache (network)")
-    pull.add_argument("--dataset", default="Lucius-Morningstar/mailroom-corpus")
+    pull.add_argument("--dataset", default="Lucius-Morningstar/mailroom-dataset")
     pull.add_argument("--max-rows", type=int, default=50)
     pull.add_argument(
         "--revision",
@@ -310,7 +313,11 @@ def _cmd_health(args: argparse.Namespace) -> int:
     # — without it the probe reports on localhost (DMR-048).
     load_env_file()
     result = health_check(args.profile)
-    host = os.environ.get("LANGFUSE_HOST") or "http://localhost:3000"
+    host = (
+        os.environ.get("LANGFUSE_HOST")
+        or os.environ.get("LANGFUSE_BASE_URL")
+        or "http://localhost:3000"
+    )
     langfuse = probe_models(
         {
             "name": "langfuse",
@@ -323,7 +330,10 @@ def _cmd_health(args: argparse.Namespace) -> int:
         {
             "name": "phoenix",
             "base_url": os.environ.get("PHOENIX_ENDPOINT", "http://localhost:6006/v1/traces").rsplit("/v1", 1)[0],
-            "health": {"models_url": "http://localhost:6006/healthz"},
+            # hub#56: derive the healthz URL from the resolved Phoenix base —
+            # the old hardcoded localhost:6006/healthz probed the wrong server
+            # whenever PHOENIX_ENDPOINT pointed at a remote Phoenix.
+            "health": {"models_url": (os.environ.get("PHOENIX_ENDPOINT", "http://localhost:6006/v1/traces").rsplit("/v1", 1)[0]) + "/healthz"},
         }
     )
     result["phoenix"] = phoenix.as_dict()
@@ -387,8 +397,8 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
 
 # (vendor name, pinned tag, upstream url) — the tracked snapshot pins.
 _VENDOR_PINS: tuple[tuple[str, str, str], ...] = (
-    ("llm-mailroom", "v0.6.0", "https://github.com/Exios66/llm-mailroom.git"),
-    ("llm-dojo-scoring", "v0.12.2", "https://github.com/Exios66/llm-dojo-scoring.git"),
+    ("llm-mailroom", "v0.7.1", "https://github.com/Exios66/llm-mailroom.git"),
+    ("llm-dojo-scoring", "v0.15.0", "https://github.com/Exios66/llm-dojo-scoring.git"),
 )
 
 
@@ -948,11 +958,27 @@ def _watch_remote(store, args) -> int:
     from mailroom_sandbox.job import remote as job_remote
 
     import time
+    from datetime import datetime, timezone
+
+    # hub#41: the watch must fail after a stall, never poll forever. A worker
+    # that dies before its first state_dict.put leaves the Dict without a
+    # terminal state; the heartbeat rides the payload, and the remote call
+    # liveness is the second leg of the check.
+    WATCH_STALL_SECONDS = 20 * 60
+    last_heartbeat = time.monotonic()
 
     while True:
         progress = job_remote.read_progress(store)
         state = (progress or {}).get("state") or store.state() or "unknown"
         print(f"{store.run_id} {state} {progress or {}}")
+        heartbeat_at = (progress or {}).get("heartbeat_at")
+        if heartbeat_at:
+            try:
+                ts = datetime.fromisoformat(str(heartbeat_at).replace("Z", "+00:00"))
+                if ts.tzinfo is not None:
+                    last_heartbeat = time.monotonic() - (datetime.now(timezone.utc) - ts).total_seconds()
+            except ValueError:
+                pass
         if state in {"done", "failed"}:
             _finalize_remote(store)
             if state == "failed":
@@ -967,6 +993,16 @@ def _watch_remote(store, args) -> int:
                     print("-----------------------------")
                 print(f"diagnose with: sandbox run status {store.run_id} --watch (or --config ... --force)")
             return 0 if state == "done" else 1
+        if (
+            time.monotonic() - last_heartbeat > WATCH_STALL_SECONDS
+            and not job_remote.is_alive(store)
+        ):
+            print(
+                f"run stalled: no heartbeat for {WATCH_STALL_SECONDS // 60} minutes and the "
+                f"remote call is no longer alive (last state: {state!r}) — abandoning watch; "
+                f"diagnose with: sandbox run status {store.run_id}"
+            )
+            return 1
         time.sleep(3.0)
 
 
