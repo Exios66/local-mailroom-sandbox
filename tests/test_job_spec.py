@@ -121,3 +121,36 @@ def test_yaml_load_roundtrip(tmp_path):
     assert spec.run_id == "example"
     assert spec.prompt["agents"]["judge"]["file"] == "judge_local_v0"
     assert spec_hash(spec)
+
+# --- DMR-066: strata block shape validation ---------------------------------
+
+
+def test_strata_values_form_validates():
+    spec = RunSpec(
+        task="sorter",
+        profile="ollama",
+        dataset=DatasetSpec(
+            strata={
+                "field": "expected_subclass",
+                "values": ["service", "supply"],
+                "counts": [3, 2],
+            }
+        ),
+    )
+    assert spec.dataset.strata["values"] == ["service", "supply"]
+
+
+def test_strata_values_counts_mismatch_rejected():
+    with pytest.raises(ValueError, match="counts length must match"):
+        RunSpec(
+            task="sorter",
+            profile="ollama",
+            dataset=DatasetSpec(
+                strata={"field": "expected_subclass", "values": ["a", "b"], "counts": [1]}
+            ),
+        )
+
+
+def test_strata_unknown_keys_rejected():
+    with pytest.raises(ValueError, match="unknown keys"):
+        DatasetSpec(strata={"bogus": 1})

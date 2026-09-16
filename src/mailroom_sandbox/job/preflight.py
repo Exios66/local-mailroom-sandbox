@@ -147,6 +147,10 @@ def _dataset_lock(prov: dict[str, Any], spec: RunSpec) -> dict[str, Any]:
         "limit": spec.dataset.limit,
         "sample_seed": spec.dataset.sample_seed,
         "strata": spec.dataset.strata,
+        # DMR-066: actual drawn (doc_class::subclass) distribution — the lock
+        # now proves the requested strata were really drawn (no silent
+        # single-class collapse), not just recorded as a spec.
+        "strata_actual": prov.get("strata_actual"),
         "rows": prov.get("rows"),
         "sha256": prov.get("sha256"),
         "metadata": prov.get("metadata", {}),

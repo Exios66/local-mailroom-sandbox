@@ -20,6 +20,52 @@
 
 ### Added
 
+- **DMR-066 — subclass-stratified sorter evals + loud strata guards (SHIPPED
+  2026-09-16)**: the DMR-063 50-run exposed a stratification no-op —
+  `expected_doc_class` is constant `contract` in the joined `ground_truth`,
+  so the legacy `strata.expected` FILTER silently truncated to contract×N.
+  New `strata.field`/`values`/`counts` form draws per-stratum sub-seeded
+  buckets over any row field (`expected_subclass` default) with
+  class-aware normalized matching (raw CUAD surfaces like
+  `License_Agreements` match catalog tokens like `license` — via the vendored
+  dojo normalizer, both sides normalized per-row doc class, with an
+  `other`-fallback guard that stopped cross-class candidate inflation).
+  Preflight now hard-fails (exit 1) on: requested strata absent from the
+  data, a constant stratum field with >1 requested value (the run-50 trap,
+  named), and a draw/limit that drops a requested stratum; the lock records
+  `strata_actual` (drawn distribution) so a lock proves what was drawn.
+  Delivered: `config/runs/run-50-subclass.yaml` (13 strata · Service 8, …
+  Manufacturing 2 · 50 rows; `preflight --force` locked with `strata_actual`
+  matching exactly; old generation archived per DMR-049), spec validation
+  (unknown keys / counts length / positive ints), 6 new corpus tests + 3
+  spec tests. 271 passed / 3 skipped.
+
+- **DMR-067 — sqlalchemy restored to the live pipeline surface (SHIPPED
+  2026-09-16)**: added `sqlalchemy>=2.0` to the sandbox `[pipeline]` extra —
+  the vendored graph's `storage.catalog` / `storage.audit_log` imports
+  failed without it (every live doc logged `catalog_upsert_error` /
+  `latest_audit_hash_fetch_failed`, loud but non-fatal, and the agent roster
+  degraded to the static 18 via `vendored llm.prompts not importable`).
+  Verified: `sqlalchemy 2.0.54` installed; `storage.catalog`,
+  `storage.audit_log`, `llm.prompts` all importable from the vendored tree.
+  One live sorter row with the full surface is the designated DMR-063
+  300-run preflight step.
+
+- **DMR-068 — L4 scale-matrix protocol + exemplar specs (READY, runs
+  pending spend approval)**: `docs/scale-matrix.md` — run-50 analysis
+  (8.7–13.9 tok/s/engine vs the ~18 tok/s fp16 HBM ceiling on L4; scheduler
+  caps non-binding below ~2048 decodes; chunked prefill on by default at
+  v0.29.0), the AWQ lever (v0.29.0 docs mark AWQ ✅ Ada; official Qwen3-8B
+  benchmark 1.76× decode; `Qwen/Qwen3-8B-AWQ` drop-in; accuracy gate
+  ≥98 %), fixed-doc-size fixture plan (2k/6k/12k char buckets from run-50
+  rows), and a 7-cell matrix {1,2,4}×L4 × concurrency {8,16,32} + AWQ cell —
+  est. **$13.08 ≤ $15** at $0.80/GPU-hr, teardown per cell via
+  `deploy/teardown_vllm.sh`, measurement contract (items.jsonl primary,
+  engine `/metrics` + log windows secondary, billing per cell). Exemplar
+  specs `config/runs/scale-c1-4xl4-c16.yaml` (bf16 baseline) +
+  `scale-d1-awq-4xl4-c16.yaml` (quant-only delta); fleet pinning via
+  `MODAL_VLLM_MIN_CONTAINERS=4` (already supported by the deploy app).
+
 - **DMR-063 — 50-doc Modal vLLM scale-out run + teardown safeguards (SHIPPED
   2026-09-16)**: `config/runs/run-50-modal-hf.yaml` — 50 contract-class rows
   (19 subclasses; Hub pinned revision), concurrency 16, `max_containers: 4`
