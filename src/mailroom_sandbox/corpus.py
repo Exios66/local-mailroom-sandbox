@@ -11,11 +11,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import random
 import re
 from typing import Any
 
 from mailroom_sandbox.job.spec import DatasetSpec, FAMILY_HF_REVISION
+
+_log = logging.getLogger("mailroom_sandbox.corpus")
 
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
@@ -161,8 +164,13 @@ def normalize_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             # string is decoded, never silently flattened to {} (DMR-049).
             try:
                 expected_fields = json.loads(expected_fields) if expected_fields.strip() else {}
-            except json.JSONDecodeError:
-                expected_fields = {}
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    f"corpus integrity: row {row.get('id') or row.get('filename') or '?'} "
+                    f"has malformed expected_fields JSON: "
+                    f"{expected_fields[:120]!r} — refusing to prepare corrupt "
+                    "ground truth as empty expectations"
+                ) from exc
         normalized = {
             "id": str(row.get("id") or row.get("document_id") or row.get("filename")),
             "filename": str(row.get("filename") or row.get("id")),
@@ -456,7 +464,37 @@ def select_rows(
         ]
         chosen = _draw_buckets(rows, buckets, field=field, sample_seed=sample_seed)
     else:
-        chosen = rows
+        keep: set[tuple[str, str]] = set()
+        for bucket in strata["buckets"]:
+            doc_class = bucket.get("doc_class")
+            subclass = bucket.get("subclass")
+            count = bucket.get("count")
+            candidates = [
+                r
+                for r in rows
+                if r["expected_doc_class"] == doc_class
+                and (subclass is None or r["expected_subclass"] == subclass)
+            ]
+            if not candidates:
+                _log.warning(
+                    "stratum bucket %r (doc_class=%r subclass=%r) matched ZERO "
+                    "rows and was silently dropped from the draw — check the "
+                    "strata spec against the corpus distribution",
+                    bucket.get("name") or bucket_key_hint(bucket),
+                    doc_class,
+                    subclass,
+                )
+                continue
+            if count is not None and count < len(candidates):
+                if sample_seed is None:
+                    raise ValueError("sample_seed required for stratified draws")
+                bucket_key = f"{doc_class}::{subclass}"
+                sub_seed = int(hashlib.sha256(f"{sample_seed}:{bucket_key}".encode()).hexdigest()[:16], 16)
+                drawn = random.Random(sub_seed).sample(candidates, k=count)
+            else:
+                drawn = candidates
+            keep.update(_stable_key(r) for r in drawn)
+        chosen = [r for r in rows if _stable_key(r) in keep]
     if limit is not None:
         chosen = chosen[:limit]
     return sorted(chosen, key=_stable_key)
