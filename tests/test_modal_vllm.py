@@ -574,6 +574,25 @@ class TestSmokeCheckDiagnostics:
         monkeypatch.delenv("MODAL_VLLM_API_TOKEN")
 
 
+class TestTeardownScript:
+    """DMR-063: the loud teardown guard must exist and do the right things —
+    stop the app, VERIFY zero running deployments, keep volumes."""
+
+    def test_script_exists_and_is_executable(self):
+        path = repo_root() / "deploy" / "teardown_vllm.sh"
+        assert path.is_file()
+        assert path.stat().st_mode & 0o111, "teardown_vllm.sh must be executable"
+
+    def test_script_stops_verifies_and_keeps_volumes(self):
+        text = (repo_root() / "deploy" / "teardown_vllm.sh").read_text()
+        assert "modal app stop" in text
+        # Verification: the script exits 1 if the app is still running.
+        assert "exit 1" in text and "still shows a running deployment" in text
+        # Data-bearing state persists; cost-bearing state is gone.
+        assert "modal volume ls sandbox-hf-cache" in text
+        assert "modal billing summary" in text
+
+
 class TestVersionPins:
     def test_deploy_extra_pins_modal_sdk(self):
         import tomllib
