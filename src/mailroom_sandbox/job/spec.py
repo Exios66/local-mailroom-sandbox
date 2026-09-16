@@ -156,10 +156,10 @@ class DatasetSpec(BaseModel):
 
 
 class VLLMSpec(BaseModel):
-    """vLLM serve flags (verified for v0.28.0 in DMR-022).
+    """vLLM serve flags (verified for v0.29.0 in DMR-022).
 
     ``max_model_len`` defaults to 16384 — the DMR-056 boot-valid cap for
-    L4-bf16 8B-class rows: v0.28.0 RAISES at boot when the KV pool cannot
+    L4-bf16 8B-class rows: v0.29.0 RAISES at boot when the KV pool cannot
     hold one request at max_model_len (it does not shrink-and-warn). AWQ /
     FP8 rows may set 32768 explicitly.
     """
@@ -196,7 +196,7 @@ class VLLMSpec(BaseModel):
     def _quant(cls, v: str) -> str:
         if v not in VALID_QUANTIZATIONS:
             raise ValueError(
-                f"quantization {v!r} is not a registered v0.28.0 method; "
+                f"quantization {v!r} is not a registered v0.29.0 method; "
                 f"valid: {sorted(x for x in VALID_QUANTIZATIONS if x)}"
             )
         return v
@@ -205,7 +205,7 @@ class VLLMSpec(BaseModel):
 class ModalSpec(BaseModel):
     app: str = "sandbox-vllm"
     gpu: str = "L4"
-    image_tag: str = "v0.28.0"
+    image_tag: str = "v0.29.0"
     scaledown_seconds: int = 900
     max_containers: int = 1
     prewarm: bool = True

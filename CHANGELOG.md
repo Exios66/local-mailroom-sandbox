@@ -20,6 +20,23 @@
 
 ### Added
 
+- **DMR-062 — Modal HF-secret wiring + v0.29.0 live parity pilot (SHIPPED
+  2026-09-16)**: the deploy app now attaches the Modal named secret
+  `huggingface-secret` (`Secret.from_name(..., required_keys=["HF_TOKEN"])`,
+  override via `MODAL_HF_SECRET_NAME`) to BOTH `serve` and `download_model`;
+  `HF_TOKEN` was dropped from the local-env knob secret (Modal applies
+  function secrets in list order — last wins — so a local `HF_TOKEN` would
+  have silently overridden the named secret). vLLM pinned to **v0.29.0**
+  across Modal + local compose + HTCondor after the live parity pilot
+  passed (Qwen/Qwen3-8B L4: 7/7 sorter rows, F1=1.0, `json_object` verified,
+  `serving_kind=modal` records; vllm-specialist docs-verified the v0.29.0
+  flag set). Preflight engine probe fixed: it appended `/v1/models` to a
+  base that already carries the `/v1` seam (`.../v1/v1/models` → live 404);
+  the probe now normalizes (pinned by `test_engine_probe_url_seam_normalizes_v1_suffix`).
+  `test_vendor` stale-pin scan no longer trips on pip-installed venv wheels.
+  First live pilot spec: `config/runs/pilot-sorter-modal-hf.yaml`.
+  260 passed / 3 skipped.
+
 - **DMR-058 — full CLI verification sweep + quickstart**: every `sandbox`
   command exercised against a fresh in-repo `.venv` (offline + live Hub
   paths); `docs/QUICKSTART.md` is the verified full command reference
