@@ -237,12 +237,32 @@ runner (concurrency) and the server (`--max-num-seqs`).
   free) and persist weights + compile artifacts across deploys.
 - Spend check: `modal billing summary` / `modal billing rates` (SDK 1.5.3+).
 
-### Teardown
+### Teardown + resource safeguards (DMR-063)
 
 ```bash
-modal app stop sandbox-vllm          # stop serving (Volumes persist)
+./deploy/teardown_vllm.sh              # stop + VERIFY zero containers + spend check
+modal app stop sandbox-vllm          # manual fallback (Volumes persist)
 modal volume ls sandbox-hf-cache     # weights survive
 modal volume ls sandbox-vllm-cache   # vLLM JIT/CUDA-graph cache
+```
+
+Guard matrix — nothing may run unchecked:
+
+| Guard | Knob / command | Default | Enforced by |
+| --- | --- | --- | --- |
+| Replica cap (cost guard) | `MODAL_VLLM_MAX_CONTAINERS` | `1` — raise deliberately (4 for the DMR-063 scale-out run) | deploy env; preflight `modal_spec` guard |
+| Scale-to-zero | `MODAL_VLLM_MIN_CONTAINERS` | `0` | deploy env |
+| Idle burn window | `MODAL_VLLM_SCALEDOWN_SECONDS` | `900` (600 for scale-out runs) | deploy env |
+| Loud teardown after any run | `./deploy/teardown_vllm.sh` | run it after every completed/cancelled run | this script exits 1 if a deployment is still running after 30 polls |
+| Boot-time budget | `MODAL_VLLM_STARTUP_TIMEOUT_SECONDS` | `1200` | deploy env; fail-loud in `serve()` |
+| Spend visibility | `modal billing summary` / `modal billing rates` | — | teardown script step 4 (best-effort) |
+
+Deploy-time knobs for a scale-out run (multiple replicas, tight idle):
+
+```bash
+export MODAL_VLLM_MAX_CONTAINERS=4      # 4 × L4 replicas (documented raise)
+export MODAL_VLLM_SCALEDOWN_SECONDS=600 # 10 min idle max before scale-to-zero
+modal deploy deploy/modal_vllm.py
 ```
 
 ### Security model
