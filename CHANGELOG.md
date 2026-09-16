@@ -20,6 +20,29 @@
 
 ### Added
 
+- **DMR-063 — 50-doc Modal vLLM scale-out run + teardown safeguards (SHIPPED
+  2026-09-16)**: `config/runs/run-50-modal-hf.yaml` — 50 contract-class rows
+  (19 subclasses; Hub pinned revision), concurrency 16, `max_containers: 4`
+  (2–3 warm L4s), `scaledown_seconds: 600`. Result: **49/50 = 98.0 %**,
+  0 run errors, 0 timeouts; one out-of-set misclassification
+  (contract → corporate_record). Per-item E2E mean 971 s (median 883, p90
+  1520, max 2054 — queueing-dominated at 16-way); aggregate ≈ 0.65 docs/min;
+  engine generation 8.7–13.9 tok/s per L4, prefix-cache hits 56–58 %, KV ≤ 30
+  %; Modal metered **$7.98 → credited → billed $0.00** (≈ $0.16/doc metered).
+  **Timeout fix**: vendored `llm_call_timeout_seconds` 120 → 300 s (the
+  vendored taxonomy is the live source — the base file is shadowed; both kept
+  in sync) — killed the `APITimeoutError` retry storms (attempt A cancelled at
+  cursor 0). **Driver resilience proven**: orphaned runner loss at cursor 31 →
+  `sandbox run resume` re-attached and drove 50/50 to `done` with all items
+  intact (checkpoint/`items.jsonl` self-heal). **Teardown**: new
+  `deploy/teardown_vllm.sh` (stop → verify zero deployments → volumes persist
+  → billing best-effort; TTY-aware `--yes` for headless) + README guard
+  matrix + `TestTeardownScript`. Full breakdown: `reports/RUN50-MODAL-HF-REPORT.md`.
+  Findings spawned: strata no-op (expected_doc_class constant → 19-subclass
+  coverage instead of 3-class strata), missing `sqlalchemy` in the pipeline
+  extra (loud non-fatal catalog/audit degrade), scale-out flatness at 4×L4.
+  262 passed / 3 skipped.
+
 - **DMR-062 — Modal HF-secret wiring + v0.29.0 live parity pilot (SHIPPED
   2026-09-16)**: the deploy app now attaches the Modal named secret
   `huggingface-secret` (`Secret.from_name(..., required_keys=["HF_TOKEN"])`,

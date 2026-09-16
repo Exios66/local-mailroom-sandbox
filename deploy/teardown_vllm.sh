@@ -19,8 +19,11 @@ if ! command -v modal >/dev/null 2>&1; then
 fi
 
 # 1) Stop serving NOW (scale-to-zero immediately; no scaledown-window burn).
-echo "-> modal app stop $APP"
-modal app stop "$APP"
+# Non-interactive (CI/cron) runs get --yes so teardown never stalls on a prompt.
+FLAGS=""
+if [ ! -t 0 ]; then FLAGS="--yes"; fi
+echo "-> modal app stop $APP $FLAGS"
+modal app stop "$APP" $FLAGS
 
 # 2) Verify: poll until no deployment of the app is running.
 for i in $(seq 1 30); do
