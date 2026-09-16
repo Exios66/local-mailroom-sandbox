@@ -81,17 +81,30 @@ CONFIG_ENV_KEYS = (
     "MODAL_VLLM_ASYNC_SCHEDULING",
     "MODAL_VLLM_REVISION",
     "MODAL_VLLM_API_TOKEN",
-    "HF_TOKEN",
+    # HF_TOKEN deliberately absent: it lives in the named Modal secret
+    # `huggingface-secret` (below). Modal applies function secrets in list
+    # order — LAST WINS on duplicate keys — so a locally-exported HF_TOKEN
+    # in the from_dict secret would silently override the named secret.
 )
+
+# Named secret configured in Modal (created 2026-09-16 in the Modal dashboard);
+# carries HF_TOKEN for gated/private weight downloads. Referenced by name so
+# deploys do not depend on local env for the Hub credential. required_keys
+# makes a missing HF_TOKEN fail the deploy at hydration (fail-loud), not at
+# first gated-repo download.
+HF_SECRET_NAME = os.environ.get("MODAL_HF_SECRET_NAME", "huggingface-secret")
 
 
 def _config_secrets() -> list[modal.Secret]:
+    secrets: list[modal.Secret] = [
+        modal.Secret.from_name(HF_SECRET_NAME, required_keys=["HF_TOKEN"])
+    ]
     values = {
         name: os.environ.get(name) for name in CONFIG_ENV_KEYS if os.environ.get(name)
     }
-    if not values:
-        return []
-    return [modal.Secret.from_dict(values)]
+    if values:
+        secrets.append(modal.Secret.from_dict(values))
+    return secrets
 
 
 hf_cache = modal.Volume.from_name(HF_CACHE_VOLUME_NAME, create_if_missing=True)

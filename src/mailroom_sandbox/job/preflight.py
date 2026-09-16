@@ -84,7 +84,16 @@ def _probe_engine(spec: RunSpec) -> dict[str, Any]:
     import httpx
 
     try:
-        resp = httpx.get(f"{base}/v1/models", headers=headers, timeout=10.0)
+        # URL-seam normalization: VLLM_BASE_URL / profile base_url carry the
+        # OpenAI-style "/v1" suffix (deploy README + .env.example contract) —
+        # appending "/v1/models" to an already-seamed base yields
+        # ".../v1/v1/models" and a 404 from vLLM. Only add the seam when the
+        # base does not already end with it.
+        base = base.rstrip("/")
+        models_path = (
+            f"{base}/models" if base.endswith("/v1") else f"{base}/v1/models"
+        )
+        resp = httpx.get(models_path, headers=headers, timeout=10.0)
     except Exception as exc:  # noqa: BLE001
         return {"ok": False, "reason": f"unreachable: {type(exc).__name__}: {exc}", **detail}
     if resp.status_code == 401:
