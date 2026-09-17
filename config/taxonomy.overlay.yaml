@@ -42,7 +42,7 @@ cost_models:
 # all — DMR-063 found the same wall; the pin belongs HERE (overlay), not in
 # the drift-guarded vendored file.
 run_limits:
-  llm_call_timeout_seconds: 900
+  llm_call_timeout_seconds: 600
 
 # Surgical knobs — overlay wins after profile rewrite. Omit `model` to keep
 # the mapped local tag from the active profile.
