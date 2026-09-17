@@ -77,13 +77,27 @@ def _predict_row(
     if task == "sorter":
         if mock:
             return eval_runners._classify_mock(row), True
+        # DMR-072 live-or-loud: the unactivated graph falls through to
+        # doc_type="unknown" WITHOUT touching the LLM (the vendored default
+        # config resolves providers that don't exist here) — that is not a
+        # prediction, and recording it ok=True once lied through a whole run.
+        from mailroom_sandbox.runtime import active as _runtime_active
+
+        if _runtime_active() is None:
+            raise RuntimeError(
+                "runtime profile not activated — refusing a live sorter run on "
+                "a dead pipeline; activate(profile) before running (the "
+                "unactivated graph returns doc_type='unknown' without any LLM "
+                "call and would record ok=True lies)"
+            )
         result = eval_runners._run_pipeline_doc(row, mock=False, run_id=run_id)
         doc_type = result.get("doc_type")
-        if not doc_type:
+        if not doc_type or str(doc_type).strip().lower() == "unknown":
             raise RuntimeError(
-                f"live pipeline returned no doc_type for row "
-                f"{row.get('id') or row.get('filename') or '?'} — refusing to "
-                f"score a dead live path as 'unknown' (recorded ok=True would lie)"
+                f"live pipeline returned no real doc_type for row "
+                f"{row.get('id') or row.get('filename') or '?'} "
+                f"(got {doc_type!r}) — refusing to score a dead live path as "
+                f"'unknown' (recorded ok=True would lie)"
             )
         return doc_type, True
     if task == "legalbench":
