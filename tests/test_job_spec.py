@@ -154,3 +154,37 @@ def test_strata_values_counts_mismatch_rejected():
 def test_strata_unknown_keys_rejected():
     with pytest.raises(ValueError, match="unknown keys"):
         DatasetSpec(strata={"bogus": 1})
+
+
+def test_strata_nested_sub_buckets_validates():
+    spec = RunSpec(
+        task="sorter",
+        profile="ollama",
+        dataset=DatasetSpec(
+            strata={
+                "buckets": [
+                    {
+                        "doc_class": "insurance_claim",
+                        "sub_buckets": [
+                            {"subclass": "auto", "count": 2},
+                            {"subclass": "pde", "count": 1},
+                        ],
+                    },
+                    {"doc_class": "contract", "count": 3},
+                ]
+            }
+        ),
+    )
+    buckets = spec.dataset.strata["buckets"]
+    assert buckets[0]["sub_buckets"][0] == {"subclass": "auto", "count": 2}
+
+
+def test_strata_nested_sub_buckets_shape_rejected():
+    for bad in (
+        {"buckets": [{"doc_class": "contract", "sub_buckets": []}]},
+        {"buckets": [{"doc_class": "contract", "sub_buckets": [{"subclass": "license"}]}]},
+        {"buckets": [{"doc_class": "contract", "sub_buckets": [{"count": 2}]}]},
+        {"buckets": [{"doc_class": "contract", "sub_buckets": [{"subclass": "license", "count": 0}]}]},
+    ):
+        with pytest.raises(ValueError):
+            DatasetSpec(strata=bad)
