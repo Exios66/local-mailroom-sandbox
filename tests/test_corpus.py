@@ -8,6 +8,7 @@ import json
 import pytest
 
 from mailroom_sandbox.corpus import (
+    _normalize_subclass,
     load_hf_rows,
     normalize_rows,
     prepare_subset,
@@ -325,3 +326,136 @@ def test_values_strata_draw_needs_seed(tmp_path):
     )
     with pytest.raises(ValueError, match="sample_seed required"):
         prepare_subset(spec, tmp_path / "v.jsonl")
+
+
+# --- nested sub_buckets (corrected 5-doc-type run spec, DMR-072) ------------
+
+def _five_type_rows():
+    """Multi-class, multi-subclass rows mirroring the published corpus shape."""
+    raw = [
+        ("ins-a1", "insurance_claim", "auto"),
+        ("ins-a2", "insurance_claim", "auto"),
+        ("ins-p1", "insurance_claim", "property"),
+        ("ins-p2", "insurance_claim", "property"),
+        ("ins-p3", "insurance_claim", "property"),
+        ("ct-s1", "contract", "Service"),
+        ("ct-s2", "contract", "Service"),
+        ("ct-s3", "contract", "Service"),
+        ("ct-l1", "contract", "License_Agreements"),
+        ("ct-l2", "contract", "License_Agreements"),
+        ("mg-a1", "merger_agreement", "all_cash"),
+        ("mg-a2", "merger_agreement", "all_cash"),
+        ("mg-o1", "merger_agreement", "other"),
+        ("mg-m1", "merger_agreement", "mixed_cash_stock"),
+    ]
+    out = []
+    for rid, cls, sub in raw:
+        out.append(
+            {
+                "id": rid,
+                "filename": f"{rid}.txt",
+                "doc_text": f"text {rid}",
+                "expected": cls,
+                "expected_doc_class": cls,
+                "expected_subclass": sub,
+            }
+        )
+    return out
+
+
+def _five_type_strata():
+    return {
+        "buckets": [
+            {
+                "doc_class": "insurance_claim",
+                "sub_buckets": [
+                    {"subclass": "auto", "count": 2},
+                    {"subclass": "property", "count": 3},
+                ],
+            },
+            {
+                "doc_class": "contract",
+                "sub_buckets": [
+                    {"subclass": "service", "count": 2},
+                    {"subclass": "license", "count": 1},
+                ],
+            },
+            {
+                "doc_class": "merger_agreement",
+                "sub_buckets": [
+                    {"subclass": "all_cash", "count": 1},
+                    {"subclass": "other", "count": 1},
+                    {"subclass": "mixed_cash_stock", "count": 1},
+                ],
+            },
+        ]
+    }
+
+
+def test_nested_buckets_exact_per_class_subclass_counts(tmp_path):
+    src = _rows_fixture(tmp_path, _five_type_rows())
+    dest = tmp_path / "d.jsonl"
+    prov = prepare_subset(
+        DatasetSpec(local_path=src, strata=_five_type_strata(), sample_seed=42, limit=50),
+        dest,
+    )
+    rows = [json.loads(l) for l in dest.read_text().splitlines() if l]
+    assert prov["rows"] == 11
+    by = {}
+    for r in rows:
+        key = (
+            r["expected_doc_class"],
+            _normalize_subclass(r["expected_doc_class"], r["expected_subclass"]),
+        )
+        by[key] = by.get(key, 0) + 1
+    assert by == {
+        ("insurance_claim", "auto"): 2,
+        ("insurance_claim", "property"): 3,
+        ("contract", "service"): 2,
+        ("contract", "license"): 1,  # raw surface 'License_Agreements' -> catalog
+        ("merger_agreement", "all_cash"): 1,
+        ("merger_agreement", "other"): 1,
+        ("merger_agreement", "mixed_cash_stock"): 1,
+    }
+    # zero duplicates across the whole draw
+    assert len({(r["id"], r["filename"]) for r in rows}) == len(rows)
+
+
+def test_nested_buckets_deterministic(tmp_path):
+    rows = normalize_rows(_five_type_rows())
+    a = select_rows(rows, strata=_five_type_strata(), sample_seed=7, limit=None)
+    b = select_rows(rows, strata=_five_type_strata(), sample_seed=7, limit=None)
+    assert [r["id"] for r in a] == [r["id"] for r in b]
+
+
+def test_nested_bucket_over_quota_hard_fails(tmp_path):
+    # A quota above the subclass's availability is a spec design bug: loud.
+    src = _rows_fixture(tmp_path, _five_type_rows())
+    strata = {
+        "buckets": [
+            {
+                "doc_class": "insurance_claim",
+                "sub_buckets": [{"subclass": "auto", "count": 3}],  # only 2 auto rows
+            }
+        ]
+    }
+    spec = DatasetSpec(local_path=src, strata=strata, sample_seed=42)
+    with pytest.raises(ValueError, match="only 2 available"):
+        prepare_subset(spec, tmp_path / "q.jsonl")
+
+
+def test_nested_bucket_missing_subclass_hard_fails(tmp_path):
+    # The DMR-066 strata_guard fires BEFORE the draw: an absent requested
+    # subclass is a preflight error, not a draw-time surprise.
+    src = _rows_fixture(tmp_path, _five_type_rows())
+    strata = {
+        "buckets": [
+            {
+                "doc_class": "contract",
+                "sub_buckets": [{"subclass": "reseller", "count": 1}],
+            }
+        ]
+    }
+    spec = DatasetSpec(local_path=src, strata=strata, sample_seed=42)
+    with pytest.raises(ValueError, match="absent from prepared rows"):
+        prepare_subset(spec, tmp_path / "r.jsonl")

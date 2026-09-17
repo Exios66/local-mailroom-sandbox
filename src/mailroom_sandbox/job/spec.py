@@ -132,6 +132,17 @@ class DatasetSpec(BaseModel):
                     raise ValueError("strata.buckets entries must be objects")
                 if "count" in b and (not isinstance(b["count"], int) or b["count"] < 1):
                     raise ValueError("strata.buckets[].count must be a positive int")
+                sub_buckets = b.get("sub_buckets")
+                if sub_buckets is not None:
+                    if not isinstance(sub_buckets, list) or not sub_buckets:
+                        raise ValueError("strata.buckets[].sub_buckets must be a non-empty list")
+                    for sb in sub_buckets:
+                        if not isinstance(sb, dict):
+                            raise ValueError("strata.buckets[].sub_buckets entries must be objects")
+                        if not sb.get("subclass") or not isinstance(sb["subclass"], str):
+                            raise ValueError("strata.buckets[].sub_buckets[].subclass must be a non-empty string")
+                        if not isinstance(sb.get("count"), int) or sb["count"] < 1:
+                            raise ValueError("strata.buckets[].sub_buckets[].count must be a positive int")
             return v
         if "values" in v:
             if not isinstance(v["values"], list) or not v["values"]:

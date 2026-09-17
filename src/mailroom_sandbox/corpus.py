@@ -281,6 +281,10 @@ def _strata_requested(strata: dict[str, Any] | None) -> set[tuple[str, str]]:
                 out.add(("expected_doc_class", dc))
             if sc:
                 out.add(("expected_subclass", sc))
+            for sb in b.get("sub_buckets") or []:
+                ssc = str(sb.get("subclass") or "")
+                if ssc:
+                    out.add(("expected_subclass", ssc))
         return out
     field = strata_field(strata)
     if "values" in strata:
@@ -417,7 +421,16 @@ def _draw_buckets(
     field: str,
     sample_seed: int | None,
 ) -> list[dict[str, Any]]:
-    """Per-stratum sub-seeded draws; union; stable-key preserved."""
+    """Per-stratum sub-seeded draws; union; stable-key preserved.
+
+    A doc_class bucket may carry ``sub_buckets`` (per-subclass quotas within
+    the class): each quota is drawn from the class candidates matching that
+    subclass, sub-seeded per ``field::class::subclass``, with earlier
+    sub-bucket picks excluded from later ones so the bucket total is exactly
+    the quota sum (zero duplicates by construction across the whole strata
+    block). A quota above the subclass's availability HARD-FAILS (loud — a
+    shortfall here is a spec design bug, not a truncate-and-warn condition).
+    """
     keep: set[tuple[str, str]] = set()
     for bucket in buckets:
         value = bucket.get("value") or bucket.get("subclass")
@@ -429,15 +442,54 @@ def _draw_buckets(
             raise ValueError(
                 f"strata bucket {field}={value!r}: no candidate rows in prepared set"
             )
-        if count is not None and count < len(candidates):
-            if sample_seed is None:
-                raise ValueError("sample_seed required for stratified draws")
-            bucket_key = f"{field}::{value}"
-            sub_seed = int(hashlib.sha256(f"{sample_seed}:{bucket_key}".encode()).hexdigest()[:16], 16)
-            drawn = random.Random(sub_seed).sample(candidates, k=count)
+        sub_buckets = bucket.get("sub_buckets") or []
+        if sub_buckets and field == "expected_doc_class":
+            drawn: list[dict[str, Any]] = []
+            excluded: set[tuple[str, str]] = set()
+            for sb in sub_buckets:
+                sc = str(sb.get("subclass") or sb.get("value") or "")
+                c = sb.get("count")
+                if not sc or not isinstance(c, int) or c < 1:
+                    raise ValueError(
+                        "strata sub_bucket requires a 'subclass' and a positive "
+                        f"'count' (got {sb!r})"
+                    )
+                sub_candidates = [
+                    r
+                    for r in candidates
+                    if _stable_key(r) not in excluded and _subclass_matches(r, sc)
+                ]
+                if not sub_candidates:
+                    raise ValueError(
+                        f"strata sub_bucket {value!r}::{sc!r}: no candidate rows "
+                        "in prepared set"
+                    )
+                if c > len(sub_candidates):
+                    raise ValueError(
+                        f"strata sub_bucket {value!r}::{sc!r}: requested {c} but "
+                        f"only {len(sub_candidates)} available"
+                    )
+                bucket_key = f"{field}::{value}::{sc}"
+                if c < len(sub_candidates):
+                    if sample_seed is None:
+                        raise ValueError("sample_seed required for stratified draws")
+                    sub_seed = int(hashlib.sha256(f"{sample_seed}:{bucket_key}".encode()).hexdigest()[:16], 16)
+                    picked = random.Random(sub_seed).sample(sub_candidates, k=c)
+                else:
+                    picked = sub_candidates
+                drawn.extend(picked)
+                excluded.update(_stable_key(r) for r in picked)
+            keep.update(_stable_key(r) for r in drawn)
         else:
-            drawn = candidates
-        keep.update(_stable_key(r) for r in drawn)
+            if count is not None and count < len(candidates):
+                if sample_seed is None:
+                    raise ValueError("sample_seed required for stratified draws")
+                bucket_key = f"{field}::{value}"
+                sub_seed = int(hashlib.sha256(f"{sample_seed}:{bucket_key}".encode()).hexdigest()[:16], 16)
+                drawn = random.Random(sub_seed).sample(candidates, k=count)
+            else:
+                drawn = candidates
+            keep.update(_stable_key(r) for r in drawn)
     return [r for r in rows if _stable_key(r) in keep]
 
 
