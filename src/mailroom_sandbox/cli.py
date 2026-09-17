@@ -997,6 +997,13 @@ def _cmd_run_start(args) -> int:
     from mailroom_sandbox.job.spec import run_dir
 
     spec, _ = _run_load_spec(args)
+    # DMR-072: the job path must activate the runtime profile like every other
+    # live CLI path. Without it the vendored pipeline loads its own default
+    # config (openrouter, no key) and the sorter node falls through to the
+    # graph's doc_type="unknown" default — a 50-item "run" then "completes" in
+    # seconds with 0.0 scores, ok=True rows, and zero endpoint calls (the
+    # silent-fallback trap; now also hard-guarded in runner._predict_row).
+    activate(spec.profile, model=getattr(args, "model", None), agent_models=_agent_models(args))
     if getattr(args, "mock", None) is not None or getattr(args, "local", None) is not None:
         spec.job.mock = bool(args.mock)
     report = preflight.preflight(
@@ -1158,6 +1165,12 @@ def _cmd_run_resume(args) -> int:
     from mailroom_sandbox.job.spec import run_dir
 
     run_id = _run_id_required(args)
+    # DMR-072: same profile-activation contract as `run start` — resuming an
+    # endpoint-mode job must not re-enter the unactivated silent-fallback path.
+    if getattr(args, "config", None):
+        from mailroom_sandbox.job.spec import load_run_spec
+
+        activate(load_run_spec(args.config).profile, model=getattr(args, "model", None), agent_models=_agent_models(args))
     store = RunStore(run_dir(run_id))
     if not store.read_lock():
         _print({"run_id": run_id, "error": "no locked run to resume"})
