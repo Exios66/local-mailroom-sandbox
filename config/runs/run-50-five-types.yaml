@@ -113,10 +113,13 @@ job:
   mock: false
   max_retries: 2
   fail_fast: false
-  concurrency: 8              # 1 replica x 8 in-flight pipeline graphs — fills
-                              # the L4's continuous batching (docs/jobs.md
-                              # recommends 4-16 vs Modal vLLM; DMR-063 used
-                              # 16/4-replicas ~ 4-5 in-flight per replica)
+  concurrency: 4              # DMR-072 rev2: 8-way on ONE replica piled requests
+                              # at the Modal web proxy (48-121s/call, models
+                              # endpoint timing out, modal-client cancellations
+                              # discarding decode work); DMR-063's proven in-
+                              # flight per replica was ~4-5. 4 pipeline graphs
+                              # x ~1-2 streams fits the L4; docs/jobs.md
+                              # recommends 4-16 vs Modal vLLM (4-8 for 1 GPU)
 
 trace:
   sink: none
