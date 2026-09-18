@@ -108,3 +108,15 @@ def test_endpoints_urls():
 
     lm = load_endpoints("lmstudio")
     assert ":1234" in lm.base_url
+
+
+def test_modal_profile_merge_sorter_vllm_and_timeout_300():
+    """DMR-072: the modal-vllm profile rewrite must point the sorter at the
+    vLLM endpoint AND the merged run_limits must carry the 300s per-call
+    timeout (the vendored 120s default cannot hold an L4 generation)."""
+    from mailroom_sandbox.overlay import build_merged_taxonomy, load_profile
+
+    t = build_merged_taxonomy(load_profile("modal-vllm"))
+    assert t["agents"]["sorter"]["provider"] == "vllm"
+    assert t["agents"]["sorter"]["model"] == "Qwen/Qwen3-8B"
+    assert t["run_limits"]["llm_call_timeout_seconds"] == 300
