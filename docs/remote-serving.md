@@ -74,9 +74,10 @@ sandbox health --profile modal-vllm              # 401 = token mismatch
 
 Full specialist suite + cost extrapolation: [`docs/benchmark-l4.md`](benchmark-l4.md).
 
-Cost posture: scale-to-zero after 900 s idle, `max_containers=1` by default
-(L4 ≈ $0.80/hr while warm; rates at modal.com/pricing, verified 2026-09-09).
-Teardown: `modal app stop sandbox-vllm` — weights survive in the
+Cost posture (specialist suite): `scaledown=120` attended / `600` unattended,
+`max_containers=1`, one warm app for all five runs then
+`./deploy/teardown_vllm.sh` (L4 ≈ $0.80/hr while warm; rates at
+modal.com/pricing, verified 2026-09-09). Weights survive in the
 `sandbox-hf-cache` Volume.
 
 Throughput runs (Modal `vllm_throughput` exemplar, 2026-09): deploy the

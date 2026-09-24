@@ -716,7 +716,7 @@ def extrapolate_cost(
     docs_per_day: float | None = None,
     docs_per_month: float | None = None,
     cold_start_seconds: float = 120.0,
-    scaledown_seconds: float = 600.0,
+    scaledown_seconds: float = 120.0,
     concurrency: int = 4,
     gpu: str | None = None,
 ) -> dict[str, Any]:
@@ -977,7 +977,7 @@ def estimate_suite(
                 "model": spec.engine.model,
                 "gpu": (spec.engine.modal.gpu if spec.engine.modal else "L4"),
                 "scaledown_seconds": (
-                    int(spec.engine.modal.scaledown_seconds) if spec.engine.modal else 600
+                    int(spec.engine.modal.scaledown_seconds) if spec.engine.modal else 120
                 ),
                 "max_containers": (
                     int(spec.engine.modal.max_containers) if spec.engine.modal else 1
@@ -1040,7 +1040,7 @@ def estimate_suite(
                 "concurrency": concurrency,
                 "gpu": gpu,
                 "model": model,
-                "scaledown_seconds": int(sd) if sd is not None else 600,
+                "scaledown_seconds": int(sd) if sd is not None else 120,
                 "sec_per_doc": {b: float(bands[b]) for b in _BANDS},
                 "tokens_assumed": tok,
                 "wall_seconds": wall,
@@ -1171,16 +1171,18 @@ def _estimate_optimizations(
             "name": "Keep one warm app (no redeploy / no teardown between classes)",
             "expected_usd_saved": "already in baseline — teardown×5 would add ~4× scaledown",
             "safe_now": True,
-            "note": "Runbook default; tearing down between classes wastes scaledown tails",
+            "note": "Runbook default (DMR-076); tearing down between classes wastes scaledown tails",
         },
         {
             "rank": 2,
-            "name": "Shorter scaledown during attended suite (e.g. 120s via env)",
+            "name": "Attended scaledown 120s (run-30 YAML + MODAL_VLLM_SCALEDOWN_SECONDS)",
             "expected_usd_saved": round(sd_save_to_120, 2),
             "safe_now": True,
             "note": (
-                f"MODAL_VLLM_SCALEDOWN_SECONDS=120 while watching; restore 600 "
-                f"for unattended. Saves ~(scaledown−120)s × ${rate_hr}/hr"
+                "DMR-076 default in specialist YAMLs is 120s attended; "
+                "restore MODAL_VLLM_SCALEDOWN_SECONDS=600 (and YAML) for "
+                "unattended/overnight. If estimate still uses 600, "
+                f"savings to 120 ≈ ${sd_save_to_120:.2f} at ${rate_hr}/hr"
             ),
         },
         {
@@ -1190,7 +1192,8 @@ def _estimate_optimizations(
             "safe_now": False,
             "note": (
                 "Gate: ≥1.5× docs/min AND ≥98% accuracy (docs/scale-matrix.md). "
-                "Do not swap the default bf16 suite until gated; optional path only"
+                "Do not swap the default bf16 suite until gated; optional path: "
+                'eval "$(sandbox modal-matrix env Qwen/Qwen3-8B-AWQ)"'
             ),
         },
         {

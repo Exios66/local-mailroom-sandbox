@@ -3,6 +3,9 @@
 Fails closed when the Modal account / GPU posture / pins look wrong so a
 cold-start tomorrow morning does not burn credits on a misconfigured deploy.
 No secrets are printed — only profile names and path presence.
+
+Spend posture (DMR-076): scaledown 120 attended, one warm app for all five
+runs, local specialist prompt pins, limit 30. AWQ is optional only.
 """
 
 from __future__ import annotations
@@ -26,18 +29,44 @@ from mailroom_sandbox.modernbert import feeder_status
 # only the profile *name* belongs in docs / this check.
 HERMES_MODAL_PROFILE = "hermes-agent-jjb"
 
+# Default cost-eval suite (bf16). AWQ is accepted as an optional path when the
+# engine model is explicitly Qwen/Qwen3-8B-AWQ (DMR-068 gate still operator-owned).
+BENCHMARK_MODEL_BF16 = "Qwen/Qwen3-8B"
+BENCHMARK_MODEL_AWQ = "Qwen/Qwen3-8B-AWQ"
+BENCHMARK_ALLOWED_MODELS = frozenset({BENCHMARK_MODEL_BF16, BENCHMARK_MODEL_AWQ})
+
 BENCHMARK_EXPECTED = {
-    "model": "Qwen/Qwen3-8B",
+    "model": BENCHMARK_MODEL_BF16,
     "gpu": "L4",
     "image_tag": "v0.29.0",
     "max_containers": 1,
     "min_containers": 0,
-    "scaledown_seconds": 600,
+    "scaledown_seconds": 120,  # attended cost-saver (DMR-076); restore 600 unattended
     "concurrency": 4,
     "profile": "modal-vllm",
     "app": "sandbox-vllm",
     "revision": FAMILY_HF_REVISION,
     "repo": HF_DEFAULT_REPO,
+    "limit": 30,
+}
+
+# DMR-074: run-30 specialist YAMLs must pin local production prompt stems.
+SPECIALIST_LOCAL_PROMPTS: dict[str, dict[str, str]] = {
+    "run-30-contracts-specialist": {
+        "contracts_specialist": "contracts_specialist_v33",
+    },
+    "run-30-merger-specialist": {
+        "contracts_specialist": "contracts_specialist_v33",
+    },
+    "run-30-corporate-records-specialist": {
+        "corporate_records_specialist": "corporate_records_specialist_production",
+    },
+    "run-30-correspondence-specialist": {
+        "correspondence_specialist": "correspondence_specialist_production",
+    },
+    "run-30-insurance-claims-specialist": {
+        "insurance_claims_specialist": "insurance_claims_specialist_production",
+    },
 }
 
 
@@ -106,6 +135,13 @@ def check_benchmark_posture(
         "expected": dict(BENCHMARK_EXPECTED),
         "family_corpus_size": FAMILY_CORPUS_SIZE,
         "hermes_profile_name": HERMES_MODAL_PROFILE,
+        "spend_posture": {
+            "warm_app_once": True,
+            "teardown_only_after_fifth": True,
+            "scaledown_seconds_attended": BENCHMARK_EXPECTED["scaledown_seconds"],
+            "scaledown_seconds_unattended": 600,
+            "awq_default": False,
+        },
     }
 
     cli = _modal_cli_ok()
@@ -136,6 +172,7 @@ def check_benchmark_posture(
         "MODAL_VLLM_GPU": os.environ.get("MODAL_VLLM_GPU"),
         "MODAL_VLLM_IMAGE_TAG": os.environ.get("MODAL_VLLM_IMAGE_TAG"),
         "MODAL_VLLM_MAX_CONTAINERS": os.environ.get("MODAL_VLLM_MAX_CONTAINERS"),
+        "MODAL_VLLM_MIN_CONTAINERS": os.environ.get("MODAL_VLLM_MIN_CONTAINERS"),
         "MODAL_VLLM_SCALEDOWN_SECONDS": os.environ.get("MODAL_VLLM_SCALEDOWN_SECONDS"),
         "VLLM_BASE_URL_set": bool((os.environ.get("VLLM_BASE_URL") or "").strip()),
         "VLLM_API_KEY_set": bool((os.environ.get("VLLM_API_KEY") or "").strip()),
@@ -147,10 +184,37 @@ def check_benchmark_posture(
         warnings.append(
             f"MODAL_VLLM_GPU={env_bits['MODAL_VLLM_GPU']!r} — specialist suite pins L4"
         )
-    if env_bits.get("MODAL_VLLM_MODEL") and env_bits["MODAL_VLLM_MODEL"] != BENCHMARK_EXPECTED["model"]:
+    env_model = env_bits.get("MODAL_VLLM_MODEL")
+    if env_model and env_model not in BENCHMARK_ALLOWED_MODELS:
         warnings.append(
-            f"MODAL_VLLM_MODEL={env_bits['MODAL_VLLM_MODEL']!r} — "
-            f"expected {BENCHMARK_EXPECTED['model']}"
+            f"MODAL_VLLM_MODEL={env_model!r} — "
+            f"expected {BENCHMARK_MODEL_BF16} (or optional {BENCHMARK_MODEL_AWQ})"
+        )
+    elif env_model == BENCHMARK_MODEL_AWQ:
+        warnings.append(
+            "MODAL_VLLM_MODEL is AWQ — optional cost-saver path; "
+            "DMR-068 accuracy gate (≥98%) is operator-owned before defaulting"
+        )
+    sd_env = env_bits.get("MODAL_VLLM_SCALEDOWN_SECONDS")
+    if sd_env:
+        try:
+            sd_val = int(sd_env)
+        except ValueError:
+            warnings.append(
+                f"MODAL_VLLM_SCALEDOWN_SECONDS={sd_env!r} is not an int"
+            )
+        else:
+            if sd_val != BENCHMARK_EXPECTED["scaledown_seconds"]:
+                warnings.append(
+                    f"MODAL_VLLM_SCALEDOWN_SECONDS={sd_val} "
+                    f"(suite attended pin {BENCHMARK_EXPECTED['scaledown_seconds']}; "
+                    "restore 600 for unattended/overnight)"
+                )
+    max_c = env_bits.get("MODAL_VLLM_MAX_CONTAINERS")
+    if max_c and max_c != str(BENCHMARK_EXPECTED["max_containers"]):
+        warnings.append(
+            f"MODAL_VLLM_MAX_CONTAINERS={max_c!r} — specialist suite pins "
+            f"{BENCHMARK_EXPECTED['max_containers']}"
         )
 
     if spec is not None:
@@ -164,10 +228,20 @@ def check_benchmark_posture(
             "model": spec.engine.model,
             "gpu": spec.engine.modal.gpu if spec.engine.modal else None,
             "image_tag": spec.engine.modal.image_tag if spec.engine.modal else None,
+            "scaledown_seconds": (
+                spec.engine.modal.scaledown_seconds if spec.engine.modal else None
+            ),
+            "max_containers": (
+                spec.engine.modal.max_containers if spec.engine.modal else None
+            ),
+            "min_containers": (
+                spec.engine.modal.min_containers if spec.engine.modal else None
+            ),
             "concurrency": spec.job.concurrency,
             "revision": spec.effective_revision(),
             "sample_seed": spec.dataset.sample_seed,
             "limit": spec.dataset.limit,
+            "local_prompts": _prompt_agent_map(spec),
         }
 
     mb = feeder_status()
@@ -197,14 +271,38 @@ def check_benchmark_posture(
     }
 
 
+def _prompt_agent_map(spec: RunSpec) -> dict[str, str]:
+    agents = spec.prompt.get("agents") if isinstance(spec.prompt, dict) else None
+    if not isinstance(agents, dict):
+        return {}
+    out: dict[str, str] = {}
+    for name, ref in agents.items():
+        if not isinstance(ref, dict):
+            continue
+        if ref.get("source") == "local" and ref.get("file"):
+            out[str(name)] = str(ref["file"])
+    return out
+
+
 def _check_spec_pins(spec: RunSpec) -> dict[str, list[str]]:
     errors: list[str] = []
     warnings: list[str] = []
     exp = BENCHMARK_EXPECTED
     if spec.profile != exp["profile"]:
         errors.append(f"spec.profile={spec.profile!r} expected {exp['profile']!r}")
-    if spec.engine.model != exp["model"]:
-        errors.append(f"spec.engine.model={spec.engine.model!r} expected {exp['model']!r}")
+
+    model = spec.engine.model
+    if model not in BENCHMARK_ALLOWED_MODELS:
+        errors.append(
+            f"spec.engine.model={model!r} expected {BENCHMARK_MODEL_BF16!r} "
+            f"(or optional {BENCHMARK_MODEL_AWQ!r})"
+        )
+    elif model == BENCHMARK_MODEL_AWQ:
+        warnings.append(
+            "engine.model is AWQ — optional cost-saver; default suite stays "
+            f"{BENCHMARK_MODEL_BF16} until DMR-068 accuracy gate is green"
+        )
+
     modal = spec.engine.modal
     if modal is None:
         errors.append("spec.engine.modal missing — specialist suite requires Modal L4 pins")
@@ -217,13 +315,20 @@ def _check_spec_pins(spec: RunSpec) -> dict[str, list[str]]:
             errors.append(
                 f"modal.max_containers={modal.max_containers} expected {exp['max_containers']}"
             )
+        if modal.min_containers != exp["min_containers"]:
+            errors.append(
+                f"modal.min_containers={modal.min_containers} expected {exp['min_containers']} "
+                "(scale-to-zero cost guard)"
+            )
         if modal.scaledown_seconds != exp["scaledown_seconds"]:
-            warnings.append(
+            errors.append(
                 f"modal.scaledown_seconds={modal.scaledown_seconds} "
-                f"(benchmark default {exp['scaledown_seconds']})"
+                f"expected {exp['scaledown_seconds']} "
+                "(DMR-076 attended cost-saver; restore 600 for unattended/overnight)"
             )
         if modal.app != exp["app"]:
             warnings.append(f"modal.app={modal.app!r} (default {exp['app']!r})")
+
     if spec.job.concurrency != exp["concurrency"]:
         errors.append(
             f"job.concurrency={spec.job.concurrency} expected {exp['concurrency']} "
@@ -231,6 +336,7 @@ def _check_spec_pins(spec: RunSpec) -> dict[str, list[str]]:
         )
     if spec.job.concurrency < 2:
         errors.append("job.concurrency must be >= 2 for L4 throughput benchmarks")
+
     rev = spec.effective_revision()
     if rev != exp["revision"]:
         errors.append(f"dataset revision={rev!r} expected pin {exp['revision']!r}")
@@ -238,6 +344,37 @@ def _check_spec_pins(spec: RunSpec) -> dict[str, list[str]]:
         warnings.append(f"dataset.repo={spec.dataset.repo!r}")
     if spec.dataset.sample_seed is None:
         warnings.append("dataset.sample_seed unset — strata draws may be non-reproducible")
+
+    # Specialist 5×30 suite pins (limit + local prompts).
+    if spec.run_id in SPECIALIST_LOCAL_PROMPTS or (
+        isinstance(spec.run_id, str) and spec.run_id.startswith("run-30-") and "specialist" in spec.run_id
+    ):
+        if spec.dataset.limit != exp["limit"]:
+            errors.append(
+                f"dataset.limit={spec.dataset.limit} expected {exp['limit']} "
+                "(specialist 5×30 strata)"
+            )
+        expected_prompts = SPECIALIST_LOCAL_PROMPTS.get(spec.run_id)
+        if expected_prompts:
+            actual = _prompt_agent_map(spec)
+            for agent, stem in expected_prompts.items():
+                got = actual.get(agent)
+                if got is None:
+                    errors.append(
+                        f"prompt.agents.{agent} missing local pin "
+                        f"(DMR-074 expected source=local file={stem})"
+                    )
+                elif got != stem:
+                    errors.append(
+                        f"prompt.agents.{agent}.file={got!r} "
+                        f"expected {stem!r} (DMR-074 local production pin)"
+                    )
+        elif spec.run_id.startswith("run-30-") and "specialist" in spec.run_id:
+            warnings.append(
+                f"run_id={spec.run_id!r} looks like a specialist suite YAML "
+                "but has no DMR-074 prompt pin map entry"
+            )
+
     return {"errors": errors, "warnings": warnings}
 
 
@@ -247,20 +384,31 @@ def _format_md(
     warnings: list[str],
     checks: Mapping[str, Any],
 ) -> str:
+    spend = checks.get("spend_posture") or {}
     lines = [
         f"## Benchmark preflight — {'READY' if ok else 'BLOCKED'}",
         "",
         f"- Modal profile: `{checks.get('active_modal_profile')}` "
         f"(Hermes expected: `{checks.get('hermes_profile_name')}`)",
         f"- Family corpus size pin: {checks.get('family_corpus_size')}",
+        f"- Spend: one warm app → five runs → teardown after fifth; "
+        f"scaledown attended={spend.get('scaledown_seconds_attended')}s "
+        f"(unattended restore {spend.get('scaledown_seconds_unattended')}s); "
+        f"AWQ default={spend.get('awq_default')}",
     ]
     if checks.get("spec"):
         s = checks["spec"]
         lines.append(
             f"- Spec: run_id={s.get('run_id')} task={s.get('task')} "
             f"model={s.get('model')} gpu={s.get('gpu')} "
-            f"concurrency={s.get('concurrency')} revision={s.get('revision')}"
+            f"scaledown={s.get('scaledown_seconds')} "
+            f"concurrency={s.get('concurrency')} limit={s.get('limit')} "
+            f"revision={s.get('revision')}"
         )
+        prompts = s.get("local_prompts") or {}
+        if prompts:
+            pinned = ", ".join(f"{a}={f}" for a, f in sorted(prompts.items()))
+            lines.append(f"- Local prompts (DMR-074): {pinned}")
     mb = checks.get("modernbert") or {}
     lines.append(
         f"- ModernBERT: ok={mb.get('ok')} path={mb.get('modernbert_model_path')}"

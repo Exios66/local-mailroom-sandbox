@@ -255,7 +255,7 @@ def build_parser() -> argparse.ArgumentParser:
     mext.add_argument("--docs-per-day", type=float, default=None)
     mext.add_argument("--docs-per-month", type=float, default=None)
     mext.add_argument("--cold-start-seconds", type=float, default=120.0)
-    mext.add_argument("--scaledown-seconds", type=float, default=600.0)
+    mext.add_argument("--scaledown-seconds", type=float, default=120.0)
     mext.add_argument("--concurrency", type=int, default=4)
     mext.add_argument("--json", action="store_true")
     mext.set_defaults(handler=_cmd_metrics_extrapolate)
@@ -297,7 +297,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--scaledown-seconds",
         type=float,
         default=None,
-        help="suite teardown scaledown (default: max from YAMLs, usually 600)",
+        help="suite teardown scaledown (default: max from YAMLs, usually 120 attended)",
     )
     mest.add_argument(
         "--inter-run-gap-seconds",

@@ -2,9 +2,19 @@
 # All 7 subclasses present in the pinned test split (attorney_demand is
 # train-only / scarce). Test has 62 correspondence rows — N=30 fits.
 #
-# Efficient conservative Modal posture: 1×L4, max_containers=1, min_containers=0,
-# scaledown 600s, job.concurrency=4.
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║ CUT SPEND (DMR-076) — MANDATORY operator posture                         ║
+# ║  1. ONE warm sandbox-vllm app through ALL FIVE specialist runs.          ║
+# ║  2. Do NOT tear down / redeploy / stop between classes.                  ║
+# ║  3. Teardown ONLY after the fifth: ./deploy/teardown_vllm.sh             ║
+# ║  4. scaledown_seconds: 120 (attended). Unattended/overnight → restore 600║
+# ║  5. Default model: Qwen/Qwen3-8B bf16. AWQ optional (DMR-068 gate).       ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
 #
+# Efficient conservative Modal posture: 1×L4, max_containers=1, min_containers=0,
+# scaledown 120s (attended), job.concurrency=4.
+#
+#   # Same warm app — do NOT redeploy before this run.
 #   sandbox run preflight --config config/runs/run-30-correspondence-specialist.yaml --live
 #   sandbox run start --config config/runs/run-30-correspondence-specialist.yaml --job-mode endpoint --watch
 schema: sandbox.run/v1
@@ -15,7 +25,7 @@ profile: modal-vllm
 prompt:
   # Pinned local production text (config/prompts/correspondence_specialist_production.txt) for reproducible
   # Modal L4 runs — not Langfuse floating production. Synced from vendored
-  # llm-mailroom code-default (correspondence_specialist).
+  # llm-mailroom code-default (correspondence_specialist). DMR-074.
   default: {source: code-default}
   agents:
     correspondence_specialist:
@@ -57,7 +67,8 @@ engine:
     app: sandbox-vllm
     gpu: L4
     image_tag: v0.29.0
-    scaledown_seconds: 600
+    # Attended cost-saver (DMR-076). Unattended/overnight: restore 600.
+    scaledown_seconds: 120
     max_containers: 1
     min_containers: 0
     prewarm: true

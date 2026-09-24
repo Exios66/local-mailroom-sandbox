@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+### Added — DMR-076 cut-spend specialist suite (2026-09-23)
+
+- **Attended scaledown 120s** pinned in all five `run-30-*-specialist.yaml`
+  (`engine.modal.scaledown_seconds`) + deploy default
+  `MODAL_VLLM_SCALEDOWN_SECONDS=120`; restore **600** for unattended/overnight.
+- **Loud warm-once headers** on every run-30 YAML + `docs/benchmark-l4.md`
+  (one `sandbox-vllm` app through all five runs; teardown only after the fifth).
+- **`sandbox run benchmark-check`** enforces spend posture: scaledown=120,
+  min_containers=0, max_containers=1, concurrency=4, limit=30, DMR-074 local
+  prompt pins; AWQ accepted as optional path (warning), bf16 remains default.
+- **`sandbox metrics estimate-suite`** / extrapolate defaults align to 120 so
+  pre-flight $ matches the attended suite YAMLs.
+- AWQ stays optional (`sandbox modal-matrix env Qwen/Qwen3-8B-AWQ`) — DMR-068
+  accuracy gate not green for flipping the default bf16 suite.
+
 ### Added — DMR-061 live-or-loud sweep (2026-09-14)
 
 - **Vendored pins (DMR-057, now reflected in this changelog):** llm-mailroom

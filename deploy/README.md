@@ -104,7 +104,7 @@ For evals: `SANDBOX_PROFILE=modal-vllm` + `DEFAULT_PROVIDER=vllm` (see
 | `MODAL_VLLM_REVISION` | empty | HF revision (recommended for runs; travels via the deploy Secret) |
 | `MODAL_VLLM_API_TOKEN` | empty | maps to `VLLM_API_KEY` (bearer) |
 | `HF_TOKEN` | empty | gated/private weights |
-| `MODAL_VLLM_SCALEDOWN_SECONDS` | `600` | idle warm window (efficient conservative; raise for longer soak) |
+| `MODAL_VLLM_SCALEDOWN_SECONDS` | `120` | idle warm window (attended specialist default; set **600** for unattended/overnight) |
 | `MODAL_VLLM_MAX_CONTAINERS` | `1` | cost guard; raise deliberately |
 | `MODAL_VLLM_MIN_CONTAINERS` | `0` | scale-to-zero |
 | `MODAL_VLLM_STARTUP_TIMEOUT_SECONDS` | `1200` | first-boot budget |
@@ -259,7 +259,7 @@ Guard matrix — nothing may run unchecked:
 | --- | --- | --- | --- |
 | Replica cap (cost guard) | `MODAL_VLLM_MAX_CONTAINERS` | `1` — raise deliberately (4 for the DMR-063 scale-out run) | deploy env; preflight `modal_spec` guard |
 | Scale-to-zero | `MODAL_VLLM_MIN_CONTAINERS` | `0` | deploy env |
-| Idle burn window | `MODAL_VLLM_SCALEDOWN_SECONDS` | `600` (raise for longer soak) | deploy env |
+| Idle burn window | `MODAL_VLLM_SCALEDOWN_SECONDS` | `120` attended / `600` unattended | deploy env; `benchmark-check` |
 | Loud teardown after any run | `./deploy/teardown_vllm.sh` | run it after every completed/cancelled run | this script exits 1 if a deployment is still running after 30 polls |
 | Boot-time budget | `MODAL_VLLM_STARTUP_TIMEOUT_SECONDS` | `1200` | deploy env; fail-loud in `serve()` |
 | Spend visibility | `modal billing summary` / `modal billing rates` | — | teardown script step 4 (best-effort) |
@@ -268,8 +268,10 @@ Deploy-time knobs for a scale-out run (multiple replicas, tight idle):
 
 ```bash
 export MODAL_VLLM_MAX_CONTAINERS=4      # 4 × L4 replicas (documented raise)
-export MODAL_VLLM_SCALEDOWN_SECONDS=600 # 10 min idle max before scale-to-zero
+export MODAL_VLLM_SCALEDOWN_SECONDS=600 # unattended / overnight idle window
 modal deploy deploy/modal_vllm.py
+# Specialist 5×30 attended suite uses MODAL_VLLM_SCALEDOWN_SECONDS=120
+# (docs/benchmark-l4.md); one warm app, teardown only after the fifth.
 ```
 
 ### Security model
