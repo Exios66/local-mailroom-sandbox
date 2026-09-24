@@ -29,8 +29,9 @@ rationale: |
   is subclass-unbalanced. Strata are Hamilton-proportional to full-corpus
   subclass availability (9 largest CUAD families; 7 largest correspondence
   types). Recommended order: N=20 1×L4, N=20 2×L4, N=40 1×L4, N=40 2×L4,
-  contracts then correspondence inside each band. Jack lock c=8 on contracts;
-  correspondence stays posture c=5.
+  contracts then correspondence inside each band. Jack/Grant lock is flat
+  concurrency=8 on every cell (contracts and correspondence). DMR-078
+  short↑/long↓ (5/4/3) stays on the run-30 spend tracks only.
 scaledown_seconds: 120
 warm_once: true
 configs:

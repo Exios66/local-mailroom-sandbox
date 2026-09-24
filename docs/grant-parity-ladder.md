@@ -12,14 +12,14 @@ Short hold-until-go runbook for the contracts + correspondence Grant cells:
 
 | Order | `run_id` | Task | N | L4 replicas | concurrency | `cost_cap_usd` | `max_wall_seconds` |
 | --- | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| 1 | `run-20-contracts-specialist-modal` | `contracts_specialist` | 20 | 1 | 8 (Jack lock; posture default 4) | 0.55 | 2400 |
-| 2 | `run-20-correspondence-specialist-modal` | `correspondence_specialist` | 20 | 1 | 5 (posture) | 0.30 | 1800 |
-| 3 | `run-20-contracts-specialist-modal-2xl4` | `contracts_specialist` | 20 | 2 | 8 (Jack lock) | 0.90 | 1800 |
-| 4 | `run-20-correspondence-specialist-modal-2xl4` | `correspondence_specialist` | 20 | 2 | 5 | 0.50 | 1500 |
+| 1 | `run-20-contracts-specialist-modal` | `contracts_specialist` | 20 | 1 | 8 (Grant/Jack lock) | 0.55 | 2400 |
+| 2 | `run-20-correspondence-specialist-modal` | `correspondence_specialist` | 20 | 1 | 8 (Grant match) | 0.30 | 1800 |
+| 3 | `run-20-contracts-specialist-modal-2xl4` | `contracts_specialist` | 20 | 2 | 8 | 0.90 | 1800 |
+| 4 | `run-20-correspondence-specialist-modal-2xl4` | `correspondence_specialist` | 20 | 2 | 8 | 0.50 | 1500 |
 | 5 | `run-40-contracts-specialist-modal` | `contracts_specialist` | 40 | 1 | 8 | 1.10 | 3600 |
-| 6 | `run-40-correspondence-specialist-modal` | `correspondence_specialist` | 40 | 1 | 5 | 0.70 | 3000 |
+| 6 | `run-40-correspondence-specialist-modal` | `correspondence_specialist` | 40 | 1 | 8 | 0.70 | 3000 |
 | 7 | `run-40-contracts-specialist-modal-2xl4` | `contracts_specialist` | 40 | 2 | 8 | 1.80 | 3000 |
-| 8 | `run-40-correspondence-specialist-modal-2xl4` | `correspondence_specialist` | 40 | 2 | 5 | 1.20 | 2400 |
+| 8 | `run-40-correspondence-specialist-modal-2xl4` | `correspondence_specialist` | 40 | 2 | 8 | 1.20 | 2400 |
 
 Shared pins (every YAML): `schema: sandbox.run/v1`, `profile: modal-vllm`,
 engine `kind: modal-vllm`, `Qwen/Qwen3-8B`, GPU `L4`, `image_tag: v0.29.0`,
@@ -31,9 +31,13 @@ engine `kind: modal-vllm`, `Qwen/Qwen3-8B`, GPU `L4`, `image_tag: v0.29.0`,
 validation split). Prompt pins: `contracts_specialist_v33` /
 `correspondence_specialist_production` (same as the run-30 siblings).
 
-2×L4 cells: GPU parallelism via `max_containers: 2`. Concurrency stays the
-Jack lock (contracts 8) or posture (correspondence 5) unless overridden.
-Expect higher $/hr until scaledown.
+**Concurrency is flat 8 on every ladder cell** (contracts and
+correspondence). DMR-078 short↑/long↓ (correspondence/insurance **5**,
+corporate/contracts **4**, merger **3**) remains for the **run-30 spend
+tracks only**. This Grant ladder uses client concurrency 8 so that knob
+does not confound parity metrics. 2×L4 cells change **only**
+`max_containers: 2` (GPU replicas); concurrency stays 8. Expect higher
+$/hr on 2×L4 until scaledown.
 
 ## Corpus
 
