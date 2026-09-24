@@ -71,4 +71,4 @@ trace:
   sink: none
   otlp: false
   environment: specialist-30
-  tags: [sandbox, job, specialist, contracts]
+  tags: [sandbox, job, specialist, contracts, qwen3-8b, l4, benchmark]

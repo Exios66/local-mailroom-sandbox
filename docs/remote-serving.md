@@ -57,6 +57,8 @@ in [`deploy/README.md`](../deploy/README.md).
 
 ```bash
 pip install -e ".[deploy]" && modal token new
+# Prefer Hermes Agent Gmail credits (mailroom-ml):
+modal profile activate hermes-agent-jjb
 export MODAL_VLLM_MODEL=Qwen/Qwen3-8B
 export MODAL_VLLM_GPU=L4
 export MODAL_VLLM_API_TOKEN=<secret>
@@ -66,8 +68,11 @@ modal deploy deploy/modal_vllm.py                # prints the URL
 
 export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
 export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+sandbox run benchmark-check --config config/runs/run-30-contracts-specialist.yaml
 sandbox health --profile modal-vllm              # 401 = token mismatch
 ```
+
+Full specialist suite + cost extrapolation: [`docs/benchmark-l4.md`](benchmark-l4.md).
 
 Cost posture: scale-to-zero after 900 s idle, `max_containers=1` by default
 (L4 ≈ $0.80/hr while warm; rates at modal.com/pricing, verified 2026-09-09).

@@ -66,4 +66,4 @@ trace:
   sink: none
   otlp: false
   environment: specialist-30
-  tags: [sandbox, job, specialist, insurance]
+  tags: [sandbox, job, specialist, insurance, qwen3-8b, l4, benchmark]

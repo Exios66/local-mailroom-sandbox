@@ -252,6 +252,36 @@ def test_compare_includes_gpu_cost_columns():
     assert "est. GPU $" in result["markdown"]
 
 
+def test_extrapolate_cost_linear_and_industry():
+    rec = {
+        "n": 30,
+        "cost_per_document": 0.001,
+        "gpu_cost_per_document": 0.0005,
+        "e2e_latency_seconds": 2.0,
+        "prompt_tokens": 30_000,
+        "completion_tokens": 3_000,
+        "model": "Qwen/Qwen3-8B",
+        "profile": "modal-vllm",
+        "gpu": "L4",
+        "run_id": "run-30-test",
+        "gpu_seconds": 60.0,
+    }
+    result = metrics.extrapolate_cost(
+        rec, corpus_size=3302, docs_per_day=10_000, concurrency=4
+    )
+    assert result["linear"]["combined_usd"] == pytest.approx(0.0015 * 3302)
+    assert result["industry"]["usd_per_day"] == pytest.approx(15.0)
+    assert result["with_overhead"]["combined_usd"] is not None
+    assert "Cost extrapolation" in result["markdown"]
+    assert result["confidence_notes"]
+
+
+def test_extrapolate_refuses_silent_zero_rates():
+    rates = metrics.per_document_rates({"n": 10, "profile": "modal-vllm"})
+    assert rates["combined_cost_per_document"] is None
+    assert rates["honest_gaps"]
+
+
 def test_usage_capture_merge_item_metrics():
     from mailroom_sandbox.job.usage_capture import merge_item_metrics, usage_from_openai_response
 

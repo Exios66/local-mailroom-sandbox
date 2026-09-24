@@ -145,8 +145,15 @@ cap, and tensor-parallel size. Rules of thumb (verified against v0.29.0,
 - **Gated repos** (`meta-llama/*`): set `HF_TOKEN` in the deploy env.
 - `json_object` structured outputs work with xgrammar on v0.29.0 (no
   `--guided-decoding-backend` needed — that flag is gone).
-- Swap models by re-exporting the knobs + `modal deploy --strategy recreate`
-  (a rolling redeploy keeps the old model warm for the scaledown window).
+- Swap models/GPUs via the **single control surface**
+  `config/models.yaml` `modal_models:` + `MODAL_VLLM_*` env (or
+  `eval "$(sandbox modal-matrix env <HF-id> [--gpu GPU])"`) then
+  `modal deploy deploy/modal_vllm.py --strategy recreate`. A rolling
+  redeploy keeps the old model warm for the scaledown window.
+  **Default specialist cost-eval path stays Qwen/Qwen3-8B @ L4**
+  (`docs/benchmark-l4.md`); do not edit `run-30-*-specialist.yaml` for
+  one-off swaps — copy the YAML if an alternate scorecard needs matching
+  `engine.model` / `engine.modal.gpu`.
 
 ### Engine posture (v0.29.0, docs-verified 2026-09-16)
 
