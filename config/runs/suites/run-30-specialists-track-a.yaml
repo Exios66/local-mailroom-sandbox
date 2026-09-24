@@ -1,5 +1,6 @@
 # DMR-077 — Operator A track (3 specialist runs, one warm 1×L4 app).
 # Pair with Track B on a *separate* Modal account. Do not share tokens.
+# DMR-078: per-doc-type concurrency / cost_cap / wall (see specialist_posture).
 #
 # Activate: modal profile activate "${SANDBOX_MODAL_PROFILE_TRACK_A:-hermes-agent-jjb}"
 # Estimate: sandbox metrics estimate-suite --suite track-a
@@ -11,10 +12,8 @@ suite_id: run-30-specialists-track-a
 track: a
 title: "Operator A — contracts + corporate_records + correspondence"
 rationale: |
-  DMR-075 sec/doc bands (c=4, L4 $0.80/hr): contracts+corporate+correspondence
-  busy ≈ 42.5 min / ~$0.57; with one cold-start + scaledown 120 + 2×60s gaps
-  ≈ ~49 min / ~$0.65 likely. Track B (merger+insurance) ≈ ~44 min / ~$0.59.
-  Puts one heavy (contracts) with mid+light so wall/$ stays within ~$0.06 of B
+  DMR-075/078 sec/doc bands (L4 $0.80/hr): contracts c=4 + corporate c=4 +
+  correspondence c=5. Track B (merger c=3 + insurance c=5) stays within ~$0.06
   without stacking both heavies (merger+contracts) on one operator.
 modal_profile_env: SANDBOX_MODAL_PROFILE_TRACK_A
 modal_profile_default: hermes-agent-jjb

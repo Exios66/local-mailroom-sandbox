@@ -24,6 +24,7 @@ PROMPTS = ROOT / "config" / "prompts"
 
 EXPORTS = (
     ("contracts_specialist_v33", "contracts"),
+    ("merger_agreement_specialist_production", "merger"),
     ("corporate_records_specialist_production", "corporate"),
     ("correspondence_specialist_production", "correspondence"),
     ("insurance_claims_specialist_production", "insurance"),
@@ -38,10 +39,12 @@ def _load_texts() -> dict[str, str]:
         corporate_records_specialist as corp,
         correspondence_specialist as corr,
         insurance_claims_specialist as ins,
+        merger_agreement_specialist as merger,
     )
 
     return {
         "contracts_specialist_v33": PROMPT_VERSIONS["contracts_specialist_v33"],
+        "merger_agreement_specialist_production": merger.SYSTEM_PROMPT,
         "corporate_records_specialist_production": corp.SYSTEM_PROMPT,
         "correspondence_specialist_production": corr.SYSTEM_PROMPT,
         "insurance_claims_specialist_production": ins.SYSTEM_PROMPT,

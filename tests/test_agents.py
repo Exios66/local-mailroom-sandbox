@@ -25,6 +25,7 @@ def test_eval_task_roster_covers_live_agents():
         "sorter",
         "sorter_reviewer",
         "contracts_specialist",
+        "merger_agreement_specialist",
         "corporate_records_specialist",
         "correspondence_specialist",
         "insurance_claims_specialist",

@@ -278,6 +278,28 @@ def _concurrency(store: RunStore) -> int:
     return max(1, min(value, _MAX_CONCURRENCY))
 
 
+def _cost_cap_usd(store: RunStore) -> float | None:
+    raw = _task_defaults(store).get("cost_cap_usd")
+    if raw is None or raw == "":
+        return None
+    return float(raw)
+
+
+def _max_wall_seconds(store: RunStore) -> int | None:
+    raw = _task_defaults(store).get("max_wall_seconds")
+    if raw is None or raw == "":
+        return None
+    return int(raw)
+
+
+def _estimate_run_gpu_usd(store: RunStore, wall_seconds: float) -> float:
+    """Wall-clock GPU $ estimate for abort caps (Modal endpoint = warm GPU)."""
+    from mailroom_sandbox.job.metrics import estimate_gpu_cost_usd
+
+    gpu = _lock_gpu(store) or "L4"
+    return float(estimate_gpu_cost_usd(wall_seconds, gpu=gpu) or 0.0)
+
+
 def verify_dataset_lock(store: RunStore) -> None:
     """Refuse to score when dataset.jsonl drifted from the lock's sha256."""
     lock = store.read_lock() or {}
@@ -475,8 +497,12 @@ def run_job(
     done_count = len(completed)
     last_error: str | None = None
     last_error_item: str | None = None
-    retries = _max_retries(store)
     fail_fast = _fail_fast(store)
+    retries = _max_retries(store)
+    run_started = time.perf_counter()
+    cost_cap = _cost_cap_usd(store)
+    max_wall = _max_wall_seconds(store)
+    cap_abort_reason: str | None = None
 
     def _attempt(index: int) -> tuple[Any, str | None, float, dict[str, Any]]:
         """Run one row (with retries); return (value, error, latency_ms, usage)."""
@@ -520,7 +546,7 @@ def run_job(
         concurrent paths — worker threads only compute, so append_item /
         append_event / write_checkpoint / on_event never race.
         """
-        nonlocal ok_count, error_count, done_count, last_error, last_error_item
+        nonlocal ok_count, error_count, done_count, last_error, last_error_item, cap_abort_reason
         row = rows[index]
         item_id = str(row.get("id") or row.get("filename") or index)
         ok = error is None
@@ -566,7 +592,39 @@ def run_job(
                     "stop updating while the run continues: %s",
                     exc,
                 )
+        # DMR-078: cost / wall abort guards (Modal warm-GPU wall × $/hr).
+        if not mock and cap_abort_reason is None:
+            wall_s = time.perf_counter() - run_started
+            if max_wall is not None and wall_s >= float(max_wall):
+                cap_abort_reason = (
+                    f"max_wall_seconds={max_wall} exceeded "
+                    f"(wall={wall_s:.1f}s) — aborting to protect spend"
+                )
+            elif cost_cap is not None:
+                est = _estimate_run_gpu_usd(store, wall_s)
+                if est >= float(cost_cap):
+                    cap_abort_reason = (
+                        f"cost_cap_usd={cost_cap} exceeded "
+                        f"(est_gpu_usd={est:.4f} at wall={wall_s:.1f}s) — aborting"
+                    )
         return ok
+
+    def _cap_abort_failed():
+        """Write the cost/wall abort checkpoint and return the summary."""
+        store.write_checkpoint(
+            state="failed",
+            cursor=done_count,
+            total=total,
+            last_error={
+                "type": "cost_cap" if cost_cap is not None else "max_wall",
+                "message": cap_abort_reason,
+                "at": utc_now(),
+                "item_id": last_error_item,
+                "retryable": False,
+            },
+        )
+        store.append_event("cost_cap_abort", "error", message=cap_abort_reason)
+        return store.summary()
 
     def _fail_fast_failed():
         """Write the fail_fast failed checkpoint and return the summary."""
@@ -590,6 +648,8 @@ def run_job(
         for index in pending:
             value, error, latency_ms, usage = _attempt(index)
             _record(index, value, error, latency_ms, usage)
+            if cap_abort_reason:
+                return _cap_abort_failed()
             if fail_fast and error is not None:
                 return _fail_fast_failed()
     else:
@@ -632,7 +692,9 @@ def run_job(
                             {},
                         )
                     ok = _record(index, value, error, latency_ms, usage)
-                    if fail_fast and not ok:
+                    if cap_abort_reason:
+                        stopped = True
+                    elif fail_fast and not ok:
                         # Stop SCHEDULING new rows; in-flight requests still
                         # finish and persist (their GPU work is already spent).
                         stopped = True
@@ -641,6 +703,8 @@ def run_job(
                         if not _submit_next():
                             break
         if stopped:
+            if cap_abort_reason:
+                return _cap_abort_failed()
             return _fail_fast_failed()
 
     final_cursor = len(store.load_items())
