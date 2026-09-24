@@ -120,7 +120,13 @@ sandbox metrics compare --runs local,modal,api   # serving metrics comparison
 - Scoring + pipeline are pinned by the tracked snapshots: `vendor/llm-mailroom/VENDOR.md` + `vendor/llm-dojo-scoring/VENDOR.md` — both track the monorepo workspace packages (hub#62 doctrine); refresh with `python scripts/sync_vendor.py` (monorepo root) or `sandbox fetch-deps` and commit the diff. `get_suite("local_vs_api")` compares offline vs API-key serving metrics (table + scorecard + cost; TTFT never inferred; GPU/KV stripped on API records).
 - Isolated evals call vendored agent classes (always importable now); the `offline_fallback` path still exists for missing deps.
 - `scripts/` and `legalbench/` are not in the installed `mailroom` wheel — they ARE in the vendored tree, which also supplies `PYTHONPATH` for `sandbox pipeline watcher` / `sandbox pipeline api` (`_mailroom_env` adds both vendored srcs).
-- No second kanban board in this repo. Cross-family work stays on llm-entity-extraction's MESSAGE_BOARD.
+- Sandbox-isolated work uses the local **`SAND-*`** board in
+  [`governance/TASKS.md`](governance/TASKS.md) (prefix cheat-sheet:
+  [`governance/PREFIX.md`](governance/PREFIX.md)). Do **not** open `DMR-*`
+  cards here. Cross-family / mailroom-pipeline work stays on
+  llm-entity-extraction's MESSAGE_BOARD as **`DMR-*`** — cite `Related:
+  DMR-NNN` on a SAND card when a sandbox change is driven by family work.
+  Do not invent a second family MESSAGE_BOARD in this repo.
 
 ## Tests
 

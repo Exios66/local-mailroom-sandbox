@@ -1,33 +1,55 @@
-# Sandbox task board — local-mailroom-sandbox
+# SAND task list — local-mailroom-sandbox
 
-Board for the sandbox's own mission work. Cross-family work stays on
-llm-entity-extraction's MESSAGE_BOARD (AGENTS.md); this board tracks
-sandbox-local cards only.
+**Prefix: `SAND`** · Board rules: [`README.md`](README.md) · Cheat-sheet:
+[`PREFIX.md`](PREFIX.md)
 
-Lanes: `todo → in_progress → needs_attention → done` · Owner · UTC date.
+Cross-family work stays on llm-entity-extraction's MESSAGE_BOARD as
+**`DMR-*`**. This file is the **only** sandbox-local task board — do not
+open `DMR-*` cards here.
 
-## Mission: ACTUAL SORTER modal+vLLM — 50-subclass run (real, not mock)
+**Next ID: `SAND-016`**
 
-Caller: human (mission brief, 2026-09-16). Goals: real Modal+vLLM run of the
-DMR-066 subclass-stratified 50-row sorter eval, conservative credit burn,
-contained in this repo until fully complete, then monorepo sync, then full
-interpretation report.
+Lanes: `todo` → `in_progress` → `needs_attention` → `done`.
 
-Binding specs: `config/runs/run-50-subclass.yaml` (DMR-066; preflighted
-14:21–14:25Z today, run never started), `deploy/README.md` (Modal vLLM
-lifecycle, v0.29.0/L4/Qwen3-8B, DMR-062/063 evidence), `docs/jobs.md`
-(run lifecycle), mission brief (GPU hard cap 2; real run; preflight/dry-run/
-verify before spend; teardown after).
+---
 
-### Cards
+## Open / in progress
 
-| Card | Title | Owner | Status | Evidence |
-|---|---|---|---|---|
-| SANDBOX-050-1 | Verify stratified 50-subclass sample (counts/dups/schema/seed) | athena-database-agent protocol | **done** | DMR-072 nested sub_buckets strata (corpus.py + tests, 290 passed); QA: 10 per type × 5 types = 50, 35 subclass strata (insurance 6/6, contract 9/19, merger 4/4, correspondence 7/7, corporate 9/9), dups NONE, schema intact, lock sha 797b3e4d8aba == dataset.jsonl (preflight `rows=50`) |
-| SANDBOX-050-2 | Amend run spec to caller GPU cap (max_containers 4→2) + lock | orchestrator (caller) | **done** | `config/runs/run-50-five-types.yaml` (DMR-072): max_containers 1 (cap 2), concurrency 8, scaledown 600, prewarm; preflight all checks ok, spec_hash da811d51…, modal_spec guard ok |
-| SANDBOX-050-3 | Preflight + guards loud (HARD-fail paths, sim) | test-suite-auditor protocol | **in_progress** | preflight guards verified live (strata_guard/stata_draw_guard hard-fail; over-quota sub_bucket hard-fails — new unit tests); DMR-072 caught the silent-fallback run (50x 'unknown' ok=True in 2.8s, 0.0 scores) — root-caused (no runtime.activate in run path), fixed (cli activate + _predict_row activation watchdog + doc_type='unknown' dead-path guard), regression tests; 1-row live smoke pending |
-| SANDBOX-050-4 | Deploy sandbox-vllm (v0.29.0) + verify endpoint (models/401) | jarvis protocol + code-analyst | **done** | deploy 2026-09-17 03:1xZ `exios66--sandbox-vllm-serve.modal.run`; sandbox health modal-vllm ok:true (models [Qwen/Qwen3-8B], chat ok, json_object_ok true); pre-warm 15 files (CPU-only); max_containers 1, scaledown 600 |
-| SANDBOX-050-5 | Run start → watch → completion (status polling, events) | test-suite-auditor protocol | **in_progress** | attempt 1 (03:13Z) silent-fallback 'done' in 2.8s — invalidated + run dir removed; resumed after DMR-072 fix |
-| SANDBOX-050-6 | Teardown: app stop, zero containers verified, volumes persist | jarvis protocol | todo | — |
-| SANDBOX-050-7 | Interpret: per-stratum accuracy, confusion, readiness | athena/lucius protocol | todo | — |
-| SANDBOX-050-8 | Monorepo sync (contained, last step) + board close | atom protocol | todo | — |
+| ID | Title | Owner | Status | Notes |
+| --- | --- | --- | --- | --- |
+| SAND-010 | Finish 50-subclass Modal sorter mission (teardown + interpret + monorepo sync) | jarvis / athena | **in_progress** | Epic for archived `SANDBOX-050` mission — see sub-cards below + [`archive/SANDBOX-050.md`](archive/SANDBOX-050.md) |
+| SAND-010-3 | Preflight + guards loud (1-row live smoke pending) | test-suite-auditor | **in_progress** | was `SANDBOX-050-3`; DMR-072 silent-fallback fixed |
+| SAND-010-5 | Run start → watch → completion | test-suite-auditor | **in_progress** | was `SANDBOX-050-5`; attempt 1 invalidated |
+| SAND-010-6 | Teardown: app stop, zero containers, volumes persist | jarvis | todo | was `SANDBOX-050-6` |
+| SAND-010-7 | Interpret: per-stratum accuracy, confusion, readiness | athena/lucius | todo | was `SANDBOX-050-7` |
+| SAND-010-8 | Monorepo sync + close SAND-010 epic | atom | todo | was `SANDBOX-050-8` |
+| SAND-014 | Modal doc-jobs Phase A human gates (3 decisions) | human | todo | Close rows in this board when decided — see `docs/modal-doc-jobs.md` §6 |
+| SAND-014-1 | Gate: Stage A extraction depth (CPU OCR vs GPU vision) | human | todo | Plan default: pypdf/pdfplumber + pytesseract |
+| SAND-014-2 | Gate: `process_document` graph scope (full vs reduced) | human | todo | Plan default: full 13-node |
+| SAND-014-3 | Gate: CLI surface (`doc-jobs` vs `sandbox run` mode) | human | todo | Plan default: own `sandbox doc-jobs` family |
+
+---
+
+## Done (recent)
+
+| ID | Title | Owner | Status | Notes |
+| --- | --- | --- | --- | --- |
+| SAND-001 | Establish SAND local board + prefix (isolated from DMR) | orchestrator | **done** | `governance/` README + PREFIX + TASKS; AGENTS.md / sister-repos wording |
+| SAND-015 | Confirm SAND prefix adopted in AGENTS.md / sister-repos docs | orchestrator | **done** | Governance cutover shipped with SAND-001 |
+| SAND-010-1 | Verify stratified 50-subclass sample | athena | **done** | was `SANDBOX-050-1`; strata QA green |
+| SAND-010-2 | Amend run spec to GPU cap + lock | orchestrator | **done** | was `SANDBOX-050-2`; `run-50-five-types.yaml` |
+| SAND-010-4 | Deploy sandbox-vllm v0.29.0 + verify endpoint | jarvis | **done** | was `SANDBOX-050-4`; health ok |
+| SAND-011 | Qwen Modal specialist posture (per-doc-type runbooks) | orchestrator | **done** | Sandbox-local; *Related: DMR-078* on family board for merger vendor story |
+| SAND-012 | `merger_agreement_specialist` sandbox plumbing | orchestrator | **done** | Taxonomy / components / eval / run-30 merger YAML; *Related: llm-mailroom #64 / DMR-078* |
+| SAND-013 | Requirements surface completeness (`requirements/` + pipeline extras) | orchestrator | **done** | aiosqlite/greenlet/PDF stack; `scripts/sync_requirements.py`; *Related: DMR-078b* |
+
+---
+
+## How to add a card
+
+1. Take **Next ID**, bump the counter in this file.
+2. ID must match `SAND-<digits>` or `SAND-<digits>-<digits>` (see
+   `tests/test_governance_sand.py`).
+3. If the work is cross-family, file **`DMR-*`** on MESSAGE_BOARD instead
+   (or in addition, with `Related: DMR-NNN` in notes).
+4. Keep evidence links short (PR URL, run_id, commit SHA).
