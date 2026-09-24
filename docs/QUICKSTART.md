@@ -13,6 +13,11 @@ for the offline paths. Deep dives: [`SANDBOX-GUIDE.md`](SANDBOX-GUIDE.md)
 cd <checkout>                        # repo root (or packages/local-mailroom-sandbox in the monorepo)
 python3 -m venv .venv                # deps live INSIDE the repo — never the machine env
 .venv/bin/pip install -e ".[dev]"    # base + pytest + hf hub (datasets pull)
+# Equivalent requirements-file install:
+#   pip install -r requirements.txt          # → requirements/dev.txt
+# Specialist / Modal live path:
+#   pip install -e ".[pipeline,deploy]"
+#   # or: pip install -r requirements/pipeline.txt -r requirements/deploy.txt
 cp config/.env.example .env          # profiles/tracing knobs (edit if needed)
 export PATH="$PWD/.venv/bin:$PATH"   # or call ./.venv/bin/sandbox explicitly
 ```
