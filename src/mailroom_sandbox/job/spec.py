@@ -264,8 +264,11 @@ class ModalSpec(BaseModel):
     app: str = "sandbox-vllm"
     gpu: str = "L4"
     image_tag: str = "v0.29.0"
-    scaledown_seconds: int = 900
+    # Efficient conservative posture: 600s idle warm (experiment runs);
+    # deploy/modal_vllm.py uses the same default via MODAL_VLLM_SCALEDOWN_SECONDS.
+    scaledown_seconds: int = 600
     max_containers: int = 1
+    min_containers: int = 0  # scale-to-zero; mirror MODAL_VLLM_MIN_CONTAINERS
     prewarm: bool = True
 
     @field_validator("gpu")
@@ -288,6 +291,13 @@ class ModalSpec(BaseModel):
     def _mc(cls, v: int) -> int:
         if v < 1:
             raise ValueError("max_containers must be >= 1 (cost guard)")
+        return v
+
+    @field_validator("min_containers")
+    @classmethod
+    def _minc(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError("min_containers must be >= 0")
         return v
 
 
@@ -338,10 +348,11 @@ class JobSpec(BaseModel):
     fail_fast: bool = False
     # Modal-throughput alignment: how many rows the per-item loop runs at
     # once, so vLLM's continuous batching sees concurrent requests (offline
-    # evals are a throughput workload). 1 preserves the serial, deterministic
-    # default; 4-16 is the documented range for a vLLM endpoint. Guarded to
-    # [1, 64] — unbounded fan-out is a cost accident.
-    concurrency: int = 1
+    # evals are a throughput workload). Default 4 is the efficient
+    # conservative sweet spot (docs/jobs.md recommends 4-16 vs Modal vLLM;
+    # DMR-072 found 8-way on 1×L4 piled at the web proxy). Set 1 explicitly
+    # for CPU Ollama or latency-sensitive serial runs. Guarded to [1, 64].
+    concurrency: int = 4
 
     @field_validator("task")
     @classmethod
@@ -395,6 +406,26 @@ class RunSpec(BaseModel):
         allowed = {"default", "agents"}
         if not set(self.prompt).issubset(allowed):
             raise ValueError(f"prompt section allows only {sorted(allowed)}")
+        return self
+
+    @model_validator(mode="after")
+    def _modal_concurrency_posture(self) -> "RunSpec":
+        """Warn when a Modal profile would starve continuous batching at concurrency=1."""
+        if (
+            self.profile == "modal-vllm"
+            and self.engine.kind == "modal-vllm"
+            and self.job.concurrency == 1
+        ):
+            _log.warning(
+                "run spec profile=modal-vllm with job.concurrency=1 starves vLLM "
+                "continuous batching on the warm L4 — set concurrency: 4 (efficient "
+                "conservative default) unless this is an intentional serial probe"
+            )
+        if self.engine.modal is not None and self.engine.modal.min_containers > self.engine.modal.max_containers:
+            raise ValueError(
+                f"modal.min_containers ({self.engine.modal.min_containers}) cannot "
+                f"exceed modal.max_containers ({self.engine.modal.max_containers})"
+            )
         return self
 
     def spec_hash(self) -> str:

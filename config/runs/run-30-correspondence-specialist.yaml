@@ -1,0 +1,69 @@
+# Specialist extract: correspondence_specialist on 30 CORRESPONDENCE docs.
+# All 7 subclasses present in the pinned test split (attorney_demand is
+# train-only / scarce). Test has 62 correspondence rows — N=30 fits.
+#
+# Efficient conservative Modal posture: 1×L4, max_containers=1, min_containers=0,
+# scaledown 600s, job.concurrency=4.
+#
+#   sandbox run preflight --config config/runs/run-30-correspondence-specialist.yaml --live
+#   sandbox run start --config config/runs/run-30-correspondence-specialist.yaml --job-mode endpoint --watch
+schema: sandbox.run/v1
+run_id: run-30-correspondence-specialist
+task: correspondence_specialist
+profile: modal-vllm
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  # split: test — 62 correspondence rows; N=30 fits
+  split: test
+  revision: 46a4d3c240a36671cde0182fff4960f6b8b73aca   # pinned (FAMILY_HF_REVISION)
+  strata:
+    buckets:
+      # correspondence (62 test rows): all 7 test subclasses → 30
+      - doc_class: correspondence
+        sub_buckets:
+          - {subclass: email, count: 12}               # avail 30
+          - {subclass: letter, count: 3}               # avail 9
+          - {subclass: press_release, count: 3}        # avail 8
+          - {subclass: memo, count: 3}                 # avail 5
+          - {subclass: meeting_request, count: 3}      # avail 4
+          - {subclass: demand, count: 3}               # avail 3
+          - {subclass: notice, count: 3}               # avail 3
+  limit: 30
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B
+  vllm:
+    max_model_len: 16384
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 256
+    quantization: ""
+    revision: ""
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 600
+    max_containers: 1
+    min_containers: 0
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 4
+
+trace:
+  sink: none
+  otlp: false
+  environment: specialist-30
+  tags: [sandbox, job, specialist, correspondence]

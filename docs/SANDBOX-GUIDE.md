@@ -446,7 +446,7 @@ sandbox health --profile modal-vllm
 | `MODAL_VLLM_TP_SIZE` | GPU `:N` suffix (1 single-GPU) | Tensor-parallel size — must match `MODAL_VLLM_GPU="A100-80GB:2"` for 70B-class |
 | `MODAL_VLLM_IMAGE_TAG` | `v0.29.0` | vLLM version pin |
 | `MODAL_VLLM_REVISION` | empty | HF revision pin |
-| `MODAL_VLLM_SCALEDOWN_SECONDS` | `900` | Idle warm window |
+| `MODAL_VLLM_SCALEDOWN_SECONDS` | `600` | Idle warm window |
 | `MODAL_VLLM_MAX_CONTAINERS` | `1` | Cost guard |
 
 ### Teardown
