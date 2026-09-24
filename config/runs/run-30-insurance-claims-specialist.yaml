@@ -2,12 +2,22 @@
 # All 6 claim subclasses (CMS + LOB), 3× the run-50-five-types per-class
 # quotas. Test has 114 insurance_claim rows — N=30 fits comfortably.
 #
-# Efficient conservative Modal posture: 1×L4, max_containers=1, min_containers=0,
-# scaledown 600s, job.concurrency=4.
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║ CUT SPEND (DMR-076) — MANDATORY operator posture                         ║
+# ║  1. ONE warm sandbox-vllm app through ALL FIVE specialist runs.          ║
+# ║  2. Do NOT tear down / redeploy / stop between classes.                  ║
+# ║  3. Teardown ONLY after THIS (fifth) run: ./deploy/teardown_vllm.sh      ║
+# ║  4. scaledown_seconds: 120 (attended). Unattended/overnight → restore 600║
+# ║  5. Default model: Qwen/Qwen3-8B bf16. AWQ optional (DMR-068 gate).       ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
 #
+# Efficient conservative Modal posture: 1×L4, max_containers=1, min_containers=0,
+# scaledown 120s (attended), job.concurrency=4.
+#
+#   # Same warm app — do NOT redeploy. Teardown AFTER this run.
 #   sandbox run preflight --config config/runs/run-30-insurance-claims-specialist.yaml --live
 #   sandbox run start --config config/runs/run-30-insurance-claims-specialist.yaml --job-mode endpoint --watch
-#   ./deploy/teardown_vllm.sh   # after the full 5×30 suite
+#   ./deploy/teardown_vllm.sh   # ONLY after the full 5×30 suite
 schema: sandbox.run/v1
 run_id: run-30-insurance-claims-specialist
 task: insurance_claims_specialist
@@ -16,7 +26,7 @@ profile: modal-vllm
 prompt:
   # Pinned local production text (config/prompts/insurance_claims_specialist_production.txt) for reproducible
   # Modal L4 runs — not Langfuse floating production. Synced from vendored
-  # llm-mailroom code-default (insurance_claims_specialist).
+  # llm-mailroom code-default (insurance_claims_specialist). DMR-074.
   default: {source: code-default}
   agents:
     insurance_claims_specialist:
@@ -57,7 +67,8 @@ engine:
     app: sandbox-vllm
     gpu: L4
     image_tag: v0.29.0
-    scaledown_seconds: 600
+    # Attended cost-saver (DMR-076). Unattended/overnight: restore 600.
+    scaledown_seconds: 120
     max_containers: 1
     min_containers: 0
     prewarm: true

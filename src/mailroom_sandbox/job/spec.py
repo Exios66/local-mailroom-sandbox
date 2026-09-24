@@ -266,8 +266,9 @@ class ModalSpec(BaseModel):
     app: str = "sandbox-vllm"
     gpu: str = "L4"
     image_tag: str = "v0.29.0"
-    # Efficient conservative posture: 600s idle warm (experiment runs);
-    # deploy/modal_vllm.py uses the same default via MODAL_VLLM_SCALEDOWN_SECONDS.
+    # Efficient conservative / unattended default: 600s idle warm.
+    # Specialist 5×30 attended suite pins 120 explicitly in run-30 YAMLs (DMR-076);
+    # deploy/modal_vllm.py defaults to 120 for the same attended posture.
     scaledown_seconds: int = 600
     max_containers: int = 1
     min_containers: int = 0  # scale-to-zero; mirror MODAL_VLLM_MIN_CONTAINERS

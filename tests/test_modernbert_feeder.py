@@ -86,6 +86,44 @@ def test_benchmark_check_contracts_spec(monkeypatch):
     assert report["ok"] is True, report["errors"]
     assert report["checks"]["spec"]["concurrency"] == 4
     assert report["checks"]["spec"]["gpu"] == "L4"
+    assert report["checks"]["spec"]["scaledown_seconds"] == 120
+    assert report["checks"]["spec"]["min_containers"] == 0
+    assert report["checks"]["spec"]["max_containers"] == 1
+    assert report["checks"]["spec"]["limit"] == 30
+    assert report["checks"]["spec"]["local_prompts"] == {
+        "contracts_specialist": "contracts_specialist_v33"
+    }
+    assert report["checks"]["expected"]["scaledown_seconds"] == 120
+    assert report["checks"]["spend_posture"]["warm_app_once"] is True
+
+
+def test_benchmark_check_scaledown_drift_fails(monkeypatch):
+    monkeypatch.setattr(
+        "mailroom_sandbox.job.benchmark_check.active_modal_profile_name",
+        lambda: HERMES_MODAL_PROFILE,
+    )
+    monkeypatch.setattr(
+        "mailroom_sandbox.job.benchmark_check._modal_cli_ok",
+        lambda: {"ok": True, "version": "modal-stub"},
+    )
+    spec = load_run_spec(
+        Path(__file__).resolve().parents[1]
+        / "config"
+        / "runs"
+        / "run-30-contracts-specialist.yaml"
+    )
+    bad = spec.model_copy(
+        update={
+            "engine": spec.engine.model_copy(
+                update={
+                    "modal": spec.engine.modal.model_copy(update={"scaledown_seconds": 600})
+                }
+            )
+        }
+    )
+    report = check_benchmark_posture(spec=bad, require_hermes=True)
+    assert report["ok"] is False
+    assert any("scaledown_seconds" in e for e in report["errors"])
 
 
 def test_benchmark_check_fails_wrong_profile(monkeypatch):

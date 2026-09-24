@@ -7,8 +7,10 @@ sandbox-scoped.
 Default experiment posture (specialist 5×30 cost eval)
 ------------------------------------------------------
 ``MODAL_VLLM_MODEL=Qwen/Qwen3-8B`` on ``MODAL_VLLM_GPU=L4``,
-``max_containers=1``, ``scaledown=600``, job concurrency 4 — see
-``docs/benchmark-l4.md``. Leave knobs unset to get this posture.
+``max_containers=1``, ``scaledown=120`` (attended; restore **600** for
+unattended/overnight), job concurrency 4 — see ``docs/benchmark-l4.md``.
+Leave knobs unset to get this posture. One warm app for all five runs;
+teardown only after the fifth.
 
 Advanced: swap model / GPU (one control surface)
 ------------------------------------------------
@@ -89,9 +91,9 @@ TP_SIZE = os.environ.get("MODAL_VLLM_TP_SIZE", "") or str(
 )
 VLLM_IMAGE_TAG = os.environ.get("MODAL_VLLM_IMAGE_TAG", "v0.29.0")
 
-# Efficient conservative posture: 600s idle warm (experiment runs / cost guard);
-# override via MODAL_VLLM_SCALEDOWN_SECONDS when a longer warm window is needed.
-SCALEDOWN_SECONDS = int(os.environ.get("MODAL_VLLM_SCALEDOWN_SECONDS", 10 * 60))
+# Attended specialist suite default: 120s idle warm (DMR-076 cost-saver).
+# Unattended / overnight: export MODAL_VLLM_SCALEDOWN_SECONDS=600 before deploy.
+SCALEDOWN_SECONDS = int(os.environ.get("MODAL_VLLM_SCALEDOWN_SECONDS", 120))
 MAX_CONTAINERS = int(os.environ.get("MODAL_VLLM_MAX_CONTAINERS", 1))
 MIN_CONTAINERS = int(os.environ.get("MODAL_VLLM_MIN_CONTAINERS", 0))
 STARTUP_TIMEOUT_SECONDS = int(

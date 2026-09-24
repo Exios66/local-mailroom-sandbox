@@ -301,11 +301,15 @@ def test_estimate_suite_specialist_defaults():
     result = metrics.estimate_suite(configs, corpus_size=3302)
     assert result["suite"]["docs"] == 150
     assert result["suite"]["runs"] == 5
+    assert result["suite"]["scaledown_seconds"] == 120
     assert result["suite"]["gpu_usd"]["likely"] > 0
     assert result["suite"]["gpu_usd"]["low"] < result["suite"]["gpu_usd"]["high"]
     assert result["corpus_extrapolation"]["corpus_size"] == 3302
     assert "Pre-flight suite cost estimate" in result["markdown"]
     assert any(o["rank"] == 1 for o in result["optimizations"])
+    # DMR-076: attended 120 is already the YAML pin → $0 further save-to-120
+    opt2 = next(o for o in result["optimizations"] if o["rank"] == 2)
+    assert opt2["expected_usd_saved"] == 0
 
 
 def test_estimate_suite_override_sec_per_doc():

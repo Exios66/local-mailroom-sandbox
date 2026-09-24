@@ -5,9 +5,10 @@
 # warm burning L4 $ after a run. Volumes (weights + vLLM compile cache)
 # persist; a later `modal deploy` reuses them. Idempotent: safe to re-run.
 #
-# Efficient conservative posture for specialist / experiment suites:
-#   max_containers=1, min_containers=0, scaledown=600 — teardown STILL
-#   required after the last run so you do not wait out the scaledown window.
+# Specialist suite (DMR-076): one warm app for all five runs; call this
+# ONLY after the fifth. max_containers=1, min_containers=0, scaledown=120
+# (attended; 600 unattended) — teardown STILL required after the last run
+# so you do not wait out the scaledown window.
 #
 #   ./deploy/teardown_vllm.sh [app-name]
 #

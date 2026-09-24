@@ -59,8 +59,8 @@ engine:
   # DMR-056: 16384 default — L4-bf16 8B-class rows cannot hold 32768 (v0.29.0
   # raises at boot when the KV pool can't fit one request); AWQ rows set 32768.
   modal: {app: sandbox-vllm, gpu: L4, image_tag: v0.29.0,
-          scaledown_seconds: 600, max_containers: 1, min_containers: 0,
-          prewarm: true}
+          scaledown_seconds: 120, max_containers: 1, min_containers: 0,
+          prewarm: true}  # attended; restore 600 unattended (DMR-076)
 
 job:
   mode: endpoint            # endpoint | modal
@@ -223,9 +223,9 @@ sandbox eval sorter_vs_modernbert --local   # live ModernBERT + sorter fixture/l
 ### Cost extrapolation
 
 ```bash
-# Pre-flight (no Modal spend) — specialist 5×30 suite defaults
+# Pre-flight (no Modal spend) — specialist 5×30 suite defaults (scaledown 120)
 sandbox metrics estimate-suite
-sandbox metrics estimate-suite --scaledown-seconds 120 --json
+sandbox metrics estimate-suite --scaledown-seconds 600 --json  # unattended what-if
 
 # Post-run (needs items.jsonl + lock)
 sandbox metrics extrapolate --run run-30-contracts-specialist \
