@@ -650,3 +650,223 @@ def _markdown(summary: dict[str, Any], deltas: dict[str, Any], pairs: dict[str, 
         if md:
             lines += ["", f"### Pairwise: {name}", str(md)]
     return "\n".join(lines)
+
+
+# ── Cost extrapolation (benchmark → full corpus / industry scale) ───────────
+
+
+def per_document_rates(record: Mapping[str, Any]) -> dict[str, Any]:
+    """Derive $/doc, latency/doc, tokens/doc from a serving record.
+
+    Never invents $0 — missing inputs yield ``None`` rates and an honest gap.
+    """
+    n = int(record.get("n") or 0)
+    gaps: list[str] = []
+    token_cpd = _as_float(record.get("cost_per_document"))
+    if token_cpd is None and record.get("estimated_cost_usd") is not None and n > 0:
+        token_cpd = float(record["estimated_cost_usd"]) / n
+    gpu_cpd = _as_float(record.get("gpu_cost_per_document"))
+    if gpu_cpd is None and record.get("estimated_gpu_cost_usd") is not None and n > 0:
+        gpu_cpd = float(record["estimated_gpu_cost_usd"]) / n
+
+    latency = _as_float(record.get("e2e_latency_seconds"))
+    prompt_tok = int(record.get("prompt_tokens") or 0)
+    completion_tok = int(record.get("completion_tokens") or 0)
+    tokens_per_doc = None
+    if n > 0 and (prompt_tok + completion_tok) > 0:
+        tokens_per_doc = (prompt_tok + completion_tok) / n
+    elif n > 0:
+        gaps.append("tokens/doc unknown (no prompt/completion tokens on record)")
+
+    if token_cpd is None:
+        gaps.append("token $/doc unknown (no estimated_cost_usd / cost_per_document)")
+    if gpu_cpd is None and bucket_kind(record) == "modal":
+        gaps.append(
+            "GPU $/doc unknown (set MODAL_BILLED_GPU_SECONDS or ensure latency_ms)"
+        )
+
+    combined = None
+    if token_cpd is not None or gpu_cpd is not None:
+        combined = (token_cpd or 0.0) + (gpu_cpd or 0.0)
+
+    return {
+        "n": n,
+        "token_cost_per_document": token_cpd,
+        "gpu_cost_per_document": gpu_cpd,
+        "combined_cost_per_document": combined,
+        "latency_seconds_per_document": latency,
+        "tokens_per_document": tokens_per_doc,
+        "prompt_tokens_per_document": (prompt_tok / n) if n and prompt_tok else None,
+        "completion_tokens_per_document": (
+            (completion_tok / n) if n and completion_tok else None
+        ),
+        "honest_gaps": gaps,
+        "gpu": record.get("gpu"),
+        "model": record.get("model"),
+        "profile": record.get("profile"),
+        "run_id": record.get("run_id"),
+    }
+
+
+def extrapolate_cost(
+    record: Mapping[str, Any],
+    *,
+    corpus_size: int,
+    docs_per_day: float | None = None,
+    docs_per_month: float | None = None,
+    cold_start_seconds: float = 120.0,
+    scaledown_seconds: float = 600.0,
+    concurrency: int = 4,
+    gpu: str | None = None,
+) -> dict[str, Any]:
+    """Extrapolate a measured run to a larger corpus / industry throughput.
+
+    Two views:
+
+    * **linear** — ``combined_$/doc × N`` (busy-time lower/upper bound depending
+      on whether GPU $ came from billed wall seconds or summed item latency).
+    * **with_overhead** — one cold-start + one scaledown window billed at the
+      GPU hourly rate, plus linear variable cost for ``N`` docs. Use this when
+      estimating a single suite that warms once and tears down once.
+
+    Confidence notes are always attached — never present a single number as
+    ground truth.
+    """
+    if corpus_size < 1:
+        raise ValueError("corpus_size must be >= 1")
+    rates = per_document_rates(record)
+    n = int(rates["n"] or 0)
+    token_cpd = rates["token_cost_per_document"]
+    gpu_cpd = rates["gpu_cost_per_document"]
+    combined = rates["combined_cost_per_document"]
+    latency = rates["latency_seconds_per_document"]
+    gpu_class = gpu or record.get("gpu") or "L4"
+    rate_hr = gpu_usd_per_hour(str(gpu_class))
+
+    notes: list[str] = list(rates.get("honest_gaps") or [])
+    if n > 0 and corpus_size > n * 20:
+        notes.append(
+            f"extrapolation factor {corpus_size}/{n} ≈ {corpus_size / n:.1f}× — "
+            "treat as order-of-magnitude until a larger pilot confirms rates"
+        )
+    if gpu_cpd is not None and record.get("gpu_seconds") is not None and n > 0:
+        # Summed item latency overcounts wall under concurrency; flag it.
+        notes.append(
+            f"GPU $/doc from measured gpu_seconds={record.get('gpu_seconds')} "
+            f"(prefer MODAL_BILLED_GPU_SECONDS for suite wall time; with "
+            f"concurrency={concurrency}, busy-sum ≈ {concurrency}× wall when saturated)"
+        )
+
+    linear_token = (token_cpd * corpus_size) if token_cpd is not None else None
+    linear_gpu = (gpu_cpd * corpus_size) if gpu_cpd is not None else None
+    linear_combined = (combined * corpus_size) if combined is not None else None
+
+    overhead_s = max(0.0, float(cold_start_seconds)) + max(0.0, float(scaledown_seconds))
+    overhead_usd = estimate_gpu_cost_usd(overhead_s, gpu=str(gpu_class)) or 0.0
+    with_overhead = None
+    if linear_combined is not None:
+        with_overhead = round(linear_combined + overhead_usd, 6)
+
+    # Wall-time corpus estimate: if we have per-doc latency, concurrent wall ≈
+    # (latency * N) / concurrency (saturated continuous batching).
+    corpus_wall_hours = None
+    if latency is not None and latency > 0:
+        wall_s = (latency * corpus_size) / max(1, int(concurrency))
+        corpus_wall_hours = round(wall_s / 3600.0, 4)
+        # Alternate GPU $ from wall estimate (orthogonal check).
+        wall_gpu_usd = estimate_gpu_cost_usd(wall_s, gpu=str(gpu_class))
+    else:
+        wall_gpu_usd = None
+
+    industry: dict[str, Any] = {}
+    if docs_per_day is not None and docs_per_day > 0 and combined is not None:
+        industry["docs_per_day"] = docs_per_day
+        industry["usd_per_day"] = round(combined * docs_per_day, 4)
+        industry["usd_per_month_30d"] = round(combined * docs_per_day * 30.0, 2)
+    if docs_per_month is not None and docs_per_month > 0 and combined is not None:
+        industry["docs_per_month"] = docs_per_month
+        industry["usd_per_month"] = round(combined * docs_per_month, 2)
+
+    result = {
+        "agent": "cost_extrapolate",
+        "sample": rates,
+        "corpus_size": int(corpus_size),
+        "gpu_usd_per_hour": rate_hr,
+        "linear": {
+            "token_usd": round(linear_token, 6) if linear_token is not None else None,
+            "gpu_usd": round(linear_gpu, 6) if linear_gpu is not None else None,
+            "combined_usd": round(linear_combined, 6) if linear_combined is not None else None,
+            "formula": "combined_cost_per_document × corpus_size",
+        },
+        "with_overhead": {
+            "cold_start_seconds": cold_start_seconds,
+            "scaledown_seconds": scaledown_seconds,
+            "overhead_usd": round(overhead_usd, 6),
+            "combined_usd": with_overhead,
+            "formula": (
+                "linear_combined + gpu_rate × (cold_start + scaledown) — "
+                "one warm + one teardown suite"
+            ),
+        },
+        "wall_time_estimate": {
+            "concurrency": concurrency,
+            "corpus_wall_hours": corpus_wall_hours,
+            "gpu_usd_from_wall": (
+                round(wall_gpu_usd, 6) if wall_gpu_usd is not None else None
+            ),
+            "formula": "(e2e_latency_s × N) / concurrency × gpu_$/hr",
+        },
+        "industry": industry or None,
+        "confidence_notes": notes,
+        "markdown": "",  # filled below
+    }
+    result["markdown"] = _extrapolate_md(result)
+    return result
+
+
+def _extrapolate_md(result: Mapping[str, Any]) -> str:
+    sample = result.get("sample") or {}
+    linear = result.get("linear") or {}
+    oh = result.get("with_overhead") or {}
+    wall = result.get("wall_time_estimate") or {}
+    industry = result.get("industry") or {}
+    lines = [
+        "## Cost extrapolation",
+        "",
+        f"- sample n={sample.get('n')} model={sample.get('model')} "
+        f"profile={sample.get('profile')} run={sample.get('run_id')}",
+        f"- token $/doc={sample.get('token_cost_per_document')} "
+        f"GPU $/doc={sample.get('gpu_cost_per_document')} "
+        f"combined $/doc={sample.get('combined_cost_per_document')}",
+        f"- latency s/doc={sample.get('latency_seconds_per_document')} "
+        f"tokens/doc={sample.get('tokens_per_document')}",
+        f"- target corpus_size={result.get('corpus_size')} "
+        f"(GPU rate ${result.get('gpu_usd_per_hour')}/hr)",
+        "",
+        "### Linear (variable only)",
+        f"- token $ = {linear.get('token_usd')}",
+        f"- GPU $ = {linear.get('gpu_usd')}",
+        f"- **combined $ = {linear.get('combined_usd')}**",
+        f"- formula: `{linear.get('formula')}`",
+        "",
+        "### With fixed warm/teardown overhead",
+        f"- overhead $ = {oh.get('overhead_usd')} "
+        f"(cold={oh.get('cold_start_seconds')}s + "
+        f"scaledown={oh.get('scaledown_seconds')}s)",
+        f"- **combined + overhead $ = {oh.get('combined_usd')}**",
+        "",
+        "### Wall-time GPU check",
+        f"- corpus wall hours ≈ {wall.get('corpus_wall_hours')} "
+        f"(concurrency={wall.get('concurrency')})",
+        f"- GPU $ from wall ≈ {wall.get('gpu_usd_from_wall')}",
+    ]
+    if industry:
+        lines += ["", "### Industry scale"]
+        for k, v in industry.items():
+            lines.append(f"- {k}: {v}")
+    notes = result.get("confidence_notes") or []
+    if notes:
+        lines += ["", "### Confidence / honesty"]
+        for note in notes:
+            lines.append(f"- {note}")
+    return "\n".join(lines)

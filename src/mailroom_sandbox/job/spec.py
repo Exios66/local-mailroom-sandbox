@@ -20,6 +20,8 @@ _log = logging.getLogger("mailroom_sandbox.job.spec")
 
 FAMILY_HF_REVISION = "46a4d3c240a36671cde0182fff4960f6b8b73aca"  # v9 mailroom-dataset tip (GT-closure revision, epic #27)
 HF_DEFAULT_REPO = "Lucius-Morningstar/mailroom-dataset"
+# Full corpus row count at FAMILY_HF_REVISION (train+test; mailroom-ml pin).
+FAMILY_CORPUS_SIZE = 3302
 
 KNOWN_GPUS = (
     "L4",

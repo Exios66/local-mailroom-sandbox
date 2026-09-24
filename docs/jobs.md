@@ -208,8 +208,27 @@ sandbox metrics compare --sorter-vs-modernbert --runs <sorter-run>,<modernbert-r
 
 Fixtures: `data/fixtures/serving/sorter_vs_modernbert.json`. Compares
 accuracy / F1 / latency / `$/doc` between the LLM sorter and the trained
-ModernBERT ingest classifier (mailroom-ml / Corpus-EDA). Does not load
-weights — supply scored records or use the mock fixtures.
+ModernBERT ingest classifier (mailroom-ml / Corpus-EDA).
+
+Live feeder (no weight copies into the sandbox):
+
+```bash
+export MAILROOM_ML_SRC=/Users/morningstar/Desktop/Cold_Storage/mailroom-ml
+export MODERNBERT_MODEL_PATH=$MAILROOM_ML_SRC/artifacts/run2-published
+sandbox modernbert status
+sandbox modernbert eval --sample 50 --json
+sandbox eval sorter_vs_modernbert --local   # live ModernBERT + sorter fixture/log
+```
+
+### Cost extrapolation
+
+```bash
+sandbox metrics extrapolate --run run-30-contracts-specialist \
+  --corpus-size 3302 --docs-per-day 10000
+```
+
+See [`docs/benchmark-l4.md`](benchmark-l4.md) for the Modal L4 Qwen specialist
+suite pins, Hermes profile, and teardown sequence.
 
 TTFT is only populated when a run records it (never inferred from e2e).
 Document-pipeline eval traces stay on the Langfuse SDK path (family

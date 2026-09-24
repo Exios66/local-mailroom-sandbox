@@ -614,9 +614,10 @@ def run_sorter_vs_modernbert_eval(
     """Compare LLM sorter vs trained ModernBERT on accuracy + cost/latency.
 
     ``--mock`` uses committed fixtures (no mailroom-ml import, no GPU).
-    Pass ``sorter_record`` / ``modernbert_record`` to compare live job or
-    eval outputs. ``from_log`` picks the latest sorter + modernbert-tagged
-    rows from ``experiment_log.jsonl`` when present.
+    Live (``mock=False``) loads ModernBERT from the local mailroom-ml feeder
+    (``MAILROOM_ML_SRC`` / ``MODERNBERT_MODEL_PATH``) via ``eval_modernbert.py``
+    and pairs it with fixtures' sorter side unless ``sorter_record`` /
+    ``from_log`` supplies a measured sorter record.
     """
     del sample, connected, agent_models  # parity with other eval kwargs
     from mailroom_sandbox.datasets import load_sorter_vs_modernbert_fixtures
@@ -629,7 +630,7 @@ def run_sorter_vs_modernbert_eval(
         "from_log": from_log,
         "fingerprint": "fixture-sorter-vs-modernbert-v0",
         "requires_api_key": False,
-        "requires_mailroom_ml": False,
+        "requires_mailroom_ml": not mock,
     }
     if dry_run:
         return plan
@@ -648,7 +649,7 @@ def run_sorter_vs_modernbert_eval(
                 "(need one with classifier/serving_kind llm_sorter|sorter and "
                 "one with modernbert); use --mock fixtures or pass records"
             )
-    else:
+    elif mock:
         fixtures = load_sorter_vs_modernbert_fixtures()
         left = fixtures.get("sorter") or {}
         right = fixtures.get("modernbert") or {}
@@ -657,8 +658,39 @@ def run_sorter_vs_modernbert_eval(
                 "sorter_vs_modernbert fixtures missing both sides — "
                 "expected data/fixtures/serving/sorter_vs_modernbert.json"
             )
-        if mock:
-            os.environ.setdefault("SANDBOX_RUN_MODE", "mock")
+        os.environ.setdefault("SANDBOX_RUN_MODE", "mock")
+    else:
+        # Live ModernBERT via mailroom-ml feeder; sorter from fixture or log.
+        from mailroom_sandbox.modernbert import (
+            feeder_status,
+            run_modernbert_eval,
+            serving_record_from_eval,
+        )
+
+        status = feeder_status()
+        if not status.get("ok"):
+            raise RuntimeError(
+                "ModernBERT feeder incomplete — "
+                f"{status.get('hint')} (status={status})"
+            )
+        report = run_modernbert_eval(sample=50, seed=42)
+        right = serving_record_from_eval(report)
+        left = sorter_record
+        if left is None:
+            left, _ = _sorter_modernbert_from_log(experiment_log.load())
+        if left is None:
+            fixtures = load_sorter_vs_modernbert_fixtures()
+            left = fixtures.get("sorter") or {}
+            source = "modernbert-live+sorter-fixture"
+            _log.warning(
+                "no measured sorter record in experiment_log — pairing live "
+                "ModernBERT with fixture sorter side (accuracy delta is not "
+                "apples-to-apples until a live sorter run exists)"
+            )
+        else:
+            source = "modernbert-live+sorter-log"
+        plan["fingerprint"] = right.get("dataset_fingerprint") or plan["fingerprint"]
+        plan["modernbert_checkpoint"] = right.get("checkpoint")
 
     compared = compare_sorter_vs_modernbert(left, right)
     quality = compared.get("quality") or {}

@@ -66,4 +66,4 @@ trace:
   sink: none
   otlp: false
   environment: specialist-30
-  tags: [sandbox, job, specialist, merger]
+  tags: [sandbox, job, specialist, merger, qwen3-8b, l4, benchmark]
