@@ -7,7 +7,7 @@ Cross-family work stays on llm-entity-extraction's MESSAGE_BOARD as
 **`DMR-*`**. This file is the **only** sandbox-local task board — do not
 open `DMR-*` cards here.
 
-**Next ID: `SAND-016`**
+**Next ID: `SAND-017`**
 
 Lanes: `todo` → `in_progress` → `needs_attention` → `done`.
 
@@ -34,6 +34,7 @@ Lanes: `todo` → `in_progress` → `needs_attention` → `done`.
 
 | ID | Title | Owner | Status | Notes |
 | --- | --- | --- | --- | --- |
+| SAND-016 | Modal/vLLM ↔ dojo cost-compare metrics parity | cursor | **done** | Adapter + `--fixture`; *Related: DMR-049 / DMR-027* |
 | SAND-001 | Establish SAND local board + prefix (isolated from DMR) | orchestrator | **done** | `governance/` README + PREFIX + TASKS; AGENTS.md / sister-repos wording |
 | SAND-015 | Confirm SAND prefix adopted in AGENTS.md / sister-repos docs | orchestrator | **done** | Governance cutover shipped with SAND-001 |
 | SAND-010-1 | Verify stratified 50-subclass sample | athena | **done** | was `SANDBOX-050-1`; strata QA green |

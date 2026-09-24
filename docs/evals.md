@@ -24,6 +24,7 @@ sandbox eval local_vs_api --mock  # fixture timings; no OPENROUTER_API_KEY
 sandbox eval local_vs_api --from-log  # pair experiment_log local vs API-key rows
 sandbox eval sorter_vs_modernbert --mock  # LLM sorter vs ModernBERT accuracy+cost
 sandbox metrics compare --runs local,modal,api
+sandbox metrics compare --fixture   # Grant cost-compare parity (offline)
 sandbox metrics compare --sorter-vs-modernbert
 sandbox matrix --task judge --providers ollama --models qwen3:8b \
   --prompts mailroom-default --sample 2 --mock --dry-run
@@ -63,7 +64,7 @@ are listed in `config/components.yaml` and skipped.
 
 `reports/experiment_log.jsonl` is **sandbox-local**. It is not a mirror of
 llm-entity-extraction. Each record carries profile, provider, `serving_kind`
-(`local` | `api`), model, prompt version, dataset fingerprint, scores +
+(`local` | `modal` | `api`), model, prompt version, dataset fingerprint, scores +
 bootstrap CI when available, tracing backend, tags, session id, and a git
 snapshot. Mixed local + API-key matrix runs attach a `local_vs_api` block
 from the same importable suite (table, scorecard, cost, markdown).
@@ -77,6 +78,10 @@ Offline catalog: `data/fixtures/` (see `ATTRIBUTION.md`). Tiny HF slice:
 `data/fixtures/legalbench/contract_qa.jsonl`. Per-agent gold:
 `data/fixtures/agents/*.jsonl`. Tiny PDF/PNG: `data/fixtures/intake/`.
 Synthetic serving pair: `data/fixtures/serving/local_vs_api.json`.
+Grant-style local / Modal / API triple (ms fields + HF id):
+`data/fixtures/serving/cost_compare.json` — scored by
+`sandbox metrics compare --fixture` (sandbox three-way table + dojo
+`get_suite("local_vs_api")` pairwise; no GPU).
 
 `sandbox datasets pull` performs a LIVE, PINNED Hub pull of the **full**
 [`Lucius-Morningstar/mailroom-dataset`](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset/viewer/ground_truth)

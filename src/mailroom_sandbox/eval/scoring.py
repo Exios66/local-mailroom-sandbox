@@ -20,11 +20,12 @@ from llm_dojo_scoring import (
     score_extraction,
     score_serving_run,
     score_task,
-    split_local_api,
     suite_for_doc_type,
 )
 from llm_dojo_scoring.extraction_metrics import extraction_binary_metrics
 from llm_dojo_scoring.serving import CANONICAL_SERVING_KEYS, pair_comparable_runs
+
+from mailroom_sandbox.eval.serving_parity import split_serving_records, to_dojo_serving_record
 
 from mailroom_sandbox.paths import reports_dir
 
@@ -278,11 +279,22 @@ def compare_local_vs_api(
 
 
 def compare_from_records(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
-    """Partition an experiment log and compare local vs API-key runs."""
-    rows = list(records)
-    local, api, unknown = split_local_api(rows)
+    """Partition an experiment log and compare local (or Modal) vs API-key runs.
+
+    Dojo ``split_local_api`` folds ``modal-vllm`` into ``local``. The sandbox
+    splitter keeps a Modal bucket (DMR-049) and still scores Modal↔API through
+    ``get_suite("local_vs_api")`` after ``to_dojo_serving_record`` so Grant
+    cost-compare logs work without a live GPU.
+    """
+    rows = [to_dojo_serving_record(r) for r in records]
+    buckets = split_serving_records(rows)
+    local = buckets["local"]
+    modal = buckets["modal"]
+    api = buckets["api"]
+    unknown = buckets["unknown"]
     payload: dict[str, Any] = {
         "local_n": len(local),
+        "modal_n": len(modal),
         "api_n": len(api),
         "unknown_n": len(unknown),
         "pairs": [],
@@ -293,16 +305,28 @@ def compare_from_records(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]
         "cost": None,
         "markdown": None,
     }
-    if not local or not api:
+    left = local
+    left_label = "local"
+    if not left and modal and api:
+        left = modal
+        left_label = "modal"
         payload["note"] = (
-            "Need both local (Ollama/vLLM/llama.cpp/LM Studio) and API-key "
-            "(OpenRouter) records. Offline fixtures work without OPENROUTER_API_KEY."
+            "Compared Modal vs API via get_suite('local_vs_api'); dojo "
+            "identity.serving_kind remaps modal→local (sandbox keeps modal)."
+        )
+    if not left or not api:
+        payload["note"] = (
+            "Need API-key (OpenRouter) records plus local (Ollama/vLLM/"
+            "llama.cpp/LM Studio) or Modal (modal-vllm) records. Offline "
+            "fixtures work without OPENROUTER_API_KEY."
         )
         return payload
+    # pair_comparable_runs still uses dojo split (modal counts as local there).
     pairs = pair_comparable_runs(rows)
     suite = get_suite("local_vs_api")
-    payload["pairs"] = [suite.score(left, right) for left, right in pairs]
-    comparison = suite.score(local, api)
+    payload["pairs"] = [suite.score(a, b) for a, b in pairs]
+    comparison = suite.score(left, api)
+    payload["left_serving"] = left_label
     payload["comparison"] = comparison
     payload["table"] = comparison.get("table") or []
     payload["scorecard"] = comparison.get("scorecard")
