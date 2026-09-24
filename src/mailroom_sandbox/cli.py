@@ -94,6 +94,30 @@ def build_parser() -> argparse.ArgumentParser:
     ash.set_defaults(handler=_cmd_agents_show)
     agents_p.set_defaults(handler=_cmd_agents_list)
 
+    subagents_p = sub.add_parser(
+        "subagents",
+        help="Central coding subagent roster (Cursor + OpenCode adapters)",
+        parents=[shared],
+    )
+    subagents_sub = subagents_p.add_subparsers(dest="subagents_cmd")
+    sa_list = subagents_sub.add_parser("list", parents=[shared])
+    sa_list.add_argument("--json", action="store_true")
+    sa_list.set_defaults(handler=_cmd_subagents_list)
+    sa_show = subagents_sub.add_parser("show", parents=[shared])
+    sa_show.add_argument("id")
+    sa_show.add_argument("--json", action="store_true")
+    sa_show.set_defaults(handler=_cmd_subagents_show)
+    sa_sync = subagents_sub.add_parser("sync", parents=[shared])
+    sa_sync.add_argument(
+        "--harness",
+        default="cursor",
+        choices=("cursor",),
+        help="Target harness adapter (default: cursor → .cursor/agents/)",
+    )
+    sa_sync.add_argument("--dry-run", action="store_true")
+    sa_sync.set_defaults(handler=_cmd_subagents_sync)
+    subagents_p.set_defaults(handler=_cmd_subagents_list)
+
     pipe = sub.add_parser("pipeline", help="Run mailroom watcher or API", parents=[shared])
     pipe_sub = pipe.add_subparsers(dest="pipeline_cmd")
     w = pipe_sub.add_parser("watcher", parents=[shared])
@@ -849,6 +873,79 @@ def _cmd_agents_list(args: argparse.Namespace) -> int:
             "agents": roster,
             "eval_tasks": evals,
             "retired": list(RETIRED_AGENTS),
+        }
+    )
+    return 0
+
+
+def _cmd_subagents_list(args: argparse.Namespace) -> int:
+    from mailroom_sandbox.subagents import load_roster
+
+    rows = []
+    for entry in load_roster():
+        rows.append(
+            {
+                "id": entry.id,
+                "title": entry.title,
+                "tags": list(entry.tags),
+                "harnesses": list(entry.harnesses),
+                "family_source": entry.family_source,
+                "opencode": str(entry.opencode_path()),
+                "cursor": str(entry.cursor_path()),
+            }
+        )
+    if getattr(args, "json", False):
+        _print({"subagents": rows})
+    else:
+        for row in rows:
+            tags = ",".join(row["tags"]) or "-"
+            print(f"{row['id']:24} {row['title']:32} [{tags}]")
+    return 0
+
+
+def _cmd_subagents_show(args: argparse.Namespace) -> int:
+    from mailroom_sandbox.subagents.parse_opencode import parse_opencode_markdown
+    from mailroom_sandbox.subagents.roster import get_subagent
+
+    entry = get_subagent(args.id)
+    if entry is None:
+        print(f"unknown subagent: {args.id}", file=sys.stderr)
+        return 1
+    doc = parse_opencode_markdown(entry.opencode_path().read_text(encoding="utf-8"))
+    payload = {
+        "id": entry.id,
+        "title": entry.title,
+        "tags": list(entry.tags),
+        "harnesses": list(entry.harnesses),
+        "family_source": entry.family_source,
+        "cursor_invoke_hint": entry.cursor_invoke_hint,
+        "opencode_frontmatter": doc.frontmatter,
+        "opencode_path": str(entry.opencode_path()),
+        "cursor_path": str(entry.cursor_path()),
+    }
+    if getattr(args, "json", False):
+        _print(payload)
+    else:
+        _print(payload)
+        print("\n--- prompt preview (first 40 lines) ---")
+        lines = doc.body.splitlines()
+        for line in lines[:40]:
+            print(line)
+        if len(lines) > 40:
+            print(f"... ({len(lines) - 40} more lines)")
+    return 0
+
+
+def _cmd_subagents_sync(args: argparse.Namespace) -> int:
+    from mailroom_sandbox.subagents import sync_harness
+
+    result = sync_harness(args.harness, dry_run=bool(args.dry_run))
+    _print(
+        {
+            "harness": args.harness,
+            "dry_run": bool(args.dry_run),
+            "written": [str(p) for p in result.written],
+            "skipped": result.skipped,
         }
     )
     return 0
