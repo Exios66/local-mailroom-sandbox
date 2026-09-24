@@ -16,11 +16,56 @@ import random
 import re
 from typing import Any
 
-from mailroom_sandbox.job.spec import DatasetSpec, FAMILY_HF_REVISION
+from mailroom_sandbox.job.spec import (
+    DatasetSpec,
+    FAMILY_CLASS_COUNTS,
+    FAMILY_HF_REVISION,
+    LIVE_DOC_CLASSES,
+)
 
 _log = logging.getLogger("mailroom_sandbox.corpus")
 
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+_ALL_SPLIT_ALIASES = frozenset({"all", "*", "both", "train+test", "train,test"})
+
+
+def expand_hf_splits(split: str) -> tuple[str, ...]:
+    """Map a DatasetSpec.split value onto parquet split names.
+
+    ``all`` / ``train+test`` loads BOTH evaluation partitions (3,302 rows at
+    the family pin). The Hub 90/10 split is an evaluation partition, not ML
+    train/test — Modal 20/40/100-per-class draws must use ``all``.
+    """
+    raw = (split or "test").strip().lower().replace(" ", "")
+    if raw in _ALL_SPLIT_ALIASES:
+        return ("train", "test")
+    if raw in {"train", "test"}:
+        return (raw,)
+    raise ValueError(
+        f"unknown dataset split {split!r} — use train, test, or all (train+test)"
+    )
+
+
+def per_class_strata(per_class: int) -> dict[str, Any]:
+    """Strata block: ``per_class`` rows from each live extract class."""
+    if not isinstance(per_class, int) or per_class < 1:
+        raise ValueError(f"per_class must be a positive int (got {per_class!r})")
+    return {
+        "buckets": [
+            {"doc_class": cls, "count": per_class} for cls in LIVE_DOC_CLASSES
+        ]
+    }
+
+
+def _ensure_hf_home() -> None:
+    """Keep Hub parquet in the sandbox cache (gitignored ``data/cache/hf``)."""
+    import os
+
+    from mailroom_sandbox.paths import repo_root
+
+    hf_home = repo_root() / "data" / "cache" / "hf"
+    hf_home.mkdir(parents=True, exist_ok=True)
+    os.environ.setdefault("HF_HOME", str(hf_home))
 
 
 def _resolve_revision(repo: str, revision: str) -> str:
@@ -73,10 +118,16 @@ def _stable_key(row: dict[str, Any]) -> tuple[str, str]:
 
 
 def _read_jsonl(path) -> list[dict[str, Any]]:
+    """Read JSONL without ``str.splitlines()``.
+
+    Legal ``doc_text`` can contain U+2028/U+2029; ``splitlines()`` would
+    break a ``json.dumps(ensure_ascii=False)`` record in the middle.
+    """
     rows = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if line.strip():
-            rows.append(json.loads(line))
+    with path.open(encoding="utf-8") as fh:
+        for line in fh:
+            if line.strip():
+                rows.append(json.loads(line))
     return rows
 
 
@@ -100,51 +151,65 @@ def merge_default_and_gt(default_rows: list[dict[str, Any]], gt_rows: list[dict[
 
 
 def load_hf_rows(spec: DatasetSpec) -> list[dict[str, Any]]:
-    """Fetch pinned parquet shards, merge default+ground_truth, return raw rows."""
+    """Fetch pinned parquet shards, merge default+ground_truth, return raw rows.
+
+    ``split=all`` concatenates train+test (the full 3,302-row evaluation
+    corpus). Duplicate ``filename`` across splits is a pin-integrity failure.
+    """
     import huggingface_hub
 
+    _ensure_hf_home()
     repo = spec.repo
     revision = spec.revision or FAMILY_HF_REVISION
     resolved = _resolve_revision(repo, revision)
     files = set(huggingface_hub.list_repo_files(repo, revision=resolved, repo_type="dataset"))
+    splits = expand_hf_splits(spec.split)
 
-    def shard(config: str) -> str:
-        return f"parquet/{config}/{spec.split}/{spec.split}-00000-of-00001.parquet"
+    def shard(config: str, split: str) -> str:
+        return f"parquet/{config}/{split}/{split}-00000-of-00001.parquet"
 
-    def read_config(config: str) -> list[dict[str, Any]] | None:
-        f = shard(config)
+    def read_config(config: str, split: str) -> list[dict[str, Any]] | None:
+        f = shard(config, split)
         if f not in files:
             return None
         path = huggingface_hub.hf_hub_download(repo, f, revision=resolved, repo_type="dataset")
         return _read_parquet(path)
 
-    default = read_config("default")
-    ground_truth = read_config("ground_truth")
-
-    if ground_truth is not None:
-        merged = merge_default_and_gt(default or [], ground_truth)
-        for r in merged:
-            r["source_revision"] = resolved
-        return merged
-    if default is not None:
-        if spec.config in ("", "ground_truth"):
-            # The blind rows would be scored as unlabeled (expected_doc_class
-            # "") — a silent 0.0/unknown scorecard. Refuse instead (DMR-049).
-            raise RuntimeError(
-                f"ground_truth config is absent at {repo}@{resolved} for split "
-                f"{spec.split!r} — refusing to prepare blind rows as labeled data"
-            )
-        for r in default:
-            r["source_revision"] = resolved
-        return default
-    cfg = read_config(spec.config)
-    if cfg is None:
-        raise RuntimeError(
-            f"no parquet shards for {spec.config or 'default'} / {spec.split} at {repo}@{resolved}"
-        )
-    for r in cfg:
-        r["source_revision"] = resolved
-    return cfg
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for split in splits:
+        default = read_config("default", split)
+        ground_truth = read_config("ground_truth", split)
+        if ground_truth is not None:
+            merged = merge_default_and_gt(default or [], ground_truth)
+        elif default is not None:
+            if spec.config in ("", "ground_truth"):
+                # The blind rows would be scored as unlabeled (expected_doc_class
+                # "") — a silent 0.0/unknown scorecard. Refuse instead (DMR-049).
+                raise RuntimeError(
+                    f"ground_truth config is absent at {repo}@{resolved} for split "
+                    f"{split!r} — refusing to prepare blind rows as labeled data"
+                )
+            merged = default
+        else:
+            cfg = read_config(spec.config, split)
+            if cfg is None:
+                raise RuntimeError(
+                    f"no parquet shards for {spec.config or 'default'} / {split} "
+                    f"at {repo}@{resolved}"
+                )
+            merged = cfg
+        for row in merged:
+            fname = str(row.get("filename") or "")
+            if fname in seen:
+                raise RuntimeError(
+                    f"duplicate filename {fname!r} across splits at {repo}@{resolved}"
+                )
+            seen.add(fname)
+            row["source_revision"] = resolved
+            row.setdefault("split", split)
+            out.append(row)
+    return out
 
 
 def normalize_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -481,6 +546,18 @@ def _draw_buckets(
                 excluded.update(_stable_key(r) for r in picked)
             keep.update(_stable_key(r) for r in drawn)
         else:
+            if count is not None and count > len(candidates):
+                hint = ""
+                if str(value) in FAMILY_CLASS_COUNTS:
+                    hint = (
+                        f" (full-corpus availability at FAMILY_HF_REVISION is "
+                        f"{FAMILY_CLASS_COUNTS[str(value)]}; use split=all — "
+                        f"test-only cannot back 40/100-per-class draws)"
+                    )
+                raise ValueError(
+                    f"strata bucket {field}={value!r}: requested {count} but "
+                    f"only {len(candidates)} available{hint}"
+                )
             if count is not None and count < len(candidates):
                 if sample_seed is None:
                     raise ValueError("sample_seed required for stratified draws")

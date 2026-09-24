@@ -95,6 +95,22 @@ def test_run_30_merger_task_is_dedicated_specialist():
     assert "contracts_specialist" not in agents
 
 
+def test_example_per_class_uses_full_corpus_split():
+    from mailroom_sandbox.job.spec import load_run_spec
+
+    spec = load_run_spec(ROOT / "config/runs/example-per-class.yaml")
+    assert spec.dataset.split == "all"
+    buckets = spec.dataset.strata["buckets"]
+    assert [b["doc_class"] for b in buckets] == [
+        "contract",
+        "corporate_record",
+        "correspondence",
+        "insurance_claim",
+        "merger_agreement",
+    ]
+    assert all(b["count"] == 20 for b in buckets)
+
+
 def test_resolve_suite_path_unknown():
     with pytest.raises(FileNotFoundError, match="unknown suite"):
         resolve_suite_path("no-such-track-xyz")

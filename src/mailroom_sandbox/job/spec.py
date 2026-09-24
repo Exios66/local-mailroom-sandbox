@@ -22,6 +22,18 @@ FAMILY_HF_REVISION = "46a4d3c240a36671cde0182fff4960f6b8b73aca"  # v9 mailroom-d
 HF_DEFAULT_REPO = "Lucius-Morningstar/mailroom-dataset"
 # Full corpus row count at FAMILY_HF_REVISION (train+test; mailroom-ml pin).
 FAMILY_CORPUS_SIZE = 3302
+# Hub README composition at the same pin. Test-only is ~10% (323 rows) and
+# cannot back 40/100-per-class Modal draws — merger_agreement has ~17 in
+# test / 152 all-splits. `sandbox datasets pull` defaults to split=all.
+FAMILY_CLASS_COUNTS: dict[str, int] = {
+    "contract": 600,
+    "corporate_record": 450,
+    "correspondence": 1000,
+    "insurance_claim": 1100,
+    "merger_agreement": 152,
+}
+LIVE_DOC_CLASSES: tuple[str, ...] = tuple(FAMILY_CLASS_COUNTS)
+assert sum(FAMILY_CLASS_COUNTS.values()) == FAMILY_CORPUS_SIZE
 
 KNOWN_GPUS = (
     "L4",

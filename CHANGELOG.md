@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Added — full Hub corpus cache + per-class Modal samples (2026-09-24)
+
+- **`sandbox datasets pull`** defaults to the full
+  `Lucius-Morningstar/mailroom-dataset` `ground_truth` **train+test** pin
+  (3,302 rows at `FAMILY_HF_REVISION`) under `data/cache/`. `--max-rows 50
+  --split test` remains for tiny slices.
+- **`sandbox datasets sample --per-class N`** draws 20/40/100+ per live
+  class from that local JSONL (offline; merger_agreement ceiling is 152).
+- Corpus loader accepts `split: all`. Class-bucket quotas above availability
+  now hard-fail (same as nested sub_buckets). Template:
+  `config/runs/example-per-class.yaml`.
+
 ### Added — SAND-001 local SAND board prefix (2026-09-24)
 
 - **Sandbox-isolated governance** uses prefix **`SAND-NNN`** on

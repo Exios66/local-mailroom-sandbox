@@ -114,8 +114,10 @@ sandbox prompts show sorter --variant sorter_local_v0   # local variant stem
 
 ```bash
 sandbox datasets prepare                # offline: load/clean fixtures → data/runtime/prepared/ (no network)
-sandbox datasets pull                   # LIVE pinned Hub pull (NETWORK):
-#   Lucius-Morningstar/mailroom-dataset@46a4d3c2 (ground_truth/test) → data/cache/…, sha256-verified
+sandbox datasets pull                   # LIVE pinned FULL Hub pull (NETWORK):
+#   Lucius-Morningstar/mailroom-dataset@46a4d3c2 ground_truth train+test
+#   (3,302 rows) → data/cache/…, sha256-verified. Required for 20/40/100-per-class.
+sandbox datasets sample --per-class 40  # offline draw from that cache (merger cap 152)
 sandbox datasets pull --max-rows 50 --config ground_truth --split test --revision <sha-or-tag>
 sandbox datasets pull --dataset Lucius-Morningstar/mailroom-dataset --max-rows 20
 ```

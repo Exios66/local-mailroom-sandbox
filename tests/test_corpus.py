@@ -61,6 +61,25 @@ def test_prepare_respects_limit_and_order(tmp_path):
     assert [r["id"] for r in rows] == sorted(r["id"] for r in rows)
 
 
+def test_jsonl_roundtrip_preserves_unicode_line_separators(tmp_path):
+    text = "clause\u2028effective time"
+    rows = [
+        {
+            "id": "u2028",
+            "filename": "u2028.txt",
+            "doc_text": text,
+            "expected": "merger_agreement",
+            "expected_subclass": "all_cash",
+            "content_sha256": sha256_text(text),
+        }
+    ]
+    src = _rows_fixture(tmp_path, rows)
+    dest = tmp_path / "u.jsonl"
+    prepare_subset(DatasetSpec(local_path=src), dest)
+    loaded = [json.loads(line) for line in dest.open(encoding="utf-8") if line.strip()]
+    assert loaded[0]["doc_text"] == text
+
+
 def test_strata_filter(tmp_path):
     src = _rows_fixture(tmp_path, _rows(10))
     dest = tmp_path / "d.jsonl"
@@ -459,3 +478,78 @@ def test_nested_bucket_missing_subclass_hard_fails(tmp_path):
     spec = DatasetSpec(local_path=src, strata=strata, sample_seed=42)
     with pytest.raises(ValueError, match="absent from prepared rows"):
         prepare_subset(spec, tmp_path / "r.jsonl")
+
+
+def test_expand_hf_splits_all_is_train_and_test():
+    from mailroom_sandbox.corpus import expand_hf_splits
+
+    assert expand_hf_splits("all") == ("train", "test")
+    assert expand_hf_splits("train+test") == ("train", "test")
+    assert expand_hf_splits("TEST") == ("test",)
+    with pytest.raises(ValueError, match="unknown dataset split"):
+        expand_hf_splits("dev")
+
+
+def test_class_bucket_over_quota_hard_fails(tmp_path):
+    src = _rows_fixture(tmp_path, _rows(6))  # 3 contract / 3 insurance_claim
+    spec = DatasetSpec(
+        local_path=src,
+        strata={"buckets": [{"doc_class": "contract", "count": 99}]},
+        sample_seed=42,
+    )
+    with pytest.raises(ValueError, match="only 3 available"):
+        prepare_subset(spec, tmp_path / "z.jsonl")
+
+
+def test_load_hf_rows_all_splits_concatenates(monkeypatch, tmp_path):
+    import huggingface_hub
+
+    def _split_rows(split: str, start: int):
+        default_rows = []
+        gt_rows = []
+        for i in range(start, start + 2):
+            text = f"hub text {i}"
+            default_rows.append(
+                {
+                    "filename": f"f{i}.txt",
+                    "doc_text": text,
+                    "prompt": "",
+                    "metadata": {"source": "test"},
+                }
+            )
+            gt_rows.append(
+                {
+                    "filename": f"f{i}.txt",
+                    "expected": "contract",
+                    "expected_subclass": "service",
+                    "content_sha256": sha256_text(text),
+                    "split": split,
+                }
+            )
+        return default_rows, gt_rows
+
+    parquet_files = {}
+    for split, start in (("train", 0), ("test", 2)):
+        dflt, gth = _split_rows(split, start)
+        parquet_files[f"parquet/default/{split}/{split}-00000-of-00001.parquet"] = _make_hub_parquet(
+            tmp_path, f"default_{split}", dflt
+        )
+        parquet_files[f"parquet/ground_truth/{split}/{split}-00000-of-00001.parquet"] = _make_hub_parquet(
+            tmp_path, f"gt_{split}", gth
+        )
+
+    class _FakeInfo:
+        sha = FAMILY_HF_REVISION
+
+    monkeypatch.setattr(huggingface_hub.HfApi, "dataset_info", lambda *a, **k: _FakeInfo())
+    monkeypatch.setattr(huggingface_hub, "list_repo_files", lambda *a, **k: list(parquet_files))
+    monkeypatch.setattr(
+        huggingface_hub,
+        "hf_hub_download",
+        lambda repo, filename, revision=None, repo_type=None, **kw: str(parquet_files[filename]),
+    )
+    spec = DatasetSpec(provider="huggingface", revision=FAMILY_HF_REVISION, split="all")
+    rows = load_hf_rows(spec)
+    assert len(rows) == 4
+    assert {r["filename"] for r in rows} == {"f0.txt", "f1.txt", "f2.txt", "f3.txt"}
+    assert {r["split"] for r in rows} == {"train", "test"}
