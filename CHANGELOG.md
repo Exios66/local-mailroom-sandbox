@@ -15,6 +15,10 @@
   (OpenCode frontmatter merge + Cursor stub generation);
   **`sandbox subagents materialize --package … --root …`** copies the manifest and
   missing prompts into sibling checkouts (`governance/subagents/` on mailroom-dev).
+- **`sandbox subagents propagate`** + [`config/subagents/checkout-map.yaml`](config/subagents/checkout-map.yaml)
+  — materialize + sync all mapped checkouts; monorepo hook
+  [`scripts/monorepo/after_packages_sync.py`](scripts/monorepo/after_packages_sync.py)
+  (wire via [`scripts/monorepo/INTEGRATION.md`](scripts/monorepo/INTEGRATION.md)).
 - Docs: [`docs/subagents-family-sync.md`](docs/subagents-family-sync.md).
 - Tests: `tests/test_subagents.py`.
 

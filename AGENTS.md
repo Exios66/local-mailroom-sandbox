@@ -89,7 +89,8 @@ sandbox run preflight|start|status|resume|cancel|list --config config/runs/<name
 sandbox prompts list|show <agent>     # all pipeline agent prompts (local + Langfuse)
 sandbox subagents list|show <id>      # coding subagent roster (GEPA, traces, meta)
 sandbox subagents sync --harness all  # OpenCode frontmatter + .cursor/agents/ stubs
-sandbox subagents materialize --package mailroom-dev --root <path>  # family manifest export
+sandbox subagents propagate              # materialize + sync all mapped family checkouts
+sandbox subagents materialize --package mailroom-dev --root <path>  # single-checkout export
 sandbox metrics compare --runs local,modal,api   # serving metrics comparison
 # SANDBOX_DEBUG=1 → set -x + results/run.log diagnostics (CHTC/Modal, DMR-053)
 ```
