@@ -146,7 +146,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--from-log",
         action="store_true",
         dest="from_log",
-        help="For local_vs_api: compare experiment_log.jsonl instead of serving fixtures",
+        help="For local_vs_api / sorter_vs_modernbert: compare experiment_log.jsonl instead of fixtures",
     )
     p.set_defaults(handler=_cmd_eval)
 
@@ -233,6 +233,11 @@ def build_parser() -> argparse.ArgumentParser:
     mcomp = metrics_sub.add_parser("compare", parents=[shared])
     mcomp.add_argument("--runs", default="", help="comma-separated run-ids")
     mcomp.add_argument("--log", action="store_true", help="read experiments from the log instead")
+    mcomp.add_argument(
+        "--sorter-vs-modernbert",
+        action="store_true",
+        help="compare LLM sorter vs ModernBERT (fixtures, or --runs sorter,modernbert)",
+    )
     mcomp.add_argument("--json", action="store_true")
     mcomp.set_defaults(handler=_cmd_metrics_compare)
     mp.set_defaults(handler=_cmd_metrics_help)
@@ -801,6 +806,12 @@ def _cmd_eval(args: argparse.Namespace) -> int:
             from_log=bool(getattr(args, "from_log", False)),
             **kwargs,
         )
+    elif args.task == "sorter_vs_modernbert":
+        result = runners.run_sorter_vs_modernbert_eval(
+            prompt_version=args.prompt,
+            from_log=bool(getattr(args, "from_log", False)),
+            **kwargs,
+        )
     elif args.task == "legalbench":
         result = runners.run_legalbench_eval(**kwargs)
     else:
@@ -1272,12 +1283,18 @@ def _cmd_prompts_show(args) -> int:
 
 
 def _cmd_metrics_help(args):
-    print("Use: sandbox metrics compare --runs a,b[,c] | --log")
+    print(
+        "Use: sandbox metrics compare --runs a,b[,c] | --log | "
+        "--sorter-vs-modernbert [--runs sorter,modernbert]"
+    )
     return 0
 
 
 def _cmd_metrics_compare(args) -> int:
     from mailroom_sandbox.job import metrics
+
+    if getattr(args, "sorter_vs_modernbert", False):
+        return _cmd_metrics_sorter_vs_modernbert(args)
 
     records = []
     if getattr(args, "log", False):
@@ -1303,6 +1320,9 @@ def _cmd_metrics_compare(args) -> int:
                 return 1
             lock = store.read_lock() or {}
             items = store.load_items()
+            engine = lock.get("engine") or {}
+            modal = (engine.get("modal") or {}) if isinstance(engine, dict) else {}
+            gpu = str(modal.get("gpu") or "").split(":")[0] or None
             rec = metrics.record_from_run(
                 run_id=run_id,
                 spec_hash=store.spec_hash() or "",
@@ -1312,9 +1332,91 @@ def _cmd_metrics_compare(args) -> int:
                 prompt_version=str((lock.get("prompt") or {}).get("default", {}).get("source") or "code-default"),
                 dataset_fingerprint=(lock.get("dataset") or {}).get("sha256", "") or "",
                 items=items,
+                gpu=gpu,
             )
             records.append(rec)
     result = metrics.compare(records)
+    if getattr(args, "json", False):
+        _print(result)
+    else:
+        print(result.get("markdown", ""))
+    return 0
+
+
+def _cmd_metrics_sorter_vs_modernbert(args) -> int:
+    """Compare LLM sorter vs ModernBERT from fixtures or two run stores."""
+    from mailroom_sandbox.datasets import load_sorter_vs_modernbert_fixtures
+    from mailroom_sandbox.job import metrics
+
+    def _scores_from_items(items: list) -> dict | None:
+        pairs = [
+            (str(i.get("expected") or ""), str(i.get("predicted") or ""))
+            for i in items
+            if i.get("ok", True) is not False and i.get("predicted") not in (None, "")
+        ]
+        if not pairs:
+            return None
+        from mailroom_sandbox.eval import scoring as sc
+
+        return sc.score_classification([e for e, _ in pairs], [p for _, p in pairs])
+
+    run_ids = [x.strip() for x in getattr(args, "runs", "").split(",") if x.strip()]
+    if len(run_ids) >= 2:
+        from mailroom_sandbox.job.checkpoint import RunStore
+        from mailroom_sandbox.job.spec import run_dir
+
+        stores = []
+        for run_id in run_ids[:2]:
+            store = RunStore(run_dir(run_id))
+            if not store.lock_path.is_file():
+                print(
+                    f"error: run {run_id!r} has no lock — refusing sorter vs ModernBERT compare",
+                    file=sys.stderr,
+                )
+                return 1
+            lock = store.read_lock() or {}
+            engine = lock.get("engine") or {}
+            modal = (engine.get("modal") or {}) if isinstance(engine, dict) else {}
+            gpu = str(modal.get("gpu") or "").split(":")[0] or None
+            items = store.load_items()
+            stores.append(
+                metrics.record_from_run(
+                    run_id=run_id,
+                    spec_hash=store.spec_hash() or "",
+                    task=lock.get("task", "sorter"),
+                    profile=lock.get("profile", "?"),
+                    model=(engine.get("model") if isinstance(engine, dict) else None) or "?",
+                    prompt_version=str(
+                        (lock.get("prompt") or {}).get("default", {}).get("source") or "code-default"
+                    ),
+                    dataset_fingerprint=(lock.get("dataset") or {}).get("sha256", "") or "",
+                    items=items,
+                    scores=_scores_from_items(items),
+                    gpu=gpu,
+                )
+            )
+        # Heuristic: modernbert-tagged profile/model second, else order as given.
+        left, right = stores[0], stores[1]
+        right_blob = f"{right.get('profile')}{right.get('model')}{right.get('serving_kind')}".lower()
+        if "modernbert" in right_blob or "bert" in right_blob:
+            sorter_rec, mb_rec = left, right
+        elif "modernbert" in f"{left.get('profile')}{left.get('model')}".lower():
+            sorter_rec, mb_rec = right, left
+        else:
+            sorter_rec, mb_rec = left, right
+    else:
+        fixtures = load_sorter_vs_modernbert_fixtures()
+        sorter_rec = fixtures.get("sorter") or {}
+        mb_rec = fixtures.get("modernbert") or {}
+        if not sorter_rec or not mb_rec:
+            print(
+                "error: sorter_vs_modernbert fixtures missing — expected "
+                "data/fixtures/serving/sorter_vs_modernbert.json",
+                file=sys.stderr,
+            )
+            return 1
+
+    result = metrics.compare_sorter_vs_modernbert(sorter_rec, mb_rec)
     if getattr(args, "json", False):
         _print(result)
     else:

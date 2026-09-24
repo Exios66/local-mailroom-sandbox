@@ -181,13 +181,35 @@ documented follow-up.
 
 `job/metrics.py` builds dojo-compatible serving records from run stores:
 
+- per-item (`items.jsonl`): `latency_ms`, and when the live OpenAI-compatible
+  response exposes usage — `prompt_tokens`, `completion_tokens`, `llm_calls`;
+  `ttft_ms` only when recorded (never inferred from e2e);
 - per-run: n, mean e2e/ttft, prompt/completion tokens, tokens/s, `model`
-  price from `price_for`, and `estimated_cost_usd` when the price table
-  knows the model;
+  price from `price_for` / sandbox champion table, `estimated_cost_usd` +
+  `cost_per_document` when the price table knows the model;
+- Modal / vLLM GPU attribution: `gpu_seconds` × configurable L4 rate
+  (default ≈ `$0.80/hr`, env `MODAL_GPU_USD_PER_HOUR` /
+  `MODAL_GPU_USD_PER_SEC`) → `estimated_gpu_cost_usd` +
+  `gpu_cost_per_document`. Prefer `MODAL_BILLED_GPU_SECONDS` when you have a
+  warm billed window; else sum of ok-item `latency_ms` (busy-time lower bound).
+  Missing tokens/GPU seconds omit the $ fields (loud warning) — never silent `$0`;
 - `sandbox metrics compare` buckets by profile (`local`/`modal`/`api`),
-  aggregates each bucket, computes deltas vs API (latency, tt, throughput,
-  cost), runs dojo `compare_serving` pairwise (local↔api, modal↔api), and
-  prints a markdown table.
+  aggregates each bucket, computes deltas vs API (latency, ttft, throughput,
+  token $, GPU $), runs dojo `compare_serving` pairwise (local↔api,
+  modal↔api, local↔modal), and prints a markdown table.
+
+### Sorter vs ModernBERT
+
+```bash
+sandbox eval sorter_vs_modernbert --mock
+sandbox metrics compare --sorter-vs-modernbert
+sandbox metrics compare --sorter-vs-modernbert --runs <sorter-run>,<modernbert-run>
+```
+
+Fixtures: `data/fixtures/serving/sorter_vs_modernbert.json`. Compares
+accuracy / F1 / latency / `$/doc` between the LLM sorter and the trained
+ModernBERT ingest classifier (mailroom-ml / Corpus-EDA). Does not load
+weights — supply scored records or use the mock fixtures.
 
 TTFT is only populated when a run records it (never inferred from e2e).
 Document-pipeline eval traces stay on the Langfuse SDK path (family

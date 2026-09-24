@@ -52,7 +52,7 @@ def test_run_job_mock_completes(tmp_path):
     assert summary["state"] == "done"
     assert summary["cursor"] == 3 and summary["ok"] == 3
     items = store.load_items()
-    assert [i["index"] for i in items] == [0, 1, 2]
+    assert sorted(i["index"] for i in items) == [0, 1, 2]
     assert summary["scores"]["exact_match"] == 1.0
 
 
@@ -171,7 +171,7 @@ def test_run_job_concurrent_fail_fast_stops_scheduling(tmp_path, monkeypatch):
         if row.get("id") == "d0":
             raise RuntimeError("boom")
         cls = "contract" if str(row.get("id")) in {"d1", "d3"} else "insurance_claim"
-        return cls, True
+        return cls, {}
 
     monkeypatch.setattr(runner, "_predict_row", _boom_predict)
     summary = runner.run_job(store, mock=None)

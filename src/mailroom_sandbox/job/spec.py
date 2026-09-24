@@ -317,7 +317,16 @@ def known_tasks() -> tuple[str, ...]:
     and a ``sandbox run`` whole-run task. No cycle: ``eval.agents`` does not
     import ``job.spec``.
     """
-    base = ("sorter", "legalbench", "pipeline", "extract", "chained", "local_vs_api", "isolated")
+    base = (
+        "sorter",
+        "legalbench",
+        "pipeline",
+        "extract",
+        "chained",
+        "local_vs_api",
+        "sorter_vs_modernbert",
+        "isolated",
+    )
     try:
         from mailroom_sandbox.eval.agents import SPECS
 

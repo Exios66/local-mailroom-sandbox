@@ -18,11 +18,15 @@ from mailroom_sandbox.eval import runners as eval_runners  # noqa: F401
 from mailroom_sandbox.job.checkpoint import RunStore, utc_now
 from mailroom_sandbox.job.metrics import record_from_run
 from mailroom_sandbox.job.otel import job_span
+from mailroom_sandbox.job.usage_capture import (
+    merge_item_metrics,
+    usage_from_pipeline,
+)
 
 _log = logging.getLogger("mailroom_sandbox.job.runner")
 
 PER_ITEM_TASKS = ("sorter", "legalbench")
-_WHOLE_RUN_TASKS = ("pipeline", "extract", "chained", "local_vs_api", "isolated")
+_WHOLE_RUN_TASKS = ("pipeline", "extract", "chained", "local_vs_api", "sorter_vs_modernbert", "isolated")
 
 # DMR-056: every registered isolated agent (SPECS in eval/agents.py) is also a
 # runnable whole-run job task — registering a new AgentSpec is the ONE-file
@@ -73,10 +77,16 @@ def _predict_row(
     mock: bool,
     model: str | None,
     run_id: str | None = None,
-) -> tuple[Any, bool]:
+) -> tuple[Any, dict[str, Any]]:
+    """Run one row; return ``(prediction, item_metrics)``.
+
+    ``item_metrics`` carries ``prompt_tokens`` / ``completion_tokens`` /
+    ``llm_calls`` when the live path recorded OpenAI-compatible usage.
+    TTFT is never inferred here (streaming-only); leave it absent.
+    """
     if task == "sorter":
         if mock:
-            return eval_runners._classify_mock(row), True
+            return eval_runners._classify_mock(row), {}
         # DMR-072 live-or-loud: the unactivated graph falls through to
         # doc_type="unknown" WITHOUT touching the LLM (the vendored default
         # config resolves providers that don't exist here) — that is not a
@@ -99,11 +109,12 @@ def _predict_row(
                 f"(got {doc_type!r}) — refusing to score a dead live path as "
                 f"'unknown' (recorded ok=True would lie)"
             )
-        return doc_type, True
+        return doc_type, usage_from_pipeline()
     if task == "legalbench":
         if mock:
-            return eval_runners._mock_legalbench_answer(row), True
-        return eval_runners._live_legalbench_answer(row, model=model), True
+            return eval_runners._mock_legalbench_answer(row), {}
+        answer, usage = eval_runners._live_legalbench_answer_with_usage(row, model=model)
+        return answer, usage
     raise ValueError(f"task {task!r} is not a per-item task in v1")
 
 
@@ -200,6 +211,8 @@ def _run_whole_run(
             result = eval_runners.run_chained_eval(rows=locked_rows, **kwargs)
         elif task == "local_vs_api":
             result = eval_runners.run_local_vs_api_eval(**kwargs)
+        elif task == "sorter_vs_modernbert":
+            result = eval_runners.run_sorter_vs_modernbert_eval(**kwargs)
         elif task == "isolated":
             # Historical alias: `isolated` runs the sorter spec (docs/jobs.md).
             result = eval_runners.run_isolated_eval("sorter", rows=locked_rows, **kwargs)
@@ -341,6 +354,17 @@ def _apply_prompt_overrides(store: RunStore) -> None:
         )
 
 
+def _lock_gpu(store: RunStore) -> str | None:
+    """Modal GPU class from the lock's engine.modal block (e.g. ``L4``)."""
+    engine = (store.read_lock() or {}).get("engine") or {}
+    if not isinstance(engine, dict):
+        return None
+    modal = engine.get("modal") or {}
+    if isinstance(modal, dict) and modal.get("gpu"):
+        return str(modal["gpu"]).split(":")[0]
+    return None
+
+
 def _build_record(
     store: RunStore, task: str, model: str | None, scores: dict[str, Any], *, mock: bool
 ) -> dict[str, Any]:
@@ -360,6 +384,8 @@ def _build_record(
         dataset_fingerprint=_fingerprint(store),
         items=store.load_items(),
         scores=scores or None,
+        gpu=_lock_gpu(store),
+        mock=bool(mock),
     )
     record["experiment_name"] = f"sandbox_{task}_{store.run_id}"
     record["mock"] = bool(mock)
@@ -452,29 +478,42 @@ def run_job(
     retries = _max_retries(store)
     fail_fast = _fail_fast(store)
 
-    def _attempt(index: int) -> tuple[Any, str | None, float]:
-        """Run one row (with retries) and return (value, error, latency_ms)."""
+    def _attempt(index: int) -> tuple[Any, str | None, float, dict[str, Any]]:
+        """Run one row (with retries); return (value, error, latency_ms, usage)."""
         row = rows[index]
-        item_id = str(row.get("id") or row.get("filename") or index)
         started = time.perf_counter()
         value: Any = None
         error: str | None = None
+        usage: dict[str, Any] = {}
         with job_span(tracer, "job.item", item_index=str(index), task=task):
             attempt = 0
             while attempt < retries + 1:
                 attempt += 1
                 try:
-                    value, _ = _predict_row(task, row, mock=mock, model=model, run_id=store.run_id)
+                    value, usage = _predict_row(
+                        task, row, mock=mock, model=model, run_id=store.run_id
+                    )
+                    if not isinstance(usage, dict):
+                        # Back-compat for test monkeypatches that still return
+                        # the old ``(value, ok: bool)`` shape.
+                        usage = {}
                     error = None
                     break
                 except Exception as exc:  # noqa: BLE001
                     error = f"{type(exc).__name__}: {str(exc)[:512]}"
+                    usage = {}
                     if attempt <= retries:
                         time.sleep(0.2)
         latency_ms = round((time.perf_counter() - started) * 1000.0, 3)
-        return value, error, latency_ms
+        return value, error, latency_ms, usage
 
-    def _record(index: int, value: Any, error: str | None, latency_ms: float) -> bool:
+    def _record(
+        index: int,
+        value: Any,
+        error: str | None,
+        latency_ms: float,
+        usage: dict[str, Any] | None = None,
+    ) -> bool:
         """Persist one result (always from the calling thread) and return ok.
 
         The main thread owns every RunStore write in BOTH the serial and the
@@ -493,19 +532,27 @@ def run_job(
             last_error_item = item_id
         done_count += 1
         predicted[index] = str(value) if value is not None else ""
-        store.append_item(
-            {
-                "item_id": item_id,
-                "index": index,
-                "expected": _expected_for(task, row),
-                "predicted": predicted[index],
-                "ok": ok,
-                "error": error,
-                "latency_ms": latency_ms,
-                "trace_id": "",
-                "ts": utc_now(),
-            }
+        item: dict[str, Any] = {
+            "item_id": item_id,
+            "index": index,
+            "expected": _expected_for(task, row),
+            "predicted": predicted[index],
+            "ok": ok,
+            "error": error,
+            "trace_id": "",
+            "ts": utc_now(),
+        }
+        item.update(
+            merge_item_metrics(latency_ms=latency_ms, usage=usage or {})
         )
+        if not mock and ok and not item.get("prompt_tokens") and not item.get("completion_tokens"):
+            _log.warning(
+                "item %s ok but recorded 0 tokens — estimated_cost_usd will be "
+                "absent for this run unless other items carry usage (live "
+                "OpenAI-compatible responses must expose usage.prompt_tokens)",
+                item_id,
+            )
+        store.append_item(item)
         store.append_event(
             "item_" + ("done" if ok else "failed"), "info" if ok else "warn", index=index, item_id=item_id
         )
@@ -541,8 +588,8 @@ def run_job(
     concurrency = _concurrency(store)
     if concurrency <= 1:
         for index in pending:
-            value, error, latency_ms = _attempt(index)
-            _record(index, value, error, latency_ms)
+            value, error, latency_ms, usage = _attempt(index)
+            _record(index, value, error, latency_ms, usage)
             if fail_fast and error is not None:
                 return _fail_fast_failed()
     else:
@@ -576,10 +623,15 @@ def run_job(
                 for fut in done:
                     index = futures.pop(fut)
                     try:
-                        value, error, latency_ms = fut.result()
+                        value, error, latency_ms, usage = fut.result()
                     except Exception as exc:  # noqa: BLE001 — never drop a row
-                        value, error, latency_ms = None, f"{type(exc).__name__}: {str(exc)[:512]}", 0.0
-                    ok = _record(index, value, error, latency_ms)
+                        value, error, latency_ms, usage = (
+                            None,
+                            f"{type(exc).__name__}: {str(exc)[:512]}",
+                            0.0,
+                            {},
+                        )
+                    ok = _record(index, value, error, latency_ms, usage)
                     if fail_fast and not ok:
                         # Stop SCHEDULING new rows; in-flight requests still
                         # finish and persist (their GPU work is already spent).

@@ -25,3 +25,8 @@ for offline transcriber / image-extractor wiring tests, not the CUAD pilot.
 `serving/local_vs_api.json` is a **synthetic** timing pair for the dojo
 `get_suite("local_vs_api")` smoke (Ollama vs OpenRouter identity). Values are
 not live measurements; GPU/KV fields are local-only.
+
+`serving/sorter_vs_modernbert.json` is a **synthetic** LLM-sorter vs trained
+ModernBERT accuracy/latency/cost pair for `sandbox eval sorter_vs_modernbert
+--mock` / `sandbox metrics compare --sorter-vs-modernbert`. Not live
+measurements; ModernBERT `$/doc` uses the mailroom-ml ONNX-CPU floor.
