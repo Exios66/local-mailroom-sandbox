@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Added — Modal/vLLM ↔ dojo cost-compare metrics parity (SAND-016)
+
+- **`sandbox metrics compare --fixture`** scores the Grant-style local /
+  Modal / API triple (`data/fixtures/serving/cost_compare.json`) through
+  both sandbox `job.metrics.compare` and vendored
+  `get_suite("local_vs_api")` / `compare_serving` (no GPU).
+- Adapter `mailroom_sandbox.eval.serving_parity` converts `latency_ms` /
+  `ttft_ms`, stamps champion token $ for `Qwen/Qwen3-8B`, and keeps
+  `serving_kind=modal` out of the local bucket (`eval local_vs_api --from-log`
+  now compares Modal↔API).
+- Three-way `$/doc` aggregation uses 8 decimal places (4 dp previously
+  rounded Grant token-proxy rates to 0).
+
 ### Added — full Hub corpus cache + per-class Modal samples (2026-09-24)
 
 - **`sandbox datasets pull`** defaults to the full

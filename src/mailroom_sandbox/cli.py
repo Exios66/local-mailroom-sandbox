@@ -271,6 +271,11 @@ def build_parser() -> argparse.ArgumentParser:
     mcomp.add_argument("--runs", default="", help="comma-separated run-ids")
     mcomp.add_argument("--log", action="store_true", help="read experiments from the log instead")
     mcomp.add_argument(
+        "--fixture",
+        action="store_true",
+        help="offline Grant-style local/Modal/API cost-compare fixture (no GPU)",
+    )
+    mcomp.add_argument(
         "--sorter-vs-modernbert",
         action="store_true",
         help="compare LLM sorter vs ModernBERT (fixtures, or --runs sorter,modernbert)",
@@ -1761,7 +1766,7 @@ def _cmd_prompts_show(args) -> int:
 
 def _cmd_metrics_help(args):
     print(
-        "Use: sandbox metrics compare --runs a,b[,c] | --log | "
+        "Use: sandbox metrics compare --runs a,b[,c] | --log | --fixture | "
         "--sorter-vs-modernbert [--runs sorter,modernbert]\n"
         "     sandbox metrics extrapolate --run <id> [--corpus-size N] "
         "[--docs-per-day D]\n"
@@ -1917,6 +1922,21 @@ def _cmd_metrics_compare(args) -> int:
 
     if getattr(args, "sorter_vs_modernbert", False):
         return _cmd_metrics_sorter_vs_modernbert(args)
+
+    if getattr(args, "fixture", False):
+        from mailroom_sandbox.datasets import load_cost_compare_fixtures
+        from mailroom_sandbox.eval.serving_parity import score_cost_compare
+
+        fixtures = load_cost_compare_fixtures()
+        if not any(fixtures.get(k) for k in ("local", "modal", "api")):
+            print("error: cost-compare fixture missing or empty", file=sys.stderr)
+            return 1
+        result = score_cost_compare(fixtures)
+        if getattr(args, "json", False):
+            _print(result)
+        else:
+            print(result.get("markdown", ""))
+        return 0 if result.get("parity_ok") else 2
 
     records = []
     if getattr(args, "log", False):

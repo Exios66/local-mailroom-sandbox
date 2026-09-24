@@ -396,8 +396,9 @@ def aggregate_bucket(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         "tokens_per_s": round((prom + comp) / dur, 2) if dur else None,
         "estimated_cost_usd": round(sum(cost), 6) if cost else None,
         "estimated_gpu_cost_usd": round(sum(gpu_cost), 6) if gpu_cost else None,
-        "mean_cost_per_document": _mean(cpd),
-        "mean_gpu_cost_per_document": _mean(gcpd),
+        # 8 dp — Grant token-proxy $/doc is ~1e-5; _mean's 4 dp rounded it to 0.
+        "mean_cost_per_document": round(statistics.mean(cpd), 8) if cpd else None,
+        "mean_gpu_cost_per_document": round(statistics.mean(gcpd), 8) if gcpd else None,
     }
 
 
@@ -626,6 +627,10 @@ def _sorter_vs_modernbert_md(
     return "\n".join(lines)
 
 
+def _cell(value: Any) -> str:
+    return "-" if value is None else str(value)
+
+
 def _markdown(summary: dict[str, Any], deltas: dict[str, Any], pairs: dict[str, Any]) -> str:
     lines = ["## Serving metrics (local vs Modal vs API)", ""]
     header = (
@@ -638,18 +643,18 @@ def _markdown(summary: dict[str, Any], deltas: dict[str, Any], pairs: dict[str, 
         if not agg:
             continue
         lines.append(
-            f"| {kind} | {agg['n']} | {agg['mean_e2e_s'] or '-'} | "
-            f"{agg['mean_ttft_s'] or '-'} | {agg['tokens_per_s'] or '-'} | "
-            f"{agg['total_tokens'] or '-'} | {agg['estimated_cost_usd'] or '-'} | "
-            f"{agg.get('estimated_gpu_cost_usd') or '-'} | "
-            f"{agg.get('mean_cost_per_document') or '-'} |"
+            f"| {kind} | {agg['n']} | {_cell(agg['mean_e2e_s'])} | "
+            f"{_cell(agg['mean_ttft_s'])} | {_cell(agg['tokens_per_s'])} | "
+            f"{_cell(agg['total_tokens'])} | {_cell(agg['estimated_cost_usd'])} | "
+            f"{_cell(agg.get('estimated_gpu_cost_usd'))} | "
+            f"{_cell(agg.get('mean_cost_per_document'))} |"
         )
     lines.append("")
     lines.append("### Delta vs API (%)")
     lines.append("| metric | local | modal |")
     lines.append("| --- | --- | --- |")
     for metric, d in deltas.items():
-        lines.append(f"| {metric} | {d.get('local') or '-'} | {d.get('modal') or '-'} |")
+        lines.append(f"| {metric} | {_cell(d.get('local'))} | {_cell(d.get('modal'))} |")
     for name, pair in pairs.items():
         md = pair.get("markdown") if isinstance(pair, dict) else None
         if md:

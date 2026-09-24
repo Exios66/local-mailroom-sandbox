@@ -249,7 +249,9 @@ def test_compare_includes_gpu_cost_columns():
     ]
     result = metrics.compare(records)
     assert result["buckets"]["modal"]["estimated_gpu_cost_usd"] == pytest.approx(0.05)
+    assert result["buckets"]["modal"]["mean_cost_per_document"] == pytest.approx(0.001)
     assert "est. GPU $" in result["markdown"]
+    assert "0.001" in result["markdown"]
 
 
 def test_extrapolate_cost_linear_and_industry():
