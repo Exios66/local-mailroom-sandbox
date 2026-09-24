@@ -203,6 +203,12 @@ documented follow-up.
   aggregates each bucket, computes deltas vs API (latency, ttft, throughput,
   token $, GPU $), runs dojo `compare_serving` pairwise (local↔api,
   modal↔api, local↔modal), and prints a markdown table.
+- Offline Grant-style parity (no Modal secret):
+  `sandbox metrics compare --fixture`. Adapter
+  (`mailroom_sandbox.eval.serving_parity`) converts `latency_ms`/`ttft_ms`,
+  stamps champion token $ for `Qwen/Qwen3-8B`, and checks sandbox rows
+  against `get_suite("local_vs_api")`. Dojo still remaps identity
+  `serving_kind=modal` → `local` (two-bucket suite); GPU $ stays sandbox-only.
 
 ### Sorter vs ModernBERT
 
