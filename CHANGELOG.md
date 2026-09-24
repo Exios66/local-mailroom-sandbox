@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Added — DMR-077 two-operator specialist tracks (2026-09-23)
+
+- **Suite manifests** under `config/runs/suites/`: `track-a` (contracts →
+  corporate_records → correspondence), `track-b` (merger → insurance_claims),
+  and `full` (single-operator five-run alternative). Separate Modal accounts
+  via `SANDBOX_MODAL_PROFILE_TRACK_A` / `_TRACK_B` (Hermes default on A only).
+- **CLI:** `sandbox run suite --suite track-a|track-b|full` (runbook /
+  `--print-loop` / `--check` / `--execute`); `sandbox metrics estimate-suite
+  --suite …`; `sandbox run benchmark-check --suite …`.
+- **Docs:** two-operator runbook in `docs/benchmark-l4.md` + `.env.example`
+  profile-name placeholders (no secrets). Spend posture unchanged: scaledown
+  120, c=4, L4, max_containers=1, warm-once per track.
+
 ### Added — DMR-076 cut-spend specialist suite (2026-09-23)
 
 - **Attended scaledown 120s** pinned in all five `run-30-*-specialist.yaml`

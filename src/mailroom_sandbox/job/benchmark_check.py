@@ -4,8 +4,9 @@ Fails closed when the Modal account / GPU posture / pins look wrong so a
 cold-start tomorrow morning does not burn credits on a misconfigured deploy.
 No secrets are printed — only profile names and path presence.
 
-Spend posture (DMR-076): scaledown 120 attended, one warm app for all five
-runs, local specialist prompt pins, limit 30. AWQ is optional only.
+Spend posture (DMR-076/077): scaledown 120 attended, one warm app per track
+(or all five for single-operator full), local specialist prompt pins, limit 30.
+AWQ is optional only. Two-operator tracks use separate Modal accounts.
 """
 
 from __future__ import annotations
@@ -124,20 +125,28 @@ def check_benchmark_posture(
     spec: RunSpec | None = None,
     require_hermes: bool = True,
     require_modernbert: bool = False,
+    expected_modal_profile: str | None = None,
 ) -> dict[str, Any]:
     """Inventory Ready / Missing / Blocked for L4 Qwen specialist runs.
 
     ``ok`` is True only when there are zero ``errors`` (warnings allowed).
+
+    ``expected_modal_profile`` (DMR-077): when set, the active Modal profile
+    must match that name (Track B second account, or an explicit override).
+    When unset and ``require_hermes``, Hermes ``hermes-agent-jjb`` is required.
     """
     errors: list[str] = []
     warnings: list[str] = []
+    expected_profile = (expected_modal_profile or "").strip() or None
     checks: dict[str, Any] = {
         "expected": dict(BENCHMARK_EXPECTED),
         "family_corpus_size": FAMILY_CORPUS_SIZE,
         "hermes_profile_name": HERMES_MODAL_PROFILE,
+        "expected_modal_profile": expected_profile,
         "spend_posture": {
             "warm_app_once": True,
-            "teardown_only_after_fifth": True,
+            "teardown_only_after_last_in_track": True,
+            "teardown_only_after_fifth": True,  # full-suite synonym
             "scaledown_seconds_attended": BENCHMARK_EXPECTED["scaledown_seconds"],
             "scaledown_seconds_unattended": 600,
             "awq_default": False,
@@ -152,11 +161,20 @@ def check_benchmark_posture(
     profile = active_modal_profile_name()
     checks["active_modal_profile"] = profile
     if profile is None:
+        hint = expected_profile or HERMES_MODAL_PROFILE
         errors.append(
             "~/.modal.toml missing or has no active profile — run "
-            f"`modal profile activate {HERMES_MODAL_PROFILE}` "
-            "(Hermes Agent Gmail account)"
+            f"`modal profile activate {hint}` "
+            "(never commit tokens; ~/.modal.toml stays local)"
         )
+    elif expected_profile is not None:
+        if profile != expected_profile:
+            errors.append(
+                f"active Modal profile is {profile!r}, expected "
+                f"{expected_profile!r} for this suite/track — "
+                f"`modal profile activate {expected_profile}` "
+                "(do not share one Modal token across operators)"
+            )
     elif require_hermes and profile != HERMES_MODAL_PROFILE:
         errors.append(
             f"active Modal profile is {profile!r}, expected Hermes "
@@ -389,9 +407,9 @@ def _format_md(
         f"## Benchmark preflight — {'READY' if ok else 'BLOCKED'}",
         "",
         f"- Modal profile: `{checks.get('active_modal_profile')}` "
-        f"(Hermes expected: `{checks.get('hermes_profile_name')}`)",
+        f"(expected: `{checks.get('expected_modal_profile') or checks.get('hermes_profile_name')}`)",
         f"- Family corpus size pin: {checks.get('family_corpus_size')}",
-        f"- Spend: one warm app → five runs → teardown after fifth; "
+        f"- Spend: one warm app → chain track configs → teardown after last; "
         f"scaledown attended={spend.get('scaledown_seconds_attended')}s "
         f"(unattended restore {spend.get('scaledown_seconds_unattended')}s); "
         f"AWQ default={spend.get('awq_default')}",
@@ -420,3 +438,91 @@ def _format_md(
         lines += ["", "### Warnings"]
         lines.extend(f"- {w}" for w in warnings)
     return "\n".join(lines)
+
+
+def check_suite_benchmark_posture(
+    suite_name: str,
+    *,
+    require_hermes: bool = True,
+    require_modernbert: bool = False,
+) -> dict[str, Any]:
+    """Run benchmark-check for every config in a suite track (DMR-077).
+
+    Profile gate uses the suite's resolved Modal profile (Track A → Hermes
+    default; Track B → ``SANDBOX_MODAL_PROFILE_TRACK_B``). Per-config checks
+    still enforce L4 / scaledown 120 / concurrency 4 / local prompts.
+    """
+    from mailroom_sandbox.job.spec import load_run_spec
+    from mailroom_sandbox.job.suite import load_suite
+
+    suite = load_suite(suite_name)
+    expected = suite.resolve_modal_profile()
+    if expected is None and suite.modal_profile_env:
+        return {
+            "ok": False,
+            "suite_id": suite.suite_id,
+            "track": suite.track,
+            "errors": [
+                f"Modal profile unset — export {suite.modal_profile_env}=<profile> "
+                "or set modal_profile_default in the suite YAML "
+                "(never commit token values)"
+            ],
+            "configs": [],
+            "markdown": (
+                f"## Suite benchmark-check — BLOCKED\n\n"
+                f"- suite: `{suite.suite_id}` track=`{suite.track}`\n"
+                f"- set `{suite.modal_profile_env}` then re-run\n"
+            ),
+        }
+
+    # When suite pins a non-Hermes profile, do not also require Hermes.
+    use_hermes = bool(require_hermes) and (
+        expected is None or expected == HERMES_MODAL_PROFILE
+    )
+    config_reports: list[dict[str, Any]] = []
+    all_errors: list[str] = []
+    for cfg in suite.configs:
+        spec = load_run_spec(cfg)
+        report = check_benchmark_posture(
+            spec=spec,
+            require_hermes=use_hermes,
+            require_modernbert=require_modernbert,
+            expected_modal_profile=expected,
+        )
+        config_reports.append(
+            {
+                "config": str(cfg),
+                "run_id": spec.run_id,
+                "ok": report.get("ok"),
+                "errors": list(report.get("errors") or []),
+                "warnings": list(report.get("warnings") or []),
+            }
+        )
+        for err in report.get("errors") or []:
+            all_errors.append(f"{spec.run_id}: {err}")
+
+    ok = len(all_errors) == 0 and all(r.get("ok") for r in config_reports)
+    lines = [
+        f"## Suite benchmark-check — {'READY' if ok else 'BLOCKED'}",
+        "",
+        f"- suite: `{suite.suite_id}` track=`{suite.track}`",
+        f"- expected Modal profile: `{expected}`",
+        f"- configs: {len(config_reports)}",
+        "",
+        "| # | run_id | ok |",
+        "| -: | --- | --- |",
+    ]
+    for i, row in enumerate(config_reports, 1):
+        lines.append(f"| {i} | `{row['run_id']}` | {row['ok']} |")
+    if all_errors:
+        lines += ["", "### Errors"]
+        lines.extend(f"- {e}" for e in all_errors)
+    return {
+        "ok": ok,
+        "suite_id": suite.suite_id,
+        "track": suite.track,
+        "expected_modal_profile": expected,
+        "configs": config_reports,
+        "errors": all_errors,
+        "markdown": "\n".join(lines),
+    }

@@ -3,12 +3,13 @@
 # Test split has only ~17 mergers — MUST use train (135 merger rows at pin).
 #
 # ╔══════════════════════════════════════════════════════════════════════════╗
-# ║ CUT SPEND (DMR-076) — MANDATORY operator posture                         ║
-# ║  1. ONE warm sandbox-vllm app through ALL FIVE specialist runs.          ║
+# ║ CUT SPEND (DMR-076/077) — MANDATORY operator posture                     ║
+# ║  1. ONE warm sandbox-vllm app through YOUR TRACK (or all five if solo).  ║
 # ║  2. Do NOT tear down / redeploy / stop between classes.                  ║
-# ║  3. Teardown ONLY after the fifth: ./deploy/teardown_vllm.sh             ║
+# ║  3. Teardown ONLY after your last: ./deploy/teardown_vllm.sh             ║
 # ║  4. scaledown_seconds: 120 (attended). Unattended/overnight → restore 600║
 # ║  5. Default model: Qwen/Qwen3-8B bf16. AWQ optional (DMR-068 gate).       ║
+# ║  6. Two-operator: sandbox run suite --suite track-a|track-b (DMR-077).   ║
 # ╚══════════════════════════════════════════════════════════════════════════╝
 #
 # Efficient conservative Modal posture: 1×L4, max_containers=1, min_containers=0,

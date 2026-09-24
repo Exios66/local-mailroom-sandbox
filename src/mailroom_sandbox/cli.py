@@ -270,6 +270,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="comma-separated run YAML paths (default: five run-30-*-specialist.yaml)",
     )
     mest.add_argument(
+        "--suite",
+        default="",
+        help="suite id/alias (track-a|track-b|full) — overrides default five; "
+        "see config/runs/suites/",
+    )
+    mest.add_argument(
         "config_paths",
         nargs="*",
         help="optional run YAML paths (positional); overrides default suite when set",
@@ -376,6 +382,11 @@ def _run_parser(sub, shared):
     common.add_argument("--job-mode", dest="mode", choices=["endpoint", "modal"], default=None)
     common.add_argument("--max-items", type=int, default=None)
     common.add_argument(
+        "--suite",
+        default=None,
+        help="suite id/alias (track-a|track-b|full) for suite / benchmark-check",
+    )
+    common.add_argument(
         "--require-hermes",
         action="store_true",
         default=True,
@@ -410,6 +421,32 @@ def _run_parser(sub, shared):
         help="loud Modal L4 Qwen reproducibility gate (Hermes profile, pins)",
     )
     bcheck.set_defaults(handler=_cmd_run_benchmark_check)
+    suite_p = run_sub.add_parser(
+        "suite",
+        parents=[common],
+        help="two-operator / full specialist suite runbook (DMR-077)",
+    )
+    suite_p.add_argument(
+        "--list",
+        action="store_true",
+        help="list suite ids under config/runs/suites/",
+    )
+    suite_p.add_argument(
+        "--check",
+        action="store_true",
+        help="run benchmark-check on every config in the suite",
+    )
+    suite_p.add_argument(
+        "--print-loop",
+        action="store_true",
+        help="print bash preflight+start loop only",
+    )
+    suite_p.add_argument(
+        "--execute",
+        action="store_true",
+        help="chain preflight+start --watch for each config (no teardown)",
+    )
+    suite_p.set_defaults(handler=_cmd_run_suite)
     run.set_defaults(handler=_cmd_run_help)
     return common
 
@@ -1095,25 +1132,36 @@ def _cmd_tunnel_down(args: argparse.Namespace) -> int:
 def _cmd_run_help(args):
     print(
         "Use: sandbox run preflight | start | status | resume | cancel | list | "
-        "benchmark-check  --config <run.yaml>"
+        "benchmark-check | suite  --config <run.yaml> | --suite track-a|track-b|full"
     )
     return 0
 
 
 def _cmd_run_benchmark_check(args) -> int:
-    """Loud Modal L4 Qwen + Hermes profile gate before specialist suite."""
-    from mailroom_sandbox.job.benchmark_check import check_benchmark_posture
+    """Loud Modal L4 Qwen + Modal profile gate before specialist suite."""
+    from mailroom_sandbox.job.benchmark_check import (
+        check_benchmark_posture,
+        check_suite_benchmark_posture,
+    )
     from mailroom_sandbox.job.spec import load_run_spec
 
-    spec = None
-    if getattr(args, "config", None):
-        spec = load_run_spec(args.config)
+    suite_name = (getattr(args, "suite", None) or "").strip()
     require_hermes = not bool(getattr(args, "allow_non_hermes", False))
-    report = check_benchmark_posture(
-        spec=spec,
-        require_hermes=require_hermes,
-        require_modernbert=False,
-    )
+    if suite_name:
+        report = check_suite_benchmark_posture(
+            suite_name,
+            require_hermes=require_hermes,
+            require_modernbert=False,
+        )
+    else:
+        spec = None
+        if getattr(args, "config", None):
+            spec = load_run_spec(args.config)
+        report = check_benchmark_posture(
+            spec=spec,
+            require_hermes=require_hermes,
+            require_modernbert=False,
+        )
     if getattr(args, "json", False):
         _print(report)
     else:
@@ -1122,6 +1170,116 @@ def _cmd_run_benchmark_check(args) -> int:
             print(f"ERROR: {err}", file=sys.stderr)
     return 0 if report.get("ok") else 1
 
+
+def _cmd_run_suite(args) -> int:
+    """Print or execute a two-operator / full specialist suite (DMR-077)."""
+    from mailroom_sandbox.job.suite import (
+        list_suite_ids,
+        load_suite,
+        suite_runbook_md,
+        suite_shell_loop,
+    )
+
+    if getattr(args, "list", False):
+        ids = list_suite_ids()
+        if getattr(args, "json", False):
+            _print({"suites": ids})
+        else:
+            print("Suites (config/runs/suites/):")
+            for sid in ids:
+                print(f"  {sid}")
+            print(
+                "Aliases: track-a|a, track-b|b, full|all "
+                "(see docs/benchmark-l4.md)"
+            )
+        return 0
+
+    suite_name = (getattr(args, "suite", None) or "").strip()
+    if not suite_name:
+        print(
+            "error: pass --suite track-a|track-b|full (or --list)",
+            file=sys.stderr,
+        )
+        return 1
+
+    try:
+        suite = load_suite(suite_name)
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    if getattr(args, "check", False):
+        from mailroom_sandbox.job.benchmark_check import check_suite_benchmark_posture
+
+        require_hermes = not bool(getattr(args, "allow_non_hermes", False))
+        # Track B is intentionally non-Hermes — auto-allow when profile ≠ Hermes.
+        if suite.track == "b":
+            require_hermes = False
+        report = check_suite_benchmark_posture(
+            suite_name,
+            require_hermes=require_hermes,
+            require_modernbert=False,
+        )
+        if getattr(args, "json", False):
+            _print(report)
+        else:
+            print(report.get("markdown", ""))
+            for err in report.get("errors") or []:
+                print(f"ERROR: {err}", file=sys.stderr)
+        return 0 if report.get("ok") else 1
+
+    if getattr(args, "print_loop", False):
+        print(suite_shell_loop(suite, job_mode=getattr(args, "mode", None) or "endpoint"))
+        return 0
+
+    if getattr(args, "execute", False):
+        # Chain each config via the existing start path (no teardown).
+        mode = getattr(args, "mode", None) or "endpoint"
+        for cfg in suite.configs:
+            print(f"=== suite {suite.suite_id}: {cfg} ===", flush=True)
+            ns = argparse.Namespace(**vars(args))
+            ns.config = str(cfg)
+            ns.suite = None
+            ns.mode = mode
+            ns.watch = True
+            ns.live = True if getattr(args, "live", False) else getattr(args, "live", False)
+            # Prefer live when execute unless mock/offline explicitly set.
+            if not getattr(args, "mock", None) and not getattr(args, "offline", False):
+                ns.live = True
+            rc = _cmd_run_start(ns)
+            if rc != 0:
+                print(
+                    f"error: suite stopped after {cfg} (rc={rc}); "
+                    "app left warm — fix and resume, or teardown manually",
+                    file=sys.stderr,
+                )
+                return rc
+        print(
+            f"suite {suite.suite_id} complete — teardown with "
+            "./deploy/teardown_vllm.sh (do not teardown between configs)"
+        )
+        return 0
+
+    if getattr(args, "json", False):
+        _print(
+            {
+                "suite_id": suite.suite_id,
+                "track": suite.track,
+                "title": suite.title,
+                "configs": suite.config_paths_rel(),
+                "scaledown_seconds": suite.scaledown_seconds,
+                "warm_once": suite.warm_once,
+                "modal_profile_env": suite.modal_profile_env,
+                "modal_profile_default": suite.modal_profile_default,
+                "resolved_modal_profile": suite.resolve_modal_profile(),
+                "rationale": suite.rationale,
+                "shell_loop": suite_shell_loop(suite),
+            }
+        )
+        return 0
+
+    print(suite_runbook_md(suite))
+    return 0
 
 def _cmd_modernbert_help(args) -> int:
     print("Use: sandbox modernbert status | eval [--sample N] [--json]")
@@ -1546,8 +1704,8 @@ def _cmd_metrics_help(args):
         "--sorter-vs-modernbert [--runs sorter,modernbert]\n"
         "     sandbox metrics extrapolate --run <id> [--corpus-size N] "
         "[--docs-per-day D]\n"
-        "     sandbox metrics estimate-suite [--configs run-30-….yaml,…] "
-        "[--corpus-size N]"
+        "     sandbox metrics estimate-suite [--suite track-a|track-b|full] "
+        "[--configs run-30-….yaml,…] [--corpus-size N]"
     )
     return 0
 
@@ -1568,14 +1726,30 @@ def _cmd_metrics_estimate_suite(args) -> int:
     from mailroom_sandbox.job.spec import FAMILY_CORPUS_SIZE
 
     paths: list[str] = []
-    raw_configs = (getattr(args, "configs", None) or "").strip()
-    if raw_configs:
-        paths.extend(p.strip() for p in raw_configs.split(",") if p.strip())
-    for p in getattr(args, "config_paths", None) or []:
-        if p and str(p).strip():
-            paths.append(str(p).strip())
-    if not paths:
-        paths = list(_DEFAULT_SPECIALIST_SUITE)
+    suite_name = (getattr(args, "suite", None) or "").strip()
+    if suite_name:
+        from mailroom_sandbox.job.suite import load_suite
+
+        try:
+            suite = load_suite(suite_name)
+        except (FileNotFoundError, ValueError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        paths = [str(p) for p in suite.configs]
+        print(
+            f"# suite={suite.suite_id} track={suite.track} "
+            f"scaledown={suite.scaledown_seconds} configs={len(paths)}",
+            file=sys.stderr,
+        )
+    else:
+        raw_configs = (getattr(args, "configs", None) or "").strip()
+        if raw_configs:
+            paths.extend(p.strip() for p in raw_configs.split(",") if p.strip())
+        for p in getattr(args, "config_paths", None) or []:
+            if p and str(p).strip():
+                paths.append(str(p).strip())
+        if not paths:
+            paths = list(_DEFAULT_SPECIALIST_SUITE)
 
     missing = [p for p in paths if not Path(p).is_file()]
     if missing:
@@ -1603,6 +1777,8 @@ def _cmd_metrics_estimate_suite(args) -> int:
         corpus_size=corpus,
         gen_tok_per_s=getattr(args, "gen_tok_per_s", None),
     )
+    if suite_name:
+        result["suite_ref"] = suite_name
     if getattr(args, "json", False):
         _print(result)
     else:

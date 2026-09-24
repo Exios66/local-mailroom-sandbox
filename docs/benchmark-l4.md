@@ -17,40 +17,174 @@ specialist extract cost extrapolation to the full mailroom-dataset
 | Dataset | `Lucius-Morningstar/mailroom-dataset` @ `46a4d3c240a36671cde0182fff4960f6b8b73aca` |
 | `sample_seed` | `42` |
 | Strata limit | `30` per class (150 docs total) |
-| Modal account | Hermes Agent Gmail profile **`hermes-agent-jjb`** |
+| Modal accounts | **Two operators / two wallets** (DMR-077); Hermes `hermes-agent-jjb` is Track A default |
 
-Run YAMLs: `config/runs/run-30-*-specialist.yaml` (150 docs total).
+Run YAMLs: `config/runs/run-30-*-specialist.yaml` (150 docs total).  
+Suite manifests: `config/runs/suites/run-30-specialists-{track-a,track-b,full}.yaml`.
 
-## CUT SPEND — one warm app (mandatory)
+## Two-operator split (DMR-077 — preferred)
 
-**Deploy once. Run all five classes against the same warm `sandbox-vllm`.
-Teardown only after the fifth.** Do **not** stop / redeploy / tear down
-between classes — that burns four extra scaledown tails.
+Run the five specialists on **two people**, **two warmed 1×L4 apps**, on
+**two separate Modal accounts** (separate credit balances). Each operator
+chains their track on **one** warm app — **no teardown between their
+configs**; teardown only after their last run.
+
+**Never share one Modal token / `~/.modal.toml` profile across people.**
+
+### Chosen partition
+
+| Track | Configs (order) | Likely busy | Likely total (w/ overhead) |
+| --- | --- | --- | --- |
+| **A** (3) | contracts → corporate_records → correspondence | ~42.5 min / ~$0.57 | ~49 min / ~$0.65 |
+| **B** (2) | merger → insurance_claims | ~39.4 min / ~$0.53 | ~44 min / ~$0.59 |
+
+**Why this split:** merger + contracts are the two heaviest (DMR-075
+sec/doc bands). Putting both on one operator stacks ~47.5 min busy;
+instead Track A takes contracts + mid + light, Track B takes merger +
+insurance. Wall/$ stays within ~$0.06 / ~5 min. (Alternative
+merger+insurance+correspondence vs contracts+corporate is less balanced
+on wall.)
+
+Pre-flight:
+
+```bash
+sandbox metrics estimate-suite --suite track-a
+sandbox metrics estimate-suite --suite track-b
+# single-operator alternative still works:
+sandbox metrics estimate-suite --suite full
+```
+
+### Modal profiles (names only — no secrets in git)
+
+| Track | Env (optional override) | Default profile name |
+| --- | --- | --- |
+| A | `SANDBOX_MODAL_PROFILE_TRACK_A` | `hermes-agent-jjb` (Hermes Agent Gmail) |
+| B | `SANDBOX_MODAL_PROFILE_TRACK_B` | **required** — set to the second account’s `modal profile` name |
+
+```bash
+# Operator A
+export SANDBOX_MODAL_PROFILE_TRACK_A=hermes-agent-jjb   # optional; this is the default
+modal profile activate "${SANDBOX_MODAL_PROFILE_TRACK_A:-hermes-agent-jjb}"
+modal profile current   # must print hermes-agent-jjb
+
+# Operator B (separate laptop / separate ~/.modal.toml credentials)
+export SANDBOX_MODAL_PROFILE_TRACK_B=<second-account-profile-name>
+modal profile activate "$SANDBOX_MODAL_PROFILE_TRACK_B"
+modal profile current   # must print that second profile — never Hermes if A uses Hermes
+```
+
+Tokens live only in each operator’s `~/.modal.toml`. Do **not** export
+`MODAL_TOKEN_*` into a shared `.env` or chat.
+
+### Operator A runbook
+
+```bash
+export SANDBOX_PROFILE=modal-vllm
+export MODAL_VLLM_MODEL=Qwen/Qwen3-8B
+export MODAL_VLLM_GPU=L4
+export MODAL_VLLM_IMAGE_TAG=v0.29.0
+export MODAL_VLLM_MAX_CONTAINERS=1
+export MODAL_VLLM_SCALEDOWN_SECONDS=120
+export MODAL_VLLM_API_TOKEN="$(openssl rand -hex 24)"
+
+modal profile activate "${SANDBOX_MODAL_PROFILE_TRACK_A:-hermes-agent-jjb}"
+sandbox run benchmark-check --suite track-a
+modal run deploy/modal_vllm.py::download_model
+modal deploy deploy/modal_vllm.py
+# set VLLM_BASE_URL from deploy output + VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+sandbox cutover --profile modal-vllm
+sandbox health --profile modal-vllm
+
+# Print the ordered loop, or execute it:
+sandbox run suite --suite track-a
+# sandbox run suite --suite track-a --execute --job-mode endpoint
+
+# Equivalent explicit loop (no teardown between):
+for cfg in \
+  config/runs/run-30-contracts-specialist.yaml \
+  config/runs/run-30-corporate-records-specialist.yaml \
+  config/runs/run-30-correspondence-specialist.yaml
+do
+  sandbox run preflight --config "$cfg" --live
+  sandbox run start --config "$cfg" --job-mode endpoint --watch
+done
+
+./deploy/teardown_vllm.sh   # ONLY after correspondence
+```
+
+### Operator B runbook
+
+```bash
+export SANDBOX_PROFILE=modal-vllm
+export MODAL_VLLM_MODEL=Qwen/Qwen3-8B
+export MODAL_VLLM_GPU=L4
+export MODAL_VLLM_IMAGE_TAG=v0.29.0
+export MODAL_VLLM_MAX_CONTAINERS=1
+export MODAL_VLLM_SCALEDOWN_SECONDS=120
+export MODAL_VLLM_API_TOKEN="$(openssl rand -hex 24)"
+export SANDBOX_MODAL_PROFILE_TRACK_B=<second-account-profile-name>
+
+modal profile activate "$SANDBOX_MODAL_PROFILE_TRACK_B"
+sandbox run benchmark-check --suite track-b   # uses Track B profile (not Hermes)
+modal run deploy/modal_vllm.py::download_model
+modal deploy deploy/modal_vllm.py
+sandbox cutover --profile modal-vllm
+sandbox health --profile modal-vllm
+
+sandbox run suite --suite track-b
+# sandbox run suite --suite track-b --execute --job-mode endpoint
+
+for cfg in \
+  config/runs/run-30-merger-specialist.yaml \
+  config/runs/run-30-insurance-claims-specialist.yaml
+do
+  sandbox run preflight --config "$cfg" --live
+  sandbox run start --config "$cfg" --job-mode endpoint --watch
+done
+
+./deploy/teardown_vllm.sh   # ONLY after insurance
+```
+
+### After both tracks finish
+
+```bash
+sandbox metrics extrapolate --run run-30-contracts-specialist --corpus-size 3302 --docs-per-day 10000
+sandbox metrics compare --runs run-30-contracts-specialist,run-30-merger-specialist,run-30-corporate-records-specialist,run-30-correspondence-specialist,run-30-insurance-claims-specialist
+```
+
+## Single-operator full suite (alternative)
+
+When only one Modal wallet is available, keep the original warm-once path
+(`--suite full` / all five configs). Deploy once → five classes → teardown
+after the fifth — same spend posture, longer wall (~1.5× one track).
 
 ```text
 warm deploy ──► contracts ──► merger ──► corporate ──► correspondence
            ──► insurance ──► ./deploy/teardown_vllm.sh
 ```
 
-Every run-30 YAML header repeats this box so operators cannot miss it.
-
-## Hermes Modal account
-
 ```bash
 modal profile activate hermes-agent-jjb
-modal profile current   # must print hermes-agent-jjb
-# Tokens live only in ~/.modal.toml — never commit MODAL_TOKEN_* values.
+sandbox run benchmark-check --suite full
+sandbox run suite --suite full
+# or: sandbox metrics estimate-suite --suite full
 ```
+
+Every run-30 YAML header still documents the warm-once box.
 
 ## Loud gate
 
 ```bash
+# Per-config (unchanged):
 sandbox run benchmark-check --config config/runs/run-30-contracts-specialist.yaml
+# Per-track:
+sandbox run benchmark-check --suite track-a
+sandbox run benchmark-check --suite track-b
 # exits 1 if wrong Modal profile / unpinned image / concurrency≠4 /
 # scaledown≠120 / min_containers≠0 / limit≠30 / missing DMR-074 local prompts
 ```
 
-## Deploy → suite → teardown → extrapolate
+## Deploy knobs (shared)
 
 ```bash
 export SANDBOX_PROFILE=modal-vllm
@@ -66,35 +200,11 @@ modal deploy deploy/modal_vllm.py
 # set VLLM_BASE_URL from deploy output + VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
 sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
-
-# ONE warm app — do NOT tear down between these five:
-for cfg in \
-  config/runs/run-30-contracts-specialist.yaml \
-  config/runs/run-30-merger-specialist.yaml \
-  config/runs/run-30-corporate-records-specialist.yaml \
-  config/runs/run-30-correspondence-specialist.yaml \
-  config/runs/run-30-insurance-claims-specialist.yaml
-do
-  sandbox run preflight --config "$cfg" --live
-  sandbox run start --config "$cfg" --job-mode endpoint --watch
-done
-
-./deploy/teardown_vllm.sh   # ONLY after the fifth
-
-# Per-run cost → full corpus (3302) + industry scale
-sandbox metrics extrapolate --run run-30-contracts-specialist --corpus-size 3302 --docs-per-day 10000
-sandbox metrics compare --runs run-30-contracts-specialist,run-30-merger-specialist,run-30-corporate-records-specialist,run-30-correspondence-specialist,run-30-insurance-claims-specialist
-
-# Optional: after a live sorter run, compare vs local ModernBERT
-# export MAILROOM_ML_SRC=…/mailroom-ml
-# export MODERNBERT_MODEL_PATH=$MAILROOM_ML_SRC/artifacts/run2-published
-sandbox modernbert status
-sandbox modernbert eval --sample 50 --json
 ```
 
 ## Cost honesty
 
-- Prefer `MODAL_BILLED_GPU_SECONDS=<suite wall>` after the five runs for GPU $.
+- Prefer `MODAL_BILLED_GPU_SECONDS=<suite wall>` after the track(s) for GPU $.
 - Token $ needs OpenAI-compatible `usage` on items — missing tokens → fields
   omitted (never silent `$0`); extrapolate refuses if both token and GPU $/doc
   are absent.
@@ -103,19 +213,17 @@ sandbox modernbert eval --sample 50 --json
 
 ## Pre-flight cost estimate (no GPU spend)
 
-Before deploying, print low/likely/high GPU $ + wall from the run YAMLs and
-conservative sec/doc assumptions (specialists ≈1 LLM call/doc):
-
 ```bash
-sandbox metrics estimate-suite
-# or: sandbox metrics estimate-suite --configs \
-#   config/runs/run-30-contracts-specialist.yaml,…
+sandbox metrics estimate-suite                  # all five (single-wallet default)
+sandbox metrics estimate-suite --suite track-a
+sandbox metrics estimate-suite --suite track-b
+sandbox metrics estimate-suite --suite full
 sandbox metrics estimate-suite --scaledown-seconds 600   # unattended what-if
-sandbox metrics estimate-suite --json                    # machine-readable
+sandbox metrics estimate-suite --json
 ```
 
 Defaults assume Modal L4 @ $0.80/GPU-hr, concurrency 4, one warm app across
-all five configs, cold-start 120 s + scaledown (from YAML, now **120** s
+the listed configs, cold-start 120 s + scaledown (from YAML, **120** s
 attended) + 60 s inter-run gaps. Override with `--sec-per-doc`,
 `--gen-tok-per-s`, `--gpu-usd-per-hour`. After a live suite, prefer
 `sandbox metrics extrapolate --run …` on measured items.
@@ -124,7 +232,8 @@ attended) + 60 s inter-run gaps. Override with `--sec-per-doc`,
 
 | Lever | When | Expected save | Safe for default suite? |
 | --- | --- | --- | --- |
-| One warm app, teardown after fifth | Always | Avoids 4× extra scaledown tails | **Yes** (runbook default — mandatory) |
+| One warm app per track, teardown after last | Always | Avoids extra scaledown tails | **Yes** (runbook default — mandatory) |
+| Two-operator A∥B (DMR-077) | Two Modal wallets | ~½ wall-clock vs full serial | **Yes** |
 | `scaledown_seconds: 120` + `MODAL_VLLM_SCALEDOWN_SECONDS=120` | Attended operator | ~(600−120)/3600×$0.80 ≈ **$0.11** | **Yes** (DMR-076 default); restore 600 unattended |
 | AWQ (`sandbox modal-matrix env Qwen/Qwen3-8B-AWQ`) | After DMR-068 gate (≥1.5× docs/min **and** ≥98% accuracy) | ~30–40% of **busy** GPU $ | **No** until gated — optional path only |
 | Lower specialist `max_tokens` (taxonomy 8192) | After measuring p95 completion ≪ 8192 | Decode time only | **No** without histogram — truncates JSON |
@@ -140,7 +249,7 @@ for a whole-suite swap (not one class):
 eval "$(sandbox modal-matrix env Qwen/Qwen3-8B-AWQ)"
 modal run deploy/modal_vllm.py::download_model
 modal deploy deploy/modal_vllm.py --strategy recreate
-# re-point VLLM_BASE_URL, cutover/health, then the same five run YAMLs
+# re-point VLLM_BASE_URL, cutover/health, then the same run YAMLs
 # (benchmark-check accepts AWQ as a warning, not an error)
 ```
 
