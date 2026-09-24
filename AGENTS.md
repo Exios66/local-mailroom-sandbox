@@ -48,6 +48,10 @@ unless explicitly opted in.
 
 ```bash
 pip install -e ".[dev]"
+# or: pip install -r requirements.txt   # → requirements/dev.txt (mirrors pyproject)
+# specialist / Modal live path also needs:
+#   pip install -e ".[pipeline,deploy]"
+#   # or: pip install -r requirements/pipeline.txt && pip install -r requirements/deploy.txt
 cp config/.env.example .env
 sandbox profiles
 sandbox agents list
