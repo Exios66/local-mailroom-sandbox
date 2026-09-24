@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Added — SAND-001 local SAND board prefix (2026-09-24)
+
+- **Sandbox-isolated governance** uses prefix **`SAND-NNN`** on
+  `governance/TASKS.md` (rules in `governance/README.md` +
+  `governance/PREFIX.md`). Family **`DMR-*`** cards stay on
+  llm-entity-extraction's MESSAGE_BOARD — do not open DMR cards on the
+  local board.
+- Legacy `SANDBOX-050-*` mission archived → epic `SAND-010` (+ sub-cards).
+- Docs: `AGENTS.md`, `docs/sister-repos.md`, `docs/modal-doc-jobs.md` gate
+  rows (`SAND-014`). Drift guard: `tests/test_governance_sand.py`.
+
 ### Added — DMR-078 Qwen Modal specialist posture + merger specialist (2026-09-24)
 
 - **Per-doc-type Modal L4 runbooks** for all five `run-30-*-specialist.yaml`:
