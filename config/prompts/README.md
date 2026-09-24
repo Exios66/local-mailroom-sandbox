@@ -14,6 +14,7 @@ so Modal L4 cost-evals are reproducible offline — **not** a floating Langfuse
 | Stem | Agent | Source of truth | Notes |
 | --- | --- | --- | --- |
 | `contracts_specialist_v33` | `contracts_specialist` | `langchain_agents.prompts.PROMPT_VERSIONS["contracts_specialist_v33"]` | Mailroom production pin (entity-extraction has experimental v34–v41; **not** promoted) |
+| `merger_agreement_specialist_production` | `merger_agreement_specialist` | `agents.merger_agreement_specialist.SYSTEM_PROMPT` | MAUD production (V0 + doctrine); **not** CUAD v33 |
 | `corporate_records_specialist_production` | `corporate_records_specialist` | `agents.corporate_records_specialist.SYSTEM_PROMPT` | Base + `llm.prompt_doctrine` |
 | `correspondence_specialist_production` | `correspondence_specialist` | `agents.correspondence_specialist.SYSTEM_PROMPT` | Base + doctrine |
 | `insurance_claims_specialist_production` | `insurance_claims_specialist` | `agents.insurance_claims_specialist.SYSTEM_PROMPT` | Base + doctrine |

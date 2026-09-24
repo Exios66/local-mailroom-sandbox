@@ -97,6 +97,29 @@ def test_benchmark_check_contracts_spec(monkeypatch):
     assert report["checks"]["spend_posture"]["warm_app_once"] is True
 
 
+def test_benchmark_check_merger_spec_uses_dedicated_specialist(monkeypatch):
+    monkeypatch.setattr(
+        "mailroom_sandbox.job.benchmark_check.active_modal_profile_name",
+        lambda: HERMES_MODAL_PROFILE,
+    )
+    monkeypatch.setattr(
+        "mailroom_sandbox.job.benchmark_check._modal_cli_ok",
+        lambda: {"ok": True, "version": "modal-stub"},
+    )
+    spec = load_run_spec(
+        Path(__file__).resolve().parents[1]
+        / "config"
+        / "runs"
+        / "run-30-merger-specialist.yaml"
+    )
+    assert spec.task == "merger_agreement_specialist"
+    report = check_benchmark_posture(spec=spec, require_hermes=True)
+    assert report["ok"] is True, report["errors"]
+    assert report["checks"]["spec"]["local_prompts"] == {
+        "merger_agreement_specialist": "merger_agreement_specialist_production"
+    }
+
+
 def test_benchmark_check_scaledown_drift_fails(monkeypatch):
     monkeypatch.setattr(
         "mailroom_sandbox.job.benchmark_check.active_modal_profile_name",

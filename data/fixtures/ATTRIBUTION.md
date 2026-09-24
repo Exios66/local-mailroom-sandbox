@@ -17,7 +17,9 @@ See mailroom `docs/examples/samples/ATTRIBUTION.md` for CUAD license terms.
 
 Tiny HF JSONL under `hf/` is a **synthetic** one-doc-per-class slice matching
 the `Lucius-Morningstar/mailroom-corpus` schema (not Hub content). Use
-`sandbox datasets pull` for real Hub rows.
+`sandbox datasets pull` for real Hub rows. `merger_agreement/sample_merger.txt`
+is the same synthetic MAUD all-cash snippet, for isolated
+`merger_agreement_specialist` mock eval.
 
 Tiny PDF/PNG under `intake/` are original sandbox fixtures (ASCII PDF + 1×1 PNG)
 for offline transcriber / image-extractor wiring tests, not the CUAD pilot.

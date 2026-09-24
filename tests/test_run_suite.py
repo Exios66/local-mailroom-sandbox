@@ -83,6 +83,18 @@ def test_full_suite_is_union_of_tracks():
     assert len(full.configs) == 5
 
 
+def test_run_30_merger_task_is_dedicated_specialist():
+    from mailroom_sandbox.job.spec import load_run_spec
+
+    spec = load_run_spec(ROOT / "config/runs/run-30-merger-specialist.yaml")
+    assert spec.task == "merger_agreement_specialist"
+    agents = spec.prompt.get("agents") or {}
+    pin = agents.get("merger_agreement_specialist") or {}
+    assert pin.get("source") == "local"
+    assert pin.get("file") == "merger_agreement_specialist_production"
+    assert "contracts_specialist" not in agents
+
+
 def test_resolve_suite_path_unknown():
     with pytest.raises(FileNotFoundError, match="unknown suite"):
         resolve_suite_path("no-such-track-xyz")

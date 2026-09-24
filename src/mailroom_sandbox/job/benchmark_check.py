@@ -405,6 +405,11 @@ def _check_spec_pins(spec: RunSpec) -> dict[str, list[str]]:
             )
         expected_prompts = SPECIALIST_LOCAL_PROMPTS.get(spec.run_id)
         if expected_prompts:
+            if spec.task not in expected_prompts:
+                errors.append(
+                    f"task={spec.task!r} expected one of {sorted(expected_prompts)} "
+                    "(1:1 specialist pin — merger must not ride contracts_specialist)"
+                )
             actual = _prompt_agent_map(spec)
             for agent, stem in expected_prompts.items():
                 got = actual.get(agent)
