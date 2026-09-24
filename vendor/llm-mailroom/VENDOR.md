@@ -14,10 +14,16 @@ fully operational offline — no `pip install mailroom@git...`, no
 - Lineage: upstream tag `v0.7.1`
   (`2a212e76a62b98f6eba451ff6f3c5bc96039ae37`) was the last tagged pin; the
   five-class taxonomy removal (59c47401) landed upstream afterwards and this
-  snapshot tracks the post-removal workspace (upstream tip lineage
-  `1a6bd401`). The docclass-era compliance files
-  (`agents/compliance_specialist.py`, `pipeline/docclass_mode.py`,
-  `langchain_agents/prompts_docclass.py`,
+  snapshot tracks the post-removal workspace. Standalone Phase-2 refresh
+  (2026-09-24) copied `src/` minus `src/tests/` from
+  `Exios66/llm-mailroom` PR #64 branch
+  `cursor/merger-agreement-specialist-428f` at
+  `4b93fc766a49498367b46f717f73cc32654cc382` because this checkout is not
+  inside the Digital-Mailroom monorepo (`scripts/sync_vendor.py` expects
+  `packages/llm-mailroom`). That SHA is the dedicated
+  `merger_agreement_specialist` land (1:1 live-class map). The docclass-era
+  compliance files (`agents/compliance_specialist.py`,
+  `pipeline/docclass_mode.py`, `langchain_agents/prompts_docclass.py`,
   `langchain_agents/skills/compliance_specialist/`) are intentionally
   ABSENT — the monorepo guard
   (`scripts/tests/test_compliance_removal_guard.py`) keeps them out of the
@@ -35,7 +41,9 @@ fully operational offline — no `pip install mailroom@git...`, no
 - Snapshot tracks post-removal workspace lineage plus sandbox DMR-078
   merger specialist plumbing (agent module + MAUD skills + taxonomy
   `merger_agreement.specialist: merger_agreement_specialist` + graph
-  extract dispatch). Full upstream graph from llm-mailroom PR #64 is
-  **not** vendored wholesale — it hard-requires `agents.bert_intake`
-  which is not in this snapshot; only the merger extract path is
-  grafted onto the stable graph.
+  extract dispatch). DMR-078 on main grafted that extract path onto the
+  prior stable graph *without* `agents.bert_intake`. This standalone
+  Phase-2 snapshot also copied llm-mailroom PR #64 tip (`4b93fc76`)
+  wholesale, so `agents.bert_intake` and related graph/client/provider
+  files **are** present after merging main. Vendor strategy for those
+  extras is still an open merge question (see PR discussion).

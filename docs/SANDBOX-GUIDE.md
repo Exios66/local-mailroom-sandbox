@@ -272,6 +272,7 @@ sandbox eval sorter --mock              # deterministic, no LLM
 sandbox eval sorter --local             # against live provider
 sandbox eval judge --mock
 sandbox eval contracts_specialist --mock
+sandbox eval merger_agreement_specialist --mock
 sandbox eval arbiter --mock
 ```
 

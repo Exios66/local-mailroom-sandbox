@@ -181,7 +181,7 @@ doc_classes:
       maud_clauses: entity_list:free_text
       intent: name
       subject_matter: free_text
-      keywords: entity_list
+      keywords: entity_list:name
       confidence: free_text
 
   - key: corporate_record

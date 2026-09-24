@@ -99,6 +99,12 @@ sandbox metrics compare --runs local,modal,api   # serving metrics comparison
   (corpus strata vocabulary) + `expected_fields` (27-key GT schema subset:
   intent + provenance, sentiment, claims/entity fields) propagated into every
   eval row.
+- **1:1 live-class specialists:** `contract` → `contracts_specialist`,
+  `merger_agreement` → `merger_agreement_specialist`, `corporate_record` →
+  `corporate_records_specialist`, `correspondence` →
+  `correspondence_specialist`, `insurance_claim` →
+  `insurance_claims_specialist`. Merger no longer rides the CUAD contracts
+  agent.
 
 ## Architecture gotchas
 

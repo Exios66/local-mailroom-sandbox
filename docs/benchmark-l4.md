@@ -280,7 +280,8 @@ cost-eval baseline. Copy a YAML only if an alternate scorecard needs matching
 ## Merger note
 
 `run-30-merger-specialist` uses **train** split (test has only ~17 merger
-rows). Document that in any published scorecard.
+rows) and task `merger_agreement_specialist` (dedicated MAUD agent — not
+`contracts_specialist`). Document that in any published scorecard.
 
 ## Specialist prompts (pinned local)
 
