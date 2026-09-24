@@ -2,11 +2,17 @@
 
 ## [Unreleased]
 
+### Changed — monorepo target Digital-Mailroom (2026-09-24)
+
+- Subagent propagate/materialize docs and package ids use **`digital-mailroom`**
+  ([LLM-Mailroom-Services/Digital-Mailroom](https://github.com/LLM-Mailroom-Services/Digital-Mailroom));
+  `mailroom-dev` remains a legacy CLI alias only.
+
 ### Added — SAND-017 central subagent roster (2026-09-24)
 
 - **`config/subagents/family-roster.yaml`** — family-wide manifest (home package,
-  package membership, harness metadata) shared across mailroom-dev / llm-mailroom /
-  llm-entity-extraction / local-mailroom-sandbox.
+  package membership, harness metadata) shared across Digital-Mailroom /
+  llm-mailroom / llm-entity-extraction / local-mailroom-sandbox.
 - **`.opencode/agents/`** — family prompt-engineer / eval-judge /
   experiment-log-sync / trace-log-analyst / mailroom-arch-optimizer /
   legal-changelog-auditor prompts plus sandbox-native **`harness-doctor`** and
@@ -14,7 +20,11 @@
 - **Harness adapters:** `sandbox subagents sync --harness opencode|cursor|all`
   (OpenCode frontmatter merge + Cursor stub generation);
   **`sandbox subagents materialize --package … --root …`** copies the manifest and
-  missing prompts into sibling checkouts (`governance/subagents/` on mailroom-dev).
+  missing prompts into sibling checkouts (`governance/subagents/` on digital-mailroom).
+- **`sandbox subagents propagate`** + [`config/subagents/checkout-map.yaml`](config/subagents/checkout-map.yaml)
+  — materialize + sync all mapped checkouts; monorepo hook
+  [`scripts/monorepo/after_packages_sync.py`](scripts/monorepo/after_packages_sync.py)
+  (wire via [`scripts/monorepo/INTEGRATION.md`](scripts/monorepo/INTEGRATION.md)).
 - Docs: [`docs/subagents-family-sync.md`](docs/subagents-family-sync.md).
 - Tests: `tests/test_subagents.py`.
 

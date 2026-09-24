@@ -78,6 +78,65 @@ def test_sync_opencode_merges_roster_frontmatter(tmp_path):
     assert "Harness Doctor" in doc.body
 
 
+def test_propagate_local_checkout_only(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    sandbox = tmp_path / "sandbox"
+    sandbox.mkdir()
+    for rel in (
+        "config/subagents/family-roster.yaml",
+        "config/subagents/checkout-map.yaml",
+        "config/subagents/roster.yaml",
+    ):
+        path = sandbox / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(repo_root() / rel, path)
+    for entry in load_roster():
+        dest = sandbox / ".opencode" / "agents"
+        dest.mkdir(parents=True, exist_ok=True)
+        shutil.copy(entry.opencode_path(), dest / f"{entry.id}.md")
+
+    from mailroom_sandbox.subagents.propagate import propagate_family_checkouts
+
+    monkeypatch.setenv("MAILROOM_DEV_ROOT", str(tmp_path / "missing-monorepo"))
+    result = propagate_family_checkouts(source_root=sandbox, monorepo_root=None)
+    assert len(result.packages) == 1
+    assert result.packages[0].package == "local-mailroom-sandbox"
+    assert result.packages[0].error is None
+
+
+def test_propagate_monorepo_layout(tmp_path):
+    mono = tmp_path / "Digital-Mailroom"
+    sandbox = mono / "packages" / "local-mailroom-sandbox"
+    mailroom = mono / "packages" / "llm-mailroom"
+    sandbox.mkdir(parents=True)
+    mailroom.mkdir(parents=True)
+    for rel in (
+        "config/subagents/family-roster.yaml",
+        "config/subagents/checkout-map.yaml",
+    ):
+        path = sandbox / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(repo_root() / rel, path)
+    for entry in load_roster():
+        dest = sandbox / ".opencode" / "agents"
+        dest.mkdir(parents=True, exist_ok=True)
+        shutil.copy(entry.opencode_path(), dest / f"{entry.id}.md")
+
+    from mailroom_sandbox.subagents.propagate import propagate_family_checkouts
+
+    result = propagate_family_checkouts(source_root=sandbox, monorepo_root=mono)
+    pkg_ids = {row.package for row in result.packages}
+    assert "local-mailroom-sandbox" in pkg_ids
+    assert "llm-mailroom" in pkg_ids
+    assert (mailroom / "config" / "subagents" / "family-roster.yaml").is_file()
+
+
+def test_package_alias_mailroom_dev():
+    from mailroom_sandbox.subagents.family import normalize_package_id
+
+    assert normalize_package_id("mailroom-dev") == "digital-mailroom"
+
+
 def test_materialize_mailroom_package(tmp_path):
     pkg_root = tmp_path / "llm-mailroom"
     pkg_root.mkdir()
