@@ -21,6 +21,9 @@ sandbox eval chained --mock           # sorter → extract only
 sandbox eval legalbench --mock
 sandbox eval local_vs_api --mock  # fixture timings; no OPENROUTER_API_KEY
 sandbox eval local_vs_api --from-log  # pair experiment_log local vs API-key rows
+sandbox eval sorter_vs_modernbert --mock  # LLM sorter vs ModernBERT accuracy+cost
+sandbox metrics compare --runs local,modal,api
+sandbox metrics compare --sorter-vs-modernbert
 sandbox matrix --task judge --providers ollama --models qwen3:8b \
   --prompts mailroom-default --sample 2 --mock --dry-run
 sandbox matrix --task sorter --providers ollama,openrouter \

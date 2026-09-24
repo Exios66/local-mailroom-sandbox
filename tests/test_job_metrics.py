@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
 from mailroom_sandbox.job import metrics
@@ -71,6 +73,8 @@ def test_record_from_run_aggregates_items():
     assert rec["prompt_tokens"] == 30 and rec["completion_tokens"] == 10
     assert abs(rec["e2e_latency_seconds"] - 0.2) < 1e-9
     assert rec["scores"]["exact_match"] == 1.0
+    assert rec["estimated_cost_usd"] is not None
+    assert rec["cost_per_document"] == pytest.approx(rec["estimated_cost_usd"] / 2)
 
 
 # ── DMR-049: modal bucketing, cost table, ok-only latency ────────────────────
@@ -110,6 +114,7 @@ def test_record_from_run_latency_excludes_failed_items():
     )
     assert abs(rec["e2e_latency_seconds"] - 0.1) < 1e-9
 
+
 def test_record_from_run_ttft_excludes_failed_items():
     """hub#56: TTFT aggregation must use the same ok_items as e2e latency —
     failed/retried items carry inflated TTFT from backoff sleeps, so a run
@@ -131,3 +136,136 @@ def test_record_from_run_ttft_excludes_failed_items():
     )
     assert abs(rec["ttft_seconds"] - 0.065) < 1e-9, rec.get("ttft_seconds")
     assert abs(rec["e2e_latency_seconds"] - 0.15) < 1e-9
+
+
+def test_gpu_usd_per_hour_defaults_l4():
+    assert metrics.gpu_usd_per_hour("L4") == pytest.approx(0.80)
+    assert metrics.gpu_usd_per_hour("H100") == pytest.approx(3.95)
+
+
+def test_estimate_gpu_cost_usd_l4():
+    # 3600s at $0.80/hr → $0.80
+    assert metrics.estimate_gpu_cost_usd(3600.0, gpu="L4") == pytest.approx(0.80)
+    assert metrics.estimate_gpu_cost_usd(0.0, gpu="L4") is None
+
+
+def test_record_from_run_modal_gpu_cost(monkeypatch):
+    monkeypatch.delenv("MODAL_GPU_USD_PER_HOUR", raising=False)
+    monkeypatch.delenv("MODAL_GPU_USD_PER_SEC", raising=False)
+    monkeypatch.delenv("MODAL_BILLED_GPU_SECONDS", raising=False)
+    rec = metrics.record_from_run(
+        run_id="r-modal",
+        spec_hash="sh",
+        task="sorter",
+        profile="modal-vllm",
+        model="Qwen/Qwen3-8B",
+        prompt_version="code-default",
+        dataset_fingerprint="fp",
+        gpu="L4",
+        items=[
+            {
+                "latency_ms": 1000,
+                "prompt_tokens": 100,
+                "completion_tokens": 50,
+                "ok": True,
+            },
+            {
+                "latency_ms": 2000,
+                "prompt_tokens": 100,
+                "completion_tokens": 50,
+                "ok": True,
+            },
+        ],
+    )
+    assert rec["serving_kind"] == "modal"
+    assert rec["gpu_seconds"] == pytest.approx(3.0)
+    # 3s / 3600 * 0.80, rounded to 6 dp by estimate_gpu_cost_usd
+    assert rec["estimated_gpu_cost_usd"] == pytest.approx(round(3.0 / 3600.0 * 0.80, 6))
+    assert rec["gpu_cost_per_document"] == pytest.approx(rec["estimated_gpu_cost_usd"] / 2)
+    assert rec["estimated_cost_usd"] is not None
+    assert "cost_per_document" in rec
+
+
+def test_record_from_run_billed_window_overrides_latency(monkeypatch):
+    monkeypatch.setenv("MODAL_BILLED_GPU_SECONDS", "100")
+    rec = metrics.record_from_run(
+        run_id="r-billed",
+        spec_hash="sh",
+        task="sorter",
+        profile="modal-vllm",
+        model="Qwen/Qwen3-8B",
+        prompt_version="code-default",
+        dataset_fingerprint="fp",
+        gpu="L4",
+        items=[{"latency_ms": 10, "ok": True, "prompt_tokens": 1, "completion_tokens": 1}],
+    )
+    assert rec["gpu_seconds"] == pytest.approx(100.0)
+
+
+def test_token_price_env_override(monkeypatch):
+    monkeypatch.setenv("SANDBOX_TOKEN_PRICE_IN_PER_M", "1.0")
+    monkeypatch.setenv("SANDBOX_TOKEN_PRICE_OUT_PER_M", "2.0")
+    cost = metrics._estimate_cost(1_000_000, 1_000_000, "anything")
+    assert cost == pytest.approx(3.0)
+
+
+def test_missing_tokens_omits_cost_not_zero():
+    rec = metrics.record_from_run(
+        run_id="r-empty",
+        spec_hash="sh",
+        task="sorter",
+        profile="openrouter",
+        model="qwen/qwen3.7-flash",
+        prompt_version="code-default",
+        dataset_fingerprint="fp",
+        items=[{"latency_ms": 100, "ok": True}],
+        mock=False,
+    )
+    assert "estimated_cost_usd" not in rec
+    assert "cost_per_document" not in rec
+
+
+def test_compare_sorter_vs_modernbert_fixture():
+    from mailroom_sandbox.datasets import load_sorter_vs_modernbert_fixtures
+
+    fixtures = load_sorter_vs_modernbert_fixtures()
+    result = metrics.compare_sorter_vs_modernbert(fixtures["sorter"], fixtures["modernbert"])
+    assert result["agent"] == "sorter_vs_modernbert"
+    assert result["quality"]["accuracy"]["modernbert"] == pytest.approx(0.96)
+    assert result["cost"]["modernbert_cost_per_document"] == pytest.approx(1e-6)
+    assert result["latency"]["sorter_e2e_s"] > result["latency"]["modernbert_e2e_s"]
+    assert "Sorter vs ModernBERT" in result["markdown"]
+
+
+def test_compare_includes_gpu_cost_columns():
+    records = [
+        _rec(
+            "modal",
+            "modal-vllm",
+            estimated_gpu_cost_usd=0.05,
+            cost_per_document=0.001,
+        ),
+        _rec("api", "openrouter", estimated_cost_usd=0.02, cost_per_document=0.002),
+    ]
+    result = metrics.compare(records)
+    assert result["buckets"]["modal"]["estimated_gpu_cost_usd"] == pytest.approx(0.05)
+    assert "est. GPU $" in result["markdown"]
+
+
+def test_usage_capture_merge_item_metrics():
+    from mailroom_sandbox.job.usage_capture import merge_item_metrics, usage_from_openai_response
+
+    merged = merge_item_metrics(
+        latency_ms=12.5,
+        usage={"prompt_tokens": 10, "completion_tokens": 5, "llm_calls": 2},
+        ttft_ms=3.0,
+    )
+    assert merged == {
+        "latency_ms": 12.5,
+        "ttft_ms": 3.0,
+        "prompt_tokens": 10,
+        "completion_tokens": 5,
+        "llm_calls": 2,
+    }
+    resp = SimpleNamespace(usage=SimpleNamespace(prompt_tokens=7, completion_tokens=3))
+    assert usage_from_openai_response(resp) == {"prompt_tokens": 7, "completion_tokens": 3}

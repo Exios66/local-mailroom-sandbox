@@ -208,6 +208,23 @@ def load_serving_fixtures() -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
+def sorter_vs_modernbert_fixture_path() -> Path:
+    return fixtures_dir() / "serving" / "sorter_vs_modernbert.json"
+
+
+def load_sorter_vs_modernbert_fixtures() -> dict[str, Any]:
+    """Synthetic LLM-sorter vs ModernBERT records (no live model load)."""
+    path = sorter_vs_modernbert_fixture_path()
+    if not path.is_file():
+        _log.warning(
+            "sorter_vs_modernbert fixture missing: %s — comparison will be empty",
+            path,
+        )
+        return {}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return payload if isinstance(payload, dict) else {}
+
+
 def intake_dir() -> Path:
     return fixtures_dir() / "intake"
 

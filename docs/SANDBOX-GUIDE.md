@@ -186,6 +186,8 @@ sandbox cutover --profile ollama --model llama3.2:3b   # all agents
 | `sandbox prompts show <agent>` | Show a specific agent's prompt |
 | `sandbox metrics compare --runs local,modal,api` | Compare serving metrics |
 | `sandbox metrics compare --log` | Compare from experiment log |
+| `sandbox metrics compare --sorter-vs-modernbert` | LLM sorter vs ModernBERT |
+| `sandbox eval sorter_vs_modernbert --mock` | Same comparison via eval fixtures |
 
 ### Dataset commands
 
