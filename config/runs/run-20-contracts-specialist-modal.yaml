@@ -31,7 +31,7 @@
 #   done
 #   ./deploy/teardown_vllm.sh
 schema: sandbox.run/v1
-run_id: run-20-contracts-modal-hf
+run_id: run-20-contracts-specialist-modal
 task: contracts_specialist
 profile: modal-vllm
 
