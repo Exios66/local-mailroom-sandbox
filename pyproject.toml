@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mailroom-sandbox"
-version = "0.1.0"
+version = "0.2.0"
 description = "Local-first experiment sandbox for the LLM-Mailroom pipeline (Ollama, vLLM, llama.cpp)."
 readme = "README.md"
 requires-python = ">=3.11"

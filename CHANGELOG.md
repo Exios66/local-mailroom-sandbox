@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-24
+
 ### Added — Modal/vLLM ↔ dojo cost-compare metrics parity (SAND-016)
 
 - **`sandbox metrics compare --fixture`** scores the Grant-style local /
@@ -311,6 +313,8 @@
   `opentelemetry-sdk`/`opentelemetry-exporter-otlp-proto-http`; new `hf`
   extra (`huggingface_hub`, `pyarrow`). Docs: `docs/jobs.md`. ~52 new
   network-free tests.
+
+## [0.1.0] - 2026-09-10
 
 ### Changed
 
