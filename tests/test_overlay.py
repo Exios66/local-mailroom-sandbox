@@ -110,13 +110,32 @@ def test_endpoints_urls():
     assert ":1234" in lm.base_url
 
 
-def test_modal_profile_merge_sorter_vllm_and_timeout_300():
-    """DMR-072: the modal-vllm profile rewrite must point the sorter at the
-    vLLM endpoint AND the merged run_limits must carry the 300s per-call
-    timeout (the vendored 120s default cannot hold an L4 generation)."""
+def test_live_extract_classes_map_one_to_one_specialists():
+    """sandbox#9: merger_agreement has its own specialist, not contracts."""
+    taxonomy = build_merged_taxonomy(load_profile("ollama"))
+    expected = {
+        "contract": "contracts_specialist",
+        "merger_agreement": "merger_agreement_specialist",
+        "corporate_record": "corporate_records_specialist",
+        "correspondence": "correspondence_specialist",
+        "insurance_claim": "insurance_claims_specialist",
+    }
+    classes = {row["key"]: row["specialist"] for row in taxonomy["doc_classes"]}
+    for key, specialist in expected.items():
+        assert classes[key] == specialist, key
+    assert "merger_agreement_specialist" in taxonomy["agents"]
+    assert taxonomy["agents"]["merger_agreement_specialist"]["model"] == "qwen3:8b"
+
+
+def test_modal_profile_merge_sorter_vllm_and_timeout_pin():
+    """Overlay run_limits pin must win over the vendored 120s default.
+
+    DMR-072 originally documented 300s; the live overlay pin is 600s so an
+    8-way L4 saturation burst does not APITimeoutError into graph retries.
+    """
     from mailroom_sandbox.overlay import build_merged_taxonomy, load_profile
 
     t = build_merged_taxonomy(load_profile("modal-vllm"))
     assert t["agents"]["sorter"]["provider"] == "vllm"
     assert t["agents"]["sorter"]["model"] == "Qwen/Qwen3-8B"
-    assert t["run_limits"]["llm_call_timeout_seconds"] == 300
+    assert t["run_limits"]["llm_call_timeout_seconds"] == 600

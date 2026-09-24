@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+### Added — dedicated merger_agreement_specialist (Phase 2 / sandbox#9)
+
+- Vendored `llm-mailroom` from PR
+  [#64](https://github.com/Exios66/llm-mailroom/pull/64)
+  (`4b93fc766a49498367b46f717f73cc32654cc382`): dedicated
+  `MergerAgreementSpecialist`, `MergerAgreementExtraction` schema, taxonomy
+  remap, skill pack, graph dispatch. Standalone checkout (no monorepo
+  workspace) — copied `src/` minus tests into `vendor/llm-mailroom`.
+- `run-30-merger-specialist.yaml` task + local prompt pin is now
+  `merger_agreement_specialist` / `merger_agreement_specialist_production`
+  (no longer `contracts_specialist` / v33 on MAUD strata).
+- Prompt export `scripts/sync_specialist_prompts.py` includes merger;
+  taxonomy overlay + components + isolated-eval registry treat merger as
+  first-class. Dojo suite **key** stays `merger_agreement`.
+
 ### Added — DMR-077 two-operator specialist tracks (2026-09-23)
 
 - **Suite manifests** under `config/runs/suites/`: `track-a` (contracts →

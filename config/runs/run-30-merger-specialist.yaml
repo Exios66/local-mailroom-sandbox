@@ -1,5 +1,5 @@
-# Specialist extract: contracts_specialist on 30 MERGER_AGREEMENT docs.
-# Same specialist as commercial contracts; separate strata/run for MAUD rows.
+# Specialist extract: merger_agreement_specialist on 30 MERGER_AGREEMENT docs.
+# Dedicated MAUD specialist (1:1 live-class map) — not contracts_specialist.
 # Test split has only ~17 mergers — MUST use train (135 merger rows at pin).
 #
 # ╔══════════════════════════════════════════════════════════════════════════╗
@@ -20,18 +20,18 @@
 #   sandbox run start --config config/runs/run-30-merger-specialist.yaml --job-mode endpoint --watch
 schema: sandbox.run/v1
 run_id: run-30-merger-specialist
-task: contracts_specialist
+task: merger_agreement_specialist
 profile: modal-vllm
 
 prompt:
-  # Pinned local production text (config/prompts/contracts_specialist_v33.txt) for reproducible
-  # Modal L4 runs — not Langfuse floating production. Synced from vendored
-  # llm-mailroom code-default (contracts_specialist). DMR-074.
+  # Pinned local production text (config/prompts/merger_agreement_specialist_production.txt)
+  # for reproducible Modal L4 runs — not Langfuse floating production. Synced
+  # from vendored llm-mailroom code-default (merger_agreement_specialist). DMR-074.
   default: {source: code-default}
   agents:
-    contracts_specialist:
+    merger_agreement_specialist:
       source: local
-      file: contracts_specialist_v33
+      file: merger_agreement_specialist_production
 
 dataset:
   provider: huggingface

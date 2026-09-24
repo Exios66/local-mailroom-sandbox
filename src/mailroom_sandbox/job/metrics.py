@@ -889,12 +889,13 @@ SPECIALIST_SEC_PER_DOC: dict[str, dict[str, float]] = {
     "run-30-merger-specialist": {"low": 100.0, "likely": 220.0, "high": 420.0},
 }
 
-# Fallback when run_id is unknown: task → ranges (merger shares contracts_specialist).
+# Fallback when run_id is unknown: task → ranges (dedicated specialist per live class).
 TASK_SEC_PER_DOC: dict[str, dict[str, float]] = {
     "correspondence_specialist": {"low": 30.0, "likely": 70.0, "high": 150.0},
     "insurance_claims_specialist": {"low": 45.0, "likely": 95.0, "high": 200.0},
     "corporate_records_specialist": {"low": 50.0, "likely": 110.0, "high": 240.0},
     "contracts_specialist": {"low": 80.0, "likely": 180.0, "high": 380.0},
+    "merger_agreement_specialist": {"low": 100.0, "likely": 220.0, "high": 420.0},
     "sorter": {"low": 200.0, "likely": 400.0, "high": 900.0},  # ~5 calls/doc
 }
 

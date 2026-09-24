@@ -260,7 +260,8 @@ cost-eval baseline. Copy a YAML only if an alternate scorecard needs matching
 ## Merger note
 
 `run-30-merger-specialist` uses **train** split (test has only ~17 merger
-rows). Document that in any published scorecard.
+rows) and task `merger_agreement_specialist` (dedicated MAUD agent — not
+`contracts_specialist`). Document that in any published scorecard.
 
 ## Specialist prompts (pinned local)
 
@@ -269,7 +270,8 @@ Each run-30 YAML pins the task agent's production text under
 
 | Run | Agent | Local stem | Source |
 | --- | --- | --- | --- |
-| contracts / merger | `contracts_specialist` | `contracts_specialist_v33` | vendored `PROMPT_VERSIONS` (mailroom production) |
+| contracts | `contracts_specialist` | `contracts_specialist_v33` | vendored `PROMPT_VERSIONS` (mailroom production) |
+| merger | `merger_agreement_specialist` | `merger_agreement_specialist_production` | vendored `SYSTEM_PROMPT` + MAUD doctrine |
 | corporate-records | `corporate_records_specialist` | `corporate_records_specialist_production` | vendored `SYSTEM_PROMPT` + doctrine |
 | correspondence | `correspondence_specialist` | `correspondence_specialist_production` | vendored `SYSTEM_PROMPT` + doctrine |
 | insurance-claims | `insurance_claims_specialist` | `insurance_claims_specialist_production` | vendored `SYSTEM_PROMPT` + doctrine |

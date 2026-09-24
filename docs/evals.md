@@ -14,6 +14,7 @@ sandbox cutover --agent-model judge=qwen3:14b
 sandbox eval sorter --mock
 sandbox eval sorter_reviewer --mock
 sandbox eval contracts_specialist --mock
+sandbox eval merger_agreement_specialist --mock
 sandbox eval judge --mock
 sandbox eval arbiter --mock
 sandbox eval pipeline --mock          # connected: class + stage + extract + routing

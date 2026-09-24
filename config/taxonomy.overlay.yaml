@@ -67,6 +67,11 @@ agents:
     max_tokens: 8192
     max_input_chars: 100000
     reasoning_effort: "none"
+  merger_agreement_specialist:
+    temperature: 0.1
+    max_tokens: 8192
+    max_input_chars: 100000
+    reasoning_effort: "none"
   corporate_records_specialist:
     temperature: 0.1
     max_tokens: 8192
