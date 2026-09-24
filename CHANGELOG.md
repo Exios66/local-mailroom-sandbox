@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Added — SAND-017 central subagent roster (2026-09-24)
+
+- **`config/subagents/roster.yaml`** — harness-agnostic manifest (tags, family
+  provenance, Cursor invoke hints) shared by OpenCode and Cursor adapters.
+- **`.opencode/agents/`** — family prompt-engineer / eval-judge /
+  experiment-log-sync / trace-log-analyst / mailroom-arch-optimizer /
+  legal-changelog-auditor prompts plus sandbox-native **`harness-doctor`** and
+  **`adversarial-reviewer`**.
+- **`sandbox subagents list|show|sync`** and `scripts/sync_subagents.py` —
+  regenerate `.cursor/agents/` stubs from the canonical OpenCode prompts.
+- Tests: `tests/test_subagents.py`.
+
 ## [0.2.0] - 2026-09-24
 
 ### Added — Modal/vLLM ↔ dojo cost-compare metrics parity (SAND-016)
@@ -154,8 +166,8 @@
   `Function.from_name(...).spawn(...)` consumption. Three phases (mock
   smoke → live vLLM → CLI). **Not yet shipped** — the card is still
   `in_progress` on the board and neither `docs/modal-doc-jobs.md` nor
-  `.opencode/agents/` exist in the tree yet; this entry documents the plan
-  only.
+  `.opencode/agents/` now ships the coding subagent roster (SAND-017); Modal
+  doc-jobs code remains unshipped — this entry documents the queue plan only.
 
 ### Added
 

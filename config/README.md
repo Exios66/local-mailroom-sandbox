@@ -19,6 +19,7 @@
 | [`profiles/`](profiles/) | Provider serving profiles |
 | [`runs/`](runs/) | Job-run spec examples |
 | [`prompts/`](prompts/) | Prompt overrides/registry |
+| [`subagents/`](subagents/) | Coding subagent roster (Cursor + OpenCode adapters) |
 
 ## Profile selection
 

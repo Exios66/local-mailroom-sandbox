@@ -7,7 +7,7 @@ Cross-family work stays on llm-entity-extraction's MESSAGE_BOARD as
 **`DMR-*`**. This file is the **only** sandbox-local task board — do not
 open `DMR-*` cards here.
 
-**Next ID: `SAND-017`**
+**Next ID: `SAND-018`**
 
 Lanes: `todo` → `in_progress` → `needs_attention` → `done`.
 
@@ -34,6 +34,7 @@ Lanes: `todo` → `in_progress` → `needs_attention` → `done`.
 
 | ID | Title | Owner | Status | Notes |
 | --- | --- | --- | --- | --- |
+| SAND-017 | Central subagent roster + Cursor/OpenCode adapters | cursor | **done** | `config/subagents/roster.yaml`, `.opencode/agents/`, `sandbox subagents *`, harness-doctor + adversarial-reviewer |
 | SAND-016 | Modal/vLLM ↔ dojo cost-compare metrics parity | cursor | **done** | Adapter + `--fixture`; *Related: DMR-049 / DMR-027* |
 | SAND-001 | Establish SAND local board + prefix (isolated from DMR) | orchestrator | **done** | `governance/` README + PREFIX + TASKS; AGENTS.md / sister-repos wording |
 | SAND-015 | Confirm SAND prefix adopted in AGENTS.md / sister-repos docs | orchestrator | **done** | Governance cutover shipped with SAND-001 |
