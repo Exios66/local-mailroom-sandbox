@@ -1,0 +1,111 @@
+# Specialist extract: contracts_specialist on 40 CONTRACT docs (primary class).
+# Same as run-40-contracts-specialist-modal.yaml with max_containers=2 (2×L4).
+# Subclass-stratified within contract (9 largest FULL-corpus CUAD families,
+# Hamilton-proportional, summing to 40). split: all (train+test union via
+# expand_hf_splits; Hub has no validation split). Full pool: 600 contracts.
+# Grant-parity ladder cell (docs/grant-parity-ladder.md). HARD HOLD until
+# explicit go — YAML-only; do not modal deploy / download / start from this PR.
+#
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║ CUT SPEND (DMR-076/077/078) — MANDATORY operator posture                 ║
+# ║  1. ONE warm sandbox-vllm app through the Grant ladder (or this cell).   ║
+# ║  2. Do NOT tear down / redeploy / stop between ladder cells.             ║
+# ║  3. Teardown ONLY after your last: ./deploy/teardown_vllm.sh             ║
+# ║  4. scaledown_seconds: 120 (attended). Unattended/overnight → restore 600║
+# ║  5. Default model: Qwen/Qwen3-8B bf16. AWQ is OPTIONAL (DMR-068 gate).   ║
+# ║  6. Suite: config/runs/suites/grant-parity-contracts-correspondence.yaml ║
+# ║  7. Jack lock concurrency=8 (posture default 4); cost_cap=$1.80, wall=3000s. ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
+#
+# Doc-type posture (specialist_posture): concurrency=4, max_tokens=4096,
+# max_input_chars fitted to L4 16k context, cost_cap_usd=0.80, max_wall=4800s.
+# This run-40 Jack lock overrides concurrency to 8; 2×L4 raises replica cap.
+#
+# Morning CLI (after explicit go — warm once → ladder → teardown):
+#   export MODAL_TOKEN_ID=… MODAL_TOKEN_SECRET=…   # Hermes profile NOT required
+#   export SANDBOX_PROFILE=modal-vllm MODAL_VLLM_MODEL=Qwen/Qwen3-8B \
+#     MODAL_VLLM_GPU=L4 MODAL_VLLM_IMAGE_TAG=v0.29.0 \
+#     MODAL_VLLM_MAX_CONTAINERS=2 MODAL_VLLM_SCALEDOWN_SECONDS=120
+#   modal run deploy/modal_vllm.py::download_model && modal deploy deploy/modal_vllm.py
+#   sandbox cutover --profile modal-vllm && sandbox health --profile modal-vllm
+#   sandbox run preflight --config config/runs/run-40-contracts-specialist-modal-2xl4.yaml --live
+#   sandbox run start --config config/runs/run-40-contracts-specialist-modal-2xl4.yaml --job-mode endpoint --watch
+#   sandbox metrics compare --runs run-40-contracts-specialist-modal-2xl4 --json
+#   ./deploy/teardown_vllm.sh   # ONLY after the last Grant-ladder cell
+schema: sandbox.run/v1
+run_id: run-40-contracts-specialist-modal-2xl4
+task: contracts_specialist
+profile: modal-vllm
+
+prompt:
+  # Pinned local production text (config/prompts/contracts_specialist_v33.txt) for reproducible
+  # Modal L4 Qwen runs — not Langfuse floating production. DMR-074/078.
+  default: {source: code-default}
+  agents:
+    contracts_specialist:
+      source: local
+      file: contracts_specialist_v33
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  # split: all → expand_hf_splits unions train+test (no validation split on Hub)
+  # contract = 600 rows at FAMILY_HF_REVISION (train 540 + test 60)
+  split: all
+  revision: 46a4d3c240a36671cde0182fff4960f6b8b73aca   # Hub tip = FAMILY_HF_REVISION
+  strata:
+    buckets:
+      # 9 largest FULL-corpus CUAD families (canonical snake_case) → 40
+      # Hamilton on avail: supply47 license43 consulting38 ip35 service34
+      # maintenance34 distributor32 strategic_alliance32 sponsorship31
+      - doc_class: contract
+        sub_buckets:
+          - {subclass: supply, count: 6}               # avail 47
+          - {subclass: license, count: 5}              # avail 43
+          - {subclass: consulting, count: 5}           # avail 38
+          - {subclass: ip, count: 4}                   # avail 35
+          - {subclass: service, count: 4}              # avail 34
+          - {subclass: maintenance, count: 4}          # avail 34
+          - {subclass: distributor, count: 4}          # avail 32
+          - {subclass: strategic_alliance, count: 4}   # avail 32
+          - {subclass: sponsorship, count: 4}          # avail 31
+  limit: 40
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B
+  vllm:
+    max_model_len: 16384      # boot-valid cap for L4-bf16 8B (v0.29.0 raises above)
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 256
+    quantization: ""
+    revision: ""
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0
+    # Attended cost-saver (DMR-076). Unattended/overnight: restore 600 here
+    # and export MODAL_VLLM_SCALEDOWN_SECONDS=600 before redeploy.
+    scaledown_seconds: 120
+    # 2×L4 for GPU parallelism; concurrency stays Jack lock unless overridden;
+    # expect higher $/hr until scaledown.
+    max_containers: 2
+    min_containers: 0         # scale-to-zero after idle
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 8              # Jack lock; posture default is 4
+  cost_cap_usd: 1.80       # abort if wall×L4 $/hr exceeds (2 replicas)
+  max_wall_seconds: 3000    # hard wall abort
+
+trace:
+  sink: none
+  otlp: false
+  environment: grant-parity
+  tags: [sandbox, job, specialist, contracts, qwen3-8b, l4, grant-parity, n40, 2xl4]
