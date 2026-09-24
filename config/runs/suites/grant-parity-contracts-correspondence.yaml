@@ -1,4 +1,4 @@
-# Grant-parity Modal ladder — contracts + correspondence, N=20/40 × 1–2 L4.
+# Modal ladder — contracts + correspondence, N=20/40 × 1–2 L4.
 # Pattern: run-30-specialists-track-a.yaml (ordered configs, one warm app).
 #
 # YAML-only PR — do not auto-run / --execute. HARD HOLD until explicit go
@@ -20,18 +20,19 @@
 schema: sandbox.suite/v1
 suite_id: grant-parity-contracts-correspondence
 track: grant-parity
-title: "Grant parity — contracts + correspondence N=20/40 × 1–2 L4"
+title: "Modal ladder — contracts + correspondence N=20/40 × 1–2 L4"
 rationale: |
-  Grant ladder cells for contracts_specialist and correspondence_specialist
+  Ladder cells for contracts_specialist and correspondence_specialist
   on the FULL Hub corpus (split: all = train+test; no validation split).
   At FAMILY_HF_REVISION / Hub tip 46a4d3c2: contract=600, correspondence=1000.
   Test-only sampling is rejected — Hub 90/10 is an eval partition and test
   is subclass-unbalanced. Strata are Hamilton-proportional to full-corpus
   subclass availability (9 largest CUAD families; 7 largest correspondence
   types). Recommended order: N=20 1×L4, N=20 2×L4, N=40 1×L4, N=40 2×L4,
-  contracts then correspondence inside each band. Jack/Grant lock is flat
-  concurrency=8 on every cell (contracts and correspondence). DMR-078
-  short↑/long↓ (5/4/3) stays on the run-30 spend tracks only.
+  contracts then correspondence inside each band. Jack lock is flat
+  concurrency=8 on every cell (contracts and correspondence) so client
+  concurrency does not confound cross-class compare. DMR-078 short↑/long↓
+  (5/4/3) stays on the run-30 spend tracks only.
 scaledown_seconds: 120
 warm_once: true
 configs:

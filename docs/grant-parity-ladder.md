@@ -1,6 +1,6 @@
-# Grant-parity Modal ladder (operator runbook)
+# Modal ladder (operator runbook)
 
-Short hold-until-go runbook for the contracts + correspondence Grant cells:
+Short hold-until-go runbook for the contracts + correspondence ladder cells:
 **N=20/40 × 1–2 L4 × contracts + correspondence**. Specs live under
 `config/runs/run-{20,40}-*-specialist-modal*.yaml`. Ordered suite:
 `config/runs/suites/grant-parity-contracts-correspondence.yaml`.
@@ -12,8 +12,8 @@ Short hold-until-go runbook for the contracts + correspondence Grant cells:
 
 | Order | `run_id` | Task | N | L4 replicas | concurrency | `cost_cap_usd` | `max_wall_seconds` |
 | --- | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| 1 | `run-20-contracts-specialist-modal` | `contracts_specialist` | 20 | 1 | 8 (Grant/Jack lock) | 0.55 | 2400 |
-| 2 | `run-20-correspondence-specialist-modal` | `correspondence_specialist` | 20 | 1 | 8 (Grant match) | 0.30 | 1800 |
+| 1 | `run-20-contracts-specialist-modal` | `contracts_specialist` | 20 | 1 | 8 (Jack lock) | 0.55 | 2400 |
+| 2 | `run-20-correspondence-specialist-modal` | `correspondence_specialist` | 20 | 1 | 8 (Jack lock) | 0.30 | 1800 |
 | 3 | `run-20-contracts-specialist-modal-2xl4` | `contracts_specialist` | 20 | 2 | 8 | 0.90 | 1800 |
 | 4 | `run-20-correspondence-specialist-modal-2xl4` | `correspondence_specialist` | 20 | 2 | 8 | 0.50 | 1500 |
 | 5 | `run-40-contracts-specialist-modal` | `contracts_specialist` | 40 | 1 | 8 | 1.10 | 3600 |
@@ -32,12 +32,12 @@ validation split). Prompt pins: `contracts_specialist_v33` /
 `correspondence_specialist_production` (same as the run-30 siblings).
 
 **Concurrency is flat 8 on every ladder cell** (contracts and
-correspondence). DMR-078 short↑/long↓ (correspondence/insurance **5**,
+correspondence) so client concurrency does not confound a fair
+cross-class compare. DMR-078 short↑/long↓ (correspondence/insurance **5**,
 corporate/contracts **4**, merger **3**) remains for the **run-30 spend
-tracks only**. This Grant ladder uses client concurrency 8 so that knob
-does not confound parity metrics. 2×L4 cells change **only**
-`max_containers: 2` (GPU replicas); concurrency stays 8. Expect higher
-$/hr on 2×L4 until scaledown.
+tracks only**. 2×L4 cells change **only** `max_containers: 2` (GPU
+replicas); concurrency stays 8. Expect higher $/hr on 2×L4 until
+scaledown.
 
 ## Corpus
 
@@ -61,9 +61,9 @@ The Hub 90/10 split is an **evaluation partition for reproducible sampling**,
 not ML train/test. Test is ~10% (323 rows) and **subclass-unbalanced**
 (contracts test surfaces 19 families with tiny caps; correspondence test
 drops `attorney_demand` entirely and skews the remaining seven). Sampling
-Grant ladder cells from test-only would over-weight scarce test families
+ladder cells from test-only would over-weight scarce test families
 and under-weight full-corpus majors (`license`, `consulting`, `email`).
-The Grant ladder therefore samples from the **full corpus** via
+The ladder therefore samples from the **full corpus** via
 `dataset.split: all`.
 
 ### Strata (full-corpus Hamilton, never above avail)
@@ -114,7 +114,7 @@ Until explicit go:
   the warm-once loop; do not add `--execute`.
 
 `sandbox run benchmark-check` is the run-30 specialist gate (Hermes + 1×L4 +
-limit 30). It is **not** the Grant-ladder gate.
+limit 30). It is **not** the gate for this ladder.
 
 ## Auth (after go)
 
@@ -133,10 +133,10 @@ Keep:
 
 1. **Artifact dir** `data/runtime/runs/<run_id>/` (`spec.lock.json`,
    `items.jsonl`, `checkpoint.json`, `events.jsonl` — see `docs/jobs.md`).
-2. **Grant + SANDBOX_GPU JSON** from
+2. **Compare JSON** from
    `sandbox metrics compare --runs <run_id> --json`.
-   Persist the blob. Do **not** invent keys. Retain the existing Grant table
-   fields in `mailroom_sandbox.eval.serving_parity.GRANT_TABLE_KEYS`
+   Persist the blob. Do **not** invent keys. Retain the existing table
+   fields in `mailroom_sandbox.eval.serving_parity`
    (`serving_kind`, `e2e_latency_seconds`, `ttft_seconds`, `prompt_tokens`,
    `completion_tokens`, `total_tokens`, `estimated_cost_usd`,
    `cost_per_document`, `accuracy`, `f1_macro`) and the sandbox-only GPU

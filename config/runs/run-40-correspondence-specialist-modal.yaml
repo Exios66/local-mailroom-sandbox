@@ -4,18 +4,18 @@
 # split: all (train+test union via expand_hf_splits; Hub has no validation
 # split). Full pool: 1000 correspondence rows. attorney_demand avail 3 —
 # Hamilton remainder 0 at N=20/40, omitted (not test-only exclusion).
-# Grant-parity ladder cell (docs/grant-parity-ladder.md). HARD HOLD until
+# Modal ladder cell (docs/grant-parity-ladder.md). HARD HOLD until
 # explicit go — YAML-only; do not modal deploy / download / start from this PR.
 #
 # ╔══════════════════════════════════════════════════════════════════════════╗
 # ║ CUT SPEND (DMR-076/077/078) — MANDATORY operator posture                 ║
-# ║  1. ONE warm sandbox-vllm app through the Grant ladder (or this cell).   ║
+# ║  1. ONE warm sandbox-vllm app through the Modal ladder (or this cell).   ║
 # ║  2. Do NOT tear down / redeploy / stop between ladder cells.             ║
 # ║  3. Teardown ONLY after your last: ./deploy/teardown_vllm.sh             ║
 # ║  4. scaledown_seconds: 120 (attended). Unattended/overnight → restore 600║
 # ║  5. Default model: Qwen/Qwen3-8B bf16. AWQ optional (DMR-068 gate).       ║
 # ║  6. Suite: config/runs/suites/grant-parity-contracts-correspondence.yaml ║
-# ║  7. Jack/Grant lock concurrency=8 (flat ladder); cost_cap=$0.70, wall=3000s. ║
+# ║  7. Jack lock concurrency=8 (flat across ladder); cost_cap=$0.70, wall=3000s. ║
 # ╚══════════════════════════════════════════════════════════════════════════╝
 #
 #   # Same warm app — do NOT redeploy before this run. After explicit go:
@@ -78,7 +78,7 @@ engine:
     # Attended cost-saver (DMR-076). Unattended/overnight: restore 600 here
     # and export MODAL_VLLM_SCALEDOWN_SECONDS=600 before redeploy.
     scaledown_seconds: 120
-    max_containers: 1         # cost guard — 1×L4 Grant cell
+    max_containers: 1         # cost guard — 1×L4 ladder cell
     min_containers: 0         # scale-to-zero after idle
     prewarm: true
 
@@ -87,12 +87,12 @@ job:
   mock: false
   max_retries: 2
   fail_fast: false
-  concurrency: 8              # Jack/Grant lock — flat 8 across the ladder (not DMR-078 posture 5)
+  concurrency: 8              # Jack lock — flat 8 across the ladder (not DMR-078 posture 5)
   cost_cap_usd: 0.70       # abort if wall×L4 $/hr exceeds
   max_wall_seconds: 3000    # hard wall abort
 
 trace:
   sink: none
   otlp: false
-  environment: grant-parity
-  tags: [sandbox, job, specialist, correspondence, qwen3-8b, l4, grant-parity, n40]
+  environment: modal-ladder
+  tags: [sandbox, job, specialist, correspondence, qwen3-8b, l4, modal-ladder, n40]

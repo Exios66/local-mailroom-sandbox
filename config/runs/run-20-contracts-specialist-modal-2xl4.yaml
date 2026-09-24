@@ -3,12 +3,12 @@
 # Subclass-stratified within contract (9 largest FULL-corpus CUAD families,
 # Hamilton-proportional, summing to 20). split: all (train+test union via
 # expand_hf_splits; Hub has no validation split). Full pool: 600 contracts.
-# Grant-parity ladder cell (docs/grant-parity-ladder.md). HARD HOLD until
+# Modal ladder cell (docs/grant-parity-ladder.md). HARD HOLD until
 # explicit go — YAML-only; do not modal deploy / download / start from this PR.
 #
 # ╔══════════════════════════════════════════════════════════════════════════╗
 # ║ CUT SPEND (DMR-076/077/078) — MANDATORY operator posture                 ║
-# ║  1. ONE warm sandbox-vllm app through the Grant ladder (or this cell).   ║
+# ║  1. ONE warm sandbox-vllm app through the Modal ladder (or this cell).   ║
 # ║  2. Do NOT tear down / redeploy / stop between ladder cells.             ║
 # ║  3. Teardown ONLY after your last: ./deploy/teardown_vllm.sh             ║
 # ║  4. scaledown_seconds: 120 (attended). Unattended/overnight → restore 600║
@@ -31,7 +31,7 @@
 #   sandbox run preflight --config config/runs/run-20-contracts-specialist-modal-2xl4.yaml --live
 #   sandbox run start --config config/runs/run-20-contracts-specialist-modal-2xl4.yaml --job-mode endpoint --watch
 #   sandbox metrics compare --runs run-20-contracts-specialist-modal-2xl4 --json
-#   ./deploy/teardown_vllm.sh   # ONLY after the last Grant-ladder cell
+#   ./deploy/teardown_vllm.sh   # ONLY after the last ladder cell
 schema: sandbox.run/v1
 run_id: run-20-contracts-specialist-modal-2xl4
 task: contracts_specialist
@@ -107,5 +107,5 @@ job:
 trace:
   sink: none
   otlp: false
-  environment: grant-parity
-  tags: [sandbox, job, specialist, contracts, qwen3-8b, l4, grant-parity, n20, 2xl4]
+  environment: modal-ladder
+  tags: [sandbox, job, specialist, contracts, qwen3-8b, l4, modal-ladder, n20, 2xl4]
