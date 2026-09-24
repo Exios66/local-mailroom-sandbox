@@ -164,9 +164,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("datasets", help="Dataset helpers", parents=[shared])
     ds = p.add_subparsers(dest="datasets_cmd")
-    pull = ds.add_parser("pull", parents=[shared], help="Live pinned Hub pull into data/cache (network)")
+    pull = ds.add_parser("pull", parents=[shared], help="Live pinned Hub pull of the FULL ground_truth corpus into data/cache (network)")
     pull.add_argument("--dataset", default="Lucius-Morningstar/mailroom-dataset")
-    pull.add_argument("--max-rows", type=int, default=50)
+    pull.add_argument(
+        "--max-rows",
+        type=int,
+        default=0,
+        help="Cap rows after the draw (0 = full corpus; default). Legacy tiny slices used 50.",
+    )
     pull.add_argument(
         "--revision",
         default="",
@@ -178,8 +183,40 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("ground_truth", "default", ""),
         help="parquet config: ground_truth (labels merged with blind text, the default) or 'default'/'' (blind)",
     )
-    pull.add_argument("--split", default="test", help="parquet split (test|train)")
+    pull.add_argument(
+        "--split",
+        default="all",
+        help="parquet split: all (train+test, default — required for 40/100-per-class) | train | test",
+    )
+    pull.add_argument(
+        "--per-class",
+        type=int,
+        default=0,
+        help="Also draw N rows per live doc type (20/40/100…) from the pulled corpus",
+    )
+    pull.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        dest="sample_seed",
+        help="sample_seed for --per-class draws (default 42)",
+    )
     pull.set_defaults(handler=_cmd_datasets_pull)
+    sample = ds.add_parser(
+        "sample",
+        parents=[shared],
+        help="Offline per-class draw from the cached full corpus (no network)",
+    )
+    sample.add_argument("--per-class", type=int, required=True, help="rows per live doc type (20/40/100…)")
+    sample.add_argument("--seed", type=int, default=42, dest="sample_seed")
+    sample.add_argument(
+        "--classes",
+        default="",
+        help="comma-separated live classes (default: all five)",
+    )
+    sample.add_argument("--from", dest="source", default="", help="source JSONL (default: cached full pull)")
+    sample.add_argument("--out", default="", help="destination JSONL")
+    sample.set_defaults(handler=_cmd_datasets_sample)
     prep = ds.add_parser(
         "prepare",
         help="Load/clean fixtures into data/runtime/prepared/ (offline, no network)",
@@ -1014,7 +1051,7 @@ def _cmd_matrix(args: argparse.Namespace) -> int:
 
 
 def _cmd_datasets_help(args: argparse.Namespace) -> int:
-    print("Use: sandbox datasets pull | sandbox datasets prepare")
+    print("Use: sandbox datasets pull | sandbox datasets sample | sandbox datasets prepare")
     return 0
 
 
@@ -1028,6 +1065,8 @@ def _cmd_datasets_pull(args: argparse.Namespace) -> int:
             max_rows=args.max_rows,
             revision=args.revision,
             config=args.config,
+            per_class=getattr(args, "per_class", 0) or None,
+            sample_seed=getattr(args, "sample_seed", 42),
         )
     except ModuleNotFoundError as exc:
         # The Hub client lives in the [hf]/[dev] extras (offline-first base
@@ -1035,6 +1074,28 @@ def _cmd_datasets_pull(args: argparse.Namespace) -> int:
         print(f"error: {type(exc).__name__}: {exc}\n(hint: pip install -e \".[hf]\" — or -e \".[dev]\")")
         return 1
     except Exception as exc:  # live-or-loud (DMR-056): a failed pull is exit 1
+        print(f"error: {type(exc).__name__}: {exc}")
+        return 1
+    return 0
+
+
+def _cmd_datasets_sample(args: argparse.Namespace) -> int:
+    from pathlib import Path
+
+    from mailroom_sandbox.datasets import sample_cached_corpus
+
+    classes = [c.strip() for c in (args.classes or "").split(",") if c.strip()]
+    source = Path(args.source) if args.source else None
+    dest = Path(args.out) if args.out else None
+    try:
+        sample_cached_corpus(
+            args.per_class,
+            sample_seed=args.sample_seed,
+            source=source,
+            dest=dest,
+            classes=classes or None,
+        )
+    except Exception as exc:
         print(f"error: {type(exc).__name__}: {exc}")
         return 1
     return 0

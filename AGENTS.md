@@ -68,7 +68,8 @@ sandbox eval pipeline --mock        # connected graph scores
 sandbox eval local_vs_api --mock    # Ollama vs OpenRouter serving (no API key)
 sandbox matrix --providers ollama --models qwen3:8b --prompts sorter_local_v0 --mock --dry-run
 pytest -v                           # network-free; live LLM tests need SANDBOX_LOCAL_LLM=1
-sandbox datasets pull               # LIVE pinned Hub pull → data/cache/ (network; exit 1 on failure)
+sandbox datasets pull               # LIVE pinned FULL Hub pull (train+test, 3302 rows) → data/cache/
+sandbox datasets sample --per-class 40  # offline 40/class draw from that cache (20/40/100…)
 sandbox datasets prepare            # offline JSONL under data/runtime/prepared/
 sandbox up --compose-profile jupyter  # Lab on :8888 (deploy/Dockerfile)
 sandbox tunnel plan|up|status|down    # SSH forward for vllm-remote (HUB-026)
