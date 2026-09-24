@@ -261,7 +261,7 @@ _MAX_CONCURRENCY = 64
 
 
 def _concurrency(store: RunStore) -> int:
-    value = int(_task_defaults(store).get("concurrency", 1) or 1)
+    value = int(_task_defaults(store).get("concurrency", 4) or 4)
     return max(1, min(value, _MAX_CONCURRENCY))
 
 

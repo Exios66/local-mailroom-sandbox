@@ -106,6 +106,7 @@ engine:
                               # concurrency 8; 2nd replica would ~double
                               # GPU-hours for ~2x wall-clock speedup (no cost
                               # win on a one-shot 50-doc eval)
+    min_containers: 0         # scale-to-zero (efficient conservative)
     prewarm: true
 
 job:

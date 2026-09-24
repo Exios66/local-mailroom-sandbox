@@ -59,15 +59,17 @@ engine:
   # DMR-056: 16384 default — L4-bf16 8B-class rows cannot hold 32768 (v0.29.0
   # raises at boot when the KV pool can't fit one request); AWQ rows set 32768.
   modal: {app: sandbox-vllm, gpu: L4, image_tag: v0.29.0,
-          scaledown_seconds: 900, max_containers: 1, prewarm: true}
+          scaledown_seconds: 600, max_containers: 1, min_containers: 0,
+          prewarm: true}
 
 job:
   mode: endpoint            # endpoint | modal
   mock: false
   max_retries: 2
   fail_fast: false
-  concurrency: 1            # per-item parallel rows: 1 = serial default;
-                            # 4-16 for vLLM endpoints (Modal throughput runs)
+  concurrency: 4            # default JobSpec value — efficient conservative
+                            # vs Modal vLLM continuous batching (docs: 4-16);
+                            # set 1 explicitly for serial/CPU-Ollama runs
                             # — bounded to [1, 64] at spec validation
 
 trace:
@@ -136,9 +138,10 @@ Exit codes: `0` done · `1` failed · `2` paused · `3` drift refused.
   throughput workload (Modal `vllm_throughput` exemplar). Workers only
   compute; every RunStore write and progress event happens on the main
   thread, and each row runs in a copied context so the pipeline's
-  contextvar run limits and trace state stay per-doc isolated. Recommended:
-  4-16 against a Modal-hosted vLLM; keep 1 for CPU Ollama or per-item
-  latency-sensitive runs.
+  contextvar run limits and trace state stay per-doc isolated.   Recommended:
+  4-16 against a Modal-hosted vLLM (JobSpec default is **4** — the efficient
+  conservative sweet spot); set `concurrency: 1` explicitly for CPU Ollama or
+  per-item latency-sensitive runs.
 - **Modal mode**: the run dir is pushed to the `sandbox-runs` Volume and the
   remote worker mirrors progress to the `sandbox-job-state` Dict; the CLI
   polls it. Resume re-attaches to a live `FunctionCall` or re-spawns the same

@@ -63,7 +63,9 @@ TP_SIZE = os.environ.get("MODAL_VLLM_TP_SIZE", "") or str(
 )
 VLLM_IMAGE_TAG = os.environ.get("MODAL_VLLM_IMAGE_TAG", "v0.29.0")
 
-SCALEDOWN_SECONDS = int(os.environ.get("MODAL_VLLM_SCALEDOWN_SECONDS", 15 * 60))
+# Efficient conservative posture: 600s idle warm (experiment runs / cost guard);
+# override via MODAL_VLLM_SCALEDOWN_SECONDS when a longer warm window is needed.
+SCALEDOWN_SECONDS = int(os.environ.get("MODAL_VLLM_SCALEDOWN_SECONDS", 10 * 60))
 MAX_CONTAINERS = int(os.environ.get("MODAL_VLLM_MAX_CONTAINERS", 1))
 MIN_CONTAINERS = int(os.environ.get("MODAL_VLLM_MIN_CONTAINERS", 0))
 STARTUP_TIMEOUT_SECONDS = int(
