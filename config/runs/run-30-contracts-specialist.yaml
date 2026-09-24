@@ -3,18 +3,18 @@
 # quotas summing to 30). Test split has 60 contracts — enough for N=30.
 #
 # ╔══════════════════════════════════════════════════════════════════════════╗
-# ║ CUT SPEND (DMR-076/077) — MANDATORY operator posture                     ║
+# ║ CUT SPEND (DMR-076/077/078) — MANDATORY operator posture                 ║
 # ║  1. ONE warm sandbox-vllm app through YOUR TRACK (or all five if solo).  ║
 # ║  2. Do NOT tear down / redeploy / stop between classes.                  ║
 # ║  3. Teardown ONLY after your last: ./deploy/teardown_vllm.sh             ║
 # ║  4. scaledown_seconds: 120 (attended). Unattended/overnight → restore 600║
-# ║     in this YAML AND MODAL_VLLM_SCALEDOWN_SECONDS.                       ║
 # ║  5. Default model: Qwen/Qwen3-8B bf16. AWQ is OPTIONAL (DMR-068 gate).   ║
 # ║  6. Two-operator: sandbox run suite --suite track-a|track-b (DMR-077).   ║
+# ║  7. DMR-078: per-doc-type concurrency / max_tokens / cost_cap / wall.    ║
 # ╚══════════════════════════════════════════════════════════════════════════╝
 #
-# Efficient conservative Modal posture: 1×L4, max_containers=1, min_containers=0,
-# scaledown 120s (attended cost-saver), job.concurrency=4.
+# Doc-type posture (specialist_posture): concurrency=4, max_tokens=4096,
+# max_input_chars fitted to L4 16k context, cost_cap_usd=0.80, max_wall=4800s.
 #
 # Morning CLI (warm once → five runs → teardown) — see docs/benchmark-l4.md:
 #   modal profile activate hermes-agent-jjb
@@ -35,8 +35,7 @@ profile: modal-vllm
 
 prompt:
   # Pinned local production text (config/prompts/contracts_specialist_v33.txt) for reproducible
-  # Modal L4 runs — not Langfuse floating production. Synced from vendored
-  # llm-mailroom code-default (contracts_specialist). DMR-074.
+  # Modal L4 Qwen runs — not Langfuse floating production. DMR-074/078.
   default: {source: code-default}
   agents:
     contracts_specialist:
@@ -92,7 +91,9 @@ job:
   mock: false
   max_retries: 2
   fail_fast: false
-  concurrency: 4              # efficient conservative; fills 1×L4 continuous batching
+  concurrency: 4              # DMR-078 per-doc-type (short↑ / long↓)
+  cost_cap_usd: 0.8        # abort if wall×L4 $/hr exceeds
+  max_wall_seconds: 4800    # hard wall abort
 
 trace:
   sink: none

@@ -362,9 +362,15 @@ class JobSpec(BaseModel):
     # once, so vLLM's continuous batching sees concurrent requests (offline
     # evals are a throughput workload). Default 4 is the efficient
     # conservative sweet spot (docs/jobs.md recommends 4-16 vs Modal vLLM;
-    # DMR-072 found 8-way on 1×L4 piled at the web proxy). Set 1 explicitly
-    # for CPU Ollama or latency-sensitive serial runs. Guarded to [1, 64].
+    # DMR-072 found 8-way on 1×L4 piled at the web proxy). Specialist
+    # run-30 YAMLs pin per-doc-type concurrency via specialist_posture
+    # (DMR-078: short docs 5, long MAUD 3). Guarded to [1, 64].
     concurrency: int = 4
+    # Cost / wall abort guards (DMR-078). None = disabled. Modal endpoint
+    # runs estimate GPU $ from wall clock × L4 rate while the item loop
+    # runs; exceeding either cap fails the run loud (no silent overspend).
+    cost_cap_usd: float | None = None
+    max_wall_seconds: int | None = None
 
     @field_validator("task")
     @classmethod
@@ -383,6 +389,24 @@ class JobSpec(BaseModel):
     def _conc(cls, v: int) -> int:
         if not 1 <= v <= 64:
             raise ValueError("concurrency must be in [1, 64]")
+        return v
+
+    @field_validator("cost_cap_usd")
+    @classmethod
+    def _cost_cap(cls, v: float | None) -> float | None:
+        if v is None:
+            return v
+        if v <= 0:
+            raise ValueError("cost_cap_usd must be > 0 when set")
+        return v
+
+    @field_validator("max_wall_seconds")
+    @classmethod
+    def _max_wall(cls, v: int | None) -> int | None:
+        if v is None:
+            return v
+        if v < 60:
+            raise ValueError("max_wall_seconds must be >= 60 when set")
         return v
 
 
