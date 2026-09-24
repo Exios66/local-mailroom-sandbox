@@ -85,6 +85,47 @@ sandbox modernbert eval --sample 50 --json
 - Linear extrapolation = `combined_$/doc × N`. `with_overhead` adds one
   cold-start + one scaledown window. Confidence notes always print.
 
+## Pre-flight cost estimate (no GPU spend)
+
+Before deploying, print low/likely/high GPU $ + wall from the run YAMLs and
+conservative sec/doc assumptions (specialists ≈1 LLM call/doc):
+
+```bash
+sandbox metrics estimate-suite
+# or: sandbox metrics estimate-suite --configs \
+#   config/runs/run-30-contracts-specialist.yaml,…
+sandbox metrics estimate-suite --scaledown-seconds 120   # attended cost-saver
+sandbox metrics estimate-suite --json                    # machine-readable
+```
+
+Defaults assume Modal L4 @ $0.80/GPU-hr, concurrency 4, one warm app across
+all five configs, cold-start 120 s + scaledown (from YAML, usually 600 s) +
+60 s inter-run gaps. Override with `--sec-per-doc`, `--gen-tok-per-s`,
+`--gpu-usd-per-hour`. After a live suite, prefer
+`sandbox metrics extrapolate --run …` on measured items.
+
+## Cost-saver path (optional — keep default suite on bf16 Qwen+L4)
+
+| Lever | When | Expected save | Safe for default suite? |
+| --- | --- | --- | --- |
+| One warm app, teardown after fifth | Always | Avoids 4× extra scaledown tails | **Yes** (runbook default) |
+| `MODAL_VLLM_SCALEDOWN_SECONDS=120` while attended | Operator watching | ~(600−120)/3600×$0.80 ≈ **$0.11** | Yes if you restore 600 for unattended |
+| AWQ (`sandbox modal-matrix env Qwen/Qwen3-8B-AWQ`) | After DMR-068 gate (≥1.5× docs/min **and** ≥98% accuracy) | ~30–40% of **busy** GPU $ | **No** until gated — optional path only |
+| Lower specialist `max_tokens` (taxonomy 8192) | After measuring p95 completion ≪ 8192 | Decode time only | **No** without histogram — truncates JSON |
+| Teardown between classes | Never for cost | **Negative** (extra scaledown) | No |
+
+AWQ swap (whole suite, not one class):
+
+```bash
+eval "$(sandbox modal-matrix env Qwen/Qwen3-8B-AWQ)"
+modal run deploy/modal_vllm.py::download_model
+modal deploy deploy/modal_vllm.py --strategy recreate
+# re-point VLLM_BASE_URL, cutover/health, then the same five run YAMLs
+```
+
+Do **not** edit run-30 YAMLs for AWQ — those stay Qwen+L4 bf16 for the
+cost-eval baseline.
+
 ## Merger note
 
 `run-30-merger-specialist` uses **train** split (test has only ~17 merger

@@ -282,6 +282,59 @@ def test_extrapolate_refuses_silent_zero_rates():
     assert rates["honest_gaps"]
 
 
+def test_estimate_suite_specialist_defaults():
+    """Pre-flight table for the five run-30 YAMLs (no Modal)."""
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    configs = [
+        root / "config/runs/run-30-contracts-specialist.yaml",
+        root / "config/runs/run-30-merger-specialist.yaml",
+        root / "config/runs/run-30-corporate-records-specialist.yaml",
+        root / "config/runs/run-30-correspondence-specialist.yaml",
+        root / "config/runs/run-30-insurance-claims-specialist.yaml",
+    ]
+    if not all(p.is_file() for p in configs):
+        import pytest
+
+        pytest.skip("run-30 specialist YAMLs missing")
+    result = metrics.estimate_suite(configs, corpus_size=3302)
+    assert result["suite"]["docs"] == 150
+    assert result["suite"]["runs"] == 5
+    assert result["suite"]["gpu_usd"]["likely"] > 0
+    assert result["suite"]["gpu_usd"]["low"] < result["suite"]["gpu_usd"]["high"]
+    assert result["corpus_extrapolation"]["corpus_size"] == 3302
+    assert "Pre-flight suite cost estimate" in result["markdown"]
+    assert any(o["rank"] == 1 for o in result["optimizations"])
+
+
+def test_estimate_suite_override_sec_per_doc():
+    result = metrics.estimate_suite(
+        [
+            {
+                "run_id": "run-toy",
+                "task": "correspondence_specialist",
+                "docs": 10,
+                "concurrency": 4,
+                "gpu": "L4",
+                "model": "Qwen/Qwen3-8B",
+                "scaledown_seconds": 600,
+                "max_containers": 1,
+            }
+        ],
+        sec_per_doc_override=40.0,
+        cold_start_seconds=0.0,
+        scaledown_seconds=0.0,
+        inter_run_gap_seconds=0.0,
+        corpus_size=None,
+    )
+    # wall = 10 * 40 / 4 = 100 s → $ at $0.80/hr
+    assert result["rows"][0]["wall_seconds"]["likely"] == pytest.approx(100.0)
+    assert result["suite"]["gpu_usd"]["likely"] == pytest.approx(
+        round(100.0 / 3600.0 * 0.80, 4)
+    )
+
+
 def test_usage_capture_merge_item_metrics():
     from mailroom_sandbox.job.usage_capture import merge_item_metrics, usage_from_openai_response
 

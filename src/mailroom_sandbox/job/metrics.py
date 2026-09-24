@@ -22,6 +22,7 @@ from __future__ import annotations
 import logging
 import os
 import statistics
+from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from llm_dojo_scoring.serving import compare_serving, estimate_cost
@@ -869,4 +870,414 @@ def _extrapolate_md(result: Mapping[str, Any]) -> str:
         lines += ["", "### Confidence / honesty"]
         for note in notes:
             lines.append(f"- {note}")
+    return "\n".join(lines)
+
+
+# ── Pre-flight suite estimate (no live GPU spend) ───────────────────────────
+
+# Per-doc busy latency ranges for the L4 bf16 Qwen3-8B specialist path
+# (1 LLM call/doc). Anchored on run-50 sorter gen ≈8.7–13.9 tok/s, pilot
+# ~83 s/doc @ ~5 calls on short fixtures, and scale-matrix decode math
+# (docs/scale-matrix.md). Ranges are deliberately conservative (funding-
+# constrained): HIGH assumes near-max_tokens decode tails on long filings.
+SPECIALIST_SEC_PER_DOC: dict[str, dict[str, float]] = {
+    # run_id stem → low / likely / high busy seconds per doc (engine work)
+    "run-30-correspondence-specialist": {"low": 30.0, "likely": 70.0, "high": 150.0},
+    "run-30-insurance-claims-specialist": {"low": 45.0, "likely": 95.0, "high": 200.0},
+    "run-30-corporate-records-specialist": {"low": 50.0, "likely": 110.0, "high": 240.0},
+    "run-30-contracts-specialist": {"low": 70.0, "likely": 160.0, "high": 360.0},
+    "run-30-merger-specialist": {"low": 100.0, "likely": 220.0, "high": 420.0},
+}
+
+# Fallback when run_id is unknown: task → ranges (merger shares contracts_specialist).
+TASK_SEC_PER_DOC: dict[str, dict[str, float]] = {
+    "correspondence_specialist": {"low": 30.0, "likely": 70.0, "high": 150.0},
+    "insurance_claims_specialist": {"low": 45.0, "likely": 95.0, "high": 200.0},
+    "corporate_records_specialist": {"low": 50.0, "likely": 110.0, "high": 240.0},
+    "contracts_specialist": {"low": 80.0, "likely": 180.0, "high": 380.0},
+    "sorter": {"low": 200.0, "likely": 400.0, "high": 900.0},  # ~5 calls/doc
+}
+
+# Assumed tokens/doc (prompt + completion) for optional token-proxy column.
+SPECIALIST_TOKENS_PER_DOC: dict[str, dict[str, int]] = {
+    "run-30-correspondence-specialist": {"prompt": 3500, "completion": 600},
+    "run-30-insurance-claims-specialist": {"prompt": 4500, "completion": 1000},
+    "run-30-corporate-records-specialist": {"prompt": 5000, "completion": 1200},
+    "run-30-contracts-specialist": {"prompt": 8000, "completion": 2000},
+    "run-30-merger-specialist": {"prompt": 10000, "completion": 2800},
+}
+
+_BANDS = ("low", "likely", "high")
+
+
+def _sec_per_doc_for(run_id: str, task: str) -> dict[str, float]:
+    if run_id in SPECIALIST_SEC_PER_DOC:
+        return dict(SPECIALIST_SEC_PER_DOC[run_id])
+    if task in TASK_SEC_PER_DOC:
+        return dict(TASK_SEC_PER_DOC[task])
+    # Unknown specialist/task: sorter-like upper bound so we never under-quote.
+    return {"low": 60.0, "likely": 150.0, "high": 300.0}
+
+
+def _tokens_for(run_id: str, task: str) -> dict[str, int]:
+    if run_id in SPECIALIST_TOKENS_PER_DOC:
+        return dict(SPECIALIST_TOKENS_PER_DOC[run_id])
+    # Generic specialist guess
+    if "specialist" in task or "specialist" in run_id:
+        return {"prompt": 6000, "completion": 1500}
+    return {"prompt": 4000, "completion": 1000}
+
+
+def estimate_suite(
+    configs: Sequence[Mapping[str, Any] | str | Path],
+    *,
+    gpu_usd_per_hour_rate: float | None = None,
+    sec_per_doc_override: float | None = None,
+    cold_start_seconds: float = 120.0,
+    scaledown_seconds: float | None = None,
+    inter_run_gap_seconds: float = 60.0,
+    corpus_size: int | None = None,
+    gen_tok_per_s: float | None = None,
+) -> dict[str, Any]:
+    """Pre-flight GPU $ + wall-time estimate from run YAML metadata.
+
+    Does **not** call Modal. Reads docs / concurrency / GPU / scaledown from
+    each config (path or already-parsed mapping) and applies conservative
+    low/likely/high busy-sec/doc assumptions. Suite wall assumes one warm
+    1×GPU app across all configs (no redeploy), plus one cold-start and one
+    scaledown tail.
+
+    ``gen_tok_per_s`` (optional) replaces sec/doc via
+    ``(prompt_prefill_s≈8 + completion/gen_rate)`` when tokens tables exist.
+    """
+    rows: list[dict[str, Any]] = []
+    notes: list[str] = [
+        "Pre-flight only — replace with MODAL_BILLED_GPU_SECONDS after the suite",
+        "Specialists ≈1 LLM call/doc (vs sorter ~5); per-doc GPU $ should beat "
+        "run-50 sorter ≈$0.16/doc if doc length is similar",
+        "Anchors: run-50 sorter ~77 min / ~$8 on 2–3×L4; L4 gen ≈8.7–13.9 tok/s "
+        "(docs/scale-matrix.md); Modal L4 ≈$0.80/GPU-hr",
+        "Alternate ceiling: sorter ≈$0.032–0.05 per LLM-call × 150 docs ≈ "
+        "$4.80–$7.50 if specialist docs match run-50 filing length and decode "
+        "tails (use HIGH band + this ceiling when budgeting credits)",
+        "Excludes Modal region multipliers (docs cite 1.15–1.75×) and "
+        "download_model CPU time; first GPU cold boot may exceed 120 s",
+    ]
+
+    for raw in configs:
+        if isinstance(raw, (str, Path)):
+            from mailroom_sandbox.job.spec import load_run_spec
+
+            spec = load_run_spec(raw)
+            data = {
+                "run_id": spec.run_id or "",
+                "task": spec.task,
+                "docs": int(spec.dataset.limit or 0),
+                "concurrency": int(spec.job.concurrency or 1),
+                "model": spec.engine.model,
+                "gpu": (spec.engine.modal.gpu if spec.engine.modal else "L4"),
+                "scaledown_seconds": (
+                    int(spec.engine.modal.scaledown_seconds) if spec.engine.modal else 600
+                ),
+                "max_containers": (
+                    int(spec.engine.modal.max_containers) if spec.engine.modal else 1
+                ),
+                "source": str(raw),
+            }
+        else:
+            data = dict(raw)
+
+        run_id = str(data.get("run_id") or "")
+        task = str(data.get("task") or "")
+        docs = int(data.get("docs") or data.get("limit") or 0)
+        concurrency = max(1, int(data.get("concurrency") or 4))
+        gpu = str(data.get("gpu") or "L4").split(":")[0]
+        model = str(data.get("model") or "Qwen/Qwen3-8B")
+        sd = data.get("scaledown_seconds")
+        max_c = int(data.get("max_containers") or 1)
+
+        bands = _sec_per_doc_for(run_id, task)
+        if sec_per_doc_override is not None and sec_per_doc_override > 0:
+            bands = {b: float(sec_per_doc_override) for b in _BANDS}
+            notes.append(f"{run_id or task}: sec/doc override={sec_per_doc_override}")
+
+        tok = _tokens_for(run_id, task)
+        if gen_tok_per_s is not None and gen_tok_per_s > 0:
+            # Decode-dominated busy time + small prefill pad.
+            decode_s = float(tok["completion"]) / float(gen_tok_per_s)
+            prefill_s = 8.0
+            bands = {
+                "low": round((prefill_s + decode_s) * 0.7, 1),
+                "likely": round(prefill_s + decode_s, 1),
+                "high": round((prefill_s + decode_s) * 1.6, 1),
+            }
+
+        rate = (
+            float(gpu_usd_per_hour_rate)
+            if gpu_usd_per_hour_rate is not None
+            else gpu_usd_per_hour(gpu)
+        )
+
+        wall: dict[str, float] = {}
+        cost: dict[str, float] = {}
+        for band in _BANDS:
+            sec = float(bands[band])
+            wall_s = (docs * sec) / concurrency
+            wall[band] = round(wall_s, 1)
+            cost[band] = round(wall_s / 3600.0 * rate, 4)
+
+        if max_c > 1:
+            notes.append(
+                f"{run_id}: max_containers={max_c} — estimate assumes 1 warm "
+                "replica (benchmark default); multiply GPU $ if more stay warm"
+            )
+
+        rows.append(
+            {
+                "run_id": run_id,
+                "task": task,
+                "docs": docs,
+                "concurrency": concurrency,
+                "gpu": gpu,
+                "model": model,
+                "scaledown_seconds": int(sd) if sd is not None else 600,
+                "sec_per_doc": {b: float(bands[b]) for b in _BANDS},
+                "tokens_assumed": tok,
+                "wall_seconds": wall,
+                "gpu_usd": cost,
+                "gpu_usd_per_hour": rate,
+                "notes": (
+                    "1 LLM call/doc; wall=(docs×sec/doc)/concurrency on 1×GPU"
+                ),
+            }
+        )
+
+    if not rows:
+        raise ValueError("estimate_suite requires at least one run config")
+
+    # Suite overhead: one cold-start + one scaledown (max across configs unless
+    # caller overrides) + small gaps between runs while the app stays warm.
+    suite_scaledown = (
+        float(scaledown_seconds)
+        if scaledown_seconds is not None
+        else float(max(int(r["scaledown_seconds"]) for r in rows))
+    )
+    n_runs = len(rows)
+    gap_total = max(0, n_runs - 1) * float(inter_run_gap_seconds)
+    overhead_s = float(cold_start_seconds) + suite_scaledown + gap_total
+    rate0 = float(rows[0]["gpu_usd_per_hour"])
+    overhead_usd = round(overhead_s / 3600.0 * rate0, 4)
+
+    suite_wall: dict[str, float] = {}
+    suite_usd: dict[str, float] = {}
+    for band in _BANDS:
+        busy = sum(float(r["wall_seconds"][band]) for r in rows)
+        suite_wall[band] = round(busy + overhead_s, 1)
+        suite_usd[band] = round(
+            sum(float(r["gpu_usd"][band]) for r in rows) + overhead_usd, 4
+        )
+
+    total_docs = sum(int(r["docs"]) for r in rows)
+    cpd = {
+        band: round(suite_usd[band] / total_docs, 6) if total_docs else None
+        for band in _BANDS
+    }
+
+    corpus: dict[str, Any] | None = None
+    if corpus_size is not None and corpus_size > 0 and total_docs > 0:
+        # Linear GPU $/doc × N; with_overhead adds one cold+scaledown only.
+        linear = {
+            band: round(float(cpd[band]) * corpus_size, 2) if cpd[band] else None
+            for band in _BANDS
+        }
+        # Re-scale wall from likely sec/doc mix: use suite busy (excl overhead)
+        # / total_docs as mean busy, then wall = (mean × N) / concurrency.
+        conc = max(1, int(rows[0]["concurrency"]))
+        corpus_wall_h = {}
+        for band in _BANDS:
+            busy_suite = sum(float(r["wall_seconds"][band]) for r in rows)
+            mean_busy_per_doc_wall = busy_suite / total_docs  # already /conc
+            # mean_busy_per_doc_wall is wall-seconds contribution per doc at c;
+            # for corpus at same c: mean_busy_per_doc_wall * corpus_size
+            wall_h = (mean_busy_per_doc_wall * corpus_size) / 3600.0
+            corpus_wall_h[band] = round(wall_h, 2)
+        oh_only = round(
+            (float(cold_start_seconds) + suite_scaledown) / 3600.0 * rate0, 4
+        )
+        corpus = {
+            "corpus_size": int(corpus_size),
+            "gpu_usd_per_document": cpd,
+            "linear_gpu_usd": linear,
+            "with_overhead_gpu_usd": {
+                band: round(float(linear[band]) + oh_only, 2)
+                if linear[band] is not None
+                else None
+                for band in _BANDS
+            },
+            "corpus_wall_hours": corpus_wall_h,
+            "formula": (
+                "suite_gpu_$/doc(band) × corpus_size; with_overhead adds one "
+                "cold_start + scaledown at GPU $/hr"
+            ),
+            "note": (
+                f"Extrapolation factor {corpus_size}/{total_docs} ≈ "
+                f"{corpus_size / total_docs:.1f}× — order-of-magnitude until "
+                "live specialist rates replace assumptions"
+            ),
+        }
+
+    result = {
+        "agent": "cost_estimate_suite",
+        "rows": rows,
+        "suite": {
+            "runs": n_runs,
+            "docs": total_docs,
+            "cold_start_seconds": cold_start_seconds,
+            "scaledown_seconds": suite_scaledown,
+            "inter_run_gap_seconds": inter_run_gap_seconds,
+            "overhead_seconds": round(overhead_s, 1),
+            "overhead_usd": overhead_usd,
+            "wall_seconds": suite_wall,
+            "wall_hours": {b: round(suite_wall[b] / 3600.0, 3) for b in _BANDS},
+            "gpu_usd": suite_usd,
+            "gpu_usd_per_document": cpd,
+            "posture": "one warm 1×GPU app across configs; teardown after last",
+        },
+        "corpus_extrapolation": corpus,
+        "confidence_notes": notes,
+        "optimizations": _estimate_optimizations(suite_usd, suite_scaledown, rate0),
+        "markdown": "",
+    }
+    result["markdown"] = _estimate_suite_md(result)
+    return result
+
+
+def _estimate_optimizations(
+    suite_usd: Mapping[str, float],
+    scaledown_seconds: float,
+    rate_hr: float,
+) -> list[dict[str, Any]]:
+    """Ranked cost cutters with expected $ savings vs likely suite total."""
+    likely = float(suite_usd.get("likely") or 0.0)
+    sd_save_to_120 = max(0.0, (scaledown_seconds - 120.0) / 3600.0 * rate_hr)
+    # AWQ ~1.5–1.76× throughput → wall/cost shrink ~33–43% on busy portion
+    # (overhead fixed). Approximate busy = likely − overhead_at_current_sd.
+    overhead = scaledown_seconds / 3600.0 * rate_hr + 120.0 / 3600.0 * rate_hr
+    busy_likely = max(0.0, likely - overhead)
+    awq_save = round(busy_likely * (1.0 - 1.0 / 1.6), 2)  # ~1.6× mid of 1.5–1.76
+    return [
+        {
+            "rank": 1,
+            "name": "Keep one warm app (no redeploy / no teardown between classes)",
+            "expected_usd_saved": "already in baseline — teardown×5 would add ~4× scaledown",
+            "safe_now": True,
+            "note": "Runbook default; tearing down between classes wastes scaledown tails",
+        },
+        {
+            "rank": 2,
+            "name": "Shorter scaledown during attended suite (e.g. 120s via env)",
+            "expected_usd_saved": round(sd_save_to_120, 2),
+            "safe_now": True,
+            "note": (
+                f"MODAL_VLLM_SCALEDOWN_SECONDS=120 while watching; restore 600 "
+                f"for unattended. Saves ~(scaledown−120)s × ${rate_hr}/hr"
+            ),
+        },
+        {
+            "rank": 3,
+            "name": "AWQ cost-saver path (Qwen3-8B-AWQ) after DMR-068 accuracy gate",
+            "expected_usd_saved": awq_save,
+            "safe_now": False,
+            "note": (
+                "Gate: ≥1.5× docs/min AND ≥98% accuracy (docs/scale-matrix.md). "
+                "Do not swap the default bf16 suite until gated; optional path only"
+            ),
+        },
+        {
+            "rank": 4,
+            "name": "Cap max_tokens after measuring p95 completion (taxonomy 8192 today)",
+            "expected_usd_saved": "TBD — only if p95 << 8192",
+            "safe_now": False,
+            "note": (
+                "Do not lower run-30 defaults without a measured completion "
+                "histogram; truncating JSON hurts reproducibility"
+            ),
+        },
+        {
+            "rank": 5,
+            "name": "Teardown between specialist classes",
+            "expected_usd_saved": -round(4 * scaledown_seconds / 3600.0 * rate_hr, 2),
+            "safe_now": False,
+            "note": "Usually worse — negative savings (extra scaledown tails)",
+        },
+    ]
+
+
+def _estimate_suite_md(result: Mapping[str, Any]) -> str:
+    rows = result.get("rows") or []
+    suite = result.get("suite") or {}
+    corpus = result.get("corpus_extrapolation")
+    lines = [
+        "## Pre-flight suite cost estimate (Modal GPU)",
+        "",
+        "| run | docs | sec/doc L/M/H | wall min L/M/H | GPU $ L/M/H | notes |",
+        "| --- | ---: | --- | --- | --- | --- |",
+    ]
+    for r in rows:
+        spd = r["sec_per_doc"]
+        w = r["wall_seconds"]
+        g = r["gpu_usd"]
+        lines.append(
+            f"| {r.get('run_id') or r.get('task')} | {r.get('docs')} | "
+            f"{spd['low']:.0f}/{spd['likely']:.0f}/{spd['high']:.0f} | "
+            f"{w['low']/60:.1f}/{w['likely']/60:.1f}/{w['high']/60:.1f} | "
+            f"${g['low']:.2f}/${g['likely']:.2f}/${g['high']:.2f} | "
+            f"c={r.get('concurrency')} {r.get('gpu')} |"
+        )
+    wh = suite.get("wall_hours") or {}
+    gu = suite.get("gpu_usd") or {}
+    cpd = suite.get("gpu_usd_per_document") or {}
+    lines += [
+        "",
+        "### Suite total (1× warm GPU + cold-start + scaledown + inter-run gaps)",
+        f"- docs={suite.get('docs')} runs={suite.get('runs')} "
+        f"overhead_s={suite.get('overhead_seconds')} "
+        f"(cold={suite.get('cold_start_seconds')}s + "
+        f"scaledown={suite.get('scaledown_seconds')}s + gaps)",
+        f"- wall hours L/M/H: "
+        f"{wh.get('low')}/{wh.get('likely')}/{wh.get('high')}",
+        f"- GPU $ L/M/H: "
+        f"**${gu.get('low')}/${gu.get('likely')}/${gu.get('high')}**",
+        f"- GPU $/doc L/M/H: "
+        f"{cpd.get('low')}/{cpd.get('likely')}/{cpd.get('high')}",
+        f"- posture: {suite.get('posture')}",
+    ]
+    if corpus:
+        lin = corpus.get("linear_gpu_usd") or {}
+        woh = corpus.get("with_overhead_gpu_usd") or {}
+        cwh = corpus.get("corpus_wall_hours") or {}
+        lines += [
+            "",
+            f"### Full-corpus extrapolation (N={corpus.get('corpus_size')})",
+            f"- linear GPU $ L/M/H: ${lin.get('low')}/${lin.get('likely')}/${lin.get('high')}",
+            f"- +overhead GPU $ L/M/H: "
+            f"${woh.get('low')}/${woh.get('likely')}/${woh.get('high')}",
+            f"- wall hours L/M/H: "
+            f"{cwh.get('low')}/{cwh.get('likely')}/{cwh.get('high')}",
+            f"- {corpus.get('note')}",
+        ]
+    opts = result.get("optimizations") or []
+    if opts:
+        lines += ["", "### Ranked optimizations (expected $ vs likely suite)"]
+        for o in opts:
+            lines.append(
+                f"{o.get('rank')}. **{o.get('name')}** — save ≈ {o.get('expected_usd_saved')} "
+                f"{'(safe now)' if o.get('safe_now') else '(gated / usually worse)'}: "
+                f"{o.get('note')}"
+            )
+    notes = result.get("confidence_notes") or []
+    if notes:
+        lines += ["", "### Confidence / honesty"]
+        for n in notes:
+            lines.append(f"- {n}")
     return "\n".join(lines)
