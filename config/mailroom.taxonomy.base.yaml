@@ -305,14 +305,6 @@ agents:
     max_input_chars: 36008
     reasoning_effort: none
 
-  merger_agreement_specialist:
-    provider: openrouter
-    model: qwen/qwen3.7-flash
-    temperature: 0.1
-    max_tokens: 8192
-    max_input_chars: 100000
-    reasoning_effort: none
-
   corporate_records_specialist:
     provider: openrouter
     model: qwen/qwen3.7-flash
