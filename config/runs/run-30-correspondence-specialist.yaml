@@ -13,7 +13,14 @@ task: correspondence_specialist
 profile: modal-vllm
 
 prompt:
+  # Pinned local production text (config/prompts/correspondence_specialist_production.txt) for reproducible
+  # Modal L4 runs — not Langfuse floating production. Synced from vendored
+  # llm-mailroom code-default (correspondence_specialist).
   default: {source: code-default}
+  agents:
+    correspondence_specialist:
+      source: local
+      file: correspondence_specialist_production
 
 dataset:
   provider: huggingface

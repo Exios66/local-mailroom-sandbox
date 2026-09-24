@@ -14,7 +14,14 @@ task: insurance_claims_specialist
 profile: modal-vllm
 
 prompt:
+  # Pinned local production text (config/prompts/insurance_claims_specialist_production.txt) for reproducible
+  # Modal L4 runs — not Langfuse floating production. Synced from vendored
+  # llm-mailroom code-default (insurance_claims_specialist).
   default: {source: code-default}
+  agents:
+    insurance_claims_specialist:
+      source: local
+      file: insurance_claims_specialist_production
 
 dataset:
   provider: huggingface

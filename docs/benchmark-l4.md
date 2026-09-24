@@ -90,6 +90,22 @@ sandbox modernbert eval --sample 50 --json
 `run-30-merger-specialist` uses **train** split (test has only ~17 merger
 rows). Document that in any published scorecard.
 
+## Specialist prompts (pinned local)
+
+Each run-30 YAML pins the task agent's production text under
+`config/prompts/` (not Langfuse floating `production`):
+
+| Run | Agent | Local stem | Source |
+| --- | --- | --- | --- |
+| contracts / merger | `contracts_specialist` | `contracts_specialist_v33` | vendored `PROMPT_VERSIONS` (mailroom production) |
+| corporate-records | `corporate_records_specialist` | `corporate_records_specialist_production` | vendored `SYSTEM_PROMPT` + doctrine |
+| correspondence | `correspondence_specialist` | `correspondence_specialist_production` | vendored `SYSTEM_PROMPT` + doctrine |
+| insurance-claims | `insurance_claims_specialist` | `insurance_claims_specialist_production` | vendored `SYSTEM_PROMPT` + doctrine |
+
+Refresh: `python scripts/sync_specialist_prompts.py` (or `--check` after vendor sync).
+Entity-extraction experimental `contracts_specialist_v34+` are **not** the
+mailroom production pin — do not swap without an explicit scorecard decision.
+
 ## Advanced: swap model / GPU (not the default path)
 
 Deploy knobs are entirely env-driven (`deploy/modal_vllm.py`). Catalog rows
