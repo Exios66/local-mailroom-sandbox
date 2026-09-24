@@ -1,19 +1,20 @@
 # Subagent roster
 
-Canonical manifest: [`roster.yaml`](roster.yaml).
-
-| Layer | Role |
+| File | Role |
 | --- | --- |
-| `config/subagents/roster.yaml` | IDs, titles, tags, harness membership, Cursor invoke hints |
-| `.opencode/agents/<id>.md` | Full subagent prompts (OpenCode + source for sync) |
-| `.cursor/agents/<id>.md` | Cursor-discoverable agents (generated) |
+| [`family-roster.yaml`](family-roster.yaml) | **Canonical family manifest** (packages, harnesses, all subagents) |
+| [`roster.yaml`](roster.yaml) | Pointer for this checkout (`package: local-mailroom-sandbox`) |
 
 Commands:
 
 ```bash
-sandbox subagents list
+sandbox subagents packages
+sandbox subagents list [--package llm-mailroom]
 sandbox subagents show harness-doctor
-sandbox subagents sync --harness cursor
+sandbox subagents sync --harness all
+sandbox subagents materialize --package mailroom-dev --root /path/to/mailroom-dev
 ```
 
-After editing an OpenCode prompt or roster entry, re-run sync so Cursor stays aligned.
+Monorepo workflow: [`docs/subagents-family-sync.md`](../../docs/subagents-family-sync.md).
+
+After editing an OpenCode prompt, run `sandbox subagents sync --harness all`.

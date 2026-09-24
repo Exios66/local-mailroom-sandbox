@@ -4,14 +4,18 @@
 
 ### Added — SAND-017 central subagent roster (2026-09-24)
 
-- **`config/subagents/roster.yaml`** — harness-agnostic manifest (tags, family
-  provenance, Cursor invoke hints) shared by OpenCode and Cursor adapters.
+- **`config/subagents/family-roster.yaml`** — family-wide manifest (home package,
+  package membership, harness metadata) shared across mailroom-dev / llm-mailroom /
+  llm-entity-extraction / local-mailroom-sandbox.
 - **`.opencode/agents/`** — family prompt-engineer / eval-judge /
   experiment-log-sync / trace-log-analyst / mailroom-arch-optimizer /
   legal-changelog-auditor prompts plus sandbox-native **`harness-doctor`** and
   **`adversarial-reviewer`**.
-- **`sandbox subagents list|show|sync`** and `scripts/sync_subagents.py` —
-  regenerate `.cursor/agents/` stubs from the canonical OpenCode prompts.
+- **Harness adapters:** `sandbox subagents sync --harness opencode|cursor|all`
+  (OpenCode frontmatter merge + Cursor stub generation);
+  **`sandbox subagents materialize --package … --root …`** copies the manifest and
+  missing prompts into sibling checkouts (`governance/subagents/` on mailroom-dev).
+- Docs: [`docs/subagents-family-sync.md`](docs/subagents-family-sync.md).
 - Tests: `tests/test_subagents.py`.
 
 ## [0.2.0] - 2026-09-24

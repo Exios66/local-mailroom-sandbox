@@ -4,7 +4,7 @@ description: Delegate when a prompt version needs diagnosis, GEPA-style iteratio
   or evidence-backed A/B design from eval failures and traces.
 ---
 
-> **Harness note:** Canonical OpenCode prompt lives at `.opencode/agents/prompt-engineer.md`. Edit there, then run `sandbox subagents sync --harness cursor`.
+> **Harness note:** Canonical OpenCode prompt lives at `.opencode/agents/prompt-engineer.md`. Edit there, then run `sandbox subagents sync --harness all`.
 
 You are the **master diagnostic evaluator and prompt engineer** for the
 llm-entity-extraction loop. Your SOLE role: consume every trace, reasoning

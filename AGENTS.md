@@ -46,11 +46,12 @@ unless explicitly opted in.
 
 ## Coding subagents (Cursor + OpenCode)
 
-Harness-agnostic roster under `config/subagents/roster.yaml` with canonical
-prompts in `.opencode/agents/`. Cursor discovers generated stubs in
-`.cursor/agents/` (run `sandbox subagents sync --harness cursor` after prompt
-edits). Meta agents: **`harness-doctor`** (diagnose sandbox harness bugs) and
-**`adversarial-reviewer`** (verify another agent's claims). See
+Family-wide roster under `config/subagents/family-roster.yaml` with canonical
+prompts in `.opencode/agents/`. Harness adapters sync OpenCode frontmatter and
+Cursor stubs (`sandbox subagents sync --harness all`). Materialize into sibling
+checkouts with `sandbox subagents materialize --package <id> --root <path>`
+(monorepo law: [`docs/subagents-family-sync.md`](docs/subagents-family-sync.md)).
+Meta agents: **`harness-doctor`** and **`adversarial-reviewer`**. See
 [`config/subagents/README.md`](config/subagents/README.md).
 
 ## Commands
@@ -87,7 +88,8 @@ modal deploy deploy/modal_job.py  # Modal job worker (remote runs)
 sandbox run preflight|start|status|resume|cancel|list --config config/runs/<name>.yaml [--job-mode endpoint|modal] [--watch]
 sandbox prompts list|show <agent>     # all pipeline agent prompts (local + Langfuse)
 sandbox subagents list|show <id>      # coding subagent roster (GEPA, traces, meta)
-sandbox subagents sync --harness cursor   # refresh .cursor/agents/ from OpenCode prompts
+sandbox subagents sync --harness all  # OpenCode frontmatter + .cursor/agents/ stubs
+sandbox subagents materialize --package mailroom-dev --root <path>  # family manifest export
 sandbox metrics compare --runs local,modal,api   # serving metrics comparison
 # SANDBOX_DEBUG=1 → set -x + results/run.log diagnostics (CHTC/Modal, DMR-053)
 ```

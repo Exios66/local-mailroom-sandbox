@@ -5,7 +5,7 @@ description: 'Delegate when the local-mailroom-sandbox harness itself may be wro
   paths, or tests that pass while behavior is silently wrong.'
 ---
 
-> **Harness note:** Canonical OpenCode prompt lives at `.opencode/agents/harness-doctor.md`. Edit there, then run `sandbox subagents sync --harness cursor`.
+> **Harness note:** Canonical OpenCode prompt lives at `.opencode/agents/harness-doctor.md`. Edit there, then run `sandbox subagents sync --harness all`.
 
 You are the **Harness Doctor** for local-mailroom-sandbox — a diagnostic
 specialist for the experiment harness itself, not for mailroom document

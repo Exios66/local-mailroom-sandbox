@@ -102,20 +102,61 @@ def build_parser() -> argparse.ArgumentParser:
     subagents_sub = subagents_p.add_subparsers(dest="subagents_cmd")
     sa_list = subagents_sub.add_parser("list", parents=[shared])
     sa_list.add_argument("--json", action="store_true")
+    sa_list.add_argument(
+        "--package",
+        default=None,
+        help="Family package filter (default: local-mailroom-sandbox or SUBAGENT_PACKAGE)",
+    )
     sa_list.set_defaults(handler=_cmd_subagents_list)
+    sa_pkgs = subagents_sub.add_parser("packages", parents=[shared])
+    sa_pkgs.add_argument("--json", action="store_true")
+    sa_pkgs.set_defaults(handler=_cmd_subagents_packages)
     sa_show = subagents_sub.add_parser("show", parents=[shared])
     sa_show.add_argument("id")
     sa_show.add_argument("--json", action="store_true")
+    sa_show.add_argument("--package", default=None)
     sa_show.set_defaults(handler=_cmd_subagents_show)
     sa_sync = subagents_sub.add_parser("sync", parents=[shared])
     sa_sync.add_argument(
         "--harness",
-        default="cursor",
-        choices=("cursor",),
-        help="Target harness adapter (default: cursor → .cursor/agents/)",
+        default="all",
+        choices=("cursor", "opencode", "all"),
+        help="Harness adapter(s); default syncs OpenCode frontmatter + Cursor stubs",
+    )
+    sa_sync.add_argument(
+        "--package",
+        default=None,
+        help="Family package filter for roster entries",
+    )
+    sa_sync.add_argument(
+        "--root",
+        default=None,
+        help="Checkout root to write into (default: this repo)",
     )
     sa_sync.add_argument("--dry-run", action="store_true")
     sa_sync.set_defaults(handler=_cmd_subagents_sync)
+    sa_mat = subagents_sub.add_parser(
+        "materialize",
+        help="Copy family-roster.yaml + missing prompts into another package checkout",
+        parents=[shared],
+    )
+    sa_mat.add_argument(
+        "--package",
+        required=True,
+        help="Target package id (llm-mailroom, mailroom-dev, …)",
+    )
+    sa_mat.add_argument(
+        "--root",
+        required=True,
+        help="Destination checkout root (e.g. monorepo packages/llm-mailroom)",
+    )
+    sa_mat.add_argument(
+        "--source-root",
+        default=None,
+        help="Prompt source checkout (default: this sandbox repo)",
+    )
+    sa_mat.add_argument("--dry-run", action="store_true")
+    sa_mat.set_defaults(handler=_cmd_subagents_materialize)
     subagents_p.set_defaults(handler=_cmd_subagents_list)
 
     pipe = sub.add_parser("pipeline", help="Run mailroom watcher or API", parents=[shared])
@@ -878,17 +919,34 @@ def _cmd_agents_list(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_subagents_packages(args: argparse.Namespace) -> int:
+    from mailroom_sandbox.subagents import list_packages
+    from mailroom_sandbox.subagents.family import load_family_document
+
+    doc = load_family_document()
+    payload = {"packages": doc.get("packages") or {}}
+    if getattr(args, "json", False):
+        _print(payload)
+    else:
+        for name in list_packages():
+            role = (payload["packages"].get(name) or {}).get("role") or ""
+            print(f"{name:28} {role}")
+    return 0
+
+
 def _cmd_subagents_list(args: argparse.Namespace) -> int:
     from mailroom_sandbox.subagents import load_roster
 
+    package = getattr(args, "package", None)
     rows = []
-    for entry in load_roster():
+    for entry in load_roster(package=package):
         rows.append(
             {
                 "id": entry.id,
                 "title": entry.title,
                 "tags": list(entry.tags),
                 "harnesses": list(entry.harnesses),
+                "home_package": entry.home_package,
                 "family_source": entry.family_source,
                 "opencode": str(entry.opencode_path()),
                 "cursor": str(entry.cursor_path()),
@@ -907,7 +965,7 @@ def _cmd_subagents_show(args: argparse.Namespace) -> int:
     from mailroom_sandbox.subagents.parse_opencode import parse_opencode_markdown
     from mailroom_sandbox.subagents.roster import get_subagent
 
-    entry = get_subagent(args.id)
+    entry = get_subagent(args.id, package=getattr(args, "package", None))
     if entry is None:
         print(f"unknown subagent: {args.id}", file=sys.stderr)
         return 1
@@ -917,6 +975,7 @@ def _cmd_subagents_show(args: argparse.Namespace) -> int:
         "title": entry.title,
         "tags": list(entry.tags),
         "harnesses": list(entry.harnesses),
+        "home_package": entry.home_package,
         "family_source": entry.family_source,
         "cursor_invoke_hint": entry.cursor_invoke_hint,
         "opencode_frontmatter": doc.frontmatter,
@@ -939,13 +998,57 @@ def _cmd_subagents_show(args: argparse.Namespace) -> int:
 def _cmd_subagents_sync(args: argparse.Namespace) -> int:
     from mailroom_sandbox.subagents import sync_harness
 
-    result = sync_harness(args.harness, dry_run=bool(args.dry_run))
+    root = Path(args.root).expanduser().resolve() if args.root else None
+    result = sync_harness(
+        args.harness,
+        root=root,
+        package=getattr(args, "package", None),
+        dry_run=bool(args.dry_run),
+    )
+    if isinstance(result, list):
+        _print(
+            {
+                "harness": args.harness,
+                "dry_run": bool(args.dry_run),
+                "results": [
+                    {
+                        "harness": r.harness,
+                        "written": [str(p) for p in r.written],
+                        "skipped": r.skipped,
+                    }
+                    for r in result
+                ],
+            }
+        )
+    else:
+        _print(
+            {
+                "harness": result.harness,
+                "dry_run": bool(args.dry_run),
+                "written": [str(p) for p in result.written],
+                "skipped": result.skipped,
+            }
+        )
+    return 0
+
+
+def _cmd_subagents_materialize(args: argparse.Namespace) -> int:
+    from mailroom_sandbox.subagents import materialize_package
+
+    dest = Path(args.root).expanduser().resolve()
+    source = Path(args.source_root).expanduser().resolve() if args.source_root else None
+    result = materialize_package(
+        args.package,
+        dest_root=dest,
+        source_root=source,
+        dry_run=bool(args.dry_run),
+    )
     _print(
         {
-            "harness": args.harness,
+            "package": result.package,
             "dry_run": bool(args.dry_run),
-            "written": [str(p) for p in result.written],
-            "skipped": result.skipped,
+            "family_roster": str(result.family_roster_written) if result.family_roster_written else None,
+            "prompts_copied": [str(p) for p in result.prompts_copied],
         }
     )
     return 0
