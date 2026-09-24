@@ -27,7 +27,11 @@ from typing import Any, Mapping, Sequence
 
 from llm_dojo_scoring.serving import compare_serving, estimate_cost
 
+from mailroom_sandbox.job.specialist_posture import as_metrics_sec_tables
+
 _log = logging.getLogger("mailroom_sandbox.job.metrics")
+
+SPECIALIST_SEC_PER_DOC, SPECIALIST_TOKENS_PER_DOC = as_metrics_sec_tables()
 
 _COST_WARNED = False
 _GPU_WARNED = False
@@ -875,21 +879,8 @@ def _extrapolate_md(result: Mapping[str, Any]) -> str:
 
 # ── Pre-flight suite estimate (no live GPU spend) ───────────────────────────
 
-# Per-doc busy latency ranges for the L4 bf16 Qwen3-8B specialist path
-# (1 LLM call/doc). Anchored on run-50 sorter gen ≈8.7–13.9 tok/s, pilot
-# ~83 s/doc @ ~5 calls on short fixtures, and scale-matrix decode math
-# (docs/scale-matrix.md). Ranges are deliberately conservative (funding-
-# constrained): HIGH assumes near-max_tokens decode tails on long filings.
-SPECIALIST_SEC_PER_DOC: dict[str, dict[str, float]] = {
-    # run_id stem → low / likely / high busy seconds per doc (engine work)
-    "run-30-correspondence-specialist": {"low": 30.0, "likely": 70.0, "high": 150.0},
-    "run-30-insurance-claims-specialist": {"low": 45.0, "likely": 95.0, "high": 200.0},
-    "run-30-corporate-records-specialist": {"low": 50.0, "likely": 110.0, "high": 240.0},
-    "run-30-contracts-specialist": {"low": 70.0, "likely": 160.0, "high": 360.0},
-    "run-30-merger-specialist": {"low": 100.0, "likely": 220.0, "high": 420.0},
-}
-
-# Fallback when run_id is unknown: task → ranges (dedicated specialist per live class).
+# Per-doc busy latency + token tables live at module import via
+# specialist_posture (DMR-078). Task fallbacks when run_id is unknown:
 TASK_SEC_PER_DOC: dict[str, dict[str, float]] = {
     "correspondence_specialist": {"low": 30.0, "likely": 70.0, "high": 150.0},
     "insurance_claims_specialist": {"low": 45.0, "likely": 95.0, "high": 200.0},
@@ -897,15 +888,6 @@ TASK_SEC_PER_DOC: dict[str, dict[str, float]] = {
     "contracts_specialist": {"low": 80.0, "likely": 180.0, "high": 380.0},
     "merger_agreement_specialist": {"low": 100.0, "likely": 220.0, "high": 420.0},
     "sorter": {"low": 200.0, "likely": 400.0, "high": 900.0},  # ~5 calls/doc
-}
-
-# Assumed tokens/doc (prompt + completion) for optional token-proxy column.
-SPECIALIST_TOKENS_PER_DOC: dict[str, dict[str, int]] = {
-    "run-30-correspondence-specialist": {"prompt": 3500, "completion": 600},
-    "run-30-insurance-claims-specialist": {"prompt": 4500, "completion": 1000},
-    "run-30-corporate-records-specialist": {"prompt": 5000, "completion": 1200},
-    "run-30-contracts-specialist": {"prompt": 8000, "completion": 2000},
-    "run-30-merger-specialist": {"prompt": 10000, "completion": 2800},
 }
 
 _BANDS = ("low", "likely", "high")
@@ -1199,12 +1181,13 @@ def _estimate_optimizations(
         },
         {
             "rank": 4,
-            "name": "Cap max_tokens after measuring p95 completion (taxonomy 8192 today)",
-            "expected_usd_saved": "TBD — only if p95 << 8192",
-            "safe_now": False,
+            "name": "Per-doc-type max_tokens / max_input_chars (DMR-078 specialist_posture)",
+            "expected_usd_saved": "decode time only — already pinned in overlay",
+            "safe_now": True,
             "note": (
-                "Do not lower run-30 defaults without a measured completion "
-                "histogram; truncating JSON hurts reproducibility"
+                "Overlay budgets fit Qwen/Qwen3-8B L4 16k context; further "
+                "cuts need a measured completion histogram (truncating JSON "
+                "hurts reproducibility)"
             ),
         },
         {

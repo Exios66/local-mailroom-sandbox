@@ -2,20 +2,24 @@
 
 ## [Unreleased]
 
-### Added — dedicated merger_agreement_specialist (Phase 2 / sandbox#9)
+### Added — DMR-078 Qwen Modal specialist posture + merger specialist (2026-09-24)
 
-- Vendored `llm-mailroom` from PR
-  [#64](https://github.com/Exios66/llm-mailroom/pull/64)
-  (`4b93fc766a49498367b46f717f73cc32654cc382`): dedicated
-  `MergerAgreementSpecialist`, `MergerAgreementExtraction` schema, taxonomy
-  remap, skill pack, graph dispatch. Standalone checkout (no monorepo
-  workspace) — copied `src/` minus tests into `vendor/llm-mailroom`.
-- `run-30-merger-specialist.yaml` task + local prompt pin is now
-  `merger_agreement_specialist` / `merger_agreement_specialist_production`
-  (no longer `contracts_specialist` / v33 on MAUD strata).
-- Prompt export `scripts/sync_specialist_prompts.py` includes merger;
-  taxonomy overlay + components + isolated-eval registry treat merger as
-  first-class. Dojo suite **key** stays `merger_agreement`.
+- **Per-doc-type Modal L4 runbooks** for all five `run-30-*-specialist.yaml`:
+  concurrency / `cost_cap_usd` / `max_wall_seconds` sized by typical token
+  length (correspondence/insurance c=5; corporate/contracts c=4; merger c=3).
+  Source of truth: `job/specialist_posture.py` (also drives estimate-suite
+  tables + overlay generation budgets).
+- **Qwen/Qwen3-8B context-fit budgets** in `config/taxonomy.overlay.yaml`:
+  specialist `max_tokens` / `max_input_chars` no longer advertise windows
+  larger than L4 `max_model_len=16384` (contracts was 100k chars).
+- **Runner abort guards:** `JobSpec.cost_cap_usd` + `max_wall_seconds` fail
+  the run loud when wall×L4 $/hr or wall seconds exceed the pin.
+- **`merger_agreement_specialist` plumbing** (issue #9 Phase 2): vendored
+  upstream draft agent + schema/registry from llm-mailroom PR #64; sandbox
+  taxonomy / components / eval registry / prompt sync / run-30 merger YAML
+  now use the dedicated specialist (not `contracts_specialist` on MAUD).
+- **`sandbox run benchmark-check`** enforces posture concurrency, task 1:1
+  map, cost_cap, and max_wall for every run-30 specialist YAML.
 
 ### Added — DMR-077 two-operator specialist tracks (2026-09-23)
 

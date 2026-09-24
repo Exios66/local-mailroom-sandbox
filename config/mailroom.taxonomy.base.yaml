@@ -163,8 +163,9 @@ doc_classes:
       cuad_clauses: entity_list:free_text
       maud_clauses: entity_list:free_text
 
-  # MAUD primary class — dedicated merger_agreement_specialist (1:1 live-class
-  # map). Required for locking/routing when strata include merger_agreement.
+  # MAUD primary class — dedicated merger_agreement_specialist (issue #9 /
+  # DMR-078). Separate strata/runs for merger docs. Required for locking/
+  # routing when strata include merger_agreement.
   - key: merger_agreement
     label: "Merger Agreement"
     schema: MergerAgreementExtraction
@@ -181,6 +182,7 @@ doc_classes:
       intent: name
       subject_matter: free_text
       keywords: entity_list:name
+      confidence: free_text
 
   - key: corporate_record
     label: "Corporate Record"
@@ -291,8 +293,16 @@ agents:
     provider: openrouter
     model: qwen/qwen3.7-flash
     temperature: 0.1
-    max_tokens: 8192
-    max_input_chars: 100000
+    max_tokens: 4096
+    max_input_chars: 35000
+    reasoning_effort: none
+
+  merger_agreement_specialist:
+    provider: openrouter
+    model: qwen/qwen3.7-flash
+    temperature: 0.1
+    max_tokens: 4096
+    max_input_chars: 36008
     reasoning_effort: none
 
   merger_agreement_specialist:
@@ -307,24 +317,24 @@ agents:
     provider: openrouter
     model: qwen/qwen3.7-flash
     temperature: 0.1
-    max_tokens: 8192
-    max_input_chars: 60000
+    max_tokens: 4096
+    max_input_chars: 21875
     reasoning_effort: none
 
   correspondence_specialist:
     provider: openrouter
     model: qwen/qwen3.7-flash
     temperature: 0.1
-    max_tokens: 8192
-    max_input_chars: 40000
+    max_tokens: 2048
+    max_input_chars: 15312
     reasoning_effort: none
 
   insurance_claims_specialist:
     provider: openrouter
     model: qwen/qwen3.7-flash
     temperature: 0.1
-    max_tokens: 8192
-    max_input_chars: 60000
+    max_tokens: 3072
+    max_input_chars: 19687
     reasoning_effort: none
 
   reporter:

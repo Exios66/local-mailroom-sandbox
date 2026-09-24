@@ -51,23 +51,17 @@ BENCHMARK_EXPECTED = {
     "limit": 30,
 }
 
-# DMR-074: run-30 specialist YAMLs must pin local production prompt stems.
+# DMR-074 / DMR-078: run-30 specialist YAMLs must pin local production prompt
+# stems AND match specialist_posture concurrency / cost caps.
+from mailroom_sandbox.job.specialist_posture import (
+    SPECIALIST_POSTURE,
+    expected_concurrency,
+    posture_for_run,
+)
+
 SPECIALIST_LOCAL_PROMPTS: dict[str, dict[str, str]] = {
-    "run-30-contracts-specialist": {
-        "contracts_specialist": "contracts_specialist_v33",
-    },
-    "run-30-merger-specialist": {
-        "merger_agreement_specialist": "merger_agreement_specialist_production",
-    },
-    "run-30-corporate-records-specialist": {
-        "corporate_records_specialist": "corporate_records_specialist_production",
-    },
-    "run-30-correspondence-specialist": {
-        "correspondence_specialist": "correspondence_specialist_production",
-    },
-    "run-30-insurance-claims-specialist": {
-        "insurance_claims_specialist": "insurance_claims_specialist_production",
-    },
+    run_id: {row["agent"]: row["prompt_file"]}
+    for run_id, row in SPECIALIST_POSTURE.items()
 }
 
 
@@ -347,13 +341,50 @@ def _check_spec_pins(spec: RunSpec) -> dict[str, list[str]]:
         if modal.app != exp["app"]:
             warnings.append(f"modal.app={modal.app!r} (default {exp['app']!r})")
 
-    if spec.job.concurrency != exp["concurrency"]:
+    if spec.job.concurrency < 2:
+        errors.append("job.concurrency must be >= 2 for L4 throughput benchmarks")
+
+    posture = posture_for_run(spec.run_id)
+    if posture is not None:
+        want_c = expected_concurrency(spec.run_id)
+        if spec.job.concurrency != want_c:
+            errors.append(
+                f"job.concurrency={spec.job.concurrency} expected {want_c} "
+                f"for {spec.run_id} (DMR-078 per-doc-type posture)"
+            )
+        if spec.task != posture["task"]:
+            errors.append(
+                f"spec.task={spec.task!r} expected {posture['task']!r} "
+                f"(1:1 specialist map)"
+            )
+        cap = spec.job.cost_cap_usd
+        want_cap = float(posture["cost_cap_usd"])
+        if cap is None:
+            errors.append(
+                f"job.cost_cap_usd missing — expected {want_cap} "
+                f"(DMR-078 cost guard for {spec.run_id})"
+            )
+        elif abs(float(cap) - want_cap) > 1e-9:
+            errors.append(
+                f"job.cost_cap_usd={cap} expected {want_cap} for {spec.run_id}"
+            )
+        wall = spec.job.max_wall_seconds
+        want_wall = int(posture["max_wall_seconds"])
+        if wall is None:
+            errors.append(
+                f"job.max_wall_seconds missing — expected {want_wall} "
+                f"(DMR-078 wall guard for {spec.run_id})"
+            )
+        elif int(wall) != want_wall:
+            errors.append(
+                f"job.max_wall_seconds={wall} expected {want_wall} for {spec.run_id}"
+            )
+    elif spec.job.concurrency != exp["concurrency"]:
+        # Non-suite runs still default to concurrency 4.
         errors.append(
             f"job.concurrency={spec.job.concurrency} expected {exp['concurrency']} "
             "(DMR-072: 1 starves continuous batching; >4 piles at 1×L4 proxy)"
         )
-    if spec.job.concurrency < 2:
-        errors.append("job.concurrency must be >= 2 for L4 throughput benchmarks")
 
     rev = spec.effective_revision()
     if rev != exp["revision"]:
@@ -455,7 +486,7 @@ def check_suite_benchmark_posture(
 
     Profile gate uses the suite's resolved Modal profile (Track A → Hermes
     default; Track B → ``SANDBOX_MODAL_PROFILE_TRACK_B``). Per-config checks
-    still enforce L4 / scaledown 120 / concurrency 4 / local prompts.
+    still enforce L4 / scaledown 120 / per-doc-type concurrency (DMR-078) / local prompts.
     """
     from mailroom_sandbox.job.spec import load_run_spec
     from mailroom_sandbox.job.suite import load_suite

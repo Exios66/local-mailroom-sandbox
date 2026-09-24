@@ -35,7 +35,10 @@ SPECIALIST_CLASS = {
 
 LIVE_CLASS_MAP = {
     "contracts_specialist": ("agents.contracts_specialist", "ContractsSpecialist"),
-    "merger_agreement_specialist": ("agents.merger_agreement_specialist", "MergerAgreementSpecialist"),
+    "merger_agreement_specialist": (
+        "agents.merger_agreement_specialist",
+        "MergerAgreementSpecialist",
+    ),
     "corporate_records_specialist": ("agents.corporate_records_specialist", "CorporateRecordsSpecialist"),
     "correspondence_specialist": ("agents.correspondence_specialist", "CorrespondenceSpecialist"),
     "insurance_claims_specialist": ("agents.insurance_claims_specialist", "InsuranceClaimsSpecialist"),

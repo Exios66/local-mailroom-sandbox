@@ -12,8 +12,11 @@ specialist extract cost extrapolation to the full mailroom-dataset
 | GPU | `L4` (`max_containers=1`, `min_containers=0`) |
 | Image | `v0.29.0` |
 | `max_model_len` | `16384` |
-| Job concurrency | `4` (DMR-072) |
+| Job concurrency | per-doc-type (DMR-078): correspondence/insurance **5**, corporate/contracts **4**, merger **3** |
 | Scaledown | `120` s attended (DMR-076); restore **600** for unattended/overnight |
+| Generation budgets | `job/specialist_posture.py` → overlay `max_tokens` / `max_input_chars` (fit Qwen 16k) |
+| Cost / wall abort | `job.cost_cap_usd` + `job.max_wall_seconds` per run-30 YAML (runner fails loud) |
+| Merger specialist | `merger_agreement_specialist` (dedicated; issue #9) — not `contracts_specialist` |
 | Dataset | `Lucius-Morningstar/mailroom-dataset` @ `46a4d3c240a36671cde0182fff4960f6b8b73aca` |
 | `sample_seed` | `42` |
 | Strata limit | `30` per class (150 docs total) |
@@ -180,9 +183,26 @@ sandbox run benchmark-check --config config/runs/run-30-contracts-specialist.yam
 # Per-track:
 sandbox run benchmark-check --suite track-a
 sandbox run benchmark-check --suite track-b
-# exits 1 if wrong Modal profile / unpinned image / concurrency≠4 /
-# scaledown≠120 / min_containers≠0 / limit≠30 / missing DMR-074 local prompts
+# exits 1 if wrong Modal profile / unpinned image / concurrency≠posture /
+# scaledown≠120 / min_containers≠0 / limit≠30 / missing DMR-074 local prompts /
+# missing cost_cap or max_wall / wrong task for 1:1 specialist map
 ```
+
+## Per-doc-type posture (DMR-078)
+
+| Run | Task | Conc. | max_tokens | max_input_chars | cost_cap | max_wall |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| correspondence | `correspondence_specialist` | 5 | 2048 | ~15k | $0.40 | 2400s |
+| insurance | `insurance_claims_specialist` | 5 | 3072 | ~20k | $0.50 | 3000s |
+| corporate | `corporate_records_specialist` | 4 | 4096 | ~22k | $0.55 | 3600s |
+| contracts | `contracts_specialist` | 4 | 4096 | ~35k | $0.80 | 4800s |
+| merger | `merger_agreement_specialist` | 3 | 4096 | ~36k | $1.00 | 5400s |
+
+Source of truth: `src/mailroom_sandbox/job/specialist_posture.py` (also drives
+estimate-suite sec/doc + token tables and overlay budgets). Short docs raise
+concurrency to fill continuous batching; long MAUD filings lower it to protect
+KV. Input caps fit `max_model_len=16384` so contracts no longer advertise
+100k-char windows that cannot fit Qwen on L4.
 
 ## Deploy knobs (shared)
 

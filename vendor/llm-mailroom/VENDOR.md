@@ -38,6 +38,12 @@ fully operational offline — no `pip install mailroom@git...`, no
   upstream deletion; DMR-070). `sandbox fetch-deps` prefers the same
   workspace mirror when the monorepo layout is detected and falls back to a
   loud tag-based refresh for standalone clones.
-- The sandbox prepends `vendor/llm-mailroom/src` to `sys.path` on package
-  import (`mailroom_sandbox/__init__.py`), so imports resolve here before any
-  installed `mailroom` wheel.
+- Snapshot tracks post-removal workspace lineage plus sandbox DMR-078
+  merger specialist plumbing (agent module + MAUD skills + taxonomy
+  `merger_agreement.specialist: merger_agreement_specialist` + graph
+  extract dispatch). DMR-078 on main grafted that extract path onto the
+  prior stable graph *without* `agents.bert_intake`. This standalone
+  Phase-2 snapshot also copied llm-mailroom PR #64 tip (`4b93fc76`)
+  wholesale, so `agents.bert_intake` and related graph/client/provider
+  files **are** present after merging main. Vendor strategy for those
+  extras is still an open merge question (see PR discussion).
