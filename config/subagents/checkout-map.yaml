@@ -2,11 +2,12 @@
 # Used by: sandbox subagents propagate
 
 version: 1
-monorepo_env_vars: [MAILROOM_DEV_ROOT, MONOREPO_ROOT]
-default_monorepo_sibling: mailroom-dev
+# Primary monorepo: LLM-Mailroom-Services/Digital-Mailroom (Exios66/mailroom-dev is legacy).
+monorepo_env_vars: [DIGITAL_MAILROOM_ROOT, MONOREPO_ROOT, MAILROOM_DEV_ROOT]
+default_monorepo_sibling: Digital-Mailroom
 
 checkouts:
-  mailroom-dev:
+  digital-mailroom:
     monorepo_relative: "."
   llm-mailroom:
     monorepo_relative: "packages/llm-mailroom"

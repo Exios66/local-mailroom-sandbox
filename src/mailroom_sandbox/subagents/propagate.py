@@ -10,7 +10,7 @@ from typing import Any
 import yaml
 
 from mailroom_sandbox.paths import repo_root
-from mailroom_sandbox.subagents.family import list_packages
+from mailroom_sandbox.subagents.family import list_packages, normalize_package_id
 from mailroom_sandbox.subagents.materialize import materialize_package
 from mailroom_sandbox.subagents.sync import sync_harness
 
@@ -44,14 +44,18 @@ def load_checkout_map(root: Path | None = None) -> dict[str, Any]:
 
 
 def discover_monorepo_root(source_root: Path | None = None) -> Path | None:
-    explicit = os.environ.get("MAILROOM_DEV_ROOT") or os.environ.get("MONOREPO_ROOT")
+    explicit = (
+        os.environ.get("DIGITAL_MAILROOM_ROOT")
+        or os.environ.get("MONOREPO_ROOT")
+        or os.environ.get("MAILROOM_DEV_ROOT")
+    )
     if explicit:
         path = Path(explicit).expanduser().resolve()
         return path if path.is_dir() else None
 
     base = source_root or repo_root()
     doc = load_checkout_map(base)
-    sibling = doc.get("default_monorepo_sibling") or "mailroom-dev"
+    sibling = doc.get("default_monorepo_sibling") or "Digital-Mailroom"
     candidate = (base.parent / sibling).resolve()
     marker = candidate / "packages" / "local-mailroom-sandbox"
     if marker.is_dir():
@@ -100,6 +104,7 @@ def propagate_family_checkouts(
     result = PropagateResult(source_root=src, monorepo_root=mono)
 
     for package_id in targets:
+        package_id = normalize_package_id(package_id)
         if package_id not in roots:
             continue
         dest = roots[package_id]

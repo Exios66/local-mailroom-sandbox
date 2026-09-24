@@ -18,8 +18,9 @@ needed to score or run evals. Prompt loops optionally in `llm-entity-extraction`
 Python 3.11+, no build step.
 
 **Monorepo-family flow:** this package syncs to
-`Exios66/local-mailroom-sandbox` via `scripts/sync_packages.py` (monorepo
-root — `status`/`push --all --patch` is the release-train sweep); the
+`Exios66/local-mailroom-sandbox` via `scripts/sync_packages.py` on the org monorepo
+[LLM-Mailroom-Services/Digital-Mailroom](https://github.com/LLM-Mailroom-Services/Digital-Mailroom)
+(`status`/`push --all --patch` is the release-train sweep); the
 sandbox itself ships no releases, but sibling surfaces (llm-mailroom,
 llm-dojo-scoring) do — their version bumps flow through the same sync pass,
 the vendor refresh below, and the consuming pins. Full law: root
@@ -48,9 +49,9 @@ unless explicitly opted in.
 
 Family-wide roster under `config/subagents/family-roster.yaml` with canonical
 prompts in `.opencode/agents/`. Harness adapters sync OpenCode frontmatter and
-Cursor stubs (`sandbox subagents sync --harness all`). Materialize into sibling
-checkouts with `sandbox subagents materialize --package <id> --root <path>`
-(monorepo law: [`docs/subagents-family-sync.md`](docs/subagents-family-sync.md)).
+Cursor stubs (`sandbox subagents sync --harness all`). Materialize into sibling checkouts on **Digital-Mailroom** with
+`sandbox subagents propagate` or `materialize --package <id> --root <path>`
+([`docs/subagents-family-sync.md`](docs/subagents-family-sync.md)).
 Meta agents: **`harness-doctor`** and **`adversarial-reviewer`**. See
 [`config/subagents/README.md`](config/subagents/README.md).
 
@@ -90,7 +91,7 @@ sandbox prompts list|show <agent>     # all pipeline agent prompts (local + Lang
 sandbox subagents list|show <id>      # coding subagent roster (GEPA, traces, meta)
 sandbox subagents sync --harness all  # OpenCode frontmatter + .cursor/agents/ stubs
 sandbox subagents propagate              # materialize + sync all mapped family checkouts
-sandbox subagents materialize --package mailroom-dev --root <path>  # single-checkout export
+sandbox subagents materialize --package digital-mailroom --root <path>  # monorepo hub export
 sandbox metrics compare --runs local,modal,api   # serving metrics comparison
 # SANDBOX_DEBUG=1 → set -x + results/run.log diagnostics (CHTC/Modal, DMR-053)
 ```

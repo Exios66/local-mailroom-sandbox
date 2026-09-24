@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Post-hook for mailroom-dev ``scripts/sync_packages.py`` after pull/push.
+"""Post-hook for Digital-Mailroom ``scripts/sync_packages.py`` after pull/push.
 
 Install once in the monorepo (see INTEGRATION.md), then every package sync
 can refresh family subagent manifests across checkouts.
@@ -23,7 +23,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--monorepo-root",
         default=".",
-        help="mailroom-dev checkout root (default: cwd)",
+        help="Digital-Mailroom monorepo root (default: cwd)",
     )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--json", action="store_true")

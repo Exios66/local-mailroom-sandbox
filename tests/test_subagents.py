@@ -105,7 +105,7 @@ def test_propagate_local_checkout_only(tmp_path, monkeypatch):
 
 
 def test_propagate_monorepo_layout(tmp_path):
-    mono = tmp_path / "mailroom-dev"
+    mono = tmp_path / "Digital-Mailroom"
     sandbox = mono / "packages" / "local-mailroom-sandbox"
     mailroom = mono / "packages" / "llm-mailroom"
     sandbox.mkdir(parents=True)
@@ -129,6 +129,12 @@ def test_propagate_monorepo_layout(tmp_path):
     assert "local-mailroom-sandbox" in pkg_ids
     assert "llm-mailroom" in pkg_ids
     assert (mailroom / "config" / "subagents" / "family-roster.yaml").is_file()
+
+
+def test_package_alias_mailroom_dev():
+    from mailroom_sandbox.subagents.family import normalize_package_id
+
+    assert normalize_package_id("mailroom-dev") == "digital-mailroom"
 
 
 def test_materialize_mailroom_package(tmp_path):
