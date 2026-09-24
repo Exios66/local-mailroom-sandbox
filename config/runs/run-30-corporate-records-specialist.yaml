@@ -13,7 +13,14 @@ task: corporate_records_specialist
 profile: modal-vllm
 
 prompt:
+  # Pinned local production text (config/prompts/corporate_records_specialist_production.txt) for reproducible
+  # Modal L4 runs — not Langfuse floating production. Synced from vendored
+  # llm-mailroom code-default (corporate_records_specialist).
   default: {source: code-default}
+  agents:
+    corporate_records_specialist:
+      source: local
+      file: corporate_records_specialist_production
 
 dataset:
   provider: huggingface

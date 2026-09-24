@@ -16,7 +16,14 @@ task: contracts_specialist
 profile: modal-vllm
 
 prompt:
+  # Pinned local production text (config/prompts/contracts_specialist_v33.txt) for reproducible
+  # Modal L4 runs — not Langfuse floating production. Synced from vendored
+  # llm-mailroom code-default (contracts_specialist).
   default: {source: code-default}
+  agents:
+    contracts_specialist:
+      source: local
+      file: contracts_specialist_v33
 
 dataset:
   provider: huggingface
