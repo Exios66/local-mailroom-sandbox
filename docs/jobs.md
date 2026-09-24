@@ -223,12 +223,18 @@ sandbox eval sorter_vs_modernbert --local   # live ModernBERT + sorter fixture/l
 ### Cost extrapolation
 
 ```bash
+# Pre-flight (no Modal spend) — specialist 5×30 suite defaults
+sandbox metrics estimate-suite
+sandbox metrics estimate-suite --scaledown-seconds 120 --json
+
+# Post-run (needs items.jsonl + lock)
 sandbox metrics extrapolate --run run-30-contracts-specialist \
   --corpus-size 3302 --docs-per-day 10000
 ```
 
 See [`docs/benchmark-l4.md`](benchmark-l4.md) for the Modal L4 Qwen specialist
-suite pins, Hermes profile, and teardown sequence.
+suite pins, Hermes profile, teardown sequence, and cost-saver path (AWQ gated
+by DMR-068).
 
 TTFT is only populated when a run records it (never inferred from e2e).
 Document-pipeline eval traces stay on the Langfuse SDK path (family

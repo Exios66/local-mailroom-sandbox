@@ -259,6 +259,65 @@ def build_parser() -> argparse.ArgumentParser:
     mext.add_argument("--concurrency", type=int, default=4)
     mext.add_argument("--json", action="store_true")
     mext.set_defaults(handler=_cmd_metrics_extrapolate)
+    mest = metrics_sub.add_parser(
+        "estimate-suite",
+        parents=[shared],
+        help="pre-flight GPU $/wall estimate from run YAML(s) (no Modal spend)",
+    )
+    mest.add_argument(
+        "--configs",
+        default="",
+        help="comma-separated run YAML paths (default: five run-30-*-specialist.yaml)",
+    )
+    mest.add_argument(
+        "config_paths",
+        nargs="*",
+        help="optional run YAML paths (positional); overrides default suite when set",
+    )
+    mest.add_argument(
+        "--sec-per-doc",
+        type=float,
+        default=None,
+        help="override busy seconds/doc for every run (skips class defaults)",
+    )
+    mest.add_argument(
+        "--gen-tok-per-s",
+        type=float,
+        default=None,
+        help="derive sec/doc from assumed completion tokens ÷ gen rate",
+    )
+    mest.add_argument(
+        "--gpu-usd-per-hour",
+        type=float,
+        default=None,
+        help="override L4 rate (default $0.80 or MODAL_GPU_USD_PER_HOUR)",
+    )
+    mest.add_argument("--cold-start-seconds", type=float, default=120.0)
+    mest.add_argument(
+        "--scaledown-seconds",
+        type=float,
+        default=None,
+        help="suite teardown scaledown (default: max from YAMLs, usually 600)",
+    )
+    mest.add_argument(
+        "--inter-run-gap-seconds",
+        type=float,
+        default=60.0,
+        help="warm idle between classes (preflight) while app stays up",
+    )
+    mest.add_argument(
+        "--corpus-size",
+        type=int,
+        default=None,
+        help="also print linear extrapolation (default: FAMILY_CORPUS_SIZE)",
+    )
+    mest.add_argument(
+        "--no-corpus",
+        action="store_true",
+        help="skip full-corpus extrapolation block",
+    )
+    mest.add_argument("--json", action="store_true")
+    mest.set_defaults(handler=_cmd_metrics_estimate_suite)
     mp.set_defaults(handler=_cmd_metrics_help)
 
     mb = sub.add_parser(
@@ -1486,8 +1545,68 @@ def _cmd_metrics_help(args):
         "Use: sandbox metrics compare --runs a,b[,c] | --log | "
         "--sorter-vs-modernbert [--runs sorter,modernbert]\n"
         "     sandbox metrics extrapolate --run <id> [--corpus-size N] "
-        "[--docs-per-day D]"
+        "[--docs-per-day D]\n"
+        "     sandbox metrics estimate-suite [--configs run-30-….yaml,…] "
+        "[--corpus-size N]"
     )
+    return 0
+
+
+_DEFAULT_SPECIALIST_SUITE = (
+    "config/runs/run-30-contracts-specialist.yaml",
+    "config/runs/run-30-merger-specialist.yaml",
+    "config/runs/run-30-corporate-records-specialist.yaml",
+    "config/runs/run-30-correspondence-specialist.yaml",
+    "config/runs/run-30-insurance-claims-specialist.yaml",
+)
+
+
+def _cmd_metrics_estimate_suite(args) -> int:
+    from pathlib import Path
+
+    from mailroom_sandbox.job import metrics
+    from mailroom_sandbox.job.spec import FAMILY_CORPUS_SIZE
+
+    paths: list[str] = []
+    raw_configs = (getattr(args, "configs", None) or "").strip()
+    if raw_configs:
+        paths.extend(p.strip() for p in raw_configs.split(",") if p.strip())
+    for p in getattr(args, "config_paths", None) or []:
+        if p and str(p).strip():
+            paths.append(str(p).strip())
+    if not paths:
+        paths = list(_DEFAULT_SPECIALIST_SUITE)
+
+    missing = [p for p in paths if not Path(p).is_file()]
+    if missing:
+        print(
+            "error: missing run YAML(s):\n  " + "\n  ".join(missing),
+            file=sys.stderr,
+        )
+        return 1
+
+    corpus = None
+    if not getattr(args, "no_corpus", False):
+        corpus = (
+            int(args.corpus_size)
+            if args.corpus_size is not None
+            else FAMILY_CORPUS_SIZE
+        )
+
+    result = metrics.estimate_suite(
+        paths,
+        gpu_usd_per_hour_rate=getattr(args, "gpu_usd_per_hour", None),
+        sec_per_doc_override=getattr(args, "sec_per_doc", None),
+        cold_start_seconds=float(args.cold_start_seconds),
+        scaledown_seconds=getattr(args, "scaledown_seconds", None),
+        inter_run_gap_seconds=float(args.inter_run_gap_seconds),
+        corpus_size=corpus,
+        gen_tok_per_s=getattr(args, "gen_tok_per_s", None),
+    )
+    if getattr(args, "json", False):
+        _print(result)
+    else:
+        print(result.get("markdown", ""))
     return 0
 
 
