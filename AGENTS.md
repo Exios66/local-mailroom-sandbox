@@ -44,6 +44,16 @@ provider, tracing, dataset, or deploy task, then open exactly one specialty skil
 Do not use Phoenix or Braintrust as the The-Mailroom sink. Do not use OpenRouter
 unless explicitly opted in.
 
+## Coding subagents (Cursor + OpenCode)
+
+Family-wide roster under `config/subagents/family-roster.yaml` with canonical
+prompts in `.opencode/agents/`. Harness adapters sync OpenCode frontmatter and
+Cursor stubs (`sandbox subagents sync --harness all`). Materialize into sibling
+checkouts with `sandbox subagents materialize --package <id> --root <path>`
+(monorepo law: [`docs/subagents-family-sync.md`](docs/subagents-family-sync.md)).
+Meta agents: **`harness-doctor`** and **`adversarial-reviewer`**. See
+[`config/subagents/README.md`](config/subagents/README.md).
+
 ## Commands
 
 ```bash
@@ -77,6 +87,9 @@ modal run deploy/modal_vllm.py::download_model  # Modal: pre-warm HF cache ([dep
 modal deploy deploy/modal_job.py  # Modal job worker (remote runs)
 sandbox run preflight|start|status|resume|cancel|list --config config/runs/<name>.yaml [--job-mode endpoint|modal] [--watch]
 sandbox prompts list|show <agent>     # all pipeline agent prompts (local + Langfuse)
+sandbox subagents list|show <id>      # coding subagent roster (GEPA, traces, meta)
+sandbox subagents sync --harness all  # OpenCode frontmatter + .cursor/agents/ stubs
+sandbox subagents materialize --package mailroom-dev --root <path>  # family manifest export
 sandbox metrics compare --runs local,modal,api   # serving metrics comparison
 # SANDBOX_DEBUG=1 → set -x + results/run.log diagnostics (CHTC/Modal, DMR-053)
 ```

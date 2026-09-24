@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### Added — SAND-017 central subagent roster (2026-09-24)
+
+- **`config/subagents/family-roster.yaml`** — family-wide manifest (home package,
+  package membership, harness metadata) shared across mailroom-dev / llm-mailroom /
+  llm-entity-extraction / local-mailroom-sandbox.
+- **`.opencode/agents/`** — family prompt-engineer / eval-judge /
+  experiment-log-sync / trace-log-analyst / mailroom-arch-optimizer /
+  legal-changelog-auditor prompts plus sandbox-native **`harness-doctor`** and
+  **`adversarial-reviewer`**.
+- **Harness adapters:** `sandbox subagents sync --harness opencode|cursor|all`
+  (OpenCode frontmatter merge + Cursor stub generation);
+  **`sandbox subagents materialize --package … --root …`** copies the manifest and
+  missing prompts into sibling checkouts (`governance/subagents/` on mailroom-dev).
+- Docs: [`docs/subagents-family-sync.md`](docs/subagents-family-sync.md).
+- Tests: `tests/test_subagents.py`.
+
 ## [0.2.0] - 2026-09-24
 
 ### Added — Modal/vLLM ↔ dojo cost-compare metrics parity (SAND-016)
@@ -154,8 +170,8 @@
   `Function.from_name(...).spawn(...)` consumption. Three phases (mock
   smoke → live vLLM → CLI). **Not yet shipped** — the card is still
   `in_progress` on the board and neither `docs/modal-doc-jobs.md` nor
-  `.opencode/agents/` exist in the tree yet; this entry documents the plan
-  only.
+  `.opencode/agents/` now ships the coding subagent roster (SAND-017); Modal
+  doc-jobs code remains unshipped — this entry documents the queue plan only.
 
 ### Added
 
