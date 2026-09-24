@@ -5,8 +5,9 @@
 version: 1
 
 packages:
-  mailroom-dev:
-    role: monorepo hub
+  digital-mailroom:
+    role: org monorepo hub (LLM-Mailroom-Services/Digital-Mailroom)
+    repo: https://github.com/LLM-Mailroom-Services/Digital-Mailroom
     family_roster_dest: governance/subagents/family-roster.yaml
   llm-mailroom:
     role: pipeline package
@@ -30,7 +31,7 @@ subagents:
   - id: prompt-engineer
     title: Prompt Engineer (GEPA)
     home_package: llm-entity-extraction
-    packages: [llm-entity-extraction, local-mailroom-sandbox, mailroom-dev]
+    packages: [llm-entity-extraction, local-mailroom-sandbox, digital-mailroom]
     family_source: llm-entity-extraction @ 42c54929
     tags: [prompts, evals, gepa]
     harnesses: [cursor, opencode]
@@ -44,7 +45,7 @@ subagents:
   - id: eval-judge
     title: Eval Judge
     home_package: llm-entity-extraction
-    packages: [llm-entity-extraction, local-mailroom-sandbox, mailroom-dev]
+    packages: [llm-entity-extraction, local-mailroom-sandbox, digital-mailroom]
     family_source: llm-entity-extraction @ 42c54929
     tags: [evals, metrics, reporting]
     harnesses: [cursor, opencode]
@@ -58,7 +59,7 @@ subagents:
   - id: experiment-log-sync
     title: Experiment Log Sync
     home_package: llm-entity-extraction
-    packages: [llm-entity-extraction, local-mailroom-sandbox, mailroom-dev]
+    packages: [llm-entity-extraction, local-mailroom-sandbox, digital-mailroom]
     family_source: llm-entity-extraction @ 42c54929
     tags: [observability, reporting]
     harnesses: [cursor, opencode]
@@ -72,7 +73,7 @@ subagents:
   - id: trace-log-analyst
     title: Trace Log Analyst
     home_package: llm-mailroom
-    packages: [llm-mailroom, local-mailroom-sandbox, mailroom-dev]
+    packages: [llm-mailroom, local-mailroom-sandbox, digital-mailroom]
     family_source: llm-mailroom @ 28cb4be8
     tags: [langfuse, tracing, observability]
     harnesses: [cursor, opencode]
@@ -86,7 +87,7 @@ subagents:
   - id: mailroom-arch-optimizer
     title: Mailroom Architecture Optimizer
     home_package: llm-mailroom
-    packages: [llm-mailroom, local-mailroom-sandbox, mailroom-dev]
+    packages: [llm-mailroom, local-mailroom-sandbox, digital-mailroom]
     family_source: llm-mailroom @ 28cb4be8
     tags: [architecture, pipeline]
     harnesses: [cursor, opencode]
@@ -100,7 +101,7 @@ subagents:
   - id: legal-changelog-auditor
     title: Legal Changelog Auditor
     home_package: llm-mailroom
-    packages: [llm-mailroom, local-mailroom-sandbox, mailroom-dev]
+    packages: [llm-mailroom, local-mailroom-sandbox, digital-mailroom]
     family_source: llm-mailroom @ 28cb4be8
     tags: [governance, documentation]
     harnesses: [cursor, opencode]
@@ -114,7 +115,7 @@ subagents:
   - id: harness-doctor
     title: Harness Doctor
     home_package: local-mailroom-sandbox
-    packages: [local-mailroom-sandbox, mailroom-dev]
+    packages: [local-mailroom-sandbox, digital-mailroom]
     tags: [meta, harness, sandbox]
     harnesses: [cursor, opencode]
     opencode:
@@ -128,7 +129,7 @@ subagents:
   - id: adversarial-reviewer
     title: Adversarial Reviewer
     home_package: local-mailroom-sandbox
-    packages: [local-mailroom-sandbox, mailroom-dev, llm-mailroom, llm-entity-extraction]
+    packages: [local-mailroom-sandbox, digital-mailroom, llm-mailroom, llm-entity-extraction]
     tags: [meta, review, verification]
     harnesses: [cursor, opencode]
     opencode:

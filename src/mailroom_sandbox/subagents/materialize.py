@@ -7,7 +7,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from mailroom_sandbox.paths import repo_root
-from mailroom_sandbox.subagents.family import family_roster_path, load_family_document, package_roster_dest
+from mailroom_sandbox.subagents.family import (
+    family_roster_path,
+    load_family_document,
+    normalize_package_id,
+    package_roster_dest,
+)
 from mailroom_sandbox.subagents.roster import load_roster
 
 
@@ -30,6 +35,7 @@ def materialize_package(
     dry_run: bool = False,
 ) -> MaterializeResult:
     """Install family-roster.yaml and missing OpenCode prompts for *package*."""
+    package = normalize_package_id(package)
     src_root = source_root or repo_root()
     family_src = family_roster_path(src_root)
     if not family_src.is_file():
@@ -51,7 +57,7 @@ def materialize_package(
         f"package: {package}\n"
         f"extends: family-roster.yaml\n"
     )
-    if package == "mailroom-dev":
+    if package == "digital-mailroom":
         pointer = dest_root / "config" / "subagents" / "roster.yaml"
     if not dry_run:
         pointer.parent.mkdir(parents=True, exist_ok=True)

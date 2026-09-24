@@ -143,7 +143,7 @@ def build_parser() -> argparse.ArgumentParser:
     sa_mat.add_argument(
         "--package",
         required=True,
-        help="Target package id (llm-mailroom, mailroom-dev, …)",
+        help="Target package id (llm-mailroom, digital-mailroom, …)",
     )
     sa_mat.add_argument(
         "--root",
@@ -165,7 +165,7 @@ def build_parser() -> argparse.ArgumentParser:
     sa_prop.add_argument(
         "--monorepo-root",
         default=None,
-        help="mailroom-dev root (default: discover sibling or MAILROOM_DEV_ROOT)",
+        help="Digital-Mailroom root (DIGITAL_MAILROOM_ROOT / MONOREPO_ROOT)",
     )
     sa_prop.add_argument("--package", action="append", dest="packages", default=None)
     sa_prop.add_argument("--dry-run", action="store_true")
