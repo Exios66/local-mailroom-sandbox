@@ -15,7 +15,8 @@ config/.env
 
 # Runtime / operator data (fixtures are tracked)
 data/runtime/
-data/cache/
+data/cache/**
+!data/cache/README.md
 data/traces/
 data/pipeline/
 data/manifests/
@@ -95,7 +96,7 @@ Desktop.ini
 .coverage
 .tox/
 .nose2/
-cache/
+/cache/
 *.prof
 
 # Editor-specific

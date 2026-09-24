@@ -45,10 +45,16 @@ dataset:                    # full mailroom-dataset OR a subset
   provider: huggingface     # or file:/…/x.jsonl (offline)
   repo: Lucius-Morningstar/mailroom-dataset
   config: ground_truth      # labels + doc_text joined on filename
-  split: test
+  split: all                # train+test (3,302 rows). `test` cannot back 40/100-per-class.
   revision: 46a4d3c240a36671cde0182fff4960f6b8b73aca     # pinned (no floating)
-  strata: {expected: [insurance_claim, contract]}
-  limit: 50
+  strata:
+    buckets:
+      - {doc_class: contract, count: 40}          # or 20 / 100; merger max 152
+      - {doc_class: corporate_record, count: 40}
+      - {doc_class: correspondence, count: 40}
+      - {doc_class: insurance_claim, count: 40}
+      - {doc_class: merger_agreement, count: 40}
+  limit: 200
   sample_seed: 42
 
 engine:

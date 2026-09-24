@@ -10,7 +10,7 @@ from mailroom_sandbox.job.benchmark_check import (
     HERMES_MODAL_PROFILE,
     check_benchmark_posture,
 )
-from mailroom_sandbox.job.spec import FAMILY_CORPUS_SIZE, load_run_spec
+from mailroom_sandbox.job.spec import FAMILY_CLASS_COUNTS, FAMILY_CORPUS_SIZE, load_run_spec
 from mailroom_sandbox.modernbert import (
     feeder_status,
     resolve_mailroom_ml_src,
@@ -21,6 +21,8 @@ from mailroom_sandbox.modernbert import (
 
 def test_family_corpus_size_constant():
     assert FAMILY_CORPUS_SIZE == 3302
+    assert sum(FAMILY_CLASS_COUNTS.values()) == FAMILY_CORPUS_SIZE
+    assert FAMILY_CLASS_COUNTS["merger_agreement"] == 152
 
 
 def test_modernbert_feeder_resolves_sibling(monkeypatch):

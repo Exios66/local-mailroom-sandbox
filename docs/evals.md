@@ -78,16 +78,21 @@ Offline catalog: `data/fixtures/` (see `ATTRIBUTION.md`). Tiny HF slice:
 `data/fixtures/agents/*.jsonl`. Tiny PDF/PNG: `data/fixtures/intake/`.
 Synthetic serving pair: `data/fixtures/serving/local_vs_api.json`.
 
-`sandbox datasets pull` performs a LIVE, PINNED Hub pull into `data/cache/`
-(network required; default revision is the family pin `FAMILY_HF_REVISION` —
-never the floating Hub tip). It routes through the SAME corpus loader the job
-preflight uses: `default`+`ground_truth` merge, `content_sha256` verification,
-GT-shard-absent refusal, deterministic subsetting. Any failure exits 1 with
-the error — a pull that fetched zero rows can never look successful
-(live-or-loud, DMR-056):
+`sandbox datasets pull` performs a LIVE, PINNED Hub pull of the **full**
+[`Lucius-Morningstar/mailroom-dataset`](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset/viewer/ground_truth)
+`ground_truth` corpus (train+test, 3,302 rows at `FAMILY_HF_REVISION`) into
+`data/cache/` (network required). It routes through the SAME corpus loader the
+job preflight uses: `default`+`ground_truth` merge, `content_sha256`
+verification, GT-shard-absent refusal, deterministic subsetting. Any failure
+exits 1 with the error — a pull that fetched zero rows can never look
+successful (live-or-loud, DMR-056). The Hub `test` split is only ~323 rows
+(~17 mergers) and **cannot** back 40/100-per-class Modal draws; default
+`split=all`.
 
 ```bash
-sandbox datasets pull --max-rows 50                    # pinned ground_truth/test
+sandbox datasets pull                         # full ground_truth train+test
+sandbox datasets sample --per-class 20        # or 40 / 100 (merger cap is 152)
+sandbox datasets pull --max-rows 50 --split test   # legacy tiny slice
 sandbox datasets pull --revision <sha> --config default --split train
 ```
 
