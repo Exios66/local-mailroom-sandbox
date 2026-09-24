@@ -16,6 +16,7 @@ from mailroom_sandbox.subagents.roster import SubagentEntry, harness_config, loa
 class SyncResult:
     written: list[Path]
     skipped: list[str]
+    harness: str
 
 
 def _cursor_description(entry: SubagentEntry, doc_description: str) -> str:
@@ -23,7 +24,6 @@ def _cursor_description(entry: SubagentEntry, doc_description: str) -> str:
     if entry.cursor_invoke_hint:
         parts.append(entry.cursor_invoke_hint.strip())
     if doc_description and doc_description not in (parts[0] if parts else ""):
-        # Keep Cursor description within reasonable size; prefer roster hint.
         if not parts:
             flat = " ".join(doc_description.split())
             if len(flat) > 1200:
@@ -32,6 +32,22 @@ def _cursor_description(entry: SubagentEntry, doc_description: str) -> str:
     if not parts:
         parts.append(f"Subagent {entry.title}.")
     return " ".join(parts)
+
+
+def _opencode_frontmatter(entry: SubagentEntry, doc) -> dict:
+    description = entry.opencode_description or doc.description
+    front: dict = {}
+    if description:
+        front["description"] = description
+    mode = entry.opencode_mode or doc.frontmatter.get("mode") or "all"
+    front["mode"] = mode
+    front["title"] = entry.title
+    if entry.tags:
+        front["tags"] = list(entry.tags)
+    if entry.home_package:
+        front["home_package"] = entry.home_package
+    front["roster_id"] = entry.id
+    return front
 
 
 def render_cursor_agent(entry: SubagentEntry, root: Path | None = None) -> str:
@@ -48,34 +64,70 @@ def render_cursor_agent(entry: SubagentEntry, root: Path | None = None) -> str:
     harness_note = (
         f"> **Harness note:** Canonical OpenCode prompt lives at "
         f"`.opencode/agents/{entry.id}.md`. Edit there, then run "
-        f"`sandbox subagents sync --harness cursor`.\n\n"
+        f"`sandbox subagents sync --harness all`.\n\n"
     )
     return f"---\n{yaml_block}\n---\n\n{harness_note}{doc.body}"
 
 
-def sync_harness(harness: str, *, root: Path | None = None, dry_run: bool = False) -> SyncResult:
+def render_opencode_agent(entry: SubagentEntry, root: Path | None = None) -> str:
     base = root or repo_root()
+    src = entry.opencode_path(base)
+    text = src.read_text(encoding="utf-8")
+    doc = parse_opencode_markdown(text)
+    front = _opencode_frontmatter(entry, doc)
+    yaml_block = yaml.safe_dump(front, sort_keys=False, allow_unicode=True, width=1000).strip()
+    return f"---\n{yaml_block}\n---\n\n{doc.body}"
+
+
+def _sync_one_harness(
+    harness: str,
+    *,
+    base: Path,
+    package: str | None,
+    dry_run: bool,
+) -> SyncResult:
     cfg = harness_config(harness, base)
     agents_dir = base / cfg["agents_dir"]
     written: list[Path] = []
     skipped: list[str] = []
 
-    if harness != "cursor":
-        raise NotImplementedError(f"sync for harness {harness!r} is not implemented yet")
-
     agents_dir.mkdir(parents=True, exist_ok=True)
-    for entry in load_roster(base):
-        if "cursor" not in entry.harnesses:
+    for entry in load_roster(base, package):
+        if harness not in entry.harnesses:
             skipped.append(entry.id)
             continue
         if not entry.opencode_path(base).is_file():
             skipped.append(entry.id)
             continue
-        content = render_cursor_agent(entry, base)
-        dest = entry.cursor_path(base)
+        if harness == "cursor":
+            content = render_cursor_agent(entry, base)
+            dest = entry.cursor_path(base)
+        elif harness == "opencode":
+            content = render_opencode_agent(entry, base)
+            dest = entry.opencode_path(base)
+        else:
+            raise ValueError(harness)
         if dry_run:
             written.append(dest)
             continue
         dest.write_text(content, encoding="utf-8")
         written.append(dest)
-    return SyncResult(written=written, skipped=skipped)
+    return SyncResult(written=written, skipped=skipped, harness=harness)
+
+
+def sync_harness(
+    harness: str,
+    *,
+    root: Path | None = None,
+    package: str | None = None,
+    dry_run: bool = False,
+) -> SyncResult | list[SyncResult]:
+    base = root or repo_root()
+    if harness == "all":
+        return [
+            _sync_one_harness("opencode", base=base, package=package, dry_run=dry_run),
+            _sync_one_harness("cursor", base=base, package=package, dry_run=dry_run),
+        ]
+    if harness not in ("cursor", "opencode"):
+        raise KeyError(f"unknown harness {harness!r}")
+    return _sync_one_harness(harness, base=base, package=package, dry_run=dry_run)

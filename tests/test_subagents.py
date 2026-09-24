@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from mailroom_sandbox.subagents import load_roster, sync_harness
+import shutil
+
+from mailroom_sandbox.paths import repo_root
+from mailroom_sandbox.subagents import load_roster, materialize_package, sync_harness
 from mailroom_sandbox.subagents.parse_opencode import parse_opencode_markdown
 from mailroom_sandbox.subagents.roster import get_subagent
 
@@ -20,14 +23,25 @@ def test_meta_subagents_present():
     assert get_subagent("adversarial-reviewer") is not None
 
 
+def test_family_package_filter():
+    sandbox = load_roster(package="local-mailroom-sandbox")
+    mailroom = load_roster(package="llm-mailroom")
+    assert len(sandbox) == 8
+    assert len(mailroom) == 4
+    assert {e.id for e in mailroom} == {
+        "trace-log-analyst",
+        "mailroom-arch-optimizer",
+        "legal-changelog-auditor",
+        "adversarial-reviewer",
+    }
+
+
 def test_sync_cursor_writes_agents(tmp_path):
-    # Copy minimal tree: roster + one opencode agent
     (tmp_path / "config" / "subagents").mkdir(parents=True)
-    import shutil
-
-    from mailroom_sandbox.paths import repo_root
-
-    shutil.copy(repo_root() / "config" / "subagents" / "roster.yaml", tmp_path / "config" / "subagents" / "roster.yaml")
+    shutil.copy(
+        repo_root() / "config" / "subagents" / "family-roster.yaml",
+        tmp_path / "config" / "subagents" / "family-roster.yaml",
+    )
     for entry in load_roster():
         dest_dir = tmp_path / ".opencode" / "agents"
         dest_dir.mkdir(parents=True, exist_ok=True)
@@ -42,4 +56,32 @@ def test_sync_cursor_writes_agents(tmp_path):
     text = cursor_file.read_text(encoding="utf-8")
     assert text.startswith("---\n")
     assert "name: harness-doctor" in text
-    assert "Harness Doctor" in text
+
+
+def test_sync_opencode_merges_roster_frontmatter(tmp_path):
+    (tmp_path / "config" / "subagents").mkdir(parents=True)
+    shutil.copy(
+        repo_root() / "config" / "subagents" / "family-roster.yaml",
+        tmp_path / "config" / "subagents" / "family-roster.yaml",
+    )
+    entry = get_subagent("harness-doctor")
+    assert entry is not None
+    dest_dir = tmp_path / ".opencode" / "agents"
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy(entry.opencode_path(), dest_dir / "harness-doctor.md")
+
+    sync_harness("opencode", root=tmp_path)
+    doc = parse_opencode_markdown((dest_dir / "harness-doctor.md").read_text(encoding="utf-8"))
+    assert doc.frontmatter.get("roster_id") == "harness-doctor"
+    assert doc.frontmatter.get("home_package") == "local-mailroom-sandbox"
+    assert doc.frontmatter.get("mode") == "all"
+    assert "Harness Doctor" in doc.body
+
+
+def test_materialize_mailroom_package(tmp_path):
+    pkg_root = tmp_path / "llm-mailroom"
+    pkg_root.mkdir()
+    result = materialize_package("llm-mailroom", dest_root=pkg_root)
+    assert result.family_roster_written.is_file()
+    assert (pkg_root / "config" / "subagents" / "family-roster.yaml").is_file()
+    assert len(result.prompts_copied) == 4

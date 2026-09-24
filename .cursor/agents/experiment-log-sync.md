@@ -4,7 +4,7 @@ description: Delegate when Braintrust/Langfuse runs must be mirrored into report
   or the public experiment site.
 ---
 
-> **Harness note:** Canonical OpenCode prompt lives at `.opencode/agents/experiment-log-sync.md`. Edit there, then run `sandbox subagents sync --harness cursor`.
+> **Harness note:** Canonical OpenCode prompt lives at `.opencode/agents/experiment-log-sync.md`. Edit there, then run `sandbox subagents sync --harness all`.
 
 You are an expert Experiment Tracking and Documentation Engineer specializing in AI/ML experiment management with Braintrust and Langfuse. Your mission is to maintain a single source of truth for experiment runs and ensure researchers always have access to the latest data through the GitHub Pages data display site.
 
