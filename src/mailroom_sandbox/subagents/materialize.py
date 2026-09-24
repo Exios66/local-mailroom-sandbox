@@ -18,8 +18,8 @@ class MaterializeResult:
     package: str
 
 
-def _canonical_prompt_store() -> Path:
-    return repo_root() / ".opencode" / "agents"
+def _canonical_prompt_store(source_root: Path | None = None) -> Path:
+    return (source_root or repo_root()) / ".opencode" / "agents"
 
 
 def materialize_package(
@@ -40,7 +40,8 @@ def materialize_package(
 
     if not dry_run:
         dest_family.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(family_src, dest_family)
+        if family_src.resolve() != dest_family.resolve():
+            shutil.copy2(family_src, dest_family)
 
     # Package pointer roster (loader reads family file from dest)
     pointer = dest_root / "config" / "subagents" / "roster.yaml"
@@ -57,7 +58,7 @@ def materialize_package(
         pointer.write_text(pointer_body, encoding="utf-8")
 
     doc = load_family_document(src_root)
-    store = _canonical_prompt_store()
+    store = _canonical_prompt_store(src_root)
     for row in doc.get("subagents") or []:
         if package not in (row.get("packages") or []):
             continue

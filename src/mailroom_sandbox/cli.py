@@ -157,6 +157,20 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sa_mat.add_argument("--dry-run", action="store_true")
     sa_mat.set_defaults(handler=_cmd_subagents_materialize)
+    sa_prop = subagents_sub.add_parser(
+        "propagate",
+        help="Materialize + sync all mapped family checkouts",
+        parents=[shared],
+    )
+    sa_prop.add_argument(
+        "--monorepo-root",
+        default=None,
+        help="mailroom-dev root (default: discover sibling or MAILROOM_DEV_ROOT)",
+    )
+    sa_prop.add_argument("--package", action="append", dest="packages", default=None)
+    sa_prop.add_argument("--dry-run", action="store_true")
+    sa_prop.add_argument("--json", action="store_true")
+    sa_prop.set_defaults(handler=_cmd_subagents_propagate)
     subagents_p.set_defaults(handler=_cmd_subagents_list)
 
     pipe = sub.add_parser("pipeline", help="Run mailroom watcher or API", parents=[shared])
@@ -1052,6 +1066,38 @@ def _cmd_subagents_materialize(args: argparse.Namespace) -> int:
         }
     )
     return 0
+
+
+def _cmd_subagents_propagate(args: argparse.Namespace) -> int:
+    from mailroom_sandbox.subagents import propagate_family_checkouts
+
+    mono = Path(args.monorepo_root).expanduser().resolve() if args.monorepo_root else None
+    result = propagate_family_checkouts(
+        monorepo_root=mono,
+        packages=getattr(args, "packages", None),
+        dry_run=bool(args.dry_run),
+    )
+    payload = {
+        "source_root": str(result.source_root),
+        "monorepo_root": str(result.monorepo_root) if result.monorepo_root else None,
+        "dry_run": bool(args.dry_run),
+        "packages": [
+            {
+                "package": row.package,
+                "dest_root": str(row.dest_root),
+                "materialized": row.materialized,
+                "sync_written": row.sync_written,
+                "skipped": row.skipped,
+                "error": row.error,
+            }
+            for row in result.packages
+        ],
+    }
+    if getattr(args, "json", False):
+        _print(payload)
+    else:
+        _print(payload)
+    return 1 if any(row.error for row in result.packages) else 0
 
 
 def _cmd_agents_show(args: argparse.Namespace) -> int:

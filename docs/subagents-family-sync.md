@@ -16,20 +16,38 @@ coding subagent, its **home package**, and which packages **materialize** it.
 
 ## Workflow
 
-From a sandbox checkout (prompt snapshots live under `.opencode/agents/`):
+### One command (recommended)
+
+From a sandbox checkout with sibling `mailroom-dev/` (or set `MAILROOM_DEV_ROOT`):
 
 ```bash
-# 1) Install manifest + missing prompts into a sibling checkout
-sandbox subagents materialize --package llm-mailroom --root ../mailroom-dev/packages/llm-mailroom
-sandbox subagents materialize --package mailroom-dev --root ../mailroom-dev
-
-# 2) Merge roster metadata into OpenCode frontmatter + refresh Cursor stubs
-sandbox subagents sync --harness all --package llm-mailroom --root ../mailroom-dev/packages/llm-mailroom
-sandbox subagents sync --harness all --package mailroom-dev --root ../mailroom-dev
+sandbox subagents propagate
 ```
 
-After editing prompts in `.opencode/agents/`, re-run sync for the packages that
-include that subagent (`sandbox subagents list --package llm-mailroom`).
+This runs **materialize + sync** for every entry in
+[`checkout-map.yaml`](../config/subagents/checkout-map.yaml) (`mailroom-dev`,
+`packages/llm-mailroom`, `packages/llm-entity-extraction`,
+`packages/local-mailroom-sandbox`).
+
+### Monorepo automation
+
+After a one-time hook in `mailroom-dev` `scripts/sync_packages.py` (see
+[`scripts/monorepo/INTEGRATION.md`](../scripts/monorepo/INTEGRATION.md)), each
+successful **`pull`** / **`push`** runs:
+
+```bash
+python3 packages/local-mailroom-sandbox/scripts/monorepo/after_packages_sync.py
+```
+
+### Manual per-checkout
+
+```bash
+sandbox subagents materialize --package llm-mailroom --root ../mailroom-dev/packages/llm-mailroom
+sandbox subagents sync --harness all --package llm-mailroom --root ../mailroom-dev/packages/llm-mailroom
+```
+
+After editing prompts in `.opencode/agents/`, re-run **`propagate`** or sync for
+the affected packages (`sandbox subagents list --package llm-mailroom`).
 
 ## Harness adapters
 
