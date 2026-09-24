@@ -1,0 +1,53 @@
+# Jack matrix lock — single config 8B×L4 N=20 c=8.
+# Sorter live run against Modal-deployed vLLM (Qwen/Qwen3-8B L4, v0.29.0).
+# Dataset style from run-50-modal-hf (pinned Hub test split); prompt agents
+# from pilot-sorter-modal-hf. Strata omitted (run-50 strata was a no-op).
+schema: sandbox.run/v1
+run_id: run-20-sorter-modal-hf
+task: sorter
+profile: modal-vllm
+
+prompt:
+  default: {source: code-default}
+  agents:
+    sorter_reviewer: {source: local, file: sorter_reviewer_local_v0}
+    judge: {source: local, file: judge_local_v0}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth            # labels + doc_text joined on filename
+  split: test
+  revision: 46a4d3c240a36671cde0182fff4960f6b8b73aca   # pinned (MAILROOM_HF_REVISION)
+  limit: 20
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B
+  vllm:
+    max_model_len: 16384      # DMR-056: boot-valid cap for L4-bf16 8B rows
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 256
+    quantization: ""
+    revision: ""
+  modal:
+    app: sandbox-vllm
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 120    # attended short run
+    max_containers: 1
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 8              # fill the endpoint's continuous batching
+
+trace:
+  sink: none
+  otlp: true
+  environment: pilot
+  tags: [sandbox, job]
