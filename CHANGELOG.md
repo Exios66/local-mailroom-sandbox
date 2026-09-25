@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+### Changed — SAND-026 simplified specialist extraction prompts (issue #32) (2026-09-25)
+
+- Parallel `*_simplified` stems under `config/prompts/` for the five live
+  specialists: one field-level instruction block, live registered schema
+  (Hub intent / subclass tokens), explicit null / `[]` / `0` / do-not-invent
+  rules. Vendor mirrors (`contracts_specialist_v33`, `*_production`) stay
+  byte-identical for sync.
+- Correspondence no longer dual-lists retired `key_points` /
+  `referenced_communications` as registered fields; contracts no longer
+  trains `key_obligations` / `termination_clauses` then forbids them.
+- Run-20 / run-30 specialist YAMLs + `specialist_posture.prompt_file` pin
+  the simplified stems. `scripts/sync_specialist_prompts.py` default write
+  cannot clobber experiment pins (`--overwrite-experiment` is the opt-in).
+- Inventory + operator path: [`config/prompts/README.md`](config/prompts/README.md).
+  Catalog promotion remains in `LLM-Mailroom-Services/eval-environment`
+  issues 4–8 — not this package.
+
 ### Added — SAND-018 single-class 20-contract Modal run + full-corpus logged sample (2026-09-25)
 
 - **`config/runs/run-20-contracts-specialist.yaml`** — the runbook's
