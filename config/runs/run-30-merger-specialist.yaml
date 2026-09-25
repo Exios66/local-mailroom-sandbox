@@ -22,14 +22,14 @@ task: merger_agreement_specialist
 profile: modal-vllm
 
 prompt:
-  # Pinned local production text (config/prompts/merger_agreement_specialist_production.txt)
+  # SAND-026 simplified pin (config/prompts/merger_agreement_specialist_simplified.txt)
   # for reproducible Modal L4 Qwen runs — not Langfuse floating production.
-  # Synced from vendored llm-mailroom code-default (merger_agreement_specialist). DMR-074/078.
+  # Vendor merger_agreement_specialist_production remains a syncable mirror. DMR-074/078.
   default: {source: code-default}
   agents:
     merger_agreement_specialist:
       source: local
-      file: merger_agreement_specialist_production
+      file: merger_agreement_specialist_simplified
 
 dataset:
   provider: huggingface
