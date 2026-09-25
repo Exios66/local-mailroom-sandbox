@@ -34,7 +34,7 @@ def test_posture_context_fit_and_invariants():
     assert validate_mapping() == []
     for run_id, row in SPECIALIST_POSTURE.items():
         assert context_fit_ok(row["max_tokens"], row["max_input_chars"]), run_id
-        assert 2 <= row["concurrency"] <= 6
+        assert 2 <= row["concurrency"] <= 8
 
 
 def test_run_20_contracts_single_class_posture():
@@ -61,6 +61,15 @@ def test_run_20_yaml_full_corpus_logged_sample():
     assert spec.job.max_wall_seconds == 3200
     agents = spec.prompt.get("agents") or {}
     assert agents["contracts_specialist"]["file"] == "contracts_specialist_v33"
+
+
+def test_run_20_correspondence_c8_posture():
+    """SAND-019: the 8-concurrency correspondence variant is first-class."""
+    row = SPECIALIST_POSTURE["run-20-correspondence-awq-c8"]
+    assert row["task"] == "correspondence_specialist"
+    assert row["concurrency"] == 8
+    assert row["prompt_file"] == "correspondence_specialist_production"
+    assert expected_limit("run-20-correspondence-awq-c8") == 20
 
 
 def test_run_20_gate_enforces_limit_20(monkeypatch):
@@ -107,9 +116,9 @@ def test_run_yamls_match_posture(monkeypatch):
         assert spec.job.concurrency == expected_concurrency(run_id)
         assert float(spec.job.cost_cap_usd) == float(row["cost_cap_usd"])
         assert int(spec.job.max_wall_seconds) == int(row["max_wall_seconds"])
-        # SAND-018: the AWQ variant runs the quantized checkpoint; every other
-        # specialist run stays on the bf16 default.
-        if run_id.endswith("-awq"):
+        # SAND-018/019: AWQ variants (incl. the -awq-c8 suffix) run the quantized
+        # checkpoint; every other specialist run stays on the bf16 default.
+        if "-awq" in run_id:
             assert spec.engine.model == "Qwen/Qwen3-8B-AWQ"
             assert spec.engine.vllm.quantization == "awq"
         else:
