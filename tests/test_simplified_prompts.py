@@ -168,10 +168,94 @@ def test_extract_local_v0_states_empty_and_zero_rules():
     assert "invent" in lower
 
 
-def test_simplified_prompts_shorter_than_vendor_mirrors():
+def test_simplified_prompts_stay_pared_vs_vendor_contracts_dump():
+    """Contracts v33 is the length problem (~32k). Other class-specific
+    stems may exceed a short vendor pin when they drop shared boilerplate
+    and spell class traps; they must still stay compact and diverge.
+    """
     for simplified, vendor in VENDOR_COUNTERPART.items():
         s = load_variant(simplified)
         v = load_variant(vendor)
-        assert len(s) < len(v), (simplified, len(s), len(v))
+        assert s != v, simplified
+        assert len(s) < 12_000, simplified
     contracts_s = load_variant("contracts_specialist_v33_simplified")
-    assert len(contracts_s) < 12_000
+    contracts_v = load_variant("contracts_specialist_v33")
+    assert len(contracts_s) < len(contracts_v) / 2
+
+
+SHARED_BOILERPLATE = "Empty rules (every field)"
+
+CLASS_MARKERS: dict[str, tuple[str, ...]] = {
+    "insurance_claims_specialist_simplified": (
+        "InsuranceClaimExtraction",
+        "FNOL",
+        "claim_checklist",
+        "coverage_determination",
+        "claimed_amount",
+        "CMS",
+    ),
+    "contracts_specialist_v33_simplified": (
+        "ContractExtraction",
+        "CUAD",
+        "cuad_clauses",
+        "key_obligations",
+        "cuad_family",
+    ),
+    "merger_agreement_specialist_simplified": (
+        "MergerAgreementExtraction",
+        "Effective Time",
+        "maud_clauses",
+        "Parent, Merger Sub, and Target",
+        "all_cash",
+    ),
+    "correspondence_specialist_simplified": (
+        "CorrespondenceExtraction",
+        "demand_amount",
+        "payment_demand",
+        "attorney_demand",
+        "communication_date",
+    ),
+    "corporate_records_specialist_simplified": (
+        "CorporateRecordExtraction",
+        "record_type",
+        "articles_of_incorporation",
+        "filing_number",
+        "key_provisions",
+    ),
+}
+
+# Fields that belong to another live class and must not be listed as this
+# class's emit-list (mentioning them as do-not-emit is required).
+FOREIGN_AS_REGISTERED: dict[str, tuple[str, ...]] = {
+    "correspondence_specialist_simplified": ("claim_number", "cuad_clauses"),
+    "insurance_claims_specialist_simplified": ("demand_amount", "cuad_clauses"),
+    "contracts_specialist_v33_simplified": ("claim_number", "sender"),
+    "merger_agreement_specialist_simplified": ("cuad_family", "claim_number"),
+    "corporate_records_specialist_simplified": ("claimed_amount", "cuad_clauses"),
+}
+
+
+def test_simplified_prompts_are_class_specific_not_shared_boilerplate():
+    texts = {stem: load_variant(stem) for stem in SIMPLIFIED_FIELDS}
+    for stem, text in texts.items():
+        assert SHARED_BOILERPLATE not in text, stem
+        lower = text.lower()
+        assert "not a generic extract template" in lower, stem
+        for marker in CLASS_MARKERS[stem]:
+            assert marker in text, f"{stem} missing class marker {marker!r}"
+    # No two simplified prompts share the same opening identity sentence.
+    openings = {stem: text.split("\n", 1)[0] for stem, text in texts.items()}
+    assert len(set(openings.values())) == len(openings)
+
+
+@pytest.mark.parametrize("stem,foreign", list(FOREIGN_AS_REGISTERED.items()))
+def test_simplified_prompt_does_not_register_foreign_class_fields(stem, foreign):
+    text = load_variant(stem)
+    # After the "Registered … fields" heading, foreign keys must not appear
+    # as emit instructions. They may appear earlier as do-not-emit traps.
+    heading = "Registered"
+    idx = text.find(heading)
+    assert idx >= 0, stem
+    registered = text[idx:]
+    for field in foreign:
+        assert field not in registered, f"{stem} still lists foreign {field} as registered"

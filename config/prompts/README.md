@@ -40,9 +40,14 @@ python scripts/sync_specialist_prompts.py --check  # vendor identity + simplifie
 ## Specialist simplified pins (SAND-026 / issue #32) — experiment surface
 
 Parallel `*_simplified` stems for the offline sandbox. They intentionally
-diverge from vendor: one field-level instruction block per prompt, live
-registered schema only, Hub intent / subclass tokens, explicit null / `[]` / `0`
-rules, do-not-invent. **Current run-20 / run-30 specialist YAMLs pin these.**
+diverge from vendor: **class-specific** extractors (not a lightly edited
+generic template). Each stem names the live registered schema, typical
+document shape, what “empty” means for *that* class, and class-specific
+traps (CUAD vs MAUD, FNOL vs demand letter, exhibit vs parent agreement,
+Hub `claimed_amount` vs correspondence `demand_amount`). Shared
+“Empty rules (every field)” boilerplate is forbidden. Hub intent /
+subclass tokens, null / `[]` / `0`, do-not-invent. **Current run-20 /
+run-30 specialist YAMLs pin these.**
 
 | Stem | Agent | Live schema (do not emit retired keys) |
 | --- | --- | --- |
@@ -141,5 +146,8 @@ What was redundant or conflicting on the vendor pins:
    `key_provisions` (retired) and omits the semantic trio + insurance
    `claim_checklist`.
 
-Simplified stems merge rules + fields into **one** block aligned with the
-live JSON schema and Hub tokens.
+Simplified stems merge rules + fields into **one class-specific** block
+aligned with the live JSON schema and Hub tokens. Scoring of those
+extractions against Hub union GT drops empty / other-class fields before
+the dojo suite runs — see [`docs/evals.md`](../../docs/evals.md)
+§Extraction scoring vs empty / class-mismatched Hub GT.

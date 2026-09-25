@@ -150,12 +150,49 @@ The regression test `test_registering_new_agent_spec_is_the_extension_point`
 (`tests/test_job_runner.py`) pins this contract: register a dummy spec →
 validation + dispatch accept it, run it, done.
 
+## Extraction scoring vs empty / class-mismatched Hub GT
+
+Hub `mailroom-dataset` `ground_truth` / `gt_fields` is a **union** of
+specialist keys. Many rows are not insurance claims, so insurance-claim
+fields arrive empty or absent (`denial_reasons: []`, `claim_number: null`,
+…). Correspondence fixtures also reuse the insurance money key
+(`claimed_amount`) for a demanded dollar amount.
+
+**Rule (SAND-026):** empty GT for a schema that does not apply to that
+document type is **not** a miss. It must not pull down
+`overall_extraction_score` or extraction F1. The same holds in the other
+direction (empty correspondence keys on an insurance row, empty CUAD
+leftovers on a merger row, …).
+
+What the vendor already does vs where the sandbox seams:
+
+| Layer | Empty `None` / `""` | Empty `[]` | Foreign-class keys |
+| --- | --- | --- | --- |
+| `llm_dojo_scoring.field_scoring.score_extraction` | skipped | **scored as an event** (missing pred → 0.0) | scored if present on expected |
+| `llm_dojo_scoring.extraction_metrics.extraction_binary_metrics` | skipped | skipped | extra expected keys are FN |
+| sandbox `eval.extraction_scope` (before `suite.score`) | dropped | dropped | dropped (plus Hub alias `claimed_amount` → `demand_amount` on correspondence) |
+
+The sandbox does **not** patch `vendor/llm-dojo-scoring` (hub#62
+byte-identity). `score_extraction_row` calls `scope_extraction_pair` so
+the dojo suite only sees in-schema, non-empty events. Trace-only keys
+(`reasoning`, `confidence`) and Hub annotation metadata (`intent_source`,
+…) are never scoring events. Content extras (`content_topic`,
+`sentiment_label`, `maud_clause_labels`) stay on the pair so
+`peel_non_extraction_fields` still sees them.
+
+Numeric zero (`0`, `0.0`, `$0`) is a stated value and still scores.
+
+Offline lock: `tests/test_extraction_scope.py`.
+
 ## Prompt variants
 
 `config/prompts/*_local_v0.txt` are shorter, JSON-strict templates for 7B/8B
 local models. Pass `--prompt sorter_local_v0` (or `sorter_reviewer_local_v0`,
 `judge_local_v0`). Per-agent prompt stems also live under
-`config/components.yaml` `prompts:`.
+`config/components.yaml` `prompts:`. Specialist `*_simplified` stems are
+**class-specific** (live schema + class traps + class-local empty rules) —
+see [`config/prompts/README.md`](../config/prompts/README.md). Catalog
+promotion of that text lives in eval-environment issues 4–8, not this repo.
 
 ## Component gates
 
