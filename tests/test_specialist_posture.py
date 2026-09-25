@@ -10,11 +10,24 @@ from mailroom_sandbox.job.benchmark_check import (
 )
 from mailroom_sandbox.job.spec import load_run_spec
 from mailroom_sandbox.job.specialist_posture import (
+    SPECIALIST_LIMIT_BY_RUN,
     SPECIALIST_POSTURE,
     context_fit_ok,
     expected_concurrency,
+    expected_limit,
     validate_mapping,
 )
+
+
+def _stub_modal(monkeypatch):
+    monkeypatch.setattr(
+        "mailroom_sandbox.job.benchmark_check.active_modal_profile_name",
+        lambda: "hermes-agent-jjb",
+    )
+    monkeypatch.setattr(
+        "mailroom_sandbox.job.benchmark_check._modal_cli_ok",
+        lambda: {"ok": True, "version": "modal stub"},
+    )
 
 
 def test_posture_context_fit_and_invariants():
@@ -22,6 +35,51 @@ def test_posture_context_fit_and_invariants():
     for run_id, row in SPECIALIST_POSTURE.items():
         assert context_fit_ok(row["max_tokens"], row["max_input_chars"]), run_id
         assert 2 <= row["concurrency"] <= 6
+
+
+def test_run_20_contracts_single_class_posture():
+    """SAND-018: the 20-contract single-class variant is a first-class posture."""
+    row = SPECIALIST_POSTURE["run-20-contracts-specialist"]
+    assert row["task"] == "contracts_specialist"
+    assert row["doc_class"] == "contract"
+    assert row["prompt_file"] == "contracts_specialist_v33"
+    assert expected_limit("run-20-contracts-specialist") == 20
+    # No posture row may rely on the silent default limit (coverage honesty).
+    assert set(SPECIALIST_POSTURE) <= set(SPECIALIST_LIMIT_BY_RUN)
+    assert expected_limit("run-30-contracts-specialist") == 30
+
+
+def test_run_20_yaml_full_corpus_logged_sample():
+    root = Path(__file__).resolve().parents[1] / "config" / "runs"
+    spec = load_run_spec(root / "run-20-contracts-specialist.yaml")
+    assert spec.dataset.split == "all"
+    assert spec.dataset.limit == 20
+    assert spec.dataset.sample_seed == 42
+    assert spec.dataset.strata["buckets"] == [{"doc_class": "contract", "count": 20}]
+    assert spec.effective_revision() == "46a4d3c240a36671cde0182fff4960f6b8b73aca"
+    assert spec.job.cost_cap_usd == 0.55
+    assert spec.job.max_wall_seconds == 3200
+    agents = spec.prompt.get("agents") or {}
+    assert agents["contracts_specialist"]["file"] == "contracts_specialist_v33"
+
+
+def test_run_20_gate_enforces_limit_20(monkeypatch):
+    """The loud gate must cover run-20 too — a wrong limit cannot pass green."""
+    _stub_modal(monkeypatch)
+    root = Path(__file__).resolve().parents[1] / "config" / "runs"
+    spec = load_run_spec(root / "run-20-contracts-specialist.yaml")
+    report = check_benchmark_posture(spec=spec, require_hermes=True)
+    assert report["ok"], report["errors"]
+    assert report["checks"]["spec"]["limit"] == 20
+    assert report["checks"]["spec"]["local_prompts"] == {
+        "contracts_specialist": "contracts_specialist_v33"
+    }
+    bad = spec.model_copy(
+        update={"dataset": spec.dataset.model_copy(update={"limit": 30})}
+    )
+    bad_report = check_benchmark_posture(spec=bad, require_hermes=True)
+    assert bad_report["ok"] is False
+    assert any("dataset.limit" in e for e in bad_report["errors"])
 
 
 def test_merger_is_dedicated_specialist():
@@ -49,6 +107,12 @@ def test_run_yamls_match_posture(monkeypatch):
         assert spec.job.concurrency == expected_concurrency(run_id)
         assert float(spec.job.cost_cap_usd) == float(row["cost_cap_usd"])
         assert int(spec.job.max_wall_seconds) == int(row["max_wall_seconds"])
-        assert spec.engine.model == "Qwen/Qwen3-8B"
+        # SAND-018: the AWQ variant runs the quantized checkpoint; every other
+        # specialist run stays on the bf16 default.
+        if run_id.endswith("-awq"):
+            assert spec.engine.model == "Qwen/Qwen3-8B-AWQ"
+            assert spec.engine.vllm.quantization == "awq"
+        else:
+            assert spec.engine.model == "Qwen/Qwen3-8B"
         report = check_benchmark_posture(spec=spec, require_hermes=True)
         assert report["ok"], (run_id, report["errors"])

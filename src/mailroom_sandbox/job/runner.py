@@ -202,6 +202,22 @@ def _run_whole_run(
             f"re-run `sandbox datasets pull/prepare` with a nonzero limit"
         )
     locked_rows = locked_rows or None
+    # SAND-018: the measured cold boot (written by `preflight --live`) travels
+    # into the whole-run record too — isolated agent tasks append their own
+    # experiment-log copy, so it must be passed through explicitly.
+    cold_boot = store.read_cold_boot()
+    cold_boot_seconds = (
+        float(cold_boot["cold_boot_seconds"])
+        if cold_boot and cold_boot.get("cold_boot_seconds") is not None
+        else None
+    )
+    # SAND-018: the isolated-agent path used to be serial and ignore
+    # job.concurrency / cost_cap / max_wall. Pass them through so a specialist
+    # run is concurrent, measurable, and bounded.
+    concurrency = _concurrency(store)
+    max_wall = _max_wall_seconds(store)
+    cost_cap = _cost_cap_usd(store)
+    gpu = _lock_gpu(store)
     try:
         if task == "pipeline":
             result = eval_runners.run_pipeline_eval(connected=True, rows=locked_rows, **kwargs)
@@ -215,11 +231,29 @@ def _run_whole_run(
             result = eval_runners.run_sorter_vs_modernbert_eval(**kwargs)
         elif task == "isolated":
             # Historical alias: `isolated` runs the sorter spec (docs/jobs.md).
-            result = eval_runners.run_isolated_eval("sorter", rows=locked_rows, **kwargs)
+            result = eval_runners.run_isolated_eval(
+                "sorter",
+                rows=locked_rows,
+                cold_boot_seconds=cold_boot_seconds,
+                concurrency=concurrency,
+                max_wall_seconds=max_wall,
+                cost_cap_usd=cost_cap,
+                gpu=gpu,
+                **kwargs,
+            )
         elif task in _agent_task_names():
             # DMR-056: any registered AgentSpec name is a whole-run job task —
             # `task: judge` / `task: gmail_triage` (once registered) etc.
-            result = eval_runners.run_isolated_eval(task, rows=locked_rows, **kwargs)
+            result = eval_runners.run_isolated_eval(
+                task,
+                rows=locked_rows,
+                cold_boot_seconds=cold_boot_seconds,
+                concurrency=concurrency,
+                max_wall_seconds=max_wall,
+                cost_cap_usd=cost_cap,
+                gpu=gpu,
+                **kwargs,
+            )
         else:
             raise ValueError(f"task {task!r} is not runnable")
     except Exception as exc:  # noqa: BLE001
@@ -396,6 +430,20 @@ def _build_record(
     engine = lock.get("engine") or {}
     model = model or (engine.get("model") if isinstance(engine, dict) else None) or "unknown"
     prompt_version = str((prompt_block.get("default") or {}).get("source") or "code-default")
+    items = store.load_items()
+    # SAND-018: carry the live engine-probe cold-boot measurement (written by
+    # `preflight --live`, the step right after deploy) into the experiment-log
+    # record — a measured boot, never the assumed 120 s estimate constant.
+    cold_boot = store.read_cold_boot()
+    cold_boot_seconds = (
+        float(cold_boot["cold_boot_seconds"])
+        if cold_boot and cold_boot.get("cold_boot_seconds") is not None
+        else None
+    )
+    # Cost accuracy: bill the warm interval (cold boot + busy), not busy-only,
+    # so estimated_gpu_cost_usd matches the Modal charge.
+    busy_seconds = sum(float(i.get("latency_ms") or 0) for i in items) / 1000.0
+    billed_window = busy_seconds + (cold_boot_seconds or 0.0)
     record = record_from_run(
         run_id=store.run_id,
         spec_hash=store.spec_hash() or "",
@@ -404,13 +452,16 @@ def _build_record(
         model=model,
         prompt_version=prompt_version,
         dataset_fingerprint=_fingerprint(store),
-        items=store.load_items(),
+        items=items,
         scores=scores or None,
         gpu=_lock_gpu(store),
+        billed_window_seconds=billed_window if billed_window > 0 else None,
         mock=bool(mock),
     )
     record["experiment_name"] = f"sandbox_{task}_{store.run_id}"
     record["mock"] = bool(mock)
+    if cold_boot_seconds is not None:
+        record["cold_boot_seconds"] = cold_boot_seconds
     return record
 
 

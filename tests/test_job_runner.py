@@ -317,6 +317,53 @@ def test_whole_run_agent_task_delegates(tmp_path):
     assert cp["state"] == "done"
 
 
+def test_whole_run_agent_task_carries_cold_boot(tmp_path):
+    """SAND-018: the measured engine cold boot (preflight --live) lands in the
+    whole-run experiment-log record, not just the per-item path."""
+    store = _whole_run_store(tmp_path, task="judge")
+    store.write_cold_boot({"cold_boot_seconds": 178.25, "run_id": store.run_id})
+    summary = runner.run_job(store, mock=None)
+    assert summary["state"] == "done"
+    assert summary["result"]["record"]["cold_boot_seconds"] == 178.25
+
+
+def test_whole_run_record_bills_cold_boot(tmp_path):
+    """SAND-018 cost accuracy: the pipeline record's GPU-seconds span the warm
+    interval (cold boot + busy), so the reported cost matches the Modal charge."""
+    store = _whole_run_store(tmp_path, task="pipeline")
+    store.write_cold_boot({"cold_boot_seconds": 178.0, "run_id": store.run_id})
+    store.items_path.write_text(
+        json.dumps({"id": "d0", "ok": True, "latency_ms": 2400.0}) + "\n",
+        encoding="utf-8",
+    )
+    rec = runner._build_record(store, "pipeline", None, {"n": 1}, mock=True)
+    assert rec["cold_boot_seconds"] == 178.0
+    assert rec["gpu_seconds"] >= 178.0
+    assert "estimated_gpu_cost_usd" in rec
+
+
+def test_whole_run_agent_task_passes_concurrency_and_caps(monkeypatch, tmp_path):
+    """SAND-018: job.concurrency / cost_cap / max_wall reach the isolated
+    runner — the isolated path used to be serial and unguarded."""
+    from mailroom_sandbox.eval import runners as eval_runners
+
+    captured: dict = {}
+
+    def _fake_isolated(task, **kwargs):
+        captured.update(kwargs)
+        captured["_task"] = task
+        return {"n": 1, "scores": {"exact_match": 1.0}, "record": {"ok": True}, "rows": []}
+
+    monkeypatch.setattr(eval_runners, "run_isolated_eval", _fake_isolated)
+    store = _whole_run_store(tmp_path, task="judge")
+    runner.run_job(store, mock=True)
+    assert captured["_task"] == "judge"
+    assert captured["concurrency"] >= 1
+    assert "max_wall_seconds" in captured
+    assert "cost_cap_usd" in captured
+    assert "gpu" in captured
+
+
 def test_whole_run_pipeline_receives_locked_rows(tmp_path, monkeypatch):
     # DMR-056: whole-run tasks score the LOCKED live dataset (3 rows here),
     # not the 10-row fixture manifest — the live-data integration contract.
