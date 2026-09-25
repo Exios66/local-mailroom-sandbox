@@ -223,7 +223,14 @@ def normalize_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             raise ValueError(f"corpus integrity: content_sha256 mismatch on {row.get('id') or row.get('filename')}")
         if not content_sha:
             content_sha = sha256_text(text)
+        # SAND-019: the pinned HF ``ground_truth`` config names its field-level
+        # labels ``gt_fields`` (a JSON string); ``expected_fields`` only exists
+        # on the local fixture/derived shape. Reading only the latter silently
+        # produced {} for all 3,302 corpus rows, so every specialist extraction
+        # scored null. Prefer the explicit key, then fall back to the Hub column.
         expected_fields = row.get("expected_fields")
+        if expected_fields is None:
+            expected_fields = row.get("gt_fields")
         if isinstance(expected_fields, str):
             # Same parser discipline as datasets.parse_expected_fields — a JSON
             # string is decoded, never silently flattened to {} (DMR-049).

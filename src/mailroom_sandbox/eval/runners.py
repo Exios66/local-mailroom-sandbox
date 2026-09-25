@@ -132,6 +132,7 @@ def run_isolated_eval(
     max_wall_seconds: float | None = None,
     cost_cap_usd: float | None = None,
     gpu: str | None = None,
+    progress_cb: Any = None,
 ) -> dict[str, Any]:
     """Run one live agent / node against fixtures, nested under document-pipeline.
 
@@ -144,7 +145,11 @@ def run_isolated_eval(
     import statistics
     import time
 
-    from mailroom_sandbox.job.usage_capture import merge_item_metrics, usage_from_pipeline
+    from mailroom_sandbox.job.usage_capture import (
+        merge_item_metrics,
+        reset_usage,
+        usage_from_pipeline,
+    )
 
     spec = spec_for(task)
     rows = spec.load_rows() if rows is None else rows
@@ -184,6 +189,9 @@ def run_isolated_eval(
         fell_back = False
         usage: dict[str, Any] = {}
         try:
+            # SAND-018: reset the thread's usage accumulator so this row's tokens
+            # are its own — without it, pooled rows sum into one inflated total.
+            reset_usage()
             with tracing.document_pipeline_trace(
                 seed=seed,
                 session_id=session,
@@ -260,6 +268,14 @@ def run_isolated_eval(
     def _record(index: int, entry: dict[str, Any]) -> None:
         per_row[index] = entry
         _absorb(entry)
+        # SAND-018: the isolated path used to be silent until the end — no
+        # running checkpoint, no events — so a live run looked stalled.
+        if progress_cb is not None:
+            done = sum(1 for e in per_row if e is not None)
+            try:
+                progress_cb(done, len(rows), done - errors, errors)
+            except Exception as exc:  # noqa: BLE001 — progress must never break a run
+                _log.warning("progress_cb raised — live progress may stall: %s", exc)
 
     _run_rows_bounded(rows, workers=workers, run_one=_run_one, on_result=_record, guard=_guard)
 

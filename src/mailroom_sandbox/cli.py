@@ -1747,6 +1747,17 @@ def _cmd_run_start(args) -> int:
 def _run_endpoint(store, args) -> dict:
     from mailroom_sandbox.job import runner
 
+    watch = bool(getattr(args, "watch", False))
+
+    def _on_event(ev: dict) -> None:
+        if watch:
+            print(
+                f"[run] {ev.get('cursor')}/{ev.get('total')} "
+                f"ok={ev.get('ok')} errors={ev.get('errors')} {ev.get('state', '')}",
+                file=sys.stderr,
+                flush=True,
+            )
+
     with store.acquire():
         return runner.run_job(
             store,
@@ -1754,6 +1765,7 @@ def _run_endpoint(store, args) -> dict:
             dry_run=False,
             max_items=getattr(args, "max_items", None),
             tracer=None,
+            on_event=_on_event,
         )
 
 

@@ -171,8 +171,9 @@ def test_modal_profile_merge_sorter_vllm_and_timeout_600():
     assert t["agents"]["sorter"]["provider"] == "vllm"
     assert t["agents"]["sorter"]["model"] == "Qwen/Qwen3-8B"
     assert t["run_limits"]["llm_call_timeout_seconds"] == 600
-    # DMR-078 / SAND-018: specialist budgets fit Qwen L4 16k; contracts decode
-    # was lowered 4096→2048 so an AWQ generation finishes inside the call timeout.
-    assert t["agents"]["contracts_specialist"]["max_tokens"] == 2048
+    # DMR-078 / SAND-018: specialist budgets fit Qwen L4 16k; contracts keeps a
+    # 4096 decode and a real-chars/token input cap so it cannot 400 the window.
+    assert t["agents"]["contracts_specialist"]["max_tokens"] == 4096
+    assert t["agents"]["contracts_specialist"]["max_input_chars"] == 18000
     assert t["agents"]["merger_agreement_specialist"]["max_tokens"] == 4096
     assert t["agents"]["correspondence_specialist"]["max_tokens"] == 2048
