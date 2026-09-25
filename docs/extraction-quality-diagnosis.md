@@ -193,22 +193,21 @@ Required engine delta: `max_model_len=16384` (L4-bf16 boot cap). **Do not
 start this run** until spend/auth are approved. See
 [`docs/jobs.md`](jobs.md) §AWQ vs FP16 isolation.
 
-## Proposed acceptance target (**proposal — pending owner lock**)
+## Acceptance target (**owner-locked**)
 
 Baseline floor on fingerprint `285f423d3708`: **0.08714**.
 
 | Gate | `overall_extraction_score` | Format health | Meaning |
 |---|---|---|---|
 | Floor (measured) | 0.087 | unknown (not instrumented on this run) | current AWQ c8 |
-| **Diagnostic** (proposal) | **≥ 0.25** | `parse_error_rate = 0` and `schema_valid_rate ≥ 0.95` | out of the floor; format/scorer no longer confounded with quality |
-| **Pipeline-viable** (proposal) | **≥ 0.50** | same format bar | correspondence specialist usable as a pipeline stage on this draw |
+| **Diagnostic** (owner-locked) | **≥ 0.25** | `parse_error_rate = 0` and `schema_valid_rate ≥ 0.95` | out of the floor; format/scorer no longer confounded with quality |
+| **Pipeline-viable** (owner-locked) | **≥ 0.50** | same format bar | correspondence specialist usable as a pipeline stage on this draw |
 
 Rationale: 0.25 is ~3× the measured floor and above the best-doc 0.21 if
 *mean* quality merely matches today’s *best* row. 0.50 is still well below
 a production IE board (~0.7–0.9) but is the lowest bar at which “quality is
-the bottleneck” stops meaning “near-zero F1 on most docs.” Owner may lock
-higher; do not treat these as shipped SLOs.
+the bottleneck” stops meaning “near-zero F1 on most docs.” These two
+overall-score gates are **owner-locked** for correspondence on this draw.
 
-Remaining after this PR: live FP16 vs AWQ on this fingerprint; owner lock
-on the target; optional re-inspect of operator `items.jsonl` with the new
-metric.
+Remaining after this PR: live FP16 vs AWQ on this fingerprint; optional
+re-inspect of operator `items.jsonl` with the new metric.
