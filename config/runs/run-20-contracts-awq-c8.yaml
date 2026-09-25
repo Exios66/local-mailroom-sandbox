@@ -36,7 +36,7 @@ prompt:
   agents:
     contracts_specialist:
       source: local
-      file: contracts_specialist_v33
+      file: contracts_specialist_v33_simplified
 
 dataset:
   provider: huggingface

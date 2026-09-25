@@ -27,7 +27,7 @@ prompt:
   agents:
     correspondence_specialist:
       source: local
-      file: correspondence_specialist_production
+      file: correspondence_specialist_simplified
 
 dataset:
   provider: huggingface
