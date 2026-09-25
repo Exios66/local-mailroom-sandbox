@@ -31,13 +31,16 @@ _SYSTEM_OVERHEAD_TOKENS = 4000
 _CHARS_PER_TOKEN = 2.4
 
 
-def _input_chars_for(max_tokens: int, prompt_tokens: int | None = None) -> int:
-    """Chars that fit with max_tokens + system overhead under MAX_MODEL_LEN.
+def _input_chars_for(
+    max_tokens: int, prompt_tokens: int | None = None, max_model_len: int = MAX_MODEL_LEN
+) -> int:
+    """Chars that fit with max_tokens + system overhead under the window.
 
     When ``prompt_tokens`` is known, also cap at ~1.25× the assumed prompt so
     short doc classes (correspondence) do not over-prefill into empty context.
+    SAND-019: ``max_model_len`` lets an AWQ 32768 run size a larger input cap.
     """
-    available = max(1024, MAX_MODEL_LEN - int(max_tokens) - _SYSTEM_OVERHEAD_TOKENS)
+    available = max(1024, int(max_model_len) - int(max_tokens) - _SYSTEM_OVERHEAD_TOKENS)
     fit = int(available * _CHARS_PER_TOKEN)
     if prompt_tokens is None:
         return fit
@@ -151,6 +154,31 @@ SPECIALIST_POSTURE: dict[str, dict[str, Any]] = {
             "20-contract draw identical to run-20-contracts-specialist."
         ),
     },
+    # SAND-019: corrected + 8-way concurrency AWQ contracts run. Two fixes over
+    # run-20-contracts-awq: (1) the deploy is AWQ at max_model_len=32768, which
+    # clears the 16384-window 400 (prompt 12289 + 4096 output = 16385 > 16384);
+    # (2) max_tokens raised 4096 -> 8192 (run-scoped SANDBOX_AGENT_KNOBS) so the
+    # doc that hit LengthFinishReasonError at 4096 can finish. Identical draw to
+    # run-20-contracts-awq (seed 42).
+    "run-20-contracts-awq-c8": {
+        "task": "contracts_specialist",
+        "doc_class": "contract",
+        "agent": "contracts_specialist",
+        "prompt_file": "contracts_specialist_v33",
+        "concurrency": 8,
+        "max_model_len": 32768,
+        "max_tokens": 8192,
+        "max_input_chars": _input_chars_for(8192, 8000, 32768),
+        "cost_cap_usd": 0.55,
+        "max_wall_seconds": 3200,
+        "tokens_assumed": {"prompt": 8000, "completion": 2000},
+        "sec_per_doc": {"low": 25.0, "likely": 55.0, "high": 130.0},
+        "rationale": (
+            "SAND-019 corrected AWQ contracts run at 8-way concurrency: 32768 "
+            "window clears the 16k 400, and a run-scoped 8192 max_tokens clears "
+            "the LengthFinishReasonError; draw identical to run-20-contracts-awq."
+        ),
+    },
     # SAND-019: single-class 20-correspondence run drawn from the FULL corpus
     # (split=all, seeded draw). Short narrative docs → higher concurrency, tight
     # decode. Caps scaled ~2/3 of the 30-doc correspondence posture; AWQ halves
@@ -227,6 +255,7 @@ SPECIALIST_LIMIT_BY_RUN: dict[str, int] = {
     "run-30-merger-specialist": 30,
     "run-20-contracts-specialist": 20,
     "run-20-contracts-awq": 20,
+    "run-20-contracts-awq-c8": 20,
     "run-20-correspondence-awq": 20,
     "run-20-correspondence-awq-c8": 20,
 }
@@ -277,10 +306,16 @@ def overlay_agent_knobs() -> dict[str, dict[str, Any]]:
     return out
 
 
-def context_fit_ok(max_tokens: int, max_input_chars: int) -> bool:
-    """True when input chars + decode budget fit inside MAX_MODEL_LEN."""
+def context_fit_ok(
+    max_tokens: int, max_input_chars: int, max_model_len: int = MAX_MODEL_LEN
+) -> bool:
+    """True when input chars + decode budget fit inside the run's context window.
+
+    SAND-019: the window is per-run (bf16 default 16384; AWQ runs deploy at
+    32768), so callers pass the row's ``max_model_len`` (default 16384).
+    """
     input_tokens = int(max_input_chars / _CHARS_PER_TOKEN)
-    return (input_tokens + int(max_tokens) + _SYSTEM_OVERHEAD_TOKENS) <= MAX_MODEL_LEN
+    return (input_tokens + int(max_tokens) + _SYSTEM_OVERHEAD_TOKENS) <= int(max_model_len)
 
 
 def summarize_posture() -> list[dict[str, Any]]:
@@ -297,7 +332,11 @@ def summarize_posture() -> list[dict[str, Any]]:
                 "max_input_chars": row["max_input_chars"],
                 "cost_cap_usd": row["cost_cap_usd"],
                 "max_wall_seconds": row["max_wall_seconds"],
-                "context_fit": context_fit_ok(row["max_tokens"], row["max_input_chars"]),
+                "context_fit": context_fit_ok(
+                    row["max_tokens"],
+                    row["max_input_chars"],
+                    int(row.get("max_model_len", MAX_MODEL_LEN)),
+                ),
                 "rationale": row["rationale"],
             }
         )
@@ -318,10 +357,11 @@ def validate_mapping(mapping: Mapping[str, Any] | None = None) -> list[str]:
     for run_id, row in source.items():
         mt = int(row["max_tokens"])
         mic = int(row["max_input_chars"])
-        if not context_fit_ok(mt, mic):
+        window = int(row.get("max_model_len", MAX_MODEL_LEN))
+        if not context_fit_ok(mt, mic, window):
             errors.append(
                 f"{run_id}: max_tokens={mt} + max_input_chars={mic} exceed "
-                f"Qwen L4 window {MAX_MODEL_LEN}"
+                f"Qwen L4 window {window}"
             )
         conc = int(row["concurrency"])
         if not 2 <= conc <= 8:
