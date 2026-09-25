@@ -102,6 +102,49 @@ SPECIALIST_POSTURE: dict[str, dict[str, Any]] = {
         "sec_per_doc": {"low": 70.0, "likely": 160.0, "high": 360.0},
         "rationale": "Long CUAD contracts — context-fit input cap (was 100k chars, over 16k window).",
     },
+    # SAND-018: single-class 20-contract run drawn from the FULL corpus
+    # (split=all, seeded random draw) — the runbook's 5×30 suite scaled to one
+    # class at N=20. Same generation budget as run-30 contracts; cost/wall caps
+    # scaled ~2/3 for 20 docs. bench gate keys on this row so the smaller run
+    # cannot silently escape the DMR-078 pins.
+    "run-20-contracts-specialist": {
+        "task": "contracts_specialist",
+        "doc_class": "contract",
+        "agent": "contracts_specialist",
+        "prompt_file": "contracts_specialist_v33",
+        "concurrency": 4,
+        # SAND-018: 2048 (was 4096) so AWQ decode finishes inside the vendored
+        # 120s call timeout; see config/taxonomy.overlay.yaml.
+        "max_tokens": 2048,
+        "max_input_chars": _input_chars_for(2048, 8000),
+        "cost_cap_usd": 0.55,
+        "max_wall_seconds": 3200,
+        "tokens_assumed": {"prompt": 8000, "completion": 2000},
+        "sec_per_doc": {"low": 70.0, "likely": 160.0, "high": 360.0},
+        "rationale": (
+            "SAND-018: 20-contract single-class run from the full corpus "
+            "(split=all, seeded draw); caps scaled ~2/3 of the 30-doc "
+            "contracts posture."
+        ),
+    },
+    "run-20-contracts-awq": {
+        "task": "contracts_specialist",
+        "doc_class": "contract",
+        "agent": "contracts_specialist",
+        "prompt_file": "contracts_specialist_v33",
+        "concurrency": 4,
+        "max_tokens": 2048,
+        "max_input_chars": _input_chars_for(2048, 8000),
+        "cost_cap_usd": 0.55,
+        "max_wall_seconds": 3200,
+        "tokens_assumed": {"prompt": 8000, "completion": 2000},
+        "sec_per_doc": {"low": 30.0, "likely": 70.0, "high": 150.0},
+        "rationale": (
+            "SAND-018 AWQ variant: Qwen/Qwen3-8B-AWQ on L4 halves weight bytes, "
+            "so decode is ~2x faster and the KV cache fits concurrency 4; "
+            "20-contract draw identical to run-20-contracts-specialist."
+        ),
+    },
     "run-30-merger-specialist": {
         "task": "merger_agreement_specialist",
         "doc_class": "merger_agreement",
@@ -120,6 +163,29 @@ SPECIALIST_POSTURE: dict[str, dict[str, Any]] = {
         ),
     },
 }
+
+# Expected prepared-row count per specialist run (DMR-078 / SAND-018).
+# run-30-* rows are the 5×30 suite; run-20-contracts-specialist is the SAND-018
+# single-class 20-doc variant. benchmark_check enforces this per run_id, so a
+# mis-sized YAML (e.g. a 20-doc config that forgot to lower the limit) cannot
+# pass the loud gate by escaping the run-30-* heuristic.
+SPECIALIST_LIMIT_BY_RUN: dict[str, int] = {
+    "run-30-correspondence-specialist": 30,
+    "run-30-insurance-claims-specialist": 30,
+    "run-30-corporate-records-specialist": 30,
+    "run-30-contracts-specialist": 30,
+    "run-30-merger-specialist": 30,
+    "run-20-contracts-specialist": 20,
+    "run-20-contracts-awq": 20,
+}
+
+
+def expected_limit(run_id: str | None, default: int = 30) -> int:
+    """Expected prepared-row count for a specialist run (DMR-078 / SAND-018)."""
+    if not run_id:
+        return int(default)
+    return int(SPECIALIST_LIMIT_BY_RUN.get(str(run_id), default))
+
 
 # Overlay agent → generation budget (applied for all profiles; Modal L4 is the
 # design target). Includes merger_agreement_specialist for the 1:1 live map.

@@ -60,7 +60,11 @@ agents:
     reasoning_effort: "none"
   contracts_specialist:
     temperature: 0.1
-    max_tokens: 4096
+    # SAND-018: 4096 decode could not finish inside the vendored 120s call
+    # timeout on bf16 L4 (~12 tok/s), so every long doc timed out. 2048 fits
+    # AWQ decode (<~90s) and still carries one contract's JSON field set;
+    # input chars stay within the 16k window (10000 + 2048 + 2000 ≤ 16384).
+    max_tokens: 2048
     max_input_chars: 35000
     reasoning_effort: "none"
   merger_agreement_specialist:

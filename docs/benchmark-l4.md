@@ -204,6 +204,25 @@ concurrency to fill continuous batching; long MAUD filings lower it to protect
 KV. Input caps fit `max_model_len=16384` so contracts no longer advertise
 100k-char windows that cannot fit Qwen on L4.
 
+## Single-class 20-contract variant (SAND-018)
+
+A smaller, single-class sibling of the 5×30 suite: **20 `contract` docs** drawn
+as a seeded random sample from the **full** corpus (`split: all`, 3,302 rows),
+holding the same L4 Qwen pins and the `contracts_specialist_v33` local prompt.
+
+```bash
+sandbox run benchmark-check --config config/runs/run-20-contracts-specialist.yaml
+sandbox run preflight     --config config/runs/run-20-contracts-specialist.yaml --live
+sandbox run start         --config config/runs/run-20-contracts-specialist.yaml --job-mode endpoint --watch
+```
+
+Posture (`specialist_posture.py` → `run-20-contracts-specialist`): concurrency
+4, `cost_cap_usd` 0.55, `max_wall_seconds` 3200 (≈2/3 of the 30-doc contracts
+caps). `benchmark-check` enforces `dataset.limit == 20` for this `run_id` plus
+the local prompt pin — it is a first-class posture row, not an ungated one-off.
+The draw (`sample_seed=42`) is logged in `spec.lock.json`; the offline mirror is
+`sandbox datasets sample --per-class 20 --classes contract --seed 42`.
+
 ## Deploy knobs (shared)
 
 ```bash

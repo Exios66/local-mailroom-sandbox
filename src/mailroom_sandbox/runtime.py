@@ -185,6 +185,17 @@ def activate(
     os.environ["MAILROOM_TAXONOMY"] = str(taxonomy_path)
     patched = patch_mailroom_config(taxonomy_path)
 
+    # SAND-018: the vendored LangChain agents hardcode timeout=120 (drift-
+    # guarded). Apply the taxonomy's run_limits pin so a long L4 generation does
+    # not ladder through the retry contract instead of completing.
+    try:
+        from mailroom_sandbox.llm_timeout import apply_llm_timeout
+
+        limits = taxonomy.get("run_limits") or {}
+        apply_llm_timeout(limits.get("llm_call_timeout_seconds"))
+    except Exception as exc:  # noqa: BLE001 — never block activation
+        _log.warning("llm timeout override failed — 120s vendor default stands: %s", exc)
+
     patched_prompts = False
     if prompt_variant:
         from mailroom_sandbox.prompts import patch_managed_prompt

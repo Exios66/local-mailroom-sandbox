@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+### Added — SAND-018 single-class 20-contract Modal run + full-corpus logged sample (2026-09-25)
+
+- **`config/runs/run-20-contracts-specialist.yaml`** — the runbook's
+  [`docs/benchmark-l4.md`](docs/benchmark-l4.md) L4 Qwen pins (`Qwen/Qwen3-8B`,
+  L4, `v0.29.0`, `max_model_len=16384`, scaledown 120, `contracts_specialist_v33`
+  local prompt) applied to a **20-contract** single-class run drawn as a seeded
+  random sample (`sample_seed=42`) from the **full** corpus (`split: all`, 3,302
+  rows). Preflight records the draw (seed, rows, sha256) in `spec.lock.json`
+  and writes it to `dataset.jsonl` — the logged random sample.
+- **`job/specialist_posture.py`** — `run-20-contracts-specialist` posture row
+  (concurrency 4, `cost_cap_usd` 0.55, `max_wall_seconds` 3200) plus
+  `SPECIALIST_LIMIT_BY_RUN` / `expected_limit()`, so the per-doc-type pins cover
+  the 20-doc variant.
+- **`job/benchmark_check.py`** — the specialist `limit` + local-prompt-pin
+  enforcement now keys on the posture map (covers `run-20-*`), not only the
+  `run-30-*` prefix; a 20-doc YAML that forgot `limit: 20` fails the loud gate
+  instead of passing it silently.
+- Tests: `tests/test_specialist_posture.py` (posture coverage + gate rejects a
+  wrong limit).
+
 ### Added — SAND-017 central subagent roster (2026-09-24)
 
 - **`config/subagents/family-roster.yaml`** — family-wide manifest (home package,
