@@ -25,6 +25,7 @@ from llm_dojo_scoring import (
 from llm_dojo_scoring.extraction_metrics import extraction_binary_metrics
 from llm_dojo_scoring.serving import CANONICAL_SERVING_KEYS, pair_comparable_runs
 
+from mailroom_sandbox.eval.extraction_scope import scope_extraction_pair
 from mailroom_sandbox.eval.serving_parity import split_serving_records, to_dojo_serving_record
 
 from mailroom_sandbox.paths import reports_dir
@@ -113,6 +114,7 @@ def score_extraction_row(
         suite = None
     predicted = predicted or {}
     expected = expected or {}
+    predicted, expected = scope_extraction_pair(doc_type, predicted, expected)
     if suite is not None:
         try:
             result = suite.score(expected, predicted, doc_text=doc_text)
