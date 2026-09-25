@@ -7,7 +7,7 @@ Cross-family work stays on llm-entity-extraction's MESSAGE_BOARD as
 **`DMR-*`**. This file is the **only** sandbox-local task board — do not
 open `DMR-*` cards here.
 
-**Next ID: `SAND-019`**
+**Next ID: `SAND-021`**
 
 Lanes: `todo` → `in_progress` → `needs_attention` → `done`.
 
@@ -17,6 +17,7 @@ Lanes: `todo` → `in_progress` → `needs_attention` → `done`.
 
 | ID | Title | Owner | Status | Notes |
 | --- | --- | --- | --- | --- |
+| SAND-020 | Correspondence extraction floor diagnosis + parse/schema metric (issue #21) | cursor | **in_progress** | Offline: schema-adherence rates, empty-field/partial-credit docs, FP16 twin YAML (not run). Related: GitHub issue #21 |
 | SAND-018-1 | Gate: `huggingface-secret` missing in `hermes-agent-jjb` (provision it, or deploy under `exios66`) | human | **done** | **Decision: Option A** — human provisioned `huggingface-secret` in `hermes-agent-jjb`; connect resumes on the runbook Track A default wallet. |
 | SAND-018 | 20-contract Modal+vLLM readiness run (full-corpus logged sample) | orchestrator | **in_progress** | Runbook [`benchmark-l4.md`](../docs/benchmark-l4.md) pins; `run-20-contracts-specialist.yaml` + posture/gate coverage (DMR-078); preflight green — `spec_hash=423c7684cb6c…`, 20 contract rows, `seed=42`, `sha256=fad06e44f54f…`. Connect: deploying `sandbox-vllm` on `hermes-agent-jjb` (secret now present) |
 | SAND-010 | Finish 50-subclass Modal sorter mission (teardown + interpret + monorepo sync) | jarvis / athena | **in_progress** | Epic for archived `SANDBOX-050` mission — see sub-cards below + [`archive/SANDBOX-050.md`](archive/SANDBOX-050.md) |

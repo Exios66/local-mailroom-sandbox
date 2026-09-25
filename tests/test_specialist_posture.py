@@ -76,13 +76,25 @@ def test_run_20_contracts_awq_c8_posture():
     assert context_fit_ok(row["max_tokens"], row["max_input_chars"], 32768)
 
 
-def test_run_20_correspondence_c8_posture():
-    """SAND-019: the 8-concurrency correspondence variant is first-class."""
-    row = SPECIALIST_POSTURE["run-20-correspondence-awq-c8"]
+def test_run_20_correspondence_fp16_c8_posture():
+    """issue #21: FP16 twin is first-class posture, not an ad-hoc YAML."""
+    row = SPECIALIST_POSTURE["run-20-correspondence-fp16-c8"]
     assert row["task"] == "correspondence_specialist"
     assert row["concurrency"] == 8
     assert row["prompt_file"] == "correspondence_specialist_production"
-    assert expected_limit("run-20-correspondence-awq-c8") == 20
+    assert expected_limit("run-20-correspondence-fp16-c8") == 20
+    spec = load_run_spec(
+        Path(__file__).resolve().parents[1]
+        / "config"
+        / "runs"
+        / "run-20-correspondence-fp16-c8.yaml"
+    )
+    assert spec.engine.model == "Qwen/Qwen3-8B"
+    assert spec.engine.vllm.quantization in ("", None)
+    assert spec.engine.vllm.max_model_len == 16384
+    assert spec.dataset.sample_seed == 42
+    assert spec.dataset.limit == 20
+    assert spec.job.concurrency == 8
 
 
 def test_run_20_gate_enforces_limit_20(monkeypatch):

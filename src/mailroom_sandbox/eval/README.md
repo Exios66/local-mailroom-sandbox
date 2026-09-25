@@ -25,6 +25,7 @@ runners.run_isolated_eval(agent="sorter", model="mock/mock-...", ...)
 scoring.accuracy(...)
 scoring.exact_match(...)
 scoring.compare_local_vs_api(...)
+scoring.score_extraction_row(...)  # attaches parse_error / schema_valid
 ```
 
 There is no top-level `run_evaluation` symbol — the entrypoints live in

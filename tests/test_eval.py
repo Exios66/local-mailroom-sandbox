@@ -348,3 +348,5 @@ def test_score_extraction_row_reads_nested_suite_overall(monkeypatch):
     assert out["overall_extraction_score"] == 0.42
     assert out["extraction_f1"] == 0.4
     assert out["scoring_method"] == "suite"
+    assert out["parse_error"] is False
+    assert "schema_valid" in out

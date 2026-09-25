@@ -248,6 +248,22 @@ See [`docs/benchmark-l4.md`](benchmark-l4.md) for the Modal L4 Qwen specialist
 suite pins, Hermes profile, teardown sequence, and cost-saver path (AWQ gated
 by DMR-068).
 
+### AWQ vs FP16 isolation (issue #21) — config only, do not run
+
+[`config/runs/run-20-correspondence-fp16-c8.yaml`](../config/runs/run-20-correspondence-fp16-c8.yaml)
+is the FP16 twin of `run-20-correspondence-awq-c8`: same seed-42 correspondence
+draw (fingerprint `285f423d3708`), same local prompt, concurrency 8, targeting
+`Qwen/Qwen3-8B` (non-AWQ). The live quality compare is **blocked until
+spend/auth go**. Do not `modal deploy` / `sandbox run start` this YAML from the
+diagnosis PR.
+
+When an operator is cleared to run it: activate the operator Modal profile,
+export `MODAL_VLLM_MODEL=Qwen/Qwen3-8B` with empty quantization and
+`MODAL_VLLM_MAX_MODEL_LEN=16384` (L4-bf16 boot cap; the AWQ twin used 32768),
+preflight, start, then teardown. Confirm the lock fingerprint is
+`285f423d3708` before scoring. Diagnosis of the AWQ floor (no GPU):
+[`docs/extraction-quality-diagnosis.md`](extraction-quality-diagnosis.md).
+
 TTFT is only populated when a run records it (never inferred from e2e).
 Document-pipeline eval traces stay on the Langfuse SDK path (family
 contract); job/preflight/item spans travel over OTEL (job spans only).
