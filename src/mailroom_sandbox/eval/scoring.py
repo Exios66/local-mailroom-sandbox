@@ -25,6 +25,10 @@ from llm_dojo_scoring import (
 from llm_dojo_scoring.extraction_metrics import extraction_binary_metrics
 from llm_dojo_scoring.serving import CANONICAL_SERVING_KEYS, pair_comparable_runs
 
+from mailroom_sandbox.eval.schema_adherence import (
+    assess_extraction_payload,
+    merge_schema_adherence,
+)
 from mailroom_sandbox.eval.serving_parity import split_serving_records, to_dojo_serving_record
 
 from mailroom_sandbox.paths import reports_dir
@@ -181,6 +185,7 @@ def score_extraction_row(
         for key in _EXTRACT_PRF_KEYS:
             if key in result:
                 payload[key] = result[key]
+    payload.update(assess_extraction_payload(predicted, doc_type))
     return payload
 
 
@@ -204,6 +209,11 @@ def score_stage(expected: list[str], predicted: list[str]) -> dict[str, Any]:
 
 def mean_or_zero(values: list[float]) -> float:
     return sum(values) / len(values) if values else 0.0
+
+
+def aggregate_schema_adherence(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """Run-level parse/schema rates from per-row ``score_extraction_row`` dicts."""
+    return merge_schema_adherence(rows)
 
 
 def serving_headlines() -> list[str]:
