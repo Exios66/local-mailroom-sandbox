@@ -24,6 +24,12 @@ dependencies = [
     "pandas>=2.0",
     "matplotlib>=3.8",
     "openpyxl>=3.1",
+    # SAND-019: the vendored dojo scorer soft-imports scipy's
+    # ``linear_sum_assignment`` for OPTIMAL entity-list matching and silently
+    # degrades to a greedy fallback when it is absent (``bipartite_matching_
+    # failed``). Like numpy above it is a scoring-runtime dep, not an extra, so
+    # a clean install scores entity lists optimally instead of greedily.
+    "scipy>=1.11",
 ]
 
 [project.optional-dependencies]

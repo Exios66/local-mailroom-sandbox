@@ -173,6 +173,28 @@ SPECIALIST_POSTURE: dict[str, dict[str, Any]] = {
             "decode; caps scaled ~2/3 of the 30-doc correspondence posture."
         ),
     },
+    # SAND-019: 8-way concurrency variant. Same 20-correspondence draw (seed 42)
+# as run-20-correspondence-awq so the dataset fingerprint matches; the only
+# change is concurrency, to log a measured 8-wide batched run for comparison.
+# AWQ + short correspondence prompts leave enough KV headroom on one L4.
+    "run-20-correspondence-awq-c8": {
+        "task": "correspondence_specialist",
+        "doc_class": "correspondence",
+        "agent": "correspondence_specialist",
+        "prompt_file": "correspondence_specialist_production",
+        "concurrency": 8,
+        "max_tokens": 2048,
+        "max_input_chars": _input_chars_for(2048, 3500),
+        "cost_cap_usd": 0.35,
+        "max_wall_seconds": 1800,
+        "tokens_assumed": {"prompt": 3500, "completion": 600},
+        "sec_per_doc": {"low": 15.0, "likely": 35.0, "high": 95.0},
+        "rationale": (
+            "SAND-019: 8-concurrency correspondence run (identical draw to "
+            "run-20-correspondence-awq) to log 8-wide batching on one L4; "
+            "short AWQ prompts keep KV within budget."
+        ),
+    },
     "run-30-merger-specialist": {
         "task": "merger_agreement_specialist",
         "doc_class": "merger_agreement",
@@ -206,6 +228,7 @@ SPECIALIST_LIMIT_BY_RUN: dict[str, int] = {
     "run-20-contracts-specialist": 20,
     "run-20-contracts-awq": 20,
     "run-20-correspondence-awq": 20,
+    "run-20-correspondence-awq-c8": 20,
 }
 
 
@@ -301,8 +324,8 @@ def validate_mapping(mapping: Mapping[str, Any] | None = None) -> list[str]:
                 f"Qwen L4 window {MAX_MODEL_LEN}"
             )
         conc = int(row["concurrency"])
-        if not 2 <= conc <= 6:
-            errors.append(f"{run_id}: concurrency={conc} outside specialist band [2,6]")
+        if not 2 <= conc <= 8:
+            errors.append(f"{run_id}: concurrency={conc} outside specialist band [2,8]")
         if float(row["cost_cap_usd"]) <= 0:
             errors.append(f"{run_id}: cost_cap_usd must be > 0")
         if int(row["max_wall_seconds"]) < 60:
