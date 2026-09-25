@@ -33,7 +33,8 @@ def _stub_modal(monkeypatch):
 def test_posture_context_fit_and_invariants():
     assert validate_mapping() == []
     for run_id, row in SPECIALIST_POSTURE.items():
-        assert context_fit_ok(row["max_tokens"], row["max_input_chars"]), run_id
+        window = int(row.get("max_model_len", 16384))
+        assert context_fit_ok(row["max_tokens"], row["max_input_chars"], window), run_id
         assert 2 <= row["concurrency"] <= 8
 
 
@@ -61,6 +62,18 @@ def test_run_20_yaml_full_corpus_logged_sample():
     assert spec.job.max_wall_seconds == 3200
     agents = spec.prompt.get("agents") or {}
     assert agents["contracts_specialist"]["file"] == "contracts_specialist_v33"
+
+
+def test_run_20_contracts_awq_c8_posture():
+    """SAND-019: the corrected 8-concurrency AWQ contracts variant."""
+    row = SPECIALIST_POSTURE["run-20-contracts-awq-c8"]
+    assert row["task"] == "contracts_specialist"
+    assert row["concurrency"] == 8
+    assert row["max_model_len"] == 32768
+    assert row["max_tokens"] == 8192          # > 4096, clears the length error
+    assert row["prompt_file"] == "contracts_specialist_v33"
+    assert expected_limit("run-20-contracts-awq-c8") == 20
+    assert context_fit_ok(row["max_tokens"], row["max_input_chars"], 32768)
 
 
 def test_run_20_correspondence_c8_posture():
