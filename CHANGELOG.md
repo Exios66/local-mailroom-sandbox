@@ -14,8 +14,7 @@
   typed score ≥ 1.0; isolated `exact_match` is a runner alias of overall.
 - **Offline diagnosis** of `run-20-correspondence-awq-c8` (fingerprint
   `285f423d3708`): [`docs/extraction-quality-diagnosis.md`](docs/extraction-quality-diagnosis.md)
-  (best/worst docs, token evidence, proposed 0.25 / 0.50 gates pending owner
-  lock).
+  (best/worst docs, token evidence, owner-locked 0.25 / 0.50 gates).
 - **FP16 twin YAML** [`config/runs/run-20-correspondence-fp16-c8.yaml`](config/runs/run-20-correspondence-fp16-c8.yaml)
   — same draw, `Qwen/Qwen3-8B`, **not run** (spend/auth blocked). Runbook:
   [`docs/jobs.md`](docs/jobs.md) §AWQ vs FP16 isolation.
