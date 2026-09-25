@@ -87,10 +87,16 @@ ground-truth/scorer artifact.
 
 ## Caveats
 
-- `scipy` is absent, so entity-list matching uses the greedy fallback
-  (`bipartite_matching_failed` warning); a `scoring` extra declaring
-  `scipy` would make entity F1 optimal.
+- ~~`scipy` absent -> greedy entity matching~~ **Resolved (SAND-019):**
+  `scipy>=1.11` is now a base dependency (alongside numpy/pandas), so
+  entity-list matching is **optimal** (`scipy.optimize.linear_sum_assignment`)
+  and the `bipartite_matching_failed` greedy fallback no longer fires. Re-scoring
+  this same draw with scipy present reproduces 0.0893 to 4 dp (the draw has
+  mostly single-item entity lists), so the fix removes the caveat without
+  inflating the score.
 - Metric is the dojo suite mean over per-field scores; correspondence GT has
   ~18 keys/doc, many empty for non-insurance rows (empty GT = not a
   requirement). 0.089 is a genuine small-model extraction score, not a ceiling.
+- Re-run at concurrency 8 (same draw) logged in
+  [`RUN-20-CORRESPONDENCE-AWQ-C8-REPORT.md`](RUN-20-CORRESPONDENCE-AWQ-C8-REPORT.md).
 
