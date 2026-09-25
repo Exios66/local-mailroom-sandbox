@@ -160,6 +160,9 @@ def _hub_fixture(tmp_path, *, tamper_sha: bool = False):
                 "expected_subclass": "auto" if doc_class == "insurance_claim" else "service",
                 "content_sha256": content_sha,
                 "split": "test",
+                # Real Hub ``ground_truth`` config names field labels ``gt_fields``
+                # as a JSON string (SAND-019) — the fixture must model that shape.
+                "gt_fields": json.dumps({"intent": doc_class, "subject_matter": f"hub {i}"}),
             }
         )
     dflt = _make_hub_parquet(tmp_path, "default", default_rows)
@@ -203,6 +206,19 @@ def test_load_hf_rows_merges_and_verifies(monkeypatch, tmp_path):
         assert r["expected"] in {"insurance_claim", "contract"}
         assert r["doc_text"]
         assert r["source_revision"] == FAMILY_HF_REVISION
+
+
+def test_normalize_rows_maps_hub_gt_fields(monkeypatch, tmp_path):
+    """SAND-019: Hub ground_truth labels live in ``gt_fields`` (JSON string).
+
+    Reading only ``expected_fields`` silently produced {} for every corpus row,
+    so specialist extraction scored null. This pins the alias mapping.
+    """
+    _stub_hub(monkeypatch, tmp_path)
+    spec = DatasetSpec(provider="huggingface", revision=FAMILY_HF_REVISION)
+    rows = normalize_rows(load_hf_rows(spec))
+    assert all(r["expected_fields"] for r in rows), "gt_fields must populate expected_fields"
+    assert rows[0]["expected_fields"]["intent"] == rows[0]["expected_doc_class"]
 
 
 def test_load_hf_rows_tampered_sha_raises(monkeypatch, tmp_path):

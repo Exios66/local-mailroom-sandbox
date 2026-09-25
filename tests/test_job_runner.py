@@ -342,6 +342,28 @@ def test_whole_run_record_bills_cold_boot(tmp_path):
     assert "estimated_gpu_cost_usd" in rec
 
 
+def test_whole_run_emits_progress_events(monkeypatch, tmp_path):
+    """SAND-018: a delegated whole-run must forward per-item progress so
+    `sandbox run status` / --watch track a live run instead of showing nothing."""
+    from mailroom_sandbox.eval import runners as eval_runners
+
+    def _fake_isolated(task, **kwargs):
+        cb = kwargs.get("progress_cb")
+        if cb is not None:
+            cb(1, 3, 1, 0)
+            cb(2, 3, 2, 0)
+            cb(3, 3, 3, 0)
+        return {"n": 3, "scores": {"exact_match": 1.0}, "record": {"ok": True}, "rows": []}
+
+    monkeypatch.setattr(eval_runners, "run_isolated_eval", _fake_isolated)
+    store = _whole_run_store(tmp_path, task="judge")
+    events: list[dict] = []
+    summary = runner.run_job(store, mock=True, on_event=events.append)
+    assert summary["state"] == "done"
+    assert [e["cursor"] for e in events] == [1, 2, 3]
+    assert all(e["state"] == "running" for e in events)
+
+
 def test_whole_run_agent_task_passes_concurrency_and_caps(monkeypatch, tmp_path):
     """SAND-018: job.concurrency / cost_cap / max_wall reach the isolated
     runner — the isolated path used to be serial and unguarded."""

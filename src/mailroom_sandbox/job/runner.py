@@ -160,6 +160,7 @@ def _run_whole_run(
     mock: bool,
     model: str | None,
     profile: str | None,
+    on_event: Any = None,
 ) -> dict[str, Any]:
     """Delegate a whole-run task to the existing public eval runner.
 
@@ -218,6 +219,21 @@ def _run_whole_run(
     max_wall = _max_wall_seconds(store)
     cost_cap = _cost_cap_usd(store)
     gpu = _lock_gpu(store)
+    # SAND-018: the isolated-agent path used to show nothing until it finished.
+    # Write a running checkpoint per completed item and forward events so
+    # `sandbox run status` (and --watch) track a live specialist run.
+    store.write_checkpoint(state="running", cursor=0, total=len(locked_rows or []), remote=None)
+
+    def _progress(done: int, total: int, ok: int, errors: int) -> None:
+        store.write_checkpoint(state="running", cursor=done, total=total, remote=None)
+        if on_event is not None:
+            try:
+                on_event(
+                    {"cursor": done, "total": total, "ok": ok, "errors": errors, "state": "running"}
+                )
+            except Exception as exc:  # noqa: BLE001
+                _log.warning("on_event callback raised — --watch may stop updating: %s", exc)
+
     try:
         if task == "pipeline":
             result = eval_runners.run_pipeline_eval(connected=True, rows=locked_rows, **kwargs)
@@ -239,6 +255,7 @@ def _run_whole_run(
                 max_wall_seconds=max_wall,
                 cost_cap_usd=cost_cap,
                 gpu=gpu,
+                progress_cb=_progress,
                 **kwargs,
             )
         elif task in _agent_task_names():
@@ -252,6 +269,7 @@ def _run_whole_run(
                 max_wall_seconds=max_wall,
                 cost_cap_usd=cost_cap,
                 gpu=gpu,
+                progress_cb=_progress,
                 **kwargs,
             )
         else:
@@ -499,7 +517,7 @@ def run_job(
 
         if task not in known_tasks():
             raise ValueError(f"task {task!r} is not runnable; have {sorted(known_tasks())}")
-        return _run_whole_run(store, task, mock=mock, model=model, profile=profile)
+        return _run_whole_run(store, task, mock=mock, model=model, profile=profile, on_event=on_event)
 
     if not rows:
         store.write_checkpoint(state="done", cursor=0, total=0, remote=None)

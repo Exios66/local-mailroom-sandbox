@@ -325,3 +325,26 @@ def test_live_ollama_health():
 
     result = health_check("ollama")
     assert result["ok"] is True
+
+
+def test_score_extraction_row_reads_nested_suite_overall(monkeypatch):
+    """SAND-019: mailroom suites return a flat dict with the real aggregate
+    nested at ``result["extraction"].overall_score``. Reading only top-level
+    keys left every specialist row null (extraction_f1 computed, headline
+    score not) even after ground truth was wired in.
+    """
+
+    class _Nested:
+        overall_score = 0.42
+
+    class _StubSuite:
+        field_types: dict = {}
+
+        def score(self, expected, predicted, doc_text=None):
+            return {"extraction": _Nested(), "extraction_f1": 0.4}
+
+    monkeypatch.setattr(scoring, "suite_for_doc_type", lambda doc_type: _StubSuite())
+    out = scoring.score_extraction_row("correspondence", {"a": 1}, {"a": 1})
+    assert out["overall_extraction_score"] == 0.42
+    assert out["extraction_f1"] == 0.4
+    assert out["scoring_method"] == "suite"

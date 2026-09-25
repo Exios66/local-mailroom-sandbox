@@ -19,11 +19,16 @@ BENCHMARK_MODEL = "Qwen/Qwen3-8B"
 MAX_MODEL_LEN = 16384
 
 # Rough system/prompt overhead reserved inside the context window (tokens).
-_SYSTEM_OVERHEAD_TOKENS = 2000
+# SAND-018: the v33 contract prompt carries ~3100 tokens of instruction/schema/
+# few-shot overhead, so a doc at the old 35000-char cap produced 14337 input
+# tokens and 400'd. Reserve 4000 for margin.
+_SYSTEM_OVERHEAD_TOKENS = 4000
 
 # Conservative chars/token for dense legal text when converting token budgets
-# into ``max_input_chars`` (overlay / taxonomy).
-_CHARS_PER_TOKEN = 3.5
+# into ``max_input_chars`` (overlay / taxonomy). SAND-018 measured ~2.44
+# chars/token on real contract filings — the old 3.5 under-estimated tokens, so
+# a 35000-char cap produced 14337 input tokens and 400'd against the 16k window.
+_CHARS_PER_TOKEN = 2.4
 
 
 def _input_chars_for(max_tokens: int, prompt_tokens: int | None = None) -> int:
@@ -113,10 +118,11 @@ SPECIALIST_POSTURE: dict[str, dict[str, Any]] = {
         "agent": "contracts_specialist",
         "prompt_file": "contracts_specialist_v33",
         "concurrency": 4,
-        # SAND-018: 2048 (was 4096) so AWQ decode finishes inside the vendored
-        # 120s call timeout; see config/taxonomy.overlay.yaml.
-        "max_tokens": 2048,
-        "max_input_chars": _input_chars_for(2048, 8000),
+        # SAND-018: 2048 truncated some contract JSON (LengthFinishReasonError),
+        # so decode stays 4096 now the harness honors the 600s call timeout;
+        # input chars sized for the real ~2.4 chars/token of dense filings.
+        "max_tokens": 4096,
+        "max_input_chars": _input_chars_for(4096, 8000),
         "cost_cap_usd": 0.55,
         "max_wall_seconds": 3200,
         "tokens_assumed": {"prompt": 8000, "completion": 2000},
@@ -133,8 +139,8 @@ SPECIALIST_POSTURE: dict[str, dict[str, Any]] = {
         "agent": "contracts_specialist",
         "prompt_file": "contracts_specialist_v33",
         "concurrency": 4,
-        "max_tokens": 2048,
-        "max_input_chars": _input_chars_for(2048, 8000),
+        "max_tokens": 4096,
+        "max_input_chars": _input_chars_for(4096, 8000),
         "cost_cap_usd": 0.55,
         "max_wall_seconds": 3200,
         "tokens_assumed": {"prompt": 8000, "completion": 2000},
@@ -143,6 +149,28 @@ SPECIALIST_POSTURE: dict[str, dict[str, Any]] = {
             "SAND-018 AWQ variant: Qwen/Qwen3-8B-AWQ on L4 halves weight bytes, "
             "so decode is ~2x faster and the KV cache fits concurrency 4; "
             "20-contract draw identical to run-20-contracts-specialist."
+        ),
+    },
+    # SAND-019: single-class 20-correspondence run drawn from the FULL corpus
+    # (split=all, seeded draw). Short narrative docs → higher concurrency, tight
+    # decode. Caps scaled ~2/3 of the 30-doc correspondence posture; AWQ halves
+    # decode so the likely wall is a fraction of bf16.
+    "run-20-correspondence-awq": {
+        "task": "correspondence_specialist",
+        "doc_class": "correspondence",
+        "agent": "correspondence_specialist",
+        "prompt_file": "correspondence_specialist_production",
+        "concurrency": 5,
+        "max_tokens": 2048,
+        "max_input_chars": _input_chars_for(2048, 3500),
+        "cost_cap_usd": 0.35,
+        "max_wall_seconds": 1800,
+        "tokens_assumed": {"prompt": 3500, "completion": 600},
+        "sec_per_doc": {"low": 20.0, "likely": 45.0, "high": 110.0},
+        "rationale": (
+            "SAND-019: 20-correspondence single-class run from the full corpus "
+            "(split=all, seeded draw); short docs fill L4 batching, AWQ halves "
+            "decode; caps scaled ~2/3 of the 30-doc correspondence posture."
         ),
     },
     "run-30-merger-specialist": {
@@ -177,6 +205,7 @@ SPECIALIST_LIMIT_BY_RUN: dict[str, int] = {
     "run-30-merger-specialist": 30,
     "run-20-contracts-specialist": 20,
     "run-20-contracts-awq": 20,
+    "run-20-correspondence-awq": 20,
 }
 
 

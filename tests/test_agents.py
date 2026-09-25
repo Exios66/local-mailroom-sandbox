@@ -108,6 +108,21 @@ def test_isolated_eval_cost_guard_aborts(tmp_path, monkeypatch):
         runners.run_isolated_eval("judge", mock=True, cost_cap_usd=0, gpu="L4")
 
 
+def test_isolated_eval_reports_progress(tmp_path, monkeypatch):
+    """SAND-018: a live isolated run must report progress (it used to be silent
+    until the end, so a working run looked stalled)."""
+    _isolate_log(tmp_path, monkeypatch)
+    monkeypatch.setenv("MAILROOM_BASE_DIR", str(tmp_path))
+    calls: list[tuple[int, int, int, int]] = []
+    result = runners.run_isolated_eval(
+        "judge",
+        mock=True,
+        progress_cb=lambda done, total, ok, errors: calls.append((done, total, ok, errors)),
+    )
+    assert calls, "progress_cb was never invoked"
+    assert calls[-1][0] == calls[-1][1] == result["scores"]["n"]
+
+
 def test_run_rows_bounded_respects_window():
     """SAND-018: concurrency must be a real in-flight bound, not submit-all."""
     import threading

@@ -134,9 +134,20 @@ def score_extraction_row(
         )
     overall = getattr(result, "overall_score", None)
     if overall is None and isinstance(result, dict):
+        # SAND-019: the mailroom suites return a FLAT dict whose real aggregate is
+        # nested at ``result["extraction"].overall_score`` (an
+        # ExtractionScoreResult). Reading only top-level ``overall_score``/
+        # ``extraction_overall_score`` left every correspondence row null even
+        # with ground truth present — extraction_f1 was computed but the headline
+        # score was not.
         overall = result.get("overall_score")
         if overall is None:
             overall = result.get("extraction_overall_score")
+        if overall is None:
+            nested = result.get("extraction")
+            overall = getattr(nested, "overall_score", None)
+            if overall is None and isinstance(nested, dict):
+                overall = nested.get("overall_score")
     payload: dict[str, Any] = {
         "overall_extraction_score": overall,
         "doc_type": doc_type,
