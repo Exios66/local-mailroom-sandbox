@@ -184,6 +184,59 @@ def test_run_job_concurrent_fail_fast_stops_scheduling(tmp_path, monkeypatch):
     assert len(items) <= 2
 
 
+def test_build_record_bills_wall_not_latency_sum_under_concurrency(tmp_path, monkeypatch):
+    """Issue #37: gpu_seconds must track wall+cold boot, not sum(latency)/conc."""
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    monkeypatch.delenv("MODAL_BILLED_GPU_SECONDS", raising=False)
+    store = RunStore(tmp_path / "run-bill")
+    store.write_lock(
+        {
+            "run_id": store.run_id,
+            "task": "sorter",
+            "profile": "modal-vllm",
+            "spec_hash": "abc",
+            "engine": {"model": "Qwen/Qwen3-8B", "modal": {"gpu": "L4"}},
+            "job": {"mock": False, "concurrency": 8},
+        }
+    )
+    for i in range(4):
+        store.append_item(
+            {
+                "item_id": f"d{i}",
+                "index": i,
+                "ok": True,
+                "latency_ms": 10_000.0,
+                "prompt_tokens": 1,
+                "completion_tokens": 1,
+            }
+        )
+    store.write_cold_boot({"cold_boot_seconds": 5.0})
+    rec = runner._build_record(store, "sorter", None, {}, mock=False, wall_seconds=12.0)
+    assert rec["gpu_seconds"] == pytest.approx(17.0)
+    assert rec["gpu_seconds"] != pytest.approx(40.0 + 5.0)
+
+
+def test_build_record_modalt_billed_env_override(tmp_path, monkeypatch):
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    monkeypatch.setenv("MODAL_BILLED_GPU_SECONDS", "99")
+    store = RunStore(tmp_path / "run-env")
+    store.write_lock(
+        {
+            "run_id": store.run_id,
+            "task": "sorter",
+            "profile": "modal-vllm",
+            "spec_hash": "abc",
+            "engine": {"model": "Qwen/Qwen3-8B", "modal": {"gpu": "L4"}},
+            "job": {"mock": False},
+        }
+    )
+    store.append_item({"item_id": "d0", "index": 0, "ok": True, "latency_ms": 1000.0})
+    rec = runner._build_record(store, "sorter", None, {}, mock=False, wall_seconds=1.0)
+    assert rec["gpu_seconds"] == pytest.approx(99.0)
+
+
 def test_run_record_lands_in_experiment_log(tmp_path):
     store = _prepped_store(tmp_path, rows=2)
     runner.run_job(store, mock=None)

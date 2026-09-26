@@ -440,7 +440,8 @@ def _lock_gpu(store: RunStore) -> str | None:
 
 
 def _build_record(
-    store: RunStore, task: str, model: str | None, scores: dict[str, Any], *, mock: bool
+    store: RunStore, task: str, model: str | None, scores: dict[str, Any], *, mock: bool,
+    wall_seconds: float | None = None,
 ) -> dict[str, Any]:
     lock = store.read_lock() or {}
     prompt_block = lock.get("prompt") or {}
@@ -458,10 +459,28 @@ def _build_record(
         if cold_boot and cold_boot.get("cold_boot_seconds") is not None
         else None
     )
-    # Cost accuracy: bill the warm interval (cold boot + busy), not busy-only,
-    # so estimated_gpu_cost_usd matches the Modal charge.
-    busy_seconds = sum(float(i.get("latency_ms") or 0) for i in items) / 1000.0
-    billed_window = busy_seconds + (cold_boot_seconds or 0.0)
+    busy_sum_seconds = sum(float(i.get("latency_ms") or 0) for i in items) / 1000.0
+    if wall_seconds is None:
+        from mailroom_sandbox.job.metrics import infer_wall_seconds_from_items
+
+        wall_seconds = infer_wall_seconds_from_items(items)
+    # Cost accuracy: bill the warm interval (measured wall + cold boot). Summed
+    # item latency overstates Modal spend under concurrency>1; keep the sum only
+    # as a fallback when wall clock is unknown. MODAL_BILLED_GPU_SECONDS wins.
+    import os
+
+    env_billed = (os.environ.get("MODAL_BILLED_GPU_SECONDS") or "").strip()
+    billed_window: float | None = None
+    if env_billed:
+        try:
+            billed_window = float(env_billed)
+        except ValueError:
+            billed_window = None
+    if billed_window is None:
+        if wall_seconds is not None and wall_seconds > 0:
+            billed_window = float(wall_seconds) + (cold_boot_seconds or 0.0)
+        elif busy_sum_seconds > 0:
+            billed_window = busy_sum_seconds + (cold_boot_seconds or 0.0)
     record = record_from_run(
         run_id=store.run_id,
         spec_hash=store.spec_hash() or "",
@@ -473,7 +492,7 @@ def _build_record(
         items=items,
         scores=scores or None,
         gpu=_lock_gpu(store),
-        billed_window_seconds=billed_window if billed_window > 0 else None,
+        billed_window_seconds=billed_window if billed_window and billed_window > 0 else None,
         mock=bool(mock),
     )
     record["experiment_name"] = f"sandbox_{task}_{store.run_id}"
@@ -831,7 +850,8 @@ def run_job(
     )
     if error_count:
         scores["error_count"] = error_count
-    record = _build_record(store, task, model, scores, mock=mock)
+    wall_seconds = round(time.perf_counter() - run_started, 3)
+    record = _build_record(store, task, model, scores, mock=mock, wall_seconds=wall_seconds)
     experiment_log.append(record)
     store.append_event("done", "info", cursor=final_cursor, ok_count=ok_count)
     store.write_checkpoint(state="done", cursor=final_cursor, total=total, remote=None)
