@@ -117,12 +117,29 @@ live runs. Sandbox unit SAND-027-2 tracks the eval-env issues; it does not re-im
 - Concurrency (mirror DMR-078): correspondence 5 · insurance 5 · corporate_records 4 · contracts 4 ·
   merger 3.
 
-### 2.5 Cost model (ml-systems-oracle estimate; to be replaced by measurement)
-| Leg | Subtotal (500 docs) | +boot/warm/retry | **Total ≈** |
-|---|---|---|---|
-| A · Modal 1×L4 FP8 | ~$5.80 | ~+$0.60 | **~$6.40 GPU-hrs** |
-| B · OpenRouter | ~$0.64 | ~+$0.15 | **~$0.80 API** |
-| **Program** | | | **≈ $7 total · cap: $8 soft / $12 hard** |
+### 2.5 Cost model — MEASURED re-derivation (supersedes the ~$7 oracle estimate)
+
+Re-derived 2026-09-25 from the three real serving records in `reports/RUN-*-REPORT.md` plus
+`docs/RUN-COST-DERIVATION.md` (full per-doc derivation, exact formulas, sensitivity).
+
+| Leg | Basis | **Total ≈** |
+|---|---|---|
+| A · Modal 1×L4 FP8 | 2 classes measured @100 = $2.15; 3 classes extrapolated = $3.90 | **~$6.05** |
+| B · OpenRouter | real token volumes × $0.06/$0.25 | **~$0.25–0.45** |
+| **Program** | | **≈ $6.30–6.50 unoptimized** |
+
+- **Cap: $6 soft / $8 hard** (was $8/$12 — the old figure was 1.7× padded headroom over an
+  unverified ~$7 estimate, not a forecast). The program cap is an outer *safety ceiling*, **not an
+  authorization**: no wave is funded until its own gate is passed.
+- **Per-wave caps govern, not the program cap:**
+  - **W1 probe (N=20, both legs, 5 classes): hard cap $1.50** — the only pre-authorized spend.
+  - **Per-class escalation cap = 3× that class's measured N=20 both-leg cost.** Because escalation
+    is 5× the documents, a 3× spend ceiling only passes if the F1–F4 optimizations actually land.
+    If the projected 100-doc cost breaches it, fix first — do not raise the cap.
+  - 3 of 5 classes (merger/corporate/insurance ≈ $3.90 of $6.05) are still **extrapolated**;
+    re-derive from the probe before any escalation is priced.
+- Per-doc contract-class cost: **API $0.001063 mean / $0.001403 p95** vs **Modal $0.0188**
+  (a 1:18 ratio) — see `docs/RUN-COST-DERIVATION.md`.
 
 ### 2.6 Repo state (working tree, as of 2026-09-25)
 - **local-mailroom-sandbox** @ HEAD `97c0f94` (dirty): `M src/mailroom_sandbox/job/spec.py`
@@ -220,10 +237,14 @@ cost reports: Granite legs + Qwen-flash earlier runs + archived Qwen Modal basel
 ## 6 · Sequencing & spend posture (cap enforced, no exceptions)
 
 - **Free work (now →):** U2-U6, U9 (all config/tests/docs — zero API/GPU spend).
-- **First funded step: U7 N=20 probe** (≈5 classes × 20 docs × 2 legs ≈ $0.35 total). Gate: probe report
-  green → U8 ($≈6.65) → U10 analysis.
-- **Caps:** soft **$8** / hard **$12** across both legs; enforced via `job.cost_cap_usd`/`max_wall_seconds`
-  (+ wallet-side confirmation at U7/U8 start). Track: `reports/` experiment logs are the ledger.
+- **First funded step: U7 N=20 probe** (5 classes × 20 docs × 2 legs ≈ **$1.29**, of which
+  contracts + correspondence are **measured** and the other 3 classes extrapolated).
+  **Hard cap $1.50.** Gate: probe report green → per-class escalation (each under its own 3×
+  measured-cost cap) → U8 → U10 analysis.
+- **Caps:** the **per-wave** caps above govern. Outer program ceiling **$6 soft / $8 hard** across
+  both legs, enforced via `job.cost_cap_usd`/`max_wall_seconds` (+ wallet-side confirmation at each
+  wave start). Track: `reports/` experiment logs are the ledger. **No expansion is pre-authorized
+  by the program ceiling** — each wave needs its own approval.
 - **Deploy discipline (DMR-076/078):** ONE warm sandbox-vllm app; teardown `./deploy/teardown_vllm.sh`
   only after the last Leg A run; scaledown 120s attended.
 
@@ -234,7 +255,9 @@ cost reports: Granite legs + Qwen-flash earlier runs + archived Qwen Modal basel
 - **H1 · Braintrust:** provision `BRAINTRUST_API_KEY` + confirm/create project **`mailroom-sandbox`**
   (used by BOTH repos). Blocks U5+.
 - **H2 · OpenRouter + spend:** confirm `OPENROUTER_API_KEY` (eval-env `.env`) and **approve the
-  $8 soft / $12 hard cap** for the full Granite program. Blocks U7+.
+  W1 probe only — $1.50 hard cap for N=20 across both legs**. The $6 soft / $8 hard program ceiling
+  is a safety bound, not a spend authorization; every later wave is re-priced from the probe's
+  measured per-class costs and re-approved. Blocks U7+.
 - **H3 · Twin acceptance:** approve the "same model" basis = identical HF/OpenRouter id
   (`ibm-granite/granite-4.2-8b`), GPU-host decode differs kernel-level — claim is over the **score
   distribution**, not bit-identical outputs. (ml-systems-oracle + this file; no action = accepted.)
