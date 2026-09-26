@@ -73,9 +73,10 @@ modal deploy deploy/modal_vllm.py --strategy recreate
 ## 5 · Same-subset rule (do not re-draw)
 
 Draw **one bucket per class** (the 100) and score the 20/50 buckets as **prefixes of the locked
-100-row set**. Re-drawing per size does NOT give nested subsets with the current sampler
-(`corpus._draw_buckets` seeds per class, not per count — 50⊂100 holds only ~26% of seeds). Slice the
-locked set; never re-draw.
+100-row set**, or rely on nested strata draws: `corpus._draw_buckets` uses a seeded shuffle +
+prefix per stratum, so `select_rows(..., count=k)` ⊆ `select_rows(..., count=m)` for the same
+`sample_seed` when k < m (issue #38). For matrix runs, slicing the locked 100-row set is still
+the safest ops default — it avoids re-running prepare.
 
 ## 6 · Cost caps: set them from measurement, not habit
 

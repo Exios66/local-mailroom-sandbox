@@ -162,9 +162,9 @@ method is unchanged, only the multiplier moves.
 
 ## 8 · Rules that keep these numbers honest
 
-- **Slice, never re-draw.** 20 ⊂ 50 ⊂ 100 must come from one locked 100-draw per class; the
-  sandbox sampler is **not nested** (issue #38), so a second draw silently invalidates the
-  per-doc statistics in §4.
+- **Slice, never re-draw (ops default).** 20 ⊂ 50 ⊂ 100 should come from one locked 100-draw per
+  class; the sampler now supports nested strata draws (issue #38 — seeded shuffle + prefix), but
+  matrix runs should still slice the locked set to avoid a second prepare pass.
 - **Never fabricate rates.** If `MODAL_BILLED_GPU_SECONDS` is absent, the serving block stays
   absent — not zero (issues #36/#37). Every figure here is either measured or labelled
   extrapolated.
