@@ -1,5 +1,6 @@
 # OpenRouter champion ids → local serving tags.
 # Used by overlay rewrite and matrix cells so local vs API runs stay comparable.
+# Hosted-catalog sunset (2026-10-10) inventory: docs/openrouter-sunset-audit.md
 
 defaults:
   ollama: qwen3:8b
@@ -160,6 +161,36 @@ modal_models:
     notes: "MoE. DMR-056: use the PUBLISHED Qwen/Qwen3-30B-A3B-FP8 checkpoint
       (block-wise FP8; auto-detected, no forced --quantization). A100 runs FP8
       weight-only (Marlin), slower than native W8A8 on Hopper. Open weights."
+  # ── Qwen3.5 (SAND-021) ─────────────────────────────────────────────────────
+  # No published FP8 Hub checkpoints — L4 uses online dynamic fp8
+  # (MODAL_VLLM_QUANTIZATION=fp8). Deploy image must ship causal_conv1d
+  # (Dao-AILab) + fla for Gated-DeltaNet kernels; without them vLLM silently
+  # falls back to slower PyTorch ops (no error). Text-only: pass
+  # --limit-mm-per-prompt '{"image":0,"video":0,"audio":0}' at serve time.
+  # Live /health + load-time VRAM peak verification is deferred (Modal spend
+  # hold); max_model_len below is provisional until measured (v0.29.0 raises at
+  # boot when KV cannot hold one request — DMR-056).
+  Qwen/Qwen3.5-9B:
+    gpu: L4
+    quantization: fp8
+    max_model_len: 16384
+    tp_size: 1
+    notes: "SAND-021. Online FP8 on Ada (~9.7GB weights → ~12GB KV pool vs
+      ~3.4GB for bf16 Qwen3-8B on L4). Hybrid 3:1 Gated-DeltaNet cuts KV vs
+      dense Qwen3; card native 262144 is unreachable on 1×L4 and advises ≥
+      128K for thinking quality — record tension until KV is measured. Kernel
+      deps: causal_conv1d + fla (see section header). DoD incomplete until
+      spend reopens (/health + VRAM peak)."
+  Qwen/Qwen3.5-35B-A3B:
+    gpu: L4:2
+    quantization: fp8
+    max_model_len: 16384
+    tp_size: 2
+    notes: "SAND-021. MoE (35B total / 3B active). TP=2 across two L4s over
+      PCIe — L4 has no NVLink; inter-GPU bandwidth is the bottleneck vs two
+      independent 1-GPU replicas (DMR-068 G1 compares that trade). Same online
+      FP8 + kernel-deps posture as the 9B row. DoD incomplete until spend
+      reopens."
   Qwen/Qwen3-32B:
     gpu: A100-80GB
     quantization: ""
