@@ -22,13 +22,13 @@ task: corporate_records_specialist
 profile: modal-vllm
 
 prompt:
-  # Pinned local production text (config/prompts/corporate_records_specialist_production.txt) for reproducible
+  # SAND-026 simplified pin (config/prompts/corporate_records_specialist_simplified.txt). Reproducible
   # Modal L4 Qwen runs — not Langfuse floating production. DMR-074/078.
   default: {source: code-default}
   agents:
     corporate_records_specialist:
       source: local
-      file: corporate_records_specialist_production
+      file: corporate_records_specialist_simplified
 
 dataset:
   provider: huggingface

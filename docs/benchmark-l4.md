@@ -208,7 +208,9 @@ KV. Input caps fit `max_model_len=16384` so contracts no longer advertise
 
 A smaller, single-class sibling of the 5×30 suite: **20 `contract` docs** drawn
 as a seeded random sample from the **full** corpus (`split: all`, 3,302 rows),
-holding the same L4 Qwen pins and the `contracts_specialist_v33` local prompt.
+holding the same L4 Qwen pins and the `contracts_specialist_v33_simplified`
+local prompt (SAND-026; vendor `contracts_specialist_v33` remains as a
+syncable mirror).
 
 ```bash
 sandbox run benchmark-check --config config/runs/run-20-contracts-specialist.yaml
@@ -304,21 +306,27 @@ rows) and task `merger_agreement_specialist` (dedicated MAUD agent — not
 
 ## Specialist prompts (pinned local)
 
-Each run-30 YAML pins the task agent's production text under
-`config/prompts/` (not Langfuse floating `production`):
+Each run-20 / run-30 specialist YAML pins a **simplified** local stem under
+`config/prompts/` (SAND-026 / issue #32 — live schema, one field-level block).
+Vendor production mirrors (`contracts_specialist_v33`, `*_production`) stay
+in-tree for sync; default `python scripts/sync_specialist_prompts.py` writes
+those mirrors only and cannot clobber `*_simplified`. Map:
+[`config/prompts/README.md`](../config/prompts/README.md).
 
-| Run | Agent | Local stem | Source |
+| Run | Agent | Local stem (current YAML pin) | Vendor mirror (sync) |
 | --- | --- | --- | --- |
-| contracts | `contracts_specialist` | `contracts_specialist_v33` | vendored `PROMPT_VERSIONS` (mailroom production) |
-| merger | `merger_agreement_specialist` | `merger_agreement_specialist_production` | vendored `SYSTEM_PROMPT` + MAUD doctrine |
-| corporate-records | `corporate_records_specialist` | `corporate_records_specialist_production` | vendored `SYSTEM_PROMPT` + doctrine |
-| correspondence | `correspondence_specialist` | `correspondence_specialist_production` | vendored `SYSTEM_PROMPT` + doctrine |
-| insurance-claims | `insurance_claims_specialist` | `insurance_claims_specialist_production` | vendored `SYSTEM_PROMPT` + doctrine |
+| contracts | `contracts_specialist` | `contracts_specialist_v33_simplified` | `contracts_specialist_v33` |
+| merger | `merger_agreement_specialist` | `merger_agreement_specialist_simplified` | `merger_agreement_specialist_production` |
+| corporate-records | `corporate_records_specialist` | `corporate_records_specialist_simplified` | `corporate_records_specialist_production` |
+| correspondence | `correspondence_specialist` | `correspondence_specialist_simplified` | `correspondence_specialist_production` |
+| insurance-claims | `insurance_claims_specialist` | `insurance_claims_specialist_simplified` | `insurance_claims_specialist_production` |
 
-Refresh: `python scripts/sync_specialist_prompts.py` (or `--check` after vendor sync).
-Entity-extraction experimental `contracts_specialist_v34+` are **not** the
-mailroom production pin — do not swap without an explicit scorecard decision.
-`sandbox run benchmark-check` hard-fails if these local pins drift.
+Refresh vendor mirrors: `python scripts/sync_specialist_prompts.py` (or
+`--check` after vendor sync). `--overwrite-experiment` is the explicit
+opt-in that copies vendor text onto simplified stems — do not use it for a
+quality run. Entity-extraction experimental `contracts_specialist_v34+` are
+**not** the mailroom production pin. `sandbox run benchmark-check`
+hard-fails if the YAML pin drifts from `specialist_posture.prompt_file`.
 
 ## Advanced: swap model / GPU (not the default path)
 

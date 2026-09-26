@@ -73,6 +73,10 @@ notebooks = [
 ]
 observability = [
     "langfuse>=4.0,<5",
+    # Braintrust = opt-in hosted sink for eval spans. Verified against 0.42.0:
+    # no start_root_span / Logger.score / Span.score in that line — see
+    # src/mailroom_sandbox/eval/tracing.py for the adapter.
+    "braintrust>=0.42,<0.43",
     "opentelemetry-sdk>=1.25",
     "opentelemetry-exporter-otlp-proto-http>=1.25",
 ]
