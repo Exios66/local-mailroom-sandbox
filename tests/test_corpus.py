@@ -9,6 +9,7 @@ import pytest
 
 from mailroom_sandbox.corpus import (
     _normalize_subclass,
+    _stable_key,
     load_hf_rows,
     normalize_rows,
     prepare_subset,
@@ -104,6 +105,49 @@ def test_select_rows_buckets_deterministic():
     a = select_rows(rows, strata=strata, sample_seed=7, limit=None)
     b = select_rows(rows, strata=strata, sample_seed=7, limit=None)
     assert [r["id"] for r in a] == [r["id"] for r in b]
+
+
+def test_strata_draw_nested_counts_are_prefixes():
+    """Issue #38: smaller bucket counts must nest inside larger ones (same seed)."""
+    rows = normalize_rows(
+        [
+            {
+                "id": f"c-{i:03d}",
+                "filename": f"c-{i:03d}.txt",
+                "doc_text": f"text {i}",
+                "expected": "contract",
+                "expected_doc_class": "contract",
+                "expected_subclass": "service",
+                "content_sha256": sha256_text(f"text {i}"),
+            }
+            for i in range(120)
+        ]
+    )
+    seed = 12345
+    draw100 = select_rows(
+        rows,
+        strata={"buckets": [{"doc_class": "contract", "count": 100}]},
+        sample_seed=seed,
+        limit=None,
+    )
+    draw50 = select_rows(
+        rows,
+        strata={"buckets": [{"doc_class": "contract", "count": 50}]},
+        sample_seed=seed,
+        limit=None,
+    )
+    draw20 = select_rows(
+        rows,
+        strata={"buckets": [{"doc_class": "contract", "count": 20}]},
+        sample_seed=seed,
+        limit=None,
+    )
+    keys100 = {_stable_key(r) for r in draw100}
+    keys50 = {_stable_key(r) for r in draw50}
+    keys20 = {_stable_key(r) for r in draw20}
+    assert keys50 <= keys100
+    assert keys20 <= keys100
+    assert keys20 <= keys50
 
 
 def test_stratified_draw_needs_seed(tmp_path):
@@ -302,10 +346,12 @@ def test_values_strata_draws_normalized_subclass_buckets(tmp_path):
     assert prov["rows"] == 4
     # 'license' requested as a catalog token must match the raw 'License_Agreements'
     assert len(rows) == 4
-    ids = sorted(r["id"] for r in rows)
-    assert ids == sorted(
-        ["d-service-1", "d-service-2", "d-license-1", "d-ip-1"]
-    )
+    from collections import Counter
+
+    subs = [
+        _normalize_subclass(r["expected_doc_class"], r["expected_subclass"]) for r in rows
+    ]
+    assert Counter(subs) == Counter({"service": 2, "license": 1, "ip": 1})
 
 
 def test_values_strata_is_deterministic(tmp_path):
