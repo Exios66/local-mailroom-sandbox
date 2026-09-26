@@ -71,6 +71,15 @@ from the same importable suite (table, scorecard, cost, markdown).
 
 Markdown is regenerated next to the JSONL on every append.
 
+Specialist / extract / pipeline summaries also carry additive **schema
+adherence** fields (`parse_error_rate`, `schema_valid_rate`,
+`schema_adherence_rate`) that are distinct from `overall_extraction_score`
+and `extraction_f1`. Isolated eval copies `overall_extraction_score` into
+`scores.exact_match` when there is no classification `match` — those two
+keys matching is a runner alias, not proof that partial credit is off.
+Empty-field and partial-credit behavior is documented in
+[`docs/extraction-quality-diagnosis.md`](extraction-quality-diagnosis.md).
+
 ## Fixtures
 
 Offline catalog: `data/fixtures/` (see `ATTRIBUTION.md`). Tiny HF slice:

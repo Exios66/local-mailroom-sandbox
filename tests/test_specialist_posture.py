@@ -85,6 +85,30 @@ def test_run_20_correspondence_c8_posture():
     assert expected_limit("run-20-correspondence-awq-c8") == 20
 
 
+def test_run_20_correspondence_fp16_c8_posture():
+    """issue #21: FP16 twin is first-class posture, not an ad-hoc YAML."""
+    row = SPECIALIST_POSTURE["run-20-correspondence-fp16-c8"]
+    assert row["task"] == "correspondence_specialist"
+    assert row["concurrency"] == 8
+    # Isolation vs the already-scored AWQ c8 run (production prompt). SAND-026
+    # retargeted the AWQ YAML to `*_simplified`; do not silently retarget this
+    # twin — that is an experiment-design choice (see PR notes).
+    assert row["prompt_file"] == "correspondence_specialist_production"
+    assert expected_limit("run-20-correspondence-fp16-c8") == 20
+    spec = load_run_spec(
+        Path(__file__).resolve().parents[1]
+        / "config"
+        / "runs"
+        / "run-20-correspondence-fp16-c8.yaml"
+    )
+    assert spec.engine.model == "Qwen/Qwen3-8B"
+    assert spec.engine.vllm.quantization in ("", None)
+    assert spec.engine.vllm.max_model_len == 16384
+    assert spec.dataset.sample_seed == 42
+    assert spec.dataset.limit == 20
+    assert spec.job.concurrency == 8
+
+
 def test_run_20_gate_enforces_limit_20(monkeypatch):
     """The loud gate must cover run-20 too — a wrong limit cannot pass green."""
     _stub_modal(monkeypatch)
