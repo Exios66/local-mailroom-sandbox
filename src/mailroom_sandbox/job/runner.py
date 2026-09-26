@@ -17,6 +17,7 @@ from mailroom_sandbox.eval import experiment_log
 from mailroom_sandbox.eval import runners as eval_runners  # noqa: F401
 from mailroom_sandbox.job.checkpoint import RunStore, utc_now
 from mailroom_sandbox.job.metrics import record_from_run
+from mailroom_sandbox.eval.prompt_provenance import resolve_logged_prompt_version
 from mailroom_sandbox.job.otel import job_span
 from mailroom_sandbox.job.usage_capture import (
     merge_item_metrics,
@@ -295,9 +296,17 @@ def _run_whole_run(
     # though the runner appended its own log copy.
     record = result.get("record") if isinstance(result, dict) else None
     if isinstance(record, dict):
+        lock_prompt = store.read_prompt_lock()
+        logged, sha = resolve_logged_prompt_version(
+            prompt_variant,
+            task=task,
+            prompt_lock=lock_prompt,
+        )
         record.setdefault("spec_hash", store.spec_hash() or "")
         record.setdefault("dataset_fingerprint", _fingerprint(store))
-        record.setdefault("prompt_version", prompt_variant or default_ref)
+        record.setdefault("prompt_version", logged or default_ref)
+        if sha:
+            record.setdefault("prompt_sha256", sha)
         record.setdefault("run_id", store.run_id)
     store.write_checkpoint(state="done", cursor=processed, total=processed, remote=None)
     store.append_event("done", "info", cursor=processed, ok_count=processed)
@@ -448,7 +457,13 @@ def _build_record(
     profile = str(lock.get("profile") or "ollama")
     engine = lock.get("engine") or {}
     model = model or (engine.get("model") if isinstance(engine, dict) else None) or "unknown"
-    prompt_version = str((prompt_block.get("default") or {}).get("source") or "code-default")
+    prompt_variant = _lock_prompt_variant(store)
+    logged_prompt, prompt_sha = resolve_logged_prompt_version(
+        prompt_variant,
+        task=task,
+        prompt_lock=store.read_prompt_lock(),
+    )
+    prompt_version = logged_prompt
     items = store.load_items()
     # SAND-018: carry the live engine-probe cold-boot measurement (written by
     # `preflight --live`, the step right after deploy) into the experiment-log
@@ -499,6 +514,8 @@ def _build_record(
     record["mock"] = bool(mock)
     if cold_boot_seconds is not None:
         record["cold_boot_seconds"] = cold_boot_seconds
+    if prompt_sha:
+        record["prompt_sha256"] = prompt_sha
     return record
 
 
