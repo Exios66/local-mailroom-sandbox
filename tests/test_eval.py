@@ -239,6 +239,19 @@ def test_serving_ttft_not_inferred_from_e2e():
     assert any("ttft" in g for g in run["honest_gaps"])
 
 
+def test_isolated_eval_record_uses_bound_prompt_not_mailroom_default(tmp_path, monkeypatch):
+    monkeypatch.setenv("MAILROOM_BASE_DIR", str(tmp_path / "data"))
+    row = {
+        "id": "d0",
+        "filename": "d0.txt",
+        "doc_text": "t",
+        "expected": "contract",
+        "expected_doc_class": "contract",
+    }
+    result = runners.run_isolated_eval("sorter", mock=True, rows=[row], dry_run=False)
+    assert result["record"]["prompt_version"] != "mailroom-default"
+
+
 def test_compare_from_log_pairs_local_and_api(tmp_path, monkeypatch):
     monkeypatch.setenv("MAILROOM_BASE_DIR", str(tmp_path))
     log = tmp_path / "experiment_log.jsonl"
