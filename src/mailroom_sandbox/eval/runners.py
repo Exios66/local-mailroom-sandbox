@@ -297,6 +297,13 @@ def run_isolated_eval(
     # row lacked the key but later rows carried it.
     if any("overall_extraction_score" in (r.get("score") or {}) for r in per_row):
         scores["overall_extraction_score"] = mean
+    schema_rows = [
+        r.get("score") or {}
+        for r in per_row
+        if r and "parse_error" in (r.get("score") or {})
+    ]
+    if schema_rows:
+        scores.update(scoring.aggregate_schema_adherence(schema_rows))
     tracing.emit_langfuse_score("class_correct" if spec.observation == "classify-document" else "stage_completed", mean)
     tracing.flush_traces()
     if ScoreRecord is not None:
@@ -479,6 +486,7 @@ def run_extract_eval(
         return plan
     activation = activate(profile, model=model, prompt_variant=prompt_version, agent_models=agent_models)
     overall: list[float] = []
+    schema_rows: list[dict[str, Any]] = []
     for row in rows:
         expected_fields = parse_expected_fields(row) or {}
         if mock:
@@ -493,11 +501,14 @@ def run_extract_eval(
             doc_text=row.get("doc_text")
             or (fixture_file(row).read_text(encoding="utf-8") if fixture_file(row).is_file() else None),
         )
+        schema_rows.append(scored)
         value = scored.get("overall_extraction_score")
         if isinstance(value, (int, float)):
             overall.append(float(value))
     mean = sum(overall) / len(overall) if overall else 0.0
     scores = {"overall_extraction_score": mean, "n": len(rows)}
+    if schema_rows:
+        scores.update(scoring.aggregate_schema_adherence(schema_rows))
     logged_prompt, prompt_sha = _logged_prompt(prompt_version, task="extract")
     record = experiment_log.new_record(
         experiment_name=experiment_name or "sandbox_extract",
@@ -980,6 +991,7 @@ def run_pipeline_eval(
     stage_predicted = [str(r.get("stage") or "unknown") for r in results]
     stage_scores = scoring.score_stage(stage_expected, stage_predicted)
     extract_vals: list[float] = []
+    schema_rows: list[dict[str, Any]] = []
     if connected:
         for row, result in zip(rows, results):
             expected_fields = parse_expected_fields(row) or {}
@@ -998,6 +1010,7 @@ def run_pipeline_eval(
                     else None
                 ),
             )
+            schema_rows.append(scored)
             value = scored.get("overall_extraction_score")
             if isinstance(value, (int, float)):
                 extract_vals.append(float(value))
@@ -1012,6 +1025,8 @@ def run_pipeline_eval(
         "routing_accuracy": routing.get("exact_match"),
         "connected": connected,
     }
+    if schema_rows:
+        scores.update(scoring.aggregate_schema_adherence(schema_rows))
     tracing.emit_langfuse_score("class_correct", float(scores["class_correct"] or 0))
     tracing.emit_langfuse_score("stage_correct", float(scores["stage_correct"] or 0))
     if scores["extraction_overall"] is not None:
