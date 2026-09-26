@@ -129,8 +129,8 @@ def cmd_run_all(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_report(args: argparse.Namespace) -> int:
-    """Rebuild a report from the experiment log (no new API spend)."""
+def _results_from_experiment_log(prices: tuple[float, float] | None) -> list[dict]:
+    from api_evals.cost import cost_from_aggregate
     from mailroom_sandbox.eval import experiment_log
 
     records = experiment_log.load()
@@ -139,40 +139,103 @@ def cmd_report(args: argparse.Namespace) -> int:
     for rec in records:
         run_id = rec.get("run_id") or ""
         name = rec.get("experiment_name") or ""
-        # whole-run records carry the run_id in the experiment_name suffix.
-        matched = next((rid for rid in wanted_run_ids if rid in run_id or run_id in rid or f"_{rid}" in name or rid in name), None)
+        matched = next(
+            (
+                rid
+                for rid in wanted_run_ids
+                if rid in run_id or run_id in rid or f"_{rid}" in name or rid in name
+            ),
+            None,
+        )
         if not matched:
             continue
+        n = int(rec.get("n") or 0)
+        model = str(rec.get("model") or "qwen/qwen3.7-flash")
+        cost = cost_from_aggregate(
+            prompt_tokens=int(rec.get("prompt_tokens") or 0),
+            completion_tokens=int(rec.get("completion_tokens") or 0),
+            n=n,
+            model=model,
+            prices=prices,
+        )
+        gaps = list(cost.get("honest_gaps") or [])
+        if rec.get("estimated_gpu_cost_usd") is not None and rec.get("estimated_cost_usd") is None:
+            gaps.append(
+                "experiment_log has estimated_gpu_cost_usd (L4 GPU-proxy) but no real API "
+                "cost field — API $ recomputed from tokens × list price"
+            )
+        cost["honest_gaps"] = gaps
         results.append(
             {
                 "run_id": matched,
                 "task": rec.get("task") or "",
-                "n": int(rec.get("n") or 0),
-                "model": rec.get("model") or "",
+                "n": n,
+                "model": model,
                 "scores": rec.get("scores") or {},
                 "wall_seconds": rec.get("wall_seconds"),
                 "spec_hash": rec.get("spec_hash") or "",
                 "dataset_fingerprint": rec.get("dataset_fingerprint") or "",
-                "cost": {
-                    "n_ok": int(rec.get("n") or 0),
-                    "prompt_tokens": rec.get("prompt_tokens"),
-                    "completion_tokens": rec.get("completion_tokens"),
-                    "total_tokens": (rec.get("prompt_tokens") or 0) + (rec.get("completion_tokens") or 0),
-                    "tokens_per_document": None,
-                    "cost_usd": rec.get("estimated_cost_usd"),
-                    "cost_per_document": rec.get("cost_per_document"),
-                    "honest_gaps": [],
-                },
+                "cost": cost,
             }
         )
-    if not results:
-        print("no api-evals records found in reports/experiment_log.jsonl — run `run`/`run-all` first",
-              file=sys.stderr)
-        return 1
+    return results
+
+
+def cmd_report(args: argparse.Namespace) -> int:
+    """Rebuild a report from the experiment log or tracked ledger (no new API spend)."""
+    from api_evals import ledger as ledger_mod
+
     prices = _resolve_prices(args)
-    report = report_mod.build_report(results, model="qwen/qwen3.7-flash", prices=prices)
+    caveats: list[str] = []
+    if getattr(args, "from_ledger", False):
+        try:
+            ledger = ledger_mod.load_ledger()
+        except (FileNotFoundError, ValueError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        pin = ledger_mod.price_pin(ledger)
+        if pin and prices and pin != prices:
+            caveats.extend(ledger_mod.price_mismatch_warnings(ledger, active_prices=prices))
+        elif pin and prices is None:
+            prices = pin
+        results = ledger_mod.ledger_to_results(ledger, prices=prices)
+        caveats.extend(list(ledger.get("caveats") or []))
+        source = str(ledger_mod.ledger_path())
+    else:
+        from mailroom_sandbox.eval import experiment_log
+
+        log_path = experiment_log.jsonl_path()
+        if not log_path.is_file():
+            print(
+                f"reports/experiment_log.jsonl is absent (gitignored) — cannot rebuild from log.\n"
+                f"Use the tracked ledger instead:\n"
+                f"  python api-evals/run_api_evals.py report --from-ledger\n"
+                f"Source: reports/qwen-flash-cost-source.json",
+                file=sys.stderr,
+            )
+            return 1
+        results = _results_from_experiment_log(prices)
+        source = str(log_path)
+        if not results:
+            print(
+                "no api-evals records in reports/experiment_log.jsonl.\n"
+                "For the three known QWEN-flash runs, rebuild from the tracked ledger:\n"
+                "  python api-evals/run_api_evals.py report --from-ledger\n"
+                "Source: reports/qwen-flash-cost-source.json",
+                file=sys.stderr,
+            )
+            return 1
+
+    report = report_mod.build_report(
+        results,
+        model="qwen/qwen3.7-flash",
+        prices=prices,
+        caveats=caveats,
+        source=source,
+    )
     paths = report_mod.write_report(report, model=report["model"])
     print(report_mod.render_console(report))
+    print(f"[api-evals] report written: {paths['markdown']}", file=sys.stderr)
     return 0
 
 
@@ -207,7 +270,21 @@ def main(argv: list[str] | None = None) -> int:
     p_all = sub.add_parser("run-all", parents=[common], help="run every registered task")
     p_all.set_defaults(fn=cmd_run_all)
 
-    p_rep = sub.add_parser("report", parents=[common], help="rebuild report from the experiment log")
+    p_rep = sub.add_parser(
+        "report",
+        parents=[common],
+        help="rebuild report from experiment log (default) or tracked ledger",
+    )
+    p_rep.add_argument(
+        "--from-ledger",
+        action="store_true",
+        help="read reports/qwen-flash-cost-source.json (offline reproducible)",
+    )
+    p_rep.add_argument(
+        "--from-log",
+        action="store_true",
+        help="explicitly read reports/experiment_log.jsonl (default when neither flag is set)",
+    )
     p_rep.set_defaults(fn=cmd_report)
 
     args = parser.parse_args(argv)
