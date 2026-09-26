@@ -49,6 +49,31 @@ Hub `claimed_amount` vs correspondence `demand_amount`). Shared
 subclass tokens, null / `[]` / `0`, do-not-invent. **Current run-20 /
 run-30 specialist YAMLs pin these.**
 
+### Simplified framing contract (issue #50)
+
+Every `*_simplified` specialist stem follows the same narrative shape:
+
+1. **System role** — one opening paragraph: which doc class this agent owns
+   and what it is *not*.
+2. **Situation** — the sorter handed `doc_type` plus that class’s subclass
+   dimension (`contract_subtype` for contracts, `doc_subclass` otherwise).
+   Subclass is **situational context**: prioritize the registered fields and
+   checklist lines typical for that key, then **verify against visible text**.
+   Never treat handoff as ground truth; never invent values the text does not
+   support; never echo routing tokens as extra JSON keys.
+3. **Executive brief by subclass** — for each live catalog key from
+   `llm_dojo_scoring.corpus.DOC_TYPE_SUBCLASSES` (contracts: CUAD
+   `CONTRACT_SUBTYPE_KEYS` + `other`), 2–5 lines mapping document shape →
+   registered schema fields to read first.
+4. **Class-specific empty/trap rules** + **registered field list** (live keys
+   only; retired keys named as do-not-emit).
+
+Subclass catalogs are defined in vendored dojo (`DOC_TYPE_SUBCLASSES`) and
+surfaced to the sorter via `langchain_agents.doc_inventories`. Corporate
+`record_type` on the extraction schema is narrower than the sorter catalog —
+the brief explains how each sorter `doc_subclass` maps onto the five
+`record_type` tokens plus `other`.
+
 | Stem | Agent | Live schema (do not emit retired keys) |
 | --- | --- | --- |
 | `contracts_specialist_v33_simplified` | `contracts_specialist` | `document_name`, `parties`, `effective_date`, `term_length`, `governing_law`, `contract_value`, `renewal_terms`, `cuad_family`, `merger_consideration`, `cuad_clauses`, `maud_clauses`, `reasoning`, `confidence` — not `key_obligations` / `termination_clauses` |
