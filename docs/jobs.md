@@ -203,6 +203,18 @@ documented follow-up.
   aggregates each bucket, computes deltas vs API (latency, ttft, throughput,
   token $, GPU $), runs dojo `compare_serving` pairwise (local↔api,
   modal↔api, local↔modal), and prints a markdown table.
+- Regenerate a committed serving artifact from a live run store (no Modal spend
+  on regen — reads `data/runtime/runs/<run_id>/` only):
+
+  ```bash
+  sandbox metrics serving-record --run run-20-correspondence-awq-c8
+  # → reports/serving/run-20-correspondence-awq-c8.serving.json
+  ```
+
+  Wall clock comes from item `ts` spans when present; pass `--wall-seconds` when
+  the store lacks timestamps (historical runs). Measured run stores are not
+  committed — reproducing byte-identical committed JSON requires the original
+  `items.jsonl` + lock under `data/runtime/runs/`.
 - Offline Grant-style parity (no Modal secret):
   `sandbox metrics compare --fixture`. Adapter
   (`mailroom_sandbox.eval.serving_parity`) converts `latency_ms`/`ttft_ms`,

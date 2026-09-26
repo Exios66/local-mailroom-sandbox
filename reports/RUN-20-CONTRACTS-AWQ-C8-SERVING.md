@@ -3,8 +3,10 @@
 Cost + token capture for local/Modal vs API (OpenRouter) comparison. Machine-
 readable twin:
 [`serving/run-20-contracts-awq-c8.serving.json`](serving/run-20-contracts-awq-c8.serving.json)
-produced with `job.metrics.record_from_run` (the same builder the API bucket
-uses), so the shapes are directly comparable.
+produced by `sandbox metrics serving-record --run run-20-contracts-awq-c8`
+(`job.metrics.serving_record_from_store`: `record_from_run` base + wall/concurrency/
+latency_sum + SAND-028-1 idle block), so the shapes are directly comparable with the
+API bucket base fields from `record_from_run`.
 
 Engine: `Qwen/Qwen3-8B-AWQ` (AWQ, 1x L4, `max_model_len=32768`) | task
 `contracts_specialist` | n=20 | dataset fingerprint `9c87afb3c10c` |
