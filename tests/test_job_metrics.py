@@ -186,6 +186,39 @@ def test_record_from_run_modal_gpu_cost(monkeypatch):
     assert "cost_per_document" in rec
 
 
+def test_record_from_run_billed_window_prefers_wall_over_latency_sum():
+    """Under concurrency, summed latency must not drive gpu_seconds when wall is set."""
+    items = [
+        {"latency_ms": 5000, "ok": True, "prompt_tokens": 1, "completion_tokens": 1},
+        {"latency_ms": 5000, "ok": True, "prompt_tokens": 1, "completion_tokens": 1},
+    ]
+    rec_wall = metrics.record_from_run(
+        run_id="r-wall",
+        spec_hash="sh",
+        task="sorter",
+        profile="modal-vllm",
+        model="Qwen/Qwen3-8B",
+        prompt_version="code-default",
+        dataset_fingerprint="fp",
+        gpu="L4",
+        items=items,
+        billed_window_seconds=15.0,
+    )
+    rec_sum = metrics.record_from_run(
+        run_id="r-sum",
+        spec_hash="sh",
+        task="sorter",
+        profile="modal-vllm",
+        model="Qwen/Qwen3-8B",
+        prompt_version="code-default",
+        dataset_fingerprint="fp",
+        gpu="L4",
+        items=items,
+    )
+    assert rec_wall["gpu_seconds"] == pytest.approx(15.0)
+    assert rec_sum["gpu_seconds"] == pytest.approx(10.0)
+
+
 def test_record_from_run_billed_window_overrides_latency(monkeypatch):
     monkeypatch.setenv("MODAL_BILLED_GPU_SECONDS", "100")
     rec = metrics.record_from_run(
