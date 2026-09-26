@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+### Added — SAND-020 correspondence extraction-quality diagnosis (issue #21)
+
+- **`eval/schema_adherence.py`** — parse-failure / schema-adherence checks
+  (`parse_error`, `schema_valid`, `schema_adherence`) separate from
+  `overall_extraction_score` / `extraction_f1`. Wired into
+  `score_extraction_row`, isolated / extract / pipeline summaries, and
+  `sandbox metrics` quality extraction (additive keys only).
+- **Empty-field + partial-credit tests** pinning dojo behavior: empty
+  scalars are not events; empty-list inventions zero overall; F1 TP requires
+  typed score ≥ 1.0; isolated `exact_match` is a runner alias of overall.
+- **Offline diagnosis** of `run-20-correspondence-awq-c8` (fingerprint
+  `285f423d3708`): [`docs/extraction-quality-diagnosis.md`](docs/extraction-quality-diagnosis.md)
+  (best/worst docs, token evidence, owner-locked 0.25 / 0.50 gates).
+- **FP16 twin YAML** [`config/runs/run-20-correspondence-fp16-c8.yaml`](config/runs/run-20-correspondence-fp16-c8.yaml)
+  — same draw, `Qwen/Qwen3-8B`, **not run** (spend/auth blocked). Runbook:
+  [`docs/jobs.md`](docs/jobs.md) §AWQ vs FP16 isolation.
+
 ### Changed — SAND-026 simplified specialist extraction prompts (issue #32) (2026-09-25)
 
 - Parallel `*_simplified` stems under `config/prompts/` for the five live
