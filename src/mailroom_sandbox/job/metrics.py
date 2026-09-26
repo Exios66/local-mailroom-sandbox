@@ -206,9 +206,10 @@ def _gpu_seconds_from_items(
 ) -> float | None:
     """GPU-seconds attribution for a run.
 
-    Prefer an explicit billed window (Modal warm interval). Else sum ok-item
-    ``latency_ms`` as a busy-time lower bound (overcounts under concurrency —
-    still better than silent $0).
+    Prefer an explicit billed window (Modal warm interval: measured wall +
+    cold boot, or ``MODAL_BILLED_GPU_SECONDS``). Else sum ok-item ``latency_ms``
+    as a busy-time lower bound — that sum **overcounts** billed GPU time when
+    ``concurrency`` > 1 and is only a last-resort fallback.
     """
     if billed_window_seconds is not None and billed_window_seconds > 0:
         return float(billed_window_seconds)
