@@ -486,6 +486,18 @@ def _bucket_candidates(
     return [r for r in rows if value is None or r["expected_doc_class"] == value]
 
 
+def _seeded_prefix(
+    candidates: list[dict[str, Any]], count: int, *, seed: int
+) -> list[dict[str, Any]]:
+    """Deterministic prefix of a seeded shuffle (nested draws: k ⊂ m when k < m)."""
+    if count >= len(candidates):
+        return list(candidates)
+    rng = random.Random(seed)
+    ordered = list(candidates)
+    rng.shuffle(ordered)
+    return ordered[:count]
+
+
 def _draw_buckets(
     rows: list[dict[str, Any]],
     buckets: list[dict[str, Any]],
@@ -546,7 +558,7 @@ def _draw_buckets(
                     if sample_seed is None:
                         raise ValueError("sample_seed required for stratified draws")
                     sub_seed = int(hashlib.sha256(f"{sample_seed}:{bucket_key}".encode()).hexdigest()[:16], 16)
-                    picked = random.Random(sub_seed).sample(sub_candidates, k=c)
+                    picked = _seeded_prefix(sub_candidates, c, seed=sub_seed)
                 else:
                     picked = sub_candidates
                 drawn.extend(picked)
@@ -570,7 +582,7 @@ def _draw_buckets(
                     raise ValueError("sample_seed required for stratified draws")
                 bucket_key = f"{field}::{value}"
                 sub_seed = int(hashlib.sha256(f"{sample_seed}:{bucket_key}".encode()).hexdigest()[:16], 16)
-                drawn = random.Random(sub_seed).sample(candidates, k=count)
+                drawn = _seeded_prefix(candidates, count, seed=sub_seed)
             else:
                 drawn = candidates
             keep.update(_stable_key(r) for r in drawn)
