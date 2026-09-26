@@ -7,7 +7,7 @@ Cross-family work stays on llm-entity-extraction's MESSAGE_BOARD as
 **`DMR-*`**. This file is the **only** sandbox-local task board — do not
 open `DMR-*` cards here.
 
-**Next ID: `SAND-029`**
+**Next ID: `SAND-030`**
 
 Lanes: `todo` → `in_progress` → `needs_attention` → `done`.
 
@@ -17,6 +17,11 @@ Lanes: `todo` → `in_progress` → `needs_attention` → `done`.
 
 | ID | Title | Owner | Status | Notes |
 | --- | --- | --- | --- | --- |
+| SAND-028-7 | Repo layout audit — document the two run-spec trees (no moves) | archivist-file-organizer | **done** | 2026-09-26. `docs/LAYOUT.md` + README/config README amendments; api-evals stays a separate tree (spend + distribution boundary, verified); junk swept; pytest 438/4 baseline unchanged. Commit `d01e754`. |
+| SAND-029 | Repo layout follow-ups (from the SAND-028-7 audit) | orchestrator | todo | Epic for the audit's deferred items. |
+| SAND-029-1 | Delete dead `DATA_DIR` / `BLANK_DIR` constants in `api-evals/api_evals/registry.py` | harness-doctor | todo | Point at `api-evals/data` + `api-evals/blank` which do not exist and are never referenced (verified dead). Needs SAND-027 owner go (card in progress). |
+| SAND-029-2 | Docs gaps from the layout audit: `reports/README.md` table, AGENTS.md → `docs/LAYOUT.md` link, `data/memory/` convention decision | atom | todo | `reports/{archive,serving,scores}` + gitignored `experiment_log.*` are undocumented; `data/memory/` is gitignore-reserved but nothing creates it. |
+| SAND-029-3 | Optional: `vendor/**/__pycache__` cache sweep as a leg SEPARATE from any vendor refresh | jarvis | todo | 11 inert dirs (drift test + .gitignore exclude them from byte-identity). Never conflate a cache sweep with a byte-identity refresh. |
 | SAND-028 | Modal + vLLM serving: critical review & spend-reduction plan | orchestrator | **in_progress** | Review: `governance/SAND-028-SERVING-SPEND-REVIEW.md`. **No spend.** Measured anatomy: GPU wall-clock = ~98% of price (token-proxy only 2.4%); cold boots = 24% of the 3 measured runs; contracts $0.0188/doc vs correspondence $0.0028 (6.7×, decode-driven). Backlog O1-O9 gates SAND-027 U6/U7 — apply before the 15-run Granite matrix. |
 | SAND-028-1 | Instrument `busy_gpu_seconds` vs `billed_gpu_seconds` (idle fraction per run) | harness-doctor | **in_progress** | F6 — makes F1-F4 arithmetic instead of guesswork. **BLOCKED:** the serving.json writer that emits wall/concurrency/latency_sum is NOT in tracked code (`record_from_run` metrics.py:224 omits them) → **issue #36**; billed-window definition defect → **#37**. Plan: build the committed serving-report generator first, then the idle block. |
 | SAND-028-1a | Commit the open working tree (mission artifacts + harness changes) | orchestrator | **needs_attention** | Uncommitted: `config/models.yaml`, `deploy/modal_vllm.py`, `governance/TASKS.md`, `spec.py`, `api-evals/`, `docs/modal-serving-ops.md`, both plan docs → **issue #35**. Awaiting commit approval (no commit without explicit go). |
