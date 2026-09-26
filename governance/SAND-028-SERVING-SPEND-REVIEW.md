@@ -82,8 +82,10 @@ errors by comparison. This reframes the whole optimization problem: optimize *GP
   6.96× sum/wall. Current posture floors at c3 (merger) / c4 (contracts, corporate). FP8 Granite
   (SAND-027) frees KV headroom the bf16/AWQ rows did not have.
 - Fixes: (a) raise concurrency toward 8 where the post-FP8 KV budget allows (re-derive per class in
-  the N=20 probe, do not assume); (b) keep `max_num_seqs=256` (server admission) and only change
-  the client-side fan-out (`job.concurrency`), which is the cheap knob; (c) merger stays lowest
+  the N=20 probe, do not assume); (b) keep client concurrency ≤
+  `replicas × max_num_seqs` — L4 long-prompt deploy default is
+  `max_num_seqs=6` (SAND-030; cliff at ~8 × ~8k); raise containers for a
+  second L4 rather than climbing past 6 on one GPU; (c) merger stays lowest
   (longest docs, KV-heavy) — re-measure, don't blanket-raise.
 
 ### F4 — Straggler handling: cap the tail, not the average. (direct $ on long-doc classes)

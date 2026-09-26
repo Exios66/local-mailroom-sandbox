@@ -67,7 +67,10 @@ def _engine_summary(spec: RunSpec) -> str:
     modal = spec.engine.modal
     parts = [
         f"kind={spec.engine.kind} model={spec.engine.model}",
-        f"max_model_len={v.max_model_len} gpu_util={v.gpu_memory_utilization} max_num_seqs={v.max_num_seqs}",
+        f"max_model_len={v.max_model_len} gpu_util={v.gpu_memory_utilization} "
+        f"max_num_seqs={v.max_num_seqs} "
+        f"prefix_caching={'on' if v.enable_prefix_caching else 'off'} "
+        f"enforce_eager={'on' if v.enforce_eager else 'off'}",
     ]
     if v.quantization:
         parts[1] += f" quantization={v.quantization}"

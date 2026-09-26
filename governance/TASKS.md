@@ -7,7 +7,7 @@ Cross-family work stays on llm-entity-extraction's MESSAGE_BOARD as
 **`DMR-*`**. This file is the **only** sandbox-local task board — do not
 open `DMR-*` cards here.
 
-**Next ID: `SAND-030`**
+**Next ID: `SAND-031`**
 
 Lanes: `todo` → `in_progress` → `needs_attention` → `done`.
 
@@ -17,6 +17,7 @@ Lanes: `todo` → `in_progress` → `needs_attention` → `done`.
 
 | ID | Title | Owner | Status | Notes |
 | --- | --- | --- | --- | --- |
+| SAND-030 | Modal L4 long-prompt vLLM posture (max_num_seqs 4–6, APC, eager, DP second L4) | cursor | **in_progress** | Deploy defaults + run YAMLs + docs. Data parallel via `MAX_CONTAINERS=2`, not TP. Related: SAND-023 topology / SAND-028 spend. |
 | SAND-020 | Correspondence extraction floor diagnosis + parse/schema metric (issue #21) | cursor | **in_progress** | Offline: schema-adherence rates, empty-field/partial-credit docs, FP16 twin YAML (not run). Related: GitHub issue #21 |
 | SAND-028-7 | Repo layout audit — document the two run-spec trees (no moves) | archivist-file-organizer | **done** | 2026-09-26. `docs/LAYOUT.md` + README/config README amendments; api-evals stays a separate tree (spend + distribution boundary, verified); junk swept; pytest 438/4 baseline unchanged. Commit `d01e754`. |
 | SAND-029 | Repo layout follow-ups (from the SAND-028-7 audit) | orchestrator | todo | Epic for the audit's deferred items. |

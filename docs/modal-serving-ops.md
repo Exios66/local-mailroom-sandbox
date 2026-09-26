@@ -33,7 +33,10 @@ modal run deploy/modal_vllm.py::download_model     # no gpu= on this function �
 | Knob | Attended | Unattended/overnight | Why |
 |---|---|---|---|
 | `MODAL_VLLM_SCALEDOWN_SECONDS` | **120** | **600** | too low = container dies between batches → you re-pay the ~160-260s boot each time |
-| `MODAL_VLLM_MAX_CONTAINERS` | **1** | 1 | >1 doubles $/hr; only raise if the probe shows queueing, not just latency |
+| `MODAL_VLLM_MAX_CONTAINERS` | **1** | 1 | >1 doubles $/hr; only raise for measured queueing. Second L4 = **data parallel** (`=2`), never `GPU=L4:2`+TP for 8B |
+| `MODAL_VLLM_MAX_NUM_SEQS` | **6** | 6 | L4 long-prompt admission (4–6). Cliff at ~8 × ~8k-token decodes. Scale-matrix short-doc cells override to 256 |
+| `MODAL_VLLM_ENABLE_PREFIX_CACHING` | **1** | 1 | APC amortizes shared ~9.7k prompt prefill |
+| `MODAL_VLLM_ENFORCE_EAGER` | **1** | 1 | skip CUDA graphs → faster cold boot |
 | `MODAL_VLLM_MIN_CONTAINERS` | 0 | 1 (if a long unattended stretch) | min=1 during a matrix keeps it warm across your own pauses |
 | `MODAL_VLLM_GPU` | **L4** | L4 | H100 is ~4.9× $/hr; it only pays if it cuts billed seconds >4.9× (it won't at n≤100) |
 
@@ -86,8 +89,8 @@ the safest ops default — it avoids re-running prepare.
   for the actual model, and set `MODAL_BILLED_GPU_SECONDS` to the real Modal warm interval so caps
   match billing (`job/metrics.py` prefers it over the `wall + cold_boot` estimate).
 - Read the per-run serving JSON (`reports/serving/*.serving.json`): if `wall` ≫
-  `sum(per-doc latency)/concurrency`, the GPU is idling between batches — raise concurrency (never
-  `max_num_seqs` blindly; it's the server-side admission).
+  `sum(per-doc latency)/concurrency`, the GPU is idling between batches — raise concurrency
+  (keep it ≤ `replicas × max_num_seqs`; default `max_num_seqs=6` on L4 long-prompt).
 
 ## 7 · Teardown (the only place to stop paying)
 

@@ -12,7 +12,9 @@ specialist extract cost extrapolation to the full mailroom-dataset
 | GPU | `L4` (`max_containers=1`, `min_containers=0`) |
 | Image | `v0.29.0` |
 | `max_model_len` | `16384` |
-| Job concurrency | per-doc-type (DMR-078): correspondence/insurance **5**, corporate/contracts **4**, merger **3** |
+| `max_num_seqs` | `6` (L4 long-prompt 4–6; KV cliff at ~8 concurrent ~8k-token decodes) |
+| APC / eager | `enable_prefix_caching=true`, `enforce_eager=true` |
+| Job concurrency | per-doc-type (DMR-078): correspondence/insurance **5**, corporate/contracts **4**, merger **3** (must stay ≤ `max_num_seqs`) |
 | Scaledown | `120` s attended (DMR-076); restore **600** for unattended/overnight |
 | Generation budgets | `job/specialist_posture.py` → overlay `max_tokens` / `max_input_chars` (fit Qwen 16k) |
 | Cost / wall abort | `job.cost_cap_usd` + `job.max_wall_seconds` per run-30 YAML (runner fails loud) |
@@ -21,6 +23,7 @@ specialist extract cost extrapolation to the full mailroom-dataset
 | `sample_seed` | `42` |
 | Strata limit | `30` per class (150 docs total) |
 | Modal accounts | **Two operators / two wallets** (DMR-077); Hermes `hermes-agent-jjb` is Track A default |
+| Second L4 | data parallel only: `MODAL_VLLM_MAX_CONTAINERS=2` (Modal round-robins). Never `L4:2`+TP for 8B |
 
 Run YAMLs: `config/runs/run-30-*-specialist.yaml` (150 docs total).  
 Suite manifests: `config/runs/suites/run-30-specialists-{track-a,track-b,full}.yaml`.
@@ -86,6 +89,9 @@ export SANDBOX_PROFILE=modal-vllm
 export MODAL_VLLM_MODEL=Qwen/Qwen3-8B
 export MODAL_VLLM_GPU=L4
 export MODAL_VLLM_IMAGE_TAG=v0.29.0
+export MODAL_VLLM_MAX_NUM_SEQS=6
+export MODAL_VLLM_ENABLE_PREFIX_CACHING=1
+export MODAL_VLLM_ENFORCE_EAGER=1
 export MODAL_VLLM_MAX_CONTAINERS=1
 export MODAL_VLLM_SCALEDOWN_SECONDS=120
 export MODAL_VLLM_API_TOKEN="$(openssl rand -hex 24)"
@@ -115,6 +121,22 @@ done
 ./deploy/teardown_vllm.sh   # ONLY after correspondence
 ```
 
+### Scaling to a second L4 (data parallel)
+
+Raise containers, not TP. Each replica is a full vLLM on its own L4
+(`max_num_seqs=6`, APC, eager) — total admission ≈ 8–12 sequences.
+Modal's `@web_server` distributes requests across warm replicas:
+
+```bash
+export MODAL_VLLM_MAX_CONTAINERS=2
+# optional measurement pin: MODAL_VLLM_MIN_CONTAINERS=2
+modal deploy deploy/modal_vllm.py --strategy recreate
+```
+
+Do **not** set `MODAL_VLLM_GPU=L4:2` / `MODAL_VLLM_TP_SIZE=2` for Qwen3-8B —
+tensor parallel across L4s (no NVLink) adds PCIe all-reduce without a
+meaningful latency win when the model fits on one GPU.
+
 ### Operator B runbook
 
 ```bash
@@ -122,6 +144,9 @@ export SANDBOX_PROFILE=modal-vllm
 export MODAL_VLLM_MODEL=Qwen/Qwen3-8B
 export MODAL_VLLM_GPU=L4
 export MODAL_VLLM_IMAGE_TAG=v0.29.0
+export MODAL_VLLM_MAX_NUM_SEQS=6
+export MODAL_VLLM_ENABLE_PREFIX_CACHING=1
+export MODAL_VLLM_ENFORCE_EAGER=1
 export MODAL_VLLM_MAX_CONTAINERS=1
 export MODAL_VLLM_SCALEDOWN_SECONDS=120
 export MODAL_VLLM_API_TOKEN="$(openssl rand -hex 24)"
