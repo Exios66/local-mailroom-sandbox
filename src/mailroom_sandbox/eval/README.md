@@ -12,7 +12,9 @@
 
 Drive evaluations against the sandbox pipeline — vendored mailroom agents
 through the provider seam, with deterministic scoring and honest mock
-labelling.
+labelling. Extraction rows are scoped to the live class schema before
+the dojo suite runs (`extraction_scope`) so empty / other-class Hub GT
+fields are not scored as misses.
 
 ## Surface
 

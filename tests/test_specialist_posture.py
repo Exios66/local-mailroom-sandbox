@@ -43,7 +43,7 @@ def test_run_20_contracts_single_class_posture():
     row = SPECIALIST_POSTURE["run-20-contracts-specialist"]
     assert row["task"] == "contracts_specialist"
     assert row["doc_class"] == "contract"
-    assert row["prompt_file"] == "contracts_specialist_v33"
+    assert row["prompt_file"] == "contracts_specialist_v33_simplified"
     assert expected_limit("run-20-contracts-specialist") == 20
     # No posture row may rely on the silent default limit (coverage honesty).
     assert set(SPECIALIST_POSTURE) <= set(SPECIALIST_LIMIT_BY_RUN)
@@ -61,7 +61,7 @@ def test_run_20_yaml_full_corpus_logged_sample():
     assert spec.job.cost_cap_usd == 0.55
     assert spec.job.max_wall_seconds == 3200
     agents = spec.prompt.get("agents") or {}
-    assert agents["contracts_specialist"]["file"] == "contracts_specialist_v33"
+    assert agents["contracts_specialist"]["file"] == "contracts_specialist_v33_simplified"
 
 
 def test_run_20_contracts_awq_c8_posture():
@@ -71,9 +71,18 @@ def test_run_20_contracts_awq_c8_posture():
     assert row["concurrency"] == 8
     assert row["max_model_len"] == 32768
     assert row["max_tokens"] == 8192          # > 4096, clears the length error
-    assert row["prompt_file"] == "contracts_specialist_v33"
+    assert row["prompt_file"] == "contracts_specialist_v33_simplified"
     assert expected_limit("run-20-contracts-awq-c8") == 20
     assert context_fit_ok(row["max_tokens"], row["max_input_chars"], 32768)
+
+
+def test_run_20_correspondence_c8_posture():
+    """SAND-019: the 8-concurrency correspondence variant is first-class."""
+    row = SPECIALIST_POSTURE["run-20-correspondence-awq-c8"]
+    assert row["task"] == "correspondence_specialist"
+    assert row["concurrency"] == 8
+    assert row["prompt_file"] == "correspondence_specialist_simplified"
+    assert expected_limit("run-20-correspondence-awq-c8") == 20
 
 
 def test_run_20_correspondence_fp16_c8_posture():
@@ -81,6 +90,9 @@ def test_run_20_correspondence_fp16_c8_posture():
     row = SPECIALIST_POSTURE["run-20-correspondence-fp16-c8"]
     assert row["task"] == "correspondence_specialist"
     assert row["concurrency"] == 8
+    # Isolation vs the already-scored AWQ c8 run (production prompt). SAND-026
+    # retargeted the AWQ YAML to `*_simplified`; do not silently retarget this
+    # twin — that is an experiment-design choice (see PR notes).
     assert row["prompt_file"] == "correspondence_specialist_production"
     assert expected_limit("run-20-correspondence-fp16-c8") == 20
     spec = load_run_spec(
@@ -106,7 +118,7 @@ def test_run_20_gate_enforces_limit_20(monkeypatch):
     assert report["ok"], report["errors"]
     assert report["checks"]["spec"]["limit"] == 20
     assert report["checks"]["spec"]["local_prompts"] == {
-        "contracts_specialist": "contracts_specialist_v33"
+        "contracts_specialist": "contracts_specialist_v33_simplified"
     }
     bad = spec.model_copy(
         update={"dataset": spec.dataset.model_copy(update={"limit": 30})}
@@ -121,7 +133,7 @@ def test_merger_is_dedicated_specialist():
     assert row["task"] == "merger_agreement_specialist"
     assert row["agent"] == "merger_agreement_specialist"
     assert SPECIALIST_LOCAL_PROMPTS["run-30-merger-specialist"] == {
-        "merger_agreement_specialist": "merger_agreement_specialist_production"
+        "merger_agreement_specialist": "merger_agreement_specialist_simplified"
     }
 
 

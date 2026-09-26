@@ -317,7 +317,7 @@ class ModalSpec(BaseModel):
 
 
 class EngineSpec(BaseModel):
-    kind: Literal["vllm-local", "vllm-remote", "modal-vllm"] = "modal-vllm"
+    kind: Literal["vllm-local", "vllm-remote", "modal-vllm", "openrouter"] = "modal-vllm"
     model: str = "Qwen/Qwen3-8B"
     vllm: VLLMSpec = Field(default_factory=VLLMSpec)
     modal: ModalSpec | None = Field(default_factory=ModalSpec)
