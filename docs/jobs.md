@@ -61,7 +61,8 @@ engine:
   kind: modal-vllm            # modal-vllm | vllm-local | vllm-remote
   model: Qwen/Qwen3-8B
   vllm: {max_model_len: 16384, gpu_memory_utilization: 0.90,
-         max_num_seqs: 256, quantization: "", revision: ""}
+         max_num_seqs: 6, enable_prefix_caching: true, enforce_eager: true,
+         quantization: "", revision: ""}
   # DMR-056: 16384 default — L4-bf16 8B-class rows cannot hold 32768 (v0.29.0
   # raises at boot when the KV pool can't fit one request); AWQ rows set 32768.
   modal: {app: sandbox-vllm, gpu: L4, image_tag: v0.29.0,

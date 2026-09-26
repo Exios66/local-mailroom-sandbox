@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Changed — SAND-030 Modal L4 long-prompt vLLM posture
+
+- Deploy defaults (`deploy/modal_vllm.py` + compose parity):
+  `max_num_seqs=6` (was 256), explicit `--enable-prefix-caching`,
+  `--enforce-eager` (faster cold boot). `gpu_memory_utilization=0.90` and
+  HF/vLLM Volumes unchanged.
+- Second L4 = **data parallel**: raise `MODAL_VLLM_MAX_CONTAINERS=2` (Modal
+  `@web_server` round-robins). Do not use `GPU=L4:2`+TP for 8B-class.
+- `VLLMSpec` gains `enable_prefix_caching` / `enforce_eager`; specialist and
+  cost-eval run YAMLs pin the new posture. Scale-matrix cells keep
+  `max_num_seqs: 256` and must export `MODAL_VLLM_MAX_NUM_SEQS=256` at deploy.
+- Docs: `deploy/README.md`, `docs/benchmark-l4.md`, `docs/scale-matrix.md`
+  (container topology), `docs/modal-serving-ops.md`, skill knobs.
+
 ### Added — SAND-020 correspondence extraction-quality diagnosis (issue #21)
 
 - **`eval/schema_adherence.py`** — parse-failure / schema-adherence checks
