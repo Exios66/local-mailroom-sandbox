@@ -89,7 +89,7 @@ Per-document statistics from `reports/RUN-20-CONTRACTS-AWQ-C8-REPORT.md`:
 |---|---|---|
 | B · OpenRouter @ $0.06/$0.25 | **$0.001063** | $0.001403 |
 | B · OpenRouter @ $0.03/$0.13 (Qwen-flash, contrast) | $0.000539 | $0.000716 |
-| A · Modal L4 | **$0.0188** (measured) | $0.0221 (model) |
+| A · Modal L4 | **$0.0188** (measured) | $0.0243 (model) |
 
 **→ The API is ~18× cheaper per contract document than the Modal leg** at the current posture.
 That asymmetry, not the cap, is the most decision-relevant number in this document.
