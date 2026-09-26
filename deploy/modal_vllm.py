@@ -84,6 +84,16 @@ GPU_MEMORY_UTILIZATION = os.environ.get("MODAL_VLLM_GPU_MEMORY_UTILIZATION", "0.
 MAX_NUM_SEQS = os.environ.get("MODAL_VLLM_MAX_NUM_SEQS", "256")
 ATTENTION_BACKEND = os.environ.get("MODAL_VLLM_ATTENTION_BACKEND", "")
 ASYNC_SCHEDULING = os.environ.get("MODAL_VLLM_ASYNC_SCHEDULING", "")
+# SAND-027: reasoning / tool-call parsers. Empty = vLLM default (Qwen path is
+# unchanged). Granite-4.2 needs `--reasoning-parser granite_thinking_parser`
+# (native on vLLM >= 0.30; on the pinned v0.29.0-era image fall back to IBM's
+# plugin via MODAL_VLLM_REASONING_PARSER_PLUGIN) and tool calling via the
+# qwen3_coder parser. The deploy smoke (SAND-027-6) verifies these on the
+# actually-pinned image tag before the Granite matrix runs.
+REASONING_PARSER = os.environ.get("MODAL_VLLM_REASONING_PARSER", "")
+REASONING_PARSER_PLUGIN = os.environ.get("MODAL_VLLM_REASONING_PARSER_PLUGIN", "")
+TOOL_CALL_PARSER = os.environ.get("MODAL_VLLM_TOOL_CALL_PARSER", "")
+ENABLE_AUTO_TOOL_CHOICE = os.environ.get("MODAL_VLLM_ENABLE_AUTO_TOOL_CHOICE", "")
 TP_SIZE = os.environ.get("MODAL_VLLM_TP_SIZE", "") or str(
     int(os.environ.get("MODAL_VLLM_GPU", "L4").split(":")[1])
     if ":" in os.environ.get("MODAL_VLLM_GPU", "L4")
@@ -109,6 +119,10 @@ CONFIG_ENV_KEYS = (
     "MODAL_VLLM_TP_SIZE",
     "MODAL_VLLM_ATTENTION_BACKEND",
     "MODAL_VLLM_ASYNC_SCHEDULING",
+    "MODAL_VLLM_REASONING_PARSER",
+    "MODAL_VLLM_REASONING_PARSER_PLUGIN",
+    "MODAL_VLLM_TOOL_CALL_PARSER",
+    "MODAL_VLLM_ENABLE_AUTO_TOOL_CHOICE",
     "MODAL_VLLM_REVISION",
     "MODAL_VLLM_API_TOKEN",
     # HF_TOKEN deliberately absent: it lives in the named Modal secret
@@ -209,6 +223,14 @@ def build_vllm_command(model: str) -> list[str]:
         cmd += ["--attention-backend", ATTENTION_BACKEND]
     if _truthy(ASYNC_SCHEDULING):
         cmd += ["--async-scheduling"]
+    if REASONING_PARSER:
+        cmd += ["--reasoning-parser", REASONING_PARSER]
+    if REASONING_PARSER_PLUGIN:
+        cmd += ["--reasoning-parser-plugin", REASONING_PARSER_PLUGIN]
+    if TOOL_CALL_PARSER:
+        cmd += ["--tool-call-parser", TOOL_CALL_PARSER]
+    if _truthy(ENABLE_AUTO_TOOL_CHOICE):
+        cmd += ["--enable-auto-tool-choice"]
     cmd += ["--no-enable-log-requests"]
     return cmd
 
@@ -229,6 +251,10 @@ def _masked_config() -> dict[str, str]:
         "revision": REVISION or "unset(tip)",
         "attention_backend": ATTENTION_BACKEND or "unset(engine-default)",
         "async_scheduling": "on" if _truthy(ASYNC_SCHEDULING) else "off",
+        "reasoning_parser": REASONING_PARSER or "unset(engine-default)",
+        "reasoning_parser_plugin": REASONING_PARSER_PLUGIN or "unset",
+        "tool_call_parser": TOOL_CALL_PARSER or "unset(engine-default)",
+        "auto_tool_choice": "on" if _truthy(ENABLE_AUTO_TOOL_CHOICE) else "off",
         "VLLM_API_KEY": presence("MODAL_VLLM_API_TOKEN"),
         "HF_TOKEN": presence("HF_TOKEN"),
         "scaledown_seconds": str(SCALEDOWN_SECONDS),
