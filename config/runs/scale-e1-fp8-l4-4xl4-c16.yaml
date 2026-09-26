@@ -2,6 +2,7 @@
 # A/B delta vs D1 AWQ: same fleet + fixture; tests native Ada FP8 ($0.80/hr) vs AWQ.
 # Fixed-doc-size fixture — see docs/scale-matrix.md.
 # Deploy the fleet PINNED for measurement:
+#   MODAL_VLLM_MAX_NUM_SEQS=256 \
 #   MODAL_VLLM_MIN_CONTAINERS=4 MODAL_VLLM_MAX_CONTAINERS=4 \
 #   MODAL_VLLM_SCALEDOWN_SECONDS=600 modal deploy deploy/modal_vllm.py
 # Execution pending Modal spend approval (zero-spend PR).
@@ -23,7 +24,9 @@ engine:
   vllm:
     max_model_len: 32768
     gpu_memory_utilization: 0.90
-    max_num_seqs: 256
+    max_num_seqs: 256            # short-doc cell; override deploy default (6)
+    enable_prefix_caching: true
+    enforce_eager: true
     quantization: ""
     revision: ""
   modal:

@@ -3,6 +3,7 @@
 # independent 1×L4 replicas at the same total GPU spend (decision cell).
 # Deploy:
 #   eval "$(sandbox modal-matrix env Qwen/Qwen3.5-35B-A3B)"
+#   MODAL_VLLM_MAX_NUM_SEQS=256 \
 #   MODAL_VLLM_MIN_CONTAINERS=1 MODAL_VLLM_MAX_CONTAINERS=1 \
 #   MODAL_VLLM_SCALEDOWN_SECONDS=600 modal deploy deploy/modal_vllm.py
 # Execution pending Modal spend approval.
@@ -24,7 +25,9 @@ engine:
   vllm:
     max_model_len: 16384
     gpu_memory_utilization: 0.90
-    max_num_seqs: 256
+    max_num_seqs: 256            # short-doc cell; override deploy default (6)
+    enable_prefix_caching: true
+    enforce_eager: true
     quantization: fp8
     revision: ""
   modal:

@@ -14,9 +14,13 @@ confounded by document size. Qwen3-8B on L4 is **HBM-bandwidth-bound**: 8.19B ×
 2 B ≈ 16.4 GB weight read/token ÷ 300 GB/s (NVIDIA L4 spec) ≈ **18 tok/s fp16
 single-sequence ceiling**; the empirical 8.7–13.9 tok/s sits below it at partial
 fill. vLLM v0.29.0 scheduler caps (`max_num_batched_tokens` 2048,
-`max_num_seqs` 128 defaults; repo sets 256) are **non-binding** below ~2048
-in-flight decodes (engine args + scheduler source, v0.29.0) — and chunked
-prefill is ON by default; `max_num_seqs`/`max-num-batched-tokens` stay put.
+`max_num_seqs` 128 defaults; **specialist / long-prompt deploy default is
+6** — see SAND-030; short-doc scale cells keep YAML `max_num_seqs: 256` and
+must export `MODAL_VLLM_MAX_NUM_SEQS=256` at deploy) are **non-binding** below
+~2048 in-flight decodes for short fixtures (engine args + scheduler source,
+v0.29.0) — and chunked prefill is ON by default. For ~8–10k-token specialist
+prompts, `max_num_seqs=6` **is** binding: 8 concurrent long-decode sequences
+exhaust L4 KV and cliff latency.
 
 ## The lever with measured backing: AWQ
 
@@ -105,6 +109,24 @@ SAND-022 specs (YAML only until spend reopens):
    replicas must give ≥ 1.5× docs/min to justify marginal cost; else concurrency
    (B3/C2) is the bottleneck, not the engine — stop adding GPUs.
 3. Beyond the matrix: promote the winning config into `run-300` (DMR-063).
+
+## Container topology (SAND-023 / SAND-030)
+
+Default for models that fit one L4 (weights ≤ ~20 GB, including Qwen3-8B
+bf16/AWQ/FP8 and Qwen3.5-9B FP8): **1 GPU per container, scale containers**.
+
+| Goal | Deploy | Why |
+| --- | --- | --- |
+| Singular L4 | `MAX_CONTAINERS=1`, `GPU=L4`, `TP=1` | Independent KV, scale-to-zero, no PCIe all-reduce |
+| Second L4 (8B) | `MAX_CONTAINERS=2`, still `GPU=L4` / `TP=1` | Data parallel — two vLLM replicas; Modal `@web_server` distributes (round-robin style). Each replica keeps `max_num_seqs=6`, APC, eager |
+| Model won't fit ~20 GB | `GPU=L4:2` + `TP_SIZE=2` **or** prefer **L40S** (48 GB unified, Ada FP8, ~$1.95/hr vs 2×L4 ~$1.60/hr) | TP over PCIe (no NVLink) is a last resort — G1 cell measures it vs two independent 1×L4 replicas at equal spend |
+
+Do **not** use tensor parallelism for 8B on two L4s: communication overhead
+without a meaningful latency win. APC is per-replica (shared prefixes cached
+twice); concurrency gain outweighs duplicate cache for specialist prompts.
+
+Hub epic: LLM-Mailroom-Services/mailroom-issues#193. G1 (`scale-g1-…`) is
+the measured decision cell once spend reopens.
 
 ## Pending
 
