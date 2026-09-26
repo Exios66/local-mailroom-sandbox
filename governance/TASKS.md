@@ -17,6 +17,7 @@ Lanes: `todo` → `in_progress` → `needs_attention` → `done`.
 
 | ID | Title | Owner | Status | Notes |
 | --- | --- | --- | --- | --- |
+| SAND-020 | Correspondence extraction floor diagnosis + parse/schema metric (issue #21) | cursor | **in_progress** | Offline: schema-adherence rates, empty-field/partial-credit docs, FP16 twin YAML (not run). Related: GitHub issue #21 |
 | SAND-028-7 | Repo layout audit — document the two run-spec trees (no moves) | archivist-file-organizer | **done** | 2026-09-26. `docs/LAYOUT.md` + README/config README amendments; api-evals stays a separate tree (spend + distribution boundary, verified); junk swept; pytest 438/4 baseline unchanged. Commit `d01e754`. |
 | SAND-029 | Repo layout follow-ups (from the SAND-028-7 audit) | orchestrator | todo | Epic for the audit's deferred items. |
 | SAND-029-1 | Delete dead `DATA_DIR` / `BLANK_DIR` constants in `api-evals/api_evals/registry.py` | harness-doctor | todo | Point at `api-evals/data` + `api-evals/blank` which do not exist and are never referenced (verified dead). Needs SAND-027 owner go (card in progress). |

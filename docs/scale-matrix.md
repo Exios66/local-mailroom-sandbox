@@ -37,7 +37,7 @@ tokenizer check so prompts ≈ 1.5k/4.5k/9k tokens). One `sandbox datasets
 prepare` step produces `data/fixtures/scale/` (byte-identical guarantee per
 spec); specs below reference it via `dataset.provider: file`.
 
-## The matrix (7 cells)
+## The matrix (7 baseline cells + 3 SAND-022 extensions)
 
 Fleet pinned per cell: `MODAL_VLLM_MIN_CONTAINERS = MODAL_VLLM_MAX_CONTAINERS = R`
 (run-50's 2-of-4-warm drift is not allowed in a measurement). Cost:
@@ -56,10 +56,32 @@ out-tokens/call, 5 calls/doc): `T = D×5×2048 / (R×g)` with g = 12 tok/s bf16
 | C1 | 4 | 16 | 6 | 12 bf16 | 0.4 h | $1.94 |
 | C2 | 4 | 32 | 12 | 13.8 bf16 | 0.6 h | $2.78 |
 | **D1 AWQ** | 4 | 16 | 6 | 24 awq | 0.2 h | $1.37 |
-| Σ | | | | | | | **$13.08** (≤ $15; ~$3.3 if avg out ≈ 512 tok) |
+| Σ (baseline) | | | | | | | **$13.08** (≤ $15; ~$3.3 if avg out ≈ 512 tok) |
 
-Exemplar specs shipped: `scale-c1-4xl4-c16.yaml` (bf16 baseline cell) and
-`scale-d1-awq-4xl4-c16.yaml` (the A/B delta — quant is the ONLY change).
+### SAND-022 incremental cells (execution pending spend)
+
+Adds three runnable specs on top of the baseline matrix. Original **$13.08**
+unchanged; incremental estimates below assume the same wall model and L4
+$0.80/GPU-hr (+ region multiplier unless pinned).
+
+| cell | replicas / fleet | client conc. | docs (2k/6k/12k) | g (tok/s/eng) | est. wall | est. cost |
+| --- | --- | --- | --- | --- | --- | --- |
+| **E1 FP8-L4** | 4×1×L4 | 16 | 6 | 22 fp8 (native Ada) | 0.2 h | $1.37 |
+| **F1 Qwen3.5-9B FP8** | 4×1×L4 | 16 | 6 | TBD (hybrid arch) | 0.2 h | $1.37 |
+| **G1 Qwen3.5-35B TP2** | 1×L4:2 (`tp_size=2`) | 16 | 6 | TBD (PCIe TP) | 0.4 h | $0.69 |
+| Σ (incremental) | | | | | | | **~$3.43** (deferred) |
+
+Exemplar specs shipped (baseline): `scale-c1-4xl4-c16.yaml` (bf16 baseline
+cell) and `scale-d1-awq-4xl4-c16.yaml` (the A/B delta — quant is the ONLY
+change).
+
+SAND-022 specs (YAML only until spend reopens):
+
+- `scale-e1-fp8-l4-4xl4-c16.yaml` — `Qwen/Qwen3-8B-FP8` on **L4** (not H100)
+- `scale-f1-qwen35-9b-fp8-4xl4-c16.yaml` — `Qwen/Qwen3.5-9B` online FP8,
+  `tp_size: 1` (catalog row from SAND-021 / #43)
+- `scale-g1-qwen35-35b-tp2-1xl4x2-c16.yaml` — `Qwen/Qwen3.5-35B-A3B` FP8 on
+  `L4:2`, tensor parallel over PCIe
 
 ## Measurement contract (which number, where)
 
@@ -86,6 +108,9 @@ Exemplar specs shipped: `scale-c1-4xl4-c16.yaml` (bf16 baseline cell) and
 
 ## Pending
 
-- Fixture build step (`sandbox datasets prepare` for `data/fixtures/scale/`).
+- Fixture build step (`sandbox datasets prepare` for `data/fixtures/scale/` —
+  includes `e1.jsonl`, `f1.jsonl`, `g1.jsonl` for SAND-022 cells).
 - GPU cell runs (→ spend approval; teardown + guard matrix already shipping
-  with DMR-063).
+  with DMR-063). **SAND-022 E1/F1/G1 specs are runnable but not executed** while
+  Modal spend is on hold; each YAML carries `cost_cap_usd` + `max_wall_seconds`
+  abort guards.
