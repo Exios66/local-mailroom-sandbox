@@ -20,6 +20,7 @@ from mailroom_sandbox.datasets import (
     parse_expected_fields,
 )
 from mailroom_sandbox.eval import experiment_log, scoring, tracing
+from mailroom_sandbox.eval.prompt_provenance import resolve_logged_prompt_version
 from mailroom_sandbox.eval.scoring import emit
 from mailroom_sandbox.mock_llm import fake_client, fake_structured_payload
 from mailroom_sandbox.runtime import activate, resolve_mailroom_src
@@ -112,6 +113,10 @@ def _predict_spec(spec, row: dict[str, Any], *, mock: bool) -> tuple[dict[str, A
     if spec.live_predict is None:
         return spec.mock_predict(row), True
     return spec.live_predict(row), False
+
+
+def _logged_prompt(prompt_version: str | None, *, task: str) -> tuple[str, str | None]:
+    return resolve_logged_prompt_version(prompt_version, task=task)
 
 
 def run_isolated_eval(
@@ -308,13 +313,14 @@ def run_isolated_eval(
     prompt_tokens = sum(int(e.get("prompt_tokens") or 0) for e in completed)
     completion_tokens = sum(int(e.get("completion_tokens") or 0) for e in completed)
     wall_seconds = round(time.perf_counter() - budget_started, 3)
+    logged_prompt, prompt_sha = _logged_prompt(prompt_version, task=task)
     record = experiment_log.new_record(
         experiment_name=experiment_name or f"sandbox_{task}",
         task=task,
         profile=activation.profile_name,
         provider=os.environ.get("DEFAULT_PROVIDER"),
         model=model or (activation.assignments[0][2] if activation.assignments else None),
-        prompt_version=prompt_version or "mailroom-default",
+        prompt_version=logged_prompt,
         mock=mock,
         dataset_fingerprint=plan["fingerprint"],
         n=len(rows),
@@ -324,6 +330,8 @@ def run_isolated_eval(
         session_id=session,
         trace_ids=tracing.last_trace_ids(),
     )
+    if prompt_sha:
+        record["prompt_sha256"] = prompt_sha
     # SAND-018: per-item serving metrics used to be absent on the isolated path.
     if latencies:
         record["e2e_latency_seconds"] = round(statistics.mean(latencies) / 1000.0, 6)
@@ -432,13 +440,14 @@ def run_sorter_eval(
                     run_id=experiment_name,
                 )
             )
+    logged_prompt, prompt_sha = _logged_prompt(prompt_version, task="sorter")
     record = experiment_log.new_record(
         experiment_name=experiment_name or "sandbox_sorter",
         task="sorter",
         profile=activation.profile_name,
         provider=os.environ.get("DEFAULT_PROVIDER"),
         model=model or (activation.assignments[0][2] if activation.assignments else None),
-        prompt_version=prompt_version or "mailroom-default",
+        prompt_version=logged_prompt,
         mock=mock,
         dataset_fingerprint=plan["fingerprint"],
         n=len(rows),
@@ -489,13 +498,14 @@ def run_extract_eval(
             overall.append(float(value))
     mean = sum(overall) / len(overall) if overall else 0.0
     scores = {"overall_extraction_score": mean, "n": len(rows)}
+    logged_prompt, prompt_sha = _logged_prompt(prompt_version, task="extract")
     record = experiment_log.new_record(
         experiment_name=experiment_name or "sandbox_extract",
         task="extract",
         profile=activation.profile_name,
         provider=os.environ.get("DEFAULT_PROVIDER"),
         model=model,
-        prompt_version=prompt_version or "mailroom-default",
+        prompt_version=logged_prompt,
         mock=mock,
         dataset_fingerprint=plan["fingerprint"],
         scores=scores,
@@ -751,7 +761,7 @@ def run_local_vs_api_eval(
         profile=activation.profile_name,
         provider=os.environ.get("DEFAULT_PROVIDER"),
         model=model,
-        prompt_version=prompt_version or "mailroom-default",
+        prompt_version=_logged_prompt(prompt_version, task="local_vs_api")[0],
         mock=mock,
         dataset_fingerprint=plan["fingerprint"],
         n=scores["n"],
@@ -879,13 +889,14 @@ def run_sorter_vs_modernbert_eval(
         "honest_gaps": compared.get("honest_gaps") or [],
         "n": int(left.get("n") or 0) + int(right.get("n") or 0),
     }
+    logged_prompt, prompt_sha = _logged_prompt(prompt_version, task="sorter_vs_modernbert")
     record = experiment_log.new_record(
         experiment_name=experiment_name or "sandbox_sorter_vs_modernbert",
         task="sorter_vs_modernbert",
         profile=activation.profile_name,
         provider=os.environ.get("DEFAULT_PROVIDER"),
         model=model,
-        prompt_version=prompt_version or "mailroom-default",
+        prompt_version=logged_prompt,
         mock=mock,
         dataset_fingerprint=plan["fingerprint"],
         n=scores["n"],
@@ -1006,13 +1017,14 @@ def run_pipeline_eval(
     if scores["extraction_overall"] is not None:
         tracing.emit_langfuse_score("extraction_overall_score", float(scores["extraction_overall"]))
     tracing.flush_traces()
+    logged_prompt, prompt_sha = _logged_prompt(prompt_version, task="pipeline")
     record = experiment_log.new_record(
         experiment_name=experiment_name or "sandbox_pipeline",
         task="pipeline",
         profile=activation.profile_name,
         provider=os.environ.get("DEFAULT_PROVIDER"),
         model=model,
-        prompt_version=prompt_version or "mailroom-default",
+        prompt_version=logged_prompt,
         mock=mock,
         dataset_fingerprint=plan["fingerprint"],
         n=len(rows),
