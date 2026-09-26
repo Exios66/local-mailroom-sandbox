@@ -223,6 +223,29 @@ SPECIALIST_POSTURE: dict[str, dict[str, Any]] = {
             "short AWQ prompts keep KV within budget."
         ),
     },
+    # issue #21: FP16 twin of run-20-correspondence-awq-c8. Same draw (seed 42,
+    # fingerprint 285f423d3708) and prompt; engine is non-AWQ Qwen3-8B so the
+    # L4 window is 16384 (bf16 boot cap). PREPARED ONLY — do not deploy or
+    # start this run until spend/auth are explicitly approved.
+    "run-20-correspondence-fp16-c8": {
+        "task": "correspondence_specialist",
+        "doc_class": "correspondence",
+        "agent": "correspondence_specialist",
+        "prompt_file": "correspondence_specialist_production",
+        "concurrency": 8,
+        "max_tokens": 2048,
+        "max_input_chars": _input_chars_for(2048, 3500),
+        "cost_cap_usd": 0.50,
+        "max_wall_seconds": 2400,
+        "tokens_assumed": {"prompt": 3500, "completion": 600},
+        "sec_per_doc": {"low": 25.0, "likely": 70.0, "high": 150.0},
+        "rationale": (
+            "issue #21: FP16 isolation twin of run-20-correspondence-awq-c8 "
+            "(identical seed-42 correspondence draw). Not run in the diagnosis "
+            "PR; live compare is blocked until spend/auth go. Window 16384 is "
+            "the L4-bf16 boot cap (AWQ c8 used 32768)."
+        ),
+    },
     "run-30-merger-specialist": {
         "task": "merger_agreement_specialist",
         "doc_class": "merger_agreement",
@@ -258,6 +281,7 @@ SPECIALIST_LIMIT_BY_RUN: dict[str, int] = {
     "run-20-contracts-awq-c8": 20,
     "run-20-correspondence-awq": 20,
     "run-20-correspondence-awq-c8": 20,
+    "run-20-correspondence-fp16-c8": 20,
 }
 
 
