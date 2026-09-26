@@ -9,6 +9,25 @@ Mirrors the org-owned
 structure (task registry + case loader + live invoker + scoring + report), but
 scoped to this sandbox repo and coded for OpenRouter only.
 
+## Where this sits in the repo layout
+
+This subproject is **intentionally self-contained**: it keeps its own
+`config/runs/`, its own `reports/`, and its own CLI rather than folding into the
+sandbox namespaces. Three reasons, in short:
+
+- **It is the only surface that spends real money.** These specs set
+  `cost_cap_usd: null` (a Modal GPU-wall cap would be wrong for an API run) and
+  are driven by `run_api_evals.py`, not by `sandbox run`.
+- **It is not packaged.** `api-evals/` sits outside `src/`, so it is absent from
+  the installed wheel — and `deploy/Dockerfile` never copies it, so the
+  OpenRouter harness never lands in the offline image.
+- **It mirrors the org repo.** The split keeps this tree readable next to
+  `LLM-Mailroom-Services/eval-environment`.
+
+So: `api-*` run ids + `profile: openrouter` → this CLI. Everything else →
+`config/runs/` via the `sandbox` CLI. The full comparison table, and the paths
+that are frozen by a test, are in [`../docs/LAYOUT.md`](../docs/LAYOUT.md).
+
 ## What runs
 
 | Task | Agent | N docs | Prompt stem (same as Modal runs) |
