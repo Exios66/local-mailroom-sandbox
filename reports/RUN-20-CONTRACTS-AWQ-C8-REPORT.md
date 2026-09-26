@@ -106,5 +106,6 @@ card, not a harness change).
 
 Headline cost/token metrics for the local/Modal vs OpenRouter comparison live in
 [`RUN-20-CONTRACTS-AWQ-C8-SERVING.md`](RUN-20-CONTRACTS-AWQ-C8-SERVING.md) and the
-machine-readable twin (same `job.metrics.record_from_run` shape as the API bucket).
+machine-readable twin (regenerate with `sandbox metrics serving-record --run …`;
+`job.metrics.serving_record_from_store` extends the API-bucket `record_from_run` base).
 
