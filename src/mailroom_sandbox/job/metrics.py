@@ -462,7 +462,18 @@ def compare(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
 def _score_quality(rec: Mapping[str, Any]) -> dict[str, float | None]:
     scores = rec.get("scores") if isinstance(rec.get("scores"), Mapping) else {}
     out: dict[str, float | None] = {}
-    for key in ("accuracy", "exact_match", "f1_macro", "doc_type_accuracy", "subclass_accuracy"):
+    for key in (
+        "accuracy",
+        "exact_match",
+        "f1_macro",
+        "doc_type_accuracy",
+        "subclass_accuracy",
+        "overall_extraction_score",
+        "extraction_f1",
+        "parse_error_rate",
+        "schema_valid_rate",
+        "schema_adherence_rate",
+    ):
         val = scores.get(key) if scores else rec.get(key)
         if val is not None:
             try:

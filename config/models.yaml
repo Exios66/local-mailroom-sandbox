@@ -1,5 +1,6 @@
 # OpenRouter champion ids → local serving tags.
 # Used by overlay rewrite and matrix cells so local vs API runs stay comparable.
+# Hosted-catalog sunset (2026-10-10) inventory: docs/openrouter-sunset-audit.md
 
 defaults:
   ollama: qwen3:8b

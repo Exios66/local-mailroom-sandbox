@@ -40,7 +40,14 @@ def _now_stamp() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
-def build_report(results: list[dict[str, Any]], *, model: str, prices: tuple[float, float] | None) -> dict[str, Any]:
+def build_report(
+    results: list[dict[str, Any]],
+    *,
+    model: str,
+    prices: tuple[float, float] | None,
+    caveats: list[str] | None = None,
+    source: str | None = None,
+) -> dict[str, Any]:
     """Assemble the full report dict from per-run results."""
     runs = []
     for r in results:
@@ -76,6 +83,8 @@ def build_report(results: list[dict[str, Any]], *, model: str, prices: tuple[flo
         "generated_at": _now_stamp(),
         "run_count": len(runs),
         "runs": runs,
+        "source": source,
+        "caveats": list(caveats or []),
     }
 
 
@@ -103,8 +112,14 @@ def markdown(report: dict[str, Any], *, unit_cost_min: float | None = None, unit
         f"- Provider: **{report.get('provider')}** · model: **{report.get('model')}**",
         f"- Generated: {report.get('generated_at')} UTC · runs: {report.get('run_count')}",
         price_note,
-        "",
     ]
+    if report.get("source"):
+        lines.append(f"- Data source: `{report.get('source')}`")
+    lines.append("")
+    for caveat in report.get("caveats") or []:
+        lines.append(f"- **Caveat:** {caveat}")
+    if report.get("caveats"):
+        lines.append("")
 
     for cls, runs in _group_by_doc_class(report.get("runs") or []).items():
         lines += [
