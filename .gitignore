@@ -114,3 +114,5 @@ cursor-record/
 logs/
 tmp/
 temp/
+data/mailroom.db-shm
+data/mailroom.db-wal
