@@ -25,6 +25,11 @@ from llm_dojo_scoring import (
 from llm_dojo_scoring.extraction_metrics import extraction_binary_metrics
 from llm_dojo_scoring.serving import CANONICAL_SERVING_KEYS, pair_comparable_runs
 
+from mailroom_sandbox.eval.extraction_scope import scope_extraction_pair
+from mailroom_sandbox.eval.schema_adherence import (
+    assess_extraction_payload,
+    merge_schema_adherence,
+)
 from mailroom_sandbox.eval.serving_parity import split_serving_records, to_dojo_serving_record
 
 from mailroom_sandbox.paths import reports_dir
@@ -113,6 +118,7 @@ def score_extraction_row(
         suite = None
     predicted = predicted or {}
     expected = expected or {}
+    predicted, expected = scope_extraction_pair(doc_type, predicted, expected)
     if suite is not None:
         try:
             result = suite.score(expected, predicted, doc_text=doc_text)
@@ -134,9 +140,20 @@ def score_extraction_row(
         )
     overall = getattr(result, "overall_score", None)
     if overall is None and isinstance(result, dict):
+        # SAND-019: the mailroom suites return a FLAT dict whose real aggregate is
+        # nested at ``result["extraction"].overall_score`` (an
+        # ExtractionScoreResult). Reading only top-level ``overall_score``/
+        # ``extraction_overall_score`` left every correspondence row null even
+        # with ground truth present — extraction_f1 was computed but the headline
+        # score was not.
         overall = result.get("overall_score")
         if overall is None:
             overall = result.get("extraction_overall_score")
+        if overall is None:
+            nested = result.get("extraction")
+            overall = getattr(nested, "overall_score", None)
+            if overall is None and isinstance(nested, dict):
+                overall = nested.get("overall_score")
     payload: dict[str, Any] = {
         "overall_extraction_score": overall,
         "doc_type": doc_type,
@@ -170,6 +187,7 @@ def score_extraction_row(
         for key in _EXTRACT_PRF_KEYS:
             if key in result:
                 payload[key] = result[key]
+    payload.update(assess_extraction_payload(predicted, doc_type))
     return payload
 
 
@@ -193,6 +211,11 @@ def score_stage(expected: list[str], predicted: list[str]) -> dict[str, Any]:
 
 def mean_or_zero(values: list[float]) -> float:
     return sum(values) / len(values) if values else 0.0
+
+
+def aggregate_schema_adherence(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """Run-level parse/schema rates from per-row ``score_extraction_row`` dicts."""
+    return merge_schema_adherence(rows)
 
 
 def serving_headlines() -> list[str]:
