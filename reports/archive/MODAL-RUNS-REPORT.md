@@ -8,6 +8,7 @@ hand-transcribed. Engine: `Qwen/Qwen3-8B` bf16 or `Qwen/Qwen3-8B-AWQ` on
 
 | run_id | task | model | n | headline | errors | wall s | conc | cold boot s | gpu s | cost $ | $/doc |
 |---|---|---|---|---|---|---|---|---|---|---|---|
+| run-20-insurance-claims-specialist-awq | insurance_claims_specialist | Qwen/Qwen3-8B-AWQ | 20 | overall=0.671435 (exact=0.671435) | 0 | 422.152 | 8 | 0.361 | 422.513 | 0.093892 | 0.0046946 |
 | run-20-contracts-specialist | contracts_specialist | Qwen/Qwen3-8B | 20 | overall=0.0 (exact=0.0) | 14 | None | None | 178.255 | None | None | None |
 | run-20-contracts-awq | contracts_specialist | Qwen/Qwen3-8B-AWQ | 20 | overall=0.0 (exact=0.0) | 2 | 1030.43 | 4 | 251.419 | 1281.849 | 0.284855 | 0.01424275 |
 | run-20-correspondence-awq | correspondence_specialist | Qwen/Qwen3-8B-AWQ | 20 | overall=0.08934 (exact=0.08934) | 0 | 253.692 | 5 | 260.348 | 514.04 | 0.114231 | 0.00571155 |
@@ -16,6 +17,17 @@ hand-transcribed. Engine: `Qwen/Qwen3-8B` bf16 or `Qwen/Qwen3-8B-AWQ` on
 | pilot-sorter-modal-hf | sorter | Qwen/Qwen3-8B | 7 | exact_match=1.0 | None | None | None | None | None | None | None |
 
 ## Per-run detail
+
+### run-20-insurance-claims-specialist-awq
+- timestamp: `2026-09-27T06:45:06.707339+00:00`
+- task/model: `insurance_claims_specialist` / `Qwen/Qwen3-8B-AWQ` (profile `modal-vllm`, provider `vllm`)
+- n=20 | scores={"exact_match": 0.671435, "n": 20, "offline_fallback": 0, "error_count": 0, "overall_extraction_score": 0.671435, "schema_valid_rate": 0.25}
+- latency: e2e=128.025659s p50=145.269082s max=184.188645s
+- tokens: prompt=68687 completion=9731 total=78418
+- wall=422.152s concurrency=8 cold_boot=0.361s gpu=422.513s
+- cost=$0.093892 ($0.0046946/doc)
+- git: `500eeee` dirty=True
+- full report: [`reports/insurance/RUN-20-INSURANCE-CLAIMS-SPECIALIST-AWQ-REPORT.md`](../insurance/RUN-20-INSURANCE-CLAIMS-SPECIALIST-AWQ-REPORT.md)
 
 ### run-20-contracts-specialist
 - timestamp: `2026-09-25T03:52:18.916867+00:00`

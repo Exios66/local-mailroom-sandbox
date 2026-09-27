@@ -82,6 +82,28 @@ SPECIALIST_POSTURE: dict[str, dict[str, Any]] = {
         "sec_per_doc": {"low": 45.0, "likely": 95.0, "high": 200.0},
         "rationale": "Mid-length claims tables — moderate concurrency; decode capped below 8192.",
     },
+    # AWQ + concurrency 8: 20 insurance_claim docs, subclass quotas scaled 2/3
+    # from run-30 (6→4 / 3→2). Aligns with improved-awq-c8 / legacy Qwen3-8B
+    # AWQ completion posture (32768 window, scaledown 120, 1×L4).
+    "run-20-insurance-claims-specialist-awq": {
+        "task": "insurance_claims_specialist",
+        "doc_class": "insurance_claim",
+        "agent": "insurance_claims_specialist",
+        "prompt_file": "insurance_claims_specialist_simplified",
+        "concurrency": 8,
+        "max_model_len": 32768,
+        "max_tokens": 3072,
+        "max_input_chars": _input_chars_for(3072, 4500, 32768),
+        "cost_cap_usd": 0.40,
+        "max_wall_seconds": 2400,
+        "tokens_assumed": {"prompt": 4500, "completion": 1000},
+        "sec_per_doc": {"low": 25.0, "likely": 55.0, "high": 130.0},
+        "rationale": (
+            "20-doc AWQ insurance run at concurrency 8 (legacy AWQ completion "
+            "posture): subclass-stratified 2/3 scale of run-30 quotas; 32768 "
+            "window; caps ~2/3 of the 30-doc insurance posture."
+        ),
+    },
     "run-30-corporate-records-specialist": {
         "task": "corporate_records_specialist",
         "doc_class": "corporate_record",
@@ -282,6 +304,7 @@ SPECIALIST_LIMIT_BY_RUN: dict[str, int] = {
     "run-20-correspondence-awq": 20,
     "run-20-correspondence-awq-c8": 20,
     "run-20-correspondence-fp16-c8": 20,
+    "run-20-insurance-claims-specialist-awq": 20,
 }
 
 
