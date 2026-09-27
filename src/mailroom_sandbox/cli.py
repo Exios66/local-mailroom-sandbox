@@ -120,8 +120,8 @@ def build_parser() -> argparse.ArgumentParser:
     sa_sync.add_argument(
         "--harness",
         default="all",
-        choices=("cursor", "opencode", "all"),
-        help="Harness adapter(s); default syncs OpenCode frontmatter + Cursor stubs",
+        choices=("cursor", "opencode", "opencode-global", "all"),
+        help="Harness adapter(s); default syncs OpenCode + Cursor + ~/.config/opencode/agents",
     )
     sa_sync.add_argument(
         "--package",
@@ -135,6 +135,37 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sa_sync.add_argument("--dry-run", action="store_true")
     sa_sync.set_defaults(handler=_cmd_subagents_sync)
+    sa_doc = subagents_sub.add_parser(
+        "doctor",
+        help="Audit harness health (OpenCode global, roster sync, framework v2)",
+        parents=[shared],
+    )
+    sa_doc.add_argument(
+        "--root",
+        default=None,
+        help="Family checkout root (default: this repo)",
+    )
+    sa_doc.add_argument("--json", action="store_true")
+    sa_doc.add_argument(
+        "--no-global",
+        action="store_true",
+        help="Skip ~/.config/opencode checks",
+    )
+    sa_doc.add_argument("--package", default=None, help="Filter roster entries by package id")
+    sa_doc.add_argument(
+        "--also-root",
+        action="append",
+        default=None,
+        metavar="PATH",
+        help="Additional checkout to audit (repeatable)",
+    )
+    sa_doc.add_argument(
+        "--apply-framework",
+        action="store_true",
+        help="Append Agent framework (v2) to roster + global profile agents missing it",
+    )
+    sa_doc.add_argument("--dry-run", action="store_true")
+    sa_doc.set_defaults(handler=_cmd_subagents_doctor)
     sa_mat = subagents_sub.add_parser(
         "materialize",
         help="Copy family-roster.yaml + missing prompts into another package checkout",
@@ -380,6 +411,25 @@ def build_parser() -> argparse.ArgumentParser:
     mext.add_argument("--concurrency", type=int, default=4)
     mext.add_argument("--json", action="store_true")
     mext.set_defaults(handler=_cmd_metrics_extrapolate)
+    mserv = metrics_sub.add_parser(
+        "serving-record",
+        parents=[shared],
+        help="write reports/serving/<run_id>.serving.json from a stored run",
+    )
+    mserv.add_argument("--run", dest="run_id", required=True, help="run-id with lock + items")
+    mserv.add_argument(
+        "--wall-seconds",
+        type=float,
+        default=None,
+        help="override wall clock when item timestamps are absent",
+    )
+    mserv.add_argument(
+        "--out",
+        default="",
+        help="output path (default: reports/serving/<run_id>.serving.json)",
+    )
+    mserv.add_argument("--json", action="store_true", help="print the record to stdout")
+    mserv.set_defaults(handler=_cmd_metrics_serving_record)
     mest = metrics_sub.add_parser(
         "estimate-suite",
         parents=[shared],
@@ -1007,6 +1057,57 @@ def _cmd_subagents_show(args: argparse.Namespace) -> int:
         if len(lines) > 40:
             print(f"... ({len(lines) - 40} more lines)")
     return 0
+
+
+def _cmd_subagents_doctor(args: argparse.Namespace) -> int:
+    from mailroom_sandbox.subagents.doctor import (
+        apply_framework_to_agents,
+        apply_framework_to_global_profiles,
+        findings_to_dict,
+        run_doctor,
+    )
+
+    root = Path(args.root).expanduser().resolve() if args.root else None
+    if args.apply_framework:
+        roster_written = apply_framework_to_agents(
+            root=root,
+            package=getattr(args, "package", None),
+            dry_run=bool(args.dry_run),
+        )
+        global_written = apply_framework_to_global_profiles(dry_run=bool(args.dry_run))
+        payload = {
+            "apply_framework": True,
+            "dry_run": bool(args.dry_run),
+            "roster_paths": [str(p) for p in roster_written],
+            "global_profile_paths": [str(p) for p in global_written],
+        }
+        if args.json:
+            _print(payload)
+        else:
+            for p in roster_written + global_written:
+                print(p)
+        return 0
+
+    extra = tuple(
+        Path(p).expanduser().resolve() for p in (args.also_root or []) if p
+    )
+    report = run_doctor(
+        root=root,
+        package=getattr(args, "package", None),
+        include_global=not args.no_global,
+        extra_roots=extra,
+    )
+    payload = findings_to_dict(report)
+    if args.json:
+        _print(payload)
+    else:
+        for f in report.findings:
+            loc = f" ({f.path})" if f.path else ""
+            hint = f" — {f.hint}" if f.hint else ""
+            print(f"[{f.severity}] {f.code}: {f.message}{loc}{hint}")
+        s = payload["summary"]
+        print(f"\nSummary: {s['fail']} fail, {s['warn']} warn")
+    return 1 if payload["summary"]["fail"] else 0
 
 
 def _cmd_subagents_sync(args: argparse.Namespace) -> int:
@@ -1793,6 +1894,17 @@ def _cmd_run_start(args) -> int:
 def _run_endpoint(store, args) -> dict:
     from mailroom_sandbox.job import runner
 
+    watch = bool(getattr(args, "watch", False))
+
+    def _on_event(ev: dict) -> None:
+        if watch:
+            print(
+                f"[run] {ev.get('cursor')}/{ev.get('total')} "
+                f"ok={ev.get('ok')} errors={ev.get('errors')} {ev.get('state', '')}",
+                file=sys.stderr,
+                flush=True,
+            )
+
     with store.acquire():
         return runner.run_job(
             store,
@@ -1800,6 +1912,7 @@ def _run_endpoint(store, args) -> dict:
             dry_run=False,
             max_items=getattr(args, "max_items", None),
             tracer=None,
+            on_event=_on_event,
         )
 
 
@@ -2016,6 +2129,7 @@ def _cmd_metrics_help(args):
         "--sorter-vs-modernbert [--runs sorter,modernbert]\n"
         "     sandbox metrics extrapolate --run <id> [--corpus-size N] "
         "[--docs-per-day D]\n"
+        "     sandbox metrics serving-record --run <id> [--wall-seconds S]\n"
         "     sandbox metrics estimate-suite [--suite track-a|track-b|full] "
         "[--configs run-30-….yaml,…] [--corpus-size N]"
     )
@@ -2095,6 +2209,42 @@ def _cmd_metrics_estimate_suite(args) -> int:
         _print(result)
     else:
         print(result.get("markdown", ""))
+    return 0
+
+
+def _cmd_metrics_serving_record(args) -> int:
+    from pathlib import Path
+
+    from mailroom_sandbox.job import metrics
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.spec import run_dir
+
+    run_id = str(args.run_id).strip()
+    store = RunStore(run_dir(run_id))
+    if not store.lock_path.is_file():
+        print(
+            f"error: run {run_id!r} has no lock at {store.lock_path}",
+            file=sys.stderr,
+        )
+        return 1
+    if not store.load_items():
+        print(
+            f"error: run {run_id!r} has no items.jsonl — nothing to export",
+            file=sys.stderr,
+        )
+        return 1
+    out_path = Path(args.out) if getattr(args, "out", "") else None
+    try:
+        wall = getattr(args, "wall_seconds", None)
+        record = metrics.serving_record_from_store(store, wall_seconds=wall)
+        written = metrics.write_serving_json(store, out_path, wall_seconds=wall)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    if getattr(args, "json", False):
+        _print({"path": str(written), "record": record})
+    else:
+        print(f"wrote {written}")
     return 0
 
 

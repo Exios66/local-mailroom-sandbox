@@ -17,6 +17,7 @@ coding subagent, its **home package**, and which packages **materialize** it.
 | `digital-mailroom` | monorepo hub | `governance/subagents/family-roster.yaml` |
 | `llm-mailroom` | `packages/llm-mailroom` | `config/subagents/family-roster.yaml` |
 | `llm-entity-extraction` | `packages/llm-entity-extraction` | `config/subagents/family-roster.yaml` |
+| `eval-environment` | eval runner repo | `config/subagents/family-roster.yaml` |
 
 ## Workflow
 
@@ -27,6 +28,13 @@ From a sandbox checkout with sibling `Digital-Mailroom/` (or set
 
 ```bash
 sandbox subagents propagate
+```
+
+Standalone **eval-environment** (sibling repo, not in `checkout-map.yaml`):
+
+```bash
+sandbox subagents materialize --package eval-environment --root ../eval-environment
+sandbox subagents sync --harness all --package eval-environment --root ../eval-environment
 ```
 
 This runs **materialize + sync** for every entry in
@@ -58,8 +66,12 @@ the affected packages (`sandbox subagents list --package llm-mailroom`).
 | --- | --- | --- |
 | **OpenCode** | `.opencode/agents/<id>.md` | Merges roster frontmatter (`mode`, `title`, `tags`, `home_package`, `roster_id`) while preserving the prompt body |
 | **Cursor** | `.cursor/agents/<id>.md` | Generates `name` + `description` stubs pointing at the OpenCode canonical prompt |
+| **OpenCode global** | `~/.config/opencode/agents/<id>.md` | Same frontmatter merge for machine-wide profiles (`--harness opencode-global`) |
 
-Default CLI sync target is **`--harness all`**.
+Default CLI sync target is **`--harness all`** (includes global).
+
+Health: `sandbox subagents doctor` and optional `--also-root <checkout>`.
+Framework v2: [`config/subagents/AGENT_FRAMEWORK.md`](../config/subagents/AGENT_FRAMEWORK.md).
 
 ## Environment
 

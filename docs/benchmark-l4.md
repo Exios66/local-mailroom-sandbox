@@ -12,7 +12,9 @@ specialist extract cost extrapolation to the full mailroom-dataset
 | GPU | `L4` (`max_containers=1`, `min_containers=0`) |
 | Image | `v0.29.0` |
 | `max_model_len` | `16384` |
-| Job concurrency | per-doc-type (DMR-078): correspondence/insurance **5**, corporate/contracts **4**, merger **3** |
+| `max_num_seqs` | `6` (L4 long-prompt 4–6; KV cliff at ~8 concurrent ~8k-token decodes) |
+| APC / eager | `enable_prefix_caching=true`, `enforce_eager=true` |
+| Job concurrency | per-doc-type (DMR-078): correspondence/insurance **5**, corporate/contracts **4**, merger **3** (must stay ≤ `max_num_seqs`) |
 | Scaledown | `120` s attended (DMR-076); restore **600** for unattended/overnight |
 | Generation budgets | `job/specialist_posture.py` → overlay `max_tokens` / `max_input_chars` (fit Qwen 16k) |
 | Cost / wall abort | `job.cost_cap_usd` + `job.max_wall_seconds` per run-30 YAML (runner fails loud) |
@@ -21,6 +23,7 @@ specialist extract cost extrapolation to the full mailroom-dataset
 | `sample_seed` | `42` |
 | Strata limit | `30` per class (150 docs total) |
 | Modal accounts | **Two operators / two wallets** (DMR-077); Hermes `hermes-agent-jjb` is Track A default |
+| Second L4 | data parallel only: `MODAL_VLLM_MAX_CONTAINERS=2` (Modal round-robins). Never `L4:2`+TP for 8B |
 
 Run YAMLs: `config/runs/run-30-*-specialist.yaml` (150 docs total).  
 Suite manifests: `config/runs/suites/run-30-specialists-{track-a,track-b,full}.yaml`.
@@ -86,6 +89,9 @@ export SANDBOX_PROFILE=modal-vllm
 export MODAL_VLLM_MODEL=Qwen/Qwen3-8B
 export MODAL_VLLM_GPU=L4
 export MODAL_VLLM_IMAGE_TAG=v0.29.0
+export MODAL_VLLM_MAX_NUM_SEQS=6
+export MODAL_VLLM_ENABLE_PREFIX_CACHING=1
+export MODAL_VLLM_ENFORCE_EAGER=1
 export MODAL_VLLM_MAX_CONTAINERS=1
 export MODAL_VLLM_SCALEDOWN_SECONDS=120
 export MODAL_VLLM_API_TOKEN="$(openssl rand -hex 24)"
@@ -115,6 +121,22 @@ done
 ./deploy/teardown_vllm.sh   # ONLY after correspondence
 ```
 
+### Scaling to a second L4 (data parallel)
+
+Raise containers, not TP. Each replica is a full vLLM on its own L4
+(`max_num_seqs=6`, APC, eager) — total admission ≈ 8–12 sequences.
+Modal's `@web_server` distributes requests across warm replicas:
+
+```bash
+export MODAL_VLLM_MAX_CONTAINERS=2
+# optional measurement pin: MODAL_VLLM_MIN_CONTAINERS=2
+modal deploy deploy/modal_vllm.py --strategy recreate
+```
+
+Do **not** set `MODAL_VLLM_GPU=L4:2` / `MODAL_VLLM_TP_SIZE=2` for Qwen3-8B —
+tensor parallel across L4s (no NVLink) adds PCIe all-reduce without a
+meaningful latency win when the model fits on one GPU.
+
 ### Operator B runbook
 
 ```bash
@@ -122,6 +144,9 @@ export SANDBOX_PROFILE=modal-vllm
 export MODAL_VLLM_MODEL=Qwen/Qwen3-8B
 export MODAL_VLLM_GPU=L4
 export MODAL_VLLM_IMAGE_TAG=v0.29.0
+export MODAL_VLLM_MAX_NUM_SEQS=6
+export MODAL_VLLM_ENABLE_PREFIX_CACHING=1
+export MODAL_VLLM_ENFORCE_EAGER=1
 export MODAL_VLLM_MAX_CONTAINERS=1
 export MODAL_VLLM_SCALEDOWN_SECONDS=120
 export MODAL_VLLM_API_TOKEN="$(openssl rand -hex 24)"
@@ -204,6 +229,27 @@ concurrency to fill continuous batching; long MAUD filings lower it to protect
 KV. Input caps fit `max_model_len=16384` so contracts no longer advertise
 100k-char windows that cannot fit Qwen on L4.
 
+## Single-class 20-contract variant (SAND-018)
+
+A smaller, single-class sibling of the 5×30 suite: **20 `contract` docs** drawn
+as a seeded random sample from the **full** corpus (`split: all`, 3,302 rows),
+holding the same L4 Qwen pins and the `contracts_specialist_v33_simplified`
+local prompt (SAND-026; vendor `contracts_specialist_v33` remains as a
+syncable mirror).
+
+```bash
+sandbox run benchmark-check --config config/runs/run-20-contracts-specialist.yaml
+sandbox run preflight     --config config/runs/run-20-contracts-specialist.yaml --live
+sandbox run start         --config config/runs/run-20-contracts-specialist.yaml --job-mode endpoint --watch
+```
+
+Posture (`specialist_posture.py` → `run-20-contracts-specialist`): concurrency
+4, `cost_cap_usd` 0.55, `max_wall_seconds` 3200 (≈2/3 of the 30-doc contracts
+caps). `benchmark-check` enforces `dataset.limit == 20` for this `run_id` plus
+the local prompt pin — it is a first-class posture row, not an ungated one-off.
+The draw (`sample_seed=42`) is logged in `spec.lock.json`; the offline mirror is
+`sandbox datasets sample --per-class 20 --classes contract --seed 42`.
+
 ## Deploy knobs (shared)
 
 ```bash
@@ -285,21 +331,27 @@ rows) and task `merger_agreement_specialist` (dedicated MAUD agent — not
 
 ## Specialist prompts (pinned local)
 
-Each run-30 YAML pins the task agent's production text under
-`config/prompts/` (not Langfuse floating `production`):
+Each run-20 / run-30 specialist YAML pins a **simplified** local stem under
+`config/prompts/` (SAND-026 / issue #32 — live schema, one field-level block).
+Vendor production mirrors (`contracts_specialist_v33`, `*_production`) stay
+in-tree for sync; default `python scripts/sync_specialist_prompts.py` writes
+those mirrors only and cannot clobber `*_simplified`. Map:
+[`config/prompts/README.md`](../config/prompts/README.md).
 
-| Run | Agent | Local stem | Source |
+| Run | Agent | Local stem (current YAML pin) | Vendor mirror (sync) |
 | --- | --- | --- | --- |
-| contracts | `contracts_specialist` | `contracts_specialist_v33` | vendored `PROMPT_VERSIONS` (mailroom production) |
-| merger | `merger_agreement_specialist` | `merger_agreement_specialist_production` | vendored `SYSTEM_PROMPT` + MAUD doctrine |
-| corporate-records | `corporate_records_specialist` | `corporate_records_specialist_production` | vendored `SYSTEM_PROMPT` + doctrine |
-| correspondence | `correspondence_specialist` | `correspondence_specialist_production` | vendored `SYSTEM_PROMPT` + doctrine |
-| insurance-claims | `insurance_claims_specialist` | `insurance_claims_specialist_production` | vendored `SYSTEM_PROMPT` + doctrine |
+| contracts | `contracts_specialist` | `contracts_specialist_v33_simplified` | `contracts_specialist_v33` |
+| merger | `merger_agreement_specialist` | `merger_agreement_specialist_simplified` | `merger_agreement_specialist_production` |
+| corporate-records | `corporate_records_specialist` | `corporate_records_specialist_simplified` | `corporate_records_specialist_production` |
+| correspondence | `correspondence_specialist` | `correspondence_specialist_simplified` | `correspondence_specialist_production` |
+| insurance-claims | `insurance_claims_specialist` | `insurance_claims_specialist_simplified` | `insurance_claims_specialist_production` |
 
-Refresh: `python scripts/sync_specialist_prompts.py` (or `--check` after vendor sync).
-Entity-extraction experimental `contracts_specialist_v34+` are **not** the
-mailroom production pin — do not swap without an explicit scorecard decision.
-`sandbox run benchmark-check` hard-fails if these local pins drift.
+Refresh vendor mirrors: `python scripts/sync_specialist_prompts.py` (or
+`--check` after vendor sync). `--overwrite-experiment` is the explicit
+opt-in that copies vendor text onto simplified stems — do not use it for a
+quality run. Entity-extraction experimental `contracts_specialist_v34+` are
+**not** the mailroom production pin. `sandbox run benchmark-check`
+hard-fails if the YAML pin drifts from `specialist_posture.prompt_file`.
 
 ## Advanced: swap model / GPU (not the default path)
 
