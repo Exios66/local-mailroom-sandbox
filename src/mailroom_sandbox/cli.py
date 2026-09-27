@@ -648,6 +648,19 @@ def _run_parser(sub, shared):
     )
     scrape_p.add_argument("--label", choices=["before", "after"], required=True)
     scrape_p.set_defaults(handler=_cmd_run_scrape_metrics)
+    export_bt = run_sub.add_parser(
+        "export-bt",
+        parents=[common],
+        help="write offline Braintrust-Experiment-shaped rows (gitignored; SAND-032)",
+    )
+    export_bt.set_defaults(handler=_cmd_run_export_bt)
+    dispose_p = run_sub.add_parser(
+        "dispose",
+        parents=[common],
+        help="delete a run's offline BT rows once its report is tracked in git",
+    )
+    dispose_p.add_argument("--report", required=True)
+    dispose_p.set_defaults(handler=_cmd_run_dispose)
     suite_p = run_sub.add_parser(
         "suite",
         parents=[common],
@@ -1673,6 +1686,57 @@ def _cmd_run_scrape_metrics(args) -> int:
     print(f"{result['coverage']} → {dest}")
     for err in result.get("errors") or []:
         print(f"WARN: scrape error: {err}", file=sys.stderr)
+    return 0
+
+
+def _bt_run_context(args):
+    from mailroom_sandbox import paths
+    from mailroom_sandbox.job import spec as spec_mod
+
+    spec = spec_mod.load_run_spec(args.config)
+    run_id = spec_mod.resolve_run_id(spec)
+    return run_id, spec_mod.runs_root() / run_id, paths.runtime_dir() / "bt_experiments"
+
+
+def _cmd_run_export_bt(args) -> int:
+    """SAND-032: offline evidence rows for one run (never uploaded)."""
+    from mailroom_sandbox.job import bt_offline
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    if not getattr(args, "config", None):
+        print("ERROR: --config required", file=sys.stderr)
+        return 2
+    run_id, store_dir, out_root = _bt_run_context(args)
+    if not (store_dir / "items.jsonl").is_file():
+        print(f"ERROR: run {run_id} has no items.jsonl at {store_dir}", file=sys.stderr)
+        return 1
+    commit = subprocess.run(
+        ["git", "rev-parse", "HEAD"], capture_output=True, text=True
+    ).stdout.strip()
+    out = bt_offline.write_experiment(RunStore(store_dir), out_root=out_root, git_commit=commit)
+    print(f"offline BT rows → {out}")
+    return 0
+
+
+def _cmd_run_dispose(args) -> int:
+    """SAND-032: remove offline rows only after the run's report is committed."""
+    from mailroom_sandbox.job import bt_offline
+
+    if not getattr(args, "config", None):
+        print("ERROR: --config required", file=sys.stderr)
+        return 2
+    run_id, _store_dir, out_root = _bt_run_context(args)
+    try:
+        removed = bt_offline.dispose(
+            run_id,
+            out_root=out_root,
+            report=Path(args.report),
+            is_tracked=lambda p: bt_offline.git_tracked(p),
+        )
+    except RuntimeError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+    print(f"disposed {run_id}" if removed else f"nothing to dispose for {run_id}")
     return 0
 
 
