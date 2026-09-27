@@ -541,8 +541,10 @@ def build_parser() -> argparse.ArgumentParser:
     mb_eval.add_argument(
         "--subset",
         default="test",
-        choices=["test", "train", "all"],
-        help="eval pool (test=323 held-out; all=finetune corpus for large samples)",
+        choices=["test", "train", "all", "heldout-plus"],
+        help="eval pool (test=323 held-out; all=finetune corpus for large "
+        "samples; heldout-plus=1323 extended set, mailroom-ml "
+        "training/build_heldout_plus.py)",
     )
     mb_eval.add_argument("--checkpoint", default=None, help="override MODERNBERT_MODEL_PATH")
     mb_eval.add_argument(
