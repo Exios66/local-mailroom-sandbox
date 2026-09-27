@@ -60,6 +60,14 @@ from mailroom_sandbox.job.specialist_posture import (
     posture_for_run,
 )
 
+# 2×L4 data-parallel follow-ups (Run A/B correspondence AWQ): MIN=MAX=2
+# pinned during runs on one warm app — not the scale-to-zero run-30 default.
+# benchmark-check allows max/min_containers=2 for exactly these run_ids.
+TWO_GPU_RUNS = frozenset({
+    "run-20-correspondence-specialist-awq",
+    "run-50-correspondence-specialist-awq",
+})
+
 SPECIALIST_LOCAL_PROMPTS: dict[str, dict[str, str]] = {
     run_id: {row["agent"]: row["prompt_file"]}
     for run_id, row in SPECIALIST_POSTURE.items()
@@ -225,10 +233,16 @@ def check_benchmark_posture(
                 )
     max_c = env_bits.get("MODAL_VLLM_MAX_CONTAINERS")
     if max_c and max_c != str(BENCHMARK_EXPECTED["max_containers"]):
-        warnings.append(
-            f"MODAL_VLLM_MAX_CONTAINERS={max_c!r} — specialist suite pins "
-            f"{BENCHMARK_EXPECTED['max_containers']}"
+        two_gpu_env_ok = (
+            spec is not None
+            and spec.run_id in TWO_GPU_RUNS
+            and max_c == "2"
         )
+        if not two_gpu_env_ok:
+            warnings.append(
+                f"MODAL_VLLM_MAX_CONTAINERS={max_c!r} — specialist suite pins "
+                f"{BENCHMARK_EXPECTED['max_containers']}"
+            )
 
     if spec is not None:
         spec_errs = _check_spec_pins(spec)
@@ -325,14 +339,26 @@ def _check_spec_pins(spec: RunSpec) -> dict[str, list[str]]:
         if modal.image_tag != exp["image_tag"]:
             errors.append(f"modal.image_tag={modal.image_tag!r} expected {exp['image_tag']!r}")
         if modal.max_containers != exp["max_containers"]:
-            errors.append(
-                f"modal.max_containers={modal.max_containers} expected {exp['max_containers']}"
-            )
+            if spec.run_id in TWO_GPU_RUNS and modal.max_containers == 2:
+                warnings.append(
+                    "modal.max_containers=2 — 2×L4 data-parallel pinned posture "
+                    f"for {spec.run_id} (bills 2 GPUs; run-30 default stays 1)"
+                )
+            else:
+                errors.append(
+                    f"modal.max_containers={modal.max_containers} expected {exp['max_containers']}"
+                )
         if modal.min_containers != exp["min_containers"]:
-            errors.append(
-                f"modal.min_containers={modal.min_containers} expected {exp['min_containers']} "
-                "(scale-to-zero cost guard)"
-            )
+            if spec.run_id in TWO_GPU_RUNS and modal.min_containers == 2:
+                warnings.append(
+                    "modal.min_containers=2 — replicas pinned warm during Runs A+B "
+                    f"for {spec.run_id} (no scale-to-zero; teardown after last run)"
+                )
+            else:
+                errors.append(
+                    f"modal.min_containers={modal.min_containers} expected {exp['min_containers']} "
+                    "(scale-to-zero cost guard)"
+                )
         if modal.scaledown_seconds != exp["scaledown_seconds"]:
             errors.append(
                 f"modal.scaledown_seconds={modal.scaledown_seconds} "

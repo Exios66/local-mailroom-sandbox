@@ -1251,7 +1251,6 @@ def estimate_suite(
         gpu = str(data.get("gpu") or "L4").split(":")[0]
         model = str(data.get("model") or "Qwen/Qwen3-8B")
         sd = data.get("scaledown_seconds")
-        max_c = int(data.get("max_containers") or 1)
 
         bands = _sec_per_doc_for(run_id, task)
         if sec_per_doc_override is not None and sec_per_doc_override > 0:
@@ -1274,6 +1273,10 @@ def estimate_suite(
             if gpu_usd_per_hour_rate is not None
             else gpu_usd_per_hour(gpu)
         )
+        # Pinned data-parallel replicas bill concurrently: wall is shared but
+        # GPU $ scales with the replica count (2×L4 MIN=MAX=2 bills 2× L4).
+        replicas = max(1, int(data.get("max_containers") or 1))
+        bill_rate = rate * replicas
 
         wall: dict[str, float] = {}
         cost: dict[str, float] = {}
@@ -1281,12 +1284,12 @@ def estimate_suite(
             sec = float(bands[band])
             wall_s = (docs * sec) / concurrency
             wall[band] = round(wall_s, 1)
-            cost[band] = round(wall_s / 3600.0 * rate, 4)
+            cost[band] = round(wall_s / 3600.0 * bill_rate, 4)
 
-        if max_c > 1:
+        if replicas > 1:
             notes.append(
-                f"{run_id}: max_containers={max_c} — estimate assumes 1 warm "
-                "replica (benchmark default); multiply GPU $ if more stay warm"
+                f"{run_id}: max_containers={replicas} pinned replicas — GPU $ "
+                f"billed at {replicas}× ${rate}/GPU-hr (wall shared, cost scaled)"
             )
 
         rows.append(
@@ -1303,8 +1306,10 @@ def estimate_suite(
                 "wall_seconds": wall,
                 "gpu_usd": cost,
                 "gpu_usd_per_hour": rate,
+                "replicas": replicas,
                 "notes": (
-                    "1 LLM call/doc; wall=(docs×sec/doc)/concurrency on 1×GPU"
+                    "1 LLM call/doc; wall=(docs×sec/doc)/concurrency shared "
+                    f"across {replicas}×GPU; GPU $ billed ×{replicas}"
                 ),
             }
         )
@@ -1323,7 +1328,14 @@ def estimate_suite(
     gap_total = max(0, n_runs - 1) * float(inter_run_gap_seconds)
     overhead_s = float(cold_start_seconds) + suite_scaledown + gap_total
     rate0 = float(rows[0]["gpu_usd_per_hour"])
-    overhead_usd = round(overhead_s / 3600.0 * rate0, 4)
+    # Overhead bills every pinned replica (2×L4 MIN=MAX=2 keeps both warm).
+    overhead_replicas = max(int(r.get("replicas") or 1) for r in rows)
+    overhead_usd = round(overhead_s / 3600.0 * rate0 * overhead_replicas, 4)
+    if overhead_replicas > 1:
+        notes.append(
+            f"suite overhead billed ×{overhead_replicas} pinned replicas "
+            f"(cold={cold_start_seconds}s + scaledown={suite_scaledown}s + gaps)"
+        )
 
     suite_wall: dict[str, float] = {}
     suite_usd: dict[str, float] = {}
@@ -1359,7 +1371,7 @@ def estimate_suite(
             wall_h = (mean_busy_per_doc_wall * corpus_size) / 3600.0
             corpus_wall_h[band] = round(wall_h, 2)
         oh_only = round(
-            (float(cold_start_seconds) + suite_scaledown) / 3600.0 * rate0, 4
+            (float(cold_start_seconds) + suite_scaledown) / 3600.0 * rate0 * overhead_replicas, 4
         )
         corpus = {
             "corpus_size": int(corpus_size),
@@ -1394,11 +1406,15 @@ def estimate_suite(
             "inter_run_gap_seconds": inter_run_gap_seconds,
             "overhead_seconds": round(overhead_s, 1),
             "overhead_usd": overhead_usd,
+            "overhead_replicas": overhead_replicas,
             "wall_seconds": suite_wall,
             "wall_hours": {b: round(suite_wall[b] / 3600.0, 3) for b in _BANDS},
             "gpu_usd": suite_usd,
             "gpu_usd_per_document": cpd,
-            "posture": "one warm 1×GPU app across configs; teardown after last",
+            "posture": (
+                f"one warm {overhead_replicas}×GPU app across configs; "
+                "teardown after last"
+            ),
         },
         "corpus_extrapolation": corpus,
         "confidence_notes": notes,

@@ -104,8 +104,50 @@ SPECIALIST_POSTURE: dict[str, dict[str, Any]] = {
             "window; caps ~2/3 of the 30-doc insurance posture."
         ),
     },
-    "run-30-corporate-records-specialist": {
-        "task": "corporate_records_specialist",
+    # Follow-up Qwen experiments: correspondence_specialist on AWQ, 2×L4
+    # data-parallel (MIN=MAX=2 pinned during runs, one warm app for both),
+    # concurrency 8, DMR-074 production prompt pin, 32768 window. Run A (20
+    # docs) scales run-30 quotas 2/3 (12→8 / 3→2); Run B (50 docs) fills the
+    # 62-row test pool (demand/notice pools exhaust at 3).
+    "run-20-correspondence-specialist-awq": {
+        "task": "correspondence_specialist",
+        "doc_class": "correspondence",
+        "agent": "correspondence_specialist",
+        "prompt_file": "correspondence_specialist_production",
+        "concurrency": 8,
+        "max_model_len": 32768,
+        "max_tokens": 2048,
+        "max_input_chars": _input_chars_for(2048, 3500, 32768),
+        "cost_cap_usd": 0.40,
+        "max_wall_seconds": 2400,
+        "tokens_assumed": {"prompt": 3500, "completion": 600},
+        "sec_per_doc": {"low": 15.0, "likely": 35.0, "high": 95.0},
+        "rationale": (
+            "Run A: 20-doc AWQ correspondence at concurrency 8 on 2×L4 "
+            "(data-parallel replicas); subclass-stratified 2/3 scale of "
+            "run-30 quotas; 32768 window; DMR-074 production prompt pin."
+        ),
+    },
+    "run-50-correspondence-specialist-awq": {
+        "task": "correspondence_specialist",
+        "doc_class": "correspondence",
+        "agent": "correspondence_specialist",
+        "prompt_file": "correspondence_specialist_production",
+        "concurrency": 8,
+        "max_model_len": 32768,
+        "max_tokens": 2048,
+        "max_input_chars": _input_chars_for(2048, 3500, 32768),
+        "cost_cap_usd": 0.80,
+        "max_wall_seconds": 3600,
+        "tokens_assumed": {"prompt": 3500, "completion": 600},
+        "sec_per_doc": {"low": 15.0, "likely": 35.0, "high": 95.0},
+        "rationale": (
+            "Run B: 50-doc AWQ correspondence at concurrency 8 on 2×L4 "
+            "(data-parallel replicas); fills the 62-row test pool; caps "
+            "scaled ~2.5× the 20-doc run for docs + 2-replica billing."
+        ),
+    },
+    "run-30-corporate-records-specialist": {        "task": "corporate_records_specialist",
         "doc_class": "corporate_record",
         "agent": "corporate_records_specialist",
         "prompt_file": "corporate_records_specialist_simplified",
@@ -305,6 +347,8 @@ SPECIALIST_LIMIT_BY_RUN: dict[str, int] = {
     "run-20-correspondence-awq-c8": 20,
     "run-20-correspondence-fp16-c8": 20,
     "run-20-insurance-claims-specialist-awq": 20,
+    "run-20-correspondence-specialist-awq": 20,
+    "run-50-correspondence-specialist-awq": 50,
 }
 
 
