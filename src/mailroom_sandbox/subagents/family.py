@@ -12,6 +12,15 @@ from mailroom_sandbox.paths import repo_root
 
 DEFAULT_PACKAGE = "local-mailroom-sandbox"
 
+# Legacy HUB-era id (Exios66/mailroom-dev artifact) → org monorepo package id.
+PACKAGE_ALIASES: dict[str, str] = {
+    "mailroom-dev": "digital-mailroom",
+}
+
+
+def normalize_package_id(package: str) -> str:
+    return PACKAGE_ALIASES.get(package, package)
+
 
 def family_roster_path(root: Path | None = None) -> Path:
     base = root or repo_root()
@@ -38,6 +47,7 @@ def package_roster_dest(
     *,
     source_root: Path | None = None,
 ) -> Path:
+    package = normalize_package_id(package)
     doc = load_family_document(source_root)
     packages = doc.get("packages") or {}
     if package not in packages:
@@ -53,7 +63,8 @@ def list_packages(root: Path | None = None) -> list[str]:
 
 
 def resolve_package(package: str | None = None) -> str:
-    return package or os.environ.get("SUBAGENT_PACKAGE") or DEFAULT_PACKAGE
+    raw = package or os.environ.get("SUBAGENT_PACKAGE") or DEFAULT_PACKAGE
+    return normalize_package_id(raw)
 
 
 def filter_subagent_rows(doc: dict[str, Any], package: str) -> list[dict[str, Any]]:
