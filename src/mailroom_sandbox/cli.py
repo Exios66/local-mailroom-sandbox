@@ -364,6 +364,20 @@ def build_parser() -> argparse.ArgumentParser:
 
     _run_parser(sub, shared)
 
+    watch_p = sub.add_parser(
+        "watch",
+        help="mailroom TUI: live run in-tray + spend + Modal dispatch log (SAND-032)",
+        parents=[shared],
+    )
+    watch_p.add_argument("--config", required=True, help="run YAML to watch")
+    watch_p.add_argument("--app", default=None, help="Modal app (default: engine.modal.app)")
+    watch_p.add_argument("--ledger", default=None, help="spend ledger JSON ({spent_usd})")
+    watch_p.add_argument("--cap-usd", type=float, default=5.0)
+    watch_p.add_argument("--interval", type=float, default=2.0)
+    watch_p.add_argument("--once", action="store_true", help="render one frame and exit")
+    watch_p.add_argument("--no-logs", action="store_true", help="do not follow modal app logs")
+    watch_p.set_defaults(handler=_cmd_watch)
+
     rb = sub.add_parser(
         "runbook",
         help="Operator runbooks (catalog → show / check / write)",
@@ -1745,6 +1759,25 @@ def _cmd_run_dispose(args) -> int:
         return 1
     print(f"disposed {run_id}" if removed else f"nothing to dispose for {run_id}")
     return 0
+
+
+def _cmd_watch(args) -> int:
+    from mailroom_sandbox import watch as watch_mod
+    from mailroom_sandbox.job import spec as spec_mod
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    spec = spec_mod.load_run_spec(args.config)
+    app = args.app or (spec.engine.modal.app if spec.engine.modal else "sandbox-vllm")
+    store = RunStore(spec_mod.runs_root() / spec_mod.resolve_run_id(spec))
+    return watch_mod.watch(
+        store=store,
+        app=app,
+        ledger=Path(args.ledger) if args.ledger else None,
+        cap_usd=args.cap_usd,
+        once=args.once,
+        logs=not args.no_logs,
+        interval=args.interval,
+    )
 
 
 def _cmd_run_suite(args) -> int:
