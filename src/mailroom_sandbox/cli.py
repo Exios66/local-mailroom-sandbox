@@ -607,6 +607,11 @@ def _run_parser(sub, shared):
         help="benchmark-check: require Hermes Modal profile (default on)",
     )
     common.add_argument(
+        "--modal-profile",
+        default=None,
+        help="benchmark-check: required active Modal profile (e.g. exios66); overrides Hermes",
+    )
+    common.add_argument(
         "--allow-non-hermes",
         action="store_true",
         help="benchmark-check: skip Hermes profile requirement",
@@ -1628,13 +1633,14 @@ def _cmd_run_benchmark_check(args) -> int:
     from mailroom_sandbox.job.spec import load_run_spec
 
     suite_name = (getattr(args, "suite", None) or "").strip()
-    require_hermes = not bool(getattr(args, "allow_non_hermes", False))
+    modal_profile = (getattr(args, "modal_profile", None) or "").strip() or None
+    require_hermes = not bool(getattr(args, "allow_non_hermes", False)) and modal_profile is None
     if suite_name:
         report = check_suite_benchmark_posture(
             suite_name,
             require_hermes=require_hermes,
             require_modernbert=False,
-        )
+        )  # suite YAML carries its own Modal profile (sand032-sweep → exios66)
     else:
         spec = None
         if getattr(args, "config", None):
@@ -1643,6 +1649,7 @@ def _cmd_run_benchmark_check(args) -> int:
             spec=spec,
             require_hermes=require_hermes,
             require_modernbert=False,
+            expected_modal_profile=modal_profile,
         )
     if getattr(args, "json", False):
         _print(report)

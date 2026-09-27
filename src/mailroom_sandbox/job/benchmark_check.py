@@ -57,6 +57,7 @@ BENCHMARK_EXPECTED = {
 # DMR-074 / DMR-078: run-30 specialist YAMLs must pin local production prompt
 # stems AND match specialist_posture concurrency / cost caps.
 from mailroom_sandbox.job.specialist_posture import (
+    SAND032_RUNS,
     SPECIALIST_POSTURE,
     expected_concurrency,
     expected_limit,
@@ -69,6 +70,8 @@ from mailroom_sandbox.job.specialist_posture import (
 TWO_GPU_RUNS = frozenset({
     "run-20-correspondence-specialist-awq",
     "run-50-correspondence-specialist-awq",
+    # SAND-032 Stage 2b + Stage 3: 2 replicas × 1 L4 pinned warm.
+    *(r for r in SAND032_RUNS if r.startswith("sand032-s3") or r == "sand032-s2b-corr100-2rep"),
 })
 
 # Granite 4.2-8B FP8 sweep (1×L4): MIN=MAX=1 pinned warm across the five-run
@@ -87,6 +90,8 @@ PINNED_ONE_GPU_RUNS = frozenset({
     "run-50-correspondence-granite",
     "run-20-merger-specialist-awq",
     "run-20-corporate-records-specialist-awq",
+    # SAND-032 1×L4 rungs / scale-out baseline / bf16 arm: MIN=MAX=1 pinned.
+    *(r for r in SAND032_RUNS if r.startswith(("sand032-l", "sand032-s4")) or r == "sand032-s2a-corr100-1rep"),
 })
 
 SPECIALIST_LOCAL_PROMPTS: dict[str, dict[str, str]] = {
@@ -150,6 +155,7 @@ def check_benchmark_posture(
     require_hermes: bool = True,
     require_modernbert: bool = False,
     expected_modal_profile: str | None = None,
+    env: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     """Inventory Ready / Missing / Blocked for L4 Qwen specialist runs.
 
@@ -268,6 +274,24 @@ def check_benchmark_posture(
             warnings.append(
                 f"MODAL_VLLM_MAX_CONTAINERS={max_c!r} — specialist suite pins "
                 f"{BENCHMARK_EXPECTED['max_containers']}"
+            )
+
+    if spec is not None and spec.run_id in SAND032_RUNS:
+        # SAND-032: the run YAML is the source of truth for deploy knobs — a
+        # stale MODAL_VLLM_* shell would silently serve different settings.
+        from mailroom_sandbox.job.deploy_env import env_drift
+
+        for msg in env_drift(spec, env if env is not None else os.environ):
+            errors.append(
+                f"deploy env drift — {msg} "
+                "(run: set -a; eval \"$(sandbox run deploy-env --config …)\"; set +a)"
+            )
+        if (
+            spec.run_id.startswith(("sand032-s2", "sand032-s3"))
+            and spec.engine.vllm.kv_cache_dtype != "fp8"
+        ):
+            errors.append(
+                f"{spec.run_id}: kv_cache_dtype must be fp8 for 2×L4 / scale-out runs"
             )
 
     if spec is not None:
