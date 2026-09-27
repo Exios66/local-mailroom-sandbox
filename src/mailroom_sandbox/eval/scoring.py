@@ -31,6 +31,7 @@ from mailroom_sandbox.eval.schema_adherence import (
     merge_schema_adherence,
 )
 from mailroom_sandbox.eval.serving_parity import split_serving_records, to_dojo_serving_record
+from mailroom_sandbox.eval.maud_scoring import score_maud
 
 from mailroom_sandbox.paths import reports_dir
 
@@ -188,6 +189,14 @@ def score_extraction_row(
             if key in result:
                 payload[key] = result[key]
     payload.update(assess_extraction_payload(predicted, doc_type))
+    if doc_type == "merger_agreement" and expected.get("maud_clause_labels"):
+        # SAND-032: merger GT is MAUD question→answer labels only; the suite's
+        # field map never meets it (F1 0 by construction). Headline = MAUD accuracy.
+        maud = score_maud(predicted, expected["maud_clause_labels"])
+        payload.update(maud)
+        payload["suite_overall_extraction_score"] = payload["overall_extraction_score"]
+        payload["overall_extraction_score"] = maud["maud_accuracy"]
+        payload["scoring_method"] = f"{scoring_method}+maud"
     return payload
 
 
