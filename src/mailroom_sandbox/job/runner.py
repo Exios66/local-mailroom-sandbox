@@ -236,6 +236,7 @@ def _run_whole_run(
     max_wall = _max_wall_seconds(store)
     cost_cap = _cost_cap_usd(store)
     gpu = _lock_gpu(store)
+    replicas = _lock_replicas(store)
     # SAND-018: the isolated-agent path used to show nothing until it finished.
     # Write a running checkpoint per completed item and forward events so
     # `sandbox run status` (and --watch) track a live specialist run.
@@ -272,7 +273,9 @@ def _run_whole_run(
                 max_wall_seconds=max_wall,
                 cost_cap_usd=cost_cap,
                 gpu=gpu,
+                replicas=replicas,
                 progress_cb=_progress,
+                row_cb=lambda entry: _persist_isolated_items(store, [entry]),
                 **kwargs,
             )
         elif task in _agent_task_names():
@@ -286,7 +289,9 @@ def _run_whole_run(
                 max_wall_seconds=max_wall,
                 cost_cap_usd=cost_cap,
                 gpu=gpu,
+                replicas=replicas,
                 progress_cb=_progress,
+                row_cb=lambda entry: _persist_isolated_items(store, [entry]),
                 **kwargs,
             )
         else:
@@ -301,6 +306,7 @@ def _run_whole_run(
         store.append_event("failed", "error", cursor=0, last_error=str(exc)[:512])
         return {"state": "failed", "task": task, "error": str(exc)[:512], "ok": 0, "errors": 1}
 
+    _persist_isolated_items(store, result.get("rows") if isinstance(result, dict) else None)
     scores = result.get("scores") or {}
     # The delegated runner reports how many rows it actually processed; fall
     # back to the locked dataset length when the runner has no n.
@@ -375,7 +381,9 @@ def _estimate_run_gpu_usd(store: RunStore, wall_seconds: float) -> float:
     from mailroom_sandbox.job.metrics import estimate_gpu_cost_usd
 
     gpu = _lock_gpu(store) or "L4"
-    return float(estimate_gpu_cost_usd(wall_seconds, gpu=gpu) or 0.0)
+    return float(
+        estimate_gpu_cost_usd(wall_seconds, gpu=gpu, replicas=_lock_replicas(store)) or 0.0
+    )
 
 
 def verify_dataset_lock(store: RunStore) -> None:
@@ -463,6 +471,48 @@ def _lock_gpu(store: RunStore) -> str | None:
     if isinstance(modal, dict) and modal.get("gpu"):
         return str(modal["gpu"]).split(":")[0]
     return None
+
+
+def _persist_isolated_items(store: RunStore, rows: list[dict[str, Any]] | None) -> int:
+    """SAND-032: isolated specialist runs wrote no items.jsonl — per-doc rows
+    are the evidence the reports and offline BT rows are built from."""
+    if not rows:
+        return 0
+    seen = {i.get("item_id") for i in store.load_items()}
+    written = 0
+    for row in rows:
+        item_id = row.get("id")
+        if item_id in seen:
+            continue
+        store.append_item(
+            {
+                "item_id": item_id,
+                "ok": not row.get("error"),
+                "error": row.get("error"),
+                "pred": row.get("pred"),
+                "score": row.get("score"),
+                "latency_ms": row.get("latency_ms"),
+                "prompt_tokens": row.get("prompt_tokens"),
+                "completion_tokens": row.get("completion_tokens"),
+                "ts": utc_now(),
+            }
+        )
+        seen.add(item_id)
+        written += 1
+    return written
+
+
+def _lock_replicas(store: RunStore) -> int:
+    """Concurrently-billed replicas (SAND-032: MIN=MAX pinned 2×L4 bills 2 GPUs).
+
+    ``max_containers`` over-estimates a scale-to-zero config — the safe
+    direction for a spend cap.
+    """
+    engine = (store.read_lock() or {}).get("engine") or {}
+    modal = engine.get("modal") if isinstance(engine, dict) else None
+    if isinstance(modal, dict):
+        return max(1, int(modal.get("max_containers") or 1))
+    return 1
 
 
 def _build_record(

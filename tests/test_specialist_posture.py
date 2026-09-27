@@ -220,7 +220,11 @@ def test_run_yamls_match_posture(monkeypatch):
         lambda: {"ok": True, "version": "modal stub"},
     )
     root = Path(__file__).resolve().parents[1] / "config" / "runs"
+    from mailroom_sandbox.job.specialist_posture import SAND032_RUNS
+
     for run_id, row in SPECIALIST_POSTURE.items():
+        if run_id in SAND032_RUNS:
+            continue  # own gate + env-drift coverage in tests/test_sand032_configs.py
         spec = load_run_spec(root / f"{run_id}.yaml")
         assert spec.task == row["task"]
         assert spec.job.concurrency == expected_concurrency(run_id)
