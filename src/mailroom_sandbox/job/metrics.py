@@ -393,6 +393,14 @@ def infer_wall_seconds_from_store(store: RunStore) -> float | None:
 
 def _prompt_version_from_lock(lock: Mapping[str, Any]) -> str:
     prompt_block = lock.get("prompt") or {}
+    task = str(lock.get("task") or "")
+    agents = prompt_block.get("agents") or {} if isinstance(prompt_block, dict) else {}
+    ref = agents.get(task) if isinstance(agents, dict) else None
+    if isinstance(ref, dict) and ref.get("source") == "local" and ref.get("file"):
+        stem = str(ref["file"])
+        from mailroom_sandbox.eval_environment_lineage import eval_environment_key_for
+
+        return eval_environment_key_for(agent=task, stem=stem) or stem
     default = (prompt_block.get("default") or {}) if isinstance(prompt_block, dict) else {}
     if isinstance(default, dict) and default.get("source") == "local":
         stem = str(default.get("file") or "").strip()
