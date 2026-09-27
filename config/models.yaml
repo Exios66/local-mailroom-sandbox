@@ -128,9 +128,9 @@ modal_models:
     tp_size: 1
     notes: "L4 workhorse for the Granite program (SAND-027). First-party FP8
       (compressed-tensors W8A8), auto-detected by vLLM. Pair with OpenRouter
-      `ibm-granite/granite-4.2-8b` ($0.06/$0.25 per 1M). Reasoning/tool parsers
-      must be added to the serve command (granite_thinking_parser / qwen3_coder)
-      and verified in the deploy smoke (SAND-027-6)."
+      `ibm-granite/granite-4.2-8b` ($0.06/$0.25 per 1M). Serve with the native
+      `granite` reasoning parser (`granite_thinking_parser` needs vLLM >= 0.30
+      and crash-loops pinned v0.29.0); no tool parser (extract uses no tools)."
   ibm-granite/granite-4.2-8b:
     gpu: L4
     quantization: ""

@@ -3,7 +3,7 @@
 # Dedicated merger_agreement_specialist per the 1:1 live-class map (not
 # contracts_specialist) — the Qwen comparator is run-30-merger-specialist.
 # Engine/posture: ibm-granite/granite-4.2-8b-fp8, 32768 window, 1×L4,
-# concurrency 8, scaledown 120, MIN=MAX=1 pinned warm (same app as run 1).
+# concurrency 3 (HALT revision, was 8), scaledown 120, MIN=MAX=1 pinned warm (same app as run 1).
 #
 # Same warm app as run-20-contracts-granite — do NOT redeploy before this run:
 #   sandbox run benchmark-check --config config/runs/run-20-merger-granite.yaml
@@ -71,7 +71,7 @@ job:
   mock: false
   max_retries: 2
   fail_fast: false
-  concurrency: 8              # legacy completion posture (Granite sweep pin)
+  concurrency: 3              # HALT revision: c=3 (KV math + DMR-072; was 8)
   cost_cap_usd: 0.70          # ~2/3 of run-30 merger $1.00
   max_wall_seconds: 3600      # ~2/3 of run-30 merger 5400s
 
