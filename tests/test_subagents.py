@@ -26,7 +26,19 @@ def test_meta_subagents_present():
 def test_family_package_filter():
     sandbox = load_roster(package="local-mailroom-sandbox")
     mailroom = load_roster(package="llm-mailroom")
+    eval_env = load_roster(package="eval-environment")
     assert len(sandbox) == 8
+    assert len(eval_env) == 8
+    assert {e.id for e in eval_env} == {
+        "prompt-engineer",
+        "experiment-log-sync",
+        "eval-runner",
+        "corpus-curator",
+        "trace-auditor",
+        "calibration-analyst",
+        "harness-doctor",
+        "adversarial-reviewer",
+    }
     assert len(mailroom) == 4
     assert {e.id for e in mailroom} == {
         "trace-log-analyst",
@@ -76,6 +88,30 @@ def test_sync_opencode_merges_roster_frontmatter(tmp_path):
     assert doc.frontmatter.get("home_package") == "local-mailroom-sandbox"
     assert doc.frontmatter.get("mode") == "all"
     assert "Harness Doctor" in doc.body
+
+
+def test_sync_opencode_global_writes_home_config(tmp_path, monkeypatch):
+    home_agents = tmp_path / "global_agents"
+    monkeypatch.setenv("HOME", str(tmp_path))
+    (tmp_path / ".config" / "opencode" / "agents").mkdir(parents=True)
+
+    (tmp_path / "checkout" / "config" / "subagents").mkdir(parents=True)
+    shutil.copy(
+        repo_root() / "config" / "subagents" / "family-roster.yaml",
+        tmp_path / "checkout" / "config" / "subagents" / "family-roster.yaml",
+    )
+    checkout = tmp_path / "checkout"
+    for entry in load_roster():
+        dest_dir = checkout / ".opencode" / "agents"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy(entry.opencode_path(), dest_dir / f"{entry.id}.md")
+
+    # Point global harness at temp home via family-roster override in checkout only if needed;
+    # default roster uses ~/.config/opencode/agents which respects HOME.
+    result = sync_harness("opencode-global", root=checkout)
+    assert result.written
+    global_file = tmp_path / ".config" / "opencode" / "agents" / "harness-doctor.md"
+    assert global_file.is_file()
 
 
 def test_materialize_mailroom_package(tmp_path):

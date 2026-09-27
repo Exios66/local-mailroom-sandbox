@@ -38,9 +38,12 @@ def materialize_package(
     dest_family = package_roster_dest(package, dest_root, source_root=src_root)
     copied: list[Path] = []
 
+    framework_src = src_root / "config" / "subagents" / "AGENT_FRAMEWORK.md"
     if not dry_run:
         dest_family.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(family_src, dest_family)
+        if framework_src.is_file():
+            shutil.copy2(framework_src, dest_family.parent / "AGENT_FRAMEWORK.md")
 
     # Package pointer roster (loader reads family file from dest)
     pointer = dest_root / "config" / "subagents" / "roster.yaml"

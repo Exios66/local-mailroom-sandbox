@@ -17,6 +17,9 @@ packages:
   local-mailroom-sandbox:
     role: experiment harness
     family_roster_dest: config/subagents/family-roster.yaml
+  eval-environment:
+    role: mailroom eval runner (run_evals.py, corpus, calibration)
+    family_roster_dest: config/subagents/family-roster.yaml
 
 harnesses:
   cursor:
@@ -25,15 +28,18 @@ harnesses:
   opencode:
     agents_dir: .opencode/agents
     optional_frontmatter: [mode, title, tags, home_package, roster_id]
+  opencode-global:
+    agents_dir: ~/.config/opencode/agents
+    optional_frontmatter: [mode, title, tags, home_package, roster_id]
 
 subagents:
   - id: prompt-engineer
     title: Prompt Engineer (GEPA)
     home_package: llm-entity-extraction
-    packages: [llm-entity-extraction, local-mailroom-sandbox, mailroom-dev]
+    packages: [llm-entity-extraction, local-mailroom-sandbox, mailroom-dev, eval-environment]
     family_source: llm-entity-extraction @ 42c54929
     tags: [prompts, evals, gepa]
-    harnesses: [cursor, opencode]
+    harnesses: [cursor, opencode, opencode-global]
     opencode:
       mode: all
     cursor:
@@ -47,7 +53,7 @@ subagents:
     packages: [llm-entity-extraction, local-mailroom-sandbox, mailroom-dev]
     family_source: llm-entity-extraction @ 42c54929
     tags: [evals, metrics, reporting]
-    harnesses: [cursor, opencode]
+    harnesses: [cursor, opencode, opencode-global]
     opencode:
       mode: all
     cursor:
@@ -58,10 +64,10 @@ subagents:
   - id: experiment-log-sync
     title: Experiment Log Sync
     home_package: llm-entity-extraction
-    packages: [llm-entity-extraction, local-mailroom-sandbox, mailroom-dev]
+    packages: [llm-entity-extraction, local-mailroom-sandbox, mailroom-dev, eval-environment]
     family_source: llm-entity-extraction @ 42c54929
     tags: [observability, reporting]
-    harnesses: [cursor, opencode]
+    harnesses: [cursor, opencode, opencode-global]
     opencode:
       mode: all
     cursor:
@@ -69,13 +75,65 @@ subagents:
         Delegate when Braintrust/Langfuse runs must be mirrored into
         reports/experiment_log.jsonl or the public experiment site.
 
+  - id: eval-runner
+    title: Eval Runner
+    home_package: eval-environment
+    packages: [eval-environment, mailroom-dev]
+    tags: [evals, runner, run_evals]
+    harnesses: [cursor, opencode]
+    opencode:
+      mode: subagent
+    cursor:
+      invoke_hint: >-
+        Delegate to execute run_evals.py tasks (mock first), monitor long runs,
+        and triage failures without patching eval code to greenwash errors.
+
+  - id: corpus-curator
+    title: Corpus Curator
+    home_package: eval-environment
+    packages: [eval-environment, mailroom-dev]
+    tags: [corpus, dataset, ground-truth]
+    harnesses: [cursor, opencode]
+    opencode:
+      mode: subagent
+    cursor:
+      invoke_hint: >-
+        Delegate for mailroom-dataset schema, subsets, GT columns, and corpus
+        load debugging before or after eval runs.
+
+  - id: trace-auditor
+    title: Trace Auditor
+    home_package: eval-environment
+    packages: [eval-environment, mailroom-dev]
+    tags: [langfuse, braintrust, tracing]
+    harnesses: [cursor, opencode]
+    opencode:
+      mode: subagent
+    cursor:
+      invoke_hint: >-
+        Delegate for eval-environment trace review across Langfuse/Braintrust
+        sinks, flush health, and run-level anomaly triage.
+
+  - id: calibration-analyst
+    title: Calibration Analyst
+    home_package: eval-environment
+    packages: [eval-environment, mailroom-dev]
+    tags: [calibration, metrics, judge]
+    harnesses: [cursor, opencode]
+    opencode:
+      mode: subagent
+    cursor:
+      invoke_hint: >-
+        Delegate for calibration sweeps, judge reliability, and metric
+        interpretation from eval-environment calibration tasks.
+
   - id: trace-log-analyst
     title: Trace Log Analyst
     home_package: llm-mailroom
     packages: [llm-mailroom, local-mailroom-sandbox, mailroom-dev]
     family_source: llm-mailroom @ 28cb4be8
     tags: [langfuse, tracing, observability]
-    harnesses: [cursor, opencode]
+    harnesses: [cursor, opencode, opencode-global]
     opencode:
       mode: all
     cursor:
@@ -89,7 +147,7 @@ subagents:
     packages: [llm-mailroom, local-mailroom-sandbox, mailroom-dev]
     family_source: llm-mailroom @ 28cb4be8
     tags: [architecture, pipeline]
-    harnesses: [cursor, opencode]
+    harnesses: [cursor, opencode, opencode-global]
     opencode:
       mode: all
     cursor:
@@ -103,7 +161,7 @@ subagents:
     packages: [llm-mailroom, local-mailroom-sandbox, mailroom-dev]
     family_source: llm-mailroom @ 28cb4be8
     tags: [governance, documentation]
-    harnesses: [cursor, opencode]
+    harnesses: [cursor, opencode, opencode-global]
     opencode:
       mode: all
     cursor:
@@ -114,23 +172,23 @@ subagents:
   - id: harness-doctor
     title: Harness Doctor
     home_package: local-mailroom-sandbox
-    packages: [local-mailroom-sandbox, mailroom-dev]
+    packages: [local-mailroom-sandbox, mailroom-dev, eval-environment]
     tags: [meta, harness, sandbox]
-    harnesses: [cursor, opencode]
+    harnesses: [cursor, opencode, opencode-global]
     opencode:
       mode: all
     cursor:
       invoke_hint: >-
-        Delegate when the local-mailroom-sandbox harness itself may be wrong:
-        CLI wiring, vendor drift, profile/taxonomy overlays, eval runners,
-        Modal/deploy paths, or tests that pass while behavior is silently wrong.
+        Delegate when any harness may be wrong: sandbox CLI, roster/global
+        OpenCode drift, Cursor stubs, MCP auth, eval-environment wiring, or
+        tests that pass while behavior is silently wrong.
 
   - id: adversarial-reviewer
     title: Adversarial Reviewer
     home_package: local-mailroom-sandbox
-    packages: [local-mailroom-sandbox, mailroom-dev, llm-mailroom, llm-entity-extraction]
+    packages: [local-mailroom-sandbox, mailroom-dev, llm-mailroom, llm-entity-extraction, eval-environment]
     tags: [meta, review, verification]
-    harnesses: [cursor, opencode]
+    harnesses: [cursor, opencode, opencode-global]
     opencode:
       mode: all
     cursor:
