@@ -80,9 +80,9 @@ engine:
 job:
   mode: endpoint
   mock: false
-  max_retries: 2
+  max_retries: 1              # HARD CAP per cost directive — fail fast, no credit burn
   fail_fast: false
-  concurrency: 4              # merger-length docs (see header justification; was c=8 legacy)
+  concurrency: 8              # HARD REQ: c=8 like all Qwen AWQ legs (no measured Qwen-merger pile-up; Granite c=3 evidence does not transfer — AWQ KV pool ~2x Granite FP8)
   cost_cap_usd: 0.70          # merger-length decode wall headroom over 20-doc siblings
   max_wall_seconds: 3600      # merger-length decode wall headroom
 

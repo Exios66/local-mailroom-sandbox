@@ -2,8 +2,8 @@
 # Quotas mirror run-50-correspondence-specialist-awq (fills the 62-row test
 # pool; demand/notice pools exhaust at 3) for a direct twin compare.
 # Engine/posture: ibm-granite/granite-4.2-8b-fp8, 32768 window (boot-held),
-# 1×L4 MIN=MAX=1 pinned, concurrency 8 (short docs; KV fits where contracts
-# serialized), DMR-074 production prompt pin, scaledown 120.
+# 1×L4 MIN=MAX=1 pinned, concurrency 4 (408-evidenced tune-down from 8),
+# DMR-074 production prompt pin, scaledown 120.
 # Decode 8192 via run-scoped SANDBOX_AGENT_KNOBS (probe-measured ~6x Qwen
 # thinking inflation): SANDBOX_AGENT_KNOBS='{"correspondence_specialist":
 # {"temperature":0.1,"max_tokens":8192,"max_input_chars":10500,"reasoning_effort":"none"}}'.
@@ -72,9 +72,9 @@ engine:
 job:
   mode: endpoint
   mock: false
-  max_retries: 2
+  max_retries: 1              # HARD CAP per cost directive — fail fast, no credit burn
   fail_fast: false
-  concurrency: 8              # short correspondence docs fill L4 batching
+  concurrency: 4              # 408-EVIDENCE tune-down (was 8): Modal proxy 408s queued requests at ~82s under Granite saturation; c=4 keeps queue waits far under the proxy limit
   cost_cap_usd: 0.80          # same as Qwen AWQ Run B (1-replica billing headroom)
   max_wall_seconds: 3600      # same as Qwen AWQ Run B
 
