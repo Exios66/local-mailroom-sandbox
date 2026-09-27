@@ -346,3 +346,15 @@ def test_program_route_warm_runs_done_after_run_end(tmp_path):
     (tmp_path / "sand032-s2b-corr100-2rep.times").write_text('"ready": 3.0,\n')
     plain = "\n".join(strip_ansi(x) for x in program_lines(tmp_path, current="sand032-s2b-corr100-2rep", width=110))
     assert "✓ s2a-corr100-1rep ×1" in plain and "▶ s2b-corr100-2rep ×2" in plain
+
+
+def test_only_one_tui_instance_writes_the_persistent_log(tmp_path):
+    """Two TUI tabs must not double every line in modal-app.log."""
+    from mailroom_sandbox.watch import LogBuffer
+
+    path = tmp_path / "app.log"
+    a, b = LogBuffer(path), LogBuffer(path)
+    a.append("x")
+    b.append("x")
+    assert path.read_text().splitlines() == ["x"]
+    assert a.tail(1) == ["x"] and b.tail(1) == ["x"]  # both still display it

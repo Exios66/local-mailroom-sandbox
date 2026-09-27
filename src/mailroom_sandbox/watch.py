@@ -196,6 +196,19 @@ class LogBuffer:
         self._count = 0
         self._lock = threading.Lock()
         self._path = path
+        self._writer = False
+        if path is not None:
+            # One writer per log file: the first TUI instance takes an exclusive
+            # lock; later instances display the stream but never append.
+            import fcntl
+
+            path.parent.mkdir(parents=True, exist_ok=True)
+            self._lockfh = open(str(path) + ".lock", "a")
+            try:
+                fcntl.flock(self._lockfh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                self._writer = True
+            except OSError:
+                self._writer = False
         if path is not None and path.is_file():
             for line in path.read_text(encoding="utf-8", errors="ignore").splitlines()[-maxlen:]:
                 self._lines.append(line)
@@ -205,7 +218,7 @@ class LogBuffer:
         with self._lock:
             self._lines.append(line)
             self._count += 1
-            if self._path is not None:
+            if self._path is not None and self._writer:
                 self._path.parent.mkdir(parents=True, exist_ok=True)
                 with self._path.open("a", encoding="utf-8") as fh:
                     fh.write(line + "\n")
