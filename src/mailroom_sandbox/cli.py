@@ -538,7 +538,18 @@ def build_parser() -> argparse.ArgumentParser:
     mb_eval = mb_sub.add_parser("eval", parents=[shared], help="run mailroom-ml eval_modernbert.py")
     mb_eval.add_argument("--sample", type=int, default=50)
     mb_eval.add_argument("--seed", type=int, default=42)
+    mb_eval.add_argument(
+        "--subset",
+        default="test",
+        choices=["test", "train", "all"],
+        help="eval pool (test=323 held-out; all=finetune corpus for large samples)",
+    )
     mb_eval.add_argument("--checkpoint", default=None, help="override MODERNBERT_MODEL_PATH")
+    mb_eval.add_argument(
+        "--append-log",
+        action="store_true",
+        help="append serving record to reports/experiment_log.jsonl",
+    )
     mb_eval.add_argument("--json", action="store_true")
     mb_eval.set_defaults(handler=_cmd_modernbert_eval)
     mb.set_defaults(handler=_cmd_modernbert_help)
@@ -1738,15 +1749,23 @@ def _cmd_modernbert_status(args) -> int:
 
 
 def _cmd_modernbert_eval(args) -> int:
-    from mailroom_sandbox.modernbert import run_modernbert_eval, serving_record_from_eval
+    from mailroom_sandbox.modernbert import (
+        append_experiment_log_from_eval,
+        run_modernbert_eval,
+        serving_record_from_eval,
+    )
 
     report = run_modernbert_eval(
         sample=int(args.sample),
         seed=int(args.seed),
+        subset=str(args.subset),
         checkpoint=args.checkpoint,
     )
     record = serving_record_from_eval(report)
-    out = {"report": report, "serving_record": record}
+    log_path = None
+    if getattr(args, "append_log", False):
+        log_path = append_experiment_log_from_eval(report)
+    out = {"report": report, "serving_record": record, "experiment_log": str(log_path) if log_path else None}
     if getattr(args, "json", False):
         _print(out)
     else:
