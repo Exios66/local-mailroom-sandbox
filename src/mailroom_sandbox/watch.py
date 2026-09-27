@@ -230,7 +230,9 @@ class LogBuffer:
 # SAND-032 program route: (run_id, replicas) in execution order.
 PROGRAM: tuple[tuple[str, int], ...] = (
     ("sand032-l0-baseline", 1), ("sand032-l1-nothink", 1), ("sand032-l2-marlin", 1),
-    ("sand032-l3-fp8kv", 1), ("sand032-l4-seqs16", 1), ("sand032-l5-graphs", 1),
+    # L3/L4 folded into L5: warm flow boots the frozen config ONCE (engine
+    # args are fixed at boot, so per-knob rungs would each cost a restart).
+    ("sand032-l5-graphs", 1),
     ("sand032-s2a-corr100-1rep", 1), ("sand032-s2b-corr100-2rep", 2),
     ("sand032-s3-corr50", 2), ("sand032-s3-insurance50", 2), ("sand032-s3-corporate50", 2),
     ("sand032-s3-merger50", 2), ("sand032-s3-contracts50", 2), ("sand032-s3-corr50-repeat", 2),
@@ -244,7 +246,8 @@ def program_lines(times_dir: Path, *, current: str, width: int = 100, on: bool =
     cells = []
     for rid, rep in PROGRAM:
         t = read_times(times_dir / f"{rid}.times")
-        mark = "✓" if "stopped" in t else ("▶" if rid == current or t else "·")
+        done = "stopped" in t or ("run_end" in t and rid != current)
+        mark = "✓" if done else ("▶" if rid == current or t else "·")
         text = f"{mark} {rid.removeprefix('sand032-')} ×{rep}"
         role = {"✓": "teal", "▶": "gold", "·": "dim"}[mark]
         cells.append((text, p[role](text) if on else text))
