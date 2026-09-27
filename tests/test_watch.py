@@ -309,3 +309,16 @@ def test_cli_watch_defaults_to_sand032_follow(tmp_path, monkeypatch, capsys):
     (tmp_path / "sand032" / "current").write_text(str(config_dir() / "runs" / "sand032-l2-marlin.yaml"))
     rc = main(["watch", "--once", "--no-logs"])
     assert rc == 0 and "sand032-l2-marlin" in strip_ansi(capsys.readouterr().out)
+
+
+def test_display_tail_hides_scrape_noise_but_file_keeps_it(tmp_path):
+    from mailroom_sandbox.watch import LogBuffer, display_tail
+
+    buf = LogBuffer(tmp_path / "app.log")
+    for line in ['(APIServer pid=4) INFO:     1.2.3.4:1 - "GET /metrics HTTP/1.1" 200 OK',
+                 "    GET /metrics -> 200 OK  (duration: 225.0 ms, execution: 136.1 ms)",
+                 '(APIServer pid=4) INFO:     1.2.3.4:2 - "GET /v1/models HTTP/1.1" 200 OK',
+                 "Avg prompt throughput: 812.3 tokens/s"]:
+        buf.append(line)
+    assert display_tail(buf, 5) == ["Avg prompt throughput: 812.3 tokens/s"]
+    assert len((tmp_path / "app.log").read_text().splitlines()) == 4
