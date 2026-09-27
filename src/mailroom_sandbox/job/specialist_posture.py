@@ -270,7 +270,7 @@ SPECIALIST_POSTURE: dict[str, dict[str, Any]] = {
         "doc_class": "correspondence",
         "agent": "correspondence_specialist",
         "prompt_file": "correspondence_specialist_production",
-        "concurrency": 8,
+        "concurrency": 4,
         "max_model_len": 32768,
         "max_tokens": 8192,
         "max_input_chars": _input_chars_for(8192, 3500, 32768),
