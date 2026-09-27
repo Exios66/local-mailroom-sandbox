@@ -73,3 +73,37 @@ def test_cli_deploy_env_prints_exports(capsys):
     assert rc == 0
     assert "export MODAL_VLLM_MODEL=Qwen/Qwen3-8B-AWQ" in out
     assert "export MODAL_VLLM_MAX_CONTAINERS=2" in out
+
+
+def test_spec_env_covers_every_key_the_deploy_reads():
+    """Review #1: any MODAL_VLLM_* key the deploy reads but spec_env omits is a
+    knob a stale shell can change without benchmark-check noticing."""
+    import re
+
+    from mailroom_sandbox.paths import repo_root
+
+    src = (repo_root() / "deploy" / "modal_vllm.py").read_text()
+    read_keys = set(re.findall(r'os\.environ\.get\(\s*"(MODAL_VLLM_[A-Z_]+)"', src))
+    rendered = set(spec_env(_spec()))
+    secret = {"MODAL_VLLM_API_TOKEN"}
+    assert read_keys - secret - rendered == set()
+
+
+def test_drift_catches_stale_reasoning_parser_from_granite_runbook():
+    spec = _spec()
+    environ = dict(spec_env(spec))
+    environ["MODAL_VLLM_REASONING_PARSER"] = "granite"
+    environ["MODAL_VLLM_ATTENTION_BACKEND"] = "flashinfer"
+    drift = env_drift(spec, environ)
+    assert any("MODAL_VLLM_REASONING_PARSER" in d for d in drift)
+    assert any("MODAL_VLLM_ATTENTION_BACKEND" in d for d in drift)
+
+
+def test_render_exports_resets_unset_knobs():
+    text = render_exports(_spec())
+    # empty = deploy default → UNSET (an exported "" would crash int() parsing in
+    # modal_vllm.py, e.g. STARTUP_TIMEOUT_SECONDS)
+    assert "unset MODAL_VLLM_REASONING_PARSER" in text
+    assert "unset MODAL_VLLM_TP_SIZE" in text
+    assert "unset MODAL_VLLM_STARTUP_TIMEOUT_SECONDS" in text
+    assert 'MODAL_VLLM_REASONING_PARSER=""' not in text
