@@ -20,7 +20,10 @@ from mailroom_sandbox.datasets import (
     parse_expected_fields,
 )
 from mailroom_sandbox.eval import experiment_log, scoring, tracing
-from mailroom_sandbox.eval.prompt_provenance import resolve_logged_prompt_version
+from mailroom_sandbox.eval.prompt_provenance import (
+    resolve_logged_prompt_version,
+    stamp_prompt_provenance,
+)
 from mailroom_sandbox.eval.scoring import emit
 from mailroom_sandbox.mock_llm import fake_client, fake_structured_payload
 from mailroom_sandbox.runtime import activate, resolve_mailroom_src
@@ -157,6 +160,10 @@ def run_isolated_eval(
     )
 
     spec = spec_for(task)
+    if prompt_version is None:
+        from mailroom_sandbox.eval_environment_lineage import default_prompt_variant
+
+        prompt_version = default_prompt_variant(task)
     rows = spec.load_rows() if rows is None else rows
     if sample:
         rows = rows[: sample]
@@ -339,6 +346,7 @@ def run_isolated_eval(
     )
     if prompt_sha:
         record["prompt_sha256"] = prompt_sha
+    stamp_prompt_provenance(record, logged_prompt, prompt_sha)
     # SAND-018: per-item serving metrics used to be absent on the isolated path.
     if latencies:
         record["e2e_latency_seconds"] = round(statistics.mean(latencies) / 1000.0, 6)

@@ -77,7 +77,7 @@ Each of these is load-bearing for a test or a tool, not a style preference:
 | `governance/{README,PREFIX,TASKS}.md`, `governance/archive/SANDBOX-050.md` | `tests/test_governance_sand.py` |
 | `.cursor/skills/` | `tests/test_skills.py` |
 | `.opencode/agents/**` | `sandbox subagents sync` / `materialize` |
-| `config/prompts/` | Prompt **stems** are referenced by name from `config/runs/*.yaml` and `job/specialist_posture.py`; the eval-environment catalog mirrors the stems. Frozen lineage — never rename or rewrite. |
+| `config/prompts/` | Prompt **stems** are referenced by name from `config/runs/*.yaml` and `job/specialist_posture.py`; `eval_environment_lineage.json` sha256-locks the five specialist stems to eval-environment frozen v1. Frozen lineage — never rename or rewrite. |
 | `config/models.yaml`, `config/profiles/`, `config/runs/`, `config/subagents/` | Read by `modal_matrix`, `overlay`, `job/suite.py`, `job/specialist_posture.py` |
 | `src/mailroom_sandbox/`, `pyproject.toml`, `tests/` | Editable install + test discovery |
 

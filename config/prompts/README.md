@@ -5,16 +5,6 @@ or the LangChain `PROMPT_VERSIONS` dict (Family B: sorter / contracts_specialist
 for a single experiment cell. Resolution: `src/mailroom_sandbox/prompt_registry.py`
 (`source: local` + `file: <stem>` → `config/prompts/<stem>.txt`).
 
-Catalog promotion of simplified text into
-[`LLM-Mailroom-Services/eval-environment`](https://github.com/LLM-Mailroom-Services/eval-environment)
-is **out of scope** for this sandbox pin. Track those updates separately:
-
-- contracts: https://github.com/LLM-Mailroom-Services/eval-environment/issues/4
-- correspondence: https://github.com/LLM-Mailroom-Services/eval-environment/issues/5
-- corporate_records: https://github.com/LLM-Mailroom-Services/eval-environment/issues/6
-- insurance_claims: https://github.com/LLM-Mailroom-Services/eval-environment/issues/7
-- merger key decision: https://github.com/LLM-Mailroom-Services/eval-environment/issues/8
-
 ## Specialist production pins (DMR-074) — vendor mirrors
 
 Byte-identical exports of vendored `llm-mailroom` code-defaults. **Not** a
@@ -38,6 +28,14 @@ python scripts/sync_specialist_prompts.py --check  # vendor identity + simplifie
 ```
 
 ## Specialist simplified pins (SAND-026 / issue #32) — experiment surface
+
+These stems **are** the eval-environment frozen v1 catalog
+(`contracts_specialist_v1` … `merger_agreement_specialist_v1`, sha256-locked in
+[`eval_environment_lineage.json`](eval_environment_lineage.json)). Modal + vLLM
+specialist evals inject this text (not vendor `SYSTEM_PROMPT` / Langfuse
+`production`). Promotion issues #4–#8 are **closed**; do not edit the stems
+without a sanctioned eval-environment re-freeze (eval-environment issue #19
+tracks cross-repo alignment).
 
 Parallel `*_simplified` stems for the offline sandbox. They intentionally
 diverge from vendor: **class-specific** extractors (not a lightly edited
@@ -130,6 +128,9 @@ in use at run time. Re-running the YAMLs above now uses simplified stems
 
 `src/mailroom_sandbox/job/specialist_posture.py` `prompt_file` values must
 match the YAML pins (`sandbox run benchmark-check` hard-fails on drift).
+`tests/test_eval_environment_lineage.py` sha256-locks those stems to the
+eval-environment frozen v1 catalog. Runtime injection (Family A rebind +
+LangChain `PROMPT_VERSIONS`) lives in `prompt_registry.apply_runtime_overrides`.
 
 ## Local 7B/8B smoke variants
 

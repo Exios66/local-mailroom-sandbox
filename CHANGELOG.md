@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+### Fixed — SAND-027-3 eval-environment prompt versions on Modal + vLLM specialist evals
+
+- Family A specialists (`correspondence`, `corporate_records`, `insurance_claims`,
+  `merger_agreement`) bind `get_managed_prompt` at import time. Preflight
+  imports those modules via `prompt_templates()`, so patching only
+  `llm.prompts.get_managed_prompt` left Modal runs on vendor/Langfuse
+  production text. `apply_runtime_overrides` now rebinds every loaded module
+  and writes LangChain `PROMPT_VERSIONS` role + `{role}_v*` keys (same
+  injection as eval-environment `evals.prompts.registry.activate`).
+- Isolated specialist evals default to the frozen v1 sandbox stems. Job locks
+  that pin `prompt.agents.<task>` now pass that stem into `activate`.
+- Experiment / serving records log `contracts_specialist_v1` (etc.) + sha256
+  when the pin is a catalog stem.
+- Hermetic lock: `config/prompts/eval_environment_lineage.json` (sha256 +
+  opening line). `tests/test_eval_environment_lineage.py` fails on drift;
+  sibling eval-environment checkout is compared when present.
+
 ### Changed — SAND-030 Modal L4 long-prompt vLLM posture
 
 - Deploy defaults (`deploy/modal_vllm.py` + compose parity):
