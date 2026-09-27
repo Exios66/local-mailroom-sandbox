@@ -9,6 +9,7 @@ import yaml
 
 from mailroom_sandbox.paths import repo_root
 from mailroom_sandbox.subagents.parse_opencode import parse_opencode_markdown
+from mailroom_sandbox.subagents.doctor import expand_agents_dir
 from mailroom_sandbox.subagents.roster import SubagentEntry, harness_config, load_roster
 
 
@@ -87,7 +88,10 @@ def _sync_one_harness(
     dry_run: bool,
 ) -> SyncResult:
     cfg = harness_config(harness, base)
-    agents_dir = base / cfg["agents_dir"]
+    if harness == "opencode-global":
+        agents_dir = expand_agents_dir(cfg["agents_dir"])
+    else:
+        agents_dir = base / cfg["agents_dir"]
     written: list[Path] = []
     skipped: list[str] = []
 
@@ -102,9 +106,13 @@ def _sync_one_harness(
         if harness == "cursor":
             content = render_cursor_agent(entry, base)
             dest = entry.cursor_path(base)
-        elif harness == "opencode":
+        elif harness in ("opencode", "opencode-global"):
             content = render_opencode_agent(entry, base)
-            dest = entry.opencode_path(base)
+            if harness == "opencode-global":
+                gdir = expand_agents_dir(cfg["agents_dir"])
+                dest = gdir / f"{entry.id}.md"
+            else:
+                dest = entry.opencode_path(base)
         else:
             raise ValueError(harness)
         if dry_run:
@@ -127,7 +135,8 @@ def sync_harness(
         return [
             _sync_one_harness("opencode", base=base, package=package, dry_run=dry_run),
             _sync_one_harness("cursor", base=base, package=package, dry_run=dry_run),
+            _sync_one_harness("opencode-global", base=base, package=package, dry_run=dry_run),
         ]
-    if harness not in ("cursor", "opencode"):
+    if harness not in ("cursor", "opencode", "opencode-global"):
         raise KeyError(f"unknown harness {harness!r}")
     return _sync_one_harness(harness, base=base, package=package, dry_run=dry_run)

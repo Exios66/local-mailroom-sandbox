@@ -52,7 +52,10 @@ Cursor stubs (`sandbox subagents sync --harness all`). Materialize into sibling
 checkouts with `sandbox subagents materialize --package <id> --root <path>`
 (monorepo law: [`docs/subagents-family-sync.md`](docs/subagents-family-sync.md)).
 Meta agents: **`harness-doctor`** and **`adversarial-reviewer`**. See
-[`config/subagents/README.md`](config/subagents/README.md).
+[`config/subagents/README.md`](config/subagents/README.md). Harness health:
+`sandbox subagents doctor` (add `--also-root ~/path/to/eval-environment` for
+sibling checkouts). Durable eve doctor:
+`~/Downloads/agent-harness-doctor` (`npm exec -- eve dev`, Node >= 24).
 
 ## Commands
 

@@ -120,8 +120,8 @@ def build_parser() -> argparse.ArgumentParser:
     sa_sync.add_argument(
         "--harness",
         default="all",
-        choices=("cursor", "opencode", "all"),
-        help="Harness adapter(s); default syncs OpenCode frontmatter + Cursor stubs",
+        choices=("cursor", "opencode", "opencode-global", "all"),
+        help="Harness adapter(s); default syncs OpenCode + Cursor + ~/.config/opencode/agents",
     )
     sa_sync.add_argument(
         "--package",
@@ -135,6 +135,37 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sa_sync.add_argument("--dry-run", action="store_true")
     sa_sync.set_defaults(handler=_cmd_subagents_sync)
+    sa_doc = subagents_sub.add_parser(
+        "doctor",
+        help="Audit harness health (OpenCode global, roster sync, framework v2)",
+        parents=[shared],
+    )
+    sa_doc.add_argument(
+        "--root",
+        default=None,
+        help="Family checkout root (default: this repo)",
+    )
+    sa_doc.add_argument("--json", action="store_true")
+    sa_doc.add_argument(
+        "--no-global",
+        action="store_true",
+        help="Skip ~/.config/opencode checks",
+    )
+    sa_doc.add_argument("--package", default=None, help="Filter roster entries by package id")
+    sa_doc.add_argument(
+        "--also-root",
+        action="append",
+        default=None,
+        metavar="PATH",
+        help="Additional checkout to audit (repeatable)",
+    )
+    sa_doc.add_argument(
+        "--apply-framework",
+        action="store_true",
+        help="Append Agent framework (v2) to roster + global profile agents missing it",
+    )
+    sa_doc.add_argument("--dry-run", action="store_true")
+    sa_doc.set_defaults(handler=_cmd_subagents_doctor)
     sa_mat = subagents_sub.add_parser(
         "materialize",
         help="Copy family-roster.yaml + missing prompts into another package checkout",
@@ -1012,6 +1043,57 @@ def _cmd_subagents_show(args: argparse.Namespace) -> int:
         if len(lines) > 40:
             print(f"... ({len(lines) - 40} more lines)")
     return 0
+
+
+def _cmd_subagents_doctor(args: argparse.Namespace) -> int:
+    from mailroom_sandbox.subagents.doctor import (
+        apply_framework_to_agents,
+        apply_framework_to_global_profiles,
+        findings_to_dict,
+        run_doctor,
+    )
+
+    root = Path(args.root).expanduser().resolve() if args.root else None
+    if args.apply_framework:
+        roster_written = apply_framework_to_agents(
+            root=root,
+            package=getattr(args, "package", None),
+            dry_run=bool(args.dry_run),
+        )
+        global_written = apply_framework_to_global_profiles(dry_run=bool(args.dry_run))
+        payload = {
+            "apply_framework": True,
+            "dry_run": bool(args.dry_run),
+            "roster_paths": [str(p) for p in roster_written],
+            "global_profile_paths": [str(p) for p in global_written],
+        }
+        if args.json:
+            _print(payload)
+        else:
+            for p in roster_written + global_written:
+                print(p)
+        return 0
+
+    extra = tuple(
+        Path(p).expanduser().resolve() for p in (args.also_root or []) if p
+    )
+    report = run_doctor(
+        root=root,
+        package=getattr(args, "package", None),
+        include_global=not args.no_global,
+        extra_roots=extra,
+    )
+    payload = findings_to_dict(report)
+    if args.json:
+        _print(payload)
+    else:
+        for f in report.findings:
+            loc = f" ({f.path})" if f.path else ""
+            hint = f" — {f.hint}" if f.hint else ""
+            print(f"[{f.severity}] {f.code}: {f.message}{loc}{hint}")
+        s = payload["summary"]
+        print(f"\nSummary: {s['fail']} fail, {s['warn']} warn")
+    return 1 if payload["summary"]["fail"] else 0
 
 
 def _cmd_subagents_sync(args: argparse.Namespace) -> int:
