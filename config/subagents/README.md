@@ -15,7 +15,8 @@ sandbox subagents sync --harness all
 sandbox subagents sync --harness opencode-global
 sandbox subagents doctor
 sandbox subagents doctor --apply-framework
-sandbox subagents materialize --package mailroom-dev --root /path/to/mailroom-dev
+sandbox subagents materialize --package digital-mailroom --root /path/to/Digital-Mailroom
+sandbox subagents propagate
 ```
 
 Monorepo workflow: [`docs/subagents-family-sync.md`](../../docs/subagents-family-sync.md).
