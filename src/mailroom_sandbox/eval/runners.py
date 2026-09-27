@@ -355,6 +355,9 @@ def run_isolated_eval(
         record["e2e_latency_seconds"] = round(statistics.mean(latencies) / 1000.0, 6)
         record["latency_p50_seconds"] = round(statistics.median(latencies) / 1000.0, 6)
         record["latency_max_seconds"] = round(max(latencies) / 1000.0, 6)
+        from mailroom_sandbox.job.metrics import p95
+
+        record["latency_p95_seconds"] = round(p95(latencies) / 1000.0, 6)
     if prompt_tokens:
         record["prompt_tokens"] = prompt_tokens
     if completion_tokens:
