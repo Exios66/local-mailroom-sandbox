@@ -200,3 +200,10 @@ def test_sorter_1000_is_train_mix_on_frozen_2xl4():
     v, m = spec.engine.vllm, spec.engine.modal
     assert (v.kv_cache_dtype, v.quantization, v.max_num_seqs, v.enforce_eager) == ("fp8", "awq_marlin", 16, False)
     assert (m.min_containers, m.max_containers, spec.job.concurrency) == (2, 2, 32)
+
+
+def test_run_start_activates_the_engine_model_not_the_profile_default():
+    from mailroom_sandbox.cli import _activation_model
+    spec = load_run_spec(SORTER[0])
+    assert _activation_model(spec, None) == "Qwen/Qwen3-8B-AWQ"
+    assert _activation_model(spec, "override/model") == "override/model"
