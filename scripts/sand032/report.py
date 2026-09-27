@@ -212,12 +212,17 @@ def figures(d: dict, m: dict, cls: str, by: dict) -> list[str]:
     lat_svg = viz.hbar(f"Per-document latency · {rid}",
                        f"{m['ok']} docs, slowest first · c{m['conc']} on {m['rep']}×L4 · wall {m['wall']:.1f}s",
                        lat_rows, unit="s", fmt=lambda v: f"{v:.1f}", refs=refs)
+    (fig_dir / f"{rid}-latency.svg").write_text(lat_svg)
+    if m["score"] is None:  # merger/contracts: suite scorer emits no overall score
+        return ["## Figures", "",
+                f"![Per-document latency, slowest first, with p50/p95 reference lines](figures/{rid}-latency.svg)", "",
+                "_No overall extraction score for this class (suite scorer returns none), so there is no "
+                "score-by-subclass figure. Table view: **Per-document scores** below._", ""]
     sub_rows = [{"label": f"{k} (n={len(v)})", "value": round(statistics.mean(v), 4)}
                 for k, v in sorted(by.items(), key=lambda kv: -statistics.mean(kv[1]))]
     sub_svg = viz.hbar(f"Mean overall extraction score by subclass · {rid}",
                        f"overall mean {m['score']:.4f} across {m['ok']} docs (0–1, higher is better)",
                        sub_rows, fmt=lambda v: f"{v:.3f}")
-    (fig_dir / f"{rid}-latency.svg").write_text(lat_svg)
     (fig_dir / f"{rid}-subclass.svg").write_text(sub_svg)
     return ["## Figures", "",
             f"![Per-document latency, slowest first, with p50/p95 reference lines](figures/{rid}-latency.svg)", "",
