@@ -22,7 +22,7 @@ import threading
 import time
 from collections import deque
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 from mailroom_sandbox.job.checkpoint import RunStore
 from mailroom_sandbox.tui import pretty_log as pl
@@ -243,8 +243,7 @@ def _read_spend(ledger: Path | None) -> float:
 
 def watch(
     *,
-    store: RunStore,
-    app: str,
+    resolve: Callable[[], tuple[RunStore, str]],
     ledger: Path | None,
     cap_usd: float = 5.0,
     once: bool = False,
@@ -255,6 +254,7 @@ def watch(
 
     sink: deque[str] = deque(maxlen=400)
     stop = threading.Event()
+    store, app = resolve()
     if not once:
         sys.stdout.write(pl.ALT_ENTER + pl.HIDE_CURSOR)
     if logs and not once:
@@ -262,6 +262,7 @@ def watch(
     started = time.time()
     try:
         while True:
+            store, _ = resolve()  # --follow: the current run can change between frames
             snap = run_snapshot(store)
             live = 0.0
             if snap["state"] == "running":

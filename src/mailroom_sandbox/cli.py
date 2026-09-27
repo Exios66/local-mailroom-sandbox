@@ -369,7 +369,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="mailroom TUI: live run in-tray + spend + Modal dispatch log (SAND-032)",
         parents=[shared],
     )
-    watch_p.add_argument("--config", required=True, help="run YAML to watch")
+    watch_p.add_argument("--config", default=None, help="run YAML to watch")
+    watch_p.add_argument(
+        "--follow", default=None,
+        help="file holding the CURRENT run YAML path; re-read every frame",
+    )
     watch_p.add_argument("--app", default=None, help="Modal app (default: engine.modal.app)")
     watch_p.add_argument("--ledger", default=None, help="spend ledger JSON ({spent_usd})")
     watch_p.add_argument("--cap-usd", type=float, default=5.0)
@@ -1766,12 +1770,20 @@ def _cmd_watch(args) -> int:
     from mailroom_sandbox.job import spec as spec_mod
     from mailroom_sandbox.job.checkpoint import RunStore
 
-    spec = spec_mod.load_run_spec(args.config)
-    app = args.app or (spec.engine.modal.app if spec.engine.modal else "sandbox-vllm")
-    store = RunStore(spec_mod.runs_root() / spec_mod.resolve_run_id(spec))
+    if not args.config and not args.follow:
+        print("ERROR: --config or --follow required", file=sys.stderr)
+        return 2
+
+    def resolve():
+        cfg = args.config
+        if args.follow:
+            cfg = Path(args.follow).read_text(encoding="utf-8").strip() or args.config
+        spec = spec_mod.load_run_spec(cfg)
+        app = args.app or (spec.engine.modal.app if spec.engine.modal else "sandbox-vllm")
+        return RunStore(spec_mod.runs_root() / spec_mod.resolve_run_id(spec)), app
+
     return watch_mod.watch(
-        store=store,
-        app=app,
+        resolve=resolve,
         ledger=Path(args.ledger) if args.ledger else None,
         cap_usd=args.cap_usd,
         once=args.once,
