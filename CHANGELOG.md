@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+### Added — SAND-031 centralized operator runbooks
+
+- **Single edit surface:** [`config/runbooks/catalog.yaml`](config/runbooks/catalog.yaml).
+  Change pins / steps there, then `sandbox runbook check` (catalog vs
+  `deploy/modal_vllm.py` + `config/models.yaml` + cited run YAMLs) and
+  `sandbox runbook write` (regenerates `docs/runbooks/`).
+- **Singular 1×L4 / 1-container Qwen3-8B:** `sandbox runbook show l4-qwen3-8b`
+  (plus Operator A/B tracks and the SAND-018 N=20 probe).
+- **Improved configs:** AWQ, AWQ-c8, correspondence AWQ/c8, FP16 isolation twin
+  (blocked), Granite 4.2-8B FP8 swap-in, second-L4 data parallel, scale-matrix
+  cells — `sandbox runbook list --family improved`.
+- CLI: `sandbox runbook list|show|check|write`. Tests:
+  `tests/test_runbooks.py`. `docs/benchmark-l4.md` is now the pointer;
+  operator scripts are generated.
+
 ### Changed — monorepo target Digital-Mailroom (2026-09-24)
 
 - Subagent propagate/materialize docs and package ids use **`digital-mailroom`**

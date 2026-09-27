@@ -7,7 +7,7 @@ Cross-family work stays on llm-entity-extraction's MESSAGE_BOARD as
 **`DMR-*`**. This file is the **only** sandbox-local task board — do not
 open `DMR-*` cards here.
 
-**Next ID: `SAND-031`**
+**Next ID: `SAND-032`**
 
 Lanes: `todo` → `in_progress` → `needs_attention` → `done`.
 
@@ -17,6 +17,7 @@ Lanes: `todo` → `in_progress` → `needs_attention` → `done`.
 
 | ID | Title | Owner | Status | Notes |
 | --- | --- | --- | --- | --- |
+| SAND-031 | Centralize operator runbooks (singular 1×L4 Qwen3-8B + improved configs) | cursor | **done** | Catalog `config/runbooks/catalog.yaml`; CLI `sandbox runbook list\|show\|check\|write`; generated `docs/runbooks/`. Pins tested against deploy + models.yaml + run YAMLs. Related: SAND-027-6 Granite live deploy still todo. |
 | SAND-030 | Modal L4 long-prompt vLLM posture (max_num_seqs 4–6, APC, eager, DP second L4) | cursor | **done** | Deploy defaults + run YAMLs + docs. Data parallel via `MAX_CONTAINERS=2`, not TP. Related: SAND-023 topology / SAND-028 spend. |
 | SAND-020 | Correspondence extraction floor diagnosis + parse/schema metric (issue #21) | cursor | **in_progress** | Offline: schema-adherence rates, empty-field/partial-credit docs, FP16 twin YAML (not run). Related: GitHub issue #21 |
 | SAND-028-7 | Repo layout audit — document the two run-spec trees (no moves) | archivist-file-organizer | **done** | 2026-09-26. `docs/LAYOUT.md` + README/config README amendments; api-evals stays a separate tree (spend + distribution boundary, verified); junk swept; pytest 438/4 baseline unchanged. Commit `d01e754`. |
@@ -38,7 +39,7 @@ Lanes: `todo` → `in_progress` → `needs_attention` → `done`.
 | SAND-027-3 | Prompt alignment sandbox ↔ eval-environment (stem sha256 drift test) | atom | **in_progress** | Source of truth = eval-env frozen v1 catalog. Sandbox `*_simplified` stems sha256-locked in `config/prompts/eval_environment_lineage.json`. Runtime injection now rebinds Family A `get_managed_prompt` so Modal + vLLM specialist evals actually send those bytes (not vendor production). Records log `*_v1` keys. Eval-env side: issue #19. |
 | SAND-027-4 | Same-subset guarantee (nested 20/50/100 per class; filename-set equality both legs; degenerate-draw check) | corpus-curator / harness-doctor | todo | **Sampler verified NOT nested (50⊂100 ≈26% of seeds) → issue #38**: must slice the locked 100-draw, never re-draw per size. Sandbox preflight `dataset.jsonl` vs eval-env case lists. |
 | SAND-027-5 | Braintrust sink in BOTH repos | langfuse-trace-sink-specialist | todo | sandbox: SDK dep + vendored wrap_openai + task span + flush; eval-env: `EVALS_TRACE_BACKEND=braintrust`. 1-doc smoke + no-key no-op. |
-| SAND-027-6 | Leg A deploy + Granite swap-in runbook (1×L4 FP8; deploy smoke: parsers, structured output, maxlen boot; H5 tag decision after smoke) | docker-deployment-specialist / general | todo | Config half DONE under SAND-028-5 (`config/models.yaml` granite rows + parser knobs in `deploy/modal_vllm.py` + `docs/modal-serving-ops.md`). Remaining = live deploy + smoke + H5. Draw ONE bucket/class (100) and slice 20/50 — do NOT re-draw (sampler is not nested: 50⊂100 ~26% of seeds). |
+| SAND-027-6 | Leg A deploy + Granite swap-in runbook (1×L4 FP8; deploy smoke: parsers, structured output, maxlen boot; H5 tag decision after smoke) | docker-deployment-specialist / general | todo | Operator runbook shipped under SAND-031 (`sandbox runbook show improved-granite-fp8`). Remaining = live deploy + smoke + H5. Draw ONE bucket/class (100) and slice 20/50 — do NOT re-draw. |
 | SAND-027-7 | N=20 probe wave — **FIRST SPEND** (both legs × 5 classes × 20 docs) | eval-runner / general | todo | Gate: JSON parse rate, token budgets, thinking probe, Δ-CI sanity. **≈$1.29** (contracts + correspondence measured; 3 classes extrapolated) · **hard cap $1.50**. Contracts and correspondence are the priority classes. **Per-doc basis → `docs/RUN-COST-DERIVATION.md`.** |
 | SAND-027-8 | N=50 + N=100 waves (one-shot 100/class/leg → prefix-slice buckets) | eval-runner / general | todo | **NOT pre-authorized.** Each class escalates only under its own cap = **3× that class's measured N=20 both-leg cost** (5× docs must cost ≤3×, or land F1–F4 first). Program ceiling $6 soft/$8 hard. Full 5×100 unoptimized ≈ $6.30–6.50 total — re-price from the probe before committing. 500 calls/leg; all 30 run records + Braintrust traces. |
 | SAND-027-9 | QWEN-flash cost reports (earlier 3 records + api-evals `report --from-log` + archived Modal Qwen baseline) | atom / lucius | todo | Real API $ ≈ $0.012 total vs logged L4-proxy ≈ $0.0186; caveats per plan §2.7. **Reproducibility gap → issue #40** (log gitignored, no real API cost recorded); 0.0-score diagnosis open → **issue #41**. |
@@ -47,7 +48,7 @@ Lanes: `todo` → `in_progress` → `needs_attention` → `done`.
 | SAND-027-12 | Board close + commits (SAND-prefixed, targeted staging) + eval-env snapshot refresh | orchestrator / atom | todo | Evidence = commit SHAs + run_ids + report paths. |
 | SAND-026 | Simplify sandbox extraction prompts + document field-level instructions | cursor | **in_progress** | GitHub #32 / draft PR #33. Class-specific `*_simplified` stems + empty-GT scoring scope. Catalog promotion tracked in eval-environment #4–#8. Do not close #21 or #32. |
 | SAND-018-1 | Gate: `huggingface-secret` missing in `hermes-agent-jjb` (provision it, or deploy under `exios66`) | human | **done** | **Decision: Option A** — human provisioned `huggingface-secret` in `hermes-agent-jjb`; connect resumes on the runbook Track A default wallet. |
-| SAND-018 | 20-contract Modal+vLLM readiness run (full-corpus logged sample) | orchestrator | **in_progress** | Runbook [`benchmark-l4.md`](../docs/benchmark-l4.md) pins; `run-20-contracts-specialist.yaml` + posture/gate coverage (DMR-078); preflight green — `spec_hash=423c7684cb6c…`, 20 contract rows, `seed=42`, `sha256=fad06e44f54f…`. Connect: deploying `sandbox-vllm` on `hermes-agent-jjb` (secret now present) |
+| SAND-018 | 20-contract Modal+vLLM readiness run (full-corpus logged sample) | orchestrator | **in_progress** | Runbook `sandbox runbook show l4-qwen3-8b-n20`; `run-20-contracts-specialist.yaml` + posture/gate coverage (DMR-078); preflight green — `spec_hash=423c7684cb6c…`, 20 contract rows, `seed=42`, `sha256=fad06e44f54f…`. Connect: deploying `sandbox-vllm` on `hermes-agent-jjb` (secret now present) |
 | SAND-010 | Finish 50-subclass Modal sorter mission (teardown + interpret + monorepo sync) | jarvis / athena | **in_progress** | Epic for archived `SANDBOX-050` mission — see sub-cards below + [`archive/SANDBOX-050.md`](archive/SANDBOX-050.md) |
 | SAND-010-3 | Preflight + guards loud (1-row live smoke pending) | test-suite-auditor | **in_progress** | was `SANDBOX-050-3`; DMR-072 silent-fallback fixed |
 | SAND-010-5 | Run start → watch → completion | test-suite-auditor | **in_progress** | was `SANDBOX-050-5`; attempt 1 invalidated |

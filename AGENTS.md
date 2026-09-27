@@ -90,6 +90,7 @@ sandbox tunnel plan|up|status|down    # SSH forward for vllm-remote (HUB-026)
 modal run deploy/modal_vllm.py::download_model  # Modal: pre-warm HF cache ([deploy])
 modal deploy deploy/modal_job.py  # Modal job worker (remote runs)
 sandbox run preflight|start|status|resume|cancel|list --config config/runs/<name>.yaml [--job-mode endpoint|modal] [--watch]
+sandbox runbook list|show <id>|check|write   # operator runbooks (catalog → docs/runbooks/)
 sandbox prompts list|show <agent>     # all pipeline agent prompts (local + Langfuse)
 sandbox subagents list|show <id>      # coding subagent roster (GEPA, traces, meta)
 sandbox subagents sync --harness all  # OpenCode frontmatter + .cursor/agents/ stubs
@@ -99,7 +100,7 @@ sandbox metrics compare --runs local,modal,api   # serving metrics comparison
 # SANDBOX_DEBUG=1 → set -x + results/run.log diagnostics (CHTC/Modal, DMR-053)
 ```
 
-- Config: `config/profiles/*.yaml` + `config/taxonomy.overlay.yaml` + `config/components.yaml` + `config/models.yaml`.
+- Config: `config/profiles/*.yaml` + `config/taxonomy.overlay.yaml` + `config/components.yaml` + `config/models.yaml` + `config/runbooks/catalog.yaml`.
 - Remote serving (Modal / SSH-tunneled vLLM / CHTC / conda): `docs/remote-serving.md` + `deploy/htcondor/` + `deploy/conda/`. Modal deploy workflow (SDK pinned `modal==1.5.5`; pre-warm → deploy → verify → teardown, cost guards, troubleshooting) lives in `deploy/README.md`. CLI rule: pass `--profile` AFTER the subcommand (or via `SANDBOX_PROFILE`) — a `--profile` before the subcommand is clobbered by the subparser default.
 - Runtime taxonomy is written to `data/runtime/taxonomy.yaml` (gitignored).
 - Prepared fixtures: `data/runtime/prepared/` via notebooks or `sandbox datasets prepare`.

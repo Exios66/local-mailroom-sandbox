@@ -8,7 +8,7 @@ Default experiment posture (specialist 5×30 cost eval)
 ------------------------------------------------------
 ``MODAL_VLLM_MODEL=Qwen/Qwen3-8B`` on ``MODAL_VLLM_GPU=L4``,
 ``max_containers=1``, ``scaledown=120`` (attended; restore **600** for
-unattended/overnight), job concurrency 4 — see ``docs/benchmark-l4.md``.
+unattended/overnight), job concurrency 4 — see ``sandbox runbook show l4-qwen3-8b``.
 
 L4 long-prompt engine pins (≈9.7k-token specialist prompts):
 
