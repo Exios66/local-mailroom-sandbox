@@ -26,6 +26,19 @@ export SANDBOX_PROFILE=modal-vllm
 APP="${MODAL_VLLM_APP_NAME:-sandbox-vllm}"
 REPLICAS="$MODAL_VLLM_MAX_CONTAINERS"
 
+# Any failure after this point stops the fleet — a failed step must never
+# leave an L4 warm and billing (SAND-032 L0 lesson: a bad URL idled a GPU).
+on_fail() {
+  rc=$?
+  [ $rc -eq 0 ] && return
+  echo "run_one FAILED rc=$rc — stopping $APP to protect spend" | tee -a "$LOG/$RID.fail.log"
+  modal app stop "$APP" -y >> "$LOG/$RID.fail.log" 2>&1 || true
+  stamp stopped
+  FLEET="$(python3 -c 'import json,sys;d=json.load(open(sys.argv[1]));o=[k for k,v in d.items() if not v.get("stop_ts")];print(o[-1] if o else "")' "$RT/fleets.json" 2>/dev/null || true)"
+  [ -n "$FLEET" ] && python3 scripts/sand032/spend.py close "$FLEET" >/dev/null || true
+}
+trap on_fail EXIT
+
 sbx run benchmark-check --config "$CFG" --modal-profile exios66 > "$LOG/$RID.bcheck.txt" 2>&1 \
   || { echo "benchmark-check FAILED"; tail -20 "$LOG/$RID.bcheck.txt"; exit 4; }
 
@@ -35,7 +48,8 @@ if [ "$MODE" = deploy ]; then
   modal deploy deploy/modal_vllm.py > "$LOG/$RID.deploy.log" 2>&1
   stamp deploy_done
 fi
-URL="$(grep -oE 'https://[a-z0-9-]+--'"$APP"'-serve\.modal\.run' "$LOG"/*.deploy.log | tail -1 | cut -d: -f2-)"
+URL="$(grep -hoE 'https://[a-z0-9-]+--'"$APP"'-serve\.modal\.run' "$LOG"/*.deploy.log | tail -1)"
+case "$URL" in https://*) ;; *) echo "could not parse deploy URL: '$URL'"; exit 6;; esac
 export VLLM_BASE_URL="${URL}/v1"
 echo "$VLLM_BASE_URL" > "$RT/base_url"
 
