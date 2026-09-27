@@ -142,6 +142,7 @@ def run_isolated_eval(
     gpu: str | None = None,
     progress_cb: Any = None,
     replicas: int = 1,
+    row_cb: Any = None,
 ) -> dict[str, Any]:
     """Run one live agent / node against fixtures, nested under document-pipeline.
 
@@ -283,6 +284,13 @@ def run_isolated_eval(
     def _record(index: int, entry: dict[str, Any]) -> None:
         per_row[index] = entry
         _absorb(entry)
+        # SAND-032: stream each finished row to the caller (main thread) so a
+        # later cap abort / raise cannot drop rows whose GPU time was paid.
+        if row_cb is not None:
+            try:
+                row_cb(entry)
+            except Exception as exc:  # noqa: BLE001 — persistence must never break a run
+                _log.warning("row_cb raised — per-doc evidence may be incomplete: %s", exc)
         # SAND-018: the isolated path used to be silent until the end — no
         # running checkpoint, no events — so a live run looked stalled.
         if progress_cb is not None:

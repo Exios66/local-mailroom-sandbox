@@ -275,6 +275,7 @@ def _run_whole_run(
                 gpu=gpu,
                 replicas=replicas,
                 progress_cb=_progress,
+                row_cb=lambda entry: _persist_isolated_items(store, [entry]),
                 **kwargs,
             )
         elif task in _agent_task_names():
@@ -290,6 +291,7 @@ def _run_whole_run(
                 gpu=gpu,
                 replicas=replicas,
                 progress_cb=_progress,
+                row_cb=lambda entry: _persist_isolated_items(store, [entry]),
                 **kwargs,
             )
         else:
