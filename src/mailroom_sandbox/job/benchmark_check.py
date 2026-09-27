@@ -75,12 +75,18 @@ TWO_GPU_RUNS = frozenset({
 # chain (no scale-to-zero between classes; teardown after the fifth) — not
 # the scale-to-zero run-30 default. benchmark-check allows
 # min_containers=1 (with max_containers=1) for exactly these run_ids.
-GRANITE_ONE_GPU_RUNS = frozenset({
+# Probe instances (*-granite-probe) and the Qwen AWQ merger leg ride the same warm app and share the pin.
+PINNED_ONE_GPU_RUNS = frozenset({
     "run-20-contracts-granite",
     "run-20-merger-granite",
     "run-20-corporate-records-granite",
     "run-20-correspondence-granite",
     "run-20-insurance-claims-granite",
+    "run-01-contracts-granite-probe",
+    "run-02-contracts-granite-probe2",
+    "run-50-correspondence-granite",
+    "run-20-merger-specialist-awq",
+    "run-20-corporate-records-specialist-awq",
 })
 
 SPECIALIST_LOCAL_PROMPTS: dict[str, dict[str, str]] = {
@@ -379,7 +385,7 @@ def _check_spec_pins(spec: RunSpec) -> dict[str, list[str]]:
                     "modal.min_containers=2 — replicas pinned warm during Runs A+B "
                     f"for {spec.run_id} (no scale-to-zero; teardown after last run)"
                 )
-            elif spec.run_id in GRANITE_ONE_GPU_RUNS and modal.min_containers == 1:
+            elif spec.run_id in PINNED_ONE_GPU_RUNS and modal.min_containers == 1:
                 warnings.append(
                     "modal.min_containers=1 — 1×L4 pinned warm across the "
                     f"Granite five-run chain for {spec.run_id} (no scale-to-zero "
@@ -400,7 +406,10 @@ def _check_spec_pins(spec: RunSpec) -> dict[str, list[str]]:
             warnings.append(f"modal.app={modal.app!r} (default {exp['app']!r})")
 
     if spec.job.concurrency < 2:
-        errors.append("job.concurrency must be >= 2 for L4 throughput benchmarks")
+        # Single-doc probe instances (*-probe-*) are serial by design — the
+        # posture row still pins their concurrency / caps / walls.
+        if not (isinstance(spec.run_id, str) and "-probe" in spec.run_id):
+            errors.append("job.concurrency must be >= 2 for L4 throughput benchmarks")
 
     posture = posture_for_run(spec.run_id)
     if posture is not None:

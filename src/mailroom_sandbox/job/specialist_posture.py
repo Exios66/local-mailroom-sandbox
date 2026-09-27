@@ -147,6 +147,31 @@ SPECIALIST_POSTURE: dict[str, dict[str, Any]] = {
             "scaled ~2.5× the 20-doc run for docs + 2-replica billing."
         ),
     },
+    # ── Qwen AWQ merger cross-agent leg ─────────────────────────────────────
+    # PLACEMENT MATTERS: AGENT_GENERATION_BUDGETS is last-writer-wins per
+    # agent, so this contracts_specialist row (4096 Qwen decode) sits BEFORE
+    # run-20-contracts-granite (16384) to leave the Granite-proven budget as
+    # the global default. Run-scoped SANDBOX_AGENT_KNOBS overrides either.
+    "run-20-merger-specialist-awq": {
+        "task": "contracts_specialist",
+        "doc_class": "merger_agreement",
+        "agent": "contracts_specialist",
+        "prompt_file": "contracts_specialist_v33_simplified",
+        "concurrency": 4,
+        "max_model_len": 32768,
+        "max_tokens": 4096,
+        "max_input_chars": _input_chars_for(4096, 10000, 32768),
+        "cost_cap_usd": 0.70,
+        "max_wall_seconds": 3600,
+        "tokens_assumed": {"prompt": 10000, "completion": 2000},
+        "sec_per_doc": {"low": 40.0, "likely": 120.0, "high": 300.0},
+        "rationale": (
+            "Qwen AWQ cross-agent merger baseline (contracts_specialist on "
+            "MAUD docs) at c=4 on 1×L4: 8×15k-token requests overflow the AWQ "
+            "KV pool (DMR-072 + Granite KV evidence); 4× fits with shared "
+            "prefixes. Qwen needs no thinking-inflated decode (4096)."
+        ),
+    },
     # ── Granite 4.2-8B FP8 sweep (1×L4, concurrency 8) ──────────────────────
     # Apples-to-apples twin of the Qwen AWQ 20-doc posture (DMR-075..077 +
     # correspondence 20/50 b3e1e2b): same strata scaled to 20, same DMR-074
@@ -164,15 +189,17 @@ SPECIALIST_POSTURE: dict[str, dict[str, Any]] = {
         "prompt_file": "contracts_specialist_v33_simplified",
         "concurrency": 3,
         "max_model_len": 32768,
-        "max_tokens": 8192,
-        "max_input_chars": _input_chars_for(8192, 8000, 32768),
+        "max_tokens": 16384,
+        "max_input_chars": _input_chars_for(16384, 8000, 32768),
         "cost_cap_usd": 0.55,
         "max_wall_seconds": 3200,
-        "tokens_assumed": {"prompt": 8000, "completion": 2000},
-        "sec_per_doc": {"low": 25.0, "likely": 55.0, "high": 130.0},
+        "tokens_assumed": {"prompt": 8000, "completion": 4000},
+        "sec_per_doc": {"low": 120.0, "likely": 450.0, "high": 900.0},
         "rationale": (
-            "Granite twin of run-20-contracts-awq-c8: identical 20-contract "
-            "strata + 8192 decode budget at concurrency 8 on 1×L4 FP8."
+            "Granite twin of run-20-contracts-awq-c8 on 1×L4 FP8 at c=3 "
+            "(HALT revision from 8). run-02 probe proved 16384 decode "
+            "(11676 completion tokens vs 4096 LengthFinish); run-scoped "
+            "SANDBOX_AGENT_KNOBS carries the budget, Qwen rows untouched."
         ),
     },
     "run-20-merger-granite": {
@@ -182,17 +209,17 @@ SPECIALIST_POSTURE: dict[str, dict[str, Any]] = {
         "prompt_file": "merger_agreement_specialist_simplified",
         "concurrency": 3,
         "max_model_len": 32768,
-        "max_tokens": 4096,
-        "max_input_chars": _input_chars_for(4096, 10000, 32768),
-        "cost_cap_usd": 0.70,
-        "max_wall_seconds": 3600,
-        "tokens_assumed": {"prompt": 10000, "completion": 2800},
-        "sec_per_doc": {"low": 55.0, "likely": 120.0, "high": 260.0},
+        "max_tokens": 16384,
+        "max_input_chars": 20000,
+        "cost_cap_usd": 1.20,
+        "max_wall_seconds": 6000,
+        "tokens_assumed": {"prompt": 10000, "completion": 5000},
+        "sec_per_doc": {"low": 120.0, "likely": 450.0, "high": 900.0},
         "rationale": (
-            "Granite merger leg: 2/3 scale of run-30-merger quotas (train "
-            "split — test has only ~17 mergers); dedicated "
-            "merger_agreement_specialist per the 1:1 live map; caps ~2/3 of "
-            "the 30-doc merger posture."
+            "Granite merger leg on 1×L4 FP8 at c=3. run-02 probe proved "
+            "Granite needs ~6x Qwen decode (16384 run-scoped knobs; input "
+            "20000 chars keeps prompt+decode+overhead inside 32768). Caps "
+            "resized from probe-measured ~19 tok/s (was 0.70/3600)."
         ),
     },
     "run-20-corporate-records-granite": {
@@ -233,6 +260,29 @@ SPECIALIST_POSTURE: dict[str, dict[str, Any]] = {
             "on 1×L4 FP8 (Qwen twin ran 2×L4; GPU $ scales accordingly)."
         ),
     },
+    # 50-doc correspondence Granite eval (scope revision: correspondence-50 on
+    # 1×L4 at c=8 per user; short docs keep KV within budget where contracts
+    # serialized). Decode 8192 run-scoped: probe-measured ~6x Qwen thinking
+    # inflation (600 → ~3600 + headroom); window fits (3.5k+8k+4k).
+    "run-50-correspondence-granite": {
+        "task": "correspondence_specialist",
+        "doc_class": "correspondence",
+        "agent": "correspondence_specialist",
+        "prompt_file": "correspondence_specialist_production",
+        "concurrency": 8,
+        "max_model_len": 32768,
+        "max_tokens": 8192,
+        "max_input_chars": _input_chars_for(8192, 3500, 32768),
+        "cost_cap_usd": 0.80,
+        "max_wall_seconds": 3600,
+        "tokens_assumed": {"prompt": 3500, "completion": 1500},
+        "sec_per_doc": {"low": 40.0, "likely": 120.0, "high": 300.0},
+        "rationale": (
+            "Granite twin of run-50-correspondence-specialist-awq (fills the "
+            "62-row test pool) on 1×L4 at c=8; caps mirror the Qwen twin "
+            "(1-replica billing gives headroom for slower Granite decode)."
+        ),
+    },
     "run-20-insurance-claims-granite": {
         "task": "insurance_claims_specialist",
         "doc_class": "insurance_claim",
@@ -250,6 +300,73 @@ SPECIALIST_POSTURE: dict[str, dict[str, Any]] = {
             "Granite twin of run-20-insurance-claims-specialist-awq: "
             "identical 20-doc strata (4/4/4/4/2/2) at concurrency 8 on 1×L4 "
             "FP8."
+        ),
+    },
+    # ── Qwen AWQ corporate leg ────────────────────────────────────────────
+    # Sibling of the insurance/correspondence AWQ 20-doc runs (c=8, 4096 Qwen
+    # decode, hard retry cap). Values match the current global
+    # corporate_records_specialist budget, so overlay behavior is unchanged.
+    "run-20-corporate-records-specialist-awq": {
+        "task": "corporate_records_specialist",
+        "doc_class": "corporate_record",
+        "agent": "corporate_records_specialist",
+        "prompt_file": "corporate_records_specialist_simplified",
+        "concurrency": 8,
+        "max_model_len": 32768,
+        "max_tokens": 4096,
+        "max_input_chars": _input_chars_for(4096, 5000, 32768),
+        "cost_cap_usd": 0.40,
+        "max_wall_seconds": 2400,
+        "tokens_assumed": {"prompt": 5000, "completion": 1200},
+        "sec_per_doc": {"low": 30.0, "likely": 65.0, "high": 150.0},
+        "rationale": (
+            "Qwen AWQ corporate baseline at c=8 on 1×L4 (mid-length docs fill "
+            "batching); max_retries hard-capped at 1 in the YAML — fail fast "
+            "on repeated errors rather than burning credits."
+        ),
+    },
+    # ── Probe instances (tracked separately from full runs) ─────────────────
+    # Single-doc live probes get their own run_id / run dir / items / serving
+    # record — probe metrics must never merge into full-run aggregates.
+    # Serial by design (concurrency 1); benchmark_check exempts the c>=2 floor
+    # for *-probe ids but still enforces caps / walls / limits / prompt pins.
+    "run-01-contracts-granite-probe": {
+        "task": "contracts_specialist",
+        "doc_class": "contract",
+        "agent": "contracts_specialist",
+        "prompt_file": "contracts_specialist_v33_simplified",
+        "concurrency": 1,
+        "max_model_len": 32768,
+        "max_tokens": 8192,
+        "max_input_chars": _input_chars_for(8192, 8000, 32768),
+        "cost_cap_usd": 0.10,
+        "max_wall_seconds": 900,
+        "tokens_assumed": {"prompt": 8000, "completion": 2000},
+        "sec_per_doc": {"low": 60.0, "likely": 195.0, "high": 400.0},
+        "rationale": (
+            "HALT-gated 1-doc probe: same engine/strata family as "
+            "run-20-contracts-granite (service doc, seed 42) at concurrency 1; "
+            "sec/doc bands from the halted run's measured ~195s serial generations."
+        ),
+    },
+    "run-02-contracts-granite-probe2": {
+        "task": "contracts_specialist",
+        "doc_class": "contract",
+        "agent": "contracts_specialist",
+        "prompt_file": "contracts_specialist_v33_simplified",
+        "concurrency": 1,
+        "max_model_len": 32768,
+        "max_tokens": 16384,
+        "max_input_chars": 18000,
+        "cost_cap_usd": 0.15,
+        "max_wall_seconds": 1800,
+        "tokens_assumed": {"prompt": 8000, "completion": 4000},
+        "sec_per_doc": {"low": 120.0, "likely": 400.0, "high": 900.0},
+        "rationale": (
+            "Fix re-probe after run-01 LengthFinishReasonError at 4096 "
+            "completion tokens: run-scoped SANDBOX_AGENT_KNOBS raises decode "
+            "to 16384 (prompt 6949 + 16384 + 4000 overhead fits the 32768 "
+            "window); Qwen rows untouched."
         ),
     },
     "run-30-corporate-records-specialist": {        "task": "corporate_records_specialist",
@@ -459,6 +576,13 @@ SPECIALIST_LIMIT_BY_RUN: dict[str, int] = {
     "run-20-corporate-records-granite": 20,
     "run-20-correspondence-granite": 20,
     "run-20-insurance-claims-granite": 20,
+    "run-50-correspondence-granite": 50,
+    "run-01-contracts-granite-probe": 1,
+    "run-02-contracts-granite-probe2": 1,
+    # Qwen AWQ merger cross-agent leg (contracts_specialist on MAUD docs).
+    "run-20-merger-specialist-awq": 20,
+    # Qwen AWQ corporate leg (c=8 sibling of the insurance/correspondence AWQ runs).
+    "run-20-corporate-records-specialist-awq": 20,
 }
 
 
