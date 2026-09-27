@@ -121,11 +121,15 @@ def estimate_gpu_cost_usd(
     gpu_seconds: float,
     *,
     gpu: str | None = None,
+    replicas: int = 1,
 ) -> float | None:
-    """USD for ``gpu_seconds`` of billed/busy time at the configured rate."""
+    """USD for ``gpu_seconds`` of wall on ``replicas`` concurrently-billed GPUs.
+
+    SAND-032: pinned MIN=MAX data-parallel replicas each bill the full wall.
+    """
     if gpu_seconds is None or gpu_seconds <= 0:
         return None
-    rate = gpu_usd_per_hour(gpu)
+    rate = gpu_usd_per_hour(gpu) * max(1, int(replicas))
     return round(gpu_seconds / 3600.0 * rate, 6)
 
 
@@ -435,12 +439,15 @@ def enrich_serving_report(
     cold_boot_seconds: float | None = None,
     gpu: str | None = None,
     scores: Mapping[str, Any] | None = None,
+    replicas: int = 1,
 ) -> dict[str, Any]:
     """Extend a ``record_from_run`` dict with wall/concurrency/latency_sum fields.
 
     Also adds the SAND-028-1 idle-fraction block when wall and latency sums exist.
     """
     out = dict(record)
+    replicas = max(1, int(replicas or 1))
+    out["replicas"] = replicas
     if scores:
         out["scores"] = dict(scores)
     ok_items = [i for i in items if i.get("ok", True) is not False]
@@ -491,7 +498,7 @@ def enrich_serving_report(
             float(cold_boot_seconds) if cold_boot_seconds is not None else 0.0
         )
         out["gpu_seconds"] = round(billed, 3)
-        gpu_cost = estimate_gpu_cost_usd(billed, gpu=gpu_class)
+        gpu_cost = estimate_gpu_cost_usd(billed, gpu=gpu_class, replicas=replicas)
         if gpu_cost is not None:
             out["estimated_gpu_cost_usd"] = gpu_cost
             n_ok = len(ok_items) or int(out.get("n") or 0)
@@ -509,11 +516,13 @@ def enrich_serving_report(
         out["slot_utilization"] = round(busy_slot / float(wall_seconds), 4)
         idle_container = max(0.0, float(wall_seconds) - busy_slot)
         out["idle_container_seconds"] = round(idle_container, 3)
-        idle_usd = estimate_gpu_cost_usd(idle_container, gpu=gpu_class)
+        idle_usd = estimate_gpu_cost_usd(idle_container, gpu=gpu_class, replicas=replicas)
         if idle_usd is not None:
             out["idle_estimated_usd"] = idle_usd
         if cold_boot_seconds is not None:
-            boot_usd = estimate_gpu_cost_usd(float(cold_boot_seconds), gpu=gpu_class)
+            boot_usd = estimate_gpu_cost_usd(
+                float(cold_boot_seconds), gpu=gpu_class, replicas=replicas
+            )
             if boot_usd is not None:
                 out["boot_estimated_usd"] = boot_usd
 

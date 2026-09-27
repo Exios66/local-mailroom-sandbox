@@ -236,6 +236,7 @@ def _run_whole_run(
     max_wall = _max_wall_seconds(store)
     cost_cap = _cost_cap_usd(store)
     gpu = _lock_gpu(store)
+    replicas = _lock_replicas(store)
     # SAND-018: the isolated-agent path used to show nothing until it finished.
     # Write a running checkpoint per completed item and forward events so
     # `sandbox run status` (and --watch) track a live specialist run.
@@ -272,6 +273,7 @@ def _run_whole_run(
                 max_wall_seconds=max_wall,
                 cost_cap_usd=cost_cap,
                 gpu=gpu,
+                replicas=replicas,
                 progress_cb=_progress,
                 **kwargs,
             )
@@ -286,6 +288,7 @@ def _run_whole_run(
                 max_wall_seconds=max_wall,
                 cost_cap_usd=cost_cap,
                 gpu=gpu,
+                replicas=replicas,
                 progress_cb=_progress,
                 **kwargs,
             )
@@ -375,7 +378,9 @@ def _estimate_run_gpu_usd(store: RunStore, wall_seconds: float) -> float:
     from mailroom_sandbox.job.metrics import estimate_gpu_cost_usd
 
     gpu = _lock_gpu(store) or "L4"
-    return float(estimate_gpu_cost_usd(wall_seconds, gpu=gpu) or 0.0)
+    return float(
+        estimate_gpu_cost_usd(wall_seconds, gpu=gpu, replicas=_lock_replicas(store)) or 0.0
+    )
 
 
 def verify_dataset_lock(store: RunStore) -> None:
@@ -463,6 +468,19 @@ def _lock_gpu(store: RunStore) -> str | None:
     if isinstance(modal, dict) and modal.get("gpu"):
         return str(modal["gpu"]).split(":")[0]
     return None
+
+
+def _lock_replicas(store: RunStore) -> int:
+    """Concurrently-billed replicas (SAND-032: MIN=MAX pinned 2×L4 bills 2 GPUs).
+
+    ``max_containers`` over-estimates a scale-to-zero config — the safe
+    direction for a spend cap.
+    """
+    engine = (store.read_lock() or {}).get("engine") or {}
+    modal = engine.get("modal") if isinstance(engine, dict) else None
+    if isinstance(modal, dict):
+        return max(1, int(modal.get("max_containers") or 1))
+    return 1
 
 
 def _build_record(

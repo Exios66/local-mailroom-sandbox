@@ -420,3 +420,29 @@ def test_usage_capture_merge_item_metrics():
     }
     resp = SimpleNamespace(usage=SimpleNamespace(prompt_tokens=7, completion_tokens=3))
     assert usage_from_openai_response(resp) == {"prompt_tokens": 7, "completion_tokens": 3}
+
+
+# ── SAND-032: replica-aware GPU cost ─────────────────────────────────────────
+
+
+def test_gpu_cost_scales_with_replicas(monkeypatch):
+    from mailroom_sandbox.job.metrics import estimate_gpu_cost_usd
+
+    monkeypatch.delenv("MODAL_GPU_USD_PER_HOUR", raising=False)
+    monkeypatch.delenv("MODAL_GPU_USD_PER_SEC", raising=False)
+    one = estimate_gpu_cost_usd(3600, gpu="L4")
+    two = estimate_gpu_cost_usd(3600, gpu="L4", replicas=2)
+    assert two == round(one * 2, 6)
+
+
+def test_enrich_bills_every_replica(monkeypatch):
+    from mailroom_sandbox.job.metrics import enrich_serving_report
+
+    monkeypatch.delenv("MODAL_GPU_USD_PER_HOUR", raising=False)
+    monkeypatch.delenv("MODAL_GPU_USD_PER_SEC", raising=False)
+    rec = {"provider": "vllm", "profile": "modal-vllm", "gpu": "L4", "n": 2}
+    items = [{"ok": True, "latency_ms": 1000.0}, {"ok": True, "latency_ms": 3000.0}]
+    one = enrich_serving_report(dict(rec), items=items, wall_seconds=100, gpu="L4")
+    two = enrich_serving_report(dict(rec), items=items, wall_seconds=100, gpu="L4", replicas=2)
+    assert two["estimated_gpu_cost_usd"] == round(one["estimated_gpu_cost_usd"] * 2, 6)
+    assert two["replicas"] == 2
