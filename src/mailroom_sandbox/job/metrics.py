@@ -54,6 +54,11 @@ SANDBOX_MODEL_PRICES: dict[str, tuple[float, float]] = {
     "Qwen/Qwen3-8B-AWQ": (0.03, 0.13),
     "Qwen/Qwen3-14B": (0.03, 0.13),
     "Qwen/Qwen3-14B-AWQ": (0.03, 0.13),
+    # SAND-027 Granite twin: OpenRouter ibm-granite/granite-4.2-8b list price
+    # ($0.06/$0.25 per 1M) applies to both the bf16 id and the -fp8 Modal leg
+    # (same weights; FP8 is the 1×L4 serve form).
+    "ibm-granite/granite-4.2-8b": (0.06, 0.25),
+    "ibm-granite/granite-4.2-8b-fp8": (0.06, 0.25),
     "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B": (0.05, 0.25),  # deepseek-v4-flash
     "deepseek-ai/DeepSeek-R1-Distill-Llama-8B": (0.05, 0.25),
     "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B": (0.435, 0.87),  # deepseek-v4-pro
