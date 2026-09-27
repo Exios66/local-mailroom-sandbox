@@ -327,11 +327,22 @@ def test_display_tail_hides_scrape_noise_but_file_keeps_it(tmp_path):
 def test_program_route_shows_every_run_with_fleet_and_status(tmp_path):
     from mailroom_sandbox.watch import PROGRAM, program_lines
 
-    assert len(PROGRAM) == 15
+    assert len(PROGRAM) == 13  # L3/L4 folded into the single-boot L5 (warm flow)
     assert sum(1 for _, rep in PROGRAM if rep == 2) == 7  # s2b + six Stage-3 runs
+    assert "sand032-l3-fp8kv" not in dict(PROGRAM)
     (tmp_path / "sand032-l0-baseline.times").write_text('"stopped": 1.0,\n')
     (tmp_path / "sand032-l1-nothink.times").write_text('"run_start": 1.0,\n')
     plain = "\n".join(strip_ansi(x) for x in program_lines(tmp_path, current="sand032-l1-nothink", width=110))
     assert "✓ l0-baseline ×1" in plain
     assert "▶ l1-nothink ×1" in plain
     assert "· s3-merger50 ×2" in plain and "· s2b-corr100-2rep ×2" in plain
+
+
+def test_program_route_warm_runs_done_after_run_end(tmp_path):
+    """Warm-flow runs never get their own `stopped` stamp — run_end + not current = done."""
+    from mailroom_sandbox.watch import program_lines
+
+    (tmp_path / "sand032-s2a-corr100-1rep.times").write_text('"ready": 1.0,\n"run_end": 2.0,\n')
+    (tmp_path / "sand032-s2b-corr100-2rep.times").write_text('"ready": 3.0,\n')
+    plain = "\n".join(strip_ansi(x) for x in program_lines(tmp_path, current="sand032-s2b-corr100-2rep", width=110))
+    assert "✓ s2a-corr100-1rep ×1" in plain and "▶ s2b-corr100-2rep ×2" in plain
