@@ -635,6 +635,12 @@ def _run_parser(sub, shared):
         help="loud Modal L4 Qwen reproducibility gate (Hermes profile, pins)",
     )
     bcheck.set_defaults(handler=_cmd_run_benchmark_check)
+    denv = run_sub.add_parser(
+        "deploy-env",
+        parents=[common],
+        help="print the MODAL_VLLM_* exports a run YAML implies (SAND-032)",
+    )
+    denv.set_defaults(handler=_cmd_run_deploy_env)
     suite_p = run_sub.add_parser(
         "suite",
         parents=[common],
@@ -1625,6 +1631,18 @@ def _cmd_run_benchmark_check(args) -> int:
         for err in report.get("errors") or []:
             print(f"ERROR: {err}", file=sys.stderr)
     return 0 if report.get("ok") else 1
+
+
+def _cmd_run_deploy_env(args) -> int:
+    """SAND-032: YAML is the source of truth for deploy knobs — render it."""
+    from mailroom_sandbox.job.deploy_env import render_exports
+    from mailroom_sandbox.job.spec import load_run_spec
+
+    if not getattr(args, "config", None):
+        print("ERROR: --config required", file=sys.stderr)
+        return 2
+    sys.stdout.write(render_exports(load_run_spec(args.config)))
+    return 0
 
 
 def _cmd_run_suite(args) -> int:
