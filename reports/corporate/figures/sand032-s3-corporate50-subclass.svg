@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="viz" viewBox="0 0 720 308" width="720" height="308" role="img" aria-label="Mean overall extraction score by subclass · sand032-s3-corporate50">
+
+<style>
+  .viz { font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    --surface:#fcfcfb; --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
+    --grid:#e1e0d9; --axis:#c3c2b7; --s1:#2a78d6; --s2:#eb6834; --deemph:#c3c2b7;
+    --good:#0ca30c; --critical:#d03b3b; }
+  @media (prefers-color-scheme: dark) {
+    .viz { --surface:#1a1a19; --ink:#ffffff; --ink2:#c3c2b7; --muted:#898781;
+      --grid:#2c2c2a; --axis:#383835; --s1:#3987e5; --s2:#d95926; --deemph:#52514e; }
+  }
+  .viz .bg { fill: var(--surface); }
+  .viz .title { fill: var(--ink); font-size: 15px; font-weight: 600; }
+  .viz .sub { fill: var(--ink2); font-size: 12px; }
+  .viz .lbl { fill: var(--ink2); font-size: 12px; }
+  .viz .val { fill: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums;
+    paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+  .viz .reflbl { paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+  .viz .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .viz .grid { stroke: var(--grid); stroke-width: 1; }
+  .viz .axis { stroke: var(--axis); stroke-width: 1; }
+  .viz .ref { stroke: var(--ink2); stroke-width: 1; }
+  .viz .reflbl { fill: var(--ink2); font-size: 11px; }
+  .viz .s1 { fill: var(--s1); } .viz .s2 { fill: var(--s2); }
+  .viz .ln1 { stroke: var(--s1); } .viz .ln2 { stroke: var(--s2); }
+  .viz .deemph { fill: var(--deemph); }
+  .viz .conn { stroke: var(--axis); stroke-width: 2; }
+  .viz .ring { stroke: var(--surface); stroke-width: 2; }
+</style>
+
+<rect class="bg" width="720" height="308" rx="8"/>
+<text class="title" x="16" y="24">Mean overall extraction score by subclass · sand032-s3-corporate50</text>
+<text class="sub" x="16" y="42">overall mean 0.4583 across 50 docs (0–1, higher is better)</text>
+<line class="grid" x1="190.0" y1="54" x2="190.0" y2="274"/>
+<text class="tick" x="190.0" y="290" text-anchor="middle">0</text>
+<line class="grid" x1="305.0" y1="54" x2="305.0" y2="274"/>
+<text class="tick" x="305.0" y="290" text-anchor="middle">0.2</text>
+<line class="grid" x1="420.0" y1="54" x2="420.0" y2="274"/>
+<text class="tick" x="420.0" y="290" text-anchor="middle">0.4</text>
+<line class="grid" x1="535.0" y1="54" x2="535.0" y2="274"/>
+<text class="tick" x="535.0" y="290" text-anchor="middle">0.6</text>
+<line class="grid" x1="650.0" y1="54" x2="650.0" y2="274"/>
+<text class="tick" x="650.0" y="290" text-anchor="middle">0.8</text>
+<line class="axis" x1="190" y1="54" x2="190" y2="274"/>
+<text class="lbl" x="182" y="74.0" text-anchor="end">articles_of_incorporation (n=5)</text>
+<path class="s1" d="M190.0,63.0 H623.5 Q627.5,63.0 627.5,67.0 V73.0 Q627.5,77.0 623.5,77.0 H190.0 Z"><title>articles_of_incorporation (n=5): 0.761</title></path>
+<text class="val" x="633.5" y="74.0">0.761</text>
+<text class="lbl" x="182" y="98.0" text-anchor="end">bylaws (n=6)</text>
+<path class="s1" d="M190.0,87.0 H546.6 Q550.6,87.0 550.6,91.0 V97.0 Q550.6,101.0 546.6,101.0 H190.0 Z"><title>bylaws (n=6): 0.627</title></path>
+<text class="val" x="556.6" y="98.0">0.627</text>
+<text class="lbl" x="182" y="122.0" text-anchor="end">charter_amendment (n=8)</text>
+<path class="s1" d="M190.0,111.0 H536.1 Q540.1,111.0 540.1,115.0 V121.0 Q540.1,125.0 536.1,125.0 H190.0 Z"><title>charter_amendment (n=8): 0.609</title></path>
+<text class="val" x="546.1" y="122.0">0.609</text>
+<text class="lbl" x="182" y="146.0" text-anchor="end">powers_of_attorney (n=2)</text>
+<path class="s1" d="M190.0,135.0 H523.9 Q527.9,135.0 527.9,139.0 V145.0 Q527.9,149.0 523.9,149.0 H190.0 Z"><title>powers_of_attorney (n=2): 0.588</title></path>
+<text class="val" x="533.9" y="146.0">0.588</text>
+<text class="lbl" x="182" y="170.0" text-anchor="end">indenture (n=7)</text>
+<path class="s1" d="M190.0,159.0 H460.0 Q464.0,159.0 464.0,163.0 V169.0 Q464.0,173.0 460.0,173.0 H190.0 Z"><title>indenture (n=7): 0.476</title></path>
+<text class="val" x="470.0" y="170.0">0.476</text>
+<text class="lbl" x="182" y="194.0" text-anchor="end">rights_instrument (n=6)</text>
+<path class="s1" d="M190.0,183.0 H431.9 Q435.9,183.0 435.9,187.0 V193.0 Q435.9,197.0 431.9,197.0 H190.0 Z"><title>rights_instrument (n=6): 0.428</title></path>
+<text class="val" x="441.9" y="194.0">0.428</text>
+<text class="lbl" x="182" y="218.0" text-anchor="end">subsidiary_list (n=6)</text>
+<path class="s1" d="M190.0,207.0 H347.1 Q351.1,207.0 351.1,211.0 V217.0 Q351.1,221.0 347.1,221.0 H190.0 Z"><title>subsidiary_list (n=6): 0.280</title></path>
+<text class="val" x="357.1" y="218.0">0.280</text>
+<text class="lbl" x="182" y="242.0" text-anchor="end">officer_certificate (n=6)</text>
+<path class="s1" d="M190.0,231.0 H309.3 Q313.3,231.0 313.3,235.0 V241.0 Q313.3,245.0 309.3,245.0 H190.0 Z"><title>officer_certificate (n=6): 0.214</title></path>
+<text class="val" x="319.3" y="242.0">0.214</text>
+<text class="lbl" x="182" y="266.0" text-anchor="end">board_resolution (n=4)</text>
+<path class="s1" d="M190.0,255.0 H248.3 Q252.3,255.0 252.3,259.0 V265.0 Q252.3,269.0 248.3,269.0 H190.0 Z"><title>board_resolution (n=4): 0.108</title></path>
+<text class="val" x="258.3" y="266.0">0.108</text>
+</svg>
