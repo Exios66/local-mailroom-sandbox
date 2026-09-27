@@ -173,3 +173,8 @@ def test_cli_benchmark_check_passes_modal_profile(monkeypatch, capsys):
     rc = main(["run", "benchmark-check", "--config",
                str(config_dir() / "runs" / "sand032-l0-baseline.yaml"), "--modal-profile", "exios66"])
     assert rc == 0 and seen["profile"] == "exios66"
+
+
+@pytest.mark.parametrize("path", RUNS, ids=lambda p: p.stem)
+def test_sand032_runs_on_dedicated_modal_app(path):
+    assert load_run_spec(path).engine.modal.app == "sandbox-vllm-sand032"

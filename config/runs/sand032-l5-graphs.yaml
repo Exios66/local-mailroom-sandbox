@@ -47,7 +47,7 @@ engine:
     cudagraph_capture_sizes: [1, 2, 4, 8, 16]
     max_inputs: 32
   modal:
-    app: sandbox-vllm
+    app: sandbox-vllm-sand032
     gpu: L4
     image_tag: v0.29.0
     scaledown_seconds: 120
