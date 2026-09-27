@@ -120,3 +120,23 @@ def test_cli_watch_once_renders_single_frame(tmp_path, monkeypatch, capsys):
     out = strip_ansi(capsys.readouterr().out)
     assert rc == 0
     assert "sandbox-vllm-sand032" in out and "sand032-l0-baseline" in out and "$0.4200" in out
+
+
+def test_cli_watch_follow_file_tracks_current_config(tmp_path, monkeypatch, capsys):
+    """One terminal pane follows whichever SAND-032 run is current."""
+    from mailroom_sandbox.cli import main
+    from mailroom_sandbox.job import spec as spec_mod
+    from mailroom_sandbox.paths import config_dir
+
+    monkeypatch.setattr(spec_mod, "runs_root", lambda: tmp_path)
+    follow = tmp_path / "current"
+    follow.write_text(str(config_dir() / "runs" / "sand032-s3-merger50.yaml") + "\n")
+    rc = main(["watch", "--follow", str(follow), "--once", "--no-logs"])
+    out = strip_ansi(capsys.readouterr().out)
+    assert rc == 0 and "sand032-s3-merger50" in out and "SWEEP" in out
+
+
+def test_cli_watch_requires_config_or_follow(capsys):
+    from mailroom_sandbox.cli import main
+
+    assert main(["watch", "--once", "--no-logs"]) == 2
