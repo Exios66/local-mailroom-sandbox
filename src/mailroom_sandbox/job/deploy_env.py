@@ -64,6 +64,7 @@ def spec_env(spec: RunSpec) -> dict[str, str]:
     if m is not None:
         env.update(
             {
+                "MODAL_VLLM_APP_NAME": "" if m.app == "sandbox-vllm" else m.app,
                 "MODAL_VLLM_GPU": m.gpu,
                 "MODAL_VLLM_IMAGE_TAG": m.image_tag,
                 "MODAL_VLLM_MAX_CONTAINERS": str(m.max_containers),

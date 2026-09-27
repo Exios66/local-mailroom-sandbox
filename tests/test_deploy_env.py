@@ -107,3 +107,9 @@ def test_render_exports_resets_unset_knobs():
     assert "unset MODAL_VLLM_TP_SIZE" in text
     assert "unset MODAL_VLLM_STARTUP_TIMEOUT_SECONDS" in text
     assert 'MODAL_VLLM_REASONING_PARSER=""' not in text
+
+
+def test_spec_env_renders_dedicated_app_name():
+    spec = _spec()
+    spec.engine.modal.app = "sandbox-vllm-sand032"
+    assert spec_env(spec)["MODAL_VLLM_APP_NAME"] == "sandbox-vllm-sand032"

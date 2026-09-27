@@ -50,6 +50,7 @@ KNOB_ENV = (
     "MODAL_VLLM_MAX_NUM_BATCHED_TOKENS",
     "MODAL_VLLM_CHAT_TEMPLATE",
     "MODAL_VLLM_MAX_INPUTS",
+    "MODAL_VLLM_APP_NAME",
     "HF_TOKEN",
 )
 
@@ -730,3 +731,21 @@ class TestSand032Knobs:
         monkeypatch.setenv("MODAL_VLLM_MAX_INPUTS", "32")
         mod = _load_app_module()
         assert mod.serve.fn.concurrent_kwargs["max_inputs"] == 32
+
+
+class TestDedicatedApp:
+    def test_default_app_name_unchanged(self):
+        mod = _load_app_module()
+        assert mod.APP_NAME == "sandbox-vllm"
+        assert mod.app.name == "sandbox-vllm"
+
+    def test_app_name_env_gives_dedicated_app(self, monkeypatch):
+        monkeypatch.setenv("MODAL_VLLM_APP_NAME", "sandbox-vllm-sand032")
+        mod = _load_app_module()
+        assert mod.app.name == "sandbox-vllm-sand032"
+
+    def test_vllm_help_probe_is_cpu_only(self):
+        mod = _load_app_module()
+        kwargs = mod.vllm_help.kwargs
+        assert "gpu" not in kwargs
+        assert kwargs["timeout"] <= 600

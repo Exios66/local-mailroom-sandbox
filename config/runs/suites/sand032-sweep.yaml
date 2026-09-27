@@ -4,7 +4,7 @@
 #
 # Activate: modal profile activate exios66
 # Check:    sandbox run benchmark-check --suite sand032-sweep --modal-profile exios66
-# Teardown: modal app stop sandbox-vllm  ONLY after the last config below
+# Teardown: modal app stop sandbox-vllm-sand032  ONLY after the last config below
 schema: sandbox.suite/v1
 suite_id: sand032-sweep
 track: a

@@ -88,7 +88,9 @@ from pathlib import Path
 
 import modal
 
-APP_NAME = "sandbox-vllm"
+# SAND-032: a dedicated app per experiment program keeps its containers,
+# logs and billing separate from the shared sandbox-vllm app.
+APP_NAME = os.environ.get("MODAL_VLLM_APP_NAME", "") or "sandbox-vllm"
 SERVER_PORT = 8000                  # Modal web_server port (vLLM subprocess)
 HF_CACHE_VOLUME_NAME = "sandbox-hf-cache"
 VLLM_CACHE_VOLUME_NAME = "sandbox-vllm-cache"
@@ -435,6 +437,19 @@ def serve() -> None:
 # ---------------------------------------------------------------------------
 # pre-warm
 # ---------------------------------------------------------------------------
+
+@app.function(timeout=300)
+def vllm_help() -> None:
+    """CPU-only flag probe on the pinned vLLM image (SAND-032 Task 10).
+
+    ``modal run deploy/modal_vllm.py::vllm_help`` prints ``vllm serve --help=all``
+    so new flags are confirmed on v0.29.0 BEFORE any GPU boot is billed.
+    """
+    out = subprocess.run(
+        ["vllm", "serve", "--help=all"], capture_output=True, text=True, check=False
+    )
+    print(out.stdout or out.stderr)
+
 
 @app.function(
     image=download_image,
