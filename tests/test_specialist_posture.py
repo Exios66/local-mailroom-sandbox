@@ -107,6 +107,57 @@ def test_run_20_insurance_awq_posture():
     assert sum(int(b["count"]) for b in sub) == 20
 
 
+def test_run_20_correspondence_specialist_awq_posture():
+    """Run A: 20-doc AWQ correspondence at concurrency 8 on 2×L4."""
+    row = SPECIALIST_POSTURE["run-20-correspondence-specialist-awq"]
+    assert row["task"] == "correspondence_specialist"
+    assert row["concurrency"] == 8
+    assert row["max_model_len"] == 32768
+    assert row["prompt_file"] == "correspondence_specialist_production"
+    assert expected_limit("run-20-correspondence-specialist-awq") == 20
+    assert context_fit_ok(row["max_tokens"], row["max_input_chars"], 32768)
+    root = Path(__file__).resolve().parents[1] / "config" / "runs"
+    spec = load_run_spec(root / "run-20-correspondence-specialist-awq.yaml")
+    assert spec.dataset.limit == 20
+    assert spec.job.concurrency == 8
+    assert spec.engine.model == "Qwen/Qwen3-8B-AWQ"
+    assert spec.engine.vllm.quantization == "awq"
+    assert spec.engine.vllm.max_model_len == 32768
+    assert spec.engine.modal.max_containers == 2
+    assert spec.engine.modal.min_containers == 2
+    buckets = (spec.dataset.strata or {}).get("buckets") or []
+    assert buckets and buckets[0].get("doc_class") == "correspondence"
+    sub = buckets[0].get("sub_buckets") or []
+    assert sum(int(b["count"]) for b in sub) == 20
+    agents = spec.prompt.get("agents") or {}
+    assert agents["correspondence_specialist"]["file"] == "correspondence_specialist_production"
+
+
+def test_run_50_correspondence_specialist_awq_posture():
+    """Run B: 50-doc AWQ correspondence at concurrency 8 on 2×L4."""
+    row = SPECIALIST_POSTURE["run-50-correspondence-specialist-awq"]
+    assert row["task"] == "correspondence_specialist"
+    assert row["concurrency"] == 8
+    assert row["max_model_len"] == 32768
+    assert row["prompt_file"] == "correspondence_specialist_production"
+    assert expected_limit("run-50-correspondence-specialist-awq") == 50
+    assert context_fit_ok(row["max_tokens"], row["max_input_chars"], 32768)
+    root = Path(__file__).resolve().parents[1] / "config" / "runs"
+    spec = load_run_spec(root / "run-50-correspondence-specialist-awq.yaml")
+    assert spec.dataset.limit == 50
+    assert spec.job.concurrency == 8
+    assert spec.engine.model == "Qwen/Qwen3-8B-AWQ"
+    assert spec.engine.vllm.quantization == "awq"
+    assert spec.engine.modal.max_containers == 2
+    assert spec.engine.modal.min_containers == 2
+    assert float(spec.job.cost_cap_usd) == 0.80
+    assert int(spec.job.max_wall_seconds) == 3600
+    buckets = (spec.dataset.strata or {}).get("buckets") or []
+    assert buckets and buckets[0].get("doc_class") == "correspondence"
+    sub = buckets[0].get("sub_buckets") or []
+    assert sum(int(b["count"]) for b in sub) == 50
+
+
 def test_run_20_correspondence_fp16_c8_posture():
     """issue #21: FP16 twin is first-class posture, not an ad-hoc YAML."""
     row = SPECIALIST_POSTURE["run-20-correspondence-fp16-c8"]

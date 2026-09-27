@@ -374,6 +374,35 @@ def test_estimate_suite_override_sec_per_doc():
     )
 
 
+def test_estimate_suite_pinned_replicas_bill():
+    """2×L4 MIN=MAX=2 bills 2× the per-GPU rate on shared wall."""
+    result = metrics.estimate_suite(
+        [
+            {
+                "run_id": "run-x2",
+                "task": "correspondence_specialist",
+                "docs": 10,
+                "concurrency": 4,
+                "gpu": "L4",
+                "model": "Qwen/Qwen3-8B-AWQ",
+                "scaledown_seconds": 120,
+                "max_containers": 2,
+            }
+        ],
+        sec_per_doc_override=40.0,
+        cold_start_seconds=0.0,
+        scaledown_seconds=0.0,
+        inter_run_gap_seconds=0.0,
+        corpus_size=None,
+    )
+    # wall = 10 * 40 / 4 = 100 s → 2 replicas × $0.80/hr
+    assert result["rows"][0]["wall_seconds"]["likely"] == pytest.approx(100.0)
+    assert result["rows"][0]["replicas"] == 2
+    assert result["suite"]["gpu_usd"]["likely"] == pytest.approx(
+        round(100.0 / 3600.0 * 1.60, 4)
+    )
+
+
 def test_usage_capture_merge_item_metrics():
     from mailroom_sandbox.job.usage_capture import merge_item_metrics, usage_from_openai_response
 
