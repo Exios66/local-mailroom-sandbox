@@ -34,7 +34,9 @@ STYLE = """
   .viz .title { fill: var(--ink); font-size: 15px; font-weight: 600; }
   .viz .sub { fill: var(--ink2); font-size: 12px; }
   .viz .lbl { fill: var(--ink2); font-size: 12px; }
-  .viz .val { fill: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .viz .val { fill: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums;
+    paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+  .viz .reflbl { paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
   .viz .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
   .viz .grid { stroke: var(--grid); stroke-width: 1; }
   .viz .axis { stroke: var(--axis); stroke-width: 1; }
@@ -111,6 +113,10 @@ def hbar(title: str, subtitle: str, rows: list[dict], *, unit: str = "", fmt=Non
         o.append(f'<line class="grid" x1="{x:.1f}" y1="{top - 4}" x2="{x:.1f}" y2="{top + plot_h}"/>')
         o.append(f'<text class="tick" x="{x:.1f}" y="{top + plot_h + 16}" text-anchor="middle">{_fmt_tick(t)}{unit}</text>')
     o.append(f'<line class="axis" x1="{plot_l}" y1="{top - 4}" x2="{plot_l}" y2="{top + plot_h}"/>')
+    for x, lab in refs or []:  # reference lines sit BEHIND the marks; labels above the plot
+        px = sx(x)
+        o.append(f'<line class="ref" x1="{px:.1f}" y1="{top - 8}" x2="{px:.1f}" y2="{top + plot_h}"/>')
+        o.append(f'<text class="reflbl" x="{px + 4:.1f}" y="{top - 10}">{_esc(lab)}</text>')
     for i, r in enumerate(rows):
         y = top + i * ROW + (ROW - BAR) / 2
         o.append(f'<text class="lbl" x="{plot_l - 8}" y="{y + BAR - 3}" text-anchor="end">{_esc(r["label"])}</text>')
@@ -122,10 +128,6 @@ def hbar(title: str, subtitle: str, rows: list[dict], *, unit: str = "", fmt=Non
         tip = f'{r["label"]}: {fmt(v)}{unit}' + (f' — {r["note"]}' if r.get("note") else "")
         o.append(f'<path class="{cls}" d="{_bar_path(plot_l, y, sx(v) - plot_l, BAR)}"><title>{_esc(tip)}</title></path>')
         o.append(f'<text class="val" x="{sx(v) + 6:.1f}" y="{y + BAR - 3}">{_esc(fmt(v))}{_esc(unit)}</text>')
-    for x, lab in refs or []:
-        px = sx(x)
-        o.append(f'<line class="ref" x1="{px:.1f}" y1="{top - 8}" x2="{px:.1f}" y2="{top + plot_h}"/>')
-        o.append(f'<text class="reflbl" x="{px + 4:.1f}" y="{top - 10}">{_esc(lab)}</text>')
     o.append("</svg>")
     return "\n".join(o)
 

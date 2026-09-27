@@ -23,6 +23,9 @@ from pathlib import Path
 
 import yaml
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import viz  # noqa: E402  (/dataviz chart kit, validated palette)
+
 ROOT = Path(__file__).resolve().parents[2]
 RUNS = ROOT / "data" / "runtime" / "runs"
 RT = ROOT / "data" / "runtime" / "sand032"
@@ -194,6 +197,34 @@ def insights(d: dict, m: dict) -> list[str]:
     return out
 
 
+def figures(d: dict, m: dict, cls: str, by: dict) -> list[str]:
+    """/dataviz figures (static SVG, light+dark selected); tables below are their twins."""
+    rid = d["rid"]
+    fig_dir = ROOT / "reports" / CLASS_DIR[cls] / "figures"
+    fig_dir.mkdir(parents=True, exist_ok=True)
+    ok = sorted((i for i in d["items"].values() if i.get("ok") and i.get("latency_ms")),
+                key=lambda i: -i["latency_ms"])
+    lat_rows = [{"label": f"{i['item_id'][-8:]} · {d['sub'].get(i['item_id'], '?')}",
+                 "value": round(i["latency_ms"] / 1000, 1),
+                 "note": f"{i.get('prompt_tokens')} prompt / {i.get('completion_tokens')} completion tok"}
+                for i in ok]
+    refs = [(round(m["p50"], 1), f"p50 {m['p50']:.1f}s"), (round(m["p95"], 1), f"p95 {m['p95']:.1f}s")] if m["p50"] else []
+    lat_svg = viz.hbar(f"Per-document latency · {rid}",
+                       f"{m['ok']} docs, slowest first · c{m['conc']} on {m['rep']}×L4 · wall {m['wall']:.1f}s",
+                       lat_rows, unit="s", fmt=lambda v: f"{v:.1f}", refs=refs)
+    sub_rows = [{"label": f"{k} (n={len(v)})", "value": round(statistics.mean(v), 4)}
+                for k, v in sorted(by.items(), key=lambda kv: -statistics.mean(kv[1]))]
+    sub_svg = viz.hbar(f"Mean overall extraction score by subclass · {rid}",
+                       f"overall mean {m['score']:.4f} across {m['ok']} docs (0–1, higher is better)",
+                       sub_rows, fmt=lambda v: f"{v:.3f}")
+    (fig_dir / f"{rid}-latency.svg").write_text(lat_svg)
+    (fig_dir / f"{rid}-subclass.svg").write_text(sub_svg)
+    return ["## Figures", "",
+            f"![Per-document latency, slowest first, with p50/p95 reference lines](figures/{rid}-latency.svg)", "",
+            f"![Mean overall extraction score by subclass](figures/{rid}-subclass.svg)", "",
+            "_Table views of both figures: **Per-document scores** and **Strata** below._", ""]
+
+
 def run_report(rid: str) -> Path:
     d = load(rid)
     m = metrics(d)
@@ -262,6 +293,7 @@ def run_report(rid: str) -> Path:
         s = (i.get("score") or {}).get("overall_extraction_score")
         if i.get("ok") and isinstance(s, (int, float)):
             by[d["sub"].get(i["item_id"], "?")].append(s)
+    lines += figures(d, m, cls, by)
     lines += ["## Strata (subclass)", "", "| subclass | n | mean overall |", "| --- | --- | --- |"]
     for k in sorted(by, key=lambda k: -len(by[k])):
         lines.append(f"| {k} | {len(by[k])} | {statistics.mean(by[k]):.4f} |")
@@ -329,6 +361,26 @@ def ladder_report() -> Path:
             f"{_f(m['p95'], 2)} | {_f(m['tps'], 0)} | {_f(rep.get('ttft_mean_seconds'), 2)} | "
             f"{_f((rep.get('prefix_cache_hit_rate') or 0) * 100, 1)} | {_f(m['boot_ready_s'], 0)} | "
             f"{_f(m['usd_doc'], 6)} | **{verdict}** |")
+    fig = SERVING / "figures"
+    fig.mkdir(parents=True, exist_ok=True)
+    kept = {rid for rid, m, sc in rows}  # verdicts shown in the table; emphasis = measured rungs
+    def panel(title, key, unit="", nd=2, lower_better=True):
+        vals = [(rid.removeprefix("sand032-"), m[key]) for rid, m, _ in rows]
+        best = (min if lower_better else max)((v for _, v in vals if v is not None), default=None)
+        return viz.hbar(title, ("lower is better" if lower_better else "higher is better") + " · emphasis = best rung",
+                        [{"label": r, "value": None if v is None else round(v, 6), "emphasis": v == best}
+                         for r, v in vals], unit=unit, fmt=lambda v, nd=nd: f"{v:.{nd}f}", width=520, label_w=120)
+    sm = viz.small_multiples("SAND-032 Stage 1 ladder — one axis per metric (same 20 docs every rung)", [
+        panel("Mean overall score", "score", nd=4, lower_better=False),
+        panel("Wall (s)", "wall", "s", 1),
+        panel("Latency p50 (s)", "p50", "s", 2),
+        panel("Latency p95 (s)", "p95", "s", 2),
+        panel("$ per doc (busy GPU)", "usd_doc", "", 6),
+        panel("Throughput (tok/s)", "tps", "", 0, lower_better=False),
+    ], cols=2)
+    (fig / "sand032-ladder.svg").write_text(sm)
+    lines += ["", "![SAND-032 ladder small multiples](figures/sand032-ladder.svg)", "",
+              "_The table above is the figure's table view._"]
     out = SERVING / "SAND032-LADDER.md"
     out.write_text("\n".join(lines) + "\n")
     return out
