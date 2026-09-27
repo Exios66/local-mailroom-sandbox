@@ -31,6 +31,7 @@ from mailroom_sandbox.eval.schema_adherence import (
     merge_schema_adherence,
 )
 from mailroom_sandbox.eval.serving_parity import split_serving_records, to_dojo_serving_record
+from mailroom_sandbox.eval.cuad_scoring import score_cuad
 from mailroom_sandbox.eval.maud_scoring import score_maud
 
 from mailroom_sandbox.paths import reports_dir
@@ -119,6 +120,7 @@ def score_extraction_row(
         suite = None
     predicted = predicted or {}
     expected = expected or {}
+    raw_expected = expected  # MAUD/CUAD label maps may be scoped out below
     predicted, expected = scope_extraction_pair(doc_type, predicted, expected)
     if suite is not None:
         try:
@@ -189,14 +191,22 @@ def score_extraction_row(
             if key in result:
                 payload[key] = result[key]
     payload.update(assess_extraction_payload(predicted, doc_type))
-    if doc_type == "merger_agreement" and expected.get("maud_clause_labels"):
+    if doc_type == "merger_agreement" and raw_expected.get("maud_clause_labels"):
         # SAND-032: merger GT is MAUD question→answer labels only; the suite's
         # field map never meets it (F1 0 by construction). Headline = MAUD accuracy.
-        maud = score_maud(predicted, expected["maud_clause_labels"])
+        maud = score_maud(predicted, raw_expected["maud_clause_labels"])
         payload.update(maud)
         payload["suite_overall_extraction_score"] = payload["overall_extraction_score"]
         payload["overall_extraction_score"] = maud["maud_accuracy"]
         payload["scoring_method"] = f"{scoring_method}+maud"
+    if doc_type == "contract" and raw_expected.get("cuad_clause_labels"):
+        # SAND-032: contract GT is CUAD clause spans only; headline = CUAD
+        # category-detection F1 within the row's labeled universe.
+        cuad = score_cuad(predicted, raw_expected["cuad_clause_labels"])
+        payload.update(cuad)
+        payload["suite_overall_extraction_score"] = payload["overall_extraction_score"]
+        payload["overall_extraction_score"] = cuad["cuad_presence_f1"]
+        payload["scoring_method"] = f"{scoring_method}+cuad"
     return payload
 
 
