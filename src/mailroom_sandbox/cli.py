@@ -382,6 +382,15 @@ def build_parser() -> argparse.ArgumentParser:
     watch_p.add_argument("--no-logs", action="store_true", help="do not follow modal app logs")
     watch_p.set_defaults(handler=_cmd_watch)
 
+    score_p = sub.add_parser(
+        "scorecard",
+        help="mailroom TUI scorecard for a finished run (SAND-032)",
+        parents=[shared],
+    )
+    score_p.add_argument("--run", dest="run_id", required=True, help="run id (e.g. sand032-l0-baseline)")
+    score_p.add_argument("--serving-dir", default=None, help="default: reports/serving")
+    score_p.set_defaults(handler=_cmd_scorecard)
+
     rb = sub.add_parser(
         "runbook",
         help="Operator runbooks (catalog → show / check / write)",
@@ -1770,6 +1779,14 @@ def _cmd_watch(args) -> int:
     from mailroom_sandbox.job import spec as spec_mod
     from mailroom_sandbox.job.checkpoint import RunStore
 
+    from mailroom_sandbox import paths
+
+    sand032 = paths.runtime_dir() / "sand032"
+    if not args.config and not args.follow and (sand032 / "current").is_file():
+        # Bare `sandbox watch`: follow the current SAND-032 run with its ledger.
+        args.follow = str(sand032 / "current")
+        if not args.ledger and (sand032 / "spend.json").is_file():
+            args.ledger = str(sand032 / "spend.json")
     if not args.config and not args.follow:
         print("ERROR: --config or --follow required", file=sys.stderr)
         return 2
@@ -1789,7 +1806,20 @@ def _cmd_watch(args) -> int:
         once=args.once,
         logs=not args.no_logs,
         interval=args.interval,
+        times_dir=sand032 / "logs",
+        log_path=sand032 / "logs" / "modal-app.log",
     )
+
+
+def _cmd_scorecard(args) -> int:
+    from mailroom_sandbox import watch as watch_mod
+    from mailroom_sandbox.job import spec as spec_mod
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.paths import reports_dir
+
+    store = RunStore(spec_mod.runs_root() / str(args.run_id))
+    serving = Path(args.serving_dir) if args.serving_dir else reports_dir() / "serving"
+    return watch_mod.print_scorecard(store, serving_dir=serving)
 
 
 def _cmd_run_suite(args) -> int:

@@ -134,6 +134,166 @@ def _header(run_id: str, *, width: int, on: bool) -> list[str]:
     return rows
 
 
+# ── lifecycle (driver stamps + Modal boot log markers) ─────────────────────
+BOOT_MARKERS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("container starting", re.compile(r"sandbox-vllm serve config|launching vllm subprocess|secrets check", re.I)),
+    ("loading weights", re.compile(r"loading weights|load(ing)? model|safetensors|model loading took|downloading", re.I)),
+    ("profiling KV cache", re.compile(r"kv cache|memory profiling|# gpu blocks", re.I)),
+    ("capturing CUDA graphs", re.compile(r"captur(e|ing) cuda graph|cudagraph|torch\.compile|compil(ing|ation)", re.I)),
+    ("engine ready", re.compile(r"application startup complete|vllm ready on port", re.I)),
+)
+TEARDOWN_PHASES = ("TEARDOWN", "STOPPED")
+
+
+def read_times(path: Path) -> dict[str, float]:
+    """Parse the driver's ``"key": epoch,`` stamp lines (scripts/sand032/run_one.sh)."""
+    out: dict[str, float] = {}
+    if not path.is_file():
+        return out
+    for line in path.read_text(encoding="utf-8").splitlines():
+        m = re.match(r'\s*"([a-z_]+)":\s*([0-9.]+)', line)
+        if m:
+            out[m.group(1)] = float(m.group(2))
+    return out
+
+
+def _boot_detail(boot_lines: list[str]) -> str:
+    detail = "container starting"
+    for line in boot_lines:
+        for name, pat in BOOT_MARKERS:
+            if pat.search(line):
+                detail = name
+    return detail
+
+
+def lifecycle(times: dict[str, float], boot_lines: list[str], *, now: float) -> dict[str, Any]:
+    """Current phase of a run from its driver stamps; COLD BOOT sub-phase from logs."""
+    def since(key: str) -> int:
+        return int(max(0.0, now - times[key]))
+
+    if "stopped" in times:
+        return {"phase": "STOPPED", "detail": "fleet stopped · billing ended", "elapsed_s": since("stopped")}
+    if "run_end" in times:
+        return {"phase": "TEARDOWN", "detail": "metrics · serving record · evidence rows · stop", "elapsed_s": since("run_end")}
+    if "run_start" in times:
+        return {"phase": "SORTING", "detail": "specialist extraction in flight", "elapsed_s": since("run_start")}
+    if "ready" in times:
+        return {"phase": "PREFLIGHT", "detail": "engine verified · /metrics baseline", "elapsed_s": since("ready")}
+    if "deploy_done" in times:
+        return {"phase": "COLD BOOT", "detail": _boot_detail(boot_lines), "elapsed_s": since("deploy_done")}
+    if "deploy_start" in times:
+        return {"phase": "DEPLOYING", "detail": "modal deploy · image + app", "elapsed_s": since("deploy_start")}
+    return {"phase": "QUEUED", "detail": "waiting for the driver", "elapsed_s": 0}
+
+
+# ── persistent dispatch log ─────────────────────────────────────────────────
+class LogBuffer:
+    """Thread-safe tail of streamed Modal logs, mirrored to disk so history
+    survives TUI restarts and run switches (never cleared between runs)."""
+
+    def __init__(self, path: Path | None, *, maxlen: int = 2000) -> None:
+        self._lines: deque[str] = deque(maxlen=maxlen)
+        self._count = 0
+        self._lock = threading.Lock()
+        self._path = path
+        if path is not None and path.is_file():
+            for line in path.read_text(encoding="utf-8", errors="ignore").splitlines()[-maxlen:]:
+                self._lines.append(line)
+                self._count += 1
+
+    def append(self, line: str) -> None:
+        with self._lock:
+            self._lines.append(line)
+            self._count += 1
+            if self._path is not None:
+                self._path.parent.mkdir(parents=True, exist_ok=True)
+                with self._path.open("a", encoding="utf-8") as fh:
+                    fh.write(line + "\n")
+
+    def mark(self) -> int:
+        return self._count
+
+    def since(self, mark: int) -> list[str]:
+        with self._lock:
+            n = max(0, min(self._count - mark, len(self._lines)))
+            return list(self._lines)[-n:] if n else []
+
+    def tail(self, n: int) -> list[str]:
+        with self._lock:
+            return list(self._lines)[-n:]
+
+    def last(self) -> str | None:
+        with self._lock:
+            return self._lines[-1] if self._lines else None
+
+
+# ── scorecard ───────────────────────────────────────────────────────────────
+def scorecard_lines(store: RunStore, *, serving_dir: Path, width: int = 100, on: bool = False) -> list[str]:
+    """Post-run scorecard: items (quality) + serving record (speed/cost) + /metrics."""
+    p = pl.palette(on)
+    snap = run_snapshot(store)
+    mw = max(40, width - 4)
+    items = store.load_items()
+    schema = [
+        (i.get("score") or {}).get("parse_error") is False
+        for i in items
+        if "parse_error" in (i.get("score") or {})
+    ]
+    rec: dict[str, Any] = {}
+    path = serving_dir / f"{snap['run_id']}.serving.json"
+    if path.is_file():
+        try:
+            rec = json.loads(path.read_text())
+        except ValueError:
+            rec = {}
+    scores = rec.get("scores") or {}
+    score = scores.get("overall_extraction_score", snap["mean_score"])
+    valid = scores.get("schema_valid_rate", round(sum(schema) / len(schema), 4) if schema else None)
+    n = int(rec.get("n") or snap["done"] or 0)
+    tokens = (rec.get("prompt_tokens") or 0, rec.get("completion_tokens") or 0)
+
+    def m(label: str, value: Any) -> str:
+        return pl._metric(label, str(value), label_w=18, total_w=mw, on=on)
+
+    lines = [
+        m("sorted", f"delivered {snap['ok']} · returned {snap['errors']} · of {snap['total'] or n}"),
+        m("overall score", _fmt(score)),
+        m("schema valid", _fmt(valid)),
+    ]
+    if rec:
+        per_doc = rec.get("gpu_cost_per_document")
+        lines += [
+            m("wall", _fmt(rec.get("wall_seconds"), " s")),
+            m("cold boot", _fmt(rec.get("cold_boot_seconds"), " s")),
+            m("postmark p50/p95", f"{_fmt(rec.get('latency_p50_seconds'), 's')} / {_fmt(rec.get('latency_p95_seconds'), 's')}"),
+            m("throughput", _fmt(rec.get("tokens_per_second"), " tok/s")),
+            m("tokens in/out", f"{tokens[0]} / {tokens[1]}"),
+            m("GPU $ (busy)", f"${rec.get('estimated_gpu_cost_usd', 0):.4f}"),
+            m("$/doc", "—" if per_doc is None else f"${per_doc:.5f}"),
+            m("run span ≥", f"${rec.get('run_span_usd_lower_bound', 0):.4f} (×{rec.get('replicas', 1)} GPU)"),
+        ]
+    else:
+        lines.append(p["dim"]("serving record pending …") if on else "serving record pending …")
+    mpath = store.dir / "vllm_metrics_after.json"
+    if mpath.is_file():
+        try:
+            met = json.loads(mpath.read_text())
+        except ValueError:
+            met = {}
+        lines.append(m("/metrics", met.get("coverage", "—")))
+        for key, rep in sorted((met.get("replicas") or {}).items()):
+            hit = rep.get("prefix_cache_hit_rate")
+            lines.append(
+                m(
+                    f"replica {key[-6:]}",
+                    f"ttft {_fmt(rep.get('ttft_mean_seconds'), 's')} · prefix "
+                    f"{'—' if hit is None else f'{100 * hit:.1f}%'} · preempt {_fmt(rep.get('preemptions'))}"
+                    f" · len-cut {_fmt(rep.get('length_finishes'))}",
+                )
+            )
+    return lines
+
+
 def render_frame(
     *,
     snapshot: dict[str, Any],
@@ -143,6 +303,8 @@ def render_frame(
     width: int = 100,
     on: bool = False,
     blink: bool = False,
+    lifecycle: dict[str, Any] | None = None,
+    scorecard: list[str] | None = None,
 ) -> str:
     width = max(60, min(int(width), pl.MAX_W))
     p = pl.palette(on)
@@ -151,12 +313,17 @@ def render_frame(
     out.append(
         pl.render_status_bar(
             timestamp=time.strftime("%H:%M:%S") + f" · app {app}",
-            stage=_stage_for(s["run_id"]),
+            stage=(lifecycle or {}).get("phase") or _stage_for(s["run_id"]),
             on=on,
             width=width,
             blink=blink,
         )
     )
+
+    if lifecycle:
+        el = int(lifecycle.get("elapsed_s") or 0)
+        phase = f"▸{lifecycle['phase']}◂  {lifecycle.get('detail', '')}  ·  {el // 60}m{el % 60:02d}s  ·  {_stage_for(s['run_id'])}"
+        out.append(pl._box("LIFECYCLE", [p["gold"](phase) if on else phase], width=width, on=on))
 
     wide = width >= 100
     box_w = (width - 2) // 2 if wide else width
@@ -197,6 +364,9 @@ def render_frame(
     else:
         out += [tray_box, postage_box]
 
+    if scorecard and lifecycle and lifecycle.get("phase") in TEARDOWN_PHASES:
+        out.append(pl._box(f"📊 SCORECARD · {s['run_id']}", scorecard, width=width, on=on))
+
     tail = log_lines[-14:]
     log = [
         (p[_LOG_ROLE[classify_log_line(line)]](line) if on else line) for line in tail
@@ -213,12 +383,13 @@ def log_command(app: str) -> list[str]:
     return ["modal", "app", "logs", "-f", app]
 
 
-def note_reconnect(sink: deque) -> None:
-    if not sink or sink[-1] != RECONNECT_NOTE:
+def note_reconnect(sink: Any) -> None:
+    last = sink.last() if isinstance(sink, LogBuffer) else (sink[-1] if sink else None)
+    if last != RECONNECT_NOTE:
         sink.append(RECONNECT_NOTE)
 
 
-def _stream_logs(app: str, sink: deque, stop: threading.Event) -> None:
+def _stream_logs(app: str, sink: Any, stop: threading.Event) -> None:
     """Follow `modal app logs <app>` into ``sink``; restart if the stream drops."""
     while not stop.is_set():
         try:
@@ -265,10 +436,15 @@ def watch(
     once: bool = False,
     logs: bool = True,
     interval: float = 2.0,
+    times_dir: Path | None = None,
+    log_path: Path | None = None,
+    serving_dir: Path | None = None,
 ) -> int:
     from mailroom_sandbox.job.metrics import estimate_gpu_cost_usd
+    from mailroom_sandbox.paths import reports_dir
 
-    sink: deque[str] = deque(maxlen=400)
+    serving_dir = serving_dir or (reports_dir() / "serving")
+    sink = LogBuffer(log_path)
     stop = threading.Event()
     store, app = resolve()
     if not once:
@@ -276,10 +452,21 @@ def watch(
     if logs and not once:
         threading.Thread(target=_stream_logs, args=(app, sink, stop), daemon=True).start()
     started = time.time()
+    boot_mark: dict[str, int] = {}
     try:
         while True:
             store, _ = resolve()  # --follow: the current run can change between frames
             snap = run_snapshot(store)
+            times = read_times(times_dir / f"{snap['run_id']}.times") if times_dir else {}
+            key = f"{snap['run_id']}@{times.get('deploy_done', times.get('ready', 0))}"
+            boot_mark.setdefault(key, sink.mark())
+            life = lifecycle(times, sink.since(boot_mark[key]), now=time.time()) if times_dir else None
+            card = (
+                scorecard_lines(store, serving_dir=serving_dir, width=shutil.get_terminal_size((100, 40)).columns,
+                                on=pl.use_color(sys.stdout))
+                if life and life["phase"] in TEARDOWN_PHASES
+                else None
+            )
             spent, includes_live = read_ledger(ledger)
             live = 0.0
             if snap["state"] == "running" and not includes_live:
@@ -290,11 +477,13 @@ def watch(
             frame = render_frame(
                 snapshot=snap,
                 app=app,
-                log_lines=list(sink),
+                log_lines=sink.tail(14),
                 spend={"spent_usd": spent, "live_usd": live, "cap_usd": cap_usd},
                 width=shutil.get_terminal_size((100, 40)).columns,
                 on=pl.use_color(sys.stdout),
                 blink=int(time.time()) % 7 == 0,
+                lifecycle=life,
+                scorecard=card,
             )
             if once:
                 sys.stdout.write(frame + "\n")
@@ -309,3 +498,14 @@ def watch(
         if not once:
             sys.stdout.write(pl.SHOW_CURSOR + pl.ALT_LEAVE)
             sys.stdout.flush()
+
+
+def print_scorecard(store: RunStore, *, serving_dir: Path, width: int | None = None) -> int:
+    """`sandbox scorecard --run <id>`: one-shot mailroom scorecard for a finished run."""
+    width = max(60, min(width or shutil.get_terminal_size((100, 40)).columns, pl.MAX_W))
+    on = pl.use_color(sys.stdout)
+    snap = run_snapshot(store)
+    out = _header(snap["run_id"], width=width, on=on)
+    out.append(pl._box(f"📊 SCORECARD · {snap['run_id']}", scorecard_lines(store, serving_dir=serving_dir, width=width, on=on), width=width, on=on))
+    sys.stdout.write("\n".join(out) + "\n")
+    return 0
