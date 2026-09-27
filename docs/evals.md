@@ -199,9 +199,12 @@ Offline lock: `tests/test_extraction_scope.py`.
 local models. Pass `--prompt sorter_local_v0` (or `sorter_reviewer_local_v0`,
 `judge_local_v0`). Per-agent prompt stems also live under
 `config/components.yaml` `prompts:`. Specialist `*_simplified` stems are
-**class-specific** (live schema + class traps + class-local empty rules) —
-see [`config/prompts/README.md`](../config/prompts/README.md). Catalog
-promotion of that text lives in eval-environment issues 4–8, not this repo.
+**class-specific** (live schema + class traps + class-local empty rules) and
+are the eval-environment frozen v1 catalog (`*_v1` keys, sha256-locked in
+[`config/prompts/eval_environment_lineage.json`](../config/prompts/eval_environment_lineage.json)).
+Isolated specialist evals and Modal + vLLM job runs inject that text —
+see [`config/prompts/README.md`](../config/prompts/README.md). Further catalog
+re-freezes land in eval-environment, not this repo.
 
 ## Component gates
 

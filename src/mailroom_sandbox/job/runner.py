@@ -17,7 +17,10 @@ from mailroom_sandbox.eval import experiment_log
 from mailroom_sandbox.eval import runners as eval_runners  # noqa: F401
 from mailroom_sandbox.job.checkpoint import RunStore, utc_now
 from mailroom_sandbox.job.metrics import record_from_run
-from mailroom_sandbox.eval.prompt_provenance import resolve_logged_prompt_version
+from mailroom_sandbox.eval.prompt_provenance import (
+    resolve_logged_prompt_version,
+    stamp_prompt_provenance,
+)
 from mailroom_sandbox.job.otel import job_span
 from mailroom_sandbox.job.usage_capture import (
     merge_item_metrics,
@@ -139,16 +142,29 @@ def _lock_prompt_source(store: RunStore) -> str:
     return str((prompt_block.get("default") or {}).get("source") or "code-default")
 
 
-def _lock_prompt_variant(store: RunStore) -> str | None:
-    """The lock's default LOCAL prompt variant stem, when pinned.
+def _lock_prompt_variant(store: RunStore, task: str | None = None) -> str | None:
+    """The lock's LOCAL prompt variant stem for this task, when pinned.
+
+    Specialist run YAMLs pin ``prompt.agents.<task>`` with ``default:
+    code-default``. Looking only at the default dropped the eval-environment
+    stem, so ``activate(prompt_variant=)`` never ran and records could not
+    name the frozen v1 key.
 
     The runners' ``prompt_version`` param is a local variant stem (e.g.
-    ``sorter_local_v0``), never the source string — passing 'code-default'
-    would trigger the prompt-patch machinery. Langfuse/code-default locks
-    pass None (overrides are already applied in-process).
+    ``correspondence_specialist_simplified``), never the source string —
+    passing 'code-default' would trigger the prompt-patch machinery.
     """
     lock = store.read_lock() or {}
-    default = (lock.get("prompt") or {}).get("default") or {}
+    prompt_block = lock.get("prompt") or {}
+    task_name = task or str(lock.get("task") or "")
+    agents = prompt_block.get("agents") or {}
+    if task_name and isinstance(agents, dict):
+        ref = agents.get(task_name)
+        if isinstance(ref, dict) and ref.get("source") == "local":
+            stem = str(ref.get("file") or "").strip()
+            if stem:
+                return stem
+    default = prompt_block.get("default") or {}
     if isinstance(default, dict) and default.get("source") == "local":
         return str(default.get("file") or "") or None
     return None
@@ -178,7 +194,7 @@ def _run_whole_run(
     lock = store.read_lock() or {}
     prompt_block = lock.get("prompt") or {}
     default_ref = _lock_prompt_source(store)
-    prompt_variant = _lock_prompt_variant(store)
+    prompt_variant = _lock_prompt_variant(store, task=task)
     kwargs: dict[str, Any] = {
         "mock": mock,
         "dry_run": False,
@@ -307,6 +323,7 @@ def _run_whole_run(
         record.setdefault("prompt_version", logged or default_ref)
         if sha:
             record.setdefault("prompt_sha256", sha)
+        stamp_prompt_provenance(record, record["prompt_version"], record.get("prompt_sha256"))
         record.setdefault("run_id", store.run_id)
     store.write_checkpoint(state="done", cursor=processed, total=processed, remote=None)
     store.append_event("done", "info", cursor=processed, ok_count=processed)
@@ -457,7 +474,7 @@ def _build_record(
     profile = str(lock.get("profile") or "ollama")
     engine = lock.get("engine") or {}
     model = model or (engine.get("model") if isinstance(engine, dict) else None) or "unknown"
-    prompt_variant = _lock_prompt_variant(store)
+    prompt_variant = _lock_prompt_variant(store, task=task)
     logged_prompt, prompt_sha = resolve_logged_prompt_version(
         prompt_variant,
         task=task,

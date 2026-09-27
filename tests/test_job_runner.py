@@ -262,6 +262,22 @@ def test_lock_prompt_source_reads_lock_default(tmp_path):
     store2.write_lock({"prompt": {"default": {"source": "code-default"}}})
     assert runner._lock_prompt_source(store2) == "code-default"
     assert runner._lock_prompt_variant(store2) is None
+    store3 = RunStore(tmp_path / "run-src3")
+    store3.write_lock(
+        {
+            "task": "correspondence_specialist",
+            "prompt": {
+                "default": {"source": "code-default"},
+                "agents": {
+                    "correspondence_specialist": {
+                        "source": "local",
+                        "file": "correspondence_specialist_simplified",
+                    }
+                },
+            },
+        }
+    )
+    assert runner._lock_prompt_variant(store3) == "correspondence_specialist_simplified"
 
 
 def test_whole_run_delegation_links_record_to_lock(tmp_path, monkeypatch):
