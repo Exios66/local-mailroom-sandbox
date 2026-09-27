@@ -136,9 +136,11 @@ def test_cli_watch_follow_file_tracks_current_config(tmp_path, monkeypatch, caps
     assert rc == 0 and "sand032-s3-merger50" in out and "SWEEP" in out
 
 
-def test_cli_watch_requires_config_or_follow(capsys):
+def test_cli_watch_requires_config_or_follow(tmp_path, monkeypatch, capsys):
+    from mailroom_sandbox import paths
     from mailroom_sandbox.cli import main
 
+    monkeypatch.setattr(paths, "runtime_dir", lambda: tmp_path)  # no SAND-032 run in flight
     assert main(["watch", "--once", "--no-logs"]) == 2
 
 
@@ -169,3 +171,141 @@ def test_reconnect_notice_is_not_repeated():
     note_reconnect(sink)
     note_reconnect(sink)
     assert list(sink).count(sink[-1]) == 1 and "waiting for app" in sink[-1]
+
+
+# ── lifecycle / scorecard / persistent logs (SAND-032 TUI v2) ──────────────
+
+
+def test_read_times_parses_driver_stamps(tmp_path):
+    from mailroom_sandbox.watch import read_times
+
+    p = tmp_path / "r.times"
+    p.write_text('"deploy_start": 100.5,\n"deploy_done": 102.0,\n')
+    assert read_times(p) == {"deploy_start": 100.5, "deploy_done": 102.0}
+    assert read_times(tmp_path / "missing.times") == {}
+
+
+def test_lifecycle_phases_follow_driver_stamps():
+    from mailroom_sandbox.watch import lifecycle
+
+    assert lifecycle({}, [], now=10)["phase"] == "QUEUED"
+    assert lifecycle({"deploy_start": 0}, [], now=10)["phase"] == "DEPLOYING"
+    boot = lifecycle({"deploy_start": 0, "deploy_done": 2}, [], now=62)
+    assert boot["phase"] == "COLD BOOT" and boot["detail"] == "container starting" and boot["elapsed_s"] == 60
+    t = {"deploy_start": 0, "deploy_done": 2, "ready": 150}
+    assert lifecycle(t, [], now=160)["phase"] == "PREFLIGHT"
+    t["run_start"] = 170
+    assert lifecycle(t, [], now=200)["phase"] == "SORTING"
+    t["run_end"] = 300
+    assert lifecycle(t, [], now=310)["phase"] == "TEARDOWN"
+    t["stopped"] = 320
+    assert lifecycle(t, [], now=330)["phase"] == "STOPPED"
+
+
+def test_warm_run_skips_deploy_phases():
+    from mailroom_sandbox.watch import lifecycle
+
+    assert lifecycle({"ready": 5}, [], now=6)["phase"] == "PREFLIGHT"
+
+
+def test_cold_boot_subphases_from_modal_logs():
+    from mailroom_sandbox.watch import lifecycle
+
+    t = {"deploy_start": 0, "deploy_done": 1}
+    def sub(lines):
+        return lifecycle(t, lines, now=50)["detail"]
+    assert sub(["=== sandbox-vllm serve config (masked) ==="]) == "container starting"
+    assert sub(["INFO Loading weights took 12.3 seconds"]) == "loading weights"
+    assert sub(["Loading safetensors checkpoint shards: 50%"]) == "loading weights"
+    assert sub(["INFO Loading weights took 12.3 seconds",
+                "INFO Available KV cache memory: 12.1 GiB", "GPU KV cache size: 181,344 tokens"]) == "profiling KV cache"
+    assert sub(["GPU KV cache size: 1 tokens", "Capturing CUDA graphs (mixed prefill-decode)"]) == "capturing CUDA graphs"
+    assert sub(["Capturing CUDA graphs", "INFO:     Application startup complete."]) == "engine ready"
+
+
+def test_log_buffer_persists_and_tracks_since(tmp_path):
+    from mailroom_sandbox.watch import LogBuffer
+
+    path = tmp_path / "app.log"
+    buf = LogBuffer(path, maxlen=50)
+    buf.append("a")
+    mark = buf.mark()
+    buf.append("b")
+    buf.append("c")
+    assert buf.tail(2) == ["b", "c"] and buf.since(mark) == ["b", "c"]
+    again = LogBuffer(path, maxlen=50)  # TUI restart: history reloads from disk
+    assert again.tail(3) == ["a", "b", "c"]
+
+
+def _serving(tmp_path, rid="sand032-x"):
+    d = tmp_path / "serving"
+    d.mkdir(exist_ok=True)
+    (d / f"{rid}.serving.json").write_text(json.dumps({
+        "wall_seconds": 90.4, "cold_boot_seconds": 161.0, "tokens_per_second": 472.1,
+        "latency_p50_seconds": 35.0, "latency_p95_seconds": 38.0, "gpu_cost_per_document": 0.00278,
+        "estimated_gpu_cost_usd": 0.0556, "run_span_usd_lower_bound": 0.09, "replicas": 1,
+        "prompt_tokens": 40000, "completion_tokens": 4000, "n": 20,
+        "scores": {"overall_extraction_score": 0.2547, "schema_valid_rate": 0.94}}))
+    return d
+
+
+def test_scorecard_combines_serving_record_metrics_and_items(tmp_path):
+    from mailroom_sandbox.watch import scorecard_lines
+
+    store = _store(tmp_path)
+    (store.dir / "vllm_metrics_after.json").write_text(json.dumps({
+        "coverage": "replicas observed: 1 of 1",
+        "replicas": {"1000.0": {"ttft_mean_seconds": 0.42, "prefix_cache_hit_rate": 0.61,
+                                "preemptions": 0.0, "length_finishes": 0.0, "kv_cache_usage_perc": 0.3}}}))
+    plain = "\n".join(strip_ansi(x) for x in scorecard_lines(store, serving_dir=_serving(tmp_path), width=90))
+    for needle in ("0.2547", "0.94", "90.4", "161.0", "472.1", "$0.00278", "$0.0556", "0.42", "61.0%",
+                   "replicas observed: 1 of 1", "delivered 2"):
+        assert needle in plain, needle
+
+
+def test_scorecard_pending_serving_record(tmp_path):
+    from mailroom_sandbox.watch import scorecard_lines
+
+    plain = "\n".join(strip_ansi(x) for x in scorecard_lines(_store(tmp_path), serving_dir=tmp_path / "none", width=90))
+    assert "serving record pending" in plain and "delivered 2" in plain
+
+
+def test_frame_shows_lifecycle_and_scorecard_on_teardown(tmp_path):
+    frame = strip_ansi(render_frame(
+        snapshot=run_snapshot(_store(tmp_path)), app="a", log_lines=[], spend={"cap_usd": 5.0}, width=110,
+        lifecycle={"phase": "TEARDOWN", "detail": "stopping fleet", "elapsed_s": 12},
+        scorecard=["overall score 0.2547"]))
+    assert "TEARDOWN" in frame and "stopping fleet" in frame and "SCORECARD" in frame and "0.2547" in frame
+
+
+def test_frame_hides_scorecard_while_sorting(tmp_path):
+    frame = strip_ansi(render_frame(
+        snapshot=run_snapshot(_store(tmp_path)), app="a", log_lines=[], spend={"cap_usd": 5.0}, width=110,
+        lifecycle={"phase": "SORTING", "detail": "", "elapsed_s": 3}, scorecard=["x"]))
+    assert "SORTING" in frame and "SCORECARD" not in frame
+
+
+def test_cli_scorecard_command(tmp_path, monkeypatch, capsys):
+    from mailroom_sandbox.cli import main
+    from mailroom_sandbox.job import spec as spec_mod
+
+    monkeypatch.setattr(spec_mod, "runs_root", lambda: tmp_path)
+    _store(tmp_path)
+    rc = main(["scorecard", "--run", "sand032-x", "--serving-dir", str(_serving(tmp_path))])
+    out = strip_ansi(capsys.readouterr().out)
+    assert rc == 0 and "SCORECARD" in out and "0.2547" in out
+
+
+def test_cli_watch_defaults_to_sand032_follow(tmp_path, monkeypatch, capsys):
+    """Bare `sandbox watch` follows the current SAND-032 run — no flags needed."""
+    from mailroom_sandbox import paths
+    from mailroom_sandbox.cli import main
+    from mailroom_sandbox.job import spec as spec_mod
+    from mailroom_sandbox.paths import config_dir
+
+    monkeypatch.setattr(spec_mod, "runs_root", lambda: tmp_path / "runs")
+    monkeypatch.setattr(paths, "runtime_dir", lambda: tmp_path)
+    (tmp_path / "sand032").mkdir()
+    (tmp_path / "sand032" / "current").write_text(str(config_dir() / "runs" / "sand032-l2-marlin.yaml"))
+    rc = main(["watch", "--once", "--no-logs"])
+    assert rc == 0 and "sand032-l2-marlin" in strip_ansi(capsys.readouterr().out)
