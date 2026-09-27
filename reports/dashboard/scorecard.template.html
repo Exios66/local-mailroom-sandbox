@@ -1,0 +1,820 @@
+<title>Mailroom Specialist Scorecard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --page: #f9f9f7;
+  --surface: #fcfcfb;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --ring: rgba(11,11,11,0.10);
+  --wash: #f0efec;
+  --s-modal: #2a78d6;
+  --s-api: #eb6834;
+  --s-granite: #1baf7a;
+  --s-prompt: #4a3aa7;
+  --s-compl: #eda100;
+  --good: #0ca30c;
+  --critical: #d03b3b;
+  --good-text: #006300;
+  --crit-text: #b52f2f;
+  --na: #d6d5ce;
+  --sans: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10); --wash: #262624;
+    --s-modal: #3987e5; --s-api: #d95926; --s-granite: #199e70; --s-prompt: #9085e9; --s-compl: #c98500;
+    --good-text: #0ca30c; --crit-text: #e66767; --na: #3a3a37;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10); --wash: #262624;
+  --s-modal: #3987e5; --s-api: #d95926; --s-granite: #199e70; --s-prompt: #9085e9; --s-compl: #c98500;
+  --good-text: #0ca30c; --crit-text: #e66767; --na: #3a3a37;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--page); color: var(--ink); font-family: var(--sans);
+  font-size: 15px; line-height: 1.5; padding-inline: 16px; padding-block: 0 64px;
+}
+.wrap { max-width: 1120px; margin: 0 auto; }
+header.top { padding-block: 40px 24px; display: grid; gap: 14px; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+h1 { font-size: clamp(30px, 5vw, 44px); line-height: 1.08; margin: 0; font-weight: 700; letter-spacing: -.02em; text-wrap: balance; }
+.lede { max-width: 68ch; color: var(--ink-2); margin: 0; font-size: 16px; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { font-family: var(--mono); font-size: 12px; padding: 3px 9px; border-radius: 999px; background: var(--wash); color: var(--ink-2); }
+nav.toc { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--page); border-bottom: 1px solid var(--grid); margin-bottom: 24px; }
+nav.toc .row { display: flex; gap: 4px; overflow-x: auto; padding-block: 10px; align-items: center; scrollbar-width: none; }
+nav.toc a { color: var(--ink-2); text-decoration: none; font-size: 13px; padding: 5px 10px; border-radius: 6px; white-space: nowrap; }
+nav.toc a:hover, nav.toc a:focus-visible { background: var(--wash); color: var(--ink); outline: none; }
+nav.toc .spacer { flex: 1; }
+button { font: inherit; }
+.btn { font-size: 13px; padding: 5px 12px; border-radius: 6px; border: 1px solid var(--axis); background: var(--surface); color: var(--ink); cursor: pointer; white-space: nowrap; }
+.btn:hover { background: var(--wash); }
+.btn:focus-visible, a:focus-visible { outline: 2px solid var(--s-modal); outline-offset: 2px; }
+.btn[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.tile { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; padding: 16px 18px; display: grid; gap: 4px; align-content: start; }
+.tile .label { font-size: 13px; color: var(--ink-2); }
+.tile .value { font-size: 34px; font-weight: 600; letter-spacing: -.02em; line-height: 1.1; }
+.tile .sub { font-size: 12.5px; color: var(--muted); }
+
+.findings { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; padding: 20px 22px; margin-bottom: 28px; }
+.findings h2 { font-size: 15px; margin: 0 0 10px; font-weight: 600; }
+.findings ol { margin: 0; padding-left: 20px; display: grid; gap: 7px; }
+.findings li { max-width: 92ch; }
+.findings li::marker { font-family: var(--mono); color: var(--muted); font-size: 13px; }
+
+section.panel { background: var(--surface); border: 1px solid var(--ring); border-radius: 12px; padding: 22px 22px 18px; margin-bottom: 20px; scroll-margin-top: 64px; }
+.panel-head { display: flex; gap: 12px; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; margin-bottom: 6px; }
+.panel-head .kicker { font-family: var(--mono); font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+.panel h2 { font-size: 21px; line-height: 1.25; margin: 0; font-weight: 600; letter-spacing: -.01em; text-wrap: balance; max-width: 50ch; }
+.panel .desc { color: var(--ink-2); margin: 6px 0 14px; max-width: 80ch; font-size: 14px; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr)); gap: 28px; }
+.sub-h { font-size: 14px; font-weight: 600; margin: 0 0 2px; }
+.sub-d { font-size: 12.5px; color: var(--muted); margin: 0 0 8px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; color: var(--ink-2); margin: 4px 0 8px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.sw-line { width: 14px; height: 0; border-top: 2px solid var(--ink-2); display: inline-block; }
+.sw-tick { width: 2px; height: 12px; background: var(--ink); display: inline-block; }
+.chart { width: 100%; position: relative; }
+.chart svg { display: block; overflow: visible; }
+.chart text { font-family: var(--sans); }
+.notes { font-size: 12.5px; color: var(--muted); margin: 10px 0 0; padding-left: 18px; display: grid; gap: 3px; }
+.src { font-family: var(--mono); font-size: 11.5px; color: var(--muted); margin-top: 10px; word-break: break-word; }
+.tablewrap { overflow-x: auto; margin-top: 12px; }
+table { border-collapse: collapse; font-size: 13px; width: 100%; min-width: 520px; }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+th { font-weight: 600; color: var(--ink-2); font-size: 12px; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+.status { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; }
+.status.ok { color: var(--good-text); }
+.status.bad { color: var(--crit-text); }
+.cmp td:first-child { color: var(--ink-2); }
+.cmp td.win { font-weight: 600; }
+
+#tip { position: fixed; pointer-events: none; z-index: 20; background: var(--surface); color: var(--ink); border: 1px solid var(--ring); box-shadow: 0 6px 24px rgba(0,0,0,.14); border-radius: 8px; padding: 8px 10px; font-size: 12.5px; max-width: 280px; opacity: 0; transition: opacity .08s; }
+#tip .t-h { color: var(--ink-2); margin-bottom: 4px; }
+#tip .t-r { display: flex; align-items: center; gap: 7px; }
+#tip .t-r b { font-weight: 600; font-variant-numeric: tabular-nums; }
+#tip .t-k { width: 12px; border-top: 2px solid; display: inline-block; }
+#tip .t-n { color: var(--muted); margin-top: 4px; }
+.hit { cursor: default; }
+.hit:focus { outline: none; }
+.mark { transition: opacity .1s; }
+.hl .mark { opacity: .45; }
+.hl .mark.on { opacity: 1; }
+
+footer { color: var(--muted); font-size: 12.5px; padding-top: 12px; display: grid; gap: 6px; }
+footer ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+
+body.present nav.toc { display: none; }
+body.present section.panel, body.present .intro { min-height: calc(100svh - 32px); display: flex; flex-direction: column; justify-content: center; }
+body.present section.panel { margin-block: 16px; }
+html.present-snap { scroll-snap-type: y mandatory; }
+html.present-snap section.panel, html.present-snap .intro { scroll-snap-align: start; }
+.exit { position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 10; }
+@media (max-width: 560px) {
+  section.panel { padding: 18px 14px 14px; }
+  .tile .value { font-size: 28px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+</style>
+
+<div class="wrap">
+  <div class="intro">
+    <header class="top">
+      <div class="eyebrow">local-mailroom-sandbox · tracked reports · 2026-09-16 → 09-27</div>
+      <h1>Mailroom Specialist Scorecard</h1>
+      <p class="lede">Extraction quality, cost, runtime and reliability for the five document-type specialists, drawn from the 37 tracked files under <code>reports/</code>. Local legs run <b>Qwen3-8B-AWQ on Modal L4 via vLLM 0.29</b>; API legs are the paired OpenRouter runs on the same seed-42 draws (dataset rev <code>46a4d3c2</code>).</p>
+      <div class="meta">
+        <span class="chip">5 doc types</span><span class="chip">22 runs &amp; probes</span><span class="chip">seed 42</span><span class="chip">L4 @ $0.80/hr</span><span class="chip">n = 20 per leg unless noted</span>
+      </div>
+    </header>
+
+    <div class="tiles">
+      <div class="tile"><div class="label">Best specialist score</div><div class="value">0.671</div><div class="sub">Insurance claims · Qwen AWQ on 1×L4 · 20/20 ok</div></div>
+      <div class="tile"><div class="label">Lowest GPU cost per document</div><div class="value">$0.0017</div><div class="sub">Correspondence Run A · 2×L4 · c=8</div></div>
+      <div class="tile"><div class="label">Tracked compute spend</div><div class="value">$11.89</div><div class="sub">Modal metered + API actuals · $0.00 billed (credits)</div></div>
+      <div class="tile"><div class="label">Docs through Qwen AWQ specialists</div><div class="value">200 / 210</div><div class="sub">completed across 9 runs · 10 errors</div></div>
+    </div>
+
+    <div class="findings">
+      <h2>What the reports say</h2>
+      <ol>
+        <li><b>Insurance claims is the most extractable type</b> (0.67 local, 0.75 API). Correspondence is the hardest type with a valid score.</li>
+        <li><b>Local AWQ matches the API on corporate records</b> (0.42 vs 0.40) but reaches under half the API score on correspondence (0.23 vs 0.51).</li>
+        <li><b>Contracts and merger have no valid local score.</b> The Hub ground truth lacks the contract schema, and the merger leg ran the contracts prompt against MAUD labels. Their 0.0 reflects the measurement setup, not model quality.</li>
+        <li><b>The API is cheaper per document on 4 of 5 types.</b> Modal wins only on short correspondence ($0.0017 vs $0.0030), where it also finishes 16× faster.</li>
+        <li><b>Qwen AWQ batches 6–7× at concurrency 8. Granite ran requests one at a time</b> (1.0–1.4×) and cost 7.8× more on the merger leg.</li>
+        <li><b>The prompt, not the hardware, moved correspondence quality:</b> 0.09 on the earlier prompt vs 0.23–0.25 on the production prompt, on the same checkpoint.</li>
+        <li><b>ModernBERT routes at 89.5% doc-type accuracy</b> for 1/37 of the LLM sorter's latency. Its weak class is corporate records (57%).</li>
+      </ol>
+    </div>
+  </div>
+
+  <nav class="toc" aria-label="Sections">
+    <div class="row">
+      <a href="#quality">Quality</a><a href="#subclass">Subclasses</a><a href="#cost">Cost</a><a href="#runtime">Runtime</a><a href="#concurrency">Concurrency</a><a href="#tokens">Tokens</a><a href="#prompt">Prompt effect</a><a href="#reliability">Reliability</a><a href="#granite">Qwen vs Granite</a><a href="#spend">Spend</a><a href="#modernbert">ModernBERT</a>
+      <span class="spacer"></span>
+      <button class="btn" id="present" type="button" aria-pressed="false">Present</button>
+    </div>
+  </nav>
+
+  <section class="panel" id="quality">
+    <div class="panel-head"><div><div class="kicker">Extraction quality by document type</div>
+      <h2>Insurance leads on both stacks; correspondence is where the local model trails most</h2></div>
+      <button class="btn tbl" type="button" data-for="quality">Show table</button></div>
+    <p class="desc">Mean <code>overall_extraction_score</code> (dojo suite, 0–1) per specialist, n = 20 each. Local = Qwen3-8B-AWQ on Modal; API = the paired OpenRouter run.</p>
+    <div class="legend" data-series="modal,api"></div>
+    <div class="chart" id="c-quality"></div>
+    <ul class="notes">
+      <li>Contracts (local): all 17 ok rows score 0.0 because the Hub <code>ground_truth</code> config carries triage labels, not the contract extraction schema.</li>
+      <li>Merger (local): the Qwen leg ran <code>contracts_specialist</code> (CUAD prompt) against MAUD ground truth. Output was valid JSON on all 15 ok docs but the schemas do not match.</li>
+      <li>Merger API used <code>qwen/qwen3.7-flash</code>; every other API leg used <code>qwen/qwen3-8b</code>. Correspondence local is Run A (n = 20, same n as the API leg); Run B at n = 50 scored 0.255.</li>
+    </ul>
+    <div class="tablewrap" hidden></div>
+    <div class="src">Sources: insurance/…AWQ-REPORT.md · corporate/…AWQ-REPORT.md · correspondence/RUN-20-…SPECIALIST-AWQ-REPORT.md · contract/…C8-REPORT.md · merger/…AWQ-REPORT.md · API legs: RUN-50-CORRESPONDENCE-SPECIALIST-AWQ-REPORT.md §Comparison (b)</div>
+  </section>
+
+  <section class="panel" id="subclass">
+    <div class="panel-head"><div><div class="kicker">Subclass breakdown · per-document scores</div>
+      <h2>Within a type, subclass matters less than the individual document</h2></div>
+      <button class="btn tbl" type="button" data-for="subclass">Show table</button></div>
+    <p class="desc">Each dot is one document; the dark tick is the subclass mean. Insurance subclasses sit in a tight 0.57–0.76 band. Correspondence spreads from 0.03 to 0.76 inside the same subclass.</p>
+    <div class="legend"><span><span class="sw" style="background:var(--s-modal);border-radius:50%"></span>Document score</span><span><span class="sw-tick"></span>Subclass mean</span></div>
+    <div class="grid2">
+      <div><p class="sub-h">Insurance claims · n = 20</p><p class="sub-d">run-20-insurance-claims-specialist-awq</p><div class="chart" id="c-sub-ins"></div></div>
+      <div><p class="sub-h">Correspondence · n = 50</p><p class="sub-d">run-50-correspondence-specialist-awq (Run B)</p><div class="chart" id="c-sub-corr"></div></div>
+    </div>
+    <div class="tablewrap" hidden></div>
+    <div class="src">Sources: per-document tables in insurance/RUN-20-…-AWQ-REPORT.md and correspondence/RUN-50-…-AWQ-REPORT.md (parsed by reports/dashboard/extract_per_doc.py)</div>
+  </section>
+
+  <section class="panel" id="cost">
+    <div class="panel-head"><div><div class="kicker">Cost per document</div>
+      <h2>The API is cheaper per document on four of five types</h2></div>
+      <button class="btn tbl" type="button" data-for="cost">Show table</button></div>
+    <p class="desc">Local = Modal GPU cost per document (billed window × $0.80 per L4-hour). API = actual OpenRouter spend per document. Long contracts cost the most on both stacks, and the gap is widest there (3.3×).</p>
+    <div class="legend" data-series="modal,api"></div>
+    <div class="chart" id="c-cost"></div>
+    <ul class="notes">
+      <li>Local correspondence ran on 2×L4 data-parallel (both replicas billed). All other local legs ran on 1×L4.</li>
+      <li>Corporate and merger local costs are busy-window estimates. Contracts includes a 161 s cold boot.</li>
+    </ul>
+    <div class="tablewrap" hidden></div>
+    <div class="src">Sources: per-type run reports · archive/MODAL-RUNS-REPORT.md · RUN-50-CORRESPONDENCE-SPECIALIST-AWQ-REPORT.md §Comparison (b)</div>
+  </section>
+
+  <section class="panel" id="runtime">
+    <div class="panel-head"><div><div class="kicker">Run time</div>
+      <h2>Contracts take 20× longer per document than correspondence; API wall time swings with thinking tails</h2></div>
+      <button class="btn tbl" type="button" data-for="runtime">Show table</button></div>
+    <div class="grid2">
+      <div>
+        <p class="sub-h">Wall time for a 20-document run</p>
+        <p class="sub-d">Seconds from first dispatch to last result, concurrency 8</p>
+        <div class="legend" data-series="modal,api"></div>
+        <div class="chart" id="c-wall"></div>
+      </div>
+      <div>
+        <p class="sub-h">Per-document latency, local runs</p>
+        <p class="sub-d">Each dot is one document's end-to-end seconds; tick = median</p>
+        <div class="legend"><span><span class="sw" style="background:var(--s-modal);border-radius:50%"></span>Document latency</span><span><span class="sw-tick"></span>Median (p50)</span></div>
+        <div class="chart" id="c-lat"></div>
+      </div>
+    </div>
+    <ul class="notes">
+      <li>API correspondence took 1,230 s because of long thinking tails: 110k completion tokens, and one document hit 1,087 s on a 39k-token generation. The local leg generated 3.8k completion tokens in total.</li>
+      <li>Contracts c8 latency includes 3 <code>LengthFinishReasonError</code> docs that used the full 8,192-token output budget.</li>
+    </ul>
+    <div class="tablewrap" hidden></div>
+    <div class="src">Sources: serving/*.serving.json · per-document tables in contract/, insurance/, correspondence/ reports</div>
+  </section>
+
+  <section class="panel" id="concurrency">
+    <div class="panel-head"><div><div class="kicker">Batching efficiency</div>
+      <h2>Qwen AWQ turns 8-way dispatch into a 6–7× speedup; Granite ran one request at a time</h2></div>
+      <button class="btn tbl" type="button" data-for="concurrency">Show table</button></div>
+    <p class="desc">Speedup = sum of per-document latency ÷ wall time. A run with no parallelism scores 1×. The tick marks the configured concurrency, the maximum possible speedup.</p>
+    <div class="legend" data-series="modal,granite"><span><span class="sw-tick"></span>Configured concurrency</span></div>
+    <div class="chart" id="c-conc"></div>
+    <ul class="notes"><li>Granite: vLLM 0.29 handled guided-JSON plus Granite thinking as one request at a time ("Running: 1 req, never &gt;1"). With client dispatch at 8, completions arrived about 195 s apart.</li></ul>
+    <div class="tablewrap" hidden></div>
+    <div class="src">Sources: serving/*.serving.json (latency_sum_over_wall) · corporate/, merger/ reports · granite/RUN-20-CONTRACTS-GRANITE-HALT-REPORT.md · granite/RUN-20-MERGER-GRANITE-REPORT.md</div>
+  </section>
+
+  <section class="panel" id="tokens">
+    <div class="panel-head"><div><div class="kicker">Token economics</div>
+      <h2>Prompt tokens drive the volume; contracts and mergers send 4× the input of short mail</h2></div>
+      <button class="btn tbl" type="button" data-for="tokens">Show table</button></div>
+    <p class="desc">Mean tokens per document on the local Qwen AWQ legs. Completions stay between 190 and 1,530 tokens, so total volume follows document length.</p>
+    <div class="legend" data-series="prompt,compl"></div>
+    <div class="chart" id="c-tok"></div>
+    <div class="tablewrap" hidden></div>
+    <div class="src">Sources: prompt / completion token totals ÷ n in each per-type run report</div>
+  </section>
+
+  <section class="panel" id="prompt">
+    <div class="panel-head"><div><div class="kicker">Correspondence run history</div>
+      <h2>Changing the prompt tripled the score; changing concurrency and replicas cut the cost</h2></div>
+      <button class="btn tbl" type="button" data-for="prompt">Show table</button></div>
+    <p class="desc">Four correspondence runs on the same Qwen3-8B-AWQ checkpoint, in run order. The first two used the earlier prompt; the last two the DMR-074 production pin with schema validity of 0.90–0.94.</p>
+    <div class="grid2">
+      <div><p class="sub-h">Extraction score</p><p class="sub-d">overall_extraction_score, 0–1</p><div class="chart" id="c-pr-score"></div></div>
+      <div><p class="sub-h">GPU cost per document</p><p class="sub-d">USD, billed window</p><div class="chart" id="c-pr-cost"></div></div>
+    </div>
+    <ul class="notes"><li>The c5 and c8 report headers name <code>correspondence_specialist_production</code> as the prompt, but the Run B comparison table lists them as <code>*_simplified</code>. This page follows the Run B comparison.</li>
+    <li>Run-to-run stability on overlapping documents is ±0.02 (19 of 20 identical, mean |Δ| 0.0008).</li></ul>
+    <div class="tablewrap" hidden></div>
+    <div class="src">Sources: correspondence/*.md · serving/run-20-correspondence-awq*.serving.json</div>
+  </section>
+
+  <section class="panel" id="reliability">
+    <div class="panel-head"><div><div class="kicker">Completion reliability</div>
+      <h2>Every Qwen AWQ run on short documents finished clean; long documents and Granite account for the failures</h2></div>
+      <button class="btn tbl" type="button" data-for="reliability">Show table</button></div>
+    <p class="desc">Share of planned documents per run that completed, errored, or were never attempted because the run was aborted or halted.</p>
+    <div class="legend">
+      <span><span class="sw" style="background:var(--good)"></span>✓ Completed</span>
+      <span><span class="sw" style="background:var(--critical)"></span>✕ Errored</span>
+      <span><span class="sw" style="background:var(--na)"></span>– Not attempted</span>
+    </div>
+    <div class="chart" id="c-rel"></div>
+    <div class="tablewrap" hidden></div>
+    <div class="src">Sources: archive/MODAL-RUNS-REPORT.md · per-type reports · granite/*.md</div>
+  </section>
+
+  <section class="panel" id="granite">
+    <div class="panel-head"><div><div class="kicker">Engine comparison · merger agreements</div>
+      <h2>Qwen AWQ completed 20 merger docs for 1/8 of what Granite spent on 16</h2></div></div>
+    <p class="desc">Same 20-document draw (<code>624e026fc985</code>). This is not a clean model comparison: the Granite leg ran the merger specialist and the Qwen leg ran the contracts specialist. Throughput, cost and failure mode are comparable; score is not.</p>
+    <div class="tablewrap" style="margin-top:4px">
+      <table class="cmp">
+        <thead><tr><th>Metric</th><th class="n">Qwen3-8B-AWQ</th><th class="n">Granite-4.2-8B-FP8</th><th class="n">Ratio</th></tr></thead>
+        <tbody>
+          <tr><td>Docs ok / attempted</td><td class="n win">15 / 20</td><td class="n">11 / 16</td><td class="n">—</td></tr>
+          <tr><td>Wall time</td><td class="n win">740 s</td><td class="n">5,790 s</td><td class="n">7.8×</td></tr>
+          <tr><td>GPU cost</td><td class="n win">$0.164</td><td class="n">$1.287</td><td class="n">7.8×</td></tr>
+          <tr><td>Cost per completed doc</td><td class="n win">$0.011</td><td class="n">$0.117</td><td class="n">10.6×</td></tr>
+          <tr><td>Completion tokens per doc</td><td class="n win">~1.2k</td><td class="n">~12k</td><td class="n">~10×</td></tr>
+          <tr><td>Decode rate</td><td class="n win">~40 tok/s</td><td class="n">~19 tok/s</td><td class="n">~2×</td></tr>
+          <tr><td>Batching speedup</td><td class="n win">7.13× at c=8</td><td class="n">~1.4× at c=3</td><td class="n">—</td></tr>
+          <tr><td>Failure mode</td><td class="n">Transient connection drops</td><td class="n">Thinking text breaks the JSON parse</td><td class="n">—</td></tr>
+          <tr><td>Outcome</td><td class="n"><span class="status ok">✓ Complete</span></td><td class="n"><span class="status bad">✕ Cost-cap abort at 16/20</span></td><td class="n">—</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <ul class="notes"><li>Other Granite legs: contracts halted at 8/20 (0 ok). Correspondence-50 was stopped at 5/50 because the full run would have cost about $2.67 against a $0.80 cap. The contracts probe needed a 16k decode budget, generated 11,676 tokens and scored 0.0.</li></ul>
+    <div class="src">Sources: merger/RUN-20-MERGER-SPECIALIST-AWQ-REPORT.md · granite/*.md</div>
+  </section>
+
+  <section class="panel" id="spend">
+    <div class="panel-head"><div><div class="kicker">Total spend</div>
+      <h2>$11.89 tracked, most of it one sorter pipeline run on unquantized Qwen</h2></div>
+      <button class="btn tbl" type="button" data-for="spend">Show table</button></div>
+    <p class="desc">Compute spend by bucket in USD. Modal figures are metered or wall-time estimates; all Modal usage was covered by credits ($0.00 billed). API figures are actual OpenRouter charges.</p>
+    <div class="chart" id="c-spend"></div>
+    <ul class="notes">
+      <li>The 50-doc sorter run executed the full pipeline, about 5 LLM calls per doc on bf16 Qwen3-8B across up to 4×L4: $7.98 metered, about $0.16 per doc.</li>
+      <li>Granite includes the low end ($0.40) of the $0.40–0.55 estimate for the halted contracts window.</li>
+      <li>Nine Qwen AWQ specialist runs processed 210 docs for $1.40, an average of $0.0067 per doc.</li>
+    </ul>
+    <div class="tablewrap" hidden></div>
+    <div class="src">Sources: archive/RUN50-MODAL-HF-REPORT.md · archive/MODAL-RUNS-REPORT.md · archive/QWEN-FLASH-COST-REPORT.md · granite/*.md · corporate/, merger/ reports</div>
+  </section>
+
+  <section class="panel" id="modernbert">
+    <div class="panel-head"><div><div class="kicker">Intake classifier · ModernBERT run-3 · 323 held-out docs</div>
+      <h2>ModernBERT routes 89.5% of documents correctly at a fraction of the sorter's cost; corporate records is its blind spot</h2></div>
+      <button class="btn tbl" type="button" data-for="modernbert">Show table</button></div>
+    <div class="tiles" style="margin:6px 0 18px">
+      <div class="tile"><div class="label">Doc-type accuracy</div><div class="value">89.5%</div><div class="sub">vs LLM sorter 98% (n = 50) · P0 gate 95% not met</div></div>
+      <div class="tile"><div class="label">Latency per doc</div><div class="value">0.075 s</div><div class="sub">vs 2.8 s for the Qwen3-8B sorter · 37× faster</div></div>
+      <div class="tile"><div class="label">Cost per doc</div><div class="value">$0.000001</div><div class="sub">vs $0.000139 sorter proxy · 139× cheaper</div></div>
+    </div>
+    <div class="grid2">
+      <div><p class="sub-h">Doc-type accuracy by true class</p><p class="sub-d">Correct ÷ total on the 323-doc test split</p><div class="chart" id="c-mb-acc"></div></div>
+      <div><p class="sub-h">Calibration error by head</p><p class="sub-d">Calibrated ECE. Heads above 0.05 are excluded from the fast path.</p>
+        <div class="legend"><span><span class="sw-line" style="border-top-style:solid"></span>0.05 exclusion threshold</span></div>
+        <div class="chart" id="c-mb-ece"></div></div>
+    </div>
+    <div style="margin-top:24px">
+      <p class="sub-h">Selective-risk trade-off</p>
+      <p class="sub-d">Each point is a confidence threshold (0.60–0.99): the share of windows accepted vs accuracy on those windows. The marked point is the recommended 0.93 threshold.</p>
+      <div class="chart" id="c-mb-risk"></div>
+    </div>
+    <ul class="notes">
+      <li>Corporate records: 12 of 47 were routed to correspondence and 8 went to LLM overflow. Multi-window documents score 79.6% vs 91.2% single-window.</li>
+      <li>The sorter's 98% is from run-50-modal-hf (n = 50, all contracts), not the same 323-doc pass. Sorter cost is a ledger proxy scaled to n = 323.</li>
+    </ul>
+    <div class="tablewrap" hidden></div>
+    <div class="src">Sources: modernbert/eval_run3_20260921.json · modernbert/RUN-03-MODERNBERT-HELDOUT-TEST-REPORT.md · modernbert/SORTER-VS-MODERNBERT-COST-PERF-323.md</div>
+  </section>
+
+  <footer>
+    <b style="color:var(--ink-2)">Data notes</b>
+    <ul>
+      <li>All figures are copied from tracked files under <code>reports/</code>. Nothing was re-run. Where two files disagree, the run report wins over the serving export. For example, the insurance serving JSON records a 428.98 s wall and $0.0954, while the run report records 422.15 s and $0.0939.</li>
+      <li>TTFT is never inferred for local serving and is not shown.</li>
+      <li>Regenerate per-document data with <code>python reports/dashboard/extract_per_doc.py</code>, which rebuilds this page from <code>scorecard.template.html</code>.</li>
+    </ul>
+  </footer>
+</div>
+<div id="tip" role="status" aria-live="polite"></div>
+<button class="btn exit" id="exit" type="button" hidden>Exit presentation</button>
+
+<script id="per-doc" type="application/json">/*__PER_DOC__*/</script>
+<script>
+(() => {
+const PER_DOC = JSON.parse(document.getElementById('per-doc').textContent);
+const SERIES = {
+  modal:   { name: 'Local · Qwen3-8B-AWQ on Modal', color: 'var(--s-modal)' },
+  api:     { name: 'API · OpenRouter', color: 'var(--s-api)' },
+  granite: { name: 'Granite-4.2-8B-FP8 on Modal', color: 'var(--s-granite)' },
+  prompt:  { name: 'Prompt tokens', color: 'var(--s-prompt)' },
+  compl:   { name: 'Completion tokens', color: 'var(--s-compl)' },
+};
+const TYPES = ['Insurance claims', 'Corporate records', 'Correspondence', 'Contracts', 'Merger agreements'];
+
+// ---------- data (from tracked reports) ----------
+const QUALITY = {
+  'Insurance claims':  { modal: 0.6714, api: 0.7488 },
+  'Corporate records': { modal: 0.4231, api: 0.4004 },
+  'Correspondence':    { modal: 0.2280, api: 0.5130 },
+  'Contracts':         { modal: null, api: 0.6169, why: { modal: 'Not measurable: GT has no contract schema' } },
+  'Merger agreements': { modal: null, api: 0.3748, why: { modal: 'Not measurable: CUAD prompt vs MAUD labels' } },
+};
+const COST = {
+  'Insurance claims':  { modal: 0.0046946, api: 0.0016 },
+  'Corporate records': { modal: 0.0076, api: 0.0030 },
+  'Correspondence':    { modal: 0.0016808, api: 0.0030 },
+  'Contracts':         { modal: 0.0187688, api: 0.0057 },
+  'Merger agreements': { modal: 0.0082, api: 0.0029 },
+};
+const WALL = {
+  'Insurance claims':  { modal: 422.2, api: 203.3 },
+  'Corporate records': { modal: 684.4, api: 436.5 },
+  'Correspondence':    { modal: 75.1, api: 1230.1 },
+  'Contracts':         { modal: 1528.0, api: 1457.5 },
+  'Merger agreements': { modal: 740.1, api: 142.0 },
+};
+const CONC = [
+  { run: 'Contracts c8', eng: 'modal', s: 6.96, c: 8 },
+  { run: 'Merger (contracts prompt)', eng: 'modal', s: 7.13, c: 8 },
+  { run: 'Correspondence A · 2×L4', eng: 'modal', s: 6.70, c: 8 },
+  { run: 'Correspondence c8', eng: 'modal', s: 6.69, c: 8 },
+  { run: 'Corporate records', eng: 'modal', s: 6.46, c: 8 },
+  { run: 'Insurance claims', eng: 'modal', s: 6.07, c: 8 },
+  { run: 'Correspondence B · 2×L4', eng: 'modal', s: 5.10, c: 8 },
+  { run: 'Correspondence c5', eng: 'modal', s: 4.84, c: 5 },
+  { run: 'Granite merger', eng: 'granite', s: 1.4, c: 3 },
+  { run: 'Granite contracts (halted)', eng: 'granite', s: 1.0, c: 8 },
+];
+const TOKENS = [
+  { t: 'Merger agreements', prompt: 11259, compl: 1179 },
+  { t: 'Contracts', prompt: 9719, compl: 1281 },
+  { t: 'Corporate records', prompt: 7990, compl: 1529 },
+  { t: 'Insurance claims', prompt: 3434, compl: 487 },
+  { t: 'Correspondence', prompt: 2494, compl: 191 },
+];
+const PROMPT_RUNS = [
+  { run: 'c5 · earlier prompt · 1×L4', score: 0.08934, cost: 0.00571155, sv: 'not recorded' },
+  { run: 'c8 · earlier prompt · 1×L4', score: 0.08714, cost: 0.002781, sv: 'not recorded' },
+  { run: 'Run A · production · 2×L4', score: 0.22799, cost: 0.0016808, sv: '0.90' },
+  { run: 'Run B · production · 2×L4 · n=50', score: 0.254748, cost: 0.00249424, sv: '0.94' },
+];
+const REL = [
+  { run: 'Insurance · Qwen AWQ', ok: 20, err: 0, na: 0, note: '' },
+  { run: 'Corporate · Qwen AWQ', ok: 20, err: 0, na: 0, note: '' },
+  { run: 'Correspondence A · Qwen AWQ', ok: 20, err: 0, na: 0, note: '' },
+  { run: 'Correspondence B · Qwen AWQ', ok: 50, err: 0, na: 0, note: '' },
+  { run: 'Correspondence c5 · Qwen AWQ', ok: 20, err: 0, na: 0, note: '' },
+  { run: 'Correspondence c8 · Qwen AWQ', ok: 20, err: 0, na: 0, note: '' },
+  { run: 'Contracts c4 · Qwen AWQ', ok: 18, err: 2, na: 0, note: '400 context overflow at 16k window' },
+  { run: 'Contracts c8 · Qwen AWQ', ok: 17, err: 3, na: 0, note: 'LengthFinishReasonError at 8,192 tokens' },
+  { run: 'Merger · Qwen AWQ', ok: 15, err: 5, na: 0, note: 'Transient connection drops at c=8' },
+  { run: 'Contracts · Qwen bf16', ok: 6, err: 14, na: 0, note: 'Pre-AWQ run, 14 errors' },
+  { run: 'Merger · Granite', ok: 11, err: 5, na: 4, note: 'Thinking-leak parse errors; cost-cap abort' },
+  { run: 'Correspondence-50 · Granite', ok: 5, err: 0, na: 45, note: 'Halted as infeasible on pace' },
+  { run: 'Contracts · Granite', ok: 0, err: 8, na: 12, note: 'Halted: output budget exhausted by thinking' },
+];
+const SPEND = [
+  { b: 'Sorter pipeline run (bf16)', v: 7.98, d: 'run-50-modal-hf: 50 docs, ~5 LLM calls each, up to 4×L4; metered' },
+  { b: 'Granite specialist legs', v: 2.0166, d: 'Merger $1.287 + correspondence-50 $0.33 + contracts window ≥$0.40' },
+  { b: 'Qwen AWQ specialist runs (9)', v: 1.3983, d: '210 docs; contracts c8 $0.375, c4 $0.285, merger $0.164, corporate $0.152' },
+  { b: 'API legs (OpenRouter)', v: 0.492, d: '7 eval-environment legs $0.480 + qwen-flash ledger $0.012' },
+];
+const MB_ACC = [
+  { t: 'Insurance claims', c: 114, n: 114 },
+  { t: 'Merger agreements', c: 17, n: 17 },
+  { t: 'Correspondence', c: 81, n: 85 },
+  { t: 'Contracts', c: 50, n: 60 },
+  { t: 'Corporate records', c: 27, n: 47 },
+];
+const MB_ECE = [
+  { h: 'doc_type', v: 0.0228 }, { h: 'contract', v: 0.0443 }, { h: 'merger_agreement', v: 0.0655 },
+  { h: 'insurance_claim', v: 0.0670 }, { h: 'correspondence', v: 0.0713 }, { h: 'corporate_record', v: 0.1346 },
+];
+const MB_RISK = [[0.6,0.9464,0.9602],[0.64,0.9345,0.9618],[0.67,0.9226,0.9656],[0.7,0.9187,0.9676],[0.72,0.9107,0.9717],[0.74,0.9008,0.9758],[0.75,0.8909,0.9777],[0.78,0.8849,0.9798],[0.81,0.877,0.9842],[0.82,0.8671,0.9863],[0.83,0.8631,0.9885],[0.84,0.8512,0.9883],[0.85,0.8433,0.9882],[0.86,0.8353,0.9929],[0.87,0.8274,0.9928],[0.88,0.8175,0.9927],[0.89,0.8075,0.9926],[0.9,0.7996,0.9926],[0.91,0.7758,0.9923],[0.92,0.75,0.9921],[0.93,0.7321,0.9946],[0.94,0.7004,0.9943],[0.95,0.6706,0.997],[0.96,0.627,0.9968],[0.97,0.5734,0.9965],[0.98,0.5119,0.9961],[0.99,0.4325,1.0]];
+
+// ---------- helpers ----------
+const NS = 'http://www.w3.org/2000/svg';
+const el = (tag, attrs = {}, parent) => {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  if (parent) parent.appendChild(e);
+  return e;
+};
+const txt = (parent, x, y, s, attrs = {}) => { const t = el('text', { x, y, ...attrs }, parent); t.textContent = s; return t; };
+const usd = v => v == null ? '—' : v >= 1 ? '$' + v.toFixed(2) : v >= 0.1 ? '$' + v.toFixed(3) : '$' + v.toPrecision(2).replace(/^0/, '0');
+const f3 = v => v == null ? '—' : v.toFixed(3);
+const int = v => Math.round(v).toLocaleString('en-US');
+const secs = v => v >= 100 ? int(v) + ' s' : v.toFixed(1) + ' s';
+const pct = v => (v * 100).toFixed(1) + '%';
+function niceTicks(max, count = innerWidth < 560 ? 3 : 5) {
+  const raw = max / count, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => raw <= s);
+  const top = Math.ceil(max / step - 1e-9) * step, ticks = [];
+  for (let v = 0; v <= top + step / 2; v += step) ticks.push(+v.toPrecision(10));
+  return { top, ticks };
+}
+function barPath(x0, x1, y, h, r = 4) {
+  const w = x1 - x0; r = Math.min(r, w, h / 2);
+  if (w <= 0) return '';
+  return `M${x0},${y}H${x1 - r}Q${x1},${y} ${x1},${y + r}V${y + h - r}Q${x1},${y + h} ${x1 - r},${y + h}H${x0}Z`;
+}
+const labelW = w => w < 520 ? 118 : 172;
+function measure(parent, s, size = 12) {
+  const t = txt(parent, -9999, -9999, s, { 'font-size': size }); const w = t.getComputedTextLength(); t.remove(); return w;
+}
+function wrapLabel(parent, x, y, s, maxW, attrs) {
+  const words = s.split(' '); const lines = [''];
+  for (const w of words) {
+    const tryL = (lines[lines.length - 1] + ' ' + w).trim();
+    if (measure(parent, tryL, attrs['font-size'] || 12) > maxW && lines[lines.length - 1]) lines.push(w); else lines[lines.length - 1] = tryL;
+  }
+  const lh = 14, y0 = y - (lines.length - 1) * lh / 2;
+  lines.forEach((l, i) => txt(parent, x, y0 + i * lh, l, attrs));
+}
+
+// tooltip
+const tip = document.getElementById('tip');
+function showTip(evt, head, rows, note) {
+  tip.replaceChildren();
+  const h = document.createElement('div'); h.className = 't-h'; h.textContent = head; tip.appendChild(h);
+  for (const r of rows) {
+    const d = document.createElement('div'); d.className = 't-r';
+    if (r.color) { const k = document.createElement('span'); k.className = 't-k'; k.style.borderColor = r.color; d.appendChild(k); }
+    const b = document.createElement('b'); b.textContent = r.value; d.appendChild(b);
+    const s = document.createElement('span'); s.textContent = r.label; s.style.color = 'var(--ink-2)'; d.appendChild(s);
+    tip.appendChild(d);
+  }
+  if (note) { const n = document.createElement('div'); n.className = 't-n'; n.textContent = note; tip.appendChild(n); }
+  let x, y;
+  if (evt.clientX != null && evt.type !== 'focus') { x = evt.clientX; y = evt.clientY; }
+  else { const r = evt.target.getBoundingClientRect(); x = r.left + r.width / 2; y = r.top; }
+  tip.style.opacity = 1;
+  const tw = tip.offsetWidth, th = tip.offsetHeight;
+  let left = x + 14, top = y - th - 10;
+  if (left + tw > innerWidth - 8) left = x - tw - 14;
+  if (top < 8) top = y + 16;
+  tip.style.left = Math.max(8, left) + 'px'; tip.style.top = top + 'px';
+}
+const hideTip = () => { tip.style.opacity = 0; };
+function bindHit(hit, svg, marks, fn) {
+  hit.setAttribute('tabindex', '0'); hit.setAttribute('class', 'hit');
+  const on = e => { svg.classList.add('hl'); marks.forEach(m => m.classList.add('on')); fn(e); };
+  const off = () => { svg.classList.remove('hl'); marks.forEach(m => m.classList.remove('on')); hideTip(); };
+  hit.addEventListener('pointermove', on); hit.addEventListener('focus', on);
+  hit.addEventListener('pointerleave', off); hit.addEventListener('blur', off);
+}
+function xAxis(svg, x, ticks, top, bottom, fmt, left, right) {
+  const g = el('g', {}, svg);
+  for (const t of ticks) {
+    const X = x(t);
+    el('line', { x1: X, x2: X, y1: top, y2: bottom, stroke: 'var(--grid)', 'stroke-width': 1 }, g);
+    txt(g, X, bottom + 16, fmt(t), { 'font-size': 11, fill: 'var(--muted)', 'text-anchor': X <= left + 2 ? 'start' : X >= right - 2 ? 'end' : 'middle', style: 'font-variant-numeric: tabular-nums' });
+  }
+  el('line', { x1: x(0), x2: x(0), y1: top, y2: bottom, stroke: 'var(--axis)', 'stroke-width': 1 }, g);
+}
+
+// ---------- chart: grouped horizontal bars ----------
+function grouped(host, { cats, keys, data, fmt, tickFmt, max, unit }) {
+  host.replaceChildren();
+  const W = host.clientWidth, L = labelW(W), R = 64, barH = 18, gap = 2, bandPad = 16;
+  const bandH = keys.length * barH + (keys.length - 1) * gap;
+  const H = cats.length * (bandH + bandPad) + 26;
+  const svg = el('svg', { width: W, height: H, role: 'img' }, host);
+  const vals = cats.flatMap(c => keys.map(k => data[c][k])).filter(v => v != null);
+  const { top, ticks } = niceTicks(max ?? Math.max(...vals));
+  const x = v => L + (v / top) * (W - L - R);
+  xAxis(svg, x, ticks, 0, H - 24, tickFmt || fmt, L, W - R);
+  cats.forEach((c, ci) => {
+    const y0 = ci * (bandH + bandPad) + bandPad / 2;
+    wrapLabel(svg, L - 10, y0 + bandH / 2 + 4, c, L - 14, { 'font-size': 12.5, fill: 'var(--ink)', 'text-anchor': 'end' });
+    keys.forEach((k, ki) => {
+      const v = data[c][k], y = y0 + ki * (barH + gap), s = SERIES[k];
+      if (v == null) {
+        el('rect', { x: x(0), y, width: 3, height: barH, rx: 1, style: `fill:${s.color}`, opacity: .35 }, svg);
+        txt(svg, x(0) + 9, y + barH / 2 + 4, W < 560 ? 'Not measurable (see notes)' : ((data[c].why && data[c].why[k]) || 'n/a'), { 'font-size': 11.5, fill: 'var(--muted)', 'font-style': 'italic' });
+      } else {
+        const m = el('path', { d: barPath(x(0), Math.max(x(v), x(0) + 1), y, barH), class: 'mark', style: `fill:${s.color}` }, svg);
+        txt(svg, x(v) + 6, y + barH / 2 + 4, fmt(v), { 'font-size': 11.5, fill: 'var(--ink-2)', style: 'font-variant-numeric: tabular-nums' });
+        const hit = el('rect', { x: L - 4, y: y - 1, width: W - L, height: barH + 2, fill: 'transparent' }, svg);
+        bindHit(hit, svg, [m], e => showTip(e, c, keys.map(kk => ({ color: SERIES[kk].color, value: data[c][kk] == null ? 'n/a' : fmt(data[c][kk]), label: SERIES[kk].name })), unit));
+      }
+    });
+  });
+  return svg;
+}
+
+// ---------- chart: generic single/multi-series hbar rows ----------
+function bars(host, { rows, fmt, tickFmt, max, color, rowLabel, extra, tipFn, ref, avoid }) {
+  host.replaceChildren();
+  const W = host.clientWidth, L = labelW(W) + 30, R = 70, barH = 18, pad = 12;
+  const H = rows.length * (barH + pad) + 26;
+  const svg = el('svg', { width: W, height: H, role: 'img' }, host);
+  const { top, ticks } = niceTicks(max ?? Math.max(...rows.map(r => r.v)));
+  const x = v => L + (v / top) * (W - L - R);
+  xAxis(svg, x, ticks, 0, H - 24, tickFmt || fmt, L, W - R);
+  if (ref != null) {
+    el('line', { x1: x(ref), x2: x(ref), y1: 0, y2: H - 24, stroke: 'var(--ink-2)', 'stroke-width': 1.5 }, svg);
+  }
+  rows.forEach((r, i) => {
+    const y = i * (barH + pad) + pad / 2;
+    wrapLabel(svg, L - 10, y + barH / 2 + 4, rowLabel(r), L - 14, { 'font-size': 12, fill: 'var(--ink)', 'text-anchor': 'end' });
+    const m = el('path', { d: barPath(x(0), x(r.v), y, barH), class: 'mark', style: `fill:${typeof color === 'function' ? color(r) : color}` }, svg);
+    let lx = x(r.v) + 6; const av = avoid ? avoid(r) : ref;
+    if (av != null && x(av) > x(r.v) - 2 && x(av) - lx < measure(svg, fmt(r.v), 11.5) + 4) lx = x(av) + 6;
+    txt(svg, lx, y + barH / 2 + 4, fmt(r.v), { 'font-size': 11.5, fill: 'var(--ink-2)', style: 'font-variant-numeric: tabular-nums' });
+    if (extra) extra(svg, r, x, y, barH);
+    const hit = el('rect', { x: L - 4, y: y - 2, width: W - L, height: barH + 4, fill: 'transparent' }, svg);
+    bindHit(hit, svg, [m], e => showTip(e, rowLabel(r), tipFn(r)));
+  });
+}
+
+// ---------- chart: stacked hbar ----------
+function stacked(host, { rows, keys, colors, names, fmt, tickFmt, max, rowLabel, tipNote }) {
+  host.replaceChildren();
+  const W = host.clientWidth, L = labelW(W) + 40, R = 64, barH = 18, pad = 12;
+  const H = rows.length * (barH + pad) + 26;
+  const svg = el('svg', { width: W, height: H, role: 'img' }, host);
+  const tot = r => keys.reduce((a, k) => a + r[k], 0);
+  const { top, ticks } = niceTicks(max ?? Math.max(...rows.map(tot)));
+  const x = v => L + (v / top) * (W - L - R);
+  xAxis(svg, x, ticks, 0, H - 24, tickFmt || fmt, L, W - R);
+  rows.forEach((r, i) => {
+    const y = i * (barH + pad) + pad / 2;
+    wrapLabel(svg, L - 10, y + barH / 2 + 4, rowLabel(r), L - 14, { 'font-size': 12, fill: 'var(--ink)', 'text-anchor': 'end' });
+    let acc = 0; const marks = [];
+    const nonzero = keys.filter(k => r[k] > 0), last = nonzero[nonzero.length - 1];
+    for (const k of keys) {
+      if (!(r[k] > 0)) continue;
+      const a = x(acc), b = x(acc + r[k]);
+      const x0 = acc === 0 ? a : a + 1, x1 = k === last ? b : b - 1;
+      const d = k === last ? barPath(x0, x1, y, barH) : `M${x0},${y}H${x1}V${y + barH}H${x0}Z`;
+      marks.push(el('path', { d, class: 'mark', style: `fill:${colors[k]}` }, svg));
+      acc += r[k];
+    }
+    if (fmt) txt(svg, x(acc) + 6, y + barH / 2 + 4, fmt(acc), { 'font-size': 11.5, fill: 'var(--ink-2)', style: 'font-variant-numeric: tabular-nums' });
+    const hit = el('rect', { x: L - 4, y: y - 2, width: W - L, height: barH + 4, fill: 'transparent' }, svg);
+    bindHit(hit, svg, marks, e => showTip(e, rowLabel(r), keys.map(k => ({ color: colors[k], value: names[k].fmt(r), label: names[k].name })), tipNote && tipNote(r)));
+  });
+}
+
+// ---------- chart: strip plot ----------
+function strip(host, { groups, xmax, fmt, tickFmt, stat = 'mean', color = 'var(--s-modal)' }) {
+  host.replaceChildren();
+  const W = host.clientWidth, L = W < 520 ? 104 : 124, R = 18, rowH = 34;
+  const H = groups.length * rowH + 28;
+  const svg = el('svg', { width: W, height: H, role: 'img' }, host);
+  const { top, ticks } = niceTicks(xmax ?? Math.max(...groups.flatMap(g => g.pts.map(p => p.v))));
+  const x = v => L + (v / top) * (W - L - R);
+  xAxis(svg, x, ticks, 0, H - 24, tickFmt || fmt, L, W - R);
+  groups.forEach((g, gi) => {
+    const cy = gi * rowH + rowH / 2 + 2;
+    txt(svg, L - 10, cy - 1, g.label, { 'font-size': 12, fill: 'var(--ink)', 'text-anchor': 'end' });
+    txt(svg, L - 10, cy + 12, 'n = ' + g.pts.length, { 'font-size': 10.5, fill: 'var(--muted)', 'text-anchor': 'end' });
+    el('line', { x1: L, x2: W - R, y1: cy, y2: cy, stroke: 'var(--grid)', 'stroke-width': 1 }, svg);
+    const sorted = g.pts.map(p => p.v).sort((a, b) => a - b);
+    const sv = stat === 'median' ? (sorted.length % 2 ? sorted[(sorted.length - 1) / 2] : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2) : sorted.reduce((a, b) => a + b, 0) / sorted.length;
+    g.pts.forEach((p, i) => {
+      const jit = ((i * 7919) % 11 - 5) * 1.6;
+      const c = el('circle', { cx: x(p.v), cy: cy + jit, r: 4.5, class: 'mark', style: `fill:${color};stroke:var(--surface);stroke-width:2`, 'fill-opacity': .85 }, svg);
+      const hit = el('circle', { cx: x(p.v), cy: cy + jit, r: 11, fill: 'transparent' }, svg);
+      bindHit(hit, svg, [c], e => showTip(e, p.head, p.rows));
+    });
+    el('line', { x1: x(sv), x2: x(sv), y1: cy - 11, y2: cy + 11, stroke: 'var(--ink)', 'stroke-width': 2.5, 'stroke-linecap': 'round' }, svg);
+  });
+}
+
+// ---------- chart: line (selective risk) ----------
+function riskLine(host) {
+  host.replaceChildren();
+  const W = host.clientWidth, L = 48, R = 20, T = 12, B = 36, H = 240;
+  const svg = el('svg', { width: W, height: H, role: 'img' }, host);
+  const x = v => L + (v - 0.4) / 0.6 * (W - L - R);
+  const ymin = 0.955, y = v => T + (1 - (v - ymin) / (1.0 - ymin)) * (H - T - B);
+  for (const t of [0.96, 0.97, 0.98, 0.99, 1.0]) {
+    el('line', { x1: L, x2: W - R, y1: y(t), y2: y(t), stroke: 'var(--grid)', 'stroke-width': 1 }, svg);
+    txt(svg, L - 8, y(t) + 4, (t * 100).toFixed(0) + '%', { 'font-size': 11, fill: 'var(--muted)', 'text-anchor': 'end' });
+  }
+  for (const t of [0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]) {
+    txt(svg, x(t), H - B + 18, (t * 100).toFixed(0) + '%', { 'font-size': 11, fill: 'var(--muted)', 'text-anchor': t === 1 ? 'end' : 'middle' });
+  }
+  el('line', { x1: L, x2: W - R, y1: H - B, y2: H - B, stroke: 'var(--axis)', 'stroke-width': 1 }, svg);
+  txt(svg, (L + W - R) / 2, H - 4, 'Coverage (share of windows accepted)', { 'font-size': 11, fill: 'var(--ink-2)', 'text-anchor': 'middle' });
+  txt(svg, L, T - 2, 'Accuracy on accepted', { 'font-size': 11, fill: 'var(--ink-2)' });
+  const pts = MB_RISK.slice().sort((a, b) => a[1] - b[1]);
+  const d = pts.map((p, i) => (i ? 'L' : 'M') + x(p[1]) + ',' + y(p[2])).join('');
+  el('path', { d: d + `L${x(pts[pts.length - 1][1])},${H - B}L${x(pts[0][1])},${H - B}Z`, style: 'fill:var(--s-modal)', opacity: .1 }, svg);
+  el('path', { d, fill: 'none', style: 'stroke:var(--s-modal)', 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, svg);
+  const pick = MB_RISK.find(p => p[0] === 0.93);
+  el('circle', { cx: x(pick[1]), cy: y(pick[2]), r: 5, style: 'fill:var(--s-modal);stroke:var(--surface);stroke-width:2' }, svg);
+  const lx = x(pick[1]) - 8;
+  txt(svg, lx, y(pick[2]) + 22, 'Threshold 0.93', { 'font-size': 12, fill: 'var(--ink)', 'text-anchor': 'end', 'font-weight': 600 });
+  txt(svg, lx, y(pick[2]) + 37, '73.2% accepted · 99.46% accurate', { 'font-size': 11.5, fill: 'var(--ink-2)', 'text-anchor': 'end' });
+  const cross = el('line', { y1: T, y2: H - B, stroke: 'var(--ink-2)', 'stroke-width': 1, opacity: 0 }, svg);
+  const dot = el('circle', { r: 4.5, style: 'fill:var(--s-modal);stroke:var(--surface);stroke-width:2', opacity: 0 }, svg);
+  const hit = el('rect', { x: L, y: T, width: W - L - R, height: H - T - B, fill: 'transparent', tabindex: 0 }, svg);
+  const at = p => { cross.setAttribute('x1', x(p[1])); cross.setAttribute('x2', x(p[1])); cross.setAttribute('opacity', 1); dot.setAttribute('cx', x(p[1])); dot.setAttribute('cy', y(p[2])); dot.setAttribute('opacity', 1); };
+  hit.addEventListener('pointermove', e => {
+    const r = svg.getBoundingClientRect(), cx = e.clientX - r.left;
+    const p = pts.reduce((a, b) => Math.abs(x(b[1]) - cx) < Math.abs(x(a[1]) - cx) ? b : a);
+    at(p); showTip(e, 'Threshold ' + p[0].toFixed(2), [{ color: 'var(--s-modal)', value: pct(p[2]), label: 'accuracy' }, { value: pct(p[1]), label: 'coverage' }]);
+  });
+  hit.addEventListener('focus', e => { at(pick); showTip(e, 'Threshold 0.93 (recommended)', [{ color: 'var(--s-modal)', value: pct(pick[2]), label: 'accuracy' }, { value: pct(pick[1]), label: 'coverage' }]); });
+  const off = () => { cross.setAttribute('opacity', 0); dot.setAttribute('opacity', 0); hideTip(); };
+  hit.addEventListener('pointerleave', off); hit.addEventListener('blur', off);
+}
+
+// ---------- tables ----------
+const TABLES = {
+  quality: () => [['Doc type', 'Local score', 'API score'], ...TYPES.map(t => [t, QUALITY[t].modal == null ? QUALITY[t].why.modal : f3(QUALITY[t].modal), f3(QUALITY[t].api)])],
+  subclass: () => {
+    const rows = [['Doc type', 'Subclass', 'n', 'Mean', 'Min', 'Max']];
+    for (const [lab, key] of [['Insurance', 'insurance'], ['Correspondence', 'correspondence_b']]) {
+      const by = {}; PER_DOC[key].forEach(d => (by[d.subclass] ||= []).push(d.overall));
+      for (const [s, v] of Object.entries(by)) rows.push([lab, s, v.length, f3(v.reduce((a, b) => a + b, 0) / v.length), f3(Math.min(...v)), f3(Math.max(...v))]);
+    }
+    return rows;
+  },
+  cost: () => [['Doc type', 'Local GPU $/doc', 'API $/doc', 'Local ÷ API'], ...TYPES.map(t => [t, usd(COST[t].modal), usd(COST[t].api), (COST[t].modal / COST[t].api).toFixed(2) + '×'])],
+  runtime: () => [['Doc type', 'Local wall (s)', 'API wall (s)'], ...TYPES.map(t => [t, WALL[t].modal, WALL[t].api])],
+  concurrency: () => [['Run', 'Engine', 'Concurrency', 'Speedup', 'Efficiency'], ...CONC.map(r => [r.run, r.eng === 'modal' ? 'Qwen3-8B-AWQ' : 'Granite-4.2-8B-FP8', r.c, r.s.toFixed(2) + '×', pct(r.s / r.c)])],
+  tokens: () => [['Doc type', 'Prompt tok/doc', 'Completion tok/doc', 'Total'], ...TOKENS.map(r => [r.t, int(r.prompt), int(r.compl), int(r.prompt + r.compl)])],
+  prompt: () => [['Run', 'Score', 'GPU $/doc', 'Schema valid'], ...PROMPT_RUNS.map(r => [r.run, f3(r.score), usd(r.cost), r.sv])],
+  reliability: () => [['Run', 'Completed', 'Errored', 'Not attempted', 'Cause'], ...REL.map(r => [r.run, r.ok, r.err, r.na, r.note || '—'])],
+  spend: () => [['Bucket', 'USD', 'Detail'], ...SPEND.map(r => [r.b, usd(r.v), r.d]), ['Total', usd(SPEND.reduce((a, r) => a + r.v, 0)), 'All Modal usage covered by credits']],
+  modernbert: () => [['Class / head', 'Correct', 'Total', 'Accuracy', 'Calibrated ECE', 'Fast path'],
+    ...MB_ACC.map(r => { const hk = { 'Insurance claims': 'insurance_claim', 'Merger agreements': 'merger_agreement', 'Correspondence': 'correspondence', 'Contracts': 'contract', 'Corporate records': 'corporate_record' }[r.t]; const e = MB_ECE.find(h => h.h === hk).v; return [r.t, r.c, r.n, pct(r.c / r.n), e.toFixed(4), e > 0.05 ? '✕ excluded' : '✓ allowed']; }),
+    ['doc_type head', '300', '323', '89.5%', '0.0228', '✓ allowed']],
+};
+function buildTable(key, wrap) {
+  const data = TABLES[key](); const t = document.createElement('table');
+  const th = t.createTHead().insertRow();
+  data[0].forEach((h, i) => { const c = document.createElement('th'); c.textContent = h; if (i && typeof data[1][i] === 'number' || /\$|score|wall|tok|%|Speedup|Concurrency|Correct|Total|Accuracy|ECE|USD|Completed|Errored|attempted|n$|Mean|Min|Max/.test(h) && i) c.className = 'n'; th.appendChild(c); });
+  const tb = t.createTBody();
+  data.slice(1).forEach(r => { const tr = tb.insertRow(); r.forEach((v, i) => { const c = tr.insertCell(); c.textContent = typeof v === 'number' ? v.toLocaleString('en-US') : v; if (th.children[i].className === 'n') c.className = 'n'; }); });
+  wrap.replaceChildren(t);
+}
+document.querySelectorAll('.tbl').forEach(b => b.addEventListener('click', () => {
+  const wrap = document.getElementById(b.dataset.for).querySelector('.tablewrap');
+  const open = wrap.hidden; if (open) buildTable(b.dataset.for, wrap);
+  wrap.hidden = !open; b.textContent = open ? 'Hide table' : 'Show table'; b.setAttribute('aria-expanded', open);
+}));
+document.querySelectorAll('.legend[data-series]').forEach(lg => {
+  const extra = [...lg.childNodes];
+  lg.replaceChildren();
+  lg.dataset.series.split(',').forEach(k => {
+    const s = document.createElement('span'), sw = document.createElement('span');
+    sw.className = 'sw'; sw.style.background = SERIES[k].color; s.append(sw, document.createTextNode(SERIES[k].name)); lg.appendChild(s);
+  });
+  extra.forEach(n => lg.appendChild(n));
+});
+
+// ---------- render all ----------
+function render() {
+  grouped(document.getElementById('c-quality'), { cats: TYPES, keys: ['modal', 'api'], data: QUALITY, fmt: f3, tickFmt: v => v.toFixed(1), max: 1, unit: 'overall_extraction_score, n = 20' });
+  grouped(document.getElementById('c-cost'), { cats: TYPES, keys: ['modal', 'api'], data: COST, fmt: usd, tickFmt: v => v === 0 ? '$0' : '$' + v.toFixed(3), unit: 'USD per document' });
+  grouped(document.getElementById('c-wall'), { cats: TYPES, keys: ['modal', 'api'], data: WALL, fmt: secs, tickFmt: v => int(v), unit: 'wall seconds, 20 docs, c=8' });
+
+  const mkDocTip = (d, extra) => ({ v: d.overall, head: `${d.doc} · ${d.subclass}`, rows: [{ color: 'var(--s-modal)', value: f3(d.overall), label: 'overall score' }, { value: d.latency.toFixed(1) + ' s', label: 'latency' }, ...(extra || [])] });
+  const groupBy = (key, order) => order.map(s => ({ label: s.replace('_', ' '), pts: PER_DOC[key].filter(d => d.subclass === s).map(d => mkDocTip(d)) }));
+  strip(document.getElementById('c-sub-ins'), { groups: groupBy('insurance', ['property', 'inpatient', 'auto', 'carrier', 'outpatient', 'pde']), xmax: 1, fmt: f3, tickFmt: v => v.toFixed(1) });
+  strip(document.getElementById('c-sub-corr'), { groups: groupBy('correspondence_b', ['demand', 'notice', 'meeting_request', 'email', 'letter', 'memo', 'press_release']), xmax: 1, fmt: f3, tickFmt: v => v.toFixed(1) });
+
+  const latPts = key => PER_DOC[key].map(d => ({ v: d.latency, head: `${d.doc} · ${d.subclass}`, rows: [{ color: 'var(--s-modal)', value: d.latency.toFixed(1) + ' s', label: 'end-to-end latency' }, { value: d.error ? d.error : (d.prompt + d.completion).toLocaleString('en-US') + ' tok', label: d.error ? 'error' : 'total tokens' }] }));
+  strip(document.getElementById('c-lat'), { stat: 'median', groups: [
+    { label: 'Contracts c8', pts: latPts('contracts_c8') },
+    { label: 'Insurance', pts: latPts('insurance') },
+    { label: 'Corresp. B', pts: latPts('correspondence_b') },
+    { label: 'Corresp. A', pts: latPts('correspondence_a') },
+  ], fmt: secs, tickFmt: v => int(v) + ' s' });
+
+  bars(document.getElementById('c-conc'), { rows: CONC.map(r => ({ ...r, v: r.s })), max: 8, fmt: v => v.toFixed(2) + '×', tickFmt: v => v + '×', color: r => SERIES[r.eng].color, rowLabel: r => r.run, avoid: r => r.c,
+    extra: (svg, r, x, y, h) => { el('line', { x1: x(r.c), x2: x(r.c), y1: y - 3, y2: y + h + 3, stroke: 'var(--ink)', 'stroke-width': 2, 'stroke-linecap': 'round' }, svg); },
+    tipFn: r => [{ color: SERIES[r.eng].color, value: r.s.toFixed(2) + '×', label: 'speedup' }, { value: 'c = ' + r.c, label: 'configured concurrency' }, { value: pct(r.s / r.c), label: 'batching efficiency' }] });
+
+  stacked(document.getElementById('c-tok'), { rows: TOKENS, keys: ['prompt', 'compl'], colors: { prompt: SERIES.prompt.color, compl: SERIES.compl.color },
+    names: { prompt: { name: 'prompt tokens / doc', fmt: r => int(r.prompt) }, compl: { name: 'completion tokens / doc', fmt: r => int(r.compl) } },
+    fmt: v => int(v), tickFmt: v => v >= 1000 ? (v / 1000) + 'k' : String(v), rowLabel: r => r.t });
+
+  bars(document.getElementById('c-pr-score'), { rows: PROMPT_RUNS.map(r => ({ ...r, v: r.score })), max: 0.3, fmt: f3, tickFmt: v => v.toFixed(2), color: 'var(--s-modal)', rowLabel: r => r.run, tipFn: r => [{ color: 'var(--s-modal)', value: f3(r.score), label: 'overall score' }, { value: r.sv, label: 'schema valid rate' }] });
+  bars(document.getElementById('c-pr-cost'), { rows: PROMPT_RUNS.map(r => ({ ...r, v: r.cost })), fmt: usd, tickFmt: v => v === 0 ? '$0' : '$' + v.toFixed(3), color: 'var(--s-modal)', rowLabel: r => r.run, tipFn: r => [{ color: 'var(--s-modal)', value: usd(r.cost), label: 'GPU $ per doc' }] });
+
+  stacked(document.getElementById('c-rel'), { rows: REL.map(r => { const n = r.ok + r.err + r.na; return { ...r, n, pok: r.ok / n, perr: r.err / n, pna: r.na / n }; }), keys: ['pok', 'perr', 'pna'],
+    colors: { pok: 'var(--good)', perr: 'var(--critical)', pna: 'var(--na)' },
+    names: { pok: { name: 'completed', fmt: r => `✓ ${r.ok} of ${r.n}` }, perr: { name: 'errored', fmt: r => `✕ ${r.err}` }, pna: { name: 'not attempted', fmt: r => `– ${r.na}` } },
+    max: 1, tickFmt: v => (v * 100) + '%', rowLabel: r => r.run, tipNote: r => r.note });
+  // completion label at bar end
+  const relSvg = document.querySelector('#c-rel svg');
+  REL.forEach((r, i) => { const n = r.ok + r.err + r.na; const W = relSvg.clientWidth || relSvg.getAttribute('width'); txt(relSvg, +W - 58, i * 30 + 6 + 13, `${r.ok}/${n}`, { 'font-size': 11.5, fill: 'var(--ink-2)', style: 'font-variant-numeric: tabular-nums' }); });
+
+  bars(document.getElementById('c-spend'), { rows: SPEND.map(r => ({ ...r, v: r.v })), fmt: usd, tickFmt: v => '$' + v, color: 'var(--s-modal)', rowLabel: r => r.b, tipFn: r => [{ color: 'var(--s-modal)', value: usd(r.v), label: pct(r.v / SPEND.reduce((a, b) => a + b.v, 0)) + ' of total' }, { value: '', label: r.d }] });
+
+  bars(document.getElementById('c-mb-acc'), { rows: MB_ACC.map(r => ({ ...r, v: r.c / r.n })), max: 1, fmt: pct, tickFmt: v => (v * 100) + '%', color: 'var(--s-modal)', rowLabel: r => r.t, tipFn: r => [{ color: 'var(--s-modal)', value: pct(r.c / r.n), label: 'doc-type accuracy' }, { value: `${r.c} / ${r.n}`, label: 'correct' }] });
+  bars(document.getElementById('c-mb-ece'), { rows: MB_ECE.map(r => ({ ...r, v: r.v })), max: 0.15, ref: 0.05, fmt: v => v.toFixed(3) + (v > 0.05 ? '  ✕ excl.' : ''), tickFmt: v => v.toFixed(2), color: 'var(--s-modal)', rowLabel: r => r.h, tipFn: r => [{ color: 'var(--s-modal)', value: r.v.toFixed(4), label: 'calibrated ECE' }, { value: r.v > 0.05 ? '✕ excluded' : '✓ allowed', label: 'fast path' }] });
+  riskLine(document.getElementById('c-mb-risk'));
+}
+render();
+let rt; new ResizeObserver(() => { clearTimeout(rt); rt = setTimeout(render, 120); }).observe(document.querySelector('.wrap'));
+
+// ---------- presentation mode ----------
+const presBtn = document.getElementById('present'), exitBtn = document.getElementById('exit');
+const stops = () => [document.querySelector('.intro'), ...document.querySelectorAll('section.panel')];
+function setPresent(on) {
+  document.body.classList.toggle('present', on); document.documentElement.classList.toggle('present-snap', on);
+  presBtn.setAttribute('aria-pressed', on); exitBtn.hidden = !on;
+  if (on) stops()[0].scrollIntoView();
+}
+presBtn.addEventListener('click', () => setPresent(true));
+exitBtn.addEventListener('click', () => setPresent(false));
+document.addEventListener('keydown', e => {
+  if (!document.body.classList.contains('present')) return;
+  if (e.key === 'Escape') return setPresent(false);
+  const dir = ['ArrowDown', 'ArrowRight', 'PageDown', ' '].includes(e.key) ? 1 : ['ArrowUp', 'ArrowLeft', 'PageUp'].includes(e.key) ? -1 : 0;
+  if (!dir) return;
+  e.preventDefault();
+  const s = stops(), mid = innerHeight / 3;
+  let cur = s.findIndex(n => n.getBoundingClientRect().bottom > mid);
+  if (cur < 0) cur = s.length - 1;
+  const next = s[Math.max(0, Math.min(s.length - 1, cur + dir))];
+  next.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+});
+})();
+</script>
