@@ -33,10 +33,15 @@ def test_catalog_covers_five_live_specialists():
 def test_specialist_posture_pins_catalog_stems():
     """Modal run-30 / run-20 specialist YAMLs must pin the frozen v1 sandbox stems.
 
-    Isolation twins that intentionally use vendor production (the FP16
-    correspondence diagnosis YAML) are the only exception.
+    Intentional production pins are the only exception: the FP16
+    correspondence diagnosis YAML, and the 2xL4 AWQ correspondence follow-ups
+    (production prompt is the experiment variable there).
     """
-    production_ok = {"run-20-correspondence-fp16-c8"}
+    production_ok = {
+        "run-20-correspondence-fp16-c8",
+        "run-20-correspondence-specialist-awq",
+        "run-50-correspondence-specialist-awq",
+    }
     for run_id, row in SPECIALIST_POSTURE.items():
         agent = row["agent"]
         stem = row["prompt_file"]

@@ -4,11 +4,15 @@ Committed companion to the sandbox-local `reports/experiment_log.jsonl`
 (gitignored). Each row below is the FINAL record for a completed Modal
 job; every numeric field is read straight from the experiment log, not
 hand-transcribed. Engine: `Qwen/Qwen3-8B` bf16 or `Qwen/Qwen3-8B-AWQ` on
-1x L4 ($0.80/hr). Cost = measured warm interval x L4 rate.
+1x L4 ($0.80/hr) — except the two `*-correspondence-specialist-awq` rows,
+which ran on 2x L4 data-parallel (cost = measured warm interval x 2 x L4
+rate). Cost = measured warm interval x L4 rate.
 
 | run_id | task | model | n | headline | errors | wall s | conc | cold boot s | gpu s | cost $ | $/doc |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | run-20-insurance-claims-specialist-awq | insurance_claims_specialist | Qwen/Qwen3-8B-AWQ | 20 | overall=0.671435 (exact=0.671435) | 0 | 422.152 | 8 | 0.361 | 422.513 | 0.093892 | 0.0046946 |
+| run-20-correspondence-specialist-awq | correspondence_specialist | Qwen/Qwen3-8B-AWQ | 20 | overall=0.22799 (exact=0.22799) | 0 | 75.084 | 8 | 0.553 | 151.274 | 0.033616 | 0.0016808 |
+| run-50-correspondence-specialist-awq | correspondence_specialist | Qwen/Qwen3-8B-AWQ | 50 | overall=0.254748 (exact=0.254748) | 0 | 280.099 | 8 | 0.503 | 561.204 | 0.124712 | 0.00249424 |
 | run-20-contracts-specialist | contracts_specialist | Qwen/Qwen3-8B | 20 | overall=0.0 (exact=0.0) | 14 | None | None | 178.255 | None | None | None |
 | run-20-contracts-awq | contracts_specialist | Qwen/Qwen3-8B-AWQ | 20 | overall=0.0 (exact=0.0) | 2 | 1030.43 | 4 | 251.419 | 1281.849 | 0.284855 | 0.01424275 |
 | run-20-correspondence-awq | correspondence_specialist | Qwen/Qwen3-8B-AWQ | 20 | overall=0.08934 (exact=0.08934) | 0 | 253.692 | 5 | 260.348 | 514.04 | 0.114231 | 0.00571155 |
@@ -17,6 +21,30 @@ hand-transcribed. Engine: `Qwen/Qwen3-8B` bf16 or `Qwen/Qwen3-8B-AWQ` on
 | pilot-sorter-modal-hf | sorter | Qwen/Qwen3-8B | 7 | exact_match=1.0 | None | None | None | None | None | None | None |
 
 ## Per-run detail
+
+### run-50-correspondence-specialist-awq
+- timestamp: `2026-09-27T07:29:28.078828+00:00`
+- task/model: `correspondence_specialist` / `Qwen/Qwen3-8B-AWQ` (profile `modal-vllm`, provider `vllm`, prompt `correspondence_specialist_production`)
+- topology: 2×L4 data-parallel (MIN=MAX=2 pinned, same warm app as the 20-doc run)
+- n=50 | scores={"exact_match": 0.254748, "n": 50, "offline_fallback": 0, "error_count": 0, "overall_extraction_score": 0.254748, "schema_valid_rate": 0.94}
+- latency: e2e=28.555953s p50=27.26012s max=142.829407s
+- tokens: prompt=111514 completion=9183 total=120697
+- wall=280.099s concurrency=8 cold_boot=0.503s gpu=561.204s (2 replicas)
+- cost=$0.124712 ($0.00249424/doc)
+- git: `59b9d35` dirty=True
+- full report: [`reports/correspondence/RUN-50-CORRESPONDENCE-SPECIALIST-AWQ-REPORT.md`](../correspondence/RUN-50-CORRESPONDENCE-SPECIALIST-AWQ-REPORT.md)
+
+### run-20-correspondence-specialist-awq
+- timestamp: `2026-09-27T07:21:48.455725+00:00` (canonical repeat; first attempt `2026-09-27T07:17:42.700175+00:00` scored 0.244565 @ 80.43s)
+- task/model: `correspondence_specialist` / `Qwen/Qwen3-8B-AWQ` (profile `modal-vllm`, provider `vllm`, prompt `correspondence_specialist_production`)
+- topology: 2×L4 data-parallel (MIN=MAX=2 pinned, one warm app shared with the 50-doc run)
+- n=20 | scores={"exact_match": 0.22799, "n": 20, "offline_fallback": 0, "error_count": 0, "overall_extraction_score": 0.22799, "schema_valid_rate": 0.9}
+- latency: e2e=25.168468s p50=26.595458s max=35.414844s
+- tokens: prompt=49878 completion=3813 total=53691
+- wall=75.084s concurrency=8 cold_boot=0.553s gpu=151.274s (2 replicas)
+- cost=$0.033616 ($0.0016808/doc)
+- git: `59b9d35` dirty=False
+- full report: [`reports/correspondence/RUN-20-CORRESPONDENCE-SPECIALIST-AWQ-REPORT.md`](../correspondence/RUN-20-CORRESPONDENCE-SPECIALIST-AWQ-REPORT.md)
 
 ### run-20-insurance-claims-specialist-awq
 - timestamp: `2026-09-27T06:45:06.707339+00:00`
