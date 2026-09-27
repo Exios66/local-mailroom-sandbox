@@ -73,11 +73,11 @@ Compose for Modal profile only starts **langfuse** (no local vLLM container).
 | `MODAL_VLLM_MIN_CONTAINERS` | `0` (scale-to-zero) |
 | `MODAL_VLLM_STARTUP_TIMEOUT_SECONDS` | `1200` |
 
-Specialist 5×30 runbooks (`config/runs/run-30-*-specialist.yaml`) pin
-**Qwen/Qwen3-8B** on 1×L4 and use per-doc-type concurrency / `cost_cap_usd` /
-`max_wall_seconds` from `job/specialist_posture.py` (DMR-078). Overlay
-`max_tokens` / `max_input_chars` fit `max_model_len=16384`. Merger runs use
-dedicated `merger_agreement_specialist`.
+Specialist 5×30 runbooks pin **Qwen/Qwen3-8B** on 1×L4 (`max_containers=1`).
+Operator cards: `sandbox runbook show l4-qwen3-8b` (catalog
+`config/runbooks/catalog.yaml`). Improved configs (AWQ/c8, Granite FP8, second
+L4): `sandbox runbook list --family improved`. Per-doc-type concurrency /
+`cost_cap_usd` / `max_wall_seconds` still come from `job/specialist_posture.py`.
 
 Cost: L4 ≈ $0.80/hr while warm (rates: modal.com/pricing, verified
 2026-09-09); GPU billing stops after the scaledown window; `download_model`

@@ -16,7 +16,7 @@ its own layout, and `api-evals/` deliberately mirrors its *structure* (see
 | `src/mailroom_sandbox/` | The installed package (`pyproject.toml` `[tool.setuptools.packages.find] where = ["src"]`) | **Frozen path.** Editable-installed; `sandbox` entry point lives here. |
 | `tests/` | Network-free suite; 4 `local_llm` tests need `SANDBOX_LOCAL_LLM=1` | **Frozen path.** |
 | `vendor/` | Byte-identical tracked snapshots of the family code | **Frozen tree.** See [Frozen surfaces](#frozen-surfaces-dont-move-these). |
-| `config/` | Serving profiles, run specs, prompts, model catalog, subagent roster | **Frozen paths.** See [Frozen surfaces](#frozen-surfaces-dont-move-these). |
+| `config/` | Serving profiles, run specs, runbook catalog, prompts, model catalog, subagent roster | **Frozen paths.** See [Frozen surfaces](#frozen-surfaces-dont-move-these). |
 | `deploy/` | Dockerfile, compose profiles, Modal vLLM + Modal job worker, htcondor, conda | **Frozen path** — `deploy/modal_vllm.py`, `deploy/teardown_vllm.sh` etc. are cited by runbooks, docs, and the board. |
 | `docs/` | Guides (this file included) | **Frozen path** (add freely, do not move). |
 | `scripts/` | Repo tooling (`sync_vendor.py` and friends) | **Frozen path.** |
@@ -78,7 +78,7 @@ Each of these is load-bearing for a test or a tool, not a style preference:
 | `.cursor/skills/` | `tests/test_skills.py` |
 | `.opencode/agents/**` | `sandbox subagents sync` / `materialize` |
 | `config/prompts/` | Prompt **stems** are referenced by name from `config/runs/*.yaml` and `job/specialist_posture.py`; `eval_environment_lineage.json` sha256-locks the five specialist stems to eval-environment frozen v1. Frozen lineage — never rename or rewrite. |
-| `config/models.yaml`, `config/profiles/`, `config/runs/`, `config/subagents/` | Read by `modal_matrix`, `overlay`, `job/suite.py`, `job/specialist_posture.py` |
+| `config/models.yaml`, `config/profiles/`, `config/runs/`, `config/runbooks/`, `config/subagents/` | Read by `modal_matrix`, `overlay`, `job/suite.py`, `job/runbooks.py`, `job/specialist_posture.py` |
 | `src/mailroom_sandbox/`, `pyproject.toml`, `tests/` | Editable install + test discovery |
 
 Stale-pin hygiene is itself a test: `tests/test_vendor.py` sweeps every tracked
