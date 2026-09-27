@@ -360,7 +360,7 @@ runbooks:
       - One structured-output json_object completion succeeds
       - Thinking spans are separable (granite_thinking_parser; plugin fallback on v0.29.0)
     notes:
-      - sandbox run benchmark-check is Qwen-only. Skip it for Granite.
+      - sandbox run benchmark-check accepts the five run-20-*-granite 1×L4 pinned configs (GRANITE_ONE_GPU_RUNS); Qwen defaults unchanged.
       - After smoke, copy run-30-*-specialist.yaml and set engine.model / vllm.max_model_len / quantization to this variant before --live preflight.
       - Draw one 100-row bucket per class (seed 42) and slice 20/50 — do not re-draw.
       - OpenRouter twin id is ibm-granite/granite-4.2-8b (same string as the HF bf16 repo). Reports must say the Modal leg served -fp8.

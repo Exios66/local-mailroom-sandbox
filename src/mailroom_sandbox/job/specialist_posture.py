@@ -147,6 +147,111 @@ SPECIALIST_POSTURE: dict[str, dict[str, Any]] = {
             "scaled ~2.5× the 20-doc run for docs + 2-replica billing."
         ),
     },
+    # ── Granite 4.2-8B FP8 sweep (1×L4, concurrency 8) ──────────────────────
+    # Apples-to-apples twin of the Qwen AWQ 20-doc posture (DMR-075..077 +
+    # correspondence 20/50 b3e1e2b): same strata scaled to 20, same DMR-074
+    # local prompt pins as each class's Qwen AWQ comparator (production for
+    # correspondence, simplified/v33-simplified elsewhere), 32768 window,
+    # scaledown 120, MIN=MAX=1 pinned warm across the five-run chain.
+    # Engine: ibm-granite/granite-4.2-8b-fp8 (compressed-tensors W8A8,
+    # ~9.5GiB — the L4 workhorse row in config/models.yaml; no AWQ exists
+    # for granite-4.2 and bf16 32k FAILS on 1×L4). Caps mirror the Qwen AWQ
+    # 20-doc values where a comparator exists, else ~2/3 of run-30.
+    "run-20-contracts-granite": {
+        "task": "contracts_specialist",
+        "doc_class": "contract",
+        "agent": "contracts_specialist",
+        "prompt_file": "contracts_specialist_v33_simplified",
+        "concurrency": 8,
+        "max_model_len": 32768,
+        "max_tokens": 8192,
+        "max_input_chars": _input_chars_for(8192, 8000, 32768),
+        "cost_cap_usd": 0.55,
+        "max_wall_seconds": 3200,
+        "tokens_assumed": {"prompt": 8000, "completion": 2000},
+        "sec_per_doc": {"low": 25.0, "likely": 55.0, "high": 130.0},
+        "rationale": (
+            "Granite twin of run-20-contracts-awq-c8: identical 20-contract "
+            "strata + 8192 decode budget at concurrency 8 on 1×L4 FP8."
+        ),
+    },
+    "run-20-merger-granite": {
+        "task": "merger_agreement_specialist",
+        "doc_class": "merger_agreement",
+        "agent": "merger_agreement_specialist",
+        "prompt_file": "merger_agreement_specialist_simplified",
+        "concurrency": 8,
+        "max_model_len": 32768,
+        "max_tokens": 4096,
+        "max_input_chars": _input_chars_for(4096, 10000, 32768),
+        "cost_cap_usd": 0.70,
+        "max_wall_seconds": 3600,
+        "tokens_assumed": {"prompt": 10000, "completion": 2800},
+        "sec_per_doc": {"low": 55.0, "likely": 120.0, "high": 260.0},
+        "rationale": (
+            "Granite merger leg: 2/3 scale of run-30-merger quotas (train "
+            "split — test has only ~17 mergers); dedicated "
+            "merger_agreement_specialist per the 1:1 live map; caps ~2/3 of "
+            "the 30-doc merger posture."
+        ),
+    },
+    "run-20-corporate-records-granite": {
+        "task": "corporate_records_specialist",
+        "doc_class": "corporate_record",
+        "agent": "corporate_records_specialist",
+        "prompt_file": "corporate_records_specialist_simplified",
+        "concurrency": 8,
+        "max_model_len": 32768,
+        "max_tokens": 4096,
+        "max_input_chars": _input_chars_for(4096, 5000, 32768),
+        "cost_cap_usd": 0.40,
+        "max_wall_seconds": 2400,
+        "tokens_assumed": {"prompt": 5000, "completion": 1200},
+        "sec_per_doc": {"low": 30.0, "likely": 65.0, "high": 150.0},
+        "rationale": (
+            "Granite corporate leg: 2/3 scale of run-30-corporate-records "
+            "quotas at concurrency 8 on 1×L4 FP8; caps ~2/3 of the 30-doc "
+            "corporate posture."
+        ),
+    },
+    "run-20-correspondence-granite": {
+        "task": "correspondence_specialist",
+        "doc_class": "correspondence",
+        "agent": "correspondence_specialist",
+        "prompt_file": "correspondence_specialist_production",
+        "concurrency": 8,
+        "max_model_len": 32768,
+        "max_tokens": 2048,
+        "max_input_chars": _input_chars_for(2048, 3500, 32768),
+        "cost_cap_usd": 0.40,
+        "max_wall_seconds": 2400,
+        "tokens_assumed": {"prompt": 3500, "completion": 600},
+        "sec_per_doc": {"low": 15.0, "likely": 35.0, "high": 95.0},
+        "rationale": (
+            "Granite twin of run-20-correspondence-specialist-awq: identical "
+            "20-doc strata + DMR-074 production prompt pin at concurrency 8 "
+            "on 1×L4 FP8 (Qwen twin ran 2×L4; GPU $ scales accordingly)."
+        ),
+    },
+    "run-20-insurance-claims-granite": {
+        "task": "insurance_claims_specialist",
+        "doc_class": "insurance_claim",
+        "agent": "insurance_claims_specialist",
+        "prompt_file": "insurance_claims_specialist_simplified",
+        "concurrency": 8,
+        "max_model_len": 32768,
+        "max_tokens": 3072,
+        "max_input_chars": _input_chars_for(3072, 4500, 32768),
+        "cost_cap_usd": 0.40,
+        "max_wall_seconds": 2400,
+        "tokens_assumed": {"prompt": 4500, "completion": 1000},
+        "sec_per_doc": {"low": 25.0, "likely": 55.0, "high": 130.0},
+        "rationale": (
+            "Granite twin of run-20-insurance-claims-specialist-awq: "
+            "identical 20-doc strata (4/4/4/4/2/2) at concurrency 8 on 1×L4 "
+            "FP8."
+        ),
+    },
     "run-30-corporate-records-specialist": {        "task": "corporate_records_specialist",
         "doc_class": "corporate_record",
         "agent": "corporate_records_specialist",
@@ -349,6 +454,11 @@ SPECIALIST_LIMIT_BY_RUN: dict[str, int] = {
     "run-20-insurance-claims-specialist-awq": 20,
     "run-20-correspondence-specialist-awq": 20,
     "run-50-correspondence-specialist-awq": 50,
+    "run-20-contracts-granite": 20,
+    "run-20-merger-granite": 20,
+    "run-20-corporate-records-granite": 20,
+    "run-20-correspondence-granite": 20,
+    "run-20-insurance-claims-granite": 20,
 }
 
 

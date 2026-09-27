@@ -9,7 +9,7 @@ which ran on 2x L4 data-parallel (cost = measured warm interval x 2 x L4
 rate). Cost = measured warm interval x L4 rate.
 
 | run_id | task | model | n | headline | errors | wall s | conc | cold boot s | gpu s | cost $ | $/doc |
-|---|---|---|---|---|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | run-20-insurance-claims-specialist-awq | insurance_claims_specialist | Qwen/Qwen3-8B-AWQ | 20 | overall=0.671435 (exact=0.671435) | 0 | 422.152 | 8 | 0.361 | 422.513 | 0.093892 | 0.0046946 |
 | run-20-correspondence-specialist-awq | correspondence_specialist | Qwen/Qwen3-8B-AWQ | 20 | overall=0.22799 (exact=0.22799) | 0 | 75.084 | 8 | 0.553 | 151.274 | 0.033616 | 0.0016808 |
 | run-50-correspondence-specialist-awq | correspondence_specialist | Qwen/Qwen3-8B-AWQ | 50 | overall=0.254748 (exact=0.254748) | 0 | 280.099 | 8 | 0.503 | 561.204 | 0.124712 | 0.00249424 |
@@ -23,6 +23,7 @@ rate). Cost = measured warm interval x L4 rate.
 ## Per-run detail
 
 ### run-50-correspondence-specialist-awq
+
 - timestamp: `2026-09-27T07:29:28.078828+00:00`
 - task/model: `correspondence_specialist` / `Qwen/Qwen3-8B-AWQ` (profile `modal-vllm`, provider `vllm`, prompt `correspondence_specialist_production`)
 - topology: 2×L4 data-parallel (MIN=MAX=2 pinned, same warm app as the 20-doc run)
@@ -35,6 +36,7 @@ rate). Cost = measured warm interval x L4 rate.
 - full report: [`reports/correspondence/RUN-50-CORRESPONDENCE-SPECIALIST-AWQ-REPORT.md`](../correspondence/RUN-50-CORRESPONDENCE-SPECIALIST-AWQ-REPORT.md)
 
 ### run-20-correspondence-specialist-awq
+
 - timestamp: `2026-09-27T07:21:48.455725+00:00` (canonical repeat; first attempt `2026-09-27T07:17:42.700175+00:00` scored 0.244565 @ 80.43s)
 - task/model: `correspondence_specialist` / `Qwen/Qwen3-8B-AWQ` (profile `modal-vllm`, provider `vllm`, prompt `correspondence_specialist_production`)
 - topology: 2×L4 data-parallel (MIN=MAX=2 pinned, one warm app shared with the 50-doc run)
@@ -47,6 +49,7 @@ rate). Cost = measured warm interval x L4 rate.
 - full report: [`reports/correspondence/RUN-20-CORRESPONDENCE-SPECIALIST-AWQ-REPORT.md`](../correspondence/RUN-20-CORRESPONDENCE-SPECIALIST-AWQ-REPORT.md)
 
 ### run-20-insurance-claims-specialist-awq
+
 - timestamp: `2026-09-27T06:45:06.707339+00:00`
 - task/model: `insurance_claims_specialist` / `Qwen/Qwen3-8B-AWQ` (profile `modal-vllm`, provider `vllm`)
 - n=20 | scores={"exact_match": 0.671435, "n": 20, "offline_fallback": 0, "error_count": 0, "overall_extraction_score": 0.671435, "schema_valid_rate": 0.25}
@@ -58,6 +61,7 @@ rate). Cost = measured warm interval x L4 rate.
 - full report: [`reports/insurance/RUN-20-INSURANCE-CLAIMS-SPECIALIST-AWQ-REPORT.md`](../insurance/RUN-20-INSURANCE-CLAIMS-SPECIALIST-AWQ-REPORT.md)
 
 ### run-20-contracts-specialist
+
 - timestamp: `2026-09-25T03:52:18.916867+00:00`
 - task/model: `contracts_specialist` / `Qwen/Qwen3-8B` (profile `modal-vllm`, provider `vllm`)
 - n=20 | scores={"exact_match": 0.0, "n": 20, "offline_fallback": 0, "error_count": 14, "overall_extraction_score": 0.0}
@@ -68,6 +72,7 @@ rate). Cost = measured warm interval x L4 rate.
 - git: `ea74ec8` dirty=True
 
 ### run-20-contracts-awq
+
 - timestamp: `2026-09-25T12:28:34.924336+00:00`
 - task/model: `contracts_specialist` / `Qwen/Qwen3-8B-AWQ` (profile `modal-vllm`, provider `vllm`)
 - n=20 | scores={"exact_match": 0.0, "n": 20, "offline_fallback": 0, "error_count": 2, "overall_extraction_score": 0.0}
@@ -78,6 +83,7 @@ rate). Cost = measured warm interval x L4 rate.
 - git: `7410a0b` dirty=True
 
 ### run-20-correspondence-awq
+
 - timestamp: `2026-09-25T13:27:47.586681+00:00`
 - task/model: `correspondence_specialist` / `Qwen/Qwen3-8B-AWQ` (profile `modal-vllm`, provider `vllm`)
 - n=20 | scores={"exact_match": 0.08934, "n": 20, "offline_fallback": 0, "error_count": 0, "overall_extraction_score": 0.08934}
@@ -88,6 +94,7 @@ rate). Cost = measured warm interval x L4 rate.
 - git: `7410a0b` dirty=True
 
 ### run-50-modal-hf
+
 - timestamp: `2026-09-16T08:35:58.662689+00:00`
 - task/model: `sorter` / `Qwen/Qwen3-8B` (profile `modal-vllm`, provider `vllm`)
 - n=50 | scores={"exact_match": 0.98, "accuracy": 0.98, "exact_match_ci": {"lo": 0.94, "hi": 1.0, "half": 0.03, "n": 50, "seed": 42, "n_boot": 2000, "method": "percentile-bootstrap"}, "n": 50, "task": {"task": "docclass", "kind": "docclass", "doc_type_accuracy": 0.98, "accuracy": 0.98, "doc_type_accuracy_ci": {"lo": 0.94, "hi": 1.0, "half": 0.03, "n": 50, "seed": 42, "n_boot": 2000, "method": "percentile-bootstrap"}, "per_class": {"contract": {"n": 50, "correct": 49, "accuracy": 0.98, "precision": 1.0, "recall": 0.98, "f1": 0.9899, "f2": 0.9839}}, "precision_macro": 1.0, "recall_macro": 0.98, "f1_macro": 0.9899, "f2_macro": 0.9839, "precision": 1.0, "recall": 0.98, "f2": 0.9839, "n": 50}, "f1_macro": 0.9899, "precision_macro": 1.0, "recall_macro": 0.98, "f2_macro": 0.9839}
@@ -98,6 +105,7 @@ rate). Cost = measured warm interval x L4 rate.
 - git: `None` dirty=None
 
 ### run-50-five-types
+
 - timestamp: `2026-09-17T03:13:29.257534+00:00`
 - task/model: `sorter` / `Qwen/Qwen3-8B` (profile `modal-vllm`, provider `vllm`)
 - n=50 | scores={"exact_match": 0.0, "accuracy": 0.0, "exact_match_ci": {"lo": 0.0, "hi": 0.0, "half": 0.0, "n": 50, "seed": 42, "n_boot": 2000, "method": "percentile-bootstrap"}, "n": 50, "task": {"task": "docclass", "kind": "docclass", "doc_type_accuracy": 0.0, "accuracy": 0.0, "doc_type_accuracy_ci": {"lo": 0.0, "hi": 0.0, "half": 0.0, "n": 50, "seed": 42, "n_boot": 2000, "method": "percentile-bootstrap"}, "per_class": {"contract": {"n": 10, "correct": 0, "accuracy": 0.0, "precision": 0.0, "recall": 0.0, "f1": 0.0, "f2": 0.0}, "corporate_record": {"n": 10, "correct": 0, "accuracy": 0.0, "precision": 0.0, "recall": 0.0, "f1": 0.0, "f2": 0.0}, "correspondence": {"n": 10, "correct": 0, "accuracy": 0.0, "precision": 0.0, "recall": 0.0, "f1": 0.0, "f2": 0.0}, "insurance_claim": {"n": 10, "correct": 0, "accuracy": 0.0, "precision": 0.0, "recall": 0.0, "f1": 0.0, "f2": 0.0}, "merger_agreement": {"n": 10, "correct": 0, "accuracy": 0.0, "precision": 0.0, "recall": 0.0, "f1": 0.0, "f2": 0.0}}, "precision_macro": 0.0, "recall_macro": 0.0, "f1_macro": 0.0, "f2_macro": 0.0, "precision": 0.0, "recall": 0.0, "f2": 0.0, "n": 50}, "task_source": "sorter-suite", "f1_macro": 0.0, "precision_macro": 0.0, "recall_macro": 0.0, "f2_macro": 0.0}
@@ -108,6 +116,7 @@ rate). Cost = measured warm interval x L4 rate.
 - git: `None` dirty=None
 
 ### pilot-sorter-modal-hf
+
 - timestamp: `2026-09-16T06:19:02.215844+00:00`
 - task/model: `sorter` / `Qwen/Qwen3-8B` (profile `modal-vllm`, provider `vllm`)
 - n=7 | scores={"exact_match": 1.0, "accuracy": 1.0, "exact_match_ci": {"lo": 1.0, "hi": 1.0, "half": 0.0, "n": 7, "seed": 42, "n_boot": 2000, "method": "percentile-bootstrap"}, "n": 7, "task": {"task": "docclass", "kind": "docclass", "doc_type_accuracy": 1.0, "accuracy": 1.0, "doc_type_accuracy_ci": {"lo": 1.0, "hi": 1.0, "half": 0.0, "n": 7, "seed": 42, "n_boot": 2000, "method": "percentile-bootstrap"}, "per_class": {"contract": {"n": 1, "correct": 1, "accuracy": 1.0, "precision": 1.0, "recall": 1.0, "f1": 1.0, "f2": 1.0}, "corporate_record": {"n": 1, "correct": 1, "accuracy": 1.0, "precision": 1.0, "recall": 1.0, "f1": 1.0, "f2": 1.0}, "correspondence": {"n": 1, "correct": 1, "accuracy": 1.0, "precision": 1.0, "recall": 1.0, "f1": 1.0, "f2": 1.0}, "insurance_claim": {"n": 3, "correct": 3, "accuracy": 1.0, "precision": 1.0, "recall": 1.0, "f1": 1.0, "f2": 1.0}, "merger_agreement": {"n": 1, "correct": 1, "accuracy": 1.0, "precision": 1.0, "recall": 1.0, "f1": 1.0, "f2": 1.0}}, "precision_macro": 1.0, "recall_macro": 1.0, "f1_macro": 1.0, "f2_macro": 1.0, "precision": 1.0, "recall": 1.0, "f2": 1.0, "n": 7}, "f1_macro": 1.0, "precision_macro": 1.0, "recall_macro": 1.0, "f2_macro": 1.0}
@@ -116,7 +125,6 @@ rate). Cost = measured warm interval x L4 rate.
 - wall=Nones concurrency=None cold_boot=Nones gpu=Nones
 - cost=$None ($None/doc)
 - git: `None` dirty=None
-
 
 ## SAND-019 defects fixed (why pre-fix rows read 0.0)
 

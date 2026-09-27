@@ -32,9 +32,12 @@ HERMES_MODAL_PROFILE = "hermes-agent-jjb"
 
 # Default cost-eval suite (bf16). AWQ is accepted as an optional path when the
 # engine model is explicitly Qwen/Qwen3-8B-AWQ (DMR-068 gate still operator-owned).
+# Granite 4.2-8B FP8 is accepted as the SAND-027 apples-to-apples twin leg
+# (1×L4, compressed-tensors W8A8, 32768) — same gate posture as AWQ.
 BENCHMARK_MODEL_BF16 = "Qwen/Qwen3-8B"
 BENCHMARK_MODEL_AWQ = "Qwen/Qwen3-8B-AWQ"
-BENCHMARK_ALLOWED_MODELS = frozenset({BENCHMARK_MODEL_BF16, BENCHMARK_MODEL_AWQ})
+BENCHMARK_MODEL_GRANITE_FP8 = "ibm-granite/granite-4.2-8b-fp8"
+BENCHMARK_ALLOWED_MODELS = frozenset({BENCHMARK_MODEL_BF16, BENCHMARK_MODEL_AWQ, BENCHMARK_MODEL_GRANITE_FP8})
 
 BENCHMARK_EXPECTED = {
     "model": BENCHMARK_MODEL_BF16,
@@ -66,6 +69,18 @@ from mailroom_sandbox.job.specialist_posture import (
 TWO_GPU_RUNS = frozenset({
     "run-20-correspondence-specialist-awq",
     "run-50-correspondence-specialist-awq",
+})
+
+# Granite 4.2-8B FP8 sweep (1×L4): MIN=MAX=1 pinned warm across the five-run
+# chain (no scale-to-zero between classes; teardown after the fifth) — not
+# the scale-to-zero run-30 default. benchmark-check allows
+# min_containers=1 (with max_containers=1) for exactly these run_ids.
+GRANITE_ONE_GPU_RUNS = frozenset({
+    "run-20-contracts-granite",
+    "run-20-merger-granite",
+    "run-20-corporate-records-granite",
+    "run-20-correspondence-granite",
+    "run-20-insurance-claims-granite",
 })
 
 SPECIALIST_LOCAL_PROMPTS: dict[str, dict[str, str]] = {
@@ -216,6 +231,11 @@ def check_benchmark_posture(
             "MODAL_VLLM_MODEL is AWQ — optional cost-saver path; "
             "DMR-068 accuracy gate (≥98%) is operator-owned before defaulting"
         )
+    elif env_model == BENCHMARK_MODEL_GRANITE_FP8:
+        warnings.append(
+            "MODAL_VLLM_MODEL is Granite FP8 — SAND-027 twin leg; "
+            "accuracy gate vs the Qwen AWQ 20-doc runs is operator-owned"
+        )
     sd_env = env_bits.get("MODAL_VLLM_SCALEDOWN_SECONDS")
     if sd_env:
         try:
@@ -322,12 +342,17 @@ def _check_spec_pins(spec: RunSpec) -> dict[str, list[str]]:
     if model not in BENCHMARK_ALLOWED_MODELS:
         errors.append(
             f"spec.engine.model={model!r} expected {BENCHMARK_MODEL_BF16!r} "
-            f"(or optional {BENCHMARK_MODEL_AWQ!r})"
+            f"(or optional {BENCHMARK_MODEL_AWQ!r} / {BENCHMARK_MODEL_GRANITE_FP8!r})"
         )
     elif model == BENCHMARK_MODEL_AWQ:
         warnings.append(
             "engine.model is AWQ — optional cost-saver; default suite stays "
             f"{BENCHMARK_MODEL_BF16} until DMR-068 accuracy gate is green"
+        )
+    elif model == BENCHMARK_MODEL_GRANITE_FP8:
+        warnings.append(
+            "engine.model is Granite FP8 — SAND-027 twin leg; default suite stays "
+            f"{BENCHMARK_MODEL_BF16} until the Granite-vs-Qwen gate is green"
         )
 
     modal = spec.engine.modal
@@ -353,6 +378,12 @@ def _check_spec_pins(spec: RunSpec) -> dict[str, list[str]]:
                 warnings.append(
                     "modal.min_containers=2 — replicas pinned warm during Runs A+B "
                     f"for {spec.run_id} (no scale-to-zero; teardown after last run)"
+                )
+            elif spec.run_id in GRANITE_ONE_GPU_RUNS and modal.min_containers == 1:
+                warnings.append(
+                    "modal.min_containers=1 — 1×L4 pinned warm across the "
+                    f"Granite five-run chain for {spec.run_id} (no scale-to-zero "
+                    "between classes; teardown after the fifth)"
                 )
             else:
                 errors.append(
