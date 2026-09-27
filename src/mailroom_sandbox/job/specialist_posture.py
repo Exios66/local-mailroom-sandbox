@@ -157,7 +157,7 @@ SPECIALIST_POSTURE: dict[str, dict[str, Any]] = {
         "doc_class": "merger_agreement",
         "agent": "contracts_specialist",
         "prompt_file": "contracts_specialist_v33_simplified",
-        "concurrency": 4,
+        "concurrency": 8,
         "max_model_len": 32768,
         "max_tokens": 4096,
         "max_input_chars": _input_chars_for(4096, 10000, 32768),
@@ -167,9 +167,10 @@ SPECIALIST_POSTURE: dict[str, dict[str, Any]] = {
         "sec_per_doc": {"low": 40.0, "likely": 120.0, "high": 300.0},
         "rationale": (
             "Qwen AWQ cross-agent merger baseline (contracts_specialist on "
-            "MAUD docs) at c=4 on 1×L4: 8×15k-token requests overflow the AWQ "
-            "KV pool (DMR-072 + Granite KV evidence); 4× fits with shared "
-            "prefixes. Qwen needs no thinking-inflated decode (4096)."
+            "MAUD docs) at c=8 on 1×L4 like all Qwen AWQ legs: no measured "
+            "Qwen-merger pile-up evidence exists (Qwen AWQ c=8 measured "
+            "5–7× speedups on insurance/correspondence); Granite c=3 KV "
+            "evidence does not transfer (AWQ weight pool ~2× FP8)."
         ),
     },
     # ── Granite 4.2-8B FP8 sweep (1×L4, concurrency 8) ──────────────────────
