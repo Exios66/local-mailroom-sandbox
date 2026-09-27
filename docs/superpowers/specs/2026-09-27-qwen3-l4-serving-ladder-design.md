@@ -7,6 +7,12 @@
 
 ## 1. Intent
 
+**Why:** this self-funded pilot produces the evidence for a **funding request to our industry partner
+(AmFam)** to continue the research. The forward ask is at least **$200**, and plausibly several hundred
+dollars more. Every cost figure must therefore be *billed-reconciled and defensible*, not estimated.
+The funded phase would cover full-corpus runs, model comparisons and prompt/quality optimization
+(§5a).
+
 Serve Qwen3-8B on Modal + vLLM v0.29.0 on L4 GPUs as cheaply as possible, without losing quality.
 
 - **Objective:** minimize GPU **$/doc**. Quality is a non-regression guardrail, not the thing being optimized.
@@ -119,6 +125,8 @@ Order:
 3. corporate_records n=50
 4. merger_agreement n=50
 5. contracts n=50 (serving metrics only)
+6. **correspondence n=50 repeat** (same slice, same warm fleet, ~$0.12). Gives the run-to-run variance
+   that the funding projections' error bars need.
 
 **Budget gate before each class:** spent + (measured $/doc × remaining docs) must be ≤ $4.50;
 otherwise merger and contracts drop to n=20. Per-run `cost_cap_usd` is 1.5× the projection.
@@ -137,12 +145,40 @@ The estimates use measured $/doc from prior runs, before any optimization.
 |---|---|
 | 1 — ladder (6 boots) | ~$0.35 |
 | 2 — scale-out n=100 ×2 | ~$0.55 |
-| 3 — sweep n=50 ×5 | ~$2.6 |
+| 3 — sweep n=50 ×5 + repeat | ~$2.7 |
 | 4 — bf16 arm | ~$0.10 |
 | Idle / extra boots | ~$0.25 |
-| **Total** | **~$3.85** (≈$1.15 margin under $5) |
+| **Total** | **~$3.95** (≈$1.05 margin under $5) |
 
-The running total is reconciled against Modal usage after every stage.
+The running total is reconciled against Modal usage after every stage. The **billed** figure from Modal's
+usage/billing view is the one that feeds §5a, not the wall-clock estimate. The user supplies it; Claude
+does not access the account.
+
+## 5a. Funding-evidence deliverable (AmFam budget request)
+
+`reports/funding/AMFAM-BUDGET-PROPOSAL.md`, built only from this pilot's committed measurements.
+
+1. **Unit-cost table:** per class, $/doc and $/1,000 docs on the frozen config, for 1 replica and
+   2 replicas. Billed and wall-estimated figures are shown side by side, with the ratio stated.
+2. **Fixed overheads:** measured cold boot ($ and s per boot) and idle-warm $/min, stated separately
+   from per-doc cost.
+3. **Variance:** run-to-run spread from the correspondence repeat, and from the paired 20/50/100 slices,
+   applied as ± bands on every projection.
+4. **Line-item projections, each shown as a formula with its inputs:**
+   - **Full-corpus pass:** Σ class_rows × class $/doc, plus boots and idle, × seeds (1 and 3).
+   - **Prompt/quality optimization:** cost per eval iteration (a warm n=20 / n=50 run for each class,
+     measured in Stage 3), × iterations per specialist.
+   - **Model comparisons:** the Qwen3-8B-AWQ measured cost scaled by an explicit, labeled assumption
+     (throughput ratio from a model's size and quantization). This is flagged as *projected, not
+     measured*, with the pilot's Granite halt cited as the known risk.
+5. **Funding tiers:** what **$200 / $500 / $800** each buy in concrete runs, with a stated contingency
+   (e.g. 20%) for failed runs and re-boots, drawing on the historical failure rate in `reports/`.
+6. **Evidence appendix:** what the pilot established (ladder gains, scale-out benefit, 5-class
+   scorecard, AWQ-vs-bf16 delta), with links to the committed reports.
+7. **Prior investment (optional):** one summary line, "researchers have self-funded ~$X to date".
+   The user supplies the figure or the line is omitted. There is no itemization.
+
+The proposal's claims go through the `adversarial-reviewer` pass along with the other reports.
 
 ## 5. Reporting and disposal
 
