@@ -178,3 +178,11 @@ def test_cli_benchmark_check_passes_modal_profile(monkeypatch, capsys):
 @pytest.mark.parametrize("path", RUNS, ids=lambda p: p.stem)
 def test_sand032_runs_on_dedicated_modal_app(path):
     assert load_run_spec(path).engine.modal.app == "sandbox-vllm-sand032"
+
+
+def test_c32_on_two_replicas_needs_seqs16_admission():
+    row = dict(SPECIALIST_POSTURE["sand032-s3-corr50"])
+    assert row["concurrency"] == 32 and row["max_num_seqs"] == 16
+    assert validate_mapping({"x": row}) == []
+    row.pop("max_num_seqs")
+    assert any("outside specialist band" in e for e in validate_mapping({"x": row}))
