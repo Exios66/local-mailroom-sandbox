@@ -205,12 +205,25 @@ def render_frame(
     return "\n".join(out)
 
 
+RECONNECT_NOTE = "… waiting for app (stopped between runs or booting) — will attach when it is live"
+
+
+def log_command(app: str) -> list[str]:
+    """`modal app logs <app>` fetches 100 lines and exits — `-f` streams live."""
+    return ["modal", "app", "logs", "-f", app]
+
+
+def note_reconnect(sink: deque) -> None:
+    if not sink or sink[-1] != RECONNECT_NOTE:
+        sink.append(RECONNECT_NOTE)
+
+
 def _stream_logs(app: str, sink: deque, stop: threading.Event) -> None:
     """Follow `modal app logs <app>` into ``sink``; restart if the stream drops."""
     while not stop.is_set():
         try:
             proc = subprocess.Popen(
-                ["modal", "app", "logs", app],
+                log_command(app),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
@@ -228,8 +241,8 @@ def _stream_logs(app: str, sink: deque, stop: threading.Event) -> None:
                 sink.append(line)
         proc.terminate()
         if not stop.is_set():
-            sink.append("WARNING log stream ended — reconnecting in 5s")
-            stop.wait(5)
+            note_reconnect(sink)
+            stop.wait(10)
 
 
 def read_ledger(ledger: Path | None) -> tuple[float, bool]:

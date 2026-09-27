@@ -151,3 +151,21 @@ def test_ledger_with_live_fleet_is_not_double_counted(tmp_path):
     p.write_text(json.dumps({"spent_usd": 0.5}))
     assert read_ledger(p) == (0.5, False)
     assert read_ledger(tmp_path / "missing.json") == (0.0, False)
+
+
+def test_log_stream_follows_instead_of_refetching():
+    """`modal app logs <app>` fetches 100 lines and EXITS; -f streams."""
+    from mailroom_sandbox.watch import log_command
+
+    assert log_command("sandbox-vllm-sand032") == ["modal", "app", "logs", "-f", "sandbox-vllm-sand032"]
+
+
+def test_reconnect_notice_is_not_repeated():
+    from collections import deque
+
+    from mailroom_sandbox.watch import note_reconnect
+
+    sink = deque(["a"])
+    note_reconnect(sink)
+    note_reconnect(sink)
+    assert list(sink).count(sink[-1]) == 1 and "waiting for app" in sink[-1]
