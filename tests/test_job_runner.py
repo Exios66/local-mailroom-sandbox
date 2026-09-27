@@ -627,3 +627,26 @@ def test_persist_isolated_items_none_is_noop(tmp_path):
     from mailroom_sandbox.job.runner import _persist_isolated_items
 
     assert _persist_isolated_items(RunStore(tmp_path / "r"), None) == 0
+
+
+def test_aborted_isolated_run_keeps_completed_items(tmp_path, monkeypatch):
+    """SAND-032 review #3: a cost-cap abort mid-run must not drop the rows
+    already paid for (items.jsonl feeds reports + offline BT rows)."""
+    from mailroom_sandbox.eval import runners as eval_runners
+    from mailroom_sandbox.job import runner
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    store = RunStore(tmp_path / "r")
+    store.write_lock({"task": "judge", "profile": "modal-vllm", "prompt": {},
+                      "engine": {"model": "m", "modal": {"gpu": "L4", "max_containers": 2}},
+                      "job": {"concurrency": 2}})
+
+    def fake_isolated(task, *, row_cb=None, **kwargs):
+        for i in range(2):
+            row_cb({"id": f"d{i}", "score": {}, "error": None, "latency_ms": 10.0})
+        raise RuntimeError("isolated eval aborted: cost_cap_usd=0.1 exceeded")
+
+    monkeypatch.setattr(eval_runners, "run_isolated_eval", fake_isolated)
+    out = runner._run_whole_run(store, "judge", mock=False, model=None, profile="modal-vllm")
+    assert out["state"] == "failed"
+    assert [i["item_id"] for i in store.load_items()] == ["d0", "d1"]
