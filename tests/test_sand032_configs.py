@@ -15,8 +15,8 @@ STAGE23 = [p for p in RUNS if p.stem.startswith(("sand032-s2", "sand032-s3"))]
 LADDER = [p for p in RUNS if p.stem.startswith("sand032-l")]
 
 
-def test_fifteen_configs_exist():
-    assert len(RUNS) == 15
+def test_sixteen_configs_exist():
+    assert len(RUNS) == 16  # + s5 merger MAUD-prompt rerun
     assert {p.stem for p in RUNS} == set(SAND032_RUNS)
 
 

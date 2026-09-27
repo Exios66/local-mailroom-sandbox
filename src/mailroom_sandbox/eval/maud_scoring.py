@@ -31,8 +31,23 @@ _NON_ANSWERS = {
 }
 
 
+# Questions whose corpus answers all come from ONE MAUD sub-question. The Hub
+# rows collapse several sub-questions under names like "No-Shop" / "MAE
+# Definition" (answers "Yes", "Strict liability", … for different
+# sub-questions), so only this subset has an unambiguous target per doc.
+CLEAN_QUESTIONS = frozenset({
+    "Type of Consideration", "General Antitrust Efforts Standard",
+    "Compliance with Covenant Closing Condition", "Specific Performance",
+    "Agreement provides for matching rights in connection with COR",
+    "Agreement provides for matching rights in connection with FTR",
+    "Limitations on FTR Exercise", "Absence of Litigation Closing Condition",
+    "Accuracy of Target R&W Closing Condition", "Breach of Meeting Covenant",
+    "Breach of No Shop", "FTR Triggers",
+})
+
+
 def norm(text: Any) -> str:
-    s = str(text or "").lower().replace("_", " ")
+    s = str(text or "").lower().replace("_", " ").replace("fundermental", "fundamental")
     s = re.sub(r"[\"'“”‘’`]", "", s)
     s = re.sub(r"\s+", " ", s).strip(" .;:-")
     return s
@@ -91,7 +106,12 @@ def score_maud(pred: Mapping[str, Any], maud_clause_labels: Any) -> dict[str, An
     answered = {q: a for q, a in answers.items() if norm(a) not in _NON_ANSWERS}
     correct = sum(1 for q, a in answered.items() if norm(a) == norm(gt[q]))
     n = len(gt)
+    clean = [q for q in gt if q in CLEAN_QUESTIONS]
+    clean_correct = sum(1 for q in clean if q in answered and norm(answered[q]) == norm(gt[q]))
     return {
+        "maud_clean_questions": len(clean),
+        "maud_clean_correct": clean_correct,
+        "maud_clean_accuracy": (clean_correct / len(clean)) if clean else None,
         "maud_questions": n,
         "maud_answered": len(answered),
         "maud_correct": correct,

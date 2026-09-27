@@ -613,10 +613,14 @@ _SAND032_TABLE: tuple[tuple[str, str, int, int, int, float, int, int], ...] = (
     ("sand032-s3-contracts50", "contract", 50, 2, 32, 1.40, 5400, 32768),
     ("sand032-s3-corr50-repeat", "correspondence", 50, 2, 32, 0.30, 2400, 32768),
     ("sand032-s4-corr20-bf16", "correspondence", 20, 1, 8, 0.20, 2400, 16384),
+    ("sand032-s5-merger50-maud", "merger_agreement", 50, 2, 32, 1.40, 5400, 32768),
 )
+# Stage 5 re-runs a class with a revised prompt; everything else stays frozen.
+_SAND032_PROMPT_OVERRIDE = {"sand032-s5-merger50-maud": "merger_agreement_specialist_maud_v1"}
 SAND032_RUNS: frozenset[str] = frozenset(row[0] for row in _SAND032_TABLE)
 for _rid, _cls, _n, _rep, _conc, _cap, _wall, _ctx in _SAND032_TABLE:
     _agent, _prompt, _mt, _pt, _ct = _SAND032_AGENTS[_cls]
+    _prompt = _SAND032_PROMPT_OVERRIDE.get(_rid, _prompt)
     SPECIALIST_POSTURE[_rid] = {
         "task": _agent,
         "doc_class": _cls,
@@ -624,7 +628,7 @@ for _rid, _cls, _n, _rep, _conc, _cap, _wall, _ctx in _SAND032_TABLE:
         "prompt_file": _prompt,
         "concurrency": _conc,
         "replicas": _rep,
-        **({"max_num_seqs": 16} if _rid.startswith("sand032-s3-") else {}),
+        **({"max_num_seqs": 16} if _rid.startswith(("sand032-s3-", "sand032-s5-")) else {}),
         "max_model_len": _ctx,
         "max_tokens": _mt,
         "max_input_chars": _input_chars_for(_mt, _pt, _ctx),
