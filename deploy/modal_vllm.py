@@ -453,7 +453,28 @@ def vllm_help() -> None:
     out = subprocess.run(
         ["vllm", "serve", "--help=all"], capture_output=True, text=True, check=False
     )
-    print(out.stdout or out.stderr)
+    print(f"vllm serve --help=all rc={out.returncode}")
+    print(out.stdout)
+    print("--- stderr tail ---")
+    print("\n".join((out.stderr or "").splitlines()[-25:]))
+    # The CLI parser needs a GPU to infer the device; grep the installed
+    # source for each SAND-032 field instead (device-free, same answer).
+    root = "/usr/local/lib/python3.12/dist-packages/vllm"
+    for field in (
+        "default_chat_template_kwargs",
+        "kv_cache_dtype",
+        "cudagraph_capture_sizes",
+        "max_num_batched_tokens",
+        "chat_template",
+        "awq_marlin",
+        "enforce_eager",
+    ):
+        hit = subprocess.run(
+            ["grep", "-rl", "--include=*.py", field, root],
+            capture_output=True, text=True, check=False,
+        )
+        files = [f.replace(root + "/", "") for f in hit.stdout.split()][:3]
+        print(f"FIELD {field}: {'FOUND' if files else 'MISSING'} {files}")
 
 
 @app.function(
