@@ -322,3 +322,16 @@ def test_display_tail_hides_scrape_noise_but_file_keeps_it(tmp_path):
         buf.append(line)
     assert display_tail(buf, 5) == ["Avg prompt throughput: 812.3 tokens/s"]
     assert len((tmp_path / "app.log").read_text().splitlines()) == 4
+
+
+def test_program_route_shows_every_run_with_fleet_and_status(tmp_path):
+    from mailroom_sandbox.watch import PROGRAM, program_lines
+
+    assert len(PROGRAM) == 15
+    assert sum(1 for _, rep in PROGRAM if rep == 2) == 7  # s2b + six Stage-3 runs
+    (tmp_path / "sand032-l0-baseline.times").write_text('"stopped": 1.0,\n')
+    (tmp_path / "sand032-l1-nothink.times").write_text('"run_start": 1.0,\n')
+    plain = "\n".join(strip_ansi(x) for x in program_lines(tmp_path, current="sand032-l1-nothink", width=110))
+    assert "✓ l0-baseline ×1" in plain
+    assert "▶ l1-nothink ×1" in plain
+    assert "· s3-merger50 ×2" in plain and "· s2b-corr100-2rep ×2" in plain

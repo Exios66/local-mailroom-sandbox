@@ -227,6 +227,36 @@ class LogBuffer:
             return self._lines[-1] if self._lines else None
 
 
+# SAND-032 program route: (run_id, replicas) in execution order.
+PROGRAM: tuple[tuple[str, int], ...] = (
+    ("sand032-l0-baseline", 1), ("sand032-l1-nothink", 1), ("sand032-l2-marlin", 1),
+    ("sand032-l3-fp8kv", 1), ("sand032-l4-seqs16", 1), ("sand032-l5-graphs", 1),
+    ("sand032-s2a-corr100-1rep", 1), ("sand032-s2b-corr100-2rep", 2),
+    ("sand032-s3-corr50", 2), ("sand032-s3-insurance50", 2), ("sand032-s3-corporate50", 2),
+    ("sand032-s3-merger50", 2), ("sand032-s3-contracts50", 2), ("sand032-s3-corr50-repeat", 2),
+    ("sand032-s4-corr20-bf16", 1),
+)
+
+
+def program_lines(times_dir: Path, *, current: str, width: int = 100, on: bool = False) -> list[str]:
+    """✓ done · ▶ live · · queued — every run with its fleet (×1 / ×2 L4)."""
+    p = pl.palette(on)
+    cells = []
+    for rid, rep in PROGRAM:
+        t = read_times(times_dir / f"{rid}.times")
+        mark = "✓" if "stopped" in t else ("▶" if rid == current or t else "·")
+        text = f"{mark} {rid.removeprefix('sand032-')} ×{rep}"
+        role = {"✓": "teal", "▶": "gold", "·": "dim"}[mark]
+        cells.append((text, p[role](text) if on else text))
+    col = max(len(t) for t, _ in cells) + 2
+    per_row = max(1, (width - 4) // col)
+    rows = []
+    for i in range(0, len(cells), per_row):
+        chunk = cells[i : i + per_row]
+        rows.append("".join(styled + " " * (col - len(plain)) for plain, styled in chunk).rstrip())
+    return rows
+
+
 NOISE = re.compile(r'"GET /(metrics|v1/models|health)|GET /(metrics|v1/models|health) ->')
 
 
@@ -313,6 +343,7 @@ def render_frame(
     blink: bool = False,
     lifecycle: dict[str, Any] | None = None,
     scorecard: list[str] | None = None,
+    route: list[str] | None = None,
 ) -> str:
     width = max(60, min(int(width), pl.MAX_W))
     p = pl.palette(on)
@@ -332,6 +363,9 @@ def render_frame(
         el = int(lifecycle.get("elapsed_s") or 0)
         phase = f"▸{lifecycle['phase']}◂  {lifecycle.get('detail', '')}  ·  {el // 60}m{el % 60:02d}s  ·  {_stage_for(s['run_id'])}"
         out.append(pl._box("LIFECYCLE", [p["gold"](phase) if on else phase], width=width, on=on))
+
+    if route:
+        out.append(pl._box("PROGRAM ROUTE · 1×L4 ladder → 2×L4 scale-out + 5-specialist sweep", route, width=width, on=on))
 
     wide = width >= 100
     box_w = (width - 2) // 2 if wide else width
@@ -492,6 +526,9 @@ def watch(
                 blink=int(time.time()) % 7 == 0,
                 lifecycle=life,
                 scorecard=card,
+                route=program_lines(times_dir, current=snap["run_id"],
+                                    width=shutil.get_terminal_size((100, 40)).columns,
+                                    on=pl.use_color(sys.stdout)) if times_dir else None,
             )
             if once:
                 sys.stdout.write(frame + "\n")
