@@ -587,6 +587,58 @@ SPECIALIST_LIMIT_BY_RUN: dict[str, int] = {
 }
 
 
+# ── SAND-032: ladder / scale-out / sweep / bf16 rows ─────────────────────────
+# Generated from one table so caps/limits stay consistent with
+# config/runs/sand032-*.yaml. max_tokens mirrors config/taxonomy.overlay.yaml
+# (the runtime source of generation budgets — no run-scoped override), and
+# tokens_assumed comes from the latest measured 20-doc AWQ runs.
+_SAND032_AGENTS: dict[str, tuple[str, str, int, int, int]] = {
+    # doc_class: (agent, prompt_file, max_tokens, prompt_tok, completion_tok)
+    "correspondence": ("correspondence_specialist", "correspondence_specialist_production", 2048, 2300, 200),
+    "insurance_claim": ("insurance_claims_specialist", "insurance_claims_specialist_simplified", 3072, 5000, 900),
+    "corporate_record": ("corporate_records_specialist", "corporate_records_specialist_simplified", 4096, 8000, 1530),
+    "merger_agreement": ("merger_agreement_specialist", "merger_agreement_specialist_simplified", 4096, 11300, 1200),
+    "contract": ("contracts_specialist", "contracts_specialist_v33_simplified", 4096, 12000, 1200),
+}
+_SAND032_LADDER = ("l0-baseline", "l1-nothink", "l2-marlin", "l3-fp8kv", "l4-seqs16", "l5-graphs")
+_SAND032_TABLE: tuple[tuple[str, str, int, int, int, float, int, int], ...] = (
+    # run_id, doc_class, n, replicas, concurrency, cost_cap_usd, max_wall_seconds, max_model_len
+    *((f"sand032-{rung}", "correspondence", 20, 1, 8, 0.15, 1800, 32768) for rung in _SAND032_LADDER),
+    ("sand032-s2a-corr100-1rep", "correspondence", 100, 1, 8, 0.60, 3600, 32768),
+    ("sand032-s2b-corr100-2rep", "correspondence", 100, 2, 16, 0.60, 3600, 32768),
+    ("sand032-s3-corr50", "correspondence", 50, 2, 16, 0.30, 2400, 32768),
+    ("sand032-s3-insurance50", "insurance_claim", 50, 2, 16, 0.60, 3600, 32768),
+    ("sand032-s3-corporate50", "corporate_record", 50, 2, 16, 0.70, 3600, 32768),
+    ("sand032-s3-merger50", "merger_agreement", 50, 2, 16, 1.40, 5400, 32768),
+    ("sand032-s3-contracts50", "contract", 50, 2, 16, 1.40, 5400, 32768),
+    ("sand032-s3-corr50-repeat", "correspondence", 50, 2, 16, 0.30, 2400, 32768),
+    ("sand032-s4-corr20-bf16", "correspondence", 20, 1, 8, 0.20, 2400, 16384),
+)
+SAND032_RUNS: frozenset[str] = frozenset(row[0] for row in _SAND032_TABLE)
+for _rid, _cls, _n, _rep, _conc, _cap, _wall, _ctx in _SAND032_TABLE:
+    _agent, _prompt, _mt, _pt, _ct = _SAND032_AGENTS[_cls]
+    SPECIALIST_POSTURE[_rid] = {
+        "task": _agent,
+        "doc_class": _cls,
+        "agent": _agent,
+        "prompt_file": _prompt,
+        "concurrency": _conc,
+        "replicas": _rep,
+        "max_model_len": _ctx,
+        "max_tokens": _mt,
+        "max_input_chars": _input_chars_for(_mt, _pt, _ctx),
+        "cost_cap_usd": _cap,
+        "max_wall_seconds": _wall,
+        "tokens_assumed": {"prompt": _pt, "completion": _ct},
+        "sec_per_doc": {"low": 5.0, "likely": 15.0, "high": 60.0},
+        "rationale": (
+            "SAND-032 ladder / scale-out / sweep "
+            "(docs/superpowers/specs/2026-09-27-qwen3-l4-serving-ladder-design.md)"
+        ),
+    }
+    SPECIALIST_LIMIT_BY_RUN[_rid] = _n
+
+
 def expected_limit(run_id: str | None, default: int = 30) -> int:
     """Expected prepared-row count for a specialist run (DMR-078 / SAND-018)."""
     if not run_id:
@@ -601,7 +653,10 @@ AGENT_GENERATION_BUDGETS: dict[str, dict[str, int]] = {
         "max_tokens": int(row["max_tokens"]),
         "max_input_chars": int(row["max_input_chars"]),
     }
-    for row in SPECIALIST_POSTURE.values()
+    for run_id, row in SPECIALIST_POSTURE.items()
+    # SAND-032 rows mirror the overlay budgets; keep them out of this
+    # last-writer-wins map so pre-existing agent budgets are unchanged.
+    if not run_id.startswith("sand032-")
 }
 
 
@@ -690,8 +745,11 @@ def validate_mapping(mapping: Mapping[str, Any] | None = None) -> list[str]:
                 f"Qwen L4 window {window}"
             )
         conc = int(row["concurrency"])
-        if not 2 <= conc <= 8:
-            errors.append(f"{run_id}: concurrency={conc} outside specialist band [2,8]")
+        # SAND-032: the [2,8] band is per L4 replica — pinned data-parallel
+        # replicas each admit up to 8 (2×L4 → c16).
+        ceiling = 8 * max(1, int(row.get("replicas", 1)))
+        if not 2 <= conc <= ceiling:
+            errors.append(f"{run_id}: concurrency={conc} outside specialist band [2,{ceiling}]")
         if float(row["cost_cap_usd"]) <= 0:
             errors.append(f"{run_id}: cost_cap_usd must be > 0")
         if int(row["max_wall_seconds"]) < 60:

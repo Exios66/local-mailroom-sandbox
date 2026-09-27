@@ -12,7 +12,7 @@ from mailroom_sandbox.eval_environment_lineage import (
     verify_local_catalog,
     verify_sibling_catalog,
 )
-from mailroom_sandbox.job.specialist_posture import SPECIALIST_POSTURE
+from mailroom_sandbox.job.specialist_posture import SAND032_RUNS, SPECIALIST_POSTURE
 
 
 def test_local_stems_match_eval_environment_catalog():
@@ -41,6 +41,9 @@ def test_specialist_posture_pins_catalog_stems():
         "run-20-correspondence-fp16-c8",
         "run-20-correspondence-specialist-awq",
         "run-50-correspondence-specialist-awq",
+        # SAND-032: correspondence rows keep the production prompt constant
+        # with the 2×L4 AWQ runs (0.23–0.25 vs simplified ~0.09).
+        *(r for r in SAND032_RUNS if SPECIALIST_POSTURE[r]["agent"] == "correspondence_specialist"),
     }
     for run_id, row in SPECIALIST_POSTURE.items():
         agent = row["agent"]
