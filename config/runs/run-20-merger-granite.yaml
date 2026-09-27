@@ -72,8 +72,8 @@ job:
   max_retries: 2
   fail_fast: false
   concurrency: 3              # HALT revision: c=3 (KV math + DMR-072; was 8)
-  cost_cap_usd: 0.70          # ~2/3 of run-30 merger $1.00
-  max_wall_seconds: 3600      # ~2/3 of run-30 merger 5400s
+  cost_cap_usd: 1.20          # resized from probe-measured ~19 tok/s Granite decode (was 0.70)
+  max_wall_seconds: 6000      # resized for 16k-class decodes at c=3 (was 3600)
 
 trace:
   sink: none

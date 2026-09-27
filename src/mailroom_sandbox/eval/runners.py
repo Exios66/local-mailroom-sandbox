@@ -819,7 +819,8 @@ def run_sorter_vs_modernbert_eval(
     and pairs it with fixtures' sorter side unless ``sorter_record`` /
     ``from_log`` supplies a measured sorter record.
     """
-    del sample, connected, agent_models  # parity with other eval kwargs
+    del connected, agent_models  # parity with other eval kwargs
+    mb_sample = 50 if sample is None else int(sample)
     from mailroom_sandbox.datasets import load_sorter_vs_modernbert_fixtures
     from mailroom_sandbox.job.metrics import compare_sorter_vs_modernbert
 
@@ -873,7 +874,7 @@ def run_sorter_vs_modernbert_eval(
                 "ModernBERT feeder incomplete — "
                 f"{status.get('hint')} (status={status})"
             )
-        report = run_modernbert_eval(sample=50, seed=42)
+        report = run_modernbert_eval(sample=mb_sample, seed=42)
         right = serving_record_from_eval(report)
         left = sorter_record
         if left is None:
