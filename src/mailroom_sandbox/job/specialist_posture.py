@@ -606,12 +606,12 @@ _SAND032_TABLE: tuple[tuple[str, str, int, int, int, float, int, int], ...] = (
     *((f"sand032-{rung}", "correspondence", 20, 1, 8, 0.15, 1800, 32768) for rung in _SAND032_LADDER),
     ("sand032-s2a-corr100-1rep", "correspondence", 100, 1, 8, 0.60, 3600, 32768),
     ("sand032-s2b-corr100-2rep", "correspondence", 100, 2, 16, 0.60, 3600, 32768),
-    ("sand032-s3-corr50", "correspondence", 50, 2, 16, 0.30, 2400, 32768),
-    ("sand032-s3-insurance50", "insurance_claim", 50, 2, 16, 0.60, 3600, 32768),
-    ("sand032-s3-corporate50", "corporate_record", 50, 2, 16, 0.70, 3600, 32768),
-    ("sand032-s3-merger50", "merger_agreement", 50, 2, 16, 1.40, 5400, 32768),
-    ("sand032-s3-contracts50", "contract", 50, 2, 16, 1.40, 5400, 32768),
-    ("sand032-s3-corr50-repeat", "correspondence", 50, 2, 16, 0.30, 2400, 32768),
+    ("sand032-s3-corr50", "correspondence", 50, 2, 32, 0.30, 2400, 32768),
+    ("sand032-s3-insurance50", "insurance_claim", 50, 2, 32, 0.60, 3600, 32768),
+    ("sand032-s3-corporate50", "corporate_record", 50, 2, 32, 0.70, 3600, 32768),
+    ("sand032-s3-merger50", "merger_agreement", 50, 2, 32, 1.40, 5400, 32768),
+    ("sand032-s3-contracts50", "contract", 50, 2, 32, 1.40, 5400, 32768),
+    ("sand032-s3-corr50-repeat", "correspondence", 50, 2, 32, 0.30, 2400, 32768),
     ("sand032-s4-corr20-bf16", "correspondence", 20, 1, 8, 0.20, 2400, 16384),
 )
 SAND032_RUNS: frozenset[str] = frozenset(row[0] for row in _SAND032_TABLE)
@@ -624,6 +624,7 @@ for _rid, _cls, _n, _rep, _conc, _cap, _wall, _ctx in _SAND032_TABLE:
         "prompt_file": _prompt,
         "concurrency": _conc,
         "replicas": _rep,
+        **({"max_num_seqs": 16} if _rid.startswith("sand032-s3-") else {}),
         "max_model_len": _ctx,
         "max_tokens": _mt,
         "max_input_chars": _input_chars_for(_mt, _pt, _ctx),
@@ -745,9 +746,11 @@ def validate_mapping(mapping: Mapping[str, Any] | None = None) -> list[str]:
                 f"Qwen L4 window {window}"
             )
         conc = int(row["concurrency"])
-        # SAND-032: the [2,8] band is per L4 replica — pinned data-parallel
-        # replicas each admit up to 8 (2×L4 → c16).
-        ceiling = 8 * max(1, int(row.get("replicas", 1)))
+        # SAND-032: the band is per L4 replica — pinned data-parallel replicas
+        # each admit up to 8, or up to the row's vLLM max_num_seqs when it
+        # declares a larger admission (frozen seqs16 → 2×L4 best case c32).
+        per_replica = max(8, int(row.get("max_num_seqs", 8)))
+        ceiling = per_replica * max(1, int(row.get("replicas", 1)))
         if not 2 <= conc <= ceiling:
             errors.append(f"{run_id}: concurrency={conc} outside specialist band [2,{ceiling}]")
         if float(row["cost_cap_usd"]) <= 0:

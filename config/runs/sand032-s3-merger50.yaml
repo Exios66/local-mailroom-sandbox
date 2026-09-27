@@ -62,7 +62,7 @@ job:
   mock: false
   max_retries: 2
   fail_fast: false
-  concurrency: 16
+  concurrency: 32               # best case: saturates max_num_seqs=16 on each of 2 replicas
   cost_cap_usd: 1.4
   max_wall_seconds: 5400
 
