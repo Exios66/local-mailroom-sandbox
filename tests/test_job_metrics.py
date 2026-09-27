@@ -446,3 +446,37 @@ def test_enrich_bills_every_replica(monkeypatch):
     two = enrich_serving_report(dict(rec), items=items, wall_seconds=100, gpu="L4", replicas=2)
     assert two["estimated_gpu_cost_usd"] == round(one["estimated_gpu_cost_usd"] * 2, 6)
     assert two["replicas"] == 2
+
+
+# ── SAND-032: p95 + billed span ──────────────────────────────────────────────
+
+
+def test_p95_nearest_rank():
+    from mailroom_sandbox.job.metrics import p95
+
+    assert p95([float(i) for i in range(1, 21)]) == 19.0
+    assert p95([5.0]) == 5.0
+
+
+def test_p95_empty_is_loud():
+    import pytest
+
+    from mailroom_sandbox.job.metrics import p95
+
+    with pytest.raises(ValueError):
+        p95([])
+
+
+def test_enrich_adds_p95_and_billed_span(monkeypatch):
+    from mailroom_sandbox.job.metrics import enrich_serving_report, estimate_gpu_cost_usd
+
+    monkeypatch.delenv("MODAL_GPU_USD_PER_HOUR", raising=False)
+    monkeypatch.delenv("MODAL_GPU_USD_PER_SEC", raising=False)
+    rec = {"provider": "vllm", "profile": "modal-vllm", "gpu": "L4", "n": 20}
+    items = [{"ok": True, "latency_ms": float(i * 1000)} for i in range(1, 21)]
+    out = enrich_serving_report(rec, items=items, wall_seconds=100, gpu="L4",
+                                replicas=2, scaledown_seconds=120, cold_boot_seconds=150)
+    assert out["latency_p95_seconds"] == 19.0
+    # span = cold boot + wall + scaledown tail, billed on both replicas
+    assert out["billed_span_seconds"] == 370.0
+    assert out["billed_span_usd"] == estimate_gpu_cost_usd(370.0, gpu="L4", replicas=2)

@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import statistics
 from datetime import datetime
@@ -115,6 +116,15 @@ def gpu_usd_per_hour(gpu: str | None = None) -> float:
         DEFAULT_GPU_USD_PER_HOUR["L4"],
     )
     return DEFAULT_GPU_USD_PER_HOUR["L4"]
+
+
+def p95(values: Sequence[float]) -> float:
+    """Nearest-rank 95th percentile (no interpolation — defensible in reports)."""
+    ordered = sorted(float(v) for v in values)
+    if not ordered:
+        raise ValueError("p95 of empty sequence")
+    rank = max(1, math.ceil(0.95 * len(ordered)))
+    return ordered[rank - 1]
 
 
 def estimate_gpu_cost_usd(
@@ -440,6 +450,7 @@ def enrich_serving_report(
     gpu: str | None = None,
     scores: Mapping[str, Any] | None = None,
     replicas: int = 1,
+    scaledown_seconds: float | None = None,
 ) -> dict[str, Any]:
     """Extend a ``record_from_run`` dict with wall/concurrency/latency_sum fields.
 
@@ -474,6 +485,7 @@ def enrich_serving_report(
             "latency_max_seconds",
             round(max(latencies_ms) / 1000.0, 6),
         )
+        out.setdefault("latency_p95_seconds", round(p95(latencies_ms) / 1000.0, 6))
     if wall_seconds is not None and wall_seconds > 0:
         out["wall_seconds"] = round(float(wall_seconds), 3)
     if conc > 1:
@@ -499,6 +511,12 @@ def enrich_serving_report(
         )
         out["gpu_seconds"] = round(billed, 3)
         gpu_cost = estimate_gpu_cost_usd(billed, gpu=gpu_class, replicas=replicas)
+        # SAND-032: defensible upper estimate of what Modal bills for the run —
+        # boot + wall + idle tail before scale-down, on every replica. The
+        # Modal usage page stays the ground truth (reconciled in the ledger).
+        span = billed + float(scaledown_seconds or 0.0)
+        out["billed_span_seconds"] = round(span, 3)
+        out["billed_span_usd"] = estimate_gpu_cost_usd(span, gpu=gpu_class, replicas=replicas)
         if gpu_cost is not None:
             out["estimated_gpu_cost_usd"] = gpu_cost
             n_ok = len(ok_items) or int(out.get("n") or 0)
@@ -581,6 +599,10 @@ def serving_record_from_store(
         cold_boot_seconds=cold_boot_seconds,
         gpu=gpu,
         scores=scores,
+        replicas=max(1, int(modal.get("max_containers") or 1)),
+        scaledown_seconds=(
+            float(modal["scaledown_seconds"]) if modal.get("scaledown_seconds") is not None else None
+        ),
     )
 
 

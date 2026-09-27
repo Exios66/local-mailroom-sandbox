@@ -585,3 +585,45 @@ def test_isolated_guard_scales_by_replicas(monkeypatch):
     monkeypatch.delenv("MODAL_GPU_USD_PER_SEC", raising=False)
     assert metrics.estimate_gpu_cost_usd(300, gpu="L4") < 0.10
     assert metrics.estimate_gpu_cost_usd(300, gpu="L4", replicas=2) >= 0.10
+
+
+# ── SAND-032: isolated runs persist per-doc items ────────────────────────────
+
+
+def test_persist_isolated_items_writes_items_jsonl(tmp_path):
+    import json
+
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.runner import _persist_isolated_items
+
+    store = RunStore(tmp_path / "r")
+    rows = [
+        {"id": "a", "pred": {"x": 1}, "score": {"overall_extraction_score": 0.5},
+         "error": None, "latency_ms": 1200.0, "prompt_tokens": 10, "completion_tokens": 5},
+        {"id": "b", "pred": None, "score": {}, "error": "OpenAIConnectionError: x",
+         "latency_ms": 900.0, "prompt_tokens": 0, "completion_tokens": 0},
+    ]
+    assert _persist_isolated_items(store, rows) == 2
+    lines = [json.loads(line) for line in store.items_path.read_text().splitlines()]
+    assert [line["item_id"] for line in lines] == ["a", "b"]
+    assert lines[0]["ok"] is True and lines[1]["ok"] is False
+    assert lines[1]["error"].startswith("OpenAIConnectionError")
+    assert lines[0]["prompt_tokens"] == 10
+
+
+def test_persist_isolated_items_is_idempotent(tmp_path):
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.runner import _persist_isolated_items
+
+    store = RunStore(tmp_path / "r")
+    rows = [{"id": "a", "score": {}, "error": None, "latency_ms": 1.0}]
+    _persist_isolated_items(store, rows)
+    assert _persist_isolated_items(store, rows) == 0
+    assert len(store.items_path.read_text().splitlines()) == 1
+
+
+def test_persist_isolated_items_none_is_noop(tmp_path):
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.runner import _persist_isolated_items
+
+    assert _persist_isolated_items(RunStore(tmp_path / "r"), None) == 0
