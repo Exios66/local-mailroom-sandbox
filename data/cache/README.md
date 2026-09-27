@@ -4,7 +4,7 @@ Gitignored Hub materialization for [Lucius-Morningstar/mailroom-dataset](https:/
 
 ```bash
 sandbox datasets pull
-# → data/cache/Lucius-Morningstar__mailroom-dataset__46a4d3c240a3/ground_truth_all.jsonl
+# → data/cache/Lucius-Morningstar__mailroom-dataset__ed7576b67634/ground_truth_all.jsonl
 #    3,302 rows (train+test): contract 600, corporate_record 450,
 #    correspondence 1,000, insurance_claim 1,100, merger_agreement 152
 
