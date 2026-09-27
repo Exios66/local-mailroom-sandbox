@@ -511,12 +511,16 @@ def enrich_serving_report(
         )
         out["gpu_seconds"] = round(billed, 3)
         gpu_cost = estimate_gpu_cost_usd(billed, gpu=gpu_class, replicas=replicas)
-        # SAND-032: defensible upper estimate of what Modal bills for the run —
-        # boot + wall + idle tail before scale-down, on every replica. The
-        # Modal usage page stays the ground truth (reconciled in the ledger).
+        # SAND-032: LOWER bound on what Modal bills for this run — boot + wall
+        # (+ scale-down tail for scale-to-zero fleets; pinned MIN=MAX fleets pass
+        # scaledown_seconds=None), on every replica. Pre-run warm time and idle
+        # gaps between suite configs are NOT included: the Modal usage page is
+        # the ground truth and is reconciled in the spend ledger.
         span = billed + float(scaledown_seconds or 0.0)
-        out["billed_span_seconds"] = round(span, 3)
-        out["billed_span_usd"] = estimate_gpu_cost_usd(span, gpu=gpu_class, replicas=replicas)
+        out["run_span_seconds_lower_bound"] = round(span, 3)
+        out["run_span_usd_lower_bound"] = estimate_gpu_cost_usd(
+            span, gpu=gpu_class, replicas=replicas
+        )
         if gpu_cost is not None:
             out["estimated_gpu_cost_usd"] = gpu_cost
             n_ok = len(ok_items) or int(out.get("n") or 0)
@@ -600,8 +604,12 @@ def serving_record_from_store(
         gpu=gpu,
         scores=scores,
         replicas=max(1, int(modal.get("max_containers") or 1)),
+        # Pinned MIN=MAX fleets never scale down, so no tail is added.
         scaledown_seconds=(
-            float(modal["scaledown_seconds"]) if modal.get("scaledown_seconds") is not None else None
+            None
+            if int(modal.get("min_containers") or 0) >= max(1, int(modal.get("max_containers") or 1))
+            or modal.get("scaledown_seconds") is None
+            else float(modal["scaledown_seconds"])
         ),
     )
 

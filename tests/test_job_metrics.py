@@ -477,6 +477,37 @@ def test_enrich_adds_p95_and_billed_span(monkeypatch):
     out = enrich_serving_report(rec, items=items, wall_seconds=100, gpu="L4",
                                 replicas=2, scaledown_seconds=120, cold_boot_seconds=150)
     assert out["latency_p95_seconds"] == 19.0
-    # span = cold boot + wall + scaledown tail, billed on both replicas
-    assert out["billed_span_seconds"] == 370.0
-    assert out["billed_span_usd"] == estimate_gpu_cost_usd(370.0, gpu="L4", replicas=2)
+    # scale-to-zero: boot + wall + scaledown tail, on both replicas — a LOWER bound
+    # (pre-run warm time and idle gaps are not in it; Modal usage page is truth)
+    assert out["run_span_seconds_lower_bound"] == 370.0
+    assert out["run_span_usd_lower_bound"] == estimate_gpu_cost_usd(370.0, gpu="L4", replicas=2)
+    assert "billed_span_usd" not in out
+
+
+def test_run_span_pinned_fleet_has_no_scaledown_tail(monkeypatch):
+    """Review #2: MIN=MAX pinned replicas never scale down — no tail is added."""
+    from mailroom_sandbox.job.metrics import enrich_serving_report
+
+    monkeypatch.delenv("MODAL_GPU_USD_PER_HOUR", raising=False)
+    rec = {"provider": "vllm", "profile": "modal-vllm", "gpu": "L4", "n": 1}
+    out = enrich_serving_report(rec, items=[{"ok": True, "latency_ms": 1000.0}], wall_seconds=100,
+                                gpu="L4", replicas=2, scaledown_seconds=None, cold_boot_seconds=150)
+    assert out["run_span_seconds_lower_bound"] == 250.0
+
+
+def test_serving_record_pinned_lock_drops_scaledown(tmp_path, monkeypatch):
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.metrics import serving_record_from_store
+
+    monkeypatch.delenv("MODAL_BILLED_GPU_SECONDS", raising=False)
+    store = RunStore(tmp_path / "r")
+    store.write_lock({"task": "correspondence_specialist", "profile": "modal-vllm",
+                      "engine": {"model": "Qwen/Qwen3-8B-AWQ", "modal": {
+                          "gpu": "L4", "max_containers": 2, "min_containers": 2,
+                          "scaledown_seconds": 120}},
+                      "job": {"concurrency": 16}})
+    store.append_item({"item_id": "a", "ok": True, "latency_ms": 1000.0,
+                       "prompt_tokens": 10, "completion_tokens": 5})
+    out = serving_record_from_store(store, wall_seconds=100, mock=False)
+    assert out["replicas"] == 2
+    assert out["run_span_seconds_lower_bound"] == 100.0
