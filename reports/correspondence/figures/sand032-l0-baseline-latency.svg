@@ -13,7 +13,9 @@
   .viz .title { fill: var(--ink); font-size: 15px; font-weight: 600; }
   .viz .sub { fill: var(--ink2); font-size: 12px; }
   .viz .lbl { fill: var(--ink2); font-size: 12px; }
-  .viz .val { fill: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .viz .val { fill: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums;
+    paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+  .viz .reflbl { paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
   .viz .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
   .viz .grid { stroke: var(--grid); stroke-width: 1; }
   .viz .axis { stroke: var(--axis); stroke-width: 1; }
@@ -40,6 +42,10 @@
 <line class="grid" x1="650.0" y1="54" x2="650.0" y2="538"/>
 <text class="tick" x="650.0" y="554" text-anchor="middle">20s</text>
 <line class="axis" x1="190" y1="54" x2="190" y2="538"/>
+<line class="ref" x1="426.9" y1="50" x2="426.9" y2="538"/>
+<text class="reflbl" x="430.9" y="48">p50 10.3s</text>
+<line class="ref" x1="525.8" y1="50" x2="525.8" y2="538"/>
+<text class="reflbl" x="529.8" y="48">p95 14.6s</text>
 <text class="lbl" x="182" y="74.0" text-anchor="end">dda97989 · memo</text>
 <path class="s1" d="M190.0,63.0 H570.1 Q574.1,63.0 574.1,67.0 V73.0 Q574.1,77.0 570.1,77.0 H190.0 Z"><title>dda97989 · memo: 16.7s — 2071 prompt / 281 completion tok</title></path>
 <text class="val" x="580.1" y="74.0">16.7s</text>
@@ -100,8 +106,4 @@
 <text class="lbl" x="182" y="530.0" text-anchor="end">ed14e557 · email</text>
 <path class="s1" d="M190.0,519.0 H312.5 Q316.5,519.0 316.5,523.0 V529.0 Q316.5,533.0 312.5,533.0 H190.0 Z"><title>ed14e557 · email: 5.5s — 1670 prompt / 77 completion tok</title></path>
 <text class="val" x="322.5" y="530.0">5.5s</text>
-<line class="ref" x1="426.9" y1="50" x2="426.9" y2="538"/>
-<text class="reflbl" x="430.9" y="48">p50 10.3s</text>
-<line class="ref" x1="525.8" y1="50" x2="525.8" y2="538"/>
-<text class="reflbl" x="529.8" y="48">p95 14.6s</text>
 </svg>

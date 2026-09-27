@@ -25,7 +25,7 @@ for it in items:
     it.setdefault("score_original", it.get("score"))
     it["score"] = score_extraction_row(row["expected_doc_class"], pred, row["expected_fields"],
                                        doc_text=row.get("doc_text"))
-(run / "items.jsonl").write_text("".join(json.dumps(i) + "\n" for i in items))
+(run / "items.jsonl").write_text("".join(json.dumps(i, default=lambda o: getattr(o, "__dict__", str(o))) + "\n" for i in items))
 ok = [i for i in items if i.get("ok")]
 acc = [i["score"].get("overall_extraction_score") for i in ok]
 acc = [a for a in acc if isinstance(a, (int, float))]
