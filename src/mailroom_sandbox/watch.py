@@ -232,13 +232,16 @@ def _stream_logs(app: str, sink: deque, stop: threading.Event) -> None:
             stop.wait(5)
 
 
-def _read_spend(ledger: Path | None) -> float:
+def read_ledger(ledger: Path | None) -> tuple[float, bool]:
+    """(spent_usd, includes_live). ``includes_live`` = the ledger already counts
+    the open fleet's time, so the TUI must not add its own live estimate."""
     if ledger is None or not ledger.is_file():
-        return 0.0
+        return 0.0, False
     try:
-        return float(json.loads(ledger.read_text()).get("spent_usd") or 0.0)
+        data = json.loads(ledger.read_text())
+        return float(data.get("spent_usd") or 0.0), bool(data.get("includes_live"))
     except (ValueError, OSError):
-        return 0.0
+        return 0.0, False
 
 
 def watch(
@@ -264,8 +267,9 @@ def watch(
         while True:
             store, _ = resolve()  # --follow: the current run can change between frames
             snap = run_snapshot(store)
+            spent, includes_live = read_ledger(ledger)
             live = 0.0
-            if snap["state"] == "running":
+            if snap["state"] == "running" and not includes_live:
                 live = float(
                     estimate_gpu_cost_usd(time.time() - started, gpu=snap["gpu"], replicas=snap["replicas"])
                     or 0.0
@@ -274,7 +278,7 @@ def watch(
                 snapshot=snap,
                 app=app,
                 log_lines=list(sink),
-                spend={"spent_usd": _read_spend(ledger), "live_usd": live, "cap_usd": cap_usd},
+                spend={"spent_usd": spent, "live_usd": live, "cap_usd": cap_usd},
                 width=shutil.get_terminal_size((100, 40)).columns,
                 on=pl.use_color(sys.stdout),
                 blink=int(time.time()) % 7 == 0,

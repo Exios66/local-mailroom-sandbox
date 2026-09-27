@@ -140,3 +140,14 @@ def test_cli_watch_requires_config_or_follow(capsys):
     from mailroom_sandbox.cli import main
 
     assert main(["watch", "--once", "--no-logs"]) == 2
+
+
+def test_ledger_with_live_fleet_is_not_double_counted(tmp_path):
+    from mailroom_sandbox.watch import read_ledger
+
+    p = tmp_path / "l.json"
+    p.write_text(json.dumps({"spent_usd": 1.5, "includes_live": True}))
+    assert read_ledger(p) == (1.5, True)
+    p.write_text(json.dumps({"spent_usd": 0.5}))
+    assert read_ledger(p) == (0.5, False)
+    assert read_ledger(tmp_path / "missing.json") == (0.0, False)
