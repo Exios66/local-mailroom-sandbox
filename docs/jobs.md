@@ -257,9 +257,10 @@ sandbox metrics extrapolate --run run-30-contracts-specialist \
   --corpus-size 3302 --docs-per-day 10000
 ```
 
-See [`docs/benchmark-l4.md`](benchmark-l4.md) for the Modal L4 Qwen specialist
-suite pins, Hermes profile, teardown sequence, and cost-saver path (AWQ gated
-by DMR-068).
+See [`docs/runbooks/README.md`](runbooks/README.md) for the Modal L4 Qwen specialist
+suite (singular 1×L4 / 1-container) and improved configs. Catalog:
+[`config/runbooks/catalog.yaml`](../config/runbooks/catalog.yaml). CLI:
+`sandbox runbook show l4-qwen3-8b`.
 
 ### AWQ vs FP16 isolation (issue #21) — config only, do not run
 
@@ -270,11 +271,9 @@ draw (fingerprint `285f423d3708`), same local prompt, concurrency 8, targeting
 spend/auth go**. Do not `modal deploy` / `sandbox run start` this YAML from the
 diagnosis PR.
 
-When an operator is cleared to run it: activate the operator Modal profile,
-export `MODAL_VLLM_MODEL=Qwen/Qwen3-8B` with empty quantization and
-`MODAL_VLLM_MAX_MODEL_LEN=16384` (L4-bf16 boot cap; the AWQ twin used 32768),
-preflight, start, then teardown. Confirm the lock fingerprint is
-`285f423d3708` before scoring. Diagnosis of the AWQ floor (no GPU):
+When an operator is cleared to run it: `sandbox runbook show improved-correspondence-fp16-c8`.
+Confirm the lock fingerprint is `285f423d3708` before scoring. Diagnosis of the
+AWQ floor (no GPU):
 [`docs/extraction-quality-diagnosis.md`](extraction-quality-diagnosis.md).
 
 TTFT is only populated when a run records it (never inferred from e2e).

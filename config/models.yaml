@@ -78,7 +78,7 @@ local_catalog:
 #   eval "$(sandbox modal-matrix env <HF-id> [--gpu GPU])"
 #   modal deploy deploy/modal_vllm.py --strategy recreate
 # Default specialist cost-eval posture: Qwen/Qwen3-8B @ L4 (do not change
-# run-30 YAMLs for one-off swaps — see docs/benchmark-l4.md).
+# run-30 YAMLs for one-off swaps — see sandbox runbook show l4-qwen3-8b).
 # Quantization must be left EMPTY for FP16 (bf16).
 modal_models:
   Qwen/Qwen3-8B:
