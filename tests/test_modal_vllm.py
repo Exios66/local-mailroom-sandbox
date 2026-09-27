@@ -749,3 +749,9 @@ class TestDedicatedApp:
         kwargs = mod.vllm_help.kwargs
         assert "gpu" not in kwargs
         assert kwargs["timeout"] <= 600
+
+
+    def test_app_name_must_stay_sandbox_scoped(self, monkeypatch):
+        monkeypatch.setenv("MODAL_VLLM_APP_NAME", "mailroom-ml-trainer")
+        with pytest.raises(ValueError, match="sandbox-vllm"):
+            _load_app_module()

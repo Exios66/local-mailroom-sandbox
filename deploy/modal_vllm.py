@@ -91,6 +91,11 @@ import modal
 # SAND-032: a dedicated app per experiment program keeps its containers,
 # logs and billing separate from the shared sandbox-vllm app.
 APP_NAME = os.environ.get("MODAL_VLLM_APP_NAME", "") or "sandbox-vllm"
+if not APP_NAME.startswith("sandbox-vllm"):
+    raise ValueError(
+        f"MODAL_VLLM_APP_NAME={APP_NAME!r} must stay sandbox-vllm-scoped "
+        "(e.g. sandbox-vllm-sand032) so it never collides with other apps"
+    )
 SERVER_PORT = 8000                  # Modal web_server port (vLLM subprocess)
 HF_CACHE_VOLUME_NAME = "sandbox-hf-cache"
 VLLM_CACHE_VOLUME_NAME = "sandbox-vllm-cache"
