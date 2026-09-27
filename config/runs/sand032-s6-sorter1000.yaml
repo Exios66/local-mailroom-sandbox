@@ -1,11 +1,11 @@
 # SAND-032 Stage 6 — LLM sorter n=1000 (train, proportional to the train class mix) on the
-# frozen 2×L4 serving config (AWQ-marlin, fp8 KV, thinking off, CUDA graphs, seqs16/replica), c32.
+# frozen 2×L4 serving config (isolated sorter agent — no other prompts) (AWQ-marlin, fp8 KV, thinking off, CUDA graphs, seqs16/replica), c32.
 # Public HF mailroom-dataset only (no partner/proprietary data). Modal profile: exios66.
 #
 #   scripts/sand032/run_one.sh config/runs/sand032-s6-sorter1000.yaml deploy stop
 schema: sandbox.run/v1
 run_id: sand032-s6-sorter1000
-task: sorter
+task: isolated                # sorter agent ONLY (SorterAgent.classify) — no reviewer/specialist/judge calls
 profile: modal-vllm
 
 prompt:
