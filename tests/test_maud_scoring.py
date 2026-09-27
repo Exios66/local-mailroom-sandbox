@@ -65,3 +65,18 @@ def test_echoed_question_name_is_a_non_answer_and_enum_backfills():
             "merger_consideration": "all_cash"}
     s = score_maud(pred, GT)
     assert s["maud_answered"] == 1 and s["maud_correct"] == 1   # only the enum backfill counts
+
+
+def test_corpus_typo_fundermental_matches_fundamental():
+    gt = json.dumps({"Accuracy of Target R&W Closing Condition":
+                     {"answer": "General R&Ws, Fundermental/Special R&Ws", "valid_classes": []}})
+    s = score_maud({"maud_clauses": ["Accuracy of Target R&W Closing Condition: "
+                                     "General R&Ws, fundamental/Special R&Ws"]}, gt)
+    assert s["maud_correct"] == 1
+
+
+def test_clean_subset_counts_only_single_subquestion_items():
+    # No-Shop collapses several MAUD sub-questions in the corpus; Type of Consideration does not.
+    s = score_maud({"maud_clauses": ["Type of Consideration: All Cash", "No-Shop: Yes"]}, GT)
+    assert (s["maud_clean_questions"], s["maud_clean_correct"]) == (1, 1)
+    assert s["maud_clean_accuracy"] == 1.0
