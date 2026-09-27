@@ -227,6 +227,14 @@ class LogBuffer:
             return self._lines[-1] if self._lines else None
 
 
+NOISE = re.compile(r'"GET /(metrics|v1/models|health)|GET /(metrics|v1/models|health) ->')
+
+
+def display_tail(buf: "LogBuffer", n: int) -> list[str]:
+    """On-screen tail without our own /metrics + probe chatter (file keeps all)."""
+    return [line for line in buf.tail(n * 20) if not NOISE.search(line)][-n:]
+
+
 # ── scorecard ───────────────────────────────────────────────────────────────
 def scorecard_lines(store: RunStore, *, serving_dir: Path, width: int = 100, on: bool = False) -> list[str]:
     """Post-run scorecard: items (quality) + serving record (speed/cost) + /metrics."""
@@ -477,7 +485,7 @@ def watch(
             frame = render_frame(
                 snapshot=snap,
                 app=app,
-                log_lines=sink.tail(14),
+                log_lines=display_tail(sink, 14),
                 spend={"spent_usd": spent, "live_usd": live, "cap_usd": cap_usd},
                 width=shutil.get_terminal_size((100, 40)).columns,
                 on=pl.use_color(sys.stdout),
