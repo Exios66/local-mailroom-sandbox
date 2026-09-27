@@ -13,7 +13,9 @@
   .viz .title { fill: var(--ink); font-size: 15px; font-weight: 600; }
   .viz .sub { fill: var(--ink2); font-size: 12px; }
   .viz .lbl { fill: var(--ink2); font-size: 12px; }
-  .viz .val { fill: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .viz .val { fill: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums;
+    paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+  .viz .reflbl { paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
   .viz .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
   .viz .grid { stroke: var(--grid); stroke-width: 1; }
   .viz .axis { stroke: var(--axis); stroke-width: 1; }
