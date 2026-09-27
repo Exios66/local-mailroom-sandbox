@@ -545,3 +545,43 @@ def test_live_sorter_unknown_doc_type_raises(tmp_path, monkeypatch):
     )
     with pytest.raises(RuntimeError, match="no real doc_type"):
         runner._predict_row("sorter", row, mock=False, model=None, run_id="x")
+
+
+# ── SAND-032: replica-aware live caps ────────────────────────────────────────
+
+
+def test_lock_replicas_reads_max_containers(tmp_path):
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.runner import _lock_replicas
+
+    two = RunStore(tmp_path / "two")
+    two.write_lock({"engine": {"modal": {"gpu": "L4", "max_containers": 2}}})
+    assert _lock_replicas(two) == 2
+    one = RunStore(tmp_path / "one")  # locks are write-once — separate store
+    one.write_lock({"engine": {"modal": {"gpu": "L4"}}})
+    assert _lock_replicas(one) == 1
+
+
+def test_run_gpu_estimate_scales_by_lock_replicas(tmp_path, monkeypatch):
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.runner import _estimate_run_gpu_usd
+
+    monkeypatch.delenv("MODAL_GPU_USD_PER_HOUR", raising=False)
+    monkeypatch.delenv("MODAL_GPU_USD_PER_SEC", raising=False)
+    one = RunStore(tmp_path / "one")
+    one.write_lock({"engine": {"modal": {"gpu": "L4", "max_containers": 1}}})
+    two = RunStore(tmp_path / "two")
+    two.write_lock({"engine": {"modal": {"gpu": "L4", "max_containers": 2}}})
+    import pytest
+
+    assert _estimate_run_gpu_usd(two, 300) == pytest.approx(2 * _estimate_run_gpu_usd(one, 300), abs=2e-6)
+
+
+def test_isolated_guard_scales_by_replicas(monkeypatch):
+    """A $0.10 cap trips at 450 s on one L4 but 225 s on two ($0.80/hr)."""
+    from mailroom_sandbox.job import metrics
+
+    monkeypatch.delenv("MODAL_GPU_USD_PER_HOUR", raising=False)
+    monkeypatch.delenv("MODAL_GPU_USD_PER_SEC", raising=False)
+    assert metrics.estimate_gpu_cost_usd(300, gpu="L4") < 0.10
+    assert metrics.estimate_gpu_cost_usd(300, gpu="L4", replicas=2) >= 0.10
