@@ -14,6 +14,15 @@ from mailroom_sandbox.paths import repo_root, vendor_dir
 from mailroom_sandbox.runtime import activate, resolve_dojo_src, resolve_mailroom_src
 
 
+
+def _activation_model(spec, cli_model):
+    """SAND-032: graph tasks (sorter) must call the model the run YAML serves.
+
+    Activating with only the profile default sent `Qwen/Qwen3-8B` to an AWQ
+    fleet (vLLM 404 on every request). An explicit --model still wins.
+    """
+    return cli_model or (spec.engine.model if getattr(spec, "engine", None) else None)
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -2089,7 +2098,7 @@ def _cmd_run_start(args) -> int:
     # graph's doc_type="unknown" default — a 50-item "run" then "completes" in
     # seconds with 0.0 scores, ok=True rows, and zero endpoint calls (the
     # silent-fallback trap; now also hard-guarded in runner._predict_row).
-    activate(spec.profile, model=getattr(args, "model", None), agent_models=_agent_models(args))
+    activate(spec.profile, model=_activation_model(spec, getattr(args, "model", None)), agent_models=_agent_models(args))
     if getattr(args, "mock", None) is not None or getattr(args, "local", None) is not None:
         spec.job.mock = bool(args.mock)
     report = preflight.preflight(
@@ -2268,7 +2277,8 @@ def _cmd_run_resume(args) -> int:
     if getattr(args, "config", None):
         from mailroom_sandbox.job.spec import load_run_spec
 
-        activate(load_run_spec(args.config).profile, model=getattr(args, "model", None), agent_models=_agent_models(args))
+        _spec = load_run_spec(args.config)
+        activate(_spec.profile, model=_activation_model(_spec, getattr(args, "model", None)), agent_models=_agent_models(args))
     store = RunStore(run_dir(run_id))
     if not store.read_lock():
         _print({"run_id": run_id, "error": "no locked run to resume"})
