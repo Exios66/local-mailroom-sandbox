@@ -70,9 +70,10 @@ serving:
       quantization: compressed-tensors
       max_model_len: 32768
       extra_env:
-        MODAL_VLLM_REASONING_PARSER: granite_thinking_parser
-        MODAL_VLLM_TOOL_CALL_PARSER: qwen3_coder
-        MODAL_VLLM_ENABLE_AUTO_TOOL_CHOICE: "1"
+        # v0.29.0 has no `granite_thinking_parser` (KeyError boot crash) — the
+        # native `granite` parser is the verified pin. No tool parser: the
+        # specialist extract path uses no tool calls.
+        MODAL_VLLM_REASONING_PARSER: granite
     second-l4-dp:
       max_containers: 2
     scale-short-doc:
@@ -340,9 +341,7 @@ runbooks:
     assert_engine: false
     skip_check: true
     extra_env:
-      MODAL_VLLM_REASONING_PARSER: granite_thinking_parser
-      MODAL_VLLM_TOOL_CALL_PARSER: qwen3_coder
-      MODAL_VLLM_ENABLE_AUTO_TOOL_CHOICE: "1"
+      MODAL_VLLM_REASONING_PARSER: granite
     steps:
       - env
       - activate_profile
@@ -358,7 +357,8 @@ runbooks:
       - Confirm /v1/models data[0].id is ibm-granite/granite-4.2-8b-fp8
       - Confirm the replica booted at max_model_len=32768 (bf16 Granite 32k fails on 1×L4)
       - One structured-output json_object completion succeeds
-      - Thinking spans are separable (granite_thinking_parser; plugin fallback on v0.29.0)
+      - Thinking spans are separable (native `granite` parser on v0.29.0;
+        `granite_thinking_parser` needs vLLM >= 0.30 and crash-loops the pinned image)
     notes:
       - sandbox run benchmark-check accepts the five run-20-*-granite 1×L4 pinned configs (GRANITE_ONE_GPU_RUNS); Qwen defaults unchanged.
       - After smoke, copy run-30-*-specialist.yaml and set engine.model / vllm.max_model_len / quantization to this variant before --live preflight.

@@ -1,6 +1,6 @@
 # Granite sweep 1/5 — contracts_specialist on 20 CONTRACT docs (FP8, 1×L4).
 # Subclass quotas scaled 2/3 from run-30-contracts-specialist (6→4 / 3→2).
-# Engine/posture twins run-20-contracts-awq-c8 at concurrency 8, but on
+# Engine/posture twins run-20-contracts-awq-c8 (HALT: concurrency 3, was 8), but on
 # ibm-granite/granite-4.2-8b-fp8 (compressed-tensors W8A8, 32768 window —
 # the L4 workhorse row in config/models.yaml; no AWQ exists for granite-4.2
 # and bf16 32k FAILS on 1×L4). MIN=MAX=1 pinned warm across the Granite
@@ -84,7 +84,7 @@ job:
   mock: false
   max_retries: 2
   fail_fast: false
-  concurrency: 8              # legacy completion posture (matches Qwen AWQ c8 twin)
+  concurrency: 3              # HALT revision: c=3 (KV math + DMR-072; was 8)
   cost_cap_usd: 0.55          # same as run-20-contracts-awq-c8
   max_wall_seconds: 3200      # same as run-20-contracts-awq-c8
 

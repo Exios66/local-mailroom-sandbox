@@ -466,11 +466,11 @@ Ordered configs:
 - Confirm /v1/models data[0].id is ibm-granite/granite-4.2-8b-fp8
 - Confirm the replica booted at max_model_len=32768 (bf16 Granite 32k fails on 1×L4)
 - One structured-output json_object completion succeeds
-- Thinking spans are separable (granite_thinking_parser; plugin fallback on v0.29.0)
+- Thinking spans are separable (native `granite` parser on v0.29.0; `granite_thinking_parser` needs vLLM >= 0.30 and crash-loops the pinned image)
 
 ## Notes
 
-- sandbox run benchmark-check is Qwen-only. Skip it for Granite.
+- sandbox run benchmark-check accepts the five run-20-*-granite 1×L4 pinned configs (GRANITE_ONE_GPU_RUNS); Qwen defaults unchanged.
 - After smoke, copy run-30-*-specialist.yaml and set engine.model / vllm.max_model_len / quantization to this variant before --live preflight.
 - Draw one 100-row bucket per class (seed 42) and slice 20/50 — do not re-draw.
 - OpenRouter twin id is ibm-granite/granite-4.2-8b (same string as the HF bf16 repo). Reports must say the Modal leg served -fp8.
@@ -506,9 +506,7 @@ export MODAL_VLLM_MIN_CONTAINERS=0
 export MODAL_VLLM_SCALEDOWN_SECONDS=120
 export MODAL_VLLM_QUANTIZATION=compressed-tensors
 export MODAL_VLLM_TP_SIZE=1
-export MODAL_VLLM_REASONING_PARSER=granite_thinking_parser
-export MODAL_VLLM_TOOL_CALL_PARSER=qwen3_coder
-export MODAL_VLLM_ENABLE_AUTO_TOOL_CHOICE=1
+export MODAL_VLLM_REASONING_PARSER=granite
 export MODAL_VLLM_API_TOKEN="${MODAL_VLLM_API_TOKEN:-$(openssl rand -hex 24)}"
 
 modal profile activate "${SANDBOX_MODAL_PROFILE_TRACK_A:-hermes-agent-jjb}"
@@ -527,7 +525,7 @@ sandbox health --profile modal-vllm
 # smoke: Confirm /v1/models data[0].id is ibm-granite/granite-4.2-8b-fp8
 # smoke: Confirm the replica booted at max_model_len=32768 (bf16 Granite 32k fails on 1×L4)
 # smoke: One structured-output json_object completion succeeds
-# smoke: Thinking spans are separable (granite_thinking_parser; plugin fallback on v0.29.0)
+# smoke: Thinking spans are separable (native `granite` parser on v0.29.0; `granite_thinking_parser` needs vLLM >= 0.30 and crash-loops the pinned image)
 
 ./deploy/teardown_vllm.sh   # ONLY after the this run
 ```

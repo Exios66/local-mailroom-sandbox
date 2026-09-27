@@ -111,12 +111,11 @@ ENABLE_PREFIX_CACHING = os.environ.get("MODAL_VLLM_ENABLE_PREFIX_CACHING", "1")
 ENFORCE_EAGER = os.environ.get("MODAL_VLLM_ENFORCE_EAGER", "1")
 ATTENTION_BACKEND = os.environ.get("MODAL_VLLM_ATTENTION_BACKEND", "")
 ASYNC_SCHEDULING = os.environ.get("MODAL_VLLM_ASYNC_SCHEDULING", "")
-# SAND-027: reasoning / tool-call parsers. Empty = vLLM default (Qwen path is
-# unchanged). Granite-4.2 needs `--reasoning-parser granite_thinking_parser`
-# (native on vLLM >= 0.30; on the pinned v0.29.0-era image fall back to IBM's
-# plugin via MODAL_VLLM_REASONING_PARSER_PLUGIN) and tool calling via the
-# qwen3_coder parser. The deploy smoke (SAND-027-6) verifies these on the
-# actually-pinned image tag before the Granite matrix runs.
+# SAND-027: reasoning parser. Empty = vLLM default (Qwen path is
+# unchanged). Granite-4.2 serves with the NATIVE `--reasoning-parser granite`
+# on the pinned v0.29.0 image (`granite_thinking_parser` needs vLLM >= 0.30
+# and crash-loops 0.29.0 at engine init — KeyError). No tool parser: the
+# specialist extract path uses no tool calls.
 REASONING_PARSER = os.environ.get("MODAL_VLLM_REASONING_PARSER", "")
 REASONING_PARSER_PLUGIN = os.environ.get("MODAL_VLLM_REASONING_PARSER_PLUGIN", "")
 TOOL_CALL_PARSER = os.environ.get("MODAL_VLLM_TOOL_CALL_PARSER", "")
