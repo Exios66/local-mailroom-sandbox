@@ -8,7 +8,13 @@
 ## 1. Intent
 
 **Why:** this self-funded pilot produces the evidence for a **funding request to our industry partner
-(AmFam)** to continue the research. The forward ask is at least **$200**, and plausibly several hundred
+(AmFam)**, the capstone partner for a master's capstone project, to continue the research.
+
+**Data provenance:** every run uses only the **public** Hugging Face dataset
+`Lucius-Morningstar/mailroom-dataset`. We have **no access to proprietary AmFam data and no
+data-sharing agreement**. Nothing in this program, including the proposal, may imply otherwise. The
+proposal frames the funded work as research on public/synthetic data, whose findings AmFam can
+apply internally. The forward ask is at least **$200**, and plausibly several hundred
 dollars more. Every cost figure must therefore be *billed-reconciled and defensible*, not estimated.
 The funded phase would cover full-corpus runs, model comparisons and prompt/quality optimization
 (§5a).
@@ -25,7 +31,8 @@ Serve Qwen3-8B on Modal + vLLM v0.29.0 on L4 GPUs as cheaply as possible, withou
   4. An AWQ-vs-bf16 quality delta from one isolated arm.
 - **Constants:** AWQ weights (`Qwen/Qwen3-8B-AWQ`), vLLM image v0.29.0, `max_model_len` 32768,
   `gpu_memory_utilization` 0.90, prefix caching on, prompts pinned by SHA, dataset revision
-  `46a4d3c240a36671cde0182fff4960f6b8b73aca`, seed 42.
+  = the current `FAMILY_HF_REVISION` pin (v9.1, `ed7576b676343e0b402ec5412cded301e629bdee`), seed 42.
+  Earlier runs used `46a4d3c2`, so comparisons with them are indicative only, not paired.
 - **Fixed by decision:** **`kv_cache_dtype=fp8` on every 2×L4 run** and on the 1-replica
   scale-out baseline.
 
@@ -58,6 +65,16 @@ Serve Qwen3-8B on Modal + vLLM v0.29.0 on L4 GPUs as cheaply as possible, withou
    - Correspondence test split has only 62 rows, so the draws use `split: all` (every class has ≥152 rows).
    - The sampler is not nested (issue #38), so draw 100 per class once and slice 20/50 from it.
    - Contracts has no extraction ground truth, so contracts results are serving-only.
+8. **Latest 1×L4 c8 AWQ runs (origin/main 08f43e3):**
+   - **corporate_records n=20:** 20/20 ok, score 0.4231, schema_valid 0.95, ~$0.0076/doc busy.
+   - **merger n=20:** 15/20 ok, run through `contracts_specialist`. That agent confound gives a score of
+     0.0 against MAUD ground truth.
+     - It had **5 `OpenAIConnectionError` drops at c8** on the longest docs (proxy saturation).
+     - It had a **~102-min command span vs a 740 s busy wall**, from client timeout/backoff inflation.
+   - Implications:
+     - Busy-wall cost can badly understate billed cost.
+     - Proxy/connection behavior must be fixed before c16.
+     - Stage 3 must use `merger_agreement_specialist` (AGENTS.md 1:1 mapping).
 7. **Vendor trees are byte-locked** by `tests/test_vendor_drift.py`. No vendor edits; all changes live
    in `src/mailroom_sandbox/`, `deploy/`, `config/`.
 
@@ -81,6 +98,7 @@ Serve Qwen3-8B on Modal + vLLM v0.29.0 on L4 GPUs as cheaply as possible, withou
 | Nested sampling | One seed-42, 100-row manifest per class under `data/runtime/`; run configs reference a slice (`first 20`, `first 50`) | dataset/sampling module |
 | Offline BT experiments | `data/runtime/bt_experiments/<run_id>/experiment.json` + `rows.jsonl` in Braintrust Experiment row shape (`id`, `input`, `output`, `expected`, `scores`, `metrics`, `metadata`), with every serving knob + git commit in metadata. Gitignored. No upload. `sandbox run dispose <run_id>` deletes it after the report is committed | new module under `src/mailroom_sandbox/` |
 | Run configs | Ladder L0–L5, `run-100-correspondence-1rep`, `run-100-correspondence-2rep`, `run-50-{correspondence,insurance,corporate-records,merger,contracts}-2rep`, `run-20-correspondence-bf16`; Stage-3 suite YAML; allow-listed in `benchmark_check.py`, which also asserts `kv_cache_dtype=fp8` for Stage 2–3 | `config/runs/`, `job/benchmark_check.py` |
+| Proxy robustness | Diagnose the c8 connection drops before any c16 run. Check whether `serve()` needs `@modal.concurrent(max_inputs=…)` (currently absent), and align client timeouts and retries so backoff cannot inflate the billed span. Record the *billed span* (first request → container idle/stop) next to busy wall on every run | `deploy/modal_vllm.py`, client/retry config |
 | Governance | Open SAND-032 on the local board | `governance/TASKS.md` |
 
 **Pre-spend check:** a CPU-only `modal run` of `vllm serve --help` on the v0.29.0 image confirms the
@@ -123,7 +141,7 @@ Order:
 1. correspondence n=50 (a slice of the 100; consistency check against 2b)
 2. insurance_claims n=50
 3. corporate_records n=50
-4. merger_agreement n=50
+4. merger_agreement n=50 (**`merger_agreement_specialist`**, not the contracts agent)
 5. contracts n=50 (serving metrics only)
 6. **correspondence n=50 repeat** (same slice, same warm fleet, ~$0.12). Gives the run-to-run variance
    that the funding projections' error bars need.
@@ -175,7 +193,10 @@ does not access the account.
    (e.g. 20%) for failed runs and re-boots, drawing on the historical failure rate in `reports/`.
 6. **Evidence appendix:** what the pilot established (ladder gains, scale-out benefit, 5-class
    scorecard, AWQ-vs-bf16 delta), with links to the committed reports.
-7. **Prior investment (optional):** one summary line, "researchers have self-funded ~$X to date".
+7. **Data statement:** all measurements come from the public HF `mailroom-dataset`; no AmFam or other
+   proprietary data was used or is required. Any future use of partner data would need a separate
+   data-sharing agreement and is outside this budget.
+8. **Prior investment (optional):** one summary line, "researchers have self-funded ~$X to date".
    The user supplies the figure or the line is omitted. There is no itemization.
 
 The proposal's claims go through the `adversarial-reviewer` pass along with the other reports.
