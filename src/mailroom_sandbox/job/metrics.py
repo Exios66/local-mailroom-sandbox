@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import statistics
 from datetime import datetime
@@ -117,15 +118,28 @@ def gpu_usd_per_hour(gpu: str | None = None) -> float:
     return DEFAULT_GPU_USD_PER_HOUR["L4"]
 
 
+def p95(values: Sequence[float]) -> float:
+    """Nearest-rank 95th percentile (no interpolation — defensible in reports)."""
+    ordered = sorted(float(v) for v in values)
+    if not ordered:
+        raise ValueError("p95 of empty sequence")
+    rank = max(1, math.ceil(0.95 * len(ordered)))
+    return ordered[rank - 1]
+
+
 def estimate_gpu_cost_usd(
     gpu_seconds: float,
     *,
     gpu: str | None = None,
+    replicas: int = 1,
 ) -> float | None:
-    """USD for ``gpu_seconds`` of billed/busy time at the configured rate."""
+    """USD for ``gpu_seconds`` of wall on ``replicas`` concurrently-billed GPUs.
+
+    SAND-032: pinned MIN=MAX data-parallel replicas each bill the full wall.
+    """
     if gpu_seconds is None or gpu_seconds <= 0:
         return None
-    rate = gpu_usd_per_hour(gpu)
+    rate = gpu_usd_per_hour(gpu) * max(1, int(replicas))
     return round(gpu_seconds / 3600.0 * rate, 6)
 
 
@@ -435,12 +449,16 @@ def enrich_serving_report(
     cold_boot_seconds: float | None = None,
     gpu: str | None = None,
     scores: Mapping[str, Any] | None = None,
+    replicas: int = 1,
+    scaledown_seconds: float | None = None,
 ) -> dict[str, Any]:
     """Extend a ``record_from_run`` dict with wall/concurrency/latency_sum fields.
 
     Also adds the SAND-028-1 idle-fraction block when wall and latency sums exist.
     """
     out = dict(record)
+    replicas = max(1, int(replicas or 1))
+    out["replicas"] = replicas
     if scores:
         out["scores"] = dict(scores)
     ok_items = [i for i in items if i.get("ok", True) is not False]
@@ -467,6 +485,7 @@ def enrich_serving_report(
             "latency_max_seconds",
             round(max(latencies_ms) / 1000.0, 6),
         )
+        out.setdefault("latency_p95_seconds", round(p95(latencies_ms) / 1000.0, 6))
     if wall_seconds is not None and wall_seconds > 0:
         out["wall_seconds"] = round(float(wall_seconds), 3)
     if conc > 1:
@@ -491,7 +510,17 @@ def enrich_serving_report(
             float(cold_boot_seconds) if cold_boot_seconds is not None else 0.0
         )
         out["gpu_seconds"] = round(billed, 3)
-        gpu_cost = estimate_gpu_cost_usd(billed, gpu=gpu_class)
+        gpu_cost = estimate_gpu_cost_usd(billed, gpu=gpu_class, replicas=replicas)
+        # SAND-032: LOWER bound on what Modal bills for this run — boot + wall
+        # (+ scale-down tail for scale-to-zero fleets; pinned MIN=MAX fleets pass
+        # scaledown_seconds=None), on every replica. Pre-run warm time and idle
+        # gaps between suite configs are NOT included: the Modal usage page is
+        # the ground truth and is reconciled in the spend ledger.
+        span = billed + float(scaledown_seconds or 0.0)
+        out["run_span_seconds_lower_bound"] = round(span, 3)
+        out["run_span_usd_lower_bound"] = estimate_gpu_cost_usd(
+            span, gpu=gpu_class, replicas=replicas
+        )
         if gpu_cost is not None:
             out["estimated_gpu_cost_usd"] = gpu_cost
             n_ok = len(ok_items) or int(out.get("n") or 0)
@@ -509,11 +538,13 @@ def enrich_serving_report(
         out["slot_utilization"] = round(busy_slot / float(wall_seconds), 4)
         idle_container = max(0.0, float(wall_seconds) - busy_slot)
         out["idle_container_seconds"] = round(idle_container, 3)
-        idle_usd = estimate_gpu_cost_usd(idle_container, gpu=gpu_class)
+        idle_usd = estimate_gpu_cost_usd(idle_container, gpu=gpu_class, replicas=replicas)
         if idle_usd is not None:
             out["idle_estimated_usd"] = idle_usd
         if cold_boot_seconds is not None:
-            boot_usd = estimate_gpu_cost_usd(float(cold_boot_seconds), gpu=gpu_class)
+            boot_usd = estimate_gpu_cost_usd(
+                float(cold_boot_seconds), gpu=gpu_class, replicas=replicas
+            )
             if boot_usd is not None:
                 out["boot_estimated_usd"] = boot_usd
 
@@ -572,6 +603,14 @@ def serving_record_from_store(
         cold_boot_seconds=cold_boot_seconds,
         gpu=gpu,
         scores=scores,
+        replicas=max(1, int(modal.get("max_containers") or 1)),
+        # Pinned MIN=MAX fleets never scale down, so no tail is added.
+        scaledown_seconds=(
+            None
+            if int(modal.get("min_containers") or 0) >= max(1, int(modal.get("max_containers") or 1))
+            or modal.get("scaledown_seconds") is None
+            else float(modal["scaledown_seconds"])
+        ),
     )
 
 

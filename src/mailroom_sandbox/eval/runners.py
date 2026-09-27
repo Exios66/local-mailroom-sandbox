@@ -141,6 +141,8 @@ def run_isolated_eval(
     cost_cap_usd: float | None = None,
     gpu: str | None = None,
     progress_cb: Any = None,
+    replicas: int = 1,
+    row_cb: Any = None,
 ) -> dict[str, Any]:
     """Run one live agent / node against fixtures, nested under document-pipeline.
 
@@ -268,7 +270,9 @@ def run_isolated_eval(
         if cost_cap_usd is not None:
             from mailroom_sandbox.job.metrics import estimate_gpu_cost_usd
 
-            est = float(estimate_gpu_cost_usd(wall, gpu=gpu or "L4") or 0.0)
+            est = float(
+                estimate_gpu_cost_usd(wall, gpu=gpu or "L4", replicas=replicas) or 0.0
+            )
             if est >= float(cost_cap_usd):
                 raise RuntimeError(
                     f"isolated eval aborted: cost_cap_usd={cost_cap_usd} exceeded "
@@ -280,6 +284,13 @@ def run_isolated_eval(
     def _record(index: int, entry: dict[str, Any]) -> None:
         per_row[index] = entry
         _absorb(entry)
+        # SAND-032: stream each finished row to the caller (main thread) so a
+        # later cap abort / raise cannot drop rows whose GPU time was paid.
+        if row_cb is not None:
+            try:
+                row_cb(entry)
+            except Exception as exc:  # noqa: BLE001 — persistence must never break a run
+                _log.warning("row_cb raised — per-doc evidence may be incomplete: %s", exc)
         # SAND-018: the isolated path used to be silent until the end — no
         # running checkpoint, no events — so a live run looked stalled.
         if progress_cb is not None:
@@ -352,6 +363,9 @@ def run_isolated_eval(
         record["e2e_latency_seconds"] = round(statistics.mean(latencies) / 1000.0, 6)
         record["latency_p50_seconds"] = round(statistics.median(latencies) / 1000.0, 6)
         record["latency_max_seconds"] = round(max(latencies) / 1000.0, 6)
+        from mailroom_sandbox.job.metrics import p95
+
+        record["latency_p95_seconds"] = round(p95(latencies) / 1000.0, 6)
     if prompt_tokens:
         record["prompt_tokens"] = prompt_tokens
     if completion_tokens:
@@ -374,7 +388,8 @@ def run_isolated_eval(
         billed_seconds = wall_seconds + (
             float(cold_boot_seconds) if cold_boot_seconds is not None else 0.0
         )
-        gpu_cost = estimate_gpu_cost_usd(billed_seconds, gpu=gpu or "L4")
+        gpu_cost = estimate_gpu_cost_usd(billed_seconds, gpu=gpu or "L4", replicas=replicas)
+        record["replicas"] = max(1, int(replicas))
         if gpu_cost is not None:
             record["gpu_seconds"] = round(billed_seconds, 3)
             record["estimated_gpu_cost_usd"] = gpu_cost

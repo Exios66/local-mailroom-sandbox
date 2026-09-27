@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="viz" viewBox="0 0 720 188" width="720" height="188" role="img" aria-label="Mean overall extraction score by subclass · sand032-s3-merger50">
+
+<style>
+  .viz { font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    --surface:#fcfcfb; --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
+    --grid:#e1e0d9; --axis:#c3c2b7; --s1:#2a78d6; --s2:#eb6834; --deemph:#c3c2b7;
+    --good:#0ca30c; --critical:#d03b3b; }
+  @media (prefers-color-scheme: dark) {
+    .viz { --surface:#1a1a19; --ink:#ffffff; --ink2:#c3c2b7; --muted:#898781;
+      --grid:#2c2c2a; --axis:#383835; --s1:#3987e5; --s2:#d95926; --deemph:#52514e; }
+  }
+  .viz .bg { fill: var(--surface); }
+  .viz .title { fill: var(--ink); font-size: 15px; font-weight: 600; }
+  .viz .sub { fill: var(--ink2); font-size: 12px; }
+  .viz .lbl { fill: var(--ink2); font-size: 12px; }
+  .viz .val { fill: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums;
+    paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+  .viz .reflbl { paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+  .viz .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .viz .grid { stroke: var(--grid); stroke-width: 1; }
+  .viz .axis { stroke: var(--axis); stroke-width: 1; }
+  .viz .ref { stroke: var(--ink2); stroke-width: 1; }
+  .viz .reflbl { fill: var(--ink2); font-size: 11px; }
+  .viz .s1 { fill: var(--s1); } .viz .s2 { fill: var(--s2); }
+  .viz .ln1 { stroke: var(--s1); } .viz .ln2 { stroke: var(--s2); }
+  .viz .deemph { fill: var(--deemph); }
+  .viz .conn { stroke: var(--axis); stroke-width: 2; }
+  .viz .ring { stroke: var(--surface); stroke-width: 2; }
+</style>
+
+<rect class="bg" width="720" height="188" rx="8"/>
+<text class="title" x="16" y="24">Mean overall extraction score by subclass · sand032-s3-merger50</text>
+<text class="sub" x="16" y="42">overall mean 0.0396 across 44 docs (0–1, higher is better)</text>
+<line class="grid" x1="190.0" y1="54" x2="190.0" y2="154"/>
+<text class="tick" x="190.0" y="170" text-anchor="middle">0</text>
+<line class="grid" x1="343.3" y1="54" x2="343.3" y2="154"/>
+<text class="tick" x="343.3" y="170" text-anchor="middle">0.02</text>
+<line class="grid" x1="496.7" y1="54" x2="496.7" y2="154"/>
+<text class="tick" x="496.7" y="170" text-anchor="middle">0.04</text>
+<line class="grid" x1="650.0" y1="54" x2="650.0" y2="154"/>
+<text class="tick" x="650.0" y="170" text-anchor="middle">0.06</text>
+<line class="axis" x1="190" y1="54" x2="190" y2="154"/>
+<text class="lbl" x="182" y="74.0" text-anchor="end">all_cash (n=18)</text>
+<path class="s1" d="M190.0,63.0 H559.4 Q563.4,63.0 563.4,67.0 V73.0 Q563.4,77.0 559.4,77.0 H190.0 Z"><title>all_cash (n=18): 0.049</title></path>
+<text class="val" x="569.4" y="74.0">0.049</text>
+<text class="lbl" x="182" y="98.0" text-anchor="end">all_stock (n=11)</text>
+<path class="s1" d="M190.0,87.0 H550.9 Q554.9,87.0 554.9,91.0 V97.0 Q554.9,101.0 550.9,101.0 H190.0 Z"><title>all_stock (n=11): 0.048</title></path>
+<text class="val" x="560.9" y="98.0">0.048</text>
+<text class="lbl" x="182" y="122.0" text-anchor="end">other (n=12)</text>
+<path class="s1" d="M190.0,111.0 H366.2 Q370.2,111.0 370.2,115.0 V121.0 Q370.2,125.0 366.2,125.0 H190.0 Z"><title>other (n=12): 0.024</title></path>
+<text class="val" x="376.2" y="122.0">0.024</text>
+<text class="lbl" x="182" y="146.0" text-anchor="end">mixed_cash_stock (n=3)</text>
+<path class="s1" d="M190.0,135.0 H345.5 Q349.5,135.0 349.5,139.0 V145.0 Q349.5,149.0 345.5,149.0 H190.0 Z"><title>mixed_cash_stock (n=3): 0.021</title></path>
+<text class="val" x="355.5" y="146.0">0.021</text>
+</svg>

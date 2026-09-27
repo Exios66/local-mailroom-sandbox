@@ -14,6 +14,15 @@ from mailroom_sandbox.paths import repo_root, vendor_dir
 from mailroom_sandbox.runtime import activate, resolve_dojo_src, resolve_mailroom_src
 
 
+
+def _activation_model(spec, cli_model):
+    """SAND-032: graph tasks (sorter) must call the model the run YAML serves.
+
+    Activating with only the profile default sent `Qwen/Qwen3-8B` to an AWQ
+    fleet (vLLM 404 on every request). An explicit --model still wins.
+    """
+    return cli_model or (spec.engine.model if getattr(spec, "engine", None) else None)
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -364,6 +373,33 @@ def build_parser() -> argparse.ArgumentParser:
 
     _run_parser(sub, shared)
 
+    watch_p = sub.add_parser(
+        "watch",
+        help="mailroom TUI: live run in-tray + spend + Modal dispatch log (SAND-032)",
+        parents=[shared],
+    )
+    watch_p.add_argument("--config", default=None, help="run YAML to watch")
+    watch_p.add_argument(
+        "--follow", default=None,
+        help="file holding the CURRENT run YAML path; re-read every frame",
+    )
+    watch_p.add_argument("--app", default=None, help="Modal app (default: engine.modal.app)")
+    watch_p.add_argument("--ledger", default=None, help="spend ledger JSON ({spent_usd})")
+    watch_p.add_argument("--cap-usd", type=float, default=5.0)
+    watch_p.add_argument("--interval", type=float, default=2.0)
+    watch_p.add_argument("--once", action="store_true", help="render one frame and exit")
+    watch_p.add_argument("--no-logs", action="store_true", help="do not follow modal app logs")
+    watch_p.set_defaults(handler=_cmd_watch)
+
+    score_p = sub.add_parser(
+        "scorecard",
+        help="mailroom TUI scorecard for a finished run (SAND-032)",
+        parents=[shared],
+    )
+    score_p.add_argument("--run", dest="run_id", required=True, help="run id (e.g. sand032-l0-baseline)")
+    score_p.add_argument("--serving-dir", default=None, help="default: reports/serving")
+    score_p.set_defaults(handler=_cmd_scorecard)
+
     rb = sub.add_parser(
         "runbook",
         help="Operator runbooks (catalog → show / check / write)",
@@ -607,6 +643,11 @@ def _run_parser(sub, shared):
         help="benchmark-check: require Hermes Modal profile (default on)",
     )
     common.add_argument(
+        "--modal-profile",
+        default=None,
+        help="benchmark-check: required active Modal profile (e.g. exios66); overrides Hermes",
+    )
+    common.add_argument(
         "--allow-non-hermes",
         action="store_true",
         help="benchmark-check: skip Hermes profile requirement",
@@ -635,6 +676,32 @@ def _run_parser(sub, shared):
         help="loud Modal L4 Qwen reproducibility gate (Hermes profile, pins)",
     )
     bcheck.set_defaults(handler=_cmd_run_benchmark_check)
+    denv = run_sub.add_parser(
+        "deploy-env",
+        parents=[common],
+        help="print the MODAL_VLLM_* exports a run YAML implies (SAND-032)",
+    )
+    denv.set_defaults(handler=_cmd_run_deploy_env)
+    scrape_p = run_sub.add_parser(
+        "scrape-metrics",
+        parents=[common],
+        help="sample vLLM /metrics per replica into the run dir (SAND-032)",
+    )
+    scrape_p.add_argument("--label", choices=["before", "after"], required=True)
+    scrape_p.set_defaults(handler=_cmd_run_scrape_metrics)
+    export_bt = run_sub.add_parser(
+        "export-bt",
+        parents=[common],
+        help="write offline Braintrust-Experiment-shaped rows (gitignored; SAND-032)",
+    )
+    export_bt.set_defaults(handler=_cmd_run_export_bt)
+    dispose_p = run_sub.add_parser(
+        "dispose",
+        parents=[common],
+        help="delete a run's offline BT rows once its report is tracked in git",
+    )
+    dispose_p.add_argument("--report", required=True)
+    dispose_p.set_defaults(handler=_cmd_run_dispose)
     suite_p = run_sub.add_parser(
         "suite",
         parents=[common],
@@ -1602,13 +1669,14 @@ def _cmd_run_benchmark_check(args) -> int:
     from mailroom_sandbox.job.spec import load_run_spec
 
     suite_name = (getattr(args, "suite", None) or "").strip()
-    require_hermes = not bool(getattr(args, "allow_non_hermes", False))
+    modal_profile = (getattr(args, "modal_profile", None) or "").strip() or None
+    require_hermes = not bool(getattr(args, "allow_non_hermes", False)) and modal_profile is None
     if suite_name:
         report = check_suite_benchmark_posture(
             suite_name,
             require_hermes=require_hermes,
             require_modernbert=False,
-        )
+        )  # suite YAML carries its own Modal profile (sand032-sweep → exios66)
     else:
         spec = None
         if getattr(args, "config", None):
@@ -1617,6 +1685,7 @@ def _cmd_run_benchmark_check(args) -> int:
             spec=spec,
             require_hermes=require_hermes,
             require_modernbert=False,
+            expected_modal_profile=modal_profile,
         )
     if getattr(args, "json", False):
         _print(report)
@@ -1625,6 +1694,141 @@ def _cmd_run_benchmark_check(args) -> int:
         for err in report.get("errors") or []:
             print(f"ERROR: {err}", file=sys.stderr)
     return 0 if report.get("ok") else 1
+
+
+def _cmd_run_deploy_env(args) -> int:
+    """SAND-032: YAML is the source of truth for deploy knobs — render it."""
+    from mailroom_sandbox.job.deploy_env import render_exports
+    from mailroom_sandbox.job.spec import load_run_spec
+
+    if not getattr(args, "config", None):
+        print("ERROR: --config required", file=sys.stderr)
+        return 2
+    sys.stdout.write(render_exports(load_run_spec(args.config)))
+    return 0
+
+
+def _cmd_run_scrape_metrics(args) -> int:
+    """SAND-032: per-replica vLLM /metrics snapshot (measured TTFT, KV, preemptions)."""
+    from mailroom_sandbox.job import spec as spec_mod
+    from mailroom_sandbox.job import vllm_metrics
+
+    if not getattr(args, "config", None):
+        print("ERROR: --config required", file=sys.stderr)
+        return 2
+    spec = spec_mod.load_run_spec(args.config)
+    expected = spec.engine.modal.max_containers if spec.engine.modal else 1
+    result = vllm_metrics.scrape(
+        spec_mod.engine_base_url(spec),
+        os.environ.get("VLLM_API_KEY", "").strip(),
+        expected=expected,
+    )
+    dest = spec_mod.runs_root() / spec_mod.resolve_run_id(spec) / f"vllm_metrics_{args.label}.json"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(json.dumps(result, indent=2, sort_keys=True), encoding="utf-8")
+    print(f"{result['coverage']} → {dest}")
+    for err in result.get("errors") or []:
+        print(f"WARN: scrape error: {err}", file=sys.stderr)
+    return 0
+
+
+def _bt_run_context(args):
+    from mailroom_sandbox import paths
+    from mailroom_sandbox.job import spec as spec_mod
+
+    spec = spec_mod.load_run_spec(args.config)
+    run_id = spec_mod.resolve_run_id(spec)
+    return run_id, spec_mod.runs_root() / run_id, paths.runtime_dir() / "bt_experiments"
+
+
+def _cmd_run_export_bt(args) -> int:
+    """SAND-032: offline evidence rows for one run (never uploaded)."""
+    from mailroom_sandbox.job import bt_offline
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    if not getattr(args, "config", None):
+        print("ERROR: --config required", file=sys.stderr)
+        return 2
+    run_id, store_dir, out_root = _bt_run_context(args)
+    if not (store_dir / "items.jsonl").is_file():
+        print(f"ERROR: run {run_id} has no items.jsonl at {store_dir}", file=sys.stderr)
+        return 1
+    commit = subprocess.run(
+        ["git", "rev-parse", "HEAD"], capture_output=True, text=True
+    ).stdout.strip()
+    out = bt_offline.write_experiment(RunStore(store_dir), out_root=out_root, git_commit=commit)
+    print(f"offline BT rows → {out}")
+    return 0
+
+
+def _cmd_run_dispose(args) -> int:
+    """SAND-032: remove offline rows only after the run's report is committed."""
+    from mailroom_sandbox.job import bt_offline
+
+    if not getattr(args, "config", None):
+        print("ERROR: --config required", file=sys.stderr)
+        return 2
+    run_id, _store_dir, out_root = _bt_run_context(args)
+    try:
+        removed = bt_offline.dispose(
+            run_id,
+            out_root=out_root,
+            report=Path(args.report),
+            is_tracked=lambda p: bt_offline.git_tracked(p),
+        )
+    except RuntimeError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+    print(f"disposed {run_id}" if removed else f"nothing to dispose for {run_id}")
+    return 0
+
+
+def _cmd_watch(args) -> int:
+    from mailroom_sandbox import watch as watch_mod
+    from mailroom_sandbox.job import spec as spec_mod
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    from mailroom_sandbox import paths
+
+    sand032 = paths.runtime_dir() / "sand032"
+    if not args.config and not args.follow and (sand032 / "current").is_file():
+        # Bare `sandbox watch`: follow the current SAND-032 run with its ledger.
+        args.follow = str(sand032 / "current")
+        if not args.ledger and (sand032 / "spend.json").is_file():
+            args.ledger = str(sand032 / "spend.json")
+    if not args.config and not args.follow:
+        print("ERROR: --config or --follow required", file=sys.stderr)
+        return 2
+
+    def resolve():
+        cfg = args.config
+        if args.follow:
+            cfg = Path(args.follow).read_text(encoding="utf-8").strip() or args.config
+        spec = spec_mod.load_run_spec(cfg)
+        app = args.app or (spec.engine.modal.app if spec.engine.modal else "sandbox-vllm")
+        return RunStore(spec_mod.runs_root() / spec_mod.resolve_run_id(spec)), app
+
+    return watch_mod.watch(
+        resolve=resolve,
+        ledger=Path(args.ledger) if args.ledger else None,
+        cap_usd=args.cap_usd,
+        once=args.once,
+        logs=not args.no_logs,
+        interval=args.interval,
+        times_dir=sand032 / "logs",
+        log_path=sand032 / "logs" / "modal-app.log",
+    )
+
+
+def _cmd_scorecard(args) -> int:
+    from mailroom_sandbox import watch as watch_mod
+    from mailroom_sandbox.job import spec as spec_mod
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.paths import reports_dir
+
+    store = RunStore(spec_mod.runs_root() / str(args.run_id))
+    serving = Path(args.serving_dir) if args.serving_dir else reports_dir() / "serving"
+    return watch_mod.print_scorecard(store, serving_dir=serving)
 
 
 def _cmd_run_suite(args) -> int:
@@ -1894,7 +2098,7 @@ def _cmd_run_start(args) -> int:
     # graph's doc_type="unknown" default — a 50-item "run" then "completes" in
     # seconds with 0.0 scores, ok=True rows, and zero endpoint calls (the
     # silent-fallback trap; now also hard-guarded in runner._predict_row).
-    activate(spec.profile, model=getattr(args, "model", None), agent_models=_agent_models(args))
+    activate(spec.profile, model=_activation_model(spec, getattr(args, "model", None)), agent_models=_agent_models(args))
     if getattr(args, "mock", None) is not None or getattr(args, "local", None) is not None:
         spec.job.mock = bool(args.mock)
     report = preflight.preflight(
@@ -2073,7 +2277,8 @@ def _cmd_run_resume(args) -> int:
     if getattr(args, "config", None):
         from mailroom_sandbox.job.spec import load_run_spec
 
-        activate(load_run_spec(args.config).profile, model=getattr(args, "model", None), agent_models=_agent_models(args))
+        _spec = load_run_spec(args.config)
+        activate(_spec.profile, model=_activation_model(_spec, getattr(args, "model", None)), agent_models=_agent_models(args))
     store = RunStore(run_dir(run_id))
     if not store.read_lock():
         _print({"run_id": run_id, "error": "no locked run to resume"})
