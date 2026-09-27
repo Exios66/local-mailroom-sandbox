@@ -364,6 +364,36 @@ def build_parser() -> argparse.ArgumentParser:
 
     _run_parser(sub, shared)
 
+    rb = sub.add_parser(
+        "runbook",
+        help="Operator runbooks (catalog → show / check / write)",
+        parents=[shared],
+    )
+    rb_sub = rb.add_subparsers(dest="runbook_cmd")
+    rb_list = rb_sub.add_parser("list", parents=[shared], help="list catalog ids")
+    rb_list.add_argument("--family", choices=["baseline", "improved"], default=None)
+    rb_list.add_argument("--json", action="store_true")
+    rb_list.set_defaults(handler=_cmd_runbook_list)
+    rb_show = rb_sub.add_parser("show", parents=[shared], help="print one operator card")
+    rb_show.add_argument("name", help="runbook id or alias (l4-qwen3-8b, awq-c8, granite…)")
+    rb_show.add_argument("--shell", action="store_true", help="print the bash script only")
+    rb_show.add_argument("--json", action="store_true")
+    rb_show.set_defaults(handler=_cmd_runbook_show)
+    rb_check = rb_sub.add_parser(
+        "check",
+        parents=[shared],
+        help="catalog vs live pins + generated docs freshness",
+    )
+    rb_check.add_argument("--json", action="store_true")
+    rb_check.set_defaults(handler=_cmd_runbook_check)
+    rb_write = rb_sub.add_parser(
+        "write",
+        parents=[shared],
+        help="regenerate docs/runbooks/ from the catalog",
+    )
+    rb_write.set_defaults(handler=_cmd_runbook_write)
+    rb.set_defaults(handler=_cmd_runbook_help)
+
     prom = sub.add_parser("prompts", help="Pipeline-agent prompt surface (local + Langfuse)", parents=[shared])
     prom_sub = prom.add_subparsers(dest="prompts_cmd")
     plug_list = prom_sub.add_parser("list", parents=[shared])
@@ -1603,7 +1633,7 @@ def _cmd_run_suite(args) -> int:
                 print(f"  {sid}")
             print(
                 "Aliases: track-a|a, track-b|b, full|all "
-                "(see docs/benchmark-l4.md)"
+                "(operator cards: sandbox runbook show l4-qwen3-8b)"
             )
         return 0
 
@@ -1756,7 +1786,7 @@ def _cmd_modal_matrix_list(args) -> int:
             f"{str(row.get('max_model_len') or '-'):6} "
             f"{str(row.get('tp_size') or 1):3} {row['model']}"
         )
-    print("\n* = default specialist cost-eval posture (docs/benchmark-l4.md)")
+    print("\n* = default specialist cost-eval posture (sandbox runbook show l4-qwen3-8b)")
     return 0
 
 
@@ -2081,6 +2111,102 @@ def _cmd_run_list(args) -> int:
     from mailroom_sandbox.job.spec import runs_root
 
     _print(list_runs(runs_root()))
+    return 0
+
+
+def _cmd_runbook_help(args) -> int:
+    print(
+        "Use: sandbox runbook list | show <id> [--shell] | check | write\n"
+        "Singular L4:  sandbox runbook show l4-qwen3-8b\n"
+        "Improved:     sandbox runbook show improved-awq-c8\n"
+        "Edit:         config/runbooks/catalog.yaml  then  sandbox runbook write"
+    )
+    return 0
+
+
+def _cmd_runbook_list(args) -> int:
+    from mailroom_sandbox.job.runbooks import get_runbook, list_runbook_ids
+
+    ids = list_runbook_ids(family=getattr(args, "family", None))
+    rows = []
+    for rid in ids:
+        row = get_runbook(rid)
+        rows.append(
+            {
+                "id": rid,
+                "family": row.get("family"),
+                "title": row.get("title"),
+                "serving": row.get("serving") or "baseline",
+                "blocked": bool(row.get("blocked")),
+            }
+        )
+    if getattr(args, "json", False):
+        _print({"runbooks": rows})
+        return 0
+    print("Runbooks (config/runbooks/catalog.yaml):")
+    for row in rows:
+        flag = " BLOCKED" if row["blocked"] else ""
+        print(f"  {row['id']:36}  [{row['family']}]{flag}  {row['title']}")
+    print("Show: sandbox runbook show l4-qwen3-8b")
+    return 0
+
+
+def _cmd_runbook_show(args) -> int:
+    from mailroom_sandbox.job.runbooks import (
+        env_exports,
+        get_runbook,
+        render_markdown,
+        render_shell,
+        resolve_runbook_id,
+    )
+
+    try:
+        rid = resolve_runbook_id(args.name)
+    except (KeyError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    if getattr(args, "json", False):
+        row = get_runbook(rid)
+        _print(
+            {
+                "id": rid,
+                "runbook": row,
+                "env": env_exports(row),
+                "shell": render_shell(rid),
+            }
+        )
+        return 0
+    if getattr(args, "shell", False):
+        print(render_shell(rid), end="")
+        return 0
+    print(render_markdown(rid), end="")
+    return 0
+
+
+def _cmd_runbook_check(args) -> int:
+    from mailroom_sandbox.job.runbooks import docs_are_current, verify_live_pins
+
+    errors = verify_live_pins() + docs_are_current()
+    if getattr(args, "json", False):
+        _print({"ok": not errors, "errors": errors})
+        return 0 if not errors else 1
+    if errors:
+        print("Runbook catalog check FAILED:")
+        for err in errors:
+            print(f"  ERROR: {err}", file=sys.stderr)
+        return 1
+    print("Runbook catalog check OK (pins + generated docs).")
+    return 0
+
+
+def _cmd_runbook_write(args) -> int:
+    from mailroom_sandbox.job.runbooks import generated_dir, write_docs
+
+    written = write_docs()
+    dest = generated_dir()
+    print(f"Wrote {len(written)} runbook files under {dest}")
+    for path in written:
+        print(f"  {path.name}")
     return 0
 
 
