@@ -706,7 +706,7 @@ Import `math` if needed. In `enrich_serving_report`, add the kwarg `scaledown_se
         out["billed_span_usd"] = estimate_gpu_cost_usd(span, gpu=gpu_class, replicas=replicas)
 ```
 
-`billed_span` is the defensible upper estimate of what Modal charges for a run: boot + wall + idle tail before scale-down. The Modal usage page stays the ground truth (Task 12).
+(Superseded in the Part A review: renamed `run_span_*_lower_bound`, and pinned MIN=MAX fleets add no scale-down tail.) `billed_span` is the defensible upper estimate of what Modal charges for a run: boot + wall + idle tail before scale-down. The Modal usage page stays the ground truth (Task 12).
 
 `eval/runners.py` ~L353: add `record["latency_p95_seconds"] = round(p95(latencies) / 1000.0, 6)`, importing `p95` from `mailroom_sandbox.job.metrics`.
 
@@ -1605,7 +1605,7 @@ sandbox run benchmark-check --config config/runs/<RUN>.yaml --modal-profile exio
 ```
 
 **Rules:**
-- Keep a running spend ledger in `reports/serving/SAND032-SPEND-LEDGER.md`: one row per run with `billed_span_usd` (the serving record) and a Modal usage-page reading after each stage, supplied by the user.
+- Keep a running spend ledger in `reports/serving/SAND032-SPEND-LEDGER.md`: one row per run with `run_span_usd_lower_bound` (the serving record; a LOWER bound — renamed from `billed_span_usd` in the Part A review), the wall-clock deploy→`modal app stop` timestamps for each fleet (times replicas × $0.80/hr = the operator's upper estimate), and a Modal usage-page reading after each stage, supplied by the user (ground truth).
 - Stop and report if the ledger ever exceeds the stage's stop rule, or $4.50 in total.
 
 ### Task 10: Account readiness + flag probe (≈$0)
@@ -1631,7 +1631,7 @@ For each rung `R` in `l0-baseline, l1-nothink, l2-marlin, l3-fp8kv, l4-seqs16, l
 - [ ] **Step 1:** Run the spend preamble with `config/runs/sand032-R.yaml`. Then deploy: `modal deploy deploy/modal_vllm.py`, set `VLLM_BASE_URL` to the printed URL + `/v1`, and run `sandbox run preflight --config … --live` (records the cold boot).
 - [ ] **Step 2:** `sandbox run scrape-metrics --config … --label before`, then `sandbox run start --config … --job-mode endpoint --watch`, then `sandbox run scrape-metrics --config … --label after`.
 - [ ] **Step 3:** Write the serving record with the existing `sandbox metrics serving` command (cli.py ~L2387) and export offline rows with `sandbox run export-bt --config …`. Stop the app: `modal app stop sandbox-vllm`.
-- [ ] **Step 4:** Apply the gate, paired on the same 20 doc ids vs L0: ok 20/20; mean score ≥ L0 − 0.02; schema_valid ≥ L0 − 0.05; `gpu_cost_per_document` ≤ the previous kept rung. A failing rung (other than L3) is reverted: the next rung's YAML drops that change. Record every rung, kept or reverted, in `reports/serving/SAND032-LADDER.md`: boot s, wall, p50/p95, measured TTFT, tok/s, KV usage, preemptions, length finishes, score, schema_valid, $/doc, billed_span_usd.
+- [ ] **Step 4:** Apply the gate, paired on the same 20 doc ids vs L0: ok 20/20; mean score ≥ L0 − 0.02; schema_valid ≥ L0 − 0.05; `gpu_cost_per_document` ≤ the previous kept rung. A failing rung (other than L3) is reverted: the next rung's YAML drops that change. Record every rung, kept or reverted, in `reports/serving/SAND032-LADDER.md`: boot s, wall, p50/p95, measured TTFT, tok/s, KV usage, preemptions, length finishes, score, schema_valid, $/doc, run_span_usd_lower_bound.
 - [ ] **Step 5:** Freeze. Edit the eight `sand032-s2*`/`sand032-s3*` YAMLs so their `vllm:` blocks equal the best passing stack, always with `kv_cache_dtype: fp8`. Re-run `pytest tests/test_sand032_configs.py`, then commit and push.
 
 ### Task 12: Stage 2 — scale-out (correspondence n=100)
