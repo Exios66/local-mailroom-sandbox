@@ -72,7 +72,7 @@ engine:
 job:
   mode: endpoint
   mock: false
-  max_retries: 2
+  max_retries: 1              # HARD CAP per cost directive — fail fast, no credit burn
   fail_fast: false
   concurrency: 8              # short correspondence docs fill L4 batching
   cost_cap_usd: 0.80          # same as Qwen AWQ Run B (1-replica billing headroom)
