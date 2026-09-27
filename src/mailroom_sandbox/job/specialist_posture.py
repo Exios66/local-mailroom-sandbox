@@ -647,7 +647,7 @@ for _rid, _cls, _n, _rep, _conc, _cap, _wall, _ctx in _SAND032_TABLE:
 # the sorter reads the capped head of every doc class; overlay max_tokens 2048).
 SAND032_SORTER_RUNS: frozenset[str] = frozenset({"sand032-s6-sorter1000"})
 SPECIALIST_POSTURE["sand032-s6-sorter1000"] = {
-    "task": "sorter",
+    "task": "isolated",  # sorter agent alone, not the pipeline graph
     "doc_class": "all (sorter)",
     "agent": "sorter",
     "max_input_chars": 12000,  # config/taxonomy.overlay.yaml sorter cap

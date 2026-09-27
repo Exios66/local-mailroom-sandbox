@@ -195,7 +195,7 @@ def test_sorter_1000_is_train_mix_on_frozen_2xl4():
     from mailroom_sandbox.job.specialist_posture import SAND032_SORTER_RUNS
     assert {p.stem for p in SORTER} == set(SAND032_SORTER_RUNS)
     spec = load_run_spec(SORTER[0])
-    assert spec.task == "sorter" and spec.dataset.split == "train" and spec.dataset.limit == 1000
+    assert spec.task == "isolated" and spec.dataset.split == "train" and spec.dataset.limit == 1000
     assert sum(b["count"] for b in spec.dataset.strata["buckets"]) == 1000
     v, m = spec.engine.vllm, spec.engine.modal
     assert (v.kv_cache_dtype, v.quantization, v.max_num_seqs, v.enforce_eager) == ("fp8", "awq_marlin", 16, False)
