@@ -641,6 +641,13 @@ def _run_parser(sub, shared):
         help="print the MODAL_VLLM_* exports a run YAML implies (SAND-032)",
     )
     denv.set_defaults(handler=_cmd_run_deploy_env)
+    scrape_p = run_sub.add_parser(
+        "scrape-metrics",
+        parents=[common],
+        help="sample vLLM /metrics per replica into the run dir (SAND-032)",
+    )
+    scrape_p.add_argument("--label", choices=["before", "after"], required=True)
+    scrape_p.set_defaults(handler=_cmd_run_scrape_metrics)
     suite_p = run_sub.add_parser(
         "suite",
         parents=[common],
@@ -1642,6 +1649,30 @@ def _cmd_run_deploy_env(args) -> int:
         print("ERROR: --config required", file=sys.stderr)
         return 2
     sys.stdout.write(render_exports(load_run_spec(args.config)))
+    return 0
+
+
+def _cmd_run_scrape_metrics(args) -> int:
+    """SAND-032: per-replica vLLM /metrics snapshot (measured TTFT, KV, preemptions)."""
+    from mailroom_sandbox.job import spec as spec_mod
+    from mailroom_sandbox.job import vllm_metrics
+
+    if not getattr(args, "config", None):
+        print("ERROR: --config required", file=sys.stderr)
+        return 2
+    spec = spec_mod.load_run_spec(args.config)
+    expected = spec.engine.modal.max_containers if spec.engine.modal else 1
+    result = vllm_metrics.scrape(
+        spec_mod.engine_base_url(spec),
+        os.environ.get("VLLM_API_KEY", "").strip(),
+        expected=expected,
+    )
+    dest = spec_mod.runs_root() / spec_mod.resolve_run_id(spec) / f"vllm_metrics_{args.label}.json"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(json.dumps(result, indent=2, sort_keys=True), encoding="utf-8")
+    print(f"{result['coverage']} → {dest}")
+    for err in result.get("errors") or []:
+        print(f"WARN: scrape error: {err}", file=sys.stderr)
     return 0
 
 
