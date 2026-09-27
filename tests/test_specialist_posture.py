@@ -85,6 +85,28 @@ def test_run_20_correspondence_c8_posture():
     assert expected_limit("run-20-correspondence-awq-c8") == 20
 
 
+def test_run_20_insurance_awq_posture():
+    """20-doc AWQ insurance at concurrency 8 (legacy AWQ completion posture)."""
+    row = SPECIALIST_POSTURE["run-20-insurance-claims-specialist-awq"]
+    assert row["task"] == "insurance_claims_specialist"
+    assert row["concurrency"] == 8
+    assert row["max_model_len"] == 32768
+    assert row["prompt_file"] == "insurance_claims_specialist_simplified"
+    assert expected_limit("run-20-insurance-claims-specialist-awq") == 20
+    assert context_fit_ok(row["max_tokens"], row["max_input_chars"], 32768)
+    root = Path(__file__).resolve().parents[1] / "config" / "runs"
+    spec = load_run_spec(root / "run-20-insurance-claims-specialist-awq.yaml")
+    assert spec.dataset.limit == 20
+    assert spec.job.concurrency == 8
+    assert spec.engine.model == "Qwen/Qwen3-8B-AWQ"
+    assert spec.engine.vllm.quantization == "awq"
+    assert spec.engine.vllm.max_model_len == 32768
+    buckets = (spec.dataset.strata or {}).get("buckets") or []
+    assert buckets and buckets[0].get("doc_class") == "insurance_claim"
+    sub = buckets[0].get("sub_buckets") or []
+    assert sum(int(b["count"]) for b in sub) == 20
+
+
 def test_run_20_correspondence_fp16_c8_posture():
     """issue #21: FP16 twin is first-class posture, not an ad-hoc YAML."""
     row = SPECIALIST_POSTURE["run-20-correspondence-fp16-c8"]

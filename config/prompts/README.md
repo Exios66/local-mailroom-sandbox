@@ -106,6 +106,7 @@ stems. Sorter / scale / example runs do not load specialist prompts.
 | `run-20-contracts-awq-c8.yaml` | `run-20-contracts-awq-c8` | `contracts_specialist` | `contracts_specialist_v33_simplified` |
 | `run-30-contracts-specialist.yaml` | `run-30-contracts-specialist` | `contracts_specialist` | `contracts_specialist_v33_simplified` |
 | `run-30-corporate-records-specialist.yaml` | `run-30-corporate-records-specialist` | `corporate_records_specialist` | `corporate_records_specialist_simplified` |
+| `run-20-insurance-claims-specialist-awq.yaml` | `run-20-insurance-claims-specialist-awq` | `insurance_claims_specialist` | `insurance_claims_specialist_simplified` |
 | `run-30-insurance-claims-specialist.yaml` | `run-30-insurance-claims-specialist` | `insurance_claims_specialist` | `insurance_claims_specialist_simplified` |
 | `run-30-merger-specialist.yaml` | `run-30-merger-specialist` | `merger_agreement_specialist` | `merger_agreement_specialist_simplified` |
 | `suites/run-30-specialists-full.yaml` | suite | (chains the five run-30 YAMLs) | same as those YAMLs |
