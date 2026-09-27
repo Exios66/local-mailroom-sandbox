@@ -10,7 +10,9 @@ from mailroom_sandbox.job.specialist_posture import (
 )
 from mailroom_sandbox.paths import config_dir
 
-RUNS = sorted((config_dir() / "runs").glob("sand032-*.yaml"))
+ALL = sorted((config_dir() / "runs").glob("sand032-*.yaml"))
+SORTER = [p for p in ALL if p.stem.startswith("sand032-s6")]
+RUNS = [p for p in ALL if p not in SORTER]  # specialist runs
 STAGE23 = [p for p in RUNS if p.stem.startswith(("sand032-s2", "sand032-s3"))]
 LADDER = [p for p in RUNS if p.stem.startswith("sand032-l")]
 
@@ -186,3 +188,15 @@ def test_c32_on_two_replicas_needs_seqs16_admission():
     assert validate_mapping({"x": row}) == []
     row.pop("max_num_seqs")
     assert any("outside specialist band" in e for e in validate_mapping({"x": row}))
+
+
+
+def test_sorter_1000_is_train_mix_on_frozen_2xl4():
+    from mailroom_sandbox.job.specialist_posture import SAND032_SORTER_RUNS
+    assert {p.stem for p in SORTER} == set(SAND032_SORTER_RUNS)
+    spec = load_run_spec(SORTER[0])
+    assert spec.task == "sorter" and spec.dataset.split == "train" and spec.dataset.limit == 1000
+    assert sum(b["count"] for b in spec.dataset.strata["buckets"]) == 1000
+    v, m = spec.engine.vllm, spec.engine.modal
+    assert (v.kv_cache_dtype, v.quantization, v.max_num_seqs, v.enforce_eager) == ("fp8", "awq_marlin", 16, False)
+    assert (m.min_containers, m.max_containers, spec.job.concurrency) == (2, 2, 32)

@@ -58,6 +58,7 @@ BENCHMARK_EXPECTED = {
 # stems AND match specialist_posture concurrency / cost caps.
 from mailroom_sandbox.job.specialist_posture import (
     SAND032_RUNS,
+    SAND032_SORTER_RUNS,
     SPECIALIST_POSTURE,
     expected_concurrency,
     expected_limit,
@@ -72,6 +73,7 @@ TWO_GPU_RUNS = frozenset({
     "run-50-correspondence-specialist-awq",
     # SAND-032 Stage 2b + Stage 3: 2 replicas × 1 L4 pinned warm.
     *(r for r in SAND032_RUNS if r.startswith(("sand032-s3", "sand032-s5")) or r == "sand032-s2b-corr100-2rep"),
+    *SAND032_SORTER_RUNS,
 })
 
 # Granite 4.2-8B FP8 sweep (1×L4): MIN=MAX=1 pinned warm across the five-run
@@ -97,6 +99,7 @@ PINNED_ONE_GPU_RUNS = frozenset({
 SPECIALIST_LOCAL_PROMPTS: dict[str, dict[str, str]] = {
     run_id: {row["agent"]: row["prompt_file"]}
     for run_id, row in SPECIALIST_POSTURE.items()
+    if "prompt_file" in row  # SAND-032 sorter row keeps the code-default sorter prompt
 }
 
 
@@ -287,7 +290,7 @@ def check_benchmark_posture(
                 "(run: set -a; eval \"$(sandbox run deploy-env --config …)\"; set +a)"
             )
         if (
-            spec.run_id.startswith(("sand032-s2", "sand032-s3", "sand032-s5"))
+            spec.run_id.startswith(("sand032-s2", "sand032-s3", "sand032-s5", "sand032-s6"))
             and spec.engine.vllm.kv_cache_dtype != "fp8"
         ):
             errors.append(

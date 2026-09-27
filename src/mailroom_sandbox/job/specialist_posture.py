@@ -643,6 +643,27 @@ for _rid, _cls, _n, _rep, _conc, _cap, _wall, _ctx in _SAND032_TABLE:
     }
     SPECIALIST_LIMIT_BY_RUN[_rid] = _n
 
+# SAND-032 Stage 6: LLM sorter at scale on the frozen 2×L4 fleet (not a specialist —
+# the sorter reads the capped head of every doc class; overlay max_tokens 2048).
+SAND032_SORTER_RUNS: frozenset[str] = frozenset({"sand032-s6-sorter1000"})
+SPECIALIST_POSTURE["sand032-s6-sorter1000"] = {
+    "task": "sorter",
+    "doc_class": "all (sorter)",
+    "agent": "sorter",
+    "max_input_chars": 12000,  # config/taxonomy.overlay.yaml sorter cap
+    "concurrency": 32,
+    "replicas": 2,
+    "max_num_seqs": 16,
+    "max_model_len": 32768,
+    "max_tokens": 2048,
+    "cost_cap_usd": 0.8,
+    "max_wall_seconds": 3600,
+    "tokens_assumed": {"prompt": 1450, "completion": 150},
+    "sec_per_doc": {"low": 0.15, "likely": 0.25, "high": 1.0},
+    "rationale": "SAND-032 Stage 6 — 1000-doc train sorter on the frozen 2×L4 config",
+}
+SPECIALIST_LIMIT_BY_RUN["sand032-s6-sorter1000"] = 1000
+
 
 def expected_limit(run_id: str | None, default: int = 30) -> int:
     """Expected prepared-row count for a specialist run (DMR-078 / SAND-018)."""
