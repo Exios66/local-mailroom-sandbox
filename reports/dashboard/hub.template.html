@@ -310,6 +310,18 @@ html.present-snap section.panel { scroll-snap-align: center; }
       <div class="chart" id="c-apicls"></div>
       <div class="tablewrap" hidden></div>
     </section>
+
+    <section class="panel" data-table="sorterdetail">
+      <div class="panel-head"><div><div class="kicker">LLM sorter · n = 100 case rows</div><h3>{{sorter_head}}</h3></div><button class="btn tbl" type="button">Show table</button></div>
+      <p class="desc">Read from each n = 100 run's case rows in the eval-environment viewer snapshot. Confusion rows are the expected class and columns the predicted class, with <i>unknown</i> for no answer. Calibration bins the model's stated confidence (bins with at least 5 documents) against its doc-class accuracy; points below the diagonal are overconfident.</p>
+      <div class="legend"><span><span class="sw" style="background:var(--deepseek)"></span>DeepSeek-V4.1-Flash</span><span><span class="sw" style="background:var(--granite)"></span>Granite-4.2-8B</span><span><span class="sw" style="background:var(--qwen)"></span>Qwen3.7-Flash</span><span><span class="sw" style="background:var(--base)"></span>Top true subclass share</span></div>
+      <div class="grid2">
+        <div><p class="sub-h">Stated confidence vs accuracy</p><p class="sub-d">Grey diagonal = perfect calibration</p><div class="chart" id="c-sortercal"></div></div>
+        <div><p class="sub-h">Collapse signal</p><p class="sub-d">Share of each class's subclass answers on its most common prediction</p><div class="chart" id="c-sortercollapse"></div></div>
+      </div>
+      <div class="grid3" id="c-sorterconf"></div>
+      <div class="tablewrap" hidden></div>
+    </section>
   </main>
 
   <!-- ============================== CLASSIFIER -->
@@ -382,6 +394,17 @@ html.present-snap section.panel { scroll-snap-align: center; }
         <div><p class="sub-h">Contract subclass head: predicted vs true</p><p class="sub-d">Arm B, {{con_n}} correctly typed contracts; the head collapses onto two labels</p><div class="legend"><span><span class="sw" style="background:var(--base)"></span>True subclass</span><span><span class="sw" style="background:var(--qwen)"></span>Predicted subclass</span></div><div class="chart" id="c-collapse"></div></div>
       </div>
       <ul class="notes"><li>Per-head macro-F1 floors (#112 gates): contract ≥ 0.20 (Arm B {{f1_con}}), correspondence ≥ 0.25 (Arm B {{f1_corr}}). Both remain unmet.</li></ul>
+      <div class="tablewrap" hidden></div>
+    </section>
+
+    <section class="panel" data-table="mlcollapse">
+      <div class="panel-head"><div><div class="kicker">Collapse signal · ModernBERT</div><h3>{{collapse_head}}</h3></div><button class="btn tbl" type="button">Show table</button></div>
+      <p class="desc">For each subclass head, among documents whose doc type was right: how often the head is right, the share of its answers that land on its single most common prediction, and how common the most common true subclass is. A prediction share far above the true share means the head is answering one label regardless of input.</p>
+      <div class="legend"><span><span class="sw" style="background:var(--qwen)"></span>Subclass accuracy</span><span><span class="sw" style="background:var(--granite)"></span>Share on top prediction</span><span><span class="sw" style="background:var(--base)"></span>Top true subclass share</span></div>
+      <div class="grid2">
+        <div><p class="sub-h">Arm B</p><p class="sub-d">m9a-local-20260927-014429</p><div class="chart" id="c-mlcollapse-b"></div></div>
+        <div><p class="sub-h">Arm A</p><p class="sub-d">m9a-local-gpu1-armA-1ep-20260927-025236</p><div class="chart" id="c-mlcollapse-a"></div></div>
+      </div>
       <div class="tablewrap" hidden></div>
     </section>
 
@@ -466,6 +489,13 @@ const SER = {
 const API_KEY = { 'qwen3-8b': 'qwen', 'granite-4.2-8b': 'granite', 'deepseek-v4.1-flash': 'deepseek' };
 const TASK_LABEL = { 'correspondence': 'Correspondence', 'insurance claims': 'Insurance claims', 'corporate records': 'Corporate records', 'contracts': 'Contracts', 'merger agreements': 'Merger agreements' };
 const TASKS = Object.keys(TASK_LABEL);
+const SORTER = { 'deepseek/deepseek-v4.1-flash': ['DeepSeek-V4.1-Flash', 'var(--deepseek)'], 'ibm-granite/granite-4.2-8b': ['Granite-4.2-8B', 'var(--granite)'], 'qwen/qwen3.7-flash': ['Qwen3.7-Flash', 'var(--qwen)'] };
+function collapseChart(host, col, colors, names) {
+  const cats = MB_CLS.filter(c => Object.values(col).some(g => g[c]));
+  grouped(host, { cats, keys: Object.keys(colors), catLabel: c => LAB[c], get: (c, k) => { const [src, f] = k.split(':'); const g = col[src][c]; return g ? (f === 'acc' ? g.correct / g.n : f === 'pred' ? g.top_pred[1] / g.n : g.top_true[1] / g.n) : null; },
+    fmt: v => pct(v, 0), tickFmt: t => (t * 100) + '%', max: 1, colors, names,
+    note: c => Object.keys(col).map(src => col[src][c] ? `${names[src + ':pred'] || src}: ${col[src][c].top_pred[0]} ${col[src][c].top_pred[1]}/${col[src][c].n}` : '').filter(Boolean).join(' · ') });
+}
 
 // ---------- format
 const f3 = v => v == null ? '—' : v.toFixed(3);
@@ -758,6 +788,8 @@ const T = {
   mbece: () => ({ num: [1, 2], rows: [['Head', 'run-3 ECE', 'Arm B ECE', 'Arm B fast path'], ...HEADS.map(h => [h, f4(D.mb.run3.head_ece[h]), f4(D.mb.armB.head_ece[h]), D.mb.armB.head_ece[h] > 0.05 ? '✕ excluded' : '✓ allowed'])] }),
   sorter: () => { const s = D.mb.run3_reeval.sorter; return { num: [1, 2], rows: [['Metric', 'LLM sorter (qwen3-8b API)', 'ModernBERT (run-3)'], ['Accuracy', pct(s.sorter_acc), pct(s.mb_acc, 2)], ['Latency per doc', secs(s.sorter_lat), s.mb_lat + ' s'], ['Cost per doc', usd(s.sorter_usd), usd(s.mb_usd)]] }; },
   mlroute: () => { const A = D.mb.armA.eda, B = D.mb.armB.eda; return { num: [1, 2, 3, 4], rows: [['Group', 'Arm A correct', 'Arm A acc', 'Arm B correct', 'Arm B acc'], ...[['Fast path', 'fast'], ['LLM path', 'slow'], ['OOD-flagged', 'ood'], ['In-distribution', 'in_dist']].map(([n, k]) => [n, `${A[k].correct}/${A[k].n}`, A[k].n ? pct(A[k].correct / A[k].n) : '—', `${B[k].correct}/${B[k].n}`, pct(B[k].correct / B[k].n)])] }; },
+  mlcollapse: () => ({ num: [2, 3, 4, 5, 6], rows: [['Doc type', 'Arm', 'Correct', 'Top prediction', 'Top true', 'n'], ...['armB', 'armA'].flatMap(a => MB_CLS.filter(c => D.mb[a].eda.collapse[c]).map(c => { const g = D.mb[a].eda.collapse[c]; return [LAB[c], a === 'armB' ? 'Arm B' : 'Arm A', `${g.correct}/${g.n}`, `${g.top_pred[0]} ${g.top_pred[1]}/${g.n}`, `${g.top_true[0]} ${g.top_true[1]}/${g.n}`, g.n]; }))] }),
+  sorterdetail: () => ({ num: [2, 3, 4, 5], rows: [['Model', 'Class', 'Subclass correct', 'Top prediction', 'Top true', 'ECE'], ...Object.entries(D.api.sorter).flatMap(([m, s]) => MB_CLS.filter(c => s.collapse[c]).map(c => { const g = s.collapse[c]; return [SORTER[m][0], LAB[c], `${g.correct}/${g.n}`, `${g.top_pred[0]} ${g.top_pred[1]}/${g.n}`, `${g.top_true[0]} ${g.top_true[1]}/${g.n}`, f3(s.ece)]; }))] }),
   mlsub: () => { const A = D.mb.armA.eda, B = D.mb.armB.eda; return { num: [1, 2, 3], rows: [['Doc type', 'Arm A', 'Arm B', 'Arm B macro-F1'], ...MB_CLS.map(c => [LAB[c], `${A.subclass[c].correct}/${A.subclass[c].n}`, `${B.subclass[c].correct}/${B.subclass[c].n}`, f4(D.mb.armB.macro_f1[c])]), ['— contract predictions (Arm B)', '', '', ''], ...D.mb.armB.eda.contract_pred.map(([k, v]) => ['  predicted ' + k, '', String(v), '']), ...D.mb.armB.eda.contract_true.map(([k, v]) => ['  true ' + k, '', String(v), ''])] }; },
   mlwin: () => { const A = D.mb.armA.eda, B = D.mb.armB.eda; return { num: [1, 2, 3], rows: [['Windows', 'Arm A', 'Arm B', 'ALE (Arm B, pt)'], ...B.windows.map((w, i) => [w.label, `${A.windows[i].correct}/${A.windows[i].n}`, `${w.correct}/${w.n}`, '']), ...B.ale_windows.x.map((xv, i) => [`ALE @ ${Math.round(Math.pow(2, xv))} windows`, (A.ale_windows.ale[i] * 100).toFixed(1), (B.ale_windows.ale[i] * 100).toFixed(1), `[${(B.ale_windows.lo[i] * 100).toFixed(1)}, ${(B.ale_windows.hi[i] * 100).toFixed(1)}]`])] }; },
   mllat: () => ({ num: [1, 2, 3, 4], rows: [['Feature', 'At (k tokens)', 'ALE (s)', '90% low', '90% high'], ...[['Completion', D.ml.lat_compl], ['Prompt', D.ml.lat_prompt]].flatMap(([n, a]) => a.x.map((xv, i) => [n, xv.toFixed(3), a.ale[i].toFixed(1), a.lo[i].toFixed(1), a.hi[i].toFixed(1)]))] }),
@@ -867,6 +899,17 @@ function renderView(v) {
     grouped(document.getElementById('c-apicls'), { cats: cls.map(r => r.run), keys: ['c', 's'], catLabel: id => { const r = cls.find(x => x.run === id); return `${r.model.split('/')[1]} · n = ${r.n}`; },
       get: (id, k) => { const r = cls.find(x => x.run === id); return k === 'c' ? r.class_acc : r.subclass_acc; }, fmt: v => pct(v, 0), tickFmt: t => (t * 100) + '%', max: 1,
       colors: { c: 'var(--qwen)', s: 'var(--base)' }, names: { c: 'class accuracy', s: 'subclass accuracy' } });
+    const S = D.api.sorter, sm = Object.keys(S), ref = sm[0];
+    const calSer = [{ name: 'perfect calibration', color: 'var(--base)', pts: [{ x: 0.5, y: 0.5, tip: '' }, { x: 1, y: 1, tip: '' }] },
+      ...sm.map(m => ({ name: SORTER[m][0], color: SORTER[m][1], pts: S[m].bins.map(b => ({ x: b.conf, y: b.acc, tip: `n = ${b.n}` })) }))];
+    lines(document.getElementById('c-sortercal'), { series: calSer, marks: sm.flatMap(m => S[m].bins.map(b => ({ x: b.conf, y: b.acc, color: SORTER[m][1], label: '' }))),
+      xLabel: 'Stated confidence (bin mean)', yLabel: 'Doc-class accuracy', xDom: [0.5, 1, [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]], yDom: [0.5, 1, [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]], xFmt: t => t.toFixed(2), yFmt: t => pct(t, 0) });
+    const cCol = Object.fromEntries(sm.map(m => [m + ':pred', SORTER[m][1]])), cNames = Object.fromEntries(sm.map(m => [m + ':pred', SORTER[m][0]]));
+    collapseChart(document.getElementById('c-sortercollapse'), Object.fromEntries(sm.map(m => [m, S[m].collapse])), { ...cCol, [ref + ':true']: 'var(--base)' }, { ...cNames, [ref + ':true']: 'top true subclass share' });
+    const confHosts = panelBoxes(document.getElementById('c-sorterconf'), sm.map(m => ({ title: `${SORTER[m][0]} · ECE ${f3(S[m].ece)}`, desc: `${S[m].run} · n = ${S[m].n}` })));
+    const short = { insurance_claim: 'insurance', merger_agreement: 'merger', correspondence: 'corresp.', contract: 'contract', corporate_record: 'corporate', unknown: 'unknown' };
+    sm.forEach((m, i) => { const conf = S[m].confusion, cols = [...MB_CLS, ...new Set(Object.keys(conf).map(k => k.split('->')[1]).filter(c => !MB_CLS.includes(c)))];
+      heat(confHosts[i], { rows: MB_CLS, cols, get: (r, c) => conf[`${r}->${c}`] || 0, rowLabel: r => short[r], colLabel: c => short[c] || c }); });
   }
   if (v === 'classifier') {
     const runs = mbRuns();
@@ -965,6 +1008,9 @@ function renderML() {
   lbls.sort((a, b) => (cnt(B.contract_pred, b) + cnt(B.contract_true, b)) - (cnt(B.contract_pred, a) + cnt(B.contract_true, a)));
   grouped(document.getElementById('c-collapse'), { cats: lbls.slice(0, 10), keys: ['t', 'p'], catLabel: k => k.replace(/_/g, ' '), get: (k, s) => cnt(s === 't' ? B.contract_true : B.contract_pred, k),
     fmt: v => String(v), tickFmt: t => String(t), colors: { t: 'var(--base)', p: 'var(--qwen)' }, names: { t: 'true', p: 'predicted' } });
+  for (const [arm, id] of [['armB', 'c-mlcollapse-b'], ['armA', 'c-mlcollapse-a']])
+    collapseChart(document.getElementById(id), { m: D.mb[arm].eda.collapse }, { 'm:acc': 'var(--qwen)', 'm:pred': 'var(--granite)', 'm:true': 'var(--base)' },
+      { 'm:acc': 'subclass accuracy', 'm:pred': 'share on top prediction', 'm:true': 'top true subclass share' });
   grouped(document.getElementById('c-winbk'), { cats: B.windows.map(w => w.label), keys: ['A', 'B'], get: (lab, arm) => { const w = (arm === 'A' ? A : B).windows.find(x => x.label === lab); return w.correct / w.n; },
     fmt: v => pct(v, 1), tickFmt: t => (t * 100) + '%', max: 1, colors: { A: 'var(--base)', B: 'var(--qwen)' }, names: { A: 'Arm A', B: 'Arm B' },
     note: lab => { const a = A.windows.find(x => x.label === lab), b = B.windows.find(x => x.label === lab); return `Arm A ${a.correct}/${a.n} · Arm B ${b.correct}/${b.n}`; } });

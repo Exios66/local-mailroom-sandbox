@@ -402,6 +402,63 @@ def eval_env(R: Repo) -> dict:
     return {"tasks": ext, "classification": cls, "granite_corr_final": superseded}
 
 
+def collapse_signal(rows) -> dict:
+    """Per class, over (class, true subclass, predicted subclass, correct) rows whose class was right: subclass accuracy,
+    the share of predictions on the single most common predicted subclass, and the most common true subclass's share."""
+    from collections import Counter
+
+    out = {}
+    for c in CLASSES:
+        sel = [r for r in rows if r[0] == c]
+        if not sel:
+            continue
+        pred, true = Counter(r[2] for r in sel).most_common(1)[0], Counter(r[1] for r in sel).most_common(1)[0]
+        out[c] = {"n": len(sel), "correct": sum(bool(r[3]) for r in sel), "top_pred": list(pred), "top_true": list(true)}
+    return out
+
+
+SORTER_BINS = [0.0, 0.5, 0.8, 0.9, 0.95, 0.99, 1.0001]
+SORTER_BIN_MIN = 5
+
+
+def sorter_cases(R: Repo, cls: list[dict]) -> dict:
+    """Case-level LLM sorter views (n = 100 runs) from the eval-environment viewer snapshot: confusion matrix,
+    collapse signal and stated-confidence reliability. Each run's class accuracy is re-derived from its cases
+    and checked against the experiment log."""
+    L = R.L
+    path = "web/data/snapshot.json"
+    snap = R.jload(path)
+    out = {}
+    for rec in cls:
+        if rec["n"] != 100:
+            continue
+        cases = snap["cases"][rec["run"]]
+        L.check(len(cases) == rec["n"], f"{rec['run']}: snapshot case rows")
+        sc = [c["scores"] for c in cases]
+        acc = sum(bool(s.get("class_correct")) for s in sc) / len(sc)
+        L.check(abs(acc - rec["class_acc"]) < 1e-9, f"{rec['run']}: class accuracy from cases")
+        conf: dict[str, int] = {}
+        for s in sc:
+            k = f"{s['expected_doc_class']}->{s.get('predicted_doc_class') or 'unknown'}"
+            conf[k] = conf.get(k, 0) + 1
+        pts = [(float(c["prediction"]["confidence"]), bool(c["scores"].get("class_correct"))) for c in cases
+               if isinstance((c.get("prediction") or {}).get("confidence"), (int, float))]
+        bins = []
+        for lo, hi in zip(SORTER_BINS[:-1], SORTER_BINS[1:]):
+            b = [p for p in pts if lo <= p[0] < hi]
+            if len(b) >= SORTER_BIN_MIN:
+                bins.append({"conf": round(sum(p[0] for p in b) / len(b), 4), "acc": round(sum(p[1] for p in b) / len(b), 4), "n": len(b)})
+        nb = sum(b["n"] for b in bins)
+        R.L.record(f"sorter.{rec['run']}.cases", len(cases), R.name, R.sha, R.rel(path), f"cases[{rec['run']}]: {len(cases)} rows")
+        out[rec["model"]] = {
+            "run": rec["run"], "n": len(cases), "confusion": conf, "bins": bins, "n_conf": len(pts),
+            "ece": round(sum(b["n"] * abs(b["acc"] - b["conf"]) for b in bins) / nb, 4) if nb else None,
+            "collapse": collapse_signal([(s["expected_doc_class"], s.get("expected_subclass"), s.get("predicted_subclass"),
+                                          s.get("subclass_correct")) for s in sc if s.get("class_correct")]),
+        }
+    return out
+
+
 # ------------------------------------------------------------------ mailroom-ml
 MB_EVALS = {
     "armB": "reports/eval_m9a-local-20260927-014429.json",
@@ -531,5 +588,7 @@ def mb_eda(L: Ledger, tag: str, path: str, d: dict, rec: dict) -> dict:
         "fast": fp, "slow": grp(lambda r: not r["fast_path"]), "ood": ood, "in_dist": grp(lambda r: not r["ood_flag"]),
         "windows": [{"label": lab, **grp(lambda r, a=a, b=b: a <= r["n_windows"] <= b)} for lab, a, b in buckets],
         "subclass": sub, "contract_pred": pred_c.most_common(8), "contract_true": true_c.most_common(8), "contract_n": len(con),
+        "collapse": collapse_signal([(r["gt_doc_type"], r["gt_subclass"], r["pred_subclass"], r["sc_correct"])
+                                     for r in pdoc if r["dt_correct"]]),
         "ale_windows": ale.ale(rows, "y", ["lw", "ood"], "lw", kind="logit", boot=200),
     }
