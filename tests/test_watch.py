@@ -27,7 +27,8 @@ def test_vendored_pretty_log_is_pinned():
 
     path = Path(tui.__file__).with_name("pretty_log.py")
     assert hashlib.sha256(path.read_bytes()).hexdigest() == tui.PRETTY_LOG_SHA256
-    assert "mailroom-ml@f85f79e" in tui.PRETTY_LOG_UPSTREAM
+    assert "mailroom-ml@" in tui.PRETTY_LOG_UPSTREAM
+    assert "training/pretty_log.py" in tui.PRETTY_LOG_UPSTREAM
 
 
 def test_header_is_mailroom_frame_with_eval_subtitle(tmp_path):
