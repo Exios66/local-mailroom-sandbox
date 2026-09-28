@@ -486,6 +486,72 @@ def read_ledger(ledger: Path | None) -> tuple[float, bool]:
         return 0.0, False
 
 
+def compose_watch_state(
+    *,
+    store: RunStore,
+    app: str,
+    sink: LogBuffer,
+    ledger: Path | None,
+    cap_usd: float,
+    times_dir: Path | None,
+    serving_dir: Path,
+    started: float,
+    boot_mark: dict[str, int],
+    width: int = 100,
+    blink: bool = False,
+) -> dict[str, Any]:
+    """JSON-serializable mailroom watch snapshot (terminal TUI + browser UI)."""
+    snap = run_snapshot(store)
+    times = read_times(times_dir / f"{snap['run_id']}.times") if times_dir else {}
+    key = f"{snap['run_id']}@{times.get('deploy_done', times.get('ready', 0))}"
+    boot_mark.setdefault(key, sink.mark())
+    life = lifecycle(times, sink.since(boot_mark[key]), now=time.time()) if times_dir else None
+    card = (
+        scorecard_lines(store, serving_dir=serving_dir, width=width, on=False)
+        if life and life["phase"] in TEARDOWN_PHASES
+        else None
+    )
+    spent, includes_live = read_ledger(ledger)
+    live = 0.0
+    if snap["state"] == "running" and not includes_live:
+        from mailroom_sandbox.job.metrics import estimate_gpu_cost_usd
+
+        live = float(
+            estimate_gpu_cost_usd(time.time() - started, gpu=snap["gpu"], replicas=snap["replicas"])
+            or 0.0
+        )
+    spend = {"spent_usd": spent, "live_usd": live, "cap_usd": cap_usd, "gate_usd": GATE_USD}
+    total = spent + live
+    spend["total_usd"] = total
+    spend["pct_of_cap"] = round(100 * total / cap_usd, 1) if cap_usd else 0.0
+    spend["over_gate"] = total > GATE_USD
+    spend["bar"] = progress_bar(int(total * 100), int(cap_usd * 100), width=30)
+    log_src = display_tail(sink, 14)
+    logs = [{"text": line, "role": classify_log_line(line)} for line in log_src]
+    route = (
+        program_lines(times_dir, current=snap["run_id"], width=width, on=False) if times_dir else None
+    )
+    return {
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "app": app,
+        "snapshot": snap,
+        "spend": spend,
+        "lifecycle": life,
+        "scorecard": card,
+        "route": route,
+        "logs": logs,
+        "subtitle": SUBTITLE_PATH,
+        "route_label": ROUTE,
+        "stage": (life or {}).get("phase") or _stage_for(snap["run_id"]),
+        "progress": {
+            "done": snap["done"],
+            "total": snap["total"],
+            "bar": progress_bar(snap["done"], snap["total"], width=30),
+        },
+        "blink": blink,
+    }
+
+
 def watch(
     *,
     resolve: Callable[[], tuple[RunStore, str]],
@@ -498,7 +564,6 @@ def watch(
     log_path: Path | None = None,
     serving_dir: Path | None = None,
 ) -> int:
-    from mailroom_sandbox.job.metrics import estimate_gpu_cost_usd
     from mailroom_sandbox.paths import reports_dir
 
     serving_dir = serving_dir or (reports_dir() / "serving")
@@ -513,38 +578,33 @@ def watch(
     boot_mark: dict[str, int] = {}
     try:
         while True:
-            store, _ = resolve()  # --follow: the current run can change between frames
-            snap = run_snapshot(store)
-            times = read_times(times_dir / f"{snap['run_id']}.times") if times_dir else {}
-            key = f"{snap['run_id']}@{times.get('deploy_done', times.get('ready', 0))}"
-            boot_mark.setdefault(key, sink.mark())
-            life = lifecycle(times, sink.since(boot_mark[key]), now=time.time()) if times_dir else None
-            card = (
-                scorecard_lines(store, serving_dir=serving_dir, width=shutil.get_terminal_size((100, 40)).columns,
-                                on=pl.use_color(sys.stdout))
-                if life and life["phase"] in TEARDOWN_PHASES
-                else None
-            )
-            spent, includes_live = read_ledger(ledger)
-            live = 0.0
-            if snap["state"] == "running" and not includes_live:
-                live = float(
-                    estimate_gpu_cost_usd(time.time() - started, gpu=snap["gpu"], replicas=snap["replicas"])
-                    or 0.0
-                )
-            frame = render_frame(
-                snapshot=snap,
+            store, app = resolve()  # --follow: the current run can change between frames
+            width = shutil.get_terminal_size((100, 40)).columns
+            blink = int(time.time()) % 7 == 0
+            state = compose_watch_state(
+                store=store,
                 app=app,
-                log_lines=display_tail(sink, 14),
-                spend={"spent_usd": spent, "live_usd": live, "cap_usd": cap_usd},
-                width=shutil.get_terminal_size((100, 40)).columns,
+                sink=sink,
+                ledger=ledger,
+                cap_usd=cap_usd,
+                times_dir=times_dir,
+                serving_dir=serving_dir,
+                started=started,
+                boot_mark=boot_mark,
+                width=width,
+                blink=blink,
+            )
+            frame = render_frame(
+                snapshot=state["snapshot"],
+                app=app,
+                log_lines=[e["text"] for e in state["logs"]],
+                spend=state["spend"],
+                width=width,
                 on=pl.use_color(sys.stdout),
-                blink=int(time.time()) % 7 == 0,
-                lifecycle=life,
-                scorecard=card,
-                route=program_lines(times_dir, current=snap["run_id"],
-                                    width=shutil.get_terminal_size((100, 40)).columns,
-                                    on=pl.use_color(sys.stdout)) if times_dir else None,
+                blink=blink,
+                lifecycle=state["lifecycle"],
+                scorecard=state["scorecard"],
+                route=state["route"],
             )
             if once:
                 sys.stdout.write(frame + "\n")

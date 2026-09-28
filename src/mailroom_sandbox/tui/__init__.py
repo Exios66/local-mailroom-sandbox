@@ -7,6 +7,8 @@ Do not edit it here — refresh it from mailroom-ml and update the pin
 `mailroom_sandbox.watch` builds the eval-run panels on its primitives.
 ``mailroom_sandbox.tui.session`` is the tail-friendly CLI integration layer
 (SAND-033) for ``sandbox run|eval|matrix`` and deploy entrypoints.
+``mailroom_sandbox.tui.web`` serves the same SAND-032 watch panels in a
+localhost browser via ``sandbox watch --web``.
 """
 
 PRETTY_LOG_UPSTREAM = "LLM-Mailroom-Services/mailroom-ml@088530b58a5f17e198e05dc17785bbaea63af50b:training/pretty_log.py"
