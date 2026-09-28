@@ -1,32 +1,22 @@
-"""Build the specialist scorecard from the tracked run reports.
+"""Source-verified extraction for the 16–27 Sep specialist runs (pre-SAND-032).
 
-Every figure on the page is read out of a tracked file under ``reports/``
-(a markdown table cell, a sentence, or a JSON key) and recorded with its
-source, so nothing is hand-transcribed. Derived figures (ratios, sums,
-per-document means) are computed here from those reads. Cross-checks compare
-the per-document tables against the run-level figures each report states;
-any mismatch fails the build.
+Every figure is read out of a tracked file under ``reports/`` (a markdown table
+cell, a sentence, or a JSON key) and recorded with its source. Cross-checks
+compare the per-document tables against the run-level figures each report
+states; any mismatch fails unless it is a documented entry in ``KNOWN``.
 
-Run from the repo root:
-
-    python reports/dashboard/build_scorecard.py          # rebuild the page
-    python reports/dashboard/build_scorecard.py --check  # fail if stale
+Used by ``build_hub.py``; ``build()`` returns the data and provenance.
 """
 
 from __future__ import annotations
 
-import argparse
 import json
 import pathlib
 import re
 import statistics
-import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
 REPORTS = HERE.parent
-TEMPLATE = HERE / "scorecard.template.html"
-PAGE = HERE / "specialist-scorecard.html"
-DATA = HERE / "scorecard_data.json"
 
 L4_USD_PER_HOUR = 0.80
 
@@ -208,7 +198,7 @@ def build() -> dict:
         "Contracts": {"modal": None, "why": "Not measurable: GT has no contract schema"},
         "Merger agreements": {"modal": None, "why": "Not measurable: CUAD prompt vs MAUD labels"},
     }
-    cost, wall, api_cost_total = {}, {}, 0.0
+    cost, wall = {}, {}
     for t, row in api_row.items():
         quality[t]["api"] = cell(f"api.{t}.score", CORR_B, row, 3)
         wall[t] = {"api": cell(f"api.{t}.wall", CORR_B, row, 4)}
@@ -424,38 +414,3 @@ def build() -> dict:
 
 def cost_of(rows, name):
     return next(v for k, v in rows if k == name)
-
-
-def render(data: dict) -> str:
-    html = TEMPLATE.read_text()
-    for k, v in data["text"].items():
-        html = html.replace("{{" + k + "}}", v)
-    left = re.findall(r"\{\{[a-z_0-9]+\}\}", html)
-    if left:
-        raise SourceError(f"unfilled placeholders: {sorted(set(left))}")
-    payload = json.dumps(data, separators=(",", ":"), ensure_ascii=False).replace("</", "<\\/")
-    return html.replace("/*__DATA__*/", payload)
-
-
-def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--check", action="store_true", help="fail if the committed page or data is stale")
-    args = ap.parse_args(argv)
-    data = build()
-    page = render(data)
-    data_json = json.dumps(data, indent=1, ensure_ascii=False) + "\n"
-    if args.check:
-        stale = [p.name for p, body in ((PAGE, page), (DATA, data_json)) if not p.exists() or p.read_text() != body]
-        if stale:
-            print(f"stale: {', '.join(stale)} — run python reports/dashboard/build_scorecard.py", file=sys.stderr)
-            return 1
-        print(f"ok: {len(data['provenance'])} figures verified against {data['text']['n_sources']} source files")
-        return 0
-    PAGE.write_text(page)
-    DATA.write_text(data_json)
-    print(f"wrote {PAGE.name} and {DATA.name}: {len(data['provenance'])} figures from {data['text']['n_sources']} source files")
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())

@@ -21,7 +21,7 @@ its own layout, and `api-evals/` deliberately mirrors its *structure* (see
 | `docs/` | Guides (this file included) | **Frozen path** (add freely, do not move). |
 | `scripts/` | Repo tooling (`sync_vendor.py` and friends) | **Frozen path.** |
 | `governance/` | `SAND-*` board + prefix cheat-sheet + archives | **Governed surface** — asserted by `tests/test_governance_sand.py`. |
-| `reports/` | Offline experiment log (`experiment_log.jsonl` / `.md`) + hand-written run reports | Sandbox-local; **not** a sister-repo mirror. |
+| `reports/` | Offline experiment log (`experiment_log.jsonl` / `.md`) + hand-written run reports; `reports/dashboard/` builds the source-verified reports hub (`build_hub.py`) | Sandbox-local; **not** a sister-repo mirror (the hub pins sibling-repo figures in `external_snapshot.json`). |
 | `data/` | `fixtures/` tracked; `cache/`, `runtime/`, `memory/`, `*.db` gitignored runtime state | Layout is stable by design. |
 | `notebooks/` | Offline env setup + data prep + mock smoke | **Frozen path.** |
 | `api-evals/` | Self-contained OpenRouter API cost harness (own config tree + own CLI) | See [Two config trees](#two-config-trees). |
