@@ -11,14 +11,14 @@ from mailroom_sandbox.job.specialist_posture import (
 from mailroom_sandbox.paths import config_dir
 
 ALL = sorted((config_dir() / "runs").glob("sand032-*.yaml"))
-SORTER = [p for p in ALL if p.stem.startswith("sand032-s6")]
+SORTER = [p for p in ALL if "sorter" in p.stem]
 RUNS = [p for p in ALL if p not in SORTER]  # specialist runs
 STAGE23 = [p for p in RUNS if p.stem.startswith(("sand032-s2", "sand032-s3"))]
 LADDER = [p for p in RUNS if p.stem.startswith("sand032-l")]
 
 
 def test_sixteen_configs_exist():
-    assert len(RUNS) == 16  # + s5 merger MAUD-prompt rerun
+    assert len(RUNS) == 19  # + s5 merger MAUD rerun + 3 s7 admission-×2 runs
     assert {p.stem for p in RUNS} == set(SAND032_RUNS)
 
 
@@ -194,7 +194,7 @@ def test_c32_on_two_replicas_needs_seqs16_admission():
 def test_sorter_1000_is_train_mix_on_frozen_2xl4():
     from mailroom_sandbox.job.specialist_posture import SAND032_SORTER_RUNS
     assert {p.stem for p in SORTER} == set(SAND032_SORTER_RUNS)
-    spec = load_run_spec(SORTER[0])
+    spec = load_run_spec(next(p for p in SORTER if p.stem == "sand032-s6-sorter1000"))
     assert spec.task == "isolated" and spec.dataset.split == "train" and spec.dataset.limit == 1000
     assert sum(b["count"] for b in spec.dataset.strata["buckets"]) == 1000
     v, m = spec.engine.vllm, spec.engine.modal
