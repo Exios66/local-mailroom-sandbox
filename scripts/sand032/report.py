@@ -273,7 +273,68 @@ def scoring_section(d: dict) -> list[str]:
     return []
 
 
+def sorter_report(rid: str) -> Path:
+    """Isolated LLM sorter run: doc-class accuracy, per-class P/R/F1, confusion, serving."""
+    d = load(rid)
+    exp = {r["id"]: r.get("expected_doc_class") for r in _jsonl(RUNS / rid / "dataset.jsonl")}
+    items = list(d["items"].values())
+    ok = [i for i in items if i.get("ok")]
+    pairs = [(exp[i["item_id"]], (i.get("score") or {}).get("predicted", "")) for i in ok]
+    classes = sorted({e for e, _ in pairs})
+    acc = sum(e == p for e, p in pairs) / len(pairs) if pairs else 0.0
+    rows, f1s = [], []
+    for c in classes:
+        tp = sum(e == c and p == c for e, p in pairs)
+        fp = sum(e != c and p == c for e, p in pairs)
+        fn = sum(e == c and p != c for e, p in pairs)
+        P = tp / (tp + fp) if tp + fp else 0.0
+        R = tp / (tp + fn) if tp + fn else 0.0
+        F = 2 * P * R / (P + R) if P + R else 0.0
+        f1s.append(F)
+        rows.append(f"| {c} | {tp + fn} | {P:.3f} | {R:.3f} | {F:.3f} |")
+    preds = sorted({p for _, p in pairs} | set(classes))
+    conf = ["| expected ↓ / predicted → | " + " | ".join(preds) + " |", "| --- |" + " --- |" * len(preds)]
+    conf += [f"| {c} | " + " | ".join(str(sum(e == c and p == q for e, p in pairs)) for q in preds) + " |"
+             for c in classes]
+    s = d["serving"].get("metrics", d["serving"]) if d["serving"] else {}
+    lat = sorted(float(i["latency_ms"]) / 1000 for i in ok if i.get("latency_ms"))
+    pt = sorted(int(i.get("prompt_tokens") or 0) for i in ok)
+    ct = sorted(int(i.get("completion_tokens") or 0) for i in ok)
+    med = lambda xs: xs[len(xs) // 2] if xs else None  # noqa: E731
+    v, mo = d["spec"]["engine"]["vllm"], d["spec"]["engine"]["modal"]
+    lines = [f"# SAND-032 {rid} — isolated LLM sorter (SorterAgent only)", "",
+             "Public HF `mailroom-dataset` @ `ed7576b` only (no partner or proprietary data). "
+             "`task: isolated` calls `SorterAgent` alone — no reviewer, specialist, or judge prompts.", "",
+             "| field | value |", "| --- | --- |",
+             f"| engine | `{d['spec']['engine']['model']}`, {mo.get('max_containers')}× L4, "
+             f"seqs {v.get('max_num_seqs')}, kv `{v.get('kv_cache_dtype')}`, `{v.get('quantization')}`, "
+             f"graphs {v.get('cudagraph_capture_sizes')}, batched tokens {v.get('max_num_batched_tokens') or 'default'} |",
+             f"| concurrency | {d['spec']['job']['concurrency']} |",
+             f"| docs ok / total | {len(ok)} / {len(items)} |",
+             f"| **accuracy** | **{acc:.4f}** |",
+             f"| **macro-F1** | **{(sum(f1s) / len(f1s) if f1s else 0):.4f}** |",
+             f"| wall s | {_f(s.get('wall_seconds'), 1)} |",
+             f"| tok/s | {_f(s.get('tokens_per_second'), 0)} |",
+             f"| GPU $/doc | {_f(s.get('gpu_cost_per_document'), 6)} |",
+             f"| latency p50 / p95 s | {_f(med(lat), 1)} / {_f(p95(lat) if lat else None, 1)} |",
+             f"| prompt tokens p50 / max | {med(pt)} / {pt[-1] if pt else None} |",
+             f"| completion tokens p50 / max | {med(ct)} / {ct[-1] if ct else None} |", "",
+             "## Per-class", "", "| class | n | precision | recall | F1 |", "| --- | --- | --- | --- | --- |", *rows, "",
+             "## Confusion matrix", "", *conf, "",
+             "## Findings", "",
+             "- The vendored sorter reads whole documents: a ~5.4k-token base prompt plus chunked long docs "
+             "(prompt tokens scale with document length). This run is prefill-bound; a head-truncated sorter "
+             "input is the main cost lever for the runbook.",
+             "- Items recorded before the storage fix carry `SorterAgent.classify`'s tuple as a string; scores "
+             "here come from `scripts/sand032/rescore.py` (post hoc, no LLM calls).", ""]
+    out = ROOT / "reports" / "serving" / f"SAND032-{rid.removeprefix('sand032-').upper()}-REPORT.md"
+    out.write_text("\n".join(lines))
+    return out
+
+
 def run_report(rid: str) -> Path:
+    if "sorter" in rid:
+        return sorter_report(rid)
     d = load(rid)
     m = metrics(d)
     spec = d["spec"]
