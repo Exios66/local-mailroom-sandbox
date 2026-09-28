@@ -776,8 +776,13 @@ def validate_mapping(mapping: Mapping[str, Any] | None = None) -> list[str]:
         # declares a larger admission (frozen seqs16 → 2×L4 best case c32).
         per_replica = max(8, int(row.get("max_num_seqs", 8)))
         ceiling = per_replica * max(1, int(row.get("replicas", 1)))
-        if not 2 <= conc <= ceiling:
-            errors.append(f"{run_id}: concurrency={conc} outside specialist band [2,{ceiling}]")
+        # Single-doc probe instances (*-probe*) are serial by design — the same
+        # exemption benchmark_check applies to the c>=2 throughput floor.
+        floor = 1 if "-probe" in run_id else 2
+        if not floor <= conc <= ceiling:
+            errors.append(
+                f"{run_id}: concurrency={conc} outside specialist band [{floor},{ceiling}]"
+            )
         if float(row["cost_cap_usd"]) <= 0:
             errors.append(f"{run_id}: cost_cap_usd must be > 0")
         if int(row["max_wall_seconds"]) < 60:

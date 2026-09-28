@@ -10,8 +10,9 @@
 #   modal profile activate hermes-agent-jjb
 #   eval "$(sandbox modal-matrix env ibm-granite/granite-4.2-8b-fp8)"
 #   # plus Granite parsers (runbook improved-granite-fp8):
-#   # export MODAL_VLLM_REASONING_PARSER=granite_thinking_parser \
-#   #   MODAL_VLLM_TOOL_CALL_PARSER=qwen3_coder MODAL_VLLM_ENABLE_AUTO_TOOL_CHOICE=1 \
+#   # (native `granite` parser — v0.29.0 has no `granite_thinking_parser`;
+#   #  no tool parser: the specialist extract path makes no tool calls)
+#   # export MODAL_VLLM_REASONING_PARSER=granite \
 #   #   MODAL_VLLM_MAX_CONTAINERS=1 MODAL_VLLM_MIN_CONTAINERS=1 \
 #   #   MODAL_VLLM_SCALEDOWN_SECONDS=120
 #   modal run deploy/modal_vllm.py::download_model
