@@ -206,3 +206,13 @@ def test_launcher_passes_beacon_and_board_through(tmp_path):
     r = subprocess.run([str(repo / "scripts" / "mailroom-tui"), "board", "--tui", "--once", "--root", str(tmp_path)],
                        capture_output=True, text=True, timeout=60)
     assert r.returncode == 0 and "sh" in r.stdout
+
+
+def test_board_default_port_does_not_collide_with_watch_web(tmp_path, monkeypatch):
+    from mailroom_sandbox import cli
+    from mailroom_sandbox.tui import web as web_mod
+
+    seen = {}
+    monkeypatch.setattr(bd, "serve_board", lambda **kw: seen.update(kw) or 0)
+    cli.main(["board", "--root", str(tmp_path), "--no-browser"])
+    assert seen["port"] == bd.DEFAULT_PORT == 8767 != web_mod.DEFAULT_PORT
