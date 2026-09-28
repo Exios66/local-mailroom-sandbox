@@ -132,10 +132,9 @@ def _mock_extract(row: dict[str, Any]) -> dict[str, Any]:
 def _live_sorter(row: dict[str, Any]) -> dict[str, Any]:
     from agents.sorter import SorterAgent  # type: ignore
 
-    result = SorterAgent().classify(_doc_text(row))
-    if isinstance(result, dict):
-        return result
-    return {"doc_type": str(result)}
+    # SAND-032: classify() returns a (doc_type, subtype, confidence, reasoning)
+    # tuple; str()-ing it made doc_type unscoreable. Use the dict form.
+    return SorterAgent().classify_json(_doc_text(row))
 
 
 def _live_reviewer(row: dict[str, Any]) -> dict[str, Any]:
@@ -275,6 +274,13 @@ def _live_intake(row: dict[str, Any]) -> dict[str, Any]:
 def _score_class(row: dict[str, Any], pred: dict[str, Any]) -> dict[str, Any]:
     expected = str(row.get("expected_doc_class") or row.get("doc_type") or "")
     predicted = str(pred.get("doc_type") or pred.get("value") or "")
+    if predicted.startswith("("):  # legacy stringified classify() tuple (SAND-032 s6)
+        import ast
+
+        try:
+            predicted = str(ast.literal_eval(predicted)[0])
+        except (ValueError, SyntaxError, IndexError, TypeError):
+            pass
     return {"match": float(expected == predicted), "expected": expected, "predicted": predicted}
 
 
