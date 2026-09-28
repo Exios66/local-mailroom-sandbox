@@ -61,3 +61,37 @@ bf16 `Qwen/Qwen3-8B` scored 0.2742 vs AWQ L5 0.2841 on the same 20 docs — **no
 profile default `Qwen/Qwen3-8B` against the AWQ fleet (vLLM 404 on every request). Fleet stopped;
 cost $0.083. Fix committed (activation uses the run YAML's `engine.model`); the `judge` agent remains
 pinned to `Qwen/Qwen3-8B` and must be verified before any sorter rerun. Estimated rerun: ~6–9 min, ~$0.30.
+
+## 7. Stages 6–9 (2026-09-28): sorter at scale, admission ×2, Modal routing
+
+| run | fleet | wall s | tok/s | p50 / p95 s | quality |
+| --- | --- | --- | --- | --- | --- |
+| corr100 s2b | seqs16, max_inputs 32, c16 | 46.1 | 5308 | 5.7 / 14.4 | 0.2966 |
+| corr100 s7 | seqs32, **max_inputs 64**, c64 | 149.4 | 1641 | 31.2 / 51.5 | — (97/100 requests on ONE replica) |
+| corr100 s9 | seqs32, **max_inputs 32**, c64 | **39.0** | **6282** | 21.2 / 30.4 | 0.2872 (split 51/49) |
+| insurance50 s3 → s9 | seqs16 c32 → seqs32 c64 bal. | 60.7 → 52.8 | 3042 → 3501 | 19.7 → 27.0 p50 | 0.688 → 0.682 |
+| corporate50 s3 → s9 | " | 56.3 → 48.6 | 4692 → 5431 | 28.9 → 45.2 p50 | 0.458 → 0.439 |
+| contracts50 s3 → s9 | " | 234.3 → 219.5 | 1616 → 1571 | 85.8 → 109.8 p50 | CUAD F1 0.596 → 0.570; 0 preemptions |
+| sorter s6 (isolated) | seqs16, c32 | 1791 (458/1000 docs; own $0.80 cost guard) | 8475 | 37.0 / 530.5 | acc 0.895, macro-F1 0.864 |
+
+**Runbook findings:**
+1. **Set `max_inputs` = `max_num_seqs` per container.** Modal's router fills one container up to
+   `max_inputs` before routing to the next. With max_inputs 64, it sent 97/100 requests to one L4 (3.2× slower).
+   At 32 it split 51/49. This is the single largest serving lever found.
+2. **Doubling admission (seqs 16→32, c32→c64) buys only 7–17% wall** on a balanced 2×L4 fleet, while p50
+   latency rises (queuing). One L4 saturates at around 16 concurrent sequences for these prompts.
+   - **Batch/offline:** seqs32 + max_inputs 32 + c64.
+   - **Latency-sensitive:** seqs16 + max_inputs 16 + c32.
+3. **fp8 KV holds 32 long contracts per replica with 0 preemptions.** KV is not the constraint on L4 at 32k.
+4. **The vendored LLM sorter reads whole documents** (about a 5.4k-token prompt, long docs chunked; p50 8k, max 298k
+   prompt tokens). Head-truncating sorter input is the main sorter cost lever. Errors: corporate→contract
+   (recall 0.74), merger→contract (recall 0.44).
+5. **The ledger (fleet-window estimate) under-counts Modal billing.** Reconcile against the usage page.
+
+**Recommended production runbook (Qwen3-8B-AWQ, vLLM v0.29.0, Modal L4):**
+- Engine: `awq_marlin`, `kv_cache_dtype=fp8`, thinking off (`enable_thinking=false`), CUDA graphs
+  [1,2,4,8,16,(32)], `max_model_len` 32768, `gpu_memory_utilization` 0.90, prefix caching on.
+- Fleet: 2 containers × 1 L4 (`min=max=2` while a batch runs), `max_inputs` = `max_num_seqs`, scaledown 120 s.
+- Client: concurrency = replicas × `max_num_seqs`.
+
+Ledger at close: $2.80 cumulative (fleet-window estimate).

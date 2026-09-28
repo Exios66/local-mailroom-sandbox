@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="viz" viewBox="0 0 720 572" width="720" height="572" role="img" aria-label="Mean overall extraction score by subclass · sand032-s9-contracts50-bal">
+
+<style>
+  .viz { font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    --surface:#fcfcfb; --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
+    --grid:#e1e0d9; --axis:#c3c2b7; --s1:#2a78d6; --s2:#eb6834; --deemph:#c3c2b7;
+    --good:#0ca30c; --critical:#d03b3b; }
+  @media (prefers-color-scheme: dark) {
+    .viz { --surface:#1a1a19; --ink:#ffffff; --ink2:#c3c2b7; --muted:#898781;
+      --grid:#2c2c2a; --axis:#383835; --s1:#3987e5; --s2:#d95926; --deemph:#52514e; }
+  }
+  .viz .bg { fill: var(--surface); }
+  .viz .title { fill: var(--ink); font-size: 15px; font-weight: 600; }
+  .viz .sub { fill: var(--ink2); font-size: 12px; }
+  .viz .lbl { fill: var(--ink2); font-size: 12px; }
+  .viz .val { fill: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums;
+    paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+  .viz .reflbl { paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+  .viz .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .viz .grid { stroke: var(--grid); stroke-width: 1; }
+  .viz .axis { stroke: var(--axis); stroke-width: 1; }
+  .viz .ref { stroke: var(--ink2); stroke-width: 1; }
+  .viz .reflbl { fill: var(--ink2); font-size: 11px; }
+  .viz .s1 { fill: var(--s1); } .viz .s2 { fill: var(--s2); }
+  .viz .ln1 { stroke: var(--s1); } .viz .ln2 { stroke: var(--s2); }
+  .viz .deemph { fill: var(--deemph); }
+  .viz .conn { stroke: var(--axis); stroke-width: 2; }
+  .viz .ring { stroke: var(--surface); stroke-width: 2; }
+</style>
+
+<rect class="bg" width="720" height="572" rx="8"/>
+<text class="title" x="16" y="24">Mean overall extraction score by subclass · sand032-s9-contracts50-bal</text>
+<text class="sub" x="16" y="42">overall mean 0.5907 across 44 docs (0–1, higher is better)</text>
+<line class="grid" x1="190.0" y1="54" x2="190.0" y2="538"/>
+<text class="tick" x="190.0" y="554" text-anchor="middle">0</text>
+<line class="grid" x1="305.0" y1="54" x2="305.0" y2="538"/>
+<text class="tick" x="305.0" y="554" text-anchor="middle">0.25</text>
+<line class="grid" x1="420.0" y1="54" x2="420.0" y2="538"/>
+<text class="tick" x="420.0" y="554" text-anchor="middle">0.5</text>
+<line class="grid" x1="535.0" y1="54" x2="535.0" y2="538"/>
+<text class="tick" x="535.0" y="554" text-anchor="middle">0.75</text>
+<line class="grid" x1="650.0" y1="54" x2="650.0" y2="538"/>
+<text class="tick" x="650.0" y="554" text-anchor="middle">1</text>
+<line class="axis" x1="190" y1="54" x2="190" y2="538"/>
+<text class="lbl" x="182" y="74.0" text-anchor="end">Joint Venture _ Filing (n=1)</text>
+<path class="s1" d="M190.0,63.0 H580.3 Q584.3,63.0 584.3,67.0 V73.0 Q584.3,77.0 580.3,77.0 H190.0 Z"><title>Joint Venture _ Filing (n=1): 0.857</title></path>
+<text class="val" x="590.3" y="74.0">0.857</text>
+<text class="lbl" x="182" y="98.0" text-anchor="end">Maintenance (n=3)</text>
+<path class="s1" d="M190.0,87.0 H525.9 Q529.9,87.0 529.9,91.0 V97.0 Q529.9,101.0 525.9,101.0 H190.0 Z"><title>Maintenance (n=3): 0.739</title></path>
+<text class="val" x="535.9" y="98.0">0.739</text>
+<text class="lbl" x="182" y="122.0" text-anchor="end">Service (n=1)</text>
+<path class="s1" d="M190.0,111.0 H514.6 Q518.6,111.0 518.6,115.0 V121.0 Q518.6,125.0 514.6,125.0 H190.0 Z"><title>Service (n=1): 0.714</title></path>
+<text class="val" x="524.6" y="122.0">0.714</text>
+<text class="lbl" x="182" y="146.0" text-anchor="end">Hosting (n=2)</text>
+<path class="s1" d="M190.0,135.0 H500.3 Q504.3,135.0 504.3,139.0 V145.0 Q504.3,149.0 500.3,149.0 H190.0 Z"><title>Hosting (n=2): 0.683</title></path>
+<text class="val" x="510.3" y="146.0">0.683</text>
+<text class="lbl" x="182" y="170.0" text-anchor="end">Reseller (n=1)</text>
+<path class="s1" d="M190.0,159.0 H492.7 Q496.7,159.0 496.7,163.0 V169.0 Q496.7,173.0 492.7,173.0 H190.0 Z"><title>Reseller (n=1): 0.667</title></path>
+<text class="val" x="502.7" y="170.0">0.667</text>
+<text class="lbl" x="182" y="194.0" text-anchor="end">License_Agreements (n=1)</text>
+<path class="s1" d="M190.0,183.0 H492.7 Q496.7,183.0 496.7,187.0 V193.0 Q496.7,197.0 492.7,197.0 H190.0 Z"><title>License_Agreements (n=1): 0.667</title></path>
+<text class="val" x="502.7" y="194.0">0.667</text>
+<text class="lbl" x="182" y="218.0" text-anchor="end">Distributor (n=1)</text>
+<path class="s1" d="M190.0,207.0 H481.7 Q485.7,207.0 485.7,211.0 V217.0 Q485.7,221.0 481.7,221.0 H190.0 Z"><title>Distributor (n=1): 0.643</title></path>
+<text class="val" x="491.7" y="218.0">0.643</text>
+<text class="lbl" x="182" y="242.0" text-anchor="end">Promotion (n=1)</text>
+<path class="s1" d="M190.0,231.0 H478.7 Q482.7,231.0 482.7,235.0 V241.0 Q482.7,245.0 478.7,245.0 H190.0 Z"><title>Promotion (n=1): 0.636</title></path>
+<text class="val" x="488.7" y="242.0">0.636</text>
+<text class="lbl" x="182" y="266.0" text-anchor="end">Supply (n=5)</text>
+<path class="s1" d="M190.0,255.0 H477.8 Q481.8,255.0 481.8,259.0 V265.0 Q481.8,269.0 477.8,269.0 H190.0 Z"><title>Supply (n=5): 0.634</title></path>
+<text class="val" x="487.8" y="266.0">0.634</text>
+<text class="lbl" x="182" y="290.0" text-anchor="end">Outsourcing (n=1)</text>
+<path class="s1" d="M190.0,279.0 H462.0 Q466.0,279.0 466.0,283.0 V289.0 Q466.0,293.0 462.0,293.0 H190.0 Z"><title>Outsourcing (n=1): 0.600</title></path>
+<text class="val" x="472.0" y="290.0">0.600</text>
+<text class="lbl" x="182" y="314.0" text-anchor="end">Agency Agreements (n=1)</text>
+<path class="s1" d="M190.0,303.0 H458.6 Q462.6,303.0 462.6,307.0 V313.0 Q462.6,317.0 458.6,317.0 H190.0 Z"><title>Agency Agreements (n=1): 0.593</title></path>
+<text class="val" x="468.6" y="314.0">0.593</text>
+<text class="lbl" x="182" y="338.0" text-anchor="end">Sponsorship (n=4)</text>
+<path class="s1" d="M190.0,327.0 H457.8 Q461.8,327.0 461.8,331.0 V337.0 Q461.8,341.0 457.8,341.0 H190.0 Z"><title>Sponsorship (n=4): 0.591</title></path>
+<text class="val" x="467.8" y="338.0">0.591</text>
+<text class="lbl" x="182" y="362.0" text-anchor="end">Strategic Alliance (n=2)</text>
+<path class="s1" d="M190.0,351.0 H457.5 Q461.5,351.0 461.5,355.0 V361.0 Q461.5,365.0 457.5,365.0 H190.0 Z"><title>Strategic Alliance (n=2): 0.590</title></path>
+<text class="val" x="467.5" y="362.0">0.590</text>
+<text class="lbl" x="182" y="386.0" text-anchor="end">Endorsement (n=3)</text>
+<path class="s1" d="M190.0,375.0 H448.3 Q452.3,375.0 452.3,379.0 V385.0 Q452.3,389.0 448.3,389.0 H190.0 Z"><title>Endorsement (n=3): 0.570</title></path>
+<text class="val" x="458.3" y="386.0">0.570</text>
+<text class="lbl" x="182" y="410.0" text-anchor="end">Joint Venture (n=1)</text>
+<path class="s1" d="M190.0,399.0 H416.0 Q420.0,399.0 420.0,403.0 V409.0 Q420.0,413.0 416.0,413.0 H190.0 Z"><title>Joint Venture (n=1): 0.500</title></path>
+<text class="val" x="426.0" y="410.0">0.500</text>
+<text class="lbl" x="182" y="434.0" text-anchor="end">IP (n=1)</text>
+<path class="s1" d="M190.0,423.0 H406.8 Q410.8,423.0 410.8,427.0 V433.0 Q410.8,437.0 406.8,437.0 H190.0 Z"><title>IP (n=1): 0.480</title></path>
+<text class="val" x="416.8" y="434.0">0.480</text>
+<text class="lbl" x="182" y="458.0" text-anchor="end">Development (n=3)</text>
+<path class="s1" d="M190.0,447.0 H406.7 Q410.7,447.0 410.7,451.0 V457.0 Q410.7,461.0 406.7,461.0 H190.0 Z"><title>Development (n=3): 0.480</title></path>
+<text class="val" x="416.7" y="458.0">0.480</text>
+<text class="lbl" x="182" y="482.0" text-anchor="end">Co_Branding (n=4)</text>
+<path class="s1" d="M190.0,471.0 H402.6 Q406.6,471.0 406.6,475.0 V481.0 Q406.6,485.0 402.6,485.0 H190.0 Z"><title>Co_Branding (n=4): 0.471</title></path>
+<text class="val" x="412.6" y="482.0">0.471</text>
+<text class="lbl" x="182" y="506.0" text-anchor="end">Marketing (n=1)</text>
+<path class="s1" d="M190.0,495.0 H376.3 Q380.3,495.0 380.3,499.0 V505.0 Q380.3,509.0 376.3,509.0 H190.0 Z"><title>Marketing (n=1): 0.414</title></path>
+<text class="val" x="386.3" y="506.0">0.414</text>
+<text class="lbl" x="182" y="530.0" text-anchor="end">Franchise (n=1)</text>
+<path class="s1" d="M190.0,519.0 H344.6 Q348.6,519.0 348.6,523.0 V529.0 Q348.6,533.0 344.6,533.0 H190.0 Z"><title>Franchise (n=1): 0.345</title></path>
+<text class="val" x="354.6" y="530.0">0.345</text>
+</svg>
