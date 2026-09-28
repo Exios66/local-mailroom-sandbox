@@ -6,8 +6,10 @@ Binds ``127.0.0.1`` by default — not a public dashboard (see operator docs).
 
 from __future__ import annotations
 
+import html as _html
 import json
 import os
+import re
 import sys
 import threading
 import time
@@ -18,24 +20,71 @@ from typing import Any, Callable
 from urllib.parse import urlparse
 
 from mailroom_sandbox.job.checkpoint import RunStore
-from mailroom_sandbox.watch import LogBuffer, _stream_logs, compose_watch_state
+from mailroom_sandbox.tui import pretty_log as pl
+from mailroom_sandbox.watch import _LOG_ROLE, LogBuffer, _header, _stream_logs, compose_watch_state
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
 
-# Mailroom brand (match pretty_log.py)
-_COLORS = {
-    "blue": "#2456d6",
-    "teal": "#0e7490",
-    "cyan": "#38e0d6",
-    "navy": "#0b2a4a",
-    "gold": "#f5c445",
-    "cream": "#ffecd8",
-    "snow": "#fbfcfe",
-    "muted": "#5c7184",
-    "warn": "#e66767",
-    "mint": "#56e0d6",
+def _hex(rgb: tuple[int, int, int]) -> str:
+    return "#%02x%02x%02x" % rgb
+
+
+# Mailroom brand — derived from pretty_log so the browser and terminal never drift.
+THEME = {
+    "blue": _hex(pl.BLUE),
+    "teal": _hex(pl.TEAL),
+    "cyan": _hex(pl.CYAN),
+    "navy": _hex(pl.NAVY),
+    "gold": _hex(pl.GOLD),
+    "cream": _hex(pl.CREAM),
+    "snow": _hex(pl.SNOW),
+    "muted": _hex(pl.MUTED),
+    "sky": _hex(pl.SKY),
+    "amber": _hex(pl.AMBER_FACE),
+    "extrude": _hex(pl.AMBER_EXTRUDE),
 }
+# terminal palette role → THEME token (pretty_log: warn=gold, mint=sky, dim=faint)
+_ROLE_TOKEN = {"warn": "gold", "gold": "gold", "cyan": "cyan", "mint": "sky", "teal": "teal", "dim": "muted"}
+
+_SGR_RE = re.compile(r"\x1b\[([0-9;]*)m")
+
+
+def ansi_to_html(text: str) -> str:
+    """Truecolor SGR (pretty_log output) → escaped HTML spans; other codes dropped."""
+    out: list[str] = []
+    open_span = False
+    pos = 0
+    for m in _SGR_RE.finditer(text):
+        out.append(_html.escape(text[pos:m.start()], quote=False))
+        pos = m.end()
+        codes = [int(c) for c in m.group(1).split(";") if c] or [0]
+        style: list[str] = []
+        i = 0
+        while i < len(codes):
+            c = codes[i]
+            if c in (38, 48) and i + 4 < len(codes) and codes[i + 1] == 2:
+                prop = "color" if c == 38 else "background"
+                style.append(f"{prop}:{_hex(tuple(codes[i + 2:i + 5]))}")
+                i += 5
+                continue
+            if c == 1:
+                style.append("font-weight:bold")
+            elif c == 2:
+                style.append("opacity:0.6")
+            i += 1
+        if open_span:
+            out.append("</span>")
+            open_span = False
+        if style:
+            # color first, then weight — stable order for callers/tests
+            style.sort(key=lambda d: (not d.startswith(("color", "background")), d))
+            out.append(f'<span style="{";".join(style)}">')
+            open_span = True
+    out.append(_html.escape(text[pos:], quote=False))
+    if open_span:
+        out.append("</span>")
+    return "".join(out)
 
 
 def should_open_browser(*, stream: Any = None) -> bool:
@@ -64,8 +113,10 @@ class WatchWebSession:
         serving_dir: Path,
         interval: float,
         follow_logs: bool,
+        tick: Callable[[LogBuffer], None] | None = None,
     ) -> None:
         self.resolve = resolve
+        self.tick = tick  # dev-server hook: advance a synthetic run before each refresh
         self.ledger = ledger
         self.cap_usd = cap_usd
         self.times_dir = times_dir
@@ -86,6 +137,8 @@ class WatchWebSession:
             ).start()
 
     def refresh(self) -> dict[str, Any]:
+        if self.tick is not None:
+            self.tick(self.sink)
         store, app = self.resolve()
         state = compose_watch_state(
             store=store,
@@ -100,6 +153,11 @@ class WatchWebSession:
             width=100,
             blink=int(time.time()) % 7 == 0,
         )
+        # The terminal hero (owl + amber 3D THE MAILROOM) rendered exactly as the TUI draws it.
+        rid = state["snapshot"]["run_id"]
+        state["hero_html"] = ansi_to_html("\n".join(_header(rid, width=100, on=True)))
+        # the TUI's own <90-column layout for phones / narrow panes
+        state["hero_compact_html"] = ansi_to_html("\n".join(_header(rid, width=60, on=True)))
         state["ok"] = True
         with self._lock:
             self._state = state
@@ -125,8 +183,16 @@ class WatchWebSession:
         self._log_stop.set()
 
 
+def _theme_css() -> tuple[str, str]:
+    tokens = "; ".join(f"--{k}: {v}" for k, v in THEME.items())
+    roles = "\n".join(
+        f".log-line.{role} {{ color: var(--{_ROLE_TOKEN.get(tone, 'muted')}); }}" for role, tone in _LOG_ROLE.items()
+    )
+    return tokens, roles
+
+
 def _html_page() -> bytes:
-    c = _COLORS
+    tokens, roles = _theme_css()
     page = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -135,9 +201,7 @@ def _html_page() -> bytes:
 <title>THE MAILROOM · live watch</title>
 <style>
 :root {{
-  --blue: {c["blue"]}; --teal: {c["teal"]}; --cyan: {c["cyan"]};
-  --navy: {c["navy"]}; --gold: {c["gold"]}; --cream: {c["cream"]};
-  --snow: {c["snow"]}; --muted: {c["muted"]}; --warn: {c["warn"]}; --mint: {c["mint"]};
+  {tokens};
   --frame: linear-gradient(135deg, var(--blue), var(--teal));
 }}
 * {{ box-sizing: border-box; }}
@@ -175,7 +239,7 @@ header .route {{ color: var(--cyan); font-size: 11px; letter-spacing: 0.06em; }}
 .panel .body {{ padding: 10px 12px; }}
 .metric {{ display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; }}
 .metric .k {{ color: var(--muted); }}
-.metric .v {{ color: var(--snow); text-align: right; }}
+.metric .v {{ color: var(--snow); text-align: right; overflow-wrap: anywhere; min-width: 0; }}
 .bar {{
   font-family: inherit; letter-spacing: 1px; color: var(--cyan);
   margin: 6px 0; white-space: nowrap; overflow: hidden;
@@ -191,14 +255,17 @@ header .route {{ color: var(--cyan); font-size: 11px; letter-spacing: 0.06em; }}
 }}
 .log h2 {{ position: sticky; top: 0; }}
 .log-line {{ padding: 2px 10px; border-bottom: 1px solid rgba(14,116,144,0.2); word-break: break-all; }}
-.log-line.error {{ color: var(--warn); }}
-.log-line.warn {{ color: var(--gold); }}
-.log-line.throughput {{ color: var(--mint); }}
-.log-line.kv {{ color: var(--cyan); }}
-.log-line.ready {{ color: var(--teal); }}
-.log-line.plain {{ color: var(--muted); }}
-.log-line.dim {{ color: #3d5166; }}
-.err-banner {{ background: var(--warn); color: #1a0505; padding: 10px; border-radius: 4px; margin-bottom: 12px; }}
+{roles}
+.log-line.error {{ font-weight: 600; }}
+.log-line.dim {{ color: var(--muted); opacity: 0.7; }}
+#hero {{ font-size: min(12px, calc((100vw - 84px) / 60)); }}
+#hero-compact {{ display: none; font-size: min(12px, calc((100vw - 84px) / 36)); }}
+@media (max-width: 800px) {{ #hero {{ display: none; }} #hero-compact {{ display: block; }} }}
+.hero {{
+  margin: 0 0 10px; line-height: 1.15; font-family: ui-monospace, "IBM Plex Mono", Menlo, monospace;
+  white-space: pre; overflow-x: auto; color: var(--snow);
+}}
+.err-banner {{ background: var(--gold); color: #1a0505; padding: 10px; border-radius: 4px; margin-bottom: 12px; }}
 .blink .stage {{ animation: pulse 1s ease-in-out infinite; }}
 @keyframes pulse {{ 50% {{ opacity: 0.55; }} }}
 footer {{ margin-top: 16px; font-size: 11px; color: var(--muted); text-align: center; }}
@@ -208,9 +275,10 @@ footer {{ margin-top: 16px; font-size: 11px; color: var(--muted); text-align: ce
 <div class="wrap">
   <div class="frame"><div class="inner">
     <header>
-      <h1>(o,o) THE MAILROOM</h1>
-      <div class="sub" id="brand-sub">DIGITAL MAILROOM</div>
-      <div class="route" id="route-label">INBOX → SPECIALIST → REPORT</div>
+      <pre class="hero" id="hero" aria-label="THE MAILROOM">(o,o) THE MAILROOM</pre>
+      <pre class="hero" id="hero-compact" aria-label="THE MAILROOM">(o,o) THE MAILROOM</pre>
+      <div class="sub" id="brand-sub" hidden>DIGITAL MAILROOM</div>
+      <div class="route" id="route-label" hidden>INBOX → SPECIALIST → REPORT</div>
     </header>
     <div id="error" class="err-banner" hidden></div>
     <div class="status" id="status-bar">
@@ -242,7 +310,7 @@ footer {{ margin-top: 16px; font-size: 11px; color: var(--muted); text-align: ce
   <footer>localhost-only · SSE live · Ctrl+C in terminal stops server</footer>
 </div>
 <script>
-const LOG_CLASS = {{ error: "error", warn: "warn", throughput: "throughput", kv: "kv", ready: "ready", plain: "plain" }};
+const LOG_CLASS = {{ error: "error", warn: "warn", throughput: "throughput", kv: "kv", ready: "ready", plain: "plain" }};  // = watch._LOG_ROLE keys
 
 function metric(k, v) {{
   return `<div class="metric"><span class="k">${{k}}</span><span class="v">${{esc(v)}}</span></div>`;
@@ -258,6 +326,8 @@ function render(state) {{
     return;
   }}
   document.getElementById("error").hidden = true;
+  if (state.hero_html) document.getElementById("hero").innerHTML = state.hero_html;
+  if (state.hero_compact_html) document.getElementById("hero-compact").innerHTML = state.hero_compact_html;
   const s = state.snapshot || {{}};
   const sp = state.spend || {{}};
   document.getElementById("brand-sub").textContent =
@@ -292,7 +362,7 @@ function render(state) {{
     metric("sorted", `delivered ${{s.ok}} · returned ${{s.errors}}`) +
     metric("postmark", `p50 ${{s.p50_s ?? "—"}}s · p95 ${{s.p95_s ?? "—"}}s`) +
     metric("score", s.mean_score) +
-    (s.last_error ? `<div class="metric"><span class="k">last return</span><span class="v" style="color:var(--warn)">${{esc(s.last_error)}}</span></div>` : "");
+    (s.last_error ? `<div class="metric"><span class="k">last return</span><span class="v" style="color:var(--gold)">${{esc(s.last_error)}}</span></div>` : "");
 
   const pct = sp.pct_of_cap != null ? sp.pct_of_cap + "%" : "";
   document.getElementById("postage").innerHTML =
@@ -301,7 +371,7 @@ function render(state) {{
     metric("total", `$${{Number(sp.total_usd || 0).toFixed(4)}} / $${{Number(sp.cap_usd || 0).toFixed(2)}}`) +
     `<div class="bar">${{esc(sp.bar || "")}}  ${{pct}}</div>` +
     metric("gate", `$${{Number(sp.gate_usd || 4.5).toFixed(2)}} projected-total stop`) +
-    (sp.over_gate ? `<div class="metric"><span class="v" style="color:var(--warn)">⚠ OVER GATE</span></div>` : "");
+    (sp.over_gate ? `<div class="metric"><span class="v" style="color:var(--gold)">⚠ OVER GATE</span></div>` : "");
 
   const sc = document.getElementById("scorecard-wrap");
   if (state.scorecard && state.scorecard.length) {{
@@ -314,7 +384,8 @@ function render(state) {{
   logs.innerHTML = lines.length
     ? lines.map(e => `<div class="log-line ${{LOG_CLASS[e.role] || "plain"}}">${{esc(e.text)}}</div>`).join("")
     : `<div class="log-line dim">(waiting on modal app logs …)</div>`;
-  logs.scrollTop = logs.scrollHeight;
+  const pane = logs.parentElement;  // the .log panel owns overflow-y
+  pane.scrollTop = pane.scrollHeight;
 }}
 
 const es = new EventSource("/api/stream");
@@ -393,6 +464,7 @@ def serve_watch_web(
     host: str = DEFAULT_HOST,
     port: int = DEFAULT_PORT,
     open_browser: bool | None = None,
+    tick: Callable[[LogBuffer], None] | None = None,
 ) -> int:
     from mailroom_sandbox.paths import reports_dir
 
@@ -406,6 +478,7 @@ def serve_watch_web(
         serving_dir=serving_dir,
         interval=interval,
         follow_logs=logs,
+        tick=tick,
     )
     session.refresh()
     threading.Thread(target=session.run_refresh_loop, daemon=True).start()

@@ -114,3 +114,191 @@ def test_web_handler_serves_index_and_state(tmp_path):
         session.stop()
         httpd.shutdown()
         httpd.server_close()
+
+
+# ── theming parity, hero art, transport, CLI wiring ────────────────────────
+import re
+import sys
+import time
+
+from mailroom_sandbox.tui import pretty_log as pl
+from mailroom_sandbox.watch import _LOG_ROLE
+
+
+def _hex(rgb):
+    return "#%02x%02x%02x" % rgb
+
+
+def _session(tmp_path, resolve=None, interval=0.05):
+    store = _store(tmp_path)
+    return web_mod.WatchWebSession(
+        resolve=resolve or (lambda: (store, "sandbox-vllm-test")),
+        ledger=None,
+        cap_usd=5.0,
+        times_dir=None,
+        log_path=None,
+        serving_dir=tmp_path / "serving",
+        interval=interval,
+        follow_logs=False,
+    )
+
+
+def _serve(session):
+    httpd = web_mod.ThreadingHTTPServer(("127.0.0.1", 0), web_mod.make_handler(session))
+    Thread(target=httpd.serve_forever, daemon=True).start()
+    return httpd, httpd.server_address[1]
+
+
+def test_web_theme_is_derived_from_pretty_log_palette():
+    t = web_mod.THEME
+    assert t["blue"] == _hex(pl.BLUE) and t["teal"] == _hex(pl.TEAL) and t["cyan"] == _hex(pl.CYAN)
+    assert t["navy"] == _hex(pl.NAVY) and t["gold"] == _hex(pl.GOLD) and t["cream"] == _hex(pl.CREAM)
+    assert t["snow"] == _hex(pl.SNOW) and t["muted"] == _hex(pl.MUTED) and t["sky"] == _hex(pl.SKY)
+    assert t["amber"] == _hex(pl.AMBER_FACE) and t["extrude"] == _hex(pl.AMBER_EXTRUDE)
+
+
+def test_index_page_carries_every_theme_token_and_log_role():
+    page = web_mod._html_page().decode()
+    for name, value in web_mod.THEME.items():
+        assert f"--{name}: {value}" in page
+    for role in _LOG_ROLE:  # every classified log role has a themed CSS class
+        assert f".log-line.{role}" in page
+
+
+def test_ansi_to_html_maps_truecolor_bold_and_reset():
+    html = web_mod.ansi_to_html("\033[1;38;2;245;196;69mAB\033[0mC")
+    assert html == '<span style="color:#f5c445;font-weight:bold">AB</span>C'
+
+
+def test_ansi_to_html_escapes_markup_and_background():
+    html = web_mod.ansi_to_html("\033[48;2;11;42;74m<b>&\033[0m")
+    assert "&lt;b&gt;&amp;" in html and "background:#0b2a4a" in html
+    assert "\033" not in html
+
+
+def test_state_carries_terminal_hero_as_html(tmp_path):
+    state = _session(tmp_path).refresh()
+    hero = state["hero_html"]
+    assert "\033" not in hero  # all ANSI converted
+    assert _hex(pl.AMBER_FACE) in hero  # the amber 3D wordmark survives
+    assert "DIGITAL MAILROOM" in hero and "sand032-x" in hero
+    json.dumps(state)  # still SSE/JSON-safe
+
+
+def test_sse_stream_emits_state_events(tmp_path):
+    session = _session(tmp_path)
+    session.refresh()
+    httpd, port = _serve(session)
+    try:
+        conn = HTTPConnection("127.0.0.1", port, timeout=3)
+        conn.request("GET", "/api/stream")
+        resp = conn.getresponse()
+        assert resp.status == 200
+        assert resp.getheader("Content-Type").startswith("text/event-stream")
+        line = resp.fp.readline().decode()
+        assert line.startswith("data: ")
+        state = json.loads(line[len("data: "):])
+        assert state["ok"] is True and state["snapshot"]["run_id"] == "sand032-x"
+    finally:
+        session.stop()
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def test_unknown_path_is_404(tmp_path):
+    session = _session(tmp_path)
+    httpd, port = _serve(session)
+    try:
+        conn = HTTPConnection("127.0.0.1", port, timeout=2)
+        conn.request("GET", "/etc/passwd")
+        assert conn.getresponse().status == 404
+    finally:
+        session.stop()
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def test_refresh_loop_surfaces_errors_to_the_ui(tmp_path):
+    def broken():
+        raise RuntimeError("run YAML missing")
+
+    session = _session(tmp_path, resolve=broken, interval=0.01)
+    t = Thread(target=session.run_refresh_loop, daemon=True)
+    t.start()
+    deadline = time.time() + 2
+    while time.time() < deadline and session.snapshot()[1].get("error") == "initializing":
+        time.sleep(0.01)
+    session.stop()
+    _, state = session.snapshot()
+    assert state["ok"] is False and "run YAML missing" in state["error"]
+
+
+def test_client_renders_errors_logs_scorecard_and_gate():
+    page = web_mod._html_page().decode()
+    # untrusted text is escaped before innerHTML; the hero is trusted server HTML
+    assert "esc(e.text)" in page and "esc(l)" in page
+    assert 'getElementById("hero").innerHTML = state.hero_html' in page
+    assert "OVER GATE" in page and "scorecard-wrap" in page
+    assert "SSE disconnected" in page
+
+
+def test_cli_watch_web_wires_host_port_and_no_browser(monkeypatch, tmp_path):
+    from mailroom_sandbox import cli
+
+    cfg = tmp_path / "run.yaml"
+    cfg.write_text("x")
+    seen = {}
+    monkeypatch.setattr(web_mod, "serve_watch_web", lambda **kw: seen.update(kw) or 0)
+    rc = cli.main(["watch", "--config", str(cfg), "--web", "--port", "0", "--no-browser",
+                   "--host", "127.0.0.1", "--no-logs"])
+    assert rc == 0
+    assert (seen["host"], seen["port"], seen["open_browser"], seen["logs"]) == ("127.0.0.1", 0, False, False)
+
+
+def test_serve_watch_web_binds_ephemeral_port_and_prints_url(monkeypatch, tmp_path, capsys):
+    store = _store(tmp_path)
+    opened = []
+    monkeypatch.setattr(web_mod.webbrowser, "open", lambda url: opened.append(url))
+
+    def stop_immediately(self, *a, **k):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(web_mod.ThreadingHTTPServer, "serve_forever", stop_immediately)
+    # real Ctrl+C unwinds inside serve_forever; the stub never starts the loop
+    monkeypatch.setattr(web_mod.ThreadingHTTPServer, "shutdown", lambda self: None)
+    rc = web_mod.serve_watch_web(
+        resolve=lambda: (store, "sandbox-vllm-test"), ledger=None, logs=False,
+        serving_dir=tmp_path / "serving", host="127.0.0.1", port=0, open_browser=False,
+    )
+    assert rc == 0 and opened == []
+    assert re.search(r"mailroom watch web UI at http://127\.0\.0\.1:\d+/", capsys.readouterr().err)
+
+
+def test_dispatch_log_autoscrolls_its_scrolling_panel():
+    page = web_mod._html_page().decode()
+    # #logs sits inside the .log panel that owns overflow-y — scroll THAT to the newest line
+    assert "const pane = logs.parentElement;" in page
+    assert "pane.scrollTop = pane.scrollHeight;" in page
+
+
+def test_narrow_screens_get_the_terminal_compact_hero(tmp_path):
+    state = _session(tmp_path).refresh()
+    compact = state["hero_compact_html"]
+    assert "\033" not in compact and _hex(pl.AMBER_FACE) in compact
+    # compact = the TUI's <90-col wordmark: narrower rows than the wide hero
+    widest = lambda h: max(len(re.sub(r"<[^>]+>", "", l)) for l in h.split("\n"))
+    assert widest(compact) < widest(state["hero_html"])
+    page = web_mod._html_page().decode()
+    assert 'id="hero-compact"' in page and "@media (max-width: 800px)" in page
+    assert "#hero {{" not in page  # f-string braces are rendered, not leaked
+
+
+def test_long_metric_values_wrap_inside_their_panel():
+    assert "overflow-wrap: anywhere" in web_mod._html_page().decode()
+
+
+def test_hero_font_scales_to_fit_its_column_count():
+    page = web_mod._html_page().decode()
+    # 100-col wide hero and 60-col compact hero at 0.6em/char monospace
+    assert "font-size: min(12px, calc((100vw - 84px) / 60))" in page
+    assert "font-size: min(12px, calc((100vw - 84px) / 36))" in page

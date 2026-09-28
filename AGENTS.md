@@ -98,6 +98,9 @@ sandbox subagents sync --harness all  # OpenCode frontmatter + .cursor/agents/ s
 sandbox subagents propagate              # materialize + sync all mapped family checkouts
 sandbox subagents materialize --package digital-mailroom --root <path>  # monorepo hub export
 sandbox metrics compare --runs local,modal,api   # serving metrics comparison
+sandbox watch --web                   # mailroom pretty-logs TUI in the browser (http://127.0.0.1:8765/, SSE)
+sandbox dev                           # dev server: same themed UI on a synthetic looping run (no Modal/spend)
+scripts/mailroom-tui dev|web|score <run>   # launcher; .claude/launch.json → mailroom-watch-dev / -live
 # SANDBOX_DEBUG=1 → set -x + results/run.log diagnostics (CHTC/Modal, DMR-053)
 ```
 
