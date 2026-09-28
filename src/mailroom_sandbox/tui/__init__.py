@@ -9,5 +9,5 @@ Do not edit it here — refresh it from mailroom-ml and update the pin
 (SAND-033) for ``sandbox run|eval|matrix`` and deploy entrypoints.
 """
 
-PRETTY_LOG_UPSTREAM = "LLM-Mailroom-Services/mailroom-ml@f85f79ed9f2c0a7f1e17e755ee1a8094cf5a7197:training/pretty_log.py"
+PRETTY_LOG_UPSTREAM = "LLM-Mailroom-Services/mailroom-ml@088530b58a5f17e198e05dc17785bbaea63af50b:training/pretty_log.py"
 PRETTY_LOG_SHA256 = "ac1b7aa34ae5e67723024f148fe2f0df76e34eb8ea959d3cd7ecbeeb757ce41c"
