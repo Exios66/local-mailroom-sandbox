@@ -13,7 +13,7 @@ SAND-032 Modal × vLLM specialist extract: **50 insurance_claim docs** on **Qwen
 | modal | `sandbox-vllm-sand032`, max/min containers 2/2, scaledown 120 s, profile `exios66` |
 | dataset | mailroom-dataset `ground_truth`, split=all, rev `ed7576b6`, seed 42 |
 | draw | 50 docs, single-class bucket (nested 20 ⊂ 50 ⊂ 100); dataset sha `b53ba23fea0a` |
-| git | `37e5f98` |
+| git | `b268ad4 (dirty)` |
 | spec_hash | `dd56c64e5fbcc6b22ab16eed44353dbbea22b6cb081ad840d26b3f2d482ad31f` |
 
 ## Headline results
