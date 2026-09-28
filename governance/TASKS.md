@@ -7,7 +7,7 @@ Cross-family work stays on llm-entity-extraction's MESSAGE_BOARD as
 **`DMR-*`**. This file is the **only** sandbox-local task board — do not
 open `DMR-*` cards here.
 
-**Next ID: `SAND-033`**
+**Next ID: `SAND-034`**
 
 Lanes: `todo` → `in_progress` → `needs_attention` → `done`.
 
@@ -18,6 +18,7 @@ Lanes: `todo` → `in_progress` → `needs_attention` → `done`.
 | ID | Title | Owner | Status | Notes |
 | --- | --- | --- | --- | --- |
 | SAND-031 | Centralize operator runbooks (singular 1×L4 Qwen3-8B + improved configs) | cursor | **done** | Catalog `config/runbooks/catalog.yaml`; CLI `sandbox runbook list\|show\|check\|write`; generated `docs/runbooks/`. Pins tested against deploy + models.yaml + run YAMLs. Related: SAND-027-6 Granite live deploy still todo. |
+| SAND-033 | Unified mailroom-themed terminal logging (CLI session layer + cross-repo plan) | cursor | **done** | `mailroom_sandbox.tui.session` wires `sandbox run|eval|matrix`, Modal deploy entrypoints; alt-screen TUI stays `sandbox watch` (SAND-032). Store: `docs/mailroom-themed-logging.md`, `internal/unified-mailroom-logging-plan.md`. Related: SAND-032. |
 | SAND-032 | Qwen3-8B-AWQ L4 serving ladder → 2-replica scale-out → 5-specialist n=50 sweep + bf16 arm; funding evidence ($5 cap, Modal profile exios66, public HF data only) | claude | in progress | Spec docs/superpowers/specs/2026-09-27-qwen3-l4-serving-ladder-design.md; plan docs/superpowers/plans/2026-09-27-qwen3-l4-serving-ladder.md. Part A (spec-driven knobs, replica-aware caps, offline evidence rows, 15 configs) in PR; Part B (live) gated on huggingface-secret on exios66. Related: SAND-028, SAND-030, SAND-031, issue #38. |
 | SAND-030 | Modal L4 long-prompt vLLM posture (max_num_seqs 4–6, APC, eager, DP second L4) | cursor | **done** | Deploy defaults + run YAMLs + docs. Data parallel via `MAX_CONTAINERS=2`, not TP. Related: SAND-023 topology / SAND-028 spend. |
 | SAND-020 | Correspondence extraction floor diagnosis + parse/schema metric (issue #21) | cursor | **in_progress** | Offline: schema-adherence rates, empty-field/partial-credit docs, FP16 twin YAML (not run). Related: GitHub issue #21 |
