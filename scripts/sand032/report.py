@@ -282,7 +282,7 @@ def sorter_report(rid: str) -> Path:
     pairs = [(exp[i["item_id"]], (i.get("score") or {}).get("predicted", "")) for i in ok]
     classes = sorted({e for e, _ in pairs})
     acc = sum(e == p for e, p in pairs) / len(pairs) if pairs else 0.0
-    rows, f1s = [], []
+    rows, f1s, f1_rows = [], [], []
     for c in classes:
         tp = sum(e == c and p == c for e, p in pairs)
         fp = sum(e != c and p == c for e, p in pairs)
@@ -291,6 +291,7 @@ def sorter_report(rid: str) -> Path:
         R = tp / (tp + fn) if tp + fn else 0.0
         F = 2 * P * R / (P + R) if P + R else 0.0
         f1s.append(F)
+        f1_rows.append({"label": f"{c} (n={tp + fn})", "value": round(F, 4), "note": f"P {P:.3f} · R {R:.3f}"})
         rows.append(f"| {c} | {tp + fn} | {P:.3f} | {R:.3f} | {F:.3f} |")
     preds = sorted({p for _, p in pairs} | set(classes))
     conf = ["| expected ↓ / predicted → | " + " | ".join(preds) + " |", "| --- |" + " --- |" * len(preds)]
@@ -319,6 +320,9 @@ def sorter_report(rid: str) -> Path:
              f"| latency p50 / p95 s | {_f(med(lat), 1)} / {_f(p95(lat) if lat else None, 1)} |",
              f"| prompt tokens p50 / max | {med(pt)} / {pt[-1] if pt else None} |",
              f"| completion tokens p50 / max | {med(ct)} / {ct[-1] if ct else None} |", "",
+             "## Figures", "",
+             f"![Per-class F1 for the isolated sorter](figures/{rid}-per-class-f1.svg)", "",
+             "_Table view: **Per-class** below._", "",
              "## Per-class", "", "| class | n | precision | recall | F1 |", "| --- | --- | --- | --- | --- |", *rows, "",
              "## Confusion matrix", "", *conf, "",
              "## Findings", "",
@@ -327,6 +331,11 @@ def sorter_report(rid: str) -> Path:
              "input is the main cost lever for the runbook.",
              "- Items recorded before the storage fix carry `SorterAgent.classify`'s tuple as a string; scores "
              "here come from `scripts/sand032/rescore.py` (post hoc, no LLM calls).", ""]
+    fig_dir = ROOT / "reports" / "serving" / "figures"
+    fig_dir.mkdir(parents=True, exist_ok=True)
+    (fig_dir / f"{rid}-per-class-f1.svg").write_text(viz.hbar(
+        f"Per-class F1 · {rid}", f"isolated sorter · {len(ok)} docs · accuracy {acc:.3f} (0–1, higher is better)",
+        sorted(f1_rows, key=lambda r: -r["value"]), fmt=lambda v: f"{v:.3f}", label_w=230))
     out = ROOT / "reports" / "serving" / f"SAND032-{rid.removeprefix('sand032-').upper()}-REPORT.md"
     out.write_text("\n".join(lines))
     return out
@@ -496,6 +505,86 @@ def ladder_report() -> Path:
     return out
 
 
+def _serving(rid: str) -> dict:
+    d = _json(SERVING / f"{rid}.serving.json")
+    return d.get("metrics", d) if d else {}
+
+
+def _paired_means(a: str, b: str) -> tuple[float, float, int]:
+    """(baseline mean, variant mean, n) over docs both runs scored (a = variant, b = baseline)."""
+    ia = {i["item_id"]: i for i in _jsonl(RUNS / a / "items.jsonl")}
+    ib = {i["item_id"]: i for i in _jsonl(RUNS / b / "items.jsonl")}
+    sc = lambda i: (i.get("score") or {}).get("overall_extraction_score")  # noqa: E731
+    keys = [k for k in ib if k in ia and ia[k].get("ok") and ib[k].get("ok")
+            and isinstance(sc(ia[k]), (int, float)) and isinstance(sc(ib[k]), (int, float))]
+    if not keys:
+        return 0.0, 0.0, 0
+    return statistics.mean(sc(ib[k]) for k in keys), statistics.mean(sc(ia[k]) for k in keys), len(keys)
+
+
+SUMMARY_FIGS = "<!-- sand032-program-figures -->"
+
+
+def program_figures() -> Path:
+    """Summary-level figures (routing, admission ×2, v2 prompts) + one link block in the summary."""
+    fig_dir = ROOT / "reports" / "serving" / "figures"
+    fig_dir.mkdir(parents=True, exist_ok=True)
+    routing = [
+        ("1×L4 · c8 (s2a)", "sand032-s2a-corr100-1rep"),
+        ("2×L4 · c16 · max_inputs 32 (s2b)", "sand032-s2b-corr100-2rep"),
+        ("2×L4 · c64 · max_inputs 64 (s7)", "sand032-s7-corr100-seqs32"),
+        ("2×L4 · c64 · max_inputs 32 (s9)", "sand032-s9-corr100-bal"),
+    ]
+    rrows = []
+    for label, rid in routing:
+        m = _serving(rid)
+        if m.get("wall_seconds"):
+            rrows.append({"label": label, "value": round(float(m["wall_seconds"]), 1),
+                          "emphasis": "(s7)" in label or "(s9)" in label,
+                          "note": f"{float(m.get('tokens_per_second') or 0):.0f} tok/s"})
+    (fig_dir / "sand032-routing.svg").write_text(viz.hbar(
+        "Correspondence n=100 wall time by fleet",
+        "same 100 docs · lower is better · s7 routed 97/100 requests to one replica",
+        rrows, unit="s", fmt=lambda v: f"{v:.1f}", label_w=250))
+    adm = [
+        ("correspondence n=100", "sand032-s2b-corr100-2rep", "sand032-s9-corr100-bal"),
+        ("insurance n=50", "sand032-s3-insurance50", "sand032-s9-insurance50-bal"),
+        ("corporate n=50", "sand032-s3-corporate50", "sand032-s9-corporate50-bal"),
+        ("contracts n=50", "sand032-s3-contracts50", "sand032-s9-contracts50-bal"),
+    ]
+    arows = [{"label": lab, "a": round(float(_serving(a)["wall_seconds"]), 1),
+              "b": round(float(_serving(b)["wall_seconds"]), 1)}
+             for lab, a, b in adm if _serving(a).get("wall_seconds") and _serving(b).get("wall_seconds")]
+    (fig_dir / "sand032-admission.svg").write_text(viz.dumbbell(
+        "Wall time: seqs16 fleet → seqs32 balanced fleet", "2×L4 · lower is better",
+        arows, ("seqs16", "seqs32 balanced"), unit="s", fmt=lambda v: f"{v:.0f}"))
+    v2 = [("correspondence", "sand032-s10-corr75-v2", "sand032-s3-corr50"),
+          ("insurance_claim", "sand032-s10-insurance75-v2", "sand032-s3-insurance50"),
+          ("corporate_record", "sand032-s10-corporate75-v2", "sand032-s3-corporate50")]
+    vrows = []
+    for lab, a, b in v2:
+        prod, new, n = _paired_means(a, b)
+        if n:
+            vrows.append({"label": f"{lab} (paired n={n})", "a": round(prod, 4), "b": round(new, 4)})
+    (fig_dir / "sand032-v2-prompts.svg").write_text(viz.dumbbell(
+        "Production prompt → eval-environment v2 prompt",
+        "same docs · overall extraction score (0–1, higher is better)",
+        vrows, ("production", "v2"), fmt=lambda v: f"{v:.3f}", label_w=230))
+    summary = ROOT / "reports" / "serving" / "QWEN3-L4-LADDER-SUMMARY.md"
+    text = summary.read_text()
+    block = "\n".join([
+        SUMMARY_FIGS, "## Figures", "",
+        "![SAND-032 knob ladder small multiples](figures/sand032-ladder.svg)", "",
+        "![Correspondence n=100 wall time by fleet](figures/sand032-routing.svg)", "",
+        "![Wall time, seqs16 fleet vs seqs32 balanced fleet](figures/sand032-admission.svg)", "",
+        "![Production vs v2 prompt, paired](figures/sand032-v2-prompts.svg)", "",
+        "_Table views: sections 1, 2 and 7 above, and [SAND032-V2-PROMPT-PROMOTION.md](SAND032-V2-PROMPT-PROMOTION.md)._", "",
+    ])
+    head = text[: text.index(SUMMARY_FIGS)].rstrip() if SUMMARY_FIGS in text else text.rstrip()
+    summary.write_text(head + "\n\n" + block)
+    return summary
+
+
 if __name__ == "__main__":
     cmd, *args = sys.argv[1:] or ["ladder"]
     if cmd == "run":
@@ -503,3 +592,14 @@ if __name__ == "__main__":
             print(run_report(rid))
     elif cmd == "ladder":
         print(ladder_report())
+    elif cmd == "program":
+        print(program_figures())
+    elif cmd == "all":  # every SAND-032 run report + ladder + program figures
+        for run in sorted((RUNS).glob("sand032-*")):
+            if (run / "items.jsonl").is_file() and not run.name.endswith(".aborted-404"):
+                try:
+                    print(run_report(run.name))
+                except Exception as exc:  # noqa: BLE001 — report which run could not render
+                    print(f"SKIP {run.name}: {type(exc).__name__}: {exc}")
+        print(ladder_report())
+        print(program_figures())
