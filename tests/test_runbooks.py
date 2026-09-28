@@ -105,12 +105,15 @@ def test_fp16_twin_is_blocked():
 def test_granite_runbook_documents_smoke_and_skips_qwen_check():
     md = render_markdown("improved-granite-fp8")
     assert "ibm-granite/granite-4.2-8b-fp8" in md
+    # The runbook must explain why the newer parser is NOT used: vLLM v0.29.0
+    # (the pinned image) has no `granite_thinking_parser` and crash-loops on
+    # boot, so the verified pin is the native `granite` parser.
     assert "granite_thinking_parser" in md
     assert "Deploy smoke" in md
     script = render_shell("improved-granite-fp8")
     assert "benchmark-check" not in script
     env = env_exports(get_runbook("improved-granite-fp8"))
-    assert env["MODAL_VLLM_REASONING_PARSER"] == "granite_thinking_parser"
+    assert env["MODAL_VLLM_REASONING_PARSER"] == "granite"
     assert int(env["MODAL_VLLM_MAX_CONTAINERS"]) == 1
 
 
