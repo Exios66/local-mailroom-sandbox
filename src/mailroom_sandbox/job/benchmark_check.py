@@ -72,7 +72,7 @@ TWO_GPU_RUNS = frozenset({
     "run-20-correspondence-specialist-awq",
     "run-50-correspondence-specialist-awq",
     # SAND-032 Stage 2b + Stage 3: 2 replicas × 1 L4 pinned warm.
-    *(r for r in SAND032_RUNS if r.startswith(("sand032-s3", "sand032-s5")) or r == "sand032-s2b-corr100-2rep"),
+    *(r for r in SAND032_RUNS if r.startswith(("sand032-s3", "sand032-s5", "sand032-s7", "sand032-s8", "sand032-s9")) or r == "sand032-s2b-corr100-2rep"),
     *SAND032_SORTER_RUNS,
 })
 
@@ -290,7 +290,7 @@ def check_benchmark_posture(
                 "(run: set -a; eval \"$(sandbox run deploy-env --config …)\"; set +a)"
             )
         if (
-            spec.run_id.startswith(("sand032-s2", "sand032-s3", "sand032-s5", "sand032-s6"))
+            spec.run_id.startswith(("sand032-s2", "sand032-s3", "sand032-s5", "sand032-s6", "sand032-s7", "sand032-s8", "sand032-s9"))
             and spec.engine.vllm.kv_cache_dtype != "fp8"
         ):
             errors.append(
