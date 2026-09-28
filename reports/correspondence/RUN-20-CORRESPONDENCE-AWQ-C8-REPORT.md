@@ -10,7 +10,7 @@ batched run on one L4.
 |---|---|
 | run_id | `run-20-correspondence-awq-c8` |
 | task / agent | `correspondence_specialist` |
-| prompt | `correspondence_specialist_production` (local, pinned) |
+| prompt | `correspondence_specialist_production` (local pin recorded, not applied — see erratum) |
 | engine | `Qwen/Qwen3-8B-AWQ`, vLLM `v0.29.0`, 1x L4 |
 | context / quant | `max_model_len=32768`, AWQ, gpu_util=0.90, max_num_seqs=256 |
 | profile / provider | `modal-vllm` / `vllm` |
@@ -18,6 +18,13 @@ batched run on one L4.
 | draw | 20 correspondence docs (seeded class bucket; identical to c5) |
 | git | `fa74d59` (dirty=True) |
 | spec_hash | `39b5a2a2a7543a80c0bf988e343ddd8d2d6a530fbdbb61f0daa9920ab4aa5c2f` |
+
+> **Erratum (2026-09-28):** this run executed before commit `6dbf457` (SAND-027-3),
+> which is the fix that made job runners apply `prompt.agents.<task>` pins. Before it,
+> `_lock_prompt_variant` read only `prompt.default` (`code-default`), so the pinned
+> stem above was recorded but **not sent**; the agent used its vendored default text.
+> Separately, commit `164d45d` later re-pinned this run's YAML to a `*_simplified`
+> stem, so the current `config/runs/` file does not reproduce this run.
 
 ## Headline results
 

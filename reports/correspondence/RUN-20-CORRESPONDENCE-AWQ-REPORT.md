@@ -8,7 +8,7 @@ ground-truth/scorer artifact.
 |---|---|
 | run_id | `run-20-correspondence-awq` |
 | task / agent | `correspondence_specialist` |
-| prompt | `correspondence_specialist_production` (local, pinned) |
+| prompt | `correspondence_specialist_production` (local pin recorded, not applied — see erratum) |
 | engine | `Qwen/Qwen3-8B-AWQ`, vLLM `v0.29.0`, 1x L4 |
 | context / quant | `max_model_len=32768`, AWQ, gpu_util=0.90, max_num_seqs=256 |
 | profile / provider | `modal-vllm` / `vllm` |
@@ -17,6 +17,13 @@ ground-truth/scorer artifact.
 | timestamp | `2026-09-25T13:27:47.586681+00:00` |
 | git | `7410a0b` (dirty=True) |
 | spec_hash | `e809da8c473ed9d66053105699546dbdf7c7ecbd6d653c25f998ba45b7199923` |
+
+> **Erratum (2026-09-28):** this run executed before commit `6dbf457` (SAND-027-3),
+> which is the fix that made job runners apply `prompt.agents.<task>` pins. Before it,
+> `_lock_prompt_variant` read only `prompt.default` (`code-default`), so the pinned
+> stem above was recorded but **not sent**; the agent used its vendored default text.
+> Separately, commit `164d45d` later re-pinned this run's YAML to a `*_simplified`
+> stem, so the current `config/runs/` file does not reproduce this run.
 
 ## Headline results
 
