@@ -95,3 +95,16 @@ pinned to `Qwen/Qwen3-8B` and must be verified before any sorter rerun. Estimate
 - Client: concurrency = replicas × `max_num_seqs`.
 
 Ledger at close: $2.80 cumulative (fleet-window estimate).
+
+<!-- sand032-program-figures -->
+## Figures
+
+![SAND-032 knob ladder small multiples](figures/sand032-ladder.svg)
+
+![Correspondence n=100 wall time by fleet](figures/sand032-routing.svg)
+
+![Wall time, seqs16 fleet vs seqs32 balanced fleet](figures/sand032-admission.svg)
+
+![Production vs v2 prompt, paired](figures/sand032-v2-prompts.svg)
+
+_Table views: sections 1, 2 and 7 above, and [SAND032-V2-PROMPT-PROMOTION.md](SAND032-V2-PROMPT-PROMOTION.md)._

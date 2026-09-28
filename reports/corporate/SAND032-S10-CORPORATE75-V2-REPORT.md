@@ -13,7 +13,7 @@ SAND-032 Modal × vLLM specialist extract: **75 corporate_record docs** on **Qwe
 | modal | `sandbox-vllm-sand032`, max/min containers 1/1, scaledown 120 s, profile `exios66` |
 | dataset | mailroom-dataset `ground_truth`, split=all, rev `ed7576b6`, seed 42 |
 | draw | 75 docs, single-class bucket (nested 20 ⊂ 50 ⊂ 100); dataset sha `ea36c90aa6b2` |
-| git | `02954ee` |
+| git | `02954ee (dirty)` |
 | spec_hash | `a8b80797a7939f8d192018fe101affa28608e67c5037730efd3c7249c963e0cd` |
 
 ## Headline results

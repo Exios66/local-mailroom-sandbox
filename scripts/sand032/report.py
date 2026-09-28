@@ -351,7 +351,12 @@ def run_report(rid: str) -> Path:
     cls = spec["dataset"]["strata"]["buckets"][0]["doc_class"]
     agent = spec["task"]
     prompt = next(iter(spec["prompt"]["agents"].values()))["file"]
-    git = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
+    # provenance = the commit the RUN used (spec lock), not whatever HEAD is when the report is rebuilt
+    run_git = (d["lock"].get("git") or {}) if isinstance(d.get("lock"), dict) else {}
+    git = run_git.get("commit") or subprocess.run(
+        ["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
+    if run_git.get("dirty"):
+        git += " (dirty)"
     lines = [
         f"# Run report — `{rid}`",
         "",
