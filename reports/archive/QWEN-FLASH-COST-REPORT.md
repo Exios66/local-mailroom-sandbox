@@ -1,7 +1,7 @@
 # QWEN-flash OpenRouter cost report (SAND-027-9)
 
 Reproducible from a clean checkout via the tracked ledger
-`reports/qwen-flash-cost-source.json` — no dependency on the gitignored
+`reports/archive/qwen-flash-cost-source.json` — no dependency on the gitignored
 `reports/experiment_log.jsonl`.
 
 Regenerate the machine report (markdown/json under `api-evals/reports/`):
@@ -48,6 +48,6 @@ comparison proxy** for local/Modal legs. It is **never** the OpenRouter invoice.
 
 ## Related docs
 
-- Ledger schema + raw fields: `reports/qwen-flash-cost-source.json`
+- Ledger schema + raw fields: `reports/archive/qwen-flash-cost-source.json`
 - Mission plan §2.7: `governance/SAND-027-MISSION-PLAN.md`
 - GPU vs API cost honesty: `src/mailroom_sandbox/job/metrics.py` (module docstring)
