@@ -42,6 +42,7 @@ def extract_external(ev_root: pathlib.Path, ml_root: pathlib.Path) -> dict:
     ev = H.Repo(EVAL_ENV, ev_root, L, "reports")
     ml = H.Repo(MAILROOM_ML, ml_root, L)
     api = H.eval_env(ev)
+    api["sorter"] = H.sorter_cases(H.Repo(EVAL_ENV, ev_root, L), api["classification"])
     mb = H.mailroom_ml(ml)
     mb["run3_reeval"] = H.eval_env_modernbert(ev)
     return {"sources": {EVAL_ENV: ev.sha, MAILROOM_ML: ml.sha}, "api": api, "mb": mb,
@@ -165,7 +166,14 @@ def ml_text(ml: dict, mb: dict) -> dict:
         head = head[0].upper() + head[1:]
         if none:
             head += f"; length does not move {' or '.join(none)}"
+    col = B["collapse"]
+    over = [c for c in CLS_LABEL if c in col and (col[c]["top_pred"][1] - col[c]["top_true"][1]) / col[c]["n"] >= 0.25]
+    names = [CLS_LABEL[c].lower().rstrip("s") for c in over]
+    words = {0: "No", 1: "One", 2: "Two", 3: "Three", 4: "Four", 5: "Five"}
+    collapse_head = (f"{words[len(over)]} of five Arm B heads over-predict one subclass"
+                     + (f": {', '.join(names[:-1]) + ' and ' + names[-1] if len(names) > 1 else names[0]}" if names else ""))
     return {
+        "collapse_head": collapse_head,
         "fp_b": f"{B['fast']['correct']}/{B['fast']['n']}",
         "con_sub": f"{B['subclass']['contract']['correct']}/{B['subclass']['contract']['n']}",
         "con_n": str(B["contract_n"]),
@@ -206,7 +214,15 @@ def text(runs, s32, api, mb, old, run2, cost_cmp) -> dict:
         big = [x["mean"] for x in runs[S3[c]]["strata"] if x["n"] >= 3]
         spread[c] = (min(big), max(big))
     wide = max(spread, key=lambda c: spread[c][1] - spread[c][0])
+    sorter = api["sorter"]
+    ece = sorted((v["ece"], m) for m, v in sorter.items())
+    names = {"deepseek/deepseek-v4.1-flash": "DeepSeek-V4.1-Flash", "ibm-granite/granite-4.2-8b": "Granite-4.2-8B",
+             "qwen/qwen3.7-flash": "Qwen3.7-Flash"}
+    short = lambda m: names.get(m, m.split("/")[-1])  # noqa: E731
+    sorter_head = (f"{short(ece[0][1])} states its confidence most honestly (ECE {ece[0][0]:.3f}); "
+                   f"{short(ece[-1][1])} is furthest off ({ece[-1][0]:.3f})")
     return {
+        "sorter_head": sorter_head,
         "sub_wide_cls": CLS_LABEL[wide].lower(), "sub_wide_lo": f"{spread[wide][0]:.2f}", "sub_wide_hi": f"{spread[wide][1]:.2f}",
         "cost_red_lo": f"{min(red):.1f}", "cost_red_hi": f"{max(red):.0f}",
         "err_lo": f"{min(err) * 100:.0f}", "err_hi": f"{max(err) * 100:.0f}",

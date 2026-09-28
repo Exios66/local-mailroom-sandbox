@@ -88,6 +88,292 @@
    }
   ],
   "granite_corr_final": "20260927T053647Z-eval-correspondence",
+  "sorter": {
+   "deepseek/deepseek-v4.1-flash": {
+    "bins": [
+     {
+      "acc": 0.5556,
+      "conf": 0.6948,
+      "n": 9
+     },
+     {
+      "acc": 1.0,
+      "conf": 0.8573,
+      "n": 7
+     },
+     {
+      "acc": 1.0,
+      "conf": 0.9266,
+      "n": 16
+     },
+     {
+      "acc": 1.0,
+      "conf": 0.9591,
+      "n": 67
+     }
+    ],
+    "collapse": {
+     "contract": {
+      "correct": 9,
+      "n": 14,
+      "top_pred": [
+       "agency",
+       2
+      ],
+      "top_true": [
+       "Agency Agreements",
+       2
+      ]
+     },
+     "corporate_record": {
+      "correct": 6,
+      "n": 8,
+      "top_pred": [
+       "subsidiary_list",
+       2
+      ],
+      "top_true": [
+       "charter_amendment",
+       3
+      ]
+     },
+     "correspondence": {
+      "correct": 14,
+      "n": 35,
+      "top_pred": [
+       "email",
+       24
+      ],
+      "top_true": [
+       "email",
+       14
+      ]
+     },
+     "insurance_claim": {
+      "correct": 33,
+      "n": 33,
+      "top_pred": [
+       "inpatient",
+       13
+      ],
+      "top_true": [
+       "inpatient",
+       13
+      ]
+     },
+     "merger_agreement": {
+      "correct": 2,
+      "n": 5,
+      "top_pred": [
+       "mixed_cash_stock",
+       2
+      ],
+      "top_true": [
+       "all_stock",
+       2
+      ]
+     }
+    },
+    "confusion": {
+     "contract->contract": 14,
+     "corporate_record->contract": 4,
+     "corporate_record->corporate_record": 8,
+     "correspondence->correspondence": 35,
+     "correspondence->unknown": 1,
+     "insurance_claim->insurance_claim": 33,
+     "merger_agreement->merger_agreement": 5
+    },
+    "ece": 0.0623,
+    "n": 100,
+    "n_conf": 100,
+    "run": "20260927T101544Z-eval-classification"
+   },
+   "ibm-granite/granite-4.2-8b": {
+    "bins": [
+     {
+      "acc": 0.8182,
+      "conf": 0.9205,
+      "n": 11
+     },
+     {
+      "acc": 1.0,
+      "conf": 0.9723,
+      "n": 65
+     },
+     {
+      "acc": 1.0,
+      "conf": 0.99,
+      "n": 16
+     }
+    ],
+    "collapse": {
+     "contract": {
+      "correct": 9,
+      "n": 13,
+      "top_pred": [
+       "promotion",
+       2
+      ],
+      "top_true": [
+       "Promotion",
+       2
+      ]
+     },
+     "corporate_record": {
+      "correct": 6,
+      "n": 10,
+      "top_pred": [
+       "subsidiary_list",
+       2
+      ],
+      "top_true": [
+       "charter_amendment",
+       3
+      ]
+     },
+     "correspondence": {
+      "correct": 5,
+      "n": 35,
+      "top_pred": [
+       "other",
+       19
+      ],
+      "top_true": [
+       "email",
+       14
+      ]
+     },
+     "insurance_claim": {
+      "correct": 28,
+      "n": 33,
+      "top_pred": [
+       "carrier",
+       12
+      ],
+      "top_true": [
+       "inpatient",
+       13
+      ]
+     },
+     "merger_agreement": {
+      "correct": 1,
+      "n": 3,
+      "top_pred": [
+       "all_cash",
+       3
+      ],
+      "top_true": [
+       "all_stock",
+       2
+      ]
+     }
+    },
+    "confusion": {
+     "contract->contract": 13,
+     "contract->corporate_record": 1,
+     "corporate_record->contract": 2,
+     "corporate_record->corporate_record": 10,
+     "correspondence->correspondence": 35,
+     "correspondence->unknown": 1,
+     "insurance_claim->insurance_claim": 33,
+     "merger_agreement->merger_agreement": 3,
+     "merger_agreement->unknown": 2
+    },
+    "ece": 0.0335,
+    "n": 100,
+    "n_conf": 100,
+    "run": "20260927T100340Z-eval-classification"
+   },
+   "qwen/qwen3.7-flash": {
+    "bins": [
+     {
+      "acc": 0.9254,
+      "conf": 0.9524,
+      "n": 67
+     },
+     {
+      "acc": 1.0,
+      "conf": 1.0,
+      "n": 28
+     }
+    ],
+    "collapse": {
+     "contract": {
+      "correct": 9,
+      "n": 14,
+      "top_pred": [
+       "agency",
+       2
+      ],
+      "top_true": [
+       "Agency Agreements",
+       2
+      ]
+     },
+     "corporate_record": {
+      "correct": 3,
+      "n": 6,
+      "top_pred": [
+       "subsidiary_list",
+       2
+      ],
+      "top_true": [
+       "charter_amendment",
+       3
+      ]
+     },
+     "correspondence": {
+      "correct": 15,
+      "n": 33,
+      "top_pred": [
+       "email",
+       22
+      ],
+      "top_true": [
+       "email",
+       13
+      ]
+     },
+     "insurance_claim": {
+      "correct": 26,
+      "n": 33,
+      "top_pred": [
+       "inpatient",
+       13
+      ],
+      "top_true": [
+       "inpatient",
+       13
+      ]
+     },
+     "merger_agreement": {
+      "correct": 3,
+      "n": 5,
+      "top_pred": [
+       "mixed_cash_stock",
+       2
+      ],
+      "top_true": [
+       "all_cash",
+       2
+      ]
+     }
+    },
+    "confusion": {
+     "contract->contract": 14,
+     "corporate_record->contract": 6,
+     "corporate_record->corporate_record": 6,
+     "correspondence->correspondence": 33,
+     "correspondence->unknown": 3,
+     "insurance_claim->insurance_claim": 33,
+     "merger_agreement->merger_agreement": 5
+    },
+    "ece": 0.019,
+    "n": 100,
+    "n_conf": 100,
+    "run": "20260927T101020Z-eval-classification"
+   }
+  },
   "tasks": {
    "contracts": {
     "deepseek-v4.1-flash": {
@@ -356,7 +642,7 @@
    }
   }
  },
- "checks": 75,
+ "checks": 81,
  "issues": [
   {
    "key": "api.qwen_merger_model",
@@ -496,6 +782,68 @@
       3.585,
       3.7004
      ]
+    },
+    "collapse": {
+     "contract": {
+      "correct": 1,
+      "n": 41,
+      "top_pred": [
+       "supply",
+       27
+      ],
+      "top_true": [
+       "service",
+       6
+      ]
+     },
+     "corporate_record": {
+      "correct": 4,
+      "n": 38,
+      "top_pred": [
+       "indenture",
+       38
+      ],
+      "top_true": [
+       "charter_amendment",
+       9
+      ]
+     },
+     "correspondence": {
+      "correct": 37,
+      "n": 75,
+      "top_pred": [
+       "email",
+       75
+      ],
+      "top_true": [
+       "email",
+       37
+      ]
+     },
+     "insurance_claim": {
+      "correct": 85,
+      "n": 108,
+      "top_pred": [
+       "inpatient",
+       32
+      ],
+      "top_true": [
+       "auto",
+       28
+      ]
+     },
+     "merger_agreement": {
+      "correct": 8,
+      "n": 17,
+      "top_pred": [
+       "other",
+       17
+      ],
+      "top_true": [
+       "other",
+       8
+      ]
+     }
     },
     "contract_n": 41,
     "contract_pred": [
@@ -773,6 +1121,68 @@
       3.585,
       3.7004
      ]
+    },
+    "collapse": {
+     "contract": {
+      "correct": 2,
+      "n": 53,
+      "top_pred": [
+       "collaboration",
+       30
+      ],
+      "top_true": [
+       "service",
+       7
+      ]
+     },
+     "corporate_record": {
+      "correct": 19,
+      "n": 42,
+      "top_pred": [
+       "charter_amendment",
+       16
+      ],
+      "top_true": [
+       "charter_amendment",
+       9
+      ]
+     },
+     "correspondence": {
+      "correct": 36,
+      "n": 81,
+      "top_pred": [
+       "email",
+       64
+      ],
+      "top_true": [
+       "email",
+       38
+      ]
+     },
+     "insurance_claim": {
+      "correct": 113,
+      "n": 114,
+      "top_pred": [
+       "auto",
+       34
+      ],
+      "top_true": [
+       "auto",
+       34
+      ]
+     },
+     "merger_agreement": {
+      "correct": 9,
+      "n": 17,
+      "top_pred": [
+       "other",
+       16
+      ],
+      "top_true": [
+       "other",
+       8
+      ]
+     }
     },
     "contract_n": 53,
     "contract_pred": [
@@ -3172,6 +3582,30 @@
    "sha": "e5d87667b97a",
    "source": "reports/api-comparisons/API-LEG-MASTER-REPORT.md",
    "value": "20260927T053647Z-eval-correspondence"
+  },
+  {
+   "key": "sorter.20260927T100340Z-eval-classification.cases",
+   "quote": "cases[20260927T100340Z-eval-classification]: 100 rows",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "e5d87667b97a",
+   "source": "web/data/snapshot.json",
+   "value": 100
+  },
+  {
+   "key": "sorter.20260927T101020Z-eval-classification.cases",
+   "quote": "cases[20260927T101020Z-eval-classification]: 100 rows",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "e5d87667b97a",
+   "source": "web/data/snapshot.json",
+   "value": 100
+  },
+  {
+   "key": "sorter.20260927T101544Z-eval-classification.cases",
+   "quote": "cases[20260927T101544Z-eval-classification]: 100 rows",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "e5d87667b97a",
+   "source": "web/data/snapshot.json",
+   "value": 100
   },
   {
    "key": "mb.armB.acc",
