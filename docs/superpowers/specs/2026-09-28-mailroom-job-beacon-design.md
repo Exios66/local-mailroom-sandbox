@@ -18,7 +18,7 @@ display source (no local data). mailroom-ml is not checked out here.
 ## Board — `sandbox board`
 - Derived status: `running`, `stalled` (running but `updated_at` older than `--stale-s`, default 120, or
   same-host pid gone), `done`, `failed`. Sorted live → stalled → finished (newest first).
-- Browser: `http://127.0.0.1:8765/` job cards (theme from `pretty_log` via `tui/web.THEME`, terminal hero),
+- Browser: `http://127.0.0.1:8767/` job cards (theme from `pretty_log` via `tui/web.THEME`, terminal hero),
   SSE `/api/jobs/stream`, JSON `/api/jobs`. Localhost-only by default.
 - Terminal: `sandbox board --tui` (live, alt-screen) / `--once` — `pretty_log` boxes + progress bars.
 - `sandbox board --demo` adds a synthetic job writer (no Modal, no spend) for dev/browser testing.

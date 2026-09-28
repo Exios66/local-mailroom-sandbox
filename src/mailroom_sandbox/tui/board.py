@@ -25,6 +25,7 @@ from mailroom_sandbox.tui.beacon import BEACON_VERSION, TERMINAL_STATES, beacon_
 from mailroom_sandbox.tui.web import THEME, ansi_to_html
 
 STALE_S = 120.0
+DEFAULT_PORT = 8767  # watch --web / sandbox dev own 8765
 _ORDER = {"running": 0, "stalled": 1, "failed": 2, "done": 2}
 _HOST = socket.gethostname()
 
@@ -336,7 +337,7 @@ def serve_board(
     *,
     root: Path | None,
     host: str = "127.0.0.1",
-    port: int = 8765,
+    port: int = DEFAULT_PORT,
     open_browser: bool | None = None,
     stale_s: float = STALE_S,
     interval: float = 1.0,

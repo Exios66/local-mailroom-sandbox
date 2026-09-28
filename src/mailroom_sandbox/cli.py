@@ -437,7 +437,7 @@ def build_parser() -> argparse.ArgumentParser:
     board_p.add_argument("--tui", action="store_true", help="terminal TUI instead of the browser page")
     board_p.add_argument("--once", action="store_true", help="with --tui: render one frame and exit")
     board_p.add_argument("--host", default=None, help="bind host (default 127.0.0.1)")
-    board_p.add_argument("--port", type=int, default=None, help="port (default 8765; 0 = ephemeral)")
+    board_p.add_argument("--port", type=int, default=None, help="port (default 8767; 0 = ephemeral)")
     board_p.add_argument("--no-browser", action="store_true", help="do not open a browser tab")
     board_p.add_argument("--stale-s", type=float, default=120.0, help="heartbeat age that marks a running job stalled")
     board_p.add_argument("--interval", type=float, default=1.0, help="refresh seconds")
@@ -1968,7 +1968,7 @@ def _cmd_board(args) -> int:
     return board_mod.serve_board(
         root=root,
         host=args.host or "127.0.0.1",
-        port=8765 if args.port is None else args.port,
+        port=board_mod.DEFAULT_PORT if args.port is None else args.port,
         open_browser=False if args.no_browser else None,
         stale_s=args.stale_s,
         interval=args.interval,
