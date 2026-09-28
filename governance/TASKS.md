@@ -7,10 +7,10 @@ Cross-family work stays on llm-entity-extraction's MESSAGE_BOARD as
 **`DMR-*`**. This file is the **only** sandbox-local task board — do not
 open `DMR-*` cards here.
 
-**Next ID: `SAND-034`**
+**Next ID: `SAND-035`**
 
 Reconciled against the [issue tracker](https://github.com/Exios66/local-mailroom-sandbox/issues)
-on 2026-09-28: the highest `SAND-*` id in use anywhere is `SAND-033` (this
+on 2026-09-28: the highest `SAND-*` id in use anywhere is `SAND-034` (this
 board); the tracker tops out at `SAND-032` (#62). Every `SAND-*` id used in
 an issue title has a row here. **This board is the numbering authority:**
 allocate the next id here first, then open the issue.
@@ -23,6 +23,7 @@ Lanes: `todo` → `in_progress` → `needs_attention` → `done`.
 
 | ID | Title | Owner | Status | Notes |
 | --- | --- | --- | --- | --- |
+| SAND-034 | Sorter + specialist prompt enhancement plan (failure diagnosis, concise skeleton, cue inventory, GEPA complement) | claude | **todo** | Plan: `docs/PROMPT-ENHANCEMENT-PLAN.md` (offline diagnosis, no spend). Phase 0 contract fixes span eval-environment + vendored llm-mailroom. Related: SAND-032, SAND-020, eval-environment GEPA (#61–#63). |
 | SAND-031 | Centralize operator runbooks (singular 1×L4 Qwen3-8B + improved configs) | cursor | **done** | Catalog `config/runbooks/catalog.yaml`; CLI `sandbox runbook list\|show\|check\|write`; generated `docs/runbooks/`. Pins tested against deploy + models.yaml + run YAMLs. Related: SAND-027-6 Granite live deploy still todo. |
 | SAND-033 | Unified mailroom-themed terminal logging (CLI session layer + cross-repo plan) | cursor | **done** | `mailroom_sandbox.tui.session` wires `sandbox run|eval|matrix`, Modal deploy entrypoints; alt-screen TUI stays `sandbox watch` (SAND-032). Store: `docs/mailroom-themed-logging.md`, `internal/unified-mailroom-logging-plan.md`. Related: SAND-032. |
 | SAND-032 | Qwen3-8B-AWQ L4 serving ladder → 2-replica scale-out → 5-specialist n=50 sweep + bf16 arm; funding evidence ($5 cap, Modal profile exios66, public HF data only) | claude | in progress | Spec docs/superpowers/specs/2026-09-27-qwen3-l4-serving-ladder-design.md; plan docs/superpowers/plans/2026-09-27-qwen3-l4-serving-ladder.md. Part A (spec-driven knobs, replica-aware caps, offline evidence rows, 15 configs) in PR; Part B (live) gated on huggingface-secret on exios66. Related: SAND-028, SAND-030, SAND-031, issue #38. |
