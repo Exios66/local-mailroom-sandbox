@@ -11,6 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 import mailroom_sandbox  # noqa: E402,F401  (puts vendored trees on sys.path)
+from mailroom_sandbox.eval.agents import _score_class  # noqa: E402
 from mailroom_sandbox.eval.scoring import score_extraction_row  # noqa: E402
 
 rid = sys.argv[1]
@@ -21,12 +22,15 @@ for it in items:
     if not it.get("ok") or not isinstance(it.get("pred"), dict):
         continue
     row = rows[it["item_id"]]
-    pred = {k: v for k, v in it["pred"].items() if k != "reasoning"}
     it.setdefault("score_original", it.get("score"))
+    if "sorter" in rid:  # isolated sorter: doc-class match (parses legacy tuple strings)
+        it["score"] = _score_class(row, it["pred"])
+        continue
+    pred = {k: v for k, v in it["pred"].items() if k != "reasoning"}
     it["score"] = score_extraction_row(row["expected_doc_class"], pred, row["expected_fields"],
                                        doc_text=row.get("doc_text"))
 (run / "items.jsonl").write_text("".join(json.dumps(i, default=lambda o: getattr(o, "__dict__", str(o))) + "\n" for i in items))
 ok = [i for i in items if i.get("ok")]
-acc = [i["score"].get("overall_extraction_score") for i in ok]
+acc = [i["score"].get("match", i["score"].get("overall_extraction_score")) for i in ok]
 acc = [a for a in acc if isinstance(a, (int, float))]
 print(f"{rid}: rescored {len(ok)} ok items; mean overall {sum(acc)/len(acc):.4f}" if acc else f"{rid}: no scores")
