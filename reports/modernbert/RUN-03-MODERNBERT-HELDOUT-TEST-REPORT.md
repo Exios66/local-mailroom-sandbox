@@ -71,13 +71,13 @@ single-window mail.
 | field | value |
 | --- | --- |
 | recommended threshold | **0.93** |
-| coverage at pick | **43.3%** (218 docs at 0.99 threshold row; primary pick n=369 @ 0.93 in report JSON) |
+| coverage at pick | **73.2%** of 504 windows (369 accepted at threshold 0.93, accuracy 0.9946) — corrected 2026-09-28; the JSON's top-level `coverage` 0.4325 is the 0.99 row (218 windows) |
 | error budget | 2% |
 | budget_met | **true** (Wilson lower bound on accuracy) |
 
 Deployment interpretation: at threshold 0.93 the classifier can abstain on most of
-the tail and still meet a 2% selective error budget on accepted docs — but coverage
-≈43% means **most documents still flow to the LLM** unless thresholds are relaxed
+the tail and still meet a 2% selective error budget on accepted windows — at 73.2%
+coverage, **about a quarter of windows still flow to the LLM** unless thresholds are relaxed
 (with measured risk tradeoff from the sweep in the JSON).
 
 ## Per-head calibrated ECE (fast-path exclusion)

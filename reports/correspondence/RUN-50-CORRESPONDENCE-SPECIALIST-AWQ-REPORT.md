@@ -203,20 +203,32 @@ sandbox run start --config config/runs/run-50-correspondence-specialist-awq.yaml
 | run-20-correspondence-specialist-awq (Run A) | 20 | 0.22799 | 75.084 | 8 | 2×L4 | $0.033616 | $0.00168080 | 715.08 | 0.90 |
 | **run-50-correspondence-specialist-awq (Run B)** | **50** | **0.254748** | **280.099** | **8** | **2×L4** | **$0.124712** | **$0.00249424** | **430.91** | **0.94** |
 | run-20-insurance-claims-specialist-awq | 20 | 0.671435 | 422.152 | 8 | 1×L4 | $0.093892 | $0.00469460 | 185.74¹ | 0.25 |
-| run-20-correspondence-awq (c5, `*_simplified`) | 20 | 0.08934 | 253.692 | 5 | 1×L4 | $0.114231 | $0.00571155 | 167.47¹ | n/a² |
-| run-20-correspondence-awq-c8 (`*_simplified`) | 20 | 0.08714 | 90.401 | 8 | 1×L4 | $0.055620 | $0.00278100 | 472.09 | n/a² |
+| run-20-correspondence-awq (c5, vendored default³) | 20 | 0.08934 | 253.692 | 5 | 1×L4 | $0.114231 | $0.00571155 | 167.47¹ | n/a² |
+| run-20-correspondence-awq-c8 (vendored default³) | 20 | 0.08714 | 90.401 | 8 | 1×L4 | $0.055620 | $0.00278100 | 472.09 | n/a² |
 
 ¹ tok/s recomputed as total_tokens/wall from the archived figures (insurance:
 78,418/422.152; c5: 42,482/253.692). ² Schema-validity was not recorded on the
 pre-SAND-026 simplified-prompt runs — genuinely unavailable, not zero.
+³ Corrected 2026-09-28. These rows were labelled `*_simplified`, but both runs
+(25 Sep, ~13:30 UTC) predate the `*_simplified` stems (commit `164d45d`, 19:30 UTC)
+and ran before job runners applied per-agent prompt pins (commit `6dbf457`), so they
+sent the agent's vendored default text.
 
 Reading:
 
 - Run B scores a touch above Run A (0.2547 vs 0.2280) on the same engine and
   prompt — the 50-doc draw leans email/demand/notice, which score highest.
-- Production prompt is the dominant quality variable: 0.228–0.255 here vs
+- ~~Production prompt is the dominant quality variable: 0.228–0.255 here vs
   0.087–0.089 on the same checkpoint with `*_simplified` (schema validity
-  0.90–0.94 vs unrecorded/low). Scale-out buys speed, not score.
+  0.90–0.94 vs unrecorded/low). Scale-out buys speed, not score.~~
+  **Corrected 2026-09-28:** the 0.087–0.089 → 0.228–0.255 lift is confounded,
+  not a prompt effect. Between those runs the scorer changed (`8e507e1`: empty
+  and other-class GT no longer scored as misses), prompt delivery changed
+  (`6dbf457`: pins applied for the first time), the draw changed (split=all
+  unstratified → test split, subclass-stratified) and serving changed (1×L4,
+  `max_num_seqs` 256 → 2×L4, 6). Only one document is shared between the eras.
+- *(Corrected 2026-09-28: 75 s vs 90 s is a 17% cut, not a halving, and the two
+  runs used different draws.)*
 - 2×L4 halves wall vs the 1×L4 c8 precedent (75 s vs 90 s at n=20) while
   serving ~4 docs per replica; per-doc $/doc stays below the 1×L4 c8 figure
   at n=20 ($0.00168 vs $0.00278) because wall falls faster than replicas bill.
@@ -266,6 +278,8 @@ Reading (Modal 2×L4 AWQ vs API legs):
   39k-token thinking blowout) while the Modal leg's decode stays tight
   (9,183 completion tokens over 50 docs; max 142.8 s). Different decode
   posture (frozen API budgets up to 4096/doc vs overlay 2048), not just serving.
+- *(Corrected 2026-09-28: contracts and merger have no valid Modal-AWQ score —
+  GT gap and agent confound — so the ordering below holds on the API legs only.)*
 - Cross-class calibration holds: insurance > contracts > correspondence >
   merger ordering is the same on Modal-AWQ and API legs; absolute levels are
   lower on Modal-AWQ throughout (quantization + decode budget + prompt lineage).

@@ -111,6 +111,10 @@ Scaled 2/3 from run-30 quotas (12→8 / 3→2):
 | 20 | `DOC-16be7fa7e8ae5431` | email | 0.1451 | 0.0000 | 24.2 | 1697 | 123 | None |
 
 - scored rows: 20/20; min=0.0278 max=0.5555 mean=0.2280
+- *Data note (2026-09-28):* the latency column above sums to 496.7 s and has a
+  median of 26.0 s, while the run-level figures (and the serving export) record
+  503.369 s and p50 26.595 s. The rows were reconstructed from captured stdout;
+  the score column matches the stated mean. Treat per-row latencies as approximate.
 
 ## Deploy env actually used
 
@@ -175,6 +179,8 @@ sandbox run start --config config/runs/run-20-correspondence-specialist-awq.yaml
   are in `reports/experiment_log.jsonl`.
 - Prompt tokens identical across attempts (49,878); completions differ
   (3,908 vs 3,813) — sampling nondeterminism at temperature 0.1, not a defect.
+- *(Corrected 2026-09-28: the earlier correspondence runs were not `*_simplified`
+  and the score lift is confounded — see the Run B report, §Comparison footnote ³.)*
 - Production prompt vs the older `*_simplified` correspondence runs: schema
   validity jumps (0.90 here vs ~0.25-class before) and score roughly triples
   (0.228 vs 0.087–0.089) — prompt, not scale-out, is the dominant variable.

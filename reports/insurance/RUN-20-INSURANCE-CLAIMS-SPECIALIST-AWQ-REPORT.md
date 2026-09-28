@@ -118,6 +118,13 @@ sandbox run start --config config/runs/run-20-insurance-claims-specialist-awq.ya
 
 ## Notes
 
+- *Data note (2026-09-28):* `reports/serving/run-20-insurance-claims-specialist-awq.serving.json`
+  was exported from the run store and infers wall from item timestamps (428.984 s →
+  gpu 429.345 s, $0.09541, speedup 5.97×). This report and `archive/MODAL-RUNS-REPORT.md`
+  use the harness busy interval (422.152 s → $0.093892, 6.07×). Its `prompt_version`
+  `insurance_claims_specialist_v1` is the eval-environment catalog key for the same
+  bytes as the `insurance_claims_specialist_simplified` pin (`config/prompts/eval_environment_lineage.json`).
+
 - Phoenix `ModuleNotFoundError: opentelemetry` warnings during the run were **soft
   failures** in vendored `phoenix_setup.py` (tracing init catches and continues).
   They did **not** fail items. Fix applied mid-run: installed

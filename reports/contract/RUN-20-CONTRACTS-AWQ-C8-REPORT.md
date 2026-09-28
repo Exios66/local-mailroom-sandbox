@@ -9,7 +9,7 @@ c4/c8 are directly comparable. Three changes vs the c4 run: window 16384 ->
 |---|---|
 | run_id | `run-20-contracts-awq-c8` |
 | task / agent | `contracts_specialist` |
-| prompt | `contracts_specialist_v33` (local, pinned) |
+| prompt | `contracts_specialist_v33` (local pin recorded, not applied — see erratum) |
 | engine | `Qwen/Qwen3-8B-AWQ`, vLLM `v0.29.0`, 1x L4 |
 | context / quant | `max_model_len=32768`, AWQ, gpu_util=0.90, max_num_seqs=256 |
 | run-scoped knobs | `contracts_specialist.max_tokens=8192`, `max_input_chars=24000` (SANDBOX_AGENT_KNOBS) |
@@ -18,6 +18,13 @@ c4/c8 are directly comparable. Three changes vs the c4 run: window 16384 ->
 | draw | 20 contract docs (seeded class bucket; identical to c4) |
 | git | `0d1fac8` |
 | spec_hash | `a3ea308024c737e04b0e9d4674851492e946a82f229af1d2f4a51e9ea59ce255` |
+
+> **Erratum (2026-09-28):** this run executed before commit `6dbf457` (SAND-027-3),
+> which is the fix that made job runners apply `prompt.agents.<task>` pins. Before it,
+> `_lock_prompt_variant` read only `prompt.default` (`code-default`), so the pinned
+> stem above was recorded but **not sent**; the agent used its vendored default text.
+> Separately, commit `164d45d` later re-pinned this run's YAML to a `*_simplified`
+> stem, so the current `config/runs/` file does not reproduce this run.
 
 ## Headline results
 

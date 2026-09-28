@@ -40,7 +40,7 @@ on 20 MERGER_AGREEMENT docs** (quotas 7/7/3/2/1, train split — same draw
 | wall | 5789.9 s (partial 16) | **740.1 s** (full 20) |
 | GPU $ | $1.2866 (partial) | **$0.164** (full) |
 | error mode | thinking-leakage parse fails | connection drops (transient) |
-| decode behavior | ~12k tokens/doc @ ~19 tok/s | ~1.2k tokens/doc @ ~40+ tok/s |
+| decode behavior | ~12k tokens/doc @ ~19 tok/s | ~1.2k tokens/attempted doc (~1.6k per completed doc; connection errors return no usage) @ ~40+ tok/s |
 
 Not a pure model delta (different agents by design): the clean reads are
 throughput/cost (Qwen ~8× faster wall, ~8× cheaper GPU on full completes) and
