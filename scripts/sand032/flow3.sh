@@ -17,14 +17,15 @@ until grep -q '"stopped"' "$LOG/sand032-s6-sorter1000.times" 2>/dev/null; do sle
 echo "A fleet down after sorter; ledger \$$(spent)"; sleep 10
 fleet() {  # $1 = first run (deploy); rest = "run cost" warm steps
   local first="$1"; shift
-  gate 0.25 "$first" || return 1
+  gate 0.30 "$first" || return 1
   run "$first" deploy || { stopfleet; return 1; }
   for spec in "$@"; do set -- $spec; gate "$2" "$1" || break; sleep 5; run "$1" warm || break; done
   stopfleet
 }
-fleet sand032-s7-corr100-seqs32 "sand032-s7-sorter1000-seqs32 0.25" "sand032-s7-insurance50-seqs32 0.10" \
-      "sand032-s7-corporate50-seqs32 0.10" "sand032-s7-contracts50-seqs32 0.20" \
-      "sand032-s7-corr100-seqs32-c48 0.05" "sand032-s7-corr100-seqs32-c32 0.05"
+# Sorter reruns dropped: the vendored sorter reads whole docs (5.4k-token prompt + chunked long
+# docs, p50 14k prompt tok) — ~$0.7/1000 docs; budget goes to the specialist hypotheses.
+fleet sand032-s7-corr100-seqs32 "sand032-s7-insurance50-seqs32 0.12" "sand032-s7-corporate50-seqs32 0.12" \
+      "sand032-s7-contracts50-seqs32 0.30" "sand032-s7-corr100-seqs32-c48 0.06" "sand032-s7-corr100-seqs32-c32 0.06"
 sleep 10
-fleet sand032-s8-corr100-bt16k "sand032-s8-sorter1000-bt16k 0.25" "sand032-s8-contracts50-bt16k 0.20"
+fleet sand032-s8-corr100-bt16k "sand032-s8-contracts50-bt16k 0.30"
 echo "FLOW3-DONE ledger \$$(spent) (delta from \$$BASE)"
