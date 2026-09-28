@@ -536,21 +536,32 @@ def _smoke_check(base: str) -> None:
     print(f"ok: {base}/models -> {ids}")
 
 
+def _deploy_operator_line(phase: str, message: str) -> None:
+    try:
+        from mailroom_sandbox.tui.session import operator_emit
+
+        operator_emit(message, phase=phase)
+    except Exception:
+        print(message)
+
+
 @app.local_entrypoint()
 def main(check: bool = False, debug: bool = False) -> None:
     name = Path(__file__).name
     base = os.environ.get("VLLM_BASE_URL", "").rstrip("/")
-    print(f"Deploy:   modal deploy {name}")
-    print(f"Pre-warm: modal run {name}::download_model")
-    print(f"Model:    {MODEL} on {GPU} (vllm/vllm-openai:{VLLM_IMAGE_TAG})")
-    print(
-        f"Knobs:    max_model_len={MAX_MODEL_LEN} quant={QUANTIZATION or '(none)'} "
-        f"tp={TP_SIZE} max_containers={MAX_CONTAINERS} scaledown={SCALEDOWN_SECONDS}s"
+    _deploy_operator_line("DEPLOY", f"modal deploy {name}")
+    _deploy_operator_line("PREWARM", f"modal run {name}::download_model")
+    _deploy_operator_line("MODEL", f"{MODEL} on {GPU} (vllm/vllm-openai:{VLLM_IMAGE_TAG})")
+    _deploy_operator_line(
+        "KNOBS",
+        f"max_model_len={MAX_MODEL_LEN} quant={QUANTIZATION or '(none)'} "
+        f"tp={TP_SIZE} max_containers={MAX_CONTAINERS} scaledown={SCALEDOWN_SECONDS}s",
     )
-    print(f"Endpoint: {base or 'set VLLM_BASE_URL after deploy'}")
-    print(
-        "Swap:     eval \"$(sandbox modal-matrix env <HF-id> [--gpu GPU])\" "
-        "then redeploy --strategy recreate (default catalog row: Qwen/Qwen3-8B @ L4)"
+    _deploy_operator_line("ENDPOINT", base or "set VLLM_BASE_URL after deploy")
+    _deploy_operator_line(
+        "SWAP",
+        'eval "$(sandbox modal-matrix env <HF-id> [--gpu GPU])" '
+        "then redeploy --strategy recreate (default catalog row: Qwen/Qwen3-8B @ L4)",
     )
     if debug:
         for key, value in _masked_config().items():

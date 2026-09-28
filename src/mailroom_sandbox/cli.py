@@ -1449,9 +1449,14 @@ def _cmd_legalbench(args: argparse.Namespace) -> int:
 def _cmd_eval(args: argparse.Namespace) -> int:
     from mailroom_sandbox.eval import runners
     from mailroom_sandbox.eval.agents import SPECS
+    from mailroom_sandbox.tui.session import MailroomConsole
 
     mock = _mock_for(args, subcommand="eval")
     os.environ["SANDBOX_RUN_MODE"] = "mock" if mock else "local"
+    console = MailroomConsole()
+    exp = args.experiment_name or f"sandbox_{args.task}"
+    console.run_banner(run_id=exp, task=args.task, subtitle="sandbox eval")
+    console.phase("EVAL", "mock" if mock else args.profile or "local")
     kwargs = {
         "mock": mock,
         "sample": args.sample,
@@ -1461,8 +1466,13 @@ def _cmd_eval(args: argparse.Namespace) -> int:
         "model": args.model,
         "agent_models": _agent_models(args),
     }
+    def _eval_progress(done: int, total: int, ok: int, errors: int) -> None:
+        console.progress(done, total, ok=ok, errors=errors)
+
     if args.task in SPECS:
-        result = runners.run_isolated_eval(args.task, prompt_version=args.prompt, **kwargs)
+        result = runners.run_isolated_eval(
+            args.task, prompt_version=args.prompt, progress_cb=_eval_progress, **kwargs
+        )
     elif args.task == "pipeline":
         result = runners.run_pipeline_eval(
             prompt_version=args.prompt, connected=True, **kwargs
@@ -1490,24 +1500,45 @@ def _cmd_eval(args: argparse.Namespace) -> int:
         # task — a future composite registered without its own arm would have
         # been silently misrouted (scorecard pollution).
         raise SystemExit(f"error: task {args.task!r} has no dispatch arm in _cmd_eval")
+    scores = result.get("scores") if isinstance(result, dict) else None
+    summary = ""
+    if isinstance(scores, dict) and scores.get("accuracy") is not None:
+        summary = f"accuracy {scores['accuracy']}"
+    elif isinstance(result, dict) and result.get("n") is not None:
+        summary = f"n={result['n']}"
+    console.complete(state="done", summary=summary or exp)
     _print(result)
     return 0
 
 
 def _cmd_matrix(args: argparse.Namespace) -> int:
     from mailroom_sandbox.eval.matrix import run_matrix
+    from mailroom_sandbox.tui.session import MailroomConsole
 
     mock = _mock_for(args, subcommand="matrix")
+    console = MailroomConsole()
+    providers = [p.strip() for p in args.providers.split(",") if p.strip()]
+    models = [m.strip() for m in args.models.split(",") if m.strip()]
+    console.run_banner(
+        run_id=f"matrix_{args.task}",
+        task=args.task,
+        subtitle=f"{len(providers)} providers × {len(models)} models",
+    )
     result = run_matrix(
         task=args.task,
-        providers=[p.strip() for p in args.providers.split(",") if p.strip()],
-        models=[m.strip() for m in args.models.split(",") if m.strip()],
+        providers=providers,
+        models=models,
         prompts=[x.strip() for x in args.prompts.split(",") if x.strip()],
         sample=args.sample,
         seed=args.seed,
         mock=mock,
         dry_run=args.dry_run,
+        console=console,
     )
+    if args.dry_run:
+        console.complete(state="prepared", summary=f"{result.get('n', 0)} cells planned")
+    else:
+        console.complete(state="done", summary=f"{len(result.get('results') or [])} cells")
     _print(result)
     return 0
 
@@ -2148,27 +2179,29 @@ def _cmd_run_start(args) -> int:
 
 def _run_endpoint(store, args) -> dict:
     from mailroom_sandbox.job import runner
+    from mailroom_sandbox.tui.session import MailroomConsole, run_event_handler
 
     watch = bool(getattr(args, "watch", False))
-
-    def _on_event(ev: dict) -> None:
-        if watch:
-            print(
-                f"[run] {ev.get('cursor')}/{ev.get('total')} "
-                f"ok={ev.get('ok')} errors={ev.get('errors')} {ev.get('state', '')}",
-                file=sys.stderr,
-                flush=True,
-            )
+    console = MailroomConsole()
+    lock = store.read_lock() or {}
+    task = str(lock.get("task") or "")
+    console.run_banner(run_id=store.run_id, task=task, subtitle="sandbox run · endpoint")
+    console.phase("PREFLIGHT", "lock verified · scoring dataset")
+    on_event = run_event_handler(console)
 
     with store.acquire():
-        return runner.run_job(
+        summary = runner.run_job(
             store,
             mock=None,
             dry_run=False,
             max_items=getattr(args, "max_items", None),
             tracer=None,
-            on_event=_on_event,
+            on_event=on_event,
         )
+    state = str(summary.get("state") or "unknown")
+    detail = f"{summary.get('cursor', summary.get('ok', ''))}/{summary.get('total', '')} {task}".strip()
+    console.complete(state=state, summary=detail)
+    return summary
 
 
 def _finalize_remote(store) -> bool:
@@ -2193,9 +2226,20 @@ def _finalize_remote(store) -> bool:
 
 def _watch_remote(store, args) -> int:
     from mailroom_sandbox.job import remote as job_remote
+    from mailroom_sandbox.tui.session import MailroomConsole, remote_progress_line
 
     import time
     from datetime import datetime, timezone
+
+    console = MailroomConsole()
+    lock = store.read_lock() or {}
+    console.run_banner(
+        run_id=store.run_id,
+        task=str(lock.get("task") or ""),
+        subtitle="sandbox run · modal worker",
+        route="INBOX → SPECIALIST → REPORT",
+    )
+    console.phase("DEPLOY", "remote job · state dict mirror")
 
     # hub#41: the watch must fail after a stall, never poll forever. A worker
     # that dies before its first state_dict.put leaves the Dict without a
@@ -2207,7 +2251,7 @@ def _watch_remote(store, args) -> int:
     while True:
         progress = job_remote.read_progress(store)
         state = (progress or {}).get("state") or store.state() or "unknown"
-        print(f"{store.run_id} {state} {progress or {}}")
+        remote_progress_line(console, store.run_id, progress)
         heartbeat_at = (progress or {}).get("heartbeat_at")
         if heartbeat_at:
             try:
@@ -2218,6 +2262,7 @@ def _watch_remote(store, args) -> int:
                 pass
         if state in {"done", "failed"}:
             _finalize_remote(store)
+            console.complete(state=state, summary=store.run_id)
             if state == "failed":
                 error = (progress or {}).get("error") or (store.read_checkpoint() or {}).get(
                     "last_error"
