@@ -81,3 +81,13 @@ def test_job_ids_are_sanitized_to_safe_filenames(tmp_path):
     b.update(done=1)
     files = [p.name for p in tmp_path.iterdir()]
     assert files == [f"{b.job_id}.json"] and "/" not in b.job_id and ".." not in b.job_id
+
+
+def test_finish_sets_a_terminal_phase_unless_given(tmp_path):
+    b = bmod.Beacon("j", package="p", root=tmp_path)
+    b.update(phase="SCORING")
+    b.finish("done")
+    assert _read(tmp_path, "j")["phase"] == "DONE"
+    b2 = bmod.Beacon("k", package="p", root=tmp_path)
+    b2.finish("failed", phase="PREFLIGHT")
+    assert _read(tmp_path, "k")["phase"] == "PREFLIGHT"

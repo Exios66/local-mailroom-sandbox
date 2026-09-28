@@ -110,9 +110,10 @@ class Beacon:
             pass
 
     def finish(self, state: str = "done", **fields: Any) -> None:
-        now = time.time()
-        self._state["finished_at"] = now
-        self.update(state=state if state in TERMINAL_STATES else "done", **fields)
+        state = state if state in TERMINAL_STATES else "done"
+        self._state["finished_at"] = time.time()
+        fields.setdefault("phase", state.upper())
+        self.update(state=state, **fields)
 
     # ── context manager: exception → failed (re-raised), else done ───────────
     def __enter__(self) -> "Beacon":
