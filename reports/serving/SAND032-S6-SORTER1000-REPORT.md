@@ -16,6 +16,12 @@ Public HF `mailroom-dataset` @ `ed7576b` only (no partner or proprietary data). 
 | prompt tokens p50 / max | 7994 / 297760 |
 | completion tokens p50 / max | 147 / 4602 |
 
+## Figures
+
+![Per-class F1 for the isolated sorter](figures/sand032-s6-sorter1000-per-class-f1.svg)
+
+_Table view: **Per-class** below._
+
 ## Per-class
 
 | class | n | precision | recall | F1 |
@@ -38,7 +44,5 @@ Public HF `mailroom-dataset` @ `ed7576b` only (no partner or proprietary data). 
 
 ## Findings
 
-- **Stopped by its own cost guard at 458/1000 docs:** `cost_cap_usd=0.8` was exceeded (est. $0.8046 at 1810 s). The draw is ordered by class, so contracts (181) and corporate records (136) are complete while merger (18/45), insurance (81/331) and correspondence (41/307) are partial. Per-class numbers are valid; overall accuracy over-weights the long-document classes.
-- **Main errors:** corporate records sorted as contracts (recall 0.743), and merger agreements sorted as contracts (recall 0.444).
 - The vendored sorter reads whole documents: a ~5.4k-token base prompt plus chunked long docs (prompt tokens scale with document length). This run is prefill-bound; a head-truncated sorter input is the main cost lever for the runbook.
 - Items recorded before the storage fix carry `SorterAgent.classify`'s tuple as a string; scores here come from `scripts/sand032/rescore.py` (post hoc, no LLM calls).
