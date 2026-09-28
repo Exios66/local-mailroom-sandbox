@@ -586,6 +586,37 @@ def _build_record(
     return record
 
 
+def _beacon_hook(run_id: str, *, task: str, on_event: Any = None) -> tuple[Any, Any]:
+    """mailroom.beacon/v1 for `sandbox run start`: wrap ``on_event`` so every progress
+    event also updates the job's heartbeat (shown by `sandbox board`). Never raises."""
+    from mailroom_sandbox.tui.beacon import Beacon
+
+    beacon = Beacon(run_id, package="local-mailroom-sandbox", title=f"{run_id} · {task}")
+
+    def wrapped(ev: dict[str, Any]) -> None:
+        beacon.update(
+            phase=str(ev.get("state") or "running").upper(),
+            done=ev.get("cursor"),
+            total=ev.get("total"),
+            ok=ev.get("ok"),
+            errors=ev.get("errors"),
+        )
+        if on_event is not None:
+            on_event(ev)
+
+    def finish(summary: dict[str, Any] | None) -> None:
+        summary = summary or {}
+        state = str(summary.get("state") or "")
+        beacon.finish(
+            "failed" if state in ("failed", "cancelled") else "done",
+            done=summary.get("cursor"),
+            total=summary.get("total"),
+            phase=state.upper() or "DONE",
+        )
+
+    return wrapped, finish
+
+
 def run_job(
     store: RunStore,
     *,
@@ -599,6 +630,32 @@ def run_job(
     on_event=None,
 ) -> dict[str, Any]:
     """Run (or resume) the locked job to completion and return a summary."""
+    if dry_run:
+        return _run_job(store, task=task, model=model, profile=profile, mock=mock, dry_run=True,
+                        max_items=max_items, tracer=tracer, on_event=on_event)
+    wrapped, finish = _beacon_hook(store.run_id, task=task or _lock_task(store), on_event=on_event)
+    try:
+        summary = _run_job(store, task=task, model=model, profile=profile, mock=mock, dry_run=False,
+                           max_items=max_items, tracer=tracer, on_event=wrapped)
+    except BaseException:
+        finish({"state": "failed"})
+        raise
+    finish(summary if isinstance(summary, dict) else None)
+    return summary
+
+
+def _run_job(
+    store: RunStore,
+    *,
+    task: str | None = None,
+    model: str | None = None,
+    profile: str | None = None,
+    mock: bool | None = None,
+    dry_run: bool = False,
+    max_items: int | None = None,
+    tracer: Any = None,
+    on_event=None,
+) -> dict[str, Any]:
     task = task or _lock_task(store)
     model = model or _lock_model(store)
     profile = profile or _lock_profile(store)
