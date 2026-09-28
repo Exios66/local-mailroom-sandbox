@@ -410,7 +410,23 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="do not open a browser tab (only with --web; also NO_BROWSER=1)",
     )
+    watch_p.add_argument(
+        "--demo",
+        action="store_true",
+        help="with --web: serve a synthetic looping run (dev server; no Modal, no spend)",
+    )
     watch_p.set_defaults(handler=_cmd_watch)
+
+    dev_p = sub.add_parser(
+        "dev",
+        help="mailroom watch dev server: themed browser UI on a synthetic run (= watch --web --demo)",
+        parents=[shared],
+    )
+    dev_p.add_argument("--host", default=None, help="bind host (default 127.0.0.1)")
+    dev_p.add_argument("--port", type=int, default=None, help="port (default 8765; 0 = ephemeral)")
+    dev_p.add_argument("--interval", type=float, default=1.0, help="seconds per demo tick")
+    dev_p.add_argument("--no-browser", action="store_true", help="do not open a browser tab")
+    dev_p.set_defaults(handler=_cmd_dev)
 
     score_p = sub.add_parser(
         "scorecard",
@@ -1842,6 +1858,8 @@ def _cmd_watch(args) -> int:
 
     from mailroom_sandbox import paths
 
+    if getattr(args, "demo", False):
+        return _serve_demo(args)
     sand032 = paths.runtime_dir() / "sand032"
     if not args.config and not args.follow and (sand032 / "current").is_file():
         # Bare `sandbox watch`: follow the current SAND-032 run with its ledger.
@@ -1877,6 +1895,35 @@ def _cmd_watch(args) -> int:
         open_browser = False if args.no_browser else None
         return web_mod.serve_watch_web(**common, host=host, port=port, open_browser=open_browser)
     return watch_mod.watch(**common, once=args.once)
+
+
+def _serve_demo(args) -> int:
+    """Dev server: the web watch UI driven by a synthetic run in a temp dir."""
+    import tempfile
+
+    from mailroom_sandbox.tui import web as web_mod
+    from mailroom_sandbox.tui.demo import DemoRun
+
+    root = Path(tempfile.mkdtemp(prefix="mailroom-watch-demo-"))
+    demo = DemoRun(root)
+    return web_mod.serve_watch_web(
+        resolve=demo.resolve,
+        ledger=demo.ledger,
+        cap_usd=5.0,
+        logs=False,
+        interval=getattr(args, "interval", None) or 1.0,
+        times_dir=demo.times_dir,
+        log_path=None,
+        serving_dir=demo.serving_dir,
+        host=args.host or web_mod.DEFAULT_HOST,
+        port=web_mod.DEFAULT_PORT if args.port is None else args.port,
+        open_browser=False if args.no_browser else None,
+        tick=demo.step,
+    )
+
+
+def _cmd_dev(args) -> int:
+    return _serve_demo(args)
 
 
 def _cmd_scorecard(args) -> int:
