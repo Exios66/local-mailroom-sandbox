@@ -86,8 +86,8 @@ python run_api_evals.py report --from-log
 python run_api_evals.py report --from-ledger --prices 0.03 0.13
 ```
 
-Human summary: [`../reports/QWEN-FLASH-COST-REPORT.md`](../reports/QWEN-FLASH-COST-REPORT.md)
-· ledger: [`../reports/qwen-flash-cost-source.json`](../reports/qwen-flash-cost-source.json).
+Human summary: [`../reports/archive/QWEN-FLASH-COST-REPORT.md`](../reports/archive/QWEN-FLASH-COST-REPORT.md)
+· ledger: [`../reports/archive/qwen-flash-cost-source.json`](../reports/archive/qwen-flash-cost-source.json).
 
 Outputs land in `api-evals/reports/<stamp>-<model>/` (`report.json`,
 `report.md`, `costs.csv`) and per-item rows also append to the sandbox

@@ -31,11 +31,22 @@ def _stub_modal(monkeypatch):
 
 
 def test_posture_context_fit_and_invariants():
+    from mailroom_sandbox.job.specialist_posture import SAND032_RUNS, SAND032_SORTER_RUNS
+
     assert validate_mapping() == []
     for run_id, row in SPECIALIST_POSTURE.items():
         window = int(row.get("max_model_len", 16384))
         assert context_fit_ok(row["max_tokens"], row["max_input_chars"], window), run_id
-        assert 2 <= row["concurrency"] <= 8
+        if "-probe" in run_id:
+            # Single-doc probes are serial by design (benchmark_check exempts
+            # them from the c>=2 floor).
+            assert row["concurrency"] == 1, run_id
+        elif run_id in SAND032_RUNS or run_id in SAND032_SORTER_RUNS:
+            # SAND-032 rows scale the band per replica / max_num_seqs (up to
+            # c=32 on 2×L4); validate_mapping above enforces that ceiling.
+            continue
+        else:
+            assert 2 <= row["concurrency"] <= 8, run_id
 
 
 def test_run_20_contracts_single_class_posture():
@@ -220,10 +231,10 @@ def test_run_yamls_match_posture(monkeypatch):
         lambda: {"ok": True, "version": "modal stub"},
     )
     root = Path(__file__).resolve().parents[1] / "config" / "runs"
-    from mailroom_sandbox.job.specialist_posture import SAND032_RUNS
+    from mailroom_sandbox.job.specialist_posture import SAND032_RUNS, SAND032_SORTER_RUNS
 
     for run_id, row in SPECIALIST_POSTURE.items():
-        if run_id in SAND032_RUNS:
+        if run_id in SAND032_RUNS or run_id in SAND032_SORTER_RUNS:
             continue  # own gate + env-drift coverage in tests/test_sand032_configs.py
         spec = load_run_spec(root / f"{run_id}.yaml")
         assert spec.task == row["task"]
@@ -231,8 +242,11 @@ def test_run_yamls_match_posture(monkeypatch):
         assert float(spec.job.cost_cap_usd) == float(row["cost_cap_usd"])
         assert int(spec.job.max_wall_seconds) == int(row["max_wall_seconds"])
         # SAND-018/019: AWQ variants (incl. the -awq-c8 suffix) run the quantized
+        # checkpoint; SAND-027 Granite twins (incl. probes) run the Granite FP8
         # checkpoint; every other specialist run stays on the bf16 default.
-        if "-awq" in run_id:
+        if "-granite" in run_id:
+            assert spec.engine.model == "ibm-granite/granite-4.2-8b-fp8"
+        elif "-awq" in run_id:
             assert spec.engine.model == "Qwen/Qwen3-8B-AWQ"
             assert spec.engine.vllm.quantization == "awq"
         else:
