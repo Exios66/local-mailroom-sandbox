@@ -18,7 +18,7 @@ LADDER = [p for p in RUNS if p.stem.startswith("sand032-l")]
 
 
 def test_sixteen_configs_exist():
-    assert len(RUNS) == 19  # + s5 merger MAUD rerun + 3 s7 admission-×2 runs
+    assert len(RUNS) == 24  # + s5 MAUD rerun + s7 admission-×2 + s8 batched-tokens runs
     assert {p.stem for p in RUNS} == set(SAND032_RUNS)
 
 
@@ -35,7 +35,7 @@ def test_config_parses_and_pins(path):
     assert spec.engine.modal.image_tag == "v0.29.0"
     assert spec.engine.modal.gpu == "L4"
     assert spec.engine.modal.min_containers == spec.engine.modal.max_containers
-    assert spec.engine.vllm.gpu_memory_utilization == 0.90
+    assert spec.engine.vllm.gpu_memory_utilization == (0.93 if path.stem.startswith("sand032-s8") else 0.90)  # s8 probes 0.93
     assert spec.engine.vllm.enable_prefix_caching is True
 
 
