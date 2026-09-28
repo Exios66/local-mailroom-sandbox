@@ -18,7 +18,7 @@ LADDER = [p for p in RUNS if p.stem.startswith("sand032-l")]
 
 
 def test_sixteen_configs_exist():
-    assert len(RUNS) == 28  # + s5 MAUD rerun + s7 admission-×2 + s8 batched-tokens runs
+    assert len(RUNS) == 31  # + s5 MAUD rerun + s7 admission-×2 + s8 batched-tokens runs
     assert {p.stem for p in RUNS} == set(SAND032_RUNS)
 
 

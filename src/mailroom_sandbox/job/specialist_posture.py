@@ -629,9 +629,18 @@ _SAND032_TABLE: tuple[tuple[str, str, int, int, int, float, int, int], ...] = (
     ("sand032-s9-insurance50-bal", "insurance_claim", 50, 2, 64, 0.60, 3600, 32768),
     ("sand032-s9-corporate50-bal", "corporate_record", 50, 2, 64, 0.70, 3600, 32768),
     ("sand032-s9-contracts50-bal", "contract", 50, 2, 64, 1.40, 5400, 32768),
+    # Stage 10: eval-environment v2 prompts, 1×L4 c8 (promotion check at larger n).
+    ("sand032-s10-corr75-v2", "correspondence", 75, 1, 8, 0.15, 3600, 32768),
+    ("sand032-s10-insurance75-v2", "insurance_claim", 75, 1, 8, 0.20, 3600, 32768),
+    ("sand032-s10-corporate75-v2", "corporate_record", 75, 1, 8, 0.20, 3600, 32768),
 )
 # Stage 5 re-runs a class with a revised prompt; everything else stays frozen.
-_SAND032_PROMPT_OVERRIDE = {"sand032-s5-merger50-maud": "merger_agreement_specialist_maud_v1"}
+_SAND032_PROMPT_OVERRIDE = {
+    "sand032-s5-merger50-maud": "merger_agreement_specialist_maud_v1",
+    "sand032-s10-corr75-v2": "correspondence_specialist_v2_evalenv",
+    "sand032-s10-insurance75-v2": "insurance_claims_specialist_v2_evalenv",
+    "sand032-s10-corporate75-v2": "corporate_records_specialist_v2_evalenv",
+}
 SAND032_RUNS: frozenset[str] = frozenset(row[0] for row in _SAND032_TABLE)
 for _rid, _cls, _n, _rep, _conc, _cap, _wall, _ctx in _SAND032_TABLE:
     _agent, _prompt, _mt, _pt, _ct = _SAND032_AGENTS[_cls]
@@ -643,7 +652,7 @@ for _rid, _cls, _n, _rep, _conc, _cap, _wall, _ctx in _SAND032_TABLE:
         "prompt_file": _prompt,
         "concurrency": _conc,
         "replicas": _rep,
-        **({"max_num_seqs": 16} if _rid.startswith(("sand032-s3-", "sand032-s5-")) else {}),
+        **({"max_num_seqs": 16} if _rid.startswith(("sand032-s3-", "sand032-s5-", "sand032-s10-")) else {}),
         **({"max_num_seqs": 32} if _rid.startswith(("sand032-s7-", "sand032-s8-", "sand032-s9-")) else {}),
         "max_model_len": _ctx,
         "max_tokens": _mt,
