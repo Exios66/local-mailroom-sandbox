@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Changed — governance: DMR-068 hub tracker + SAND board reconciliation
+
+- `docs/scale-matrix.md` status line cites the DMR-068 hub tracker
+  (LLM-Mailroom-Services/mailroom-issues#205) for owner and spend decision.
+- `governance/TASKS.md` gains rows for SAND-021..025, which existed only as
+  GitHub issues (#27-#31), and states that the board is the SAND numbering
+  authority (highest id in use: SAND-033). Closes mailroom-issues#194.
+
 ### Added — SAND-031 centralized operator runbooks
 
 - **Single edit surface:** [`config/runbooks/catalog.yaml`](config/runbooks/catalog.yaml).
