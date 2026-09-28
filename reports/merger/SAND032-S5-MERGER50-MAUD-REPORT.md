@@ -13,7 +13,7 @@ SAND-032 Modal × vLLM specialist extract: **50 merger_agreement docs** on **Qwe
 | modal | `sandbox-vllm-sand032`, max/min containers 2/2, scaledown 120 s, profile `exios66` |
 | dataset | mailroom-dataset `ground_truth`, split=all, rev `ed7576b6`, seed 42 |
 | draw | 50 docs, single-class bucket (nested 20 ⊂ 50 ⊂ 100); dataset sha `23c90708536e` |
-| git | `83dc915` |
+| git | `7d7f560 (dirty)` |
 | spec_hash | `d88cdb640195e2c3bf12815f6db79fb67f1139e9782bd4024f92c706fece2454` |
 
 ## Headline results
