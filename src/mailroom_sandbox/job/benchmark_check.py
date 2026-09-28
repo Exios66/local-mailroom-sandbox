@@ -93,7 +93,7 @@ PINNED_ONE_GPU_RUNS = frozenset({
     "run-20-merger-specialist-awq",
     "run-20-corporate-records-specialist-awq",
     # SAND-032 1×L4 rungs / scale-out baseline / bf16 arm: MIN=MAX=1 pinned.
-    *(r for r in SAND032_RUNS if r.startswith(("sand032-l", "sand032-s4")) or r == "sand032-s2a-corr100-1rep"),
+    *(r for r in SAND032_RUNS if r.startswith(("sand032-l", "sand032-s4", "sand032-s10")) or r == "sand032-s2a-corr100-1rep"),
 })
 
 SPECIALIST_LOCAL_PROMPTS: dict[str, dict[str, str]] = {
