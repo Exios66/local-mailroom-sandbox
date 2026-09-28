@@ -89,6 +89,7 @@ sandbox up --compose-profile jupyter  # Lab on :8888 (deploy/Dockerfile)
 sandbox tunnel plan|up|status|down    # SSH forward for vllm-remote (HUB-026)
 modal run deploy/modal_vllm.py::download_model  # Modal: pre-warm HF cache ([deploy])
 modal deploy deploy/modal_job.py  # Modal job worker (remote runs)
+sandbox watch [--web] [--config config/runs/<name>.yaml|--follow <current-file>]  # terminal TUI or localhost browser UI (SSE)
 sandbox run preflight|start|status|resume|cancel|list --config config/runs/<name>.yaml [--job-mode endpoint|modal] [--watch]
 sandbox runbook list|show <id>|check|write   # operator runbooks (catalog → docs/runbooks/)
 sandbox prompts list|show <agent>     # all pipeline agent prompts (local + Langfuse)

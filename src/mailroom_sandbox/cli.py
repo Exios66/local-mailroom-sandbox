@@ -389,6 +389,27 @@ def build_parser() -> argparse.ArgumentParser:
     watch_p.add_argument("--interval", type=float, default=2.0)
     watch_p.add_argument("--once", action="store_true", help="render one frame and exit")
     watch_p.add_argument("--no-logs", action="store_true", help="do not follow modal app logs")
+    watch_p.add_argument(
+        "--web",
+        action="store_true",
+        help="browser mailroom TUI on localhost (SSE); frees the terminal tab",
+    )
+    watch_p.add_argument(
+        "--host",
+        default=None,
+        help="web UI bind host (default 127.0.0.1; only with --web)",
+    )
+    watch_p.add_argument(
+        "--port",
+        type=int,
+        default=None,
+        help="web UI port (default 8765; 0 = ephemeral; only with --web)",
+    )
+    watch_p.add_argument(
+        "--no-browser",
+        action="store_true",
+        help="do not open a browser tab (only with --web; also NO_BROWSER=1)",
+    )
     watch_p.set_defaults(handler=_cmd_watch)
 
     score_p = sub.add_parser(
@@ -1839,16 +1860,23 @@ def _cmd_watch(args) -> int:
         app = args.app or (spec.engine.modal.app if spec.engine.modal else "sandbox-vllm")
         return RunStore(spec_mod.runs_root() / spec_mod.resolve_run_id(spec)), app
 
-    return watch_mod.watch(
+    common = dict(
         resolve=resolve,
         ledger=Path(args.ledger) if args.ledger else None,
         cap_usd=args.cap_usd,
-        once=args.once,
         logs=not args.no_logs,
         interval=args.interval,
         times_dir=sand032 / "logs",
         log_path=sand032 / "logs" / "modal-app.log",
     )
+    if getattr(args, "web", False):
+        from mailroom_sandbox.tui import web as web_mod
+
+        host = args.host or web_mod.DEFAULT_HOST
+        port = web_mod.DEFAULT_PORT if args.port is None else args.port
+        open_browser = False if args.no_browser else None
+        return web_mod.serve_watch_web(**common, host=host, port=port, open_browser=open_browser)
+    return watch_mod.watch(**common, once=args.once)
 
 
 def _cmd_scorecard(args) -> int:
