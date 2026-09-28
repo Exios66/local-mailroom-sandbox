@@ -1,8 +1,11 @@
-# Sorter and specialist prompt enhancement plan (SAND-034)
+# Mailroom pipeline prompt enhancement plan (SAND-034)
 
 **Status:** diagnosis complete, plan proposed, no API or GPU spend incurred.
-**Scope:** the LLM sorter and the five extraction specialists (correspondence,
-insurance claims, contracts, merger agreements, corporate records) as run in
+**Scope:** every LLM node in the LangGraph pipeline. In depth: the sorter and
+the five extraction specialists (correspondence, insurance claims, contracts,
+merger agreements, corporate records). Structural audit: intake, sorter
+reviewer, the three judges, arbiter, boss and the compile stage (section 4.7),
+plus how prompts are served and promoted through Langfuse (section 6a). As run in
 this sandbox (Qwen3-8B-AWQ on Modal, SAND-032) and in
 [eval-environment](https://github.com/LLM-Mailroom-Services/eval-environment)
 (OpenRouter API legs, GEPA prompt lineage).
@@ -55,6 +58,16 @@ prompt budget.
    production is −0.010 overall but −0.158 on charter amendments and +0.098 on
    subsidiary lists. Correspondence v2's +0.042 comes mostly from notices
    (+0.146) and letters (+0.092).
+
+7. **Exception routing trusts self-reported confidence that does not track
+   quality** (measured). The judge, retry and review lanes fire on
+   extraction-confidence bands (contract band 0.90–0.97). On the API legs the
+   correlation between the specialist's confidence and its score is −0.22
+   (insurance, Qwen3-8B), −0.03 and −0.08 (contracts, Qwen3-8B and Granite),
+   and no corporate-records leg emitted a confidence at all. Mean insurance
+   confidence is 0.94 against a mean score of 0.75. The other nodes' prompts
+   are sound in content but repeat the same doctrine two or three times each
+   (section 4.7).
 
 Braintrust review: the live trace API was not reachable from this environment; the tracked Mailroom-Evals backlog index shows GEPA's OBSERVE manifests include failures from at least five degenerate runs and no sorter experiments (section 7a).
 
@@ -184,6 +197,30 @@ key names.
   have a 4,119-token median (inferred: hidden reasoning tokens still generated
   and billed).
 
+### F7 — Routing on uncalibrated confidence (measured)
+
+`judge_gate`, `after_extraction_gated` and the retry/review thresholds in
+`config/taxonomy.yaml` route every document on `extraction_confidence`: the
+specialist's self-report, clamped by `apply_extraction_guard` only when the
+structural guard fails. Pearson r between that confidence and the
+per-document score on the API legs:
+
+| class | Qwen3-8B / Qwen3.7-flash | Granite | DeepSeek |
+| --- | --- | --- | --- |
+| correspondence | 0.61 | 0.76 | 0.54 |
+| insurance claims | −0.22 | 0.34 | 0.10 |
+| contracts | −0.03 | −0.08 | 0.86 |
+| merger agreements | 0.57 | 0.05 | 0.92 |
+| corporate records | not emitted | not emitted | not emitted |
+
+Where r is near zero or negative, the judge lane samples documents at random
+with respect to quality, and a confident wrong extraction skips it entirely.
+A deterministic signal is already available: schema validity, list-field
+fill rate and the guard's issue count. Blending those into the routed
+confidence (or gating on them directly) is a code change, not a prompt change,
+and is added to Phase 0 below. Hypothesis to confirm in Phase 1v: the blended
+signal correlates with score at r ≥ 0.5 for every class.
+
 ---
 
 ## 4. Per-task diagnosis
@@ -291,6 +328,64 @@ Root causes: F3 (10 subclasses mapped onto 5 `record_type` tokens by prose
 rule); the charter-amendment mapping is a **hypothesis** to check against Hub
 `gt_fields` before any prompt change; low precision suggests over-long
 `keywords` and `subject_matter` (inferred).
+
+### 4.7 Other graph nodes
+
+The compiled graph (`graph/build_graph.py`) has 13 nodes. Besides `classify`
+(sorter) and `extract` (specialists), six make LLM calls; the rest are
+deterministic. None of the six has a live scored run in either repo:
+eval-environment holds only 2-document smoke runs for intake, arbiter, boss,
+judge→arbiter and the full chain, and every sandbox `judge` and `pipeline`
+row is a mock. Findings below therefore come from the prompt text and the
+routing code (inferred), not from outputs.
+
+Every node's system prompt is a frozen `*_V0` block plus a "production
+doctrine" block from `llm/prompt_doctrine.py`, served through Langfuse as
+`mailroom-<agent>` with the local text as fallback.
+
+| node | prompt (words) | role | main issues |
+| --- | --- | --- | --- |
+| `intake` (intake clerk) | 353 | triage + OCR clean + section map, advisory only | three jobs in one call; class list injected but no subclass catalog, yet it is told to emit `doc_subclass`; section roles are contract-shaped (`recitals`, `termination`) for all five classes |
+| `review_classify` (sorter reviewer) | 483 (216 V0 + 267 doctrine) | blind second opinion in the medium band | shares the sorter's F2/F3 blind spots but not the sorter's 65 contract cues, so a reviewer "disagree" on contracts is weak evidence; rule 4 and `FIVE_CLASSES` state the demand-letter boundary twice |
+| `judge_verify`, completeness | 480 | exception-lane completeness verdict | 16k-character input cut; gate depends on F7; rules 3, 6 and the doctrine all restate "absent is not missing" |
+| judge, classification | 510 | offline classification audit | the doctrine adds "court opinion → unknown" while V0 rule 2 says "a judicial decision about a contract is a court opinion", a class the live taxonomy no longer has |
+| judge, correctness | 364 | offline factual audit | the cleanest of the three; same truncation rules repeated |
+| `arbiter` | 421 | accept / retry named fields / human review | `fields_to_fix` must be schema names but the schema is not in the prompt; the judge's findings arrive as prose, so field names are reconstructed |
+| `boss_escalation` | 428 | same-class matter conflicts; also an ops-monitor role | two roles in one prompt, the in-graph call carries the ops-monitor half as dead weight |
+| `compile_report` | 44 (retired LLM path) | deterministic `compile_matter_record` in this sandbox | nothing to tune; keep the retired prompt out of GEPA |
+
+Cross-node patterns:
+
+1. **Stale taxonomy in V0 text.** The sorter reviewer and classification judge
+   V0 prompts still name "court opinion" as a class. The doctrine that follows
+   says court opinions map to `unknown`. The model sees both; the later block
+   usually wins, but the contradiction costs tokens and invites drift. Fix by
+   editing V0 once (it is "frozen" only by convention) instead of patching
+   with doctrine.
+2. **Duplicated doctrine.** `FIVE_CLASSES` (74 words) is appended to the
+   sorter, reviewer, classification judge, completeness judge, arbiter and
+   boss prompts; `NUMERIC_ZERO` and `VISION_ADDITIVE` recur similarly. The
+   judges and arbiter never need the full class-boundary paragraph, only the
+   assigned class's schema. Deduplicating V0 and doctrine per node removes
+   roughly 25–35% of each prompt (estimate from the word counts above)
+   without dropping a rule.
+3. **Schema not in the prompt.** Judges and the arbiter are told to "judge
+   only registered schema fields" but receive the schema only as a response
+   format, not as the list of fields to check. The same F1 fix applies:
+   inject the field list for the assigned class into the user message.
+4. **Intake overload.** One call triages, repairs OCR and builds a section map.
+   Its output is advisory; the sorter ignores it by design. Split or trim:
+   keep triage + `cleaned_text` (useful for scanned mail) and make the
+   section map class-aware or drop it until a consumer uses it.
+5. **Boss role split.** Serve two prompts (`mailroom-boss` in-graph,
+   `mailroom-boss-ops` for the sweep) so each call carries one role.
+
+Skeleton for these nodes (same ROLE / SCOPE / CUES / PRECEDENCE / FIELDS /
+OUTPUT order as section 5.2): CUES becomes the node's decision criteria
+(judge labels and thresholds, arbiter's three actions), FIELDS the injected
+schema for the assigned class, and the shared doctrine is included only where
+the node actually decides class membership (sorter, reviewer, classification
+judge).
 
 ---
 
@@ -410,6 +505,25 @@ Qwen3-8B-AWQ, which supports the loop itself.
 | anchors are free text | mutations drift when headings change | the fixed skeleton (5.2) gives stable anchors |
 | transfer is checked ad hoc | Flash gains may not hold on the served model | standard promotion step: paired n ≥ 50 per class on Qwen3-8B-AWQ (as Stage 10 did) |
 
+### 6a. Langfuse serving and promotion
+
+Prompts reach the graph through `llm/prompts.get_managed_prompt`: the
+`production` label of `mailroom-<agent>` in Langfuse, with the in-code text as
+fallback when Langfuse is off or unreachable. Consequences for this plan:
+
+- Offline tests and mock runs exercise the fallback, never the served prompt.
+  Add a drift check (hash of served `production` vs local text per agent) to
+  `sandbox health` so a GEPA promotion to Langfuse cannot silently diverge
+  from what the offline suite validated.
+- Promote by label, not by edit: publish the new version under a
+  `candidate` label, run the paired gate in section 7 with that label
+  pinned, then move `production`. Langfuse keeps the version history needed
+  for rollback.
+- Link each generation to its prompt version (`langfuse_prompt=` is already
+  passed), so per-node scores in Langfuse can be split by prompt version.
+  This is the view the trace review in 7a needs for the non-specialist nodes,
+  which have no Braintrust experiments at all.
+
 ---
 
 ## 7. Evaluation and promotion protocol
@@ -476,9 +590,11 @@ hypotheses from sections 3–4 against the model's own reasoning and raw output:
 
 | phase | work | where | spend |
 | --- | --- | --- | --- |
-| 0 — contract fixes | send the JSON schema (or coerce list nulls); drop MAUD fields from the contract schema; sorter parse error → unknown; CUAD folder alias map in eval-environment scoring; one sorter input policy | eval-environment, llm-mailroom (vendored), sandbox scorer | none (offline tests) |
+| 0 — contract fixes | send the JSON schema (or coerce list nulls); drop MAUD fields from the contract schema; sorter parse error → unknown; CUAD folder alias map in eval-environment scoring; one sorter input policy; blend schema validity and guard issues into routed confidence (F7); inject the class field list into judge and arbiter calls | eval-environment, llm-mailroom (vendored), sandbox scorer | none (offline tests) |
 | 0b — re-score | re-score all logged predictions with the fixed schema handling and alias map to set the new baselines | both repos | none |
-| 1 — skeleton + cues | cue inventories and coverage test; rewrite sorter to the table form; move all six prompts to the skeleton, keeping v1-lineage subclass briefs | eval-environment prompts, sandbox `config/prompts` | none until validation |
+| 1 — skeleton + cues | cue inventories and coverage test; rewrite sorter to the table form; move all six prompts to the skeleton, keeping v1-lineage subclass briefs |
+| 1b — other nodes | fix stale "court opinion" V0 text; deduplicate V0 + doctrine per node; split boss in-graph and ops prompts; trim or class-scope the intake section map; Langfuse drift check in `sandbox health` | llm-mailroom (via monorepo), sandbox | none |
+| 1n — node evals | first scored runs for judge, arbiter and reviewer: n = 40 labelled judge/arbiter cases built from existing specialist predictions and their scores | eval-environment | small; needs approval | eval-environment prompts, sandbox `config/prompts` | none until validation |
 | 1v — validate | paired n = 75 per class on Qwen3-8B-AWQ 1×L4 (Stage 10 cost ≈ $0.14 for three classes); sorter on a stratified 500-doc draw | sandbox | about $0.5–1 (estimate from SAND-032 ledgers); needs approval |
 | 2 — GEPA under new gates | compression operator, cue gate, subclass frontier, size objective | eval-environment | per GEPA budget |
 | 0c — trace review | read-only Braintrust pull of canonical specialist + sorter experiments; settle the six hypotheses in 7a | eval-environment tooling | none (needs `api.braintrust.dev` network access) |
@@ -502,6 +618,10 @@ No step above has been run; Phase 1v is the first point that would spend.
   `reports/serving/SAND032-V2-PROMPT-PROMOTION.md`, `reports/*/SAND032-S3-*`,
   `reports/*/SAND032-S10-*`.
 - vendored `llm-mailroom`: `langchain_agents/sorter_agent.py`,
-  `langchain_agents/prompts.py`, `schemas/documents.py`.
+  `langchain_agents/prompts.py`, `schemas/documents.py`,
+  `graph/build_graph.py` (node wiring), `graph/routing.py` (`judge_gate`),
+  `pipeline/guards.py` (`apply_extraction_guard`), `llm/prompt_doctrine.py`,
+  `llm/prompts.py`, `agents/{intake,sorter_reviewer,judge,arbiter,boss,reporter}.py`;
+  `config/taxonomy.yaml` confidence bands.
 - mailroom-ml `088530b`: head label counts (`AGENTS.md`), per-head support in
   `reports/eval_m9a-*.json`.
