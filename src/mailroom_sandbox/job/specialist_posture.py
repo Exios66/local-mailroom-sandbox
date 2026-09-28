@@ -624,6 +624,11 @@ _SAND032_TABLE: tuple[tuple[str, str, int, int, int, float, int, int], ...] = (
     # Stage 8 (C fleet): seqs32 + max_num_batched_tokens 16384 + gpu_memory_utilization 0.93.
     ("sand032-s8-corr100-bt16k", "correspondence", 100, 2, 64, 0.60, 3600, 32768),
     ("sand032-s8-contracts50-bt16k", "contract", 50, 2, 64, 1.40, 5400, 32768),
+    # Stage 9 (balanced B): max_inputs 32 = max_num_seqs → router splits c64 32/32.
+    ("sand032-s9-corr100-bal", "correspondence", 100, 2, 64, 0.60, 3600, 32768),
+    ("sand032-s9-insurance50-bal", "insurance_claim", 50, 2, 64, 0.60, 3600, 32768),
+    ("sand032-s9-corporate50-bal", "corporate_record", 50, 2, 64, 0.70, 3600, 32768),
+    ("sand032-s9-contracts50-bal", "contract", 50, 2, 64, 1.40, 5400, 32768),
 )
 # Stage 5 re-runs a class with a revised prompt; everything else stays frozen.
 _SAND032_PROMPT_OVERRIDE = {"sand032-s5-merger50-maud": "merger_agreement_specialist_maud_v1"}
@@ -639,7 +644,7 @@ for _rid, _cls, _n, _rep, _conc, _cap, _wall, _ctx in _SAND032_TABLE:
         "concurrency": _conc,
         "replicas": _rep,
         **({"max_num_seqs": 16} if _rid.startswith(("sand032-s3-", "sand032-s5-")) else {}),
-        **({"max_num_seqs": 32} if _rid.startswith(("sand032-s7-", "sand032-s8-")) else {}),
+        **({"max_num_seqs": 32} if _rid.startswith(("sand032-s7-", "sand032-s8-", "sand032-s9-")) else {}),
         "max_model_len": _ctx,
         "max_tokens": _mt,
         "max_input_chars": _input_chars_for(_mt, _pt, _ctx),
