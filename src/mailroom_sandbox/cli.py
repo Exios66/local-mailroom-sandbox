@@ -410,7 +410,56 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="do not open a browser tab (only with --web; also NO_BROWSER=1)",
     )
+    watch_p.add_argument(
+        "--demo",
+        action="store_true",
+        help="with --web: serve a synthetic looping run (dev server; no Modal, no spend)",
+    )
     watch_p.set_defaults(handler=_cmd_watch)
+
+    dev_p = sub.add_parser(
+        "dev",
+        help="mailroom watch dev server: themed browser UI on a synthetic run (= watch --web --demo)",
+        parents=[shared],
+    )
+    dev_p.add_argument("--host", default=None, help="bind host (default 127.0.0.1)")
+    dev_p.add_argument("--port", type=int, default=None, help="port (default 8765; 0 = ephemeral)")
+    dev_p.add_argument("--interval", type=float, default=1.0, help="seconds per demo tick")
+    dev_p.add_argument("--no-browser", action="store_true", help="do not open a browser tab")
+    dev_p.set_defaults(handler=_cmd_dev)
+
+    board_p = sub.add_parser(
+        "board",
+        help="persistent mailroom job board: every beacon job in the package family (browser; --tui for terminal)",
+        parents=[shared],
+    )
+    board_p.add_argument("--root", default=None, help="beacon dir (default $MAILROOM_BEACON_DIR or ~/.mailroom/jobs)")
+    board_p.add_argument("--tui", action="store_true", help="terminal TUI instead of the browser page")
+    board_p.add_argument("--once", action="store_true", help="with --tui: render one frame and exit")
+    board_p.add_argument("--host", default=None, help="bind host (default 127.0.0.1)")
+    board_p.add_argument("--port", type=int, default=None, help="port (default 8767; 0 = ephemeral)")
+    board_p.add_argument("--no-browser", action="store_true", help="do not open a browser tab")
+    board_p.add_argument("--stale-s", type=float, default=120.0, help="heartbeat age that marks a running job stalled")
+    board_p.add_argument("--interval", type=float, default=1.0, help="refresh seconds")
+    board_p.add_argument("--demo", action="store_true", help="also run synthetic demo jobs (dev server; no Modal)")
+    board_p.set_defaults(handler=_cmd_board)
+
+    beacon_p = sub.add_parser("beacon", help="publish a mailroom.beacon/v1 heartbeat (shell jobs)", parents=[shared])
+    beacon_sub = beacon_p.add_subparsers(dest="beacon_cmd", required=True)
+    bu = beacon_sub.add_parser("update", help="create/update a job heartbeat", parents=[shared])
+    bu.add_argument("--job", required=True)
+    bu.add_argument("--package", required=True)
+    bu.add_argument("--title", default="")
+    bu.add_argument("--phase", default=None)
+    bu.add_argument("--done", type=int, default=None)
+    bu.add_argument("--total", type=int, default=None)
+    bu.add_argument("--ok", type=int, default=None)
+    bu.add_argument("--errors", type=int, default=None)
+    bu.add_argument("--metric", action="append", default=[], help="key=value (repeatable)")
+    bu.add_argument("--log", default=None, help="append one log line")
+    bu.add_argument("--finish", choices=("done", "failed"), default=None)
+    bu.add_argument("--root", default=None)
+    bu.set_defaults(handler=_cmd_beacon_update)
 
     score_p = sub.add_parser(
         "scorecard",
@@ -1842,6 +1891,8 @@ def _cmd_watch(args) -> int:
 
     from mailroom_sandbox import paths
 
+    if getattr(args, "demo", False):
+        return _serve_demo(args)
     sand032 = paths.runtime_dir() / "sand032"
     if not args.config and not args.follow and (sand032 / "current").is_file():
         # Bare `sandbox watch`: follow the current SAND-032 run with its ledger.
@@ -1877,6 +1928,67 @@ def _cmd_watch(args) -> int:
         open_browser = False if args.no_browser else None
         return web_mod.serve_watch_web(**common, host=host, port=port, open_browser=open_browser)
     return watch_mod.watch(**common, once=args.once)
+
+
+def _serve_demo(args) -> int:
+    """Dev server: the web watch UI driven by a synthetic run in a temp dir."""
+    import tempfile
+
+    from mailroom_sandbox.tui import web as web_mod
+    from mailroom_sandbox.tui.demo import DemoRun
+
+    root = Path(tempfile.mkdtemp(prefix="mailroom-watch-demo-"))
+    demo = DemoRun(root)
+    return web_mod.serve_watch_web(
+        resolve=demo.resolve,
+        ledger=demo.ledger,
+        cap_usd=5.0,
+        logs=False,
+        interval=getattr(args, "interval", None) or 1.0,
+        times_dir=demo.times_dir,
+        log_path=None,
+        serving_dir=demo.serving_dir,
+        host=args.host or web_mod.DEFAULT_HOST,
+        port=web_mod.DEFAULT_PORT if args.port is None else args.port,
+        open_browser=False if args.no_browser else None,
+        tick=demo.step,
+    )
+
+
+def _cmd_dev(args) -> int:
+    return _serve_demo(args)
+
+
+def _cmd_board(args) -> int:
+    from mailroom_sandbox.tui import board as board_mod
+
+    root = Path(args.root).expanduser() if args.root else None
+    if args.tui:
+        return board_mod.run_board_tui(root=root, stale_s=args.stale_s, interval=args.interval, once=args.once)
+    return board_mod.serve_board(
+        root=root,
+        host=args.host or "127.0.0.1",
+        port=board_mod.DEFAULT_PORT if args.port is None else args.port,
+        open_browser=False if args.no_browser else None,
+        stale_s=args.stale_s,
+        interval=args.interval,
+        demo=args.demo,
+    )
+
+
+def _cmd_beacon_update(args) -> int:
+    from mailroom_sandbox.tui.beacon import Beacon
+
+    b = Beacon(args.job, package=args.package, title=args.title, root=args.root, resume=True, pid=None)
+    metrics = dict(m.split("=", 1) for m in args.metric if "=" in m)
+    fields = {k: getattr(args, k) for k in ("phase", "done", "total", "ok", "errors")}
+    if args.log:
+        b.log(args.log)
+    if args.finish:
+        b.finish(args.finish, metrics=metrics or None, **fields)
+    else:
+        b.update(metrics=metrics or None, **fields)
+    return 0
 
 
 def _cmd_scorecard(args) -> int:
