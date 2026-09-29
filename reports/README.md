@@ -28,8 +28,10 @@ specialist task and for the sorter, both routes on one axis) · Classifier (Mode
 
 ## Cross-repo reports (mailroom-issues)
 
-`dashboard/export_hub_reports.py` turns the hub data into the cost comparison and master status report published in
-`LLM-Mailroom-Services/mailroom-issues` under `reports/` (markdown + SVG only; that repo holds no code).
+`dashboard/export_hub_reports.py` turns the hub data into the cost comparison, the master status report and the
+Modal + vLLM GPU economics report (`dashboard/gpu_report.py`) published in
+`LLM-Mailroom-Services/mailroom-issues` under `reports/` (markdown + SVG only; that repo holds no code). The GPU
+report reads the hub's `fleet` section: every `serving/sand032-*.serving.json` cross-checked against its run report.
 `dashboard/report_audit.json` records the figure/link audit the master report cites.
 
 ```bash
