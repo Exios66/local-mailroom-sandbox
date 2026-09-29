@@ -2,6 +2,35 @@
 
 ## [Unreleased]
 
+### Added — SAND-036 warm vs cold GPUs, cost per 1M tokens, Modal vs API break-even, mailroom-issues Pages site
+
+- `reports/dashboard/gpu_report.py`: cost per 1M tokens on three bases (warm busy-window, one cold batch, program-loaded),
+  warm-fleet cost per token at falling utilization with the break-even busy share, and a warm vs cold section (boot
+  measurements, warm vs cold $/doc and $/1M per workload, the batch size that amortizes a cold start, keep warm vs
+  scale to zero with the threshold = scale-down + L5 boot). Every setup value and date in the report is read from the
+  serving exports and run reports; the hub `fleet` extract gains `scaledown` and each run's own score.
+- `reports/dashboard/breakeven.py`: one per-document Modal-vs-API calculation (verdict per class, every measured Modal
+  configuration against the cheapest hosted model, warm and cold break-even volumes, the optimal measured deployment)
+  quoted by the cost comparison's §3, the GPU report and the site, so no two reports disagree.
+- Dark, high-contrast figures: `scripts/sand032/viz.py` renders every chart as a dark card on the reference palette's
+  dark steps (validated `--mode dark`: ALL PASS), with a fixed color per model (`ENTITY`) and a legend whenever
+  bars carry more than one color; subtitles in sentence case. All 51 SAND-032 figures re-rendered
+  (`rerender.py`, data unchanged). The Pages site and the hub dashboard are dark by default.
+- `reports/dashboard/source_charts.py`: the eval-environment and mailroom-ml charts the reports used to copy are
+  redrawn from hub data in the same kit, so every report figure shares one theme.
+- `reports/dashboard/export_pngs.py`: 2× PNG of every report figure for slides (`mailroom-issues/reports/viz/`).
+- The per-token comparison includes the Qwen3.7-Flash n = 50 legs (token counts now extracted and cross-checked
+  against their reports); the sorter table lists every hosted model's largest run (Qwen3-8B: n = 20).
+- Model per route made explicit: Qwen3-8B-AWQ is the only model self-hosted on Modal; Qwen3.7-Flash and every other
+  hosted model ran through the API only. The cost comparison's §3.2 adds the same-model comparison (Qwen3-8B-AWQ on
+  Modal vs Qwen3-8B via the API), isolating the route from the model.
+- `reports/dashboard/pages_site.py` + `export_hub_reports.py --site`: the three reports as a static GitHub Pages site
+  for `mailroom-issues/docs/` (inline SVG, no JavaScript, no external requests; covered by `--check`).
+- Hub snapshot re-pinned to eval-environment `86b4e54` (main, including the qwen3.7-flash suite README); `markdown-it-py`
+  joins `[dev]` (requirements regenerated with `scripts/sync_requirements.py`).
+- `tests/test_gpu_report.py`: the $/1M identity, the keep-warm threshold, the amortizing batch, the break-evens and the
+  optimal row, and site integrity (no scripts, every internal link and anchor resolves).
+
 ### Added — SAND-035 cross-repo report audit + Modal vs API cost comparison
 
 - `scripts/sand032/viz.py` sizes label columns by measured text width (middle ellipsis, full label in
@@ -21,6 +50,11 @@
   `fleet` section (`hub_extract.sand032_fleet`): all 24 SAND-032 serving exports cross-checked against their run
   reports (wall, tokens, throughput, busy and billed GPU $, slot occupancy, replica request split). `viz.hbar` gains
   `domain_max` so small multiples can share one scale.
+
+### Fixed — SAND-036
+
+- Hub stratum means and the legacy spend total use `math.fsum`, so `hub_data.json` is identical whether it is
+  rebuilt on Python 3.11 or 3.12 (3.12's `sum()` compensates, 3.11's does not; the two differed in the last digit).
 
 ### Fixed — SAND-035
 

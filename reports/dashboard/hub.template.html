@@ -6,27 +6,19 @@
 :root {
   --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
   --grid: #e1e0d9; --axis: #c3c2b7; --ring: rgba(11,11,11,0.10); --wash: #f0efec;
-  --qwen: #2a78d6; --granite: #eb6834; --deepseek: #1baf7a; --base: #b9b8b0;
+  --qwen: #2a78d6; --granite: #eda100; --deepseek: #1baf7a; --base: #b9b8b0;
   --good: #0ca30c; --critical: #d03b3b; --good-text: #006300; --crit-text: #b52f2f; --na: #d6d5ce;
   --seq-0: #f0efec; --seq-1: #cde2fb; --seq-2: #9ec5f4; --seq-3: #5598e7; --seq-4: #256abf; --seq-5: #104281;
   --sans: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    color-scheme: dark;
-    --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
-    --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10); --wash: #262624;
-    --qwen: #3987e5; --granite: #d95926; --deepseek: #199e70; --base: #5c5b56;
-    --good-text: #0ca30c; --crit-text: #e66767; --na: #3a3a37;
-    --seq-0: #262624; --seq-1: #104281; --seq-2: #184f95; --seq-3: #256abf; --seq-4: #3987e5; --seq-5: #86b6ef;
-  }
-}
-:root[data-theme="dark"] {
+/* Dark, high-contrast by default (the same chrome as the report figures and the mailroom-issues site);
+   the light tokens above apply only with data-theme="light". */
+:root:not([data-theme="light"]) {
   color-scheme: dark;
-  --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
-  --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10); --wash: #262624;
-  --qwen: #3987e5; --granite: #d95926; --deepseek: #199e70; --base: #5c5b56;
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #d6d5cc; --muted: #a9a89f;
+  --grid: #2c2c2a; --axis: #4a4a46; --ring: rgba(255,255,255,0.14); --wash: #262624;
+  --qwen: #3987e5; --granite: #c98500; --deepseek: #199e70; --base: #5c5b56;
   --good-text: #0ca30c; --crit-text: #e66767; --na: #3a3a37;
   --seq-0: #262624; --seq-1: #104281; --seq-2: #184f95; --seq-3: #256abf; --seq-4: #3987e5; --seq-5: #86b6ef;
 }
