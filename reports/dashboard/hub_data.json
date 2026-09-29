@@ -90,6 +90,7 @@
   "granite_corr_final": "20260927T053647Z-eval-correspondence",
   "route50": {
    "contracts": {
+    "completion_tokens": 387157,
     "cost": 0.073918,
     "errors": 0,
     "family": "Qwen3.7-Flash",
@@ -97,6 +98,7 @@
     "n": 50,
     "p95_ms": 202765.2,
     "prompt_lineage": "mutation",
+    "prompt_tokens": 786252,
     "revision": "46a4d3c2",
     "run": "20260928T063713Z-eval-contracts",
     "score": 0.5462,
@@ -105,6 +107,7 @@
     "wall": 690.2
    },
    "corporate records": {
+    "completion_tokens": 170711,
     "cost": 0.039277,
     "errors": 0,
     "family": "Qwen3.7-Flash",
@@ -112,6 +115,7 @@
     "n": 50,
     "p95_ms": 97541.5,
     "prompt_lineage": "mutation",
+    "prompt_tokens": 569472,
     "revision": "46a4d3c2",
     "run": "20260928T083627Z-eval-corporate_records",
     "score": 0.4178,
@@ -120,6 +124,7 @@
     "wall": 347.3
    },
    "correspondence": {
+    "completion_tokens": 146894,
     "cost": 0.022468,
     "errors": 0,
     "family": "Qwen3.7-Flash",
@@ -127,6 +132,7 @@
     "n": 50,
     "p95_ms": 44692.4,
     "prompt_lineage": "mutation",
+    "prompt_tokens": 112385,
     "revision": "46a4d3c2",
     "run": "20260928T090253Z-eval-correspondence",
     "score": 0.4931,
@@ -135,6 +141,7 @@
     "wall": 322.4
    },
    "insurance claims": {
+    "completion_tokens": 167942,
     "cost": 0.025306,
     "errors": 0,
     "family": "Qwen3.7-Flash",
@@ -142,6 +149,7 @@
     "n": 50,
     "p95_ms": 63022.3,
     "prompt_lineage": "mutation",
+    "prompt_tokens": 115773,
     "revision": "46a4d3c2",
     "run": "20260928T070248Z-eval-insurance_claims",
     "score": 0.7733,
@@ -150,6 +158,7 @@
     "wall": 307.9
    },
    "merger agreements": {
+    "completion_tokens": 347846,
     "cost": 0.161145,
     "errors": 0,
     "family": "Qwen3.7-Flash",
@@ -157,6 +166,7 @@
     "n": 50,
     "p95_ms": 99717.0,
     "prompt_lineage": "mutation",
+    "prompt_tokens": 3864179,
     "revision": "46a4d3c2",
     "run": "20260928T070803Z-eval-merger_agreement",
     "score": 0.5213,
@@ -18919,6 +18929,38 @@
    "value": 44692.4
   },
   {
+   "key": "route50.correspondence.prompt_tokens",
+   "quote": "performance.tokens_prompt_total = 112385",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 112385
+  },
+  {
+   "key": "route50.correspondence.completion_tokens",
+   "quote": "performance.tokens_completion_total = 146894",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 146894
+  },
+  {
+   "key": "route50.correspondence.report_prompt_tokens",
+   "quote": "| prompt / completion / total tokens | 112385 / 146894 / 259279 |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3.7-flash/correspondence/RUN-50-CORRESPONDENCE-QWEN3.7-FLASH-REPORT.md",
+   "value": 112385.0
+  },
+  {
+   "key": "route50.correspondence.report_completion_tokens",
+   "quote": "| prompt / completion / total tokens | 112385 / 146894 / 259279 |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3.7-flash/correspondence/RUN-50-CORRESPONDENCE-QWEN3.7-FLASH-REPORT.md",
+   "value": 146894.0
+  },
+  {
    "key": "route50.correspondence.report_score",
    "quote": "| overall_score | 0.4931 |",
    "repo": "LLM-Mailroom-Services/eval-environment",
@@ -18989,6 +19031,38 @@
    "sha": "86b4e54fc5a2",
    "source": "reports/experiment_log.jsonl",
    "value": 63022.3
+  },
+  {
+   "key": "route50.insurance claims.prompt_tokens",
+   "quote": "performance.tokens_prompt_total = 115773",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 115773
+  },
+  {
+   "key": "route50.insurance claims.completion_tokens",
+   "quote": "performance.tokens_completion_total = 167942",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 167942
+  },
+  {
+   "key": "route50.insurance claims.report_prompt_tokens",
+   "quote": "| prompt / completion / total tokens | 115773 / 167942 / 283715 |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3.7-flash/insurance_claims/RUN-50-INSURANCE_CLAIM-QWEN3.7-FLASH-REPORT.md",
+   "value": 115773.0
+  },
+  {
+   "key": "route50.insurance claims.report_completion_tokens",
+   "quote": "| prompt / completion / total tokens | 115773 / 167942 / 283715 |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3.7-flash/insurance_claims/RUN-50-INSURANCE_CLAIM-QWEN3.7-FLASH-REPORT.md",
+   "value": 167942.0
   },
   {
    "key": "route50.insurance claims.report_score",
@@ -19063,6 +19137,38 @@
    "value": 97541.5
   },
   {
+   "key": "route50.corporate records.prompt_tokens",
+   "quote": "performance.tokens_prompt_total = 569472",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 569472
+  },
+  {
+   "key": "route50.corporate records.completion_tokens",
+   "quote": "performance.tokens_completion_total = 170711",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 170711
+  },
+  {
+   "key": "route50.corporate records.report_prompt_tokens",
+   "quote": "| prompt / completion / total tokens | 569472 / 170711 / 740183 |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3.7-flash/corporate_records/RUN-50-CORPORATE_RECORD-QWEN3.7-FLASH-REPORT.md",
+   "value": 569472.0
+  },
+  {
+   "key": "route50.corporate records.report_completion_tokens",
+   "quote": "| prompt / completion / total tokens | 569472 / 170711 / 740183 |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3.7-flash/corporate_records/RUN-50-CORPORATE_RECORD-QWEN3.7-FLASH-REPORT.md",
+   "value": 170711.0
+  },
+  {
    "key": "route50.corporate records.report_score",
    "quote": "| overall_score | 0.4178 |",
    "repo": "LLM-Mailroom-Services/eval-environment",
@@ -19135,6 +19241,38 @@
    "value": 202765.2
   },
   {
+   "key": "route50.contracts.prompt_tokens",
+   "quote": "performance.tokens_prompt_total = 786252",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 786252
+  },
+  {
+   "key": "route50.contracts.completion_tokens",
+   "quote": "performance.tokens_completion_total = 387157",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 387157
+  },
+  {
+   "key": "route50.contracts.report_prompt_tokens",
+   "quote": "| prompt / completion / total tokens | 786252 / 387157 / 1173409 |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3.7-flash/contracts/RUN-50-CONTRACT-QWEN3.7-FLASH-REPORT.md",
+   "value": 786252.0
+  },
+  {
+   "key": "route50.contracts.report_completion_tokens",
+   "quote": "| prompt / completion / total tokens | 786252 / 387157 / 1173409 |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3.7-flash/contracts/RUN-50-CONTRACT-QWEN3.7-FLASH-REPORT.md",
+   "value": 387157.0
+  },
+  {
    "key": "route50.contracts.report_score",
    "quote": "| overall_score | 0.5462 |",
    "repo": "LLM-Mailroom-Services/eval-environment",
@@ -19205,6 +19343,38 @@
    "sha": "86b4e54fc5a2",
    "source": "reports/experiment_log.jsonl",
    "value": 99717.0
+  },
+  {
+   "key": "route50.merger agreements.prompt_tokens",
+   "quote": "performance.tokens_prompt_total = 3864179",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 3864179
+  },
+  {
+   "key": "route50.merger agreements.completion_tokens",
+   "quote": "performance.tokens_completion_total = 347846",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 347846
+  },
+  {
+   "key": "route50.merger agreements.report_prompt_tokens",
+   "quote": "| prompt / completion / total tokens | 3864179 / 347846 / 4212025 |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3.7-flash/merger_agreement/RUN-50-MERGER_AGREEMENT-QWEN3.7-FLASH-REPORT.md",
+   "value": 3864179.0
+  },
+  {
+   "key": "route50.merger agreements.report_completion_tokens",
+   "quote": "| prompt / completion / total tokens | 3864179 / 347846 / 4212025 |",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/api-comparisons/qwen3.7-flash/merger_agreement/RUN-50-MERGER_AGREEMENT-QWEN3.7-FLASH-REPORT.md",
+   "value": 347846.0
   },
   {
    "key": "route50.merger agreements.report_score",
@@ -27427,8 +27597,8 @@
   "maud1": "8.5%",
   "maud_cov": "33%",
   "ml_n": "243",
-  "n_checks": "776",
-  "n_figures": "1,824",
+  "n_checks": "781",
+  "n_figures": "1,844",
   "n_issues": "8",
   "reeval_acc": "92.57%",
   "route_best": "corporate records",

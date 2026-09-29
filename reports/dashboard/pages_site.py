@@ -26,8 +26,8 @@ REPORTS = [
      "Where every front stands: the hosted-API leg, the Modal + vLLM leg (SAND-032), the ModernBERT intake "
      "classifier, the cross-leg verdict, and the report audit."),
     ("COST-COMPARISON-MODAL-VS-API.md", "cost-comparison.html", "Cost comparison",
-     "Modal L4 against the hosted API: cost per document and per unit of quality for every route and model, "
-     "batch and warm-fleet break-even, sorter routes and spend."),
+     "Self-hosted Qwen3-8B-AWQ on Modal against four hosted API models: cost and quality per document, the same "
+     "model on both routes, break-even volumes and the optimal deployment, sorter routes and spend."),
     ("MODAL-VLLM-GPU-REPORT.md", "gpu-economics.html", "GPU economics",
      "The Modal + vLLM leg in depth: cost per 1M tokens, where the GPU spend went, warm vs cold fleets, "
      "GPU utilization, and what adding the second L4 did."),
@@ -36,23 +36,14 @@ PAGE_OF = {src: page for src, page, _, _ in REPORTS}
 
 CSS = """
 :root {
-  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #6f6e69;
-  --grid: #e1e0d9; --axis: #c3c2b7; --ring: rgba(11,11,11,0.10); --wash: #f0efec; --accent: #2a78d6;
+  /* One dark, high-contrast theme for the whole site, matching the figures (the /dataviz reference
+     palette's dark chrome: page #0d0d0d, surface #1a1a19). Text contrast on the page: ink 19.4:1,
+     ink-2 13.2:1, muted 8.1:1, links 8.9:1. */
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #d6d5cc; --muted: #a9a89f;
+  --grid: #2c2c2a; --axis: #4a4a46; --ring: rgba(255,255,255,0.14); --wash: #262624; --accent: #7cb4f2;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  color-scheme: light;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    color-scheme: dark;
-    --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #9a9892;
-    --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10); --wash: #262624; --accent: #5aa0ec;
-  }
-}
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #9a9892;
-  --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10); --wash: #262624; --accent: #5aa0ec;
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -93,7 +84,6 @@ th { text-align: left; font-weight: 600; background: var(--wash); white-space: n
 tr:last-child td { border-bottom: 0; }
 figure.fig { margin: 18px 0 24px; }
 figure.fig .frame { overflow-x: auto; width: fit-content; max-width: 100%; border: 1px solid var(--ring); border-radius: 10px; background: var(--surface); }
-figure.fig .frame.light-only { background: #ffffff; }
 figure.fig .frame > svg { display: block; height: auto; }  /* width set per chart: its natural width, scaled down to fit */
 figure.fig figcaption { font-size: 13px; color: var(--muted); margin-top: 6px; }
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin: 22px 0 30px; }
@@ -157,10 +147,9 @@ def render_report(md_text: str, files: dict) -> tuple[str, str, list[tuple[str, 
         svg = _svg_text(body)
         w = int(float(re.search(r'<svg\b[^>]*?\swidth="([\d.]+)"', svg).group(1)))
         svg = re.sub(r"<svg\b", f'<svg style="width:min(100%,{w}px);min-width:{min(w, 560)}px"', svg, count=1)
-        light_only = "prefers-color-scheme" not in svg
         # the chart carries its own title; a caption only when the alt text says something the chart doesn't
         cap = "" if html.unescape(alt) in html.unescape(svg) else f"<figcaption>{alt}</figcaption>"
-        return f'<figure class="fig"><div class="frame{" light-only" if light_only else ""}">{svg}</div>{cap}</figure>'
+        return f'<figure class="fig"><div class="frame">{svg}</div>{cap}</figure>'
     out = re.sub(r'<p><img src="([^"]+)" alt="([^"]*)"\s*/?></p>', figure, out)
     if "<img " in out:
         raise SystemExit("an image was not inlined (only whole-paragraph figures are supported)")
@@ -193,7 +182,7 @@ def _page(title: str, body: str, *, current: str | None, depth: int, provenance:
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light dark">
+<meta name="color-scheme" content="dark">
 <title>{html.escape(title)} · Mailroom evaluation reports</title>
 <meta name="description" content="Cross-repository evaluation reports for the LLM-Mailroom constellation.">
 <style>{CSS}</style>
@@ -238,7 +227,7 @@ def build(files: dict, stats: dict, provenance: str) -> dict[str, str]:
     index_body = f"""<main id="main">
 <div class="eyebrow">LLM-Mailroom-Services · mailroom-issues</div>
 <h1>Mailroom evaluation reports</h1>
-<p class="lede">Cross-repository findings for the LLM-Mailroom pipeline: the hosted-API leg (eval-environment), self-hosted Qwen3-8B on Modal L4 GPUs with vLLM (local-mailroom-sandbox, SAND-032), and the ModernBERT intake classifier (mailroom-ml). Every number is quoted from a tracked source file and cross-checked before it is published here.</p>
+<p class="lede">Cross-repository findings for the LLM-Mailroom pipeline: the hosted-API leg (eval-environment), self-hosted Qwen3-8B-AWQ on Modal L4 GPUs with vLLM (local-mailroom-sandbox, SAND-032), and the ModernBERT intake classifier (mailroom-ml). Every number is quoted from a tracked source file and cross-checked before it is published here.</p>
 <div class="tiles">{tiles}</div>
 <div class="cards">{cards}</div>
 </main>"""

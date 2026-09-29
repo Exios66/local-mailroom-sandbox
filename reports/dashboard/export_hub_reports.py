@@ -34,6 +34,7 @@ sys.path.insert(0, str(ROOT / "scripts" / "sand032"))
 import viz  # noqa: E402
 
 import breakeven  # noqa: E402
+import source_charts  # noqa: E402
 
 DATA = HERE / "hub_data.json"
 SERVING = ROOT / "reports" / "serving"
@@ -48,17 +49,14 @@ FAMILY_SHORT = {"Qwen3-8B-AWQ": "Modal · Qwen3-8B-AWQ", "Qwen3.7-Flash": "API �
 SORTER_NAME = {"qwen/qwen3.7-flash": "Qwen3.7-Flash", "deepseek/deepseek-v4.1-flash": "DeepSeek-V4.1-Flash",
                "ibm-granite/granite-4.2-8b": "Granite-4.2-8B", "qwen/qwen3-8b": "Qwen3-8B"}
 
-# Figures copied from the source repos (source path → name under figures/sources/<repo>/).
+# Figures copied from the sandbox's own SAND-032 set (drawn by the same kit; source path → figures/sources/<repo>/).
 COPY = {
     "local-mailroom-sandbox": ["reports/serving/figures/sand032-ladder.svg", "reports/serving/figures/sand032-routing.svg",
                                "reports/serving/figures/sand032-admission.svg", "reports/serving/figures/sand032-v2-prompts.svg",
                                "reports/serving/figures/sand032-s6-sorter1000-per-class-f1.svg"],
-    "eval-environment": ["web/data/charts/extraction_score_by_type.svg", "web/data/charts/cost_per_document.svg",
-                         "web/data/charts/classification_subclass.svg", "web/data/charts/classification_calibration.svg"],
-    "mailroom-ml": ["reports/charts/m9a-local-20260927-014429/doc_type_recall.svg",
-                    "reports/charts/m9a-local-20260927-014429/selective_risk.svg",
-                    "reports/charts/m9a-local-20260927-014429/subclass_collapse.svg"],
 }
+# The eval-environment and mailroom-ml charts are redrawn from hub data in the same kit (source_charts.py),
+# so every report figure shares one dark, high-contrast theme.
 
 
 # ------------------------------------------------------------------ formatting
@@ -133,14 +131,26 @@ def route_rows(D: dict) -> dict[str, list[dict]]:
 
 
 # ------------------------------------------------------------------ figures
+def entity_legend(labels) -> list[tuple[str, str]]:
+    """Legend keys, in ENTITY order, for the models that appear in ``labels`` (color follows the model)."""
+    labels = list(labels)
+    names = {"Qwen3-8B-AWQ": "Modal · Qwen3-8B-AWQ", "ModernBERT": "ModernBERT (local)"}
+    out = []
+    for name, cls in viz.ENTITY.items():
+        if any(viz.entity(lab) == cls for lab in labels):
+            out.append((cls, names.get(name, f"API · {name}")))
+    return out
+
+
 def fig_cost(D, rows) -> str:
     panels = []
     for c in ORDER:
         pts = sorted(rows[c], key=lambda p: p["usd"])
-        panels.append(viz.hbar(D["labels"][c], "cost per completed document · lower is better · emphasis = Modal",
+        labs = [FAMILY_SHORT[p["family"]] for p in pts]
+        panels.append(viz.hbar(D["labels"][c], "cost per completed document · lower is better",
                                [{"label": FAMILY_SHORT[p["family"]], "value": round(p["usd"], 6),
-                                 "emphasis": p["route"] == "modal", "note": f"n = {p['n']} · {p['run']}"} for p in pts],
-                               fmt=lambda v: usd(v), width=560, label_w=200))
+                                 "series": viz.entity(FAMILY_SHORT[p["family"]]), "note": f"n = {p['n']} · {p['run']}"} for p in pts],
+                               fmt=lambda v: usd(v), width=560, label_w=200, legend=entity_legend(labs)))
     return viz.small_multiples("Cost per document by route and model — Modal L4 (SAND-032) vs hosted API", panels, cols=2)
 
 
@@ -150,10 +160,11 @@ def fig_score(D, rows) -> str:
         pts = sorted(rows[c], key=lambda p: -p["score"])
         sub = ("overall extraction score (0–1) · higher is better" if c != "contract"
                else "Modal: CUAD category F1 · API: pipeline rubric — not like-for-like")
+        labs = [FAMILY_SHORT[p["family"]] for p in pts]
         panels.append(viz.hbar(D["labels"][c], sub,
                                [{"label": FAMILY_SHORT[p["family"]], "value": round(p["score"], 4),
-                                 "emphasis": p["route"] == "modal", "note": f"n = {p['n']} · {p['run']}"} for p in pts],
-                               fmt=lambda v: f"{v:.3f}", width=560, label_w=200))
+                                 "series": viz.entity(FAMILY_SHORT[p["family"]]), "note": f"n = {p['n']} · {p['run']}"} for p in pts],
+                               fmt=lambda v: f"{v:.3f}", width=560, label_w=200, legend=entity_legend(labs)))
     return viz.small_multiples("Extraction quality by route and model — same tasks, same scorer except contracts", panels, cols=2)
 
 
@@ -169,19 +180,24 @@ def fig_modal_vs_cheapest(E) -> str:
 def fig_sorter(D, sorters) -> str:
     return viz.hbar("Sorter routes: document-type accuracy",
                     "every way the mailroom can sort · cost per document in each bar's hover and the table",
-                    [{"label": s["label"], "value": round(s["acc"], 4), "emphasis": s["kind"] == "classifier",
+                    [{"label": s["label"], "value": round(s["acc"], 4), "series": viz.entity(s["label"]),
                       "note": f"{usd(s['usd'])} per document · n = {s['n']}"} for s in sorters],
-                    fmt=lambda v: f"{v * 100:.1f}%", label_w=230)
+                    fmt=lambda v: f"{v * 100:.1f}%", label_w=230, legend=entity_legend(s["label"] for s in sorters))
 
 
 def sorters_of(D) -> list[dict]:
     s6 = D["route"]["sorter_modal"]
     out = [{"label": "Modal L4 · Qwen3-8B-AWQ (S6)", "kind": "modal", "acc": s6["acc"], "usd": s6["usd"], "n": int(s6["ok"]),
             "extra": f"macro-F1 {s6['macro_f1']:.4f}"}]
-    for r in sorted((r for r in D["api"]["classification"] if r["n"] >= 100), key=lambda r: -r["class_acc"]):
+    # every hosted model's largest sorter run (Qwen3-8B only ran at n = 20)
+    largest = {}
+    for r in D["api"]["classification"]:
+        if r["n"] > largest.get(r["model"], {}).get("n", 0):
+            largest[r["model"]] = r
+    for r in sorted(largest.values(), key=lambda r: -r["class_acc"]):
         name = SORTER_NAME.get(r["model"], r["model"])
-        ece = (D["api"]["sorter"].get(r["model"]) or {}).get("ece")
-        out.append({"label": f"API · {name}", "kind": "api", "acc": r["class_acc"], "usd": r["cost"] / r["n"], "n": r["n"],
+        ece = (D["api"]["sorter"].get(r["model"]) or {}).get("ece") if r["n"] >= 100 else None
+        out.append({"label": f"API · {name}" + (f" (n = {r['n']})" if r["n"] < 100 else ""), "kind": "api", "acc": r["class_acc"], "usd": r["cost"] / r["n"], "n": r["n"],
                     "extra": f"subclass {pct(r['subclass_acc'], 0)} · ECE {f3(ece)}"})
     mb = D["mb"]
     out.append({"label": "ModernBERT · Arm B (local)", "kind": "classifier", "acc": mb["armB"]["acc"],
@@ -478,6 +494,7 @@ def sources_block(D, shas) -> str:
 
 def master_report(D, rows, E, sorters, audit: dict, shas) -> str:
     T, R, mb = D["text"], D["runs"], D["mb"]
+    ST = source_charts.tables(D)  # the table view of each redrawn chart
     api_rows = []
     for c in ORDER:
         task = TASK_OF[c]
@@ -554,9 +571,9 @@ Companions: [COST-COMPARISON-MODAL-VS-API.md](COST-COMPARISON-MODAL-VS-API.md) a
 
 {table(["Task", "Model", "n", "Score", "$/doc", "Wall", "p95 call", "Run"], api_rows, "llrrrrrl")}
 
-![API extraction score by type](figures/sources/eval-environment/extraction_score_by_type.svg)
+![API extraction score by type](figures/api/extraction-score-by-type.svg)\n\n{ST['figures/api/extraction-score-by-type.svg']}
 
-![API cost per document](figures/sources/eval-environment/cost_per_document.svg)
+![API cost per document](figures/api/cost-per-document.svg)\n\n{ST['figures/api/cost-per-document.svg']}
 
 - **No hosted model wins every task.** DeepSeek-V4.1-Flash leads insurance claims and corporate records. Qwen3-8B leads correspondence and contracts. Among the N = 20 merger legs, Granite-4.2-8B scores highest, at the highest cost.
 - **The production model, Qwen3.7-Flash (API only; it was never self-hosted), holds up at n = 50** (mutated prompt lineage) and is the cheapest or near-cheapest hosted model on every class. On mergers it scores {f3(D['api']['route50']['merger agreements']['score'])}, the best merger result on any route.
@@ -566,9 +583,9 @@ Companions: [COST-COMPARISON-MODAL-VS-API.md](COST-COMPARISON-MODAL-VS-API.md) a
 
 {table(["Run", "Model", "n", "Class acc", "Subclass acc", "$/doc", "ECE"], cls_rows, "llrrrrr")}
 
-![Sorter subclass accuracy](figures/sources/eval-environment/classification_subclass.svg)
+![Sorter subclass accuracy](figures/api/sorter-subclass-accuracy.svg)\n\n{ST['figures/api/sorter-subclass-accuracy.svg']}
 
-![Sorter calibration](figures/sources/eval-environment/classification_calibration.svg)
+![Sorter calibration](figures/api/sorter-calibration.svg)\n\n{ST['figures/api/sorter-calibration.svg']}
 
 - On 100 documents every hosted sorter routes {T['cls100_lo']}–{T['cls100_hi']}% of documents to the right class. The subclass is right only {T['sub100_lo']}–{T['sub100_hi']}% of the time.
 - Stated confidence is informative: {T['sorter_head']}. Confidence can gate a fast path, but only for the class decision.
@@ -630,11 +647,11 @@ Companions: [COST-COMPARISON-MODAL-VS-API.md](COST-COMPARISON-MODAL-VS-API.md) a
 - **Selective prediction works.** At threshold {mb['armB']['pick']} Arm B accepts {pct(mb['armB']['pick_cov'])} of windows at {pct(mb['armB']['pick_acc'], 2)} accuracy (window ECE {mb['armB']['window_ece']}). {pct(mb['armB']['fast_path'])} of documents take the fast path, and {T['fp_b']} of them were routed correctly.
 - Document length does not explain routing errors.
 
-![ModernBERT recall by class](figures/sources/mailroom-ml/doc_type_recall.svg)
+![ModernBERT recall by class](figures/modernbert/doc-type-recall.svg)\n\n{ST['figures/modernbert/doc-type-recall.svg']}
 
-![Selective risk](figures/sources/mailroom-ml/selective_risk.svg)
+![Selective risk](figures/modernbert/selective-risk.svg)\n\n{ST['figures/modernbert/selective-risk.svg']}
 
-![Subclass collapse](figures/sources/mailroom-ml/subclass_collapse.svg)
+![Subclass collapse](figures/modernbert/subclass-collapse.svg)\n\n{ST['figures/modernbert/subclass-collapse.svg']}
 
 ## 5. Cross-leg verdict
 
@@ -700,6 +717,7 @@ def main() -> int:
         "figures/cost/modal-vs-cheapest-api.svg": fig_modal_vs_cheapest(E),
         "figures/cost/sorter-routes.svg": fig_sorter(D, sorters),
         "figures/cost/modal-vs-api-breakeven.svg": breakeven.fig(E, viz, usd),
+        **source_charts.render(D, viz),
         "COST-COMPARISON-MODAL-VS-API.md": cost_report(D, rows, E, sorters, shas),
         "MASTER-REPORT.md": master_report(D, rows, E, sorters, audit, shas),
     }
@@ -738,13 +756,17 @@ def readme(files: dict, shas: str) -> str:
 
 Cross-repository evaluation reports for the LLM-Mailroom constellation. These are generated outputs: no code lives here (see [AGENTS.md](../AGENTS.md)).
 
+Prompt baselines cited in the reports: frozen v1 reference copies in
+[`docs/prompts/frozen-v1/`](../docs/prompts/frozen-v1/) and lineage notes in
+[`docs/PROMPTS.md`](../docs/PROMPTS.md).
+
 | Report | What it answers |
 | --- | --- |
 | [MASTER-REPORT.md](MASTER-REPORT.md) | Where every front stands, the findings from the API leg (eval-environment), the Modal + vLLM leg (local-mailroom-sandbox, SAND-032) and the ModernBERT intake classifier (mailroom-ml), the cross-leg verdict, and this sweep's report audit |
 | [COST-COMPARISON-MODAL-VS-API.md](COST-COMPARISON-MODAL-VS-API.md) | Cost per document and per unit of quality for every route and model, the break-even volumes and the optimal Modal deployment, sorter routes, and spend |
 | [MODAL-VLLM-GPU-REPORT.md](MODAL-VLLM-GPU-REPORT.md) | The Modal + vLLM leg's GPU economics: cost per token, where the GPU spend went, how busy the GPUs were, and what adding the second L4 did |
 
-**Provenance.** Generated by `reports/dashboard/export_hub_reports.py` in `Exios66/local-mailroom-sandbox` from the reports hub, where every figure is read from a tracked file and cross-checked. Built from {shas}. `figures/sources/<repo>/` holds verbatim copies of the source repositories' own charts. `figures/cost/` and `figures/gpu/` are drawn for these reports.
+**Provenance.** Generated by `reports/dashboard/export_hub_reports.py` in `Exios66/local-mailroom-sandbox` from the reports hub, where every figure is read from a tracked file and cross-checked. Built from {shas}. `figures/cost/`, `figures/gpu/`, `figures/api/` (eval-environment data) and `figures/modernbert/` (mailroom-ml data) are drawn for these reports from the hub; `figures/sources/local-mailroom-sandbox/` holds the SAND-032 charts, drawn by the same kit. Every figure is a dark, high-contrast card, and `viz/` holds each one as a 2× PNG for slides.
 
 **Regenerate.** With `local-mailroom-sandbox`, `eval-environment`, `mailroom-ml` and `mailroom-issues` checked out side by side, run this in `local-mailroom-sandbox` (`--check` exits 1 if anything here is stale):
 

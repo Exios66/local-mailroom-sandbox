@@ -41,8 +41,13 @@ The same run also renders the reports as a static GitHub Pages site, `dashboard/
 SVG, no JavaScript and no external requests. mailroom-issues serves it by deploying from branch `main` `/docs`
 (https://llm-mailroom-services.github.io/mailroom-issues/). `--check` covers the site too.
 
+`dashboard/export_pngs.py` renders every figure to a 2× PNG under `mailroom-issues/reports/viz/` for slides; its
+`MANIFEST.json` records each source SVG's SHA-256, so `--check` detects stale PNGs without a browser
+(`CHROMIUM_PATH` selects a pre-installed Chromium when writing).
+
 ```bash
 python reports/dashboard/export_hub_reports.py --out ../mailroom-issues/reports           # write reports + docs/ site
+python reports/dashboard/export_pngs.py --reports ../mailroom-issues/reports               # write reports/viz/*.png
 python reports/dashboard/export_hub_reports.py --out ../mailroom-issues/reports --check   # exit 1 if either is stale
 ```
 

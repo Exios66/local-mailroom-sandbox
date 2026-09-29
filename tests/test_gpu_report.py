@@ -199,6 +199,6 @@ def test_reports_quote_the_same_break_even():
     cost = X.cost_report(D, X.route_rows(D), E, X.sorters_of(D), "test-shas")
     assert X.optimal_sentence(E) in md
     o = E["optimal"]
-    tile = next(t for t in stats["tiles"] if t["label"] == "Where Modal beats the API")
+    tile = next(t for t in stats["tiles"] if t["label"] == "Modal saving per document, best case")
     assert f"{o['save_pct'] * 100:.0f}%" in tile["value"] and f"{o['l4x1']['docs_h_star']:,.0f} docs/h" in tile["sub"]
     assert f"{o['l4x1']['docs_h_star']:,.0f} docs/h sustained" in cost

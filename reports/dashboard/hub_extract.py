@@ -594,9 +594,15 @@ def eval_env_route50(R: Repo) -> dict:
             "cost": R.jkey(f"{key}.cost_est", "experiment_log.jsonl", "performance", "cost_usd_est_total", doc=doc),
             "wall": R.jkey(f"{key}.wall", "experiment_log.jsonl", "duration_s", doc=doc),
             "p95_ms": R.jkey(f"{key}.p95", "experiment_log.jsonl", "performance", "latency_ms_p95", doc=doc),
+            "prompt_tokens": R.jkey(f"{key}.prompt_tokens", "experiment_log.jsonl", "performance", "tokens_prompt_total", doc=doc),
+            "completion_tokens": R.jkey(f"{key}.completion_tokens", "experiment_log.jsonl", "performance",
+                                        "tokens_completion_total", doc=doc),
             "revision": doc["dataset"].get("revision", "")[:8], "split": doc["dataset"].get("split"),
             "prompt_lineage": doc.get("prompt_lineage"),
         }
+        r_pt = R.rx(f"{key}.report_prompt_tokens", path, r"\| prompt / completion / total tokens \| (\d+) / \d+ / \d+ \|")
+        r_ct = R.rx(f"{key}.report_completion_tokens", path, r"\| prompt / completion / total tokens \| \d+ / (\d+) / \d+ \|")
+        L.check(r_pt == rec["prompt_tokens"] and r_ct == rec["completion_tokens"], f"{rid}: report tokens vs log")
         rep = R.rx(f"{key}.report_score", path, r"\| overall_score \| ([0-9.]+) \|")
         L.check(abs(rep - rec["score"]) < 1e-4, f"{rid}: report overall vs log")
         L.check(rec["model"] == "qwen/qwen3.7-flash", f"{rid}: model")
