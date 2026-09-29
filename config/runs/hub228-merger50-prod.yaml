@@ -1,0 +1,71 @@
+# SPEND-GATED — do not run until Jack go
+# Hub #228 — merger prompt+scorer ladder, cell (A) production baseline n=50.
+# Frozen L5 2×L4 serving (SAND-032 winner). Modal app: sandbox-vllm-hub228.
+#
+#   modal profile activate exios66
+#   set -a; eval "$(sandbox run deploy-env --config config/runs/hub228-merger50-prod.yaml)"; set +a
+#   sandbox run benchmark-check --config config/runs/hub228-merger50-prod.yaml --modal-profile exios66
+#   sandbox run preflight --config config/runs/hub228-merger50-prod.yaml --live
+#   sandbox run start --config config/runs/hub228-merger50-prod.yaml --job-mode endpoint --watch
+schema: sandbox.run/v1
+run_id: hub228-merger50-prod
+task: merger_agreement_specialist
+profile: modal-vllm
+
+prompt:
+  default: {source: code-default}
+  agents:
+    merger_agreement_specialist:
+      source: local
+      file: merger_agreement_specialist_production
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  revision: ed7576b676343e0b402ec5412cded301e629bdee
+  strata:
+    buckets:
+      - {doc_class: merger_agreement, count: 50}
+  limit: 50
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B-AWQ
+  vllm:
+    max_model_len: 32768
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 16
+    enable_prefix_caching: true
+    enforce_eager: false
+    quantization: "awq_marlin"
+    revision: ""
+    kv_cache_dtype: "fp8"
+    enable_thinking: false
+    cudagraph_capture_sizes: [1, 2, 4, 8, 16]
+    max_inputs: 32
+  modal:
+    app: sandbox-vllm-hub228
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 120
+    max_containers: 2
+    min_containers: 2
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 32
+  cost_cap_usd: 1.50
+  max_wall_seconds: 5400
+
+trace:
+  sink: none
+  otlp: false
+  environment: hub228
+  tags: [sandbox, hub228, spend-gated, qwen3-8b, l4, merger_agreement]

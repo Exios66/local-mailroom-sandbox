@@ -1,0 +1,10 @@
+# PLACEHOLDER — HUB-228 cell (C) prompt/scorer variant not authored yet.
+#
+# Before any Modal spend: replace this file with the finalized local prompt
+# (or point the run YAML at a different stem). Do not invent GEPA bodies here.
+#
+# Owner workflow: offline iteration → Jack go → burn finalists only.
+# Related hub: https://github.com/LLM-Mailroom-Services/mailroom-issues/issues/228
+
+You are the merger_agreement_specialist placeholder for HUB-228 variant A.
+STOP: this stem is not runnable for quality experiments until real prompt text lands.
