@@ -824,7 +824,8 @@ The pre-SAND-032 correspondence runs (both at sandbox commit `{e_commit}`, per t
         {"label": "Keep warm or scale to zero", "value": f"{g_star / 60:.1f} min",
          "sub": f"idle gap past which a cold 2×L4 cycle ({usd(cycle[2])}) beats staying warm"},
     ] + ([{"label": "Where Modal beats the API", "value": f"{pct(o['save_pct'], 0)} cheaper per doc",
-           "sub": f"{o['label'].lower()} on {o['modal']['replicas']}×L4 vs {o['cheap']['family']}, at a higher score · "
+           "sub": f"self-hosted {o['modal']['model']}, {o['label'].lower()} on {o['modal']['replicas']}×L4, vs "
+                  f"{o['cheap']['family']} via the API, at a higher score · "
                   f"from {o['l4x1']['docs_h_star']:,.0f} docs/h on one warm L4"}] if o else [])}
     md = md.replace("§OPTIMAL§", X.optimal_sentence(E))
     md = md.replace("§DOCSHARE§", X.and_list(f"{pct(r['ratio'], 0)} for {r['label'].lower()}" for r in E["rows"] if r["cheaper"])
