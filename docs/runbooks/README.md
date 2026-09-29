@@ -19,6 +19,10 @@ sandbox runbook write                     # regenerate this directory
 
 Source of truth: [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml).
 
+**Long runs:** before `sandbox run start … --job-mode endpoint`, open
+[`docs/mailroom-themed-logging.md`](../mailroom-themed-logging.md) and attach
+`sandbox watch` (terminal or `--web`) in a second pane for dispatch logs and postage.
+
 ## Singular L4 / 1-container Qwen3-8B
 
 - [`l4-qwen3-8b`](l4-qwen3-8b.md) — Singular 1×L4 / 1-container Qwen3-8B (full 5×30)

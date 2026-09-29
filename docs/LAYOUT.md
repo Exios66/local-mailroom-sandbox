@@ -18,7 +18,7 @@ its own layout, and `api-evals/` deliberately mirrors its *structure* (see
 | `vendor/` | Byte-identical tracked snapshots of the family code | **Frozen tree.** See [Frozen surfaces](#frozen-surfaces-dont-move-these). |
 | `config/` | Serving profiles, run specs, runbook catalog, prompts, model catalog, subagent roster | **Frozen paths.** See [Frozen surfaces](#frozen-surfaces-dont-move-these). |
 | `deploy/` | Dockerfile, compose profiles, Modal vLLM + Modal job worker, htcondor, conda | **Frozen path** — `deploy/modal_vllm.py`, `deploy/teardown_vllm.sh` etc. are cited by runbooks, docs, and the board. |
-| `docs/` | Guides (this file included) | **Frozen path** (add freely, do not move). |
+| `docs/` | Guides (this file included); long Modal watch: `docs/mailroom-themed-logging.md` | **Frozen path** (add freely, do not move). |
 | `scripts/` | Repo tooling (`sync_vendor.py` and friends) | **Frozen path.** |
 | `governance/` | `SAND-*` board + prefix cheat-sheet + archives | **Governed surface** — asserted by `tests/test_governance_sand.py`. |
 | `reports/` | Offline experiment log (`experiment_log.jsonl` / `.md`) + hand-written run reports; `reports/dashboard/` builds the source-verified reports hub (`build_hub.py`) | Sandbox-local; **not** a sister-repo mirror (the hub pins sibling-repo figures in `external_snapshot.json`). |
