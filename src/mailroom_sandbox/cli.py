@@ -375,7 +375,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     watch_p = sub.add_parser(
         "watch",
-        help="mailroom TUI: live run in-tray + spend + Modal dispatch log (SAND-032)",
+        help="Tray TUI: live in-tray + spend + Modal dispatch log for any locked run",
         parents=[shared],
     )
     watch_p.add_argument("--config", default=None, help="run YAML to watch")
@@ -1917,8 +1917,7 @@ def _cmd_watch(args) -> int:
         cap_usd=args.cap_usd,
         logs=not args.no_logs,
         interval=args.interval,
-        times_dir=sand032 / "logs",
-        log_path=sand032 / "logs" / "modal-app.log",
+        sand032_root=sand032 if sand032.is_dir() else None,
     )
     if getattr(args, "web", False):
         from mailroom_sandbox.tui import web as web_mod

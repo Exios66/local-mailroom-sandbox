@@ -1,9 +1,14 @@
-# Mailroom themed logging & live watch
+# Mailroom themed logging & live watch (Tray TUI)
 
 Long Modal GPU evals (vLLM serve + `sandbox run start --job-mode endpoint`) can run for
-hours. The sandbox ships a **mailroom-themed live watch** (SAND-032) that combines run
-progress, spend, lifecycle phase, and a **live tail of Modal app logs** in one
-surface — terminal alt-screen or browser — without losing scrollback in the job tab.
+hours. The sandbox ships **Tray TUI** (`sandbox watch`) — a mailroom-themed live watch
+that combines run progress, spend, lifecycle phase, and a **live tail of Modal app logs**
+in one surface — terminal alt-screen or browser — without losing scrollback in the job tab.
+
+Tray TUI reads **each job’s locked manifest** (`spec.lock.json`): model, profile,
+`job.mode`, task route, and spend cap. SAND-032 driver stamps and program-route lines
+appear only when those artifacts exist; generic runbook runs show a **job manifest**
+strip instead of the ladder checklist.
 
 A lighter **CLI session layer** (SAND-033) adds themed banners and progress lines to
 `sandbox run … --watch` and related commands; it does **not** replace the full watch

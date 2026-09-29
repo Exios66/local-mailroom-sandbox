@@ -101,7 +101,7 @@ def test_web_handler_serves_index_and_state(tmp_path):
         resp = conn.getresponse()
         assert resp.status == 200
         body = resp.read()
-        assert b"THE MAILROOM" in body
+        assert b"Tray TUI" in body and b"THE MAILROOM" in body
         assert b"text/event-stream" not in body
 
         conn.request("GET", "/api/state")
@@ -271,7 +271,7 @@ def test_serve_watch_web_binds_ephemeral_port_and_prints_url(monkeypatch, tmp_pa
         serving_dir=tmp_path / "serving", host="127.0.0.1", port=0, open_browser=False,
     )
     assert rc == 0 and opened == []
-    assert re.search(r"mailroom watch web UI at http://127\.0\.0\.1:\d+/", capsys.readouterr().err)
+    assert re.search(r"Tray TUI watch \(browser\) at http://127\.0\.0\.1:\d+/", capsys.readouterr().err)
 
 
 def test_dispatch_log_autoscrolls_its_scrolling_panel():

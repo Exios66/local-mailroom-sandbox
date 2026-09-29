@@ -32,13 +32,27 @@ def test_vendored_pretty_log_is_pinned():
 
 
 def test_header_is_mailroom_frame_with_eval_subtitle(tmp_path):
-    frame = strip_ansi(render_frame(snapshot=run_snapshot(_store(tmp_path)), app="sandbox-vllm-sand032",
-                                    log_lines=[], spend={"spent_usd": 0, "cap_usd": 5.0}, width=100))
+    store = _store(tmp_path)
+    from mailroom_sandbox.tui.tray_context import build_tray_layout
+
+    layout = build_tray_layout(
+        store, app="sandbox-vllm-sand032", times_dir=None, cap_usd=5.0, gate_usd=4.5, width=100
+    )
+    frame = strip_ansi(
+        render_frame(
+            snapshot=run_snapshot(store),
+            app="sandbox-vllm-sand032",
+            log_lines=[],
+            spend={"spent_usd": 0, "cap_usd": 5.0},
+            width=100,
+            layout=layout,
+        )
+    )
     lines = frame.splitlines()
     assert lines[0].startswith("╔") and "(o,o)" in frame
-    assert "DIGITAL MAILROOM" in frame and "vLLM L4 eval" in frame
+    assert "DIGITAL MAILROOM" in frame and "Qwen3-8B-AWQ" in frame
     assert "INBOX → SPECIALIST → REPORT" in frame
-    assert "╭" in frame and "IN-TRAY" in frame and "POSTAGE" in frame and "DISPATCH LOG" in frame
+    assert "╭" in frame and "Tray TUI" in frame and "Postage" in frame and "Dispatch log" in frame
 
 
 def test_classify_log_line():

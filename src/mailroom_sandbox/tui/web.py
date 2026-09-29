@@ -1,4 +1,4 @@
-"""Browser-hosted mailroom watch TUI (SAND-032 web surface).
+"""Browser-hosted Tray TUI (`sandbox watch --web`).
 
 Stdlib HTTP + SSE; reuses ``mailroom_sandbox.watch.compose_watch_state``.
 Binds ``127.0.0.1`` by default — not a public dashboard (see operator docs).
@@ -109,7 +109,8 @@ class WatchWebSession:
         ledger: Path | None,
         cap_usd: float,
         times_dir: Path | None,
-        log_path: Path | None,
+        sand032_root: Path | None = None,
+        log_path: Path | None = None,
         serving_dir: Path,
         interval: float,
         follow_logs: bool,
@@ -120,18 +121,26 @@ class WatchWebSession:
         self.ledger = ledger
         self.cap_usd = cap_usd
         self.times_dir = times_dir
+        self.sand032_root = sand032_root
         self.serving_dir = serving_dir
         self.interval = interval
         self._lock = threading.Lock()
         self._state: dict[str, Any] = {"ok": False, "error": "initializing"}
         self._version = 0
         self._stop = threading.Event()
-        self.sink = LogBuffer(log_path)
+        self._log_path_override = log_path
+        self.sink = LogBuffer(None)
         self._started = time.time()
         self._boot_mark: dict[str, int] = {}
         self._log_stop = threading.Event()
         if follow_logs:
-            _, app = resolve()
+            from mailroom_sandbox.watch import _watch_paths
+
+            store, app = resolve()
+            _td, resolved_log = _watch_paths(
+                store, times_dir=times_dir, sand032_root=sand032_root, log_path=log_path
+            )
+            self.sink = LogBuffer(resolved_log)
             threading.Thread(
                 target=_stream_logs, args=(app, self.sink, self._log_stop), daemon=True
             ).start()
@@ -139,25 +148,39 @@ class WatchWebSession:
     def refresh(self) -> dict[str, Any]:
         if self.tick is not None:
             self.tick(self.sink)
+        from mailroom_sandbox.watch import _watch_paths
+
         store, app = self.resolve()
+        frame_times_dir, _ = _watch_paths(
+            store,
+            times_dir=self.times_dir,
+            sand032_root=self.sand032_root,
+            log_path=None,
+        )
         state = compose_watch_state(
             store=store,
             app=app,
             sink=self.sink,
             ledger=self.ledger,
             cap_usd=self.cap_usd,
-            times_dir=self.times_dir,
+            times_dir=frame_times_dir,
             serving_dir=self.serving_dir,
             started=self._started,
             boot_mark=self._boot_mark,
             width=100,
             blink=int(time.time()) % 7 == 0,
         )
-        # The terminal hero (owl + amber 3D THE MAILROOM) rendered exactly as the TUI draws it.
+        layout = state.get("layout") or {}
         rid = state["snapshot"]["run_id"]
-        state["hero_html"] = ansi_to_html("\n".join(_header(rid, width=100, on=True)))
-        # the TUI's own <90-column layout for phones / narrow panes
-        state["hero_compact_html"] = ansi_to_html("\n".join(_header(rid, width=60, on=True)))
+        hero_kw = dict(
+            subtitle=layout.get("subtitle"),
+            route_label=layout.get("route_label"),
+            brand=str(layout.get("brand") or "DIGITAL MAILROOM"),
+        )
+        state["hero_html"] = ansi_to_html("\n".join(_header(rid, width=100, on=True, **hero_kw)))
+        state["hero_compact_html"] = ansi_to_html(
+            "\n".join(_header(rid, width=60, on=True, **hero_kw))
+        )
         state["ok"] = True
         with self._lock:
             self._state = state
@@ -198,7 +221,7 @@ def _html_page() -> bytes:
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>THE MAILROOM · live watch</title>
+<title>Tray TUI · THE MAILROOM · live watch</title>
 <style>
 :root {{
   {tokens};
@@ -248,6 +271,8 @@ header .route {{ color: var(--cyan); font-size: 11px; letter-spacing: 0.06em; }}
   margin: 12px 0; padding: 10px 12px; border-left: 3px solid var(--gold);
   background: rgba(245,196,69,0.08); color: var(--cream);
 }}
+.lifecycle.live {{ animation: lifecycle-pulse 2.2s ease-in-out infinite; }}
+@keyframes lifecycle-pulse {{ 50% {{ border-left-color: var(--cyan); opacity: 0.92; }} }}
 .route-lines {{ white-space: pre-wrap; color: var(--muted); font-size: 11px; line-height: 1.5; }}
 .log {{
   margin-top: 12px; max-height: 280px; overflow-y: auto;
@@ -290,24 +315,24 @@ footer {{ margin-top: 16px; font-size: 11px; color: var(--muted); text-align: ce
     <div class="route-lines" id="program-route" hidden></div>
     <div class="grid">
       <section class="panel">
-        <h2>🦉 In-tray</h2>
+        <h2 id="tray-heading">Tray TUI · In-tray</h2>
         <div class="body" id="intray"></div>
       </section>
       <section class="panel">
-        <h2>Postage ($)</h2>
+        <h2 id="postage-heading">Postage ($)</h2>
         <div class="body" id="postage"></div>
       </section>
     </div>
     <section class="panel log" id="scorecard-wrap" hidden>
-      <h2>📊 Scorecard</h2>
+      <h2 id="scorecard-heading">Scorecard</h2>
       <div class="body" id="scorecard"></div>
     </section>
     <section class="panel log">
-      <h2>Dispatch log</h2>
+      <h2 id="dispatch-heading">Dispatch log</h2>
       <div id="logs"></div>
     </section>
   </div></div>
-  <footer>localhost-only · SSE live · Ctrl+C in terminal stops server</footer>
+  <footer id="footer-line">Tray TUI · localhost-only · SSE live · Ctrl+C in terminal stops server</footer>
 </div>
 <script>
 const LOG_CLASS = {{ error: "error", warn: "warn", throughput: "throughput", kv: "kv", ready: "ready", plain: "plain" }};  // = watch._LOG_ROLE keys
@@ -330,27 +355,42 @@ function render(state) {{
   if (state.hero_compact_html) document.getElementById("hero-compact").innerHTML = state.hero_compact_html;
   const s = state.snapshot || {{}};
   const sp = state.spend || {{}};
+  const layout = state.layout || {{}};
+  const panels = layout.panels || {{}};
+  document.title = panels.window_title || "Tray TUI · THE MAILROOM · live watch";
+  document.getElementById("brand-sub").hidden = false;
+  document.getElementById("route-label").hidden = false;
   document.getElementById("brand-sub").textContent =
-    "DIGITAL MAILROOM  ·  " + (state.subtitle || "") + "  ·  " + (s.run_id || "");
+    (layout.brand || "DIGITAL MAILROOM") + "  ·  " + (state.subtitle || "") + "  ·  " + (s.run_id || "");
   document.getElementById("route-label").textContent = state.route_label || "";
+  if (panels.tray) document.getElementById("tray-heading").textContent = panels.tray;
+  if (panels.postage) document.getElementById("postage-heading").textContent = panels.postage;
+  if (panels.dispatch) document.getElementById("dispatch-heading").textContent = panels.dispatch;
+  if (panels.scorecard) document.getElementById("scorecard-heading").textContent = panels.scorecard;
   const bar = document.getElementById("status-bar");
   bar.classList.toggle("blink", !!state.blink);
   document.getElementById("stage").textContent = state.stage || "—";
   document.getElementById("ts").textContent = state.ts || "";
-  document.getElementById("app-line").textContent = "app " + (state.app || "—");
+  const watcher = state.watcher_label || ("Tray TUI watcher · app " + (state.app || "—"));
+  document.getElementById("app-line").textContent = watcher;
 
   const life = document.getElementById("lifecycle");
   if (state.lifecycle) {{
     life.hidden = false;
+    life.classList.toggle("live", !!state.animate_lifecycle);
     const L = state.lifecycle;
     const el = L.elapsed_s || 0;
-    life.textContent = `▸${{L.phase}}◂  ${{L.detail || ""}}  ·  ${{Math.floor(el/60)}}m${{String(el%60).padStart(2,"0")}}s`;
-  }} else life.hidden = true;
+    const tag = layout.stage || "";
+    life.textContent = `▸${{L.phase}}◂  ${{L.detail || ""}}  ·  ${{Math.floor(el/60)}}m${{String(el%60).padStart(2,"0")}}s` + (tag ? `  ·  ${{tag}}` : "");
+  }} else {{ life.hidden = true; life.classList.remove("live"); }}
 
   const route = document.getElementById("program-route");
   if (state.route && state.route.length) {{
     route.hidden = false;
     route.textContent = state.route.join("\\n");
+  }} else if (state.job_route && state.job_route.length) {{
+    route.hidden = false;
+    route.textContent = state.job_route.join("\\n");
   }} else route.hidden = true;
 
   const prog = state.progress || {{}};
@@ -459,6 +499,7 @@ def serve_watch_web(
     logs: bool = True,
     interval: float = 2.0,
     times_dir: Path | None = None,
+    sand032_root: Path | None = None,
     log_path: Path | None = None,
     serving_dir: Path | None = None,
     host: str = DEFAULT_HOST,
@@ -474,6 +515,7 @@ def serve_watch_web(
         ledger=ledger,
         cap_usd=cap_usd,
         times_dir=times_dir,
+        sand032_root=sand032_root,
         log_path=log_path,
         serving_dir=serving_dir,
         interval=interval,
@@ -487,7 +529,7 @@ def serve_watch_web(
     httpd = ThreadingHTTPServer((host, port), handler)
     bound_host, bound_port = httpd.server_address[0], httpd.server_address[1]
     url = browser_url(bound_host, bound_port)
-    print(f"mailroom watch web UI at {url}", file=sys.stderr)
+    print(f"Tray TUI watch (browser) at {url}", file=sys.stderr)
     if open_browser if open_browser is not None else should_open_browser():
         webbrowser.open(url)
 

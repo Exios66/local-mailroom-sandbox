@@ -1,4 +1,4 @@
-"""SAND-032: `sandbox watch` — a mailroom-themed live view of a Modal eval run.
+"""Tray TUI (`sandbox watch`) — mailroom-themed live view of a sandbox job run.
 
 One terminal pane that combines:
   * the run's in-tray (checkpoint cursor/total, delivered vs returned docs,
@@ -29,7 +29,8 @@ from mailroom_sandbox.tui import pretty_log as pl
 
 _ANSI = re.compile(r"\x1b\[[0-9;?]*[a-zA-Z]")
 GATE_USD = 4.50
-SUBTITLE_PATH = "Qwen3-8B-AWQ · vLLM L4 eval"
+# Legacy defaults when no lock is present (demo / empty store).
+SUBTITLE_PATH = "sandbox job · vLLM eval"
 ROUTE = "INBOX → SPECIALIST → REPORT"
 
 
@@ -112,19 +113,28 @@ def _stage_for(run_id: str) -> str:
     return "EVAL"
 
 
-def _header(run_id: str, *, width: int, on: bool) -> list[str]:
-    """mailroom-ml double-line frame + owl/amber THE MAILROOM, eval subtitle."""
+def _header(
+    run_id: str,
+    *,
+    width: int,
+    on: bool,
+    subtitle: str | None = None,
+    route_label: str | None = None,
+    brand: str = "DIGITAL MAILROOM",
+) -> list[str]:
+    """mailroom-ml double-line frame + owl/amber THE MAILROOM, job subtitle."""
     p = pl.palette(on)
     inner = width - 2
     mark = pl._wordmark_lines(inner=inner, on=on, compact=width < 90)
     tag = run_id if len(run_id) <= 28 else run_id[:27] + "…"
-    brand = "DIGITAL MAILROOM"
+    sub_path = subtitle or SUBTITLE_PATH
+    route_txt = route_label or ROUTE
     if on:
-        sub = p["brand"](brand) + p["dim"]("  ·  ") + p["snow"](SUBTITLE_PATH) + p["dim"]("  ·  ") + p["gold"](tag)
-        route = p["teal"](ROUTE)
+        sub = p["brand"](brand) + p["dim"]("  ·  ") + p["snow"](sub_path) + p["dim"]("  ·  ") + p["gold"](tag)
+        route = p["teal"](route_txt)
     else:
-        sub = f"{brand}  ·  {SUBTITLE_PATH}  ·  {tag}"
-        route = ROUTE
+        sub = f"{brand}  ·  {sub_path}  ·  {tag}"
+        route = route_txt
     top = pl.DTL + pl.DH * inner + pl.DTR
     bot = pl.DBL + pl.DH * inner + pl.DBR
     rows = [p["frame"](top) if on else top]
@@ -360,15 +370,28 @@ def render_frame(
     lifecycle: dict[str, Any] | None = None,
     scorecard: list[str] | None = None,
     route: list[str] | None = None,
+    job_route: list[str] | None = None,
+    layout: dict[str, Any] | None = None,
 ) -> str:
     width = max(60, min(int(width), pl.MAX_W))
     p = pl.palette(on)
     s = snapshot
-    out: list[str] = _header(s["run_id"], width=width, on=on)
+    lay = layout or {}
+    panels = lay.get("panels") or {}
+    stage_tag = lay.get("stage") or _stage_for(s["run_id"])
+    out: list[str] = _header(
+        s["run_id"],
+        width=width,
+        on=on,
+        subtitle=lay.get("subtitle"),
+        route_label=lay.get("route_label"),
+        brand=str(lay.get("brand") or "DIGITAL MAILROOM"),
+    )
+    watcher = lay.get("watcher_label") or f"Tray TUI watcher · app {app}"
     out.append(
         pl.render_status_bar(
-            timestamp=time.strftime("%H:%M:%S") + f" · app {app}",
-            stage=(lifecycle or {}).get("phase") or _stage_for(s["run_id"]),
+            timestamp=time.strftime("%H:%M:%S") + f" · {watcher}",
+            stage=(lifecycle or {}).get("phase") or stage_tag,
             on=on,
             width=width,
             blink=blink,
@@ -377,11 +400,15 @@ def render_frame(
 
     if lifecycle:
         el = int(lifecycle.get("elapsed_s") or 0)
-        phase = f"▸{lifecycle['phase']}◂  {lifecycle.get('detail', '')}  ·  {el // 60}m{el % 60:02d}s  ·  {_stage_for(s['run_id'])}"
-        out.append(pl._box("LIFECYCLE", [p["gold"](phase) if on else phase], width=width, on=on))
+        phase = f"▸{lifecycle['phase']}◂  {lifecycle.get('detail', '')}  ·  {el // 60}m{el % 60:02d}s  ·  {stage_tag}"
+        life_title = panels.get("lifecycle") or "Lifecycle"
+        out.append(pl._box(life_title, [p["gold"](phase) if on else phase], width=width, on=on))
 
     if route:
-        out.append(pl._box("PROGRAM ROUTE · 1×L4 ladder → 2×L4 scale-out + 5-specialist sweep", route, width=width, on=on))
+        title = panels.get("program") or "Program route"
+        out.append(pl._box(title, route, width=width, on=on))
+    elif job_route:
+        out.append(pl._box("JOB · run manifest", job_route, width=width, on=on))
 
     wide = width >= 100
     box_w = (width - 2) // 2 if wide else width
@@ -399,7 +426,8 @@ def render_frame(
     if s.get("last_error"):
         err = f"last return: {s['last_error']}"
         tray.append(p["warn"](err) if on else err)
-    tray_box = pl._box(f"{pl.owl_emoticon(on=False)} IN-TRAY", tray, width=box_w, on=on)
+    tray_title = panels.get("tray") or f"{pl.owl_emoticon(on=False)} IN-TRAY"
+    tray_box = pl._box(tray_title, tray, width=box_w, on=on)
 
     spent = float(spend.get("spent_usd") or 0.0)
     live = float(spend.get("live_usd") or 0.0)
@@ -416,20 +444,28 @@ def render_frame(
     if total > GATE_USD:
         warn = f"⚠ OVER ${GATE_USD:.2f} GATE — stop and reconcile"
         postage.append(p["warn"](warn) if on else warn)
-    postage_box = pl._box("POSTAGE ($)", postage, width=box_w, on=on)
+    postage_title = panels.get("postage") or "POSTAGE ($)"
+    postage_box = pl._box(postage_title, postage, width=box_w, on=on)
     if wide:
         out.append(pl._side_by_side(tray_box, postage_box, gap=2))
     else:
         out += [tray_box, postage_box]
 
-    if scorecard and lifecycle and lifecycle.get("phase") in TEARDOWN_PHASES:
-        out.append(pl._box(f"📊 SCORECARD · {s['run_id']}", scorecard, width=width, on=on))
+    show_sc = scorecard and (
+        not lifecycle
+        or lifecycle.get("phase") in TEARDOWN_PHASES
+        or lifecycle.get("phase") in ("COMPLETE", "STOPPED", "FAILED")
+    )
+    if show_sc:
+        sc_title = panels.get("scorecard") or f"📊 SCORECARD · {s['run_id']}"
+        out.append(pl._box(sc_title, scorecard, width=width, on=on))
 
     tail = log_lines[-14:]
     log = [
         (p[_LOG_ROLE[classify_log_line(line)]](line) if on else line) for line in tail
     ] or [p["dim"]("(waiting on modal app logs …)") if on else "(waiting on modal app logs …)"]
-    out.append(pl._box(f"DISPATCH LOG · modal app logs {app}", log, width=width, on=on))
+    dispatch_title = panels.get("dispatch") or f"DISPATCH LOG · modal app logs {app}"
+    out.append(pl._box(dispatch_title, log, width=width, on=on))
     return "\n".join(out)
 
 
@@ -500,15 +536,24 @@ def compose_watch_state(
     width: int = 100,
     blink: bool = False,
 ) -> dict[str, Any]:
-    """JSON-serializable mailroom watch snapshot (terminal TUI + browser UI)."""
+    """JSON-serializable Tray TUI snapshot (terminal + browser)."""
+    from mailroom_sandbox.tui import tray_context as tc
+
     snap = run_snapshot(store)
-    times = read_times(times_dir / f"{snap['run_id']}.times") if times_dir else {}
+    layout = tc.build_tray_layout(
+        store, app=app, times_dir=times_dir, cap_usd=cap_usd, gate_usd=GATE_USD, width=width
+    )
+    cap_usd = float(layout.get("cap_usd") or cap_usd)
+    times_file = tc.resolve_times_file(store, times_dir)
+    times = read_times(times_file) if times_file else {}
     key = f"{snap['run_id']}@{times.get('deploy_done', times.get('ready', 0))}"
     boot_mark.setdefault(key, sink.mark())
-    life = lifecycle(times, sink.since(boot_mark[key]), now=time.time()) if times_dir else None
+    boot_lines = sink.since(boot_mark[key])
+    life = tc.resolve_lifecycle(store, times, boot_lines, now=time.time())
+    cp_state = snap.get("state")
     card = (
         scorecard_lines(store, serving_dir=serving_dir, width=width, on=False)
-        if life and life["phase"] in TEARDOWN_PHASES
+        if tc.show_scorecard((life or {}).get("phase"), cp_state)
         else None
     )
     spent, includes_live = read_ledger(ledger)
@@ -528,9 +573,9 @@ def compose_watch_state(
     spend["bar"] = progress_bar(int(total * 100), int(cap_usd * 100), width=30)
     log_src = display_tail(sink, 14)
     logs = [{"text": line, "role": classify_log_line(line)} for line in log_src]
-    route = (
-        program_lines(times_dir, current=snap["run_id"], width=width, on=False) if times_dir else None
-    )
+    route = layout.get("route")
+    job_route = layout.get("job_route")
+    phase = (life or {}).get("phase") or layout.get("stage") or _stage_for(snap["run_id"])
     return {
         "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "app": app,
@@ -539,17 +584,42 @@ def compose_watch_state(
         "lifecycle": life,
         "scorecard": card,
         "route": route,
+        "job_route": job_route,
+        "layout": layout,
         "logs": logs,
-        "subtitle": SUBTITLE_PATH,
-        "route_label": ROUTE,
-        "stage": (life or {}).get("phase") or _stage_for(snap["run_id"]),
+        "subtitle": layout.get("subtitle") or SUBTITLE_PATH,
+        "route_label": layout.get("route_label") or ROUTE,
+        "stage": phase,
+        "watcher_label": layout.get("watcher_label"),
+        "profile": layout.get("profile"),
+        "job_mode": layout.get("job_mode"),
         "progress": {
             "done": snap["done"],
             "total": snap["total"],
             "bar": progress_bar(snap["done"], snap["total"], width=30),
         },
         "blink": blink,
+        "animate_lifecycle": phase in {"DEPLOYING", "COLD BOOT", "REMOTE", "SORTING"},
     }
+
+
+def _watch_paths(
+    store: RunStore,
+    *,
+    times_dir: Path | None,
+    sand032_root: Path | None,
+    log_path: Path | None,
+) -> tuple[Path | None, Path]:
+    from mailroom_sandbox.tui import tray_context as tc
+
+    if log_path is not None:
+        resolved_log = log_path
+    else:
+        _, resolved_log = tc.resolve_watch_paths(store, sand032_root=sand032_root)
+    if times_dir is not None:
+        return times_dir, resolved_log
+    td, _ = tc.resolve_watch_paths(store, sand032_root=sand032_root)
+    return td, resolved_log
 
 
 def watch(
@@ -561,13 +631,18 @@ def watch(
     logs: bool = True,
     interval: float = 2.0,
     times_dir: Path | None = None,
+    sand032_root: Path | None = None,
     log_path: Path | None = None,
     serving_dir: Path | None = None,
 ) -> int:
     from mailroom_sandbox.paths import reports_dir
 
     serving_dir = serving_dir or (reports_dir() / "serving")
-    sink = LogBuffer(log_path)
+    store, _app = resolve()
+    _td, resolved_log = _watch_paths(
+        store, times_dir=times_dir, sand032_root=sand032_root, log_path=log_path
+    )
+    sink = LogBuffer(resolved_log)
     stop = threading.Event()
     store, app = resolve()
     if not once:
@@ -579,6 +654,9 @@ def watch(
     try:
         while True:
             store, app = resolve()  # --follow: the current run can change between frames
+            frame_times_dir, _ = _watch_paths(
+                store, times_dir=times_dir, sand032_root=sand032_root, log_path=log_path
+            )
             width = shutil.get_terminal_size((100, 40)).columns
             blink = int(time.time()) % 7 == 0
             state = compose_watch_state(
@@ -587,7 +665,7 @@ def watch(
                 sink=sink,
                 ledger=ledger,
                 cap_usd=cap_usd,
-                times_dir=times_dir,
+                times_dir=frame_times_dir,
                 serving_dir=serving_dir,
                 started=started,
                 boot_mark=boot_mark,
@@ -605,6 +683,8 @@ def watch(
                 lifecycle=state["lifecycle"],
                 scorecard=state["scorecard"],
                 route=state["route"],
+                job_route=state.get("job_route"),
+                layout=state.get("layout"),
             )
             if once:
                 sys.stdout.write(frame + "\n")
@@ -626,7 +706,16 @@ def print_scorecard(store: RunStore, *, serving_dir: Path, width: int | None = N
     width = max(60, min(width or shutil.get_terminal_size((100, 40)).columns, pl.MAX_W))
     on = pl.use_color(sys.stdout)
     snap = run_snapshot(store)
-    out = _header(snap["run_id"], width=width, on=on)
+    from mailroom_sandbox.tui import tray_context as tc
+
+    layout = tc.build_tray_layout(store, app="—", times_dir=None, cap_usd=5.0, gate_usd=GATE_USD, width=width)
+    out = _header(
+        snap["run_id"],
+        width=width,
+        on=on,
+        subtitle=layout.get("subtitle"),
+        route_label=layout.get("route_label"),
+    )
     out.append(pl._box(f"📊 SCORECARD · {snap['run_id']}", scorecard_lines(store, serving_dir=serving_dir, width=width, on=on), width=width, on=on))
     sys.stdout.write("\n".join(out) + "\n")
     return 0
