@@ -324,7 +324,54 @@ def sand032(R: Repo) -> dict:
 L4_USD_PER_HOUR = 0.80  # docs/RUN-COST-DERIVATION.md; every SAND-032 GPU $ uses it
 REPLICA_LINE = re.compile(
     r"^- replica `([^`]*)`: requests Δ (\d+) \(cumulative \d+\), measured TTFT mean ([\d.]+) s "
-    r"\(vLLM histogram, cumulative\), prefix-cache hit ([\d.]+)%, preemptions (\d+)", re.M)
+    r"\(vLLM histogram, cumulative\), prefix-cache hit ([\d.]+)%, preemptions (\d+)"
+    r"(?:, length-capped finishes \d+, KV usage at scrape ([\d.]+)%)?", re.M)
+# Setup header rows of every SAND-032 run report (engine, context / quant, engine flags, modal, dataset, draw):
+# (field, regex, group, is-number). Values are strings unless marked numeric.
+SETUP_ROWS = [
+    ("engine_model", r"\| engine \| `([^`]+)`", 1, False),
+    ("vllm", r"\| engine \| `[^`]+`, vLLM `([^`]+)`", 1, False),
+    ("max_model_len", r"\| context / quant \| `max_model_len=(\d+)`", 1, True),
+    ("quant", r"\| context / quant \| [^|]*quant=`([^`]+)`", 1, False),
+    ("prefix_caching", r"\| engine flags \| [^|]*prefix_caching=(\w+)", 1, False),
+    ("enforce_eager", r"\| engine flags \| [^|]*enforce_eager=(\w+)", 1, False),
+    ("kv_cache_dtype", r"\| engine flags \| [^|]*kv_cache_dtype=`([^`]+)`", 1, False),
+    ("thinking", r"\| engine flags \| [^|]*thinking=(\w+)", 1, False),
+    ("containers_min", r"max/min containers \d/(\d)", 1, True),
+    ("dataset", r"\| dataset \| (\S+) `([^`]+)`, split=(\w+), rev `([0-9a-f]+)`, seed (\d+) \|", 1, False),
+    ("dataset_config", r"\| dataset \| (\S+) `([^`]+)`, split=(\w+), rev `([0-9a-f]+)`, seed (\d+) \|", 2, False),
+    ("dataset_split", r"\| dataset \| (\S+) `([^`]+)`, split=(\w+), rev `([0-9a-f]+)`, seed (\d+) \|", 3, False),
+    ("dataset_rev", r"\| dataset \| (\S+) `([^`]+)`, split=(\w+), rev `([0-9a-f]+)`, seed (\d+) \|", 4, False),
+    ("seed", r"\| dataset \| (\S+) `([^`]+)`, split=(\w+), rev `([0-9a-f]+)`, seed (\d+) \|", 5, True),
+    ("draw_nesting", r"\| draw \| [^|]*\(nested ([^)]+)\)", 1, False),
+]
+# The S6 sorter report has a one-line engine row and names the dataset in prose; it records no vLLM version,
+# max_model_len, engine flags, split or seed.
+SETUP_ROWS_S6 = [
+    ("engine_model", r"\| engine \| `([^`]+)`", 1, False),
+    ("kv_cache_dtype", r"\| engine \| [^|]*kv `([^`]+)`, `([^`]+)`, graphs", 1, False),
+    ("quant", r"\| engine \| [^|]*kv `([^`]+)`, `([^`]+)`, graphs", 2, False),
+    ("dataset", r"Public HF `([^`]+)` @ `([0-9a-f]+)`", 1, False),
+    ("dataset_rev", r"Public HF `([^`]+)` @ `([0-9a-f]+)`", 2, False),
+]
+SETUP_FIELDS = [f for f, *_ in SETUP_ROWS]
+GPU_SPEC = "../deploy/README.md"  # relative to reports/: the deploy doc's GPU table (a spec, not a run record)
+
+
+def _setup(R: Repo, k: str, path: str, rows) -> dict:
+    out = {f: None for f in SETUP_FIELDS}
+    for f, pat, g, num in rows:
+        v = R.rx(f"{k}.r.{f}", path, pat, group=g, number=num)
+        out[f] = int(v) if num else v
+    return out
+
+
+def _started(replica_id: str):
+    """A replica id is the vLLM process start time (epoch seconds) in every SAND-032 report."""
+    try:
+        return float(replica_id)
+    except ValueError:
+        return None
 
 
 def sand032_fleet(R: Repo, runs: dict) -> dict:
@@ -360,8 +407,12 @@ def sand032_fleet(R: Repo, runs: dict) -> dict:
                "prompt_tokens": int(J["prompt_tokens"]), "completion_tokens": int(J["completion_tokens"]),
                "tps": J["tokens_per_second"], "slot": J["slot_utilization"], "lat_sum": J["latency_sum_seconds"],
                "billed_usd": J["estimated_gpu_cost_usd"], "idle_usd": J["idle_estimated_usd"], "busy_usd": busy,
-               "p50": J["latency_p50_seconds"], "p95": J["latency_p95_seconds"]}
-        if rid == "sand032-s6-sorter1000":
+               "p50": J["latency_p50_seconds"], "p95": J["latency_p95_seconds"],
+               "model": R.jkey(f"{k}.model", jp, "model", doc=doc), "gpu": R.jkey(f"{k}.gpu", jp, "gpu", doc=doc)}
+        s6 = rid == "sand032-s6-sorter1000"
+        rec.update(_setup(R, k, path, SETUP_ROWS_S6 if s6 else SETUP_ROWS))
+        L.check(rec["engine_model"] == rec["model"], f"{rid}: report engine model {rec['engine_model']} vs export {rec['model']}")
+        if s6:
             ok = R.rx(f"{k}.ok", path, r"\| docs ok / total \| (\d+) / \d+ \|")
             L.check(abs(R.cell(f"{k}.r.wall", path, "| wall s |", 1) - wall) < 0.05, f"{rid}: report wall vs export")
             L.check(abs(R.cell(f"{k}.r.tps", path, "| tok/s |", 1) - J["tokens_per_second"]) < 0.6, f"{rid}: report tok/s")
@@ -372,7 +423,7 @@ def sand032_fleet(R: Repo, runs: dict) -> dict:
             L.check(abs(usd - busy / ok) < 1e-6, f"{rid}: report $/doc on the busy-window basis",
                     key=f"{rid}.usd_basis", got=f"{usd:.6f}", want=f"{busy / ok:.6f}", boot=J["cold_boot_seconds"])
             rec.update(ok=int(ok), seqs=int(R.rx(f"{k}.r.seqs", path, r"seqs (\d+)")), max_inputs=None,
-                       boot_ready=None, replica_split=[])
+                       boot_ready=None, replica_split=[], scaledown=None, score=None)
             out[rid] = rec
             continue
         ok = R.rx(f"{k}.ok", path, r"\| docs ok / total \| \*\*(\d+) / \d+\*\*")
@@ -396,14 +447,29 @@ def sand032_fleet(R: Repo, runs: dict) -> dict:
         for m in REPLICA_LINE.finditer(R.text(path)):
             split.append(L.record(f"{k}.replica.{m.group(1)}", {
                 "requests": int(m.group(2)), "ttft": float(m.group(3)), "prefix": float(m.group(4)) / 100,
-                "preempt": int(m.group(5))}, R.name, R.sha, R.rel(path), m.group(0)))
+                "preempt": int(m.group(5)), "started": _started(m.group(1)),
+                "kv_scrape": float(m.group(6)) / 100 if m.group(6) is not None else None}, R.name, R.sha, R.rel(path), m.group(0)))
         L.check(len(split) == rep, f"{rid}: {len(split)} replicas observed vs {rep}")
         L.check(sum(s["requests"] for s in split) == J["n"], f"{rid}: replica requests sum to n")
         boot = re.search(r"deploy→engine-ready (\d+) s", R.text(path))
         rec.update(ok=int(ok), seqs=int(R.rx(f"{k}.r.seqs", path, r"max_num_seqs=(\d+)")),
                    max_inputs=int(R.rx(f"{k}.r.max_inputs", path, r"max_inputs=(\d+)")),
-                   boot_ready=float(boot.group(1)) if boot else None, replica_split=split)
+                   boot_ready=float(boot.group(1)) if boot else None, replica_split=split,
+                   scaledown=R.rx(f"{k}.r.scaledown", path, r"max/min containers \d/\d, scaledown (\d+) s"),
+                   score=R.rx(f"{k}.r.score", path, r"\| \*\*overall_extraction_score\*\* \| \*\*([\d.]+)\*\*"))
+        if rid in runs:
+            L.check(abs(rec["score"] - runs[rid]["overall"]) < 1e-4, f"{rid}: fleet score vs run extract")
         out[rid] = rec
+    # Provenance-only figures the GPU report quotes (read back from ``provenance`` by key):
+    # the program summary's saturation finding and stage 6–9 date, and the deploy doc's L4 memory spec.
+    R.rx("fleet.summary.saturation", SUMMARY, r"(One L4 saturates at around \d+ concurrent sequences for these prompts)\.",
+         number=False)
+    R.rx("fleet.summary.stages69_date", SUMMARY, r"## 7\. Stages 6–9 \((\d{4}-\d{2}-\d{2})\)", number=False)
+    gpu = {r["gpu"] for r in out.values()}
+    L.check(len(gpu) == 1, f"SAND-032 exports disagree on the GPU: {gpu}")
+    spec_gpu = R.rx("fleet.gpu_spec.gpu", GPU_SPEC, r"\| `MODAL_VLLM_GPU` \| `([^`]+)` \| [\d.]+ GB VRAM \|", number=False)
+    L.check({spec_gpu} == gpu, f"deploy spec GPU {spec_gpu} vs exports {gpu}")
+    R.rx("fleet.gpu_spec.memory", GPU_SPEC, r"\| `MODAL_VLLM_GPU` \| `[^`]+` \| ([\d.]+ GB) VRAM \|", number=False)
     return out
 
 
