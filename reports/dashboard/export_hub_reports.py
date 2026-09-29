@@ -33,6 +33,8 @@ ROOT = HERE.parents[1]
 sys.path.insert(0, str(ROOT / "scripts" / "sand032"))
 import viz  # noqa: E402
 
+import breakeven  # noqa: E402
+
 DATA = HERE / "hub_data.json"
 SERVING = ROOT / "reports" / "serving"
 L4_USD_PER_HOUR = 0.80  # docs/RUN-COST-DERIVATION.md; the rate every SAND-032 $/doc uses
@@ -130,34 +132,6 @@ def route_rows(D: dict) -> dict[str, list[dict]]:
     return {c: D["route"]["points"][c] for c in ORDER}
 
 
-def break_even(D: dict) -> list[dict]:
-    """Batch economics per class for the SAND-032 2×L4 fleet against the cheapest hosted model.
-
-    Modal bills busy GPU time plus a cold boot per scale-up; the API bills per token. For a batch of N
-    documents: Modal = boot_usd + N × modal_usd_per_doc, API = N × api_usd_per_doc. Modal wins once
-    N > boot_usd / (api − modal), and only if its per-document cost is lower at all.
-    """
-    boot_s = next(r["boot"] for r in D["ladder"] if r["rung"].startswith("l5"))
-    boot_usd = REPLICAS * L4_USD_PER_HOUR * boot_s / 3600
-    out = []
-    for c in ORDER:
-        r = D["runs"][D["s3"][c]]
-        pts = D["route"]["points"][c]
-        api = [p for p in pts if p["route"] == "api"]
-        cheap = min(api, key=lambda p: p["usd"])
-        prod = next(p for p in api if p["family"] == "Qwen3.7-Flash")
-        docs_h = r["ok"] / r["wall"] * 3600
-        row = {"cls": c, "label": r["label"], "modal": r["usd_per_doc"], "cheap": cheap, "prod": prod,
-               "docs_per_hour": docs_h, "boot_s": boot_s, "boot_usd": boot_usd,
-               "fleet_usd_h": REPLICAS * L4_USD_PER_HOUR}
-        for key, ref in (("be_cheap", cheap["usd"]), ("be_prod", prod["usd"])):
-            row[key] = boot_usd / (ref - r["usd_per_doc"]) if ref > r["usd_per_doc"] else None
-        # always-on fleet: at what sustained rate does a warm 2×L4 beat per-token pricing?
-        row["warm_docs_h"] = row["fleet_usd_h"] / cheap["usd"]
-        out.append(row)
-    return out
-
-
 # ------------------------------------------------------------------ figures
 def fig_cost(D, rows) -> str:
     panels = []
@@ -183,11 +157,11 @@ def fig_score(D, rows) -> str:
     return viz.small_multiples("Extraction quality by route and model — same tasks, same scorer except contracts", panels, cols=2)
 
 
-def fig_modal_vs_cheapest(be) -> str:
+def fig_modal_vs_cheapest(E) -> str:
     return viz.dumbbell("Modal L4 vs the cheapest hosted model, cost per document",
                         "Modal = SAND-032 2×L4 busy-window · API = cheapest hosted model for the class · lower is better",
-                        [{"label": r["label"], "a": round(r["modal"], 6), "b": round(r["cheap"]["usd"], 6),
-                          "api": r["cheap"]["family"]} for r in be],
+                        [{"label": r["label"], "a": round(r["modal"]["usd"], 6), "b": round(r["cheap"]["usd"], 6),
+                          "api": r["cheap"]["family"]} for r in E["rows"]],
                         ("Modal L4", "cheapest API"), fmt=lambda v: usd(v), label_w=160,
                         val=lambda r: f"Modal {usd(r['a'])} · {r['api']} {usd(r['b'])}")
 
@@ -198,15 +172,6 @@ def fig_sorter(D, sorters) -> str:
                     [{"label": s["label"], "value": round(s["acc"], 4), "emphasis": s["kind"] == "classifier",
                       "note": f"{usd(s['usd'])} per document · n = {s['n']}"} for s in sorters],
                     fmt=lambda v: f"{v * 100:.1f}%", label_w=230)
-
-
-def fig_break_even(be) -> str:
-    rows = [{"label": r["label"], "value": round(r["be_prod"]) if r["be_prod"] else None,
-             "note": "API cheaper per document at any volume" if r["be_prod"] is None else
-             f"cold boot {usd(r['boot_usd'])} recovered after this many documents"} for r in be]
-    return viz.hbar("Batch size where Modal becomes cheaper than Qwen3.7-Flash (API)",
-                    "documents per cold-started 2×L4 batch · n/a = the API is cheaper per document at any volume",
-                    rows, fmt=lambda v: f"{v:,.0f}", label_w=160)
 
 
 def sorters_of(D) -> list[dict]:
@@ -225,8 +190,140 @@ def sorters_of(D) -> list[dict]:
     return out
 
 
+# ------------------------------------------------------------------ break-even (numbers from breakeven.analyze)
+def fleet_of(m: dict) -> str:
+    return f"{m['replicas']}×L4"
+
+
+def v2_verdict(cls: str) -> dict | None:
+    """The v2 prompt-promotion verdict for a class, as its report states it."""
+    for r in v2_rows():
+        if r[0] == cls:
+            return {"delta": r[4].strip("*"), "verdict": r[7].strip("*")}
+    return None
+
+
+def optimal_sentence(E) -> str:
+    o = E["optimal"]
+    if not o:
+        return "No measured Modal configuration is both cheaper than and at least as good as the cheapest hosted model."
+    m, a = o["modal"], o["cheap"]
+    return (f"Run {o['label'].lower()} on Modal: the measured {fleet_of(m)} configuration `{m['run']}` ({m['prompts']} prompts) costs "
+            f"{usd(m['usd'])} per document against {a['family']} at {usd(a['usd'])}, {pct(o['save_pct'], 0)} less, and scores "
+            f"{m['score']:.3f} against {a['score']:.3f}. It pays once one warm L4 sustains {o['l4x1']['docs_h_star']:,.0f} docs/h "
+            f"or a cold batch holds {o['l4x1']['batch_star']:,} documents.")
+
+
+def breakeven_section(D, E) -> str:
+    rate, c1, c2 = E["rate"], E["rows"][0]["l4x1"]["cycle_usd"], E["rows"][0]["l4x2"]["cycle_usd"]
+    dag = "†"
+
+    def mark(x, n_l4, v):
+        return f"{v}{dag}" if x[f"l4x{n_l4}"]["projected"] else v
+
+    verdicts = [[r["label"], f"`{r['modal']['run']}` · {fleet_of(r['modal'])}", usd(r["modal"]["usd"]), f3(r["modal"]["score"]),
+                 r["cheap"]["family"], usd(r["cheap"]["usd"]), f3(r["cheap"]["score"]), f"{r['ratio']:.2f}×",
+                 usd(r["save_1k"]) if r["cheaper"] else f"−{usd(-r['save_1k'])}", breakeven.verdict(r)] for r in E["rows"]]
+    cfgs = [[x["label"], f"`{x['modal']['run']}`", fleet_of(x["modal"]), x["modal"]["prompts"], usd(x["modal"]["usd"]),
+             f3(x["modal"]["score"]), f"{x['ratio']:.2f}×", breakeven.verdict(x)] for x in E["configs"]]
+    vol = []
+    for r in E["rows"]:
+        pick = E["pick"][r["cls"]]
+        if not pick["cheaper"]:
+            floor = pick
+            vol.append([r["label"], f"`{floor['modal']['run']}`", f"never: Modal floor is {floor['ratio']:.2f}× the API"] + ["—"] * 5)
+            continue
+        w1, w2 = pick["l4x1"], pick["l4x2"]
+        vol.append([r["label"], f"`{pick['modal']['run']}`",
+                    f"{w1['docs_h_star']:,.0f} ({pct(pick['ratio'], 0)} busy)", mark(pick, 1, f"{w1['cap_docs_h']:,.0f}"),
+                    f"{w2['docs_h_star']:,.0f} ({pct(pick['ratio'], 0)} busy)", mark(pick, 2, f"{w2['cap_docs_h']:,.0f}"),
+                    f"{w1['batch_star']:,}", f"{w2['batch_star']:,}"])
+    o = E["optimal"]
+    s = E["sorter"]
+    lines = []
+    if o:
+        m, a = o["modal"], o["cheap"]
+        lines.append(f"- **Optimal: {o['label'].lower()} on {fleet_of(m)}** (`{m['run']}`, {m['prompts']} prompts). "
+                     f"{usd(m['usd'])} per document against {a['family']} at {usd(a['usd'])}: {pct(o['save_pct'], 0)} cheaper, "
+                     f"{usd(o['save_1k'])} saved per 1,000 documents, at a score of {m['score']:.3f} against {a['score']:.3f}.")
+        lines.append(f"  - **Warm:** one L4 (${rate:.2f}/h) beats the API from {o['l4x1']['docs_h_star']:,.0f} docs/h sustained "
+                     f"({pct(o['ratio'], 0)} busy) up to its measured {o['l4x1']['cap_docs_h']:,.0f} docs/h"
+                     f"{dag if o['l4x1']['projected'] else ''}. Above that, a second L4 keeps the same $/doc; its break-even "
+                     f"is {o['l4x2']['docs_h_star']:,.0f} docs/h.")
+        lines.append(f"  - **Cold:** scale-to-zero batches beat the API from {o['l4x1']['batch_star']:,} documents per start on 1×L4 "
+                     f"({o['l4x2']['batch_star']:,} on 2×L4).")
+        lines.append("  - **Below both thresholds** the hosted model is cheaper: idle GPU hours or the cold cycle cost more than the "
+                     "per-document saving.")
+        v2 = v2_verdict(o["cls"]) if m["prompts"] == "v2" else None
+        if v2:
+            prod = min((x for x in E["wins"] if x["cls"] == o["cls"] and x["modal"]["prompts"] == "production"),
+                       key=lambda x: x["modal"]["usd"], default=None)
+            alt = (f" On the production prompts the best winning configuration is `{prod['modal']['run']}` at "
+                   f"{usd(prod['modal']['usd'])} per document ({pct(prod['save_pct'], 0)} cheaper, score {prod['modal']['score']:.3f})."
+                   if prod else "")
+            lines.append(f"  - **Prompt caveat:** the v2 {o['label'].lower()} prompt was marked {v2['verdict']} in the v2 promotion run "
+                         f"(paired Δ {v2['delta']} against production).{alt}")
+    for r in E["cost_only"]:
+        best = min((x for x in E["configs"] if x["cls"] == r["cls"] and x["cheaper"]), key=lambda x: x["modal"]["usd"])
+        lines.append(f"- **Cheaper but lower quality: {r['label'].lower()}.** Modal saves up to {pct(best['save_pct'], 0)} per document "
+                     f"(`{best['modal']['run']}`), but its best score here is "
+                     f"{max((x['modal']['score'] or 0) for x in E['configs'] if x['cls'] == r['cls']):.3f} against "
+                     f"{r['cheap']['family']}'s {r['cheap']['score']:.3f}. Take it only where that quality gap is acceptable.")
+    for r in E["never"]:
+        floor = min((x for x in E["configs"] if x["cls"] == r["cls"]), key=lambda x: x["modal"]["usd"])
+        why = " (and the two legs are scored differently)" if not r["comparable"] else ""
+        lines.append(f"- **Never on Modal: {r['label'].lower()}.** The cheapest measured configuration costs {floor['ratio']:.2f}× "
+                     f"{r['cheap']['family']} per document even when fully busy{why}, so no volume or batch size recovers it.")
+    lines.append(f"- **Sorter.** The Modal LLM sorter (S6) costs {s['ratio']:.2f}× the cheapest hosted sorter "
+                 f"({SORTER_NAME.get(s['cheap']['family'], s['cheap']['family'])}, {usd(s['cheap']['usd'])}) at "
+                 f"{pct(s['modal']['score'])} against {pct(s['cheap']['score'])} accuracy. ModernBERT costs {usd(s['modernbert']['usd'])} "
+                 f"per document at {pct(s['modernbert']['score'])}, so neither LLM route is the sorter to deploy.")
+    return f"""## 3. When does Modal pay off? Break-even and the optimal scenario
+
+Every comparison here is **per completed document**, because that is what the mailroom pays for.
+
+- **Modal $/doc** is the measured busy-window GPU cost of the run: replicas × ${rate:.2f} per L4-hour × wall time ÷ documents.
+- **API $/doc** is list price × the tokens each leg recorded.
+- **Why per-token prices rank the routes differently** ([GPU report §3](MODAL-VLLM-GPU-REPORT.md#3-cost-per-token)): each leg sends its own prompts, so one document costs a different number of tokens on each route. Per document is the comparison that decides deployment.
+
+Three measured quantities turn that per-document floor into a deployment decision:
+
+- **A warm fleet** bills ${rate:.2f} per L4-hour whether it is busy or not.
+- **A cold start** bills the L5 boot ({E['boot']:.0f} s deploy → ready) plus the {E['scaledown']:.0f} s scale-down tail on every replica: {usd(c1)} on 1×L4 and {usd(c2)} on 2×L4.
+- **A second L4** doubles throughput at a flat cost per document: S2a ${E['s2a']:.6f} vs S2b ${E['s2b']:.6f} on the same 100 documents. A 1×L4 fleet therefore serves at the same $/doc for half the $/h.
+
+Cells marked {dag} apply that measured result to a fleet size the class was not run on.
+
+**Modal wins** where it is cheaper per document than the cheapest hosted model *and* scores at least as well as that model, so replacing it loses nothing. It becomes cheaper at either of two break-evens:
+
+- **Warm fleet:** a sustained load of at least fleet $/h ÷ API $/doc documents per hour, which is a busy share of at least Modal $/doc ÷ API $/doc.
+- **Cold batch:** at least cold cycle ÷ (API $/doc − Modal $/doc) documents per start.
+
+### 3.1 Verdict per class (the scored run in §2)
+
+{table(["Class", "Modal run · fleet", "Modal $/doc", "Modal score", "Cheapest API", "API $/doc", "API score", "Modal ÷ API", "Saved per 1,000 docs", "Verdict"], verdicts, "llrrlrrrrl")}
+
+### 3.2 Every measured Modal configuration against the cheapest API
+
+Each row's score comes from its own run report. Runs that are not deployable configurations (the ladder rungs, the bf16 control, and the S7 runs whose router sent nearly every request to one replica) are left out.
+
+{table(["Class", "Run", "Fleet", "Prompts", "$/doc", "Score", "÷ cheapest API", "Verdict"], cfgs, "llllrrrl")}
+
+### 3.3 Break-even volumes
+
+Each class uses its deciding configuration: the cheapest one that wins, else the cheapest one that undercuts the API, else the cheapest one. The chart draws the same configurations.
+
+{table(["Class", "Configuration", "Warm 1×L4 break-even docs/h", "1×L4 capacity docs/h", "Warm 2×L4 break-even docs/h", "2×L4 capacity docs/h", "Cold batch ≥ N (1×L4)", "Cold batch ≥ N (2×L4)"], vol, "llrrrrrr")}
+
+![Modal cost per document relative to the cheapest API](figures/cost/modal-vs-api-breakeven.svg)
+
+### 3.4 The optimal scenario
+
+{chr(10).join(lines)}"""
+
+
 # ------------------------------------------------------------------ reports
-def cost_report(D, rows, be, sorters, shas) -> str:
+def cost_report(D, rows, E, sorters, shas) -> str:
     T = D["text"]
     head = ["Task", "Route · model", "n", "Score", "$/doc", "$ per 1k docs", "Run", "Revision"]
     body = []
@@ -239,29 +336,13 @@ def cost_report(D, rows, be, sorters, shas) -> str:
         for p in sorted(rows[c], key=lambda p: p["usd"] / max(p["score"], 1e-9)):
             eff.append([D["labels"][c], FAMILY_SHORT[p["family"]], f4(p["score"]), usd(p["usd"]),
                         usd(p["usd"] / max(p["score"], 1e-9) * 0.1) if p["score"] > 0 else "—"])
-    be_rows = [[r["label"], usd(r["modal"]), f"{r['cheap']['family']} {usd(r['cheap']['usd'])}", usd(r["prod"]["usd"]),
-                f"{r['docs_per_hour']:,.0f}",
-                "never (API cheaper per doc)" if r["be_prod"] is None else f"{r['be_prod']:,.0f}",
-                "never (API cheaper per doc)" if r["be_cheap"] is None else f"{r['be_cheap']:,.0f}",
-                f"{r['warm_docs_h']:,.0f}"] for r in be]
     srows = [[s["label"], s["n"], pct(s["acc"], 1), usd(s["usd"]), s["extra"]] for s in sorters]
     ladder = [[r["rung"], r["change"], f4(r["score"]), secs(r["wall"]), f"{r['tps']:,.0f}", usd(r["usd"]),
                "—" if r["boot"] is None else f"{r['boot']:.0f} s", r["gate"]] for r in D["ladder"]]
     sp = D["spend"]
     legacy = [[s["b"], usd(s["v"]), s["d"]] for s in sp["legacy"]]
-    boot = be[0]
-    cheaper = [r["label"].lower() for r in be if r["modal"] <= r["cheap"]["usd"]]
-    dearer = [r["label"].lower() for r in be if r["modal"] > r["cheap"]["usd"]]
-    win = [r for r in be if r["be_prod"] is not None]
-    lose = [r for r in be if r["be_prod"] is None]
-    warm_ok = [r for r in be if r["modal"] <= r["cheap"]["usd"]]
-    fastest = max(be, key=lambda r: r["docs_per_hour"])
-    warm_read = (
-        "Where Modal is cheaper per document, a warm fleet also beats the cheapest API once the sustained load passes "
-        + and_list(f"{r['warm_docs_h']:,.0f} docs/h for {r['label'].lower()} ({r['warm_docs_h'] / r['docs_per_hour']:.0%} of measured throughput)"
-                   for r in warm_ok)
-        + ". Below that, idle GPU time makes a warm fleet dearer than the API."
-        if warm_ok else "No class reaches its warm-fleet break-even within the fleet's measured throughput.")
+    cheaper = [r["label"].lower() for r in E["rows"] if r["cheaper"]]
+    dearer = [r["label"].lower() for r in E["rows"] if not r["cheaper"]]
     return f"""# Cost comparison — Modal L4 (vLLM) vs hosted API
 
 _Data {T['date_range']} · generated by sandbox `reports/dashboard/export_hub_reports.py` from the cross-checked reports hub · sources: {shas}_
@@ -284,7 +365,7 @@ _Data {T['date_range']} · generated by sandbox `reports/dashboard/export_hub_re
 | Model | Qwen3-8B-AWQ, frozen L5 posture (awq_marlin, fp8 KV, thinking off, CUDA graphs) | Qwen3.7-Flash (production), Qwen3-8B, DeepSeek-V4.1-Flash, Granite-4.2-8B |
 | Unit price | ${L4_USD_PER_HOUR:.2f} per L4-hour, {REPLICAS}×L4 = ${REPLICAS * L4_USD_PER_HOUR:.2f}/h | OpenRouter list price × recorded prompt/completion tokens |
 | Cost per document | busy-window GPU time ÷ completed documents (excludes cold boot and idle) | run cost total ÷ scored documents |
-| Fixed cost | cold boot ≈ {boot['boot_s']:.0f} s (L5 boot→ready) = {usd(boot['boot_usd'])} per 2×L4 scale-up | none |
+| Fixed cost | cold cycle = L5 boot ({E['boot']:.0f} s deploy→ready) + scale-down tail ({E['scaledown']:.0f} s) per replica = {usd(E['rows'][0]['l4x1']['cycle_usd'])} on 1×L4, {usd(E['rows'][0]['l4x2']['cycle_usd'])} on 2×L4 | none |
 | Draw | 50 documents per class, `mailroom-dataset` revision `ed7576b6` | 20 per class (Qwen3.7-Flash: 50), revision `46a4d3c2`, train split |
 
 Busy-window pricing is a **floor** for bursty traffic (every scale-up pays the boot, idle replicas are not counted) and close to the true price for a steady queue. Draws, dataset revisions and prompts differ between the legs. See §6.
@@ -299,19 +380,7 @@ Busy-window pricing is a **floor** for bursty traffic (every scale-up pays the b
 
 {table(["Task", "Route · model", "Score", "$/doc", "$ per 0.1 score"], eff, "llrrr")}
 
-## 3. When does Modal pay off? (batch economics)
-
-For a batch of *N* documents on a cold-started 2×L4 fleet, Modal costs `boot + N × modal $/doc` and the API costs `N × API $/doc`. Modal wins once `N > boot / (API $/doc − modal $/doc)`, and only if its per-document cost is lower in the first place. A fleet kept warm costs ${REPLICAS * L4_USD_PER_HOUR:.2f}/h whether or not it is busy. It beats the cheapest API only while the sustained load stays above the rate in the last column, and it cannot serve more than its measured throughput (the docs/h column).
-
-{table(["Class", "Modal $/doc", "Cheapest API $/doc", "Qwen3.7-Flash $/doc", "Modal docs/h (2×L4)", "Break-even N vs Qwen3.7-Flash", "Break-even N vs cheapest", "Warm-fleet break-even docs/h"], be_rows, "lrrrrrrr")}
-
-![Break-even batch size](figures/cost/break-even.svg)
-
-**Reading.**
-
-- {and_list(r["label"].lower() for r in win).capitalize()} {"is the only class" if len(win) == 1 else "are the only classes"} where the Modal fleet is cheaper per document than the production API model. A cold-started batch recovers the {usd(boot['boot_usd'])} boot after {and_list(f"{r['be_prod']:,.0f} documents ({r['label'].lower()})" for r in win)}.
-- For {and_list(r["label"].lower() for r in lose)}, the hosted Qwen3.7-Flash is cheaper per document at every volume. The fleet runs these classes at {and_list(f"{r['docs_per_hour']:,.0f}" for r in lose)} docs/h, against {fastest['docs_per_hour']:,.0f} for {fastest['label'].lower()}.
-- {warm_read}
+{breakeven_section(D, E)}
 
 ## 4. Sorter routes
 
@@ -376,7 +445,7 @@ def sources_block(D, shas) -> str:
                      for k, v in D["sources"].items())
 
 
-def master_report(D, rows, be, sorters, audit: dict, shas) -> str:
+def master_report(D, rows, E, sorters, audit: dict, shas) -> str:
     T, R, mb = D["text"], D["runs"], D["mb"]
     api_rows = []
     for c in ORDER:
@@ -540,7 +609,7 @@ Companions: [COST-COMPARISON-MODAL-VS-API.md](COST-COMPARISON-MODAL-VS-API.md) a
 
 1. **Sort with ModernBERT.** It matches the best hosted LLM sorter's document-type accuracy at about three orders of magnitude lower cost. Keep the LLM sorter only behind the confidence gate, and fix subclass before relying on either for it.
 2. **Extract via the API for insurance claims, contracts and mergers.** The cheapest hosted model costs less per document than Modal on all three. It also scores higher on insurance claims and mergers; contracts are scored differently on the two legs.
-3. **Correspondence and corporate records can run on Modal** when batches are large enough to amortise the cold boot ({' and '.join(f"{r['be_prod']:,.0f} documents for {r['label'].lower()}" for r in be if r['be_prod'])}). Modal is cheaper per document for both, but hosted models still score higher on correspondence.
+3. **Where Modal deployment pays.** {optimal_sentence(E)} Full break-even tables: [COST-COMPARISON-MODAL-VS-API.md §3](COST-COMPARISON-MODAL-VS-API.md#3-when-does-modal-pay-off-break-even-and-the-optimal-scenario).
 4. **The quality ceiling is the prompt and scorer, not the serving.** Serving work cut cost per document {T['cost_red_lo']}–{T['cost_red_hi']}×. Prompts moved correspondence by +0.04 (v2), and no configuration fixes mergers or subclass.
 
 ## 6. Documented source defects
@@ -577,27 +646,31 @@ def main() -> int:
     ap.add_argument("--mailroom-ml", default=str(ROOT.parent / "mailroom-ml"))
     ap.add_argument("--audit", default=str(HERE / "report_audit.json"),
                     help="JSON with the sweep results for the master report's audit section")
+    ap.add_argument("--site", default=None,
+                    help="static GitHub Pages site directory (default: <out>/../docs)")
     ap.add_argument("--check", action="store_true", help="exit 1 if the output directory is stale")
     args = ap.parse_args()
 
     D = json.loads(DATA.read_text())
-    rows, be, sorters = route_rows(D), break_even(D), sorters_of(D)
     shas = (f"local-mailroom-sandbox @ {git_sha(ROOT)} · eval-environment @ {D['sources']['LLM-Mailroom-Services/eval-environment'][:12]}"
             f" · mailroom-ml @ {D['sources']['LLM-Mailroom-Services/mailroom-ml'][:12]}")
     audit = json.loads(pathlib.Path(args.audit).read_text()) if args.audit else {}
 
     import gpu_report  # noqa: PLC0415 — imports this module's helpers at call time
-    gpu_md, gpu_figs = gpu_report.report(D, sys.modules[__name__], shas)
+    import pages_site  # noqa: PLC0415
+    rows, sorters = route_rows(D), sorters_of(D)
+    E = breakeven.analyze(D, gpu_report.NOT_A_CONFIG)
+    gpu_md, gpu_figs, gpu_stats = gpu_report.report(D, sys.modules[__name__], shas)
     files: dict[str, str | bytes] = {
         **gpu_figs,
         "MODAL-VLLM-GPU-REPORT.md": gpu_md,
         "figures/cost/cost-per-doc.svg": fig_cost(D, rows),
         "figures/cost/score-by-route.svg": fig_score(D, rows),
-        "figures/cost/modal-vs-cheapest-api.svg": fig_modal_vs_cheapest(be),
+        "figures/cost/modal-vs-cheapest-api.svg": fig_modal_vs_cheapest(E),
         "figures/cost/sorter-routes.svg": fig_sorter(D, sorters),
-        "figures/cost/break-even.svg": fig_break_even(be),
-        "COST-COMPARISON-MODAL-VS-API.md": cost_report(D, rows, be, sorters, shas),
-        "MASTER-REPORT.md": master_report(D, rows, be, sorters, audit, shas),
+        "figures/cost/modal-vs-api-breakeven.svg": breakeven.fig(E, viz, usd),
+        "COST-COMPARISON-MODAL-VS-API.md": cost_report(D, rows, E, sorters, shas),
+        "MASTER-REPORT.md": master_report(D, rows, E, sorters, audit, shas),
     }
     roots = {"local-mailroom-sandbox": ROOT, "eval-environment": pathlib.Path(args.eval_env),
              "mailroom-ml": pathlib.Path(args.mailroom_ml)}
@@ -610,15 +683,18 @@ def main() -> int:
     files["README.md"] = readme(files, shas)
 
     out = pathlib.Path(args.out)
+    site_dir = pathlib.Path(args.site) if args.site else out.parent / "docs"
+    site = pages_site.build(files, gpu_stats, shas)
     stale = []
-    for rel, body in files.items():
-        data = body.encode() if isinstance(body, str) else body
-        dest = out / rel
-        if not dest.is_file() or dest.read_bytes() != data:
-            stale.append(rel)
-            if not args.check:
-                dest.parent.mkdir(parents=True, exist_ok=True)
-                dest.write_bytes(data)
+    for root, tree, prefix in ((out, files, ""), (site_dir, site, "site: ")):
+        for rel, body in tree.items():
+            data = body.encode() if isinstance(body, str) else body
+            dest = root / rel
+            if not dest.is_file() or dest.read_bytes() != data:
+                stale.append(prefix + rel)
+                if not args.check:
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    dest.write_bytes(data)
     for rel in stale:
         print(("stale: " if args.check else "wrote: ") + rel)
     return 1 if (args.check and stale) else 0
@@ -634,7 +710,7 @@ Cross-repository evaluation reports for the LLM-Mailroom constellation. These ar
 | Report | What it answers |
 | --- | --- |
 | [MASTER-REPORT.md](MASTER-REPORT.md) | Where every front stands, the findings from the API leg (eval-environment), the Modal + vLLM leg (local-mailroom-sandbox, SAND-032) and the ModernBERT intake classifier (mailroom-ml), the cross-leg verdict, and this sweep's report audit |
-| [COST-COMPARISON-MODAL-VS-API.md](COST-COMPARISON-MODAL-VS-API.md) | Cost per document and per unit of quality for every route and model, batch break-even for the Modal fleet, sorter routes, and spend |
+| [COST-COMPARISON-MODAL-VS-API.md](COST-COMPARISON-MODAL-VS-API.md) | Cost per document and per unit of quality for every route and model, the break-even volumes and the optimal Modal deployment, sorter routes, and spend |
 | [MODAL-VLLM-GPU-REPORT.md](MODAL-VLLM-GPU-REPORT.md) | The Modal + vLLM leg's GPU economics: cost per token, where the GPU spend went, how busy the GPUs were, and what adding the second L4 did |
 
 **Provenance.** Generated by `reports/dashboard/export_hub_reports.py` in `Exios66/local-mailroom-sandbox` from the reports hub, where every figure is read from a tracked file and cross-checked. Built from {shas}. `figures/sources/<repo>/` holds verbatim copies of the source repositories' own charts. `figures/cost/` and `figures/gpu/` are drawn for these reports.

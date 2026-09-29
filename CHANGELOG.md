@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+### Added — SAND-036 warm vs cold GPUs, cost per 1M tokens, Modal vs API break-even, mailroom-issues Pages site
+
+- `reports/dashboard/gpu_report.py`: cost per 1M tokens on three bases (warm busy-window, one cold batch, program-loaded),
+  warm-fleet cost per token at falling utilization with the break-even busy share, and a warm vs cold section (boot
+  measurements, warm vs cold $/doc and $/1M per workload, the batch size that amortizes a cold start, keep warm vs
+  scale to zero with the threshold = scale-down + L5 boot). Every setup value and date in the report is read from the
+  serving exports and run reports; the hub `fleet` extract gains `scaledown` and each run's own score.
+- `reports/dashboard/breakeven.py`: one per-document Modal-vs-API calculation (verdict per class, every measured Modal
+  configuration against the cheapest hosted model, warm and cold break-even volumes, the optimal measured deployment)
+  quoted by the cost comparison's §3, the GPU report and the site, so no two reports disagree.
+- `reports/dashboard/pages_site.py` + `export_hub_reports.py --site`: the three reports as a static GitHub Pages site
+  for `mailroom-issues/docs/` (inline SVG, no JavaScript, no external requests; covered by `--check`).
+- Hub snapshot re-pinned to eval-environment `86b4e54` (main, including the qwen3.7-flash suite README); `markdown-it-py`
+  joins `[dev]` (requirements regenerated with `scripts/sync_requirements.py`).
+- `tests/test_gpu_report.py`: the $/1M identity, the keep-warm threshold, the amortizing batch, the break-evens and the
+  optimal row, and site integrity (no scripts, every internal link and anchor resolves).
+
 ### Added — SAND-035 cross-repo report audit + Modal vs API cost comparison
 
 - `scripts/sand032/viz.py` sizes label columns by measured text width (middle ellipsis, full label in
