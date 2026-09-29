@@ -126,8 +126,14 @@ def lifecycle_from_store(
     cold = store.read_cold_boot()
 
     if state == "failed":
-        err = (cp.get("last_error") or {}) if isinstance(cp.get("last_error"), dict) else {}
-        detail = str(err.get("message") or err or "run failed")[:120]
+        raw_err = cp.get("last_error")
+        if isinstance(raw_err, dict):
+            detail = str(raw_err.get("message") or raw_err.get("error") or raw_err or "run failed")[:160]
+        elif raw_err:
+            detail = str(raw_err)[:160]
+        else:
+            errs = [e for e in events if str(e.get("level")) == "error"]
+            detail = str((errs[-1].get("event") if errs else "") or "run failed")[:160]
         return {"phase": "FAILED", "detail": detail, "elapsed_s": elapsed_s}
     if state == "done":
         return {"phase": "COMPLETE", "detail": "run finished · serving record", "elapsed_s": elapsed_s}
@@ -195,6 +201,56 @@ def resolve_watch_paths(
         if (sand_logs / f"{store.run_id}.times").is_file():
             return sand_logs, sand_logs / "modal-app.log"
     return None, store.dir / "modal-app.log"
+
+
+WORKER_APP = "sandbox-job"
+
+
+def dispatch_source(store: RunStore, cli_app: str | None = None) -> dict[str, Any]:
+    """Per-job dispatch source: serve app + optional Modal worker app.
+
+    ``cli_app`` (--app) always wins for the serve stream. When
+    ``job.mode == "modal"`` the ``sandbox-job`` worker container is a second
+    stream; otherwise only the serve app is tailed.
+    """
+    lock = store.read_lock() or {}
+    job = lock.get("job") or {}
+    engine = lock.get("engine") or {}
+    modal = engine.get("modal") or {}
+    serve_app = cli_app or str(modal.get("app") or "sandbox-vllm")
+    job_mode = str(job.get("mode") or "endpoint")
+    streams = [serve_app]
+    worker_app: str | None = None
+    if job_mode == "modal":
+        worker_app = WORKER_APP
+        if worker_app not in streams:
+            streams.append(worker_app)
+    return {
+        "serve_app": serve_app,
+        "worker_app": worker_app,
+        "job_mode": job_mode,
+        "streams": streams,
+    }
+
+
+def job_event_lines(store: RunStore, *, limit: int = 8) -> list[dict[str, str]]:
+    """Recent ``events.jsonl`` rows as dispatch feed entries with roles."""
+    rows = store.events()[-limit:] if limit else store.events()
+    out: list[dict[str, str]] = []
+    for e in rows:
+        level = str(e.get("level") or "info").lower()
+        role = "error" if level == "error" else ("warn" if level == "warn" else "plain")
+        event = str(e.get("event") or "event")
+        detail = e.get("detail")
+        if isinstance(detail, dict):
+            bits = " ".join(f"{k}={v}" for k, v in list(detail.items())[:3])
+            text = f"job:{event} {bits}".strip()
+        elif detail:
+            text = f"job:{event} {detail}"
+        else:
+            text = f"job:{event}"
+        out.append({"text": text[:300], "role": role})
+    return out
 
 
 def program_route_lines(times_dir: Path, *, current: str, width: int = 100) -> list[str] | None:
@@ -270,7 +326,12 @@ def build_tray_layout(
         except (TypeError, ValueError):
             pass
 
-    dispatch_title = f"Dispatch log · modal app logs {app}"
+    src = dispatch_source(store, cli_app=app)
+    streams = src["streams"]
+    if len(streams) > 1:
+        dispatch_title = f"Dispatch log · {' + '.join(f'modal app logs {a}' for a in streams)}"
+    else:
+        dispatch_title = f"Dispatch log · modal app logs {app}"
     tray_title = f"{TRAY_PRODUCT} · In-tray"
     postage_title = "Postage ($)"
     scorecard_title = f"Scorecard · {store.run_id}"
@@ -303,6 +364,7 @@ def build_tray_layout(
         "job_route": job_route,
         "times_path": str(times_file) if times_file else None,
         "watcher_label": watcher_label,
+        "dispatch": src,
     }
 
 

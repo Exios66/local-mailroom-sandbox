@@ -47,6 +47,21 @@ THEME = {
 # terminal palette role → THEME token (pretty_log: warn=gold, mint=sky, dim=faint)
 _ROLE_TOKEN = {"warn": "gold", "gold": "gold", "cyan": "cyan", "mint": "sky", "teal": "teal", "dim": "muted"}
 
+# lifecycle phase → THEME token (mirrors watch._LIFECYCLE_ROLE palette roles)
+_STATE_TOKEN = {
+    "FAILED": "gold",
+    "COMPLETE": "teal",
+    "STOPPED": "teal",
+    "TEARDOWN": "teal",
+    "PAUSED": "gold",
+    "REMOTE": "cyan",
+    "SORTING": "gold",
+    "COLD BOOT": "gold",
+    "DEPLOYING": "gold",
+    "PREFLIGHT": "cyan",
+    "QUEUED": "muted",
+}
+
 _SGR_RE = re.compile(r"\x1b\[([0-9;]*)m")
 
 
@@ -134,16 +149,14 @@ class WatchWebSession:
         self._boot_mark: dict[str, int] = {}
         self._log_stop = threading.Event()
         if follow_logs:
-            from mailroom_sandbox.watch import _watch_paths
+            from mailroom_sandbox.watch import _watch_paths, start_log_streams
 
             store, app = resolve()
             _td, resolved_log = _watch_paths(
                 store, times_dir=times_dir, sand032_root=sand032_root, log_path=log_path
             )
             self.sink = LogBuffer(resolved_log)
-            threading.Thread(
-                target=_stream_logs, args=(app, self.sink, self._log_stop), daemon=True
-            ).start()
+            start_log_streams(store, app, self.sink, self._log_stop)
 
     def refresh(self) -> dict[str, Any]:
         if self.tick is not None:
@@ -211,7 +224,11 @@ def _theme_css() -> tuple[str, str]:
     roles = "\n".join(
         f".log-line.{role} {{ color: var(--{_ROLE_TOKEN.get(tone, 'muted')}); }}" for role, tone in _LOG_ROLE.items()
     )
-    return tokens, roles
+    states = "\n".join(
+        f".stage-{phase.lower().replace(' ', '-')} {{ color: var(--{token}); }}"
+        for phase, token in _STATE_TOKEN.items()
+    )
+    return tokens, roles + "\n" + states
 
 
 def _html_page() -> bytes:
@@ -280,6 +297,7 @@ header .route {{ color: var(--cyan); font-size: 11px; letter-spacing: 0.06em; }}
 }}
 .log h2 {{ position: sticky; top: 0; }}
 .log-line {{ padding: 2px 10px; border-bottom: 1px solid rgba(14,116,144,0.2); word-break: break-all; }}
+.log-line .src {{ color: var(--muted); opacity: 0.7; font-size: 10px; text-transform: uppercase; margin-right: 6px; }}
 {roles}
 .log-line.error {{ font-weight: 600; }}
 .log-line.dim {{ color: var(--muted); opacity: 0.7; }}
@@ -368,8 +386,10 @@ function render(state) {{
   if (panels.dispatch) document.getElementById("dispatch-heading").textContent = panels.dispatch;
   if (panels.scorecard) document.getElementById("scorecard-heading").textContent = panels.scorecard;
   const bar = document.getElementById("status-bar");
-  bar.classList.toggle("blink", !!state.blink);
-  document.getElementById("stage").textContent = state.stage || "—";
+  bar.classList.toggle("blink", !!state.blink && !!state.animate_lifecycle);
+  const stageEl = document.getElementById("stage");
+  stageEl.textContent = state.stage || "—";
+  stageEl.className = "stage-" + String(state.stage || "unknown").toLowerCase().replace(/\\s+/g, "-");
   document.getElementById("ts").textContent = state.ts || "";
   const watcher = state.watcher_label || ("Tray TUI watcher · app " + (state.app || "—"));
   document.getElementById("app-line").textContent = watcher;
@@ -421,9 +441,10 @@ function render(state) {{
 
   const logs = document.getElementById("logs");
   const lines = state.logs || [];
+  const dispatchName = (panels.dispatch || "Dispatch log").replace(/^Dispatch log · /, "");
   logs.innerHTML = lines.length
-    ? lines.map(e => `<div class="log-line ${{LOG_CLASS[e.role] || "plain"}}">${{esc(e.text)}}</div>`).join("")
-    : `<div class="log-line dim">(waiting on modal app logs …)</div>`;
+    ? lines.map(e => `<div class="log-line ${{LOG_CLASS[e.role] || "plain"}}"><span class="src">${{esc(e.source || "modal")}}</span> ${{esc(e.text)}}</div>`).join("")
+    : `<div class="log-line dim">(waiting on ${{esc(dispatchName)}} · job events appear here)…</div>`;
   const pane = logs.parentElement;  // the .log panel owns overflow-y
   pane.scrollTop = pane.scrollHeight;
 }}

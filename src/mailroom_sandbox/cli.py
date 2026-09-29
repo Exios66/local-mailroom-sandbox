@@ -213,7 +213,7 @@ def build_parser() -> argparse.ArgumentParser:
     sa_prop.set_defaults(handler=_cmd_subagents_propagate)
     subagents_p.set_defaults(handler=_cmd_subagents_list)
 
-    pipe = sub.add_parser("pipeline", help="Run mailroom watcher or API", parents=[shared])
+    pipe = sub.add_parser("pipeline", help="Run mailroom inbox watcher or API (not the Tray TUI watch)", parents=[shared])
     pipe_sub = pipe.add_subparsers(dest="pipeline_cmd")
     w = pipe_sub.add_parser("watcher", parents=[shared])
     w.set_defaults(handler=_cmd_watcher)
@@ -383,16 +383,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--follow", default=None,
         help="file holding the CURRENT run YAML path; re-read every frame",
     )
-    watch_p.add_argument("--app", default=None, help="Modal app (default: engine.modal.app)")
+    watch_p.add_argument("--app", default=None, help="Modal serve app override (default: engine.modal.app; modal job mode also tails sandbox-job)")
     watch_p.add_argument("--ledger", default=None, help="spend ledger JSON ({spent_usd})")
     watch_p.add_argument("--cap-usd", type=float, default=5.0)
     watch_p.add_argument("--interval", type=float, default=2.0)
     watch_p.add_argument("--once", action="store_true", help="render one frame and exit")
-    watch_p.add_argument("--no-logs", action="store_true", help="do not follow modal app logs")
+    watch_p.add_argument("--no-logs", action="store_true", help="do not follow Modal dispatch logs (serve + worker); job events still shown")
     watch_p.add_argument(
         "--web",
         action="store_true",
-        help="browser mailroom TUI on localhost (SSE); frees the terminal tab",
+        help="Tray TUI in the browser on localhost (SSE); frees the terminal tab",
     )
     watch_p.add_argument(
         "--host",
@@ -419,7 +419,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     dev_p = sub.add_parser(
         "dev",
-        help="mailroom watch dev server: themed browser UI on a synthetic run (= watch --web --demo)",
+        help="Tray TUI dev server: themed browser UI on a synthetic run (= watch --web --demo)",
         parents=[shared],
     )
     dev_p.add_argument("--host", default=None, help="bind host (default 127.0.0.1)")

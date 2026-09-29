@@ -302,3 +302,12 @@ def test_hero_font_scales_to_fit_its_column_count():
     # 100-col wide hero and 60-col compact hero at 0.6em/char monospace
     assert "font-size: min(12px, calc((100vw - 84px) / 60))" in page
     assert "font-size: min(12px, calc((100vw - 84px) / 36))" in page
+
+
+def test_state_tokens_and_log_source_rendering():
+    page = web_mod._html_page().decode()
+    for phase in ("failed", "complete", "paused", "remote", "sorting"):
+        assert f".stage-{phase}" in page
+    assert 'class="src"' in page or 'class="src"' in page.replace("'", '"')
+    assert "Tray TUI watcher" in page or "watcher_label" in page
+    assert "lifecycle-pulse" in page

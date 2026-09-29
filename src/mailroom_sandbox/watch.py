@@ -47,6 +47,14 @@ def progress_bar(done: int, total: int, *, width: int = 30) -> str:
 
 def classify_log_line(line: str) -> str:
     low = line.lower()
+    if low.startswith("job:"):
+        if "fail" in low or "error" in low:
+            return "error"
+        if "warn" in low or "pause" in low or "drift" in low:
+            return "warn"
+        if "cold boot" in low or "ready" in low or "done" in low:
+            return "ready"
+        return "plain"
     if "traceback" in low or re.search(r"\berror\b", low) or "exception" in low:
         return "error"
     if re.search(r"\bwarn(ing)?\b", low):
@@ -58,6 +66,25 @@ def classify_log_line(line: str) -> str:
     if "ready on port" in low or "application startup complete" in low:
         return "ready"
     return "plain"
+
+
+# lifecycle phase -> palette role (terminal) / CSS token (browser)
+_LIFECYCLE_ROLE = {
+    "FAILED": "warn",
+    "COMPLETE": "teal",
+    "STOPPED": "teal",
+    "TEARDOWN": "teal",
+    "PAUSED": "gold",
+    "REMOTE": "cyan",
+    "SORTING": "gold",
+    "COLD BOOT": "gold",
+    "DEPLOYING": "gold",
+    "PREFLIGHT": "cyan",
+    "QUEUED": "dim",
+}
+
+# phases with a pulsing lifecycle animation (terminal blink + browser pulse)
+ANIMATED_PHASES = ("DEPLOYING", "COLD BOOT", "PREFLIGHT", "REMOTE", "SORTING")
 
 
 # log class -> mailroom-ml palette role
@@ -402,7 +429,8 @@ def render_frame(
         el = int(lifecycle.get("elapsed_s") or 0)
         phase = f"▸{lifecycle['phase']}◂  {lifecycle.get('detail', '')}  ·  {el // 60}m{el % 60:02d}s  ·  {stage_tag}"
         life_title = panels.get("lifecycle") or "Lifecycle"
-        out.append(pl._box(life_title, [p["gold"](phase) if on else phase], width=width, on=on))
+        role = _LIFECYCLE_ROLE.get(str(lifecycle.get("phase") or ""), "gold")
+        out.append(pl._box(life_title, [p[role](phase) if on else phase], width=width, on=on))
 
     if route:
         title = panels.get("program") or "Program route"
@@ -483,7 +511,7 @@ def note_reconnect(sink: Any) -> None:
         sink.append(RECONNECT_NOTE)
 
 
-def _stream_logs(app: str, sink: Any, stop: threading.Event) -> None:
+def _stream_logs(app: str, sink: Any, stop: threading.Event, *, prefix: str = "") -> None:
     """Follow `modal app logs <app>` into ``sink``; restart if the stream drops."""
     while not stop.is_set():
         try:
@@ -503,11 +531,31 @@ def _stream_logs(app: str, sink: Any, stop: threading.Event) -> None:
                 break
             line = raw.rstrip()
             if line:
-                sink.append(line)
+                sink.append(f"{prefix}{line}" if prefix else line)
         proc.terminate()
         if not stop.is_set():
             note_reconnect(sink)
             stop.wait(10)
+
+
+def start_log_streams(store: RunStore, app: str, sink: Any, stop: threading.Event) -> list[threading.Thread]:
+    """Start one Modal stream per dispatch source; worker lines get a tag."""
+    from mailroom_sandbox.tui import tray_context as tc
+
+    src = tc.dispatch_source(store, cli_app=app)
+    threads: list[threading.Thread] = []
+    serve = src["serve_app"]
+    t = threading.Thread(target=_stream_logs, args=(serve, sink, stop), daemon=True)
+    t.start()
+    threads.append(t)
+    worker = src.get("worker_app")
+    if worker and worker != serve:
+        tw = threading.Thread(
+            target=_stream_logs, args=(worker, sink, stop), kwargs={"prefix": "[worker] "}, daemon=True
+        )
+        tw.start()
+        threads.append(tw)
+    return threads
 
 
 def read_ledger(ledger: Path | None) -> tuple[float, bool]:
@@ -572,7 +620,12 @@ def compose_watch_state(
     spend["over_gate"] = total > GATE_USD
     spend["bar"] = progress_bar(int(total * 100), int(cap_usd * 100), width=30)
     log_src = display_tail(sink, 14)
-    logs = [{"text": line, "role": classify_log_line(line)} for line in log_src]
+    logs = [{"text": line, "role": classify_log_line(line), "source": "modal"} for line in log_src]
+    for entry in tc.job_event_lines(store, limit=4):
+        logs.append(
+            {"text": entry["text"], "role": entry["role"], "source": "job"}
+        )
+    logs = logs[-14:]
     route = layout.get("route")
     job_route = layout.get("job_route")
     phase = (life or {}).get("phase") or layout.get("stage") or _stage_for(snap["run_id"])
@@ -598,8 +651,9 @@ def compose_watch_state(
             "total": snap["total"],
             "bar": progress_bar(snap["done"], snap["total"], width=30),
         },
-        "blink": blink,
-        "animate_lifecycle": phase in {"DEPLOYING", "COLD BOOT", "REMOTE", "SORTING"},
+        "blink": blink and phase in ANIMATED_PHASES,
+        "animate_lifecycle": phase in ANIMATED_PHASES,
+        "lifecycle_role": _LIFECYCLE_ROLE.get(phase, "gold"),
     }
 
 
@@ -648,7 +702,7 @@ def watch(
     if not once:
         sys.stdout.write(pl.ALT_ENTER + pl.HIDE_CURSOR)
     if logs and not once:
-        threading.Thread(target=_stream_logs, args=(app, sink, stop), daemon=True).start()
+        start_log_streams(store, app, sink, stop)
     started = time.time()
     boot_mark: dict[str, int] = {}
     try:

@@ -22,7 +22,7 @@ TUI when you need vLLM dispatch logs.
 | Same panels in a browser tab; terminal free for other work | `sandbox watch --web` / `scripts/mailroom-tui web` | yes | `http://127.0.0.1:8765/` (SSE) |
 | Theme preview with **no Modal spend** | `sandbox dev` / `watch --web --demo` | synthetic only | browser |
 | Themed progress while **this shell** runs the job (endpoint mode) | `sandbox run start … --watch` | no — use watch in a **second pane** | scroll-friendly stderr lines |
-| Poll a **Modal job worker** (`--job-mode modal`) | `sandbox run start|status … --watch` | no — worker logs in Modal dashboard / `modal app logs` | stderr progress lines |
+| Poll a **Modal job worker** (`--job-mode modal`) | `sandbox run start|status … --watch` | no — Tray TUI tails `sandbox-job` worker + serve app (`modal app logs -f` each) | stderr progress lines |
 | Post-run quality + serving summary | `sandbox scorecard --run <id>` | — | one-shot terminal |
 | Every beacon job in the family (not one run YAML) | `sandbox board` | optional per job | browser `:8767` or `--tui` |
 
@@ -114,12 +114,12 @@ sandbox watch \
 | `--config` | — | Run YAML whose `run_id` resolves the store under `data/runtime/runs/<run_id>/`. |
 | `--follow` | — | Path to a **file containing a run YAML path**; re-read every refresh so the UI tracks the active SAND-032 step. |
 | *(bare)* | — | If `data/runtime/sand032/current` exists, sets `--follow` to that file and `--ledger` to `data/runtime/sand032/spend.json`. |
-| `--app` | from spec `engine.modal.app` | Modal app name passed to `modal app logs -f`. |
+| `--app` | from spec `engine.modal.app` | Serve-app override for `modal app logs -f`; `job.mode=modal` additionally tails `sandbox-job` worker. |
 | `--ledger` | — | JSON with `spent_usd` (and optional `includes_live`) for the **postage** panel. |
 | `--cap-usd` | `5.0` | Spend bar denominator (independent of the $4.50 **gate** warning in the UI). |
 | `--interval` | `2.0` | Seconds between frame refreshes (terminal and web). |
 | `--once` | off | Render one frame to stdout and exit (scripting / screenshots). |
-| `--no-logs` | off | Skip `modal app logs -f` (in-tray + postage only). |
+| `--no-logs` | off | Skip Modal streams (in-tray + postage + job `events.jsonl` only). |
 | `--web` | off | Browser UI instead of alt-screen terminal. |
 | `--host` | `127.0.0.1` | Bind address (web only). |
 | `--port` | `8765` | Bind port; `0` = ephemeral (web only). |
@@ -139,14 +139,14 @@ Implementation: `src/mailroom_sandbox/watch.py` (terminal), `src/mailroom_sandbo
 
 ### Panels
 
-1. **Header** — owl wordmark, “DIGITAL MAILROOM”, eval subtitle, run id, route `INBOX → SPECIALIST → REPORT`.
-2. **Status bar** — clock, Modal app name, lifecycle **stage** (blink cadence on terminal).
-3. **Lifecycle** (SAND-032 driver stamps) — phases such as `QUEUED`, `DEPLOYING`, `COLD BOOT`, `PREFLIGHT`, `SORTING`, `TEARDOWN`, `STOPPED`, with sub-detail (e.g. KV cache profiling during cold boot).
-4. **Program route** (when `times_dir` is set) — multi-run ladder checklist (✓ / ▶ / ·).
-5. **In-tray** — checkpoint cursor/total, delivered vs returned docs, postmark p50/p95, mean score, last error.
-6. **Postage ($)** — ledger spend + live GPU estimate, cap bar, **$4.50 gate** warning when projected total exceeds the gate.
-7. **Scorecard** — appears in teardown/stopped phases from `reports/serving/<run_id>.serving.json` and optional `/metrics` scrape files.
-8. **Dispatch log** — last lines from Modal app logs, colour-coded: errors, warnings, throughput, KV cache, engine ready.
+1. **Header** — owl wordmark, “DIGITAL MAILROOM”, per-job engine subtitle, run id, task route.
+2. **Status bar** — clock, `Tray TUI watcher · <profile> · <job.mode>`, lifecycle **stage** (blink/pulse only while `DEPLOYING`/`COLD BOOT`/`PREFLIGHT`/`REMOTE`/`SORTING`).
+3. **Lifecycle** — SAND-032 driver stamps when present, else checkpoint + `events.jsonl`: `QUEUED`, `DEPLOYING`, `COLD BOOT`, `PREFLIGHT`, `SORTING`, `REMOTE`, `PAUSED`, `TEARDOWN`/`STOPPED`, `COMPLETE`, `FAILED` (phase-colored: gold active, cyan remote/preflight, teal done, gold warn failed).
+4. **Program route** (SAND-032 `.times` only) — multi-run ladder checklist (✓ / ▶ / ·); other jobs show a **JOB · run manifest** strip (profile, mode, engine, app, concurrency, trace).
+5. **Tray TUI · In-tray** — checkpoint cursor/total, delivered vs returned docs, postmark p50/p95, mean score, last error.
+6. **Postage ($)** — ledger spend + live GPU estimate, cap bar (`job.cost_cap_usd` wins over `--cap-usd`), **$4.50 gate** warning when projected total exceeds the gate.
+7. **Scorecard** — appears on terminal states (`done`/`failed`, `TEARDOWN`/`STOPPED`/`COMPLETE`) from `reports/serving/<run_id>.serving.json` and optional `/metrics` scrape files.
+8. **Dispatch log** — merged feed: Modal serve stream (+ `sandbox-job` worker stream when `job.mode=modal`, `[worker]`-tagged) plus recent `job:` event lines from `events.jsonl`; colour-coded errors, warnings, throughput, KV cache, engine ready; each browser row carries a `modal`/`job` source tag.
 
 Progress and spend bars use mailroom-ml glyphs (`█` / `░`).
 
@@ -182,10 +182,10 @@ modal app logs -f sandbox-vllm-sand032  # SAND-032 fleet name when used
 Remote **job worker** logs (CPU container running `run_job`, not the vLLM serve app):
 
 ```bash
-modal app logs -f <modal-job-app>   # see deploy/modal_job.py app name after deploy
+modal app logs -f sandbox-job       # Modal worker app (deploy/modal_job.py APP_NAME)
 ```
 
-Watch **does not** automatically tail the job worker app — only the vLLM **serve** app configured for the run.
+Tray TUI tails **both** streams when `job.mode=modal` (serve app + `sandbox-job`, worker lines `[worker]`-tagged) into one Dispatch log plus `job:` event lines from `events.jsonl`. `--app` overrides only the serve stream; `--no-logs` keeps job events but stops both Modal streams.
 
 ---
 

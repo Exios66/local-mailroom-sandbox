@@ -27,6 +27,8 @@ sandbox watch --web --demo
 
 Default URL: **http://127.0.0.1:8765/** — live JSON via **SSE** at `/api/stream`; snapshot at `/api/state`.
 
+The browser is the **Tray TUI**: per-job subtitle/route from `spec.lock.json`, `Tray TUI watcher · <profile> · <job.mode>` status line, job-manifest strip for non-SAND-032 runs, phase-colored lifecycle (pulse only while active), and a Dispatch log merging the Modal serve stream (+ `sandbox-job` worker when `job.mode=modal`) with `job:` event lines. `sandbox pipeline watcher` is a different surface (mailroom inbox drain), not this viewer.
+
 Stop the server with **Ctrl+C** in the terminal that launched it (does not stop the eval).
 
 ## Security
