@@ -11,6 +11,7 @@ Used by ``build_hub.py``; ``build()`` returns the data and provenance.
 from __future__ import annotations
 
 import json
+import math
 import pathlib
 import re
 import statistics
@@ -334,11 +335,11 @@ def build() -> dict:
     sorter = rx("spend.sorter", SORTER_RUN, r"metered \*\*\$([\d.]+)\*\*")
     spend = [
         {"b": "Sorter pipeline run (bf16)", "v": sorter, "d": "run-50-modal-hf: 50 docs, about 5 LLM calls each, up to 4×L4; metered"},
-        {"b": "Granite specialist legs", "v": sum(v for _, v in granite), "d": "; ".join(f"{k} ${v:.3f}" for k, v in granite)},
-        {"b": f"Qwen AWQ specialist runs ({len(qwen_runs)})", "v": sum(v for _, v in qwen_runs), "d": "; ".join(f"{k} ${v:.3f}" for k, v in qwen_runs)},
-        {"b": "API legs (OpenRouter)", "v": sum(api) + flash, "d": f"{len(api)} eval-environment legs ${sum(api):.3f} + qwen-flash ledger ${flash:.3f}"},
+        {"b": "Granite specialist legs", "v": math.fsum(v for _, v in granite), "d": "; ".join(f"{k} ${v:.3f}" for k, v in granite)},
+        {"b": f"Qwen AWQ specialist runs ({len(qwen_runs)})", "v": math.fsum(v for _, v in qwen_runs), "d": "; ".join(f"{k} ${v:.3f}" for k, v in qwen_runs)},
+        {"b": "API legs (OpenRouter)", "v": math.fsum([*api, flash]), "d": f"{len(api)} eval-environment legs ${sum(api):.3f} + qwen-flash ledger ${flash:.3f}"},
     ]
-    total_spend = sum(s["v"] for s in spend)
+    total_spend = math.fsum(s["v"] for s in spend)  # correctly rounded on every Python
 
     # --- ModernBERT
     conf = jkey("mb.confusion", MB_EVAL, "per_stratum_confusion")

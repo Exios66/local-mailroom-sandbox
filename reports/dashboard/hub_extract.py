@@ -16,6 +16,7 @@ Sources:
 from __future__ import annotations
 
 import json
+import math
 import pathlib
 import re
 import statistics
@@ -265,7 +266,9 @@ def sand032_run(R: Repo, rid: str) -> dict:
         "run": rid, "cls": cls, "kind": kind, "n": int(n), "ok": int(ok), "overall": overall, "schema": schema,
         "wall": wall, "p50": p50, "p95": p95, "max": lmax, "tps": tps, "usd_per_doc": per_doc_usd, "gpu_usd": gpu_usd,
         "conc": int(conc), "speedup": speed, "prompt_per_doc": ptok / ok, "compl_per_doc": ctok / ok, "docs": docs,
-        "strata": [{"subclass": s, "n": len(v), "mean": sum(v) / len(v)} for s, v in sorted(by.items(), key=lambda kv: -sum(kv[1]) / len(kv[1]))],
+        # math.fsum: correctly rounded on every Python (3.12's sum() compensates, 3.11's does not)
+        "strata": [{"subclass": s, "n": len(v), "mean": math.fsum(v) / len(v)}
+                   for s, v in sorted(by.items(), key=lambda kv: -math.fsum(kv[1]) / len(kv[1]))],
     }
     if kind == "cuad":
         out["headline"] = R.cell(f"{k}.cuad_f1", path, "| micro precision / recall / F1 |", 1, 2)

@@ -51,6 +51,11 @@
   reports (wall, tokens, throughput, busy and billed GPU $, slot occupancy, replica request split). `viz.hbar` gains
   `domain_max` so small multiples can share one scale.
 
+### Fixed — SAND-036
+
+- Hub stratum means and the legacy spend total use `math.fsum`, so `hub_data.json` is identical whether it is
+  rebuilt on Python 3.11 or 3.12 (3.12's `sum()` compensates, 3.11's does not; the two differed in the last digit).
+
 ### Fixed — SAND-035
 
 - `build_hub.py --check` crashed (`KeyError: 'run_id'`) on eval-environment log rows without a run id.
