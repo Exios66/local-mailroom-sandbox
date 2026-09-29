@@ -17,7 +17,7 @@
 ║ DIGITAL MAILROOM  ·  Qwen3-8B-AWQ · vLLM L4 eval  ·  sand032-l0-b… ║
 ║ INBOX → SPECIALIST → REPORT                                        ║
 ╚════════════════════════════════════════════════════════════════════╝
-║ watch @ 23:35:59 · app sandbox-vllm-sand032  (o,o)  stage ▸QUEUED◂ ║
+║ watch @ 23:39:35 · app sandbox-vllm-sand032  (o,o)  stage ▸QUEUED◂ ║
 ╭ LIFECYCLE ─────────────────────────────────────────────────────────╮
 │ ▸QUEUED◂  waiting for the driver  ·  0m00s  ·  LADDER              │
 ╰────────────────────────────────────────────────────────────────────╯
