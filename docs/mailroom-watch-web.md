@@ -34,9 +34,23 @@ Each SVG has a plain-text fallback next to it (same stem, `.ansi.txt`) and every
 |---|---|---|
 | SORTING, wide color (100 cols) | ![SORTING wide color tray TUI with in-tray, postage, and dispatch log](assets/watch/sorting-wide-color.svg) | In-tray + postage side by side; `delivered 2 · returned 1`; postmark p50/p95; colour-coded dispatch log. Produced by `sandbox watch --once`. |
 | QUEUED, narrow plain (70 cols, `NO_COLOR`) | ![QUEUED narrow plain tray TUI with stacked panels](assets/watch/queued-narrow-plain.svg) | Waiting run, stacked panels, compact hero, no ANSI. Produced with `NO_COLOR=1 sandbox watch --once`. |
-| COLD BOOT — loading weights | ![COLD BOOT tray TUI showing the loading weights sub-phase](assets/watch/cold-boot-loading-weights.svg) | Boot sub-phase from `BOOT_MARKERS` log markers (`watch.py::lifecycle`). Other sub-phases cycle through `container starting`, `profiling KV cache`, `capturing CUDA graphs`, `engine ready`. |
+| DEPLOYING — modal deploy | ![DEPLOYING tray TUI](assets/watch/deploying.svg) | Driver has started the deploy; the fleet image + app are being pushed. |
+| PREFLIGHT — engine verified | ![PREFLIGHT tray TUI](assets/watch/preflight.svg) | Engine is up; the TUI has baselined `/metrics` before sorting starts. |
 | TEARDOWN — scorecard | ![TEARDOWN tray TUI with scorecard panel](assets/watch/teardown-scorecard.svg) | Scorecard panel appears only in `TEARDOWN`/`STOPPED`: quality + serving record + `/metrics` replica row. Also via `sandbox scorecard --run <id>`. |
+| STOPPED — fleet stopped, billing ended | ![STOPPED tray TUI with scorecard panel](assets/watch/stopped-scorecard.svg) | Terminal phase: the scorecard stays on screen after the fleet stops. |
 | Program route — ladder + sweep | ![Program route panel with done, live, and queued runs](assets/watch/program-route.svg) | `✓` done · `▶` live · `·` queued with fleet tags (`×1`/`×2` L4) across the 13-run program (`watch.py::PROGRAM`). |
+
+### Cold boot sub-phases
+
+The `COLD BOOT` detail is derived from Modal log markers (`watch.py::BOOT_MARKERS`) and steps through five sub-phases:
+
+| Sub-phase | Screenshot |
+|---|---|
+| container starting | ![COLD BOOT container starting](assets/watch/cold-boot-container-starting.svg) |
+| loading weights | ![COLD BOOT loading weights](assets/watch/cold-boot-loading-weights.svg) |
+| profiling KV cache | ![COLD BOOT profiling KV cache](assets/watch/cold-boot-profiling-kv.svg) |
+| capturing CUDA graphs | ![COLD BOOT capturing CUDA graphs](assets/watch/cold-boot-cuda-graphs.svg) |
+| engine ready | ![COLD BOOT engine ready](assets/watch/cold-boot-engine-ready.svg) |
 
 ### Display aesthetics
 

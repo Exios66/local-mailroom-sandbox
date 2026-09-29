@@ -20,6 +20,33 @@
       "blink": false
     },
     {
+      "name": "deploying",
+      "title": "DEPLOYING \u2014 modal deploy",
+      "description": "Driver has started the deploy; the fleet image + app are being pushed.",
+      "kind": "watch",
+      "width": 100,
+      "color": true,
+      "blink": false
+    },
+    {
+      "name": "preflight",
+      "title": "PREFLIGHT \u2014 engine verified",
+      "description": "Engine is up; the TUI has baselined /metrics before sorting starts.",
+      "kind": "watch",
+      "width": 100,
+      "color": true,
+      "blink": false
+    },
+    {
+      "name": "cold-boot-container-starting",
+      "title": "COLD BOOT \u2014 container starting",
+      "description": "First boot sub-phase: the container is up, weights not yet loading.",
+      "kind": "watch",
+      "width": 100,
+      "color": true,
+      "blink": false
+    },
+    {
       "name": "cold-boot-loading-weights",
       "title": "COLD BOOT \u2014 loading weights",
       "description": "Boot sub-phase derived from Modal log markers (BOOT_MARKERS).",
@@ -29,9 +56,45 @@
       "blink": false
     },
     {
+      "name": "cold-boot-profiling-kv",
+      "title": "COLD BOOT \u2014 profiling KV cache",
+      "description": "Boot sub-phase: vLLM is sizing the KV cache pool.",
+      "kind": "watch",
+      "width": 100,
+      "color": true,
+      "blink": false
+    },
+    {
+      "name": "cold-boot-cuda-graphs",
+      "title": "COLD BOOT \u2014 capturing CUDA graphs",
+      "description": "Boot sub-phase: engine is capturing CUDA graphs before serving.",
+      "kind": "watch",
+      "width": 100,
+      "color": true,
+      "blink": false
+    },
+    {
+      "name": "cold-boot-engine-ready",
+      "title": "COLD BOOT \u2014 engine ready",
+      "description": "Final boot sub-phase: the engine answers on its port; preflight is next.",
+      "kind": "watch",
+      "width": 100,
+      "color": true,
+      "blink": false
+    },
+    {
       "name": "teardown-scorecard",
       "title": "TEARDOWN \u2014 scorecard",
       "description": "Post-run scorecard: quality + serving record + /metrics replica row.",
+      "kind": "watch",
+      "width": 110,
+      "color": true,
+      "blink": false
+    },
+    {
+      "name": "stopped-scorecard",
+      "title": "STOPPED \u2014 fleet stopped, billing ended",
+      "description": "Terminal phase: the scorecard stays on screen after the fleet stops.",
       "kind": "watch",
       "width": 110,
       "color": true,

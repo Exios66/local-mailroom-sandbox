@@ -29,7 +29,7 @@ def test_capture_script_exists():
 def test_manifest_cases_all_have_assets():
     manifest = _manifest()
     names = [c["name"] for c in manifest["cases"]]
-    assert len(names) >= 10  # lifecycle states + aesthetics + board + session + web
+    assert len(names) >= 15  # every lifecycle phase + aesthetics + board + session + web
     assert len(set(names)) == len(names)
     kinds = {c["kind"] for c in manifest["cases"]}
     assert {"watch", "board", "session", "web-theme"} <= kinds
@@ -60,8 +60,14 @@ def test_gallery_covers_states_and_aesthetics():
     for needle in (
         "SORTING",
         "QUEUED",
+        "DEPLOYING",
+        "PREFLIGHT",
         "COLD BOOT",
+        "container starting",
+        "capturing CUDA graphs",
+        "engine ready",
         "TEARDOWN",
+        "STOPPED",
         "Program route",
         "over-gate",
         "Blink frame",

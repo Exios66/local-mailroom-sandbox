@@ -8,7 +8,7 @@
 ║ DIGITAL MAILROOM  ·  Qwen3-8B-AWQ · vLLM L4 eval  ·  sand032-l1-nothink                                    ║
 ║ INBOX → SPECIALIST → REPORT                                                                                ║
 ╚════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
-║ watch @ 23:36:00 · app sandbox-vllm-sand032                                         (o,o)  stage ▸SORTING◂ ║
+║ watch @ 23:39:35 · app sandbox-vllm-sand032                                         (o,o)  stage ▸SORTING◂ ║
 ╭ LIFECYCLE ─────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ ▸SORTING◂  specialist extraction in flight  ·  1m30s  ·  LADDER                                            │
 ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
