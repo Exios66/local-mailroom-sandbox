@@ -7,7 +7,7 @@ Cross-family work stays on llm-entity-extraction's MESSAGE_BOARD as
 **`DMR-*`**. This file is the **only** sandbox-local task board — do not
 open `DMR-*` cards here.
 
-**Next ID: `SAND-035`**
+**Next ID: `SAND-036`**
 
 Reconciled against the [issue tracker](https://github.com/Exios66/local-mailroom-sandbox/issues)
 on 2026-09-28: the highest `SAND-*` id in use anywhere is `SAND-034` (this
@@ -23,6 +23,7 @@ Lanes: `todo` → `in_progress` → `needs_attention` → `done`.
 
 | ID | Title | Owner | Status | Notes |
 | --- | --- | --- | --- | --- |
+| SAND-035 | Cross-repo report audit (sandbox, eval-environment, mailroom-ml) + Modal vs API cost comparison and master report for mailroom-issues | claude | **done** | Chart kit: `scripts/sand032/viz.py` measured labels/lanes, `scripts/sand032/rerender.py`; hub: Modal vs API tab, eval-env `ef8c448` / ml `640610d` sync, Qwen3.7-Flash n=50 cross-checks; `reports/dashboard/export_hub_reports.py` → `mailroom-issues/reports/` (audit record `reports/dashboard/report_audit.json`). Related: SAND-032. |
 | SAND-034 | Pipeline prompt enhancement plan: sorter + specialists in depth, other graph nodes (intake, reviewer, judges, arbiter, boss) + Langfuse promotion (failure diagnosis, concise skeleton, cue inventory, GEPA complement) | claude | **todo** | Plan: `docs/PROMPT-ENHANCEMENT-PLAN.md` (offline diagnosis, no spend); Hub RFC: LLM-Mailroom-Services/mailroom-issues#213 (source draft `docs/discussions/prompt-enhancement-plan.md`). Phase 0 contract fixes span eval-environment + vendored llm-mailroom. Related: SAND-032, SAND-020, eval-environment GEPA (#61–#63). |
 | SAND-031 | Centralize operator runbooks (singular 1×L4 Qwen3-8B + improved configs) | cursor | **done** | Catalog `config/runbooks/catalog.yaml`; CLI `sandbox runbook list\|show\|check\|write`; generated `docs/runbooks/`. Pins tested against deploy + models.yaml + run YAMLs. Related: SAND-027-6 Granite live deploy still todo. |
 | SAND-033 | Unified mailroom-themed terminal logging (CLI session layer + cross-repo plan) | cursor | **done** | `mailroom_sandbox.tui.session` wires `sandbox run|eval|matrix`, Modal deploy entrypoints; alt-screen TUI stays `sandbox watch` (SAND-032). Store: `docs/mailroom-themed-logging.md`, `internal/unified-mailroom-logging-plan.md`. Related: SAND-032. |

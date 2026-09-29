@@ -41,24 +41,24 @@
 <text class="tick" x="650.0" y="242" text-anchor="middle">0.6</text>
 <line class="axis" x1="190" y1="54" x2="190" y2="226"/>
 <text class="lbl" x="182" y="74.0" text-anchor="end">meeting_request (n=2)</text>
-<path class="s1" d="M190.0,63.0 H555.8 Q559.8,63.0 559.8,67.0 V73.0 Q559.8,77.0 555.8,77.0 H190.0 Z"><title>meeting_request (n=2): 0.482</title></path>
-<text class="val" x="565.8" y="74.0">0.482</text>
+<path class="s1" d="M190.0,63.0 H555.5 Q559.5,63.0 559.5,67.0 V73.0 Q559.5,77.0 555.5,77.0 H190.0 Z"><title>meeting_request (n=2): 0.482</title></path>
+<text class="val" x="565.5" y="74.0">0.482</text>
 <text class="lbl" x="182" y="98.0" text-anchor="end">notice (n=8)</text>
-<path class="s1" d="M190.0,87.0 H489.4 Q493.4,87.0 493.4,91.0 V97.0 Q493.4,101.0 489.4,101.0 H190.0 Z"><title>notice (n=8): 0.396</title></path>
-<text class="val" x="499.4" y="98.0">0.396</text>
+<path class="s1" d="M190.0,87.0 H489.6 Q493.6,87.0 493.6,91.0 V97.0 Q493.6,101.0 489.6,101.0 H190.0 Z"><title>notice (n=8): 0.396</title></path>
+<text class="val" x="499.6" y="98.0">0.396</text>
 <text class="lbl" x="182" y="122.0" text-anchor="end">demand (n=9)</text>
-<path class="s1" d="M190.0,111.0 H427.7 Q431.7,111.0 431.7,115.0 V121.0 Q431.7,125.0 427.7,125.0 H190.0 Z"><title>demand (n=9): 0.315</title></path>
-<text class="val" x="437.7" y="122.0">0.315</text>
+<path class="s1" d="M190.0,111.0 H427.5 Q431.5,111.0 431.5,115.0 V121.0 Q431.5,125.0 427.5,125.0 H190.0 Z"><title>demand (n=9): 0.315</title></path>
+<text class="val" x="437.5" y="122.0">0.315</text>
 <text class="lbl" x="182" y="146.0" text-anchor="end">memo (n=11)</text>
-<path class="s1" d="M190.0,135.0 H411.1 Q415.1,135.0 415.1,139.0 V145.0 Q415.1,149.0 411.1,149.0 H190.0 Z"><title>memo (n=11): 0.294</title></path>
-<text class="val" x="421.1" y="146.0">0.294</text>
+<path class="s1" d="M190.0,135.0 H411.4 Q415.4,135.0 415.4,139.0 V145.0 Q415.4,149.0 411.4,149.0 H190.0 Z"><title>memo (n=11): 0.294</title></path>
+<text class="val" x="421.4" y="146.0">0.294</text>
 <text class="lbl" x="182" y="170.0" text-anchor="end">press_release (n=7)</text>
-<path class="s1" d="M190.0,159.0 H410.9 Q414.9,159.0 414.9,163.0 V169.0 Q414.9,173.0 410.9,173.0 H190.0 Z"><title>press_release (n=7): 0.293</title></path>
-<text class="val" x="420.9" y="170.0">0.293</text>
+<path class="s1" d="M190.0,159.0 H410.6 Q414.6,159.0 414.6,163.0 V169.0 Q414.6,173.0 410.6,173.0 H190.0 Z"><title>press_release (n=7): 0.293</title></path>
+<text class="val" x="420.6" y="170.0">0.293</text>
 <text class="lbl" x="182" y="194.0" text-anchor="end">letter (n=9)</text>
-<path class="s1" d="M190.0,183.0 H398.8 Q402.8,183.0 402.8,187.0 V193.0 Q402.8,197.0 398.8,197.0 H190.0 Z"><title>letter (n=9): 0.278</title></path>
-<text class="val" x="408.8" y="194.0">0.278</text>
+<path class="s1" d="M190.0,183.0 H399.1 Q403.1,183.0 403.1,187.0 V193.0 Q403.1,197.0 399.1,197.0 H190.0 Z"><title>letter (n=9): 0.278</title></path>
+<text class="val" x="409.1" y="194.0">0.278</text>
 <text class="lbl" x="182" y="218.0" text-anchor="end">email (n=54)</text>
-<path class="s1" d="M190.0,207.0 H383.7 Q387.7,207.0 387.7,211.0 V217.0 Q387.7,221.0 383.7,221.0 H190.0 Z"><title>email (n=54): 0.258</title></path>
-<text class="val" x="393.7" y="218.0">0.258</text>
+<path class="s1" d="M190.0,207.0 H383.8 Q387.8,207.0 387.8,211.0 V217.0 Q387.8,221.0 383.8,221.0 H190.0 Z"><title>email (n=54): 0.258</title></path>
+<text class="val" x="393.8" y="218.0">0.258</text>
 </svg>

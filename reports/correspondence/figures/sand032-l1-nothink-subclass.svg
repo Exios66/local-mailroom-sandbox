@@ -41,17 +41,17 @@
 <text class="tick" x="650.0" y="194" text-anchor="middle">0.6</text>
 <line class="axis" x1="190" y1="54" x2="190" y2="178"/>
 <text class="lbl" x="182" y="74.0" text-anchor="end">notice (n=2)</text>
-<path class="s1" d="M190.0,63.0 H608.7 Q612.7,63.0 612.7,67.0 V73.0 Q612.7,77.0 608.7,77.0 H190.0 Z"><title>notice (n=2): 0.551</title></path>
-<text class="val" x="618.7" y="74.0">0.551</text>
+<path class="s1" d="M190.0,63.0 H608.4 Q612.4,63.0 612.4,67.0 V73.0 Q612.4,77.0 608.4,77.0 H190.0 Z"><title>notice (n=2): 0.551</title></path>
+<text class="val" x="618.4" y="74.0">0.551</text>
 <text class="lbl" x="182" y="98.0" text-anchor="end">memo (n=5)</text>
 <path class="s1" d="M190.0,87.0 H412.9 Q416.9,87.0 416.9,91.0 V97.0 Q416.9,101.0 412.9,101.0 H190.0 Z"><title>memo (n=5): 0.296</title></path>
 <text class="val" x="422.9" y="98.0">0.296</text>
 <text class="lbl" x="182" y="122.0" text-anchor="end">email (n=11)</text>
-<path class="s1" d="M190.0,111.0 H370.5 Q374.5,111.0 374.5,115.0 V121.0 Q374.5,125.0 370.5,125.0 H190.0 Z"><title>email (n=11): 0.241</title></path>
-<text class="val" x="380.5" y="122.0">0.241</text>
+<path class="s1" d="M190.0,111.0 H370.8 Q374.8,111.0 374.8,115.0 V121.0 Q374.8,125.0 370.8,125.0 H190.0 Z"><title>email (n=11): 0.241</title></path>
+<text class="val" x="380.8" y="122.0">0.241</text>
 <text class="lbl" x="182" y="146.0" text-anchor="end">press_release (n=1)</text>
-<path class="s1" d="M190.0,135.0 H313.8 Q317.8,135.0 317.8,139.0 V145.0 Q317.8,149.0 313.8,149.0 H190.0 Z"><title>press_release (n=1): 0.167</title></path>
-<text class="val" x="323.8" y="146.0">0.167</text>
+<path class="s1" d="M190.0,135.0 H314.0 Q318.0,135.0 318.0,139.0 V145.0 Q318.0,149.0 314.0,149.0 H190.0 Z"><title>press_release (n=1): 0.167</title></path>
+<text class="val" x="324.0" y="146.0">0.167</text>
 <text class="lbl" x="182" y="170.0" text-anchor="end">letter (n=1)</text>
 <path class="s1" d="M190.0,159.0 H254.2 Q258.2,159.0 258.2,163.0 V169.0 Q258.2,173.0 254.2,173.0 H190.0 Z"><title>letter (n=1): 0.089</title></path>
 <text class="val" x="264.2" y="170.0">0.089</text>

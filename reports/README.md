@@ -22,3 +22,30 @@ python reports/dashboard/build_hub.py --check   # fail if the page, data or snap
 | `dashboard/legacy_runs.py` | 16–27 Sep specialist runs (pre-SAND-032) |
 | `dashboard/external_snapshot.json` | pinned figures + provenance from the two sibling repos |
 | `dashboard/hub.template.html` → `mailroom-reports.html` | page template → built page (`hub_data.json` is its data) |
+
+Tabs: Overview · Specialists · Serving (Modal L4) · API models · **Modal vs API** (cost vs quality per
+specialist task and for the sorter, both routes on one axis) · Classifier (ModernBERT) · ML diagnostics · Data quality.
+
+## Cross-repo reports (mailroom-issues)
+
+`dashboard/export_hub_reports.py` turns the hub data into the cost comparison and master status report published in
+`LLM-Mailroom-Services/mailroom-issues` under `reports/` (markdown + SVG only; that repo holds no code).
+`dashboard/report_audit.json` records the figure/link audit the master report cites.
+
+```bash
+python reports/dashboard/export_hub_reports.py --out ../mailroom-issues/reports           # write
+python reports/dashboard/export_hub_reports.py --out ../mailroom-issues/reports --check   # exit 1 if stale
+```
+
+## SAND-032 figures
+
+`<class>/figures/*.svg` and `serving/figures/*.svg` are written by `scripts/sand032/report.py`
+(needs the machine-local `data/runtime/` run artifacts). To apply a chart-kit (`scripts/sand032/viz.py`)
+layout change to the committed figures without re-running GPU jobs:
+
+```bash
+python scripts/sand032/rerender.py           # re-lay every figure from the data embedded in it
+python scripts/sand032/rerender.py --check   # exit 1 if any figure is stale
+```
+
+`rerender.py` refuses to write if a figure's data (every mark's hover title) would change.

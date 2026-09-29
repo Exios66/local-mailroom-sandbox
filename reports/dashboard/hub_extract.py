@@ -350,7 +350,9 @@ CLS_REPORTS = [
 
 def eval_env(R: Repo) -> dict:
     L = R.L
-    log = {r["run_id"]: r for r in R.jload("experiment_log.jsonl")}
+    # The log also carries non-run records (prompt promotions: ``record_kind``,
+    # ``run_a``/``run_b``) — only eval runs have a ``run_id``.
+    log = {r["run_id"]: r for r in R.jload("experiment_log.jsonl") if "run_id" in r}
 
     def run_fields(key, rid):
         r = log[rid]
@@ -400,6 +402,45 @@ def eval_env(R: Repo) -> dict:
     L.check(ds["wall"] >= ds["p95_ms"] / 1000, "deepseek classification wall vs p95", key="api.deepseek_cls_wall",
             wall=ds["wall"], p95=ds["p95_ms"] / 1000)
     return {"tasks": ext, "classification": cls, "granite_corr_final": superseded}
+
+
+# Route comparison: the production model's n = 50 API legs, one per specialist task.
+ROUTE50 = {
+    "correspondence": "correspondence/RUN-50-CORRESPONDENCE-QWEN3.7-FLASH-REPORT.md",
+    "insurance claims": "insurance_claims/RUN-50-INSURANCE_CLAIM-QWEN3.7-FLASH-REPORT.md",
+    "corporate records": "corporate_records/RUN-50-CORPORATE_RECORD-QWEN3.7-FLASH-REPORT.md",
+    "contracts": "contracts/RUN-50-CONTRACT-QWEN3.7-FLASH-REPORT.md",
+    "merger agreements": "merger_agreement/RUN-50-MERGER_AGREEMENT-QWEN3.7-FLASH-REPORT.md",
+}
+
+
+def eval_env_route50(R: Repo) -> dict:
+    """``qwen/qwen3.7-flash`` n = 50 legs: score and estimated cost from the log, cross-checked against the report."""
+    L = R.L
+    log = {r["run_id"]: r for r in R.jload("experiment_log.jsonl") if "run_id" in r}
+    out = {}
+    for task, rel in ROUTE50.items():
+        path = f"api-comparisons/qwen3.7-flash/{rel}"
+        key = f"route50.{task}"
+        rid = R.rx(f"{key}.run", path, r"\| run_id \| `([^`]+)`", number=False)
+        doc = log[rid]
+        rec = {
+            "run": rid, "task": task, "family": "Qwen3.7-Flash",
+            "model": R.jkey(f"{key}.model", "experiment_log.jsonl", "model", doc=doc),
+            "n": R.jkey(f"{key}.n", "experiment_log.jsonl", "metrics", "n", doc=doc),
+            "errors": R.jkey(f"{key}.errors", "experiment_log.jsonl", "metrics", "errors", doc=doc),
+            "score": R.jkey(f"{key}.score", "experiment_log.jsonl", "metrics", "overall_score", doc=doc),
+            "cost": R.jkey(f"{key}.cost_est", "experiment_log.jsonl", "performance", "cost_usd_est_total", doc=doc),
+            "wall": R.jkey(f"{key}.wall", "experiment_log.jsonl", "duration_s", doc=doc),
+            "p95_ms": R.jkey(f"{key}.p95", "experiment_log.jsonl", "performance", "latency_ms_p95", doc=doc),
+            "revision": doc["dataset"].get("revision", "")[:8], "split": doc["dataset"].get("split"),
+            "prompt_lineage": doc.get("prompt_lineage"),
+        }
+        rep = R.rx(f"{key}.report_score", path, r"\| overall_score \| ([0-9.]+) \|")
+        L.check(abs(rep - rec["score"]) < 1e-4, f"{rid}: report overall vs log")
+        L.check(rec["model"] == "qwen/qwen3.7-flash", f"{rid}: model")
+        out[task] = rec
+    return out
 
 
 def collapse_signal(rows) -> dict:

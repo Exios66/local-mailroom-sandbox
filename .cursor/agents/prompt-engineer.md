@@ -29,7 +29,7 @@ Learning", arXiv 2507.19457), kept source-true to
 [gepa-ai/gepa](https://github.com/gepa-ai/gepa) @
 `b265bf9ca77fd8e8d82039d9f74911b8780fe1ce` (mechanics extracted from the
 engine source, not paraphrased — see
-[PROMPT_ENGINEER_GEPA_PROVENANCE.md](PROMPT_ENGINEER_GEPA_PROVENANCE.md)).
+[PROMPT_ENGINEER_GEPA_PROVENANCE.md](https://github.com/LLM-Mailroom-Services/eval-environment/blob/main/.opencode/agents/PROMPT_ENGINEER_GEPA_PROVENANCE.md)).
 Every prompt iteration you run must be an explicit pass through these steps,
 in this order:
 
