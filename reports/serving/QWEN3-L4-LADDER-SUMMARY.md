@@ -2,7 +2,9 @@
 
 Public HF `Lucius-Morningstar/mailroom-dataset` @ `ed7576b` only — no partner or proprietary data;
 there is no data-sharing agreement. vLLM v0.29.0, Modal profile `exios66`, app `sandbox-vllm-sand032`.
-Total measured Modal spend (fleet-window ledger, upper estimate): **$1.21 of the $5.00 cap**.
+Measured Modal spend (fleet-window ledger estimate): **$2.80 of the $5.00 cap** at program close; the ledger
+stood at $1.21 after stages 1–5. The fleet-window estimate under-counts Modal billing (section 7, finding 5):
+reconcile against the Modal usage page.
 
 ## 1. Knob ladder (1×L4, correspondence n=20, c8, same 20 docs) — [SAND032-LADDER.md](SAND032-LADDER.md)
 

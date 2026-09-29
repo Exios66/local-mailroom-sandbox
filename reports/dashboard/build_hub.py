@@ -97,16 +97,23 @@ def assemble(ext: dict) -> dict:
     for rid, r in runs.items():
         conc.append({"run": rid.replace("sand032-", ""), "c": r["conc"], "s": r["speedup"], "eng": "sand032"})
 
+    # ---- GPU economics: every SAND-032 serving export against its run report
+    fleet = H.sand032_fleet(sb, runs)
+    billed = sum(r["billed_usd"] for r in fleet.values())
+    L.check(s32["spend"] >= billed + s32["incident"],
+            f"ledger ${s32['spend']} covers the runs' billed GPU ${billed:.3f} + incident ${s32['incident']}")
+
     # ---- route comparison: the isolated sorter on Modal (SAND-032 S6, n = 458 drawn)
     s6 = "serving/SAND032-S6-SORTER1000-REPORT.md"
     sorter_modal = {
         "run": "sand032-s6-sorter1000",
         "acc": sb.rx("route.s6.acc", s6, r"\| \*\*accuracy\*\* \| \*\*([0-9.]+)\*\* \|"),
         "macro_f1": sb.rx("route.s6.f1", s6, r"\| \*\*macro-F1\*\* \| \*\*([0-9.]+)\*\* \|"),
-        "usd": sb.cell("route.s6.usd", s6, "| GPU $/doc |", 1),
         "ok": sb.rx("route.s6.ok", s6, r"\| docs ok / total \| (\d+) / \d+ \|"),
         "n": sb.rx("route.s6.n", s6, r"\| docs ok / total \| \d+ / (\d+) \|"),
     }
+    # busy-window basis like every other SAND-032 $/doc (the report's figure is billed; see KNOWN)
+    sorter_modal["usd"] = fleet["sand032-s6-sorter1000"]["busy_usd"] / sorter_modal["ok"]
 
     ml = specialist_ml(runs)
     api = ext["api"]
@@ -126,7 +133,9 @@ def assemble(ext: dict) -> dict:
     t["sources"] = " · ".join(f"{k.split('/')[-1]} @ {v[:7]}" for k, v in ext["sources"].items())
     return {
         "classes": list(CLS_LABEL), "labels": CLS_LABEL, "s3": S3, "runs": runs, "ladder": s32["ladder"],
-        "spend": {"sand032": s32["spend"], "cap": s32["cap"], "incident": s32["incident"], "legacy": old["spend"], "legacy_total": old["total_spend"]},
+        "spend": {"sand032": s32["spend"], "stage5": s32["spend_stage5"], "cap": s32["cap"], "incident": s32["incident"],
+                  "legacy": old["spend"], "legacy_total": old["total_spend"]},
+        "fleet": fleet, "l4_usd_per_hour": H.L4_USD_PER_HOUR,
         "ml": ml, "history": hist, "cost_cmp": cost_cmp, "conc": conc, "rel": old["rel"], "api": api, "mb": mb, "mb_run2": run2,
         "route": {"sorter_modal": sorter_modal, "points": route_points(runs, api)},
         "issues": issues, "provenance": prov, "sources": sources, "text": t,
