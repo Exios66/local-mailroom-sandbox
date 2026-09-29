@@ -16,12 +16,23 @@
   figures for `mailroom-issues/reports/`; `report_audit.json` records the sweep (0 overflow / 0 collisions /
   0 broken links across the three repos).
 
+- `reports/dashboard/gpu_report.py` writes `MODAL-VLLM-GPU-REPORT.md` for `mailroom-issues/reports/`: cost per token,
+  GPU spend breakdown, client-slot occupancy, per-replica vLLM metrics and the second-L4 analysis. The hub gains a
+  `fleet` section (`hub_extract.sand032_fleet`): all 24 SAND-032 serving exports cross-checked against their run
+  reports (wall, tokens, throughput, busy and billed GPU $, slot occupancy, replica request split). `viz.hbar` gains
+  `domain_max` so small multiples can share one scale.
+
 ### Fixed — SAND-035
 
 - `build_hub.py --check` crashed (`KeyError: 'run_id'`) on eval-environment log rows without a run id.
 - Latency/subclass figure labels overflowed the left edge; p50/p95 labels collided with each other and
   the subtitle.
 - Broken relative links in CHANGELOG, docs, RUN-20 serving reports and agent prompts.
+- SAND-032 spend: the program summary's header gave the stage 1–5 ledger ($1.21) while its closing ledger read $2.80;
+  the runs alone bill $2.18. The header is corrected, and the hub checks it against the closing ledger and the runs'
+  billed GPU $.
+- The S6 sorter's $/doc was the billed figure (with its 131 s cold boot); the hub now uses the busy-window basis like
+  every other run and records the report's figure as a documented source issue.
 
 ### Changed — governance: DMR-068 hub tracker + SAND board reconciliation
 
