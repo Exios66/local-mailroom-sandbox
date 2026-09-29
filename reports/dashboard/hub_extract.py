@@ -578,6 +578,29 @@ ROUTE50 = {
 }
 
 
+def eval_env_spend(R: Repo, legs: list[dict]) -> dict:
+    """Every real (non-mock) API run the eval-environment logged: its estimated cost (list price × recorded
+    tokens), summed per model. ``legs`` are the runs the reports quote; each must be inside this ledger."""
+    L = R.L
+    rows = [r for r in R.jload("experiment_log.jsonl") if "run_id" in r and r.get("mode") == "real"]
+    runs, model = {}, {}
+    for r in rows:  # a run re-logged under the same run_id is one run: the latest row wins
+        if (r.get("performance") or {}).get("cost_usd_est_total") is None:  # aborted before any call
+            continue
+        runs[r["run_id"]] = R.jkey(f"spend.api.{r['run_id']}", "experiment_log.jsonl", "performance", "cost_usd_est_total", doc=r)
+        model[r["run_id"]] = r["model"]
+    by_model: dict[str, dict] = {}
+    for rid, cost in runs.items():
+        m = by_model.setdefault(model[rid], {"runs": 0, "costs": []})
+        m["runs"] += 1
+        m["costs"].append(cost)
+    for leg in legs:
+        L.check(leg["run"] in runs and abs(runs[leg["run"]] - leg["cost"]) < 1e-9, f"{leg['run']}: quoted leg in the spend ledger")
+    days = sorted(rid[:8] for rid in runs)
+    return {"usd": math.fsum(runs.values()), "runs": len(runs), "first": days[0], "last": days[-1],
+            "by_model": {k: {"runs": v["runs"], "usd": math.fsum(v["costs"])} for k, v in sorted(by_model.items())}}
+
+
 def eval_env_route50(R: Repo) -> dict:
     """``qwen/qwen3.7-flash`` n = 50 legs: score and estimated cost from the log, cross-checked against the report."""
     L = R.L

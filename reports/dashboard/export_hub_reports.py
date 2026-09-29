@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import pathlib
 import re
 import shutil
@@ -369,6 +370,12 @@ Each class uses its deciding configuration: the cheapest one that wins, else the
 {chr(10).join(lines)}"""
 
 
+def spend_table(sp) -> str:
+    rows = [[b["b"], usd(b["v"]), b["d"]] for b in sp["program"]]
+    rows.append(["**Total**", f"**{usd(sp['program_total'])}**", "metered or ledgered spend"])
+    return table(["Experiment spend", "USD", "Basis"], rows, "lrl")
+
+
 # ------------------------------------------------------------------ reports
 def cost_report(D, rows, E, sorters, shas) -> str:
     T = D["text"]
@@ -387,7 +394,9 @@ def cost_report(D, rows, E, sorters, shas) -> str:
     ladder = [[r["rung"], r["change"], f4(r["score"]), secs(r["wall"]), f"{r['tps']:,.0f}", usd(r["usd"]),
                "—" if r["boot"] is None else f"{r['boot']:.0f} s", r["gate"]] for r in D["ladder"]]
     sp = D["spend"]
-    legacy = [[s["b"], usd(s["v"]), s["d"]] for s in sp["legacy"]]
+    legacy = [[s["b"], usd(s["v"]), s["d"]] for s in sp["legacy"] if not s["b"].startswith("API legs")]
+    prog_modal = math.fsum(b["v"] for b in sp["program"] if b["route"] == "modal")
+    prog_api = math.fsum(b["v"] for b in sp["program"] if b["route"] == "api")
     cheaper = [r["label"].lower() for r in E["rows"] if r["cheaper"]]
     dearer = [r["label"].lower() for r in E["rows"] if not r["cheaper"]]
     return f"""# Cost comparison — Modal L4 (vLLM) vs hosted API
@@ -451,10 +460,16 @@ The serving ladder (1×L4, correspondence n = 20, same documents every rung):
 - A second L4 halved wall time at flat cost per document ({T['scale_usd_a']} vs {T['scale_usd_b']}).
 - Cost per document fell {T['cost_red_lo']}–{T['cost_red_hi']}× against the 25–27 Sep runs.
 
-**Spend.**
+**Spend across every experiment: {usd(sp['program_total'])}.**
 
+{spend_table(sp)}
+
+- Modal GPU: {usd(prog_modal)}. Hosted API: {usd(prog_api)}. Modal usage was credit-covered.
 - SAND-032 used {usd(sp['sand032'])} of its {usd(sp['cap'])} cap (fleet-window ledger at close; {usd(sp['stage5'])} after stages 1–5). That includes a {usd(sp['incident'])} aborted sorter run. The ledger under-counts Modal billing; [MODAL-VLLM-GPU-REPORT.md](MODAL-VLLM-GPU-REPORT.md) breaks it down.
-- Earlier tracked spend (16–27 Sep) totals {usd(sp['legacy_total'])}. Modal usage was credit-covered.
+- The API figure is every real run in the eval-environment log (list price × recorded tokens), which includes the API legs the earlier sandbox ledger tracked, so they are not counted twice.
+- Not in the total: {'; '.join(f"{u['b']}, {usd(u['v'])} ({u['d']})" for u in sp['unmetered'])}.
+
+Earlier sandbox Modal runs, by bucket:
 
 {table(["Bucket", "USD", "Detail"], legacy, "lrl")}
 
@@ -564,6 +579,7 @@ Companions: [COST-COMPARISON-MODAL-VS-API.md](COST-COMPARISON-MODAL-VS-API.md) a
 | Specialist extraction (Modal, SAND-032) | Insurance {f3(R[D['s3']['insurance_claim']]['overall'])} · corporate {f3(R[D['s3']['corporate_record']]['overall'])} · correspondence {f3(R[D['s3']['correspondence']]['overall'])} · contracts CUAD micro-F1 {f3(R[D['s3']['contract']]['headline'])} · merger MAUD accuracy {pct(R[D['s3']['merger_agreement']]['headline'])} | no extraction gate met; merger unsolved |
 | Specialist extraction (API) | best per task: {', '.join(f"{D['labels'][c].lower()} {best_api[c]['family']} {f3(best_api[c]['score'])}" for c in ORDER)} | no model wins every task |
 | Serving (Modal L4) | L5 posture frozen; 2×L4 scale-out at flat $/doc; SAND-032 spend {usd(D['spend']['sand032'])} of {usd(D['spend']['cap'])} | ✓ within cap |
+| Spend, every experiment | {usd(D['spend']['program_total'])}: {'; '.join(f"{b['b']} {usd(b['v'])}" for b in D['spend']['program'])} | not included: {'; '.join(u['b'] for u in D['spend']['unmetered'])} (not metered) |
 | LLM sorter | API n = 100: {T['cls100_lo']}–{T['cls100_hi']}% class, {T['sub100_lo']}–{T['sub100_hi']}% subclass; Modal S6 {T['route_s6_acc']} (n = 457) | subclass far below 75% |
 | ModernBERT intake | Arm B {pct(mb['armB']['acc'], 2)} doc type, {pct(mb['armB']['subclass'], 1)} subclass | ✓ P0 95% doc-type gate met · ✕ 75% subclass gate |
 

@@ -21,6 +21,10 @@
 - `reports/dashboard/export_pngs.py`: 2× PNG of every report figure for slides (`mailroom-issues/reports/viz/`).
 - The per-token comparison includes the Qwen3.7-Flash n = 50 legs (token counts now extracted and cross-checked
   against their reports); the sorter table lists every hosted model's largest run (Qwen3-8B: n = 20).
+- Spend across every experiment: the hub adds `spend.program` (Modal GPU: SAND-032 ledger + the earlier sandbox
+  runs; hosted API: every real eval-environment run, summed from its log and checked to contain every quoted leg,
+  plus the sandbox api-evals ledger). The top tile, the cost comparison §5 and the master status quote the total;
+  ModernBERT run-3 training is listed separately because only its pre-run estimate is recorded.
 - Model per route made explicit: Qwen3-8B-AWQ is the only model self-hosted on Modal; Qwen3.7-Flash and every other
   hosted model ran through the API only. The cost comparison's §3.2 adds the same-model comparison (Qwen3-8B-AWQ on
   Modal vs Qwen3-8B via the API), isolating the route from the model.

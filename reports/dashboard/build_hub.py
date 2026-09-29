@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import pathlib
 import re
@@ -44,7 +45,12 @@ def extract_external(ev_root: pathlib.Path, ml_root: pathlib.Path) -> dict:
     api = H.eval_env(ev)
     api["sorter"] = H.sorter_cases(H.Repo(EVAL_ENV, ev_root, L), api["classification"])
     api["route50"] = H.eval_env_route50(ev)
+    legs = [*(r for t in api["tasks"].values() for r in t.values()), *api["route50"].values(), *api["classification"]]
+    api["spend"] = H.eval_env_spend(ev, legs)
     mb = H.mailroom_ml(ml)
+    # run-3 was trained on a Modal L4; the report records only the pre-run budget-gate estimate, not a metered bill
+    mb["run3_budget_est"] = ml.rx("mb.run3.budget_est", "reports/RUN3-REPORT-20260921.md",
+                                  r"Budget gate: est\. \$([\d.]+) vs ceiling")
     mb["run3_reeval"] = H.eval_env_modernbert(ev)
     return {"sources": {EVAL_ENV: ev.sha, MAILROOM_ML: ml.sha}, "api": api, "mb": mb,
             "issues": L.issues, "checks": L.checks, "provenance": list(L.prov.values())}
@@ -131,10 +137,30 @@ def assemble(ext: dict) -> dict:
     t["n_checks"] = f"{L.checks + ext['checks']:,}"
     t["n_issues"] = str(len(issues))
     t["sources"] = " · ".join(f"{k.split('/')[-1]} @ {v[:7]}" for k, v in ext["sources"].items())
+    # ---- program spend across every experiment: Modal GPU (SAND-032 ledger + the earlier sandbox runs) and the hosted
+    # API (every real eval-environment run + the sandbox's own api-evals ledger). The earlier ledger's "API legs" bucket
+    # is a subset of the eval-environment log, so it is replaced by the full log, never added to it.
+    api_bucket = next(b for b in old["spend"] if b["b"].startswith("API legs"))
+    flash = old["flash"]
+    L.check(api["spend"]["usd"] >= api_bucket["v"] - flash, "eval-environment spend ledger covers the earlier API legs")
+    modal_earlier = math.fsum(b["v"] for b in old["spend"] if b is not api_bucket)
+    program = [
+        {"b": "Modal GPU · SAND-032 serving program", "route": "modal", "v": s32["spend"],
+         "d": "fleet-window ledger at program close"},
+        {"b": "Modal GPU · earlier sandbox runs", "route": "modal", "v": modal_earlier,
+         "d": "; ".join(f"{b['b']} ${b['v']:.2f}" for b in old["spend"] if b is not api_bucket)},
+        {"b": "Hosted API · eval-environment", "route": "api", "v": api["spend"]["usd"],
+         "d": f"{api['spend']['runs']} real runs, list price × recorded tokens; "
+              + "; ".join(f"{m.split('/')[-1]} ${v['usd']:.2f} ({v['runs']})" for m, v in api["spend"]["by_model"].items())},
+        {"b": "Hosted API · sandbox api-evals", "route": "api", "v": flash, "d": "Qwen3.7-Flash OpenRouter ledger (SAND-027-9)"},
+    ]
     return {
         "classes": list(CLS_LABEL), "labels": CLS_LABEL, "s3": S3, "runs": runs, "ladder": s32["ladder"],
         "spend": {"sand032": s32["spend"], "stage5": s32["spend_stage5"], "cap": s32["cap"], "incident": s32["incident"],
-                  "legacy": old["spend"], "legacy_total": old["total_spend"]},
+                  "legacy": old["spend"], "legacy_total": old["total_spend"],
+                  "program": program, "program_total": math.fsum(b["v"] for b in program),
+                  "unmetered": [{"b": "ModernBERT run-3 training (Modal L4, 21 Sep)", "v": mb["run3_budget_est"],
+                                 "d": "pre-run budget-gate estimate; no metered bill is recorded"}]},
         "fleet": fleet, "l4_usd_per_hour": H.L4_USD_PER_HOUR,
         "ml": ml, "history": hist, "cost_cmp": cost_cmp, "conc": conc, "rel": old["rel"], "api": api, "mb": mb, "mb_run2": run2,
         "route": {"sorter_modal": sorter_modal, "points": route_points(runs, api)},

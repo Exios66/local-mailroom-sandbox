@@ -202,3 +202,16 @@ def test_reports_quote_the_same_break_even():
     tile = next(t for t in stats["tiles"] if t["label"] == "Modal saving per document, best case")
     assert f"{o['save_pct'] * 100:.0f}%" in tile["value"] and f"{o['l4x1']['docs_h_star']:,.0f} docs/h" in tile["sub"]
     assert f"{o['l4x1']['docs_h_star']:,.0f} docs/h sustained" in cost
+
+
+def test_program_spend_covers_every_experiment_once():
+    sp = D["spend"]
+    parts = {b["b"]: b["v"] for b in sp["program"]}
+    assert math.isclose(sp["program_total"], math.fsum(parts.values()))
+    # the earlier ledger's API bucket is replaced by the full eval-environment log, never added to it
+    modal_earlier = next(v for k, v in parts.items() if "earlier" in k)
+    assert math.isclose(modal_earlier, math.fsum(b["v"] for b in sp["legacy"] if not b["b"].startswith("API legs")))
+    assert math.isclose(next(v for k, v in parts.items() if "eval-environment" in k), D["api"]["spend"]["usd"])
+    assert math.isclose(D["api"]["spend"]["usd"], math.fsum(m["usd"] for m in D["api"]["spend"]["by_model"].values()))
+    _, _, stats = _report()
+    assert stats["tiles"][0]["value"] == f"${sp['program_total']:.2f}"

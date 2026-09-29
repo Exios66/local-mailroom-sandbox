@@ -461,6 +461,30 @@
     "run": "20260927T101020Z-eval-classification"
    }
   },
+  "spend": {
+   "by_model": {
+    "deepseek/deepseek-v4.1-flash": {
+     "runs": 13,
+     "usd": 1.120737
+    },
+    "ibm-granite/granite-4.2-8b": {
+     "runs": 11,
+     "usd": 1.072548
+    },
+    "qwen/qwen3-8b": {
+     "runs": 16,
+     "usd": 0.729981
+    },
+    "qwen/qwen3.7-flash": {
+     "runs": 38,
+     "usd": 1.594975
+    }
+   },
+   "first": "20260926",
+   "last": "20260928",
+   "runs": 78,
+   "usd": 4.518241
+  },
   "tasks": {
    "contracts": {
     "deepseek-v4.1-flash": {
@@ -729,7 +753,7 @@
    }
   }
  },
- "checks": 96,
+ "checks": 121,
  "issues": [
   {
    "key": "api.qwen_merger_model",
@@ -2086,6 +2110,7 @@
    "window_ece": 0.0203,
    "windows": 504
   },
+  "run3_budget_est": 4.11,
   "run3_reeval": {
    "acc": 0.9257,
    "sha": "56a4e8919cc3",
@@ -4215,6 +4240,630 @@
    "value": 0.5213
   },
   {
+   "key": "spend.api.20260926T223222Z-eval-contracts",
+   "quote": "performance.cost_usd_est_total = 0.000522",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.000522
+  },
+  {
+   "key": "spend.api.20260926T224038Z-eval-contracts",
+   "quote": "performance.cost_usd_est_total = 0.000532",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.000532
+  },
+  {
+   "key": "spend.api.20260926T232610Z-eval-contracts",
+   "quote": "performance.cost_usd_est_total = 0.000507",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.000507
+  },
+  {
+   "key": "spend.api.20260926T234358Z-eval-correspondence",
+   "quote": "performance.cost_usd_est_total = 0.007715",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.007715
+  },
+  {
+   "key": "spend.api.20260926T234603Z-eval-insurance_claims",
+   "quote": "performance.cost_usd_est_total = 0.009471",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.009471
+  },
+  {
+   "key": "spend.api.20260926T235347Z-eval-contracts",
+   "quote": "performance.cost_usd_est_total = 0.058368",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.058368
+  },
+  {
+   "key": "spend.api.20260927T004231Z-eval-merger_agreement",
+   "quote": "performance.cost_usd_est_total = 0.013236",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.013236
+  },
+  {
+   "key": "spend.api.20260927T005233Z-eval-merger_agreement",
+   "quote": "performance.cost_usd_est_total = 0.039217",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.039217
+  },
+  {
+   "key": "spend.api.20260927T011209Z-eval-merger_agreement",
+   "quote": "performance.cost_usd_est_total = 0.022081",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.022081
+  },
+  {
+   "key": "spend.api.20260927T014814Z-eval-merger_agreement",
+   "quote": "performance.cost_usd_est_total = 0.025915",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.025915
+  },
+  {
+   "key": "spend.api.20260927T020724Z-eval-merger_agreement",
+   "quote": "performance.cost_usd_est_total = 0.006404",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.006404
+  },
+  {
+   "key": "spend.api.20260927T022750Z-eval-merger_agreement",
+   "quote": "performance.cost_usd_est_total = 0.057522",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.057522
+  },
+  {
+   "key": "spend.api.20260927T022738Z-eval-correspondence",
+   "quote": "performance.cost_usd_est_total = 0.028723",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.028723
+  },
+  {
+   "key": "spend.api.20260927T023050Z-eval-insurance_claims",
+   "quote": "performance.cost_usd_est_total = 0.019242",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.019242
+  },
+  {
+   "key": "spend.api.20260927T022810Z-eval-corporate_records",
+   "quote": "performance.cost_usd_est_total = 0.040274",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.040274
+  },
+  {
+   "key": "spend.api.20260927T023347Z-eval-contracts",
+   "quote": "performance.cost_usd_est_total = 0.049772",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.049772
+  },
+  {
+   "key": "spend.api.20260927T033031Z-eval-correspondence",
+   "quote": "performance.cost_usd_est_total = 0.060362",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.060362
+  },
+  {
+   "key": "spend.api.20260927T035135Z-eval-insurance_claims",
+   "quote": "performance.cost_usd_est_total = 0.03204",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.03204
+  },
+  {
+   "key": "spend.api.20260927T035621Z-eval-contracts",
+   "quote": "performance.cost_usd_est_total = 0.114086",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.114086
+  },
+  {
+   "key": "spend.api.20260927T042239Z-eval-corporate_records",
+   "quote": "performance.cost_usd_est_total = 0.060215",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.060215
+  },
+  {
+   "key": "spend.api.20260927T043145Z-eval-classification",
+   "quote": "performance.cost_usd_est_total = 0.149264",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.149264
+  },
+  {
+   "key": "spend.api.20260927T044805Z-eval-correspondence",
+   "quote": "performance.cost_usd_est_total = 0.035833",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.035833
+  },
+  {
+   "key": "spend.api.20260927T051851Z-eval-correspondence",
+   "quote": "performance.cost_usd_est_total = 0.001745",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.001745
+  },
+  {
+   "key": "spend.api.20260927T052637Z-eval-correspondence",
+   "quote": "performance.cost_usd_est_total = 0.033569",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.033569
+  },
+  {
+   "key": "spend.api.20260927T053647Z-eval-correspondence",
+   "quote": "performance.cost_usd_est_total = 0.029195",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.029195
+  },
+  {
+   "key": "spend.api.20260927T054211Z-eval-insurance_claims",
+   "quote": "performance.cost_usd_est_total = 0.02471",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.02471
+  },
+  {
+   "key": "spend.api.20260927T054738Z-eval-contracts",
+   "quote": "performance.cost_usd_est_total = 0.073963",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.073963
+  },
+  {
+   "key": "spend.api.20260927T060322Z-eval-merger_agreement",
+   "quote": "performance.cost_usd_est_total = 0.437449",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.437449
+  },
+  {
+   "key": "spend.api.20260927T065622Z-eval-corporate_records",
+   "quote": "performance.cost_usd_est_total = 0.043638",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.043638
+  },
+  {
+   "key": "spend.api.20260927T070900Z-eval-classification",
+   "quote": "performance.cost_usd_est_total = 0.064367",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.064367
+  },
+  {
+   "key": "spend.api.20260927T082404Z-eval-merger_agreement",
+   "quote": "performance.cost_usd_est_total = 0.177433",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.177433
+  },
+  {
+   "key": "spend.api.20260927T100340Z-eval-classification",
+   "quote": "performance.cost_usd_est_total = 0.150646",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.150646
+  },
+  {
+   "key": "spend.api.20260927T101020Z-eval-classification",
+   "quote": "performance.cost_usd_est_total = 0.08509",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.08509
+  },
+  {
+   "key": "spend.api.20260927T101544Z-eval-classification",
+   "quote": "performance.cost_usd_est_total = 0.100115",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.100115
+  },
+  {
+   "key": "spend.api.20260927T105400Z-eval-insurance_claims",
+   "quote": "performance.cost_usd_est_total = 0.013491",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.013491
+  },
+  {
+   "key": "spend.api.20260927T105549Z-eval-contracts",
+   "quote": "performance.cost_usd_est_total = 0.050234",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.050234
+  },
+  {
+   "key": "spend.api.20260927T105317Z-eval-correspondence",
+   "quote": "performance.cost_usd_est_total = 0.012063",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.012063
+  },
+  {
+   "key": "spend.api.20260927T110153Z-eval-merger_agreement",
+   "quote": "performance.cost_usd_est_total = 0.075245",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.075245
+  },
+  {
+   "key": "spend.api.20260927T110828Z-eval-corporate_records",
+   "quote": "performance.cost_usd_est_total = 0.019674",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.019674
+  },
+  {
+   "key": "spend.api.20260928T050127Z-eval-correspondence",
+   "quote": "performance.cost_usd_est_total = 0.008818",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.008818
+  },
+  {
+   "key": "spend.api.20260928T050325Z-eval-correspondence",
+   "quote": "performance.cost_usd_est_total = 0.00895",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.00895
+  },
+  {
+   "key": "spend.api.20260928T051701Z-eval-insurance_claims",
+   "quote": "performance.cost_usd_est_total = 0.009869",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.009869
+  },
+  {
+   "key": "spend.api.20260928T051905Z-eval-insurance_claims",
+   "quote": "performance.cost_usd_est_total = 0.009386",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.009386
+  },
+  {
+   "key": "spend.api.20260928T052606Z-eval-correspondence",
+   "quote": "performance.cost_usd_est_total = 0.02206",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.02206
+  },
+  {
+   "key": "spend.api.20260928T053010Z-eval-correspondence",
+   "quote": "performance.cost_usd_est_total = 0.021812",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.021812
+  },
+  {
+   "key": "spend.api.20260928T053903Z-eval-insurance_claims",
+   "quote": "performance.cost_usd_est_total = 0.02638",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.02638
+  },
+  {
+   "key": "spend.api.20260928T054349Z-eval-insurance_claims",
+   "quote": "performance.cost_usd_est_total = 0.025916",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.025916
+  },
+  {
+   "key": "spend.api.20260928T054828Z-eval-contracts",
+   "quote": "performance.cost_usd_est_total = 0.071334",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.071334
+  },
+  {
+   "key": "spend.api.20260928T055822Z-eval-contracts",
+   "quote": "performance.cost_usd_est_total = 0.07001",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.07001
+  },
+  {
+   "key": "spend.api.20260928T060919Z-eval-merger_agreement",
+   "quote": "performance.cost_usd_est_total = 0.158333",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.158333
+  },
+  {
+   "key": "spend.api.20260928T061548Z-eval-merger_agreement",
+   "quote": "performance.cost_usd_est_total = 0.160257",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.160257
+  },
+  {
+   "key": "spend.api.20260928T062251Z-eval-corporate_records",
+   "quote": "performance.cost_usd_est_total = 0.038663",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.038663
+  },
+  {
+   "key": "spend.api.20260928T062755Z-eval-corporate_records",
+   "quote": "performance.cost_usd_est_total = 0.039122",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.039122
+  },
+  {
+   "key": "spend.api.20260928T063713Z-eval-contracts",
+   "quote": "performance.cost_usd_est_total = 0.073918",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.073918
+  },
+  {
+   "key": "spend.api.20260928T064850Z-eval-correspondence",
+   "quote": "performance.cost_usd_est_total = 0.022014",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.022014
+  },
+  {
+   "key": "spend.api.20260928T065316Z-eval-corporate_records",
+   "quote": "performance.cost_usd_est_total = 0.038405",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.038405
+  },
+  {
+   "key": "spend.api.20260928T070248Z-eval-insurance_claims",
+   "quote": "performance.cost_usd_est_total = 0.025306",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.025306
+  },
+  {
+   "key": "spend.api.20260928T070803Z-eval-merger_agreement",
+   "quote": "performance.cost_usd_est_total = 0.161145",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.161145
+  },
+  {
+   "key": "spend.api.20260928T072519Z-eval-correspondence",
+   "quote": "performance.cost_usd_est_total = 0.043348",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.043348
+  },
+  {
+   "key": "spend.api.20260928T073402Z-eval-correspondence",
+   "quote": "performance.cost_usd_est_total = 0.044538",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.044538
+  },
+  {
+   "key": "spend.api.20260928T074850Z-eval-corporate_records",
+   "quote": "performance.cost_usd_est_total = 0.014125",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.014125
+  },
+  {
+   "key": "spend.api.20260928T075116Z-eval-corporate_records",
+   "quote": "performance.cost_usd_est_total = 0.014823",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.014823
+  },
+  {
+   "key": "spend.api.20260928T075346Z-eval-contracts",
+   "quote": "performance.cost_usd_est_total = 0.032605",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.032605
+  },
+  {
+   "key": "spend.api.20260928T075959Z-eval-contracts",
+   "quote": "performance.cost_usd_est_total = 0.029452",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.029452
+  },
+  {
+   "key": "spend.api.20260928T080542Z-eval-merger_agreement",
+   "quote": "performance.cost_usd_est_total = 0.064602",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.064602
+  },
+  {
+   "key": "spend.api.20260928T080826Z-eval-merger_agreement",
+   "quote": "performance.cost_usd_est_total = 0.064967",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.064967
+  },
+  {
+   "key": "spend.api.20260928T081119Z-eval-correspondence",
+   "quote": "performance.cost_usd_est_total = 0.022769",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.022769
+  },
+  {
+   "key": "spend.api.20260928T081536Z-eval-corporate_records",
+   "quote": "performance.cost_usd_est_total = 0.037595",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.037595
+  },
+  {
+   "key": "spend.api.20260928T083110Z-eval-correspondence",
+   "quote": "performance.cost_usd_est_total = 0.022131",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.022131
+  },
+  {
+   "key": "spend.api.20260928T083627Z-eval-corporate_records",
+   "quote": "performance.cost_usd_est_total = 0.039277",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.039277
+  },
+  {
+   "key": "spend.api.20260928T084907Z-eval-correspondence",
+   "quote": "performance.cost_usd_est_total = 0.010826",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.010826
+  },
+  {
+   "key": "spend.api.20260928T085028Z-eval-insurance_claims",
+   "quote": "performance.cost_usd_est_total = 0.013506",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.013506
+  },
+  {
+   "key": "spend.api.20260928T085148Z-eval-contracts",
+   "quote": "performance.cost_usd_est_total = 0.045647",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.045647
+  },
+  {
+   "key": "spend.api.20260928T085426Z-eval-merger_agreement",
+   "quote": "performance.cost_usd_est_total = 0.144784",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.144784
+  },
+  {
+   "key": "spend.api.20260928T085821Z-eval-corporate_records",
+   "quote": "performance.cost_usd_est_total = 0.017596",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.017596
+  },
+  {
+   "key": "spend.api.20260928T090247Z-eval-merger_agreement",
+   "quote": "performance.cost_usd_est_total = 0.246224",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.246224
+  },
+  {
+   "key": "spend.api.20260928T090253Z-eval-correspondence",
+   "quote": "performance.cost_usd_est_total = 0.022468",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.022468
+  },
+  {
+   "key": "spend.api.20260928T093403Z-eval-merger_agreement",
+   "quote": "performance.cost_usd_est_total = 0.371332",
+   "repo": "LLM-Mailroom-Services/eval-environment",
+   "sha": "86b4e54fc5a2",
+   "source": "reports/experiment_log.jsonl",
+   "value": 0.371332
+  },
+  {
    "key": "mb.armB.acc",
    "quote": "doc_type_accuracy = 0.9505",
    "repo": "LLM-Mailroom-Services/mailroom-ml",
@@ -4530,6 +5179,14 @@
    "sha": "d3ad22263da0",
    "source": "reports/M9a-COMPARE-ArmA-vs-ArmB-20260927.md",
    "value": 0.8638
+  },
+  {
+   "key": "mb.run3.budget_est",
+   "quote": "Budget gate: est. $4.11 vs ceiling",
+   "repo": "LLM-Mailroom-Services/mailroom-ml",
+   "sha": "d3ad22263da0",
+   "source": "reports/RUN3-REPORT-20260921.md",
+   "value": 4.11
   },
   {
    "key": "mb.run3_reeval.acc",

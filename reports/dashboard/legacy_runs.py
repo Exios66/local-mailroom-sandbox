@@ -400,7 +400,7 @@ def build() -> dict:
 
     data = {
         "types": types, "quality": quality, "cost": cost, "wall": wall, "conc": conc, "tokens": tokens,
-        "history": history, "rel": rel, "spend": spend, "total_spend": total_spend,
+        "history": history, "rel": rel, "spend": spend, "total_spend": total_spend, "flash": flash,
         "mb_acc": mb_acc, "mb_ece": [{"h": k, "v": v} for k, v in sorted(ece.items(), key=lambda kv: kv[1])],
         "mb_risk": [[r["threshold"], r["coverage"], r["accuracy"], r["n"]] for r in risk_rows],
         "mb_pick": pick_t, "per_doc": {k: docs[k] for k in ("insurance", "correspondence_a", "correspondence_b", "contracts_c8")},
