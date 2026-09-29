@@ -69,14 +69,14 @@
 <text class="tick" x="450.0" y="170" text-anchor="middle">0.3</text>
 <line class="axis" x1="120" y1="54" x2="120" y2="154"/>
 <text class="lbl" x="112" y="74.0" text-anchor="end">l0-baseline</text>
-<path class="deemph" d="M120.0,63.0 H422.5 Q426.5,63.0 426.5,67.0 V73.0 Q426.5,77.0 422.5,77.0 H120.0 Z"><title>l0-baseline: 0.2787</title></path>
-<text class="val" x="432.5" y="74.0">0.2787</text>
+<path class="deemph" d="M120.0,63.0 H422.6 Q426.6,63.0 426.6,67.0 V73.0 Q426.6,77.0 422.6,77.0 H120.0 Z"><title>l0-baseline: 0.2787</title></path>
+<text class="val" x="432.6" y="74.0">0.2787</text>
 <text class="lbl" x="112" y="98.0" text-anchor="end">l1-nothink</text>
 <path class="deemph" d="M120.0,87.0 H417.6 Q421.6,87.0 421.6,91.0 V97.0 Q421.6,101.0 417.6,101.0 H120.0 Z"><title>l1-nothink: 0.2742</title></path>
 <text class="val" x="427.6" y="98.0">0.2742</text>
 <text class="lbl" x="112" y="122.0" text-anchor="end">l2-marlin</text>
-<path class="deemph" d="M120.0,111.0 H410.2 Q414.2,111.0 414.2,115.0 V121.0 Q414.2,125.0 410.2,125.0 H120.0 Z"><title>l2-marlin: 0.2674</title></path>
-<text class="val" x="420.2" y="122.0">0.2674</text>
+<path class="deemph" d="M120.0,111.0 H410.1 Q414.1,111.0 414.1,115.0 V121.0 Q414.1,125.0 410.1,125.0 H120.0 Z"><title>l2-marlin: 0.2674</title></path>
+<text class="val" x="420.1" y="122.0">0.2674</text>
 <text class="lbl" x="112" y="146.0" text-anchor="end">l5-graphs</text>
 <path class="s1" d="M120.0,135.0 H428.5 Q432.5,135.0 432.5,139.0 V145.0 Q432.5,149.0 428.5,149.0 H120.0 Z"><title>l5-graphs: 0.2841</title></path>
 <text class="val" x="438.5" y="146.0">0.2841</text>
@@ -125,17 +125,17 @@
 <text class="tick" x="450.0" y="170" text-anchor="middle">40s</text>
 <line class="axis" x1="120" y1="54" x2="120" y2="154"/>
 <text class="lbl" x="112" y="74.0" text-anchor="end">l0-baseline</text>
-<path class="deemph" d="M120.0,63.0 H379.0 Q383.0,63.0 383.0,67.0 V73.0 Q383.0,77.0 379.0,77.0 H120.0 Z"><title>l0-baseline: 31.9s</title></path>
-<text class="val" x="389.0" y="74.0">31.9s</text>
+<path class="deemph" d="M120.0,63.0 H379.2 Q383.2,63.0 383.2,67.0 V73.0 Q383.2,77.0 379.2,77.0 H120.0 Z"><title>l0-baseline: 31.9s</title></path>
+<text class="val" x="389.2" y="74.0">31.9s</text>
 <text class="lbl" x="112" y="98.0" text-anchor="end">l1-nothink</text>
-<path class="deemph" d="M120.0,87.0 H334.3 Q338.3,87.0 338.3,91.0 V97.0 Q338.3,101.0 334.3,101.0 H120.0 Z"><title>l1-nothink: 26.5s</title></path>
-<text class="val" x="344.3" y="98.0">26.5s</text>
+<path class="deemph" d="M120.0,87.0 H334.6 Q338.6,87.0 338.6,91.0 V97.0 Q338.6,101.0 334.6,101.0 H120.0 Z"><title>l1-nothink: 26.5s</title></path>
+<text class="val" x="344.6" y="98.0">26.5s</text>
 <text class="lbl" x="112" y="122.0" text-anchor="end">l2-marlin</text>
-<path class="deemph" d="M120.0,111.0 H334.1 Q338.1,111.0 338.1,115.0 V121.0 Q338.1,125.0 334.1,125.0 H120.0 Z"><title>l2-marlin: 26.4s</title></path>
-<text class="val" x="344.1" y="122.0">26.4s</text>
+<path class="deemph" d="M120.0,111.0 H333.8 Q337.8,111.0 337.8,115.0 V121.0 Q337.8,125.0 333.8,125.0 H120.0 Z"><title>l2-marlin: 26.4s</title></path>
+<text class="val" x="343.8" y="122.0">26.4s</text>
 <text class="lbl" x="112" y="146.0" text-anchor="end">l5-graphs</text>
-<path class="s1" d="M120.0,135.0 H264.3 Q268.3,135.0 268.3,139.0 V145.0 Q268.3,149.0 264.3,149.0 H120.0 Z"><title>l5-graphs: 18.0s</title></path>
-<text class="val" x="274.3" y="146.0">18.0s</text>
+<path class="s1" d="M120.0,135.0 H264.5 Q268.5,135.0 268.5,139.0 V145.0 Q268.5,149.0 264.5,149.0 H120.0 Z"><title>l5-graphs: 18.0s</title></path>
+<text class="val" x="274.5" y="146.0">18.0s</text>
 </svg></g><g transform="translate(0,240)"><svg xmlns="http://www.w3.org/2000/svg" class="viz" viewBox="0 0 520 188" width="520" height="188" role="img" aria-label="Latency p50 (s)">
 
 <style>
@@ -182,8 +182,8 @@
 <path class="deemph" d="M120.0,63.0 H342.4 Q346.4,63.0 346.4,67.0 V73.0 Q346.4,77.0 342.4,77.0 H120.0 Z"><title>l0-baseline: 10.29s</title></path>
 <text class="val" x="352.4" y="74.0">10.29s</text>
 <text class="lbl" x="112" y="98.0" text-anchor="end">l1-nothink</text>
-<path class="deemph" d="M120.0,87.0 H292.8 Q296.8,87.0 296.8,91.0 V97.0 Q296.8,101.0 292.8,101.0 H120.0 Z"><title>l1-nothink: 8.03s</title></path>
-<text class="val" x="302.8" y="98.0">8.03s</text>
+<path class="deemph" d="M120.0,87.0 H292.7 Q296.7,87.0 296.7,91.0 V97.0 Q296.7,101.0 292.7,101.0 H120.0 Z"><title>l1-nothink: 8.03s</title></path>
+<text class="val" x="302.7" y="98.0">8.03s</text>
 <text class="lbl" x="112" y="122.0" text-anchor="end">l2-marlin</text>
 <path class="deemph" d="M120.0,111.0 H293.3 Q297.3,111.0 297.3,115.0 V121.0 Q297.3,125.0 293.3,125.0 H120.0 Z"><title>l2-marlin: 8.06s</title></path>
 <text class="val" x="303.3" y="122.0">8.06s</text>
@@ -233,17 +233,17 @@
 <text class="tick" x="450.0" y="170" text-anchor="middle">15s</text>
 <line class="axis" x1="120" y1="54" x2="120" y2="154"/>
 <text class="lbl" x="112" y="74.0" text-anchor="end">l0-baseline</text>
-<path class="deemph" d="M120.0,63.0 H436.6 Q440.6,63.0 440.6,67.0 V73.0 Q440.6,77.0 436.6,77.0 H120.0 Z"><title>l0-baseline: 14.57s</title></path>
-<text class="val" x="446.6" y="74.0">14.57s</text>
+<path class="deemph" d="M120.0,63.0 H436.5 Q440.5,63.0 440.5,67.0 V73.0 Q440.5,77.0 436.5,77.0 H120.0 Z"><title>l0-baseline: 14.57s</title></path>
+<text class="val" x="446.5" y="74.0">14.57s</text>
 <text class="lbl" x="112" y="98.0" text-anchor="end">l1-nothink</text>
 <path class="deemph" d="M120.0,87.0 H373.4 Q377.4,87.0 377.4,91.0 V97.0 Q377.4,101.0 373.4,101.0 H120.0 Z"><title>l1-nothink: 11.70s</title></path>
 <text class="val" x="383.4" y="98.0">11.70s</text>
 <text class="lbl" x="112" y="122.0" text-anchor="end">l2-marlin</text>
-<path class="deemph" d="M120.0,111.0 H396.2 Q400.2,111.0 400.2,115.0 V121.0 Q400.2,125.0 396.2,125.0 H120.0 Z"><title>l2-marlin: 12.74s</title></path>
-<text class="val" x="406.2" y="122.0">12.74s</text>
+<path class="deemph" d="M120.0,111.0 H396.3 Q400.3,111.0 400.3,115.0 V121.0 Q400.3,125.0 396.3,125.0 H120.0 Z"><title>l2-marlin: 12.74s</title></path>
+<text class="val" x="406.3" y="122.0">12.74s</text>
 <text class="lbl" x="112" y="146.0" text-anchor="end">l5-graphs</text>
-<path class="s1" d="M120.0,135.0 H339.4 Q343.4,135.0 343.4,139.0 V145.0 Q343.4,149.0 339.4,149.0 H120.0 Z"><title>l5-graphs: 10.15s</title></path>
-<text class="val" x="349.4" y="146.0">10.15s</text>
+<path class="s1" d="M120.0,135.0 H339.3 Q343.3,135.0 343.3,139.0 V145.0 Q343.3,149.0 339.3,149.0 H120.0 Z"><title>l5-graphs: 10.15s</title></path>
+<text class="val" x="349.3" y="146.0">10.15s</text>
 </svg></g><g transform="translate(0,444)"><svg xmlns="http://www.w3.org/2000/svg" class="viz" viewBox="0 0 520 188" width="520" height="188" role="img" aria-label="$ per doc (busy GPU)">
 
 <style>
@@ -346,11 +346,11 @@
 <path class="deemph" d="M120.0,63.0 H254.7 Q258.7,63.0 258.7,67.0 V73.0 Q258.7,77.0 254.7,77.0 H120.0 Z"><title>l0-baseline: 1261</title></path>
 <text class="val" x="264.7" y="74.0">1261</text>
 <text class="lbl" x="112" y="98.0" text-anchor="end">l1-nothink</text>
-<path class="deemph" d="M120.0,87.0 H283.7 Q287.7,87.0 287.7,91.0 V97.0 Q287.7,101.0 283.7,101.0 H120.0 Z"><title>l1-nothink: 1524</title></path>
-<text class="val" x="293.7" y="98.0">1524</text>
+<path class="deemph" d="M120.0,87.0 H283.6 Q287.6,87.0 287.6,91.0 V97.0 Q287.6,101.0 283.6,101.0 H120.0 Z"><title>l1-nothink: 1524</title></path>
+<text class="val" x="293.6" y="98.0">1524</text>
 <text class="lbl" x="112" y="122.0" text-anchor="end">l2-marlin</text>
-<path class="deemph" d="M120.0,111.0 H283.8 Q287.8,111.0 287.8,115.0 V121.0 Q287.8,125.0 283.8,125.0 H120.0 Z"><title>l2-marlin: 1526</title></path>
-<text class="val" x="293.8" y="122.0">1526</text>
+<path class="deemph" d="M120.0,111.0 H283.9 Q287.9,111.0 287.9,115.0 V121.0 Q287.9,125.0 283.9,125.0 H120.0 Z"><title>l2-marlin: 1526</title></path>
+<text class="val" x="293.9" y="122.0">1526</text>
 <text class="lbl" x="112" y="146.0" text-anchor="end">l5-graphs</text>
 <path class="s1" d="M120.0,135.0 H362.2 Q366.2,135.0 366.2,139.0 V145.0 Q366.2,149.0 362.2,149.0 H120.0 Z"><title>l5-graphs: 2238</title></path>
 <text class="val" x="372.2" y="146.0">2238</text>

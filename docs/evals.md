@@ -78,7 +78,7 @@ and `extraction_f1`. Isolated eval copies `overall_extraction_score` into
 `scores.exact_match` when there is no classification `match` — those two
 keys matching is a runner alias, not proof that partial credit is off.
 Empty-field and partial-credit behavior is documented in
-[`docs/extraction-quality-diagnosis.md`](extraction-quality-diagnosis.md).
+[`docs/extraction-quality-diagnosis.md`](archive/extraction-quality-diagnosis.md).
 
 ## Fixtures
 

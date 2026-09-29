@@ -41,15 +41,15 @@
 <text class="tick" x="650.0" y="170" text-anchor="middle">0.06</text>
 <line class="axis" x1="190" y1="54" x2="190" y2="154"/>
 <text class="lbl" x="182" y="74.0" text-anchor="end">all_cash (n=18)</text>
-<path class="s1" d="M190.0,63.0 H559.4 Q563.4,63.0 563.4,67.0 V73.0 Q563.4,77.0 559.4,77.0 H190.0 Z"><title>all_cash (n=18): 0.049</title></path>
-<text class="val" x="569.4" y="74.0">0.049</text>
+<path class="s1" d="M190.0,63.0 H561.7 Q565.7,63.0 565.7,67.0 V73.0 Q565.7,77.0 561.7,77.0 H190.0 Z"><title>all_cash (n=18): 0.049</title></path>
+<text class="val" x="571.7" y="74.0">0.049</text>
 <text class="lbl" x="182" y="98.0" text-anchor="end">all_stock (n=11)</text>
-<path class="s1" d="M190.0,87.0 H550.9 Q554.9,87.0 554.9,91.0 V97.0 Q554.9,101.0 550.9,101.0 H190.0 Z"><title>all_stock (n=11): 0.048</title></path>
-<text class="val" x="560.9" y="98.0">0.048</text>
+<path class="s1" d="M190.0,87.0 H554.0 Q558.0,87.0 558.0,91.0 V97.0 Q558.0,101.0 554.0,101.0 H190.0 Z"><title>all_stock (n=11): 0.048</title></path>
+<text class="val" x="564.0" y="98.0">0.048</text>
 <text class="lbl" x="182" y="122.0" text-anchor="end">other (n=12)</text>
-<path class="s1" d="M190.0,111.0 H366.2 Q370.2,111.0 370.2,115.0 V121.0 Q370.2,125.0 366.2,125.0 H190.0 Z"><title>other (n=12): 0.024</title></path>
-<text class="val" x="376.2" y="122.0">0.024</text>
+<path class="s1" d="M190.0,111.0 H370.0 Q374.0,111.0 374.0,115.0 V121.0 Q374.0,125.0 370.0,125.0 H190.0 Z"><title>other (n=12): 0.024</title></path>
+<text class="val" x="380.0" y="122.0">0.024</text>
 <text class="lbl" x="182" y="146.0" text-anchor="end">mixed_cash_stock (n=3)</text>
-<path class="s1" d="M190.0,135.0 H345.5 Q349.5,135.0 349.5,139.0 V145.0 Q349.5,149.0 345.5,149.0 H190.0 Z"><title>mixed_cash_stock (n=3): 0.021</title></path>
-<text class="val" x="355.5" y="146.0">0.021</text>
+<path class="s1" d="M190.0,135.0 H347.0 Q351.0,135.0 351.0,139.0 V145.0 Q351.0,149.0 347.0,149.0 H190.0 Z"><title>mixed_cash_stock (n=3): 0.021</title></path>
+<text class="val" x="357.0" y="146.0">0.021</text>
 </svg>

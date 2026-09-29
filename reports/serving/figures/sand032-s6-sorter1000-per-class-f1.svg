@@ -31,30 +31,30 @@
 <rect class="bg" width="720" height="212" rx="8"/>
 <text class="title" x="16" y="24">Per-class F1 · sand032-s6-sorter1000</text>
 <text class="sub" x="16" y="42">isolated sorter · 457 docs · accuracy 0.895 (0–1, higher is better)</text>
-<line class="grid" x1="230.0" y1="54" x2="230.0" y2="178"/>
-<text class="tick" x="230.0" y="194" text-anchor="middle">0</text>
-<line class="grid" x1="335.0" y1="54" x2="335.0" y2="178"/>
-<text class="tick" x="335.0" y="194" text-anchor="middle">0.25</text>
-<line class="grid" x1="440.0" y1="54" x2="440.0" y2="178"/>
-<text class="tick" x="440.0" y="194" text-anchor="middle">0.5</text>
-<line class="grid" x1="545.0" y1="54" x2="545.0" y2="178"/>
-<text class="tick" x="545.0" y="194" text-anchor="middle">0.75</text>
+<line class="grid" x1="190.0" y1="54" x2="190.0" y2="178"/>
+<text class="tick" x="190.0" y="194" text-anchor="middle">0</text>
+<line class="grid" x1="305.0" y1="54" x2="305.0" y2="178"/>
+<text class="tick" x="305.0" y="194" text-anchor="middle">0.25</text>
+<line class="grid" x1="420.0" y1="54" x2="420.0" y2="178"/>
+<text class="tick" x="420.0" y="194" text-anchor="middle">0.5</text>
+<line class="grid" x1="535.0" y1="54" x2="535.0" y2="178"/>
+<text class="tick" x="535.0" y="194" text-anchor="middle">0.75</text>
 <line class="grid" x1="650.0" y1="54" x2="650.0" y2="178"/>
 <text class="tick" x="650.0" y="194" text-anchor="middle">1</text>
-<line class="axis" x1="230" y1="54" x2="230" y2="178"/>
-<text class="lbl" x="222" y="74.0" text-anchor="end">insurance_claim (n=81)</text>
-<path class="s1" d="M230.0,63.0 H643.4 Q647.4,63.0 647.4,67.0 V73.0 Q647.4,77.0 643.4,77.0 H230.0 Z"><title>insurance_claim (n=81): 0.994 — P 0.988 · R 1.000</title></path>
-<text class="val" x="653.4" y="74.0">0.994</text>
-<text class="lbl" x="222" y="98.0" text-anchor="end">correspondence (n=41)</text>
-<path class="s1" d="M230.0,87.0 H635.5 Q639.5,87.0 639.5,91.0 V97.0 Q639.5,101.0 635.5,101.0 H230.0 Z"><title>correspondence (n=41): 0.975 — P 1.000 · R 0.951</title></path>
-<text class="val" x="645.5" y="98.0">0.975</text>
-<text class="lbl" x="222" y="122.0" text-anchor="end">contract (n=181)</text>
-<path class="s1" d="M230.0,111.0 H597.5 Q601.5,111.0 601.5,115.0 V121.0 Q601.5,125.0 597.5,125.0 H230.0 Z"><title>contract (n=181): 0.884 — P 0.796 · R 0.994</title></path>
-<text class="val" x="607.5" y="122.0">0.884</text>
-<text class="lbl" x="222" y="146.0" text-anchor="end">corporate_record (n=136)</text>
-<path class="s1" d="M230.0,135.0 H582.5 Q586.5,135.0 586.5,139.0 V145.0 Q586.5,149.0 582.5,149.0 H230.0 Z"><title>corporate_record (n=136): 0.849 — P 0.990 · R 0.743</title></path>
-<text class="val" x="592.5" y="146.0">0.849</text>
-<text class="lbl" x="222" y="170.0" text-anchor="end">merger_agreement (n=18)</text>
-<path class="s1" d="M230.0,159.0 H484.5 Q488.5,159.0 488.5,163.0 V169.0 Q488.5,173.0 484.5,173.0 H230.0 Z"><title>merger_agreement (n=18): 0.615 — P 1.000 · R 0.444</title></path>
-<text class="val" x="494.5" y="170.0">0.615</text>
+<line class="axis" x1="190" y1="54" x2="190" y2="178"/>
+<text class="lbl" x="182" y="74.0" text-anchor="end">insurance_claim (n=81)</text>
+<path class="s1" d="M190.0,63.0 H643.2 Q647.2,63.0 647.2,67.0 V73.0 Q647.2,77.0 643.2,77.0 H190.0 Z"><title>insurance_claim (n=81): 0.994 — P 0.988 · R 1.000</title></path>
+<text class="val" x="653.2" y="74.0">0.994</text>
+<text class="lbl" x="182" y="98.0" text-anchor="end">correspondence (n=41)</text>
+<path class="s1" d="M190.0,87.0 H634.5 Q638.5,87.0 638.5,91.0 V97.0 Q638.5,101.0 634.5,101.0 H190.0 Z"><title>correspondence (n=41): 0.975 — P 1.000 · R 0.951</title></path>
+<text class="val" x="644.5" y="98.0">0.975</text>
+<text class="lbl" x="182" y="122.0" text-anchor="end">contract (n=181)</text>
+<path class="s1" d="M190.0,111.0 H592.6 Q596.6,111.0 596.6,115.0 V121.0 Q596.6,125.0 592.6,125.0 H190.0 Z"><title>contract (n=181): 0.884 — P 0.796 · R 0.994</title></path>
+<text class="val" x="602.6" y="122.0">0.884</text>
+<text class="lbl" x="182" y="146.0" text-anchor="end">corporate_record (n=136)</text>
+<path class="s1" d="M190.0,135.0 H576.5 Q580.5,135.0 580.5,139.0 V145.0 Q580.5,149.0 576.5,149.0 H190.0 Z"><title>corporate_record (n=136): 0.849 — P 0.990 · R 0.743</title></path>
+<text class="val" x="586.5" y="146.0">0.849</text>
+<text class="lbl" x="182" y="170.0" text-anchor="end">merger_agreement (n=18)</text>
+<path class="s1" d="M190.0,159.0 H468.9 Q472.9,159.0 472.9,163.0 V169.0 Q472.9,173.0 468.9,173.0 H190.0 Z"><title>merger_agreement (n=18): 0.615 — P 1.000 · R 0.444</title></path>
+<text class="val" x="478.9" y="170.0">0.615</text>
 </svg>

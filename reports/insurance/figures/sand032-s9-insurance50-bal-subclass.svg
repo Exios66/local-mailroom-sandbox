@@ -46,18 +46,18 @@
 <path class="s1" d="M190.0,63.0 H609.8 Q613.8,63.0 613.8,67.0 V73.0 Q613.8,77.0 609.8,77.0 H190.0 Z"><title>auto (n=19): 0.737</title></path>
 <text class="val" x="619.8" y="74.0">0.737</text>
 <text class="lbl" x="182" y="98.0" text-anchor="end">inpatient (n=7)</text>
-<path class="s1" d="M190.0,87.0 H583.4 Q587.4,87.0 587.4,91.0 V97.0 Q587.4,101.0 583.4,101.0 H190.0 Z"><title>inpatient (n=7): 0.691</title></path>
-<text class="val" x="593.4" y="98.0">0.691</text>
+<path class="s1" d="M190.0,87.0 H583.3 Q587.3,87.0 587.3,91.0 V97.0 Q587.3,101.0 583.3,101.0 H190.0 Z"><title>inpatient (n=7): 0.691</title></path>
+<text class="val" x="593.3" y="98.0">0.691</text>
 <text class="lbl" x="182" y="122.0" text-anchor="end">property (n=8)</text>
-<path class="s1" d="M190.0,111.0 H564.6 Q568.6,111.0 568.6,115.0 V121.0 Q568.6,125.0 564.6,125.0 H190.0 Z"><title>property (n=8): 0.658</title></path>
-<text class="val" x="574.6" y="122.0">0.658</text>
+<path class="s1" d="M190.0,111.0 H564.4 Q568.4,111.0 568.4,115.0 V121.0 Q568.4,125.0 564.4,125.0 H190.0 Z"><title>property (n=8): 0.658</title></path>
+<text class="val" x="574.4" y="122.0">0.658</text>
 <text class="lbl" x="182" y="146.0" text-anchor="end">carrier (n=6)</text>
-<path class="s1" d="M190.0,135.0 H557.8 Q561.8,135.0 561.8,139.0 V145.0 Q561.8,149.0 557.8,149.0 H190.0 Z"><title>carrier (n=6): 0.647</title></path>
-<text class="val" x="567.8" y="146.0">0.647</text>
+<path class="s1" d="M190.0,135.0 H558.0 Q562.0,135.0 562.0,139.0 V145.0 Q562.0,149.0 558.0,149.0 H190.0 Z"><title>carrier (n=6): 0.647</title></path>
+<text class="val" x="568.0" y="146.0">0.647</text>
 <text class="lbl" x="182" y="170.0" text-anchor="end">outpatient (n=5)</text>
-<path class="s1" d="M190.0,159.0 H548.9 Q552.9,159.0 552.9,163.0 V169.0 Q552.9,173.0 548.9,173.0 H190.0 Z"><title>outpatient (n=5): 0.631</title></path>
-<text class="val" x="558.9" y="170.0">0.631</text>
+<path class="s1" d="M190.0,159.0 H548.8 Q552.8,159.0 552.8,163.0 V169.0 Q552.8,173.0 548.8,173.0 H190.0 Z"><title>outpatient (n=5): 0.631</title></path>
+<text class="val" x="558.8" y="170.0">0.631</text>
 <text class="lbl" x="182" y="194.0" text-anchor="end">pde (n=5)</text>
-<path class="s1" d="M190.0,183.0 H526.3 Q530.3,183.0 530.3,187.0 V193.0 Q530.3,197.0 526.3,197.0 H190.0 Z"><title>pde (n=5): 0.592</title></path>
-<text class="val" x="536.3" y="194.0">0.592</text>
+<path class="s1" d="M190.0,183.0 H526.4 Q530.4,183.0 530.4,187.0 V193.0 Q530.4,197.0 526.4,197.0 H190.0 Z"><title>pde (n=5): 0.592</title></path>
+<text class="val" x="536.4" y="194.0">0.592</text>
 </svg>
