@@ -274,7 +274,7 @@ diagnosis PR.
 When an operator is cleared to run it: `sandbox runbook show improved-correspondence-fp16-c8`.
 Confirm the lock fingerprint is `285f423d3708` before scoring. Diagnosis of the
 AWQ floor (no GPU):
-[`docs/extraction-quality-diagnosis.md`](extraction-quality-diagnosis.md).
+[`docs/extraction-quality-diagnosis.md`](archive/extraction-quality-diagnosis.md).
 
 TTFT is only populated when a run records it (never inferred from e2e).
 Document-pipeline eval traces stay on the Langfuse SDK path (family

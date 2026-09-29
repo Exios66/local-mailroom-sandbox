@@ -15,7 +15,7 @@ call a live LLM.
 | engine | `Qwen/Qwen3-8B-AWQ`, vLLM `v0.29.0`, 1× L4 |
 | prompt | `correspondence_specialist_production` (local pin) |
 | headline | `overall_extraction_score` = **0.08714** (20/20 ok, 0 errors) |
-| serving | healthy (see [`RUN-20-CORRESPONDENCE-AWQ-C8-SERVING.md`](../reports/RUN-20-CORRESPONDENCE-AWQ-C8-SERVING.md)) |
+| serving | healthy (see [`RUN-20-CORRESPONDENCE-AWQ-C8-SERVING.md`](../../reports/correspondence/RUN-20-CORRESPONDENCE-AWQ-C8-SERVING.md)) |
 
 ## Artifact search (what exists vs what does not)
 
@@ -44,8 +44,8 @@ against `items.jsonl` when that operator dir is available:
 
 ## Docs inspected (best + worst + truncated twin)
 
-Per-doc table: [`RUN-20-CORRESPONDENCE-AWQ-C8-REPORT.md`](../reports/RUN-20-CORRESPONDENCE-AWQ-C8-REPORT.md).
-Same draw, concurrency 5: [`RUN-20-CORRESPONDENCE-AWQ-REPORT.md`](../reports/RUN-20-CORRESPONDENCE-AWQ-REPORT.md).
+Per-doc table: [`RUN-20-CORRESPONDENCE-AWQ-C8-REPORT.md`](../../reports/correspondence/RUN-20-CORRESPONDENCE-AWQ-C8-REPORT.md).
+Same draw, concurrency 5: [`RUN-20-CORRESPONDENCE-AWQ-REPORT.md`](../../reports/correspondence/RUN-20-CORRESPONDENCE-AWQ-REPORT.md).
 
 | role | doc id | subclass | c8 overall | c8 F1 | c8 compl tok | c5 overall | c5 F1 | c5 compl tok |
 |---|---|---|---|---|---|---|---|---|
@@ -187,11 +187,11 @@ Existing keys (`exact_match`, `overall_extraction_score`, `n`, …) unchanged.
 
 ## AWQ vs FP16 — prepared, not run
 
-Config: [`config/runs/run-20-correspondence-fp16-c8.yaml`](../config/runs/run-20-correspondence-fp16-c8.yaml).
+Config: [`config/runs/run-20-correspondence-fp16-c8.yaml`](../../config/runs/run-20-correspondence-fp16-c8.yaml).
 Same seed/strata/prompt/concurrency 8; checkpoint `Qwen/Qwen3-8B` (no AWQ).
 Required engine delta: `max_model_len=16384` (L4-bf16 boot cap). **Do not
 start this run** until spend/auth are approved. See
-[`docs/jobs.md`](jobs.md) §AWQ vs FP16 isolation.
+[`docs/jobs.md`](../jobs.md) §AWQ vs FP16 isolation.
 
 ## Acceptance target (**owner-locked**)
 

@@ -73,7 +73,7 @@ sandbox health --profile modal-vllm              # 401 = token mismatch
 ```
 
 Full specialist suite + cost extrapolation: [`docs/runbooks/l4-qwen3-8b.md`](runbooks/l4-qwen3-8b.md)
-(`sandbox runbook show l4-qwen3-8b`). Index: [`docs/benchmark-l4.md`](benchmark-l4.md).
+(`sandbox runbook show l4-qwen3-8b`). Index: [`docs/benchmark-l4.md`](modal/benchmark-l4.md).
 
 Cost posture (specialist suite): `scaledown=120` attended / `600` unattended,
 `max_containers=1`, one warm app for all five runs then

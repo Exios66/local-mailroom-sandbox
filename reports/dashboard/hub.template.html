@@ -78,6 +78,7 @@ section.panel { background: var(--surface); border: 1px solid var(--ring); borde
 .sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
 .sw.dot { border-radius: 50%; }
 .sw.ring { border-radius: 50%; background: transparent !important; border: 2px solid var(--qwen); }
+.sw.diamond { width: 9px; height: 9px; transform: rotate(45deg); background: var(--ink-2); border-radius: 1px; margin: 0 2px; }
 .sw-line { width: 16px; height: 0; border-top: 2px solid var(--ink-2); display: inline-block; }
 .badge { display: inline-flex; gap: 6px; align-items: center; font-family: var(--mono); font-size: 11.5px; padding: 2px 8px; border-radius: 999px; background: var(--wash); color: var(--ink-2); }
 .badge.warn { color: var(--crit-text); }
@@ -121,7 +122,7 @@ html.present-snap section.panel { scroll-snap-align: center; }
 
 <div class="wrap">
   <header class="top">
-    <div class="eyebrow">LLM-Mailroom · evaluation reports · 16–27 Sep 2026</div>
+    <div class="eyebrow">LLM-Mailroom · evaluation reports · {{date_range}}</div>
     <h1>Mailroom Evaluation Reports</h1>
     <p class="lede">Specialist extraction, serving, hosted-API and intake-classifier results from three repositories, drawn from {{n_figures}} source-verified figures with {{n_checks}} automated cross-checks. Every chart has a table view, and the Data quality tab traces each number to its file.</p>
     <div class="meta"><span class="chip">{{sources}}</span></div>
@@ -133,6 +134,7 @@ html.present-snap section.panel { scroll-snap-align: center; }
       <a href="#specialists" data-view="specialists">Specialists</a>
       <a href="#serving" data-view="serving">Serving</a>
       <a href="#api" data-view="api">API models</a>
+      <a href="#routes" data-view="routes">Modal vs API</a>
       <a href="#classifier" data-view="classifier">Classifier</a>
       <a href="#ml" data-view="ml">ML diagnostics</a>
       <a href="#quality" data-view="quality">Data quality</a>
@@ -325,6 +327,40 @@ html.present-snap section.panel { scroll-snap-align: center; }
   </main>
 
   <!-- ============================== CLASSIFIER -->
+  <main class="view" id="routes" hidden>
+    <div class="view-head"><h2>Modal vs hosted API</h2>
+      <p>The two serving routes side by side, on the same axes: the self-hosted Qwen3-8B-AWQ specialists on Modal L4 (SAND-032) and the hosted models called through OpenRouter (eval-environment), for every specialist task and for the sorter. Cost is per completed document; quality is the metric each task is scored on.</p></div>
+    <div class="tiles" id="route-tiles"></div>
+
+    <section class="panel" data-table="routes">
+      <div class="panel-head"><div><div class="kicker">Cost vs quality · specialists</div><h3>{{route_head}}</h3></div><button class="btn tbl" type="button">Show table</button></div>
+      <p class="desc">One panel per task. Left is cheaper and up is better, so the best trade-off sits <b>top left</b>. Cost is on a log scale. The square is the Modal route; circles and the diamond are hosted API models.</p>
+      <div class="legend"><span><span class="sw" style="background:var(--qwen)"></span>Modal L4 · Qwen3-8B-AWQ (self-hosted)</span><span><span class="sw dot" style="background:var(--qwen)"></span>API · Qwen3.7-Flash (n = 50)</span><span><span class="sw ring"></span>API · Qwen3-8B</span><span><span class="sw diamond" style="background:var(--qwen)"></span>API · Qwen3.7-Flash, frozen prompts (merger leg filed as Qwen3-8B)</span><span><span class="sw dot" style="background:var(--deepseek)"></span>API · DeepSeek-V4.1-Flash</span><span><span class="sw dot" style="background:var(--granite)"></span>API · Granite-4.2-8B</span></div>
+      <div class="grid3" id="c-routes"></div>
+      <ul class="notes">
+        <li>Modal cost is busy-window GPU time at $0.80 per L4-hour: it excludes cold boot and idle replicas, so it is a floor for a bursty workload and close to the real price for a steady one. API cost is OpenRouter list price on the recorded token counts.</li>
+        <li>Draws differ: Modal runs are 50 documents per class on dataset revision <code>ed7576b6</code>; the API legs are 20 documents (Qwen3.7-Flash: 50) on <code>46a4d3c2</code>, train split. The Qwen3.7-Flash legs ran eval-environment's mutated prompts; the others ran the frozen production prompts.</li>
+        <li>Correspondence, insurance claims, corporate records and merger agreements use the pipeline's <code>overall_extraction_score</code> on both routes. <b>Contracts are not like-for-like:</b> the Modal point is per-document CUAD category-presence F1 (the sandbox scorer, because the pipeline rubric returns no score on label-native CUAD ground truth), while the API points use the pipeline rubric.</li>
+        <li>Among the comparable tasks the largest quality gap is {{route_worst}} ({{route_worst_gap}} below the best hosted model), where the Modal run used the MAUD prompt.</li>
+      </ul>
+      <div class="tablewrap" hidden></div>
+      <div class="src">Sources: sandbox reports/*/SAND032-*-REPORT.md · eval-environment reports/api-comparisons/*/README.md, qwen3.7-flash/*/RUN-50-*-REPORT.md · reports/experiment_log.jsonl</div>
+    </section>
+
+    <section class="panel" data-table="routesorter">
+      <div class="panel-head"><div><div class="kicker">Cost vs quality · sorter</div><h3>{{route_sorter_head}}</h3></div><button class="btn tbl" type="button">Show table</button></div>
+      <p class="desc">Document-type accuracy against cost per document for every way the mailroom can sort: the LLM sorter self-hosted on Modal, the LLM sorter through the API, and the ModernBERT classifier.</p>
+      <div class="legend"><span><span class="sw" style="background:var(--qwen)"></span>Modal L4 · Qwen3-8B-AWQ sorter</span><span><span class="sw dot" style="background:var(--qwen)"></span>API · Qwen3.7-Flash</span><span><span class="sw dot" style="background:var(--deepseek)"></span>API · DeepSeek-V4.1-Flash</span><span><span class="sw dot" style="background:var(--granite)"></span>API · Granite-4.2-8B</span><span><span class="sw diamond"></span>ModernBERT (Arm B)</span></div>
+      <div class="chart" id="c-routesorter"></div>
+      <ul class="notes">
+        <li>The Modal sorter ran {{route_s6_acc}} on 457 documents at {{route_s6_usd}} per document; its long-document tail (p95 530 s) drives the cost.</li>
+        <li>API sorters: n = 100, revision <code>46a4d3c2</code>. ModernBERT: Arm B on the 323-document held-out test; its cost per document is the run-3 GPU estimate.</li>
+      </ul>
+      <div class="tablewrap" hidden></div>
+      <div class="src">Sources: sandbox reports/serving/SAND032-S6-SORTER1000-REPORT.md · eval-environment classification RUN-100 reports · mailroom-ml reports/eval_m9a-local-20260927-014429.json</div>
+    </section>
+  </main>
+
   <main class="view" id="classifier" hidden>
     <div class="view-head"><h2>ModernBERT intake classifier</h2>
       <p>The hierarchical ModernBERT classifier from mailroom-ml, evaluated on the 323-document held-out test split. It routes documents to a specialist before any LLM call.</p></div>
@@ -704,6 +740,50 @@ function scatter(host) {
     bindHit(hit, svg, [c], e => showTip(e, p.run, [{ color: col[p.eng], value: p.s.toFixed(2) + '×', label: 'speedup' }, { value: 'c = ' + p.c, label: 'in flight' }, { value: pct(p.s / p.c, 0), label: 'of ideal' }]));
   });
 }
+// Log-x cost vs quality scatter. Identity = colour (model family) + shape (route) + a direct label.
+function costQuality(host, { pts, yLabel, yFmt, ymin = 0, ymax = 1, xmin, xmax, H = 260 }) {
+  host.replaceChildren();
+  const W = host.clientWidth, L = 44, Rr = 14, T = 16, B = 38;
+  const svg = el('svg', { width: W, height: H }, host);
+  const lx0 = Math.floor(Math.log10(xmin)), lx1 = Math.ceil(Math.log10(xmax));
+  const x = v => L + (Math.log10(v) - lx0) / (lx1 - lx0) * (W - L - Rr), y = v => H - B - (v - ymin) / (ymax - ymin) * (H - T - B);
+  const yt = niceTicks(ymax - ymin, 4).ticks.map(t => ymin + t).filter(t => t <= ymax + 1e-9);
+  for (const t of yt) {
+    el('line', { x1: L, x2: W - Rr, y1: y(t), y2: y(t), stroke: 'var(--grid)', 'stroke-width': 1 }, svg);
+    txt(svg, L - 8, y(t) + 4, yFmt(t), { 'font-size': 11, fill: 'var(--muted)', 'text-anchor': 'end', style: TN });
+  }
+  for (let e = lx0; e <= lx1; e++) {
+    const X = x(Math.pow(10, e));
+    el('line', { x1: X, x2: X, y1: T, y2: H - B, stroke: 'var(--grid)', 'stroke-width': 1 }, svg);
+    txt(svg, X, H - B + 16, usdTick(Math.pow(10, e)).replace(/0\.0+1$/, m => m), { 'font-size': 11, fill: 'var(--muted)', 'text-anchor': e === lx0 ? 'start' : e === lx1 ? 'end' : 'middle', style: TN });
+  }
+  el('line', { x1: L, x2: W - Rr, y1: H - B, y2: H - B, stroke: 'var(--axis)', 'stroke-width': 1 }, svg);
+  txt(svg, (L + W - Rr) / 2, H - 4, 'Cost per document (USD, log scale) · left is cheaper', { 'font-size': 11, fill: 'var(--ink-2)', 'text-anchor': 'middle' });
+  txt(svg, L, T - 4, yLabel, { 'font-size': 11, fill: 'var(--ink-2)' });
+  const boxes = [];
+  const free = b => !boxes.some(o => b.x1 < o.x2 && b.x2 > o.x1 && b.y1 < o.y2 && b.y2 > o.y1) && b.x1 >= L && b.x2 <= W - 2 && b.y1 >= T - 2 && b.y2 <= H - B;
+  const order = [...pts].sort((a, b) => (a.route === 'modal' ? -1 : 0) - (b.route === 'modal' ? -1 : 0));
+  for (const p of order) {
+    const cx = x(p.x), cy = y(p.y);
+    boxes.push({ x1: cx - 7, x2: cx + 7, y1: cy - 7, y2: cy + 7 });
+  }
+  for (const p of order) {
+    const cx = x(p.x), cy = y(p.y);
+    const st = `stroke:var(--surface);stroke-width:2`;
+    const m = p.shape === 'square' ? el('rect', { x: cx - 6, y: cy - 6, width: 12, height: 12, rx: 2, class: 'mark', style: `fill:${p.color};${st}` }, svg)
+      : p.shape === 'diamond' ? el('rect', { x: cx - 5.5, y: cy - 5.5, width: 11, height: 11, rx: 1, transform: `rotate(45 ${cx} ${cy})`, class: 'mark', style: `fill:${p.color};${st}` }, svg)
+      : p.shape === 'ring' ? el('circle', { cx, cy, r: 5, class: 'mark', style: `fill:var(--surface);stroke:${p.color};stroke-width:2` }, svg)
+      : el('circle', { cx, cy, r: 5.5, class: 'mark', style: `fill:${p.color};${st}` }, svg);
+    const w = measure(svg, p.label, 11) + 4;
+    const cands = [[cx + 10, cy + 4, 'start'], [cx - 10, cy + 4, 'end'], [cx - w / 2, cy - 11, 'start'], [cx - w / 2, cy + 19, 'start']];
+    for (const [lx, ly, a] of cands) {
+      const x1 = a === 'end' ? lx - w : lx, b = { x1, x2: x1 + w, y1: ly - 11, y2: ly + 3 };
+      if (free(b)) { boxes.push(b); txt(svg, lx, ly, p.label, { 'font-size': 11, fill: 'var(--ink-2)', 'text-anchor': a, class: 'ptlbl' }); break; }
+    }
+    const hit = el('circle', { cx, cy, r: 12, fill: 'transparent' }, svg);
+    bindHit(hit, svg, [m], e => showTip(e, p.head, p.rows, p.note));
+  }
+}
 function lines(host, { series, xLabel, yLabel, xDom, yDom, xFmt, yFmt, marks }) {
   host.replaceChildren();
   const W = host.clientWidth, H = 250, L = 48, Rr = 16, T = 16, B = 36;
@@ -782,6 +862,8 @@ const T = {
   spend: () => ({ num: [1], rows: [['Bucket', 'USD', 'Detail'], ['SAND-032 program (fleet window, upper est.)', usd(D.spend.sand032), `cap ${usd(D.spend.cap)}; includes $${D.spend.incident} aborted sorter run`], ...D.spend.legacy.map(s => [s.b, usd(s.v), s.d])] }),
   apiscore: () => ({ num: [1, 2, 3], rows: [['Task', 'Qwen', 'Granite', 'DeepSeek'], ...TASKS.map(t => [TASK_LABEL[t], ...Object.keys(API_KEY).map(m => f4(D.api.tasks[t][m].score))])] }),
   apicost: () => ({ num: [2, 3, 4, 5], rows: [['Task', 'Model', '$/doc', 'Total $', 'Wall', 'p95 call'], ...TASKS.flatMap(t => Object.keys(API_KEY).map(m => { const r = D.api.tasks[t][m]; return [TASK_LABEL[t], r.model, usd(r.cost / r.n), usd(r.cost), secs(r.wall), secs(r.p95_ms / 1000)]; }))] }),
+  routes: () => ({ num: [3, 4, 5], rows: [['Task', 'Route', 'Model', 'n', 'Score', '$/doc', 'Revision', 'Prompts'], ...CLS.flatMap(c => D.route.points[c].map(p => [LAB[c], p.route === 'modal' ? 'Modal L4' : 'API', p.family, p.n, f4(p.score), usd(p.usd), p.revision, p.prompts]))] }),
+  routesorter: () => ({ num: [2, 3, 4], rows: [['Route', 'Model', 'n', 'Doc-type accuracy', '$/doc'], ...sorterRoutes().map(p => [p.route, p.name, p.n, pct(p.y, 1), usd(p.x)])] }),
   apicls: () => ({ num: [2, 3, 4, 5], rows: [['Run', 'Model', 'n', 'Class acc', 'Subclass acc', 'Cost'], ...D.api.classification.map(r => [r.run, r.model, r.n, pct(r.class_acc, 0), pct(r.subclass_acc, 0), usd(r.cost)])] }),
   mbruns: () => ({ num: [2, 3], rows: [['Checkpoint', 'Evaluated', 'Doc-type acc', 'Subclass (cond.)'], ...mbRuns().map(r => [r.label, r.when, pct(r.v, 2), pct(r.sub, 1)])] }),
   mbclass: () => ({ num: [1, 2, 3, 4], rows: [['Class', 'run-3 correct', 'run-3 acc', 'Arm B correct', 'Arm B acc'], ...MB_CLS.map(c => { const a = D.mb.run3.per_class[c], b = D.mb.armB.per_class[c]; return [LAB[c], `${a.correct}/${a.n}`, pct(a.correct / a.n), `${b.correct}/${b.n}`, pct(b.correct / b.n)]; })] }),
@@ -836,7 +918,44 @@ function mbRuns() {
 
 // ---------- render per view
 const done = new Set();
+const ROUTE_FAM = { 'Qwen3-8B-AWQ': ['var(--qwen)', 'square'], 'Qwen3.7-Flash': ['var(--qwen)', 'dot'], 'Qwen3-8B': ['var(--qwen)', 'ring'],
+  'Qwen3.7-Flash · frozen': ['var(--qwen)', 'diamond'],
+  'DeepSeek-V4.1-Flash': ['var(--deepseek)', 'dot'], 'Granite-4.2-8B': ['var(--granite)', 'dot'] };
+const ROUTE_SHORT = { 'Qwen3-8B-AWQ': 'Modal', 'Qwen3.7-Flash': 'Qwen3.7-F', 'Qwen3.7-Flash · frozen': 'Qwen3.7-F frozen', 'Qwen3-8B': 'Qwen3-8B', 'DeepSeek-V4.1-Flash': 'DeepSeek', 'Granite-4.2-8B': 'Granite' };
+function sorterRoutes() {
+  const s = D.route.sorter_modal, fam = { 'qwen/qwen3.7-flash': 'Qwen3.7-Flash', 'deepseek/deepseek-v4.1-flash': 'DeepSeek-V4.1-Flash', 'ibm-granite/granite-4.2-8b': 'Granite-4.2-8B' };
+  return [
+    { route: 'Modal L4', name: 'Qwen3-8B-AWQ sorter', fam: 'Qwen3-8B-AWQ', n: s.ok, y: s.acc, x: s.usd, label: 'Modal sorter' },
+    ...D.api.classification.filter(r => r.n >= 100 && fam[r.model]).map(r => ({ route: 'API', name: fam[r.model], fam: fam[r.model], n: r.n, y: r.class_acc, x: r.cost / r.n, label: ROUTE_SHORT[fam[r.model]] })),
+    { route: 'Local classifier', name: 'ModernBERT Arm B', fam: 'ModernBERT', n: D.mb.armB.n, y: D.mb.armB.acc, x: D.mb.run3_reeval.sorter.mb_usd, label: 'ModernBERT' },
+  ];
+}
 function renderView(v) {
+  if (v === 'routes') {
+    const P = D.route.points, all = CLS.flatMap(c => P[c]);
+    const xmin = Math.min(...all.map(p => p.usd)), xmax = Math.max(...all.map(p => p.usd));
+    const th = document.getElementById('route-tiles'); th.replaceChildren();
+    CLS.forEach(c => {
+      const m = P[c][0], api = P[c].slice(1), cheap = api.reduce((a, b) => (b.usd < a.usd ? b : a)), best = api.reduce((a, b) => (b.score > a.score ? b : a));
+      const cheaper = m.usd <= cheap.usd;
+      const r = cheaper ? cheap.usd / m.usd : m.usd / cheap.usd;
+      tile(th, { label: `${LAB[c]} · cheaper route`, value: `${cheaper ? 'Modal' : 'API'} ${r.toFixed(1)}×`,
+        sub: `${usd(m.usd)} Modal vs ${usd(cheap.usd)} ${cheap.family} per document · score ${f3(m.score)} vs best API ${f3(best.score)}${c === 'contract' ? ' (different scorers)' : ''}` });
+    });
+    const hosts = panelBoxes(document.getElementById('c-routes'), CLS.map(c => ({ title: LAB[c], desc: `Modal n = ${P[c][0].n} · API n = 20–50` })));
+    CLS.forEach((c, i) => {
+      const pts = P[c].map(p => { const [color, shape] = ROUTE_FAM[p.family]; return { x: p.usd, y: p.score, color, shape, route: p.route, label: ROUTE_SHORT[p.family],
+        head: `${LAB[c]} · ${p.route === 'modal' ? 'Modal L4' : 'API'} · ${p.family}`,
+        rows: [{ color, value: f4(p.score), label: 'overall extraction score' }, { value: usd(p.usd), label: 'per document' }, { value: String(p.n), label: 'documents' }],
+        note: `${p.run} · revision ${p.revision} · ${p.prompts} prompts` }; });
+      costQuality(hosts[i], { pts, yLabel: c === 'contract' ? 'Score (Modal: CUAD F1)' : 'Overall score', yFmt: t => String(+t.toFixed(2)), xmin, xmax, H: 230 });
+    });
+    const sp = sorterRoutes().map(p => { const [color, shape] = p.fam === 'ModernBERT' ? ['var(--ink-2)', 'diamond'] : ROUTE_FAM[p.fam];
+      return { ...p, color, shape, route: p.route === 'Modal L4' ? 'modal' : 'api', head: `${p.route} · ${p.name}`,
+        rows: [{ color, value: pct(p.y, 1), label: 'doc-type accuracy' }, { value: usd(p.x), label: 'per document' }, { value: String(p.n), label: 'documents' }] }; });
+    costQuality(document.getElementById('c-routesorter'), { pts: sp, yLabel: 'Doc-type accuracy', yFmt: t => (t * 100).toFixed(0) + '%', ymin: 0.8, ymax: 1,
+      xmin: Math.min(...sp.map(p => p.x)), xmax: Math.max(...sp.map(p => p.x)), H: 280 });
+  }
   if (v === 'overview') {
     const h = document.getElementById('ov-tiles'); h.replaceChildren();
     CLS.forEach(c => { const r = R[S3[c]]; tile(h, { label: LAB[c], value: headlineFmt(r), sub: `${r.metric} · ${r.ok}/${r.n} completed · ${usd(r.usd_per_doc)}/doc` }); });
@@ -1061,7 +1180,7 @@ function labelCharts() {
 document.getElementById('prov-repo').addEventListener('change', () => { const p = document.querySelector('[data-table="provenance"]'), w = p.querySelector('.tablewrap'); if (!w.hidden) buildTable('provenance', w); });
 
 // ---------- views
-const VIEWS = ['overview', 'specialists', 'serving', 'api', 'classifier', 'ml', 'quality'];
+const VIEWS = [...document.querySelectorAll('nav.tabs [data-view]')].map(a => a.dataset.view);
 function show(v) {
   if (!VIEWS.includes(v)) v = 'overview';
   VIEWS.forEach(id => { document.getElementById(id).hidden = id !== v; });

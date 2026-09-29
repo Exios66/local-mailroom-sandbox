@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+### Added — SAND-035 cross-repo report audit + Modal vs API cost comparison
+
+- `scripts/sand032/viz.py` sizes label columns by measured text width (middle ellipsis, full label in
+  `<title>`), gives reference-line labels their own lane, and spaces dumbbell legends by measured width;
+  `dumbbell(val=...)` overrides the end-of-row label. `scripts/sand032/rerender.py` re-lays all 51
+  committed SAND-032 figures from their embedded data and asserts the data is unchanged (`--check`).
+- Reports hub: **Modal vs API** tab (cost vs quality per specialist and for the sorter); snapshot synced to
+  eval-environment `ef8c448` / mailroom-ml `640610d`; Qwen3.7-Flash n = 50 legs cross-checked; the merger
+  leg eval-environment files under Qwen3-8B is labelled by its logged model (Qwen3.7-Flash, frozen prompts).
+- `reports/dashboard/export_hub_reports.py` writes `COST-COMPARISON-MODAL-VS-API.md`, `MASTER-REPORT.md` and
+  figures for `mailroom-issues/reports/`; `report_audit.json` records the sweep (0 overflow / 0 collisions /
+  0 broken links across the three repos).
+
+### Fixed — SAND-035
+
+- `build_hub.py --check` crashed (`KeyError: 'run_id'`) on eval-environment log rows without a run id.
+- Latency/subclass figure labels overflowed the left edge; p50/p95 labels collided with each other and
+  the subtitle.
+- Broken relative links in CHANGELOG, docs, RUN-20 serving reports and agent prompts.
+
 ### Changed — governance: DMR-068 hub tracker + SAND board reconciliation
 
 - `docs/scale-matrix.md` status line cites the DMR-068 hub tracker
@@ -73,7 +93,7 @@
   scalars are not events; empty-list inventions zero overall; F1 TP requires
   typed score ≥ 1.0; isolated `exact_match` is a runner alias of overall.
 - **Offline diagnosis** of `run-20-correspondence-awq-c8` (fingerprint
-  `285f423d3708`): [`docs/extraction-quality-diagnosis.md`](docs/extraction-quality-diagnosis.md)
+  `285f423d3708`): [`docs/extraction-quality-diagnosis.md`](docs/archive/extraction-quality-diagnosis.md)
   (best/worst docs, token evidence, owner-locked 0.25 / 0.50 gates).
 - **FP16 twin YAML** [`config/runs/run-20-correspondence-fp16-c8.yaml`](config/runs/run-20-correspondence-fp16-c8.yaml)
   — same draw, `Qwen/Qwen3-8B`, **not run** (spend/auth blocked). Runbook:
@@ -107,7 +127,7 @@
 ### Added — SAND-018 single-class 20-contract Modal run + full-corpus logged sample (2026-09-25)
 
 - **`config/runs/run-20-contracts-specialist.yaml`** — the runbook's
-  [`docs/benchmark-l4.md`](docs/benchmark-l4.md) L4 Qwen pins (`Qwen/Qwen3-8B`,
+  [`docs/benchmark-l4.md`](docs/modal/benchmark-l4.md) L4 Qwen pins (`Qwen/Qwen3-8B`,
   L4, `v0.29.0`, `max_model_len=16384`, scaledown 120, `contracts_specialist_v33`
   local prompt) applied to a **20-contract** single-class run drawn as a seeded
   random sample (`sample_seed=42`) from the **full** corpus (`split: all`, 3,302

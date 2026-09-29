@@ -43,18 +43,18 @@
 <text class="tick" x="650.0" y="194" text-anchor="middle">0.8</text>
 <line class="axis" x1="190" y1="54" x2="190" y2="178"/>
 <text class="lbl" x="182" y="74.0" text-anchor="end">notice (n=2)</text>
-<path class="s1" d="M190.0,63.0 H532.4 Q536.4,63.0 536.4,67.0 V73.0 Q536.4,77.0 532.4,77.0 H190.0 Z"><title>notice (n=2): 0.603</title></path>
-<text class="val" x="542.4" y="74.0">0.603</text>
+<path class="s1" d="M190.0,63.0 H532.7 Q536.7,63.0 536.7,67.0 V73.0 Q536.7,77.0 532.7,77.0 H190.0 Z"><title>notice (n=2): 0.603</title></path>
+<text class="val" x="542.7" y="74.0">0.603</text>
 <text class="lbl" x="182" y="98.0" text-anchor="end">memo (n=5)</text>
-<path class="s1" d="M190.0,87.0 H394.5 Q398.5,87.0 398.5,91.0 V97.0 Q398.5,101.0 394.5,101.0 H190.0 Z"><title>memo (n=5): 0.363</title></path>
-<text class="val" x="404.5" y="98.0">0.363</text>
+<path class="s1" d="M190.0,87.0 H394.7 Q398.7,87.0 398.7,91.0 V97.0 Q398.7,101.0 394.7,101.0 H190.0 Z"><title>memo (n=5): 0.363</title></path>
+<text class="val" x="404.7" y="98.0">0.363</text>
 <text class="lbl" x="182" y="122.0" text-anchor="end">email (n=11)</text>
 <path class="s1" d="M190.0,111.0 H311.9 Q315.9,111.0 315.9,115.0 V121.0 Q315.9,125.0 311.9,125.0 H190.0 Z"><title>email (n=11): 0.219</title></path>
 <text class="val" x="321.9" y="122.0">0.219</text>
 <text class="lbl" x="182" y="146.0" text-anchor="end">press_release (n=1)</text>
-<path class="s1" d="M190.0,135.0 H281.9 Q285.9,135.0 285.9,139.0 V145.0 Q285.9,149.0 281.9,149.0 H190.0 Z"><title>press_release (n=1): 0.167</title></path>
-<text class="val" x="291.9" y="146.0">0.167</text>
+<path class="s1" d="M190.0,135.0 H282.0 Q286.0,135.0 286.0,139.0 V145.0 Q286.0,149.0 282.0,149.0 H190.0 Z"><title>press_release (n=1): 0.167</title></path>
+<text class="val" x="292.0" y="146.0">0.167</text>
 <text class="lbl" x="182" y="170.0" text-anchor="end">letter (n=1)</text>
-<path class="s1" d="M190.0,159.0 H237.1 Q241.1,159.0 241.1,163.0 V169.0 Q241.1,173.0 237.1,173.0 H190.0 Z"><title>letter (n=1): 0.089</title></path>
-<text class="val" x="247.1" y="170.0">0.089</text>
+<path class="s1" d="M190.0,159.0 H237.2 Q241.2,159.0 241.2,163.0 V169.0 Q241.2,173.0 237.2,173.0 H190.0 Z"><title>letter (n=1): 0.089</title></path>
+<text class="val" x="247.2" y="170.0">0.089</text>
 </svg>
