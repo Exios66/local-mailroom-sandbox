@@ -31,6 +31,11 @@ KNOWN = {
         "cold boot (0.251214 vs 0.196653 USD over 46 docs); every other row is busy-window only. "
         "This page uses the busy-window figure."
     ),
+    "sand032-s6-sorter1000.usd_basis": (
+        "The S6 sorter report gives ${got}/doc. That is the serving export's billed figure, which includes "
+        "the run's {boot:.1f} s cold boot; every other SAND-032 $/doc is busy-window only. On that basis "
+        "S6 costs ${want}/doc, which this page uses."
+    ),
     "api.qwen_merger_model": (
         "eval-environment files the merger leg under Qwen3-8B, but the logged model is {model}. "
         "It is shown here as its own model."
@@ -297,8 +302,12 @@ def sand032(R: Repo) -> dict:
     for r in ladder:
         run = runs[f"sand032-{r['rung']}"]
         L.check(abs(r["score"] - run["overall"]) < 1e-4 and abs(r["wall"] - run["wall"]) < 0.06, f"ladder {r['rung']} vs report")
-    spend = R.rx("summary.spend", SUMMARY, r"upper estimate\): \*\*\$([\d.]+) of the \$[\d.]+ cap\*\*")
-    cap = R.rx("summary.cap", SUMMARY, r"upper estimate\): \*\*\$[\d.]+ of the \$([\d.]+) cap\*\*")
+    spend = R.rx("summary.spend", SUMMARY, r"ledger estimate\): \*\*\$([\d.]+) of the \$[\d.]+ cap\*\* at program close")
+    cap = R.rx("summary.cap", SUMMARY, r"ledger estimate\): \*\*\$[\d.]+ of the \$([\d.]+) cap\*\*")
+    stage5 = R.rx("summary.spend_stage5", SUMMARY, r"ledger stood at \$([\d.]+) after stages 1–5")
+    close = R.rx("summary.spend_close", SUMMARY, r"Ledger at close: \$([\d.]+) cumulative")
+    L.check(close == spend, f"summary spend header ${spend} vs ledger at close ${close}")
+    L.check(stage5 < spend <= cap, f"summary spend ${stage5} → ${spend} within cap ${cap}")
     incident = R.rx("summary.incident_cost", SUMMARY, r"Fleet stopped; cost \$([\d.]+)")
     for rid, row in [("sand032-s3-corr50", "| correspondence | overall extraction"), ("sand032-s3-insurance50", "| insurance_claim |"),
                      ("sand032-s3-corporate50", "| corporate_record |"), ("sand032-s3-contracts50", "| contract |"),
@@ -309,7 +318,93 @@ def sand032(R: Repo) -> dict:
         usd = R.cell(f"summary.sweep.{rid}.usd", SUMMARY, row, 6)
         L.check(abs(usd - runs[rid]["usd_per_doc"]) < 3e-6, f"summary sweep {rid} $/doc {usd} vs {runs[rid]['usd_per_doc']}",
                 key=f"{rid}.summary_usd", got=usd, want=runs[rid]["usd_per_doc"])
-    return {"runs": runs, "ladder": ladder, "spend": spend, "cap": cap, "incident": incident}
+    return {"runs": runs, "ladder": ladder, "spend": spend, "spend_stage5": stage5, "cap": cap, "incident": incident}
+
+
+L4_USD_PER_HOUR = 0.80  # docs/RUN-COST-DERIVATION.md; every SAND-032 GPU $ uses it
+REPLICA_LINE = re.compile(
+    r"^- replica `([^`]*)`: requests Δ (\d+) \(cumulative \d+\), measured TTFT mean ([\d.]+) s "
+    r"\(vLLM histogram, cumulative\), prefix-cache hit ([\d.]+)%, preemptions (\d+)", re.M)
+
+
+def sand032_fleet(R: Repo, runs: dict) -> dict:
+    """Every SAND-032 serving export (``serving/sand032-*.serving.json``) against its run report.
+
+    Feeds the GPU economics report: busy-window and billed GPU $, tokens, throughput, client-slot
+    occupancy, boot, and the per-replica vLLM ``/metrics`` split. Busy-window GPU $ is
+    wall × replicas × L4 rate; billed (a lower bound on the Modal bill) adds the run's cold boot.
+    """
+    L = R.L
+    reports = {p.name[: -len("-REPORT.md")].lower(): p.relative_to(R.base).as_posix()
+               for p in sorted(R.base.glob("*/SAND032-*-REPORT.md"))}
+    out = {}
+    for sp in sorted((R.base / "serving").glob("sand032-*.serving.json")):
+        rid = sp.name[: -len(".serving.json")]
+        jp, k, path = f"serving/{sp.name}", f"fleet.{rid}", reports.get(rid)
+        if path is None:
+            raise SourceError(f"{rid}: serving export without a run report")
+        doc = R.jload(jp)
+        J = {f: R.jkey(f"{k}.{f}", jp, f, doc=doc) for f in (
+            "replicas", "concurrency", "n", "wall_seconds", "cold_boot_seconds", "gpu_seconds", "prompt_tokens",
+            "completion_tokens", "tokens_per_second", "slot_utilization", "latency_sum_seconds",
+            "estimated_gpu_cost_usd", "idle_estimated_usd", "latency_p50_seconds", "latency_p95_seconds")}
+        rep, wall = int(J["replicas"]), J["wall_seconds"]
+        L.check(abs(J["gpu_seconds"] - (wall + J["cold_boot_seconds"])) < 0.002, f"{rid}: gpu_seconds = wall + cold boot")
+        L.check(abs(J["estimated_gpu_cost_usd"] - J["gpu_seconds"] * rep * L4_USD_PER_HOUR / 3600) < 1.5e-6,
+                f"{rid}: billed GPU $ = gpu_seconds × replicas × L4 rate")
+        L.check(abs(J["slot_utilization"] - J["latency_sum_seconds"] / J["concurrency"] / wall) < 1e-4,
+                f"{rid}: slot utilization = Σ latency / concurrency / wall")
+        busy = wall * rep * L4_USD_PER_HOUR / 3600
+        rec = {"run": rid, "report": path, "replicas": rep, "conc": int(J["concurrency"]), "n": int(J["n"]),
+               "wall": wall, "cold_boot": J["cold_boot_seconds"], "gpu_seconds": J["gpu_seconds"],
+               "prompt_tokens": int(J["prompt_tokens"]), "completion_tokens": int(J["completion_tokens"]),
+               "tps": J["tokens_per_second"], "slot": J["slot_utilization"], "lat_sum": J["latency_sum_seconds"],
+               "billed_usd": J["estimated_gpu_cost_usd"], "idle_usd": J["idle_estimated_usd"], "busy_usd": busy,
+               "p50": J["latency_p50_seconds"], "p95": J["latency_p95_seconds"]}
+        if rid == "sand032-s6-sorter1000":
+            ok = R.rx(f"{k}.ok", path, r"\| docs ok / total \| (\d+) / \d+ \|")
+            L.check(abs(R.cell(f"{k}.r.wall", path, "| wall s |", 1) - wall) < 0.05, f"{rid}: report wall vs export")
+            L.check(abs(R.cell(f"{k}.r.tps", path, "| tok/s |", 1) - J["tokens_per_second"]) < 0.6, f"{rid}: report tok/s")
+            L.check(R.rx(f"{k}.r.replicas", path, r"(\d)× L4") == rep, f"{rid}: report replicas")
+            L.check(R.cell(f"{k}.r.conc", path, "| concurrency |", 1) == J["concurrency"], f"{rid}: report concurrency")
+            usd = R.cell(f"{k}.r.usd", path, "| GPU $/doc |", 1)
+            L.check(abs(usd - J["estimated_gpu_cost_usd"] / ok) < 1e-6, f"{rid}: report $/doc is the billed basis")
+            L.check(abs(usd - busy / ok) < 1e-6, f"{rid}: report $/doc on the busy-window basis",
+                    key=f"{rid}.usd_basis", got=f"{usd:.6f}", want=f"{busy / ok:.6f}", boot=J["cold_boot_seconds"])
+            rec.update(ok=int(ok), seqs=int(R.rx(f"{k}.r.seqs", path, r"seqs (\d+)")), max_inputs=None,
+                       boot_ready=None, replica_split=[])
+            out[rid] = rec
+            continue
+        ok = R.rx(f"{k}.ok", path, r"\| docs ok / total \| \*\*(\d+) / \d+\*\*")
+        r_wall = R.cell(f"{k}.r.wall", path, "| wall (runner busy interval) |", 1)
+        r_pt = R.cell(f"{k}.r.prompt_tokens", path, "| prompt / completion tokens |", 1, 0)
+        r_ct = R.cell(f"{k}.r.completion_tokens", path, "| prompt / completion tokens |", 1, 1)
+        r_tps = R.cell(f"{k}.r.tps", path, "| throughput |", 1)
+        r_conc = R.cell(f"{k}.r.conc", path, "| concurrency |", 1)
+        pat = r"\| GPU \$ over busy wall \(×(\d) L4 @ \$([\d.]+)/h\) \| ([\d.]+) \|"
+        r_rep, r_rate, r_busy = (R.rx(f"{k}.r.gpu.{g}", path, pat, group=g) for g in (1, 2, 3))
+        L.check(abs(r_wall - wall) < 0.0006, f"{rid}: report wall {r_wall} vs export {wall}")
+        L.check(r_pt == J["prompt_tokens"] and r_ct == J["completion_tokens"], f"{rid}: report tokens vs export")
+        L.check(abs(r_tps - J["tokens_per_second"]) < 0.06, f"{rid}: report tok/s vs export")
+        L.check(r_conc == J["concurrency"] and r_rep == rep, f"{rid}: report concurrency/replicas vs export")
+        L.check(r_rate == L4_USD_PER_HOUR, f"{rid}: L4 rate {r_rate}")
+        L.check(abs(r_busy - busy) < 1.5e-6, f"{rid}: busy GPU $ {r_busy} = wall × replicas × rate")
+        L.check(R.rx(f"{k}.r.containers", path, r"max/min containers (\d)/\d") == rep, f"{rid}: Modal containers = replicas")
+        if rid in runs:
+            L.check(runs[rid]["gpu_usd"] == r_busy and runs[rid]["wall"] == r_wall, f"{rid}: fleet vs run extract")
+        split = []
+        for m in REPLICA_LINE.finditer(R.text(path)):
+            split.append(L.record(f"{k}.replica.{m.group(1)}", {
+                "requests": int(m.group(2)), "ttft": float(m.group(3)), "prefix": float(m.group(4)) / 100,
+                "preempt": int(m.group(5))}, R.name, R.sha, R.rel(path), m.group(0)))
+        L.check(len(split) == rep, f"{rid}: {len(split)} replicas observed vs {rep}")
+        L.check(sum(s["requests"] for s in split) == J["n"], f"{rid}: replica requests sum to n")
+        boot = re.search(r"deploy→engine-ready (\d+) s", R.text(path))
+        rec.update(ok=int(ok), seqs=int(R.rx(f"{k}.r.seqs", path, r"max_num_seqs=(\d+)")),
+                   max_inputs=int(R.rx(f"{k}.r.max_inputs", path, r"max_inputs=(\d+)")),
+                   boot_ready=float(boot.group(1)) if boot else None, replica_split=split)
+        out[rid] = rec
+    return out
 
 
 def _ladder_rows(R: Repo) -> list[dict]:

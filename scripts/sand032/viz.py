@@ -148,16 +148,17 @@ def _bar_path(x0: float, y: float, length: float, h: float, r: float = 4) -> str
 
 def hbar(title: str, subtitle: str, rows: list[dict], *, unit: str = "", fmt=None,
          refs: list[tuple[float, str]] | None = None, width: int = 720, label_w: int = 190,
-         max_label_w: int = 320) -> str:
+         max_label_w: int = 320, domain_max: float | None = None) -> str:
     """rows: [{label, value, emphasis(bool, default True), note(optional)}].
 
     ``label_w`` is a minimum: the label column grows to fit the longest label
     (capped at ``max_label_w``, beyond which labels are middle-ellipsized with
     the full text kept in the hover <title>), and the figure widens with it so
-    the plot keeps its length."""
+    the plot keeps its length. ``domain_max`` extends the value axis to at least
+    that value, so small multiples can share one scale."""
     fmt = fmt or (lambda v: f"{v:g}")
     vals = [r["value"] for r in rows if r.get("value") is not None]
-    ticks = nice_ticks(max(vals + [x for x, _ in (refs or [])] or [1]))
+    ticks = nice_ticks(max(vals + [x for x, _ in (refs or [])] + ([domain_max] if domain_max else []) or [1]))
     vmax = ticks[-1]
     need = max([text_w(r["label"]) for r in rows] or [0]) + 12  # label sits 8px left of the axis
     label_w = math.ceil(max(label_w, min(need + 2, max_label_w)))
