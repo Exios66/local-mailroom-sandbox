@@ -32,7 +32,7 @@
 <text class="title" x="16" y="24">Wall time: seqs16 fleet → seqs32 balanced fleet</text>
 <text class="sub" x="16" y="42">2×L4 · lower is better</text>
 <circle class="s1" cx="22" cy="58" r="5"/><text class="lbl" x="32" y="62">seqs16</text>
-<circle class="s2" cx="84" cy="58" r="5"/><text class="lbl" x="94" y="62">seqs32 balanced</text>
+<circle class="s2" cx="97" cy="58" r="5"/><text class="lbl" x="107" y="62">seqs32 balanced</text>
 <line class="grid" x1="190.0" y1="74" x2="190.0" y2="198"/>
 <text class="tick" x="190.0" y="214" text-anchor="middle">0s</text>
 <line class="grid" x1="340.0" y1="74" x2="340.0" y2="198"/>
@@ -42,23 +42,23 @@
 <line class="grid" x1="640.0" y1="74" x2="640.0" y2="198"/>
 <text class="tick" x="640.0" y="214" text-anchor="middle">300s</text>
 <text class="lbl" x="182" y="97.0" text-anchor="end">correspondence n=100</text>
-<line class="conn" x1="259.1" y1="93.0" x2="248.5" y2="93.0"/>
-<circle class="s1 ring" cx="259.1" cy="93.0" r="5"><title>correspondence n=100 · seqs16: 46s</title></circle>
+<line class="conn" x1="259.0" y1="93.0" x2="248.5" y2="93.0"/>
+<circle class="s1 ring" cx="259.0" cy="93.0" r="5"><title>correspondence n=100 · seqs16: 46s</title></circle>
 <circle class="s2 ring" cx="248.5" cy="93.0" r="5"><title>correspondence n=100 · seqs32 balanced: 39s</title></circle>
-<text class="val" x="269.1" y="97.0">39s</text>
+<text class="val" x="269.0" y="97.0">39s</text>
 <text class="lbl" x="182" y="127.0" text-anchor="end">insurance n=50</text>
-<line class="conn" x1="281.1" y1="123.0" x2="269.2" y2="123.0"/>
-<circle class="s1 ring" cx="281.1" cy="123.0" r="5"><title>insurance n=50 · seqs16: 61s</title></circle>
-<circle class="s2 ring" cx="269.2" cy="123.0" r="5"><title>insurance n=50 · seqs32 balanced: 53s</title></circle>
-<text class="val" x="291.1" y="127.0">53s</text>
+<line class="conn" x1="281.5" y1="123.0" x2="269.5" y2="123.0"/>
+<circle class="s1 ring" cx="281.5" cy="123.0" r="5"><title>insurance n=50 · seqs16: 61s</title></circle>
+<circle class="s2 ring" cx="269.5" cy="123.0" r="5"><title>insurance n=50 · seqs32 balanced: 53s</title></circle>
+<text class="val" x="291.5" y="127.0">53s</text>
 <text class="lbl" x="182" y="157.0" text-anchor="end">corporate n=50</text>
-<line class="conn" x1="274.4" y1="153.0" x2="262.9" y2="153.0"/>
-<circle class="s1 ring" cx="274.4" cy="153.0" r="5"><title>corporate n=50 · seqs16: 56s</title></circle>
-<circle class="s2 ring" cx="262.9" cy="153.0" r="5"><title>corporate n=50 · seqs32 balanced: 49s</title></circle>
-<text class="val" x="284.4" y="157.0">49s</text>
+<line class="conn" x1="274.0" y1="153.0" x2="263.5" y2="153.0"/>
+<circle class="s1 ring" cx="274.0" cy="153.0" r="5"><title>corporate n=50 · seqs16: 56s</title></circle>
+<circle class="s2 ring" cx="263.5" cy="153.0" r="5"><title>corporate n=50 · seqs32 balanced: 49s</title></circle>
+<text class="val" x="284.0" y="157.0">49s</text>
 <text class="lbl" x="182" y="187.0" text-anchor="end">contracts n=50</text>
-<line class="conn" x1="541.5" y1="183.0" x2="519.2" y2="183.0"/>
-<circle class="s1 ring" cx="541.5" cy="183.0" r="5"><title>contracts n=50 · seqs16: 234s</title></circle>
-<circle class="s2 ring" cx="519.2" cy="183.0" r="5"><title>contracts n=50 · seqs32 balanced: 220s</title></circle>
-<text class="val" x="551.5" y="187.0">220s</text>
+<line class="conn" x1="541.0" y1="183.0" x2="520.0" y2="183.0"/>
+<circle class="s1 ring" cx="541.0" cy="183.0" r="5"><title>contracts n=50 · seqs16: 234s</title></circle>
+<circle class="s2 ring" cx="520.0" cy="183.0" r="5"><title>contracts n=50 · seqs32 balanced: 220s</title></circle>
+<text class="val" x="551.0" y="187.0">220s</text>
 </svg>

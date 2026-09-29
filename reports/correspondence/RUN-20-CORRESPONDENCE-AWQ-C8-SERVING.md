@@ -2,7 +2,7 @@
 
 Cost + token capture for local/Modal vs API (OpenRouter) comparison. Machine-
 readable twin:
-[`serving/run-20-correspondence-awq-c8.serving.json`](serving/run-20-correspondence-awq-c8.serving.json)
+[`serving/run-20-correspondence-awq-c8.serving.json`](../serving/run-20-correspondence-awq-c8.serving.json)
 produced by `sandbox metrics serving-record --run run-20-correspondence-awq-c8`
 (`job.metrics.serving_record_from_store`), so the shapes are directly comparable with
 the API bucket base fields from `record_from_run`.

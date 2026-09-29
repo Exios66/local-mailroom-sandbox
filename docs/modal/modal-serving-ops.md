@@ -1,8 +1,8 @@
 # Modal serving ops — warm-once, no-waste
 
-**Owner:** SAND-028 · **Runbooks:** [`docs/runbooks/README.md`](runbooks/README.md)
-(generated from [`config/runbooks/catalog.yaml`](../config/runbooks/catalog.yaml)).
-**Companion:** [`SAND-028-SERVING-SPEND-REVIEW.md`](../governance/SAND-028-SERVING-SPEND-REVIEW.md).
+**Owner:** SAND-028 · **Runbooks:** [`docs/runbooks/README.md`](../runbooks/README.md)
+(generated from [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml)).
+**Companion:** [`SAND-028-SERVING-SPEND-REVIEW.md`](../../governance/scheming/SAND-028-SERVING-SPEND-REVIEW.md).
 
 Token-proxy cost is ~2.4% of GPU cost. The L4 wall-clock is ~98% of the price.
 Optimize GPU *seconds*, not tokens.
@@ -43,4 +43,4 @@ Draw **one bucket per class** (the 100) and score 20/50 as prefixes of that lock
 
 - `reports/serving/*.serving.json` — 3 measured Modal runs ($0.5452 / 60 docs; boots 24% of spend).
 - `reports/RUN-20-CONTRACTS-AWQ-C8-REPORT.md` — token-proxy = 2.44% of GPU cost.
-- Anti-patterns table: [`docs/runbooks/README.md`](runbooks/README.md).
+- Anti-patterns table: [`docs/runbooks/README.md`](../runbooks/README.md).

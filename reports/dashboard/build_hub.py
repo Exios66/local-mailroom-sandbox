@@ -43,6 +43,7 @@ def extract_external(ev_root: pathlib.Path, ml_root: pathlib.Path) -> dict:
     ml = H.Repo(MAILROOM_ML, ml_root, L)
     api = H.eval_env(ev)
     api["sorter"] = H.sorter_cases(H.Repo(EVAL_ENV, ev_root, L), api["classification"])
+    api["route50"] = H.eval_env_route50(ev)
     mb = H.mailroom_ml(ml)
     mb["run3_reeval"] = H.eval_env_modernbert(ev)
     return {"sources": {EVAL_ENV: ev.sha, MAILROOM_ML: ml.sha}, "api": api, "mb": mb,
@@ -96,11 +97,23 @@ def assemble(ext: dict) -> dict:
     for rid, r in runs.items():
         conc.append({"run": rid.replace("sand032-", ""), "c": r["conc"], "s": r["speedup"], "eng": "sand032"})
 
+    # ---- route comparison: the isolated sorter on Modal (SAND-032 S6, n = 458 drawn)
+    s6 = "serving/SAND032-S6-SORTER1000-REPORT.md"
+    sorter_modal = {
+        "run": "sand032-s6-sorter1000",
+        "acc": sb.rx("route.s6.acc", s6, r"\| \*\*accuracy\*\* \| \*\*([0-9.]+)\*\* \|"),
+        "macro_f1": sb.rx("route.s6.f1", s6, r"\| \*\*macro-F1\*\* \| \*\*([0-9.]+)\*\* \|"),
+        "usd": sb.cell("route.s6.usd", s6, "| GPU $/doc |", 1),
+        "ok": sb.rx("route.s6.ok", s6, r"\| docs ok / total \| (\d+) / \d+ \|"),
+        "n": sb.rx("route.s6.n", s6, r"\| docs ok / total \| \d+ / (\d+) \|"),
+    }
+
     ml = specialist_ml(runs)
     api = ext["api"]
     mb = ext["mb"]
     t = text(runs, s32, api, mb, old, run2, cost_cmp)
     t.update(ml_text(ml, mb))
+    t.update(route_text(runs, api, mb, sorter_modal))
     issues = old["issues"] + L.issues + ext["issues"]
     prov = old["provenance"] + list(L.prov.values()) + ext["provenance"]
     for p in old["provenance"]:
@@ -115,7 +128,79 @@ def assemble(ext: dict) -> dict:
         "classes": list(CLS_LABEL), "labels": CLS_LABEL, "s3": S3, "runs": runs, "ladder": s32["ladder"],
         "spend": {"sand032": s32["spend"], "cap": s32["cap"], "incident": s32["incident"], "legacy": old["spend"], "legacy_total": old["total_spend"]},
         "ml": ml, "history": hist, "cost_cmp": cost_cmp, "conc": conc, "rel": old["rel"], "api": api, "mb": mb, "mb_run2": run2,
+        "route": {"sorter_modal": sorter_modal, "points": route_points(runs, api)},
         "issues": issues, "provenance": prov, "sources": sources, "text": t,
+    }
+
+
+TASK_OF = {"correspondence": "correspondence", "insurance_claim": "insurance claims", "corporate_record": "corporate records",
+           "contract": "contracts", "merger_agreement": "merger agreements"}
+
+
+LOGGED_FAMILY = {"qwen/qwen3.7-flash": "Qwen3.7-Flash", "qwen/qwen3-8b": "Qwen3-8B",
+                 "deepseek/deepseek-v4.1-flash": "DeepSeek-V4.1-Flash", "ibm-granite/granite-4.2-8b": "Granite-4.2-8B"}
+
+
+def route_points(runs, api) -> dict:
+    """Per class: the Modal self-hosted run and every hosted-API leg, as (score, $/doc) points."""
+    out = {}
+    for c, task in TASK_OF.items():
+        r = runs[S3[c]]
+        pts = [{"route": "modal", "family": "Qwen3-8B-AWQ", "run": S3[c], "n": r["ok"], "score": r["overall"],
+                "usd": r["usd_per_doc"], "revision": "ed7576b6", "prompts": "production" + (" (MAUD)" if "maud" in S3[c] else "")}]
+        q = api["route50"][task]
+        pts.append({"route": "api", "family": "Qwen3.7-Flash", "run": q["run"], "n": q["n"], "score": q["score"],
+                    "usd": q["cost"] / q["n"], "revision": q["revision"], "prompts": q["prompt_lineage"]})
+        for m, rec in api["tasks"][task].items():
+            # Label by the model the run logged, not the folder it is filed under
+            # (hub issue api.qwen_merger_model: a Qwen3.7-Flash leg filed as Qwen3-8B).
+            fam = rec["family"]
+            if LOGGED_FAMILY.get(rec["model"], fam) != fam:
+                fam = f"{LOGGED_FAMILY[rec['model']]} · {rec['prompt_lineage']}"
+            pts.append({"route": "api", "family": fam, "run": rec["run"], "n": rec["n"], "score": rec["score"],
+                        "usd": rec["cost"] / rec["n"], "revision": rec["revision"], "prompts": rec["prompt_lineage"]})
+        out[c] = pts
+    return out
+
+
+def _sig2(x: float) -> float:
+    """Round to two significant figures (a ratio of estimates is not exact)."""
+    return float(f"{x:.2g}")
+
+
+def route_text(runs, api, mb, sorter_modal) -> dict:
+    pts = route_points(runs, api)
+    cheap_modal = [c for c, ps in pts.items() if ps[0]["usd"] <= min(p["usd"] for p in ps[1:])]
+    # Contracts are scored differently on the two routes (Modal: CUAD category F1;
+    # API: pipeline rubric), so quality is compared on the other four tasks only.
+    comparable = {c: ps for c, ps in pts.items() if c != "contract"}
+    best_modal = [c for c, ps in comparable.items() if ps[0]["score"] >= max(p["score"] for p in ps[1:])]
+    n, nq = len(pts), len(comparable)
+    ratio = {c: min(p["usd"] for p in ps[1:]) / ps[0]["usd"] for c, ps in pts.items()}
+    gap = {c: max(p["score"] for p in ps[1:]) - ps[0]["score"] for c, ps in comparable.items()}
+    worst = max(gap, key=gap.get)
+    cls = sorted(api["classification"], key=lambda r: -r["class_acc"])
+    best_api = next(r for r in cls if r["n"] >= 100)
+    mb_usd = mb["run3_reeval"]["sorter"]["mb_usd"]
+    # Newest run the page draws on (eval-environment run ids are UTC timestamps);
+    # the program began with the 16 Sep runs.
+    stamps = [r["run"][:8] for r in api["route50"].values()] + [r["run"][:8] for r in api["classification"]]
+    stamps += [rec["run"][:8] for task in api["tasks"].values() for rec in task.values()]
+    last = max(s for s in stamps if s.isdigit())
+    return {
+        "date_range": f"16–{int(last[6:8])} Sep {last[:4]}",
+        "route_head": (f"Modal L4 is the cheaper route on {len(cheap_modal)} of {n} specialist tasks; "
+                       f"a hosted model scores higher on {nq - len(best_modal)} of the {nq} tasks scored alike"),
+        "route_cheap": ", ".join(CLS_LABEL[c].lower() for c in cheap_modal) or "none",
+        "route_best": ", ".join(CLS_LABEL[c].lower() for c in best_modal) or "no task",
+        "route_worst": CLS_LABEL[worst].lower(),
+        "route_worst_gap": f"{gap[worst]:.2f}",
+        "route_corr_ratio": f"{ratio['correspondence']:.1f}",
+        "route_sorter_head": (f"ModernBERT matches the best hosted sorter ({mb['armB']['acc'] * 100:.1f}% vs "
+                              f"{best_api['class_acc'] * 100:.1f}%) at about "
+                              f"{_sig2(best_api['cost'] / best_api['n'] / mb_usd):,.0f}× lower cost per document"),
+        "route_s6_acc": f"{sorter_modal['acc'] * 100:.1f}%",
+        "route_s6_usd": f"${sorter_modal['usd']:.4f}",
     }
 
 
