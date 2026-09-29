@@ -12,6 +12,15 @@
 - `reports/dashboard/breakeven.py`: one per-document Modal-vs-API calculation (verdict per class, every measured Modal
   configuration against the cheapest hosted model, warm and cold break-even volumes, the optimal measured deployment)
   quoted by the cost comparison's §3, the GPU report and the site, so no two reports disagree.
+- Dark, high-contrast figures: `scripts/sand032/viz.py` renders every chart as a dark card on the reference palette's
+  dark steps (validated `--mode dark`: ALL PASS), with a fixed color per model (`ENTITY`) and a legend whenever
+  bars carry more than one color; subtitles in sentence case. All 51 SAND-032 figures re-rendered
+  (`rerender.py`, data unchanged). The Pages site and the hub dashboard are dark by default.
+- `reports/dashboard/source_charts.py`: the eval-environment and mailroom-ml charts the reports used to copy are
+  redrawn from hub data in the same kit, so every report figure shares one theme.
+- `reports/dashboard/export_pngs.py`: 2× PNG of every report figure for slides (`mailroom-issues/reports/viz/`).
+- The per-token comparison includes the Qwen3.7-Flash n = 50 legs (token counts now extracted and cross-checked
+  against their reports); the sorter table lists every hosted model's largest run (Qwen3-8B: n = 20).
 - Model per route made explicit: Qwen3-8B-AWQ is the only model self-hosted on Modal; Qwen3.7-Flash and every other
   hosted model ran through the API only. The cost comparison's §3.2 adds the same-model comparison (Qwen3-8B-AWQ on
   Modal vs Qwen3-8B via the API), isolating the route from the model.

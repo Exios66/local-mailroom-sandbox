@@ -1,27 +1,25 @@
 <svg xmlns="http://www.w3.org/2000/svg" class="viz" viewBox="0 0 1056 648" width="1056" height="648" role="img" aria-label="SAND-032 Stage 1 ladder — one axis per metric (same 20 docs every rung)">
 <style>
-  .viz { font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-    --surface:#fcfcfb; --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
-    --grid:#e1e0d9; --axis:#c3c2b7; --s1:#2a78d6; --s2:#eb6834; --deemph:#c3c2b7;
+  .viz { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color-scheme: dark;
+    --surface:#1a1a19; --ink:#ffffff; --ink2:#d6d5cc; --muted:#a9a89f;
+    --grid:#2c2c2a; --axis:#4a4a46; --deemph:#76756f;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
     --good:#0ca30c; --critical:#d03b3b; }
-  @media (prefers-color-scheme: dark) {
-    .viz { --surface:#1a1a19; --ink:#ffffff; --ink2:#c3c2b7; --muted:#898781;
-      --grid:#2c2c2a; --axis:#383835; --s1:#3987e5; --s2:#d95926; --deemph:#52514e; }
-  }
   .viz .bg { fill: var(--surface); }
   .viz .title { fill: var(--ink); font-size: 15px; font-weight: 600; }
   .viz .sub { fill: var(--ink2); font-size: 12px; }
   .viz .lbl { fill: var(--ink2); font-size: 12px; }
   .viz .val { fill: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums;
     paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
-  .viz .reflbl { paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
   .viz .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
   .viz .grid { stroke: var(--grid); stroke-width: 1; }
   .viz .axis { stroke: var(--axis); stroke-width: 1; }
-  .viz .ref { stroke: var(--ink2); stroke-width: 1; }
-  .viz .reflbl { fill: var(--ink2); font-size: 11px; }
-  .viz .s1 { fill: var(--s1); } .viz .s2 { fill: var(--s2); }
-  .viz .ln1 { stroke: var(--s1); } .viz .ln2 { stroke: var(--s2); }
+  .viz .ref { stroke: var(--ink2); stroke-width: 1; stroke-dasharray: 4 3; }
+  .viz .reflbl { fill: var(--ink2); font-size: 11px; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+  .viz .s1 { fill: var(--s1); } .viz .s2 { fill: var(--s2); } .viz .s3 { fill: var(--s3); }
+  .viz .s4 { fill: var(--s4); } .viz .s5 { fill: var(--s5); } .viz .s6 { fill: var(--s6); }
+  .viz .ln1 { stroke: var(--s1); } .viz .ln2 { stroke: var(--s2); } .viz .ln3 { stroke: var(--s3); }
+  .viz .ln4 { stroke: var(--s4); } .viz .ln5 { stroke: var(--s5); } .viz .ln6 { stroke: var(--s6); }
   .viz .deemph { fill: var(--deemph); }
   .viz .conn { stroke: var(--axis); stroke-width: 2; }
   .viz .ring { stroke: var(--surface); stroke-width: 2; }
@@ -29,28 +27,26 @@
 <rect class="bg" width="1056" height="648" rx="8"/><text class="title" x="16" y="24">SAND-032 Stage 1 ladder — one axis per metric (same 20 docs every rung)</text><g transform="translate(0,36)"><svg xmlns="http://www.w3.org/2000/svg" class="viz" viewBox="0 0 520 188" width="520" height="188" role="img" aria-label="Mean overall score">
 
 <style>
-  .viz { font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-    --surface:#fcfcfb; --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
-    --grid:#e1e0d9; --axis:#c3c2b7; --s1:#2a78d6; --s2:#eb6834; --deemph:#c3c2b7;
+  .viz { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color-scheme: dark;
+    --surface:#1a1a19; --ink:#ffffff; --ink2:#d6d5cc; --muted:#a9a89f;
+    --grid:#2c2c2a; --axis:#4a4a46; --deemph:#76756f;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
     --good:#0ca30c; --critical:#d03b3b; }
-  @media (prefers-color-scheme: dark) {
-    .viz { --surface:#1a1a19; --ink:#ffffff; --ink2:#c3c2b7; --muted:#898781;
-      --grid:#2c2c2a; --axis:#383835; --s1:#3987e5; --s2:#d95926; --deemph:#52514e; }
-  }
   .viz .bg { fill: var(--surface); }
   .viz .title { fill: var(--ink); font-size: 15px; font-weight: 600; }
   .viz .sub { fill: var(--ink2); font-size: 12px; }
   .viz .lbl { fill: var(--ink2); font-size: 12px; }
   .viz .val { fill: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums;
     paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
-  .viz .reflbl { paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
   .viz .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
   .viz .grid { stroke: var(--grid); stroke-width: 1; }
   .viz .axis { stroke: var(--axis); stroke-width: 1; }
-  .viz .ref { stroke: var(--ink2); stroke-width: 1; }
-  .viz .reflbl { fill: var(--ink2); font-size: 11px; }
-  .viz .s1 { fill: var(--s1); } .viz .s2 { fill: var(--s2); }
-  .viz .ln1 { stroke: var(--s1); } .viz .ln2 { stroke: var(--s2); }
+  .viz .ref { stroke: var(--ink2); stroke-width: 1; stroke-dasharray: 4 3; }
+  .viz .reflbl { fill: var(--ink2); font-size: 11px; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+  .viz .s1 { fill: var(--s1); } .viz .s2 { fill: var(--s2); } .viz .s3 { fill: var(--s3); }
+  .viz .s4 { fill: var(--s4); } .viz .s5 { fill: var(--s5); } .viz .s6 { fill: var(--s6); }
+  .viz .ln1 { stroke: var(--s1); } .viz .ln2 { stroke: var(--s2); } .viz .ln3 { stroke: var(--s3); }
+  .viz .ln4 { stroke: var(--s4); } .viz .ln5 { stroke: var(--s5); } .viz .ln6 { stroke: var(--s6); }
   .viz .deemph { fill: var(--deemph); }
   .viz .conn { stroke: var(--axis); stroke-width: 2; }
   .viz .ring { stroke: var(--surface); stroke-width: 2; }
@@ -58,7 +54,7 @@
 
 <rect class="bg" width="520" height="188" rx="8"/>
 <text class="title" x="16" y="24">Mean overall score</text>
-<text class="sub" x="16" y="42">higher is better · emphasis = best rung</text>
+<text class="sub" x="16" y="42">Higher is better · emphasis = best rung</text>
 <line class="grid" x1="120.0" y1="54" x2="120.0" y2="154"/>
 <text class="tick" x="120.0" y="170" text-anchor="middle">0</text>
 <line class="grid" x1="230.0" y1="54" x2="230.0" y2="154"/>
@@ -83,28 +79,26 @@
 </svg></g><g transform="translate(536,36)"><svg xmlns="http://www.w3.org/2000/svg" class="viz" viewBox="0 0 520 188" width="520" height="188" role="img" aria-label="Wall (s)">
 
 <style>
-  .viz { font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-    --surface:#fcfcfb; --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
-    --grid:#e1e0d9; --axis:#c3c2b7; --s1:#2a78d6; --s2:#eb6834; --deemph:#c3c2b7;
+  .viz { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color-scheme: dark;
+    --surface:#1a1a19; --ink:#ffffff; --ink2:#d6d5cc; --muted:#a9a89f;
+    --grid:#2c2c2a; --axis:#4a4a46; --deemph:#76756f;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
     --good:#0ca30c; --critical:#d03b3b; }
-  @media (prefers-color-scheme: dark) {
-    .viz { --surface:#1a1a19; --ink:#ffffff; --ink2:#c3c2b7; --muted:#898781;
-      --grid:#2c2c2a; --axis:#383835; --s1:#3987e5; --s2:#d95926; --deemph:#52514e; }
-  }
   .viz .bg { fill: var(--surface); }
   .viz .title { fill: var(--ink); font-size: 15px; font-weight: 600; }
   .viz .sub { fill: var(--ink2); font-size: 12px; }
   .viz .lbl { fill: var(--ink2); font-size: 12px; }
   .viz .val { fill: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums;
     paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
-  .viz .reflbl { paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
   .viz .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
   .viz .grid { stroke: var(--grid); stroke-width: 1; }
   .viz .axis { stroke: var(--axis); stroke-width: 1; }
-  .viz .ref { stroke: var(--ink2); stroke-width: 1; }
-  .viz .reflbl { fill: var(--ink2); font-size: 11px; }
-  .viz .s1 { fill: var(--s1); } .viz .s2 { fill: var(--s2); }
-  .viz .ln1 { stroke: var(--s1); } .viz .ln2 { stroke: var(--s2); }
+  .viz .ref { stroke: var(--ink2); stroke-width: 1; stroke-dasharray: 4 3; }
+  .viz .reflbl { fill: var(--ink2); font-size: 11px; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+  .viz .s1 { fill: var(--s1); } .viz .s2 { fill: var(--s2); } .viz .s3 { fill: var(--s3); }
+  .viz .s4 { fill: var(--s4); } .viz .s5 { fill: var(--s5); } .viz .s6 { fill: var(--s6); }
+  .viz .ln1 { stroke: var(--s1); } .viz .ln2 { stroke: var(--s2); } .viz .ln3 { stroke: var(--s3); }
+  .viz .ln4 { stroke: var(--s4); } .viz .ln5 { stroke: var(--s5); } .viz .ln6 { stroke: var(--s6); }
   .viz .deemph { fill: var(--deemph); }
   .viz .conn { stroke: var(--axis); stroke-width: 2; }
   .viz .ring { stroke: var(--surface); stroke-width: 2; }
@@ -112,7 +106,7 @@
 
 <rect class="bg" width="520" height="188" rx="8"/>
 <text class="title" x="16" y="24">Wall (s)</text>
-<text class="sub" x="16" y="42">lower is better · emphasis = best rung</text>
+<text class="sub" x="16" y="42">Lower is better · emphasis = best rung</text>
 <line class="grid" x1="120.0" y1="54" x2="120.0" y2="154"/>
 <text class="tick" x="120.0" y="170" text-anchor="middle">0s</text>
 <line class="grid" x1="202.5" y1="54" x2="202.5" y2="154"/>
@@ -139,28 +133,26 @@
 </svg></g><g transform="translate(0,240)"><svg xmlns="http://www.w3.org/2000/svg" class="viz" viewBox="0 0 520 188" width="520" height="188" role="img" aria-label="Latency p50 (s)">
 
 <style>
-  .viz { font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-    --surface:#fcfcfb; --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
-    --grid:#e1e0d9; --axis:#c3c2b7; --s1:#2a78d6; --s2:#eb6834; --deemph:#c3c2b7;
+  .viz { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color-scheme: dark;
+    --surface:#1a1a19; --ink:#ffffff; --ink2:#d6d5cc; --muted:#a9a89f;
+    --grid:#2c2c2a; --axis:#4a4a46; --deemph:#76756f;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
     --good:#0ca30c; --critical:#d03b3b; }
-  @media (prefers-color-scheme: dark) {
-    .viz { --surface:#1a1a19; --ink:#ffffff; --ink2:#c3c2b7; --muted:#898781;
-      --grid:#2c2c2a; --axis:#383835; --s1:#3987e5; --s2:#d95926; --deemph:#52514e; }
-  }
   .viz .bg { fill: var(--surface); }
   .viz .title { fill: var(--ink); font-size: 15px; font-weight: 600; }
   .viz .sub { fill: var(--ink2); font-size: 12px; }
   .viz .lbl { fill: var(--ink2); font-size: 12px; }
   .viz .val { fill: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums;
     paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
-  .viz .reflbl { paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
   .viz .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
   .viz .grid { stroke: var(--grid); stroke-width: 1; }
   .viz .axis { stroke: var(--axis); stroke-width: 1; }
-  .viz .ref { stroke: var(--ink2); stroke-width: 1; }
-  .viz .reflbl { fill: var(--ink2); font-size: 11px; }
-  .viz .s1 { fill: var(--s1); } .viz .s2 { fill: var(--s2); }
-  .viz .ln1 { stroke: var(--s1); } .viz .ln2 { stroke: var(--s2); }
+  .viz .ref { stroke: var(--ink2); stroke-width: 1; stroke-dasharray: 4 3; }
+  .viz .reflbl { fill: var(--ink2); font-size: 11px; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+  .viz .s1 { fill: var(--s1); } .viz .s2 { fill: var(--s2); } .viz .s3 { fill: var(--s3); }
+  .viz .s4 { fill: var(--s4); } .viz .s5 { fill: var(--s5); } .viz .s6 { fill: var(--s6); }
+  .viz .ln1 { stroke: var(--s1); } .viz .ln2 { stroke: var(--s2); } .viz .ln3 { stroke: var(--s3); }
+  .viz .ln4 { stroke: var(--s4); } .viz .ln5 { stroke: var(--s5); } .viz .ln6 { stroke: var(--s6); }
   .viz .deemph { fill: var(--deemph); }
   .viz .conn { stroke: var(--axis); stroke-width: 2; }
   .viz .ring { stroke: var(--surface); stroke-width: 2; }
@@ -168,7 +160,7 @@
 
 <rect class="bg" width="520" height="188" rx="8"/>
 <text class="title" x="16" y="24">Latency p50 (s)</text>
-<text class="sub" x="16" y="42">lower is better · emphasis = best rung</text>
+<text class="sub" x="16" y="42">Lower is better · emphasis = best rung</text>
 <line class="grid" x1="120.0" y1="54" x2="120.0" y2="154"/>
 <text class="tick" x="120.0" y="170" text-anchor="middle">0s</text>
 <line class="grid" x1="230.0" y1="54" x2="230.0" y2="154"/>
@@ -193,28 +185,26 @@
 </svg></g><g transform="translate(536,240)"><svg xmlns="http://www.w3.org/2000/svg" class="viz" viewBox="0 0 520 188" width="520" height="188" role="img" aria-label="Latency p95 (s)">
 
 <style>
-  .viz { font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-    --surface:#fcfcfb; --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
-    --grid:#e1e0d9; --axis:#c3c2b7; --s1:#2a78d6; --s2:#eb6834; --deemph:#c3c2b7;
+  .viz { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color-scheme: dark;
+    --surface:#1a1a19; --ink:#ffffff; --ink2:#d6d5cc; --muted:#a9a89f;
+    --grid:#2c2c2a; --axis:#4a4a46; --deemph:#76756f;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
     --good:#0ca30c; --critical:#d03b3b; }
-  @media (prefers-color-scheme: dark) {
-    .viz { --surface:#1a1a19; --ink:#ffffff; --ink2:#c3c2b7; --muted:#898781;
-      --grid:#2c2c2a; --axis:#383835; --s1:#3987e5; --s2:#d95926; --deemph:#52514e; }
-  }
   .viz .bg { fill: var(--surface); }
   .viz .title { fill: var(--ink); font-size: 15px; font-weight: 600; }
   .viz .sub { fill: var(--ink2); font-size: 12px; }
   .viz .lbl { fill: var(--ink2); font-size: 12px; }
   .viz .val { fill: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums;
     paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
-  .viz .reflbl { paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
   .viz .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
   .viz .grid { stroke: var(--grid); stroke-width: 1; }
   .viz .axis { stroke: var(--axis); stroke-width: 1; }
-  .viz .ref { stroke: var(--ink2); stroke-width: 1; }
-  .viz .reflbl { fill: var(--ink2); font-size: 11px; }
-  .viz .s1 { fill: var(--s1); } .viz .s2 { fill: var(--s2); }
-  .viz .ln1 { stroke: var(--s1); } .viz .ln2 { stroke: var(--s2); }
+  .viz .ref { stroke: var(--ink2); stroke-width: 1; stroke-dasharray: 4 3; }
+  .viz .reflbl { fill: var(--ink2); font-size: 11px; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+  .viz .s1 { fill: var(--s1); } .viz .s2 { fill: var(--s2); } .viz .s3 { fill: var(--s3); }
+  .viz .s4 { fill: var(--s4); } .viz .s5 { fill: var(--s5); } .viz .s6 { fill: var(--s6); }
+  .viz .ln1 { stroke: var(--s1); } .viz .ln2 { stroke: var(--s2); } .viz .ln3 { stroke: var(--s3); }
+  .viz .ln4 { stroke: var(--s4); } .viz .ln5 { stroke: var(--s5); } .viz .ln6 { stroke: var(--s6); }
   .viz .deemph { fill: var(--deemph); }
   .viz .conn { stroke: var(--axis); stroke-width: 2; }
   .viz .ring { stroke: var(--surface); stroke-width: 2; }
@@ -222,7 +212,7 @@
 
 <rect class="bg" width="520" height="188" rx="8"/>
 <text class="title" x="16" y="24">Latency p95 (s)</text>
-<text class="sub" x="16" y="42">lower is better · emphasis = best rung</text>
+<text class="sub" x="16" y="42">Lower is better · emphasis = best rung</text>
 <line class="grid" x1="120.0" y1="54" x2="120.0" y2="154"/>
 <text class="tick" x="120.0" y="170" text-anchor="middle">0s</text>
 <line class="grid" x1="230.0" y1="54" x2="230.0" y2="154"/>
@@ -247,28 +237,26 @@
 </svg></g><g transform="translate(0,444)"><svg xmlns="http://www.w3.org/2000/svg" class="viz" viewBox="0 0 520 188" width="520" height="188" role="img" aria-label="$ per doc (busy GPU)">
 
 <style>
-  .viz { font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-    --surface:#fcfcfb; --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
-    --grid:#e1e0d9; --axis:#c3c2b7; --s1:#2a78d6; --s2:#eb6834; --deemph:#c3c2b7;
+  .viz { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color-scheme: dark;
+    --surface:#1a1a19; --ink:#ffffff; --ink2:#d6d5cc; --muted:#a9a89f;
+    --grid:#2c2c2a; --axis:#4a4a46; --deemph:#76756f;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
     --good:#0ca30c; --critical:#d03b3b; }
-  @media (prefers-color-scheme: dark) {
-    .viz { --surface:#1a1a19; --ink:#ffffff; --ink2:#c3c2b7; --muted:#898781;
-      --grid:#2c2c2a; --axis:#383835; --s1:#3987e5; --s2:#d95926; --deemph:#52514e; }
-  }
   .viz .bg { fill: var(--surface); }
   .viz .title { fill: var(--ink); font-size: 15px; font-weight: 600; }
   .viz .sub { fill: var(--ink2); font-size: 12px; }
   .viz .lbl { fill: var(--ink2); font-size: 12px; }
   .viz .val { fill: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums;
     paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
-  .viz .reflbl { paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
   .viz .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
   .viz .grid { stroke: var(--grid); stroke-width: 1; }
   .viz .axis { stroke: var(--axis); stroke-width: 1; }
-  .viz .ref { stroke: var(--ink2); stroke-width: 1; }
-  .viz .reflbl { fill: var(--ink2); font-size: 11px; }
-  .viz .s1 { fill: var(--s1); } .viz .s2 { fill: var(--s2); }
-  .viz .ln1 { stroke: var(--s1); } .viz .ln2 { stroke: var(--s2); }
+  .viz .ref { stroke: var(--ink2); stroke-width: 1; stroke-dasharray: 4 3; }
+  .viz .reflbl { fill: var(--ink2); font-size: 11px; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+  .viz .s1 { fill: var(--s1); } .viz .s2 { fill: var(--s2); } .viz .s3 { fill: var(--s3); }
+  .viz .s4 { fill: var(--s4); } .viz .s5 { fill: var(--s5); } .viz .s6 { fill: var(--s6); }
+  .viz .ln1 { stroke: var(--s1); } .viz .ln2 { stroke: var(--s2); } .viz .ln3 { stroke: var(--s3); }
+  .viz .ln4 { stroke: var(--s4); } .viz .ln5 { stroke: var(--s5); } .viz .ln6 { stroke: var(--s6); }
   .viz .deemph { fill: var(--deemph); }
   .viz .conn { stroke: var(--axis); stroke-width: 2; }
   .viz .ring { stroke: var(--surface); stroke-width: 2; }
@@ -276,7 +264,7 @@
 
 <rect class="bg" width="520" height="188" rx="8"/>
 <text class="title" x="16" y="24">$ per doc (busy GPU)</text>
-<text class="sub" x="16" y="42">lower is better · emphasis = best rung</text>
+<text class="sub" x="16" y="42">Lower is better · emphasis = best rung</text>
 <line class="grid" x1="120.0" y1="54" x2="120.0" y2="154"/>
 <text class="tick" x="120.0" y="170" text-anchor="middle">0</text>
 <line class="grid" x1="202.5" y1="54" x2="202.5" y2="154"/>
@@ -303,28 +291,26 @@
 </svg></g><g transform="translate(536,444)"><svg xmlns="http://www.w3.org/2000/svg" class="viz" viewBox="0 0 520 188" width="520" height="188" role="img" aria-label="Throughput (tok/s)">
 
 <style>
-  .viz { font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-    --surface:#fcfcfb; --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
-    --grid:#e1e0d9; --axis:#c3c2b7; --s1:#2a78d6; --s2:#eb6834; --deemph:#c3c2b7;
+  .viz { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color-scheme: dark;
+    --surface:#1a1a19; --ink:#ffffff; --ink2:#d6d5cc; --muted:#a9a89f;
+    --grid:#2c2c2a; --axis:#4a4a46; --deemph:#76756f;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
     --good:#0ca30c; --critical:#d03b3b; }
-  @media (prefers-color-scheme: dark) {
-    .viz { --surface:#1a1a19; --ink:#ffffff; --ink2:#c3c2b7; --muted:#898781;
-      --grid:#2c2c2a; --axis:#383835; --s1:#3987e5; --s2:#d95926; --deemph:#52514e; }
-  }
   .viz .bg { fill: var(--surface); }
   .viz .title { fill: var(--ink); font-size: 15px; font-weight: 600; }
   .viz .sub { fill: var(--ink2); font-size: 12px; }
   .viz .lbl { fill: var(--ink2); font-size: 12px; }
   .viz .val { fill: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums;
     paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
-  .viz .reflbl { paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
   .viz .tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
   .viz .grid { stroke: var(--grid); stroke-width: 1; }
   .viz .axis { stroke: var(--axis); stroke-width: 1; }
-  .viz .ref { stroke: var(--ink2); stroke-width: 1; }
-  .viz .reflbl { fill: var(--ink2); font-size: 11px; }
-  .viz .s1 { fill: var(--s1); } .viz .s2 { fill: var(--s2); }
-  .viz .ln1 { stroke: var(--s1); } .viz .ln2 { stroke: var(--s2); }
+  .viz .ref { stroke: var(--ink2); stroke-width: 1; stroke-dasharray: 4 3; }
+  .viz .reflbl { fill: var(--ink2); font-size: 11px; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+  .viz .s1 { fill: var(--s1); } .viz .s2 { fill: var(--s2); } .viz .s3 { fill: var(--s3); }
+  .viz .s4 { fill: var(--s4); } .viz .s5 { fill: var(--s5); } .viz .s6 { fill: var(--s6); }
+  .viz .ln1 { stroke: var(--s1); } .viz .ln2 { stroke: var(--s2); } .viz .ln3 { stroke: var(--s3); }
+  .viz .ln4 { stroke: var(--s4); } .viz .ln5 { stroke: var(--s5); } .viz .ln6 { stroke: var(--s6); }
   .viz .deemph { fill: var(--deemph); }
   .viz .conn { stroke: var(--axis); stroke-width: 2; }
   .viz .ring { stroke: var(--surface); stroke-width: 2; }
@@ -332,7 +318,7 @@
 
 <rect class="bg" width="520" height="188" rx="8"/>
 <text class="title" x="16" y="24">Throughput (tok/s)</text>
-<text class="sub" x="16" y="42">higher is better · emphasis = best rung</text>
+<text class="sub" x="16" y="42">Higher is better · emphasis = best rung</text>
 <line class="grid" x1="120.0" y1="54" x2="120.0" y2="154"/>
 <text class="tick" x="120.0" y="170" text-anchor="middle">0</text>
 <line class="grid" x1="230.0" y1="54" x2="230.0" y2="154"/>

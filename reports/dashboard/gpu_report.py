@@ -240,10 +240,12 @@ def spend_parts(D):
 
 
 def api_tokens(D, X):
-    """Hosted-API legs that logged token counts, per task (eval-environment, n = 20)."""
+    """Hosted-API legs that logged token counts, per task (eval-environment): the n = 20 legs of every model, plus
+    the Qwen3.7-Flash n = 50 legs."""
     out = {}
     for task, models in D["api"]["tasks"].items():
-        rows = [r for r in models.values() if r.get("prompt_tokens") and r.get("completion_tokens")]
+        rows = [r for r in [*models.values(), D["api"]["route50"].get(task, {})]
+                if r.get("prompt_tokens") and r.get("completion_tokens")]
         out[task] = [{"name": X.api_name(r), "n": r["n"], "run": r["run"], "usd_mtok": r["cost"] / (r["prompt_tokens"] + r["completion_tokens"]) * 1e6,
                       "usd_mout": r["cost"] / r["completion_tokens"] * 1e6,
                       "out_share": r["completion_tokens"] / (r["prompt_tokens"] + r["completion_tokens"])} for r in rows]
@@ -375,13 +377,15 @@ def fig_api(D, X, api):
     panels = []
     for task, rid in SWEEP_BY_TASK.items():
         r = D["fleet"][rid]
-        rows = [{"label": f"Modal · {r['model'].split('/')[-1]} ({r['replicas']}×L4 c{r['conc']})", "value": round(per_mtok(r), 4), "emphasis": True,
-                 "note": f"n = {r['ok']} · {rid}"}]
-        rows += [{"label": f"API · {a['name'].split(' · ')[0]}" + (" (frozen prompts)" if "filed as" in a["name"] else ""),
-                  "value": round(a["usd_mtok"], 4), "emphasis": False, "note": f"{a['name']} · n = {a['n']} · {a['run']}"} for a in sorted(api.get(task, []), key=lambda a: a["usd_mtok"])]
+        rows = [{"label": f"Modal · {r['model'].split('/')[-1]} ({r['replicas']}×L4 c{r['conc']})", "value": round(per_mtok(r), 4),
+                 "series": X.viz.entity(r["model"]), "note": f"n = {r['ok']} · {rid}"}]
+        rows += [{"label": f"API · {a['name'].split(' · ')[0]}" + (" (frozen prompts)" if "filed as" in a["name"] else "")
+                  + f" · n = {a['n']}", "value": round(a["usd_mtok"], 4), "series": X.viz.entity(a["name"].split(" · ")[0]),
+                  "note": f"{a['name']} · n = {a['n']} · {a['run']}"} for a in sorted(api.get(task, []), key=lambda a: a["usd_mtok"])]
         rows.sort(key=lambda x: x["value"])
         panels.append(X.viz.hbar(task.capitalize(), "$ per 1M tokens (prompt + completion) · lower is better",
-                                 rows, fmt=lambda v: f"${v:.3f}", width=560, label_w=250, domain_max=top))
+                                 rows, fmt=lambda v: f"${v:.3f}", width=560, label_w=250, domain_max=top,
+                                 legend=X.entity_legend(x["label"] for x in rows)))
     return X.viz.small_multiples("Cost per 1M tokens on the same tasks: Modal L4 (busy-window) vs hosted API · one scale", panels, cols=2)
 
 
@@ -583,6 +587,8 @@ def report(D, X, shas) -> tuple[str, dict[str, str], dict]:
     sweep_slot = [r["slot"] for r in sweep]
     one_slot = [r["slot"] for r in one_l4]
     long_docs = [lab for lab, r in by["sweep"] if r["slot"] < 0.6]
+    # one entry per class: "merger agreements" and "merger agreements · MAUD prompt" read as one class
+    long_names = list(dict.fromkeys(lcfirst(lab.split(" · ", 1)[1]).split(" · ")[0] for lab in long_docs))
     spd = a["wall"] / b["wall"]
     s7_vs_b = per_mtok(s7) / per_mtok(b)
     s9_gain = tps_l4(s9) / tps_l4(b) - 1
@@ -599,11 +605,11 @@ This report covers what the self-hosted leg cost and how well it used the GPUs. 
 
 - **Spend.** SAND-032 used {d2(sp['sand032'])} of its {d2(sp['cap'])} cap (fleet-window ledger at close; it stood at {d2(sp['stage5'])} after stages 1–5). The runs themselves bill at least {d2(billed)}: {d2(busy)} while the batch ran and {d2(boot_usd)} of cold boots. The aborted sorter run cost {d2(sp['incident'])}. The remaining {d2(parts[-1][1])} ({pct(parts[-1][1] / sp['sand032'], 0)}) is fleet time outside any run: warm replicas waiting between runs and deploy windows. Only {d2(occupied)} ({pct(occupied / sp['sand032'], 0)} of the ledger) paid for GPU slots with a request in flight.
 - **Cost per token.** A token costs ${per_mtok(cheapest):.3f} to ${per_mtok(dearest):.3f} per million on the busy-window basis. At a fixed L4 price the only variable is throughput per L4: $ per 1M tokens = {coeff:.1f} ÷ (tok/s per L4). The cheapest run is {describe(F, cheapest['run'])}: {pct(cheapest['prompt_tokens'] / tok(cheapest), 0)} of its tokens are input, and it ran at {tps_l4(cheapest):,.0f} tok/s per L4. The dearest is {describe(F, dearest['run'])}, at {tps_l4(dearest):,.0f} tok/s per L4 with long decodes and a long-document tail. Per million *output* tokens the range is ${min(map(per_mout, all_runs)):.2f}–${max(map(per_mout, all_runs)):.2f}.
-- **Against the hosted API, per token.** On the same tasks, Modal at {sweep_fleet} is cheaper per token than every hosted model that logged tokens for {X.and_list(beat) or 'no task'}{'' if not lose else ', and dearer for ' + X.and_list(lose)}. Those are busy-window figures. This program's ledger was {load:.1f}× its busy-window GPU $ (boots, idle slots and warm time); at that load Modal is cheaper per token only for {X.and_list(beat_loaded) or 'no task'}. Hosted Qwen3-8B, the same model family, costs ${min(qwen_api):.3f}–${max(qwen_api):.3f} per 1M tokens.
+- **Against the hosted API, per token.** On the same tasks, Modal at {sweep_fleet} is cheaper per token than every hosted model that logged tokens for {X.and_list(beat) or 'no task'}{'' if not lose else ', and dearer for ' + X.and_list(lose)}. Those are busy-window figures. This program's ledger was {load:.1f}× its busy-window GPU $ (boots, idle slots and warm time); {'at that load Modal stays cheaper per token only for ' + X.and_list(beat_loaded) if beat_loaded else 'at that load Modal is not cheaper per token for any task'}. Hosted Qwen3-8B, the same model that Modal serves as a 4-bit AWQ quantization, costs ${min(qwen_api):.3f}–${max(qwen_api):.3f} per 1M tokens.
 - **Cost per token at real utilization.** A warm fleet bills by the hour whether or not it has work, so its cost per token is the busy-window figure divided by the share of time the GPUs are busy. Against the cheapest hosted model, a warm L4 fleet stays cheaper only while it is busy more than {X.and_list(f"{u * 100:.0f}% of the time for {c}" for c, u in wins.items()) or "never"}{'' if not never else '; for ' + X.and_list(never) + ' the API is cheaper even at 100% busy'}.
 - **Where Modal deployment wins, per document.** §OPTIMAL§ The per-class break-evens are in [the cost comparison's §3](COST-COMPARISON-MODAL-VS-API.md#3-when-does-modal-pay-off-break-even-and-the-optimal-scenario).
 - **Warm vs cold.** A cold 2×L4 cycle (the {S:.0f} s scale-down tail plus a {B5:.0f} s L5 boot) costs {usd(cycle[2])}, the same as {g_star / 60:.1f} minutes of a warm 2×L4 fleet. So stay warm when the next batch starts within {g_star / 60:.1f} minutes and scale to zero otherwise. A single cold batch costs {min(cold_usd(r) / r['busy_usd'] for r in best.values()):.1f}–{max(cold_usd(r) / r['busy_usd'] for r in best.values()):.1f}× its warm cost at the batch sizes measured; the boot stops mattering (under {min(PREMIUMS) * 100:.0f}% premium) only past {min(math.ceil(cycle[2] / (min(PREMIUMS) * per_doc(r))) for r in best.values()):,}–{max(math.ceil(cycle[2] / (min(PREMIUMS) * per_doc(r))) for r in best.values()):,} documents per cold 2×L4 batch.
-- **Utilization.** GPU compute (SM) utilization was never sampled. The measured proxy is client-slot occupancy, the share of admitted request slots holding a request. It is {pct(min(one_slot), 0)}–{pct(max(one_slot), 0)} on one L4 at c{one_conc}, {pct(min(sweep_slot), 0)}–{pct(max(sweep_slot), 0)} across the {sweep_fleet} sweep, and lowest on {X.and_list(lcfirst(l.split(' · ', 1)[1]) for l in long_docs)}, where one slow document holds the batch open while the other slots drain. Idle slots inside runs cost {d2(idle)} ({pct(idle / busy, 0)} of busy-window GPU $). {'vLLM recorded no preemptions on any scraped replica, so KV cache was never the constraint.' if preempt == 0 else f'vLLM recorded {preempt} preemptions across the scraped replicas.'}
+- **Utilization.** GPU compute (SM) utilization was never sampled. The measured proxy is client-slot occupancy, the share of admitted request slots holding a request. It is {pct(min(one_slot), 0)}–{pct(max(one_slot), 0)} on one L4 at c{one_conc}, {pct(min(sweep_slot), 0)}–{pct(max(sweep_slot), 0)} across the {sweep_fleet} sweep, and lowest on {X.and_list(long_names)}, where one slow document holds the batch open while the other slots drain. Idle slots inside runs cost {d2(idle)} ({pct(idle / busy, 0)} of busy-window GPU $). {'vLLM recorded no preemptions on any scraped replica, so KV cache was never the constraint.' if preempt == 0 else f'vLLM recorded {preempt} preemptions across the scraped replicas.'}
 - **The second L4.** On the same {a['n']} documents, {hdr(b)} finished in {b['wall']:.1f} s against {a['wall']:.1f} s on {hdr(a)} ({spd:.2f}× faster). Throughput per L4 held ({tps_l4(a):,.0f} → {tps_l4(b):,.0f} tok/s), so cost per token moved from ${per_mtok(a):.4f} to ${per_mtok(b):.4f} and cost per document stayed flat. p95 latency rose from {a['p95']:.1f} s to {b['p95']:.1f} s. The second L4 pays only if Modal's router spreads the load. With `max_inputs` {s7['max_inputs']}, it sent {max(s['requests'] for s in s7['replica_split'])} of {s7['n']} requests to one replica: throughput per L4 fell to {tps_l4(s7):,.0f} tok/s and cost per token rose {s7_vs_b:.1f}×. With `max_inputs` {s9['max_inputs']} at c{s9['conc']} the split was {' / '.join(str(s['requests']) for s in s9['replica_split'])}, and throughput per L4 reached {tps_l4(s9):,.0f} tok/s ({s9_gain * 100:+.0f}% on c{b['conc']}).
 - **Boot.** {len(boots)} runs started on a cold fleet; each waited {min(boots):.0f}–{max(boots):.0f} s for the engine to answer its first request. CUDA-graph capture is most of the difference: deploy → ready went from {lad_boot['l1-nothink']:.0f} s at L1 to {lad_boot['l5-graphs']:.0f} s at L5. Boots cost {d2(boot_usd)}, {pct(boot_usd / billed, 0)} of the runs' billed GPU $; one cold 2×L4 start at L5 costs {usd(s2_boot_2x)}.
 
@@ -689,7 +695,7 @@ Utilization here is the share of the fleet's paid hours spent running batches li
 
 {table(["Task", "Modal $ / 1M", "Modal output share", "Cheapest API (per 1M)", "API output share", "Other API models", "Cheapest API ÷ Modal"], api_rows, "lrrlrlr")}
 
-Hosted rows are the eval-environment n = {api_n} legs that logged token counts (list price × tokens). Modal rows are busy-window only; scaled by this program's ledger-to-busy ratio ({load:.1f}×), Modal stays cheaper per token for {X.and_list(beat_loaded) or 'no task'}. Each leg counts tokens with its own prompts and tokenizer, and the API charges output tokens several times more than input, so the output share matters: Modal's GPU-time price does not care about the mix. The per-document comparison, with the break-even volumes and the optimal deployment, is in [COST-COMPARISON-MODAL-VS-API.md §3](COST-COMPARISON-MODAL-VS-API.md#3-when-does-modal-pay-off-break-even-and-the-optimal-scenario).
+Hosted rows are the eval-environment n = {api_n} legs that logged token counts (list price × tokens). Modal rows are busy-window only; scaled by this program's ledger-to-busy ratio ({load:.1f}×), {'Modal stays cheaper per token for ' + X.and_list(beat_loaded) if beat_loaded else 'Modal is not cheaper per token for any task'}. Each leg counts tokens with its own prompts and tokenizer, and the API charges output tokens several times more than input, so the output share matters: Modal's GPU-time price does not care about the mix. The per-document comparison, with the break-even volumes and the optimal deployment, is in [COST-COMPARISON-MODAL-VS-API.md §3](COST-COMPARISON-MODAL-VS-API.md#3-when-does-modal-pay-off-break-even-and-the-optimal-scenario).
 
 ## 4. Warm vs cold GPUs
 
@@ -739,7 +745,7 @@ Between two batches with an idle gap G, a pinned warm 2×L4 fleet costs G × {d2
 **Findings.**
 
 - **One L4 at c{one_conc} stays full.** Occupancy is {pct(min(one_slot), 0)}–{pct(max(one_slot), 0)} on the single-L4 runs: {one_conc} client slots feed one engine, so a straggler idles one slot in {one_conc} rather than most of {sweep_conc}.
-- **Wide fleets idle on long tails.** At {sweep_fleet}, occupancy drops to {pct(min(sweep_slot), 0)}–{pct(max(sweep_slot), 0)}. On {X.and_list(lcfirst(l.split(' · ', 1)[1]) for l in long_docs)}, one slow document is still decoding after the other slots have emptied, so both GPUs bill while mostly idle. Across all runs idle slots cost {d2(idle)}, {pct(idle / busy, 0)} of busy-window GPU $.
+- **Wide fleets idle on long tails.** At {sweep_fleet}, occupancy drops to {pct(min(sweep_slot), 0)}–{pct(max(sweep_slot), 0)}. On {X.and_list(long_names)}, one slow document is still decoding after the other slots have emptied, so both GPUs bill while mostly idle. Across all runs idle slots cost {d2(idle)}, {pct(idle / busy, 0)} of busy-window GPU $.
 - **Doubling admission lowers occupancy.** At {c64_conc} (`max_num_seqs` {c64_seqs}) occupancy is {pct(min(r['slot'] for r in c64), 0)}–{pct(max(r['slot'] for r in c64), 0)}: requests queue inside vLLM, latency rises, and wall time falls by less than the extra admission.
 - **KV cache was never the limit.** {f"vLLM reported no preemptions on any scraped replica, including the contracts runs at up to {kv_top['seqs']} sequences per replica (`max_num_seqs`) with {kv_top['kv_cache_dtype']} KV." if preempt == 0 else f'vLLM reported {preempt} preemptions across the scraped replicas.'} Prefix-cache hit rates were {pct(min(prefix), 0)}–{pct(max(prefix), 0)} per replica.
 - **Boot is the other idle.** {len(boots)} runs started on a cold fleet and waited {min(boots):.0f}–{max(boots):.0f} s for the engine. At L5 the boot was {l5['cold_boot']:.0f} s for an {l5['wall']:.0f} s batch: {pct(l5['cold_boot'] / l5['gpu_seconds'], 0)} of that run's billed GPU time.
@@ -817,16 +823,15 @@ The pre-SAND-032 correspondence runs (both at sandbox commit `{e_commit}`, per t
     stats = {"tiles": [
         {"label": "SAND-032 GPU spend", "value": d2(sp["sand032"]),
          "sub": f"of the {d2(sp['cap'])} cap · fleet-window ledger at close"},
-        {"label": "Cost per 1M tokens on Modal L4", "value": f"${per_mtok(cheapest):.3f}–{per_mtok(dearest):.3f}",
+        {"label": "Cost per 1M tokens on Modal L4", "value": f"${per_mtok(cheapest):.2f}–{per_mtok(dearest):.2f}",
          "sub": f"busy-window, {len(all_runs)} runs · = {coeff:.1f} ÷ tok/s per L4"},
-        {"label": "Adding the second L4", "value": f"{spd:.2f}× faster",
+        {"label": "Speed-up from a second L4", "value": f"{spd:.2f}×",
          "sub": f"same 100 documents · ${per_mtok(a):.3f} → ${per_mtok(b):.3f} per 1M tokens"},
         {"label": "Keep warm or scale to zero", "value": f"{g_star / 60:.1f} min",
          "sub": f"idle gap past which a cold 2×L4 cycle ({usd(cycle[2])}) beats staying warm"},
-    ] + ([{"label": "Where Modal beats the API", "value": f"{pct(o['save_pct'], 0)} cheaper per doc",
-           "sub": f"self-hosted {o['modal']['model']}, {o['label'].lower()} on {o['modal']['replicas']}×L4, vs "
-                  f"{o['cheap']['family']} via the API, at a higher score · "
-                  f"from {o['l4x1']['docs_h_star']:,.0f} docs/h on one warm L4"}] if o else [])}
+    ] + ([{"label": "Modal saving per document, best case", "value": pct(o['save_pct'], 0),
+           "sub": f"{o['modal']['model']} on {o['modal']['replicas']}×L4, {o['label'].lower()}, vs {o['cheap']['family']} "
+                  f"(API) at a higher score · from {o['l4x1']['docs_h_star']:,.0f} docs/h"}] if o else [])}
     md = md.replace("§OPTIMAL§", X.optimal_sentence(E))
     md = md.replace("§DOCSHARE§", X.and_list(f"{pct(r['ratio'], 0)} for {r['label'].lower()}" for r in E["rows"] if r["cheaper"])
                     or "never")
