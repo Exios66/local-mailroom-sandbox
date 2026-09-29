@@ -9,7 +9,8 @@
   `dumbbell(val=...)` overrides the end-of-row label. `scripts/sand032/rerender.py` re-lays all 51
   committed SAND-032 figures from their embedded data and asserts the data is unchanged (`--check`).
 - Reports hub: **Modal vs API** tab (cost vs quality per specialist and for the sorter); snapshot synced to
-  eval-environment `ef8c448` / mailroom-ml `640610d`; Qwen3.7-Flash n = 50 legs cross-checked; the merger
+  eval-environment `f6bb510` / mailroom-ml `d3ad222` (the merged chart-layout fixes; source SHAs only, no
+  values changed); Qwen3.7-Flash n = 50 legs cross-checked; the merger
   leg eval-environment files under Qwen3-8B is labelled by its logged model (Qwen3.7-Flash, frozen prompts).
 - `reports/dashboard/export_hub_reports.py` writes `COST-COMPARISON-MODAL-VS-API.md`, `MASTER-REPORT.md` and
   figures for `mailroom-issues/reports/`; `report_audit.json` records the sweep (0 overflow / 0 collisions /
