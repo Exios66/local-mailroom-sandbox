@@ -337,6 +337,10 @@ modal deploy modal_job.py        # once (installs sandbox pkg + otel; vendored f
 sandbox run start --job-mode modal --config <run.yaml> --watch
 ```
 
+Long attended runs: **`sandbox watch --web`** (or terminal `sandbox watch`) tails the
+vLLM **serve** app while showing spend and checkpoints — operator guide:
+[`docs/mailroom-themed-logging.md`](../docs/mailroom-themed-logging.md).
+
 Deploy-time env (export before `modal deploy`): `LANGFUSE_*`,
 `OTEL_EXPORTER_OTLP_ENDPOINT`, `VLLM_BASE_URL`, `VLLM_API_KEY`, `HF_TOKEN`,
 `SANDBOX_DEBUG` (DMR-056: it now travels through the deploy Secret — export

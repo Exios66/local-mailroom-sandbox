@@ -163,6 +163,11 @@ cd deploy && modal deploy modal_job.py
 sandbox run start --job-mode modal --config <run.yaml> --watch
 ```
 
+For long Modal **endpoint** evals against `sandbox-vllm`, use the full mailroom watch
+TUI (in-tray + postage + `modal app logs -f`) in a second pane or browser tab —
+see **[mailroom-themed-logging.md](mailroom-themed-logging.md)**. `sandbox run … --watch`
+only streams job progress lines, not vLLM dispatch logs.
+
 The worker runs the same checkout code on a CPU container against the
 Modal-hosted `sandbox-vllm` endpoint (the GPU is the serve app). It emits
 OTEL job/item spans to the locked sink. In-container vLLM (GPU job) is a
