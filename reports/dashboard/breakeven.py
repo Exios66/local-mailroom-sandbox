@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import math
 
+SAME_MODEL_API = "Qwen3-8B"  # hosted leg of the model Modal self-hosts (as Qwen3-8B-AWQ)
 LOAD_SHARES = (1.0, 0.5, 0.25)  # busy shares drawn in the figure (scenario grid, not measurements)
 COLD_BATCH = 1000  # cold-batch size drawn in the figure (scenario grid)
 
@@ -38,7 +39,7 @@ def prompts_of(run: str) -> str:
 
 def _modal(D, run: str) -> dict:
     f, r = D["fleet"][run], D["runs"].get(run, {})
-    return {"run": run, "replicas": f["replicas"], "usd": f["busy_usd"] / f["ok"],
+    return {"run": run, "model": f["model"].split("/")[-1], "replicas": f["replicas"], "usd": f["busy_usd"] / f["ok"],
             "score": f.get("score", r.get("overall")), "n": f["ok"], "docs_h": f["ok"] / f["wall"] * 3600,
             "prompts": prompts_of(run), "seqs": f.get("seqs"), "conc": f.get("conc")}
 
@@ -84,6 +85,9 @@ def analyze(D, exclude=frozenset()) -> dict:
         # "wins on quality": at least the score of the hosted model it would replace (the cheapest one)
         row["quality_ok"] = comparable and m["score"] >= cheap["score"]
         row["best_api_score"] = max(p["score"] for p in api)
+        # the same model on both routes: self-hosted AWQ on Modal vs the hosted API's Qwen3-8B
+        same = next((p for p in api if p["family"] == SAME_MODEL_API), None)
+        row["same"] = same and {"api": same, **_economics(m, same["usd"], rate, boot + sd)}
         rows.append(row)
         for cm in sorted(by_cls.get(c, []), key=lambda x: x["usd"]):
             cfg = {"cls": c, "label": row["label"], "modal": cm, "cheap": cheap, "comparable": comparable,
@@ -143,9 +147,10 @@ def fig(E, viz, usd) -> str:
             v = (m + r[f"l4x{n_l4}"]["cycle_usd"] / COLD_BATCH) / a
             bars.append({"label": f"cold {n_l4}×L4 · {COLD_BATCH:,} docs", "value": round(v, 3), "emphasis": v <= 1,
                          "note": f"cold cycle {usd(r[f'l4x{n_l4}']['cycle_usd'])}"})
-        panels.append(viz.hbar(f"{r['label']} · {r['modal']['run']} vs {r['cheap']['family']}",
+        panels.append(viz.hbar(f"{r['label']} · {r['modal']['run']} vs {r['cheap']['family']} (API)",
                                f"Modal $/doc ÷ cheapest API $/doc · below 1.0 Modal is cheaper · {verdict(r)}",
                                bars, fmt=lambda v: f"{v:.2f}×", refs=[(1.0, "parity")], width=560, label_w=170,
                                domain_max=dom))
-    return viz.small_multiples("Where Modal beats the hosted API: cost per document relative to the cheapest API "
-                               "(blue = cheaper than the API; one shared scale)", panels, cols=2)
+    model = E["rows"][0]["modal"]["model"]
+    return viz.small_multiples(f"Self-hosted {model} (Modal) vs the cheapest API model, cost per document "
+                               "(blue = Modal cheaper; one shared scale)", panels, cols=2)

@@ -208,10 +208,35 @@ def optimal_sentence(E) -> str:
     if not o:
         return "No measured Modal configuration is both cheaper than and at least as good as the cheapest hosted model."
     m, a = o["modal"], o["cheap"]
-    return (f"Run {o['label'].lower()} on Modal: the measured {fleet_of(m)} configuration `{m['run']}` ({m['prompts']} prompts) costs "
-            f"{usd(m['usd'])} per document against {a['family']} at {usd(a['usd'])}, {pct(o['save_pct'], 0)} less, and scores "
+    return (f"Run {o['label'].lower()} on self-hosted {m['model']} (Modal): the measured {fleet_of(m)} configuration `{m['run']}` "
+            f"({m['prompts']} prompts) costs {usd(m['usd'])} per document against {a['family']} via the API at {usd(a['usd'])}, "
+            f"{pct(o['save_pct'], 0)} less, and scores "
             f"{m['score']:.3f} against {a['score']:.3f}. It pays once one warm L4 sustains {o['l4x1']['docs_h_star']:,.0f} docs/h "
             f"or a cold batch holds {o['l4x1']['batch_star']:,} documents.")
+
+
+def same_model_title(E) -> str:
+    return f"{E['rows'][0]['modal']['model']} on Modal vs {breakeven.SAME_MODEL_API} via the API"
+
+
+def same_model_block(E) -> str:
+    rows = [r for r in E["rows"] if r["same"]]
+    missing = [r["label"].lower() for r in E["rows"] if not r["same"]]
+    body = [[r["label"], f"`{r['modal']['run']}`", usd(r["modal"]["usd"]), f3(r["modal"]["score"]),
+             usd(r["same"]["api"]["usd"]), f3(r["same"]["api"]["score"]), f"{r['same']['ratio']:.2f}×",
+             f"{1 / r['same']['ratio']:.1f}×", f"{r['same']['l4x1']['docs_h_star']:,.0f}" if r["same"]["cheaper"] else "never",
+             f"{r['same']['l4x1']['batch_star']:,}" if r["same"]["cheaper"] else "never"] for r in rows]
+    cheaper = [r for r in rows if r["same"]["cheaper"]]
+    lo = min(1 / r["same"]["ratio"] for r in cheaper) if cheaper else None
+    hi = max(1 / r["same"]["ratio"] for r in cheaper) if cheaper else None
+    read = (f"Self-hosting the same model is {lo:.1f}–{hi:.1f}× cheaper per document than renting it through the API on "
+            f"{and_list(r['label'].lower() for r in cheaper)}. A warm fleet breaks even at {pct(min(r['same']['ratio'] for r in cheaper), 0)}–"
+            f"{pct(max(r['same']['ratio'] for r in cheaper), 0)} busy. "
+            if cheaper else "")
+    note = (f" The API leg has no {breakeven.SAME_MODEL_API} run for {and_list(missing)}." if missing else "")
+    return (f"{table(['Class', 'Modal run', 'Modal $/doc', 'Modal score', f'API {breakeven.SAME_MODEL_API} $/doc', 'API score', 'Modal ÷ API', 'API ÷ Modal', 'Warm 1×L4 break-even docs/h', 'Cold batch ≥ N (1×L4)'], body, 'llrrrrrrrr')}\n\n"
+            f"{read}Both legs ran the production prompt set (on the API, eval-environment's frozen copy of it). The scores still differ because Modal serves the 4-bit AWQ "
+            f"quantization and the two legs drew different documents from different dataset revisions (§6).{note}")
 
 
 def breakeven_section(D, E) -> str:
@@ -243,8 +268,8 @@ def breakeven_section(D, E) -> str:
     lines = []
     if o:
         m, a = o["modal"], o["cheap"]
-        lines.append(f"- **Optimal: {o['label'].lower()} on {fleet_of(m)}** (`{m['run']}`, {m['prompts']} prompts). "
-                     f"{usd(m['usd'])} per document against {a['family']} at {usd(a['usd'])}: {pct(o['save_pct'], 0)} cheaper, "
+        lines.append(f"- **Optimal: {o['label'].lower()} on self-hosted {m['model']}, {fleet_of(m)}** (`{m['run']}`, {m['prompts']} prompts). "
+                     f"{usd(m['usd'])} per document against {a['family']} via the API at {usd(a['usd'])}: {pct(o['save_pct'], 0)} cheaper, "
                      f"{usd(o['save_1k'])} saved per 1,000 documents, at a score of {m['score']:.3f} against {a['score']:.3f}.")
         lines.append(f"  - **Warm:** one L4 (${rate:.2f}/h) beats the API from {o['l4x1']['docs_h_star']:,.0f} docs/h sustained "
                      f"({pct(o['ratio'], 0)} busy) up to its measured {o['l4x1']['cap_docs_h']:,.0f} docs/h"
@@ -282,6 +307,8 @@ def breakeven_section(D, E) -> str:
 
 Every comparison here is **per completed document**, because that is what the mailroom pays for.
 
+**Which model runs where.** The only model self-hosted on Modal is **{E['rows'][0]['modal']['model']}** (vLLM, 4-bit AWQ). Every hosted model, including the pipeline's production model Qwen3.7-Flash, ran only through the API. §3.1 and §3.3–3.5 therefore compare Modal against the cheapest hosted *model*, which is a different model; §3.2 holds the model fixed and compares only the route.
+
 - **Modal $/doc** is the measured busy-window GPU cost of the run: replicas × ${rate:.2f} per L4-hour × wall time ÷ documents.
 - **API $/doc** is list price × the tokens each leg recorded.
 - **Why per-token prices rank the routes differently** ([GPU report §3](MODAL-VLLM-GPU-REPORT.md#3-cost-per-token)): each leg sends its own prompts, so one document costs a different number of tokens on each route. Per document is the comparison that decides deployment.
@@ -301,15 +328,19 @@ Cells marked {dag} apply that measured result to a fleet size the class was not 
 
 ### 3.1 Verdict per class (the scored run in §2)
 
-{table(["Class", "Modal run · fleet", "Modal $/doc", "Modal score", "Cheapest API", "API $/doc", "API score", "Modal ÷ API", "Saved per 1,000 docs", "Verdict"], verdicts, "llrrlrrrrl")}
+{table(["Class", f"Modal ({E['rows'][0]['modal']['model']}) run · fleet", "Modal $/doc", "Modal score", "Cheapest API", "API $/doc", "API score", "Modal ÷ API", "Saved per 1,000 docs", "Verdict"], verdicts, "llrrlrrrrl")}
 
-### 3.2 Every measured Modal configuration against the cheapest API
+### 3.2 Same model, two routes: {same_model_title(E)}
+
+{same_model_block(E)}
+
+### 3.3 Every measured Modal configuration against the cheapest API
 
 Each row's score comes from its own run report. Runs that are not deployable configurations (the ladder rungs, the bf16 control, and the S7 runs whose router sent nearly every request to one replica) are left out.
 
 {table(["Class", "Run", "Fleet", "Prompts", "$/doc", "Score", "÷ cheapest API", "Verdict"], cfgs, "llllrrrl")}
 
-### 3.3 Break-even volumes
+### 3.4 Break-even volumes
 
 Each class uses its deciding configuration: the cheapest one that wins, else the cheapest one that undercuts the API, else the cheapest one. The chart draws the same configurations.
 
@@ -317,7 +348,7 @@ Each class uses its deciding configuration: the cheapest one that wins, else the
 
 ![Modal cost per document relative to the cheapest API](figures/cost/modal-vs-api-breakeven.svg)
 
-### 3.4 The optimal scenario
+### 3.5 The optimal scenario
 
 {chr(10).join(lines)}"""
 
@@ -362,7 +393,7 @@ _Data {T['date_range']} · generated by sandbox `reports/dashboard/export_hub_re
 
 | | Modal L4 · vLLM (sandbox, SAND-032) | Hosted API · OpenRouter (eval-environment) |
 | --- | --- | --- |
-| Model | Qwen3-8B-AWQ, frozen L5 posture (awq_marlin, fp8 KV, thinking off, CUDA graphs) | Qwen3.7-Flash (production), Qwen3-8B, DeepSeek-V4.1-Flash, Granite-4.2-8B |
+| Model | Qwen3-8B-AWQ, the only model self-hosted: frozen L5 posture (awq_marlin, fp8 KV, thinking off, CUDA graphs) | API only, never self-hosted: Qwen3.7-Flash (the pipeline's production model), Qwen3-8B, DeepSeek-V4.1-Flash, Granite-4.2-8B |
 | Unit price | ${L4_USD_PER_HOUR:.2f} per L4-hour, {REPLICAS}×L4 = ${REPLICAS * L4_USD_PER_HOUR:.2f}/h | OpenRouter list price × recorded prompt/completion tokens |
 | Cost per document | busy-window GPU time ÷ completed documents (excludes cold boot and idle) | run cost total ÷ scored documents |
 | Fixed cost | cold cycle = L5 boot ({E['boot']:.0f} s deploy→ready) + scale-down tail ({E['scaledown']:.0f} s) per replica = {usd(E['rows'][0]['l4x1']['cycle_usd'])} on 1×L4, {usd(E['rows'][0]['l4x2']['cycle_usd'])} on 2×L4 | none |
@@ -528,7 +559,7 @@ Companions: [COST-COMPARISON-MODAL-VS-API.md](COST-COMPARISON-MODAL-VS-API.md) a
 ![API cost per document](figures/sources/eval-environment/cost_per_document.svg)
 
 - **No hosted model wins every task.** DeepSeek-V4.1-Flash leads insurance claims and corporate records. Qwen3-8B leads correspondence and contracts. Among the N = 20 merger legs, Granite-4.2-8B scores highest, at the highest cost.
-- **The production model, Qwen3.7-Flash, holds up at n = 50** (mutated prompt lineage) and is the cheapest or near-cheapest hosted model on every class. On mergers it scores {f3(D['api']['route50']['merger agreements']['score'])}, the best merger result on any route.
+- **The production model, Qwen3.7-Flash (API only; it was never self-hosted), holds up at n = 50** (mutated prompt lineage) and is the cheapest or near-cheapest hosted model on every class. On mergers it scores {f3(D['api']['route50']['merger agreements']['score'])}, the best merger result on any route.
 - **DeepSeek-V4.1-Flash is the cheapest across the five N = 20 tasks**: {T['api_ds_cost']} in total vs {T['api_q_cost']} (Qwen3-8B, as filed, which includes the merger leg that ran on Qwen3.7-Flash) and {T['api_g_cost']} (Granite).
 
 **LLM sorter (classification)**

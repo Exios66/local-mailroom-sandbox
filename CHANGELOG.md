@@ -12,6 +12,9 @@
 - `reports/dashboard/breakeven.py`: one per-document Modal-vs-API calculation (verdict per class, every measured Modal
   configuration against the cheapest hosted model, warm and cold break-even volumes, the optimal measured deployment)
   quoted by the cost comparison's §3, the GPU report and the site, so no two reports disagree.
+- Model per route made explicit: Qwen3-8B-AWQ is the only model self-hosted on Modal; Qwen3.7-Flash and every other
+  hosted model ran through the API only. The cost comparison's §3.2 adds the same-model comparison (Qwen3-8B-AWQ on
+  Modal vs Qwen3-8B via the API), isolating the route from the model.
 - `reports/dashboard/pages_site.py` + `export_hub_reports.py --site`: the three reports as a static GitHub Pages site
   for `mailroom-issues/docs/` (inline SVG, no JavaScript, no external requests; covered by `--check`).
 - Hub snapshot re-pinned to eval-environment `86b4e54` (main, including the qwen3.7-flash suite README); `markdown-it-py`
