@@ -1,0 +1,64 @@
+# SPEND-GATED — do not run until Jack go
+# Hub #229 — v2 prompt at n=50 on 2×L4 (paired with hub229-corr50-prod draw).
+schema: sandbox.run/v1
+run_id: hub229-corr50-v2-2xl4
+task: correspondence_specialist
+profile: modal-vllm
+
+prompt:
+  default: {source: code-default}
+  agents:
+    correspondence_specialist:
+      source: local
+      file: correspondence_specialist_v2_evalenv
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  revision: ed7576b676343e0b402ec5412cded301e629bdee
+  strata:
+    buckets:
+      - {doc_class: correspondence, count: 50}
+  limit: 50
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B-AWQ
+  vllm:
+    max_model_len: 32768
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 16
+    enable_prefix_caching: true
+    enforce_eager: false
+    quantization: "awq_marlin"
+    revision: ""
+    kv_cache_dtype: "fp8"
+    enable_thinking: false
+    cudagraph_capture_sizes: [1, 2, 4, 8, 16]
+    max_inputs: 32
+  modal:
+    app: sandbox-vllm-hub229
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 120
+    max_containers: 2
+    min_containers: 2
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 32
+  cost_cap_usd: 0.30
+  max_wall_seconds: 2400
+
+trace:
+  sink: none
+  otlp: false
+  environment: hub229
+  tags: [sandbox, hub229, spend-gated, qwen3-8b, l4, correspondence, v2_evalenv]
