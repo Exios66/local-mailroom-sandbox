@@ -507,3 +507,180 @@ def lines(title: str, subtitle: str, series: list[dict], *, x_label: str, y_labe
                  f'{_esc(n["text"])}</text>')
     o.append("</svg>")
     return "\n".join(o)
+
+
+def scatter(title: str, subtitle: str, points: list[dict], *, x_label: str, y_label: str,
+            x_domain: tuple[float, float], y_domain: tuple[float, float], legend: list[tuple[str, str, str | None]] | None = None,
+            unit_x: str = "", unit_y: str = "", fmt_x=None, fmt_y=None, width: int = 720, plot_h: int = 320) -> str:
+    """points: [{x, y, cls, marker, tip, label(optional)}] — efficiency scatter (no connecting lines)."""
+    fmt_x = fmt_x or _fmt_tick
+    fmt_y = fmt_y or _fmt_tick
+    xt, yt = _span_ticks(*x_domain), _span_ticks(*y_domain)
+    ylabs = [f"{fmt_y(t)}{unit_y}" for t in yt]
+    key = 22 if legend else 0
+    key_w = 16 + sum(_key_w(nm, False) for _, nm, _ in legend or []) + 16 if key else 0
+    width = math.ceil(max(width, text_w(title, 15) + 32, text_w(subtitle) + 32, key_w))
+    ytitle_y = 58 + key + 10
+    top = ytitle_y + 16
+    plot_l = 16 + math.ceil(max(text_w(s, 11) for s in ylabs)) + 8
+    plot_r = width - 28
+    plot_b = top + plot_h
+    h = plot_b + 50
+    (x0, x1), (y0, y1) = x_domain, y_domain
+    sx = lambda v: plot_l + (plot_r - plot_l) * (v - x0) / (x1 - x0)  # noqa: E731
+    sy = lambda v: plot_b - plot_h * (v - y0) / (y1 - y0)  # noqa: E731
+    o = _open(width, h, title, subtitle)
+    lx = 16
+    for cls, nm, mark in legend or []:
+        o.append(_marker(mark or "circle", cls, lx + 5, 58))
+        o.append(f'<text class="lbl" x="{lx + 16}" y="62">{_esc(nm)}</text>')
+        lx += _key_w(nm, False)
+    for t, lab in zip(yt, ylabs):
+        y = sy(t)
+        o.append(f'<line class="grid" x1="{plot_l}" y1="{y:.1f}" x2="{plot_r}" y2="{y:.1f}"/>')
+        o.append(f'<text class="tick" x="{plot_l - 6}" y="{y + 4:.1f}" text-anchor="end">{_esc(lab)}</text>')
+    for t in xt:
+        x = sx(t)
+        o.append(f'<line class="grid" x1="{x:.1f}" y1="{top}" x2="{x:.1f}" y2="{plot_b}"/>')
+        o.append(f'<text class="tick" x="{x:.1f}" y="{plot_b + 16}" text-anchor="middle">{_esc(fmt_x(t))}{_esc(unit_x)}</text>')
+    o.append(f'<line class="axis" x1="{plot_l}" y1="{plot_b}" x2="{plot_r}" y2="{plot_b}"/>')
+    o.append(f'<line class="axis" x1="{plot_l}" y1="{top}" x2="{plot_l}" y2="{plot_b}"/>')
+    o.append(f'<text class="axt" x="16" y="{ytitle_y}">{_esc(y_label)}</text>')
+    o.append(f'<text class="axt" x="{(plot_l + plot_r) / 2:.1f}" y="{plot_b + 36}" text-anchor="middle">{_esc(x_label)}</text>')
+    for p in points:
+        x, y = sx(p["x"]), sy(p["y"])
+        mark = _marker(p.get("marker") or "circle", p["cls"], x, y)
+        tip = p.get("tip") or p.get("label") or ""
+        o.append(f'<g><title>{_esc(tip)}</title><circle class="hit" cx="{x:.1f}" cy="{y:.1f}" r="12"/>{mark}</g>')
+        if p.get("label"):
+            o.append(f'<text class="reflbl" x="{x + 7:.1f}" y="{y - 7:.1f}">{_esc(p["label"])}</text>')
+    o.append("</svg>")
+    return "\n".join(o)
+
+
+def heatmap(title: str, subtitle: str, rows: list[str], cols: list[str], cells: dict[tuple[str, str], float | None],
+            *, fmt=None, unit: str = "", width: int = 720) -> str:
+    """Matrix heat: rows × cols; cell color = value on global min–max scale; text = raw value."""
+    fmt = fmt or (lambda v: f"{v:.3f}")
+    vals = [v for v in cells.values() if v is not None]
+    vmin, vmax = (min(vals), max(vals)) if vals else (0.0, 1.0)
+    cw, ch, pad = 72, 32, 8
+    label_w = math.ceil(max([text_w(r) for r in rows] + [120]))
+    top = 58
+    plot_l = label_w + pad
+    plot_w = len(cols) * cw
+    h = top + len(rows) * ch + 44
+    width = max(width, plot_l + plot_w + 24, text_w(title, 15) + 32)
+    o = _open(width, h, title, subtitle)
+    for j, c in enumerate(cols):
+        x = plot_l + j * cw + cw / 2
+        o.append(f'<text class="tick" x="{x:.1f}" y="{top - 6}" text-anchor="middle">{_esc(fit_label(c, cw - 4))}</text>')
+    for i, row in enumerate(rows):
+        y = top + i * ch
+        o.append(f'<text class="lbl" x="{plot_l - pad}" y="{y + ch - 10}" text-anchor="end">{_esc(row)}</text>')
+        for j, col in enumerate(cols):
+            v = cells.get((row, col))
+            x = plot_l + j * cw
+            if v is None:
+                o.append(f'<rect class="deemph" x="{x + 2:.1f}" y="{y + 2:.1f}" width="{cw - 4}" height="{ch - 4}" rx="3"/>'
+                         f'<text class="tick" x="{x + cw / 2:.1f}" y="{y + ch - 10}" text-anchor="middle">—</text>')
+                continue
+            t = 0.5 if vmax == vmin else (v - vmin) / (vmax - vmin)
+            fill = f"rgb({int(26 + t * 31)},{int(44 + t * 91)},{int(42 + t * 187)})"
+            o.append(f'<rect fill="{fill}" x="{x + 2:.1f}" y="{y + 2:.1f}" width="{cw - 4}" height="{ch - 4}" rx="3">'
+                     f'<title>{_esc(row)} · {_esc(col)}: {fmt(v)}{unit}</title></rect>')
+            o.append(f'<text class="val" x="{x + cw / 2:.1f}" y="{y + ch - 10}" text-anchor="middle">{_esc(fmt(v))}</text>')
+    o.append("</svg>")
+    return "\n".join(o)
+
+
+def stacked_vbar(title: str, subtitle: str, categories: list[str], segments: list[dict], *, unit: str = "$",
+                 fmt=None, width: int = 720, plot_h: int = 260) -> str:
+    """Vertical stacked bars. segments: [{name, cls, values: {category: magnitude}}]."""
+    fmt = fmt or (lambda v: f"{v:.4f}")
+    totals = {c: sum(s["values"].get(c, 0) or 0 for s in segments) for c in categories}
+    ticks = nice_ticks(max(totals.values() or [1]))
+    ymax = ticks[-1]
+    key_w = 16 + sum(22 + text_w(s["name"]) for s in segments) + 16
+    width = math.ceil(max(width, 80 * len(categories) + 120, key_w, text_w(title, 15) + 32))
+    top = 58 + 22 + 10
+    plot_l, plot_r = 56, width - 24
+    plot_b = top + plot_h
+    h = plot_b + 50
+    bw = max(24, (plot_r - plot_l) / max(len(categories), 1) - 16)
+    sx = lambda i: plot_l + i * ((plot_r - plot_l) / max(len(categories), 1)) + 8  # noqa: E731
+    sy = lambda v: plot_b - plot_h * (v / ymax if ymax else 0)  # noqa: E731
+    o = _open(width, h, title, subtitle)
+    lx = 16
+    for s in segments:
+        o.append(f'<rect class="{s["cls"]}" x="{lx}" y="53" width="10" height="10" rx="2"/>'
+                 f'<text class="lbl" x="{lx + 15}" y="62">{_esc(s["name"])}</text>')
+        lx += 22 + text_w(s["name"])
+    for t in ticks:
+        y = sy(t)
+        o.append(f'<line class="grid" x1="{plot_l}" y1="{y:.1f}" x2="{plot_r}" y2="{y:.1f}"/>')
+        o.append(f'<text class="tick" x="{plot_l - 6}" y="{y + 4:.1f}" text-anchor="end">{_esc(fmt(t))}{unit}</text>')
+    o.append(f'<line class="axis" x1="{plot_l}" y1="{plot_b}" x2="{plot_r}" y2="{plot_b}"/>')
+    o.append(f'<line class="axis" x1="{plot_l}" y1="{top}" x2="{plot_l}" y2="{plot_b}"/>')
+    for i, cat in enumerate(categories):
+        x0 = sx(i)
+        base = plot_b
+        for s in segments:
+            v = s["values"].get(cat) or 0
+            if v <= 0:
+                continue
+            y1 = sy(v)
+            hseg = base - y1
+            o.append(f'<rect class="{s["cls"]}" x="{x0:.1f}" y="{y1:.1f}" width="{bw:.1f}" height="{hseg:.1f}" rx="2">'
+                     f'<title>{_esc(cat)} · {_esc(s["name"])}: {fmt(v)}{unit}</title></rect>')
+            base = y1
+        o.append(f'<text class="tick" x="{x0 + bw / 2:.1f}" y="{plot_b + 16}" text-anchor="middle">{_esc(fit_label(cat, bw + 20))}</text>')
+        tot = totals[cat]
+        o.append(f'<text class="val" x="{x0 + bw / 2:.1f}" y="{sy(tot) - 4:.1f}" text-anchor="middle">{_esc(fmt(tot))}</text>')
+    o.append("</svg>")
+    return "\n".join(o)
+
+
+def grouped_vbar(title: str, subtitle: str, categories: list[str], series: list[dict], *, unit: str = "",
+                 fmt=None, width: int = 720, plot_h: int = 260) -> str:
+    """Vertical grouped bars. series: [{name, cls, values: {category: magnitude}}]."""
+    fmt = fmt or (lambda v: f"{v:.3f}")
+    vals = [v for s in series for v in s["values"].values() if v is not None]
+    ticks = nice_ticks(max(vals or [1]))
+    ymax = ticks[-1]
+    ns = max(len(series), 1)
+    key_w = 16 + sum(22 + text_w(s["name"]) for s in series) + 16
+    width = math.ceil(max(width, 90 * len(categories) + 120, key_w, text_w(title, 15) + 32))
+    top = 58 + 22 + 10
+    plot_l, plot_r = 56, width - 24
+    plot_b = top + plot_h
+    h = plot_b + 50
+    group_w = (plot_r - plot_l) / max(len(categories), 1)
+    bar_w = max(8, (group_w - 8) / ns - 2)
+    sy = lambda v: plot_b - plot_h * (v / ymax if ymax else 0)  # noqa: E731
+    o = _open(width, h, title, subtitle)
+    lx = 16
+    for s in series:
+        o.append(f'<rect class="{s["cls"]}" x="{lx}" y="53" width="10" height="10" rx="2"/>'
+                 f'<text class="lbl" x="{lx + 15}" y="62">{_esc(s["name"])}</text>')
+        lx += 22 + text_w(s["name"])
+    for t in ticks:
+        y = sy(t)
+        o.append(f'<line class="grid" x1="{plot_l}" y1="{y:.1f}" x2="{plot_r}" y2="{y:.1f}"/>')
+        o.append(f'<text class="tick" x="{plot_l - 6}" y="{y + 4:.1f}" text-anchor="end">{_esc(fmt(t))}{unit}</text>')
+    o.append(f'<line class="axis" x1="{plot_l}" y1="{plot_b}" x2="{plot_r}" y2="{plot_b}"/>')
+    o.append(f'<line class="axis" x1="{plot_l}" y1="{top}" x2="{plot_l}" y2="{plot_b}"/>')
+    for i, cat in enumerate(categories):
+        gx = plot_l + i * group_w + 4
+        o.append(f'<text class="tick" x="{gx + group_w / 2 - 4:.1f}" y="{plot_b + 16}" text-anchor="middle">{_esc(fit_label(cat, group_w - 8))}</text>')
+        for j, s in enumerate(series):
+            v = s["values"].get(cat)
+            if v is None:
+                continue
+            x = gx + j * (bar_w + 2)
+            y = sy(v)
+            o.append(f'<rect class="{s["cls"]}" x="{x:.1f}" y="{y:.1f}" width="{bar_w:.1f}" height="{plot_b - y:.1f}" rx="2">'
+                     f'<title>{_esc(cat)} · {_esc(s["name"])}: {fmt(v)}{unit}</title></rect>')
+            o.append(f'<text class="val" x="{x + bar_w / 2:.1f}" y="{y - 4:.1f}" text-anchor="middle">{_esc(fmt(v))}</text>')
+    o.append("</svg>")
+    return "\n".join(o)
