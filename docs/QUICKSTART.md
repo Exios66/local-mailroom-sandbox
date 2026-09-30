@@ -185,7 +185,31 @@ sandbox pipeline watcher                          # long-running Langfuse watche
 sandbox pipeline api                              # long-running API server
 ```
 
-## 10. Canonical workflows
+## 10. Mailroom live watch (long Modal jobs)
+
+Full guide: **[mailroom-themed-logging.md](mailroom-themed-logging.md)**.
+
+```bash
+# Pane A: run the eval
+sandbox run start --config config/runs/my-run.yaml --job-mode endpoint
+
+# Pane B: themed TUI + live `modal app logs -f` tail
+sandbox watch --config config/runs/my-run.yaml
+sandbox watch --web --config config/runs/my-run.yaml    # browser :8765, frees the tab
+
+# SAND-032 warm flows (run_one.sh maintains data/runtime/sand032/current)
+sandbox watch
+scripts/mailroom-tui web
+
+# One-shot frame / post-run scorecard
+sandbox watch --config … --once
+sandbox scorecard --run <run_id>
+
+# Manual Modal tail (same stream the dispatch log uses)
+modal app logs -f sandbox-vllm
+```
+
+## 11. Canonical workflows
 
 **Offline smoke (CI / no LLM / no network):**
 ```bash
@@ -209,14 +233,14 @@ export VLLM_BASE_URL=https://<ws>--sandbox-vllm-serve.modal.run/v1 VLLM_API_KEY=
 sandbox health --profile modal-vllm && sandbox run --profile modal-vllm start --config … --job-mode modal
 ```
 
-## 11. Verification
+## 12. Verification
 
 ```bash
 .venv/bin/python -m pytest -q        # 230 passed / 1 skipped (network-free; live tests need SANDBOX_LOCAL_LLM=1)
 sandbox health                       # everything green: exit 0
 ```
 
-## 12. Troubleshooting (DMR-058 CLI sweep findings)
+## 13. Troubleshooting (DMR-058 CLI sweep findings)
 
 | Symptom | Cause / fix |
 | --- | --- |
