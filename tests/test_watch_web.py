@@ -32,6 +32,8 @@ def _store(tmp_path, *, replicas=2):
                 "latency_ms": lat,
                 "error": None if ok else "OpenAIConnectionError: x",
                 "score": {"overall_extraction_score": 0.5} if ok else {},
+                "prompt_tokens": 100 + i,
+                "completion_tokens": 10 + i,
             }
         )
     return s
@@ -60,6 +62,11 @@ def test_compose_watch_state_is_json_friendly(tmp_path):
     assert len(data["logs"]) == 2
     assert data["logs"][1]["role"] == "error"
     assert data["progress"]["done"] == 3
+    assert data["snapshot"]["prompt_tokens"] == 303
+    assert data["spend"]["spent_usd"] > 0  # no spend.json → live job GPU $
+    assert data["spend"]["total_usd"] > 0
+    assert data["spend"]["done"] == 3
+    assert data["spend"]["total_tokens"] == 336
 
 
 def test_should_open_browser_respects_no_browser(monkeypatch):
@@ -240,6 +247,8 @@ def test_client_renders_errors_logs_scorecard_and_gate():
     assert 'getElementById("hero").innerHTML = state.hero_html' in page
     assert "OVER GATE" in page and "scorecard-wrap" in page
     assert "SSE disconnected" in page
+    assert "state.ok === false" in page
+    assert 'metric("docs"' in page and 'metric("tokens"' in page
 
 
 def test_cli_watch_web_wires_host_port_and_no_browser(monkeypatch, tmp_path):

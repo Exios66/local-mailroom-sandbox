@@ -40,6 +40,40 @@ def test_build_layout_uses_lock_not_sand032_defaults(tmp_path):
     assert layout["cap_usd"] == 0.55
 
 
+def test_running_checkpoint_beats_stale_times_cold_boot(tmp_path):
+    """Operator bug: .times deploy_done pinned COLD BOOT while items scored."""
+    import time
+
+    store = _generic_store(tmp_path)
+    times_dir = tmp_path / "logs"
+    times_dir.mkdir()
+    (times_dir / f"{store.run_id}.times").write_text(
+        f'"deploy_done": {time.time() - 315},\n', encoding="utf-8"
+    )
+    life = tc.resolve_lifecycle(
+        store,
+        {"deploy_done": time.time() - 315},
+        ["vLLM ready on port 8000"],
+        now=time.time(),
+    )
+    assert life["phase"] == "SORTING"
+    assert "in flight" in life["detail"]
+
+    state = compose_watch_state(
+        store=store,
+        app="sandbox-vllm",
+        sink=LogBuffer(None),
+        ledger=None,
+        cap_usd=5.0,
+        times_dir=times_dir,
+        serving_dir=tmp_path / "serving",
+        started=time.time(),
+        boot_mark={},
+    )
+    assert state["lifecycle"]["phase"] == "SORTING"
+    assert state["stage"] == "SORTING"
+
+
 def test_lifecycle_from_checkpoint_when_no_driver_times(tmp_path):
     store = _generic_store(tmp_path)
     life = tc.lifecycle_from_store(store, [], now=__import__("time").time())

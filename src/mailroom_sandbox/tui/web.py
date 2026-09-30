@@ -146,6 +146,7 @@ class WatchWebSession:
         self._log_path_override = log_path
         self.sink = LogBuffer(None)
         self._started = time.time()
+        self._last_run_id: str | None = None
         self._boot_mark: dict[str, int] = {}
         self._log_stop = threading.Event()
         if follow_logs:
@@ -164,6 +165,11 @@ class WatchWebSession:
         from mailroom_sandbox.watch import _watch_paths
 
         store, app = self.resolve()
+        rid = store.run_id
+        if self._last_run_id != rid:
+            self._started = time.time()
+            self._boot_mark = {}
+            self._last_run_id = rid
         frame_times_dir, _ = _watch_paths(
             store,
             times_dir=self.times_dir,
@@ -196,8 +202,9 @@ class WatchWebSession:
         )
         state["ok"] = True
         with self._lock:
-            self._state = state
             self._version += 1
+            state["ui_version"] = self._version
+            self._state = state
         return state
 
     def snapshot(self) -> tuple[int, dict[str, Any]]:
@@ -350,7 +357,7 @@ footer {{ margin-top: 16px; font-size: 11px; color: var(--muted); text-align: ce
       <div id="logs"></div>
     </section>
   </div></div>
-  <footer id="footer-line">Tray TUI · localhost-only · SSE live · Ctrl+C in terminal stops server</footer>
+  <footer id="footer-line">Tray TUI · localhost-only · SSE + poll · hard-refresh after a watch restart</footer>
 </div>
 <script>
 const LOG_CLASS = {{ error: "error", warn: "warn", throughput: "throughput", kv: "kv", ready: "ready", plain: "plain" }};  // = watch._LOG_ROLE keys
@@ -363,12 +370,17 @@ function esc(s) {{
 }}
 
 function render(state) {{
-  if (!state.ok) {{
+  if (!state || (state.ok === false && !state.snapshot)) {{
     document.getElementById("error").hidden = false;
-    document.getElementById("error").textContent = state.error || "unknown error";
+    document.getElementById("error").textContent = (state && state.error) || "unknown error";
     return;
   }}
-  document.getElementById("error").hidden = true;
+  if (state.ok === false) {{
+    document.getElementById("error").hidden = false;
+    document.getElementById("error").textContent = state.error || "unknown error";
+  }} else {{
+    document.getElementById("error").hidden = true;
+  }}
   if (state.hero_html) document.getElementById("hero").innerHTML = state.hero_html;
   if (state.hero_compact_html) document.getElementById("hero-compact").innerHTML = state.hero_compact_html;
   const s = state.snapshot || {{}};
@@ -387,21 +399,30 @@ function render(state) {{
   if (panels.scorecard) document.getElementById("scorecard-heading").textContent = panels.scorecard;
   const bar = document.getElementById("status-bar");
   bar.classList.toggle("blink", !!state.blink && !!state.animate_lifecycle);
+  const L = state.lifecycle || {{}};
+  let phase = L.phase || state.stage || "—";
+  let detail = L.detail || "";
+  // In-flight docs are never COLD BOOT — first SSE frame used to stick here.
+  if (s.state === "running" && (phase === "COLD BOOT" || phase === "DEPLOYING" || phase === "QUEUED")) {{
+    phase = "SORTING";
+    detail = detail && !/engine ready|container starting|loading weights/i.test(detail)
+      ? detail
+      : ((s.task || "specialist") + " in flight");
+  }}
   const stageEl = document.getElementById("stage");
-  stageEl.textContent = state.stage || "—";
-  stageEl.className = "stage-" + String(state.stage || "unknown").toLowerCase().replace(/\\s+/g, "-");
+  stageEl.textContent = phase;
+  stageEl.className = "stage-" + String(phase || "unknown").toLowerCase().replace(/\\s+/g, "-");
   document.getElementById("ts").textContent = state.ts || "";
   const watcher = state.watcher_label || ("Tray TUI watcher · app " + (state.app || "—"));
   document.getElementById("app-line").textContent = watcher;
 
   const life = document.getElementById("lifecycle");
-  if (state.lifecycle) {{
+  if (state.lifecycle || s.state === "running") {{
     life.hidden = false;
-    life.classList.toggle("live", !!state.animate_lifecycle);
-    const L = state.lifecycle;
+    life.classList.toggle("live", phase === "SORTING" || !!state.animate_lifecycle);
     const el = L.elapsed_s || 0;
     const tag = layout.stage || "";
-    life.textContent = `▸${{L.phase}}◂  ${{L.detail || ""}}  ·  ${{Math.floor(el/60)}}m${{String(el%60).padStart(2,"0")}}s` + (tag ? `  ·  ${{tag}}` : "");
+    life.textContent = `▸${{phase}}◂  ${{detail}}  ·  ${{Math.floor(el/60)}}m${{String(el%60).padStart(2,"0")}}s` + (tag ? `  ·  ${{tag}}` : "");
   }} else {{ life.hidden = true; life.classList.remove("live"); }}
 
   const route = document.getElementById("program-route");
@@ -425,13 +446,22 @@ function render(state) {{
     (s.last_error ? `<div class="metric"><span class="k">last return</span><span class="v" style="color:var(--gold)">${{esc(s.last_error)}}</span></div>` : "");
 
   const pct = sp.pct_of_cap != null ? sp.pct_of_cap + "%" : "";
+  const tokIn = Number(s.prompt_tokens ?? sp.prompt_tokens ?? 0);
+  const tokOut = Number(s.completion_tokens ?? sp.completion_tokens ?? 0);
   document.getElementById("postage").innerHTML =
+    metric("sorted", `delivered ${{s.ok ?? sp.ok ?? 0}} · returned ${{s.errors ?? sp.errors ?? 0}}`) +
+    metric("docs", `${{prog.done ?? s.done ?? 0}}/${{prog.total ?? s.total ?? 0}}`) +
+    metric("tokens", `${{tokIn}} in · ${{tokOut}} out`) +
     metric("ledger", "$" + Number(sp.spent_usd || 0).toFixed(4)) +
     metric("live run", "$" + Number(sp.live_usd || 0).toFixed(4)) +
     metric("total", `$${{Number(sp.total_usd || 0).toFixed(4)}} / $${{Number(sp.cap_usd || 0).toFixed(2)}}`) +
     `<div class="bar">${{esc(sp.bar || "")}}  ${{pct}}</div>` +
     metric("gate", `$${{Number(sp.gate_usd || 4.5).toFixed(2)}} projected-total stop`) +
     (sp.over_gate ? `<div class="metric"><span class="v" style="color:var(--gold)">⚠ OVER GATE</span></div>` : "");
+  const foot = document.getElementById("footer-line");
+  if (foot) {{
+    foot.textContent = `Tray TUI · ${{s.run_id || "—"}} · ${{prog.done ?? 0}}/${{prog.total ?? 0}} · $${{Number(sp.total_usd || 0).toFixed(4)}} · v${{state.ui_version || "—"}}`;
+  }}
 
   const sc = document.getElementById("scorecard-wrap");
   if (state.scorecard && state.scorecard.length) {{
@@ -449,13 +479,21 @@ function render(state) {{
   pane.scrollTop = pane.scrollHeight;
 }}
 
-const es = new EventSource("/api/stream");
+function pullState() {{
+  fetch("/api/state?t=" + Date.now(), {{ cache: "no-store" }})
+    .then((r) => r.json())
+    .then(render)
+    .catch(() => {{}});
+}}
+pullState();
+setInterval(pullState, 2000);
+const es = new EventSource("/api/stream?t=" + Date.now());
 es.onmessage = (ev) => {{
   try {{ render(JSON.parse(ev.data)); }} catch (e) {{ console.error(e); }}
 }};
 es.onerror = () => {{
   document.getElementById("error").hidden = false;
-  document.getElementById("error").textContent = "SSE disconnected — retrying…";
+  document.getElementById("error").textContent = "SSE disconnected — polling /api/state…";
 }};
 </script>
 </body>
@@ -481,8 +519,9 @@ def make_handler(session: WatchWebSession) -> type[BaseHTTPRequestHandler]:
             if path == "/api/stream":
                 self.send_response(200)
                 self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-                self.send_header("Cache-Control", "no-cache")
+                self.send_header("Cache-Control", "no-cache, no-store")
                 self.send_header("Connection", "keep-alive")
+                self.send_header("X-Accel-Buffering", "no")
                 self.end_headers()
                 last_ver = -1
                 try:
@@ -503,6 +542,8 @@ def make_handler(session: WatchWebSession) -> type[BaseHTTPRequestHandler]:
             self.send_response(code)
             self.send_header("Content-Type", ctype)
             self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
+            self.send_header("Pragma", "no-cache")
             self.end_headers()
             self.wfile.write(body)
 

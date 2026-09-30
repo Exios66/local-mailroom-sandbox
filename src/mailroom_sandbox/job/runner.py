@@ -333,6 +333,9 @@ def _run_whole_run(
         record.setdefault("run_id", store.run_id)
     store.write_checkpoint(state="done", cursor=processed, total=processed, remote=None)
     store.append_event("done", "info", cursor=processed, ok_count=processed)
+    from mailroom_sandbox.job.dated_reports import maybe_write_run_reports
+
+    maybe_write_run_reports(store, scores=scores if isinstance(scores, dict) else None)
     return {
         "state": "done",
         "task": task,
@@ -996,6 +999,9 @@ def _run_job(
     experiment_log.append(record)
     store.append_event("done", "info", cursor=final_cursor, ok_count=ok_count)
     store.write_checkpoint(state="done", cursor=final_cursor, total=total, remote=None)
+    from mailroom_sandbox.job.dated_reports import maybe_write_run_reports
+
+    maybe_write_run_reports(store, scores=scores, wall_seconds=wall_seconds)
     return {
         "state": "done",
         "task": task,

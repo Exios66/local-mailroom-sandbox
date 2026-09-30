@@ -10,8 +10,10 @@ from mailroom_sandbox.job.benchmark_check import (
 )
 from mailroom_sandbox.job.spec import load_run_spec
 from mailroom_sandbox.job.specialist_posture import (
+    GRID_RUNS,
     SPECIALIST_LIMIT_BY_RUN,
     SPECIALIST_POSTURE,
+    agent_knobs_for_run,
     context_fit_ok,
     expected_concurrency,
     expected_limit,
@@ -30,8 +32,37 @@ def _stub_modal(monkeypatch):
     )
 
 
+def test_grid_decode_budget_above_4096_length_cap():
+    """grid-20-merger 1×L4 hit LengthFinishReasonError at exactly 4096 tokens."""
+    for run_id in GRID_RUNS:
+        row = SPECIALIST_POSTURE[run_id]
+        assert int(row["max_tokens"]) > 4096, run_id
+        knobs = agent_knobs_for_run(run_id)
+        assert knobs is not None
+        agent = row["agent"]
+        assert knobs[agent]["max_tokens"] == row["max_tokens"]
+
+
+def test_merger_1l4_retry_decode_16384():
+    run_id = "grid-20-merger-specialist-awq-1l4-retry"
+    row = SPECIALIST_POSTURE[run_id]
+    assert row["max_tokens"] == 16384
+    assert row["concurrency"] == 8
+    assert row["replicas"] == 1
+    assert context_fit_ok(row["max_tokens"], row["max_input_chars"], 32768)
+    spec = load_run_spec(
+        Path(__file__).resolve().parents[1] / "config" / "runs" / f"{run_id}.yaml"
+    )
+    assert spec.run_id == run_id
+    assert spec.engine.vllm.enable_thinking is False
+    assert spec.engine.vllm.max_inputs == 8
+    assert spec.job.max_retries == 1
+    assert spec.job.concurrency == 8
+    assert spec.engine.modal.max_containers == 1
+
+
 def test_posture_context_fit_and_invariants():
-    from mailroom_sandbox.job.specialist_posture import SAND032_RUNS, SAND032_SORTER_RUNS
+    from mailroom_sandbox.job.specialist_posture import GRID_RUNS, SAND032_RUNS, SAND032_SORTER_RUNS
 
     assert validate_mapping() == []
     for run_id, row in SPECIALIST_POSTURE.items():
@@ -41,8 +72,8 @@ def test_posture_context_fit_and_invariants():
             # Single-doc probes are serial by design (benchmark_check exempts
             # them from the c>=2 floor).
             assert row["concurrency"] == 1, run_id
-        elif run_id in SAND032_RUNS or run_id in SAND032_SORTER_RUNS:
-            # SAND-032 rows scale the band per replica / max_num_seqs (up to
+        elif run_id in SAND032_RUNS or run_id in SAND032_SORTER_RUNS or run_id in GRID_RUNS:
+            # SAND-032 / grid rows scale the band per replica / max_num_seqs (up to
             # c=32 on 2×L4); validate_mapping above enforces that ceiling.
             continue
         else:
@@ -231,11 +262,20 @@ def test_run_yamls_match_posture(monkeypatch):
         lambda: {"ok": True, "version": "modal stub"},
     )
     root = Path(__file__).resolve().parents[1] / "config" / "runs"
-    from mailroom_sandbox.job.specialist_posture import SAND032_RUNS, SAND032_SORTER_RUNS
+    from mailroom_sandbox.job.specialist_posture import GRID_RUNS, SAND032_RUNS, SAND032_SORTER_RUNS
 
     for run_id, row in SPECIALIST_POSTURE.items():
         if run_id in SAND032_RUNS or run_id in SAND032_SORTER_RUNS:
             continue  # own gate + env-drift coverage in tests/test_sand032_configs.py
+        if run_id in GRID_RUNS and int(row.get("replicas", 1)) == 2:
+            # 2×L4 grid cells pin awq + seqs16 + graphs; not the 1×L4 awq/eager pair.
+            spec = load_run_spec(root / f"{run_id}.yaml")
+            assert spec.task == row["task"]
+            assert spec.job.concurrency == expected_concurrency(run_id)
+            assert spec.engine.model == "Qwen/Qwen3-8B-AWQ"
+            assert spec.engine.vllm.max_num_seqs == 16
+            assert spec.engine.modal.max_containers == 2
+            continue
         spec = load_run_spec(root / f"{run_id}.yaml")
         assert spec.task == row["task"]
         assert spec.job.concurrency == expected_concurrency(run_id)

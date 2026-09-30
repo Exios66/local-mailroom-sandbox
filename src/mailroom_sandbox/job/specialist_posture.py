@@ -701,6 +701,74 @@ SPECIALIST_POSTURE["sand032-s8-sorter1000-bt16k"] = dict(
 SPECIALIST_LIMIT_BY_RUN["sand032-s8-sorter1000-bt16k"] = 1000
 
 
+# ── Qwen3-8B-AWQ specialist grid (missing 1×L4 / 2×L4 × n=20/50 cells) ────
+# Decode 8192 (above the 4096 LengthFinishReasonError that truncated
+# merger JSON on grid-20-merger-specialist-awq-1l4). Applied at
+# `sandbox run start` via run-scoped SANDBOX_AGENT_KNOBS — do not raise
+# the global overlay (bf16 16k window still uses 4096).
+_GRID_AGENTS: dict[str, tuple[str, str, int, int, int]] = {
+    "correspondence": ("correspondence_specialist", "correspondence_specialist_simplified", 8192, 3500, 800),
+    "insurance_claim": ("insurance_claims_specialist", "insurance_claims_specialist_simplified", 8192, 4500, 1200),
+    "corporate_record": ("corporate_records_specialist", "corporate_records_specialist_simplified", 8192, 5000, 1500),
+    "merger_agreement": ("merger_agreement_specialist", "merger_agreement_specialist_simplified", 8192, 10000, 2500),
+    "contract": ("contracts_specialist", "contracts_specialist_v33_simplified", 8192, 8000, 2500),
+}
+_GRID_TABLE: tuple[tuple[str, str, int, int, int, float, int, int], ...] = (
+    # run_id, doc_class, n, replicas, concurrency, cost_cap, wall, max_num_seqs
+    ("grid-20-merger-specialist-awq-1l4", "merger_agreement", 20, 1, 8, 0.70, 3600, 8),
+    # Clean 20-doc rerun: 4096 LengthFinish on the first 1×L4 cell; 8192 still
+    # truncated contracts JSON — merger decode 16384 (fits 32768 − prompt).
+    ("grid-20-merger-specialist-awq-1l4-retry", "merger_agreement", 20, 1, 8, 0.70, 3600, 8),
+    ("grid-50-contracts-specialist-awq-1l4", "contract", 50, 1, 8, 0.80, 4800, 8),
+    ("grid-50-merger-specialist-awq-1l4", "merger_agreement", 50, 1, 8, 1.00, 5400, 8),
+    ("grid-50-corporate-records-specialist-awq-1l4", "corporate_record", 50, 1, 8, 0.50, 3600, 8),
+    ("grid-50-correspondence-specialist-awq-1l4", "correspondence", 50, 1, 8, 0.40, 3600, 8),
+    ("grid-50-insurance-claims-specialist-awq-1l4", "insurance_claim", 50, 1, 8, 0.50, 3600, 8),
+    ("grid-20-contracts-specialist-awq-2l4", "contract", 20, 2, 32, 0.80, 3200, 16),
+    ("grid-20-merger-specialist-awq-2l4", "merger_agreement", 20, 2, 32, 1.00, 3600, 16),
+    ("grid-20-corporate-records-specialist-awq-2l4", "corporate_record", 20, 2, 32, 0.50, 2400, 16),
+    ("grid-20-insurance-claims-specialist-awq-2l4", "insurance_claim", 20, 2, 32, 0.50, 2400, 16),
+    # n=50 promoted off 1×L4 after contracts-50 serialized at Running:1 / ~22 tok/s
+    # (deploy MAX_INPUTS=0). Same 2×L4 shape as the n=20 cells.
+    ("grid-50-contracts-specialist-awq-2l4", "contract", 50, 2, 32, 1.20, 3600, 16),
+    ("grid-50-merger-specialist-awq-2l4", "merger_agreement", 50, 2, 32, 1.60, 4000, 16),
+    ("grid-50-corporate-records-specialist-awq-2l4", "corporate_record", 50, 2, 32, 0.80, 2400, 16),
+    ("grid-50-correspondence-specialist-awq-2l4", "correspondence", 50, 2, 32, 0.60, 2400, 16),
+    ("grid-50-insurance-claims-specialist-awq-2l4", "insurance_claim", 50, 2, 32, 0.80, 2400, 16),
+)
+GRID_RUNS: frozenset[str] = frozenset(row[0] for row in _GRID_TABLE)
+GRID_TWO_GPU_RUNS: frozenset[str] = frozenset(r[0] for r in _GRID_TABLE if r[3] == 2)
+GRID_ONE_GPU_RUNS: frozenset[str] = frozenset(r[0] for r in _GRID_TABLE if r[3] == 1)
+for _rid, _cls, _n, _rep, _conc, _cap, _wall, _seqs in _GRID_TABLE:
+    _agent, _prompt, _mt, _pt, _ct = _GRID_AGENTS[_cls]
+    SPECIALIST_POSTURE[_rid] = {
+        "task": _agent,
+        "doc_class": _cls,
+        "agent": _agent,
+        "prompt_file": _prompt,
+        "concurrency": _conc,
+        "replicas": _rep,
+        "max_num_seqs": _seqs,
+        "max_model_len": 32768,
+        "max_tokens": _mt,
+        "max_input_chars": _input_chars_for(_mt, _pt, 32768),
+        "cost_cap_usd": _cap,
+        "max_wall_seconds": _wall,
+        "tokens_assumed": {"prompt": _pt, "completion": _ct},
+        "sec_per_doc": {"low": 10.0, "likely": 40.0, "high": 180.0},
+        "rationale": "Qwen3-8B-AWQ specialist grid cell (v1 / simplified stem)",
+    }
+    SPECIALIST_LIMIT_BY_RUN[_rid] = _n
+
+# Merger 1×L4 retry: raise decode above the 8192 contracts LengthFinish.
+_MERGER_1L4_RETRY = "grid-20-merger-specialist-awq-1l4-retry"
+if _MERGER_1L4_RETRY in SPECIALIST_POSTURE:
+    SPECIALIST_POSTURE[_MERGER_1L4_RETRY]["max_tokens"] = 16384
+    SPECIALIST_POSTURE[_MERGER_1L4_RETRY]["max_input_chars"] = _input_chars_for(
+        16384, 10000, 32768
+    )
+
+
 def expected_limit(run_id: str | None, default: int = 30) -> int:
     """Expected prepared-row count for a specialist run (DMR-078 / SAND-018)."""
     if not run_id:
@@ -716,9 +784,9 @@ AGENT_GENERATION_BUDGETS: dict[str, dict[str, int]] = {
         "max_input_chars": int(row["max_input_chars"]),
     }
     for run_id, row in SPECIALIST_POSTURE.items()
-    # SAND-032 rows mirror the overlay budgets; keep them out of this
+    # SAND-032 / grid rows mirror overlay budgets; keep them out of this
     # last-writer-wins map so pre-existing agent budgets are unchanged.
-    if not run_id.startswith("sand032-")
+    if not run_id.startswith("sand032-") and not run_id.startswith("grid-")
 }
 
 
@@ -727,6 +795,19 @@ def posture_for_run(run_id: str | None) -> dict[str, Any] | None:
         return None
     row = SPECIALIST_POSTURE.get(str(run_id))
     return dict(row) if row else None
+
+
+def agent_knobs_for_run(run_id: str | None) -> dict[str, dict[str, Any]] | None:
+    """Run-scoped generation budget for ``activate(..., agent_knobs=)``."""
+    row = posture_for_run(run_id)
+    if row is None:
+        return None
+    return {
+        str(row["agent"]): {
+            "max_tokens": int(row["max_tokens"]),
+            "max_input_chars": int(row["max_input_chars"]),
+        }
+    }
 
 
 def expected_concurrency(run_id: str | None, default: int = 4) -> int:

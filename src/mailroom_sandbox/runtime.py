@@ -176,6 +176,12 @@ def activate(
     name = profile_name or os.environ.get("SANDBOX_PROFILE") or "ollama"
     profile = load_profile(name)
     apply_profile_env(profile, base_url_override=base_url)
+    if not model and str(profile.get("provider") or "") == "vllm":
+        from mailroom_sandbox.overlay import resolve_served_vllm_model
+
+        model = resolve_served_vllm_model()
+    if model and str(profile.get("provider") or "") == "vllm":
+        os.environ["VLLM_MODEL"] = str(model)
 
     mailroom_src = resolve_mailroom_src()
     if mailroom_src is not None:
