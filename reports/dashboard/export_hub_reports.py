@@ -705,6 +705,7 @@ def main() -> int:
     audit = json.loads(pathlib.Path(args.audit).read_text()) if args.audit else {}
 
     import gpu_report  # noqa: PLC0415 — imports this module's helpers at call time
+    import modal_performance  # noqa: PLC0415
     import pages_site  # noqa: PLC0415
     rows, sorters = route_rows(D), sorters_of(D)
     E = breakeven.analyze(D, gpu_report.NOT_A_CONFIG)
@@ -718,6 +719,8 @@ def main() -> int:
         "figures/cost/sorter-routes.svg": fig_sorter(D, sorters),
         "figures/cost/modal-vs-api-breakeven.svg": breakeven.fig(E, viz, usd),
         **source_charts.render(D, viz),
+        **(modal_figs := modal_performance.render(D, viz)),
+        "MODAL-PERFORMANCE-VISUALS.md": modal_performance.report_md(sorted(modal_figs)),
         "COST-COMPARISON-MODAL-VS-API.md": cost_report(D, rows, E, sorters, shas),
         "MASTER-REPORT.md": master_report(D, rows, E, sorters, audit, shas),
     }

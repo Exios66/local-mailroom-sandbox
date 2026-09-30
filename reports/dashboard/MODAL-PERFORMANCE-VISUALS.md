@@ -1,0 +1,45 @@
+# Modal specialist performance visuals
+
+Deterministic SVGs from committed SAND-032 run reports and serving exports (`hub_data.json`). Regenerate with `python scripts/sand032/render_modal_performance.py`.
+
+## Cost per document by specialist and hardware
+
+![Grouped bar chart of busy-window GPU cost per document for the same specialist × hardware matrix.](figures/modal-performance/cost-by-specialist-hardware.svg)
+
+Grouped bar chart of busy-window GPU cost per document for the same specialist × hardware matrix.
+
+## Cost breakdown stacked bar
+
+![Stacked $/doc: GPU busy wall time, idle slots, and amortized cold boot for the five-class sweep.](figures/modal-performance/cost-doc-breakdown.svg)
+
+Stacked $/doc: GPU busy wall time, idle slots, and amortized cold boot for the five-class sweep.
+
+## Cost vs quality scatter
+
+![Scatter of busy $/doc vs extraction score; color = hardware, marker shape = specialist family.](figures/modal-performance/cost-vs-quality-scatter.svg)
+
+Scatter of busy $/doc vs extraction score; color = hardware, marker shape = specialist family.
+
+## Prefix-cache hit over wall time
+
+![Prefix-cache hit vs wall time; lines per replica with end points from vLLM /metrics (42.8% / 43.2% on s9 insurance bal).](figures/modal-performance/prefix-cache-over-time.svg)
+
+Prefix-cache hit vs wall time; lines per replica with end points from vLLM /metrics (42.8% / 43.2% on s9 insurance bal).
+
+## Extraction score by specialist and hardware
+
+![Grouped bar chart of overall extraction score per specialist, with one bar per Modal hardware config.](figures/modal-performance/score-by-specialist-hardware.svg)
+
+Grouped bar chart of overall extraction score per specialist, with one bar per Modal hardware config.
+
+## Score heatmap (specialist × hardware)
+
+![Heatmap of extraction score: rows = specialists, columns = hardware configs, cell text = raw score.](figures/modal-performance/score-heatmap.svg)
+
+Heatmap of extraction score: rows = specialists, columns = hardware configs, cell text = raw score.
+
+## Throughput vs concurrency
+
+![Throughput vs client concurrency, faceted by specialist; one line per fleet shape.](figures/modal-performance/throughput-vs-concurrency.svg)
+
+Throughput vs client concurrency, faceted by specialist; one line per fleet shape.
