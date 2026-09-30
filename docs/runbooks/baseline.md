@@ -478,7 +478,7 @@ sandbox health --profile modal-vllm
 sandbox run preflight --config config/runs/run-20-contracts-specialist.yaml --live
 sandbox run start --config config/runs/run-20-contracts-specialist.yaml --job-mode endpoint --watch
 
-./deploy/teardown_vllm.sh   # ONLY after the this run
+./deploy/teardown_vllm.sh   # ONLY after this run
 ```
 
 ---

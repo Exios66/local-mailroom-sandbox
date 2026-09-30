@@ -13,15 +13,12 @@ sandbox runbook list
 sandbox runbook show l4-qwen3-8b          # singular 1×L4 / 1-container Qwen3-8B
 sandbox runbook show l4-qwen3-8b-track-a  # Operator A
 sandbox runbook show improved-awq-c8      # improved config
+sandbox runbook show a100-qwen3-14b-awq-sorter400  # 1×A100-40GB Qwen3-14B-AWQ sorter n=400
 sandbox runbook check                     # catalog vs live pins
 sandbox runbook write                     # regenerate this directory
 ```
 
 Source of truth: [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml).
-
-**Long runs:** before `sandbox run start … --job-mode endpoint`, open
-[`docs/mailroom-themed-logging.md`](../mailroom-themed-logging.md) and attach
-`sandbox watch` (terminal or `--web`) in a second pane for dispatch logs and postage.
 
 ## Singular L4 / 1-container Qwen3-8B
 
@@ -33,6 +30,7 @@ Source of truth: [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.
 ## Improved run configurations
 
 - [`improved-awq`](improved-awq.md) — AWQ on 1×L4 (Qwen3-8B-AWQ, contracts N=20)
+- [`a100-qwen3-14b-awq-sorter400`](a100-qwen3-14b-awq-sorter400.md) — 1×A100-40GB Qwen3-14B-AWQ isolated sorter n=400 (C=32)
 - [`improved-awq-c8`](improved-awq-c8.md) — AWQ + 32768 + concurrency 8 (contracts N=20)
 - [`improved-correspondence-awq`](improved-correspondence-awq.md) — AWQ 32768 correspondence N=20 (concurrency 5)
 - [`improved-correspondence-awq-c8`](improved-correspondence-awq-c8.md) — AWQ 32768 correspondence N=20 (concurrency 8)

@@ -321,10 +321,18 @@ def render_shell(name: str) -> str:
         elif kind == "matrix_hint":
             mid = str(runbook.get("modal_matrix") or "").strip()
             if mid:
-                lines += [
-                    "",
-                    f'# equivalent: eval "$(sandbox modal-matrix env {mid})"',
-                ]
+                knobs = serving_knobs(str(runbook.get("serving") or "baseline"))
+                gpu = str(knobs.get("gpu") or "").strip()
+                hint = f'# equivalent: eval "$(sandbox modal-matrix env {mid})"'
+                if gpu:
+                    from mailroom_sandbox.modal_matrix import modal_models
+
+                    row_gpu = str((modal_models().get(mid) or {}).get("gpu") or "")
+                    if row_gpu != gpu:
+                        hint = (
+                            f'# equivalent: eval "$(sandbox modal-matrix env {mid} --gpu {gpu})"'
+                        )
+                lines += ["", hint]
         elif kind == "estimate":
             cmd = _estimate_cmd(runbook)
             if cmd:
@@ -391,8 +399,12 @@ def render_shell(name: str) -> str:
                     "done",
                 ]
         elif kind == "teardown":
-            last = "last config in this track" if "suite" in step_set else "this run"
-            lines += ["", f"{teardown}   # ONLY after the {last}"]
+            after = (
+                "the last config in this track"
+                if "suite" in step_set
+                else "this run"
+            )
+            lines += ["", f"{teardown}   # ONLY after {after}"]
         elif kind == "after":
             after = runbook.get("after") or []
             if after:
@@ -534,6 +546,9 @@ def render_markdown(name: str) -> str:
         for note in notes:
             lines.append(f"- {_note_text(note)}")
         lines.append("")
+    appendix = str(runbook.get("appendix") or "").strip()
+    if appendix:
+        lines += [appendix, ""]
     never = ops.get("never") or []
     if never:
         lines += ["## Do not", ""]
@@ -558,6 +573,7 @@ def render_index() -> str:
         "sandbox runbook show l4-qwen3-8b          # singular 1×L4 / 1-container Qwen3-8B",
         "sandbox runbook show l4-qwen3-8b-track-a  # Operator A",
         "sandbox runbook show improved-awq-c8      # improved config",
+        "sandbox runbook show a100-qwen3-14b-awq-sorter400  # 1×A100-40GB Qwen3-14B-AWQ sorter n=400",
         "sandbox runbook check                     # catalog vs live pins",
         "sandbox runbook write                     # regenerate this directory",
         "```",

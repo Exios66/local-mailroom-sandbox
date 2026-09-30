@@ -38,6 +38,36 @@ def test_aliases_resolve():
     assert resolve_runbook_id("awq-c8") == "improved-awq-c8"
     assert resolve_runbook_id("granite") == "improved-granite-fp8"
     assert resolve_runbook_id("track-a") == "l4-qwen3-8b-track-a"
+    assert resolve_runbook_id("a100-sorter") == "a100-qwen3-14b-awq-sorter400"
+    assert resolve_runbook_id("qwen3-14b-awq") == "a100-qwen3-14b-awq-sorter400"
+
+
+def test_a100_sorter400_awq_14b_pins():
+    knobs = serving_knobs("awq-14b-a100")
+    assert knobs["model"] == "Qwen/Qwen3-14B-AWQ"
+    assert knobs["gpu"] == "A100-40GB"
+    assert knobs["quantization"] == "awq_marlin"
+    assert int(knobs["max_model_len"]) == 32768
+    assert int(knobs["max_num_seqs"]) == 32
+    assert int(knobs["max_containers"]) == 1
+    assert int(knobs["min_containers"]) == 1
+    assert int(knobs["scaledown_seconds"]) == 600
+    assert int(knobs["enforce_eager"]) == 0
+    row = get_runbook("a100-qwen3-14b-awq-sorter400")
+    assert row["skip_check"] is True
+    md = render_markdown("a100-qwen3-14b-awq-sorter400")
+    assert "Qwen/Qwen3-14B-AWQ" in md
+    assert "A100-40GB" in md
+    assert "sorter_v1" in md
+    script = render_shell("a100-qwen3-14b-awq-sorter400")
+    assert "run-400-sorter-qwen3-14b-awq-a100.yaml" in script
+    assert "MODAL_VLLM_GPU=A100-40GB" in script
+    assert "--strategy recreate" in script
+    assert "modal-matrix env Qwen/Qwen3-14B-AWQ --gpu A100-40GB" in script
+    assert "ONLY after this run" in script
+    assert "ONLY after the this run" not in script
+    env = env_exports(get_runbook("a100-qwen3-14b-awq-sorter400"))
+    assert env["PHOENIX_TRACING"] == "disabled"
 
 
 def test_baseline_serving_is_singular_l4_one_container_qwen():
