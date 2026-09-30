@@ -19,7 +19,7 @@ D = json.loads((DASH / "hub_data.json").read_text())
 
 def test_all_figures_render_and_contain_svg():
     figs = mp.render(D, viz)
-    assert len(figs) == 7
+    assert len(figs) == 9
     for path, body in figs.items():
         assert body.startswith("<svg"), path
         assert "class=\"viz\"" in body, path
@@ -36,6 +36,19 @@ def test_matrix_cells_match_run_reports():
         run = D["runs"][rid]
         expected = mp._score(run)
         assert abs(score - expected) < 1e-4, f"{rid} matrix {score} vs report {expected}"
+
+
+def test_qwen8b_table_matches_user_break_even_grid():
+    import gpu_report
+
+    rows = list(mp._same_model_rows(D, gpu_report.NOT_A_CONFIG))
+    assert len(rows) == 4
+    by_label = {r["label"]: r for r in rows}
+    corr = by_label["Correspondence"]
+    assert corr["run"] == "sand032-s3-corr50"
+    assert abs(corr["modal_usd"] - 0.00014) < 0.00002
+    assert abs(corr["ratio"] - 0.05) < 0.01
+    assert corr["cold_n"] == 26
 
 
 def test_cost_stack_sums_to_busy_plus_idle_plus_cold():

@@ -684,3 +684,31 @@ def grouped_vbar(title: str, subtitle: str, categories: list[str], series: list[
             o.append(f'<text class="val" x="{x + bar_w / 2:.1f}" y="{y - 4:.1f}" text-anchor="middle">{_esc(fmt(v))}</text>')
     o.append("</svg>")
     return "\n".join(o)
+
+
+def data_table(title: str, subtitle: str, columns: list[str], rows: list[list[str]], *, width: int = 960) -> str:
+    """Readable dark-card table for report metrics (every cell is literal text, not color alone)."""
+    col_n = len(columns)
+    pad_x, row_h, hdr_h = 10, 28, 32
+    col_w = max(72, (width - 32) // col_n)
+    width = col_w * col_n + 32
+    h = 58 + hdr_h + len(rows) * row_h + 16
+    o = _open(width, h, title, subtitle)
+    y = 58
+    o.append(f'<rect class="axis" x="16" y="{y}" width="{width - 32}" height="{hdr_h}" rx="4" fill="none"/>')
+    for j, col in enumerate(columns):
+        x = 16 + j * col_w + pad_x
+        o.append(f'<text class="grp" x="{x}" y="{y + 20}">{_esc(fit_label(col, col_w - 2 * pad_x))}</text>')
+    y += hdr_h
+    for i, row in enumerate(rows):
+        if i % 2 == 0:
+            o.append(f'<rect class="deemph" x="16" y="{y}" width="{width - 32}" height="{row_h}" rx="2" opacity="0.25"/>')
+        for j, cell in enumerate(row):
+            x = 16 + j * col_w + pad_x
+            cls = "val" if j > 0 else "lbl"
+            anchor = "end" if j >= len(row) - 4 and j > 0 else "start"
+            tx = x + (col_w - 2 * pad_x if anchor == "end" else 0)
+            o.append(f'<text class="{cls}" x="{tx}" y="{y + 19}" text-anchor="{anchor}">{_esc(fit_label(cell, col_w - 2 * pad_x))}</text>')
+        y += row_h
+    o.append("</svg>")
+    return "\n".join(o)

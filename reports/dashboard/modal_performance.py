@@ -62,6 +62,8 @@ COST_STACK_RUNS = [
 
 PREFIX_RUNS = COST_STACK_RUNS + ["sand032-s9-insurance50-bal"]
 
+SAME_MODEL_CLASSES = ["correspondence", "insurance_claim", "corporate_record", "contract"]
+
 REPLICA_LINE = re.compile(
     r"^- replica `([^`]*)`: requests Δ (\d+) \(cumulative \d+\), measured TTFT mean [\d.]+ s "
     r"\(vLLM histogram, cumulative\), prefix-cache hit ([\d.]+)%,", re.M)
@@ -266,6 +268,75 @@ def _prefix_curve(run: dict, fleet: dict, final: float) -> list[dict]:
     return out
 
 
+def _same_model_rows(D: dict, exclude: frozenset) -> list[dict]:
+    import breakeven
+    import gpu_report
+
+    ex = exclude if exclude is not None else gpu_report.NOT_A_CONFIG
+    for row in breakeven.analyze(D, ex)["rows"]:
+        if row["cls"] not in SAME_MODEL_CLASSES:
+            continue
+        same = row.get("same")
+        if not same:
+            continue
+        yield {
+            "label": row["label"],
+            "run": row["modal"]["run"],
+            "modal_usd": row["modal"]["usd"],
+            "modal_score": row["modal"]["score"],
+            "api_usd": same["api"]["usd"],
+            "api_score": same["api"]["score"],
+            "ratio": same["ratio"],
+            "warm_docs_h": same["l4x1"]["docs_h_star"],
+            "cold_n": same["l4x1"]["batch_star"],
+        }
+
+
+def fig_modal_api_qwen8b_table(D: dict, viz, exclude=None) -> str:
+    import breakeven as be
+
+    cols = [
+        "Class", "Modal run", "Modal $/doc", "Modal score", f"API {be.SAME_MODEL_API} $/doc",
+        "API score", "Modal ÷ API", "API ÷ Modal", "Warm 1×L4 docs/h", "Cold batch ≥ N",
+    ]
+    body = []
+    for r in _same_model_rows(D, exclude):
+        body.append([
+            r["label"],
+            r["run"],
+            f"${r['modal_usd']:.4f}",
+            f"{r['modal_score']:.3f}",
+            f"${r['api_usd']:.4f}",
+            f"{r['api_score']:.3f}",
+            f"{r['ratio']:.2f}×",
+            f"{1 / r['ratio']:.1f}×",
+            str(int(round(r["warm_docs_h"]))),
+            str(r["cold_n"]),
+        ])
+    return viz.data_table(
+        "Modal L4 vs hosted Qwen3-8B — same-model route comparison",
+        "SAND-032 sweep runs vs eval-environment API legs on Qwen3-8B · break-even docs/h at warm 1×L4",
+        cols, body, width=1040)
+
+
+def fig_modal_api_qwen8b_cost(D: dict, viz, exclude=None) -> str:
+    groups = []
+    for r in _same_model_rows(D, exclude):
+        groups.append({
+            "label": r["label"],
+            "rows": [
+                {"label": "Modal L4 (AWQ)", "value": r["modal_usd"] * 1000, "series": "s1",
+                 "note": f"score {r['modal_score']:.3f}"},
+                {"label": "API Qwen3-8B", "value": r["api_usd"] * 1000, "series": "s2",
+                 "note": f"score {r['api_score']:.3f}"},
+            ],
+        })
+    return viz.grouped_hbar(
+        "Cost per 1,000 documents — Modal L4 vs API Qwen3-8B",
+        "Horizontal bars per class; tip notes extraction score · values from hub break-even analysis",
+        groups, legend=[("s1", "Modal L4"), ("s2", "API Qwen3-8B")], unit=" USD", fmt=lambda v: f"{v:.2f}")
+
+
 def fig_prefix_cache(D: dict, viz) -> str:
     panels = []
     for rid in PREFIX_RUNS:
@@ -312,10 +383,14 @@ CAPTIONS = {
         "Stacked $/doc: GPU busy wall time, idle slots, and amortized cold boot for the five-class sweep."),
     "figures/modal-performance/prefix-cache-over-time.svg": (
         "Prefix-cache hit vs wall time; lines per replica with end points from vLLM /metrics (42.8% / 43.2% on s9 insurance bal)."),
+    "figures/modal-performance/modal-api-qwen8b-table.svg": (
+        "Modal vs API Qwen3-8B per class: $/doc, scores, cost ratios, warm break-even docs/h and cold-batch N."),
+    "figures/modal-performance/modal-api-qwen8b-cost.svg": (
+        "Grouped horizontal bars: Modal L4 vs API Qwen3-8B cost per 1,000 documents, four specialist classes."),
 }
 
 
-def render(D: dict, viz) -> dict[str, str]:
+def render(D: dict, viz, *, exclude=None) -> dict[str, str]:
     return {
         "figures/modal-performance/score-by-specialist-hardware.svg": fig_score_grouped(D, viz),
         "figures/modal-performance/cost-by-specialist-hardware.svg": fig_cost_grouped(D, viz),
@@ -324,6 +399,8 @@ def render(D: dict, viz) -> dict[str, str]:
         "figures/modal-performance/throughput-vs-concurrency.svg": fig_throughput_concurrency(D, viz),
         "figures/modal-performance/cost-doc-breakdown.svg": fig_cost_stack(D, viz),
         "figures/modal-performance/prefix-cache-over-time.svg": fig_prefix_cache(D, viz),
+        "figures/modal-performance/modal-api-qwen8b-table.svg": fig_modal_api_qwen8b_table(D, viz, exclude),
+        "figures/modal-performance/modal-api-qwen8b-cost.svg": fig_modal_api_qwen8b_cost(D, viz, exclude),
     }
 
 
@@ -332,7 +409,7 @@ def report_md(fig_paths: list[str]) -> str:
         "# Modal specialist performance visuals",
         "",
         "Deterministic SVGs from committed SAND-032 run reports and serving exports (`hub_data.json`). "
-        "Regenerate with `python scripts/sand032/render_modal_performance.py`.",
+        "Regenerate with `python scripts/sand032/render_modal_performance.py` (also writes 2× PNGs under `viz/modal-performance/`).",
         "",
     ]
     titles = {
@@ -343,9 +420,12 @@ def report_md(fig_paths: list[str]) -> str:
         "throughput-vs-concurrency.svg": "Throughput vs concurrency",
         "cost-doc-breakdown.svg": "Cost breakdown stacked bar",
         "prefix-cache-over-time.svg": "Prefix-cache hit over wall time",
+        "modal-api-qwen8b-table.svg": "Modal vs API Qwen3-8B comparison table",
+        "modal-api-qwen8b-cost.svg": "Modal vs API Qwen3-8B cost per 1,000 docs",
     }
     for rel in fig_paths:
         name = Path(rel).name
         cap = CAPTIONS.get(rel, "")
-        lines += [f"## {titles.get(name, name)}", "", f"![{cap}]({rel})", "", cap, ""]
+        png = f"viz/modal-performance/{name.replace('.svg', '.png')}"
+        lines += [f"## {titles.get(name, name)}", "", f"![{cap}]({rel})", "", f"PNG (2×): [`{png}`]({png})", "", cap, ""]
     return "\n".join(lines)
