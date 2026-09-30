@@ -11,7 +11,7 @@
 ## Structure
 
 | Path | Contents |
-|:---|:---|
+| :--- | :--- |
 | [`mailroom.taxonomy.base.yaml`](mailroom.taxonomy.base.yaml) | Document classes, agents, prompts |
 | [`taxonomy.overlay.yaml`](taxonomy.overlay.yaml) | Overlay applied on top of the base |
 | [`models.yaml`](models.yaml) | Serving/model catalog (providers, quantization, GPU) |

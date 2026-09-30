@@ -7,7 +7,7 @@ and quantization are identical. Purpose: log a measured, *effective* 8-wide
 batched run on one L4.
 
 | | |
-|---|---|
+| --- | --- |
 | run_id | `run-20-correspondence-awq-c8` |
 | task / agent | `correspondence_specialist` |
 | prompt | `correspondence_specialist_production` (local pin recorded, not applied — see erratum) |
@@ -29,7 +29,7 @@ batched run on one L4.
 ## Headline results
 
 | metric | value |
-|---|---|
+| --- | --- |
 | docs ok / total | **20 / 20** (`error_count=0`) |
 | **overall_extraction_score** | **0.08714** |
 | exact_match | 0.08714 |
@@ -38,7 +38,7 @@ batched run on one L4.
 ## Serving / cost metrics
 
 | metric | value |
-|---|---|
+| --- | --- |
 | wall (busy interval) | 90.401 s |
 | concurrency | 8 |
 | cold boot (measured) | 159.887 s |
@@ -59,7 +59,7 @@ batched run on one L4.
 ## Concurrency scaling vs `run-20-correspondence-awq` (c5)
 
 | metric | c5 | c8 | delta |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | concurrency | 5 | 8 | +3 |
 | wall | 253.692 s | 90.401 s | -163.3 s |
 | speedup vs serial | 4.84x | 6.69x | +1.85x |
@@ -75,7 +75,7 @@ mild p50 rise (more docs share each decode step) and a small score drift
 ## Per-document scores
 
 | # | doc id | subclass | overall | extraction_f1 | latency s | prompt tok | compl tok | error |
-|---|---|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | `DOC-2b5939247214be02` | demand | 0.0218 | 0.0 | 20.8 | 1890 | 190 | None |
 | 2 | `DOC-b8d0988b09eefe09` | notice | 0.0478 | 0.0 | 12.8 | 1804 | 188 | None |
 | 3 | `DOC-7d05b5b564199628` | notice | 0.0909 | 0.0952 | 30.4 | 1704 | 122 | None |

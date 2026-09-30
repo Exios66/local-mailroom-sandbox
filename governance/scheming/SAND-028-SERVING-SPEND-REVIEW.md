@@ -28,7 +28,7 @@ errors by comparison. This reframes the whole optimization problem: optimize *GP
 ## 2 · Measured spend autopsy (the 3 measured Modal runs)
 
 | run | n | conc | wall s | cold-boot s | gpu-s | $ GPU | $/doc | tok/s | p50 s | err | score |
-|---|---|---|---|---|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | run-20-contracts-awq-c8 | 20 | 8 | 1528.0 | 161.1 | 1689.2 | 0.3754 | 0.01877 | 144.0 | 619.6 | 3 | 0.0* |
 | run-20-correspondence-awq-c8 | 20 | 8 | 90.4 | 159.9 | 250.3 | 0.0556 | 0.00278 | 472.1 | 35.0 | 0 | 0.0871 |
 | run-20-correspondence-awq | 20 | 5 | 253.7 | 260.3 | 514.0 | 0.1142 | 0.00571 | 167.5 | 23.3 | 0 | 0.0893 |
@@ -140,7 +140,7 @@ breaks the same-subset guarantee** (this is why `docs/modal-serving-ops.md` §5 
 #20 exist).
 
 | # | Optimization | Lever | Est. $ saved on ~$6.4 matrix | Risk | Owner |
-|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- |
 | O1 | Guided/JSON structured decode (terminate on schema) | F1 | ~$2-3 | med (decode-shape change → re-score) | harness-doctor + prompt-engineer |
 | O2 | Fail-fast on LengthFinish + per-doc wall budget | F1/F4 | ~$0.5-1 | low | harness-doctor |
 | O3 | Drive matrix via `sandbox run suite` (one warm app) | F2 | ~$0.5 | low (ops change) | general (ops) |

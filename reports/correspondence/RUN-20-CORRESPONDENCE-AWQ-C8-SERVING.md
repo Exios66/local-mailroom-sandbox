@@ -14,7 +14,7 @@ Engine: `Qwen/Qwen3-8B-AWQ` (AWQ, 1x L4, `max_model_len=32768`) | task
 ## Headline cost & token metrics
 
 | metric | Modal (this run) | API (fill on OpenRouter run) |
-|---|---|---|
+| --- | --- | --- |
 | prompt_tokens | 39058 | |
 | completion_tokens | 3619 | |
 | total_tokens | 42677 | |

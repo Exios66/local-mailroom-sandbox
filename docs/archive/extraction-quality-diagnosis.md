@@ -7,7 +7,7 @@ the specialist schema/prompt. It does **not** replay Modal, spend GPU, or
 call a live LLM.
 
 | | |
-|---|---|
+| --- | --- |
 | run_id | `run-20-correspondence-awq-c8` |
 | twin (same draw) | `run-20-correspondence-awq` (concurrency 5) |
 | fingerprint | `285f423d3708` |
@@ -20,7 +20,7 @@ call a live LLM.
 ## Artifact search (what exists vs what does not)
 
 | Location | Present in this checkout? | What it holds |
-|---|---|---|
+| --- | --- | --- |
 | `reports/RUN-20-CORRESPONDENCE-AWQ-C8-REPORT.md` | yes | per-doc scores, token counts, latency |
 | `reports/serving/run-20-correspondence-awq-c8.serving.json` | yes | aggregate serving + `scores` |
 | `data/runtime/runs/<run_id>/items.jsonl` | **no** (gitignored operator state) | per-item `predicted` as `str(dict)`, **not** raw LLM text |
@@ -48,7 +48,7 @@ Per-doc table: [`RUN-20-CORRESPONDENCE-AWQ-C8-REPORT.md`](../../reports/correspo
 Same draw, concurrency 5: [`RUN-20-CORRESPONDENCE-AWQ-REPORT.md`](../../reports/correspondence/RUN-20-CORRESPONDENCE-AWQ-REPORT.md).
 
 | role | doc id | subclass | c8 overall | c8 F1 | c8 compl tok | c5 overall | c5 F1 | c5 compl tok |
-|---|---|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | **best** | `DOC-38a7cb4be93dbecd` | notice | **0.2121** | **0.1538** | 228 | 0.2121 | 0.1538 | 228 |
 | mid (F1>0) | `DOC-56a2f3a613f97dee` | meeting_request | 0.1917 | 0.0769 | 208 | 0.1917 | 0.0769 | 208 |
 | **worst c8** | `DOC-f1db54435294f184` | email | **0.0091** | **0.0** | 191 | 0.0 | 0.0 | **10** |
@@ -124,7 +124,7 @@ Source: `llm_dojo_scoring.field_scoring.score_extraction` and
 GT dumps more (~18 reported on this draw), many empty on non-insurance rows.
 
 | GT value | Predicted | `overall_extraction_score` | `extraction_f1` |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `None` or `""` | omitted / `null` / `""` | **not an event** (skipped) | skipped (not FN) |
 | `None` or `""` | **spurious string** | **not an event** (still skipped) | skipped; extra *keys* not in expected are FP |
 | `[]` (empty list) | `[]` | **1.0** on that field | skipped as an F1 event |
@@ -162,7 +162,7 @@ classification `match`. They are equal **by construction**.
 What is actually graded:
 
 | Layer | Grading |
-|---|---|
+| --- | --- |
 | `overall_extraction_score` | mean of **typed** per-field scores: name (Jaro-Winkler / token-set / optional embedding rescue), date (ISO + containment fallbacks), money (±$0.01), free_text (token F1), entity_list (list F1) |
 | `extraction_f1` | binary events; TP only if typed score **≥ 1.0**. Near-miss spans are FN |
 | entity lists, 1×1 | thresholded element similarity; **no Hungarian** |
@@ -198,7 +198,7 @@ start this run** until spend/auth are approved. See
 Baseline floor on fingerprint `285f423d3708`: **0.08714**.
 
 | Gate | `overall_extraction_score` | Format health | Meaning |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Floor (measured) | 0.087 | unknown (not instrumented on this run) | current AWQ c8 |
 | **Diagnostic** (owner-locked) | **≥ 0.25** | `parse_error_rate = 0` and `schema_valid_rate ≥ 0.95` | out of the floor; format/scorer no longer confounded with quality |
 | **Pipeline-viable** (owner-locked) | **≥ 0.50** | same format bar | correspondence specialist usable as a pipeline stage on this draw |

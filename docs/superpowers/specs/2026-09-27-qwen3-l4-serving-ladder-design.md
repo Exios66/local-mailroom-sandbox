@@ -87,7 +87,7 @@ Serve Qwen3-8B on Modal + vLLM v0.29.0 on L4 GPUs as cheaply as possible, withou
 ### Stage 0 — Plumbing (code only, $0, TDD, network-free tests)
 
 | Unit | Change | Location |
-|---|---|---|
+| --- | --- | --- |
 | Deploy knobs | New env knobs rendered into `vllm serve` argv: `kv_cache_dtype`, `default_chat_template_kwargs` (thinking off), CUDA-graph capture sizes via `--compilation-config`, `max_num_batched_tokens` | `deploy/modal_vllm.py` `build_vllm_command`, `CONFIG_ENV_KEYS` |
 | Spec fields | Same knobs as validated `VLLMSpec` fields | `src/mailroom_sandbox/job/spec.py:230-281` |
 | Thinking fallback | If `--default-chat-template-kwargs` is absent on v0.29.0: `--chat-template` pointing at a repo copy of the Qwen3 template with `enable_thinking` defaulting false (prompt SHA unchanged) | `deploy/` |
@@ -109,7 +109,7 @@ thinking, kv-cache and compilation flags exist before any GPU boot.
 Rungs are cumulative, with one knob per rung. Each rung is a fresh boot, and boot time is recorded.
 
 | Rung | Change | Rationale |
-|---|---|---|
+| --- | --- | --- |
 | L0 | Current AWQ baseline, new slice | Paired reference |
 | L1 | + thinking off | Removes decode waste and stragglers |
 | L2 | + `awq_marlin` | Kernel speed |
@@ -160,7 +160,7 @@ The app is stopped at suite end.
 The estimates use measured $/doc from prior runs, before any optimization.
 
 | Stage | Estimate |
-|---|---|
+| --- | --- |
 | 1 — ladder (6 boots) | ~$0.35 |
 | 2 — scale-out n=100 ×2 | ~$0.55 |
 | 3 — sweep n=50 ×5 + repeat | ~$2.7 |

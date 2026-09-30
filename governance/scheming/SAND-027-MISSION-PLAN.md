@@ -123,7 +123,7 @@ Re-derived 2026-09-25 from the three real serving records in `reports/RUN-*-REPO
 `docs/RUN-COST-DERIVATION.md` (full per-doc derivation, exact formulas, sensitivity).
 
 | Leg | Basis | **Total ≈** |
-|---|---|---|
+| --- | --- | --- |
 | A · Modal 1×L4 FP8 | 2 classes measured @100 = $2.15; 3 classes extrapolated = $3.90 | **~$6.05** |
 | B · OpenRouter | real token volumes × $0.06/$0.25 | **~$0.25–0.45** |
 | **Program** | | **≈ $6.30–6.50 unoptimized** |
@@ -154,7 +154,7 @@ Re-derived 2026-09-25 from the three real serving records in `reports/RUN-*-REPO
 ### 2.7 Earlier QWEN flash runs (the cost-report subject; data verified)
 3 records in `reports/experiment_log.jsonl` (all `qwen/qwen3.7-flash`, profile openrouter, backend none):
 | record | n | prompt_tokens | completion_tokens | **real API $ (tokens × live price $0.03/$0.13)** | logged L4-proxy $ |
-|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- |
 | api-smoke-1 | 1 | 12,158 | 997 | **$0.000494** | 0.001854 |
 | contracts-20 #1 (22:04Z) | 20 | 123,829 | 16,629 | **$0.005877** | 0.008428 |
 | contracts-20 #2 (22:08Z) | 20 | 123,829 | 15,310 | **$0.005705** | 0.008276 |
@@ -218,7 +218,7 @@ cost reports: Granite legs + Qwen-flash earlier runs + archived Qwen Modal basel
 ## 5 · Units of work (dispatch order; evidence contract each)
 
 | # | Unit (card) | Owner | Scope | Evidence contract / gate | Depends |
-|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- |
 | **U1** | SAND-027-1 · Granite claims verification | **DONE 2026-09-25** (lucius + docker-deployment-specialist + ml-systems-oracle) | §2 of this file | Verdicts folded into §2; no re-dispatch unless gates re-open | — |
 | **U2** | SAND-027-2 · Leg B prep in eval-environment (execution tracked in eval-env issues) | eval-env subagents (eval-runner, corpus-curator) under its AGENTS.md | **Issues filed 2026-09-25: #18 program, #19 prompt alignment, #20 same-subset, #21 Braintrust/log.** Execute per those issues: parametrize `eval:<specialist>` × 5 for `--model ibm-granite/granite-4.2-8b` + explicit max_tokens + seed; confirm `--invoke agent` + subset grammar give identical per-class draws; Braintrust `--trace-backend braintrust` | `--task eval:<s> --mock --n 2` green; per-class 20/50/100 case lists recorded (filenames) | U1 |
 | **U3** | SAND-027-3 · Prompt alignment (sandbox ↔ eval-env) | atom (sandbox) + eval-env prompt lineage gate | stem table {doc_type: sandbox file → eval-env file → sha256 → status}; fix drift via `promote_sandbox_specialist.py` (eval-env, Refs issue) or copy-and-lock; sha256 cross-repo drift test (skip-if-sibling-absent, hermetic) | table + drift test green; every stem byte-identical | U1 |
@@ -294,7 +294,7 @@ cost reports: Granite legs + Qwen-flash earlier runs + archived Qwen Modal basel
 ## 9 · Deliverable inventory
 
 | Artifact | Where | Owner | Due |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Laid-open board + this plan | sandbox `governance/TASKS.md` + `governance/SAND-027-MISSION-PLAN.md` | orchestrator | now |
 | Prompt-alignment table + drift test | sandbox `config/prompts/` + `tests/` | atom | U3 |
 | Granite modal row + runbook | sandbox `config/models.yaml`, `config/runs/granite-*.yaml`, `docs/` | docker-deployment-specialist/general | U6 |
@@ -310,7 +310,7 @@ cost reports: Granite legs + Qwen-flash earlier runs + archived Qwen Modal basel
 ## 11 · Cross-repo issues filed (2026-09-25, `gh` as Exios66 → LLM-Mailroom-Services/eval-environment)
 
 | Issue | Title | Maps to |
-|---|---|---|
+| --- | --- | --- |
 | [#18](https://github.com/LLM-Mailroom-Services/eval-environment/issues/18) | Granite-4.2-8b OpenRouter comparison runs — 5 specialists × nested 20/50/100 | SAND-027-2 U7/U8/U10 |
 | [#19](https://github.com/LLM-Mailroom-Services/eval-environment/issues/19) | Prompt alignment: EXACT stems the Modal leg uses (sha256-locked) | SAND-027-3 (refs #4–#8) |
 | [#20](https://github.com/LLM-Mailroom-Services/eval-environment/issues/20) | Same-subset guarantee: identical doc sets per class/count | SAND-027-4 |
