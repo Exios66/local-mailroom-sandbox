@@ -14,6 +14,7 @@ Documentation for the local-mailroom-sandbox package, covering:
 - Local development setup
 - Configuration guide
 - Testing procedures
+- **[Mailroom themed logging & live watch](mailroom-themed-logging.md)** — `sandbox watch` / `--web`, Modal dispatch log tail, SAND-032 operator paths
 
 ## Related Files
 

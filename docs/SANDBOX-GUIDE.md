@@ -400,6 +400,10 @@ cd deploy && modal deploy modal_job.py  # one-time
 sandbox run start --job-mode modal --config config/runs/my-run.yaml --watch
 ```
 
+For endpoint evals against Modal vLLM, run the **mailroom watch TUI** in a second
+terminal or browser tab (`sandbox watch` / `sandbox watch --web`) to tail serve-app
+logs and track spend — see [mailroom-themed-logging.md](mailroom-themed-logging.md).
+
 ---
 
 ## 9. Modal deployment

@@ -70,6 +70,7 @@ sandbox datasets pull          # LIVE pinned FULL Hub pull (3302 rows) → data/
 sandbox datasets sample --per-class 40  # offline 20/40/100… per live class from that cache
 sandbox datasets prepare   # offline clean → data/runtime/prepared/
 sandbox run preflight|start|status|resume|cancel|list --config config/runs/<name>.yaml
+sandbox watch [--web] [--config config/runs/<name>.yaml]       # mailroom TUI + Modal log tail (see docs/mailroom-themed-logging.md)
 sandbox run start --config <run.yaml> --job-mode modal --watch   # Modal worker
 sandbox prompts list | show <agent> [--variant X]
 sandbox metrics compare --runs local,modal,api | --log
