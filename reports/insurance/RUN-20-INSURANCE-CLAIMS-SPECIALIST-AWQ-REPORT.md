@@ -5,7 +5,7 @@ Modal × vLLM specialist extract: **20 insurance_claim docs**, subclass-stratifi
 at **concurrency 8** (legacy AWQ completion posture / improved-awq-c8 alignment).
 
 | | |
-|---|---|
+| --- | --- |
 | run_id | `run-20-insurance-claims-specialist-awq` |
 | task / agent | `insurance_claims_specialist` |
 | prompt | `insurance_claims_specialist_simplified` (local DMR-074 pin) |
@@ -21,7 +21,7 @@ at **concurrency 8** (legacy AWQ completion posture / improved-awq-c8 alignment)
 ## Headline results
 
 | metric | value |
-|---|---|
+| --- | --- |
 | docs ok / total | **20 / 20** (`error_count=0`) |
 | **overall_extraction_score** | **0.671435** |
 | exact_match | 0.671435 |
@@ -32,7 +32,7 @@ at **concurrency 8** (legacy AWQ completion posture / improved-awq-c8 alignment)
 ## Serving / cost metrics
 
 | metric | value |
-|---|---|
+| --- | --- |
 | wall (busy interval) | 422.152 s |
 | concurrency | 8 |
 | cold boot (measured at preflight) | 0.361 s (endpoint already warm) |
@@ -53,7 +53,7 @@ at **concurrency 8** (legacy AWQ completion posture / improved-awq-c8 alignment)
 Scaled 2/3 from run-30 quotas (6→4 / 3→2):
 
 | subclass | n | mean overall |
-|---|---|---|
+| --- | --- | --- |
 | auto | 4 | 0.6984 |
 | carrier | 4 | 0.6409 |
 | property | 4 | 0.7151 |
@@ -65,7 +65,7 @@ Scaled 2/3 from run-30 quotas (6→4 / 3→2):
 ## Per-document scores
 
 | # | doc id | subclass | overall | extraction_f1 | latency s | prompt tok | compl tok | error |
-|---|---|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | `DOC-0620aa1de7449f50` | auto | 0.7623 | 0.6285 | 70.6 | 2829 | 286 | None |
 | 2 | `DOC-7c2169da60bedb97` | auto | 0.7623 | 0.6667 | 58.4 | 2828 | 281 | None |
 | 3 | `DOC-6356fdf0e6dd934d` | carrier | 0.6398 | 0.5806 | 17.5 | 3121 | 329 | None |
@@ -90,7 +90,7 @@ Scaled 2/3 from run-30 quotas (6→4 / 3→2):
 ## Artifacts
 
 | path | role |
-|---|---|
+| --- | --- |
 | `config/runs/run-20-insurance-claims-specialist-awq.yaml` | run spec |
 | `data/runtime/runs/run-20-insurance-claims-specialist-awq/` | run dir |
 | `data/runtime/runs/run-20-insurance-claims-specialist-awq/dataset.jsonl` | seeded draw (20) |

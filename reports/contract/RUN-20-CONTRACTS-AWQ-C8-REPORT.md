@@ -6,7 +6,7 @@ c4/c8 are directly comparable. Three changes vs the c4 run: window 16384 ->
 32768, run-scoped `max_tokens` 4096 -> 8192, concurrency 4 -> 8.
 
 | | |
-|---|---|
+| --- | --- |
 | run_id | `run-20-contracts-awq-c8` |
 | task / agent | `contracts_specialist` |
 | prompt | `contracts_specialist_v33` (local pin recorded, not applied — see erratum) |
@@ -29,7 +29,7 @@ c4/c8 are directly comparable. Three changes vs the c4 run: window 16384 ->
 ## Headline results
 
 | metric | value |
-|---|---|
+| --- | --- |
 | docs ok / total | **17 / 20** (`error_count=3`) |
 | **overall_extraction_score** | **0.0** (not measurable from Hub GT — see below) |
 | offline_fallback rows | 0 |
@@ -37,7 +37,7 @@ c4/c8 are directly comparable. Three changes vs the c4 run: window 16384 ->
 ## Serving / cost metrics
 
 | metric | value |
-|---|---|
+| --- | --- |
 | wall (busy interval) | 1528.047 s |
 | concurrency | 8 |
 | cold boot (measured) | 161.144 s |
@@ -57,7 +57,7 @@ c4/c8 are directly comparable. Three changes vs the c4 run: window 16384 ->
 ## Corrections: what landed and what did not
 
 | issue in c4 | status in c8 |
-|---|---|
+| --- | --- |
 | `400` context overflow (12289 in + 4096 out > 16384) | **FIXED** by the 32768 window |
 | `LengthFinishReasonError` at 4096 output | **NOT fixed** — 3 docs hit the raised 8192 cap. Raising `max_input_chars` 18000->24000 let the model see more and emit more, so the cap moved rather than cleared. |
 | concurrency 4 | **c8, effective** — 6.96x sum/wall, though p50 rose (8 long decodes share one L4) |
@@ -85,7 +85,7 @@ card, not a harness change).
 ## Per-document scores
 
 | # | doc id | subclass | overall | extraction_f1 | latency s | prompt tok | compl tok | error |
-|---|---|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | `DOC-d70e8d97f84d8b0d` | Supply | 0.0 | 0.0 | 727.6 | 8748 | 1104 | None |
 | 2 | `DOC-4df3ec0469a627b0` | Consulting Agreements | 0.0 | 0.0 | 80.9 | 13049 | 1677 | None |
 | 3 | `DOC-c1aa1b554216024f` | IP | 0.0 | 0.0 | 91.3 | 7991 | 386 | None |

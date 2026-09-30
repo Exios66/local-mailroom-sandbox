@@ -15,7 +15,7 @@ concurrency 8.
 ## Headline cost & token metrics
 
 | metric | Modal (this run) | API (fill on OpenRouter run) |
-|---|---|---|
+| --- | --- | --- |
 | prompt_tokens | 194388 | |
 | completion_tokens | 25614 | |
 | total_tokens | 220002 | |

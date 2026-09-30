@@ -148,7 +148,7 @@ fluke.
 ## Inputs and where to find them
 
 | Signal | Where |
-|---|---|
+| --- | --- |
 | Headlines + CIs + per-field scores | `reports/experiment_log.jsonl` (source of truth) + `reports/experiment_log.md` (rendered) + GH Pages site |
 | Run-level diagnostics (MAE/R², span-count drift, error decomposition, list P/R/F1 macro+micro) | `scores.diagnostics` in the same records — READ the support sizes (`date_n_pairs`, `duration_n_pairs`, `money_n_pairs`, `span_count_n_docs`) |
 | Failure insights (sorter) | `scores.sorter.failure_insights`: `mode_counts` + per-failed-row `{expected, predicted, mode, equiv_recovered, reasoning}` (FULL model reasoning on failures) |
@@ -178,7 +178,7 @@ objective). This repo's practice is upstream `hybrid`: maintain BOTH —
   other everywhere — drop the loser). Minimal shape:
 
   | doc_id / family | champion (vXX) | candidate A (vYY) | candidate B (vZZ) | best |
-  |---|---|---|---|---|
+  | --- | --- | --- | --- | --- |
   | doc_0091 | 0.71 | 0.94 | 0.68 | A |
   | doc_0104 | 0.88 | 0.85 | 0.97 | B |
   | family: promotion | — | 0.90 avg | 0.62 avg | A |

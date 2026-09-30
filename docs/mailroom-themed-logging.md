@@ -22,7 +22,7 @@ TUI when you need vLLM dispatch logs.
 | Same panels in a browser tab; terminal free for other work | `sandbox watch --web` / `scripts/mailroom-tui web` | yes | `http://127.0.0.1:8765/` (SSE) |
 | Theme preview with **no Modal spend** | `sandbox dev` / `watch --web --demo` | synthetic only | browser |
 | Themed progress while **this shell** runs the job (endpoint mode) | `sandbox run start … --watch` | no — use watch in a **second pane** | scroll-friendly stderr lines |
-| Poll a **Modal job worker** (`--job-mode modal`) | `sandbox run start|status … --watch` | no — Tray TUI tails `sandbox-job` worker + serve app (`modal app logs -f` each) | stderr progress lines |
+| Poll a **Modal job worker** (`--job-mode modal`) | `sandbox run start` / `status … --watch` | no — Tray TUI tails `sandbox-job` worker + serve app (`modal app logs -f` each) | stderr progress lines |
 | Post-run quality + serving summary | `sandbox scorecard --run <id>` | — | one-shot terminal |
 | Every beacon job in the family (not one run YAML) | `sandbox board` | optional per job | browser `:8767` or `--tui` |
 

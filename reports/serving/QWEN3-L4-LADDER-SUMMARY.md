@@ -77,6 +77,7 @@ pinned to `Qwen/Qwen3-8B` and must be verified before any sorter rerun. Estimate
 | sorter s6 (isolated) | seqs16, c32 | 1791 (458/1000 docs; own $0.80 cost guard) | 8475 | 37.0 / 530.5 | acc 0.895, macro-F1 0.864 |
 
 **Runbook findings:**
+
 1. **Set `max_inputs` = `max_num_seqs` per container.** Modal's router fills one container up to
    `max_inputs` before routing to the next. With max_inputs 64, it sent 97/100 requests to one L4 (3.2× slower).
    At 32 it split 51/49. This is the single largest serving lever found.
@@ -91,6 +92,7 @@ pinned to `Qwen/Qwen3-8B` and must be verified before any sorter rerun. Estimate
 5. **The ledger (fleet-window estimate) under-counts Modal billing.** Reconcile against the usage page.
 
 **Recommended production runbook (Qwen3-8B-AWQ, vLLM v0.29.0, Modal L4):**
+
 - Engine: `awq_marlin`, `kv_cache_dtype=fp8`, thinking off (`enable_thinking=false`), CUDA graphs
   [1,2,4,8,16,(32)], `max_model_len` 32768, `gpu_memory_utilization` 0.90, prefix caching on.
 - Fleet: 2 containers × 1 L4 (`min=max=2` while a batch runs), `max_inputs` = `max_num_seqs`, scaledown 120 s.
@@ -109,4 +111,4 @@ Ledger at close: $2.80 cumulative (fleet-window estimate).
 
 ![Production vs v2 prompt, paired](figures/sand032-v2-prompts.svg)
 
-_Table views: sections 1, 2 and 7 above, and [SAND032-V2-PROMPT-PROMOTION.md](SAND032-V2-PROMPT-PROMOTION.md)._
+*Table views: sections 1, 2 and 7 above, and [SAND032-V2-PROMPT-PROMOTION.md](SAND032-V2-PROMPT-PROMOTION.md).*

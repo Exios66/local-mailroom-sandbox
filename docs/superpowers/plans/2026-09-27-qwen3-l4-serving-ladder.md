@@ -50,7 +50,7 @@ Part B (Tasks 10–15) is live execution with explicit spend gates, on the **`ex
 ## File Structure
 
 | File | Responsibility |
-|---|---|
+| --- | --- |
 | `deploy/modal_vllm.py` (modify) | New env knobs → argv (`--kv-cache-dtype`, `--default-chat-template-kwargs`, `--compilation-config`, `--max-num-batched-tokens`, `--chat-template`), optional `@modal.concurrent` |
 | `src/mailroom_sandbox/job/spec.py` (modify) | `VLLMSpec` new fields |
 | `src/mailroom_sandbox/job/deploy_env.py` (create) | Spec → `MODAL_VLLM_*` env dict; drift diff vs an environ |
@@ -1389,7 +1389,7 @@ trace:
 **Ladder rungs** (`task: correspondence_specialist`, `agent: correspondence_specialist`, `prompt_file: correspondence_specialist_production`, `doc_class: correspondence`, n=20, model AWQ, ctx 32768, rep 1, conc 8, cap 0.15, wall 1800):
 
 | run_id | quant | thinking | kv | seqs | eager | graphs |
-|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- |
 | sand032-l0-baseline | awq | null | "" | 6 | true | [] |
 | sand032-l1-nothink | awq | false | "" | 6 | true | [] |
 | sand032-l2-marlin | awq_marlin | false | "" | 6 | true | [] |
@@ -1400,7 +1400,7 @@ trace:
 **Frozen-config runs.** These use the Stage-1 winner. Until Stage 1 runs, the winner is assumed to be L5. Task 11 Step 5 edits these files if a rung is reverted.
 
 | run_id | task / agent | prompt_file | doc_class | n | rep | conc | cap | wall |
-|---|---|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | sand032-s2a-corr100-1rep | correspondence_specialist | correspondence_specialist_production | correspondence | 100 | 1 | 8 | 0.60 | 3600 |
 | sand032-s2b-corr100-2rep | correspondence_specialist | correspondence_specialist_production | correspondence | 100 | 2 | 16 | 0.60 | 3600 |
 | sand032-s3-corr50 | correspondence_specialist | correspondence_specialist_production | correspondence | 50 | 2 | 16 | 0.30 | 2400 |

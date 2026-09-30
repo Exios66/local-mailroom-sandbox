@@ -5,7 +5,7 @@ this is the first report whose headline accuracy reflects the *model*, not a
 ground-truth/scorer artifact.
 
 | | |
-|---|---|
+| --- | --- |
 | run_id | `run-20-correspondence-awq` |
 | task / agent | `correspondence_specialist` |
 | prompt | `correspondence_specialist_production` (local pin recorded, not applied — see erratum) |
@@ -28,7 +28,7 @@ ground-truth/scorer artifact.
 ## Headline results
 
 | metric | value |
-|---|---|
+| --- | --- |
 | docs ok / total | **20 / 20** (`error_count=0`) |
 | **overall_extraction_score** | **0.08934** |
 | exact_match | 0.08934 |
@@ -37,7 +37,7 @@ ground-truth/scorer artifact.
 ## Serving / cost metrics
 
 | metric | value |
-|---|---|
+| --- | --- |
 | wall (busy interval) | 253.692 s |
 | concurrency | 5 |
 | cold boot (measured) | 260.348 s |
@@ -56,7 +56,7 @@ ground-truth/scorer artifact.
 ## Per-document scores
 
 | # | doc id | subclass | overall | extraction_f1 | latency s | prompt tok | compl tok | error |
-|---|---|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | `DOC-2b5939247214be02` | demand | 0.0218 | 0.0 | 184.5 | 1890 | 173 | None |
 | 2 | `DOC-b8d0988b09eefe09` | notice | 0.0478 | 0.0 | 173.7 | 1804 | 180 | None |
 | 3 | `DOC-7d05b5b564199628` | notice | 0.0909 | 0.0952 | 180.3 | 1704 | 122 | None |
