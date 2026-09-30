@@ -627,13 +627,17 @@ def write_serving_json(
     wall_seconds: float | None = None,
     scores: Mapping[str, Any] | None = None,
 ) -> Path:
-    """Write ``reports/serving/<run_id>.serving.json`` (or ``path``)."""
+    """Write serving JSON; default path also publishes the dated specialist tree."""
     payload = serving_record_from_store(
         store, wall_seconds=wall_seconds, scores=scores
     )
     dest = Path(path) if path is not None else default_serving_json_path(store.run_id)
     dest.parent.mkdir(parents=True, exist_ok=True)
     _atomic_write_serving_json(dest, payload)
+    if path is None:
+        from mailroom_sandbox.job.dated_reports import maybe_write_run_reports
+
+        maybe_write_run_reports(store, wall_seconds=wall_seconds, scores=scores)
     return dest
 
 

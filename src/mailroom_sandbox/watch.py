@@ -22,7 +22,7 @@ import threading
 import time
 from collections import deque
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any, Callable, Iterable, Mapping
 
 from mailroom_sandbox.job.checkpoint import RunStore
 from mailroom_sandbox.tui import pretty_log as pl
@@ -107,6 +107,8 @@ def run_snapshot(store: RunStore) -> dict[str, Any]:
         if isinstance((i.get("score") or {}).get("overall_extraction_score"), (int, float))
     ]
     p95 = lat[max(0, int(0.95 * len(lat) + 0.999999) - 1)] if lat else None
+    prompt_tokens = _sum_int_field(items, "prompt_tokens")
+    completion_tokens = _sum_int_field(items, "completion_tokens")
     return {
         "run_id": lock.get("run_id") or store.dir.name,
         "task": lock.get("task") or "?",
@@ -121,7 +123,19 @@ def run_snapshot(store: RunStore) -> dict[str, Any]:
         "p95_s": round(p95, 3) if p95 is not None else None,
         "mean_score": round(statistics.mean(scores), 4) if scores else None,
         "last_error": (errs[-1].get("error") or "") if errs else "",
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": prompt_tokens + completion_tokens,
     }
+
+
+def _sum_int_field(items: list[dict[str, Any]], key: str) -> int:
+    total = 0
+    for row in items:
+        value = row.get(key)
+        if isinstance(value, (int, float)):
+            total += int(value)
+    return total
 
 
 def _fmt(v: Any, suffix: str = "") -> str:
@@ -463,6 +477,14 @@ def render_frame(
     total = spent + live
     pbar = progress_bar(int(total * 100), int(cap * 100), width=max(10, mw - 14))
     postage = [
+        pl._metric("sorted", f"delivered {s['ok']} · returned {s['errors']}", total_w=mw, on=on),
+        pl._metric("docs", f"{s['done']}/{s['total']}", total_w=mw, on=on),
+        pl._metric(
+            "tokens",
+            f"{int(s.get('prompt_tokens') or 0)} in · {int(s.get('completion_tokens') or 0)} out",
+            total_w=mw,
+            on=on,
+        ),
         pl._metric("ledger", f"${spent:.4f}", total_w=mw, on=on),
         pl._metric("live run", f"${live:.4f}", total_w=mw, on=on),
         pl._metric("total", f"${total:.4f} / ${cap:.2f}", total_w=mw, on=on),
@@ -570,6 +592,34 @@ def read_ledger(ledger: Path | None) -> tuple[float, bool]:
         return 0.0, False
 
 
+def _live_run_usd(store: RunStore, snap: Mapping[str, Any], started: float) -> float:
+    """GPU $ for the open job. Running cells extend first-item ts → now so $ ticks."""
+    from mailroom_sandbox.job.metrics import _parse_item_ts, estimate_gpu_cost_usd
+
+    now = time.time()
+    watch_wall = max(0.0, now - started)
+    stamps: list[float] = []
+    for row in store.load_items():
+        ts = _parse_item_ts(row.get("ts"))
+        if ts is not None:
+            stamps.append(ts)
+    for ev in store.events():
+        ts = _parse_item_ts(ev.get("ts"))
+        if ts is not None:
+            stamps.append(ts)
+    if stamps:
+        span = (now - min(stamps)) if str(snap.get("state")) == "running" else (max(stamps) - min(stamps))
+        wall = max(watch_wall, span)
+    else:
+        wall = watch_wall
+    if wall <= 0:
+        return 0.0
+    return float(
+        estimate_gpu_cost_usd(wall, gpu=snap.get("gpu"), replicas=int(snap.get("replicas") or 1))
+        or 0.0
+    )
+
+
 def compose_watch_state(
     *,
     store: RunStore,
@@ -599,22 +649,46 @@ def compose_watch_state(
     boot_lines = sink.since(boot_mark[key])
     life = tc.resolve_lifecycle(store, times, boot_lines, now=time.time())
     cp_state = snap.get("state")
+    # Belt: even if a times-file race returns COLD BOOT, in-flight docs are SORTING.
+    if str(cp_state) == "running" and (life or {}).get("phase") in {
+        "COLD BOOT",
+        "DEPLOYING",
+        "QUEUED",
+        "PREFLIGHT",
+    }:
+        life = tc.lifecycle_from_store(store, boot_lines, now=time.time())
     card = (
         scorecard_lines(store, serving_dir=serving_dir, width=width, on=False)
         if tc.show_scorecard((life or {}).get("phase"), cp_state)
         else None
     )
     spent, includes_live = read_ledger(ledger)
-    live = 0.0
-    if snap["state"] == "running" and not includes_live:
-        from mailroom_sandbox.job.metrics import estimate_gpu_cost_usd
-
-        live = float(
-            estimate_gpu_cost_usd(time.time() - started, gpu=snap["gpu"], replicas=snap["replicas"])
-            or 0.0
-        )
-    spend = {"spent_usd": spent, "live_usd": live, "cap_usd": cap_usd, "gate_usd": GATE_USD}
-    total = spent + live
+    run_usd = _live_run_usd(store, snap, started)
+    if includes_live:
+        live = 0.0
+        total = spent
+    elif spent <= 0.0:
+        # No suite spend.json — the Postage "ledger" row used to sit at $0.0000
+        # forever while only "live run" ticked. Bind both to the current job.
+        spent = run_usd
+        live = run_usd
+        total = run_usd
+    else:
+        live = run_usd
+        total = spent + live
+    spend = {
+        "spent_usd": spent,
+        "live_usd": live,
+        "cap_usd": cap_usd,
+        "gate_usd": GATE_USD,
+        "ok": snap["ok"],
+        "errors": snap["errors"],
+        "done": snap["done"],
+        "n": snap["total"],
+        "prompt_tokens": snap.get("prompt_tokens") or 0,
+        "completion_tokens": snap.get("completion_tokens") or 0,
+        "total_tokens": snap.get("total_tokens") or 0,
+    }
     spend["total_usd"] = total
     spend["pct_of_cap"] = round(100 * total / cap_usd, 1) if cap_usd else 0.0
     spend["over_gate"] = total > GATE_USD

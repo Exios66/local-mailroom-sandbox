@@ -78,7 +78,7 @@ def test_live_serve_target_follows_provider(monkeypatch):
     monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
     base, model = runners._live_serve_target()
     assert base == "http://vllm:8000/v1"
-    assert model == "Qwen/Qwen3-8B"
+    assert model == "Qwen/Qwen3-8B-AWQ"
 
     monkeypatch.setenv("DEFAULT_PROVIDER", "ollama")
     _, model = runners._live_serve_target()

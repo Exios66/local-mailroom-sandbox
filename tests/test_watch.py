@@ -2,6 +2,7 @@
 
 import json
 import re
+import time
 
 from mailroom_sandbox.job.checkpoint import RunStore
 from mailroom_sandbox.watch import (
@@ -77,7 +78,8 @@ def _store(tmp_path, *, replicas=2):
     for i, (ok, lat) in enumerate([(True, 1000.0), (True, 3000.0), (False, 500.0)]):
         s.append_item({"item_id": f"d{i}", "ok": ok, "latency_ms": lat,
                        "error": None if ok else "OpenAIConnectionError: x",
-                       "score": {"overall_extraction_score": 0.5} if ok else {}})
+                       "score": {"overall_extraction_score": 0.5} if ok else {},
+                       "prompt_tokens": 100 + i, "completion_tokens": 10 + i})
     return s
 
 
@@ -89,6 +91,7 @@ def test_run_snapshot_counts_and_latency(tmp_path):
     assert snap["replicas"] == 2
     assert snap["p50_s"] == 2.0 and snap["mean_score"] == 0.5
     assert snap["last_error"].startswith("OpenAIConnectionError")
+    assert (snap["prompt_tokens"], snap["completion_tokens"], snap["total_tokens"]) == (303, 33, 336)
 
 
 def test_run_snapshot_missing_store_is_waiting(tmp_path):
@@ -157,6 +160,24 @@ def test_cli_watch_requires_config_or_follow(tmp_path, monkeypatch, capsys):
 
     monkeypatch.setattr(paths, "runtime_dir", lambda: tmp_path)  # no SAND-032 run in flight
     assert main(["watch", "--once", "--no-logs"]) == 2
+
+
+def test_live_run_usd_keeps_ticking_between_docs(tmp_path):
+    from datetime import datetime, timedelta, timezone
+
+    from mailroom_sandbox.watch import _live_run_usd, run_snapshot
+
+    store = _store(tmp_path)
+    items = store.load_items()
+    start = datetime.now(timezone.utc) - timedelta(seconds=180)
+    for i, row in enumerate(items):
+        row["ts"] = (start + timedelta(seconds=i)).isoformat()
+    store.items_path.write_text("".join(json.dumps(r) + "\n" for r in items))
+    snap = run_snapshot(store)
+    a = _live_run_usd(store, snap, started=time.time())
+    time.sleep(0.2)
+    b = _live_run_usd(store, snap, started=time.time())
+    assert a > 0 and b >= a
 
 
 def test_ledger_with_live_fleet_is_not_double_counted(tmp_path):

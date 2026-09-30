@@ -1241,14 +1241,16 @@ def _live_serve_target() -> tuple[str, str]:
     """(base_url, model) for a direct live call, following the active provider.
 
     ``DEFAULT_PROVIDER`` picks the family; the fallback model matches the
-    profile default (``Qwen/Qwen3-8B`` for vLLM, ``qwen3:8b`` for Ollama) so a
-    served vLLM never 404s on the Ollama tag.
+    served vLLM id (``Qwen/Qwen3-8B-AWQ``) so a live client never 404s on the
+    dense ``Qwen/Qwen3-8B`` name while the replica is AWQ-only.
     """
     provider = (os.environ.get("DEFAULT_PROVIDER") or "").strip().lower()
     if provider == "vllm":
+        from mailroom_sandbox.overlay import resolve_served_vllm_model
+
         return (
             os.environ.get("VLLM_BASE_URL") or "http://localhost:8000/v1",
-            os.environ.get("VLLM_MODEL") or "Qwen/Qwen3-8B",
+            resolve_served_vllm_model() or "Qwen/Qwen3-8B-AWQ",
         )
     if provider == "ollama":
         return (

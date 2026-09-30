@@ -57,6 +57,8 @@ BENCHMARK_EXPECTED = {
 # DMR-074 / DMR-078: run-30 specialist YAMLs must pin local production prompt
 # stems AND match specialist_posture concurrency / cost caps.
 from mailroom_sandbox.job.specialist_posture import (
+    GRID_ONE_GPU_RUNS,
+    GRID_TWO_GPU_RUNS,
     SAND032_RUNS,
     SAND032_SORTER_RUNS,
     SPECIALIST_POSTURE,
@@ -74,6 +76,7 @@ TWO_GPU_RUNS = frozenset({
     # SAND-032 Stage 2b + Stage 3: 2 replicas × 1 L4 pinned warm.
     *(r for r in SAND032_RUNS if r.startswith(("sand032-s3", "sand032-s5", "sand032-s7", "sand032-s8", "sand032-s9")) or r == "sand032-s2b-corr100-2rep"),
     *SAND032_SORTER_RUNS,
+    *GRID_TWO_GPU_RUNS,
 })
 
 # Granite 4.2-8B FP8 sweep (1×L4): MIN=MAX=1 pinned warm across the five-run
@@ -94,6 +97,7 @@ PINNED_ONE_GPU_RUNS = frozenset({
     "run-20-corporate-records-specialist-awq",
     # SAND-032 1×L4 rungs / scale-out baseline / bf16 arm: MIN=MAX=1 pinned.
     *(r for r in SAND032_RUNS if r.startswith(("sand032-l", "sand032-s4", "sand032-s10")) or r == "sand032-s2a-corr100-1rep"),
+    *GRID_ONE_GPU_RUNS,
 })
 
 SPECIALIST_LOCAL_PROMPTS: dict[str, dict[str, str]] = {

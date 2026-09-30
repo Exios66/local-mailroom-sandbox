@@ -375,17 +375,22 @@ def resolve_lifecycle(
     *,
     now: float,
 ) -> dict[str, Any] | None:
+    # A leftover driver ``.times`` ``deploy_done`` (no ``run_start``) used to
+    # pin COLD BOOT forever after the endpoint job was already scoring.
+    cp = store.read_checkpoint() or {}
+    state = str(cp.get("state") or "")
+    store_life = lifecycle_from_store(store, boot_lines, now=now)
+    if state == "running":
+        return store_life
     if times:
         life = lifecycle(times, boot_lines, now=now)
         if life.get("phase") != "QUEUED" or times:
             return life
-    life = lifecycle_from_store(store, boot_lines, now=now)
-    cp = store.read_checkpoint() or {}
-    if cp.get("state") in TERMINAL_STATES and life.get("phase") == "QUEUED":
-        return life
-    if not times and life.get("phase") == "QUEUED" and not store.read_checkpoint():
+    if cp.get("state") in TERMINAL_STATES and store_life.get("phase") == "QUEUED":
+        return store_life
+    if not times and store_life.get("phase") == "QUEUED" and not cp:
         return None
-    return life
+    return store_life
 
 
 def show_scorecard(
