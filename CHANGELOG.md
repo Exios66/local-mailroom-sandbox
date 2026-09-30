@@ -30,6 +30,9 @@
   Modal vs Qwen3-8B via the API), isolating the route from the model.
 - `reports/dashboard/pages_site.py` + `export_hub_reports.py --site`: the three reports as a static GitHub Pages site
   for `mailroom-issues/docs/` (inline SVG, no JavaScript, no external requests; covered by `--check`).
+- The generated `mailroom-issues/reports/README.md` index carries the hand-written AMFAM biweekly one-pager row and a
+  **Site.** paragraph (Pages publishes from branch `gh-pages`, folder `/docs`; the export still writes
+  `mailroom-issues/docs/`), so the hub's own index edits are no longer flagged stale by `--check`.
 - Hub snapshot re-pinned to eval-environment `86b4e54` (main, including the qwen3.7-flash suite README); `markdown-it-py`
   joins `[dev]` (requirements regenerated with `scripts/sync_requirements.py`).
 - `tests/test_gpu_report.py`: the $/1M identity, the keep-warm threshold, the amortizing batch, the break-evens and the

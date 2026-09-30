@@ -38,7 +38,7 @@ break-evens, the optimal measured deployment) that the cost comparison, the GPU 
 
 The same run also renders the reports as a static GitHub Pages site, `dashboard/pages_site.py` → `--site`
 (default `<out>/../docs`, i.e. `mailroom-issues/docs/`): `index.html` plus `reports/*.html`, with every figure inlined as
-SVG, no JavaScript and no external requests. mailroom-issues serves it by deploying from branch `main` `/docs`
+SVG, no JavaScript and no external requests. mailroom-issues publishes it from branch `gh-pages`, folder `/docs`
 (https://llm-mailroom-services.github.io/mailroom-issues/). `--check` covers the site too.
 
 `dashboard/export_pngs.py` renders every figure to a 2× PNG under `mailroom-issues/reports/viz/` for slides; its

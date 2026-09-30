@@ -1,4 +1,4 @@
-"""Static GitHub Pages site for LLM-Mailroom-Services/mailroom-issues (served from ``main`` → ``/docs``).
+"""Static GitHub Pages site for LLM-Mailroom-Services/mailroom-issues (published from branch ``gh-pages``, folder ``/docs``).
 
 Called by ``export_hub_reports.py``. It renders the three generated reports to HTML
 with every figure inlined, plus a landing page, from the same in-memory markdown and

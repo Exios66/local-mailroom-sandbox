@@ -215,3 +215,11 @@ def test_program_spend_covers_every_experiment_once():
     assert math.isclose(D["api"]["spend"]["usd"], math.fsum(m["usd"] for m in D["api"]["spend"]["by_model"].values()))
     _, _, stats = _report()
     assert stats["tiles"][0]["value"] == f"${sp['program_total']:.2f}"
+
+
+def test_index_lists_the_amfam_one_pager_and_the_gh_pages_site():
+    idx = X.readme({"figures/cost/cost-per-doc.svg": ""}, "test-shas")
+    assert "| [AMFAM-BIWEEKLY-ONEPAGER.md](AMFAM-BIWEEKLY-ONEPAGER.md) |" in idx
+    assert "<https://llm-mailroom-services.github.io/mailroom-issues/>" in idx
+    assert "publishes from branch `gh-pages`, folder `/docs`" in idx
+    assert idx.index("**Site.**") < idx.index("**Provenance.**")
