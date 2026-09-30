@@ -1,9 +1,11 @@
-# Qwen3-8B-AWQ specialist grid cell (v1 / simplified stem).
-# Keep GPU warm (min_containers pinned); teardown only after the shape queue.
-# 1xL4 c=8; 2xL4 c=32 (16 per replica). PHOENIX_TRACING=disabled at launch.
-# Decode 8192 via start-time SANDBOX_AGENT_KNOBS (clears 4096 LengthFinish JSON).
+# Qwen3-8B-AWQ specialist grid cell — SAND-037 clean rerun of the 1×L4 merger n=20 cell.
+# Same draw as grid-20-merger-specialist-awq-1l4 (train split, 7/7/3/2/1 strata).
+# The first cell ran with a 4096 decode and thinking unset (1 LengthFinish);
+# the -retry leg ran 16384 decode (3 LengthFinish). This cell is the grid posture:
+# decode 8192, thinking off, MODAL_VLLM_MAX_INPUTS=8. Leaves both prior reports intact.
+# Runbook: sandbox runbook show grid-1l4
 schema: sandbox.run/v1
-run_id: grid-50-merger-specialist-awq-1l4
+run_id: grid-20-merger-specialist-awq-1l4-rerun
 task: merger_agreement_specialist
 profile: modal-vllm
 
@@ -18,12 +20,18 @@ dataset:
   provider: huggingface
   repo: Lucius-Morningstar/mailroom-dataset
   config: ground_truth
-  split: all
+  split: train
   revision: ed7576b676343e0b402ec5412cded301e629bdee
   strata:
     buckets:
-      - {doc_class: merger_agreement, count: 50}
-  limit: 50
+      - doc_class: merger_agreement
+        sub_buckets:
+          - {subclass: all_cash, count: 7}
+          - {subclass: other, count: 7}
+          - {subclass: all_stock, count: 3}
+          - {subclass: mixed_cash_stock, count: 2}
+          - {subclass: mixed_cash_stock_election, count: 1}
+  limit: 20
   sample_seed: 42
 
 engine:
@@ -38,7 +46,7 @@ engine:
     quantization: awq
     revision: ""
     enable_thinking: false
-    max_inputs: 8   # never 0 — MAX_INPUTS=0 serialized contracts-50 at Running:1
+    max_inputs: 8
   modal:
     app: sandbox-vllm
     gpu: L4
@@ -53,8 +61,8 @@ job:
   max_retries: 2
   fail_fast: false
   concurrency: 8
-  cost_cap_usd: 1.0
-  max_wall_seconds: 5400
+  cost_cap_usd: 0.7
+  max_wall_seconds: 3600
 
 trace:
   sink: none

@@ -1,9 +1,10 @@
-# Qwen3-8B-AWQ specialist grid cell (v1 / simplified stem).
-# Keep GPU warm (min_containers pinned); teardown only after the shape queue.
-# 1xL4 c=8; 2xL4 c=32 (16 per replica). PHOENIX_TRACING=disabled at launch.
-# Decode 8192 via start-time SANDBOX_AGENT_KNOBS (clears 4096 LengthFinish JSON).
+# Qwen3-8B-AWQ specialist grid cell (v1 / simplified stem) — SAND-037 n=20 1×L4 twin.
+# Same dataset block as the 2×L4 sibling (grid-20-insurance-claims-specialist-awq-2l4), so the pair shares one draw.
+# 1xL4 c=8, thinking off, MODAL_VLLM_MAX_INPUTS=8 (never 0 — that serializes HTTP).
+# Decode 8192 via start-time SANDBOX_AGENT_KNOBS (specialist_posture grid row).
+# Runbook: sandbox runbook show grid-1l4
 schema: sandbox.run/v1
-run_id: grid-50-insurance-claims-specialist-awq-1l4
+run_id: grid-20-insurance-claims-specialist-awq-1l4
 task: insurance_claims_specialist
 profile: modal-vllm
 
@@ -18,12 +19,19 @@ dataset:
   provider: huggingface
   repo: Lucius-Morningstar/mailroom-dataset
   config: ground_truth
-  split: all
+  split: test
   revision: ed7576b676343e0b402ec5412cded301e629bdee
   strata:
     buckets:
-      - {doc_class: insurance_claim, count: 50}
-  limit: 50
+      - doc_class: insurance_claim
+        sub_buckets:
+          - {subclass: auto, count: 4}
+          - {subclass: carrier, count: 4}
+          - {subclass: property, count: 4}
+          - {subclass: inpatient, count: 4}
+          - {subclass: outpatient, count: 2}
+          - {subclass: pde, count: 2}
+  limit: 20
   sample_seed: 42
 
 engine:
@@ -38,7 +46,7 @@ engine:
     quantization: awq
     revision: ""
     enable_thinking: false
-    max_inputs: 8   # never 0 — MAX_INPUTS=0 serialized contracts-50 at Running:1
+    max_inputs: 8
   modal:
     app: sandbox-vllm
     gpu: L4
@@ -53,8 +61,8 @@ job:
   max_retries: 2
   fail_fast: false
   concurrency: 8
-  cost_cap_usd: 0.5
-  max_wall_seconds: 3600
+  cost_cap_usd: 0.4
+  max_wall_seconds: 2400
 
 trace:
   sink: none

@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+### Added — SAND-037 specialist grid rerun plan and runbooks
+
+- `docs/SPECIALIST-GRID-PLAN.md`: status of all 20 Qwen3-8B-AWQ specialist grid cells (5 classes × n = 20/50 ×
+  1×L4 C8 / 2×L4 C32) — 1 keep, 11 reruns, 8 first runs — with the reason each existing record (legacy
+  `run-20-*-awq(-c8)`, the first merger cells, SAND-032 S3 n = 50) does not fit the grid.
+- Runbooks `grid-1l4` and `grid-2l4` (new `grid` catalog family, serving variants `grid-awq-1l4` /
+  `grid-awq-2l4`): one warm deploy per fleet shape, short classes first, teardown after the last cell.
+- Six run YAMLs: the n = 20 1×L4 twins for correspondence, insurance claims, corporate records and contracts
+  (each shares its 2×L4 sibling's draw), `grid-20-correspondence-specialist-awq-2l4`, and
+  `grid-20-merger-specialist-awq-1l4-rerun` (the grid posture; both earlier merger reports stay intact).
+  `_GRID_TABLE` gains the six cells.
+
+### Fixed — SAND-037
+
+- The five n = 50 1×L4 grid YAMLs pin `max_inputs: 8` and `enable_thinking: false`. With `max_inputs` unset
+  the deploy ran `MODAL_VLLM_MAX_INPUTS=0` and served one request at a time (contracts-50 at Running:1).
+- `sandbox runbook check` fails when a grid runbook's export block disagrees with `sandbox run deploy-env` for
+  any of its configs; the `preflight_force` catalog flag renders `sandbox run preflight --live --force` so a
+  drifted lock is re-locked before `start`.
+
 ### Added — SAND-036 warm vs cold GPUs, cost per 1M tokens, Modal vs API break-even, mailroom-issues Pages site
 
 - `reports/dashboard/gpu_report.py`: cost per 1M tokens on three bases (warm busy-window, one cold batch, program-loaded),

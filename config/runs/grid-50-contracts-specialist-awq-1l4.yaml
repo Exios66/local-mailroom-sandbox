@@ -37,6 +37,8 @@ engine:
     enforce_eager: true
     quantization: awq
     revision: ""
+    enable_thinking: false
+    max_inputs: 8   # never 0 — MAX_INPUTS=0 serialized contracts-50 at Running:1
   modal:
     app: sandbox-vllm
     gpu: L4

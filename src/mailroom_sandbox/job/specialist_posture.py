@@ -735,6 +735,16 @@ _GRID_TABLE: tuple[tuple[str, str, int, int, int, float, int, int], ...] = (
     ("grid-50-corporate-records-specialist-awq-2l4", "corporate_record", 50, 2, 32, 0.80, 2400, 16),
     ("grid-50-correspondence-specialist-awq-2l4", "correspondence", 50, 2, 32, 0.60, 2400, 16),
     ("grid-50-insurance-claims-specialist-awq-2l4", "insurance_claim", 50, 2, 32, 0.80, 2400, 16),
+    # SAND-037: the n=20 cells the grid was missing. The 1×L4 twins replace the
+    # run-20-*-awq(-c8) legacy legs (46a4d3c2 draw, unapplied prompt pins,
+    # max_num_seqs 6/256) and share their 2×L4 sibling's dataset block. The
+    # merger -rerun is the grid-posture 1×L4 cell (8192 decode, thinking off).
+    ("grid-20-correspondence-specialist-awq-1l4", "correspondence", 20, 1, 8, 0.30, 2400, 8),
+    ("grid-20-contracts-specialist-awq-1l4", "contract", 20, 1, 8, 0.70, 3600, 8),
+    ("grid-20-insurance-claims-specialist-awq-1l4", "insurance_claim", 20, 1, 8, 0.40, 2400, 8),
+    ("grid-20-corporate-records-specialist-awq-1l4", "corporate_record", 20, 1, 8, 0.40, 2400, 8),
+    ("grid-20-merger-specialist-awq-1l4-rerun", "merger_agreement", 20, 1, 8, 0.70, 3600, 8),
+    ("grid-20-correspondence-specialist-awq-2l4", "correspondence", 20, 2, 32, 0.40, 2400, 16),
 )
 GRID_RUNS: frozenset[str] = frozenset(row[0] for row in _GRID_TABLE)
 GRID_TWO_GPU_RUNS: frozenset[str] = frozenset(r[0] for r in _GRID_TABLE if r[3] == 2)

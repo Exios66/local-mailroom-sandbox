@@ -59,6 +59,14 @@ REQUIRED_IDS: tuple[str, ...] = (
     "improved-granite-fp8",
     "improved-second-l4",
     "improved-scale-matrix",
+    "grid-1l4",
+    "grid-2l4",
+)
+
+FAMILIES: tuple[tuple[str, str], ...] = (
+    ("baseline", "Singular 1×L4 / 1-container Qwen3-8B"),
+    ("improved", "Improved run configurations"),
+    ("grid", "Qwen3-8B-AWQ specialist grid (SAND-037)"),
 )
 
 _DEPLOY_DEFAULT_RE = {
@@ -295,6 +303,9 @@ def render_shell(name: str) -> str:
     prewarm = str(ops.get("prewarm") or "modal run deploy/modal_vllm.py::download_model")
     teardown = str(ops.get("teardown") or "./deploy/teardown_vllm.sh")
     start_force = " --force" if runbook.get("start_force") else ""
+    # preflight_force re-locks a drifted run_id at preflight (archiving the old
+    # generation) so the following start resumes the fresh lock.
+    preflight_force = " --force" if runbook.get("preflight_force") else ""
     lines: list[str] = [
         f"# {runbook.get('title') or runbook['id']}",
         f"# sandbox runbook show {runbook['id']}",
@@ -372,7 +383,7 @@ def render_shell(name: str) -> str:
                     lines.append(f"  {rel}{cont}")
                 lines += [
                     "do",
-                    '  sandbox run preflight --config "$cfg" --live',
+                    f'  sandbox run preflight --config "$cfg" --live{preflight_force}',
                     f'  sandbox run start --config "$cfg" --job-mode {job_mode} --watch{start_force}',
                     "done",
                 ]
@@ -383,7 +394,7 @@ def render_shell(name: str) -> str:
             lines.append("")
             if len(rels) == 1:
                 cfg = rels[0]
-                lines.append(f'sandbox run preflight --config {cfg} --live')
+                lines.append(f'sandbox run preflight --config {cfg} --live{preflight_force}')
                 lines.append(
                     f"sandbox run start --config {cfg} --job-mode {job_mode} --watch{start_force}"
                 )
@@ -394,7 +405,7 @@ def render_shell(name: str) -> str:
                     lines.append(f"  {rel}{cont}")
                 lines += [
                     "do",
-                    '  sandbox run preflight --config "$cfg" --live',
+                    f'  sandbox run preflight --config "$cfg" --live{preflight_force}',
                     f'  sandbox run start --config "$cfg" --job-mode {job_mode} --watch{start_force}',
                     "done",
                 ]
@@ -419,12 +430,17 @@ def _note_text(item: Any) -> str:
     return str(item)
 
 
-def _posture_table(*, run_prefix: str | None = None) -> str:
+def _posture_table(
+    *, run_prefix: str | None = None, run_ids: list[str] | None = None
+) -> str:
     from mailroom_sandbox.job.specialist_posture import summarize_posture
 
     rows = summarize_posture()
     if run_prefix:
         rows = [row for row in rows if str(row["run_id"]).startswith(run_prefix)]
+    if run_ids is not None:
+        by_id = {str(row["run_id"]): row for row in rows}
+        rows = [by_id[rid] for rid in run_ids if rid in by_id]
     lines = [
         "| Run | Task | Conc. | max_tokens | max_input_chars | cost_cap | max_wall |",
         "| --- | --- | ---: | ---: | ---: | ---: | ---: |",
@@ -534,6 +550,9 @@ def render_markdown(name: str) -> str:
         prefix = "run-20-contracts-specialist" if runbook["id"] == "l4-qwen3-8b-n20" else "run-30-"
         lines += ["## Per-doc-type posture (live)", "", _posture_table(run_prefix=prefix), ""]
         lines += ["## Specialist prompts (eval-environment frozen v1)", "", _prompt_table(), ""]
+    if family == "grid":
+        run_ids = [Path(rel).stem for rel in configs]
+        lines += ["## Per-cell posture (live)", "", _posture_table(run_ids=run_ids), ""]
     smoke = runbook.get("smoke") or []
     if smoke:
         lines += ["## Deploy smoke", ""]
@@ -574,6 +593,8 @@ def render_index() -> str:
         "sandbox runbook show l4-qwen3-8b-track-a  # Operator A",
         "sandbox runbook show improved-awq-c8      # improved config",
         "sandbox runbook show a100-qwen3-14b-awq-sorter400  # 1×A100-40GB Qwen3-14B-AWQ sorter n=400",
+        "sandbox runbook show grid-1l4             # specialist grid, 1×L4 · C8 cells",
+        "sandbox runbook show grid-2l4             # specialist grid, 2×L4 · C32 cells",
         "sandbox runbook check                     # catalog vs live pins",
         "sandbox runbook write                     # regenerate this directory",
         "```",
@@ -581,7 +602,9 @@ def render_index() -> str:
         "Source of truth: [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml).",
         "",
     ]
-    for family, heading in (("baseline", "Singular L4 / 1-container Qwen3-8B"), ("improved", "Improved run configurations")):
+    for family, heading in FAMILIES:
+        if family == "baseline":
+            heading = "Singular L4 / 1-container Qwen3-8B"
         lines += [f"## {heading}", ""]
         for rid in list_runbook_ids(family=family):
             row = get_runbook(rid)
@@ -607,10 +630,7 @@ def render_index() -> str:
 
 
 def render_family(family: str) -> str:
-    heading = {
-        "baseline": "Singular 1×L4 / 1-container Qwen3-8B",
-        "improved": "Improved run configurations",
-    }.get(family, family)
+    heading = dict(FAMILIES).get(family, family)
     chunks = [
         GENERATED_HEADER,
         "",
@@ -634,6 +654,7 @@ def generated_files() -> dict[str, str]:
         "README.md": render_index(),
         "baseline.md": render_family("baseline"),
         "improved.md": render_family("improved"),
+        "grid.md": render_family("grid"),
     }
     for rid in list_runbook_ids():
         files[f"{rid}.md"] = render_markdown(rid)
@@ -697,6 +718,29 @@ def _deploy_defaults() -> dict[str, str]:
             raise ValueError(f"deploy/modal_vllm.py: could not parse default for {key}")
         out[key] = match.group(1)
     return out
+
+
+def deploy_env_drift(runbook: Mapping[str, Any]) -> list[str]:
+    """Errors where a cited config's ``sandbox run deploy-env`` disagrees with the runbook exports.
+
+    Every knob a run YAML pins must equal the runbook's export block, and the
+    block must not export a ``MODAL_VLLM_*`` knob the YAML leaves unset. One
+    deploy then serves every config in the runbook.
+    """
+    from mailroom_sandbox.job.deploy_env import spec_env
+    from mailroom_sandbox.job.spec import load_run_spec
+
+    exports = env_exports(runbook)
+    errors: list[str] = []
+    for rel in runbook.get("configs") or []:
+        want = spec_env(load_run_spec(repo_root() / str(rel)))
+        for key, value in sorted(want.items()):
+            have = exports.get(key, "")
+            if value and have != value:
+                errors.append(f"{runbook['id']}: {rel} wants {key}={value!r}, runbook exports {have!r}")
+            elif not value and have and key != "MODAL_VLLM_TP_SIZE":
+                errors.append(f"{runbook['id']}: {rel} leaves {key} unset, runbook exports {have!r}")
+    return errors
 
 
 def verify_live_pins() -> list[str]:
@@ -782,6 +826,11 @@ def verify_live_pins() -> list[str]:
             path = repo_root() / str(rel)
             if not path.is_file():
                 errors.append(f"{rid}: missing config {rel}")
+        configs_present = all(
+            (repo_root() / str(rel)).is_file() for rel in runbook.get("configs") or []
+        )
+        if runbook.get("family") == "grid" and configs_present:
+            errors.extend(deploy_env_drift(runbook))
         if not runbook.get("assert_engine"):
             continue
         rels = list(runbook.get("configs") or [])

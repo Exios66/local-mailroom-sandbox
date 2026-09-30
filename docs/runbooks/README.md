@@ -14,6 +14,8 @@ sandbox runbook show l4-qwen3-8b          # singular 1×L4 / 1-container Qwen3-8
 sandbox runbook show l4-qwen3-8b-track-a  # Operator A
 sandbox runbook show improved-awq-c8      # improved config
 sandbox runbook show a100-qwen3-14b-awq-sorter400  # 1×A100-40GB Qwen3-14B-AWQ sorter n=400
+sandbox runbook show grid-1l4             # specialist grid, 1×L4 · C8 cells
+sandbox runbook show grid-2l4             # specialist grid, 2×L4 · C32 cells
 sandbox runbook check                     # catalog vs live pins
 sandbox runbook write                     # regenerate this directory
 ```
@@ -38,6 +40,11 @@ Source of truth: [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.
 - [`improved-granite-fp8`](improved-granite-fp8.md) — Granite 4.2-8B FP8 on 1×L4 (SAND-027 Leg A swap-in)
 - [`improved-second-l4`](improved-second-l4.md) — Second L4 — data parallel (still 1 GPU / container)
 - [`improved-scale-matrix`](improved-scale-matrix.md) — L4 scale-matrix cells (not the singular 1-container path)
+
+## Qwen3-8B-AWQ specialist grid (SAND-037)
+
+- [`grid-1l4`](grid-1l4.md) — Specialist grid — 1×L4 · C8 cells (n=20 and n=50, all five classes)
+- [`grid-2l4`](grid-2l4.md) — Specialist grid — 2×L4 · C32 cells (n=20 and n=50, all five classes)
 
 ## Anti-patterns
 

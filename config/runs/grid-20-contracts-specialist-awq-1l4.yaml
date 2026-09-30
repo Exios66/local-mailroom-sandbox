@@ -1,18 +1,19 @@
-# Qwen3-8B-AWQ specialist grid cell (v1 / simplified stem).
-# Keep GPU warm (min_containers pinned); teardown only after the shape queue.
-# 1xL4 c=8; 2xL4 c=32 (16 per replica). PHOENIX_TRACING=disabled at launch.
-# Decode 8192 via start-time SANDBOX_AGENT_KNOBS (clears 4096 LengthFinish JSON).
+# Qwen3-8B-AWQ specialist grid cell (v1 / simplified stem) — SAND-037 n=20 1×L4 twin.
+# Same dataset block as the 2×L4 sibling (grid-20-contracts-specialist-awq-2l4), so the pair shares one draw.
+# 1xL4 c=8, thinking off, MODAL_VLLM_MAX_INPUTS=8 (never 0 — that serializes HTTP).
+# Decode 8192 via start-time SANDBOX_AGENT_KNOBS (specialist_posture grid row).
+# Runbook: sandbox runbook show grid-1l4
 schema: sandbox.run/v1
-run_id: grid-50-corporate-records-specialist-awq-1l4
-task: corporate_records_specialist
+run_id: grid-20-contracts-specialist-awq-1l4
+task: contracts_specialist
 profile: modal-vllm
 
 prompt:
   default: {source: code-default}
   agents:
-    corporate_records_specialist:
+    contracts_specialist:
       source: local
-      file: corporate_records_specialist_simplified
+      file: contracts_specialist_v33_simplified
 
 dataset:
   provider: huggingface
@@ -22,8 +23,8 @@ dataset:
   revision: ed7576b676343e0b402ec5412cded301e629bdee
   strata:
     buckets:
-      - {doc_class: corporate_record, count: 50}
-  limit: 50
+      - {doc_class: contract, count: 20}
+  limit: 20
   sample_seed: 42
 
 engine:
@@ -38,7 +39,7 @@ engine:
     quantization: awq
     revision: ""
     enable_thinking: false
-    max_inputs: 8   # never 0 — MAX_INPUTS=0 serialized contracts-50 at Running:1
+    max_inputs: 8
   modal:
     app: sandbox-vllm
     gpu: L4
@@ -53,7 +54,7 @@ job:
   max_retries: 2
   fail_fast: false
   concurrency: 8
-  cost_cap_usd: 0.5
+  cost_cap_usd: 0.7
   max_wall_seconds: 3600
 
 trace:

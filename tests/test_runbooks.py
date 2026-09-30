@@ -201,3 +201,79 @@ def test_catalog_how_to_edit_present():
     cat = load_catalog()
     assert "sandbox runbook write" in str(cat.get("how_to_edit"))
     assert cat["ops"]["app"] == "sandbox-vllm"
+
+
+# ── SAND-037 specialist grid runbooks ─────────────────────────────────────
+
+_GRID_CLASSES = ("correspondence", "insurance-claims", "corporate-records", "contracts", "merger")
+# Cells whose existing result fits the grid (not re-run by either runbook).
+_GRID_KEEP = {"grid-50-contracts-specialist-awq-2l4"}
+
+
+def _grid_cell(n: int, cls: str, shape: str) -> str:
+    rid = f"grid-{n}-{cls}-specialist-awq-{shape}"
+    return f"{rid}-rerun" if rid == "grid-20-merger-specialist-awq-1l4" else rid
+
+
+def test_grid_runbooks_cover_every_outstanding_cell_once():
+    from pathlib import Path
+
+    seen: list[str] = []
+    for rid, shape in (("grid-1l4", "1l4"), ("grid-2l4", "2l4")):
+        rels = get_runbook(rid)["configs"]
+        ids = [Path(rel).stem for rel in rels]
+        assert all(i.endswith(shape) or i.endswith(f"{shape}-rerun") for i in ids), ids
+        seen += ids
+    want = {
+        _grid_cell(n, cls, shape)
+        for n in (20, 50)
+        for cls in _GRID_CLASSES
+        for shape in ("1l4", "2l4")
+    } - _GRID_KEEP
+    assert sorted(seen) == sorted(want)
+    assert len(seen) == 19
+
+
+def test_grid_runbook_configs_share_one_deploy_env():
+    from mailroom_sandbox.job.runbooks import deploy_env_drift
+
+    for rid in ("grid-1l4", "grid-2l4"):
+        assert deploy_env_drift(get_runbook(rid)) == [], rid
+
+
+def test_grid_deploy_env_drift_is_detected():
+    from mailroom_sandbox.job.runbooks import deploy_env_drift
+
+    wrong = dict(get_runbook("grid-1l4"), serving="grid-awq-2l4")
+    errors = deploy_env_drift(wrong)
+    assert any("MODAL_VLLM_MAX_NUM_SEQS" in e for e in errors)
+    assert any("MODAL_VLLM_KV_CACHE_DTYPE" in e for e in errors)
+
+
+def test_grid_1l4_never_serializes_and_relocks_at_preflight():
+    env = env_exports(get_runbook("grid-1l4"))
+    assert env["MODAL_VLLM_MAX_INPUTS"] == "8"
+    assert env["MODAL_VLLM_DEFAULT_CHAT_TEMPLATE_KWARGS"] == '{"enable_thinking": false}'
+    assert env["MODAL_VLLM_MIN_CONTAINERS"] == env["MODAL_VLLM_MAX_CONTAINERS"] == "1"
+    sh = render_shell("grid-1l4")
+    assert 'sandbox run preflight --config "$cfg" --live --force' in sh
+    assert "grid-20-merger-specialist-awq-1l4-rerun.yaml" in sh
+    assert "SANDBOX_AGENT_KNOBS" not in sh  # decode comes from the posture row at start
+
+
+def test_grid_2l4_pins_both_replicas_warm():
+    env = env_exports(get_runbook("grid-2l4"))
+    assert env["MODAL_VLLM_MIN_CONTAINERS"] == env["MODAL_VLLM_MAX_CONTAINERS"] == "2"
+    assert env["MODAL_VLLM_KV_CACHE_DTYPE"] == "fp8"
+    assert env["MODAL_VLLM_MAX_INPUTS"] == "32"
+    sh = render_shell("grid-2l4")
+    assert "config/runs/grid-50-contracts-specialist-awq-2l4.yaml" not in sh  # kept cell
+    assert "grid-50-contracts-specialist-awq-2l4,grid-50-merger" in sh  # still compared
+
+
+def test_grid_family_renders():
+    assert set(list_runbook_ids(family="grid")) == {"grid-1l4", "grid-2l4"}
+    md = render_markdown("grid-1l4")
+    assert "## Per-cell posture (live)" in md
+    assert "`grid-50-merger-specialist-awq-1l4` | `merger_agreement_specialist` | 8 | 8192" in md
+    assert (generated_dir() / "grid.md").is_file()
