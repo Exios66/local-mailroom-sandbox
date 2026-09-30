@@ -293,3 +293,27 @@ def test_run_yamls_match_posture(monkeypatch):
             assert spec.engine.model == "Qwen/Qwen3-8B"
         report = check_benchmark_posture(spec=spec, require_hermes=True)
         assert report["ok"], (run_id, report["errors"])
+
+
+def test_grid_one_gpu_cells_pin_max_inputs_and_thinking_off():
+    """SAND-037: MAX_INPUTS=0 serialized contracts-50 at Running:1; thinking must be off."""
+    from mailroom_sandbox.job.specialist_posture import GRID_ONE_GPU_RUNS
+
+    root = Path(__file__).resolve().parents[1] / "config" / "runs"
+    for run_id in GRID_ONE_GPU_RUNS:
+        if run_id == "grid-20-merger-specialist-awq-1l4":
+            continue  # executed cell, kept byte-identical to its 2026-09-30 report
+        spec = load_run_spec(root / f"{run_id}.yaml")
+        assert spec.engine.vllm.max_inputs == 8, run_id
+        assert spec.engine.vllm.enable_thinking is False, run_id
+
+
+def test_grid_n20_one_gpu_twins_share_their_two_gpu_draw():
+    root = Path(__file__).resolve().parents[1] / "config" / "runs"
+    for cls in ("insurance-claims", "corporate-records", "contracts", "correspondence"):
+        one = load_run_spec(root / f"grid-20-{cls}-specialist-awq-1l4.yaml")
+        two = load_run_spec(root / f"grid-20-{cls}-specialist-awq-2l4.yaml")
+        assert one.dataset == two.dataset, cls
+        assert one.prompt == two.prompt, cls
+    merger = load_run_spec(root / "grid-20-merger-specialist-awq-1l4-rerun.yaml")
+    assert merger.dataset == load_run_spec(root / "grid-20-merger-specialist-awq-2l4.yaml").dataset
