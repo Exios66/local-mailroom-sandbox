@@ -105,5 +105,5 @@ sandbox health --profile modal-vllm
 # smoke: One structured-output json_object completion succeeds
 # smoke: Thinking spans are separable (native `granite` parser on v0.29.0; `granite_thinking_parser` needs vLLM >= 0.30 and crash-loops the pinned image)
 
-./deploy/teardown_vllm.sh   # ONLY after the this run
+./deploy/teardown_vllm.sh   # ONLY after this run
 ```

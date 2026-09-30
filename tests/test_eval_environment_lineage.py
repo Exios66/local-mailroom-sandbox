@@ -82,6 +82,7 @@ def test_agents_for_variant_maps_catalog_and_local_v0():
         "contracts_specialist"
     ]
     assert agents_for_variant("sorter_local_v0") == ["sorter", "sorter_reviewer"]
+    assert agents_for_variant("sorter_v1") == ["sorter"]
     assert agents_for_variant("judge_local_v0") == ["judge"]
 
 
