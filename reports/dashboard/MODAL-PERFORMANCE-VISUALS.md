@@ -20,6 +20,18 @@ Stacked $/doc: GPU busy wall time, idle slots, and amortized cold boot for the f
 
 Scatter of busy $/doc vs extraction score; color = hardware, marker shape = specialist family.
 
+## Modal vs API Qwen3-8B cost per 1,000 docs
+
+![Grouped horizontal bars: Modal L4 vs API Qwen3-8B cost per 1,000 documents, four specialist classes.](figures/modal-performance/modal-api-qwen8b-cost.svg)
+
+Grouped horizontal bars: Modal L4 vs API Qwen3-8B cost per 1,000 documents, four specialist classes.
+
+## Modal vs API Qwen3-8B comparison table
+
+![Modal vs API Qwen3-8B per class: $/doc, scores, cost ratios, warm break-even docs/h and cold-batch N.](figures/modal-performance/modal-api-qwen8b-table.svg)
+
+Modal vs API Qwen3-8B per class: $/doc, scores, cost ratios, warm break-even docs/h and cold-batch N.
+
 ## Prefix-cache hit over wall time
 
 ![Prefix-cache hit vs wall time; lines per replica with end points from vLLM /metrics (42.8% / 43.2% on s9 insurance bal).](figures/modal-performance/prefix-cache-over-time.svg)

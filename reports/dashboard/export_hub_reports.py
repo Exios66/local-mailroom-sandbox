@@ -719,7 +719,7 @@ def main() -> int:
         "figures/cost/sorter-routes.svg": fig_sorter(D, sorters),
         "figures/cost/modal-vs-api-breakeven.svg": breakeven.fig(E, viz, usd),
         **source_charts.render(D, viz),
-        **(modal_figs := modal_performance.render(D, viz)),
+        **(modal_figs := modal_performance.render(D, viz, exclude=gpu_report.NOT_A_CONFIG)),
         "MODAL-PERFORMANCE-VISUALS.md": modal_performance.report_md(sorted(modal_figs)),
         "COST-COMPARISON-MODAL-VS-API.md": cost_report(D, rows, E, sorters, shas),
         "MASTER-REPORT.md": master_report(D, rows, E, sorters, audit, shas),
