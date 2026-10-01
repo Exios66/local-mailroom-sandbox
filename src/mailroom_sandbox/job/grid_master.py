@@ -89,20 +89,33 @@ _LABEL = {folder: label for _, folder, label in SPECIALISTS}
 _SUITE_FOLDERS = ("insurance_claims", "corporate_records", "correspondence")  # field score only
 PENDING = "pending"
 RECORD_FIG_DIR = "figures/record"  # one chart per PNG (figures/record/make_record_figures.py)
+# Executive card: the three charts behind the three key findings. Everything else sits in the
+# appendix section it illustrates (see APPENDIX_FIGURES).
+MASTER_FIG_SECTIONS = ("efficiency", "merger")
 RECORD_FIGURES: dict[str, tuple[tuple[str, str], ...]] = {
+    # executive card
     "efficiency": (
         ("1x-vs-2xL4-throughput", "Throughput, 1x vs 2x L4 on the same 250 documents"),
-        ("1x-vs-2xL4-cost", "Cost per 1,000 ok documents, 1x vs 2x L4 on the same 250 documents"),
         ("2xL4-n50-vs-n100-cost", "Cost per 1,000 ok documents on 2x L4, n=50 vs n=100"),
     ),
-    "quality": (
-        ("cost-vs-score", "Cost vs score by specialist, same 250 documents"),
+    "merger": (("merger-frozen-vs-dagger", "Merger agreements, frozen vs dagger settings"),),
+    # appendix
+    "appendix-serving": (
+        ("1x-vs-2xL4-cost", "Cost per 1,000 ok documents, 1x vs 2x L4 on the same 250 documents"),
+    ),
+    "appendix-scores": (("cost-vs-score", "Cost vs score by specialist, same 250 documents"),),
+    "posture-s39-1l4-n50": (
         ("1xL4-C8-n50-cost", "Cost per 1,000 ok documents, Experiment 2 (1x L4 C=8 n=50)"),
-        ("2xL4-C32-n100-cost", "Cost per 1,000 ok documents, Experiment 4 (2x L4 C=32 n=100)"),
         ("1xL4-C8-n50-latency", "Latency p50 to p99, Experiment 2 (1x L4 C=8 n=50)"),
+    ),
+    "posture-s37-2l4-n50": (
+        ("2xL4-C32-n50-cost", "Cost per 1,000 ok documents, Experiment 3 (2x L4 C=32 n=50)"),
+        ("2xL4-C32-n50-latency", "Latency p50 to p99, Experiment 3 (2x L4 C=32 n=50)"),
+    ),
+    "posture-s40-2l4": (
+        ("2xL4-C32-n100-cost", "Cost per 1,000 ok documents, Experiment 4 (2x L4 C=32 n=100)"),
         ("2xL4-C32-n100-latency", "Latency p50 to p99, Experiment 4 (2x L4 C=32 n=100)"),
     ),
-    "merger": (("merger-frozen-vs-dagger", "Merger agreements, frozen vs dagger settings"),),
 }
 PARITY = 0.03  # cost-per-document gap below which two postures are called equal
 
@@ -155,7 +168,7 @@ def _record_figures(data: Mapping[str, Any], section: str) -> list[str]:
     """Embed the committed record figures for one executive section (only those on disk)."""
     have = set(data.get("record_figures") or ())
     out: list[str] = []
-    for stem, alt in RECORD_FIGURES[section]:
+    for stem, alt in RECORD_FIGURES.get(section, ()):
         if stem in have:
             out += [f"![{alt}]({RECORD_FIG_DIR}/{stem}.png)", ""]
     return out
@@ -567,7 +580,7 @@ def _errors_text(q: Mapping[str, Any]) -> str:
     return f"{q['errors']} (" + ", ".join(f"{short.get(k, k)} {v}" for k, v in sorted(kinds.items())) + ")"
 
 
-def _detail_sections(present: list[Posture], cards: dict) -> list[str]:
+def _detail_sections(present: list[Posture], cards: dict, data: Mapping[str, Any] | None = None) -> list[str]:
     out = [
         "## Per-cell detail",
         "",
@@ -603,6 +616,8 @@ def _detail_sections(present: list[Posture], cards: dict) -> list[str]:
                 f"| {_f(c['throughput']['tokens_per_second_per_gpu'], 0)} |"
             )
         out.append("")
+        if data is not None:
+            out += _record_figures(data, f"posture-{p.key}")
     out += ["Merger score is MAUD micro-accuracy; its sd is over per-document scores.", ""]
 
     # clause scoring
@@ -1010,7 +1025,6 @@ def render_master_md(data: Mapping[str, Any]) -> str:
             + _joined([f"{c['cost']['usd_per_ok_document']:.5f}" if c else PENDING for c in per]) + " |"
         )
     lines.append("")
-    lines += _record_figures(data, "quality")
     merger = _merger_settings_section(cards)
     if merger:
         lines += merger + _record_figures(data, "merger")
@@ -1147,6 +1161,7 @@ def render_appendix_md(data: Mapping[str, Any]) -> str:
             "tokens slightly high for postures with failures.",
             "",
         ]
+    lines += _record_figures(data, "appendix-serving")
     if pooled.get("s40-2l4") and cards["s40-2l4"].get("merger_agreement"):
         lines += [
             "The Experiment 4 column includes the † merger cell, which reads whole agreements and takes most of the "
@@ -1168,8 +1183,9 @@ def render_appendix_md(data: Mapping[str, Any]) -> str:
         "scale from the field scores. † marks the optimized merger cell (settings on the executive card).",
         "",
     ]
+    lines += _record_figures(data, "appendix-scores")
     lines += _token_section(cards)
-    lines += _detail_sections(present, cards)
+    lines += _detail_sections(present, cards, data)
     lines += _figure_md(data, "comparison", "## Figures: posture comparison")
     lines += ["", "## Cost accounting and run integrity", ""]
     for study, rec in metered.items():
