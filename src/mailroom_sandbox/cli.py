@@ -398,7 +398,8 @@ def build_parser() -> argparse.ArgumentParser:
     watch_p.add_argument("--app", default=None, help="Modal serve app override (default: engine.modal.app; modal job mode also tails sandbox-job)")
     watch_p.add_argument("--ledger", default=None, help="spend ledger JSON ({spent_usd})")
     watch_p.add_argument("--cap-usd", type=float, default=5.0)
-    watch_p.add_argument("--interval", type=float, default=2.0)
+    watch_p.add_argument("--interval", type=float, default=1.0, help="max seconds between redraws (logs and run-store changes redraw immediately)")
+    watch_p.add_argument("--no-bell", action="store_true", help="do not ring the terminal bell on a new critical watchdog alert")
     watch_p.add_argument("--once", action="store_true", help="render one frame and exit")
     watch_p.add_argument("--no-logs", action="store_true", help="do not follow Modal dispatch logs (serve + worker); job events still shown")
     watch_p.add_argument(
@@ -1999,7 +2000,7 @@ def _cmd_watch(args) -> int:
         port = web_mod.DEFAULT_PORT if args.port is None else args.port
         open_browser = False if args.no_browser else None
         return web_mod.serve_watch_web(**common, host=host, port=port, open_browser=open_browser)
-    return watch_mod.watch(**common, once=args.once)
+    return watch_mod.watch(**common, once=args.once, bell=not getattr(args, "no_bell", False))
 
 
 def _serve_demo(args) -> int:

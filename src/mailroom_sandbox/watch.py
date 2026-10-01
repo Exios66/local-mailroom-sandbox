@@ -245,6 +245,8 @@ class LogBuffer:
     def __init__(self, path: Path | None, *, maxlen: int = 2000) -> None:
         self._lines: deque[str] = deque(maxlen=maxlen)
         self._count = 0
+        self.last_ts: float | None = None  # wall time of the last streamed line (watchdog LOGS rule)
+        self.changed = threading.Event()  # set on every append; the render loop wakes on it
         self._lock = threading.Lock()
         self._path = path
         self._writer = False
@@ -269,6 +271,8 @@ class LogBuffer:
         with self._lock:
             self._lines.append(line)
             self._count += 1
+            self.last_ts = time.time()
+            self.changed.set()
             if self._path is not None and self._writer:
                 self._path.parent.mkdir(parents=True, exist_ok=True)
                 with self._path.open("a", encoding="utf-8") as fh:
@@ -413,6 +417,8 @@ def render_frame(
     route: list[str] | None = None,
     job_route: list[str] | None = None,
     layout: dict[str, Any] | None = None,
+    watchdog: Mapping[str, Any] | None = None,
+    log_rows: int = 14,
 ) -> str:
     width = max(60, min(int(width), pl.MAX_W))
     p = pl.palette(on)
@@ -446,6 +452,13 @@ def render_frame(
         role = _LIFECYCLE_ROLE.get(str(lifecycle.get("phase") or ""), "gold")
         out.append(pl._box(life_title, [p[role](phase) if on else phase], width=width, on=on))
 
+    if watchdog:
+        from mailroom_sandbox.tui import watchdog as wd
+
+        level = watchdog.get("level") or "ok"
+        dog_title = {"critical": "■ WATCHDOG · ACTION NEEDED", "warn": "▲ WATCHDOG"}.get(level, "WATCHDOG")
+        out.append(pl._box(dog_title, wd.panel_lines(watchdog, on=on, palette=p), width=width, on=on))
+
     if route:
         title = panels.get("program") or "Program route"
         out.append(pl._box(title, route, width=width, on=on))
@@ -474,7 +487,9 @@ def render_frame(
     spent = float(spend.get("spent_usd") or 0.0)
     live = float(spend.get("live_usd") or 0.0)
     cap = float(spend.get("cap_usd") or 5.0)
-    total = spent + live
+    # compose_watch_state binds ledger and live to the same run when there is no ledger; its
+    # total_usd is authoritative (spent + live would count the open run twice).
+    total = float(spend["total_usd"]) if spend.get("total_usd") is not None else spent + live
     pbar = progress_bar(int(total * 100), int(cap * 100), width=max(10, mw - 14))
     postage = [
         pl._metric("sorted", f"delivered {s['ok']} · returned {s['errors']}", total_w=mw, on=on),
@@ -510,7 +525,7 @@ def render_frame(
         sc_title = panels.get("scorecard") or f"📊 SCORECARD · {s['run_id']}"
         out.append(pl._box(sc_title, scorecard, width=width, on=on))
 
-    tail = log_lines[-14:]
+    tail = log_lines[-max(4, int(log_rows)):]
     log = [
         (p[_LOG_ROLE[classify_log_line(line)]](line) if on else line) for line in tail
     ] or [p["dim"]("(waiting on modal app logs …)") if on else "(waiting on modal app logs …)"]
@@ -633,6 +648,7 @@ def compose_watch_state(
     boot_mark: dict[str, int],
     width: int = 100,
     blink: bool = False,
+    log_rows: int = 14,
 ) -> dict[str, Any]:
     """JSON-serializable Tray TUI snapshot (terminal + browser)."""
     from mailroom_sandbox.tui import tray_context as tc
@@ -693,13 +709,41 @@ def compose_watch_state(
     spend["pct_of_cap"] = round(100 * total / cap_usd, 1) if cap_usd else 0.0
     spend["over_gate"] = total > GATE_USD
     spend["bar"] = progress_bar(int(total * 100), int(cap_usd * 100), width=30)
-    log_src = display_tail(sink, 14)
+    from mailroom_sandbox.tui import watchdog as wd
+
+    items = store.load_items()
+    run_started = None
+    for ev in store.events():
+        t = wd._ts(ev.get("ts"))
+        if t is not None and ev.get("event") in ("preflight_ok", "cold_boot", "start", "resume"):
+            run_started = t  # latest (re)start of this run
+    if run_started is None and items:
+        run_started = wd._ts(items[0].get("ts"))
+    dog = wd.assess(
+        items=items,
+        state=str(cp_state or ""),
+        total=int(snap.get("total") or 0),
+        spend=spend,
+        now=time.time(),
+        p95_s=snap.get("p95_s"),
+        run_started=run_started,
+        log_lines=boot_lines,
+        last_log_ts=sink.last_ts,
+        logs_enabled=sink.last_ts is not None,
+    )
+    log_src = display_tail(sink, max(14, int(log_rows)))
     logs = [{"text": line, "role": classify_log_line(line), "source": "modal"} for line in log_src]
     for entry in tc.job_event_lines(store, limit=4):
         logs.append(
             {"text": entry["text"], "role": entry["role"], "source": "job"}
         )
-    logs = logs[-14:]
+    logs = logs[-max(14, int(log_rows)):]
+    # Alerts lead the dispatch feed too, so the browser view (`--web`) carries them.
+    logs = [
+        {"text": f"{a['code']}: {a['text']}", "role": "error" if a["level"] == "critical" else "warn", "source": "watchdog"}
+        for a in dog["alerts"]
+        if a["level"] != "info"
+    ] + logs
     route = layout.get("route")
     job_route = layout.get("job_route")
     phase = (life or {}).get("phase") or layout.get("stage") or _stage_for(snap["run_id"])
@@ -728,6 +772,7 @@ def compose_watch_state(
         "blink": blink and phase in ANIMATED_PHASES,
         "animate_lifecycle": phase in ANIMATED_PHASES,
         "lifecycle_role": _LIFECYCLE_ROLE.get(phase, "gold"),
+        "watchdog": dog,
     }
 
 
@@ -750,6 +795,46 @@ def _watch_paths(
     return td, resolved_log
 
 
+SYNC_BEGIN = "\033[?2026h"  # synchronized update: the terminal paints the frame at once (no tearing)
+SYNC_END = "\033[?2026l"
+ERASE_EOL = "\033[K"
+ERASE_BELOW = "\033[J"
+BELL = "\a"
+FRAME_TICK_S = 0.25  # how often the loop checks for new logs / run-store changes
+
+
+def paint(frame: str, rows: int | None = None) -> str:
+    """Repaint in place: home, each line + erase-to-EOL, erase below — no full-screen clear (no flicker)."""
+    lines = frame.split("\n")
+    if rows:
+        lines = lines[: max(1, rows - 1)]
+    return SYNC_BEGIN + pl.CURSOR_HOME + (ERASE_EOL + "\n").join(lines) + ERASE_EOL + "\n" + ERASE_BELOW + SYNC_END
+
+
+def log_rows_for(rows: int) -> int:
+    """Dispatch-log height that fills the terminal below the fixed panels."""
+    return max(6, min(60, rows - 44))
+
+
+def _store_sig(store: RunStore) -> tuple:
+    sig = []
+    for path in (store.checkpoint_path, store.dir / "items.jsonl", store.dir / "events.jsonl"):
+        try:
+            st = path.stat()
+            sig.append((st.st_mtime_ns, st.st_size))
+        except OSError:
+            sig.append(None)
+    return tuple(sig)
+
+
+def new_critical(dog: Mapping[str, Any] | None, seen: set[str]) -> list[str]:
+    """Critical alert codes not yet announced (the bell rings once per code)."""
+    codes = [a["code"] for a in (dog or {}).get("alerts") or [] if a["level"] == "critical"]
+    fresh = [c for c in codes if c not in seen]
+    seen.update(codes)
+    return fresh
+
+
 def watch(
     *,
     resolve: Callable[[], tuple[RunStore, str]],
@@ -757,12 +842,15 @@ def watch(
     cap_usd: float = 5.0,
     once: bool = False,
     logs: bool = True,
-    interval: float = 2.0,
+    interval: float = 1.0,
     times_dir: Path | None = None,
     sand032_root: Path | None = None,
     log_path: Path | None = None,
     serving_dir: Path | None = None,
+    bell: bool = True,
 ) -> int:
+    """Live Tray TUI. Redraws when a log line lands or the run store changes, and at
+    least every ``interval`` seconds (clocks, spend), painting in place without clearing."""
     from mailroom_sandbox.paths import reports_dir
 
     serving_dir = serving_dir or (reports_dir() / "serving")
@@ -774,18 +862,39 @@ def watch(
     stop = threading.Event()
     store, app = resolve()
     if not once:
-        sys.stdout.write(pl.ALT_ENTER + pl.HIDE_CURSOR)
+        sys.stdout.write(pl.ALT_ENTER + pl.HIDE_CURSOR + pl.CLEAR_SCREEN)
     if logs and not once:
         start_log_streams(store, app, sink, stop)
     started = time.time()
     boot_mark: dict[str, int] = {}
+    announced: set[str] = set()
+    last_frame = ""
+    last_sig: tuple | None = None
+    last_paint = 0.0
+    last_size: tuple[int, int] | None = None
+    interval = max(0.25, float(interval or 1.0))
     try:
         while True:
             store, app = resolve()  # --follow: the current run can change between frames
+            size = shutil.get_terminal_size((100, 40))
+            sig = (store.dir, _store_sig(store))
+            due = (
+                once
+                or sink.changed.is_set()
+                or sig != last_sig
+                or (size.columns, size.lines) != last_size
+                or time.time() - last_paint >= interval
+            )
+            if not due:
+                stop.wait(FRAME_TICK_S)
+                continue
+            sink.changed.clear()
+            last_sig, last_size = sig, (size.columns, size.lines)
             frame_times_dir, _ = _watch_paths(
                 store, times_dir=times_dir, sand032_root=sand032_root, log_path=log_path
             )
-            width = shutil.get_terminal_size((100, 40)).columns
+            width = size.columns
+            rows = log_rows_for(size.lines)
             blink = int(time.time()) % 7 == 0
             state = compose_watch_state(
                 store=store,
@@ -799,6 +908,7 @@ def watch(
                 boot_mark=boot_mark,
                 width=width,
                 blink=blink,
+                log_rows=rows,
             )
             frame = render_frame(
                 snapshot=state["snapshot"],
@@ -813,13 +923,18 @@ def watch(
                 route=state["route"],
                 job_route=state.get("job_route"),
                 layout=state.get("layout"),
+                watchdog=state.get("watchdog"),
+                log_rows=rows,
             )
             if once:
                 sys.stdout.write(frame + "\n")
                 return 0
-            sys.stdout.write(pl.CURSOR_HOME + pl.CLEAR_SCREEN + frame + "\n")
-            sys.stdout.flush()
-            time.sleep(interval)
+            last_paint = time.time()
+            ring = bell and new_critical(state.get("watchdog"), announced)
+            if frame != last_frame or ring:
+                sys.stdout.write(paint(frame, size.lines) + (BELL if ring else ""))
+                sys.stdout.flush()
+                last_frame = frame
     except KeyboardInterrupt:
         return 0
     finally:
