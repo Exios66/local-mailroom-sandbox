@@ -8,6 +8,7 @@ import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from dotenv import load_dotenv
 
@@ -33,6 +34,7 @@ class Activation:
     patched_prompts: bool = False
     mailroom_src: Path | None = None
     agent_models: dict[str, str] = field(default_factory=dict)
+    agent_knobs: dict[str, Any] = field(default_factory=dict)
 
 
 _ACTIVE: Activation | None = None
@@ -40,6 +42,13 @@ _ACTIVE: Activation | None = None
 
 def active() -> Activation | None:
     return _ACTIVE
+
+
+def agent_knobs_for(agent: str) -> dict[str, Any]:
+    """Run-scoped knobs for one agent in the current activation ({} when none)."""
+    knobs = (_ACTIVE.agent_knobs if _ACTIVE else {}) or {}
+    value = knobs.get(agent)
+    return dict(value) if isinstance(value, dict) else {}
 
 
 def _load_dotenv() -> None:
@@ -261,6 +270,7 @@ def activate(
         patched_prompts=patched_prompts,
         mailroom_src=mailroom_src,
         agent_models=dict(agent_models or {}),
+        agent_knobs=dict(agent_knobs or {}),
     )
     _ACTIVE = activation
     runtime_dir()  # ensure exists

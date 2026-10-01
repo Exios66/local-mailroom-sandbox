@@ -8,6 +8,11 @@ finalized suite card, all under ``reports/SAND-37/``::
     reports/SAND-37/1L4/L4x1-SCORE-COST-CARD.md           # finalized 1×L4 suite card
     reports/SAND-37/1L4/L4x1-SCORE-COST-CARD.json
     reports/SAND-37/2L4/...                                # same for 2×L4 (L4x2-…)
+    reports/SAND-37/probes/<specialist>/<run_id>.card.md  # SAND-40 validation probes
+
+SAND-40 probe cards stay in ``probes/``. They are not cells of the 1×L4 or
+2×L4 suite, and ``collect_master`` never reads that directory, so a probe
+cannot fill the master scorecard.
 
 The card follows the S2a/S2b score-card template: a conditions table, then one
 Metric | Value table grouped into Run, Time, Cost, Tokens, Throughput, Latency,
@@ -91,14 +96,24 @@ def _error_kind(error: Any) -> str:
     return text.split(":", 1)[0].strip() or "unknown"
 
 
-def card_dir(task: str, replicas: int, *, repo: Path | None = None) -> Path:
-    shape = SHAPE_DIRS.get(int(replicas), f"{int(replicas)}L4")
+def _probe_run(run_id: str) -> bool:
+    """True for a SAND-40 validation probe. Those cards are not scorecard cells."""
+    from mailroom_sandbox.job.specialist_posture import SAND40_PROBE_CELLS
+
+    return run_id in SAND40_PROBE_CELLS
+
+
+def card_dir(task: str, replicas: int, *, repo: Path | None = None, run_id: str | None = None) -> Path:
     folder = _FOLDER.get(task, task)
-    return (repo or repo_root()) / ROOT_REL / shape / folder
+    root = (repo or repo_root()) / ROOT_REL
+    if run_id and _probe_run(run_id):
+        return root / "probes" / folder
+    shape = SHAPE_DIRS.get(int(replicas), f"{int(replicas)}L4")
+    return root / shape / folder
 
 
 def card_paths(run_id: str, task: str, replicas: int, *, repo: Path | None = None) -> dict[str, Path]:
-    base = card_dir(task, replicas, repo=repo)
+    base = card_dir(task, replicas, repo=repo, run_id=run_id)
     return {"dir": base, "md": base / f"{run_id}.card.md", "json": base / f"{run_id}.card.json"}
 
 
@@ -280,6 +295,7 @@ def collect_card(
                 "thinking": vllm.get("enable_thinking"),
             },
             "spec_hash": store.spec_hash(),
+            **_optimized_conditions(posture, vllm),
         },
         "time": {
             "wall_seconds": wall,
@@ -486,6 +502,7 @@ def render_card_md(c: Mapping[str, Any]) -> str:
         f"| Temperature | {cond['temperature']} ({cond['temperature_source']}) |",
         f"| Output cap (max_tokens) | {_f(cond['max_tokens'])} |",
         f"| Input cap (max_input_chars) | {_f(cond['max_input_chars'])} |",
+        *_sampling_rows(cond),
         f"| Job retries | {cond['max_retries']} |",
         f"| Dataset | {ds['repo']} {ds['config']} @ {ds['revision']}, split={ds['split']}, seed {ds['seed']} |",
         f"| Draw | {c['n']} docs (fingerprint {ds['fingerprint'] or NOT_CAPTURED}) |",
@@ -535,6 +552,9 @@ def write_card(
 ) -> dict[str, Path]:
     """Write ``<run_id>.card.{md,json}`` under reports/SAND-37/<shape>/<specialist>/.
 
+    SAND-40 probe runs write under ``reports/SAND-37/probes/<specialist>/``
+    instead, so they stay out of the 2×L4 suite and the master scorecard.
+
     A re-render without ``wall_seconds`` (``sandbox run card`` after the
     /metrics after-scrape) reuses the runner's busy wall from the existing card,
     so the timing never falls back to item timestamps.
@@ -555,13 +575,46 @@ def write_card(
     return paths
 
 
+def _optimized_conditions(posture: Mapping[str, Any], vllm: Mapping[str, Any]) -> dict[str, Any]:
+    """SAND-040 knobs recorded on the card when the posture sets them."""
+    out: dict[str, Any] = {}
+    for key in ("top_p", "top_k", "presence_penalty", "length_retries", "chunk_chars", "overlap_chars"):
+        if posture.get(key) is not None:
+            out[key] = posture[key]
+    if posture.get("optimized"):
+        out["optimized"] = True
+    hf = vllm.get("hf_overrides")
+    if hf:
+        out["hf_overrides"] = hf
+    return out
+
+
+def _sampling_rows(cond: Mapping[str, Any]) -> list[str]:
+    rows: list[str] = []
+    if cond.get("optimized"):
+        rows.append("| Optimized long-document settings | yes |")
+    for key, label in (
+        ("top_p", "top_p"),
+        ("top_k", "top_k"),
+        ("presence_penalty", "presence_penalty"),
+        ("length_retries", "Length re-samples"),
+        ("chunk_chars", "Chunk window (chars)"),
+        ("overlap_chars", "Chunk overlap (chars)"),
+    ):
+        if cond.get(key) is not None:
+            rows.append(f"| {label} | {cond[key]} |")
+    if cond.get("hf_overrides"):
+        rows.append(f"| hf_overrides | `{json.dumps(cond['hf_overrides'], sort_keys=True)}` |")
+    return rows
+
+
 def maybe_write_card(store: RunStore, **kwargs: Any) -> dict[str, Path]:
-    """Runner hook: grid cells only, never fails the scored job."""
-    from mailroom_sandbox.job.specialist_posture import GRID_CELLS
+    """Runner hook: grid and SAND-040 cells, never fails the scored job."""
+    from mailroom_sandbox.job.specialist_posture import GRID_CELLS, SAND40_CELLS, SAND40_PROBE_CELLS
 
     try:
         lock = store.read_lock() or {}
-        if str(lock.get("run_id") or store.run_id) not in GRID_CELLS:
+        if str(lock.get("run_id") or store.run_id) not in (GRID_CELLS | SAND40_CELLS | SAND40_PROBE_CELLS):
             return {}
         if _d(lock.get("job")).get("mock") or not store.load_items():
             return {}

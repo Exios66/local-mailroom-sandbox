@@ -412,3 +412,523 @@ sandbox metrics compare --runs grid-50-merger-specialist-awq-1l4,grid-50-merger-
 ```
 
 ---
+
+# SAND-40 validation probe — n=20 contracts and merger on 2×L4 · 64K YaRN
+
+**id:** `sand40-probe` · **family:** `grid` · **serving:** `grid-awq-2l4-64k`
+
+Spend-gated probe before the SAND-40 scale run. Two nested n=20 draws (the seeded prefix of the SAND-37 2×L4 n=50 contracts and merger documents) on the 64K YaRN engine with the optimized long-document settings. About $0.30–$0.80 GPU. Do not start until that spend is approved.
+
+Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show sand40-probe`.
+
+## Pins (from catalog serving variant)
+
+| Knob | Value |
+| --- | --- |
+| Model | `Qwen/Qwen3-8B-AWQ` |
+| GPU | `L4` |
+| Image | `v0.29.0` |
+| max_model_len | `65536` |
+| max_num_seqs | `16` |
+| max_containers | `2` |
+| min_containers | `2` |
+| scaledown_seconds | `120` |
+| quantization | `awq_marlin` |
+| prefix caching / eager | `1 / 0` |
+
+## Configs
+
+- `config/runs/sand40-probe-20-contracts-specialist-awq-2l4-64k.yaml`
+- `config/runs/sand40-probe-20-merger-specialist-awq-2l4-64k.yaml`
+
+## Per-cell posture (live)
+
+| Run | Task | Conc. | max_tokens | max_input_chars | cost_cap | max_wall |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| `sand40-probe-20-contracts-specialist-awq-2l4-64k` | `contracts_specialist` | 32 | 6144 | 128000 | $0.80 | 2400s |
+| `sand40-probe-20-merger-specialist-awq-2l4-64k` | `merger_agreement_specialist` | 32 | 6144 | 128000 | $1.00 | 3600s |
+
+Source: `src/mailroom_sandbox/job/specialist_posture.py`.
+
+## Notes
+
+- Spend gate: about $0.30–$0.80 at 2 × $0.80/GPU-hr, plus one cold boot. Cost caps are $0.80 (contracts) and $1.00 (merger) and are the abort guard. Needs spend approval before deploy. Modal credentials for the Hermes account are on the operator machine.
+- Sample: each probe is the seed-42 prefix of the scored n=50 cell (contracts → grid-50-contracts-specialist-awq-2l4-rerun; merger → grid-50-merger-specialist-awq-2l4). The n=20 set is a subset of those 50 documents.
+- Serving is the 64K YaRN deploy (MODAL_VLLM_HF_OVERRIDES). Sampling is native chat-completion fields on the OpenAI client (temperature 0.7, top_p 0.8, top_k 20, presence_penalty 1.0). The LangChain pipeline is not part of this deploy.
+- Cards land under reports/SAND-37/2L4/<specialist>/ when the run finishes. This probe does not fill the master-card column.
+
+## Do not
+
+- Share one Modal token / ~/.modal.toml profile across operators
+- Tear down or modal deploy --strategy recreate between classes on one track
+- Set MODAL_VLLM_GPU=L4:2 + TP for Qwen3-8B (use MAX_CONTAINERS=2 instead)
+- Edit run-30-*-specialist.yaml for a one-off model swap
+
+## Operator script
+
+```bash
+# SAND-40 validation probe — n=20 contracts and merger on 2×L4 · 64K YaRN
+# sandbox runbook show sand40-probe
+set -euo pipefail
+
+# serving variant: grid-awq-2l4-64k
+# runbook: sand40-probe
+export SANDBOX_PROFILE=modal-vllm
+export MODAL_VLLM_MODEL=Qwen/Qwen3-8B-AWQ
+export MODAL_VLLM_GPU=L4
+export MODAL_VLLM_IMAGE_TAG=v0.29.0
+export MODAL_VLLM_MAX_MODEL_LEN=65536
+export MODAL_VLLM_MAX_NUM_SEQS=16
+export MODAL_VLLM_GPU_MEMORY_UTILIZATION=0.90
+export MODAL_VLLM_ENABLE_PREFIX_CACHING=1
+export MODAL_VLLM_ENFORCE_EAGER=0
+export MODAL_VLLM_MAX_CONTAINERS=2
+export MODAL_VLLM_MIN_CONTAINERS=2
+export MODAL_VLLM_SCALEDOWN_SECONDS=120
+export MODAL_VLLM_QUANTIZATION=awq_marlin
+export MODAL_VLLM_TP_SIZE=1
+export MODAL_VLLM_KV_CACHE_DTYPE=fp8
+export MODAL_VLLM_CUDAGRAPH_CAPTURE_SIZES='1,2,4,8,16'
+export MODAL_VLLM_DEFAULT_CHAT_TEMPLATE_KWARGS='{"enable_thinking": false}'
+export MODAL_VLLM_MAX_INPUTS=32
+export MODAL_VLLM_HF_OVERRIDES='{"rope_parameters": {"factor": 2.0, "original_max_position_embeddings": 32768, "rope_theta": 1000000, "rope_type": "yarn"}}'
+export PHOENIX_TRACING=disabled
+export MODAL_VLLM_API_TOKEN="${MODAL_VLLM_API_TOKEN:-$(openssl rand -hex 24)}"
+
+modal profile activate "${SANDBOX_MODAL_PROFILE_TRACK_A:-hermes-agent-jjb}"
+modal profile current
+
+sandbox run benchmark-check --config config/runs/sand40-probe-20-contracts-specialist-awq-2l4-64k.yaml
+
+modal run deploy/modal_vllm.py::download_model
+
+modal deploy deploy/modal_vllm.py --strategy recreate
+
+# set VLLM_BASE_URL from deploy output + VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+sandbox cutover --profile modal-vllm
+sandbox health --profile modal-vllm
+
+for cfg in \
+  config/runs/sand40-probe-20-contracts-specialist-awq-2l4-64k.yaml \
+  config/runs/sand40-probe-20-merger-specialist-awq-2l4-64k.yaml
+do
+  sandbox run preflight --config "$cfg" --live --force
+  sandbox run scrape-metrics --config "$cfg" --label before
+  sandbox run start --config "$cfg" --job-mode endpoint --watch
+  sandbox run scrape-metrics --config "$cfg" --label after
+  sandbox run card --config "$cfg"
+done
+
+./deploy/teardown_vllm.sh   # ONLY after this run
+
+sandbox run card --config config/runs/sand40-probe-20-contracts-specialist-awq-2l4-64k.yaml
+sandbox run card --config config/runs/sand40-probe-20-merger-specialist-awq-2l4-64k.yaml
+```
+
+---
+
+# SAND-40 short phase — correspondence, insurance claims, corporate records · n=100 · 32K
+
+**id:** `sand40-short` · **family:** `grid` · **serving:** `grid-awq-2l4`
+
+First serving phase of SAND-40. Three short classes at n=100 on the SAND-037 2×L4 engine (native 32768 window, no YaRN). Each n=100 draw contains the earlier n=50 documents.
+
+Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show sand40-short`.
+
+## Pins (from catalog serving variant)
+
+| Knob | Value |
+| --- | --- |
+| Model | `Qwen/Qwen3-8B-AWQ` |
+| GPU | `L4` |
+| Image | `v0.29.0` |
+| max_model_len | `32768` |
+| max_num_seqs | `16` |
+| max_containers | `2` |
+| min_containers | `2` |
+| scaledown_seconds | `120` |
+| quantization | `awq_marlin` |
+| prefix caching / eager | `1 / 0` |
+
+## Configs
+
+- `config/runs/sand40-100-correspondence-specialist-awq-2l4.yaml`
+- `config/runs/sand40-100-insurance-claims-specialist-awq-2l4.yaml`
+- `config/runs/sand40-100-corporate-records-specialist-awq-2l4.yaml`
+
+## Per-cell posture (live)
+
+| Run | Task | Conc. | max_tokens | max_input_chars | cost_cap | max_wall |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| `sand40-100-correspondence-specialist-awq-2l4` | `correspondence_specialist` | 32 | 8192 | 12000 | $1.00 | 3600s |
+| `sand40-100-insurance-claims-specialist-awq-2l4` | `insurance_claims_specialist` | 32 | 8192 | 13500 | $1.20 | 3600s |
+| `sand40-100-corporate-records-specialist-awq-2l4` | `corporate_records_specialist` | 32 | 8192 | 15000 | $1.20 | 3600s |
+
+Source: `src/mailroom_sandbox/job/specialist_posture.py`.
+
+## Notes
+
+- This phase must be torn down or redeployed before the 64K phase. One sandbox-vllm process cannot serve both 32768 and 65536.
+- Cards: reports/SAND-37/2L4/<specialist>/sand40-100-*.card.md. The master card's SAND-40 column stays pending until the cells exist.
+
+## Do not
+
+- Share one Modal token / ~/.modal.toml profile across operators
+- Tear down or modal deploy --strategy recreate between classes on one track
+- Set MODAL_VLLM_GPU=L4:2 + TP for Qwen3-8B (use MAX_CONTAINERS=2 instead)
+- Edit run-30-*-specialist.yaml for a one-off model swap
+
+## Operator script
+
+```bash
+# SAND-40 short phase — correspondence, insurance claims, corporate records · n=100 · 32K
+# sandbox runbook show sand40-short
+set -euo pipefail
+
+# serving variant: grid-awq-2l4
+# runbook: sand40-short
+export SANDBOX_PROFILE=modal-vllm
+export MODAL_VLLM_MODEL=Qwen/Qwen3-8B-AWQ
+export MODAL_VLLM_GPU=L4
+export MODAL_VLLM_IMAGE_TAG=v0.29.0
+export MODAL_VLLM_MAX_MODEL_LEN=32768
+export MODAL_VLLM_MAX_NUM_SEQS=16
+export MODAL_VLLM_GPU_MEMORY_UTILIZATION=0.90
+export MODAL_VLLM_ENABLE_PREFIX_CACHING=1
+export MODAL_VLLM_ENFORCE_EAGER=0
+export MODAL_VLLM_MAX_CONTAINERS=2
+export MODAL_VLLM_MIN_CONTAINERS=2
+export MODAL_VLLM_SCALEDOWN_SECONDS=120
+export MODAL_VLLM_QUANTIZATION=awq_marlin
+export MODAL_VLLM_TP_SIZE=1
+export MODAL_VLLM_KV_CACHE_DTYPE=fp8
+export MODAL_VLLM_CUDAGRAPH_CAPTURE_SIZES='1,2,4,8,16'
+export MODAL_VLLM_DEFAULT_CHAT_TEMPLATE_KWARGS='{"enable_thinking": false}'
+export MODAL_VLLM_MAX_INPUTS=32
+export PHOENIX_TRACING=disabled
+export MODAL_VLLM_API_TOKEN="${MODAL_VLLM_API_TOKEN:-$(openssl rand -hex 24)}"
+
+modal profile activate "${SANDBOX_MODAL_PROFILE_TRACK_A:-hermes-agent-jjb}"
+modal profile current
+
+sandbox run benchmark-check --config config/runs/sand40-100-correspondence-specialist-awq-2l4.yaml
+
+modal run deploy/modal_vllm.py::download_model
+
+modal deploy deploy/modal_vllm.py --strategy recreate
+
+# set VLLM_BASE_URL from deploy output + VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+sandbox cutover --profile modal-vllm
+sandbox health --profile modal-vllm
+
+for cfg in \
+  config/runs/sand40-100-correspondence-specialist-awq-2l4.yaml \
+  config/runs/sand40-100-insurance-claims-specialist-awq-2l4.yaml \
+  config/runs/sand40-100-corporate-records-specialist-awq-2l4.yaml
+do
+  sandbox run preflight --config "$cfg" --live --force
+  sandbox run scrape-metrics --config "$cfg" --label before
+  sandbox run start --config "$cfg" --job-mode endpoint --watch
+  sandbox run scrape-metrics --config "$cfg" --label after
+  sandbox run card --config "$cfg"
+done
+
+./deploy/teardown_vllm.sh   # ONLY after this run
+
+sandbox run card --master
+```
+
+---
+
+# SAND-40 long phase — contracts n=100 and merger n=50 · 64K YaRN
+
+**id:** `sand40-long` · **family:** `grid` · **serving:** `grid-awq-2l4-64k`
+
+Second serving phase of SAND-40. Redeploy onto the 64K YaRN window, then run contracts (n=100, containing the SAND-37 n=50) and merger (the same 50 agreements as grid-50-merger-specialist-awq-2l4) with the optimized long-document settings.
+
+Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show sand40-long`.
+
+## Pins (from catalog serving variant)
+
+| Knob | Value |
+| --- | --- |
+| Model | `Qwen/Qwen3-8B-AWQ` |
+| GPU | `L4` |
+| Image | `v0.29.0` |
+| max_model_len | `65536` |
+| max_num_seqs | `16` |
+| max_containers | `2` |
+| min_containers | `2` |
+| scaledown_seconds | `120` |
+| quantization | `awq_marlin` |
+| prefix caching / eager | `1 / 0` |
+
+## Configs
+
+- `config/runs/sand40-100-contracts-specialist-awq-2l4-64k.yaml`
+- `config/runs/sand40-50-merger-specialist-awq-2l4-64k.yaml`
+
+## Per-cell posture (live)
+
+| Run | Task | Conc. | max_tokens | max_input_chars | cost_cap | max_wall |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| `sand40-100-contracts-specialist-awq-2l4-64k` | `contracts_specialist` | 32 | 6144 | 128000 | $2.40 | 6000s |
+| `sand40-50-merger-specialist-awq-2l4-64k` | `merger_agreement_specialist` | 32 | 6144 | 128000 | $2.50 | 7200s |
+
+Source: `src/mailroom_sandbox/job/specialist_posture.py`.
+
+## Notes
+
+- Deploy with --strategy recreate after the 32K phase. MODAL_VLLM_MAX_MODEL_LEN=65536 and MODAL_VLLM_HF_OVERRIDES carry the YaRN rope parameters.
+- Merger is the † cell: Qwen3 sampling, chunked extraction, 6144 cap, one length re-sample, MAUD v1 prompt. Sampling is posted as chat-completion fields on the native OpenAI client. The Modal app does not import LangChain.
+- Cards land under reports/SAND-37/2L4/contracts/ and reports/SAND-37/2L4/merger_agreement/.
+
+## Do not
+
+- Share one Modal token / ~/.modal.toml profile across operators
+- Tear down or modal deploy --strategy recreate between classes on one track
+- Set MODAL_VLLM_GPU=L4:2 + TP for Qwen3-8B (use MAX_CONTAINERS=2 instead)
+- Edit run-30-*-specialist.yaml for a one-off model swap
+
+## Operator script
+
+```bash
+# SAND-40 long phase — contracts n=100 and merger n=50 · 64K YaRN
+# sandbox runbook show sand40-long
+set -euo pipefail
+
+# serving variant: grid-awq-2l4-64k
+# runbook: sand40-long
+export SANDBOX_PROFILE=modal-vllm
+export MODAL_VLLM_MODEL=Qwen/Qwen3-8B-AWQ
+export MODAL_VLLM_GPU=L4
+export MODAL_VLLM_IMAGE_TAG=v0.29.0
+export MODAL_VLLM_MAX_MODEL_LEN=65536
+export MODAL_VLLM_MAX_NUM_SEQS=16
+export MODAL_VLLM_GPU_MEMORY_UTILIZATION=0.90
+export MODAL_VLLM_ENABLE_PREFIX_CACHING=1
+export MODAL_VLLM_ENFORCE_EAGER=0
+export MODAL_VLLM_MAX_CONTAINERS=2
+export MODAL_VLLM_MIN_CONTAINERS=2
+export MODAL_VLLM_SCALEDOWN_SECONDS=120
+export MODAL_VLLM_QUANTIZATION=awq_marlin
+export MODAL_VLLM_TP_SIZE=1
+export MODAL_VLLM_KV_CACHE_DTYPE=fp8
+export MODAL_VLLM_CUDAGRAPH_CAPTURE_SIZES='1,2,4,8,16'
+export MODAL_VLLM_DEFAULT_CHAT_TEMPLATE_KWARGS='{"enable_thinking": false}'
+export MODAL_VLLM_MAX_INPUTS=32
+export MODAL_VLLM_HF_OVERRIDES='{"rope_parameters": {"factor": 2.0, "original_max_position_embeddings": 32768, "rope_theta": 1000000, "rope_type": "yarn"}}'
+export PHOENIX_TRACING=disabled
+export MODAL_VLLM_API_TOKEN="${MODAL_VLLM_API_TOKEN:-$(openssl rand -hex 24)}"
+
+modal profile activate "${SANDBOX_MODAL_PROFILE_TRACK_A:-hermes-agent-jjb}"
+modal profile current
+
+sandbox run benchmark-check --config config/runs/sand40-100-contracts-specialist-awq-2l4-64k.yaml
+
+modal run deploy/modal_vllm.py::download_model
+
+modal deploy deploy/modal_vllm.py --strategy recreate
+
+# set VLLM_BASE_URL from deploy output + VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+sandbox cutover --profile modal-vllm
+sandbox health --profile modal-vllm
+
+for cfg in \
+  config/runs/sand40-100-contracts-specialist-awq-2l4-64k.yaml \
+  config/runs/sand40-50-merger-specialist-awq-2l4-64k.yaml
+do
+  sandbox run preflight --config "$cfg" --live --force
+  sandbox run scrape-metrics --config "$cfg" --label before
+  sandbox run start --config "$cfg" --job-mode endpoint --watch
+  sandbox run scrape-metrics --config "$cfg" --label after
+  sandbox run card --config "$cfg"
+done
+
+./deploy/teardown_vllm.sh   # ONLY after this run
+
+sandbox run card --master
+```
+
+---
+
+# SAND-40 launcher — 32K short phase, redeploy, 64K long phase
+
+**id:** `sand40` · **family:** `grid` · **serving:** `grid-awq-2l4`
+
+Operator launcher for the SAND-40 scale run. Activates the Hermes Modal profile, deploys the 32K 2×L4 engine and runs the three short classes at n=100, then redeploys with YaRN at 65536 and runs contracts n=100 and merger n=50. The validation probe is sand40-probe and is not part of this script.
+
+Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show sand40`.
+
+## Phases
+
+The launcher redeploys (`modal deploy --strategy recreate`) between phases. One process cannot serve both context windows.
+
+### short (`grid-awq-2l4`)
+
+- `config/runs/sand40-100-correspondence-specialist-awq-2l4.yaml`
+- `config/runs/sand40-100-insurance-claims-specialist-awq-2l4.yaml`
+- `config/runs/sand40-100-corporate-records-specialist-awq-2l4.yaml`
+
+| Knob | Value |
+| --- | --- |
+| Model | `Qwen/Qwen3-8B-AWQ` |
+| GPU | `L4` |
+| Image | `v0.29.0` |
+| max_model_len | `32768` |
+| max_num_seqs | `16` |
+| max_containers | `2` |
+| min_containers | `2` |
+| scaledown_seconds | `120` |
+| quantization | `awq_marlin` |
+| prefix caching / eager | `1 / 0` |
+
+### long (`grid-awq-2l4-64k`)
+
+- `config/runs/sand40-100-contracts-specialist-awq-2l4-64k.yaml`
+- `config/runs/sand40-50-merger-specialist-awq-2l4-64k.yaml`
+
+| Knob | Value |
+| --- | --- |
+| Model | `Qwen/Qwen3-8B-AWQ` |
+| GPU | `L4` |
+| Image | `v0.29.0` |
+| max_model_len | `65536` |
+| max_num_seqs | `16` |
+| max_containers | `2` |
+| min_containers | `2` |
+| scaledown_seconds | `120` |
+| quantization | `awq_marlin` |
+| prefix caching / eager | `1 / 0` |
+
+## Per-cell posture (live)
+
+| Run | Task | Conc. | max_tokens | max_input_chars | cost_cap | max_wall |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| `sand40-100-correspondence-specialist-awq-2l4` | `correspondence_specialist` | 32 | 8192 | 12000 | $1.00 | 3600s |
+| `sand40-100-insurance-claims-specialist-awq-2l4` | `insurance_claims_specialist` | 32 | 8192 | 13500 | $1.20 | 3600s |
+| `sand40-100-corporate-records-specialist-awq-2l4` | `corporate_records_specialist` | 32 | 8192 | 15000 | $1.20 | 3600s |
+| `sand40-100-contracts-specialist-awq-2l4-64k` | `contracts_specialist` | 32 | 6144 | 128000 | $2.40 | 6000s |
+| `sand40-50-merger-specialist-awq-2l4-64k` | `merger_agreement_specialist` | 32 | 6144 | 128000 | $2.50 | 7200s |
+
+Source: `src/mailroom_sandbox/job/specialist_posture.py`.
+
+## Notes
+
+- The phases step exports each serving variant, runs modal deploy --strategy recreate, cutover, and health, then the phase configs. Do not skip the second deploy.
+- Probe (sand40-probe) is a separate spend gate of about $0.30–$0.80. Run it before this launcher once spend is approved.
+- Sampling settings reach the vLLM endpoint as ordinary chat-completion fields (top_p, presence_penalty, extra_body.top_k). This deploy does not use LangChain.
+
+## Do not
+
+- Share one Modal token / ~/.modal.toml profile across operators
+- Tear down or modal deploy --strategy recreate between classes on one track
+- Set MODAL_VLLM_GPU=L4:2 + TP for Qwen3-8B (use MAX_CONTAINERS=2 instead)
+- Edit run-30-*-specialist.yaml for a one-off model swap
+
+## Operator script
+
+```bash
+# SAND-40 launcher — 32K short phase, redeploy, 64K long phase
+# sandbox runbook show sand40
+set -euo pipefail
+
+modal profile activate "${SANDBOX_MODAL_PROFILE_TRACK_A:-hermes-agent-jjb}"
+modal profile current
+
+modal run deploy/modal_vllm.py::download_model
+
+# phase: short — redeploy serving variant grid-awq-2l4
+# serving variant: grid-awq-2l4
+# runbook: sand40:short
+export SANDBOX_PROFILE=modal-vllm
+export MODAL_VLLM_MODEL=Qwen/Qwen3-8B-AWQ
+export MODAL_VLLM_GPU=L4
+export MODAL_VLLM_IMAGE_TAG=v0.29.0
+export MODAL_VLLM_MAX_MODEL_LEN=32768
+export MODAL_VLLM_MAX_NUM_SEQS=16
+export MODAL_VLLM_GPU_MEMORY_UTILIZATION=0.90
+export MODAL_VLLM_ENABLE_PREFIX_CACHING=1
+export MODAL_VLLM_ENFORCE_EAGER=0
+export MODAL_VLLM_MAX_CONTAINERS=2
+export MODAL_VLLM_MIN_CONTAINERS=2
+export MODAL_VLLM_SCALEDOWN_SECONDS=120
+export MODAL_VLLM_QUANTIZATION=awq_marlin
+export MODAL_VLLM_TP_SIZE=1
+export MODAL_VLLM_KV_CACHE_DTYPE=fp8
+export MODAL_VLLM_CUDAGRAPH_CAPTURE_SIZES='1,2,4,8,16'
+export MODAL_VLLM_DEFAULT_CHAT_TEMPLATE_KWARGS='{"enable_thinking": false}'
+export MODAL_VLLM_MAX_INPUTS=32
+export PHOENIX_TRACING=disabled
+export MODAL_VLLM_API_TOKEN="${MODAL_VLLM_API_TOKEN:-$(openssl rand -hex 24)}"
+
+sandbox run benchmark-check --config config/runs/sand40-100-correspondence-specialist-awq-2l4.yaml
+
+modal deploy deploy/modal_vllm.py --strategy recreate
+
+# set VLLM_BASE_URL from deploy output + VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+sandbox cutover --profile modal-vllm
+sandbox health --profile modal-vllm
+
+for cfg in \
+  config/runs/sand40-100-correspondence-specialist-awq-2l4.yaml \
+  config/runs/sand40-100-insurance-claims-specialist-awq-2l4.yaml \
+  config/runs/sand40-100-corporate-records-specialist-awq-2l4.yaml
+do
+  sandbox run preflight --config "$cfg" --live --force
+  sandbox run scrape-metrics --config "$cfg" --label before
+  sandbox run start --config "$cfg" --job-mode endpoint --watch
+  sandbox run scrape-metrics --config "$cfg" --label after
+  sandbox run card --config "$cfg"
+done
+
+# phase: long — redeploy serving variant grid-awq-2l4-64k
+# serving variant: grid-awq-2l4-64k
+# runbook: sand40:long
+export SANDBOX_PROFILE=modal-vllm
+export MODAL_VLLM_MODEL=Qwen/Qwen3-8B-AWQ
+export MODAL_VLLM_GPU=L4
+export MODAL_VLLM_IMAGE_TAG=v0.29.0
+export MODAL_VLLM_MAX_MODEL_LEN=65536
+export MODAL_VLLM_MAX_NUM_SEQS=16
+export MODAL_VLLM_GPU_MEMORY_UTILIZATION=0.90
+export MODAL_VLLM_ENABLE_PREFIX_CACHING=1
+export MODAL_VLLM_ENFORCE_EAGER=0
+export MODAL_VLLM_MAX_CONTAINERS=2
+export MODAL_VLLM_MIN_CONTAINERS=2
+export MODAL_VLLM_SCALEDOWN_SECONDS=120
+export MODAL_VLLM_QUANTIZATION=awq_marlin
+export MODAL_VLLM_TP_SIZE=1
+export MODAL_VLLM_KV_CACHE_DTYPE=fp8
+export MODAL_VLLM_CUDAGRAPH_CAPTURE_SIZES='1,2,4,8,16'
+export MODAL_VLLM_DEFAULT_CHAT_TEMPLATE_KWARGS='{"enable_thinking": false}'
+export MODAL_VLLM_MAX_INPUTS=32
+export MODAL_VLLM_HF_OVERRIDES='{"rope_parameters": {"factor": 2.0, "original_max_position_embeddings": 32768, "rope_theta": 1000000, "rope_type": "yarn"}}'
+export PHOENIX_TRACING=disabled
+export MODAL_VLLM_API_TOKEN="${MODAL_VLLM_API_TOKEN:-$(openssl rand -hex 24)}"
+
+sandbox run benchmark-check --config config/runs/sand40-100-contracts-specialist-awq-2l4-64k.yaml
+
+modal deploy deploy/modal_vllm.py --strategy recreate
+
+# set VLLM_BASE_URL from deploy output + VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+sandbox cutover --profile modal-vllm
+sandbox health --profile modal-vllm
+
+for cfg in \
+  config/runs/sand40-100-contracts-specialist-awq-2l4-64k.yaml \
+  config/runs/sand40-50-merger-specialist-awq-2l4-64k.yaml
+do
+  sandbox run preflight --config "$cfg" --live --force
+  sandbox run scrape-metrics --config "$cfg" --label before
+  sandbox run start --config "$cfg" --job-mode endpoint --watch
+  sandbox run scrape-metrics --config "$cfg" --label after
+  sandbox run card --config "$cfg"
+done
+
+./deploy/teardown_vllm.sh   # ONLY after this run
+
+sandbox run card --master
+```
+
+---
