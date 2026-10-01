@@ -36,6 +36,7 @@ from mailroom_sandbox.paths import repo_root
 MASTER_STEM = "SAND-37-MASTER-SCORE-COST-CARD"
 APPENDIX_STEM = "SAND-37-MASTER-APPENDIX"
 METERED_FILE = "metered-costs.json"
+API_REFERENCE_FILE = "api-reference-deepseek.json"  # external API leg snapshot (eval-environment)
 PROBE_DIR = "probes"  # SAND-40 validation probes: collected, never pooled or reported
 EXECUTIVE_MAX_LINES = 110  # two printed pages; the staleness test enforces it
 
@@ -125,7 +126,8 @@ def collect_master(repo: Path | None = None) -> dict[str, Any]:
         if data.get("schema") == SCHEMA and "-probe-" in str(data.get("run_id") or ""):
             probes[path.parent.name] = data
     metered = _read_json(master_paths(repo)["metered"])
-    return {"cards": cards, "probes": probes, "metered": metered}
+    api = _read_json(root / API_REFERENCE_FILE)
+    return {"cards": cards, "probes": probes, "metered": metered, "api_reference": api}
 
 
 # ── formatting ───────────────────────────────────────────────────────────────
@@ -892,6 +894,203 @@ def _executive_findings(present: list[Posture], cards: dict, pooled: dict) -> li
     return out
 
 
+def _welch(a: list[float], b: list[float]) -> tuple[float, float] | None:
+    """Mean difference a − b and the 95% Welch half-width, for unmatched samples."""
+    if len(a) < 2 or len(b) < 2:
+        return None
+    from statistics import mean, variance
+
+    from scipy.stats import t
+
+    va, vb = variance(a) / len(a), variance(b) / len(b)
+    se = (va + vb) ** 0.5
+    df = (va + vb) ** 2 / (va**2 / (len(a) - 1) + vb**2 / (len(b) - 1))
+    return mean(a) - mean(b), t.ppf(0.975, df) * se
+
+
+def _ok_scores(card: Mapping[str, Any]) -> list[float]:
+    return [d["score"] for d in card["documents"] if d["ok"] and d["score"] is not None]
+
+
+def _api_rows(api: Mapping[str, Any], cards: dict) -> list[dict[str, Any]]:
+    """Per-specialist DeepSeek (v1 prompts) vs our SAND-40 cell, field-scored classes only for scores."""
+    s40, s39 = cards.get("s40-2l4") or {}, cards.get("s39-1l4-n50") or {}
+    frozen = cards.get("s37-2l4-n50") or {}
+    rows = []
+    for folder in _ORDER:
+        rec = (api.get("specialists") or {}).get(folder)
+        # the API leg used the frozen prompt, so merger compares against the frozen cell, not †
+        ours = frozen.get(folder) if folder == "merger_agreement" else s40.get(folder)
+        if not rec or not ours:
+            continue
+        v1 = rec["v1"]
+        diff = _welch(v1["scores"], _ok_scores(ours)) if folder in _SUITE_FOLDERS else None
+        rows.append({
+            "folder": folder, "v1": v1, "opt": rec.get("optimized") or {}, "ours": ours,
+            "c8": s39.get(folder), "diff": diff,
+            "ratio": v1["usd_per_document"] / ours["cost"]["usd_per_ok_document"],
+        })
+    return rows
+
+
+def _and(items: list[str]) -> str:
+    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
+
+
+def _api_section(api: Mapping[str, Any], cards: dict, metered: Mapping[str, Any], pooled: dict) -> list[str]:
+    rows = _api_rows(api, cards)
+    if not rows:
+        return []
+    v1 = rows[0]["v1"]
+    out = [
+        "## External reference: DeepSeek V4.1 Flash via API",
+        "",
+        f"`{api['model']}` was run through the {api['provider']} on the same five specialists with the same "
+        f"prompts (eval-environment v1, which is our frozen `*_simplified` set), n = {v1['n']} per specialist at "
+        f"client concurrency {v1['concurrency']}; every document completed. It is a reference point, not a matched comparison: it uses dataset "
+        f"revision `{v1['dataset_revision']}` (split `{v1['split']}`), not our `ed7576b6`, so most documents differ, and "
+        "its contracts and merger scores use the pipeline extraction rubric rather than CUAD F1 or MAUD accuracy.",
+        "",
+        "| Specialist | DeepSeek score (n) | Our score (n) | Difference, 95% CI (unmatched) | p50 latency (s): DeepSeek vs ours, both C8 | Prompt tokens per doc: DeepSeek vs ours | $ per doc: DeepSeek API vs our busy GPU |",
+        "| --- | ---: | ---: | :---: | ---: | ---: | ---: |",
+    ]
+    for r in rows:
+        ours, c8, d = r["ours"], r["c8"], r["v1"]
+        if r["diff"]:
+            score = f"{d['score_mean']:.3f} ({d['n']})"
+            mine = f"{ours['quality']['overall_mean']:.3f} ({ours['quality']['ok']})"
+            diff = f"{_signed(r['diff'][0])} ± {r['diff'][1]:.3f}"
+        else:
+            score, mine, diff = "different metric", "different metric", "—"
+        ptok = (ours["tokens"]["prompt"] or 0) / max(1, ours["quality"]["ok"])
+        lat = f"{d['latency_p50_s']:.1f} vs {c8['latency']['p50']:.1f}" if c8 else f"{d['latency_p50_s']:.1f} vs —"
+        out.append(
+            f"| {_LABEL[r['folder']]} | {score} | {mine} | {diff} | {lat} | {d['prompt_tokens_per_document']:,} vs "
+            f"{ptok:,.0f} | ${d['usd_per_document']:.4f} vs ${ours['cost']['usd_per_ok_document']:.4f} |"
+        )
+    out += [
+        "",
+        "Our score, prompt-token and cost columns are SAND-40, except merger, which is the frozen SAND-37 2×L4 "
+        "cell because it uses the same prompt (the † cell does not). Our latency column is SAND-39 1×L4 C8.",
+        "",
+    ]
+
+    field = [r for r in rows if r["diff"]]
+    bullets = []
+    if field:
+        sig = [r for r in field if r["diff"][0] - r["diff"][1] > 0]
+        bullets.append(
+            "- **Quality.** On the three field-scored specialists DeepSeek is "
+            + (
+                "higher on " + " and ".join(f"{_LABEL[r['folder']].lower()} ({_signed(r['diff'][0])})" for r in sig)
+                if sig else "not distinguishable from us"
+            )
+            + (
+                "; corporate records is level"
+                if any(r["folder"] == "corporate_records" and r not in sig for r in field) else ""
+            )
+            + ". Different documents, ground-truth revision and scorer build add uncertainty beyond the intervals shown."
+        )
+    ratios = [r["ratio"] for r in field]
+    studies = {p.study for p in POSTURES if pooled.get(p.key)} & {k for k, v in metered.items() if isinstance(v, Mapping)}
+    busy = sum(pooled[p.key]["busy_usd"] or 0 for p in POSTURES if pooled.get(p.key) and p.study in studies)
+    meter = sum(float(metered[s_]["metered_usd"]) for s_ in studies)
+    overhead = (
+        f" Our figure is busy GPU time only; the metered Modal sessions came to {meter / busy:.1f}× busy cost "
+        "once cold boots and idle time are included."
+        if meter and busy else ""
+    )
+    bullets.append(
+        f"- **Cost.** DeepSeek's API price per document is {_range(ratios, '{:.0f}')}× our busy-GPU cost on the short "
+        f"classes.{overhead}"
+    )
+    lat = [(r["folder"], r["c8"]["latency"]["p50"] / r["v1"]["latency_p50_s"]) for r in rows
+           if r["c8"] and r["v1"]["latency_p50_s"]]
+    faster = [(f, x) for f, x in lat if x >= 1.2]
+    similar = [f for f, x in lat if x < 1.2]
+    if faster:
+        bullets.append(
+            "- **Latency.** At the same client concurrency (C8), DeepSeek's median per-document latency is "
+            f"{_range([x for _, x in faster], '{:.1f}')}× lower than one L4's for "
+            + _and([_LABEL[f].lower() for f, _ in faster])
+            + (f"; {' and '.join(_LABEL[f].lower() for f in similar)} is about the same" if similar else "")
+            + "."
+        )
+    big = [r for r in rows if r["folder"] in ("contracts", "merger_agreement")]
+    if big:
+        bullets.append(
+            "- **Long documents.** DeepSeek reads more of each contract and agreement in one call ("
+            + "; ".join(
+                f"{_LABEL[r['folder']].lower()} {r['v1']['prompt_tokens_per_document']:,} prompt tokens per document"
+                for r in big
+            )
+            + "), against our input caps. Its contracts and merger scores are not on our CUAD and MAUD scales."
+        )
+    opt = [(r["folder"], r["opt"]["score_mean"] - r["v1"]["score_mean"]) for r in rows if r["opt"]]
+    m50 = api.get("merger_n50") or {}
+    if opt:
+        field_moves = [abs(d) for f, d in opt if f in _SUITE_FOLDERS]
+        k = dict(opt)
+        text = "- **Optimized prompts (GEPA v2, contracts v3).** "
+        if field_moves:
+            text += f"Field-scored specialists move by at most {max(field_moves):.2f}. "
+        if "contracts" in k:
+            text += f"Contracts rises {_signed(k['contracts'], 2)} at n = 20. "
+        if "merger_agreement" in k and m50.get("v1") and m50.get("optimized"):
+            d50 = m50["optimized"]["score_mean"] - m50["v1"]["score_mean"]
+            text += (
+                f"Merger rises {_signed(k['merger_agreement'], 2)} at n = 20 but changes by {_signed(d50, 2)} at n = 50 "
+                f"({m50['v1']['score_mean']:.3f} → {m50['optimized']['score_mean']:.3f}), so that gain did not replicate."
+            )
+        bullets.append(text.rstrip())
+    out += bullets + [
+        "",
+        f"Source: `{api['source_repo']}` @ `{api['source_commit'][:7]}` ({api['source_path']}); snapshot "
+        "`api-reference-deepseek.json`.",
+        "",
+    ]
+    return out
+
+
+def _api_brief(api: Mapping[str, Any], cards: dict) -> tuple[str | None, list[str]]:
+    """One key-finding sentence and a short card section; the full comparison lives in the appendix."""
+    rows = [r for r in _api_rows(api, cards) if r["diff"]]
+    if not rows:
+        return None, []
+    higher = [r for r in rows if r["diff"][0] - r["diff"][1] > 0]
+    level = [r for r in rows if r not in higher and r["diff"][0] + r["diff"][1] >= 0]
+    parts = []
+    if higher:
+        parts.append("scores higher on " + _and([f"{_LABEL[r['folder']].lower()} ({_signed(r['diff'][0], 2)})" for r in higher]))
+    if level:
+        parts.append("matches us on " + _and([_LABEL[r["folder"]].lower() for r in level]))
+    parts.append(f"costs {_range([r['ratio'] for r in rows], '{:.0f}')}× our busy-GPU cost per document")
+    key = (
+        "**DeepSeek V4.1 Flash (API) benchmark.** With the same prompts it " + _and(parts)
+        + "; its documents differ, so the gaps are indicative."
+    )
+    v1 = rows[0]["v1"]
+    out = [
+        "## DeepSeek V4.1 Flash (API) reference",
+        "",
+        f"Same prompts, n = {v1['n']} per specialist via {api['provider']}; dataset `{v1['dataset_revision']}` (not "
+        "`ed7576b6`), so documents differ and gaps are indicative only. Contracts and merger use a different metric "
+        "and are omitted here.",
+        "",
+        "| Specialist | DeepSeek | Ours (SAND-40) | Difference, 95% CI | $ per doc: DeepSeek API vs our busy GPU |",
+        "| --- | ---: | ---: | :---: | ---: |",
+    ]
+    for r in rows:
+        d, o = r["v1"], r["ours"]
+        out.append(
+            f"| {_LABEL[r['folder']]} | {d['score_mean']:.3f} | {o['quality']['overall_mean']:.3f} "
+            f"| {_signed(r['diff'][0])} ± {r['diff'][1]:.3f} | ${d['usd_per_document']:.4f} vs "
+            f"${o['cost']['usd_per_ok_document']:.4f} |"
+        )
+    out += ["", "Latency, token use, long documents and optimized prompts: appendix, *External reference*.", ""]
+    return key, out
+
+
 EXECUTIVE_POOLED_ROWS = (
     ("Error rate", lambda q: _rate(q["error_rate"])),
     ("Documents per minute", lambda q: _num(q["docs_per_minute"])),
@@ -910,6 +1109,9 @@ def render_master_md(data: Mapping[str, Any]) -> str:
 
     lines = ["# SAND-37 / SAND-39 / SAND-40 Specialist Grid: Results and Cost Summary", "", "## Key findings", ""]
     key = _executive_findings(present, cards, pooled)
+    api_key, api_lines = _api_brief(data.get("api_reference") or {}, cards) if data.get("api_reference") else (None, [])
+    if api_key:
+        key.append(api_key)
     lines += [f"{i}. {text}" for i, text in enumerate(key, 1)] or ["No cells reported yet."]
     lines.append("")
     if first:
@@ -971,6 +1173,7 @@ def render_master_md(data: Mapping[str, Any]) -> str:
         )
     lines.append("")
     lines += _merger_settings_section(cards)
+    lines += api_lines
     lines += ["## Cost", ""]
     lines += _cost_table(present, pooled, metered)
     unrecorded = [s for s in dict.fromkeys(p.study for p in present) if s not in metered]
@@ -1113,6 +1316,8 @@ def render_appendix_md(data: Mapping[str, Any]) -> str:
     ]
     lines += _token_section(cards)
     lines += _detail_sections(present, cards)
+    if data.get("api_reference"):
+        lines += _api_section(data["api_reference"], cards, metered, pooled)
     lines += _figure_md(data, "comparison", "## Figures: posture comparison")
     lines += ["", "## Cost accounting and run integrity", ""]
     for study, rec in metered.items():
