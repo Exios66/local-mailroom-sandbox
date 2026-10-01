@@ -129,16 +129,7 @@ Identical across the postures above unless a cell lists more than one value.
 | Correspondence | `correspondence_specialist_simplified` | 12,000 | 8,192 | 0.1 | 2 |
 | Merger Agreements | `merger_agreement_specialist_simplified` | 30,000 | 8,192 | 0.7 | 2 |
 
-## SAND-40 validation probes (n = 20, not pooled)
-
-Before the scale run, two probes tested optimized long-document settings (64K YaRN window, 128,000-character input, chunked extraction, Qwen3 sampling, 6,144-token cap with one length re-sample; MAUD v1 prompt for merger) on the first 20 documents of the SAND-37 2×L4 n = 50 draw. They are not a posture column. The SAND-40 merger cell keeps the chunking, prompt and decode settings on the 32K window; the 64K window and 128,000-character input are not used. The matched columns compare per-document scores on the documents both runs scored, so sample composition cannot explain the difference.
-
-| Specialist | Window | Input cap (chars) | ok / n | Score | Matched docs | Probe mean | SAND-37 2×L4 same docs | Δ (better / worse) | Prompt tokens per doc: probe vs SAND-37 | Wall (s) | Busy GPU $ | $ per ok doc |
-| --- | ---: | ---: | :---: | ---: | :---: | ---: | ---: | :---: | ---: | ---: | ---: | ---: |
-| Contracts | 65,536 | 128,000 | 20/20 | 0.670 | 16 | 0.661 | 0.664 | -0.002 (8 / 7) | 7,144 vs 6,128 | 105.6 | $0.0469 | $0.00235 |
-| Merger Agreements | 65,536 | 128,000 | 20/20 | 0.127 | 18 | 0.114 | 0.033 | +0.081 (14 / 3) | 96,478 vs 8,371 | 1,473.0 | $0.6547 | $0.03273 |
-
-Score is the specialist's primary metric (contracts labeled-document CUAD F1, merger MAUD accuracy); the matched columns use per-document scores. Probe cards and run reports: `probes/<specialist>/`.
+---
 
 ## Findings
 
