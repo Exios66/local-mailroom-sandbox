@@ -50,6 +50,7 @@ class Posture:
     n: int
     docs: str = ""
     n_by_folder: tuple[tuple[str, int], ...] = ()
+    experiment: int = 0  # reader-facing id used on the record figures (Experiment 1-4)
 
     @property
     def label(self) -> str:
@@ -64,9 +65,9 @@ class Posture:
 
 
 POSTURES: tuple[Posture, ...] = (
-    Posture("s37-1l4-n20", "SAND-37", "1L4", 1, 8, 20),
-    Posture("s39-1l4-n50", "SAND-39", "1L4", 1, 8, 50),
-    Posture("s37-2l4-n50", "SAND-37", "2L4", 2, 32, 50),
+    Posture("s37-1l4-n20", "SAND-37", "1L4", 1, 8, 20, experiment=1),
+    Posture("s39-1l4-n50", "SAND-39", "1L4", 1, 8, 50, experiment=2),
+    Posture("s37-2l4-n50", "SAND-37", "2L4", 2, 32, 50, experiment=3),
     Posture(
         "s40-2l4",
         "SAND-40",
@@ -76,12 +77,29 @@ POSTURES: tuple[Posture, ...] = (
         100,
         docs="100 (merger 50†)",
         n_by_folder=(("merger_agreement", 50),),
+        experiment=4,
     ),
 )
 _ORDER = ("insurance_claims", "contracts", "corporate_records", "correspondence", "merger_agreement")
 _LABEL = {folder: label for _, folder, label in SPECIALISTS}
 _SUITE_FOLDERS = ("insurance_claims", "corporate_records", "correspondence")  # field score only
 PENDING = "pending"
+RECORD_FIG_DIR = "figures/record"  # one chart per PNG (figures/record/make_record_figures.py)
+RECORD_FIGURES: dict[str, tuple[tuple[str, str], ...]] = {
+    "efficiency": (
+        ("1x-vs-2xL4-throughput", "Throughput, 1x vs 2x L4 on the same 250 documents"),
+        ("1x-vs-2xL4-cost", "Cost per 1,000 ok documents, 1x vs 2x L4 on the same 250 documents"),
+        ("2xL4-n50-vs-n100-cost", "Cost per 1,000 ok documents on 2x L4, n=50 vs n=100"),
+    ),
+    "quality": (
+        ("cost-vs-score", "Cost vs score by specialist, same 250 documents"),
+        ("1xL4-C8-n50-cost", "Cost per 1,000 ok documents, Experiment 2 (1x L4 C=8 n=50)"),
+        ("2xL4-C32-n100-cost", "Cost per 1,000 ok documents, Experiment 4 (2x L4 C=32 n=100)"),
+        ("1xL4-C8-n50-latency", "Latency p50 to p99, Experiment 2 (1x L4 C=8 n=50)"),
+        ("2xL4-C32-n100-latency", "Latency p50 to p99, Experiment 4 (2x L4 C=32 n=100)"),
+    ),
+    "merger": (("merger-frozen-vs-dagger", "Merger agreements, frozen vs dagger settings"),),
+}
 PARITY = 0.03  # cost-per-document gap below which two postures are called equal
 
 
@@ -125,7 +143,18 @@ def collect_master(repo: Path | None = None) -> dict[str, Any]:
         if data.get("schema") == SCHEMA and "-probe-" in str(data.get("run_id") or ""):
             probes[path.parent.name] = data
     metered = _read_json(master_paths(repo)["metered"])
-    return {"cards": cards, "probes": probes, "metered": metered}
+    record = sorted(f.stem for f in (root / RECORD_FIG_DIR).glob("*.png"))
+    return {"cards": cards, "probes": probes, "metered": metered, "record_figures": record}
+
+
+def _record_figures(data: Mapping[str, Any], section: str) -> list[str]:
+    """Embed the committed record figures for one executive section (only those on disk)."""
+    have = set(data.get("record_figures") or ())
+    out: list[str] = []
+    for stem, alt in RECORD_FIGURES[section]:
+        if stem in have:
+            out += [f"![{alt}]({RECORD_FIG_DIR}/{stem}.png)", ""]
+    return out
 
 
 # ── formatting ───────────────────────────────────────────────────────────────
@@ -924,13 +953,13 @@ def render_master_md(data: Mapping[str, Any]) -> str:
     lines += [
         f"Method, detail tables and figures: [{APPENDIX_STEM}.md](./{APPENDIX_STEM}.md).",
         "",
-        "| Study | Posture | GPUs | Client concurrency | Documents per class | Status |",
-        "| --- | --- | ---: | ---: | ---: | --- |",
+        "| Experiment | Study | Posture | GPUs | Client concurrency | Documents per class | Status |",
+        "| ---: | --- | --- | ---: | ---: | ---: | --- |",
     ]
     for p in POSTURES:
         status = f"{len(cards[p.key])} of 5 cells" if cards[p.key] else PENDING
         lines.append(
-            f"| {p.study} | {p.label} | {p.replicas} | {p.concurrency} | {p.documents} | {status} |"
+            f"| {p.experiment} | {p.study} | {p.label} | {p.replicas} | {p.concurrency} | {p.documents} | {status} |"
         )
     lines.append("")
 
@@ -949,6 +978,10 @@ def render_master_md(data: Mapping[str, Any]) -> str:
             "",
             "SAND-40 includes the † merger cell's whole-agreement reads; the like-for-like check is in the appendix.",
         ]
+    lines.append("")
+    lines += _record_figures(data, "efficiency")
+    if lines[-1] == "":
+        lines.pop()
     lines += [
         "",
         "## Quality and cost by specialist",
@@ -970,7 +1003,10 @@ def render_master_md(data: Mapping[str, Any]) -> str:
             + _joined([f"{c['cost']['usd_per_ok_document']:.5f}" if c else PENDING for c in per]) + " |"
         )
     lines.append("")
-    lines += _merger_settings_section(cards)
+    lines += _record_figures(data, "quality")
+    merger = _merger_settings_section(cards)
+    if merger:
+        lines += merger + _record_figures(data, "merger")
     lines += ["## Cost", ""]
     lines += _cost_table(present, pooled, metered)
     unrecorded = [s for s in dict.fromkeys(p.study for p in present) if s not in metered]

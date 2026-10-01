@@ -35,14 +35,14 @@ def _seed(tmp: Path, with_sand39: bool) -> Path:
 
 def test_sand39_pending_before_its_cells_exist(tmp_path):
     md = grid_master.render_master_md(grid_master.collect_master(_seed(tmp_path, False)))
-    assert "| SAND-39 | 1×L4 C8 n=50 | 1 | 8 | 50 | pending |" in md
+    assert "| 2 | SAND-39 | 1×L4 C8 n=50 | 1 | 8 | 50 | pending |" in md
     assert "SAND-39 pending" in md
-    assert "| SAND-37 | 2×L4 C32 n=50 | 2 | 32 | 50 | 5 of 5 cells |" in md
+    assert "| 3 | SAND-37 | 2×L4 C32 n=50 | 2 | 32 | 50 | 5 of 5 cells |" in md
 
 
 def test_sand39_populates_and_becomes_the_matched_sample_baseline(tmp_path):
     md = grid_master.render_master_md(grid_master.collect_master(_seed(tmp_path, True)))
-    assert "| SAND-39 | 1×L4 C8 n=50 | 1 | 8 | 50 | 5 of 5 cells |" in md
+    assert "| 2 | SAND-39 | 1×L4 C8 n=50 | 1 | 8 | 50 | 5 of 5 cells |" in md
     assert "identical 250 documents" in md
     assert "SAND-39 pending" not in md
 
@@ -59,7 +59,7 @@ def test_master_ignores_legacy_cells(tmp_path):
 
 def test_sand40_column_is_measured_with_the_optimized_merger_mark():
     md = grid_master.render_master_md(grid_master.collect_master())
-    assert "| SAND-40 | 2×L4 C32 n=100 | 2 | 32 | 100 (merger 50†) | 5 of 5 cells |" in md
+    assert "| 4 | SAND-40 | 2×L4 C32 n=100 | 2 | 32 | 100 (merger 50†) | 5 of 5 cells |" in md
     assert ")†" in md  # merger score carries the dagger
     assert "pending" not in md.lower().split("quality and cost")[1]
     assert "**Larger runs cost less per document.** Running n = 100 per specialist instead of n = 50" in md
@@ -232,3 +232,18 @@ def test_master_reports_token_composition_and_figure():
     assert "| Merger Agreements † (SAND-40) |" in md
     assert "**Fixed instructions, not document text, account for most tokens in the short classes.**" in md
     assert "cmp-tokens" in {s["key"] for s in grid_figures.figure_specs(data)}
+
+
+def test_master_embeds_the_record_figures_that_exist(tmp_path):
+    """Executive card embeds each committed record figure once, in its section, and skips missing ones."""
+    md = grid_master.render_master_md(grid_master.collect_master())
+    for stems in grid_master.RECORD_FIGURES.values():
+        for stem, _ in stems:
+            assert (SAND37 / grid_master.RECORD_FIG_DIR / f"{stem}.png").is_file()
+            assert md.count(f"]({grid_master.RECORD_FIG_DIR}/{stem}.png)") == 1
+    head, tail = md.split("## Quality and cost by specialist")
+    assert "](figures/record/1x-vs-2xL4-cost.png)" in head
+    assert "](figures/record/merger-frozen-vs-dagger.png)" in tail.split("## Merger † settings")[1]
+    assert "| Experiment | Study | Posture |" in md
+    bare = grid_master.render_master_md(grid_master.collect_master(_seed(tmp_path, True)))
+    assert "figures/record/" not in bare
