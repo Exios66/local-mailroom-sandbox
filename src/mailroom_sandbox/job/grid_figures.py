@@ -63,7 +63,7 @@ def figure_specs(data: Mapping[str, Any]) -> list[dict[str, str]]:
             "path": "figures/cmp-efficiency.png",
             "section": "comparison",
             "caption": "Pooled serving efficiency by posture: GPU cost per 1,000 documents, tokens per second per GPU, "
-            "and documents per minute. The SAND-40 bar includes the † merger cell, which dominates its busy time; "
+            "and documents per minute. The Experiment 4 bar includes the † merger cell, which dominates its busy time; "
             "the like-for-like scale check is the table under *Serving efficiency*.",
         },
         {
@@ -71,7 +71,7 @@ def figure_specs(data: Mapping[str, Any]) -> list[dict[str, str]]:
             "path": "figures/cmp-quality.png",
             "section": "comparison",
             "caption": "Primary quality metric by specialist and posture; labels mark failed documents. Merger "
-            "is MAUD accuracy, a different scale from the field scores; † (hatched) marks the optimized SAND-40 "
+            "is MAUD accuracy, a different scale from the field scores; † (hatched) marks the optimized Experiment 4 "
             "merger cell.",
         },
         {
@@ -79,7 +79,7 @@ def figure_specs(data: Mapping[str, Any]) -> list[dict[str, str]]:
             "path": "figures/cmp-latency-cost.png",
             "section": "comparison",
             "caption": "Per-document latency (bar p50, whisker p95) and GPU cost per 1,000 successful documents, "
-            "by specialist and posture, on log scales; † (hatched) marks the optimized SAND-40 merger cell.",
+            "by specialist and posture, on log scales; † (hatched) marks the optimized Experiment 4 merger cell.",
         },
     ]
     if cards.get("s39-1l4-n50") and cards.get("s37-2l4-n50"):
@@ -88,8 +88,8 @@ def figure_specs(data: Mapping[str, Any]) -> list[dict[str, str]]:
                 "key": "cmp-matched",
                 "path": "figures/cmp-matched.png",
                 "section": "comparison",
-                "caption": "Matched-sample check: each point is one document scored under SAND-39 (1×L4 C8) and "
-                "SAND-37 (2×L4 C32). Points on the diagonal mean the posture did not change the output's score.",
+                "caption": "Matched-sample check: each point is one document scored under Experiment 2 (1×L4 C8) and "
+                "Experiment 3 (2×L4 C32). Points on the diagonal mean the posture did not change the output's score.",
             }
         )
     if any((c.get("tokens") or {}).get("split") for p in present for c in cards[p.key].values()):
@@ -112,8 +112,8 @@ def figure_specs(data: Mapping[str, Any]) -> list[dict[str, str]]:
                 "key": "cmp-merger-dagger",
                 "path": "figures/cmp-merger-dagger.png",
                 "section": "comparison",
-                "caption": "Merger † effect on the same agreements: per-agreement MAUD accuracy under SAND-37 2×L4 "
-                "(frozen settings) and SAND-40 † (optimized settings). Points above the diagonal improved.",
+                "caption": "Merger † effect on the same agreements: per-agreement MAUD accuracy under Experiment 3 "
+                "(frozen settings) and Experiment 4 † (optimized settings). Points above the diagonal improved.",
             }
         )
     for p in present:
@@ -122,7 +122,7 @@ def figure_specs(data: Mapping[str, Any]) -> list[dict[str, str]]:
                 "key": f"posture-{p.key}",
                 "path": f"{p.shape_dir}/figures/{p.study}-{p.replicas}xL4-C{p.concurrency}-n{p.n}.png",
                 "section": "posture",
-                "caption": f"{p.study} {p.label}: per-document score and latency distributions, cost per "
+                "caption": f"{p.exp_label} · {p.label}: per-document score and latency distributions, cost per "
                 "1,000 successful documents, and token mix by specialist.",
             }
         )
@@ -157,16 +157,16 @@ def _save(fig, path: Path) -> None:
     fig.savefig(path, bbox_inches="tight", metadata={"Software": None}, facecolor="white")
 
 
-DAGGER = {("s40-2l4", "merger_agreement")}  # optimized merger cell (SAND-40 †)
+DAGGER = {("s40-2l4", "merger_agreement")}  # optimized merger cell (Experiment 4 †)
 DAGGER_NOTE = (
-    "† (hatched bar) SAND-40 merger with optimized settings (whole agreement read in chunks, MAUD v1 prompt, Qwen3 sampling, "
-    "6,144-token cap with one re-sample); same 50 agreements as SAND-37 2×L4."
+    "† (hatched bar) Experiment 4 merger with optimized settings (whole agreement read in chunks, MAUD v1 prompt, Qwen3 sampling, "
+    "6,144-token cap with one re-sample); same 50 agreements as Experiment 3."
 )
 
 
 def _posture_name(p) -> str:
     suffix = " (merger † n=50)" if p.key == "s40-2l4" else ""
-    return f"{p.study} · {p.replicas}×L4 C{p.concurrency} · n={p.n}{suffix}"
+    return f"{p.exp_label} · {p.replicas}×L4 C{p.concurrency} · n={p.n}{suffix}"
 
 
 def _legend_handles(postures):
@@ -249,7 +249,7 @@ def _fig_efficiency(plt, present, pooled, path):
                  fontweight="bold", fontsize=10)
     fig.tight_layout()
     _footer(fig, present, dagger=True,
-            extra="The SAND-40 bars include the † merger cell, which dominates its busy time; "
+            extra="The Experiment 4 bars include the † merger cell, which dominates its busy time; "
                   "see the scale-check table for the like-for-like comparison.")
     _save(fig, path)
     plt.close(fig)
@@ -319,8 +319,8 @@ def _fig_matched(plt, cards, path):
         ax.set_yticks([0, 0.5, 1])
         ax.set_aspect("equal")
         ax.grid(True, axis="both")
-    fig.supxlabel("Score under SAND-39 · 1×L4 C8", fontsize=8)
-    fig.supylabel("Score under SAND-37 · 2×L4 C32", fontsize=8)
+    fig.supxlabel("Score under Experiment 2 · 1×L4 C8", fontsize=8)
+    fig.supylabel("Score under Experiment 3 · 2×L4 C32", fontsize=8)
     fig.suptitle(f"Same documents under both postures ({total} scored pairs); points on the diagonal are unchanged",
                  fontweight="bold", fontsize=10)
     fig.tight_layout()
@@ -347,8 +347,8 @@ def _fig_merger_dagger(plt, cards, path):
     ax.set_ylim(-0.01, hi)
     ax.set_aspect("equal")
     ax.grid(True, axis="both")
-    ax.set_xlabel("SAND-37 · 2×L4 (frozen settings)")
-    ax.set_ylabel("SAND-40 † (optimized settings)")
+    ax.set_xlabel("Experiment 3 · 2×L4 (frozen settings)")
+    ax.set_ylabel("Experiment 4 † (optimized settings)")
     ax.set_title("Merger: MAUD accuracy per agreement")
     fig.tight_layout()
     _save(fig, path)
@@ -426,7 +426,7 @@ def _fig_tokens(plt, cards, path):
     fig.tight_layout()
     fig.legend(handles=[Patch(facecolor=c, label=l) for _, l, c in TOKEN_PARTS], loc="upper center",
                bbox_to_anchor=(0.5, 0.0), ncol=3, fontsize=8)
-    fig.text(0.5, -0.07, "SAND-40 cells for the four unchanged specialists; merger shown frozen (SAND-37 · 2×L4, "
+    fig.text(0.5, -0.07, "Experiment 4 cells for the four unchanged specialists; merger shown frozen (Experiment 3 · 2×L4, "
              "head + tail 30,000 chars) and † (whole agreement in ~8 chunk calls).",
              ha="center", va="top", fontsize=7, color="#555555")
     _save(fig, path)
@@ -487,7 +487,7 @@ def _fig_posture(plt, p, cards, path):
     for row in axes:
         for ax in row:
             ax.tick_params(axis="x", labelsize=7.5, length=0)
-    fig.suptitle(f"{p.study} · {p.replicas}×L4 C{p.concurrency} · n={p.n}: posture dashboard", fontweight="bold")
+    fig.suptitle(f"{p.exp_label} · {p.replicas}×L4 C{p.concurrency} · n={p.n}: posture dashboard", fontweight="bold")
     fig.tight_layout()
     if any((p.key, f) in DAGGER for f in folders):
         fig.text(0.5, -0.01, DAGGER_NOTE, ha="center", va="top", fontsize=7, color="#555555")

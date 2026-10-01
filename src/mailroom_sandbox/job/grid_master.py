@@ -295,9 +295,9 @@ def _findings(present: list[Posture], cards: dict, pooled: dict) -> list[str]:
                 ttft_a.append(_replica_weighted(ca, "ttft_mean_seconds"))
                 ttft_b.append(_replica_weighted(cb, "ttft_mean_seconds"))
         basis = (
-            f"identical {b['documents']} documents, {base.study} {base.label} vs {two50.study} {two50.label}"
+            f"identical {b['documents']} documents, {base.exp_label} · {base.label} vs {two50.exp_label} · {two50.label}"
             if base is one50
-            else f"{base.label} vs {two50.label}; sample sizes differ, SAND-39 pending"
+            else f"{base.label} vs {two50.label}; sample sizes differ, Experiment 2 pending"
         )
         ca, cb = a["usd_per_document"], b["usd_per_document"]
         parity = bool(ca and cb and abs(cb / ca - 1) < PARITY)
@@ -325,7 +325,7 @@ def _findings(present: list[Posture], cards: dict, pooled: dict) -> list[str]:
             f"{_range(lat, '{:.1f}')}×{ttft}, consistent with requests queueing at the higher per-replica load."
         )
 
-    # 1b. SAND-40 n = 100 on the four unchanged specialists (merger † excluded).
+    # 1b. Experiment 4 (SAND-40) n = 100 on the four unchanged specialists (merger † excluded).
     s40 = by_key.get("s40-2l4")
     if s40 and two50:
         a, b = _pooled_four(cards[two50.key], two50.replicas), _pooled_four(cards[s40.key], s40.replicas)
@@ -333,7 +333,7 @@ def _findings(present: list[Posture], cards: dict, pooled: dict) -> list[str]:
             out.append(
                 f"**Running n = 100 per specialist instead of n = 50 lowers GPU cost per document by "
                 f"{_pct_change(b['usd_per_document'], a['usd_per_document']).lstrip('−')} on the four unchanged "
-                f"specialists** ({two50.study} {two50.label} vs {s40.study} {s40.label}, merger excluded; each "
+                f"specialists** ({two50.exp_label} · {two50.label} vs {s40.exp_label} · {s40.label}, merger excluded; each "
                 f"n = 100 draw contains the n = 50 documents). Tokens per second per GPU change by "
                 f"{_pct_change(b['tps_per_gpu'], a['tps_per_gpu'])} and documents per minute by "
                 f"{_pct_change(b['docs_per_minute'], a['docs_per_minute'])}. A likely contributor is that each "
@@ -371,14 +371,14 @@ def _findings(present: list[Posture], cards: dict, pooled: dict) -> list[str]:
             else "**Serving posture moves extraction quality for at least one specialist.** "
         )
         text += (
-            f"On the {sum(x['n'] for x in pairs_a)} documents scored successfully under both {one50.study} "
-            f"{one50.label} and {two50.study} {two50.label}, the mean per-document score change for each "
+            f"On the {sum(x['n'] for x in pairs_a)} documents scored successfully under both {one50.exp_label} · "
+            f"{one50.label} and {two50.exp_label} · {two50.label}, the mean per-document score change for each "
             f"specialist ranges from {span(pairs_a)}"
         )
         if pairs_b:
             text += (
                 f"; on the {sum(x['n'] for x in pairs_b)} documents the four unchanged specialists share between "
-                f"{two50.study} n = 50 and {s40.study} n = 100, it ranges from {span(pairs_b)}"
+                f"{two50.exp_label} (n = 50) and {s40.exp_label} (n = 100), it ranges from {span(pairs_b)}"
             )
         text += (
             (". Every 95% confidence interval includes zero" if zero else ". Not every 95% confidence interval includes zero")
@@ -505,7 +505,7 @@ def _findings(present: list[Posture], cards: dict, pooled: dict) -> list[str]:
             f"correspondence document's tokens and {shares[1][1]:.0%} of an insurance claim's "
             f"({shares[0][2]:,.0f} and {shares[1][2]:,.0f} tokens per call). Prefix caching already reuses part "
             "of that prefix"
-            + (f" (hit rate {_range(hits, '{:.0%}')} in SAND-40)" if hits else "")
+            + (f" (hit rate {_range(hits, '{:.0%}')} in Experiment 4)" if hits else "")
             + ". A shorter template, or several short documents per call, would cut these classes' token cost; "
             "neither has been tested."
         )
@@ -578,7 +578,7 @@ def _detail_sections(present: list[Posture], cards: dict) -> list[str]:
     ]
     for p in present:
         out += [
-            f"### {p.study} {p.label}",
+            f"### {p.exp_label} · {p.label}",
             "",
             "| Specialist | ok / n | Errors | Schema-valid | Score (sd) | p50 / p95 latency (s) | Tokens per doc "
             "| Completion p95 / max | Wall (s) | Busy GPU $ | $ per ok doc | $ per 1M tokens | Tokens/s/GPU |",
@@ -624,7 +624,7 @@ def _detail_sections(present: list[Posture], cards: dict) -> list[str]:
             else "—"
         )
         out.append(
-            f"| {p.study} {p.label} | {kc.get('docs_labeled', '—')} of {k['quality']['ok'] if k else '—'} ok "
+            f"| {p.exp_label} · {p.label} | {kc.get('docs_labeled', '—')} of {k['quality']['ok'] if k else '—'} ok "
             f"| {_f(kc.get('precision'), 3)} | {_f(kc.get('recall'), 3)} | {_f(kc.get('f1'), 3)} "
             f"| {_f(k['quality']['overall_mean'] if k else None, 3)} | {val} "
             f"| {mc.get('questions', '—')} | {mc.get('answered', '—')} ({_f((mc.get('coverage') or 0) * 100, 0)}%) "
@@ -773,7 +773,7 @@ def _scale_check_section(cards: dict) -> list[str]:
     out = [
         "### Scale check: four unchanged specialists (merger excluded)",
         "",
-        "| Metric | SAND-37 2×L4 C32 n=50 | SAND-40 2×L4 C32 n=100 | Change |",
+        "| Metric | Experiment 3 · 2×L4 C32 n=50 | Experiment 4 · 2×L4 C32 n=100 | Change |",
         "| --- | ---: | ---: | ---: |",
     ]
     for label, fn, key in rows:
@@ -788,8 +788,8 @@ def _token_section(cards: dict) -> list[str]:
     s40, s37 = cards.get("s40-2l4") or {}, cards.get("s37-2l4-n50") or {}
     for folder in _ORDER:
         if folder == "merger_agreement":
-            for label, card in (("Merger Agreements (frozen, SAND-37 2×L4)", s37.get(folder)),
-                                ("Merger Agreements † (SAND-40)", s40.get(folder))):
+            for label, card in (("Merger Agreements (frozen, Experiment 3)", s37.get(folder)),
+                                ("Merger Agreements † (Experiment 4)", s40.get(folder))):
                 if card:
                     rows.append((label, card))
         else:
@@ -882,9 +882,9 @@ def _executive_findings(present: list[Posture], cards: dict, pooled: dict) -> li
             if ca and cb and ca["latency"]["p50"]:
                 lat.append(cb["latency"]["p50"] / ca["latency"]["p50"])
         basis = (
-            f"identical {b['documents']} documents"
+            f"identical {b['documents']} documents, {base.exp_label} → {two50.exp_label}"
             if base is one50
-            else f"sample sizes differ, SAND-39 pending"
+            else f"sample sizes differ, Experiment 2 pending"
         )
         out.append(
             f"**2×L4 at C32 raises throughput {_pct_change(b['docs_per_minute'], a['docs_per_minute'])} at "
@@ -898,7 +898,8 @@ def _executive_findings(present: list[Posture], cards: dict, pooled: dict) -> li
             out.append(
                 f"**Larger runs cost less per document.** Running n = 100 per specialist instead of n = 50 cuts GPU cost "
                 f"per document {_pct_change(b['usd_per_document'], a['usd_per_document']).lstrip('−')} on the four "
-                f"unchanged specialists; {b['errors']} of {b['documents']} failed ({_rate(b['error_rate'])})."
+                f"unchanged specialists ({two50.exp_label} → {s40.exp_label}); {b['errors']} of {b['documents']} failed "
+                f"({_rate(b['error_rate'])})."
             )
     before = (cards.get("s37-2l4-n50") or {}).get("merger_agreement")
     after = (cards.get("s40-2l4") or {}).get("merger_agreement")
@@ -913,7 +914,8 @@ def _executive_findings(present: list[Posture], cards: dict, pooled: dict) -> li
         out.append(
             f"**Merger is the quality gap; the † settings narrow it.** They raise MAUD "
             f"accuracy {cb.get('accuracy') or 0:.3f} → {ca.get('accuracy') or 0:.3f} and coverage "
-            f"{cb.get('coverage', 0):.0%} → {ca.get('coverage', 0):.0%} on the same {after['n']} agreements, "
+            f"{cb.get('coverage', 0):.0%} → {ca.get('coverage', 0):.0%} on the same {after['n']} agreements "
+            "(Experiment 3 → Experiment 4), "
             f"at {cost_x:.1f}× the GPU cost per agreement."
         )
     elif frozen:
@@ -955,7 +957,7 @@ def render_master_md(data: Mapping[str, Any]) -> str:
             "",
         ]
     lines += [
-        f"Method, detail tables and figures: [{APPENDIX_STEM}.md](./{APPENDIX_STEM}.md).",
+        f"Method, detail tables and figures: [appendix](./{APPENDIX_STEM}.md).",
         "",
         "| Experiment | Posture | GPUs | Client concurrency | Documents per class | Status |",
         "| --- | --- | ---: | ---: | ---: | --- |",
@@ -1016,7 +1018,9 @@ def render_master_md(data: Mapping[str, Any]) -> str:
     lines += _cost_table(present, pooled, metered)
     unrecorded = [s for s in dict.fromkeys(p.study for p in present) if s not in metered]
     if unrecorded:
-        lines.append(f"- **{' and '.join(unrecorded)} metered Modal total:** not yet recorded.")
+        lines.append(
+            f"- **{' and '.join(_session_label(u, present) for u in unrecorded)} metered Modal total:** not yet recorded."
+        )
     lines += [
         "- **Teardown** to zero warm containers is part of every posture's runbook; the metered totals come "
         "from its spend check.",
@@ -1046,13 +1050,19 @@ def _cost_table(present: list[Posture], pooled: Mapping[str, Any], metered: Mapp
         m, b = float(rec.get("metered_usd", 0)), float(rec.get("billed_usd", 0))
         for k, v in (("docs", docs), ("busy", busy), ("metered", m), ("billed", b)):
             tot[k] += v
-        exps = [str(p.experiment) for p in present if p.study == study]
-        label = ("Experiments " + " + ".join(exps)) if len(exps) > 1 else f"Experiment {exps[0]}"
-        lines.append(_cost_row(label, docs, busy, m, b))
+        lines.append(_cost_row(_session_label(study, present), docs, busy, m, b))
     if len(studies) > 1:
         lines.append(_cost_row("**Total**", tot["docs"], tot["busy"], tot["metered"], tot["billed"]))
     lines.append("")
     return lines
+
+
+def _session_label(study: str, postures: list[Posture]) -> str:
+    """A billed Modal session named by the experiments it ran (one session can run several)."""
+    exps = [str(p.experiment) for p in postures if p.study == study] or [
+        str(p.experiment) for p in POSTURES if p.study == study
+    ]
+    return ("Experiments " + " + ".join(exps)) if len(exps) > 1 else f"Experiment {exps[0]}"
 
 
 def _cost_row(label: str, docs: int, busy: float, metered: float, billed: float) -> str:
@@ -1070,9 +1080,9 @@ def render_appendix_md(data: Mapping[str, Any]) -> str:
     first = next((c for p in present for c in cards[p.key].values()), None)
 
     lines = [
-        f"# Appendix to {MASTER_STEM}",
+        "# Appendix: L4 Specialist Grid (Experiments 1–4)",
         "",
-        f"Full findings, detail tables, method and figures behind [{MASTER_STEM}.md](./{MASTER_STEM}.md). "
+        f"Full findings, detail tables, method and figures behind the [executive summary](./{MASTER_STEM}.md). "
         "Regenerate both with `sandbox run card --master`.",
         "",
     ]
@@ -1083,29 +1093,29 @@ def render_appendix_md(data: Mapping[str, Any]) -> str:
             f"${cond['gpu_usd_per_hour']:.2f} per GPU-hour  ",
             f"**Data:** public `{ds['repo']}` {ds['config']} @ `{ds['revision']}`, seed {ds['seed']}; "
             "the n = 20 draw is nested in the n = 50 draw, and every n = 50 posture scores the identical documents.  ",
-            "**Engine (SAND-37 / SAND-39):** AWQ-Marlin, fp8 KV cache, CUDA graphs, prefix caching, thinking "
+            "**Engine (Experiments 1–3):** AWQ-Marlin, fp8 KV cache, CUDA graphs, prefix caching, thinking "
             "disabled, 8,192-token output cap, frozen prompts (see *Run conditions by specialist*); temperature 0.7 for contracts and merger, "
             "0.1 otherwise.  ",
-            "**SAND-40:** one 32K deploy of the same 2×L4 engine at C32. Four specialists run n = 100 on unchanged "
-            "settings (the n = 50 draw nested inside); merger runs the same 50 agreements as SAND-37 2×L4 with the "
+            "**Experiment 4:** one 32K deploy of the same 2×L4 engine at C32. Four specialists run n = 100 on unchanged "
+            "settings (the n = 50 draw nested inside); merger runs the same 50 agreements as Experiment 3 with the "
             "optimized settings marked † (see *Merger † settings* on the executive card).",
             "",
         ]
     lines += [
-        "| Study | Posture | GPUs | Client concurrency | Documents per class | Status |",
+        "| Experiment | Posture | GPUs | Client concurrency | Documents per class | Status |",
         "| --- | --- | ---: | ---: | ---: | --- |",
     ]
     for p in POSTURES:
         status = f"{len(cards[p.key])} of 5 cells" if cards[p.key] else PENDING
         lines.append(
-            f"| {p.study} | {p.label} | {p.replicas} | {p.concurrency} | {p.documents} | {status} |"
+            f"| {p.exp_label} | {p.label} | {p.replicas} | {p.concurrency} | {p.documents} | {status} |"
         )
     lines += ["", "## Findings (full)", ""]
     findings = _findings(present, cards, pooled)
     lines += [f"{i}. {text}" for i, text in enumerate(findings, 1)] or ["No cells reported yet."]
     lines.append("")
 
-    heads = " | ".join(f"{p.study} {p.label}" for p in POSTURES)
+    heads = " | ".join(f"{p.exp_label} · {p.label}" for p in POSTURES)
     lines += [
         "## Serving efficiency (pooled across the five specialists)",
         "",
@@ -1139,7 +1149,7 @@ def render_appendix_md(data: Mapping[str, Any]) -> str:
         ]
     if pooled.get("s40-2l4") and cards["s40-2l4"].get("merger_agreement"):
         lines += [
-            "The SAND-40 column includes the † merger cell, which reads whole agreements and takes most of the "
+            "The Experiment 4 column includes the † merger cell, which reads whole agreements and takes most of the "
             "posture's busy time, so its pooled throughput and cost per document are not a serving comparison. "
             "The like-for-like check is below.",
             "",
@@ -1167,21 +1177,21 @@ def render_appendix_md(data: Mapping[str, Any]) -> str:
             continue
         note = f" {rec['note']}" if rec.get("note") else ""
         lines.append(
-            f"- **{study} metered Modal total:** ${float(rec.get('metered_usd', 0)):.2f} "
+            f"- **{_session_label(study, present)} metered Modal total:** ${float(rec.get('metered_usd', 0)):.2f} "
             f"(${float(rec.get('billed_usd', 0)):.2f} billed after credits).{note}"
         )
     unrecorded = [s for s in dict.fromkeys(p.study for p in present) if s not in metered]
     if unrecorded:
         lines.append(
-            f"- **{' and '.join(unrecorded)} metered Modal total:** not yet recorded; the busy-window GPU cost "
+            f"- **{' and '.join(_session_label(u, present) for u in unrecorded)} metered Modal total:** not yet recorded; the busy-window GPU cost "
             "under *Serving efficiency* is the cost of the cells themselves."
         )
     lines += [
         "- **Teardown** to zero warm containers is part of every posture's runbook; the metered totals above "
         "come from the teardown spend check.",
-        "- **Comparability:** SAND-39 and the SAND-37 2×L4 leg score identical n = 50 documents and "
-        "differ only in GPU count and client concurrency; the SAND-37 1×L4 leg is a nested n = 20 subset. "
-        "SAND-40 runs the same 2×L4 engine; its n = 100 draws contain the n = 50 documents, and its merger "
+        "- **Comparability:** Experiments 2 and 3 score identical n = 50 documents and "
+        "differ only in GPU count and client concurrency; Experiment 1 is a nested n = 20 subset. "
+        "Experiment 4 runs the same 2×L4 engine as Experiment 3; its n = 100 draws contain the n = 50 documents, and its merger "
         "cell scores the same 50 agreements with the † settings.",
         "",
         "**Source data:** per-cell score and cost cards, run reports and vLLM serving telemetry under "
