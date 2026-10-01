@@ -63,8 +63,6 @@ REQUIRED_IDS: tuple[str, ...] = (
     "grid-2l4",
     "sand39-1l4-n50",
     "sand40-probe",
-    "sand40-short",
-    "sand40-long",
     "sand40",
 )
 

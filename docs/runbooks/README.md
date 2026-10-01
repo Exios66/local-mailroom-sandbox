@@ -46,10 +46,8 @@ Source of truth: [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.
 - [`grid-1l4`](grid-1l4.md) — Specialist grid — 1×L4 · C8 cells (n=20 and n=50, all five classes)
 - [`grid-2l4`](grid-2l4.md) — Specialist grid — 2×L4 · C32 cells (n=20 and n=50, all five classes)
 - [`sand39-1l4-n50`](sand39-1l4-n50.md) — SAND-39 — 1×L4 · C8 · n=50 inverse leg of the SAND-37 2×L4 scale-out (five specialists)
-- [`sand40-probe`](sand40-probe.md) — SAND-40 validation probe — n=20 contracts and merger on 2×L4 · 64K YaRN
-- [`sand40-short`](sand40-short.md) — SAND-40 short phase — correspondence, insurance claims, corporate records · n=100 · 32K
-- [`sand40-long`](sand40-long.md) — SAND-40 long phase — contracts n=100 and merger n=50 · 64K YaRN
-- [`sand40`](sand40.md) — SAND-40 launcher — 32K short phase, redeploy, 64K long phase
+- [`sand40-probe`](sand40-probe.md) — SAND-40 validation probe (executed 2026-10-01) — n=20 contracts and merger on 2×L4 · 64K YaRN
+- [`sand40`](sand40.md) — SAND-40 scale run — five specialists · n=100 · 2×L4 · C32 · one 32K deploy
 
 ## Anti-patterns
 

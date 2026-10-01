@@ -136,12 +136,12 @@ def test_suite_card_rolls_up_cards_and_marks_missing_cells(tmp_path):
     assert "[grid-50-contracts-specialist-awq-2l4-rerun.card.md](contracts/" in md
 
 
-def test_sand40_card_records_optimized_settings_under_2l4(tmp_path):
+def test_sand40_probe_card_records_optimized_settings(tmp_path):
     store = _store(
         tmp_path,
-        "sand40-50-merger-specialist-awq-2l4-64k",
+        "sand40-probe-20-merger-specialist-awq-2l4-64k",
         task="merger_agreement_specialist",
-        limit=50,
+        limit=20,
     )
     lock = json.loads(store.lock_path.read_text())
     lock["engine"]["vllm"]["max_model_len"] = 65536
@@ -154,7 +154,7 @@ def test_sand40_card_records_optimized_settings_under_2l4(tmp_path):
     store.lock_path.write_text(json.dumps(lock))
     paths = grid_cards.maybe_write_card(store, wall_seconds=10.0, repo=tmp_path)
     assert paths["md"] == (
-        tmp_path / "reports" / "SAND-37" / "2L4" / "merger_agreement" / "sand40-50-merger-specialist-awq-2l4-64k.card.md"
+        tmp_path / "reports" / "SAND-37" / "probes" / "merger_agreement" / "sand40-probe-20-merger-specialist-awq-2l4-64k.card.md"
     )
     card = json.loads(paths["json"].read_text())
     cond = card["conditions"]
@@ -193,3 +193,14 @@ def test_sand40_probe_card_is_outside_the_scorecard_tree(tmp_path):
 def test_runner_hook_skips_non_grid_runs(tmp_path):
     store = _store(tmp_path, "run-20-contracts-awq-c8", replicas=1, concurrency=8)
     assert grid_cards.maybe_write_card(store, wall_seconds=10.0) == {}
+
+
+def test_sand40_scale_cell_lands_under_2l4_on_the_aligned_spec(tmp_path):
+    store = _store(tmp_path, "sand40-100-merger-specialist-awq-2l4", task="merger_agreement_specialist", limit=3)
+    paths = grid_cards.maybe_write_card(store, wall_seconds=10.0, repo=tmp_path)
+    assert paths["md"] == (
+        tmp_path / "reports" / "SAND-37" / "2L4" / "merger_agreement" / "sand40-100-merger-specialist-awq-2l4.card.md"
+    )
+    cond = json.loads(paths["json"].read_text())["conditions"]
+    assert cond["max_tokens"] == 8192 and cond["temperature"] == 0.7
+    assert not cond.get("optimized") and not cond.get("chunk_chars")

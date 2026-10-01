@@ -57,16 +57,7 @@ POSTURES: tuple[Posture, ...] = (
     Posture("s37-1l4-n20", "SAND-37", "1L4", 1, 8, 20),
     Posture("s39-1l4-n50", "SAND-39", "1L4", 1, 8, 50),
     Posture("s37-2l4-n50", "SAND-37", "2L4", 2, 32, 50),
-    Posture(
-        "s40-2l4",
-        "SAND-40",
-        "2L4",
-        2,
-        32,
-        100,
-        docs="100 (merger 50)",
-        n_by_folder=(("merger_agreement", 50),),
-    ),
+    Posture("s40-2l4", "SAND-40", "2L4", 2, 32, 100),
 )
 _ORDER = ("insurance_claims", "contracts", "corporate_records", "correspondence", "merger_agreement")
 _LABEL = {folder: label for _, folder, label in SPECIALISTS}
@@ -478,9 +469,12 @@ def _probe_section(probes: Mapping[str, Mapping[str, Any]], cards: dict) -> list
     out = [
         "## SAND-40 validation probes (n = 20, not pooled)",
         "",
-        "The probes ran the SAND-40 long-document settings on the first 20 documents of the SAND-37 2×L4 "
-        "n = 50 draw. They are not a posture column. The matched columns compare per-document scores on "
-        "the documents both runs scored, so sample composition cannot explain the difference.",
+        "Before the scale run, two probes tested optimized long-document settings (64K YaRN window, "
+        "128,000-character input, chunked extraction, Qwen3 sampling, 6,144-token cap with one length "
+        "re-sample; MAUD v1 prompt for merger) on the first 20 documents of the SAND-37 2×L4 n = 50 draw. "
+        "They are not a posture column, and the SAND-40 column does not use these settings. The matched "
+        "columns compare per-document scores on the documents both runs scored, so sample composition "
+        "cannot explain the difference.",
         "",
         "| Specialist | Window | Input cap (chars) | ok / n | Score | Matched docs | Probe mean | SAND-37 2×L4 same docs "
         "| Δ (better / worse) | Prompt tokens per doc: probe vs SAND-37 | Wall (s) | Busy GPU $ | $ per ok doc |",
@@ -549,9 +543,8 @@ def render_master_md(data: Mapping[str, Any]) -> str:
             "**Engine (SAND-37 / SAND-39):** AWQ-Marlin, fp8 KV cache, CUDA graphs, prefix caching, thinking "
             "disabled, 8,192-token output cap, frozen v1 prompts; temperature 0.7 for contracts and merger, "
             "0.1 otherwise.  ",
-            "**SAND-40 (pending):** 2×L4 at C32, n = 100 per class (merger n = 50); the n = 50 draw is nested "
-            "inside, so the same documents anchor every comparison. Merger runs the optimized long-document "
-            "settings marked †. Each SAND-40 card records the serving window and decode settings it ran with.",
+            "**SAND-40:** 2×L4 at C32, n = 100 per class on the same engine and settings; the n = 50 draw is "
+            "nested inside, so the same documents anchor every comparison.",
             "",
         ]
     lines += [
@@ -600,13 +593,9 @@ def render_master_md(data: Mapping[str, Any]) -> str:
     ]
     for folder in _ORDER:
         per = [cards[p.key].get(folder) for p in POSTURES]
-        marks = [
-            "†" if p.key == "s40-2l4" and folder == "merger_agreement" else ""
-            for p in POSTURES
-        ]
         lines.append(
             f"| {_LABEL[folder]} | {_metric_name(folder)} | "
-            + _joined([_score(c, mark=m) for c, m in zip(per, marks)]) + " | "
+            + _joined([_score(c) for c in per]) + " | "
             + _joined([f"{c['quality']['ok']}/{c['n']}" if c else PENDING for c in per]) + " | "
             + _joined([f"{c['latency']['p50']:.1f}" if c else PENDING for c in per]) + " | "
             + _joined([f"{c['cost']['usd_per_ok_document']:.5f}" if c else PENDING for c in per]) + " |"
@@ -620,10 +609,7 @@ def render_master_md(data: Mapping[str, Any]) -> str:
         "parentheses; the committed run reports count unlabeled documents as 0 and so read lower. Merger is "
         "micro-accuracy over labeled MAUD questions, with question coverage in parentheses, a different "
         "scale from the field scores.",
-        "",
-        "† optimized merger settings: chunked whole-document extraction, Qwen3 sampling (temperature 0.7, "
-        "top_p 0.8, top_k 20, presence_penalty 1.0), 6,144-token output cap, one length re-sample, and the "
-        "MAUD v1 prompt. The merger cell stays at n=50, the same agreements as SAND-37 2×L4.",
+
         "",
     ]
     lines += _detail_sections(present, cards)
