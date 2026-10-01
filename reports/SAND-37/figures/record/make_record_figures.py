@@ -145,6 +145,7 @@ KEEP = {
     "1xL4-C8-n50-cost", "1xL4-C8-n50-latency",        # 1x L4 score/cost table, latency/engine table
     "2xL4-C32-n100-cost", "2xL4-C32-n100-latency",    # 2x L4 score/cost table, latency/engine table
     "1x-vs-2xL4-cost", "1x-vs-2xL4-throughput",       # single vs double L4 table
+    "cost-vs-score", "merger-frozen-vs-dagger", "2xL4-n50-vs-n100-cost",  # findings charts
 }
 
 
@@ -282,3 +283,94 @@ fig, ax = new_fig("Score — 1× vs 2× L4", CMP,
 dumbbell(ax, g(S39, "score"), g(S37_2, "score"), LABELS, lambda x: f"{x:.3f}", delta=False)
 ax.set_xlim(0, 1.15); ax.set_xticks([0, 0.25, 0.5, 0.75, 1.0])
 save(fig, "1x-vs-2xL4-score")
+
+
+# ---- Findings charts --------------------------------------------------------------------
+
+# 1. Cost vs score, same 250 documents, 1× vs 2× L4.
+fig, ax = new_fig("Cost vs score — same 250 documents",
+                  "Cost per 1,000 ok docs (log) against score; each line joins one class on 1× and 2× L4",
+                  SRC + "\nScore: field extraction (insurance, corporate, correspondence), CUAD F1 (contracts), MAUD accuracy (merger);"
+                  "\nscores on different metrics are not comparable across classes.",
+                  LEG, rows=7)
+fig.subplots_adjust(left=0.1, bottom=0.17)
+for k, lab in CLASSES:
+    a, b = S39[k], S37_2[k]
+    ax.plot([a["cost_1k"], b["cost_1k"]], [a["score"], b["score"]], color=AXIS, linewidth=1.6, zorder=1)
+    ax.scatter(a["cost_1k"], a["score"], s=70, color=C_1L4_50, edgecolor=SURFACE, linewidth=1.8, zorder=3)
+    ax.scatter(b["cost_1k"], b["score"], s=70, color=C_2L4_50, edgecolor=SURFACE, linewidth=1.8, zorder=3)
+    x = max(a["cost_1k"], b["cost_1k"])
+    y = (a["score"] + b["score"]) / 2
+    ax.annotate(f"{lab}\n${a['cost_1k']:.2f} → ${b['cost_1k']:.2f} · {a['score']:.3f} → {b['score']:.3f}",
+                (x, y), xytext=(10, 0), textcoords="offset points", va="center", fontsize=8, color=INK2)
+style(ax, log=True)
+ax.grid(axis="y")
+ax.spines["left"].set_visible(True)
+ax.tick_params(axis="y", labelsize=8, colors=MUTED)
+ax.set_xlim(0.08, 40)
+ax.set_ylim(-0.02, 0.8)
+ax.set_xlabel("Cost per 1,000 ok documents ($, log scale)", fontsize=8.5)
+ax.set_ylabel("Score", fontsize=8.5)
+ax.text(0.09, 0.77, "cheaper, better ↖", fontsize=7.5, color=MUTED, va="top")
+save(fig, "cost-vs-score")
+
+# 2. Merger: frozen (SAND-37 2× L4 n=50) vs † (SAND-40), same 50 agreements, indexed to frozen.
+fz, dg = card("grid-50", "2l4", "merger"), card("sand40", "2l4", "merger")
+mf, md = S37_2["merger"], S40["merger"]
+cf, cd_ = fz["quality"]["clause"], dg["quality"]["clause"]
+items = [
+    ("MAUD accuracy", cf["accuracy"], cd_["accuracy"], lambda v: f"{v:.3f}"),
+    ("Correct MAUD answers", cf["correct"], cd_["correct"], lambda v: f"{v:,.0f}"),
+    ("Question coverage", cf["coverage"], cd_["coverage"], lambda v: f"{v:.0%}"),
+    ("GPU $ per correct answer", mf["busy"] / cf["correct"], md["busy"] / cd_["correct"], lambda v: f"${v:.4f}"),
+    ("GPU $ per ok agreement", fz["cost"]["usd_per_ok_document"], dg["cost"]["usd_per_ok_document"], lambda v: f"${v:.5f}"),
+    ("Tokens per ok agreement", fz["tokens"]["per_document"], dg["tokens"]["per_document"], lambda v: f"{v:,.0f}"),
+    ("Latency p50", mf["p50"], md["p50"], lambda v: f"{v:,.0f} s"),
+]
+fig, ax = new_fig("Merger agreements — frozen vs † settings",
+                  "Same 50 agreements on 2× L4 C=32 · each bar is † ÷ frozen (dashed line = no change)",
+                  SRC + " Frozen = SAND-37 (46/50 ok); † = SAND-40 (50/50 ok)."
+                  "\n† = chunked whole agreement, maud_v1 prompt, 6,144-token cap, 1 length re-sample."
+                  "\nSettings changed together, so the gain is not attributed to any one of them.",
+                  rows=7)
+fig.subplots_adjust(bottom=0.15)
+ys = list(range(len(items)))[::-1]
+ratios = [d / f for _, f, d, _ in items]
+ax.barh(ys, ratios, 0.56, color=C_2L4_100, edgecolor=SURFACE, linewidth=2, zorder=2)
+ax.axvline(1, color=REF, linewidth=1, linestyle=(0, (3, 2)), zorder=3)
+for (name, f, d, fm), r, y in zip(items, ratios, ys):
+    ax.annotate(f"{r:.1f}×   ({fm(f)} → {fm(d)})", (r, y), xytext=(6, 0), textcoords="offset points",
+                va="center", fontsize=8, color=INK2)
+ax.set_yticks(ys, [i[0] for i in items])
+ax.set_ylim(-0.6, len(items) - 0.4)
+ax.set_xlim(0, 16)
+style(ax)
+ax.axhline(3.5, color=GRID, linewidth=1)
+ax.text(15.8, 5, "quality", fontsize=7.5, color=MUTED, ha="right", va="center")
+ax.text(15.8, 2, "cost & time", fontsize=7.5, color=MUTED, ha="right", va="center")
+save(fig, "merger-frozen-vs-dagger")
+
+# 3. Batch size on 2× L4: n=50 (SAND-37) → n=100 (SAND-40), four unchanged classes + pooled.
+C_N50, C_N100 = "#86b6ef", "#2a78d6"   # ordinal steps of the 2× L4 blue
+four = [k for k in KEYS if k != "merger"]
+labs4 = [lab for k, lab in CLASSES if k != "merger"] + ["Pooled (4 classes)"]
+pool = lambda d: sum(d[k]["busy"] for k in four) / sum(d[k]["ok"] for k in four) * 1000
+a = [S37_2[k]["cost_1k"] for k in four] + [pool(S37_2)]
+b = [S40[k]["cost_1k"] for k in four] + [pool(S40)]
+fig, ax = new_fig("Batch size on 2× L4 — n=50 → n=100",
+                  "Cost per 1,000 ok docs, SAND-37 n=50 → SAND-40 n=100, C=32 (log scale; merger excluded: settings changed)",
+                  SRC + " Pooled = Σ busy GPU $ ÷ Σ ok docs. Contracts' idle share of wall time fell 49% → 32%.",
+                  [(C_N50, "n=50"), (C_N100, "n=100")], rows=5)
+ys = list(range(len(a)))[::-1]
+ax.hlines(ys, a, b, color=AXIS, linewidth=2.2, zorder=1)
+ax.scatter(a, ys, s=50, color=C_N50, edgecolor=SURFACE, linewidth=1.5, zorder=3)
+ax.scatter(b, ys, s=50, color=C_N100, edgecolor=SURFACE, linewidth=1.5, zorder=3)
+for x1, x2, y in zip(a, b, ys):
+    dv = (x2 / x1 - 1) * 100
+    ax.annotate(f"${x1:.2f} → ${x2:.2f}  ({dv:+.0f}%)", (max(x1, x2), y), xytext=(8, 0), textcoords="offset points",
+                va="center", fontsize=8, color=INK2)
+ax.set_yticks(ys, labs4)
+ax.set_ylim(-0.6, len(a) - 0.4)
+style(ax, log=True)
+ax.set_xlim(0.08, 10)
+save(fig, "2xL4-n50-vs-n100-cost")
