@@ -226,6 +226,17 @@ def activate(
     except Exception as exc:  # noqa: BLE001 — never block activation
         _log.warning("llm timeout override failed — 120s vendor default stands: %s", exc)
 
+    # SAND-038: the vendored LangChain agents default api_key to
+    # OPENROUTER_API_KEY ahead of the resolved provider's key (drift-guarded),
+    # which 401s every contracts/merger row against Modal vLLM when .env holds
+    # an OpenRouter key. Defer to provider.api_key_env instead.
+    try:
+        from mailroom_sandbox.provider_credentials import apply_provider_credentials
+
+        apply_provider_credentials()
+    except Exception as exc:  # noqa: BLE001 — never block activation
+        _log.warning("provider credential fix failed — vendored key precedence stands: %s", exc)
+
     # SAND-037: the vendored specialists pass temperature=0.1 as a call-site
     # literal (drift-guarded), so a run-scoped temperature knob is applied by
     # wrapping their _call_structured. No temperature knobs → no-op.
