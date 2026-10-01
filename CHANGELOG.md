@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Added — local-first job traces (pack → upload → prune)
+
+- Endpoint-mode runs (`sandbox run start`, the Modal-vLLM grid and SAND runs) now build a tracer; before this
+  they always passed `tracer=None`, so no job spans were ever emitted whatever the locked sink said.
+- Each run gets a `job.run` span with its `job.item` children nested across worker threads, carrying
+  item id, ok/error, attempts and token usage.
+- Spans are mirrored to `data/traces/<run_id>.spans.jsonl.gz` even with `sink: none`
+  (`SANDBOX_TRACE_LOCAL=0` disables); Phoenix/Langfuse/OTLP export is unchanged.
+- `sandbox traces pack <run_id> [--dest DIR] [--prune]` zips the mirror as zstd Parquet + manifest, copies it
+  to a synced upload folder (`SANDBOX_TRACE_UPLOAD_DIR`, e.g. the Drive LOGS folder) under a date
+  subfolder, verifies the copy by SHA-256, and only then deletes the local copies. See `docs/tracing.md`.
+
 ### Changed — SAND-040 runs on one 32K deploy; † merger keeps the optimized settings
 
 - `sandbox runbook show sand40` deploys the SAND-037 2×L4 engine once (native 32768 window, no 64K

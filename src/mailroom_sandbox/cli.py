@@ -360,6 +360,22 @@ def build_parser() -> argparse.ArgumentParser:
     tr = p.add_subparsers(dest="traces_cmd")
     exp = tr.add_parser("export", parents=[shared])
     exp.set_defaults(handler=_cmd_traces_export)
+    pk = tr.add_parser(
+        "pack",
+        help="Zip a run's local span mirror (Parquet), copy it to --dest and verify; --prune deletes local copies",
+        parents=[shared],
+    )
+    pk.add_argument("run_id")
+    pk.add_argument("--experiment", help="experiment label for the zip name (default: run_id prefix)")
+    pk.add_argument("--runner", help="who ran it: claude | axios (default: claude inside Claude Code, else axios)")
+    pk.add_argument(
+        "--dest",
+        default=os.environ.get("SANDBOX_TRACE_UPLOAD_DIR"),
+        help="synced upload folder, e.g. the Drive LOGS folder (env SANDBOX_TRACE_UPLOAD_DIR); a <date>/ subfolder is added",
+    )
+    pk.add_argument("--date", help="date subfolder YYYY-MM-DD (default: today UTC)")
+    pk.add_argument("--prune", action="store_true", help="after a verified copy, delete the local mirror and local zip")
+    pk.set_defaults(handler=_cmd_traces_pack)
     p.set_defaults(handler=_cmd_traces_help)
 
     p = sub.add_parser("profiles", help="List provider profiles", parents=[shared])
@@ -1716,7 +1732,34 @@ def _cmd_datasets_prepare(args: argparse.Namespace) -> int:
 
 
 def _cmd_traces_help(args: argparse.Namespace) -> int:
-    print("Use: sandbox traces export")
+    print("Use: sandbox traces export | sandbox traces pack RUN_ID [--dest DIR] [--prune]")
+    return 0
+
+
+def _cmd_traces_pack(args: argparse.Namespace) -> int:
+    from mailroom_sandbox.job import trace_pack
+
+    if args.prune and not args.dest:
+        print("error: --prune needs --dest (or SANDBOX_TRACE_UPLOAD_DIR): local copies go only after a verified upload")
+        return 2
+    try:
+        result = trace_pack.pack(
+            args.run_id,
+            experiment=args.experiment,
+            runner=args.runner,
+            dest=Path(args.dest).expanduser() if args.dest else None,
+            date=args.date,
+        )
+    except FileNotFoundError as exc:
+        print(f"error: {exc}")
+        return 1
+    if args.dest and not result["verified"]:
+        _print(result)
+        print("error: uploaded copy did not verify; nothing pruned")
+        return 1
+    if args.prune:
+        result["pruned"] = trace_pack.prune(result)
+    _print(result)
     return 0
 
 
@@ -2413,7 +2456,7 @@ def _cmd_run_start(args) -> int:
 
 
 def _run_endpoint(store, args) -> dict:
-    from mailroom_sandbox.job import runner
+    from mailroom_sandbox.job import otel, runner
     from mailroom_sandbox.tui.session import MailroomConsole, run_event_handler
 
     watch = bool(getattr(args, "watch", False))
@@ -2424,19 +2467,56 @@ def _run_endpoint(store, args) -> dict:
     console.phase("PREFLIGHT", "lock verified · scoring dataset")
     on_event = run_event_handler(console)
 
-    with store.acquire():
-        summary = runner.run_job(
-            store,
-            mock=None,
-            dry_run=False,
-            max_items=getattr(args, "max_items", None),
-            tracer=None,
-            on_event=on_event,
-        )
+    tracer = _endpoint_tracer(store.run_id, lock)
+    try:
+        with store.acquire(), otel.job_span(
+            tracer,
+            "job.run",
+            run_id=store.run_id,
+            task=task,
+            model=str((lock.get("engine") or {}).get("model") or ""),
+        ) as run_span:
+            summary = runner.run_job(
+                store,
+                mock=None,
+                dry_run=False,
+                max_items=getattr(args, "max_items", None),
+                tracer=tracer,
+                on_event=on_event,
+            )
+            for key in ("state", "cursor", "total", "ok", "errors"):
+                if summary.get(key) is not None:
+                    run_span.set_attribute(f"job.{key}", summary[key])
+    finally:
+        otel.flush_tracer(tracer)
+    local_path = getattr(tracer, "sandbox_local_path", None)
+    if local_path is not None and Path(local_path).is_file():
+        summary.setdefault("trace_local_path", str(local_path))
     state = str(summary.get("state") or "unknown")
     detail = f"{summary.get('cursor', summary.get('ok', ''))}/{summary.get('total', '')} {task}".strip()
     console.complete(state=state, summary=detail)
     return summary
+
+
+def _endpoint_tracer(run_id: str, lock: dict):
+    """Tracer for an endpoint-mode run: the locked sink plus the local span mirror."""
+    from mailroom_sandbox.job import otel
+
+    trace_block = lock.get("trace") or {}
+    try:
+        sink_cfg = otel.resolve_sink(
+            sink=trace_block.get("sink", "none"),
+            otlp=bool(trace_block.get("otlp", True)),
+            endpoint=trace_block.get("endpoint"),
+            environment=trace_block.get("environment", "pilot"),
+            service_name="sandbox-job",
+            run_id=run_id,
+            tags=trace_block.get("tags") or ["sandbox", "job"],
+        )
+    except ValueError as exc:
+        print(f"warning: trace sink unusable ({exc}); local span mirror only")
+        sink_cfg = otel.resolve_sink(sink="none", run_id=run_id)
+    return otel.configure_tracing(sink_cfg, local_path=otel.local_trace_path(run_id))
 
 
 def _finalize_remote(store) -> bool:
