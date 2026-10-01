@@ -17,11 +17,11 @@ ROOT = "reports/SAND-37"
 OUT = sys.argv[1]
 os.makedirs(OUT, exist_ok=True)
 
-# Reference palette (light) — same posture colors as the repo's grid figures.
+# Two validated reference slots, keyed by GPU count: orange = 1× L4, blue = 2× L4.
 SURFACE, INK, INK2, MUTED, GRID, AXIS = "#fcfcfb", "#0b0b0b", "#52514e", "#898781", "#e1e0d9", "#c3c2b7"
-C_1L4_50 = "#eb6834"   # SAND-39 1×L4 C8 n=50
-C_2L4_50 = "#1baf7a"   # SAND-37 2×L4 C32 n=50
-C_2L4_100 = "#eda100"  # SAND-40 2×L4 C32 n=100
+C_1L4_50 = "#eb6834"   # 1× L4 (SAND-39 C8 n=50)
+C_2L4_50 = "#2a78d6"   # 2× L4 (SAND-37 C32 n=50)
+C_2L4_100 = "#2a78d6"  # 2× L4 (SAND-40 C32 n=100) — one color per GPU count
 REF = "#898781"
 
 plt.rcParams.update({
