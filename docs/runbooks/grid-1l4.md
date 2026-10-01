@@ -4,7 +4,7 @@
 
 **id:** `grid-1l4` · **family:** `grid` · **serving:** `grid-awq-1l4`
 
-SAND-037. The ten 1×L4 cells of the Qwen3-8B-AWQ specialist grid (5 classes × n=20/50) on one warm L4: awq, eager, max_num_seqs 8, thinking off, max_inputs 8, decode 8192. Replaces the legacy run-20-*-awq(-c8) legs and the first merger cell; none of the n=50 cells has a clean result yet. Deploy once, run short classes first, teardown after the last cell.
+SAND-037 aligned grid, 1×L4 half: ten Qwen3-8B-AWQ specialist cells on one warm L4 serving the SAND-032 frozen L5 engine (awq_marlin, fp8 KV, CUDA graphs, max_num_seqs 16, thinking off, max_inputs 32) at client concurrency 8. Nested split=all draws, frozen v1 simplified prompts, decode 8192 at temperature 0.7. Deploy once, short classes first, teardown after the last cell.
 
 Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show grid-1l4`.
 
@@ -16,12 +16,12 @@ Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then 
 | GPU | `L4` |
 | Image | `v0.29.0` |
 | max_model_len | `32768` |
-| max_num_seqs | `8` |
+| max_num_seqs | `16` |
 | max_containers | `1` |
 | min_containers | `1` |
 | scaledown_seconds | `120` |
-| quantization | `awq` |
-| prefix caching / eager | `1 / 1` |
+| quantization | `awq_marlin` |
+| prefix caching / eager | `1 / 0` |
 
 ## Configs
 
@@ -55,13 +55,12 @@ Source: `src/mailroom_sandbox/job/specialist_posture.py`.
 
 ## Notes
 
-- Spend: likely ≈ $3 GPU at $0.80/hr (≈ 3.6 h warm, from the legacy 1×L4 C8 walls scaled to n=50); the ten cost caps sum to $5.70 and are the abort guard. Needs spend approval before deploy.
-- Canonical deploy knobs: set -a; eval "$(sandbox run deploy-env --config config/runs/grid-20-correspondence-specialist-awq-1l4.yaml)"; set +a. The export block below is identical; benchmark-check reports any shell drift.
-- MODAL_VLLM_MAX_INPUTS must be 8, never 0: at 0 the Modal web server takes one request at a time (contracts-50 ran at Running:1, ~22 tok/s).
-- preflight --force archives any earlier generation of the same run_id (the serialized grid-50-contracts-specialist-awq-1l4 attempt, locked on the pre-SAND-037 spec) and re-locks; start then resumes the fresh lock.
-- Decode 8192 comes from the specialist_posture grid row via SANDBOX_AGENT_KNOBS at start; do not export SANDBOX_AGENT_KNOBS by hand.
-- Leave grid-20-merger-specialist-awq-1l4 and its -retry leg untouched: the -rerun cell has its own run_id so both committed reports survive.
-- Full cell status (keep / run / rerun) and the superseded records: docs/SPECIALIST-GRID-PLAN.md.
+- Spend: likely ≈ $0.80 GPU at $0.80/hr (≈ 1 h warm: S3 per-L4 throughput on the same engine, scaled by the 0.7× S2a measured at C8 on one L4); the ten cost caps sum to $5.70 and are the abort guard. Needs spend approval before deploy.
+- Canonical deploy knobs: set -a; eval "$(sandbox run deploy-env --config config/runs/grid-20-correspondence-specialist-awq-1l4.yaml)"; set +a. The export block below is identical (runbook check enforces it) and benchmark-check fails on any shell drift.
+- Decode is max_tokens 8192 at temperature 0.7, applied from the specialist_posture grid row via SANDBOX_AGENT_KNOBS at start; do not export SANDBOX_AGENT_KNOBS by hand and do not raise max_tokens. A LengthFinishReasonError at 8192 is a runaway loop, not a long answer (longest successful output on record: 4,055 tokens).
+- preflight --force archives any earlier generation of the same run_id (the serialized grid-50-contracts-specialist-awq-1l4 attempt, locked on the old spec) and re-locks; start then resumes the fresh lock.
+- grid-20-merger-specialist-awq-1l4 and its -retry leg stay as committed history; the -rerun id is the aligned cell.
+- Full cell status and the aligned spec: docs/SPECIALIST-GRID-PLAN.md.
 
 ## Do not
 
@@ -84,17 +83,19 @@ export MODAL_VLLM_MODEL=Qwen/Qwen3-8B-AWQ
 export MODAL_VLLM_GPU=L4
 export MODAL_VLLM_IMAGE_TAG=v0.29.0
 export MODAL_VLLM_MAX_MODEL_LEN=32768
-export MODAL_VLLM_MAX_NUM_SEQS=8
+export MODAL_VLLM_MAX_NUM_SEQS=16
 export MODAL_VLLM_GPU_MEMORY_UTILIZATION=0.90
 export MODAL_VLLM_ENABLE_PREFIX_CACHING=1
-export MODAL_VLLM_ENFORCE_EAGER=1
+export MODAL_VLLM_ENFORCE_EAGER=0
 export MODAL_VLLM_MAX_CONTAINERS=1
 export MODAL_VLLM_MIN_CONTAINERS=1
 export MODAL_VLLM_SCALEDOWN_SECONDS=120
-export MODAL_VLLM_QUANTIZATION=awq
+export MODAL_VLLM_QUANTIZATION=awq_marlin
 export MODAL_VLLM_TP_SIZE=1
+export MODAL_VLLM_KV_CACHE_DTYPE=fp8
+export MODAL_VLLM_CUDAGRAPH_CAPTURE_SIZES='1,2,4,8,16'
 export MODAL_VLLM_DEFAULT_CHAT_TEMPLATE_KWARGS='{"enable_thinking": false}'
-export MODAL_VLLM_MAX_INPUTS=8
+export MODAL_VLLM_MAX_INPUTS=32
 export PHOENIX_TRACING=disabled
 export MODAL_VLLM_API_TOKEN="${MODAL_VLLM_API_TOKEN:-$(openssl rand -hex 24)}"
 

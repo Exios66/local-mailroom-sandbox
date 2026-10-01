@@ -1,7 +1,12 @@
-# Qwen3-8B-AWQ specialist grid cell (v1 / simplified stem) — SAND-037 n=20 1×L4 twin.
-# Same dataset block as the 2×L4 sibling (grid-20-correspondence-specialist-awq-2l4), so the pair shares one draw.
-# 1xL4 c=8, thinking off, MODAL_VLLM_MAX_INPUTS=8 (never 0 — that serializes HTTP).
-# Decode 8192 via start-time SANDBOX_AGENT_KNOBS (specialist_posture grid row).
+# Qwen3-8B-AWQ specialist grid cell (SAND-037 aligned grid) — correspondence · n=20 · 1×L4 · C8.
+# Every grid cell shares this spec except n, fleet shape and concurrency:
+#   engine  = SAND-032 frozen L5 (awq_marlin, fp8 KV, CUDA graphs, max_num_seqs 16/replica,
+#             thinking off, max_inputs 32)
+#   data    = mailroom-dataset ground_truth @ ed7576b6, split=all, seed 42, one class bucket
+#             (nested 20 ⊂ 50)
+#   prompt  = eval-environment frozen v1 simplified stem
+#   decode  = max_tokens 8192 via start-time SANDBOX_AGENT_KNOBS; temperature stays 0.1
+#             (json_object class: never hit a cap; same sampling as every SAND-032 run)
 # Runbook: sandbox runbook show grid-1l4
 schema: sandbox.run/v1
 run_id: grid-20-correspondence-specialist-awq-1l4
@@ -33,13 +38,15 @@ engine:
   vllm:
     max_model_len: 32768
     gpu_memory_utilization: 0.90
-    max_num_seqs: 8
+    max_num_seqs: 16
     enable_prefix_caching: true
-    enforce_eager: true
-    quantization: awq
+    enforce_eager: false
+    quantization: "awq_marlin"
     revision: ""
+    kv_cache_dtype: "fp8"
     enable_thinking: false
-    max_inputs: 8
+    cudagraph_capture_sizes: [1, 2, 4, 8, 16]
+    max_inputs: 32
   modal:
     app: sandbox-vllm
     gpu: L4
@@ -48,6 +55,7 @@ engine:
     max_containers: 1
     min_containers: 1
     prewarm: true
+
 job:
   mode: endpoint
   mock: false

@@ -57,6 +57,7 @@ BENCHMARK_EXPECTED = {
 # DMR-074 / DMR-078: run-30 specialist YAMLs must pin local production prompt
 # stems AND match specialist_posture concurrency / cost caps.
 from mailroom_sandbox.job.specialist_posture import (
+    GRID_CELLS,
     GRID_ONE_GPU_RUNS,
     GRID_TWO_GPU_RUNS,
     SAND032_RUNS,
@@ -283,9 +284,10 @@ def check_benchmark_posture(
                 f"{BENCHMARK_EXPECTED['max_containers']}"
             )
 
-    if spec is not None and spec.run_id in SAND032_RUNS:
-        # SAND-032: the run YAML is the source of truth for deploy knobs — a
-        # stale MODAL_VLLM_* shell would silently serve different settings.
+    if spec is not None and (spec.run_id in SAND032_RUNS or spec.run_id in GRID_CELLS):
+        # SAND-032 / SAND-037 grid: the run YAML is the source of truth for
+        # deploy knobs — a stale MODAL_VLLM_* shell would silently serve
+        # different settings.
         from mailroom_sandbox.job.deploy_env import env_drift
 
         for msg in env_drift(spec, env if env is not None else os.environ):

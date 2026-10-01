@@ -1,4 +1,4 @@
-# Qwen3-8B-AWQ specialist grid cell (SAND-037 aligned grid) — merger agreements · n=20 · 1×L4 · C8.
+# Qwen3-8B-AWQ specialist grid cell (SAND-037 aligned grid) — contracts · n=50 · 2×L4 · C32 (16 per replica).
 # Every grid cell shares this spec except n, fleet shape and concurrency:
 #   engine  = SAND-032 frozen L5 (awq_marlin, fp8 KV, CUDA graphs, max_num_seqs 16/replica,
 #             thinking off, max_inputs 32)
@@ -8,20 +8,20 @@
 #   decode  = max_tokens 8192 + temperature 0.7 via start-time SANDBOX_AGENT_KNOBS
 #             (JSON-schema grammar class: 0.1 looped to every cap — 4096/8192/16384;
 #             see docs/SPECIALIST-GRID-PLAN.md)
-# Supersedes grid-20-merger-specialist-awq-1l4 (4096 decode, train split) and its -retry leg
-# (16384 decode); both reports stay intact under their own run_ids.
-# Runbook: sandbox runbook show grid-1l4
+# Supersedes grid-50-contracts-specialist-awq-2l4 (plain awq, temperature 0.1, 2 LengthFinish);
+# its 2026-09-30 report stays intact under its own run_id.
+# Runbook: sandbox runbook show grid-2l4
 schema: sandbox.run/v1
-run_id: grid-20-merger-specialist-awq-1l4-rerun
-task: merger_agreement_specialist
+run_id: grid-50-contracts-specialist-awq-2l4-rerun
+task: contracts_specialist
 profile: modal-vllm
 
 prompt:
   default: {source: code-default}
   agents:
-    merger_agreement_specialist:
+    contracts_specialist:
       source: local
-      file: merger_agreement_specialist_simplified
+      file: contracts_specialist_v33_simplified
 
 dataset:
   provider: huggingface
@@ -31,8 +31,8 @@ dataset:
   revision: ed7576b676343e0b402ec5412cded301e629bdee
   strata:
     buckets:
-      - {doc_class: merger_agreement, count: 20}   # single class bucket → nested 20 ⊂ 50
-  limit: 20
+      - {doc_class: contract, count: 50}   # single class bucket → nested 20 ⊂ 50
+  limit: 50
   sample_seed: 42
 
 engine:
@@ -55,8 +55,8 @@ engine:
     gpu: L4
     image_tag: v0.29.0
     scaledown_seconds: 120
-    max_containers: 1
-    min_containers: 1
+    max_containers: 2
+    min_containers: 2
     prewarm: true
 
 job:
@@ -64,8 +64,8 @@ job:
   mock: false
   max_retries: 2
   fail_fast: false
-  concurrency: 8
-  cost_cap_usd: 0.7
+  concurrency: 32
+  cost_cap_usd: 1.2
   max_wall_seconds: 3600
 
 trace:
