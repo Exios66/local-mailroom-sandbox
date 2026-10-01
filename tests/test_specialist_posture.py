@@ -380,23 +380,80 @@ def test_grid_draws_are_split_all_and_nested():
         assert len(prompts) == 1, cls
 
 
-def test_sand40_yamls_match_the_two_serving_windows():
-    from mailroom_sandbox.job.specialist_posture import SAND40_CELLS, SAND40_LONG_CELLS, SAND40_PROBE_CELLS
+def test_sand40_cells_match_their_2l4_n50_cells_except_n_and_the_dagger_merger():
+    from mailroom_sandbox.job.specialist_posture import (
+        GRID_CELLS,
+        SAND40_CELLS,
+        SAND40_CHECK_CELLS,
+        SAND40_LONG_CELLS,
+        SAND40_MERGER_32K_KNOBS,
+        SAND40_OPTIMIZED_CELLS,
+        SAND40_PROBE_CELLS,
+    )
 
-    for run_id in SAND40_CELLS | SAND40_PROBE_CELLS:
+    assert SAND40_LONG_CELLS == SAND40_PROBE_CELLS  # only the executed probes ran 64K
+    assert len(SAND40_CELLS) == 5
+    merger = "sand40-50-merger-specialist-awq-2l4"
+    assert SAND40_CELLS & SAND40_OPTIMIZED_CELLS == {merger}
+    for run_id in SAND40_CELLS | SAND40_CHECK_CELLS:
         spec = _grid_spec(run_id)
         row = SPECIALIST_POSTURE[run_id]
-        assert spec.task == row["task"]
-        assert spec.job.concurrency == row["concurrency"] == 32
-        assert spec.engine.vllm.quantization == "awq_marlin"
-        assert spec.engine.modal.max_containers == 2
+        cls = spec.dataset.strata["buckets"][0]["doc_class"]
+        base_id = next(r for r in GRID_CELLS if r.startswith("grid-50-") and r.endswith(("-2l4", "-2l4-rerun"))
+                       and SPECIALIST_POSTURE[r]["doc_class"] == cls)
+        base = _grid_spec(base_id)
+        base_row = SPECIALIST_POSTURE[base_id]
+        assert spec.engine == base.engine, run_id  # one 32K deploy, same engine as SAND-37 2×L4
+        assert row["max_model_len"] == 32768
+        assert spec.task == base.task == row["task"]
+        assert spec.dataset.sample_seed == base.dataset.sample_seed and spec.dataset.revision == base.dataset.revision
+        assert spec.job.concurrency == 32 and spec.job.max_retries == base.job.max_retries
         assert float(spec.job.cost_cap_usd) == float(row["cost_cap_usd"])
-        if run_id in SAND40_LONG_CELLS:
-            assert spec.engine.vllm.max_model_len == 65536
-            assert spec.engine.vllm.hf_overrides["rope_parameters"]["rope_type"] == "yarn"
+        if run_id in SAND40_OPTIMIZED_CELLS:
+            assert spec.prompt["agents"][row["task"]]["file"] == "merger_agreement_specialist_maud_v1"
+            for knob, value in SAND40_MERGER_32K_KNOBS.items():
+                assert row[knob] == value, (run_id, knob)
         else:
-            assert spec.engine.vllm.max_model_len == 32768
-            assert not spec.engine.vllm.hf_overrides
+            assert spec.dataset.limit == 100 and spec.prompt == base.prompt
+            for knob in ("max_tokens", "max_input_chars", "temperature", "prompt_file"):
+                assert row.get(knob) == base_row.get(knob), (run_id, knob)
+            assert not row.get("optimized") and "chunk_chars" not in row
+    assert _grid_spec(merger).dataset.limit == 50
+    assert _grid_spec("sand40-check-5-merger-specialist-awq-2l4").dataset.limit == 5
+    for run_id in SAND40_PROBE_CELLS:
+        spec = _grid_spec(run_id)
+        assert spec.engine.vllm.max_model_len == 65536
+        assert spec.engine.vllm.hf_overrides["rope_parameters"]["rope_type"] == "yarn"
+
+
+def test_sand40_merger_chunks_fit_the_32k_window():
+    """prompt + max_tokens must fit 32768: extract_chunked drops a rejected chunk silently."""
+    from mailroom_sandbox.eval.agents import chunk_window
+    from mailroom_sandbox.job.specialist_posture import SAND40_MERGER_32K_KNOBS as k
+    from mailroom_sandbox.paths import repo_root
+
+    window, overlap = chunk_window(k["max_input_chars"], k["chunk_chars"], k["overlap_chars"])
+    assert window + overlap <= k["max_input_chars"]
+    prompt_chars = len((repo_root() / "config/prompts/merger_agreement_specialist_maud_v1.txt").read_text())
+    worst_chars_per_token = 3.0  # whole request (document + MAUD prompt); SAND-37 merger requests measured >= 3.3
+    request_tokens = (k["max_input_chars"] + prompt_chars + 400) / worst_chars_per_token
+    assert request_tokens + k["max_tokens"] <= 32768
+
+
+def test_sand40_gate_draw_is_the_prefix_of_the_fifty_agreements():
+    from mailroom_sandbox.corpus import select_rows
+
+    gate, cell = _grid_spec("sand40-check-5-merger-specialist-awq-2l4"), _grid_spec("sand40-50-merger-specialist-awq-2l4")
+    rows = [
+        {"id": f"d{i:04d}", "filename": f"d{i:04d}.txt", "expected_doc_class": "merger_agreement", "expected_subclass": "x"}
+        for i in range(300)
+    ]
+
+    def ids(spec):
+        return {r["id"] for r in select_rows(rows, strata=spec.dataset.strata, sample_seed=spec.dataset.sample_seed,
+                                             limit=spec.dataset.limit)}
+
+    assert len(ids(gate)) == 5 and ids(gate) <= ids(cell)
 
 
 def test_sand40_probe_draw_is_the_prefix_of_the_scored_fifty():

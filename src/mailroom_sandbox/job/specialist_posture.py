@@ -954,24 +954,28 @@ def validate_mapping(mapping: Mapping[str, Any] | None = None) -> list[str]:
     return errors
 
 
-# ── SAND-040: 2×L4 · C32 scale run, n=100 (merger n=50), optimized long-document classes ──
-# Two serving phases on the same 2×L4 fleet shape:
-#   * short classes (correspondence, insurance claims, corporate records): n=100 on the
-#     SAND-037 aligned spec unchanged (native 32768 window) — pure scale, nested 50 ⊂ 100;
-#   * long classes (contracts n=100, merger n=50 on the SAND-37 2×L4 documents) on a
-#     64K window (YaRN ×2) with the SAND-040 optimizations below. Merger stays at n=50
-#     so it is a like-for-like comparison against grid-50-merger-specialist-awq-2l4.
-# Optimizations (long classes only; every one is recorded on the run card):
-#   1. 64K window, max_input_chars 128000 (contracts read in full: 42% → 92% of the corpus);
-#   2. the pipeline's own chunked extraction (production graph runs it, `chunking.enabled`)
-#      for documents beyond one window — overlapping 120k-char windows, deterministic merge;
-#      every merger agreement (median 338k chars) is read end to end instead of head+tail;
-#   3. Qwen3 non-thinking sampling: temperature 0.7, top_p 0.8, top_k 20, presence_penalty 1.0;
-#   4. output cap 6144 (longest successful SAND-37/39 output 4,860) + one re-sample on
-#      LengthFinishReasonError (runaway decodes are stochastic at 0.7);
-#   5. merger only: the MAUD prompt (merger_agreement_specialist_maud_v1; SAND-032 s5 vs s3 on
-#      50 agreements: MAUD accuracy 8.5% vs 4.0%, coverage 33% vs 22%).
-SAND40_MAX_MODEL_LEN = 65536
+# ── SAND-040: 2×L4 · C32 scale run on one 32K deploy ──────────────────────────
+# One deploy of the SAND-037 2×L4 engine (native 32768 window), no redeploy:
+#   * correspondence, insurance claims, corporate records, contracts: n=100 on the SAND-037
+#     aligned spec unchanged (pure scale, nested 20 ⊂ 50 ⊂ 100);
+#   * merger agreements: n=50 (the SAND-37 2×L4 agreements) with the optimized † settings —
+#     chunked whole-document extraction (the pipeline's own pass: overlapping windows,
+#     deterministic merge) instead of a 30,000-char head+tail, the MAUD v1 prompt, Qwen3
+#     non-thinking sampling (0.7 / top_p 0.8 / top_k 20 / presence 1.0), a 6144 output cap
+#     and one re-sample on LengthFinishReasonError.
+# The 64K YaRN window is dropped: on matched documents the n=20 probes showed no contracts
+# gain (−0.002) and a merger gain (+0.081 MAUD accuracy) that comes from chunking, which
+# the 32K window can carry with smaller chunks.
+#
+# 32K chunk sizing. vLLM rejects a request whose prompt + max_tokens exceeds the window, and
+# extract_chunked() skips a failed chunk silently, so every request must fit. The posture
+# context-fit guard (2.4 chars/token + 4,000 system tokens) allows 54,000 chars beside a
+# 6,144 output cap; SAND-37 merger requests measured ≥ 3.3 chars/token, so the real margin
+# is wider. max_input_chars 54,000 → window 47,000 + overlap 6,500 (≤ budget / 8); a chunk
+# plus its overlap tail stays ≤ 54,000 chars.
+# A 5-agreement gate cell (the seeded prefix of the 50) runs first on the same deploy;
+# `sandbox run card --gate` checks every expected chunk reached vLLM before the n=50 cell.
+SAND40_MAX_MODEL_LEN = 65536  # executed 64K probes only
 SAND40_HF_OVERRIDES: dict[str, Any] = {
     "rope_parameters": {
         "rope_type": "yarn",
@@ -980,43 +984,60 @@ SAND40_HF_OVERRIDES: dict[str, Any] = {
         "rope_theta": 1000000,
     }
 }
-SAND40_LONG_KNOBS: dict[str, Any] = {
+SAND40_OPTIMIZED_KNOBS: dict[str, Any] = {
     "max_tokens": 6144,
-    "max_input_chars": 128000,
     "temperature": 0.7,
     "top_p": 0.8,
     "top_k": 20,
     "presence_penalty": 1.0,
     "length_retries": 1,
+}
+SAND40_LONG_KNOBS: dict[str, Any] = {  # 64K probes (2026-10-01)
+    **SAND40_OPTIMIZED_KNOBS,
+    "max_input_chars": 128000,
     "chunk_chars": 120000,
     "overlap_chars": 8000,
 }
+SAND40_MERGER_32K_KNOBS: dict[str, Any] = {
+    **SAND40_OPTIMIZED_KNOBS,
+    "max_input_chars": 54000,
+    "chunk_chars": 47000,
+    "overlap_chars": 6500,
+}
 SAND40_PROMPTS: dict[str, str] = {"merger_agreement": "merger_agreement_specialist_maud_v1"}
-_SAND40_TABLE: tuple[tuple[str, str, int, bool, float, int], ...] = (
-    # run_id, doc_class, n, long (64K optimized), cost_cap, max_wall
-    ("sand40-100-correspondence-specialist-awq-2l4", "correspondence", 100, False, 1.00, 3600),
-    ("sand40-100-insurance-claims-specialist-awq-2l4", "insurance_claim", 100, False, 1.20, 3600),
-    ("sand40-100-corporate-records-specialist-awq-2l4", "corporate_record", 100, False, 1.20, 3600),
-    ("sand40-100-contracts-specialist-awq-2l4-64k", "contract", 100, True, 2.40, 6000),
-    ("sand40-50-merger-specialist-awq-2l4-64k", "merger_agreement", 50, True, 2.50, 7200),
-    # Validation probe before the scale run: nested n=20 of each long class on the 64K engine.
-    ("sand40-probe-20-contracts-specialist-awq-2l4-64k", "contract", 20, True, 0.80, 2400),
-    ("sand40-probe-20-merger-specialist-awq-2l4-64k", "merger_agreement", 20, True, 1.00, 3600),
+# variant: "aligned" = SAND-037 spec unchanged; "opt32k" = † merger on 32K; "probe64k" = executed probe.
+_SAND40_TABLE: tuple[tuple[str, str, int, str, float, int], ...] = (
+    # run_id, doc_class, n, variant, cost_cap, max_wall
+    ("sand40-100-correspondence-specialist-awq-2l4", "correspondence", 100, "aligned", 1.00, 3600),
+    ("sand40-100-insurance-claims-specialist-awq-2l4", "insurance_claim", 100, "aligned", 1.20, 3600),
+    ("sand40-100-corporate-records-specialist-awq-2l4", "corporate_record", 100, "aligned", 1.20, 3600),
+    ("sand40-100-contracts-specialist-awq-2l4", "contract", 100, "aligned", 1.20, 3600),
+    ("sand40-50-merger-specialist-awq-2l4", "merger_agreement", 50, "opt32k", 2.50, 5400),
+    # Gate: first 5 of the 50 agreements, same settings, runs before the n=50 cell.
+    ("sand40-check-5-merger-specialist-awq-2l4", "merger_agreement", 5, "opt32k", 0.40, 1800),
+    # Validation probes (executed 2026-10-01): nested n=20 on the 64K engine.
+    ("sand40-probe-20-contracts-specialist-awq-2l4-64k", "contract", 20, "probe64k", 0.80, 2400),
+    ("sand40-probe-20-merger-specialist-awq-2l4-64k", "merger_agreement", 20, "probe64k", 1.00, 3600),
 )
-SAND40_CELLS: frozenset[str] = frozenset(r[0] for r in _SAND40_TABLE if "-probe-" not in r[0])
+SAND40_CELLS: frozenset[str] = frozenset(
+    r[0] for r in _SAND40_TABLE if "-probe-" not in r[0] and "-check-" not in r[0]
+)
+SAND40_CHECK_CELLS: frozenset[str] = frozenset(r[0] for r in _SAND40_TABLE if "-check-" in r[0])
 SAND40_PROBE_CELLS: frozenset[str] = frozenset(r[0] for r in _SAND40_TABLE if "-probe-" in r[0])
-SAND40_LONG_CELLS: frozenset[str] = frozenset(r[0] for r in _SAND40_TABLE if r[3])
-for _rid, _cls, _n, _long, _cap, _wall in _SAND40_TABLE:
+SAND40_LONG_CELLS: frozenset[str] = frozenset(r[0] for r in _SAND40_TABLE if r[3] == "probe64k")
+SAND40_OPTIMIZED_CELLS: frozenset[str] = frozenset(r[0] for r in _SAND40_TABLE if r[3] != "aligned")
+for _rid, _cls, _n, _variant, _cap, _wall in _SAND40_TABLE:
     _agent, _prompt, _mt, _pt, _ct = _GRID_AGENTS[_cls]
+    _optimized = _variant != "aligned"
     _row: dict[str, Any] = {
         "task": _agent,
         "doc_class": _cls,
         "agent": _agent,
-        "prompt_file": SAND40_PROMPTS.get(_cls, _prompt) if _long else _prompt,
+        "prompt_file": SAND40_PROMPTS.get(_cls, _prompt) if _optimized else _prompt,
         "concurrency": 32,
         "replicas": 2,
         "max_num_seqs": 16,
-        "max_model_len": SAND40_MAX_MODEL_LEN if _long else 32768,
+        "max_model_len": SAND40_MAX_MODEL_LEN if _variant == "probe64k" else 32768,
         "max_tokens": _mt,
         "max_input_chars": _input_chars_for(_mt, _pt, 32768),
         "cost_cap_usd": _cap,
@@ -1028,14 +1049,14 @@ for _rid, _cls, _n, _long, _cap, _wall in _SAND40_TABLE:
     _temp = GRID_TEMPERATURE_BY_CLASS.get(_cls)
     if _temp is not None:
         _row["temperature"] = _temp
-    if _long:
-        _row.update(SAND40_LONG_KNOBS)
+    if _optimized:
+        _row.update(SAND40_LONG_KNOBS if _variant == "probe64k" else SAND40_MERGER_32K_KNOBS)
         _row["optimized"] = True
         _row["tokens_assumed"] = {"prompt": 30000 if _cls == "contract" else 140000, "completion": 2500 if _cls == "contract" else 4500}
+        _window = "64K YaRN window, 128k-char input" if _variant == "probe64k" else "32K window, 54k-char chunks"
         _row["rationale"] = (
-            "SAND-040 optimized long-document cell: 64K YaRN window, 128k-char input, pipeline "
-            "chunked extraction, Qwen3 sampling (0.7 / top_p 0.8 / top_k 20 / presence 1.0), "
-            "6144 cap + one length re-sample"
+            f"SAND-040 optimized long-document cell: {_window}, pipeline chunked extraction, "
+            "Qwen3 sampling (0.7 / top_p 0.8 / top_k 20 / presence 1.0), 6144 cap + one length re-sample"
             + ("; MAUD v1 prompt" if _cls in SAND40_PROMPTS else "")
         )
     SPECIALIST_POSTURE[_rid] = _row
