@@ -57,10 +57,24 @@ def test_master_ignores_legacy_cells(tmp_path):
     assert cards["contracts"]["run_id"] == "grid-50-contracts-specialist-awq-2l4-rerun"
 
 
-def test_sand40_column_is_pending_with_the_optimized_merger_mark():
+def test_sand40_column_is_measured_with_the_optimized_merger_mark():
     md = grid_master.render_master_md(grid_master.collect_master())
-    assert "| SAND-40 | 2×L4 C32 n=100 | 2 | 32 | 100 (merger 50†) | pending |" in md
-    assert "pending†" in md
+    assert "| SAND-40 | 2×L4 C32 n=100 | 2 | 32 | 100 (merger 50†) | 5 of 5 cells |" in md
+    assert ")†" in md  # merger score carries the dagger
+    # like-for-like scale check excludes the † merger cell
+    assert "### Scale check: four unchanged specialists (merger excluded)" in md
+    assert "| Documents ok / total | 199 / 200 | 399 / 400 | — |" in md
+    assert "**Doubling the batch to n = 100" in md
+    assert "**The † merger settings raise MAUD accuracy" in md
+    # the frozen-settings gap no longer quotes the † coverage
+    assert "answers only 13%–24% of labeled MAUD questions" in md
+
+
+def test_pooled_four_requires_all_four_unchanged_specialists():
+    cards = grid_master.collect_master()["cards"]["s40-2l4"]
+    four = grid_master._pooled_four(cards, 2)
+    assert four and four["cells"] == 4 and four["documents"] == 400
+    assert grid_master._pooled_four({k: v for k, v in cards.items() if k != "contracts"}, 2) is None
 
 
 def test_merger_settings_table_shows_what_the_dagger_changes():
@@ -139,3 +153,47 @@ def test_probes_are_reported_matched_but_never_pooled():
     md = grid_master.render_master_md(data)
     row = next(line for line in md.splitlines() if line.startswith("| Merger Agreements | 65,536 |"))
     assert "| 18 | 0.114 | 0.033 | +0.081 (14 / 3) |" in row
+
+
+def test_dagger_figure_and_markers_follow_the_sand40_merger_cell():
+    from mailroom_sandbox.job import grid_figures
+
+    data = grid_master.collect_master()
+    specs = {s["key"]: s for s in grid_figures.figure_specs(data)}
+    assert "cmp-merger-dagger" in specs
+    assert "†" in specs["cmp-quality"]["caption"] and "†" in specs["cmp-latency-cost"]["caption"]
+    assert ("s40-2l4", "merger_agreement") in grid_figures.DAGGER
+    md = grid_master.render_master_md(data)
+    assert "](figures/cmp-merger-dagger.png)" in md
+
+
+def test_token_split_fits_instructions_per_call_and_falls_back_when_unidentifiable():
+    from mailroom_sandbox.job.grid_cards import FALLBACK_CHARS_PER_TOKEN, token_split
+
+    # 2,000 instruction tokens per call + 4 chars/token over documents of varied length
+    docs = [
+        {"ok": True, "calls": 1, "input_chars": c, "prompt_tokens": 2000 + c / 4, "completion_tokens": 100}
+        for c in (800, 1600, 3000, 5000, 9000, 12000, 15000, 20000)
+    ]
+    sp = token_split(docs)
+    assert sp["method"] == "fit"
+    assert abs(sp["chars_per_token"] - 4.0) < 1e-6 and abs(sp["instruction_per_call"] - 2000) < 1e-6
+    # every document cut to the same cap: not identifiable → fallback ratio, instructions are the remainder
+    capped = [dict(d, input_chars=30000, prompt_tokens=9000) for d in docs]
+    sp = token_split(capped)
+    assert sp["method"] == "fallback" and sp["chars_per_token"] == FALLBACK_CHARS_PER_TOKEN
+    assert abs(sp["per_document"]["document"] - 30000 / FALLBACK_CHARS_PER_TOKEN) < 1e-6
+    # chunked runs never fit (re-samples add calls the profile cannot see)
+    assert token_split(docs, chunked=True)["method"] == "fallback"
+    assert token_split([{"ok": False}]) is None
+
+
+def test_master_reports_token_composition_and_figure():
+    from mailroom_sandbox.job import grid_figures
+
+    data = grid_master.collect_master()
+    md = grid_master.render_master_md(data)
+    assert "## Token composition" in md
+    assert "| Merger Agreements † (SAND-40) |" in md
+    assert "**Instructions, not documents, dominate the short classes.**" in md
+    assert "cmp-tokens" in {s["key"] for s in grid_figures.figure_specs(data)}

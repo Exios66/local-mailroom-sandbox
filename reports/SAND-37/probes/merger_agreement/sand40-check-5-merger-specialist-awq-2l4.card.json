@@ -63,8 +63,10 @@
   },
   "documents": [
     {
+      "calls": 6,
       "completion_tokens": 3891,
       "error": null,
+      "input_chars": 292602,
       "item_id": "DOC-f4e726a7f2c25494",
       "latency_seconds": 181.153945,
       "ok": true,
@@ -72,8 +74,10 @@
       "score": 0.13333333333333333
     },
     {
+      "calls": 9,
       "completion_tokens": 4470,
       "error": null,
+      "input_chars": 470685,
       "item_id": "DOC-1e016055aa435e71",
       "latency_seconds": 247.72815,
       "ok": true,
@@ -81,8 +85,10 @@
       "score": 0.125
     },
     {
+      "calls": 9,
       "completion_tokens": 5814,
       "error": null,
+      "input_chars": 438906,
       "item_id": "DOC-52f9a5be69429299",
       "latency_seconds": 268.796788,
       "ok": true,
@@ -90,8 +96,10 @@
       "score": 0.23529411764705882
     },
     {
+      "calls": 8,
       "completion_tokens": 5154,
       "error": null,
+      "input_chars": 389332,
       "item_id": "DOC-d554890e66786170",
       "latency_seconds": 458.003022,
       "ok": true,
@@ -99,8 +107,10 @@
       "score": 0.1875
     },
     {
+      "calls": 9,
       "completion_tokens": 5667,
       "error": null,
+      "input_chars": 456134,
       "item_id": "DOC-5fa0ba13cf68b593",
       "latency_seconds": 465.65799400000003,
       "ok": true,
@@ -134,7 +144,7 @@
     ],
     "scrape_errors": []
   },
-  "generated_at": "2026-10-01T05:41:04+00:00",
+  "generated_at": "2026-10-01T06:44:51+00:00",
   "latency": {
     "max": 465.65799400000003,
     "mean": 324.2679798,
@@ -188,6 +198,21 @@
     "completion_share": 0.043002465295758074,
     "per_document": 116253.8,
     "prompt": 556273,
+    "split": {
+      "calls": 41.0,
+      "chars_per_token": 4.5,
+      "completion_tokens": 24996.0,
+      "document_tokens": 455035.3333333333,
+      "documents": 5,
+      "instruction_per_call": 2469.2113821138214,
+      "instruction_tokens": 101237.66666666669,
+      "method": "fallback",
+      "per_document": {
+        "completion": 4999.2,
+        "document": 91007.06666666667,
+        "instruction": 20247.533333333336
+      }
+    },
     "total": 581269
   }
 }
