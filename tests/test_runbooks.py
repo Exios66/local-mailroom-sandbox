@@ -258,7 +258,15 @@ def test_grid_shell_relocks_1l4_and_leaves_decode_to_posture():
 
 
 def test_grid_family_renders():
-    assert set(list_runbook_ids(family="grid")) == {"grid-1l4", "grid-2l4", "sand39-1l4-n50"}
+    assert set(list_runbook_ids(family="grid")) == {
+        "grid-1l4",
+        "grid-2l4",
+        "sand39-1l4-n50",
+        "sand40-probe",
+        "sand40-short",
+        "sand40-long",
+        "sand40",
+    }
     md = render_markdown("grid-1l4")
     assert "## Per-cell posture (live)" in md
     assert "`grid-50-merger-specialist-awq-1l4` | `merger_agreement_specialist` | 8 | 8192" in md
@@ -300,6 +308,28 @@ def test_sand39_runs_the_five_1l4_n50_cells_matched_to_2l4():
     assert {posture_for_run(i)["concurrency"] for i in ids} == {8}
     assert {posture_for_run(i)["replicas"] for i in ids} == {1}
     assert deploy_env_drift(rb) == []
+
+
+def test_sand40_launcher_redeploys_between_32k_and_64k():
+    from mailroom_sandbox.job.runbooks import deploy_env_drift
+
+    sh = render_shell("sand40")
+    short = sh.index("# phase: short")
+    long = sh.index("# phase: long")
+    assert short < long
+    assert sh.count("modal deploy deploy/modal_vllm.py --strategy recreate") == 2
+    assert sh.index("MODAL_VLLM_MAX_MODEL_LEN=32768") < sh.index("MODAL_VLLM_MAX_MODEL_LEN=65536")
+    assert "MODAL_VLLM_HF_OVERRIDES=" in sh[long:]
+    assert "MODAL_VLLM_HF_OVERRIDES=" not in sh[short:long]
+    assert "sand40-100-correspondence-specialist-awq-2l4.yaml" in sh[short:long]
+    assert "sand40-50-merger-specialist-awq-2l4-64k.yaml" in sh[long:]
+    assert deploy_env_drift(get_runbook("sand40")) == []
+    assert deploy_env_drift(get_runbook("sand40-short")) == []
+    assert deploy_env_drift(get_runbook("sand40-long")) == []
+    assert deploy_env_drift(get_runbook("sand40-probe")) == []
+    probe = render_shell("sand40-probe")
+    assert "0.30" in render_markdown("sand40-probe") or "0.80" in render_markdown("sand40-probe")
+    assert "MODAL_VLLM_MAX_MODEL_LEN=65536" in probe
 
 
 def test_sand39_shell_relocks_scrapes_and_writes_master_card():

@@ -65,6 +65,8 @@ from mailroom_sandbox.job.specialist_posture import (
     GRID_ONE_GPU_RUNS,
     GRID_TWO_GPU_RUNS,
     SAND032_RUNS,
+    SAND40_CELLS,
+    SAND40_PROBE_CELLS,
     SAND032_SORTER_RUNS,
     SPECIALIST_POSTURE,
     expected_concurrency,
@@ -82,6 +84,8 @@ TWO_GPU_RUNS = frozenset({
     *(r for r in SAND032_RUNS if r.startswith(("sand032-s3", "sand032-s5", "sand032-s7", "sand032-s8", "sand032-s9")) or r == "sand032-s2b-corr100-2rep"),
     *SAND032_SORTER_RUNS,
     *GRID_TWO_GPU_RUNS,
+    *SAND40_CELLS,
+    *SAND40_PROBE_CELLS,
 })
 
 # Granite 4.2-8B FP8 sweep (1×L4): MIN=MAX=1 pinned warm across the five-run
@@ -288,7 +292,10 @@ def check_benchmark_posture(
                 f"{BENCHMARK_EXPECTED['max_containers']}"
             )
 
-    if spec is not None and (spec.run_id in SAND032_RUNS or spec.run_id in GRID_CELLS):
+    if spec is not None and (
+        spec.run_id in SAND032_RUNS or spec.run_id in GRID_CELLS or spec.run_id in SAND40_CELLS
+        or spec.run_id in SAND40_PROBE_CELLS
+    ):
         # SAND-032 / SAND-037 grid: the run YAML is the source of truth for
         # deploy knobs — a stale MODAL_VLLM_* shell would silently serve
         # different settings.

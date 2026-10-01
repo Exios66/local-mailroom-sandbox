@@ -259,6 +259,12 @@ class VLLMSpec(BaseModel):
     cudagraph_capture_sizes: list[int] = Field(default_factory=list)
     max_num_batched_tokens: int | None = None
     max_inputs: int = 0  # >0 wraps serve() in @modal.concurrent(max_inputs=…)
+    # SAND-040: HF config overrides passed to `vllm serve --hf-overrides` (JSON). The
+    # 64K Qwen3 window is YaRN ×2 over the native 32768:
+    # {"rope_parameters": {"rope_type": "yarn", "factor": 2.0,
+    #  "original_max_position_embeddings": 32768, "rope_theta": 1000000}}
+    # (v0.29.0 reads Transformers-v5 `rope_parameters`; vLLM derives max len 65536).
+    hf_overrides: dict[str, Any] | None = None
 
     @field_validator("kv_cache_dtype")
     @classmethod
@@ -540,7 +546,7 @@ def prompt_resolution_map(spec: RunSpec) -> dict[str, Any]:
 # SAND-032 knobs hash only when set, so pre-SAND-032 run YAMLs keep their
 # recorded spec_hash (locks, resume, and hashes cited in committed reports).
 _HASH_WHEN_SET = ("kv_cache_dtype", "enable_thinking", "cudagraph_capture_sizes",
-                  "max_num_batched_tokens", "max_inputs")
+                  "max_num_batched_tokens", "max_inputs", "hf_overrides")
 
 
 def _vllm_core(vllm: VLLMSpec) -> dict[str, Any]:

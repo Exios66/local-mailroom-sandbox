@@ -54,6 +54,7 @@ def spec_env(spec: RunSpec) -> dict[str, str]:
             "" if v.max_num_batched_tokens is None else str(v.max_num_batched_tokens)
         ),
         "MODAL_VLLM_MAX_INPUTS": str(v.max_inputs) if v.max_inputs else "",
+        "MODAL_VLLM_HF_OVERRIDES": json.dumps(v.hf_overrides, sort_keys=True) if v.hf_overrides else "",
         # Knobs the deploy reads that no SAND-032 run sets: pinned to "unset"
         # (deploy default) so a stale shell — e.g. the Granite runbook's
         # MODAL_VLLM_REASONING_PARSER=granite — is caught as drift and cleared

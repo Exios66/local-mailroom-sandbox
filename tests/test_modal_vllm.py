@@ -661,8 +661,20 @@ class TestSand032Knobs:
             "--compilation-config",
             "--max-num-batched-tokens",
             "--chat-template",
+            "--hf-overrides",
         ):
             assert flag not in cmd
+
+    def test_hf_overrides_passed_when_set(self, monkeypatch):
+        monkeypatch.setenv(
+            "MODAL_VLLM_HF_OVERRIDES",
+            '{"rope_parameters": {"factor": 2.0, "rope_type": "yarn"}}',
+        )
+        mod = _load_app_module()
+        cmd = mod.build_vllm_command("Qwen/Qwen3-8B-AWQ")
+        assert cmd[cmd.index("--hf-overrides") + 1] == (
+            '{"rope_parameters": {"factor": 2.0, "rope_type": "yarn"}}'
+        )
 
     def test_kv_cache_dtype_fp8(self, monkeypatch):
         monkeypatch.setenv("MODAL_VLLM_KV_CACHE_DTYPE", "fp8")
