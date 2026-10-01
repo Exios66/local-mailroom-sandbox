@@ -226,6 +226,16 @@ def activate(
     except Exception as exc:  # noqa: BLE001 — never block activation
         _log.warning("llm timeout override failed — 120s vendor default stands: %s", exc)
 
+    # SAND-037: the vendored specialists pass temperature=0.1 as a call-site
+    # literal (drift-guarded), so a run-scoped temperature knob is applied by
+    # wrapping their _call_structured. No temperature knobs → no-op.
+    try:
+        from mailroom_sandbox.sampling import apply_sampling_overrides
+
+        apply_sampling_overrides(agent_knobs)
+    except Exception as exc:  # noqa: BLE001 — never block activation
+        _log.warning("temperature override failed — call-site temperatures stand: %s", exc)
+
     patched_prompts = False
     if prompt_variant:
         from mailroom_sandbox.prompts import patch_managed_prompt

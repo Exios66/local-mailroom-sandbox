@@ -201,3 +201,83 @@ def test_catalog_how_to_edit_present():
     cat = load_catalog()
     assert "sandbox runbook write" in str(cat.get("how_to_edit"))
     assert cat["ops"]["app"] == "sandbox-vllm"
+
+
+# ── SAND-037 specialist grid runbooks ─────────────────────────────────────
+
+
+def test_grid_runbooks_cover_every_aligned_cell_once():
+    from pathlib import Path
+
+    from mailroom_sandbox.job.specialist_posture import GRID_CELLS
+
+    seen: list[str] = []
+    for rid, shape in (("grid-1l4", "1l4"), ("grid-2l4", "2l4")):
+        ids = [Path(rel).stem for rel in get_runbook(rid)["configs"]]
+        assert all(f"-awq-{shape}" in i for i in ids), ids
+        seen += ids
+    assert sorted(seen) == sorted(GRID_CELLS)
+    assert len(seen) == 20
+
+
+def test_grid_runbook_configs_share_one_deploy_env():
+    from mailroom_sandbox.job.runbooks import deploy_env_drift
+
+    for rid in ("grid-1l4", "grid-2l4"):
+        assert deploy_env_drift(get_runbook(rid)) == [], rid
+
+
+def test_grid_deploy_env_drift_is_detected():
+    from mailroom_sandbox.job.runbooks import deploy_env_drift
+
+    wrong = dict(get_runbook("grid-1l4"), serving="grid-awq-2l4")
+    errors = deploy_env_drift(wrong)
+    assert any("MODAL_VLLM_MAX_CONTAINERS" in e for e in errors)
+    assert any("MODAL_VLLM_MIN_CONTAINERS" in e for e in errors)
+
+
+def test_grid_shapes_differ_only_in_replicas():
+    one = env_exports(get_runbook("grid-1l4"))
+    two = env_exports(get_runbook("grid-2l4"))
+    diff = {k for k in set(one) | set(two) if one.get(k) != two.get(k)}
+    assert diff == {"MODAL_VLLM_MAX_CONTAINERS", "MODAL_VLLM_MIN_CONTAINERS"}
+    assert one["MODAL_VLLM_QUANTIZATION"] == "awq_marlin"
+    assert one["MODAL_VLLM_KV_CACHE_DTYPE"] == "fp8"
+    assert one["MODAL_VLLM_MAX_INPUTS"] == "32"
+    assert one["MODAL_VLLM_DEFAULT_CHAT_TEMPLATE_KWARGS"] == '{"enable_thinking": false}'
+
+
+def test_grid_shell_relocks_1l4_and_leaves_decode_to_posture():
+    sh = render_shell("grid-1l4")
+    assert 'sandbox run preflight --config "$cfg" --live --force' in sh
+    assert "grid-20-merger-specialist-awq-1l4-rerun.yaml" in sh
+    assert "SANDBOX_AGENT_KNOBS" not in sh  # decode comes from the posture row at start
+    sh2 = render_shell("grid-2l4")
+    assert "config/runs/grid-50-contracts-specialist-awq-2l4-rerun.yaml" in sh2
+    assert "config/runs/grid-50-contracts-specialist-awq-2l4.yaml" not in sh2
+
+
+def test_grid_family_renders():
+    assert set(list_runbook_ids(family="grid")) == {"grid-1l4", "grid-2l4"}
+    md = render_markdown("grid-1l4")
+    assert "## Per-cell posture (live)" in md
+    assert "`grid-50-merger-specialist-awq-1l4` | `merger_agreement_specialist` | 8 | 8192" in md
+    assert (generated_dir() / "grid.md").is_file()
+
+
+def test_grid_runbooks_scrape_and_export_cards():
+    for rid, stem in (("grid-1l4", "grid-1l4"), ("grid-2l4", "grid-2l4")):
+        sh = render_shell(rid)
+        loop = sh[sh.index("do\n"):sh.index("\ndone")]
+        order = [
+            'sandbox run preflight --config "$cfg"',
+            'sandbox run scrape-metrics --config "$cfg" --label before',
+            'sandbox run start --config "$cfg"',
+            'sandbox run scrape-metrics --config "$cfg" --label after',
+            'sandbox run card --config "$cfg"',
+        ]
+        positions = [loop.index(step) for step in order]
+        assert positions == sorted(positions), rid
+        assert f"sandbox run card --runbook {stem}" in sh
+    # other runbooks keep their two-line loop
+    assert "scrape-metrics" not in render_shell("improved-scale-matrix")

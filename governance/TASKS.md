@@ -7,7 +7,7 @@ Cross-family work stays on llm-entity-extraction's MESSAGE_BOARD as
 **`DMR-*`**. This file is the **only** sandbox-local task board — do not
 open `DMR-*` cards here.
 
-**Next ID: `SAND-037`**
+**Next ID: `SAND-038`**
 
 Reconciled against the [issue tracker](https://github.com/Exios66/local-mailroom-sandbox/issues)
 on 2026-09-28: the highest `SAND-*` id in use anywhere is `SAND-034` (this
@@ -23,6 +23,7 @@ Lanes: `todo` → `in_progress` → `needs_attention` → `done`.
 
 | ID | Title | Owner | Status | Notes |
 | --- | --- | --- | --- | --- |
+| SAND-037 | Qwen3-8B-AWQ specialist grid: align every cell to one spec, fix the contracts/merger length errors, ship the operator runbooks | claude | **todo** | 20 cells (5 classes × n=20/50 × 1×L4 C8 / 2×L4 C32) on the SAND-032 frozen L5 engine, nested split=all draws, v1 simplified prompts, max_tokens 8192 — `docs/SPECIALIST-GRID-PLAN.md`. LengthFinish root cause: near-greedy (0.1) looping under the JSON-schema grammar; contracts/merger run at 0.7 via `mailroom_sandbox.sampling`. Runbooks `grid-1l4` + `grid-2l4` (10 cells each). Runs pending spend approval (≈ $1.35 likely, caps $13.90). Related: SAND-032. |
 | SAND-036 | Warm vs cold GPU comparison, cost per 1M tokens analytics, Modal vs API break-even + optimal scenario, and the mailroom-issues GitHub Pages site | claude | **done** | `reports/dashboard/gpu_report.py` (§3 $/1M bases + utilization, §4 warm vs cold), `reports/dashboard/breakeven.py` (per-document break-even, optimal deployment), `reports/dashboard/pages_site.py` → `mailroom-issues/docs/` (static, no JS); every number from hub data (no new runs, no spend). Related: SAND-035, SAND-032. |
 | SAND-035 | Cross-repo report audit (sandbox, eval-environment, mailroom-ml) + Modal vs API cost comparison and master report for mailroom-issues | claude | **done** | Chart kit: `scripts/sand032/viz.py` measured labels/lanes, `scripts/sand032/rerender.py`; hub: Modal vs API tab, eval-env `f6bb510` / ml `d3ad222` sync, Qwen3.7-Flash n=50 cross-checks; `reports/dashboard/export_hub_reports.py` → `mailroom-issues/reports/` (audit record `reports/dashboard/report_audit.json`); Modal + vLLM GPU economics report (`reports/dashboard/gpu_report.py`, hub `fleet` extract); SAND-032 spend header corrected to the $2.80 closing ledger. Related: SAND-032. |
 | SAND-034 | Pipeline prompt enhancement plan: sorter + specialists in depth, other graph nodes (intake, reviewer, judges, arbiter, boss) + Langfuse promotion (failure diagnosis, concise skeleton, cue inventory, GEPA complement) | claude | **todo** | Plan: `docs/PROMPT-ENHANCEMENT-PLAN.md` (offline diagnosis, no spend); Hub RFC: LLM-Mailroom-Services/mailroom-issues#213 (source draft `docs/discussions/prompt-enhancement-plan.md`). Phase 0 contract fixes span eval-environment + vendored llm-mailroom. Related: SAND-032, SAND-020, eval-environment GEPA (#61–#63). |
