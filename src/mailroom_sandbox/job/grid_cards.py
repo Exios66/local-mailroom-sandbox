@@ -886,9 +886,30 @@ def _pooled(cards: list[Mapping[str, Any]], replicas: int) -> dict[str, Any]:
     }
 
 
+# Record figures (reports/SAND-37/figures/record/, one chart per PNG) embedded in each suite card:
+# the shape's own cost and latency charts, then the shared 1x-vs-2x L4 comparison.
+SUITE_FIG_DIR = "figures/record"
+SUITE_FIGURES: dict[int, tuple[tuple[str, str], ...]] = {
+    1: (
+        ("1xL4-C8-n50-cost", "Cost per 1,000 ok documents, Experiment 2 (1x L4 C=8 n=50)"),
+        ("1xL4-C8-n50-latency", "Latency p50 to p99, Experiment 2 (1x L4 C=8 n=50)"),
+        ("1x-vs-2xL4-cost", "Cost per 1,000 ok documents, 1x vs 2x L4 on the same 250 documents"),
+        ("1x-vs-2xL4-throughput", "Throughput, 1x vs 2x L4 on the same 250 documents"),
+    ),
+    2: (
+        ("2xL4-C32-n50-cost", "Cost per 1,000 ok documents, Experiment 3 (2x L4 C=32 n=50)"),
+        ("2xL4-C32-n50-latency", "Latency p50 to p99, Experiment 3 (2x L4 C=32 n=50)"),
+        ("1x-vs-2xL4-cost", "Cost per 1,000 ok documents, 1x vs 2x L4 on the same 250 documents"),
+        ("1x-vs-2xL4-throughput", "Throughput, 1x vs 2x L4 on the same 250 documents"),
+    ),
+}
+SUITE_EXPERIMENTS = {1: "Experiments 1–2", 2: "Experiment 3"}
+
+
 def collect_suite(replicas: int, *, repo: Path | None = None) -> dict[str, Any]:
     """Gather the committed per-run card JSON for one fleet shape."""
     root = (repo or repo_root()) / ROOT_REL / SHAPE_DIRS[int(replicas)]
+    fig_dir = (repo or repo_root()) / ROOT_REL / SUITE_FIG_DIR
     found: dict[str, dict[str, Any]] = {}
     for path in sorted(root.glob("*/*.card.json")):
         data = _read_json(path)
@@ -911,6 +932,7 @@ def collect_suite(replicas: int, *, repo: Path | None = None) -> dict[str, Any]:
         "cells": [{"run_id": c["run_id"], "n": c["n"], "task": c["task"], "reported": bool(c["card"])} for c in cells],
         "pooled": {"all": _pooled(present, replicas), "n20": by_n[20], "n50": by_n[50]},
         "cards": {c["run_id"]: c["card"] for c in cells if c["card"]},
+        "figures": [stem for stem, _ in SUITE_FIGURES[int(replicas)] if (fig_dir / f"{stem}.png").is_file()],
     }
 
 
@@ -932,7 +954,7 @@ def render_suite_md(suite: Mapping[str, Any]) -> str:
     reported = sum(1 for c in suite["cells"] if c["reported"])
     first = next(iter(cards.values()), None)
     lines = [
-        f"# SAND-37 — {shape} · C{8 if replicas == 1 else 32} score & cost card",
+        f"# {shape} · C{8 if replicas == 1 else 32} score & cost card ({SUITE_EXPERIMENTS[replicas]})",
         "",
         f"**Cells reported:** {reported} of {total} · **Runbook:** `{suite['runbook']}` · "
         "**Model:** Qwen/Qwen3-8B-AWQ · L4 @ $0.80/GPU-hr",
@@ -977,6 +999,12 @@ def render_suite_md(suite: Mapping[str, Any]) -> str:
     for label, fn in pooled_rows:
         lines.append(f"| {label} | {fn(pooled['n20'])} | {fn(pooled['n50'])} | {fn(pooled['all'])} |")
     lines.append("")
+    have = set(suite.get("figures") or ())
+    figs = [(stem, alt) for stem, alt in SUITE_FIGURES[replicas] if stem in have]
+    if figs:
+        lines += ["## Figures", ""]
+        for stem, alt in figs:
+            lines += [f"![{alt}](../{SUITE_FIG_DIR}/{stem}.png)", ""]
     for n in (20, 50):
         cells = [c for c in suite["cells"] if c["n"] == n]
         header = " | ".join(_LABEL[c["task"]] for c in cells)
