@@ -16,6 +16,8 @@ def _seed(tmp: Path, with_sand39: bool) -> Path:
     root = tmp / "reports" / "SAND-37"
     for shape in ("1L4", "2L4"):
         for card in (SAND37 / shape).glob("*/*.card.json"):
+            if shape == "1L4" and card.name.startswith("grid-50-"):
+                continue  # real SAND-39 cells; the fixture controls whether SAND-39 is present
             dst = root / shape / card.parent.name / card.name
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy(card, dst)
@@ -41,7 +43,7 @@ def test_sand39_pending_before_its_cells_exist(tmp_path):
 def test_sand39_populates_and_becomes_the_matched_sample_baseline(tmp_path):
     md = grid_master.render_master_md(grid_master.collect_master(_seed(tmp_path, True)))
     assert "| SAND-39 | 1×L4 C8 n=50 | 1 | 8 | 50 | 5 of 5 cells |" in md
-    assert "identical 250 documents (SAND-39 1×L4 C8 n=50 vs SAND-37 2×L4 C32 n=50)" in md
+    assert "identical 250 documents, SAND-39 1×L4 C8 n=50 vs SAND-37 2×L4 C32 n=50" in md
     assert "SAND-39 pending" not in md
 
 
@@ -66,3 +68,32 @@ def test_record_metered_round_trips(tmp_path):
     grid_master.record_metered("SAND-39", 0.623, 0.0, "note", repo=tmp_path)
     data = json.loads((tmp_path / "reports/SAND-37/metered-costs.json").read_text())
     assert data["SAND-39"] == {"metered_usd": 0.62, "billed_usd": 0.0, "note": "note"}
+
+
+def test_figures_embed_in_master_and_matched_panel_waits_for_sand39(tmp_path):
+    from mailroom_sandbox.job import grid_figures
+
+    before = grid_master.collect_master(_seed(tmp_path / "a", False))
+    keys = [s["key"] for s in grid_figures.figure_specs(before)]
+    assert "cmp-matched" not in keys and "posture-s39-1l4-n50" not in keys
+    after = grid_master.collect_master(_seed(tmp_path / "b", True))
+    specs = grid_figures.figure_specs(after)
+    assert {"cmp-efficiency", "cmp-quality", "cmp-latency-cost", "cmp-matched", "posture-s39-1l4-n50"} <= {
+        s["key"] for s in specs
+    }
+    md = grid_master.render_master_md(after)
+    assert "](figures/cmp-matched.png)" in md
+    assert "](2L4/figures/SAND-37-2xL4-C32-n50.png)" in md
+    assert "](1L4/figures/SAND-39-1xL4-C8-n50.png)" in md
+
+
+def test_write_master_renders_every_linked_figure(tmp_path):
+    repo = _seed(tmp_path, True)
+    paths = grid_master.write_master(repo)
+    md = paths["md"].read_text()
+    from mailroom_sandbox.job import grid_figures
+
+    for spec in grid_figures.figure_specs(grid_master.collect_master(repo)):
+        png = repo / "reports" / "SAND-37" / spec["path"]
+        assert png.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+        assert f"]({spec['path']})" in md

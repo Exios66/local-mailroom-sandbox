@@ -1,6 +1,6 @@
 # SAND-37 — 1× L4 · C8 score & cost card
 
-**Cells reported:** 5 of 10 · **Runbook:** `grid-1l4` · **Model:** Qwen/Qwen3-8B-AWQ · L4 @ $0.80/GPU-hr
+**Cells reported:** 10 of 10 · **Runbook:** `grid-1l4` · **Model:** Qwen/Qwen3-8B-AWQ · L4 @ $0.80/GPU-hr
 
 ## Shared conditions
 
@@ -17,17 +17,17 @@
 
 | Metric | n = 20 | n = 50 | All cells |
 | --- | ---: | ---: | ---: |
-| Cells reported | 5 | 0 | 5 |
-| Documents ok / total | 97 / 100 | 0 / 0 | 97 / 100 |
-| Error rate | 3.0% | not captured | 3.0% |
-| Wall (Σ busy) | 686.6 s | not captured | 686.6 s |
-| Busy-window GPU $ | $0.1526 | not captured | $0.1526 |
-| Cost per document (pooled) | $0.001526 | not captured | $0.001526 |
-| Cost per 1M tokens (pooled) | $0.2737 | not captured | $0.2737 |
-| Tokens | 557,581 | 0 | 557,581 |
-| Tokens / second (pooled) | 812.0 | not captured | 812.0 |
-| Tokens / second per L4 | 812.0 | not captured | 812.0 |
-| Documents / minute (pooled) | 8.74 | not captured | 8.74 |
+| Cells reported | 5 | 5 | 10 |
+| Documents ok / total | 97 / 100 | 243 / 250 | 340 / 350 |
+| Error rate | 3.0% | 2.8% | 2.9% |
+| Wall (Σ busy) | 686.6 s | 1,442.7 s | 2,129.3 s |
+| Busy-window GPU $ | $0.1526 | $0.3206 | $0.4732 |
+| Cost per document (pooled) | $0.001526 | $0.001282 | $0.001352 |
+| Cost per 1M tokens (pooled) | $0.2737 | $0.2217 | $0.2362 |
+| Tokens | 557,581 | 1,445,996 | 2,003,577 |
+| Tokens / second (pooled) | 812.0 | 1,002.3 | 940.9 |
+| Tokens / second per L4 | 812.0 | 1,002.3 | 940.9 |
+| Documents / minute (pooled) | 8.74 | 10.40 | 9.86 |
 
 ## Per specialist · n = 20
 
@@ -69,35 +69,35 @@
 | Metric | Correspondence | Insurance Claims | Corporate Records | Contracts | Merger Agreements |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | **Status** | | | | | |
-| Run ID | not run | not run | not run | not run | not run |
-| Documents ok / total | not run | not run | not run | not run | not run |
-| Errors | not run | not run | not run | not run | not run |
+| Run ID | `grid-50-correspondence-specialist-awq-1l4` | `grid-50-insurance-claims-specialist-awq-1l4` | `grid-50-corporate-records-specialist-awq-1l4` | `grid-50-contracts-specialist-awq-1l4` | `grid-50-merger-specialist-awq-1l4` |
+| Documents ok / total | 50 / 50 | 50 / 50 | 50 / 50 | 47 / 50 | 46 / 50 |
+| Errors | 0 | 0 | 0 | LengthFinishReasonError 3 | LengthFinishReasonError 4 |
 | **Time** | | | | | |
-| Wall (busy) | not run | not run | not run | not run | not run |
+| Wall (busy) | 40.6 s | 87.4 s | 71.2 s | 655.2 s | 588.4 s |
 | **Cost** | | | | | |
-| Busy-window GPU $ | not run | not run | not run | not run | not run |
-| Cost per document | not run | not run | not run | not run | not run |
-| Cost per 1M tokens | not run | not run | not run | not run | not run |
+| Busy-window GPU $ | $0.0090 | $0.0194 | $0.0158 | $0.1456 | $0.1308 |
+| Cost per document | $0.000180 | $0.000389 | $0.000316 | $0.002912 | $0.002615 |
+| Cost per 1M tokens | $0.0631 | $0.1065 | $0.0683 | $0.3493 | $0.2768 |
 | **Tokens** | | | | | |
-| Total tokens | not run | not run | not run | not run | not run |
-| Completion share | not run | not run | not run | not run | not run |
-| Completion max (ok docs) | not run | not run | not run | not run | not run |
+| Total tokens | 142,881 | 182,401 | 231,520 | 416,807 | 472,387 |
+| Completion share | 5.7% | 10.9% | 3.6% | 17.8% | 9.3% |
+| Completion max (ok docs) | 463 | 956 | 247 | 3,391 | 2,535 |
 | **Throughput** | | | | | |
-| Tokens / second | not run | not run | not run | not run | not run |
-| Tokens / second per L4 | not run | not run | not run | not run | not run |
-| Documents / minute | not run | not run | not run | not run | not run |
+| Tokens / second | 3,522.8 | 2,086.6 | 3,253.9 | 636.2 | 802.8 |
+| Tokens / second per L4 | 3,522.8 | 2,086.6 | 3,253.9 | 636.2 | 802.8 |
+| Documents / minute | 73.97 | 34.32 | 42.16 | 4.58 | 5.10 |
 | **Latency** | | | | | |
-| p50 / p95 | not run | not run | not run | not run | not run |
-| Max | not run | not run | not run | not run | not run |
+| p50 / p95 | 6.6 / 11.7 s | 14.0 / 26.7 s | 13.2 / 19.8 s | 68.2 / 108.9 s | 51.3 / 109.7 s |
+| Max | 19.8 s | 36.7 s | 22.3 s | 134.2 s | 146.1 s |
 | **Engine** | | | | | |
-| Slot occupancy | not run | not run | not run | not run | not run |
-| Mean TTFT per replica | not run | not run | not run | not run | not run |
-| Prefix-cache hit per replica | not run | not run | not run | not run | not run |
-| Length-capped finishes | not run | not run | not run | not run | not run |
+| Slot occupancy | 112.2% | 108.1% | 115.2% | 81.5% | 90.9% |
+| Mean TTFT per replica | 0.81 | 1.00 | 1.42 | 1.78 | 2.35 |
+| Prefix-cache hit per replica | 61% | 58% | 48% | 44% | 37% |
+| Length-capped finishes | 0 | 0 | 0 | 3 | 4 |
 | **Quality** | | | | | |
-| Overall extraction score | not run | not run | not run | not run | not run |
-| Clause score | not run | not run | not run | not run | not run |
-| Schema-valid rate | not run | not run | not run | not run | not run |
+| Overall extraction score | 0.3446 | 0.6838 | 0.4492 | 0.6020 | 0.0480 |
+| Clause score | — | — | — | CUAD F1 0.590 | MAUD acc 4.8% |
+| Schema-valid rate | 1.00 | 0.20 | 0.94 | 1.00 | 1.00 |
 
 ## Per-run cards
 
@@ -108,10 +108,10 @@
 | Corporate Records | 20 | `grid-20-corporate-records-specialist-awq-1l4` | [grid-20-corporate-records-specialist-awq-1l4.card.md](corporate_records/grid-20-corporate-records-specialist-awq-1l4.card.md) |
 | Contracts | 20 | `grid-20-contracts-specialist-awq-1l4` | [grid-20-contracts-specialist-awq-1l4.card.md](contracts/grid-20-contracts-specialist-awq-1l4.card.md) |
 | Merger Agreements | 20 | `grid-20-merger-specialist-awq-1l4-rerun` | [grid-20-merger-specialist-awq-1l4-rerun.card.md](merger_agreement/grid-20-merger-specialist-awq-1l4-rerun.card.md) |
-| Correspondence | 50 | `grid-50-correspondence-specialist-awq-1l4` | not run |
-| Insurance Claims | 50 | `grid-50-insurance-claims-specialist-awq-1l4` | not run |
-| Corporate Records | 50 | `grid-50-corporate-records-specialist-awq-1l4` | not run |
-| Contracts | 50 | `grid-50-contracts-specialist-awq-1l4` | not run |
-| Merger Agreements | 50 | `grid-50-merger-specialist-awq-1l4` | not run |
+| Correspondence | 50 | `grid-50-correspondence-specialist-awq-1l4` | [grid-50-correspondence-specialist-awq-1l4.card.md](correspondence/grid-50-correspondence-specialist-awq-1l4.card.md) |
+| Insurance Claims | 50 | `grid-50-insurance-claims-specialist-awq-1l4` | [grid-50-insurance-claims-specialist-awq-1l4.card.md](insurance_claims/grid-50-insurance-claims-specialist-awq-1l4.card.md) |
+| Corporate Records | 50 | `grid-50-corporate-records-specialist-awq-1l4` | [grid-50-corporate-records-specialist-awq-1l4.card.md](corporate_records/grid-50-corporate-records-specialist-awq-1l4.card.md) |
+| Contracts | 50 | `grid-50-contracts-specialist-awq-1l4` | [grid-50-contracts-specialist-awq-1l4.card.md](contracts/grid-50-contracts-specialist-awq-1l4.card.md) |
+| Merger Agreements | 50 | `grid-50-merger-specialist-awq-1l4` | [grid-50-merger-specialist-awq-1l4.card.md](merger_agreement/grid-50-merger-specialist-awq-1l4.card.md) |
 
-_Generated 2026-10-01T01:17:16+00:00 by `sandbox run card --runbook grid-1l4` from the committed per-run `*.card.json`._
+_Generated 2026-10-01T02:55:58+00:00 by `sandbox run card --runbook grid-1l4` from the committed per-run `*.card.json`._
