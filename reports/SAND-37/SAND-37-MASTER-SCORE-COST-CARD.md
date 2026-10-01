@@ -10,12 +10,12 @@
 
 Method, detail tables and figures: [SAND-37-MASTER-APPENDIX.md](./SAND-37-MASTER-APPENDIX.md).
 
-| Study | Posture | GPUs | Client concurrency | Documents per class | Status |
-| --- | --- | ---: | ---: | ---: | --- |
-| SAND-37 | 1×L4 C8 n=20 | 1 | 8 | 20 | 5 of 5 cells |
-| SAND-39 | 1×L4 C8 n=50 | 1 | 8 | 50 | 5 of 5 cells |
-| SAND-37 | 2×L4 C32 n=50 | 2 | 32 | 50 | 5 of 5 cells |
-| SAND-40 | 2×L4 C32 n=100 | 2 | 32 | 100 (merger 50†) | 5 of 5 cells |
+| Experiment | Study | Posture | GPUs | Client concurrency | Documents per class | Status |
+| ---: | --- | --- | ---: | ---: | ---: | --- |
+| 1 | SAND-37 | 1×L4 C8 n=20 | 1 | 8 | 20 | 5 of 5 cells |
+| 2 | SAND-39 | 1×L4 C8 n=50 | 1 | 8 | 50 | 5 of 5 cells |
+| 3 | SAND-37 | 2×L4 C32 n=50 | 2 | 32 | 50 | 5 of 5 cells |
+| 4 | SAND-40 | 2×L4 C32 n=100 | 2 | 32 | 100 (merger 50†) | 5 of 5 cells |
 
 ## Serving efficiency (pooled across the five specialists)
 
@@ -28,6 +28,12 @@ Method, detail tables and figures: [SAND-37-MASTER-APPENDIX.md](./SAND-37-MASTER
 
 SAND-40 includes the † merger cell's whole-agreement reads; the like-for-like check is in the appendix.
 
+![Throughput, 1x vs 2x L4 on the same 250 documents](figures/record/1x-vs-2xL4-throughput.png)
+
+![Cost per 1,000 ok documents, 1x vs 2x L4 on the same 250 documents](figures/record/1x-vs-2xL4-cost.png)
+
+![Cost per 1,000 ok documents on 2x L4, n=50 vs n=100](figures/record/2xL4-n50-vs-n100-cost.png)
+
 ## Quality and cost by specialist
 
 Cell order: 1×L4 C8 n=20 · 1×L4 C8 n=50 · 2×L4 C32 n=50 · 2×L4 C32 n=100. Contracts: CUAD F1 (micro). Merger: MAUD accuracy (coverage), a different scale. † = optimized merger.
@@ -39,6 +45,16 @@ Cell order: 1×L4 C8 n=20 · 1×L4 C8 n=50 · 2×L4 C32 n=50 · 2×L4 C32 n=100.
 | Corporate Records | 0.459 · 0.449 · 0.452 · 0.475 | 20/20 · 50/50 · 50/50 · 100/100 | 14.4 · 13.2 · 24.1 · 19.9 | 0.00026 · 0.00032 · 0.00019 · 0.00021 |
 | Correspondence | 0.327 · 0.345 · 0.334 · 0.341 | 20/20 · 50/50 · 50/50 · 100/100 | 5.8 · 6.6 · 10.7 · 10.3 | 0.00011 · 0.00018 · 0.00012 · 0.00012 |
 | Merger Agreements | 0.014 (13%) · 0.048 (24%) · 0.035 (23%) · 0.140 (69%)† | 18/20 · 46/50 · 46/50 · 50/50 | 50.5 · 51.3 · 92.5 · 1044.4 | 0.00390 · 0.00284 · 0.00329 · 0.01475 |
+
+![Cost vs score by specialist, same 250 documents](figures/record/cost-vs-score.png)
+
+![Cost per 1,000 ok documents, Experiment 2 (1x L4 C=8 n=50)](figures/record/1xL4-C8-n50-cost.png)
+
+![Cost per 1,000 ok documents, Experiment 4 (2x L4 C=32 n=100)](figures/record/2xL4-C32-n100-cost.png)
+
+![Latency p50 to p99, Experiment 2 (1x L4 C=8 n=50)](figures/record/1xL4-C8-n50-latency.png)
+
+![Latency p50 to p99, Experiment 4 (2x L4 C=32 n=100)](figures/record/2xL4-C32-n100-latency.png)
 
 ## Merger † settings
 
@@ -53,6 +69,8 @@ Same 50 agreements (seed 42) and 2×L4 engine as SAND-37; only the settings belo
 | Re-sample on a length-capped output | none | 1 |
 | Result | MAUD accuracy 0.035, coverage 23%, 46/50 ok, $0.0033 per agreement | MAUD accuracy 0.140, coverage 69%, 50/50 ok, $0.0147 per agreement |
 | Matched agreements | — | +0.106 mean per-agreement score over 46 agreements (35 better / 1 worse) |
+
+![Merger agreements, frozen vs dagger settings](figures/record/merger-frozen-vs-dagger.png)
 
 ## Cost
 
