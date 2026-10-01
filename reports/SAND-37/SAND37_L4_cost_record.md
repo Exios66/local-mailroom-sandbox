@@ -90,15 +90,11 @@ Contracts score = CUAD clause-presence F1 (labeled-doc mean). Merger = MAUD micr
 | Corporate Records | 0.00032 → 0.00019 | -40% | 42.16 → 141.69 | +236% | 168% | 13.2 → 24.1 | 19.8 → 34.6 | 1.42 → 3.95 | 0.449 → 0.452 | 0 / 0 |
 | Correspondence | 0.00018 → 0.00012 | -31% | 73.97 → 214.96 | +191% | 145% | 6.6 → 10.7 | 11.7 → 18.5 | 0.81 → 2.65 | 0.345 → 0.334 | 0 / 0 |
 | Merger Agreements | 0.00284 → 0.00329 | +16% | 5.10 → 8.80 | +73% | 86% | 51.3 → 92.5 | 109.7 → 167.2 | 2.35 → 9.39 | 0.048 → 0.035 | 4 / 4 |
-| **Pooled** | 0.00128 → 0.00129 ¹ | **+0.4%** | 10.40 → 20.71 | **+99%** | 100% | | | | no detectable change | 7 / 5 |
+| **Pooled** | 0.00132 → 0.00131 | **-0.4%** | 10.40 → 20.71 | **+99%** | 100% | | | | no detectable change | 7 / 5 |
 
-¹ Pooled cost rows (§3, §4) are busy GPU $ per *attempted* document, the master card's basis. Per ok document, §3 pooled is 0.00132 → 0.00131 (−0.4%) and §4 pooled is 0.00086 → 0.00069 (−20%).
-
-**Read:** the second L4 doubles pooled throughput at unchanged cost per document. Tokens/s/GPU go from 1,002 to 1,013, so per-GPU efficiency holds. Per-GPU scaling = (2× docs/min ÷ 1× docs/min) ÷ 2.
-
-Classes above 100% scaling (corporate records, correspondence, insurance claims) gained from the higher client concurrency, not only from the second GPU: concurrency rose from 8 to 32, about 16 in flight per replica. The two changes are confounded in this comparison.
-
-The cost of that load is latency. p50 rises 1.4–1.8× and TTFT 2.8–4.0×, because each replica now runs about 16 requests at once instead of 8 (max_num_seqs 16), so prefill competes with more decoding sequences. On matched documents, the quality change per specialist ranges from −0.011 to +0.023, and every 95% CI includes 0.
+- Pooled throughput doubles (+99%) at flat cost per ok doc (-0.4%); tokens/s/GPU 1,002 → 1,013.
+- Scaling above 100% (insurance claims, corporate records, correspondence) is confounded with client concurrency 8 → 32.
+- Latency p50 rises 1.4–1.8× and TTFT 2.8–4.0×; per-specialist quality change −0.011 to +0.023, every 95% CI includes 0.
 
 ## 4. Batch-size check — n=50 vs n=100 on 2× L4 (four unchanged classes, merger excluded)
 
@@ -108,9 +104,10 @@ The cost of that load is latency. p50 rises 1.4–1.8× and TTFT 2.8–4.0×, be
 | Contracts | 0.00284 → 0.00207 | -27% | 9.59 → 13.03 | +36% | 699 → 927 | +33% | 103.3 → 96.1 | 156.6 → 159.3 | 49% → 32% |
 | Corporate Records | 0.00019 → 0.00021 | +14% | 141.69 → 124.72 | -12% | 5,467 → 4,549 | -17% | 24.1 → 19.9 | 34.6 → 31.8 | 0% → 0% |
 | Correspondence | 0.00012 → 0.00012 | -1% | 214.96 → 218.03 | +1% | 5,120 → 5,343 | +4% | 10.7 → 10.3 | 18.5 → 20.3 | 0% → 0% |
-| **Pooled (4 classes)** | 0.00085 → 0.00069 ¹ | **-19%** | 31.29 → 38.85 | **+24%** | 1,296 → 1,582 | **+22%** | | | |
+| **Pooled (4 classes)** | 0.00086 → 0.00069 | **-20%** | 31.29 → 38.85 | **+24%** | 1,296 → 1,582 | **+22%** | | | |
 
-**Read:** doubling n lowers pooled cost per document by 19%. Almost all of it comes from contracts, whose idle share of wall time falls 49% → 32%: a longer run spends proportionally less time ramping up and draining. The three short classes don't improve: their n=50 cells already kept slots near full (occupancy 0.92–1.66, idle 0–8%), so there was no ramp-up or drain time left to recover. Correspondence stayed flat, and corporate records and insurance claims each got about 14% more expensive; insurance claims also has a longer p95 tail (32.6 → 38.4 s).
+- Pooled cost per ok doc falls 20%, almost all from contracts (-27%; idle share 49% → 32%).
+- Correspondence is flat (-1%); corporate records (+14%) and insurance claims (+14%) got more expensive.
 
 ## 5. Merger — frozen vs † settings (same 50 agreements, 2× L4 C32)
 
@@ -129,9 +126,8 @@ The cost of that load is latency. p50 rises 1.4–1.8× and TTFT 2.8–4.0×, be
 | TTFT (s) | 9.39 | 10.81 | — |
 | vLLM requests / length-capped / preemptions | 50 / 4 / 0 | 418 / 23 / 8 | — |
 
-**Read:** the † settings cost 4.5× more per agreement, but GPU cost per *correct* MAUD answer rises only 11%, because about 4× as many questions are answered correctly. Input, prompt, sampling, cap and re-sample changed together, so this run does not attribute the gain to any one of them.
-
-All 8 preemptions happened on replica 1, which also had 14 of the 23 length-capped finishes. Those are the first places to look for savings.
+- † costs 4.5× more per agreement but only +11% per correct MAUD answer; the settings changed together, so the gain is not attributed to any one.
+- Replica 1 took all 8 preemptions and 14 of 23 length-capped finishes.
 
 ## 6. Latency, all 20 cells (ok documents, end-to-end seconds)
 
@@ -158,7 +154,7 @@ All 8 preemptions happened on replica 1, which also had 14 of the 23 length-capp
 | Merger Agreements | SAND-37 2×L4 C32 n=50 | 100.2 | 92.5 | 167.2 | 192.1 | 211.6 | 9.39 | 9% |
 | Merger Agreements† | SAND-40 2×L4 C32 n=100 | 1,120.4 | 1,044.4 | 2,067.4 | 2,194.2 | 2,264.4 | 10.81 | 1% |
 
-p99 and min are computed from the per-document `latency_seconds` records. TTFT is engine-side, so it excludes the client and the Modal proxy. Generation time, not time to first token, dominates every class (TTFT is 3–24% of mean latency outside the † cell). The worst p95 outside † is frozen merger on 2×L4 (167 s), then contracts on 2×L4 (157–159 s). Contracts also has the worst p99 tail relative to p50 on 1×L4 n=20 (173 vs 66 s).
+- p99 and min computed from per-document `latency_seconds`. TTFT is 3–24% of mean latency outside †.
 
 ## 7. Concurrency & slot use (all 20 cells)
 
@@ -185,11 +181,9 @@ p99 and min are computed from the per-document `latency_seconds` records. TTFT i
 | Merger Agreements | SAND-37 2×L4 C32 n=50 | 32 | 17.1 | 0.54 | 196.9 | 58% |
 | Merger Agreements† | SAND-40 2×L4 C32 n=100 | 32 | 33.8 | 1.06 | 0.0 | 0% |
 
-Occupancy = parallelism ÷ client concurrency. It is the closest thing on these cards to a utilization figure, and it measures client slots, not the GPU.
-
-**10 of 20 cells read above 1.0.** Summed per-document latency exceeds wall × concurrency, which can't happen if each document's latency only covered its own in-flight request. So per-document latency likely includes time spent waiting before dispatch, or for the † merger, chunk calls running in parallel. Check how `latency_ms` is stamped in the client before reading occupancy as a utilization figure.
-
-Contracts and frozen merger idle 32–61% of wall time. Their long-tail documents leave slots empty while the last few finish, which is why those classes cost the most per document.
+- Occupancy = parallelism ÷ client concurrency (client slots, not GPU).
+- 10 of 20 cells read above 1.0: per-doc latency likely includes pre-dispatch wait (or parallel chunk calls for †). Check how `latency_ms` is stamped before treating it as utilization.
+- Contracts and frozen merger idle 32–61% of wall time.
 
 ## 8. Replica balance (2× L4 cells, vLLM /metrics per replica)
 
@@ -206,7 +200,7 @@ Contracts and frozen merger idle 32–61% of wall time. Their long-tail document
 | Merger Agreements | SAND-37 2×L4 C32 n=50 | 24 / 26 | 9.74 / 9.07 | 36% / 37% | 1 / 3 | 0 / 0 |
 | Merger Agreements† | SAND-40 2×L4 C32 n=100 | 199 / 219 | 12.72 / 9.09 | 28% / 29% | 14 / 9 | 8 / 0 |
 
-Load splits close to evenly (at most 54/46), but TTFT does not. In contracts, the replica that took more requests had the higher TTFT in both runs: 8.8 vs 4.8 s on SAND-37, and 5.5 vs 3.2 s on SAND-40. A few long documents landing on one replica move its mean, so per-replica TTFT is worth tracking before adding replicas.
+- Load splits at most 54/46, but TTFT does not: contracts' busier replica was slower in both runs (8.8 vs 4.8 s; 5.5 vs 3.2 s).
 
 ## 9. Error ledger (all L4 cells)
 
@@ -220,7 +214,7 @@ Load splits close to evenly (at most 54/46), but TTFT does not. In contracts, th
 | `grid-50-merger-specialist-awq-2l4` | 4 | LengthFinishReasonError ×4 |
 | `sand40-100-contracts-specialist-awq-2l4` | 1 | LengthFinishReasonError ×1 |
 
-Valid L4 run set: **16 errors / 1,050 documents = 1.52%** (20 cells). Every error is `LengthFinishReasonError`: the output hit the token cap before the JSON closed. Parse errors are 0 in every cell, and there are no infrastructure or authentication errors. Excluding merger: 6 / 880 = 0.68%.
+- **16 errors / 1,050 documents = 1.52%**, all `LengthFinishReasonError`; 0 parse errors. Excluding merger: 6 / 880 = 0.68%.
 
 ## 10. Cost layers — billed vs busy vs idle (cell level) and metered (session level)
 
@@ -238,27 +232,4 @@ Valid L4 run set: **16 errors / 1,050 documents = 1.52%** (20 cells). Every erro
 | SAND-40 | 450 | $1.01 | $1.81 | 56% | $0.00402 | $0.00 |
 | **Total** | 1,050 | $1.81 | $3.39 | 53% | $0.00323 | $0.00 |
 
-Per-cell cold boot is under 1 s because every cell ran on a pinned-warm container. Real boot, weight pre-warm, gates and teardown sit in the metered session total (`metered-costs.json`). Overhead is about half of metered spend at these batch sizes. Idle-slot $ is the part of busy time when client slots were empty: ramp-up, drain and long-tail documents. It reads $0 in every cell with occupancy above 1 (§7), so for those cells it is a lower bound.
-
-## 11. GPU hardware telemetry — not captured on the L4 path
-
-None of the 20 L4 cards, and none of the `*.serving.json` files under `reports/SAND-37/` and `reports/2026-09-30/` and `reports/2026-10-01/`, contain GPU utilization, power draw, temperature or memory used.
-
-The Modal L4 run scrapes only vLLM `/metrics`. `src/mailroom_sandbox/job/vllm_metrics.py` keeps request, preemption, KV-cache, prefix-cache, TTFT and token counters and does not sample nvidia-smi. The one KV-cache gauge it keeps reads 0.0 in every cell, because it is read after the run drains.
-
-What the cards carry instead:
-- engine throughput (tokens/s/GPU)
-- client-slot occupancy (§7)
-- preemptions, the one direct signal of KV-cache pressure (§5, §8)
-
-**To close the gap:**
-1. Sample `nvidia-smi --query-gpu=utilization.gpu,power.draw,temperature.gpu,memory.used --format=csv -lms 1000` inside the Modal vLLM container for the cell's busy window, and write min/mean/max into a `gpu_telemetry` block on the grid card.
-2. Sample `vllm:kv_cache_usage_perc` *during* the run, as peak and mean, instead of once after it.
-3. Keep the TTFT histogram buckets so the cards can report p50/p95 TTFT, not only the mean.
-
-## 12. Open items carried from the findings
-
-- **Insurance claims schema-valid 0.20–0.30.** Move it to `with_structured_output`, as contracts and merger already use (both 1.00). Not yet tested.
-- **Correspondence score 0.33–0.34 (sd 0.19–0.24).** The score does not move with posture, so the cause is likely the prompt, ground truth or scorer. Next to review.
-- **Fixed instructions are 73–75% of tokens** in correspondence and insurance claims. A shorter template or several documents per call would cut cost. Not yet tested.
-- **Occupancy above 1.0 in 10 cells.** Confirm what `latency_ms` spans before using it as a utilization figure (§7).
+- Overhead (boot, pre-warm, gates, teardown) is about half of metered spend. Idle-slot $ reads $0 where occupancy > 1, so it is a lower bound there.
