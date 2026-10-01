@@ -64,7 +64,7 @@ def test_sand40_column_is_measured_with_the_optimized_merger_mark():
     # like-for-like scale check excludes the † merger cell
     assert "### Scale check: four unchanged specialists (merger excluded)" in md
     assert "| Documents ok / total | 199 / 200 | 399 / 400 | — |" in md
-    assert "**Doubling the batch to n = 100" in md
+    assert "**Running n = 100 per specialist instead of n = 50" in md
     assert "**The † merger settings raise MAUD accuracy" in md
     # the frozen-settings gap no longer quotes the † coverage
     assert "answers only 13%–24% of labeled MAUD questions" in md
@@ -195,5 +195,5 @@ def test_master_reports_token_composition_and_figure():
     md = grid_master.render_master_md(data)
     assert "## Token composition" in md
     assert "| Merger Agreements † (SAND-40) |" in md
-    assert "**Instructions, not documents, dominate the short classes.**" in md
+    assert "**Fixed instructions, not document text, account for most tokens in the short classes.**" in md
     assert "cmp-tokens" in {s["key"] for s in grid_figures.figure_specs(data)}
