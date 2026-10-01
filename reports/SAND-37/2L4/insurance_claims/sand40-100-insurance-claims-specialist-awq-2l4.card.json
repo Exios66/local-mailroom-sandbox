@@ -957,10 +957,32 @@
     }
   ],
   "engine_telemetry": {
-    "captured": false,
-    "expected_replicas": 2
+    "captured": true,
+    "coverage": "replicas observed: 2 of 2",
+    "expected_replicas": 2,
+    "replicas": [
+      {
+        "kv_cache_usage_perc": 0.0,
+        "length_finishes": 0.0,
+        "preemptions": 0.0,
+        "prefix_cache_hit_rate": 0.4021,
+        "replica": "1790832635.92",
+        "requests": 48.0,
+        "ttft_mean_seconds": 2.2473
+      },
+      {
+        "kv_cache_usage_perc": 0.0,
+        "length_finishes": 0.0,
+        "preemptions": 0.0,
+        "prefix_cache_hit_rate": 0.4057,
+        "replica": "1790832637.63",
+        "requests": 52.0,
+        "ttft_mean_seconds": 3.2267
+      }
+    ],
+    "scrape_errors": []
   },
-  "generated_at": "2026-10-01T05:44:05+00:00",
+  "generated_at": "2026-10-01T05:44:17+00:00",
   "latency": {
     "max": 58.46093,
     "mean": 22.0601849,
