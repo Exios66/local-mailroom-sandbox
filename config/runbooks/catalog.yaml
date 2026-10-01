@@ -97,6 +97,37 @@ serving:
     scale-short-doc:
       max_num_seqs: 256
       scaledown_seconds: 600
+    # SAND-037 aligned specialist grid. Both shapes serve the SAND-032 frozen L5
+    # engine; they differ only in replica count. Must equal `sandbox run deploy-env`
+    # for every config in the grid-1l4 / grid-2l4 runbooks (runbook check enforces it).
+    grid-awq-1l4:
+      model: Qwen/Qwen3-8B-AWQ
+      quantization: awq_marlin
+      max_model_len: 32768
+      max_num_seqs: 16
+      enforce_eager: 0
+      max_containers: 1
+      min_containers: 1
+      extra_env:
+        MODAL_VLLM_KV_CACHE_DTYPE: fp8
+        MODAL_VLLM_CUDAGRAPH_CAPTURE_SIZES: "1,2,4,8,16"
+        MODAL_VLLM_DEFAULT_CHAT_TEMPLATE_KWARGS: '{"enable_thinking": false}'
+        MODAL_VLLM_MAX_INPUTS: "32"
+        PHOENIX_TRACING: disabled
+    grid-awq-2l4:
+      model: Qwen/Qwen3-8B-AWQ
+      quantization: awq_marlin
+      max_model_len: 32768
+      max_num_seqs: 16
+      enforce_eager: 0
+      max_containers: 2
+      min_containers: 2
+      extra_env:
+        MODAL_VLLM_KV_CACHE_DTYPE: fp8
+        MODAL_VLLM_CUDAGRAPH_CAPTURE_SIZES: "1,2,4,8,16"
+        MODAL_VLLM_DEFAULT_CHAT_TEMPLATE_KWARGS: '{"enable_thinking": false}'
+        MODAL_VLLM_MAX_INPUTS: "32"
+        PHOENIX_TRACING: disabled
 
 aliases:
   l4: l4-qwen3-8b
@@ -112,6 +143,9 @@ aliases:
   granite: improved-granite-fp8
   a100-sorter: a100-qwen3-14b-awq-sorter400
   qwen3-14b-awq: a100-qwen3-14b-awq-sorter400
+  grid: grid-1l4
+  grid-1x: grid-1l4
+  grid-2x: grid-2l4
 
 runbooks:
   l4-qwen3-8b:
@@ -574,6 +608,108 @@ runbooks:
       - Pin MIN_CONTAINERS = MAX_CONTAINERS = R per cell. Teardown after every cell.
       - G1 is the only cell that uses GPU=L4:2 + TP (model does not fit one L4).
       - Execution pending spend approval — this runbook documents the specs; it does not authorize GPU time.
+
+  grid-1l4:
+    family: grid
+    title: Specialist grid — 1×L4 · C8 cells (n=20 and n=50, all five classes)
+    summary: >
+      SAND-037 aligned grid, 1×L4 half: ten Qwen3-8B-AWQ specialist cells on one
+      warm L4 serving the SAND-032 frozen L5 engine (awq_marlin, fp8 KV, CUDA
+      graphs, max_num_seqs 16, thinking off, max_inputs 32) at client concurrency 8.
+      Nested split=all draws, frozen v1 simplified prompts, decode 8192 at
+      temperature 0.7. Deploy once, short classes first, teardown after the last cell.
+    serving: grid-awq-1l4
+    configs:
+      - config/runs/grid-20-correspondence-specialist-awq-1l4.yaml
+      - config/runs/grid-20-insurance-claims-specialist-awq-1l4.yaml
+      - config/runs/grid-20-corporate-records-specialist-awq-1l4.yaml
+      - config/runs/grid-20-contracts-specialist-awq-1l4.yaml
+      - config/runs/grid-20-merger-specialist-awq-1l4-rerun.yaml
+      - config/runs/grid-50-correspondence-specialist-awq-1l4.yaml
+      - config/runs/grid-50-insurance-claims-specialist-awq-1l4.yaml
+      - config/runs/grid-50-corporate-records-specialist-awq-1l4.yaml
+      - config/runs/grid-50-contracts-specialist-awq-1l4.yaml
+      - config/runs/grid-50-merger-specialist-awq-1l4.yaml
+    modal_profile: track-a
+    deploy_strategy: recreate
+    assert_engine: true
+    preflight_force: true
+    scrape_metrics: true
+    export_card: true
+    steps:
+      - env
+      - activate_profile
+      - extra_env
+      - check
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - configs
+      - teardown
+      - after
+    after:
+      - sandbox run card --runbook grid-1l4   # finalized L4x1 score & cost card
+      - sandbox metrics compare --runs grid-20-correspondence-specialist-awq-1l4,grid-20-insurance-claims-specialist-awq-1l4,grid-20-corporate-records-specialist-awq-1l4,grid-20-contracts-specialist-awq-1l4,grid-20-merger-specialist-awq-1l4-rerun
+      - sandbox metrics compare --runs grid-50-correspondence-specialist-awq-1l4,grid-50-insurance-claims-specialist-awq-1l4,grid-50-corporate-records-specialist-awq-1l4,grid-50-contracts-specialist-awq-1l4,grid-50-merger-specialist-awq-1l4
+    notes:
+      - "Reports: each run brackets start with vLLM /metrics scrapes and writes reports/SAND-37/1L4/<specialist>/<run_id>.card.md + .card.json (score, cost, tokens, throughput, latency, per-replica engine telemetry, errors, per-document rows). The after step writes the finalized reports/SAND-37/1L4/L4x1-SCORE-COST-CARD.md + .json from those cards; commit the SAND-37 tree."
+      - "Spend: likely ≈ $0.80 GPU at $0.80/hr (≈ 1 h warm: S3 per-L4 throughput on the same engine, scaled by the 0.7× S2a measured at C8 on one L4); the ten cost caps sum to $5.70 and are the abort guard. Needs spend approval before deploy."
+      - "Canonical deploy knobs: set -a; eval \"$(sandbox run deploy-env --config config/runs/grid-20-correspondence-specialist-awq-1l4.yaml)\"; set +a. The export block below is identical (runbook check enforces it) and benchmark-check fails on any shell drift."
+      - "Decode is max_tokens 8192 at temperature 0.7, applied from the specialist_posture grid row via SANDBOX_AGENT_KNOBS at start; do not export SANDBOX_AGENT_KNOBS by hand and do not raise max_tokens. A LengthFinishReasonError at 8192 is a runaway loop, not a long answer (longest successful output on record: 4,055 tokens)."
+      - "preflight --force archives any earlier generation of the same run_id (the serialized grid-50-contracts-specialist-awq-1l4 attempt, locked on the old spec) and re-locks; start then resumes the fresh lock."
+      - "grid-20-merger-specialist-awq-1l4 and its -retry leg stay as committed history; the -rerun id is the aligned cell."
+      - "Full cell status and the aligned spec: docs/SPECIALIST-GRID-PLAN.md."
+
+  grid-2l4:
+    family: grid
+    title: Specialist grid — 2×L4 · C32 cells (n=20 and n=50, all five classes)
+    summary: >
+      SAND-037 aligned grid, 2×L4 half: ten Qwen3-8B-AWQ specialist cells on one
+      warm two-replica fleet serving the same frozen L5 engine at client concurrency
+      32 (16 per replica). Same draws, prompts and decode as grid-1l4; only the
+      replica count and concurrency differ.
+    serving: grid-awq-2l4
+    configs:
+      - config/runs/grid-20-correspondence-specialist-awq-2l4.yaml
+      - config/runs/grid-20-insurance-claims-specialist-awq-2l4.yaml
+      - config/runs/grid-20-corporate-records-specialist-awq-2l4.yaml
+      - config/runs/grid-20-contracts-specialist-awq-2l4.yaml
+      - config/runs/grid-20-merger-specialist-awq-2l4.yaml
+      - config/runs/grid-50-correspondence-specialist-awq-2l4.yaml
+      - config/runs/grid-50-insurance-claims-specialist-awq-2l4.yaml
+      - config/runs/grid-50-corporate-records-specialist-awq-2l4.yaml
+      - config/runs/grid-50-contracts-specialist-awq-2l4-rerun.yaml
+      - config/runs/grid-50-merger-specialist-awq-2l4.yaml
+    modal_profile: track-a
+    deploy_strategy: recreate
+    assert_engine: true
+    scrape_metrics: true
+    export_card: true
+    steps:
+      - env
+      - activate_profile
+      - extra_env
+      - check
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - configs
+      - teardown
+      - after
+    after:
+      - sandbox run card --runbook grid-2l4   # finalized L4x2 score & cost card
+      - sandbox metrics compare --runs grid-20-correspondence-specialist-awq-2l4,grid-20-insurance-claims-specialist-awq-2l4,grid-20-corporate-records-specialist-awq-2l4,grid-20-contracts-specialist-awq-2l4,grid-20-merger-specialist-awq-2l4
+      - sandbox metrics compare --runs grid-50-correspondence-specialist-awq-2l4,grid-50-insurance-claims-specialist-awq-2l4,grid-50-corporate-records-specialist-awq-2l4,grid-50-contracts-specialist-awq-2l4-rerun,grid-50-merger-specialist-awq-2l4
+    notes:
+      - "Reports: each run brackets start with vLLM /metrics scrapes and writes reports/SAND-37/2L4/<specialist>/<run_id>.card.md + .card.json (score, cost, tokens, throughput, latency, per-replica engine telemetry, errors, per-document rows). The after step writes the finalized reports/SAND-37/2L4/L4x2-SCORE-COST-CARD.md + .json from those cards; commit the SAND-37 tree."
+      - "Spend: likely ≈ $0.55 GPU at 2 × $0.80/hr (≈ 18 min warm, from the S3 walls, plus one cold boot of ~2–4 min on each replica); the ten cost caps sum to $8.20 and are the abort guard. Needs spend approval before deploy."
+      - "Canonical deploy knobs: set -a; eval \"$(sandbox run deploy-env --config config/runs/grid-20-correspondence-specialist-awq-2l4.yaml)\"; set +a. The export block below is identical."
+      - "MIN=MAX=2 pins both replicas warm from deploy to teardown; per-replica admission is 16 at client concurrency 32."
+      - "Decode is max_tokens 8192 at temperature 0.7 from the posture row; do not raise max_tokens mid-grid. Record any LengthFinishReasonError count as a finding."
+      - "grid-50-contracts-specialist-awq-2l4 (plain awq, temperature 0.1) stays as committed history; the -rerun id is the aligned cell."
+      - "Full cell status and the aligned spec: docs/SPECIALIST-GRID-PLAN.md."
 
 anti_patterns:
   - anti: Independent sandbox run start per config

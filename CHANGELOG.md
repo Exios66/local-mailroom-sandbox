@@ -2,6 +2,45 @@
 
 ## [Unreleased]
 
+### Added — SAND-037 aligned specialist grid and runbooks
+
+- All 20 Qwen3-8B-AWQ specialist grid cells (5 classes × n = 20/50 × 1×L4 C8 / 2×L4 C32) now share one spec:
+  the SAND-032 frozen L5 engine (`awq_marlin`, fp8 KV, CUDA graphs, `max_num_seqs` 16 per replica, thinking off,
+  `max_inputs` 32), `split: all` single-class draws at seed 42 (n = 20 nests in n = 50), the frozen v1
+  `*_simplified` prompts, and `max_tokens` 8192. Only n, replicas and concurrency vary. Previously the 1×L4 cells
+  ran plain `awq` eager at `max_num_seqs` 8, the 2×L4 cells plain `awq`, and the n = 20 insurance / corporate /
+  merger draws were stratified on `split: test` / `train`.
+- `docs/SPECIALIST-GRID-PLAN.md`: the aligned spec, the length-error analysis, all 20 cell run ids, and the
+  existing records each cell supersedes.
+- Runbooks `grid-1l4` and `grid-2l4` (new `grid` catalog family, serving variants that differ only in replica
+  count): one warm deploy per fleet shape, ten cells each.
+- Eight new run YAMLs (the n = 20 cells the grid lacked, plus `grid-20-merger-specialist-awq-1l4-rerun` and
+  `grid-50-contracts-specialist-awq-2l4-rerun`, which leave the executed cells' reports intact); every grid YAML
+  is generated from one template.
+
+- SAND-37 score & cost cards (`mailroom_sandbox.job.grid_cards`): every grid run writes
+  `reports/SAND-37/<1L4|2L4>/<specialist>/<run_id>.card.{md,json}` (conditions; run, time, cost, tokens,
+  throughput, latency, per-replica vLLM telemetry, quality and CUAD/MAUD clause scoring; error ledger;
+  per-document rows), and `sandbox run card --runbook grid-1l4|grid-2l4` writes the finalized
+  `L4x1-` / `L4x2-SCORE-COST-CARD.{md,json}` from the committed card JSON. The runner writes the card at the end of
+  each grid run; `sandbox run card --config` re-renders it after the `/metrics` after-scrape, reusing the runner's
+  busy wall. The grid runbooks bracket each start with `scrape-metrics` before/after and end with the suite card
+  (catalog flags `scrape_metrics`, `export_card`).
+
+### Fixed — SAND-037 runaway decoding on contracts and merger
+
+- Every LengthFinishReasonError on record is a contracts or merger document that used its whole cap (4096, 8192
+  or 16384), while successful outputs top out at 4,055 tokens and the failing documents change between runs.
+  Those two specialists decode under the JSON-schema grammar at a call-site `temperature=0.1`; near-greedy
+  decoding loops and job retries replay the loop. Grid contracts and merger cells now run at temperature 0.7
+  (Qwen3's documented non-thinking setting); the json_object classes keep 0.1.
+- `mailroom_sandbox.sampling`: applies a run-scoped `temperature` knob to the vendored specialists, whose call
+  sites pass `temperature=0.1` as a literal (previously a configured temperature never reached the request).
+  Installed at `activate()`; agents without a knob are untouched.
+- `sandbox runbook check` fails when a grid runbook's export block disagrees with `sandbox run deploy-env` for any
+  of its configs; `sandbox run benchmark-check` applies its deploy-env drift gate to grid cells as well as
+  SAND-032 runs. The `preflight_force` catalog flag renders `preflight --live --force` to re-lock a drifted run.
+
 ### Added — SAND-036 warm vs cold GPUs, cost per 1M tokens, Modal vs API break-even, mailroom-issues Pages site
 
 - `reports/dashboard/gpu_report.py`: cost per 1M tokens on three bases (warm busy-window, one cold batch, program-loaded),

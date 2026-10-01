@@ -1,0 +1,117 @@
+{
+  "cards": {},
+  "cells": [
+    {
+      "n": 20,
+      "reported": false,
+      "run_id": "grid-20-correspondence-specialist-awq-2l4",
+      "task": "correspondence_specialist"
+    },
+    {
+      "n": 20,
+      "reported": false,
+      "run_id": "grid-20-insurance-claims-specialist-awq-2l4",
+      "task": "insurance_claims_specialist"
+    },
+    {
+      "n": 20,
+      "reported": false,
+      "run_id": "grid-20-corporate-records-specialist-awq-2l4",
+      "task": "corporate_records_specialist"
+    },
+    {
+      "n": 20,
+      "reported": false,
+      "run_id": "grid-20-contracts-specialist-awq-2l4",
+      "task": "contracts_specialist"
+    },
+    {
+      "n": 20,
+      "reported": false,
+      "run_id": "grid-20-merger-specialist-awq-2l4",
+      "task": "merger_agreement_specialist"
+    },
+    {
+      "n": 50,
+      "reported": false,
+      "run_id": "grid-50-correspondence-specialist-awq-2l4",
+      "task": "correspondence_specialist"
+    },
+    {
+      "n": 50,
+      "reported": false,
+      "run_id": "grid-50-insurance-claims-specialist-awq-2l4",
+      "task": "insurance_claims_specialist"
+    },
+    {
+      "n": 50,
+      "reported": false,
+      "run_id": "grid-50-corporate-records-specialist-awq-2l4",
+      "task": "corporate_records_specialist"
+    },
+    {
+      "n": 50,
+      "reported": false,
+      "run_id": "grid-50-contracts-specialist-awq-2l4-rerun",
+      "task": "contracts_specialist"
+    },
+    {
+      "n": 50,
+      "reported": false,
+      "run_id": "grid-50-merger-specialist-awq-2l4",
+      "task": "merger_agreement_specialist"
+    }
+  ],
+  "generated_at": "2026-10-01T00:25:17+00:00",
+  "kind": "suite",
+  "pooled": {
+    "all": {
+      "busy_gpu_usd": null,
+      "cells": 0,
+      "documents": 0,
+      "documents_per_minute": null,
+      "error_rate": null,
+      "errors": 0,
+      "ok": 0,
+      "tokens": 0,
+      "tokens_per_second": null,
+      "tokens_per_second_per_gpu": null,
+      "usd_per_document": null,
+      "usd_per_million_tokens": null,
+      "wall_seconds": null
+    },
+    "n20": {
+      "busy_gpu_usd": null,
+      "cells": 0,
+      "documents": 0,
+      "documents_per_minute": null,
+      "error_rate": null,
+      "errors": 0,
+      "ok": 0,
+      "tokens": 0,
+      "tokens_per_second": null,
+      "tokens_per_second_per_gpu": null,
+      "usd_per_document": null,
+      "usd_per_million_tokens": null,
+      "wall_seconds": null
+    },
+    "n50": {
+      "busy_gpu_usd": null,
+      "cells": 0,
+      "documents": 0,
+      "documents_per_minute": null,
+      "error_rate": null,
+      "errors": 0,
+      "ok": 0,
+      "tokens": 0,
+      "tokens_per_second": null,
+      "tokens_per_second_per_gpu": null,
+      "usd_per_document": null,
+      "usd_per_million_tokens": null,
+      "wall_seconds": null
+    }
+  },
+  "replicas": 2,
+  "runbook": "grid-2l4",
+  "schema": "sandbox.grid-card/v1"
+}

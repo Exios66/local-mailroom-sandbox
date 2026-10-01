@@ -1,7 +1,14 @@
-# Qwen3-8B-AWQ specialist grid cell (v1 / simplified stem).
-# Keep GPU warm (min_containers pinned); teardown only after the shape queue.
-# 1xL4 c=8; 2xL4 c=32 (16 per replica). PHOENIX_TRACING=disabled at launch.
-# Decode 8192 via start-time SANDBOX_AGENT_KNOBS (clears 4096 LengthFinish JSON).
+# Qwen3-8B-AWQ specialist grid cell (SAND-037 aligned grid) — merger agreements · n=20 · 2×L4 · C32 (16 per replica).
+# Every grid cell shares this spec except n, fleet shape and concurrency:
+#   engine  = SAND-032 frozen L5 (awq_marlin, fp8 KV, CUDA graphs, max_num_seqs 16/replica,
+#             thinking off, max_inputs 32)
+#   data    = mailroom-dataset ground_truth @ ed7576b6, split=all, seed 42, one class bucket
+#             (nested 20 ⊂ 50)
+#   prompt  = eval-environment frozen v1 simplified stem
+#   decode  = max_tokens 8192 + temperature 0.7 via start-time SANDBOX_AGENT_KNOBS
+#             (JSON-schema grammar class: 0.1 looped to every cap — 4096/8192/16384;
+#             see docs/SPECIALIST-GRID-PLAN.md)
+# Runbook: sandbox runbook show grid-2l4
 schema: sandbox.run/v1
 run_id: grid-20-merger-specialist-awq-2l4
 task: merger_agreement_specialist
@@ -18,17 +25,11 @@ dataset:
   provider: huggingface
   repo: Lucius-Morningstar/mailroom-dataset
   config: ground_truth
-  split: train
+  split: all
   revision: ed7576b676343e0b402ec5412cded301e629bdee
   strata:
     buckets:
-      - doc_class: merger_agreement
-        sub_buckets:
-          - {subclass: all_cash, count: 7}
-          - {subclass: other, count: 7}
-          - {subclass: all_stock, count: 3}
-          - {subclass: mixed_cash_stock, count: 2}
-          - {subclass: mixed_cash_stock_election, count: 1}
+      - {doc_class: merger_agreement, count: 20}   # single class bucket → nested 20 ⊂ 50
   limit: 20
   sample_seed: 42
 
@@ -41,7 +42,7 @@ engine:
     max_num_seqs: 16
     enable_prefix_caching: true
     enforce_eager: false
-    quantization: awq
+    quantization: "awq_marlin"
     revision: ""
     kv_cache_dtype: "fp8"
     enable_thinking: false
@@ -55,6 +56,7 @@ engine:
     max_containers: 2
     min_containers: 2
     prewarm: true
+
 job:
   mode: endpoint
   mock: false

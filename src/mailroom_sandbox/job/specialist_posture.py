@@ -715,30 +715,64 @@ _GRID_AGENTS: dict[str, tuple[str, str, int, int, int]] = {
 }
 _GRID_TABLE: tuple[tuple[str, str, int, int, int, float, int, int], ...] = (
     # run_id, doc_class, n, replicas, concurrency, cost_cap, wall, max_num_seqs
+    # ── Executed legacy cells (historical posture; superseded, see _GRID_LEGACY) ──
     ("grid-20-merger-specialist-awq-1l4", "merger_agreement", 20, 1, 8, 0.70, 3600, 8),
     # Clean 20-doc rerun: 4096 LengthFinish on the first 1×L4 cell; 8192 still
     # truncated contracts JSON — merger decode 16384 (fits 32768 − prompt).
     ("grid-20-merger-specialist-awq-1l4-retry", "merger_agreement", 20, 1, 8, 0.70, 3600, 8),
-    ("grid-50-contracts-specialist-awq-1l4", "contract", 50, 1, 8, 0.80, 4800, 8),
-    ("grid-50-merger-specialist-awq-1l4", "merger_agreement", 50, 1, 8, 1.00, 5400, 8),
-    ("grid-50-corporate-records-specialist-awq-1l4", "corporate_record", 50, 1, 8, 0.50, 3600, 8),
-    ("grid-50-correspondence-specialist-awq-1l4", "correspondence", 50, 1, 8, 0.40, 3600, 8),
-    ("grid-50-insurance-claims-specialist-awq-1l4", "insurance_claim", 50, 1, 8, 0.50, 3600, 8),
+    ("grid-50-contracts-specialist-awq-2l4", "contract", 50, 2, 32, 1.20, 3600, 16),
+    # ── SAND-037 aligned grid: 5 classes × n=20/50 × 1×L4 C8 / 2×L4 C32 ──────
+    # One spec for every cell except n / replicas / concurrency: SAND-032 frozen
+    # L5 engine (awq_marlin, fp8 KV, CUDA graphs, max_num_seqs 16 per replica,
+    # thinking off, max_inputs 32), split=all single-class nested draws, frozen
+    # v1 simplified prompts, decode 8192 at GRID_TEMPERATURE.
+    ("grid-20-correspondence-specialist-awq-1l4", "correspondence", 20, 1, 8, 0.30, 2400, 16),
+    ("grid-20-insurance-claims-specialist-awq-1l4", "insurance_claim", 20, 1, 8, 0.40, 2400, 16),
+    ("grid-20-corporate-records-specialist-awq-1l4", "corporate_record", 20, 1, 8, 0.40, 2400, 16),
+    ("grid-20-contracts-specialist-awq-1l4", "contract", 20, 1, 8, 0.70, 3600, 16),
+    ("grid-20-merger-specialist-awq-1l4-rerun", "merger_agreement", 20, 1, 8, 0.70, 3600, 16),
+    ("grid-50-correspondence-specialist-awq-1l4", "correspondence", 50, 1, 8, 0.40, 3600, 16),
+    ("grid-50-insurance-claims-specialist-awq-1l4", "insurance_claim", 50, 1, 8, 0.50, 3600, 16),
+    ("grid-50-corporate-records-specialist-awq-1l4", "corporate_record", 50, 1, 8, 0.50, 3600, 16),
+    ("grid-50-contracts-specialist-awq-1l4", "contract", 50, 1, 8, 0.80, 4800, 16),
+    ("grid-50-merger-specialist-awq-1l4", "merger_agreement", 50, 1, 8, 1.00, 5400, 16),
+    ("grid-20-correspondence-specialist-awq-2l4", "correspondence", 20, 2, 32, 0.40, 2400, 16),
+    ("grid-20-insurance-claims-specialist-awq-2l4", "insurance_claim", 20, 2, 32, 0.50, 2400, 16),
+    ("grid-20-corporate-records-specialist-awq-2l4", "corporate_record", 20, 2, 32, 0.50, 2400, 16),
     ("grid-20-contracts-specialist-awq-2l4", "contract", 20, 2, 32, 0.80, 3200, 16),
     ("grid-20-merger-specialist-awq-2l4", "merger_agreement", 20, 2, 32, 1.00, 3600, 16),
-    ("grid-20-corporate-records-specialist-awq-2l4", "corporate_record", 20, 2, 32, 0.50, 2400, 16),
-    ("grid-20-insurance-claims-specialist-awq-2l4", "insurance_claim", 20, 2, 32, 0.50, 2400, 16),
-    # n=50 promoted off 1×L4 after contracts-50 serialized at Running:1 / ~22 tok/s
-    # (deploy MAX_INPUTS=0). Same 2×L4 shape as the n=20 cells.
-    ("grid-50-contracts-specialist-awq-2l4", "contract", 50, 2, 32, 1.20, 3600, 16),
-    ("grid-50-merger-specialist-awq-2l4", "merger_agreement", 50, 2, 32, 1.60, 4000, 16),
-    ("grid-50-corporate-records-specialist-awq-2l4", "corporate_record", 50, 2, 32, 0.80, 2400, 16),
     ("grid-50-correspondence-specialist-awq-2l4", "correspondence", 50, 2, 32, 0.60, 2400, 16),
     ("grid-50-insurance-claims-specialist-awq-2l4", "insurance_claim", 50, 2, 32, 0.80, 2400, 16),
+    ("grid-50-corporate-records-specialist-awq-2l4", "corporate_record", 50, 2, 32, 0.80, 2400, 16),
+    ("grid-50-contracts-specialist-awq-2l4-rerun", "contract", 50, 2, 32, 1.20, 3600, 16),
+    ("grid-50-merger-specialist-awq-2l4", "merger_agreement", 50, 2, 32, 1.60, 4000, 16),
 )
+# Executed before SAND-037 aligned the grid; kept for their committed reports.
+_GRID_LEGACY: frozenset[str] = frozenset({
+    "grid-20-merger-specialist-awq-1l4",
+    "grid-20-merger-specialist-awq-1l4-retry",
+    "grid-50-contracts-specialist-awq-2l4",
+})
+# SAND-037 runaway-decode fix. Contracts and merger are the two specialists that
+# decode under the JSON-schema grammar (langchain with_structured_output); at
+# temperature 0.1 (near-greedy) they looped until every cap they were given —
+# 4096, 8192 and 16384 — while their longest successful outputs were 1,695
+# (merger, simplified) / 3,423 (merger, MAUD) / 4,055 (contracts) tokens, and job
+# retries replayed the same loop. 0.7 is Qwen3's documented non-thinking setting
+# ("do not use greedy decoding … endless repetitions"). The json_object classes
+# (correspondence, insurance, corporate records) never hit a cap and keep the
+# 0.1 every SAND-032 run used. Applied by mailroom_sandbox.sampling because the
+# vendored call sites pass temperature=0.1 as a literal.
+GRID_TEMPERATURE = 0.7
+GRID_TEMPERATURE_BY_CLASS: dict[str, float] = {
+    "contract": GRID_TEMPERATURE,
+    "merger_agreement": GRID_TEMPERATURE,
+}
 GRID_RUNS: frozenset[str] = frozenset(row[0] for row in _GRID_TABLE)
 GRID_TWO_GPU_RUNS: frozenset[str] = frozenset(r[0] for r in _GRID_TABLE if r[3] == 2)
 GRID_ONE_GPU_RUNS: frozenset[str] = frozenset(r[0] for r in _GRID_TABLE if r[3] == 1)
+# The 20 cells of the aligned grid (the runbooks run exactly these).
+GRID_CELLS: frozenset[str] = GRID_RUNS - _GRID_LEGACY
 for _rid, _cls, _n, _rep, _conc, _cap, _wall, _seqs in _GRID_TABLE:
     _agent, _prompt, _mt, _pt, _ct = _GRID_AGENTS[_cls]
     SPECIALIST_POSTURE[_rid] = {
@@ -758,6 +792,14 @@ for _rid, _cls, _n, _rep, _conc, _cap, _wall, _seqs in _GRID_TABLE:
         "sec_per_doc": {"low": 10.0, "likely": 40.0, "high": 180.0},
         "rationale": "Qwen3-8B-AWQ specialist grid cell (v1 / simplified stem)",
     }
+    if _rid in GRID_CELLS:
+        _temp = GRID_TEMPERATURE_BY_CLASS.get(_cls)
+        if _temp is not None:
+            SPECIALIST_POSTURE[_rid]["temperature"] = _temp
+        SPECIALIST_POSTURE[_rid]["rationale"] = (
+            "SAND-037 aligned grid cell (frozen L5 engine, nested split=all draw, "
+            f"v1 simplified stem, decode 8192 @ temperature {_temp or 0.1})"
+        )
     SPECIALIST_LIMIT_BY_RUN[_rid] = _n
 
 # Merger 1×L4 retry: raise decode above the 8192 contracts LengthFinish.
@@ -802,12 +844,13 @@ def agent_knobs_for_run(run_id: str | None) -> dict[str, dict[str, Any]] | None:
     row = posture_for_run(run_id)
     if row is None:
         return None
-    return {
-        str(row["agent"]): {
-            "max_tokens": int(row["max_tokens"]),
-            "max_input_chars": int(row["max_input_chars"]),
-        }
+    knobs: dict[str, Any] = {
+        "max_tokens": int(row["max_tokens"]),
+        "max_input_chars": int(row["max_input_chars"]),
     }
+    if row.get("temperature") is not None:
+        knobs["temperature"] = float(row["temperature"])
+    return {str(row["agent"]): knobs}
 
 
 def expected_concurrency(run_id: str | None, default: int = 4) -> int:
