@@ -3,16 +3,22 @@
 Every run of the aligned Qwen3-8B-AWQ specialist grid (`docs/SPECIALIST-GRID-PLAN.md`) writes its
 score & cost card here, organized by fleet shape and then by specialist:
 
+**Start here:** [`SAND-37-MASTER-SCORE-COST-CARD.md`](SAND-37-MASTER-SCORE-COST-CARD.md) is the
+one-page 1×L4 vs 2×L4 comparison of score and cost across all ten cells (handoff summary).
+
 ```
 reports/SAND-37/
-├── 1L4/                                   # 1× L4 · C8 — runbook grid-1l4
+├── SAND-37-MASTER-SCORE-COST-CARD.md      # master comparison: 1× L4 vs 2× L4, all five specialists
+├── 1L4/                                   # 1× L4 · C8 · n=20 — runbook grid-1l4
 │   ├── L4x1-SCORE-COST-CARD.md            # finalized 1× L4 suite card (+ .json)
 │   ├── correspondence/<run_id>.card.md    # one card per run (+ .card.json)
+│   │   ├── RUN-20-…-REPORT.md             # run report (copied from reports/<date>/<specialist>/)
+│   │   ├── RUN-20-…-SERVING.md            # serving report (+ .serving.json vLLM telemetry)
 │   ├── insurance_claims/
 │   ├── corporate_records/
 │   ├── contracts/
 │   └── merger_agreement/
-└── 2L4/                                   # 2× L4 · C32 — runbook grid-2l4
+└── 2L4/                                   # 2× L4 · C32 · n=50 — runbook grid-2l4
     ├── L4x2-SCORE-COST-CARD.md
     └── <same five specialist folders>
 ```
@@ -24,6 +30,8 @@ reports/SAND-37/
 | `<specialist>/<run_id>.card.md` + `.card.json` | `sandbox run start` (runner hook, at the end of every grid run), then re-rendered by `sandbox run card --config <cfg>` once the after-run `/metrics` scrape exists |
 | `L4x1-SCORE-COST-CARD.md` + `.json` | `sandbox run card --runbook grid-1l4` (the runbook's last step) |
 | `L4x2-SCORE-COST-CARD.md` + `.json` | `sandbox run card --runbook grid-2l4` |
+| `<specialist>/RUN-*-REPORT.md`, `-SERVING.md`, `.serving.json` | the runner's dated report writer (`reports/<date>/<specialist>/`); copied here so each specialist folder is self-contained |
+| `SAND-37-MASTER-SCORE-COST-CARD.md` | hand-assembled from the ten `*.card.json` files after both runbooks |
 
 The runbooks bracket every `sandbox run start` with `sandbox run scrape-metrics --label before|after`,
 so each card carries the run's own per-replica vLLM telemetry (requests, TTFT, prefix-cache hit,
