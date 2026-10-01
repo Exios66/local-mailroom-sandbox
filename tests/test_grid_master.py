@@ -232,3 +232,13 @@ def test_master_reports_token_composition_and_figure():
     assert "| Merger Agreements † (SAND-40) |" in md
     assert "**Fixed instructions, not document text, account for most tokens in the short classes.**" in md
     assert "cmp-tokens" in {s["key"] for s in grid_figures.figure_specs(data)}
+
+
+def test_deepseek_reference_is_brief_on_the_card_and_full_in_the_appendix():
+    data = grid_master.collect_master()
+    md, appendix = grid_master.render_master_md(data), grid_master.render_appendix_md(data)
+    assert "**DeepSeek V4.1 Flash (API) benchmark.**" in md
+    assert md.index("## DeepSeek V4.1 Flash (API) reference") < md.index("## Cost")
+    assert "## External reference: DeepSeek V4.1 Flash via API" in appendix
+    # merger compares with the frozen cell (same prompt), never the † cell
+    assert "| Merger Agreements | different metric | different metric | — |" in appendix

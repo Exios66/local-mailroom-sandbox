@@ -158,6 +158,28 @@ Identical across the postures above unless a cell lists more than one value.
 | Correspondence | `correspondence_specialist_simplified` | 12,000 | 8,192 | 0.1 | 2 |
 | Merger Agreements | `merger_agreement_specialist_simplified / merger_agreement_specialist_maud_v1` | 30,000 / 54,000 | 8,192 / 6,144 | 0.7 | 2 |
 
+## External reference: DeepSeek V4.1 Flash via API
+
+`deepseek/deepseek-v4.1-flash` was run through the OpenRouter API on the same five specialists with the same prompts (eval-environment v1, which is our frozen `*_simplified` set), n = 20 per specialist at client concurrency 8; every document completed. It is a reference point, not a matched comparison: it uses dataset revision `46a4d3c2` (split `train`), not our `ed7576b6`, so most documents differ, and its contracts and merger scores use the pipeline extraction rubric rather than CUAD F1 or MAUD accuracy.
+
+| Specialist | DeepSeek score (n) | Our score (n) | Difference, 95% CI (unmatched) | p50 latency (s): DeepSeek vs ours, both C8 | Prompt tokens per doc: DeepSeek vs ours | $ per doc: DeepSeek API vs our busy GPU |
+| --- | ---: | ---: | :---: | ---: | ---: | ---: |
+| Insurance Claims | 0.797 (20) | 0.672 (100) | +0.126 ± 0.050 | 7.7 vs 14.0 | 2,032 vs 3,272 | $0.0007 vs $0.0004 |
+| Contracts | different metric | different metric | — | 17.2 vs 68.2 | 16,731 vs 7,144 | $0.0025 vs $0.0021 |
+| Corporate Records | 0.442 (20) | 0.475 (100) | −0.034 ± 0.097 | 6.9 vs 13.2 | 9,328 vs 4,211 | $0.0010 vs $0.0002 |
+| Correspondence | 0.442 (20) | 0.341 (100) | +0.101 ± 0.081 | 7.1 vs 6.6 | 2,437 vs 2,771 | $0.0006 vs $0.0001 |
+| Merger Agreements | different metric | different metric | — | 28.2 vs 51.3 | 61,446 vs 9,341 | $0.0038 vs $0.0033 |
+
+Our score, prompt-token and cost columns are SAND-40, except merger, which is the frozen SAND-37 2×L4 cell because it uses the same prompt (the † cell does not). Our latency column is SAND-39 1×L4 C8.
+
+- **Quality.** On the three field-scored specialists DeepSeek is higher on insurance claims (+0.126) and correspondence (+0.101); corporate records is level. Different documents, ground-truth revision and scorer build add uncertainty beyond the intervals shown.
+- **Cost.** DeepSeek's API price per document is 2–5× our busy-GPU cost on the short classes. Our figure is busy GPU time only; the metered Modal sessions came to 1.9× busy cost once cold boots and idle time are included.
+- **Latency.** At the same client concurrency (C8), DeepSeek's median per-document latency is 1.8–4.0× lower than one L4's for insurance claims, contracts, corporate records and merger agreements; correspondence is about the same.
+- **Long documents.** DeepSeek reads more of each contract and agreement in one call (contracts 16,731 prompt tokens per document; merger agreements 61,446 prompt tokens per document), against our input caps. Its contracts and merger scores are not on our CUAD and MAUD scales.
+- **Optimized prompts (GEPA v2, contracts v3).** Field-scored specialists move by at most 0.02. Contracts rises +0.11 at n = 20. Merger rises +0.19 at n = 20 but changes by −0.21 at n = 50 (0.629 → 0.422), so that gain did not replicate.
+
+Source: `LLM-Mailroom-Services/eval-environment` @ `3246627` (reports/experiment_log.jsonl; reports/api-comparisons/deepseek-v4.1-flash/); snapshot `api-reference-deepseek.json`.
+
 
 ## Figures: posture comparison
 
