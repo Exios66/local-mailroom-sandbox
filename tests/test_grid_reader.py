@@ -32,3 +32,24 @@ def test_reader_body_has_no_internal_shorthand():
         assert not re.search(pattern, body), pattern
     assert "No American Family Insurance data was used or shared." in body
     assert "| **All runs** | 1,050 |" in md
+
+
+def test_reader_pdf_is_printed_from_the_current_report():
+    from mailroom_sandbox.job import grid_reader_pdf
+
+    paths = grid_reader_pdf.pdf_paths()
+    assert paths["pdf"].read_bytes()[:5] == b"%PDF-"
+    recorded = paths["sha"].read_text(encoding="utf-8").strip()
+    assert recorded == grid_reader_pdf.fingerprint(grid_master.collect_master()), (
+        "READER-REPORT.pdf is stale: run sandbox run card --master (needs Chrome; SANDBOX_CHROME overrides)"
+    )
+
+
+def test_reader_pdf_html_keeps_every_heading_with_its_content():
+    from mailroom_sandbox.job import grid_reader_pdf
+
+    page = grid_reader_pdf.render_reader_html(grid_master.collect_master())
+    assert page.count("<h2>") == 10
+    assert page.count("<h2>") == len(re.findall(r'class="(?:findings )?keep[^"]*">(?:<div[^>]*>)?<h2>', page))
+    assert page.count("<figure><svg") == 2
+    assert "Research brief · " in page
