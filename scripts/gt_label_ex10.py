@@ -31,9 +31,11 @@ sys.path.insert(0, str(_ROOT / "src"))
 
 from mailroom_sandbox.gt_labeler import (  # noqa: E402
     CHUNK_DOC_CAP,
-    CLIENT_IN_FLIGHT,
+    CHUNK_USD_CAP,
     DATASET_REVISION,
     DATASET_TAG,
+    L4_USD_PER_HOUR,
+    MAX_NUM_SEQS,
     POSTURE,
     accepted_ids,
     build_cuad_messages,
@@ -330,6 +332,18 @@ def main() -> int:
     parser.add_argument("--base-url", default="")
     parser.add_argument("--limit-chunks", type=int, default=1)
     parser.add_argument("--max-docs", type=int, default=0, help="slice the chunk; 0 sends the whole chunk")
+    parser.add_argument(
+        "--replicas",
+        type=int,
+        default=1,
+        help="L4s to keep busy. 1 saturates a single replica (8 sequences) and does not pull a second GPU",
+    )
+    parser.add_argument(
+        "--usd-cap",
+        type=float,
+        default=CHUNK_USD_CAP,
+        help="stop before the next chunk when estimated GPU spend reaches this",
+    )
     args = parser.parse_args()
     import os
 
@@ -348,18 +362,30 @@ def main() -> int:
     args.out.parent.mkdir(parents=True, exist_ok=True)
     checkpoint = args.out.with_name(args.out.stem + "-checkpoint.json")
     schema = cuad_span_schema()
+    if args.replicas < 1:
+        print("replicas must be >= 1", file=sys.stderr)
+        return 2
+    in_flight = args.replicas * MAX_NUM_SEQS
     already = accepted_ids(_read_journal(args.out))
     print(
         f"resume journal={args.out} accepted={len(already)} "
-        f"remaining={len(queue_ids) - len(already)}",
+        f"remaining={len(queue_ids) - len(already)} "
+        f"replicas={args.replicas} in_flight={in_flight} "
+        f"usd_cap={args.usd_cap:.2f}",
         flush=True,
     )
     _write_checkpoint(checkpoint, args.out, queue_ids)
     started = time.time()
     written = 0
     for _ in range(args.limit_chunks):
-        if time.time() - started > _WALL_CAP_SECONDS:
-            print("wall cap reached; not starting another chunk")
+        elapsed = time.time() - started
+        spent = elapsed / 3600.0 * L4_USD_PER_HOUR * args.replicas
+        if elapsed > _WALL_CAP_SECONDS or spent >= args.usd_cap:
+            print(
+                f"stopping before the next chunk: est ${spent:.2f} "
+                f"after {elapsed:.0f}s (cap ${args.usd_cap:.2f})",
+                flush=True,
+            )
             break
         done = accepted_ids(_read_journal(args.out))
         chunk = next_chunk(prepared, done)
@@ -397,7 +423,7 @@ def main() -> int:
                     "model": POSTURE["MODAL_VLLM_MODEL"],
                 }
 
-        with ThreadPoolExecutor(max_workers=CLIENT_IN_FLIGHT) as pool:
+        with ThreadPoolExecutor(max_workers=in_flight) as pool:
             futures = [pool.submit(_safe, target) for target in targets]
             for future in as_completed(futures):
                 record = future.result()
