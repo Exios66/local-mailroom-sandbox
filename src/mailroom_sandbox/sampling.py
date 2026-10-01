@@ -139,6 +139,25 @@ def _install_retry_patch() -> None:
     retry_mod.retry_chat_completion = retry_chat_completion
 
 
+def _record_native_usage(self, response: Any, model: str | None) -> None:
+    """Feed the OpenAI ``usage`` object into ``pipeline.limits`` for this item.
+
+    Vendored ``agents.base._call_llm`` records after ``retry_chat_completion``.
+    The native Modal path returns parsed JSON directly, so without this the
+    runner's ``usage_from_pipeline()`` sees no prompt or completion tokens.
+    """
+    try:
+        from pipeline.limits import record_usage
+    except Exception as exc:  # noqa: BLE001 — mock / no vendor
+        _log.debug("pipeline.limits unavailable for native usage: %s", exc)
+        return
+    agent = str(getattr(self, "agent_name", "") or "") or None
+    try:
+        record_usage(getattr(response, "usage", None), model, agent=agent)
+    except Exception as exc:  # noqa: BLE001
+        _log.debug("native completion usage not recorded: %s", exc)
+
+
 def _native_structured_completion(self, bound, temperature: float | None) -> dict:
     """One structured extraction via ``chat.completions.create`` (no LangChain)."""
     from llm.retry import retry_chat_completion
@@ -152,7 +171,13 @@ def _native_structured_completion(self, bound, temperature: float | None) -> dic
         max_tokens = getattr(self, "_max_tokens", None)
     if temperature is None:
         temperature = args.get("temperature")
-    system = system_prompt if system_prompt is not None else self.system_prompt()
+    with_skills = getattr(self, "system_prompt_with_skills", None)
+    if callable(with_skills):
+        system = with_skills(system_prompt)
+    elif system_prompt is not None:
+        system = system_prompt
+    else:
+        system = self.system_prompt()
     client = getattr(self, "client", None)
     model = getattr(self, "model", None)
     if client is None:
@@ -177,6 +202,7 @@ def _native_structured_completion(self, bound, temperature: float | None) -> dic
     if max_tokens:
         request["max_tokens"] = int(max_tokens)
     response = retry_chat_completion(client, **request)
+    _record_native_usage(self, response, model)
     raw = ""
     try:
         raw = response.choices[0].message.content or ""
