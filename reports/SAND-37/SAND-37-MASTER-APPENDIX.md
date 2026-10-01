@@ -1,11 +1,11 @@
 # Appendix to SAND-37-MASTER-SCORE-COST-CARD
 
-Companion to [./SAND-37-MASTER-SCORE-COST-CARD.md](./SAND-37-MASTER-SCORE-COST-CARD.md), which stays executive-length. This file holds every detail table, the full findings, probes, run conditions, token composition, cost accounting and figures. Regenerate with `sandbox run card --master`.
+Companion to [./SAND-37-MASTER-SCORE-COST-CARD.md](./SAND-37-MASTER-SCORE-COST-CARD.md), which stays executive-length. This file holds the full findings, detail tables, run conditions, token composition, cost accounting and comparison figures. Regenerate with `sandbox run card --master`.
 
 **Model:** Qwen/Qwen3-8B-AWQ on vLLM v0.29.0 · **GPU:** NVIDIA L4 at $0.80 per GPU-hour  
 **Data:** public `Lucius-Morningstar/mailroom-dataset` ground_truth @ `ed7576b6`, seed 42; the n = 20 draw is nested in the n = 50 draw, and every n = 50 posture scores the identical documents.  
 **Engine (SAND-37 / SAND-39):** AWQ-Marlin, fp8 KV cache, CUDA graphs, prefix caching, thinking disabled, 8,192-token output cap, frozen prompts (see *Run conditions by specialist*); temperature 0.7 for contracts and merger, 0.1 otherwise.  
-**SAND-40:** one 32K deploy of the same 2×L4 engine at C32. Four specialists run n = 100 on unchanged settings (the n = 50 draw nested inside); merger runs the same 50 agreements as SAND-37 2×L4 with the optimized settings marked † (see *Merger † settings*).
+**SAND-40:** one 32K deploy of the same 2×L4 engine at C32. Four specialists run n = 100 on unchanged settings (the n = 50 draw nested inside); merger runs the same 50 agreements as SAND-37 2×L4 with the optimized settings marked † (see *Merger † settings* on the executive card).
 
 | Study | Posture | GPUs | Client concurrency | Documents per class | Status |
 | --- | --- | ---: | ---: | ---: | --- |
@@ -58,35 +58,9 @@ The SAND-40 column includes the † merger cell, which reads whole agreements an
 | GPU cost per 1M tokens | $0.171 | $0.140 | −18% |
 | Length-capped finishes (vLLM) | 1 | 1 | — |
 
-## Quality and cost by specialist
+## Score definitions
 
-Columns within each cell follow the posture order above (1×L4 C8 n=20 · 1×L4 C8 n=50 · 2×L4 C32 n=50 · 2×L4 C32 n=100).
-
-| Specialist | Metric | Score | ok / n | p50 latency (s) | $ per ok document |
-| --- | --- | :---: | :---: | :---: | :---: |
-| Insurance Claims | Field score | 0.684 · 0.684 · 0.686 · 0.672 | 20/20 · 50/50 · 50/50 · 100/100 | 13.2 · 14.0 · 19.6 · 20.4 | 0.00042 · 0.00039 · 0.00032 · 0.00036 |
-| Contracts | CUAD presence F1: labeled-document mean (micro) | 0.631 (0.597) · 0.602 (0.590) · 0.615 (0.605) · 0.612 (0.608) | 19/20 · 47/50 · 49/50 · 99/100 | 65.8 · 68.2 · 103.3 · 96.1 | 0.00350 · 0.00310 · 0.00284 · 0.00207 |
-| Corporate Records | Field score | 0.459 · 0.449 · 0.452 · 0.475 | 20/20 · 50/50 · 50/50 · 100/100 | 14.4 · 13.2 · 24.1 · 19.9 | 0.00026 · 0.00032 · 0.00019 · 0.00021 |
-| Correspondence | Field score | 0.327 · 0.345 · 0.334 · 0.341 | 20/20 · 50/50 · 50/50 · 100/100 | 5.8 · 6.6 · 10.7 · 10.3 | 0.00011 · 0.00018 · 0.00012 · 0.00012 |
-| Merger Agreements | MAUD accuracy (coverage) | 0.014 (13%) · 0.048 (24%) · 0.035 (23%) · 0.140 (69%)† | 18/20 · 46/50 · 46/50 · 50/50 | 50.5 · 51.3 · 92.5 · 1044.4 | 0.00390 · 0.00284 · 0.00329 · 0.01475 |
-
-Field scores (insurance claims, corporate records, correspondence) are the mean suite extraction score against ground truth over successful documents. Contracts ground truth is CUAD clause labels, so its score is the per-document CUAD clause-presence F1 averaged over the successful documents that carry CUAD labels (see *Clause scoring detail* for counts), with the pooled micro F1 in parentheses; the committed run reports count unlabeled documents as 0 and so read lower. Merger is micro-accuracy over labeled MAUD questions, with question coverage in parentheses, a different scale from the field scores. † marks the optimized merger cell (next section).
-
-## Merger † settings
-
-The SAND-40 merger cell keeps the engine, fleet and agreements of SAND-37 2×L4 and changes how each agreement is read and decoded. Changed settings are in bold.
-
-| Setting | SAND-37 / SAND-39 merger | SAND-40 merger † |
-| --- | --- | --- |
-| Agreements | the same 50 (seed 42) | the same 50 (seed 42) |
-| Serving window | 32,768 tokens on 2×L4 | 32,768 tokens on 2×L4 |
-| **Input** | head + tail, 30,000 chars (rest of the agreement unread) | **whole agreement, chunked: 47,000-char windows + 6,500-char overlap (≤ 54,000 chars per call), merged** |
-| **Prompt** | `merger_agreement_specialist_simplified` | **`merger_agreement_specialist_maud_v1`** |
-| **Sampling** | temperature 0.7, other sampling at vLLM defaults | **temperature 0.7, top_p 0.8, top_k 20, presence_penalty 1.0** |
-| **Output cap** | 8,192 tokens | **6,144 tokens** |
-| **Re-sample on a length-capped output** | none | **1** |
-| Result | MAUD accuracy 0.035, coverage 23%, 46/50 ok, $0.0033 per agreement | MAUD accuracy 0.140, coverage 69%, 50/50 ok, $0.0147 per agreement |
-| Matched agreements | — | +0.106 mean per-agreement score over 46 agreements (35 better / 1 worse) |
+Field scores (insurance claims, corporate records, correspondence) are the mean suite extraction score against ground truth over successful documents. Contracts ground truth is CUAD clause labels, so its score is the per-document CUAD clause-presence F1 averaged over the successful documents that carry CUAD labels (see *Clause scoring detail* for counts), with the pooled micro F1 in parentheses; the committed run reports count unlabeled documents as 0 and so read lower. Merger is micro-accuracy over labeled MAUD questions, with question coverage in parentheses, a different scale from the field scores. † marks the optimized merger cell (settings on the executive card).
 
 ## Token composition
 
@@ -183,17 +157,6 @@ Identical across the postures above unless a cell lists more than one value.
 | Corporate Records | `corporate_records_specialist_simplified` | 15,000 | 8,192 | 0.1 | 2 |
 | Correspondence | `correspondence_specialist_simplified` | 12,000 | 8,192 | 0.1 | 2 |
 | Merger Agreements | `merger_agreement_specialist_simplified / merger_agreement_specialist_maud_v1` | 30,000 / 54,000 | 8,192 / 6,144 | 0.7 | 2 |
-
-## SAND-40 validation probes (n = 20, not pooled)
-
-Before the scale run, two probes tested optimized long-document settings (64K YaRN window, 128,000-character input, chunked extraction, Qwen3 sampling, 6,144-token cap with one length re-sample; MAUD v1 prompt for merger) on the first 20 documents of the SAND-37 2×L4 n = 50 draw. They are not a posture column. The SAND-40 merger cell keeps the chunking, prompt and decode settings on the 32K window; the 64K window and 128,000-character input are not used. The matched columns compare per-document scores on the documents both runs scored, so sample composition cannot explain the difference.
-
-| Specialist | Window | Input cap (chars) | ok / n | Score | Matched docs | Probe mean | SAND-37 2×L4 same docs | Δ (better / worse) | Prompt tokens per doc: probe vs SAND-37 | Wall (s) | Busy GPU $ | $ per ok doc |
-| --- | ---: | ---: | :---: | ---: | :---: | ---: | ---: | :---: | ---: | ---: | ---: | ---: |
-| Contracts | 65,536 | 128,000 | 20/20 | 0.670 | 16 | 0.661 | 0.664 | −0.002 (8 / 7) | 7,144 vs 6,128 | 105.6 | $0.0469 | $0.00235 |
-| Merger Agreements | 65,536 | 128,000 | 20/20 | 0.127 | 18 | 0.114 | 0.033 | +0.081 (14 / 3) | 96,478 vs 8,371 | 1,473.0 | $0.6547 | $0.03273 |
-
-Score is the specialist's primary metric (contracts labeled-document CUAD F1, merger MAUD accuracy); the matched columns use per-document scores. Probe cards and run reports: `probes/<specialist>/`.
 
 
 ## Figures: posture comparison

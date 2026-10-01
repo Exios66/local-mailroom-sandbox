@@ -12,9 +12,10 @@ leg populates both by re-running ``sandbox run card --master``::
                                   (merger n=50 †)
 
 The master card stays executive-length (postures, pooled efficiency, per-specialist
-scorecard, key findings, metered cost). Everything else — per-cell tables, clause
-scoring, engine telemetry, run conditions, merger † settings, token composition,
-probes, full findings, figures and dashboards — lives in the appendix. A posture
+scorecard, merger † settings, key findings, metered cost). Everything else — per-cell
+tables, clause scoring, engine telemetry, run conditions, token composition, full
+findings, figures and dashboards — lives in the appendix. SAND-40 validation probes
+are collected but never pooled or reported. A posture
 with no cards yet renders as "pending". SAND-39 and the 2×L4 leg draw the identical
 n=50 documents, so when both are present the scale-out finding is a matched-sample
 comparison. Session-level Modal spend (cold boots, idle, pre-warm) is not in the
@@ -35,7 +36,7 @@ from mailroom_sandbox.paths import repo_root
 MASTER_STEM = "SAND-37-MASTER-SCORE-COST-CARD"
 APPENDIX_STEM = "SAND-37-MASTER-APPENDIX"
 METERED_FILE = "metered-costs.json"
-PROBE_DIR = "probes"  # SAND-40 validation probes: reported in an appendix, never pooled
+PROBE_DIR = "probes"  # SAND-40 validation probes: collected, never pooled or reported
 EXECUTIVE_MAX_LINES = 110  # two printed pages; the staleness test enforces it
 
 
@@ -200,13 +201,6 @@ def _score(card: Mapping[str, Any] | None, *, mark: str = "") -> str:
     if clause.get("kind") == "cuad" and clause.get("f1") is not None:
         return f"{q['overall_mean']:.3f} ({clause['f1']:.3f}){mark}"
     return f"{q['overall_mean']:.3f}{mark}"
-
-
-def _metric_name(folder: str) -> str:
-    return {
-        "contracts": "CUAD presence F1: labeled-document mean (micro)",
-        "merger_agreement": "MAUD accuracy (coverage)",
-    }.get(folder, "Field score")
 
 
 def _joined(values: list[str]) -> str:
@@ -843,67 +837,6 @@ def _merger_settings_section(cards: dict) -> list[str]:
     return out
 
 
-def _probe_section(probes: Mapping[str, Mapping[str, Any]], cards: dict) -> list[str]:
-    """SAND-40 validation probes against the SAND-37 2×L4 n=50 cell on the same documents."""
-    if not probes:
-        return []
-    base_cards = cards.get("s37-2l4-n50") or {}
-    out = [
-        "## SAND-40 validation probes (n = 20, not pooled)",
-        "",
-        "Before the scale run, two probes tested optimized long-document settings (64K YaRN window, "
-        "128,000-character input, chunked extraction, Qwen3 sampling, 6,144-token cap with one length "
-        "re-sample; MAUD v1 prompt for merger) on the first 20 documents of the SAND-37 2×L4 n = 50 draw. "
-        "They are not a posture column. The SAND-40 merger cell keeps the chunking, prompt and decode settings on the 32K window; the 64K window and 128,000-character input are not used. The matched "
-        "columns compare per-document scores on the documents both runs scored, so sample composition "
-        "cannot explain the difference.",
-        "",
-        "| Specialist | Window | Input cap (chars) | ok / n | Score | Matched docs | Probe mean | SAND-37 2×L4 same docs "
-        "| Δ (better / worse) | Prompt tokens per doc: probe vs SAND-37 | Wall (s) | Busy GPU $ | $ per ok doc |",
-        "| --- | ---: | ---: | :---: | ---: | :---: | ---: | ---: | :---: | ---: | ---: | ---: | ---: |",
-    ]
-    for folder in _ORDER:
-        pc = probes.get(folder)
-        if not pc:
-            continue
-        base = base_cards.get(folder) or {}
-        bdocs = {d["item_id"]: d for d in base.get("documents") or []}
-        pairs = [(d, bdocs[d["item_id"]]) for d in pc.get("documents") or [] if d["item_id"] in bdocs]
-        both = [
-            (a["score"], b["score"])
-            for a, b in pairs
-            if a["ok"] and b["ok"] and a["score"] is not None and b["score"] is not None
-        ]
-        q = pc["quality"]
-        clause = q.get("clause") or {}
-        score = clause.get("accuracy") if clause.get("kind") == "maud" else q["overall_mean"]
-        if both:
-            pm = sum(a for a, _ in both) / len(both)
-            bm = sum(b for _, b in both) / len(both)
-            delta = f"{_signed(pm - bm)} ({sum(a > b for a, b in both)} / {sum(a < b for a, b in both)})"
-            ptok = sum(a["prompt_tokens"] or 0 for a, _ in pairs) / len(pairs)
-            btok = sum(b["prompt_tokens"] or 0 for _, b in pairs) / len(pairs)
-            match = (f"{len(both)} | {pm:.3f} | {bm:.3f} | {delta} | {ptok:,.0f} vs {btok:,.0f}")
-        else:
-            match = "— | — | — | — | —"
-        out.append(
-            f"| {_LABEL[folder]} | {pc['conditions']['engine'].get('max_model_len', 0):,} "
-            f"| {pc['conditions'].get('max_input_chars', 0):,} | {q['ok']}/{pc['n']} | {_f(score, 3)} | {match} "
-            f"| {_f(pc['time']['wall_seconds'], 1)} | {_money(pc['cost']['busy_gpu_usd'], 4)} "
-            f"| {_money(pc['cost']['usd_per_ok_document'])} |"
-        )
-    out += [
-        "",
-        "Score is the specialist's primary metric (contracts labeled-document CUAD F1, merger MAUD accuracy); "
-        "the matched columns use per-document scores. Probe cards and run reports: `probes/<specialist>/`.",
-        "",
-    ]
-    return out
-
-
-# ── render ───────────────────────────────────────────────────────────────────
-
-
 def _executive_findings(present: list[Posture], cards: dict, pooled: dict) -> list[str]:
     """Vital bullets for the two-page master; the full analysis lives in the appendix."""
     out: list[str] = []
@@ -974,7 +907,7 @@ EXECUTIVE_POOLED_ROWS = (
 
 
 def render_master_md(data: Mapping[str, Any]) -> str:
-    """Two-page executive card: postures, pooled efficiency, scorecard, key findings, cost."""
+    """Two-page executive card: postures, pooled efficiency, scorecard, merger † settings, key findings, cost."""
     cards: dict[str, dict[str, Any]] = data["cards"]
     metered: Mapping[str, Any] = data.get("metered") or {}
     present = [p for p in POSTURES if cards[p.key]]
@@ -995,7 +928,7 @@ def render_master_md(data: Mapping[str, Any]) -> str:
             f"seed {ds['seed']} (n = 20 nested in n = 50; every n = 50 posture scores identical documents).  ",
             "**Engine:** AWQ-Marlin, fp8 KV, CUDA graphs, prefix caching, thinking off, 8,192-token cap, "
             "frozen v1 prompts (T 0.7 contracts/merger, 0.1 elsewhere). SAND-40: n = 100 on the same 2×L4 engine; "
-            "† merger is the same 50 agreements with chunked input (appendix).",
+            "† merger is the same 50 agreements with chunked input (settings below).",
             "",
         ]
     lines += [
@@ -1045,7 +978,9 @@ def render_master_md(data: Mapping[str, Any]) -> str:
             + _joined([f"{c['latency']['p50']:.1f}" if c else PENDING for c in per]) + " | "
             + _joined([f"{c['cost']['usd_per_ok_document']:.5f}" if c else PENDING for c in per]) + " |"
         )
-    lines += ["", "## Key findings", ""]
+    lines.append("")
+    lines += _merger_settings_section(cards)
+    lines += ["## Key findings", ""]
     key = _executive_findings(present, cards, pooled)
     lines += [f"{i}. {text}" for i, text in enumerate(key, 1)] or ["No cells reported yet."]
     lines += ["", "## Cost and integrity", ""]
@@ -1074,7 +1009,7 @@ def render_master_md(data: Mapping[str, Any]) -> str:
 
 
 def render_appendix_md(data: Mapping[str, Any]) -> str:
-    """Everything the executive card omits: method detail, full findings, tables, probes, figures."""
+    """Method detail the executive card omits: full findings, detail tables, run conditions, figures."""
     cards: dict[str, dict[str, Any]] = data["cards"]
     metered: Mapping[str, Any] = data.get("metered") or {}
     present = [p for p in POSTURES if cards[p.key]]
@@ -1085,8 +1020,8 @@ def render_appendix_md(data: Mapping[str, Any]) -> str:
         f"# Appendix to {MASTER_STEM}",
         "",
         f"Companion to [./{MASTER_STEM}.md](./{MASTER_STEM}.md), which stays executive-length. "
-        "This file holds every detail table, the full findings, probes, run conditions, "
-        "token composition, cost accounting and figures. Regenerate with `sandbox run card --master`.",
+        "This file holds the full findings, detail tables, run conditions, "
+        "token composition, cost accounting and comparison figures. Regenerate with `sandbox run card --master`.",
         "",
     ]
     if first:
@@ -1101,7 +1036,7 @@ def render_appendix_md(data: Mapping[str, Any]) -> str:
             "0.1 otherwise.  ",
             "**SAND-40:** one 32K deploy of the same 2×L4 engine at C32. Four specialists run n = 100 on unchanged "
             "settings (the n = 50 draw nested inside); merger runs the same 50 agreements as SAND-37 2×L4 with the "
-            "optimized settings marked † (see *Merger † settings*).",
+            "optimized settings marked † (see *Merger † settings* on the executive card).",
             "",
         ]
     lines += [
@@ -1160,24 +1095,7 @@ def render_appendix_md(data: Mapping[str, Any]) -> str:
         lines += _scale_check_section(cards)
 
     lines += [
-        "## Quality and cost by specialist",
-        "",
-        f"Columns within each cell follow the posture order above ({' · '.join(p.label for p in POSTURES)}).",
-        "",
-        "| Specialist | Metric | Score | ok / n | p50 latency (s) | $ per ok document |",
-        "| --- | --- | :---: | :---: | :---: | :---: |",
-    ]
-    for folder in _ORDER:
-        per = [cards[p.key].get(folder) for p in POSTURES]
-        marks = ["†" if p.key == "s40-2l4" and folder == "merger_agreement" else "" for p in POSTURES]
-        lines.append(
-            f"| {_LABEL[folder]} | {_metric_name(folder)} | "
-            + _joined([_score(c, mark=m) for c, m in zip(per, marks, strict=True)]) + " | "
-            + _joined([f"{c['quality']['ok']}/{c['n']}" if c else PENDING for c in per]) + " | "
-            + _joined([f"{c['latency']['p50']:.1f}" if c else PENDING for c in per]) + " | "
-            + _joined([f"{c['cost']['usd_per_ok_document']:.5f}" if c else PENDING for c in per]) + " |"
-        )
-    lines += [
+        "## Score definitions",
         "",
         "Field scores (insurance claims, corporate records, correspondence) are the mean suite extraction "
         "score against ground truth over successful documents. Contracts ground truth is CUAD clause labels, "
@@ -1185,13 +1103,11 @@ def render_appendix_md(data: Mapping[str, Any]) -> str:
         "that carry CUAD labels (see *Clause scoring detail* for counts), with the pooled micro F1 in "
         "parentheses; the committed run reports count unlabeled documents as 0 and so read lower. Merger is "
         "micro-accuracy over labeled MAUD questions, with question coverage in parentheses, a different "
-        "scale from the field scores. † marks the optimized merger cell (next section).",
+        "scale from the field scores. † marks the optimized merger cell (settings on the executive card).",
         "",
     ]
-    lines += _merger_settings_section(cards)
     lines += _token_section(cards)
     lines += _detail_sections(present, cards)
-    lines += _probe_section(data.get("probes") or {}, cards)
     lines += _figure_md(data, "comparison", "## Figures: posture comparison")
     lines += ["", "## Cost accounting and run integrity", ""]
     for p in POSTURES:
