@@ -138,6 +138,8 @@ CUDAGRAPH_CAPTURE_SIZES = os.environ.get("MODAL_VLLM_CUDAGRAPH_CAPTURE_SIZES", "
 MAX_NUM_BATCHED_TOKENS = os.environ.get("MODAL_VLLM_MAX_NUM_BATCHED_TOKENS", "")
 CHAT_TEMPLATE = os.environ.get("MODAL_VLLM_CHAT_TEMPLATE", "")
 MAX_INPUTS = int(os.environ.get("MODAL_VLLM_MAX_INPUTS", "0") or 0)
+# SAND-040: JSON for `vllm serve --hf-overrides` (e.g. YaRN rope_parameters for a 64K window).
+HF_OVERRIDES = os.environ.get("MODAL_VLLM_HF_OVERRIDES", "")
 TP_SIZE = os.environ.get("MODAL_VLLM_TP_SIZE", "") or str(
     int(os.environ.get("MODAL_VLLM_GPU", "L4").split(":")[1])
     if ":" in os.environ.get("MODAL_VLLM_GPU", "L4")
@@ -175,6 +177,7 @@ CONFIG_ENV_KEYS = (
     "MODAL_VLLM_MAX_NUM_BATCHED_TOKENS",
     "MODAL_VLLM_CHAT_TEMPLATE",
     "MODAL_VLLM_MAX_INPUTS",
+    "MODAL_VLLM_HF_OVERRIDES",
     "MODAL_VLLM_REVISION",
     "MODAL_VLLM_API_TOKEN",
     # HF_TOKEN deliberately absent: it lives in the named Modal secret
@@ -320,6 +323,8 @@ def build_vllm_command(model: str) -> list[str]:
         cmd += ["--compilation-config", json.dumps({"cudagraph_capture_sizes": sizes})]
     if MAX_NUM_BATCHED_TOKENS:
         cmd += ["--max-num-batched-tokens", MAX_NUM_BATCHED_TOKENS]
+    if HF_OVERRIDES:
+        cmd += ["--hf-overrides", HF_OVERRIDES]
     cmd += ["--no-enable-log-requests"]
     return cmd
 
