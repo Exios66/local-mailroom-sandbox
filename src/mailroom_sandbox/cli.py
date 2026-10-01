@@ -782,6 +782,18 @@ def _run_parser(sub, shared):
         choices=["grid-1l4", "grid-2l4"],
         help="write the finalized L4x1 / L4x2 suite card from the per-run cards",
     )
+    card_p.add_argument(
+        "--master",
+        action="store_true",
+        help="write reports/SAND-37/SAND-37-MASTER-SCORE-COST-CARD.md across SAND-37 + SAND-39 postures",
+    )
+    card_p.add_argument(
+        "--record-metered",
+        nargs=3,
+        metavar=("STUDY", "METERED_USD", "BILLED_USD"),
+        default=None,
+        help="record a study's session Modal spend (teardown spend check) for the master card, e.g. SAND-39 0.62 0.00",
+    )
     card_p.set_defaults(handler=_cmd_run_card)
     export_bt = run_sub.add_parser(
         "export-bt",
@@ -1861,6 +1873,18 @@ def _cmd_run_card(args) -> int:
     """SAND-037: per-run card under reports/SAND-37/<shape>/<specialist>/, or the suite card."""
     from mailroom_sandbox.job import grid_cards
 
+    if getattr(args, "record_metered", None):
+        from mailroom_sandbox.job.grid_master import record_metered
+
+        study, metered, billed = args.record_metered
+        print(f"metered spend → {record_metered(study, float(metered), float(billed))}")
+        if not getattr(args, "master", False):
+            return 0
+    if getattr(args, "master", False):
+        from mailroom_sandbox.job.grid_master import write_master
+
+        print(f"master card → {write_master()['md']}")
+        return 0
     if getattr(args, "runbook", None):
         replicas = 1 if args.runbook == "grid-1l4" else 2
         paths = grid_cards.write_suite(replicas)
