@@ -213,6 +213,76 @@ def test_optimized_specialist_posts_native_chat_completion_without_langchain(mon
     assert "bind" not in sampling.__file__ or ".bind(" not in open(sampling.__file__, encoding="utf-8").read()
 
 
+def test_native_completion_records_pipeline_usage(monkeypatch):
+    """Contracts/merger cards read tokens from the pipeline accumulator."""
+    from pipeline.limits import reset_run_usage, usage_summary
+
+    captured: list[dict] = []
+
+    def create(**kwargs):
+        captured.append(kwargs)
+        return types.SimpleNamespace(
+            choices=[
+                types.SimpleNamespace(
+                    finish_reason="stop",
+                    message=types.SimpleNamespace(content='{"ok": true}'),
+                )
+            ],
+            usage=types.SimpleNamespace(prompt_tokens=1200, completion_tokens=80),
+        )
+
+    client = types.SimpleNamespace(
+        chat=types.SimpleNamespace(completions=types.SimpleNamespace(create=create)),
+        base_url="http://127.0.0.1:9/v1",
+    )
+
+    class Agent:
+        agent_name = "merger_agreement_specialist"
+        model = "Qwen/Qwen3-8B-AWQ"
+        _max_tokens = 6144
+        client = None
+
+        def system_prompt(self):
+            return "system"
+
+        def system_prompt_with_skills(self, override=None):
+            head = override if override is not None else self.system_prompt()
+            return head + "\nskills"
+
+        def _call_structured(
+            self, user_message, json_schema, system_prompt=None, temperature=None, max_tokens=None, pages=None
+        ):
+            raise AssertionError("LangChain _call_structured must not serve the Modal endpoint")
+
+    Agent.client = client
+    fake = types.ModuleType("langchain_agents.base_agent")
+    fake.BaseAgent = Agent
+    monkeypatch.setitem(sys.modules, "langchain_agents.base_agent", fake)
+    monkeypatch.setattr(sampling, "_TARGETS", (("langchain_agents.base_agent", "BaseAgent"),))
+    monkeypatch.setattr(sampling, "_PATCHED", set())
+
+    reset_run_usage()
+    sampling.apply_sampling_overrides(
+        {
+            "merger_agreement_specialist": {
+                "temperature": 0.7,
+                "top_p": 0.8,
+                "top_k": 20,
+                "presence_penalty": 1.0,
+                "length_retries": 1,
+            }
+        }
+    )
+    result = Agent()._call_structured("document", {"type": "object"}, temperature=0.1)
+    assert result == {"ok": True}
+    assert captured[-1]["messages"][0]["content"].endswith("\nskills")
+    summary = usage_summary()
+    assert summary["prompt_tokens"] == 1200
+    assert summary["completion_tokens"] == 80
+    assert summary["calls"] == 1
+    assert summary["by_agent"]["merger_agreement_specialist"]["calls"] == 1
+
+
 def test_reactivation_without_explicit_knobs_keeps_the_run_override(monkeypatch):
     """Eval runners re-call activate(profile) mid-run; the env-carried knobs must survive."""
     import json
