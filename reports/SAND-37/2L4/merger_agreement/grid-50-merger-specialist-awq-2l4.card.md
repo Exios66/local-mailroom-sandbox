@@ -43,6 +43,11 @@
 | Completion tokens | 44,229 (9.3%) |
 | Total tokens | 473,937 |
 | Tokens per document | 10,303 |
+| Per document: instructions + template | 2,675 (26.0%) |
+| Per document: document text | 6,667 (64.7%) |
+| Per document: output | 962 (9.3%) |
+| Instruction tokens per model call | 2,675 over 46 calls |
+| Token split basis | document chars ÷ 4.5 chars/token; instructions are the remainder |
 | Completion p95 / max (ok docs) | 1,543 / 2,852 |
 | **Throughput** |  |
 | Tokens / second | 1,390.5 |
@@ -137,4 +142,4 @@
 | 49 | `DOC-8fe2855a2310cdbe` | no | — | 323.6 | — | — | LengthFinishReasonError: Could not parse response content as the length limit was reached - CompletionUsage(completion_tokens=8192, prompt_tokens=9249, total_to |
 | 50 | `DOC-26fa94f698c37fc5` | no | — | 319.8 | — | — | LengthFinishReasonError: Could not parse response content as the length limit was reached - CompletionUsage(completion_tokens=8192, prompt_tokens=9043, total_to |
 
-_Generated 2026-10-01T01:37:49+00:00 by `sandbox run card`. Machine-readable twin: `grid-50-merger-specialist-awq-2l4.card.json`._
+_Generated 2026-10-01T06:44:51+00:00 by `sandbox run card`. Machine-readable twin: `grid-50-merger-specialist-awq-2l4.card.json`._
