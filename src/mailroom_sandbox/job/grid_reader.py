@@ -11,8 +11,10 @@ cross-reference — as two files next to the master card:
     reports/SAND-37/READER-REPORT.ipynb   the same text as notebook cells, plus charts
                                           built from an inline data table (pre-rendered,
                                           runs anywhere with pandas + matplotlib)
+    reports/SAND-37/READER-REPORT.pdf     typeset print version (``grid_reader_pdf``),
+                                          fingerprinted in READER-REPORT.pdf.sha256
 
-Both regenerate with ``sandbox run card --master``; a staleness test keeps them in sync.
+All three regenerate with ``sandbox run card --master``; a staleness test keeps them in sync.
 """
 
 from __future__ import annotations
@@ -35,8 +37,10 @@ RUNS: tuple[tuple[str, str], ...] = (
     ("s40-2l4", "Run D"),
 )
 _NAME = dict(RUNS)
-_COLOR = {"s37-1l4-n20": "#2a78d6", "s39-1l4-n50": "#eb6834", "s37-2l4-n50": "#1baf7a", "s40-2l4": "#eda100"}
-_STUDY_RUNS = {"SAND-37": "Runs A and C", "SAND-39": "Run B", "SAND-40": "Run D"}
+# Harmonized print palette: blues for the 1-GPU runs, teal and amber for the 2-GPU runs.
+CHART_COLORS = {"Run A": "#9dbbdb", "Run B": "#3f73a8", "Run C": "#2f8f83", "Run D": "#d99a4e"}
+# Non-breaking spaces keep run labels on one line in narrow table cells (PDF and Bear alike).
+_STUDY_RUNS = {"SAND-37": "Runs\u00a0A\u00a0and\u00a0C", "SAND-39": "Run\u00a0B", "SAND-40": "Run\u00a0D"}
 
 _TYPE_TEXT = {
     "insurance_claims": "Insurance claim forms and notices",
@@ -514,8 +518,7 @@ def render_reader_ipynb(data: Mapping[str, Any]) -> str:
         cells.append(md("\n".join(([heading, ""] if heading else []) + body)))
         if heading == "## Speed and cost by run":
             rows = _chart_rows(data)
-            colors = {n: _COLOR[k] for k, n in RUNS}
-            setup = _CHART_SETUP.format(colors=json.dumps(colors), rows=json.dumps(rows, indent=1))
+            setup = _CHART_SETUP.format(colors=json.dumps(CHART_COLORS), rows=json.dumps(rows, indent=1))
             env: dict[str, Any] = {}
             exec(setup.rsplit("\n", 1)[0], env)  # noqa: S102 - builds df for the chart cells below
             cells.append(md("The charts below are drawn from this data table (re-run the cells to edit them)."))
@@ -535,9 +538,13 @@ def render_reader_ipynb(data: Mapping[str, Any]) -> str:
     return json.dumps(nb, indent=1, ensure_ascii=False) + "\n"
 
 
-def write_reader(repo: Path | None = None) -> dict[str, Path]:
+def write_reader(repo: Path | None = None, *, pdf: bool = True) -> dict[str, Path | None]:
+    """Write the Markdown and notebook, then the typeset PDF (``None`` when Chrome is unavailable)."""
+    from mailroom_sandbox.job.grid_reader_pdf import write_pdf
+
     data = gm.collect_master(repo)
-    paths = reader_paths(repo)
+    paths: dict[str, Path | None] = dict(reader_paths(repo))
     paths["md"].write_text(render_reader_md(data), encoding="utf-8")
     paths["ipynb"].write_text(render_reader_ipynb(data), encoding="utf-8")
+    paths["pdf"] = write_pdf(repo, data) if pdf else None
     return paths
