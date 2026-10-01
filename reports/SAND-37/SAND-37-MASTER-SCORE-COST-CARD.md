@@ -2,13 +2,13 @@
 
 ## Key findings
 
-1. **2×L4 at C32 raises throughput +99% at +0.4% cost per document** (identical 250 documents); median latency rises ×1.4–1.8. GPU count and client concurrency changed together, so this does not separate their effects.
-2. **Larger runs cost less per document.** Running n = 100 per specialist instead of n = 50 cuts GPU cost per document 19% on the four unchanged specialists; 1 of 400 failed (0.25%).
-3. **Merger is the quality gap; the † settings narrow it.** They raise MAUD accuracy 0.035 → 0.140 and coverage 23% → 69% on the same 50 agreements, at 4.5× the GPU cost per agreement.
+1. **2×L4 at C32 raises throughput +99% at +0.4% cost per document** (identical 250 documents, Experiment 2 → Experiment 3); median latency rises ×1.4–1.8. GPU count and client concurrency changed together, so this does not separate their effects.
+2. **Larger runs cost less per document.** Running n = 100 per specialist instead of n = 50 cuts GPU cost per document 19% on the four unchanged specialists (Experiment 3 → Experiment 4); 1 of 400 failed (0.25%).
+3. **Merger is the quality gap; the † settings narrow it.** They raise MAUD accuracy 0.035 → 0.140 and coverage 23% → 69% on the same 50 agreements (Experiment 3 → Experiment 4), at 4.5× the GPU cost per agreement.
 
 **Setup:** Qwen/Qwen3-8B-AWQ on vLLM v0.29.0, NVIDIA L4 at $0.80/GPU-hr; `Lucius-Morningstar/mailroom-dataset` @ `ed7576b6`, seed 42, smaller draws nested in larger ones. Frozen v1 prompts and an 8,192-token output cap except the † merger cell.
 
-Method, detail tables and figures: [SAND-37-MASTER-APPENDIX.md](./SAND-37-MASTER-APPENDIX.md).
+Method, detail tables and figures: [appendix](./SAND-37-MASTER-APPENDIX.md).
 
 | Experiment | Posture | GPUs | Client concurrency | Documents per class | Status |
 | --- | --- | ---: | ---: | ---: | --- |
