@@ -4,12 +4,14 @@ Every run of the aligned Qwen3-8B-AWQ specialist grid (`docs/SPECIALIST-GRID-PLA
 score & cost card here, organized by fleet shape and then by specialist:
 
 **Start here:** [`SAND-37-MASTER-SCORE-COST-CARD.md`](SAND-37-MASTER-SCORE-COST-CARD.md) is the
-one-page 1×L4 vs 2×L4 comparison of score and cost across all ten cells (handoff summary).
+comparison of score and cost across every grid posture (handoff summary): SAND-37 1×L4 C8 n=20,
+SAND-39 1×L4 C8 n=50 (matched-sample inverse leg; `pending` until run) and SAND-37 2×L4 C32 n=50.
 
 ```
 reports/SAND-37/
-├── SAND-37-MASTER-SCORE-COST-CARD.md      # master comparison: 1× L4 vs 2× L4, all five specialists
-├── 1L4/                                   # 1× L4 · C8 · n=20 — runbook grid-1l4
+├── SAND-37-MASTER-SCORE-COST-CARD.md      # master comparison across postures (generated: sandbox run card --master)
+├── metered-costs.json                     # per-study session Modal spend (sandbox run card --record-metered)
+├── 1L4/                                   # 1× L4 · C8 — n=20 (SAND-37, grid-1l4) + n=50 (SAND-39, sand39-1l4-n50)
 │   ├── L4x1-SCORE-COST-CARD.md            # finalized 1× L4 suite card (+ .json)
 │   ├── correspondence/<run_id>.card.md    # one card per run (+ .card.json)
 │   │   ├── RUN-20-…-REPORT.md             # run report (copied from reports/<date>/<specialist>/)
@@ -31,7 +33,8 @@ reports/SAND-37/
 | `L4x1-SCORE-COST-CARD.md` + `.json` | `sandbox run card --runbook grid-1l4` (the runbook's last step) |
 | `L4x2-SCORE-COST-CARD.md` + `.json` | `sandbox run card --runbook grid-2l4` |
 | `<specialist>/RUN-*-REPORT.md`, `-SERVING.md`, `.serving.json` | the runner's dated report writer (`reports/<date>/<specialist>/`); copied here so each specialist folder is self-contained |
-| `SAND-37-MASTER-SCORE-COST-CARD.md` | hand-assembled from the ten `*.card.json` files after both runbooks |
+| `SAND-37-MASTER-SCORE-COST-CARD.md` | `sandbox run card --master` from the committed `*.card.json` + `metered-costs.json` (aligned grid cells only); the `sand39-1l4-n50` runbook regenerates it, and `tests/test_grid_master.py` fails if the committed copy is stale |
+| `metered-costs.json` | `sandbox run card --record-metered <STUDY> <metered_usd> <billed_usd>` from the teardown spend check |
 
 The runbooks bracket every `sandbox run start` with `sandbox run scrape-metrics --label before|after`,
 so each card carries the run's own per-replica vLLM telemetry (requests, TTFT, prefix-cache hit,

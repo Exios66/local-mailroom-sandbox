@@ -45,6 +45,7 @@ Source of truth: [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.
 
 - [`grid-1l4`](grid-1l4.md) — Specialist grid — 1×L4 · C8 cells (n=20 and n=50, all five classes)
 - [`grid-2l4`](grid-2l4.md) — Specialist grid — 2×L4 · C32 cells (n=20 and n=50, all five classes)
+- [`sand39-1l4-n50`](sand39-1l4-n50.md) — SAND-39 — 1×L4 · C8 · n=50 inverse leg of the SAND-37 2×L4 scale-out (five specialists)
 
 ## Anti-patterns
 
