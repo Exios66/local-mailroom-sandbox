@@ -1889,8 +1889,12 @@ def _cmd_run_card(args) -> int:
     if getattr(args, "master", False):
         from mailroom_sandbox.job.grid_master import write_master
 
+        from mailroom_sandbox.job.grid_reader import write_reader
+
         paths = write_master()
         print(f"master card → {paths['md']} (+ appendix {paths['appendix']})")
+        reader = write_reader()
+        print(f"reader report → {reader['md']} (+ notebook {reader['ipynb']})")
         return 0
     if getattr(args, "runbook", None):
         replicas = 1 if args.runbook == "grid-1l4" else 2
