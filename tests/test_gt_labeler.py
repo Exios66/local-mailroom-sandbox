@@ -228,6 +228,11 @@ def test_verbatim_spans_snap_to_the_document_and_drop_paraphrases():
     assert exact == "June 21, 1999"
     assert document[start:start + len(exact)] == exact
     assert locate_verbatim(document, "the parties mutually agree to arbitrate") is None
+    letter = 'entered into between Roxanne Oulman ("**you**") and Medallia, Inc.'
+    snapped = locate_verbatim(letter, 'Roxanne Oulman ("you") and Medallia, Inc.')
+    assert snapped is not None
+    assert snapped[1] == 'Roxanne Oulman ("**you**") and Medallia, Inc.'
+    assert letter[snapped[0]:snapped[0] + len(snapped[1])] == snapped[1]
 
     labels, dropped = normalize_cuad_labels(
         document,
