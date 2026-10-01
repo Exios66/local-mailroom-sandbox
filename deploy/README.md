@@ -258,6 +258,31 @@ runner (concurrency) and the server (`--max-num-seqs`).
   free) and persist weights + compile artifacts across deploys.
 - Spend check: `modal billing summary` / `modal billing rates` (SDK 1.5.3+).
 
+### Ground-truth labeler (`sandbox-vllm-gt-labeler`, SAND-042)
+
+Separate app from `sandbox-vllm`. It hosts `Qwen/Qwen3-14B-AWQ` on two L4s
+(data parallel, not `L4:2`) for unfinished ground-truth fields on
+`Lucius-Morningstar/mailroom-dataset` Hub tag `v9.1`
+(`bc9eab280044befb51e19dda3071d290a8677f42`; parquet parent
+`ed7576b676343e0b402ec5412cded301e629bdee`). `min_containers=0`, so deploy
+itself does not start a GPU. Do not run `download_model` unless a chunk is
+about to be labeled.
+
+```bash
+python deploy/modal_gt_labeler.py --check
+python deploy/modal_gt_labeler.py --export
+modal deploy deploy/modal_gt_labeler.py
+modal app stop sandbox-vllm-gt-labeler
+```
+
+One invocation is one chunk from `mailroom_sandbox.gt_labeler.next_chunk`:
+at most 40 documents and a projected bill of $2 (cold boot + work at 16
+in-flight requests + 120s scaledown, both L4s billed for the wall clock).
+The 3,302-document corpus is refused as one submission. Prompts ask only
+for the fields on that document. Golden CUAD and MAUD clause maps are not
+requested. The live unfinished queue is the 91 SEC EDGAR EX-10 contracts
+whose `cuad_clause_labels` is still `pending_annotation`.
+
 ### Teardown + resource safeguards (DMR-063)
 
 ```bash
