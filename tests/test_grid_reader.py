@@ -27,11 +27,11 @@ def test_reader_notebook_text_is_current_and_charts_are_rendered():
 
 def test_reader_body_has_no_internal_shorthand():
     md = grid_reader.render_reader_md(grid_master.collect_master())
-    body = md.split("## Run name cross-reference")[0]
+    body = md.split("## Experiment cross-reference")[0]
     for pattern in (r"SAND-\d", r"×L4", r"\bC(8|32)\b", r"\bn=\d", "†", "posture", "specialist"):
         assert not re.search(pattern, body), pattern
     assert "No American Family Insurance data was used or shared." in body
-    assert "| **All runs** | 1,050 |" in md
+    assert "| **All experiments** | 1,050 |" in md
 
 
 def test_reader_pdf_is_printed_from_the_current_report():
