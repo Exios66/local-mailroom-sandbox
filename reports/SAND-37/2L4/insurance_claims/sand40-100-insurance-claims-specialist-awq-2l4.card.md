@@ -56,12 +56,12 @@
 | **Engine (vLLM /metrics)** |  |
 | Parallelism (Σ latency ÷ wall) | 27.07× of 32 |
 | Slot occupancy | 84.6% |
-| Coverage | not captured |
-| Requests per replica (this run) | not captured |
-| Mean TTFT per replica | not captured |
-| Prefix-cache hit per replica | not captured |
-| Preemptions per replica (this run) | not captured |
-| Length-capped finishes per replica (this run) | not captured |
+| Coverage | replicas observed: 2 of 2 |
+| Requests per replica (this run) | 48 / 52 |
+| Mean TTFT per replica | 2.247 s / 3.227 s |
+| Prefix-cache hit per replica | 40.2% / 40.6% |
+| Preemptions per replica (this run) | 0 / 0 |
+| Length-capped finishes per replica (this run) | 0 / 0 |
 | **Quality** |  |
 | Overall extraction score | 0.6715 (sd 0.064) |
 | Score min / max | 0.5796 / 0.8056 |
@@ -175,4 +175,4 @@
 | 99 | `DOC-46870fd360755337` | yes | 0.6732 | 55.0 | 5424 | 1683 | — |
 | 100 | `DOC-da50072c19e4223c` | yes | 0.7260 | 58.5 | 5957 | 1647 | — |
 
-_Generated 2026-10-01T05:44:05+00:00 by `sandbox run card`. Machine-readable twin: `sand40-100-insurance-claims-specialist-awq-2l4.card.json`._
+_Generated 2026-10-01T05:44:17+00:00 by `sandbox run card`. Machine-readable twin: `sand40-100-insurance-claims-specialist-awq-2l4.card.json`._
