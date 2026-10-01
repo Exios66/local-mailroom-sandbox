@@ -1,9 +1,14 @@
 # SAND-37 / SAND-39 / SAND-40 Specialist Grid: Results and Cost Summary
 
-Full detail, figures and method notes live in [SAND-37-MASTER-APPENDIX.md](./SAND-37-MASTER-APPENDIX.md).
+## Key findings
 
-**Model:** Qwen/Qwen3-8B-AWQ (vLLM v0.29.0) · **GPU:** NVIDIA L4 at $0.80/GPU-hr · **Data:** `Lucius-Morningstar/mailroom-dataset` ground_truth @ `ed7576b6`, seed 42 (n = 20 nested in n = 50; every n = 50 posture scores identical documents).  
-**Engine:** AWQ-Marlin, fp8 KV, CUDA graphs, prefix caching, thinking off, 8,192-token cap, frozen v1 prompts (T 0.7 contracts/merger, 0.1 elsewhere). SAND-40: n = 100 on the same 2×L4 engine; † merger is the same 50 agreements with chunked input (settings below).
+1. **Scale-out is near-linear.** 2×L4 at C32 raises throughput +99% at +0.4% cost per document; median latency rises ×1.4–1.8 (identical 250 documents).
+2. **Larger runs cost less per document.** Running n = 100 per specialist instead of n = 50 cuts GPU cost per document 19% on the four unchanged specialists; 1 of 400 failed (0.25%).
+3. **Merger is the quality gap; the † settings narrow it.** They raise MAUD accuracy 0.035 → 0.140 and coverage 23% → 69% on the same 50 agreements, at 4.5× the GPU cost per agreement.
+
+**Setup:** Qwen/Qwen3-8B-AWQ on vLLM v0.29.0, NVIDIA L4 at $0.80/GPU-hr; `Lucius-Morningstar/mailroom-dataset` @ `ed7576b6`, seed 42, smaller draws nested in larger ones. Frozen v1 prompts and an 8,192-token output cap except the † merger cell.
+
+Method, detail tables and figures: [SAND-37-MASTER-APPENDIX.md](./SAND-37-MASTER-APPENDIX.md).
 
 | Study | Posture | GPUs | Client concurrency | Documents per class | Status |
 | --- | --- | ---: | ---: | ---: | --- |
@@ -16,18 +21,16 @@ Full detail, figures and method notes live in [SAND-37-MASTER-APPENDIX.md](./SAN
 
 | Metric | SAND-37 1×L4 C8 n=20 | SAND-39 1×L4 C8 n=50 | SAND-37 2×L4 C32 n=50 | SAND-40 2×L4 C32 n=100 |
 | --- | ---: | ---: | ---: | ---: |
-| Documents ok / total | 97 / 100 | 243 / 250 | 245 / 250 | 449 / 450 |
 | Error rate | 3.0% | 2.8% | 2.0% | 0.22% |
-| Throughput (documents per minute) | 8.74 | 10.40 | 20.71 | 11.86 |
-| Throughput (tokens per second per GPU) | 812 | 1,002 | 1,013 | 1,662 |
+| Documents per minute | 8.74 | 10.40 | 20.71 | 11.86 |
+| Tokens per second per GPU | 812 | 1,002 | 1,013 | 1,662 |
 | GPU cost per document | $0.00153 | $0.00128 | $0.00129 | $0.00225 |
-| Busy-window GPU cost | $0.153 | $0.321 | $0.322 | $1.012 |
 
-SAND-40 pooled cost/throughput includes the † merger cell (whole-agreement reads). Like-for-like n = 50 vs n = 100 on the four unchanged specialists is in the appendix.
+SAND-40 includes the † merger cell's whole-agreement reads; the like-for-like check is in the appendix.
 
 ## Quality and cost by specialist
 
-Cell order: 1×L4 C8 n=20 · 1×L4 C8 n=50 · 2×L4 C32 n=50 · 2×L4 C32 n=100. Contracts = CUAD F1 (micro in parentheses); merger = MAUD accuracy (coverage in parentheses) — different scales from the field scores. † = optimized merger.
+Cell order: 1×L4 C8 n=20 · 1×L4 C8 n=50 · 2×L4 C32 n=50 · 2×L4 C32 n=100. Contracts: CUAD F1 (micro). Merger: MAUD accuracy (coverage), a different scale. † = optimized merger.
 
 | Specialist | Score | ok / n | p50 latency (s) | $ per ok document |
 | --- | :---: | :---: | :---: | :---: |
@@ -39,31 +42,21 @@ Cell order: 1×L4 C8 n=20 · 1×L4 C8 n=50 · 2×L4 C32 n=50 · 2×L4 C32 n=100.
 
 ## Merger † settings
 
-The SAND-40 merger cell keeps the engine, fleet and agreements of SAND-37 2×L4 and changes how each agreement is read and decoded. Changed settings are in bold.
+Same 50 agreements (seed 42) and 2×L4 engine as SAND-37; only the settings below change.
 
 | Setting | SAND-37 / SAND-39 merger | SAND-40 merger † |
 | --- | --- | --- |
-| Agreements | the same 50 (seed 42) | the same 50 (seed 42) |
-| Serving window | 32,768 tokens on 2×L4 | 32,768 tokens on 2×L4 |
-| **Input** | head + tail, 30,000 chars (rest of the agreement unread) | **whole agreement, chunked: 47,000-char windows + 6,500-char overlap (≤ 54,000 chars per call), merged** |
-| **Prompt** | `merger_agreement_specialist_simplified` | **`merger_agreement_specialist_maud_v1`** |
-| **Sampling** | temperature 0.7, other sampling at vLLM defaults | **temperature 0.7, top_p 0.8, top_k 20, presence_penalty 1.0** |
-| **Output cap** | 8,192 tokens | **6,144 tokens** |
-| **Re-sample on a length-capped output** | none | **1** |
+| Input | head + tail, 30,000 chars (rest of the agreement unread) | whole agreement, chunked: 47,000-char windows + 6,500-char overlap (≤ 54,000 chars per call), merged |
+| Prompt | `merger_agreement_specialist_simplified` | `merger_agreement_specialist_maud_v1` |
+| Sampling | temperature 0.7, other sampling at vLLM defaults | temperature 0.7, top_p 0.8, top_k 20, presence_penalty 1.0 |
+| Output cap | 8,192 tokens | 6,144 tokens |
+| Re-sample on a length-capped output | none | 1 |
 | Result | MAUD accuracy 0.035, coverage 23%, 46/50 ok, $0.0033 per agreement | MAUD accuracy 0.140, coverage 69%, 50/50 ok, $0.0147 per agreement |
 | Matched agreements | — | +0.106 mean per-agreement score over 46 agreements (35 better / 1 worse) |
 
-## Key findings
+## Cost
 
-1. **Scale-out is near-linear:** 2×L4 at C32 raises throughput by +99% at +0.4% cost per document (identical 250 documents; median latency ×1.4–1.8).
-2. **Running n = 100 per specialist instead of n = 50 lowers GPU cost per document by 19% on the four unchanged specialists** (merger excluded; n = 100 contains the n = 50 documents). 1 of 400 failed (0.25%).
-3. **The † merger settings raise MAUD accuracy from 0.035 to 0.140 on the same 50 agreements** (coverage 23% → 69%; GPU cost $0.0033 → $0.0147). Frozen settings answer only 13%–24% of labeled MAUD questions.
-
-## Cost and integrity
-
-- **SAND-37 metered Modal total:** $1.09 ($0.00 billed after credits). Covers both SAND-37 postures plus cold boots, pinned-warm idle between cells, the weight pre-warm, and one invalidated contracts attempt (client credential-precedence defect, SAND-038; excluded and rerun).
-- **SAND-39 metered Modal total:** $0.49 ($0.00 billed after credits). One 1×L4 session: weight pre-warm, cold boot, the five cells pinned warm, and teardown. October month-to-date metering ($1.42) less the SAND-37 October hours ($0.93).
+- **SAND-37 metered Modal total:** $1.09 ($0.00 billed after credits).
+- **SAND-39 metered Modal total:** $0.49 ($0.00 billed after credits).
 - **SAND-40 metered Modal total:** not yet recorded.
 - **Teardown** verified after each posture, zero containers left warm.
-
-**Source data:** per-cell cards under `1L4/<specialist>/` and `2L4/<specialist>/`. Detail, method and figures: [./SAND-37-MASTER-APPENDIX.md](./SAND-37-MASTER-APPENDIX.md). Regenerate with `sandbox run card --master`.

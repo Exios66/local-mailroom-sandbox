@@ -62,8 +62,8 @@ def test_sand40_column_is_measured_with_the_optimized_merger_mark():
     assert "| SAND-40 | 2×L4 C32 n=100 | 2 | 32 | 100 (merger 50†) | 5 of 5 cells |" in md
     assert ")†" in md  # merger score carries the dagger
     assert "pending" not in md.lower().split("quality and cost")[1]
-    assert "**Running n = 100 per specialist instead of n = 50" in md
-    assert "**The † merger settings raise MAUD accuracy" in md
+    assert "**Larger runs cost less per document.** Running n = 100 per specialist instead of n = 50" in md
+    assert "**Merger is the quality gap; the † settings narrow it.** They raise MAUD accuracy 0.035 → 0.140" in md
     appendix = grid_master.render_appendix_md(grid_master.collect_master())
     assert "### Scale check: four unchanged specialists (merger excluded)" in appendix
     assert "| Documents ok / total | 199 / 200 | 399 / 400 | — |" in appendix
@@ -80,9 +80,9 @@ def test_pooled_four_requires_all_four_unchanged_specialists():
 def test_merger_settings_table_shows_what_the_dagger_changes():
     md = grid_master.render_master_md(grid_master.collect_master())
     assert "## Merger † settings" in md
-    assert "| Serving window | 32,768 tokens on 2×L4 | 32,768 tokens on 2×L4 |" in md
-    assert "| **Input** | head + tail, 30,000 chars (rest of the agreement unread) | **whole agreement, chunked: 47,000-char" in md
-    assert "**`merger_agreement_specialist_maud_v1`**" in md
+    assert "Serving window" not in md  # unchanged settings are stated once, not tabled
+    assert "| Input | head + tail, 30,000 chars (rest of the agreement unread) | whole agreement, chunked: 47,000-char" in md
+    assert "| `merger_agreement_specialist_maud_v1` |" in md
     assert "| Result | MAUD accuracy 0.035, coverage 23%, 46/50 ok" in md
 
 

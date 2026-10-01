@@ -1,6 +1,6 @@
 # Appendix to SAND-37-MASTER-SCORE-COST-CARD
 
-Companion to [./SAND-37-MASTER-SCORE-COST-CARD.md](./SAND-37-MASTER-SCORE-COST-CARD.md), which stays executive-length. This file holds the full findings, detail tables, run conditions, token composition, cost accounting and comparison figures. Regenerate with `sandbox run card --master`.
+Full findings, detail tables, method and figures behind [SAND-37-MASTER-SCORE-COST-CARD.md](./SAND-37-MASTER-SCORE-COST-CARD.md). Regenerate both with `sandbox run card --master`.
 
 **Model:** Qwen/Qwen3-8B-AWQ on vLLM v0.29.0 · **GPU:** NVIDIA L4 at $0.80 per GPU-hour  
 **Data:** public `Lucius-Morningstar/mailroom-dataset` ground_truth @ `ed7576b6`, seed 42; the n = 20 draw is nested in the n = 50 draw, and every n = 50 posture scores the identical documents.  
@@ -161,40 +161,36 @@ Identical across the postures above unless a cell lists more than one value.
 
 ## Figures: posture comparison
 
-![Pooled serving efficiency by posture: GPU cost per 1,000 documents, tokens per second per GPU, and documents per minute. The SAND-40 bar includes the † merger cell, which dominates its busy time; the like-for-like scale check is the table under *Serving efficiency*.](figures/cmp-efficiency.png)
+![Figure 1](figures/cmp-efficiency.png)
 
 *Figure 1. Pooled serving efficiency by posture: GPU cost per 1,000 documents, tokens per second per GPU, and documents per minute. The SAND-40 bar includes the † merger cell, which dominates its busy time; the like-for-like scale check is the table under *Serving efficiency*.*
 
-![Primary quality metric by specialist and posture; labels mark failed documents. Merger is MAUD accuracy, a different scale from the field scores; † (hatched) marks the optimized SAND-40 merger cell.](figures/cmp-quality.png)
+![Figure 2](figures/cmp-quality.png)
 
 *Figure 2. Primary quality metric by specialist and posture; labels mark failed documents. Merger is MAUD accuracy, a different scale from the field scores; † (hatched) marks the optimized SAND-40 merger cell.*
 
-![Per-document latency (bar p50, whisker p95) and GPU cost per 1,000 successful documents, by specialist and posture, on log scales; † (hatched) marks the optimized SAND-40 merger cell.](figures/cmp-latency-cost.png)
+![Figure 3](figures/cmp-latency-cost.png)
 
 *Figure 3. Per-document latency (bar p50, whisker p95) and GPU cost per 1,000 successful documents, by specialist and posture, on log scales; † (hatched) marks the optimized SAND-40 merger cell.*
 
-![Matched-sample check: each point is one document scored under SAND-39 (1×L4 C8) and SAND-37 (2×L4 C32). Points on the diagonal mean the posture did not change the output's score.](figures/cmp-matched.png)
+![Figure 4](figures/cmp-matched.png)
 
 *Figure 4. Matched-sample check: each point is one document scored under SAND-39 (1×L4 C8) and SAND-37 (2×L4 C32). Points on the diagonal mean the posture did not change the output's score.*
 
-![Where the tokens go, per document: instructions and template (resent on every model call), document text, and output. Left: share of each document's tokens; right: total tokens per document on a log scale. Instruction tokens are fitted per run across documents of different lengths (see *Token composition*).](figures/cmp-tokens.png)
+![Figure 5](figures/cmp-tokens.png)
 
 *Figure 5. Where the tokens go, per document: instructions and template (resent on every model call), document text, and output. Left: share of each document's tokens; right: total tokens per document on a log scale. Instruction tokens are fitted per run across documents of different lengths (see *Token composition*).*
 
-![Merger † effect on the same agreements: per-agreement MAUD accuracy under SAND-37 2×L4 (frozen settings) and SAND-40 † (optimized settings). Points above the diagonal improved.](figures/cmp-merger-dagger.png)
+![Figure 6](figures/cmp-merger-dagger.png)
 
 *Figure 6. Merger † effect on the same agreements: per-agreement MAUD accuracy under SAND-37 2×L4 (frozen settings) and SAND-40 † (optimized settings). Points above the diagonal improved.*
 
 
 ## Cost accounting and run integrity
 
-- **SAND-37 1×L4 C8 n=20:** busy-window GPU $0.15 across 100 documents.
-- **SAND-39 1×L4 C8 n=50:** busy-window GPU $0.32 across 250 documents.
-- **SAND-37 2×L4 C32 n=50:** busy-window GPU $0.32 across 250 documents.
-- **SAND-40 2×L4 C32 n=100:** busy-window GPU $1.01 across 450 documents.
 - **SAND-37 metered Modal total:** $1.09 ($0.00 billed after credits). Covers both SAND-37 postures plus cold boots, pinned-warm idle between cells, the weight pre-warm, and one invalidated contracts attempt (client credential-precedence defect, SAND-038; excluded and rerun).
 - **SAND-39 metered Modal total:** $0.49 ($0.00 billed after credits). One 1×L4 session: weight pre-warm, cold boot, the five cells pinned warm, and teardown. October month-to-date metering ($1.42) less the SAND-37 October hours ($0.93).
-- **SAND-40 metered Modal total:** not yet recorded; the busy-window figures above are the GPU cost of the cells themselves.
+- **SAND-40 metered Modal total:** not yet recorded; the busy-window GPU cost under *Serving efficiency* is the cost of the cells themselves.
 - **Teardown** to zero warm containers is part of every posture's runbook; the metered totals above come from the teardown spend check.
 - **Comparability:** SAND-39 and the SAND-37 2×L4 leg score identical n = 50 documents and differ only in GPU count and client concurrency; the SAND-37 1×L4 leg is a nested n = 20 subset. SAND-40 runs the same 2×L4 engine; its n = 100 draws contain the n = 50 documents, and its merger cell scores the same 50 agreements with the † settings.
 
@@ -203,18 +199,18 @@ Identical across the postures above unless a cell lists more than one value.
 
 ## Appendix: posture dashboards
 
-![SAND-37 1×L4 C8 n=20: per-document score and latency distributions, cost per 1,000 successful documents, and token mix by specialist.](1L4/figures/SAND-37-1xL4-C8-n20.png)
+![Dashboard 1](1L4/figures/SAND-37-1xL4-C8-n20.png)
 
 *Dashboard 1. SAND-37 1×L4 C8 n=20: per-document score and latency distributions, cost per 1,000 successful documents, and token mix by specialist.*
 
-![SAND-39 1×L4 C8 n=50: per-document score and latency distributions, cost per 1,000 successful documents, and token mix by specialist.](1L4/figures/SAND-39-1xL4-C8-n50.png)
+![Dashboard 2](1L4/figures/SAND-39-1xL4-C8-n50.png)
 
 *Dashboard 2. SAND-39 1×L4 C8 n=50: per-document score and latency distributions, cost per 1,000 successful documents, and token mix by specialist.*
 
-![SAND-37 2×L4 C32 n=50: per-document score and latency distributions, cost per 1,000 successful documents, and token mix by specialist.](2L4/figures/SAND-37-2xL4-C32-n50.png)
+![Dashboard 3](2L4/figures/SAND-37-2xL4-C32-n50.png)
 
 *Dashboard 3. SAND-37 2×L4 C32 n=50: per-document score and latency distributions, cost per 1,000 successful documents, and token mix by specialist.*
 
-![SAND-40 2×L4 C32 n=100: per-document score and latency distributions, cost per 1,000 successful documents, and token mix by specialist.](2L4/figures/SAND-40-2xL4-C32-n100.png)
+![Dashboard 4](2L4/figures/SAND-40-2xL4-C32-n100.png)
 
 *Dashboard 4. SAND-40 2×L4 C32 n=100: per-document score and latency distributions, cost per 1,000 successful documents, and token mix by specialist.*
