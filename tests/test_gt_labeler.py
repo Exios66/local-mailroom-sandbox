@@ -211,6 +211,65 @@ def test_cuad_response_must_cover_every_category():
     assert validate_label_response(["cuad_clause_labels"], payload)
 
 
+def test_verbatim_spans_snap_to_the_document_and_drop_paraphrases():
+    from mailroom_sandbox.gt_labeler import (
+        cuad_label_problems,
+        label_evidence_for,
+        locate_verbatim,
+        normalize_cuad_labels,
+    )
+
+    document = (
+        "This Consulting Agreement is entered into as of June 21, 1999 "
+        "by and between North Coast Minerals and Ada Consulting LLC. "
+        "This Agreement shall be governed by the laws of the State of Delaware."
+    )
+    start, exact = locate_verbatim(document, "June   21, 1999")
+    assert exact == "June 21, 1999"
+    assert document[start:start + len(exact)] == exact
+    assert locate_verbatim(document, "the parties mutually agree to arbitrate") is None
+
+    labels, dropped = normalize_cuad_labels(
+        document,
+        {
+            "clauses": [
+                {"category": "Document Name", "text": "Consulting Agreement"},
+                {"category": "Agreement Date", "text": "June 21, 1999"},
+                {"category": "Parties", "text": "North Coast Minerals and Ada Consulting LLC"},
+                {
+                    "category": "Governing Law",
+                    "text": "governed by the laws of the State of Delaware",
+                },
+                {"category": "Exclusivity", "text": "exclusive worldwide rights"},
+                {"category": "Not A Clause", "text": "Consulting Agreement"},
+            ]
+        },
+    )
+    assert len(labels) == 41
+    assert labels["Agreement Date"] == [{"start": start, "text": exact}]
+    assert labels["Exclusivity"] == []
+    assert any("not verbatim" in item for item in dropped)
+    assert any("unknown category" in item for item in dropped)
+    assert cuad_label_problems(labels) == []
+    assert label_evidence_for(labels).startswith("CUAD-annotated clauses: ")
+    assert "Governing Law" in label_evidence_for(labels)
+
+
+def test_label_journal_keeps_accepted_and_the_better_partial():
+    from mailroom_sandbox.gt_labeler import accepted_ids, fold_label_journal
+
+    rows = [
+        {"id": "a.txt", "filename": "a.txt", "accepted": False, "span_count": 6},
+        {"id": "a.txt", "filename": "a.txt", "accepted": False, "span_count": 2},
+        {"id": "b.txt", "filename": "b.txt", "accepted": True, "span_count": 10},
+        {"id": "b.txt", "filename": "b.txt", "accepted": False, "span_count": 12},
+    ]
+    folded = fold_label_journal(rows)
+    assert folded["a.txt"]["span_count"] == 6
+    assert folded["b.txt"]["accepted"] is True
+    assert accepted_ids(rows) == {"b.txt"}
+
+
 def test_response_round_trip():
     from mailroom_sandbox.gt_labeler import loads_response
 

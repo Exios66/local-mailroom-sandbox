@@ -343,12 +343,12 @@ def _field_instruction(doc_class: str, field: str) -> str:
     if field == "cuad_clause_labels":
         names = "; ".join(CUAD_CLAUSE_CATEGORIES)
         return (
-            "cuad_clause_labels: a JSON object with EVERY one of these 41 "
-            "keys. The value is a list of {\"start\": <int>, \"text\": "
-            "\"<verbatim span>\"}. Use [] when the category is absent. "
-            "\"text\" must be copied from the document, not paraphrased. "
-            "\"start\" is the character offset in the text you were shown, "
-            f"or -1 if you cannot compute it. Categories: {names}."
+            "cuad_clause_labels: Atticus CUAD spans. Copy the short operative "
+            "excerpt a CUAD annotator would highlight — the date, the party "
+            "names, or the one sentence that states the clause. Do not paste "
+            "an entire article. \"text\" must be copied from the document, "
+            "not paraphrased. Use [] when the category is absent. Include "
+            f"every one of these 41 keys. Categories: {names}."
         )
     if field == "sentiment_label":
         return (
@@ -543,3 +543,260 @@ def loads_response(text: str) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise json.JSONDecodeError("response is not an object", text, 0)
     return payload
+
+
+# CUAD answer spans are short. The golden draw's 90th percentile is 584
+# characters and the longest published span is under 4,000.
+MAX_CUAD_SPAN_CHARS = 4000
+MIN_PRESENT_CUAD_CATEGORIES = 4
+
+
+def cuad_span_schema() -> dict[str, Any]:
+    """Guided-JSON schema: present clauses only, as verbatim excerpts.
+
+    Absent categories are omitted here and filled with ``[]`` when the
+    payload is normalized into the 41-key Hub object. Asking the model to
+    emit forty-one empty lists wastes the decode budget and truncates the
+    spans that matter.
+    """
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["clauses"],
+        "properties": {
+            "clauses": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["category", "text"],
+                    "properties": {
+                        "category": {
+                            "type": "string",
+                            "enum": list(CUAD_CLAUSE_CATEGORIES),
+                        },
+                        "text": {"type": "string"},
+                    },
+                },
+            }
+        },
+    }
+
+
+def build_cuad_messages(target: Mapping[str, Any]) -> list[dict[str, str]]:
+    """CUAD-style messages for one EX-10 contract.
+
+    Same document window as ``build_messages``. The JSON shape is the
+    present-clause list from ``cuad_span_schema``, which ``normalize_cuad_labels``
+    turns into the Hub 41-key object.
+    """
+    fields = assert_labelable(target)
+    if fields != ["cuad_clause_labels"]:
+        raise ValueError(
+            "build_cuad_messages is the EX-10 clause pass; "
+            f"got {fields}"
+        )
+    doc_class = str(target.get("doc_class") or target.get("expected") or "")
+    subclass = str(target.get("expected_subclass") or "")
+    band = str(target.get("context_window_band") or "")
+    names = "; ".join(CUAD_CLAUSE_CATEGORIES)
+    system = (
+        "You annotate one SEC EDGAR exhibit in the Atticus CUAD style so it "
+        f"can sit beside the golden CUAD draw in {DATASET_REPO} tag {DATASET_TAG}.\n"
+        "Return one JSON object and nothing else:\n"
+        '{"clauses": [{"category": "<exact CUAD name>", "text": "<verbatim span>"}]}\n'
+        "Rules:\n"
+        "- category is exactly one of the 41 Atticus names.\n"
+        "- text is copied from the document, character for character. "
+        "Do not paraphrase, summarize, or modernize the wording.\n"
+        "- Highlight the short operative span: the date, the party names, or "
+        "the sentence that states the clause. Do not paste an entire article "
+        "or the whole document.\n"
+        "- Omit categories that are absent. Do not invent a clause the text "
+        "does not contain.\n"
+        "- A real contract almost always has Document Name and Parties. "
+        "Include those when the text states them.\n"
+        "- If you were shown only the head and the tail, annotate only those "
+        "excerpts."
+    )
+    user = (
+        f"document class: {doc_class}\n"
+        f"CUAD family: {subclass or '(none)'}\n"
+        f"filename: {target.get('filename') or ''}\n"
+        "Annotate every present category. Exact names:\n"
+        f"{names}\n\n"
+        + _document_block(str(target.get("doc_text") or ""), band)
+    )
+    return [
+        {"role": "system", "content": system},
+        {"role": "user", "content": user},
+    ]
+
+
+def _norm_index(text: str) -> tuple[str, list[int]]:
+    """Collapse whitespace and remember the original index of each kept char."""
+    chars: list[str] = []
+    indexes: list[int] = []
+    pending_space: int | None = None
+    for index, char in enumerate(text):
+        if char.isspace():
+            if pending_space is None and chars:
+                pending_space = index
+            continue
+        if pending_space is not None:
+            chars.append(" ")
+            indexes.append(pending_space)
+            pending_space = None
+        chars.append(char)
+        indexes.append(index)
+    return "".join(chars), indexes
+
+
+def locate_verbatim(document: str, text: str) -> tuple[int, str] | None:
+    """Find ``text`` in ``document`` and return the exact document slice.
+
+    Exact match wins. A whitespace-only difference still counts, and the
+    returned text is the document's own characters so the stored span cannot
+    drift from the filing.
+    """
+    snippet = " ".join(str(text or "").split())
+    if len(snippet) < 2 or not document:
+        return None
+    exact = document.find(str(text).strip())
+    if exact >= 0:
+        taken = str(text).strip()
+        return exact, document[exact:exact + len(taken)]
+    folded, indexes = _norm_index(document)
+    wanted, _ = _norm_index(snippet)
+    wanted = wanted.strip()
+    if len(wanted) < 2:
+        return None
+    at = folded.find(wanted)
+    if at < 0:
+        return None
+    start = indexes[at]
+    end = indexes[at + len(wanted) - 1] + 1
+    sliced = document[start:end]
+    if len(sliced) > MAX_CUAD_SPAN_CHARS:
+        return None
+    if len(sliced) > max(len(wanted) * 3, len(wanted) + 80):
+        return None
+    return start, sliced
+
+
+def _clause_items(payload: Mapping[str, Any]) -> list[tuple[str, str]]:
+    clauses = payload.get("clauses")
+    if isinstance(clauses, list):
+        items: list[tuple[str, str]] = []
+        for item in clauses:
+            if not isinstance(item, dict):
+                continue
+            items.append((str(item.get("category") or ""), str(item.get("text") or "")))
+        return items
+    fields = payload.get("fields")
+    cuad = fields.get("cuad_clause_labels") if isinstance(fields, dict) else None
+    if not isinstance(cuad, dict):
+        return []
+    items = []
+    for category, spans in cuad.items():
+        if isinstance(spans, list):
+            for span in spans:
+                if isinstance(span, dict):
+                    items.append((str(category), str(span.get("text") or "")))
+                elif isinstance(span, str):
+                    items.append((str(category), span))
+        elif isinstance(spans, str):
+            items.append((str(category), spans))
+    return items
+
+
+def normalize_cuad_labels(
+    document: str,
+    payload: Mapping[str, Any],
+) -> tuple[dict[str, list[dict[str, Any]]], list[str]]:
+    """Hub 41-key CUAD object plus reasons for spans that were dropped.
+
+    Every kept span is a verbatim slice of ``document``. Missing categories
+    are ``[]``. ``start`` is the character offset of that slice.
+    """
+    labels: dict[str, list[dict[str, Any]]] = {
+        name: [] for name in CUAD_CLAUSE_CATEGORIES
+    }
+    dropped: list[str] = []
+    seen: set[tuple[str, str]] = set()
+    allowed = set(CUAD_CLAUSE_CATEGORIES)
+    for category, text in _clause_items(payload):
+        if category not in allowed:
+            dropped.append(f"unknown category {category!r}")
+            continue
+        located = locate_verbatim(document, text)
+        if located is None:
+            dropped.append(f"{category}: not verbatim")
+            continue
+        start, exact = located
+        key = (category, exact)
+        if key in seen:
+            continue
+        seen.add(key)
+        labels[category].append({"start": start, "text": exact})
+    for spans in labels.values():
+        spans.sort(key=lambda item: int(item["start"]))
+    return labels, dropped
+
+
+def cuad_label_problems(labels: Mapping[str, list]) -> list[str]:
+    """Quality bar against the golden CUAD draw (median 13 present categories)."""
+    problems: list[str] = []
+    if set(labels) != set(CUAD_CLAUSE_CATEGORIES):
+        problems.append("labels are not the 41 CUAD categories")
+    present = [name for name, spans in labels.items() if spans]
+    if len(present) < MIN_PRESENT_CUAD_CATEGORIES:
+        problems.append(
+            f"{len(present)} present categories; golden contracts are annotated "
+            f"across the clause inventory (floor {MIN_PRESENT_CUAD_CATEGORIES})"
+        )
+    if not any(labels.get(name) for name in ("Document Name", "Parties")):
+        problems.append("neither Document Name nor Parties was recovered")
+    return problems
+
+
+def fold_label_journal(rows: Sequence[Mapping[str, Any]]) -> dict[str, Mapping[str, Any]]:
+    """Collapse an append-only label journal to one record per document.
+
+    An accepted record sticks. A later failed attempt does not erase it.
+    Until a document is accepted, the record with more verbatim spans is kept
+    so a weaker retry does not discard a better partial annotation.
+    """
+    folded: dict[str, Mapping[str, Any]] = {}
+    for row in rows:
+        key = str(row.get("id") or row.get("filename") or "")
+        if not key:
+            continue
+        current = folded.get(key)
+        if current is None:
+            folded[key] = row
+            continue
+        current_ok = bool(current.get("accepted"))
+        row_ok = bool(row.get("accepted"))
+        if row_ok and not current_ok:
+            folded[key] = row
+        elif current_ok and not row_ok:
+            continue
+        elif row_ok and current_ok:
+            folded[key] = row
+        elif int(row.get("span_count") or 0) > int(current.get("span_count") or 0):
+            folded[key] = row
+    return folded
+
+
+def accepted_ids(rows: Sequence[Mapping[str, Any]]) -> set[str]:
+    """Filenames that already have an accepted label and must not be re-sent."""
+    return {key for key, row in fold_label_journal(rows).items() if row.get("accepted")}
+
+
+def label_evidence_for(labels: Mapping[str, list]) -> str:
+    """Same evidence line the v9 builder writes for a populated CUAD map."""
+    names = sorted(name for name, spans in labels.items() if spans)
+    if not names:
+        return ""
+    return "CUAD-annotated clauses: " + ", ".join(names)
