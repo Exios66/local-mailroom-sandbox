@@ -20,6 +20,7 @@ from typing import Any, Mapping
 
 from mailroom_sandbox.job.spec import (
     FAMILY_CORPUS_SIZE,
+    FAMILY_HF_DATA_REVISION,
     FAMILY_HF_REVISION,
     HF_DEFAULT_REPO,
     RunSpec,
@@ -49,7 +50,10 @@ BENCHMARK_EXPECTED = {
     "concurrency": 4,
     "profile": "modal-vllm",
     "app": "sandbox-vllm",
+    # Canonical Hub tag v9.1, plus the parquet parent the measured SAND-032
+    # YAMLs still name. The docs commit does not change the row set.
     "revision": FAMILY_HF_REVISION,
+    "accepted_revisions": (FAMILY_HF_REVISION, FAMILY_HF_DATA_REVISION),
     "repo": HF_DEFAULT_REPO,
     "limit": 30,
 }
@@ -494,8 +498,11 @@ def _check_spec_pins(spec: RunSpec) -> dict[str, list[str]]:
         )
 
     rev = spec.effective_revision()
-    if rev != exp["revision"]:
-        errors.append(f"dataset revision={rev!r} expected pin {exp['revision']!r}")
+    accepted = exp.get("accepted_revisions") or (exp["revision"],)
+    if rev not in accepted:
+        errors.append(
+            f"dataset revision={rev!r} expected pin {exp['revision']!r}"
+        )
     if spec.dataset.repo and spec.dataset.repo != exp["repo"]:
         warnings.append(f"dataset.repo={spec.dataset.repo!r}")
     if spec.dataset.sample_seed is None:
