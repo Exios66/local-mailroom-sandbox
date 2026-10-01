@@ -8,6 +8,11 @@ finalized suite card, all under ``reports/SAND-37/``::
     reports/SAND-37/1L4/L4x1-SCORE-COST-CARD.md           # finalized 1×L4 suite card
     reports/SAND-37/1L4/L4x1-SCORE-COST-CARD.json
     reports/SAND-37/2L4/...                                # same for 2×L4 (L4x2-…)
+    reports/SAND-37/probes/<specialist>/<run_id>.card.md  # SAND-40 validation probes
+
+SAND-40 probe cards stay in ``probes/``. They are not cells of the 1×L4 or
+2×L4 suite, and ``collect_master`` never reads that directory, so a probe
+cannot fill the master scorecard.
 
 The card follows the S2a/S2b score-card template: a conditions table, then one
 Metric | Value table grouped into Run, Time, Cost, Tokens, Throughput, Latency,
@@ -91,14 +96,24 @@ def _error_kind(error: Any) -> str:
     return text.split(":", 1)[0].strip() or "unknown"
 
 
-def card_dir(task: str, replicas: int, *, repo: Path | None = None) -> Path:
-    shape = SHAPE_DIRS.get(int(replicas), f"{int(replicas)}L4")
+def _probe_run(run_id: str) -> bool:
+    """True for a SAND-40 validation probe. Those cards are not scorecard cells."""
+    from mailroom_sandbox.job.specialist_posture import SAND40_PROBE_CELLS
+
+    return run_id in SAND40_PROBE_CELLS
+
+
+def card_dir(task: str, replicas: int, *, repo: Path | None = None, run_id: str | None = None) -> Path:
     folder = _FOLDER.get(task, task)
-    return (repo or repo_root()) / ROOT_REL / shape / folder
+    root = (repo or repo_root()) / ROOT_REL
+    if run_id and _probe_run(run_id):
+        return root / "probes" / folder
+    shape = SHAPE_DIRS.get(int(replicas), f"{int(replicas)}L4")
+    return root / shape / folder
 
 
 def card_paths(run_id: str, task: str, replicas: int, *, repo: Path | None = None) -> dict[str, Path]:
-    base = card_dir(task, replicas, repo=repo)
+    base = card_dir(task, replicas, repo=repo, run_id=run_id)
     return {"dir": base, "md": base / f"{run_id}.card.md", "json": base / f"{run_id}.card.json"}
 
 
@@ -536,6 +551,9 @@ def write_card(
     scores: Mapping[str, Any] | None = None,
 ) -> dict[str, Path]:
     """Write ``<run_id>.card.{md,json}`` under reports/SAND-37/<shape>/<specialist>/.
+
+    SAND-40 probe runs write under ``reports/SAND-37/probes/<specialist>/``
+    instead, so they stay out of the 2×L4 suite and the master scorecard.
 
     A re-render without ``wall_seconds`` (``sandbox run card`` after the
     /metrics after-scrape) reuses the runner's busy wall from the existing card,
