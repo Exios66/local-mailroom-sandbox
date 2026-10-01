@@ -30,8 +30,6 @@ Experiment 4 includes the † merger cell's whole-agreement reads; the like-for-
 
 ![Throughput, 1x vs 2x L4 on the same 250 documents](figures/record/1x-vs-2xL4-throughput.png)
 
-![Cost per 1,000 ok documents, 1x vs 2x L4 on the same 250 documents](figures/record/1x-vs-2xL4-cost.png)
-
 ![Cost per 1,000 ok documents on 2x L4, n=50 vs n=100](figures/record/2xL4-n50-vs-n100-cost.png)
 
 ## Quality and cost by specialist
@@ -45,16 +43,6 @@ Cell order: Experiment 1 · Experiment 2 · Experiment 3 · Experiment 4. Contra
 | Corporate Records | 0.459 · 0.449 · 0.452 · 0.475 | 20/20 · 50/50 · 50/50 · 100/100 | 14.4 · 13.2 · 24.1 · 19.9 | 0.00026 · 0.00032 · 0.00019 · 0.00021 |
 | Correspondence | 0.327 · 0.345 · 0.334 · 0.341 | 20/20 · 50/50 · 50/50 · 100/100 | 5.8 · 6.6 · 10.7 · 10.3 | 0.00011 · 0.00018 · 0.00012 · 0.00012 |
 | Merger Agreements | 0.014 (13%) · 0.048 (24%) · 0.035 (23%) · 0.140 (69%)† | 18/20 · 46/50 · 46/50 · 50/50 | 50.5 · 51.3 · 92.5 · 1044.4 | 0.00390 · 0.00284 · 0.00329 · 0.01475 |
-
-![Cost vs score by specialist, same 250 documents](figures/record/cost-vs-score.png)
-
-![Cost per 1,000 ok documents, Experiment 2 (1x L4 C=8 n=50)](figures/record/1xL4-C8-n50-cost.png)
-
-![Cost per 1,000 ok documents, Experiment 4 (2x L4 C=32 n=100)](figures/record/2xL4-C32-n100-cost.png)
-
-![Latency p50 to p99, Experiment 2 (1x L4 C=8 n=50)](figures/record/1xL4-C8-n50-latency.png)
-
-![Latency p50 to p99, Experiment 4 (2x L4 C=32 n=100)](figures/record/2xL4-C32-n100-latency.png)
 
 ## Merger † settings
 
