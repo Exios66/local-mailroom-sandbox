@@ -263,3 +263,21 @@ def test_grid_family_renders():
     assert "## Per-cell posture (live)" in md
     assert "`grid-50-merger-specialist-awq-1l4` | `merger_agreement_specialist` | 8 | 8192" in md
     assert (generated_dir() / "grid.md").is_file()
+
+
+def test_grid_runbooks_scrape_and_export_cards():
+    for rid, stem in (("grid-1l4", "grid-1l4"), ("grid-2l4", "grid-2l4")):
+        sh = render_shell(rid)
+        loop = sh[sh.index("do\n"):sh.index("\ndone")]
+        order = [
+            'sandbox run preflight --config "$cfg"',
+            'sandbox run scrape-metrics --config "$cfg" --label before',
+            'sandbox run start --config "$cfg"',
+            'sandbox run scrape-metrics --config "$cfg" --label after',
+            'sandbox run card --config "$cfg"',
+        ]
+        positions = [loop.index(step) for step in order]
+        assert positions == sorted(positions), rid
+        assert f"sandbox run card --runbook {stem}" in sh
+    # other runbooks keep their two-line loop
+    assert "scrape-metrics" not in render_shell("improved-scale-matrix")
