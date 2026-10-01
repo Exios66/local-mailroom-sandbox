@@ -128,9 +128,9 @@ GPU cost counts only the time the GPUs spent on documents. Session cost is the p
 
 | Runs | Documents | GPU cost on documents | Session cost | Share of session spent on documents | Session cost per document | Billed |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Runs A and C | 350 | $0.47 | $1.09 | 44% | $0.0031 | $0.00 |
-| Run B | 250 | $0.32 | $0.49 | 65% | $0.0020 | $0.00 |
-| Run D | 450 | $1.01 | $1.81 | 56% | $0.0040 | $0.00 |
+| Runs A and C | 350 | $0.47 | $1.09 | 44% | $0.0031 | $0.00 |
+| Run B | 250 | $0.32 | $0.49 | 65% | $0.0020 | $0.00 |
+| Run D | 450 | $1.01 | $1.81 | 56% | $0.0040 | $0.00 |
 | **All runs** | 1,050 | $1.81 | $3.39 | 53% | $0.0032 | $0.00 |
 
 Billed is zero because the provider's monthly free credits covered the charges. Session costs exclude short exploratory test deployments run between the main runs.
