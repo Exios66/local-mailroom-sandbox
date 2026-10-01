@@ -57,7 +57,16 @@ POSTURES: tuple[Posture, ...] = (
     Posture("s37-1l4-n20", "SAND-37", "1L4", 1, 8, 20),
     Posture("s39-1l4-n50", "SAND-39", "1L4", 1, 8, 50),
     Posture("s37-2l4-n50", "SAND-37", "2L4", 2, 32, 50),
-    Posture("s40-2l4", "SAND-40", "2L4", 2, 32, 100),
+    Posture(
+        "s40-2l4",
+        "SAND-40",
+        "2L4",
+        2,
+        32,
+        100,
+        docs="100 (merger 50†)",
+        n_by_folder=(("merger_agreement", 50),),
+    ),
 )
 _ORDER = ("insurance_claims", "contracts", "corporate_records", "correspondence", "merger_agreement")
 _LABEL = {folder: label for _, folder, label in SPECIALISTS}
@@ -98,7 +107,7 @@ def collect_master(repo: Path | None = None) -> dict[str, Any]:
     probes: dict[str, dict[str, Any]] = {}
     for path in sorted((root / PROBE_DIR).glob("*/*.card.json")):
         data = _read_json(path)
-        if data.get("schema") == SCHEMA:
+        if data.get("schema") == SCHEMA and "-probe-" in str(data.get("run_id") or ""):
             probes[path.parent.name] = data
     metered = _read_json(master_paths(repo)["metered"])
     return {"cards": cards, "probes": probes, "metered": metered}
@@ -461,6 +470,101 @@ def _detail_sections(present: list[Posture], cards: dict) -> list[str]:
     return out
 
 
+_SETTINGS_RUNS = (
+    ("SAND-37 / SAND-39 merger", "grid-50-merger-specialist-awq-2l4"),
+    ("SAND-40 merger †", "sand40-50-merger-specialist-awq-2l4"),
+)
+
+
+def _input_text(row: Mapping[str, Any]) -> str:
+    if row.get("chunk_chars"):
+        from mailroom_sandbox.eval.agents import chunk_window
+
+        window, overlap = chunk_window(
+            int(row["max_input_chars"]), int(row["chunk_chars"]), int(row.get("overlap_chars") or 0)
+        )
+        return (
+            f"whole agreement, chunked: {window:,}-char windows + {overlap:,}-char overlap "
+            f"(≤ {int(row['max_input_chars']):,} chars per call), merged"
+        )
+    return f"head + tail, {int(row['max_input_chars']):,} chars (rest of the agreement unread)"
+
+
+def _sampling_text(row: Mapping[str, Any]) -> str:
+    parts = [f"temperature {row.get('temperature', 0.1)}"]
+    for key in ("top_p", "top_k", "presence_penalty"):
+        if row.get(key) is not None:
+            parts.append(f"{key} {row[key]}")
+    if len(parts) == 1:
+        parts.append("other sampling at vLLM defaults")
+    return ", ".join(parts)
+
+
+def _maud_result(card: Mapping[str, Any] | None) -> str:
+    if not card:
+        return PENDING
+    c = card["quality"].get("clause") or {}
+    return (
+        f"MAUD accuracy {c.get('accuracy', 0):.3f}, coverage {c.get('coverage', 0):.0%}, "
+        f"{card['quality']['ok']}/{card['n']} ok, ${card['cost']['usd_per_ok_document']:.4f} per agreement"
+    )
+
+
+def _merger_settings_section(cards: dict) -> list[str]:
+    """What the † merger cell changes, row by row, and the measured effect once it exists."""
+    from mailroom_sandbox.job.specialist_posture import posture_for_run
+
+    rows = [(label, posture_for_run(rid) or {}) for label, rid in _SETTINGS_RUNS]
+    if not all(r for _, r in rows):
+        return []
+    (base_label, base), (opt_label, opt) = rows
+    table = (
+        ("Agreements", lambda r: "the same 50 (seed 42)"),
+        ("Serving window", lambda r: f"{int(r['max_model_len']):,} tokens on 2×L4"),
+        ("Input", _input_text),
+        ("Prompt", lambda r: f"`{r['prompt_file']}`"),
+        ("Sampling", _sampling_text),
+        ("Output cap", lambda r: f"{int(r['max_tokens']):,} tokens"),
+        ("Re-sample on a length-capped output", lambda r: str(r["length_retries"]) if r.get("length_retries") else "none"),
+    )
+    out = [
+        "## Merger † settings",
+        "",
+        "The SAND-40 merger cell keeps the engine, fleet and agreements of SAND-37 2×L4 and changes how each "
+        "agreement is read and decoded. Changed settings are in bold.",
+        "",
+        f"| Setting | {base_label} | {opt_label} |",
+        "| --- | --- | --- |",
+    ]
+    for label, fn in table:
+        a, b = fn(base), fn(opt)
+        if a != b:
+            label, b = f"**{label}**", f"**{b}**"
+        out.append(f"| {label} | {a} | {b} |")
+    before = (cards.get("s37-2l4-n50") or {}).get("merger_agreement")
+    after = (cards.get("s40-2l4") or {}).get("merger_agreement")
+    out.append(f"| Result | {_maud_result(before)} | {_maud_result(after)} |")
+    if before and after:
+        bd = {d["item_id"]: d for d in before["documents"]}
+        both = [
+            (d["score"], bd[d["item_id"]]["score"])
+            for d in after["documents"]
+            if d["item_id"] in bd
+            and d["ok"]
+            and bd[d["item_id"]]["ok"]
+            and d["score"] is not None
+            and bd[d["item_id"]]["score"] is not None
+        ]
+        if both:
+            delta = sum(a - b for a, b in both) / len(both)
+            out.append(
+                f"| Matched agreements | — | {delta:+.3f} mean per-agreement score over {len(both)} agreements "
+                f"({sum(a > b for a, b in both)} better / {sum(a < b for a, b in both)} worse) |"
+            )
+    out.append("")
+    return out
+
+
 def _probe_section(probes: Mapping[str, Mapping[str, Any]], cards: dict) -> list[str]:
     """SAND-40 validation probes against the SAND-37 2×L4 n=50 cell on the same documents."""
     if not probes:
@@ -472,7 +576,7 @@ def _probe_section(probes: Mapping[str, Mapping[str, Any]], cards: dict) -> list
         "Before the scale run, two probes tested optimized long-document settings (64K YaRN window, "
         "128,000-character input, chunked extraction, Qwen3 sampling, 6,144-token cap with one length "
         "re-sample; MAUD v1 prompt for merger) on the first 20 documents of the SAND-37 2×L4 n = 50 draw. "
-        "They are not a posture column, and the SAND-40 column does not use these settings. The matched "
+        "They are not a posture column. The SAND-40 merger cell keeps the chunking, prompt and decode settings on the 32K window; the 64K window and 128,000-character input are not used. The matched "
         "columns compare per-document scores on the documents both runs scored, so sample composition "
         "cannot explain the difference.",
         "",
@@ -543,8 +647,9 @@ def render_master_md(data: Mapping[str, Any]) -> str:
             "**Engine (SAND-37 / SAND-39):** AWQ-Marlin, fp8 KV cache, CUDA graphs, prefix caching, thinking "
             "disabled, 8,192-token output cap, frozen v1 prompts; temperature 0.7 for contracts and merger, "
             "0.1 otherwise.  ",
-            "**SAND-40:** 2×L4 at C32, n = 100 per class on the same engine and settings; the n = 50 draw is "
-            "nested inside, so the same documents anchor every comparison.",
+            "**SAND-40:** one 32K deploy of the same 2×L4 engine at C32. Four specialists run n = 100 on unchanged "
+            "settings (the n = 50 draw nested inside); merger runs the same 50 agreements as SAND-37 2×L4 with the "
+            "optimized settings marked † (see *Merger † settings*).",
             "",
         ]
     lines += [
@@ -593,9 +698,10 @@ def render_master_md(data: Mapping[str, Any]) -> str:
     ]
     for folder in _ORDER:
         per = [cards[p.key].get(folder) for p in POSTURES]
+        marks = ["†" if p.key == "s40-2l4" and folder == "merger_agreement" else "" for p in POSTURES]
         lines.append(
             f"| {_LABEL[folder]} | {_metric_name(folder)} | "
-            + _joined([_score(c) for c in per]) + " | "
+            + _joined([_score(c, mark=m) for c, m in zip(per, marks, strict=True)]) + " | "
             + _joined([f"{c['quality']['ok']}/{c['n']}" if c else PENDING for c in per]) + " | "
             + _joined([f"{c['latency']['p50']:.1f}" if c else PENDING for c in per]) + " | "
             + _joined([f"{c['cost']['usd_per_ok_document']:.5f}" if c else PENDING for c in per]) + " |"
@@ -608,10 +714,10 @@ def render_master_md(data: Mapping[str, Any]) -> str:
         "that carry CUAD labels (see *Clause scoring detail* for counts), with the pooled micro F1 in "
         "parentheses; the committed run reports count unlabeled documents as 0 and so read lower. Merger is "
         "micro-accuracy over labeled MAUD questions, with question coverage in parentheses, a different "
-        "scale from the field scores.",
-
+        "scale from the field scores. † marks the optimized merger cell (next section).",
         "",
     ]
+    lines += _merger_settings_section(cards)
     lines += _detail_sections(present, cards)
     lines += _probe_section(data.get("probes") or {}, cards)
     lines += [

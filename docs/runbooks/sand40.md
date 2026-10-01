@@ -1,10 +1,10 @@
 <!-- Generated from config/runbooks/catalog.yaml. Edit the catalog, then: sandbox runbook write -->
 
-# SAND-40 scale run — five specialists · n=100 · 2×L4 · C32 · one 32K deploy
+# SAND-40 scale run — four specialists n=100 + † merger n=50 · 2×L4 · C32 · one 32K deploy
 
 **id:** `sand40` · **family:** `grid` · **serving:** `grid-awq-2l4`
 
-Fills the SAND-40 column of the master score & cost card. All five specialists at n=100 on the SAND-037 2×L4 engine (native 32768 window, aligned spec unchanged), one deploy, no redeploy. Each n=100 draw contains the n=50 documents scored by SAND-37 2×L4 and SAND-39.
+Fills the SAND-40 column of the master score & cost card on one deploy of the SAND-037 2×L4 engine (native 32768 window), no redeploy. Correspondence, insurance claims, corporate records and contracts run at n=100 on the aligned spec unchanged (each draw contains the n=50 documents). Merger runs the same 50 agreements as SAND-37 2×L4 with the optimized † settings (chunked whole-document extraction, MAUD v1 prompt, Qwen3 sampling, 6144 cap, one length re-sample), after a 5-agreement chunk gate.
 
 Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show sand40`.
 
@@ -25,11 +25,12 @@ Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then 
 
 ## Configs
 
+- Gate, runs first: `config/runs/sand40-check-5-merger-specialist-awq-2l4.yaml` (`sandbox run card --gate` must pass)
 - `config/runs/sand40-100-correspondence-specialist-awq-2l4.yaml`
 - `config/runs/sand40-100-insurance-claims-specialist-awq-2l4.yaml`
 - `config/runs/sand40-100-corporate-records-specialist-awq-2l4.yaml`
 - `config/runs/sand40-100-contracts-specialist-awq-2l4.yaml`
-- `config/runs/sand40-100-merger-specialist-awq-2l4.yaml`
+- `config/runs/sand40-50-merger-specialist-awq-2l4.yaml`
 
 ## Per-cell posture (live)
 
@@ -39,15 +40,18 @@ Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then 
 | `sand40-100-insurance-claims-specialist-awq-2l4` | `insurance_claims_specialist` | 32 | 8192 | 13500 | $1.20 | 3600s |
 | `sand40-100-corporate-records-specialist-awq-2l4` | `corporate_records_specialist` | 32 | 8192 | 15000 | $1.20 | 3600s |
 | `sand40-100-contracts-specialist-awq-2l4` | `contracts_specialist` | 32 | 8192 | 24000 | $1.20 | 3600s |
-| `sand40-100-merger-specialist-awq-2l4` | `merger_agreement_specialist` | 32 | 8192 | 30000 | $1.20 | 3600s |
+| `sand40-50-merger-specialist-awq-2l4` | `merger_agreement_specialist` | 32 | 6144 | 54000 | $2.50 | 5400s |
+| `sand40-check-5-merger-specialist-awq-2l4` | `merger_agreement_specialist` | 32 | 6144 | 54000 | $0.40 | 1800s |
 
 Source: `src/mailroom_sandbox/job/specialist_posture.py`.
 
 ## Notes
 
-- Spend: likely ≈ $0.65 GPU at 2 × $0.80/GPU-hr (≈ 25 min busy: the SAND-37 2×L4 n=50 cells measured 724 s for 250 documents, doubled), plus one cold boot per replica. The five cost caps sum to $5.80 and are the abort guard. Needs spend approval before deploy.
-- Settings are identical to the SAND-37 2×L4 n=50 cells except n: frozen v1 prompts, 8192 output cap, temperature 0.7 for contracts and merger (0.1 otherwise), head-plus-tail input caps. No 64K window, no chunking, no MAUD v1 prompt; those were validation-probe settings (sand40-probe) and stay out of the scale run.
-- Cards land in reports/SAND-37/2L4/<specialist>/sand40-100-*.card.md + .card.json. The after step regenerates reports/SAND-37/SAND-37-MASTER-SCORE-COST-CARD.md; its SAND-40 column switches from pending to measured. Commit the SAND-37 tree.
+- Spend (estimate): four n=100 cells ≈ 12 min / ≈ $0.30 (SAND-37 2×L4 n=50 walls, doubled); gate ≈ 10–15 min / ≈ $0.20 (one chained agreement sets the wall); † merger n=50 ≈ 40–60 min / ≈ $1.10–1.60 (≈ 115k prompt tokens per agreement through ~8 chunk calls, 32 agreements in flight). Total ≈ $1.60–2.10 plus one cold boot per replica. Cost caps sum to $7.50 including the gate ($0.40). Needs spend approval before deploy.
+- The gate runs first: 5 agreements with the † settings, then sandbox run card --gate checks every document is ok and that vLLM accepted every chunk the documents need (extract_chunked skips a rejected chunk silently). On failure the script tears the fleet down and stops; nothing scored has run.
+- 32K chunk sizing: max_input_chars 54,000 → 47,000-char windows + 6,500-char overlap, within the posture context-fit guard (2.4 chars/token + 4,000 system tokens + 6,144 output ≤ 32,768). SAND-37 merger text measured ≥ 3.3 chars/token, so real requests stay well under the window.
+- Merger stays n=50 (the SAND-37 2×L4 agreements), so the † cell compares like-for-like; the other four classes are n=100. Probe settings that are not used: the 64K YaRN window and the 128,000-char input.
+- Cards land in reports/SAND-37/2L4/<specialist>/ (scale cells) and reports/SAND-37/probes/merger_agreement/ (gate). The after step regenerates reports/SAND-37/SAND-37-MASTER-SCORE-COST-CARD.md; its SAND-40 column switches from pending to measured. Commit the SAND-37 tree.
 - Record the teardown spend check (Metered Cost / Billed Cost) with sandbox run card --record-metered SAND-40 <metered> <billed> --master.
 - Teardown follows the last cell. Do not leave the two-replica fleet warm: min_containers=2 bills both GPUs until teardown.
 
@@ -61,7 +65,7 @@ Source: `src/mailroom_sandbox/job/specialist_posture.py`.
 ## Operator script
 
 ```bash
-# SAND-40 scale run — five specialists · n=100 · 2×L4 · C32 · one 32K deploy
+# SAND-40 scale run — four specialists n=100 + † merger n=50 · 2×L4 · C32 · one 32K deploy
 # sandbox runbook show sand40
 set -euo pipefail
 
@@ -101,12 +105,23 @@ modal deploy deploy/modal_vllm.py --strategy recreate
 sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
 
+# gate: sand40-check-5-merger-specialist-awq-2l4 must pass before the scored cells
+sandbox run preflight --config config/runs/sand40-check-5-merger-specialist-awq-2l4.yaml --live --force
+sandbox run scrape-metrics --config config/runs/sand40-check-5-merger-specialist-awq-2l4.yaml --label before
+sandbox run start --config config/runs/sand40-check-5-merger-specialist-awq-2l4.yaml --job-mode endpoint --watch
+sandbox run scrape-metrics --config config/runs/sand40-check-5-merger-specialist-awq-2l4.yaml --label after
+if ! sandbox run card --config config/runs/sand40-check-5-merger-specialist-awq-2l4.yaml --gate; then
+  echo "gate failed: tearing down without running the scored cells" >&2
+  ./deploy/teardown_vllm.sh
+  exit 1
+fi
+
 for cfg in \
   config/runs/sand40-100-correspondence-specialist-awq-2l4.yaml \
   config/runs/sand40-100-insurance-claims-specialist-awq-2l4.yaml \
   config/runs/sand40-100-corporate-records-specialist-awq-2l4.yaml \
   config/runs/sand40-100-contracts-specialist-awq-2l4.yaml \
-  config/runs/sand40-100-merger-specialist-awq-2l4.yaml
+  config/runs/sand40-50-merger-specialist-awq-2l4.yaml
 do
   sandbox run preflight --config "$cfg" --live --force
   sandbox run scrape-metrics --config "$cfg" --label before

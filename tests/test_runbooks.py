@@ -308,23 +308,29 @@ def test_sand39_runs_the_five_1l4_n50_cells_matched_to_2l4():
     assert deploy_env_drift(rb) == []
 
 
-def test_sand40_runs_five_cells_on_one_32k_deploy():
+def test_sand40_runs_on_one_32k_deploy_behind_a_merger_chunk_gate():
     from pathlib import Path
 
     from mailroom_sandbox.job.runbooks import deploy_env_drift
-    from mailroom_sandbox.job.specialist_posture import SAND40_CELLS
+    from mailroom_sandbox.job.specialist_posture import SAND40_CELLS, SAND40_CHECK_CELLS
 
     rb = get_runbook("sand40")
     assert {Path(rel).stem for rel in rb["configs"]} == SAND40_CELLS
-    assert len(SAND40_CELLS) == 5
+    assert {Path(rb["gate"]["config"]).stem} == SAND40_CHECK_CELLS
     sh = render_shell("sand40")
     assert sh.count("modal deploy deploy/modal_vllm.py") == 1
     assert "MODAL_VLLM_MAX_MODEL_LEN=32768" in sh
     assert "65536" not in sh and "MODAL_VLLM_HF_OVERRIDES=" not in sh
-    assert sh.index("sandbox run card --master") > sh.index("teardown")
+    gate = sh.index("--gate; then")
+    assert sh.index("sand40-check-5-merger-specialist-awq-2l4.yaml --job-mode") < gate < sh.index("for cfg in")
+    failure = sh[gate:sh.index("fi", gate)]
+    assert "./deploy/teardown_vllm.sh" in failure and "exit 1" in failure
+    assert sh.index("sand40-50-merger-specialist-awq-2l4.yaml") > sh.index("sand40-100-contracts-specialist-awq-2l4.yaml")
+    assert sh.index("sandbox run card --master") > sh.rindex("teardown_vllm.sh")
     assert deploy_env_drift(rb) == []
     assert deploy_env_drift(get_runbook("sand40-probe")) == []
     assert "MODAL_VLLM_MAX_MODEL_LEN=65536" in render_shell("sand40-probe")
+    assert "Gate, runs first" in render_markdown("sand40")
 
 
 def test_sand39_shell_relocks_scrapes_and_writes_master_card():
