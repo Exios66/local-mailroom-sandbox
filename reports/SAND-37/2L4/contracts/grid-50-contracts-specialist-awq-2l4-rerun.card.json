@@ -56,8 +56,10 @@
   },
   "documents": [
     {
+      "calls": 1,
       "completion_tokens": 395,
       "error": null,
+      "input_chars": 1283,
       "item_id": "DOC-98ff556893f1a98f",
       "latency_seconds": 36.446897,
       "ok": true,
@@ -65,8 +67,10 @@
       "score": 0.8571
     },
     {
+      "calls": 1,
       "completion_tokens": 741,
       "error": null,
+      "input_chars": 24000,
       "item_id": "DOC-adad5ef793c0e409",
       "latency_seconds": 54.003194,
       "ok": true,
@@ -74,8 +78,10 @@
       "score": 0.5185
     },
     {
+      "calls": 1,
       "completion_tokens": 558,
       "error": null,
+      "input_chars": 22641,
       "item_id": "DOC-2e3e2bb13d6c83ca",
       "latency_seconds": 58.19378,
       "ok": true,
@@ -83,8 +89,10 @@
       "score": null
     },
     {
+      "calls": 1,
       "completion_tokens": 1182,
       "error": null,
+      "input_chars": 24000,
       "item_id": "DOC-ee4369c8980926dc",
       "latency_seconds": 76.978752,
       "ok": true,
@@ -92,8 +100,10 @@
       "score": 0.5217
     },
     {
+      "calls": 1,
       "completion_tokens": 1198,
       "error": null,
+      "input_chars": 18562,
       "item_id": "DOC-34904aee099a62c7",
       "latency_seconds": 77.32693499999999,
       "ok": true,
@@ -101,8 +111,10 @@
       "score": 0.6364
     },
     {
+      "calls": 1,
       "completion_tokens": 1211,
       "error": null,
+      "input_chars": 24000,
       "item_id": "DOC-f717fb61aa615da0",
       "latency_seconds": 80.292792,
       "ok": true,
@@ -110,8 +122,10 @@
       "score": 0.4444
     },
     {
+      "calls": 1,
       "completion_tokens": 1236,
       "error": null,
+      "input_chars": 24000,
       "item_id": "DOC-25f822c661011bfe",
       "latency_seconds": 80.78037699999999,
       "ok": true,
@@ -119,8 +133,10 @@
       "score": 0.4375
     },
     {
+      "calls": 1,
       "completion_tokens": 959,
       "error": null,
+      "input_chars": 6662,
       "item_id": "DOC-9696c5996f24d85d",
       "latency_seconds": 81.420387,
       "ok": true,
@@ -128,8 +144,10 @@
       "score": null
     },
     {
+      "calls": 1,
       "completion_tokens": 1039,
       "error": null,
+      "input_chars": 2819,
       "item_id": "DOC-440a54573c24b918",
       "latency_seconds": 86.85646000000001,
       "ok": true,
@@ -137,8 +155,10 @@
       "score": 0.5714
     },
     {
+      "calls": 1,
       "completion_tokens": 1242,
       "error": null,
+      "input_chars": 5327,
       "item_id": "DOC-ade03c57c5f78e21",
       "latency_seconds": 101.081649,
       "ok": true,
@@ -146,8 +166,10 @@
       "score": 0.75
     },
     {
+      "calls": 1,
       "completion_tokens": 1264,
       "error": null,
+      "input_chars": 24000,
       "item_id": "DOC-09c0c774c3e5ec74",
       "latency_seconds": 103.265222,
       "ok": true,
@@ -155,8 +177,10 @@
       "score": 0.2727
     },
     {
+      "calls": 1,
       "completion_tokens": 1621,
       "error": null,
+      "input_chars": 12962,
       "item_id": "DOC-55df050fcb737129",
       "latency_seconds": 103.347807,
       "ok": true,
@@ -164,8 +188,10 @@
       "score": 0.6667
     },
     {
+      "calls": 1,
       "completion_tokens": 1320,
       "error": null,
+      "input_chars": 24000,
       "item_id": "DOC-2ca7b08d2d439f1e",
       "latency_seconds": 108.389771,
       "ok": true,
@@ -173,8 +199,10 @@
       "score": null
     },
     {
+      "calls": 1,
       "completion_tokens": 1703,
       "error": null,
+      "input_chars": 21761,
       "item_id": "DOC-5892b6dc609c8d0f",
       "latency_seconds": 109.338421,
       "ok": true,
@@ -182,8 +210,10 @@
       "score": null
     },
     {
+      "calls": 1,
       "completion_tokens": 1376,
       "error": null,
+      "input_chars": 24000,
       "item_id": "DOC-770401d1d47fd744",
       "latency_seconds": 112.346997,
       "ok": true,
@@ -191,8 +221,10 @@
       "score": 0.6667
     },
     {
+      "calls": 1,
       "completion_tokens": 804,
       "error": null,
+      "input_chars": 24000,
       "item_id": "DOC-c30c293d38a2cd8b",
       "latency_seconds": 113.414875,
       "ok": true,
@@ -200,8 +232,10 @@
       "score": 0.72
     },
     {
+      "calls": 1,
       "completion_tokens": 1790,
       "error": null,
+      "input_chars": 24000,
       "item_id": "DOC-ba6d7a0ea5100bbb",
       "latency_seconds": 116.139817,
       "ok": true,
@@ -209,8 +243,10 @@
       "score": 0.6667
     },
     {
+      "calls": 1,
       "completion_tokens": 1417,
       "error": null,
+      "input_chars": 22288,
       "item_id": "DOC-83320eec5eec6235",
       "latency_seconds": 119.002303,
       "ok": true,
@@ -218,8 +254,10 @@
       "score": 0.7692
     },
     {
+      "calls": 1,
       "completion_tokens": 1451,
       "error": null,
+      "input_chars": 24000,
       "item_id": "DOC-4be26020b0470e43",
       "latency_seconds": 120.42701799999999,
       "ok": true,
@@ -227,8 +265,10 @@
       "score": 0.5714
     },
     {
+      "calls": 1,
       "completion_tokens": 1433,
       "error": null,
+      "input_chars": 24000,
       "item_id": "DOC-c7f557969d953fae",
       "latency_seconds": 120.64252099999999,
       "ok": true,
@@ -236,8 +276,10 @@
       "score": null
     },
     {
+      "calls": 1,
       "completion_tokens": 1126,
       "error": null,
+      "input_chars": 24000,
       "item_id": "DOC-93e9bb030e2b282d",
       "latency_seconds": 68.070001,
       "ok": true,
@@ -245,8 +287,10 @@
       "score": 0.7692
     },
     {
+      "calls": 1,
       "completion_tokens": 1525,
       "error": null,
+      "input_chars": 24000,
       "item_id": "DOC-c68a4dd90660c113",
       "latency_seconds": 88.00931,
       "ok": true,
@@ -254,8 +298,10 @@
       "score": 0.56
     },
     {
+      "calls": 1,
       "completion_tokens": 1952,
       "error": null,
+      "input_chars": 11322,
       "item_id": "DOC-99ca00712a84f039",
       "latency_seconds": 125.96388499999999,
       "ok": true,
@@ -263,8 +309,10 @@
       "score": 0.5714
     },
     {
+      "calls": 1,
       "completion_tokens": 1549,
       "error": null,
+      "input_chars": 24000,
       "item_id": "DOC-e235bc9735f96335",
       "latency_seconds": 129.774398,
       "ok": true,
@@ -272,8 +320,10 @@
       "score": 0.7586
     },
     {
+      "calls": 1,
       "completion_tokens": 2125,
       "error": null,
+      "input_chars": 24000,
       "item_id": "DOC-6712aa595cfe3e2c",
       "latency_seconds": 133.832115,
       "ok": true,
@@ -281,8 +331,10 @@
       "score": 0.5556
     },
     {
+      "calls": 1,
       "completion_tokens": 1640,
       "error": null,
+      "input_chars": 24000,
       "item_id": "DOC-962cc639f3ebee80",
       "latency_seconds": 133.859129,
       "ok": true,
@@ -290,8 +342,10 @@
       "score": null
     },
     {
+      "calls": 1,
       "completion_tokens": 1667,
       "error": null,
+      "input_chars": 24000,
       "item_id": "DOC-9b569749ea3d6f42",
       "latency_seconds": 136.828016,
       "ok": true,
@@ -299,8 +353,10 @@
       "score": null
     },
     {
+      "calls": 1,
       "completion_tokens": 2201,
       "error": null,
+      "input_chars": 24000,
       "item_id": "DOC-15262384b17086bb",
       "latency_seconds": 137.395569,
       "ok": true,
@@ -308,8 +364,10 @@
       "score": 0.56
     },
     {
+      "calls": 1,
       "completion_tokens": 1696,
       "error": null,
+      "input_chars": 24000,
       "item_id": "DOC-54ad252b1e5e8d58",
       "latency_seconds": 138.002581,
       "ok": true,
@@ -317,8 +375,10 @@
       "score": 0.7857
     },
     {
+      "calls": 1,
       "completion_tokens": 1776,
       "error": null,
+      "input_chars": 8321,
       "item_id": "DOC-d66d8f6c92207c3c",
       "latency_seconds": 140.432275,
       "ok": true,
@@ -326,8 +386,10 @@
       "score": 0.625
     },
     {
+      "calls": 1,
       "completion_tokens": 1932,
       "error": null,
+      "input_chars": 23533,
       "item_id": "DOC-c2ac5762c7f227fa",
       "latency_seconds": 147.280652,
       "ok": true,
@@ -335,8 +397,10 @@
       "score": null
     },
     {
+      "calls": 1,
       "completion_tokens": 2688,
       "error": null,
+      "input_chars": 11475,
       "item_id": "DOC-fca31a55b1d526ea",
       "latency_seconds": 156.575675,
       "ok": true,
@@ -344,8 +408,10 @@
       "score": 0.8333
     },
     {
+      "calls": 1,
       "completion_tokens": 1225,
       "error": null,
+      "input_chars": 8160,
       "item_id": "DOC-ea746c407db93af2",
       "latency_seconds": 157.647426,
       "ok": true,
@@ -353,8 +419,10 @@
       "score": null
     },
     {
+      "calls": 1,
       "completion_tokens": 956,
       "error": null,
+      "input_chars": 24000,
       "item_id": "DOC-364e40f0752551a3",
       "latency_seconds": 61.018857000000004,
       "ok": true,
@@ -362,8 +430,10 @@
       "score": 0.4571
     },
     {
+      "calls": 1,
       "completion_tokens": 1729,
       "error": null,
+      "input_chars": 24000,
       "item_id": "DOC-0de76b97986b57b3",
       "latency_seconds": 86.192703,
       "ok": true,
@@ -371,8 +441,10 @@
       "score": 0.5882
     },
     {
+      "calls": 1,
       "completion_tokens": 1870,
       "error": null,
+      "input_chars": 23282,
       "item_id": "DOC-f9b36fee351217c2",
       "latency_seconds": 94.342469,
       "ok": true,
@@ -380,8 +452,10 @@
       "score": 0.6316
     },
     {
+      "calls": 1,
       "completion_tokens": 1209,
       "error": null,
+      "input_chars": 24000,
       "item_id": "DOC-01633b99e74dc9f2",
       "latency_seconds": 52.370084999999996,
       "ok": true,
@@ -389,8 +463,10 @@
       "score": 0.4706
     },
     {
+      "calls": 1,
       "completion_tokens": 1347,
       "error": null,
+      "input_chars": 22259,
       "item_id": "DOC-03f1f6c0db99e651",
       "latency_seconds": 115.82718700000001,
       "ok": true,
@@ -398,8 +474,10 @@
       "score": 0.6154
     },
     {
+      "calls": 1,
       "completion_tokens": 1350,
       "error": null,
+      "input_chars": 8380,
       "item_id": "DOC-e853a8ab86c5a54d",
       "latency_seconds": 90.942554,
       "ok": true,
@@ -407,8 +485,10 @@
       "score": 0.5882
     },
     {
+      "calls": 1,
       "completion_tokens": 1868,
       "error": null,
+      "input_chars": 24000,
       "item_id": "DOC-9a2c7cc21a860fc4",
       "latency_seconds": 83.702978,
       "ok": true,
@@ -416,8 +496,10 @@
       "score": 0.7143
     },
     {
+      "calls": 1,
       "completion_tokens": 1527,
       "error": null,
+      "input_chars": 14592,
       "item_id": "DOC-dfa5c8eb1e7b837c",
       "latency_seconds": 77.579812,
       "ok": true,
@@ -425,8 +507,10 @@
       "score": 0.8182
     },
     {
+      "calls": 1,
       "completion_tokens": 1721,
       "error": null,
+      "input_chars": 24000,
       "item_id": "DOC-8a776dec500b074c",
       "latency_seconds": 109.50882899999999,
       "ok": true,
@@ -434,8 +518,10 @@
       "score": 0.3448
     },
     {
+      "calls": 1,
       "completion_tokens": 1718,
       "error": null,
+      "input_chars": 14979,
       "item_id": "DOC-06229aa6571f9d46",
       "latency_seconds": 107.700012,
       "ok": true,
@@ -443,8 +529,10 @@
       "score": 0.6316
     },
     {
+      "calls": 1,
       "completion_tokens": 1917,
       "error": null,
+      "input_chars": 24000,
       "item_id": "DOC-561364d531fca179",
       "latency_seconds": 77.700727,
       "ok": true,
@@ -452,8 +540,10 @@
       "score": 0.6667
     },
     {
+      "calls": 1,
       "completion_tokens": 1836,
       "error": null,
+      "input_chars": 18240,
       "item_id": "DOC-d1c45d175a8abeb5",
       "latency_seconds": 79.214682,
       "ok": true,
@@ -461,8 +551,10 @@
       "score": 0.6316
     },
     {
+      "calls": 1,
       "completion_tokens": 2232,
       "error": null,
+      "input_chars": 24000,
       "item_id": "DOC-e492894fbfa36087",
       "latency_seconds": 92.818168,
       "ok": true,
@@ -470,8 +562,10 @@
       "score": 0.5
     },
     {
+      "calls": 1,
       "completion_tokens": 2727,
       "error": null,
+      "input_chars": 24000,
       "item_id": "DOC-4ab8d1d37d3af05c",
       "latency_seconds": 118.214015,
       "ok": true,
@@ -479,8 +573,10 @@
       "score": 0.5714
     },
     {
+      "calls": 1,
       "completion_tokens": 2422,
       "error": null,
+      "input_chars": 24000,
       "item_id": "DOC-f333c4b8048d5d8c",
       "latency_seconds": 98.764497,
       "ok": true,
@@ -488,8 +584,10 @@
       "score": 0.6316
     },
     {
+      "calls": 1,
       "completion_tokens": 2915,
       "error": null,
+      "input_chars": 20693,
       "item_id": "DOC-9e063c6e3baf1233",
       "latency_seconds": 213.61624799999998,
       "ok": true,
@@ -497,8 +595,10 @@
       "score": 0.6341
     },
     {
+      "calls": 1,
       "completion_tokens": null,
       "error": "LengthFinishReasonError: Could not parse response content as the length limit was reached - CompletionUsage(completion_tokens=8192, prompt_tokens=6729, total_to",
+      "input_chars": 19257,
       "item_id": "DOC-a2ce7adbf6f5cb8d",
       "latency_seconds": 239.868666,
       "ok": false,
@@ -532,7 +632,7 @@
     ],
     "scrape_errors": []
   },
-  "generated_at": "2026-10-01T01:30:23+00:00",
+  "generated_at": "2026-10-01T06:44:50+00:00",
   "latency": {
     "max": 213.61624799999998,
     "mean": 104.34450673469388,
@@ -586,6 +686,21 @@
     "completion_share": 0.1748179408897209,
     "per_document": 8917.265306122448,
     "prompt": 360560,
+    "split": {
+      "calls": 49.0,
+      "chars_per_token": 4.4005952409608415,
+      "completion_tokens": 76386.0,
+      "document_tokens": 220774.90584838935,
+      "documents": 49,
+      "instruction_per_call": 2852.757023502258,
+      "instruction_tokens": 139785.09415161065,
+      "method": "fit",
+      "per_document": {
+        "completion": 1558.8979591836735,
+        "document": 4505.610323436517,
+        "instruction": 2852.757023502258
+      }
+    },
     "total": 436946
   }
 }

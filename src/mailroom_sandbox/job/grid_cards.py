@@ -166,6 +166,92 @@ def _engine_block(store: RunStore, replicas: int) -> dict[str, Any]:
 # ── per-run card ─────────────────────────────────────────────────────────────
 
 
+# Characters per Qwen3 token for legal / business English, measured by the per-run fits below on
+# the SAND-37/39/40 contracts cells (4.39–4.58). Used when a run cannot be fitted: every document
+# truncated to the same cap (frozen merger), or chunked runs whose re-samples blur the call count.
+FALLBACK_CHARS_PER_TOKEN = 4.5
+_FIT_RATIO_RANGE = (3.0, 6.0)
+
+
+def _input_profile(store: RunStore, posture: Mapping[str, Any], *, split=None) -> dict[str, tuple[int, int]]:
+    """``item_id -> (model calls, document characters sent)`` under the run's input knobs."""
+    from mailroom_sandbox.eval.agents import _doc_text, chunk_window
+
+    rows = store.dataset_rows()
+    cap = int(posture.get("max_input_chars") or 0)
+    out: dict[str, tuple[int, int]] = {}
+    if posture.get("chunk_chars"):
+        window, overlap = chunk_window(
+            cap, int(posture["chunk_chars"]), int(posture.get("overlap_chars") or 8_000)
+        )
+        split = split or _vendor_split_chunks()
+        for r in rows:
+            chunks = split(_doc_text(dict(r)), window, overlap)
+            out[str(r.get("id"))] = (len(chunks), sum(len(c) for c in chunks))
+        return out
+    for r in rows:
+        try:
+            n = len(_doc_text(dict(r)))
+        except Exception:  # noqa: BLE001 — a row without text just has no profile
+            continue
+        out[str(r.get("id"))] = (1, min(n, cap) if cap else n)
+    return out
+
+
+def token_split(docs: list[Mapping[str, Any]], *, chunked: bool = False) -> dict[str, Any] | None:
+    """Split prompt tokens into instructions/template and document text; completion is the output.
+
+    Fits ``prompt_tokens = I × calls + chars / r`` over successful documents (I = instruction
+    and template tokens per call, r = characters per token). When the fit is not identifiable —
+    every document cut to the same cap, or a chunked run whose re-samples add uncounted calls —
+    document tokens use ``FALLBACK_CHARS_PER_TOKEN`` and instructions take the remainder.
+    """
+    pts = [
+        (float(d["prompt_tokens"]), float(d["calls"]), float(d["input_chars"]), float(d.get("completion_tokens") or 0))
+        for d in docs
+        if d.get("ok") and d.get("prompt_tokens") and d.get("calls") and d.get("input_chars")
+    ]
+    if not pts:
+        return None
+    n = len(pts)
+    ratio, method = None, "fallback"
+    xs = [x for _, _, x, _ in pts]
+    mean_x = sum(xs) / n
+    spread = (sum((x - mean_x) ** 2 for x in xs) / n) ** 0.5 / mean_x if mean_x else 0.0
+    if not chunked and n >= 8 and spread >= 0.1:
+        scc = sum(c * c for _, c, _, _ in pts)
+        scx = sum(c * x for _, c, x, _ in pts)
+        sxx = sum(x * x for x in xs)
+        scp = sum(c * p for p, c, _, _ in pts)
+        sxp = sum(x * p for p, _, x, _ in pts)
+        det = scc * sxx - scx * scx
+        if det:
+            inst = (scp * sxx - scx * sxp) / det
+            slope = (scc * sxp - scx * scp) / det
+            if slope > 0 and inst > 0 and _FIT_RATIO_RANGE[0] <= 1 / slope <= _FIT_RATIO_RANGE[1]:
+                ratio, method = 1 / slope, "fit"
+    ratio = ratio or FALLBACK_CHARS_PER_TOKEN
+    prompt = sum(p for p, _, _, _ in pts)
+    document = min(prompt, sum(x for _, _, x, _ in pts) / ratio)
+    calls = sum(c for _, c, _, _ in pts)
+    completion = sum(o for _, _, _, o in pts)
+    return {
+        "documents": n,
+        "method": method,
+        "chars_per_token": ratio,
+        "calls": calls,
+        "instruction_tokens": prompt - document,
+        "document_tokens": document,
+        "completion_tokens": completion,
+        "instruction_per_call": (prompt - document) / calls if calls else None,
+        "per_document": {
+            "instruction": (prompt - document) / n,
+            "document": document / n,
+            "completion": completion / n,
+        },
+    }
+
+
 def collect_card(
     store: RunStore,
     *,
@@ -192,6 +278,11 @@ def collect_card(
     posture = posture_for_run(run_id) or {}
 
     items = store.load_items()
+    try:
+        profile = _input_profile(store, posture) if posture else {}
+    except Exception:  # noqa: BLE001 — the split is descriptive; never fail a card over it
+        _log.warning("input profile unavailable for %s", run_id, exc_info=True)
+        profile = {}
     rec = metrics.serving_record_from_store(store, wall_seconds=wall_seconds, scores=scores)
     n = len(items)
     ok_rows = [i for i in items if i.get("ok") is not False]
@@ -254,7 +345,7 @@ def collect_card(
     agents = _d(prompt.get("agents"))
     prompt_file = next((str(_d(v).get("file")) for v in agents.values() if _d(v).get("file")), None)
 
-    return {
+    card = {
         "schema": SCHEMA,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "run_id": run_id,
@@ -360,11 +451,15 @@ def collect_card(
                 "latency_seconds": float(i["latency_ms"]) / 1000.0 if i.get("latency_ms") is not None else None,
                 "prompt_tokens": i.get("prompt_tokens"),
                 "completion_tokens": i.get("completion_tokens"),
+                "calls": (profile.get(str(i.get("item_id"))) or (None, None))[0],
+                "input_chars": (profile.get(str(i.get("item_id"))) or (None, None))[1],
                 "error": str(i.get("error"))[:160] if i.get("error") else None,
             }
             for i in items
         ],
     }
+    card["tokens"]["split"] = token_split(card["documents"], chunked=bool(posture.get("chunk_chars")))
+    return card
 
 
 # ── formatting ───────────────────────────────────────────────────────────────
@@ -405,6 +500,26 @@ def _engine_text(e: Mapping[str, Any]) -> str:
     )
 
 
+def _split_rows(split: Mapping[str, Any] | None) -> list[tuple[str, str]]:
+    """Per-document token split rows: instructions/template, document text, output."""
+    if not split:
+        return []
+    per = split["per_document"]
+    total = per["instruction"] + per["document"] + per["completion"]
+    basis = (
+        f"fit across documents, {split['chars_per_token']:.2f} chars/token"
+        if split["method"] == "fit"
+        else f"document chars ÷ {split['chars_per_token']:.1f} chars/token; instructions are the remainder"
+    )
+    return [
+        ("Per document: instructions + template", f"{_f(per['instruction'], 0)} ({_pct(per['instruction'] / total)})"),
+        ("Per document: document text", f"{_f(per['document'], 0)} ({_pct(per['document'] / total)})"),
+        ("Per document: output", f"{_f(per['completion'], 0)} ({_pct(per['completion'] / total)})"),
+        ("Instruction tokens per model call", f"{_f(split['instruction_per_call'], 0)} over {_f(split['calls'], 0)} calls"),
+        ("Token split basis", basis),
+    ]
+
+
 def _card_rows(c: Mapping[str, Any]) -> list[tuple[str, str]]:
     """(metric, value) rows in template order; section headers carry an empty value."""
     cond, t, cost, tok = c["conditions"], c["time"], c["cost"], c["tokens"]
@@ -434,6 +549,7 @@ def _card_rows(c: Mapping[str, Any]) -> list[tuple[str, str]]:
         ("Completion tokens", f"{_f(tok['completion'])} ({_pct(tok['completion_share'])})"),
         ("Total tokens", _f(tok["total"])),
         ("Tokens per document", _f(tok["per_document"], 0)),
+        *_split_rows(tok.get("split")),
         ("Completion p95 / max (ok docs)", f"{_f(tok['completion_p95'], 0)} / {_f(tok['completion_max'])}"),
         ("**Throughput**", ""),
         ("Tokens / second", _f(thr["tokens_per_second"], 1)),

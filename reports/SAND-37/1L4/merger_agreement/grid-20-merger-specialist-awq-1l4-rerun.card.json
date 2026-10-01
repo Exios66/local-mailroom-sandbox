@@ -56,8 +56,10 @@
   },
   "documents": [
     {
+      "calls": 1,
       "completion_tokens": 537,
       "error": null,
+      "input_chars": 30000,
       "item_id": "DOC-52f9a5be69429299",
       "latency_seconds": 44.095622000000006,
       "ok": true,
@@ -65,8 +67,10 @@
       "score": 0.0
     },
     {
+      "calls": 1,
       "completion_tokens": 673,
       "error": null,
+      "input_chars": 30000,
       "item_id": "DOC-0a733ab86f2390ae",
       "latency_seconds": 51.820825,
       "ok": true,
@@ -74,8 +78,10 @@
       "score": 0.0
     },
     {
+      "calls": 1,
       "completion_tokens": 796,
       "error": null,
+      "input_chars": 30000,
       "item_id": "DOC-d0495abfa5f3d8ee",
       "latency_seconds": 58.687250999999996,
       "ok": true,
@@ -83,8 +89,10 @@
       "score": 0.0
     },
     {
+      "calls": 1,
       "completion_tokens": 786,
       "error": null,
+      "input_chars": 30000,
       "item_id": "DOC-c1d57615929b483e",
       "latency_seconds": 58.747154,
       "ok": true,
@@ -92,8 +100,10 @@
       "score": 0.0625
     },
     {
+      "calls": 1,
       "completion_tokens": 838,
       "error": null,
+      "input_chars": 30000,
       "item_id": "DOC-7430de65e5471741",
       "latency_seconds": 65.46363,
       "ok": true,
@@ -101,8 +111,10 @@
       "score": 0.05263157894736842
     },
     {
+      "calls": 1,
       "completion_tokens": 857,
       "error": null,
+      "input_chars": 30000,
       "item_id": "DOC-d554890e66786170",
       "latency_seconds": 66.14542999999999,
       "ok": true,
@@ -110,8 +122,10 @@
       "score": 0.0
     },
     {
+      "calls": 1,
       "completion_tokens": 814,
       "error": null,
+      "input_chars": 30000,
       "item_id": "DOC-5fbb9ee2f4b4b114",
       "latency_seconds": 49.529945,
       "ok": true,
@@ -119,8 +133,10 @@
       "score": 0.058823529411764705
     },
     {
+      "calls": 1,
       "completion_tokens": 628,
       "error": null,
+      "input_chars": 30000,
       "item_id": "DOC-5fa0ba13cf68b593",
       "latency_seconds": 38.881171,
       "ok": true,
@@ -128,8 +144,10 @@
       "score": 0.0
     },
     {
+      "calls": 1,
       "completion_tokens": 772,
       "error": null,
+      "input_chars": 30000,
       "item_id": "DOC-30eda1e78a5f6fb5",
       "latency_seconds": 49.424565,
       "ok": true,
@@ -137,8 +155,10 @@
       "score": 0.0
     },
     {
+      "calls": 1,
       "completion_tokens": 680,
       "error": null,
+      "input_chars": 30000,
       "item_id": "DOC-511062d64bc9afc6",
       "latency_seconds": 45.578416,
       "ok": true,
@@ -146,8 +166,10 @@
       "score": 0.0
     },
     {
+      "calls": 1,
       "completion_tokens": 1661,
       "error": null,
+      "input_chars": 30000,
       "item_id": "DOC-be8461dd68cfe458",
       "latency_seconds": 113.30768300000001,
       "ok": true,
@@ -155,8 +177,10 @@
       "score": 0.0
     },
     {
+      "calls": 1,
       "completion_tokens": 822,
       "error": null,
+      "input_chars": 30000,
       "item_id": "DOC-f4e726a7f2c25494",
       "latency_seconds": 51.390578999999995,
       "ok": true,
@@ -164,8 +188,10 @@
       "score": 0.0
     },
     {
+      "calls": 1,
       "completion_tokens": 922,
       "error": null,
+      "input_chars": 30000,
       "item_id": "DOC-ecf69d7e102ef62a",
       "latency_seconds": 57.638492,
       "ok": true,
@@ -173,8 +199,10 @@
       "score": 0.0
     },
     {
+      "calls": 1,
       "completion_tokens": 814,
       "error": null,
+      "input_chars": 30000,
       "item_id": "DOC-1e016055aa435e71",
       "latency_seconds": 47.748364,
       "ok": true,
@@ -182,8 +210,10 @@
       "score": 0.0
     },
     {
+      "calls": 1,
       "completion_tokens": 859,
       "error": null,
+      "input_chars": 30000,
       "item_id": "DOC-63beb09b179ea4ee",
       "latency_seconds": 46.877834,
       "ok": true,
@@ -191,8 +221,10 @@
       "score": 0.0
     },
     {
+      "calls": 1,
       "completion_tokens": 832,
       "error": null,
+      "input_chars": 30000,
       "item_id": "DOC-169bbcdc5d9e609c",
       "latency_seconds": 35.062177000000005,
       "ok": true,
@@ -200,8 +232,10 @@
       "score": 0.0
     },
     {
+      "calls": 1,
       "completion_tokens": 878,
       "error": null,
+      "input_chars": 30000,
       "item_id": "DOC-fcaddb5bdc94ce63",
       "latency_seconds": 39.179127,
       "ok": true,
@@ -209,8 +243,10 @@
       "score": 0.058823529411764705
     },
     {
+      "calls": 1,
       "completion_tokens": 1279,
       "error": null,
+      "input_chars": 30000,
       "item_id": "DOC-03712a2b0a99a314",
       "latency_seconds": 55.381529,
       "ok": true,
@@ -218,8 +254,10 @@
       "score": 0.0
     },
     {
+      "calls": 1,
       "completion_tokens": null,
       "error": "LengthFinishReasonError: Could not parse response content as the length limit was reached - CompletionUsage(completion_tokens=8192, prompt_tokens=9590, total_to",
+      "input_chars": 30000,
       "item_id": "DOC-4ab4ecd86ecf275d",
       "latency_seconds": 320.165783,
       "ok": false,
@@ -227,8 +265,10 @@
       "score": null
     },
     {
+      "calls": 1,
       "completion_tokens": null,
       "error": "LengthFinishReasonError: Could not parse response content as the length limit was reached - CompletionUsage(completion_tokens=8192, prompt_tokens=9249, total_to",
+      "input_chars": 30000,
       "item_id": "DOC-8fe2855a2310cdbe",
       "latency_seconds": 258.947923,
       "ok": false,
@@ -253,7 +293,7 @@
     ],
     "scrape_errors": []
   },
-  "generated_at": "2026-10-01T01:16:49+00:00",
+  "generated_at": "2026-10-01T06:44:50+00:00",
   "latency": {
     "max": 113.30768300000001,
     "mean": 54.164433,
@@ -309,6 +349,21 @@
     "completion_share": 0.08457335567015953,
     "per_document": 10147.666666666666,
     "prompt": 167210,
+    "split": {
+      "calls": 18.0,
+      "chars_per_token": 4.5,
+      "completion_tokens": 15448.0,
+      "document_tokens": 120000.0,
+      "documents": 18,
+      "instruction_per_call": 2622.777777777778,
+      "instruction_tokens": 47210.0,
+      "method": "fallback",
+      "per_document": {
+        "completion": 858.2222222222222,
+        "document": 6666.666666666667,
+        "instruction": 2622.777777777778
+      }
+    },
     "total": 182658
   }
 }
