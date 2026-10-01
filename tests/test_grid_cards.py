@@ -166,6 +166,30 @@ def test_sand40_card_records_optimized_settings_under_2l4(tmp_path):
     assert "top_p" in md and "hf_overrides" in md
 
 
+def test_sand40_probe_card_is_outside_the_scorecard_tree(tmp_path):
+    store = _store(
+        tmp_path,
+        "sand40-probe-20-contracts-specialist-awq-2l4-64k",
+        task="contracts_specialist",
+        limit=20,
+    )
+    paths = grid_cards.maybe_write_card(store, wall_seconds=10.0, repo=tmp_path)
+    assert paths["md"] == (
+        tmp_path
+        / "reports"
+        / "SAND-37"
+        / "probes"
+        / "contracts"
+        / "sand40-probe-20-contracts-specialist-awq-2l4-64k.card.md"
+    )
+    assert not (tmp_path / "reports" / "SAND-37" / "2L4").exists()
+    from mailroom_sandbox.job.grid_master import collect_master
+
+    master = collect_master(tmp_path)
+    assert master["cards"]["s40-2l4"] == {}
+    assert master["cards"]["s37-2l4-n50"] == {}
+
+
 def test_runner_hook_skips_non_grid_runs(tmp_path):
     store = _store(tmp_path, "run-20-contracts-awq-c8", replicas=1, concurrency=8)
     assert grid_cards.maybe_write_card(store, wall_seconds=10.0) == {}
