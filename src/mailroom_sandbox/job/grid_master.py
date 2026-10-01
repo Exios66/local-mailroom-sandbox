@@ -52,6 +52,7 @@ _ORDER = ("insurance_claims", "contracts", "corporate_records", "correspondence"
 _LABEL = {folder: label for _, folder, label in SPECIALISTS}
 _SUITE_FOLDERS = ("insurance_claims", "corporate_records", "correspondence")  # field score only
 PENDING = "pending"
+PARITY = 0.03  # cost-per-document gap below which two postures are called equal
 
 
 def master_paths(repo: Path | None = None) -> dict[str, Path]:
@@ -176,19 +177,28 @@ def _findings(present: list[Posture], cards: dict, pooled: dict) -> list[str]:
             ca, cb = cards[base.key].get(folder), cards[two50.key].get(folder)
             if ca and cb and ca["latency"]["p50"]:
                 lat.append(cb["latency"]["p50"] / ca["latency"]["p50"])
-        cheaper = "2×L4 at C32" if (b["usd_per_document"] or 0) < (a["usd_per_document"] or 0) else "1×L4 at C8"
         basis = (
-            f"identical {b['documents']} documents ({base.study} {base.label} vs {two50.study} {two50.label})"
+            f"identical {b['documents']} documents, {base.study} {base.label} vs {two50.study} {two50.label}"
             if base is one50
             else f"{base.label} vs {two50.label}; sample sizes differ, SAND-39 pending"
         )
+        ca, cb = a["usd_per_document"], b["usd_per_document"]
+        parity = bool(ca and cb and abs(cb / ca - 1) < PARITY)
+        if parity:
+            head = (
+                f"**Scaling out to {two50.replicas}×L4 at C{two50.concurrency} raises throughput by "
+                f"{_pct_change(b['docs_per_minute'], a['docs_per_minute'])} at unchanged cost per document**"
+            )
+        else:
+            cheaper = f"{two50.replicas}×L4 at C{two50.concurrency}" if (cb or 0) < (ca or 0) else f"{base.replicas}×L4 at C{base.concurrency}"
+            head = f"**{cheaper} is the more cost-efficient posture**"
         out.append(
-            f"**{cheaper} is the more cost-efficient posture** ({basis}). Moving from {base.label} to "
-            f"{two50.label} changes cost per document by {_pct_change(b['usd_per_document'], a['usd_per_document'])}, "
-            f"tokens per second per GPU by {_pct_change(b['tps_per_gpu'], a['tps_per_gpu'])}, and pooled "
-            f"documents per minute by {_pct_change(b['docs_per_minute'], a['docs_per_minute'])}. Median "
-            f"per-document latency changes by a factor of {_range(lat, '{:.1f}')}×, reflecting per-replica "
-            "queueing at the higher concurrency."
+            f"{head} ({basis}). Moving from {base.label} to {two50.label} changes cost per document by "
+            f"{_pct_change(cb, ca)}, tokens per second per GPU by {_pct_change(b['tps_per_gpu'], a['tps_per_gpu'])}, "
+            f"and pooled documents per minute by {_pct_change(b['docs_per_minute'], a['docs_per_minute'])}"
+            + (", so capacity scales near-linearly with GPU count" if parity else "")
+            + f". Median per-document latency rises by a factor of {_range(lat, '{:.1f}')}×, reflecting "
+            "per-replica queueing at the higher concurrency."
         )
 
     # 2. quality stability across postures.
@@ -356,6 +366,7 @@ def render_master_md(data: Mapping[str, Any]) -> str:
     ]
     findings = _findings(present, cards, pooled)
     lines += [f"{i}. {text}" for i, text in enumerate(findings, 1)] or ["No cells reported yet."]
+    lines += _figure_md(data, "comparison", "## Figures: posture comparison")
     lines += ["", "## Cost accounting and run integrity", ""]
     for p in POSTURES:
         q = pooled[p.key]
@@ -382,13 +393,31 @@ def render_master_md(data: Mapping[str, Any]) -> str:
         "and `2L4/L4x2-SCORE-COST-CARD.md`. Regenerate with `sandbox run card --master`.",
         "",
     ]
+    lines += _figure_md(data, "posture", "## Appendix: posture dashboards")
     return "\n".join(lines)
+
+
+def _figure_md(data: Mapping[str, Any], section: str, heading: str) -> list[str]:
+    from mailroom_sandbox.job.grid_figures import figure_specs
+
+    specs = [s for s in figure_specs(data) if s["section"] == section]
+    if not specs:
+        return []
+    out = ["", heading, ""]
+    for i, spec in enumerate(specs, 1):
+        tag = "Figure" if section == "comparison" else "Dashboard"
+        out += [f"![{spec['caption']}]({spec['path']})", "", f"*{tag} {i}. {spec['caption']}*", ""]
+    return out
 
 
 def write_master(repo: Path | None = None) -> dict[str, Path]:
     paths = master_paths(repo)
     paths["dir"].mkdir(parents=True, exist_ok=True)
-    paths["md"].write_text(render_master_md(collect_master(repo)), encoding="utf-8")
+    data = collect_master(repo)
+    from mailroom_sandbox.job.grid_figures import write_figures
+
+    write_figures(data, repo)
+    paths["md"].write_text(render_master_md(data), encoding="utf-8")
     return paths
 
 
