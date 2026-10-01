@@ -51,35 +51,35 @@ CSS = """
 }
 @page {
   size: Letter; margin: 0.8in 0.85in 0.85in;
-  @bottom-left { content: "TITLE_PLACEHOLDER"; font: 500 7.5pt "Avenir Next", "Helvetica Neue", sans-serif;
+  @bottom-left { content: "TITLE_PLACEHOLDER"; font: 500 7.5pt "Avenir Next", "Helvetica Neue", "Open Sans", sans-serif;
                  color: #8a94a1; letter-spacing: 0.02em; }
   @bottom-right { content: "Page " counter(page) " of " counter(pages);
-                  font: 500 7.5pt "Avenir Next", "Helvetica Neue", sans-serif; color: #8a94a1; }
+                  font: 500 7.5pt "Avenir Next", "Helvetica Neue", "Open Sans", sans-serif; color: #8a94a1; }
 }
 @page :first { @bottom-left { content: none; } }
 * { box-sizing: border-box; }
 html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 body {
   margin: 0; color: var(--ink);
-  font: 10.3pt/1.52 Charter, "Iowan Old Style", Georgia, serif;
+  font: 10.3pt/1.52 Charter, "Charis SIL", "Iowan Old Style", Georgia, serif;
   font-variant-numeric: lining-nums; hyphens: auto; orphans: 3; widows: 3;
 }
 .eyebrow {
-  font: 600 7.8pt "Avenir Next", "Helvetica Neue", sans-serif; letter-spacing: 0.16em;
+  font: 600 7.8pt "Avenir Next", "Helvetica Neue", "Open Sans", sans-serif; letter-spacing: 0.16em;
   text-transform: uppercase; color: var(--accent); margin: 0 0 8pt;
 }
 h1 {
-  font: 600 23pt/1.15 "Avenir Next", "Helvetica Neue", sans-serif; letter-spacing: -0.01em;
+  font: 600 23pt/1.15 "Avenir Next", "Helvetica Neue", "Open Sans", sans-serif; letter-spacing: -0.01em;
   margin: 0 0 10pt; color: var(--ink);
 }
 .dek { font-size: 11.6pt; line-height: 1.5; color: #333d49; margin: 0 0 10pt; }
 .datanote {
-  font: 8.8pt/1.45 "Avenir Next", "Helvetica Neue", sans-serif; color: #2c3a37;
+  font: 8.8pt/1.45 "Avenir Next", "Helvetica Neue", "Open Sans", sans-serif; color: #2c3a37;
   background: var(--note); border-left: 2.5pt solid var(--note-rule); padding: 6pt 9pt; margin: 0 0 16pt;
 }
 .datanote p { margin: 0; }
 h2 {
-  font: 600 12.6pt/1.25 "Avenir Next", "Helvetica Neue", sans-serif; color: var(--accent);
+  font: 600 12.6pt/1.25 "Avenir Next", "Helvetica Neue", "Open Sans", sans-serif; color: var(--accent);
   margin: 20pt 0 7pt; padding-bottom: 4pt; border-bottom: 0.75pt solid var(--rule);
 }
 p { margin: 0 0 7pt; }
@@ -95,14 +95,14 @@ code {
 .findings li { counter-increment: f; position: relative; padding-left: 20pt; margin: 0 0 6.5pt; }
 .findings li::before {
   content: counter(f); position: absolute; left: 0; top: 1.5pt; width: 13pt; height: 13pt; border-radius: 50%;
-  background: var(--accent); color: #fff; font: 600 7.4pt/13pt "Avenir Next", sans-serif; text-align: center;
+  background: var(--accent); color: #fff; font: 600 7.4pt/13pt "Avenir Next", "Open Sans", sans-serif; text-align: center;
 }
 ul { padding-left: 14pt; margin: 0 0 8pt; }
 ul li { margin: 0 0 5pt; }
 ul li::marker { color: var(--accent); }
 table {
   width: 100%; border-collapse: collapse; margin: 4pt 0 11pt;
-  font: 8.5pt/1.38 "Avenir Next", "Helvetica Neue", sans-serif; font-variant-numeric: tabular-nums;
+  font: 8.5pt/1.38 "Avenir Next", "Helvetica Neue", "Open Sans", sans-serif; font-variant-numeric: tabular-nums;
 }
 thead th {
   font-weight: 600; color: var(--accent); text-align: left; vertical-align: bottom;
@@ -119,9 +119,9 @@ h2, .lead { break-after: avoid; }
 figure { margin: 6pt 0 14pt; break-inside: avoid; }
 figure svg { width: 100%; height: auto; display: block; }
 figcaption {
-  font: italic 8.6pt/1.4 Charter, Georgia, serif; color: var(--muted); margin-top: 4pt;
+  font: italic 8.6pt/1.4 Charter, "Charis SIL", Georgia, serif; color: var(--muted); margin-top: 4pt;
 }
-.small { font: 8.6pt/1.45 "Avenir Next", "Helvetica Neue", sans-serif; color: var(--muted); }
+.small { font: 8.6pt/1.45 "Avenir Next", "Helvetica Neue", "Open Sans", sans-serif; color: var(--muted); }
 """.replace("TITLE_PLACEHOLDER", TITLE)
 
 
@@ -190,7 +190,7 @@ def _svg(fig: Any) -> str:
 def _chart_style() -> dict[str, Any]:
     return {
         "svg.fonttype": "none", "svg.hashsalt": "reader-report",
-        "font.family": ["Avenir Next", "Helvetica Neue", "DejaVu Sans"], "font.size": 8.5,
+        "font.family": ["Avenir Next", "Helvetica Neue", "Open Sans", "DejaVu Sans"], "font.size": 8.5,
         "axes.edgecolor": "#b9c3cf", "axes.labelcolor": "#3b4652", "axes.titlecolor": "#1d2733",
         "axes.titlesize": 9.5, "axes.titleweight": 600, "axes.titlelocation": "left", "axes.titlepad": 8,
         "axes.spines.top": False, "axes.spines.right": False, "axes.grid": True, "axes.axisbelow": True,
@@ -222,6 +222,8 @@ def _charts(data: Mapping[str, Any]) -> tuple[str, str]:
         ):
             vals = [runs[n][key] * scale for n in present]
             bars = ax.bar(present, vals, color=colors, width=0.62)
+            ax.set_xticks(range(len(present)), [n.removeprefix("Experiment ") for n in present])
+            ax.set_xlabel("Experiment")
             ax.set_title(title)
             ax.grid(axis="x", visible=False)
             ax.set_ylim(0, max(vals) * 1.18)
@@ -240,10 +242,10 @@ def _charts(data: Mapping[str, Any]) -> tuple[str, str]:
             ax.barh(ys, vals, height=h * 0.9, color=gr.CHART_COLORS[n], label=n)
         ax.set_yticks(range(len(types)), types)
         ax.set_xlabel("Score, 0–1 (scales differ by document type)")
-        ax.set_title("Accuracy by document type and run")
+        ax.set_title("Accuracy by document type and experiment")
         ax.grid(axis="y", visible=False)
-        ax.legend(loc="lower right", ncols=4, fontsize=7.5, handlelength=1.0, columnspacing=1.2,
-                  bbox_to_anchor=(1.0, 1.0))
+        ax.legend(loc="upper center", ncols=4, fontsize=7.5, handlelength=1.0, columnspacing=1.2,
+                  bbox_to_anchor=(0.5, -0.2))
         fig.tight_layout()
         quality = _svg(fig)
     return speed, quality
@@ -261,9 +263,9 @@ def render_reader_html(data: Mapping[str, Any]) -> str:
     md = _md()
     speed, quality = _charts(data)
     figures = {
-        "## Speed and cost by run": (speed, "Figure 1. Throughput and GPU cost per document for each run."),
+        "## Speed and cost by experiment": (speed, "Figure 1. Throughput and GPU cost per document for each experiment."),
         "## Results by document type": (
-            quality, "Figure 2. Accuracy by document type and run. Each document type has its own scale; "
+            quality, "Figure 2. Accuracy by document type and experiment. Each document type has its own scale; "
             "compare bars within a type, not across types."),
     }
     out: list[str] = []
@@ -282,7 +284,7 @@ def render_reader_html(data: Mapping[str, Any]) -> str:
             out.append(f'<section class="findings keep">{h2}{md.render(chr(10).join(groups[0]))}</section>')
             continue
         parts = [_group_html(md, g, h2 if i == 0 else "") for i, g in enumerate(groups)]
-        if heading == "## Run name cross-reference":
+        if heading == "## Experiment cross-reference":
             parts = [p.replace('<div class="keep">', '<div class="keep small">', 1) if i else p
                      for i, p in enumerate(parts)]
         out.append("<section>" + "".join(parts) + "</section>")

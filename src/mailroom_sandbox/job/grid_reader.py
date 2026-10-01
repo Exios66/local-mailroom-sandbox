@@ -1,10 +1,9 @@
 """Plain-language reader report for the specialist-grid results (external audience).
 
-The master card (``grid_master``) is written for the team: it names runs by board ID
-(SAND-37, SAND-39, SAND-40) and posture shorthand (``2×L4 C32 n=100``). This module
-renders the same numbers for readers outside the project — named runs (Run A–D),
-every metric defined before it is used, internal IDs only in a closing
-cross-reference — as two files next to the master card:
+The master card (``grid_master``) is written for the team: it names experiments with posture
+shorthand (``2×L4 C32 n=100``). This module renders the same numbers for readers outside the
+project — Experiment 1–4 in plain words, every metric defined before it is used, shorthand only
+in a closing cross-reference — as two files next to the master card:
 
     reports/SAND-37/READER-REPORT.md      paste-ready Markdown (Bear → PDF; no links,
                                           no local images, GitHub-style tables)
@@ -31,16 +30,16 @@ READER_STEM = "READER-REPORT"
 
 # Plain run names, in the order the master card lists the postures.
 RUNS: tuple[tuple[str, str], ...] = (
-    ("s37-1l4-n20", "Run A"),
-    ("s39-1l4-n50", "Run B"),
-    ("s37-2l4-n50", "Run C"),
-    ("s40-2l4", "Run D"),
+    ("s37-1l4-n20", "Experiment 1"),
+    ("s39-1l4-n50", "Experiment 2"),
+    ("s37-2l4-n50", "Experiment 3"),
+    ("s40-2l4", "Experiment 4"),
 )
 _NAME = dict(RUNS)
 # Harmonized print palette: blues for the 1-GPU runs, teal and amber for the 2-GPU runs.
-CHART_COLORS = {"Run A": "#9dbbdb", "Run B": "#3f73a8", "Run C": "#2f8f83", "Run D": "#d99a4e"}
+CHART_COLORS = {"Experiment 1": "#9dbbdb", "Experiment 2": "#3f73a8", "Experiment 3": "#2f8f83", "Experiment 4": "#d99a4e"}
 # Non-breaking spaces keep run labels on one line in narrow table cells (PDF and Bear alike).
-_STUDY_RUNS = {"SAND-37": "Runs\u00a0A\u00a0and\u00a0C", "SAND-39": "Run\u00a0B", "SAND-40": "Run\u00a0D"}
+_STUDY_RUNS = {"SAND-37": "Experiments\u00a01\u00a0and\u00a03", "SAND-39": "Experiment\u00a02", "SAND-40": "Experiment\u00a04"}
 
 _TYPE_TEXT = {
     "insurance_claims": "Insurance claim forms and notices",
@@ -164,7 +163,7 @@ def _sections(data: Mapping[str, Any]) -> list[tuple[str, list[str]]]:
         "# Document Extraction on Low-Cost Cloud GPUs: Speed, Quality and Cost",
         "",
         "We ran an open-source language model on rented cloud GPUs to pull structured information out of "
-        "five kinds of business documents. We varied the hardware and the batch size across four runs and "
+        "five kinds of business documents. We varied the hardware and the batch size across four experiments and "
         "measured speed, accuracy and cost.",
         "",
         f"**Data:** every result uses the public Hugging Face dataset `{ds.get('repo', '')}`. "
@@ -194,7 +193,7 @@ def _sections(data: Mapping[str, Any]) -> list[tuple[str, list[str]]]:
         q = f["quality"]
         verdict = "did not change" if q["zero"] else "changed for at least one document type"
         key.append(
-            f"**Hardware choice {verdict} accuracy.** Comparing the same documents across runs "
+            f"**Hardware choice {verdict} accuracy.** Comparing the same documents across experiments "
             f"({q['n']} document pairs), the average score change per document type was between "
             f"{q['lo']:+.3f} and {q['hi']:+.3f} on a 0–1 scale, and every 95% confidence interval includes "
             f"zero. Effects smaller than about ±{q['widest']:.2f} cannot be ruled out at this sample size."
@@ -242,7 +241,7 @@ def _sections(data: Mapping[str, Any]) -> list[tuple[str, list[str]]]:
     out.append(("## What we tested", setup))
 
     runs = [
-        "| Run | GPUs | Documents processed at once | Documents per type | Total documents |",
+        "| Experiment | GPUs | Documents processed at once | Documents per type | Total documents |",
         "| --- | ---: | ---: | ---: | ---: |",
     ]
     for k, name in RUNS:
@@ -252,12 +251,12 @@ def _sections(data: Mapping[str, Any]) -> list[tuple[str, list[str]]]:
         runs.append(f"| {name} | {p.replicas} | {p.concurrency} | {per_type} | {n_total} |")
     runs += [
         "",
-        "Runs B and C use the identical 250 documents and differ only in GPU count and documents processed at "
-        "once, so they give the cleanest hardware comparison. Run D repeats Run C's hardware on twice as many documents and also tests "
+        "Experiments 2 and 3 use the identical 250 documents and differ only in GPU count and documents processed at "
+        "once, so they give the cleanest hardware comparison. Experiment 4 repeats Experiment 3's hardware on twice as many documents and also tests "
         "improved settings for merger agreements (described below).",
         "",
     ]
-    out.append(("## The four runs", runs))
+    out.append(("## The four experiments", runs))
 
     glossary = [
         "| Term | Meaning |",
@@ -274,7 +273,7 @@ def _sections(data: Mapping[str, Any]) -> list[tuple[str, list[str]]]:
         "| Question accuracy (MAUD) | 0–1. MAUD is a public set of merger agreements with lawyer-written multiple-choice questions. Accuracy is the share of all labeled questions answered correctly; coverage is the share the model answered at all. |",
         "| 95% confidence interval | The range that likely contains the true difference; if it includes zero, the data show no reliable difference. |",
         "",
-        "The three scores use different scales, so compare them across runs, not across document types.",
+        "The three scores use different scales, so compare them across experiments, not across document types.",
         "",
     ]
     out.append(("## How to read the numbers", glossary))
@@ -294,9 +293,9 @@ def _sections(data: Mapping[str, Any]) -> list[tuple[str, list[str]]]:
         eff += ["Every failure was an answer cut off at the output length limit, all on contracts or merger "
                 "agreements (the longest documents).", ""]
     if pooled.get("s40-2l4"):
-        eff += ["Run D's cost and throughput include the slower, more thorough merger-agreement settings; "
+        eff += ["Experiment 4's cost and throughput include the slower, more thorough merger-agreement settings; "
                 "the like-for-like batch-size comparison is in Key finding 2.", ""]
-    out.append(("## Speed and cost by run", eff))
+    out.append(("## Speed and cost by experiment", eff))
 
     per_type = [f"Scores by document type (0–1, higher is better):", "", f"| Document type | Measure | {head} |",
                 "| --- | --- |" + " ---: |" * len(RUNS)]
@@ -314,7 +313,7 @@ def _sections(data: Mapping[str, Any]) -> list[tuple[str, list[str]]]:
             else:
                 vals.append(f"{c['quality']['overall_mean']:.3f}")
         per_type.append(f"| {gm._LABEL[t]} | {_SCORE_TEXT[t]} | " + " | ".join(vals) + " |")
-    per_type += ["", "\\* Run D uses the improved merger-agreement settings.", "",
+    per_type += ["", "\\* Experiment 4 uses the improved merger-agreement settings.", "",
                  "Cost per successfully processed document (US dollars):", "",
                  f"| Document type | {head} |", "| --- |" + " ---: |" * len(RUNS)]
     for t in gm._ORDER:
@@ -337,10 +336,10 @@ def _sections(data: Mapping[str, Any]) -> list[tuple[str, list[str]]]:
         merger = [
             f"Merger agreements are long: the median agreement in the sample runs to hundreds of thousands of "
             f"characters, while the standard settings read only the first and last "
-            f"{int(base.get('max_input_chars', 0)):,} characters combined. In Run D we changed the settings for "
-            f"this document type only, on the same {m['n']} agreements as Run C:",
+            f"{int(base.get('max_input_chars', 0)):,} characters combined. In Experiment 4 we changed the settings for "
+            f"this document type only, on the same {m['n']} agreements as Experiment 3:",
             "",
-            "| Setting | Standard (Runs A–C) | Improved (Run D) |",
+            "| Setting | Standard (Experiments 1–3) | Improved (Experiment 4) |",
             "| --- | --- | --- |",
             "| What the model reads | Start and end of the agreement; the middle is skipped | The whole "
             f"agreement, in overlapping sections of about {int(opt.get('chunk_chars', 0)):,} characters, with "
@@ -371,7 +370,7 @@ def _sections(data: Mapping[str, Any]) -> list[tuple[str, list[str]]]:
             "GPU cost counts only the time the GPUs spent on documents. Session cost is the provider's "
             "metered charge for the whole session, including start-up, waiting between runs and shut-down.",
             "",
-            "| Runs | Documents | GPU cost on documents | Session cost | Share of session spent on documents | Session cost per document | Billed |",
+            "| Experiments | Documents | GPU cost on documents | Session cost | Share of session spent on documents | Session cost per document | Billed |",
             "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
         ]
         tot = {"docs": 0, "busy": 0.0, "metered": 0.0, "billed": 0.0}
@@ -380,7 +379,7 @@ def _sections(data: Mapping[str, Any]) -> list[tuple[str, list[str]]]:
                 tot[k2] += r[k2]
             cost.append(_cost_line(r["label"], r["docs"], r["busy"], r["metered"], r["billed"]))
         if len(f["cost_rows"]) > 1:
-            cost.append(_cost_line("**All runs**", tot["docs"], tot["busy"], tot["metered"], tot["billed"]))
+            cost.append(_cost_line("**All experiments**", tot["docs"], tot["busy"], tot["metered"], tot["billed"]))
         cost += [
             "",
             "Billed is zero because the provider's monthly free credits covered the charges. Session costs "
@@ -393,7 +392,7 @@ def _sections(data: Mapping[str, Any]) -> list[tuple[str, list[str]]]:
 
     limits = [
         "- **One sample per run.** Each run used one random draw of 20–100 documents per type; small "
-        "differences between runs may be noise.",
+        "differences between experiments may be noise.",
         "- **Hardware and load changed together.** Going from 1 to 2 GPUs also raised the number of documents "
         "processed at once (8 to 32), so the speed gain cannot be split between the two.",
         "- **Some outputs vary between runs.** Contracts and merger agreements are generated with some "
@@ -410,19 +409,19 @@ def _sections(data: Mapping[str, Any]) -> list[tuple[str, list[str]]]:
     xref = [
         "For readers comparing against the project's internal records:",
         "",
-        "| Run | Internal study | Internal shorthand |",
-        "| --- | --- | --- |",
+        "| Experiment | Internal shorthand |",
+        "| --- | --- |",
     ]
     for k, name in RUNS:
         p = by_key[k]
-        xref.append(f"| {name} | {p.study} | {p.label} |")
+        xref.append(f"| {name} | {p.label} |")
     xref += [
         "",
         "Shorthand key: `2×L4` = two NVIDIA L4 GPUs; `C32` = 32 documents processed at once; `n=100` = "
         "documents per type. Detailed tables and charts: `SAND-37-MASTER-APPENDIX.md` in the project repository.",
         "",
     ]
-    out.append(("## Run name cross-reference", xref))
+    out.append(("## Experiment cross-reference", xref))
     return out
 
 
@@ -480,13 +479,16 @@ axes[0].bar(runs.index, runs["run_docs_per_min"], color=[COLORS[r] for r in runs
 axes[0].set_title("Documents per minute (higher is better)")
 axes[1].bar(runs.index, runs["run_cost_per_doc"] * 100, color=[COLORS[r] for r in runs.index])
 axes[1].set_title("GPU cost per document, cents (lower is better)")
+for ax in axes:
+    ax.set_xticks(range(len(runs)), [r.removeprefix("Experiment ") for r in runs.index])
+    ax.set_xlabel("Experiment")
 fig.tight_layout()"""
 
 _CHART_QUALITY = """pivot = df.pivot(index="doc_type", columns="run", values="score")
 ax = pivot.plot.barh(figsize=(9, 4), color=[COLORS[r] for r in pivot.columns], width=0.8)
 ax.set_xlabel("Score (0-1; scales differ by document type)")
 ax.set_ylabel("")
-ax.set_title("Accuracy by document type and run")
+ax.set_title("Accuracy by document type and experiment")
 ax.legend(title="", loc="lower right")
 plt.tight_layout()"""
 
@@ -516,7 +518,7 @@ def render_reader_ipynb(data: Mapping[str, Any]) -> str:
     cells = []
     for heading, body in _sections(data):
         cells.append(md("\n".join(([heading, ""] if heading else []) + body)))
-        if heading == "## Speed and cost by run":
+        if heading == "## Speed and cost by experiment":
             rows = _chart_rows(data)
             setup = _CHART_SETUP.format(colors=json.dumps(CHART_COLORS), rows=json.dumps(rows, indent=1))
             env: dict[str, Any] = {}
