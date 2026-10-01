@@ -854,10 +854,10 @@ def _executive_findings(present: list[Posture], cards: dict, pooled: dict) -> li
             else f"sample sizes differ, SAND-39 pending"
         )
         out.append(
-            f"**Scale-out is near-linear.** 2×L4 at C32 raises throughput "
-            f"{_pct_change(b['docs_per_minute'], a['docs_per_minute'])} at "
-            f"{_pct_change(b['usd_per_document'], a['usd_per_document'])} cost per document; "
-            f"median latency rises ×{_range(lat, '{:.1f}')} ({basis})."
+            f"**2×L4 at C32 raises throughput {_pct_change(b['docs_per_minute'], a['docs_per_minute'])} at "
+            f"{_pct_change(b['usd_per_document'], a['usd_per_document'])} cost per document** ({basis}); "
+            f"median latency rises ×{_range(lat, '{:.1f}')}. GPU count and client concurrency changed "
+            "together, so this does not separate their effects."
         )
     if s40 and two50:
         a, b = _pooled_four(cards[two50.key], two50.replicas), _pooled_four(cards[s40.key], s40.replicas)
@@ -976,7 +976,11 @@ def render_master_md(data: Mapping[str, Any]) -> str:
     unrecorded = [s for s in dict.fromkeys(p.study for p in present) if s not in metered]
     if unrecorded:
         lines.append(f"- **{' and '.join(unrecorded)} metered Modal total:** not yet recorded.")
-    lines += ["- **Teardown** verified after each posture, zero containers left warm.", ""]
+    lines += [
+        "- **Teardown** to zero warm containers is part of every posture's runbook; the metered totals come "
+        "from its spend check.",
+        "",
+    ]
     return "\n".join(lines)
 
 
