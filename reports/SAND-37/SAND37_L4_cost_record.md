@@ -3,7 +3,7 @@
 **Source of truth:** the 20 per-cell grid cards `reports/SAND-37/{1L4,2L4}/<specialist>/*.card.json` (schema `sandbox.grid-card/v1`, generated 2026-10-01 06:44 UTC) and `reports/SAND-37/metered-costs.json`. Each card holds conditions, per-document records, vLLM `/metrics` deltas per replica and cost. Per-cell blocks: [`SAND37_L4_cost_cards.md`](./SAND37_L4_cost_cards.md).
 Model `Qwen/Qwen3-8B-AWQ`, vLLM `v0.29.0`, awq_marlin, fp8 KV, max_num_seqs 16, max_model_len 32,768, prefix caching, thinking off. Rate: L4 **$0.80/GPU-hr**.
 Data: `Lucius-Morningstar/mailroom-dataset` ground_truth @ `ed7576b6`, seed 42. Draws are nested (n=20 ⊂ n=50 ⊂ n=100), and every n=50 posture scores the same documents.
-Cost/ok doc = busy GPU $ ÷ ok docs. Latency is per-document end-to-end over ok docs. TTFT is vLLM's request-weighted mean. Compiled 2026-10-01.
+Cost/ok doc = busy GPU $ ÷ ok docs; pooled rows (all docs) = busy GPU $ ÷ all attempted docs, the master card's basis. Latency is per-document end-to-end over ok docs. TTFT is vLLM's request-weighted mean. Compiled 2026-10-01.
 
 | Experiment | Study | Posture | GPUs | Client concurrency | Docs per class | Cells |
 |---|---|---|---|---|---|---|
@@ -98,7 +98,7 @@ Contracts score = CUAD clause-presence F1 (labeled-doc mean). Merger = MAUD micr
 | Corporate Records | 0.00032 → 0.00019 | -40% | 42.16 → 141.69 | +236% | 168% | 13.2 → 24.1 | 19.8 → 34.6 | 1.42 → 3.95 | 0.449 → 0.452 | 0 / 0 |
 | Correspondence | 0.00018 → 0.00012 | -31% | 73.97 → 214.96 | +191% | 145% | 6.6 → 10.7 | 11.7 → 18.5 | 0.81 → 2.65 | 0.345 → 0.334 | 0 / 0 |
 | Merger Agreements | 0.00284 → 0.00329 | +16% | 5.10 → 8.80 | +73% | 86% | 51.3 → 92.5 | 109.7 → 167.2 | 2.35 → 9.39 | 0.048 → 0.035 | 4 / 4 |
-| **Pooled** | 0.00132 → 0.00131 | **-0.4%** | 10.40 → 20.71 | **+99%** | 100% | | | | no detectable change | 7 / 5 |
+| **Pooled (all docs)** | 0.00128 → 0.00129 | **+0.4%** | 10.40 → 20.71 | **+99%** | 100% | | | | no detectable change | 7 / 5 |
 
 ![Cost per 1,000 ok documents, 1x vs 2x L4](figures/record/1x-vs-2xL4-cost.png)
 
@@ -106,7 +106,7 @@ Contracts score = CUAD clause-presence F1 (labeled-doc mean). Merger = MAUD micr
 
 ![Cost vs score, same 250 documents](figures/record/cost-vs-score.png)
 
-- Pooled throughput doubles (+99%) at flat cost per ok doc (-0.4%); tokens/s/GPU 1,002 → 1,013.
+- Pooled throughput doubles (+99%) at flat cost per document (+0.4%); tokens/s/GPU 1,002 → 1,013.
 - Scaling above 100% (insurance claims, corporate records, correspondence) is confounded with client concurrency 8 → 32.
 - Latency p50 rises 1.4–1.8× and TTFT 2.8–4.0×; per-specialist quality change −0.011 to +0.023, every 95% CI includes 0.
 
@@ -118,11 +118,11 @@ Contracts score = CUAD clause-presence F1 (labeled-doc mean). Merger = MAUD micr
 | Contracts | 0.00284 → 0.00207 | -27% | 9.59 → 13.03 | +36% | 699 → 927 | +33% | 103.3 → 96.1 | 156.6 → 159.3 | 49% → 32% |
 | Corporate Records | 0.00019 → 0.00021 | +14% | 141.69 → 124.72 | -12% | 5,467 → 4,549 | -17% | 24.1 → 19.9 | 34.6 → 31.8 | 0% → 0% |
 | Correspondence | 0.00012 → 0.00012 | -1% | 214.96 → 218.03 | +1% | 5,120 → 5,343 | +4% | 10.7 → 10.3 | 18.5 → 20.3 | 0% → 0% |
-| **Pooled (4 classes)** | 0.00086 → 0.00069 | **-20%** | 31.29 → 38.85 | **+24%** | 1,296 → 1,582 | **+22%** | | | |
+| **Pooled (4 classes, all docs)** | 0.00085 → 0.00069 | **-19%** | 31.29 → 38.85 | **+24%** | 1,296 → 1,582 | **+22%** | | | |
 
 ![Batch size on 2x L4, n=50 to n=100](figures/record/2xL4-n50-vs-n100-cost.png)
 
-- Pooled cost per ok doc falls 20%, almost all from contracts (-27%; idle share 49% → 32%).
+- Pooled cost per document falls 19%, almost all from contracts (-27% per ok doc; idle share 49% → 32%).
 - Correspondence is flat (-1%); corporate records (+14%) and insurance claims (+14%) got more expensive.
 
 ## 5. Merger — frozen vs † settings (same 50 agreements, 2× L4 C32)
