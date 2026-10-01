@@ -1,6 +1,6 @@
-# SAND-040 scale run — corporate_records_specialist · n=100 · 2×L4 · C32 (16 per replica) · phase: short (native 32K, SAND-037 spec unchanged).
+# SAND-040 scale run — corporate_records_specialist · n=100 · 2×L4 · C32 (16 per replica) · one 32K deploy, SAND-037 spec unchanged.
 # Same dataset/prompt blocks as grid-50-corporate-records-specialist-awq-2l4 except n.
-# Runbook: sandbox runbook show sand40-short
+# Runbook: sandbox runbook show sand40
 schema: sandbox.run/v1
 run_id: sand40-100-corporate-records-specialist-awq-2l4
 task: corporate_records_specialist

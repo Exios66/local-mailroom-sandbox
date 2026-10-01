@@ -789,6 +789,11 @@ def _run_parser(sub, shared):
         help="write reports/SAND-37/SAND-37-MASTER-SCORE-COST-CARD.md across SAND-37 + SAND-39 postures",
     )
     card_p.add_argument(
+        "--gate",
+        action="store_true",
+        help="SAND-040 chunked cell: exit 1 unless every document is ok and every expected chunk reached vLLM",
+    )
+    card_p.add_argument(
         "--record-metered",
         nargs=3,
         metavar=("STUDY", "METERED_USD", "BILLED_USD"),
@@ -1904,6 +1909,13 @@ def _cmd_run_card(args) -> int:
         return 2
     paths = grid_cards.write_card(store)
     print(f"run card → {paths['md']}")
+    if getattr(args, "gate", False):
+        problems = grid_cards.chunk_gate(store)
+        for line in problems:
+            print(f"GATE FAIL: {line}", file=sys.stderr)
+        if problems:
+            return 1
+        print(f"gate passed: every chunk of {store.run_id} reached vLLM")
     return 0
 
 
