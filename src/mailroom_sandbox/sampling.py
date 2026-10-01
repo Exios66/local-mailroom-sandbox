@@ -1,32 +1,29 @@
-"""Honor a run-scoped ``temperature`` knob for the specialist extraction calls.
+"""Run-scoped sampling for specialist calls.
 
-Every vendored specialist passes ``temperature=0.1`` as a literal at its
-``_call_structured`` call site (``agents/*_specialist.py`` and
-``langchain_agents/specialist_agents.py``, drift-guarded — the sandbox must not
-edit them). A ``temperature`` in the agent config therefore never reaches the
-request. This wraps both base ``_call_structured`` implementations so an agent
-named in a run-scoped override (``SANDBOX_AGENT_KNOBS``) is sampled at that
-temperature; every other agent keeps its call-site value.
+Temperature is a literal at every vendored ``_call_structured`` call site
+(``agents/*_specialist.py`` and ``langchain_agents/specialist_agents.py``,
+drift-guarded). A ``temperature`` in the agent config therefore never reaches
+the request unless this wrapper replaces that argument.
 
-SAND-037: the contracts and merger specialists decode under the JSON-schema
-grammar (``with_structured_output(method="json_schema")``). At 0.1 they looped
-until every completion cap they were given (4096, 8192, 16384) while their
-longest successful outputs were ≈ 1.7k–4.1k tokens, and job retries replayed
-the same loop. The grid runs those two agents at 0.7.
+The Modal vLLM deployment is a plain OpenAI-compatible server. It is separate
+from the LangChain specialist pipeline. Optimized sampling (``top_p``,
+``top_k``, ``presence_penalty``, length re-sample) is merged into the kwargs
+``llm.retry.retry_chat_completion`` posts to ``client.chat.completions.create``.
+Contracts and merger, whose classes are LangChain subclasses, take that native
+request when those knobs are set — this module does not call ``ChatOpenAI.bind``
+or ``with_structured_output``.
 
-SAND-040 adds the rest of Qwen3's documented non-thinking sampling for those two
-agents — ``top_p`` 0.8, ``top_k`` 20 (vLLM extra body) and a ``presence_penalty``
-("reduce endless repetitions" in quantized models) — bound onto the agent's chat
-model for the call, plus ``length_retries``: a call that ends in
-``LengthFinishReasonError`` (a runaway decode at the output cap) is re-sampled up
-to that many times. At temperature 0.7 the loops are stochastic (SAND-37/39 hit
-different documents on every run), so a fresh draw usually closes the JSON.
+``top_k`` is a vLLM extension and travels in ``extra_body``, merged with any
+reasoning ``extra_body`` already on the request. A completion whose
+``finish_reason`` is ``length`` is re-sampled up to ``length_retries`` times.
 """
 
 from __future__ import annotations
 
+import contextvars
 import functools
 import inspect
+import json
 import logging
 from typing import Any, Mapping
 
@@ -36,8 +33,13 @@ _OVERRIDES: dict[str, float] = {}
 _EXTRA: dict[str, dict[str, Any]] = {}  # agent → {top_p, top_k, presence_penalty, length_retries}
 _PATCHED: set[str] = set()
 _EXTRA_KEYS = ("top_p", "top_k", "presence_penalty", "length_retries")
-# Per-agent count of LengthFinishReasonError calls re-sampled in this process.
+# Per-agent count of length-capped completions re-sampled in this process.
 LENGTH_RETRIES: dict[str, int] = {}
+# Set for the duration of one structured call so the chat-completion wrapper
+# knows which agent's knobs to merge. Empty outside that call.
+_REQUEST: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar(
+    "sandbox_modal_sampling", default=None
+)
 
 # (module, class) of every vendored ``_call_structured`` implementation.
 _TARGETS: tuple[tuple[str, str], ...] = (
@@ -67,8 +69,8 @@ def extra_overrides(agent_knobs: Mapping[str, Any] | None) -> dict[str, dict[str
     return out
 
 
-def _bind_kwargs(extra: Mapping[str, Any]) -> dict[str, Any]:
-    """OpenAI-compatible request kwargs; vLLM takes ``top_k`` through the extra body."""
+def chat_sampling_kwargs(extra: Mapping[str, Any]) -> dict[str, Any]:
+    """OpenAI chat-completion fields. vLLM takes ``top_k`` through ``extra_body``."""
     kw: dict[str, Any] = {}
     if extra.get("top_p") is not None:
         kw["top_p"] = float(extra["top_p"])
@@ -79,11 +81,117 @@ def _bind_kwargs(extra: Mapping[str, Any]) -> dict[str, Any]:
     return kw
 
 
+def merge_endpoint_kwargs(kwargs: dict[str, Any], extra: Mapping[str, Any]) -> dict[str, Any]:
+    """Copy ``kwargs`` with sampling fields merged in. Existing ``extra_body`` keys stay."""
+    out = dict(kwargs)
+    bind = chat_sampling_kwargs(extra)
+    body = dict(out.get("extra_body") or {})
+    body.update(bind.pop("extra_body", {}))
+    if body:
+        out["extra_body"] = body
+    elif "extra_body" in out and not out["extra_body"]:
+        out.pop("extra_body", None)
+    for key, value in bind.items():
+        out.setdefault(key, value)
+    return out
+
+
 def _is_length_finish(exc: BaseException) -> bool:
     return type(exc).__name__ == "LengthFinishReasonError" or "length limit was reached" in str(exc)
 
 
-def _wrap(original):
+def _finish_reason(response: Any) -> str | None:
+    try:
+        return response.choices[0].finish_reason
+    except Exception:
+        return None
+
+
+def _install_retry_patch() -> None:
+    """Merge the active request's sampling into ``retry_chat_completion`` kwargs."""
+    import llm.retry as retry_mod
+
+    current = retry_mod.retry_chat_completion
+    if getattr(current, "__sandbox_sampling__", False):
+        return
+
+    @functools.wraps(current)
+    def retry_chat_completion(client, **kwargs):
+        spec = _REQUEST.get()
+        extra = (spec or {}).get("extra") or {}
+        agent = str((spec or {}).get("agent") or "")
+        if extra:
+            kwargs = merge_endpoint_kwargs(kwargs, extra)
+        retries = max(0, int(extra.get("length_retries") or 0))
+        attempt = 0
+        while True:
+            response = current(client, **kwargs)
+            if _finish_reason(response) != "length" or attempt >= retries:
+                return response
+            attempt += 1
+            LENGTH_RETRIES[agent] = LENGTH_RETRIES.get(agent, 0) + 1
+            _log.warning(
+                "%s: runaway decode at the output cap — re-sampling (%d/%d)",
+                agent, attempt, retries,
+            )
+
+    retry_chat_completion.__sandbox_sampling__ = True  # type: ignore[attr-defined]
+    retry_mod.retry_chat_completion = retry_chat_completion
+
+
+def _native_structured_completion(self, bound, temperature: float | None) -> dict:
+    """One structured extraction via ``chat.completions.create`` (no LangChain)."""
+    from llm.retry import retry_chat_completion
+
+    args = bound.arguments
+    user_message = args["user_message"]
+    json_schema = args.get("json_schema") or {}
+    system_prompt = args.get("system_prompt")
+    max_tokens = args.get("max_tokens")
+    if max_tokens is None:
+        max_tokens = getattr(self, "_max_tokens", None)
+    if temperature is None:
+        temperature = args.get("temperature")
+    system = system_prompt if system_prompt is not None else self.system_prompt()
+    client = getattr(self, "client", None)
+    model = getattr(self, "model", None)
+    if client is None:
+        from llm.client import get_llm
+
+        client, resolved = get_llm(str(getattr(self, "agent_name", "")))
+        model = model or resolved
+    schema_name = str(getattr(self, "agent_name", "extraction") or "extraction").replace(" ", "_")[:64]
+    request: dict[str, Any] = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user_message},
+        ],
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {"name": schema_name, "schema": json_schema},
+        },
+    }
+    if temperature is not None:
+        request["temperature"] = temperature
+    if max_tokens:
+        request["max_tokens"] = int(max_tokens)
+    response = retry_chat_completion(client, **request)
+    raw = ""
+    try:
+        raw = response.choices[0].message.content or ""
+    except Exception:
+        raw = ""
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return {"_raw": raw, "_parse_error": True}
+    if not isinstance(parsed, dict):
+        return {"_raw": raw, "_parse_error": True}
+    return parsed
+
+
+def _wrap(original, *, native_endpoint: bool = False):
     signature = inspect.signature(original)
 
     @functools.wraps(original)
@@ -96,13 +204,14 @@ def _wrap(original):
         bound = signature.bind(self, *args, **kwargs)
         if override is not None:
             bound.arguments["temperature"] = override
-        bind_kw = _bind_kwargs(extra)
         retries = max(0, int(extra.get("length_retries") or 0))
-        own_llm = "llm" in getattr(self, "__dict__", {})
-        if bind_kw and callable(getattr(self, "llm", None)):
-            base_llm = self.llm
-            self.llm = lambda: base_llm().bind(**bind_kw)  # instance attr shadows the method for this call
+        token = _REQUEST.set({"agent": name, "extra": dict(extra)}) if extra else None
         try:
+            # Optimized knobs on a LangChain specialist go out as a native
+            # chat completion. Temperature-only overrides keep the original
+            # call (the LangChain pipeline is a separate stack).
+            if native_endpoint and extra:
+                return _native_structured_completion(self, bound, override)
             attempt = 0
             while True:
                 try:
@@ -112,10 +221,13 @@ def _wrap(original):
                         raise
                     attempt += 1
                     LENGTH_RETRIES[name] = LENGTH_RETRIES.get(name, 0) + 1
-                    _log.warning("%s: runaway decode at the output cap — re-sampling (%d/%d)", name, attempt, retries)
+                    _log.warning(
+                        "%s: runaway decode at the output cap — re-sampling (%d/%d)",
+                        name, attempt, retries,
+                    )
         finally:
-            if bind_kw and not own_llm and "llm" in getattr(self, "__dict__", {}):
-                del self.llm
+            if token is not None:
+                _REQUEST.reset(token)
 
     _call_structured.__sandbox_sampling__ = True  # type: ignore[attr-defined]
     return _call_structured
@@ -133,6 +245,8 @@ def apply_sampling_overrides(agent_knobs: Mapping[str, Any] | None) -> dict[str,
     _EXTRA.update(extra_overrides(agent_knobs))
     if not _OVERRIDES and not _EXTRA:
         return {}
+    if _EXTRA:
+        _install_retry_patch()
     for module_name, class_name in _TARGETS:
         key = f"{module_name}.{class_name}"
         if key in _PATCHED:
@@ -150,7 +264,9 @@ def apply_sampling_overrides(agent_knobs: Mapping[str, Any] | None) -> dict[str,
         if "temperature" not in inspect.signature(original).parameters:
             _log.warning("%s._call_structured has no temperature parameter — not patched", key)
             continue
-        cls._call_structured = _wrap(original)
+        cls._call_structured = _wrap(
+            original, native_endpoint=module_name.startswith("langchain_agents")
+        )
         _PATCHED.add(key)
     _log.info("specialist sampling overrides active: temperature %s · extra %s", _OVERRIDES, _EXTRA)
     return dict(_OVERRIDES)

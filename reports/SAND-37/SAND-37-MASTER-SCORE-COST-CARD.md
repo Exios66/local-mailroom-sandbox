@@ -2,39 +2,43 @@
 
 **Model:** Qwen/Qwen3-8B-AWQ on vLLM v0.29.0 · **GPU:** NVIDIA L4 at $0.80 per GPU-hour  
 **Data:** public `Lucius-Morningstar/mailroom-dataset` ground_truth @ `ed7576b6`, seed 42; the n = 20 draw is nested in the n = 50 draw, and every n = 50 posture scores the identical documents.  
-**Engine (all postures):** AWQ-Marlin, fp8 KV cache, CUDA graphs, prefix caching, thinking disabled, 8,192-token output cap, frozen v1 prompts; temperature 0.7 for contracts and merger, 0.1 otherwise.
+**Engine (SAND-37 / SAND-39):** AWQ-Marlin, fp8 KV cache, CUDA graphs, prefix caching, thinking disabled, 8,192-token output cap, frozen v1 prompts; temperature 0.7 for contracts and merger, 0.1 otherwise.  
+**SAND-40:** 2×L4 at C32. Short classes keep that engine at n=100 (the n=50 draw nested inside). Contracts and merger redeploy onto a 65,536-token YaRN window; merger uses the optimized settings marked †.
 
 | Study | Posture | GPUs | Client concurrency | Documents per class | Status |
 | --- | --- | ---: | ---: | ---: | --- |
 | SAND-37 | 1×L4 C8 n=20 | 1 | 8 | 20 | 5 of 5 cells |
 | SAND-39 | 1×L4 C8 n=50 | 1 | 8 | 50 | 5 of 5 cells |
 | SAND-37 | 2×L4 C32 n=50 | 2 | 32 | 50 | 5 of 5 cells |
+| SAND-40 | 2×L4 C32 n=100 | 2 | 32 | 100 (merger 50) | pending |
 
 ## Serving efficiency (pooled across the five specialists)
 
-| Metric | SAND-37 1×L4 C8 n=20 | SAND-39 1×L4 C8 n=50 | SAND-37 2×L4 C32 n=50 |
-| --- | ---: | ---: | ---: |
-| Documents ok / total | 97 / 100 | 243 / 250 | 245 / 250 |
-| Error rate | 3.0% | 2.8% | 2.0% |
-| Throughput (documents per minute) | 8.74 | 10.40 | 20.71 |
-| Throughput (tokens per second per GPU) | 812 | 1,002 | 1,013 |
-| GPU cost per document | $0.00153 | $0.00128 | $0.00129 |
-| GPU cost per 1M tokens | $0.274 | $0.222 | $0.219 |
-| Busy-window GPU cost | $0.153 | $0.321 | $0.322 |
+| Metric | SAND-37 1×L4 C8 n=20 | SAND-39 1×L4 C8 n=50 | SAND-37 2×L4 C32 n=50 | SAND-40 2×L4 C32 n=100 |
+| --- | ---: | ---: | ---: | ---: |
+| Documents ok / total | 97 / 100 | 243 / 250 | 245 / 250 | pending |
+| Error rate | 3.0% | 2.8% | 2.0% | pending |
+| Throughput (documents per minute) | 8.74 | 10.40 | 20.71 | pending |
+| Throughput (tokens per second per GPU) | 812 | 1,002 | 1,013 | pending |
+| GPU cost per document | $0.00153 | $0.00128 | $0.00129 | pending |
+| GPU cost per 1M tokens | $0.274 | $0.222 | $0.219 | pending |
+| Busy-window GPU cost | $0.153 | $0.321 | $0.322 | pending |
 
 ## Quality and cost by specialist
 
-Columns within each cell follow the posture order above (1×L4 C8 n=20 · 1×L4 C8 n=50 · 2×L4 C32 n=50).
+Columns within each cell follow the posture order above (1×L4 C8 n=20 · 1×L4 C8 n=50 · 2×L4 C32 n=50 · 2×L4 C32 n=100).
 
 | Specialist | Metric | Score | ok / n | p50 latency (s) | $ per ok document |
 | --- | --- | :---: | :---: | :---: | :---: |
-| Insurance Claims | Field score | 0.684 · 0.684 · 0.686 | 20/20 · 50/50 · 50/50 | 13.2 · 14.0 · 19.6 | 0.00042 · 0.00039 · 0.00032 |
-| Contracts | Field score (CUAD F1) | 0.631 (0.597) · 0.602 (0.590) · 0.615 (0.605) | 19/20 · 47/50 · 49/50 | 65.8 · 68.2 · 103.3 | 0.00350 · 0.00310 · 0.00284 |
-| Corporate Records | Field score | 0.459 · 0.449 · 0.452 | 20/20 · 50/50 · 50/50 | 14.4 · 13.2 · 24.1 | 0.00026 · 0.00032 · 0.00019 |
-| Correspondence | Field score | 0.327 · 0.345 · 0.334 | 20/20 · 50/50 · 50/50 | 5.8 · 6.6 · 10.7 | 0.00011 · 0.00018 · 0.00012 |
-| Merger Agreements | MAUD accuracy (coverage) | 0.014 (13%) · 0.048 (24%) · 0.035 (23%) | 18/20 · 46/50 · 46/50 | 50.5 · 51.3 · 92.5 | 0.00390 · 0.00284 · 0.00329 |
+| Insurance Claims | Field score | 0.684 · 0.684 · 0.686 · pending | 20/20 · 50/50 · 50/50 · pending | 13.2 · 14.0 · 19.6 · pending | 0.00042 · 0.00039 · 0.00032 · pending |
+| Contracts | Field score (CUAD F1) | 0.631 (0.597) · 0.602 (0.590) · 0.615 (0.605) · pending | 19/20 · 47/50 · 49/50 · pending | 65.8 · 68.2 · 103.3 · pending | 0.00350 · 0.00310 · 0.00284 · pending |
+| Corporate Records | Field score | 0.459 · 0.449 · 0.452 · pending | 20/20 · 50/50 · 50/50 · pending | 14.4 · 13.2 · 24.1 · pending | 0.00026 · 0.00032 · 0.00019 · pending |
+| Correspondence | Field score | 0.327 · 0.345 · 0.334 · pending | 20/20 · 50/50 · 50/50 · pending | 5.8 · 6.6 · 10.7 · pending | 0.00011 · 0.00018 · 0.00012 · pending |
+| Merger Agreements | MAUD accuracy (coverage) | 0.014 (13%) · 0.048 (24%) · 0.035 (23%) · pending† | 18/20 · 46/50 · 46/50 · pending | 50.5 · 51.3 · 92.5 · pending | 0.00390 · 0.00284 · 0.00329 · pending |
 
 Field scores are the mean suite extraction score against ground truth; contracts adds CUAD clause scoring. Merger is scored by micro-accuracy over labeled MAUD questions, a different scale from the field scores.
+
+† optimized merger settings: 64K YaRN window, Qwen3 sampling (temperature 0.7, top_p 0.8, top_k 20, presence_penalty 1.0), chunked whole-document extraction, 6,144-token output cap, one length re-sample, and the MAUD v1 prompt. The merger cell stays at n=50, the same agreements as SAND-37 2×L4.
 
 ## Findings
 

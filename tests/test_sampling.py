@@ -14,8 +14,12 @@ from mailroom_sandbox import sampling
 @pytest.fixture(autouse=True)
 def _reset():
     sampling._OVERRIDES.clear()
+    sampling._EXTRA.clear()
+    sampling.LENGTH_RETRIES.clear()
     yield
     sampling._OVERRIDES.clear()
+    sampling._EXTRA.clear()
+    sampling.LENGTH_RETRIES.clear()
 
 
 def _capture_with_signature_of(original):
@@ -107,6 +111,106 @@ def test_grid_posture_knobs_flow_into_overrides():
     assert sampling.temperature_overrides(contracts) == {"contracts_specialist": 0.7}
     assert sampling.temperature_overrides(corr) == {}
     assert merger["merger_agreement_specialist"]["max_tokens"] == 8192
+
+
+def _fake_client(captured, *, finishes=None):
+    finishes = list(finishes or ["stop"])
+
+    def create(**kwargs):
+        captured.append(kwargs)
+        finish = finishes.pop(0) if finishes else "stop"
+        return types.SimpleNamespace(
+            choices=[types.SimpleNamespace(finish_reason=finish, message=types.SimpleNamespace(content='{"ok": true}'))],
+            usage=None,
+        )
+
+    return types.SimpleNamespace(
+        chat=types.SimpleNamespace(completions=types.SimpleNamespace(create=create)),
+        base_url="http://127.0.0.1:9/v1",
+    )
+
+
+_SAND40_KNOBS = {
+    "contracts_specialist": {
+        "temperature": 0.7,
+        "top_p": 0.8,
+        "top_k": 20,
+        "presence_penalty": 1.0,
+        "length_retries": 1,
+        "max_tokens": 6144,
+    }
+}
+
+
+def test_sampling_settings_reach_the_endpoint_request():
+    """Optimized knobs are fields on the chat-completion body, not a LangChain bind."""
+    captured: list[dict] = []
+    client = _fake_client(captured, finishes=["length", "stop"])
+    sampling.apply_sampling_overrides(_SAND40_KNOBS)
+    import llm.retry as retry_mod
+
+    extra = sampling.active_extra()["contracts_specialist"]
+    token = sampling._REQUEST.set({"agent": "contracts_specialist", "extra": extra})
+    try:
+        retry_mod.retry_chat_completion(
+            client,
+            model="Qwen/Qwen3-8B-AWQ",
+            messages=[{"role": "user", "content": "doc"}],
+            temperature=0.7,
+            max_tokens=6144,
+            extra_body={"reasoning": {"effort": "none"}},
+        )
+    finally:
+        sampling._REQUEST.reset(token)
+    assert len(captured) == 2  # one length re-sample
+    body = captured[0]
+    assert body["temperature"] == 0.7
+    assert body["top_p"] == 0.8
+    assert body["presence_penalty"] == 1.0
+    assert body["max_tokens"] == 6144
+    assert body["extra_body"]["top_k"] == 20
+    assert body["extra_body"]["reasoning"] == {"effort": "none"}
+    assert sampling.LENGTH_RETRIES["contracts_specialist"] == 1
+
+
+def test_optimized_specialist_posts_native_chat_completion_without_langchain(monkeypatch):
+    captured: list[dict] = []
+    client = _fake_client(captured)
+
+    class Agent:
+        agent_name = "contracts_specialist"
+        model = "Qwen/Qwen3-8B-AWQ"
+        _max_tokens = 6144
+        client = None
+
+        def system_prompt(self):
+            return "system"
+
+        def llm(self):
+            raise AssertionError("LangChain llm() must not serve the Modal endpoint")
+
+        def _call_structured(
+            self, user_message, json_schema, system_prompt=None, temperature=None, max_tokens=None, pages=None
+        ):
+            raise AssertionError("LangChain _call_structured must not serve the Modal endpoint")
+
+    Agent.client = client
+    fake = types.ModuleType("langchain_agents.base_agent")
+    fake.BaseAgent = Agent
+    monkeypatch.setitem(sys.modules, "langchain_agents.base_agent", fake)
+    monkeypatch.setattr(sampling, "_TARGETS", (("langchain_agents.base_agent", "BaseAgent"),))
+    monkeypatch.setattr(sampling, "_PATCHED", set())
+
+    sampling.apply_sampling_overrides(_SAND40_KNOBS)
+    result = Agent()._call_structured("document", {"type": "object"}, temperature=0.1)
+    assert result == {"ok": True}
+    body = captured[-1]
+    assert body["temperature"] == 0.7
+    assert body["top_p"] == 0.8
+    assert body["presence_penalty"] == 1.0
+    assert body["extra_body"]["top_k"] == 20
+    assert body["response_format"]["type"] == "json_schema"
+    assert "bind" not in sampling.__file__ or ".bind(" not in open(sampling.__file__, encoding="utf-8").read()
 
 
 def test_reactivation_without_explicit_knobs_keeps_the_run_override(monkeypatch):

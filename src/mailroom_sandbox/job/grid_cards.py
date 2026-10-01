@@ -280,6 +280,7 @@ def collect_card(
                 "thinking": vllm.get("enable_thinking"),
             },
             "spec_hash": store.spec_hash(),
+            **_optimized_conditions(posture, vllm),
         },
         "time": {
             "wall_seconds": wall,
@@ -486,6 +487,7 @@ def render_card_md(c: Mapping[str, Any]) -> str:
         f"| Temperature | {cond['temperature']} ({cond['temperature_source']}) |",
         f"| Output cap (max_tokens) | {_f(cond['max_tokens'])} |",
         f"| Input cap (max_input_chars) | {_f(cond['max_input_chars'])} |",
+        *_sampling_rows(cond),
         f"| Job retries | {cond['max_retries']} |",
         f"| Dataset | {ds['repo']} {ds['config']} @ {ds['revision']}, split={ds['split']}, seed {ds['seed']} |",
         f"| Draw | {c['n']} docs (fingerprint {ds['fingerprint'] or NOT_CAPTURED}) |",
@@ -555,13 +557,46 @@ def write_card(
     return paths
 
 
+def _optimized_conditions(posture: Mapping[str, Any], vllm: Mapping[str, Any]) -> dict[str, Any]:
+    """SAND-040 knobs recorded on the card when the posture sets them."""
+    out: dict[str, Any] = {}
+    for key in ("top_p", "top_k", "presence_penalty", "length_retries", "chunk_chars", "overlap_chars"):
+        if posture.get(key) is not None:
+            out[key] = posture[key]
+    if posture.get("optimized"):
+        out["optimized"] = True
+    hf = vllm.get("hf_overrides")
+    if hf:
+        out["hf_overrides"] = hf
+    return out
+
+
+def _sampling_rows(cond: Mapping[str, Any]) -> list[str]:
+    rows: list[str] = []
+    if cond.get("optimized"):
+        rows.append("| Optimized long-document settings | yes |")
+    for key, label in (
+        ("top_p", "top_p"),
+        ("top_k", "top_k"),
+        ("presence_penalty", "presence_penalty"),
+        ("length_retries", "Length re-samples"),
+        ("chunk_chars", "Chunk window (chars)"),
+        ("overlap_chars", "Chunk overlap (chars)"),
+    ):
+        if cond.get(key) is not None:
+            rows.append(f"| {label} | {cond[key]} |")
+    if cond.get("hf_overrides"):
+        rows.append(f"| hf_overrides | `{json.dumps(cond['hf_overrides'], sort_keys=True)}` |")
+    return rows
+
+
 def maybe_write_card(store: RunStore, **kwargs: Any) -> dict[str, Path]:
-    """Runner hook: grid cells only, never fails the scored job."""
-    from mailroom_sandbox.job.specialist_posture import GRID_CELLS
+    """Runner hook: grid and SAND-040 cells, never fails the scored job."""
+    from mailroom_sandbox.job.specialist_posture import GRID_CELLS, SAND40_CELLS, SAND40_PROBE_CELLS
 
     try:
         lock = store.read_lock() or {}
-        if str(lock.get("run_id") or store.run_id) not in GRID_CELLS:
+        if str(lock.get("run_id") or store.run_id) not in (GRID_CELLS | SAND40_CELLS | SAND40_PROBE_CELLS):
             return {}
         if _d(lock.get("job")).get("mock") or not store.load_items():
             return {}
