@@ -58,5 +58,5 @@ Same 50 agreements (seed 42) and 2×L4 engine as SAND-37; only the settings belo
 
 - **SAND-37 metered Modal total:** $1.09 ($0.00 billed after credits).
 - **SAND-39 metered Modal total:** $0.49 ($0.00 billed after credits).
-- **SAND-40 metered Modal total:** not yet recorded.
+- **SAND-40 metered Modal total:** $1.81 ($0.00 billed after credits).
 - **Teardown** verified after each posture, zero containers left warm.
