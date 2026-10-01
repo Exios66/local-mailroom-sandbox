@@ -786,7 +786,7 @@ def _run_parser(sub, shared):
     card_p.add_argument(
         "--master",
         action="store_true",
-        help="write reports/SAND-37/SAND-37-MASTER-SCORE-COST-CARD.md (two-page executive) + SAND-37-MASTER-APPENDIX.md across SAND-37 + SAND-39 postures",
+        help="write reports/SAND-37/SAND-37-MASTER-SCORE-COST-CARD.md (two-page executive) + SAND-37-MASTER-APPENDIX.md across SAND-37 / SAND-39 / SAND-40 postures",
     )
     card_p.add_argument(
         "--gate",

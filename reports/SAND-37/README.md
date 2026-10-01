@@ -5,9 +5,10 @@ score & cost card here, organized by fleet shape and then by specialist:
 
 **Start here:** [`SAND-37-MASTER-SCORE-COST-CARD.md`](SAND-37-MASTER-SCORE-COST-CARD.md) is the
 two-page executive comparison across every grid posture (handoff summary): SAND-37 1×L4 C8 n=20,
-SAND-39 1×L4 C8 n=50 (matched-sample inverse leg) and SAND-37 2×L4 C32 n=50. All detail —
-per-cell tables, clause scoring, engine telemetry, run conditions, merger † settings, probes,
-full findings and figures — lives in [`SAND-37-MASTER-APPENDIX.md`](SAND-37-MASTER-APPENDIX.md).
+SAND-39 1×L4 C8 n=50 (matched-sample inverse leg), SAND-37 2×L4 C32 n=50 and SAND-40 2×L4 C32 n=100
+(merger on the optimized † settings, n=50). All detail — per-cell tables, clause scoring, engine
+telemetry, run conditions, merger † settings, token composition, probes, full findings and figures —
+lives in [`SAND-37-MASTER-APPENDIX.md`](SAND-37-MASTER-APPENDIX.md).
 
 ```
 reports/SAND-37/
@@ -25,7 +26,8 @@ reports/SAND-37/
 │   ├── corporate_records/
 │   ├── contracts/
 │   └── merger_agreement/
-└── 2L4/                                   # 2× L4 · C32 · n=50 — runbook grid-2l4
+├── probes/                                # SAND-40 n=20 validation probes (reported, never pooled)
+└── 2L4/                                   # 2× L4 · C32 — n=50 (SAND-37, grid-2l4) + n=100 (SAND-40; merger n=50 †)
     ├── L4x2-SCORE-COST-CARD.md
     ├── figures/SAND-37-2xL4-C32-n50.png   # 2× L4 posture dashboard
     └── <same five specialist folders>
