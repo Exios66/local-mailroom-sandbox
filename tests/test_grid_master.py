@@ -104,3 +104,30 @@ def test_write_master_renders_every_linked_figure(tmp_path):
         png = repo / "reports" / "SAND-37" / spec["path"]
         assert png.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
         assert f"]({spec['path']})" in md
+
+
+def test_master_is_fully_detailed():
+    md = grid_master.render_master_md(grid_master.collect_master())
+    for heading in (
+        "## Per-cell detail",
+        "### SAND-37 1×L4 C8 n=20",
+        "### SAND-39 1×L4 C8 n=50",
+        "### SAND-37 2×L4 C32 n=50",
+        "## Clause scoring detail",
+        "## Engine telemetry (vLLM /metrics, this run's delta)",
+        "## Run conditions by specialist",
+        "## SAND-40 validation probes (n = 20, not pooled)",
+    ):
+        assert heading in md
+    # contracts is labeled as what it is: CUAD presence F1 over labeled documents
+    assert "| Contracts | CUAD presence F1: labeled-document mean (micro) |" in md
+    assert "| SAND-37 2×L4 C32 n=50 | 40 of 49 ok |" in md
+
+
+def test_probes_are_reported_matched_but_never_pooled():
+    data = grid_master.collect_master()
+    assert set(data["probes"]) == {"contracts", "merger_agreement"}
+    assert all("probe" not in c["run_id"] for p in data["cards"].values() for c in p.values())
+    md = grid_master.render_master_md(data)
+    row = next(line for line in md.splitlines() if line.startswith("| Merger Agreements | 65,536 |"))
+    assert "| 18 | 0.114 | 0.033 | +0.081 (14 / 3) |" in row
