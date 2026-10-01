@@ -111,6 +111,20 @@ The superseded records remain the evidence for their own experiments. They are n
   accuracy scorers the SAND-032 reports use.
 - Contracts and merger scores are not directly comparable with older runs at temperature 0.1.
 
+## Reports
+
+Every grid run exports a score & cost card, and each runbook ends with its fleet's finalized suite card,
+all under `reports/SAND-37/` (layout and field list: `reports/SAND-37/README.md`):
+
+| Artifact | Path |
+| --- | --- |
+| Per-run card | `reports/SAND-37/<1L4 or 2L4>/<specialist>/<run_id>.card.md` + `.card.json` |
+| 1× L4 suite card | `reports/SAND-37/1L4/L4x1-SCORE-COST-CARD.md` + `.json` |
+| 2× L4 suite card | `reports/SAND-37/2L4/L4x2-SCORE-COST-CARD.md` + `.json` |
+
+Each run in the runbooks is `preflight → scrape-metrics before → start → scrape-metrics after → run card`,
+so every card carries its own per-replica vLLM telemetry.
+
 ## Spend
 
 Estimates only; the per-cell cost caps are the abort guards.

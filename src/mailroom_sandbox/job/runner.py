@@ -336,6 +336,9 @@ def _run_whole_run(
     from mailroom_sandbox.job.dated_reports import maybe_write_run_reports
 
     maybe_write_run_reports(store, scores=scores if isinstance(scores, dict) else None)
+    from mailroom_sandbox.job.grid_cards import maybe_write_card
+
+    maybe_write_card(store, scores=scores if isinstance(scores, dict) else None)
     return {
         "state": "done",
         "task": task,
@@ -1002,6 +1005,9 @@ def _run_job(
     from mailroom_sandbox.job.dated_reports import maybe_write_run_reports
 
     maybe_write_run_reports(store, scores=scores, wall_seconds=wall_seconds)
+    from mailroom_sandbox.job.grid_cards import maybe_write_card
+
+    maybe_write_card(store, scores=scores, wall_seconds=wall_seconds)
     return {
         "state": "done",
         "task": task,

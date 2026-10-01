@@ -771,6 +771,18 @@ def _run_parser(sub, shared):
     )
     scrape_p.add_argument("--label", choices=["before", "after"], required=True)
     scrape_p.set_defaults(handler=_cmd_run_scrape_metrics)
+    card_p = run_sub.add_parser(
+        "card",
+        parents=[common],
+        help="SAND-037 score & cost card: --config (one run) or --runbook grid-1l4|grid-2l4 (suite)",
+    )
+    card_p.add_argument(
+        "--runbook",
+        default=None,
+        choices=["grid-1l4", "grid-2l4"],
+        help="write the finalized L4x1 / L4x2 suite card from the per-run cards",
+    )
+    card_p.set_defaults(handler=_cmd_run_card)
     export_bt = run_sub.add_parser(
         "export-bt",
         parents=[common],
@@ -1842,6 +1854,31 @@ def _cmd_run_scrape_metrics(args) -> int:
     print(f"{result['coverage']} → {dest}")
     for err in result.get("errors") or []:
         print(f"WARN: scrape error: {err}", file=sys.stderr)
+    return 0
+
+
+def _cmd_run_card(args) -> int:
+    """SAND-037: per-run card under reports/SAND-37/<shape>/<specialist>/, or the suite card."""
+    from mailroom_sandbox.job import grid_cards
+
+    if getattr(args, "runbook", None):
+        replicas = 1 if args.runbook == "grid-1l4" else 2
+        paths = grid_cards.write_suite(replicas)
+        print(f"suite card → {paths['md']}")
+        return 0
+    if not getattr(args, "config", None):
+        print("ERROR: --config or --runbook required", file=sys.stderr)
+        return 2
+    from mailroom_sandbox.job import spec as spec_mod
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    spec = spec_mod.load_run_spec(args.config)
+    store = RunStore(spec_mod.runs_root() / spec_mod.resolve_run_id(spec))
+    if not store.load_items():
+        print(f"ERROR: no items for {store.run_id} — run it first", file=sys.stderr)
+        return 2
+    paths = grid_cards.write_card(store)
+    print(f"run card → {paths['md']}")
     return 0
 
 

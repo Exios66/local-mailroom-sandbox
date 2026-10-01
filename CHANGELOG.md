@@ -18,6 +18,15 @@
   `grid-50-contracts-specialist-awq-2l4-rerun`, which leave the executed cells' reports intact); every grid YAML
   is generated from one template.
 
+- SAND-37 score & cost cards (`mailroom_sandbox.job.grid_cards`): every grid run writes
+  `reports/SAND-37/<1L4|2L4>/<specialist>/<run_id>.card.{md,json}` (conditions; run, time, cost, tokens,
+  throughput, latency, per-replica vLLM telemetry, quality and CUAD/MAUD clause scoring; error ledger;
+  per-document rows), and `sandbox run card --runbook grid-1l4|grid-2l4` writes the finalized
+  `L4x1-` / `L4x2-SCORE-COST-CARD.{md,json}` from the committed card JSON. The runner writes the card at the end of
+  each grid run; `sandbox run card --config` re-renders it after the `/metrics` after-scrape, reusing the runner's
+  busy wall. The grid runbooks bracket each start with `scrape-metrics` before/after and end with the suite card
+  (catalog flags `scrape_metrics`, `export_card`).
+
 ### Fixed — SAND-037 runaway decoding on contracts and merger
 
 - Every LengthFinishReasonError on record is a contracts or merger document that used its whole cap (4096, 8192

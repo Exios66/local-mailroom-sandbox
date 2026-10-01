@@ -306,6 +306,21 @@ def render_shell(name: str) -> str:
     # preflight_force re-locks a drifted run_id at preflight (archiving the old
     # generation) so the following start resumes the fresh lock.
     preflight_force = " --force" if runbook.get("preflight_force") else ""
+    # SAND-037: per-run telemetry + card. scrape_metrics brackets each start with
+    # vLLM /metrics snapshots; export_card writes reports/SAND-37/<shape>/<specialist>/.
+    scrape = bool(runbook.get("scrape_metrics"))
+    export_card = bool(runbook.get("export_card"))
+
+    def _run_lines(cfg: str, indent: str) -> list[str]:
+        out = [f"{indent}sandbox run preflight --config {cfg} --live{preflight_force}"]
+        if scrape:
+            out.append(f"{indent}sandbox run scrape-metrics --config {cfg} --label before")
+        out.append(f"{indent}sandbox run start --config {cfg} --job-mode {job_mode} --watch{start_force}")
+        if scrape:
+            out.append(f"{indent}sandbox run scrape-metrics --config {cfg} --label after")
+        if export_card:
+            out.append(f"{indent}sandbox run card --config {cfg}")
+        return out
     lines: list[str] = [
         f"# {runbook.get('title') or runbook['id']}",
         f"# sandbox runbook show {runbook['id']}",
@@ -381,12 +396,7 @@ def render_shell(name: str) -> str:
                 for i, rel in enumerate(rels):
                     cont = " \\" if i < len(rels) - 1 else ""
                     lines.append(f"  {rel}{cont}")
-                lines += [
-                    "do",
-                    f'  sandbox run preflight --config "$cfg" --live{preflight_force}',
-                    f'  sandbox run start --config "$cfg" --job-mode {job_mode} --watch{start_force}',
-                    "done",
-                ]
+                lines += ["do", *_run_lines('"$cfg"', "  "), "done"]
         elif kind == "configs":
             rels = _config_paths(runbook)
             if not rels:
@@ -394,21 +404,13 @@ def render_shell(name: str) -> str:
             lines.append("")
             if len(rels) == 1:
                 cfg = rels[0]
-                lines.append(f'sandbox run preflight --config {cfg} --live{preflight_force}')
-                lines.append(
-                    f"sandbox run start --config {cfg} --job-mode {job_mode} --watch{start_force}"
-                )
+                lines.extend(_run_lines(cfg, ""))
             else:
                 lines.append("for cfg in \\")
                 for i, rel in enumerate(rels):
                     cont = " \\" if i < len(rels) - 1 else ""
                     lines.append(f"  {rel}{cont}")
-                lines += [
-                    "do",
-                    f'  sandbox run preflight --config "$cfg" --live{preflight_force}',
-                    f'  sandbox run start --config "$cfg" --job-mode {job_mode} --watch{start_force}',
-                    "done",
-                ]
+                lines += ["do", *_run_lines('"$cfg"', "  "), "done"]
         elif kind == "teardown":
             after = (
                 "the last config in this track"
