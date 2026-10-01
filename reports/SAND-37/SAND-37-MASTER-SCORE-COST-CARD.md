@@ -2,7 +2,7 @@
 
 **Model:** Qwen/Qwen3-8B-AWQ on vLLM v0.29.0 · **GPU:** NVIDIA L4 at $0.80 per GPU-hour  
 **Data:** public `Lucius-Morningstar/mailroom-dataset` ground_truth @ `ed7576b6`, seed 42; the n = 20 draw is nested in the n = 50 draw, and every n = 50 posture scores the identical documents.  
-**Engine (SAND-37 / SAND-39):** AWQ-Marlin, fp8 KV cache, CUDA graphs, prefix caching, thinking disabled, 8,192-token output cap, frozen v1 prompts; temperature 0.7 for contracts and merger, 0.1 otherwise.  
+**Engine (SAND-37 / SAND-39):** AWQ-Marlin, fp8 KV cache, CUDA graphs, prefix caching, thinking disabled, 8,192-token output cap, frozen prompts (see *Run conditions by specialist*); temperature 0.7 for contracts and merger, 0.1 otherwise.  
 **SAND-40:** one 32K deploy of the same 2×L4 engine at C32. Four specialists run n = 100 on unchanged settings (the n = 50 draw nested inside); merger runs the same 50 agreements as SAND-37 2×L4 with the optimized settings marked † (see *Merger † settings*).
 
 | Study | Posture | GPUs | Client concurrency | Documents per class | Status |
@@ -12,12 +12,24 @@
 | SAND-37 | 2×L4 C32 n=50 | 2 | 32 | 50 | 5 of 5 cells |
 | SAND-40 | 2×L4 C32 n=100 | 2 | 32 | 100 (merger 50†) | 5 of 5 cells |
 
+## Findings
+
+1. **Scaling out to 2×L4 at C32 raises throughput by 99% at unchanged cost per document** (identical 250 documents, SAND-39 1×L4 C8 n=50 vs SAND-37 2×L4 C32 n=50). Cost per document changes by +0.4% and tokens per second per GPU by +1%, so per-GPU efficiency holds and capacity grows with GPU count. GPU count and client concurrency changed together (8 → about 16 in-flight requests per replica), so this comparison does not separate their effects. Median per-document latency rises 1.4–1.8×, and mean time to first token rises from 0.8–2.4 s to 2.7–9.4 s, consistent with requests queueing at the higher per-replica load.
+2. **Running n = 100 per specialist instead of n = 50 lowers GPU cost per document by 19% on the four unchanged specialists** (SAND-37 2×L4 C32 n=50 vs SAND-40 2×L4 C32 n=100, merger excluded; each n = 100 draw contains the n = 50 documents). Tokens per second per GPU change by +22% and documents per minute by +24%. A likely contributor is that each cell's fixed ramp-up and drain time is spread over twice as many documents; the cards do not measure that split directly. 1 of 400 documents failed (0.25%).
+3. **Serving posture has no detectable effect on extraction quality.** On the 230 documents scored successfully under both SAND-39 1×L4 C8 n=50 and SAND-37 2×L4 C32 n=50, the mean per-document score change for each specialist ranges from −0.011 to +0.023; on the 190 documents the four unchanged specialists share between SAND-37 n = 50 and SAND-40 n = 100, it ranges from −0.017 to +0.016. Every 95% confidence interval includes zero; the widest is ±0.041, so smaller effects cannot be ruled out. Unmatched means across all postures differ by at most 0.026 for field scores and 0.029 for contracts CUAD F1. Contracts and merger sample at temperature 0.7, so their outputs vary from run to run.
+4. **All 16 errors are output-cap truncations: the model reached the 8,192-token limit before closing the JSON** (contracts 1/20, 3/50, 1/50, 1/100; merger agreements 2/20, 4/50, 4/50; cells with errors, in posture order). No errors arose from infrastructure, authentication or JSON parsing. Failed documents are excluded from scores and token totals; the GPU time they used is included in cost.
+5. **Merger agreements are the principal quality gap on the frozen settings.** The median agreement is 381,761 characters, about 13× the 30,000-character input cap (head plus tail), so the frozen settings read under a tenth of a typical agreement. The model answers only 13%–24% of labeled MAUD questions, with 10%–20% precision on those answered, and serving posture does not change that.
+6. **The † merger settings raise MAUD accuracy from 0.035 to 0.140 on the same 50 agreements.** Question coverage rises 23% → 69% and precision on answered questions 15% → 20%; 50 of 50 agreements return a result (46 before). On the 46 agreements scored under both, the mean per-agreement score changes by +0.106 (95% CI +0.079 to +0.133; 35 better, 1 worse, 10 unchanged). This is the like-for-like figure: the pooled accuracies use different denominators (747 vs 817 labeled questions) because the frozen settings lost agreements to the output cap. The † cell changes input, prompt, sampling, output cap and re-sampling together, so this run does not attribute the gain to any one of them. The cost: prompt tokens per agreement rise 11×, GPU cost per agreement $0.0033 → $0.0147 (4.5×) and median latency 92 s → 1,044 s. vLLM recorded 23 length-capped finishes over 418 requests and 8 preemptions; the preemptions indicate KV-cache pressure from ~50,000-character sections at C32. Those two are the first places to look for cost and latency savings.
+7. **Fixed instructions, not document text, account for most tokens in the short classes.** By the estimate in *Token composition*, the instructions and template are 75% of a correspondence document's tokens and 73% of an insurance claim's (2,193 and 2,702 tokens per call). Prefix caching already reuses part of that prefix (hit rate 35%–40% in SAND-40). A shorter template, or several short documents per call, would cut these classes' token cost; neither has been tested.
+8. **Correspondence scores are low and widely spread** (mean 0.33–0.34, standard deviation 0.19–0.24, across all postures). The score does not move with serving posture, so the cause most likely sits in the prompt, the ground truth or the scorer. It has not been diagnosed yet and is the next item to review.
+9. **Most insurance-claims outputs fail strict schema validation** (schema-valid rate 0.20–0.30; corporate records 0.94–0.97; contracts, merger and correspondence 1.00), although insurance claims has the highest field score of the field-scored classes (0.67–0.69). A strict-schema consumer would reject 70%–80% of these outputs. Contracts and merger request structured output against their JSON schema (LangChain `with_structured_output`) and validate at 1.00; moving insurance claims to the same call mode is the likely fix and has not been tested.
+
 ## Serving efficiency (pooled across the five specialists)
 
 | Metric | SAND-37 1×L4 C8 n=20 | SAND-39 1×L4 C8 n=50 | SAND-37 2×L4 C32 n=50 | SAND-40 2×L4 C32 n=100 |
 | --- | ---: | ---: | ---: | ---: |
 | Documents ok / total | 97 / 100 | 243 / 250 | 245 / 250 | 449 / 450 |
-| Error rate | 3.0% | 2.8% | 2.0% | 0.2% |
+| Error rate | 3.0% | 2.8% | 2.0% | 0.22% |
 | Throughput (documents per minute) | 8.74 | 10.40 | 20.71 | 11.86 |
 | Throughput (tokens per second per GPU) | 812 | 1,002 | 1,013 | 1,662 |
 | GPU cost per document | $0.00153 | $0.00128 | $0.00129 | $0.00225 |
@@ -28,6 +40,8 @@
 | Length-capped finishes (vLLM) | 3 | 7 | 5 | 24 |
 | Preemptions (vLLM) | 0 | 0 | 0 | 8 |
 
+Token counts cover successful documents only. The 16 failed documents (see *Findings*) are in busy time and cost but not in token totals, so tokens per second read slightly low and cost per 1M tokens slightly high for postures with failures.
+
 The SAND-40 column includes the † merger cell, which reads whole agreements and takes most of the posture's busy time, so its pooled throughput and cost per document are not a serving comparison. The like-for-like check is below.
 
 ### Scale check: four unchanged specialists (merger excluded)
@@ -35,7 +49,7 @@ The SAND-40 column includes the † merger cell, which reads whole agreements an
 | Metric | SAND-37 2×L4 C32 n=50 | SAND-40 2×L4 C32 n=100 | Change |
 | --- | ---: | ---: | ---: |
 | Documents ok / total | 199 / 200 | 399 / 400 | — |
-| Error rate | 0.5% | 0.2% | — |
+| Error rate | 0.50% | 0.25% | — |
 | Throughput (documents per minute) | 31.29 | 38.85 | +24% |
 | Throughput (tokens per second per GPU) | 1,296 | 1,582 | +22% |
 | GPU cost per document | $0.00085 | $0.00069 | −19% |
@@ -87,7 +101,7 @@ Prompt tokens split into the instructions and template (system prompt, schema, f
 
 ## Per-cell detail
 
-One table per posture. Latency is per successful document; tokens per document is prompt plus completion over all documents; busy GPU $ is the cell's busy wall × GPUs × $0.80 per GPU-hour.
+One table per posture. Latency, tokens per document and completion p95 / max cover successful documents (the run store records no token counts for a failed document); busy GPU $ is the cell's busy wall × GPUs × $0.80 per GPU-hour and includes the time failed documents used.
 
 ### SAND-37 1×L4 C8 n=20
 
@@ -174,22 +188,11 @@ Before the scale run, two probes tested optimized long-document settings (64K Ya
 
 | Specialist | Window | Input cap (chars) | ok / n | Score | Matched docs | Probe mean | SAND-37 2×L4 same docs | Δ (better / worse) | Prompt tokens per doc: probe vs SAND-37 | Wall (s) | Busy GPU $ | $ per ok doc |
 | --- | ---: | ---: | :---: | ---: | :---: | ---: | ---: | :---: | ---: | ---: | ---: | ---: |
-| Contracts | 65,536 | 128,000 | 20/20 | 0.670 | 16 | 0.661 | 0.664 | -0.002 (8 / 7) | 7,144 vs 6,128 | 105.6 | $0.0469 | $0.00235 |
+| Contracts | 65,536 | 128,000 | 20/20 | 0.670 | 16 | 0.661 | 0.664 | −0.002 (8 / 7) | 7,144 vs 6,128 | 105.6 | $0.0469 | $0.00235 |
 | Merger Agreements | 65,536 | 128,000 | 20/20 | 0.127 | 18 | 0.114 | 0.033 | +0.081 (14 / 3) | 96,478 vs 8,371 | 1,473.0 | $0.6547 | $0.03273 |
 
 Score is the specialist's primary metric (contracts labeled-document CUAD F1, merger MAUD accuracy); the matched columns use per-document scores. Probe cards and run reports: `probes/<specialist>/`.
 
-## Findings
-
-1. **Scaling out to 2×L4 at C32 raises throughput by +99% at unchanged cost per document** (identical 250 documents, SAND-39 1×L4 C8 n=50 vs SAND-37 2×L4 C32 n=50). Moving from 1×L4 C8 n=50 to 2×L4 C32 n=50 changes cost per document by +0%, tokens per second per GPU by +1%, and pooled documents per minute by +99%, so capacity scales near-linearly with GPU count. Median per-document latency rises by a factor of 1.4–1.8×, reflecting per-replica queueing at the higher concurrency.
-2. **Doubling the batch to n = 100 keeps quality and cuts cost per document on the four unchanged specialists** (SAND-37 2×L4 C32 n=50 vs SAND-40 2×L4 C32 n=100, merger excluded; each n = 100 draw contains the n = 50 documents). Cost per document changes by −19%, tokens per second per GPU by +22% and documents per minute by +24%: a longer queue keeps both replicas fuller. 1 of 400 documents failed (0.2%).
-3. **Extraction quality is independent of serving posture.** Field scores differ by at most 0.029 across postures; CUAD F1 differs by 0.018, consistent with sampling variation rather than any change in model output.
-4. **All 16 errors are output-cap truncations: the model reached the 8,192-token limit before closing the JSON** (contracts 1/20, 3/50, 1/50, 1/100; merger agreements 2/20, 4/50, 4/50). No errors arose from infrastructure, authentication or JSON parsing.
-5. **Merger agreements are the principal quality gap on the frozen settings.** Source agreements far exceed the 30,000-character input window (head plus tail), so the model answers only 13%–24% of labeled MAUD questions, with 10%–20% precision on those answered. Serving posture does not move it; the input strategy does (next finding).
-6. **The † merger settings raise MAUD accuracy 4.0× on the same 50 agreements** (0.035 → 0.140; question coverage 23% → 69%; precision on answered 15% → 20%; 46/50 → 50/50 ok; 35 agreements better and 1 worse, mean +0.106). Reading the whole agreement is the cost: prompt tokens per agreement rise 12×, cost per agreement $0.0033 → $0.0147 (4.5×) and median latency 92 s → 1,044 s. 23 section calls reached the 6,144-token cap (each gets one re-sample; every agreement still completed), and 8 preemptions show KV-cache pressure from ~50,000-character sections at C32. Salvaging truncated output and stopping repeat loops early is the next lever on that cost.
-7. **Instructions, not documents, dominate the short classes.** The fixed instructions and template are 75% of a correspondence document's tokens and 73% of an insurance claim's (2,193 and 2,702 tokens per call). Prefix caching already reuses part of that prefix; a shorter template, or batching several short documents per call, is the direct cost lever for these classes (see *Token composition*).
-8. **Correspondence field scores are low and dispersed** (mean 0.33–0.34, standard deviation 0.19–0.24). Stability across postures points to prompt or scorer alignment rather than serving; it is the next candidate for review.
-9. **Schema conformance is incomplete for insurance claims** (schema-valid rate 0.20–0.30; corporate records 0.94–0.97; 1.00 for contracts, merger and correspondence). Its content scores well, but strict-schema consumers would reject most outputs; grammar-constrained decoding, as already used for contracts and merger, is the direct remedy.
 
 ## Figures: posture comparison
 
@@ -226,7 +229,8 @@ Score is the specialist's primary metric (contracts labeled-document CUAD F1, me
 - **SAND-40 2×L4 C32 n=100:** busy-window GPU $1.01 across 450 documents.
 - **SAND-37 metered Modal total:** $1.09 ($0.00 billed after credits). Covers both SAND-37 postures plus cold boots, pinned-warm idle between cells, the weight pre-warm, and one invalidated contracts attempt (client credential-precedence defect, SAND-038; excluded and rerun).
 - **SAND-39 metered Modal total:** $0.49 ($0.00 billed after credits). One 1×L4 session: weight pre-warm, cold boot, the five cells pinned warm, and teardown. October month-to-date metering ($1.42) less the SAND-37 October hours ($0.93).
-- **Teardown** is verified after each posture, with zero containers left warm.
+- **SAND-40 metered Modal total:** not yet recorded; the busy-window figures above are the GPU cost of the cells themselves.
+- **Teardown** to zero warm containers is part of every posture's runbook; the metered totals above come from the teardown spend check.
 - **Comparability:** SAND-39 and the SAND-37 2×L4 leg score identical n = 50 documents and differ only in GPU count and client concurrency; the SAND-37 1×L4 leg is a nested n = 20 subset. SAND-40 runs the same 2×L4 engine; its n = 100 draws contain the n = 50 documents, and its merger cell scores the same 50 agreements with the † settings.
 
 **Source data:** per-cell score and cost cards, run reports and vLLM serving telemetry under `1L4/<specialist>/` and `2L4/<specialist>/`; posture suite cards `1L4/L4x1-SCORE-COST-CARD.md` and `2L4/L4x2-SCORE-COST-CARD.md`. Regenerate with `sandbox run card --master`.
