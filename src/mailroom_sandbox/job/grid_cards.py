@@ -97,10 +97,10 @@ def _error_kind(error: Any) -> str:
 
 
 def _probe_run(run_id: str) -> bool:
-    """True for a SAND-40 validation probe. Those cards are not scorecard cells."""
-    from mailroom_sandbox.job.specialist_posture import SAND40_PROBE_CELLS
+    """True for a SAND-40 validation probe or gate check. Those cards are not scorecard cells."""
+    from mailroom_sandbox.job.specialist_posture import SAND40_CHECK_CELLS, SAND40_PROBE_CELLS
 
-    return run_id in SAND40_PROBE_CELLS
+    return run_id in SAND40_PROBE_CELLS or run_id in SAND40_CHECK_CELLS
 
 
 def card_dir(task: str, replicas: int, *, repo: Path | None = None, run_id: str | None = None) -> Path:
@@ -608,13 +608,84 @@ def _sampling_rows(cond: Mapping[str, Any]) -> list[str]:
     return rows
 
 
+# ── SAND-040 chunk gate ──────────────────────────────────────────────────────
+
+
+def _vendor_split_chunks():
+    """The pipeline's own splitter, so the gate counts exactly the windows the agent sends."""
+    from mailroom_sandbox.runtime import _prepend_sys_path, resolve_mailroom_src
+
+    src = resolve_mailroom_src()
+    if src is not None:
+        _prepend_sys_path(src)
+    from langchain_agents.specialist_agents import _SpecialistBase  # type: ignore
+
+    return _SpecialistBase._split_chunks
+
+
+def expected_chunks(rows: list[Mapping[str, Any]], knobs: Mapping[str, Any], split=None) -> list[int]:
+    """Requests each document needs under the run's chunk knobs (1 when it fits one window)."""
+    from mailroom_sandbox.eval.agents import _doc_text, chunk_window
+
+    window, overlap = chunk_window(
+        int(knobs["max_input_chars"]), int(knobs["chunk_chars"]), int(knobs.get("overlap_chars") or 8_000)
+    )
+    split = split or _vendor_split_chunks()
+    return [len(split(_doc_text(dict(r)), window, overlap)) for r in rows]
+
+
+def chunk_gate(store: RunStore, *, split=None) -> list[str]:
+    """Errors when a chunked run may have lost windows; empty means the gate passes.
+
+    ``extract_chunked`` skips a chunk whose call fails (for example a request vLLM rejects for
+    exceeding the window), so a document can be ok with part of its text unread. vLLM counts
+    only accepted requests: with every chunk accepted, requests − length-capped finishes
+    (each allows at most one re-sample) is at least the number of chunks the documents need.
+    """
+    from mailroom_sandbox.job.specialist_posture import posture_for_run
+
+    knobs = posture_for_run(store.run_id) or {}
+    if not knobs.get("chunk_chars"):
+        return [f"{store.run_id}: not a chunked run"]
+    card = collect_card(store)
+    q = card["quality"]
+    errors: list[str] = []
+    if q["errors"] or q["ok"] != card["n"]:
+        errors.append(f"documents ok {q['ok']}/{card['n']} (errors {q['errors']}: {q.get('error_kinds') or {}})")
+    if q.get("parse_errors"):
+        errors.append(f"parse errors {q['parse_errors']}")
+    tel = card.get("engine_telemetry") or {}
+    reps = tel.get("replicas") or []
+    if not tel.get("captured") or not reps:
+        errors.append("vLLM telemetry not captured (run scrape-metrics before and after)")
+        return errors
+    rows = store.dataset_rows()
+    if len(rows) != card["n"]:
+        errors.append(f"dataset rows {len(rows)} != n {card['n']}")
+        return errors
+    need = sum(expected_chunks(rows, knobs, split))
+    requests = sum(r.get("requests") or 0 for r in reps)
+    capped = sum(r.get("length_finishes") or 0 for r in reps)
+    if requests - capped < need:
+        errors.append(
+            f"vLLM accepted {requests:.0f} requests ({capped:.0f} length-capped) but the documents need "
+            f"{need} chunk calls; some chunks were rejected or lost"
+        )
+    return errors
+
+
 def maybe_write_card(store: RunStore, **kwargs: Any) -> dict[str, Path]:
     """Runner hook: grid and SAND-040 cells, never fails the scored job."""
-    from mailroom_sandbox.job.specialist_posture import GRID_CELLS, SAND40_CELLS, SAND40_PROBE_CELLS
+    from mailroom_sandbox.job.specialist_posture import (
+        GRID_CELLS,
+        SAND40_CELLS,
+        SAND40_CHECK_CELLS,
+        SAND40_PROBE_CELLS,
+    )
 
     try:
         lock = store.read_lock() or {}
-        if str(lock.get("run_id") or store.run_id) not in (GRID_CELLS | SAND40_CELLS | SAND40_PROBE_CELLS):
+        if str(lock.get("run_id") or store.run_id) not in (GRID_CELLS | SAND40_CELLS | SAND40_PROBE_CELLS | SAND40_CHECK_CELLS):
             return {}
         if _d(lock.get("job")).get("mock") or not store.load_items():
             return {}

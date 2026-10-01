@@ -406,6 +406,20 @@ def render_shell(name: str) -> str:
             rels = _config_paths(runbook)
             if not rels:
                 continue
+            gate = _gate_config(runbook)
+            if gate:
+                # A gate cell runs first on the same deploy; a failure tears the fleet down.
+                run = [ln for ln in _run_lines(gate, "") if not ln.startswith("sandbox run card ")]
+                lines += [
+                    "",
+                    f"# gate: {Path(gate).stem} must pass before the scored cells",
+                    *run,
+                    f"if ! sandbox run card --config {gate} --gate; then",
+                    '  echo "gate failed: tearing down without running the scored cells" >&2',
+                    f"  {teardown}",
+                    "  exit 1",
+                    "fi",
+                ]
             lines.append("")
             if len(rels) == 1:
                 cfg = rels[0]
@@ -551,6 +565,9 @@ def render_markdown(name: str) -> str:
     configs = [str(p) for p in (runbook.get("configs") or [])]
     if configs and not suite_name:
         lines += ["## Configs", ""]
+        gate = _gate_config(runbook)
+        if gate:
+            lines.append(f"- Gate, runs first: `{gate}` (`sandbox run card --gate` must pass)")
         for rel in configs:
             lines.append(f"- `{rel}`")
         lines.append("")
@@ -767,8 +784,15 @@ def _phase_views(runbook: Mapping[str, Any]) -> list[dict[str, Any]]:
     return views
 
 
+def _gate_config(runbook: Mapping[str, Any]) -> str | None:
+    gate = runbook.get("gate") or {}
+    return str(gate["config"]) if isinstance(gate, Mapping) and gate.get("config") else None
+
+
 def _cited_configs(runbook: Mapping[str, Any]) -> list[str]:
     rels = [str(r) for r in (runbook.get("configs") or [])]
+    if _gate_config(runbook):
+        rels.append(_gate_config(runbook))
     for phase in runbook.get("phases") or []:
         if isinstance(phase, Mapping):
             rels.extend(str(r) for r in (phase.get("configs") or []))
@@ -843,7 +867,7 @@ def _deploy_env_drift_one(runbook: Mapping[str, Any]) -> list[str]:
 
     exports = env_exports(runbook)
     errors: list[str] = []
-    for rel in runbook.get("configs") or []:
+    for rel in [*(runbook.get("configs") or []), *filter(None, [_gate_config(runbook)])]:
         want = spec_env(load_run_spec(repo_root() / str(rel)))
         for key, value in sorted(want.items()):
             have = exports.get(key, "")

@@ -1,9 +1,15 @@
-# SAND-040 scale run — merger_agreement_specialist · n=100 · 2×L4 · C32 (16 per replica) · one 32K deploy, SAND-037 spec unchanged.
-# Same dataset/prompt blocks as grid-50-merger-specialist-awq-2l4 except n.
-# Decode: max_tokens 8192 + temperature 0.7 via start-time SANDBOX_AGENT_KNOBS (JSON-schema grammar class).
+# SAND-040 † merger cell — merger_agreement_specialist · n=50 · 2×L4 · C32 · optimized settings on 32K.
+# Same 50 agreements as grid-50-merger-specialist-awq-2l4 (seed 42, rev ed7576b6); differences:
+#   input   = chunked whole-document extraction (the pipeline's own pass): max_input_chars 54000,
+#             47,000-char windows + 6,500-char overlap, deterministic merge — instead of a 30,000-char head+tail
+#   decode  = max_tokens 6144, temperature 0.7, top_p 0.8, top_k 20, presence_penalty 1.0,
+#             one re-sample on LengthFinishReasonError (start-time SANDBOX_AGENT_KNOBS)
+#   prompt  = merger_agreement_specialist_maud_v1 (MAUD answer catalog)
+#   engine  = the same 32K 2×L4 deploy as the other SAND-40 cells (no 64K, no redeploy)
+# Runs after the 5-agreement gate (sand40-check-5-merger-specialist-awq-2l4) passes.
 # Runbook: sandbox runbook show sand40
 schema: sandbox.run/v1
-run_id: sand40-100-merger-specialist-awq-2l4
+run_id: sand40-50-merger-specialist-awq-2l4
 task: merger_agreement_specialist
 profile: modal-vllm
 
@@ -12,7 +18,7 @@ prompt:
   agents:
     merger_agreement_specialist:
       source: local
-      file: merger_agreement_specialist_simplified
+      file: merger_agreement_specialist_maud_v1
 
 dataset:
   provider: huggingface
@@ -22,8 +28,8 @@ dataset:
   revision: ed7576b676343e0b402ec5412cded301e629bdee
   strata:
     buckets:
-      - {doc_class: merger_agreement, count: 100}   # single class bucket → nested 20 ⊂ 50 ⊂ 100 (seed 42)
-  limit: 100
+      - {doc_class: merger_agreement, count: 50}   # single class bucket, seed 42 → the SAND-37 2×L4 agreements
+  limit: 50
   sample_seed: 42
 
 engine:
@@ -56,8 +62,8 @@ job:
   max_retries: 2
   fail_fast: false
   concurrency: 32
-  cost_cap_usd: 1.2
-  max_wall_seconds: 3600
+  cost_cap_usd: 2.5
+  max_wall_seconds: 5400
 
 trace:
   sink: none

@@ -57,10 +57,19 @@ def test_master_ignores_legacy_cells(tmp_path):
     assert cards["contracts"]["run_id"] == "grid-50-contracts-specialist-awq-2l4-rerun"
 
 
-def test_sand40_column_is_pending_at_n100_without_optimized_marks():
+def test_sand40_column_is_pending_with_the_optimized_merger_mark():
     md = grid_master.render_master_md(grid_master.collect_master())
-    assert "| SAND-40 | 2×L4 C32 n=100 | 2 | 32 | 100 | pending |" in md
-    assert "†" not in md
+    assert "| SAND-40 | 2×L4 C32 n=100 | 2 | 32 | 100 (merger 50†) | pending |" in md
+    assert "pending†" in md
+
+
+def test_merger_settings_table_shows_what_the_dagger_changes():
+    md = grid_master.render_master_md(grid_master.collect_master())
+    assert "## Merger † settings" in md
+    assert "| Serving window | 32,768 tokens on 2×L4 | 32,768 tokens on 2×L4 |" in md
+    assert "| **Input** | head + tail, 30,000 chars (rest of the agreement unread) | **whole agreement, chunked: 47,000-char" in md
+    assert "**`merger_agreement_specialist_maud_v1`**" in md
+    assert "| Result | MAUD accuracy 0.035, coverage 23%, 46/50 ok" in md
 
 
 def test_committed_master_card_is_current():
