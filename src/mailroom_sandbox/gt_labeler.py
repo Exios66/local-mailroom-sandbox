@@ -612,10 +612,15 @@ def build_cuad_messages(target: Mapping[str, Any]) -> list[dict[str, str]]:
         "- Highlight the short operative span: the date, the party names, or "
         "the sentence that states the clause. Do not paste an entire article "
         "or the whole document.\n"
+        "- Markdown emphasis marks (* and _) may wrap words in the filing. "
+        "Copy the words themselves.\n"
         "- Omit categories that are absent. Do not invent a clause the text "
         "does not contain.\n"
-        "- A real contract almost always has Document Name and Parties. "
-        "Include those when the text states them.\n"
+        "- Document Name is the title in the opening lines: the exhibit "
+        "heading, letter agreement, or amendment title. Parties are the named "
+        "person and company in the salutation and the first paragraph, "
+        "including a letter that addresses someone as you. Copy those when "
+        "they are printed.\n"
         "- If you were shown only the head and the tail, annotate only those "
         "excerpts."
     )
@@ -633,12 +638,14 @@ def build_cuad_messages(target: Mapping[str, Any]) -> list[dict[str, str]]:
     ]
 
 
-def _norm_index(text: str) -> tuple[str, list[int]]:
+def _norm_index(text: str, skip: str = "") -> tuple[str, list[int]]:
     """Collapse whitespace and remember the original index of each kept char."""
     chars: list[str] = []
     indexes: list[int] = []
     pending_space: int | None = None
     for index, char in enumerate(text):
+        if char in skip:
+            continue
         if char.isspace():
             if pending_space is None and chars:
                 pending_space = index
@@ -650,6 +657,28 @@ def _norm_index(text: str) -> tuple[str, list[int]]:
         chars.append(char)
         indexes.append(index)
     return "".join(chars), indexes
+
+
+def _slice_folded(
+    document: str,
+    folded: str,
+    indexes: list[int],
+    wanted: str,
+) -> tuple[int, str] | None:
+    wanted = wanted.strip()
+    if len(wanted) < 2 or not indexes:
+        return None
+    at = folded.find(wanted)
+    if at < 0:
+        return None
+    start = indexes[at]
+    end = indexes[at + len(wanted) - 1] + 1
+    sliced = document[start:end]
+    if len(sliced) > MAX_CUAD_SPAN_CHARS:
+        return None
+    if len(sliced) > max(len(wanted) * 3, len(wanted) + 80):
+        return None
+    return start, sliced
 
 
 def locate_verbatim(document: str, text: str) -> tuple[int, str] | None:
@@ -668,20 +697,15 @@ def locate_verbatim(document: str, text: str) -> tuple[int, str] | None:
         return exact, document[exact:exact + len(taken)]
     folded, indexes = _norm_index(document)
     wanted, _ = _norm_index(snippet)
-    wanted = wanted.strip()
-    if len(wanted) < 2:
-        return None
-    at = folded.find(wanted)
-    if at < 0:
-        return None
-    start = indexes[at]
-    end = indexes[at + len(wanted) - 1] + 1
-    sliced = document[start:end]
-    if len(sliced) > MAX_CUAD_SPAN_CHARS:
-        return None
-    if len(sliced) > max(len(wanted) * 3, len(wanted) + 80):
-        return None
-    return start, sliced
+    hit = _slice_folded(document, folded, indexes, wanted)
+    if hit is not None:
+        return hit
+    # Filings converted from EDGAR HTML wrap words in markdown emphasis.
+    # A span that copies the words and drops * / _ still snaps onto the
+    # document's own characters, emphasis marks included.
+    folded, indexes = _norm_index(document, skip="*_")
+    wanted, _ = _norm_index(snippet, skip="*_")
+    return _slice_folded(document, folded, indexes, wanted)
 
 
 def _clause_items(payload: Mapping[str, Any]) -> list[tuple[str, str]]:
