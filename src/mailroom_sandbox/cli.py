@@ -1895,6 +1895,10 @@ def _cmd_run_card(args) -> int:
         print(f"master card → {paths['md']} (+ appendix {paths['appendix']})")
         reader = write_reader()
         print(f"reader report → {reader['md']} (+ notebook {reader['ipynb']})")
+        if reader["pdf"]:
+            print(f"reader PDF → {reader['pdf']}")
+        else:
+            print("reader PDF skipped: Chrome not found (set SANDBOX_CHROME); READER-REPORT.pdf is now stale")
         return 0
     if getattr(args, "runbook", None):
         replicas = 1 if args.runbook == "grid-1l4" else 2
