@@ -43,7 +43,7 @@ def test_sand39_pending_before_its_cells_exist(tmp_path):
 def test_sand39_populates_and_becomes_the_matched_sample_baseline(tmp_path):
     md = grid_master.render_master_md(grid_master.collect_master(_seed(tmp_path, True)))
     assert "| SAND-39 | 1×L4 C8 n=50 | 1 | 8 | 50 | 5 of 5 cells |" in md
-    assert "identical 250 documents, SAND-39 1×L4 C8 n=50 vs SAND-37 2×L4 C32 n=50" in md
+    assert "identical 250 documents" in md
     assert "SAND-39 pending" not in md
 
 
@@ -61,13 +61,13 @@ def test_sand40_column_is_measured_with_the_optimized_merger_mark():
     md = grid_master.render_master_md(grid_master.collect_master())
     assert "| SAND-40 | 2×L4 C32 n=100 | 2 | 32 | 100 (merger 50†) | 5 of 5 cells |" in md
     assert ")†" in md  # merger score carries the dagger
-    # like-for-like scale check excludes the † merger cell
-    assert "### Scale check: four unchanged specialists (merger excluded)" in md
-    assert "| Documents ok / total | 199 / 200 | 399 / 400 | — |" in md
+    assert "pending" not in md.lower().split("quality and cost")[1]
     assert "**Running n = 100 per specialist instead of n = 50" in md
     assert "**The † merger settings raise MAUD accuracy" in md
-    # the frozen-settings gap no longer quotes the † coverage
-    assert "answers only 13%–24% of labeled MAUD questions" in md
+    appendix = grid_master.render_appendix_md(grid_master.collect_master())
+    assert "### Scale check: four unchanged specialists (merger excluded)" in appendix
+    assert "| Documents ok / total | 199 / 200 | 399 / 400 | — |" in appendix
+    assert "answers only 13%–24% of labeled MAUD questions" in appendix
 
 
 def test_pooled_four_requires_all_four_unchanged_specialists():
@@ -87,9 +87,28 @@ def test_merger_settings_table_shows_what_the_dagger_changes():
 
 
 def test_committed_master_card_is_current():
-    """The committed master card must match a fresh render (regenerate with `sandbox run card --master`)."""
+    """Committed master + appendix must match a fresh render (regenerate with `sandbox run card --master`)."""
     committed = (SAND37 / f"{grid_master.MASTER_STEM}.md").read_text(encoding="utf-8")
     assert committed == grid_master.render_master_md(grid_master.collect_master())
+    appendix = (SAND37 / f"{grid_master.APPENDIX_STEM}.md").read_text(encoding="utf-8")
+    assert appendix == grid_master.render_appendix_md(grid_master.collect_master())
+
+
+def test_master_stays_executive_length():
+    """The master card is a two-page executive summary; detail lives in the appendix."""
+    md = grid_master.render_master_md(grid_master.collect_master())
+    assert len(md.splitlines()) <= grid_master.EXECUTIVE_MAX_LINES
+    for heading in (
+        "## Per-cell detail",
+        "## Clause scoring detail",
+        "## Engine telemetry",
+        "## Run conditions by specialist",
+        "## SAND-40 validation probes",
+        "## Figures: posture comparison",
+        "## Appendix: posture dashboards",
+    ):
+        assert heading not in md
+    assert f"{grid_master.APPENDIX_STEM}.md" in md
 
 
 def test_record_metered_round_trips(tmp_path):
@@ -110,7 +129,7 @@ def test_figures_embed_in_master_and_matched_panel_waits_for_sand39(tmp_path):
     assert {"cmp-efficiency", "cmp-quality", "cmp-latency-cost", "cmp-matched", "posture-s39-1l4-n50"} <= {
         s["key"] for s in specs
     }
-    md = grid_master.render_master_md(after)
+    md = grid_master.render_appendix_md(after)
     assert "](figures/cmp-matched.png)" in md
     assert "](2L4/figures/SAND-37-2xL4-C32-n50.png)" in md
     assert "](1L4/figures/SAND-39-1xL4-C8-n50.png)" in md
@@ -119,7 +138,8 @@ def test_figures_embed_in_master_and_matched_panel_waits_for_sand39(tmp_path):
 def test_write_master_renders_every_linked_figure(tmp_path):
     repo = _seed(tmp_path, True)
     paths = grid_master.write_master(repo)
-    md = paths["md"].read_text()
+    md = paths["appendix"].read_text()
+    assert grid_master.APPENDIX_STEM in str(paths["appendix"])
     from mailroom_sandbox.job import grid_figures
 
     for spec in grid_figures.figure_specs(grid_master.collect_master(repo)):
@@ -129,20 +149,21 @@ def test_write_master_renders_every_linked_figure(tmp_path):
 
 
 def test_master_is_fully_detailed():
-    md = grid_master.render_master_md(grid_master.collect_master())
+    md = grid_master.render_appendix_md(grid_master.collect_master())
     for heading in (
         "## Per-cell detail",
         "### SAND-37 1×L4 C8 n=20",
         "### SAND-39 1×L4 C8 n=50",
         "### SAND-37 2×L4 C32 n=50",
+        "### SAND-40 2×L4 C32 n=100",
         "## Clause scoring detail",
         "## Engine telemetry (vLLM /metrics, this run's delta)",
         "## Run conditions by specialist",
-        "## SAND-40 validation probes (n = 20, not pooled)",
     ):
         assert heading in md
-    # contracts is labeled as what it is: CUAD presence F1 over labeled documents
-    assert "| Contracts | CUAD presence F1: labeled-document mean (micro) |" in md
+    # contracts is defined as what it is: CUAD presence F1 over labeled documents
+    assert "per-document CUAD clause-presence F1 averaged over the successful documents" in md
+    assert "## Quality and cost by specialist" not in md  # the scorecard lives on the master only
     assert "| SAND-37 2×L4 C32 n=50 | 40 of 49 ok |" in md
 
 
@@ -150,9 +171,8 @@ def test_probes_are_reported_matched_but_never_pooled():
     data = grid_master.collect_master()
     assert set(data["probes"]) == {"contracts", "merger_agreement"}
     assert all("probe" not in c["run_id"] for p in data["cards"].values() for c in p.values())
-    md = grid_master.render_master_md(data)
-    row = next(line for line in md.splitlines() if line.startswith("| Merger Agreements | 65,536 |"))
-    assert "| 18 | 0.114 | 0.033 | +0.081 (14 / 3) |" in row
+    for md in (grid_master.render_master_md(data), grid_master.render_appendix_md(data)):
+        assert "validation probes" not in md and "65,536" not in md
 
 
 def test_dagger_figure_and_markers_follow_the_sand40_merger_cell():
@@ -163,7 +183,7 @@ def test_dagger_figure_and_markers_follow_the_sand40_merger_cell():
     assert "cmp-merger-dagger" in specs
     assert "†" in specs["cmp-quality"]["caption"] and "†" in specs["cmp-latency-cost"]["caption"]
     assert ("s40-2l4", "merger_agreement") in grid_figures.DAGGER
-    md = grid_master.render_master_md(data)
+    md = grid_master.render_appendix_md(data)
     assert "](figures/cmp-merger-dagger.png)" in md
 
 
@@ -192,7 +212,7 @@ def test_master_reports_token_composition_and_figure():
     from mailroom_sandbox.job import grid_figures
 
     data = grid_master.collect_master()
-    md = grid_master.render_master_md(data)
+    md = grid_master.render_appendix_md(data)
     assert "## Token composition" in md
     assert "| Merger Agreements † (SAND-40) |" in md
     assert "**Fixed instructions, not document text, account for most tokens in the short classes.**" in md
