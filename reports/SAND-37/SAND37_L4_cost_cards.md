@@ -4,7 +4,7 @@
 **Model** `Qwen/Qwen3-8B-AWQ` · **vLLM** `v0.29.0` · **GPU** NVIDIA L4 @ **$0.80/GPU-hr** · **Data** `Lucius-Morningstar/mailroom-dataset` ground_truth @ `ed7576b6`, seed 42 (n=20 ⊂ n=50 ⊂ n=100).
 
 **Checks:** busy GPU $ = wall × replicas × $0.80 ÷ 3,600 in all 20 cards. Field-score means and MAUD accuracies match the master card to 3 dp.
-**GPU hardware telemetry (utilization, power, temperature, memory) is not in any L4 card.** The Modal vLLM path scrapes only vLLM `/metrics` and does not sample nvidia-smi. See *GPU hardware telemetry* (§11) in the record, [`SAND37_L4_cost_record.md`](./SAND37_L4_cost_record.md).
+**GPU hardware telemetry (utilization, power, temperature, memory) is not in any L4 card.** The Modal vLLM path scrapes only vLLM `/metrics` and does not sample nvidia-smi. Record: [`SAND37_L4_cost_record.md`](./SAND37_L4_cost_record.md).
 
 ---
 
