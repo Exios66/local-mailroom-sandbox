@@ -1,4 +1,4 @@
-# SAND-37 — 1× L4 · C8 score & cost card
+# 1× L4 · C8 score & cost card (Experiments 1–2)
 
 **Cells reported:** 10 of 10 · **Runbook:** `grid-1l4` · **Model:** Qwen/Qwen3-8B-AWQ · L4 @ $0.80/GPU-hr
 
@@ -28,6 +28,16 @@
 | Tokens / second (pooled) | 812.0 | 1,002.3 | 940.9 |
 | Tokens / second per L4 | 812.0 | 1,002.3 | 940.9 |
 | Documents / minute (pooled) | 8.74 | 10.40 | 9.86 |
+
+## Figures
+
+![Cost per 1,000 ok documents, Experiment 2 (1x L4 C=8 n=50)](../figures/record/1xL4-C8-n50-cost.png)
+
+![Latency p50 to p99, Experiment 2 (1x L4 C=8 n=50)](../figures/record/1xL4-C8-n50-latency.png)
+
+![Cost per 1,000 ok documents, 1x vs 2x L4 on the same 250 documents](../figures/record/1x-vs-2xL4-cost.png)
+
+![Throughput, 1x vs 2x L4 on the same 250 documents](../figures/record/1x-vs-2xL4-throughput.png)
 
 ## Per specialist · n = 20
 
@@ -114,4 +124,4 @@
 | Contracts | 50 | `grid-50-contracts-specialist-awq-1l4` | [grid-50-contracts-specialist-awq-1l4.card.md](contracts/grid-50-contracts-specialist-awq-1l4.card.md) |
 | Merger Agreements | 50 | `grid-50-merger-specialist-awq-1l4` | [grid-50-merger-specialist-awq-1l4.card.md](merger_agreement/grid-50-merger-specialist-awq-1l4.card.md) |
 
-_Generated 2026-10-01T02:55:58+00:00 by `sandbox run card --runbook grid-1l4` from the committed per-run `*.card.json`._
+_Generated 2026-10-01T19:05:09+00:00 by `sandbox run card --runbook grid-1l4` from the committed per-run `*.card.json`._

@@ -1,4 +1,4 @@
-# SAND-37 / SAND-39 / SAND-40 Specialist Grid: Results and Cost Summary
+# L4 Specialist Grid (Experiments 1–4): Results and Cost Summary
 
 ## Key findings
 

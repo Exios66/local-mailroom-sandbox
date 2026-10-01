@@ -146,6 +146,7 @@ def new_fig(title, subtitle, note, legend=None, rows=5):
 KEEP = {
     "1xL4-C8-n50-cost", "1xL4-C8-n50-latency",        # 1x L4 score/cost table, latency/engine table
     "2xL4-C32-n100-cost", "2xL4-C32-n100-latency",    # 2x L4 score/cost table, latency/engine table
+    "2xL4-C32-n50-cost", "2xL4-C32-n50-latency",      # Experiment 3, for the 2x L4 suite card
     "1x-vs-2xL4-cost", "1x-vs-2xL4-throughput",       # single vs double L4 table
     "cost-vs-score", "merger-frozen-vs-dagger", "2xL4-n50-vs-n100-cost",  # findings charts
 }
@@ -213,6 +214,7 @@ def posture_set(data, color, tag, posture, dagger=False):
 
 posture_set(S39, C_1L4_50, "1xL4-C8-n50", "Experiment 2 (1× L4 · C=8 · n=50)")
 posture_set(S40, C_2L4_100, "2xL4-C32-n100", "Experiment 4 (2× L4 · C=32 · n=100)", dagger=True)
+posture_set(S37_2, C_2L4_50, "2xL4-C32-n50", "Experiment 3 (2× L4 · C=32 · n=50)")
 
 
 def pooled(data):

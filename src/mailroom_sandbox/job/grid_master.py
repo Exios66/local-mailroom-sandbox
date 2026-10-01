@@ -941,7 +941,7 @@ def render_master_md(data: Mapping[str, Any]) -> str:
     pooled = {p.key: _pooled(cards[p.key], p.replicas) for p in POSTURES}
     first = next((c for p in present for c in cards[p.key].values()), None)
 
-    lines = ["# SAND-37 / SAND-39 / SAND-40 Specialist Grid: Results and Cost Summary", "", "## Key findings", ""]
+    lines = ["# L4 Specialist Grid (Experiments 1–4): Results and Cost Summary", "", "## Key findings", ""]
     key = _executive_findings(present, cards, pooled)
     lines += [f"{i}. {text}" for i, text in enumerate(key, 1)] or ["No cells reported yet."]
     lines.append("")
