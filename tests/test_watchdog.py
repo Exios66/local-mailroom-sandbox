@@ -115,3 +115,41 @@ def test_frame_shows_watchdog_panel_and_postage_not_double_counted():
     frame = watch.render_frame(snapshot=snap, app="a", log_lines=[], spend=spend, watchdog=dog, width=100)
     assert "WATCHDOG" in frame and "ALL CLEAR" in frame
     assert "$0.1000 / $1.00" in frame
+
+
+def _timed(n: int, *, latency_s: float, every: float = 10.0) -> list[dict]:
+    return [dict(r, latency_ms=latency_s * 1000.0) for r in _items(n, every=every)]
+
+
+def test_stall_limit_tracks_average_document_time():
+    # fast class: 10 s docs → the 180 s floor still applies
+    limit, basis = wd.stall_limit(_timed(5, latency_s=10.0), total=50)
+    assert limit == wd.STALL_FLOOR_S and "avg doc 10s" in basis
+    # slow whole-document class: 600 s docs → 3 × 600 s before a STALL
+    limit, basis = wd.stall_limit(_timed(3, latency_s=600.0), total=50)
+    assert limit == 1800.0 and "avg doc 600s" in basis
+    items = _timed(3, latency_s=600.0)
+    assert "STALL" not in _codes(_assess(items, now=T0 + 30 + 1700))
+    assert _codes(_assess(items, now=T0 + 30 + 1900))["STALL"] == "critical"
+
+
+def test_stall_limit_before_first_doc_uses_wall_budget_per_wave():
+    # 5 docs at C32 → one wave → the whole 1800 s wall budget
+    limit, basis = wd.stall_limit([], total=5, concurrency=32, max_wall_s=1800)
+    assert limit == 1800.0 and "wave" in basis
+    # 100 docs at C32 → 4 waves of a 3600 s budget
+    assert wd.stall_limit([], total=100, concurrency=32, max_wall_s=3600)[0] == 900.0
+    # no budget known → floor
+    assert wd.stall_limit([], total=5)[0] == wd.STALL_FLOOR_S
+    # a chunked merger gate 5 min in, nothing finished yet: not a stall
+    dog = _assess([], now=T0 + 300, total=5, concurrency=32, max_wall_s=1800)
+    assert "STALL" not in _codes(dog)
+    assert dog["stall_basis"].startswith("wall budget")
+
+
+def test_panel_shows_pace_line_with_basis():
+    dog = _assess(_timed(3, latency_s=600.0), now=T0 + 100)
+    text = "\n".join(wd.panel_lines(dog, on=False, palette={}))
+    assert "last doc" in text and "stall at 30m00s (3× avg doc 600s)" in text
+    dog = _assess([], now=T0 + 100, total=5, concurrency=32, max_wall_s=1800)
+    assert "since start 1m40s" in "\n".join(wd.panel_lines(dog, on=False, palette={}))

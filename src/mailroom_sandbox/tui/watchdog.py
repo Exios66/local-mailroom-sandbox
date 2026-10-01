@@ -12,7 +12,11 @@ Rules (thresholds are module constants so tests and operators can read them):
 * BURST     the last ``BURST_N`` finished documents all failed.
 * ERRORS    error share ≥ ``ERROR_RATE_WARN`` once ``ERROR_RATE_MIN_DONE`` are done.
 * LENGTH    output-cap truncations (LengthFinishReasonError) — runaway decodes.
-* STALL     running, but no document finished for max(``STALL_FLOOR_S``, 3 × p95).
+* STALL     running, but no document finished within the adaptive limit
+            (``stall_limit``): ``STALL_FACTOR`` × the run's average document time
+            (never under 1.5 × p95 or ``STALL_FLOOR_S``). Before the first document
+            finishes it uses the run's wall budget per wave of in-flight documents, so
+            slow whole-document cells (chunked merger, ~10 min/doc) don't false-alarm.
 * SPEND     projected total at completion above the cap (warn) or the gate (critical).
 * ENGINE    Modal log shows a traceback, CUDA OOM, or engine death since the run began.
 * LOGS      running, but the Modal log stream has been silent for ``LOG_SILENT_S``.
@@ -29,6 +33,8 @@ BURST_N = 3
 ERROR_RATE_WARN = 0.10
 ERROR_RATE_MIN_DONE = 10
 STALL_FLOOR_S = 180.0
+STALL_FACTOR = 3.0  # × average document time
+STALL_P95_FACTOR = 1.5
 LOG_SILENT_S = 300.0
 RATE_WINDOW = 12  # recent documents used for the live rate
 SPARK_BUCKET_S = 60.0
@@ -90,6 +96,35 @@ def sparkline(stamps: list[float], *, now: float, buckets: int = SPARK_BUCKETS, 
     return "".join(SPARK[min(len(SPARK) - 1, round(c / peak * (len(SPARK) - 1)))] for c in counts)
 
 
+def stall_limit(
+    items: Iterable[Mapping[str, Any]],
+    *,
+    total: int = 0,
+    concurrency: int | None = None,
+    max_wall_s: float | None = None,
+    p95_s: float | None = None,
+) -> tuple[float, str]:
+    """Seconds without a finished document before STALL fires, and the basis shown to the operator.
+
+    Tracks the run's own pace: ``STALL_FACTOR`` × the mean document latency once any
+    document has finished. Before that, the wall budget per wave
+    (``max_wall_s`` / ⌈total / concurrency⌉) stands in for the unknown document time.
+    """
+    lat = [float(r["latency_ms"]) / 1000.0 for r in items if isinstance(r.get("latency_ms"), (int, float))]
+    if lat:
+        avg = sum(lat) / len(lat)
+        limit = max(STALL_FLOOR_S, STALL_FACTOR * avg, STALL_P95_FACTOR * float(p95_s or 0.0))
+        return limit, f"{STALL_FACTOR:g}× avg doc {avg:.0f}s"
+    if p95_s:
+        return max(STALL_FLOOR_S, STALL_FACTOR * float(p95_s)), f"{STALL_FACTOR:g}× p95"
+    if max_wall_s and total:
+        waves = max(1, -(-int(total) // max(1, int(concurrency or 1))))
+        budget = float(max_wall_s) / waves
+        if budget > STALL_FLOOR_S:
+            return budget, "wall budget per wave (no doc finished yet)"
+    return STALL_FLOOR_S, "floor"
+
+
 def assess(
     *,
     items: list[Mapping[str, Any]],
@@ -102,6 +137,8 @@ def assess(
     log_lines: Iterable[str] = (),
     last_log_ts: float | None = None,
     logs_enabled: bool = True,
+    concurrency: int | None = None,
+    max_wall_s: float | None = None,
 ) -> dict[str, Any]:
     """Alerts + live rate / ETA / projection for the current run."""
     alerts: list[dict[str, str]] = []
@@ -137,14 +174,16 @@ def assess(
         )
 
     # stall: time since the last finished document (or since start, before the first)
-    stall_after = max(STALL_FLOOR_S, 3.0 * float(p95_s or 0.0))
+    stall_after, stall_basis = stall_limit(
+        items, total=total, concurrency=concurrency, max_wall_s=max_wall_s, p95_s=p95_s
+    )
     anchor = stamps[-1] if stamps else run_started
     idle_s = (now - anchor) if (running and anchor) else None
     if idle_s is not None and idle_s > stall_after and done < (total or done + 1):
         alert(
             "critical",
             "STALL",
-            f"no document finished for {int(idle_s // 60)}m{int(idle_s % 60):02d}s (limit {int(stall_after)}s) — "
+            f"no document finished for {fmt_eta(idle_s)} (limit {fmt_eta(stall_after)}, {stall_basis}) — "
             "check endpoint health and the dispatch log",
         )
 
@@ -189,6 +228,8 @@ def assess(
         "projected_usd": round(projected, 4) if projected is not None else None,
         "idle_s": round(idle_s) if idle_s is not None else None,
         "stall_after_s": round(stall_after),
+        "stall_basis": stall_basis,
+        "docs_timed": bool(stamps),
         "error_kinds": kinds,
         "spark": sparkline(stamps, now=now),
     }
@@ -218,7 +259,11 @@ def panel_lines(dog: Mapping[str, Any], *, on: bool, palette: Mapping[str, Any])
     facts = (
         f"rate {'—' if rate is None else f'{rate:.1f} docs/min'} · ETA {fmt_eta(dog.get('eta_s'))}"
         f" · projected {'—' if proj is None else f'${proj:.3f}'}"
-        f" · last doc {'—' if idle is None else f'{idle}s ago'} (stall at {dog.get('stall_after_s')}s)"
+    )
+    since = "last doc" if dog.get("docs_timed") else "since start"
+    pace = (
+        f"{since} {'—' if idle is None else fmt_eta(idle)} · stall at {fmt_eta(dog.get('stall_after_s'))}"
+        f"{' (' + dog['stall_basis'] + ')' if dog.get('stall_basis') else ''}"
     )
     spark = f"docs/min, last {SPARK_BUCKETS}m  {dog.get('spark') or ''}"
     kinds = dog.get("error_kinds") or {}
@@ -226,6 +271,7 @@ def panel_lines(dog: Mapping[str, Any], *, on: bool, palette: Mapping[str, Any])
     out = [
         p[role](status) if on else status,
         p["snow"](facts) if on else facts,
+        p["dim"](pace) if on else pace,
         p["cyan"](spark) if on else spark,
         (p["gold"](kind_txt) if kinds else p["dim"](kind_txt)) if on else kind_txt,
     ]
