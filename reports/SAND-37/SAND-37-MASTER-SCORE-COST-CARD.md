@@ -10,23 +10,23 @@
 
 Method, detail tables and figures: [SAND-37-MASTER-APPENDIX.md](./SAND-37-MASTER-APPENDIX.md).
 
-| Experiment | Study | Posture | GPUs | Client concurrency | Documents per class | Status |
-| ---: | --- | --- | ---: | ---: | ---: | --- |
-| 1 | SAND-37 | 1×L4 C8 n=20 | 1 | 8 | 20 | 5 of 5 cells |
-| 2 | SAND-39 | 1×L4 C8 n=50 | 1 | 8 | 50 | 5 of 5 cells |
-| 3 | SAND-37 | 2×L4 C32 n=50 | 2 | 32 | 50 | 5 of 5 cells |
-| 4 | SAND-40 | 2×L4 C32 n=100 | 2 | 32 | 100 (merger 50†) | 5 of 5 cells |
+| Experiment | Posture | GPUs | Client concurrency | Documents per class | Status |
+| --- | --- | ---: | ---: | ---: | --- |
+| Experiment 1 | 1×L4 C8 n=20 | 1 | 8 | 20 | 5 of 5 cells |
+| Experiment 2 | 1×L4 C8 n=50 | 1 | 8 | 50 | 5 of 5 cells |
+| Experiment 3 | 2×L4 C32 n=50 | 2 | 32 | 50 | 5 of 5 cells |
+| Experiment 4 | 2×L4 C32 n=100 | 2 | 32 | 100 (merger 50†) | 5 of 5 cells |
 
 ## Serving efficiency (pooled across the five specialists)
 
-| Metric | SAND-37 1×L4 C8 n=20 | SAND-39 1×L4 C8 n=50 | SAND-37 2×L4 C32 n=50 | SAND-40 2×L4 C32 n=100 |
+| Metric | Experiment 1 · 1×L4 C8 n=20 | Experiment 2 · 1×L4 C8 n=50 | Experiment 3 · 2×L4 C32 n=50 | Experiment 4 · 2×L4 C32 n=100 |
 | --- | ---: | ---: | ---: | ---: |
 | Error rate | 3.0% | 2.8% | 2.0% | 0.22% |
 | Documents per minute | 8.74 | 10.40 | 20.71 | 11.86 |
 | Tokens per second per GPU | 812 | 1,002 | 1,013 | 1,662 |
 | GPU cost per document | $0.00153 | $0.00128 | $0.00129 | $0.00225 |
 
-SAND-40 includes the † merger cell's whole-agreement reads; the like-for-like check is in the appendix.
+Experiment 4 includes the † merger cell's whole-agreement reads; the like-for-like check is in the appendix.
 
 ![Throughput, 1x vs 2x L4 on the same 250 documents](figures/record/1x-vs-2xL4-throughput.png)
 
@@ -36,7 +36,7 @@ SAND-40 includes the † merger cell's whole-agreement reads; the like-for-like 
 
 ## Quality and cost by specialist
 
-Cell order: 1×L4 C8 n=20 · 1×L4 C8 n=50 · 2×L4 C32 n=50 · 2×L4 C32 n=100. Contracts: CUAD F1 (micro). Merger: MAUD accuracy (coverage), a different scale. † = optimized merger.
+Cell order: Experiment 1 · Experiment 2 · Experiment 3 · Experiment 4. Contracts: CUAD F1 (micro). Merger: MAUD accuracy (coverage), a different scale. † = optimized merger.
 
 | Specialist | Score | ok / n | p50 latency (s) | $ per ok document |
 | --- | :---: | :---: | :---: | :---: |
@@ -58,9 +58,9 @@ Cell order: 1×L4 C8 n=20 · 1×L4 C8 n=50 · 2×L4 C32 n=50 · 2×L4 C32 n=100.
 
 ## Merger † settings
 
-Same 50 agreements (seed 42) and 2×L4 engine as SAND-37; only the settings below change.
+Same 50 agreements (seed 42) and 2×L4 engine as Experiment 3; only the settings below change.
 
-| Setting | SAND-37 / SAND-39 merger | SAND-40 merger † |
+| Setting | Experiments 1–3 merger | Experiment 4 merger † |
 | --- | --- | --- |
 | Input | head + tail, 30,000 chars (rest of the agreement unread) | whole agreement, chunked: 47,000-char windows + 6,500-char overlap (≤ 54,000 chars per call), merged |
 | Prompt | `merger_agreement_specialist_simplified` | `merger_agreement_specialist_maud_v1` |
@@ -76,11 +76,11 @@ Same 50 agreements (seed 42) and 2×L4 engine as SAND-37; only the settings belo
 
 Busy-window GPU = the cells' own GPU time (the efficiency table above). Metered = the study's whole Modal session (cold boots, gates, warm idle, teardown) from the billing report.
 
-| Study | Documents | Busy-window GPU | Metered session | Busy share | Metered per document | Billed |
+| Session | Documents | Busy-window GPU | Metered session | Busy share | Metered per document | Billed |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| SAND-37 | 350 | $0.47 | $1.09 | 44% | $0.00311 | $0.00 |
-| SAND-39 | 250 | $0.32 | $0.49 | 65% | $0.00196 | $0.00 |
-| SAND-40 | 450 | $1.01 | $1.81 | 56% | $0.00402 | $0.00 |
+| Experiments 1 + 3 | 350 | $0.47 | $1.09 | 44% | $0.00311 | $0.00 |
+| Experiment 2 | 250 | $0.32 | $0.49 | 65% | $0.00196 | $0.00 |
+| Experiment 4 | 450 | $1.01 | $1.81 | 56% | $0.00402 | $0.00 |
 | **Total** | 1,050 | $1.81 | $3.39 | 53% | $0.00323 | $0.00 |
 
 - **Teardown** to zero warm containers is part of every posture's runbook; the metered totals come from its spend check.
