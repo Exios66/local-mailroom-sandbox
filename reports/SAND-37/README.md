@@ -4,18 +4,21 @@ Every run of the aligned Qwen3-8B-AWQ specialist grid (`docs/SPECIALIST-GRID-PLA
 score & cost card here, organized by fleet shape and then by specialist:
 
 **Start here:** [`SAND-37-MASTER-SCORE-COST-CARD.md`](SAND-37-MASTER-SCORE-COST-CARD.md) is the
-comparison of score and cost across every grid posture (handoff summary): SAND-37 1×L4 C8 n=20,
+two-page executive comparison across every grid posture (handoff summary): SAND-37 1×L4 C8 n=20,
 SAND-39 1×L4 C8 n=50 (matched-sample inverse leg), SAND-37 2×L4 C32 n=50 and SAND-40 2×L4 C32 n=100
-(merger on the optimized † settings, n=50), with findings first, embedded comparison figures and per-posture dashboards.
+(merger on the optimized † settings, n=50). All detail — per-cell tables, clause scoring, engine
+telemetry, run conditions, merger † settings, token composition, probes, full findings and figures —
+lives in [`SAND-37-MASTER-APPENDIX.md`](SAND-37-MASTER-APPENDIX.md).
 
 ```
 reports/SAND-37/
-├── SAND-37-MASTER-SCORE-COST-CARD.md      # master comparison across postures (generated: sandbox run card --master)
+├── SAND-37-MASTER-SCORE-COST-CARD.md      # two-page executive master (generated: sandbox run card --master)
+├── SAND-37-MASTER-APPENDIX.md             # all detail tables, probes, findings, figures (generated: same command)
 ├── metered-costs.json                     # per-study session Modal spend (sandbox run card --record-metered)
-├── figures/cmp-*.png                      # posture comparison figures embedded in the master card
+├── figures/cmp-*.png                      # posture comparison figures embedded in the master appendix
 ├── 1L4/                                   # 1× L4 · C8 — n=20 (SAND-37, grid-1l4) + n=50 (SAND-39, sand39-1l4-n50)
 │   ├── L4x1-SCORE-COST-CARD.md            # finalized 1× L4 suite card (+ .json)
-│   ├── figures/SAND-3x-1xL4-C8-n*.png     # one dashboard per 1× L4 posture (master card appendix)
+│   ├── figures/SAND-3x-1xL4-C8-n*.png     # one dashboard per 1× L4 posture (master appendix)
 │   ├── correspondence/<run_id>.card.md    # one card per run (+ .card.json)
 │   │   ├── RUN-20-…-REPORT.md             # run report (copied from reports/<date>/<specialist>/)
 │   │   ├── RUN-20-…-SERVING.md            # serving report (+ .serving.json vLLM telemetry)
@@ -38,8 +41,8 @@ reports/SAND-37/
 | `L4x1-SCORE-COST-CARD.md` + `.json` | `sandbox run card --runbook grid-1l4` (the runbook's last step) |
 | `L4x2-SCORE-COST-CARD.md` + `.json` | `sandbox run card --runbook grid-2l4` |
 | `<specialist>/RUN-*-REPORT.md`, `-SERVING.md`, `.serving.json` | the runner's dated report writer (`reports/<date>/<specialist>/`); copied here so each specialist folder is self-contained |
-| `SAND-37-MASTER-SCORE-COST-CARD.md` | `sandbox run card --master` from the committed `*.card.json` + `metered-costs.json` (aligned grid cells only); the `sand39-1l4-n50` runbook regenerates it, and `tests/test_grid_master.py` fails if the committed copy is stale |
-| `figures/cmp-*.png`, `<1L4\|2L4>/figures/*.png` | `sandbox run card --master` (`job/grid_figures.py`, matplotlib): efficiency, quality, latency/cost and matched per-document comparisons, plus one dashboard per posture; embedded in the master card |
+| `SAND-37-MASTER-SCORE-COST-CARD.md` + `SAND-37-MASTER-APPENDIX.md` | `sandbox run card --master` from the committed `*.card.json` + `metered-costs.json` (aligned grid cells only); the `sand39-1l4-n50` runbook regenerates both, and `tests/test_grid_master.py` fails if either committed copy is stale |
+| `figures/cmp-*.png`, `<1L4\|2L4>/figures/*.png` | `sandbox run card --master` (`job/grid_figures.py`, matplotlib): efficiency, quality, latency/cost and matched per-document comparisons, plus one dashboard per posture; embedded in the master appendix |
 | `metered-costs.json` | `sandbox run card --record-metered <STUDY> <metered_usd> <billed_usd>` from the teardown spend check |
 
 The runbooks bracket every `sandbox run start` with `sandbox run scrape-metrics --label before|after`,
