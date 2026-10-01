@@ -17,6 +17,7 @@ reports/SAND-37/
 ├── SAND37_L4_cost_record.md              # L4 cost-per-doc, score, latency & throughput record (all 20 cells)
 ├── SAND37_L4_cost_cards.md               # one terminal-style score & cost block per cell (companion to the record)
 ├── metered-costs.json                     # per-study session Modal spend (sandbox run card --record-metered)
+├── figures/record/*.png                   # one chart per PNG for SAND37_L4_cost_record.md (make_record_figures.py)
 ├── figures/cmp-*.png                      # posture comparison figures embedded in the master appendix
 ├── 1L4/                                   # 1× L4 · C8 — n=20 (SAND-37, grid-1l4) + n=50 (SAND-39, sand39-1l4-n50)
 │   ├── L4x1-SCORE-COST-CARD.md            # finalized 1× L4 suite card (+ .json)
