@@ -136,6 +136,36 @@ def test_suite_card_rolls_up_cards_and_marks_missing_cells(tmp_path):
     assert "[grid-50-contracts-specialist-awq-2l4-rerun.card.md](contracts/" in md
 
 
+def test_sand40_card_records_optimized_settings_under_2l4(tmp_path):
+    store = _store(
+        tmp_path,
+        "sand40-50-merger-specialist-awq-2l4-64k",
+        task="merger_agreement_specialist",
+        limit=50,
+    )
+    lock = json.loads(store.lock_path.read_text())
+    lock["engine"]["vllm"]["max_model_len"] = 65536
+    lock["engine"]["vllm"]["hf_overrides"] = {
+        "rope_parameters": {"rope_type": "yarn", "factor": 2.0, "original_max_position_embeddings": 32768, "rope_theta": 1000000}
+    }
+    lock["prompt"]["agents"] = {
+        "merger_agreement_specialist": {"source": "local", "file": "merger_agreement_specialist_maud_v1"}
+    }
+    store.lock_path.write_text(json.dumps(lock))
+    paths = grid_cards.maybe_write_card(store, wall_seconds=10.0, repo=tmp_path)
+    assert paths["md"] == (
+        tmp_path / "reports" / "SAND-37" / "2L4" / "merger_agreement" / "sand40-50-merger-specialist-awq-2l4-64k.card.md"
+    )
+    card = json.loads(paths["json"].read_text())
+    cond = card["conditions"]
+    assert cond["top_p"] == 0.8 and cond["top_k"] == 20
+    assert cond["presence_penalty"] == 1.0 and cond["length_retries"] == 1
+    assert cond["chunk_chars"] == 120000 and cond["optimized"] is True
+    assert cond["hf_overrides"]["rope_parameters"]["rope_type"] == "yarn"
+    md = paths["md"].read_text()
+    assert "top_p" in md and "hf_overrides" in md
+
+
 def test_runner_hook_skips_non_grid_runs(tmp_path):
     store = _store(tmp_path, "run-20-contracts-awq-c8", replicas=1, concurrency=8)
     assert grid_cards.maybe_write_card(store, wall_seconds=10.0) == {}

@@ -19,7 +19,12 @@ from typing import Any, Mapping
 from mailroom_sandbox.job.grid_cards import ROOT_REL, SPECIALISTS
 
 # Okabe-Ito (colorblind-safe): the n=20 leg is the grey reference; the matched pair is blue vs orange.
-COLORS = {"s37-1l4-n20": "#999999", "s39-1l4-n50": "#0072B2", "s37-2l4-n50": "#E69F00"}
+COLORS = {
+    "s37-1l4-n20": "#999999",
+    "s39-1l4-n50": "#0072B2",
+    "s37-2l4-n50": "#E69F00",
+    "s40-2l4": "#009E73",
+}
 _ORDER = ("insurance_claims", "contracts", "corporate_records", "correspondence", "merger_agreement")
 _SHORT = {
     "insurance_claims": "Insurance\nclaims",

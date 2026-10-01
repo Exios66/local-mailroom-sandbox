@@ -37,16 +37,35 @@ class Posture:
     replicas: int
     concurrency: int
     n: int
+    docs: str = ""
+    n_by_folder: tuple[tuple[str, int], ...] = ()
 
     @property
     def label(self) -> str:
         return f"{self.replicas}×L4 C{self.concurrency} n={self.n}"
+
+    @property
+    def documents(self) -> str:
+        return self.docs or str(self.n)
+
+    def expected_n(self, folder: str) -> int:
+        return dict(self.n_by_folder).get(folder, self.n)
 
 
 POSTURES: tuple[Posture, ...] = (
     Posture("s37-1l4-n20", "SAND-37", "1L4", 1, 8, 20),
     Posture("s39-1l4-n50", "SAND-39", "1L4", 1, 8, 50),
     Posture("s37-2l4-n50", "SAND-37", "2L4", 2, 32, 50),
+    Posture(
+        "s40-2l4",
+        "SAND-40",
+        "2L4",
+        2,
+        32,
+        100,
+        docs="100 (merger 50)",
+        n_by_folder=(("merger_agreement", 50),),
+    ),
 )
 _ORDER = ("insurance_claims", "contracts", "corporate_records", "correspondence", "merger_agreement")
 _LABEL = {folder: label for _, folder, label in SPECIALISTS}
@@ -60,24 +79,26 @@ def master_paths(repo: Path | None = None) -> dict[str, Path]:
     return {"dir": base, "md": base / f"{MASTER_STEM}.md", "metered": base / METERED_FILE}
 
 
-def _aligned_cells() -> frozenset[str]:
-    from mailroom_sandbox.job.specialist_posture import GRID_CELLS
+def _cells_for(posture: Posture) -> frozenset[str]:
+    from mailroom_sandbox.job.specialist_posture import GRID_CELLS, SAND40_CELLS
 
+    if posture.key == "s40-2l4":
+        return SAND40_CELLS
     return GRID_CELLS
 
 
 def collect_master(repo: Path | None = None) -> dict[str, Any]:
     """Cards per posture and specialist folder, aligned grid cells only."""
     root = (repo or repo_root()) / ROOT_REL
-    aligned = _aligned_cells()
     cards: dict[str, dict[str, dict[str, Any]]] = {p.key: {} for p in POSTURES}
     for p in POSTURES:
+        aligned = _cells_for(p)
         for path in sorted((root / p.shape_dir).glob("*/*.card.json")):
             data = _read_json(path)
             if data.get("schema") != SCHEMA or data.get("run_id") not in aligned:
                 continue
             cond = data.get("conditions") or {}
-            if int(data.get("n") or 0) != p.n or int(cond.get("replicas") or 0) != p.replicas:
+            if int(data.get("n") or 0) != p.expected_n(path.parent.name) or int(cond.get("replicas") or 0) != p.replicas:
                 continue
             if int(cond.get("concurrency") or 0) != p.concurrency:
                 continue
@@ -129,16 +150,16 @@ def _pooled(cards: Mapping[str, Mapping[str, Any]], replicas: int) -> dict[str, 
     }
 
 
-def _score(card: Mapping[str, Any] | None) -> str:
+def _score(card: Mapping[str, Any] | None, *, mark: str = "") -> str:
     if not card:
-        return PENDING
+        return PENDING + mark
     q = card["quality"]
     clause = q.get("clause") or {}
     if clause.get("kind") == "maud":
-        return f"{clause.get('accuracy', 0):.3f} ({clause.get('coverage', 0) * 100:.0f}%)"
+        return f"{clause.get('accuracy', 0):.3f} ({clause.get('coverage', 0) * 100:.0f}%){mark}"
     if clause.get("kind") == "cuad" and clause.get("f1") is not None:
-        return f"{q['overall_mean']:.3f} ({clause['f1']:.3f})"
-    return f"{q['overall_mean']:.3f}"
+        return f"{q['overall_mean']:.3f} ({clause['f1']:.3f}){mark}"
+    return f"{q['overall_mean']:.3f}{mark}"
 
 
 def _metric_name(folder: str) -> str:
@@ -303,9 +324,12 @@ def render_master_md(data: Mapping[str, Any]) -> str:
             f"${cond['gpu_usd_per_hour']:.2f} per GPU-hour  ",
             f"**Data:** public `{ds['repo']}` {ds['config']} @ `{ds['revision']}`, seed {ds['seed']}; "
             "the n = 20 draw is nested in the n = 50 draw, and every n = 50 posture scores the identical documents.  ",
-            "**Engine (all postures):** AWQ-Marlin, fp8 KV cache, CUDA graphs, prefix caching, thinking "
+            "**Engine (SAND-37 / SAND-39):** AWQ-Marlin, fp8 KV cache, CUDA graphs, prefix caching, thinking "
             "disabled, 8,192-token output cap, frozen v1 prompts; temperature 0.7 for contracts and merger, "
-            "0.1 otherwise.",
+            "0.1 otherwise.  ",
+            "**SAND-40:** 2×L4 at C32. Short classes keep that engine at n=100 (the n=50 draw nested inside). "
+            "Contracts and merger redeploy onto a 65,536-token YaRN window; merger uses the optimized "
+            "settings marked †.",
             "",
         ]
     lines += [
@@ -314,7 +338,9 @@ def render_master_md(data: Mapping[str, Any]) -> str:
     ]
     for p in POSTURES:
         status = f"{len(cards[p.key])} of 5 cells" if cards[p.key] else PENDING
-        lines.append(f"| {p.study} | {p.label} | {p.replicas} | {p.concurrency} | {p.n} | {status} |")
+        lines.append(
+            f"| {p.study} | {p.label} | {p.replicas} | {p.concurrency} | {p.documents} | {status} |"
+        )
     lines.append("")
 
     heads = " | ".join(f"{p.study} {p.label}" for p in POSTURES)
@@ -348,9 +374,13 @@ def render_master_md(data: Mapping[str, Any]) -> str:
     ]
     for folder in _ORDER:
         per = [cards[p.key].get(folder) for p in POSTURES]
+        marks = [
+            "†" if p.key == "s40-2l4" and folder == "merger_agreement" else ""
+            for p in POSTURES
+        ]
         lines.append(
             f"| {_LABEL[folder]} | {_metric_name(folder)} | "
-            + _joined([_score(c) for c in per]) + " | "
+            + _joined([_score(c, mark=m) for c, m in zip(per, marks)]) + " | "
             + _joined([f"{c['quality']['ok']}/{c['n']}" if c else PENDING for c in per]) + " | "
             + _joined([f"{c['latency']['p50']:.1f}" if c else PENDING for c in per]) + " | "
             + _joined([f"{c['cost']['usd_per_ok_document']:.5f}" if c else PENDING for c in per]) + " |"
@@ -360,6 +390,11 @@ def render_master_md(data: Mapping[str, Any]) -> str:
         "Field scores are the mean suite extraction score against ground truth; contracts adds CUAD clause "
         "scoring. Merger is scored by micro-accuracy over labeled MAUD questions, a different scale from "
         "the field scores.",
+        "",
+        "† optimized merger settings: 64K YaRN window, Qwen3 sampling (temperature 0.7, top_p 0.8, "
+        "top_k 20, presence_penalty 1.0), chunked whole-document extraction, 6,144-token output cap, "
+        "one length re-sample, and the MAUD v1 prompt. The merger cell stays at n=50, the same agreements "
+        "as SAND-37 2×L4.",
         "",
         "## Findings",
         "",

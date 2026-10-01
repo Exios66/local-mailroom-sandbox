@@ -68,13 +68,18 @@ def test_posture_context_fit_and_invariants():
     for run_id, row in SPECIALIST_POSTURE.items():
         window = int(row.get("max_model_len", 16384))
         assert context_fit_ok(row["max_tokens"], row["max_input_chars"], window), run_id
-        if "-probe" in run_id:
+        if "-probe" in run_id and not run_id.startswith("sand40-"):
             # Single-doc probes are serial by design (benchmark_check exempts
-            # them from the c>=2 floor).
+            # them from the c>=2 floor). SAND-040 probes are n=20 at C32.
             assert row["concurrency"] == 1, run_id
-        elif run_id in SAND032_RUNS or run_id in SAND032_SORTER_RUNS or run_id in GRID_RUNS:
-            # SAND-032 / grid rows scale the band per replica / max_num_seqs (up to
-            # c=32 on 2×L4); validate_mapping above enforces that ceiling.
+        elif (
+            run_id in SAND032_RUNS
+            or run_id in SAND032_SORTER_RUNS
+            or run_id in GRID_RUNS
+            or run_id.startswith("sand40-")
+        ):
+            # SAND-032 / grid / SAND-040 rows scale the band per replica / max_num_seqs
+            # (up to c=32 on 2×L4); validate_mapping above enforces that ceiling.
             continue
         else:
             assert 2 <= row["concurrency"] <= 8, run_id
@@ -272,8 +277,8 @@ def test_run_yamls_match_posture(monkeypatch):
     for run_id, row in SPECIALIST_POSTURE.items():
         if run_id in SAND032_RUNS or run_id in SAND032_SORTER_RUNS:
             continue  # own gate + env-drift coverage in tests/test_sand032_configs.py
-        if run_id in GRID_CELLS:
-            continue  # SAND-037 aligned grid: test_grid_cells_share_one_engine_prompt_and_decode
+        if run_id in GRID_CELLS or run_id.startswith("sand40-"):
+            continue  # SAND-037 grid and SAND-040 cells have their own engine gates
         if run_id in GRID_RUNS and int(row.get("replicas", 1)) == 2:
             # 2×L4 grid cells pin awq + seqs16 + graphs; not the 1×L4 awq/eager pair.
             spec = load_run_spec(root / f"{run_id}.yaml")
@@ -373,6 +378,81 @@ def test_grid_draws_are_split_all_and_nested():
             assert cells[(n, "1l4")].dataset == cells[(n, "2l4")].dataset, (cls, n)
         prompts = {repr(c.prompt) for c in cells.values()}
         assert len(prompts) == 1, cls
+
+
+def test_sand40_yamls_match_the_two_serving_windows():
+    from mailroom_sandbox.job.specialist_posture import SAND40_CELLS, SAND40_LONG_CELLS, SAND40_PROBE_CELLS
+
+    for run_id in SAND40_CELLS | SAND40_PROBE_CELLS:
+        spec = _grid_spec(run_id)
+        row = SPECIALIST_POSTURE[run_id]
+        assert spec.task == row["task"]
+        assert spec.job.concurrency == row["concurrency"] == 32
+        assert spec.engine.vllm.quantization == "awq_marlin"
+        assert spec.engine.modal.max_containers == 2
+        assert float(spec.job.cost_cap_usd) == float(row["cost_cap_usd"])
+        if run_id in SAND40_LONG_CELLS:
+            assert spec.engine.vllm.max_model_len == 65536
+            assert spec.engine.vllm.hf_overrides["rope_parameters"]["rope_type"] == "yarn"
+        else:
+            assert spec.engine.vllm.max_model_len == 32768
+            assert not spec.engine.vllm.hf_overrides
+
+
+def test_sand40_probe_draw_is_the_prefix_of_the_scored_fifty():
+    """Probe n=20 is the seeded prefix of the SAND-37 2×L4 n=50 documents."""
+    import json
+
+    from mailroom_sandbox.corpus import select_rows
+    from mailroom_sandbox.paths import repo_root
+
+    pairs = (
+        (
+            "sand40-probe-20-contracts-specialist-awq-2l4-64k",
+            "grid-50-contracts-specialist-awq-2l4-rerun",
+            "grid-20-contracts-specialist-awq-1l4",
+            repo_root() / "reports/SAND-37/1L4/contracts/grid-20-contracts-specialist-awq-1l4.card.json",
+            repo_root() / "reports/SAND-37/2L4/contracts/grid-50-contracts-specialist-awq-2l4-rerun.card.json",
+        ),
+        (
+            "sand40-probe-20-merger-specialist-awq-2l4-64k",
+            "grid-50-merger-specialist-awq-2l4",
+            "grid-20-merger-specialist-awq-1l4-rerun",
+            repo_root() / "reports/SAND-37/1L4/merger_agreement/grid-20-merger-specialist-awq-1l4-rerun.card.json",
+            repo_root() / "reports/SAND-37/2L4/merger_agreement/grid-50-merger-specialist-awq-2l4.card.json",
+        ),
+    )
+    for probe_id, parent_id, grid20_id, card20, card50 in pairs:
+        probe, parent, grid20 = _grid_spec(probe_id), _grid_spec(parent_id), _grid_spec(grid20_id)
+        assert probe.dataset.sample_seed == parent.dataset.sample_seed == 42
+        assert probe.dataset.revision == parent.dataset.revision == grid20.dataset.revision
+        assert probe.dataset.split == "all"
+        assert probe.dataset.limit == 20 and parent.dataset.limit == 50
+        assert probe.dataset.strata == grid20.dataset.strata
+        rows = [
+            {
+                "id": f"d{i:04d}",
+                "filename": f"d{i:04d}.txt",
+                "expected_doc_class": probe.dataset.strata["buckets"][0]["doc_class"],
+                "expected_subclass": "x",
+            }
+            for i in range(400)
+        ]
+
+        def ids(spec):
+            chosen = select_rows(
+                rows,
+                strata=spec.dataset.strata,
+                sample_seed=spec.dataset.sample_seed,
+                limit=spec.dataset.limit,
+            )
+            return {r["id"] for r in chosen}
+
+        assert ids(probe) <= ids(parent)
+        assert ids(probe) == ids(grid20)
+        scored20 = {d["item_id"] for d in json.loads(card20.read_text())["documents"]}
+        scored50 = {d["item_id"] for d in json.loads(card50.read_text())["documents"]}
+        assert scored20 <= scored50
 
 
 def test_grid_legacy_cells_keep_their_historical_posture():

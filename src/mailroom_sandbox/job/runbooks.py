@@ -62,6 +62,10 @@ REQUIRED_IDS: tuple[str, ...] = (
     "grid-1l4",
     "grid-2l4",
     "sand39-1l4-n50",
+    "sand40-probe",
+    "sand40-short",
+    "sand40-long",
+    "sand40",
 )
 
 FAMILIES: tuple[tuple[str, str], ...] = (
@@ -398,6 +402,8 @@ def render_shell(name: str) -> str:
                     cont = " \\" if i < len(rels) - 1 else ""
                     lines.append(f"  {rel}{cont}")
                 lines += ["do", *_run_lines('"$cfg"', "  "), "done"]
+        elif kind == "phases":
+            lines.extend(_phase_shell(runbook, deploy=deploy, preflight_force=preflight_force, job_mode=job_mode))
         elif kind == "configs":
             rels = _config_paths(runbook)
             if not rels:
@@ -524,7 +530,8 @@ def render_markdown(name: str) -> str:
             f"> **BLOCKED:** {runbook.get('blocked_reason')}",
             "",
         ]
-    lines += ["## Pins (from catalog serving variant)", "", _pin_table(runbook), ""]
+    if not runbook.get("phases"):
+        lines += ["## Pins (from catalog serving variant)", "", _pin_table(runbook), ""]
     suite_name = str(runbook.get("suite") or "").strip()
     if suite_name:
         from mailroom_sandbox.job.suite import load_suite
@@ -549,12 +556,26 @@ def render_markdown(name: str) -> str:
         for rel in configs:
             lines.append(f"- `{rel}`")
         lines.append("")
+    phases = runbook.get("phases") or []
+    if phases:
+        lines += ["## Phases", ""]
+        lines.append(
+            "The launcher redeploys (`modal deploy --strategy recreate`) between phases. "
+            "One process cannot serve both context windows."
+        )
+        lines.append("")
+        for view in _phase_views(runbook):
+            phase_id = str(view["id"]).split(":")[-1]
+            lines += [f"### {phase_id} (`{view.get('serving')}`)", ""]
+            for rel in view.get("configs") or []:
+                lines.append(f"- `{rel}`")
+            lines += ["", _pin_table(view), ""]
     if family == "baseline" or str(runbook["id"]).startswith("l4-qwen3-8b"):
         prefix = "run-20-contracts-specialist" if runbook["id"] == "l4-qwen3-8b-n20" else "run-30-"
         lines += ["## Per-doc-type posture (live)", "", _posture_table(run_prefix=prefix), ""]
         lines += ["## Specialist prompts (eval-environment frozen v1)", "", _prompt_table(), ""]
     if family == "grid":
-        run_ids = [Path(rel).stem for rel in configs]
+        run_ids = [Path(rel).stem for rel in _cited_configs(runbook)]
         lines += ["## Per-cell posture (live)", "", _posture_table(run_ids=run_ids), ""]
     smoke = runbook.get("smoke") or []
     if smoke:
@@ -723,13 +744,102 @@ def _deploy_defaults() -> dict[str, str]:
     return out
 
 
+def _phase_views(runbook: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """One export/check view per phase, or the runbook itself when it has none.
+
+    A launcher that redeploys between a 32K window and a 64K window cannot
+    share one export block. Each phase carries its own serving variant.
+    """
+    phases = runbook.get("phases") or []
+    if not phases:
+        return [dict(runbook)]
+    views: list[dict[str, Any]] = []
+    for phase in phases:
+        if not isinstance(phase, Mapping):
+            continue
+        view = dict(runbook)
+        view.pop("phases", None)
+        view["id"] = f"{runbook.get('id')}:{phase.get('id')}"
+        view["serving"] = phase.get("serving") or runbook.get("serving")
+        view["configs"] = list(phase.get("configs") or [])
+        extra = dict(runbook.get("extra_env") or {})
+        extra.update(dict(phase.get("extra_env") or {}))
+        view["extra_env"] = extra
+        views.append(view)
+    return views
+
+
+def _cited_configs(runbook: Mapping[str, Any]) -> list[str]:
+    rels = [str(r) for r in (runbook.get("configs") or [])]
+    for phase in runbook.get("phases") or []:
+        if isinstance(phase, Mapping):
+            rels.extend(str(r) for r in (phase.get("configs") or []))
+    return rels
+
+
+def _phase_shell(runbook: Mapping[str, Any], *, deploy: str, preflight_force: str, job_mode: str) -> list[str]:
+    """Redeploy (``--strategy recreate`` when the runbook asks) between phases."""
+    scrape = bool(runbook.get("scrape_metrics"))
+    export_card = bool(runbook.get("export_card"))
+
+    def _run_lines(cfg: str, indent: str) -> list[str]:
+        out = [f"{indent}sandbox run preflight --config {cfg} --live{preflight_force}"]
+        if scrape:
+            out.append(f"{indent}sandbox run scrape-metrics --config {cfg} --label before")
+        out.append(f"{indent}sandbox run start --config {cfg} --job-mode {job_mode} --watch")
+        if scrape:
+            out.append(f"{indent}sandbox run scrape-metrics --config {cfg} --label after")
+        if export_card:
+            out.append(f"{indent}sandbox run card --config {cfg}")
+        return out
+
+    lines: list[str] = []
+    for view in _phase_views(runbook):
+        phase_id = str(view["id"]).split(":")[-1]
+        lines += [
+            "",
+            f"# phase: {phase_id} — redeploy serving variant {view.get('serving')}",
+            env_script(view),
+        ]
+        cmd = _check_cmd(view)
+        if cmd:
+            lines += ["", cmd]
+        lines += [
+            "",
+            deploy,
+            "",
+            "# set VLLM_BASE_URL from deploy output + VLLM_API_KEY=$MODAL_VLLM_API_TOKEN",
+            "sandbox cutover --profile modal-vllm",
+            "sandbox health --profile modal-vllm",
+            "",
+        ]
+        rels = [str(p) for p in (view.get("configs") or [])]
+        if len(rels) == 1:
+            lines.extend(_run_lines(rels[0], ""))
+        elif rels:
+            lines.append("for cfg in \\")
+            for i, rel in enumerate(rels):
+                cont = " \\" if i < len(rels) - 1 else ""
+                lines.append(f"  {rel}{cont}")
+            lines += ["do", *_run_lines('"$cfg"', "  "), "done"]
+    return lines
+
+
 def deploy_env_drift(runbook: Mapping[str, Any]) -> list[str]:
     """Errors where a cited config's ``sandbox run deploy-env`` disagrees with the runbook exports.
 
     Every knob a run YAML pins must equal the runbook's export block, and the
     block must not export a ``MODAL_VLLM_*`` knob the YAML leaves unset. One
-    deploy then serves every config in the runbook.
+    deploy then serves every config in that phase. A phased launcher is checked
+    per phase so a 32K export is not compared to a 64K config.
     """
+    errors: list[str] = []
+    for view in _phase_views(runbook):
+        errors.extend(_deploy_env_drift_one(view))
+    return errors
+
+
+def _deploy_env_drift_one(runbook: Mapping[str, Any]) -> list[str]:
     from mailroom_sandbox.job.deploy_env import spec_env
     from mailroom_sandbox.job.spec import load_run_spec
 
@@ -825,49 +935,54 @@ def verify_live_pins() -> list[str]:
                 continue
             if not suite.configs:
                 errors.append(f"{rid}: suite {suite_name} has no configs")
-        for rel in runbook.get("configs") or []:
+        for rel in _cited_configs(runbook):
             path = repo_root() / str(rel)
             if not path.is_file():
                 errors.append(f"{rid}: missing config {rel}")
-        configs_present = all(
-            (repo_root() / str(rel)).is_file() for rel in runbook.get("configs") or []
-        )
+        cited = _cited_configs(runbook)
+        configs_present = bool(cited) and all((repo_root() / str(rel)).is_file() for rel in cited)
         if runbook.get("family") == "grid" and configs_present:
             errors.extend(deploy_env_drift(runbook))
         if not runbook.get("assert_engine"):
             continue
-        rels = list(runbook.get("configs") or [])
-        if not rels and suite_name:
-            rels = load_suite(suite_name).config_paths_rel()
-        if not rels:
+        views = _phase_views(runbook)
+        if len(views) == 1 and not views[0].get("configs") and suite_name:
+            views[0]["configs"] = load_suite(suite_name).config_paths_rel()
+        if not any(view.get("configs") for view in views):
             errors.append(f"{rid}: assert_engine set but no configs")
             continue
-        knobs = serving_knobs(str(runbook.get("serving") or "baseline"))
-        spec = _load_run_yaml(str(rels[0]))
-        engine = spec.get("engine") or {}
-        modal = engine.get("modal") or {}
-        vllm = engine.get("vllm") or {}
-        if str(engine.get("model")) != str(knobs.get("model")):
-            errors.append(
-                f"{rid}: {rels[0]} engine.model={engine.get('model')!r} "
-                f"!= serving {knobs.get('model')!r}"
-            )
-        if str(modal.get("gpu")) != str(knobs.get("gpu")):
-            errors.append(f"{rid}: {rels[0]} modal.gpu != {knobs.get('gpu')}")
-        if int(modal.get("max_containers") or 0) != int(knobs.get("max_containers") or 0):
-            errors.append(
-                f"{rid}: {rels[0]} max_containers={modal.get('max_containers')!r} "
-                f"!= {knobs.get('max_containers')}"
-            )
-        if int(vllm.get("max_model_len") or 0) != int(knobs.get("max_model_len") or 0):
-            errors.append(
-                f"{rid}: {rels[0]} max_model_len={vllm.get('max_model_len')!r} "
-                f"!= {knobs.get('max_model_len')}"
-            )
-        catalog_q = str(knobs.get("quantization") or "")
-        yaml_q = str(vllm.get("quantization") or "")
-        if catalog_q != yaml_q:
-            errors.append(
-                f"{rid}: {rels[0]} quantization={yaml_q!r} != serving {catalog_q!r}"
-            )
+        for view in views:
+            rels = list(view.get("configs") or [])
+            if not rels:
+                errors.append(f"{view.get('id')}: assert_engine set but no configs")
+                continue
+            knobs = serving_knobs(str(view.get("serving") or "baseline"))
+            spec = _load_run_yaml(str(rels[0]))
+            engine = spec.get("engine") or {}
+            modal = engine.get("modal") or {}
+            vllm = engine.get("vllm") or {}
+            label = str(view.get("id") or rid)
+            if str(engine.get("model")) != str(knobs.get("model")):
+                errors.append(
+                    f"{label}: {rels[0]} engine.model={engine.get('model')!r} "
+                    f"!= serving {knobs.get('model')!r}"
+                )
+            if str(modal.get("gpu")) != str(knobs.get("gpu")):
+                errors.append(f"{label}: {rels[0]} modal.gpu != {knobs.get('gpu')}")
+            if int(modal.get("max_containers") or 0) != int(knobs.get("max_containers") or 0):
+                errors.append(
+                    f"{label}: {rels[0]} max_containers={modal.get('max_containers')!r} "
+                    f"!= {knobs.get('max_containers')}"
+                )
+            if int(vllm.get("max_model_len") or 0) != int(knobs.get("max_model_len") or 0):
+                errors.append(
+                    f"{label}: {rels[0]} max_model_len={vllm.get('max_model_len')!r} "
+                    f"!= {knobs.get('max_model_len')}"
+                )
+            catalog_q = str(knobs.get("quantization") or "")
+            yaml_q = str(vllm.get("quantization") or "")
+            if catalog_q != yaml_q:
+                errors.append(
+                    f"{label}: {rels[0]} quantization={yaml_q!r} != serving {catalog_q!r}"
+                )
     return errors
