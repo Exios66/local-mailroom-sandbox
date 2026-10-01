@@ -103,8 +103,9 @@ sandbox watch \
   [--app <modal-app-name>] \
   [--ledger data/runtime/sand032/spend.json] \
   [--cap-usd 5.0] \
-  [--interval 2.0] \
+  [--interval 1.0] \
   [--once] \
+  [--no-bell] \
   [--no-logs] \
   [--web] [--host 127.0.0.1] [--port 8765] [--no-browser] [--demo]
 ```
@@ -117,7 +118,8 @@ sandbox watch \
 | `--app` | from spec `engine.modal.app` | Serve-app override for `modal app logs -f`; `job.mode=modal` additionally tails `sandbox-job` worker. |
 | `--ledger` | — | JSON with `spent_usd` (and optional `includes_live`) for the **postage** panel. |
 | `--cap-usd` | `5.0` | Spend bar denominator (independent of the $4.50 **gate** warning in the UI). |
-| `--interval` | `2.0` | Seconds between frame refreshes (terminal and web). |
+| `--interval` | `1.0` | Longest gap between redraws (clocks, spend). A new Modal log line or any run-store change (checkpoint, items, events) redraws immediately (checked every 0.25 s). |
+| `--no-bell` | off | Do not ring the terminal bell when a new **critical** watchdog alert appears (it rings once per alert code). |
 | `--once` | off | Render one frame to stdout and exit (scripting / screenshots). |
 | `--no-logs` | off | Skip Modal streams (in-tray + postage + job `events.jsonl` only). |
 | `--web` | off | Browser UI instead of alt-screen terminal. |
@@ -141,14 +143,31 @@ Implementation: `src/mailroom_sandbox/watch.py` (terminal), `src/mailroom_sandbo
 
 1. **Header** — owl wordmark, “DIGITAL MAILROOM”, per-job engine subtitle, run id, task route.
 2. **Status bar** — clock, `Tray TUI watcher · <profile> · <job.mode>`, lifecycle **stage** (blink/pulse only while `DEPLOYING`/`COLD BOOT`/`PREFLIGHT`/`REMOTE`/`SORTING`).
-3. **Lifecycle** — SAND-032 driver stamps when present, else checkpoint + `events.jsonl`: `QUEUED`, `DEPLOYING`, `COLD BOOT`, `PREFLIGHT`, `SORTING`, `REMOTE`, `PAUSED`, `TEARDOWN`/`STOPPED`, `COMPLETE`, `FAILED` (phase-colored: gold active, cyan remote/preflight, teal done, gold warn failed).
-4. **Program route** (SAND-032 `.times` only) — multi-run ladder checklist (✓ / ▶ / ·); other jobs show a **JOB · run manifest** strip (profile, mode, engine, app, concurrency, trace).
-5. **Tray TUI · In-tray** — checkpoint cursor/total, delivered vs returned docs, postmark p50/p95, mean score, last error.
-6. **Postage ($)** — ledger spend + live GPU estimate, cap bar (`job.cost_cap_usd` wins over `--cap-usd`), **$4.50 gate** warning when projected total exceeds the gate.
-7. **Scorecard** — appears on terminal states (`done`/`failed`, `TEARDOWN`/`STOPPED`/`COMPLETE`) from `reports/serving/<run_id>.serving.json` and optional `/metrics` scrape files.
-8. **Dispatch log** — merged feed: Modal serve stream (+ `sandbox-job` worker stream when `job.mode=modal`, `[worker]`-tagged) plus recent `job:` event lines from `events.jsonl`; colour-coded errors, warnings, throughput, KV cache, engine ready; each browser row carries a `modal`/`job` source tag.
+3. **Watchdog** — health verdict for the open run (`● ALL CLEAR`, `▲ ATTENTION`, `■ ACTION NEEDED`): live rate (docs/min over the last 12 documents), ETA, projected spend at completion, seconds since the last finished document against the stall threshold, a 20-minute throughput sparkline, errors by kind, and the alert list. Rules (`src/mailroom_sandbox/tui/watchdog.py`):
+
+   | Code | Level | Fires when |
+   | --- | --- | --- |
+   | `AUTH` | critical | any document fails 401 / authentication (wrong key at the endpoint, SAND-038) |
+   | `BURST` | critical | the last 3 finished documents all failed |
+   | `STALL` | critical | running, but nothing finished for max(180 s, 3 × p95 latency) |
+   | `ENGINE` | critical | the Modal log for this run shows a traceback, CUDA OOM, engine death or a kill |
+   | `SPEND` | warn / critical | projected total at completion exceeds the cap / the $4.50 gate |
+   | `ERRORS` | warn | error share ≥ 10% once 10 documents are done |
+   | `LENGTH` | info / warn | output-cap truncations (`LengthFinishReasonError`, runaway decode) |
+   | `LOGS` | warn | running, but the Modal log stream has been silent for 5 minutes |
+   | `FAILED` | critical | the checkpoint state is `failed` |
+
+   Non-info alerts also lead the dispatch feed (source `watchdog`), so the browser view carries them.
+4. **Lifecycle** — SAND-032 driver stamps when present, else checkpoint + `events.jsonl`: `QUEUED`, `DEPLOYING`, `COLD BOOT`, `PREFLIGHT`, `SORTING`, `REMOTE`, `PAUSED`, `TEARDOWN`/`STOPPED`, `COMPLETE`, `FAILED` (phase-colored: gold active, cyan remote/preflight, teal done, gold warn failed).
+5. **Program route** (SAND-032 `.times` only) — multi-run ladder checklist (✓ / ▶ / ·); other jobs show a **JOB · run manifest** strip (profile, mode, engine, app, concurrency, trace).
+6. **Tray TUI · In-tray** — checkpoint cursor/total, delivered vs returned docs, postmark p50/p95, mean score, last error.
+7. **Postage ($)** — ledger spend + live GPU estimate, cap bar (`job.cost_cap_usd` wins over `--cap-usd`), **$4.50 gate** warning when projected total exceeds the gate.
+8. **Scorecard** — appears on terminal states (`done`/`failed`, `TEARDOWN`/`STOPPED`/`COMPLETE`) from `reports/serving/<run_id>.serving.json` and optional `/metrics` scrape files.
+9. **Dispatch log** — merged feed: Modal serve stream (+ `sandbox-job` worker stream when `job.mode=modal`, `[worker]`-tagged) plus recent `job:` event lines from `events.jsonl`; colour-coded errors, warnings, throughput, KV cache, engine ready; each browser row carries a `modal`/`job` source tag.
 
 Progress and spend bars use mailroom-ml glyphs (`█` / `░`).
+
+**Rendering:** the terminal view repaints in place: cursor home, each line followed by erase-to-end-of-line, then erase-below, all inside a synchronized-update block (`ESC[?2026h … ESC[?2026l`), so supporting terminals (iTerm2, WezTerm, kitty, Ghostty, recent Terminal.app) paint each frame at once. There is no full-screen clear, so it doesn't flicker, and an unchanged frame isn't rewritten. The frame is trimmed to the terminal height so it never scrolls, and the dispatch log grows to fill tall terminals.
 
 ### On-disk artifacts (SAND-032)
 
