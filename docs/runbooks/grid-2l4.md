@@ -4,7 +4,7 @@
 
 **id:** `grid-2l4` · **family:** `grid` · **serving:** `grid-awq-2l4`
 
-SAND-037. The nine outstanding 2×L4 cells of the Qwen3-8B-AWQ specialist grid on one warm two-replica fleet: awq, CUDA graphs, fp8 KV, max_num_seqs 16 per replica, max_inputs 32, thinking off, decode 8192. Supersedes the SAND-032 S3 n=50 legs (production correspondence prompt, pre-grid decode) as grid cells. grid-50-contracts-specialist-awq-2l4 already ran clean and is kept.
+SAND-037 aligned grid, 2×L4 half: ten Qwen3-8B-AWQ specialist cells on one warm two-replica fleet serving the same frozen L5 engine at client concurrency 32 (16 per replica). Same draws, prompts and decode as grid-1l4; only the replica count and concurrency differ.
 
 Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show grid-2l4`.
 
@@ -20,7 +20,7 @@ Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then 
 | max_containers | `2` |
 | min_containers | `2` |
 | scaledown_seconds | `120` |
-| quantization | `awq` |
+| quantization | `awq_marlin` |
 | prefix caching / eager | `1 / 0` |
 
 ## Configs
@@ -33,6 +33,7 @@ Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then 
 - `config/runs/grid-50-correspondence-specialist-awq-2l4.yaml`
 - `config/runs/grid-50-insurance-claims-specialist-awq-2l4.yaml`
 - `config/runs/grid-50-corporate-records-specialist-awq-2l4.yaml`
+- `config/runs/grid-50-contracts-specialist-awq-2l4-rerun.yaml`
 - `config/runs/grid-50-merger-specialist-awq-2l4.yaml`
 
 ## Per-cell posture (live)
@@ -47,17 +48,19 @@ Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then 
 | `grid-50-correspondence-specialist-awq-2l4` | `correspondence_specialist` | 32 | 8192 | 12000 | $0.60 | 2400s |
 | `grid-50-insurance-claims-specialist-awq-2l4` | `insurance_claims_specialist` | 32 | 8192 | 13500 | $0.80 | 2400s |
 | `grid-50-corporate-records-specialist-awq-2l4` | `corporate_records_specialist` | 32 | 8192 | 15000 | $0.80 | 2400s |
+| `grid-50-contracts-specialist-awq-2l4-rerun` | `contracts_specialist` | 32 | 8192 | 24000 | $1.20 | 3600s |
 | `grid-50-merger-specialist-awq-2l4` | `merger_agreement_specialist` | 32 | 8192 | 30000 | $1.60 | 4000s |
 
 Source: `src/mailroom_sandbox/job/specialist_posture.py`.
 
 ## Notes
 
-- Spend: likely ≈ $0.55 GPU at 2 × $0.80/hr (≈ 17 min warm plus one cold boot of ~2–4 min on each replica); the nine cost caps sum to $7.00 and are the abort guard. Needs spend approval before deploy.
+- Spend: likely ≈ $0.55 GPU at 2 × $0.80/hr (≈ 18 min warm, from the S3 walls, plus one cold boot of ~2–4 min on each replica); the ten cost caps sum to $8.20 and are the abort guard. Needs spend approval before deploy.
 - Canonical deploy knobs: set -a; eval "$(sandbox run deploy-env --config config/runs/grid-20-correspondence-specialist-awq-2l4.yaml)"; set +a. The export block below is identical.
 - MIN=MAX=2 pins both replicas warm from deploy to teardown; per-replica admission is 16 at client concurrency 32.
-- Do not rerun grid-50-contracts-specialist-awq-2l4 (48/50 ok, 2026-09-30 report). The merger and contracts cells may still end on LengthFinishReasonError at 8192; record the count, do not raise max_tokens mid-grid.
-- Full cell status (keep / run / rerun) and the superseded records: docs/SPECIALIST-GRID-PLAN.md.
+- Decode is max_tokens 8192 at temperature 0.7 from the posture row; do not raise max_tokens mid-grid. Record any LengthFinishReasonError count as a finding.
+- grid-50-contracts-specialist-awq-2l4 (plain awq, temperature 0.1) stays as committed history; the -rerun id is the aligned cell.
+- Full cell status and the aligned spec: docs/SPECIALIST-GRID-PLAN.md.
 
 ## Do not
 
@@ -87,7 +90,7 @@ export MODAL_VLLM_ENFORCE_EAGER=0
 export MODAL_VLLM_MAX_CONTAINERS=2
 export MODAL_VLLM_MIN_CONTAINERS=2
 export MODAL_VLLM_SCALEDOWN_SECONDS=120
-export MODAL_VLLM_QUANTIZATION=awq
+export MODAL_VLLM_QUANTIZATION=awq_marlin
 export MODAL_VLLM_TP_SIZE=1
 export MODAL_VLLM_KV_CACHE_DTYPE=fp8
 export MODAL_VLLM_CUDAGRAPH_CAPTURE_SIZES='1,2,4,8,16'
@@ -118,6 +121,7 @@ for cfg in \
   config/runs/grid-50-correspondence-specialist-awq-2l4.yaml \
   config/runs/grid-50-insurance-claims-specialist-awq-2l4.yaml \
   config/runs/grid-50-corporate-records-specialist-awq-2l4.yaml \
+  config/runs/grid-50-contracts-specialist-awq-2l4-rerun.yaml \
   config/runs/grid-50-merger-specialist-awq-2l4.yaml
 do
   sandbox run preflight --config "$cfg" --live
@@ -127,5 +131,5 @@ done
 ./deploy/teardown_vllm.sh   # ONLY after this run
 
 sandbox metrics compare --runs grid-20-correspondence-specialist-awq-2l4,grid-20-insurance-claims-specialist-awq-2l4,grid-20-corporate-records-specialist-awq-2l4,grid-20-contracts-specialist-awq-2l4,grid-20-merger-specialist-awq-2l4
-sandbox metrics compare --runs grid-50-correspondence-specialist-awq-2l4,grid-50-insurance-claims-specialist-awq-2l4,grid-50-corporate-records-specialist-awq-2l4,grid-50-contracts-specialist-awq-2l4,grid-50-merger-specialist-awq-2l4
+sandbox metrics compare --runs grid-50-correspondence-specialist-awq-2l4,grid-50-insurance-claims-specialist-awq-2l4,grid-50-corporate-records-specialist-awq-2l4,grid-50-contracts-specialist-awq-2l4-rerun,grid-50-merger-specialist-awq-2l4
 ```

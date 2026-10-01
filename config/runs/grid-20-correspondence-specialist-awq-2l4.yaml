@@ -1,7 +1,12 @@
-# Qwen3-8B-AWQ specialist grid cell (v1 / simplified stem) — SAND-037 n=20 2×L4 cell.
-# Single-class seed-42 bucket on split=all, so this draw nests inside grid-50 correspondence.
-# 2xL4 c=32 (16 per replica), fp8 KV, CUDA graphs, thinking off, max_inputs 32.
-# Decode 8192 via start-time SANDBOX_AGENT_KNOBS (specialist_posture grid row).
+# Qwen3-8B-AWQ specialist grid cell (SAND-037 aligned grid) — correspondence · n=20 · 2×L4 · C32 (16 per replica).
+# Every grid cell shares this spec except n, fleet shape and concurrency:
+#   engine  = SAND-032 frozen L5 (awq_marlin, fp8 KV, CUDA graphs, max_num_seqs 16/replica,
+#             thinking off, max_inputs 32)
+#   data    = mailroom-dataset ground_truth @ ed7576b6, split=all, seed 42, one class bucket
+#             (nested 20 ⊂ 50)
+#   prompt  = eval-environment frozen v1 simplified stem
+#   decode  = max_tokens 8192 via start-time SANDBOX_AGENT_KNOBS; temperature stays 0.1
+#             (json_object class: never hit a cap; same sampling as every SAND-032 run)
 # Runbook: sandbox runbook show grid-2l4
 schema: sandbox.run/v1
 run_id: grid-20-correspondence-specialist-awq-2l4
@@ -36,7 +41,7 @@ engine:
     max_num_seqs: 16
     enable_prefix_caching: true
     enforce_eager: false
-    quantization: awq
+    quantization: "awq_marlin"
     revision: ""
     kv_cache_dtype: "fp8"
     enable_thinking: false
@@ -50,6 +55,7 @@ engine:
     max_containers: 2
     min_containers: 2
     prewarm: true
+
 job:
   mode: endpoint
   mock: false

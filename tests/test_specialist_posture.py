@@ -262,11 +262,18 @@ def test_run_yamls_match_posture(monkeypatch):
         lambda: {"ok": True, "version": "modal stub"},
     )
     root = Path(__file__).resolve().parents[1] / "config" / "runs"
-    from mailroom_sandbox.job.specialist_posture import GRID_RUNS, SAND032_RUNS, SAND032_SORTER_RUNS
+    from mailroom_sandbox.job.specialist_posture import (
+        GRID_CELLS,
+        GRID_RUNS,
+        SAND032_RUNS,
+        SAND032_SORTER_RUNS,
+    )
 
     for run_id, row in SPECIALIST_POSTURE.items():
         if run_id in SAND032_RUNS or run_id in SAND032_SORTER_RUNS:
             continue  # own gate + env-drift coverage in tests/test_sand032_configs.py
+        if run_id in GRID_CELLS:
+            continue  # SAND-037 aligned grid: test_grid_cells_share_one_engine_prompt_and_decode
         if run_id in GRID_RUNS and int(row.get("replicas", 1)) == 2:
             # 2×L4 grid cells pin awq + seqs16 + graphs; not the 1×L4 awq/eager pair.
             spec = load_run_spec(root / f"{run_id}.yaml")
@@ -295,25 +302,83 @@ def test_run_yamls_match_posture(monkeypatch):
         assert report["ok"], (run_id, report["errors"])
 
 
-def test_grid_one_gpu_cells_pin_max_inputs_and_thinking_off():
-    """SAND-037: MAX_INPUTS=0 serialized contracts-50 at Running:1; thinking must be off."""
-    from mailroom_sandbox.job.specialist_posture import GRID_ONE_GPU_RUNS
 
+def _grid_spec(run_id):
     root = Path(__file__).resolve().parents[1] / "config" / "runs"
-    for run_id in GRID_ONE_GPU_RUNS:
-        if run_id == "grid-20-merger-specialist-awq-1l4":
-            continue  # executed cell, kept byte-identical to its 2026-09-30 report
-        spec = load_run_spec(root / f"{run_id}.yaml")
-        assert spec.engine.vllm.max_inputs == 8, run_id
-        assert spec.engine.vllm.enable_thinking is False, run_id
+    return load_run_spec(root / f"{run_id}.yaml")
 
 
-def test_grid_n20_one_gpu_twins_share_their_two_gpu_draw():
-    root = Path(__file__).resolve().parents[1] / "config" / "runs"
-    for cls in ("insurance-claims", "corporate-records", "contracts", "correspondence"):
-        one = load_run_spec(root / f"grid-20-{cls}-specialist-awq-1l4.yaml")
-        two = load_run_spec(root / f"grid-20-{cls}-specialist-awq-2l4.yaml")
-        assert one.dataset == two.dataset, cls
-        assert one.prompt == two.prompt, cls
-    merger = load_run_spec(root / "grid-20-merger-specialist-awq-1l4-rerun.yaml")
-    assert merger.dataset == load_run_spec(root / "grid-20-merger-specialist-awq-2l4.yaml").dataset
+def test_grid_has_twenty_aligned_cells():
+    from mailroom_sandbox.job.specialist_posture import GRID_CELLS
+
+    assert len(GRID_CELLS) == 20
+    shapes = {(r.split("-")[1], r.split("-awq-")[1].split("-")[0]) for r in GRID_CELLS}
+    assert shapes == {("20", "1l4"), ("20", "2l4"), ("50", "1l4"), ("50", "2l4")}
+
+
+def test_grid_cells_share_one_engine_prompt_and_decode(monkeypatch):
+    """SAND-037: only n, replica count and concurrency vary across the grid."""
+    from mailroom_sandbox.job.deploy_env import spec_env
+    from mailroom_sandbox.job.specialist_posture import GRID_CELLS, GRID_TEMPERATURE
+
+    _stub_modal(monkeypatch)
+
+    engines = set()
+    for run_id in GRID_CELLS:
+        spec = _grid_spec(run_id)
+        row = SPECIALIST_POSTURE[run_id]
+        vllm = spec.engine.vllm
+        assert vllm.quantization == "awq_marlin", run_id
+        assert vllm.kv_cache_dtype == "fp8", run_id
+        assert vllm.enforce_eager is False, run_id
+        assert vllm.enable_thinking is False, run_id
+        assert vllm.max_num_seqs == 16 and vllm.max_inputs == 32, run_id
+        engines.add(repr(vllm))
+        replicas = int(row["replicas"])
+        assert spec.engine.modal.max_containers == spec.engine.modal.min_containers == replicas
+        assert spec.job.concurrency == (8 if replicas == 1 else 32), run_id
+        assert spec.job.max_retries == 2, run_id
+        assert spec.prompt["agents"][row["agent"]]["file"] == row["prompt_file"], run_id
+        knobs = agent_knobs_for_run(run_id)[row["agent"]]
+        assert knobs["max_tokens"] == 8192, run_id
+        if row["doc_class"] in ("contract", "merger_agreement"):
+            assert knobs["temperature"] == GRID_TEMPERATURE == 0.7, run_id
+        else:
+            assert "temperature" not in knobs, run_id  # call-site 0.1, as in SAND-032
+        assert float(spec.job.cost_cap_usd) == float(row["cost_cap_usd"]), run_id
+        assert int(spec.job.max_wall_seconds) == int(row["max_wall_seconds"]), run_id
+        report = check_benchmark_posture(spec=spec, require_hermes=True, env=spec_env(spec))
+        assert report["ok"], (run_id, report["errors"])
+    assert len(engines) == 1
+
+
+def test_grid_draws_are_split_all_and_nested():
+    """Every class draws one seed-42 split=all bucket; n=20 is the n=50 spec at count 20."""
+    from mailroom_sandbox.job.specialist_posture import GRID_CELLS
+
+    by_key = {}
+    for run_id in GRID_CELLS:
+        spec = _grid_spec(run_id)
+        ds = spec.dataset
+        assert ds.split == "all" and ds.sample_seed == 42, run_id
+        assert ds.revision.startswith("ed7576b6"), run_id
+        n = int(run_id.split("-")[1])
+        assert ds.limit == n, run_id
+        cls = run_id.split("-")[2]
+        by_key.setdefault(cls, {})[(n, run_id.split("-awq-")[1][:3])] = spec
+    for cls, cells in by_key.items():
+        assert len(cells) == 4, cls
+        # same draw spec on both fleets at each n; prompts identical everywhere
+        for n in (20, 50):
+            assert cells[(n, "1l4")].dataset == cells[(n, "2l4")].dataset, (cls, n)
+        prompts = {repr(c.prompt) for c in cells.values()}
+        assert len(prompts) == 1, cls
+
+
+def test_grid_legacy_cells_keep_their_historical_posture():
+    for run_id in (
+        "grid-20-merger-specialist-awq-1l4",
+        "grid-20-merger-specialist-awq-1l4-retry",
+        "grid-50-contracts-specialist-awq-2l4",
+    ):
+        assert "temperature" not in SPECIALIST_POSTURE[run_id], run_id

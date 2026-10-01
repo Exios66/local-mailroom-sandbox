@@ -1,8 +1,15 @@
-# Qwen3-8B-AWQ specialist grid cell — SAND-037 clean rerun of the 1×L4 merger n=20 cell.
-# Same draw as grid-20-merger-specialist-awq-1l4 (train split, 7/7/3/2/1 strata).
-# The first cell ran with a 4096 decode and thinking unset (1 LengthFinish);
-# the -retry leg ran 16384 decode (3 LengthFinish). This cell is the grid posture:
-# decode 8192, thinking off, MODAL_VLLM_MAX_INPUTS=8. Leaves both prior reports intact.
+# Qwen3-8B-AWQ specialist grid cell (SAND-037 aligned grid) — merger agreements · n=20 · 1×L4 · C8.
+# Every grid cell shares this spec except n, fleet shape and concurrency:
+#   engine  = SAND-032 frozen L5 (awq_marlin, fp8 KV, CUDA graphs, max_num_seqs 16/replica,
+#             thinking off, max_inputs 32)
+#   data    = mailroom-dataset ground_truth @ ed7576b6, split=all, seed 42, one class bucket
+#             (nested 20 ⊂ 50)
+#   prompt  = eval-environment frozen v1 simplified stem
+#   decode  = max_tokens 8192 + temperature 0.7 via start-time SANDBOX_AGENT_KNOBS
+#             (JSON-schema grammar class: 0.1 looped to every cap — 4096/8192/16384;
+#             see docs/SPECIALIST-GRID-PLAN.md)
+# Supersedes grid-20-merger-specialist-awq-1l4 (4096 decode, train split) and its -retry leg
+# (16384 decode); both reports stay intact under their own run_ids.
 # Runbook: sandbox runbook show grid-1l4
 schema: sandbox.run/v1
 run_id: grid-20-merger-specialist-awq-1l4-rerun
@@ -20,17 +27,11 @@ dataset:
   provider: huggingface
   repo: Lucius-Morningstar/mailroom-dataset
   config: ground_truth
-  split: train
+  split: all
   revision: ed7576b676343e0b402ec5412cded301e629bdee
   strata:
     buckets:
-      - doc_class: merger_agreement
-        sub_buckets:
-          - {subclass: all_cash, count: 7}
-          - {subclass: other, count: 7}
-          - {subclass: all_stock, count: 3}
-          - {subclass: mixed_cash_stock, count: 2}
-          - {subclass: mixed_cash_stock_election, count: 1}
+      - {doc_class: merger_agreement, count: 20}   # single class bucket → nested 20 ⊂ 50
   limit: 20
   sample_seed: 42
 
@@ -40,13 +41,15 @@ engine:
   vllm:
     max_model_len: 32768
     gpu_memory_utilization: 0.90
-    max_num_seqs: 8
+    max_num_seqs: 16
     enable_prefix_caching: true
-    enforce_eager: true
-    quantization: awq
+    enforce_eager: false
+    quantization: "awq_marlin"
     revision: ""
+    kv_cache_dtype: "fp8"
     enable_thinking: false
-    max_inputs: 8
+    cudagraph_capture_sizes: [1, 2, 4, 8, 16]
+    max_inputs: 32
   modal:
     app: sandbox-vllm
     gpu: L4
@@ -55,6 +58,7 @@ engine:
     max_containers: 1
     min_containers: 1
     prewarm: true
+
 job:
   mode: endpoint
   mock: false

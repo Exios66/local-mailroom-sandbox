@@ -2,25 +2,35 @@
 
 ## [Unreleased]
 
-### Added — SAND-037 specialist grid rerun plan and runbooks
+### Added — SAND-037 aligned specialist grid and runbooks
 
-- `docs/SPECIALIST-GRID-PLAN.md`: status of all 20 Qwen3-8B-AWQ specialist grid cells (5 classes × n = 20/50 ×
-  1×L4 C8 / 2×L4 C32) — 1 keep, 11 reruns, 8 first runs — with the reason each existing record (legacy
-  `run-20-*-awq(-c8)`, the first merger cells, SAND-032 S3 n = 50) does not fit the grid.
-- Runbooks `grid-1l4` and `grid-2l4` (new `grid` catalog family, serving variants `grid-awq-1l4` /
-  `grid-awq-2l4`): one warm deploy per fleet shape, short classes first, teardown after the last cell.
-- Six run YAMLs: the n = 20 1×L4 twins for correspondence, insurance claims, corporate records and contracts
-  (each shares its 2×L4 sibling's draw), `grid-20-correspondence-specialist-awq-2l4`, and
-  `grid-20-merger-specialist-awq-1l4-rerun` (the grid posture; both earlier merger reports stay intact).
-  `_GRID_TABLE` gains the six cells.
+- All 20 Qwen3-8B-AWQ specialist grid cells (5 classes × n = 20/50 × 1×L4 C8 / 2×L4 C32) now share one spec:
+  the SAND-032 frozen L5 engine (`awq_marlin`, fp8 KV, CUDA graphs, `max_num_seqs` 16 per replica, thinking off,
+  `max_inputs` 32), `split: all` single-class draws at seed 42 (n = 20 nests in n = 50), the frozen v1
+  `*_simplified` prompts, and `max_tokens` 8192. Only n, replicas and concurrency vary. Previously the 1×L4 cells
+  ran plain `awq` eager at `max_num_seqs` 8, the 2×L4 cells plain `awq`, and the n = 20 insurance / corporate /
+  merger draws were stratified on `split: test` / `train`.
+- `docs/SPECIALIST-GRID-PLAN.md`: the aligned spec, the length-error analysis, all 20 cell run ids, and the
+  existing records each cell supersedes.
+- Runbooks `grid-1l4` and `grid-2l4` (new `grid` catalog family, serving variants that differ only in replica
+  count): one warm deploy per fleet shape, ten cells each.
+- Eight new run YAMLs (the n = 20 cells the grid lacked, plus `grid-20-merger-specialist-awq-1l4-rerun` and
+  `grid-50-contracts-specialist-awq-2l4-rerun`, which leave the executed cells' reports intact); every grid YAML
+  is generated from one template.
 
-### Fixed — SAND-037
+### Fixed — SAND-037 runaway decoding on contracts and merger
 
-- The five n = 50 1×L4 grid YAMLs pin `max_inputs: 8` and `enable_thinking: false`. With `max_inputs` unset
-  the deploy ran `MODAL_VLLM_MAX_INPUTS=0` and served one request at a time (contracts-50 at Running:1).
-- `sandbox runbook check` fails when a grid runbook's export block disagrees with `sandbox run deploy-env` for
-  any of its configs; the `preflight_force` catalog flag renders `sandbox run preflight --live --force` so a
-  drifted lock is re-locked before `start`.
+- Every LengthFinishReasonError on record is a contracts or merger document that used its whole cap (4096, 8192
+  or 16384), while successful outputs top out at 4,055 tokens and the failing documents change between runs.
+  Those two specialists decode under the JSON-schema grammar at a call-site `temperature=0.1`; near-greedy
+  decoding loops and job retries replay the loop. Grid contracts and merger cells now run at temperature 0.7
+  (Qwen3's documented non-thinking setting); the json_object classes keep 0.1.
+- `mailroom_sandbox.sampling`: applies a run-scoped `temperature` knob to the vendored specialists, whose call
+  sites pass `temperature=0.1` as a literal (previously a configured temperature never reached the request).
+  Installed at `activate()`; agents without a knob are untouched.
+- `sandbox runbook check` fails when a grid runbook's export block disagrees with `sandbox run deploy-env` for any
+  of its configs; `sandbox run benchmark-check` applies its deploy-env drift gate to grid cells as well as
+  SAND-032 runs. The `preflight_force` catalog flag renders `preflight --live --force` to re-lock a drifted run.
 
 ### Added — SAND-036 warm vs cold GPUs, cost per 1M tokens, Modal vs API break-even, mailroom-issues Pages site
 
