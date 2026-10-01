@@ -27,6 +27,7 @@ from mailroom_sandbox.paths import repo_root
 
 MASTER_STEM = "SAND-37-MASTER-SCORE-COST-CARD"
 METERED_FILE = "metered-costs.json"
+PROBE_DIR = "probes"  # SAND-40 validation probes: reported in an appendix, never pooled
 
 
 @dataclass(frozen=True)
@@ -103,8 +104,13 @@ def collect_master(repo: Path | None = None) -> dict[str, Any]:
             if int(cond.get("concurrency") or 0) != p.concurrency:
                 continue
             cards[p.key][path.parent.name] = data
+    probes: dict[str, dict[str, Any]] = {}
+    for path in sorted((root / PROBE_DIR).glob("*/*.card.json")):
+        data = _read_json(path)
+        if data.get("schema") == SCHEMA:
+            probes[path.parent.name] = data
     metered = _read_json(master_paths(repo)["metered"])
-    return {"cards": cards, "metered": metered}
+    return {"cards": cards, "probes": probes, "metered": metered}
 
 
 # ── formatting ───────────────────────────────────────────────────────────────
@@ -136,7 +142,13 @@ def _pooled(cards: Mapping[str, Mapping[str, Any]], replicas: int) -> dict[str, 
     wall = sum(c["time"]["wall_seconds"] or 0.0 for c in vals)
     busy = sum(c["cost"]["busy_gpu_usd"] or 0.0 for c in vals)
     tokens = sum(c["tokens"]["total"] or 0 for c in vals)
+    reps = [r for c in vals for r in (c.get("engine_telemetry") or {}).get("replicas") or []]
     return {
+        "wall": wall,
+        "prompt": sum(c["tokens"]["prompt"] or 0 for c in vals),
+        "completion": sum(c["tokens"]["completion"] or 0 for c in vals),
+        "length_finishes": sum(r.get("length_finishes") or 0 for r in reps),
+        "preemptions": sum(r.get("preemptions") or 0 for r in reps),
         "cells": len(vals),
         "documents": docs,
         "ok": ok,
@@ -164,7 +176,7 @@ def _score(card: Mapping[str, Any] | None, *, mark: str = "") -> str:
 
 def _metric_name(folder: str) -> str:
     return {
-        "contracts": "Field score (CUAD F1)",
+        "contracts": "CUAD presence F1: labeled-document mean (micro)",
         "merger_agreement": "MAUD accuracy (coverage)",
     }.get(folder, "Field score")
 
@@ -303,6 +315,216 @@ def _findings(present: list[Posture], cards: dict, pooled: dict) -> list[str]:
     return out
 
 
+# ── detail sections ──────────────────────────────────────────────────────────
+
+
+def _f(v: float | None, digits: int = 2, suffix: str = "") -> str:
+    return "—" if v is None else f"{v:,.{digits}f}{suffix}"
+
+
+def _replica_sum(card: Mapping[str, Any], key: str) -> float | None:
+    reps = (card.get("engine_telemetry") or {}).get("replicas") or []
+    vals = [r.get(key) for r in reps if r.get(key) is not None]
+    return sum(vals) if vals else None
+
+
+def _replica_weighted(card: Mapping[str, Any], key: str) -> float | None:
+    """Request-weighted mean of a per-replica rate (prefix-cache hit rate, mean TTFT)."""
+    reps = [r for r in (card.get("engine_telemetry") or {}).get("replicas") or [] if r.get(key) is not None]
+    weight = sum(r.get("requests") or 0 for r in reps)
+    if not reps or not weight:
+        return None
+    return sum(r[key] * (r.get("requests") or 0) for r in reps) / weight
+
+
+def _errors_text(q: Mapping[str, Any]) -> str:
+    kinds = q.get("error_kinds") or {}
+    if not kinds:
+        return "0"
+    short = {"LengthFinishReasonError": "length"}
+    return f"{q['errors']} (" + ", ".join(f"{short.get(k, k)} {v}" for k, v in sorted(kinds.items())) + ")"
+
+
+def _detail_sections(present: list[Posture], cards: dict) -> list[str]:
+    out = [
+        "## Per-cell detail",
+        "",
+        "One table per posture. Latency is per successful document; tokens per document is prompt plus "
+        "completion over all documents; busy GPU $ is the cell's busy wall × GPUs × $0.80 per GPU-hour.",
+        "",
+    ]
+    for p in present:
+        out += [
+            f"### {p.study} {p.label}",
+            "",
+            "| Specialist | ok / n | Errors | Schema-valid | Score (sd) | p50 / p95 latency (s) | Tokens per doc "
+            "| Completion p95 / max | Wall (s) | Busy GPU $ | $ per ok doc | $ per 1M tokens | Tokens/s/GPU |",
+            "| --- | :---: | :---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        ]
+        for folder in _ORDER:
+            c = cards[p.key].get(folder)
+            if not c:
+                out.append(f"| {_LABEL[folder]} | {PENDING} |" + " |" * 11)
+                continue
+            q, lat, tok, cost = c["quality"], c["latency"], c["tokens"], c["cost"]
+            score = q["overall_mean"]
+            clause = q.get("clause") or {}
+            if clause.get("kind") == "maud":
+                score = clause.get("accuracy")
+            out.append(
+                f"| {_LABEL[folder]} | {q['ok']}/{c['n']} | {_errors_text(q)} | {_f(q['schema_valid_rate'])} "
+                f"| {_f(score, 3)} ({_f(q['overall_sd'], 3)}) | {_f(lat['p50'], 1)} / {_f(lat['p95'], 1)} "
+                f"| {_f(tok['per_document'], 0)} | {_f(tok['completion_p95'], 0)} / {_f(tok['completion_max'], 0)} "
+                f"| {_f(c['time']['wall_seconds'], 1)} | {_money(cost['busy_gpu_usd'], 4)} "
+                f"| {_money(cost['usd_per_ok_document'])} | {_money(cost['usd_per_million_tokens'], 3)} "
+                f"| {_f(c['throughput']['tokens_per_second_per_gpu'], 0)} |"
+            )
+        out.append("")
+    out += ["Merger score is MAUD micro-accuracy; its sd is over per-document scores.", ""]
+
+    # clause scoring
+    out += [
+        "## Clause scoring detail",
+        "",
+        "| Posture | Contracts: CUAD-labeled docs | Precision | Recall | Micro F1 | Labeled-doc mean F1 "
+        "| Value accuracy | Merger: MAUD questions | Answered (coverage) | Correct | Accuracy | Precision on answered |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ]
+    for p in present:
+        k = cards[p.key].get("contracts")
+        m = cards[p.key].get("merger_agreement")
+        kc = (k["quality"].get("clause") or {}) if k else {}
+        mc = (m["quality"].get("clause") or {}) if m else {}
+        val = (
+            f"{kc['value_correct']}/{kc['value_checked']} ({kc['value_correct'] / kc['value_checked']:.0%})"
+            if kc.get("value_checked")
+            else "—"
+        )
+        out.append(
+            f"| {p.study} {p.label} | {kc.get('docs_labeled', '—')} of {k['quality']['ok'] if k else '—'} ok "
+            f"| {_f(kc.get('precision'), 3)} | {_f(kc.get('recall'), 3)} | {_f(kc.get('f1'), 3)} "
+            f"| {_f(k['quality']['overall_mean'] if k else None, 3)} | {val} "
+            f"| {mc.get('questions', '—')} | {mc.get('answered', '—')} ({_f((mc.get('coverage') or 0) * 100, 0)}%) "
+            f"| {mc.get('correct', '—')} | {_f(mc.get('accuracy'), 3)} | {_f(mc.get('precision_answered'), 3)} |"
+        )
+    out += [
+        "",
+        "Clause counts cover successful documents only, so two postures on the same draw can differ slightly "
+        "in labeled documents and MAUD questions when different documents hit the output cap.",
+        "",
+    ]
+
+    # engine telemetry
+    out += [
+        "## Engine telemetry (vLLM /metrics, this run's delta)",
+        "",
+        "Requests, length-capped finishes and preemptions are summed over replicas; prefix-cache hit rate and "
+        "mean time to first token are request-weighted across replicas. A chunked or re-sampled document "
+        "issues more than one request.",
+        "",
+        "| Specialist | Requests | Length-capped finishes | Preemptions | Prefix-cache hit rate | Mean TTFT (s) |",
+        "| --- | :---: | :---: | :---: | :---: | :---: |",
+    ]
+    for folder in _ORDER:
+        per = [cards[p.key].get(folder) for p in present]
+
+        def col(fn, per=per):
+            return _joined([fn(c) if c else PENDING for c in per])
+
+        out.append(
+            f"| {_LABEL[folder]} "
+            f"| {col(lambda c: _f(_replica_sum(c, 'requests'), 0))} "
+            f"| {col(lambda c: _f(_replica_sum(c, 'length_finishes'), 0))} "
+            f"| {col(lambda c: _f(_replica_sum(c, 'preemptions'), 0))} "
+            f"| {col(lambda c: _f((_replica_weighted(c, 'prefix_cache_hit_rate') or 0) * 100, 0, '%'))} "
+            f"| {col(lambda c: _f(_replica_weighted(c, 'ttft_mean_seconds'), 1))} |"
+        )
+    out += ["", f"Columns follow the posture order ({' · '.join(p.label for p in present)}).", ""]
+
+    # conditions
+    out += [
+        "## Run conditions by specialist",
+        "",
+        "Identical across the postures above unless a cell lists more than one value.",
+        "",
+        "| Specialist | Prompt | Input cap (chars) | Output cap (tokens) | Temperature | Retries |",
+        "| --- | --- | ---: | ---: | ---: | ---: |",
+    ]
+    for folder in _ORDER:
+        conds = [cards[p.key][folder]["conditions"] for p in present if folder in cards[p.key]]
+        if not conds:
+            continue
+
+        def uniq(key, conds=conds):
+            vals = []
+            for c in conds:
+                if c.get(key) not in vals:
+                    vals.append(c.get(key))
+            return " / ".join(f"{v:,}" if isinstance(v, int) and not isinstance(v, bool) else str(v) for v in vals)
+
+        out.append(
+            f"| {_LABEL[folder]} | `{uniq('prompt')}` | {uniq('max_input_chars')} | {uniq('max_tokens')} "
+            f"| {uniq('temperature')} | {uniq('max_retries')} |"
+        )
+    out.append("")
+    return out
+
+
+def _probe_section(probes: Mapping[str, Mapping[str, Any]], cards: dict) -> list[str]:
+    """SAND-40 validation probes against the SAND-37 2×L4 n=50 cell on the same documents."""
+    if not probes:
+        return []
+    base_cards = cards.get("s37-2l4-n50") or {}
+    out = [
+        "## SAND-40 validation probes (n = 20, not pooled)",
+        "",
+        "The probes ran the SAND-40 long-document settings on the first 20 documents of the SAND-37 2×L4 "
+        "n = 50 draw. They are not a posture column. The matched columns compare per-document scores on "
+        "the documents both runs scored, so sample composition cannot explain the difference.",
+        "",
+        "| Specialist | Window | Input cap (chars) | ok / n | Score | Matched docs | Probe mean | SAND-37 2×L4 same docs "
+        "| Δ (better / worse) | Prompt tokens per doc: probe vs SAND-37 | Wall (s) | Busy GPU $ | $ per ok doc |",
+        "| --- | ---: | ---: | :---: | ---: | :---: | ---: | ---: | :---: | ---: | ---: | ---: | ---: |",
+    ]
+    for folder in _ORDER:
+        pc = probes.get(folder)
+        if not pc:
+            continue
+        base = base_cards.get(folder) or {}
+        bdocs = {d["item_id"]: d for d in base.get("documents") or []}
+        pairs = [(d, bdocs[d["item_id"]]) for d in pc.get("documents") or [] if d["item_id"] in bdocs]
+        both = [
+            (a["score"], b["score"])
+            for a, b in pairs
+            if a["ok"] and b["ok"] and a["score"] is not None and b["score"] is not None
+        ]
+        q = pc["quality"]
+        clause = q.get("clause") or {}
+        score = clause.get("accuracy") if clause.get("kind") == "maud" else q["overall_mean"]
+        if both:
+            pm = sum(a for a, _ in both) / len(both)
+            bm = sum(b for _, b in both) / len(both)
+            delta = f"{pm - bm:+.3f} ({sum(a > b for a, b in both)} / {sum(a < b for a, b in both)})"
+            ptok = sum(a["prompt_tokens"] or 0 for a, _ in pairs) / len(pairs)
+            btok = sum(b["prompt_tokens"] or 0 for _, b in pairs) / len(pairs)
+            match = (f"{len(both)} | {pm:.3f} | {bm:.3f} | {delta} | {ptok:,.0f} vs {btok:,.0f}")
+        else:
+            match = "— | — | — | — | —"
+        out.append(
+            f"| {_LABEL[folder]} | {pc['conditions']['engine'].get('max_model_len', 0):,} "
+            f"| {pc['conditions'].get('max_input_chars', 0):,} | {q['ok']}/{pc['n']} | {_f(score, 3)} | {match} "
+            f"| {_f(pc['time']['wall_seconds'], 1)} | {_money(pc['cost']['busy_gpu_usd'], 4)} "
+            f"| {_money(pc['cost']['usd_per_ok_document'])} |"
+        )
+    out += [
+        "",
+        "Score is the specialist's primary metric (contracts labeled-document CUAD F1, merger MAUD accuracy); "
+        "the matched columns use per-document scores. Probe cards and run reports: `probes/<specialist>/`.",
+        "",
+    ]
+    return out
+
+
 # ── render ───────────────────────────────────────────────────────────────────
 
 
@@ -327,9 +549,9 @@ def render_master_md(data: Mapping[str, Any]) -> str:
             "**Engine (SAND-37 / SAND-39):** AWQ-Marlin, fp8 KV cache, CUDA graphs, prefix caching, thinking "
             "disabled, 8,192-token output cap, frozen v1 prompts; temperature 0.7 for contracts and merger, "
             "0.1 otherwise.  ",
-            "**SAND-40:** 2×L4 at C32. Short classes keep that engine at n=100 (the n=50 draw nested inside). "
-            "Contracts and merger redeploy onto a 65,536-token YaRN window; merger uses the optimized "
-            "settings marked †.",
+            "**SAND-40 (pending):** 2×L4 at C32, n = 100 per class (merger n = 50); the n = 50 draw is nested "
+            "inside, so the same documents anchor every comparison. Merger runs the optimized long-document "
+            "settings marked †. Each SAND-40 card records the serving window and decode settings it ran with.",
             "",
         ]
     lines += [
@@ -358,6 +580,10 @@ def render_master_md(data: Mapping[str, Any]) -> str:
         ("GPU cost per document", lambda q: _money(q["usd_per_document"])),
         ("GPU cost per 1M tokens", lambda q: _money(q["usd_per_mtok"], 3)),
         ("Busy-window GPU cost", lambda q: _money(q["busy_usd"], 3)),
+        ("Busy wall time (sum of cells)", lambda q: f"{_num(q['wall'], 0)} s"),
+        ("Tokens processed (prompt / completion)", lambda q: f"{q['prompt']:,} / {q['completion']:,}"),
+        ("Length-capped finishes (vLLM)", lambda q: f"{q['length_finishes']:.0f}"),
+        ("Preemptions (vLLM)", lambda q: f"{q['preemptions']:.0f}"),
     )
     for label, fn in rows:
         vals = [fn(pooled[p.key]) if pooled[p.key] else PENDING for p in POSTURES]
@@ -387,15 +613,22 @@ def render_master_md(data: Mapping[str, Any]) -> str:
         )
     lines += [
         "",
-        "Field scores are the mean suite extraction score against ground truth; contracts adds CUAD clause "
-        "scoring. Merger is scored by micro-accuracy over labeled MAUD questions, a different scale from "
-        "the field scores.",
+        "Field scores (insurance claims, corporate records, correspondence) are the mean suite extraction "
+        "score against ground truth over successful documents. Contracts ground truth is CUAD clause labels, "
+        "so its score is the per-document CUAD clause-presence F1 averaged over the successful documents "
+        "that carry CUAD labels (see *Clause scoring detail* for counts), with the pooled micro F1 in "
+        "parentheses; the committed run reports count unlabeled documents as 0 and so read lower. Merger is "
+        "micro-accuracy over labeled MAUD questions, with question coverage in parentheses, a different "
+        "scale from the field scores.",
         "",
-        "† optimized merger settings: 64K YaRN window, Qwen3 sampling (temperature 0.7, top_p 0.8, "
-        "top_k 20, presence_penalty 1.0), chunked whole-document extraction, 6,144-token output cap, "
-        "one length re-sample, and the MAUD v1 prompt. The merger cell stays at n=50, the same agreements "
-        "as SAND-37 2×L4.",
+        "† optimized merger settings: chunked whole-document extraction, Qwen3 sampling (temperature 0.7, "
+        "top_p 0.8, top_k 20, presence_penalty 1.0), 6,144-token output cap, one length re-sample, and the "
+        "MAUD v1 prompt. The merger cell stays at n=50, the same agreements as SAND-37 2×L4.",
         "",
+    ]
+    lines += _detail_sections(present, cards)
+    lines += _probe_section(data.get("probes") or {}, cards)
+    lines += [
         "## Findings",
         "",
     ]

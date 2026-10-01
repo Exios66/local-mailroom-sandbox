@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+### Changed — SAND-040 master score & cost card validated and fully detailed
+
+- Validated `reports/SAND-37/SAND-37-MASTER-SCORE-COST-CARD.md` three ways: a fresh `sandbox run card --master`
+  render is identical to the committed card; every pooled and per-specialist figure recomputes from the
+  per-document rows in the 15 cell cards (ok counts, tokens, busy-window cost, throughput, p50 latency, MAUD
+  accuracy and coverage, CUAD F1); every finding's numbers match the cards. Card p95 latency is nearest-rank.
+- Contracts is now labeled as what it measures: the per-document CUAD clause-presence F1 averaged over
+  successful documents with CUAD labels (micro F1 in parentheses). The run reports count unlabeled documents
+  as 0, which is why they read about 0.10 lower.
+- New master sections: per-cell detail for each posture (errors by kind, schema-valid rate, score sd, p50/p95,
+  tokens per document, completion p95/max, wall, busy GPU $, $ per 1M tokens, tokens/s/GPU); clause scoring
+  detail (CUAD precision, recall, value accuracy; MAUD questions, answered, correct, precision); vLLM engine
+  telemetry (requests, length-capped finishes, preemptions, prefix-cache hit rate, TTFT); run conditions by
+  specialist; pooled wall, token split, length finishes and preemptions.
+- SAND-40 validation probes appear in an appendix with a matched-document comparison against the SAND-37
+  2×L4 cell, never in the pooled columns. On matched documents the 64K contracts probe is flat (−0.002,
+  8 better / 7 worse); the merger probe gains +0.081 MAUD accuracy (14 / 3) while reading 11.5× the prompt
+  tokens through chunked extraction.
+- The SAND-40 header no longer commits the run to a 64K YaRN redeploy; each SAND-40 card records its window.
+
 ### Added — SAND-037 aligned specialist grid and runbooks
 
 - All 20 Qwen3-8B-AWQ specialist grid cells (5 classes × n = 20/50 × 1×L4 C8 / 2×L4 C32) now share one spec:
