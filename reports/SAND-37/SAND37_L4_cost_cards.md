@@ -1,4 +1,4 @@
-# SAND-37 / SAND-39 / SAND-40 — L4 SCORE & COST CARDS (one block per cell)
+# L4 Specialist Grid (Experiments 1–4) — SCORE & COST CARDS (one block per cell)
 
 **Source:** the 20 per-cell grid cards (`*.card.json`, schema `sandbox.grid-card/v1`, generated 2026-10-01 06:44 UTC) under `reports/SAND-37/1L4/<specialist>/` and `reports/SAND-37/2L4/<specialist>/`. Each card holds the run conditions, per-document records, vLLM `/metrics` deltas per replica and cost. Every value below is read from those files, or computed from their per-document records where marked `=`.
 **Model** `Qwen/Qwen3-8B-AWQ` · **vLLM** `v0.29.0` · **GPU** NVIDIA L4 @ **$0.80/GPU-hr** · **Data** `Lucius-Morningstar/mailroom-dataset` ground_truth @ `ed7576b6`, seed 42 (n=20 ⊂ n=50 ⊂ n=100).
@@ -8,11 +8,11 @@
 
 ---
 
-## SAND-37 · 1×L4 C8 n=20
+## Experiment 1 · 1×L4 C8 n=20
 
 ```
 == SCORE & COST CARD — grid-20-insurance-claims-specialist-awq-1l4 ==
-    study / posture             : SAND-37 / 1×L4 C8 n=20  (1L4/insurance_claims/grid-20-insurance-claims-specialist-awq-1l4.card.json)
+    experiment / posture        : Experiment 1 / 1×L4 C8 n=20  (1L4/insurance_claims/grid-20-insurance-claims-specialist-awq-1l4.card.json)
     task / prompt               : insurance_claims_specialist / insurance_claims_specialist_simplified
     model / image               : Qwen/Qwen3-8B-AWQ · vLLM v0.29.0 · modal app sandbox-vllm
     gpu / replicas              : L4 x 1  ($0.80/GPU-hr) · client concurrency 8
@@ -73,7 +73,7 @@
 
 ```
 == SCORE & COST CARD — grid-20-contracts-specialist-awq-1l4 ==
-    study / posture             : SAND-37 / 1×L4 C8 n=20  (1L4/contracts/grid-20-contracts-specialist-awq-1l4.card.json)
+    experiment / posture        : Experiment 1 / 1×L4 C8 n=20  (1L4/contracts/grid-20-contracts-specialist-awq-1l4.card.json)
     task / prompt               : contracts_specialist / contracts_specialist_v33_simplified
     model / image               : Qwen/Qwen3-8B-AWQ · vLLM v0.29.0 · modal app sandbox-vllm
     gpu / replicas              : L4 x 1  ($0.80/GPU-hr) · client concurrency 8
@@ -137,7 +137,7 @@
 
 ```
 == SCORE & COST CARD — grid-20-corporate-records-specialist-awq-1l4 ==
-    study / posture             : SAND-37 / 1×L4 C8 n=20  (1L4/corporate_records/grid-20-corporate-records-specialist-awq-1l4.card.json)
+    experiment / posture        : Experiment 1 / 1×L4 C8 n=20  (1L4/corporate_records/grid-20-corporate-records-specialist-awq-1l4.card.json)
     task / prompt               : corporate_records_specialist / corporate_records_specialist_simplified
     model / image               : Qwen/Qwen3-8B-AWQ · vLLM v0.29.0 · modal app sandbox-vllm
     gpu / replicas              : L4 x 1  ($0.80/GPU-hr) · client concurrency 8
@@ -198,7 +198,7 @@
 
 ```
 == SCORE & COST CARD — grid-20-correspondence-specialist-awq-1l4 ==
-    study / posture             : SAND-37 / 1×L4 C8 n=20  (1L4/correspondence/grid-20-correspondence-specialist-awq-1l4.card.json)
+    experiment / posture        : Experiment 1 / 1×L4 C8 n=20  (1L4/correspondence/grid-20-correspondence-specialist-awq-1l4.card.json)
     task / prompt               : correspondence_specialist / correspondence_specialist_simplified
     model / image               : Qwen/Qwen3-8B-AWQ · vLLM v0.29.0 · modal app sandbox-vllm
     gpu / replicas              : L4 x 1  ($0.80/GPU-hr) · client concurrency 8
@@ -259,7 +259,7 @@
 
 ```
 == SCORE & COST CARD — grid-20-merger-specialist-awq-1l4-rerun ==
-    study / posture             : SAND-37 / 1×L4 C8 n=20  (1L4/merger_agreement/grid-20-merger-specialist-awq-1l4-rerun.card.json)
+    experiment / posture        : Experiment 1 / 1×L4 C8 n=20  (1L4/merger_agreement/grid-20-merger-specialist-awq-1l4-rerun.card.json)
     task / prompt               : merger_agreement_specialist / merger_agreement_specialist_simplified
     model / image               : Qwen/Qwen3-8B-AWQ · vLLM v0.29.0 · modal app sandbox-vllm
     gpu / replicas              : L4 x 1  ($0.80/GPU-hr) · client concurrency 8
@@ -322,11 +322,11 @@
 
 ---
 
-## SAND-39 · 1×L4 C8 n=50
+## Experiment 2 · 1×L4 C8 n=50
 
 ```
 == SCORE & COST CARD — grid-50-insurance-claims-specialist-awq-1l4 ==
-    study / posture             : SAND-39 / 1×L4 C8 n=50  (1L4/insurance_claims/grid-50-insurance-claims-specialist-awq-1l4.card.json)
+    experiment / posture        : Experiment 2 / 1×L4 C8 n=50  (1L4/insurance_claims/grid-50-insurance-claims-specialist-awq-1l4.card.json)
     task / prompt               : insurance_claims_specialist / insurance_claims_specialist_simplified
     model / image               : Qwen/Qwen3-8B-AWQ · vLLM v0.29.0 · modal app sandbox-vllm
     gpu / replicas              : L4 x 1  ($0.80/GPU-hr) · client concurrency 8
@@ -387,7 +387,7 @@
 
 ```
 == SCORE & COST CARD — grid-50-contracts-specialist-awq-1l4 ==
-    study / posture             : SAND-39 / 1×L4 C8 n=50  (1L4/contracts/grid-50-contracts-specialist-awq-1l4.card.json)
+    experiment / posture        : Experiment 2 / 1×L4 C8 n=50  (1L4/contracts/grid-50-contracts-specialist-awq-1l4.card.json)
     task / prompt               : contracts_specialist / contracts_specialist_v33_simplified
     model / image               : Qwen/Qwen3-8B-AWQ · vLLM v0.29.0 · modal app sandbox-vllm
     gpu / replicas              : L4 x 1  ($0.80/GPU-hr) · client concurrency 8
@@ -451,7 +451,7 @@
 
 ```
 == SCORE & COST CARD — grid-50-corporate-records-specialist-awq-1l4 ==
-    study / posture             : SAND-39 / 1×L4 C8 n=50  (1L4/corporate_records/grid-50-corporate-records-specialist-awq-1l4.card.json)
+    experiment / posture        : Experiment 2 / 1×L4 C8 n=50  (1L4/corporate_records/grid-50-corporate-records-specialist-awq-1l4.card.json)
     task / prompt               : corporate_records_specialist / corporate_records_specialist_simplified
     model / image               : Qwen/Qwen3-8B-AWQ · vLLM v0.29.0 · modal app sandbox-vllm
     gpu / replicas              : L4 x 1  ($0.80/GPU-hr) · client concurrency 8
@@ -512,7 +512,7 @@
 
 ```
 == SCORE & COST CARD — grid-50-correspondence-specialist-awq-1l4 ==
-    study / posture             : SAND-39 / 1×L4 C8 n=50  (1L4/correspondence/grid-50-correspondence-specialist-awq-1l4.card.json)
+    experiment / posture        : Experiment 2 / 1×L4 C8 n=50  (1L4/correspondence/grid-50-correspondence-specialist-awq-1l4.card.json)
     task / prompt               : correspondence_specialist / correspondence_specialist_simplified
     model / image               : Qwen/Qwen3-8B-AWQ · vLLM v0.29.0 · modal app sandbox-vllm
     gpu / replicas              : L4 x 1  ($0.80/GPU-hr) · client concurrency 8
@@ -573,7 +573,7 @@
 
 ```
 == SCORE & COST CARD — grid-50-merger-specialist-awq-1l4 ==
-    study / posture             : SAND-39 / 1×L4 C8 n=50  (1L4/merger_agreement/grid-50-merger-specialist-awq-1l4.card.json)
+    experiment / posture        : Experiment 2 / 1×L4 C8 n=50  (1L4/merger_agreement/grid-50-merger-specialist-awq-1l4.card.json)
     task / prompt               : merger_agreement_specialist / merger_agreement_specialist_simplified
     model / image               : Qwen/Qwen3-8B-AWQ · vLLM v0.29.0 · modal app sandbox-vllm
     gpu / replicas              : L4 x 1  ($0.80/GPU-hr) · client concurrency 8
@@ -636,11 +636,11 @@
 
 ---
 
-## SAND-37 · 2×L4 C32 n=50
+## Experiment 3 · 2×L4 C32 n=50
 
 ```
 == SCORE & COST CARD — grid-50-insurance-claims-specialist-awq-2l4 ==
-    study / posture             : SAND-37 / 2×L4 C32 n=50  (2L4/insurance_claims/grid-50-insurance-claims-specialist-awq-2l4.card.json)
+    experiment / posture        : Experiment 3 / 2×L4 C32 n=50  (2L4/insurance_claims/grid-50-insurance-claims-specialist-awq-2l4.card.json)
     task / prompt               : insurance_claims_specialist / insurance_claims_specialist_simplified
     model / image               : Qwen/Qwen3-8B-AWQ · vLLM v0.29.0 · modal app sandbox-vllm
     gpu / replicas              : L4 x 2  ($0.80/GPU-hr) · client concurrency 32
@@ -702,7 +702,7 @@
 
 ```
 == SCORE & COST CARD — grid-50-contracts-specialist-awq-2l4-rerun ==
-    study / posture             : SAND-37 / 2×L4 C32 n=50  (2L4/contracts/grid-50-contracts-specialist-awq-2l4-rerun.card.json)
+    experiment / posture        : Experiment 3 / 2×L4 C32 n=50  (2L4/contracts/grid-50-contracts-specialist-awq-2l4-rerun.card.json)
     task / prompt               : contracts_specialist / contracts_specialist_v33_simplified
     model / image               : Qwen/Qwen3-8B-AWQ · vLLM v0.29.0 · modal app sandbox-vllm
     gpu / replicas              : L4 x 2  ($0.80/GPU-hr) · client concurrency 32
@@ -767,7 +767,7 @@
 
 ```
 == SCORE & COST CARD — grid-50-corporate-records-specialist-awq-2l4 ==
-    study / posture             : SAND-37 / 2×L4 C32 n=50  (2L4/corporate_records/grid-50-corporate-records-specialist-awq-2l4.card.json)
+    experiment / posture        : Experiment 3 / 2×L4 C32 n=50  (2L4/corporate_records/grid-50-corporate-records-specialist-awq-2l4.card.json)
     task / prompt               : corporate_records_specialist / corporate_records_specialist_simplified
     model / image               : Qwen/Qwen3-8B-AWQ · vLLM v0.29.0 · modal app sandbox-vllm
     gpu / replicas              : L4 x 2  ($0.80/GPU-hr) · client concurrency 32
@@ -829,7 +829,7 @@
 
 ```
 == SCORE & COST CARD — grid-50-correspondence-specialist-awq-2l4 ==
-    study / posture             : SAND-37 / 2×L4 C32 n=50  (2L4/correspondence/grid-50-correspondence-specialist-awq-2l4.card.json)
+    experiment / posture        : Experiment 3 / 2×L4 C32 n=50  (2L4/correspondence/grid-50-correspondence-specialist-awq-2l4.card.json)
     task / prompt               : correspondence_specialist / correspondence_specialist_simplified
     model / image               : Qwen/Qwen3-8B-AWQ · vLLM v0.29.0 · modal app sandbox-vllm
     gpu / replicas              : L4 x 2  ($0.80/GPU-hr) · client concurrency 32
@@ -891,7 +891,7 @@
 
 ```
 == SCORE & COST CARD — grid-50-merger-specialist-awq-2l4 ==
-    study / posture             : SAND-37 / 2×L4 C32 n=50  (2L4/merger_agreement/grid-50-merger-specialist-awq-2l4.card.json)
+    experiment / posture        : Experiment 3 / 2×L4 C32 n=50  (2L4/merger_agreement/grid-50-merger-specialist-awq-2l4.card.json)
     task / prompt               : merger_agreement_specialist / merger_agreement_specialist_simplified
     model / image               : Qwen/Qwen3-8B-AWQ · vLLM v0.29.0 · modal app sandbox-vllm
     gpu / replicas              : L4 x 2  ($0.80/GPU-hr) · client concurrency 32
@@ -955,11 +955,11 @@
 
 ---
 
-## SAND-40 · 2×L4 C32 n=100
+## Experiment 4 · 2×L4 C32 n=100
 
 ```
 == SCORE & COST CARD — sand40-100-insurance-claims-specialist-awq-2l4 ==
-    study / posture             : SAND-40 / 2×L4 C32 n=100  (2L4/insurance_claims/sand40-100-insurance-claims-specialist-awq-2l4.card.json)
+    experiment / posture        : Experiment 4 / 2×L4 C32 n=100  (2L4/insurance_claims/sand40-100-insurance-claims-specialist-awq-2l4.card.json)
     task / prompt               : insurance_claims_specialist / insurance_claims_specialist_simplified
     model / image               : Qwen/Qwen3-8B-AWQ · vLLM v0.29.0 · modal app sandbox-vllm
     gpu / replicas              : L4 x 2  ($0.80/GPU-hr) · client concurrency 32
@@ -1021,7 +1021,7 @@
 
 ```
 == SCORE & COST CARD — sand40-100-contracts-specialist-awq-2l4 ==
-    study / posture             : SAND-40 / 2×L4 C32 n=100  (2L4/contracts/sand40-100-contracts-specialist-awq-2l4.card.json)
+    experiment / posture        : Experiment 4 / 2×L4 C32 n=100  (2L4/contracts/sand40-100-contracts-specialist-awq-2l4.card.json)
     task / prompt               : contracts_specialist / contracts_specialist_v33_simplified
     model / image               : Qwen/Qwen3-8B-AWQ · vLLM v0.29.0 · modal app sandbox-vllm
     gpu / replicas              : L4 x 2  ($0.80/GPU-hr) · client concurrency 32
@@ -1086,7 +1086,7 @@
 
 ```
 == SCORE & COST CARD — sand40-100-corporate-records-specialist-awq-2l4 ==
-    study / posture             : SAND-40 / 2×L4 C32 n=100  (2L4/corporate_records/sand40-100-corporate-records-specialist-awq-2l4.card.json)
+    experiment / posture        : Experiment 4 / 2×L4 C32 n=100  (2L4/corporate_records/sand40-100-corporate-records-specialist-awq-2l4.card.json)
     task / prompt               : corporate_records_specialist / corporate_records_specialist_simplified
     model / image               : Qwen/Qwen3-8B-AWQ · vLLM v0.29.0 · modal app sandbox-vllm
     gpu / replicas              : L4 x 2  ($0.80/GPU-hr) · client concurrency 32
@@ -1148,7 +1148,7 @@
 
 ```
 == SCORE & COST CARD — sand40-100-correspondence-specialist-awq-2l4 ==
-    study / posture             : SAND-40 / 2×L4 C32 n=100  (2L4/correspondence/sand40-100-correspondence-specialist-awq-2l4.card.json)
+    experiment / posture        : Experiment 4 / 2×L4 C32 n=100  (2L4/correspondence/sand40-100-correspondence-specialist-awq-2l4.card.json)
     task / prompt               : correspondence_specialist / correspondence_specialist_simplified
     model / image               : Qwen/Qwen3-8B-AWQ · vLLM v0.29.0 · modal app sandbox-vllm
     gpu / replicas              : L4 x 2  ($0.80/GPU-hr) · client concurrency 32
@@ -1210,7 +1210,7 @@
 
 ```
 == SCORE & COST CARD — sand40-50-merger-specialist-awq-2l4 † ==
-    study / posture             : SAND-40 / 2×L4 C32 n=100 (merger cell n=50, same agreements as SAND-37 2×L4)  (2L4/merger_agreement/sand40-50-merger-specialist-awq-2l4.card.json)
+    experiment / posture        : Experiment 4 / 2×L4 C32 n=100 (merger cell n=50, same agreements as Experiment 3)  (2L4/merger_agreement/sand40-50-merger-specialist-awq-2l4.card.json)
     task / prompt               : merger_agreement_specialist / merger_agreement_specialist_maud_v1
     model / image               : Qwen/Qwen3-8B-AWQ · vLLM v0.29.0 · modal app sandbox-vllm
     gpu / replicas              : L4 x 2  ($0.80/GPU-hr) · client concurrency 32

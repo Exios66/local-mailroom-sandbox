@@ -146,6 +146,7 @@ def new_fig(title, subtitle, note, legend=None, rows=5):
 KEEP = {
     "1xL4-C8-n50-cost", "1xL4-C8-n50-latency",        # 1x L4 score/cost table, latency/engine table
     "2xL4-C32-n100-cost", "2xL4-C32-n100-latency",    # 2x L4 score/cost table, latency/engine table
+    "2xL4-C32-n50-cost", "2xL4-C32-n50-latency",      # Experiment 3, for the 2x L4 suite card
     "1x-vs-2xL4-cost", "1x-vs-2xL4-throughput",       # single vs double L4 table
     "cost-vs-score", "merger-frozen-vs-dagger", "2xL4-n50-vs-n100-cost",  # findings charts
 }
@@ -213,16 +214,18 @@ def posture_set(data, color, tag, posture, dagger=False):
 
 posture_set(S39, C_1L4_50, "1xL4-C8-n50", "Experiment 2 (1× L4 · C=8 · n=50)")
 posture_set(S40, C_2L4_100, "2xL4-C32-n100", "Experiment 4 (2× L4 · C=32 · n=100)", dagger=True)
+posture_set(S37_2, C_2L4_50, "2xL4-C32-n50", "Experiment 3 (2× L4 · C=32 · n=50)")
 
 
 def pooled(data):
     busy = sum(m["busy"] for m in data.values()); ok = sum(m["ok"] for m in data.values())
     n = sum(m["n"] for m in data.values()); wall = sum(m["wall"] for m in data.values())
-    return {"cost_1k": busy / ok * 1000, "dpm": n / (wall / 60)}
+    # Pooled cost uses the master card's basis: busy GPU $ per attempted document.
+    return {"cost_1k": busy / n * 1000, "dpm": n / (wall / 60)}
 
 
 P1, P2 = pooled(S39), pooled(S37_2)
-ROWS = LABELS + ["Pooled"]
+ROWS = LABELS + ["Pooled (all docs)"]
 LEG = [(C_1L4_50, "Exp. 2 · 1× L4 C8"), (C_2L4_50, "Exp. 3 · 2× L4 C32")]
 CMP = "Same 250 documents: Experiment 2 (1× L4 · C=8 · n=50) → Experiment 3 (2× L4 · C=32 · n=50)"
 
@@ -244,7 +247,7 @@ def dumbbell(ax, a, b, labels, fmt, log=False, delta=True):
 
 g = lambda d, m: [d[k][m] for k in KEYS]
 fig, ax = new_fig("Cost per 1,000 ok documents — 1× vs 2× L4", CMP + " (log scale)",
-                  SRC + " Pooled = Σ busy GPU $ ÷ Σ ok docs.", LEG, rows=6)
+                  SRC + " Classes: per ok doc. Pooled: Σ busy GPU $ ÷ Σ attempted docs (master-card basis).", LEG, rows=6)
 dumbbell(ax, g(S39, "cost_1k") + [P1["cost_1k"]], g(S37_2, "cost_1k") + [P2["cost_1k"]], ROWS, lambda x: f"${x:.2f}", log=True)
 ax.set_xlim(0.08, 60)
 save(fig, "1x-vs-2xL4-cost")
@@ -355,13 +358,14 @@ save(fig, "merger-frozen-vs-dagger")
 # 3. Batch size on 2× L4: n=50 (Experiment 3) → n=100 (Experiment 4), four unchanged classes + pooled.
 C_N50, C_N100 = "#86b6ef", "#2a78d6"   # ordinal steps of the 2× L4 blue
 four = [k for k in KEYS if k != "merger"]
-labs4 = [lab for k, lab in CLASSES if k != "merger"] + ["Pooled (4 classes)"]
-pool = lambda d: sum(d[k]["busy"] for k in four) / sum(d[k]["ok"] for k in four) * 1000
+labs4 = [lab for k, lab in CLASSES if k != "merger"] + ["Pooled (4 classes, all docs)"]
+pool = lambda d: sum(d[k]["busy"] for k in four) / sum(d[k]["n"] for k in four) * 1000  # master-card basis
 a = [S37_2[k]["cost_1k"] for k in four] + [pool(S37_2)]
 b = [S40[k]["cost_1k"] for k in four] + [pool(S40)]
 fig, ax = new_fig("Batch size on 2× L4 — n=50 → n=100",
                   "Cost per 1,000 ok docs, Experiment 3 (n=50) → Experiment 4 (n=100), C=32 (log scale; merger excluded)",
-                  SRC + " Pooled = Σ busy GPU $ ÷ Σ ok docs. Contracts' idle share of wall time fell 49% → 32%.",
+                  SRC + " Classes: per ok doc. Pooled: Σ busy GPU $ ÷ Σ attempted docs (master-card basis)."
+                  "\nContracts' idle share of wall time fell 49% → 32%.",
                   [(C_N50, "Exp. 3 · n=50"), (C_N100, "Exp. 4 · n=100")], rows=5)
 ys = list(range(len(a)))[::-1]
 ax.hlines(ys, a, b, color=AXIS, linewidth=2.2, zorder=1)
