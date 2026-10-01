@@ -190,7 +190,7 @@ Identical across the postures above unless a cell lists more than one value.
 
 - **SAND-37 metered Modal total:** $1.09 ($0.00 billed after credits). Covers both SAND-37 postures plus cold boots, pinned-warm idle between cells, the weight pre-warm, and one invalidated contracts attempt (client credential-precedence defect, SAND-038; excluded and rerun).
 - **SAND-39 metered Modal total:** $0.49 ($0.00 billed after credits). One 1×L4 session: weight pre-warm, cold boot, the five cells pinned warm, and teardown. October month-to-date metering ($1.42) less the SAND-37 October hours ($0.93).
-- **SAND-40 metered Modal total:** not yet recorded; the busy-window GPU cost under *Serving efficiency* is the cost of the cells themselves.
+- **SAND-40 metered Modal total:** $1.81 ($0.00 billed after credits). One 2×L4 32K session (app stopped 06:33 UTC): cold boot, the 5-agreement chunk gate, the four n=100 cells and † merger n=50, pinned-warm idle, and teardown. Excludes the two 64K validation-probe deploys earlier the same morning ($1.32, sand40-probe) and an unrelated GT-labeler app ($0.54).
 - **Teardown** to zero warm containers is part of every posture's runbook; the metered totals above come from the teardown spend check.
 - **Comparability:** SAND-39 and the SAND-37 2×L4 leg score identical n = 50 documents and differ only in GPU count and client concurrency; the SAND-37 1×L4 leg is a nested n = 20 subset. SAND-40 runs the same 2×L4 engine; its n = 100 draws contain the n = 50 documents, and its merger cell scores the same 50 agreements with the † settings.
 

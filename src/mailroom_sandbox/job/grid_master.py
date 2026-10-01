@@ -972,17 +972,46 @@ def render_master_md(data: Mapping[str, Any]) -> str:
     lines.append("")
     lines += _merger_settings_section(cards)
     lines += ["## Cost", ""]
-    for study, rec in metered.items():
-        if isinstance(rec, Mapping):
-            lines.append(
-                f"- **{study} metered Modal total:** ${float(rec.get('metered_usd', 0)):.2f} "
-                f"(${float(rec.get('billed_usd', 0)):.2f} billed after credits)."
-            )
+    lines += _cost_table(present, pooled, metered)
     unrecorded = [s for s in dict.fromkeys(p.study for p in present) if s not in metered]
     if unrecorded:
         lines.append(f"- **{' and '.join(unrecorded)} metered Modal total:** not yet recorded.")
     lines += ["- **Teardown** verified after each posture, zero containers left warm.", ""]
     return "\n".join(lines)
+
+
+def _cost_table(present: list[Posture], pooled: Mapping[str, Any], metered: Mapping[str, Any]) -> list[str]:
+    """Metered session spend per study, reconciled against the busy-window GPU cost of its cells."""
+    studies = [s for s in dict.fromkeys(p.study for p in present) if isinstance(metered.get(s), Mapping)]
+    if not studies:
+        return []
+    lines = [
+        "Busy-window GPU = the cells' own GPU time (the efficiency table above). Metered = the study's whole "
+        "Modal session (cold boots, gates, warm idle, teardown) from the billing report.",
+        "",
+        "| Study | Documents | Busy-window GPU | Metered session | Busy share | Metered per document | Billed |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ]
+    tot = {"docs": 0, "busy": 0.0, "metered": 0.0, "billed": 0.0}
+    for study in studies:
+        legs = [pooled[p.key] for p in present if p.study == study and pooled.get(p.key)]
+        docs = sum(leg["documents"] for leg in legs)
+        busy = sum(leg["busy_usd"] or 0.0 for leg in legs)
+        rec = metered[study]
+        m, b = float(rec.get("metered_usd", 0)), float(rec.get("billed_usd", 0))
+        for k, v in (("docs", docs), ("busy", busy), ("metered", m), ("billed", b)):
+            tot[k] += v
+        lines.append(_cost_row(study, docs, busy, m, b))
+    if len(studies) > 1:
+        lines.append(_cost_row("**Total**", tot["docs"], tot["busy"], tot["metered"], tot["billed"]))
+    lines.append("")
+    return lines
+
+
+def _cost_row(label: str, docs: int, busy: float, metered: float, billed: float) -> str:
+    share = f"{busy / metered:.0%}" if metered else "—"
+    per_doc = f"${metered / docs:.5f}" if docs else "—"
+    return f"| {label} | {docs:,} | ${busy:.2f} | ${metered:.2f} | {share} | {per_doc} | ${billed:.2f} |"
 
 
 def render_appendix_md(data: Mapping[str, Any]) -> str:

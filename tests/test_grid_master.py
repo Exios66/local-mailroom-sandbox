@@ -118,6 +118,21 @@ def test_record_metered_round_trips(tmp_path):
     assert data["SAND-39"] == {"metered_usd": 0.62, "billed_usd": 0.0, "note": "note"}
 
 
+def test_cost_table_reconciles_busy_window_against_metered_session():
+    pooled = {
+        "s37-1l4-n20": {"documents": 100, "busy_usd": 0.15},
+        "s37-2l4-n50": {"documents": 250, "busy_usd": 0.30},
+        "s39-1l4-n50": {"documents": 250, "busy_usd": 0.25},
+    }
+    present = [p for p in grid_master.POSTURES if p.key in pooled]
+    metered = {"SAND-37": {"metered_usd": 0.90, "billed_usd": 0.0}, "SAND-39": {"metered_usd": 0.50, "billed_usd": 0.0}}
+    rows = grid_master._cost_table(present, pooled, metered)
+    assert "| SAND-37 | 350 | $0.45 | $0.90 | 50% | $0.00257 | $0.00 |" in rows
+    assert "| SAND-39 | 250 | $0.25 | $0.50 | 50% | $0.00200 | $0.00 |" in rows
+    assert "| **Total** | 600 | $0.70 | $1.40 | 50% | $0.00233 | $0.00 |" in rows
+    assert grid_master._cost_table(present, pooled, {}) == []
+
+
 def test_figures_embed_in_master_and_matched_panel_waits_for_sand39(tmp_path):
     from mailroom_sandbox.job import grid_figures
 
