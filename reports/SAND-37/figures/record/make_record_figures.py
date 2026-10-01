@@ -140,8 +140,17 @@ def new_fig(title, subtitle, note, legend=None, rows=5):
     return fig, ax
 
 
+# The report keeps one or two charts per table; the rest are drawn but not written.
+KEEP = {
+    "1xL4-C8-n50-cost", "1xL4-C8-n50-latency",        # 1x L4 score/cost table, latency/engine table
+    "2xL4-C32-n100-cost", "2xL4-C32-n100-latency",    # 2x L4 score/cost table, latency/engine table
+    "1x-vs-2xL4-cost", "1x-vs-2xL4-throughput",       # single vs double L4 table
+}
+
+
 def save(fig, name):
-    fig.savefig(f"{OUT}/{name}.png")
+    if name in KEEP:
+        fig.savefig(f"{OUT}/{name}.png")
     plt.close(fig)
 
 
