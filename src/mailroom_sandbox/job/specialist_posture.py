@@ -826,9 +826,9 @@ AGENT_GENERATION_BUDGETS: dict[str, dict[str, int]] = {
         "max_input_chars": int(row["max_input_chars"]),
     }
     for run_id, row in SPECIALIST_POSTURE.items()
-    # SAND-032 / grid rows mirror overlay budgets; keep them out of this
-    # last-writer-wins map so pre-existing agent budgets are unchanged.
-    if not run_id.startswith("sand032-") and not run_id.startswith("grid-")
+    # SAND-032 / grid / SAND-040 rows mirror overlay budgets; keep them out of
+    # this last-writer-wins map so pre-existing agent budgets are unchanged.
+    if not run_id.startswith(("sand032-", "grid-", "sand40-"))
 }
 
 

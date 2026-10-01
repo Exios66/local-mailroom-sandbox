@@ -57,6 +57,9 @@ def test_specialist_posture_pins_catalog_stems():
         *(r for r in SAND032_RUNS if SPECIALIST_POSTURE[r]["agent"] == "correspondence_specialist"),
         # SAND-032 Stage 5: re-runs merger with the revised MAUD v1 prompt.
         "sand032-s5-merger50-maud",
+        # SAND-040 long merger cells use the same MAUD v1 prompt (the prompt is the variable).
+        "sand40-50-merger-specialist-awq-2l4-64k",
+        "sand40-probe-20-merger-specialist-awq-2l4-64k",
         # SAND-032 Stage 10: eval-environment v2 prompt A/B (the prompt IS the variable).
         *(r for r in SAND032_RUNS if r.startswith("sand032-s10-")),
     }

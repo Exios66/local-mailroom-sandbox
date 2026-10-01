@@ -128,6 +128,23 @@ serving:
         MODAL_VLLM_DEFAULT_CHAT_TEMPLATE_KWARGS: '{"enable_thinking": false}'
         MODAL_VLLM_MAX_INPUTS: "32"
         PHOENIX_TRACING: disabled
+    # SAND-040 long phase. Same 2×L4 fleet as grid-awq-2l4, with the context
+    # window doubled via YaRN. One deploy cannot serve both 32768 and 65536.
+    grid-awq-2l4-64k:
+      model: Qwen/Qwen3-8B-AWQ
+      quantization: awq_marlin
+      max_model_len: 65536
+      max_num_seqs: 16
+      enforce_eager: 0
+      max_containers: 2
+      min_containers: 2
+      extra_env:
+        MODAL_VLLM_KV_CACHE_DTYPE: fp8
+        MODAL_VLLM_CUDAGRAPH_CAPTURE_SIZES: "1,2,4,8,16"
+        MODAL_VLLM_DEFAULT_CHAT_TEMPLATE_KWARGS: '{"enable_thinking": false}'
+        MODAL_VLLM_MAX_INPUTS: "32"
+        MODAL_VLLM_HF_OVERRIDES: '{"rope_parameters": {"factor": 2.0, "original_max_position_embeddings": 32768, "rope_theta": 1000000, "rope_type": "yarn"}}'
+        PHOENIX_TRACING: disabled
 
 aliases:
   l4: l4-qwen3-8b
@@ -147,6 +164,7 @@ aliases:
   grid-1x: grid-1l4
   grid-2x: grid-2l4
   sand39: sand39-1l4-n50
+  sand40: sand40
 
 runbooks:
   l4-qwen3-8b:
@@ -761,6 +779,159 @@ runbooks:
       - "Record the teardown spend check (Metered Cost / Billed Cost lines) with sandbox run card --record-metered SAND-39 <metered> <billed> --master so the master card's cost accounting carries it."
       - "Credentials: SAND-038 makes the LangChain specialists (contracts, merger) send the active provider's key; an OPENROUTER_API_KEY in .env no longer reaches the vLLM endpoint."
       - "Decode is max_tokens 8192 at temperature 0.7 for contracts and merger from the posture row; do not raise max_tokens. A LengthFinishReasonError at 8192 is a recorded finding, not a reason to rerun."
+
+  sand40-probe:
+    family: grid
+    title: SAND-40 validation probe — n=20 contracts and merger on 2×L4 · 64K YaRN
+    summary: >
+      Spend-gated probe before the SAND-40 scale run. Two nested n=20 draws
+      (the seeded prefix of the SAND-37 2×L4 n=50 contracts and merger documents)
+      on the 64K YaRN engine with the optimized long-document settings. About
+      $0.30–$0.80 GPU. Do not start until that spend is approved.
+    serving: grid-awq-2l4-64k
+    configs:
+      - config/runs/sand40-probe-20-contracts-specialist-awq-2l4-64k.yaml
+      - config/runs/sand40-probe-20-merger-specialist-awq-2l4-64k.yaml
+    modal_profile: track-a
+    deploy_strategy: recreate
+    assert_engine: true
+    preflight_force: true
+    scrape_metrics: true
+    export_card: true
+    steps:
+      - env
+      - activate_profile
+      - extra_env
+      - check
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - configs
+      - teardown
+      - after
+    after:
+      - sandbox run card --config config/runs/sand40-probe-20-contracts-specialist-awq-2l4-64k.yaml
+      - sandbox run card --config config/runs/sand40-probe-20-merger-specialist-awq-2l4-64k.yaml
+    notes:
+      - "Spend gate: about $0.30–$0.80 at 2 × $0.80/GPU-hr, plus one cold boot. Cost caps are $0.80 (contracts) and $1.00 (merger) and are the abort guard. Needs spend approval before deploy. Modal credentials for the Hermes account are on the operator machine."
+      - "Sample: each probe is the seed-42 prefix of the scored n=50 cell (contracts → grid-50-contracts-specialist-awq-2l4-rerun; merger → grid-50-merger-specialist-awq-2l4). The n=20 set is a subset of those 50 documents."
+      - "Serving is the 64K YaRN deploy (MODAL_VLLM_HF_OVERRIDES). Sampling is native chat-completion fields on the OpenAI client (temperature 0.7, top_p 0.8, top_k 20, presence_penalty 1.0). The LangChain pipeline is not part of this deploy."
+      - "Cards land under reports/SAND-37/2L4/<specialist>/ when the run finishes. This probe does not fill the master-card column."
+
+  sand40-short:
+    family: grid
+    title: SAND-40 short phase — correspondence, insurance claims, corporate records · n=100 · 32K
+    summary: >
+      First serving phase of SAND-40. Three short classes at n=100 on the
+      SAND-037 2×L4 engine (native 32768 window, no YaRN). Each n=100 draw
+      contains the earlier n=50 documents.
+    serving: grid-awq-2l4
+    configs:
+      - config/runs/sand40-100-correspondence-specialist-awq-2l4.yaml
+      - config/runs/sand40-100-insurance-claims-specialist-awq-2l4.yaml
+      - config/runs/sand40-100-corporate-records-specialist-awq-2l4.yaml
+    modal_profile: track-a
+    deploy_strategy: recreate
+    assert_engine: true
+    preflight_force: true
+    scrape_metrics: true
+    export_card: true
+    steps:
+      - env
+      - activate_profile
+      - extra_env
+      - check
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - configs
+      - teardown
+      - after
+    after:
+      - sandbox run card --master
+    notes:
+      - "This phase must be torn down or redeployed before the 64K phase. One sandbox-vllm process cannot serve both 32768 and 65536."
+      - "Cards: reports/SAND-37/2L4/<specialist>/sand40-100-*.card.md. The master card's SAND-40 column stays pending until the cells exist."
+
+  sand40-long:
+    family: grid
+    title: SAND-40 long phase — contracts n=100 and merger n=50 · 64K YaRN
+    summary: >
+      Second serving phase of SAND-40. Redeploy onto the 64K YaRN window, then
+      run contracts (n=100, containing the SAND-37 n=50) and merger (the same
+      50 agreements as grid-50-merger-specialist-awq-2l4) with the optimized
+      long-document settings.
+    serving: grid-awq-2l4-64k
+    configs:
+      - config/runs/sand40-100-contracts-specialist-awq-2l4-64k.yaml
+      - config/runs/sand40-50-merger-specialist-awq-2l4-64k.yaml
+    modal_profile: track-a
+    deploy_strategy: recreate
+    assert_engine: true
+    preflight_force: true
+    scrape_metrics: true
+    export_card: true
+    steps:
+      - env
+      - activate_profile
+      - extra_env
+      - check
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - configs
+      - teardown
+      - after
+    after:
+      - sandbox run card --master
+    notes:
+      - "Deploy with --strategy recreate after the 32K phase. MODAL_VLLM_MAX_MODEL_LEN=65536 and MODAL_VLLM_HF_OVERRIDES carry the YaRN rope parameters."
+      - "Merger is the † cell: Qwen3 sampling, chunked extraction, 6144 cap, one length re-sample, MAUD v1 prompt. Sampling is posted as chat-completion fields on the native OpenAI client. The Modal app does not import LangChain."
+      - "Cards land under reports/SAND-37/2L4/contracts/ and reports/SAND-37/2L4/merger_agreement/."
+
+  sand40:
+    family: grid
+    title: SAND-40 launcher — 32K short phase, redeploy, 64K long phase
+    summary: >
+      Operator launcher for the SAND-40 scale run. Activates the Hermes Modal
+      profile, deploys the 32K 2×L4 engine and runs the three short classes at
+      n=100, then redeploys with YaRN at 65536 and runs contracts n=100 and
+      merger n=50. The validation probe is sand40-probe and is not part of this
+      script.
+    serving: grid-awq-2l4
+    modal_profile: track-a
+    deploy_strategy: recreate
+    assert_engine: true
+    preflight_force: true
+    scrape_metrics: true
+    export_card: true
+    phases:
+      - id: short
+        serving: grid-awq-2l4
+        configs:
+          - config/runs/sand40-100-correspondence-specialist-awq-2l4.yaml
+          - config/runs/sand40-100-insurance-claims-specialist-awq-2l4.yaml
+          - config/runs/sand40-100-corporate-records-specialist-awq-2l4.yaml
+      - id: long
+        serving: grid-awq-2l4-64k
+        configs:
+          - config/runs/sand40-100-contracts-specialist-awq-2l4-64k.yaml
+          - config/runs/sand40-50-merger-specialist-awq-2l4-64k.yaml
+    steps:
+      - activate_profile
+      - prewarm
+      - phases
+      - teardown
+      - after
+    after:
+      - sandbox run card --master
+    notes:
+      - "The phases step exports each serving variant, runs modal deploy --strategy recreate, cutover, and health, then the phase configs. Do not skip the second deploy."
+      - "Probe (sand40-probe) is a separate spend gate of about $0.30–$0.80. Run it before this launcher once spend is approved."
+      - "Sampling settings reach the vLLM endpoint as ordinary chat-completion fields (top_p, presence_penalty, extra_body.top_k). This deploy does not use LangChain."
 
 anti_patterns:
   - anti: Independent sandbox run start per config
