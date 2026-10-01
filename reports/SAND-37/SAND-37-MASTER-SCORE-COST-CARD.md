@@ -56,7 +56,13 @@ Same 50 agreements (seed 42) and 2×L4 engine as SAND-37; only the settings belo
 
 ## Cost
 
-- **SAND-37 metered Modal total:** $1.09 ($0.00 billed after credits).
-- **SAND-39 metered Modal total:** $0.49 ($0.00 billed after credits).
-- **SAND-40 metered Modal total:** $1.81 ($0.00 billed after credits).
+Busy-window GPU = the cells' own GPU time (the efficiency table above). Metered = the study's whole Modal session (cold boots, gates, warm idle, teardown) from the billing report.
+
+| Study | Documents | Busy-window GPU | Metered session | Busy share | Metered per document | Billed |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| SAND-37 | 350 | $0.47 | $1.09 | 44% | $0.00311 | $0.00 |
+| SAND-39 | 250 | $0.32 | $0.49 | 65% | $0.00196 | $0.00 |
+| SAND-40 | 450 | $1.01 | $1.81 | 56% | $0.00402 | $0.00 |
+| **Total** | 1,050 | $1.81 | $3.39 | 53% | $0.00323 | $0.00 |
+
 - **Teardown** verified after each posture, zero containers left warm.
