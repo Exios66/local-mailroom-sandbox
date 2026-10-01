@@ -801,8 +801,7 @@ def _merger_settings_section(cards: dict) -> list[str]:
         return []
     (base_label, base), (opt_label, opt) = rows
     table = (
-        ("Agreements", lambda r: "the same 50 (seed 42)"),
-        ("Serving window", lambda r: f"{int(r['max_model_len']):,} tokens on 2×L4"),
+        ("Serving window", lambda r: f"{int(r['max_model_len']):,} tokens"),
         ("Input", _input_text),
         ("Prompt", lambda r: f"`{r['prompt_file']}`"),
         ("Sampling", _sampling_text),
@@ -812,8 +811,7 @@ def _merger_settings_section(cards: dict) -> list[str]:
     out = [
         "## Merger † settings",
         "",
-        "The SAND-40 merger cell keeps the engine, fleet and agreements of SAND-37 2×L4 and changes how each "
-        "agreement is read and decoded. Changed settings are in bold.",
+        "Same 50 agreements (seed 42) and 2×L4 engine as SAND-37; only the settings below change.",
         "",
         f"| Setting | {base_label} | {opt_label} |",
         "| --- | --- | --- |",
@@ -821,8 +819,7 @@ def _merger_settings_section(cards: dict) -> list[str]:
     for label, fn in table:
         a, b = fn(base), fn(opt)
         if a != b:
-            label, b = f"**{label}**", f"**{b}**"
-        out.append(f"| {label} | {a} | {b} |")
+            out.append(f"| {label} | {a} | {b} |")
     before = (cards.get("s37-2l4-n50") or {}).get("merger_agreement")
     after = (cards.get("s40-2l4") or {}).get("merger_agreement")
     out.append(f"| Result | {_maud_result(before)} | {_maud_result(after)} |")
@@ -857,19 +854,18 @@ def _executive_findings(present: list[Posture], cards: dict, pooled: dict) -> li
             else f"sample sizes differ, SAND-39 pending"
         )
         out.append(
-            f"**Scale-out is near-linear:** 2×L4 at C32 raises throughput by "
+            f"**Scale-out is near-linear.** 2×L4 at C32 raises throughput "
             f"{_pct_change(b['docs_per_minute'], a['docs_per_minute'])} at "
-            f"{_pct_change(b['usd_per_document'], a['usd_per_document'])} cost per document "
-            f"({basis}; median latency ×{_range(lat, '{:.1f}')})."
+            f"{_pct_change(b['usd_per_document'], a['usd_per_document'])} cost per document; "
+            f"median latency rises ×{_range(lat, '{:.1f}')} ({basis})."
         )
     if s40 and two50:
         a, b = _pooled_four(cards[two50.key], two50.replicas), _pooled_four(cards[s40.key], s40.replicas)
         if a and b:
             out.append(
-                f"**Running n = 100 per specialist instead of n = 50 lowers GPU cost per document by "
-                f"{_pct_change(b['usd_per_document'], a['usd_per_document']).lstrip('−')} on the four unchanged "
-                f"specialists** (merger excluded; n = 100 contains the n = 50 documents). "
-                f"{b['errors']} of {b['documents']} failed ({_rate(b['error_rate'])})."
+                f"**Larger runs cost less per document.** Running n = 100 per specialist instead of n = 50 cuts GPU cost "
+                f"per document {_pct_change(b['usd_per_document'], a['usd_per_document']).lstrip('−')} on the four "
+                f"unchanged specialists; {b['errors']} of {b['documents']} failed ({_rate(b['error_rate'])})."
             )
     before = (cards.get("s37-2l4-n50") or {}).get("merger_agreement")
     after = (cards.get("s40-2l4") or {}).get("merger_agreement")
@@ -880,58 +876,54 @@ def _executive_findings(present: list[Posture], cards: dict, pooled: dict) -> li
     ]
     if before and after:
         cb, ca = before["quality"].get("clause") or {}, after["quality"].get("clause") or {}
+        cost_x = after["cost"]["usd_per_ok_document"] / before["cost"]["usd_per_ok_document"]
         out.append(
-            f"**The † merger settings raise MAUD accuracy from {cb.get('accuracy') or 0:.3f} to "
-            f"{ca.get('accuracy') or 0:.3f} on the same {after['n']} agreements** "
-            f"(coverage {cb.get('coverage', 0):.0%} → {ca.get('coverage', 0):.0%}; "
-            f"GPU cost ${before['cost']['usd_per_ok_document']:.4f} → "
-            f"${after['cost']['usd_per_ok_document']:.4f}). Frozen settings answer only "
-            f"{_range([c.get('coverage') for c in frozen], '{:.0%}')} of labeled MAUD questions."
+            f"**Merger is the quality gap; the † settings narrow it.** They raise MAUD "
+            f"accuracy {cb.get('accuracy') or 0:.3f} → {ca.get('accuracy') or 0:.3f} and coverage "
+            f"{cb.get('coverage', 0):.0%} → {ca.get('coverage', 0):.0%} on the same {after['n']} agreements, "
+            f"at {cost_x:.1f}× the GPU cost per agreement."
         )
     elif frozen:
         out.append(
-            f"**Merger is the quality gap:** MAUD coverage {_range([c.get('coverage') for c in frozen], '{:.0%}')} "
-            "— agreements exceed the 30,000-char window, so chunked extraction (not more GPUs) is the fix."
+            f"**Merger is the quality gap.** Frozen settings answer only "
+            f"{_range([c.get('coverage') for c in frozen], '{:.0%}')} of labeled MAUD questions because agreements "
+            "exceed the 30,000-char input window."
         )
     return out
 
 
 EXECUTIVE_POOLED_ROWS = (
-    ("Documents ok / total", lambda q: f"{q['ok']} / {q['documents']}"),
     ("Error rate", lambda q: _rate(q["error_rate"])),
-    ("Throughput (documents per minute)", lambda q: _num(q["docs_per_minute"])),
-    ("Throughput (tokens per second per GPU)", lambda q: _num(q["tps_per_gpu"], 0)),
+    ("Documents per minute", lambda q: _num(q["docs_per_minute"])),
+    ("Tokens per second per GPU", lambda q: _num(q["tps_per_gpu"], 0)),
     ("GPU cost per document", lambda q: _money(q["usd_per_document"])),
-    ("Busy-window GPU cost", lambda q: _money(q["busy_usd"], 3)),
 )
 
 
 def render_master_md(data: Mapping[str, Any]) -> str:
-    """Two-page executive card: postures, pooled efficiency, scorecard, merger † settings, key findings, cost."""
+    """Executive card: key findings first, then postures, pooled efficiency, scorecard, merger † settings, cost."""
     cards: dict[str, dict[str, Any]] = data["cards"]
     metered: Mapping[str, Any] = data.get("metered") or {}
     present = [p for p in POSTURES if cards[p.key]]
     pooled = {p.key: _pooled(cards[p.key], p.replicas) for p in POSTURES}
     first = next((c for p in present for c in cards[p.key].values()), None)
 
-    lines = [
-        "# SAND-37 / SAND-39 / SAND-40 Specialist Grid: Results and Cost Summary",
-        "",
-        f"Full detail, figures and method notes live in [{APPENDIX_STEM}.md](./{APPENDIX_STEM}.md).",
-        "",
-    ]
+    lines = ["# SAND-37 / SAND-39 / SAND-40 Specialist Grid: Results and Cost Summary", "", "## Key findings", ""]
+    key = _executive_findings(present, cards, pooled)
+    lines += [f"{i}. {text}" for i, text in enumerate(key, 1)] or ["No cells reported yet."]
+    lines.append("")
     if first:
         cond, ds = first["conditions"], first["conditions"]["dataset"]
         lines += [
-            f"**Model:** {cond['model']} (vLLM {cond['image_tag']}) · **GPU:** NVIDIA {cond['gpu']} at "
-            f"${cond['gpu_usd_per_hour']:.2f}/GPU-hr · **Data:** `{ds['repo']}` {ds['config']} @ `{ds['revision']}`, "
-            f"seed {ds['seed']} (n = 20 nested in n = 50; every n = 50 posture scores identical documents).  ",
-            "**Engine:** AWQ-Marlin, fp8 KV, CUDA graphs, prefix caching, thinking off, 8,192-token cap, "
-            "frozen v1 prompts (T 0.7 contracts/merger, 0.1 elsewhere). SAND-40: n = 100 on the same 2×L4 engine; "
-            "† merger is the same 50 agreements with chunked input (settings below).",
+            f"**Setup:** {cond['model']} on vLLM {cond['image_tag']}, NVIDIA {cond['gpu']} at "
+            f"${cond['gpu_usd_per_hour']:.2f}/GPU-hr; `{ds['repo']}` @ `{ds['revision']}`, seed {ds['seed']}, "
+            "smaller draws nested in larger ones. Frozen v1 prompts and an 8,192-token output cap except the "
+            "† merger cell.",
             "",
         ]
     lines += [
+        f"Method, detail tables and figures: [{APPENDIX_STEM}.md](./{APPENDIX_STEM}.md).",
+        "",
         "| Study | Posture | GPUs | Client concurrency | Documents per class | Status |",
         "| --- | --- | ---: | ---: | ---: | --- |",
     ]
@@ -955,15 +947,14 @@ def render_master_md(data: Mapping[str, Any]) -> str:
     if pooled.get("s40-2l4") and cards["s40-2l4"].get("merger_agreement"):
         lines += [
             "",
-            "SAND-40 pooled cost/throughput includes the † merger cell (whole-agreement reads). "
-            "Like-for-like n = 50 vs n = 100 on the four unchanged specialists is in the appendix.",
+            "SAND-40 includes the † merger cell's whole-agreement reads; the like-for-like check is in the appendix.",
         ]
     lines += [
         "",
         "## Quality and cost by specialist",
         "",
-        f"Cell order: {' · '.join(p.label for p in POSTURES)}. Contracts = CUAD F1 (micro in parentheses); "
-        "merger = MAUD accuracy (coverage in parentheses) — different scales from the field scores. † = optimized merger.",
+        f"Cell order: {' · '.join(p.label for p in POSTURES)}. Contracts: CUAD F1 (micro). "
+        "Merger: MAUD accuracy (coverage), a different scale. † = optimized merger.",
         "",
         "| Specialist | Score | ok / n | p50 latency (s) | $ per ok document |",
         "| --- | :---: | :---: | :---: | :---: |",
@@ -980,31 +971,17 @@ def render_master_md(data: Mapping[str, Any]) -> str:
         )
     lines.append("")
     lines += _merger_settings_section(cards)
-    lines += ["## Key findings", ""]
-    key = _executive_findings(present, cards, pooled)
-    lines += [f"{i}. {text}" for i, text in enumerate(key, 1)] or ["No cells reported yet."]
-    lines += ["", "## Cost and integrity", ""]
+    lines += ["## Cost", ""]
     for study, rec in metered.items():
-        if not isinstance(rec, Mapping):
-            continue
-        note = f" {rec['note']}" if rec.get("note") else ""
-        lines.append(
-            f"- **{study} metered Modal total:** ${float(rec.get('metered_usd', 0)):.2f} "
-            f"(${float(rec.get('billed_usd', 0)):.2f} billed after credits).{note}"
-        )
+        if isinstance(rec, Mapping):
+            lines.append(
+                f"- **{study} metered Modal total:** ${float(rec.get('metered_usd', 0)):.2f} "
+                f"(${float(rec.get('billed_usd', 0)):.2f} billed after credits)."
+            )
     unrecorded = [s for s in dict.fromkeys(p.study for p in present) if s not in metered]
     if unrecorded:
-        lines.append(
-            f"- **{' and '.join(unrecorded)} metered Modal total:** not yet recorded."
-        )
-    lines += [
-        "- **Teardown** verified after each posture, zero containers left warm.",
-        "",
-        f"**Source data:** per-cell cards under `1L4/<specialist>/` and `2L4/<specialist>/`. "
-        f"Detail, method and figures: [./{APPENDIX_STEM}.md](./{APPENDIX_STEM}.md). "
-        "Regenerate with `sandbox run card --master`.",
-        "",
-    ]
+        lines.append(f"- **{' and '.join(unrecorded)} metered Modal total:** not yet recorded.")
+    lines += ["- **Teardown** verified after each posture, zero containers left warm.", ""]
     return "\n".join(lines)
 
 
@@ -1019,9 +996,8 @@ def render_appendix_md(data: Mapping[str, Any]) -> str:
     lines = [
         f"# Appendix to {MASTER_STEM}",
         "",
-        f"Companion to [./{MASTER_STEM}.md](./{MASTER_STEM}.md), which stays executive-length. "
-        "This file holds the full findings, detail tables, run conditions, "
-        "token composition, cost accounting and comparison figures. Regenerate with `sandbox run card --master`.",
+        f"Full findings, detail tables, method and figures behind [{MASTER_STEM}.md](./{MASTER_STEM}.md). "
+        "Regenerate both with `sandbox run card --master`.",
         "",
     ]
     if first:
@@ -1110,13 +1086,6 @@ def render_appendix_md(data: Mapping[str, Any]) -> str:
     lines += _detail_sections(present, cards)
     lines += _figure_md(data, "comparison", "## Figures: posture comparison")
     lines += ["", "## Cost accounting and run integrity", ""]
-    for p in POSTURES:
-        q = pooled[p.key]
-        if q:
-            lines.append(
-                f"- **{p.study} {p.label}:** busy-window GPU {_money(q['busy_usd'], 2)} across "
-                f"{q['documents']} documents."
-            )
     for study, rec in metered.items():
         if not isinstance(rec, Mapping):
             continue
@@ -1128,8 +1097,8 @@ def render_appendix_md(data: Mapping[str, Any]) -> str:
     unrecorded = [s for s in dict.fromkeys(p.study for p in present) if s not in metered]
     if unrecorded:
         lines.append(
-            f"- **{' and '.join(unrecorded)} metered Modal total:** not yet recorded; the busy-window figures "
-            "above are the GPU cost of the cells themselves."
+            f"- **{' and '.join(unrecorded)} metered Modal total:** not yet recorded; the busy-window GPU cost "
+            "under *Serving efficiency* is the cost of the cells themselves."
         )
     lines += [
         "- **Teardown** to zero warm containers is part of every posture's runbook; the metered totals above "
@@ -1157,7 +1126,7 @@ def _figure_md(data: Mapping[str, Any], section: str, heading: str) -> list[str]
     out = ["", heading, ""]
     for i, spec in enumerate(specs, 1):
         tag = "Figure" if section == "comparison" else "Dashboard"
-        out += [f"![{spec['caption']}]({spec['path']})", "", f"*{tag} {i}. {spec['caption']}*", ""]
+        out += [f"![{tag} {i}]({spec['path']})", "", f"*{tag} {i}. {spec['caption']}*", ""]
     return out
 
 
