@@ -57,6 +57,10 @@ class Posture:
         return f"{self.replicas}×L4 C{self.concurrency} n={self.n}"
 
     @property
+    def exp_label(self) -> str:
+        return f"Experiment {self.experiment}"
+
+    @property
     def documents(self) -> str:
         return self.docs or str(self.n)
 
@@ -690,8 +694,8 @@ def _detail_sections(present: list[Posture], cards: dict) -> list[str]:
 
 
 _SETTINGS_RUNS = (
-    ("SAND-37 / SAND-39 merger", "grid-50-merger-specialist-awq-2l4"),
-    ("SAND-40 merger †", "sand40-50-merger-specialist-awq-2l4"),
+    ("Experiments 1–3 merger", "grid-50-merger-specialist-awq-2l4"),
+    ("Experiment 4 merger †", "sand40-50-merger-specialist-awq-2l4"),
 )
 
 
@@ -840,7 +844,7 @@ def _merger_settings_section(cards: dict) -> list[str]:
     out = [
         "## Merger † settings",
         "",
-        "Same 50 agreements (seed 42) and 2×L4 engine as SAND-37; only the settings below change.",
+        "Same 50 agreements (seed 42) and 2×L4 engine as Experiment 3; only the settings below change.",
         "",
         f"| Setting | {base_label} | {opt_label} |",
         "| --- | --- | --- |",
@@ -953,17 +957,17 @@ def render_master_md(data: Mapping[str, Any]) -> str:
     lines += [
         f"Method, detail tables and figures: [{APPENDIX_STEM}.md](./{APPENDIX_STEM}.md).",
         "",
-        "| Experiment | Study | Posture | GPUs | Client concurrency | Documents per class | Status |",
-        "| ---: | --- | --- | ---: | ---: | ---: | --- |",
+        "| Experiment | Posture | GPUs | Client concurrency | Documents per class | Status |",
+        "| --- | --- | ---: | ---: | ---: | --- |",
     ]
     for p in POSTURES:
         status = f"{len(cards[p.key])} of 5 cells" if cards[p.key] else PENDING
         lines.append(
-            f"| {p.experiment} | {p.study} | {p.label} | {p.replicas} | {p.concurrency} | {p.documents} | {status} |"
+            f"| {p.exp_label} | {p.label} | {p.replicas} | {p.concurrency} | {p.documents} | {status} |"
         )
     lines.append("")
 
-    heads = " | ".join(f"{p.study} {p.label}" for p in POSTURES)
+    heads = " | ".join(f"{p.exp_label} · {p.label}" for p in POSTURES)
     lines += [
         "## Serving efficiency (pooled across the five specialists)",
         "",
@@ -976,7 +980,8 @@ def render_master_md(data: Mapping[str, Any]) -> str:
     if pooled.get("s40-2l4") and cards["s40-2l4"].get("merger_agreement"):
         lines += [
             "",
-            "SAND-40 includes the † merger cell's whole-agreement reads; the like-for-like check is in the appendix.",
+            "Experiment 4 includes the † merger cell's whole-agreement reads; the like-for-like check is in the "
+            "appendix.",
         ]
     lines.append("")
     lines += _record_figures(data, "efficiency")
@@ -986,7 +991,7 @@ def render_master_md(data: Mapping[str, Any]) -> str:
         "",
         "## Quality and cost by specialist",
         "",
-        f"Cell order: {' · '.join(p.label for p in POSTURES)}. Contracts: CUAD F1 (micro). "
+        f"Cell order: {' · '.join(p.exp_label for p in POSTURES)}. Contracts: CUAD F1 (micro). "
         "Merger: MAUD accuracy (coverage), a different scale. † = optimized merger.",
         "",
         "| Specialist | Score | ok / n | p50 latency (s) | $ per ok document |",
@@ -1029,7 +1034,7 @@ def _cost_table(present: list[Posture], pooled: Mapping[str, Any], metered: Mapp
         "Busy-window GPU = the cells' own GPU time (the efficiency table above). Metered = the study's whole "
         "Modal session (cold boots, gates, warm idle, teardown) from the billing report.",
         "",
-        "| Study | Documents | Busy-window GPU | Metered session | Busy share | Metered per document | Billed |",
+        "| Session | Documents | Busy-window GPU | Metered session | Busy share | Metered per document | Billed |",
         "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     tot = {"docs": 0, "busy": 0.0, "metered": 0.0, "billed": 0.0}
@@ -1041,7 +1046,9 @@ def _cost_table(present: list[Posture], pooled: Mapping[str, Any], metered: Mapp
         m, b = float(rec.get("metered_usd", 0)), float(rec.get("billed_usd", 0))
         for k, v in (("docs", docs), ("busy", busy), ("metered", m), ("billed", b)):
             tot[k] += v
-        lines.append(_cost_row(study, docs, busy, m, b))
+        exps = [str(p.experiment) for p in present if p.study == study]
+        label = ("Experiments " + " + ".join(exps)) if len(exps) > 1 else f"Experiment {exps[0]}"
+        lines.append(_cost_row(label, docs, busy, m, b))
     if len(studies) > 1:
         lines.append(_cost_row("**Total**", tot["docs"], tot["busy"], tot["metered"], tot["billed"]))
     lines.append("")
