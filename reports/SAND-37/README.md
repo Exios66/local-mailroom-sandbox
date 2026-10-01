@@ -15,6 +15,7 @@ reports/SAND-37/
 ├── SAND-37-MASTER-SCORE-COST-CARD.md      # two-page executive master (generated: sandbox run card --master)
 ├── SAND-37-MASTER-APPENDIX.md             # all detail tables, probes, findings, figures (generated: same command)
 ├── metered-costs.json                     # per-study session Modal spend (sandbox run card --record-metered)
+├── api-reference-deepseek.json           # DeepSeek V4.1 Flash API-leg snapshot from eval-environment (card + appendix reference)
 ├── figures/cmp-*.png                      # posture comparison figures embedded in the master appendix
 ├── 1L4/                                   # 1× L4 · C8 — n=20 (SAND-37, grid-1l4) + n=50 (SAND-39, sand39-1l4-n50)
 │   ├── L4x1-SCORE-COST-CARD.md            # finalized 1× L4 suite card (+ .json)
@@ -41,7 +42,7 @@ reports/SAND-37/
 | `L4x1-SCORE-COST-CARD.md` + `.json` | `sandbox run card --runbook grid-1l4` (the runbook's last step) |
 | `L4x2-SCORE-COST-CARD.md` + `.json` | `sandbox run card --runbook grid-2l4` |
 | `<specialist>/RUN-*-REPORT.md`, `-SERVING.md`, `.serving.json` | the runner's dated report writer (`reports/<date>/<specialist>/`); copied here so each specialist folder is self-contained |
-| `SAND-37-MASTER-SCORE-COST-CARD.md` + `SAND-37-MASTER-APPENDIX.md` | `sandbox run card --master` from the committed `*.card.json` + `metered-costs.json` (aligned grid cells only); the `sand39-1l4-n50` runbook regenerates both, and `tests/test_grid_master.py` fails if either committed copy is stale |
+| `SAND-37-MASTER-SCORE-COST-CARD.md` + `SAND-37-MASTER-APPENDIX.md` | `sandbox run card --master` from the committed `*.card.json` + `metered-costs.json` + `api-reference-deepseek.json` (aligned grid cells only); the `sand39-1l4-n50` runbook regenerates both, and `tests/test_grid_master.py` fails if either committed copy is stale |
 | `figures/cmp-*.png`, `<1L4\|2L4>/figures/*.png` | `sandbox run card --master` (`job/grid_figures.py`, matplotlib): efficiency, quality, latency/cost and matched per-document comparisons, plus one dashboard per posture; embedded in the master appendix |
 | `metered-costs.json` | `sandbox run card --record-metered <STUDY> <metered_usd> <billed_usd>` from the teardown spend check |
 

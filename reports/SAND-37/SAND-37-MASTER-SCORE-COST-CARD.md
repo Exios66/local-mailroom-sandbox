@@ -5,6 +5,7 @@
 1. **Scale-out is near-linear.** 2×L4 at C32 raises throughput +99% at +0.4% cost per document; median latency rises ×1.4–1.8 (identical 250 documents).
 2. **Larger runs cost less per document.** Running n = 100 per specialist instead of n = 50 cuts GPU cost per document 19% on the four unchanged specialists; 1 of 400 failed (0.25%).
 3. **Merger is the quality gap; the † settings narrow it.** They raise MAUD accuracy 0.035 → 0.140 and coverage 23% → 69% on the same 50 agreements, at 4.5× the GPU cost per agreement.
+4. **DeepSeek V4.1 Flash (API) benchmark.** With the same prompts it scores higher on insurance claims (+0.13) and correspondence (+0.10), matches us on corporate records and costs 2–5× our busy-GPU cost per document; its documents differ, so the gaps are indicative.
 
 **Setup:** Qwen/Qwen3-8B-AWQ on vLLM v0.29.0, NVIDIA L4 at $0.80/GPU-hr; `Lucius-Morningstar/mailroom-dataset` @ `ed7576b6`, seed 42, smaller draws nested in larger ones. Frozen v1 prompts and an 8,192-token output cap except the † merger cell.
 
@@ -53,6 +54,18 @@ Same 50 agreements (seed 42) and 2×L4 engine as SAND-37; only the settings belo
 | Re-sample on a length-capped output | none | 1 |
 | Result | MAUD accuracy 0.035, coverage 23%, 46/50 ok, $0.0033 per agreement | MAUD accuracy 0.140, coverage 69%, 50/50 ok, $0.0147 per agreement |
 | Matched agreements | — | +0.106 mean per-agreement score over 46 agreements (35 better / 1 worse) |
+
+## DeepSeek V4.1 Flash (API) reference
+
+Same prompts, n = 20 per specialist via OpenRouter API; dataset `46a4d3c2` (not `ed7576b6`), so documents differ and gaps are indicative only. Contracts and merger use a different metric and are omitted here.
+
+| Specialist | DeepSeek | Ours (SAND-40) | Difference, 95% CI | $ per doc: DeepSeek API vs our busy GPU |
+| --- | ---: | ---: | :---: | ---: |
+| Insurance Claims | 0.797 | 0.672 | +0.126 ± 0.050 | $0.0007 vs $0.0004 |
+| Corporate Records | 0.442 | 0.475 | −0.034 ± 0.097 | $0.0010 vs $0.0002 |
+| Correspondence | 0.442 | 0.341 | +0.101 ± 0.081 | $0.0006 vs $0.0001 |
+
+Latency, token use, long documents and optimized prompts: appendix, *External reference*.
 
 ## Cost
 
