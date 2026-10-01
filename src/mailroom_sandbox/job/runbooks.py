@@ -61,6 +61,7 @@ REQUIRED_IDS: tuple[str, ...] = (
     "improved-scale-matrix",
     "grid-1l4",
     "grid-2l4",
+    "sand39-1l4-n50",
 )
 
 FAMILIES: tuple[tuple[str, str], ...] = (

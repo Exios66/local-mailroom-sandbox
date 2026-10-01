@@ -258,7 +258,7 @@ def test_grid_shell_relocks_1l4_and_leaves_decode_to_posture():
 
 
 def test_grid_family_renders():
-    assert set(list_runbook_ids(family="grid")) == {"grid-1l4", "grid-2l4"}
+    assert set(list_runbook_ids(family="grid")) == {"grid-1l4", "grid-2l4", "sand39-1l4-n50"}
     md = render_markdown("grid-1l4")
     assert "## Per-cell posture (live)" in md
     assert "`grid-50-merger-specialist-awq-1l4` | `merger_agreement_specialist` | 8 | 8192" in md
@@ -281,3 +281,31 @@ def test_grid_runbooks_scrape_and_export_cards():
         assert f"sandbox run card --runbook {stem}" in sh
     # other runbooks keep their two-line loop
     assert "scrape-metrics" not in render_shell("improved-scale-matrix")
+
+
+# ── SAND-039: 1×L4 · C8 · n=50 inverse leg of the SAND-37 2×L4 scale-out ──────
+
+
+def test_sand39_runs_the_five_1l4_n50_cells_matched_to_2l4():
+    from pathlib import Path
+
+    from mailroom_sandbox.job.runbooks import deploy_env_drift
+    from mailroom_sandbox.job.specialist_posture import GRID_CELLS, posture_for_run
+
+    rb = get_runbook("sand39")
+    ids = [Path(rel).stem for rel in rb["configs"]]
+    assert len(ids) == 5 and all(i.startswith("grid-50-") and i.endswith("-awq-1l4") for i in ids)
+    assert set(ids) <= set(Path(r).stem for r in get_runbook("grid-1l4")["configs"])
+    assert set(ids) <= GRID_CELLS
+    assert {posture_for_run(i)["concurrency"] for i in ids} == {8}
+    assert {posture_for_run(i)["replicas"] for i in ids} == {1}
+    assert deploy_env_drift(rb) == []
+
+
+def test_sand39_shell_relocks_scrapes_and_writes_master_card():
+    sh = render_shell("sand39-1l4-n50")
+    assert 'sandbox run preflight --config "$cfg" --live --force' in sh
+    assert 'sandbox run card --config "$cfg"' in sh
+    assert "sandbox run card --runbook grid-1l4" in sh
+    assert "--master" in sh
+    assert "grid-20-" not in sh
