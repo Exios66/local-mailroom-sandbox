@@ -1,4 +1,4 @@
-"""SAND-37 L4 cost record figures (one chart per PNG), built from the committed grid cards.
+"""L4 cost record figures (one chart per PNG), built from the committed grid cards.
 
 Run from the repo root: python reports/SAND-37/figures/record/make_record_figures.py reports/SAND-37/figures/record
 """
@@ -19,9 +19,9 @@ os.makedirs(OUT, exist_ok=True)
 
 # Two validated reference slots, keyed by GPU count: orange = 1× L4, blue = 2× L4.
 SURFACE, INK, INK2, MUTED, GRID, AXIS = "#fcfcfb", "#0b0b0b", "#52514e", "#898781", "#e1e0d9", "#c3c2b7"
-C_1L4_50 = "#eb6834"   # 1× L4 (SAND-39 C8 n=50)
-C_2L4_50 = "#2a78d6"   # 2× L4 (SAND-37 C32 n=50)
-C_2L4_100 = "#2a78d6"  # 2× L4 (SAND-40 C32 n=100) — one color per GPU count
+C_1L4_50 = "#eb6834"   # Experiment 2: 1× L4 C8 n=50
+C_2L4_50 = "#2a78d6"   # Experiment 3: 2× L4 C32 n=50
+C_2L4_100 = "#2a78d6"  # Experiment 4: 2× L4 C32 n=100 — one color per GPU count
 REF = "#898781"
 
 plt.rcParams.update({
@@ -124,19 +124,21 @@ def dots(ax, vals, color, label_fmt=fmt_num, log=False, xmax=None):
 
 from matplotlib.lines import Line2D
 
-SRC = "Source: reports/SAND-37 grid cards (sandbox.grid-card/v1)."
+SRC = "Source: per-run grid cards (sandbox.grid-card/v1)."
 DAGGER = "† Merger runs optimized settings on 50 agreements (chunked, 7.9 calls/agreement); not a serving comparison."
 
 
 def new_fig(title, subtitle, note, legend=None, rows=5):
-    fig, ax = plt.subplots(figsize=(8, 0.55 * rows + 2.3))
-    fig.subplots_adjust(left=0.25, right=0.95, top=1 - 0.95 / (0.55 * rows + 2.3), bottom=0.95 / (0.55 * rows + 2.3))
+    H = 0.55 * rows + 2.3 + (0.3 if legend else 0)
+    fig, ax = plt.subplots(figsize=(8, H))
+    fig.subplots_adjust(left=0.25, right=0.95, top=1 - (1.25 if legend else 0.95) / H, bottom=0.95 / H)
     fig.text(0.02, 0.985, title, fontsize=13, fontweight="bold", va="top")
-    fig.text(0.02, 0.985 - 0.34 / (0.55 * rows + 2.3), subtitle, fontsize=9, color=INK2, va="top")
+    fig.text(0.02, 0.985 - 0.34 / H, subtitle, fontsize=9, color=INK2, va="top")
     fig.text(0.02, 0.015, note, fontsize=7.5, color=MUTED, va="bottom")
     if legend:
         fig.legend(handles=[Line2D([], [], marker="o", ls="", ms=7, color=c, label=l) for c, l in legend],
-                   loc="upper right", bbox_to_anchor=(0.98, 0.99), ncol=len(legend), frameon=False, fontsize=9)
+                   loc="upper left", bbox_to_anchor=(0.012, 0.985 - 0.58 / H), ncol=len(legend), frameon=False,
+                   fontsize=9, handletextpad=0.3, columnspacing=1.6)
     return fig, ax
 
 
@@ -209,8 +211,8 @@ def posture_set(data, color, tag, posture, dagger=False):
     save(fig, f"{tag}-occupancy")
 
 
-posture_set(S39, C_1L4_50, "1xL4-C8-n50", "1× L4 · C=8 · n=50")
-posture_set(S40, C_2L4_100, "2xL4-C32-n100", "2× L4 · C=32 · n=100", dagger=True)
+posture_set(S39, C_1L4_50, "1xL4-C8-n50", "Experiment 2 (1× L4 · C=8 · n=50)")
+posture_set(S40, C_2L4_100, "2xL4-C32-n100", "Experiment 4 (2× L4 · C=32 · n=100)", dagger=True)
 
 
 def pooled(data):
@@ -221,8 +223,8 @@ def pooled(data):
 
 P1, P2 = pooled(S39), pooled(S37_2)
 ROWS = LABELS + ["Pooled"]
-LEG = [(C_1L4_50, "1× L4 · C8"), (C_2L4_50, "2× L4 · C32")]
-CMP = "Same 250 documents: SAND-39 1× L4 C=8 n=50 → SAND-37 2× L4 C=32 n=50"
+LEG = [(C_1L4_50, "Exp. 2 · 1× L4 C8"), (C_2L4_50, "Exp. 3 · 2× L4 C32")]
+CMP = "Same 250 documents: Experiment 2 (1× L4 · C=8 · n=50) → Experiment 3 (2× L4 · C=32 · n=50)"
 
 
 def dumbbell(ax, a, b, labels, fmt, log=False, delta=True):
@@ -314,7 +316,7 @@ ax.set_ylabel("Score", fontsize=8.5)
 ax.text(0.09, 0.77, "cheaper, better ↖", fontsize=7.5, color=MUTED, va="top")
 save(fig, "cost-vs-score")
 
-# 2. Merger: frozen (SAND-37 2× L4 n=50) vs † (SAND-40), same 50 agreements, indexed to frozen.
+# 2. Merger: frozen (Experiment 3) vs † (Experiment 4), same 50 agreements, indexed to frozen.
 fz, dg = card("grid-50", "2l4", "merger"), card("sand40", "2l4", "merger")
 mf, md = S37_2["merger"], S40["merger"]
 cf, cd_ = fz["quality"]["clause"], dg["quality"]["clause"]
@@ -329,7 +331,7 @@ items = [
 ]
 fig, ax = new_fig("Merger agreements — frozen vs † settings",
                   "Same 50 agreements on 2× L4 C=32 · each bar is † ÷ frozen (dashed line = no change)",
-                  SRC + " Frozen = SAND-37 (46/50 ok); † = SAND-40 (50/50 ok)."
+                  SRC + " Frozen = Experiment 3 (46/50 ok); † = Experiment 4 (50/50 ok)."
                   "\n† = chunked whole agreement, maud_v1 prompt, 6,144-token cap, 1 length re-sample."
                   "\nSettings changed together, so the gain is not attributed to any one of them.",
                   rows=7)
@@ -350,7 +352,7 @@ ax.text(15.8, 5, "quality", fontsize=7.5, color=MUTED, ha="right", va="center")
 ax.text(15.8, 2, "cost & time", fontsize=7.5, color=MUTED, ha="right", va="center")
 save(fig, "merger-frozen-vs-dagger")
 
-# 3. Batch size on 2× L4: n=50 (SAND-37) → n=100 (SAND-40), four unchanged classes + pooled.
+# 3. Batch size on 2× L4: n=50 (Experiment 3) → n=100 (Experiment 4), four unchanged classes + pooled.
 C_N50, C_N100 = "#86b6ef", "#2a78d6"   # ordinal steps of the 2× L4 blue
 four = [k for k in KEYS if k != "merger"]
 labs4 = [lab for k, lab in CLASSES if k != "merger"] + ["Pooled (4 classes)"]
@@ -358,9 +360,9 @@ pool = lambda d: sum(d[k]["busy"] for k in four) / sum(d[k]["ok"] for k in four)
 a = [S37_2[k]["cost_1k"] for k in four] + [pool(S37_2)]
 b = [S40[k]["cost_1k"] for k in four] + [pool(S40)]
 fig, ax = new_fig("Batch size on 2× L4 — n=50 → n=100",
-                  "Cost per 1,000 ok docs, SAND-37 n=50 → SAND-40 n=100, C=32 (log scale; merger excluded: settings changed)",
+                  "Cost per 1,000 ok docs, Experiment 3 (n=50) → Experiment 4 (n=100), C=32 (log scale; merger excluded)",
                   SRC + " Pooled = Σ busy GPU $ ÷ Σ ok docs. Contracts' idle share of wall time fell 49% → 32%.",
-                  [(C_N50, "n=50"), (C_N100, "n=100")], rows=5)
+                  [(C_N50, "Exp. 3 · n=50"), (C_N100, "Exp. 4 · n=100")], rows=5)
 ys = list(range(len(a)))[::-1]
 ax.hlines(ys, a, b, color=AXIS, linewidth=2.2, zorder=1)
 ax.scatter(a, ys, s=50, color=C_N50, edgecolor=SURFACE, linewidth=1.5, zorder=3)
