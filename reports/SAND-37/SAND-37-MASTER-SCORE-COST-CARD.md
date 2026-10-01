@@ -2,7 +2,7 @@
 
 ## Key findings
 
-1. **Scale-out is near-linear.** 2×L4 at C32 raises throughput +99% at +0.4% cost per document; median latency rises ×1.4–1.8 (identical 250 documents).
+1. **2×L4 at C32 raises throughput +99% at +0.4% cost per document** (identical 250 documents); median latency rises ×1.4–1.8. GPU count and client concurrency changed together, so this does not separate their effects.
 2. **Larger runs cost less per document.** Running n = 100 per specialist instead of n = 50 cuts GPU cost per document 19% on the four unchanged specialists; 1 of 400 failed (0.25%).
 3. **Merger is the quality gap; the † settings narrow it.** They raise MAUD accuracy 0.035 → 0.140 and coverage 23% → 69% on the same 50 agreements, at 4.5× the GPU cost per agreement.
 
@@ -65,4 +65,4 @@ Busy-window GPU = the cells' own GPU time (the efficiency table above). Metered 
 | SAND-40 | 450 | $1.01 | $1.81 | 56% | $0.00402 | $0.00 |
 | **Total** | 1,050 | $1.81 | $3.39 | 53% | $0.00323 | $0.00 |
 
-- **Teardown** verified after each posture, zero containers left warm.
+- **Teardown** to zero warm containers is part of every posture's runbook; the metered totals come from its spend check.
