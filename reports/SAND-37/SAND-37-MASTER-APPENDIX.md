@@ -44,6 +44,8 @@ Full findings, detail tables, method and figures behind the [executive summary](
 
 Token counts cover successful documents only. The 16 failed documents (see *Findings*) are in busy time and cost but not in token totals, so tokens per second read slightly low and cost per 1M tokens slightly high for postures with failures.
 
+![Cost per 1,000 ok documents, 1x vs 2x L4 on the same 250 documents](figures/record/1x-vs-2xL4-cost.png)
+
 The Experiment 4 column includes the † merger cell, which reads whole agreements and takes most of the posture's busy time, so its pooled throughput and cost per document are not a serving comparison. The like-for-like check is below.
 
 ### Scale check: four unchanged specialists (merger excluded)
@@ -61,6 +63,8 @@ The Experiment 4 column includes the † merger cell, which reads whole agreemen
 ## Score definitions
 
 Field scores (insurance claims, corporate records, correspondence) are the mean suite extraction score against ground truth over successful documents. Contracts ground truth is CUAD clause labels, so its score is the per-document CUAD clause-presence F1 averaged over the successful documents that carry CUAD labels (see *Clause scoring detail* for counts), with the pooled micro F1 in parentheses; the committed run reports count unlabeled documents as 0 and so read lower. Merger is micro-accuracy over labeled MAUD questions, with question coverage in parentheses, a different scale from the field scores. † marks the optimized merger cell (settings on the executive card).
+
+![Cost vs score by specialist, same 250 documents](figures/record/cost-vs-score.png)
 
 ## Token composition
 
@@ -99,6 +103,10 @@ One table per posture. Latency, tokens per document and completion p95 / max cov
 | Correspondence | 50/50 | 0 | 1.00 | 0.345 (0.218) | 6.6 / 11.7 | 2,858 | 298 / 463 | 40.6 | $0.0090 | $0.00018 | $0.063 | 3,523 |
 | Merger Agreements | 46/50 | 4 (length 4) | 1.00 | 0.048 (0.049) | 51.3 / 109.7 | 10,269 | 1,798 / 2,535 | 588.4 | $0.1308 | $0.00284 | $0.277 | 803 |
 
+![Cost per 1,000 ok documents, Experiment 2 (1x L4 C=8 n=50)](figures/record/1xL4-C8-n50-cost.png)
+
+![Latency p50 to p99, Experiment 2 (1x L4 C=8 n=50)](figures/record/1xL4-C8-n50-latency.png)
+
 ### Experiment 3 · 2×L4 C32 n=50
 
 | Specialist | ok / n | Errors | Schema-valid | Score (sd) | p50 / p95 latency (s) | Tokens per doc | Completion p95 / max | Wall (s) | Busy GPU $ | $ per ok doc | $ per 1M tokens | Tokens/s/GPU |
@@ -109,6 +117,10 @@ One table per posture. Latency, tokens per document and completion p95 / max cov
 | Correspondence | 50/50 | 0 | 1.00 | 0.334 (0.203) | 10.7 / 18.5 | 2,858 | 296 / 443 | 14.0 | $0.0062 | $0.00012 | $0.043 | 5,120 |
 | Merger Agreements | 46/50 | 4 (length 4) | 1.00 | 0.035 (0.041) | 92.5 / 167.2 | 10,303 | 1,543 / 2,852 | 340.8 | $0.1515 | $0.00329 | $0.320 | 695 |
 
+![Cost per 1,000 ok documents, Experiment 3 (2x L4 C=32 n=50)](figures/record/2xL4-C32-n50-cost.png)
+
+![Latency p50 to p99, Experiment 3 (2x L4 C=32 n=50)](figures/record/2xL4-C32-n50-latency.png)
+
 ### Experiment 4 · 2×L4 C32 n=100
 
 | Specialist | ok / n | Errors | Schema-valid | Score (sd) | p50 / p95 latency (s) | Tokens per doc | Completion p95 / max | Wall (s) | Busy GPU $ | $ per ok doc | $ per 1M tokens | Tokens/s/GPU |
@@ -118,6 +130,10 @@ One table per posture. Latency, tokens per document and completion p95 / max cov
 | Corporate Records | 100/100 | 0 | 0.97 | 0.475 (0.246) | 19.9 / 31.8 | 4,377 | 233 / 250 | 48.1 | $0.0214 | $0.00021 | $0.049 | 4,549 |
 | Correspondence | 100/100 | 0 | 1.00 | 0.341 (0.188) | 10.3 / 20.3 | 2,941 | 269 / 621 | 27.5 | $0.0122 | $0.00012 | $0.042 | 5,343 |
 | Merger Agreements | 50/50 | 0 | 1.00 | 0.140 (0.090) | 1,044.4 / 2,067.4 | 112,260 | 8,012 / 13,241 | 1,658.8 | $0.7373 | $0.01475 | $0.131 | 1,692 |
+
+![Cost per 1,000 ok documents, Experiment 4 (2x L4 C=32 n=100)](figures/record/2xL4-C32-n100-cost.png)
+
+![Latency p50 to p99, Experiment 4 (2x L4 C=32 n=100)](figures/record/2xL4-C32-n100-latency.png)
 
 Merger score is MAUD micro-accuracy; its sd is over per-document scores.
 

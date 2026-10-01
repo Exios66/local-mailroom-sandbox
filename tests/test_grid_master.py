@@ -235,18 +235,26 @@ def test_master_reports_token_composition_and_figure():
 
 
 def test_master_embeds_the_record_figures_that_exist(tmp_path):
-    """Executive card embeds each committed record figure once, in its section, and skips missing ones."""
-    md = grid_master.render_master_md(grid_master.collect_master())
-    for stems in grid_master.RECORD_FIGURES.values():
+    """Executive card carries only the three key-finding charts; every other record figure is in the appendix."""
+    data = grid_master.collect_master()
+    md, appendix = grid_master.render_master_md(data), grid_master.render_appendix_md(data)
+    assert md.count("](figures/record/") == 3
+    for section, stems in grid_master.RECORD_FIGURES.items():
+        home, other = (md, appendix) if section in grid_master.MASTER_FIG_SECTIONS else (appendix, md)
         for stem, _ in stems:
+            link = f"]({grid_master.RECORD_FIG_DIR}/{stem}.png)"
             assert (SAND37 / grid_master.RECORD_FIG_DIR / f"{stem}.png").is_file()
-            assert md.count(f"]({grid_master.RECORD_FIG_DIR}/{stem}.png)") == 1
+            assert home.count(link) == 1 and link not in other
     head, tail = md.split("## Quality and cost by specialist")
-    assert "](figures/record/1x-vs-2xL4-cost.png)" in head
+    assert "](figures/record/1x-vs-2xL4-throughput.png)" in head
+    assert "](figures/record/2xL4-n50-vs-n100-cost.png)" in head
     assert "](figures/record/merger-frozen-vs-dagger.png)" in tail.split("## Merger † settings")[1]
+    exp4 = appendix.split("### Experiment 4 · 2×L4 C32 n=100")[1].split("## Clause scoring detail")[0]
+    assert "](figures/record/2xL4-C32-n100-latency.png)" in exp4
     assert "| Experiment | Posture |" in md
-    bare = grid_master.render_master_md(grid_master.collect_master(_seed(tmp_path, True)))
-    assert "figures/record/" not in bare
+    bare = grid_master.collect_master(_seed(tmp_path, True))
+    assert "figures/record/" not in grid_master.render_master_md(bare)
+    assert "figures/record/" not in grid_master.render_appendix_md(bare)
 
 
 def test_master_reports_carry_experiment_labels_not_study_ids():
