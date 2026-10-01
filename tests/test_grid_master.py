@@ -43,7 +43,7 @@ def test_sand39_pending_before_its_cells_exist(tmp_path):
 def test_sand39_populates_and_becomes_the_matched_sample_baseline(tmp_path):
     md = grid_master.render_master_md(grid_master.collect_master(_seed(tmp_path, True)))
     assert "| SAND-39 | 1×L4 C8 n=50 | 1 | 8 | 50 | 5 of 5 cells |" in md
-    assert "identical 250 documents, SAND-39 1×L4 C8 n=50 vs SAND-37 2×L4 C32 n=50" in md
+    assert "identical 250 documents" in md
     assert "SAND-39 pending" not in md
 
 
@@ -64,7 +64,7 @@ def test_sand40_column_is_pending_with_the_optimized_merger_mark():
 
 
 def test_merger_settings_table_shows_what_the_dagger_changes():
-    md = grid_master.render_master_md(grid_master.collect_master())
+    md = grid_master.render_appendix_md(grid_master.collect_master())
     assert "## Merger † settings" in md
     assert "| Serving window | 32,768 tokens on 2×L4 | 32,768 tokens on 2×L4 |" in md
     assert "| **Input** | head + tail, 30,000 chars (rest of the agreement unread) | **whole agreement, chunked: 47,000-char" in md
@@ -73,9 +73,28 @@ def test_merger_settings_table_shows_what_the_dagger_changes():
 
 
 def test_committed_master_card_is_current():
-    """The committed master card must match a fresh render (regenerate with `sandbox run card --master`)."""
+    """Committed master + appendix must match a fresh render (regenerate with `sandbox run card --master`)."""
     committed = (SAND37 / f"{grid_master.MASTER_STEM}.md").read_text(encoding="utf-8")
     assert committed == grid_master.render_master_md(grid_master.collect_master())
+    appendix = (SAND37 / f"{grid_master.APPENDIX_STEM}.md").read_text(encoding="utf-8")
+    assert appendix == grid_master.render_appendix_md(grid_master.collect_master())
+
+
+def test_master_stays_executive_length():
+    """The master card is a two-page executive summary; detail lives in the appendix."""
+    md = grid_master.render_master_md(grid_master.collect_master())
+    assert len(md.splitlines()) <= grid_master.EXECUTIVE_MAX_LINES
+    for heading in (
+        "## Per-cell detail",
+        "## Clause scoring detail",
+        "## Engine telemetry",
+        "## Run conditions by specialist",
+        "## SAND-40 validation probes",
+        "## Figures: posture comparison",
+        "## Appendix: posture dashboards",
+    ):
+        assert heading not in md
+    assert f"{grid_master.APPENDIX_STEM}.md" in md
 
 
 def test_record_metered_round_trips(tmp_path):
@@ -96,7 +115,7 @@ def test_figures_embed_in_master_and_matched_panel_waits_for_sand39(tmp_path):
     assert {"cmp-efficiency", "cmp-quality", "cmp-latency-cost", "cmp-matched", "posture-s39-1l4-n50"} <= {
         s["key"] for s in specs
     }
-    md = grid_master.render_master_md(after)
+    md = grid_master.render_appendix_md(after)
     assert "](figures/cmp-matched.png)" in md
     assert "](2L4/figures/SAND-37-2xL4-C32-n50.png)" in md
     assert "](1L4/figures/SAND-39-1xL4-C8-n50.png)" in md
@@ -105,7 +124,8 @@ def test_figures_embed_in_master_and_matched_panel_waits_for_sand39(tmp_path):
 def test_write_master_renders_every_linked_figure(tmp_path):
     repo = _seed(tmp_path, True)
     paths = grid_master.write_master(repo)
-    md = paths["md"].read_text()
+    md = paths["appendix"].read_text()
+    assert grid_master.APPENDIX_STEM in str(paths["appendix"])
     from mailroom_sandbox.job import grid_figures
 
     for spec in grid_figures.figure_specs(grid_master.collect_master(repo)):
@@ -115,7 +135,7 @@ def test_write_master_renders_every_linked_figure(tmp_path):
 
 
 def test_master_is_fully_detailed():
-    md = grid_master.render_master_md(grid_master.collect_master())
+    md = grid_master.render_appendix_md(grid_master.collect_master())
     for heading in (
         "## Per-cell detail",
         "### SAND-37 1×L4 C8 n=20",
@@ -136,6 +156,6 @@ def test_probes_are_reported_matched_but_never_pooled():
     data = grid_master.collect_master()
     assert set(data["probes"]) == {"contracts", "merger_agreement"}
     assert all("probe" not in c["run_id"] for p in data["cards"].values() for c in p.values())
-    md = grid_master.render_master_md(data)
+    md = grid_master.render_appendix_md(data)
     row = next(line for line in md.splitlines() if line.startswith("| Merger Agreements | 65,536 |"))
     assert "| 18 | 0.114 | 0.033 | +0.081 (14 / 3) |" in row

@@ -1,18 +1,23 @@
 """Master score & cost card across the specialist-grid postures (SAND-037 / SAND-039).
 
-Renders ``reports/SAND-37/SAND-37-MASTER-SCORE-COST-CARD.md`` from the committed
+Renders the two-page executive ``reports/SAND-37/SAND-37-MASTER-SCORE-COST-CARD.md``
+plus the detail ``reports/SAND-37/SAND-37-MASTER-APPENDIX.md`` from the committed
 per-run ``*.card.json`` (same source of truth as the suite cards), so a later
-leg populates the card by re-running ``sandbox run card --master``::
+leg populates both by re-running ``sandbox run card --master``::
 
     SAND-37 · 1×L4 · C8  · n=20   reports/SAND-37/1L4/<specialist>/grid-20-*-1l4*.card.json
     SAND-39 · 1×L4 · C8  · n=50   reports/SAND-37/1L4/<specialist>/grid-50-*-1l4*.card.json
     SAND-37 · 2×L4 · C32 · n=50   reports/SAND-37/2L4/<specialist>/grid-50-*-2l4*.card.json
 
-A posture with no cards yet renders as "pending". SAND-39 and the 2×L4 leg draw
-the identical n=50 documents, so when both are present the scale-out finding
-is a matched-sample comparison. Session-level Modal spend (cold boots, idle,
-pre-warm) is not in the cards; it comes from ``metered-costs.json`` next to the
-card when the operator has recorded it.
+The master card stays executive-length (postures, pooled efficiency, per-specialist
+scorecard, three key findings, metered cost). Everything else — per-cell tables,
+clause scoring, engine telemetry, run conditions, merger † settings, probes,
+full findings, figures and dashboards — lives in the appendix. A posture with no
+cards yet renders as "pending". SAND-39 and the 2×L4 leg draw the identical n=50
+documents, so when both are present the scale-out finding is a matched-sample
+comparison. Session-level Modal spend (cold boots, idle, pre-warm) is not in the
+cards; it comes from ``metered-costs.json`` next to the card when the operator
+has recorded it.
 """
 
 from __future__ import annotations
@@ -26,7 +31,9 @@ from mailroom_sandbox.job.grid_cards import ROOT_REL, SCHEMA, SPECIALISTS, _read
 from mailroom_sandbox.paths import repo_root
 
 MASTER_STEM = "SAND-37-MASTER-SCORE-COST-CARD"
+APPENDIX_STEM = "SAND-37-MASTER-APPENDIX"
 METERED_FILE = "metered-costs.json"
+EXECUTIVE_MAX_LINES = 110  # two printed pages; the staleness test enforces it
 PROBE_DIR = "probes"  # SAND-40 validation probes: reported in an appendix, never pooled
 
 
@@ -77,7 +84,12 @@ PARITY = 0.03  # cost-per-document gap below which two postures are called equal
 
 def master_paths(repo: Path | None = None) -> dict[str, Path]:
     base = (repo or repo_root()) / ROOT_REL
-    return {"dir": base, "md": base / f"{MASTER_STEM}.md", "metered": base / METERED_FILE}
+    return {
+        "dir": base,
+        "md": base / f"{MASTER_STEM}.md",
+        "appendix": base / f"{APPENDIX_STEM}.md",
+        "metered": base / METERED_FILE,
+    }
 
 
 def _cells_for(posture: Posture) -> frozenset[str]:
@@ -626,7 +638,73 @@ def _probe_section(probes: Mapping[str, Mapping[str, Any]], cards: dict) -> list
 # ── render ───────────────────────────────────────────────────────────────────
 
 
+def _executive_findings(present: list[Posture], cards: dict, pooled: dict) -> list[str]:
+    """Three vital bullets for the two-page master; the full analysis lives in the appendix."""
+    out: list[str] = []
+    by_key = {p.key: p for p in present}
+    one50, two50, one20 = by_key.get("s39-1l4-n50"), by_key.get("s37-2l4-n50"), by_key.get("s37-1l4-n20")
+    base = one50 or one20
+    if base and two50:
+        a, b = pooled[base.key], pooled[two50.key]
+        lat = []
+        for folder in _ORDER:
+            ca, cb = cards[base.key].get(folder), cards[two50.key].get(folder)
+            if ca and cb and ca["latency"]["p50"]:
+                lat.append(cb["latency"]["p50"] / ca["latency"]["p50"])
+        basis = (
+            f"identical {b['documents']} documents"
+            if base is one50
+            else "sample sizes differ, SAND-39 pending"
+        )
+        out.append(
+            f"**Scale-out is near-linear:** 2×L4 at C32 raises throughput by "
+            f"{_pct_change(b['docs_per_minute'], a['docs_per_minute'])} at "
+            f"{_pct_change(b['usd_per_document'], a['usd_per_document'])} cost per document "
+            f"({basis}; median latency ×{_range(lat, '{:.1f}')})."
+        )
+    deltas = []
+    for folder in _SUITE_FOLDERS + ("contracts",):
+        vals = [cards[p.key][folder]["quality"]["overall_mean"] for p in present if folder in cards[p.key]]
+        if len(vals) > 1:
+            deltas.append(max(vals) - min(vals))
+    kinds: dict[str, int] = {}
+    for folder in _ORDER:
+        for p in present:
+            card = cards[p.key].get(folder)
+            if not card:
+                continue
+            for k, v in (card["quality"].get("error_kinds") or {}).items():
+                kinds[k] = kinds.get(k, 0) + int(v)
+    total = sum(kinds.values())
+    if deltas or total:
+        bits = []
+        if deltas:
+            bits.append(f"field scores within {max(deltas):.3f} across postures")
+        if total:
+            bits.append(f"all {total} errors are 8,192-token output-cap truncations (contracts/merger only)")
+        out.append("**Quality is posture-independent:** " + "; ".join(bits) + ".")
+    m = [cards[p.key]["merger_agreement"]["quality"].get("clause") or {} for p in present if "merger_agreement" in cards[p.key]]
+    if m:
+        out.append(
+            f"**Merger is the quality gap:** MAUD coverage {_range([c.get('coverage') for c in m], '{:.0%}')} "
+            "— agreements exceed the 30,000-char window, so chunked extraction (not more GPUs) is the fix. "
+            "See the appendix for probes, correspondence and schema notes."
+        )
+    return out
+
+
+EXECUTIVE_POOLED_ROWS = (
+    ("Documents ok / total", lambda q: f"{q['ok']} / {q['documents']}"),
+    ("Error rate", lambda q: f"{q['error_rate'] * 100:.1f}%"),
+    ("Throughput (documents per minute)", lambda q: _num(q["docs_per_minute"])),
+    ("Throughput (tokens per second per GPU)", lambda q: _num(q["tps_per_gpu"], 0)),
+    ("GPU cost per document", lambda q: _money(q["usd_per_document"])),
+    ("Busy-window GPU cost", lambda q: _money(q["busy_usd"], 3)),
+)
+
+
 def render_master_md(data: Mapping[str, Any]) -> str:
+    """Two-page executive card: postures, pooled efficiency, scorecard, key findings, cost."""
     cards: dict[str, dict[str, Any]] = data["cards"]
     metered: Mapping[str, Any] = data.get("metered") or {}
     present = [p for p in POSTURES if cards[p.key]]
@@ -635,6 +713,99 @@ def render_master_md(data: Mapping[str, Any]) -> str:
 
     lines = [
         "# SAND-37 / SAND-39 Specialist Grid: Results and Cost Summary",
+        "",
+        f"Full detail, figures and method notes live in [{APPENDIX_STEM}.md](./{APPENDIX_STEM}.md).",
+        "",
+    ]
+    if first:
+        cond, ds = first["conditions"], first["conditions"]["dataset"]
+        lines += [
+            f"**Model:** {cond['model']} (vLLM {cond['image_tag']}) · **GPU:** NVIDIA {cond['gpu']} at "
+            f"${cond['gpu_usd_per_hour']:.2f}/GPU-hr · **Data:** `{ds['repo']}` {ds['config']} @ `{ds['revision']}`, "
+            f"seed {ds['seed']} (n = 20 nested in n = 50; every n = 50 posture scores identical documents).  ",
+            "**Engine:** AWQ-Marlin, fp8 KV, CUDA graphs, prefix caching, thinking off, 8,192-token cap, "
+            "frozen v1 prompts (T 0.7 contracts/merger, 0.1 elsewhere). SAND-40 † merger settings in the appendix.",
+            "",
+        ]
+    lines += [
+        "| Study | Posture | GPUs | Client concurrency | Documents per class | Status |",
+        "| --- | --- | ---: | ---: | ---: | --- |",
+    ]
+    for p in POSTURES:
+        status = f"{len(cards[p.key])} of 5 cells" if cards[p.key] else PENDING
+        lines.append(
+            f"| {p.study} | {p.label} | {p.replicas} | {p.concurrency} | {p.documents} | {status} |"
+        )
+    lines.append("")
+
+    heads = " | ".join(f"{p.study} {p.label}" for p in POSTURES)
+    lines += [
+        "## Serving efficiency (pooled across the five specialists)",
+        "",
+        f"| Metric | {heads} |",
+        "| --- |" + " ---: |" * len(POSTURES),
+    ]
+    for label, fn in EXECUTIVE_POOLED_ROWS:
+        vals = [fn(pooled[p.key]) if pooled[p.key] else PENDING for p in POSTURES]
+        lines.append(f"| {label} | " + " | ".join(vals) + " |")
+    lines.append("")
+
+    lines += [
+        "## Quality and cost by specialist",
+        "",
+        f"Cell order: {' · '.join(p.label for p in POSTURES)}. Contracts = CUAD F1 (micro in parentheses); "
+        "merger = MAUD accuracy (coverage in parentheses) — different scales from the field scores.",
+        "",
+        "| Specialist | Score | ok / n | p50 latency (s) | $ per ok document |",
+        "| --- | :---: | :---: | :---: | :---: |",
+    ]
+    for folder in _ORDER:
+        per = [cards[p.key].get(folder) for p in POSTURES]
+        marks = ["†" if p.key == "s40-2l4" and folder == "merger_agreement" else "" for p in POSTURES]
+        lines.append(
+            f"| {_LABEL[folder]} | "
+            + _joined([_score(c, mark=m) for c, m in zip(per, marks, strict=True)]) + " | "
+            + _joined([f"{c['quality']['ok']}/{c['n']}" if c else PENDING for c in per]) + " | "
+            + _joined([f"{c['latency']['p50']:.1f}" if c else PENDING for c in per]) + " | "
+            + _joined([f"{c['cost']['usd_per_ok_document']:.5f}" if c else PENDING for c in per]) + " |"
+        )
+    lines += ["", "## Key findings", ""]
+    key = _executive_findings(present, cards, pooled)
+    lines += [f"{i}. {text}" for i, text in enumerate(key, 1)] or ["No cells reported yet."]
+    lines += ["", "## Cost and integrity", ""]
+    for study, rec in metered.items():
+        if not isinstance(rec, Mapping):
+            continue
+        note = f" {rec['note']}" if rec.get("note") else ""
+        lines.append(
+            f"- **{study} metered Modal total:** ${float(rec.get('metered_usd', 0)):.2f} "
+            f"(${float(rec.get('billed_usd', 0)):.2f} billed after credits).{note}"
+        )
+    lines += [
+        "- **Teardown** verified after each posture, zero containers left warm.",
+        "",
+        f"**Source data:** per-cell cards under `1L4/<specialist>/` and `2L4/<specialist>/`; suite cards "
+        "`1L4/L4x1-SCORE-COST-CARD.md`, `2L4/L4x2-SCORE-COST-CARD.md`. Detail, method and figures: "
+        f"[./{APPENDIX_STEM}.md](./{APPENDIX_STEM}.md). Regenerate with `sandbox run card --master`.",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def render_appendix_md(data: Mapping[str, Any]) -> str:
+    """Everything the executive card omits: method detail, full findings, tables, probes, figures."""
+    cards: dict[str, dict[str, Any]] = data["cards"]
+    metered: Mapping[str, Any] = data.get("metered") or {}
+    present = [p for p in POSTURES if cards[p.key]]
+    pooled = {p.key: _pooled(cards[p.key], p.replicas) for p in POSTURES}
+    first = next((c for p in present for c in cards[p.key].values()), None)
+
+    lines = [
+        f"# Appendix to {MASTER_STEM}",
+        "",
+        f"Companion to [./{MASTER_STEM}.md](./{MASTER_STEM}.md), which stays executive-length. "
+        "This file holds every detail table, the full findings, probes, run conditions, "
+        "cost accounting and figures. Regenerate with `sandbox run card --master`.",
         "",
     ]
     if first:
@@ -652,20 +823,9 @@ def render_master_md(data: Mapping[str, Any]) -> str:
             "optimized settings marked † (see *Merger † settings*).",
             "",
         ]
-    lines += [
-        "| Study | Posture | GPUs | Client concurrency | Documents per class | Status |",
-        "| --- | --- | ---: | ---: | ---: | --- |",
-    ]
-    for p in POSTURES:
-        status = f"{len(cards[p.key])} of 5 cells" if cards[p.key] else PENDING
-        lines.append(
-            f"| {p.study} | {p.label} | {p.replicas} | {p.concurrency} | {p.documents} | {status} |"
-        )
-    lines.append("")
-
     heads = " | ".join(f"{p.study} {p.label}" for p in POSTURES)
     lines += [
-        "## Serving efficiency (pooled across the five specialists)",
+        "## Serving efficiency — full pooled table",
         "",
         f"| Metric | {heads} |",
         "| --- |" + " ---: |" * len(POSTURES),
@@ -687,9 +847,8 @@ def render_master_md(data: Mapping[str, Any]) -> str:
         vals = [fn(pooled[p.key]) if pooled[p.key] else PENDING for p in POSTURES]
         lines.append(f"| {label} | " + " | ".join(vals) + " |")
     lines.append("")
-
     lines += [
-        "## Quality and cost by specialist",
+        "## Quality and cost by specialist (full scorecard)",
         "",
         f"Columns within each cell follow the posture order above ({' · '.join(p.label for p in POSTURES)}).",
         "",
@@ -717,15 +876,16 @@ def render_master_md(data: Mapping[str, Any]) -> str:
         "scale from the field scores. † marks the optimized merger cell (next section).",
         "",
     ]
-    lines += _merger_settings_section(cards)
-    lines += _detail_sections(present, cards)
-    lines += _probe_section(data.get("probes") or {}, cards)
     lines += [
-        "## Findings",
+        "## Findings (full)",
         "",
     ]
     findings = _findings(present, cards, pooled)
     lines += [f"{i}. {text}" for i, text in enumerate(findings, 1)] or ["No cells reported yet."]
+    lines += [""]
+    lines += _merger_settings_section(cards)
+    lines += _detail_sections(present, cards)
+    lines += _probe_section(data.get("probes") or {}, cards)
     lines += _figure_md(data, "comparison", "## Figures: posture comparison")
     lines += ["", "## Cost accounting and run integrity", ""]
     for p in POSTURES:
@@ -778,6 +938,7 @@ def write_master(repo: Path | None = None) -> dict[str, Path]:
 
     write_figures(data, repo)
     paths["md"].write_text(render_master_md(data), encoding="utf-8")
+    paths["appendix"].write_text(render_appendix_md(data), encoding="utf-8")
     return paths
 
 

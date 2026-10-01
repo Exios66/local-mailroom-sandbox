@@ -786,7 +786,7 @@ def _run_parser(sub, shared):
     card_p.add_argument(
         "--master",
         action="store_true",
-        help="write reports/SAND-37/SAND-37-MASTER-SCORE-COST-CARD.md across SAND-37 + SAND-39 postures",
+        help="write reports/SAND-37/SAND-37-MASTER-SCORE-COST-CARD.md (two-page executive) + SAND-37-MASTER-APPENDIX.md across SAND-37 + SAND-39 postures",
     )
     card_p.add_argument(
         "--gate",
@@ -1889,7 +1889,8 @@ def _cmd_run_card(args) -> int:
     if getattr(args, "master", False):
         from mailroom_sandbox.job.grid_master import write_master
 
-        print(f"master card → {write_master()['md']}")
+        paths = write_master()
+        print(f"master card → {paths['md']} (+ appendix {paths['appendix']})")
         return 0
     if getattr(args, "runbook", None):
         replicas = 1 if args.runbook == "grid-1l4" else 2
