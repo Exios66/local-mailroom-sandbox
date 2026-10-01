@@ -43,6 +43,11 @@
 | Completion tokens | 76,386 (17.5%) |
 | Total tokens | 436,946 |
 | Tokens per document | 8,917 |
+| Per document: instructions + template | 2,853 (32.0%) |
+| Per document: document text | 4,506 (50.5%) |
+| Per document: output | 1,559 (17.5%) |
+| Instruction tokens per model call | 2,853 over 49 calls |
+| Token split basis | fit across documents, 4.40 chars/token |
 | Completion p95 / max (ok docs) | 2,688 / 2,915 |
 | **Throughput** |  |
 | Tokens / second | 1,397.0 |
@@ -136,4 +141,4 @@
 | 49 | `DOC-9e063c6e3baf1233` | yes | 0.6341 | 213.6 | 7486 | 2915 | — |
 | 50 | `DOC-a2ce7adbf6f5cb8d` | no | — | 239.9 | — | — | LengthFinishReasonError: Could not parse response content as the length limit was reached - CompletionUsage(completion_tokens=8192, prompt_tokens=6729, total_to |
 
-_Generated 2026-10-01T01:30:23+00:00 by `sandbox run card`. Machine-readable twin: `grid-50-contracts-specialist-awq-2l4-rerun.card.json`._
+_Generated 2026-10-01T06:44:50+00:00 by `sandbox run card`. Machine-readable twin: `grid-50-contracts-specialist-awq-2l4-rerun.card.json`._

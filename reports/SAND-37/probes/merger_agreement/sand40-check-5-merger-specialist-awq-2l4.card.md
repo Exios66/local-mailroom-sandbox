@@ -50,6 +50,11 @@
 | Completion tokens | 24,996 (4.3%) |
 | Total tokens | 581,269 |
 | Tokens per document | 116,254 |
+| Per document: instructions + template | 20,248 (17.4%) |
+| Per document: document text | 91,007 (78.3%) |
+| Per document: output | 4,999 (4.3%) |
+| Instruction tokens per model call | 2,469 over 41 calls |
+| Token split basis | document chars ÷ 4.5 chars/token; instructions are the remainder |
 | Completion p95 / max (ok docs) | 5,814 / 5,814 |
 | **Throughput** |  |
 | Tokens / second | 2,043.2 |
@@ -93,4 +98,4 @@
 | 4 | `DOC-d554890e66786170` | yes | 0.1875 | 458.0 | 109746 | 5154 | — |
 | 5 | `DOC-5fa0ba13cf68b593` | yes | 0.0000 | 465.7 | 122413 | 5667 | — |
 
-_Generated 2026-10-01T05:41:04+00:00 by `sandbox run card`. Machine-readable twin: `sand40-check-5-merger-specialist-awq-2l4.card.json`._
+_Generated 2026-10-01T06:44:51+00:00 by `sandbox run card`. Machine-readable twin: `sand40-check-5-merger-specialist-awq-2l4.card.json`._

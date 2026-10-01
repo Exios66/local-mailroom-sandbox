@@ -43,6 +43,11 @@
 | Completion tokens | 2,710 (5.4%) |
 | Total tokens | 50,542 |
 | Tokens per document | 2,527 |
+| Per document: instructions + template | 2,199 (87.0%) |
+| Per document: document text | 193 (7.6%) |
+| Per document: output | 136 (5.4%) |
+| Instruction tokens per model call | 2,199 over 20 calls |
+| Token split basis | fit across documents, 4.17 chars/token |
 | Completion p95 / max (ok docs) | 180 / 296 |
 | **Throughput** |  |
 | Tokens / second | 5,028.6 |
@@ -95,4 +100,4 @@
 | 19 | `DOC-c4074ed5b08f097e` | yes | 0.3827 | 4.1 | 2255 | 128 | — |
 | 20 | `DOC-5b63f9fe205d564b` | yes | 0.6212 | 4.2 | 2425 | 145 | — |
 
-_Generated 2026-10-01T00:57:06+00:00 by `sandbox run card`. Machine-readable twin: `grid-20-correspondence-specialist-awq-1l4.card.json`._
+_Generated 2026-10-01T06:44:50+00:00 by `sandbox run card`. Machine-readable twin: `grid-20-correspondence-specialist-awq-1l4.card.json`._

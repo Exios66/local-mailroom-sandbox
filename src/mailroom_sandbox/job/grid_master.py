@@ -162,6 +162,12 @@ def _pooled(cards: Mapping[str, Mapping[str, Any]], replicas: int) -> dict[str, 
     }
 
 
+def _pooled_four(cards: Mapping[str, Mapping[str, Any]], replicas: int) -> dict[str, Any] | None:
+    """Pooled metrics over the four specialists whose settings never changed (merger excluded)."""
+    four = {k: v for k, v in cards.items() if k != "merger_agreement"}
+    return _pooled(four, replicas) if len(four) == 4 else None
+
+
 def _score(card: Mapping[str, Any] | None, *, mark: str = "") -> str:
     if not card:
         return PENDING + mark
@@ -234,6 +240,21 @@ def _findings(present: list[Posture], cards: dict, pooled: dict) -> list[str]:
             "per-replica queueing at the higher concurrency."
         )
 
+    # 1b. SAND-40 batch scale-up on the four unchanged specialists (merger † excluded).
+    s40 = by_key.get("s40-2l4")
+    if s40 and two50:
+        a, b = _pooled_four(cards[two50.key], two50.replicas), _pooled_four(cards[s40.key], s40.replicas)
+        if a and b:
+            out.append(
+                f"**Doubling the batch to n = 100 keeps quality and cuts cost per document on the four unchanged "
+                f"specialists** ({two50.study} {two50.label} vs {s40.study} {s40.label}, merger excluded; each "
+                f"n = 100 draw contains the n = 50 documents). Cost per document changes by "
+                f"{_pct_change(b['usd_per_document'], a['usd_per_document'])}, tokens per second per GPU by "
+                f"{_pct_change(b['tps_per_gpu'], a['tps_per_gpu'])} and documents per minute by "
+                f"{_pct_change(b['docs_per_minute'], a['docs_per_minute'])}: a longer queue keeps both replicas "
+                f"fuller. {b['errors']} of {b['documents']} documents failed ({b['error_rate'] * 100:.1f}%)."
+            )
+
     # 2. quality stability across postures.
     deltas, cuad = [], []
     for folder in _SUITE_FOLDERS + ("contracts",):
@@ -281,16 +302,69 @@ def _findings(present: list[Posture], cards: dict, pooled: dict) -> list[str]:
             "infrastructure, authentication or JSON parsing."
         )
 
-    # 4. merger.
-    m = [cards[p.key]["merger_agreement"]["quality"].get("clause") or {} for p in present if "merger_agreement" in cards[p.key]]
+    # 4. merger: the frozen-settings gap, then what the † settings recover and what they cost.
+    m = [
+        cards[p.key]["merger_agreement"]["quality"].get("clause") or {}
+        for p in present
+        if "merger_agreement" in cards[p.key] and p.key != "s40-2l4"
+    ]
     if m:
         out.append(
-            "**Merger agreements are the principal quality gap.** Source agreements far exceed the "
-            "30,000-character input window (head plus tail), so the model answers only "
+            "**Merger agreements are the principal quality gap on the frozen settings.** Source agreements far "
+            "exceed the 30,000-character input window (head plus tail), so the model answers only "
             f"{_range([c.get('coverage') for c in m], '{:.0%}')} of labeled MAUD questions, with "
             f"{_range([c.get('precision_answered') for c in m], '{:.0%}')} precision on those answered. "
-            "Closing the gap requires an input strategy such as chunked or retrieval-based clause "
-            "extraction, not a change of serving posture."
+            "Serving posture does not move it; the input strategy does (next finding)."
+        )
+    before = (cards.get("s37-2l4-n50") or {}).get("merger_agreement")
+    after = (cards.get("s40-2l4") or {}).get("merger_agreement")
+    if before and after:
+        cb, ca = before["quality"].get("clause") or {}, after["quality"].get("clause") or {}
+        matched = _matched_merger(before, after)
+        reps = (after.get("engine_telemetry") or {}).get("replicas") or []
+        capped = sum(r.get("length_finishes") or 0 for r in reps)
+        pre = sum(r.get("preemptions") or 0 for r in reps)
+
+        def per_doc_prompt(card: Mapping[str, Any]) -> float:
+            return (card["tokens"]["prompt"] or 0) / max(1, card["n"])
+
+        cost_b, cost_a = before["cost"]["usd_per_ok_document"], after["cost"]["usd_per_ok_document"]
+        acc_b, acc_a = cb.get("accuracy") or 0.0, ca.get("accuracy") or 0.0
+        out.append(
+            f"**The † merger settings raise MAUD accuracy {acc_a / acc_b:.1f}× on the same 50 agreements** "
+            if acc_b
+            else "**The † merger settings raise MAUD accuracy on the same 50 agreements** "
+        )
+        out[-1] += (
+            f"({acc_b:.3f} → {acc_a:.3f}; question coverage {cb.get('coverage', 0):.0%} → {ca.get('coverage', 0):.0%}; "
+            f"precision on answered {cb.get('precision_answered', 0):.0%} → {ca.get('precision_answered', 0):.0%}; "
+            f"{before['quality']['ok']}/{before['n']} → {after['quality']['ok']}/{after['n']} ok"
+            + (f"; {matched[2]} agreements better and {matched[3]} worse, mean {matched[0]:+.3f}" if matched else "")
+            + "). Reading the whole agreement is the cost: prompt tokens per agreement rise "
+            f"{per_doc_prompt(after) / max(per_doc_prompt(before), 1.0):.0f}×, cost per agreement "
+            f"${cost_b:.4f} → ${cost_a:.4f} ({cost_a / cost_b:.1f}×) and median latency "
+            f"{before['latency']['p50']:.0f} s → {after['latency']['p50']:,.0f} s. {capped:.0f} section calls reached "
+            f"the 6,144-token cap (each gets one re-sample; every agreement still completed), and {pre:.0f} preemptions show KV-cache pressure from "
+            "~50,000-character sections at C32. Salvaging truncated output and stopping repeat loops early is the "
+            "next lever on that cost."
+        )
+
+    # 4c. token composition: fixed instruction overhead dominates the short classes.
+    shares = []
+    for folder in ("correspondence", "insurance_claims"):
+        card = (cards.get("s40-2l4") or {}).get(folder)
+        sp = (card or {}).get("tokens", {}).get("split") if card else None
+        if sp:
+            per = sp["per_document"]
+            shares.append((folder, per["instruction"] / (per["instruction"] + per["document"] + per["completion"]),
+                           sp["instruction_per_call"]))
+    if len(shares) == 2:
+        out.append(
+            "**Instructions, not documents, dominate the short classes.** The fixed instructions and template "
+            f"are {shares[0][1]:.0%} of a correspondence document's tokens and {shares[1][1]:.0%} of an insurance "
+            f"claim's ({shares[0][2]:,.0f} and {shares[1][2]:,.0f} tokens per call). Prefix caching already "
+            "reuses part of that prefix; a shorter template, or batching several short documents per call, is "
+            "the direct cost lever for these classes (see *Token composition*)."
         )
 
     # 5. correspondence.
@@ -510,6 +584,98 @@ def _maud_result(card: Mapping[str, Any] | None) -> str:
     )
 
 
+def _matched_merger(
+    before: Mapping[str, Any] | None, after: Mapping[str, Any] | None
+) -> tuple[float, int, int, int] | None:
+    """Mean per-agreement score change, n, better, worse over agreements both cells scored."""
+    if not before or not after:
+        return None
+    bd = {d["item_id"]: d for d in before["documents"]}
+    both = [
+        (d["score"], bd[d["item_id"]]["score"])
+        for d in after["documents"]
+        if d["item_id"] in bd
+        and d["ok"]
+        and bd[d["item_id"]]["ok"]
+        and d["score"] is not None
+        and bd[d["item_id"]]["score"] is not None
+    ]
+    if not both:
+        return None
+    delta = sum(a - b for a, b in both) / len(both)
+    return delta, len(both), sum(a > b for a, b in both), sum(a < b for a, b in both)
+
+
+def _scale_check_section(cards: dict) -> list[str]:
+    """SAND-37 2×L4 n=50 vs SAND-40 n=100 on the four specialists whose settings never changed."""
+    a = _pooled_four(cards.get("s37-2l4-n50") or {}, 2)
+    b = _pooled_four(cards.get("s40-2l4") or {}, 2)
+    if not a or not b:
+        return []
+    rows = (
+        ("Documents ok / total", lambda q: f"{q['ok']} / {q['documents']}", None),
+        ("Error rate", lambda q: f"{q['error_rate'] * 100:.1f}%", None),
+        ("Throughput (documents per minute)", lambda q: _num(q["docs_per_minute"]), "docs_per_minute"),
+        ("Throughput (tokens per second per GPU)", lambda q: _num(q["tps_per_gpu"], 0), "tps_per_gpu"),
+        ("GPU cost per document", lambda q: _money(q["usd_per_document"]), "usd_per_document"),
+        ("GPU cost per 1M tokens", lambda q: _money(q["usd_per_mtok"], 3), "usd_per_mtok"),
+        ("Length-capped finishes (vLLM)", lambda q: f"{q['length_finishes']:.0f}", None),
+    )
+    out = [
+        "### Scale check: four unchanged specialists (merger excluded)",
+        "",
+        "| Metric | SAND-37 2×L4 C32 n=50 | SAND-40 2×L4 C32 n=100 | Change |",
+        "| --- | ---: | ---: | ---: |",
+    ]
+    for label, fn, key in rows:
+        out.append(f"| {label} | {fn(a)} | {fn(b)} | {_pct_change(b[key], a[key]) if key else '—'} |")
+    out.append("")
+    return out
+
+
+def _token_section(cards: dict) -> list[str]:
+    """Per-document token composition: instructions + template, document text, output."""
+    rows = []
+    s40, s37 = cards.get("s40-2l4") or {}, cards.get("s37-2l4-n50") or {}
+    for folder in _ORDER:
+        if folder == "merger_agreement":
+            for label, card in (("Merger Agreements (frozen, SAND-37 2×L4)", s37.get(folder)),
+                                ("Merger Agreements † (SAND-40)", s40.get(folder))):
+                if card:
+                    rows.append((label, card))
+        else:
+            card = s40.get(folder) or s37.get(folder)
+            if card:
+                rows.append((_LABEL[folder], card))
+    rows = [(label, card) for label, card in rows if (card.get("tokens") or {}).get("split")]
+    if not rows:
+        return []
+    out = [
+        "## Token composition",
+        "",
+        "Prompt tokens split into the instructions and template (system prompt, schema, field list; resent "
+        "on every model call) and the document text the model reads, plus the output. The split is fitted per "
+        "run across documents of different lengths (`prompt = I × calls + characters ÷ r`); where every "
+        "document is cut to the same cap, or a chunked run's re-samples blur the call count, document tokens "
+        "use 4.5 characters per token (the contracts fits measure 4.4–4.6) and instructions are the remainder.",
+        "",
+        "| Specialist | Instructions + template | Document text | Output | Tokens per document | Calls per document | Instructions per call | Basis |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+    ]
+    for label, card in rows:
+        sp = card["tokens"]["split"]
+        per = sp["per_document"]
+        total = per["instruction"] + per["document"] + per["completion"]
+        basis = f"fit, {sp['chars_per_token']:.2f} chars/token" if sp["method"] == "fit" else "4.5 chars/token"
+        out.append(
+            f"| {label} | {per['instruction']:,.0f} ({per['instruction'] / total:.0%}) | "
+            f"{per['document']:,.0f} ({per['document'] / total:.0%}) | {per['completion']:,.0f} ({per['completion'] / total:.0%}) | "
+            f"{total:,.0f} | {sp['calls'] / sp['documents']:.1f} | {sp['instruction_per_call']:,.0f} | {basis} |"
+        )
+    out.append("")
+    return out
+
+
 def _merger_settings_section(cards: dict) -> list[str]:
     """What the † merger cell changes, row by row, and the measured effect once it exists."""
     from mailroom_sandbox.job.specialist_posture import posture_for_run
@@ -544,23 +710,13 @@ def _merger_settings_section(cards: dict) -> list[str]:
     before = (cards.get("s37-2l4-n50") or {}).get("merger_agreement")
     after = (cards.get("s40-2l4") or {}).get("merger_agreement")
     out.append(f"| Result | {_maud_result(before)} | {_maud_result(after)} |")
-    if before and after:
-        bd = {d["item_id"]: d for d in before["documents"]}
-        both = [
-            (d["score"], bd[d["item_id"]]["score"])
-            for d in after["documents"]
-            if d["item_id"] in bd
-            and d["ok"]
-            and bd[d["item_id"]]["ok"]
-            and d["score"] is not None
-            and bd[d["item_id"]]["score"] is not None
-        ]
-        if both:
-            delta = sum(a - b for a, b in both) / len(both)
-            out.append(
-                f"| Matched agreements | — | {delta:+.3f} mean per-agreement score over {len(both)} agreements "
-                f"({sum(a > b for a, b in both)} better / {sum(a < b for a, b in both)} worse) |"
-            )
+    matched = _matched_merger(before, after)
+    if matched:
+        delta, n, better, worse = matched
+        out.append(
+            f"| Matched agreements | — | {delta:+.3f} mean per-agreement score over {n} agreements "
+            f"({better} better / {worse} worse) |"
+        )
     out.append("")
     return out
 
@@ -634,7 +790,7 @@ def render_master_md(data: Mapping[str, Any]) -> str:
     first = next((c for p in present for c in cards[p.key].values()), None)
 
     lines = [
-        "# SAND-37 / SAND-39 Specialist Grid: Results and Cost Summary",
+        "# SAND-37 / SAND-39 / SAND-40 Specialist Grid: Results and Cost Summary",
         "",
     ]
     if first:
@@ -687,6 +843,14 @@ def render_master_md(data: Mapping[str, Any]) -> str:
         vals = [fn(pooled[p.key]) if pooled[p.key] else PENDING for p in POSTURES]
         lines.append(f"| {label} | " + " | ".join(vals) + " |")
     lines.append("")
+    if pooled.get("s40-2l4") and cards["s40-2l4"].get("merger_agreement"):
+        lines += [
+            "The SAND-40 column includes the † merger cell, which reads whole agreements and takes most of the "
+            "posture's busy time, so its pooled throughput and cost per document are not a serving comparison. "
+            "The like-for-like check is below.",
+            "",
+        ]
+        lines += _scale_check_section(cards)
 
     lines += [
         "## Quality and cost by specialist",
@@ -718,6 +882,7 @@ def render_master_md(data: Mapping[str, Any]) -> str:
         "",
     ]
     lines += _merger_settings_section(cards)
+    lines += _token_section(cards)
     lines += _detail_sections(present, cards)
     lines += _probe_section(data.get("probes") or {}, cards)
     lines += [
@@ -746,7 +911,9 @@ def render_master_md(data: Mapping[str, Any]) -> str:
     lines += [
         "- **Teardown** is verified after each posture, with zero containers left warm.",
         "- **Comparability:** SAND-39 and the SAND-37 2×L4 leg score identical n = 50 documents and "
-        "differ only in GPU count and client concurrency; the SAND-37 1×L4 leg is a nested n = 20 subset.",
+        "differ only in GPU count and client concurrency; the SAND-37 1×L4 leg is a nested n = 20 subset. "
+        "SAND-40 runs the same 2×L4 engine; its n = 100 draws contain the n = 50 documents, and its merger "
+        "cell scores the same 50 agreements with the † settings.",
         "",
         "**Source data:** per-cell score and cost cards, run reports and vLLM serving telemetry under "
         "`1L4/<specialist>/` and `2L4/<specialist>/`; posture suite cards `1L4/L4x1-SCORE-COST-CARD.md` "
