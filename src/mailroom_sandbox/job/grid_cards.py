@@ -11,8 +11,8 @@ finalized suite card, all under ``reports/SAND-37/``::
     reports/SAND-37/probes/<specialist>/<run_id>.card.md  # SAND-40 validation probes
 
 SAND-40 probe cards stay in ``probes/``. They are not cells of the 1×L4 or
-2×L4 suite, and ``collect_master`` never reads that directory, so a probe
-cannot fill the master scorecard.
+2×L4 suite. ``collect_master`` reads them only for the master card's matched
+probe appendix and never pools them, so a probe cannot fill a scorecard column.
 
 The card follows the S2a/S2b score-card template: a conditions table, then one
 Metric | Value table grouped into Run, Time, Cost, Tokens, Throughput, Latency,

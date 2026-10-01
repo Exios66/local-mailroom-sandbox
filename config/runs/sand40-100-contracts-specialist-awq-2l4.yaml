@@ -1,13 +1,9 @@
-# SAND-040 scale run — contracts_specialist · n=100 · 2×L4 · C32 (16 per replica) · phase: long (64K YaRN, optimized).
-# Same dataset/prompt blocks as grid-50-contracts-specialist-awq-2l4-rerun except n and the optimized long-document settings:
-#   engine  = 65536 window via YaRN ×2 (engine.vllm.hf_overrides → vllm serve --hf-overrides)
-#   input   = max_input_chars 128000; documents beyond one window use the pipeline's chunked
-#             extraction (120k-char windows, 8k overlap, deterministic merge)
-#   decode  = max_tokens 6144, temperature 0.7, top_p 0.8, top_k 20, presence_penalty 1.0,
-#             one re-sample on LengthFinishReasonError (start-time SANDBOX_AGENT_KNOBS)
-# Runbook: sandbox runbook show sand40-long
+# SAND-040 scale run — contracts_specialist · n=100 · 2×L4 · C32 (16 per replica) · one 32K deploy, SAND-037 spec unchanged.
+# Same dataset/prompt blocks as grid-50-contracts-specialist-awq-2l4-rerun except n.
+# Decode: max_tokens 8192 + temperature 0.7 via start-time SANDBOX_AGENT_KNOBS (JSON-schema grammar class).
+# Runbook: sandbox runbook show sand40
 schema: sandbox.run/v1
-run_id: sand40-100-contracts-specialist-awq-2l4-64k
+run_id: sand40-100-contracts-specialist-awq-2l4
 task: contracts_specialist
 profile: modal-vllm
 
@@ -34,8 +30,7 @@ engine:
   kind: modal-vllm
   model: Qwen/Qwen3-8B-AWQ
   vllm:
-    max_model_len: 65536
-    hf_overrides: {"rope_parameters": {"rope_type": "yarn", "factor": 2.0, "original_max_position_embeddings": 32768, "rope_theta": 1000000}}
+    max_model_len: 32768
     gpu_memory_utilization: 0.90
     max_num_seqs: 16
     enable_prefix_caching: true
@@ -61,8 +56,8 @@ job:
   max_retries: 2
   fail_fast: false
   concurrency: 32
-  cost_cap_usd: 2.4
-  max_wall_seconds: 6000
+  cost_cap_usd: 1.2
+  max_wall_seconds: 3600
 
 trace:
   sink: none

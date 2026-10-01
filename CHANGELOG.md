@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Changed — SAND-040 runs on one 32K deploy
+
+- `sandbox runbook show sand40` now runs all five specialists at n=100 on the SAND-037 2×L4 engine with one
+  deploy and no redeploy (`sand40-100-{correspondence,insurance-claims,corporate-records,contracts,merger}-specialist-awq-2l4`).
+  Each cell matches its SAND-37 2×L4 n=50 cell except n. Likely ≈ $0.65 GPU; caps sum to $5.80.
+- Removed the unrun 64K long-phase cells, the `sand40-short` / `sand40-long` runbooks, and the master card's
+  † optimized-merger mark; the SAND-40 column is a uniform n=100. The executed 64K probes stay as a
+  matched-document appendix.
+
 ### Changed — SAND-040 master score & cost card validated and fully detailed
 
 - Validated `reports/SAND-37/SAND-37-MASTER-SCORE-COST-CARD.md` three ways: a fresh `sandbox run card --master`

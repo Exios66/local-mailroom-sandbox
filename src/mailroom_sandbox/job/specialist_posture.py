@@ -954,23 +954,16 @@ def validate_mapping(mapping: Mapping[str, Any] | None = None) -> list[str]:
     return errors
 
 
-# ── SAND-040: 2×L4 · C32 scale run, n=100 (merger n=50), optimized long-document classes ──
-# Two serving phases on the same 2×L4 fleet shape:
-#   * short classes (correspondence, insurance claims, corporate records): n=100 on the
-#     SAND-037 aligned spec unchanged (native 32768 window) — pure scale, nested 50 ⊂ 100;
-#   * long classes (contracts n=100, merger n=50 on the SAND-37 2×L4 documents) on a
-#     64K window (YaRN ×2) with the SAND-040 optimizations below. Merger stays at n=50
-#     so it is a like-for-like comparison against grid-50-merger-specialist-awq-2l4.
-# Optimizations (long classes only; every one is recorded on the run card):
-#   1. 64K window, max_input_chars 128000 (contracts read in full: 42% → 92% of the corpus);
-#   2. the pipeline's own chunked extraction (production graph runs it, `chunking.enabled`)
-#      for documents beyond one window — overlapping 120k-char windows, deterministic merge;
-#      every merger agreement (median 338k chars) is read end to end instead of head+tail;
-#   3. Qwen3 non-thinking sampling: temperature 0.7, top_p 0.8, top_k 20, presence_penalty 1.0;
-#   4. output cap 6144 (longest successful SAND-37/39 output 4,860) + one re-sample on
-#      LengthFinishReasonError (runaway decodes are stochastic at 0.7);
-#   5. merger only: the MAUD prompt (merger_agreement_specialist_maud_v1; SAND-032 s5 vs s3 on
-#      50 agreements: MAUD accuracy 8.5% vs 4.0%, coverage 33% vs 22%).
+# ── SAND-040: 2×L4 · C32 scale run, n=100 per class, one 32K deploy ──────────────
+# All five classes run at n=100 on the SAND-037 aligned spec unchanged (native 32768
+# window, frozen v1 prompts, 8192 cap, temperature 0.7 for the grammar classes): pure
+# scale, nested 20 ⊂ 50 ⊂ 100, one deploy and no redeploy.
+#
+# The n=20 validation probes (2026-10-01) ran optimized long-document settings on a 64K
+# YaRN window. On matched documents they showed no contracts gain (−0.002) and a merger
+# MAUD gain (+0.081) that costs ~11× the prompt tokens (~25 min per 20 agreements). The
+# scale run does not adopt them; the probe rows and their settings are kept below so the
+# committed probe cards stay reproducible.
 SAND40_MAX_MODEL_LEN = 65536
 SAND40_HF_OVERRIDES: dict[str, Any] = {
     "rope_parameters": {
@@ -993,13 +986,13 @@ SAND40_LONG_KNOBS: dict[str, Any] = {
 }
 SAND40_PROMPTS: dict[str, str] = {"merger_agreement": "merger_agreement_specialist_maud_v1"}
 _SAND40_TABLE: tuple[tuple[str, str, int, bool, float, int], ...] = (
-    # run_id, doc_class, n, long (64K optimized), cost_cap, max_wall
+    # run_id, doc_class, n, long (64K optimized probe settings), cost_cap, max_wall
     ("sand40-100-correspondence-specialist-awq-2l4", "correspondence", 100, False, 1.00, 3600),
     ("sand40-100-insurance-claims-specialist-awq-2l4", "insurance_claim", 100, False, 1.20, 3600),
     ("sand40-100-corporate-records-specialist-awq-2l4", "corporate_record", 100, False, 1.20, 3600),
-    ("sand40-100-contracts-specialist-awq-2l4-64k", "contract", 100, True, 2.40, 6000),
-    ("sand40-50-merger-specialist-awq-2l4-64k", "merger_agreement", 50, True, 2.50, 7200),
-    # Validation probe before the scale run: nested n=20 of each long class on the 64K engine.
+    ("sand40-100-contracts-specialist-awq-2l4", "contract", 100, False, 1.20, 3600),
+    ("sand40-100-merger-specialist-awq-2l4", "merger_agreement", 100, False, 1.20, 3600),
+    # Validation probes (executed 2026-10-01): nested n=20 on the 64K engine, optimized settings.
     ("sand40-probe-20-contracts-specialist-awq-2l4-64k", "contract", 20, True, 0.80, 2400),
     ("sand40-probe-20-merger-specialist-awq-2l4-64k", "merger_agreement", 20, True, 1.00, 3600),
 )

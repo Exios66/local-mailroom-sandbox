@@ -263,8 +263,6 @@ def test_grid_family_renders():
         "grid-2l4",
         "sand39-1l4-n50",
         "sand40-probe",
-        "sand40-short",
-        "sand40-long",
         "sand40",
     }
     md = render_markdown("grid-1l4")
@@ -310,26 +308,23 @@ def test_sand39_runs_the_five_1l4_n50_cells_matched_to_2l4():
     assert deploy_env_drift(rb) == []
 
 
-def test_sand40_launcher_redeploys_between_32k_and_64k():
-    from mailroom_sandbox.job.runbooks import deploy_env_drift
+def test_sand40_runs_five_cells_on_one_32k_deploy():
+    from pathlib import Path
 
+    from mailroom_sandbox.job.runbooks import deploy_env_drift
+    from mailroom_sandbox.job.specialist_posture import SAND40_CELLS
+
+    rb = get_runbook("sand40")
+    assert {Path(rel).stem for rel in rb["configs"]} == SAND40_CELLS
+    assert len(SAND40_CELLS) == 5
     sh = render_shell("sand40")
-    short = sh.index("# phase: short")
-    long = sh.index("# phase: long")
-    assert short < long
-    assert sh.count("modal deploy deploy/modal_vllm.py --strategy recreate") == 2
-    assert sh.index("MODAL_VLLM_MAX_MODEL_LEN=32768") < sh.index("MODAL_VLLM_MAX_MODEL_LEN=65536")
-    assert "MODAL_VLLM_HF_OVERRIDES=" in sh[long:]
-    assert "MODAL_VLLM_HF_OVERRIDES=" not in sh[short:long]
-    assert "sand40-100-correspondence-specialist-awq-2l4.yaml" in sh[short:long]
-    assert "sand40-50-merger-specialist-awq-2l4-64k.yaml" in sh[long:]
-    assert deploy_env_drift(get_runbook("sand40")) == []
-    assert deploy_env_drift(get_runbook("sand40-short")) == []
-    assert deploy_env_drift(get_runbook("sand40-long")) == []
+    assert sh.count("modal deploy deploy/modal_vllm.py") == 1
+    assert "MODAL_VLLM_MAX_MODEL_LEN=32768" in sh
+    assert "65536" not in sh and "MODAL_VLLM_HF_OVERRIDES=" not in sh
+    assert sh.index("sandbox run card --master") > sh.index("teardown")
+    assert deploy_env_drift(rb) == []
     assert deploy_env_drift(get_runbook("sand40-probe")) == []
-    probe = render_shell("sand40-probe")
-    assert "0.30" in render_markdown("sand40-probe") or "0.80" in render_markdown("sand40-probe")
-    assert "MODAL_VLLM_MAX_MODEL_LEN=65536" in probe
+    assert "MODAL_VLLM_MAX_MODEL_LEN=65536" in render_shell("sand40-probe")
 
 
 def test_sand39_shell_relocks_scrapes_and_writes_master_card():

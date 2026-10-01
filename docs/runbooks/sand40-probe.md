@@ -1,6 +1,6 @@
 <!-- Generated from config/runbooks/catalog.yaml. Edit the catalog, then: sandbox runbook write -->
 
-# SAND-40 validation probe — n=20 contracts and merger on 2×L4 · 64K YaRN
+# SAND-40 validation probe (executed 2026-10-01) — n=20 contracts and merger on 2×L4 · 64K YaRN
 
 **id:** `sand40-probe` · **family:** `grid` · **serving:** `grid-awq-2l4-64k`
 
@@ -42,7 +42,7 @@ Source: `src/mailroom_sandbox/job/specialist_posture.py`.
 - Spend gate: about $0.30–$0.80 at 2 × $0.80/GPU-hr, plus one cold boot. Cost caps are $0.80 (contracts) and $1.00 (merger) and are the abort guard. Needs spend approval before deploy. Modal credentials for the Hermes account are on the operator machine.
 - Sample: each probe is the seed-42 prefix of the scored n=50 cell (contracts → grid-50-contracts-specialist-awq-2l4-rerun; merger → grid-50-merger-specialist-awq-2l4). The n=20 set is a subset of those 50 documents.
 - Serving is the 64K YaRN deploy (MODAL_VLLM_HF_OVERRIDES). Sampling is native chat-completion fields on the OpenAI client (temperature 0.7, top_p 0.8, top_k 20, presence_penalty 1.0). The LangChain pipeline is not part of this deploy.
-- Cards land under reports/SAND-37/2L4/<specialist>/ when the run finishes. This probe does not fill the master-card column.
+- Cards land under reports/SAND-37/probes/<specialist>/. The master card reports them in a matched-document appendix and never pools them into a column.
 
 ## Do not
 
@@ -54,7 +54,7 @@ Source: `src/mailroom_sandbox/job/specialist_posture.py`.
 ## Operator script
 
 ```bash
-# SAND-40 validation probe — n=20 contracts and merger on 2×L4 · 64K YaRN
+# SAND-40 validation probe (executed 2026-10-01) — n=20 contracts and merger on 2×L4 · 64K YaRN
 # sandbox runbook show sand40-probe
 set -euo pipefail
 

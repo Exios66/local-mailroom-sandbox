@@ -380,23 +380,37 @@ def test_grid_draws_are_split_all_and_nested():
         assert len(prompts) == 1, cls
 
 
-def test_sand40_yamls_match_the_two_serving_windows():
-    from mailroom_sandbox.job.specialist_posture import SAND40_CELLS, SAND40_LONG_CELLS, SAND40_PROBE_CELLS
+def test_sand40_scale_cells_are_the_aligned_2l4_cells_at_n100():
+    from mailroom_sandbox.job.specialist_posture import (
+        GRID_CELLS,
+        SAND40_CELLS,
+        SAND40_LONG_CELLS,
+        SAND40_PROBE_CELLS,
+    )
 
-    for run_id in SAND40_CELLS | SAND40_PROBE_CELLS:
+    assert SAND40_LONG_CELLS == SAND40_PROBE_CELLS  # only the executed probes ran 64K
+    assert len(SAND40_CELLS) == 5
+    for run_id in SAND40_CELLS:
         spec = _grid_spec(run_id)
         row = SPECIALIST_POSTURE[run_id]
-        assert spec.task == row["task"]
-        assert spec.job.concurrency == row["concurrency"] == 32
-        assert spec.engine.vllm.quantization == "awq_marlin"
-        assert spec.engine.modal.max_containers == 2
+        base_id = run_id.replace("sand40-100-", "grid-50-")
+        if base_id not in GRID_CELLS:
+            base_id += "-rerun"
+        base = _grid_spec(base_id)
+        assert spec.dataset.limit == 100 and row["max_model_len"] == 32768
+        assert spec.engine == base.engine
+        assert spec.prompt == base.prompt
+        assert spec.task == base.task == row["task"]
+        assert spec.job.concurrency == 32 and spec.job.max_retries == base.job.max_retries
         assert float(spec.job.cost_cap_usd) == float(row["cost_cap_usd"])
-        if run_id in SAND40_LONG_CELLS:
-            assert spec.engine.vllm.max_model_len == 65536
-            assert spec.engine.vllm.hf_overrides["rope_parameters"]["rope_type"] == "yarn"
-        else:
-            assert spec.engine.vllm.max_model_len == 32768
-            assert not spec.engine.vllm.hf_overrides
+        base_row = SPECIALIST_POSTURE[base_id]
+        for knob in ("max_tokens", "max_input_chars", "temperature", "prompt_file"):
+            assert row.get(knob) == base_row.get(knob), (run_id, knob)
+        assert not row.get("optimized") and "chunk_chars" not in row
+    for run_id in SAND40_PROBE_CELLS:
+        spec = _grid_spec(run_id)
+        assert spec.engine.vllm.max_model_len == 65536
+        assert spec.engine.vllm.hf_overrides["rope_parameters"]["rope_type"] == "yarn"
 
 
 def test_sand40_probe_draw_is_the_prefix_of_the_scored_fifty():
