@@ -850,6 +850,10 @@ def agent_knobs_for_run(run_id: str | None) -> dict[str, dict[str, Any]] | None:
     }
     if row.get("temperature") is not None:
         knobs["temperature"] = float(row["temperature"])
+    # SAND-040 optimized cells: Qwen3 sampling, length re-sample, chunked extraction.
+    for key in ("top_p", "top_k", "presence_penalty", "length_retries", "chunk_chars", "overlap_chars"):
+        if row.get(key) is not None:
+            knobs[key] = row[key]
     return {str(row["agent"]): knobs}
 
 
@@ -948,3 +952,91 @@ def validate_mapping(mapping: Mapping[str, Any] | None = None) -> list[str]:
         if int(row["max_wall_seconds"]) < 60:
             errors.append(f"{run_id}: max_wall_seconds too small")
     return errors
+
+
+# ── SAND-040: 2×L4 · C32 scale run, n=100 (merger n=50), optimized long-document classes ──
+# Two serving phases on the same 2×L4 fleet shape:
+#   * short classes (correspondence, insurance claims, corporate records): n=100 on the
+#     SAND-037 aligned spec unchanged (native 32768 window) — pure scale, nested 50 ⊂ 100;
+#   * long classes (contracts n=100, merger n=50 on the SAND-37 2×L4 documents) on a
+#     64K window (YaRN ×2) with the SAND-040 optimizations below. Merger stays at n=50
+#     so it is a like-for-like comparison against grid-50-merger-specialist-awq-2l4.
+# Optimizations (long classes only; every one is recorded on the run card):
+#   1. 64K window, max_input_chars 128000 (contracts read in full: 42% → 92% of the corpus);
+#   2. the pipeline's own chunked extraction (production graph runs it, `chunking.enabled`)
+#      for documents beyond one window — overlapping 120k-char windows, deterministic merge;
+#      every merger agreement (median 338k chars) is read end to end instead of head+tail;
+#   3. Qwen3 non-thinking sampling: temperature 0.7, top_p 0.8, top_k 20, presence_penalty 1.0;
+#   4. output cap 6144 (longest successful SAND-37/39 output 4,860) + one re-sample on
+#      LengthFinishReasonError (runaway decodes are stochastic at 0.7);
+#   5. merger only: the MAUD prompt (merger_agreement_specialist_maud_v1; SAND-032 s5 vs s3 on
+#      50 agreements: MAUD accuracy 8.5% vs 4.0%, coverage 33% vs 22%).
+SAND40_MAX_MODEL_LEN = 65536
+SAND40_HF_OVERRIDES: dict[str, Any] = {
+    "rope_parameters": {
+        "rope_type": "yarn",
+        "factor": 2.0,
+        "original_max_position_embeddings": 32768,
+        "rope_theta": 1000000,
+    }
+}
+SAND40_LONG_KNOBS: dict[str, Any] = {
+    "max_tokens": 6144,
+    "max_input_chars": 128000,
+    "temperature": 0.7,
+    "top_p": 0.8,
+    "top_k": 20,
+    "presence_penalty": 1.0,
+    "length_retries": 1,
+    "chunk_chars": 120000,
+    "overlap_chars": 8000,
+}
+SAND40_PROMPTS: dict[str, str] = {"merger_agreement": "merger_agreement_specialist_maud_v1"}
+_SAND40_TABLE: tuple[tuple[str, str, int, bool, float, int], ...] = (
+    # run_id, doc_class, n, long (64K optimized), cost_cap, max_wall
+    ("sand40-100-correspondence-specialist-awq-2l4", "correspondence", 100, False, 1.00, 3600),
+    ("sand40-100-insurance-claims-specialist-awq-2l4", "insurance_claim", 100, False, 1.20, 3600),
+    ("sand40-100-corporate-records-specialist-awq-2l4", "corporate_record", 100, False, 1.20, 3600),
+    ("sand40-100-contracts-specialist-awq-2l4-64k", "contract", 100, True, 2.40, 6000),
+    ("sand40-50-merger-specialist-awq-2l4-64k", "merger_agreement", 50, True, 2.50, 7200),
+    # Validation probe before the scale run: nested n=20 of each long class on the 64K engine.
+    ("sand40-probe-20-contracts-specialist-awq-2l4-64k", "contract", 20, True, 0.80, 2400),
+    ("sand40-probe-20-merger-specialist-awq-2l4-64k", "merger_agreement", 20, True, 1.00, 3600),
+)
+SAND40_CELLS: frozenset[str] = frozenset(r[0] for r in _SAND40_TABLE if "-probe-" not in r[0])
+SAND40_PROBE_CELLS: frozenset[str] = frozenset(r[0] for r in _SAND40_TABLE if "-probe-" in r[0])
+SAND40_LONG_CELLS: frozenset[str] = frozenset(r[0] for r in _SAND40_TABLE if r[3])
+for _rid, _cls, _n, _long, _cap, _wall in _SAND40_TABLE:
+    _agent, _prompt, _mt, _pt, _ct = _GRID_AGENTS[_cls]
+    _row: dict[str, Any] = {
+        "task": _agent,
+        "doc_class": _cls,
+        "agent": _agent,
+        "prompt_file": SAND40_PROMPTS.get(_cls, _prompt) if _long else _prompt,
+        "concurrency": 32,
+        "replicas": 2,
+        "max_num_seqs": 16,
+        "max_model_len": SAND40_MAX_MODEL_LEN if _long else 32768,
+        "max_tokens": _mt,
+        "max_input_chars": _input_chars_for(_mt, _pt, 32768),
+        "cost_cap_usd": _cap,
+        "max_wall_seconds": _wall,
+        "tokens_assumed": {"prompt": _pt, "completion": _ct},
+        "sec_per_doc": {"low": 10.0, "likely": 40.0, "high": 240.0},
+        "rationale": "SAND-040 scale cell: SAND-037 aligned spec unchanged at n=100 (nested 50 ⊂ 100)",
+    }
+    _temp = GRID_TEMPERATURE_BY_CLASS.get(_cls)
+    if _temp is not None:
+        _row["temperature"] = _temp
+    if _long:
+        _row.update(SAND40_LONG_KNOBS)
+        _row["optimized"] = True
+        _row["tokens_assumed"] = {"prompt": 30000 if _cls == "contract" else 140000, "completion": 2500 if _cls == "contract" else 4500}
+        _row["rationale"] = (
+            "SAND-040 optimized long-document cell: 64K YaRN window, 128k-char input, pipeline "
+            "chunked extraction, Qwen3 sampling (0.7 / top_p 0.8 / top_k 20 / presence 1.0), "
+            "6144 cap + one length re-sample"
+            + ("; MAUD v1 prompt" if _cls in SAND40_PROMPTS else "")
+        )
+    SPECIALIST_POSTURE[_rid] = _row
+    SPECIALIST_LIMIT_BY_RUN[_rid] = _n
