@@ -3,7 +3,7 @@
 Full detail, figures and method notes live in [SAND-37-MASTER-APPENDIX.md](./SAND-37-MASTER-APPENDIX.md).
 
 **Model:** Qwen/Qwen3-8B-AWQ (vLLM v0.29.0) · **GPU:** NVIDIA L4 at $0.80/GPU-hr · **Data:** `Lucius-Morningstar/mailroom-dataset` ground_truth @ `ed7576b6`, seed 42 (n = 20 nested in n = 50; every n = 50 posture scores identical documents).  
-**Engine:** AWQ-Marlin, fp8 KV, CUDA graphs, prefix caching, thinking off, 8,192-token cap, frozen v1 prompts (T 0.7 contracts/merger, 0.1 elsewhere). SAND-40: n = 100 on the same 2×L4 engine; † merger is the same 50 agreements with chunked input (appendix).
+**Engine:** AWQ-Marlin, fp8 KV, CUDA graphs, prefix caching, thinking off, 8,192-token cap, frozen v1 prompts (T 0.7 contracts/merger, 0.1 elsewhere). SAND-40: n = 100 on the same 2×L4 engine; † merger is the same 50 agreements with chunked input (settings below).
 
 | Study | Posture | GPUs | Client concurrency | Documents per class | Status |
 | --- | --- | ---: | ---: | ---: | --- |
@@ -36,6 +36,22 @@ Cell order: 1×L4 C8 n=20 · 1×L4 C8 n=50 · 2×L4 C32 n=50 · 2×L4 C32 n=100.
 | Corporate Records | 0.459 · 0.449 · 0.452 · 0.475 | 20/20 · 50/50 · 50/50 · 100/100 | 14.4 · 13.2 · 24.1 · 19.9 | 0.00026 · 0.00032 · 0.00019 · 0.00021 |
 | Correspondence | 0.327 · 0.345 · 0.334 · 0.341 | 20/20 · 50/50 · 50/50 · 100/100 | 5.8 · 6.6 · 10.7 · 10.3 | 0.00011 · 0.00018 · 0.00012 · 0.00012 |
 | Merger Agreements | 0.014 (13%) · 0.048 (24%) · 0.035 (23%) · 0.140 (69%)† | 18/20 · 46/50 · 46/50 · 50/50 | 50.5 · 51.3 · 92.5 · 1044.4 | 0.00390 · 0.00284 · 0.00329 · 0.01475 |
+
+## Merger † settings
+
+The SAND-40 merger cell keeps the engine, fleet and agreements of SAND-37 2×L4 and changes how each agreement is read and decoded. Changed settings are in bold.
+
+| Setting | SAND-37 / SAND-39 merger | SAND-40 merger † |
+| --- | --- | --- |
+| Agreements | the same 50 (seed 42) | the same 50 (seed 42) |
+| Serving window | 32,768 tokens on 2×L4 | 32,768 tokens on 2×L4 |
+| **Input** | head + tail, 30,000 chars (rest of the agreement unread) | **whole agreement, chunked: 47,000-char windows + 6,500-char overlap (≤ 54,000 chars per call), merged** |
+| **Prompt** | `merger_agreement_specialist_simplified` | **`merger_agreement_specialist_maud_v1`** |
+| **Sampling** | temperature 0.7, other sampling at vLLM defaults | **temperature 0.7, top_p 0.8, top_k 20, presence_penalty 1.0** |
+| **Output cap** | 8,192 tokens | **6,144 tokens** |
+| **Re-sample on a length-capped output** | none | **1** |
+| Result | MAUD accuracy 0.035, coverage 23%, 46/50 ok, $0.0033 per agreement | MAUD accuracy 0.140, coverage 69%, 50/50 ok, $0.0147 per agreement |
+| Matched agreements | — | +0.106 mean per-agreement score over 46 agreements (35 better / 1 worse) |
 
 ## Key findings
 

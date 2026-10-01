@@ -78,7 +78,7 @@ def test_pooled_four_requires_all_four_unchanged_specialists():
 
 
 def test_merger_settings_table_shows_what_the_dagger_changes():
-    md = grid_master.render_appendix_md(grid_master.collect_master())
+    md = grid_master.render_master_md(grid_master.collect_master())
     assert "## Merger † settings" in md
     assert "| Serving window | 32,768 tokens on 2×L4 | 32,768 tokens on 2×L4 |" in md
     assert "| **Input** | head + tail, 30,000 chars (rest of the agreement unread) | **whole agreement, chunked: 47,000-char" in md
@@ -159,11 +159,11 @@ def test_master_is_fully_detailed():
         "## Clause scoring detail",
         "## Engine telemetry (vLLM /metrics, this run's delta)",
         "## Run conditions by specialist",
-        "## SAND-40 validation probes (n = 20, not pooled)",
     ):
         assert heading in md
-    # contracts is labeled as what it is: CUAD presence F1 over labeled documents
-    assert "| Contracts | CUAD presence F1: labeled-document mean (micro) |" in md
+    # contracts is defined as what it is: CUAD presence F1 over labeled documents
+    assert "per-document CUAD clause-presence F1 averaged over the successful documents" in md
+    assert "## Quality and cost by specialist" not in md  # the scorecard lives on the master only
     assert "| SAND-37 2×L4 C32 n=50 | 40 of 49 ok |" in md
 
 
@@ -171,9 +171,8 @@ def test_probes_are_reported_matched_but_never_pooled():
     data = grid_master.collect_master()
     assert set(data["probes"]) == {"contracts", "merger_agreement"}
     assert all("probe" not in c["run_id"] for p in data["cards"].values() for c in p.values())
-    md = grid_master.render_appendix_md(data)
-    row = next(line for line in md.splitlines() if line.startswith("| Merger Agreements | 65,536 |"))
-    assert "| 18 | 0.114 | 0.033 | +0.081 (14 / 3) |" in row
+    for md in (grid_master.render_master_md(data), grid_master.render_appendix_md(data)):
+        assert "validation probes" not in md and "65,536" not in md
 
 
 def test_dagger_figure_and_markers_follow_the_sand40_merger_cell():
