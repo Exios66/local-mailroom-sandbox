@@ -50,8 +50,8 @@ SWEEP_BY_TASK = {"correspondence": "sand032-s3-corr50", "insurance claims": "san
                  "corporate records": "sand032-s3-corporate50", "contracts": "sand032-s3-contracts50",
                  "merger agreements": "sand032-s3-merger50"}
 # Pre-SAND-032 2×L4 runs: serving exports are on a 1-replica basis; the reports bill both replicas.
-EARLY_2X = [("run-20-correspondence-specialist-awq", "correspondence/RUN-20-CORRESPONDENCE-SPECIALIST-AWQ-REPORT.md"),
-            ("run-50-correspondence-specialist-awq", "correspondence/RUN-50-CORRESPONDENCE-SPECIALIST-AWQ-REPORT.md")]
+EARLY_2X = [("run-20-correspondence-specialist-awq", "SAND-32/correspondence/RUN-20-CORRESPONDENCE-SPECIALIST-AWQ-REPORT.md"),
+            ("run-50-correspondence-specialist-awq", "SAND-32/correspondence/RUN-50-CORRESPONDENCE-SPECIALIST-AWQ-REPORT.md")]
 
 
 # ------------------------------------------------------------------ derived metrics
@@ -265,7 +265,7 @@ PREMIUMS = (0.5, 0.25, 0.1)
 
 
 def workload(r):
-    return CLASS_OF_DIR[r["report"].split("/")[0]]
+    return next(CLASS_OF_DIR[part] for part in r["report"].split("/") if part in CLASS_OF_DIR)
 
 
 def best_by_class(F) -> dict:

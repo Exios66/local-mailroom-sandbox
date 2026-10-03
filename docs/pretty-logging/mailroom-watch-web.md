@@ -45,13 +45,13 @@ Each SVG has a plain-text fallback next to it (same stem, `.ansi.txt`) and every
 
 | State | Screenshot | What to notice |
 |---|---|---|
-| SORTING, wide color (100 cols) | ![SORTING wide color tray TUI with in-tray, postage, and dispatch log](assets/watch/sorting-wide-color.svg) | In-tray + postage side by side; `delivered 2 · returned 1`; postmark p50/p95; colour-coded dispatch log. Produced by `sandbox watch --once`. |
-| QUEUED, narrow plain (70 cols, `NO_COLOR`) | ![QUEUED narrow plain tray TUI with stacked panels](assets/watch/queued-narrow-plain.svg) | Waiting run, stacked panels, compact hero, no ANSI. Produced with `NO_COLOR=1 sandbox watch --once`. |
-| DEPLOYING — modal deploy | ![DEPLOYING tray TUI](assets/watch/deploying.svg) | Driver has started the deploy; the fleet image + app are being pushed. |
-| PREFLIGHT — engine verified | ![PREFLIGHT tray TUI](assets/watch/preflight.svg) | Engine is up; the TUI has baselined `/metrics` before sorting starts. |
-| TEARDOWN — scorecard | ![TEARDOWN tray TUI with scorecard panel](assets/watch/teardown-scorecard.svg) | Scorecard panel appears only in `TEARDOWN`/`STOPPED`: quality + serving record + `/metrics` replica row. Also via `sandbox scorecard --run <id>`. |
-| STOPPED — fleet stopped, billing ended | ![STOPPED tray TUI with scorecard panel](assets/watch/stopped-scorecard.svg) | Terminal phase: the scorecard stays on screen after the fleet stops. |
-| Program route — ladder + sweep | ![Program route panel with done, live, and queued runs](assets/watch/program-route.svg) | `✓` done · `▶` live · `·` queued with fleet tags (`×1`/`×2` L4) across the 13-run program (`watch.py::PROGRAM`). |
+| SORTING, wide color (100 cols) | ![SORTING wide color tray TUI with in-tray, postage, and dispatch log](../assets/watch/sorting-wide-color.svg) | In-tray + postage side by side; `delivered 2 · returned 1`; postmark p50/p95; colour-coded dispatch log. Produced by `sandbox watch --once`. |
+| QUEUED, narrow plain (70 cols, `NO_COLOR`) | ![QUEUED narrow plain tray TUI with stacked panels](../assets/watch/queued-narrow-plain.svg) | Waiting run, stacked panels, compact hero, no ANSI. Produced with `NO_COLOR=1 sandbox watch --once`. |
+| DEPLOYING — modal deploy | ![DEPLOYING tray TUI](../assets/watch/deploying.svg) | Driver has started the deploy; the fleet image + app are being pushed. |
+| PREFLIGHT — engine verified | ![PREFLIGHT tray TUI](../assets/watch/preflight.svg) | Engine is up; the TUI has baselined `/metrics` before sorting starts. |
+| TEARDOWN — scorecard | ![TEARDOWN tray TUI with scorecard panel](../assets/watch/teardown-scorecard.svg) | Scorecard panel appears only in `TEARDOWN`/`STOPPED`: quality + serving record + `/metrics` replica row. Also via `sandbox scorecard --run <id>`. |
+| STOPPED — fleet stopped, billing ended | ![STOPPED tray TUI with scorecard panel](../assets/watch/stopped-scorecard.svg) | Terminal phase: the scorecard stays on screen after the fleet stops. |
+| Program route — ladder + sweep | ![Program route panel with done, live, and queued runs](../assets/watch/program-route.svg) | `✓` done · `▶` live · `·` queued with fleet tags (`×1`/`×2` L4) across the 13-run program (`watch.py::PROGRAM`). |
 
 ### Cold boot sub-phases
 
@@ -59,37 +59,37 @@ The `COLD BOOT` detail is derived from Modal log markers (`watch.py::BOOT_MARKER
 
 | Sub-phase | Screenshot |
 |---|---|
-| container starting | ![COLD BOOT container starting](assets/watch/cold-boot-container-starting.svg) |
-| loading weights | ![COLD BOOT loading weights](assets/watch/cold-boot-loading-weights.svg) |
-| profiling KV cache | ![COLD BOOT profiling KV cache](assets/watch/cold-boot-profiling-kv.svg) |
-| capturing CUDA graphs | ![COLD BOOT capturing CUDA graphs](assets/watch/cold-boot-cuda-graphs.svg) |
-| engine ready | ![COLD BOOT engine ready](assets/watch/cold-boot-engine-ready.svg) |
+| container starting | ![COLD BOOT container starting](../assets/watch/cold-boot-container-starting.svg) |
+| loading weights | ![COLD BOOT loading weights](../assets/watch/cold-boot-loading-weights.svg) |
+| profiling KV cache | ![COLD BOOT profiling KV cache](../assets/watch/cold-boot-profiling-kv.svg) |
+| capturing CUDA graphs | ![COLD BOOT capturing CUDA graphs](../assets/watch/cold-boot-cuda-graphs.svg) |
+| engine ready | ![COLD BOOT engine ready](../assets/watch/cold-boot-engine-ready.svg) |
 
 ### Display aesthetics
 
 | Aesthetic | Screenshot | What to notice |
 |---|---|---|
-| Postage over-gate warning | ![Postage panel with over-gate warning](assets/watch/over-gate.svg) | Gold `OVER $4.50 GATE` row when `total > GATE_USD`; the gate is a projected-total stop, not the cap. |
-| Blink frame — owl `(-,-)` | ![Sorting frame with blinking owl](assets/watch/blink-owl.svg) | Same SORTING frame with `blink=True`: the owl blinks every 7th second (`blink=int(time.time())%7==0`). Compare with the open `(o,o)` owl above. |
-| Dispatch log — every role | ![Dispatch log with every colour role](assets/watch/dispatch-roles.svg) | One line per `classify_log_line` role: error, warn, throughput, kv, ready, plain, plus the reconnect note (`RECONNECT_NOTE`) shown when the app is stopped between runs. |
+| Postage over-gate warning | ![Postage panel with over-gate warning](../assets/watch/over-gate.svg) | Gold `OVER $4.50 GATE` row when `total > GATE_USD`; the gate is a projected-total stop, not the cap. |
+| Blink frame — owl `(-,-)` | ![Sorting frame with blinking owl](../assets/watch/blink-owl.svg) | Same SORTING frame with `blink=True`: the owl blinks every 7th second (`blink=int(time.time())%7==0`). Compare with the open `(o,o)` owl above. |
+| Dispatch log — every role | ![Dispatch log with every colour role](../assets/watch/dispatch-roles.svg) | One line per `classify_log_line` role: error, warn, throughput, kv, ready, plain, plus the reconnect note (`RECONNECT_NOTE`) shown when the app is stopped between runs. |
 | Color vs plain, wide vs narrow | Compare `sorting-wide-color` with `queued-narrow-plain` | Color on: amber owl + blue-teal double frame + truecolor wordmark (`pl.palette(True)`). Plain (`NO_COLOR` / `SANDBOX_PLAIN_LOGS=1` / non-TTY): same layout, no ANSI. Wide `>=100` cols: in-tray + postage side by side. Narrow `<90` cols: stacked panels + compact stacked hero (`_wordmark_lines(compact=width<90)`). |
 
 ### Job board (beacon)
 
 | State | Screenshot | What to notice |
 |---|---|---|
-| Board — running / stalled / failed / done | ![Job board terminal TUI with four jobs](assets/watch/board-terminal.svg) | `sandbox board --tui`: border tone follows status (cyan running, gold stalled/failed, teal done); progress bar + `ok/errors/age` + last log lines per card. Same data serves the browser at `http://127.0.0.1:8767/`. |
-| Board — empty in-tray | ![Empty job board with Beacon hint](assets/watch/board-empty.svg) | First-run hint with the `Beacon(job_id, package=...).update(done=i, total=n)` publish snippet. Try `sandbox board --demo` for synthetic jobs. |
+| Board — running / stalled / failed / done | ![Job board terminal TUI with four jobs](../assets/watch/board-terminal.svg) | `sandbox board --tui`: border tone follows status (cyan running, gold stalled/failed, teal done); progress bar + `ok/errors/age` + last log lines per card. Same data serves the browser at `http://127.0.0.1:8767/`. |
+| Board — empty in-tray | ![Empty job board with Beacon hint](../assets/watch/board-empty.svg) | First-run hint with the `Beacon(job_id, package=...).update(done=i, total=n)` publish snippet. Try `sandbox board --demo` for synthetic jobs. |
 
 ### Session CLI (no alt-screen)
 
-![Session CLI tail-friendly mailroom output](assets/watch/session-cli.svg)
+![Session CLI tail-friendly mailroom output](../assets/watch/session-cli.svg)
 
 `mailroom_sandbox.tui.session.MailroomConsole` — the tail-friendly layer for `sandbox run|eval|matrix` and deploy entrypoints (stderr lines, no alt-screen): compact double-line run banner, `▸PHASE◂` stamp lines, `IN-TRAY` progress bar, `POSTAGE` cost line, and the `DONE` summary. Plain mode emits `[mailroom]`, `[progress]`, `[postage]`, `[done]` one-liners instead.
 
 ### Browser UI theme
 
-![Browser theme tokens derived from pretty_log](assets/watch/web-theme.svg)
+![Browser theme tokens derived from pretty_log](../assets/watch/web-theme.svg)
 
 `sandbox watch --web` (`http://127.0.0.1:8765/`) and the board browser reuse the same SAND-032 panels. CSS tokens in `tui/web.py::THEME` are derived from the `pretty_log` palette constants, so the terminal and the browser never drift; log roles map via `_ROLE_TOKEN` (warn→gold, mint→sky, dim→muted). The terminal hero (owl + amber 3D `THE MAILROOM`) is served as HTML (`hero_html` wide + `hero_compact_html` under 800 px) through `ansi_to_html`.
 
