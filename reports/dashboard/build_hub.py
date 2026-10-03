@@ -104,7 +104,7 @@ def assemble(ext: dict) -> dict:
             f"ledger ${s32['spend']} covers the runs' billed GPU ${billed:.3f} + incident ${s32['incident']}")
 
     # ---- route comparison: the isolated sorter on Modal (SAND-032 S6, n = 458 drawn)
-    s6 = "serving/SAND032-S6-SORTER1000-REPORT.md"
+    s6 = "serving/SAND-32/SAND032-S6-SORTER1000-REPORT.md"
     sorter_modal = {
         "run": "sand032-s6-sorter1000",
         "acc": sb.rx("route.s6.acc", s6, r"\| \*\*accuracy\*\* \| \*\*([0-9.]+)\*\* \|"),

@@ -189,23 +189,23 @@ def median(xs):
 # ------------------------------------------------------------------ SAND-032
 SAND032 = {
     # run id: (report path, class key, metric kind)
-    "sand032-s3-corr50": ("correspondence/SAND032-S3-CORR50-REPORT.md", "correspondence", "extraction"),
-    "sand032-s3-corr50-repeat": ("correspondence/SAND032-S3-CORR50-REPEAT-REPORT.md", "correspondence", "extraction"),
-    "sand032-s3-insurance50": ("insurance/SAND032-S3-INSURANCE50-REPORT.md", "insurance_claim", "extraction"),
-    "sand032-s3-corporate50": ("corporate/SAND032-S3-CORPORATE50-REPORT.md", "corporate_record", "extraction"),
-    "sand032-s3-contracts50": ("contract/SAND032-S3-CONTRACTS50-REPORT.md", "contract", "cuad"),
-    "sand032-s3-merger50": ("merger/SAND032-S3-MERGER50-REPORT.md", "merger_agreement", "maud"),
-    "sand032-s5-merger50-maud": ("merger/SAND032-S5-MERGER50-MAUD-REPORT.md", "merger_agreement", "maud"),
-    "sand032-s2a-corr100-1rep": ("correspondence/SAND032-S2A-CORR100-1REP-REPORT.md", "correspondence", "extraction"),
-    "sand032-s2b-corr100-2rep": ("correspondence/SAND032-S2B-CORR100-2REP-REPORT.md", "correspondence", "extraction"),
-    "sand032-s4-corr20-bf16": ("correspondence/SAND032-S4-CORR20-BF16-REPORT.md", "correspondence", "extraction"),
-    "sand032-l0-baseline": ("correspondence/SAND032-L0-BASELINE-REPORT.md", "correspondence", "extraction"),
-    "sand032-l1-nothink": ("correspondence/SAND032-L1-NOTHINK-REPORT.md", "correspondence", "extraction"),
-    "sand032-l2-marlin": ("correspondence/SAND032-L2-MARLIN-REPORT.md", "correspondence", "extraction"),
-    "sand032-l5-graphs": ("correspondence/SAND032-L5-GRAPHS-REPORT.md", "correspondence", "extraction"),
+    "sand032-s3-corr50": ("SAND-32/correspondence/SAND032-S3-CORR50-REPORT.md", "correspondence", "extraction"),
+    "sand032-s3-corr50-repeat": ("SAND-32/correspondence/SAND032-S3-CORR50-REPEAT-REPORT.md", "correspondence", "extraction"),
+    "sand032-s3-insurance50": ("SAND-32/insurance/SAND032-S3-INSURANCE50-REPORT.md", "insurance_claim", "extraction"),
+    "sand032-s3-corporate50": ("SAND-32/corporate/SAND032-S3-CORPORATE50-REPORT.md", "corporate_record", "extraction"),
+    "sand032-s3-contracts50": ("SAND-32/contract/SAND032-S3-CONTRACTS50-REPORT.md", "contract", "cuad"),
+    "sand032-s3-merger50": ("SAND-32/merger/SAND032-S3-MERGER50-REPORT.md", "merger_agreement", "maud"),
+    "sand032-s5-merger50-maud": ("SAND-32/merger/SAND032-S5-MERGER50-MAUD-REPORT.md", "merger_agreement", "maud"),
+    "sand032-s2a-corr100-1rep": ("SAND-32/correspondence/SAND032-S2A-CORR100-1REP-REPORT.md", "correspondence", "extraction"),
+    "sand032-s2b-corr100-2rep": ("SAND-32/correspondence/SAND032-S2B-CORR100-2REP-REPORT.md", "correspondence", "extraction"),
+    "sand032-s4-corr20-bf16": ("SAND-32/correspondence/SAND032-S4-CORR20-BF16-REPORT.md", "correspondence", "extraction"),
+    "sand032-l0-baseline": ("SAND-32/correspondence/SAND032-L0-BASELINE-REPORT.md", "correspondence", "extraction"),
+    "sand032-l1-nothink": ("SAND-32/correspondence/SAND032-L1-NOTHINK-REPORT.md", "correspondence", "extraction"),
+    "sand032-l2-marlin": ("SAND-32/correspondence/SAND032-L2-MARLIN-REPORT.md", "correspondence", "extraction"),
+    "sand032-l5-graphs": ("SAND-32/correspondence/SAND032-L5-GRAPHS-REPORT.md", "correspondence", "extraction"),
 }
 SUMMARY = "serving/QWEN3-L4-LADDER-SUMMARY.md"
-LADDER = "serving/SAND032-LADDER.md"
+LADDER = "serving/SAND-32/SAND032-LADDER.md"
 
 
 def sand032_run(R: Repo, rid: str) -> dict:
@@ -385,12 +385,15 @@ def sand032_fleet(R: Repo, runs: dict) -> dict:
     wall × replicas × L4 rate; billed (a lower bound on the Modal bill) adds the run's cold boot.
     """
     L = R.L
-    reports = {p.name[: -len("-REPORT.md")].lower(): p.relative_to(R.base).as_posix()
-               for p in sorted(R.base.glob("*/SAND032-*-REPORT.md"))}
+    reports = {
+        p.name[: -len("-REPORT.md")].lower(): p.relative_to(R.base).as_posix()
+        for pattern in ("SAND-32/*/SAND032-*-REPORT.md", "serving/SAND-32/SAND032-*-REPORT.md")
+        for p in sorted(R.base.glob(pattern))
+    }
     out = {}
-    for sp in sorted((R.base / "serving").glob("sand032-*.serving.json")):
+    for sp in sorted((R.base / "serving" / "SAND-32").glob("sand032-*.serving.json")):
         rid = sp.name[: -len(".serving.json")]
-        jp, k, path = f"serving/{sp.name}", f"fleet.{rid}", reports.get(rid)
+        jp, k, path = sp.relative_to(R.base).as_posix(), f"fleet.{rid}", reports.get(rid)
         if path is None:
             raise SourceError(f"{rid}: serving export without a run report")
         doc = R.jload(jp)

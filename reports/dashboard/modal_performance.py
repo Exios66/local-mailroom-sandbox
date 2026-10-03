@@ -84,7 +84,11 @@ def _hw_label(fleet: dict) -> str:
 
 
 def _load_serving(rid: str) -> dict:
-    return json.loads((ROOT / "reports" / "serving" / f"{rid}.serving.json").read_text())
+    serving_dir = ROOT / "reports" / "serving"
+    matches = sorted(serving_dir.rglob(f"{rid}.serving.json"))
+    if len(matches) != 1:
+        raise FileNotFoundError(f"expected one serving export for {rid}, found {len(matches)}")
+    return json.loads(matches[0].read_text())
 
 
 def _cost_parts(rid: str, fleet: dict, rate: float) -> dict[str, float]:
