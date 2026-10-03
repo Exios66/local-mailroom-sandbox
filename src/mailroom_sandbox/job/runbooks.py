@@ -13,6 +13,7 @@ come from ``specialist_posture``; suite order comes from ``config/runs/suites/``
 
 from __future__ import annotations
 
+import os
 import re
 from functools import lru_cache
 from pathlib import Path
@@ -122,6 +123,47 @@ def load_catalog() -> dict[str, Any]:
     if not isinstance(serving, Mapping) or not isinstance(serving.get("baseline"), Mapping):
         raise ValueError(f"{path}: serving.baseline is required")
     return dict(data)
+
+
+def _doc_path(value: Any) -> Path:
+    path = Path(str(value))
+    if path.is_absolute() or ".." in path.parts or path.suffix.lower() != ".md":
+        raise ValueError(f"invalid generated runbook path {value!r}")
+    return path
+
+
+def _generated_doc_paths() -> dict[str, Any]:
+    catalog = load_catalog()
+    raw = catalog.get("generated_docs")
+    if not isinstance(raw, Mapping):
+        raise ValueError("catalog.generated_docs must define index, families, and runbooks")
+    families = raw.get("families")
+    runbooks = raw.get("runbooks")
+    if not isinstance(families, Mapping) or not isinstance(runbooks, Mapping):
+        raise ValueError("catalog.generated_docs families and runbooks must be mappings")
+    expected_families = {family for family, _heading in FAMILIES}
+    if set(families) != expected_families:
+        raise ValueError(f"catalog.generated_docs families must be {sorted(expected_families)}")
+    expected_runbooks = set(catalog["runbooks"])
+    if set(runbooks) != expected_runbooks:
+        raise ValueError(
+            "catalog.generated_docs.runbooks must map every runbook exactly once; "
+            f"missing={sorted(expected_runbooks - set(runbooks))}, "
+            f"extra={sorted(set(runbooks) - expected_runbooks)}"
+        )
+    paths = {
+        "index": _doc_path(raw.get("index")),
+        "families": {str(k): _doc_path(v) for k, v in families.items()},
+        "runbooks": {str(k): _doc_path(v) for k, v in runbooks.items()},
+    }
+    all_paths = [paths["index"], *paths["families"].values(), *paths["runbooks"].values()]
+    if len(set(all_paths)) != len(all_paths):
+        raise ValueError("catalog.generated_docs paths must be unique")
+    return paths
+
+
+def _catalog_link(output_path: Path) -> str:
+    return Path(os.path.relpath(catalog_path(), start=(generated_dir() / output_path).parent)).as_posix()
 
 
 def _aliases() -> dict[str, str]:
@@ -519,8 +561,10 @@ def _pin_table(runbook: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def render_markdown(name: str) -> str:
+def render_markdown(name: str, *, output_path: Path | None = None) -> str:
     runbook = get_runbook(name)
+    docs = _generated_doc_paths()
+    output_path = output_path or docs["runbooks"][runbook["id"]]
     ops = _ops()
     family = str(runbook.get("family") or "")
     lines = [
@@ -533,7 +577,7 @@ def render_markdown(name: str) -> str:
         "",
         str(runbook.get("summary") or "").strip(),
         "",
-        "Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), "
+        f"Edit [`config/runbooks/catalog.yaml`]({_catalog_link(output_path)}), "
         f"then `sandbox runbook write`. Print this card: `sandbox runbook show {runbook['id']}`.",
         "",
     ]
@@ -617,8 +661,10 @@ def render_markdown(name: str) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def render_index() -> str:
+def render_index(*, output_path: Path | None = None) -> str:
     cat = load_catalog()
+    docs = _generated_doc_paths()
+    output_path = output_path or docs["index"]
     lines = [
         GENERATED_HEADER,
         "",
@@ -638,7 +684,7 @@ def render_index() -> str:
         "sandbox runbook write                     # regenerate this directory",
         "```",
         "",
-        "Source of truth: [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml).",
+        f"Source of truth: [`config/runbooks/catalog.yaml`]({_catalog_link(output_path)}).",
         "",
     ]
     for family, heading in FAMILIES:
@@ -648,7 +694,9 @@ def render_index() -> str:
         for rid in list_runbook_ids(family=family):
             row = get_runbook(rid)
             blocked = " — **BLOCKED**" if row.get("blocked") else ""
-            lines.append(f"- [`{rid}`]({rid}.md) — {row.get('title')}{blocked}")
+            doc_path = generated_dir() / docs["runbooks"][rid]
+            link = Path(os.path.relpath(doc_path, start=(generated_dir() / output_path).parent)).as_posix()
+            lines.append(f"- [`{rid}`]({link}) — {row.get('title')}{blocked}")
         lines.append("")
     anti = cat.get("anti_patterns") or []
     if anti:
@@ -668,18 +716,20 @@ def render_index() -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def render_family(family: str) -> str:
+def render_family(family: str, *, output_path: Path | None = None) -> str:
+    docs = _generated_doc_paths()
+    output_path = output_path or docs["families"][family]
     heading = dict(FAMILIES).get(family, family)
     chunks = [
         GENERATED_HEADER,
         "",
         f"# {heading}",
         "",
-        "Generated family rollup. Canonical per-id cards live beside this file.",
+        "Generated family rollup. Canonical per-id cards live at their catalog paths.",
         "",
     ]
     for rid in list_runbook_ids(family=family):
-        body = render_markdown(rid)
+        body = render_markdown(rid, output_path=docs["runbooks"][rid])
         # Drop the generated header from nested cards.
         nested = "\n".join(
             line for line in body.splitlines() if line != GENERATED_HEADER
@@ -689,14 +739,15 @@ def render_family(family: str) -> str:
 
 
 def generated_files() -> dict[str, str]:
+    docs = _generated_doc_paths()
     files = {
-        "README.md": render_index(),
-        "baseline.md": render_family("baseline"),
-        "improved.md": render_family("improved"),
-        "grid.md": render_family("grid"),
+        docs["index"].as_posix(): render_index(output_path=docs["index"]),
     }
+    for family, path in docs["families"].items():
+        files[path.as_posix()] = render_family(family, output_path=path)
     for rid in list_runbook_ids():
-        files[f"{rid}.md"] = render_markdown(rid)
+        path = docs["runbooks"][rid]
+        files[path.as_posix()] = render_markdown(rid, output_path=path)
     return files
 
 
@@ -707,13 +758,10 @@ def write_docs(*, dest: Path | None = None) -> list[Path]:
     written: list[Path] = []
     wanted = generated_files()
     for name, text in wanted.items():
-        path = target / name
+        path = target / _doc_path(name)
+        path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
         written.append(path)
-    keep = set(wanted)
-    for existing in target.glob("*.md"):
-        if existing.name not in keep:
-            existing.unlink()
     return written
 
 
@@ -723,7 +771,11 @@ def docs_are_current() -> list[str]:
     wanted = generated_files()
     if not target.is_dir():
         return [f"missing generated runbook dir {target}"]
-    on_disk = {p.name for p in target.glob("*.md")}
+    on_disk = {
+        p.relative_to(target).as_posix()
+        for p in target.rglob("*.md")
+        if p.is_file() and p.open(encoding="utf-8").readline().strip() == GENERATED_HEADER
+    }
     extra = sorted(on_disk - set(wanted))
     missing = sorted(set(wanted) - on_disk)
     if extra:
@@ -731,7 +783,7 @@ def docs_are_current() -> list[str]:
     if missing:
         errors.append(f"missing generated files: {missing} (run sandbox runbook write)")
     for name, text in wanted.items():
-        path = target / name
+        path = target / _doc_path(name)
         if not path.is_file():
             continue
         actual = path.read_text(encoding="utf-8")

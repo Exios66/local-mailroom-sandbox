@@ -6,7 +6,7 @@
 
 SAND-019 corrected contracts path. Window 32768 clears the 16k 400; run-scoped max_tokens 8192 clears LengthFinish; concurrency 8 on one L4. Same seed-42 draw as run-20-contracts-awq.
 
-Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-awq-c8`.
+Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-awq-c8`.
 
 ## Pins (from catalog serving variant)
 

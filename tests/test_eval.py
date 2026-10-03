@@ -159,6 +159,44 @@ def test_classification_scoring_smoke():
     assert scores["f1_macro"] == 1.0
 
 
+def test_score_manifest_groups_only_associated_sweeps(tmp_path, monkeypatch):
+    monkeypatch.setattr(scoring, "reports_dir", lambda: tmp_path / "reports")
+    assert scoring.scores_path("sand032-s3-corr50") == (
+        tmp_path / "reports" / "scores" / "SAND-32" / "scores.jsonl"
+    )
+    assert scoring.scores_path("grid-50-contracts-specialist-awq-2l4") == (
+        tmp_path / "reports" / "scores" / "SAND-37" / "scores.jsonl"
+    )
+    assert scoring.scores_path("run-20-contracts-specialist") == (
+        tmp_path / "reports" / "scores" / "scores.jsonl"
+    )
+
+
+def test_score_emit_uses_sweep_manifest_path(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    emitted = {}
+
+    class RecordingSink:
+        def __init__(self, path):
+            emitted["path"] = Path(path)
+
+        def emit(self, record):
+            emitted["record"] = record
+
+    record = SimpleNamespace(
+        run_id="sand40-100-contracts-specialist-awq-2l4",
+        metadata={"runbook": "sand40"},
+    )
+    monkeypatch.setattr(scoring, "reports_dir", lambda: tmp_path / "reports")
+    monkeypatch.setattr(scoring, "LocalManifestSink", RecordingSink)
+
+    scoring.emit(record)
+
+    assert emitted["path"] == tmp_path / "reports" / "scores" / "SAND-40" / "scores.jsonl"
+    assert emitted["record"] is record
+
+
 def test_dojo_pin_is_v0_15():
     import re
 

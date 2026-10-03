@@ -6,7 +6,7 @@
 
 Default cost-eval path. One sandbox-vllm replica on one L4 serving Qwen/Qwen3-8B bf16 (max_model_len 16384, max_containers 1). Warm once, chain all five specialist classes, teardown after the last.
 
-Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show l4-qwen3-8b`.
+Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show l4-qwen3-8b`.
 
 ## Pins (from catalog serving variant)
 

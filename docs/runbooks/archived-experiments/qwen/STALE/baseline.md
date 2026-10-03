@@ -2,7 +2,7 @@
 
 # Singular 1×L4 / 1-container Qwen3-8B
 
-Generated family rollup. Canonical per-id cards live beside this file.
+Generated family rollup. Canonical per-id cards live at their catalog paths.
 
 # Singular 1×L4 / 1-container Qwen3-8B (full 5×30)
 
@@ -10,7 +10,7 @@ Generated family rollup. Canonical per-id cards live beside this file.
 
 Default cost-eval path. One sandbox-vllm replica on one L4 serving Qwen/Qwen3-8B bf16 (max_model_len 16384, max_containers 1). Warm once, chain all five specialist classes, teardown after the last.
 
-Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show l4-qwen3-8b`.
+Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show l4-qwen3-8b`.
 
 ## Pins (from catalog serving variant)
 
@@ -146,7 +146,7 @@ sandbox metrics compare --runs run-30-contracts-specialist,run-30-merger-special
 
 Track A on the Hermes wallet (hermes-agent-jjb). Same singular L4 / 1-container serving as l4-qwen3-8b. Do not share this profile with Operator B.
 
-Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show l4-qwen3-8b-track-a`.
+Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show l4-qwen3-8b-track-a`.
 
 ## Pins (from catalog serving variant)
 
@@ -268,7 +268,7 @@ done
 
 Track B on a second Modal account. SANDBOX_MODAL_PROFILE_TRACK_B is required. Never activate hermes-agent-jjb here if Operator A is using it.
 
-Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show l4-qwen3-8b-track-b`.
+Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show l4-qwen3-8b-track-b`.
 
 ## Pins (from catalog serving variant)
 
@@ -391,7 +391,7 @@ done
 
 SAND-018 single-class sibling of the 5×30 suite. Same L4 / 1-container Qwen3-8B pins, 20 contract docs from split=all seed 42.
 
-Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show l4-qwen3-8b-n20`.
+Edit [`config/runbooks/catalog.yaml`](../../../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show l4-qwen3-8b-n20`.
 
 ## Pins (from catalog serving variant)
 

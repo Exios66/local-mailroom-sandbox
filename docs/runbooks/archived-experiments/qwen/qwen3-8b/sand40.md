@@ -6,7 +6,7 @@
 
 Fills the SAND-40 column of the master score & cost card on one deploy of the SAND-037 2×L4 engine (native 32768 window), no redeploy. Correspondence, insurance claims, corporate records and contracts run at n=100 on the aligned spec unchanged (each draw contains the n=50 documents). Merger runs the same 50 agreements as SAND-37 2×L4 with the optimized † settings (chunked whole-document extraction, MAUD v1 prompt, Qwen3 sampling, 6144 cap, one length re-sample), after a 5-agreement chunk gate.
 
-Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show sand40`.
+Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show sand40`.
 
 ## Pins (from catalog serving variant)
 

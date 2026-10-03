@@ -614,9 +614,20 @@ def serving_record_from_store(
     )
 
 
-def default_serving_json_path(run_id: str) -> Path:
+def default_serving_json_path(run_id: str, *, store: RunStore | None = None) -> Path:
     from mailroom_sandbox.paths import repo_root
 
+    if store is not None:
+        from mailroom_sandbox.job.dated_reports import serving_export_path
+
+        canonical = serving_export_path(store, repo=repo_root())
+        if canonical is not None:
+            return canonical
+    from mailroom_sandbox.report_paths import experiment_prefix
+
+    prefix = experiment_prefix(run_id)
+    if prefix:
+        return repo_root() / "reports" / "serving" / prefix / f"{run_id}.serving.json"
     return repo_root() / "reports" / "serving" / f"{run_id}.serving.json"
 
 
@@ -631,7 +642,7 @@ def write_serving_json(
     payload = serving_record_from_store(
         store, wall_seconds=wall_seconds, scores=scores
     )
-    dest = Path(path) if path is not None else default_serving_json_path(store.run_id)
+    dest = Path(path) if path is not None else default_serving_json_path(store.run_id, store=store)
     dest.parent.mkdir(parents=True, exist_ok=True)
     _atomic_write_serving_json(dest, payload)
     if path is None:

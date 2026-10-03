@@ -6,7 +6,7 @@
 
 issue #21. Same draw (fingerprint 285f423d3708) and concurrency 8, but Qwen/Qwen3-8B bf16 at 16384. PREPARED ONLY until spend/auth are approved.
 
-Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-correspondence-fp16-c8`.
+Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-correspondence-fp16-c8`.
 
 > **BLOCKED:** spend/auth not approved (issue
 

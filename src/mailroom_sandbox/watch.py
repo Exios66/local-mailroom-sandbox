@@ -350,6 +350,10 @@ def scorecard_lines(store: RunStore, *, serving_dir: Path, width: int = 100, on:
     ]
     rec: dict[str, Any] = {}
     path = serving_dir / f"{snap['run_id']}.serving.json"
+    if not path.is_file():
+        matches = sorted(serving_dir.rglob(path.name))
+        if len(matches) == 1:
+            path = matches[0]
     if path.is_file():
         try:
             rec = json.loads(path.read_text())

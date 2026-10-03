@@ -166,6 +166,32 @@ aliases:
   sand39: sand39-1l4-n50
   sand40: sand40
 
+generated_docs:
+  index: README.md
+  families:
+    baseline: archived-experiments/qwen/STALE/baseline.md
+    improved: specialists/contracts/improved.md
+    grid: archived-experiments/qwen/qwen3-8b/grid.md
+  runbooks:
+    l4-qwen3-8b: archived-experiments/qwen/STALE/l4-qwen3-8b.md
+    l4-qwen3-8b-track-a: archived-experiments/qwen/STALE/l4-qwen3-8b-track-a.md
+    l4-qwen3-8b-track-b: archived-experiments/qwen/STALE/l4-qwen3-8b-track-b.md
+    l4-qwen3-8b-n20: archived-experiments/qwen/qwen3-8b/1L4/l4-qwen3-8b-n20.md
+    improved-awq: specialists/contracts/improved-awq.md
+    a100-qwen3-14b-awq-sorter400: specialists/sorter/a100-qwen3-14b-awq-sorter400.md
+    improved-awq-c8: specialists/contracts/improved-awq-c8.md
+    improved-correspondence-awq: specialists/correspondence/improved-correspondence-awq.md
+    improved-correspondence-awq-c8: specialists/correspondence/improved-correspondence-awq-c8.md
+    improved-correspondence-fp16-c8: specialists/correspondence/improved-correspondence-fp16-c8.md
+    improved-granite-fp8: archived-experiments/ibm-granite/granite-4.2-8b/improved-granite-fp8.md
+    improved-second-l4: archived-experiments/qwen/qwen3-8b/2L4/improved-second-l4.md
+    improved-scale-matrix: archived-experiments/qwen/STALE/improved-scale-matrix.md
+    grid-1l4: archived-experiments/qwen/qwen3-8b/1L4/grid-1l4.md
+    grid-2l4: archived-experiments/qwen/qwen3-8b/2L4/grid-2l4.md
+    sand39-1l4-n50: archived-experiments/qwen/qwen3-8b/1L4/sand39-1l4-n50.md
+    sand40-probe: tuning/sand40-probe.md
+    sand40: archived-experiments/qwen/qwen3-8b/sand40.md
+
 runbooks:
   l4-qwen3-8b:
     family: baseline
