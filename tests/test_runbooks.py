@@ -169,14 +169,25 @@ def test_generated_docs_match_renderer():
     errors = docs_are_current()
     assert errors == [], errors
     dest = generated_dir()
-    assert (dest / "l4-qwen3-8b.md").is_file()
-    assert (dest / "improved.md").is_file()
-    text = (dest / "l4-qwen3-8b.md").read_text(encoding="utf-8")
+    generated = load_catalog()["generated_docs"]
+    l4_doc = dest / generated["runbooks"]["l4-qwen3-8b"]
+    improved_doc = dest / generated["families"]["improved"]
+    assert l4_doc.is_file()
+    assert improved_doc.is_file()
+    text = l4_doc.read_text(encoding="utf-8")
     assert "Qwen/Qwen3-8B" in text
     assert "max_containers" in text
-    improved = (dest / "improved.md").read_text(encoding="utf-8")
+    assert "../../../../../config/runbooks/catalog.yaml" in text
+    improved = improved_doc.read_text(encoding="utf-8")
     assert "Qwen/Qwen3-8B-AWQ" in improved
     assert "ibm-granite/granite-4.2-8b-fp8" in improved
+
+
+def test_runbook_writer_preserves_unmanaged_markdown(tmp_path):
+    keep = tmp_path / "handwritten.md"
+    keep.write_text("User-authored note.\n", encoding="utf-8")
+    write_docs(dest=tmp_path)
+    assert keep.read_text(encoding="utf-8") == "User-authored note.\n"
 
 
 def test_cli_list_show_check(capsys, tmp_path):
@@ -268,7 +279,8 @@ def test_grid_family_renders():
     md = render_markdown("grid-1l4")
     assert "## Per-cell posture (live)" in md
     assert "`grid-50-merger-specialist-awq-1l4` | `merger_agreement_specialist` | 8 | 8192" in md
-    assert (generated_dir() / "grid.md").is_file()
+    grid_doc = load_catalog()["generated_docs"]["families"]["grid"]
+    assert (generated_dir() / grid_doc).is_file()
 
 
 def test_grid_runbooks_scrape_and_export_cards():

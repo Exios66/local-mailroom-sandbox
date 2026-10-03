@@ -496,7 +496,7 @@ def build_parser() -> argparse.ArgumentParser:
         parents=[shared],
     )
     score_p.add_argument("--run", dest="run_id", required=True, help="run id (e.g. sand032-l0-baseline)")
-    score_p.add_argument("--serving-dir", default=None, help="default: reports/serving")
+    score_p.add_argument("--serving-dir", default=None, help="default: reports/serving (nested SAND trees and legacy flat exports)")
     score_p.set_defaults(handler=_cmd_scorecard)
 
     rb = sub.add_parser(
@@ -579,7 +579,7 @@ def build_parser() -> argparse.ArgumentParser:
     mserv = metrics_sub.add_parser(
         "serving-record",
         parents=[shared],
-        help="write reports/serving/<run_id>.serving.json from a stored run",
+        help="write a serving export under the canonical reports/serving tree",
     )
     mserv.add_argument("--run", dest="run_id", required=True, help="run-id with lock + items")
     mserv.add_argument(
@@ -591,7 +591,7 @@ def build_parser() -> argparse.ArgumentParser:
     mserv.add_argument(
         "--out",
         default="",
-        help="output path (default: reports/serving/<run_id>.serving.json)",
+        help="output path (default: canonical nested reports/serving path for this run)",
     )
     mserv.add_argument("--json", action="store_true", help="print the record to stdout")
     mserv.set_defaults(handler=_cmd_metrics_serving_record)

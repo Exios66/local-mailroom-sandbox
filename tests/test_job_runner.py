@@ -56,6 +56,30 @@ def test_run_job_mock_completes(tmp_path):
     assert summary["scores"]["exact_match"] == 1.0
 
 
+def test_successful_run_fires_report_writers(tmp_path, monkeypatch):
+    store = _prepped_store(tmp_path, rows=1)
+    report_calls = []
+    card_calls = []
+
+    def record_report(target, **kwargs):
+        report_calls.append((target, kwargs))
+
+    def record_card(target, **kwargs):
+        card_calls.append((target, kwargs))
+
+    monkeypatch.setattr("mailroom_sandbox.job.dated_reports.maybe_write_run_reports", record_report)
+    monkeypatch.setattr("mailroom_sandbox.job.grid_cards.maybe_write_card", record_card)
+
+    summary = runner.run_job(store, mock=None)
+
+    assert summary["state"] == "done"
+    assert len(report_calls) == len(card_calls) == 1
+    for target, kwargs in (report_calls[0], card_calls[0]):
+        assert target is store
+        assert kwargs["scores"] == summary["scores"]
+        assert isinstance(kwargs["wall_seconds"], float)
+
+
 def test_run_job_all_items_failed_writes_failed_not_done(tmp_path, monkeypatch):
     """hub#39: a run where EVERY item errored must write state=failed with a
     last_error, exit 1 (CLI maps state != done), and never append a 'done'

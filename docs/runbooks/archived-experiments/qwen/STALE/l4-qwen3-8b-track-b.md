@@ -6,7 +6,7 @@
 
 Track B on a second Modal account. SANDBOX_MODAL_PROFILE_TRACK_B is required. Never activate hermes-agent-jjb here if Operator A is using it.
 
-Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show l4-qwen3-8b-track-b`.
+Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show l4-qwen3-8b-track-b`.
 
 ## Pins (from catalog serving variant)
 

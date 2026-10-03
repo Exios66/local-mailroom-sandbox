@@ -6,7 +6,7 @@
 
 Same singular L4 / 1-container topology as the Qwen baseline, swapped to ibm-granite/granite-4.2-8b-fp8 at 32768. Do not edit run-30 YAMLs — live /v1/models probe requires engine.model to match, so copy specs after smoke.
 
-Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-granite-fp8`.
+Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-granite-fp8`.
 
 ## Pins (from catalog serving variant)
 

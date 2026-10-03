@@ -6,7 +6,7 @@
 
 Optional cost-saver. Official Qwen3-8B AWQ is a drop-in Hub id. The DMR-068 accuracy gate (≥1.5× docs/min and ≥98% accuracy) is NOT green in-repo — do not flip the default 5×30 suite. This run YAML still boots at 16384; prefer improved-awq-c8 for the corrected 32768 window.
 
-Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-awq`.
+Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-awq`.
 
 ## Pins (from catalog serving variant)
 

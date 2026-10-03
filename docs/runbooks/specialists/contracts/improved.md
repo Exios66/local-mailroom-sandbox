@@ -2,7 +2,7 @@
 
 # Improved run configurations
 
-Generated family rollup. Canonical per-id cards live beside this file.
+Generated family rollup. Canonical per-id cards live at their catalog paths.
 
 # AWQ on 1×L4 (Qwen3-8B-AWQ, contracts N=20)
 
@@ -10,7 +10,7 @@ Generated family rollup. Canonical per-id cards live beside this file.
 
 Optional cost-saver. Official Qwen3-8B AWQ is a drop-in Hub id. The DMR-068 accuracy gate (≥1.5× docs/min and ≥98% accuracy) is NOT green in-repo — do not flip the default 5×30 suite. This run YAML still boots at 16384; prefer improved-awq-c8 for the corrected 32768 window.
 
-Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-awq`.
+Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-awq`.
 
 ## Pins (from catalog serving variant)
 
@@ -97,7 +97,7 @@ sandbox run start --config config/runs/run-20-contracts-awq.yaml --job-mode endp
 
 Isolated SorterAgent eval (not a specialist extract). Official Qwen/Qwen3-14B-AWQ on one A100-40GB with AWQ-Marlin, fp8 KV, CUDA graphs, prefix caching, thinking off, C=32. Prompt pin sorter_v1. One cold boot; MIN=MAX=1 until teardown. Do not start this run without spend approval.
 
-Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show a100-qwen3-14b-awq-sorter400`.
+Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show a100-qwen3-14b-awq-sorter400`.
 
 ## Pins (from catalog serving variant)
 
@@ -288,7 +288,7 @@ modal billing summary
 
 SAND-019 corrected contracts path. Window 32768 clears the 16k 400; run-scoped max_tokens 8192 clears LengthFinish; concurrency 8 on one L4. Same seed-42 draw as run-20-contracts-awq.
 
-Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-awq-c8`.
+Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-awq-c8`.
 
 ## Pins (from catalog serving variant)
 
@@ -372,7 +372,7 @@ sandbox run start --config config/runs/run-20-contracts-awq-c8.yaml --job-mode e
 
 SAND-019 short-doc AWQ path. Same 1×L4 / 1-container topology.
 
-Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-correspondence-awq`.
+Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-correspondence-awq`.
 
 ## Pins (from catalog serving variant)
 
@@ -452,7 +452,7 @@ sandbox run start --config config/runs/run-20-correspondence-awq.yaml --job-mode
 
 Same seed-42 correspondence draw as improved-correspondence-awq (fingerprint 285f423d3708). Only concurrency changes (5 → 8).
 
-Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-correspondence-awq-c8`.
+Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-correspondence-awq-c8`.
 
 ## Pins (from catalog serving variant)
 
@@ -532,7 +532,7 @@ sandbox run start --config config/runs/run-20-correspondence-awq-c8.yaml --job-m
 
 issue #21. Same draw (fingerprint 285f423d3708) and concurrency 8, but Qwen/Qwen3-8B bf16 at 16384. PREPARED ONLY until spend/auth are approved.
 
-Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-correspondence-fp16-c8`.
+Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-correspondence-fp16-c8`.
 
 > **BLOCKED:** spend/auth not approved (issue
 
@@ -619,7 +619,7 @@ sandbox run start --config config/runs/run-20-correspondence-fp16-c8.yaml --job-
 
 Same singular L4 / 1-container topology as the Qwen baseline, swapped to ibm-granite/granite-4.2-8b-fp8 at 32768. Do not edit run-30 YAMLs — live /v1/models probe requires engine.model to match, so copy specs after smoke.
 
-Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-granite-fp8`.
+Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-granite-fp8`.
 
 ## Pins (from catalog serving variant)
 
@@ -729,7 +729,7 @@ sandbox health --profile modal-vllm
 
 Raise MAX_CONTAINERS to 2. Each replica is a full vLLM on its own L4 with the baseline Qwen3-8B knobs. Modal @web_server round-robins. Do not use GPU=L4:2 + tensor parallel for 8B.
 
-Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-second-l4`.
+Edit [`config/runbooks/catalog.yaml`](../../../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-second-l4`.
 
 ## Pins (from catalog serving variant)
 
@@ -836,7 +836,7 @@ done
 
 DMR-068 / SAND-022 throughput protocol. These cells pin replica fleets (often 4×L4) and short-doc max_num_seqs=256. GPU cells pending spend.
 
-Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-scale-matrix`.
+Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-scale-matrix`.
 
 ## Pins (from catalog serving variant)
 

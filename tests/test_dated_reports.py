@@ -6,10 +6,17 @@ from datetime import datetime
 
 from mailroom_sandbox.job import dated_reports
 from mailroom_sandbox.job.checkpoint import RunStore
+from mailroom_sandbox.report_paths import experiment_prefix
 
 
-def _specialist_store(tmp_path, *, mock: bool = False) -> RunStore:
-    store = RunStore(tmp_path / "grid-20-merger-specialist-awq-1l4")
+def _specialist_store(
+    tmp_path,
+    *,
+    mock: bool = False,
+    run_id: str = "grid-20-merger-specialist-awq-1l4",
+    replicas: int = 1,
+) -> RunStore:
+    store = RunStore(tmp_path / run_id)
     store.write_lock(
         {
             "run_id": store.run_id,
@@ -18,7 +25,7 @@ def _specialist_store(tmp_path, *, mock: bool = False) -> RunStore:
             "spec_hash": "abc",
             "engine": {
                 "model": "Qwen/Qwen3-8B-AWQ",
-                "modal": {"gpu": "L4", "max_containers": 1, "min_containers": 1},
+                "modal": {"gpu": "L4", "max_containers": replicas, "min_containers": replicas},
             },
             "job": {"mock": mock, "concurrency": 8, "mode": "endpoint"},
             "dataset": {"limit": 20},
@@ -38,6 +45,15 @@ def _specialist_store(tmp_path, *, mock: bool = False) -> RunStore:
         }
     )
     return store
+
+
+def test_experiment_prefix_is_explicit_or_known_grid():
+    assert experiment_prefix("sand032-s3-corr50") == "SAND-32"
+    assert experiment_prefix("sand39-1l4-n50") == "SAND-39"
+    assert experiment_prefix("sand40-100-contracts-specialist-awq-2l4") == "SAND-40"
+    assert experiment_prefix("grid-50-merger-specialist-awq-2l4") == "SAND-37"
+    assert experiment_prefix("run-20-merger-specialist-awq") is None
+    assert experiment_prefix("run-20-merger-specialist-awq", {"runbook": "sand40"}) == "SAND-40"
 
 
 def test_cell_stem_encodes_n_shape_concurrency(tmp_path):
@@ -73,13 +89,65 @@ def test_write_run_reports_lands_under_local_date(tmp_path):
     assert paths["report"].name == "RUN-20-MERGER-AWQ-1L4-C8-REPORT.md"
     assert paths["serving_md"].name == "RUN-20-MERGER-AWQ-1L4-C8-SERVING.md"
     assert paths["serving_json"].name == "RUN-20-MERGER-AWQ-1L4-C8.serving.json"
-    assert paths["dir"] == tmp_path / "reports" / "2026-09-29" / "merger_agreement"
+    assert paths["dir"] == tmp_path / "reports" / "SAND-37" / "2026-09-29" / "merger_agreement"
     text = paths["report"].read_text(encoding="utf-8")
     assert "grid-20-merger-specialist-awq-1l4" in text
     assert "Qwen/Qwen3-8B-AWQ" in text
     serving = paths["serving_md"].read_text(encoding="utf-8")
     assert "gpu_cost_per_document" in serving
-    assert (tmp_path / "reports" / "serving" / f"{store.run_id}.serving.json").is_file()
+    assert paths["tui_serving_json"] == (
+        tmp_path / "reports" / "serving" / "SAND-37" / "1L4" / "n=20" / f"{store.run_id}.serving.json"
+    )
+    assert paths["tui_serving_json"].is_file()
+
+
+def test_dated_and_serving_paths_follow_sweep_or_general_root(tmp_path):
+    now = datetime(2026, 9, 29)
+    ungrouped = _specialist_store(tmp_path, run_id="run-20-merger-specialist-awq-1l4")
+    assert dated_reports.dated_cell_dir(ungrouped, repo=tmp_path, now=now) == (
+        tmp_path / "reports" / "2026-09-29" / "merger_agreement"
+    )
+    assert dated_reports.serving_export_path(ungrouped, repo=tmp_path) == (
+        tmp_path / "reports" / "serving" / dated_reports.local_report_date()
+        / "merger_agreement" / f"{ungrouped.run_id}.serving.json"
+    )
+
+    sand40 = _specialist_store(
+        tmp_path,
+        run_id="sand40-20-merger-specialist-awq-2l4",
+        replicas=2,
+    )
+    assert dated_reports.dated_cell_dir(sand40, repo=tmp_path, now=now) == (
+        tmp_path / "reports" / "SAND-40" / "2026-09-29" / "merger_agreement"
+    )
+    assert dated_reports.serving_export_path(sand40, repo=tmp_path) == (
+        tmp_path / "reports" / "serving" / "SAND-40" / "2L4" / "n=20"
+        / f"{sand40.run_id}.serving.json"
+    )
+
+    probe = _specialist_store(
+        tmp_path,
+        run_id="sand40-probe-20-merger-specialist-awq-2l4-64k",
+        replicas=2,
+    )
+    assert dated_reports.serving_export_path(probe, repo=tmp_path) == (
+        tmp_path / "reports" / "serving" / "SAND-40" / "2L4" / "probes"
+        / f"{probe.run_id}.serving.json"
+    )
+
+
+def test_default_serving_writer_uses_sweep_directory(tmp_path, monkeypatch):
+    from mailroom_sandbox.job import metrics
+
+    monkeypatch.setattr("mailroom_sandbox.paths.repo_root", lambda: tmp_path)
+    monkeypatch.setattr(dated_reports, "maybe_write_run_reports", lambda *args, **kwargs: {})
+    store = _specialist_store(tmp_path)
+    path = metrics.write_serving_json(store, wall_seconds=100.0)
+    assert path == (
+        tmp_path / "reports" / "serving" / "SAND-37" / "1L4" / "n=20"
+        / f"{store.run_id}.serving.json"
+    )
+    assert path.is_file()
 
 
 def test_mock_jobs_do_not_write_dated_tree(tmp_path):

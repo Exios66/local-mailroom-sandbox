@@ -57,14 +57,18 @@ _EXTRACT_PRF_KEYS = (
 )
 
 
-def scores_path() -> Path:
-    dest = reports_dir() / "scores" / "scores.jsonl"
+def scores_path(run_id: str | None = None, *, metadata: Mapping[str, Any] | None = None) -> Path:
+    from mailroom_sandbox.report_paths import experiment_prefix
+
+    prefix = experiment_prefix(run_id, metadata)
+    base = reports_dir() / "scores"
+    dest = base / prefix / "scores.jsonl" if prefix else base / "scores.jsonl"
     dest.parent.mkdir(parents=True, exist_ok=True)
     return dest
 
 
 def emit(record: ScoreRecord, path: Path | None = None) -> None:
-    LocalManifestSink(path or scores_path()).emit(record)
+    LocalManifestSink(path or scores_path(record.run_id, metadata=record.metadata)).emit(record)
 
 
 def score_classification(expected: list[str], predicted: list[str]) -> dict[str, Any]:

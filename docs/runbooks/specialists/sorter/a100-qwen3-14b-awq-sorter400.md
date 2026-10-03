@@ -6,7 +6,7 @@
 
 Isolated SorterAgent eval (not a specialist extract). Official Qwen/Qwen3-14B-AWQ on one A100-40GB with AWQ-Marlin, fp8 KV, CUDA graphs, prefix caching, thinking off, C=32. Prompt pin sorter_v1. One cold boot; MIN=MAX=1 until teardown. Do not start this run without spend approval.
 
-Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show a100-qwen3-14b-awq-sorter400`.
+Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show a100-qwen3-14b-awq-sorter400`.
 
 ## Pins (from catalog serving variant)
 

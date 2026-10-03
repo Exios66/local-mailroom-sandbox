@@ -6,7 +6,7 @@
 
 Same seed-42 correspondence draw as improved-correspondence-awq (fingerprint 285f423d3708). Only concurrency changes (5 → 8).
 
-Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-correspondence-awq-c8`.
+Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-correspondence-awq-c8`.
 
 ## Pins (from catalog serving variant)
 

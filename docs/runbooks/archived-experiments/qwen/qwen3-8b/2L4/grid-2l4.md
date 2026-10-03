@@ -6,7 +6,7 @@
 
 SAND-037 aligned grid, 2×L4 half: ten Qwen3-8B-AWQ specialist cells on one warm two-replica fleet serving the same frozen L5 engine at client concurrency 32 (16 per replica). Same draws, prompts and decode as grid-1l4; only the replica count and concurrency differ.
 
-Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show grid-2l4`.
+Edit [`config/runbooks/catalog.yaml`](../../../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show grid-2l4`.
 
 ## Pins (from catalog serving variant)
 

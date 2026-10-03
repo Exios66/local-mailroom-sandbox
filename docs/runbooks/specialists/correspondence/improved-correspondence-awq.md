@@ -6,7 +6,7 @@
 
 SAND-019 short-doc AWQ path. Same 1×L4 / 1-container topology.
 
-Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-correspondence-awq`.
+Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-correspondence-awq`.
 
 ## Pins (from catalog serving variant)
 

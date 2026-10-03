@@ -105,7 +105,7 @@ GPU recommended for Qwen 8B.
 | [Evals](docs/evals.md) | Runners, matrix, scoring, experiment log |
 | [Tracing](docs/tracing.md) | Langfuse v4 data model, tags, The-Mailroom |
 | [Docker offline](docs/docker-offline.md) | Dockerfile, Compose `jupyter` profile, prep notebooks |
-| [Sister repos](docs/sister-repos.md) | Family map |
+| [Sister repos](docs/setting-up/sister-repos.md) | Family map |
 | [Layout contract](docs/LAYOUT.md) | **Which folder owns what** — the two config trees, frozen surfaces, junk policy |
 | [Agent skills](.cursor/skills/README.md) | Langfuse, Phoenix, Braintrust, Ollama, Modal, Hugging Face |
 

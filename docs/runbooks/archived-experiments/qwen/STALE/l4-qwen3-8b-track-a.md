@@ -6,7 +6,7 @@
 
 Track A on the Hermes wallet (hermes-agent-jjb). Same singular L4 / 1-container serving as l4-qwen3-8b. Do not share this profile with Operator B.
 
-Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show l4-qwen3-8b-track-a`.
+Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show l4-qwen3-8b-track-a`.
 
 ## Pins (from catalog serving variant)
 
