@@ -5,7 +5,7 @@
 **Scope:** the sandbox's Modal+vLLM serving path (`deploy/modal_vllm.py`, posture, cost math,
 runbook) — how to reduce $/doc and $/run without weakening the apples-to-apples evidence.
 **Evidence base:** measured `reports/serving/*.serving.json` (3 Modal runs), the AWQ-C8 report,
-`job/metrics.py` cost math, `job/specialist_posture.py`, `docs/benchmark-l4.md` doctrine.
+`job/metrics.py` cost math, `job/specialist_posture.py`, `docs/modal/benchmark-l4.md` doctrine.
 
 ## 0 · Resume protocol
 
@@ -124,7 +124,7 @@ errors by comparison. This reframes the whole optimization problem: optimize *GP
 ## 4 · Optimization backlog (apply BEFORE the Granite matrix)
 
 **Shipped 2026-09-25 (free ops wins, zero spend, 438-test suite green):**
-- `docs/modal-serving-ops.md` — the ops runbook (warm-once, teardown-once, L4, pre-warm is
+- `docs/modal/modal-serving-ops.md` — the ops runbook (warm-once, teardown-once, L4, pre-warm is
   CPU-free, caps-from-measurement, anti-pattern table, **slice-don't-redraw** rule).
 - `config/models.yaml` — Granite `modal_models` rows: `ibm-granite/granite-4.2-8b-fp8`
   (L4 / compressed-tensors / 32768) + `ibm-granite/granite-4.2-8b` (bf16 reference, 16384).
@@ -136,7 +136,7 @@ errors by comparison. This reframes the whole optimization problem: optimize *GP
 sub-seed from `(sample_seed, class)` — NOT from the count. Measured: sample(k=20) ⊂ sample(k=100)
 holds ~82% of seeds and sample(k=50) ⊂ sample(k=100) only ~26%. **Therefore the matrix MUST draw one
 bucket per class (n=100) and score 20/50 as prefix slices of the locked set; re-drawing per size
-breaks the same-subset guarantee** (this is why `docs/modal-serving-ops.md` §5 and eval-env issue
+breaks the same-subset guarantee** (this is why `docs/modal/modal-serving-ops.md` §5 and eval-env issue
 #20 exist).
 
 | # | Optimization | Lever | Est. $ saved on ~$6.4 matrix | Risk | Owner |
@@ -185,4 +185,4 @@ waves** or they risk the apples-to-apples claim.
 - `src/mailroom_sandbox/job/specialist_posture.py` (per-type concurrency/max_tokens/caps; concurrency band [2,8]).
 - `src/mailroom_sandbox/job/suite.py` (warm_once, suite_shell_loop).
 - `deploy/modal_vllm.py` (env knobs, scaledown, min/max containers, HF/vLLM cache volumes, pre-warm).
-- `docs/benchmark-l4.md` (DMR-076/077/078 posture doctrine).
+- `docs/modal/benchmark-l4.md` (DMR-076/077/078 posture doctrine).

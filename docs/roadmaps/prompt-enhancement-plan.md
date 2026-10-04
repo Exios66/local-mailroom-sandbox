@@ -1,7 +1,7 @@
 <!--
 Draft for a GitHub Discussion in LLM-Mailroom-Services/Digital-Mailroom
 (suggested category: Ideas or General). Title and body below.
-Full report: docs/PROMPT-ENHANCEMENT-PLAN.md (SAND-034).
+Full report: docs/roadmaps/PROMPT-ENHANCEMENT-PLAN-v2.md (SAND-034).
 -->
 
 # Title

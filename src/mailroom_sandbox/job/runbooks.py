@@ -717,6 +717,7 @@ def render_index(*, output_path: Path | None = None) -> str:
 
 
 def render_family(family: str, *, output_path: Path | None = None) -> str:
+    """Render a family rollup with catalog links relative to the family file."""
     docs = _generated_doc_paths()
     output_path = output_path or docs["families"][family]
     heading = dict(FAMILIES).get(family, family)
@@ -729,7 +730,8 @@ def render_family(family: str, *, output_path: Path | None = None) -> str:
         "",
     ]
     for rid in list_runbook_ids(family=family):
-        body = render_markdown(rid, output_path=docs["runbooks"][rid])
+        # Resolve relative catalog links from the family file, not the nested card.
+        body = render_markdown(rid, output_path=output_path)
         # Drop the generated header from nested cards.
         nested = "\n".join(
             line for line in body.splitlines() if line != GENERATED_HEADER

@@ -1,7 +1,7 @@
 """Modal specialist experiment visuals — drawn from committed run reports + serving exports.
 
 Every number is read from ``hub_data.json`` (``runs``, ``fleet``) and
-``reports/serving/sand032-*.serving.json``. No live Modal spend.
+``reports/serving/SAND-32/sand032-*.serving.json``. No live Modal spend.
 
     python scripts/sand032/render_modal_performance.py
     python scripts/sand032/render_modal_performance.py --check

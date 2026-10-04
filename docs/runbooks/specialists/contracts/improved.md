@@ -199,7 +199,7 @@ sandbox watch --web --config config/runs/run-400-sorter-qwen3-14b-awq-a100.yaml
 sandbox run start --config config/runs/run-400-sorter-qwen3-14b-awq-a100.yaml --job-mode endpoint --watch
 ```
 
-See `docs/mailroom-themed-logging.md` and `docs/snippets/pretty_logs.md`.
+See `docs/pretty-logging/mailroom-themed-logging.md` and `docs/snippets/pretty_logs.md`.
 
 ## Failure modes
 
@@ -619,7 +619,7 @@ sandbox run start --config config/runs/run-20-correspondence-fp16-c8.yaml --job-
 
 Same singular L4 / 1-container topology as the Qwen baseline, swapped to ibm-granite/granite-4.2-8b-fp8 at 32768. Do not edit run-30 YAMLs — live /v1/models probe requires engine.model to match, so copy specs after smoke.
 
-Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-granite-fp8`.
+Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-granite-fp8`.
 
 ## Pins (from catalog serving variant)
 
@@ -729,7 +729,7 @@ sandbox health --profile modal-vllm
 
 Raise MAX_CONTAINERS to 2. Each replica is a full vLLM on its own L4 with the baseline Qwen3-8B knobs. Modal @web_server round-robins. Do not use GPU=L4:2 + tensor parallel for 8B.
 
-Edit [`config/runbooks/catalog.yaml`](../../../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-second-l4`.
+Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-second-l4`.
 
 ## Pins (from catalog serving variant)
 
@@ -836,7 +836,7 @@ done
 
 DMR-068 / SAND-022 throughput protocol. These cells pin replica fleets (often 4×L4) and short-doc max_num_seqs=256. GPU cells pending spend.
 
-Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-scale-matrix`.
+Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show improved-scale-matrix`.
 
 ## Pins (from catalog serving variant)
 

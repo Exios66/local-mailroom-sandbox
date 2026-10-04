@@ -278,7 +278,7 @@ scripts/mailroom-tui board [--tui|--demo]
 
 Long shell scripts can publish progress with `mailroom_sandbox.tui.beacon.Beacon` or `sandbox beacon update`.
 
-Spec: [superpowers/specs/2026-09-28-mailroom-job-beacon-design.md](superpowers/specs/2026-09-28-mailroom-job-beacon-design.md).
+Spec: [superpowers/specs/2026-09-28-mailroom-job-beacon-design.md](../superpowers/specs/2026-09-28-mailroom-job-beacon-design.md).
 
 ---
 

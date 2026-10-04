@@ -166,12 +166,14 @@ def test_verify_live_pins_clean():
 
 
 def test_generated_docs_match_renderer():
+    """Generated runbook and family docs match the renderer, including catalog depths."""
     errors = docs_are_current()
     assert errors == [], errors
     dest = generated_dir()
     generated = load_catalog()["generated_docs"]
     l4_doc = dest / generated["runbooks"]["l4-qwen3-8b"]
     improved_doc = dest / generated["families"]["improved"]
+    grid_family = dest / generated["families"]["grid"]
     assert l4_doc.is_file()
     assert improved_doc.is_file()
     text = l4_doc.read_text(encoding="utf-8")
@@ -181,9 +183,19 @@ def test_generated_docs_match_renderer():
     improved = improved_doc.read_text(encoding="utf-8")
     assert "Qwen/Qwen3-8B-AWQ" in improved
     assert "ibm-granite/granite-4.2-8b-fp8" in improved
+    # Family rollups sit at a different depth than nested cards; catalog links
+    # must be rewritten for the family file, not copied from the nested path.
+    assert improved.count("](../../../../config/runbooks/catalog.yaml)") >= 8
+    assert "](../../../config/runbooks/catalog.yaml)" not in grid_family.read_text(
+        encoding="utf-8"
+    )
+    assert "docs/pretty-logging/mailroom-themed-logging.md" in (
+        dest / generated["runbooks"]["a100-qwen3-14b-awq-sorter400"]
+    ).read_text(encoding="utf-8")
 
 
 def test_runbook_writer_preserves_unmanaged_markdown(tmp_path):
+    """write_docs leaves handwritten markdown beside generated cards."""
     keep = tmp_path / "handwritten.md"
     keep.write_text("User-authored note.\n", encoding="utf-8")
     write_docs(dest=tmp_path)

@@ -90,8 +90,8 @@ All analysis is offline, from tracked files:
 | source | what it provides |
 | --- | --- |
 | eval-environment `reports/experiment_log.jsonl` | 15 canonical specialist runs (3 models × 5 tasks, 20 docs each) with full predictions and score components; sorter runs with per-case predictions at n = 20 |
-| sandbox `reports/*/SAND032-*-REPORT.md` | Qwen3-8B-AWQ per-document scores, schema flags and tokens, n = 50–100 per class; Stage 10 v2 prompts at n = 75 (paired on 50) |
-| sandbox `reports/serving/SAND032-S6-SORTER1000-REPORT.md` | isolated sorter over 458 documents: per-class precision/recall and confusion matrix |
+| sandbox `reports/SAND-32/*/SAND032-*-REPORT.md` | Qwen3-8B-AWQ per-document scores, schema flags and tokens, n = 50–100 per class; Stage 10 v2 prompts at n = 75 (paired on 50) |
+| sandbox `reports/serving/SAND-32/SAND032-S6-SORTER1000-REPORT.md` | isolated sorter over 458 documents: per-class precision/recall and confusion matrix |
 | prompts | eval-environment `prompts/*.md` (v1, v2, GEPA `mutations.json`); sandbox `config/prompts/*.txt`; vendored `langchain_agents/prompts.py` and `sorter_agent.py` |
 | schemas | vendored `schemas.documents` (the Pydantic models used for schema validity) |
 
@@ -614,9 +614,9 @@ No step above has been run; Phase 1v is the first point that would spend.
 - eval-environment `prompts/` (v1, v2, `mutations.json`),
   `src/evals/specialist_llm.py`, `src/evals/scoring.py`,
   `.opencode/agents/PROMPT_ENGINEER_GEPA_PROVENANCE.md`.
-- sandbox `reports/serving/SAND032-S6-SORTER1000-REPORT.md`,
-  `reports/serving/SAND032-V2-PROMPT-PROMOTION.md`, `reports/*/SAND032-S3-*`,
-  `reports/*/SAND032-S10-*`.
+- sandbox `reports/serving/SAND-32/SAND032-S6-SORTER1000-REPORT.md`,
+  `reports/serving/SAND-32/SAND032-V2-PROMPT-PROMOTION.md`, `reports/SAND-32/*/SAND032-S3-*`,
+  `reports/SAND-32/*/SAND032-S10-*`.
 - vendored `llm-mailroom`: `langchain_agents/sorter_agent.py`,
   `langchain_agents/prompts.py`, `schemas/documents.py`,
   `graph/build_graph.py` (node wiring), `graph/routing.py` (`judge_gate`),
