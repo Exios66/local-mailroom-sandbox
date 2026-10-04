@@ -80,6 +80,39 @@ def test_successful_run_fires_report_writers(tmp_path, monkeypatch):
         assert isinstance(kwargs["wall_seconds"], float)
 
 
+def test_whole_run_forwards_report_group_to_scoring_runner(tmp_path, monkeypatch):
+    from mailroom_sandbox.eval import runners as eval_runners
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    store = RunStore(tmp_path / "agent-run")
+    store.write_lock(
+        {
+            "run_id": store.run_id,
+            "task": "judge",
+            "profile": "ollama",
+            "engine": {"model": "test-model", "modal": None},
+            "job": {"mock": True, "concurrency": 1},
+            "dataset": {},
+            "report_group": "SAND-123",
+        }
+    )
+    captured = {}
+
+    def fake_isolated_eval(task, **kwargs):
+        captured["task"] = task
+        captured["kwargs"] = kwargs
+        return {"n": 0, "scores": {"n": 0}}
+
+    monkeypatch.setattr(runner, "_agent_task_names", lambda: {"judge"})
+    monkeypatch.setattr(eval_runners, "run_isolated_eval", fake_isolated_eval)
+
+    summary = runner._run_whole_run(store, "judge", mock=True, model=None, profile="ollama")
+
+    assert summary["state"] == "done"
+    assert captured["task"] == "judge"
+    assert captured["kwargs"]["score_metadata"] == {"report_group": "SAND-123"}
+
+
 def test_run_job_all_items_failed_writes_failed_not_done(tmp_path, monkeypatch):
     """hub#39: a run where EVERY item errored must write state=failed with a
     last_error, exit 1 (CLI maps state != done), and never append a 'done'

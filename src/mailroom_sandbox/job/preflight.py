@@ -250,6 +250,7 @@ def preflight(
     spec: RunSpec,
     *,
     run_id: str = "",
+    config_path: str | Path | None = None,
     offline: bool = False,
     force: bool = False,
     dry_run: bool = False,
@@ -399,6 +400,18 @@ def preflight(
         {"name": "modal_spec", "ok": _modal_check(spec), "detail": "modal guards ok" if _modal_check(spec) else "modal guard failed"}
     )
 
+    from mailroom_sandbox.report_paths import (
+        experiment_prefix,
+        report_group_for_config,
+        report_group_for_runbook,
+    )
+
+    report_group = (
+        report_group_for_runbook(spec.runbook_id)
+        or report_group_for_config(config_path)
+        or experiment_prefix(run_id)
+    )
+
     # Commit point: prompt lock then spec lock then prepared checkpoint.
     store.write_prompt_lock(prompt_block)
     lock = {
@@ -420,6 +433,10 @@ def preflight(
         "git": git_snapshot(),
         "spec_core": spec_core(spec),
     }
+    if spec.runbook_id:
+        lock["runbook_id"] = spec.runbook_id
+    if report_group:
+        lock["report_group"] = report_group
     store.write_lock(lock)
     total = len(store.dataset_rows())
     store.write_checkpoint(state="prepared", cursor=0, total=total, remote=None)

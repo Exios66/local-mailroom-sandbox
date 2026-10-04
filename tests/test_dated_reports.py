@@ -6,7 +6,11 @@ from datetime import datetime
 
 from mailroom_sandbox.job import dated_reports
 from mailroom_sandbox.job.checkpoint import RunStore
-from mailroom_sandbox.report_paths import experiment_prefix
+from mailroom_sandbox.report_paths import (
+    experiment_prefix,
+    report_group_for_config,
+    report_group_for_runbook,
+)
 
 
 def _specialist_store(
@@ -52,8 +56,23 @@ def test_experiment_prefix_is_explicit_or_known_grid():
     assert experiment_prefix("sand39-1l4-n50") == "SAND-39"
     assert experiment_prefix("sand40-100-contracts-specialist-awq-2l4") == "SAND-40"
     assert experiment_prefix("grid-50-merger-specialist-awq-2l4") == "SAND-37"
+    assert experiment_prefix("grid-external-experiment") is None
     assert experiment_prefix("run-20-merger-specialist-awq") is None
     assert experiment_prefix("run-20-merger-specialist-awq", {"runbook": "sand40"}) == "SAND-40"
+    assert experiment_prefix("job-204", {"runbook_id": "grid-1l4"}) == "SAND-37"
+    assert experiment_prefix("job-205", {"report_group": "SAND-123"}) == "SAND-123"
+
+
+def test_report_groups_reuse_runbooks_for_multiple_configs():
+    assert report_group_for_runbook("grid-1l4") == "SAND-37"
+    assert report_group_for_runbook("sand40") == "SAND-40"
+    assert report_group_for_config(
+        "config/runs/grid-20-correspondence-specialist-awq-1l4.yaml"
+    ) == "SAND-37"
+    assert report_group_for_config(
+        "config/runs/sand40-100-contracts-specialist-awq-2l4.yaml"
+    ) == "SAND-40"
+    assert report_group_for_runbook("future-unknown") is None
 
 
 def test_cell_stem_encodes_n_shape_concurrency(tmp_path):
@@ -137,9 +156,12 @@ def test_dated_and_serving_paths_follow_sweep_or_general_root(tmp_path):
 
 
 def test_default_serving_writer_uses_sweep_directory(tmp_path, monkeypatch):
+    from mailroom_sandbox import report_paths
     from mailroom_sandbox.job import metrics
 
+    config_root = report_paths.config_dir()
     monkeypatch.setattr("mailroom_sandbox.paths.repo_root", lambda: tmp_path)
+    monkeypatch.setattr(report_paths, "config_dir", lambda: config_root)
     monkeypatch.setattr(dated_reports, "maybe_write_run_reports", lambda *args, **kwargs: {})
     store = _specialist_store(tmp_path)
     path = metrics.write_serving_json(store, wall_seconds=100.0)

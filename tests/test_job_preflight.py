@@ -34,6 +34,23 @@ def _run_spec(tmp_path, *, rows=2, limit=2, run_id="pf-1") -> RunSpec:
     )
 
 
+def test_preflight_locks_runbook_identity_without_hashing_it(tmp_path):
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    spec = _run_spec(tmp_path, run_id="report-group-lock")
+    expected_hash = spec.spec_hash()
+    spec.runbook_id = "grid-1l4"
+
+    assert spec.spec_hash() == expected_hash
+    report = preflight.preflight(spec, offline=True)
+    assert report["status"] == "prepared", report
+
+    lock = RunStore(run_dir(spec.run_id)).read_lock()
+    assert lock["runbook_id"] == "grid-1l4"
+    assert lock["report_group"] == "SAND-37"
+    assert lock["spec_hash"] == expected_hash
+
+
 class _FakeResp:
     def __init__(self, status_code, payload=None):
         self.status_code = status_code
