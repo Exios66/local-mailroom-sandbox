@@ -20,6 +20,7 @@ class _UniqueKeySafeLoader(yaml.SafeLoader):
     """``yaml.safe_load`` keeps the last duplicate mapping key; reject instead."""
 
     def construct_mapping(self, node, deep=False):
+        """Build a mapping and raise if a key is repeated."""
         if isinstance(node, yaml.nodes.MappingNode):
             self.flatten_mapping(node)
         mapping: dict[Any, Any] = {}
@@ -37,11 +38,13 @@ class _UniqueKeySafeLoader(yaml.SafeLoader):
 
 
 def _canonical_group(value: Any) -> str | None:
+    """Return ``SAND-N`` when ``value`` is a canonical report-group token."""
     match = _REPORT_GROUP.fullmatch(str(value or "").strip())
     return f"SAND-{int(match.group(1))}" if match else None
 
 
 def _report_groups() -> dict[str, Any]:
+    """Load ``config/report-groups.yaml``, rejecting duplicate mapping keys."""
     path = config_dir() / "report-groups.yaml"
     data = yaml.load(path.read_text(encoding="utf-8"), Loader=_UniqueKeySafeLoader) or {}
     if not isinstance(data, Mapping) or data.get("schema") != "sandbox.report-groups/v1":
@@ -50,6 +53,7 @@ def _report_groups() -> dict[str, Any]:
 
 
 def report_group_for_runbook(runbook_id: str | None) -> str | None:
+    """Map a cataloged runbook id to its report group, or ``None``."""
     if not runbook_id:
         return None
     groups = _report_groups().get("runbooks") or {}
@@ -57,6 +61,7 @@ def report_group_for_runbook(runbook_id: str | None) -> str | None:
 
 
 def report_group_for_config(config_path: str | Path | None) -> str | None:
+    """Resolve a run YAML path through the catalog to a single report group."""
     if not config_path:
         return None
     path = Path(config_path).expanduser()
@@ -83,6 +88,7 @@ def report_group_for_config(config_path: str | Path | None) -> str | None:
 
 
 def report_group_for_legacy_run_id(run_id: str | None) -> str | None:
+    """Match a locked run id against catalog legacy patterns."""
     candidate = str(run_id or "").strip()
     if not candidate:
         return None

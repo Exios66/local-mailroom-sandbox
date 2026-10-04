@@ -166,6 +166,7 @@ def test_verify_live_pins_clean():
 
 
 def test_generated_docs_match_renderer():
+    """Generated runbook and family docs match the renderer, including catalog depths."""
     errors = docs_are_current()
     assert errors == [], errors
     dest = generated_dir()
@@ -194,6 +195,7 @@ def test_generated_docs_match_renderer():
 
 
 def test_runbook_writer_preserves_unmanaged_markdown(tmp_path):
+    """write_docs leaves handwritten markdown beside generated cards."""
     keep = tmp_path / "handwritten.md"
     keep.write_text("User-authored note.\n", encoding="utf-8")
     write_docs(dest=tmp_path)

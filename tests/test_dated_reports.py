@@ -20,6 +20,7 @@ def _specialist_store(
     run_id: str = "grid-20-merger-specialist-awq-1l4",
     replicas: int = 1,
 ) -> RunStore:
+    """Build a locked specialist RunStore under tmp_path for path tests."""
     store = RunStore(tmp_path / run_id)
     store.write_lock(
         {
@@ -52,6 +53,7 @@ def _specialist_store(
 
 
 def test_experiment_prefix_is_explicit_or_known_grid():
+    """Named sweeps and cataloged runbooks resolve; unknown grids do not."""
     assert experiment_prefix("sand032-s3-corr50") == "SAND-32"
     assert experiment_prefix("sand39-1l4-n50") == "SAND-39"
     assert experiment_prefix("sand40-100-contracts-specialist-awq-2l4") == "SAND-40"
@@ -64,6 +66,7 @@ def test_experiment_prefix_is_explicit_or_known_grid():
 
 
 def test_report_groups_reject_duplicate_runbook_ids(tmp_path, monkeypatch):
+    """A repeated runbook id in the catalog raises instead of last-key-wins."""
     import pytest
     import yaml
 
@@ -84,6 +87,7 @@ def test_report_groups_reject_duplicate_runbook_ids(tmp_path, monkeypatch):
 
 
 def test_report_groups_reuse_runbooks_for_multiple_configs():
+    """Several configs that share a runbook id map to the same report group."""
     assert report_group_for_runbook("grid-1l4") == "SAND-37"
     assert report_group_for_runbook("sand40") == "SAND-40"
     assert report_group_for_config(
@@ -96,6 +100,7 @@ def test_report_groups_reuse_runbooks_for_multiple_configs():
 
 
 def test_cell_stem_encodes_n_shape_concurrency(tmp_path):
+    """Cell stems encode n, hardware shape, and concurrency."""
     store = _specialist_store(tmp_path)
     folder, stem = dated_reports.cell_stem(store)
     assert folder == "merger_agreement"
@@ -176,6 +181,7 @@ def test_dated_and_serving_paths_follow_sweep_or_general_root(tmp_path):
 
 
 def test_default_serving_writer_uses_sweep_directory(tmp_path, monkeypatch):
+    """Serving JSON for a grid lock lands under the cataloged sweep directory."""
     from mailroom_sandbox import report_paths
     from mailroom_sandbox.job import metrics
 
