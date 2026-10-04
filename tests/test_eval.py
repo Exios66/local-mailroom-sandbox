@@ -197,6 +197,49 @@ def test_score_emit_uses_sweep_manifest_path(tmp_path, monkeypatch):
     assert emitted["record"] is record
 
 
+def test_score_emit_resolves_runbook_group_without_group_token(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    emitted = {}
+
+    class RecordingSink:
+        def __init__(self, path):
+            emitted["path"] = Path(path)
+
+        def emit(self, record):
+            emitted["record"] = record
+
+    record = SimpleNamespace(run_id="job-204", metadata={"runbook_id": "grid-1l4"})
+    monkeypatch.setattr(scoring, "reports_dir", lambda: tmp_path / "reports")
+    monkeypatch.setattr(scoring, "LocalManifestSink", RecordingSink)
+
+    scoring.emit(record)
+
+    assert emitted["path"] == tmp_path / "reports" / "scores" / "SAND-37" / "scores.jsonl"
+    assert emitted["record"] is record
+
+
+def test_local_vs_api_scorecard_uses_run_group(tmp_path, monkeypatch):
+    captured = {}
+
+    class RecordingSink:
+        def __init__(self, path):
+            captured["path"] = Path(path)
+
+    class RecordingEmitter:
+        def __init__(self, *, sinks):
+            captured["sink"] = sinks[0]
+
+    monkeypatch.setattr(scoring, "reports_dir", lambda: tmp_path / "reports")
+    monkeypatch.setattr(scoring, "LocalManifestSink", RecordingSink)
+    monkeypatch.setattr(scoring, "Emitter", RecordingEmitter)
+    monkeypatch.setattr(scoring, "emit_serving_scorecard", lambda *args, **kwargs: {})
+
+    scoring.emit_local_vs_api_scorecard({}, run_id="sand32-s3-corr50")
+
+    assert captured["path"] == tmp_path / "reports" / "scores" / "SAND-32" / "scores.jsonl"
+
+
 def test_dojo_pin_is_v0_15():
     import re
 

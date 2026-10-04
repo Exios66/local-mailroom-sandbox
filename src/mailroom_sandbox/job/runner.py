@@ -237,6 +237,10 @@ def _run_whole_run(
     cost_cap = _cost_cap_usd(store)
     gpu = _lock_gpu(store)
     replicas = _lock_replicas(store)
+    from mailroom_sandbox.report_paths import experiment_prefix
+
+    report_group = experiment_prefix(store.run_id, lock)
+    score_metadata = {"report_group": report_group} if report_group else None
     # SAND-018: the isolated-agent path used to show nothing until it finished.
     # Write a running checkpoint per completed item and forward events so
     # `sandbox run status` (and --watch) track a live specialist run.
@@ -276,6 +280,7 @@ def _run_whole_run(
                 replicas=replicas,
                 progress_cb=_progress,
                 row_cb=lambda entry: _persist_isolated_items(store, [entry]),
+                score_metadata=score_metadata,
                 **kwargs,
             )
         elif task in _agent_task_names():
@@ -292,6 +297,7 @@ def _run_whole_run(
                 replicas=replicas,
                 progress_cb=_progress,
                 row_cb=lambda entry: _persist_isolated_items(store, [entry]),
+                score_metadata=score_metadata,
                 **kwargs,
             )
         else:

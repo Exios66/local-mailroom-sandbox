@@ -2377,10 +2377,11 @@ def _run_id_required(args) -> str:
 def _cmd_run_preflight(args) -> int:
     from mailroom_sandbox.job import preflight
 
-    spec, _ = _run_load_spec(args)
+    spec, config_path = _run_load_spec(args)
     report = preflight.preflight(
         spec,
         run_id=getattr(args, "run_id", None) or "",
+        config_path=config_path,
         offline=bool(getattr(args, "offline", False)),
         force=bool(getattr(args, "force", False)),
         dry_run=bool(getattr(args, "dry_run", False)),
@@ -2399,7 +2400,7 @@ def _cmd_run_start(args) -> int:
     from mailroom_sandbox.job.checkpoint import RunStore
     from mailroom_sandbox.job.spec import run_dir
 
-    spec, _ = _run_load_spec(args)
+    spec, config_path = _run_load_spec(args)
     # DMR-072: the job path must activate the runtime profile like every other
     # live CLI path. Without it the vendored pipeline loads its own default
     # config (openrouter, no key) and the sorter node falls through to the
@@ -2417,6 +2418,7 @@ def _cmd_run_start(args) -> int:
     report = preflight.preflight(
         spec,
         run_id=getattr(args, "run_id", None) or "",
+        config_path=config_path,
         offline=bool(getattr(args, "offline", False)),
         force=bool(getattr(args, "force", False)),
         dry_run=bool(getattr(args, "dry_run", False)),
@@ -2656,7 +2658,13 @@ def _cmd_run_resume(args) -> int:
         from mailroom_sandbox.job import preflight
 
         spec, _ = _run_load_spec(args)
-        report = preflight.preflight(spec, run_id=run_id, offline=False, force=bool(getattr(args, "force", False)))
+        report = preflight.preflight(
+            spec,
+            run_id=run_id,
+            config_path=args.config,
+            offline=False,
+            force=bool(getattr(args, "force", False)),
+        )
         if report.get("status") == "drift_refused":
             _print(report)
             return 3

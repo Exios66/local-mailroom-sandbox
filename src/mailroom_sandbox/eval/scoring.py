@@ -387,7 +387,7 @@ def emit_local_vs_api_scorecard(
     run_id: str | None = None,
 ) -> dict[str, Any]:
     """Persist local and API T0/T1 as separate scorecards (never averaged)."""
-    em = Emitter(sinks=[LocalManifestSink(scores_path())])
+    em = Emitter(sinks=[LocalManifestSink(scores_path(run_id))])
     return emit_serving_scorecard(comparison, run_id=run_id, emitter=em)
 
 

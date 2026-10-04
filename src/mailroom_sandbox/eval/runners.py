@@ -143,6 +143,7 @@ def run_isolated_eval(
     progress_cb: Any = None,
     replicas: int = 1,
     row_cb: Any = None,
+    score_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Run one live agent / node against fixtures, nested under document-pipeline.
 
@@ -331,6 +332,7 @@ def run_isolated_eval(
                 value=float(mean),
                 agent=task,
                 run_id=experiment_name,
+                metadata=dict(score_metadata or {}),
             )
         )
     completed = [e for e in per_row if e is not None]
