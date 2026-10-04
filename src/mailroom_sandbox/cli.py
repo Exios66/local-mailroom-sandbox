@@ -2665,9 +2665,9 @@ def _cmd_run_resume(args) -> int:
             offline=False,
             force=bool(getattr(args, "force", False)),
         )
-        if report.get("status") == "drift_refused":
+        if report.get("status") != "prepared":
             _print(report)
-            return 3
+            return 3 if report.get("status") == "drift_refused" else 1
     if _job_mode(store) == "modal":
         from mailroom_sandbox.job import remote as job_remote
 
