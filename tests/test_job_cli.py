@@ -134,6 +134,49 @@ def test_run_resume_passes_resolved_config_path(tmp_path, monkeypatch):
     assert Path(seen["config_path"]).is_absolute()
 
 
+def test_run_resume_stops_when_preflight_fails(tmp_path, monkeypatch):
+    from argparse import Namespace
+    from types import SimpleNamespace
+
+    from mailroom_sandbox import cli
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.spec import run_dir
+
+    cfg = tmp_path / "run.yaml"
+    cfg.write_text("schema: sandbox.run/v1\n", encoding="utf-8")
+    store = RunStore(run_dir("cli-resume-fail"))
+    store.write_lock({"run_id": "cli-resume-fail", "spec_hash": "s1"})
+    spec = SimpleNamespace(
+        profile="ollama",
+        run_id="cli-resume-fail",
+        engine=None,
+        job=SimpleNamespace(mock=True),
+    )
+    ran = {"endpoint": False}
+
+    monkeypatch.setattr(cli, "activate", lambda *a, **k: None)
+    monkeypatch.setattr("mailroom_sandbox.job.spec.load_run_spec", lambda path: spec)
+    monkeypatch.setattr(
+        "mailroom_sandbox.job.preflight.preflight",
+        lambda *a, **k: {"status": "failed", "run_id": "cli-resume-fail", "checks": []},
+    )
+    monkeypatch.setattr(cli, "_job_mode", lambda store: "endpoint")
+    monkeypatch.setattr(cli, "_run_endpoint", lambda store, args: ran.__setitem__("endpoint", True) or {"state": "done"})
+
+    rc = cli._cmd_run_resume(
+        Namespace(
+            config=str(cfg),
+            run_id="cli-resume-fail",
+            force=False,
+            watch=False,
+            model=None,
+            agent_models=[],
+        )
+    )
+    assert rc == 1
+    assert ran["endpoint"] is False
+
+
 def test_watch_remote_stalls_out_after_deadline(tmp_path, monkeypatch, capsys):
     # hub#41: a worker that dies before its first state_dict.put must not
     # leave the watch polling 'running' forever — no heartbeat + a call that
