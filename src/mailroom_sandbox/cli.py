@@ -2355,6 +2355,7 @@ def _cmd_modal_matrix_env(args) -> int:
 
 
 def _run_load_spec(args) -> tuple[object, Path]:
+    """Load the run spec and return it with a resolved ``--config`` path."""
     config = getattr(args, "config", None)
     if not config:
         raise SystemExit("run commands need --config <run.yaml>")
@@ -2364,6 +2365,7 @@ def _run_load_spec(args) -> tuple[object, Path]:
 
 
 def _run_id_required(args) -> str:
+    """Return ``--run-id`` or the id embedded in ``--config``."""
     run_id = getattr(args, "run_id", None) or ""
     if not run_id and getattr(args, "config", None):
         from mailroom_sandbox.job.spec import load_run_spec
@@ -2375,6 +2377,7 @@ def _run_id_required(args) -> str:
 
 
 def _cmd_run_preflight(args) -> int:
+    """Run job preflight and print the lock report."""
     from mailroom_sandbox.job import preflight
 
     spec, config_path = _run_load_spec(args)
@@ -2394,6 +2397,7 @@ def _cmd_run_preflight(args) -> int:
 
 
 def _cmd_run_start(args) -> int:
+    """Lock a run via preflight, then start it locally or on Modal."""
     from mailroom_sandbox.job import preflight
     from mailroom_sandbox.job import remote as job_remote
     from mailroom_sandbox.job import runner
@@ -2634,6 +2638,7 @@ def _cmd_run_status(args) -> int:
 
 
 def _cmd_run_resume(args) -> int:
+    """Resume a locked run after re-checking preflight when ``--config`` is set."""
     from mailroom_sandbox.job.checkpoint import RunStore
     from mailroom_sandbox.job.spec import run_dir
 

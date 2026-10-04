@@ -9,6 +9,7 @@ from mailroom_sandbox.job.spec import DatasetSpec, RunSpec, run_dir
 
 
 def _run_spec(tmp_path, *, rows=2, limit=2, run_id="pf-1") -> RunSpec:
+    """Write a tiny local fixture and return an offline sorter RunSpec."""
     path = tmp_path / "f.jsonl"
     with open(path, "w", encoding="utf-8") as fh:
         for i in range(rows):
@@ -35,6 +36,7 @@ def _run_spec(tmp_path, *, rows=2, limit=2, run_id="pf-1") -> RunSpec:
 
 
 def test_preflight_locks_runbook_identity_without_hashing_it(tmp_path):
+    """runbook_id is stored on the lock but excluded from spec_hash."""
     from mailroom_sandbox.job.checkpoint import RunStore
 
     spec = _run_spec(tmp_path, run_id="report-group-lock")
@@ -52,6 +54,7 @@ def test_preflight_locks_runbook_identity_without_hashing_it(tmp_path):
 
 
 def test_preflight_unknown_runbook_id_fails_without_fallback(tmp_path, job_data_dir):
+    """An explicit unknown runbook_id fails preflight instead of falling through."""
     spec = _run_spec(tmp_path, run_id="sand40-unknown-runbook")
     spec.runbook_id = "not-a-cataloged-runbook"
 
@@ -65,6 +68,7 @@ def test_preflight_unknown_runbook_id_fails_without_fallback(tmp_path, job_data_
 
 
 def test_preflight_report_group_drift_refuses_unless_forced(tmp_path, job_data_dir):
+    """A changed runbook_id on an existing lock is drift unless --force."""
     spec = _run_spec(tmp_path, run_id="pf-report-group-drift")
     spec.runbook_id = "grid-1l4"
     report = preflight.preflight(spec, offline=True)
@@ -92,6 +96,7 @@ def test_preflight_report_group_drift_refuses_unless_forced(tmp_path, job_data_d
 
 
 def test_preflight_legacy_lock_without_report_identity_resumes(tmp_path, job_data_dir):
+    """Locks that omit runbook_id/report_group still resume; --force upgrades."""
     spec = _run_spec(tmp_path, run_id="pf-legacy-report-group")
     report = preflight.preflight(spec, offline=True)
     assert report["status"] == "prepared", report
@@ -119,6 +124,7 @@ def test_preflight_legacy_lock_without_report_identity_resumes(tmp_path, job_dat
 
 
 def test_run_load_spec_resolves_relative_config(tmp_path, monkeypatch):
+    """Relative --config paths resolve against cwd, not the repo root."""
     from argparse import Namespace
     from pathlib import Path
 
@@ -140,6 +146,7 @@ def test_run_load_spec_resolves_relative_config(tmp_path, monkeypatch):
 
 class _FakeResp:
     def __init__(self, status_code, payload=None):
+        """Minimal httpx-like response for engine-probe tests."""
         self.status_code = status_code
         self._payload = payload or {"data": [{"id": "Qwen/Qwen3-8B"}]}
 

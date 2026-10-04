@@ -79,11 +79,13 @@ def test_run_status_resolves_run_id_from_config(tmp_path, capsys):
 
 
 def test_run_status_still_requires_some_id(tmp_path, capsys):
+    """`run status` without --run-id or --config exits instead of guessing."""
     with pytest.raises(SystemExit):
         main(["run", "status"])
 
 
 def test_run_resume_passes_resolved_config_path(tmp_path, monkeypatch):
+    """Resume preflight receives the resolved --config path, not the raw string."""
     from argparse import Namespace
     from pathlib import Path
     from types import SimpleNamespace
@@ -112,6 +114,7 @@ def test_run_resume_passes_resolved_config_path(tmp_path, monkeypatch):
     monkeypatch.setattr("mailroom_sandbox.job.spec.load_run_spec", lambda path: spec)
 
     def fake_preflight(loaded, *, run_id="", config_path=None, **kwargs):
+        """Record the config_path passed into preflight."""
         seen["config_path"] = config_path
         return {"status": "prepared", "run_id": run_id, "checks": []}
 
@@ -135,6 +138,7 @@ def test_run_resume_passes_resolved_config_path(tmp_path, monkeypatch):
 
 
 def test_run_resume_stops_when_preflight_fails(tmp_path, monkeypatch):
+    """A failed resume preflight must not start endpoint execution."""
     from argparse import Namespace
     from types import SimpleNamespace
 
@@ -178,6 +182,7 @@ def test_run_resume_stops_when_preflight_fails(tmp_path, monkeypatch):
 
 
 def test_watch_remote_stalls_out_after_deadline(tmp_path, monkeypatch, capsys):
+    """A dead worker with no heartbeat must fail the watch instead of polling forever."""
     # hub#41: a worker that dies before its first state_dict.put must not
     # leave the watch polling 'running' forever — no heartbeat + a call that
     # is provably not alive fails the watch with exit 1.

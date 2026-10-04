@@ -173,15 +173,18 @@ def test_score_manifest_groups_only_associated_sweeps(tmp_path, monkeypatch):
 
 
 def test_score_emit_uses_sweep_manifest_path(tmp_path, monkeypatch):
+    """Score emit writes under the sweep directory named in run metadata."""
     from types import SimpleNamespace
 
     emitted = {}
 
     class RecordingSink:
         def __init__(self, path):
+            """Capture the sink path for assertions."""
             emitted["path"] = Path(path)
 
         def emit(self, record):
+            """Capture the emitted score record."""
             emitted["record"] = record
 
     record = SimpleNamespace(
@@ -198,15 +201,18 @@ def test_score_emit_uses_sweep_manifest_path(tmp_path, monkeypatch):
 
 
 def test_score_emit_resolves_runbook_group_without_group_token(tmp_path, monkeypatch):
+    """A runbook_id in metadata selects the catalog group without a SAND token."""
     from types import SimpleNamespace
 
     emitted = {}
 
     class RecordingSink:
         def __init__(self, path):
+            """Capture the sink path for assertions."""
             emitted["path"] = Path(path)
 
         def emit(self, record):
+            """Capture the emitted score record."""
             emitted["record"] = record
 
     record = SimpleNamespace(run_id="job-204", metadata={"runbook_id": "grid-1l4"})
@@ -220,14 +226,17 @@ def test_score_emit_resolves_runbook_group_without_group_token(tmp_path, monkeyp
 
 
 def test_local_vs_api_scorecard_uses_run_group(tmp_path, monkeypatch):
+    """Local-vs-API scorecards follow the SAND token in the experiment name."""
     captured = {}
 
     class RecordingSink:
         def __init__(self, path):
+            """Capture the scorecard sink path."""
             captured["path"] = Path(path)
 
     class RecordingEmitter:
         def __init__(self, *, sinks):
+            """Capture the first emitter sink."""
             captured["sink"] = sinks[0]
 
     monkeypatch.setattr(scoring, "reports_dir", lambda: tmp_path / "reports")
@@ -241,14 +250,17 @@ def test_local_vs_api_scorecard_uses_run_group(tmp_path, monkeypatch):
 
 
 def test_local_vs_api_scorecard_uses_locked_metadata_when_run_id_has_no_group(tmp_path, monkeypatch):
+    """Locked report_group metadata wins when the run id has no SAND token."""
     captured = {}
 
     class RecordingSink:
         def __init__(self, path):
+            """Capture the scorecard sink path."""
             captured["path"] = Path(path)
 
     class RecordingEmitter:
         def __init__(self, *, sinks):
+            """Capture the first emitter sink."""
             captured["sink"] = sinks[0]
 
     monkeypatch.setattr(scoring, "reports_dir", lambda: tmp_path / "reports")
@@ -266,6 +278,7 @@ def test_local_vs_api_scorecard_uses_locked_metadata_when_run_id_has_no_group(tm
 
 
 def test_dojo_pin_is_v0_15():
+    """The sandbox pins llm-dojo-scoring at the v0.15 line."""
     import re
 
     import llm_dojo_scoring as dojo

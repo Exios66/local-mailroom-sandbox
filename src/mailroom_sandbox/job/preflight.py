@@ -253,6 +253,7 @@ def _resolve_report_group(
     run_id: str,
     config_path: str | Path | None,
 ) -> str | None:
+    """Resolve the report group; fail if an explicit runbook id is unknown."""
     from mailroom_sandbox.report_paths import (
         experiment_prefix,
         report_group_for_config,

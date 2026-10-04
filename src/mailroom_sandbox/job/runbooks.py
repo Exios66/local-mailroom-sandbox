@@ -717,6 +717,7 @@ def render_index(*, output_path: Path | None = None) -> str:
 
 
 def render_family(family: str, *, output_path: Path | None = None) -> str:
+    """Render a family rollup with catalog links relative to the family file."""
     docs = _generated_doc_paths()
     output_path = output_path or docs["families"][family]
     heading = dict(FAMILIES).get(family, family)

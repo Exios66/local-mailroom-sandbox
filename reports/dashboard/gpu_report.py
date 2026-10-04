@@ -391,6 +391,7 @@ def fig_api(D, X, api):
 
 # ------------------------------------------------------------------ report
 def report(D, X, shas) -> tuple[str, dict[str, str], dict]:
+    """Build the GPU spend report body, figures, and supporting tables."""
     F, sp, rate = D["fleet"], D["spend"], D["l4_usd_per_hour"]
     groups = labelled(F)
     by = {k: rows for k, _, rows in groups}

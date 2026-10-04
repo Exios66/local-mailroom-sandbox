@@ -24,6 +24,7 @@ _SKIP_SCHEMES = ("http://", "https://", "mailto:", "tel:")
 
 
 def _iter_markdown() -> list[Path]:
+    """Yield tracked markdown files, skipping vendor and release trees."""
     root = repo_root()
     files: list[Path] = []
     for path in root.rglob("*.md"):
@@ -37,6 +38,7 @@ def _iter_markdown() -> list[Path]:
 
 
 def _targets(text: str) -> list[str]:
+    """Collect relative markdown link and image targets, ignoring fences."""
     stripped = _FENCE.sub("", text)
     found: list[str] = []
     for pattern in (_LINK, _IMAGE):
@@ -49,6 +51,7 @@ def _targets(text: str) -> list[str]:
 
 
 def test_relative_markdown_links_resolve():
+    """Every relative markdown href in the repo tree must exist on disk."""
     root = repo_root()
     missing: list[str] = []
     for path in _iter_markdown():
@@ -114,6 +117,7 @@ def test_moved_doc_paths_are_not_cited():
 
 
 def test_generated_runbook_catalog_links_resolve():
+    """Generated runbook catalog hrefs resolve from each family file depth."""
     catalog = catalog_path().resolve()
     link_re = re.compile(r"\[`config/runbooks/catalog.yaml`\]\(([^)]+)\)")
     broken: list[str] = []
