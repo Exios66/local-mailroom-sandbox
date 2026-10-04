@@ -391,7 +391,7 @@ done
 
 SAND-018 single-class sibling of the 5×30 suite. Same L4 / 1-container Qwen3-8B pins, 20 contract docs from split=all seed 42.
 
-Edit [`config/runbooks/catalog.yaml`](../../../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show l4-qwen3-8b-n20`.
+Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show l4-qwen3-8b-n20`.
 
 ## Pins (from catalog serving variant)
 

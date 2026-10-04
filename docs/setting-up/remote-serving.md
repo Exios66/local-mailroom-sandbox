@@ -53,7 +53,7 @@ The Modal app exposes both as deploy knobs (`MODAL_VLLM_QUANTIZATION`,
 Modal SDK **1.5.5** (pinned in the `[deploy]` extra) + vLLM **v0.29.0**
 (the newest upstream stable, v0.29.0, flips the engine core — bump both pins
 after a parity run); full workflow (knobs, costs, security, troubleshooting)
-in [`deploy/README.md`](../deploy/README.md).
+in [`deploy/README.md`](../../deploy/README.md).
 
 ```bash
 pip install -e ".[deploy]" && modal token new
@@ -72,8 +72,8 @@ sandbox run benchmark-check --config config/runs/run-30-contracts-specialist.yam
 sandbox health --profile modal-vllm              # 401 = token mismatch
 ```
 
-Full specialist suite + cost extrapolation: [`docs/runbooks/l4-qwen3-8b.md`](runbooks/l4-qwen3-8b.md)
-(`sandbox runbook show l4-qwen3-8b`). Index: [`docs/benchmark-l4.md`](modal/benchmark-l4.md).
+Full specialist suite + cost extrapolation: [`docs/runbooks/l4-qwen3-8b.md`](../runbooks/archived-experiments/qwen/STALE/l4-qwen3-8b.md)
+(`sandbox runbook show l4-qwen3-8b`). Index: [`docs/benchmark-l4.md`](../modal/benchmark-l4.md).
 
 Cost posture (specialist suite): `scaledown=120` attended / `600` unattended,
 `max_containers=1`, one warm app for all five runs then
@@ -117,7 +117,7 @@ The forward is an `ssh -N -L` with `ExitOnForwardFailure` + keepalives;
 
 ## CHTC (HTCondor)
 
-See [`deploy/htcondor/README.md`](../deploy/htcondor/README.md) for the
+See [`deploy/htcondor/README.md`](../../deploy/htcondor/README.md) for the
 full walkthrough — grounded in CHTC's live docs: access points + Duo/VPN
 login requirements, the GPU Lab roster and job classes (short 12h / medium
 24h / long 7d), container/staging rules, and the one constraint that shapes
@@ -132,7 +132,7 @@ machines** (allowed on researcher-owned machines), so:
 
 ## Conda
 
-[`deploy/conda/environment.yml`](../deploy/conda/environment.yml) defines
+[`deploy/conda/environment.yml`](../../deploy/conda/environment.yml) defines
 the CPU-first `mailroom-sandbox` env (vLLM stays out — it carries its own
 CUDA stack and lives in a container). For CHTC, ship the env portably:
 

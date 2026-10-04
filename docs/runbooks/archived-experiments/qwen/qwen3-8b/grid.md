@@ -10,7 +10,7 @@ Generated family rollup. Canonical per-id cards live at their catalog paths.
 
 SAND-037 aligned grid, 1×L4 half: ten Qwen3-8B-AWQ specialist cells on one warm L4 serving the SAND-032 frozen L5 engine (awq_marlin, fp8 KV, CUDA graphs, max_num_seqs 16, thinking off, max_inputs 32) at client concurrency 8. Nested split=all draws, frozen v1 simplified prompts, decode 8192 at temperature 0.7. Deploy once, short classes first, teardown after the last cell.
 
-Edit [`config/runbooks/catalog.yaml`](../../../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show grid-1l4`.
+Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show grid-1l4`.
 
 ## Pins (from catalog serving variant)
 
@@ -151,7 +151,7 @@ sandbox metrics compare --runs grid-50-correspondence-specialist-awq-1l4,grid-50
 
 SAND-037 aligned grid, 2×L4 half: ten Qwen3-8B-AWQ specialist cells on one warm two-replica fleet serving the same frozen L5 engine at client concurrency 32 (16 per replica). Same draws, prompts and decode as grid-1l4; only the replica count and concurrency differ.
 
-Edit [`config/runbooks/catalog.yaml`](../../../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show grid-2l4`.
+Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show grid-2l4`.
 
 ## Pins (from catalog serving variant)
 
@@ -292,7 +292,7 @@ sandbox metrics compare --runs grid-50-correspondence-specialist-awq-2l4,grid-50
 
 Matched-sample counterpart to SAND-37's 2×L4 · C32 · n=50 half: the same five specialists on the identical n=50 documents (mailroom-dataset @ ed7576b6, seed 42, split=all, one class bucket each), served by ONE warm L4 at client concurrency 8 to match every other 1×L4 experiment. Engine, prompts, decode and temperature are the SAND-37 aligned spec unchanged, so the comparison against 2×L4 · C32 isolates GPU count and concurrency. Results land in the SAND-37 tree and populate the SAND-39 column of the master score & cost card.
 
-Edit [`config/runbooks/catalog.yaml`](../../../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show sand39-1l4-n50`.
+Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show sand39-1l4-n50`.
 
 ## Pins (from catalog serving variant)
 
@@ -419,7 +419,7 @@ sandbox metrics compare --runs grid-50-merger-specialist-awq-1l4,grid-50-merger-
 
 Spend-gated probe before the SAND-40 scale run. Two nested n=20 draws (the seeded prefix of the SAND-37 2×L4 n=50 contracts and merger documents) on the 64K YaRN engine with the optimized long-document settings. About $0.30–$0.80 GPU. Do not start until that spend is approved.
 
-Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show sand40-probe`.
+Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show sand40-probe`.
 
 ## Pins (from catalog serving variant)
 

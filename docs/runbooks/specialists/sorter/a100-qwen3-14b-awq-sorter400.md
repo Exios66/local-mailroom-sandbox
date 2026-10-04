@@ -108,7 +108,7 @@ sandbox watch --web --config config/runs/run-400-sorter-qwen3-14b-awq-a100.yaml
 sandbox run start --config config/runs/run-400-sorter-qwen3-14b-awq-a100.yaml --job-mode endpoint --watch
 ```
 
-See `docs/mailroom-themed-logging.md` and `docs/snippets/pretty_logs.md`.
+See `docs/pretty-logging/mailroom-themed-logging.md` and `docs/snippets/pretty_logs.md`.
 
 ## Failure modes
 

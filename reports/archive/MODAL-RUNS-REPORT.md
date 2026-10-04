@@ -33,7 +33,7 @@ rate). Cost = measured warm interval x L4 rate.
 - wall=280.099s concurrency=8 cold_boot=0.503s gpu=561.204s (2 replicas)
 - cost=$0.124712 ($0.00249424/doc)
 - git: `59b9d35` dirty=True
-- full report: [`reports/correspondence/RUN-50-CORRESPONDENCE-SPECIALIST-AWQ-REPORT.md`](../correspondence/RUN-50-CORRESPONDENCE-SPECIALIST-AWQ-REPORT.md)
+- full report: [`reports/SAND-32/correspondence/RUN-50-CORRESPONDENCE-SPECIALIST-AWQ-REPORT.md`](../SAND-32/correspondence/RUN-50-CORRESPONDENCE-SPECIALIST-AWQ-REPORT.md)
 
 ### run-20-correspondence-specialist-awq
 
@@ -46,7 +46,7 @@ rate). Cost = measured warm interval x L4 rate.
 - wall=75.084s concurrency=8 cold_boot=0.553s gpu=151.274s (2 replicas)
 - cost=$0.033616 ($0.0016808/doc)
 - git: `59b9d35` dirty=False
-- full report: [`reports/correspondence/RUN-20-CORRESPONDENCE-SPECIALIST-AWQ-REPORT.md`](../correspondence/RUN-20-CORRESPONDENCE-SPECIALIST-AWQ-REPORT.md)
+- full report: [`reports/SAND-32/correspondence/RUN-20-CORRESPONDENCE-SPECIALIST-AWQ-REPORT.md`](../SAND-32/correspondence/RUN-20-CORRESPONDENCE-SPECIALIST-AWQ-REPORT.md)
 
 ### run-20-insurance-claims-specialist-awq
 
@@ -58,7 +58,7 @@ rate). Cost = measured warm interval x L4 rate.
 - wall=422.152s concurrency=8 cold_boot=0.361s gpu=422.513s
 - cost=$0.093892 ($0.0046946/doc)
 - git: `500eeee` dirty=True
-- full report: [`reports/insurance/RUN-20-INSURANCE-CLAIMS-SPECIALIST-AWQ-REPORT.md`](../insurance/RUN-20-INSURANCE-CLAIMS-SPECIALIST-AWQ-REPORT.md)
+- full report: [`reports/SAND-32/insurance/RUN-20-INSURANCE-CLAIMS-SPECIALIST-AWQ-REPORT.md`](../SAND-32/insurance/RUN-20-INSURANCE-CLAIMS-SPECIALIST-AWQ-REPORT.md)
 
 ### run-20-contracts-specialist
 
