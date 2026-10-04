@@ -378,7 +378,7 @@ def _started(replica_id: str):
 
 
 def sand032_fleet(R: Repo, runs: dict) -> dict:
-    """Every SAND-032 serving export (``serving/sand032-*.serving.json``) against its run report.
+    """Every SAND-032 serving export (``serving/SAND-32/sand032-*.serving.json``) against its run report.
 
     Feeds the GPU economics report: busy-window and billed GPU $, tokens, throughput, client-slot
     occupancy, boot, and the per-replica vLLM ``/metrics`` split. Busy-window GPU $ is

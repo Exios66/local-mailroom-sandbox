@@ -62,6 +62,57 @@ def test_relative_markdown_links_resolve():
     assert missing == [], "broken relative markdown links:\n" + "\n".join(missing)
 
 
+_STALE_DOC_PATHS = (
+    "docs/LAYOUT.md",
+    "docs/QUICKSTART.md",
+    "docs/docker-offline.md",
+    "docs/providers.md",
+    "docs/remote-serving.md",
+    "docs/sister-repos.md",
+    "docs/mailroom-themed-logging.md",
+    "docs/mailroom-watch-web.md",
+    "docs/benchmark-l4.md",
+    "docs/modal-doc-jobs.md",
+    "docs/modal-serving-ops.md",
+    "docs/extraction-quality-diagnosis.md",
+    "docs/runbooks/l4-qwen3-8b.md",
+    "docs/runbooks/baseline.md",
+    "docs/runbooks/improved.md",
+    "docs/PROMPT-ENHANCEMENT-PLAN.md",
+)
+
+
+def test_moved_doc_paths_are_not_cited():
+    """Operator docs cite the current nested paths, not the pre-move names."""
+    root = repo_root()
+    stale: list[str] = []
+    skip = (
+        "vendor/",
+        "docs/releases/",
+    )
+    for path in root.rglob("*"):
+        if not path.is_file() or path.suffix.lower() not in {".md", ".py", ".yml", ".yaml", ".example", ".html", ".ipynb"}:
+            continue
+        rel = path.relative_to(root).as_posix()
+        if (
+            rel.startswith(skip)
+            or rel == "tests/test_doc_paths.py"
+            or any(part in {".git", ".venv", "__pycache__"} for part in path.parts)
+        ):
+            continue
+        text = path.read_text(encoding="utf-8")
+        for old in _STALE_DOC_PATHS:
+            if old not in text:
+                continue
+            for i, line in enumerate(text.splitlines(), 1):
+                if old not in line:
+                    continue
+                if "github.com/" in line:
+                    continue
+                stale.append(f"{rel}:{i}: {old}")
+    assert stale == [], "stale pre-move doc paths:\n" + "\n".join(stale)
+
+
 def test_generated_runbook_catalog_links_resolve():
     catalog = catalog_path().resolve()
     link_re = re.compile(r"\[`config/runbooks/catalog.yaml`\]\(([^)]+)\)")

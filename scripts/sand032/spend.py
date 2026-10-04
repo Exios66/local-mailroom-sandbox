@@ -4,7 +4,7 @@
 This is the operator's UPPER estimate (a fleet bills from deploy until
 `modal app stop`, including boot and idle gaps). The per-run serving records
 carry the LOWER bound (run_span_usd_lower_bound). The Modal usage page is the
-ground truth and is recorded by hand in reports/serving/SAND032-SPEND-LEDGER.md.
+ground truth and is recorded by hand in reports/serving/SAND-32/SAND032-SPEND-LEDGER.md.
 
   spend.py open  <fleet-id> <replicas>   # at `modal deploy`
   spend.py close <fleet-id>              # at `modal app stop`

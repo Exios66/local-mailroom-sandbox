@@ -2,7 +2,7 @@
 
 Called by ``export_hub_reports.py``; it writes ``MODAL-VLLM-GPU-REPORT.md`` and ``figures/gpu/*.svg``.
 Every SAND-032 number comes from ``hub_data.json["fleet"]``: each serving export
-(``reports/serving/sand032-*.serving.json``) cross-checked against its run report by
+(``reports/serving/SAND-32/sand032-*.serving.json``) cross-checked against its run report by
 ``hub_extract.sand032_fleet``. The two pre-SAND-032 2×L4 runs are read from their tracked serving
 exports and checked against their run reports here.
 
@@ -810,8 +810,8 @@ The pre-SAND-032 correspondence runs (both at sandbox commit `{e_commit}`, per t
 
 | Source | What it gives |
 | --- | --- |
-| `local-mailroom-sandbox/reports/serving/sand032-*.serving.json` | per-run wall, boot, tokens, throughput, latency, slot occupancy, GPU $ |
-| `local-mailroom-sandbox/reports/*/SAND032-*-REPORT.md` | engine flags, busy-window GPU $, per-replica vLLM `/metrics` |
+| `local-mailroom-sandbox/reports/serving/SAND-32/sand032-*.serving.json` | per-run wall, boot, tokens, throughput, latency, slot occupancy, GPU $ |
+| `local-mailroom-sandbox/reports/SAND-32/*/SAND032-*-REPORT.md` | engine flags, busy-window GPU $, per-replica vLLM `/metrics` |
 | `local-mailroom-sandbox/reports/serving/QWEN3-L4-LADDER-SUMMARY.md` | spend ledger, incident, runbook findings |
 | `local-mailroom-sandbox/reports/dashboard/hub_data.json` | the cross-checked extract every number here is read from |
 | `eval-environment/reports/api-comparisons/` (via the hub) | hosted-API legs with token counts and cost |

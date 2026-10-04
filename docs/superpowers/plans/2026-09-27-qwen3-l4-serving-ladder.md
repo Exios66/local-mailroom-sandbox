@@ -1605,7 +1605,7 @@ sandbox run benchmark-check --config config/runs/<RUN>.yaml --modal-profile exio
 ```
 
 **Rules:**
-- Keep a running spend ledger in `reports/serving/SAND032-SPEND-LEDGER.md`: one row per run with `run_span_usd_lower_bound` (the serving record; a LOWER bound — renamed from `billed_span_usd` in the Part A review), the wall-clock deploy→`modal app stop` timestamps for each fleet (times replicas × $0.80/hr = the operator's upper estimate), and a Modal usage-page reading after each stage, supplied by the user (ground truth).
+- Keep a running spend ledger in `reports/serving/SAND-32/SAND032-SPEND-LEDGER.md`: one row per run with `run_span_usd_lower_bound` (the serving record; a LOWER bound — renamed from `billed_span_usd` in the Part A review), the wall-clock deploy→`modal app stop` timestamps for each fleet (times replicas × $0.80/hr = the operator's upper estimate), and a Modal usage-page reading after each stage, supplied by the user (ground truth).
 - Stop and report if the ledger ever exceeds the stage's stop rule, or $4.50 in total.
 
 ### Task 10: Account readiness + flag probe (≈$0)
@@ -1631,26 +1631,26 @@ For each rung `R` in `l0-baseline, l1-nothink, l2-marlin, l3-fp8kv, l4-seqs16, l
 - [ ] **Step 1:** Run the spend preamble with `config/runs/sand032-R.yaml`. Then deploy: `modal deploy deploy/modal_vllm.py`, set `VLLM_BASE_URL` to the printed URL + `/v1`, and run `sandbox run preflight --config … --live` (records the cold boot).
 - [ ] **Step 2:** `sandbox run scrape-metrics --config … --label before`, then `sandbox run start --config … --job-mode endpoint --watch`, then `sandbox run scrape-metrics --config … --label after`.
 - [ ] **Step 3:** Write the serving record with the existing `sandbox metrics serving` command (cli.py ~L2387) and export offline rows with `sandbox run export-bt --config …`. Stop the app: `modal app stop sandbox-vllm`.
-- [ ] **Step 4:** Apply the gate, paired on the same 20 doc ids vs L0: ok 20/20; mean score ≥ L0 − 0.02; schema_valid ≥ L0 − 0.05; `gpu_cost_per_document` ≤ the previous kept rung. A failing rung (other than L3) is reverted: the next rung's YAML drops that change. Record every rung, kept or reverted, in `reports/serving/SAND032-LADDER.md`: boot s, wall, p50/p95, measured TTFT, tok/s, KV usage, preemptions, length finishes, score, schema_valid, $/doc, run_span_usd_lower_bound.
+- [ ] **Step 4:** Apply the gate, paired on the same 20 doc ids vs L0: ok 20/20; mean score ≥ L0 − 0.02; schema_valid ≥ L0 − 0.05; `gpu_cost_per_document` ≤ the previous kept rung. A failing rung (other than L3) is reverted: the next rung's YAML drops that change. Record every rung, kept or reverted, in `reports/serving/SAND-32/SAND032-LADDER.md`: boot s, wall, p50/p95, measured TTFT, tok/s, KV usage, preemptions, length finishes, score, schema_valid, $/doc, run_span_usd_lower_bound.
 - [ ] **Step 5:** Freeze. Edit the eight `sand032-s2*`/`sand032-s3*` YAMLs so their `vllm:` blocks equal the best passing stack, always with `kv_cache_dtype: fp8`. Re-run `pytest tests/test_sand032_configs.py`, then commit and push.
 
 ### Task 12: Stage 2 — scale-out (correspondence n=100)
 
 - [ ] **Step 1:** Run `sand032-s2a-corr100-1rep` with the Task 11 Steps 1–3 flow. This is the recorded production cold boot.
 - [ ] **Step 2:** Run `sand032-s2b-corr100-2rep`, redeploying with its env (max=min=2). The scrape must show `replicas observed: 2 of 2`. If it shows 1 of 2, rerun the scrape up to 3×, then report the coverage honestly.
-- [ ] **Step 3:** Write `reports/serving/SAND032-SCALE-OUT.md`: wall ratio, $/doc for both, tok/s, per-replica request split, p50/p95, TTFT, KV peak. **Leave the app warm** (min=2) for Task 13 and do not stop it.
+- [ ] **Step 3:** Write `reports/serving/SAND-32/SAND032-SCALE-OUT.md`: wall ratio, $/doc for both, tok/s, per-replica request split, p50/p95, TTFT, KV peak. **Leave the app warm** (min=2) for Task 13 and do not stop it.
 
 ### Task 13: Stage 3 — 5-specialist sweep (warm 2-replica fleet, ≤ $4.50 projected)
 
 - [ ] **Step 1:** Before each class, compute the projection: `spent_so_far + measured_usd_per_doc(prev comparable class, or the 20-doc AWQ reports for first-time classes) × n`. If it exceeds $4.50, rewrite merger/contracts to n=20: set `count`/`limit` to 20 in their YAMLs and `SPECIALIST_LIMIT_BY_RUN`, then commit.
 - [ ] **Step 2:** Run in order: corr50 → insurance50 → corporate50 → merger50 → contracts50 → corr50-repeat. The env is unchanged across these (same serving block), so **no redeploy**; only `sandbox run start` + scrapes + `export-bt` per class. Contracts needs `SANDBOX_AGENT_KNOBS='{"contracts_specialist":{"max_tokens":8192}}'` if the Task 9 overlay check found the budget below 8192.
 - [ ] **Step 3:** After the last run: `modal app stop sandbox-vllm`. Ask the user for the Modal usage-page total and record it in the ledger.
-- [ ] **Step 4:** Write per-class reports (`reports/<class>/SAND032-S3-<CLASS>50-REPORT.md`) and `reports/serving/SAND032-SWEEP.md`: the 5-class scorecard, plus repeat-run variance (paired per-doc score delta and $/doc delta between corr50 and corr50-repeat). Contracts is marked serving-only.
+- [ ] **Step 4:** Write per-class reports (`reports/SAND-32/<class>/SAND032-S3-<CLASS>50-REPORT.md`) and `reports/serving/SAND-32/SAND032-SWEEP.md`: the 5-class scorecard, plus repeat-run variance (paired per-doc score delta and $/doc delta between corr50 and corr50-repeat). Contracts is marked serving-only.
 
 ### Task 14: Stage 4 — bf16 arm (skip if ledger > $4.40)
 
 - [ ] **Step 1:** Run `sand032-s4-corr20-bf16` (deploy with its env, run, scrape, export, stop).
-- [ ] **Step 2:** Add the paired AWQ-vs-bf16 score delta on the same 20 ids to `reports/serving/SAND032-LADDER.md`.
+- [ ] **Step 2:** Add the paired AWQ-vs-bf16 score delta on the same 20 ids to `reports/serving/SAND-32/SAND032-LADDER.md`.
 
 ### Task 15: Summary, funding proposal, review, disposal
 
