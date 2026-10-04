@@ -328,9 +328,18 @@ def preflight(
         drifted = existing.get("spec_hash") != spec.spec_hash()
         if not drifted and existing.get("prompt_text_sha") and existing.get("prompt_text_sha") != prompt_text_sha:
             drifted = True
-        if not drifted and existing.get("runbook_id") != (spec.runbook_id or None):
+        # Keys absent on pre-catalog locks: resume. Present keys still drift.
+        if (
+            not drifted
+            and "runbook_id" in existing
+            and existing.get("runbook_id") != (spec.runbook_id or None)
+        ):
             drifted = True
-        if not drifted and existing.get("report_group") != (report_group or None):
+        if (
+            not drifted
+            and "report_group" in existing
+            and existing.get("report_group") != (report_group or None)
+        ):
             drifted = True
         if drifted:
             return {

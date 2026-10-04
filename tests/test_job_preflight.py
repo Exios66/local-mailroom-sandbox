@@ -91,6 +91,33 @@ def test_preflight_report_group_drift_refuses_unless_forced(tmp_path, job_data_d
     assert relocked["report_group"] == "SAND-40"
 
 
+def test_preflight_legacy_lock_without_report_identity_resumes(tmp_path, job_data_dir):
+    spec = _run_spec(tmp_path, run_id="pf-legacy-report-group")
+    report = preflight.preflight(spec, offline=True)
+    assert report["status"] == "prepared", report
+    store = _store(report)
+    lock = store.read_lock()
+    assert "runbook_id" not in lock
+    assert "report_group" not in lock
+
+    resumed = _run_spec(tmp_path, run_id=spec.run_id)
+    resumed.dataset = DatasetSpec(local_path=spec.dataset.local_path, limit=spec.dataset.limit)
+    resumed.runbook_id = "grid-1l4"
+    assert resumed.spec_hash() == spec.spec_hash()
+
+    report2 = preflight.preflight(resumed, offline=True)
+    assert report2["status"] == "prepared", report2
+    still = store.read_lock()
+    assert "runbook_id" not in still
+    assert "report_group" not in still
+
+    report3 = preflight.preflight(resumed, offline=True, force=True)
+    assert report3["status"] == "prepared", report3
+    relocked = store.read_lock()
+    assert relocked["runbook_id"] == "grid-1l4"
+    assert relocked["report_group"] == "SAND-37"
+
+
 def test_run_load_spec_resolves_relative_config(tmp_path, monkeypatch):
     from argparse import Namespace
     from pathlib import Path
