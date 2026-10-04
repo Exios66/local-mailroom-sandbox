@@ -1,6 +1,6 @@
 """Tray-TUI screenshot gallery guard: docs images stay generated and in sync.
 
-Covers ``docs/mailroom-watch-web.md`` + ``docs/assets/watch/`` +
+Covers ``docs/pretty-logging/mailroom-watch-web.md`` + ``docs/assets/watch/`` +
 ``scripts/sand032/capture_watch_screenshots.py``. Network-free, no LLM.
 """
 

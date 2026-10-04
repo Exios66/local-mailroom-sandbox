@@ -9,6 +9,6 @@ Gate per rung (paired on identical doc ids): ok 20/20 · mean score ≥ L0 − 0
 | l2-marlin | + awq_marlin kernel | 20/20 | 0.2674 | -0.0112 | 0.90 | 26.4 | 8.06 | 12.74 | 1526 | 2.65 | 58.8 | 120 | 0.000294 | **REVERT** |
 | l5-graphs | + CUDA graphs (eager off) | 20/20 | 0.2841 | 0.0054 | 1.00 | 18.0 | 6.41 | 10.15 | 2238 | 1.40 | 58.8 | 216 | 0.000200 | **PASS** |
 
-![SAND-032 ladder small multiples](figures/sand032-ladder.svg)
+![SAND-032 ladder small multiples](../figures/sand032-ladder.svg)
 
 _The table above is the figure's table view._

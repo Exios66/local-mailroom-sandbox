@@ -4,8 +4,8 @@ This repo ships **two** Docker surfaces:
 
 | Artifact | Role |
 | --- | --- |
-| [`deploy/docker-compose.yml`](../deploy/docker-compose.yml) | Sidecar stack: Langfuse 3, Ollama, optional Phoenix / vLLM / llama.cpp, and **Jupyter Lab** |
-| [`deploy/Dockerfile`](../deploy/Dockerfile) | Offline sandbox image (`mailroom-sandbox:offline`) with the Python harness + notebooks |
+| [`deploy/docker-compose.yml`](../../deploy/docker-compose.yml) | Sidecar stack: Langfuse 3, Ollama, optional Phoenix / vLLM / llama.cpp, and **Jupyter Lab** |
+| [`deploy/Dockerfile`](../../deploy/Dockerfile) | Offline sandbox image (`mailroom-sandbox:offline`) with the Python harness + notebooks |
 
 There is no second mailroom pipeline inside the image — only the sandbox overlay, fixtures, and Jupyter.
 
@@ -40,9 +40,9 @@ reproducibility — bump pins deliberately.
 
 | Notebook | Purpose |
 | --- | --- |
-| [`notebooks/01_offline_environment_setup.ipynb`](../notebooks/01_offline_environment_setup.ipynb) | Copy `.env`, activate profile, verify Dockerfile/compose/fixtures |
-| [`notebooks/02_load_clean_prepare_data.ipynb`](../notebooks/02_load_clean_prepare_data.ipynb) | Load catalog + HF + LegalBench + agent gold; clean; write `data/runtime/prepared/` |
-| [`notebooks/03_offline_sandbox_smoke.ipynb`](../notebooks/03_offline_sandbox_smoke.ipynb) | Mock pilot / sorter smoke against prepared JSONL (no live LLM) |
+| [`notebooks/01_offline_environment_setup.ipynb`](../../notebooks/01_offline_environment_setup.ipynb) | Copy `.env`, activate profile, verify Dockerfile/compose/fixtures |
+| [`notebooks/02_load_clean_prepare_data.ipynb`](../../notebooks/02_load_clean_prepare_data.ipynb) | Load catalog + HF + LegalBench + agent gold; clean; write `data/runtime/prepared/` |
+| [`notebooks/03_offline_sandbox_smoke.ipynb`](../../notebooks/03_offline_sandbox_smoke.ipynb) | Mock pilot / sorter smoke against prepared JSONL (no live LLM) |
 
 Helpers live in `mailroom_sandbox.prep` (`prepare_offline_datasets`, `environment_checklist`).
 

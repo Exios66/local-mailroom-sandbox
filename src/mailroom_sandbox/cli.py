@@ -2355,15 +2355,17 @@ def _cmd_modal_matrix_env(args) -> int:
 
 
 def _run_load_spec(args) -> tuple[object, Path]:
+    """Load the run spec and return it with a resolved ``--config`` path."""
     config = getattr(args, "config", None)
     if not config:
         raise SystemExit("run commands need --config <run.yaml>")
     from mailroom_sandbox.job.spec import load_run_spec
 
-    return load_run_spec(config), Path(config)
+    return load_run_spec(config), Path(config).resolve()
 
 
 def _run_id_required(args) -> str:
+    """Return ``--run-id`` or the id embedded in ``--config``."""
     run_id = getattr(args, "run_id", None) or ""
     if not run_id and getattr(args, "config", None):
         from mailroom_sandbox.job.spec import load_run_spec
@@ -2375,12 +2377,14 @@ def _run_id_required(args) -> str:
 
 
 def _cmd_run_preflight(args) -> int:
+    """Run job preflight and print the lock report."""
     from mailroom_sandbox.job import preflight
 
-    spec, _ = _run_load_spec(args)
+    spec, config_path = _run_load_spec(args)
     report = preflight.preflight(
         spec,
         run_id=getattr(args, "run_id", None) or "",
+        config_path=config_path,
         offline=bool(getattr(args, "offline", False)),
         force=bool(getattr(args, "force", False)),
         dry_run=bool(getattr(args, "dry_run", False)),
@@ -2393,13 +2397,14 @@ def _cmd_run_preflight(args) -> int:
 
 
 def _cmd_run_start(args) -> int:
+    """Lock a run via preflight, then start it locally or on Modal."""
     from mailroom_sandbox.job import preflight
     from mailroom_sandbox.job import remote as job_remote
     from mailroom_sandbox.job import runner
     from mailroom_sandbox.job.checkpoint import RunStore
     from mailroom_sandbox.job.spec import run_dir
 
-    spec, _ = _run_load_spec(args)
+    spec, config_path = _run_load_spec(args)
     # DMR-072: the job path must activate the runtime profile like every other
     # live CLI path. Without it the vendored pipeline loads its own default
     # config (openrouter, no key) and the sorter node falls through to the
@@ -2417,6 +2422,7 @@ def _cmd_run_start(args) -> int:
     report = preflight.preflight(
         spec,
         run_id=getattr(args, "run_id", None) or "",
+        config_path=config_path,
         offline=bool(getattr(args, "offline", False)),
         force=bool(getattr(args, "force", False)),
         dry_run=bool(getattr(args, "dry_run", False)),
@@ -2632,6 +2638,7 @@ def _cmd_run_status(args) -> int:
 
 
 def _cmd_run_resume(args) -> int:
+    """Resume a locked run after re-checking preflight when ``--config`` is set."""
     from mailroom_sandbox.job.checkpoint import RunStore
     from mailroom_sandbox.job.spec import run_dir
 
@@ -2655,11 +2662,17 @@ def _cmd_run_resume(args) -> int:
     if getattr(args, "config", None):
         from mailroom_sandbox.job import preflight
 
-        spec, _ = _run_load_spec(args)
-        report = preflight.preflight(spec, run_id=run_id, offline=False, force=bool(getattr(args, "force", False)))
-        if report.get("status") == "drift_refused":
+        spec, config_path = _run_load_spec(args)
+        report = preflight.preflight(
+            spec,
+            run_id=run_id,
+            config_path=config_path,
+            offline=False,
+            force=bool(getattr(args, "force", False)),
+        )
+        if report.get("status") != "prepared":
             _print(report)
-            return 3
+            return 3 if report.get("status") == "drift_refused" else 1
     if _job_mode(store) == "modal":
         from mailroom_sandbox.job import remote as job_remote
 

@@ -4,9 +4,16 @@ from __future__ import annotations
 
 from datetime import datetime
 
+import pytest
+import yaml
+
 from mailroom_sandbox.job import dated_reports
 from mailroom_sandbox.job.checkpoint import RunStore
-from mailroom_sandbox.report_paths import experiment_prefix
+from mailroom_sandbox.report_paths import (
+    experiment_prefix,
+    report_group_for_config,
+    report_group_for_runbook,
+)
 
 
 def _specialist_store(
@@ -16,6 +23,7 @@ def _specialist_store(
     run_id: str = "grid-20-merger-specialist-awq-1l4",
     replicas: int = 1,
 ) -> RunStore:
+    """Build a locked specialist RunStore under tmp_path for path tests."""
     store = RunStore(tmp_path / run_id)
     store.write_lock(
         {
@@ -48,15 +56,92 @@ def _specialist_store(
 
 
 def test_experiment_prefix_is_explicit_or_known_grid():
+    """Named sweeps and cataloged runbooks resolve; unknown grids do not."""
     assert experiment_prefix("sand032-s3-corr50") == "SAND-32"
     assert experiment_prefix("sand39-1l4-n50") == "SAND-39"
     assert experiment_prefix("sand40-100-contracts-specialist-awq-2l4") == "SAND-40"
     assert experiment_prefix("grid-50-merger-specialist-awq-2l4") == "SAND-37"
+    assert experiment_prefix("grid-external-experiment") is None
     assert experiment_prefix("run-20-merger-specialist-awq") is None
     assert experiment_prefix("run-20-merger-specialist-awq", {"runbook": "sand40"}) == "SAND-40"
+    assert experiment_prefix("job-204", {"runbook_id": "grid-1l4"}) == "SAND-37"
+    assert experiment_prefix("job-205", {"report_group": "SAND-123"}) == "SAND-123"
+
+
+def test_report_groups_reject_duplicate_runbook_ids(tmp_path, monkeypatch):
+    """A repeated runbook id in the catalog raises instead of last-key-wins."""
+    from mailroom_sandbox import report_paths
+
+    catalog = tmp_path / "report-groups.yaml"
+    catalog.write_text(
+        "schema: sandbox.report-groups/v1\n"
+        "runbooks:\n"
+        "  grid-1l4: SAND-37\n"
+        "  grid-1l4: SAND-40\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(report_paths, "config_dir", lambda: tmp_path)
+
+    with pytest.raises(yaml.constructor.ConstructorError, match="duplicate key"):
+        report_paths._report_groups()
+
+
+@pytest.mark.parametrize("field, value", [
+    ("runbooks", None),
+    ("runbooks", []),
+    ("runbooks", "grid-1l4"),
+    ("runbooks", False),
+    ("legacy_run_id_patterns", None),
+    ("legacy_run_id_patterns", {}),
+    ("legacy_run_id_patterns", "grid-.*"),
+    ("legacy_run_id_patterns", False),
+    ("legacy_run_id_patterns", [None]),
+    ("legacy_run_id_patterns", ["grid-.*"]),
+    ("legacy_run_id_patterns", [{"pattern": "grid-.*"}, []]),
+])
+def test_report_groups_reject_invalid_nested_shapes(tmp_path, monkeypatch, field, value):
+    from mailroom_sandbox import report_paths
+
+    data = {"schema": "sandbox.report-groups/v1", field: value}
+    (tmp_path / "report-groups.yaml").write_text(yaml.safe_dump(data), encoding="utf-8")
+    monkeypatch.setattr(report_paths, "config_dir", lambda: tmp_path)
+
+    with pytest.raises(ValueError, match=field):
+        report_paths._report_groups()
+
+
+@pytest.mark.parametrize("fields", [
+    {},
+    {"runbooks": {}, "legacy_run_id_patterns": []},
+    {"runbooks": {"grid-1l4": "SAND-37"}, "legacy_run_id_patterns": [
+        {"pattern": "grid-.*", "report_group": "SAND-37"},
+    ]},
+])
+def test_report_groups_accept_valid_nested_shapes(tmp_path, monkeypatch, fields):
+    from mailroom_sandbox import report_paths
+
+    data = {"schema": "sandbox.report-groups/v1", **fields}
+    (tmp_path / "report-groups.yaml").write_text(yaml.safe_dump(data), encoding="utf-8")
+    monkeypatch.setattr(report_paths, "config_dir", lambda: tmp_path)
+
+    assert report_paths._report_groups() == data
+
+
+def test_report_groups_reuse_runbooks_for_multiple_configs():
+    """Several configs that share a runbook id map to the same report group."""
+    assert report_group_for_runbook("grid-1l4") == "SAND-37"
+    assert report_group_for_runbook("sand40") == "SAND-40"
+    assert report_group_for_config(
+        "config/runs/grid-20-correspondence-specialist-awq-1l4.yaml"
+    ) == "SAND-37"
+    assert report_group_for_config(
+        "config/runs/sand40-100-contracts-specialist-awq-2l4.yaml"
+    ) == "SAND-40"
+    assert report_group_for_runbook("future-unknown") is None
 
 
 def test_cell_stem_encodes_n_shape_concurrency(tmp_path):
+    """Cell stems encode n, hardware shape, and concurrency."""
     store = _specialist_store(tmp_path)
     folder, stem = dated_reports.cell_stem(store)
     assert folder == "merger_agreement"
@@ -137,9 +222,13 @@ def test_dated_and_serving_paths_follow_sweep_or_general_root(tmp_path):
 
 
 def test_default_serving_writer_uses_sweep_directory(tmp_path, monkeypatch):
+    """Serving JSON for a grid lock lands under the cataloged sweep directory."""
+    from mailroom_sandbox import report_paths
     from mailroom_sandbox.job import metrics
 
+    config_root = report_paths.config_dir()
     monkeypatch.setattr("mailroom_sandbox.paths.repo_root", lambda: tmp_path)
+    monkeypatch.setattr(report_paths, "config_dir", lambda: config_root)
     monkeypatch.setattr(dated_reports, "maybe_write_run_reports", lambda *args, **kwargs: {})
     store = _specialist_store(tmp_path)
     path = metrics.write_serving_json(store, wall_seconds=100.0)
