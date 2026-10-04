@@ -51,6 +51,66 @@ def test_preflight_locks_runbook_identity_without_hashing_it(tmp_path):
     assert lock["spec_hash"] == expected_hash
 
 
+def test_preflight_unknown_runbook_id_fails_without_fallback(tmp_path, job_data_dir):
+    spec = _run_spec(tmp_path, run_id="sand40-unknown-runbook")
+    spec.runbook_id = "not-a-cataloged-runbook"
+
+    report = preflight.preflight(spec, offline=True)
+
+    assert report["status"] == "failed", report
+    check = report["checks"][-1]
+    assert check["name"] == "report_group"
+    assert check["ok"] is False
+    assert "not-a-cataloged-runbook" in check["detail"]
+
+
+def test_preflight_report_group_drift_refuses_unless_forced(tmp_path, job_data_dir):
+    spec = _run_spec(tmp_path, run_id="pf-report-group-drift")
+    spec.runbook_id = "grid-1l4"
+    report = preflight.preflight(spec, offline=True)
+    assert report["status"] == "prepared", report
+    store = _store(report)
+    locked = store.read_lock()
+    assert locked["runbook_id"] == "grid-1l4"
+    assert locked["report_group"] == "SAND-37"
+
+    drifted = _run_spec(tmp_path, run_id=spec.run_id)
+    drifted.dataset = DatasetSpec(local_path=spec.dataset.local_path, limit=spec.dataset.limit)
+    drifted.runbook_id = "sand40"
+    assert drifted.spec_hash() == spec.spec_hash()
+
+    report2 = preflight.preflight(drifted, offline=True)
+    assert report2["status"] == "drift_refused"
+    assert store.read_lock()["runbook_id"] == "grid-1l4"
+    assert store.read_lock()["report_group"] == "SAND-37"
+
+    report3 = preflight.preflight(drifted, offline=True, force=True)
+    assert report3["status"] == "prepared", report3
+    relocked = store.read_lock()
+    assert relocked["runbook_id"] == "sand40"
+    assert relocked["report_group"] == "SAND-40"
+
+
+def test_run_load_spec_resolves_relative_config(tmp_path, monkeypatch):
+    from argparse import Namespace
+    from pathlib import Path
+
+    from mailroom_sandbox.cli import _run_load_spec
+
+    nested = tmp_path / "nested"
+    nested.mkdir()
+    cfg = nested / "run.yaml"
+    cfg.write_text("schema: sandbox.run/v1\n", encoding="utf-8")
+    monkeypatch.setattr("mailroom_sandbox.job.spec.load_run_spec", lambda path: object())
+    monkeypatch.chdir(nested)
+
+    spec, config_path = _run_load_spec(Namespace(config="run.yaml"))
+
+    assert spec is not None
+    assert config_path == Path(cfg).resolve()
+    assert config_path.is_absolute()
+
+
 class _FakeResp:
     def __init__(self, status_code, payload=None):
         self.status_code = status_code

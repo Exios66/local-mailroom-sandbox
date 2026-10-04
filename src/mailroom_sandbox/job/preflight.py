@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 import time
+from pathlib import Path
 from typing import Any
 
 import llm_dojo_scoring
@@ -246,6 +247,28 @@ def _prompt_text_sha(block: dict[str, Any]) -> str:
     return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
 
 
+def _resolve_report_group(
+    spec: RunSpec,
+    *,
+    run_id: str,
+    config_path: str | Path | None,
+) -> str | None:
+    from mailroom_sandbox.report_paths import (
+        experiment_prefix,
+        report_group_for_config,
+        report_group_for_runbook,
+    )
+
+    if spec.runbook_id:
+        group = report_group_for_runbook(spec.runbook_id)
+        if group is None:
+            raise ValueError(
+                f"unknown runbook_id {spec.runbook_id!r}: no report-group catalog entry"
+            )
+        return group
+    return report_group_for_config(config_path) or experiment_prefix(run_id)
+
+
 def preflight(
     spec: RunSpec,
     *,
@@ -294,9 +317,20 @@ def preflight(
         {"name": "prompt", "ok": True, "detail": _prompt_summary(prompt_block)}
     )
 
+    try:
+        report_group = _resolve_report_group(spec, run_id=run_id, config_path=config_path)
+    except ValueError as exc:
+        report["status"] = "failed"
+        report["checks"].append({"name": "report_group", "ok": False, "detail": str(exc)})
+        return report
+
     if existing and not force:
         drifted = existing.get("spec_hash") != spec.spec_hash()
         if not drifted and existing.get("prompt_text_sha") and existing.get("prompt_text_sha") != prompt_text_sha:
+            drifted = True
+        if not drifted and existing.get("runbook_id") != (spec.runbook_id or None):
+            drifted = True
+        if not drifted and existing.get("report_group") != (report_group or None):
             drifted = True
         if drifted:
             return {
@@ -304,7 +338,10 @@ def preflight(
                 "run_id": run_id,
                 "spec_hash": spec.spec_hash(),
                 "locked_spec_hash": existing.get("spec_hash"),
-                "detail": "spec (or resolved prompt text) drifted since the lock; pass --force to re-lock",
+                "detail": (
+                    "spec, resolved prompt text, runbook, or report group drifted "
+                    "since the lock; pass --force to re-lock"
+                ),
             }
 
     # write_lock refuses to overwrite in place, so a forced re-lock archives
@@ -398,18 +435,6 @@ def preflight(
     # 6) modal cost guards
     report["checks"].append(
         {"name": "modal_spec", "ok": _modal_check(spec), "detail": "modal guards ok" if _modal_check(spec) else "modal guard failed"}
-    )
-
-    from mailroom_sandbox.report_paths import (
-        experiment_prefix,
-        report_group_for_config,
-        report_group_for_runbook,
-    )
-
-    report_group = (
-        report_group_for_runbook(spec.runbook_id)
-        or report_group_for_config(config_path)
-        or experiment_prefix(run_id)
     )
 
     # Commit point: prompt lock then spec lock then prepared checkpoint.

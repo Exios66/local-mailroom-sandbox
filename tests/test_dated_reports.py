@@ -63,6 +63,26 @@ def test_experiment_prefix_is_explicit_or_known_grid():
     assert experiment_prefix("job-205", {"report_group": "SAND-123"}) == "SAND-123"
 
 
+def test_report_groups_reject_duplicate_runbook_ids(tmp_path, monkeypatch):
+    import pytest
+    import yaml
+
+    from mailroom_sandbox import report_paths
+
+    catalog = tmp_path / "report-groups.yaml"
+    catalog.write_text(
+        "schema: sandbox.report-groups/v1\n"
+        "runbooks:\n"
+        "  grid-1l4: SAND-37\n"
+        "  grid-1l4: SAND-40\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(report_paths, "config_dir", lambda: tmp_path)
+
+    with pytest.raises(yaml.constructor.ConstructorError, match="duplicate key"):
+        report_paths._report_groups()
+
+
 def test_report_groups_reuse_runbooks_for_multiple_configs():
     assert report_group_for_runbook("grid-1l4") == "SAND-37"
     assert report_group_for_runbook("sand40") == "SAND-40"

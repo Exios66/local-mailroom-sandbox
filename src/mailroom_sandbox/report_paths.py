@@ -16,6 +16,26 @@ _REPORT_GROUP = re.compile(r"^SAND-(\d+)$", re.IGNORECASE)
 _SWEEP_FIELDS = ("experiment", "experiment_id", "sweep", "sweep_id", "runbook", "runbook_id", "config", "config_path")
 
 
+class _UniqueKeySafeLoader(yaml.SafeLoader):
+    """``yaml.safe_load`` keeps the last duplicate mapping key; reject instead."""
+
+    def construct_mapping(self, node, deep=False):
+        if isinstance(node, yaml.nodes.MappingNode):
+            self.flatten_mapping(node)
+        mapping: dict[Any, Any] = {}
+        for key_node, value_node in node.value:
+            key = self.construct_object(key_node, deep=deep)
+            if key in mapping:
+                raise yaml.constructor.ConstructorError(
+                    "while constructing a mapping",
+                    node.start_mark,
+                    f"found duplicate key {key!r}",
+                    key_node.start_mark,
+                )
+            mapping[key] = self.construct_object(value_node, deep=deep)
+        return mapping
+
+
 def _canonical_group(value: Any) -> str | None:
     match = _REPORT_GROUP.fullmatch(str(value or "").strip())
     return f"SAND-{int(match.group(1))}" if match else None
@@ -23,7 +43,7 @@ def _canonical_group(value: Any) -> str | None:
 
 def _report_groups() -> dict[str, Any]:
     path = config_dir() / "report-groups.yaml"
-    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    data = yaml.load(path.read_text(encoding="utf-8"), Loader=_UniqueKeySafeLoader) or {}
     if not isinstance(data, Mapping) or data.get("schema") != "sandbox.report-groups/v1":
         raise ValueError(f"{path}: unsupported or invalid report-group catalog")
     return dict(data)
