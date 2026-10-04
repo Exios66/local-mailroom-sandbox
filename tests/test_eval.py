@@ -240,6 +240,31 @@ def test_local_vs_api_scorecard_uses_run_group(tmp_path, monkeypatch):
     assert captured["path"] == tmp_path / "reports" / "scores" / "SAND-32" / "scores.jsonl"
 
 
+def test_local_vs_api_scorecard_uses_locked_metadata_when_run_id_has_no_group(tmp_path, monkeypatch):
+    captured = {}
+
+    class RecordingSink:
+        def __init__(self, path):
+            captured["path"] = Path(path)
+
+    class RecordingEmitter:
+        def __init__(self, *, sinks):
+            captured["sink"] = sinks[0]
+
+    monkeypatch.setattr(scoring, "reports_dir", lambda: tmp_path / "reports")
+    monkeypatch.setattr(scoring, "LocalManifestSink", RecordingSink)
+    monkeypatch.setattr(scoring, "Emitter", RecordingEmitter)
+    monkeypatch.setattr(scoring, "emit_serving_scorecard", lambda *args, **kwargs: {})
+
+    scoring.emit_local_vs_api_scorecard(
+        {},
+        run_id="sandbox_local_vs_api_job-204",
+        metadata={"report_group": "SAND-123"},
+    )
+
+    assert captured["path"] == tmp_path / "reports" / "scores" / "SAND-123" / "scores.jsonl"
+
+
 def test_dojo_pin_is_v0_15():
     import re
 

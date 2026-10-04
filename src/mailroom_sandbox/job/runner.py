@@ -264,7 +264,10 @@ def _run_whole_run(
         elif task == "chained":
             result = eval_runners.run_chained_eval(rows=locked_rows, **kwargs)
         elif task == "local_vs_api":
-            result = eval_runners.run_local_vs_api_eval(**kwargs)
+            result = eval_runners.run_local_vs_api_eval(
+                score_metadata=score_metadata,
+                **kwargs,
+            )
         elif task == "sorter_vs_modernbert":
             result = eval_runners.run_sorter_vs_modernbert_eval(**kwargs)
         elif task == "isolated":

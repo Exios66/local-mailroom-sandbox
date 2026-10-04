@@ -712,6 +712,7 @@ def run_local_vs_api_eval(
     agent_models: dict[str, str] | None = None,
     from_log: bool = False,
     connected: bool = False,
+    score_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Compare local (Ollama/vLLM/…) vs API-key (OpenRouter) serving metrics.
 
@@ -789,7 +790,9 @@ def run_local_vs_api_eval(
     }
     if comparison:
         scoring.emit_local_vs_api_scorecard(
-            comparison, run_id=experiment_name or "sandbox_local_vs_api"
+            comparison,
+            run_id=experiment_name or "sandbox_local_vs_api",
+            metadata=score_metadata,
         )
     record = experiment_log.new_record(
         experiment_name=experiment_name or "sandbox_local_vs_api",

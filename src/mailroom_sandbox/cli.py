@@ -2360,7 +2360,7 @@ def _run_load_spec(args) -> tuple[object, Path]:
         raise SystemExit("run commands need --config <run.yaml>")
     from mailroom_sandbox.job.spec import load_run_spec
 
-    return load_run_spec(config), Path(config)
+    return load_run_spec(config), Path(config).resolve()
 
 
 def _run_id_required(args) -> str:
