@@ -83,6 +83,57 @@ def test_run_status_still_requires_some_id(tmp_path, capsys):
         main(["run", "status"])
 
 
+def test_run_resume_passes_resolved_config_path(tmp_path, monkeypatch):
+    from argparse import Namespace
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    from mailroom_sandbox import cli
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.spec import run_dir
+
+    nested = tmp_path / "nested"
+    nested.mkdir()
+    cfg = nested / "run.yaml"
+    cfg.write_text("schema: sandbox.run/v1\n", encoding="utf-8")
+    store = RunStore(run_dir("cli-resume"))
+    store.write_lock({"run_id": "cli-resume", "spec_hash": "s1"})
+
+    spec = SimpleNamespace(
+        profile="ollama",
+        run_id="cli-resume",
+        engine=None,
+        job=SimpleNamespace(mock=True),
+    )
+    seen: dict[str, object] = {}
+
+    monkeypatch.chdir(nested)
+    monkeypatch.setattr(cli, "activate", lambda *a, **k: None)
+    monkeypatch.setattr("mailroom_sandbox.job.spec.load_run_spec", lambda path: spec)
+
+    def fake_preflight(loaded, *, run_id="", config_path=None, **kwargs):
+        seen["config_path"] = config_path
+        return {"status": "prepared", "run_id": run_id, "checks": []}
+
+    monkeypatch.setattr("mailroom_sandbox.job.preflight.preflight", fake_preflight)
+    monkeypatch.setattr(cli, "_job_mode", lambda store: "endpoint")
+    monkeypatch.setattr(cli, "_run_endpoint", lambda store, args: {"state": "done"})
+
+    rc = cli._cmd_run_resume(
+        Namespace(
+            config="run.yaml",
+            run_id="cli-resume",
+            force=False,
+            watch=False,
+            model=None,
+            agent_models=[],
+        )
+    )
+    assert rc == 0
+    assert seen["config_path"] == cfg.resolve()
+    assert Path(seen["config_path"]).is_absolute()
+
+
 def test_watch_remote_stalls_out_after_deadline(tmp_path, monkeypatch, capsys):
     # hub#41: a worker that dies before its first state_dict.put must not
     # leave the watch polling 'running' forever — no heartbeat + a call that

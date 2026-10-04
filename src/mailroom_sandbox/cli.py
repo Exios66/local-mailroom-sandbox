@@ -2657,11 +2657,11 @@ def _cmd_run_resume(args) -> int:
     if getattr(args, "config", None):
         from mailroom_sandbox.job import preflight
 
-        spec, _ = _run_load_spec(args)
+        spec, config_path = _run_load_spec(args)
         report = preflight.preflight(
             spec,
             run_id=run_id,
-            config_path=args.config,
+            config_path=config_path,
             offline=False,
             force=bool(getattr(args, "force", False)),
         )
