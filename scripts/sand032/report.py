@@ -29,7 +29,7 @@ import viz  # noqa: E402  (/dataviz chart kit, validated palette)
 ROOT = Path(__file__).resolve().parents[2]
 RUNS = ROOT / "data" / "runtime" / "runs"
 RT = ROOT / "data" / "runtime" / "sand032"
-SERVING = ROOT / "reports" / "serving"
+SERVING = ROOT / "reports" / "serving" / "SAND-32"
 L4_USD_PER_HOUR = 0.80
 CLASS_DIR = {
     "correspondence": "correspondence",

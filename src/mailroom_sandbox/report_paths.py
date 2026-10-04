@@ -44,11 +44,17 @@ def _canonical_group(value: Any) -> str | None:
 
 
 def _report_groups() -> dict[str, Any]:
-    """Load ``config/report-groups.yaml``, rejecting duplicate mapping keys."""
+    """Load the report-group catalog, rejecting duplicates and invalid shapes."""
     path = config_dir() / "report-groups.yaml"
     data = yaml.load(path.read_text(encoding="utf-8"), Loader=_UniqueKeySafeLoader) or {}
     if not isinstance(data, Mapping) or data.get("schema") != "sandbox.report-groups/v1":
         raise ValueError(f"{path}: unsupported or invalid report-group catalog")
+    if "runbooks" in data and not isinstance(data["runbooks"], Mapping):
+        raise ValueError(f"{path}: runbooks must be a mapping")
+    if "legacy_run_id_patterns" in data:
+        patterns = data["legacy_run_id_patterns"]
+        if not isinstance(patterns, list) or any(not isinstance(row, Mapping) for row in patterns):
+            raise ValueError(f"{path}: legacy_run_id_patterns must be a list of mappings")
     return dict(data)
 
 

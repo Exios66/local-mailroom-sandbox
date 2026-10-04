@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from datetime import datetime
 
+import pytest
+import yaml
+
 from mailroom_sandbox.job import dated_reports
 from mailroom_sandbox.job.checkpoint import RunStore
 from mailroom_sandbox.report_paths import (
@@ -67,9 +70,6 @@ def test_experiment_prefix_is_explicit_or_known_grid():
 
 def test_report_groups_reject_duplicate_runbook_ids(tmp_path, monkeypatch):
     """A repeated runbook id in the catalog raises instead of last-key-wins."""
-    import pytest
-    import yaml
-
     from mailroom_sandbox import report_paths
 
     catalog = tmp_path / "report-groups.yaml"
@@ -84,6 +84,47 @@ def test_report_groups_reject_duplicate_runbook_ids(tmp_path, monkeypatch):
 
     with pytest.raises(yaml.constructor.ConstructorError, match="duplicate key"):
         report_paths._report_groups()
+
+
+@pytest.mark.parametrize("field, value", [
+    ("runbooks", None),
+    ("runbooks", []),
+    ("runbooks", "grid-1l4"),
+    ("runbooks", False),
+    ("legacy_run_id_patterns", None),
+    ("legacy_run_id_patterns", {}),
+    ("legacy_run_id_patterns", "grid-.*"),
+    ("legacy_run_id_patterns", False),
+    ("legacy_run_id_patterns", [None]),
+    ("legacy_run_id_patterns", ["grid-.*"]),
+    ("legacy_run_id_patterns", [{"pattern": "grid-.*"}, []]),
+])
+def test_report_groups_reject_invalid_nested_shapes(tmp_path, monkeypatch, field, value):
+    from mailroom_sandbox import report_paths
+
+    data = {"schema": "sandbox.report-groups/v1", field: value}
+    (tmp_path / "report-groups.yaml").write_text(yaml.safe_dump(data), encoding="utf-8")
+    monkeypatch.setattr(report_paths, "config_dir", lambda: tmp_path)
+
+    with pytest.raises(ValueError, match=field):
+        report_paths._report_groups()
+
+
+@pytest.mark.parametrize("fields", [
+    {},
+    {"runbooks": {}, "legacy_run_id_patterns": []},
+    {"runbooks": {"grid-1l4": "SAND-37"}, "legacy_run_id_patterns": [
+        {"pattern": "grid-.*", "report_group": "SAND-37"},
+    ]},
+])
+def test_report_groups_accept_valid_nested_shapes(tmp_path, monkeypatch, fields):
+    from mailroom_sandbox import report_paths
+
+    data = {"schema": "sandbox.report-groups/v1", **fields}
+    (tmp_path / "report-groups.yaml").write_text(yaml.safe_dump(data), encoding="utf-8")
+    monkeypatch.setattr(report_paths, "config_dir", lambda: tmp_path)
+
+    assert report_paths._report_groups() == data
 
 
 def test_report_groups_reuse_runbooks_for_multiple_configs():
