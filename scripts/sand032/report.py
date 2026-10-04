@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """SAND-032 report generator — every number is computed from recorded artifacts.
 
-Per run  → reports/<class-dir>/SAND032-<RUN>-REPORT.md
-Ladder   → reports/serving/SAND032-LADDER.md
+Per run  → reports/SAND-32/<class-dir>/SAND032-<RUN>-REPORT.md
+Ladder   → reports/serving/SAND-32/SAND032-LADDER.md
 Usage:
   scripts/sand032/report.py run  <run-id> [<run-id> ...]
   scripts/sand032/report.py ladder
 Inputs (all local): config/runs/<run>.yaml, data/runtime/runs/<run>/{spec.lock.json,
 dataset.jsonl,items.jsonl,cold_boot.json,vllm_metrics_{before,after}.json},
-reports/serving/<run>.serving.json, data/runtime/sand032/{logs/<run>.times,fleets.json}.
+reports/serving/SAND-32/<run>.serving.json, data/runtime/sand032/{logs/<run>.times,fleets.json}.
 Public HF mailroom-dataset only — no partner / proprietary data.
 """
 from __future__ import annotations

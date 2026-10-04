@@ -175,7 +175,7 @@
   (blocked), Granite 4.2-8B FP8 swap-in, second-L4 data parallel, scale-matrix
   cells — `sandbox runbook list --family improved`.
 - CLI: `sandbox runbook list|show|check|write`. Tests:
-  `tests/test_runbooks.py`. `docs/benchmark-l4.md` is now the pointer;
+  `tests/test_runbooks.py`. `docs/modal/benchmark-l4.md` is now the pointer;
   operator scripts are generated.
 
 ### Changed — monorepo target Digital-Mailroom (2026-09-24)
@@ -212,8 +212,8 @@
 - `VLLMSpec` gains `enable_prefix_caching` / `enforce_eager`; specialist and
   cost-eval run YAMLs pin the new posture. Scale-matrix cells keep
   `max_num_seqs: 256` and must export `MODAL_VLLM_MAX_NUM_SEQS=256` at deploy.
-- Docs: `deploy/README.md`, `docs/benchmark-l4.md`, `docs/scale-matrix.md`
-  (container topology), `docs/modal-serving-ops.md`, skill knobs.
+- Docs: `deploy/README.md`, `docs/modal/benchmark-l4.md`, `docs/scale-matrix.md`
+  (container topology), `docs/modal/modal-serving-ops.md`, skill knobs.
 
 ### Added — SAND-020 correspondence extraction-quality diagnosis (issue #21)
 
@@ -226,7 +226,7 @@
   scalars are not events; empty-list inventions zero overall; F1 TP requires
   typed score ≥ 1.0; isolated `exact_match` is a runner alias of overall.
 - **Offline diagnosis** of `run-20-correspondence-awq-c8` (fingerprint
-  `285f423d3708`): [`docs/extraction-quality-diagnosis.md`](docs/archive/extraction-quality-diagnosis.md)
+  `285f423d3708`): [`docs/archive/extraction-quality-diagnosis.md`](docs/archive/extraction-quality-diagnosis.md)
   (best/worst docs, token evidence, owner-locked 0.25 / 0.50 gates).
 - **FP16 twin YAML** [`config/runs/run-20-correspondence-fp16-c8.yaml`](config/runs/run-20-correspondence-fp16-c8.yaml)
   — same draw, `Qwen/Qwen3-8B`, **not run** (spend/auth blocked). Runbook:
@@ -260,7 +260,7 @@
 ### Added — SAND-018 single-class 20-contract Modal run + full-corpus logged sample (2026-09-25)
 
 - **`config/runs/run-20-contracts-specialist.yaml`** — the runbook's
-  [`docs/benchmark-l4.md`](docs/modal/benchmark-l4.md) L4 Qwen pins (`Qwen/Qwen3-8B`,
+  [`docs/modal/benchmark-l4.md`](docs/modal/benchmark-l4.md) L4 Qwen pins (`Qwen/Qwen3-8B`,
   L4, `v0.29.0`, `max_model_len=16384`, scaledown 120, `contracts_specialist_v33`
   local prompt) applied to a **20-contract** single-class run drawn as a seeded
   random sample (`sample_seed=42`) from the **full** corpus (`split: all`, 3,302
@@ -332,7 +332,7 @@
   llm-entity-extraction's MESSAGE_BOARD — do not open DMR cards on the
   local board.
 - Legacy `SANDBOX-050-*` mission archived → epic `SAND-010` (+ sub-cards).
-- Docs: `AGENTS.md`, `docs/sister-repos.md`, `docs/modal-doc-jobs.md` gate
+- Docs: `AGENTS.md`, `docs/setting-up/sister-repos.md`, `docs/modal/modal-doc-jobs.md` gate
   rows (`SAND-014`). Drift guard: `tests/test_governance_sand.py`.
 
 ### Added — DMR-078b requirements completeness (2026-09-24)
@@ -376,7 +376,7 @@
 - **CLI:** `sandbox run suite --suite track-a|track-b|full` (runbook /
   `--print-loop` / `--check` / `--execute`); `sandbox metrics estimate-suite
   --suite …`; `sandbox run benchmark-check --suite …`.
-- **Docs:** two-operator runbook in `docs/benchmark-l4.md` + `.env.example`
+- **Docs:** two-operator runbook in `docs/modal/benchmark-l4.md` + `.env.example`
   profile-name placeholders (no secrets). Spend posture unchanged: scaledown
   120, c=4, L4, max_containers=1, warm-once per track.
 
@@ -385,7 +385,7 @@
 - **Attended scaledown 120s** pinned in all five `run-30-*-specialist.yaml`
   (`engine.modal.scaledown_seconds`) + deploy default
   `MODAL_VLLM_SCALEDOWN_SECONDS=120`; restore **600** for unattended/overnight.
-- **Loud warm-once headers** on every run-30 YAML + `docs/benchmark-l4.md`
+- **Loud warm-once headers** on every run-30 YAML + `docs/modal/benchmark-l4.md`
   (one `sandbox-vllm` app through all five runs; teardown only after the fifth).
 - **`sandbox run benchmark-check`** enforces spend posture: scaledown=120,
   min_containers=0, max_containers=1, concurrency=4, limit=30, DMR-074 local
@@ -438,7 +438,7 @@
 
 ### Planned (not yet shipped — hub#54)
 
-- **DMR-059 — Modal doc-pipeline job queue plan**: `docs/modal-doc-jobs.md`
+- **DMR-059 — Modal doc-pipeline job queue plan**: `docs/modal/modal-doc-jobs.md`
   designs a `sandbox-doc-jobs` Modal app modeled on the Modal docs tutorial
   (`09_job_queues/doc_ocr_jobs.py`) — a CPU-side document job queue whose LLM
   is the already-deployed `sandbox-vllm` endpoint: bytes staged on a
@@ -448,7 +448,7 @@
   progress mirror, `modal run` local-entrypoint smoke, and
   `Function.from_name(...).spawn(...)` consumption. Three phases (mock
   smoke → live vLLM → CLI). **Not yet shipped** — the card is still
-  `in_progress` on the board and neither `docs/modal-doc-jobs.md` nor
+  `in_progress` on the board and neither `docs/modal/modal-doc-jobs.md` nor
   `.opencode/agents/` now ships the coding subagent roster (SAND-017); Modal
   doc-jobs code remains unshipped — this entry documents the queue plan only.
 
@@ -542,7 +542,7 @@
 
 - **DMR-058 — full CLI verification sweep + quickstart**: every `sandbox`
   command exercised against a fresh in-repo `.venv` (offline + live Hub
-  paths); `docs/QUICKSTART.md` is the verified full command reference
+  paths); `docs/setting-up/QUICKSTART.md` is the verified full command reference
   (install, flag-placement rules, workflows, exit codes, troubleshooting).
   New extras: `[pipeline]` (vendored langchain stack for the legalbench
   suite / live mailroom paths), `[dev]` now carries the Hub client
@@ -568,7 +568,7 @@
   `deploy/htcondor/` CHTC job templates — batch eval (in-job vLLM, works
   on the shared GPU Lab where `condor_ssh_to_job` is unavailable) and an
   owned-GPU server variant tied to the tunnel profile
-  (`docs/remote-serving.md` is the overview).
+  (`docs/setting-up/remote-serving.md` is the overview).
 - **Modal deploy hardening (SDK 1.5.5 / vLLM v0.28.0)**: `deploy/modal_vllm.py`
   now pins the Modal SDK (`modal==1.5.5` in the `[deploy]` extra), defaults to
   `vllm/vllm-openai:v0.28.0` (matching the local compose pin), caches vLLM
@@ -583,7 +583,7 @@
   (`tests/test_modal_vllm.py`) pin the argv builder, bearer env mapping,
   secret construction, cost guards, and the SDK/image pins. Docs:
   `deploy/README.md` (deploy → verify → cost → security → troubleshooting),
-  `.cursor/skills/modal/SKILL.md`, `docs/remote-serving.md`,
+  `.cursor/skills/modal/SKILL.md`, `docs/setting-up/remote-serving.md`,
   `config/.env.example`.
 
 - **DMR-027 — sandbox job CLI (`sandbox run`)**: a spec-driven, locked,
