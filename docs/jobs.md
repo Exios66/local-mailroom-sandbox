@@ -165,7 +165,7 @@ sandbox run start --job-mode modal --config <run.yaml> --watch
 
 For long Modal **endpoint** evals against `sandbox-vllm`, use the full mailroom watch
 TUI (in-tray + postage + `modal app logs -f`) in a second pane or browser tab —
-see **[mailroom-themed-logging.md](mailroom-themed-logging.md)**. `sandbox run … --watch`
+see **[mailroom-themed-logging.md](pretty-logging/mailroom-themed-logging.md)**. `sandbox run … --watch`
 only streams job progress lines, not vLLM dispatch logs.
 
 The worker runs the same checkout code on a CPU container against the

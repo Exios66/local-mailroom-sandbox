@@ -18,7 +18,7 @@ Public HF `mailroom-dataset` @ `ed7576b` only (no partner or proprietary data). 
 
 ## Figures
 
-![Per-class F1 for the isolated sorter](figures/sand032-s6-sorter1000-per-class-f1.svg)
+![Per-class F1 for the isolated sorter](../figures/sand032-s6-sorter1000-per-class-f1.svg)
 
 _Table view: **Per-class** below._
 

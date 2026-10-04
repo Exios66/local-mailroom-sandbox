@@ -729,7 +729,8 @@ def render_family(family: str, *, output_path: Path | None = None) -> str:
         "",
     ]
     for rid in list_runbook_ids(family=family):
-        body = render_markdown(rid, output_path=docs["runbooks"][rid])
+        # Resolve relative catalog links from the family file, not the nested card.
+        body = render_markdown(rid, output_path=output_path)
         # Drop the generated header from nested cards.
         nested = "\n".join(
             line for line in body.splitlines() if line != GENERATED_HEADER

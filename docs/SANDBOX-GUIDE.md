@@ -4,7 +4,7 @@ A single reference for setting up, configuring, and using every feature of
 `local-mailroom-sandbox`. This is the checklist; the deep-dive docs live in
 `docs/` subdirectory files linked throughout. For a fast on-ramp with the
 full verified command list, start with
-[`docs/QUICKSTART.md`](QUICKSTART.md).
+[`docs/QUICKSTART.md`](setting-up/QUICKSTART.md).
 
 ---
 
@@ -402,7 +402,7 @@ sandbox run start --job-mode modal --config config/runs/my-run.yaml --watch
 
 For endpoint evals against Modal vLLM, run the **mailroom watch TUI** in a second
 terminal or browser tab (`sandbox watch` / `sandbox watch --web`) to tail serve-app
-logs and track spend — see [mailroom-themed-logging.md](mailroom-themed-logging.md).
+logs and track spend — see [mailroom-themed-logging.md](pretty-logging/mailroom-themed-logging.md).
 
 ---
 

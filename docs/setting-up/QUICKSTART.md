@@ -3,8 +3,8 @@
 Everything you need to install the sandbox and drive it with `sandbox`.
 Every command below was exercised against a **fresh in-repo `.venv`** with
 `pip install -e ".[dev]"` (DMR-058) — no other install, no network required
-for the offline paths. Deep dives: [`SANDBOX-GUIDE.md`](SANDBOX-GUIDE.md)
-(setup/ops), [`jobs.md`](jobs.md), [`evals.md`](evals.md),
+for the offline paths. Deep dives: [`SANDBOX-GUIDE.md`](../SANDBOX-GUIDE.md)
+(setup/ops), [`jobs.md`](../jobs.md), [`evals.md`](../evals.md),
 [`remote-serving.md`](remote-serving.md), [`providers.md`](providers.md).
 
 ## 0. Install (in the repo, into a repo-local venv)
@@ -187,7 +187,7 @@ sandbox pipeline api                              # long-running API server
 
 ## 10. Mailroom live watch (long Modal jobs)
 
-Full guide: **[mailroom-themed-logging.md](mailroom-themed-logging.md)**.
+Full guide: **[mailroom-themed-logging.md](../pretty-logging/mailroom-themed-logging.md)**.
 
 ```bash
 # Pane A: run the eval

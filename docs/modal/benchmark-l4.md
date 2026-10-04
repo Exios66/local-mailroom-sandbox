@@ -20,9 +20,9 @@ Generated cards:
 | Path | Contents |
 | --- | --- |
 | [`docs/runbooks/README.md`](../runbooks/README.md) | Index + anti-patterns |
-| [`docs/runbooks/l4-qwen3-8b.md`](../runbooks/l4-qwen3-8b.md) | Full 5×30 on one L4 / one container |
-| [`docs/runbooks/baseline.md`](../runbooks/baseline.md) | Family rollup (tracks + N=20) |
-| [`docs/runbooks/improved.md`](../runbooks/improved.md) | AWQ / c8 / Granite / second L4 / scale-matrix |
+| [`docs/runbooks/l4-qwen3-8b.md`](../runbooks/archived-experiments/qwen/STALE/l4-qwen3-8b.md) | Full 5×30 on one L4 / one container |
+| [`docs/runbooks/baseline.md`](../runbooks/archived-experiments/qwen/STALE/baseline.md) | Family rollup (tracks + N=20) |
+| [`docs/runbooks/improved.md`](../runbooks/specialists/contracts/improved.md) | AWQ / c8 / Granite / second L4 / scale-matrix |
 
 Live numeric pins (model, GPU, `max_containers=1`, `max_model_len=16384`, …)
 are declared in `serving.baseline` and tested against `deploy/modal_vllm.py`,

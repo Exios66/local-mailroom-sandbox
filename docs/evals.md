@@ -112,7 +112,7 @@ sandbox datasets pull --revision <sha> --config default --split train
 
 `datasets prepare` (and notebooks `01`–`03`) clean the offline catalog into
 `data/runtime/prepared/` with no network — see
-[`docs/docker-offline.md`](docker-offline.md). Note: `prepare` output feeds
+[`docs/docker-offline.md`](setting-up/docker-offline.md). Note: `prepare` output feeds
 the notebooks; JOB runs score the locked `dataset.jsonl` prepared by
 `run preflight` — for live data through the eval surface, use a run spec with
 a Hub `dataset:` block (below).

@@ -26,7 +26,7 @@ sandbox namespaces. Three reasons, in short:
 
 So: `api-*` run ids + `profile: openrouter` → this CLI. Everything else →
 `config/runs/` via the `sandbox` CLI. The full comparison table, and the paths
-that are frozen by a test, are in [`../docs/LAYOUT.md`](../docs/LAYOUT.md).
+that are frozen by a test, are in [`../docs/setting-up/LAYOUT.md`](../docs/setting-up/LAYOUT.md).
 
 ## What runs
 
