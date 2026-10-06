@@ -56,6 +56,102 @@ def test_run_job_mock_completes(tmp_path):
     assert summary["scores"]["exact_match"] == 1.0
 
 
+def test_successful_run_fires_report_writers(tmp_path, monkeypatch):
+    """A completed job invokes the dated-report and grid-card writers once."""
+    store = _prepped_store(tmp_path, rows=1)
+    report_calls = []
+    card_calls = []
+
+    def record_report(target, **kwargs):
+        """Capture dated-report writer arguments."""
+        report_calls.append((target, kwargs))
+
+    def record_card(target, **kwargs):
+        """Capture grid-card writer arguments."""
+        card_calls.append((target, kwargs))
+
+    monkeypatch.setattr("mailroom_sandbox.job.dated_reports.maybe_write_run_reports", record_report)
+    monkeypatch.setattr("mailroom_sandbox.job.grid_cards.maybe_write_card", record_card)
+
+    summary = runner.run_job(store, mock=None)
+
+    assert summary["state"] == "done"
+    assert len(report_calls) == len(card_calls) == 1
+    for target, kwargs in (report_calls[0], card_calls[0]):
+        assert target is store
+        assert kwargs["scores"] == summary["scores"]
+        assert isinstance(kwargs["wall_seconds"], float)
+
+
+def test_whole_run_forwards_report_group_to_scoring_runner(tmp_path, monkeypatch):
+    """Isolated eval receives the lock's report_group as score_metadata."""
+    from mailroom_sandbox.eval import runners as eval_runners
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    store = RunStore(tmp_path / "agent-run")
+    store.write_lock(
+        {
+            "run_id": store.run_id,
+            "task": "judge",
+            "profile": "ollama",
+            "engine": {"model": "test-model", "modal": None},
+            "job": {"mock": True, "concurrency": 1},
+            "dataset": {},
+            "report_group": "SAND-123",
+        }
+    )
+    captured = {}
+
+    def fake_isolated_eval(task, **kwargs):
+        """Record isolated-eval kwargs without running the suite."""
+        captured["task"] = task
+        captured["kwargs"] = kwargs
+        return {"n": 0, "scores": {"n": 0}}
+
+    monkeypatch.setattr(runner, "_agent_task_names", lambda: {"judge"})
+    monkeypatch.setattr(eval_runners, "run_isolated_eval", fake_isolated_eval)
+
+    summary = runner._run_whole_run(store, "judge", mock=True, model=None, profile="ollama")
+
+    assert summary["state"] == "done"
+    assert captured["task"] == "judge"
+    assert captured["kwargs"]["score_metadata"] == {"report_group": "SAND-123"}
+
+
+def test_whole_run_local_vs_api_forwards_score_metadata(tmp_path, monkeypatch):
+    """local_vs_api whole-run scoring receives the lock's report_group."""
+    from mailroom_sandbox.eval import runners as eval_runners
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    store = RunStore(tmp_path / "lva-run")
+    store.write_lock(
+        {
+            "run_id": store.run_id,
+            "task": "local_vs_api",
+            "profile": "ollama",
+            "engine": {"model": "test-model", "modal": None},
+            "job": {"mock": True, "concurrency": 1},
+            "dataset": {},
+            "report_group": "SAND-123",
+        }
+    )
+    captured = {}
+
+    def fake_local_vs_api_eval(**kwargs):
+        """Record local-vs-API eval kwargs without running the suite."""
+        captured["kwargs"] = kwargs
+        return {"n": 0, "scores": {"n": 0}}
+
+    monkeypatch.setattr(eval_runners, "run_local_vs_api_eval", fake_local_vs_api_eval)
+
+    summary = runner._run_whole_run(
+        store, "local_vs_api", mock=True, model=None, profile="ollama"
+    )
+
+    assert summary["state"] == "done"
+    assert captured["kwargs"]["score_metadata"] == {"report_group": "SAND-123"}
+
+
 def test_run_job_all_items_failed_writes_failed_not_done(tmp_path, monkeypatch):
     """hub#39: a run where EVERY item errored must write state=failed with a
     last_error, exit 1 (CLI maps state != done), and never append a 'done'

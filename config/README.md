@@ -26,7 +26,7 @@
 > (`vllm-local` / `vllm-remote` / `modal-vllm`). The real-spend OpenRouter
 > `api-*` specs live in [`../api-evals/config/runs/`](../api-evals/config/runs/)
 > and run through `python ../api-evals/run_api_evals.py`. See
-> [`../docs/LAYOUT.md`](../docs/LAYOUT.md).
+> [`../docs/setting-up/LAYOUT.md`](../docs/setting-up/LAYOUT.md).
 
 ## Profile selection
 

@@ -11,8 +11,8 @@ finalized suite card, all under ``reports/SAND-37/``::
     reports/SAND-37/probes/<specialist>/<run_id>.card.md  # SAND-40 validation probes
 
 SAND-40 probe cards stay in ``probes/``. They are not cells of the 1×L4 or
-2×L4 suite, and ``collect_master`` never reads that directory, so a probe
-cannot fill the master scorecard.
+2×L4 suite. ``collect_master`` reads them only for the master card's matched
+probe appendix and never pools them, so a probe cannot fill a scorecard column.
 
 The card follows the S2a/S2b score-card template: a conditions table, then one
 Metric | Value table grouped into Run, Time, Cost, Tokens, Throughput, Latency,
@@ -97,10 +97,10 @@ def _error_kind(error: Any) -> str:
 
 
 def _probe_run(run_id: str) -> bool:
-    """True for a SAND-40 validation probe. Those cards are not scorecard cells."""
-    from mailroom_sandbox.job.specialist_posture import SAND40_PROBE_CELLS
+    """True for a SAND-40 validation probe or gate check. Those cards are not scorecard cells."""
+    from mailroom_sandbox.job.specialist_posture import SAND40_CHECK_CELLS, SAND40_PROBE_CELLS
 
-    return run_id in SAND40_PROBE_CELLS
+    return run_id in SAND40_PROBE_CELLS or run_id in SAND40_CHECK_CELLS
 
 
 def card_dir(task: str, replicas: int, *, repo: Path | None = None, run_id: str | None = None) -> Path:
@@ -166,6 +166,92 @@ def _engine_block(store: RunStore, replicas: int) -> dict[str, Any]:
 # ── per-run card ─────────────────────────────────────────────────────────────
 
 
+# Characters per Qwen3 token for legal / business English, measured by the per-run fits below on
+# the SAND-37/39/40 contracts cells (4.39–4.58). Used when a run cannot be fitted: every document
+# truncated to the same cap (frozen merger), or chunked runs whose re-samples blur the call count.
+FALLBACK_CHARS_PER_TOKEN = 4.5
+_FIT_RATIO_RANGE = (3.0, 6.0)
+
+
+def _input_profile(store: RunStore, posture: Mapping[str, Any], *, split=None) -> dict[str, tuple[int, int]]:
+    """``item_id -> (model calls, document characters sent)`` under the run's input knobs."""
+    from mailroom_sandbox.eval.agents import _doc_text, chunk_window
+
+    rows = store.dataset_rows()
+    cap = int(posture.get("max_input_chars") or 0)
+    out: dict[str, tuple[int, int]] = {}
+    if posture.get("chunk_chars"):
+        window, overlap = chunk_window(
+            cap, int(posture["chunk_chars"]), int(posture.get("overlap_chars") or 8_000)
+        )
+        split = split or _vendor_split_chunks()
+        for r in rows:
+            chunks = split(_doc_text(dict(r)), window, overlap)
+            out[str(r.get("id"))] = (len(chunks), sum(len(c) for c in chunks))
+        return out
+    for r in rows:
+        try:
+            n = len(_doc_text(dict(r)))
+        except Exception:  # noqa: BLE001 — a row without text just has no profile
+            continue
+        out[str(r.get("id"))] = (1, min(n, cap) if cap else n)
+    return out
+
+
+def token_split(docs: list[Mapping[str, Any]], *, chunked: bool = False) -> dict[str, Any] | None:
+    """Split prompt tokens into instructions/template and document text; completion is the output.
+
+    Fits ``prompt_tokens = I × calls + chars / r`` over successful documents (I = instruction
+    and template tokens per call, r = characters per token). When the fit is not identifiable —
+    every document cut to the same cap, or a chunked run whose re-samples add uncounted calls —
+    document tokens use ``FALLBACK_CHARS_PER_TOKEN`` and instructions take the remainder.
+    """
+    pts = [
+        (float(d["prompt_tokens"]), float(d["calls"]), float(d["input_chars"]), float(d.get("completion_tokens") or 0))
+        for d in docs
+        if d.get("ok") and d.get("prompt_tokens") and d.get("calls") and d.get("input_chars")
+    ]
+    if not pts:
+        return None
+    n = len(pts)
+    ratio, method = None, "fallback"
+    xs = [x for _, _, x, _ in pts]
+    mean_x = sum(xs) / n
+    spread = (sum((x - mean_x) ** 2 for x in xs) / n) ** 0.5 / mean_x if mean_x else 0.0
+    if not chunked and n >= 8 and spread >= 0.1:
+        scc = sum(c * c for _, c, _, _ in pts)
+        scx = sum(c * x for _, c, x, _ in pts)
+        sxx = sum(x * x for x in xs)
+        scp = sum(c * p for p, c, _, _ in pts)
+        sxp = sum(x * p for p, _, x, _ in pts)
+        det = scc * sxx - scx * scx
+        if det:
+            inst = (scp * sxx - scx * sxp) / det
+            slope = (scc * sxp - scx * scp) / det
+            if slope > 0 and inst > 0 and _FIT_RATIO_RANGE[0] <= 1 / slope <= _FIT_RATIO_RANGE[1]:
+                ratio, method = 1 / slope, "fit"
+    ratio = ratio or FALLBACK_CHARS_PER_TOKEN
+    prompt = sum(p for p, _, _, _ in pts)
+    document = min(prompt, sum(x for _, _, x, _ in pts) / ratio)
+    calls = sum(c for _, c, _, _ in pts)
+    completion = sum(o for _, _, _, o in pts)
+    return {
+        "documents": n,
+        "method": method,
+        "chars_per_token": ratio,
+        "calls": calls,
+        "instruction_tokens": prompt - document,
+        "document_tokens": document,
+        "completion_tokens": completion,
+        "instruction_per_call": (prompt - document) / calls if calls else None,
+        "per_document": {
+            "instruction": (prompt - document) / n,
+            "document": document / n,
+            "completion": completion / n,
+        },
+    }
+
+
 def collect_card(
     store: RunStore,
     *,
@@ -192,6 +278,11 @@ def collect_card(
     posture = posture_for_run(run_id) or {}
 
     items = store.load_items()
+    try:
+        profile = _input_profile(store, posture) if posture else {}
+    except Exception:  # noqa: BLE001 — the split is descriptive; never fail a card over it
+        _log.warning("input profile unavailable for %s", run_id, exc_info=True)
+        profile = {}
     rec = metrics.serving_record_from_store(store, wall_seconds=wall_seconds, scores=scores)
     n = len(items)
     ok_rows = [i for i in items if i.get("ok") is not False]
@@ -254,7 +345,7 @@ def collect_card(
     agents = _d(prompt.get("agents"))
     prompt_file = next((str(_d(v).get("file")) for v in agents.values() if _d(v).get("file")), None)
 
-    return {
+    card = {
         "schema": SCHEMA,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "run_id": run_id,
@@ -360,11 +451,15 @@ def collect_card(
                 "latency_seconds": float(i["latency_ms"]) / 1000.0 if i.get("latency_ms") is not None else None,
                 "prompt_tokens": i.get("prompt_tokens"),
                 "completion_tokens": i.get("completion_tokens"),
+                "calls": (profile.get(str(i.get("item_id"))) or (None, None))[0],
+                "input_chars": (profile.get(str(i.get("item_id"))) or (None, None))[1],
                 "error": str(i.get("error"))[:160] if i.get("error") else None,
             }
             for i in items
         ],
     }
+    card["tokens"]["split"] = token_split(card["documents"], chunked=bool(posture.get("chunk_chars")))
+    return card
 
 
 # ── formatting ───────────────────────────────────────────────────────────────
@@ -405,6 +500,26 @@ def _engine_text(e: Mapping[str, Any]) -> str:
     )
 
 
+def _split_rows(split: Mapping[str, Any] | None) -> list[tuple[str, str]]:
+    """Per-document token split rows: instructions/template, document text, output."""
+    if not split:
+        return []
+    per = split["per_document"]
+    total = per["instruction"] + per["document"] + per["completion"]
+    basis = (
+        f"fit across documents, {split['chars_per_token']:.2f} chars/token"
+        if split["method"] == "fit"
+        else f"document chars ÷ {split['chars_per_token']:.1f} chars/token; instructions are the remainder"
+    )
+    return [
+        ("Per document: instructions + template", f"{_f(per['instruction'], 0)} ({_pct(per['instruction'] / total)})"),
+        ("Per document: document text", f"{_f(per['document'], 0)} ({_pct(per['document'] / total)})"),
+        ("Per document: output", f"{_f(per['completion'], 0)} ({_pct(per['completion'] / total)})"),
+        ("Instruction tokens per model call", f"{_f(split['instruction_per_call'], 0)} over {_f(split['calls'], 0)} calls"),
+        ("Token split basis", basis),
+    ]
+
+
 def _card_rows(c: Mapping[str, Any]) -> list[tuple[str, str]]:
     """(metric, value) rows in template order; section headers carry an empty value."""
     cond, t, cost, tok = c["conditions"], c["time"], c["cost"], c["tokens"]
@@ -434,6 +549,7 @@ def _card_rows(c: Mapping[str, Any]) -> list[tuple[str, str]]:
         ("Completion tokens", f"{_f(tok['completion'])} ({_pct(tok['completion_share'])})"),
         ("Total tokens", _f(tok["total"])),
         ("Tokens per document", _f(tok["per_document"], 0)),
+        *_split_rows(tok.get("split")),
         ("Completion p95 / max (ok docs)", f"{_f(tok['completion_p95'], 0)} / {_f(tok['completion_max'])}"),
         ("**Throughput**", ""),
         ("Tokens / second", _f(thr["tokens_per_second"], 1)),
@@ -608,13 +724,84 @@ def _sampling_rows(cond: Mapping[str, Any]) -> list[str]:
     return rows
 
 
+# ── SAND-040 chunk gate ──────────────────────────────────────────────────────
+
+
+def _vendor_split_chunks():
+    """The pipeline's own splitter, so the gate counts exactly the windows the agent sends."""
+    from mailroom_sandbox.runtime import _prepend_sys_path, resolve_mailroom_src
+
+    src = resolve_mailroom_src()
+    if src is not None:
+        _prepend_sys_path(src)
+    from langchain_agents.specialist_agents import _SpecialistBase  # type: ignore
+
+    return _SpecialistBase._split_chunks
+
+
+def expected_chunks(rows: list[Mapping[str, Any]], knobs: Mapping[str, Any], split=None) -> list[int]:
+    """Requests each document needs under the run's chunk knobs (1 when it fits one window)."""
+    from mailroom_sandbox.eval.agents import _doc_text, chunk_window
+
+    window, overlap = chunk_window(
+        int(knobs["max_input_chars"]), int(knobs["chunk_chars"]), int(knobs.get("overlap_chars") or 8_000)
+    )
+    split = split or _vendor_split_chunks()
+    return [len(split(_doc_text(dict(r)), window, overlap)) for r in rows]
+
+
+def chunk_gate(store: RunStore, *, split=None) -> list[str]:
+    """Errors when a chunked run may have lost windows; empty means the gate passes.
+
+    ``extract_chunked`` skips a chunk whose call fails (for example a request vLLM rejects for
+    exceeding the window), so a document can be ok with part of its text unread. vLLM counts
+    only accepted requests: with every chunk accepted, requests − length-capped finishes
+    (each allows at most one re-sample) is at least the number of chunks the documents need.
+    """
+    from mailroom_sandbox.job.specialist_posture import posture_for_run
+
+    knobs = posture_for_run(store.run_id) or {}
+    if not knobs.get("chunk_chars"):
+        return [f"{store.run_id}: not a chunked run"]
+    card = collect_card(store)
+    q = card["quality"]
+    errors: list[str] = []
+    if q["errors"] or q["ok"] != card["n"]:
+        errors.append(f"documents ok {q['ok']}/{card['n']} (errors {q['errors']}: {q.get('error_kinds') or {}})")
+    if q.get("parse_errors"):
+        errors.append(f"parse errors {q['parse_errors']}")
+    tel = card.get("engine_telemetry") or {}
+    reps = tel.get("replicas") or []
+    if not tel.get("captured") or not reps:
+        errors.append("vLLM telemetry not captured (run scrape-metrics before and after)")
+        return errors
+    rows = store.dataset_rows()
+    if len(rows) != card["n"]:
+        errors.append(f"dataset rows {len(rows)} != n {card['n']}")
+        return errors
+    need = sum(expected_chunks(rows, knobs, split))
+    requests = sum(r.get("requests") or 0 for r in reps)
+    capped = sum(r.get("length_finishes") or 0 for r in reps)
+    if requests - capped < need:
+        errors.append(
+            f"vLLM accepted {requests:.0f} requests ({capped:.0f} length-capped) but the documents need "
+            f"{need} chunk calls; some chunks were rejected or lost"
+        )
+    return errors
+
+
 def maybe_write_card(store: RunStore, **kwargs: Any) -> dict[str, Path]:
     """Runner hook: grid and SAND-040 cells, never fails the scored job."""
-    from mailroom_sandbox.job.specialist_posture import GRID_CELLS, SAND40_CELLS, SAND40_PROBE_CELLS
+    from mailroom_sandbox.job.specialist_posture import (
+        GRID_CELLS,
+        SAND40_CELLS,
+        SAND40_CHECK_CELLS,
+        SAND40_PROBE_CELLS,
+    )
 
     try:
         lock = store.read_lock() or {}
-        if str(lock.get("run_id") or store.run_id) not in (GRID_CELLS | SAND40_CELLS | SAND40_PROBE_CELLS):
+        if str(lock.get("run_id") or store.run_id) not in (GRID_CELLS | SAND40_CELLS | SAND40_PROBE_CELLS | SAND40_CHECK_CELLS):
             return {}
         if _d(lock.get("job")).get("mock") or not store.load_items():
             return {}
@@ -699,9 +886,30 @@ def _pooled(cards: list[Mapping[str, Any]], replicas: int) -> dict[str, Any]:
     }
 
 
+# Record figures (reports/SAND-37/figures/record/, one chart per PNG) embedded in each suite card:
+# the shape's own cost and latency charts, then the shared 1x-vs-2x L4 comparison.
+SUITE_FIG_DIR = "figures/record"
+SUITE_FIGURES: dict[int, tuple[tuple[str, str], ...]] = {
+    1: (
+        ("1xL4-C8-n50-cost", "Cost per 1,000 ok documents, Experiment 2 (1x L4 C=8 n=50)"),
+        ("1xL4-C8-n50-latency", "Latency p50 to p99, Experiment 2 (1x L4 C=8 n=50)"),
+        ("1x-vs-2xL4-cost", "Cost per 1,000 ok documents, 1x vs 2x L4 on the same 250 documents"),
+        ("1x-vs-2xL4-throughput", "Throughput, 1x vs 2x L4 on the same 250 documents"),
+    ),
+    2: (
+        ("2xL4-C32-n50-cost", "Cost per 1,000 ok documents, Experiment 3 (2x L4 C=32 n=50)"),
+        ("2xL4-C32-n50-latency", "Latency p50 to p99, Experiment 3 (2x L4 C=32 n=50)"),
+        ("1x-vs-2xL4-cost", "Cost per 1,000 ok documents, 1x vs 2x L4 on the same 250 documents"),
+        ("1x-vs-2xL4-throughput", "Throughput, 1x vs 2x L4 on the same 250 documents"),
+    ),
+}
+SUITE_EXPERIMENTS = {1: "Experiments 1–2", 2: "Experiment 3"}
+
+
 def collect_suite(replicas: int, *, repo: Path | None = None) -> dict[str, Any]:
     """Gather the committed per-run card JSON for one fleet shape."""
     root = (repo or repo_root()) / ROOT_REL / SHAPE_DIRS[int(replicas)]
+    fig_dir = (repo or repo_root()) / ROOT_REL / SUITE_FIG_DIR
     found: dict[str, dict[str, Any]] = {}
     for path in sorted(root.glob("*/*.card.json")):
         data = _read_json(path)
@@ -724,6 +932,7 @@ def collect_suite(replicas: int, *, repo: Path | None = None) -> dict[str, Any]:
         "cells": [{"run_id": c["run_id"], "n": c["n"], "task": c["task"], "reported": bool(c["card"])} for c in cells],
         "pooled": {"all": _pooled(present, replicas), "n20": by_n[20], "n50": by_n[50]},
         "cards": {c["run_id"]: c["card"] for c in cells if c["card"]},
+        "figures": [stem for stem, _ in SUITE_FIGURES[int(replicas)] if (fig_dir / f"{stem}.png").is_file()],
     }
 
 
@@ -745,7 +954,7 @@ def render_suite_md(suite: Mapping[str, Any]) -> str:
     reported = sum(1 for c in suite["cells"] if c["reported"])
     first = next(iter(cards.values()), None)
     lines = [
-        f"# SAND-37 — {shape} · C{8 if replicas == 1 else 32} score & cost card",
+        f"# {shape} · C{8 if replicas == 1 else 32} score & cost card ({SUITE_EXPERIMENTS[replicas]})",
         "",
         f"**Cells reported:** {reported} of {total} · **Runbook:** `{suite['runbook']}` · "
         "**Model:** Qwen/Qwen3-8B-AWQ · L4 @ $0.80/GPU-hr",
@@ -790,6 +999,12 @@ def render_suite_md(suite: Mapping[str, Any]) -> str:
     for label, fn in pooled_rows:
         lines.append(f"| {label} | {fn(pooled['n20'])} | {fn(pooled['n50'])} | {fn(pooled['all'])} |")
     lines.append("")
+    have = set(suite.get("figures") or ())
+    figs = [(stem, alt) for stem, alt in SUITE_FIGURES[replicas] if stem in have]
+    if figs:
+        lines += ["## Figures", ""]
+        for stem, alt in figs:
+            lines += [f"![{alt}](../{SUITE_FIG_DIR}/{stem}.png)", ""]
     for n in (20, 50):
         cells = [c for c in suite["cells"] if c["n"] == n]
         header = " | ".join(_LABEL[c["task"]] for c in cells)

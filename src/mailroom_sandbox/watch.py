@@ -350,6 +350,10 @@ def scorecard_lines(store: RunStore, *, serving_dir: Path, width: int = 100, on:
     ]
     rec: dict[str, Any] = {}
     path = serving_dir / f"{snap['run_id']}.serving.json"
+    if not path.is_file():
+        matches = sorted(serving_dir.rglob(path.name))
+        if len(matches) == 1:
+            path = matches[0]
     if path.is_file():
         try:
             rec = json.loads(path.read_text())
@@ -719,6 +723,8 @@ def compose_watch_state(
             run_started = t  # latest (re)start of this run
     if run_started is None and items:
         run_started = wd._ts(items[0].get("ts"))
+    lock = (store.read_lock() if store.lock_path.is_file() else None) or {}
+    job_knobs = (lock.get("job") or {}) if isinstance(lock, dict) else {}
     dog = wd.assess(
         items=items,
         state=str(cp_state or ""),
@@ -730,6 +736,8 @@ def compose_watch_state(
         log_lines=boot_lines,
         last_log_ts=sink.last_ts,
         logs_enabled=sink.last_ts is not None,
+        concurrency=job_knobs.get("concurrency"),
+        max_wall_s=job_knobs.get("max_wall_seconds"),
     )
     log_src = display_tail(sink, max(14, int(log_rows)))
     logs = [{"text": line, "role": classify_log_line(line), "source": "modal"} for line in log_src]
