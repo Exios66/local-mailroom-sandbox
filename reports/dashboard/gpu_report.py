@@ -2,7 +2,7 @@
 
 Called by ``export_hub_reports.py``; it writes ``MODAL-VLLM-GPU-REPORT.md`` and ``figures/gpu/*.svg``.
 Every SAND-032 number comes from ``hub_data.json["fleet"]``: each serving export
-(``reports/serving/sand032-*.serving.json``) cross-checked against its run report by
+(``reports/serving/SAND-32/sand032-*.serving.json``) cross-checked against its run report by
 ``hub_extract.sand032_fleet``. The two pre-SAND-032 2×L4 runs are read from their tracked serving
 exports and checked against their run reports here.
 
@@ -50,8 +50,8 @@ SWEEP_BY_TASK = {"correspondence": "sand032-s3-corr50", "insurance claims": "san
                  "corporate records": "sand032-s3-corporate50", "contracts": "sand032-s3-contracts50",
                  "merger agreements": "sand032-s3-merger50"}
 # Pre-SAND-032 2×L4 runs: serving exports are on a 1-replica basis; the reports bill both replicas.
-EARLY_2X = [("run-20-correspondence-specialist-awq", "correspondence/RUN-20-CORRESPONDENCE-SPECIALIST-AWQ-REPORT.md"),
-            ("run-50-correspondence-specialist-awq", "correspondence/RUN-50-CORRESPONDENCE-SPECIALIST-AWQ-REPORT.md")]
+EARLY_2X = [("run-20-correspondence-specialist-awq", "SAND-32/correspondence/RUN-20-CORRESPONDENCE-SPECIALIST-AWQ-REPORT.md"),
+            ("run-50-correspondence-specialist-awq", "SAND-32/correspondence/RUN-50-CORRESPONDENCE-SPECIALIST-AWQ-REPORT.md")]
 
 
 # ------------------------------------------------------------------ derived metrics
@@ -265,7 +265,7 @@ PREMIUMS = (0.5, 0.25, 0.1)
 
 
 def workload(r):
-    return CLASS_OF_DIR[r["report"].split("/")[0]]
+    return next(CLASS_OF_DIR[part] for part in r["report"].split("/") if part in CLASS_OF_DIR)
 
 
 def best_by_class(F) -> dict:
@@ -391,6 +391,7 @@ def fig_api(D, X, api):
 
 # ------------------------------------------------------------------ report
 def report(D, X, shas) -> tuple[str, dict[str, str], dict]:
+    """Build the GPU spend report body, figures, and supporting tables."""
     F, sp, rate = D["fleet"], D["spend"], D["l4_usd_per_hour"]
     groups = labelled(F)
     by = {k: rows for k, _, rows in groups}
@@ -810,8 +811,8 @@ The pre-SAND-032 correspondence runs (both at sandbox commit `{e_commit}`, per t
 
 | Source | What it gives |
 | --- | --- |
-| `local-mailroom-sandbox/reports/serving/sand032-*.serving.json` | per-run wall, boot, tokens, throughput, latency, slot occupancy, GPU $ |
-| `local-mailroom-sandbox/reports/*/SAND032-*-REPORT.md` | engine flags, busy-window GPU $, per-replica vLLM `/metrics` |
+| `local-mailroom-sandbox/reports/serving/SAND-32/sand032-*.serving.json` | per-run wall, boot, tokens, throughput, latency, slot occupancy, GPU $ |
+| `local-mailroom-sandbox/reports/SAND-32/*/SAND032-*-REPORT.md` | engine flags, busy-window GPU $, per-replica vLLM `/metrics` |
 | `local-mailroom-sandbox/reports/serving/QWEN3-L4-LADDER-SUMMARY.md` | spend ledger, incident, runbook findings |
 | `local-mailroom-sandbox/reports/dashboard/hub_data.json` | the cross-checked extract every number here is read from |
 | `eval-environment/reports/api-comparisons/` (via the hub) | hosted-API legs with token counts and cost |

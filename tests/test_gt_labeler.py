@@ -1,4 +1,4 @@
-"""SAND-042: chunked v9.1 GT labeler posture, spend cap, and prompts."""
+"""SAND-045: chunked v9.1 GT labeler posture, spend cap, and prompts."""
 
 from __future__ import annotations
 

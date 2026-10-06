@@ -6,7 +6,7 @@ Measured Modal spend (fleet-window ledger estimate): **$2.80 of the $5.00 cap** 
 stood at $1.21 after stages 1–5. The fleet-window estimate under-counts Modal billing (section 7, finding 5):
 reconcile against the Modal usage page.
 
-## 1. Knob ladder (1×L4, correspondence n=20, c8, same 20 docs) — [SAND032-LADDER.md](SAND032-LADDER.md)
+## 1. Knob ladder (1×L4, correspondence n=20, c8, same 20 docs) — [SAND032-LADDER.md](SAND-32/SAND032-LADDER.md)
 
 | rung | score | schema | wall s | tok/s | TTFT s | $/doc busy | gate |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -39,7 +39,7 @@ L3/L4 were folded into L5 (user-directed); L2's schema dip did not reproduce in 
 | merger_agreement | MAUD answer accuracy | 4.0% (44/50 ok) | 342.4 | 1477 | 119.0 / 211.4 | 0.003460 |
 | merger (MAUD v1 prompt) | MAUD answer accuracy | **8.5%** (clean subset 10.7%) | 442.5 | 1383 | 183.5 / 315.2 | 0.005461 |
 
-*Correction (2026-09-28): the MAUD-prompt row's $/doc (0.005461) comes from the serving export, which also bills that run's 122.8 s cold boot; on the busy-window basis used by every other row it is **0.004275** ([run report](../merger/SAND032-S5-MERGER50-MAUD-REPORT.md)).*
+*Correction (2026-09-28): the MAUD-prompt row's $/doc (0.005461) comes from the serving export, which also bills that run's 122.8 s cold boot; on the busy-window basis used by every other row it is **0.004275** ([run report](../SAND-32/merger/SAND032-S5-MERGER50-MAUD-REPORT.md)).*
 
 c32 on 2×L4 cut correspondence GPU $/doc a further 30% vs c16 (0.000144 vs 0.000206).
 Replica split under short bursts was uneven (35/15 on corr50) — Modal router, not vLLM.
@@ -111,4 +111,4 @@ Ledger at close: $2.80 cumulative (fleet-window estimate).
 
 ![Production vs v2 prompt, paired](figures/sand032-v2-prompts.svg)
 
-*Table views: sections 1, 2 and 7 above, and [SAND032-V2-PROMPT-PROMOTION.md](SAND032-V2-PROMPT-PROMOTION.md).*
+*Table views: sections 1, 2 and 7 above, and [SAND032-V2-PROMPT-PROMOTION.md](SAND-32/SAND032-V2-PROMPT-PROMOTION.md).*

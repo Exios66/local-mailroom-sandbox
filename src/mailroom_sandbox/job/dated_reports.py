@@ -2,15 +2,13 @@
 
 New runs write quality + serving artifacts under::
 
-    reports/YYYY-MM-DD/<specialist>/RUN-{n}-{SHORT}-{QUANT}-{replicas}L4-C{conc}-REPORT.md
-    reports/YYYY-MM-DD/<specialist>/RUN-{n}-{SHORT}-{QUANT}-{replicas}L4-C{conc}-SERVING.md
-    reports/YYYY-MM-DD/<specialist>/RUN-{n}-{SHORT}-{QUANT}-{replicas}L4-C{conc}.serving.json
+    reports/YYYY-MM-DD/<specialist>/...  # unassociated run
+    reports/SAND-XX/YYYY-MM-DD/<specialist>/...  # associated sweep
 
-``YYYY-MM-DD`` is the **local** calendar date. Historical folders
-(``reports/merger/``, ``reports/serving/<run_id>.serving.json`` as the only
-copy, …) stay untouched. A TUI-compatible copy still lands in
-``reports/serving/<run_id>.serving.json`` so ``sandbox watch`` scorecards
-keep working.
+``YYYY-MM-DD`` is the **local** calendar date. Machine-readable serving
+exports use ``reports/serving/SAND-XX/<shape>/n=<N>/`` for associated sweeps;
+unassociated runs use the general dated tree. Existing flat exports remain
+readable by the scorecard command.
 """
 
 from __future__ import annotations
@@ -23,6 +21,7 @@ from typing import Any, Mapping
 
 from mailroom_sandbox.job.checkpoint import RunStore
 from mailroom_sandbox.paths import repo_root
+from mailroom_sandbox.report_paths import experiment_prefix
 
 _log = logging.getLogger("mailroom_sandbox.job.dated_reports")
 
@@ -82,6 +81,12 @@ def _cell_n(store: RunStore, lock: Mapping[str, Any], items: list) -> int:
     return max(len(items), 1)
 
 
+def _dated_reports_root(store: RunStore, root: Path) -> Path:
+    lock = store.read_lock() or {}
+    prefix = experiment_prefix(store.run_id, lock)
+    return root / "reports" / prefix if prefix else root / "reports"
+
+
 def cell_stem(store: RunStore, *, lock: Mapping[str, Any] | None = None) -> tuple[str, str] | None:
     """Return ``(specialist_dir, filename_stem)`` or None if not a specialist cell."""
     lock = lock if lock is not None else (store.read_lock() or {})
@@ -115,7 +120,7 @@ def dated_cell_dir(
         return None
     folder, _stem = mapped
     root = repo or repo_root()
-    return root / "reports" / local_report_date(now=now) / folder
+    return _dated_reports_root(store, root) / local_report_date(now=now) / folder
 
 
 def dated_cell_paths(
@@ -128,7 +133,8 @@ def dated_cell_paths(
     if mapped is None:
         return None
     folder, stem = mapped
-    day_dir = (repo or repo_root()) / "reports" / local_report_date(now=now) / folder
+    root = repo or repo_root()
+    day_dir = _dated_reports_root(store, root) / local_report_date(now=now) / folder
     return {
         "dir": day_dir,
         "report": day_dir / f"{stem}-REPORT.md",
@@ -136,6 +142,31 @@ def dated_cell_paths(
         "serving_json": day_dir / f"{stem}.serving.json",
         "stem": Path(stem),
     }
+
+
+def serving_export_path(store: RunStore, *, repo: Path | None = None) -> Path | None:
+    """Canonical machine-readable serving path for a stored run."""
+    root = repo or repo_root()
+    run_id = str(store.run_id)
+    lock = store.read_lock() or {}
+    prefix = experiment_prefix(run_id, lock)
+    mapped = cell_stem(store)
+    if mapped is not None and prefix:
+        engine = lock.get("engine") if isinstance(lock.get("engine"), dict) else {}
+        modal = engine.get("modal") if isinstance(engine.get("modal"), dict) else {}
+        replicas = max(1, int(modal.get("max_containers") or 1))
+        shape = f"{replicas}L4"
+        if run_id.startswith(("sand40-probe-", "sand40-check-")):
+            folder = "probes"
+        else:
+            folder = f"n={_cell_n(store, lock, store.load_items())}"
+        return root / "reports" / "serving" / prefix / shape / folder / f"{run_id}.serving.json"
+    if prefix:
+        return root / "reports" / "serving" / prefix / f"{run_id}.serving.json"
+    if mapped is not None:
+        folder, _stem = mapped
+        return root / "reports" / "serving" / local_report_date() / folder / f"{run_id}.serving.json"
+    return None
 
 
 def _fmt(value: Any, digits: int = 6) -> str:
@@ -319,9 +350,9 @@ def write_run_reports(
     metrics._atomic_write_serving_json(json_path, rec)
     paths["report"].write_text(render_quality_report(store, rec, scores=scores), encoding="utf-8")
     paths["serving_md"].write_text(render_serving_report(store, rec), encoding="utf-8")
-    tui = metrics.default_serving_json_path(store.run_id)
-    if repo is not None:
-        tui = Path(repo) / "reports" / "serving" / f"{store.run_id}.serving.json"
+    tui = serving_export_path(store, repo=repo)
+    if tui is None:
+        tui = metrics.default_serving_json_path(store.run_id)
     if tui.resolve() != json_path.resolve():
         tui.parent.mkdir(parents=True, exist_ok=True)
         metrics._atomic_write_serving_json(tui, rec)

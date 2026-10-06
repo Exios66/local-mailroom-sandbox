@@ -38,6 +38,7 @@ import source_charts  # noqa: E402
 
 DATA = HERE / "hub_data.json"
 SERVING = ROOT / "reports" / "serving"
+SAND32_SERVING = SERVING / "SAND-32"
 L4_USD_PER_HOUR = 0.80  # docs/RUN-COST-DERIVATION.md; the rate every SAND-032 $/doc uses
 REPLICAS = 2  # SAND-032 class sweep: 2×L4, c32
 ORDER = ["correspondence", "insurance_claim", "corporate_record", "contract", "merger_agreement"]
@@ -98,7 +99,7 @@ def api_name(rec: dict) -> str:
 
 
 def s6_p95() -> str:
-    m = re.search(r"latency p50 / p95 s \| [\d.]+ / ([\d.]+)", (SERVING / "SAND032-S6-SORTER1000-REPORT.md").read_text())
+    m = re.search(r"latency p50 / p95 s \| [\d.]+ / ([\d.]+)", (SAND32_SERVING / "SAND032-S6-SORTER1000-REPORT.md").read_text())
     return f"{float(m.group(1)):.0f} s" if m else "n/a"
 
 
@@ -119,7 +120,10 @@ def git_sha(path: pathlib.Path) -> str:
 
 
 def serving(rid: str) -> dict:
-    p = SERVING / f"{rid}.serving.json"
+    matches = sorted(SERVING.rglob(f"{rid}.serving.json"))
+    if len(matches) > 1:
+        raise ValueError(f"multiple serving exports found for {rid}: {matches}")
+    p = matches[0] if matches else SAND32_SERVING / f"{rid}.serving.json"
     d = json.loads(p.read_text()) if p.is_file() else {}
     return d.get("metrics", d)
 
@@ -475,14 +479,14 @@ Regenerate: in `Exios66/local-mailroom-sandbox`, run `python reports/dashboard/b
 
 
 def s6_per_class() -> list[list[str]]:
-    text = (SERVING / "SAND032-S6-SORTER1000-REPORT.md").read_text()
+    text = (SAND32_SERVING / "SAND032-S6-SORTER1000-REPORT.md").read_text()
     sec = text.split("## Per-class", 1)[1].split("## ", 1)[0]
     rows = [[c.strip() for c in ln.strip().strip("|").split("|")] for ln in sec.splitlines() if ln.startswith("| ")]
     return [r for r in rows[1:] if not set("".join(r)) <= set("-: ")]
 
 
 def v2_rows() -> list[list[str]]:
-    text = (SERVING / "SAND032-V2-PROMPT-PROMOTION.md").read_text()
+    text = (SAND32_SERVING / "SAND032-V2-PROMPT-PROMOTION.md").read_text()
     rows = [[c.strip() for c in ln.strip().strip("|").split("|")] for ln in text.splitlines() if ln.startswith("| ")]
     return [r for r in rows[1:] if not set("".join(r)) <= set("-: ")]
 

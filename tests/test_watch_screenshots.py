@@ -1,6 +1,6 @@
 """Tray-TUI screenshot gallery guard: docs images stay generated and in sync.
 
-Covers ``docs/mailroom-watch-web.md`` + ``docs/assets/watch/`` +
+Covers ``docs/pretty-logging/mailroom-watch-web.md`` + ``docs/assets/watch/`` +
 ``scripts/sand032/capture_watch_screenshots.py``. Network-free, no LLM.
 """
 
@@ -12,10 +12,10 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 ASSETS = REPO / "docs" / "assets" / "watch"
-DOC = REPO / "docs" / "mailroom-watch-web.md"
+DOC = REPO / "docs" / "pretty-logging" / "mailroom-watch-web.md"
 SCRIPT = REPO / "scripts" / "sand032" / "capture_watch_screenshots.py"
 
-IMG_RE = re.compile(r"!\[([^\]]*)\]\((assets/watch/[^)]+)\)")
+IMG_RE = re.compile(r"!\[([^\]]*)\]\((\.\./assets/watch/[^)]+)\)")
 
 
 def _manifest() -> dict:
@@ -48,7 +48,7 @@ def test_every_doc_image_resolves_and_every_case_is_shown():
     assert refs, "gallery must embed screenshots"
     for alt, rel in refs:
         assert alt.strip(), f"missing alt text: {rel}"
-        assert (REPO / "docs" / rel).is_file(), rel
+        assert (DOC.parent / rel).is_file(), rel
     shown = {Path(rel).name for _, rel in refs}
     manifest = _manifest()
     for case in manifest["cases"]:

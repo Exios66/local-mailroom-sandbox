@@ -3,7 +3,7 @@
 Remote-serving paths (Modal, SSH-tunneled vLLM, CHTC/HTCondor, conda env)
 have their own guides: [`conda/`](conda/) (environment spec),
 [`htcondor/`](htcondor/) (CHTC job templates), and
-[`../docs/remote-serving.md`](../docs/remote-serving.md) (the overview).
+[`../docs/setting-up/remote-serving.md`](../docs/setting-up/remote-serving.md) (the overview).
 
 ## Compose
 
@@ -26,7 +26,7 @@ vLLM needs an NVIDIA GPU on the host. Ollama runs on CPU for smoke models
 ## Offline Dockerfile + Jupyter notebooks
 
 [`Dockerfile`](Dockerfile) builds `mailroom-sandbox:offline` (Python 3.13 + sandbox +
-Jupyter Lab). Full walkthrough: [`docs/docker-offline.md`](../docs/docker-offline.md).
+Jupyter Lab). Full walkthrough: [`docs/setting-up/docker-offline.md`](../docs/setting-up/docker-offline.md).
 
 ```bash
 # Image alone
@@ -258,7 +258,7 @@ runner (concurrency) and the server (`--max-num-seqs`).
   free) and persist weights + compile artifacts across deploys.
 - Spend check: `modal billing summary` / `modal billing rates` (SDK 1.5.3+).
 
-### Ground-truth labeler (`sandbox-vllm-gt-labeler`, SAND-042)
+### Ground-truth labeler (`sandbox-vllm-gt-labeler`, SAND-045)
 
 Separate app from `sandbox-vllm`. It hosts `Qwen/Qwen3-14B-AWQ` on L4
 (data parallel, not `L4:2`) for unfinished ground-truth fields on
@@ -316,7 +316,7 @@ export MODAL_VLLM_MAX_CONTAINERS=4      # 4 × L4 replicas (documented raise)
 export MODAL_VLLM_SCALEDOWN_SECONDS=600 # unattended / overnight idle window
 modal deploy deploy/modal_vllm.py
 # Specialist 5×30 attended suite uses MODAL_VLLM_SCALEDOWN_SECONDS=120
-# (docs/benchmark-l4.md); one warm app, teardown only after the fifth.
+# (docs/modal/benchmark-l4.md); one warm app, teardown only after the fifth.
 ```
 
 ### Security model
@@ -370,7 +370,7 @@ sandbox run start --job-mode modal --config <run.yaml> --watch
 
 Long attended runs: **`sandbox watch --web`** (or terminal `sandbox watch`) tails the
 vLLM **serve** app while showing spend and checkpoints — operator guide:
-[`docs/mailroom-themed-logging.md`](../docs/mailroom-themed-logging.md).
+[`docs/pretty-logging/mailroom-themed-logging.md`](../docs/pretty-logging/mailroom-themed-logging.md).
 
 Deploy-time env (export before `modal deploy`): `LANGFUSE_*`,
 `OTEL_EXPORTER_OTLP_ENDPOINT`, `VLLM_BASE_URL`, `VLLM_API_KEY`, `HF_TOKEN`,

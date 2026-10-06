@@ -143,6 +143,7 @@ def run_isolated_eval(
     progress_cb: Any = None,
     replicas: int = 1,
     row_cb: Any = None,
+    score_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Run one live agent / node against fixtures, nested under document-pipeline.
 
@@ -331,6 +332,7 @@ def run_isolated_eval(
                 value=float(mean),
                 agent=task,
                 run_id=experiment_name,
+                metadata=dict(score_metadata or {}),
             )
         )
     completed = [e for e in per_row if e is not None]
@@ -710,6 +712,7 @@ def run_local_vs_api_eval(
     agent_models: dict[str, str] | None = None,
     from_log: bool = False,
     connected: bool = False,
+    score_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Compare local (Ollama/vLLM/…) vs API-key (OpenRouter) serving metrics.
 
@@ -787,7 +790,9 @@ def run_local_vs_api_eval(
     }
     if comparison:
         scoring.emit_local_vs_api_scorecard(
-            comparison, run_id=experiment_name or "sandbox_local_vs_api"
+            comparison,
+            run_id=experiment_name or "sandbox_local_vs_api",
+            metadata=score_metadata,
         )
     record = experiment_log.new_record(
         experiment_name=experiment_name or "sandbox_local_vs_api",

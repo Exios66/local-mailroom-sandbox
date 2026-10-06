@@ -21,7 +21,7 @@ from mailroom_sandbox.eval.prompt_provenance import (
     resolve_logged_prompt_version,
     stamp_prompt_provenance,
 )
-from mailroom_sandbox.job.otel import job_span
+from mailroom_sandbox.job.otel import current_context, job_span
 from mailroom_sandbox.job.usage_capture import (
     merge_item_metrics,
     usage_from_pipeline,
@@ -237,6 +237,10 @@ def _run_whole_run(
     cost_cap = _cost_cap_usd(store)
     gpu = _lock_gpu(store)
     replicas = _lock_replicas(store)
+    from mailroom_sandbox.report_paths import experiment_prefix
+
+    report_group = experiment_prefix(store.run_id, lock)
+    score_metadata = {"report_group": report_group} if report_group else None
     # SAND-018: the isolated-agent path used to show nothing until it finished.
     # Write a running checkpoint per completed item and forward events so
     # `sandbox run status` (and --watch) track a live specialist run.
@@ -260,7 +264,10 @@ def _run_whole_run(
         elif task == "chained":
             result = eval_runners.run_chained_eval(rows=locked_rows, **kwargs)
         elif task == "local_vs_api":
-            result = eval_runners.run_local_vs_api_eval(**kwargs)
+            result = eval_runners.run_local_vs_api_eval(
+                score_metadata=score_metadata,
+                **kwargs,
+            )
         elif task == "sorter_vs_modernbert":
             result = eval_runners.run_sorter_vs_modernbert_eval(**kwargs)
         elif task == "isolated":
@@ -276,6 +283,7 @@ def _run_whole_run(
                 replicas=replicas,
                 progress_cb=_progress,
                 row_cb=lambda entry: _persist_isolated_items(store, [entry]),
+                score_metadata=score_metadata,
                 **kwargs,
             )
         elif task in _agent_task_names():
@@ -292,6 +300,7 @@ def _run_whole_run(
                 replicas=replicas,
                 progress_cb=_progress,
                 row_cb=lambda entry: _persist_isolated_items(store, [entry]),
+                score_metadata=score_metadata,
                 **kwargs,
             )
         else:
@@ -739,6 +748,10 @@ def _run_job(
     max_wall = _max_wall_seconds(store)
     cap_abort_reason: str | None = None
 
+    # Worker threads do not inherit the caller's otel context; hand it over
+    # explicitly so item spans nest under the run span.
+    parent_ctx = current_context(tracer)
+
     def _attempt(index: int) -> tuple[Any, str | None, float, dict[str, Any]]:
         """Run one row (with retries); return (value, error, latency_ms, usage)."""
         row = rows[index]
@@ -746,7 +759,14 @@ def _run_job(
         value: Any = None
         error: str | None = None
         usage: dict[str, Any] = {}
-        with job_span(tracer, "job.item", item_index=str(index), task=task):
+        with job_span(
+            tracer,
+            "job.item",
+            parent=parent_ctx,
+            item_index=str(index),
+            item_id=str(row.get("id") or row.get("filename") or index),
+            task=task,
+        ) as span:
             attempt = 0
             while attempt < retries + 1:
                 attempt += 1
@@ -765,6 +785,17 @@ def _run_job(
                     usage = {}
                     if attempt <= retries:
                         time.sleep(0.2)
+            span.set_attribute("job.ok", error is None)
+            span.set_attribute("job.attempts", attempt)
+            if error is not None:
+                span.set_attribute("job.error", error)
+            for key, attr in (
+                ("prompt_tokens", "gen_ai.usage.input_tokens"),
+                ("completion_tokens", "gen_ai.usage.output_tokens"),
+                ("llm_calls", "job.llm_calls"),
+            ):
+                if isinstance(usage.get(key), (int, float)):
+                    span.set_attribute(attr, usage[key])
         latency_ms = round((time.perf_counter() - started) * 1000.0, 3)
         return value, error, latency_ms, usage
 

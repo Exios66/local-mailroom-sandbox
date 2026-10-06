@@ -1,4 +1,4 @@
-"""Modal app for chunked v9.1 ground-truth labeling (SAND-042).
+"""Modal app for chunked v9.1 ground-truth labeling (SAND-045).
 
 ``modal deploy deploy/modal_gt_labeler.py`` publishes ``sandbox-vllm-gt-labeler``.
 The app scale-to-zeros (``min_containers=0``). It does not label the corpus

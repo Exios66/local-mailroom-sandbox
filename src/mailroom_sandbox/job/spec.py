@@ -477,6 +477,7 @@ class TraceSpec(BaseModel):
 class RunSpec(BaseModel):
     schema_name: str = Field(default="sandbox.run/v1", alias="schema")
     run_id: str | None = None
+    runbook_id: str | None = None
     task: str = "sorter"
     profile: str = "modal-vllm"
     prompt: dict[str, Any] = Field(default_factory=dict)  # {default:..., agents:{name:...}}

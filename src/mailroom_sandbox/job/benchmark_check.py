@@ -66,6 +66,7 @@ from mailroom_sandbox.job.specialist_posture import (
     GRID_TWO_GPU_RUNS,
     SAND032_RUNS,
     SAND40_CELLS,
+    SAND40_CHECK_CELLS,
     SAND40_PROBE_CELLS,
     SAND032_SORTER_RUNS,
     SPECIALIST_POSTURE,
@@ -85,6 +86,7 @@ TWO_GPU_RUNS = frozenset({
     *SAND032_SORTER_RUNS,
     *GRID_TWO_GPU_RUNS,
     *SAND40_CELLS,
+    *SAND40_CHECK_CELLS,
     *SAND40_PROBE_CELLS,
 })
 
@@ -294,7 +296,7 @@ def check_benchmark_posture(
 
     if spec is not None and (
         spec.run_id in SAND032_RUNS or spec.run_id in GRID_CELLS or spec.run_id in SAND40_CELLS
-        or spec.run_id in SAND40_PROBE_CELLS
+        or spec.run_id in SAND40_PROBE_CELLS or spec.run_id in SAND40_CHECK_CELLS
     ):
         # SAND-032 / SAND-037 grid: the run YAML is the source of truth for
         # deploy knobs — a stale MODAL_VLLM_* shell would silently serve

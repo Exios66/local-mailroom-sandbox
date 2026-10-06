@@ -5,7 +5,7 @@ MAUD clause maps are never requested. One invocation submits one chunk: at
 most ``CHUNK_DOC_CAP`` documents, and only when the projected 2×L4 bill for
 that chunk is at most ``CHUNK_USD_CAP``. The corpus is not labeled in one job.
 
-Serving posture (happy medium, SAND-042):
+Serving posture (happy medium, SAND-045):
 
 * ``Qwen/Qwen3-14B-AWQ`` — larger than the 8B cost-eval default, and the
   largest Qwen3 checkpoint the model matrix boots on a 24 GB L4 at 32k.

@@ -136,12 +136,12 @@ def test_suite_card_rolls_up_cards_and_marks_missing_cells(tmp_path):
     assert "[grid-50-contracts-specialist-awq-2l4-rerun.card.md](contracts/" in md
 
 
-def test_sand40_card_records_optimized_settings_under_2l4(tmp_path):
+def test_sand40_probe_card_records_optimized_settings(tmp_path):
     store = _store(
         tmp_path,
-        "sand40-50-merger-specialist-awq-2l4-64k",
+        "sand40-probe-20-merger-specialist-awq-2l4-64k",
         task="merger_agreement_specialist",
-        limit=50,
+        limit=20,
     )
     lock = json.loads(store.lock_path.read_text())
     lock["engine"]["vllm"]["max_model_len"] = 65536
@@ -154,7 +154,7 @@ def test_sand40_card_records_optimized_settings_under_2l4(tmp_path):
     store.lock_path.write_text(json.dumps(lock))
     paths = grid_cards.maybe_write_card(store, wall_seconds=10.0, repo=tmp_path)
     assert paths["md"] == (
-        tmp_path / "reports" / "SAND-37" / "2L4" / "merger_agreement" / "sand40-50-merger-specialist-awq-2l4-64k.card.md"
+        tmp_path / "reports" / "SAND-37" / "probes" / "merger_agreement" / "sand40-probe-20-merger-specialist-awq-2l4-64k.card.md"
     )
     card = json.loads(paths["json"].read_text())
     cond = card["conditions"]
@@ -193,3 +193,53 @@ def test_sand40_probe_card_is_outside_the_scorecard_tree(tmp_path):
 def test_runner_hook_skips_non_grid_runs(tmp_path):
     store = _store(tmp_path, "run-20-contracts-awq-c8", replicas=1, concurrency=8)
     assert grid_cards.maybe_write_card(store, wall_seconds=10.0) == {}
+
+
+def test_sand40_scale_cells_land_under_2l4(tmp_path):
+    store = _store(tmp_path, "sand40-100-contracts-specialist-awq-2l4", limit=3)
+    paths = grid_cards.maybe_write_card(store, wall_seconds=10.0, repo=tmp_path)
+    assert paths["md"] == tmp_path / "reports/SAND-37/2L4/contracts/sand40-100-contracts-specialist-awq-2l4.card.md"
+    cond = json.loads(paths["json"].read_text())["conditions"]
+    assert cond["max_tokens"] == 8192 and not cond.get("chunk_chars")
+
+    store = _store(tmp_path, "sand40-50-merger-specialist-awq-2l4", task="merger_agreement_specialist", limit=3)
+    paths = grid_cards.maybe_write_card(store, wall_seconds=10.0, repo=tmp_path)
+    assert paths["md"] == tmp_path / "reports/SAND-37/2L4/merger_agreement/sand40-50-merger-specialist-awq-2l4.card.md"
+    cond = json.loads(paths["json"].read_text())["conditions"]
+    assert cond["chunk_chars"] == 47000 and cond["max_tokens"] == 6144 and cond["optimized"] is True
+
+
+def _gate_store(tmp_path, *, requests, length_finishes=0, ok=True):
+    run_id = "sand40-check-5-merger-specialist-awq-2l4"
+    store = _store(tmp_path, run_id, task="merger_agreement_specialist", limit=2)
+    store.dir.joinpath("items.jsonl").unlink(missing_ok=True)
+    store = RunStore(store.dir)
+    for i in range(2):
+        store.append_item({"item_id": f"DOC-{i}", "index": i, "ok": ok or i == 0, "latency_ms": 1000.0,
+                           "prompt_tokens": 100, "completion_tokens": 10, "ts": "2026-10-01T00:00:10.000+00:00",
+                           "score": {"overall_extraction_score": 0.1},
+                           **({} if ok or i == 0 else {"error": "LengthFinishReasonError: cap"})})
+    store.write_dataset([{"id": "DOC-0", "doc_text": "a" * 10}, {"id": "DOC-1", "doc_text": "b" * 10}])
+    half = requests / 2
+    reps = {"a": {"requests": half, "length_finishes": length_finishes, "preemptions": 0},
+            "b": {"requests": half, "length_finishes": 0, "preemptions": 0}}
+    zero = {k: {"requests": 0, "length_finishes": 0, "preemptions": 0} for k in reps}
+    (store.dir / "vllm_metrics_before.json").write_text(json.dumps({"replicas": zero}))
+    (store.dir / "vllm_metrics_after.json").write_text(json.dumps({"coverage": "replicas observed: 2 of 2", "replicas": reps, "errors": []}))
+    return store
+
+
+def _three_chunks(text, window, overlap):
+    return ["x"] * 3
+
+
+def test_chunk_gate_passes_when_every_chunk_reached_vllm(tmp_path):
+    store = _gate_store(tmp_path, requests=7, length_finishes=1)
+    assert grid_cards.chunk_gate(store, split=_three_chunks) == []
+
+
+def test_chunk_gate_fails_on_lost_chunks_or_failed_documents(tmp_path):
+    lost = grid_cards.chunk_gate(_gate_store(tmp_path / "a", requests=6, length_finishes=1), split=_three_chunks)
+    assert any("need 6 chunk calls" in e for e in lost)
+    failed = grid_cards.chunk_gate(_gate_store(tmp_path / "b", requests=6, ok=False), split=_three_chunks)
+    assert any("documents ok 1/2" in e for e in failed)
