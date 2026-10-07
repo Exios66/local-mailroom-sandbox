@@ -18,7 +18,12 @@ from mailroom_sandbox.paths import data_dir
 
 _log = logging.getLogger("mailroom_sandbox.job.spec")
 
-FAMILY_HF_REVISION = "ed7576b676343e0b402ec5412cded301e629bdee"  # v9.1 mailroom-dataset Hub tip (pin SHA; HF tag v9.1 pending, #58)
+# Canonical Hub tag ``v9.1`` (2026-09-27). This commit only records the tag;
+# the parquet row set is ``FAMILY_HF_DATA_REVISION`` (mailroom-issues#196
+# Phase B). SAND-032 run YAMLs keep the data SHA they were measured against.
+FAMILY_HF_TAG = "v9.1"
+FAMILY_HF_REVISION = "bc9eab280044befb51e19dda3071d290a8677f42"
+FAMILY_HF_DATA_REVISION = "ed7576b676343e0b402ec5412cded301e629bdee"
 HF_DEFAULT_REPO = "Lucius-Morningstar/mailroom-dataset"
 # Full corpus row count at FAMILY_HF_REVISION (train+test; mailroom-ml pin).
 FAMILY_CORPUS_SIZE = 3302
