@@ -4,7 +4,7 @@ The real `modal` package is a deploy-time extra, never installed in the
 runtime venv (same rule as llm-mailroom's
 `src/tests/test_vllm_modal_capability.py`). These tests pin the deploy
 surface: app/volume scoping, the vLLM argv builder (v0.29.0 flags), the
-bearer-env mapping, the cost guards, the SDK-1.5.5 secret API
+bearer-env mapping, the cost guards, the SDK-1.6.0 secret API
 (``from_local`` was removed; the named ``huggingface-secret`` carries
 HF_TOKEN), and local compose <-> Modal argv parity.
 """
@@ -56,7 +56,7 @@ KNOB_ENV = (
 
 
 def _install_modal_stub() -> None:
-    """Minimal stand-in for the `modal` surface used by the app (SDK 1.5.5)."""
+    """Minimal stand-in for the `modal` surface used by the app (SDK 1.6.0)."""
     if "modal" in sys.modules:
         return
     stub = types.ModuleType("modal")
@@ -461,7 +461,7 @@ class TestSecretApi:
             assert record.kwargs["secrets"] == [("named-secret", "huggingface-secret")]
 
     def test_named_hf_secret_contract(self, modal_stub):
-        """SDK 1.5.5 `Secret.from_name(name, required_keys=[...])` — one call
+        """SDK 1.6.0 `Secret.from_name(name, required_keys=[...])` — one call
         per decorated function; required_keys makes a missing HF_TOKEN fail
         the deploy at hydration."""
         mod = _load_app_module()
@@ -638,7 +638,7 @@ class TestVersionPins:
 
         data = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
         deploy = data["project"]["optional-dependencies"]["deploy"]
-        assert "modal==1.5.5" in deploy, "deploy extra must pin the verified SDK"
+        assert "modal==1.6.0" in deploy, "deploy extra must pin the verified SDK"
         core = data["project"]["dependencies"]
         assert all("modal" not in dep for dep in core), (
             "modal must stay a deploy-time extra (runtime venv stays clean)"
@@ -646,7 +646,7 @@ class TestVersionPins:
 
     def test_app_file_records_sdk_version(self):
         text = DEPLOY_APP.read_text(encoding="utf-8")
-        assert "1.5.5" in text
+        assert "1.6.0" in text
         assert "v0.29.0" in text
         assert "huggingface-secret" in text
 
