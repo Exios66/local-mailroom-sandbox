@@ -312,6 +312,21 @@ def _profile_activate(runbook: Mapping[str, Any]) -> list[str]:
     return lines
 
 
+def _midrun_cell(runbook: Mapping[str, Any]) -> str:
+    """The cell whose mid-run series this runbook writes, e.g. ``2l4-c32``.
+
+    Taken from the configs (``sand42-50-<class>-specialist-awq-<cell>.yaml``) rather than
+    from the runbook id, so it also covers the grid/other ``-awq-<shape>`` runbooks whose
+    ids do not name a SAND-042 cell. "" when nothing matches — the step then declines to
+    guess a filename instead of writing samples nowhere useful.
+    """
+    for rel in _config_paths(runbook):
+        m = re.search(r"-awq-(.+)$", Path(rel).stem)
+        if m:
+            return m.group(1)
+    return ""
+
+
 def _config_paths(runbook: Mapping[str, Any]) -> list[str]:
     raw = runbook.get("configs") or []
     if isinstance(raw, list) and raw:
@@ -362,6 +377,12 @@ def render_shell(name: str) -> str:
     # vLLM /metrics snapshots; export_card writes reports/SAND-37/<shape>/<specialist>/.
     scrape = bool(runbook.get("scrape_metrics"))
     export_card = bool(runbook.get("export_card"))
+    # SAND-047: a MID-RUN /metrics sample. The before/after scrapes bracket each start but
+    # fire at the run's drained edges, where kv_cache_usage_perc (live sequences in a
+    # pre-allocated cache) is 0 by construction — without this the KV/queue columns can
+    # only ever report 0, and no rerun under the same bracket design changes that.
+    midrun = bool(runbook.get("midrun_metrics"))
+    midrun_cell = _midrun_cell(runbook) if midrun else ""
 
     def _run_lines(cfg: str, indent: str) -> list[str]:
         out = [f"{indent}sandbox run preflight --config {cfg} --live{preflight_force}"]
@@ -370,6 +391,13 @@ def render_shell(name: str) -> str:
         out.append(f"{indent}sandbox run start --config {cfg} --job-mode {job_mode} --watch{start_force}")
         if scrape:
             out.append(f"{indent}sandbox run scrape-metrics --config {cfg} --label after")
+        if midrun and midrun_cell:
+            # Fold BEFORE the card: the fold is what writes the per-run mid-run block, and
+            # a card is built from whatever exists at the moment it runs.
+            out.append(
+                f"{indent}.venv/bin/python scripts/sand42/midrun_kv.py fold "
+                f"--cell {midrun_cell} >/dev/null 2>&1 || true"
+            )
         if export_card:
             out.append(f"{indent}sandbox run card --config {cfg}")
         return out
@@ -454,6 +482,25 @@ def render_shell(name: str) -> str:
                 lines += ["do", *_run_lines('"$cfg"', "  "), "done"]
         elif kind == "phases":
             lines.extend(_phase_shell(runbook, deploy=deploy, preflight_force=preflight_force, job_mode=job_mode))
+        elif kind == "midrun_metrics":
+            if not midrun_cell:
+                lines.append(
+                    "# midrun_metrics: no `-awq-<cell>` config to name the series — skipped"
+                )
+            else:
+                rels = _config_paths(runbook)
+                lines += [
+                    "",
+                    "# SAND-047: sample /metrics MID-RUN. The before/after scrapes fire at each",
+                    "# run's drained edges, where kv_cache_usage_perc is 0 by construction; the",
+                    "# fold before each card is what puts the real reading on it. The trap stops",
+                    "# the sampler however this script exits.",
+                    f'MIDRUN_PID="$HOME/.sand42-{midrun_cell}-midrun.pid"',
+                    f"(.venv/bin/python scripts/sand42/midrun_kv.py sample --cell {midrun_cell} "
+                    f'--config {rels[0]} >>"$HOME/sand42-{midrun_cell}-midrun.log" 2>&1 '
+                    f'& echo $! > "$MIDRUN_PID")',
+                    'trap \'kill "$(cat "$MIDRUN_PID")" 2>/dev/null || true\' EXIT',
+                ]
         elif kind == "configs":
             rels = _config_paths(runbook)
             if not rels:

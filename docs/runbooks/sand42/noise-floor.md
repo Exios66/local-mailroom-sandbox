@@ -92,10 +92,19 @@ modal deploy deploy/modal_vllm.py --strategy recreate
 sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
 
+# SAND-047: sample /metrics MID-RUN. The before/after scrapes fire at each
+# run's drained edges, where kv_cache_usage_perc is 0 by construction; the
+# fold before each card is what puts the real reading on it. The trap stops
+# the sampler however this script exits.
+MIDRUN_PID="$HOME/.sand42-1l4-c8-midrun.pid"
+(.venv/bin/python scripts/sand42/midrun_kv.py sample --cell 1l4-c8 --config config/runs/sand42-noisefloor-correspondence-awq-1l4-c8.yaml >>"$HOME/sand42-1l4-c8-midrun.log" 2>&1 & echo $! > "$MIDRUN_PID")
+trap 'kill "$(cat "$MIDRUN_PID")" 2>/dev/null || true' EXIT
+
 sandbox run preflight --config config/runs/sand42-noisefloor-correspondence-awq-1l4-c8.yaml --live --force
 sandbox run scrape-metrics --config config/runs/sand42-noisefloor-correspondence-awq-1l4-c8.yaml --label before
 sandbox run start --config config/runs/sand42-noisefloor-correspondence-awq-1l4-c8.yaml --job-mode endpoint --watch
 sandbox run scrape-metrics --config config/runs/sand42-noisefloor-correspondence-awq-1l4-c8.yaml --label after
+.venv/bin/python scripts/sand42/midrun_kv.py fold --cell 1l4-c8 >/dev/null 2>&1 || true
 sandbox run card --config config/runs/sand42-noisefloor-correspondence-awq-1l4-c8.yaml
 
 ./deploy/teardown_vllm.sh   # ONLY after this run

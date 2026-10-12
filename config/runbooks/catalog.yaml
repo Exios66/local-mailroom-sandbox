@@ -932,6 +932,7 @@ runbooks:
     preflight_force: true
     scrape_metrics: true
     export_card: true
+    midrun_metrics: true
     extra_env:
       MODAL_VLLM_TELEMETRY_LABEL: sand42-1l4-c8
     steps:
@@ -943,6 +944,7 @@ runbooks:
       - deploy
       - cutover
       - health
+      - midrun_metrics
       - configs
       - teardown
       - after
@@ -978,6 +980,7 @@ runbooks:
     preflight_force: true
     scrape_metrics: true
     export_card: true
+    midrun_metrics: true
     extra_env:
       MODAL_VLLM_TELEMETRY_LABEL: sand42-1l4-c16
     steps:
@@ -989,6 +992,7 @@ runbooks:
       - deploy
       - cutover
       - health
+      - midrun_metrics
       - configs
       - teardown
       - after
@@ -1025,6 +1029,7 @@ runbooks:
     preflight_force: true
     scrape_metrics: true
     export_card: true
+    midrun_metrics: true
     extra_env:
       MODAL_VLLM_TELEMETRY_LABEL: sand42-2l4-c8
     steps:
@@ -1036,6 +1041,7 @@ runbooks:
       - deploy
       - cutover
       - health
+      - midrun_metrics
       - configs
       - teardown
       - after
@@ -1070,6 +1076,7 @@ runbooks:
     preflight_force: true
     scrape_metrics: true
     export_card: true
+    midrun_metrics: true
     extra_env:
       MODAL_VLLM_TELEMETRY_LABEL: sand42-2l4-c16
     steps:
@@ -1081,6 +1088,7 @@ runbooks:
       - deploy
       - cutover
       - health
+      - midrun_metrics
       - configs
       - teardown
       - after
@@ -1119,6 +1127,7 @@ runbooks:
     preflight_force: true
     scrape_metrics: true
     export_card: true
+    midrun_metrics: true
     extra_env:
       MODAL_VLLM_TELEMETRY_LABEL: sand42-2l4-c32
     steps:
@@ -1130,6 +1139,7 @@ runbooks:
       - deploy
       - cutover
       - health
+      - midrun_metrics
       - configs
       - teardown
       - after
@@ -1204,6 +1214,7 @@ runbooks:
     preflight_force: true
     scrape_metrics: true
     export_card: true
+    midrun_metrics: true
     extra_env:
       MODAL_VLLM_TELEMETRY_LABEL: sand42-1l4-c8
     blocked: true
@@ -1217,6 +1228,7 @@ runbooks:
       - deploy
       - cutover
       - health
+      - midrun_metrics
       - configs
       - teardown
       - after
