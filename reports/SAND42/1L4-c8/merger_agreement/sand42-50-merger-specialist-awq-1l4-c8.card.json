@@ -703,7 +703,7 @@
     ],
     "scrape_errors": []
   },
-  "generated_at": "2026-10-12T06:10:32+00:00",
+  "generated_at": "2026-10-12T08:00:21+00:00",
   "latency": {
     "max": 1627.9009099999998,
     "mean": 696.7077381400001,
@@ -742,6 +742,7 @@
   "task": "merger_agreement_specialist",
   "throughput": {
     "documents_per_minute": 0.6441186492316631,
+    "documents_per_minute_per_gpu": 0.6441186492316631,
     "tokens_per_second": 1113.175726088115,
     "tokens_per_second_per_gpu": 1113.175726088115
   },

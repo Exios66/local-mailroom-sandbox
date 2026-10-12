@@ -699,7 +699,7 @@
     ],
     "scrape_errors": []
   },
-  "generated_at": "2026-10-12T06:10:31+00:00",
+  "generated_at": "2026-10-12T08:00:16+00:00",
   "latency": {
     "max": 687.8181119999999,
     "mean": 138.27651237999999,
@@ -736,6 +736,7 @@
   "task": "contracts_specialist",
   "throughput": {
     "documents_per_minute": 3.260780957039211,
+    "documents_per_minute_per_gpu": 3.260780957039211,
     "tokens_per_second": 1009.7345180837477,
     "tokens_per_second_per_gpu": 1009.7345180837477
   },

@@ -1,8 +1,8 @@
 {
   "concurrency": {
-    "occupancy": 0.9026034854846409,
-    "parallelism": 14.441655767754254,
-    "slot_utilization": 0.9026
+    "occupancy": 0.8123533315190761,
+    "parallelism": 12.997653304305217,
+    "slot_utilization": 0.8124
   },
   "conditions": {
     "chunk_chars": 43000,
@@ -50,9 +50,9 @@
   "cost": {
     "billed_gpu_usd": 0.254148,
     "billed_seconds": 1143.667,
-    "busy_gpu_usd": 0.22488822222222224,
-    "idle_seconds": 98.565,
-    "idle_usd": 0.021903,
+    "busy_gpu_usd": 0.24987266666666666,
+    "idle_seconds": 210.995,
+    "idle_usd": 0.046888,
     "usd_per_document": 0.00508296,
     "usd_per_million_tokens": 0.2727421994473211,
     "usd_per_ok_document": 0.00508296
@@ -707,7 +707,7 @@
     ],
     "scrape_errors": []
   },
-  "generated_at": "2026-10-12T05:19:14+00:00",
+  "generated_at": "2026-10-12T08:00:23+00:00",
   "latency": {
     "max": 1109.3775660000001,
     "mean": 292.29824624,
@@ -743,14 +743,15 @@
   "specialist": "Contracts",
   "task": "contracts_specialist",
   "throughput": {
-    "documents_per_minute": 2.9644356653231188,
-    "tokens_per_second": 920.778421279905,
-    "tokens_per_second_per_gpu": 920.778421279905
+    "documents_per_minute": 2.668025581029271,
+    "documents_per_minute_per_gpu": 2.668025581029271,
+    "tokens_per_second": 828.7109790142002,
+    "tokens_per_second_per_gpu": 828.7109790142002
   },
   "time": {
     "cold_boot_seconds": 0.273,
     "gpu_seconds": 1143.667,
-    "wall_seconds": 1011.997
+    "wall_seconds": 1124.427
   },
   "tokens": {
     "completion": 132402,

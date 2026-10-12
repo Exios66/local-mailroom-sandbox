@@ -1,8 +1,8 @@
 {
   "concurrency": {
-    "occupancy": 10.755136451282858,
-    "parallelism": 172.08218322052574,
-    "slot_utilization": 10.7551
+    "occupancy": 0.6470579834180896,
+    "parallelism": 10.352927734689434,
+    "slot_utilization": 0.6471
   },
   "conditions": {
     "concurrency": 16,
@@ -48,9 +48,9 @@
   "cost": {
     "billed_gpu_usd": 0.026822,
     "billed_seconds": 120.697,
-    "busy_gpu_usd": 0.0014117777777777776,
-    "idle_seconds": 0.0,
-    "idle_usd": null,
+    "busy_gpu_usd": 0.023465999999999997,
+    "idle_seconds": 37.27,
+    "idle_usd": 0.008282,
     "usd_per_document": 0.00053644,
     "usd_per_million_tokens": 0.1441546994582509,
     "usd_per_ok_document": 0.00053644
@@ -705,7 +705,7 @@
     ],
     "scrape_errors": []
   },
-  "generated_at": "2026-10-12T05:19:11+00:00",
+  "generated_at": "2026-10-12T08:00:26+00:00",
   "latency": {
     "max": 47.697135,
     "mean": 21.8647622,
@@ -733,14 +733,15 @@
   "specialist": "Insurance Claims",
   "task": "insurance_claims_specialist",
   "throughput": {
-    "documents_per_minute": 472.2178498347238,
-    "tokens_per_second": 29287.58067054935,
-    "tokens_per_second_per_gpu": 29287.58067054935
+    "documents_per_minute": 28.40989800846615,
+    "documents_per_minute_per_gpu": 28.40989800846615,
+    "tokens_per_second": 1762.019754349082,
+    "tokens_per_second_per_gpu": 1762.019754349082
   },
   "time": {
     "cold_boot_seconds": 0.285,
     "gpu_seconds": 120.697,
-    "wall_seconds": 6.353
+    "wall_seconds": 105.597
   },
   "tokens": {
     "completion": 20749,

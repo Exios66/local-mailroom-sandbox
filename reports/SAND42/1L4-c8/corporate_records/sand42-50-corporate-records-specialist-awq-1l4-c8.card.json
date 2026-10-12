@@ -697,7 +697,7 @@
     ],
     "scrape_errors": []
   },
-  "generated_at": "2026-10-12T06:10:29+00:00",
+  "generated_at": "2026-10-12T08:00:17+00:00",
   "latency": {
     "max": 16.503642,
     "mean": 11.14224488,
@@ -726,6 +726,7 @@
   "task": "corporate_records_specialist",
   "throughput": {
     "documents_per_minute": 34.642432360650815,
+    "documents_per_minute_per_gpu": 34.642432360650815,
     "tokens_per_second": 2371.5054446356194,
     "tokens_per_second_per_gpu": 2371.5054446356194
   },

@@ -1,8 +1,8 @@
 {
   "concurrency": {
-    "occupancy": 1.3961942445611761,
-    "parallelism": 22.339107912978818,
-    "slot_utilization": 1.3962
+    "occupancy": 0.7696310324994711,
+    "parallelism": 12.314096519991537,
+    "slot_utilization": 0.7696
   },
   "conditions": {
     "concurrency": 16,
@@ -48,9 +48,9 @@
   "cost": {
     "billed_gpu_usd": 0.020617,
     "billed_seconds": 92.777,
-    "busy_gpu_usd": 0.009264666666666668,
-    "idle_seconds": 0.0,
-    "idle_usd": null,
+    "busy_gpu_usd": 0.016807111111111113,
+    "idle_seconds": 17.423,
+    "idle_usd": 0.003872,
     "usd_per_document": 0.00041233999999999997,
     "usd_per_million_tokens": 0.1004144769845947,
     "usd_per_ok_document": 0.00041233999999999997
@@ -705,7 +705,7 @@
     ],
     "scrape_errors": []
   },
-  "generated_at": "2026-10-12T05:19:12+00:00",
+  "generated_at": "2026-10-12T08:00:24+00:00",
   "latency": {
     "max": 31.462880000000002,
     "mean": 18.62679496,
@@ -733,14 +733,15 @@
   "specialist": "Corporate Records",
   "task": "corporate_records_specialist",
   "throughput": {
-    "documents_per_minute": 71.95797654169965,
-    "tokens_per_second": 4924.779928521743,
-    "tokens_per_second_per_gpu": 4924.779928521743
+    "documents_per_minute": 39.66574994711233,
+    "documents_per_minute_per_gpu": 39.66574994711233,
+    "tokens_per_second": 2714.7107044637187,
+    "tokens_per_second_per_gpu": 2714.7107044637187
   },
   "time": {
     "cold_boot_seconds": 0.316,
     "gpu_seconds": 92.777,
-    "wall_seconds": 41.691
+    "wall_seconds": 75.632
   },
   "tokens": {
     "completion": 8000,

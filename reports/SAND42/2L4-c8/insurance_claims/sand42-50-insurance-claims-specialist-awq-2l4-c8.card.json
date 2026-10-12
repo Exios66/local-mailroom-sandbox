@@ -709,7 +709,7 @@
     ],
     "scrape_errors": []
   },
-  "generated_at": "2026-10-12T06:31:33+00:00",
+  "generated_at": "2026-10-12T08:00:32+00:00",
   "latency": {
     "max": 49.897794999999995,
     "mean": 12.87842774,
@@ -738,6 +738,7 @@
   "task": "insurance_claims_specialist",
   "throughput": {
     "documents_per_minute": 25.057423261641265,
+    "documents_per_minute_per_gpu": 12.528711630820633,
     "tokens_per_second": 1555.1054499895595,
     "tokens_per_second_per_gpu": 777.5527249947797
   },

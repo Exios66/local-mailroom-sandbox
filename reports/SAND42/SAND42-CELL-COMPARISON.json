@@ -80,6 +80,17 @@
     },
     "2l4-c16": {
       "per_class": {
+        "contracts_specialist": {
+          "better": 20,
+          "ci_high": 0.06364318181818181,
+          "ci_low": -0.012393181818181826,
+          "delta_mean": 0.02456136363636363,
+          "n_for_delta_0_05": 53,
+          "paired_documents": 44,
+          "sd_diff": 0.12902559907515215,
+          "tie": 5,
+          "worse": 19
+        },
         "corporate_records_specialist": {
           "better": 4,
           "ci_high": 0.020706,
@@ -112,6 +123,17 @@
           "sd_diff": 0.018229682568015607,
           "tie": 25,
           "worse": 11
+        },
+        "merger_agreement_specialist": {
+          "better": 9,
+          "ci_high": 0.014161890397184516,
+          "ci_low": -0.008462418300653595,
+          "delta_mean": 0.0029191804927099045,
+          "n_for_delta_0_05": 6,
+          "paired_documents": 50,
+          "sd_diff": 0.04146123066748986,
+          "tie": 34,
+          "worse": 7
         }
       },
       "vs": "1l4-c8"
@@ -161,12 +183,23 @@
           "sd_diff": 0.02279966559010039,
           "tie": 30,
           "worse": 10
+        },
+        "merger_agreement_specialist": {
+          "better": 13,
+          "ci_high": 0.024522121669180493,
+          "ci_low": -0.0025603318250377073,
+          "delta_mean": 0.010226370035193564,
+          "n_for_delta_0_05": 8,
+          "paired_documents": 50,
+          "sd_diff": 0.048293902905263926,
+          "tie": 31,
+          "worse": 6
         }
       },
       "vs": "1l4-c8"
     }
   },
-  "generated_at": "2026-10-12T07:01:18+00:00",
+  "generated_at": "2026-10-12T08:00:45+00:00",
   "kind": "comparison",
   "noise_floor": null,
   "reference_cell": "1l4-c8",
