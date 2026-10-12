@@ -30,14 +30,18 @@ for a in "$@"; do
 done
 CELL_A=${ARGS[0]:-2l4-c8};   APP_A=${ARGS[1]:-sandbox-vllm-a}
 CELL_B=${ARGS[2]:-2l4-c16};  APP_B=${ARGS[3]:-sandbox-vllm-b}
-[ "$APP_A" != "$APP_B" ] || { echo "app names must differ"; exit 2; }
+SINGLE=0
+if [ "$CELL_B" = "-" ]; then SINGLE=1; fi   # one fleet only (overlap a running campaign)
+[ "$SINGLE" = 1 ] || [ "$APP_A" != "$APP_B" ] || { echo "app names must differ"; exit 2; }
 
 GEN=data/runtime/parallel-configs   # gitignored scratch; derived, not committed
 
 echo "=== PLAN ==="
 echo "  fleet A: cell $CELL_A on app $APP_A  (caches: $APP_A-scoped)"
-echo "  fleet B: cell $CELL_B on app $APP_B  (caches: $APP_B-scoped)"
-echo "  telemetry: shared volume, labels sand42-$CELL_A / sand42-$CELL_B"
+if [ "$SINGLE" = 1 ]; then echo "  fleet B: (none — single fleet)"; else
+echo "  fleet B: cell $CELL_B on app $APP_B  (caches: $APP_B-scoped)"; fi
+if [ "$SINGLE" = 1 ]; then echo "  telemetry: shared volume, label sand42-$CELL_A"
+else echo "  telemetry: shared volume, labels sand42-$CELL_A / sand42-$CELL_B"; fi
 echo "  generated configs: $GEN/<app>/<run>.yaml"
 [ "$GO" = 1 ] || { echo "(dry run — re-run with --go)"; exit 0; }
 
@@ -127,13 +131,16 @@ PY
   } >>"$log" 2>&1
 }
 
-# Run both fleets concurrently; each has its own env, app and caches.
-run_fleet "$CELL_A" "$APP_A" & PID_A=$!
-run_fleet "$CELL_B" "$APP_B" & PID_B=$!
-
+# Run the fleets concurrently; each has its own env, app and caches.
 rc=0
-wait "$PID_A" || { echo "fleet A ($CELL_A) failed — see ~/sand42-$CELL_A.log"; rc=1; }
-wait "$PID_B" || { echo "fleet B ($CELL_B) failed — see ~/sand42-$CELL_B.log"; rc=1; }
+if [ "$SINGLE" = 1 ]; then
+  run_fleet "$CELL_A" "$APP_A" || { echo "fleet ($CELL_A) failed — see ~/sand42-$CELL_A.log"; rc=1; }
+else
+  run_fleet "$CELL_A" "$APP_A" & PID_A=$!
+  run_fleet "$CELL_B" "$APP_B" & PID_B=$!
+  wait "$PID_A" || { echo "fleet A ($CELL_A) failed — see ~/sand42-$CELL_A.log"; rc=1; }
+  wait "$PID_B" || { echo "fleet B ($CELL_B) failed — see ~/sand42-$CELL_B.log"; rc=1; }
+fi
 
 echo "[parallel] $(date '+%F %H:%M:%S') rebuild master across all cells"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
