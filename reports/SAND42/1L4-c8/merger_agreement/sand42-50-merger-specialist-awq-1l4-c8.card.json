@@ -690,6 +690,7 @@
       "util_peak_perc": 100.0,
       "utilization_memory_perc": null
     },
+    "midrun": null,
     "replicas": [
       {
         "kv_cache_usage_perc": 0.0,
@@ -703,7 +704,7 @@
     ],
     "scrape_errors": []
   },
-  "generated_at": "2026-10-12T08:00:21+00:00",
+  "generated_at": "2026-10-12T17:17:01+00:00",
   "latency": {
     "max": 1627.9009099999998,
     "mean": 696.7077381400001,

@@ -687,6 +687,7 @@
         "p95": 100.0
       }
     },
+    "midrun": null,
     "replicas": [
       {
         "kv_cache_usage_perc": 0.0,
@@ -709,7 +710,7 @@
     ],
     "scrape_errors": []
   },
-  "generated_at": "2026-10-12T08:00:32+00:00",
+  "generated_at": "2026-10-12T17:17:13+00:00",
   "latency": {
     "max": 49.897794999999995,
     "mean": 12.87842774,

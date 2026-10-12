@@ -691,6 +691,7 @@
             "p95": 100.0
           }
         },
+        "midrun": null,
         "replicas": [
           {
             "kv_cache_usage_perc": 0.0,
@@ -713,7 +714,7 @@
         ],
         "scrape_errors": []
       },
-      "generated_at": "2026-10-12T08:00:36+00:00",
+      "generated_at": "2026-10-12T17:17:16+00:00",
       "latency": {
         "max": 973.089059,
         "mean": 168.90680057142856,
@@ -1475,6 +1476,7 @@
             "p95": 100.0
           }
         },
+        "midrun": null,
         "replicas": [
           {
             "kv_cache_usage_perc": 0.0,
@@ -1497,7 +1499,7 @@
         ],
         "scrape_errors": []
       },
-      "generated_at": "2026-10-12T08:00:37+00:00",
+      "generated_at": "2026-10-12T17:17:17+00:00",
       "latency": {
         "max": 21.198734,
         "mean": 11.86151754,
@@ -2249,6 +2251,7 @@
             "p95": 100.0
           }
         },
+        "midrun": null,
         "replicas": [
           {
             "kv_cache_usage_perc": 0.0,
@@ -2271,7 +2274,7 @@
         ],
         "scrape_errors": []
       },
-      "generated_at": "2026-10-12T08:00:38+00:00",
+      "generated_at": "2026-10-12T17:17:19+00:00",
       "latency": {
         "max": 11.915516,
         "mean": 7.22509776,
@@ -3023,6 +3026,7 @@
             "p95": 100.0
           }
         },
+        "midrun": null,
         "replicas": [
           {
             "kv_cache_usage_perc": 0.0,
@@ -3045,7 +3049,7 @@
         ],
         "scrape_errors": []
       },
-      "generated_at": "2026-10-12T08:00:39+00:00",
+      "generated_at": "2026-10-12T17:17:20+00:00",
       "latency": {
         "max": 40.279419000000004,
         "mean": 15.66377872,
@@ -3803,6 +3807,7 @@
             "p95": 100.0
           }
         },
+        "midrun": null,
         "replicas": [
           {
             "kv_cache_usage_perc": 0.0,
@@ -3825,7 +3830,7 @@
         ],
         "scrape_errors": []
       },
-      "generated_at": "2026-10-12T08:00:41+00:00",
+      "generated_at": "2026-10-12T17:17:21+00:00",
       "latency": {
         "max": 2036.552925,
         "mean": 783.3838515,
@@ -3916,7 +3921,7 @@
     "replicas": 2,
     "teardown_ts": 1791791987.0
   },
-  "generated_at": "2026-10-12T17:16:05+00:00",
+  "generated_at": "2026-10-12T17:19:42+00:00",
   "kind": "cell",
   "replicas": 2,
   "runbook": "sand42-2l4-c16",
@@ -4015,6 +4020,7 @@
             "p95": 100.0
           }
         },
+        "midrun": null,
         "replicas": [
           {
             "kv_cache_usage_perc": 0.0,
@@ -4280,6 +4286,7 @@
             "p95": 100.0
           }
         },
+        "midrun": null,
         "replicas": [
           {
             "kv_cache_usage_perc": 0.0,
@@ -4545,6 +4552,7 @@
             "p95": 100.0
           }
         },
+        "midrun": null,
         "replicas": [
           {
             "kv_cache_usage_perc": 0.0,
@@ -4810,6 +4818,7 @@
             "p95": 100.0
           }
         },
+        "midrun": null,
         "replicas": [
           {
             "kv_cache_usage_perc": 0.0,
@@ -5085,6 +5094,7 @@
             "p95": 100.0
           }
         },
+        "midrun": null,
         "replicas": [
           {
             "kv_cache_usage_perc": 0.0,

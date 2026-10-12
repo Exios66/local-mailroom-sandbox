@@ -1217,8 +1217,8 @@ runbooks:
     midrun_metrics: true
     extra_env:
       MODAL_VLLM_TELEMETRY_LABEL: sand42-1l4-c8
-    blocked: true
-    blocked_reason: spend not approved — this leg only measures the noise floor; approve separately from the four cells
+    blocked: false
+    blocked_reason: spend approved 2026-10-12 (operator) — this leg now rides the sand42-1l4-c8 re-run's boot; keep the flag for the next unreviewed leg
     steps:
       - env
       - activate_profile
@@ -1236,7 +1236,7 @@ runbooks:
       - sandbox run card --config config/runs/sand42-noisefloor-correspondence-awq-1l4-c8.yaml
       - sandbox run card --runbook sand42-noise-floor
     notes:
-      - "BLOCKED: the script refuses to run until spend is approved (drop the blocked flag after approval). Preflight, benchmark-check and runbook check all pass today."
+      - "Spend approved 2026-10-12 (operator): the flag was blocking the generated script only, never the config. Still preferred INSIDE the sand42-1l4-c8 re-run's boot rather than as its own cold boot — that leg's script appends this config last, and the mid-run sampler folds its samples into the sand42-1l4-c8 cell."
       - "Prefer running it inside the sand42-1l4-c8 deploy rather than as its own cold boot: append this config to that runbook's configs list and drop the blocked flag."
       - "Reports: the card lands beside the C8 cell at reports/SAND42/1L4-c8/correspondence/. The after step writes reports/SAND42/SAND42-NOISE-FLOOR.md with the paired SD_diff and the n it implies."
 

@@ -688,6 +688,7 @@
           "util_peak_perc": 100.0,
           "utilization_memory_perc": null
         },
+        "midrun": null,
         "replicas": [
           {
             "kv_cache_usage_perc": 0.0,
@@ -701,7 +702,7 @@
         ],
         "scrape_errors": []
       },
-      "generated_at": "2026-10-12T08:00:16+00:00",
+      "generated_at": "2026-10-12T17:16:56+00:00",
       "latency": {
         "max": 687.8181119999999,
         "mean": 138.27651237999999,
@@ -1458,6 +1459,7 @@
           "util_peak_perc": 100.0,
           "utilization_memory_perc": null
         },
+        "midrun": null,
         "replicas": [
           {
             "kv_cache_usage_perc": 0.0,
@@ -1471,7 +1473,7 @@
         ],
         "scrape_errors": []
       },
-      "generated_at": "2026-10-12T08:00:17+00:00",
+      "generated_at": "2026-10-12T17:16:57+00:00",
       "latency": {
         "max": 16.503642,
         "mean": 11.14224488,
@@ -2220,6 +2222,7 @@
           "util_peak_perc": 99.0,
           "utilization_memory_perc": null
         },
+        "midrun": null,
         "replicas": [
           {
             "kv_cache_usage_perc": 0.0,
@@ -2233,7 +2236,7 @@
         ],
         "scrape_errors": []
       },
-      "generated_at": "2026-10-12T08:00:18+00:00",
+      "generated_at": "2026-10-12T17:16:58+00:00",
       "latency": {
         "max": 9.286477000000001,
         "mean": 6.54723338,
@@ -2982,6 +2985,7 @@
           "util_peak_perc": 99.0,
           "utilization_memory_perc": null
         },
+        "midrun": null,
         "replicas": [
           {
             "kv_cache_usage_perc": 0.0,
@@ -2995,7 +2999,7 @@
         ],
         "scrape_errors": []
       },
-      "generated_at": "2026-10-12T08:00:19+00:00",
+      "generated_at": "2026-10-12T17:16:59+00:00",
       "latency": {
         "max": 45.852576,
         "mean": 15.7192578,
@@ -3750,6 +3754,7 @@
           "util_peak_perc": 100.0,
           "utilization_memory_perc": null
         },
+        "midrun": null,
         "replicas": [
           {
             "kv_cache_usage_perc": 0.0,
@@ -3763,7 +3768,7 @@
         ],
         "scrape_errors": []
       },
-      "generated_at": "2026-10-12T08:00:21+00:00",
+      "generated_at": "2026-10-12T17:17:01+00:00",
       "latency": {
         "max": 1627.9009099999998,
         "mean": 696.7077381400001,
@@ -3854,7 +3859,7 @@
     "replicas": 1,
     "teardown_ts": 1791778552.914
   },
-  "generated_at": "2026-10-12T17:16:04+00:00",
+  "generated_at": "2026-10-12T17:19:41+00:00",
   "kind": "cell",
   "replicas": 1,
   "runbook": "sand42-1l4-c8",
@@ -3950,6 +3955,7 @@
           "util_peak_perc": 99.0,
           "utilization_memory_perc": null
         },
+        "midrun": null,
         "replicas": [
           {
             "kv_cache_usage_perc": 0.0,
@@ -4200,6 +4206,7 @@
           "util_peak_perc": 99.0,
           "utilization_memory_perc": null
         },
+        "midrun": null,
         "replicas": [
           {
             "kv_cache_usage_perc": 0.0,
@@ -4450,6 +4457,7 @@
           "util_peak_perc": 100.0,
           "utilization_memory_perc": null
         },
+        "midrun": null,
         "replicas": [
           {
             "kv_cache_usage_perc": 0.0,
@@ -4700,6 +4708,7 @@
           "util_peak_perc": 100.0,
           "utilization_memory_perc": null
         },
+        "midrun": null,
         "replicas": [
           {
             "kv_cache_usage_perc": 0.0,
@@ -4958,6 +4967,7 @@
           "util_peak_perc": 100.0,
           "utilization_memory_perc": null
         },
+        "midrun": null,
         "replicas": [
           {
             "kv_cache_usage_perc": 0.0,
