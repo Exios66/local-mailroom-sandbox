@@ -965,17 +965,63 @@ def _noise_floor(*, repo: Path | None = None) -> dict[str, Any] | None:
     return d
 
 
+def _draw_claim(data: Mapping[str, Any]) -> str:
+    """The comparison's headline claim, generated from the cards' own document ids.
+
+    Hardcoded, this read "the identical 250 documents" no matter which documents the cells
+    actually scored — the one sentence in the report whose being wrong would invalidate every
+    delta beneath it, and it is the claim the whole campaign exists to make true. The dataset
+    fingerprint cannot detect a draw change (it pins the repo/revision, not the selection), so
+    this compares the per-document ids the pairing itself is computed on, per class.
+    """
+    per_class: dict[str, dict[str, set[str]]] = {}
+    for cell in CELL_ORDER:
+        for rid, card in ((data.get("cells") or {}).get(cell, {}).get("cards") or {}).items():
+            if "-specialist-awq-" not in rid:
+                continue                      # the noise-floor leg repeats one class
+            ids = {str(d.get("item_id")) for d in (card.get("documents") or []) if d.get("item_id")}
+            if ids:
+                per_class.setdefault(rid.split("-specialist-awq-")[0], {})[cell] = ids
+    if not per_class:
+        return "Draw identity: no per-document ids in the cards — cannot verify."
+
+    split = {cls: by_cell for cls, by_cell in per_class.items()
+             if len({frozenset(s) for s in by_cell.values()}) > 1}
+    if not split:
+        total = sum(len(next(iter(by_cell.values()))) for by_cell in per_class.values())
+        return (
+            f"All {len(CELL_ORDER)} cells score the **identical {total} documents** "
+            f"({len(per_class)} specialists × "
+            f"{len(next(iter(next(iter(per_class.values())).values())))} documents, one "
+            "subclass-stratified draw per class), so every cell-to-cell delta below is "
+            "**paired**: the unit of analysis is the per-document score difference. Intervals "
+            "are 95% percentile bootstrap over documents; the last column is the paired n that "
+            "Δ = 0.05 would need at 80% power."
+        )
+    detail = "; ".join(
+        f"`{cls}`: " + " vs ".join(
+            f"{sorted(c for c, s in by_cell.items() if s == draw)} "
+            f"({len(draw)} docs)"
+            for draw in {frozenset(s) for s in by_cell.values()}
+        )
+        for cls, by_cell in sorted(split.items())
+    )
+    return (
+        f"**The cells do NOT all score the same documents.** {detail}. "
+        "Any delta between cells on different draws is **not paired** — the per-document "
+        "difference is undefined across a draw change, so those columns compare different "
+        "documents and must not be read as a comparison until every cell re-runs on one draw. "
+        "Everything else in this table (cost, throughput, engine telemetry) is unaffected."
+    )
+
+
 def render_comparison_md(
     data: Mapping[str, Any], *, figures: Sequence[Path] | None = None
 ) -> str:
     lines = [
         f"# SAND-042 · paired comparison across the {len(CELL_ORDER)} cells",
         "",
-        f"All {len(CELL_ORDER)} cells score the **identical 250 documents** (5 specialists × 50, one "
-        "subclass-stratified draw), so every cell-to-cell delta below is **paired**: the "
-        "unit of analysis is the per-document score difference. Intervals are 95% "
-        "percentile bootstrap over documents; the last column is the paired n that "
-        "Δ = 0.05 would need at 80% power.",
+        _draw_claim(data),
         "",
         f"Reference cell: **{data['reference_cell']}** "
         "(1×L4, client concurrency 8).",
