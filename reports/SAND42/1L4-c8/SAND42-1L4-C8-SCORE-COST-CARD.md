@@ -19,21 +19,31 @@
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Quality (95% CI) | 0.384 [0.316, 0.451] | 0.670 [0.653, 0.685] | 0.497 [0.427, 0.569] | 0.579 [0.543, 0.614] | 0.021 [0.012, 0.030] |
 | Scored documents | 50 | 50 | 50 | 45 | 50 |
+| Quality SD | 0.246 | 0.060 | 0.254 | 0.123 | 0.032 |
 | Scoring method | suite | suite | suite | suite+cuad | suite+maud |
+| Clause metric | — | — | — | CUAD F1 0.585 · 45 labeled | MAUD acc 2.1% · 254/811 answered |
 | Ok rate (Wilson) | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] |
 | Schema-valid rate | 100.0% | 30.0% | 96.0% | 100.0% | 100.0% |
+| Parse errors | 0 | 0 | 0 | 0 | 0 |
 | Length-capped | 0 | 0 | 0 | 0 | 0 |
+| Error kinds | — | — | — | — | — |
 | p50 latency (s) | 6.3 | 13.6 | 11.2 | 94.5 | 574.9 |
 | p95 latency (s) | 8.9 | 24.6 | 13.6 | 316.4 | 1,324.9 |
 | SLO (s) · met | 60 · yes | 60 · yes | 60 · yes | 300 · no | 1,800 · yes |
+| Documents/min | 49.41 | 23.14 | 34.64 | 3.26 | 0.64 |
 | Documents/min/GPU | 49.41 | 23.14 | 34.64 | 3.26 | 0.64 |
 | Goodput docs/min/GPU | 49.41 | 23.14 | 34.64 | 0.00 | 0.64 |
 | Tokens/s/GPU | 2,258.4 | 1,438.9 | 2,371.5 | 1,009.7 | 1,113.2 |
+| Mean TTFT (s) | 0.72 | 0.90 | 1.21 | 1.95 | 4.01 |
+| Prefix-cache hit | 63.6% | 58.4% | 50.9% | 38.3% | 18.4% |
 | Wall (s) | 60.7 | 129.7 | 86.6 | 920.0 | 4,657.5 |
 | Billed GPU $ (run) | $0.0133 | $0.0287 | $0.0194 | $0.2046 | $1.0356 |
 | $ / 1k ok docs | $0.266880 | $0.574880 | $0.387920 | $4.091500 | $20.712260 |
 | $ / 1k schema-valid | $0.266880 | $1.916267 | $0.404083 | $4.091500 | $20.712260 |
-| GPU util (mean/p95/peak) | 73.8% mean / 99.0 p95 / 99.0% peak (n=8) | 92.8% mean / 99.0 p95 / 99.0% peak (n=18) | 77.6% mean / 100.0 p95 / 100.0% peak (n=14) | 97.6% mean / 100.0 p95 / 100.0% peak (n=139) | 98.3% mean / 100.0 p95 / 100.0% peak (n=699) |
+| $ / doc | $0.000267 | $0.000575 | $0.000388 | $0.004092 | $0.020712 |
+| $ / ok doc | $0.000267 | $0.000575 | $0.000388 | $0.004092 | $0.020712 |
+| $ / 1M tokens | $0.097 | $0.154 | $0.094 | $0.220 | $0.200 |
+| GPU util (mean/p95/min–max) | 73.8% mean / 99.0 p95 / 0.0–99.0% min–max (n=8) | 92.8% mean / 99.0 p95 / 0.0–99.0% min–max (n=18) | 77.6% mean / 100.0 p95 / 0.0–100.0% min–max (n=14) | 97.6% mean / 100.0 p95 / 0.0–100.0% min–max (n=139) | 98.3% mean / 100.0 p95 / 0.0–100.0% min–max (n=699) |
 | GPU mem used (mean) | 20,994 MiB (91.1% of 23,034) | 21,023 MiB (91.3% of 23,034) | 21,023 MiB (91.3% of 23,034) | 21,026 MiB (91.3% of 23,034) | 21,027 MiB (91.3% of 23,034) |
 | GPU mem bandwidth (mean) | not captured | not captured | not captured | not captured | not captured |
 | Sampling coverage | 96.6% | 94.8% | 100.0% | 100.0% | 100.0% |
@@ -73,4 +83,4 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-12T06:10:34+00:00 by `sandbox run card --runbook sand42-1l4-c8` from the committed per-run `*.card.json`._
+_Generated 2026-10-12T07:01:16+00:00 by `sandbox run card --runbook sand42-1l4-c8` from the committed per-run `*.card.json`._
