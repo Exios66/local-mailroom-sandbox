@@ -85,4 +85,4 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-12T17:16:05+00:00 by `sandbox run card --runbook sand42-1l4-c16` from the committed per-run `*.card.json`._
+_Generated 2026-10-12T17:19:41+00:00 by `sandbox run card --runbook sand42-1l4-c16` from the committed per-run `*.card.json`._

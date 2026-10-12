@@ -187,6 +187,17 @@
           "sd_diff": 0.018932469032682163,
           "tie": 30,
           "worse": 9
+        },
+        "merger_agreement_specialist": {
+          "better": 8,
+          "ci_high": 0.01205065359477124,
+          "ci_low": -0.006305555555555556,
+          "delta_mean": 0.003362745098039216,
+          "n_for_delta_0_05": 4,
+          "paired_documents": 50,
+          "sd_diff": 0.03340279596102754,
+          "tie": 38,
+          "worse": 4
         }
       },
       "vs": "1l4-c8"
@@ -252,7 +263,7 @@
       "vs": "1l4-c8"
     }
   },
-  "generated_at": "2026-10-12T17:16:07+00:00",
+  "generated_at": "2026-10-12T17:19:44+00:00",
   "kind": "comparison",
   "noise_floor": null,
   "reference_cell": "1l4-c8",

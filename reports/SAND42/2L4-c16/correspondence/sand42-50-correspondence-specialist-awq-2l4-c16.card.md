@@ -143,4 +143,4 @@
 | 49 | `DOC-e1e0cc74e784a403` | yes | 0.3212 | 5.3 | 2677 | 191 | — |
 | 50 | `DOC-6823b2f649cf1d0a` | yes | 0.3333 | 6.4 | 4888 | 162 | — |
 
-_Generated 2026-10-12T08:00:38+00:00 by `sandbox run card`. Machine-readable twin: `sand42-50-correspondence-specialist-awq-2l4-c16.card.json`._
+_Generated 2026-10-12T17:17:19+00:00 by `sandbox run card`. Machine-readable twin: `sand42-50-correspondence-specialist-awq-2l4-c16.card.json`._

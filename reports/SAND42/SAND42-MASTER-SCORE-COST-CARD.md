@@ -1,6 +1,6 @@
 # SAND-042 master score & cost card — paired concurrency × fleet grid
 
-**Conditions measured:** 4 of 5 · **Documents per condition:** 250 (5 specialists × n=50, one shared subclass-stratified draw) · **Model:** Qwen/Qwen3-8B-AWQ · L4 @ $0.80/GPU-hr · **Prompts:** v1 `*_simplified` only.
+**Conditions measured:** 5 of 5 · **Documents per condition:** 250 (5 specialists × n=50, one shared subclass-stratified draw) · **Model:** Qwen/Qwen3-8B-AWQ · L4 @ $0.80/GPU-hr · **Prompts:** v1 `*_simplified` only.
 
 5 conditions — {1×L4, 2×L4} × {client concurrency 8, 16} plus the 2×L4 C32 saturation point (16 per replica, the engine's `max_num_seqs` admission ceiling) — on the SAND-037 aligned spec. Every condition scores the **identical 250 documents**, so every delta is paired.
 Design, metric contract and acceptance rules: [`docs/SAND42-EXPERIMENT-DESIGN.md`](../../docs/SAND42-EXPERIMENT-DESIGN.md).
@@ -25,7 +25,7 @@ Design, metric contract and acceptance rules: [`docs/SAND42-EXPERIMENT-DESIGN.md
 | Insurance Claims | 0.670 | 0.665 | 0.670 | 0.668 | 0.670 |
 | Corporate Records | 0.497 | 0.484 | 0.481 | 0.498 | 0.485 |
 | Contracts | 0.579 | 0.603 | 0.622 | 0.606 | 0.593 |
-| Merger Agreements | 0.021 | 0.029 | 0.031 | 0.024 | not run |
+| Merger Agreements | 0.021 | 0.029 | 0.031 | 0.024 | 0.024 |
 
 ## Serving efficiency (per condition, per specialist)
 
@@ -63,14 +63,14 @@ Design, metric contract and acceptance rules: [`docs/SAND42-EXPERIMENT-DESIGN.md
 | Contracts · GPU mem bandwidth | not captured — scraped before the sampler read utilization.memory; needs a re-run | 84.7% mean | 80.0% mean | 76.8% mean | 79.8% mean |
 | Contracts · $/1k ok | $4.091500 | $5.082960 | $8.912980 | $9.653776 | $9.125560 |
 | Contracts · $/1k schema-valid | $4.091500 | $5.082960 | $8.734720 | $9.460700 | $9.125560 |
-| Merger Agreements · documents/min/GPU | 0.64 | 0.73 | 0.47 | 0.52 | not run |
-| Merger Agreements · goodput docs/min/GPU | 0.64 | 0.00 | 0.47 | 0.52 | not run |
-| Merger Agreements · tokens/s/GPU | 1,113 | 1,262 | 811 | 901 | not run |
-| Merger Agreements · GPU util % (mean) | 98.3 | 98.2 | 80.6 | 82.2 | not run |
-| Merger Agreements · GPU mem used | 21,027 MiB (91.3% of 23,034) | 21,027 MiB (91.3% of 23,034) | 21,002 MiB (91.2% of 23,034) | 19,996 MiB (86.8% of 23,034) | not run |
-| Merger Agreements · GPU mem bandwidth | not captured — scraped before the sampler read utilization.memory; needs a re-run | 78.2% mean | 68.5% mean | 69.0% mean | not run |
-| Merger Agreements · $/1k ok | $20.712260 | $18.219480 | $28.326080 | $25.497100 | not run |
-| Merger Agreements · $/1k schema-valid | $20.712260 | $18.219480 | $28.326080 | $25.497100 | not run |
+| Merger Agreements · documents/min/GPU | 0.64 | 0.73 | 0.47 | 0.52 | 0.76 |
+| Merger Agreements · goodput docs/min/GPU | 0.64 | 0.00 | 0.47 | 0.52 | 0.76 |
+| Merger Agreements · tokens/s/GPU | 1,113 | 1,262 | 811 | 901 | 1,313 |
+| Merger Agreements · GPU util % (mean) | 98.3 | 98.2 | 80.6 | 82.2 | 94.8 |
+| Merger Agreements · GPU mem used | 21,027 MiB (91.3% of 23,034) | 21,027 MiB (91.3% of 23,034) | 21,002 MiB (91.2% of 23,034) | 19,996 MiB (86.8% of 23,034) | 21,027 MiB (91.3% of 23,034) |
+| Merger Agreements · GPU mem bandwidth | not captured — scraped before the sampler read utilization.memory; needs a re-run | 78.2% mean | 68.5% mean | 69.0% mean | 74.8% mean |
+| Merger Agreements · $/1k ok | $20.712260 | $18.219480 | $28.326080 | $25.497100 | $17.534160 |
+| Merger Agreements · $/1k schema-valid | $20.712260 | $18.219480 | $28.326080 | $25.497100 | $17.534160 |
 
 ## Paired deltas vs `1l4-c8`
 
@@ -95,6 +95,7 @@ Intervals are 95% percentile bootstrap over documents; a CI containing 0 is insi
 * `2l4-c32` vs `1l4-c8` · corporate_records_specialist: Δ -0.012 ([-0.033, 0.003], n=50, 1/3 better/worse)
 * `2l4-c32` vs `1l4-c8` · correspondence_specialist: Δ -0.007 ([-0.019, 0.000], n=50, 0/3 better/worse)
 * `2l4-c32` vs `1l4-c8` · insurance_claims_specialist: Δ +0.001 ([-0.005, 0.006], n=50, 11/9 better/worse)
+* `2l4-c32` vs `1l4-c8` · merger_agreement_specialist: Δ +0.003 ([-0.006, 0.012], n=50, 8/4 better/worse)
 
 ## Findings
 
@@ -117,6 +118,7 @@ Intervals are 95% percentile bootstrap over documents; a CI containing 0 is insi
 * 2l4-c32 vs 1l4-c8 · insurance_claims_specialist: -13% documents/min/GPU
 * 2l4-c32 vs 1l4-c8 · corporate_records_specialist: -12% documents/min/GPU
 * 2l4-c32 vs 1l4-c8 · contracts_specialist: -55% documents/min/GPU
+* 2l4-c32 vs 1l4-c8 · merger_agreement_specialist: +18% documents/min/GPU
 
 ## Cost
 
@@ -126,4 +128,4 @@ Intervals are 95% percentile bootstrap over documents; a CI containing 0 is insi
 
 Per-condition detail and engine/GPU telemetry: [`SAND42-MASTER-REPORT.md`](SAND42-MASTER-REPORT.md).
 
-_Generated 2026-10-12T17:16:08+00:00 by `sandbox run card --runbook sand42`._
+_Generated 2026-10-12T17:19:46+00:00 by `sandbox run card --runbook sand42`._

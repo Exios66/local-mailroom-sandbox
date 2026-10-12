@@ -35,12 +35,12 @@
 | Spec hash | a96e6fbc… |
 | **Time** |  |
 | Wall (busy) | 1,972.33 s |
-| GPU seconds | 1,972.57 s |
+| GPU seconds | 1,972.59 s |
 | Cold boot | 0.24 s |
 | **Cost** |  |
 | Busy-window GPU $ | $0.876590 |
-| Billed GPU $ | $0.876696 |
-| Billed seconds | 1,972.57 s |
+| Billed GPU $ | $0.876708 |
+| Billed seconds | 1,972.59 s |
 | Idle $ | $0.164500 (370.12 s) |
 | Cost per document | $0.017534 |
 | Cost per ok document | $0.017534 |
@@ -68,13 +68,20 @@
 | **Engine (vLLM /metrics)** |  |
 | Parallelism (Σ latency ÷ wall) | 25.99× of 32 |
 | Slot occupancy | 81.2% |
-| Coverage | not captured |
-| Requests per replica (this run) | not captured |
-| Mean TTFT per replica | not captured |
-| Prefix-cache hit per replica | not captured |
-| Preemptions per replica (this run) | not captured |
-| Length-capped finishes per replica (this run) | not captured |
-| **GPU hardware (nvidia-smi)** | not captured |
+| Coverage | replicas observed: 2 of 2 |
+| Requests per replica (this run) | 220 / 196 |
+| Mean TTFT per replica | 42.595 s / 4.152 s |
+| Prefix-cache hit per replica | 18.3% / 15.5% |
+| Preemptions per replica (this run) | 0 / 0 |
+| Length-capped finishes per replica (this run) | 3 / 1 |
+| **GPU hardware (nvidia-smi)** | 596 samples · serving-replica nvidia-smi |
+| GPU utilization | 94.8 % mean (p95 100.0 / peak 100.0 / min 0.0) |
+| Sampling coverage | 99.4 % |
+| GPU power draw | 70.1 W (min 29.8 / max 74.7) of 72 W cap |
+| GPU memory bandwidth | 74.8 % (min 0.0 / max 100.0) |
+| GPU SM clock | 1,311 MHz (min 945 / max 2,040) |
+| GPU temperature | 75.8 C (min 57.0 / max 82.0) |
+| GPU memory used | 21,027 MiB (min 21,026 / max 21,028) |
 | **Quality** |  |
 | Overall extraction score | 0.0241 (sd 0.030) |
 | Score min / max | 0.0000 / 0.0769 |
@@ -148,4 +155,4 @@
 | 49 | `DOC-5d30efc302f3c431` | yes | 0.0625 | 855.8 | 130943 | 11157 | — |
 | 50 | `DOC-511062d64bc9afc6` | yes | 0.0000 | 1,959.2 | 97584 | 6846 | — |
 
-_Generated 2026-10-12T17:16:16+00:00 by `sandbox run card`. Machine-readable twin: `sand42-50-merger-specialist-awq-2l4-c32.card.json`._
+_Generated 2026-10-12T17:17:28+00:00 by `sandbox run card`. Machine-readable twin: `sand42-50-merger-specialist-awq-2l4-c32.card.json`._

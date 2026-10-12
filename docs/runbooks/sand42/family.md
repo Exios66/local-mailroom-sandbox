@@ -741,8 +741,6 @@ One extra correspondence cell on the identical 50 documents and identical settin
 
 Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show sand42-noise-floor`.
 
-> **BLOCKED:** spend not approved — this leg only measures the noise floor; approve separately from the four cells
-
 ## Pins (from catalog serving variant)
 
 | Knob | Value |
@@ -764,7 +762,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), th
 
 ## Notes
 
-- BLOCKED: the script refuses to run until spend is approved (drop the blocked flag after approval). Preflight, benchmark-check and runbook check all pass today.
+- Spend approved 2026-10-12 (operator): the flag was blocking the generated script only, never the config. Still preferred INSIDE the sand42-1l4-c8 re-run's boot rather than as its own cold boot — that leg's script appends this config last, and the mid-run sampler folds its samples into the sand42-1l4-c8 cell.
 - Prefer running it inside the sand42-1l4-c8 deploy rather than as its own cold boot: append this config to that runbook's configs list and drop the blocked flag.
 - Reports: the card lands beside the C8 cell at reports/SAND42/1L4-c8/correspondence/. The after step writes reports/SAND42/SAND42-NOISE-FLOOR.md with the paired SD_diff and the n it implies.
 
@@ -781,8 +779,6 @@ Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), th
 # SAND-042 noise floor — correspondence re-run on the same 50 documents (1×L4 · C8)
 # sandbox runbook show sand42-noise-floor
 set -euo pipefail
-echo "BLOCKED: spend not approved — this leg only measures the noise floor; approve separately from the four cells" >&2
-false   # refuse execution until spend/auth are approved
 
 # serving variant: grid-awq-1l4
 # runbook: sand42-noise-floor

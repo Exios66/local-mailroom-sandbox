@@ -33,12 +33,15 @@ _log = logging.getLogger("mailroom_sandbox.job.sand42_figures")
 # Palette + frame constants from the SAND-037 record figures.
 SURFACE, INK, INK2, MUTED, GRID, AXIS = "#fcfcfb", "#0b0b0b", "#52514e", "#898781", "#e1e0d9", "#c3c2b7"
 
-# Categorical slots 1–4 of the dataviz palette, one per cell (validated as a set).
+# Categorical slots of the dataviz reference palette, one per cell. Slots 1-4 are the
+# original validated set; slot 5 (#d55181, the reference's fifth step) was added for the
+# 2l4-c32 saturation cell, whose absence here made write_master_figures raise KeyError.
 CELL_COLORS: dict[str, str] = {
     "1l4-c8": "#eb6834",
     "1l4-c16": "#2a78d6",
     "2l4-c8": "#1baf7a",
     "2l4-c16": "#eda100",
+    "2l4-c32": "#d55181",
 }
 
 FIG_SUBDIR = "figures"

@@ -42,9 +42,18 @@ Reference cell: **1l4-c8** (1×L4, client concurrency 8).
 | Corporate Records | 50 | -0.012 | [-0.033, 0.003] | 0.067 | 1 / 3 / 46 | 15 |
 | Correspondence | 50 | -0.007 | [-0.019, 0.000] | 0.040 | 0 / 3 / 47 | 5 |
 | Insurance Claims | 50 | +0.001 | [-0.005, 0.006] | 0.019 | 11 / 9 / 30 | 2 |
+| Merger Agreements | 50 | +0.003 | [-0.006, 0.012] | 0.033 | 8 / 4 / 38 | 4 |
 
 ## Noise floor (run-to-run, same 50 documents)
 
 _Not measured._ Run `sand42-noise-floor` (blocked until spend is approved) on the same 50 correspondence documents. Until then the SAND-037/39 floor in `docs/BENCHMARK-PROGRAM.md` §3 is the prior — it was measured on a different draw, so treat it as indicative only.
 
-_Generated 2026-10-12T17:16:07+00:00 by `sandbox run card --runbook sand42`._
+## Figures
+
+![Quality](figures/cmp-quality.png)
+![Cost](figures/cmp-cost.png)
+![Latency](figures/cmp-latency.png)
+![Throughput](figures/cmp-throughput.png)
+![Gpu](figures/cmp-gpu.png)
+
+_Generated 2026-10-12T17:19:44+00:00 by `sandbox run card --runbook sand42`._
