@@ -701,7 +701,7 @@
         ],
         "scrape_errors": []
       },
-      "generated_at": "2026-10-12T06:10:31+00:00",
+      "generated_at": "2026-10-12T08:00:16+00:00",
       "latency": {
         "max": 687.8181119999999,
         "mean": 138.27651237999999,
@@ -738,6 +738,7 @@
       "task": "contracts_specialist",
       "throughput": {
         "documents_per_minute": 3.260780957039211,
+        "documents_per_minute_per_gpu": 3.260780957039211,
         "tokens_per_second": 1009.7345180837477,
         "tokens_per_second_per_gpu": 1009.7345180837477
       },
@@ -1470,7 +1471,7 @@
         ],
         "scrape_errors": []
       },
-      "generated_at": "2026-10-12T06:10:29+00:00",
+      "generated_at": "2026-10-12T08:00:17+00:00",
       "latency": {
         "max": 16.503642,
         "mean": 11.14224488,
@@ -1499,6 +1500,7 @@
       "task": "corporate_records_specialist",
       "throughput": {
         "documents_per_minute": 34.642432360650815,
+        "documents_per_minute_per_gpu": 34.642432360650815,
         "tokens_per_second": 2371.5054446356194,
         "tokens_per_second_per_gpu": 2371.5054446356194
       },
@@ -2231,7 +2233,7 @@
         ],
         "scrape_errors": []
       },
-      "generated_at": "2026-10-12T06:10:27+00:00",
+      "generated_at": "2026-10-12T08:00:18+00:00",
       "latency": {
         "max": 9.286477000000001,
         "mean": 6.54723338,
@@ -2260,6 +2262,7 @@
       "task": "correspondence_specialist",
       "throughput": {
         "documents_per_minute": 49.40792832556531,
+        "documents_per_minute_per_gpu": 49.40792832556531,
         "tokens_per_second": 2258.3705265238227,
         "tokens_per_second_per_gpu": 2258.3705265238227
       },
@@ -2992,7 +2995,7 @@
         ],
         "scrape_errors": []
       },
-      "generated_at": "2026-10-12T06:10:28+00:00",
+      "generated_at": "2026-10-12T08:00:19+00:00",
       "latency": {
         "max": 45.852576,
         "mean": 15.7192578,
@@ -3021,6 +3024,7 @@
       "task": "insurance_claims_specialist",
       "throughput": {
         "documents_per_minute": 23.137793271529716,
+        "documents_per_minute_per_gpu": 23.137793271529716,
         "tokens_per_second": 1438.9085131654044,
         "tokens_per_second_per_gpu": 1438.9085131654044
       },
@@ -3759,7 +3763,7 @@
         ],
         "scrape_errors": []
       },
-      "generated_at": "2026-10-12T06:10:32+00:00",
+      "generated_at": "2026-10-12T08:00:21+00:00",
       "latency": {
         "max": 1627.9009099999998,
         "mean": 696.7077381400001,
@@ -3798,6 +3802,7 @@
       "task": "merger_agreement_specialist",
       "throughput": {
         "documents_per_minute": 0.6441186492316631,
+        "documents_per_minute_per_gpu": 0.6441186492316631,
         "tokens_per_second": 1113.175726088115,
         "tokens_per_second_per_gpu": 1113.175726088115
       },
@@ -3849,7 +3854,7 @@
     "replicas": 1,
     "teardown_ts": 1791778552.914
   },
-  "generated_at": "2026-10-12T07:01:16+00:00",
+  "generated_at": "2026-10-12T08:00:42+00:00",
   "kind": "cell",
   "replicas": 1,
   "runbook": "sand42-1l4-c8",
@@ -4071,6 +4076,7 @@
       "task": "correspondence_specialist",
       "throughput": {
         "documents_per_minute": 49.40792832556531,
+        "documents_per_minute_per_gpu": 49.40792832556531,
         "tokens_per_second": 2258.3705265238227,
         "tokens_per_second_per_gpu": 2258.3705265238227
       },
@@ -4320,6 +4326,7 @@
       "task": "insurance_claims_specialist",
       "throughput": {
         "documents_per_minute": 23.137793271529716,
+        "documents_per_minute_per_gpu": 23.137793271529716,
         "tokens_per_second": 1438.9085131654044,
         "tokens_per_second_per_gpu": 1438.9085131654044
       },
@@ -4569,6 +4576,7 @@
       "task": "corporate_records_specialist",
       "throughput": {
         "documents_per_minute": 34.642432360650815,
+        "documents_per_minute_per_gpu": 34.642432360650815,
         "tokens_per_second": 2371.5054446356194,
         "tokens_per_second_per_gpu": 2371.5054446356194
       },
@@ -4826,6 +4834,7 @@
       "task": "contracts_specialist",
       "throughput": {
         "documents_per_minute": 3.260780957039211,
+        "documents_per_minute_per_gpu": 3.260780957039211,
         "tokens_per_second": 1009.7345180837477,
         "tokens_per_second_per_gpu": 1009.7345180837477
       },
@@ -5085,6 +5094,7 @@
       "task": "merger_agreement_specialist",
       "throughput": {
         "documents_per_minute": 0.6441186492316631,
+        "documents_per_minute_per_gpu": 0.6441186492316631,
         "tokens_per_second": 1113.175726088115,
         "tokens_per_second_per_gpu": 1113.175726088115
       },

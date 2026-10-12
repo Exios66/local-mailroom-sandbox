@@ -22,14 +22,17 @@ Reference cell: **1l4-c8** (1×L4, client concurrency 8).
 | Corporate Records | 50 | -0.016 | [-0.038, 0.001] | 0.073 | 2 / 6 / 42 | 17 |
 | Correspondence | 50 | -0.005 | [-0.019, 0.005] | 0.045 | 1 / 3 / 46 | 7 |
 | Insurance Claims | 50 | +0.001 | [-0.005, 0.007] | 0.023 | 10 / 10 / 30 | 2 |
+| Merger Agreements | 50 | +0.010 | [-0.003, 0.025] | 0.048 | 13 / 6 / 31 | 8 |
 
 ## 2l4-c16 (2× L4 · C16 · 8/replica) vs 1l4-c8
 
 | Class | Paired n | Δ mean | 95% CI | SD_diff | better / worse / tie | n for Δ=0.05 |
 | --- | ---: | ---: | --- | ---: | --- | ---: |
+| Contracts | 44 | +0.025 | [-0.012, 0.064] | 0.129 | 20 / 19 / 5 | 53 |
 | Corporate Records | 50 | +0.001 | [-0.018, 0.021] | 0.069 | 4 / 4 / 42 | 15 |
 | Correspondence | 50 | -0.003 | [-0.029, 0.021] | 0.091 | 3 / 5 / 42 | 27 |
 | Insurance Claims | 50 | -0.001 | [-0.007, 0.003] | 0.018 | 14 / 11 / 25 | 2 |
+| Merger Agreements | 50 | +0.003 | [-0.008, 0.014] | 0.041 | 9 / 7 / 34 | 6 |
 
 ## Noise floor (run-to-run, same 50 documents)
 
@@ -43,4 +46,4 @@ _Not measured._ Run `sand42-noise-floor` (blocked until spend is approved) on th
 ![Throughput](figures/cmp-throughput.png)
 ![Gpu](figures/cmp-gpu.png)
 
-_Generated 2026-10-12T07:01:18+00:00 by `sandbox run card --runbook sand42`._
+_Generated 2026-10-12T08:00:45+00:00 by `sandbox run card --runbook sand42`._

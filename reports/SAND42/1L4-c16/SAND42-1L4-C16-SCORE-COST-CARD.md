@@ -30,13 +30,13 @@
 | p50 latency (s) | 9.4 | 20.5 | 19.6 | 176.2 | 1,045.6 |
 | p95 latency (s) | 14.0 | 30.3 | 24.3 | 914.4 | 1,891.2 |
 | SLO (s) · met | 60 · yes | 60 · yes | 60 · yes | 300 · no | 1,800 · no |
-| Documents/min | 130.35 | 472.22 | 71.96 | 2.96 | 0.73 |
-| Documents/min/GPU | 130.35 | 472.22 | 71.96 | 2.96 | 0.73 |
-| Goodput docs/min/GPU | 130.35 | 472.22 | 71.96 | 0.00 | 0.00 |
-| Tokens/s/GPU | 5,966.5 | 29,287.6 | 4,924.8 | 920.8 | 1,262.0 |
+| Documents/min | 63.47 | 28.41 | 39.67 | 2.67 | 0.73 |
+| Documents/min/GPU | 63.47 | 28.41 | 39.67 | 2.67 | 0.73 |
+| Goodput docs/min/GPU | 63.47 | 28.41 | 39.67 | 0.00 | 0.00 |
+| Tokens/s/GPU | 2,905.2 | 1,762.0 | 2,714.7 | 828.7 | 1,262.0 |
 | Mean TTFT (s) | 1.42 | 1.80 | 2.56 | 14.35 | 6.71 |
 | Prefix-cache hit | 63.6% | 58.4% | 50.9% | 28.1% | 14.0% |
-| Wall (s) | 23.0 | 6.4 | 41.7 | 1,012.0 | 4,098.5 |
+| Wall (s) | 47.3 | 105.6 | 75.6 | 1,124.4 | 4,098.5 |
 | Billed GPU $ (run) | $0.0140 | $0.0268 | $0.0206 | $0.2541 | $0.9110 |
 | $ / 1k ok docs | $0.279800 | $0.536440 | $0.412340 | $5.082960 | $18.219480 |
 | $ / 1k schema-valid | $0.279800 | $1.915857 | $0.429521 | $5.082960 | $18.219480 |
@@ -83,4 +83,4 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-12T07:01:16+00:00 by `sandbox run card --runbook sand42-1l4-c16` from the committed per-run `*.card.json`._
+_Generated 2026-10-12T08:00:43+00:00 by `sandbox run card --runbook sand42-1l4-c16` from the committed per-run `*.card.json`._
