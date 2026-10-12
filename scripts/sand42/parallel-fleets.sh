@@ -69,9 +69,25 @@ PY
 run_fleet() {  # $1=cell  $2=app
   local cell="$1" app="$2"
   local folder="${cell/l4/L4}" log="$HOME/sand42-$cell.log"
-  local cfgs=() f
+  local cfgs=() f r rid
   materialize "$cell" "$app"
-  while IFS= read -r f; do cfgs+=("$f"); done < <(ls "$GEN/$app"/sand42-50-*-awq-"$cell".yaml)
+  # Driver order (sand42.sh run_cell), NOT `ls` order: run order shapes prefix-cache
+  # warmup and cold-boot attribution, so reordering would make this cell incomparable
+  # with the 1xL4 cells that ran correspondence-first.
+  local order=(correspondence-specialist insurance-claims-specialist corporate-records-specialist contracts-specialist merger-specialist)
+  for r in "${order[@]}"; do
+    f="$GEN/$app/sand42-50-$r-awq-$cell.yaml"
+    [ -f "$f" ] || { echo "[$app] missing config $f"; return 5; }
+    # Refuse a store that already has results: `run start` RESUMES (runner
+    # resume_cursor), so re-running a store another fleet/app already wrote would
+    # silently mix items from two Modal apps inside one run_id.
+    rid="$(basename "$f" .yaml)"
+    if [ -s "data/runtime/runs/$rid/items.jsonl" ]; then
+      echo "[$app] REFUSING: $rid already has items.jsonl — a re-run would resume/mix stores"
+      return 5
+    fi
+    cfgs+=("$f")
+  done
 
   {
     echo "[$app] $(date '+%F %H:%M:%S') fleet start ($cell)"
@@ -115,7 +131,11 @@ run_fleet() {  # $1=cell  $2=app
       sandbox run card --config "$cfg"
     done
 
-    ./deploy/teardown_vllm.sh "$app" </dev/null
+    # Non-fatal: a teardown verification failure must not abort the subshell before
+    # the fleet window and the cell card are written (the driver orders this the
+    # same way). The verification failure is still loud in the log.
+    ./deploy/teardown_vllm.sh "$app" </dev/null \
+        || echo "[$app] WARN teardown verification failed — check for a warm container"
     teardown_ts=$(date +%s)
     .venv/bin/python - "$folder" "$deploy_ts" "$ready_ts" "$teardown_ts" "$cell" "${MODAL_VLLM_MAX_CONTAINERS:-1}" <<'PY'
 import json, sys

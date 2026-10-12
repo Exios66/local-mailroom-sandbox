@@ -1,0 +1,8 @@
+{
+  "cell": "1l4-c16",
+  "deploy_ts": 1791780547.0,
+  "gpu": "L4",
+  "replicas": 1,
+  "source": "wall clock (deploy \u2192 teardown)",
+  "teardown_ts": 1791786237.0
+}
