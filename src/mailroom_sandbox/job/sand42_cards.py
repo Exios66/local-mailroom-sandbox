@@ -619,7 +619,7 @@ def render_cell_md(
         row("SLO (s) · met", lambda r: f"{_f(r['goodput'].get('slo_seconds'), 0)} · "
             + ("yes" if r["goodput"].get("meets_slo") else "no")),
         row("Documents/min", lambda r: _f(r["throughput"].get("documents_per_minute"), 2)),
-        row("Documents/min/GPU", lambda r: _f(r["throughput"].get("documents_per_minute"), 2)),
+        row("Documents/min/GPU", lambda r: _f(r["throughput"].get("documents_per_minute_per_gpu"), 2)),
         row("Goodput docs/min/GPU", lambda r: _f(r["goodput"].get("goodput_documents_per_minute_per_gpu"), 2)),
         row("Tokens/s/GPU", lambda r: _f(r["throughput"].get("tokens_per_second_per_gpu"), 1)),
         row("Mean TTFT (s)", lambda r: _replica_mean_text(r, "ttft_mean_seconds")),
