@@ -667,7 +667,6 @@ def render_cell_md(
         row("Sampling coverage", lambda r: _coverage_text(r["gpu"])),
         row("GPU power (W, mean)", lambda r: _f((r["gpu"].get("power_draw_w") or {}).get("mean"), 1)),
         row("GPU temp (C, mean)", lambda r: _f((r["gpu"].get("temperature_c") or {}).get("mean"), 1)),
-        row("KV cache use (%)", lambda r: _kv_text(r)),
         row("KV cache use, mid-run (max %)", lambda r: _midrun_kv_text(r)),
         row("Queue depth, mid-run (running/waiting)", lambda r: _midrun_queue_text(r)),
         row("Preemptions", lambda r: _replica_sum_text(r, "preemptions")),
@@ -712,29 +711,6 @@ def render_cell_md(
     return "\n".join(lines)
 
 
-def _kv_text(r: Mapping[str, Any]) -> str:
-    """KV-cache usage%, or WHY the card's reading is 0.
-
-    ``vllm:kv_cache_usage_perc`` is a gauge of the live sequences in a KV cache vLLM
-    pre-allocates at startup, and it is a 0-1 FRACTION (its own HELP text: "1 means 100
-    percent usage") — so the old row printed a non-zero reading 100x too small under a
-    "%" label.
-
-    The card reads the before/after scrapes, which fire at the run's two DRAINED edges,
-    so the reading is 0 **by construction** (58 of 58 preserved readings across every
-    cell are 0.0). A re-run under the same two-edge design reproduces 0.0 — the only
-    real source is a MID-RUN sample, so say that instead of implying the metric was
-    never captured.
-    """
-    v = _kv_max(r)
-    if v is None:
-        return "—"
-    if v <= 0.0:
-        return ("0 (drained-edge sample: the scrapes fire before/after the run, when the "
-                "cache is empty by construction; a mid-run sample is the only real source)")
-    return f"{v * 100:.1f}%"
-
-
 def _midrun(r: Mapping[str, Any]) -> Mapping[str, Any]:
     """The mid-run sample block (``scripts/sand42/midrun_kv.py``), or ``{}`` when absent."""
     m = (r.get("engine_telemetry") or {}).get("midrun")
@@ -744,7 +720,7 @@ def _midrun(r: Mapping[str, Any]) -> Mapping[str, Any]:
 def _midrun_kv_text(r: Mapping[str, Any]) -> str:
     """KV-cache use measured MID-RUN — the only reading that is not 0 by construction.
 
-    The before/after scrapes fire at the drained edges (see ``_kv_text``), so a run
+    The before/after scrapes fire at the drained edges, so a run
     nobody sampled mid-flight has no honest number here and says so with "—" rather
     than repeating the drained-edge 0. Reads either producer: the folded series
     (``cell_max``) or a single live ``scrape-metrics --label mid`` (per-replica gauge).
@@ -781,13 +757,6 @@ def _midrun_queue_text(r: Mapping[str, Any]) -> str:
     if not isinstance(run, (int, float)):
         return "—"
     return f"{run:.0f} running / {wait if isinstance(wait, (int, float)) else 0:.0f} waiting"
-
-
-def _kv_max(r: Mapping[str, Any]) -> float | None:
-    reps = (r.get("engine_telemetry") or {}).get("replicas") or []
-    vals = [x.get("kv_cache_usage_perc") for x in reps if isinstance(x, dict)]
-    vals = [v for v in vals if isinstance(v, (int, float))]
-    return max(vals) if vals else None
 
 
 def _replica_sum_text(r: Mapping[str, Any], key: str) -> str:
