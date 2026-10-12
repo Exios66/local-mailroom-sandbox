@@ -944,6 +944,7 @@ def collect_comparison(*, repo: Path | None = None) -> dict[str, Any]:
         "cells": {c: {"replicas": CELLS[c][0], "concurrency": CELLS[c][1]} for c in CELL_ORDER},
         "deltas": deltas,
         "pairing_notes": pairing_notes(cells),
+        "draw_identity": _draw_identity(repo=repo),
         "noise_floor": _noise_floor(repo=repo),
     }
 
@@ -965,44 +966,60 @@ def _noise_floor(*, repo: Path | None = None) -> dict[str, Any] | None:
     return d
 
 
-def _draw_claim(data: Mapping[str, Any]) -> str:
-    """The comparison's headline claim, generated from the cards' own document ids.
+def _draw_identity(*, repo: Path | None = None) -> dict[str, dict[str, list[str]]]:
+    """Per class, the documents each cell actually ran — read from the run stores.
+
+    Not from the cards: the comparison's card payload is trimmed to what the deltas need and
+    carries no per-document ids, so a claim built on it could only ever say "cannot verify".
+    The store is also the artifact the claim is about, rather than the config that was supposed
+    to produce it. The dataset fingerprint cannot stand in for this — it pins the
+    repo/revision, not the selection.
+    """
+    runs = (Path(repo) if repo else repo_root()) / "data" / "runtime" / "runs"
+    out: dict[str, dict[str, list[str]]] = {}
+    for cell in CELL_ORDER:
+        for d in sorted(runs.glob(f"sand42-50-*-awq-{cell}")):
+            store = d / "dataset.jsonl"
+            if not store.is_file():
+                continue
+            cls = d.name.split("-specialist-awq-")[0]
+            out.setdefault(cls, {})[cell] = [
+                json.loads(x)["id"]
+                for x in store.read_text(encoding="utf-8").splitlines() if x.strip()
+            ]
+    return out
+
+
+def _draw_claim(identity: Mapping[str, Mapping[str, Sequence[str]]]) -> str:
+    """The headline claim, generated from the documents the cells actually ran.
 
     Hardcoded, this read "the identical 250 documents" no matter which documents the cells
-    actually scored — the one sentence in the report whose being wrong would invalidate every
-    delta beneath it, and it is the claim the whole campaign exists to make true. The dataset
-    fingerprint cannot detect a draw change (it pins the repo/revision, not the selection), so
-    this compares the per-document ids the pairing itself is computed on, per class.
+    scored — the one sentence in the report whose being wrong would invalidate every delta
+    beneath it, and the claim the whole campaign exists to make true.
     """
-    per_class: dict[str, dict[str, set[str]]] = {}
-    for cell in CELL_ORDER:
-        for rid, card in ((data.get("cells") or {}).get(cell, {}).get("cards") or {}).items():
-            if "-specialist-awq-" not in rid:
-                continue                      # the noise-floor leg repeats one class
-            ids = {str(d.get("item_id")) for d in (card.get("documents") or []) if d.get("item_id")}
-            if ids:
-                per_class.setdefault(rid.split("-specialist-awq-")[0], {})[cell] = ids
-    if not per_class:
-        return "Draw identity: no per-document ids in the cards — cannot verify."
-
-    split = {cls: by_cell for cls, by_cell in per_class.items()
-             if len({frozenset(s) for s in by_cell.values()}) > 1}
+    if not identity:
+        return ("Draw identity: no run store yet — cannot verify which documents the cells "
+                "scored.")
+    split = {
+        cls: by_cell
+        for cls, by_cell in identity.items()
+        if len({frozenset(ids) for ids in by_cell.values()}) > 1
+    }
     if not split:
-        total = sum(len(next(iter(by_cell.values()))) for by_cell in per_class.values())
+        per_class = next(iter(identity.values()))
+        n_class = len(next(iter(per_class.values())))
+        total = n_class * len(identity)
         return (
             f"All {len(CELL_ORDER)} cells score the **identical {total} documents** "
-            f"({len(per_class)} specialists × "
-            f"{len(next(iter(next(iter(per_class.values())).values())))} documents, one "
-            "subclass-stratified draw per class), so every cell-to-cell delta below is "
-            "**paired**: the unit of analysis is the per-document score difference. Intervals "
-            "are 95% percentile bootstrap over documents; the last column is the paired n that "
-            "Δ = 0.05 would need at 80% power."
+            f"({len(identity)} specialists × {n_class} documents, one subclass-stratified draw "
+            "per class), so every cell-to-cell delta below is **paired**: the unit of analysis "
+            "is the per-document score difference. Intervals are 95% percentile bootstrap over "
+            "documents; the last column is the paired n that Δ = 0.05 would need at 80% power."
         )
     detail = "; ".join(
         f"`{cls}`: " + " vs ".join(
-            f"{sorted(c for c, s in by_cell.items() if s == draw)} "
-            f"({len(draw)} docs)"
-            for draw in {frozenset(s) for s in by_cell.values()}
+            f"{sorted(c for c, ids in by_cell.items() if set(ids) == draw)} ({len(draw)} docs)"
+            for draw in {frozenset(ids) for ids in by_cell.values()}
         )
         for cls, by_cell in sorted(split.items())
     )
@@ -1021,7 +1038,7 @@ def render_comparison_md(
     lines = [
         f"# SAND-042 · paired comparison across the {len(CELL_ORDER)} cells",
         "",
-        _draw_claim(data),
+        _draw_claim(data.get("draw_identity") or _draw_identity()),
         "",
         f"Reference cell: **{data['reference_cell']}** "
         "(1×L4, client concurrency 8).",
@@ -1323,6 +1340,7 @@ def collect_master(*, repo: Path | None = None) -> dict[str, Any]:
         "comparison": collect_comparison(repo=repo),
         "metered": _read_json(master_paths(repo=repo)["metered"]),
         "completeness": metric_completeness(repo=repo),
+        "draw_identity": _draw_identity(repo=repo),
     }
 
 
@@ -1410,8 +1428,9 @@ def render_master_card_md(data: Mapping[str, Any]) -> str:
         "",
         f"{len(CELL_ORDER)} conditions — {{1×L4, 2×L4}} × {{client concurrency 8, 16}} plus the 2×L4 "
         "C32 saturation point (16 per replica, the engine's `max_num_seqs` admission ceiling) — on "
-        "the SAND-037 aligned spec. Every condition scores the **identical 250 documents**, so "
-        "every delta is paired.",
+        "the SAND-037 aligned spec.",
+        "",
+        _draw_claim(data.get("draw_identity") or _draw_identity()),
         "Design, metric contract and acceptance rules: "
         "[`docs/SAND42-EXPERIMENT-DESIGN.md`](../../docs/SAND42-EXPERIMENT-DESIGN.md).",
         "",
