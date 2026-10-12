@@ -2,8 +2,11 @@
 
 Writes ``spec.lock.json`` (immutable) LAST — it is the commit point. Resume
 refuses on spec drift unless ``--force`` (which archives the old generation,
-re-preps, and re-locks). Live engine/sink probes are opt-in (``live=True``)
-so the default is network-free and CI-safe.
+re-preps, and re-locks) — except that a store locked to a DIFFERENT Modal app
+is refused outright, even under ``--force``: see ``_foreign_app``
+(``SANDBOX_TAKEOVER_FOREIGN_STORE=1`` is the deliberate override). Live
+engine/sink probes are opt-in (``live=True``) so the default is network-free
+and CI-safe.
 """
 
 from __future__ import annotations
@@ -11,7 +14,7 @@ from __future__ import annotations
 import os
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 import llm_dojo_scoring
 from llm_dojo_scoring.experiment import git_snapshot
@@ -197,6 +200,35 @@ def _modal_check(spec: RunSpec) -> bool:
     return modal.image_tag != "latest" and modal.max_containers >= 1
 
 
+def _foreign_app(existing: Mapping[str, Any], spec: RunSpec) -> str | None:
+    """The lock's Modal app when the store belongs to a DIFFERENT fleet, else None.
+
+    The run store is the one writable resource the app name does not scope (the
+    Modal cache volumes are app-scoped for exactly this reason), so ``--force``
+    is how two fleets sharing a run_id would collide: ``archive_generation()``
+    moves ``items.jsonl`` aside, but a LIVE writer reopens it by path
+    (``RunStore.append_item`` opens ``"a"`` per item) and recreates it under the
+    same name — both fleets then append to one ``items.jsonl``. A plain resume
+    already refuses (``engine.modal`` is inside ``spec_hash``); this closes the
+    ``--force`` door too.
+    """
+    locked = ((existing.get("engine") or {}).get("modal") or {}).get("app")
+    current = spec.engine.modal.app if spec.engine.modal else None
+    if locked and current and locked != current:
+        return str(locked)
+    return None
+
+
+def _takeover_foreign_store() -> bool:
+    """Deliberate override for ``_foreign_app`` — a human taking over a store."""
+    return os.environ.get("SANDBOX_TAKEOVER_FOREIGN_STORE", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
 def _prompt_summary(block: dict[str, Any]) -> str:
     agents = block.get("agents") or {}
     bits = [f"default={block.get('default', {}).get('source')}"]
@@ -351,6 +383,29 @@ def preflight(
                 "detail": (
                     "spec, resolved prompt text, runbook, or report group drifted "
                     "since the lock; pass --force to re-lock"
+                ),
+            }
+
+    # A --force re-lock of a store locked to ANOTHER Modal app is refused: the
+    # archive below cannot stop that fleet's live writer (it reopens items.jsonl
+    # by path and recreates it), so two fleets would end up appending to one
+    # file. Taking the store over anyway is a deliberate, named act.
+    if existing and force and not _takeover_foreign_store():
+        foreign = _foreign_app(existing, spec)
+        if foreign:
+            current_app = spec.engine.modal.app if spec.engine.modal else None
+            return {
+                "status": "foreign_store_refused",
+                "run_id": run_id,
+                "lock_app": foreign,
+                "spec_app": current_app,
+                "detail": (
+                    f"this store is locked to modal app {foreign!r}, this fleet is "
+                    f"{current_app!r} — a --force re-lock would archive another "
+                    "fleet's items and both fleets would then append to the same "
+                    "items.jsonl. Run the cell on the fleet that owns the store, "
+                    "remove the store, or set SANDBOX_TAKEOVER_FOREIGN_STORE=1 to "
+                    "take it over deliberately."
                 ),
             }
 

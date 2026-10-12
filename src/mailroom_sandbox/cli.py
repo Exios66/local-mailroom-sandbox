@@ -2481,6 +2481,11 @@ def _run_id_required(args) -> str:
     return run_id
 
 
+# Preflight refusals are exit 3 — an operator must decide (re-lock, or name the
+# takeover). Any other non-prepared status is exit 1: something is broken.
+_REFUSAL_STATUSES = {"drift_refused", "foreign_store_refused"}
+
+
 def _cmd_run_preflight(args) -> int:
     """Run job preflight and print the lock report."""
     from mailroom_sandbox.job import preflight
@@ -2498,7 +2503,7 @@ def _cmd_run_preflight(args) -> int:
     _print(report)
     if report.get("status") == "prepared":
         return 0
-    return 3 if report.get("status") == "drift_refused" else 1
+    return 3 if report.get("status") in _REFUSAL_STATUSES else 1
 
 
 def _cmd_run_start(args) -> int:
@@ -2535,7 +2540,7 @@ def _cmd_run_start(args) -> int:
     )
     if report.get("status") != "prepared":
         _print(report)
-        return 3 if report.get("status") == "drift_refused" else 1
+        return 3 if report.get("status") in _REFUSAL_STATUSES else 1
     run_id = report["run_id"]
     if getattr(args, "dry_run", False):
         _print({"run_id": run_id, "state": "dry_run"})
@@ -2777,7 +2782,7 @@ def _cmd_run_resume(args) -> int:
         )
         if report.get("status") != "prepared":
             _print(report)
-            return 3 if report.get("status") == "drift_refused" else 1
+            return 3 if report.get("status") in _REFUSAL_STATUSES else 1
     if _job_mode(store) == "modal":
         from mailroom_sandbox.job import remote as job_remote
 
