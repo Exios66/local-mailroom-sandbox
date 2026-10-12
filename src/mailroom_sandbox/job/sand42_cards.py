@@ -666,7 +666,7 @@ def render_cell_md(
         row("Sampling coverage", lambda r: _coverage_text(r["gpu"])),
         row("GPU power (W, mean)", lambda r: _f((r["gpu"].get("power_draw_w") or {}).get("mean"), 1)),
         row("GPU temp (C, mean)", lambda r: _f((r["gpu"].get("temperature_c") or {}).get("mean"), 1)),
-        row("KV cache use (max %)", lambda r: _f(_kv_max(r), 1)),
+        row("KV cache use (%)", lambda r: _kv_text(r)),
         row("Preemptions", lambda r: _replica_sum_text(r, "preemptions")),
         row("Length finishes", lambda r: _replica_sum_text(r, "length_finishes")),
     ]
@@ -707,6 +707,29 @@ def render_cell_md(
         "",
     ]
     return "\n".join(lines)
+
+
+def _kv_text(r: Mapping[str, Any]) -> str:
+    """KV-cache usage%, or WHY the card's reading is 0.
+
+    ``vllm:kv_cache_usage_perc`` is a gauge of the live sequences in a KV cache vLLM
+    pre-allocates at startup, and it is a 0-1 FRACTION (its own HELP text: "1 means 100
+    percent usage") — so the old row printed a non-zero reading 100x too small under a
+    "%" label.
+
+    The card reads the before/after scrapes, which fire at the run's two DRAINED edges,
+    so the reading is 0 **by construction** (58 of 58 preserved readings across every
+    cell are 0.0). A re-run under the same two-edge design reproduces 0.0 — the only
+    real source is a MID-RUN sample, so say that instead of implying the metric was
+    never captured.
+    """
+    v = _kv_max(r)
+    if v is None:
+        return "—"
+    if v <= 0.0:
+        return ("0 (drained-edge sample: the scrapes fire before/after the run, when the "
+                "cache is empty by construction; a mid-run sample is the only real source)")
+    return f"{v * 100:.1f}%"
 
 
 def _kv_max(r: Mapping[str, Any]) -> float | None:
