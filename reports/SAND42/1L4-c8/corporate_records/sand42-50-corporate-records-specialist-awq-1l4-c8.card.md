@@ -28,14 +28,14 @@
 | Documents | 50 |
 | Spec hash | 4640639b… |
 | **Time** |  |
-| Wall (busy) | 86.60 s |
+| Wall (busy) | 88.40 s |
 | GPU seconds | 83.29 s |
 | Cold boot | 0.14 s |
 | **Cost** |  |
-| Busy-window GPU $ | $0.019244 |
+| Busy-window GPU $ | $0.019645 |
 | Billed GPU $ | $0.018509 |
 | Billed seconds | 83.29 s |
-| Idle $ | $0.004400 (19.80 s) |
+| Idle $ | $0.004801 (21.61 s) |
 | Cost per document | $0.000370 |
 | Cost per ok document | $0.000370 |
 | Cost per 1M tokens | $0.0901 |
@@ -51,17 +51,17 @@
 | Token split basis | fit across documents, 4.21 chars/token |
 | Completion p95 / max (ok docs) | 204 / 239 |
 | **Throughput** |  |
-| Tokens / second | 2,372.7 |
-| Tokens / second per L4 | 2,372.7 |
-| Documents / minute | 34.64 |
+| Tokens / second | 2,324.3 |
+| Tokens / second per L4 | 2,324.3 |
+| Documents / minute | 33.94 |
 | **Latency (per document, ok rows)** |  |
 | Mean | 10.69 s |
 | p50 | 10.79 s |
 | p95 | 14.50 s |
 | Max | 17.92 s |
 | **Engine (vLLM /metrics)** |  |
-| Parallelism (Σ latency ÷ wall) | 6.17× of 8 |
-| Slot occupancy | 77.1% |
+| Parallelism (Σ latency ÷ wall) | 6.04× of 8 |
+| Slot occupancy | 75.6% |
 | Coverage | replicas observed: 1 of 1 |
 | Requests per replica (this run) | 50 |
 | Mean TTFT per replica | 1.201 s |
@@ -83,6 +83,8 @@
 | Schema-valid rate | 0.96 |
 | Parse errors | 0 |
 | Errors | 0 / 50 |
+| **Paired n** |  |
+| Documents a paired delta can use | 50 of 50 |
 
 ## Figure
 
@@ -143,4 +145,4 @@
 | 49 | `DOC-dfe42f3747f299e6` | yes | 0.7500 | 6.7 | 5870 | 166 | — |
 | 50 | `DOC-27bbad54b6fd107e` | yes | 0.5000 | 5.1 | 2871 | 183 | — |
 
-_Generated 2026-10-12T18:07:55+00:00 by `sandbox run card`. Machine-readable twin: `sand42-50-corporate-records-specialist-awq-1l4-c8.card.json`._
+_Generated 2026-10-12T20:14:15+00:00 by `sandbox run card`. Machine-readable twin: `sand42-50-corporate-records-specialist-awq-1l4-c8.card.json`._

@@ -1,8 +1,8 @@
 {
   "concurrency": {
-    "occupancy": 0.7713358280696081,
-    "parallelism": 6.170686624556865,
-    "slot_utilization": 0.7713
+    "occupancy": 0.7555955270183138,
+    "parallelism": 6.04476421614651,
+    "slot_utilization": 0.7556
   },
   "conditions": {
     "concurrency": 8,
@@ -48,9 +48,9 @@
   "cost": {
     "billed_gpu_usd": 0.018509,
     "billed_seconds": 83.291,
-    "busy_gpu_usd": 0.01924422222222222,
-    "idle_seconds": 19.802,
-    "idle_usd": 0.0044,
+    "busy_gpu_usd": 0.019645111111111113,
+    "idle_seconds": 21.606,
+    "idle_usd": 0.004801,
     "usd_per_document": 0.00037018,
     "usd_per_million_tokens": 0.09007996184413525,
     "usd_per_ok_document": 0.00037018
@@ -728,7 +728,7 @@
       }
     },
     "midrun": {
-      "at": 1791828435.380896,
+      "at": 1791828478.1048288,
       "cell_max": {
         "kv_cache_usage_perc": 0.1021,
         "num_requests_running": 8.0,
@@ -738,13 +738,13 @@
       "errors": [],
       "replicas": {
         "1791828050.25": {
-          "kv_cache_usage_perc": 0.10208316705243836,
-          "num_requests_running": 8.0,
+          "kv_cache_usage_perc": 0.0,
+          "num_requests_running": 0.0,
           "num_requests_waiting": 0.0,
           "preemptions": 0.0
         }
       },
-      "samples": 1
+      "samples": 2
     },
     "replicas": [
       {
@@ -759,7 +759,7 @@
     ],
     "scrape_errors": []
   },
-  "generated_at": "2026-10-12T18:07:55+00:00",
+  "generated_at": "2026-10-12T20:14:15+00:00",
   "latency": {
     "max": 17.920535,
     "mean": 10.68750582,
@@ -787,15 +787,15 @@
   "specialist": "Corporate Records",
   "task": "corporate_records_specialist",
   "throughput": {
-    "documents_per_minute": 34.642432360650815,
-    "documents_per_minute_per_gpu": 34.642432360650815,
-    "tokens_per_second": 2372.694834813335,
-    "tokens_per_second_per_gpu": 2372.694834813335
+    "documents_per_minute": 33.93549992647308,
+    "documents_per_minute_per_gpu": 33.93549992647308,
+    "tokens_per_second": 2324.2763254640677,
+    "tokens_per_second_per_gpu": 2324.2763254640677
   },
   "time": {
     "cold_boot_seconds": 0.141,
     "gpu_seconds": 83.291,
-    "wall_seconds": 86.599
+    "wall_seconds": 88.403
   },
   "tokens": {
     "completion": 8154,
