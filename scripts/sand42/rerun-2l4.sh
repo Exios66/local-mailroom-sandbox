@@ -114,3 +114,19 @@ PY
 sandbox run card --runbook sand42-$CELL
 sandbox run card --runbook sand42
 echo "[$CELL] RE-RUN COMPLETE $(date '+%F %H:%M:%S')"
+
+# ── SAND-049: full-coverage gate ──────────────────────────────────────────────
+# The leg is not done when the processes exit; it is done when every designed capture is on
+# disk AND no document errored. A store that reads 50/50 with one error is a paired n of 49,
+# and the master report would carry that silently — so this exits non-zero and writes the gap
+# list to the alerts log where the campaign watch and the operator both see it. It does NOT
+# auto-repair: a silent re-spend is worse than a visible failure, and the repair path is
+# `scripts/sand42/topup-one-class.sh`.
+echo "[$CELL] coverage gate $(date '+%F %H:%M:%S')"
+if .venv/bin/python scripts/sand42/coverage-ledger.py "$CELL" 2>&1 | tee -a "$HOME/sand42-alerts.log"; then
+  echo "[$CELL] COVERAGE GATE PASSED — every capture present, every document clean"
+else
+  echo "[$CELL] COVERAGE GATE FAILED — captures incomplete or a document errored (paired n < 50);" \
+       "repair with scripts/sand42/topup-one-class.sh" | tee -a "$HOME/sand42-alerts.log" >&2
+  exit 9
+fi

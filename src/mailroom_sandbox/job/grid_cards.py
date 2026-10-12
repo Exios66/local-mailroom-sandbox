@@ -782,6 +782,23 @@ def _card_rows(c: Mapping[str, Any]) -> list[tuple[str, str]]:
             ("Clean subset", f"{clause['clean_correct']} / {clause['clean_questions']}"),
             ("Suite field score (mean)", _f(q["suite_overall_mean"], 4)),
         ]
+    # SAND-049: state the paired n in one place. ``n`` counts documents RUN; a delta can only
+    # use documents that produced a score, which is fewer when a document errored or when the
+    # class's task-native metric has no ground truth for it. Reading "Documents | 50" beside
+    # "Errors | 1 / 50" and inferring 49 — or missing it entirely — is how a 44-document paired
+    # delta gets mistaken for a 50-document one.
+    _labeled = clause.get("docs_labeled")
+    _paired = _labeled if isinstance(_labeled, int) else q["ok"]
+    _why = []
+    if q["errors"]:
+        _why.append(f"{q['errors']} error{'s' if q['errors'] != 1 else ''}")
+    if isinstance(_labeled, int) and _labeled < q["ok"]:
+        _why.append(f"{q['ok'] - _labeled} with no ground truth for the class metric")
+    rows += [
+        ("**Paired n**", ""),
+        ("Documents a paired delta can use",
+         f"{_paired} of {q['documents']}" + (f" ({'; '.join(_why)})" if _why else "")),
+    ]
     return rows
 
 

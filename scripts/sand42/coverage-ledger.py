@@ -45,6 +45,40 @@ def _lines(rid: str, name: str) -> int:
     return sum(1 for x in p.read_text(encoding="utf-8").splitlines() if x.strip())
 
 
+def _card_fresh(rid: str) -> bool:
+    """True when the newest card is at least as new as the run's store.
+
+    The reruns reuse run ids, so a card left over from a previous run of the same id sits
+    beside the new store. Reading its numbers would report a stale paired n and stale
+    mid-run KV as if they described the run on disk.
+    """
+    cards = _cards(rid)
+    store = RUNS / rid / "items.jsonl"
+    if not cards or not store.is_file():
+        return False
+    return max(c.stat().st_mtime for c in cards) >= store.stat().st_mtime
+
+
+def _run_health(rid: str) -> tuple[int, dict[str, int], list[str]]:
+    """Documents run, error kinds, and which documents failed.
+
+    A failed row still counts in ``items.jsonl``, so a store can read 50/50 while a document
+    produced no score at all — that is exactly how an error hides inside a "complete" capture
+    and quietly deflates the paired n. The card records it (``quality.errors``) but nothing
+    failed on it before this.
+    """
+    p = RUNS / rid / "items.jsonl"
+    if not p.is_file():
+        return 0, {}, []
+    rows = [json.loads(x) for x in p.read_text(encoding="utf-8").splitlines() if x.strip()]
+    bad = [r for r in rows if r.get("ok") is False or r.get("error")]
+    kinds: dict[str, int] = {}
+    for r in bad:
+        k = str(r.get("error") or "unknown").split(":")[0].strip()[:60]
+        kinds[k] = kinds.get(k, 0) + 1
+    return len(rows), kinds, [str(r.get("item_id")) for r in bad]
+
+
 def _cards(rid: str) -> list[pathlib.Path]:
     return [pathlib.Path(x) for x in glob.glob(
         str(REPO / "reports" / "SAND42" / "*" / "*" / f"{rid}.card.json"))]
@@ -83,6 +117,27 @@ def check_run(rid: str, gaps: list[str], ok: list[str]) -> None:
     if items < 50:
         gaps.append(f"{rid}: store {items}/50 documents")
 
+    # A row that failed still counts as a document in the store, so check the outcomes too:
+    # "50/50 items" with one error is a paired n of 49, not a complete capture.
+    n_rows, kinds, bad_ids = _run_health(rid)
+    if kinds:
+        n_err = sum(kinds.values())
+        gaps.append(f"{rid}: {n_err} document(s) errored ({kinds}) — paired n "
+                    f"{n_rows - n_err}/{n_rows}, not 50; failed: {bad_ids[:4]}")
+
+    if "contract" in rid and _card_fresh(rid):
+        labeled = None
+        for c in _cards(rid):
+            cl = (_json(c).get("quality") or {}).get("clause") or {}
+            if isinstance(cl.get("docs_labeled"), int):
+                labeled = cl["docs_labeled"]
+                break
+        if labeled is not None and labeled < 50:
+            gaps.append(f"{rid}: paired n {labeled}/50 — the CUAD metric scores only "
+                        f"{labeled} of the 50 drawn")
+        elif labeled == 50:
+            ok.append(f"{rid}: paired n 50/50")
+
     for lbl in ("before", "mid", "after"):
         j, t = d / f"vllm_metrics_{lbl}.json", d / f"vllm_metrics_{lbl}.txt"
         if not j.is_file() or not t.is_file():
@@ -96,6 +151,9 @@ def check_run(rid: str, gaps: list[str], ok: list[str]) -> None:
 
     if not _cards(rid):
         gaps.append(f"{rid}: no card written")
+    elif not _card_fresh(rid):
+        gaps.append(f"{rid}: card predates this run's store (run in flight, or the card was "
+                    f"not rebuilt) — its mid-run KV and paired n would be the PREVIOUS run's")
     else:
         cm = (_midrun(rid).get("cell_max") or {})
         if cm.get("kv_cache_usage_perc") is None:
@@ -123,7 +181,7 @@ def main(argv: list[str]) -> int:
     cells = [c for c in argv if c in CELLS] or list(CELLS)
     gaps: list[str] = []
     ok: list[str] = []
-    print(f"{'cell':<8} {'runs':>4} {'store':>7} {'verbatim':>9} {'series':>7} "
+    print(f"{'cell':<8} {'runs':>4} {'store':>7} {'clean':>7} {'verbatim':>9} {'series':>7} "
           f"{'midKV':>6} {'bw':>6} {'draw':>6} {'fleet':>5}  verdict")
     print("-" * 74)
     for cell in cells:
@@ -143,6 +201,7 @@ def main(argv: list[str]) -> int:
 
         t = len(reps)
         store = sum(1 for r in reps if _lines(r, "items.jsonl") >= 50)
+        clean = sum(1 for r in reps if not _run_health(r)[1])
         verb = sum(1 for r in reps if all((RUNS / r / f"vllm_metrics_{l}.{e}").is_file()
                                           for l in ("before", "mid", "after") for e in ("json", "txt")))
         ser = sum(1 for r in reps if _lines(r, "vllm_metrics_mid.series.jsonl") >= 1)
@@ -151,7 +210,7 @@ def main(argv: list[str]) -> int:
         gpu = sum(1 for r in reps if _bw_samples(r) > 0)
         draw = sum(1 for r in reps if _lines(r, "dataset.jsonl") == 50)
         here = len(gaps) - before
-        print(f"{cell:<8} {t:>4} {store:>4}/{t} {verb:>6}/{t} {ser:>4}/{t} "
+        print(f"{cell:<8} {t:>4} {store:>4}/{t} {clean:>4}/{t} {verb:>6}/{t} {ser:>4}/{t} "
               f"{mid:>3}/{t} {gpu:>3}/{t} {draw:>3}/{t} {('yes' if ready else 'NO'):>5}  "
               f"{'ALL CAPTURES' if here == 0 else f'{here} gap(s)'}")
     print()
