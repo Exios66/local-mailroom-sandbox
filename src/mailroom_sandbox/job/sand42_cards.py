@@ -1018,16 +1018,20 @@ def collect_master(*, repo: Path | None = None) -> dict[str, Any]:
 def _findings(cells: Mapping[str, Any]) -> list[str]:
     out: list[str] = []
     reported = {c: d["cells_reported"] for c, d in cells.items()}
-    if any(n == 0 for n in reported.values()):
+    pending = [c for c, n in reported.items() if n == 0]
+    if pending:
+        # A cell that has not run narrows the claim; it must not void the cells that
+        # have. Registering 2l4-c32 (SAND-047) put the grid at 4 of 5, and the old
+        # early return would have replaced every finding with "not measured yet".
         out.append(
-            "Not measured yet — condition cards report "
+            "Pending — condition cards report "
             + ", ".join(f"{c} {n}/5" for c, n in reported.items())
-            + f". No cross-cell claim is made until all {len(CELL_ORDER)} conditions are complete."
+            + f". The findings below cover the {len(CELL_ORDER) - len(pending)} completed "
+            "condition(s) only; no claim here spans a pending condition."
         )
-        return out
     ref = cells[REFERENCE_CELL]["specialists"]
     for cell in CELL_ORDER:
-        if cell == REFERENCE_CELL:
+        if cell == REFERENCE_CELL or not cells[cell]["cells_reported"]:
             continue
         for r in cells[cell]["specialists"]:
             base = next((x for x in ref if x["task"] == r["task"]), None)

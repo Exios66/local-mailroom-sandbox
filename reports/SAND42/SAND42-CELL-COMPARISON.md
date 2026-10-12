@@ -52,4 +52,4 @@ _Not measured._ Run `sand42-noise-floor` (blocked until spend is approved) on th
 ![Throughput](figures/cmp-throughput.png)
 ![Gpu](figures/cmp-gpu.png)
 
-_Generated 2026-10-12T16:08:06+00:00 by `sandbox run card --runbook sand42`._
+_Generated 2026-10-12T16:13:21+00:00 by `sandbox run card --runbook sand42`._

@@ -3896,7 +3896,7 @@
         "replicas": 1,
         "teardown_ts": 1791786237.0
       },
-      "generated_at": "2026-10-12T16:08:08+00:00",
+      "generated_at": "2026-10-12T16:13:22+00:00",
       "kind": "cell",
       "replicas": 1,
       "runbook": "sand42-1l4-c16",
@@ -9108,7 +9108,7 @@
         "replicas": 1,
         "teardown_ts": 1791778552.914
       },
-      "generated_at": "2026-10-12T16:08:07+00:00",
+      "generated_at": "2026-10-12T16:13:21+00:00",
       "kind": "cell",
       "replicas": 1,
       "runbook": "sand42-1l4-c8",
@@ -14302,7 +14302,7 @@
         "replicas": 2,
         "teardown_ts": 1791791987.0
       },
-      "generated_at": "2026-10-12T16:08:08+00:00",
+      "generated_at": "2026-10-12T16:13:22+00:00",
       "kind": "cell",
       "replicas": 2,
       "runbook": "sand42-2l4-c16",
@@ -15665,7 +15665,7 @@
         "measured": false,
         "reason": "no fleet_window.json for this cell"
       },
-      "generated_at": "2026-10-12T16:08:08+00:00",
+      "generated_at": "2026-10-12T16:13:22+00:00",
       "kind": "cell",
       "replicas": 2,
       "runbook": "sand42-2l4-c32",
@@ -19616,7 +19616,7 @@
         "replicas": 2,
         "teardown_ts": 1791790990.0
       },
-      "generated_at": "2026-10-12T16:08:08+00:00",
+      "generated_at": "2026-10-12T16:13:22+00:00",
       "kind": "cell",
       "replicas": 2,
       "runbook": "sand42-2l4-c8",
@@ -21179,13 +21179,13 @@
         "vs": "1l4-c8"
       }
     },
-    "generated_at": "2026-10-12T16:08:09+00:00",
+    "generated_at": "2026-10-12T16:13:23+00:00",
     "kind": "comparison",
     "noise_floor": null,
     "reference_cell": "1l4-c8",
     "schema": "sandbox.sand42-cell/v1"
   },
-  "generated_at": "2026-10-12T16:08:08+00:00",
+  "generated_at": "2026-10-12T16:13:22+00:00",
   "kind": "master",
   "metered": {
     "SAND-42": {

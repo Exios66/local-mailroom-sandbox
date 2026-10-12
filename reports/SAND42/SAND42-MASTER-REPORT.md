@@ -83,7 +83,7 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-12T16:08:07+00:00 by `sandbox run card --runbook sand42-1l4-c8` from the committed per-run `*.card.json`._
+_Generated 2026-10-12T16:13:21+00:00 by `sandbox run card --runbook sand42-1l4-c8` from the committed per-run `*.card.json`._
 
 
 ---
@@ -169,7 +169,7 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-12T16:08:08+00:00 by `sandbox run card --runbook sand42-1l4-c16` from the committed per-run `*.card.json`._
+_Generated 2026-10-12T16:13:22+00:00 by `sandbox run card --runbook sand42-1l4-c16` from the committed per-run `*.card.json`._
 
 
 ---
@@ -255,7 +255,7 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-12T16:08:08+00:00 by `sandbox run card --runbook sand42-2l4-c8` from the committed per-run `*.card.json`._
+_Generated 2026-10-12T16:13:22+00:00 by `sandbox run card --runbook sand42-2l4-c8` from the committed per-run `*.card.json`._
 
 
 ---
@@ -341,7 +341,7 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-12T16:08:08+00:00 by `sandbox run card --runbook sand42-2l4-c16` from the committed per-run `*.card.json`._
+_Generated 2026-10-12T16:13:22+00:00 by `sandbox run card --runbook sand42-2l4-c16` from the committed per-run `*.card.json`._
 
 
 ---
@@ -417,7 +417,7 @@ Fleet window not recorded (no fleet_window.json for this cell). Per-run costs st
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-12T16:08:08+00:00 by `sandbox run card --runbook sand42-2l4-c32` from the committed per-run `*.card.json`._
+_Generated 2026-10-12T16:13:22+00:00 by `sandbox run card --runbook sand42-2l4-c32` from the committed per-run `*.card.json`._
 
 
 ---
@@ -468,7 +468,7 @@ Reference cell: **1l4-c8** (1×L4, client concurrency 8).
 
 _Not measured._ Run `sand42-noise-floor` (blocked until spend is approved) on the same 50 correspondence documents. Until then the SAND-037/39 floor in `docs/BENCHMARK-PROGRAM.md` §3 is the prior — it was measured on a different draw, so treat it as indicative only.
 
-_Generated 2026-10-12T16:08:09+00:00 by `sandbox run card --runbook sand42`._
+_Generated 2026-10-12T16:13:23+00:00 by `sandbox run card --runbook sand42`._
 
 
 ---
@@ -498,4 +498,4 @@ _Generated 2026-10-12T16:08:09+00:00 by `sandbox run card --runbook sand42`._
 * Contracts at n=50 paired is marginal for Δ=0.05 and unpowered for Δ=0.03 — report as an interval, never a ranking.
 * OTel *metrics* export from the container is not wired (the telemetry is an nvidia-smi series); trace spans stay opt-in via `trace.sink`.
 
-_Generated 2026-10-12T16:08:08+00:00 by `sandbox run card --runbook sand42`._
+_Generated 2026-10-12T16:13:22+00:00 by `sandbox run card --runbook sand42`._
