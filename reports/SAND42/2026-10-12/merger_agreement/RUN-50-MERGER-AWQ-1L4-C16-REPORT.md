@@ -21,20 +21,20 @@ Dated cell stem: `RUN-50-MERGER-AWQ-1L4-C16`. Written automatically under the lo
 | --- | --- |
 | docs ok / failed / total | **50 / 0 / 50** |
 | **overall_extraction_score** | **0.028958** |
-| schema_valid_rate | 1.000000 |
+| schema_valid_rate | — |
 | error_count | 0 |
 
 ## Serving / cost (see sibling `-SERVING.md`)
 
 | metric | value |
 | --- | --- |
-| wall_seconds | 3100.735 |
-| gpu_seconds | 3101.109 |
-| estimated GPU cost | 0.689135 |
-| **GPU $/doc** | **0.013783** |
+| wall_seconds | 4098.523 |
+| gpu_seconds | 4099.383 |
+| estimated GPU cost | 0.910974 |
+| **GPU $/doc** | **0.018219** |
 | latency p50 / max (s) | 1045.555791 / 2405.978605 |
 | prompt / completion tokens | 4867606 / 304542 |
-| concurrency speedup (Σlat/wall) | 18.73 |
+| concurrency speedup (Σlat/wall) | 14.17 |
 
 ## Per-document scores
 
