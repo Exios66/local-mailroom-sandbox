@@ -112,21 +112,20 @@ json.dump({"cell": "1l4-c16", "deploy_ts": d, "ready_ts": r, "gpu": "L4", "repli
 print("[1l4-c16] wrote", p, "cold_boot", round(r - d, 1), "s")
 PY
 sandbox run card --runbook sand42-1l4-c16
-sandbox run card --runbook sand42
-echo "[1l4-c16] RE-RUN COMPLETE $(date '+%F %H:%M:%S')"
 
-# ── SAND-049: full-coverage gate ──────────────────────────────────────────────
-# The leg is not done when the processes exit; it is done when every designed capture is on
-# disk AND no document errored. A store that reads 50/50 with one error is a paired n of 49,
-# and the master report would carry that silently — so this exits non-zero and writes the gap
-# list to the alerts log where the campaign watch and the operator both see it. It does NOT
-# auto-repair: a silent re-spend is worse than a visible failure, and the repair path is
-# `scripts/sand42/topup-one-class.sh`.
+# ── SAND-050: coverage gate, THEN the master report ───────────────────────────
+# The master report is the campaign's deliverable, so a leg has to earn its way in: verify
+# every designed capture is on disk and no document errored, and only then let these numbers
+# into the master. A non-compliant leg leaves the master as it stood, says so in the alerts
+# log, and exits non-zero. Repair path: scripts/sand42/topup-one-class.sh <class> <cell>.
 echo "[$CELL] coverage gate $(date '+%F %H:%M:%S')"
 if .venv/bin/python scripts/sand42/coverage-ledger.py "$CELL" 2>&1 | tee -a "$HOME/sand42-alerts.log"; then
-  echo "[$CELL] COVERAGE GATE PASSED — every capture present, every document clean"
+  echo "[$CELL] coverage gate PASSED — populating the master report with this leg's numbers"
+  sandbox run card --runbook sand42
+  echo "[$CELL] RE-RUN COMPLETE $(date '+%F %H:%M:%S') (compliant, master repopulated)"
 else
-  echo "[$CELL] COVERAGE GATE FAILED — captures incomplete or a document errored (paired n < 50);" \
+  echo "[$CELL] coverage gate FAILED — master report NOT repopulated (this leg stays out of it);" \
        "repair with scripts/sand42/topup-one-class.sh" | tee -a "$HOME/sand42-alerts.log" >&2
+  echo "[$CELL] RE-RUN COMPLETE $(date '+%F %H:%M:%S') (NON-COMPLIANT, master untouched)"
   exit 9
 fi
