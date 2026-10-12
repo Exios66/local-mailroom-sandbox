@@ -72,7 +72,7 @@ READY_TS=$(date +%s)
 # sample to vllm_metrics_mid.series.jsonl, so the card reports the run's maximum rather
 # than whichever probe ran last. The config pointer follows the ACTIVE run, because a
 # scrape files its output under the run dir of the config it is given.
-MIDRUN_INTERVAL="${MIDRUN_INTERVAL:-30}"
+MIDRUN_INTERVAL="${MIDRUN_INTERVAL:-10}"
 MIDRUN_CFG_FILE="$HOME/.sand42-1l4-c16-active-cfg"
 echo "${CFGS[0]}" > "$MIDRUN_CFG_FILE"
 while :; do
