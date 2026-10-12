@@ -697,7 +697,7 @@
     ],
     "scrape_errors": []
   },
-  "generated_at": "2026-10-12T06:10:27+00:00",
+  "generated_at": "2026-10-12T07:36:51+00:00",
   "latency": {
     "max": 9.286477000000001,
     "mean": 6.54723338,
@@ -726,6 +726,7 @@
   "task": "correspondence_specialist",
   "throughput": {
     "documents_per_minute": 49.40792832556531,
+    "documents_per_minute_per_gpu": 49.40792832556531,
     "tokens_per_second": 2258.3705265238227,
     "tokens_per_second_per_gpu": 2258.3705265238227
   },

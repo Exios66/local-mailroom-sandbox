@@ -476,6 +476,11 @@ def collect_card(
             "tokens_per_second": tot / wall if wall and tot else None,
             "tokens_per_second_per_gpu": tot / wall / replicas if wall and tot else None,
             "documents_per_minute": n / wall * 60.0 if wall and n else None,
+            # The per-GPU rate the master card / comparison read: nothing ever
+            # produced this key, so their `documents/min/GPU` row read
+            # "not captured" while the cell card's same-labelled row silently
+            # showed the ABSOLUTE rate (wrong by the replica count).
+            "documents_per_minute_per_gpu": (n / wall * 60.0 / replicas) if wall and n and replicas else None,
         },
         "latency": {
             "mean": statistics.mean(lat_ok) if lat_ok else None,
@@ -1020,6 +1025,7 @@ def _pooled(cards: list[Mapping[str, Any]], replicas: int) -> dict[str, Any]:
         "tokens_per_second": tokens / wall if wall and tokens else None,
         "tokens_per_second_per_gpu": tokens / wall / replicas if wall and tokens else None,
         "documents_per_minute": docs / wall * 60.0 if wall and docs else None,
+        "documents_per_minute_per_gpu": (docs / wall * 60.0 / replicas) if wall and docs and replicas else None,
     }
 
 
