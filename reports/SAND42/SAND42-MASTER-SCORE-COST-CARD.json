@@ -3896,7 +3896,7 @@
         "replicas": 1,
         "teardown_ts": 1791786237.0
       },
-      "generated_at": "2026-10-12T12:34:55+00:00",
+      "generated_at": "2026-10-12T16:08:08+00:00",
       "kind": "cell",
       "replicas": 1,
       "runbook": "sand42-1l4-c16",
@@ -9108,7 +9108,7 @@
         "replicas": 1,
         "teardown_ts": 1791778552.914
       },
-      "generated_at": "2026-10-12T12:34:55+00:00",
+      "generated_at": "2026-10-12T16:08:07+00:00",
       "kind": "cell",
       "replicas": 1,
       "runbook": "sand42-1l4-c8",
@@ -14302,7 +14302,7 @@
         "replicas": 2,
         "teardown_ts": 1791791987.0
       },
-      "generated_at": "2026-10-12T12:34:56+00:00",
+      "generated_at": "2026-10-12T16:08:08+00:00",
       "kind": "cell",
       "replicas": 2,
       "runbook": "sand42-2l4-c16",
@@ -15652,6 +15652,49 @@
             },
             "total": 5167594
           }
+        }
+      ]
+    },
+    "2l4-c32": {
+      "cards": {},
+      "cell": "2l4-c32",
+      "cells_reported": 0,
+      "concurrency": 32,
+      "concurrency_per_replica": 16.0,
+      "fleet": {
+        "measured": false,
+        "reason": "no fleet_window.json for this cell"
+      },
+      "generated_at": "2026-10-12T16:08:08+00:00",
+      "kind": "cell",
+      "replicas": 2,
+      "runbook": "sand42-2l4-c32",
+      "schema": "sandbox.sand42-cell/v1",
+      "specialists": [
+        {
+          "reported": false,
+          "run_id": "sand42-50-correspondence-specialist-awq-2l4-c32",
+          "task": "correspondence_specialist"
+        },
+        {
+          "reported": false,
+          "run_id": "sand42-50-insurance-claims-specialist-awq-2l4-c32",
+          "task": "insurance_claims_specialist"
+        },
+        {
+          "reported": false,
+          "run_id": "sand42-50-corporate-records-specialist-awq-2l4-c32",
+          "task": "corporate_records_specialist"
+        },
+        {
+          "reported": false,
+          "run_id": "sand42-50-contracts-specialist-awq-2l4-c32",
+          "task": "contracts_specialist"
+        },
+        {
+          "reported": false,
+          "run_id": "sand42-50-merger-specialist-awq-2l4-c32",
+          "task": "merger_agreement_specialist"
         }
       ]
     },
@@ -19573,7 +19616,7 @@
         "replicas": 2,
         "teardown_ts": 1791790990.0
       },
-      "generated_at": "2026-10-12T12:34:55+00:00",
+      "generated_at": "2026-10-12T16:08:08+00:00",
       "kind": "cell",
       "replicas": 2,
       "runbook": "sand42-2l4-c8",
@@ -20941,6 +20984,10 @@
         "concurrency": 16,
         "replicas": 2
       },
+      "2l4-c32": {
+        "concurrency": 32,
+        "replicas": 2
+      },
       "2l4-c8": {
         "concurrency": 8,
         "replicas": 2
@@ -21067,6 +21114,10 @@
         },
         "vs": "1l4-c8"
       },
+      "2l4-c32": {
+        "per_class": {},
+        "vs": "1l4-c8"
+      },
       "2l4-c8": {
         "per_class": {
           "contracts_specialist": {
@@ -21128,13 +21179,13 @@
         "vs": "1l4-c8"
       }
     },
-    "generated_at": "2026-10-12T12:34:57+00:00",
+    "generated_at": "2026-10-12T16:08:09+00:00",
     "kind": "comparison",
     "noise_floor": null,
     "reference_cell": "1l4-c8",
     "schema": "sandbox.sand42-cell/v1"
   },
-  "generated_at": "2026-10-12T12:34:56+00:00",
+  "generated_at": "2026-10-12T16:08:08+00:00",
   "kind": "master",
   "metered": {
     "SAND-42": {

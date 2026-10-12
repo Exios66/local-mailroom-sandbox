@@ -66,8 +66,9 @@ def study_root(run_id: str | None, *, repo: Path | None = None) -> Path:
 def condition_dir(run_id: str | None, replicas: int) -> str:
     """Folder for one experimental condition under a study root.
 
-    SAND-042 has four conditions — {1×L4, 2×L4} × {client concurrency 8, 16} — so
-    its folders are ``1L4-c8`` … ``2L4-c16`` rather than the SAND-037 ``1L4``/``2L4``
+    SAND-042 has five conditions — {1×L4, 2×L4} × {client concurrency 8, 16} plus the
+    2×L4 C32 saturation point (SAND-047) — so
+    its folders are ``1L4-c8`` … ``2L4-c32`` rather than the SAND-037 ``1L4``/``2L4``
     (which would merge C8 and C16 into one folder).
     """
     from mailroom_sandbox.job.specialist_posture import sand42_cell_label

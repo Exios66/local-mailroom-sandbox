@@ -1,7 +1,7 @@
 """SAND-042: per-cell scorecards and the paired cross-cell comparison.
 
 The SAND-037 suite card (``grid_cards.collect_suite``) is keyed on that grid's
-run ids, n ∈ {20, 50} and its two fleet shapes; SAND-042 has four cells with the
+run ids, n ∈ {20, 50} and its two fleet shapes; SAND-042 has five cells with the
 same n, so it gets its own collector. Everything here reads the committed
 ``*.card.json`` written by ``sandbox run card --config …`` — no live run, no
 network.
@@ -17,8 +17,8 @@ What it adds over the SAND-037 card, per docs/BENCHMARK-PROGRAM.md §5.2:
 * **engine + GPU telemetry** — the vLLM /metrics deltas and the SAND-042
   in-container nvidia-smi series (util / power / temperature / memory).
 
-``write_comparison`` then pairs the four cells on the shared 250 documents and
-reports each delta with a bootstrap CI and the better/worse counts — the format
+``write_comparison`` then pairs each non-reference cell on the shared 250 documents
+and reports each delta with a bootstrap CI and the better/worse counts — the format
 the SAND-37 master card already uses for merger †.
 """
 
@@ -92,14 +92,18 @@ CELLS: dict[str, tuple[int, int]] = {
     "1l4-c16": (1, 16),
     "2l4-c8": (2, 8),
     "2l4-c16": (2, 16),
+    "2l4-c32": (2, 32),
 }
-CELL_ORDER: tuple[str, ...] = ("1l4-c8", "1l4-c16", "2l4-c8", "2l4-c16")
+# Order is the master report's section order; 2l4-c32 is last (it joins the
+# saturation arm, not the {8,16} concurrency arm).
+CELL_ORDER: tuple[str, ...] = ("1l4-c8", "1l4-c16", "2l4-c8", "2l4-c16", "2l4-c32")
 # Cell stem for the suite artifact (the SAND-37 suite stems collide across cells).
 CELL_STEMS: dict[str, str] = {
     "1l4-c8": "SAND42-1L4-C8-SCORE-COST-CARD",
     "1l4-c16": "SAND42-1L4-C16-SCORE-COST-CARD",
     "2l4-c8": "SAND42-2L4-C8-SCORE-COST-CARD",
     "2l4-c16": "SAND42-2L4-C16-SCORE-COST-CARD",
+    "2l4-c32": "SAND42-2L4-C32-SCORE-COST-CARD",
 }
 # Class SLOs for document goodput (BENCHMARK-PROGRAM §5.2, set from SAND-40).
 CLASS_SLO_SECONDS: dict[str, float] = {
@@ -841,9 +845,9 @@ def render_comparison_md(
     data: Mapping[str, Any], *, figures: Sequence[Path] | None = None
 ) -> str:
     lines = [
-        "# SAND-042 · paired comparison across the four cells",
+        f"# SAND-042 · paired comparison across the {len(CELL_ORDER)} cells",
         "",
-        "All four cells score the **identical 250 documents** (5 specialists × 50, one "
+        f"All {len(CELL_ORDER)} cells score the **identical 250 documents** (5 specialists × 50, one "
         "subclass-stratified draw), so every cell-to-cell delta below is **paired**: the "
         "unit of analysis is the per-document score difference. Intervals are 95% "
         "percentile bootstrap over documents; the last column is the paired n that "
@@ -958,7 +962,7 @@ def write_noise_floor(*, repo: Path | None = None) -> dict[str, Path]:
 
 
 def write_all(*, repo: Path | None = None) -> dict[str, Path]:
-    """Every SAND-042 report: four condition cards, comparison, noise floor, master."""
+    """Every SAND-042 report: one condition card per cell, comparison, noise floor, master."""
     out: dict[str, Path] = {}
     for cell in CELL_ORDER:
         paths = write_cell(cell, repo=repo)
@@ -1018,7 +1022,7 @@ def _findings(cells: Mapping[str, Any]) -> list[str]:
         out.append(
             "Not measured yet — condition cards report "
             + ", ".join(f"{c} {n}/5" for c, n in reported.items())
-            + ". No cross-cell claim is made until all four conditions are complete."
+            + f". No cross-cell claim is made until all {len(CELL_ORDER)} conditions are complete."
         )
         return out
     ref = cells[REFERENCE_CELL]["specialists"]
@@ -1059,12 +1063,14 @@ def render_master_card_md(data: Mapping[str, Any]) -> str:
     lines = [
         "# SAND-042 master score & cost card — paired concurrency × fleet grid",
         "",
-        f"**Conditions measured:** {done} of 4 · **Documents per condition:** 250 "
+        f"**Conditions measured:** {done} of {len(CELL_ORDER)} · **Documents per condition:** 250 "
         "(5 specialists × n=50, one shared subclass-stratified draw) · "
         "**Model:** Qwen/Qwen3-8B-AWQ · L4 @ $0.80/GPU-hr · **Prompts:** v1 `*_simplified` only.",
         "",
-        "Four conditions — {1×L4, 2×L4} × {client concurrency 8, 16} — on the SAND-037 aligned "
-        "spec. Every condition scores the **identical 250 documents**, so every delta is paired.",
+        f"{len(CELL_ORDER)} conditions — {{1×L4, 2×L4}} × {{client concurrency 8, 16}} plus the 2×L4 "
+        "C32 saturation point (16 per replica, the engine's `max_num_seqs` admission ceiling) — on "
+        "the SAND-037 aligned spec. Every condition scores the **identical 250 documents**, so "
+        "every delta is paired.",
         "Design, metric contract and acceptance rules: "
         "[`docs/SAND42-EXPERIMENT-DESIGN.md`](../../docs/SAND42-EXPERIMENT-DESIGN.md).",
         "",
@@ -1178,11 +1184,11 @@ def render_master_report_md(
     lines += [
         "## Method",
         "",
-        "* Engine, prompts, decode, dataset pin and draw are identical across the four conditions; "
+        f"* Engine, prompts, decode, dataset pin and draw are identical across the {len(CELL_ORDER)} conditions; "
         "only the replica count and the client concurrency differ (asserted in "
         "`tests/test_sand42_grid.py`).",
         "* Client concurrency is split equally across replicas: 2×L4 C8 → 4 per replica, "
-        "2×L4 C16 → 8 per replica.",
+        "2×L4 C16 → 8 per replica, 2×L4 C32 → 16 per replica (the engine's `max_num_seqs` ceiling).",
         "* One warm fleet per condition (`min_containers = max_containers = replicas`), five "
         "specialists chained, teardown after the fifth: one cold boot per condition.",
         "* Quality intervals are percentile bootstraps over per-document scores; deltas are paired "

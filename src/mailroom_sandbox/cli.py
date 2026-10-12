@@ -807,13 +807,14 @@ def _run_parser(sub, shared):
             "sand42-1l4-c16",
             "sand42-2l4-c8",
             "sand42-2l4-c16",
+            "sand42-2l4-c32",
             "sand42",
             "sand42-noise-floor",
         ],
         help=(
             "grid-1l4|grid-2l4: the finalized L4x1 / L4x2 suite card. "
             "sand42-<cell>: one SAND-042 condition card. "
-            "sand42: all four conditions + comparison + master cost card + master report. "
+            "sand42: all five conditions + comparison + master cost card + master report. "
             "sand42-noise-floor: the noise-floor memo."
         ),
     )

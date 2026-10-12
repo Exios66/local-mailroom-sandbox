@@ -955,7 +955,8 @@ def validate_mapping(mapping: Mapping[str, Any] | None = None) -> list[str]:
 
 
 # ── SAND-042: paired concurrency × fleet grid on the SAND-037 aligned spec ────
-# Four cells = {1×L4, 2×L4} × {client concurrency 8, 16}, one warm fleet each
+# Five cells = {1×L4, 2×L4} × {client concurrency 8, 16} plus the 2×L4 C32
+# saturation point (SAND-047), one warm fleet each
 # (one cold boot per cell), five specialists per cell, n=50 per specialist on ONE
 # shared subclass-stratified draw, so every cell scores the identical 250
 # documents (paired). Client concurrency is split equally across replicas:
@@ -971,8 +972,18 @@ def validate_mapping(mapping: Mapping[str, Any] | None = None) -> list[str]:
 # SAND-037 never ran (C16 at all, and C8 on 2×L4 — SAND-037 ran C32 there).
 #
 # The 2×L4 cells are NOT a per-replica-load twin of the 1×L4 cells (C8/2 = 4,
-# C16/2 = 8 per replica); the one matched-load pair is 1×L4 C8 vs 2×L4 C16
-# (8 per replica each). See docs/SAND42-EXPERIMENT-DESIGN.md §3.
+# C16/2 = 8 per replica); the matched-load pairs are 1×L4 C8 vs 2×L4 C16 and
+# 1×L4 C16 vs 2×L4 C32 (8 and 16 per replica each). See
+# docs/SAND42-EXPERIMENT-DESIGN.md §3.
+#
+# C32 is the admitted amendment (SAND-047): 32 total = 16 per replica = the
+# engine's own ``max_num_seqs``, i.e. the admission ceiling, and the exact
+# per-replica load 1l4-c16 already ran — so 1l4-c16 vs 2l4-c32 is the
+# matched-load scale-out pair AT saturation, and it replicates SAND-037's 2×L4
+# C32 point. It was added after the four-cell grid landed, so it is the only
+# cell whose row order postdates the others (the two original matched-load pairs
+# keep the {8,16} concurrency arm). Its caps are the 2-replica row of
+# ``_SAND42_CAPS`` — caps are keyed by replicas, not concurrency.
 SAND42_N = 50
 SAND42_CELLS_BY_ID: dict[str, tuple[int, int]] = {
     # cell id: (replicas, client concurrency)
@@ -980,6 +991,7 @@ SAND42_CELLS_BY_ID: dict[str, tuple[int, int]] = {
     "1l4-c16": (1, 16),
     "2l4-c8": (2, 8),
     "2l4-c16": (2, 16),
+    "2l4-c32": (2, 32),
 }
 # v1 simplified stems + decode 8192. Written out literally (not inherited from the
 # grid table) so a future grid edit can never leak a production/v2/MAUD stem into
