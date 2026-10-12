@@ -21,47 +21,57 @@ Per-condition tables, engine and GPU telemetry, the paired comparison and the me
 
 | Metric | Correspondence | Insurance Claims | Corporate Records | Contracts | Merger Agreements |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Quality (95% CI) | 0.384 [0.316, 0.451] | 0.670 [0.653, 0.685] | 0.497 [0.427, 0.569] | 0.579 [0.543, 0.614] | 0.021 [0.012, 0.030] |
-| Scored documents | 50 | 50 | 50 | 45 | 50 |
-| Quality SD | 0.246 | 0.060 | 0.254 | 0.123 | 0.032 |
+| Quality (95% CI) | 0.388 [0.323, 0.451] | 0.671 [0.654, 0.688] | 0.482 [0.413, 0.555] | 0.599 [0.565, 0.632] | 0.027 [0.017, 0.040] |
+| Scored documents | 50 | 50 | 50 | 50 | 50 |
+| Quality SD | 0.238 | 0.062 | 0.248 | 0.120 | 0.041 |
 | Scoring method | suite | suite | suite | suite+cuad | suite+maud |
-| Clause metric | — | — | — | CUAD F1 0.585 · 45 labeled | MAUD acc 2.1% · 254/811 answered |
+| Clause metric | — | — | — | CUAD F1 0.593 · 50 labeled | MAUD acc 2.7% · 302/811 answered |
 | Ok rate (Wilson) | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] |
-| Schema-valid rate | 100.0% | 30.0% | 96.0% | 100.0% | 100.0% |
+| Schema-valid rate | 100.0% | 32.0% | 96.0% | 100.0% | 100.0% |
 | Parse errors | 0 | 0 | 0 | 0 | 0 |
 | Length-capped | 0 | 0 | 0 | 0 | 0 |
 | Error kinds | — | — | — | — | — |
-| p50 latency (s) | 6.3 | 13.6 | 11.2 | 94.5 | 574.9 |
-| p95 latency (s) | 8.9 | 24.6 | 13.6 | 316.4 | 1,324.9 |
+| p50 latency (s) | 6.2 | 13.4 | 10.8 | 114.2 | 547.4 |
+| p95 latency (s) | 9.3 | 22.3 | 14.5 | 671.4 | 1,370.2 |
 | SLO (s) · met | 60 · yes | 60 · yes | 60 · yes | 300 · no | 1,800 · yes |
-| Documents/min | 49.41 | 23.14 | 34.64 | 3.26 | 0.64 |
-| Documents/min/GPU | 49.41 | 23.14 | 34.64 | 3.26 | 0.64 |
-| Goodput docs/min/GPU | 49.41 | 23.14 | 34.64 | 0.00 | 0.64 |
-| Tokens/s/GPU | 2,258.4 | 1,438.9 | 2,371.5 | 1,009.7 | 1,113.2 |
-| Mean TTFT (s) | 0.72 | 0.90 | 1.21 | 1.95 | 4.01 |
-| Prefix-cache hit | 63.6% | 58.4% | 50.9% | 38.3% | 18.4% |
-| Wall (s) | 60.7 | 129.7 | 86.6 | 920.0 | 4,657.5 |
-| Billed GPU $ (run) | $0.0133 | $0.0287 | $0.0194 | $0.2046 | $1.0356 |
-| $ / 1k ok docs | $0.266880 | $0.574880 | $0.387920 | $4.091500 | $20.712260 |
-| $ / 1k schema-valid | $0.266880 | $1.916267 | $0.404083 | $4.091500 | $20.712260 |
-| $ / doc | $0.000267 | $0.000575 | $0.000388 | $0.004092 | $0.020712 |
-| $ / ok doc | $0.000267 | $0.000575 | $0.000388 | $0.004092 | $0.020712 |
-| $ / 1M tokens | $0.097 | $0.154 | $0.094 | $0.220 | $0.200 |
-| GPU util (mean/p95/min–max) | 73.8% mean / 99.0 p95 / 0.0–99.0% min–max (n=8) | 92.8% mean / 99.0 p95 / 0.0–99.0% min–max (n=18) | 77.6% mean / 100.0 p95 / 0.0–100.0% min–max (n=14) | 97.6% mean / 100.0 p95 / 0.0–100.0% min–max (n=139) | 98.3% mean / 100.0 p95 / 0.0–100.0% min–max (n=699) |
-| GPU mem used (mean) | 20,994 MiB (91.1% of 23,034) | 21,023 MiB (91.3% of 23,034) | 21,023 MiB (91.3% of 23,034) | 21,026 MiB (91.3% of 23,034) | 21,027 MiB (91.3% of 23,034) |
-| GPU mem bandwidth (mean) | not captured — scraped before the sampler read utilization.memory; needs a re-run | not captured — scraped before the sampler read utilization.memory; needs a re-run | not captured — scraped before the sampler read utilization.memory; needs a re-run | not captured — scraped before the sampler read utilization.memory; needs a re-run | not captured — scraped before the sampler read utilization.memory; needs a re-run |
-| Sampling coverage | 96.6% | 94.8% | 100.0% | 100.0% | 100.0% |
-| GPU power (W, mean) | 63.3 | 69.4 | 63.4 | 71.4 | 71.7 |
-| GPU temp (C, mean) | 51.6 | 60.3 | 64.4 | 73.0 | 75.6 |
+| Documents/min | 49.41 | 20.31 | 33.94 | 2.18 | 0.64 |
+| Documents/min/GPU | 49.41 | 20.31 | 33.94 | 2.18 | 0.64 |
+| Goodput docs/min/GPU | 49.41 | 20.31 | 33.94 | 0.00 | 0.64 |
+| Tokens/s/GPU | 2,261.7 | 1,258.3 | 2,324.3 | 688.5 | 1,113.4 |
+| Mean TTFT (s) | 0.66 | 0.77 | 1.20 | 2.03 | 3.77 |
+| Prefix-cache hit | 63.6% | 58.4% | 50.9% | 40.9% | 19.6% |
+| Wall (s) | 60.7 | 147.7 | 88.4 | 1,378.0 | 4,657.5 |
+| Billed GPU $ (run) | $0.0123 | $0.0268 | $0.0185 | $0.3069 | $0.9964 |
+| $ / 1k ok docs | $0.245320 | $0.536240 | $0.370180 | $6.137540 | $19.927040 |
+| $ / 1k schema-valid | $0.245320 | $1.675750 | $0.385604 | $6.137540 | $19.927040 |
+| $ / doc | $0.000245 | $0.000536 | $0.000370 | $0.006138 | $0.019927 |
+| $ / ok doc | $0.000245 | $0.000536 | $0.000370 | $0.006138 | $0.019927 |
+| $ / 1M tokens | $0.089 | $0.144 | $0.090 | $0.323 | $0.192 |
+| GPU util (mean/p95/min–max) | 87.2% mean / 100.0 p95 / 0.0–100.0% min–max (n=8) | 93.2% mean / 100.0 p95 / 0.0–100.0% min–max (n=18) | 84.6% mean / 100.0 p95 / 0.0–100.0% min–max (n=14) | 97.4% mean / 100.0 p95 / 0.0–100.0% min–max (n=231) | 88.7% mean / 100.0 p95 / 0.0–100.0% min–max (n=747) |
+| GPU mem used (mean) | 21,027 MiB (91.3% of 23,034) | 21,028 MiB (91.3% of 23,034) | 21,028 MiB (91.3% of 23,034) | 21,028 MiB (91.3% of 23,034) | 21,028 MiB (91.3% of 23,034) |
+| GPU mem bandwidth (mean) | 59.0% mean | 82.6% mean | 69.6% mean | 90.1% mean | 70.8% mean |
+| Sampling coverage | 100.0% | 99.2% | 100.0% | 99.9% | 99.9% |
+| GPU power (W, mean) | 64.6 | 70.2 | 64.7 | 71.3 | 67.5 |
+| GPU temp (C, mean) | 53.0 | 63.8 | 69.4 | 75.1 | 73.9 |
 | KV cache use (%) | 0 (drained-edge sample: the scrapes fire before/after the run, when the cache is empty by construction; a mid-run sample is the only real source) | 0 (drained-edge sample: the scrapes fire before/after the run, when the cache is empty by construction; a mid-run sample is the only real source) | 0 (drained-edge sample: the scrapes fire before/after the run, when the cache is empty by construction; a mid-run sample is the only real source) | 0 (drained-edge sample: the scrapes fire before/after the run, when the cache is empty by construction; a mid-run sample is the only real source) | 0 (drained-edge sample: the scrapes fire before/after the run, when the cache is empty by construction; a mid-run sample is the only real source) |
-| KV cache use, mid-run (max %) | — | — | — | — | — |
-| Queue depth, mid-run (running/waiting) | — | — | — | — | — |
+| KV cache use, mid-run (max %) | 6.4% | 6.5% | 10.2% | 42.1% | 49.7% |
+| Queue depth, mid-run (running/waiting) | 8 running / 0 waiting | 8 running / 0 waiting | 8 running / 0 waiting | 9 running / 0 waiting | 8 running / 2 waiting |
 | Preemptions | 0 | 0 | 0 | 0 | 0 |
-| Length finishes | 0 | 0 | 0 | 0 | 9 |
+| Length finishes | 0 | 0 | 0 | 3 | 4 |
 
 ## Cost (computed from the session)
 
-Fleet window not recorded (no fleet_window.json for this cell). Per-run costs still come from each run's own container-telemetry window.
+The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal meters the **whole window** — the cold boot and the idle between specialists included. This is computed from the session's own timestamps, not scraped from the billing CLI (whose figures are credits-based and workspace-wide).
+
+| Fleet cost | Value |
+| --- | ---: |
+| Replicas × GPU | 1 × L4 @ $0.80/GPU-hr |
+| Cold boot (deploy → ready) | 122.0 s |
+| Fleet window (deploy → teardown) | 6,427.0 s |
+| Fleet GPU-hours | 1.7853 |
+| **Fleet GPU $** | **$1.4282** |
+| Of which the five runs | 6,123.7 s (95.3%) |
+| Boot + idle overhead | 303.3 s |
 
 ## Per-run cards
 
@@ -75,7 +85,7 @@ Fleet window not recorded (no fleet_window.json for this cell). Per-run costs st
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-12T17:48:56+00:00 by `sandbox run card --runbook sand42-1l4-c8` from the committed per-run `*.card.json`._
+_Generated 2026-10-12T20:14:27+00:00 by `sandbox run card --runbook sand42-1l4-c8` from the committed per-run `*.card.json`._
 
 
 ---
@@ -139,17 +149,7 @@ _Generated 2026-10-12T17:48:56+00:00 by `sandbox run card --runbook sand42-1l4-c
 
 ## Cost (computed from the session)
 
-The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal meters the **whole window** — the cold boot and the idle between specialists included. This is computed from the session's own timestamps, not scraped from the billing CLI (whose figures are credits-based and workspace-wide).
-
-| Fleet cost | Value |
-| --- | ---: |
-| Replicas × GPU | 1 × L4 @ $0.80/GPU-hr |
-| Cold boot (deploy → ready) | not captured — ready_ts is only written by the parallel-fleet launcher |
-| Fleet window (deploy → teardown) | 5,690.0 s |
-| Fleet GPU-hours | 1.5806 |
-| **Fleet GPU $** | **$1.2644** |
-| Of which the five runs | 5,519.5 s (97.0%) |
-| Boot + idle overhead | 170.5 s |
+Fleet window not recorded (no fleet_window.json for this cell). Per-run costs still come from each run's own container-telemetry window.
 
 ## Per-run cards
 
@@ -163,7 +163,7 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-12T17:48:57+00:00 by `sandbox run card --runbook sand42-1l4-c16` from the committed per-run `*.card.json`._
+_Generated 2026-10-12T20:14:27+00:00 by `sandbox run card --runbook sand42-1l4-c16` from the committed per-run `*.card.json`._
 
 
 ---
@@ -251,7 +251,7 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-12T17:48:57+00:00 by `sandbox run card --runbook sand42-2l4-c8` from the committed per-run `*.card.json`._
+_Generated 2026-10-12T20:14:27+00:00 by `sandbox run card --runbook sand42-2l4-c8` from the committed per-run `*.card.json`._
 
 
 ---
@@ -339,7 +339,7 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-12T17:48:57+00:00 by `sandbox run card --runbook sand42-2l4-c16` from the committed per-run `*.card.json`._
+_Generated 2026-10-12T20:14:27+00:00 by `sandbox run card --runbook sand42-2l4-c16` from the committed per-run `*.card.json`._
 
 
 ---
@@ -427,14 +427,14 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-12T17:48:57+00:00 by `sandbox run card --runbook sand42-2l4-c32` from the committed per-run `*.card.json`._
+_Generated 2026-10-12T20:14:27+00:00 by `sandbox run card --runbook sand42-2l4-c32` from the committed per-run `*.card.json`._
 
 
 ---
 
 # SAND-042 · paired comparison across the 5 cells
 
-All 5 cells score the **identical 250 documents** (5 specialists × 50, one subclass-stratified draw), so every cell-to-cell delta below is **paired**: the unit of analysis is the per-document score difference. Intervals are 95% percentile bootstrap over documents; the last column is the paired n that Δ = 0.05 would need at 80% power.
+**The cells do NOT all score the same documents.** `sand42-50-contracts`: ['2l4-c16', '2l4-c32', '2l4-c8'] (50 docs) vs ['1l4-c8'] (50 docs). Any delta between cells on different draws is **not paired** — the per-document difference is undefined across a draw change, so those columns compare different documents and must not be read as a comparison until every cell re-runs on one draw. Everything else in this table (cost, throughput, engine telemetry) is unaffected.
 
 Reference cell: **1l4-c8** (1×L4, client concurrency 8).
 
@@ -442,55 +442,59 @@ Reference cell: **1l4-c8** (1×L4, client concurrency 8).
 
 | Class | Paired n | Δ mean | 95% CI | SD_diff | better / worse / tie | n for Δ=0.05 |
 | --- | ---: | ---: | --- | ---: | --- | ---: |
-| Contracts | 45 | +0.024 | [-0.006, 0.055] | 0.105 | 24 / 15 / 6 | 35 |
-| Corporate Records | 50 | -0.013 | [-0.035, 0.003] | 0.069 | 3 / 3 / 44 | 15 |
-| Correspondence | 50 | -0.003 | [-0.022, 0.017] | 0.070 | 2 / 5 / 43 | 16 |
-| Insurance Claims | 50 | -0.005 | [-0.013, 0.002] | 0.027 | 11 / 14 / 25 | 3 |
-| Merger Agreements | 50 | +0.008 | [-0.002, 0.020] | 0.039 | 9 / 5 / 36 | 5 |
+| Contracts | 39 | -0.003 | [-0.047, 0.039] | 0.134 | 15 / 17 / 7 | 57 |
+| Corporate Records | 50 | +0.002 | [-0.018, 0.021] | 0.070 | 5 / 2 / 43 | 16 |
+| Correspondence | 50 | -0.007 | [-0.028, 0.013] | 0.073 | 1 / 4 / 45 | 17 |
+| Insurance Claims | 50 | -0.006 | [-0.014, 0.001] | 0.027 | 9 / 11 / 30 | 3 |
+| Merger Agreements | 50 | +0.002 | [-0.010, 0.013] | 0.042 | 6 / 6 / 38 | 6 |
 
 ## 2l4-c8 (2× L4 · C8 · 4/replica) vs 1l4-c8
 
 | Class | Paired n | Δ mean | 95% CI | SD_diff | better / worse / tie | n for Δ=0.05 |
 | --- | ---: | ---: | --- | ---: | --- | ---: |
-| Contracts | 44 | +0.042 | [0.002, 0.081] | 0.134 | 26 / 11 / 7 | 57 |
-| Corporate Records | 50 | -0.016 | [-0.038, 0.001] | 0.073 | 2 / 6 / 42 | 17 |
-| Correspondence | 50 | -0.005 | [-0.019, 0.005] | 0.045 | 1 / 3 / 46 | 7 |
-| Insurance Claims | 50 | +0.001 | [-0.005, 0.007] | 0.023 | 10 / 10 / 30 | 2 |
-| Merger Agreements | 50 | +0.010 | [-0.003, 0.025] | 0.048 | 13 / 6 / 31 | 8 |
+| Contracts | 38 | +0.018 | [-0.023, 0.060] | 0.129 | 18 / 12 / 8 | 53 |
+| Corporate Records | 50 | -0.002 | [-0.018, 0.010] | 0.053 | 4 / 3 / 43 | 9 |
+| Correspondence | 50 | -0.009 | [-0.025, 0.001] | 0.049 | 1 / 3 / 46 | 8 |
+| Insurance Claims | 50 | -0.001 | [-0.005, 0.003] | 0.014 | 7 / 7 / 36 | 1 |
+| Merger Agreements | 50 | +0.004 | [-0.006, 0.013] | 0.034 | 8 / 4 / 38 | 4 |
 
 ## 2l4-c16 (2× L4 · C16 · 8/replica) vs 1l4-c8
 
 | Class | Paired n | Δ mean | 95% CI | SD_diff | better / worse / tie | n for Δ=0.05 |
 | --- | ---: | ---: | --- | ---: | --- | ---: |
-| Contracts | 44 | +0.025 | [-0.012, 0.064] | 0.129 | 20 / 19 / 5 | 53 |
-| Corporate Records | 50 | +0.001 | [-0.018, 0.021] | 0.069 | 4 / 4 / 42 | 15 |
-| Correspondence | 50 | -0.003 | [-0.029, 0.021] | 0.091 | 3 / 5 / 42 | 27 |
-| Insurance Claims | 50 | -0.001 | [-0.007, 0.003] | 0.018 | 14 / 11 / 25 | 2 |
-| Merger Agreements | 50 | +0.003 | [-0.008, 0.014] | 0.041 | 9 / 7 / 34 | 6 |
+| Contracts | 39 | -0.001 | [-0.044, 0.044] | 0.141 | 17 / 17 / 5 | 63 |
+| Corporate Records | 50 | +0.016 | [0.001, 0.036] | 0.067 | 5 / 2 / 43 | 14 |
+| Correspondence | 50 | -0.006 | [-0.033, 0.019] | 0.096 | 2 / 6 / 42 | 29 |
+| Insurance Claims | 50 | -0.003 | [-0.010, 0.004] | 0.026 | 16 / 13 / 21 | 3 |
+| Merger Agreements | 50 | -0.004 | [-0.018, 0.009] | 0.049 | 7 / 8 / 35 | 8 |
 
 ## 2l4-c32 (2× L4 · C32 · 16/replica) vs 1l4-c8
 
 | Class | Paired n | Δ mean | 95% CI | SD_diff | better / worse / tie | n for Δ=0.05 |
 | --- | ---: | ---: | --- | ---: | --- | ---: |
-| Contracts | 45 | +0.014 | [-0.023, 0.052] | 0.131 | 23 / 14 / 8 | 55 |
-| Corporate Records | 50 | -0.012 | [-0.033, 0.003] | 0.067 | 1 / 3 / 46 | 15 |
-| Correspondence | 50 | -0.007 | [-0.019, 0.000] | 0.040 | 0 / 3 / 47 | 5 |
-| Insurance Claims | 50 | +0.001 | [-0.005, 0.006] | 0.019 | 11 / 9 / 30 | 2 |
-| Merger Agreements | 50 | +0.003 | [-0.006, 0.012] | 0.033 | 8 / 4 / 38 | 4 |
+| Contracts | 39 | -0.005 | [-0.046, 0.036] | 0.133 | 16 / 15 / 8 | 56 |
+| Corporate Records | 50 | +0.003 | [-0.017, 0.022] | 0.069 | 3 / 1 / 46 | 15 |
+| Correspondence | 50 | -0.010 | [-0.028, 0.001] | 0.053 | 2 / 5 / 43 | 9 |
+| Insurance Claims | 50 | -0.001 | [-0.006, 0.004] | 0.019 | 8 / 7 / 35 | 2 |
+| Merger Agreements | 50 | -0.003 | [-0.015, 0.006] | 0.039 | 4 / 3 / 43 | 5 |
 
 ## Noise floor (run-to-run, same 50 documents)
 
-_Not measured._ Run `sand42-noise-floor` (blocked until spend is approved) on the same 50 correspondence documents. Until then the SAND-037/39 floor in `docs/BENCHMARK-PROGRAM.md` §3 is the prior — it was measured on a different draw, so treat it as indicative only.
+`sand42-noisefloor-correspondence-awq-1l4-c8` re-run against `sand42-50-correspondence-specialist-awq-1l4-c8` (identical settings, identical documents):
 
-## Why a paired n can be below the class's document count
+| Metric | Value |
+| --- | ---: |
+| Paired documents | 50 |
+| Δ mean (should be ≈ 0) | -0.003 |
+| 95% CI | [-0.022, 0.016] |
+| SD of the difference | 0.066 |
+| better / worse / tie | 1 / 2 / 47 |
+| Paired n for Δ=0.05 | 14 |
+| Paired n for Δ=0.03 | 39 |
 
-The unit of analysis is the **per-document** score difference, so a class's paired n is the intersection of the documents both arms score. Where that is less than the 50-document draw, this is why:
+**Quote no delta smaller than this floor.** Any cell-to-cell interval that contains 0 is inside the noise floor.
 
-* `contracts_specialist` — the paired n is capped at **45 of 50** documents: its task-native metric (`cuad`) is defined only for the 45 contracts that carry ground truth for it. The remainder ran successfully (`ok` true, no error) but score no numeric value in ANY arm, so they can never enter a paired delta. The cap is a property of the ground truth, not of these runs.
-* `contracts_specialist` / `2l4-c8` — scores 44 of the 45 available documents; the shortfall is this arm's own failure (LengthFinishReasonError ×1), so its paired n against `1l4-c8` is the intersection.
-* `contracts_specialist` / `2l4-c16` — scores 44 of the 45 available documents; the shortfall is this arm's own failure (LengthFinishReasonError ×1), so its paired n against `1l4-c8` is the intersection.
-
-_Generated 2026-10-12T17:48:59+00:00 by `sandbox run card --runbook sand42`._
+_Generated 2026-10-12T20:14:29+00:00 by `sandbox run card --runbook sand42`._
 
 
 ---
@@ -524,25 +528,25 @@ boot` is the fleet window having recorded `ready_ts`.
 
 | Cell | verbatim /metrics | GPU mem bandwidth | mid-run KV / queue | cold boot |
 | --- | ---: | ---: | ---: | ---: |
-| `1l4-c8` | 1/2 | 1/2 | 1/2 | no |
-| `1l4-c16` | 1/5 | all | 0/5 | no |
-| `2l4-c8` | all | all | 0/5 | no |
-| `2l4-c16` | all | all | 0/5 | yes |
-| `2l4-c32` | all | all | 1/5 | yes |
+| `1l4-c8` | all | all | all | yes |
+| `1l4-c16` | 0/5 | 0/5 | 0/5 | no |
+| `2l4-c8` | 0/5 | all | 0/5 | no |
+| `2l4-c16` | 0/5 | all | 0/5 | yes |
+| `2l4-c32` | 0/5 | all | 0/5 | yes |
 
 **Open coverage.** Every blank above carries its reason; a gap is never rendered as a number, and none of these blanks is a failed capture:
 
-* `1l4-c8` — verbatim /metrics: 1 of 2 run(s) not sampled
-* `1l4-c8` — GPU memory bandwidth: 1 of 2 run(s) not sampled
-* `1l4-c8` — mid-run KV / queue: 1 of 2 run(s) not sampled
-* `1l4-c8` — cold boot: `ready_ts` never written (the sequential driver's cells record a fleet window without a boot boundary)
-* `1l4-c16` — verbatim /metrics: 4 of 5 run(s) not sampled
+* `1l4-c16` — verbatim /metrics: 5 of 5 run(s) not sampled
+* `1l4-c16` — GPU memory bandwidth: 5 of 5 run(s) not sampled
 * `1l4-c16` — mid-run KV / queue: 5 of 5 run(s) not sampled
 * `1l4-c16` — cold boot: `ready_ts` never written (the sequential driver's cells record a fleet window without a boot boundary)
+* `2l4-c8` — verbatim /metrics: 5 of 5 run(s) not sampled
 * `2l4-c8` — mid-run KV / queue: 5 of 5 run(s) not sampled
 * `2l4-c8` — cold boot: `ready_ts` never written (the sequential driver's cells record a fleet window without a boot boundary)
+* `2l4-c16` — verbatim /metrics: 5 of 5 run(s) not sampled
 * `2l4-c16` — mid-run KV / queue: 5 of 5 run(s) not sampled
-* `2l4-c32` — mid-run KV / queue: 4 of 5 run(s) not sampled
+* `2l4-c32` — verbatim /metrics: 5 of 5 run(s) not sampled
+* `2l4-c32` — mid-run KV / queue: 5 of 5 run(s) not sampled
 
 *Mid-run KV / queue is diagnostic telemetry, not a primary endpoint — it explains a throughput result rather than producing one, and no headline number depends on it. The primary endpoints (per-class throughput, $/1k ok documents, quality with CIs) and the verbatim engine telemetry are complete for every cell. Per-class pairing ceilings (e.g. contracts) are explained in the comparison's pairing note.*
 
@@ -554,4 +558,4 @@ boot` is the fleet window having recorded `ready_ts`.
 * OTel *metrics* export from the container is not wired (the telemetry is an nvidia-smi series); trace spans stay opt-in via `trace.sink`.
 * This grid shows the second L4 does not pay per GPU, but not whether that is a property of the L4s or of the client feeding them. The controlled test — data-parallel with a per-request feed, tensor-parallel on one endpoint, and a raised admission ceiling — is designed in [`docs/SAND42-FOLLOWUP-DESIGN.md`](../../docs/SAND42-FOLLOWUP-DESIGN.md).
 
-_Generated 2026-10-12T17:48:57+00:00 by `sandbox run card --runbook sand42`._
+_Generated 2026-10-12T20:14:27+00:00 by `sandbox run card --runbook sand42`._
