@@ -3799,7 +3799,7 @@
         ],
         "scrape_errors": []
       },
-      "generated_at": "2026-10-12T06:23:51+00:00",
+      "generated_at": "2026-10-12T06:41:19+00:00",
       "latency": {
         "max": 2405.978605,
         "mean": 1161.61527422,
@@ -3889,7 +3889,7 @@
     "replicas": 1,
     "teardown_ts": 1791786237.0
   },
-  "generated_at": "2026-10-12T06:23:58+00:00",
+  "generated_at": "2026-10-12T07:01:16+00:00",
   "kind": "cell",
   "replicas": 1,
   "runbook": "sand42-1l4-c16",

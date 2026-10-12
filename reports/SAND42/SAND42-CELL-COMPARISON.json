@@ -63,20 +63,110 @@
           "sd_diff": 0.02660895015913685,
           "tie": 25,
           "worse": 14
+        },
+        "merger_agreement_specialist": {
+          "better": 9,
+          "ci_high": 0.019800653594771244,
+          "ci_low": -0.0018692810457516338,
+          "delta_mean": 0.008223856209150327,
+          "n_for_delta_0_05": 5,
+          "paired_documents": 50,
+          "sd_diff": 0.03916145212845632,
+          "tie": 36,
+          "worse": 5
         }
       },
       "vs": "1l4-c8"
     },
     "2l4-c16": {
-      "per_class": {},
+      "per_class": {
+        "corporate_records_specialist": {
+          "better": 4,
+          "ci_high": 0.020706,
+          "ci_low": -0.018368000000000002,
+          "delta_mean": 0.001211999999999999,
+          "n_for_delta_0_05": 15,
+          "paired_documents": 50,
+          "sd_diff": 0.06909731569847481,
+          "tie": 42,
+          "worse": 4
+        },
+        "correspondence_specialist": {
+          "better": 3,
+          "ci_high": 0.021328,
+          "ci_low": -0.028555999999999998,
+          "delta_mean": -0.002610000000000001,
+          "n_for_delta_0_05": 27,
+          "paired_documents": 50,
+          "sd_diff": 0.09106234072304084,
+          "tie": 42,
+          "worse": 5
+        },
+        "insurance_claims_specialist": {
+          "better": 14,
+          "ci_high": 0.0031720000000000016,
+          "ci_low": -0.006932000000000001,
+          "delta_mean": -0.00143,
+          "n_for_delta_0_05": 2,
+          "paired_documents": 50,
+          "sd_diff": 0.018229682568015607,
+          "tie": 25,
+          "worse": 11
+        }
+      },
       "vs": "1l4-c8"
     },
     "2l4-c8": {
-      "per_class": {},
+      "per_class": {
+        "contracts_specialist": {
+          "better": 26,
+          "ci_high": 0.0811,
+          "ci_low": 0.0020363636363636205,
+          "delta_mean": 0.04241590909090908,
+          "n_for_delta_0_05": 57,
+          "paired_documents": 44,
+          "sd_diff": 0.133744249071201,
+          "tie": 7,
+          "worse": 11
+        },
+        "corporate_records_specialist": {
+          "better": 2,
+          "ci_high": 0.001008,
+          "ci_low": -0.038458000000000006,
+          "delta_mean": -0.016226000000000004,
+          "n_for_delta_0_05": 17,
+          "paired_documents": 50,
+          "sd_diff": 0.07291923911186309,
+          "tie": 42,
+          "worse": 6
+        },
+        "correspondence_specialist": {
+          "better": 1,
+          "ci_high": 0.005215999999999998,
+          "ci_low": -0.018758000000000004,
+          "delta_mean": -0.0050380000000000025,
+          "n_for_delta_0_05": 7,
+          "paired_documents": 50,
+          "sd_diff": 0.04490968210685504,
+          "tie": 46,
+          "worse": 3
+        },
+        "insurance_claims_specialist": {
+          "better": 10,
+          "ci_high": 0.007093999999999996,
+          "ci_low": -0.005278000000000002,
+          "delta_mean": 0.0008119999999999972,
+          "n_for_delta_0_05": 2,
+          "paired_documents": 50,
+          "sd_diff": 0.02279966559010039,
+          "tie": 30,
+          "worse": 10
+        }
+      },
       "vs": "1l4-c8"
     }
   },
-  "generated_at": "2026-10-12T06:10:35+00:00",
+  "generated_at": "2026-10-12T07:01:18+00:00",
   "kind": "comparison",
   "noise_floor": null,
   "reference_cell": "1l4-c8",

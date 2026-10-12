@@ -465,7 +465,7 @@ def _gpu_text(gpu: Mapping[str, Any]) -> str:
         return f"{n} samples, no util"
     return (
         f"{util:.1f}% mean / {_f(gpu.get('util_p95_perc'), 1)} p95 / "
-        f"{peak:.1f}% peak (n={n})"
+        f"{_f(gpu.get('util_min_perc'), 1)}–{peak:.1f}% min–max (n={n})"
     )
 
 
@@ -606,22 +606,32 @@ def render_cell_md(
     lines += [
         row("Quality (95% CI)", lambda r: _quality_text(r["quality"])),
         row("Scored documents", lambda r: str(r["quality"]["scored_documents"])),
+        row("Quality SD", lambda r: _f(r["quality"].get("sd"), 3)),
         row("Scoring method", lambda r: str(r["quality"].get("scoring_method") or "—")),
+        row("Clause metric", lambda r: _clause_text(r["quality"].get("clause"))),
         row("Ok rate (Wilson)", lambda r: _reliability_text(r["reliability"])),
         row("Schema-valid rate", lambda r: _pct(r["reliability"].get("schema_valid_rate"))),
+        row("Parse errors", lambda r: _f(r["reliability"].get("parse_errors"), 0)),
         row("Length-capped", lambda r: str(r["reliability"].get("length_capped"))),
+        row("Error kinds", lambda r: _error_kinds_text(r["reliability"].get("error_kinds"))),
         row("p50 latency (s)", lambda r: _f(r["latency"].get("p50"), 1)),
         row("p95 latency (s)", lambda r: _f(r["latency"].get("p95"), 1)),
         row("SLO (s) · met", lambda r: f"{_f(r['goodput'].get('slo_seconds'), 0)} · "
             + ("yes" if r["goodput"].get("meets_slo") else "no")),
+        row("Documents/min", lambda r: _f(r["throughput"].get("documents_per_minute"), 2)),
         row("Documents/min/GPU", lambda r: _f(r["throughput"].get("documents_per_minute"), 2)),
         row("Goodput docs/min/GPU", lambda r: _f(r["goodput"].get("goodput_documents_per_minute_per_gpu"), 2)),
         row("Tokens/s/GPU", lambda r: _f(r["throughput"].get("tokens_per_second_per_gpu"), 1)),
+        row("Mean TTFT (s)", lambda r: _replica_mean_text(r, "ttft_mean_seconds")),
+        row("Prefix-cache hit", lambda r: _replica_mean_text(r, "prefix_cache_hit_rate", pct=True)),
         row("Wall (s)", lambda r: _f(r["time"].get("wall_seconds"), 1)),
         row("Billed GPU $ (run)", lambda r: _usd(r["cost"].get("billed_gpu_usd"), 4)),
         row("$ / 1k ok docs", lambda r: _usd(r["cost"].get("usd_per_1k_ok"))),
         row("$ / 1k schema-valid", lambda r: _usd(r["cost"].get("usd_per_1k_schema_valid"))),
-        row("GPU util (mean/p95/peak)", lambda r: _gpu_text(r["gpu"])),
+        row("$ / doc", lambda r: _usd(_per_doc_usd(r), 6)),
+        row("$ / ok doc", lambda r: _usd(_per_doc_usd(r, ok=True), 6)),
+        row("$ / 1M tokens", lambda r: _usd(_per_1m_tokens_usd(r), 3)),
+        row("GPU util (mean/p95/min–max)", lambda r: _gpu_text(r["gpu"])),
         row("GPU mem used (mean)", lambda r: _mem_used_text(r["gpu"])),
         row("GPU mem bandwidth (mean)", lambda r: _mem_bw_text(r["gpu"])),
         row("Sampling coverage", lambda r: _coverage_text(r["gpu"])),
@@ -684,6 +694,54 @@ def _replica_sum_text(r: Mapping[str, Any], key: str) -> str:
     if not vals:
         return "—"
     return f"{sum(vals):.0f}"
+
+
+def _replica_mean_text(
+    r: Mapping[str, Any], key: str, *, pct: bool = False, digits: int = 2
+) -> str:
+    """Mean of a per-replica engine metric (TTFT, prefix-cache hit) across replicas."""
+    reps = (r.get("engine_telemetry") or {}).get("replicas") or []
+    vals = [x.get(key) for x in reps if isinstance(x, dict)]
+    vals = [v for v in vals if isinstance(v, (int, float))]
+    if not vals:
+        return "—"
+    mean = statistics.fmean(vals)
+    return _pct(mean) if pct else _f(mean, digits)
+
+
+def _clause_text(clause: Mapping[str, Any]) -> str:
+    """The task-native clause metric: CUAD clause F1 (contracts) / MAUD accuracy (merger)."""
+    clause = clause or {}
+    if clause.get("kind") == "cuad":
+        return f"CUAD F1 {_f(clause.get('f1'), 3)} · {clause.get('docs_labeled')} labeled"
+    if clause.get("kind") == "maud":
+        return (
+            f"MAUD acc {_pct(clause.get('accuracy'))} · "
+            f"{clause.get('answered')}/{clause.get('questions')} answered"
+        )
+    return "—"
+
+
+def _error_kinds_text(kinds: Mapping[str, Any] | None) -> str:
+    if not isinstance(kinds, Mapping) or not kinds:
+        return "—"
+    return ", ".join(f"{k}×{v}" for k, v in sorted(kinds.items(), key=lambda kv: -kv[1]))
+
+
+def _per_doc_usd(r: Mapping[str, Any], *, ok: bool = False) -> float | None:
+    billed = (r.get("cost") or {}).get("billed_gpu_usd")
+    n = (r.get("reliability") or {}).get("ok" if ok else "attempted")
+    if not billed or not n:
+        return None
+    return billed / n
+
+
+def _per_1m_tokens_usd(r: Mapping[str, Any]) -> float | None:
+    billed = (r.get("cost") or {}).get("billed_gpu_usd")
+    total = (r.get("tokens") or {}).get("total")
+    if not billed or not total:
+        return None
+    return billed / total * 1_000_000
 
 
 def write_cell(cell: str, *, repo: Path | None = None) -> dict[str, Path]:
