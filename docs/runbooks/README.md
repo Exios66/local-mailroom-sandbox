@@ -55,6 +55,7 @@ Source of truth: [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.
 - [`sand42-1l4-c16`](sand42/1l4-c16.md) — SAND-042 — 1×L4 · client concurrency 16 · n=50 × 5 specialists (paired)
 - [`sand42-2l4-c8`](sand42/2l4-c8.md) — SAND-042 — 2×L4 · client concurrency 8 (4 per replica) · n=50 × 5 specialists (paired)
 - [`sand42-2l4-c16`](sand42/2l4-c16.md) — SAND-042 — 2×L4 · client concurrency 16 (8 per replica) · n=50 × 5 specialists (paired)
+- [`sand42-2l4-c32`](sand42/2l4-c32.md) — SAND-042 — 2×L4 · client concurrency 32 (16 per replica, at the admission ceiling) · n=50 × 5 specialists (paired)
 - [`sand42-smoke`](sand42/smoke.md) — SAND-042 live smoke — 5 corporate records on 1×L4 · C8 (pre-spend check)
 - [`sand42-noise-floor`](sand42/noise-floor.md) — SAND-042 noise floor — correspondence re-run on the same 50 documents (1×L4 · C8) — **BLOCKED**
 

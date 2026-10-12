@@ -9,7 +9,7 @@ Outputs, all under ``reports/SAND42/``::
     figures/cmp-{quality,cost,latency,throughput,gpu}.png
                                             master comparison suite (one PNG per metric)
 
-Partial or missing cards are normal while the campaign fills the four cells in: what is
+Partial or missing cards are normal while the campaign fills the cells in: what is
 present is drawn, what is absent is skipped. Rendering is deterministic — the same cards
 give byte-identical PNGs — because the matplotlib version stamp is stripped on save.
 

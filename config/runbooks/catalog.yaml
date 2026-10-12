@@ -196,6 +196,7 @@ generated_docs:
     sand42-1l4-c16: sand42/1l4-c16.md
     sand42-2l4-c8: sand42/2l4-c8.md
     sand42-2l4-c16: sand42/2l4-c16.md
+    sand42-2l4-c32: sand42/2l4-c32.md
     sand42-smoke: sand42/smoke.md
     sand42-noise-floor: sand42/noise-floor.md
 
@@ -1008,8 +1009,9 @@ runbooks:
       Two replicas (MIN=MAX=2, one warm fleet, one cold boot per replica) at client
       concurrency 8 split equally — 4 in flight per replica. Same engine, prompts,
       decode and documents as the 1×L4 cells. The 2×L4 cells are not a
-      per-replica-load twin of the 1×L4 cells (C8/2 = 4); the matched-load pair in
-      this grid is 1×L4 C8 vs 2×L4 C16 (8 per replica each).
+      per-replica-load twin of the 1×L4 cells (C8/2 = 4); the matched-load pairs
+      in this grid are 1×L4 C8 vs 2×L4 C16 and 1×L4 C16 vs 2×L4 C32 (8 and 16
+      per replica each).
     serving: grid-awq-2l4
     configs:
       - config/runs/sand42-50-correspondence-specialist-awq-2l4-c8.yaml
@@ -1089,6 +1091,56 @@ runbooks:
       - "Reports: reports/SAND42/2L4-c16/<specialist>/<run_id>.card.* then the after step writes reports/SAND42/2L4-c16/SAND42-2L4-C16-SCORE-COST-CARD.md + .json."
       - "Spend (estimate): as the 1xL4 cell, billed on two GPUs; merger ~39 min wall at the same ~1.30 GPU-hours. The five cost caps sum to $6.20 and are the abort guard. Needs spend approval before deploy."
       - "Client concurrency is split equally across replicas: 16 → 8 per replica. This is the matched-load twin of sand42-1l4-c8 (8 per replica on one GPU)."
+      - "MIN=MAX=2 keeps both replicas warm across all five classes; teardown only after the fifth."
+      - "Decode: max_tokens 8192 at temperature 0.7 for contracts, 6144 for merger (SAND-040 optimised: top_p 0.8 / presence 1.0 / one length re-sample), 0.1 elsewhere. Contracts and merger run WHOLE-DOCUMENT CHUNKED extraction — the old head+tail cap dropped 62 % of contract and 93 % of merger text, and merger MAUD accuracy measured 0.0 on that truncated arm with 3/50 hard length failures. Do not raise max_tokens."
+
+  sand42-2l4-c32:
+    family: sand42
+    title: SAND-042 — 2×L4 · client concurrency 32 (16 per replica, at the admission ceiling) · n=50 × 5 specialists (paired)
+    summary: >
+      Two replicas at client concurrency 32 split equally — 16 in flight per
+      replica, which is exactly the engine's max_num_seqs, i.e. the scheduler's
+      admission ceiling: any further request queues instead of running. That
+      makes this cell the saturation point of the grid, and 1×L4 C16 vs 2×L4 C32
+      the matched-load scale-out pair AT saturation (16 per replica each). It
+      also reproduces SAND-037's 2×L4 C32 point on the paired 250-document draw,
+      so it is the bridge tying the grid back to the only earlier C32
+      measurement.
+    serving: grid-awq-2l4
+    configs:
+      - config/runs/sand42-50-correspondence-specialist-awq-2l4-c32.yaml
+      - config/runs/sand42-50-insurance-claims-specialist-awq-2l4-c32.yaml
+      - config/runs/sand42-50-corporate-records-specialist-awq-2l4-c32.yaml
+      - config/runs/sand42-50-contracts-specialist-awq-2l4-c32.yaml
+      - config/runs/sand42-50-merger-specialist-awq-2l4-c32.yaml
+    modal_profile: track-a
+    deploy_strategy: recreate
+    assert_engine: true
+    preflight_force: true
+    scrape_metrics: true
+    export_card: true
+    extra_env:
+      MODAL_VLLM_TELEMETRY_LABEL: sand42-2l4-c32
+    steps:
+      - env
+      - activate_profile
+      - extra_env
+      - check
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - configs
+      - teardown
+      - after
+    after:
+      - sandbox run card --runbook sand42-2l4-c32
+      - sandbox metrics compare --runs sand42-50-correspondence-specialist-awq-2l4-c32,sand42-50-insurance-claims-specialist-awq-2l4-c32,sand42-50-corporate-records-specialist-awq-2l4-c32,sand42-50-contracts-specialist-awq-2l4-c32,sand42-50-merger-specialist-awq-2l4-c32
+    notes:
+      - "Reports: reports/SAND42/2L4-c32/<specialist>/<run_id>.card.* then the after step writes reports/SAND42/2L4-c32/SAND42-2L4-C32-SCORE-COST-CARD.md + .json. This cell supplies the FIFTH section of reports/SAND42/SAND42-MASTER-REPORT.md and a fifth column in the comparison tables."
+      - "Added last (SAND-047): the original grid pins client concurrency to {8,16}. C32 joins the 2×L4 arm only, because it is the 2×L4 saturation point (16/replica = max_num_seqs) and precisely the per-replica load sand42-1l4-c16 already ran. It is the grid's only concurrency above 16."
+      - "Spend (estimate): the five cost caps are the 2-replica row of the same table (sum $6.20) and are the abort guard — caps are keyed by replicas, not concurrency, and saturation should raise per-request latency while total throughput plateaus, not raise the cost of scoring the same 250 documents. Needs spend approval before deploy."
+      - "Client concurrency is split equally across replicas: 32 → 16 per replica. At the ceiling per-replica queueing is expected, so read num_requests_waiting and preemptions on BOTH replicas: SAND-037 saw one replica hold 16 running + 7 queued while the other ran 6, so an even split is not guaranteed."
       - "MIN=MAX=2 keeps both replicas warm across all five classes; teardown only after the fifth."
       - "Decode: max_tokens 8192 at temperature 0.7 for contracts, 6144 for merger (SAND-040 optimised: top_p 0.8 / presence 1.0 / one length re-sample), 0.1 elsewhere. Contracts and merger run WHOLE-DOCUMENT CHUNKED extraction — the old head+tail cap dropped 62 % of contract and 93 % of merger text, and merger MAUD accuracy measured 0.0 on that truncated arm with 3/50 hard length failures. Do not raise max_tokens."
 

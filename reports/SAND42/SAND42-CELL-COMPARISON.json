@@ -12,6 +12,10 @@
       "concurrency": 16,
       "replicas": 2
     },
+    "2l4-c32": {
+      "concurrency": 32,
+      "replicas": 2
+    },
     "2l4-c8": {
       "concurrency": 8,
       "replicas": 2
@@ -138,6 +142,10 @@
       },
       "vs": "1l4-c8"
     },
+    "2l4-c32": {
+      "per_class": {},
+      "vs": "1l4-c8"
+    },
     "2l4-c8": {
       "per_class": {
         "contracts_specialist": {
@@ -199,7 +207,7 @@
       "vs": "1l4-c8"
     }
   },
-  "generated_at": "2026-10-12T12:34:54+00:00",
+  "generated_at": "2026-10-12T16:08:06+00:00",
   "kind": "comparison",
   "noise_floor": null,
   "reference_cell": "1l4-c8",

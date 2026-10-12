@@ -41,7 +41,9 @@ def _raw(cell: str, doc_class: str) -> dict:
 
 
 def test_every_cell_class_pair_has_a_config_and_a_posture_row():
-    assert len(posture.SAND42_RUNS) == 20
+    # Five cells × five specialists. C32 is the SAND-047 saturation amendment —
+    # 16 per replica, the engine's max_num_seqs — not one of the original four.
+    assert len(posture.SAND42_RUNS) == 25
     for cell in CELLS:
         for doc_class in CLASSES:
             rid = posture.sand42_run_id(cell, doc_class)
@@ -71,6 +73,7 @@ def test_2l4_concurrency_splits_equally_across_replicas():
         assert concurrency % replicas == 0
     assert posture.SAND42_CELLS_BY_ID["2l4-c8"] == (2, 8)
     assert posture.SAND42_CELLS_BY_ID["2l4-c16"] == (2, 16)
+    assert posture.SAND42_CELLS_BY_ID["2l4-c32"] == (2, 32)
 
 
 def test_only_concurrency_and_replicas_differ_between_cells():
@@ -319,8 +322,10 @@ def test_benchmark_check_accepts_the_noise_floor_leg(monkeypatch):
 
 
 def test_sand42_runs_are_in_the_two_and_one_gpu_allowlists():
-    assert len(posture.SAND42_TWO_GPU_RUNS) == 10
-    # 10 cell runs + the noise-floor leg + the two check legs (corporate smoke, merger probe)
+    # 2×L4 cells: 2l4-c8, 2l4-c16, 2l4-c32 (5 each).
+    assert len(posture.SAND42_TWO_GPU_RUNS) == 15
+    # 10 one-GPU cell runs + the noise-floor leg + the two check legs (corporate smoke, merger probe).
+    # Unchanged by the C32 amendment: C32 is a 2-GPU cell.
     assert len(posture.SAND42_ONE_GPU_RUNS) == 13
     assert posture.SAND42_TWO_GPU_RUNS <= posture.SAND42_RUNS
     extras = {posture.SAND42_NOISE_FLOOR_RUN, *posture.SAND42_CHECK_RUNS}
@@ -677,7 +682,7 @@ def test_master_card_and_report_render_before_any_run(tmp_path):
     data = sand42_cards.collect_master(repo=tmp_path)
     card = sand42_cards.render_master_card_md(data)
     report = sand42_cards.render_master_report_md(data)
-    assert "Conditions measured:** 0 of 4" in card
+    assert f"Conditions measured:** 0 of {len(sand42_cards.CELL_ORDER)}" in card
     assert "Not measured yet" in card
     assert "master report" in report
     # every condition gets a section, and the comparison + method come with it

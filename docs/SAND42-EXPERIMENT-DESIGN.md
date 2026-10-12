@@ -72,7 +72,7 @@ neither has a measurable effect on **quality**.
 | **Metric** | Primary: per-class field score (mean over documents) with a bootstrap 95% CI. Secondary: documents/min/GPU at the class SLO, $/1k ok documents, $/1k **schema-valid** documents, GPU util % (mean/peak), preemptions, length-capped share. |
 | **Denominator** | Quality: documents **attempted** (not documents ok). Reliability: documents attempted. Cost per usable record: documents **ok** and documents **schema-valid**. Goodput: documents attempted, per GPU, restricted to runs whose p95 document latency ≤ the class SLO. |
 | **Population** | `Lucius-Morningstar/mailroom-dataset` @ `ed7576b6`, config `ground_truth`, `split: all` (train + test, both joined with the ground-truth config), seed 42. Five classes. One subclass-stratified 50-document draw per class, reused by every cell. |
-| **Comparison** | Paired, per document, on the identical 250 documents. Four cells: {1×L4, 2×L4} × {client concurrency 8, 16}. |
+| **Comparison** | Paired, per document, on the identical 250 documents. Five cells: {1×L4, 2×L4} × {client concurrency 8, 16} in the original grid, **plus** `2l4-c32` (2×L4 at the engine's admission ceiling) added by the SAND-047 amendment (§3.1, §3.6). |
 | **Not tested** | Prompt quality (frozen v1 simplified stems, unchanged). Merger † chunked settings. Insurance-claims grammar-constrained schema. Model swaps. Anything about the test split as a benchmark set (that is `MB-v1`, SAND-043). |
 
 **Contracts on every delta** (see §4): the interval must exclude 0, and the point estimate must
@@ -85,7 +85,7 @@ deltas as intervals, never as rankings.
 
 ## 3. Design
 
-### 3.1 The four cells
+### 3.1 The five cells
 
 | Cell | Runbook | Replicas | Client concurrency | **Per replica** | min=max containers |
 | --- | --- | ---: | ---: | ---: | --- |
@@ -93,18 +93,34 @@ deltas as intervals, never as rankings.
 | `1l4-c16` | `sandbox runbook show sand42-1l4-c16` | 1 | 16 | 16 | 1 |
 | `2l4-c8` | `sandbox runbook show sand42-2l4-c8` | 2 | 8 | **4** | 2 |
 | `2l4-c16` | `sandbox runbook show sand42-2l4-c16` | 2 | 16 | **8** | 2 |
+| `2l4-c32` | `sandbox runbook show sand42-2l4-c32` | 2 | 32 | **16** | 2 |
 
 Client concurrency is split **equally across replicas** (the operator rule): 2×L4 C8 → 4 per
-replica, 2×L4 C16 → 8 per replica.
+replica, 2×L4 C16 → 8 per replica, 2×L4 C32 → 16 per replica.
+
+**The SAND-047 amendment (`2l4-c32`).** The original grid pinned client concurrency to {8, 16}.
+`2l4-c32` joins the 2×L4 arm only, because 32 total = **16 per replica = the engine's own
+`max_num_seqs`** — the scheduler's admission ceiling, past which a request queues rather than
+runs. That makes it the grid's saturation point, and it is exactly the per-replica load `1l4-c16`
+already ran, so **1×L4 C16 vs 2×L4 C32 is a matched-load scale-out pair *at saturation*** — the
+pair §3.2 said the original four cells could not supply. It also replicates SAND-037's 2×L4 C32
+point (Experiment 3, §1) on this design's paired 250-document draw, which is what ties the grid
+back to the only earlier C32 measurement. It is the grid's only concurrency above 16, and it
+carries the 2-replica cost caps (caps are keyed by replicas, not concurrency).
 
 ### 3.2 The confound, stated honestly
 
-The 2×L4 cells are **not** a per-replica-load twin of the 1×L4 cells. The only matched-load pair
-in this grid is:
+The 2×L4 cells are **not** a per-replica-load twin of the 1×L4 cells. Two matched-load pairs
+exist, and both isolate *replica count*:
 
 > **1×L4 C8 (8/replica) vs 2×L4 C16 (8/replica)** — same per-replica load, double the GPUs.
 
-That pair isolates *replica count*. The complementary pair that isolates *concurrency at fixed
+> **1×L4 C16 (16/replica) vs 2×L4 C32 (16/replica)** — the same contrast *at saturation*, added by
+> the SAND-047 amendment (§3.1). This is the sharper of the two: at the admission ceiling the
+> client side offers exactly the same load as C16, so any throughput or latency difference is the
+> second replica's scheduling — not more requests in flight.
+
+The complementary pair that isolates *concurrency at fixed
 GPUs* is **1×L4 C8 vs 1×L4 C16** (and, at two GPUs, 2×L4 C8 vs 2×L4 C16 — but there the load
 changes from 4 to 8 per replica). Do not read `1l4-c16` vs `2l4-c8` as anything: both the GPU
 count and the per-replica load differ.
@@ -112,7 +128,7 @@ count and the per-replica load differ.
 ### 3.3 Pairing
 
 Every cell scores the **identical 250 documents** — five classes × 50, one draw. The dataset
-block is byte-identical across the four cells' run YAMLs (same `strata`, same `sample_seed: 42`,
+block is byte-identical across the five cells' run YAMLs (same `strata`, same `sample_seed: 42`,
 same revision), and the sampler is a per-stratum seeded prefix
 (`corpus._draw_buckets` → `_seeded_prefix`), so the draw is reproducible and identical.
 
@@ -157,27 +173,30 @@ Five specialist runs per cell, one cold boot per cell (per replica). The runner 
 ### 3.6 Alignment with issue #128 ("L4 Reruns")
 
 [Issue #128](https://github.com/Exios66/local-mailroom-sandbox/issues/128) asks for a 2×2 on
-**GPU count × per-replica load**, with the nvidia-smi sidecar as the reason for the rerun. Three of
-its four cells are byte-identical to ours:
+**GPU count × per-replica load**, with the nvidia-smi sidecar as the reason for the rerun. All four
+of its cells are now byte-identical to ours:
 
 | #128 | R | per-replica | total C | ours |
 | --- | ---: | ---: | ---: | --- |
 | A | 1 | 8 | 8 | `1l4-c8` |
 | B | 1 | 16 | 16 | `1l4-c16` |
 | C | 2 | 8 | 16 | `2l4-c16` |
-| D | 2 | 16 | 32 | **not run** |
+| D | 2 | 16 | 32 | `2l4-c32` |
 
-**Where we diverge, and why our grid wins.** #128 pins *per-replica load* to {8, 16} and lets
-total client concurrency reach 32; we pin **total client concurrency** to {8, 16} and split it
-across replicas (§3.1). The instruction that governs is "NOT the old 8/32" — C32 is SAND-037
-Experiment 3, one of the postures this design exists to correct. So our `2l4-c8` (4/replica)
-replaces #128's D. Consequences, stated rather than papered over:
+**Where the original grid diverged, and how the SAND-047 amendment resolves it.** #128 pins
+*per-replica load* to {8, 16} and lets total client concurrency reach 32; the four-cell grid pinned
+**total client concurrency** to {8, 16} and split it across replicas (§3.1), because the instruction
+that governs is "NOT the old 8/32" — C32 is SAND-037 Experiment 3, one of the postures this design
+exists to correct. The amendment runs #128's D as well, as an **added fifth cell** rather than a
+replacement, so both grids are now fully covered. Consequences, stated rather than papered over:
 
 - The GPU-count-at-fixed-load contrast is **preserved**: `1l4-c8` vs `2l4-c16` (8/replica each) is
   exactly #128's A→C.
-- #128's B→D (per-replica 16 at 1 vs 2 GPUs) and its A→D decomposition of SAND-037's +99 % are
-  **not available** in this grid — there is no 16/replica-at-2-GPU cell. §3.2 already says the
-  2×L4 cells are not a per-replica-load twin of the 1×L4 cells.
+- #128's B→D (per-replica 16 at 1 vs 2 GPUs) is now measured as `1l4-c16` vs `2l4-c32`, so that
+  contrast — and the A→D decomposition of SAND-037's +99 % along the 8→16 per-replica load axis —
+  **is available**, where the four-cell grid could not supply it.
+- `2l4-c8` (4/replica) is *not* in #128's grid at all: it is the 2×L4 half of the fixed-GPU
+  concurrency contrast (2×L4 C8 vs 2×L4 C16), so it stays.
 - #128's run order (C, then B, then A/D) is a budget-cutoff hedge, not a design constraint; this
   grid records no order, and `1l4-c8` ran first.
 
@@ -367,12 +386,12 @@ sandbox runbook write          # only if the catalog changed; commit docs/runboo
 sandbox run benchmark-check --config config/runs/sand42-50-correspondence-specialist-awq-1l4-c8.yaml
 #    (repeat per config, or run it over the whole cell)
 
-# 3. The draw is reproducible and identical across the four cells (needs the HF cache)
+# 3. The draw is reproducible and identical across all five cells (needs the HF cache)
 sandbox datasets pull
 for cfg in config/runs/sand42-50-contracts-specialist-awq-*.yaml; do
   sandbox run preflight --config "$cfg" --live
 done
-#    compare the four fingerprint/draw lines: they must be identical for the same class
+#    compare the fingerprint/draw lines: they must be identical for the same class
 
 # 4. Deploy knobs come from the run YAML, not a stale shell
 set -a; eval "$(sandbox run deploy-env --config config/runs/sand42-50-contracts-specialist-awq-1l4-c8.yaml)"; set +a
@@ -410,9 +429,9 @@ specialist — two warm replicas bill two GPUs.
 
 | Risk | Check | Where |
 | --- | --- | --- |
-| **Leakage / tuning on the test split** | The four cells share one draw and no prompt is edited between cells; SAND-042 makes no quality-improvement claim. The never-tuned test split is reserved for `MB-v1` (SAND-043 §5.1) and is not this set. | §3.4, §2 "Not tested" |
+| **Leakage / tuning on the test split** | The five cells share one draw and no prompt is edited between cells; SAND-042 makes no quality-improvement claim. The never-tuned test split is reserved for `MB-v1` (SAND-043 §5.1) and is not this set. | §3.4, §2 "Not tested" |
 | **Tuning on the scored documents** | Prompt stems are frozen v1 simplified for all five specialists, asserted at import (`specialist_posture._assert_sand42_prompts` rejects any non-`_simplified` stem). | `specialist_posture.py` |
-| **Draws silently differ between cells** | The dataset block is identical across the four cells; `strata_guard` / `strata_draw_guard` hard-fail on an absent or dropped stratum instead of truncating; a test asserts the four cells' strata blocks are equal. | `corpus.py`, `tests/test_sand42_grid.py` |
+| **Draws silently differ between cells** | The dataset block is identical across the five cells; `strata_guard` / `strata_draw_guard` hard-fail on an absent or dropped stratum instead of truncating; a test asserts the cells' strata blocks are equal. | `corpus.py`, `tests/test_sand42_grid.py` |
 | **Small-n class (merger)** | Merger is reported per class with an interval, never pooled; its 17-agreement test split is explicitly out of scope. | §4.3 |
 | **Pooling across classes** | No pooled column on the cell card; the comparison card is per class. | §5.4, `sand42_cards.render_cell_md` |
 | **Replica imbalance / KV pressure** | Per-replica engine telemetry is scraped before/after and now includes GPU util and KV use per replica; preemptions and length finishes are reported per replica, so a C16/C8 imbalance is visible rather than averaged away. | §5.2, `grid_cards._engine_block` |

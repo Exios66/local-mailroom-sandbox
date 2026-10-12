@@ -241,7 +241,7 @@ sandbox metrics compare --runs sand42-50-correspondence-specialist-awq-1l4-c16,s
 
 **id:** `sand42-2l4-c8` · **family:** `sand42` · **serving:** `grid-awq-2l4`
 
-Two replicas (MIN=MAX=2, one warm fleet, one cold boot per replica) at client concurrency 8 split equally — 4 in flight per replica. Same engine, prompts, decode and documents as the 1×L4 cells. The 2×L4 cells are not a per-replica-load twin of the 1×L4 cells (C8/2 = 4); the matched-load pair in this grid is 1×L4 C8 vs 2×L4 C16 (8 per replica each).
+Two replicas (MIN=MAX=2, one warm fleet, one cold boot per replica) at client concurrency 8 split equally — 4 in flight per replica. Same engine, prompts, decode and documents as the 1×L4 cells. The 2×L4 cells are not a per-replica-load twin of the 1×L4 cells (C8/2 = 4); the matched-load pairs in this grid are 1×L4 C8 vs 2×L4 C16 and 1×L4 C16 vs 2×L4 C32 (8 and 16 per replica each).
 
 Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show sand42-2l4-c8`.
 
@@ -465,6 +465,123 @@ done
 
 sandbox run card --runbook sand42-2l4-c16
 sandbox metrics compare --runs sand42-50-correspondence-specialist-awq-2l4-c16,sand42-50-insurance-claims-specialist-awq-2l4-c16,sand42-50-corporate-records-specialist-awq-2l4-c16,sand42-50-contracts-specialist-awq-2l4-c16,sand42-50-merger-specialist-awq-2l4-c16
+```
+
+---
+
+# SAND-042 — 2×L4 · client concurrency 32 (16 per replica, at the admission ceiling) · n=50 × 5 specialists (paired)
+
+**id:** `sand42-2l4-c32` · **family:** `sand42` · **serving:** `grid-awq-2l4`
+
+Two replicas at client concurrency 32 split equally — 16 in flight per replica, which is exactly the engine's max_num_seqs, i.e. the scheduler's admission ceiling: any further request queues instead of running. That makes this cell the saturation point of the grid, and 1×L4 C16 vs 2×L4 C32 the matched-load scale-out pair AT saturation (16 per replica each). It also reproduces SAND-037's 2×L4 C32 point on the paired 250-document draw, so it is the bridge tying the grid back to the only earlier C32 measurement.
+
+Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), then `sandbox runbook write`. Print this card: `sandbox runbook show sand42-2l4-c32`.
+
+## Pins (from catalog serving variant)
+
+| Knob | Value |
+| --- | --- |
+| Model | `Qwen/Qwen3-8B-AWQ` |
+| GPU | `L4` |
+| Image | `v0.29.0` |
+| max_model_len | `32768` |
+| max_num_seqs | `16` |
+| max_containers | `2` |
+| min_containers | `2` |
+| scaledown_seconds | `120` |
+| quantization | `awq_marlin` |
+| prefix caching / eager | `1 / 0` |
+
+## Configs
+
+- `config/runs/sand42-50-correspondence-specialist-awq-2l4-c32.yaml`
+- `config/runs/sand42-50-insurance-claims-specialist-awq-2l4-c32.yaml`
+- `config/runs/sand42-50-corporate-records-specialist-awq-2l4-c32.yaml`
+- `config/runs/sand42-50-contracts-specialist-awq-2l4-c32.yaml`
+- `config/runs/sand42-50-merger-specialist-awq-2l4-c32.yaml`
+
+## Notes
+
+- Reports: reports/SAND42/2L4-c32/<specialist>/<run_id>.card.* then the after step writes reports/SAND42/2L4-c32/SAND42-2L4-C32-SCORE-COST-CARD.md + .json. This cell supplies the FIFTH section of reports/SAND42/SAND42-MASTER-REPORT.md and a fifth column in the comparison tables.
+- Added last (SAND-047): the original grid pins client concurrency to {8,16}. C32 joins the 2×L4 arm only, because it is the 2×L4 saturation point (16/replica = max_num_seqs) and precisely the per-replica load sand42-1l4-c16 already ran. It is the grid's only concurrency above 16.
+- Spend (estimate): the five cost caps are the 2-replica row of the same table (sum $6.20) and are the abort guard — caps are keyed by replicas, not concurrency, and saturation should raise per-request latency while total throughput plateaus, not raise the cost of scoring the same 250 documents. Needs spend approval before deploy.
+- Client concurrency is split equally across replicas: 32 → 16 per replica. At the ceiling per-replica queueing is expected, so read num_requests_waiting and preemptions on BOTH replicas: SAND-037 saw one replica hold 16 running + 7 queued while the other ran 6, so an even split is not guaranteed.
+- MIN=MAX=2 keeps both replicas warm across all five classes; teardown only after the fifth.
+- Decode: max_tokens 8192 at temperature 0.7 for contracts, 6144 for merger (SAND-040 optimised: top_p 0.8 / presence 1.0 / one length re-sample), 0.1 elsewhere. Contracts and merger run WHOLE-DOCUMENT CHUNKED extraction — the old head+tail cap dropped 62 % of contract and 93 % of merger text, and merger MAUD accuracy measured 0.0 on that truncated arm with 3/50 hard length failures. Do not raise max_tokens.
+
+## Do not
+
+- Share one Modal token / ~/.modal.toml profile across operators
+- Tear down or modal deploy --strategy recreate between classes on one track
+- Set MODAL_VLLM_GPU=L4:2 + TP for Qwen3-8B (use MAX_CONTAINERS=2 instead)
+- Edit run-30-*-specialist.yaml for a one-off model swap
+
+## Operator script
+
+```bash
+# SAND-042 — 2×L4 · client concurrency 32 (16 per replica, at the admission ceiling) · n=50 × 5 specialists (paired)
+# sandbox runbook show sand42-2l4-c32
+set -euo pipefail
+
+# serving variant: grid-awq-2l4
+# runbook: sand42-2l4-c32
+export SANDBOX_PROFILE=modal-vllm
+export MODAL_VLLM_MODEL=Qwen/Qwen3-8B-AWQ
+export MODAL_VLLM_GPU=L4
+export MODAL_VLLM_IMAGE_TAG=v0.29.0
+export MODAL_VLLM_MAX_MODEL_LEN=32768
+export MODAL_VLLM_MAX_NUM_SEQS=16
+export MODAL_VLLM_GPU_MEMORY_UTILIZATION=0.90
+export MODAL_VLLM_ENABLE_PREFIX_CACHING=1
+export MODAL_VLLM_ENFORCE_EAGER=0
+export MODAL_VLLM_MAX_CONTAINERS=2
+export MODAL_VLLM_MIN_CONTAINERS=2
+export MODAL_VLLM_SCALEDOWN_SECONDS=120
+export MODAL_VLLM_QUANTIZATION=awq_marlin
+export MODAL_VLLM_TP_SIZE=1
+export MODAL_VLLM_KV_CACHE_DTYPE=fp8
+export MODAL_VLLM_CUDAGRAPH_CAPTURE_SIZES='1,2,4,8,16'
+export MODAL_VLLM_DEFAULT_CHAT_TEMPLATE_KWARGS='{"enable_thinking": false}'
+export MODAL_VLLM_MAX_INPUTS=32
+export PHOENIX_TRACING=disabled
+export MODAL_VLLM_TELEMETRY_LABEL=sand42-2l4-c32
+export MODAL_VLLM_API_TOKEN="${MODAL_VLLM_API_TOKEN:-$(openssl rand -hex 24)}"
+
+modal profile activate "${SANDBOX_MODAL_PROFILE_TRACK_A:-hermes-agent-jjb}"
+modal profile current
+# runbook extra_env (already in the export block above)
+
+sandbox run benchmark-check --config config/runs/sand42-50-correspondence-specialist-awq-2l4-c32.yaml
+
+modal run deploy/modal_vllm.py::download_model
+
+modal deploy deploy/modal_vllm.py --strategy recreate
+
+# VLLM_BASE_URL is the FULL base: deploy output + '/v1'
+#   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+#   (without /v1 every chat call 404s — the profile appends /chat/completions)
+# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+sandbox cutover --profile modal-vllm
+sandbox health --profile modal-vllm
+
+for cfg in \
+  config/runs/sand42-50-correspondence-specialist-awq-2l4-c32.yaml \
+  config/runs/sand42-50-insurance-claims-specialist-awq-2l4-c32.yaml \
+  config/runs/sand42-50-corporate-records-specialist-awq-2l4-c32.yaml \
+  config/runs/sand42-50-contracts-specialist-awq-2l4-c32.yaml \
+  config/runs/sand42-50-merger-specialist-awq-2l4-c32.yaml
+do
+  sandbox run preflight --config "$cfg" --live --force
+  sandbox run scrape-metrics --config "$cfg" --label before
+  sandbox run start --config "$cfg" --job-mode endpoint --watch
+  sandbox run scrape-metrics --config "$cfg" --label after
+  sandbox run card --config "$cfg"
+done
+
+./deploy/teardown_vllm.sh   # ONLY after this run
+
+sandbox run card --runbook sand42-2l4-c32
+sandbox metrics compare --runs sand42-50-correspondence-specialist-awq-2l4-c32,sand42-50-insurance-claims-specialist-awq-2l4-c32,sand42-50-corporate-records-specialist-awq-2l4-c32,sand42-50-contracts-specialist-awq-2l4-c32,sand42-50-merger-specialist-awq-2l4-c32
 ```
 
 ---
