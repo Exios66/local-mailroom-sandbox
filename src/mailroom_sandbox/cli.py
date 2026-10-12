@@ -1936,8 +1936,17 @@ def _cmd_run_scrape_metrics(args) -> int:
         expected=expected,
     )
     dest.mkdir(parents=True, exist_ok=True)
+    # Preserve the exporter output verbatim (every family), one section per replica;
+    # the JSON keeps only the summarized fields the cards render.
+    raws = result.pop("raw", None) or {}
     target = dest / f"vllm_metrics_{args.label}.json"
     target.write_text(json.dumps(result, indent=2, sort_keys=True), encoding="utf-8")
+    if raws:
+        blob = "\n".join(
+            f"# replica process_start_time_seconds={key}\n{text.rstrip()}\n"
+            for key, text in sorted(raws.items())
+        )
+        (dest / f"vllm_metrics_{args.label}.txt").write_text(blob, encoding="utf-8")
     print(f"{result['coverage']} → {target}")
     for err in result.get("errors") or []:
         print(f"WARN: scrape error: {err}", file=sys.stderr)

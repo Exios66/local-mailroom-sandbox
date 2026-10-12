@@ -303,7 +303,7 @@ score (exact_match, n) · aggregate bucket`.
 | Reliability | ok rate + **Wilson** interval, schema-valid rate, parse errors, length-capped share, error kinds | `sand42_cards._reliability` |
 | Throughput | documents/min, **documents/min/GPU**, tokens/s/GPU, **goodput at the class SLO** | `sand42_cards._goodput` (SLO: 60 s short classes, 300 s contracts, 1800 s merger) |
 | Cost | busy-window GPU $, $/doc, $/ok doc, **$/1k ok**, **$/1k schema-valid**, $/1M tokens, cold-boot $, idle $ | `grid_cards` + `sand42_cards._cost_per_usable` |
-| Engine | TTFT p50/mean, prefix-cache hit rate, preemptions, length finishes, KV-cache use % — per replica, as before/after deltas | `vllm_metrics.scrape` → `grid_cards._engine_block` |
+| Engine | TTFT p50/mean, prefix-cache hit rate, preemptions, length finishes, KV-cache use % — per replica, as before/after deltas | `vllm_metrics.scrape` → `grid_cards._engine_block`; the **full** exporter output (all ~120 families: queue depth, e2e/inter-token latency, prefill/decode time) is preserved verbatim as `vllm_metrics_<label>.txt` beside the summarized JSON |
 | **GPU hardware (new)** | utilization % mean/**p95**/min/max/**peak**, **sampling coverage %**, power draw W, temperature C, memory used/total MiB — per replica, as a **time series** | **SAND-042 in-container nvidia-smi sampler → Modal Volume → `container_telemetry` → `grid_cards._container_telemetry`** |
 | Conditions | engine, admission, fleet, dataset pin + draw, prompt stem, caps, temperature, retries | `grid_cards.collect_card` |
 
@@ -315,7 +315,8 @@ a second port is not available. Instead:
 
 1. `deploy/modal_vllm.py` mounts the `sandbox-vllm-telemetry` volume at `/telemetry` and, once
    vLLM is ready, starts a daemon thread that every `MODAL_VLLM_TELEMETRY_INTERVAL` (default 5 s)
-   runs `nvidia-smi --query-gpu=index,name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw`
+   runs `nvidia-smi --query-gpu=index,name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw,utilization.memory,power.limit,clocks.sm`
+   (the memory-**bandwidth** utilisation, power cap and SM clock are L4/A100-portable)
    and appends one JSON line to `/telemetry/<label>/<process_start_time_seconds>.jsonl`,
    committing every `MODAL_VLLM_TELEMETRY_COMMIT_EVERY` samples (default 2 → ~10 s).
    The replica filename is vLLM's own `process_start_time_seconds` as `str(float)` —
@@ -477,8 +478,11 @@ Specialist folders, in grid order: `correspondence`, `insurance_claims`, `corpor
 2. **OTel *metrics* export from the container.** The new telemetry is an nvidia-smi series, not an
    OTLP metric stream. The vLLM image has no OTLP metrics exporter configured; enabling one is a
    separate change (add `OTEL_METRICS_EXPORTER`/`OTEL_EXPORTER_OTLP_ENDPOINT` to the vLLM
-   subprocess env and point it at the Langfuse/Phoenix sink). Trace *spans* stay opt-in per
-   `trace.sink`, which SAND-042 leaves at `none` as the SAND-037 grid did.
+   subprocess env and point it at the Langfuse/Phoenix sink). No data is lost meanwhile: the
+   vLLM Prometheus exporter is scraped before/after and its **entire** output is preserved
+   verbatim (`vllm_metrics_<label>.txt`), so the OTLP *stream* would be a transport duplicate of
+   an already-captured series, not a new source. Trace *spans* stay opt-in per `trace.sink`,
+   which SAND-042 leaves at `none` as the SAND-037 grid did.
 3. **`$ per 1M tokens` on Modal is a proxy**, not a bill — Modal bills container-seconds.
    The A100 cards carried both; the card keeps both and labels them.
 4. **Insurance-claims schema-valid rate** is measured (0.23 on the SAND-037 grid) but not fixed

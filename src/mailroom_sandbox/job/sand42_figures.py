@@ -54,10 +54,10 @@ _SOURCE = "Source: per-run grid cards (sandbox.grid-card/v1)."
 
 _MASTER = {
     "quality": {
-        "title": "Primary quality score by specialist and cell",
-        "subtitle": "Field score (insurance, corporate, correspondence) · CUAD F1 (contracts) · "
-                    "MAUD accuracy (merger) · 0–1, higher is better",
-        "note": _SOURCE + " Scores on different metrics are not comparable across classes.",
+        "title": "Overall extraction score by specialist and cell",
+        "subtitle": "Overall extraction score (mean over documents) · 0–1, higher is better",
+        "note": _SOURCE + " CUAD clause F1 (contracts) and MAUD accuracy (merger) are separate "
+                          "clause metrics on the run cards.",
         "fmt": lambda v: f"{v:.3f}",
         "value": lambda card, cell: _primary(card),
         "log": False,
@@ -134,17 +134,14 @@ def _usable(card: Any) -> bool:
 
 
 def _primary(card: Mapping[str, Any]) -> float | None:
-    """Primary quality metric — CUAD F1 for contracts, MAUD accuracy for merger."""
-    quality = _mapping(card.get("quality"))
-    clause = _mapping(quality.get("clause"))
-    value = None
-    if clause.get("kind") == "maud":
-        value = _num(clause.get("accuracy"))
-    elif clause.get("kind") == "cuad":
-        value = _num(clause.get("f1"))
-    if value is None:
-        value = _num(quality.get("overall_mean"))
-    return value
+    """Primary quality metric — the card's "Overall extraction score".
+
+    A single scale across every specialist: the mean suite extraction score over
+    documents (matching the per-run card and the cell/master report table). The
+    task-native CUAD clause F1 (contracts) and MAUD accuracy (merger) live in the
+    run card's clause section, so the comparison axis is not a mix of metrics.
+    """
+    return _num(_mapping(card.get("quality")).get("overall_mean"))
 
 
 def _replicas(card: Mapping[str, Any], cell: str) -> int:
@@ -429,7 +426,7 @@ def _draw_cell(plt, cell: str, cards: Mapping[str, Mapping[str, Any]], path: Pat
     tasks = [task for task, _folder, _label in SPECIALISTS if task in cards]
     labels = [_SHORT[task] for task in tasks]
     n = next((c.get("n") for c in cards.values() if c.get("n")), 50)
-    subtitle = ("Five specialists · CUAD F1 (contracts), MAUD acc. (merger) where applicable · "
+    subtitle = ("Five specialists · overall extraction score (mean over documents) · "
                 "dot = value, whisker = spread")
     fig, axes = _frame(plt, f"SAND-042 · {_cell_label(cell)} · n={n}", subtitle, _SOURCE)
 
@@ -438,7 +435,7 @@ def _draw_cell(plt, cell: str, cards: Mapping[str, Mapping[str, Any]], path: Pat
     scores = [_primary(cards[t]) for t in tasks]
     sds = [_num(_mapping(cards[t].get("quality")).get("overall_sd")) for t in tasks]
     _dot_rows(ax, labels, scores, color, lambda v: f"{v:.3f}", err=sds, xlim=(0, 1.05))
-    ax.set_title("Primary quality score")
+    ax.set_title("Overall extraction score")
 
     # cost per 1k ok docs
     ax = axes[0][1]

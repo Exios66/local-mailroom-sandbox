@@ -92,7 +92,14 @@ def summarize(m: dict[str, float]) -> dict[str, float | None]:
 def scrape(
     base_url: str, api_key: str, *, attempts: int = 12, expected: int = 1
 ) -> dict[str, Any]:
-    """Sample ``/metrics`` ``attempts`` times; group and summarize per replica."""
+    """Sample ``/metrics`` ``attempts`` times; group and summarize per replica.
+
+    ``_KEEP``/``summarize`` keep only the fields the cards render, so the raw
+    exporter text is also returned under ``"raw"`` — one entry per replica key —
+    and the caller preserves it verbatim. vLLM publishes ~120 families; dropping
+    the rest (queue depth, e2e/inter-token latency, prefill/decode time) is not
+    recoverable after the replica is torn down.
+    """
     import httpx
 
     root = base_url.rstrip("/")
@@ -100,12 +107,17 @@ def scrape(
         root = root[: -len("/v1")]
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
     samples: list[dict[str, float]] = []
+    raws: dict[str, str] = {}
     errors: list[str] = []
     for _ in range(max(1, int(attempts))):
         try:
             resp = httpx.get(f"{root}/metrics", headers=headers, timeout=15.0)
             resp.raise_for_status()
-            samples.append(parse_prometheus(resp.text))
+            m = parse_prometheus(resp.text)
+            samples.append(m)
+            key = m.get("process_start_time_seconds")
+            if key is not None:  # same key group_replicas uses; latest scrape wins
+                raws[str(key)] = resp.text
         except Exception as exc:  # noqa: BLE001 — report, never crash a run
             errors.append(f"{type(exc).__name__}: {str(exc)[:120]}")
         time.sleep(0.5)
@@ -113,6 +125,7 @@ def scrape(
     return {
         "coverage": replica_coverage(reps, expected=expected),
         "replicas": {k: summarize(v) for k, v in reps.items()},
+        "raw": raws,
         "errors": errors,
         "at": time.time(),
     }
