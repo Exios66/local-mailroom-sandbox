@@ -172,6 +172,7 @@ generated_docs:
     baseline: archived-experiments/qwen/STALE/baseline.md
     improved: specialists/contracts/improved.md
     grid: archived-experiments/qwen/qwen3-8b/grid.md
+    sand42: sand42/family.md
   runbooks:
     l4-qwen3-8b: archived-experiments/qwen/STALE/l4-qwen3-8b.md
     l4-qwen3-8b-track-a: archived-experiments/qwen/STALE/l4-qwen3-8b-track-a.md
@@ -191,6 +192,12 @@ generated_docs:
     sand39-1l4-n50: archived-experiments/qwen/qwen3-8b/1L4/sand39-1l4-n50.md
     sand40-probe: tuning/sand40-probe.md
     sand40: archived-experiments/qwen/qwen3-8b/sand40.md
+    sand42-1l4-c8: sand42/1l4-c8.md
+    sand42-1l4-c16: sand42/1l4-c16.md
+    sand42-2l4-c8: sand42/2l4-c8.md
+    sand42-2l4-c16: sand42/2l4-c16.md
+    sand42-smoke: sand42/smoke.md
+    sand42-noise-floor: sand42/noise-floor.md
 
 runbooks:
   l4-qwen3-8b:
@@ -893,6 +900,281 @@ runbooks:
       - "Cards land in reports/SAND-37/2L4/<specialist>/ (scale cells) and reports/SAND-37/probes/merger_agreement/ (gate). The after step regenerates reports/SAND-37/SAND-37-MASTER-SCORE-COST-CARD.md; its SAND-40 column switches from pending to measured. Commit the SAND-37 tree."
       - "Record the teardown spend check (Metered Cost / Billed Cost) with sandbox run card --record-metered SAND-40 <metered> <billed> --master."
       - "Teardown follows the last cell. Do not leave the two-replica fleet warm: min_containers=2 bills both GPUs until teardown."
+
+  # ── SAND-042: paired concurrency × fleet grid (4 cells) ────────────────────
+  # Four cells = {1×L4, 2×L4} × {client concurrency 8, 16}. Each cell is ONE
+  # warm fleet (one cold boot), five specialists chained at n=50, all five on the
+  # SAME subclass-stratified 50-document draw, so every cell scores the identical
+  # 250 documents and every cell-to-cell delta is paired.
+  # Design, metric contract and acceptance: docs/SAND42-EXPERIMENT-DESIGN.md.
+  sand42-1l4-c8:
+    family: sand42
+    title: SAND-042 — 1×L4 · client concurrency 8 · n=50 × 5 specialists (paired)
+    summary: >
+      One warm L4 serving the SAND-037 frozen L5 engine (awq_marlin, fp8 KV, CUDA
+      graphs, max_num_seqs 16, thinking off, max_inputs 32) at client concurrency 8.
+      Five specialists, n=50 each, on ONE subclass-stratified draw (every doc
+      sub-type of every class represented, proportional, min 1). v1 simplified
+      stems only. Deploy once, chain all five, teardown after the last. Container
+      GPU telemetry (nvidia-smi util/power/temp/mem) is sampled inside the serving
+      replica for the whole cell and pulled onto each run card.
+    serving: grid-awq-1l4
+    configs:
+      - config/runs/sand42-50-correspondence-specialist-awq-1l4-c8.yaml
+      - config/runs/sand42-50-insurance-claims-specialist-awq-1l4-c8.yaml
+      - config/runs/sand42-50-corporate-records-specialist-awq-1l4-c8.yaml
+      - config/runs/sand42-50-contracts-specialist-awq-1l4-c8.yaml
+      - config/runs/sand42-50-merger-specialist-awq-1l4-c8.yaml
+    modal_profile: track-a
+    deploy_strategy: recreate
+    assert_engine: true
+    preflight_force: true
+    scrape_metrics: true
+    export_card: true
+    extra_env:
+      MODAL_VLLM_TELEMETRY_LABEL: sand42-1l4-c8
+    steps:
+      - env
+      - activate_profile
+      - extra_env
+      - check
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - configs
+      - teardown
+      - after
+    after:
+      - sandbox run card --runbook sand42-1l4-c8
+      - sandbox metrics compare --runs sand42-50-correspondence-specialist-awq-1l4-c8,sand42-50-insurance-claims-specialist-awq-1l4-c8,sand42-50-corporate-records-specialist-awq-1l4-c8,sand42-50-contracts-specialist-awq-1l4-c8,sand42-50-merger-specialist-awq-1l4-c8
+    notes:
+      - "Reports: each run writes reports/SAND42/1L4-c8/<specialist>/<run_id>.card.md + .card.json; the after step writes reports/SAND42/1L4-c8/SAND42-1L4-C8-SCORE-COST-CARD.md + .json from those cards. Commit the SAND42 tree."
+      - "Spend (estimate): ≈ 30–45 min warm on one L4 (SAND-037 1×L4 C8 n=50 measured ≈ 29 min for the same 250 documents, plus C16 headroom) ≈ $0.45 GPU, plus one cold boot; the five cost caps sum to $3.70 and are the abort guard. Needs spend approval before deploy."
+      - "Canonical deploy knobs: set -a; eval \"$(sandbox run deploy-env --config config/runs/sand42-50-correspondence-specialist-awq-1l4-c8.yaml)\"; set +a. MODAL_VLLM_TELEMETRY_LABEL is part of that block (one label per cell)."
+      - "Decode is max_tokens 8192, temperature 0.7 on contracts and merger (JSON-schema grammar: 0.1 looped to every cap) and 0.1 elsewhere. Do not raise max_tokens mid-cell; a LengthFinishReasonError at 8192 is a recorded finding."
+      - "MIN=MAX=1 pins the single replica warm from deploy to teardown, so the whole cell pays one cold boot."
+      - "Pairing: the five draws are identical to the other three cells (same strata block, same seed 42, same revision). Do not edit the dataset block of one cell without the others."
+
+  sand42-1l4-c16:
+    family: sand42
+    title: SAND-042 — 1×L4 · client concurrency 16 · n=50 × 5 specialists (paired)
+    summary: >
+      The concurrency-16 twin of sand42-1l4-c8: identical engine, prompts, decode,
+      documents and one-cold-boot chaining; only the client concurrency differs
+      (8 → 16 on the same single L4). This is the cell that shows whether an L4
+      has batching headroom above C8, at the same GPU count.
+    serving: grid-awq-1l4
+    configs:
+      - config/runs/sand42-50-correspondence-specialist-awq-1l4-c16.yaml
+      - config/runs/sand42-50-insurance-claims-specialist-awq-1l4-c16.yaml
+      - config/runs/sand42-50-corporate-records-specialist-awq-1l4-c16.yaml
+      - config/runs/sand42-50-contracts-specialist-awq-1l4-c16.yaml
+      - config/runs/sand42-50-merger-specialist-awq-1l4-c16.yaml
+    modal_profile: track-a
+    deploy_strategy: recreate
+    assert_engine: true
+    preflight_force: true
+    scrape_metrics: true
+    export_card: true
+    extra_env:
+      MODAL_VLLM_TELEMETRY_LABEL: sand42-1l4-c16
+    steps:
+      - env
+      - activate_profile
+      - extra_env
+      - check
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - configs
+      - teardown
+      - after
+    after:
+      - sandbox run card --runbook sand42-1l4-c16
+      - sandbox metrics compare --runs sand42-50-correspondence-specialist-awq-1l4-c16,sand42-50-insurance-claims-specialist-awq-1l4-c16,sand42-50-corporate-records-specialist-awq-1l4-c16,sand42-50-contracts-specialist-awq-1l4-c16,sand42-50-merger-specialist-awq-1l4-c16
+    notes:
+      - "Reports: reports/SAND42/1L4-c16/<specialist>/<run_id>.card.* then the after step writes reports/SAND42/1L4-c16/SAND42-1L4-C16-SCORE-COST-CARD.md + .json."
+      - "Spend (estimate): ≈ 30–45 min warm on one L4 ≈ $0.45 GPU plus one cold boot; the five cost caps sum to $3.70 and are the abort guard. Needs spend approval before deploy."
+      - "C16 on one L4 is the only posture here that exceeds the SAND-037 grid's C8; per-replica admission stays max_num_seqs 16, so C16 is exactly the admission cap. Watch vLLM preemptions and the KV-cache usage scrape on the long classes."
+      - "Decode is max_tokens 8192, temperature 0.7 on contracts and merger, 0.1 elsewhere. Do not raise max_tokens mid-cell."
+      - "Pairing: identical draws to the other three cells. Compare against sand42-1l4-c8 (same GPU count, different concurrency) — that pair isolates concurrency alone."
+
+  sand42-2l4-c8:
+    family: sand42
+    title: SAND-042 — 2×L4 · client concurrency 8 (4 per replica) · n=50 × 5 specialists (paired)
+    summary: >
+      Two replicas (MIN=MAX=2, one warm fleet, one cold boot per replica) at client
+      concurrency 8 split equally — 4 in flight per replica. Same engine, prompts,
+      decode and documents as the 1×L4 cells. The 2×L4 cells are not a
+      per-replica-load twin of the 1×L4 cells (C8/2 = 4); the matched-load pair in
+      this grid is 1×L4 C8 vs 2×L4 C16 (8 per replica each).
+    serving: grid-awq-2l4
+    configs:
+      - config/runs/sand42-50-correspondence-specialist-awq-2l4-c8.yaml
+      - config/runs/sand42-50-insurance-claims-specialist-awq-2l4-c8.yaml
+      - config/runs/sand42-50-corporate-records-specialist-awq-2l4-c8.yaml
+      - config/runs/sand42-50-contracts-specialist-awq-2l4-c8.yaml
+      - config/runs/sand42-50-merger-specialist-awq-2l4-c8.yaml
+    modal_profile: track-a
+    deploy_strategy: recreate
+    assert_engine: true
+    preflight_force: true
+    scrape_metrics: true
+    export_card: true
+    extra_env:
+      MODAL_VLLM_TELEMETRY_LABEL: sand42-2l4-c8
+    steps:
+      - env
+      - activate_profile
+      - extra_env
+      - check
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - configs
+      - teardown
+      - after
+    after:
+      - sandbox run card --runbook sand42-2l4-c8
+      - sandbox metrics compare --runs sand42-50-correspondence-specialist-awq-2l4-c8,sand42-50-insurance-claims-specialist-awq-2l4-c8,sand42-50-corporate-records-specialist-awq-2l4-c8,sand42-50-contracts-specialist-awq-2l4-c8,sand42-50-merger-specialist-awq-2l4-c8
+    notes:
+      - "Reports: reports/SAND42/2L4-c8/<specialist>/<run_id>.card.* then the after step writes reports/SAND42/2L4-c8/SAND42-2L4-C8-SCORE-COST-CARD.md + .json."
+      - "Spend (estimate): ≈ 20–35 min warm on two L4s (≈ 2 × $0.80/hr) ≈ $0.55–0.95 GPU plus one cold boot per replica; the five cost caps sum to $5.40 and are the abort guard. Needs spend approval before deploy."
+      - "Client concurrency is split equally across replicas: 8 → 4 per replica. Modal round-robins, so per-replica load is 4; measure the split with the per-replica /metrics scrape (SAND-040 saw bursty affinity at C32)."
+      - "MIN=MAX=2 keeps both replicas warm across all five classes. Teardown only after the fifth: two warm replicas bill two GPUs."
+      - "Decode is max_tokens 8192, temperature 0.7 on contracts and merger, 0.1 elsewhere."
+
+  sand42-2l4-c16:
+    family: sand42
+    title: SAND-042 — 2×L4 · client concurrency 16 (8 per replica) · n=50 × 5 specialists (paired)
+    summary: >
+      Two replicas at client concurrency 16 split equally — 8 in flight per
+      replica, which is the same per-replica load as 1×L4 C8. That pair
+      (1×L4 C8 vs 2×L4 C16) is the grid's clean matched-load scale-out contrast:
+      same per-replica load, double the GPUs.
+    serving: grid-awq-2l4
+    configs:
+      - config/runs/sand42-50-correspondence-specialist-awq-2l4-c16.yaml
+      - config/runs/sand42-50-insurance-claims-specialist-awq-2l4-c16.yaml
+      - config/runs/sand42-50-corporate-records-specialist-awq-2l4-c16.yaml
+      - config/runs/sand42-50-contracts-specialist-awq-2l4-c16.yaml
+      - config/runs/sand42-50-merger-specialist-awq-2l4-c16.yaml
+    modal_profile: track-a
+    deploy_strategy: recreate
+    assert_engine: true
+    preflight_force: true
+    scrape_metrics: true
+    export_card: true
+    extra_env:
+      MODAL_VLLM_TELEMETRY_LABEL: sand42-2l4-c16
+    steps:
+      - env
+      - activate_profile
+      - extra_env
+      - check
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - configs
+      - teardown
+      - after
+    after:
+      - sandbox run card --runbook sand42-2l4-c16
+      - sandbox metrics compare --runs sand42-50-correspondence-specialist-awq-2l4-c16,sand42-50-insurance-claims-specialist-awq-2l4-c16,sand42-50-corporate-records-specialist-awq-2l4-c16,sand42-50-contracts-specialist-awq-2l4-c16,sand42-50-merger-specialist-awq-2l4-c16
+    notes:
+      - "Reports: reports/SAND42/2L4-c16/<specialist>/<run_id>.card.* then the after step writes reports/SAND42/2L4-c16/SAND42-2L4-C16-SCORE-COST-CARD.md + .json."
+      - "Spend (estimate): ≈ 20–35 min warm on two L4s ≈ $0.55–0.95 GPU plus one cold boot per replica; the five cost caps sum to $5.40 and are the abort guard. Needs spend approval before deploy."
+      - "Client concurrency is split equally across replicas: 16 → 8 per replica. This is the matched-load twin of sand42-1l4-c8 (8 per replica on one GPU)."
+      - "MIN=MAX=2 keeps both replicas warm across all five classes; teardown only after the fifth."
+      - "Decode is max_tokens 8192, temperature 0.7 on contracts and merger, 0.1 elsewhere."
+
+  sand42-smoke:
+    family: sand42
+    title: SAND-042 live smoke — 5 corporate records on 1×L4 · C8 (pre-spend check)
+    summary: >
+      Five corporate records, a strict subset of the 1L4-c8 condition's 50-document
+      draw, on the same engine, prompt, decode and gates as that condition. Proves
+      the deploy env, the stratified draw, the scored path and the in-container GPU
+      telemetry (nvidia-smi util / power / temperature / memory) actually work
+      BEFORE the four scored conditions spend. Not a benchmark cell: it is excluded
+      from the condition cards and the comparison.
+    serving: grid-awq-1l4
+    configs:
+      - config/runs/sand42-check-5-corporate-records-awq-1l4-c8.yaml
+    modal_profile: track-a
+    deploy_strategy: recreate
+    assert_engine: true
+    preflight_force: true
+    scrape_metrics: true
+    export_card: true
+    extra_env:
+      MODAL_VLLM_TELEMETRY_LABEL: sand42-1l4-c8
+    steps:
+      - env
+      - activate_profile
+      - extra_env
+      - check
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - configs
+      - teardown
+      - after
+    after:
+      - sandbox run card --config config/runs/sand42-check-5-corporate-records-awq-1l4-c8.yaml
+    notes:
+      - "Profile: set SANDBOX_MODAL_PROFILE_TRACK_A to the wallet you want (the catalog default is hermes-agent-jjb; exios66 is also configured locally)."
+      - "Spend (estimate): one cold boot (~2-4 min) + a few minutes warm for 5 documents ≈ $0.05-0.15 at $0.80/GPU-hr; cost_cap_usd 0.20 is the abort guard."
+      - "GPU telemetry check: the after-scrape must print `gpu telemetry (sand42-1l4-c8): N samples, util mean ... max ...`. If it warns `gpu telemetry not captured`, the sampler or the volume read is broken — fix that before spending on the conditions."
+      - "Report: reports/SAND42/1L4-c8/corporate_records/<run_id>.card.md + .card.json, with engine_telemetry.gpu carrying the util / power / temperature / memory series."
+
+  sand42-noise-floor:
+    family: sand42
+    title: SAND-042 noise floor — correspondence re-run on the same 50 documents (1×L4 · C8)
+    summary: >
+      One extra correspondence cell on the identical 50 documents and identical
+      settings as sand42-1l4-c8, under a different run id. The spread of the
+      per-document score differences between the two runs is the run-to-run noise
+      floor for every SAND-042 delta, re-measured on the SAND-042 draw (the
+      SAND-037/39 floor in docs/BENCHMARK-PROGRAM.md §3 was measured on a
+      different draw). One class, ~6 min, well under $0.20.
+    serving: grid-awq-1l4
+    configs:
+      - config/runs/sand42-noisefloor-correspondence-awq-1l4-c8.yaml
+    modal_profile: track-a
+    deploy_strategy: recreate
+    assert_engine: true
+    preflight_force: true
+    scrape_metrics: true
+    export_card: true
+    extra_env:
+      MODAL_VLLM_TELEMETRY_LABEL: sand42-1l4-c8
+    blocked: true
+    blocked_reason: spend not approved — this leg only measures the noise floor; approve separately from the four cells
+    steps:
+      - env
+      - activate_profile
+      - extra_env
+      - check
+      - prewarm
+      - deploy
+      - cutover
+      - health
+      - configs
+      - teardown
+      - after
+    after:
+      - sandbox run card --config config/runs/sand42-noisefloor-correspondence-awq-1l4-c8.yaml
+      - sandbox run card --runbook sand42-noise-floor
+    notes:
+      - "BLOCKED: the script refuses to run until spend is approved (drop the blocked flag after approval). Preflight, benchmark-check and runbook check all pass today."
+      - "Prefer running it inside the sand42-1l4-c8 deploy rather than as its own cold boot: append this config to that runbook's configs list and drop the blocked flag."
+      - "Reports: the card lands beside the C8 cell at reports/SAND42/1L4-c8/correspondence/. The after step writes reports/SAND42/SAND42-NOISE-FLOOR.md with the paired SD_diff and the n it implies."
 
 anti_patterns:
   - anti: Independent sandbox run start per config

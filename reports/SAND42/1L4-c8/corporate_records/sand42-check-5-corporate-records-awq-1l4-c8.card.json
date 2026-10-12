@@ -1,0 +1,245 @@
+{
+  "concurrency": {
+    "occupancy": 16.475422021028038,
+    "parallelism": 131.8033761682243,
+    "slot_utilization": 16.4754
+  },
+  "conditions": {
+    "concurrency": 8,
+    "dataset": {
+      "config": "ground_truth",
+      "fingerprint": "34c1303db918",
+      "repo": "Lucius-Morningstar/mailroom-dataset",
+      "revision": "ed7576b6",
+      "seed": 42,
+      "split": "all"
+    },
+    "engine": {
+      "cuda_graphs": true,
+      "cudagraph_capture_sizes": [
+        1,
+        2,
+        4,
+        8,
+        16
+      ],
+      "kv_cache_dtype": "fp8",
+      "max_inputs": 32,
+      "max_model_len": 32768,
+      "max_num_seqs": 16,
+      "prefix_caching": true,
+      "quantization": "awq_marlin",
+      "thinking": false
+    },
+    "gpu": "L4",
+    "gpu_usd_per_hour": 0.8,
+    "image_tag": "v0.29.0",
+    "max_input_chars": 15000,
+    "max_retries": 2,
+    "max_tokens": 8192,
+    "modal_app": "sandbox-vllm",
+    "model": "Qwen/Qwen3-8B-AWQ",
+    "prompt": "corporate_records_specialist_simplified",
+    "replicas": 1,
+    "spec_hash": "53132be4adb9daffc4ab11b8526b5d3d2163912fe597a59adf2c204fd35fd16c",
+    "temperature": 0.1,
+    "temperature_source": "vendored call site"
+  },
+  "cost": {
+    "billed_gpu_usd": 0.000172,
+    "busy_gpu_usd": 9.511111111111112e-05,
+    "idle_seconds": 0.0,
+    "idle_usd": null,
+    "usd_per_document": 1.9022222222222223e-05,
+    "usd_per_million_tokens": 0.004547289687851937,
+    "usd_per_ok_document": 1.9022222222222223e-05
+  },
+  "documents": [
+    {
+      "calls": 1,
+      "completion_tokens": 151,
+      "error": null,
+      "input_chars": 3699,
+      "item_id": "DOC-f134b9491efc5c57",
+      "latency_seconds": 11.016162,
+      "ok": true,
+      "prompt_tokens": 2865,
+      "score": 0.4615
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 150,
+      "error": null,
+      "input_chars": 15000,
+      "item_id": "DOC-0a8eb16fff7e67ca",
+      "latency_seconds": 11.019478999999999,
+      "ok": true,
+      "prompt_tokens": 5246,
+      "score": 0.6923
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 151,
+      "error": null,
+      "input_chars": 3475,
+      "item_id": "DOC-e478fa89043a29e3",
+      "latency_seconds": 11.020499,
+      "ok": true,
+      "prompt_tokens": 2910,
+      "score": 0.8205
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 161,
+      "error": null,
+      "input_chars": 3314,
+      "item_id": "DOC-37152a33cfb70d37",
+      "latency_seconds": 11.016891,
+      "ok": true,
+      "prompt_tokens": 2902,
+      "score": 0.4103
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 234,
+      "error": null,
+      "input_chars": 15000,
+      "item_id": "DOC-a973ebf005e0e785",
+      "latency_seconds": 12.338814000000001,
+      "ok": true,
+      "prompt_tokens": 6146,
+      "score": 0.4278
+    }
+  ],
+  "engine_telemetry": {
+    "captured": true,
+    "coverage": "replicas observed: 1 of 1",
+    "expected_replicas": 1,
+    "gpu": {
+      "captured": true,
+      "errors": [],
+      "gpus_observed": 4,
+      "label": "sand42-1l4-c8",
+      "memory_total_mib": {
+        "max": 23034.0,
+        "mean": 23034.0,
+        "min": 23034.0,
+        "n": 4,
+        "p95": 23034.0
+      },
+      "memory_used_mib": {
+        "max": 20996.0,
+        "mean": 20938.0,
+        "min": 20764.0,
+        "n": 4,
+        "p95": 20996.0
+      },
+      "power_draw_w": {
+        "max": 72.86,
+        "mean": 52.4175,
+        "min": 31.91,
+        "n": 4,
+        "p95": 72.86
+      },
+      "replicas": {
+        "1791766391.99": {
+          "samples": 0,
+          "util_max_perc": null,
+          "util_mean_perc": null
+        },
+        "1791766799.99": {
+          "samples": 4,
+          "util_max_perc": 100.0,
+          "util_mean_perc": 49.0
+        }
+      },
+      "samples": 4,
+      "schema": "sandbox.container-telemetry/v1",
+      "src": "serving-replica nvidia-smi",
+      "temperature_c": {
+        "max": 72.0,
+        "mean": 69.75,
+        "min": 66.0,
+        "n": 4,
+        "p95": 72.0
+      },
+      "util_max_perc": 100.0,
+      "util_mean_perc": 49.0,
+      "util_min_perc": 0.0,
+      "util_peak_perc": 100.0
+    },
+    "replicas": [
+      {
+        "kv_cache_usage_perc": 0.0,
+        "length_finishes": 0.0,
+        "preemptions": 0.0,
+        "prefix_cache_hit_rate": 0.3189,
+        "replica": "1791766799.99",
+        "requests": 5.0,
+        "ttft_mean_seconds": 4.4931
+      }
+    ],
+    "scrape_errors": []
+  },
+  "generated_at": "2026-10-12T01:06:30+00:00",
+  "latency": {
+    "max": 12.338814000000001,
+    "mean": 11.282369,
+    "p50": 11.019478999999999,
+    "p95": 12.338814000000001
+  },
+  "n": 5,
+  "quality": {
+    "clause": {},
+    "documents": 5,
+    "error_kinds": {},
+    "errors": 0,
+    "ok": 5,
+    "overall_max": 0.8205,
+    "overall_mean": 0.56248,
+    "overall_min": 0.4103,
+    "overall_sd": 0.1642692716243668,
+    "parse_errors": 0,
+    "schema_valid_rate": 1.0,
+    "scoring_method": "suite",
+    "suite_overall_mean": null
+  },
+  "run_id": "sand42-check-5-corporate-records-awq-1l4-c8",
+  "schema": "sandbox.grid-card/v1",
+  "specialist": "Corporate Records",
+  "task": "corporate_records_specialist",
+  "throughput": {
+    "documents_per_minute": 700.9345794392524,
+    "tokens_per_second": 48869.15887850468,
+    "tokens_per_second_per_gpu": 48869.15887850468
+  },
+  "time": {
+    "cold_boot_seconds": 0.345,
+    "gpu_seconds": 0.773,
+    "wall_seconds": 0.428
+  },
+  "tokens": {
+    "completion": 847,
+    "completion_max": 234,
+    "completion_p95": 234.0,
+    "completion_share": 0.04049531459170013,
+    "per_document": 4183.2,
+    "prompt": 20069,
+    "split": {
+      "calls": 5.0,
+      "chars_per_token": 4.5,
+      "completion_tokens": 847.0,
+      "document_tokens": 8997.333333333334,
+      "documents": 5,
+      "instruction_per_call": 2214.333333333333,
+      "instruction_tokens": 11071.666666666666,
+      "method": "fallback",
+      "per_document": {
+        "completion": 169.4,
+        "document": 1799.4666666666667,
+        "instruction": 2214.333333333333
+      }
+    },
+    "total": 20916
+  }
+}

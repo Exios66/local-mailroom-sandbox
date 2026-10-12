@@ -69,6 +69,10 @@ from mailroom_sandbox.job.specialist_posture import (
     SAND40_CHECK_CELLS,
     SAND40_PROBE_CELLS,
     SAND032_SORTER_RUNS,
+    SAND42_CHECK_RUNS,
+    SAND42_ONE_GPU_RUNS,
+    SAND42_RUNS,
+    SAND42_TWO_GPU_RUNS,
     SPECIALIST_POSTURE,
     expected_concurrency,
     expected_limit,
@@ -88,6 +92,8 @@ TWO_GPU_RUNS = frozenset({
     *SAND40_CELLS,
     *SAND40_CHECK_CELLS,
     *SAND40_PROBE_CELLS,
+    # SAND-042 2×L4 cells: MIN=MAX=2 pinned for one warm fleet per cell.
+    *SAND42_TWO_GPU_RUNS,
 })
 
 # Granite 4.2-8B FP8 sweep (1×L4): MIN=MAX=1 pinned warm across the five-run
@@ -109,6 +115,8 @@ PINNED_ONE_GPU_RUNS = frozenset({
     # SAND-032 1×L4 rungs / scale-out baseline / bf16 arm: MIN=MAX=1 pinned.
     *(r for r in SAND032_RUNS if r.startswith(("sand032-l", "sand032-s4", "sand032-s10")) or r == "sand032-s2a-corr100-1rep"),
     *GRID_ONE_GPU_RUNS,
+    # SAND-042 1×L4 cells: MIN=MAX=1 pinned for one warm L4 per cell.
+    *SAND42_ONE_GPU_RUNS,
 })
 
 SPECIALIST_LOCAL_PROMPTS: dict[str, dict[str, str]] = {
@@ -297,6 +305,7 @@ def check_benchmark_posture(
     if spec is not None and (
         spec.run_id in SAND032_RUNS or spec.run_id in GRID_CELLS or spec.run_id in SAND40_CELLS
         or spec.run_id in SAND40_PROBE_CELLS or spec.run_id in SAND40_CHECK_CELLS
+        or spec.run_id in SAND42_RUNS or spec.run_id in SAND42_CHECK_RUNS
     ):
         # SAND-032 / SAND-037 grid: the run YAML is the source of truth for
         # deploy knobs — a stale MODAL_VLLM_* shell would silently serve

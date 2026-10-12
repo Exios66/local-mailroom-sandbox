@@ -1,0 +1,699 @@
+"""SAND-042 invariants: the four cells, the shared draw, the prompts, the telemetry.
+
+Network-free. These are the checks that make the SAND-042 numbers survive
+scrutiny — a drift in any of them invalidates the paired comparison, so each one
+fails loudly rather than being inferred from the run cards after the fact.
+"""
+
+from __future__ import annotations
+
+import json
+
+import pytest
+import yaml
+
+from mailroom_sandbox.job import benchmark_check, container_telemetry, deploy_env, grid_cards, sand42_cards
+from mailroom_sandbox.job import specialist_posture as posture
+from mailroom_sandbox.job.spec import load_run_spec
+from mailroom_sandbox.paths import repo_root
+
+CELLS = ("1l4-c8", "1l4-c16", "2l4-c8", "2l4-c16")
+CLASSES = ("correspondence", "insurance_claim", "corporate_record", "contract", "merger_agreement")
+SLUGS = {
+    "correspondence": "correspondence",
+    "insurance_claim": "insurance-claims",
+    "corporate_record": "corporate-records",
+    "contract": "contracts",
+    "merger_agreement": "merger",
+}
+
+
+def _config_path(cell: str, doc_class: str):
+    rid = posture.sand42_run_id(cell, doc_class)
+    return repo_root() / "config" / "runs" / f"{rid}.yaml"
+
+
+def _raw(cell: str, doc_class: str) -> dict:
+    return yaml.safe_load(_config_path(cell, doc_class).read_text(encoding="utf-8"))
+
+
+# ── posture ──────────────────────────────────────────────────────────────────
+
+
+def test_every_cell_class_pair_has_a_config_and_a_posture_row():
+    assert len(posture.SAND42_RUNS) == 20
+    for cell in CELLS:
+        for doc_class in CLASSES:
+            rid = posture.sand42_run_id(cell, doc_class)
+            assert rid in posture.SPECIALIST_POSTURE, rid
+            assert _config_path(cell, doc_class).is_file(), rid
+            assert posture.expected_limit(rid) == 50
+
+
+def test_posture_pins_the_1to1_specialist_and_the_cell_concurrency():
+    for cell, (replicas, concurrency) in posture.SAND42_CELLS_BY_ID.items():
+        for doc_class in CLASSES:
+            rid = posture.sand42_run_id(cell, doc_class)
+            row = posture.SPECIALIST_POSTURE[rid]
+            assert row["doc_class"] == doc_class
+            assert row["replicas"] == replicas
+            assert row["concurrency"] == concurrency
+            assert row["max_model_len"] == 32768
+            assert row["max_num_seqs"] == 16
+            assert row["max_tokens"] == 8192
+
+
+def test_2l4_concurrency_splits_equally_across_replicas():
+    """The operator rule: 2×L4 C8 → 4/replica, 2×L4 C16 → 8/replica."""
+    for cell, (replicas, concurrency) in posture.SAND42_CELLS_BY_ID.items():
+        assert concurrency % replicas == 0
+    assert posture.SAND42_CELLS_BY_ID["2l4-c8"] == (2, 8)
+    assert posture.SAND42_CELLS_BY_ID["2l4-c16"] == (2, 16)
+
+
+def test_only_concurrency_and_replicas_differ_between_cells():
+    """Same spec everywhere: a cell difference cannot come from engine or decode."""
+    for doc_class in CLASSES:
+        specs = [_raw(cell, doc_class) for cell in CELLS]
+
+        def without_cell(spec: dict, key: str) -> dict:
+            block = {k: v for k, v in spec[key].items() if k not in ("concurrency", "cost_cap_usd")}
+            if key == "engine":
+                block["modal"] = {
+                    k: v for k, v in block["modal"].items()
+                    if k not in ("max_containers", "min_containers")
+                }
+            if key == "trace":
+                block.pop("tags", None)
+            return block
+
+        for key in ("engine", "job", "prompt", "dataset", "trace"):
+            base = without_cell(specs[0], key)
+            for spec in specs[1:]:
+                assert without_cell(spec, key) == base, (doc_class, key)
+
+
+def test_deploy_knobs_are_identical_across_cells():
+    for doc_class in CLASSES:
+        knobs = []
+        for cell in CELLS:
+            spec = load_run_spec(_config_path(cell, doc_class))
+            env = deploy_env.spec_env(spec)
+            env.pop("MODAL_VLLM_MAX_CONTAINERS")
+            env.pop("MODAL_VLLM_MIN_CONTAINERS")
+            env.pop("MODAL_VLLM_TELEMETRY_LABEL")
+            knobs.append(env)
+        assert all(k == knobs[0] for k in knobs[1:]), doc_class
+
+
+# ── prompts: v1 simplified only ──────────────────────────────────────────────
+
+
+def test_every_sand42_prompt_is_a_simplified_stem():
+    for rid in posture.SAND42_RUNS | posture.SAND42_CHECK_RUNS | {posture.SAND42_NOISE_FLOOR_RUN}:
+        stem = posture.SPECIALIST_POSTURE[rid]["prompt_file"]
+        assert stem.endswith("_simplified"), (rid, stem)
+        assert (repo_root() / "config" / "prompts" / f"{stem}.txt").is_file(), stem
+
+
+def test_prompt_guard_rejects_a_non_simplified_stem():
+    bad = {"correspondence": ("correspondence_specialist", "correspondence_specialist_production", 1, 1, 1)}
+    with pytest.raises(ValueError):
+        posture._assert_sand42_prompts(bad)
+
+
+def test_config_pins_the_simplified_stem_as_a_local_prompt():
+    for cell in CELLS:
+        for doc_class in CLASSES:
+            spec = load_run_spec(_config_path(cell, doc_class))
+            row = posture.SPECIALIST_POSTURE[spec.run_id]
+            agents = spec.prompt["agents"]
+            assert set(agents) == {row["agent"]}  # 1:1 — no cross-agent pin
+            ref = agents[row["agent"]]
+            assert ref["source"] == "local"
+            assert ref["file"] == row["prompt_file"]
+            assert ref["file"].endswith("_simplified")
+
+
+# ── the shared, stratified draw ──────────────────────────────────────────────
+
+
+def test_every_class_stratum_sums_to_fifty_and_covers_every_subclass():
+    for doc_class in CLASSES:
+        strata = _raw("1l4-c8", doc_class)["dataset"]["strata"]["buckets"]
+        assert len(strata) == 1
+        bucket = strata[0]
+        assert bucket["doc_class"] == doc_class
+        subs = bucket["sub_buckets"]
+        assert sum(s["count"] for s in subs) == 50
+        assert all(s["count"] >= 1 for s in subs)
+        assert len({s["subclass"] for s in subs}) == len(subs), "duplicate subclass quota"
+
+
+def test_all_four_cells_share_one_identical_draw_per_class():
+    """Pairing depends on it: byte-identical dataset blocks across the four cells."""
+    for doc_class in CLASSES:
+        blocks = [json.dumps(_raw(cell, doc_class)["dataset"], sort_keys=True) for cell in CELLS]
+        assert len(set(blocks)) == 1, doc_class
+
+
+def test_draw_is_pinned_and_seeded():
+    for cell in CELLS:
+        ds = _raw(cell, "contract")["dataset"]
+        assert ds["repo"] == "Lucius-Morningstar/mailroom-dataset"
+        assert ds["config"] == "ground_truth"
+        assert ds["split"] == "all"  # train+test, both joined with ground truth
+        assert ds["revision"] == "ed7576b676343e0b402ec5412cded301e629bdee"
+        assert ds["sample_seed"] == 42
+        assert ds["limit"] == 50
+
+
+def _synthetic_corpus(doc_class: str, per_subclass: int = 60) -> list[dict]:
+    """Rows shaped like the prepared corpus, enough for every quota of one class."""
+    return [
+        {
+            "id": f"{doc_class}-{sb['subclass']}-{i}",
+            "expected_doc_class": doc_class,
+            "expected_subclass": sb["subclass"],
+        }
+        for sb in _raw("1l4-c8", doc_class)["dataset"]["strata"]["buckets"][0]["sub_buckets"]
+        for i in range(per_subclass)
+    ]
+
+
+def test_draw_mechanics_yield_fifty_unique_docs_covering_every_subclass():
+    """Exercise the real sampler against a synthetic corpus of the right shape."""
+    from mailroom_sandbox.corpus import _draw_buckets, strata_draw_guard, strata_guard
+
+    for cell in CELLS:
+        for doc_class in CLASSES:
+            rows = _synthetic_corpus(doc_class)
+            strata = _raw(cell, doc_class)["dataset"]["strata"]
+            strata_guard(rows, strata)  # requested strata exist
+            drawn = _draw_buckets(rows, strata["buckets"], field="expected_doc_class", sample_seed=42)
+            strata_draw_guard(drawn, strata)  # none dropped by the draw
+            assert len(drawn) == 50, (cell, doc_class)
+            assert len({r["id"] for r in drawn}) == 50, "duplicate document in the draw"
+            got = {r["expected_subclass"] for r in drawn}
+            want = {
+                sb["subclass"]
+                for sb in _raw(cell, doc_class)["dataset"]["strata"]["buckets"][0]["sub_buckets"]
+            }
+            assert got == want, (cell, doc_class, want - got)
+            assert all(r["expected_doc_class"] == doc_class for r in drawn)
+
+
+def test_draw_is_deterministic_so_the_four_cells_are_paired():
+    from mailroom_sandbox.corpus import _draw_buckets
+
+    rows = _synthetic_corpus("contract")
+    buckets = _raw("1l4-c8", "contract")["dataset"]["strata"]["buckets"]
+    a = [r["id"] for r in _draw_buckets(rows, buckets, field="expected_doc_class", sample_seed=42)]
+    b = [r["id"] for r in _draw_buckets(rows, buckets, field="expected_doc_class", sample_seed=42)]
+    assert a == b
+    assert len(a) == 50
+    assert len({r.split("-")[1] for r in a}) == 26  # every contract sub-type represented
+
+
+def test_a_quota_above_availability_hard_fails_rather_than_truncating():
+    from mailroom_sandbox.corpus import _draw_buckets
+
+    rows = [
+        {"id": f"contract-Supply-{i}", "expected_doc_class": "contract", "expected_subclass": "Supply"}
+        for i in range(2)
+    ]
+    buckets = [{"doc_class": "contract", "count": 3, "sub_buckets": [{"subclass": "Supply", "count": 3}]}]
+    with pytest.raises(ValueError, match="only 2 available"):
+        _draw_buckets(rows, buckets, field="expected_doc_class", sample_seed=42)
+
+
+def test_subclass_vocabulary_matches_the_corpus():
+    """Quotas must name real sub-types, or the draw hard-fails at preflight."""
+    expected = {
+        "correspondence": {
+            "email", "memo", "notice", "letter", "press_release", "demand",
+            "meeting_request", "attorney_demand",
+        },
+        "insurance_claim": {"auto", "property", "carrier", "inpatient", "outpatient", "pde"},
+        "corporate_record": {
+            "charter_amendment", "articles_of_incorporation", "officer_certificate", "indenture",
+            "subsidiary_list", "rights_instrument", "board_resolution", "powers_of_attorney",
+            "bylaws", "other",
+        },
+        "merger_agreement": {
+            "all_cash", "other", "all_stock", "mixed_cash_stock", "mixed_cash_stock_election",
+        },
+    }
+    for doc_class, subs in expected.items():
+        got = {
+            s["subclass"]
+            for s in _raw("1l4-c8", doc_class)["dataset"]["strata"]["buckets"][0]["sub_buckets"]
+        }
+        assert got == subs, doc_class
+    # contracts: 26 sub-types, every one represented
+    contracts = {
+        s["subclass"]
+        for s in _raw("1l4-c8", "contract")["dataset"]["strata"]["buckets"][0]["sub_buckets"]
+    }
+    assert len(contracts) == 26
+    assert "Supply" in contracts and "Non_Compete_Non_Solicit" in contracts
+
+
+# ── benchmark-check accepts every cell ───────────────────────────────────────
+
+
+@pytest.mark.parametrize("cell", CELLS)
+def test_benchmark_check_accepts_every_config(cell, monkeypatch):
+    for doc_class in CLASSES:
+        spec = load_run_spec(_config_path(cell, doc_class))
+        for key, val in deploy_env.spec_env(spec).items():
+            monkeypatch.setenv(key, val)
+        report = benchmark_check.check_benchmark_posture(
+            spec=spec, require_hermes=False, require_modernbert=False
+        )
+        assert report["ok"], (spec.run_id, report["errors"])
+
+
+def test_benchmark_check_accepts_the_noise_floor_leg(monkeypatch):
+    spec = load_run_spec(
+        repo_root() / "config" / "runs" / f"{posture.SAND42_NOISE_FLOOR_RUN}.yaml"
+    )
+    for key, val in deploy_env.spec_env(spec).items():
+        monkeypatch.setenv(key, val)
+    report = benchmark_check.check_benchmark_posture(
+        spec=spec, require_hermes=False, require_modernbert=False
+    )
+    assert report["ok"], report["errors"]
+
+
+def test_sand42_runs_are_in_the_two_and_one_gpu_allowlists():
+    assert len(posture.SAND42_TWO_GPU_RUNS) == 10
+    # 10 cell runs + the noise-floor leg + the live smoke leg
+    assert len(posture.SAND42_ONE_GPU_RUNS) == 12
+    assert posture.SAND42_TWO_GPU_RUNS <= posture.SAND42_RUNS
+    extras = {posture.SAND42_NOISE_FLOOR_RUN, posture.SAND42_CHECK_RUN}
+    assert posture.SAND42_ONE_GPU_RUNS - extras <= posture.SAND42_RUNS
+    assert posture.SAND42_ONE_GPU_RUNS & posture.SAND42_TWO_GPU_RUNS == frozenset()
+    for rid in posture.SAND42_TWO_GPU_RUNS:
+        assert benchmark_check.TWO_GPU_RUNS >= {rid}
+    for rid in posture.SAND42_ONE_GPU_RUNS:
+        assert benchmark_check.PINNED_ONE_GPU_RUNS >= {rid}
+    for rid in posture.SAND42_CHECK_RUNS:
+        assert benchmark_check.SAND42_CHECK_RUNS >= {rid}
+
+
+# ── noise floor ──────────────────────────────────────────────────────────────
+
+
+def test_noise_floor_leg_is_the_same_spec_on_the_same_documents():
+    twin = _raw("1l4-c8", "correspondence")
+    floor = yaml.safe_load(
+        (repo_root() / "config" / "runs" / f"{posture.SAND42_NOISE_FLOOR_RUN}.yaml").read_text()
+    )
+    assert floor["dataset"] == twin["dataset"]
+    assert floor["prompt"] == twin["prompt"]
+    assert floor["engine"] == twin["engine"]
+    assert floor["job"] == twin["job"]
+    assert floor["run_id"] != twin["run_id"]
+
+
+def test_noise_floor_runbook_is_blocked_until_spend_is_approved():
+    from mailroom_sandbox.job.runbooks import get_runbook
+
+    book = get_runbook("sand42-noise-floor")
+    assert book.get("blocked") is True
+    assert book.get("blocked_reason")
+
+
+# ── telemetry ────────────────────────────────────────────────────────────────
+
+
+SMI = (
+    "0, NVIDIA L4, 94, 23000, 23034, 56, 71.5\n"
+    "1, NVIDIA L4, 0, 120, 23034, 41, [N/A]\n"
+)
+
+
+def test_parse_nvidia_smi_csv_handles_na_and_units():
+    gpus = container_telemetry.parse_nvidia_smi_csv(SMI)
+    assert len(gpus) == 2
+    assert gpus[0]["utilization_gpu_perc"] == 94.0
+    assert gpus[0]["power_draw_w"] == 71.5
+    assert gpus[0]["temperature_c"] == 56.0
+    assert gpus[1]["power_draw_w"] is None  # [N/A] is not zero
+    assert gpus[1]["utilization_gpu_perc"] == 0.0
+
+
+def test_summarize_reports_the_a100_card_fields():
+    doc = {
+        "label": "sand42-1l4-c8",
+        "samples": [
+            {"t": 1.0, "gpus": container_telemetry.parse_nvidia_smi_csv(SMI)},
+            {"t": 2.0, "gpus": container_telemetry.parse_nvidia_smi_csv(SMI)},
+        ],
+        "replicas": {"host-a": {"samples": [{"t": 1.0, "gpus": [{"utilization_gpu_perc": 94.0}]}]}},
+    }
+    out = container_telemetry.summarize_samples(doc)
+    assert out["captured"] is True
+    assert out["samples"] == 2
+    assert out["util_mean_perc"] == pytest.approx((94 + 0 + 94 + 0) / 4)
+    assert out["util_peak_perc"] == 94.0
+    assert out["power_draw_w"]["mean"] == pytest.approx(71.5)
+    assert out["src"] == "serving-replica nvidia-smi"
+    assert out["replicas"]["host-a"]["util_mean_perc"] == 94.0
+
+
+def test_summarize_says_not_captured_rather_than_zero():
+    out = container_telemetry.summarize_samples({"samples": [], "reason": "volume empty"})
+    assert out["captured"] is False
+    assert out["reason"] == "volume empty"
+    assert "util_mean_perc" not in out
+
+
+def test_slice_window_keeps_only_the_run_own_samples():
+    samples = [{"t": t} for t in (1.0, 5.0, 9.0, 20.0)]
+    kept = container_telemetry.slice_window(samples, start=5.0, end=9.0)
+    assert [s["t"] for s in kept] == [5.0, 9.0]
+
+
+def test_parse_jsonl_skips_malformed_lines():
+    rows = container_telemetry.parse_jsonl('{"t": 1}\nnot json\n\n{"t": 2}\n')
+    assert [r["t"] for r in rows] == [1, 2]
+
+
+def test_pull_degrades_when_the_sdk_or_volume_is_unavailable(monkeypatch):
+    def boom(*_a, **_k):
+        raise ImportError("no modal")
+
+    monkeypatch.setattr(container_telemetry, "_read_volume_files", boom)
+    out = container_telemetry.pull("sand42-1l4-c8")
+    assert out["samples"] == [] and out["errors"]
+    assert "Modal telemetry volume" in out["reason"]
+
+
+def test_read_file_drains_a_synchronous_generator():
+    """Live bug: read_file is @live_method_gen, so it yields a SYNC generator
+    outside async code; an `async for` raised "'async for' requires __aiter__"."""
+    class _Vol:
+        def read_file(self, path):
+            return (chunk for chunk in [b'{"t": 1}\n', b'{"t": 2}\n'])
+
+    assert container_telemetry._read_file(_Vol(), "x.jsonl") == '{"t": 1}\n{"t": 2}\n'
+
+
+def test_volume_path_is_root_relative_not_the_container_mount(monkeypatch):
+    """Live bug: /telemetry is the CONTAINER mount; the volume path is just <label>."""
+    import sys
+    import types
+
+    seen: dict[str, str] = {}
+
+    class _Vol:
+        def listdir(self, path, recursive=False):
+            seen["path"] = path
+            return []
+
+        def read_file(self, path):  # pragma: no cover - not reached
+            return iter(())
+
+    monkeypatch.setitem(
+        sys.modules, "modal", types.SimpleNamespace(Volume=types.SimpleNamespace(from_name=lambda *a, **k: _Vol()))
+    )
+    container_telemetry._read_volume_files("sand42-1l4-c8")
+    assert seen["path"] == "sand42-1l4-c8"  # NOT "telemetry/sand42-1l4-c8"
+
+
+def test_pull_reads_a_real_shaped_volume(monkeypatch):
+    """End-to-end over a fake volume: replicas keyed by the .jsonl stem."""
+    import sys
+    import types
+
+    sample = '{"t": 10.0, "gpus": [{"utilization_gpu_perc": 91.0, "power_draw_w": 70.0}]}\n'
+
+    class _Vol:
+        def listdir(self, path, recursive=False):
+            return [types.SimpleNamespace(path=f"{path}/1767000123.0.jsonl")]
+
+        def read_file(self, path):
+            return (chunk for chunk in [sample.encode()])
+
+    monkeypatch.setitem(
+        sys.modules, "modal", types.SimpleNamespace(Volume=types.SimpleNamespace(from_name=lambda *a, **k: _Vol()))
+    )
+    doc = container_telemetry.pull("sand42-1l4-c8", start=0.0, end=100.0)
+    assert doc["errors"] == []
+    assert list(doc["replicas"]) == ["1767000123.0"]
+    out = container_telemetry.summarize_samples(doc)
+    assert out["captured"] is True
+    assert out["util_mean_perc"] == 91.0
+    assert out["samples"] == 1
+
+
+def test_card_md_renders_the_gpu_hardware_rows():
+    """The JSON carried the GPU block but the markdown did not — the operator reads .md."""
+    gpu = {
+        "captured": True,
+        "src": "serving-replica nvidia-smi",
+        "samples": 4,
+        "util_mean_perc": 49.0,
+        "util_min_perc": 0.0,
+        "util_peak_perc": 100.0,
+        "power_draw_w": {"mean": 52.4, "min": 31.9, "max": 72.9},
+        "temperature_c": {"mean": 69.8, "min": 66.0, "max": 72.0},
+        "memory_used_mib": {"mean": 20938.0, "min": 20764.0, "max": 20996.0},
+    }
+    rows = dict(grid_cards._gpu_rows(gpu))
+    assert rows["**GPU hardware (nvidia-smi)**"] == "4 samples · serving-replica nvidia-smi"
+    assert "49.0 %" in rows["GPU utilization"] and "peak 100.0" in rows["GPU utilization"]
+    assert "52.4 W" in rows["GPU power draw"]
+    assert "69.8 C" in rows["GPU temperature"]
+
+
+def test_gpu_rows_say_not_captured_rather_than_zero():
+    assert grid_cards._gpu_rows(None) == [("**GPU hardware (nvidia-smi)**", "not captured")]
+    assert grid_cards._gpu_rows({"captured": False})[0][1] == "not captured"
+
+
+def test_card_md_renders_the_gpu_block(monkeypatch):
+    monkeypatch.setattr(grid_cards, "_read_json", lambda p: {"samples": [{"t": 1.0, "gpus": [
+        {"utilization_gpu_perc": 88.0, "power_draw_w": 70.0, "temperature_c": 55.0,
+         "memory_used_mib": 23000.0, "memory_total_mib": 23034.0}]}], "replicas": {}})
+
+    class _Store:
+        dir = repo_root()
+
+    block = grid_cards._container_telemetry(_Store())
+    assert block["captured"] is True and block["util_mean_perc"] == 88.0
+
+
+def test_deploy_env_carries_the_cell_label():
+    for cell in CELLS:
+        spec = load_run_spec(_config_path(cell, "correspondence"))
+        assert deploy_env.spec_env(spec)["MODAL_VLLM_TELEMETRY_LABEL"] == f"sand42-{cell}"
+    # non-SAND42 runs leave the sampler on the deploy default label
+    other = load_run_spec(repo_root() / "config" / "runs" / "grid-50-correspondence-specialist-awq-1l4.yaml")
+    assert deploy_env.spec_env(other)["MODAL_VLLM_TELEMETRY_LABEL"] == ""
+
+
+def test_cell_label_is_shared_by_all_five_configs_of_a_cell():
+    for cell in CELLS:
+        labels = {posture.sand42_cell_label(posture.sand42_run_id(cell, c)) for c in CLASSES}
+        assert labels == {f"sand42-{cell}"}
+    assert posture.sand42_cell_label("grid-50-contracts-specialist-awq-1l4") == ""
+
+
+# ── reports ──────────────────────────────────────────────────────────────────
+
+
+def test_sand42_cards_route_to_the_sand42_study_folder():
+    assert grid_cards.study_for_run("sand42-50-contracts-specialist-awq-1l4-c8") == "SAND42"
+    assert grid_cards.study_for_run("grid-50-contracts-specialist-awq-1l4") == "SAND-37"
+    assert grid_cards.study_for_run(None) == "SAND-37"
+    paths = grid_cards.card_paths(
+        "sand42-50-contracts-specialist-awq-1l4-c8", "contracts_specialist", 1
+    )
+    # one folder per experimental condition, then per specialist
+    assert paths["md"].parent == repo_root() / "reports" / "SAND42" / "1L4-c8" / "contracts"
+    two = grid_cards.card_paths(
+        "sand42-50-contracts-specialist-awq-2l4-c16", "contracts_specialist", 2
+    )
+    assert two["md"].parent == repo_root() / "reports" / "SAND42" / "2L4-c16" / "contracts"
+
+
+def test_condition_folders_separate_the_four_cells():
+    assert grid_cards.condition_dir("sand42-x-1l4-c8", 1) == "1L4-c8"
+    assert grid_cards.condition_dir("sand42-x-1l4-c16", 1) == "1L4-c16"
+    assert grid_cards.condition_dir("sand42-x-2l4-c8", 2) == "2L4-c8"
+    assert grid_cards.condition_dir("sand42-x-2l4-c16", 2) == "2L4-c16"
+    # SAND-037 runs keep their two-folder layout
+    assert grid_cards.condition_dir("grid-50-contracts-specialist-awq-1l4", 1) == "1L4"
+    assert grid_cards.condition_dir("grid-50-contracts-specialist-awq-2l4", 2) == "2L4"
+
+
+def test_every_cell_has_a_suite_stem_and_a_runbook():
+    from mailroom_sandbox.job.runbooks import get_runbook
+
+    for cell in sand42_cards.CELL_ORDER:
+        assert cell in sand42_cards.CELL_STEMS
+        assert cell in sand42_cards.CELLS
+        assert get_runbook(f"sand42-{cell}")["id"] == f"sand42-{cell}"
+        paths = sand42_cards.cell_paths(cell)
+        assert paths["md"].name.startswith("SAND42-")
+
+
+def test_cell_card_renders_without_any_run_cards():
+    """Pre-run the card must render (all "not run"), not crash."""
+    data = sand42_cards.collect_cell("1l4-c8", repo=repo_root())
+    assert data["cells_reported"] == 0
+    md = sand42_cards.render_cell_md(data)
+    assert "1× L4 · client concurrency 8" in md
+    assert md.count("not run") >= 5
+
+
+def test_maybe_write_card_accepts_the_smoke_leg(monkeypatch):
+    """The runner hook must auto-write the smoke card too, not only --config."""
+    from mailroom_sandbox.job import grid_cards as gc
+
+    class _Store:
+        run_id = posture.SAND42_CHECK_RUN
+
+        def read_lock(self):
+            return {"run_id": posture.SAND42_CHECK_RUN}
+
+        def load_items(self):
+            return [{"id": "DOC-x"}]
+
+    called: dict[str, str] = {}
+    monkeypatch.setattr(
+        gc, "write_card", lambda store, **kw: called.setdefault("run_id", store.run_id) and {}
+    )
+    gc.maybe_write_card(_Store())
+    assert called["run_id"] == posture.SAND42_CHECK_RUN
+
+
+def test_master_paths_live_at_the_study_root():
+    paths = sand42_cards.master_paths()
+    assert paths["card_md"].parent == repo_root() / "reports" / "SAND42"
+    assert paths["card_md"].name == "SAND42-MASTER-SCORE-COST-CARD.md"
+    assert paths["report_md"].name == "SAND42-MASTER-REPORT.md"
+    assert paths["metered"].name == "metered-costs.json"
+
+
+def test_master_card_and_report_render_before_any_run():
+    data = sand42_cards.collect_master(repo=repo_root())
+    card = sand42_cards.render_master_card_md(data)
+    report = sand42_cards.render_master_report_md(data)
+    assert "Conditions measured:** 0 of 4" in card
+    assert "Not measured yet" in card
+    assert "master report" in report
+    # every condition gets a section, and the comparison + method come with it
+    for cell in sand42_cards.CELL_ORDER:
+        assert f"sand42-{cell}" in card
+    assert "## Method" in report and "## Open items" in report
+
+
+def test_metered_spend_is_recorded_under_the_sand42_root(tmp_path):
+    import json
+
+    path = sand42_cards.write_metered("SAND-42", 1.23, 0.0, repo=tmp_path)
+    assert path == tmp_path / "reports" / "SAND42" / "metered-costs.json"
+    assert json.loads(path.read_text())["SAND-42"] == {"metered_usd": 1.23, "billed_usd": 0.0}
+
+
+# ── statistics ───────────────────────────────────────────────────────────────
+
+
+def test_wilson_brackets_the_point_estimate():
+    lo, hi = sand42_cards.wilson(46, 50)
+    assert lo < 46 / 50 < hi
+    assert lo > 0.8
+    assert sand42_cards.wilson(0, 0) is None
+
+
+def test_bootstrap_ci_is_deterministic_and_brackets_the_mean():
+    values = [0.1, 0.2, 0.3, 0.4, 0.5] * 10
+    a = sand42_cards.bootstrap_mean_ci(values, iters=500, seed=7)
+    b = sand42_cards.bootstrap_mean_ci(values, iters=500, seed=7)
+    assert a == b
+    mean, lo, hi = a
+    assert lo <= mean <= hi
+
+
+def test_paired_delta_pairs_on_item_id_and_reports_better_worse():
+    a = {"documents": [{"item_id": "x", "score": 0.2}, {"item_id": "y", "score": 0.5}]}
+    b = {"documents": [{"item_id": "x", "score": 0.4}, {"item_id": "y", "score": 0.4},
+                       {"item_id": "z", "score": 0.9}]}
+    d = sand42_cards.paired_delta(a, b, iters=200, seed=1)
+    assert d["paired_documents"] == 2  # z is not paired
+    assert d["delta_mean"] == pytest.approx((0.2 + -0.1) / 2)
+    assert (d["better"], d["worse"], d["tie"]) == (1, 1, 0)
+
+
+def test_paired_n_matches_the_program_formula():
+    # BENCHMARK-PROGRAM §3: n ≈ (2.8 × SD_diff / Δ)²
+    assert sand42_cards.paired_n_for(0.05, 0.077) == 19   # corporate records
+    assert sand42_cards.paired_n_for(0.05, 0.122) == 47   # contracts
+    # contracts at Δ=0.03: the formula gives 130; the program doc prints 131
+    # (its own rounding), so allow either.
+    assert sand42_cards.paired_n_for(0.03, 0.122) in (130, 131)
+    assert sand42_cards.paired_n_for(0.0, 0.1) is None
+
+
+def test_goodput_zeroes_a_run_that_misses_the_class_slo():
+    card = {
+        "conditions": {"replicas": 2},
+        "time": {"wall_seconds": 600.0},
+        "quality": {"documents": 50},
+        "latency": {"p95": 400.0},
+    }
+    slow = sand42_cards._goodput(card, "contracts_specialist")   # SLO 300 s
+    assert slow["meets_slo"] is False
+    assert slow["goodput_documents_per_minute_per_gpu"] == 0.0
+    fast = sand42_cards._goodput({**card, "latency": {"p95": 100.0}}, "contracts_specialist")
+    assert fast["meets_slo"] is True
+    assert fast["goodput_documents_per_minute_per_gpu"] > 0
+
+
+def test_cost_per_usable_record_uses_both_denominators():
+    card = {
+        "cost": {"busy_gpu_usd": 1.0},
+        "quality": {"documents": 100, "ok": 50, "schema_valid_rate": 0.25},
+        "documents": [],
+    }
+    out = sand42_cards._cost_per_usable(card)
+    assert out["usd_per_1k_ok"] == pytest.approx(20.0)              # 1.0 / 50 × 1000
+    assert out["usd_per_1k_schema_valid"] == pytest.approx(40.0)    # 1.0 / 25 × 1000
+
+
+# ── no collateral damage ─────────────────────────────────────────────────────
+
+
+def test_sand42_rows_do_not_pollute_the_global_agent_budgets():
+    """AGENT_GENERATION_BUDGETS is last-writer-wins; SAND-042 must stay out of it.
+
+    Pinned to the values the five specialists carried before SAND-042 existed —
+    the SAND-042 posture rows use 8192 with their own input caps, so a leak would
+    move every one of these.
+    """
+    assert posture.AGENT_GENERATION_BUDGETS["correspondence_specialist"] == {
+        "max_tokens": 2048, "max_input_chars": 12000,
+    }
+    assert posture.AGENT_GENERATION_BUDGETS["insurance_claims_specialist"] == {
+        "max_tokens": 3072, "max_input_chars": 13500,
+    }
+    assert posture.AGENT_GENERATION_BUDGETS["corporate_records_specialist"] == {
+        "max_tokens": 4096, "max_input_chars": 15000,
+    }
+    assert posture.AGENT_GENERATION_BUDGETS["contracts_specialist"] == {
+        "max_tokens": 8192, "max_input_chars": 24000,
+    }
+    assert posture.AGENT_GENERATION_BUDGETS["merger_agreement_specialist"] == {
+        "max_tokens": 4096, "max_input_chars": 19891,
+    }
+
+
+def test_existing_grid_cells_are_untouched():
+    assert posture.GRID_CELLS
+    for rid in ("grid-50-contracts-specialist-awq-1l4", "grid-50-merger-specialist-awq-2l4"):
+        assert rid in posture.GRID_CELLS
+        assert posture.SPECIALIST_POSTURE[rid]["max_tokens"] == 8192

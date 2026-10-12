@@ -826,9 +826,9 @@ AGENT_GENERATION_BUDGETS: dict[str, dict[str, int]] = {
         "max_input_chars": int(row["max_input_chars"]),
     }
     for run_id, row in SPECIALIST_POSTURE.items()
-    # SAND-032 / grid / SAND-040 rows mirror overlay budgets; keep them out of
-    # this last-writer-wins map so pre-existing agent budgets are unchanged.
-    if not run_id.startswith(("sand032-", "grid-", "sand40-"))
+    # SAND-032 / grid / SAND-040 / SAND-042 rows mirror overlay budgets; keep them
+    # out of this last-writer-wins map so pre-existing agent budgets are unchanged.
+    if not run_id.startswith(("sand032-", "grid-", "sand40-", "sand42-"))
 }
 
 
@@ -952,6 +952,185 @@ def validate_mapping(mapping: Mapping[str, Any] | None = None) -> list[str]:
         if int(row["max_wall_seconds"]) < 60:
             errors.append(f"{run_id}: max_wall_seconds too small")
     return errors
+
+
+# ── SAND-042: paired concurrency × fleet grid on the SAND-037 aligned spec ────
+# Four cells = {1×L4, 2×L4} × {client concurrency 8, 16}, one warm fleet each
+# (one cold boot per cell), five specialists per cell, n=50 per specialist on ONE
+# shared subclass-stratified draw, so every cell scores the identical 250
+# documents (paired). Client concurrency is split equally across replicas:
+# 2×L4 C8 = 4 per replica, 2×L4 C16 = 8 per replica (the SAND-042 operator rule),
+# so on 2×L4 the cell label is the per-replica load.
+#
+# The spec is the SAND-037 aligned grid unchanged — frozen L5 engine (awq_marlin,
+# fp8 KV, CUDA graphs [1,2,4,8,16], max_num_seqs 16/replica, thinking off,
+# max_inputs 32), v1 simplified stems, decode 8192, temperature 0.7 on the
+# JSON-schema classes (contracts, merger) and the vendored 0.1 elsewhere. What
+# SAND-042 adds is the measurement layer (container GPU telemetry: nvidia-smi
+# util/power/temp/mem sampled inside the serving replica) and two postures
+# SAND-037 never ran (C16 at all, and C8 on 2×L4 — SAND-037 ran C32 there).
+#
+# The 2×L4 cells are NOT a per-replica-load twin of the 1×L4 cells (C8/2 = 4,
+# C16/2 = 8 per replica); the one matched-load pair is 1×L4 C8 vs 2×L4 C16
+# (8 per replica each). See docs/SAND42-EXPERIMENT-DESIGN.md §3.
+SAND42_N = 50
+SAND42_CELLS_BY_ID: dict[str, tuple[int, int]] = {
+    # cell id: (replicas, client concurrency)
+    "1l4-c8": (1, 8),
+    "1l4-c16": (1, 16),
+    "2l4-c8": (2, 8),
+    "2l4-c16": (2, 16),
+}
+# v1 simplified stems + decode 8192. Written out literally (not inherited from the
+# grid table) so a future grid edit can never leak a production/v2/MAUD stem into
+# SAND-042; ``_assert_sand42_prompts`` enforces the ``_simplified`` suffix.
+_SAND42_AGENTS: dict[str, tuple[str, str, int, int, int]] = {
+    # doc_class: (agent, prompt_file, max_tokens, prompt_tok, completion_tok)
+    "correspondence": ("correspondence_specialist", "correspondence_specialist_simplified", 8192, 3500, 800),
+    "insurance_claim": ("insurance_claims_specialist", "insurance_claims_specialist_simplified", 8192, 4500, 1200),
+    "corporate_record": ("corporate_records_specialist", "corporate_records_specialist_simplified", 8192, 5000, 1500),
+    "merger_agreement": ("merger_agreement_specialist", "merger_agreement_specialist_simplified", 8192, 10000, 2500),
+    "contract": ("contracts_specialist", "contracts_specialist_v33_simplified", 8192, 8000, 2500),
+}
+
+
+def _assert_sand42_prompts(agents: dict[str, tuple[str, str, int, int, int]]) -> None:
+    """SAND-042 is the v1 simplified stem family, nothing else."""
+    bad = {cls: row[1] for cls, row in agents.items() if not row[1].endswith("_simplified")}
+    if bad:
+        raise ValueError(f"SAND-042 prompts must all be *_simplified stems; got {bad}")
+
+
+_assert_sand42_prompts(_SAND42_AGENTS)
+_SAND42_CLASS_SLUG: dict[str, str] = {
+    "correspondence": "correspondence",
+    "insurance_claim": "insurance-claims",
+    "corporate_record": "corporate-records",
+    "contract": "contracts",
+    "merger_agreement": "merger",
+}
+# Abort guards (not estimates). 1×L4 mirrors the SAND-037 C8 n=50 caps; 2×L4 bills
+# two GPUs so its caps are ~1.5×; the C16 legs carry extra headroom on the long
+# classes because a wider batch lengthens the tail on contracts and merger.
+_SAND42_CAPS: dict[int, dict[str, float]] = {
+    1: {"correspondence": 0.45, "insurance_claim": 0.55, "corporate_record": 0.55,
+        "contract": 0.90, "merger_agreement": 1.25},
+    2: {"correspondence": 0.65, "insurance_claim": 0.85, "corporate_record": 0.85,
+        "contract": 1.30, "merger_agreement": 1.75},
+}
+_SAND42_WALLS: dict[str, int] = {
+    "correspondence": 2400, "insurance_claim": 2400, "corporate_record": 2400,
+    "contract": 4800, "merger_agreement": 5400,
+}
+
+
+def sand42_run_id(cell: str, doc_class: str) -> str:
+    """Run id for one SAND-042 cell × specialist (cell ∈ ``SAND42_CELLS_BY_ID``)."""
+    if cell not in SAND42_CELLS_BY_ID:
+        raise KeyError(f"unknown SAND-042 cell {cell!r}")
+    return f"sand42-50-{_SAND42_CLASS_SLUG[doc_class]}-specialist-awq-{cell}"
+
+
+SAND42_RUNS: frozenset[str] = frozenset(
+    sand42_run_id(cell, dc) for cell in SAND42_CELLS_BY_ID for dc in _SAND42_AGENTS
+)
+for _cell, (_rep, _conc) in SAND42_CELLS_BY_ID.items():
+    for _cls, (_agent, _prompt, _mt, _pt, _ct) in _SAND42_AGENTS.items():
+        _rid = sand42_run_id(_cell, _cls)
+        SPECIALIST_POSTURE[_rid] = {
+            "task": _agent,
+            "doc_class": _cls,
+            "agent": _agent,
+            "prompt_file": _prompt,
+            "concurrency": _conc,
+            "replicas": _rep,
+            "max_num_seqs": 16,
+            "max_model_len": 32768,
+            "max_tokens": _mt,
+            "max_input_chars": _input_chars_for(_mt, _pt, 32768),
+            "cost_cap_usd": _SAND42_CAPS[_rep][_cls],
+            "max_wall_seconds": _SAND42_WALLS[_cls],
+            "tokens_assumed": {"prompt": _pt, "completion": _ct},
+            "sec_per_doc": {"low": 10.0, "likely": 40.0, "high": 180.0},
+            "rationale": (
+                f"SAND-042 paired grid cell ({_rep}×L4, client concurrency {_conc}"
+                + (f", {_conc // _rep} per replica" if _rep > 1 else "")
+                + ") — SAND-037 aligned spec, v1 simplified stem, decode 8192"
+            ),
+        }
+        _temp = GRID_TEMPERATURE_BY_CLASS.get(_cls)
+        if _temp is not None:
+            SPECIALIST_POSTURE[_rid]["temperature"] = _temp
+        SPECIALIST_LIMIT_BY_RUN[_rid] = SAND42_N
+
+SAND42_TWO_GPU_RUNS: frozenset[str] = frozenset(
+    sand42_run_id(cell, dc)
+    for cell, (rep, _conc) in SAND42_CELLS_BY_ID.items()
+    if rep == 2
+    for dc in _SAND42_AGENTS
+)
+SAND42_ONE_GPU_RUNS: frozenset[str] = SAND42_RUNS - SAND42_TWO_GPU_RUNS
+
+# Noise-floor leg: a second identical run of one cell on the same 50 documents, so
+# the run-to-run SD of the difference is re-measured on the SAND-042 draw before
+# any delta is quoted (docs/SAND42-EXPERIMENT-DESIGN.md §4).
+SAND42_NOISE_FLOOR_RUN = "sand42-noisefloor-correspondence-awq-1l4-c8"
+SPECIALIST_POSTURE[SAND42_NOISE_FLOOR_RUN] = {
+    **SPECIALIST_POSTURE[sand42_run_id("1l4-c8", "correspondence")],
+    "rationale": (
+        "SAND-042 noise-floor leg — same 50 correspondence documents and settings as "
+        f"{sand42_run_id('1l4-c8', 'correspondence')}; the per-document score "
+        "differences between the two are the run-to-run noise floor for every "
+        "SAND-042 delta"
+    ),
+}
+SPECIALIST_LIMIT_BY_RUN[SAND42_NOISE_FLOOR_RUN] = SAND42_N
+
+# Smoke leg: 5 corporate records drawn as a STRICT SUBSET of the 1L4-c8 condition's
+# 50 (each sub-quota <= its 50-draw quota, and a smaller quota is a seeded prefix of
+# the larger one). Same engine, prompt, decode and gates as the condition, at n=5, to
+# prove the deploy env, the draw, the scored path and the GPU telemetry before the
+# four scored conditions spend. Not a benchmark cell.
+SAND42_CHECK_RUN = "sand42-check-5-corporate-records-awq-1l4-c8"
+SPECIALIST_POSTURE[SAND42_CHECK_RUN] = {
+    "task": "corporate_records_specialist",
+    "doc_class": "corporate_record",
+    "agent": "corporate_records_specialist",
+    "prompt_file": "corporate_records_specialist_simplified",
+    "concurrency": 8,
+    "replicas": 1,
+    "max_num_seqs": 16,
+    "max_model_len": 32768,
+    "max_tokens": 8192,
+    "max_input_chars": _input_chars_for(8192, 5000, 32768),
+    "cost_cap_usd": 0.20,
+    "max_wall_seconds": 1800,
+    "tokens_assumed": {"prompt": 5000, "completion": 1500},
+    "sec_per_doc": {"low": 10.0, "likely": 40.0, "high": 180.0},
+    "rationale": (
+        "SAND-042 live smoke leg — 5 corporate records, a strict subset of the "
+        "1L4-c8 condition's 50-document draw"
+    ),
+}
+SPECIALIST_LIMIT_BY_RUN[SAND42_CHECK_RUN] = 5
+SAND42_CHECK_RUNS: frozenset[str] = frozenset({SAND42_CHECK_RUN})
+# It rides the same pinned single-L4 fleet as the C8 condition.
+SAND42_ONE_GPU_RUNS = SAND42_ONE_GPU_RUNS | SAND42_CHECK_RUNS | {SAND42_NOISE_FLOOR_RUN}
+
+
+def sand42_cell_label(run_id: str | None) -> str:
+    """Telemetry volume label for a SAND-042 cell (one deploy = one series).
+
+    Every run in a cell derives the same label, so the scraper finds the cell's
+    time series whichever of the five configs it is pointed at.
+    """
+    rid = str(run_id or "")
+    if not rid.startswith("sand42-"):
+        return ""
+    for cell in SAND42_CELLS_BY_ID:
+        if rid.endswith(f"-{cell}"):
+            return f"sand42-{cell}"
+    return ""
 
 
 # ── SAND-040: 2×L4 · C32 scale run on one 32K deploy ──────────────────────────
