@@ -310,6 +310,45 @@ def test_preflight_drift_refusal_then_force(tmp_path):
     assert report3["status"] == "prepared"
 
 
+def test_force_relock_moves_items_so_a_foreign_fleet_cannot_be_resumed(tmp_path):
+    """A re-lock under a different Modal app must not leave the old items behind.
+
+    SAND-046: two fleets ran the same cell under different app names. `engine.modal`
+    is inside spec_hash, so the second fleet's `preflight --force` sees drift and
+    archives the generation — items.jsonl included. If it were left in place, the
+    next `run start` would RESUME those rows and mix two apps' items in one run_id.
+    """
+    from pathlib import Path
+
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.spec import EngineSpec, ModalSpec
+
+    spec = _run_spec(tmp_path, run_id="pf-fleet-a")
+    spec.engine = EngineSpec(kind="modal-vllm", modal=ModalSpec(app="sandbox-vllm"))
+    report = preflight.preflight(spec, offline=True)
+    assert report["status"] == "prepared", report
+    store = _store(report)
+    store.append_item({"item_id": "d0", "index": 0, "ok": True, "ts": "2026-01-01T00:00:00+00:00"})
+    assert store.items_path.is_file()
+
+    other = _run_spec(tmp_path, run_id=spec.run_id)
+    other.engine = EngineSpec(kind="modal-vllm", modal=ModalSpec(app="sandbox-vllm-b"))
+    assert other.spec_hash() != spec.spec_hash(), "the app must be inside spec_hash"
+
+    # Without --force the drift is refused and the items stay untouched.
+    refused = preflight.preflight(other, offline=True)
+    assert refused["status"] == "drift_refused"
+    assert store.items_path.is_file()
+
+    # With --force the whole generation moves aside, items included.
+    forced = preflight.preflight(other, offline=True, force=True)
+    assert forced["status"] == "prepared", forced
+    archived = Path(forced["archived"])
+    assert (archived / "items.jsonl").is_file()
+    assert not store.items_path.exists(), "stale items must not survive a forced re-lock"
+    assert RunStore(store.dir).resume_cursor() == 0
+
+
 def test_force_relock_archives_old_generation(tmp_path, job_data_dir):
     """DMR-049: --force must move the old lock/items aside, not leave them."""
     from pathlib import Path

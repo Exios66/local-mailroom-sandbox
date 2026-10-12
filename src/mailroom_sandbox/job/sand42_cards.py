@@ -24,13 +24,17 @@ the SAND-37 master card already uses for merger †.
 
 from __future__ import annotations
 
+import contextlib
+import fcntl
 import json
 import logging
+import os
 import random
 import statistics
+import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Iterator, Mapping, Sequence
 
 from mailroom_sandbox.job import grid_cards, metrics
 from mailroom_sandbox.job.grid_cards import (
@@ -44,6 +48,41 @@ from mailroom_sandbox.job.grid_cards import (
 _log = logging.getLogger("mailroom_sandbox.job.sand42_cards")
 
 SCHEMA_CELL = "sandbox.sand42-cell/v1"
+
+
+def _atomic_text(path: Path, text: str) -> None:
+    """Temp + replace, so a reader never sees a half-written report."""
+    tmp = path.with_name(f".{path.name}.tmp{os.getpid()}")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, path)
+
+
+@contextlib.contextmanager
+def report_lock(*, repo: Path | None = None, timeout_s: float = 900.0) -> Iterator[None]:
+    """Exclusive lock over the study's report writes.
+
+    Two parallel fleets, the sequential driver and the handoff all rebuild the
+    cell/master cards, the comparison and ``figures/`` from the same tree; without
+    this the master can be rewritten while another process is reading it (torn
+    report) or two builders interleave. Held only across a card build, so the
+    loser waits rather than failing.
+    """
+    root = study_root("sand42-", repo=repo)
+    root.mkdir(parents=True, exist_ok=True)
+    with open(root / ".report.lock", "w", encoding="utf-8") as fh:
+        deadline = time.monotonic() + timeout_s
+        while True:
+            try:
+                fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError:
+                if time.monotonic() >= deadline:
+                    raise TimeoutError(f"SAND-042 report lock busy for {timeout_s:.0f}s: {root}")
+                time.sleep(0.5)
+        try:
+            yield
+        finally:
+            fcntl.flock(fh, fcntl.LOCK_UN)
 STUDY = "SAND42"
 REFERENCE_CELL = "1l4-c8"
 
@@ -653,7 +692,7 @@ def write_cell(cell: str, *, repo: Path | None = None) -> dict[str, Path]:
     data = collect_cell(cell, repo=repo)
     paths = cell_paths(cell, repo=repo)
     paths["dir"].mkdir(parents=True, exist_ok=True)
-    paths["json"].write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    _atomic_text(paths["json"], json.dumps(data, indent=2, sort_keys=True) + "\n")
     figure: str | None = None
     try:  # lazy: a missing module or a plotting error must never break the cell card
         from mailroom_sandbox.job import sand42_figures
@@ -662,7 +701,7 @@ def write_cell(cell: str, *, repo: Path | None = None) -> dict[str, Path]:
         figure = path.name if path else None
     except Exception:  # noqa: BLE001
         _log.warning("SAND-042 cell figure failed for %s", cell, exc_info=True)
-    paths["md"].write_text(render_cell_md(data, figure=figure), encoding="utf-8")
+    _atomic_text(paths["md"], render_cell_md(data, figure=figure))
     return paths
 
 
@@ -799,10 +838,8 @@ def write_comparison(*, repo: Path | None = None) -> dict[str, Path]:
     data = collect_comparison(repo=repo)
     paths = comparison_paths(repo=repo)
     paths["dir"].mkdir(parents=True, exist_ok=True)
-    paths["json"].write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    paths["md"].write_text(
-        render_comparison_md(data, figures=_master_figures(repo=repo)), encoding="utf-8"
-    )
+    _atomic_text(paths["json"], json.dumps(data, indent=2, sort_keys=True) + "\n")
+    _atomic_text(paths["md"], render_comparison_md(data, figures=_master_figures(repo=repo)))
     return paths
 
 
@@ -833,7 +870,7 @@ def write_noise_floor(*, repo: Path | None = None) -> dict[str, Path]:
         ]
     else:
         body += ["_Not measured yet — both twin cards must exist first._", ""]
-    paths["md"].write_text("\n".join(body), encoding="utf-8")
+    _atomic_text(paths["md"], "\n".join(body))
     return paths
 
 
@@ -875,7 +912,7 @@ def write_metered(study: str, metered_usd: float, billed_usd: float, *, repo: Pa
     path.parent.mkdir(parents=True, exist_ok=True)
     data = _read_json(path)
     data[study] = {"metered_usd": round(float(metered_usd), 2), "billed_usd": round(float(billed_usd), 2)}
-    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    _atomic_text(path, json.dumps(data, indent=2, sort_keys=True) + "\n")
     return path
 
 
@@ -1092,10 +1129,8 @@ def write_master(*, repo: Path | None = None) -> dict[str, Path]:
     data = collect_master(repo=repo)
     paths = master_paths(repo=repo)
     paths["dir"].mkdir(parents=True, exist_ok=True)
-    paths["card_json"].write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    paths["card_md"].write_text(render_master_card_md(data), encoding="utf-8")
-    paths["report_md"].write_text(
-        render_master_report_md(data, figures=_master_figures(repo=repo)), encoding="utf-8"
-    )
+    _atomic_text(paths["card_json"], json.dumps(data, indent=2, sort_keys=True) + "\n")
+    _atomic_text(paths["card_md"], render_master_card_md(data))
+    _atomic_text(paths["report_md"], render_master_report_md(data, figures=_master_figures(repo=repo)))
     return paths
 

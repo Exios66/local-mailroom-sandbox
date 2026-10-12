@@ -1006,3 +1006,35 @@ def test_summarize_reports_the_extra_gpu_stats():
     assert s["utilization_memory_perc"]["mean"] == 20.0
     assert s["power_limit_w"]["mean"] == 72.0
     assert s["clocks_sm_mhz"]["mean"] == 1700.0
+
+
+def test_report_lock_serializes_and_atomic_write_lands(tmp_path, monkeypatch):
+    """Two builders (parallel fleets + the driver) must not tear the master.
+
+    The lock is what keeps the master report / comparison / figures from being
+    rewritten while another process reads them; the temp+replace keeps a reader
+    from ever seeing a half-written file.
+    """
+    import fcntl
+
+    from mailroom_sandbox.job import sand42_cards
+
+    root = tmp_path / "SAND42"
+    monkeypatch.setattr(sand42_cards, "study_root", lambda *a, **k: root)
+
+    with sand42_cards.report_lock(timeout_s=2):
+        held = open(root / ".report.lock", "w", encoding="utf-8")
+        with pytest.raises(OSError):
+            fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        held.close()
+
+    # Released: a fresh exclusive acquire succeeds.
+    after = open(root / ".report.lock", "w", encoding="utf-8")
+    fcntl.flock(after, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    fcntl.flock(after, fcntl.LOCK_UN)
+    after.close()
+
+    target = root / "SAND42-MASTER-REPORT.md"
+    sand42_cards._atomic_text(target, "master\n")
+    assert target.read_text(encoding="utf-8") == "master\n"
+    assert not list(root.glob(".SAND42-MASTER-REPORT.md.tmp*")), "temp file left behind"
