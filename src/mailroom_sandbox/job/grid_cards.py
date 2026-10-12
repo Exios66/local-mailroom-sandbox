@@ -193,6 +193,10 @@ def _engine_block(store: RunStore, replicas: int) -> dict[str, Any]:
         "replicas": rows,
         "scrape_errors": list(after.get("errors") or []),
         "gpu": _container_telemetry(store),
+        # Mid-run sample (scripts/sand42/midrun_kv.py). The before/after scrapes fire at
+        # the run's drained edges, where kv_cache_usage_perc is 0 by construction, so this
+        # is the only real KV/queue reading. Absent for a run nobody sampled.
+        "midrun": _read_json(store.dir / "vllm_metrics_midrun.json") or None,
     }
 
 

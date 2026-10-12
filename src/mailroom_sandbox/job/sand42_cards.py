@@ -667,6 +667,8 @@ def render_cell_md(
         row("GPU power (W, mean)", lambda r: _f((r["gpu"].get("power_draw_w") or {}).get("mean"), 1)),
         row("GPU temp (C, mean)", lambda r: _f((r["gpu"].get("temperature_c") or {}).get("mean"), 1)),
         row("KV cache use (%)", lambda r: _kv_text(r)),
+        row("KV cache use, mid-run (max %)", lambda r: _midrun_kv_text(r)),
+        row("Queue depth, mid-run (running/waiting)", lambda r: _midrun_queue_text(r)),
         row("Preemptions", lambda r: _replica_sum_text(r, "preemptions")),
         row("Length finishes", lambda r: _replica_sum_text(r, "length_finishes")),
     ]
@@ -730,6 +732,36 @@ def _kv_text(r: Mapping[str, Any]) -> str:
         return ("0 (drained-edge sample: the scrapes fire before/after the run, when the "
                 "cache is empty by construction; a mid-run sample is the only real source)")
     return f"{v * 100:.1f}%"
+
+
+def _midrun(r: Mapping[str, Any]) -> Mapping[str, Any]:
+    """The mid-run sample block (``scripts/sand42/midrun_kv.py``), or ``{}`` when absent."""
+    m = (r.get("engine_telemetry") or {}).get("midrun")
+    return m if isinstance(m, Mapping) else {}
+
+
+def _midrun_kv_text(r: Mapping[str, Any]) -> str:
+    """KV-cache use measured MID-RUN — the only reading that is not 0 by construction.
+
+    The before/after scrapes fire at the drained edges (see ``_kv_text``), so a run
+    nobody sampled mid-flight has no honest number here and says so with "—" rather
+    than repeating the drained-edge 0.
+    """
+    mx = (_midrun(r).get("cell_max") or {}).get("vllm:kv_cache_usage_perc")
+    return f"{float(mx) * 100:.1f}%" if isinstance(mx, (int, float)) else "—"
+
+
+def _midrun_queue_text(r: Mapping[str, Any]) -> str:
+    """Peak in-flight / queued requests per replica, mid-run.
+
+    This is the saturation evidence the two-edge scrape cannot give: at the drained
+    edges both gauges read 0, whatever the run actually did.
+    """
+    cm = _midrun(r).get("cell_max") or {}
+    run, wait = cm.get("vllm:num_requests_running"), cm.get("vllm:num_requests_waiting")
+    if not isinstance(run, (int, float)):
+        return "—"
+    return f"{run:.0f} running / {wait if isinstance(wait, (int, float)) else 0:.0f} waiting"
 
 
 def _kv_max(r: Mapping[str, Any]) -> float | None:
