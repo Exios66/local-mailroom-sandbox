@@ -12,9 +12,9 @@ Stem `RUN-50-INSURANCE-AWQ-2L4-C8`. Model `Qwen/Qwen3-8B-AWQ`. TTFT is never inf
 | concurrency | 8 |
 | wall_seconds | 119.725 |
 | cold_boot_seconds | 0.338 |
-| gpu_seconds | 120.063 |
-| estimated_gpu_cost_usd | 0.053361 |
-| **gpu_cost_per_document** | **0.00106722** |
+| gpu_seconds | 120.681 |
+| estimated_gpu_cost_usd | 0.053636 |
+| **gpu_cost_per_document** | **0.00107272** |
 | token-proxy cost_usd | 0.007673 |
 | latency mean / p50 / p95 / max (s) | 12.878428 / 11.397067 / 18.564660 / 49.897795 |
 | latency_sum_seconds | 643.921 |

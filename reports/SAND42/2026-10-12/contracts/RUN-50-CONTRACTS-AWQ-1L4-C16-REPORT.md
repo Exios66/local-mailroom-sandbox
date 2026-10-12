@@ -20,21 +20,21 @@ Dated cell stem: `RUN-50-CONTRACTS-AWQ-1L4-C16`. Written automatically under the
 | metric | value |
 | --- | --- |
 | docs ok / failed / total | **50 / 0 / 50** |
-| **overall_extraction_score** | **0.542966** |
-| schema_valid_rate | 1.000000 |
+| **overall_extraction_score** | **0.603296** |
+| schema_valid_rate | — |
 | error_count | 0 |
 
 ## Serving / cost (see sibling `-SERVING.md`)
 
 | metric | value |
 | --- | --- |
-| wall_seconds | 1011.997 |
-| gpu_seconds | 1012.270 |
-| estimated GPU cost | 0.224949 |
-| **GPU $/doc** | **0.00449898** |
+| wall_seconds | 1124.427 |
+| gpu_seconds | 1143.667 |
+| estimated GPU cost | 0.254148 |
+| **GPU $/doc** | **0.00508296** |
 | latency p50 / max (s) | 176.201379 / 1109.377566 |
 | prompt / completion tokens | 799423 / 132402 |
-| concurrency speedup (Σlat/wall) | 14.44 |
+| concurrency speedup (Σlat/wall) | 13.00 |
 
 ## Per-document scores
 

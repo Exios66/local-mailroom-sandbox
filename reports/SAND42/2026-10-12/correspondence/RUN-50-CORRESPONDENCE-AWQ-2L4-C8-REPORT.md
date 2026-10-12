@@ -21,7 +21,7 @@ Dated cell stem: `RUN-50-CORRESPONDENCE-AWQ-2L4-C8`. Written automatically under
 | --- | --- |
 | docs ok / failed / total | **50 / 0 / 50** |
 | **overall_extraction_score** | **0.379156** |
-| schema_valid_rate | 1.000000 |
+| schema_valid_rate | — |
 | error_count | 0 |
 
 ## Serving / cost (see sibling `-SERVING.md`)
@@ -29,9 +29,9 @@ Dated cell stem: `RUN-50-CORRESPONDENCE-AWQ-2L4-C8`. Written automatically under
 | metric | value |
 | --- | --- |
 | wall_seconds | 50.631 |
-| gpu_seconds | 50.954 |
-| estimated GPU cost | 0.022646 |
-| **GPU $/doc** | **0.00045292** |
+| gpu_seconds | 51.867 |
+| estimated GPU cost | 0.023052 |
+| **GPU $/doc** | **0.00046104** |
 | latency p50 / max (s) | 5.433828 / 8.554139 |
 | prompt / completion tokens | 129444 / 7904 |
 | concurrency speedup (Σlat/wall) | 5.48 |

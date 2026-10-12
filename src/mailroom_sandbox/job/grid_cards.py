@@ -812,7 +812,9 @@ def write_card(
             from mailroom_sandbox.job import sand42_figures
 
             path = sand42_figures.maybe_write_run_figure(card, paths["dir"])
-            figure = path.name if path else None
+            # Link only a figure that is really on disk: a writer that returned a
+            # path without landing the file must not ship a broken relative link.
+            figure = path.name if path is not None and path.is_file() else None
         except Exception:  # noqa: BLE001
             _log.warning("SAND-042 run figure failed for %s", card["run_id"], exc_info=True)
     paths["md"].write_text(render_card_md(card, figure=figure), encoding="utf-8")

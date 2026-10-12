@@ -21,7 +21,7 @@ Dated cell stem: `RUN-50-INSURANCE-AWQ-2L4-C8`. Written automatically under the 
 | --- | --- |
 | docs ok / failed / total | **50 / 0 / 50** |
 | **overall_extraction_score** | **0.670326** |
-| schema_valid_rate | 0.300000 |
+| schema_valid_rate | — |
 | error_count | 0 |
 
 ## Serving / cost (see sibling `-SERVING.md`)
@@ -29,9 +29,9 @@ Dated cell stem: `RUN-50-INSURANCE-AWQ-2L4-C8`. Written automatically under the 
 | metric | value |
 | --- | --- |
 | wall_seconds | 119.725 |
-| gpu_seconds | 120.063 |
-| estimated GPU cost | 0.053361 |
-| **GPU $/doc** | **0.00106722** |
+| gpu_seconds | 120.681 |
+| estimated GPU cost | 0.053636 |
+| **GPU $/doc** | **0.00107272** |
 | latency p50 / max (s) | 11.397067 / 49.897795 |
 | prompt / completion tokens | 165315 / 20870 |
 | concurrency speedup (Σlat/wall) | 5.38 |
