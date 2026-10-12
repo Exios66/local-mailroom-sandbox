@@ -32,7 +32,13 @@ while :; do
   fi
   for c in $CELLS; do
     f="$HOME/sand42-$c.log"
-    if [ -f "$f" ] && grep -qE "errors=[1-9]" "$f" 2>/dev/null; then
+    [ -f "$f" ] || continue
+    # Only a log being written right now can carry a live error. A finished leg's log keeps
+    # its old lines forever, so re-reading them wakes on a problem that may already be fixed —
+    # which is exactly how this watcher fired on leg 1's clobbered run at 15:18.
+    age=$(( $(date +%s) - $(stat -f %m "$f" 2>/dev/null || echo 0) ))
+    [ "$age" -gt 300 ] && continue
+    if grep -qE "errors=[1-9]" "$f" 2>/dev/null; then
       echo "WOKE: error in leg $c — $(grep -E "errors=[1-9]" "$f" | tail -1)"
       exit 0
     fi
