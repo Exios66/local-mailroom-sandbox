@@ -37,7 +37,7 @@ say() { echo "[watch] $(date '+%F %H:%M:%S') $*"; }
 say "waiting for the campaign processes (timeout ${TIMEOUT_MIN}min)"
 deadline=$(( $(date +%s) + TIMEOUT_MIN * 60 ))
 while :; do
-  alive=$(pgrep -f "bash $HOME/sand42.sh|sand42-handoff.sh|scripts/sand42/parallel-fleets.sh|sand42-1l4-c8-rerun.sh|sand42-1l4-c16-rerun.sh|sand42-rerun-chain.sh" | wc -l | tr -d ' ')
+  alive=$(pgrep -f "bash $HOME/sand42.sh|sand42-handoff.sh|scripts/sand42/parallel-fleets.sh|sand42-1l4-c8-rerun.sh|sand42-1l4-c16-rerun.sh|sand42-2l4-c16-rerun.sh|sand42-rerun-chain.sh" | wc -l | tr -d ' ')
   if [ "$alive" = "0" ]; then say "all campaign processes exited"; break; fi
   if [ "$(date +%s)" -ge "$deadline" ]; then
     say "TIMEOUT after ${TIMEOUT_MIN}min with $alive process(es) still alive — NOT tearing down (a fleet may be running). Re-run when they exit."

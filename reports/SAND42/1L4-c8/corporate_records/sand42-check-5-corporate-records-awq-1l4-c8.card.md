@@ -28,66 +28,74 @@
 | Documents | 5 |
 | Spec hash | 53132be4… |
 | **Time** |  |
-| Wall (busy) | 0.43 s |
-| GPU seconds | 0.77 s |
-| Cold boot | 0.34 s |
+| Wall (busy) | 24.94 s |
+| GPU seconds | 25.03 s |
+| Cold boot | 0.24 s |
 | **Cost** |  |
-| Busy-window GPU $ | $0.000095 |
-| Billed GPU $ (incl. boot) | $0.000172 |
-| Idle $ | not captured |
-| Cost per document | $0.000019 |
-| Cost per ok document | $0.000019 |
-| Cost per 1M tokens | $0.0045 |
+| Busy-window GPU $ | $0.005543 |
+| Billed GPU $ | $0.005563 |
+| Billed seconds | 25.03 s |
+| Idle $ | $0.004240 (19.08 s) |
+| Cost per document | $0.001113 |
+| Cost per ok document | $0.001113 |
+| Cost per 1M tokens | $0.2663 |
 | **Tokens** |  |
 | Prompt tokens | 20,069 |
-| Completion tokens | 847 (4.0%) |
-| Total tokens | 20,916 |
-| Tokens per document | 4,183 |
-| Per document: instructions + template | 2,214 (52.9%) |
-| Per document: document text | 1,799 (43.0%) |
-| Per document: output | 169 (4.0%) |
+| Completion tokens | 822 (3.9%) |
+| Total tokens | 20,891 |
+| Tokens per document | 4,178 |
+| Per document: instructions + template | 2,214 (53.0%) |
+| Per document: document text | 1,799 (43.1%) |
+| Per document: output | 164 (3.9%) |
 | Instruction tokens per model call | 2,214 over 5 calls |
 | Token split basis | document chars ÷ 4.5 chars/token; instructions are the remainder |
-| Completion p95 / max (ok docs) | 234 / 234 |
+| Completion p95 / max (ok docs) | 210 / 210 |
 | **Throughput** |  |
-| Tokens / second | 48,869.2 |
-| Tokens / second per L4 | 48,869.2 |
-| Documents / minute | 700.93 |
+| Tokens / second | 837.5 |
+| Tokens / second per L4 | 837.5 |
+| Documents / minute | 12.03 |
 | **Latency (per document, ok rows)** |  |
-| Mean | 11.28 s |
-| p50 | 11.02 s |
-| p95 | 12.34 s |
-| Max | 12.34 s |
+| Mean | 9.38 s |
+| p50 | 9.16 s |
+| p95 | 10.43 s |
+| Max | 10.43 s |
 | **Engine (vLLM /metrics)** |  |
-| Parallelism (Σ latency ÷ wall) | 131.80× of 8 |
-| Slot occupancy | 1647.5% |
+| Parallelism (Σ latency ÷ wall) | 1.88× of 8 |
+| Slot occupancy | 23.5% |
 | Coverage | replicas observed: 1 of 1 |
 | Requests per replica (this run) | 5 |
-| Mean TTFT per replica | 4.493 s |
-| Prefix-cache hit per replica | 31.9% |
+| Mean TTFT per replica | 2.059 s |
+| Prefix-cache hit per replica | 31.8% |
 | Preemptions per replica (this run) | 0 |
 | Length-capped finishes per replica (this run) | 0 |
-| **GPU hardware (nvidia-smi)** | 4 samples · serving-replica nvidia-smi |
-| GPU utilization | 49.0 % mean (min 0.0 / peak 100.0) |
-| GPU power draw | 52.4 W (min 31.9 / max 72.9) |
-| GPU temperature | 69.8 C (min 66.0 / max 72.0) |
-| GPU memory used | 20,938 MiB (min 20,764 / max 20,996) |
+| **GPU hardware (nvidia-smi)** | 3 samples · serving-replica nvidia-smi |
+| GPU utilization | 66.3 % mean (p95 100.0 / peak 100.0 / min 0.0) |
+| Sampling coverage | 100.0 % |
+| GPU power draw | 53.5 W (min 29.4 / max 72.7) of 72 W cap |
+| GPU memory bandwidth | 51.7 % (min 0.0 / max 100.0) |
+| GPU SM clock | 1,605 MHz (min 1,170 / max 2,040) |
+| GPU temperature | 54.7 C (min 53.0 / max 56.0) |
+| GPU memory used | 21,024 MiB (min 21,024 / max 21,024) |
 | **Quality** |  |
-| Overall extraction score | 0.5625 (sd 0.164) |
-| Score min / max | 0.4103 / 0.8205 |
+| Overall extraction score | 0.5625 (sd 0.202) |
+| Score min / max | 0.3590 / 0.8205 |
 | Scoring method | `suite` |
 | Schema-valid rate | 1.00 |
 | Parse errors | 0 |
 | Errors | 0 / 5 |
 
+## Figure
+
+![Corporate Records run dashboard](sand42-check-5-corporate-records-awq-1l4-c8.card.png)
+
 ## Per-document results
 
 | # | Document | OK | Score | Latency (s) | Prompt tok | Completion tok | Error |
 | ---: | --- | --- | ---: | ---: | ---: | ---: | --- |
-| 1 | `DOC-f134b9491efc5c57` | yes | 0.4615 | 11.0 | 2865 | 151 | — |
-| 2 | `DOC-0a8eb16fff7e67ca` | yes | 0.6923 | 11.0 | 5246 | 150 | — |
-| 3 | `DOC-e478fa89043a29e3` | yes | 0.8205 | 11.0 | 2910 | 151 | — |
-| 4 | `DOC-37152a33cfb70d37` | yes | 0.4103 | 11.0 | 2902 | 161 | — |
-| 5 | `DOC-a973ebf005e0e785` | yes | 0.4278 | 12.3 | 6146 | 234 | — |
+| 1 | `DOC-f134b9491efc5c57` | yes | 0.7949 | 9.1 | 2865 | 141 | — |
+| 2 | `DOC-e478fa89043a29e3` | yes | 0.8205 | 9.1 | 2910 | 151 | — |
+| 3 | `DOC-37152a33cfb70d37` | yes | 0.4103 | 9.2 | 2902 | 161 | — |
+| 4 | `DOC-0a8eb16fff7e67ca` | yes | 0.3590 | 9.2 | 5246 | 159 | — |
+| 5 | `DOC-a973ebf005e0e785` | yes | 0.4278 | 10.4 | 6146 | 210 | — |
 
-_Generated 2026-10-12T01:06:30+00:00 by `sandbox run card`. Machine-readable twin: `sand42-check-5-corporate-records-awq-1l4-c8.card.json`._
+_Generated 2026-10-12T17:47:45+00:00 by `sandbox run card`. Machine-readable twin: `sand42-check-5-corporate-records-awq-1l4-c8.card.json`._

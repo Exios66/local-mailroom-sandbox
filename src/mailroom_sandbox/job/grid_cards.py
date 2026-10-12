@@ -158,6 +158,65 @@ def suite_paths(replicas: int, *, repo: Path | None = None) -> dict[str, Path]:
 # ── engine telemetry (vLLM /metrics before/after) ───────────────────────────
 
 
+def _midrun_block(store: RunStore) -> dict[str, Any] | None:
+    """The mid-run KV/queue sample, collapsed for the card.
+
+    Two producers write this artifact under one name:
+      * ``scrape-metrics --label mid`` (periodic from the runbook, or an ad-hoc probe)
+        writes the latest doc plus a ``.series.jsonl`` holding every sample;
+      * ``scripts/sand42/midrun_kv.py fold`` writes the cell-level sampler's aggregate.
+    Both collapse to one shape here: ``replicas`` = the latest sample per replica and
+    ``cell_max`` = the maximum of each gauge over every sample, in the scrape's own bare
+    key names (``kv_cache_usage_perc``, not ``vllm:kv_cache_usage_perc``).
+    """
+    doc = _read_json(store.dir / "vllm_metrics_mid.json") or _read_json(
+        store.dir / "vllm_metrics_midrun.json"
+    )
+    entries: list[dict[str, Any]] = []
+    series_path = store.dir / "vllm_metrics_mid.series.jsonl"
+    if series_path.is_file():
+        for line in series_path.read_text(encoding="utf-8").splitlines():
+            try:
+                entries.append(json.loads(line))
+            except ValueError:
+                continue
+    if not doc and not entries:
+        return None
+
+    gauges = ("kv_cache_usage_perc", "num_requests_running", "num_requests_waiting")
+    latest: dict[str, dict[str, Any]] = {}
+    maxima: dict[str, float] = {}
+
+    def _ingest(rep: Mapping[str, Any], *, is_latest: bool) -> None:
+        for g in gauges:
+            v = rep.get(g)
+            if isinstance(v, (int, float)):
+                maxima[g] = max(maxima.get(g, float("-inf")), float(v))
+
+    # the doc's own cell_max may carry the older `vllm:`-prefixed keys
+    for key, val in (doc or {}).get("cell_max", {}).items():
+        if isinstance(val, (int, float)):
+            maxima[key.removeprefix("vllm:")] = max(
+                maxima.get(key.removeprefix("vllm:"), float("-inf")), float(val)
+            )
+    for rid, rep in ((doc or {}).get("replicas") or {}).items():
+        if isinstance(rep, dict):
+            latest[str(rid)] = rep
+            _ingest(rep, is_latest=True)
+    for entry in entries:                        # oldest → newest: the last write wins
+        for rid, rep in (entry.get("replicas") or {}).items():
+            if isinstance(rep, dict):
+                latest[str(rid)] = rep
+                _ingest(rep, is_latest=True)
+
+    out = dict(doc or {})
+    out["replicas"] = latest
+    out["cell_max"] = {k: round(v, 4) for k, v in maxima.items()}
+    if entries:
+        out["samples"] = int((doc or {}).get("samples") or 0) + len(entries)
+    return out
+
+
 def _engine_block(store: RunStore, replicas: int) -> dict[str, Any]:
     before = _read_json(store.dir / "vllm_metrics_before.json")
     after = _read_json(store.dir / "vllm_metrics_after.json")
@@ -193,10 +252,12 @@ def _engine_block(store: RunStore, replicas: int) -> dict[str, Any]:
         "replicas": rows,
         "scrape_errors": list(after.get("errors") or []),
         "gpu": _container_telemetry(store),
-        # Mid-run sample (scripts/sand42/midrun_kv.py). The before/after scrapes fire at
-        # the run's drained edges, where kv_cache_usage_perc is 0 by construction, so this
-        # is the only real KV/queue reading. Absent for a run nobody sampled.
-        "midrun": _read_json(store.dir / "vllm_metrics_midrun.json") or None,
+        # Mid-run sample. The before/after scrapes fire at the run's drained edges, where
+        # kv_cache_usage_perc is 0 by construction, so this is the only real KV/queue
+        # reading. Written by `scrape-metrics --label mid` (periodic from the runbook, or
+        # an ad-hoc probe), or by scripts/sand42/midrun_kv.py fold for the cell-level
+        # sampler. Same file name either way so both producers are readable here.
+        "midrun": _midrun_block(store),
     }
 
 

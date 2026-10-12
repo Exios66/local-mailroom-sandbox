@@ -1173,6 +1173,7 @@ runbooks:
     preflight_force: true
     scrape_metrics: true
     export_card: true
+    midrun_metrics: true
     extra_env:
       MODAL_VLLM_TELEMETRY_LABEL: sand42-1l4-c8
     steps:
@@ -1184,6 +1185,7 @@ runbooks:
       - deploy
       - cutover
       - health
+      - midrun_metrics
       - configs
       - teardown
       - after

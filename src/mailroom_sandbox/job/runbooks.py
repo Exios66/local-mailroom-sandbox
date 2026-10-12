@@ -388,6 +388,13 @@ def render_shell(name: str) -> str:
         out = [f"{indent}sandbox run preflight --config {cfg} --live{preflight_force}"]
         if scrape:
             out.append(f"{indent}sandbox run scrape-metrics --config {cfg} --label before")
+        if midrun and midrun_cell:
+            # Point the mid-run sampler at THIS run: `scrape-metrics --config X` writes
+            # into X's run dir, so a loop stuck on the first config would file every
+            # sample under the first run of the cell.
+            out.append(
+                f'{indent}echo {cfg} > "$HOME/.sand42-{midrun_cell}-active-cfg"'
+            )
         out.append(f"{indent}sandbox run start --config {cfg} --job-mode {job_mode} --watch{start_force}")
         if scrape:
             out.append(f"{indent}sandbox run scrape-metrics --config {cfg} --label after")
@@ -489,17 +496,28 @@ def render_shell(name: str) -> str:
                 )
             else:
                 rels = _config_paths(runbook)
+                pid_file = f"$HOME/.sand42-{midrun_cell}-midrun.pid"
                 lines += [
                     "",
-                    "# SAND-047: sample /metrics MID-RUN. The before/after scrapes fire at each",
-                    "# run's drained edges, where kv_cache_usage_perc is 0 by construction; the",
-                    "# fold before each card is what puts the real reading on it. The trap stops",
-                    "# the sampler however this script exits.",
-                    f'MIDRUN_PID="$HOME/.sand42-{midrun_cell}-midrun.pid"',
-                    f"(.venv/bin/python scripts/sand42/midrun_kv.py sample --cell {midrun_cell} "
-                    f'--config {rels[0]} >>"$HOME/sand42-{midrun_cell}-midrun.log" 2>&1 '
-                    f'& echo $! > "$MIDRUN_PID")',
-                    'trap \'kill "$(cat "$MIDRUN_PID")" 2>/dev/null || true\' EXIT',
+                    "# SAND-047: sample /metrics MID-RUN every $MIDRUN_INTERVAL seconds.",
+                    "# The before/after scrapes fire at each run's DRAINED EDGES, where",
+                    "# kv_cache_usage_perc gauges a pre-allocated cache with no live sequences",
+                    "# and therefore reads 0 by construction — a mid sample is the only source.",
+                    "# It goes through `scrape-metrics` on purpose: that also preserves the",
+                    "# VERBATIM exporter text (~120 families) at the mid point, and appends",
+                    "# every sample to vllm_metrics_mid.series.jsonl so the card reports the",
+                    "# run's MAXIMUM instead of whichever probe happened to run last.",
+                    f'MIDRUN_INTERVAL="${{MIDRUN_INTERVAL:-30}}"',
+                    f'MIDRUN_CFG_FILE="$HOME/.sand42-{midrun_cell}-active-cfg"',
+                    f"echo {rels[0]} > \"$MIDRUN_CFG_FILE\"",
+                    f'while :; do',
+                    f'  cfg="$(cat "$MIDRUN_CFG_FILE" 2>/dev/null || true)"',
+                    f'  [ -n "$cfg" ] && sandbox run scrape-metrics --config "$cfg" '
+                    f'--label mid || true',
+                    f'  sleep "$MIDRUN_INTERVAL"',
+                    f'done >>"$HOME/sand42-{midrun_cell}-midrun.log" 2>&1 &',
+                    f'MIDRUN_PID=$!',
+                    f'trap \'kill "$MIDRUN_PID" 2>/dev/null || true\' EXIT',
                 ]
         elif kind == "configs":
             rels = _config_paths(runbook)

@@ -2,6 +2,8 @@
 
 **Conditions measured:** 5 of 5 · **Documents per condition:** 250 (5 specialists × n=50, one shared subclass-stratified draw) · **Model:** Qwen/Qwen3-8B-AWQ · L4 @ $0.80/GPU-hr · **Prompts:** v1 `*_simplified` only.
 
+**Metric coverage:** verbatim /metrics 17/22 · GPU memory bandwidth 21/22 · mid-run KV/queue 2/22 · cold boot 2/5 cells. Every blank states its reason (no substitute values); the full matrix is in the master report.
+
 5 conditions — {1×L4, 2×L4} × {client concurrency 8, 16} plus the 2×L4 C32 saturation point (16 per replica, the engine's `max_num_seqs` admission ceiling) — on the SAND-037 aligned spec. Every condition scores the **identical 250 documents**, so every delta is paired.
 Design, metric contract and acceptance rules: [`docs/SAND42-EXPERIMENT-DESIGN.md`](../../docs/SAND42-EXPERIMENT-DESIGN.md).
 
@@ -128,4 +130,4 @@ Intervals are 95% percentile bootstrap over documents; a CI containing 0 is insi
 
 Per-condition detail and engine/GPU telemetry: [`SAND42-MASTER-REPORT.md`](SAND42-MASTER-REPORT.md).
 
-_Generated 2026-10-12T17:19:46+00:00 by `sandbox run card --runbook sand42`._
+_Generated 2026-10-12T17:48:57+00:00 by `sandbox run card --runbook sand42`._
