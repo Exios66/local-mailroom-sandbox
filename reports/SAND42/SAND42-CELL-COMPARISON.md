@@ -56,4 +56,12 @@ _Not measured._ Run `sand42-noise-floor` (blocked until spend is approved) on th
 ![Throughput](figures/cmp-throughput.png)
 ![Gpu](figures/cmp-gpu.png)
 
-_Generated 2026-10-12T17:19:44+00:00 by `sandbox run card --runbook sand42`._
+## Why a paired n can be below the class's document count
+
+The unit of analysis is the **per-document** score difference, so a class's paired n is the intersection of the documents both arms score. Where that is less than the 50-document draw, this is why:
+
+* `contracts_specialist` — the paired n is capped at **45 of 50** documents: its task-native metric (`cuad`) is defined only for the 45 contracts that carry ground truth for it. The remainder ran successfully (`ok` true, no error) but score no numeric value in ANY arm, so they can never enter a paired delta. The cap is a property of the ground truth, not of these runs.
+* `contracts_specialist` / `2l4-c8` — scores 44 of the 45 available documents; the shortfall is this arm's own failure (LengthFinishReasonError ×1), so its paired n against `1l4-c8` is the intersection.
+* `contracts_specialist` / `2l4-c16` — scores 44 of the 45 available documents; the shortfall is this arm's own failure (LengthFinishReasonError ×1), so its paired n against `1l4-c8` is the intersection.
+
+_Generated 2026-10-12T17:48:55+00:00 by `sandbox run card --runbook sand42`._

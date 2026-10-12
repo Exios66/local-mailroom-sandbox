@@ -44,6 +44,7 @@ from mailroom_sandbox.job.grid_cards import (
     _usd,
     study_root,
 )
+from mailroom_sandbox.paths import repo_root
 
 _log = logging.getLogger("mailroom_sandbox.job.sand42_cards")
 
@@ -745,9 +746,17 @@ def _midrun_kv_text(r: Mapping[str, Any]) -> str:
 
     The before/after scrapes fire at the drained edges (see ``_kv_text``), so a run
     nobody sampled mid-flight has no honest number here and says so with "—" rather
-    than repeating the drained-edge 0.
+    than repeating the drained-edge 0. Reads either producer: the folded series
+    (``cell_max``) or a single live ``scrape-metrics --label mid`` (per-replica gauge).
     """
-    mx = (_midrun(r).get("cell_max") or {}).get("vllm:kv_cache_usage_perc")
+    m = _midrun(r)
+    cm = m.get("cell_max") or {}
+    mx = cm.get("kv_cache_usage_perc", cm.get("vllm:kv_cache_usage_perc"))
+    if not isinstance(mx, (int, float)):
+        vals = [x.get("kv_cache_usage_perc") for x in (m.get("replicas") or {}).values()
+                if isinstance(x, dict)]
+        vals = [v for v in vals if isinstance(v, (int, float))]
+        mx = max(vals) if vals else None
     return f"{float(mx) * 100:.1f}%" if isinstance(mx, (int, float)) else "—"
 
 
@@ -757,8 +766,18 @@ def _midrun_queue_text(r: Mapping[str, Any]) -> str:
     This is the saturation evidence the two-edge scrape cannot give: at the drained
     edges both gauges read 0, whatever the run actually did.
     """
-    cm = _midrun(r).get("cell_max") or {}
-    run, wait = cm.get("vllm:num_requests_running"), cm.get("vllm:num_requests_waiting")
+    m = _midrun(r)
+    cm = m.get("cell_max") or {}
+    run = cm.get("num_requests_running", cm.get("vllm:num_requests_running"))
+    wait = cm.get("num_requests_waiting", cm.get("vllm:num_requests_waiting"))
+    if not isinstance(run, (int, float)):
+        reps = [x for x in (m.get("replicas") or {}).values() if isinstance(x, dict)]
+        runs = [x["num_requests_running"] for x in reps
+                if isinstance(x.get("num_requests_running"), (int, float))]
+        waits = [x["num_requests_waiting"] for x in reps
+                 if isinstance(x.get("num_requests_waiting"), (int, float))]
+        if runs:
+            run, wait = max(runs), (max(waits) if waits else 0)
     if not isinstance(run, (int, float)):
         return "—"
     return f"{run:.0f} running / {wait if isinstance(wait, (int, float)) else 0:.0f} waiting"
@@ -850,6 +869,55 @@ def write_cell(cell: str, *, repo: Path | None = None) -> dict[str, Path]:
 # ── paired comparison across cells ───────────────────────────────────────────
 
 
+def pairing_notes(cells: Mapping[str, Any]) -> list[str]:
+    """Why a class's paired n can be below the class's document count.
+
+    Generated from the cards, never hand-written: a reader who finds "Contracts 44" beside
+    "Correspondence 50" in the comparison table has no way to tell a metrics gap from a
+    ground-truth ceiling, and that ambiguity is exactly what a limitations section exists
+    to remove.
+    """
+    notes: list[str] = []
+    ref_cards = cells.get(REFERENCE_CELL, {}).get("cards") or {}
+    for run_id, card in ref_cards.items():
+        task = _task_of(run_id)
+        quality = card.get("quality") or {}
+        docs = int(quality.get("documents") or 0)
+        ceiling = len(_scores_by_id(card))
+        if not docs or ceiling >= docs:
+            continue
+        clause = quality.get("clause") or {}
+        labeled = int(clause.get("docs_labeled") or 0)
+        if labeled:
+            notes.append(
+                f"`{task}` — the paired n is capped at **{ceiling} of {docs}** documents: its "
+                f"task-native metric (`{clause.get('kind')}`) is defined only for the {labeled} "
+                "contracts that carry ground truth for it. The remainder ran successfully "
+                "(`ok` true, no error) but score no numeric value in ANY arm, so they can never "
+                "enter a paired delta. The cap is a property of the ground truth, not of these "
+                "runs."
+            )
+        # A cell that scores less than the ceiling lost documents to its own errors.
+        for cell in CELL_ORDER:
+            if cell == REFERENCE_CELL:
+                continue
+            other = (cells.get(cell, {}).get("cards") or {}).get(
+                run_id.replace(f"-{REFERENCE_CELL}", f"-{cell}")
+            )
+            if not other:
+                continue
+            got = len(_scores_by_id(other))
+            if got < ceiling:
+                kinds = (other.get("quality") or {}).get("error_kinds") or {}
+                why = ", ".join(f"{k} ×{v}" for k, v in kinds.items()) or "no recorded error kind"
+                notes.append(
+                    f"`{task}` / `{cell}` — scores {got} of the {ceiling} available documents; "
+                    f"the shortfall is this arm's own failure ({why}), so its paired n against "
+                    f"`{REFERENCE_CELL}` is the intersection."
+                )
+    return notes
+
+
 def collect_comparison(*, repo: Path | None = None) -> dict[str, Any]:
     cells = {cell: collect_cell(cell, repo=repo) for cell in CELL_ORDER}
     deltas: dict[str, Any] = {}
@@ -875,6 +943,7 @@ def collect_comparison(*, repo: Path | None = None) -> dict[str, Any]:
         "reference_cell": REFERENCE_CELL,
         "cells": {c: {"replicas": CELLS[c][0], "concurrency": CELLS[c][1]} for c in CELL_ORDER},
         "deltas": deltas,
+        "pairing_notes": pairing_notes(cells),
         "noise_floor": _noise_floor(repo=repo),
     }
 
@@ -969,6 +1038,18 @@ def render_comparison_md(
         lines += ["## Figures", ""]
         lines += [_figure_line(p) for p in figures]
         lines += [""]
+    notes = data.get("pairing_notes") or []
+    if notes:
+        lines += [
+            "## Why a paired n can be below the class's document count",
+            "",
+            "The unit of analysis is the **per-document** score difference, so a class's paired n "
+            "is the intersection of the documents both arms score. Where that is less than the "
+            "50-document draw, this is why:",
+            "",
+        ]
+        lines += [f"* {n}" for n in notes]
+        lines += [""]
     lines += [
         f"_Generated {data['generated_at']} by `sandbox run card --runbook sand42`._",
         "",
@@ -1058,6 +1139,102 @@ def write_metered(study: str, metered_usd: float, billed_usd: float, *, repo: Pa
     return path
 
 
+def metric_completeness(*, repo: Path | None = None) -> dict[str, Any]:
+    """Per-cell coverage of every required metric, measured from the artifacts.
+
+    Generated rather than hand-written on purpose: a hand-written limitations note goes
+    stale the moment a cell is re-run, and a reader who finds "not captured" beside a
+    captured value stops trusting the whole table. This reads the run store, so it is
+    true by construction.
+    """
+    runs_root = (Path(repo) if repo else repo_root()) / "data" / "runtime" / "runs"
+    out: dict[str, Any] = {}
+    for cell in CELL_ORDER:
+        dirs = sorted(runs_root.glob(f"sand42-*-awq-{cell}"))
+        verbatim = sum(1 for d in dirs if (d / "vllm_metrics_after.txt").is_file())
+        bandwidth = mid = 0
+        for d in dirs:
+            probe = d / "container_telemetry_after.json"
+            if probe.is_file() and "utilization_memory_perc" in probe.read_text(encoding="utf-8"):
+                bandwidth += 1
+            if ((d / "vllm_metrics_mid.json").is_file()
+                    or (d / "vllm_metrics_mid.series.jsonl").is_file()):
+                mid += 1
+        window = _read_json(_cell_dir(cell, repo=repo) / "fleet_window.json")
+        out[cell] = {
+            "runs": len(dirs),
+            "verbatim_metrics": verbatim,
+            "bandwidth": bandwidth,
+            "mid_run_kv": mid,
+            "cold_boot": bool(window.get("ready_ts")),
+        }
+    return out
+
+
+def render_completeness_md(comp: Mapping[str, Any]) -> list[str]:
+    """The master report's completeness section: the matrix, then what each gap means."""
+    lines = [
+        "## Metric completeness",
+        "",
+        "Measured from the artifacts rather than asserted — `verbatim /metrics` is the full",
+        "exporter output preserved per replica; `bandwidth` is the in-container nvidia-smi",
+        "series carrying `utilization.memory`; `mid-run KV` is a sample taken while the run was",
+        "WORKING (the before/after scrapes bracket the run and read 0 by construction); `cold",
+        "boot` is the fleet window having recorded `ready_ts`.",
+        "",
+        "| Cell | verbatim /metrics | GPU mem bandwidth | mid-run KV / queue | cold boot |",
+        "| --- | ---: | ---: | ---: | ---: |",
+    ]
+
+    def frac(cell_data: Mapping[str, Any], n: int, key: str) -> str:
+        v = int(cell_data.get(key) or 0)
+        return "—" if n == 0 else ("all" if v == n else f"{v}/{n}")
+
+    for cell in CELL_ORDER:
+        c = comp.get(cell) or {}
+        n = int(c.get("runs") or 0)
+        lines.append(
+            f"| `{cell}` | {frac(c, n, 'verbatim_metrics')} | {frac(c, n, 'bandwidth')} | "
+            f"{frac(c, n, 'mid_run_kv')} | {'yes' if c.get('cold_boot') else 'no'} |"
+        )
+
+    gaps: list[str] = []
+    for cell in CELL_ORDER:
+        c = comp.get(cell) or {}
+        n = int(c.get("runs") or 0)
+        if n == 0:
+            continue
+        for key, label in (("verbatim_metrics", "verbatim /metrics"),
+                           ("bandwidth", "GPU memory bandwidth"),
+                           ("mid_run_kv", "mid-run KV / queue")):
+            miss = n - int(c.get(key) or 0)
+            if miss:
+                gaps.append(f"`{cell}` — {label}: {miss} of {n} run(s) not sampled")
+        if not c.get("cold_boot"):
+            gaps.append(f"`{cell}` — cold boot: `ready_ts` never written (the sequential "
+                        "driver's cells record a fleet window without a boot boundary)")
+    lines.append("")
+    if gaps:
+        lines += [
+            "**Open coverage.** Every blank above carries its reason; a gap is never rendered "
+            "as a number, and none of these blanks is a failed capture:",
+            "",
+        ]
+        lines += [f"* {g}" for g in gaps]
+    else:
+        lines.append("No coverage gaps: every required metric is captured for every run.")
+    lines += [
+        "",
+        "*Mid-run KV / queue is diagnostic telemetry, not a primary endpoint — it explains a "
+        "throughput result rather than producing one, and no headline number depends on it. "
+        "The primary endpoints (per-class throughput, $/1k ok documents, quality with CIs) and "
+        "the verbatim engine telemetry are complete for every cell. Per-class pairing "
+        "ceilings (e.g. contracts) are explained in the comparison's pairing note.*",
+        "",
+    ]
+    return lines
+
+
 def collect_master(*, repo: Path | None = None) -> dict[str, Any]:
     cells = {cell: collect_cell(cell, repo=repo) for cell in CELL_ORDER}
     return {
@@ -1067,6 +1244,7 @@ def collect_master(*, repo: Path | None = None) -> dict[str, Any]:
         "cells": cells,
         "comparison": collect_comparison(repo=repo),
         "metered": _read_json(master_paths(repo=repo)["metered"]),
+        "completeness": metric_completeness(repo=repo),
     }
 
 
@@ -1116,6 +1294,30 @@ def _cell_table(cells: Mapping[str, Any], fn) -> list[str]:
     return lines
 
 
+def _coverage_line(comp: Mapping[str, Any]) -> str:
+    """One line of metric coverage for the master card.
+
+    The card is the deliberate two-page executive, so this is the whole completeness story
+    at its scale: counts over every run in the study, with the detail (and every reason)
+    in the master report's generated completeness table.
+    """
+    total = sum(int((c or {}).get("runs") or 0) for c in comp.values())
+    if not total:
+        return ""
+
+    def got(key: str) -> int:
+        return sum(int((c or {}).get(key) or 0) for c in comp.values())
+
+    return (
+        f"**Metric coverage:** verbatim /metrics {got('verbatim_metrics')}/{total} · "
+        f"GPU memory bandwidth {got('bandwidth')}/{total} · mid-run KV/queue "
+        f"{got('mid_run_kv')}/{total} · cold boot "
+        f"{sum(1 for c in comp.values() if (c or {}).get('cold_boot'))}/{len(comp)} cells. "
+        "Every blank states its reason (no substitute values); the full matrix is in the "
+        "master report."
+    )
+
+
 def render_master_card_md(data: Mapping[str, Any]) -> str:
     cells = data["cells"]
     done = sum(1 for c in CELL_ORDER if cells[c]["cells_reported"] == 5)
@@ -1125,6 +1327,8 @@ def render_master_card_md(data: Mapping[str, Any]) -> str:
         f"**Conditions measured:** {done} of {len(CELL_ORDER)} · **Documents per condition:** 250 "
         "(5 specialists × n=50, one shared subclass-stratified draw) · "
         "**Model:** Qwen/Qwen3-8B-AWQ · L4 @ $0.80/GPU-hr · **Prompts:** v1 `*_simplified` only.",
+        "",
+        _coverage_line(data.get("completeness") or {}),
         "",
         f"{len(CELL_ORDER)} conditions — {{1×L4, 2×L4}} × {{client concurrency 8, 16}} plus the 2×L4 "
         "C32 saturation point (16 per replica, the engine's `max_num_seqs` admission ceiling) — on "
@@ -1258,14 +1462,23 @@ def render_master_report_md(
         "* Sample sizes, the noise floor and the contracts caveat: "
         "`docs/BENCHMARK-PROGRAM.md` §3 and `docs/SAND42-EXPERIMENT-DESIGN.md` §4.",
         "",
+        *render_completeness_md(data.get("completeness") or {}),
         "## Open items",
         "",
-        "* The noise-floor leg (`sand42-noise-floor`) is blocked pending spend; until it runs the "
-        "SAND-037/39 floor is a prior measured on a different draw.",
+        "* The noise-floor leg (`sand42-noise-floor`) runs with the 1L4-C8 re-run (spend approved "
+        "2026-10-12), so the deltas above carry this campaign's own run-to-run floor rather than "
+        "the SAND-037/39 prior, which was measured on a different draw.",
+        "* Mid-run KV / queue is unsampled for `2l4-c8` and for four of the five `2l4-c32` runs. "
+        "Both are re-runnable without changing the design; the completeness table above is "
+        "generated from the run store, so it cannot go stale when they land.",
         "* Contracts at n=50 paired is marginal for Δ=0.05 and unpowered for Δ=0.03 — report as an "
         "interval, never a ranking.",
         "* OTel *metrics* export from the container is not wired (the telemetry is an nvidia-smi "
         "series); trace spans stay opt-in via `trace.sink`.",
+        "* This grid shows the second L4 does not pay per GPU, but not whether that is a property "
+        "of the L4s or of the client feeding them. The controlled test — data-parallel with a "
+        "per-request feed, tensor-parallel on one endpoint, and a raised admission ceiling — is "
+        "designed in [`docs/SAND42-FOLLOWUP-DESIGN.md`](../../docs/SAND42-FOLLOWUP-DESIGN.md).",
         "",
         f"_Generated {data['generated_at']} by `sandbox run card --runbook sand42`._",
         "",

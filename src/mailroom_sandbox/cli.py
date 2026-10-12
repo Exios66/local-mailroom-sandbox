@@ -787,7 +787,16 @@ def _run_parser(sub, shared):
         parents=[common],
         help="sample vLLM /metrics per replica into the run dir (SAND-032)",
     )
-    scrape_p.add_argument("--label", choices=["before", "after"], required=True)
+    scrape_p.add_argument(
+        "--label",
+        choices=["before", "after", "mid"],
+        required=True,
+        help=(
+            "before|after bracket the run (they fire at its drained edges, where the KV "
+            "gauge is 0 by construction); mid is a point sample taken WHILE the run is "
+            "working — the only label that can see KV/queue pressure"
+        ),
+    )
     scrape_p.set_defaults(handler=_cmd_run_scrape_metrics)
     card_p = run_sub.add_parser(
         "card",
@@ -1916,8 +1925,11 @@ def _cmd_run_deploy_env(args) -> int:
 def _cmd_run_scrape_metrics(args) -> int:
     """SAND-032/042: per-replica vLLM /metrics snapshot + container GPU telemetry.
 
-    ``--label before`` also records the window start so the ``after`` pass can
-    slice the cell's nvidia-smi series to this run alone.
+    ``--label before`` also records the window start so the ``after``/``mid`` passes can
+    slice the cell's nvidia-smi series to this run alone. ``mid`` is the same scrape while
+    the run is in flight: the before/after pair brackets the run and therefore reads
+    ``kv_cache_usage_perc`` as 0 (a pre-allocated cache with no live sequences), so mid is
+    the only label that can see KV/queue pressure at all.
     """
     from mailroom_sandbox.job import container_telemetry
     from mailroom_sandbox.job import spec as spec_mod
@@ -1942,6 +1954,19 @@ def _cmd_run_scrape_metrics(args) -> int:
     raws = result.pop("raw", None) or {}
     target = dest / f"vllm_metrics_{args.label}.json"
     target.write_text(json.dumps(result, indent=2, sort_keys=True), encoding="utf-8")
+    if args.label == "mid":
+        # A mid sample is a POINT reading of instantaneous gauges (kv_cache_usage_perc,
+        # num_requests_running/waiting), so the run's interesting value is the maximum
+        # across the series. Append each one; the card collapses them.
+        reps = result.get("replicas") if isinstance(result.get("replicas"), dict) else {}
+        series = {
+            str(rid): {k: v for k, v in (rep if isinstance(rep, dict) else {}).items()
+                       if k in ("kv_cache_usage_perc", "num_requests_running",
+                                "num_requests_waiting", "preemptions")}
+            for rid, rep in reps.items()
+        }
+        with (dest / "vllm_metrics_mid.series.jsonl").open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps({"at": result.get("at"), "replicas": series}) + "\n")
     if raws:
         blob = "\n".join(
             f"# replica process_start_time_seconds={key}\n{text.rstrip()}\n"

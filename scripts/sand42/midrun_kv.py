@@ -19,8 +19,11 @@ source, and re-running cells to get one is not required: this samples the LIVE f
             ``data/runtime/<cell>.midrun.jsonl``. It self-terminates after 5 empty ticks.
 ``fold``    attributes every sample to the run whose beacon window
             (``~/.mailroom/jobs/<run_id>.json``: started_at..finished_at) contains it and
-            writes ``data/runtime/runs/<run_id>/vllm_metrics_midrun.json``, which the
-            cards read. Nothing is fabricated: a run with no samples gets no file.
+            writes ``data/runtime/runs/<run_id>/vllm_metrics_mid.json``, which the
+            cards read. Same artifact name/shape a live
+            ``sandbox run scrape-metrics --label mid`` writes, so either producer is
+            readable by the same code. Nothing is fabricated: a run with no samples gets
+            no file.
 """
 from __future__ import annotations
 
@@ -192,17 +195,32 @@ def fold(cell: str) -> int:
             for fam in WANT
             if any(fam in v for v in reps.values())
         }
+        # `replicas` is the LATEST sample per replica in the shape a live
+        # `sandbox run scrape-metrics --label mid` writes, so both producers of this
+        # artifact are readable by the same code; `cell_max`/`replica_sample_stats` carry
+        # the series the sampler actually has and a single probe cannot.
+        latest: dict[str, dict[str, float | None]] = {}
+        for r in sorted(mine, key=lambda x: float(x.get("t", 0))):
+            latest[str(r.get("replica"))] = {
+                "kv_cache_usage_perc": r.get("vllm:kv_cache_usage_perc"),
+                "num_requests_running": r.get("vllm:num_requests_running"),
+                "num_requests_waiting": r.get("vllm:num_requests_waiting"),
+                "preemptions": r.get("vllm:num_preemptions_total"),
+            }
         doc = {
             "schema": "sandbox.midrun-kv/v1",
             "run_id": run_id,
-            "source": ("mid-run /metrics probe (root endpoint, unauthenticated); the "
+            "at": max(float(r.get("t", 0)) for r in mine),
+            "coverage": f"replicas observed: {len(latest)} of {len(latest)}",
+            "source": ("mid-run /metrics sample (root endpoint, unauthenticated); the "
                        "before/after scrapes fire at the run's drained edges and read 0"),
             "window": {"start": lo, "end": hi},
             "samples": len(mine),
-            "replicas": reps,
+            "replicas": latest,
             "cell_max": cell_max,
+            "replica_sample_stats": reps,
         }
-        (run_dir / "vllm_metrics_midrun.json").write_text(
+        (run_dir / "vllm_metrics_mid.json").write_text(
             json.dumps(doc, indent=2, sort_keys=True), encoding="utf-8")
         written += 1
         print(f"  {run_id}: {len(mine)} samples, {len(reps)} replicas, "

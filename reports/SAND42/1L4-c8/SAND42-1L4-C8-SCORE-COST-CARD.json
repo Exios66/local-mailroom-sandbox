@@ -3847,19 +3847,10 @@
   "concurrency": 8,
   "concurrency_per_replica": 8.0,
   "fleet": {
-    "cold_boot_seconds": null,
-    "deploy_ts": 1791772472.57,
-    "fleet_gpu_hours": 1.689,
-    "fleet_gpu_usd": 1.3512,
-    "fleet_seconds": 6080.344,
-    "gpu": "L4",
-    "gpu_usd_per_hour": 0.8,
-    "measured": true,
-    "ready_ts": null,
-    "replicas": 1,
-    "teardown_ts": 1791778552.914
+    "measured": false,
+    "reason": "no fleet_window.json for this cell"
   },
-  "generated_at": "2026-10-12T17:19:41+00:00",
+  "generated_at": "2026-10-12T17:48:52+00:00",
   "kind": "cell",
   "replicas": 1,
   "runbook": "sand42-1l4-c8",

@@ -88,16 +88,28 @@ modal deploy deploy/modal_vllm.py --strategy recreate
 sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
 
-# SAND-047: sample /metrics MID-RUN. The before/after scrapes fire at each
-# run's drained edges, where kv_cache_usage_perc is 0 by construction; the
-# fold before each card is what puts the real reading on it. The trap stops
-# the sampler however this script exits.
-MIDRUN_PID="$HOME/.sand42-1l4-c8-midrun.pid"
-(.venv/bin/python scripts/sand42/midrun_kv.py sample --cell 1l4-c8 --config config/runs/sand42-noisefloor-correspondence-awq-1l4-c8.yaml >>"$HOME/sand42-1l4-c8-midrun.log" 2>&1 & echo $! > "$MIDRUN_PID")
-trap 'kill "$(cat "$MIDRUN_PID")" 2>/dev/null || true' EXIT
+# SAND-047: sample /metrics MID-RUN every $MIDRUN_INTERVAL seconds.
+# The before/after scrapes fire at each run's DRAINED EDGES, where
+# kv_cache_usage_perc gauges a pre-allocated cache with no live sequences
+# and therefore reads 0 by construction — a mid sample is the only source.
+# It goes through `scrape-metrics` on purpose: that also preserves the
+# VERBATIM exporter text (~120 families) at the mid point, and appends
+# every sample to vllm_metrics_mid.series.jsonl so the card reports the
+# run's MAXIMUM instead of whichever probe happened to run last.
+MIDRUN_INTERVAL="${MIDRUN_INTERVAL:-30}"
+MIDRUN_CFG_FILE="$HOME/.sand42-1l4-c8-active-cfg"
+echo config/runs/sand42-noisefloor-correspondence-awq-1l4-c8.yaml > "$MIDRUN_CFG_FILE"
+while :; do
+  cfg="$(cat "$MIDRUN_CFG_FILE" 2>/dev/null || true)"
+  [ -n "$cfg" ] && sandbox run scrape-metrics --config "$cfg" --label mid || true
+  sleep "$MIDRUN_INTERVAL"
+done >>"$HOME/sand42-1l4-c8-midrun.log" 2>&1 &
+MIDRUN_PID=$!
+trap 'kill "$MIDRUN_PID" 2>/dev/null || true' EXIT
 
 sandbox run preflight --config config/runs/sand42-noisefloor-correspondence-awq-1l4-c8.yaml --live --force
 sandbox run scrape-metrics --config config/runs/sand42-noisefloor-correspondence-awq-1l4-c8.yaml --label before
+echo config/runs/sand42-noisefloor-correspondence-awq-1l4-c8.yaml > "$HOME/.sand42-1l4-c8-active-cfg"
 sandbox run start --config config/runs/sand42-noisefloor-correspondence-awq-1l4-c8.yaml --job-mode endpoint --watch
 sandbox run scrape-metrics --config config/runs/sand42-noisefloor-correspondence-awq-1l4-c8.yaml --label after
 .venv/bin/python scripts/sand42/midrun_kv.py fold --cell 1l4-c8 >/dev/null 2>&1 || true

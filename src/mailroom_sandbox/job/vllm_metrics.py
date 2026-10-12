@@ -28,6 +28,12 @@ _KEEP = frozenset(
         "vllm:time_to_first_token_seconds_count",
         "vllm:prompt_tokens_total",
         "vllm:generation_tokens_total",
+        # Queue depth. These are GAUGES of the live scheduler state, so they are only
+        # meaningful mid-run — the before/after scrapes bracket the run and read 0 — but
+        # they are the direct evidence of whether the engine is backing up, and without
+        # them in _KEEP the mid-run series could never carry the saturation signal.
+        "vllm:num_requests_running",
+        "vllm:num_requests_waiting",
     }
 )
 
@@ -86,6 +92,9 @@ def summarize(m: dict[str, float]) -> dict[str, float | None]:
         ),
         "prompt_tokens": m.get("vllm:prompt_tokens_total"),
         "generation_tokens": m.get("vllm:generation_tokens_total"),
+        # Live gauges: 0 at the drained edges by construction, meaningful mid-run.
+        "num_requests_running": m.get("vllm:num_requests_running"),
+        "num_requests_waiting": m.get("vllm:num_requests_waiting"),
     }
 
 

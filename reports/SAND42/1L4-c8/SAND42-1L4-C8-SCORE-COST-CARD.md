@@ -61,17 +61,7 @@
 
 ## Cost (computed from the session)
 
-The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal meters the **whole window** — the cold boot and the idle between specialists included. This is computed from the session's own timestamps, not scraped from the billing CLI (whose figures are credits-based and workspace-wide).
-
-| Fleet cost | Value |
-| --- | ---: |
-| Replicas × GPU | 1 × L4 @ $0.80/GPU-hr |
-| Cold boot (deploy → ready) | not captured — ready_ts is only written by the parallel-fleet launcher |
-| Fleet window (deploy → teardown) | 6,080.3 s |
-| Fleet GPU-hours | 1.6890 |
-| **Fleet GPU $** | **$1.3512** |
-| Of which the five runs | 5,857.5 s (96.3%) |
-| Boot + idle overhead | 222.8 s |
+Fleet window not recorded (no fleet_window.json for this cell). Per-run costs still come from each run's own container-telemetry window.
 
 ## Per-run cards
 
@@ -85,4 +75,4 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-12T17:19:41+00:00 by `sandbox run card --runbook sand42-1l4-c8` from the committed per-run `*.card.json`._
+_Generated 2026-10-12T17:48:52+00:00 by `sandbox run card --runbook sand42-1l4-c8` from the committed per-run `*.card.json`._

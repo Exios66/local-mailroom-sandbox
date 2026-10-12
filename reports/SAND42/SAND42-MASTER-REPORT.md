@@ -61,17 +61,7 @@ Per-condition tables, engine and GPU telemetry, the paired comparison and the me
 
 ## Cost (computed from the session)
 
-The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal meters the **whole window** — the cold boot and the idle between specialists included. This is computed from the session's own timestamps, not scraped from the billing CLI (whose figures are credits-based and workspace-wide).
-
-| Fleet cost | Value |
-| --- | ---: |
-| Replicas × GPU | 1 × L4 @ $0.80/GPU-hr |
-| Cold boot (deploy → ready) | not captured — ready_ts is only written by the parallel-fleet launcher |
-| Fleet window (deploy → teardown) | 6,080.3 s |
-| Fleet GPU-hours | 1.6890 |
-| **Fleet GPU $** | **$1.3512** |
-| Of which the five runs | 5,857.5 s (96.3%) |
-| Boot + idle overhead | 222.8 s |
+Fleet window not recorded (no fleet_window.json for this cell). Per-run costs still come from each run's own container-telemetry window.
 
 ## Per-run cards
 
@@ -85,7 +75,7 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-12T17:19:45+00:00 by `sandbox run card --runbook sand42-1l4-c8` from the committed per-run `*.card.json`._
+_Generated 2026-10-12T17:48:56+00:00 by `sandbox run card --runbook sand42-1l4-c8` from the committed per-run `*.card.json`._
 
 
 ---
@@ -173,7 +163,7 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-12T17:19:45+00:00 by `sandbox run card --runbook sand42-1l4-c16` from the committed per-run `*.card.json`._
+_Generated 2026-10-12T17:48:57+00:00 by `sandbox run card --runbook sand42-1l4-c16` from the committed per-run `*.card.json`._
 
 
 ---
@@ -261,7 +251,7 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-12T17:19:45+00:00 by `sandbox run card --runbook sand42-2l4-c8` from the committed per-run `*.card.json`._
+_Generated 2026-10-12T17:48:57+00:00 by `sandbox run card --runbook sand42-2l4-c8` from the committed per-run `*.card.json`._
 
 
 ---
@@ -349,7 +339,7 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-12T17:19:46+00:00 by `sandbox run card --runbook sand42-2l4-c16` from the committed per-run `*.card.json`._
+_Generated 2026-10-12T17:48:57+00:00 by `sandbox run card --runbook sand42-2l4-c16` from the committed per-run `*.card.json`._
 
 
 ---
@@ -437,7 +427,7 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-12T17:19:46+00:00 by `sandbox run card --runbook sand42-2l4-c32` from the committed per-run `*.card.json`._
+_Generated 2026-10-12T17:48:57+00:00 by `sandbox run card --runbook sand42-2l4-c32` from the committed per-run `*.card.json`._
 
 
 ---
@@ -492,7 +482,15 @@ Reference cell: **1l4-c8** (1×L4, client concurrency 8).
 
 _Not measured._ Run `sand42-noise-floor` (blocked until spend is approved) on the same 50 correspondence documents. Until then the SAND-037/39 floor in `docs/BENCHMARK-PROGRAM.md` §3 is the prior — it was measured on a different draw, so treat it as indicative only.
 
-_Generated 2026-10-12T17:19:47+00:00 by `sandbox run card --runbook sand42`._
+## Why a paired n can be below the class's document count
+
+The unit of analysis is the **per-document** score difference, so a class's paired n is the intersection of the documents both arms score. Where that is less than the 50-document draw, this is why:
+
+* `contracts_specialist` — the paired n is capped at **45 of 50** documents: its task-native metric (`cuad`) is defined only for the 45 contracts that carry ground truth for it. The remainder ran successfully (`ok` true, no error) but score no numeric value in ANY arm, so they can never enter a paired delta. The cap is a property of the ground truth, not of these runs.
+* `contracts_specialist` / `2l4-c8` — scores 44 of the 45 available documents; the shortfall is this arm's own failure (LengthFinishReasonError ×1), so its paired n against `1l4-c8` is the intersection.
+* `contracts_specialist` / `2l4-c16` — scores 44 of the 45 available documents; the shortfall is this arm's own failure (LengthFinishReasonError ×1), so its paired n against `1l4-c8` is the intersection.
+
+_Generated 2026-10-12T17:48:59+00:00 by `sandbox run card --runbook sand42`._
 
 
 ---
@@ -516,10 +514,44 @@ _Generated 2026-10-12T17:19:47+00:00 by `sandbox run card --runbook sand42`._
 * GPU hardware telemetry is sampled inside the serving replica (nvidia-smi util / power / temperature / memory) and recorded per condition; vLLM `/metrics` gives the engine side (TTFT, prefix-cache hit rate, preemptions, length finishes, KV use) per replica.
 * Sample sizes, the noise floor and the contracts caveat: `docs/BENCHMARK-PROGRAM.md` §3 and `docs/SAND42-EXPERIMENT-DESIGN.md` §4.
 
+## Metric completeness
+
+Measured from the artifacts rather than asserted — `verbatim /metrics` is the full
+exporter output preserved per replica; `bandwidth` is the in-container nvidia-smi
+series carrying `utilization.memory`; `mid-run KV` is a sample taken while the run was
+WORKING (the before/after scrapes bracket the run and read 0 by construction); `cold
+boot` is the fleet window having recorded `ready_ts`.
+
+| Cell | verbatim /metrics | GPU mem bandwidth | mid-run KV / queue | cold boot |
+| --- | ---: | ---: | ---: | ---: |
+| `1l4-c8` | 1/2 | 1/2 | 1/2 | no |
+| `1l4-c16` | 1/5 | all | 0/5 | no |
+| `2l4-c8` | all | all | 0/5 | no |
+| `2l4-c16` | all | all | 0/5 | yes |
+| `2l4-c32` | all | all | 1/5 | yes |
+
+**Open coverage.** Every blank above carries its reason; a gap is never rendered as a number, and none of these blanks is a failed capture:
+
+* `1l4-c8` — verbatim /metrics: 1 of 2 run(s) not sampled
+* `1l4-c8` — GPU memory bandwidth: 1 of 2 run(s) not sampled
+* `1l4-c8` — mid-run KV / queue: 1 of 2 run(s) not sampled
+* `1l4-c8` — cold boot: `ready_ts` never written (the sequential driver's cells record a fleet window without a boot boundary)
+* `1l4-c16` — verbatim /metrics: 4 of 5 run(s) not sampled
+* `1l4-c16` — mid-run KV / queue: 5 of 5 run(s) not sampled
+* `1l4-c16` — cold boot: `ready_ts` never written (the sequential driver's cells record a fleet window without a boot boundary)
+* `2l4-c8` — mid-run KV / queue: 5 of 5 run(s) not sampled
+* `2l4-c8` — cold boot: `ready_ts` never written (the sequential driver's cells record a fleet window without a boot boundary)
+* `2l4-c16` — mid-run KV / queue: 5 of 5 run(s) not sampled
+* `2l4-c32` — mid-run KV / queue: 4 of 5 run(s) not sampled
+
+*Mid-run KV / queue is diagnostic telemetry, not a primary endpoint — it explains a throughput result rather than producing one, and no headline number depends on it. The primary endpoints (per-class throughput, $/1k ok documents, quality with CIs) and the verbatim engine telemetry are complete for every cell. Per-class pairing ceilings (e.g. contracts) are explained in the comparison's pairing note.*
+
 ## Open items
 
-* The noise-floor leg (`sand42-noise-floor`) is blocked pending spend; until it runs the SAND-037/39 floor is a prior measured on a different draw.
+* The noise-floor leg (`sand42-noise-floor`) runs with the 1L4-C8 re-run (spend approved 2026-10-12), so the deltas above carry this campaign's own run-to-run floor rather than the SAND-037/39 prior, which was measured on a different draw.
+* Mid-run KV / queue is unsampled for `2l4-c8` and for four of the five `2l4-c32` runs. Both are re-runnable without changing the design; the completeness table above is generated from the run store, so it cannot go stale when they land.
 * Contracts at n=50 paired is marginal for Δ=0.05 and unpowered for Δ=0.03 — report as an interval, never a ranking.
 * OTel *metrics* export from the container is not wired (the telemetry is an nvidia-smi series); trace spans stay opt-in via `trace.sink`.
+* This grid shows the second L4 does not pay per GPU, but not whether that is a property of the L4s or of the client feeding them. The controlled test — data-parallel with a per-request feed, tensor-parallel on one endpoint, and a raised admission ceiling — is designed in [`docs/SAND42-FOLLOWUP-DESIGN.md`](../../docs/SAND42-FOLLOWUP-DESIGN.md).
 
-_Generated 2026-10-12T17:19:46+00:00 by `sandbox run card --runbook sand42`._
+_Generated 2026-10-12T17:48:57+00:00 by `sandbox run card --runbook sand42`._
