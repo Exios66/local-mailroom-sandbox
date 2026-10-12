@@ -62,7 +62,12 @@ def test_merger_1l4_retry_decode_16384():
 
 
 def test_posture_context_fit_and_invariants():
-    from mailroom_sandbox.job.specialist_posture import GRID_RUNS, SAND032_RUNS, SAND032_SORTER_RUNS
+    from mailroom_sandbox.job.specialist_posture import (
+        GRID_RUNS,
+        SAND032_RUNS,
+        SAND032_SORTER_RUNS,
+        SAND42_RUNS,
+    )
 
     assert validate_mapping() == []
     for run_id, row in SPECIALIST_POSTURE.items():
@@ -77,9 +82,12 @@ def test_posture_context_fit_and_invariants():
             or run_id in SAND032_SORTER_RUNS
             or run_id in GRID_RUNS
             or run_id.startswith("sand40-")
+            or run_id in SAND42_RUNS
+            or run_id.startswith("sand42-")
         ):
-            # SAND-032 / grid / SAND-040 rows scale the band per replica / max_num_seqs
-            # (up to c=32 on 2×L4); validate_mapping above enforces that ceiling.
+            # SAND-032 / grid / SAND-040 / SAND-042 rows scale the band per replica /
+            # max_num_seqs (SAND-042 runs C8 and C16 on 1 and 2 GPUs); validate_mapping
+            # above enforces that ceiling, and tests/test_sand42_grid.py pins the cells.
             continue
         else:
             assert 2 <= row["concurrency"] <= 8, run_id
@@ -272,6 +280,7 @@ def test_run_yamls_match_posture(monkeypatch):
         GRID_RUNS,
         SAND032_RUNS,
         SAND032_SORTER_RUNS,
+        SAND42_RUNS,
     )
 
     for run_id, row in SPECIALIST_POSTURE.items():
@@ -279,6 +288,8 @@ def test_run_yamls_match_posture(monkeypatch):
             continue  # own gate + env-drift coverage in tests/test_sand032_configs.py
         if run_id in GRID_CELLS or run_id.startswith("sand40-"):
             continue  # SAND-037 grid and SAND-040 cells have their own engine gates
+        if run_id in SAND42_RUNS or run_id.startswith("sand42-"):
+            continue  # SAND-042 cells: tests/test_sand42_grid.py pins every one
         if run_id in GRID_RUNS and int(row.get("replicas", 1)) == 2:
             # 2×L4 grid cells pin awq + seqs16 + graphs; not the 1×L4 awq/eager pair.
             spec = load_run_spec(root / f"{run_id}.yaml")

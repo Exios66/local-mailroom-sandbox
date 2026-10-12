@@ -65,12 +65,19 @@ REQUIRED_IDS: tuple[str, ...] = (
     "sand39-1l4-n50",
     "sand40-probe",
     "sand40",
+    "sand42-1l4-c8",
+    "sand42-1l4-c16",
+    "sand42-2l4-c8",
+    "sand42-2l4-c16",
+    "sand42-smoke",
+    "sand42-noise-floor",
 )
 
 FAMILIES: tuple[tuple[str, str], ...] = (
     ("baseline", "Singular 1×L4 / 1-container Qwen3-8B"),
     ("improved", "Improved run configurations"),
     ("grid", "Qwen3-8B-AWQ specialist grid (SAND-037)"),
+    ("sand42", "SAND-042 paired concurrency × fleet grid (n=50, five specialists)"),
 )
 
 _DEPLOY_DEFAULT_RE = {
@@ -419,7 +426,10 @@ def render_shell(name: str) -> str:
         elif kind == "cutover":
             lines += [
                 "",
-                "# set VLLM_BASE_URL from deploy output + VLLM_API_KEY=$MODAL_VLLM_API_TOKEN",
+                "# VLLM_BASE_URL is the FULL base: deploy output + '/v1'",
+                "#   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1",
+                "#   (without /v1 every chat call 404s — the profile appends /chat/completions)",
+                "# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN",
                 "sandbox cutover --profile modal-vllm",
             ]
         elif kind == "health":

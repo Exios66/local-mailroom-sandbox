@@ -1,0 +1,922 @@
+"""SAND-042: per-cell scorecards and the paired cross-cell comparison.
+
+The SAND-037 suite card (``grid_cards.collect_suite``) is keyed on that grid's
+run ids, n ∈ {20, 50} and its two fleet shapes; SAND-042 has four cells with the
+same n, so it gets its own collector. Everything here reads the committed
+``*.card.json`` written by ``sandbox run card --config …`` — no live run, no
+network.
+
+What it adds over the SAND-037 card, per docs/BENCHMARK-PROGRAM.md §5.2:
+
+* **quality with an interval** — bootstrap 95% CI over the per-document scores;
+* **reliability** — ok rate with a Wilson interval, schema-valid rate,
+  length-capped share, over documents *attempted*;
+* **document goodput at the class SLO** — docs/min/GPU with p95 document latency
+  ≤ the class SLO (60 s short classes, 300 s contracts, 1800 s merger);
+* **cost per usable record** — $/1k ok documents and $/1k *schema-valid* documents;
+* **engine + GPU telemetry** — the vLLM /metrics deltas and the SAND-042
+  in-container nvidia-smi series (util / power / temperature / memory).
+
+``write_comparison`` then pairs the four cells on the shared 250 documents and
+reports each delta with a bootstrap CI and the better/worse counts — the format
+the SAND-37 master card already uses for merger †.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import random
+import statistics
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Mapping, Sequence
+
+from mailroom_sandbox.job import grid_cards
+from mailroom_sandbox.job.grid_cards import (
+    SPECIALISTS,
+    _f,
+    _read_json,
+    _usd,
+    study_root,
+)
+
+_log = logging.getLogger("mailroom_sandbox.job.sand42_cards")
+
+SCHEMA_CELL = "sandbox.sand42-cell/v1"
+STUDY = "SAND42"
+REFERENCE_CELL = "1l4-c8"
+
+# Cell id -> (replicas, client concurrency). Mirrors specialist_posture.
+CELLS: dict[str, tuple[int, int]] = {
+    "1l4-c8": (1, 8),
+    "1l4-c16": (1, 16),
+    "2l4-c8": (2, 8),
+    "2l4-c16": (2, 16),
+}
+CELL_ORDER: tuple[str, ...] = ("1l4-c8", "1l4-c16", "2l4-c8", "2l4-c16")
+# Cell stem for the suite artifact (the SAND-37 suite stems collide across cells).
+CELL_STEMS: dict[str, str] = {
+    "1l4-c8": "SAND42-1L4-C8-SCORE-COST-CARD",
+    "1l4-c16": "SAND42-1L4-C16-SCORE-COST-CARD",
+    "2l4-c8": "SAND42-2L4-C8-SCORE-COST-CARD",
+    "2l4-c16": "SAND42-2L4-C16-SCORE-COST-CARD",
+}
+# Class SLOs for document goodput (BENCHMARK-PROGRAM §5.2, set from SAND-40).
+CLASS_SLO_SECONDS: dict[str, float] = {
+    "correspondence_specialist": 60.0,
+    "insurance_claims_specialist": 60.0,
+    "corporate_records_specialist": 60.0,
+    "contracts_specialist": 300.0,
+    "merger_agreement_specialist": 1800.0,
+}
+NOISE_FLOOR_RUN = "sand42-noisefloor-correspondence-awq-1l4-c8"
+
+
+def cell_run_ids(cell: str) -> list[str]:
+    from mailroom_sandbox.job.specialist_posture import sand42_run_id
+
+    return [
+        sand42_run_id(cell, doc_class)
+        for doc_class in ("correspondence", "insurance_claim", "corporate_record",
+                          "contract", "merger_agreement")
+    ]
+
+
+def _task_of(run_id: str) -> str:
+    """``sand42-50-<slug>-specialist-awq-<cell>`` → the specialist task name."""
+    slug = run_id.split("-specialist-awq-", 1)[0].removeprefix("sand42-50-")
+    return {
+        "correspondence": "correspondence_specialist",
+        "insurance-claims": "insurance_claims_specialist",
+        "corporate-records": "corporate_records_specialist",
+        "contracts": "contracts_specialist",
+        "merger": "merger_agreement_specialist",
+    }[slug]
+
+
+def _cell_dir(cell: str, *, repo: Path | None = None) -> Path:
+    """``reports/SAND42/<1L4-c8|1L4-c16|2L4-c8|2L4-c16>/`` — one folder per condition."""
+    replicas = CELLS[cell][0]
+    return study_root("sand42-", repo=repo) / grid_cards.condition_dir(
+        f"sand42-x-{cell}", replicas
+    )
+
+
+def cell_paths(cell: str, *, repo: Path | None = None) -> dict[str, Path]:
+    base = _cell_dir(cell, repo=repo)
+    stem = CELL_STEMS[cell]
+    return {"dir": base, "md": base / f"{stem}.md", "json": base / f"{stem}.json"}
+
+
+def specialist_dir(cell: str, task: str, *, repo: Path | None = None) -> Path:
+    folder = {t: f for t, f, _ in SPECIALISTS}.get(task, task)
+    return _cell_dir(cell, repo=repo) / folder
+
+
+def comparison_paths(*, repo: Path | None = None) -> dict[str, Path]:
+    base = study_root("sand42-", repo=repo)
+    return {
+        "dir": base,
+        "md": base / "SAND42-CELL-COMPARISON.md",
+        "json": base / "SAND42-CELL-COMPARISON.json",
+    }
+
+
+def noise_floor_paths(*, repo: Path | None = None) -> dict[str, Path]:
+    base = study_root("sand42-", repo=repo)
+    return {"dir": base, "md": base / "SAND42-NOISE-FLOOR.md"}
+
+
+# ── statistics ───────────────────────────────────────────────────────────────
+
+
+def wilson(k: int, n: int, *, z: float = 1.96) -> tuple[float, float] | None:
+    """95% Wilson score interval for a pass rate (BENCHMARK-PROGRAM §5.2)."""
+    if n <= 0:
+        return None
+    p = k / n
+    denom = 1.0 + z * z / n
+    centre = (p + z * z / (2 * n)) / denom
+    half = z * ((p * (1 - p) / n + z * z / (4 * n * n)) ** 0.5) / denom
+    return (max(0.0, centre - half), min(1.0, centre + half))
+
+
+def _p95(values: Sequence[float]) -> float | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    if len(ordered) == 1:
+        return ordered[0]
+    idx = min(len(ordered) - 1, int(round(0.95 * (len(ordered) - 1))))
+    return ordered[idx]
+
+
+def bootstrap_mean_ci(
+    values: Sequence[float], *, iters: int = 4000, seed: int = 42
+) -> tuple[float, float, float] | None:
+    """(mean, lo, hi) 95% percentile bootstrap over per-document values."""
+    if not values:
+        return None
+    mean = statistics.fmean(values)
+    if len(values) == 1:
+        return (mean, mean, mean)
+    rng = random.Random(seed)
+    n = len(values)
+    draws = []
+    for _ in range(iters):
+        draws.append(statistics.fmean([values[rng.randrange(n)] for _ in range(n)]))
+    draws.sort()
+    lo = draws[int(0.025 * (iters - 1))]
+    hi = draws[int(0.975 * (iters - 1))]
+    return (mean, lo, hi)
+
+
+def paired_delta(
+    a: Mapping[str, Any], b: Mapping[str, Any], *, iters: int = 4000, seed: int = 42
+) -> dict[str, Any] | None:
+    """Paired per-document delta (b − a) with a bootstrap CI and better/worse.
+
+    Pairing is the largest variance saving (BENCHMARK-PROGRAM §3): both arms are
+    scored on the same document ids, so the difference of the per-document scores
+    is the unit of analysis.
+    """
+    a_scores = _scores_by_id(a)
+    b_scores = _scores_by_id(b)
+    shared = sorted(set(a_scores) & set(b_scores))
+    diffs = [b_scores[i] - a_scores[i] for i in shared]
+    if not diffs:
+        return None
+    ci = bootstrap_mean_ci(diffs, iters=iters, seed=seed)
+    return {
+        "paired_documents": len(diffs),
+        "delta_mean": statistics.fmean(diffs),
+        "ci_low": ci[1] if ci else None,
+        "ci_high": ci[2] if ci else None,
+        "sd_diff": statistics.stdev(diffs) if len(diffs) > 1 else None,
+        "better": sum(1 for d in diffs if d > 0),
+        "worse": sum(1 for d in diffs if d < 0),
+        "tie": sum(1 for d in diffs if d == 0),
+    }
+
+
+def paired_n_for(delta: float, sd_diff: float | None, *, power: float = 2.8) -> int | None:
+    """Paired n to detect ``delta`` at 80% power, two-sided 5%: (2.8·SD/Δ)²."""
+    if not delta or not sd_diff:
+        return None
+    return int(-(-(power * sd_diff / abs(delta)) ** 2 // 1))
+
+
+def _scores_by_id(card: Mapping[str, Any]) -> dict[str, float]:
+    out: dict[str, float] = {}
+    for doc in card.get("documents") or []:
+        item = doc.get("item_id")
+        score = doc.get("score")
+        if item is None or not isinstance(score, (int, float)):
+            continue
+        out[str(item)] = float(score)
+    return out
+
+
+# ── cell collection ──────────────────────────────────────────────────────────
+
+
+def _reliability(card: Mapping[str, Any]) -> dict[str, Any]:
+    q = card.get("quality") or {}
+    docs = int(q.get("documents") or 0)
+    ok = int(q.get("ok") or 0)
+    capped = sum(
+        1
+        for d in card.get("documents") or []
+        if "length" in str(d.get("error") or "").lower()
+    )
+    ci = wilson(ok, docs)
+    return {
+        "attempted": docs,
+        "ok": ok,
+        "ok_rate": (ok / docs) if docs else None,
+        "ok_rate_ci": ci,
+        "schema_valid_rate": q.get("schema_valid_rate"),
+        "parse_errors": q.get("parse_errors"),
+        "length_capped": capped,
+        "length_capped_share": (capped / docs) if docs else None,
+        "error_kinds": q.get("error_kinds") or {},
+    }
+
+
+def _goodput(card: Mapping[str, Any], task: str) -> dict[str, Any]:
+    """docs/min/GPU at the class SLO: throughput only counts a run that meets it."""
+    replicas = max(1, int((card.get("conditions") or {}).get("replicas") or 1))
+    wall = (card.get("time") or {}).get("wall_seconds")
+    docs = int((card.get("quality") or {}).get("documents") or 0)
+    p95 = (card.get("latency") or {}).get("p95")
+    slo = CLASS_SLO_SECONDS.get(task)
+    if not wall or not docs or p95 is None or slo is None:
+        return {"documents_per_minute_per_gpu": None, "slo_seconds": slo, "meets_slo": None}
+    dpm = docs / wall * 60.0
+    return {
+        "documents_per_minute_per_gpu": dpm / replicas,
+        "slo_seconds": slo,
+        "meets_slo": p95 <= slo,
+        "goodput_documents_per_minute_per_gpu": (dpm / replicas) if p95 <= slo else 0.0,
+    }
+
+
+def _cost_per_usable(card: Mapping[str, Any]) -> dict[str, Any]:
+    busy = (card.get("cost") or {}).get("busy_gpu_usd")
+    rel = _reliability(card)
+    ok = rel["ok"]
+    sv = rel["schema_valid_rate"]
+    attempted = rel["attempted"]
+    return {
+        "busy_gpu_usd": busy,
+        "usd_per_1k_ok": (busy / ok * 1000.0) if busy and ok else None,
+        "usd_per_1k_schema_valid": (
+            busy / (sv * attempted) * 1000.0 if busy and sv and attempted else None
+        ),
+    }
+
+
+def _gpu_block(card: Mapping[str, Any]) -> dict[str, Any]:
+    eng = card.get("engine_telemetry") or {}
+    gpu = eng.get("gpu") if isinstance(eng, dict) else None
+    return gpu if isinstance(gpu, dict) else {"captured": False}
+
+
+def _summary(run_id: str, card: Mapping[str, Any] | None, task: str) -> dict[str, Any]:
+    if not card:
+        return {"run_id": run_id, "task": task, "reported": False}
+    docs = card.get("documents") or []
+    scores = [float(d["score"]) for d in docs if isinstance(d.get("score"), (int, float))]
+    quality_ci = bootstrap_mean_ci(scores)
+    return {
+        "run_id": run_id,
+        "task": task,
+        "reported": True,
+        "quality": {
+            "mean": statistics.fmean(scores) if scores else None,
+            "ci_low": quality_ci[1] if quality_ci else None,
+            "ci_high": quality_ci[2] if quality_ci else None,
+            "sd": (card.get("quality") or {}).get("overall_sd"),
+            "scoring_method": (card.get("quality") or {}).get("scoring_method"),
+            "clause": (card.get("quality") or {}).get("clause"),
+            "scored_documents": len(scores),
+        },
+        "reliability": _reliability(card),
+        "cost": _cost_per_usable(card),
+        "goodput": _goodput(card, task),
+        "latency": card.get("latency") or {},
+        "throughput": card.get("throughput") or {},
+        "tokens": card.get("tokens") or {},
+        "time": card.get("time") or {},
+        "concurrency": card.get("concurrency") or {},
+        "engine_telemetry": card.get("engine_telemetry") or {},
+        "gpu": _gpu_block(card),
+    }
+
+
+def collect_cell(cell: str, *, repo: Path | None = None) -> dict[str, Any]:
+    replicas, concurrency = CELLS[cell]
+    rows = []
+    cards: dict[str, Any] = {}
+    for run_id in cell_run_ids(cell):
+        task = _task_of(run_id)
+        card = _read_json(
+            specialist_dir(cell, task, repo=repo) / f"{run_id}.card.json"
+        ) or None
+        if card:
+            cards[run_id] = card
+        rows.append(_summary(run_id, card, task))
+    return {
+        "schema": SCHEMA_CELL,
+        "kind": "cell",
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "cell": cell,
+        "replicas": replicas,
+        "concurrency": concurrency,
+        "concurrency_per_replica": concurrency / replicas,
+        "runbook": f"sand42-{cell}",
+        "cells_reported": sum(1 for r in rows if r["reported"]),
+        "specialists": rows,
+        "cards": cards,
+    }
+
+
+# ── rendering ────────────────────────────────────────────────────────────────
+
+
+def _pct(v: float | None, digits: int = 1) -> str:
+    return "—" if v is None else f"{100.0 * v:.{digits}f}%"
+
+
+def _ci(lo: float | None, hi: float | None, digits: int = 3) -> str:
+    if lo is None or hi is None:
+        return "—"
+    return f"[{lo:.{digits}f}, {hi:.{digits}f}]"
+
+
+def _quality_text(q: Mapping[str, Any]) -> str:
+    mean = q.get("mean")
+    if mean is None:
+        return "not captured"
+    return f"{mean:.3f} {_ci(q.get('ci_low'), q.get('ci_high'))}"
+
+
+def _reliability_text(rel: Mapping[str, Any]) -> str:
+    rate = rel.get("ok_rate")
+    ci = rel.get("ok_rate_ci")
+    if rate is None:
+        return "not captured"
+    return f"{rel['ok']}/{rel['attempted']} {_pct(rate)} {_ci(ci[0], ci[1]) if ci else ''}".strip()
+
+
+def _gpu_text(gpu: Mapping[str, Any]) -> str:
+    if not gpu.get("captured"):
+        return "not captured"
+    util = gpu.get("util_mean_perc")
+    peak = gpu.get("util_max_perc")
+    n = gpu.get("samples")
+    if util is None:
+        return f"{n} samples, no util"
+    return f"{util:.1f}% mean / {peak:.1f}% peak (n={n})"
+
+
+def render_cell_md(cell_data: Mapping[str, Any]) -> str:
+    cell = cell_data["cell"]
+    replicas = cell_data["replicas"]
+    conc = cell_data["concurrency"]
+    per = cell_data["concurrency_per_replica"]
+    rows = cell_data["specialists"]
+    cards = cell_data["cards"]
+    first = next(iter(cards.values()), None)
+    cond = (first or {}).get("conditions") or {}
+    ds = cond.get("dataset") or {}
+
+    lines = [
+        f"# SAND-042 · {replicas}× L4 · client concurrency {conc}"
+        + (f" ({per:g} per replica)" if replicas > 1 else "")
+        + " · n=50 × 5 specialists",
+        "",
+        f"**Cells reported:** {cell_data['cells_reported']} of {len(rows)} · "
+        f"**Runbook:** `{cell_data['runbook']}` · "
+        "**Model:** Qwen/Qwen3-8B-AWQ · L4 @ $0.80/GPU-hr",
+        "",
+        "## Shared conditions",
+        "",
+        "| Condition | Value |",
+        "| --- | --- |",
+        f"| Engine | {cond.get('engine', {}).get('model', '—')} · "
+        f"max_model_len {cond.get('engine', {}).get('max_model_len', '—')} · "
+        f"max_num_seqs {cond.get('engine', {}).get('max_num_seqs', '—')}/replica · "
+        f"max_inputs {cond.get('engine', {}).get('max_inputs', '—')} |",
+        f"| Fleet | {replicas} replica(s) · client concurrency {conc} ({per:g} per replica) |",
+        f"| Dataset | `{ds.get('repo', '—')}` {ds.get('config', '')} @ {str(ds.get('revision') or '—')[:8]}, "
+        f"split={ds.get('split', '—')}, seed {ds.get('seed', '—')}, one class bucket, "
+        "50 per class stratified over every subclass (min 1 per sub-type) |",
+        f"| Prompt | v1 `*_simplified` stems only |",
+        f"| Output cap | max_tokens {_f(cond.get('max_tokens'))} · temperature 0.7 contracts + merger, 0.1 elsewhere |",
+        f"| GPU telemetry | in-container nvidia-smi series, label `sand42-{cell}` |",
+        "",
+        "## Per specialist",
+        "",
+        "| Metric | Correspondence | Insurance Claims | Corporate Records | Contracts | Merger Agreements |",
+        "| --- | ---: | ---: | ---: | ---: | ---: |",
+    ]
+
+    def row(label: str, fn) -> str:
+        vals = []
+        for r in rows:
+            vals.append(fn(r) if r.get("reported") else "not run")
+        return f"| {label} | " + " | ".join(vals) + " |"
+
+    lines += [
+        row("Quality (95% CI)", lambda r: _quality_text(r["quality"])),
+        row("Scored documents", lambda r: str(r["quality"]["scored_documents"])),
+        row("Scoring method", lambda r: str(r["quality"].get("scoring_method") or "—")),
+        row("Ok rate (Wilson)", lambda r: _reliability_text(r["reliability"])),
+        row("Schema-valid rate", lambda r: _pct(r["reliability"].get("schema_valid_rate"))),
+        row("Length-capped", lambda r: str(r["reliability"].get("length_capped"))),
+        row("p50 latency (s)", lambda r: _f(r["latency"].get("p50"), 1)),
+        row("p95 latency (s)", lambda r: _f(r["latency"].get("p95"), 1)),
+        row("SLO (s) · met", lambda r: f"{_f(r['goodput'].get('slo_seconds'), 0)} · "
+            + ("yes" if r["goodput"].get("meets_slo") else "no")),
+        row("Documents/min/GPU", lambda r: _f(r["throughput"].get("documents_per_minute"), 2)),
+        row("Goodput docs/min/GPU", lambda r: _f(r["goodput"].get("goodput_documents_per_minute_per_gpu"), 2)),
+        row("Tokens/s/GPU", lambda r: _f(r["throughput"].get("tokens_per_second_per_gpu"), 1)),
+        row("Wall (s)", lambda r: _f(r["time"].get("wall_seconds"), 1)),
+        row("$ / 1k ok docs", lambda r: _usd(r["cost"].get("usd_per_1k_ok"))),
+        row("$ / 1k schema-valid", lambda r: _usd(r["cost"].get("usd_per_1k_schema_valid"))),
+        row("GPU util (mean/peak)", lambda r: _gpu_text(r["gpu"])),
+        row("GPU power (W, mean)", lambda r: _f((r["gpu"].get("power_draw_w") or {}).get("mean"), 1)),
+        row("GPU temp (C, mean)", lambda r: _f((r["gpu"].get("temperature_c") or {}).get("mean"), 1)),
+        row("KV cache use (max %)", lambda r: _f(_kv_max(r), 1)),
+        row("Preemptions", lambda r: _replica_sum_text(r, "preemptions")),
+        row("Length finishes", lambda r: _replica_sum_text(r, "length_finishes")),
+        "",
+        "## Per-run cards",
+        "",
+        "| Specialist | Run ID | Card |",
+        "| --- | --- | --- |",
+    ]
+    folder_of = {task: folder for task, folder, _ in SPECIALISTS}
+    label_of = {task: label for task, _, label in SPECIALISTS}
+    for r in rows:
+        folder = folder_of[r["task"]]
+        link = (
+            f"[{r['run_id']}.card.md]({folder}/{r['run_id']}.card.md)"
+            if r.get("reported")
+            else "not run"
+        )
+        lines.append(f"| {label_of[r['task']]} | `{r['run_id']}` | {link} |")
+    lines += [
+        "",
+        "_Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the "
+        "frozen settings), so no pooled column is reported here — compare per class._",
+        "",
+        f"_Generated {cell_data['generated_at']} by "
+        f"`sandbox run card --runbook sand42-{cell}` from the committed per-run `*.card.json`._",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def _kv_max(r: Mapping[str, Any]) -> float | None:
+    reps = (r.get("engine_telemetry") or {}).get("replicas") or []
+    vals = [x.get("kv_cache_usage_perc") for x in reps if isinstance(x, dict)]
+    vals = [v for v in vals if isinstance(v, (int, float))]
+    return max(vals) if vals else None
+
+
+def _replica_sum_text(r: Mapping[str, Any], key: str) -> str:
+    reps = (r.get("engine_telemetry") or {}).get("replicas") or []
+    vals = [x.get(key) for x in reps if isinstance(x, dict)]
+    vals = [v for v in vals if isinstance(v, (int, float))]
+    if not vals:
+        return "—"
+    return f"{sum(vals):.0f}"
+
+
+def write_cell(cell: str, *, repo: Path | None = None) -> dict[str, Path]:
+    if cell not in CELLS:
+        raise KeyError(f"unknown SAND-042 cell {cell!r} (want one of {sorted(CELLS)})")
+    data = collect_cell(cell, repo=repo)
+    paths = cell_paths(cell, repo=repo)
+    paths["dir"].mkdir(parents=True, exist_ok=True)
+    paths["json"].write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    paths["md"].write_text(render_cell_md(data), encoding="utf-8")
+    return paths
+
+
+# ── paired comparison across cells ───────────────────────────────────────────
+
+
+def collect_comparison(*, repo: Path | None = None) -> dict[str, Any]:
+    cells = {cell: collect_cell(cell, repo=repo) for cell in CELL_ORDER}
+    deltas: dict[str, Any] = {}
+    reference = cells[REFERENCE_CELL]["cards"]
+    for cell in CELL_ORDER:
+        if cell == REFERENCE_CELL:
+            continue
+        against = cells[cell]["cards"]
+        per_class = {}
+        for run_id, card in against.items():
+            ref = reference.get(run_id.replace(f"-{cell}", f"-{REFERENCE_CELL}"))
+            if ref is None:
+                continue
+            d = paired_delta(ref, card)
+            if d:
+                d["n_for_delta_0_05"] = paired_n_for(0.05, d.get("sd_diff"))
+                per_class[_task_of(run_id)] = d
+        deltas[cell] = {"vs": REFERENCE_CELL, "per_class": per_class}
+    return {
+        "schema": SCHEMA_CELL,
+        "kind": "comparison",
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "reference_cell": REFERENCE_CELL,
+        "cells": {c: {"replicas": CELLS[c][0], "concurrency": CELLS[c][1]} for c in CELL_ORDER},
+        "deltas": deltas,
+        "noise_floor": _noise_floor(repo=repo),
+    }
+
+
+def _noise_floor(*, repo: Path | None = None) -> dict[str, Any] | None:
+    twin = cell_run_ids("1l4-c8")[0]
+    base = specialist_dir("1l4-c8", "correspondence_specialist", repo=repo)
+    a = _read_json(base / f"{twin}.card.json")
+    b = _read_json(base / f"{NOISE_FLOOR_RUN}.card.json")
+    if not a or not b:
+        return None
+    d = paired_delta(a, b)
+    if not d:
+        return None
+    d["n_for_delta_0_05"] = paired_n_for(0.05, d.get("sd_diff"))
+    d["n_for_delta_0_03"] = paired_n_for(0.03, d.get("sd_diff"))
+    d["twin"] = twin
+    d["noise_floor_run"] = NOISE_FLOOR_RUN
+    return d
+
+
+def render_comparison_md(data: Mapping[str, Any]) -> str:
+    lines = [
+        "# SAND-042 · paired comparison across the four cells",
+        "",
+        "All four cells score the **identical 250 documents** (5 specialists × 50, one "
+        "subclass-stratified draw), so every cell-to-cell delta below is **paired**: the "
+        "unit of analysis is the per-document score difference. Intervals are 95% "
+        "percentile bootstrap over documents; the last column is the paired n that "
+        "Δ = 0.05 would need at 80% power.",
+        "",
+        f"Reference cell: **{data['reference_cell']}** "
+        "(1×L4, client concurrency 8).",
+        "",
+    ]
+    for cell, block in data["deltas"].items():
+        reps = data["cells"][cell]["replicas"]
+        conc = data["cells"][cell]["concurrency"]
+        per = conc / reps
+        lines += [
+            f"## {cell} ({reps}× L4 · C{conc}"
+            + (f" · {per:g}/replica" if reps > 1 else "")
+            + f") vs {block['vs']}",
+            "",
+            "| Class | Paired n | Δ mean | 95% CI | SD_diff | better / worse / tie | n for Δ=0.05 |",
+            "| --- | ---: | ---: | --- | ---: | --- | ---: |",
+        ]
+        if not block["per_class"]:
+            lines.append("| _not run yet_ | | | | | | |")
+        for task, d in sorted(block["per_class"].items()):
+            label = dict((t, l) for t, _, l in SPECIALISTS).get(task, task)
+            lines.append(
+                f"| {label} | {d['paired_documents']} | {d['delta_mean']:+.3f} | "
+                f"{_ci(d['ci_low'], d['ci_high'])} | "
+                f"{_f(d.get('sd_diff'), 3)} | "
+                f"{d['better']} / {d['worse']} / {d['tie']} | "
+                f"{d.get('n_for_delta_0_05') or '—'} |"
+            )
+        lines.append("")
+    nf = data.get("noise_floor")
+    lines += ["## Noise floor (run-to-run, same 50 documents)", ""]
+    if nf:
+        lines += [
+            f"`{nf['noise_floor_run']}` re-run against `{nf['twin']}` "
+            "(identical settings, identical documents):",
+            "",
+            "| Metric | Value |",
+            "| --- | ---: |",
+            f"| Paired documents | {nf['paired_documents']} |",
+            f"| Δ mean (should be ≈ 0) | {nf['delta_mean']:+.3f} |",
+            f"| 95% CI | {_ci(nf['ci_low'], nf['ci_high'])} |",
+            f"| SD of the difference | {_f(nf.get('sd_diff'), 3)} |",
+            f"| better / worse / tie | {nf['better']} / {nf['worse']} / {nf['tie']} |",
+            f"| Paired n for Δ=0.05 | {nf.get('n_for_delta_0_05') or '—'} |",
+            f"| Paired n for Δ=0.03 | {nf.get('n_for_delta_0_03') or '—'} |",
+            "",
+            "**Quote no delta smaller than this floor.** Any cell-to-cell interval that "
+            "contains 0 is inside the noise floor.",
+            "",
+        ]
+    else:
+        lines += [
+            "_Not measured._ Run `sand42-noise-floor` (blocked until spend is approved) on "
+            "the same 50 correspondence documents. Until then the SAND-037/39 floor in "
+            "`docs/BENCHMARK-PROGRAM.md` §3 is the prior — it was measured on a different "
+            "draw, so treat it as indicative only.",
+            "",
+        ]
+    lines += [
+        f"_Generated {data['generated_at']} by `sandbox run card --runbook sand42`._",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def write_comparison(*, repo: Path | None = None) -> dict[str, Path]:
+    data = collect_comparison(repo=repo)
+    paths = comparison_paths(repo=repo)
+    paths["dir"].mkdir(parents=True, exist_ok=True)
+    paths["json"].write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    paths["md"].write_text(render_comparison_md(data), encoding="utf-8")
+    return paths
+
+
+def write_noise_floor(*, repo: Path | None = None) -> dict[str, Path]:
+    """Standalone noise-floor memo (the comparison card embeds the same numbers)."""
+    nf = _noise_floor(repo=repo)
+    paths = noise_floor_paths(repo=repo)
+    paths["dir"].mkdir(parents=True, exist_ok=True)
+    body = [
+        "# SAND-042 · noise floor",
+        "",
+        "Run-to-run spread on **identical documents and identical settings** — the "
+        "number every SAND-042 delta must clear before it is called real.",
+        "",
+    ]
+    if nf:
+        body += [
+            f"* Twin A: `{nf['twin']}`",
+            f"* Twin B: `{nf['noise_floor_run']}`",
+            "",
+            f"* Paired documents: {nf['paired_documents']}",
+            f"* Δ mean: {nf['delta_mean']:+.3f} (95% CI {_ci(nf['ci_low'], nf['ci_high'])})",
+            f"* SD of the difference: {_f(nf.get('sd_diff'), 3)}",
+            f"* better / worse / tie: {nf['better']} / {nf['worse']} / {nf['tie']}",
+            f"* Paired n for Δ=0.05: {nf.get('n_for_delta_0_05') or '—'}",
+            f"* Paired n for Δ=0.03: {nf.get('n_for_delta_0_03') or '—'}",
+            "",
+        ]
+    else:
+        body += ["_Not measured yet — both twin cards must exist first._", ""]
+    paths["md"].write_text("\n".join(body), encoding="utf-8")
+    return paths
+
+
+def write_all(*, repo: Path | None = None) -> dict[str, Path]:
+    """Every SAND-042 report: four condition cards, comparison, noise floor, master."""
+    out: dict[str, Path] = {}
+    for cell in CELL_ORDER:
+        paths = write_cell(cell, repo=repo)
+        out[f"cell-{cell}"] = paths["md"]
+    out["comparison"] = write_comparison(repo=repo)["md"]
+    out["noise-floor"] = write_noise_floor(repo=repo)["md"]
+    master = write_master(repo=repo)
+    out["master-card"] = master["card_md"]
+    out["master-report"] = master["report_md"]
+    return out
+
+
+# ── master cost card + master full report ────────────────────────────────────
+
+
+MASTER_CARD_STEM = "SAND42-MASTER-SCORE-COST-CARD"
+MASTER_REPORT_STEM = "SAND42-MASTER-REPORT"
+
+
+def master_paths(*, repo: Path | None = None) -> dict[str, Path]:
+    base = study_root("sand42-", repo=repo)
+    return {
+        "dir": base,
+        "card_md": base / f"{MASTER_CARD_STEM}.md",
+        "card_json": base / f"{MASTER_CARD_STEM}.json",
+        "report_md": base / f"{MASTER_REPORT_STEM}.md",
+        "metered": base / "metered-costs.json",
+    }
+
+
+def write_metered(study: str, metered_usd: float, billed_usd: float, *, repo: Path | None = None) -> Path:
+    """Record a SAND-042 session's teardown spend check."""
+    path = master_paths(repo=repo)["metered"]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data = _read_json(path)
+    data[study] = {"metered_usd": round(float(metered_usd), 2), "billed_usd": round(float(billed_usd), 2)}
+    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return path
+
+
+def collect_master(*, repo: Path | None = None) -> dict[str, Any]:
+    cells = {cell: collect_cell(cell, repo=repo) for cell in CELL_ORDER}
+    return {
+        "schema": SCHEMA_CELL,
+        "kind": "master",
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "cells": cells,
+        "comparison": collect_comparison(repo=repo),
+        "metered": _read_json(master_paths(repo=repo)["metered"]),
+    }
+
+
+def _findings(cells: Mapping[str, Any]) -> list[str]:
+    out: list[str] = []
+    reported = {c: d["cells_reported"] for c, d in cells.items()}
+    if any(n == 0 for n in reported.values()):
+        out.append(
+            "Not measured yet — condition cards report "
+            + ", ".join(f"{c} {n}/5" for c, n in reported.items())
+            + ". No cross-cell claim is made until all four conditions are complete."
+        )
+        return out
+    ref = cells[REFERENCE_CELL]["specialists"]
+    for cell in CELL_ORDER:
+        if cell == REFERENCE_CELL:
+            continue
+        for r in cells[cell]["specialists"]:
+            base = next((x for x in ref if x["task"] == r["task"]), None)
+            if not base or not r.get("reported"):
+                continue
+            dpm_a = base["throughput"].get("documents_per_minute_per_gpu")
+            dpm_b = r["throughput"].get("documents_per_minute_per_gpu")
+            if dpm_a and dpm_b:
+                out.append(
+                    f"{cell} vs {REFERENCE_CELL} · {r['task']}: "
+                    f"{dpm_b / dpm_a - 1:+.0%} documents/min/GPU"
+                )
+    return out
+
+
+def _cell_table(cells: Mapping[str, Any], fn) -> list[str]:
+    header = " | ".join(
+        f"{cells[c]['replicas']}×L4 C{cells[c]['concurrency']}" for c in CELL_ORDER
+    )
+    lines = [f"| Metric | {header} |", "| --- |" + " ---: |" * len(CELL_ORDER)]
+    for task, _folder, label in SPECIALISTS:
+        vals = []
+        for cell in CELL_ORDER:
+            row = next((r for r in cells[cell]["specialists"] if r["task"] == task), None)
+            vals.append(fn(row) if row and row.get("reported") else "not run")
+        lines.append(f"| {label} | " + " | ".join(vals) + " |")
+    return lines
+
+
+def render_master_card_md(data: Mapping[str, Any]) -> str:
+    cells = data["cells"]
+    done = sum(1 for c in CELL_ORDER if cells[c]["cells_reported"] == 5)
+    lines = [
+        "# SAND-042 master score & cost card — paired concurrency × fleet grid",
+        "",
+        f"**Conditions measured:** {done} of 4 · **Documents per condition:** 250 "
+        "(5 specialists × n=50, one shared subclass-stratified draw) · "
+        "**Model:** Qwen/Qwen3-8B-AWQ · L4 @ $0.80/GPU-hr · **Prompts:** v1 `*_simplified` only.",
+        "",
+        "Four conditions — {1×L4, 2×L4} × {client concurrency 8, 16} — on the SAND-037 aligned "
+        "spec. Every condition scores the **identical 250 documents**, so every delta is paired.",
+        "Design, metric contract and acceptance rules: "
+        "[`docs/SAND42-EXPERIMENT-DESIGN.md`](../../docs/SAND42-EXPERIMENT-DESIGN.md).",
+        "",
+        "## Conditions",
+        "",
+        "| Condition | Runbook | GPUs | Client concurrency | Per replica | min=max |",
+        "| --- | --- | ---: | ---: | ---: | --- |",
+    ]
+    for cell in CELL_ORDER:
+        c = cells[cell]
+        per = c["concurrency"] / c["replicas"]
+        lines.append(
+            f"| `{cell}` | `sandbox runbook show sand42-{cell}` | {c['replicas']} | "
+            f"{c['concurrency']} | {per:g} | {c['replicas']} |"
+        )
+    lines += [
+        "",
+        "**Matched per-replica-load pair:** `1l4-c8` vs `2l4-c16` (8 per replica each) isolates "
+        "replica count. `1l4-c8` vs `1l4-c16` isolates concurrency at fixed GPUs. The 2×L4 cells "
+        "are *not* a load twin of the 1×L4 cells.",
+        "",
+        "## Quality (mean field score; contracts CUAD presence F1, merger MAUD accuracy)",
+        "",
+        *_cell_table(cells, lambda r: f"{r['quality']['mean']:.3f}"),
+        "",
+        "## Serving efficiency (per condition, per specialist)",
+        "",
+        "| Metric | " + " | ".join(
+            f"{cells[c]['replicas']}×L4 C{cells[c]['concurrency']}" for c in CELL_ORDER
+        ) + " |",
+        "| --- |" + " ---: |" * len(CELL_ORDER),
+    ]
+    for task, _folder, label in SPECIALISTS:
+        for metric, fn in (
+            ("documents/min/GPU", lambda r: _f(r["throughput"].get("documents_per_minute_per_gpu"), 2)),
+            ("goodput docs/min/GPU", lambda r: _f(r["goodput"].get("goodput_documents_per_minute_per_gpu"), 2)),
+            ("tokens/s/GPU", lambda r: _f(r["throughput"].get("tokens_per_second_per_gpu"), 0)),
+            ("GPU util % (mean)", lambda r: _f(r["gpu"].get("util_mean_perc"), 1)),
+            ("$/1k ok", lambda r: _usd(r["cost"].get("usd_per_1k_ok"))),
+            ("$/1k schema-valid", lambda r: _usd(r["cost"].get("usd_per_1k_schema_valid"))),
+        ):
+            vals = []
+            for cell in CELL_ORDER:
+                row = next((r for r in cells[cell]["specialists"] if r["task"] == task), None)
+                vals.append(fn(row) if row and row.get("reported") else "not run")
+            lines.append(f"| {label} · {metric} | " + " | ".join(vals) + " |")
+    lines += [
+        "",
+        "## Paired deltas vs `1l4-c8`",
+        "",
+        "Intervals are 95% percentile bootstrap over documents; a CI containing 0 is inside the "
+        "noise floor. Full table: [`SAND42-CELL-COMPARISON.md`](SAND42-CELL-COMPARISON.md).",
+        "",
+    ]
+    any_delta = False
+    for cell, block in data["comparison"]["deltas"].items():
+        for task, d in sorted(block["per_class"].items()):
+            any_delta = True
+            lines.append(
+                f"* `{cell}` vs `{block['vs']}` · {task}: Δ {d['delta_mean']:+.3f} "
+                f"({_ci(d['ci_low'], d['ci_high'])}, n={d['paired_documents']}, "
+                f"{d['better']}/{d['worse']} better/worse)"
+            )
+    if not any_delta:
+        lines.append("*_Not measured yet._*")
+    lines += ["", "## Findings", ""]
+    lines += [f"* {f}" for f in _findings(cells)]
+    lines += ["", "## Cost", ""]
+    metered = data.get("metered") or {}
+    if metered:
+        lines += ["| Session | Metered USD | Billed USD |", "| --- | ---: | ---: |"]
+        for study, row in sorted(metered.items()):
+            lines.append(f"| {study} | {row.get('metered_usd')} | {row.get('billed_usd')} |")
+    else:
+        lines.append("_No teardown spend recorded yet_ "
+                     "(`sandbox run card --record-metered SAND-42 <metered> <billed>`).")
+    lines += [
+        "",
+        "Per-condition detail and engine/GPU telemetry: "
+        f"[`{MASTER_REPORT_STEM}.md`]({MASTER_REPORT_STEM}.md).",
+        "",
+        f"_Generated {data['generated_at']} by `sandbox run card --runbook sand42`._",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def render_master_report_md(data: Mapping[str, Any]) -> str:
+    cells = data["cells"]
+    lines = [
+        "# SAND-042 master report — full detail",
+        "",
+        "Per-condition tables, engine and GPU telemetry, the paired comparison and the method. "
+        "Executive summary: "
+        f"[`{MASTER_CARD_STEM}.md`]({MASTER_CARD_STEM}.md).",
+        "",
+    ]
+    for cell in CELL_ORDER:
+        lines += [render_cell_md(cells[cell]), "", "---", ""]
+    lines += [render_comparison_md(data["comparison"]), "", "---", ""]
+    lines += [
+        "## Method",
+        "",
+        "* Engine, prompts, decode, dataset pin and draw are identical across the four conditions; "
+        "only the replica count and the client concurrency differ (asserted in "
+        "`tests/test_sand42_grid.py`).",
+        "* Client concurrency is split equally across replicas: 2×L4 C8 → 4 per replica, "
+        "2×L4 C16 → 8 per replica.",
+        "* One warm fleet per condition (`min_containers = max_containers = replicas`), five "
+        "specialists chained, teardown after the fifth: one cold boot per condition.",
+        "* Quality intervals are percentile bootstraps over per-document scores; deltas are paired "
+        "on the shared 250 documents; ok rates use a Wilson interval.",
+        "* GPU hardware telemetry is sampled inside the serving replica (nvidia-smi util / power / "
+        "temperature / memory) and recorded per condition; vLLM `/metrics` gives the engine side "
+        "(TTFT, prefix-cache hit rate, preemptions, length finishes, KV use) per replica.",
+        "* Sample sizes, the noise floor and the contracts caveat: "
+        "`docs/BENCHMARK-PROGRAM.md` §3 and `docs/SAND42-EXPERIMENT-DESIGN.md` §4.",
+        "",
+        "## Open items",
+        "",
+        "* The noise-floor leg (`sand42-noise-floor`) is blocked pending spend; until it runs the "
+        "SAND-037/39 floor is a prior measured on a different draw.",
+        "* Contracts at n=50 paired is marginal for Δ=0.05 and unpowered for Δ=0.03 — report as an "
+        "interval, never a ranking.",
+        "* OTel *metrics* export from the container is not wired (the telemetry is an nvidia-smi "
+        "series); trace spans stay opt-in via `trace.sink`.",
+        "",
+        f"_Generated {data['generated_at']} by `sandbox run card --runbook sand42`._",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def write_master(*, repo: Path | None = None) -> dict[str, Path]:
+    data = collect_master(repo=repo)
+    paths = master_paths(repo=repo)
+    paths["dir"].mkdir(parents=True, exist_ok=True)
+    paths["card_json"].write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    paths["card_md"].write_text(render_master_card_md(data), encoding="utf-8")
+    paths["report_md"].write_text(render_master_report_md(data), encoding="utf-8")
+    return paths
+

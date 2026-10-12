@@ -1,0 +1,39 @@
+{
+  "cards": {},
+  "cell": "1l4-c8",
+  "cells_reported": 0,
+  "concurrency": 8,
+  "concurrency_per_replica": 8.0,
+  "generated_at": "2026-10-12T00:11:20+00:00",
+  "kind": "cell",
+  "replicas": 1,
+  "runbook": "sand42-1l4-c8",
+  "schema": "sandbox.sand42-cell/v1",
+  "specialists": [
+    {
+      "reported": false,
+      "run_id": "sand42-50-correspondence-specialist-awq-1l4-c8",
+      "task": "correspondence_specialist"
+    },
+    {
+      "reported": false,
+      "run_id": "sand42-50-insurance-claims-specialist-awq-1l4-c8",
+      "task": "insurance_claims_specialist"
+    },
+    {
+      "reported": false,
+      "run_id": "sand42-50-corporate-records-specialist-awq-1l4-c8",
+      "task": "corporate_records_specialist"
+    },
+    {
+      "reported": false,
+      "run_id": "sand42-50-contracts-specialist-awq-1l4-c8",
+      "task": "contracts_specialist"
+    },
+    {
+      "reported": false,
+      "run_id": "sand42-50-merger-specialist-awq-1l4-c8",
+      "task": "merger_agreement_specialist"
+    }
+  ]
+}

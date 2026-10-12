@@ -7,6 +7,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from mailroom_sandbox.overlay import list_profiles, load_profile
@@ -791,13 +792,30 @@ def _run_parser(sub, shared):
     card_p = run_sub.add_parser(
         "card",
         parents=[common],
-        help="SAND-037 score & cost card: --config (one run) or --runbook grid-1l4|grid-2l4 (suite)",
+        help=(
+            "score & cost card: --config (one run) or --runbook "
+            "grid-1l4|grid-2l4|sand42-<cell>|sand42|sand42-noise-floor"
+        ),
     )
     card_p.add_argument(
         "--runbook",
         default=None,
-        choices=["grid-1l4", "grid-2l4"],
-        help="write the finalized L4x1 / L4x2 suite card from the per-run cards",
+        choices=[
+            "grid-1l4",
+            "grid-2l4",
+            "sand42-1l4-c8",
+            "sand42-1l4-c16",
+            "sand42-2l4-c8",
+            "sand42-2l4-c16",
+            "sand42",
+            "sand42-noise-floor",
+        ],
+        help=(
+            "grid-1l4|grid-2l4: the finalized L4x1 / L4x2 suite card. "
+            "sand42-<cell>: one SAND-042 condition card. "
+            "sand42: all four conditions + comparison + master cost card + master report. "
+            "sand42-noise-floor: the noise-floor memo."
+        ),
     )
     card_p.add_argument(
         "--master",
@@ -1895,27 +1913,75 @@ def _cmd_run_deploy_env(args) -> int:
 
 
 def _cmd_run_scrape_metrics(args) -> int:
-    """SAND-032: per-replica vLLM /metrics snapshot (measured TTFT, KV, preemptions)."""
+    """SAND-032/042: per-replica vLLM /metrics snapshot + container GPU telemetry.
+
+    ``--label before`` also records the window start so the ``after`` pass can
+    slice the cell's nvidia-smi series to this run alone.
+    """
+    from mailroom_sandbox.job import container_telemetry
     from mailroom_sandbox.job import spec as spec_mod
     from mailroom_sandbox.job import vllm_metrics
+    from mailroom_sandbox.job.specialist_posture import sand42_cell_label
 
     if not getattr(args, "config", None):
         print("ERROR: --config required", file=sys.stderr)
         return 2
     spec = spec_mod.load_run_spec(args.config)
+    run_id = spec_mod.resolve_run_id(spec)
+    dest = spec_mod.runs_root() / run_id
     expected = spec.engine.modal.max_containers if spec.engine.modal else 1
     result = vllm_metrics.scrape(
         spec_mod.engine_base_url(spec),
         os.environ.get("VLLM_API_KEY", "").strip(),
         expected=expected,
     )
-    dest = spec_mod.runs_root() / spec_mod.resolve_run_id(spec) / f"vllm_metrics_{args.label}.json"
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_text(json.dumps(result, indent=2, sort_keys=True), encoding="utf-8")
-    print(f"{result['coverage']} → {dest}")
+    dest.mkdir(parents=True, exist_ok=True)
+    target = dest / f"vllm_metrics_{args.label}.json"
+    target.write_text(json.dumps(result, indent=2, sort_keys=True), encoding="utf-8")
+    print(f"{result['coverage']} → {target}")
     for err in result.get("errors") or []:
         print(f"WARN: scrape error: {err}", file=sys.stderr)
+
+    _capture_container_telemetry(
+        container_telemetry, dest, label=args.label, cell=sand42_cell_label(run_id)
+    )
     return 0
+
+
+def _capture_container_telemetry(module, dest: Path, *, label: str, cell: str) -> None:
+    """SAND-042: mark the window on ``before``; pull and slice the series on ``after``."""
+    if not cell:
+        return  # not a SAND-042 run: no container series to claim
+    if label == "before":
+        (dest / "container_telemetry_window.json").write_text(
+            json.dumps({"cell": cell, "start": time.time()}, indent=2), encoding="utf-8"
+        )
+        return
+    window = {}
+    window_path = dest / "container_telemetry_window.json"
+    if window_path.is_file():
+        try:
+            window = json.loads(window_path.read_text(encoding="utf-8"))
+        except ValueError:
+            window = {}
+    doc = module.pull(cell, start=window.get("start"), end=time.time())
+    out = dest / f"container_telemetry_{label}.json"
+    out.write_text(json.dumps(doc, indent=2, sort_keys=True), encoding="utf-8")
+    summary = module.summarize_samples(doc)
+    if summary.get("captured"):
+        util = summary.get("util_mean_perc")
+        print(
+            f"gpu telemetry ({cell}): {summary['samples']} samples, "
+            f"util mean {util:.1f}% max {summary['util_max_perc']:.1f}% → {out}"
+            if util is not None
+            else f"gpu telemetry ({cell}): {summary['samples']} samples → {out}"
+        )
+    else:
+        print(
+            f"WARN: gpu telemetry not captured for {cell}: {summary.get('reason')}",
+            file=sys.stderr,
+        )
+
 
 
 def _cmd_run_card(args) -> int:
@@ -1923,10 +1989,15 @@ def _cmd_run_card(args) -> int:
     from mailroom_sandbox.job import grid_cards
 
     if getattr(args, "record_metered", None):
-        from mailroom_sandbox.job.grid_master import record_metered
-
         study, metered, billed = args.record_metered
-        print(f"metered spend → {record_metered(study, float(metered), float(billed))}")
+        if study.replace("-", "").upper().startswith("SAND42"):
+            from mailroom_sandbox.job import sand42_cards
+
+            print(f"metered spend → {sand42_cards.write_metered(study, float(metered), float(billed))}")
+        else:
+            from mailroom_sandbox.job.grid_master import record_metered
+
+            print(f"metered spend → {record_metered(study, float(metered), float(billed))}")
         if not getattr(args, "master", False):
             return 0
     if getattr(args, "master", False):
@@ -1944,7 +2015,28 @@ def _cmd_run_card(args) -> int:
             print("reader PDF skipped: Chrome not found (set SANDBOX_CHROME); READER-REPORT.pdf is now stale")
         return 0
     if getattr(args, "runbook", None):
-        replicas = 1 if args.runbook == "grid-1l4" else 2
+        runbook = str(args.runbook)
+        if runbook.startswith("sand42"):
+            from mailroom_sandbox.job import sand42_cards
+
+            if runbook == "sand42":
+                for label, path in sand42_cards.write_all().items():
+                    print(f"{label} → {path}")
+                return 0
+            if runbook == "sand42-noise-floor":
+                print(f"noise floor → {sand42_cards.write_noise_floor()['md']}")
+                return 0
+            cell = runbook.removeprefix("sand42-")
+            if cell not in sand42_cards.CELLS:
+                print(
+                    f"ERROR: unknown SAND-042 cell {cell!r} "
+                    f"(want one of {sorted(sand42_cards.CELLS)}, sand42, sand42-noise-floor)",
+                    file=sys.stderr,
+                )
+                return 2
+            print(f"suite card → {sand42_cards.write_cell(cell)['md']}")
+            return 0
+        replicas = 1 if runbook == "grid-1l4" else 2
         paths = grid_cards.write_suite(replicas)
         print(f"suite card → {paths['md']}")
         return 0

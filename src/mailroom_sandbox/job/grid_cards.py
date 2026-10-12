@@ -46,6 +46,38 @@ SHAPE_DIRS: dict[int, str] = {1: "1L4", 2: "2L4"}
 SUITE_STEMS: dict[int, str] = {1: "L4x1-SCORE-COST-CARD", 2: "L4x2-SCORE-COST-CARD"}
 RUNBOOK_FOR_REPLICAS: dict[int, str] = {1: "grid-1l4", 2: "grid-2l4"}
 
+# SAND-042 writes its own study folder so the SAND-37/39/40 tree stays untouched.
+STUDY_BY_PREFIX: tuple[tuple[str, str], ...] = (("sand42-", "SAND42"),)
+
+
+def study_for_run(run_id: str | None) -> str:
+    """Report study folder for a run id (default: the SAND-37 grid tree)."""
+    rid = str(run_id or "")
+    for prefix, study in STUDY_BY_PREFIX:
+        if rid.startswith(prefix):
+            return study
+    return ROOT_REL.name
+
+
+def study_root(run_id: str | None, *, repo: Path | None = None) -> Path:
+    return (repo or repo_root()) / "reports" / study_for_run(run_id)
+
+
+def condition_dir(run_id: str | None, replicas: int) -> str:
+    """Folder for one experimental condition under a study root.
+
+    SAND-042 has four conditions — {1×L4, 2×L4} × {client concurrency 8, 16} — so
+    its folders are ``1L4-c8`` … ``2L4-c16`` rather than the SAND-037 ``1L4``/``2L4``
+    (which would merge C8 and C16 into one folder).
+    """
+    from mailroom_sandbox.job.specialist_posture import sand42_cell_label
+
+    label = sand42_cell_label(run_id)
+    if label:
+        shape, _, concurrency = label.removeprefix("sand42-").partition("-")
+        return f"{shape.upper()}-{concurrency}"
+    return SHAPE_DIRS.get(int(replicas), f"{int(replicas)}L4")
+
 # Specialist folder and display label, in grid order.
 SPECIALISTS: tuple[tuple[str, str, str], ...] = (
     ("correspondence_specialist", "correspondence", "Correspondence"),
@@ -105,11 +137,10 @@ def _probe_run(run_id: str) -> bool:
 
 def card_dir(task: str, replicas: int, *, repo: Path | None = None, run_id: str | None = None) -> Path:
     folder = _FOLDER.get(task, task)
-    root = (repo or repo_root()) / ROOT_REL
+    root = study_root(run_id, repo=repo)
     if run_id and _probe_run(run_id):
         return root / "probes" / folder
-    shape = SHAPE_DIRS.get(int(replicas), f"{int(replicas)}L4")
-    return root / shape / folder
+    return root / condition_dir(run_id, replicas) / folder
 
 
 def card_paths(run_id: str, task: str, replicas: int, *, repo: Path | None = None) -> dict[str, Path]:
@@ -160,7 +191,24 @@ def _engine_block(store: RunStore, replicas: int) -> dict[str, Any]:
         "coverage": after.get("coverage"),
         "replicas": rows,
         "scrape_errors": list(after.get("errors") or []),
+        "gpu": _container_telemetry(store),
     }
+
+
+def _container_telemetry(store: RunStore) -> dict[str, Any]:
+    """SAND-042: nvidia-smi samples taken inside the serving replica(s).
+
+    The Modal container appends one JSON line per sample to a Modal Volume; the
+    runbook's after-scrape pulls it to ``container_telemetry_after.json``. Absent
+    on every pre-SAND-042 run (and on a scrape that could not reach the volume),
+    so the block says so rather than inventing zeros.
+    """
+    from mailroom_sandbox.job.container_telemetry import summarize_samples
+
+    doc = _read_json(store.dir / "container_telemetry_after.json")
+    if not doc:
+        return {"captured": False, "reason": "no container telemetry file for this run"}
+    return summarize_samples(doc)
 
 
 # ── per-run card ─────────────────────────────────────────────────────────────
@@ -520,6 +568,43 @@ def _split_rows(split: Mapping[str, Any] | None) -> list[tuple[str, str]]:
     ]
 
 
+def _gpu_rows(gpu: Any) -> list[tuple[str, str]]:
+    """SAND-042 GPU hardware rows for the card's engine section.
+
+    Absent on every pre-SAND-042 run, so it says so rather than printing zeros —
+    the same honesty rule the engine block follows for a missing scrape.
+    """
+    g = gpu if isinstance(gpu, dict) else {}
+    if not g.get("captured"):
+        return [("**GPU hardware (nvidia-smi)**", NOT_CAPTURED)]
+
+    def stat(key: str, digits: int = 1, suffix: str = "") -> str:
+        block = g.get(key)
+        if not isinstance(block, dict) or block.get("mean") is None:
+            return NOT_CAPTURED
+        return (
+            f"{_f(block['mean'], digits, suffix)} "
+            f"(min {_f(block['min'], digits)} / max {_f(block['max'], digits)})"
+        )
+
+    util = g.get("util_mean_perc")
+    return [
+        ("**GPU hardware (nvidia-smi)**", f"{g.get('samples')} samples · {g.get('src')}"),
+        (
+            "GPU utilization",
+            (
+                f"{_f(util, 1, ' %')} mean (min {_f(g.get('util_min_perc'), 1)} / "
+                f"peak {_f(g.get('util_peak_perc'), 1)})"
+                if util is not None
+                else NOT_CAPTURED
+            ),
+        ),
+        ("GPU power draw", stat("power_draw_w", 1, " W")),
+        ("GPU temperature", stat("temperature_c", 1, " C")),
+        ("GPU memory used", stat("memory_used_mib", 0, " MiB")),
+    ]
+
+
 def _card_rows(c: Mapping[str, Any]) -> list[tuple[str, str]]:
     """(metric, value) rows in template order; section headers carry an empty value."""
     cond, t, cost, tok = c["conditions"], c["time"], c["cost"], c["tokens"]
@@ -569,6 +654,7 @@ def _card_rows(c: Mapping[str, Any]) -> list[tuple[str, str]]:
         ("Prefix-cache hit per replica", _per_replica(reps, "prefix_cache_hit_rate", _pct)),
         ("Preemptions per replica (this run)", _per_replica(reps, "preemptions", lambda v: _f(v, 0))),
         ("Length-capped finishes per replica (this run)", _per_replica(reps, "length_finishes", lambda v: _f(v, 0))),
+        *(_gpu_rows(eng.get("gpu"))),
         ("**Quality**", ""),
         ("Overall extraction score", f"{_f(q['overall_mean'], 4)} (sd {_f(q['overall_sd'], 3)})" if q["overall_mean"] is not None else NOT_CAPTURED),
         ("Score min / max", f"{_f(q['overall_min'], 4)} / {_f(q['overall_max'], 4)}"),
@@ -797,11 +883,16 @@ def maybe_write_card(store: RunStore, **kwargs: Any) -> dict[str, Path]:
         SAND40_CELLS,
         SAND40_CHECK_CELLS,
         SAND40_PROBE_CELLS,
+        SAND42_CHECK_RUNS,
+        SAND42_RUNS,
     )
 
     try:
         lock = store.read_lock() or {}
-        if str(lock.get("run_id") or store.run_id) not in (GRID_CELLS | SAND40_CELLS | SAND40_PROBE_CELLS | SAND40_CHECK_CELLS):
+        if str(lock.get("run_id") or store.run_id) not in (
+            GRID_CELLS | SAND40_CELLS | SAND40_PROBE_CELLS | SAND40_CHECK_CELLS
+            | SAND42_RUNS | SAND42_CHECK_RUNS
+        ):
             return {}
         if _d(lock.get("job")).get("mock") or not store.load_items():
             return {}

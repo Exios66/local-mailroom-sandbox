@@ -115,7 +115,10 @@ modal run deploy/modal_vllm.py::download_model
 
 modal deploy deploy/modal_vllm.py
 
-# set VLLM_BASE_URL from deploy output + VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+# VLLM_BASE_URL is the FULL base: deploy output + '/v1'
+#   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+#   (without /v1 every chat call 404s — the profile appends /chat/completions)
+# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
 sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
 
@@ -242,7 +245,10 @@ modal run deploy/modal_vllm.py::download_model
 
 modal deploy deploy/modal_vllm.py
 
-# set VLLM_BASE_URL from deploy output + VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+# VLLM_BASE_URL is the FULL base: deploy output + '/v1'
+#   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+#   (without /v1 every chat call 404s — the profile appends /chat/completions)
+# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
 sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
 
@@ -366,7 +372,10 @@ modal run deploy/modal_vllm.py::download_model
 
 modal deploy deploy/modal_vllm.py
 
-# set VLLM_BASE_URL from deploy output + VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+# VLLM_BASE_URL is the FULL base: deploy output + '/v1'
+#   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+#   (without /v1 every chat call 404s — the profile appends /chat/completions)
+# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
 sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
 
@@ -471,7 +480,10 @@ modal run deploy/modal_vllm.py::download_model
 
 modal deploy deploy/modal_vllm.py
 
-# set VLLM_BASE_URL from deploy output + VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+# VLLM_BASE_URL is the FULL base: deploy output + '/v1'
+#   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+#   (without /v1 every chat call 404s — the profile appends /chat/completions)
+# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
 sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
 

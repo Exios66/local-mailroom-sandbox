@@ -224,6 +224,8 @@ class TestDeploySurface:
         assert kwargs["volumes"] == {
             "/root/.cache/huggingface": ("volume", "sandbox-hf-cache"),
             "/root/.cache/vllm": ("volume", "sandbox-vllm-cache"),
+            # SAND-042: the container writes its own nvidia-smi series here.
+            "/telemetry": ("volume", "sandbox-vllm-telemetry"),
         }
         assert kwargs["max_containers"] == 1
         assert kwargs["min_containers"] == 0
@@ -767,3 +769,121 @@ class TestDedicatedApp:
         monkeypatch.setenv("MODAL_VLLM_APP_NAME", "mailroom-ml-trainer")
         with pytest.raises(ValueError, match="sandbox-vllm"):
             _load_app_module()
+
+
+class TestSand042Telemetry:
+    """SAND-042: the in-container nvidia-smi sampler."""
+
+    SMI = "0, NVIDIA L4, 94, 23000, 23034, 56, 71.5\n1, NVIDIA L4, 0, 120, 23034, 41, [N/A]\n"
+
+    def test_defaults_are_on_with_a_cost_guard_free_interval(self):
+        mod = _load_app_module()
+        assert mod.TELEMETRY_ENABLED is True
+        assert mod.TELEMETRY_VOLUME_NAME == "sandbox-vllm-telemetry"
+        assert mod.TELEMETRY_MOUNT == "/telemetry"
+        assert mod.TELEMETRY_LABEL == "unlabelled"
+        assert mod.TELEMETRY_INTERVAL >= 1.0
+        assert mod.TELEMETRY_COMMIT_EVERY >= 1
+        assert "utilization.gpu" in mod.TELEMETRY_QUERY
+        assert "power.draw" in mod.TELEMETRY_QUERY
+
+    def test_knobs_can_be_disabled_and_relabelled(self, monkeypatch):
+        monkeypatch.setenv("MODAL_VLLM_TELEMETRY", "0")
+        monkeypatch.setenv("MODAL_VLLM_TELEMETRY_LABEL", "sand42-1l4-c8")
+        monkeypatch.setenv("MODAL_VLLM_TELEMETRY_INTERVAL", "2")
+        mod = _load_app_module()
+        assert mod.TELEMETRY_ENABLED is False
+        assert mod.TELEMETRY_LABEL == "sand42-1l4-c8"
+        assert mod.TELEMETRY_INTERVAL == 2.0
+
+    def test_nvidia_smi_sample_parses_units_and_na(self, monkeypatch):
+        mod = _load_app_module()
+
+        class _Out:
+            stdout = TestSand042Telemetry.SMI
+
+        monkeypatch.setattr(mod.subprocess, "run", lambda *a, **k: _Out())
+        sample = mod._nvidia_smi_sample()
+        assert len(sample["gpus"]) == 2
+        assert sample["gpus"][0]["utilization_gpu_perc"] == 94.0
+        assert sample["gpus"][0]["power_draw_w"] == 71.5
+        assert sample["gpus"][1]["power_draw_w"] is None  # [N/A] is not 0
+        assert isinstance(sample["t"], float)
+
+    def test_nvidia_smi_sample_never_raises(self, monkeypatch):
+        mod = _load_app_module()
+
+        def boom(*_a, **_k):
+            raise FileNotFoundError("nvidia-smi")
+
+        monkeypatch.setattr(mod.subprocess, "run", boom)
+        sample = mod._nvidia_smi_sample()
+        assert sample["gpus"] == []
+        assert "FileNotFoundError" in sample["error"]
+
+    def test_telemetry_keys_travel_to_the_container(self):
+        """Found live: the sampler ran but wrote to `unlabelled`, because the label
+        was read in the container and never passed to it."""
+        mod = _load_app_module()
+        for key in (
+            "MODAL_VLLM_TELEMETRY",
+            "MODAL_VLLM_TELEMETRY_LABEL",
+            "MODAL_VLLM_TELEMETRY_INTERVAL",
+            "MODAL_VLLM_TELEMETRY_COMMIT_EVERY",
+            "MODAL_VLLM_TELEMETRY_VOLUME",
+        ):
+            assert key in mod.CONFIG_ENV_KEYS, key
+
+    def test_replica_key_uses_the_vllm_process_start_time(self, monkeypatch):
+        """socket.gethostname() is literally "modal" in every container — two
+        replicas would collide in one telemetry file."""
+        mod = _load_app_module()
+
+        class _Resp:
+            text = (
+                "# HELP process_start_time_seconds\n"
+                "process_start_time_seconds 1.767000123e+09\n"
+            )
+
+        monkeypatch.setattr("httpx.get", lambda *a, **k: _Resp())
+        # str(float) — the exact key vllm_metrics.group_replicas uses.
+        assert mod._telemetry_replica_key() == str(float("1.767000123e+09"))
+        assert mod._telemetry_replica_key() == "1767000123.0"
+
+    def test_replica_key_falls_back_to_a_uuid_when_the_scrape_fails(self, monkeypatch):
+        mod = _load_app_module()
+
+        def boom(*_a, **_k):
+            raise OSError("connection refused")
+
+        monkeypatch.setattr("httpx.get", boom)
+        key = mod._telemetry_replica_key()
+        assert len(key) == 12 and key.isalnum()
+
+    def test_sampler_appends_one_jsonl_line_per_interval(self, monkeypatch, tmp_path):
+        mod = _load_app_module()
+        monkeypatch.setattr(mod, "TELEMETRY_MOUNT", str(tmp_path))
+        monkeypatch.setattr(mod, "TELEMETRY_LABEL", "sand42-1l4-c8")
+        monkeypatch.setattr(mod, "TELEMETRY_INTERVAL", 1.0)
+        monkeypatch.setattr(mod, "TELEMETRY_COMMIT_EVERY", 1)
+        monkeypatch.setattr(mod, "_telemetry_replica_key", lambda: "1767000123.0")
+        monkeypatch.setattr(mod, "telemetry_cache", types.SimpleNamespace(commit=lambda: None))
+        monkeypatch.setattr(
+            mod, "_nvidia_smi_sample", lambda: {"t": 1.0, "gpus": [{"utilization_gpu_perc": 90.0}]}
+        )
+
+        mod._start_telemetry_sampler()
+        import json
+        import time
+
+        target = tmp_path / "sand42-1l4-c8"
+        deadline = time.time() + 10
+        files: list[Path] = []
+        while time.time() < deadline:
+            files = list(target.glob("*.jsonl"))
+            if files and files[0].read_text().strip():
+                break
+            time.sleep(0.05)
+        assert files, "sampler wrote no file"
+        row = json.loads(files[0].read_text().splitlines()[0])
+        assert row["gpus"][0]["utilization_gpu_perc"] == 90.0

@@ -1,0 +1,39 @@
+{
+  "cells": {
+    "1l4-c16": {
+      "concurrency": 16,
+      "replicas": 1
+    },
+    "1l4-c8": {
+      "concurrency": 8,
+      "replicas": 1
+    },
+    "2l4-c16": {
+      "concurrency": 16,
+      "replicas": 2
+    },
+    "2l4-c8": {
+      "concurrency": 8,
+      "replicas": 2
+    }
+  },
+  "deltas": {
+    "1l4-c16": {
+      "per_class": {},
+      "vs": "1l4-c8"
+    },
+    "2l4-c16": {
+      "per_class": {},
+      "vs": "1l4-c8"
+    },
+    "2l4-c8": {
+      "per_class": {},
+      "vs": "1l4-c8"
+    }
+  },
+  "generated_at": "2026-10-12T00:11:20+00:00",
+  "kind": "comparison",
+  "noise_floor": null,
+  "reference_cell": "1l4-c8",
+  "schema": "sandbox.sand42-cell/v1"
+}
