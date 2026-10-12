@@ -32,8 +32,30 @@ import sys
 import time
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
+if str(REPO / "src") not in sys.path:
+    sys.path.insert(0, str(REPO / "src"))
 RUNS = REPO / "data" / "runtime" / "runs"
 JOBS = pathlib.Path.home() / ".mailroom" / "jobs"
+def default_url() -> str:
+    """The /metrics URL for the config's engine, resolved the way the CLI scraper does.
+
+    Reusing ``spec.engine_base_url`` is what keeps this working for an app-scoped fleet
+    (``sandbox-vllm-a``) and for a tunneled/local base, instead of hardcoding one
+    modal.run hostname.
+    """
+    from mailroom_sandbox.job import spec as spec_mod
+
+    base = spec_mod.engine_base_url(spec_mod.load_run_spec(config_path())).rstrip("/")
+    if base.endswith("/v1"):
+        base = base[: -len("/v1")]
+    return f"{base}/metrics"
+
+
+def config_path() -> str:
+    return _CONFIG[0]
+
+
+_CONFIG = ["config/runs/sand42-50-correspondence-specialist-awq-2l4-c32.yaml"]
 DEFAULT_URL = "https://exios66--sandbox-vllm-serve.modal.run/metrics"
 ATTEMPTS = 8          # enough to hit both replicas through Modal's round-robin
 WANT = (
@@ -144,7 +166,10 @@ def fold(cell: str) -> int:
         return 1
     rows = [json.loads(x) for x in src.read_text().splitlines() if x.strip()]
     written = 0
-    for run_dir in sorted(RUNS.glob(f"sand42-50-*-awq-{cell}")):
+    # `sand42-*-awq-<cell>`: the five `sand42-50-<class>-specialist-awq-<cell>` runs AND the
+    # noise-floor leg (`sand42-noisefloor-correspondence-awq-<cell>`), which rides the same
+    # fleet and samples into the same cell file.
+    for run_dir in sorted(RUNS.glob(f"sand42-*-awq-{cell}")):
         run_id = run_dir.name
         win = _window(run_id)
         if not win:
@@ -195,7 +220,7 @@ def main() -> int:
         return 2
     verb, rest = args[0], args[1:]
     cell = "2l4-c32"
-    gap, url = 30, DEFAULT_URL
+    gap, url, cfg = 30, "", ""
     for i, a in enumerate(rest):
         if a == "--cell":
             cell = rest[i + 1]
@@ -203,7 +228,13 @@ def main() -> int:
             gap = int(rest[i + 1])
         elif a == "--url":
             url = rest[i + 1]
-    return sample(cell, gap, url) if verb == "sample" else fold(cell)
+        elif a == "--config":
+            cfg = rest[i + 1]
+    if cfg:
+        _CONFIG[0] = cfg
+    if verb == "sample":
+        return sample(cell, gap, url or default_url())
+    return fold(cell)
 
 
 if __name__ == "__main__":
