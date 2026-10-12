@@ -53,7 +53,6 @@ Per-condition tables, engine and GPU telemetry, the paired comparison and the me
 | Sampling coverage | 100.0% | 99.2% | 100.0% | 99.9% | 99.9% |
 | GPU power (W, mean) | 64.6 | 70.2 | 64.7 | 71.3 | 67.5 |
 | GPU temp (C, mean) | 53.0 | 63.8 | 69.4 | 75.1 | 73.9 |
-| KV cache use (%) | 0 (drained-edge sample: the scrapes fire before/after the run, when the cache is empty by construction; a mid-run sample is the only real source) | 0 (drained-edge sample: the scrapes fire before/after the run, when the cache is empty by construction; a mid-run sample is the only real source) | 0 (drained-edge sample: the scrapes fire before/after the run, when the cache is empty by construction; a mid-run sample is the only real source) | 0 (drained-edge sample: the scrapes fire before/after the run, when the cache is empty by construction; a mid-run sample is the only real source) | 0 (drained-edge sample: the scrapes fire before/after the run, when the cache is empty by construction; a mid-run sample is the only real source) |
 | KV cache use, mid-run (max %) | 6.4% | 6.5% | 10.2% | 42.1% | 49.7% |
 | Queue depth, mid-run (running/waiting) | 8 running / 0 waiting | 8 running / 0 waiting | 8 running / 0 waiting | 9 running / 0 waiting | 8 running / 2 waiting |
 | Preemptions | 0 | 0 | 0 | 0 | 0 |
@@ -85,7 +84,7 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-12T20:14:27+00:00 by `sandbox run card --runbook sand42-1l4-c8` from the committed per-run `*.card.json`._
+_Generated 2026-10-12T20:21:31+00:00 by `sandbox run card --runbook sand42-1l4-c8` from the committed per-run `*.card.json`._
 
 
 ---
@@ -109,41 +108,40 @@ _Generated 2026-10-12T20:14:27+00:00 by `sandbox run card --runbook sand42-1l4-c
 
 | Metric | Correspondence | Insurance Claims | Corporate Records | Contracts | Merger Agreements |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Quality (95% CI) | 0.381 [0.313, 0.447] | 0.665 [0.647, 0.683] | 0.484 [0.413, 0.553] | 0.603 [0.565, 0.642] | 0.029 [0.019, 0.039] |
+| Quality (95% CI) | 0.379 [0.313, 0.448] | 0.667 [0.649, 0.686] | 0.494 [0.428, 0.561] | 0.603 [0.565, 0.642] | 0.029 [0.019, 0.039] |
 | Scored documents | 50 | 50 | 50 | 45 | 50 |
-| Quality SD | 0.244 | 0.063 | 0.251 | 0.130 | 0.036 |
+| Quality SD | 0.240 | 0.067 | 0.243 | 0.130 | 0.036 |
 | Scoring method | suite | suite | suite | suite+cuad | suite+maud |
 | Clause metric | — | — | — | CUAD F1 0.613 · 45 labeled | MAUD acc 2.8% · 247/811 answered |
 | Ok rate (Wilson) | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] |
-| Schema-valid rate | 100.0% | 28.0% | 96.0% | 100.0% | 100.0% |
+| Schema-valid rate | 100.0% | 34.0% | 96.0% | 100.0% | 100.0% |
 | Parse errors | 0 | 0 | 0 | 0 | 0 |
 | Length-capped | 0 | 0 | 0 | 0 | 0 |
 | Error kinds | — | — | — | — | — |
-| p50 latency (s) | 9.4 | 20.5 | 19.6 | 176.2 | 1,045.6 |
-| p95 latency (s) | 14.0 | 30.3 | 24.3 | 914.4 | 1,891.2 |
+| p50 latency (s) | 9.6 | 21.4 | 19.5 | 176.2 | 1,045.6 |
+| p95 latency (s) | 14.4 | 31.9 | 27.3 | 914.4 | 1,891.2 |
 | SLO (s) · met | 60 · yes | 60 · yes | 60 · yes | 300 · no | 1,800 · no |
-| Documents/min | 63.47 | 28.41 | 39.67 | 2.67 | 0.73 |
-| Documents/min/GPU | 63.47 | 28.41 | 39.67 | 2.67 | 0.73 |
-| Goodput docs/min/GPU | 63.47 | 28.41 | 39.67 | 0.00 | 0.00 |
-| Tokens/s/GPU | 2,905.2 | 1,762.0 | 2,714.7 | 828.7 | 1,262.0 |
-| Mean TTFT (s) | 1.42 | 1.80 | 2.56 | 14.35 | 6.71 |
+| Documents/min | 63.47 | 27.95 | 39.22 | 2.67 | 0.73 |
+| Documents/min/GPU | 63.47 | 27.95 | 39.22 | 2.67 | 0.73 |
+| Goodput docs/min/GPU | 63.47 | 27.95 | 39.22 | 0.00 | 0.00 |
+| Tokens/s/GPU | 2,903.2 | 1,737.9 | 2,685.3 | 828.7 | 1,262.0 |
+| Mean TTFT (s) | 1.53 | 1.77 | 2.41 | 14.35 | 6.71 |
 | Prefix-cache hit | 63.6% | 58.4% | 50.9% | 28.1% | 14.0% |
-| Wall (s) | 47.3 | 105.6 | 75.6 | 1,124.4 | 4,098.5 |
-| Billed GPU $ (run) | $0.0140 | $0.0268 | $0.0206 | $0.2541 | $0.9110 |
-| $ / 1k ok docs | $0.279800 | $0.536440 | $0.412340 | $5.082960 | $18.219480 |
-| $ / 1k schema-valid | $0.279800 | $1.915857 | $0.429521 | $5.082960 | $18.219480 |
-| $ / doc | $0.000280 | $0.000536 | $0.000412 | $0.005083 | $0.018219 |
-| $ / ok doc | $0.000280 | $0.000536 | $0.000412 | $0.005083 | $0.018219 |
-| $ / 1M tokens | $0.102 | $0.144 | $0.100 | $0.273 | $0.176 |
-| GPU util (mean/p95/min–max) | 44.4% mean / 100.0 p95 / 0.0–100.0% min–max (n=11) | 74.6% mean / 100.0 p95 / 0.0–100.0% min–max (n=21) | 67.8% mean / 100.0 p95 / 0.0–100.0% min–max (n=16) | 94.5% mean / 100.0 p95 / 0.0–100.0% min–max (n=167) | 98.2% mean / 100.0 p95 / 0.0–100.0% min–max (n=651) |
-| GPU mem used (mean) | 21,002 MiB (91.2% of 23,034) | 21,025 MiB (91.3% of 23,034) | 21,026 MiB (91.3% of 23,034) | 21,024 MiB (91.3% of 23,034) | 21,027 MiB (91.3% of 23,034) |
-| GPU mem bandwidth (mean) | 38.9% mean | 66.9% mean | 47.2% mean | 84.7% mean | 78.2% mean |
+| Wall (s) | 47.3 | 107.3 | 76.5 | 1,124.4 | 4,098.5 |
+| Billed GPU $ (run) | $0.0107 | $0.0239 | $0.0171 | $0.2541 | $0.9110 |
+| $ / 1k ok docs | $0.214840 | $0.477120 | $0.341420 | $5.082960 | $18.219480 |
+| $ / 1k schema-valid | $0.214840 | $1.403294 | $0.355646 | $5.082960 | $18.219480 |
+| $ / doc | $0.000215 | $0.000477 | $0.000341 | $0.005083 | $0.018219 |
+| $ / ok doc | $0.000215 | $0.000477 | $0.000341 | $0.005083 | $0.018219 |
+| $ / 1M tokens | $0.078 | $0.128 | $0.083 | $0.273 | $0.176 |
+| GPU util (mean/p95/min–max) | 61.8% mean / 100.0 p95 / 0.0–100.0% min–max (n=8) | 91.6% mean / 100.0 p95 / 0.0–100.0% min–max (n=16) | 82.4% mean / 100.0 p95 / 0.0–100.0% min–max (n=12) | 94.5% mean / 100.0 p95 / 0.0–100.0% min–max (n=167) | 98.2% mean / 100.0 p95 / 0.0–100.0% min–max (n=651) |
+| GPU mem used (mean) | 20,996 MiB (91.2% of 23,034) | 21,026 MiB (91.3% of 23,034) | 21,026 MiB (91.3% of 23,034) | 21,024 MiB (91.3% of 23,034) | 21,027 MiB (91.3% of 23,034) |
+| GPU mem bandwidth (mean) | 44.1% mean | 80.0% mean | 53.2% mean | 84.7% mean | 78.2% mean |
 | Sampling coverage | 100.0% | 100.0% | 100.0% | 88.4% ⚠ below the 90% gate (issue #128) | 100.0% |
-| GPU power (W, mean) | 51.0 | 61.7 | 59.2 | 70.5 | 71.7 |
-| GPU temp (C, mean) | 73.6 | 75.2 | 75.1 | 75.8 | 76.5 |
-| KV cache use (%) | 0 (drained-edge sample: the scrapes fire before/after the run, when the cache is empty by construction; a mid-run sample is the only real source) | 0 (drained-edge sample: the scrapes fire before/after the run, when the cache is empty by construction; a mid-run sample is the only real source) | 0 (drained-edge sample: the scrapes fire before/after the run, when the cache is empty by construction; a mid-run sample is the only real source) | 0 (drained-edge sample: the scrapes fire before/after the run, when the cache is empty by construction; a mid-run sample is the only real source) | 0 (drained-edge sample: the scrapes fire before/after the run, when the cache is empty by construction; a mid-run sample is the only real source) |
-| KV cache use, mid-run (max %) | — | — | — | — | — |
-| Queue depth, mid-run (running/waiting) | — | — | — | — | — |
+| GPU power (W, mean) | 59.0 | 69.9 | 65.2 | 70.5 | 71.7 |
+| GPU temp (C, mean) | 68.5 | 76.9 | 77.2 | 75.8 | 76.5 |
+| KV cache use, mid-run (max %) | 8.0% | 15.1% | 21.9% | — | — |
+| Queue depth, mid-run (running/waiting) | 14 running / 0 waiting | 16 running / 0 waiting | 16 running / 0 waiting | — | — |
 | Preemptions | 0 | 0 | 0 | 0 | 0 |
 | Length finishes | 0 | 0 | 0 | 0 | 10 |
 
@@ -163,7 +161,7 @@ Fleet window not recorded (no fleet_window.json for this cell). Per-run costs st
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-12T20:14:27+00:00 by `sandbox run card --runbook sand42-1l4-c16` from the committed per-run `*.card.json`._
+_Generated 2026-10-12T20:21:31+00:00 by `sandbox run card --runbook sand42-1l4-c16` from the committed per-run `*.card.json`._
 
 
 ---
@@ -219,7 +217,6 @@ _Generated 2026-10-12T20:14:27+00:00 by `sandbox run card --runbook sand42-1l4-c
 | Sampling coverage | 100.0% | 100.0% | 100.0% | 99.1% | 99.7% |
 | GPU power (W, mean) | 61.7 | 63.0 | 62.8 | 66.8 | 64.9 |
 | GPU temp (C, mean) | 71.6 | 75.8 | 77.0 | 76.0 | 75.5 |
-| KV cache use (%) | 0 (drained-edge sample: the scrapes fire before/after the run, when the cache is empty by construction; a mid-run sample is the only real source) | 0 (drained-edge sample: the scrapes fire before/after the run, when the cache is empty by construction; a mid-run sample is the only real source) | 0 (drained-edge sample: the scrapes fire before/after the run, when the cache is empty by construction; a mid-run sample is the only real source) | 0 (drained-edge sample: the scrapes fire before/after the run, when the cache is empty by construction; a mid-run sample is the only real source) | 0 (drained-edge sample: the scrapes fire before/after the run, when the cache is empty by construction; a mid-run sample is the only real source) |
 | KV cache use, mid-run (max %) | — | — | — | — | — |
 | Queue depth, mid-run (running/waiting) | — | — | — | — | — |
 | Preemptions | 0 | 0 | 0 | 0 | 0 |
@@ -251,7 +248,7 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-12T20:14:27+00:00 by `sandbox run card --runbook sand42-2l4-c8` from the committed per-run `*.card.json`._
+_Generated 2026-10-12T20:21:31+00:00 by `sandbox run card --runbook sand42-2l4-c8` from the committed per-run `*.card.json`._
 
 
 ---
@@ -307,7 +304,6 @@ _Generated 2026-10-12T20:14:27+00:00 by `sandbox run card --runbook sand42-2l4-c
 | Sampling coverage | 95.6% | 100.0% | 65.6% ⚠ below the 90% gate (issue #128) | 99.4% | 99.6% |
 | GPU power (W, mean) | 56.8 | 62.9 | 59.8 | 64.6 | 65.7 |
 | GPU temp (C, mean) | 62.3 | 69.8 | 74.4 | 73.5 | 75.5 |
-| KV cache use (%) | 0 (drained-edge sample: the scrapes fire before/after the run, when the cache is empty by construction; a mid-run sample is the only real source) | 0 (drained-edge sample: the scrapes fire before/after the run, when the cache is empty by construction; a mid-run sample is the only real source) | 0 (drained-edge sample: the scrapes fire before/after the run, when the cache is empty by construction; a mid-run sample is the only real source) | 0 (drained-edge sample: the scrapes fire before/after the run, when the cache is empty by construction; a mid-run sample is the only real source) | 0 (drained-edge sample: the scrapes fire before/after the run, when the cache is empty by construction; a mid-run sample is the only real source) |
 | KV cache use, mid-run (max %) | — | — | — | — | — |
 | Queue depth, mid-run (running/waiting) | — | — | — | — | — |
 | Preemptions | 0 | 0 | 0 | 0 | 0 |
@@ -339,7 +335,7 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-12T20:14:27+00:00 by `sandbox run card --runbook sand42-2l4-c16` from the committed per-run `*.card.json`._
+_Generated 2026-10-12T20:21:31+00:00 by `sandbox run card --runbook sand42-2l4-c16` from the committed per-run `*.card.json`._
 
 
 ---
@@ -395,7 +391,6 @@ _Generated 2026-10-12T20:14:27+00:00 by `sandbox run card --runbook sand42-2l4-c
 | Sampling coverage | 100.0% | 100.0% | 86.2% ⚠ below the 90% gate (issue #128) | 97.0% | 99.4% |
 | GPU power (W, mean) | 57.2 | 64.6 | 60.0 | 66.1 | 70.1 |
 | GPU temp (C, mean) | 67.5 | 74.6 | 76.4 | 76.0 | 75.8 |
-| KV cache use (%) | 0 (drained-edge sample: the scrapes fire before/after the run, when the cache is empty by construction; a mid-run sample is the only real source) | 0 (drained-edge sample: the scrapes fire before/after the run, when the cache is empty by construction; a mid-run sample is the only real source) | 0 (drained-edge sample: the scrapes fire before/after the run, when the cache is empty by construction; a mid-run sample is the only real source) | 0 (drained-edge sample: the scrapes fire before/after the run, when the cache is empty by construction; a mid-run sample is the only real source) | 0 (drained-edge sample: the scrapes fire before/after the run, when the cache is empty by construction; a mid-run sample is the only real source) |
 | KV cache use, mid-run (max %) | — | — | — | — | 99.0% |
 | Queue depth, mid-run (running/waiting) | — | — | — | — | 16 running / 10 waiting |
 | Preemptions | 0 | 0 | 0 | 0 | 0 |
@@ -427,14 +422,14 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-12T20:14:27+00:00 by `sandbox run card --runbook sand42-2l4-c32` from the committed per-run `*.card.json`._
+_Generated 2026-10-12T20:21:31+00:00 by `sandbox run card --runbook sand42-2l4-c32` from the committed per-run `*.card.json`._
 
 
 ---
 
 # SAND-042 · paired comparison across the 5 cells
 
-**The cells do NOT all score the same documents.** `sand42-50-contracts`: ['2l4-c16', '2l4-c32', '2l4-c8'] (50 docs) vs ['1l4-c8'] (50 docs). Any delta between cells on different draws is **not paired** — the per-document difference is undefined across a draw change, so those columns compare different documents and must not be read as a comparison until every cell re-runs on one draw. Everything else in this table (cost, throughput, engine telemetry) is unaffected.
+**The cells do NOT all score the same documents.** `sand42-50-contracts`: ['1l4-c16', '1l4-c8'] (50 docs) vs ['2l4-c16', '2l4-c32', '2l4-c8'] (50 docs). Any delta between cells on different draws is **not paired** — the per-document difference is undefined across a draw change, so those columns compare different documents and must not be read as a comparison until every cell re-runs on one draw. Everything else in this table (cost, throughput, engine telemetry) is unaffected.
 
 Reference cell: **1l4-c8** (1×L4, client concurrency 8).
 
@@ -443,9 +438,9 @@ Reference cell: **1l4-c8** (1×L4, client concurrency 8).
 | Class | Paired n | Δ mean | 95% CI | SD_diff | better / worse / tie | n for Δ=0.05 |
 | --- | ---: | ---: | --- | ---: | --- | ---: |
 | Contracts | 39 | -0.003 | [-0.047, 0.039] | 0.134 | 15 / 17 / 7 | 57 |
-| Corporate Records | 50 | +0.002 | [-0.018, 0.021] | 0.070 | 5 / 2 / 43 | 16 |
-| Correspondence | 50 | -0.007 | [-0.028, 0.013] | 0.073 | 1 / 4 / 45 | 17 |
-| Insurance Claims | 50 | -0.006 | [-0.014, 0.001] | 0.027 | 9 / 11 / 30 | 3 |
+| Corporate Records | 50 | +0.012 | [-0.000, 0.028] | 0.055 | 5 / 1 / 44 | 10 |
+| Correspondence | 50 | -0.009 | [-0.026, 0.001] | 0.051 | 2 / 3 / 45 | 9 |
+| Insurance Claims | 50 | -0.004 | [-0.012, 0.003] | 0.028 | 8 / 10 / 32 | 3 |
 | Merger Agreements | 50 | +0.002 | [-0.010, 0.013] | 0.042 | 6 / 6 / 38 | 6 |
 
 ## 2l4-c8 (2× L4 · C8 · 4/replica) vs 1l4-c8
@@ -494,7 +489,7 @@ Reference cell: **1l4-c8** (1×L4, client concurrency 8).
 
 **Quote no delta smaller than this floor.** Any cell-to-cell interval that contains 0 is inside the noise floor.
 
-_Generated 2026-10-12T20:14:29+00:00 by `sandbox run card --runbook sand42`._
+_Generated 2026-10-12T20:21:33+00:00 by `sandbox run card --runbook sand42`._
 
 
 ---
@@ -529,16 +524,16 @@ boot` is the fleet window having recorded `ready_ts`.
 | Cell | verbatim /metrics | GPU mem bandwidth | mid-run KV / queue | cold boot |
 | --- | ---: | ---: | ---: | ---: |
 | `1l4-c8` | all | all | all | yes |
-| `1l4-c16` | 0/5 | 0/5 | 0/5 | no |
+| `1l4-c16` | 3/5 | 3/5 | 4/5 | no |
 | `2l4-c8` | 0/5 | all | 0/5 | no |
 | `2l4-c16` | 0/5 | all | 0/5 | yes |
 | `2l4-c32` | 0/5 | all | 0/5 | yes |
 
 **Open coverage.** Every blank above carries its reason; a gap is never rendered as a number, and none of these blanks is a failed capture:
 
-* `1l4-c16` — verbatim /metrics: 5 of 5 run(s) not sampled
-* `1l4-c16` — GPU memory bandwidth: 5 of 5 run(s) not sampled
-* `1l4-c16` — mid-run KV / queue: 5 of 5 run(s) not sampled
+* `1l4-c16` — verbatim /metrics: 2 of 5 run(s) not sampled
+* `1l4-c16` — GPU memory bandwidth: 2 of 5 run(s) not sampled
+* `1l4-c16` — mid-run KV / queue: 1 of 5 run(s) not sampled
 * `1l4-c16` — cold boot: `ready_ts` never written (the sequential driver's cells record a fleet window without a boot boundary)
 * `2l4-c8` — verbatim /metrics: 5 of 5 run(s) not sampled
 * `2l4-c8` — mid-run KV / queue: 5 of 5 run(s) not sampled
@@ -558,4 +553,4 @@ boot` is the fleet window having recorded `ready_ts`.
 * OTel *metrics* export from the container is not wired (the telemetry is an nvidia-smi series); trace spans stay opt-in via `trace.sink`.
 * This grid shows the second L4 does not pay per GPU, but not whether that is a property of the L4s or of the client feeding them. The controlled test — data-parallel with a per-request feed, tensor-parallel on one endpoint, and a raised admission ceiling — is designed in [`docs/SAND42-FOLLOWUP-DESIGN.md`](../../docs/SAND42-FOLLOWUP-DESIGN.md).
 
-_Generated 2026-10-12T20:14:27+00:00 by `sandbox run card --runbook sand42`._
+_Generated 2026-10-12T20:21:31+00:00 by `sandbox run card --runbook sand42`._
