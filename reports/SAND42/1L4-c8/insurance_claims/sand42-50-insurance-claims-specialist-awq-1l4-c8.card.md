@@ -28,14 +28,14 @@
 | Documents | 50 |
 | Spec hash | 8f77e131… |
 | **Time** |  |
-| Wall (busy) | 97.36 s |
+| Wall (busy) | 129.66 s |
 | GPU seconds | 129.35 s |
 | Cold boot | 0.47 s |
 | **Cost** |  |
-| Busy-window GPU $ | $0.021635 |
+| Busy-window GPU $ | $0.028813 |
 | Billed GPU $ | $0.028744 |
 | Billed seconds | 129.35 s |
-| Idle $ | not captured |
+| Idle $ | $0.006981 (31.41 s) |
 | Cost per document | $0.000575 |
 | Cost per ok document | $0.000575 |
 | Cost per 1M tokens | $0.1541 |
@@ -51,17 +51,17 @@
 | Token split basis | fit across documents, 4.47 chars/token |
 | Completion p95 / max (ok docs) | 625 / 1,369 |
 | **Throughput** |  |
-| Tokens / second | 1,916.3 |
-| Tokens / second per L4 | 1,916.3 |
-| Documents / minute | 30.81 |
+| Tokens / second | 1,438.9 |
+| Tokens / second per L4 | 1,438.9 |
+| Documents / minute | 23.14 |
 | **Latency (per document, ok rows)** |  |
 | Mean | 15.72 s |
 | p50 | 13.58 s |
 | p95 | 24.58 s |
 | Max | 45.85 s |
 | **Engine (vLLM /metrics)** |  |
-| Parallelism (Σ latency ÷ wall) | 8.07× of 8 |
-| Slot occupancy | 100.9% |
+| Parallelism (Σ latency ÷ wall) | 6.06× of 8 |
+| Slot occupancy | 75.8% |
 | Coverage | replicas observed: 1 of 1 |
 | Requests per replica (this run) | 50 |
 | Mean TTFT per replica | 0.897 s |
@@ -72,6 +72,8 @@
 | GPU utilization | 92.8 % mean (p95 99.0 / peak 99.0 / min 0.0) |
 | Sampling coverage | 94.8 % |
 | GPU power draw | 69.4 W (min 30.2 / max 73.4) |
+| GPU memory bandwidth | not captured |
+| GPU SM clock | not captured |
 | GPU temperature | 60.3 C (min 49.0 / max 66.0) |
 | GPU memory used | 21,023 MiB (min 21,023 / max 21,023) |
 | **Quality** |  |
@@ -81,6 +83,10 @@
 | Schema-valid rate | 0.30 |
 | Parse errors | 0 |
 | Errors | 0 / 50 |
+
+## Figure
+
+![Insurance Claims run dashboard](sand42-50-insurance-claims-specialist-awq-1l4-c8.card.png)
 
 ## Per-document results
 
@@ -137,4 +143,4 @@
 | 49 | `DOC-02f77aa77391a8c2` | yes | 0.6963 | 45.9 | 5091 | 1369 | — |
 | 50 | `DOC-5b97ae3f8558703c` | yes | 0.6912 | 27.1 | 4565 | 1003 | — |
 
-_Generated 2026-10-12T02:59:05+00:00 by `sandbox run card`. Machine-readable twin: `sand42-50-insurance-claims-specialist-awq-1l4-c8.card.json`._
+_Generated 2026-10-12T06:10:28+00:00 by `sandbox run card`. Machine-readable twin: `sand42-50-insurance-claims-specialist-awq-1l4-c8.card.json`._

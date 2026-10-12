@@ -28,14 +28,14 @@
 | Documents | 50 |
 | Spec hash | 4640639b… |
 | **Time** |  |
-| Wall (busy) | 61.45 s |
+| Wall (busy) | 86.60 s |
 | GPU seconds | 87.28 s |
 | Cold boot | 0.48 s |
 | **Cost** |  |
-| Busy-window GPU $ | $0.013655 |
+| Busy-window GPU $ | $0.019244 |
 | Billed GPU $ | $0.019396 |
 | Billed seconds | 87.28 s |
-| Idle $ | not captured |
+| Idle $ | $0.003769 (16.96 s) |
 | Cost per document | $0.000388 |
 | Cost per ok document | $0.000388 |
 | Cost per 1M tokens | $0.0944 |
@@ -51,17 +51,17 @@
 | Token split basis | fit across documents, 4.21 chars/token |
 | Completion p95 / max (ok docs) | 198 / 242 |
 | **Throughput** |  |
-| Tokens / second | 3,342.2 |
-| Tokens / second per L4 | 3,342.2 |
-| Documents / minute | 48.82 |
+| Tokens / second | 2,371.5 |
+| Tokens / second per L4 | 2,371.5 |
+| Documents / minute | 34.64 |
 | **Latency (per document, ok rows)** |  |
 | Mean | 11.14 s |
 | p50 | 11.23 s |
 | p95 | 13.64 s |
 | Max | 16.50 s |
 | **Engine (vLLM /metrics)** |  |
-| Parallelism (Σ latency ÷ wall) | 9.07× of 8 |
-| Slot occupancy | 113.3% |
+| Parallelism (Σ latency ÷ wall) | 6.43× of 8 |
+| Slot occupancy | 80.4% |
 | Coverage | replicas observed: 1 of 1 |
 | Requests per replica (this run) | 50 |
 | Mean TTFT per replica | 1.209 s |
@@ -72,6 +72,8 @@
 | GPU utilization | 77.6 % mean (p95 100.0 / peak 100.0 / min 0.0) |
 | Sampling coverage | 100.0 % |
 | GPU power draw | 63.4 W (min 31.7 / max 72.4) |
+| GPU memory bandwidth | not captured |
+| GPU SM clock | not captured |
 | GPU temperature | 64.4 C (min 57.0 / max 69.0) |
 | GPU memory used | 21,023 MiB (min 21,023 / max 21,023) |
 | **Quality** |  |
@@ -81,6 +83,10 @@
 | Schema-valid rate | 0.96 |
 | Parse errors | 0 |
 | Errors | 0 / 50 |
+
+## Figure
+
+![Corporate Records run dashboard](sand42-50-corporate-records-specialist-awq-1l4-c8.card.png)
 
 ## Per-document results
 
@@ -137,4 +143,4 @@
 | 49 | `DOC-d0aebe650be3e512` | yes | 0.4976 | 5.5 | 2405 | 161 | — |
 | 50 | `DOC-27bbad54b6fd107e` | yes | 0.8333 | 5.5 | 2871 | 174 | — |
 
-_Generated 2026-10-12T02:59:06+00:00 by `sandbox run card`. Machine-readable twin: `sand42-50-corporate-records-specialist-awq-1l4-c8.card.json`._
+_Generated 2026-10-12T06:10:29+00:00 by `sandbox run card`. Machine-readable twin: `sand42-50-corporate-records-specialist-awq-1l4-c8.card.json`._

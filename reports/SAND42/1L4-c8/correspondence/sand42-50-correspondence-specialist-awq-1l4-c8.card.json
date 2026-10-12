@@ -1,8 +1,8 @@
 {
   "concurrency": {
-    "occupancy": 1.0732324964592954,
-    "parallelism": 8.585859971674363,
-    "slot_utilization": 1.0732
+    "occupancy": 0.6739275782703931,
+    "parallelism": 5.3914206261631445,
+    "slot_utilization": 0.6739
   },
   "conditions": {
     "concurrency": 8,
@@ -48,9 +48,9 @@
   "cost": {
     "billed_gpu_usd": 0.013344,
     "billed_seconds": 60.05,
-    "busy_gpu_usd": 0.00847288888888889,
-    "idle_seconds": 0.0,
-    "idle_usd": null,
+    "busy_gpu_usd": 0.013493111111111112,
+    "idle_seconds": 19.799,
+    "idle_usd": 0.0044,
     "usd_per_document": 0.00026688,
     "usd_per_million_tokens": 0.09731196126190511,
     "usd_per_ok_document": 0.00026688
@@ -613,6 +613,7 @@
     "expected_replicas": 1,
     "gpu": {
       "captured": true,
+      "clocks_sm_mhz": null,
       "errors": [],
       "gpus_observed": 8,
       "label": "sand42-1l4-c8",
@@ -637,6 +638,7 @@
         "n": 8,
         "p95": 72.76
       },
+      "power_limit_w": null,
       "replicas": {
         "1791766391.99": {
           "samples": 0,
@@ -679,7 +681,8 @@
       "util_mean_perc": 73.75,
       "util_min_perc": 0.0,
       "util_p95_perc": 99.0,
-      "util_peak_perc": 99.0
+      "util_peak_perc": 99.0,
+      "utilization_memory_perc": null
     },
     "replicas": [
       {
@@ -694,7 +697,7 @@
     ],
     "scrape_errors": []
   },
-  "generated_at": "2026-10-12T02:59:04+00:00",
+  "generated_at": "2026-10-12T06:10:27+00:00",
   "latency": {
     "max": 9.286477000000001,
     "mean": 6.54723338,
@@ -722,14 +725,14 @@
   "specialist": "Correspondence",
   "task": "correspondence_specialist",
   "throughput": {
-    "documents_per_minute": 78.68233319345363,
-    "tokens_per_second": 3596.4645404951743,
-    "tokens_per_second_per_gpu": 3596.4645404951743
+    "documents_per_minute": 49.40792832556531,
+    "tokens_per_second": 2258.3705265238227,
+    "tokens_per_second_per_gpu": 2258.3705265238227
   },
   "time": {
     "cold_boot_seconds": 0.384,
     "gpu_seconds": 60.05,
-    "wall_seconds": 38.128
+    "wall_seconds": 60.719
   },
   "tokens": {
     "completion": 7682,

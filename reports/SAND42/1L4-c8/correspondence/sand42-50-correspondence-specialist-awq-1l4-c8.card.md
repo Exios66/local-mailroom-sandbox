@@ -28,14 +28,14 @@
 | Documents | 50 |
 | Spec hash | b0650f19… |
 | **Time** |  |
-| Wall (busy) | 38.13 s |
+| Wall (busy) | 60.72 s |
 | GPU seconds | 60.05 s |
 | Cold boot | 0.38 s |
 | **Cost** |  |
-| Busy-window GPU $ | $0.008473 |
+| Busy-window GPU $ | $0.013493 |
 | Billed GPU $ | $0.013344 |
 | Billed seconds | 60.05 s |
-| Idle $ | not captured |
+| Idle $ | $0.004400 (19.80 s) |
 | Cost per document | $0.000267 |
 | Cost per ok document | $0.000267 |
 | Cost per 1M tokens | $0.0973 |
@@ -51,17 +51,17 @@
 | Token split basis | fit across documents, 4.38 chars/token |
 | Completion p95 / max (ok docs) | 200 / 214 |
 | **Throughput** |  |
-| Tokens / second | 3,596.5 |
-| Tokens / second per L4 | 3,596.5 |
-| Documents / minute | 78.68 |
+| Tokens / second | 2,258.4 |
+| Tokens / second per L4 | 2,258.4 |
+| Documents / minute | 49.41 |
 | **Latency (per document, ok rows)** |  |
 | Mean | 6.55 s |
 | p50 | 6.31 s |
 | p95 | 8.94 s |
 | Max | 9.29 s |
 | **Engine (vLLM /metrics)** |  |
-| Parallelism (Σ latency ÷ wall) | 8.59× of 8 |
-| Slot occupancy | 107.3% |
+| Parallelism (Σ latency ÷ wall) | 5.39× of 8 |
+| Slot occupancy | 67.4% |
 | Coverage | replicas observed: 1 of 1 |
 | Requests per replica (this run) | 50 |
 | Mean TTFT per replica | 0.716 s |
@@ -72,6 +72,8 @@
 | GPU utilization | 73.8 % mean (p95 99.0 / peak 99.0 / min 0.0) |
 | Sampling coverage | 96.6 % |
 | GPU power draw | 63.3 W (min 29.0 / max 72.8) |
+| GPU memory bandwidth | not captured |
+| GPU SM clock | not captured |
 | GPU temperature | 51.6 C (min 43.0 / max 57.0) |
 | GPU memory used | 20,994 MiB (min 20,791 / max 21,023) |
 | **Quality** |  |
@@ -81,6 +83,10 @@
 | Schema-valid rate | 1.00 |
 | Parse errors | 0 |
 | Errors | 0 / 50 |
+
+## Figure
+
+![Correspondence run dashboard](sand42-50-correspondence-specialist-awq-1l4-c8.card.png)
 
 ## Per-document results
 
@@ -137,4 +143,4 @@
 | 49 | `DOC-f8fb6b01de0fc173` | yes | 0.5278 | 4.6 | 3169 | 142 | — |
 | 50 | `DOC-e1e0cc74e784a403` | yes | 0.3212 | 5.2 | 2677 | 181 | — |
 
-_Generated 2026-10-12T02:59:04+00:00 by `sandbox run card`. Machine-readable twin: `sand42-50-correspondence-specialist-awq-1l4-c8.card.json`._
+_Generated 2026-10-12T06:10:27+00:00 by `sandbox run card`. Machine-readable twin: `sand42-50-correspondence-specialist-awq-1l4-c8.card.json`._

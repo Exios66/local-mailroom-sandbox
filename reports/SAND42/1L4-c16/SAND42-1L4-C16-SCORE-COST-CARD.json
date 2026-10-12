@@ -3095,7 +3095,7 @@
     "measured": false,
     "reason": "no fleet_window.json for this cell"
   },
-  "generated_at": "2026-10-12T05:21:29+00:00",
+  "generated_at": "2026-10-12T06:10:34+00:00",
   "kind": "cell",
   "replicas": 1,
   "runbook": "sand42-1l4-c16",

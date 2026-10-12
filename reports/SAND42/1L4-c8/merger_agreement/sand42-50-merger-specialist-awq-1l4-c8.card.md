@@ -34,14 +34,14 @@
 | Documents | 50 |
 | Spec hash | d573b8a9… |
 | **Time** |  |
-| Wall (busy) | 566.34 s |
+| Wall (busy) | 4,657.53 s |
 | GPU seconds | 4,660.26 s |
 | Cold boot | 0.44 s |
 | **Cost** |  |
-| Busy-window GPU $ | $0.125852 |
+| Busy-window GPU $ | $1.035006 |
 | Billed GPU $ | $1.035613 |
 | Billed seconds | 4,660.26 s |
-| Idle $ | not captured |
+| Idle $ | $0.067356 (303.10 s) |
 | Cost per document | $0.020712 |
 | Cost per ok document | $0.020712 |
 | Cost per 1M tokens | $0.1997 |
@@ -57,17 +57,17 @@
 | Token split basis | document chars ÷ 4.5 chars/token; instructions are the remainder |
 | Completion p95 / max (ok docs) | 9,710 / 12,554 |
 | **Throughput** |  |
-| Tokens / second | 9,154.7 |
-| Tokens / second per L4 | 9,154.7 |
-| Documents / minute | 5.30 |
+| Tokens / second | 1,113.2 |
+| Tokens / second per L4 | 1,113.2 |
+| Documents / minute | 0.64 |
 | **Latency (per document, ok rows)** |  |
 | Mean | 696.71 s |
 | p50 | 574.87 s |
 | p95 | 1,324.95 s |
 | Max | 1,627.90 s |
 | **Engine (vLLM /metrics)** |  |
-| Parallelism (Σ latency ÷ wall) | 61.51× of 8 |
-| Slot occupancy | 768.9% |
+| Parallelism (Σ latency ÷ wall) | 7.48× of 8 |
+| Slot occupancy | 93.5% |
 | Coverage | replicas observed: 1 of 1 |
 | Requests per replica (this run) | 426 |
 | Mean TTFT per replica | 4.009 s |
@@ -78,6 +78,8 @@
 | GPU utilization | 98.3 % mean (p95 100.0 / peak 100.0 / min 0.0) |
 | Sampling coverage | 100.0 % |
 | GPU power draw | 71.7 W (min 34.4 / max 74.3) |
+| GPU memory bandwidth | not captured |
+| GPU SM clock | not captured |
 | GPU temperature | 75.6 C (min 67.0 / max 82.0) |
 | GPU memory used | 21,027 MiB (min 21,027 / max 21,027) |
 | **Quality** |  |
@@ -93,6 +95,10 @@
 | Precision on answered | 6.7% |
 | Clean subset | 15 / 343 |
 | Suite field score (mean) | not captured |
+
+## Figure
+
+![Merger Agreements run dashboard](sand42-50-merger-specialist-awq-1l4-c8.card.png)
 
 ## Per-document results
 
@@ -149,4 +155,4 @@
 | 49 | `DOC-f09307ad314d386f` | yes | 0.0000 | 678.5 | 103329 | 11556 | — |
 | 50 | `DOC-681bc6115b882191` | yes | 0.0000 | 572.6 | 120554 | 7063 | — |
 
-_Generated 2026-10-12T04:15:51+00:00 by `sandbox run card`. Machine-readable twin: `sand42-50-merger-specialist-awq-1l4-c8.card.json`._
+_Generated 2026-10-12T06:10:32+00:00 by `sandbox run card`. Machine-readable twin: `sand42-50-merger-specialist-awq-1l4-c8.card.json`._

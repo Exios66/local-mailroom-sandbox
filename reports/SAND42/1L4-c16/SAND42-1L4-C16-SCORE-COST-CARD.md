@@ -63,4 +63,4 @@ Fleet window not recorded (no fleet_window.json for this cell). Per-run costs st
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-12T05:21:29+00:00 by `sandbox run card --runbook sand42-1l4-c16` from the committed per-run `*.card.json`._
+_Generated 2026-10-12T06:10:34+00:00 by `sandbox run card --runbook sand42-1l4-c16` from the committed per-run `*.card.json`._

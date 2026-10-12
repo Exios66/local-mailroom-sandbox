@@ -30,14 +30,14 @@
 | Documents | 50 |
 | Spec hash | b01173a2… |
 | **Time** |  |
-| Wall (busy) | 386.78 s |
+| Wall (busy) | 920.02 s |
 | GPU seconds | 920.59 s |
 | Cold boot | 0.38 s |
 | **Cost** |  |
-| Busy-window GPU $ | $0.085952 |
+| Busy-window GPU $ | $0.204450 |
 | Billed GPU $ | $0.204575 |
 | Billed seconds | 920.59 s |
-| Idle $ | not captured |
+| Idle $ | $0.012399 (55.80 s) |
 | Cost per document | $0.004092 |
 | Cost per ok document | $0.004092 |
 | Cost per 1M tokens | $0.2202 |
@@ -53,17 +53,17 @@
 | Token split basis | document chars ÷ 4.5 chars/token; instructions are the remainder |
 | Completion p95 / max (ok docs) | 5,774 / 13,151 |
 | **Throughput** |  |
-| Tokens / second | 2,401.8 |
-| Tokens / second per L4 | 2,401.8 |
-| Documents / minute | 7.76 |
+| Tokens / second | 1,009.7 |
+| Tokens / second per L4 | 1,009.7 |
+| Documents / minute | 3.26 |
 | **Latency (per document, ok rows)** |  |
 | Mean | 138.28 s |
 | p50 | 94.48 s |
 | p95 | 316.42 s |
 | Max | 687.82 s |
 | **Engine (vLLM /metrics)** |  |
-| Parallelism (Σ latency ÷ wall) | 17.88× of 8 |
-| Slot occupancy | 223.4% |
+| Parallelism (Σ latency ÷ wall) | 7.51× of 8 |
+| Slot occupancy | 93.9% |
 | Coverage | replicas observed: 1 of 1 |
 | Requests per replica (this run) | 85 |
 | Mean TTFT per replica | 1.951 s |
@@ -74,6 +74,8 @@
 | GPU utilization | 97.6 % mean (p95 100.0 / peak 100.0 / min 0.0) |
 | Sampling coverage | 100.0 % |
 | GPU power draw | 71.4 W (min 32.1 / max 75.2) |
+| GPU memory bandwidth | not captured |
+| GPU SM clock | not captured |
 | GPU temperature | 73.0 C (min 57.0 / max 78.0) |
 | GPU memory used | 21,026 MiB (min 21,023 / max 21,027) |
 | **Quality** |  |
@@ -88,6 +90,10 @@
 | Micro precision / recall / F1 | 0.615 / 0.557 / 0.585 |
 | Metadata value checks | 74 / 128 |
 | Suite field score (mean) | not captured |
+
+## Figure
+
+![Contracts run dashboard](sand42-50-contracts-specialist-awq-1l4-c8.card.png)
 
 ## Per-document results
 
@@ -144,4 +150,4 @@
 | 49 | `DOC-53e364f030a30b5c` | yes | 0.7170 | 687.8 | 94991 | 13151 | — |
 | 50 | `DOC-dbe52fd78e44b0ef` | yes | 0.8182 | 102.9 | 18750 | 2895 | — |
 
-_Generated 2026-10-12T02:58:55+00:00 by `sandbox run card`. Machine-readable twin: `sand42-50-contracts-specialist-awq-1l4-c8.card.json`._
+_Generated 2026-10-12T06:10:31+00:00 by `sandbox run card`. Machine-readable twin: `sand42-50-contracts-specialist-awq-1l4-c8.card.json`._
