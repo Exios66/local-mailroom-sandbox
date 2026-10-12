@@ -64,7 +64,7 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 | Fleet cost | Value |
 | --- | ---: |
 | Replicas × GPU | 1 × L4 @ $0.80/GPU-hr |
-| Cold boot (deploy → ready) | not captured |
+| Cold boot (deploy → ready) | not captured — ready_ts is only written by the parallel-fleet launcher |
 | Fleet window (deploy → teardown) | 5,690.0 s |
 | Fleet GPU-hours | 1.5806 |
 | **Fleet GPU $** | **$1.2644** |
@@ -83,4 +83,4 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-12T08:00:43+00:00 by `sandbox run card --runbook sand42-1l4-c16` from the committed per-run `*.card.json`._
+_Generated 2026-10-12T12:34:52+00:00 by `sandbox run card --runbook sand42-1l4-c16` from the committed per-run `*.card.json`._
