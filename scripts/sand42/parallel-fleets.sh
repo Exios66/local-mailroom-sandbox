@@ -1,0 +1,143 @@
+#!/usr/bin/env bash
+# SAND-042 parallel fleet launch — two cells at once, COLLISION-FREE.
+#
+# Each cell gets its own Modal app (so its own URL and its own cache Volumes):
+#   - app name  -> from the cell's config `engine.modal.app` (deploy-env renders
+#                  MODAL_VLLM_APP_NAME; benchmark-check enforces the match), and
+#   - the HF / vLLM cache Volumes are app-scoped (deploy/modal_vllm.py), so two
+#     concurrent fleets never write the same cache.
+# The in-container GPU telemetry Volume stays SHARED: its files are namespaced
+# per cell by MODAL_VLLM_TELEMETRY_LABEL, so that is not a collision.
+#
+# Preconditions: the default `sandbox-vllm` app is free (or you have given it
+# another name) — the two fleets here use NON-default app names so they can even
+# overlap a running `sandbox-vllm` campaign.
+#
+# Usage:
+#   ~/sand42-parallel.sh                       # print the plan only
+#   ~/sand42-parallel.sh --go                  # deploy both fleets and run
+#   ~/sand42-parallel.sh --go 2l4-c8 sandbox-vllm-a 2l4-c16 sandbox-vllm-b
+set -euo pipefail
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$REPO_ROOT"
+source .venv/bin/activate
+
+PROFILE=exios66
+GO=0
+ARGS=()
+for a in "$@"; do
+  if [ "$a" = "--go" ]; then GO=1; else ARGS+=("$a"); fi
+done
+CELL_A=${ARGS[0]:-2l4-c8};   APP_A=${ARGS[1]:-sandbox-vllm-a}
+CELL_B=${ARGS[2]:-2l4-c16};  APP_B=${ARGS[3]:-sandbox-vllm-b}
+[ "$APP_A" != "$APP_B" ] || { echo "app names must differ"; exit 2; }
+
+GEN=data/runtime/parallel-configs   # gitignored scratch; derived, not committed
+
+echo "=== PLAN ==="
+echo "  fleet A: cell $CELL_A on app $APP_A  (caches: $APP_A-scoped)"
+echo "  fleet B: cell $CELL_B on app $APP_B  (caches: $APP_B-scoped)"
+echo "  telemetry: shared volume, labels sand42-$CELL_A / sand42-$CELL_B"
+echo "  generated configs: $GEN/<app>/<run>.yaml"
+[ "$GO" = 1 ] || { echo "(dry run — re-run with --go)"; exit 0; }
+
+modal profile activate "$PROFILE" >/dev/null
+[ "$(modal profile current)" = "$PROFILE" ] || { echo "activate $PROFILE first"; exit 3; }
+
+# Materialize this fleet's configs: the app is the ONLY field that differs per
+# fleet, so patch it and leave the run_id (and therefore the report path) intact.
+materialize() {  # $1=cell  $2=app
+  local cell="$1" app="$2" src out
+  mkdir -p "$GEN/$app"
+  for src in config/runs/sand42-50-*-awq-"$cell".yaml; do
+    out="$GEN/$app/$(basename "$src")"
+    .venv/bin/python - "$src" "$out" "$app" <<'PY'
+import re, sys
+src, out, app = sys.argv[1:4]
+text = open(src, encoding="utf-8").read()
+text, n = re.subn(r"(?m)^(\s*app:\s*).*$", lambda m: m.group(1) + app, text, count=1)
+assert n == 1, f"no app: line in {src}"
+open(out, "w", encoding="utf-8").write(text)
+PY
+  done
+}
+
+run_fleet() {  # $1=cell  $2=app
+  local cell="$1" app="$2"
+  local folder="${cell/l4/L4}" log="$HOME/sand42-$cell.log"
+  local cfgs=() f
+  materialize "$cell" "$app"
+  while IFS= read -r f; do cfgs+=("$f"); done < <(ls "$GEN/$app"/sand42-50-*-awq-"$cell".yaml)
+
+  {
+    echo "[$app] $(date '+%F %H:%M:%S') fleet start ($cell)"
+    # Per-fleet env from the config: MODAL_VLLM_APP_NAME (the app), telemetry
+    # label, container knobs. Scoped to this subshell, so the other fleet's env
+    # is untouched (benchmark-check enforces the match — no drift).
+    set -a; eval "$(sandbox run deploy-env --config "${cfgs[0]}")"; set +a
+    export MODAL_VLLM_APP="$app"                    # teardown_vllm.sh targets this app
+    export MODAL_VLLM_API_TOKEN="${MODAL_VLLM_API_TOKEN:-$(openssl rand -hex 24)}"
+    export VLLM_API_KEY="$MODAL_VLLM_API_TOKEN"
+    export SANDBOX_PROFILE=modal-vllm PHOENIX_TRACING=disabled OPENROUTER_API_KEY=""
+
+    echo "[$app] $(date '+%H:%M:%S') benchmark-check"
+    sandbox run benchmark-check --config "${cfgs[0]}" --modal-profile "$PROFILE"
+
+    # Pre-warm THIS fleet's own HF cache. download_model is the CPU image (no GPU
+    # billed); the app-scoped volume keeps it out of the other fleet's cache.
+    echo "[$app] $(date '+%H:%M:%S') pre-warm weights"
+    modal run deploy/modal_vllm.py::download_model
+
+    local deploy_ts ready_ts teardown_ts
+    deploy_ts=$(date +%s)
+    echo "[$app] $(date '+%H:%M:%S') deploy"
+    modal deploy deploy/modal_vllm.py --strategy recreate
+
+    export VLLM_BASE_URL="https://${PROFILE}--${app}-serve.modal.run/v1"
+    for i in $(seq 1 80); do
+      sandbox health --profile modal-vllm >/dev/null 2>&1 && break
+      [ "$i" = 80 ] && { echo "[$app] endpoint never came up"; return 4; }
+      echo "[$app] booting ($((i*15))s)…"; sleep 15
+    done
+    ready_ts=$(date +%s)
+    sandbox health --profile modal-vllm
+
+    for cfg in "${cfgs[@]}"; do
+      echo "[$app] $(date '+%H:%M:%S') === $(basename "$cfg")"
+      sandbox run preflight --config "$cfg" --live --force
+      sandbox run scrape-metrics --config "$cfg" --label before
+      sandbox run start --config "$cfg" --job-mode endpoint
+      sandbox run scrape-metrics --config "$cfg" --label after
+      sandbox run card --config "$cfg"
+    done
+
+    ./deploy/teardown_vllm.sh "$app" </dev/null
+    teardown_ts=$(date +%s)
+    .venv/bin/python - "$folder" "$deploy_ts" "$ready_ts" "$teardown_ts" "$cell" "${MODAL_VLLM_MAX_CONTAINERS:-1}" <<'PY'
+import json, sys
+folder, deploy, ready, teardown, cell, replicas = sys.argv[1:7]
+path = f"reports/SAND42/{folder}/fleet_window.json"
+json.dump({"cell": cell, "deploy_ts": float(deploy), "ready_ts": float(ready), "gpu": "L4",
+           "replicas": int(replicas), "source": "wall clock (deploy → teardown)",
+           "teardown_ts": float(teardown)}, open(path, "w"), indent=2)
+print("wrote", path)
+PY
+    sandbox run card --runbook "sand42-$cell"
+    echo "[$app] $(date '+%F %H:%M:%S') fleet done ($cell)"
+  } >>"$log" 2>&1
+}
+
+# Run both fleets concurrently; each has its own env, app and caches.
+run_fleet "$CELL_A" "$APP_A" & PID_A=$!
+run_fleet "$CELL_B" "$APP_B" & PID_B=$!
+
+rc=0
+wait "$PID_A" || { echo "fleet A ($CELL_A) failed — see ~/sand42-$CELL_A.log"; rc=1; }
+wait "$PID_B" || { echo "fleet B ($CELL_B) failed — see ~/sand42-$CELL_B.log"; rc=1; }
+
+echo "[parallel] $(date '+%F %H:%M:%S') rebuild master across all cells"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$REPO_ROOT"
+.venv/bin/sandbox run card --runbook sand42 || rc=1
+echo "[parallel] $(date '+%F %H:%M:%S') DONE (rc=$rc) — logs: ~/sand42-$CELL_A.log ~/sand42-$CELL_B.log"
+exit "$rc"

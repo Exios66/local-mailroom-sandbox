@@ -202,6 +202,14 @@ class TestDeploySurface:
         assert mod.VLLM_CACHE_VOLUME_NAME == "sandbox-vllm-cache"
         assert mod.SERVER_PORT == 8000
 
+    def test_cache_volumes_scope_to_a_non_default_app(self, monkeypatch):
+        """A second concurrent fleet must not share the writable cache Volumes."""
+        monkeypatch.setenv("MODAL_VLLM_APP_NAME", "sandbox-vllm-b")
+        mod = _load_app_module()
+        assert mod.APP_NAME == "sandbox-vllm-b"
+        assert mod.HF_CACHE_VOLUME_NAME == "sandbox-hf-cache-b"
+        assert mod.VLLM_CACHE_VOLUME_NAME == "sandbox-vllm-cache-b"
+
     def test_defaults_are_pinned_and_cost_guarded(self):
         mod = _load_app_module()
         assert mod.MODEL == "Qwen/Qwen3-8B"
@@ -629,8 +637,14 @@ class TestTeardownScript:
         assert "modal app stop" in text
         # Verification: the script exits 1 if the app is still running.
         assert "exit 1" in text and "still shows a running deployment" in text
-        # Data-bearing state persists; cost-bearing state is gone.
-        assert "modal volume ls sandbox-hf-cache" in text
+        # Data-bearing state persists; cost-bearing state is gone. Volumes are
+        # app-scoped (mirroring deploy/modal_vllm.py), so a concurrent fleet's
+        # caches are named too.
+        assert 'modal volume ls "$HF_VOLUME"' in text
+        assert "sandbox-hf-cache" in text and "sandbox-vllm-cache" in text
+        # Exact app matching: a concurrent `sandbox-vllm-a` must never be counted
+        # as `sandbox-vllm` (the Description column truncates long names).
+        assert 'a.get("description") == sys.argv[1]' in text
         assert "modal billing summary" in text
 
 
