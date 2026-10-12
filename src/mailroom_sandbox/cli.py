@@ -2028,23 +2028,27 @@ def _cmd_run_card(args) -> int:
         if runbook.startswith("sand42"):
             from mailroom_sandbox.job import sand42_cards
 
-            if runbook == "sand42":
-                for label, path in sand42_cards.write_all().items():
-                    print(f"{label} → {path}")
+            # Two parallel fleets, the sequential driver and the handoff all rebuild
+            # these files from one tree; serialize them or the master/comparison
+            # (and figures/) can be torn mid-write.
+            with sand42_cards.report_lock():
+                if runbook == "sand42":
+                    for label, path in sand42_cards.write_all().items():
+                        print(f"{label} → {path}")
+                    return 0
+                if runbook == "sand42-noise-floor":
+                    print(f"noise floor → {sand42_cards.write_noise_floor()['md']}")
+                    return 0
+                cell = runbook.removeprefix("sand42-")
+                if cell not in sand42_cards.CELLS:
+                    print(
+                        f"ERROR: unknown SAND-042 cell {cell!r} "
+                        f"(want one of {sorted(sand42_cards.CELLS)}, sand42, sand42-noise-floor)",
+                        file=sys.stderr,
+                    )
+                    return 2
+                print(f"suite card → {sand42_cards.write_cell(cell)['md']}")
                 return 0
-            if runbook == "sand42-noise-floor":
-                print(f"noise floor → {sand42_cards.write_noise_floor()['md']}")
-                return 0
-            cell = runbook.removeprefix("sand42-")
-            if cell not in sand42_cards.CELLS:
-                print(
-                    f"ERROR: unknown SAND-042 cell {cell!r} "
-                    f"(want one of {sorted(sand42_cards.CELLS)}, sand42, sand42-noise-floor)",
-                    file=sys.stderr,
-                )
-                return 2
-            print(f"suite card → {sand42_cards.write_cell(cell)['md']}")
-            return 0
         replicas = 1 if runbook == "grid-1l4" else 2
         paths = grid_cards.write_suite(replicas)
         print(f"suite card → {paths['md']}")
