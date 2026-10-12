@@ -13,80 +13,80 @@ Dated cell stem: `RUN-50-CONTRACTS-AWQ-1L4-C8`. Written automatically under the 
 | n | **50** |
 | profile | `modal-vllm` |
 | spec_hash | `b01173a2eacc23710ab86350a616c0277f8f2f59ac2c44c8a7e0ac367d82a885` |
-| dataset fingerprint | `83eb6b1f2c7e` |
+| dataset fingerprint | `5344b28a3033` |
 
 ## Headline results
 
 | metric | value |
 | --- | --- |
 | docs ok / failed / total | **50 / 0 / 50** |
-| **overall_extraction_score** | **0.578953** |
-| schema_valid_rate | — |
+| **overall_extraction_score** | **0.598814** |
+| schema_valid_rate | 1.000000 |
 | error_count | 0 |
 
 ## Serving / cost (see sibling `-SERVING.md`)
 
 | metric | value |
 | --- | --- |
-| wall_seconds | 920.025 |
-| gpu_seconds | 920.586 |
-| estimated GPU cost | 0.204575 |
-| **GPU $/doc** | **0.0040915** |
-| latency p50 / max (s) | 94.476106 / 687.818112 |
-| prompt / completion tokens | 799423 / 129558 |
-| concurrency speedup (Σlat/wall) | 7.51 |
+| wall_seconds | 1377.987 |
+| gpu_seconds | 1378.143 |
+| estimated GPU cost | 0.306254 |
+| **GPU $/doc** | **0.00612508** |
+| latency p50 / max (s) | 114.243562 / 1001.056539 |
+| prompt / completion tokens | 816380 / 132358 |
+| concurrency speedup (Σlat/wall) | 7.18 |
 
 ## Per-document scores
 
 | # | doc id | ok | overall | latency s | prompt tok | compl tok | error |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | `DOC-6b4cc54c8c4d796f` | True | — | 38.9 | 4015 | 714 | None |
-| 2 | `DOC-a9850db362f57916` | True | — | 46.9 | 6764 | 863 | None |
-| 3 | `DOC-b1aba7df0380a1b2` | True | — | 62.2 | 5032 | 1235 | None |
-| 4 | `DOC-fc9671ccde642e8d` | True | — | 68.8 | 7936 | 1330 | None |
-| 5 | `DOC-f5a54932794ef16e` | True | 0.666700 | 75.3 | 5302 | 1413 | None |
-| 6 | `DOC-3c07c9ccd9a01d6e` | True | 0.631600 | 92.0 | 7428 | 1668 | None |
-| 7 | `DOC-03529267ee75444d` | True | 0.571400 | 75.1 | 10583 | 1312 | None |
-| 8 | `DOC-e235bc9735f96335` | True | 0.521700 | 62.9 | 10699 | 1068 | None |
-| 9 | `DOC-6671a684f52f82a9` | True | 0.416700 | 96.3 | 11320 | 1614 | None |
-| 10 | `DOC-385a86c69f8e562c` | True | 0.615400 | 125.7 | 6560 | 2278 | None |
-| 11 | `DOC-b87880882e5fe354` | True | — | 187.9 | 19278 | 3412 | None |
-| 12 | `DOC-0752e0811f5f5eb7` | True | 0.381000 | 196.8 | 41619 | 3560 | None |
-| 13 | `DOC-0812d9d3e2b1baa0` | True | 0.444400 | 145.5 | 18679 | 2591 | None |
-| 14 | `DOC-593f2c6de770b84c` | True | 0.666700 | 147.2 | 9228 | 2702 | None |
-| 15 | `DOC-e4272758b561f8cd` | True | 0.555600 | 82.7 | 6987 | 1493 | None |
-| 16 | `DOC-f8b0d4bcbac60ca2` | True | 0.500000 | 74.5 | 3824 | 1332 | None |
-| 17 | `DOC-81c4ce12d907380c` | True | 0.571400 | 83.3 | 7047 | 1477 | None |
-| 18 | `DOC-4fb6419e37bff201` | True | 0.687500 | 216.7 | 22234 | 3912 | None |
-| 19 | `DOC-b83763aeff114369` | True | 0.620700 | 93.8 | 7446 | 1776 | None |
-| 20 | `DOC-9a36838df2878b37` | True | 0.434800 | 66.4 | 8142 | 1255 | None |
-| 21 | `DOC-2b510409d3b9a4a6` | True | 0.687500 | 282.1 | 21668 | 5164 | None |
-| 22 | `DOC-812192e392d8d410` | True | 0.600000 | 155.3 | 5551 | 2834 | None |
-| 23 | `DOC-9cee2e10b449a71c` | True | 0.756800 | 194.8 | 21752 | 3597 | None |
-| 24 | `DOC-73055dbb1e9f5f2f` | True | 0.711100 | 316.4 | 49409 | 5774 | None |
-| 25 | `DOC-e998c563b82122b9` | True | 0.526300 | 95.1 | 10006 | 1653 | None |
-| 26 | `DOC-1e22a2d4068b8650` | True | 0.714300 | 92.3 | 7587 | 1592 | None |
-| 27 | `DOC-27b649fe2f6fae8e` | True | 0.777800 | 85.0 | 5464 | 1480 | None |
-| 28 | `DOC-70f90b46b2c4f1a6` | True | 0.666700 | 17.8 | 3154 | 361 | None |
-| 29 | `DOC-035731e655e67aab` | True | 0.476200 | 151.4 | 5207 | 2775 | None |
-| 30 | `DOC-e29140d2e8e989be` | True | 0.500000 | 521.8 | 45485 | 9573 | None |
-| 31 | `DOC-1266801f2faad19f` | True | 0.682900 | 219.6 | 33383 | 3969 | None |
-| 32 | `DOC-1ddc9333769d27e4` | True | 0.571400 | 73.3 | 4450 | 1332 | None |
-| 33 | `DOC-712c3f92a0a56b77` | True | 0.444400 | 271.6 | 56227 | 4948 | None |
-| 34 | `DOC-62b300182901e850` | True | 0.545500 | 136.0 | 33346 | 2527 | None |
-| 35 | `DOC-dfb4e69a3ab10dc9` | True | 0.526300 | 72.6 | 7378 | 1289 | None |
-| 36 | `DOC-fe06800cc62e5e19` | True | 0.636400 | 84.1 | 8619 | 1580 | None |
-| 37 | `DOC-472f423cdf0819ef` | True | 0.750000 | 57.8 | 4656 | 1107 | None |
-| 38 | `DOC-186145066ab191fa` | True | 0.500000 | 44.8 | 3718 | 921 | None |
-| 39 | `DOC-f45b328fd8a54c8b` | True | 0.625000 | 52.4 | 4608 | 1077 | None |
-| 40 | `DOC-c9d4c4f8ff433527` | True | 0.521700 | 73.1 | 7730 | 1402 | None |
-| 41 | `DOC-8993ad1085e08bd0` | True | 0.769200 | 262.4 | 22402 | 4965 | None |
-| 42 | `DOC-4b57f485708ab60b` | True | 0.400000 | 78.8 | 6639 | 1473 | None |
-| 43 | `DOC-8f737e9fec8f24f0` | True | 0.500000 | 218.0 | 35815 | 4013 | None |
-| 44 | `DOC-e0d31c39359cb803` | True | 0.270300 | 118.6 | 6879 | 2351 | None |
-| 45 | `DOC-01849fa3020a5ac1` | True | 0.500000 | 52.6 | 4173 | 1117 | None |
-| 46 | `DOC-be1eccde5bae9c82` | True | 0.480000 | 101.8 | 9330 | 2092 | None |
-| 47 | `DOC-e218d39bb2f3c5ef` | True | 0.400000 | 140.5 | 19923 | 2967 | None |
-| 48 | `DOC-dfd20f94bb76b6e4` | True | 0.692300 | 114.4 | 21000 | 2574 | None |
-| 49 | `DOC-53e364f030a30b5c` | True | 0.717000 | 687.8 | 94991 | 13151 | None |
-| 50 | `DOC-dbe52fd78e44b0ef` | True | 0.818200 | 102.9 | 18750 | 2895 | None |
+| 1 | `DOC-e235bc9735f96335` | True | 0.666700 | 55.3 | 10699 | 940 | None |
+| 2 | `DOC-3c07c9ccd9a01d6e` | True | 0.800000 | 83.2 | 7428 | 1471 | None |
+| 3 | `DOC-f5a54932794ef16e` | True | 0.750000 | 90.2 | 5302 | 1596 | None |
+| 4 | `DOC-593f2c6de770b84c` | True | 0.666700 | 94.4 | 9228 | 1659 | None |
+| 5 | `DOC-385a86c69f8e562c` | True | 0.666700 | 113.9 | 6560 | 1953 | None |
+| 6 | `DOC-268df6c8fabb385a` | True | 0.666700 | 82.6 | 5201 | 1445 | None |
+| 7 | `DOC-a7ea445212692b88` | True | 0.620700 | 114.6 | 9369 | 2001 | None |
+| 8 | `DOC-eaa14fe106140524` | True | 0.416700 | 43.0 | 7001 | 948 | None |
+| 9 | `DOC-4fb6419e37bff201` | True | 0.666700 | 246.2 | 22234 | 4485 | None |
+| 10 | `DOC-e4272758b561f8cd` | True | 0.555600 | 73.6 | 6987 | 1442 | None |
+| 11 | `DOC-0752e0811f5f5eb7` | True | 0.367300 | 287.1 | 41619 | 5347 | None |
+| 12 | `DOC-cbc1f0d62edbb23e` | True | 0.545500 | 45.7 | 4155 | 944 | None |
+| 13 | `DOC-2c3a9c3168cd0e3a` | True | 0.666700 | 37.1 | 3385 | 799 | None |
+| 14 | `DOC-73055dbb1e9f5f2f` | True | 0.685700 | 233.1 | 49409 | 4517 | None |
+| 15 | `DOC-f8b0d4bcbac60ca2` | True | 0.545500 | 47.9 | 3824 | 994 | None |
+| 16 | `DOC-1843cfdaf5db1840` | True | 0.272700 | 117.6 | 7407 | 2446 | None |
+| 17 | `DOC-81c4ce12d907380c` | True | 0.571400 | 110.9 | 7047 | 2040 | None |
+| 18 | `DOC-812192e392d8d410` | True | 0.600000 | 105.0 | 5551 | 1974 | None |
+| 19 | `DOC-9cee2e10b449a71c` | True | 0.687500 | 133.7 | 21752 | 2382 | None |
+| 20 | `DOC-b83763aeff114369` | True | 0.642900 | 111.1 | 7446 | 1904 | None |
+| 21 | `DOC-2b510409d3b9a4a6` | True | 0.333300 | 508.0 | 9632 | 1117 | None |
+| 22 | `DOC-9a36838df2878b37` | True | 0.400000 | 159.9 | 8142 | 2454 | None |
+| 23 | `DOC-035731e655e67aab` | True | 0.555600 | 164.3 | 5207 | 2773 | None |
+| 24 | `DOC-e998c563b82122b9` | True | 0.526300 | 79.2 | 10006 | 1401 | None |
+| 25 | `DOC-1e22a2d4068b8650` | True | 0.857100 | 71.9 | 7587 | 1478 | None |
+| 26 | `DOC-e29140d2e8e989be` | True | 0.640000 | 671.4 | 33913 | 3993 | None |
+| 27 | `DOC-70f90b46b2c4f1a6` | True | 0.666700 | 34.2 | 3154 | 623 | None |
+| 28 | `DOC-27b649fe2f6fae8e` | True | 0.777800 | 75.6 | 5464 | 1345 | None |
+| 29 | `DOC-712c3f92a0a56b77` | True | 0.628600 | 267.1 | 56227 | 4552 | None |
+| 30 | `DOC-8993ad1085e08bd0` | True | 0.620700 | 95.6 | 22402 | 1710 | None |
+| 31 | `DOC-1ddc9333769d27e4` | True | 0.615400 | 50.6 | 4450 | 946 | None |
+| 32 | `DOC-dfb4e69a3ab10dc9` | True | 0.318200 | 61.3 | 7378 | 1303 | None |
+| 33 | `DOC-1266801f2faad19f` | True | 0.588200 | 354.8 | 33383 | 6299 | None |
+| 34 | `DOC-fe06800cc62e5e19` | True | 0.620700 | 82.8 | 8619 | 1742 | None |
+| 35 | `DOC-472f423cdf0819ef` | True | 0.666700 | 212.2 | 4656 | 1037 | None |
+| 36 | `DOC-53e364f030a30b5c` | True | 0.754100 | 728.5 | 94991 | 10611 | None |
+| 37 | `DOC-c9d4c4f8ff433527` | True | 0.521700 | 158.4 | 7730 | 1301 | None |
+| 38 | `DOC-62b300182901e850` | True | 0.666700 | 385.6 | 33346 | 2024 | None |
+| 39 | `DOC-e0d31c39359cb803` | True | 0.588200 | 98.7 | 6879 | 835 | None |
+| 40 | `DOC-d6b6b418dd211b76` | True | 0.620700 | 281.6 | 7293 | 3222 | None |
+| 41 | `DOC-3f4003eb02433292` | True | 0.545500 | 136.8 | 4421 | 1952 | None |
+| 42 | `DOC-a6f559e4010fc8d1` | True | 0.529400 | 1001.1 | 32594 | 3134 | None |
+| 43 | `DOC-4b57f485708ab60b` | True | 0.600000 | 167.8 | 6639 | 2777 | None |
+| 44 | `DOC-dbe52fd78e44b0ef` | True | 0.800000 | 109.9 | 18750 | 1896 | None |
+| 45 | `DOC-01849fa3020a5ac1` | True | 0.500000 | 72.8 | 4173 | 1307 | None |
+| 46 | `DOC-8f737e9fec8f24f0` | True | 0.545500 | 513.2 | 35815 | 6087 | None |
+| 47 | `DOC-aca7df716d7eef00` | True | 0.666700 | 434.6 | 36448 | 5997 | None |
+| 48 | `DOC-e218d39bb2f3c5ef` | True | 0.560000 | 220.8 | 19923 | 5096 | None |
+| 49 | `DOC-dfd20f94bb76b6e4` | True | 0.536600 | 215.9 | 21000 | 4957 | None |
+| 50 | `DOC-6b67382dcf833c5b` | True | 0.628600 | 259.5 | 24554 | 7102 | None |
