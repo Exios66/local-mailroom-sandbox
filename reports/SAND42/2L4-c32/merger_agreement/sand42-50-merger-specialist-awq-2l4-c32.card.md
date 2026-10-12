@@ -95,6 +95,8 @@
 | Precision on answered | 7.5% |
 | Clean subset | 19 / 343 |
 | Suite field score (mean) | not captured |
+| **Paired n** |  |
+| Documents a paired delta can use | 50 of 50 |
 
 ## Figure
 
@@ -155,4 +157,4 @@
 | 49 | `DOC-5d30efc302f3c431` | yes | 0.0625 | 855.8 | 130943 | 11157 | — |
 | 50 | `DOC-511062d64bc9afc6` | yes | 0.0000 | 1,959.2 | 97584 | 6846 | — |
 
-_Generated 2026-10-12T17:17:28+00:00 by `sandbox run card`. Machine-readable twin: `sand42-50-merger-specialist-awq-2l4-c32.card.json`._
+_Generated 2026-10-12T21:38:18+00:00 by `sandbox run card`. Machine-readable twin: `sand42-50-merger-specialist-awq-2l4-c32.card.json`._

@@ -1,6 +1,6 @@
 # SAND-042 · paired comparison across the 5 cells
 
-All 5 cells score the **identical 250 documents** (5 specialists × 50, one subclass-stratified draw), so every cell-to-cell delta below is **paired**: the unit of analysis is the per-document score difference. Intervals are 95% percentile bootstrap over documents; the last column is the paired n that Δ = 0.05 would need at 80% power.
+**The cells do NOT all score the same documents.** `sand42-50-contracts`: ['1l4-c16', '1l4-c8'] (50 docs) vs ['2l4-c16', '2l4-c32', '2l4-c8'] (50 docs). Any delta between cells on different draws is **not paired** — the per-document difference is undefined across a draw change, so those columns compare different documents and must not be read as a comparison until every cell re-runs on one draw. Everything else in this table (cost, throughput, engine telemetry) is unaffected.
 
 Reference cell: **1l4-c8** (1×L4, client concurrency 8).
 
@@ -8,45 +8,57 @@ Reference cell: **1l4-c8** (1×L4, client concurrency 8).
 
 | Class | Paired n | Δ mean | 95% CI | SD_diff | better / worse / tie | n for Δ=0.05 |
 | --- | ---: | ---: | --- | ---: | --- | ---: |
-| Contracts | 45 | +0.024 | [-0.006, 0.055] | 0.105 | 24 / 15 / 6 | 35 |
-| Corporate Records | 50 | -0.013 | [-0.035, 0.003] | 0.069 | 3 / 3 / 44 | 15 |
-| Correspondence | 50 | -0.003 | [-0.022, 0.017] | 0.070 | 2 / 5 / 43 | 16 |
-| Insurance Claims | 50 | -0.005 | [-0.013, 0.002] | 0.027 | 11 / 14 / 25 | 3 |
-| Merger Agreements | 50 | +0.008 | [-0.002, 0.020] | 0.039 | 9 / 5 / 36 | 5 |
+| Contracts | 50 | +0.005 | [-0.024, 0.038] | 0.111 | 22 / 17 / 11 | 39 |
+| Corporate Records | 50 | +0.012 | [-0.000, 0.028] | 0.055 | 5 / 1 / 44 | 10 |
+| Correspondence | 50 | -0.009 | [-0.026, 0.001] | 0.051 | 2 / 3 / 45 | 9 |
+| Insurance Claims | 50 | -0.004 | [-0.012, 0.003] | 0.028 | 8 / 10 / 32 | 3 |
+| Merger Agreements | 50 | +0.000 | [-0.015, 0.015] | 0.054 | 8 / 7 / 35 | 9 |
 
 ## 2l4-c8 (2× L4 · C8 · 4/replica) vs 1l4-c8
 
 | Class | Paired n | Δ mean | 95% CI | SD_diff | better / worse / tie | n for Δ=0.05 |
 | --- | ---: | ---: | --- | ---: | --- | ---: |
-| Contracts | 44 | +0.042 | [0.002, 0.081] | 0.134 | 26 / 11 / 7 | 57 |
-| Corporate Records | 50 | -0.016 | [-0.038, 0.001] | 0.073 | 2 / 6 / 42 | 17 |
-| Correspondence | 50 | -0.005 | [-0.019, 0.005] | 0.045 | 1 / 3 / 46 | 7 |
-| Insurance Claims | 50 | +0.001 | [-0.005, 0.007] | 0.023 | 10 / 10 / 30 | 2 |
-| Merger Agreements | 50 | +0.010 | [-0.003, 0.025] | 0.048 | 13 / 6 / 31 | 8 |
+| Contracts | 38 | +0.018 | [-0.023, 0.060] | 0.129 | 18 / 12 / 8 | 53 |
+| Corporate Records | 50 | -0.002 | [-0.018, 0.010] | 0.053 | 4 / 3 / 43 | 9 |
+| Correspondence | 50 | -0.009 | [-0.025, 0.001] | 0.049 | 1 / 3 / 46 | 8 |
+| Insurance Claims | 50 | -0.001 | [-0.005, 0.003] | 0.014 | 7 / 7 / 36 | 1 |
+| Merger Agreements | 50 | +0.004 | [-0.006, 0.013] | 0.034 | 8 / 4 / 38 | 4 |
 
 ## 2l4-c16 (2× L4 · C16 · 8/replica) vs 1l4-c8
 
 | Class | Paired n | Δ mean | 95% CI | SD_diff | better / worse / tie | n for Δ=0.05 |
 | --- | ---: | ---: | --- | ---: | --- | ---: |
-| Contracts | 44 | +0.025 | [-0.012, 0.064] | 0.129 | 20 / 19 / 5 | 53 |
-| Corporate Records | 50 | +0.001 | [-0.018, 0.021] | 0.069 | 4 / 4 / 42 | 15 |
-| Correspondence | 50 | -0.003 | [-0.029, 0.021] | 0.091 | 3 / 5 / 42 | 27 |
-| Insurance Claims | 50 | -0.001 | [-0.007, 0.003] | 0.018 | 14 / 11 / 25 | 2 |
-| Merger Agreements | 50 | +0.003 | [-0.008, 0.014] | 0.041 | 9 / 7 / 34 | 6 |
+| Contracts | 39 | -0.001 | [-0.044, 0.044] | 0.141 | 17 / 17 / 5 | 63 |
+| Corporate Records | 50 | +0.016 | [0.001, 0.036] | 0.067 | 5 / 2 / 43 | 14 |
+| Correspondence | 50 | -0.006 | [-0.033, 0.019] | 0.096 | 2 / 6 / 42 | 29 |
+| Insurance Claims | 50 | -0.003 | [-0.010, 0.004] | 0.026 | 16 / 13 / 21 | 3 |
+| Merger Agreements | 50 | -0.004 | [-0.018, 0.009] | 0.049 | 7 / 8 / 35 | 8 |
 
 ## 2l4-c32 (2× L4 · C32 · 16/replica) vs 1l4-c8
 
 | Class | Paired n | Δ mean | 95% CI | SD_diff | better / worse / tie | n for Δ=0.05 |
 | --- | ---: | ---: | --- | ---: | --- | ---: |
-| Contracts | 45 | +0.014 | [-0.023, 0.052] | 0.131 | 23 / 14 / 8 | 55 |
-| Corporate Records | 50 | -0.012 | [-0.033, 0.003] | 0.067 | 1 / 3 / 46 | 15 |
-| Correspondence | 50 | -0.007 | [-0.019, 0.000] | 0.040 | 0 / 3 / 47 | 5 |
-| Insurance Claims | 50 | +0.001 | [-0.005, 0.006] | 0.019 | 11 / 9 / 30 | 2 |
-| Merger Agreements | 50 | +0.003 | [-0.006, 0.012] | 0.033 | 8 / 4 / 38 | 4 |
+| Contracts | 39 | -0.005 | [-0.046, 0.036] | 0.133 | 16 / 15 / 8 | 56 |
+| Corporate Records | 50 | +0.003 | [-0.017, 0.022] | 0.069 | 3 / 1 / 46 | 15 |
+| Correspondence | 50 | -0.010 | [-0.028, 0.001] | 0.053 | 2 / 5 / 43 | 9 |
+| Insurance Claims | 50 | -0.001 | [-0.006, 0.004] | 0.019 | 8 / 7 / 35 | 2 |
+| Merger Agreements | 50 | -0.003 | [-0.015, 0.006] | 0.039 | 4 / 3 / 43 | 5 |
 
 ## Noise floor (run-to-run, same 50 documents)
 
-_Not measured._ Run `sand42-noise-floor` (blocked until spend is approved) on the same 50 correspondence documents. Until then the SAND-037/39 floor in `docs/BENCHMARK-PROGRAM.md` §3 is the prior — it was measured on a different draw, so treat it as indicative only.
+`sand42-noisefloor-correspondence-awq-1l4-c8` re-run against `sand42-50-correspondence-specialist-awq-1l4-c8` (identical settings, identical documents):
+
+| Metric | Value |
+| --- | ---: |
+| Paired documents | 50 |
+| Δ mean (should be ≈ 0) | -0.003 |
+| 95% CI | [-0.022, 0.016] |
+| SD of the difference | 0.066 |
+| better / worse / tie | 1 / 2 / 47 |
+| Paired n for Δ=0.05 | 14 |
+| Paired n for Δ=0.03 | 39 |
+
+**Quote no delta smaller than this floor.** Any cell-to-cell interval that contains 0 is inside the noise floor.
 
 ## Figures
 
@@ -56,12 +68,4 @@ _Not measured._ Run `sand42-noise-floor` (blocked until spend is approved) on th
 ![Throughput](figures/cmp-throughput.png)
 ![Gpu](figures/cmp-gpu.png)
 
-## Why a paired n can be below the class's document count
-
-The unit of analysis is the **per-document** score difference, so a class's paired n is the intersection of the documents both arms score. Where that is less than the 50-document draw, this is why:
-
-* `contracts_specialist` — the paired n is capped at **45 of 50** documents: its task-native metric (`cuad`) is defined only for the 45 contracts that carry ground truth for it. The remainder ran successfully (`ok` true, no error) but score no numeric value in ANY arm, so they can never enter a paired delta. The cap is a property of the ground truth, not of these runs.
-* `contracts_specialist` / `2l4-c8` — scores 44 of the 45 available documents; the shortfall is this arm's own failure (LengthFinishReasonError ×1), so its paired n against `1l4-c8` is the intersection.
-* `contracts_specialist` / `2l4-c16` — scores 44 of the 45 available documents; the shortfall is this arm's own failure (LengthFinishReasonError ×1), so its paired n against `1l4-c8` is the intersection.
-
-_Generated 2026-10-12T17:48:55+00:00 by `sandbox run card --runbook sand42`._
+_Generated 2026-10-12T21:38:22+00:00 by `sandbox run card --runbook sand42`._

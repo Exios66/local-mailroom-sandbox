@@ -83,6 +83,8 @@
 | Schema-valid rate | 0.24 |
 | Parse errors | 0 |
 | Errors | 0 / 50 |
+| **Paired n** |  |
+| Documents a paired delta can use | 50 of 50 |
 
 ## Figure
 
@@ -143,4 +145,4 @@
 | 49 | `DOC-5b97ae3f8558703c` | yes | 0.6916 | 18.2 | 4565 | 654 | — |
 | 50 | `DOC-02f77aa77391a8c2` | yes | 0.6864 | 40.3 | 5091 | 1404 | — |
 
-_Generated 2026-10-12T17:17:20+00:00 by `sandbox run card`. Machine-readable twin: `sand42-50-insurance-claims-specialist-awq-2l4-c16.card.json`._
+_Generated 2026-10-12T21:38:11+00:00 by `sandbox run card`. Machine-readable twin: `sand42-50-insurance-claims-specialist-awq-2l4-c16.card.json`._

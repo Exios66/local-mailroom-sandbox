@@ -90,6 +90,8 @@
 | Micro precision / recall / F1 | 0.652 / 0.582 / 0.615 |
 | Metadata value checks | 74 / 124 |
 | Suite field score (mean) | not captured |
+| **Paired n** |  |
+| Documents a paired delta can use | 44 of 50 (1 error; 5 with no ground truth for the class metric) |
 
 ## Errors
 
@@ -156,4 +158,4 @@
 | 49 | `DOC-8f737e9fec8f24f0` | yes | 0.5455 | 246.4 | 35815 | 6494 | — |
 | 50 | `DOC-53e364f030a30b5c` | yes | 0.6383 | 802.8 | 69850 | 7063 | — |
 
-_Generated 2026-10-12T17:17:10+00:00 by `sandbox run card`. Machine-readable twin: `sand42-50-contracts-specialist-awq-2l4-c8.card.json`._
+_Generated 2026-10-12T21:38:02+00:00 by `sandbox run card`. Machine-readable twin: `sand42-50-contracts-specialist-awq-2l4-c8.card.json`._
