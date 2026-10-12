@@ -67,6 +67,11 @@ dataset:
           - {subclass: "Non_Compete_Non_Solicit", count: 1}
           - {subclass: "Promotion", count: 1}
           - {subclass: "Reseller", count: 1}
+  # 91 of the corpus's 600 contracts carry an EMPTY cuad_clause_labels, so a
+  # plain draw silently shrinks the contracts clause column (5/50 in the first
+  # grid). Drop unscoreable documents BEFORE the draw: every subclass's annotated
+  # supply still covers its requested count, so the strata block is unchanged.
+  require_task_gt: true
   limit: 50
   sample_seed: 42
 

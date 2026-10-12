@@ -122,6 +122,13 @@ class DatasetSpec(BaseModel):
     #         see corpus.strata_field / select_rows for semantics.
     strata: dict[str, Any] | None = None
     exclude_expected: list[str] | None = None
+    # Drop documents whose class's task-native metric has no ground truth to score
+    # against (a contract with empty cuad_clause_labels, a merger with empty
+    # maud_clause_labels) BEFORE the draw. Such a document can never be scored, so
+    # drawing it costs a GPU pass and deflates the paired n — the SAND-042 contracts
+    # column was computed on 45 of 50 documents for exactly this reason. Off by
+    # default: synthetic fixtures and other studies draw deliberately unlabeled rows.
+    require_task_gt: bool = False
     columns: dict[str, str] | None = None
     expected_fields: list[str] | None = None
     local_path: str | None = None  # file:// or absolute path (offline)
