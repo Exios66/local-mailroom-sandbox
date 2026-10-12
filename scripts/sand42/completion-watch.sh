@@ -72,7 +72,10 @@ except ValueError:
 print(" ".join(sorted({a["description"] for a in data
                        if isinstance(a, dict) and a.get("state") == "deployed"
                        and str(a.get("description", "")).startswith("sandbox-vllm")
-                       and (a.get("tasks") or 0) > 0})))
+                       # `tasks` arrives as a STRING from `modal app list --json`
+                       # ("2", not 2): comparing it to 0 raises TypeError and the
+                       # detector silently finds nothing to tear down.
+                       and int(a.get("tasks") or 0) > 0})))
 PY
 )
 if [ -z "$apps" ]; then
