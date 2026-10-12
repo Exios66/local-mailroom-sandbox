@@ -94,7 +94,22 @@ Intervals are 95% percentile bootstrap over documents; a CI containing 0 is insi
 
 ## Findings
 
-* Not measured yet — condition cards report 1l4-c8 5/5, 1l4-c16 5/5, 2l4-c8 5/5, 2l4-c16 5/5, 2l4-c32 0/5. No cross-cell claim is made until all 5 conditions are complete.
+* Pending — condition cards report 1l4-c8 5/5, 1l4-c16 5/5, 2l4-c8 5/5, 2l4-c16 5/5, 2l4-c32 0/5. The findings below cover the 4 completed condition(s) only; no claim here spans a pending condition.
+* 1l4-c16 vs 1l4-c8 · correspondence_specialist: +28% documents/min/GPU
+* 1l4-c16 vs 1l4-c8 · insurance_claims_specialist: +23% documents/min/GPU
+* 1l4-c16 vs 1l4-c8 · corporate_records_specialist: +15% documents/min/GPU
+* 1l4-c16 vs 1l4-c8 · contracts_specialist: -18% documents/min/GPU
+* 1l4-c16 vs 1l4-c8 · merger_agreement_specialist: +14% documents/min/GPU
+* 2l4-c8 vs 1l4-c8 · correspondence_specialist: -40% documents/min/GPU
+* 2l4-c8 vs 1l4-c8 · insurance_claims_specialist: -46% documents/min/GPU
+* 2l4-c8 vs 1l4-c8 · corporate_records_specialist: -33% documents/min/GPU
+* 2l4-c8 vs 1l4-c8 · contracts_specialist: -53% documents/min/GPU
+* 2l4-c8 vs 1l4-c8 · merger_agreement_specialist: -27% documents/min/GPU
+* 2l4-c16 vs 1l4-c8 · correspondence_specialist: -24% documents/min/GPU
+* 2l4-c16 vs 1l4-c8 · insurance_claims_specialist: -25% documents/min/GPU
+* 2l4-c16 vs 1l4-c8 · corporate_records_specialist: -19% documents/min/GPU
+* 2l4-c16 vs 1l4-c8 · contracts_specialist: -57% documents/min/GPU
+* 2l4-c16 vs 1l4-c8 · merger_agreement_specialist: -19% documents/min/GPU
 
 ## Cost
 
@@ -104,4 +119,4 @@ Intervals are 95% percentile bootstrap over documents; a CI containing 0 is insi
 
 Per-condition detail and engine/GPU telemetry: [`SAND42-MASTER-REPORT.md`](SAND42-MASTER-REPORT.md).
 
-_Generated 2026-10-12T16:08:08+00:00 by `sandbox run card --runbook sand42`._
+_Generated 2026-10-12T16:13:22+00:00 by `sandbox run card --runbook sand42`._

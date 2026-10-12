@@ -683,7 +683,7 @@ def test_master_card_and_report_render_before_any_run(tmp_path):
     card = sand42_cards.render_master_card_md(data)
     report = sand42_cards.render_master_report_md(data)
     assert f"Conditions measured:** 0 of {len(sand42_cards.CELL_ORDER)}" in card
-    assert "Not measured yet" in card
+    assert "Pending — condition cards report" in card
     assert "master report" in report
     # every condition gets a section, and the comparison + method come with it
     for cell in sand42_cards.CELL_ORDER:
