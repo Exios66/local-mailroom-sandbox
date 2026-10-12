@@ -103,8 +103,10 @@ if [ "$REBUILD" = 1 ]; then
   # 3a. Refresh the per-run cards FIRST. They are what the cell cards and the master
   # are built from, so a metric added to the card renderer after a run finished only
   # appears once that run's card is rewritten. Offline: reads the run store, no LLM.
-  say "refreshing the per-run cards (20 runs)"
-  for cfg in config/runs/sand42-50-*-awq-{1l4,2l4}-{c8,c16}.yaml; do
+  say "refreshing the per-run cards"
+  # c32 is its own glob rather than {c8,c16,c32}: 1l4-c32 does not exist, and a brace
+  # that silently matches nothing would drop a whole cell's cards without a word.
+  for cfg in config/runs/sand42-50-*-awq-{1l4,2l4}-{c8,c16}.yaml config/runs/sand42-50-*-awq-2l4-c32.yaml; do
     .venv/bin/sandbox run card --config "$cfg" >/dev/null 2>&1 \
       || say "WARN per-run card failed for $(basename "$cfg")"
   done
@@ -118,7 +120,12 @@ say "verifying artifacts"
 "$PY" - <<'PY'
 import glob, json, pathlib, sys
 
-CELLS = {"1l4-c8": "1L4-C8", "1l4-c16": "1L4-C16", "2l4-c8": "2L4-C8", "2l4-c16": "2L4-C16"}
+# Imported from the grid, never duplicated: the hardcoded copy that used to live here
+# missed 2l4-c32 the moment the SAND-047 amendment registered it and reported its six
+# cards as gaps. sand42_cards.cell_paths derives the folder the same way the writers do.
+from mailroom_sandbox.job import sand42_cards as _cards
+
+CELLS = {c: _cards.cell_paths(c)["md"].parent.name for c in _cards.CELL_ORDER}
 # config slug -> the card FOLDER (snake_case; the slugs are hyphenated)
 FOLDERS = {"correspondence": "correspondence", "insurance-claims": "insurance_claims",
            "corporate-records": "corporate_records", "contracts": "contracts",
@@ -165,7 +172,7 @@ if master.is_file():
     # bandwidth family, so its column reads "not captured" until the 1L4-c8 re-run.
     nc_count = text.count("not captured")
     if nc_count:
-        ok.append(f"master card has {nc_count} 'not captured' reading(s) — expected: the 1L4-c8 re-run fills the memory-bandwidth column")
+        ok.append(f"master card has {nc_count} 'not captured' reading(s) — each must carry a reason, never a figure: the 1L4 re-runs fill the memory-bandwidth column, and the cold-boot rows state why ready_ts is unwritten for the cells the sequential driver ran")
 
 # newest run card vs the master: the master must have been rebuilt AFTER them
 run_cards = []
