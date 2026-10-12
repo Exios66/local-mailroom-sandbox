@@ -659,6 +659,30 @@ def test_cell_card_renders_without_any_run_cards(tmp_path):
     assert md.count("not run") >= 5
 
 
+def test_no_two_edge_kv_row_can_come_back(tmp_path):
+    """The drained-edge KV row must not return, in either rendered artifact.
+
+    ``vllm:kv_cache_usage_perc`` is a gauge of live sequences, and the before/after scrapes
+    fire at the run's two drained edges — so a row built from them read 0 in all 58
+    preserved readings across every cell. It could not distinguish one cell from another,
+    and it sat directly above the row that could, which is why it was deleted. Deleting it
+    is only durable if the suite refuses its return, so this pins both artifacts to a single
+    KV row — the mid-run maximum — and pins the module to not carrying the helper at all.
+    """
+    cell = sand42_cards.render_cell_md(sand42_cards.collect_cell("1l4-c8", repo=tmp_path))
+    master = sand42_cards.render_master_report_md(sand42_cards.collect_master(repo=tmp_path))
+
+    for name, md in (("cell card", cell), ("master report", master)):
+        assert "KV cache use (%)" not in md, f"{name} has the drained-edge KV row back"
+        kv_rows = [ln for ln in md.splitlines() if ln.startswith("|") and "KV cache" in ln]
+        assert kv_rows, f"{name} lost its KV row entirely"
+        assert all("mid-run (max %)" in ln for ln in kv_rows), f"{name}: {kv_rows}"
+
+    # The helper had no other caller, so its absence is the same guarantee at the source.
+    assert not hasattr(sand42_cards, "_kv_text")
+    assert not hasattr(sand42_cards, "_kv_max")
+
+
 def test_maybe_write_card_accepts_the_smoke_leg(monkeypatch):
     """The runner hook must auto-write the smoke card too, not only --config."""
     from mailroom_sandbox.job import grid_cards as gc
