@@ -30,14 +30,20 @@
 | Goodput docs/min/GPU | not run | not run | not run | not run | not run |
 | Tokens/s/GPU | not run | not run | not run | not run | not run |
 | Wall (s) | not run | not run | not run | not run | not run |
+| Billed GPU $ (run) | not run | not run | not run | not run | not run |
 | $ / 1k ok docs | not run | not run | not run | not run | not run |
 | $ / 1k schema-valid | not run | not run | not run | not run | not run |
-| GPU util (mean/peak) | not run | not run | not run | not run | not run |
+| GPU util (mean/p95/peak) | not run | not run | not run | not run | not run |
+| Sampling coverage | not run | not run | not run | not run | not run |
 | GPU power (W, mean) | not run | not run | not run | not run | not run |
 | GPU temp (C, mean) | not run | not run | not run | not run | not run |
 | KV cache use (max %) | not run | not run | not run | not run | not run |
 | Preemptions | not run | not run | not run | not run | not run |
 | Length finishes | not run | not run | not run | not run | not run |
+
+## Cost (computed from the session)
+
+Fleet window not recorded (no fleet_window.json for this cell). Per-run costs still come from each run's own container-telemetry window.
 
 ## Per-run cards
 
@@ -51,4 +57,4 @@
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-12T00:11:20+00:00 by `sandbox run card --runbook sand42-2l4-c16` from the committed per-run `*.card.json`._
+_Generated 2026-10-12T04:17:35+00:00 by `sandbox run card --runbook sand42-2l4-c16` from the committed per-run `*.card.json`._

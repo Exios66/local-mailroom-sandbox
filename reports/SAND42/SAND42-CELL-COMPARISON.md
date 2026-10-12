@@ -26,4 +26,4 @@ Reference cell: **1l4-c8** (1×L4, client concurrency 8).
 
 _Not measured._ Run `sand42-noise-floor` (blocked until spend is approved) on the same 50 correspondence documents. Until then the SAND-037/39 floor in `docs/BENCHMARK-PROGRAM.md` §3 is the prior — it was measured on a different draw, so treat it as indicative only.
 
-_Generated 2026-10-12T00:11:20+00:00 by `sandbox run card --runbook sand42`._
+_Generated 2026-10-12T04:17:35+00:00 by `sandbox run card --runbook sand42`._

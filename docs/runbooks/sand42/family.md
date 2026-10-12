@@ -38,9 +38,9 @@ Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), th
 ## Notes
 
 - Reports: each run writes reports/SAND42/1L4-c8/<specialist>/<run_id>.card.md + .card.json; the after step writes reports/SAND42/1L4-c8/SAND42-1L4-C8-SCORE-COST-CARD.md + .json from those cards. Commit the SAND42 tree.
-- Spend (estimate): ≈ 30–45 min warm on one L4 (SAND-037 1×L4 C8 n=50 measured ≈ 29 min for the same 250 documents, plus C16 headroom) ≈ $0.45 GPU, plus one cold boot; the five cost caps sum to $3.70 and are the abort guard. Needs spend approval before deploy.
+- Spend (estimate): short classes ~5 min each; contracts ~18 min / ~$0.26 (chunked, 50->85 calls); merger ~1.3 h / ~$1.04 (chunked, MEASURED by the 5-document probe: 438 s warm for 1,702,602 chars, scaled 10.66x to the full 18,160,427-char draw). The five cost caps sum to $4.15 and are the abort guard. Needs spend approval before deploy.
 - Canonical deploy knobs: set -a; eval "$(sandbox run deploy-env --config config/runs/sand42-50-correspondence-specialist-awq-1l4-c8.yaml)"; set +a. MODAL_VLLM_TELEMETRY_LABEL is part of that block (one label per cell).
-- Decode is max_tokens 8192, temperature 0.7 on contracts and merger (JSON-schema grammar: 0.1 looped to every cap) and 0.1 elsewhere. Do not raise max_tokens mid-cell; a LengthFinishReasonError at 8192 is a recorded finding.
+- Decode: max_tokens 8192 at temperature 0.7 for contracts, 6144 for merger (SAND-040 optimised: top_p 0.8 / presence 1.0 / one length re-sample), 0.1 elsewhere. Contracts and merger run WHOLE-DOCUMENT CHUNKED extraction — the old head+tail cap dropped 62 % of contract and 93 % of merger text, and merger MAUD accuracy measured 0.0 on that truncated arm with 3/50 hard length failures. Do not raise max_tokens.
 - MIN=MAX=1 pins the single replica warm from deploy to teardown, so the whole cell pays one cold boot.
 - Pairing: the five draws are identical to the other three cells (same strata block, same seed 42, same revision). Do not edit the dataset block of one cell without the others.
 
@@ -155,9 +155,9 @@ Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), th
 ## Notes
 
 - Reports: reports/SAND42/1L4-c16/<specialist>/<run_id>.card.* then the after step writes reports/SAND42/1L4-c16/SAND42-1L4-C16-SCORE-COST-CARD.md + .json.
-- Spend (estimate): ≈ 30–45 min warm on one L4 ≈ $0.45 GPU plus one cold boot; the five cost caps sum to $3.70 and are the abort guard. Needs spend approval before deploy.
+- Spend (estimate): short classes ~5 min each; contracts ~18 min / ~$0.26 (chunked, 50->85 calls); merger ~1.3 h / ~$1.04 (chunked, MEASURED by the 5-document probe: 438 s warm for 1,702,602 chars, scaled 10.66x to the full 18,160,427-char draw). The five cost caps sum to $4.15 and are the abort guard. Needs spend approval before deploy.
 - C16 on one L4 is the only posture here that exceeds the SAND-037 grid's C8; per-replica admission stays max_num_seqs 16, so C16 is exactly the admission cap. Watch vLLM preemptions and the KV-cache usage scrape on the long classes.
-- Decode is max_tokens 8192, temperature 0.7 on contracts and merger, 0.1 elsewhere. Do not raise max_tokens mid-cell.
+- Decode: max_tokens 8192 at temperature 0.7 for contracts, 6144 for merger (SAND-040 optimised: top_p 0.8 / presence 1.0 / one length re-sample), 0.1 elsewhere. Contracts and merger run WHOLE-DOCUMENT CHUNKED extraction — the old head+tail cap dropped 62 % of contract and 93 % of merger text, and merger MAUD accuracy measured 0.0 on that truncated arm with 3/50 hard length failures. Do not raise max_tokens.
 - Pairing: identical draws to the other three cells. Compare against sand42-1l4-c8 (same GPU count, different concurrency) — that pair isolates concurrency alone.
 
 ## Do not
@@ -271,10 +271,10 @@ Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), th
 ## Notes
 
 - Reports: reports/SAND42/2L4-c8/<specialist>/<run_id>.card.* then the after step writes reports/SAND42/2L4-c8/SAND42-2L4-C8-SCORE-COST-CARD.md + .json.
-- Spend (estimate): ≈ 20–35 min warm on two L4s (≈ 2 × $0.80/hr) ≈ $0.55–0.95 GPU plus one cold boot per replica; the five cost caps sum to $5.40 and are the abort guard. Needs spend approval before deploy.
+- Spend (estimate): as the 1xL4 cell, billed on two GPUs; merger ~39 min wall at the same ~1.30 GPU-hours. The five cost caps sum to $6.20 and are the abort guard. Needs spend approval before deploy.
 - Client concurrency is split equally across replicas: 8 → 4 per replica. Modal round-robins, so per-replica load is 4; measure the split with the per-replica /metrics scrape (SAND-040 saw bursty affinity at C32).
 - MIN=MAX=2 keeps both replicas warm across all five classes. Teardown only after the fifth: two warm replicas bill two GPUs.
-- Decode is max_tokens 8192, temperature 0.7 on contracts and merger, 0.1 elsewhere.
+- Decode: max_tokens 8192 at temperature 0.7 for contracts, 6144 for merger (SAND-040 optimised: top_p 0.8 / presence 1.0 / one length re-sample), 0.1 elsewhere. Contracts and merger run WHOLE-DOCUMENT CHUNKED extraction — the old head+tail cap dropped 62 % of contract and 93 % of merger text, and merger MAUD accuracy measured 0.0 on that truncated arm with 3/50 hard length failures. Do not raise max_tokens.
 
 ## Do not
 
@@ -387,10 +387,10 @@ Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), th
 ## Notes
 
 - Reports: reports/SAND42/2L4-c16/<specialist>/<run_id>.card.* then the after step writes reports/SAND42/2L4-c16/SAND42-2L4-C16-SCORE-COST-CARD.md + .json.
-- Spend (estimate): ≈ 20–35 min warm on two L4s ≈ $0.55–0.95 GPU plus one cold boot per replica; the five cost caps sum to $5.40 and are the abort guard. Needs spend approval before deploy.
+- Spend (estimate): as the 1xL4 cell, billed on two GPUs; merger ~39 min wall at the same ~1.30 GPU-hours. The five cost caps sum to $6.20 and are the abort guard. Needs spend approval before deploy.
 - Client concurrency is split equally across replicas: 16 → 8 per replica. This is the matched-load twin of sand42-1l4-c8 (8 per replica on one GPU).
 - MIN=MAX=2 keeps both replicas warm across all five classes; teardown only after the fifth.
-- Decode is max_tokens 8192, temperature 0.7 on contracts and merger, 0.1 elsewhere.
+- Decode: max_tokens 8192 at temperature 0.7 for contracts, 6144 for merger (SAND-040 optimised: top_p 0.8 / presence 1.0 / one length re-sample), 0.1 elsewhere. Contracts and merger run WHOLE-DOCUMENT CHUNKED extraction — the old head+tail cap dropped 62 % of contract and 93 % of merger text, and merger MAUD accuracy measured 0.0 on that truncated arm with 3/50 hard length failures. Do not raise max_tokens.
 
 ## Do not
 

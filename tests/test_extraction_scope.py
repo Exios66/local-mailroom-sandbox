@@ -211,3 +211,30 @@ def test_hf_fixture_correspondence_union_key_does_not_tank_score():
     assert scored["overall_extraction_score"] is not None
     assert scored["overall_extraction_score"] >= 0.99
     assert scored.get("extraction_f1", 1.0) >= 0.99
+
+
+def test_seam_keys_track_the_vendored_engine_and_the_merger_agent():
+    """The seam's field set IS the scoring contract — pin it, don't just comment it.
+
+    Four classes must equal the vendored engine's ``field_types`` exactly. Merger is
+    the deliberate exception: ``suite_for_doc_type("merger_agreement")`` returns the
+    *contract* suite, whose map still carries CUAD leftovers (``term_length``,
+    ``cuad_family``, ``cuad_clauses``, ``contract_value``, ``renewal_terms``) that
+    the mailroom merger agent never emits. The seam scores the agent's real keys
+    instead, minus the trace-only ``reasoning``/``confidence``.
+
+    A vendored-schema refresh that moves any of these silently changes what every
+    SAND-042 cell scores, so it must fail here rather than in a card.
+    """
+    from langchain_agents.specialist_agents import MERGER_AGREEMENT_SCHEMA
+    from llm_dojo_scoring import suite_for_doc_type
+
+    for doc_type in ("correspondence", "insurance_claim", "corporate_record", "contract"):
+        engine = set(suite_for_doc_type(doc_type).field_types or {})
+        assert set(LIVE_SCHEMA_FIELDS[doc_type]) == engine, doc_type
+
+    agent = set((MERGER_AGREEMENT_SCHEMA.get("properties") or MERGER_AGREEMENT_SCHEMA).keys())
+    merger = set(LIVE_SCHEMA_FIELDS["merger_agreement"])
+    assert merger == agent - {"reasoning", "confidence"}
+    # And the dojo's CUAD leftovers must not creep back into the merger score.
+    assert not merger & {"term_length", "cuad_family", "cuad_clauses", "contract_value", "renewal_terms"}

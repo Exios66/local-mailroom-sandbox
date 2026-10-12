@@ -21,7 +21,7 @@ data/runtime/runs/<run_id>/
 
 ## Spec
 
-`config/runs/example.yaml` is the template. Key blocks:
+`config/runs/examples/example.yaml` is the template. Key blocks:
 
 ```yaml
 schema: sandbox.run/v1
@@ -269,7 +269,7 @@ suite (singular 1×L4 / 1-container) and improved configs. Catalog:
 
 ### AWQ vs FP16 isolation (issue #21) — config only, do not run
 
-[`config/runs/run-20-correspondence-fp16-c8.yaml`](../config/runs/run-20-correspondence-fp16-c8.yaml)
+[`config/runs/legacy/run-20-correspondence-fp16-c8.yaml`](../config/runs/legacy/run-20-correspondence-fp16-c8.yaml)
 is the FP16 twin of `run-20-correspondence-awq-c8`: same seed-42 correspondence
 draw (fingerprint `285f423d3708`), same local prompt, concurrency 8, targeting
 `Qwen/Qwen3-8B` (non-AWQ). The live quality compare is **blocked until

@@ -1,0 +1,758 @@
+{
+  "concurrency": {
+    "occupancy": 1.1333001969144647,
+    "parallelism": 9.066401575315718,
+    "slot_utilization": 1.1333
+  },
+  "conditions": {
+    "concurrency": 8,
+    "dataset": {
+      "config": "ground_truth",
+      "fingerprint": "76b083c7c46d",
+      "repo": "Lucius-Morningstar/mailroom-dataset",
+      "revision": "ed7576b6",
+      "seed": 42,
+      "split": "all"
+    },
+    "engine": {
+      "cuda_graphs": true,
+      "cudagraph_capture_sizes": [
+        1,
+        2,
+        4,
+        8,
+        16
+      ],
+      "kv_cache_dtype": "fp8",
+      "max_inputs": 32,
+      "max_model_len": 32768,
+      "max_num_seqs": 16,
+      "prefix_caching": true,
+      "quantization": "awq_marlin",
+      "thinking": false
+    },
+    "gpu": "L4",
+    "gpu_usd_per_hour": 0.8,
+    "image_tag": "v0.29.0",
+    "max_input_chars": 15000,
+    "max_retries": 2,
+    "max_tokens": 8192,
+    "modal_app": "sandbox-vllm",
+    "model": "Qwen/Qwen3-8B-AWQ",
+    "prompt": "corporate_records_specialist_simplified",
+    "replicas": 1,
+    "spec_hash": "4640639b77be18b6b293e54690edaabb31ed4fe2709ff68e36bff59dd277e2ef",
+    "temperature": 0.1,
+    "temperature_source": "vendored call site"
+  },
+  "cost": {
+    "billed_gpu_usd": 0.019396,
+    "billed_seconds": 87.283,
+    "busy_gpu_usd": 0.013655111111111111,
+    "idle_seconds": 0.0,
+    "idle_usd": null,
+    "usd_per_document": 0.00038792,
+    "usd_per_million_tokens": 0.09444417392998004,
+    "usd_per_ok_document": 0.00038792
+  },
+  "documents": [
+    {
+      "calls": 1,
+      "completion_tokens": 107,
+      "error": null,
+      "input_chars": 1191,
+      "item_id": "DOC-020d77c0107d273d",
+      "latency_seconds": 10.067158,
+      "ok": true,
+      "prompt_tokens": 2302,
+      "score": 0.4746
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 131,
+      "error": null,
+      "input_chars": 827,
+      "item_id": "DOC-9ca44c7926a47ede",
+      "latency_seconds": 10.200843,
+      "ok": true,
+      "prompt_tokens": 2292,
+      "score": 0.5024
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 144,
+      "error": null,
+      "input_chars": 11788,
+      "item_id": "DOC-6790430ae2a6c724",
+      "latency_seconds": 10.574598,
+      "ok": true,
+      "prompt_tokens": 4477,
+      "score": 0.1846
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 155,
+      "error": null,
+      "input_chars": 1413,
+      "item_id": "DOC-fbcdd16e24f143ac",
+      "latency_seconds": 13.375174000000001,
+      "ok": true,
+      "prompt_tokens": 2456,
+      "score": 0.1582
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 160,
+      "error": null,
+      "input_chars": 3491,
+      "item_id": "DOC-e545bbd5f5ea61b6",
+      "latency_seconds": 13.378287,
+      "ok": true,
+      "prompt_tokens": 2788,
+      "score": 0.3636
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 158,
+      "error": null,
+      "input_chars": 2024,
+      "item_id": "DOC-81ae205a3b0bf16f",
+      "latency_seconds": 13.413441,
+      "ok": true,
+      "prompt_tokens": 2515,
+      "score": 0.248
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 167,
+      "error": null,
+      "input_chars": 15000,
+      "item_id": "DOC-01054efd0980066b",
+      "latency_seconds": 13.610370000000001,
+      "ok": true,
+      "prompt_tokens": 5122,
+      "score": 0.8222
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 158,
+      "error": null,
+      "input_chars": 15000,
+      "item_id": "DOC-12a6d4cd092cf66d",
+      "latency_seconds": 13.638888000000001,
+      "ok": true,
+      "prompt_tokens": 7710,
+      "score": 0.5026
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 128,
+      "error": null,
+      "input_chars": 15000,
+      "item_id": "DOC-91f89b9c0d285ac7",
+      "latency_seconds": 11.866496,
+      "ok": true,
+      "prompt_tokens": 6902,
+      "score": 0.6667
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 136,
+      "error": null,
+      "input_chars": 1408,
+      "item_id": "DOC-c4c9c37a96291975",
+      "latency_seconds": 12.050865,
+      "ok": true,
+      "prompt_tokens": 2424,
+      "score": 0.0813
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 156,
+      "error": null,
+      "input_chars": 4754,
+      "item_id": "DOC-0a262afc80c73247",
+      "latency_seconds": 13.290935,
+      "ok": true,
+      "prompt_tokens": 3124,
+      "score": 0.1136
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 141,
+      "error": null,
+      "input_chars": 350,
+      "item_id": "DOC-a040ac19abb88fec",
+      "latency_seconds": 10.966923000000001,
+      "ok": true,
+      "prompt_tokens": 2206,
+      "score": 0.4097
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 163,
+      "error": null,
+      "input_chars": 15000,
+      "item_id": "DOC-0f56fe8db6df01bd",
+      "latency_seconds": 13.045681,
+      "ok": true,
+      "prompt_tokens": 5368,
+      "score": 0.0635
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 165,
+      "error": null,
+      "input_chars": 15000,
+      "item_id": "DOC-732b812b7d9d9653",
+      "latency_seconds": 13.028775,
+      "ok": true,
+      "prompt_tokens": 5572,
+      "score": 0.8889
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 171,
+      "error": null,
+      "input_chars": 15000,
+      "item_id": "DOC-2819b889b134ea01",
+      "latency_seconds": 13.343325,
+      "ok": true,
+      "prompt_tokens": 5344,
+      "score": 0.75
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 175,
+      "error": null,
+      "input_chars": 15000,
+      "item_id": "DOC-68d5a8753fcc3675",
+      "latency_seconds": 13.146012,
+      "ok": true,
+      "prompt_tokens": 5671,
+      "score": 0.4405
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 131,
+      "error": null,
+      "input_chars": 325,
+      "item_id": "DOC-9376c6bfa6779d5e",
+      "latency_seconds": 7.053259,
+      "ok": true,
+      "prompt_tokens": 2200,
+      "score": 0.4822
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 165,
+      "error": null,
+      "input_chars": 7708,
+      "item_id": "DOC-e077f1f7e80e1e04",
+      "latency_seconds": 9.142963,
+      "ok": true,
+      "prompt_tokens": 4043,
+      "score": 0.1624
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 190,
+      "error": null,
+      "input_chars": 1956,
+      "item_id": "DOC-b3ad98e5530dfeaf",
+      "latency_seconds": 10.470213,
+      "ok": true,
+      "prompt_tokens": 2521,
+      "score": 0.282
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 165,
+      "error": null,
+      "input_chars": 12737,
+      "item_id": "DOC-2f19002c84083aa8",
+      "latency_seconds": 8.534301,
+      "ok": true,
+      "prompt_tokens": 5200,
+      "score": 0.4978
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 140,
+      "error": null,
+      "input_chars": 3699,
+      "item_id": "DOC-f134b9491efc5c57",
+      "latency_seconds": 6.717139,
+      "ok": true,
+      "prompt_tokens": 2865,
+      "score": 0.7949
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 163,
+      "error": null,
+      "input_chars": 2363,
+      "item_id": "DOC-4dc719baa790a79c",
+      "latency_seconds": 10.554654000000001,
+      "ok": true,
+      "prompt_tokens": 2669,
+      "score": 0.6667
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 196,
+      "error": null,
+      "input_chars": 1708,
+      "item_id": "DOC-fc9f56d999bd7566",
+      "latency_seconds": 12.705444,
+      "ok": true,
+      "prompt_tokens": 2509,
+      "score": 0.6667
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 198,
+      "error": null,
+      "input_chars": 4123,
+      "item_id": "DOC-1e8e3ce47882ae71",
+      "latency_seconds": 12.824557,
+      "ok": true,
+      "prompt_tokens": 3063,
+      "score": 0.1485
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 155,
+      "error": null,
+      "input_chars": 3502,
+      "item_id": "DOC-474a0002b4c03be1",
+      "latency_seconds": 10.866458,
+      "ok": true,
+      "prompt_tokens": 2938,
+      "score": 0.8205
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 151,
+      "error": null,
+      "input_chars": 3475,
+      "item_id": "DOC-e478fa89043a29e3",
+      "latency_seconds": 11.529611000000001,
+      "ok": true,
+      "prompt_tokens": 2910,
+      "score": 0.8205
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 145,
+      "error": null,
+      "input_chars": 15000,
+      "item_id": "DOC-a5fd7fe18b094f20",
+      "latency_seconds": 9.783476,
+      "ok": true,
+      "prompt_tokens": 5919,
+      "score": 0.8485
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 159,
+      "error": null,
+      "input_chars": 12036,
+      "item_id": "DOC-d015968793450753",
+      "latency_seconds": 12.097036,
+      "ok": true,
+      "prompt_tokens": 5082,
+      "score": 0.7222
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 156,
+      "error": null,
+      "input_chars": 15000,
+      "item_id": "DOC-9467462d9bb34f8e",
+      "latency_seconds": 9.831759,
+      "ok": true,
+      "prompt_tokens": 5345,
+      "score": 0.5417
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 152,
+      "error": null,
+      "input_chars": 373,
+      "item_id": "DOC-204c3c7c0ba021cd",
+      "latency_seconds": 9.651172,
+      "ok": true,
+      "prompt_tokens": 2226,
+      "score": 0.4746
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 157,
+      "error": null,
+      "input_chars": 2203,
+      "item_id": "DOC-b832b5eaa2b4848c",
+      "latency_seconds": 9.784103,
+      "ok": true,
+      "prompt_tokens": 2762,
+      "score": 0.1068
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 242,
+      "error": null,
+      "input_chars": 11870,
+      "item_id": "DOC-41b53ea487b84955",
+      "latency_seconds": 16.503642,
+      "ok": true,
+      "prompt_tokens": 4617,
+      "score": 0.75
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 139,
+      "error": null,
+      "input_chars": 3314,
+      "item_id": "DOC-37152a33cfb70d37",
+      "latency_seconds": 10.490074,
+      "ok": true,
+      "prompt_tokens": 2902,
+      "score": 0.7436
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 158,
+      "error": null,
+      "input_chars": 7876,
+      "item_id": "DOC-bfa92eb6c72569ee",
+      "latency_seconds": 11.445959,
+      "ok": true,
+      "prompt_tokens": 3771,
+      "score": 0.1184
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 181,
+      "error": null,
+      "input_chars": 4636,
+      "item_id": "DOC-00193d0c070747e6",
+      "latency_seconds": 12.382532999999999,
+      "ok": true,
+      "prompt_tokens": 3225,
+      "score": 0.7143
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 150,
+      "error": null,
+      "input_chars": 15000,
+      "item_id": "DOC-0a8eb16fff7e67ca",
+      "latency_seconds": 9.388843000000001,
+      "ok": true,
+      "prompt_tokens": 5246,
+      "score": 0.6923
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 142,
+      "error": null,
+      "input_chars": 15000,
+      "item_id": "DOC-ffb48271e0a5e812",
+      "latency_seconds": 9.254123,
+      "ok": true,
+      "prompt_tokens": 5344,
+      "score": 0.6667
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 234,
+      "error": null,
+      "input_chars": 15000,
+      "item_id": "DOC-a973ebf005e0e785",
+      "latency_seconds": 15.791694,
+      "ok": true,
+      "prompt_tokens": 6146,
+      "score": 0.4278
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 180,
+      "error": null,
+      "input_chars": 5162,
+      "item_id": "DOC-f21f3dadebb121e3",
+      "latency_seconds": 11.380310999999999,
+      "ok": true,
+      "prompt_tokens": 3308,
+      "score": 0.7843
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 183,
+      "error": null,
+      "input_chars": 2802,
+      "item_id": "DOC-80e90a37bb750a3c",
+      "latency_seconds": 11.089017,
+      "ok": true,
+      "prompt_tokens": 2776,
+      "score": 0.1495
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 144,
+      "error": null,
+      "input_chars": 854,
+      "item_id": "DOC-78f2456f571403a9",
+      "latency_seconds": 12.151841000000001,
+      "ok": true,
+      "prompt_tokens": 2345,
+      "score": 0.1531
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 160,
+      "error": null,
+      "input_chars": 4305,
+      "item_id": "DOC-e6906e59f9bd74ca",
+      "latency_seconds": 12.257557,
+      "ok": true,
+      "prompt_tokens": 2978,
+      "score": 0.62
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 175,
+      "error": null,
+      "input_chars": 7734,
+      "item_id": "DOC-d4dfbfe8049d41f9",
+      "latency_seconds": 12.994513999999999,
+      "ok": true,
+      "prompt_tokens": 3856,
+      "score": 0.4934
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 128,
+      "error": null,
+      "input_chars": 15000,
+      "item_id": "DOC-2338d194d5250def",
+      "latency_seconds": 9.802845999999999,
+      "ok": true,
+      "prompt_tokens": 5258,
+      "score": 0.4867
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 180,
+      "error": null,
+      "input_chars": 15000,
+      "item_id": "DOC-866139125545b36a",
+      "latency_seconds": 12.473301,
+      "ok": true,
+      "prompt_tokens": 5397,
+      "score": 0.7733
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 160,
+      "error": null,
+      "input_chars": 15000,
+      "item_id": "DOC-606242f2919653a4",
+      "latency_seconds": 9.475843000000001,
+      "ok": true,
+      "prompt_tokens": 5253,
+      "score": 0.2332
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 158,
+      "error": null,
+      "input_chars": 15000,
+      "item_id": "DOC-dfe42f3747f299e6",
+      "latency_seconds": 9.256333,
+      "ok": true,
+      "prompt_tokens": 5870,
+      "score": 0.75
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 164,
+      "error": null,
+      "input_chars": 15000,
+      "item_id": "DOC-842215e36884da89",
+      "latency_seconds": 9.468286,
+      "ok": true,
+      "prompt_tokens": 5226,
+      "score": 0.2467
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 161,
+      "error": null,
+      "input_chars": 1086,
+      "item_id": "DOC-d0aebe650be3e512",
+      "latency_seconds": 5.4809399999999995,
+      "ok": true,
+      "prompt_tokens": 2405,
+      "score": 0.4976
+    },
+    {
+      "calls": 1,
+      "completion_tokens": 174,
+      "error": null,
+      "input_chars": 2160,
+      "item_id": "DOC-27bbad54b6fd107e",
+      "latency_seconds": 5.480671,
+      "ok": true,
+      "prompt_tokens": 2871,
+      "score": 0.8333
+    }
+  ],
+  "engine_telemetry": {
+    "captured": true,
+    "coverage": "replicas observed: 1 of 1",
+    "expected_replicas": 1,
+    "gpu": {
+      "captured": true,
+      "errors": [],
+      "gpus_observed": 14,
+      "label": "sand42-1l4-c8",
+      "memory_total_mib": {
+        "max": 23034.0,
+        "mean": 23034.0,
+        "min": 23034.0,
+        "n": 14,
+        "p95": 23034.0
+      },
+      "memory_used_mib": {
+        "max": 21023.0,
+        "mean": 21023.0,
+        "min": 21023.0,
+        "n": 14,
+        "p95": 21023.0
+      },
+      "power_draw_w": {
+        "max": 72.42,
+        "mean": 63.36785714285714,
+        "min": 31.71,
+        "n": 14,
+        "p95": 72.29
+      },
+      "replicas": {
+        "1791766391.99": {
+          "samples": 0,
+          "util_max_perc": null,
+          "util_mean_perc": null
+        },
+        "1791766799.99": {
+          "samples": 0,
+          "util_max_perc": null,
+          "util_mean_perc": null
+        },
+        "1791767926.27": {
+          "samples": 0,
+          "util_max_perc": null,
+          "util_mean_perc": null
+        },
+        "1791770823.07": {
+          "samples": 0,
+          "util_max_perc": null,
+          "util_mean_perc": null
+        },
+        "1791772472.57": {
+          "samples": 14,
+          "util_max_perc": 100.0,
+          "util_mean_perc": 77.64285714285714
+        }
+      },
+      "samples": 14,
+      "sampling_coverage_pct": 100.0,
+      "schema": "sandbox.container-telemetry/v1",
+      "src": "serving-replica nvidia-smi",
+      "temperature_c": {
+        "max": 69.0,
+        "mean": 64.42857142857143,
+        "min": 57.0,
+        "n": 14,
+        "p95": 68.0
+      },
+      "util_max_perc": 100.0,
+      "util_mean_perc": 77.64285714285714,
+      "util_min_perc": 0.0,
+      "util_p95_perc": 100.0,
+      "util_peak_perc": 100.0
+    },
+    "replicas": [
+      {
+        "kv_cache_usage_perc": 0.0,
+        "length_finishes": 0.0,
+        "preemptions": 0.0,
+        "prefix_cache_hit_rate": 0.5094,
+        "replica": "1791772472.57",
+        "requests": 50.0,
+        "ttft_mean_seconds": 1.2092
+      }
+    ],
+    "scrape_errors": []
+  },
+  "generated_at": "2026-10-12T02:59:06+00:00",
+  "latency": {
+    "max": 16.503642,
+    "mean": 11.14224488,
+    "p50": 11.234663999999999,
+    "p95": 13.638888000000001
+  },
+  "n": 50,
+  "quality": {
+    "clause": {},
+    "documents": 50,
+    "error_kinds": {},
+    "errors": 0,
+    "ok": 50,
+    "overall_max": 0.8889,
+    "overall_mean": 0.496812,
+    "overall_min": 0.0635,
+    "overall_sd": 0.25446229240498486,
+    "parse_errors": 0,
+    "schema_valid_rate": 0.96,
+    "scoring_method": "suite",
+    "suite_overall_mean": null
+  },
+  "run_id": "sand42-50-corporate-records-specialist-awq-1l4-c8",
+  "schema": "sandbox.grid-card/v1",
+  "specialist": "Corporate Records",
+  "task": "corporate_records_specialist",
+  "throughput": {
+    "documents_per_minute": 48.821767998958464,
+    "tokens_per_second": 3342.1754979820334,
+    "tokens_per_second_per_gpu": 3342.1754979820334
+  },
+  "time": {
+    "cold_boot_seconds": 0.485,
+    "gpu_seconds": 87.283,
+    "wall_seconds": 61.448
+  },
+  "tokens": {
+    "completion": 8051,
+    "completion_max": 242,
+    "completion_p95": 198.0,
+    "completion_share": 0.039202415153138236,
+    "per_document": 4107.4,
+    "prompt": 197319,
+    "split": {
+      "calls": 50.0,
+      "chars_per_token": 4.205272225142103,
+      "completion_tokens": 8051.0,
+      "document_tokens": 92800.88876691276,
+      "documents": 50,
+      "instruction_per_call": 2090.3622246617447,
+      "instruction_tokens": 104518.11123308724,
+      "method": "fit",
+      "per_document": {
+        "completion": 161.02,
+        "document": 1856.0177753382552,
+        "instruction": 2090.3622246617447
+      }
+    },
+    "total": 205370
+  }
+}

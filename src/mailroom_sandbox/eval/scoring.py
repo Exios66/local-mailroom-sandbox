@@ -58,9 +58,9 @@ _EXTRACT_PRF_KEYS = (
 
 
 def scores_path(run_id: str | None = None, *, metadata: Mapping[str, Any] | None = None) -> Path:
-    from mailroom_sandbox.report_paths import experiment_prefix
+    from mailroom_sandbox.report_paths import experiment_prefix, report_folder
 
-    prefix = experiment_prefix(run_id, metadata)
+    prefix = report_folder(experiment_prefix(run_id, metadata))
     base = reports_dir() / "scores"
     dest = base / prefix / "scores.jsonl" if prefix else base / "scores.jsonl"
     dest.parent.mkdir(parents=True, exist_ok=True)

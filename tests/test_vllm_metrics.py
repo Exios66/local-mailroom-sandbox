@@ -102,7 +102,7 @@ def test_cli_scrape_metrics_writes_labelled_json(tmp_path, monkeypatch, capsys):
         return {"coverage": "replicas observed: 2 of 2", "replicas": {}, "errors": [], "at": 0}
 
     monkeypatch.setattr(vllm_metrics, "scrape", fake_scrape)
-    cfg = config_dir() / "runs" / "run-50-correspondence-specialist-awq.yaml"
+    cfg = config_dir() / "runs" / "legacy" / "run-50-correspondence-specialist-awq.yaml"
     rc = main(["run", "scrape-metrics", "--config", str(cfg), "--label", "after"])
     assert rc == 0
     assert seen["expected"] == 2 and seen["key"] == "tok"

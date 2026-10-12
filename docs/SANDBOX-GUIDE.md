@@ -322,7 +322,7 @@ crash-safe checkpoints.
 ### Workflow
 
 ```bash
-# 1. Write a run spec (see config/runs/example.yaml)
+# 1. Write a run spec (see config/runs/examples/example.yaml)
 # 2. Preflight: validate, prepare, lock
 sandbox run preflight --config config/runs/my-run.yaml
 

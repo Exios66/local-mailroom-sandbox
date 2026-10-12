@@ -25,7 +25,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../../../../config/runbooks/catalog.
 
 ## Configs
 
-- `config/runs/run-20-contracts-specialist.yaml`
+- `config/runs/legacy/run-20-contracts-specialist.yaml`
 
 ## Per-doc-type posture (live)
 
@@ -80,7 +80,7 @@ export MODAL_VLLM_API_TOKEN="${MODAL_VLLM_API_TOKEN:-$(openssl rand -hex 24)}"
 modal profile activate "${SANDBOX_MODAL_PROFILE_TRACK_A:-hermes-agent-jjb}"
 modal profile current
 
-sandbox run benchmark-check --config config/runs/run-20-contracts-specialist.yaml
+sandbox run benchmark-check --config config/runs/legacy/run-20-contracts-specialist.yaml
 
 modal run deploy/modal_vllm.py::download_model
 
@@ -93,8 +93,8 @@ modal deploy deploy/modal_vllm.py
 sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
 
-sandbox run preflight --config config/runs/run-20-contracts-specialist.yaml --live
-sandbox run start --config config/runs/run-20-contracts-specialist.yaml --job-mode endpoint --watch
+sandbox run preflight --config config/runs/legacy/run-20-contracts-specialist.yaml --live
+sandbox run start --config config/runs/legacy/run-20-contracts-specialist.yaml --job-mode endpoint --watch
 
 ./deploy/teardown_vllm.sh   # ONLY after this run
 ```

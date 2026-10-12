@@ -2963,11 +2963,11 @@ def _cmd_metrics_help(args):
 
 
 _DEFAULT_SPECIALIST_SUITE = (
-    "config/runs/run-30-contracts-specialist.yaml",
-    "config/runs/run-30-merger-specialist.yaml",
-    "config/runs/run-30-corporate-records-specialist.yaml",
-    "config/runs/run-30-correspondence-specialist.yaml",
-    "config/runs/run-30-insurance-claims-specialist.yaml",
+    "config/runs/legacy/run-30-contracts-specialist.yaml",
+    "config/runs/legacy/run-30-merger-specialist.yaml",
+    "config/runs/legacy/run-30-corporate-records-specialist.yaml",
+    "config/runs/legacy/run-30-correspondence-specialist.yaml",
+    "config/runs/legacy/run-30-insurance-claims-specialist.yaml",
 )
 
 
@@ -3183,21 +3183,12 @@ def _cmd_metrics_compare(args) -> int:
                 )
                 return 1
             lock = store.read_lock() or {}
-            items = store.load_items()
-            engine = lock.get("engine") or {}
-            modal = (engine.get("modal") or {}) if isinstance(engine, dict) else {}
-            gpu = str(modal.get("gpu") or "").split(":")[0] or None
-            rec = metrics.record_from_run(
-                run_id=run_id,
-                spec_hash=store.spec_hash() or "",
-                task=lock.get("task", "?"),
-                profile=lock.get("profile", "?"),
-                model=(lock.get("engine") or {}).get("model") or "?",
-                prompt_version=str((lock.get("prompt") or {}).get("default", {}).get("source") or "code-default"),
-                dataset_fingerprint=(lock.get("dataset") or {}).get("sha256", "") or "",
-                items=items,
-                gpu=gpu,
-            )
+            # Use the same source as the cards: the run's own container-telemetry
+            # window x replicas x rate. Calling record_from_run directly leaves
+            # billed_window_seconds unset, which falls back to the latency SUM —
+            # a busy-time lower bound the cost doc itself warns OVERCOUNTS at
+            # concurrency > 1 (it read 1.91 USD against 0.27 USD of real spend).
+            rec = metrics.serving_record_from_store(store)
             records.append(rec)
     result = metrics.compare(records)
     if getattr(args, "json", False):

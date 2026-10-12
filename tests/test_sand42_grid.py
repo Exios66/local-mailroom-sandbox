@@ -60,7 +60,9 @@ def test_posture_pins_the_1to1_specialist_and_the_cell_concurrency():
             assert row["concurrency"] == concurrency
             assert row["max_model_len"] == 32768
             assert row["max_num_seqs"] == 16
-            assert row["max_tokens"] == 8192
+            # Merger's 6144 is the SAND-040 optimised long-document cap (see
+            # _SAND42_CHUNKED); every other class decodes at 8192.
+            assert row["max_tokens"] == (6144 if doc_class == "merger_agreement" else 8192)
 
 
 def test_2l4_concurrency_splits_equally_across_replicas():
@@ -91,6 +93,36 @@ def test_only_concurrency_and_replicas_differ_between_cells():
             base = without_cell(specs[0], key)
             for spec in specs[1:]:
                 assert without_cell(spec, key) == base, (doc_class, key)
+
+
+def test_the_treatment_is_identical_in_every_cell():
+    """The "consistent aligned approach to the mergers" — enforced, not folklore.
+
+    All four cells resolve one single-sourced posture, so the ONLY legitimate
+    cell-to-cell difference is the cell's own treatment (replicas, client
+    concurrency) plus the abort cap that follows from the replica count. Any other
+    divergence — a per-cell chunk size, output cap, or sampling knob — would make the
+    four legs incomparable while still looking like one experiment. The config-level
+    check above cannot see this: these keys are applied from the posture at run time.
+    """
+    treatment = {"concurrency", "replicas", "cost_cap_usd", "rationale"}
+    for doc_class in CLASSES:
+        rows = [
+            {
+                k: v
+                for k, v in posture.SPECIALIST_POSTURE[
+                    posture.sand42_run_id(cell, doc_class)
+                ].items()
+                if k not in treatment
+            }
+            for cell in CELLS
+        ]
+        assert all(r == rows[0] for r in rows[1:]), doc_class
+
+    merger = posture.SPECIALIST_POSTURE[posture.sand42_run_id(CELLS[0], "merger_agreement")]
+    assert merger["chunk_chars"] == 47_000  # SAND-040 optimised window
+    assert merger["max_input_chars"] == 54_000
+    assert merger["length_retries"] == 1
 
 
 def test_deploy_knobs_are_identical_across_cells():
@@ -288,10 +320,10 @@ def test_benchmark_check_accepts_the_noise_floor_leg(monkeypatch):
 
 def test_sand42_runs_are_in_the_two_and_one_gpu_allowlists():
     assert len(posture.SAND42_TWO_GPU_RUNS) == 10
-    # 10 cell runs + the noise-floor leg + the live smoke leg
-    assert len(posture.SAND42_ONE_GPU_RUNS) == 12
+    # 10 cell runs + the noise-floor leg + the two check legs (corporate smoke, merger probe)
+    assert len(posture.SAND42_ONE_GPU_RUNS) == 13
     assert posture.SAND42_TWO_GPU_RUNS <= posture.SAND42_RUNS
-    extras = {posture.SAND42_NOISE_FLOOR_RUN, posture.SAND42_CHECK_RUN}
+    extras = {posture.SAND42_NOISE_FLOOR_RUN, *posture.SAND42_CHECK_RUNS}
     assert posture.SAND42_ONE_GPU_RUNS - extras <= posture.SAND42_RUNS
     assert posture.SAND42_ONE_GPU_RUNS & posture.SAND42_TWO_GPU_RUNS == frozenset()
     for rid in posture.SAND42_TWO_GPU_RUNS:
@@ -361,6 +393,42 @@ def test_summarize_reports_the_a100_card_fields():
     assert out["power_draw_w"]["mean"] == pytest.approx(71.5)
     assert out["src"] == "serving-replica nvidia-smi"
     assert out["replicas"]["host-a"]["util_mean_perc"] == 94.0
+
+
+def test_summarize_adds_util_p95_and_sampling_coverage():
+    """Issue #128's telemetry contract: p95 util, and a sampling-coverage gate."""
+    doc = {
+        "label": "sand42-1l4-c8",
+        "start": 0.0,
+        "end": 100.0,
+        "samples": [
+            {"t": float(t), "gpus": [{"utilization_gpu_perc": 90.0}]} for t in range(0, 101, 10)
+        ],
+        "replicas": {},
+    }
+    out = container_telemetry.summarize_samples(doc)
+    assert out["util_p95_perc"] == 90.0
+    assert out["sampling_coverage_pct"] == pytest.approx(100.0, abs=5)
+
+
+def test_sampling_coverage_drops_when_the_sampler_drops_out():
+    """A long gap lowers coverage — the sampler cannot redefine 'expected' to suit itself."""
+    stamps = [float(t) for t in list(range(0, 41, 10)) + list(range(400, 441, 10))]
+    doc = {
+        "label": "x",
+        "start": 0.0,
+        "end": 440.0,
+        "samples": [{"t": t, "gpus": [{"utilization_gpu_perc": 90.0}]} for t in stamps],
+        "replicas": {},
+    }
+    out = container_telemetry.summarize_samples(doc)
+    assert out["sampling_coverage_pct"] < 30  # 10 samples over a 440 s window at a 10 s cadence
+
+
+def test_sampling_coverage_is_none_not_a_fabricated_hundred():
+    assert container_telemetry._coverage_pct([], None, None) is None
+    assert container_telemetry._coverage_pct([{"t": 1.0}], 0.0, 100.0) is None  # < 3 samples
+    assert container_telemetry._coverage_pct([{"t": t} for t in (1.0, 2.0, 3.0)], None, 4.0) is None
 
 
 def test_summarize_says_not_captured_rather_than_zero():
@@ -458,6 +526,8 @@ def test_card_md_renders_the_gpu_hardware_rows():
         "util_mean_perc": 49.0,
         "util_min_perc": 0.0,
         "util_peak_perc": 100.0,
+        "util_p95_perc": 100.0,
+        "sampling_coverage_pct": 96.0,
         "power_draw_w": {"mean": 52.4, "min": 31.9, "max": 72.9},
         "temperature_c": {"mean": 69.8, "min": 66.0, "max": 72.0},
         "memory_used_mib": {"mean": 20938.0, "min": 20764.0, "max": 20996.0},
@@ -465,8 +535,26 @@ def test_card_md_renders_the_gpu_hardware_rows():
     rows = dict(grid_cards._gpu_rows(gpu))
     assert rows["**GPU hardware (nvidia-smi)**"] == "4 samples · serving-replica nvidia-smi"
     assert "49.0 %" in rows["GPU utilization"] and "peak 100.0" in rows["GPU utilization"]
+    assert "p95 100.0" in rows["GPU utilization"]
+    assert rows["Sampling coverage"] == "96.0 %"
     assert "52.4 W" in rows["GPU power draw"]
     assert "69.8 C" in rows["GPU temperature"]
+
+
+def test_card_flags_a_cell_below_the_issue_128_coverage_gate():
+    """#128 rejects a cell below 90% sampling coverage — the card must say so, not hide it."""
+    gpu = {
+        "captured": True,
+        "src": "serving-replica nvidia-smi",
+        "samples": 30,
+        "util_mean_perc": 49.0,
+        "util_min_perc": 0.0,
+        "util_peak_perc": 100.0,
+        "util_p95_perc": 100.0,
+        "sampling_coverage_pct": 61.0,
+    }
+    assert "below the 90% gate" in dict(grid_cards._gpu_rows(gpu))["Sampling coverage"]
+    assert "gate" not in dict(grid_cards._gpu_rows({**gpu, "sampling_coverage_pct": 96.0}))["Sampling coverage"]
 
 
 def test_gpu_rows_say_not_captured_rather_than_zero():
@@ -491,7 +579,7 @@ def test_deploy_env_carries_the_cell_label():
         spec = load_run_spec(_config_path(cell, "correspondence"))
         assert deploy_env.spec_env(spec)["MODAL_VLLM_TELEMETRY_LABEL"] == f"sand42-{cell}"
     # non-SAND42 runs leave the sampler on the deploy default label
-    other = load_run_spec(repo_root() / "config" / "runs" / "grid-50-correspondence-specialist-awq-1l4.yaml")
+    other = load_run_spec(repo_root() / "config" / "runs" / "sand037" / "grid-50-correspondence-specialist-awq-1l4.yaml")
     assert deploy_env.spec_env(other)["MODAL_VLLM_TELEMETRY_LABEL"] == ""
 
 
@@ -541,9 +629,13 @@ def test_every_cell_has_a_suite_stem_and_a_runbook():
         assert paths["md"].name.startswith("SAND42-")
 
 
-def test_cell_card_renders_without_any_run_cards():
-    """Pre-run the card must render (all "not run"), not crash."""
-    data = sand42_cards.collect_cell("1l4-c8", repo=repo_root())
+def test_cell_card_renders_without_any_run_cards(tmp_path):
+    """Pre-run the card must render (all "not run"), not crash.
+
+    Reads an empty repo root on purpose: pointing at the live ``reports/`` tree made
+    this test pass or fail depending on whether a cell happened to be mid-run.
+    """
+    data = sand42_cards.collect_cell("1l4-c8", repo=tmp_path)
     assert data["cells_reported"] == 0
     md = sand42_cards.render_cell_md(data)
     assert "1× L4 · client concurrency 8" in md
@@ -579,8 +671,10 @@ def test_master_paths_live_at_the_study_root():
     assert paths["metered"].name == "metered-costs.json"
 
 
-def test_master_card_and_report_render_before_any_run():
-    data = sand42_cards.collect_master(repo=repo_root())
+def test_master_card_and_report_render_before_any_run(tmp_path):
+    """Reads an empty repo root on purpose: pointing at the live ``reports/`` tree made
+    this pass or fail depending on how many cells had already been run."""
+    data = sand42_cards.collect_master(repo=tmp_path)
     card = sand42_cards.render_master_card_md(data)
     report = sand42_cards.render_master_report_md(data)
     assert "Conditions measured:** 0 of 4" in card
@@ -697,3 +791,218 @@ def test_existing_grid_cells_are_untouched():
     for rid in ("grid-50-contracts-specialist-awq-1l4", "grid-50-merger-specialist-awq-2l4"):
         assert rid in posture.GRID_CELLS
         assert posture.SPECIALIST_POSTURE[rid]["max_tokens"] == 8192
+
+
+def test_contracts_process_the_whole_document_chunked():
+    """The 24,000-char cap dropped 62 % of contract text — the middle, where the
+    operative clauses are. Contracts must run the chunked pass, not head+tail."""
+    from mailroom_sandbox.eval.agents import chunk_window
+
+    rows = [r for r in posture.SAND42_RUNS if "contracts" in r]
+    assert rows, "no contracts rows"
+    for rid in sorted(rows):
+        row = posture.SPECIALIST_POSTURE[rid]
+        assert row.get("chunk_chars"), f"{rid}: contracts must be chunked"
+        assert row.get("overlap_chars"), f"{rid}: contracts need an overlap window"
+        assert posture.context_fit_ok(
+            row["max_tokens"], row["max_input_chars"], row["max_model_len"]
+        ), f"{rid}: input cap + decode must fit the 32K window"
+
+        # The knobs must actually reach the agent, and no chunk may be truncated.
+        knobs = posture.agent_knobs_for_run(rid)[row["agent"]]
+        assert knobs["chunk_chars"] == row["chunk_chars"]
+        window, overlap = chunk_window(
+            knobs["max_input_chars"], knobs["chunk_chars"], knobs["overlap_chars"]
+        )
+        assert window + overlap <= knobs["max_input_chars"], rid
+
+
+def test_short_classes_keep_their_single_pass_cap():
+    """Chunking must not spread to classes whose documents fit one window.
+
+    Contracts and merger are chunked on purpose: their real draws exceed one window
+    many times over (62 % and 93 % of text was being dropped). The three short classes
+    fit, and chunking them would add calls for no coverage gain.
+    """
+    for slug in ("correspondence", "insurance-claims", "corporate-records"):
+        rid = f"sand42-50-{slug}-specialist-awq-1l4-c8"
+        assert posture.SPECIALIST_POSTURE[rid].get("chunk_chars") is None, rid
+
+
+def test_merger_runs_the_sand040_optimised_whole_document_posture():
+    """Merger's 93 %-dropped input is replaced by our most efficient whole-document
+    method: the SAND-040 optimised posture. It also fixes the 3/50 hard
+    LengthFinishReasonError failures, via the 6144 cap plus one re-sample."""
+    rows = [r for r in posture.SAND42_RUNS if "merger" in r]
+    assert rows, "no merger rows"
+    for rid in sorted(rows):
+        row = posture.SPECIALIST_POSTURE[rid]
+        assert row["chunk_chars"] == 47000 and row["overlap_chars"] == 6500, rid
+        assert row["max_tokens"] == 6144, rid
+        assert row["top_p"] == 0.8 and row["presence_penalty"] == 1.0, rid
+        assert row["length_retries"] == 1, rid
+        assert posture.context_fit_ok(
+            row["max_tokens"], row["max_input_chars"], row["max_model_len"]
+        ), rid
+
+
+# ── cost is computed from the run/session, never scraped ─────────────────────
+
+
+def test_cell_fleet_cost_is_computed_from_the_recorded_window(tmp_path):
+    """`min_containers=1` bills the whole warm window, so the cell's cost is the fleet
+    window x replicas x rate — computed from the session, not from the billing CLI
+    (whose figures are credits-based and workspace-wide, not per cell)."""
+    d = sand42_cards._cell_dir("2l4-c16", repo=tmp_path)
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "fleet_window.json").write_text(json.dumps({
+        "cell": "2l4-c16", "gpu": "L4", "replicas": 2,
+        "deploy_ts": 1000.0, "ready_ts": 1130.0, "teardown_ts": 4000.0,
+    }))
+    fleet = sand42_cards.fleet_cost("2l4-c16", repo=tmp_path)
+    assert fleet["measured"] is True
+    assert fleet["fleet_seconds"] == 3000.0
+    assert fleet["cold_boot_seconds"] == 130.0
+    assert fleet["fleet_gpu_hours"] == round(3000.0 * 2 / 3600, 4)
+    assert fleet["fleet_gpu_usd"] == round(3000.0 * 2 * 0.80 / 3600, 4)
+
+
+def test_cell_fleet_cost_says_so_rather_than_guessing(tmp_path):
+    """An unclosed or absent window must report `measured: False`, never a number."""
+    d = sand42_cards._cell_dir("1l4-c8", repo=tmp_path)
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "fleet_window.json").write_text(
+        json.dumps({"cell": "1l4-c8", "replicas": 1, "deploy_ts": 5.0})
+    )
+    fleet = sand42_cards.fleet_cost("1l4-c8", repo=tmp_path)
+    assert fleet["measured"] is False and "not closed" in fleet["reason"]
+
+    empty = sand42_cards.fleet_cost("1l4-c8", repo=tmp_path / "elsewhere")
+    assert empty["measured"] is False and "no fleet_window.json" in empty["reason"]
+
+
+def test_cell_card_renders_the_computed_fleet_cost(tmp_path):
+    cell_data = {
+        "cell": "1l4-c8", "replicas": 1, "concurrency": 8, "concurrency_per_replica": 8,
+        "runbook": "sand42-1l4-c8", "cells_reported": 0, "specialists": [], "cards": {},
+        "generated_at": "2026-10-12T00:00:00+00:00",
+        "fleet": {"measured": True, "replicas": 1, "gpu": "L4", "gpu_usd_per_hour": 0.80,
+                  "cold_boot_seconds": 130.0, "fleet_seconds": 7200.0,
+                  "fleet_gpu_hours": 2.0, "fleet_gpu_usd": 1.60},
+    }
+    md = sand42_cards.render_cell_md(cell_data)
+    assert "## Cost (computed from the session)" in md
+    assert "**$1.6000**" in md and "7,200.0 s" in md
+
+
+# ── the SAND42 master must never touch another study's master ────────────────
+
+
+def test_sand42_master_is_a_separate_file_from_the_sand37_master():
+    """`--runbook sand42` must never overwrite the SAND-37 master.
+
+    `--master` is the SAND-37 writer (`grid_master.write_master`, which also emits
+    SAND-39 / SAND-40 postures into reports/SAND-37/); `--runbook sand42` is the SAND42
+    writer (`sand42_cards.write_all`). Different flags, different outputs — this pins
+    that the two path sets can never collide.
+    """
+    from mailroom_sandbox.job import grid_master
+
+    sand42 = {p.resolve() for p in sand42_cards.master_paths().values()}
+    sand37 = {p.resolve() for p in grid_master.master_paths().values()}
+    assert sand42 and sand37
+    assert not (sand42 & sand37), f"master paths collide: {sand42 & sand37}"
+    for p in sand42:
+        assert "SAND42" in p.parts and "SAND-37" not in p.parts, p
+    for p in sand37:
+        assert "SAND-37" in p.parts, p
+
+
+def test_write_all_writes_only_under_the_sand42_study_root(tmp_path):
+    """Every artifact `--runbook sand42` emits stays inside reports/SAND42/."""
+    written = sand42_cards.write_all(repo=tmp_path)
+    assert written, "write_all emitted nothing"
+    root = (tmp_path / "reports" / "SAND42").resolve()
+    for label, path in written.items():
+        assert path.resolve().is_relative_to(root), f"{label} escaped the study root: {path}"
+    assert not (tmp_path / "reports" / "SAND-37").exists(), "wrote into reports/SAND-37/"
+
+
+def test_master_report_per_run_links_resolve_from_the_study_root(tmp_path):
+    """The master report embeds each cell's markdown one level ABOVE the cell folder,
+    so per-run links must be rebased with the condition folder. Unrebased they point at
+    `correspondence/…` from reports/SAND42/, where no such path exists — every link 404s.
+
+    Seeds one reported leg, because an empty repo emits no links at all and would let
+    the bug through.
+    """
+    import re
+
+    rid = "sand42-50-correspondence-specialist-awq-1l4-c8"
+    folder = sand42_cards._cell_dir("1l4-c8", repo=tmp_path) / "correspondence"
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / f"{rid}.card.md").write_text("# card\n", encoding="utf-8")
+    (folder / f"{rid}.card.json").write_text(
+        json.dumps({
+            "run_id": rid, "n": 2, "documents": [{"score": 0.5}, {"score": 0.7}],
+            "quality": {"ok": 2, "documents": 2, "schema_valid_rate": 1.0, "errors": 0,
+                        "error_kinds": {}},
+            "latency": {"p50": 1.0, "p95": 2.0}, "time": {"wall_seconds": 10.0},
+            "cost": {"billed_gpu_usd": 0.01, "billed_seconds": 10.0, "busy_gpu_usd": 0.01},
+        }),
+        encoding="utf-8",
+    )
+
+    sand42_cards.write_all(repo=tmp_path)
+    master = tmp_path / "reports" / "SAND42" / "SAND42-MASTER-REPORT.md"
+    links = [
+        t for t in re.findall(r"\]\(([^)]+)\)", master.read_text(encoding="utf-8"))
+        if t.endswith(".card.md")
+    ]
+    assert links, "master report has no per-run card links to check"
+    for target in links:
+        assert target.startswith("1L4-c8/"), f"link not rebased with the condition folder: {target}"
+        assert (master.parent / target).exists(), f"master report link 404s: {target}"
+
+
+# ── the L4-comparable GPU extras (memory bandwidth / power cap / SM clock) ────
+
+
+def test_nvidia_smi_parse_captures_the_l4_comparable_extras():
+    """These three are exposed on every NVIDIA datacentre GPU, so the same query is
+    valid on an A100 — they are the closest comparable columns we were missing."""
+    row = container_telemetry.parse_nvidia_smi_csv(
+        "0, NVIDIA L4, 97, 21026, 23034, 73, 71.4, 12, 72.00, 1710"
+    )[0]
+    assert row["utilization_memory_perc"] == 12.0   # memory BANDWIDTH, not capacity
+    assert row["power_limit_w"] == 72.0             # the cap, to normalise power draw
+    assert row["clocks_sm_mhz"] == 1710.0           # throttling evidence
+
+
+def test_nvidia_smi_parse_still_accepts_a_seven_column_capture():
+    """A container running the older query must still parse and report the extras as
+    absent — never drop the whole sample over a missing optional column."""
+    row = container_telemetry.parse_nvidia_smi_csv(
+        "0, NVIDIA L4, 97, 21026, 23034, 73, 71.4"
+    )[0]
+    assert row["utilization_gpu_perc"] == 97.0
+    assert row["utilization_memory_perc"] is None
+    assert row["power_limit_w"] is None
+    assert row["clocks_sm_mhz"] is None
+
+
+def test_summarize_reports_the_extra_gpu_stats():
+    doc = {
+        "start": 0.0,
+        "end": 30.0,
+        "samples": [
+            {"t": t, "gpus": [{"utilization_gpu_perc": 95, "utilization_memory_perc": mb,
+                               "power_limit_w": 72.0, "clocks_sm_mhz": 1700}]}
+            for t, mb in ((5.0, 10.0), (12.0, 20.0), (20.0, 30.0))
+        ],
+        "replicas": {},
+    }
+    s = container_telemetry.summarize_samples(doc)
+    assert s["utilization_memory_perc"]["mean"] == 20.0
+    assert s["power_limit_w"]["mean"] == 72.0
+    assert s["clocks_sm_mhz"]["mean"] == 1700.0

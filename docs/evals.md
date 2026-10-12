@@ -125,7 +125,7 @@ Hub or local — when the preflight prepared any. An empty lock (serving-only
 specs) falls back to the runner's fixture defaults. Per-item tasks
 (`sorter`, `legalbench`) always score the locked rows row-by-row. Example:
 a spec with a Hub `dataset:` block and `task: pipeline` scores the live
-corpus subset through the connected graph (see `config/runs/example.yaml`'s
+corpus subset through the connected graph (see `config/runs/examples/example.yaml`'s
 commented Hub block).
 
 ## Adding a new eval task (the extension point, DMR-056)

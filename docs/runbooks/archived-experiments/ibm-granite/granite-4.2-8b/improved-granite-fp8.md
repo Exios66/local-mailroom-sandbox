@@ -33,11 +33,11 @@ account is available; otherwise prefer track-a ∥ track-b for parallel wall.
 
 Ordered configs:
 
-1. `config/runs/run-30-contracts-specialist.yaml`
-2. `config/runs/run-30-merger-specialist.yaml`
-3. `config/runs/run-30-corporate-records-specialist.yaml`
-4. `config/runs/run-30-correspondence-specialist.yaml`
-5. `config/runs/run-30-insurance-claims-specialist.yaml`
+1. `config/runs/legacy/run-30-contracts-specialist.yaml`
+2. `config/runs/legacy/run-30-merger-specialist.yaml`
+3. `config/runs/legacy/run-30-corporate-records-specialist.yaml`
+4. `config/runs/legacy/run-30-correspondence-specialist.yaml`
+5. `config/runs/legacy/run-30-insurance-claims-specialist.yaml`
 
 ## Deploy smoke
 

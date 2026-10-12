@@ -323,7 +323,10 @@ def collect_card(
     concurrency = max(1, int(job.get("concurrency") or 1))
     gpu = str(modal.get("gpu") or "L4")
     rate = metrics.gpu_usd_per_hour(gpu)
-    posture = posture_for_run(run_id) or {}
+    # Prefer the knobs frozen at preflight over the live posture table: a later
+    # posture edit must never rewrite what a historical card says the run used.
+    locked_knobs = _d(_d(lock.get("agent_knobs")).get(task))
+    posture = {**(posture_for_run(run_id) or {}), **locked_knobs}
 
     items = store.load_items()
     try:
@@ -338,6 +341,11 @@ def collect_card(
 
     wall = _num(rec.get("wall_seconds"))
     busy_usd = wall * replicas * rate / 3600.0 if wall else None
+    # What the run actually metered: the billed window (the run's own container
+    # telemetry, from metrics.serving_record_from_store) x replicas x GPU rate.
+    # Computed from the run, never scraped from a billing CLI. Falls back to the
+    # busy figure so a pre-telemetry run still shows a number rather than a blank.
+    billed_usd = _num(rec.get("estimated_gpu_cost_usd")) or busy_usd
     ptok = sum(int(i.get("prompt_tokens") or 0) for i in ok_rows)
     ctok = sum(int(i.get("completion_tokens") or 0) for i in ok_rows)
     tot = ptok + ctok
@@ -442,13 +450,18 @@ def collect_card(
             "cold_boot_seconds": _num(rec.get("cold_boot_seconds")),
         },
         "cost": {
+            # Two windows, two questions. `busy` is the GPU $ attributable to the busy
+            # interval; `billed` is what the run metered — its own container-telemetry
+            # window x replicas x rate, computed from the run rather than scraped from
+            # a billing CLI. Per-document figures use `billed`: that is the money spent.
             "busy_gpu_usd": busy_usd,
             "billed_gpu_usd": _num(rec.get("estimated_gpu_cost_usd")),
+            "billed_seconds": _num(rec.get("gpu_seconds")),
             "idle_usd": _num(rec.get("idle_estimated_usd")),
             "idle_seconds": _num(rec.get("idle_container_seconds")),
-            "usd_per_document": busy_usd / n if busy_usd and n else None,
-            "usd_per_ok_document": busy_usd / len(ok_rows) if busy_usd and ok_rows else None,
-            "usd_per_million_tokens": busy_usd / tot * 1e6 if busy_usd and tot else None,
+            "usd_per_document": billed_usd / n if billed_usd and n else None,
+            "usd_per_ok_document": billed_usd / len(ok_rows) if billed_usd and ok_rows else None,
+            "usd_per_million_tokens": billed_usd / tot * 1e6 if billed_usd and tot else None,
         },
         "tokens": {
             "prompt": ptok,
@@ -588,21 +601,37 @@ def _gpu_rows(gpu: Any) -> list[tuple[str, str]]:
         )
 
     util = g.get("util_mean_perc")
-    return [
+    cov = g.get("sampling_coverage_pct")
+    rows = [
         ("**GPU hardware (nvidia-smi)**", f"{g.get('samples')} samples · {g.get('src')}"),
         (
             "GPU utilization",
             (
-                f"{_f(util, 1, ' %')} mean (min {_f(g.get('util_min_perc'), 1)} / "
-                f"peak {_f(g.get('util_peak_perc'), 1)})"
+                f"{_f(util, 1, ' %')} mean (p95 {_f(g.get('util_p95_perc'), 1)} / "
+                f"peak {_f(g.get('util_peak_perc'), 1)} / min {_f(g.get('util_min_perc'), 1)})"
                 if util is not None
                 else NOT_CAPTURED
             ),
         ),
-        ("GPU power draw", stat("power_draw_w", 1, " W")),
+        (
+            "Sampling coverage",
+            (
+                f"{_f(cov, 1, ' %')}"
+                + (" — **below the 90% gate (issue #128)**" if cov is not None and cov < 90 else "")
+                if cov is not None
+                else NOT_CAPTURED
+            ),
+        ),
+        ("GPU power draw", stat("power_draw_w", 1, " W")
+            + (f" of {_f(g.get('power_limit_w', {}).get('mean'), 0, ' W')} cap"
+               if isinstance(g.get("power_limit_w"), dict) and g["power_limit_w"].get("mean")
+               else "")),
+        ("GPU memory bandwidth", stat("utilization_memory_perc", 1, " %")),
+        ("GPU SM clock", stat("clocks_sm_mhz", 0, " MHz")),
         ("GPU temperature", stat("temperature_c", 1, " C")),
         ("GPU memory used", stat("memory_used_mib", 0, " MiB")),
     ]
+    return rows
 
 
 def _card_rows(c: Mapping[str, Any]) -> list[tuple[str, str]]:
@@ -624,7 +653,8 @@ def _card_rows(c: Mapping[str, Any]) -> list[tuple[str, str]]:
         ("Cold boot", _f(t["cold_boot_seconds"], 2, " s")),
         ("**Cost**", ""),
         ("Busy-window GPU $", _usd(cost["busy_gpu_usd"])),
-        ("Billed GPU $ (incl. boot)", _usd(cost["billed_gpu_usd"])),
+        ("Billed GPU $", _usd(cost["billed_gpu_usd"])),
+        ("Billed seconds", _f(cost.get("billed_seconds"), 2, " s")),
         ("Idle $", f"{_usd(cost['idle_usd'])} ({_f(cost['idle_seconds'], 2, ' s')})" if cost["idle_usd"] is not None else NOT_CAPTURED),
         ("Cost per document", _usd(cost["usd_per_document"])),
         ("Cost per ok document", _usd(cost["usd_per_ok_document"])),
@@ -684,7 +714,7 @@ def _card_rows(c: Mapping[str, Any]) -> list[tuple[str, str]]:
     return rows
 
 
-def render_card_md(c: Mapping[str, Any]) -> str:
+def render_card_md(c: Mapping[str, Any], *, figure: str | None = None) -> str:
     cond = c["conditions"]
     ds = cond["dataset"]
     eng = cond["engine"]
@@ -721,6 +751,8 @@ def render_card_md(c: Mapping[str, Any]) -> str:
     if q["error_kinds"]:
         lines += ["", "## Errors", "", "| Error | Count |", "| --- | ---: |"]
         lines += [f"| {k} | {v} |" for k, v in sorted(q["error_kinds"].items())]
+    if figure:  # SAND-042 run dashboard, living beside the card markdown
+        lines += ["", "## Figure", "", f"![{c['specialist']} run dashboard]({figure})"]
     lines += [
         "",
         "## Per-document results",
@@ -772,7 +804,18 @@ def write_card(
     paths = card_paths(card["run_id"], card["task"], card["conditions"]["replicas"], repo=repo)
     paths["dir"].mkdir(parents=True, exist_ok=True)
     paths["json"].write_text(json.dumps(card, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    paths["md"].write_text(render_card_md(card), encoding="utf-8")
+    figure: str | None = None
+    if study_for_run(card["run_id"]) == "SAND42":
+        # Regenerate the run's dashboard after every scored run, so the figure is
+        # never stale. A missing module or a plotting error must never break the card.
+        try:
+            from mailroom_sandbox.job import sand42_figures
+
+            path = sand42_figures.maybe_write_run_figure(card, paths["dir"])
+            figure = path.name if path else None
+        except Exception:  # noqa: BLE001
+            _log.warning("SAND-042 run figure failed for %s", card["run_id"], exc_info=True)
+    paths["md"].write_text(render_card_md(card, figure=figure), encoding="utf-8")
     _log.info("SAND-37 card written: %s", paths["md"])
     return paths
 
@@ -914,6 +957,7 @@ _SUITE_ROWS: tuple[tuple[str, Any], ...] = (
     ("Wall (busy)", lambda c: _f(c["time"]["wall_seconds"], 1, " s")),
     ("**Cost**", None),
     ("Busy-window GPU $", lambda c: _usd(c["cost"]["busy_gpu_usd"], 4)),
+    ("Billed GPU $", lambda c: _usd(c["cost"]["billed_gpu_usd"], 4)),
     ("Cost per document", lambda c: _usd(c["cost"]["usd_per_document"])),
     ("Cost per 1M tokens", lambda c: _usd(c["cost"]["usd_per_million_tokens"], 4)),
     ("**Tokens**", None),

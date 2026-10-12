@@ -55,23 +55,32 @@ def parse_nvidia_smi_csv(text: str) -> list[dict[str, Any]]:
     """One nvidia-smi query output → one dict per GPU.
 
     Expects ``--format=csv,noheader,nounits`` with the column order
-    ``index,name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw``
-    (the same query ``tui/pretty_log.py`` uses locally).
+    ``index,name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw,
+    utilization.memory,power.limit,clocks.sm`` — the same query the in-container
+    sampler uses (``deploy/modal_vllm.py::TELEMETRY_QUERY``). Columns past the 7th are
+    optional so a 7-column capture still parses.
     """
     gpus: list[dict[str, Any]] = []
     for line in text.splitlines():
         parts = [p.strip() for p in line.split(",")]
         if len(parts) < 7:
             continue
+
+        def at(idx: int):
+            return _f(parts[idx]) if len(parts) > idx else None
+
         gpus.append(
             {
                 "index": parts[0],
                 "name": parts[1],
-                "utilization_gpu_perc": _f(parts[2]),
-                "memory_used_mib": _f(parts[3]),
-                "memory_total_mib": _f(parts[4]),
-                "temperature_c": _f(parts[5]),
-                "power_draw_w": _f(parts[6]),
+                "utilization_gpu_perc": at(2),
+                "memory_used_mib": at(3),
+                "memory_total_mib": at(4),
+                "temperature_c": at(5),
+                "power_draw_w": at(6),
+                "utilization_memory_perc": at(7),
+                "power_limit_w": at(8),
+                "clocks_sm_mhz": at(9),
             }
         )
     return gpus
@@ -139,6 +148,39 @@ def _p95(values: list[float]) -> float:
     return ordered[idx]
 
 
+def _coverage_pct(
+    samples: Sequence[Mapping[str, Any]], start: Any, end: Any
+) -> float | None:
+    """Fraction of the run window covered by *contiguous* sampling — #128's gate.
+
+    Not ``observed / expected``: the sampler's cadence is bimodal (a fixed 5 s sleep
+    plus the ``nvidia-smi`` call's own ~2-3 s), so a median-based expected count
+    swings 76 %→99 % across equally healthy series, and a mean-based one absorbs the
+    very dropout it is meant to catch. Instead, a gap longer than twice the normal
+    cadence is treated as uncovered time (the sampler dropped out); ordinary jitter
+    and the few seconds of window beyond the first/last sample are not penalised.
+
+    #128 rejects a cell below 90%. Returns ``None`` when the window or the cadence
+    cannot be established — a missing number, never a fabricated 100%.
+    """
+    stamps = sorted(t for t in (_num(s.get("t")) for s in samples) if t is not None)
+    lo, hi = _num(start), _num(end)
+    if len(stamps) < 3 or lo is None or hi is None or hi <= lo:
+        return None
+    gaps = [b - a for a, b in zip(stamps, stamps[1:]) if b > a]
+    if not gaps:
+        return None
+    cadence = statistics.median(gaps)
+    if cadence <= 0:
+        return None
+    tolerance = 2.0 * cadence
+    excess = sum(
+        max(0.0, g - tolerance) for g in [*gaps, stamps[0] - lo, hi - stamps[-1]]
+    )
+    span = hi - lo
+    return round(max(0.0, min(100.0, 100.0 * (1.0 - excess / span))), 1)
+
+
 def summarize_samples(doc: Mapping[str, Any]) -> dict[str, Any]:
     """Reduce a pulled telemetry doc to the A100 cost-card GPU fields.
 
@@ -153,6 +195,10 @@ def summarize_samples(doc: Mapping[str, Any]) -> dict[str, Any]:
             "captured": False,
             "src": SRC,
             "samples": len(samples),
+            # Still report coverage: it separates "the sampler never ran" from
+            # "the sampler ran but nvidia-smi returned no GPU rows".
+            "sampling_coverage_pct": _coverage_pct(samples, doc.get("start"), doc.get("end")),
+            "util_p95_perc": None,
             "reason": doc.get("reason") or "no GPU samples in the telemetry window",
             "errors": list(doc.get("errors") or []),
         }
@@ -184,7 +230,12 @@ def summarize_samples(doc: Mapping[str, Any]) -> dict[str, Any]:
         "util_min_perc": min(util) if util else None,
         "util_max_perc": max(util) if util else None,
         "util_peak_perc": max(util) if util else None,
+        "util_p95_perc": _p95(util) if util else None,
+        "sampling_coverage_pct": _coverage_pct(samples, doc.get("start"), doc.get("end")),
         "power_draw_w": _stat(collect("power_draw_w")),
+        "power_limit_w": _stat(collect("power_limit_w")),
+        "utilization_memory_perc": _stat(collect("utilization_memory_perc")),
+        "clocks_sm_mhz": _stat(collect("clocks_sm_mhz")),
         "temperature_c": _stat(collect("temperature_c")),
         "memory_used_mib": _stat(collect("memory_used_mib")),
         "memory_total_mib": _stat(collect("memory_total_mib")),
@@ -250,6 +301,48 @@ def _read_file(vol: Any, path: str) -> str:
     __aiter__ method, got generator".
     """
     return b"".join(vol.read_file(path)).decode("utf-8", errors="replace")
+
+
+def billed_seconds(doc: Mapping[str, Any]) -> float | None:
+    """Wall seconds the run's containers were observed, from the run's OWN window.
+
+    ``pull`` records the window it was asked for: the runbook's ``before`` scrape
+    opens it and the ``after`` scrape closes it, so it brackets the run. That makes
+    it the billed interval, and it is derived from the run's own telemetry rather
+    than from a billing-CLI scrape.
+
+    It is also the honest replacement for the item-``ts`` span (``metrics.
+    infer_wall_seconds_from_items``), which runs FIRST completion -> last completion
+    and therefore drops the whole first wave: measured 100.3 s against a true 438 s
+    on the 5-document merger probe (4.4x), and ~1/waves at n=50.
+    """
+    start, end = _num(doc.get("start")), _num(doc.get("end"))
+    if start is not None and end is not None and end > start:
+        return round(end - start, 3)
+    stamps = _stamps(doc.get("samples") or [])
+    if len(stamps) < 2:
+        return None
+    return round(stamps[-1] - stamps[0], 3)
+
+
+def fleet_gpu_seconds(doc: Mapping[str, Any]) -> float | None:
+    """Per-replica alive seconds, summed = GPU-seconds the fleet billed.
+
+    One telemetry file per container (``<label>/<process_start_time_seconds>.jsonl``),
+    so each replica's own first->last sample is its container lifetime. With
+    ``min_containers=1`` the fleet is pinned warm from deploy to teardown, so this
+    sum — not the sum of the five run windows — is what Modal meters for a cell.
+    """
+    spans = []
+    for rep in (doc.get("replicas") or {}).values():
+        stamps = _stamps(rep.get("samples") or [])
+        if len(stamps) >= 2:
+            spans.append(stamps[-1] - stamps[0])
+    return round(sum(spans), 3) if spans else None
+
+
+def _stamps(samples: Sequence[Mapping[str, Any]]) -> list[float]:
+    return sorted(t for t in (_num(s.get("t")) for s in samples) if t is not None)
 
 
 def pull(
