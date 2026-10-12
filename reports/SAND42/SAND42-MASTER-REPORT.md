@@ -49,7 +49,7 @@ Per-condition tables, engine and GPU telemetry, the paired comparison and the me
 | $ / 1M tokens | $0.097 | $0.154 | $0.094 | $0.220 | $0.200 |
 | GPU util (mean/p95/min–max) | 73.8% mean / 99.0 p95 / 0.0–99.0% min–max (n=8) | 92.8% mean / 99.0 p95 / 0.0–99.0% min–max (n=18) | 77.6% mean / 100.0 p95 / 0.0–100.0% min–max (n=14) | 97.6% mean / 100.0 p95 / 0.0–100.0% min–max (n=139) | 98.3% mean / 100.0 p95 / 0.0–100.0% min–max (n=699) |
 | GPU mem used (mean) | 20,994 MiB (91.1% of 23,034) | 21,023 MiB (91.3% of 23,034) | 21,023 MiB (91.3% of 23,034) | 21,026 MiB (91.3% of 23,034) | 21,027 MiB (91.3% of 23,034) |
-| GPU mem bandwidth (mean) | not captured | not captured | not captured | not captured | not captured |
+| GPU mem bandwidth (mean) | not captured — scraped before the sampler read utilization.memory; needs a re-run | not captured — scraped before the sampler read utilization.memory; needs a re-run | not captured — scraped before the sampler read utilization.memory; needs a re-run | not captured — scraped before the sampler read utilization.memory; needs a re-run | not captured — scraped before the sampler read utilization.memory; needs a re-run |
 | Sampling coverage | 96.6% | 94.8% | 100.0% | 100.0% | 100.0% |
 | GPU power (W, mean) | 63.3 | 69.4 | 63.4 | 71.4 | 71.7 |
 | GPU temp (C, mean) | 51.6 | 60.3 | 64.4 | 73.0 | 75.6 |
@@ -64,7 +64,7 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 | Fleet cost | Value |
 | --- | ---: |
 | Replicas × GPU | 1 × L4 @ $0.80/GPU-hr |
-| Cold boot (deploy → ready) | not captured |
+| Cold boot (deploy → ready) | not captured — ready_ts is only written by the parallel-fleet launcher |
 | Fleet window (deploy → teardown) | 6,080.3 s |
 | Fleet GPU-hours | 1.6890 |
 | **Fleet GPU $** | **$1.3512** |
@@ -83,7 +83,7 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-12T08:00:46+00:00 by `sandbox run card --runbook sand42-1l4-c8` from the committed per-run `*.card.json`._
+_Generated 2026-10-12T12:34:55+00:00 by `sandbox run card --runbook sand42-1l4-c8` from the committed per-run `*.card.json`._
 
 
 ---
@@ -150,7 +150,7 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 | Fleet cost | Value |
 | --- | ---: |
 | Replicas × GPU | 1 × L4 @ $0.80/GPU-hr |
-| Cold boot (deploy → ready) | not captured |
+| Cold boot (deploy → ready) | not captured — ready_ts is only written by the parallel-fleet launcher |
 | Fleet window (deploy → teardown) | 5,690.0 s |
 | Fleet GPU-hours | 1.5806 |
 | **Fleet GPU $** | **$1.2644** |
@@ -169,7 +169,7 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-12T08:00:46+00:00 by `sandbox run card --runbook sand42-1l4-c16` from the committed per-run `*.card.json`._
+_Generated 2026-10-12T12:34:55+00:00 by `sandbox run card --runbook sand42-1l4-c16` from the committed per-run `*.card.json`._
 
 
 ---
@@ -236,7 +236,7 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 | Fleet cost | Value |
 | --- | ---: |
 | Replicas × GPU | 2 × L4 @ $0.80/GPU-hr |
-| Cold boot (deploy → ready) | not captured |
+| Cold boot (deploy → ready) | not captured — ready_ts is only written by the parallel-fleet launcher |
 | Fleet window (deploy → teardown) | 4,750.0 s |
 | Fleet GPU-hours | 2.6389 |
 | **Fleet GPU $** | **$2.1111** |
@@ -255,7 +255,7 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-12T08:00:46+00:00 by `sandbox run card --runbook sand42-2l4-c8` from the committed per-run `*.card.json`._
+_Generated 2026-10-12T12:34:55+00:00 by `sandbox run card --runbook sand42-2l4-c8` from the committed per-run `*.card.json`._
 
 
 ---
@@ -341,7 +341,7 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-12T08:00:46+00:00 by `sandbox run card --runbook sand42-2l4-c16` from the committed per-run `*.card.json`._
+_Generated 2026-10-12T12:34:56+00:00 by `sandbox run card --runbook sand42-2l4-c16` from the committed per-run `*.card.json`._
 
 
 ---
@@ -386,7 +386,7 @@ Reference cell: **1l4-c8** (1×L4, client concurrency 8).
 
 _Not measured._ Run `sand42-noise-floor` (blocked until spend is approved) on the same 50 correspondence documents. Until then the SAND-037/39 floor in `docs/BENCHMARK-PROGRAM.md` §3 is the prior — it was measured on a different draw, so treat it as indicative only.
 
-_Generated 2026-10-12T08:00:47+00:00 by `sandbox run card --runbook sand42`._
+_Generated 2026-10-12T12:34:57+00:00 by `sandbox run card --runbook sand42`._
 
 
 ---
@@ -416,4 +416,4 @@ _Generated 2026-10-12T08:00:47+00:00 by `sandbox run card --runbook sand42`._
 * Contracts at n=50 paired is marginal for Δ=0.05 and unpowered for Δ=0.03 — report as an interval, never a ranking.
 * OTel *metrics* export from the container is not wired (the telemetry is an nvidia-smi series); trace spans stay opt-in via `trace.sink`.
 
-_Generated 2026-10-12T08:00:46+00:00 by `sandbox run card --runbook sand42`._
+_Generated 2026-10-12T12:34:56+00:00 by `sandbox run card --runbook sand42`._

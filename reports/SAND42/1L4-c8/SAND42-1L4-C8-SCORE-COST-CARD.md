@@ -45,7 +45,7 @@
 | $ / 1M tokens | $0.097 | $0.154 | $0.094 | $0.220 | $0.200 |
 | GPU util (mean/p95/min–max) | 73.8% mean / 99.0 p95 / 0.0–99.0% min–max (n=8) | 92.8% mean / 99.0 p95 / 0.0–99.0% min–max (n=18) | 77.6% mean / 100.0 p95 / 0.0–100.0% min–max (n=14) | 97.6% mean / 100.0 p95 / 0.0–100.0% min–max (n=139) | 98.3% mean / 100.0 p95 / 0.0–100.0% min–max (n=699) |
 | GPU mem used (mean) | 20,994 MiB (91.1% of 23,034) | 21,023 MiB (91.3% of 23,034) | 21,023 MiB (91.3% of 23,034) | 21,026 MiB (91.3% of 23,034) | 21,027 MiB (91.3% of 23,034) |
-| GPU mem bandwidth (mean) | not captured | not captured | not captured | not captured | not captured |
+| GPU mem bandwidth (mean) | not captured — scraped before the sampler read utilization.memory; needs a re-run | not captured — scraped before the sampler read utilization.memory; needs a re-run | not captured — scraped before the sampler read utilization.memory; needs a re-run | not captured — scraped before the sampler read utilization.memory; needs a re-run | not captured — scraped before the sampler read utilization.memory; needs a re-run |
 | Sampling coverage | 96.6% | 94.8% | 100.0% | 100.0% | 100.0% |
 | GPU power (W, mean) | 63.3 | 69.4 | 63.4 | 71.4 | 71.7 |
 | GPU temp (C, mean) | 51.6 | 60.3 | 64.4 | 73.0 | 75.6 |
@@ -64,7 +64,7 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 | Fleet cost | Value |
 | --- | ---: |
 | Replicas × GPU | 1 × L4 @ $0.80/GPU-hr |
-| Cold boot (deploy → ready) | not captured |
+| Cold boot (deploy → ready) | not captured — ready_ts is only written by the parallel-fleet launcher |
 | Fleet window (deploy → teardown) | 6,080.3 s |
 | Fleet GPU-hours | 1.6890 |
 | **Fleet GPU $** | **$1.3512** |
@@ -83,4 +83,4 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-12T08:00:42+00:00 by `sandbox run card --runbook sand42-1l4-c8` from the committed per-run `*.card.json`._
+_Generated 2026-10-12T12:34:52+00:00 by `sandbox run card --runbook sand42-1l4-c8` from the committed per-run `*.card.json`._

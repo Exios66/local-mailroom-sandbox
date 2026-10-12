@@ -490,9 +490,19 @@ def _mem_used_text(gpu: Mapping[str, Any]) -> str:
 
 
 def _mem_bw_text(gpu: Mapping[str, Any]) -> str:
-    """nvidia-smi memory-bandwidth utilization; absent on cells whose sampler predates it."""
+    """nvidia-smi memory-bandwidth utilization; absent on cells whose sampler predates it.
+
+    `utilization.memory` only entered the sampler's nvidia-smi query after the
+    1L4-c8/1L4-c16 cells had already been scraped, so those runs have no such
+    field. Say so rather than emitting a bare "not captured": the value is
+    recoverable only by re-running the cell.
+    """
     bw = (gpu.get("utilization_memory_perc") or {}).get("mean")
-    return f"{_pct(bw / 100.0)} mean" if isinstance(bw, (int, float)) else "not captured"
+    if isinstance(bw, (int, float)):
+        return f"{_pct(bw / 100.0)} mean"
+    if not gpu.get("captured"):
+        return "not captured — no container telemetry for this run"
+    return "not captured — scraped before the sampler read utilization.memory; needs a re-run"
 
 
 def _figure_line(path: Path) -> str:
@@ -511,6 +521,21 @@ def _master_figures(*, repo: Path | None = None) -> list[Path]:
     except Exception:  # noqa: BLE001
         _log.warning("SAND-042 master figures failed", exc_info=True)
         return []
+
+
+def _cold_boot_text(fleet: Mapping[str, Any]) -> str:
+    """The boot window, or WHY it is absent.
+
+    Only the parallel-fleet launcher records ``ready_ts`` (the moment its health
+    loop first saw the engine answer), so the sequential driver's cells have a
+    closed fleet window but no boot boundary to subtract. Absent telemetry says
+    why — it never becomes a fabricated number; a live re-run is the only real
+    source for those cells.
+    """
+    seconds = fleet.get("cold_boot_seconds")
+    if isinstance(seconds, (int, float)):
+        return _f(seconds, 1, " s")
+    return f"{_f(None)} — ready_ts is only written by the parallel-fleet launcher"
 
 
 def _fleet_lines(cell_data: Mapping[str, Any]) -> list[str]:
@@ -539,7 +564,7 @@ def _fleet_lines(cell_data: Mapping[str, Any]) -> list[str]:
         "| --- | ---: |",
         f"| Replicas × GPU | {fleet['replicas']} × {fleet['gpu']} @ "
         f"${fleet['gpu_usd_per_hour']:.2f}/GPU-hr |",
-        f"| Cold boot (deploy → ready) | {_f(fleet.get('cold_boot_seconds'), 1, ' s')} |",
+        f"| Cold boot (deploy → ready) | {_cold_boot_text(fleet)} |",
         f"| Fleet window (deploy → teardown) | {_f(fleet['fleet_seconds'], 1, ' s')} |",
         f"| Fleet GPU-hours | {fleet['fleet_gpu_hours']:.4f} |",
         f"| **Fleet GPU $** | **{_usd(fleet['fleet_gpu_usd'], 4)}** |",
