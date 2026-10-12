@@ -33,9 +33,9 @@ without stacking both heavies (merger+contracts) on one operator.
 
 Ordered configs:
 
-1. `config/runs/run-30-contracts-specialist.yaml`
-2. `config/runs/run-30-corporate-records-specialist.yaml`
-3. `config/runs/run-30-correspondence-specialist.yaml`
+1. `config/runs/legacy/run-30-contracts-specialist.yaml`
+2. `config/runs/legacy/run-30-corporate-records-specialist.yaml`
+3. `config/runs/legacy/run-30-correspondence-specialist.yaml`
 
 ## Per-doc-type posture (live)
 
@@ -112,9 +112,9 @@ sandbox health --profile modal-vllm
 sandbox run suite --suite track-a
 # sandbox run suite --suite track-a --execute --job-mode endpoint
 for cfg in \
-  config/runs/run-30-contracts-specialist.yaml \
-  config/runs/run-30-corporate-records-specialist.yaml \
-  config/runs/run-30-correspondence-specialist.yaml
+  config/runs/legacy/run-30-contracts-specialist.yaml \
+  config/runs/legacy/run-30-corporate-records-specialist.yaml \
+  config/runs/legacy/run-30-correspondence-specialist.yaml
 do
   sandbox run preflight --config "$cfg" --live
   sandbox run start --config "$cfg" --job-mode endpoint --watch

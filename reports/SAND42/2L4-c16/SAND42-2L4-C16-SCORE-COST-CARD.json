@@ -4,7 +4,11 @@
   "cells_reported": 0,
   "concurrency": 16,
   "concurrency_per_replica": 8.0,
-  "generated_at": "2026-10-12T00:11:20+00:00",
+  "fleet": {
+    "measured": false,
+    "reason": "no fleet_window.json for this cell"
+  },
+  "generated_at": "2026-10-12T04:17:35+00:00",
   "kind": "cell",
   "replicas": 2,
   "runbook": "sand42-2l4-c16",

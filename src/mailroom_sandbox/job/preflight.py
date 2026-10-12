@@ -468,6 +468,17 @@ def preflight(
         "git": git_snapshot(),
         "spec_core": spec_core(spec),
     }
+    # Freeze the resolved per-agent generation knobs (max_tokens / max_input_chars /
+    # chunk_chars / temperature). Without this the card can only read the LIVE posture
+    # table, so editing a posture later silently rewrites what every historical card
+    # claims the run was configured with — and the contracts whole-document change is
+    # exactly such an edit.
+    try:
+        from mailroom_sandbox.job.specialist_posture import agent_knobs_for_run
+
+        lock["agent_knobs"] = agent_knobs_for_run(run_id) or {}
+    except Exception:  # noqa: BLE001 — a lock must still be written
+        lock["agent_knobs"] = {}
     if spec.runbook_id:
         lock["runbook_id"] = spec.runbook_id
     if report_group:

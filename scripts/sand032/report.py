@@ -6,7 +6,7 @@ Ladder   → reports/serving/SAND-32/SAND032-LADDER.md
 Usage:
   scripts/sand032/report.py run  <run-id> [<run-id> ...]
   scripts/sand032/report.py ladder
-Inputs (all local): config/runs/<run>.yaml, data/runtime/runs/<run>/{spec.lock.json,
+Inputs (all local): config/runs/sand032/<run>.yaml, data/runtime/runs/<run>/{spec.lock.json,
 dataset.jsonl,items.jsonl,cold_boot.json,vllm_metrics_{before,after}.json},
 reports/serving/SAND-32/<run>.serving.json, data/runtime/sand032/{logs/<run>.times,fleets.json}.
 Public HF mailroom-dataset only — no partner / proprietary data.
@@ -83,7 +83,7 @@ def p95(xs: list[float]) -> float:
 
 def load(rid: str) -> dict:
     run = RUNS / rid
-    spec = yaml.safe_load((ROOT / "config" / "runs" / f"{rid}.yaml").read_text())
+    spec = yaml.safe_load((ROOT / "config" / "runs" / "sand032" / f"{rid}.yaml").read_text())
     items = {i["item_id"]: i for i in _jsonl(run / "items.jsonl")}
     ds = _jsonl(run / "dataset.jsonl")
     sub = {r["id"]: r.get("expected_subclass") or "?" for r in ds}
@@ -434,12 +434,12 @@ def run_report(rid: str) -> Path:
             f"{(i.get('error') or '')[:60]} |")
     lines += ["", "## Reproduce", "", "```bash",
               "modal profile activate exios66",
-              f"scripts/sand032/run_one.sh config/runs/{rid}.yaml deploy stop   # or: warm (reuse fleet)",
+              f"scripts/sand032/run_one.sh config/runs/sand032/{rid}.yaml deploy stop   # or: warm (reuse fleet)",
               f"scripts/mailroom-tui score {rid}",
               "```", "",
               "## Artifacts", "",
               "| path | role |", "| --- | --- |",
-              f"| `config/runs/{rid}.yaml` | run spec |",
+              f"| `config/runs/sand032/{rid}.yaml` | run spec |",
               f"| `reports/serving/{rid}.serving.json` | serving record (busy wall, tokens, p50/p95, run-span lower bound) |",
               f"| `data/runtime/runs/{rid}/` | run store (lock, dataset, items, /metrics before/after) — gitignored |",
               f"| `data/runtime/bt_experiments/{rid}/` | offline Braintrust-shaped rows — disposed after this report is committed |",

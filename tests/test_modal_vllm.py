@@ -887,3 +887,44 @@ class TestSand042Telemetry:
         assert files, "sampler wrote no file"
         row = json.loads(files[0].read_text().splitlines()[0])
         assert row["gpus"][0]["utilization_gpu_perc"] == 90.0
+
+
+class TestTelemetryCommitIsBestEffort:
+    """The volume handle has no usable ``commit`` in-container (observed live)."""
+
+    def test_commit_failure_warns_once_and_never_raises(self, monkeypatch):
+        """2026-10-12 merger probe printed, every 2 samples:
+
+            telemetry: write failed (AttributeError: 'tuple' object has no attribute 'commit')
+
+        The container runs Modal's injected runtime, not the pinned client, so the
+        handle is a tuple there. It costs no visibility — Modal commits volume writes
+        itself and the operator-side read saw 73/73 samples — so the sampler must
+        survive it and warn once, not per commit.
+        """
+        mod = _load_app_module()
+        monkeypatch.setattr(mod, "_TELEMETRY_COMMIT_WARNED", False, raising=False)
+        monkeypatch.setattr(mod, "telemetry_cache", ())  # the observed failure shape
+
+        first = mod._commit_telemetry_volume()
+        assert first and "commit unavailable" in first
+        assert mod._commit_telemetry_volume() is None  # warns once, not every commit
+
+    def test_a_working_commit_returns_nothing(self, monkeypatch):
+        mod = _load_app_module()
+
+        class _Vol:
+            def commit(self):
+                return None
+
+        monkeypatch.setattr(mod, "_TELEMETRY_COMMIT_WARNED", False, raising=False)
+        monkeypatch.setattr(mod, "telemetry_cache", _Vol())
+        assert mod._commit_telemetry_volume() is None
+
+
+def test_telemetry_query_requests_the_l4_comparable_extras():
+    """The in-container sampler must ask for the same columns the local parser reads,
+    or the extras arrive as None on every sample."""
+    mod = _load_app_module()
+    for col in ("utilization.memory", "power.limit", "clocks.sm"):
+        assert col in mod.TELEMETRY_QUERY, f"sampler does not request {col}"

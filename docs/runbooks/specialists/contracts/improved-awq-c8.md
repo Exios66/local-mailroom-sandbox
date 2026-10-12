@@ -25,7 +25,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml),
 
 ## Configs
 
-- `config/runs/run-20-contracts-awq-c8.yaml`
+- `config/runs/legacy/run-20-contracts-awq-c8.yaml`
 
 ## Do not
 
@@ -66,7 +66,7 @@ modal profile current
 
 # equivalent: eval "$(sandbox modal-matrix env Qwen/Qwen3-8B-AWQ)"
 
-sandbox run benchmark-check --config config/runs/run-20-contracts-awq-c8.yaml
+sandbox run benchmark-check --config config/runs/legacy/run-20-contracts-awq-c8.yaml
 
 modal run deploy/modal_vllm.py::download_model
 
@@ -79,8 +79,8 @@ modal deploy deploy/modal_vllm.py --strategy recreate
 sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
 
-sandbox run preflight --config config/runs/run-20-contracts-awq-c8.yaml --live
-sandbox run start --config config/runs/run-20-contracts-awq-c8.yaml --job-mode endpoint --watch --force
+sandbox run preflight --config config/runs/legacy/run-20-contracts-awq-c8.yaml --live
+sandbox run start --config config/runs/legacy/run-20-contracts-awq-c8.yaml --job-mode endpoint --watch --force
 
 ./deploy/teardown_vllm.sh   # ONLY after this run
 ```

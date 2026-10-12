@@ -589,7 +589,7 @@ SPECIALIST_LIMIT_BY_RUN: dict[str, int] = {
 
 # ── SAND-032: ladder / scale-out / sweep / bf16 rows ─────────────────────────
 # Generated from one table so caps/limits stay consistent with
-# config/runs/sand032-*.yaml. max_tokens mirrors config/taxonomy.overlay.yaml
+# config/runs/sand032/sand032-*.yaml. max_tokens mirrors config/taxonomy.overlay.yaml
 # (the runtime source of generation budgets — no run-scoped override), and
 # tokens_assumed comes from the latest measured 20-doc AWQ runs.
 _SAND032_AGENTS: dict[str, tuple[str, str, int, int, int]] = {
@@ -1002,6 +1002,57 @@ def _assert_sand42_prompts(agents: dict[str, tuple[str, str, int, int, int]]) ->
 
 
 _assert_sand42_prompts(_SAND42_AGENTS)
+
+# Long-document classes. ``_input_chars_for`` sizes ``max_input_chars`` from an
+# ASSUMED prompt length (``1.25 x prompt_tokens``), which is right for short classes
+# but wrong for contracts: it yields 24,000 chars while the real SAND-042 draw runs to
+# 300,768 chars. Measured on that draw, the cap silently dropped **62 % of all
+# contract text** — and, per the truncation marker in ``base_agent.truncate_input``,
+# the omitted span is the middle, which is where the operative clauses live.
+#
+# Contracts therefore run the pipeline's own chunked pass (overlapping
+# paragraph-aware windows + deterministic merge: list fields union with dedupe,
+# scalars keep the first non-null, confidence takes the max) instead of a head+tail
+# truncation. ``extract_chunked`` falls through to plain single-pass ``extract`` when
+# the document fits one window, so small-document output is unchanged.
+#
+# Sizing: every request must fit the 32K window, because ``extract_chunked`` skips a
+# failed chunk *silently*. The context-fit guard (2.4 chars/token + 4,000 system
+# tokens) therefore allows 49,382 chars beside the 8,192 output cap; ``chunk_window``
+# then holds each window to ``budget - overlap`` so a chunk plus its overlap tail
+# still fits. Measured cost: 50 -> 85 calls, 1.09M input tokens (~2.8x), ~$0.26 and
+# ~18 min — inside the existing $0.90 / 4800 s abort cap, so the cap does not move.
+#
+# Merger is here too, on the operator's instruction: its defect is far worse — 50/50
+# documents exceed the cap, 93 % of text is dropped, and a run saw 7 % of each
+# 270k-505k-char agreement. This cell measured the consequence directly: MAUD accuracy
+# 0.0 with 0-1 of 13-17 questions answered, extraction F1 0.0, plus degenerate
+# `No-Shop: Yes` x 22 repetition and 3/50 (6 %) LengthFinishReasonError hard failures.
+# Those are not merger-quality measurements. Merger therefore takes the SAND-040
+# optimised posture (see below) rather than a head+tail truncation.
+_SAND42_CHUNKED: dict[str, dict[str, Any]] = {
+    "contract": {"max_input_chars": 49_000, "chunk_chars": 43_000, "overlap_chars": 6_000},
+    # Merger adopts the SAND-040 optimised long-document posture verbatim — the most
+    # efficient method this repo has for whole-document merger extraction, and the one
+    # the A100-era merger cards converged on (95 % util, ~$0.004/doc):
+    #   chunked whole-document windows (47k / 6.5k overlap), Qwen3 non-thinking
+    #   sampling (0.7 / top_p 0.8 / top_k 20 / presence 1.0) to suppress the runaway
+    #   repetition this cell just measured (`No-Shop: Yes` x 22), a 6144 output cap,
+    #   and ONE re-sample on LengthFinishReasonError — which is what produced the
+    #   3/50 (6 %) hard failures at 8192 with no retry.
+    # Fits the 32K window exactly: 54000/2.4 + 6144 + 4000 = 32644 <= 32768.
+    "merger_agreement": {
+        "max_input_chars": 54_000,
+        "chunk_chars": 47_000,
+        "overlap_chars": 6_500,
+        "max_tokens": 6_144,
+        "top_p": 0.8,
+        "top_k": 20,
+        "presence_penalty": 1.0,
+        "length_retries": 1,
+    },
+}
+
 _SAND42_CLASS_SLUG: dict[str, str] = {
     "correspondence": "correspondence",
     "insurance_claim": "insurance-claims",
@@ -1012,15 +1063,19 @@ _SAND42_CLASS_SLUG: dict[str, str] = {
 # Abort guards (not estimates). 1×L4 mirrors the SAND-037 C8 n=50 caps; 2×L4 bills
 # two GPUs so its caps are ~1.5×; the C16 legs carry extra headroom on the long
 # classes because a wider batch lengthens the tail on contracts and merger.
+# Merger's cap is derived from the MEASURED probe (2026-10-12): 5 merger agreements
+# = 1,702,602 chars took 438 s warm on one L4, so the 18,160,427-char draw is
+# 438 x 10.66 = 4,671 s ~= 1.30 h ~= $1.04 of GPU. The cap is that with ~55 %
+# headroom; the pre-probe $1.25 / 5400 s guard would have aborted a legitimate run.
 _SAND42_CAPS: dict[int, dict[str, float]] = {
     1: {"correspondence": 0.45, "insurance_claim": 0.55, "corporate_record": 0.55,
-        "contract": 0.90, "merger_agreement": 1.25},
+        "contract": 0.90, "merger_agreement": 1.70},
     2: {"correspondence": 0.65, "insurance_claim": 0.85, "corporate_record": 0.85,
-        "contract": 1.30, "merger_agreement": 1.75},
+        "contract": 1.30, "merger_agreement": 2.55},
 }
 _SAND42_WALLS: dict[str, int] = {
     "correspondence": 2400, "insurance_claim": 2400, "corporate_record": 2400,
-    "contract": 4800, "merger_agreement": 5400,
+    "contract": 4800, "merger_agreement": 7200,
 }
 
 
@@ -1037,6 +1092,8 @@ SAND42_RUNS: frozenset[str] = frozenset(
 for _cell, (_rep, _conc) in SAND42_CELLS_BY_ID.items():
     for _cls, (_agent, _prompt, _mt, _pt, _ct) in _SAND42_AGENTS.items():
         _rid = sand42_run_id(_cell, _cls)
+        _chunk = _SAND42_CHUNKED.get(_cls)
+        _mt_eff = int(_chunk.get("max_tokens") or _mt) if _chunk else _mt
         SPECIALIST_POSTURE[_rid] = {
             "task": _agent,
             "doc_class": _cls,
@@ -1046,8 +1103,10 @@ for _cell, (_rep, _conc) in SAND42_CELLS_BY_ID.items():
             "replicas": _rep,
             "max_num_seqs": 16,
             "max_model_len": 32768,
-            "max_tokens": _mt,
-            "max_input_chars": _input_chars_for(_mt, _pt, 32768),
+            "max_tokens": _mt_eff,
+            "max_input_chars": (
+                _chunk["max_input_chars"] if _chunk else _input_chars_for(_mt, _pt, 32768)
+            ),
             "cost_cap_usd": _SAND42_CAPS[_rep][_cls],
             "max_wall_seconds": _SAND42_WALLS[_cls],
             "tokens_assumed": {"prompt": _pt, "completion": _ct},
@@ -1056,11 +1115,18 @@ for _cell, (_rep, _conc) in SAND42_CELLS_BY_ID.items():
                 f"SAND-042 paired grid cell ({_rep}×L4, client concurrency {_conc}"
                 + (f", {_conc // _rep} per replica" if _rep > 1 else "")
                 + ") — SAND-037 aligned spec, v1 simplified stem, decode 8192"
+                + (", whole-document chunked extract (no truncation)" if _chunk else "")
             ),
         }
         _temp = GRID_TEMPERATURE_BY_CLASS.get(_cls)
         if _temp is not None:
             SPECIALIST_POSTURE[_rid]["temperature"] = _temp
+        if _chunk:
+            # chunk_chars / overlap_chars plus any optimised sampling knobs
+            # (top_p, top_k, presence_penalty, length_retries).
+            for _key, _val in _chunk.items():
+                if _key != "max_input_chars":
+                    SPECIALIST_POSTURE[_rid][_key] = _val
         SPECIALIST_LIMIT_BY_RUN[_rid] = SAND42_N
 
 SAND42_TWO_GPU_RUNS: frozenset[str] = frozenset(
@@ -1113,7 +1179,25 @@ SPECIALIST_POSTURE[SAND42_CHECK_RUN] = {
     ),
 }
 SPECIALIST_LIMIT_BY_RUN[SAND42_CHECK_RUN] = 5
-SAND42_CHECK_RUNS: frozenset[str] = frozenset({SAND42_CHECK_RUN})
+
+# Merger probe leg: 5 merger agreements drawn as a STRICT SUBSET of the 1L4-c8
+# condition's 50. It exists to MEASURE the chunked whole-document path's real wall
+# before the four scored conditions commit ~2 GPU-hours per merger cell — the
+# extrapolation from the truncated run's throughput was not good enough to spend on.
+# It inherits the condition's knobs wholesale (chunking, 6144 cap, sampling, length
+# re-sample), so it cannot drift from the path it is measuring; only the caps differ.
+SAND42_CHECK_MERGER_RUN = "sand42-check-5-merger-specialist-awq-1l4-c8"
+SPECIALIST_POSTURE[SAND42_CHECK_MERGER_RUN] = {
+    **SPECIALIST_POSTURE[sand42_run_id("1l4-c8", "merger_agreement")],
+    "cost_cap_usd": 0.60,
+    "max_wall_seconds": 3600,
+    "rationale": (
+        "SAND-042 merger probe — 5 merger agreements, a strict subset of the 1L4-c8 "
+        "condition's 50-document draw, measuring the chunked whole-document wall"
+    ),
+}
+SPECIALIST_LIMIT_BY_RUN[SAND42_CHECK_MERGER_RUN] = 5
+SAND42_CHECK_RUNS: frozenset[str] = frozenset({SAND42_CHECK_RUN, SAND42_CHECK_MERGER_RUN})
 # It rides the same pinned single-L4 fleet as the C8 condition.
 SAND42_ONE_GPU_RUNS = SAND42_ONE_GPU_RUNS | SAND42_CHECK_RUNS | {SAND42_NOISE_FLOOR_RUN}
 

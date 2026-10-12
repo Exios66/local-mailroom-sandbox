@@ -32,7 +32,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from mailroom_sandbox.job import grid_cards
+from mailroom_sandbox.job import grid_cards, metrics
 from mailroom_sandbox.job.grid_cards import (
     SPECIALISTS,
     _f,
@@ -263,16 +263,23 @@ def _goodput(card: Mapping[str, Any], task: str) -> dict[str, Any]:
 
 
 def _cost_per_usable(card: Mapping[str, Any]) -> dict[str, Any]:
-    busy = (card.get("cost") or {}).get("busy_gpu_usd")
+    cost = card.get("cost") or {}
+    busy = cost.get("busy_gpu_usd")
+    # The numerator is the money actually spent, so it must be the BILLED figure
+    # (the run's own container-telemetry window x replicas x rate). The denominator
+    # is the useful output, so cost per usable record is billed / usable.
+    billed = cost.get("billed_gpu_usd") or busy
     rel = _reliability(card)
     ok = rel["ok"]
     sv = rel["schema_valid_rate"]
     attempted = rel["attempted"]
     return {
         "busy_gpu_usd": busy,
-        "usd_per_1k_ok": (busy / ok * 1000.0) if busy and ok else None,
+        "billed_gpu_usd": billed,
+        "billed_seconds": cost.get("billed_seconds"),
+        "usd_per_1k_ok": (billed / ok * 1000.0) if billed and ok else None,
         "usd_per_1k_schema_valid": (
-            busy / (sv * attempted) * 1000.0 if busy and sv and attempted else None
+            billed / (sv * attempted) * 1000.0 if billed and sv and attempted else None
         ),
     }
 
@@ -315,6 +322,44 @@ def _summary(run_id: str, card: Mapping[str, Any] | None, task: str) -> dict[str
     }
 
 
+def fleet_cost(cell: str, *, repo: Path | None = None) -> dict[str, Any]:
+    """The cell's whole GPU burn, computed from its own recorded fleet window.
+
+    ``min_containers=1`` pins the fleet warm from deploy to teardown, so Modal meters
+    the ENTIRE window — the cold boot and the idle between specialists included, not
+    just the five run windows. The window is recorded by the cell runner, so this is
+    computed from the session itself rather than scraped from the billing CLI (whose
+    figures are credits-based and workspace-wide, not per cell).
+    """
+    doc = _read_json(_cell_dir(cell, repo=repo) / "fleet_window.json")
+    if not doc:
+        return {"measured": False, "reason": "no fleet_window.json for this cell"}
+    deploy = doc.get("deploy_ts")
+    teardown = doc.get("teardown_ts")
+    if not isinstance(deploy, (int, float)) or not isinstance(teardown, (int, float)):
+        return {"measured": False, "reason": "fleet window is not closed (no deploy/teardown ts)"}
+    if teardown <= deploy:
+        return {"measured": False, "reason": "fleet window is inverted (teardown <= deploy)"}
+    replicas = max(1, int(doc.get("replicas") or CELLS[cell][0]))
+    gpu = str(doc.get("gpu") or "L4")
+    rate = metrics.gpu_usd_per_hour(gpu)
+    seconds = float(teardown - deploy)
+    ready = doc.get("ready_ts")
+    return {
+        "measured": True,
+        "deploy_ts": float(deploy),
+        "ready_ts": float(ready) if isinstance(ready, (int, float)) else None,
+        "teardown_ts": float(teardown),
+        "replicas": replicas,
+        "gpu": gpu,
+        "gpu_usd_per_hour": rate,
+        "fleet_seconds": round(seconds, 3),
+        "cold_boot_seconds": round(float(ready) - float(deploy), 3) if isinstance(ready, (int, float)) else None,
+        "fleet_gpu_hours": round(seconds * replicas / 3600.0, 4),
+        "fleet_gpu_usd": round(seconds * replicas * rate / 3600.0, 4),
+    }
+
+
 def collect_cell(cell: str, *, repo: Path | None = None) -> dict[str, Any]:
     replicas, concurrency = CELLS[cell]
     rows = []
@@ -339,6 +384,7 @@ def collect_cell(cell: str, *, repo: Path | None = None) -> dict[str, Any]:
         "cells_reported": sum(1 for r in rows if r["reported"]),
         "specialists": rows,
         "cards": cards,
+        "fleet": fleet_cost(cell, repo=repo),
     }
 
 
@@ -378,10 +424,99 @@ def _gpu_text(gpu: Mapping[str, Any]) -> str:
     n = gpu.get("samples")
     if util is None:
         return f"{n} samples, no util"
-    return f"{util:.1f}% mean / {peak:.1f}% peak (n={n})"
+    return (
+        f"{util:.1f}% mean / {_f(gpu.get('util_p95_perc'), 1)} p95 / "
+        f"{peak:.1f}% peak (n={n})"
+    )
 
 
-def render_cell_md(cell_data: Mapping[str, Any]) -> str:
+def _coverage_text(gpu: Mapping[str, Any]) -> str:
+    """#128's sampling-coverage gate: a cell below 90% is rejected, not reported."""
+    cov = gpu.get("sampling_coverage_pct")
+    if cov is None:
+        return "not captured"
+    flag = " ⚠ below the 90% gate (issue #128)" if cov < 90 else ""
+    return f"{cov:.1f}%{flag}"
+
+
+def _mem_used_text(gpu: Mapping[str, Any]) -> str:
+    """nvidia-smi memory.used / memory.total — the GPU-memory utilization, on every cell."""
+    used = (gpu.get("memory_used_mib") or {}).get("mean")
+    total = (gpu.get("memory_total_mib") or {}).get("mean")
+    if used is None:
+        return "not captured"
+    if total:
+        return f"{_f(used, 0)} MiB ({_pct(used / total)} of {_f(total, 0)})"
+    return f"{_f(used, 0)} MiB"
+
+
+def _mem_bw_text(gpu: Mapping[str, Any]) -> str:
+    """nvidia-smi memory-bandwidth utilization; absent on cells whose sampler predates it."""
+    bw = (gpu.get("utilization_memory_perc") or {}).get("mean")
+    return f"{_pct(bw / 100.0)} mean" if isinstance(bw, (int, float)) else "not captured"
+
+
+def _figure_line(path: Path) -> str:
+    """One embedded master figure; the stem is the caption (`cmp-cost` → `Cost`)."""
+    caption = path.stem.removeprefix("cmp-").replace("-", " ").replace("_", " ").title()
+    return f"![{caption}](figures/{path.name})"
+
+
+def _master_figures(*, repo: Path | None = None) -> list[Path]:
+    """Write the shared master figures. Lazy and never fatal: a missing module or a
+    plotting error must not break a report write."""
+    try:
+        from mailroom_sandbox.job import sand42_figures
+
+        return [Path(p) for p in sand42_figures.maybe_write_master_figures(repo=repo)]
+    except Exception:  # noqa: BLE001
+        _log.warning("SAND-042 master figures failed", exc_info=True)
+        return []
+
+
+def _fleet_lines(cell_data: Mapping[str, Any]) -> list[str]:
+    """The cell's whole burn, computed from its own recorded fleet window."""
+    fleet = cell_data.get("fleet") or {}
+    rows = cell_data.get("specialists") or []
+    if not fleet.get("measured"):
+        return [
+            f"Fleet window not recorded ({fleet.get('reason') or 'unknown'}). Per-run costs "
+            "still come from each run's own container-telemetry window.",
+            "",
+        ]
+    run_seconds = sum(
+        float((r.get("cost") or {}).get("billed_seconds") or 0.0)
+        for r in rows
+        if r.get("reported")
+    )
+    overhead = max(0.0, float(fleet["fleet_seconds"]) - run_seconds)
+    return [
+        f"The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal "
+        f"meters the **whole window** — the cold boot and the idle between specialists "
+        f"included. This is computed from the session's own timestamps, not scraped from "
+        f"the billing CLI (whose figures are credits-based and workspace-wide).",
+        "",
+        "| Fleet cost | Value |",
+        "| --- | ---: |",
+        f"| Replicas × GPU | {fleet['replicas']} × {fleet['gpu']} @ "
+        f"${fleet['gpu_usd_per_hour']:.2f}/GPU-hr |",
+        f"| Cold boot (deploy → ready) | {_f(fleet.get('cold_boot_seconds'), 1, ' s')} |",
+        f"| Fleet window (deploy → teardown) | {_f(fleet['fleet_seconds'], 1, ' s')} |",
+        f"| Fleet GPU-hours | {fleet['fleet_gpu_hours']:.4f} |",
+        f"| **Fleet GPU $** | **{_usd(fleet['fleet_gpu_usd'], 4)}** |",
+        f"| Of which the five runs | {_f(run_seconds, 1, ' s')} "
+        f"({_pct(run_seconds / fleet['fleet_seconds'] if fleet['fleet_seconds'] else None)}) |",
+        f"| Boot + idle overhead | {_f(overhead, 1, ' s')} |",
+        "",
+    ]
+
+
+def render_cell_md(
+    cell_data: Mapping[str, Any], *, link_prefix: str = "", figure: str | None = None
+) -> str:
+    """One condition's card. ``link_prefix`` rebases the per-run links when this
+    markdown is embedded a level up, in the master report at reports/SAND42/ — without
+    it every link points at a path that only exists relative to the cell folder."""
     cell = cell_data["cell"]
     replicas = cell_data["replicas"]
     conc = cell_data["concurrency"]
@@ -444,15 +579,31 @@ def render_cell_md(cell_data: Mapping[str, Any]) -> str:
         row("Goodput docs/min/GPU", lambda r: _f(r["goodput"].get("goodput_documents_per_minute_per_gpu"), 2)),
         row("Tokens/s/GPU", lambda r: _f(r["throughput"].get("tokens_per_second_per_gpu"), 1)),
         row("Wall (s)", lambda r: _f(r["time"].get("wall_seconds"), 1)),
+        row("Billed GPU $ (run)", lambda r: _usd(r["cost"].get("billed_gpu_usd"), 4)),
         row("$ / 1k ok docs", lambda r: _usd(r["cost"].get("usd_per_1k_ok"))),
         row("$ / 1k schema-valid", lambda r: _usd(r["cost"].get("usd_per_1k_schema_valid"))),
-        row("GPU util (mean/peak)", lambda r: _gpu_text(r["gpu"])),
+        row("GPU util (mean/p95/peak)", lambda r: _gpu_text(r["gpu"])),
+        row("GPU mem used (mean)", lambda r: _mem_used_text(r["gpu"])),
+        row("GPU mem bandwidth (mean)", lambda r: _mem_bw_text(r["gpu"])),
+        row("Sampling coverage", lambda r: _coverage_text(r["gpu"])),
         row("GPU power (W, mean)", lambda r: _f((r["gpu"].get("power_draw_w") or {}).get("mean"), 1)),
         row("GPU temp (C, mean)", lambda r: _f((r["gpu"].get("temperature_c") or {}).get("mean"), 1)),
         row("KV cache use (max %)", lambda r: _f(_kv_max(r), 1)),
         row("Preemptions", lambda r: _replica_sum_text(r, "preemptions")),
         row("Length finishes", lambda r: _replica_sum_text(r, "length_finishes")),
+    ]
+    if figure:  # the per-cell deliverable, at reports/SAND42/figures/<cell>-dashboard.png
+        lines += [
+            "",
+            "## Figure",
+            "",
+            f"![SAND-042 {cell} cell dashboard](../figures/{figure})",
+        ]
+    lines += [
         "",
+        "## Cost (computed from the session)",
+        "",
+        *_fleet_lines(cell_data),
         "## Per-run cards",
         "",
         "| Specialist | Run ID | Card |",
@@ -463,7 +614,7 @@ def render_cell_md(cell_data: Mapping[str, Any]) -> str:
     for r in rows:
         folder = folder_of[r["task"]]
         link = (
-            f"[{r['run_id']}.card.md]({folder}/{r['run_id']}.card.md)"
+            f"[{r['run_id']}.card.md]({link_prefix}{folder}/{r['run_id']}.card.md)"
             if r.get("reported")
             else "not run"
         )
@@ -503,7 +654,15 @@ def write_cell(cell: str, *, repo: Path | None = None) -> dict[str, Path]:
     paths = cell_paths(cell, repo=repo)
     paths["dir"].mkdir(parents=True, exist_ok=True)
     paths["json"].write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    paths["md"].write_text(render_cell_md(data), encoding="utf-8")
+    figure: str | None = None
+    try:  # lazy: a missing module or a plotting error must never break the cell card
+        from mailroom_sandbox.job import sand42_figures
+
+        path = sand42_figures.maybe_write_cell_figure(cell, repo=repo)
+        figure = path.name if path else None
+    except Exception:  # noqa: BLE001
+        _log.warning("SAND-042 cell figure failed for %s", cell, exc_info=True)
+    paths["md"].write_text(render_cell_md(data, figure=figure), encoding="utf-8")
     return paths
 
 
@@ -556,7 +715,9 @@ def _noise_floor(*, repo: Path | None = None) -> dict[str, Any] | None:
     return d
 
 
-def render_comparison_md(data: Mapping[str, Any]) -> str:
+def render_comparison_md(
+    data: Mapping[str, Any], *, figures: Sequence[Path] | None = None
+) -> str:
     lines = [
         "# SAND-042 · paired comparison across the four cells",
         "",
@@ -623,6 +784,10 @@ def render_comparison_md(data: Mapping[str, Any]) -> str:
             "draw, so treat it as indicative only.",
             "",
         ]
+    if figures:
+        lines += ["## Figures", ""]
+        lines += [_figure_line(p) for p in figures]
+        lines += [""]
     lines += [
         f"_Generated {data['generated_at']} by `sandbox run card --runbook sand42`._",
         "",
@@ -635,7 +800,9 @@ def write_comparison(*, repo: Path | None = None) -> dict[str, Path]:
     paths = comparison_paths(repo=repo)
     paths["dir"].mkdir(parents=True, exist_ok=True)
     paths["json"].write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    paths["md"].write_text(render_comparison_md(data), encoding="utf-8")
+    paths["md"].write_text(
+        render_comparison_md(data, figures=_master_figures(repo=repo)), encoding="utf-8"
+    )
     return paths
 
 
@@ -816,6 +983,8 @@ def render_master_card_md(data: Mapping[str, Any]) -> str:
             ("goodput docs/min/GPU", lambda r: _f(r["goodput"].get("goodput_documents_per_minute_per_gpu"), 2)),
             ("tokens/s/GPU", lambda r: _f(r["throughput"].get("tokens_per_second_per_gpu"), 0)),
             ("GPU util % (mean)", lambda r: _f(r["gpu"].get("util_mean_perc"), 1)),
+            ("GPU mem used", lambda r: _mem_used_text(r["gpu"])),
+            ("GPU mem bandwidth", lambda r: _mem_bw_text(r["gpu"])),
             ("$/1k ok", lambda r: _usd(r["cost"].get("usd_per_1k_ok"))),
             ("$/1k schema-valid", lambda r: _usd(r["cost"].get("usd_per_1k_schema_valid"))),
         ):
@@ -865,7 +1034,9 @@ def render_master_card_md(data: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def render_master_report_md(data: Mapping[str, Any]) -> str:
+def render_master_report_md(
+    data: Mapping[str, Any], *, figures: Sequence[Path] | None = None
+) -> str:
     cells = data["cells"]
     lines = [
         "# SAND-042 master report — full detail",
@@ -876,8 +1047,14 @@ def render_master_report_md(data: Mapping[str, Any]) -> str:
         "",
     ]
     for cell in CELL_ORDER:
-        lines += [render_cell_md(cells[cell]), "", "---", ""]
+        # Embedded a level up from the cell folder, so rebase every per-run link.
+        prefix = f"{grid_cards.condition_dir(f'sand42-x-{cell}', cells[cell]['replicas'])}/"
+        lines += [render_cell_md(cells[cell], link_prefix=prefix), "", "---", ""]
     lines += [render_comparison_md(data["comparison"]), "", "---", ""]
+    if figures:
+        lines += ["## Figures", ""]
+        lines += [_figure_line(p) for p in figures]
+        lines += ["", "---", ""]
     lines += [
         "## Method",
         "",
@@ -917,6 +1094,8 @@ def write_master(*, repo: Path | None = None) -> dict[str, Path]:
     paths["dir"].mkdir(parents=True, exist_ok=True)
     paths["card_json"].write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     paths["card_md"].write_text(render_master_card_md(data), encoding="utf-8")
-    paths["report_md"].write_text(render_master_report_md(data), encoding="utf-8")
+    paths["report_md"].write_text(
+        render_master_report_md(data, figures=_master_figures(repo=repo)), encoding="utf-8"
+    )
     return paths
 

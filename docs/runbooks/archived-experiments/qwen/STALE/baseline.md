@@ -37,11 +37,11 @@ account is available; otherwise prefer track-a ∥ track-b for parallel wall.
 
 Ordered configs:
 
-1. `config/runs/run-30-contracts-specialist.yaml`
-2. `config/runs/run-30-merger-specialist.yaml`
-3. `config/runs/run-30-corporate-records-specialist.yaml`
-4. `config/runs/run-30-correspondence-specialist.yaml`
-5. `config/runs/run-30-insurance-claims-specialist.yaml`
+1. `config/runs/legacy/run-30-contracts-specialist.yaml`
+2. `config/runs/legacy/run-30-merger-specialist.yaml`
+3. `config/runs/legacy/run-30-corporate-records-specialist.yaml`
+4. `config/runs/legacy/run-30-correspondence-specialist.yaml`
+5. `config/runs/legacy/run-30-insurance-claims-specialist.yaml`
 
 ## Per-doc-type posture (live)
 
@@ -125,11 +125,11 @@ sandbox health --profile modal-vllm
 sandbox run suite --suite full
 # sandbox run suite --suite full --execute --job-mode endpoint
 for cfg in \
-  config/runs/run-30-contracts-specialist.yaml \
-  config/runs/run-30-merger-specialist.yaml \
-  config/runs/run-30-corporate-records-specialist.yaml \
-  config/runs/run-30-correspondence-specialist.yaml \
-  config/runs/run-30-insurance-claims-specialist.yaml
+  config/runs/legacy/run-30-contracts-specialist.yaml \
+  config/runs/legacy/run-30-merger-specialist.yaml \
+  config/runs/legacy/run-30-corporate-records-specialist.yaml \
+  config/runs/legacy/run-30-correspondence-specialist.yaml \
+  config/runs/legacy/run-30-insurance-claims-specialist.yaml
 do
   sandbox run preflight --config "$cfg" --live
   sandbox run start --config "$cfg" --job-mode endpoint --watch
@@ -176,9 +176,9 @@ without stacking both heavies (merger+contracts) on one operator.
 
 Ordered configs:
 
-1. `config/runs/run-30-contracts-specialist.yaml`
-2. `config/runs/run-30-corporate-records-specialist.yaml`
-3. `config/runs/run-30-correspondence-specialist.yaml`
+1. `config/runs/legacy/run-30-contracts-specialist.yaml`
+2. `config/runs/legacy/run-30-corporate-records-specialist.yaml`
+3. `config/runs/legacy/run-30-correspondence-specialist.yaml`
 
 ## Per-doc-type posture (live)
 
@@ -255,9 +255,9 @@ sandbox health --profile modal-vllm
 sandbox run suite --suite track-a
 # sandbox run suite --suite track-a --execute --job-mode endpoint
 for cfg in \
-  config/runs/run-30-contracts-specialist.yaml \
-  config/runs/run-30-corporate-records-specialist.yaml \
-  config/runs/run-30-correspondence-specialist.yaml
+  config/runs/legacy/run-30-contracts-specialist.yaml \
+  config/runs/legacy/run-30-corporate-records-specialist.yaml \
+  config/runs/legacy/run-30-correspondence-specialist.yaml
 do
   sandbox run preflight --config "$cfg" --live
   sandbox run start --config "$cfg" --job-mode endpoint --watch
@@ -300,8 +300,8 @@ insurance (c=5). Avoids stacking merger+contracts on one wallet.
 
 Ordered configs:
 
-1. `config/runs/run-30-merger-specialist.yaml`
-2. `config/runs/run-30-insurance-claims-specialist.yaml`
+1. `config/runs/legacy/run-30-merger-specialist.yaml`
+2. `config/runs/legacy/run-30-insurance-claims-specialist.yaml`
 
 ## Per-doc-type posture (live)
 
@@ -382,8 +382,8 @@ sandbox health --profile modal-vllm
 sandbox run suite --suite track-b
 # sandbox run suite --suite track-b --execute --job-mode endpoint
 for cfg in \
-  config/runs/run-30-merger-specialist.yaml \
-  config/runs/run-30-insurance-claims-specialist.yaml
+  config/runs/legacy/run-30-merger-specialist.yaml \
+  config/runs/legacy/run-30-insurance-claims-specialist.yaml
 do
   sandbox run preflight --config "$cfg" --live
   sandbox run start --config "$cfg" --job-mode endpoint --watch
@@ -419,7 +419,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../../../config/runbooks/catalog.yam
 
 ## Configs
 
-- `config/runs/run-20-contracts-specialist.yaml`
+- `config/runs/legacy/run-20-contracts-specialist.yaml`
 
 ## Per-doc-type posture (live)
 
@@ -474,7 +474,7 @@ export MODAL_VLLM_API_TOKEN="${MODAL_VLLM_API_TOKEN:-$(openssl rand -hex 24)}"
 modal profile activate "${SANDBOX_MODAL_PROFILE_TRACK_A:-hermes-agent-jjb}"
 modal profile current
 
-sandbox run benchmark-check --config config/runs/run-20-contracts-specialist.yaml
+sandbox run benchmark-check --config config/runs/legacy/run-20-contracts-specialist.yaml
 
 modal run deploy/modal_vllm.py::download_model
 
@@ -487,8 +487,8 @@ modal deploy deploy/modal_vllm.py
 sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
 
-sandbox run preflight --config config/runs/run-20-contracts-specialist.yaml --live
-sandbox run start --config config/runs/run-20-contracts-specialist.yaml --job-mode endpoint --watch
+sandbox run preflight --config config/runs/legacy/run-20-contracts-specialist.yaml --live
+sandbox run start --config config/runs/legacy/run-20-contracts-specialist.yaml --job-mode endpoint --watch
 
 ./deploy/teardown_vllm.sh   # ONLY after this run
 ```

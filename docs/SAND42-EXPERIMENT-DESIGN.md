@@ -154,6 +154,85 @@ five specialists chained on that one warm fleet (runbook step order:
 Five specialist runs per cell, one cold boot per cell (per replica). The runner never
 `modal deploy --strategy recreate` between classes — that is the catalog's own anti-pattern.
 
+### 3.6 Alignment with issue #128 ("L4 Reruns")
+
+[Issue #128](https://github.com/Exios66/local-mailroom-sandbox/issues/128) asks for a 2×2 on
+**GPU count × per-replica load**, with the nvidia-smi sidecar as the reason for the rerun. Three of
+its four cells are byte-identical to ours:
+
+| #128 | R | per-replica | total C | ours |
+| --- | ---: | ---: | ---: | --- |
+| A | 1 | 8 | 8 | `1l4-c8` |
+| B | 1 | 16 | 16 | `1l4-c16` |
+| C | 2 | 8 | 16 | `2l4-c16` |
+| D | 2 | 16 | 32 | **not run** |
+
+**Where we diverge, and why our grid wins.** #128 pins *per-replica load* to {8, 16} and lets
+total client concurrency reach 32; we pin **total client concurrency** to {8, 16} and split it
+across replicas (§3.1). The instruction that governs is "NOT the old 8/32" — C32 is SAND-037
+Experiment 3, one of the postures this design exists to correct. So our `2l4-c8` (4/replica)
+replaces #128's D. Consequences, stated rather than papered over:
+
+- The GPU-count-at-fixed-load contrast is **preserved**: `1l4-c8` vs `2l4-c16` (8/replica each) is
+  exactly #128's A→C.
+- #128's B→D (per-replica 16 at 1 vs 2 GPUs) and its A→D decomposition of SAND-037's +99 % are
+  **not available** in this grid — there is no 16/replica-at-2-GPU cell. §3.2 already says the
+  2×L4 cells are not a per-replica-load twin of the 1×L4 cells.
+- #128's run order (C, then B, then A/D) is a budget-cutoff hedge, not a design constraint; this
+  grid records no order, and `1l4-c8` ran first.
+
+**Two telemetry requirements adopted from #128** (additive — they conflict with nothing):
+`p95` utilization alongside the mean, and **`sampling_coverage_pct`, rejecting a cell below 90 %**
+(`container_telemetry._coverage_pct`). Coverage is not `observed ÷ expected`: the sampler's cadence
+is bimodal (a fixed sleep plus `nvidia-smi`'s own runtime), so a gap longer than twice the normal
+cadence is counted as uncovered time instead.
+
+### 3.7 Whole-document input (contracts), and why the cap was wrong
+
+`max_input_chars` was sized by `specialist_posture._input_chars_for` as
+`min(window fit, 1.25 × assumed prompt_tokens × 2.4)`. The `1.25 × assumed prompt` clamp exists so
+short classes do not over-prefill into empty context — correct for correspondence, **wrong for
+long-document classes**, because it sizes the cap from a *guess at the prompt* rather than from the
+documents. Measured on the frozen draw:
+
+| class | p50 chars | max chars | cap | docs over cap | text dropped |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| contracts | 26,115 | 300,768 | 24,000 | 26/50 | **62 %** |
+| merger | 349,823 | 505,699 | 30,000 | **50/50** | **93 %** |
+
+`base_agent.truncate_input` keeps a head+tail window, so the omitted span is the **middle** — where
+the operative clauses live. A contracts score computed on 38 % of the document is not a contracts
+score.
+
+**Contracts now runs the pipeline's own chunked pass** (`_SAND42_CHUNKED` → `chunk_chars` 43,000 /
+`overlap_chars` 6,000, `max_input_chars` 49,000). Windows are paragraph-aware with a trailing
+overlap, and the merge is the completeness guarantee: list fields union with normalized dedupe,
+scalars keep the first non-null value, confidence takes the max. `extract_chunked` falls through to
+plain single-pass `extract` when a document fits one window, so **small-document output is
+unchanged** and only the 17 over-cap contracts change path. Measured: 50 → 85 calls, 1.09M input
+tokens (2.8×), ≈ $0.26 and ≈ 18 min — inside the existing $0.90 / 4800 s cap.
+
+Sizing rule (the same one SAND-040 used): every request must fit the 32K window because
+`extract_chunked` skips a failed chunk **silently**, so the context-fit guard (2.4 chars/token +
+4,000 system tokens) allows 49,382 chars beside the 8,192 output cap, and `chunk_window` holds each
+window to `budget − overlap` so a chunk plus its overlap tail still fits.
+
+**Merger runs the same way, with the SAND-040 optimised posture.** Its defect is far worse —
+50/50 documents over cap, 93 % of text dropped, 7 % of each agreement seen — and the pre-fix
+1L4-c8 run measured the result: MAUD accuracy 0.0 (0–1 of 13–17 questions answered), extraction F1 0.0,
+degenerate `No-Shop: Yes` × 22 repetition, and 3/50 (6 %) `LengthFinishReasonError` failures. It
+now takes the most efficient whole-document method this repo has, verbatim from
+`sand40-50-merger-specialist-awq-2l4`: windows 47,000 / overlap 6,500, `max_tokens` 6,144,
+temperature 0.7 / top_p 0.8 / top_k 20 / presence 1.0, and **one length re-sample**. Fits the 32K
+window exactly (`54000/2.4 + 6144 + 4000 = 32644`). Cost is now **measured**, not extrapolated: the
+5-document merger probe (2026-10-12, 1×L4, C8) ran 1,702,602 chars in **438 s** warm, so the
+18,160,427-char draw is `438 × 10.66 ≈ 4,671 s ≈ 1.30 h ≈ $1.04` of GPU. That is an upper bound —
+`extract_chunked` walks a document's chunks sequentially, so 5 documents keep only 5 requests in
+flight while the 50-document run fills C8. The abort guard is `$1.70 / 7200 s` (2×L4 $2.55), i.e.
+the measured figure plus ~55 % headroom; the pre-probe `$1.25 / 5400 s` guard would have aborted a
+legitimate run. Same probe raised MAUD coverage from 0–1 of 13–17 questions to 17/17, 12/15, 9/13,
+7/15 with 0 errors.
+
 ---
 
 ## 4. Noise floor and sample size
@@ -225,7 +304,7 @@ score (exact_match, n) · aggregate bucket`.
 | Throughput | documents/min, **documents/min/GPU**, tokens/s/GPU, **goodput at the class SLO** | `sand42_cards._goodput` (SLO: 60 s short classes, 300 s contracts, 1800 s merger) |
 | Cost | busy-window GPU $, $/doc, $/ok doc, **$/1k ok**, **$/1k schema-valid**, $/1M tokens, cold-boot $, idle $ | `grid_cards` + `sand42_cards._cost_per_usable` |
 | Engine | TTFT p50/mean, prefix-cache hit rate, preemptions, length finishes, KV-cache use % — per replica, as before/after deltas | `vllm_metrics.scrape` → `grid_cards._engine_block` |
-| **GPU hardware (new)** | utilization % mean/min/max/**peak**, power draw W, temperature C, memory used/total MiB — per replica, as a **time series** | **SAND-042 in-container nvidia-smi sampler → Modal Volume → `container_telemetry` → `grid_cards._container_telemetry`** |
+| **GPU hardware (new)** | utilization % mean/**p95**/min/max/**peak**, **sampling coverage %**, power draw W, temperature C, memory used/total MiB — per replica, as a **time series** | **SAND-042 in-container nvidia-smi sampler → Modal Volume → `container_telemetry` → `grid_cards._container_telemetry`** |
 | Conditions | engine, admission, fleet, dataset pin + draw, prompt stem, caps, temperature, retries | `grid_cards.collect_card` |
 
 ### 5.3 How the GPU telemetry is collected
@@ -237,8 +316,12 @@ a second port is not available. Instead:
 1. `deploy/modal_vllm.py` mounts the `sandbox-vllm-telemetry` volume at `/telemetry` and, once
    vLLM is ready, starts a daemon thread that every `MODAL_VLLM_TELEMETRY_INTERVAL` (default 5 s)
    runs `nvidia-smi --query-gpu=index,name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw`
-   and appends one JSON line to `/telemetry/<label>/<hostname>.jsonl`, committing every
-   `MODAL_VLLM_TELEMETRY_COMMIT_EVERY` samples (default 6 → ~30 s).
+   and appends one JSON line to `/telemetry/<label>/<process_start_time_seconds>.jsonl`,
+   committing every `MODAL_VLLM_TELEMETRY_COMMIT_EVERY` samples (default 2 → ~10 s).
+   The replica filename is vLLM's own `process_start_time_seconds` as `str(float)` —
+   byte-identical to `vllm_metrics.group_replicas`'s key, so the GPU rows join to the
+   engine rows per replica. (Not the hostname: every Modal container reports
+   `socket.gethostname() == "modal"`, so two replicas would collide in one file.)
 2. The label is per **cell** (`sand42-1l4-c8`, …, derived by
    `specialist_posture.sand42_cell_label`), so one deploy produces one series and the scraper
    finds it from any of the cell's five configs.
@@ -402,6 +485,30 @@ Specialist folders, in grid order: `correspondence`, `insurance_claims`, `corpor
    here; grammar-constrained decoding is SAND-043 §5.5 item 3.
 5. **Contracts power.** At n = 50 paired, contracts cannot resolve Δ = 0.03. If a contracts
    concurrency claim is needed, run contracts at k ≥ 3 samples per document or n = 150 paired.
+6. **Merger whole-document processing — taken.** The `_input_chars_for` cap was sized from
+   an *assumed* prompt length (`1.25 × prompt_tokens`), giving 30,000 chars for merger. All
+   50 merger documents exceed it (270k–505k chars), so **93 % of merger text was dropped and
+   a run saw 7 % of each agreement**. The 1L4-c8 cell measured the consequence: MAUD accuracy
+   **0.0** with 0–1 of 13–17 questions answered, extraction F1 0.0, degenerate
+   `No-Shop: Yes` × 22 repetition, and 3/50 (6 %) `LengthFinishReasonError` hard failures.
+   Merger now runs the **SAND-040 optimised long-document posture** — our most efficient
+   whole-document method and the one the A100-era merger cards converged on (95 % GPU util,
+   ~$0.004/doc): chunked windows (47k / 6.5k overlap), Qwen3 non-thinking sampling
+   (0.7 / top_p 0.8 / top_k 20 / presence 1.0), a 6144 output cap, and **one re-sample on
+   `LengthFinishReasonError`**. The 1L4-c8 merger was re-run on this fixed posture (1×L4 C8):
+   50/50 ok, 0 errors, `schema_valid` 1.00, MAUD **254/811 answered (31.3 %)** at 2.1 % micro
+   accuracy — the numbers the master report now carries. Cost of the change is **measured, not extrapolated**: the 5-document
+   merger probe (2026-10-12, 1×L4, C8) ran 1,702,602 chars in **438 s** warm, so the
+   18,160,427-char draw is `438 × 10.66 ≈ 4,671 s ≈ 1.30 h ≈ $1.04` of GPU — an upper bound,
+   because `extract_chunked` walks chunks sequentially and 5 documents keep only 5 requests in
+   flight while the 50-document run fills C8. The abort guard moved from $1.25 / 5400 s to
+   **$1.70 / 7200 s** (2×L4 $2.55) — the measured figure plus ~55 % headroom; the old guard would
+   have aborted a legitimate run. The same probe moved MAUD coverage from 0–1 of 13–17 questions
+   answered to 17/17, 12/15, 9/13, 7/15, with 0 errors and `schema_valid` 1.00. This is a
+   deliberate deviation from #128's "what to drop: the † merger config in the factorial
+   cells" — a truncated merger arm measures input coverage, not merger quality, so it cannot
+   support the factorial claim either way. The 1L4-c8 merger re-run on the fixed posture is
+   complete (above); the remaining SAND-042 cells run that same fixed posture.
 
 ---
 

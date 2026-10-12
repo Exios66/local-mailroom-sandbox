@@ -48,7 +48,7 @@ All deploy knobs are env-driven below. Prefer the catalog row in
     modal run deploy/modal_vllm.py::download_model
     modal deploy deploy/modal_vllm.py --strategy recreate
 
-Do **not** edit ``config/runs/run-30-*-specialist.yaml`` for swaps — those
+Do **not** edit ``config/runs/legacy/run-30-*-specialist.yaml`` for swaps — those
 YAMLs pin the default Qwen+L4 suite. Copy a YAML if an alternate scorecard
 needs matching ``engine.model`` / ``engine.modal.gpu``.
 
@@ -277,7 +277,12 @@ TELEMETRY_COMMIT_EVERY = max(
     1, int(os.environ.get("MODAL_VLLM_TELEMETRY_COMMIT_EVERY", "2") or 2)
 )
 TELEMETRY_QUERY = (
-    "index,name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw"
+    "index,name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw,"
+    # L4-comparable extras (present on every NVIDIA datacentre GPU, so the same query
+    # is valid on an A100): memory-BANDWIDTH utilisation (explains why more concurrency
+    # stops helping once the GPU is saturated), the power cap (normalises power draw —
+    # L4 is 72 W, A100 250 W), and the SM clock (throttling evidence).
+    "utilization.memory,power.limit,clocks.sm"
 )
 # The serving container appends its own nvidia-smi samples here.
 telemetry_cache = modal.Volume.from_name(TELEMETRY_VOLUME_NAME, create_if_missing=True)
@@ -362,18 +367,54 @@ def _nvidia_smi_sample() -> dict:
         parts = [p.strip() for p in line.split(",")]
         if len(parts) < 7:
             continue
+
+        def at(idx: int):
+            return cell(parts[idx]) if len(parts) > idx else None
+
         gpus.append(
             {
                 "index": parts[0],
                 "name": parts[1],
-                "utilization_gpu_perc": cell(parts[2]),
-                "memory_used_mib": cell(parts[3]),
-                "memory_total_mib": cell(parts[4]),
-                "temperature_c": cell(parts[5]),
-                "power_draw_w": cell(parts[6]),
+                "utilization_gpu_perc": at(2),
+                "memory_used_mib": at(3),
+                "memory_total_mib": at(4),
+                "temperature_c": at(5),
+                "power_draw_w": at(6),
+                # Padded, not required: a container running an older query still
+                # parses, it just reports these as not captured.
+                "utilization_memory_perc": at(7),
+                "power_limit_w": at(8),
+                "clocks_sm_mhz": at(9),
             }
         )
     return {"t": time.time(), "gpus": gpus}
+
+
+_TELEMETRY_COMMIT_WARNED = False
+
+
+def _commit_telemetry_volume() -> str | None:
+    """Best-effort volume commit; returns the message to print on the first failure.
+
+    The handle's ``commit`` is not always usable in-container — observed on the
+    2026-10-12 merger probe as ``AttributeError: 'tuple' object has no attribute
+    'commit'``, because the container runs Modal's injected runtime rather than the
+    pinned client. It does not cost us visibility: Modal commits volume writes itself,
+    and the operator-side read has seen every sample (73/73 on that probe). So a
+    failure here must never fail the sampler, and must not warn once per commit.
+    """
+    global _TELEMETRY_COMMIT_WARNED
+    try:
+        telemetry_cache.commit()
+        return None
+    except Exception as exc:  # noqa: BLE001
+        if _TELEMETRY_COMMIT_WARNED:
+            return None
+        _TELEMETRY_COMMIT_WARNED = True
+        return (
+            f"telemetry: explicit volume commit unavailable ({type(exc).__name__}: "
+            f"{exc}); relying on Modal's own commit"
+        )
 
 
 def _start_telemetry_sampler() -> None:
@@ -402,7 +443,9 @@ def _start_telemetry_sampler() -> None:
                     fh.write(json.dumps(sample) + "\n")
                 written += 1
                 if written % TELEMETRY_COMMIT_EVERY == 0:
-                    telemetry_cache.commit()
+                    message = _commit_telemetry_volume()
+                    if message:
+                        print(message)
             except Exception as exc:  # noqa: BLE001
                 print(f"telemetry: write failed ({type(exc).__name__}: {exc})")
             time.sleep(max(1.0, TELEMETRY_INTERVAL))

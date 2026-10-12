@@ -25,7 +25,7 @@ Edit [`config/runbooks/catalog.yaml`](../../../../config/runbooks/catalog.yaml),
 
 ## Configs
 
-- `config/runs/run-20-correspondence-awq.yaml`
+- `config/runs/legacy/run-20-correspondence-awq.yaml`
 
 ## Do not
 
@@ -75,8 +75,8 @@ modal deploy deploy/modal_vllm.py --strategy recreate
 sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
 
-sandbox run preflight --config config/runs/run-20-correspondence-awq.yaml --live
-sandbox run start --config config/runs/run-20-correspondence-awq.yaml --job-mode endpoint --watch
+sandbox run preflight --config config/runs/legacy/run-20-correspondence-awq.yaml --live
+sandbox run start --config config/runs/legacy/run-20-correspondence-awq.yaml --job-mode endpoint --watch
 
 ./deploy/teardown_vllm.sh   # ONLY after this run
 ```

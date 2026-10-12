@@ -228,7 +228,7 @@
 - **Offline diagnosis** of `run-20-correspondence-awq-c8` (fingerprint
   `285f423d3708`): [`docs/archive/extraction-quality-diagnosis.md`](docs/archive/extraction-quality-diagnosis.md)
   (best/worst docs, token evidence, owner-locked 0.25 / 0.50 gates).
-- **FP16 twin YAML** [`config/runs/run-20-correspondence-fp16-c8.yaml`](config/runs/run-20-correspondence-fp16-c8.yaml)
+- **FP16 twin YAML** [`config/runs/legacy/run-20-correspondence-fp16-c8.yaml`](config/runs/legacy/run-20-correspondence-fp16-c8.yaml)
   — same draw, `Qwen/Qwen3-8B`, **not run** (spend/auth blocked). Runbook:
   [`docs/jobs.md`](docs/jobs.md) §AWQ vs FP16 isolation.
 
@@ -259,7 +259,7 @@
 
 ### Added — SAND-018 single-class 20-contract Modal run + full-corpus logged sample (2026-09-25)
 
-- **`config/runs/run-20-contracts-specialist.yaml`** — the runbook's
+- **`config/runs/legacy/run-20-contracts-specialist.yaml`** — the runbook's
   [`docs/modal/benchmark-l4.md`](docs/modal/benchmark-l4.md) L4 Qwen pins (`Qwen/Qwen3-8B`,
   L4, `v0.29.0`, `max_model_len=16384`, scaledown 120, `contracts_specialist_v33`
   local prompt) applied to a **20-contract** single-class run drawn as a seeded
@@ -322,7 +322,7 @@
   class from that local JSONL (offline; merger_agreement ceiling is 152).
 - Corpus loader accepts `split: all`. Class-bucket quotas above availability
   now hard-fail (same as nested sub_buckets). Template:
-  `config/runs/example-per-class.yaml`.
+  `config/runs/examples/example-per-class.yaml`.
 
 ### Added — SAND-001 local SAND board prefix (2026-09-24)
 
@@ -468,7 +468,7 @@
   data, a constant stratum field with >1 requested value (the run-50 trap,
   named), and a draw/limit that drops a requested stratum; the lock records
   `strata_actual` (drawn distribution) so a lock proves what was drawn.
-  Delivered: `config/runs/run-50-subclass.yaml` (13 strata · Service 8, …
+  Delivered: `config/runs/legacy/run-50-subclass.yaml` (13 strata · Service 8, …
   Manufacturing 2 · 50 rows; `preflight --force` locked with `strata_actual`
   matching exactly; old generation archived per DMR-049), spec validation
   (unknown keys / counts length / positive ints), 6 new corpus tests + 3
@@ -496,12 +496,12 @@
   est. **$13.08 ≤ $15** at $0.80/GPU-hr, teardown per cell via
   `deploy/teardown_vllm.sh`, measurement contract (items.jsonl primary,
   engine `/metrics` + log windows secondary, billing per cell). Exemplar
-  specs `config/runs/scale-c1-4xl4-c16.yaml` (bf16 baseline) +
+  specs `config/runs/scale/scale-c1-4xl4-c16.yaml` (bf16 baseline) +
   `scale-d1-awq-4xl4-c16.yaml` (quant-only delta); fleet pinning via
   `MODAL_VLLM_MIN_CONTAINERS=4` (already supported by the deploy app).
 
 - **DMR-063 — 50-doc Modal vLLM scale-out run + teardown safeguards (SHIPPED
-  2026-09-16)**: `config/runs/run-50-modal-hf.yaml` — 50 contract-class rows
+  2026-09-16)**: `config/runs/legacy/run-50-modal-hf.yaml` — 50 contract-class rows
   (19 subclasses; Hub pinned revision), concurrency 16, `max_containers: 4`
   (2–3 warm L4s), `scaledown_seconds: 600`. Result: **49/50 = 98.0 %**,
   0 run errors, 0 timeouts; one out-of-set misclassification
@@ -537,7 +537,7 @@
   base that already carries the `/v1` seam (`.../v1/v1/models` → live 404);
   the probe now normalizes (pinned by `test_engine_probe_url_seam_normalizes_v1_suffix`).
   `test_vendor` stale-pin scan no longer trips on pip-installed venv wheels.
-  First live pilot spec: `config/runs/pilot-sorter-modal-hf.yaml`.
+  First live pilot spec: `config/runs/examples/pilot-sorter-modal-hf.yaml`.
   260 passed / 3 skipped.
 
 - **DMR-058 — full CLI verification sweep + quickstart**: every `sandbox`
@@ -557,7 +557,7 @@
   the package at the repo root; the old `work/name` fallback half-wiped the
   tracked tree before crashing). `run status/resume/cancel --config`
   resolves the embedded `run_id` (previously demanded `--run-id` even with a
-  config). `config/runs/example.yaml` fixture path is CWD-relative again.
+  config). `config/runs/examples/example.yaml` fixture path is CWD-relative again.
   ~6 new network-free tests (230 passed / 1 skipped).
 
 - **HUB-026 — remote-serving integration completeness**: `vllm-remote`

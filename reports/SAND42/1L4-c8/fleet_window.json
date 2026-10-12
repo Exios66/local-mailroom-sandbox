@@ -1,0 +1,8 @@
+{
+  "cell": "1l4-c8",
+  "deploy_ts": 1791772472.57,
+  "gpu": "L4",
+  "replicas": 1,
+  "source": "container telemetry (per-replica process_start_time_seconds)",
+  "teardown_ts": 1791778552.914
+}

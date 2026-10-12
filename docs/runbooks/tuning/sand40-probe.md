@@ -25,8 +25,8 @@ Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), th
 
 ## Configs
 
-- `config/runs/sand40-probe-20-contracts-specialist-awq-2l4-64k.yaml`
-- `config/runs/sand40-probe-20-merger-specialist-awq-2l4-64k.yaml`
+- `config/runs/sand040/sand40-probe-20-contracts-specialist-awq-2l4-64k.yaml`
+- `config/runs/sand040/sand40-probe-20-merger-specialist-awq-2l4-64k.yaml`
 
 ## Per-cell posture (live)
 
@@ -85,7 +85,7 @@ export MODAL_VLLM_API_TOKEN="${MODAL_VLLM_API_TOKEN:-$(openssl rand -hex 24)}"
 modal profile activate "${SANDBOX_MODAL_PROFILE_TRACK_A:-hermes-agent-jjb}"
 modal profile current
 
-sandbox run benchmark-check --config config/runs/sand40-probe-20-contracts-specialist-awq-2l4-64k.yaml
+sandbox run benchmark-check --config config/runs/sand040/sand40-probe-20-contracts-specialist-awq-2l4-64k.yaml
 
 modal run deploy/modal_vllm.py::download_model
 
@@ -99,8 +99,8 @@ sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
 
 for cfg in \
-  config/runs/sand40-probe-20-contracts-specialist-awq-2l4-64k.yaml \
-  config/runs/sand40-probe-20-merger-specialist-awq-2l4-64k.yaml
+  config/runs/sand040/sand40-probe-20-contracts-specialist-awq-2l4-64k.yaml \
+  config/runs/sand040/sand40-probe-20-merger-specialist-awq-2l4-64k.yaml
 do
   sandbox run preflight --config "$cfg" --live --force
   sandbox run scrape-metrics --config "$cfg" --label before
@@ -111,6 +111,6 @@ done
 
 ./deploy/teardown_vllm.sh   # ONLY after this run
 
-sandbox run card --config config/runs/sand40-probe-20-contracts-specialist-awq-2l4-64k.yaml
-sandbox run card --config config/runs/sand40-probe-20-merger-specialist-awq-2l4-64k.yaml
+sandbox run card --config config/runs/sand040/sand40-probe-20-contracts-specialist-awq-2l4-64k.yaml
+sandbox run card --config config/runs/sand040/sand40-probe-20-merger-specialist-awq-2l4-64k.yaml
 ```

@@ -259,6 +259,7 @@ def record_from_run(
     scores: Mapping[str, Any] | None = None,
     gpu: str | None = None,
     billed_window_seconds: float | None = None,
+    replicas: int = 1,
     mock: bool = False,
 ) -> dict[str, Any]:
     """Aggregate per-item captures into one dojo-compatible serving record."""
@@ -345,7 +346,7 @@ def record_from_run(
         )
         if gpu_seconds is not None:
             rec["gpu_seconds"] = round(gpu_seconds, 3)
-            gpu_cost = estimate_gpu_cost_usd(gpu_seconds, gpu=gpu)
+            gpu_cost = estimate_gpu_cost_usd(gpu_seconds, gpu=gpu, replicas=replicas)
             if gpu_cost is not None:
                 rec["estimated_gpu_cost_usd"] = gpu_cost
                 if n_ok > 0:
@@ -451,6 +452,7 @@ def enrich_serving_report(
     scores: Mapping[str, Any] | None = None,
     replicas: int = 1,
     scaledown_seconds: float | None = None,
+    billed_window_seconds: float | None = None,
 ) -> dict[str, Any]:
     """Extend a ``record_from_run`` dict with wall/concurrency/latency_sum fields.
 
@@ -506,16 +508,22 @@ def enrich_serving_report(
     kind = bucket_kind(out)
     gpu_class = gpu or out.get("gpu")
     if kind == "modal" and wall_seconds and wall_seconds > 0:
-        billed = float(wall_seconds) + (
-            float(cold_boot_seconds) if cold_boot_seconds is not None else 0.0
+        # Prefer the run's OWN container-telemetry window: it brackets the run, so it
+        # is what Modal metered — computed from the run, not scraped from a billing
+        # CLI. Falls back to boot + wall, which under-counts because the item-`ts`
+        # wall starts at the FIRST completion (4.4x low on the 5-document probe).
+        billed = (
+            float(billed_window_seconds)
+            if billed_window_seconds and billed_window_seconds > 0
+            else float(wall_seconds)
+            + (float(cold_boot_seconds) if cold_boot_seconds is not None else 0.0)
         )
         out["gpu_seconds"] = round(billed, 3)
         gpu_cost = estimate_gpu_cost_usd(billed, gpu=gpu_class, replicas=replicas)
-        # SAND-032: LOWER bound on what Modal bills for this run — boot + wall
-        # (+ scale-down tail for scale-to-zero fleets; pinned MIN=MAX fleets pass
-        # scaledown_seconds=None), on every replica. Pre-run warm time and idle
-        # gaps between suite configs are NOT included: the Modal usage page is
-        # the ground truth and is reconciled in the spend ledger.
+        # SAND-032: on every replica. With the telemetry window this is the metered
+        # figure; without it, a LOWER bound (boot + wall), excluding pre-run warm
+        # time and the idle gaps between suite configs. Pinned MIN=MAX fleets pass
+        # scaledown_seconds=None.
         span = billed + float(scaledown_seconds or 0.0)
         out["run_span_seconds_lower_bound"] = round(span, 3)
         out["run_span_usd_lower_bound"] = estimate_gpu_cost_usd(
@@ -551,6 +559,26 @@ def enrich_serving_report(
     return out
 
 
+def _telemetry_billed_seconds(store: RunStore) -> float | None:
+    """The run's own container-telemetry window, when the runbook scraped one.
+
+    SAND-042 runs pull nvidia-smi samples from inside the serving replica; that file
+    carries the window the samples were sliced to, which brackets the run. Absent on
+    every run without a telemetry scrape, so the caller falls back.
+    """
+    try:
+        doc = json.loads(
+            (store.dir / "container_telemetry_after.json").read_text(encoding="utf-8")
+        )
+    except (OSError, ValueError):
+        return None
+    if not isinstance(doc, dict):
+        return None
+    from mailroom_sandbox.job.container_telemetry import billed_seconds
+
+    return billed_seconds(doc)
+
+
 def serving_record_from_store(
     store: RunStore,
     *,
@@ -579,6 +607,14 @@ def serving_record_from_store(
     wall = wall_seconds if wall_seconds is not None else infer_wall_seconds_from_store(store)
     env_billed = _env_float("MODAL_BILLED_GPU_SECONDS")
     billed_window = env_billed if env_billed and env_billed > 0 else None
+    if billed_window is None:
+        # Prefer the run's OWN container telemetry: the runbook's `before` scrape
+        # opens the window and its `after` scrape closes it, so it brackets the run
+        # and is the billed interval — computed, never scraped from a billing CLI.
+        # The fallback below anchors to the item-`ts` span, which starts at the FIRST
+        # completion and therefore drops the entire first wave (measured 4.4x low on
+        # the 5-document merger probe: 100.3 s against a true 438 s).
+        billed_window = _telemetry_billed_seconds(store)
     if billed_window is None and wall is not None:
         billed_window = float(wall) + (cold_boot_seconds or 0.0)
     base = record_from_run(
@@ -593,6 +629,9 @@ def serving_record_from_store(
         scores=scores,
         gpu=gpu,
         billed_window_seconds=billed_window if billed_window and billed_window > 0 else None,
+        # MIN=MAX data-parallel replicas each bill the full wall (SAND-032), so a
+        # 2xL4 cell's GPU-seconds cost twice a 1xL4 cell's at the same wall.
+        replicas=max(1, int(modal.get("max_containers") or 1)),
         mock=bool(mock),
     )
     return enrich_serving_report(
@@ -611,6 +650,7 @@ def serving_record_from_store(
             or modal.get("scaledown_seconds") is None
             else float(modal["scaledown_seconds"])
         ),
+        billed_window_seconds=billed_window if billed_window and billed_window > 0 else None,
     )
 
 
@@ -623,11 +663,11 @@ def default_serving_json_path(run_id: str, *, store: RunStore | None = None) -> 
         canonical = serving_export_path(store, repo=repo_root())
         if canonical is not None:
             return canonical
-    from mailroom_sandbox.report_paths import experiment_prefix
+    from mailroom_sandbox.report_paths import experiment_prefix, report_folder
 
     prefix = experiment_prefix(run_id)
     if prefix:
-        return repo_root() / "reports" / "serving" / prefix / f"{run_id}.serving.json"
+        return repo_root() / "reports" / "serving" / report_folder(prefix) / f"{run_id}.serving.json"
     return repo_root() / "reports" / "serving" / f"{run_id}.serving.json"
 
 

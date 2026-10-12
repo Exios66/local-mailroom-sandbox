@@ -10,9 +10,9 @@
 #             ground truth), seed 42, one class bucket stratified over EVERY subclass of
 #             that class (proportional, min 1 per subclass — 50 docs, all sub-types)
 #   prompt  = eval-environment frozen v1 simplified stem ONLY
-#   decode  = max_tokens 8192 + temperature 0.7 via start-time SANDBOX_AGENT_KNOBS
-#             (JSON-schema grammar class: 0.1 looped to every cap; see
-#             docs/SAND42-EXPERIMENT-DESIGN.md §2)
+#   decode  = max_tokens 8192 + temperature 0.7; WHOLE-DOCUMENT CHUNKED extraction
+#             (43,000-char window / 6,000 overlap) — the old 24,000-char head+tail
+#             cap dropped 62 % of contract text. See docs/SAND42-EXPERIMENT-DESIGN.md §3.7
 #   telemetry = container nvidia-smi series (util/power/temp/mem) under the cell label;
 #             pulled by `sandbox run scrape-metrics` and recorded on the run card
 # Runbook: sandbox runbook show sand42-2l4-c8

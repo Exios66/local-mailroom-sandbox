@@ -32,8 +32,8 @@ insurance (c=5). Avoids stacking merger+contracts on one wallet.
 
 Ordered configs:
 
-1. `config/runs/run-30-merger-specialist.yaml`
-2. `config/runs/run-30-insurance-claims-specialist.yaml`
+1. `config/runs/legacy/run-30-merger-specialist.yaml`
+2. `config/runs/legacy/run-30-insurance-claims-specialist.yaml`
 
 ## Per-doc-type posture (live)
 
@@ -114,8 +114,8 @@ sandbox health --profile modal-vllm
 sandbox run suite --suite track-b
 # sandbox run suite --suite track-b --execute --job-mode endpoint
 for cfg in \
-  config/runs/run-30-merger-specialist.yaml \
-  config/runs/run-30-insurance-claims-specialist.yaml
+  config/runs/legacy/run-30-merger-specialist.yaml \
+  config/runs/legacy/run-30-insurance-claims-specialist.yaml
 do
   sandbox run preflight --config "$cfg" --live
   sandbox run start --config "$cfg" --job-mode endpoint --watch
