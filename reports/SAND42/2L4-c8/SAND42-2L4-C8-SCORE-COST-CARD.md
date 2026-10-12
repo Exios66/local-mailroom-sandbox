@@ -34,6 +34,8 @@
 | $ / 1k ok docs | not run | not run | not run | not run | not run |
 | $ / 1k schema-valid | not run | not run | not run | not run | not run |
 | GPU util (mean/p95/peak) | not run | not run | not run | not run | not run |
+| GPU mem used (mean) | not run | not run | not run | not run | not run |
+| GPU mem bandwidth (mean) | not run | not run | not run | not run | not run |
 | Sampling coverage | not run | not run | not run | not run | not run |
 | GPU power (W, mean) | not run | not run | not run | not run | not run |
 | GPU temp (C, mean) | not run | not run | not run | not run | not run |
@@ -57,4 +59,4 @@ Fleet window not recorded (no fleet_window.json for this cell). Per-run costs st
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-12T04:17:35+00:00 by `sandbox run card --runbook sand42-2l4-c8` from the committed per-run `*.card.json`._
+_Generated 2026-10-12T06:10:34+00:00 by `sandbox run card --runbook sand42-2l4-c8` from the committed per-run `*.card.json`._

@@ -1,8 +1,8 @@
 {
   "concurrency": {
-    "occupancy": 2.2343949138925088,
-    "parallelism": 17.87515931114007,
-    "slot_utilization": 2.2344
+    "occupancy": 0.9393529549468763,
+    "parallelism": 7.5148236395750105,
+    "slot_utilization": 0.9394
   },
   "conditions": {
     "chunk_chars": 43000,
@@ -50,9 +50,9 @@
   "cost": {
     "billed_gpu_usd": 0.204575,
     "billed_seconds": 920.586,
-    "busy_gpu_usd": 0.08595200000000001,
-    "idle_seconds": 0.0,
-    "idle_usd": null,
+    "busy_gpu_usd": 0.20445,
+    "idle_seconds": 55.797,
+    "idle_usd": 0.012399,
     "usd_per_document": 0.0040915000000000005,
     "usd_per_million_tokens": 0.2202144069684956,
     "usd_per_ok_document": 0.0040915000000000005
@@ -615,6 +615,7 @@
     "expected_replicas": 1,
     "gpu": {
       "captured": true,
+      "clocks_sm_mhz": null,
       "errors": [],
       "gpus_observed": 139,
       "label": "sand42-1l4-c8",
@@ -639,6 +640,7 @@
         "n": 139,
         "p95": 73.07
       },
+      "power_limit_w": null,
       "replicas": {
         "1791766391.99": {
           "samples": 0,
@@ -681,7 +683,8 @@
       "util_mean_perc": 97.64748201438849,
       "util_min_perc": 0.0,
       "util_p95_perc": 100.0,
-      "util_peak_perc": 100.0
+      "util_peak_perc": 100.0,
+      "utilization_memory_perc": null
     },
     "replicas": [
       {
@@ -696,7 +699,7 @@
     ],
     "scrape_errors": []
   },
-  "generated_at": "2026-10-12T02:58:55+00:00",
+  "generated_at": "2026-10-12T06:10:31+00:00",
   "latency": {
     "max": 687.8181119999999,
     "mean": 138.27651237999999,
@@ -732,14 +735,14 @@
   "specialist": "Contracts",
   "task": "contracts_specialist",
   "throughput": {
-    "documents_per_minute": 7.75626706378754,
-    "tokens_per_second": 2401.808244394804,
-    "tokens_per_second_per_gpu": 2401.808244394804
+    "documents_per_minute": 3.260780957039211,
+    "tokens_per_second": 1009.7345180837477,
+    "tokens_per_second_per_gpu": 1009.7345180837477
   },
   "time": {
     "cold_boot_seconds": 0.377,
     "gpu_seconds": 920.586,
-    "wall_seconds": 386.784
+    "wall_seconds": 920.025
   },
   "tokens": {
     "completion": 129558,

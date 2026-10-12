@@ -19,7 +19,52 @@
   },
   "deltas": {
     "1l4-c16": {
-      "per_class": {},
+      "per_class": {
+        "contracts_specialist": {
+          "better": 24,
+          "ci_high": 0.05477333333333332,
+          "ci_low": -0.005833333333333331,
+          "delta_mean": 0.024342222222222216,
+          "n_for_delta_0_05": 35,
+          "paired_documents": 45,
+          "sd_diff": 0.1050655282298729,
+          "tie": 6,
+          "worse": 15
+        },
+        "corporate_records_specialist": {
+          "better": 3,
+          "ci_high": 0.0027780000000000014,
+          "ci_low": -0.034542,
+          "delta_mean": -0.012827999999999999,
+          "n_for_delta_0_05": 15,
+          "paired_documents": 50,
+          "sd_diff": 0.06852559789850024,
+          "tie": 44,
+          "worse": 3
+        },
+        "correspondence_specialist": {
+          "better": 2,
+          "ci_high": 0.01662,
+          "ci_low": -0.021748000000000003,
+          "delta_mean": -0.0027920000000000015,
+          "n_for_delta_0_05": 16,
+          "paired_documents": 50,
+          "sd_diff": 0.06979880076158258,
+          "tie": 43,
+          "worse": 5
+        },
+        "insurance_claims_specialist": {
+          "better": 11,
+          "ci_high": 0.0015999999999999992,
+          "ci_low": -0.01265200000000001,
+          "delta_mean": -0.004836000000000004,
+          "n_for_delta_0_05": 3,
+          "paired_documents": 50,
+          "sd_diff": 0.02660895015913685,
+          "tie": 25,
+          "worse": 14
+        }
+      },
       "vs": "1l4-c8"
     },
     "2l4-c16": {
@@ -31,7 +76,7 @@
       "vs": "1l4-c8"
     }
   },
-  "generated_at": "2026-10-12T04:17:35+00:00",
+  "generated_at": "2026-10-12T06:10:35+00:00",
   "kind": "comparison",
   "noise_floor": null,
   "reference_cell": "1l4-c8",

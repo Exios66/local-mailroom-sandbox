@@ -124,3 +124,57 @@ def test_infer_wall_from_item_timestamps():
         {"ts": "2026-01-01T00:01:30.500+00:00", "ok": True},
     ]
     assert metrics.infer_wall_seconds_from_items(items) == pytest.approx(90.5)
+
+
+def test_stale_wall_never_understates_the_run_journal(tmp_path):
+    """A partial wall (resumed run / preserved prior card) loses to the journal span."""
+    store = RunStore(tmp_path / "run-journal")
+    store.write_lock(
+        {
+            "run_id": store.run_id,
+            "task": "merger_agreement_specialist",
+            "profile": "modal-vllm",
+            "engine": {"model": "Qwen/Qwen3-8B-AWQ", "modal": {"gpu": "L4"}},
+            "job": {"mock": False, "concurrency": 8},
+        }
+    )
+    store.append_item(
+        {
+            "item_id": "d0",
+            "ok": True,
+            "latency_ms": 1000.0,
+            "prompt_tokens": 1,
+            "completion_tokens": 1,
+            "ts": "2026-01-01T00:00:00.000+00:00",
+        }
+    )
+    store.append_item(
+        {
+            "item_id": "d1",
+            "ok": True,
+            "latency_ms": 1000.0,
+            "prompt_tokens": 1,
+            "completion_tokens": 1,
+            "ts": "2026-01-01T00:00:10.000+00:00",
+        }
+    )
+    # Journal brackets the run: the cold_boot probe is excluded, preflight → done = 599 s.
+    ev = lambda ts, name: json.dumps({"ts": ts, "event": name, "level": "info", "detail": None})
+    (store.dir / "events.jsonl").write_text(
+        "\n".join(
+            [
+                ev("2026-01-01T00:00:00.000+00:00", "cold_boot"),
+                ev("2026-01-01T00:00:01.000+00:00", "preflight_ok"),
+                ev("2026-01-01T00:10:00.000+00:00", "done"),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    rec = metrics.serving_record_from_store(store, wall_seconds=10.0, mock=False)
+    assert rec["wall_seconds"] == pytest.approx(599.0)
+    # Without a journal the explicit wall stands — the item span must not override it.
+    (store.dir / "events.jsonl").unlink()
+    assert metrics.serving_record_from_store(store, wall_seconds=10.0, mock=False)[
+        "wall_seconds"
+    ] == pytest.approx(10.0)

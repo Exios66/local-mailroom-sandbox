@@ -395,20 +395,39 @@ def infer_wall_seconds_from_items(items: Sequence[Mapping[str, Any]]) -> float |
     return round(max(stamps) - min(stamps), 3)
 
 
-def infer_wall_seconds_from_store(store: RunStore) -> float | None:
-    """Best-effort wall seconds from items or the run event journal."""
-    wall = infer_wall_seconds_from_items(store.load_items())
-    if wall is not None:
-        return wall
-    events = store.events()
+def _event_span_stamps(events: Sequence[Mapping[str, Any]]) -> list[float]:
+    """Event timestamps bracketing the run, skipping the pre-run ``cold_boot`` probe."""
     stamps: list[float] = []
-    for ev in events:
+    for ev in events or []:
+        if ev.get("event") == "cold_boot":
+            continue
         ts = _parse_item_ts(ev.get("ts"))
         if ts is not None:
             stamps.append(ts)
-    if len(stamps) < 2:
-        return None
-    return round(max(stamps) - min(stamps), 3)
+    return stamps
+
+
+def journal_wall_seconds(store: RunStore) -> float | None:
+    """The run's event-journal span (``preflight_ok`` → ``done``), or ``None``.
+
+    The journal brackets the whole run; the item ``ts`` span only covers first
+    completion → last completion and drops the entire first scheduling wave.
+    """
+    stamps = _event_span_stamps(store.events())
+    if len(stamps) >= 2:
+        return round(max(stamps) - min(stamps), 3)
+    return None
+
+
+def infer_wall_seconds_from_store(store: RunStore) -> float | None:
+    """Best-effort wall seconds bracketing the run.
+
+    Prefer the event journal over the item ``ts`` span: the items only carry a
+    *completion* stamp, so their span drops the entire first scheduling wave —
+    measured ~7× low on the 50-document merger (4208 s against a 4658 s journal
+    span). Falls back to the item span when the journal is absent or too short.
+    """
+    return journal_wall_seconds(store) or infer_wall_seconds_from_items(store.load_items())
 
 
 def _prompt_version_from_lock(lock: Mapping[str, Any]) -> str:
@@ -605,6 +624,14 @@ def serving_record_from_store(
         else None
     )
     wall = wall_seconds if wall_seconds is not None else infer_wall_seconds_from_store(store)
+    # Never report a wall shorter than the run's own journal span: a stale or
+    # partial wall (a resumed run, or a re-render that preserved a prior card's
+    # value) must not understate the run — the 50-document merger card read 566 s
+    # against a 4658 s journal span. Only the journal is trusted here; the item
+    # span is an approximation and must not override an explicit wall.
+    journal_wall = journal_wall_seconds(store)
+    if journal_wall is not None and (wall is None or wall < journal_wall):
+        wall = journal_wall
     env_billed = _env_float("MODAL_BILLED_GPU_SECONDS")
     billed_window = env_billed if env_billed and env_billed > 0 else None
     if billed_window is None:
