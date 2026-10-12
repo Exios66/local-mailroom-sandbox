@@ -177,6 +177,51 @@ def check_run(rid: str, gaps: list[str], ok: list[str]) -> None:
             ok.append(f"{rid}: draw 50/50 annotated (CUAD-scorable)")
 
 
+def draw_identity(cells: list[str], gaps: list[str], ok: list[str]) -> None:
+    """Every cell must score the same documents — the campaign's whole premise.
+
+    The cards record a dataset fingerprint and the master's prose asserts the identical 250
+    documents, but nothing compared them, so a draw that drifted between cells would have
+    produced a comparison of different documents under a sentence claiming otherwise. This
+    reads each run's own ``dataset.jsonl``, so it is true of the artifacts rather than of the
+    configs that were supposed to produce them.
+
+    Only meaningful across cells, so it runs in the all-cells mode, not in a per-leg gate: a
+    leg legitimately re-draws its own cell while its siblings still hold the previous draw.
+    """
+    by_cell = {}
+    for cell in cells:
+        draws = {}
+        for p in sorted(glob.glob(str(REPO / "config" / "runs" / f"sand42-50-*-awq-{cell}.yaml"))):
+            rid = pathlib.Path(p).stem
+            store = RUNS / rid / "dataset.jsonl"
+            if store.is_file():
+                draws[rid.split("-specialist-awq-")[0]] = [
+                    json.loads(x)["id"] for x in store.read_text(encoding="utf-8").splitlines() if x.strip()]
+        by_cell[cell] = draws
+
+    print()
+    print("draw identity (all cells must score the same documents):")
+    for cls in sorted({k for d in by_cell.values() for k in d}):
+        have = {c: set(d[cls]) for c, d in by_cell.items() if cls in d}
+        if len(have) < 2:
+            print(f"  {cls:<24} only {len(have)} cell(s) have a draw on disk — nothing to compare yet")
+            continue
+        shapes = {}
+        for c, ids in have.items():
+            shapes.setdefault(frozenset(ids), []).append(c)
+        if len(shapes) == 1:
+            print(f"  {cls:<24} {len(have)} cells share one draw of {len(next(iter(have.values())))} "
+                  f"documents — IDENTICAL")
+            ok.append(f"{cls}: one draw across {len(have)} cells")
+        else:
+            groups = " | ".join(f"{sorted(cs)} ({len(ids)} docs)" for ids, cs in shapes.items())
+            gaps.append(f"draw identity: `{cls}` differs across cells — {groups}. Those cells "
+                        f"compare DIFFERENT documents; the identical-250 claim is false until "
+                        f"every cell re-runs on one draw.")
+            print(f"  {cls:<24} ** DIFFERS ** {groups}")
+
+
 def main(argv: list[str]) -> int:
     cells = [c for c in argv if c in CELLS] or list(CELLS)
     gaps: list[str] = []
@@ -213,6 +258,8 @@ def main(argv: list[str]) -> int:
         print(f"{cell:<8} {t:>4} {store:>4}/{t} {clean:>4}/{t} {verb:>6}/{t} {ser:>4}/{t} "
               f"{mid:>3}/{t} {gpu:>3}/{t} {draw:>3}/{t} {('yes' if ready else 'NO'):>5}  "
               f"{'ALL CAPTURES' if here == 0 else f'{here} gap(s)'}")
+    if len(cells) > 1:
+        draw_identity(cells, gaps, ok)
     print()
     if gaps:
         print(f"GAPS ({len(gaps)}):")

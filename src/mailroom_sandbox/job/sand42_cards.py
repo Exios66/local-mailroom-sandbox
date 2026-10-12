@@ -1139,6 +1139,28 @@ def write_metered(study: str, metered_usd: float, billed_usd: float, *, repo: Pa
     return path
 
 
+def _mid_has_pressure(run_dir: Path) -> bool:
+    """True when a mid-run sample caught the engine WORKING (a non-zero KV reading).
+
+    The file merely existing is not what the completeness row claims: the mid loop can land
+    its only sample on a drained edge, leaving a present-but-zero artifact that would be
+    counted as a captured mid-run KV.
+    """
+    series = run_dir / "vllm_metrics_mid.series.jsonl"
+    if not series.is_file():
+        return False
+    for line in series.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            reps = (json.loads(line).get("replicas") or {}).values()
+        except ValueError:
+            continue
+        if any((r.get("kv_cache_usage_perc") or 0) > 0 for r in reps):
+            return True
+    return False
+
+
 def metric_completeness(*, repo: Path | None = None) -> dict[str, Any]:
     """Per-cell coverage of every required metric, measured from the artifacts.
 
@@ -1147,22 +1169,32 @@ def metric_completeness(*, repo: Path | None = None) -> dict[str, Any]:
     captured value stops trusting the whole table. This reads the run store, so it is
     true by construction.
     """
-    runs_root = (Path(repo) if repo else repo_root()) / "data" / "runtime" / "runs"
+    root = Path(repo) if repo else repo_root()
+    runs_root = root / "data" / "runtime" / "runs"
+    cfg_root = root / "config" / "runs"
     out: dict[str, Any] = {}
     for cell in CELL_ORDER:
-        dirs = sorted(runs_root.glob(f"sand42-*-awq-{cell}"))
-        verbatim = sum(1 for d in dirs if (d / "vllm_metrics_after.txt").is_file())
+        # The denominator comes from the CONFIGS, never from the directories that happen to
+        # exist. A leg archives its run dirs while it re-runs them, and a denominator taken from
+        # the directory turns four missing runs into "all" — a false "complete" for a cell that
+        # lost most of its runs.
+        expected = [p.stem for p in sorted(cfg_root.glob(f"sand42-*-awq-{cell}.yaml"))
+                    if not p.name.startswith("sand42-check-")]
+        dirs = [runs_root / rid for rid in expected if (runs_root / rid).is_dir()]
+        # "verbatim /metrics" is the full exporter text at all three edges; counting only the
+        # after-scrape would call a run complete whose mid scrape never happened.
+        verbatim = sum(1 for d in dirs if all(
+            (d / f"vllm_metrics_{lbl}.txt").is_file() for lbl in ("before", "mid", "after")))
         bandwidth = mid = 0
         for d in dirs:
             probe = d / "container_telemetry_after.json"
             if probe.is_file() and "utilization_memory_perc" in probe.read_text(encoding="utf-8"):
                 bandwidth += 1
-            if ((d / "vllm_metrics_mid.json").is_file()
-                    or (d / "vllm_metrics_mid.series.jsonl").is_file()):
+            if _mid_has_pressure(d):
                 mid += 1
         window = _read_json(_cell_dir(cell, repo=repo) / "fleet_window.json")
         out[cell] = {
-            "runs": len(dirs),
+            "runs": len(expected),
             "verbatim_metrics": verbatim,
             "bandwidth": bandwidth,
             "mid_run_kv": mid,
