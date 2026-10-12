@@ -97,8 +97,16 @@ if not APP_NAME.startswith("sandbox-vllm"):
         "(e.g. sandbox-vllm-sand032) so it never collides with other apps"
     )
 SERVER_PORT = 8000                  # Modal web_server port (vLLM subprocess)
-HF_CACHE_VOLUME_NAME = "sandbox-hf-cache"
-VLLM_CACHE_VOLUME_NAME = "sandbox-vllm-cache"
+# Cache Volumes are WRITTEN on a cold boot (HF weights; vLLM compile artifacts),
+# so two concurrently-served fleets must never mount the same one — that is a
+# real write collision. Scope them to the app name so a second fleet (a distinct
+# MODAL_VLLM_APP_NAME, e.g. from the parallel-cell launcher) gets its own caches,
+# while the default app keeps the historical names so its warm cache survives.
+# In-container GPU telemetry stays on the SHARED telemetry volume: its files are
+# already namespaced per cell by MODAL_VLLM_TELEMETRY_LABEL.
+_VOLUME_SUFFIX = "" if APP_NAME == "sandbox-vllm" else f"-{APP_NAME.removeprefix('sandbox-vllm-')}"
+HF_CACHE_VOLUME_NAME = f"sandbox-hf-cache{_VOLUME_SUFFIX}"
+VLLM_CACHE_VOLUME_NAME = f"sandbox-vllm-cache{_VOLUME_SUFFIX}"
 HF_CACHE_MOUNT = "/root/.cache/huggingface"
 VLLM_CACHE_MOUNT = "/root/.cache/vllm"
 
