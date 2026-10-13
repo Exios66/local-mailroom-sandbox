@@ -157,4 +157,4 @@
 | 49 | `DOC-5d30efc302f3c431` | yes | 0.0000 | 947.0 | 130943 | 10084 | — |
 | 50 | `DOC-e6c8852b877c4598` | yes | 0.0000 | 1,372.8 | 104093 | 6860 | — |
 
-_Generated 2026-10-12T22:58:58+00:00 by `sandbox run card`. Machine-readable twin: `sand42-50-merger-specialist-awq-1l4-c16.card.json`._
+_Generated 2026-10-13T03:37:08+00:00 by `sandbox run card`. Machine-readable twin: `sand42-50-merger-specialist-awq-1l4-c16.card.json`._

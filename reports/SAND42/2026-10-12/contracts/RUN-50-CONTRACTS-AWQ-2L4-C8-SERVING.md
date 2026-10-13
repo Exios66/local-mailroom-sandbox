@@ -10,21 +10,21 @@ Stem `RUN-50-CONTRACTS-AWQ-2L4-C8`. Model `Qwen/Qwen3-8B-AWQ`. TTFT is never inf
 | GPU | `L4` ×2 |
 | n | 50 |
 | concurrency | 8 |
-| wall_seconds | 981.453 |
-| cold_boot_seconds | 0.354 |
-| gpu_seconds | 981.807 |
-| estimated_gpu_cost_usd | 0.436359 |
-| **gpu_cost_per_document** | **0.00890529** |
-| token-proxy cost_usd | 0.038182 |
-| latency mean / p50 / p95 / max (s) | 112.190398 / 76.472742 / 292.951389 / 802.849225 |
-| latency_sum_seconds | 5497.330 |
-| latency_sum_over_wall | 5.60 |
-| prompt_tokens | 755259 |
-| completion_tokens | 119420 |
-| total_tokens | 874679 |
-| tokens_per_second | 891.21 |
-| slot_utilization | 0.7002 |
-| busy_slot_seconds | 687.166 |
+| wall_seconds | 1032.791 |
+| cold_boot_seconds | 0.332 |
+| gpu_seconds | 1033.123 |
+| estimated_gpu_cost_usd | 0.459166 |
+| **gpu_cost_per_document** | **0.00918332** |
+| token-proxy cost_usd | 0.040540 |
+| latency mean / p50 / p95 / max (s) | 130.830845 / 75.563159 / 413.191592 / 840.162988 |
+| latency_sum_seconds | 6541.542 |
+| latency_sum_over_wall | 6.33 |
+| prompt_tokens | 800404 |
+| completion_tokens | 127141 |
+| total_tokens | 927545 |
+| tokens_per_second | 898.10 |
+| slot_utilization | 0.7917 |
+| busy_slot_seconds | 817.693 |
 | ttft_seconds | — |
 | ttft_note | TTFT never inferred (served locally; do not infer from e2e) |
 
