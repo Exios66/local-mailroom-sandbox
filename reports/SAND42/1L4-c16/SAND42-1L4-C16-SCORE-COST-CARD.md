@@ -6,7 +6,7 @@
 
 | Condition | Value |
 | --- | --- |
-| Engine | — · max_model_len 32768 · max_num_seqs 16/replica · max_inputs 32 |
+| Engine | Qwen/Qwen3-8B-AWQ · max_model_len 32768 · max_num_seqs 16/replica · max_inputs 32 |
 | Fleet | 1 replica(s) · client concurrency 16 (16 per replica) |
 | Dataset | `Lucius-Morningstar/mailroom-dataset` ground_truth @ ed7576b6, split=all, seed 42, one class bucket, 50 per class stratified over every subclass (min 1 per sub-type) |
 | Prompt | v1 `*_simplified` stems only |
@@ -21,12 +21,12 @@
 | Scored documents | 50 | 50 | 50 | 50 | 50 |
 | Quality SD | 0.240 | 0.067 | 0.243 | 0.134 | 0.041 |
 | Scoring method | suite | suite | suite | suite+cuad | suite+maud |
-| Clause metric | — | — | — | CUAD F1 0.614 · 50 labeled | MAUD acc 2.8% · 286/811 answered |
+| Clause metric | n/a (no clause scoring) | n/a (no clause scoring) | n/a (no clause scoring) | CUAD F1 0.614 · 50 labeled | MAUD acc 2.8% · 286/811 answered |
 | Ok rate (Wilson) | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] |
 | Schema-valid rate | 100.0% | 34.0% | 96.0% | 100.0% | 100.0% |
 | Parse errors | 0 | 0 | 0 | 0 | 0 |
 | Length-capped | 0 | 0 | 0 | 0 | 0 |
-| Error kinds | — | — | — | — | — |
+| Error kinds | none | none | none | none | none |
 | p50 latency (s) | 9.6 | 21.4 | 19.5 | 167.9 | 948.7 |
 | p95 latency (s) | 14.4 | 31.9 | 27.3 | 791.9 | 1,917.9 |
 | SLO (s) · met | 60 · yes | 60 · yes | 60 · yes | 300 · no | 1,800 · no |
@@ -84,4 +84,4 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-12T22:59:17+00:00 by `sandbox run card --runbook sand42-1l4-c16` from the committed per-run `*.card.json`._
+_Generated 2026-10-13T03:36:33+00:00 by `sandbox run card --runbook sand42-1l4-c16` from the committed per-run `*.card.json`._

@@ -35,65 +35,65 @@
 | Spec hash | b1dc7215… |
 | **Time** |  |
 | Wall (busy) | 3,185.97 s |
-| GPU seconds | 3,186.68 s |
-| Cold boot | 0.38 s |
+| GPU seconds | 2,889.17 s |
+| Cold boot | 0.37 s |
 | **Cost** |  |
 | Busy-window GPU $ | $1.415988 |
-| Billed GPU $ | $1.416304 |
-| Billed seconds | 3,186.68 s |
-| Idle $ | $0.128444 (289.00 s) |
-| Cost per document | $0.028326 |
-| Cost per ok document | $0.028326 |
-| Cost per 1M tokens | $0.2740 |
+| Billed GPU $ | $1.284077 |
+| Billed seconds | 2,889.17 s |
+| Idle $ | $0.224321 (504.72 s) |
+| Cost per document | $0.025682 |
+| Cost per ok document | $0.025682 |
+| Cost per 1M tokens | $0.2474 |
 | **Tokens** |  |
 | Prompt tokens | 4,867,606 |
-| Completion tokens | 301,770 (5.8%) |
-| Total tokens | 5,169,376 |
-| Tokens per document | 103,388 |
+| Completion tokens | 322,630 (6.2%) |
+| Total tokens | 5,190,236 |
+| Tokens per document | 103,805 |
 | Per document: instructions + template | 6,178 (6.0%) |
-| Per document: document text | 91,174 (88.2%) |
-| Per document: output | 6,035 (5.8%) |
+| Per document: document text | 91,174 (87.8%) |
+| Per document: output | 6,453 (6.2%) |
 | Instruction tokens per model call | 750 over 412 calls |
 | Token split basis | document chars ÷ 4.5 chars/token; instructions are the remainder |
-| Completion p95 / max (ok docs) | 7,733 / 10,330 |
+| Completion p95 / max (ok docs) | 10,273 / 12,061 |
 | **Throughput** |  |
-| Tokens / second | 1,622.5 |
-| Tokens / second per L4 | 811.3 |
+| Tokens / second | 1,629.1 |
+| Tokens / second per L4 | 814.5 |
 | Documents / minute | 0.94 |
 | **Latency (per document, ok rows)** |  |
-| Mean | 463.52 s |
-| p50 | 389.66 s |
-| p95 | 891.42 s |
-| Max | 1,075.39 s |
+| Mean | 429.00 s |
+| p50 | 359.11 s |
+| p95 | 783.86 s |
+| Max | 970.46 s |
 | **Engine (vLLM /metrics)** |  |
-| Parallelism (Σ latency ÷ wall) | 7.27× of 8 |
-| Slot occupancy | 90.9% |
+| Parallelism (Σ latency ÷ wall) | 6.73× of 8 |
+| Slot occupancy | 84.2% |
 | Coverage | replicas observed: 2 of 2 |
-| Requests per replica (this run) | 211 / 215 |
-| Mean TTFT per replica | 3.230 s / 3.267 s |
-| Prefix-cache hit per replica | 18.4% / 17.4% |
+| Requests per replica (this run) | 231 / 191 |
+| Mean TTFT per replica | 3.524 s / 3.144 s |
+| Prefix-cache hit per replica | 17.6% / 17.6% |
 | Preemptions per replica (this run) | 0 / 0 |
-| Length-capped finishes per replica (this run) | 4 / 4 |
-| **GPU hardware (nvidia-smi)** | 1071 samples · serving-replica nvidia-smi |
-| GPU utilization | 80.6 % mean (p95 100.0 / peak 100.0 / min 0.0) |
-| Sampling coverage | 99.7 % |
-| GPU power draw | 64.9 W (min 29.9 / max 74.9) of 72 W cap |
-| GPU memory bandwidth | 68.5 % (min 0.0 / max 100.0) |
-| GPU SM clock | 1,439 MHz (min 870 / max 2,040) |
-| GPU temperature | 75.5 C (min 58.0 / max 82.0) |
-| GPU memory used | 21,002 MiB (min 21,000 / max 21,002) |
+| Length-capped finishes per replica (this run) | 6 / 6 |
+| **GPU hardware (nvidia-smi)** | 913 samples · serving-replica nvidia-smi |
+| GPU utilization | 92.8 % mean (p95 100.0 / peak 100.0 / min 0.0) |
+| Sampling coverage | 99.0 % |
+| GPU power draw | 69.9 W (min 31.7 / max 75.0) of 72 W cap |
+| GPU memory bandwidth | 80.7 % (min 0.0 / max 100.0) |
+| GPU SM clock | 1,400 MHz (min 930 / max 2,040) |
+| GPU temperature | 76.3 C (min 70.0 / max 83.0) |
+| GPU memory used | 21,027 MiB (min 21,024 / max 21,028) |
 | **Quality** |  |
-| Overall extraction score | 0.0310 (sd 0.042) |
-| Score min / max | 0.0000 / 0.2000 |
+| Overall extraction score | 0.0285 (sd 0.043) |
+| Score min / max | 0.0000 / 0.2308 |
 | Scoring method | `suite+maud` |
 | Schema-valid rate | 1.00 |
 | Parse errors | 0 |
 | Errors | 0 / 50 |
 | **Clause scoring (MAUD)** |  |
-| Questions answered / labeled | 283 / 811 (34.9%) |
-| Micro accuracy | 3.1% |
-| Precision on answered | 8.8% |
-| Clean subset | 19 / 343 |
+| Questions answered / labeled | 297 / 811 (36.6%) |
+| Micro accuracy | 2.8% |
+| Precision on answered | 7.7% |
+| Clean subset | 18 / 343 |
 | Suite field score (mean) | not captured |
 | **Paired n** |  |
 | Documents a paired delta can use | 50 of 50 |
@@ -106,55 +106,55 @@
 
 | # | Document | OK | Score | Latency (s) | Prompt tok | Completion tok | Error |
 | ---: | --- | --- | ---: | ---: | ---: | ---: | --- |
-| 1 | `DOC-0a733ab86f2390ae` | yes | 0.0667 | 266.8 | 81545 | 3938 | — |
-| 2 | `DOC-eb2b56fe30dc35f4` | yes | 0.0000 | 284.3 | 85298 | 4465 | — |
-| 3 | `DOC-5f5d40f6b2c338ac` | yes | 0.0000 | 296.0 | 109887 | 4588 | — |
-| 4 | `DOC-26933c93d649fa3f` | yes | 0.0625 | 305.7 | 96354 | 5774 | — |
-| 5 | `DOC-c96b9c7e12f91576` | yes | 0.0000 | 363.4 | 92490 | 5861 | — |
-| 6 | `DOC-d4b1a7a2b981fbf4` | yes | 0.0588 | 399.5 | 81817 | 6085 | — |
-| 7 | `DOC-4f45bef14dcd1dbf` | yes | 0.0625 | 234.2 | 70774 | 4363 | — |
-| 8 | `DOC-52f9a5be69429299` | yes | 0.0000 | 308.0 | 103918 | 5639 | — |
-| 9 | `DOC-dc7f18df501aec90` | yes | 0.0000 | 605.9 | 83008 | 4020 | — |
-| 10 | `DOC-b03c0d2bbbb9659e` | yes | 0.0000 | 304.9 | 113393 | 5267 | — |
-| 11 | `DOC-9420b777a4b0784c` | yes | 0.0000 | 389.4 | 98627 | 6655 | — |
-| 12 | `DOC-45f801408be08af6` | yes | 0.0000 | 737.6 | 109920 | 6894 | — |
-| 13 | `DOC-e8538f75b0f993e6` | yes | 0.0000 | 389.9 | 113280 | 7349 | — |
-| 14 | `DOC-882fabf7aba36941` | yes | 0.0000 | 292.9 | 92325 | 5217 | — |
-| 15 | `DOC-30eda1e78a5f6fb5` | yes | 0.0000 | 366.4 | 107499 | 6381 | — |
-| 16 | `DOC-bec74557186e9409` | yes | 0.0000 | 202.8 | 78918 | 5162 | — |
-| 17 | `DOC-5f8ef95caa2fd349` | yes | 0.0000 | 390.8 | 104105 | 6823 | — |
-| 18 | `DOC-ab5578f1f9f04244` | yes | 0.2000 | 445.2 | 132059 | 7311 | — |
-| 19 | `DOC-71bc59dd305ee8ed` | yes | 0.0769 | 729.3 | 109675 | 6371 | — |
-| 20 | `DOC-f90cc5fb2ceac154` | yes | 0.0000 | 377.4 | 93747 | 6526 | — |
-| 21 | `DOC-63beb09b179ea4ee` | yes | 0.0588 | 283.9 | 83572 | 5020 | — |
-| 22 | `DOC-511062d64bc9afc6` | yes | 0.0000 | 707.4 | 97584 | 5749 | — |
-| 23 | `DOC-0534799ed39ca0db` | yes | 0.0000 | 305.1 | 92828 | 5537 | — |
-| 24 | `DOC-37bc3c44ae2c4ef6` | yes | 0.0000 | 388.9 | 90012 | 6881 | — |
-| 25 | `DOC-fe9a8b51344d67d9` | yes | 0.0000 | 441.0 | 130099 | 7733 | — |
-| 26 | `DOC-1e016055aa435e71` | yes | 0.0000 | 679.9 | 109137 | 5805 | — |
-| 27 | `DOC-c6b5f7ea5f718c28` | yes | 0.1176 | 252.9 | 82765 | 3937 | — |
-| 28 | `DOC-2b9f668ab6cb8901` | yes | 0.0526 | 402.7 | 90831 | 7581 | — |
-| 29 | `DOC-297745a521cd1e8c` | yes | 0.0000 | 531.9 | 103150 | 9294 | — |
-| 30 | `DOC-72b0b8c8385edd48` | yes | 0.0556 | 295.0 | 84431 | 4419 | — |
-| 31 | `DOC-386ac6d669b7731c` | yes | 0.0769 | 388.3 | 93831 | 6697 | — |
-| 32 | `DOC-26fa94f698c37fc5` | yes | 0.0588 | 314.1 | 79931 | 5418 | — |
-| 33 | `DOC-f9870e3b8fd141b0` | yes | 0.0000 | 396.6 | 134889 | 7636 | — |
-| 34 | `DOC-ac48214468deb8dd` | yes | 0.0588 | 266.1 | 72887 | 4961 | — |
-| 35 | `DOC-7e2818ceb0167d5a` | yes | 0.1111 | 486.9 | 78432 | 4425 | — |
-| 36 | `DOC-0070a4e34dddbfd5` | yes | 0.0000 | 382.0 | 85209 | 7153 | — |
-| 37 | `DOC-e6c8852b877c4598` | yes | 0.0000 | 394.3 | 104093 | 6952 | — |
-| 38 | `DOC-fcaddb5bdc94ce63` | yes | 0.0588 | 654.0 | 82656 | 5177 | — |
-| 39 | `DOC-b3d0149fd994357a` | yes | 0.0588 | 256.8 | 78500 | 4896 | — |
-| 40 | `DOC-9d34581755c603a3` | yes | 0.0000 | 405.9 | 94942 | 7255 | — |
-| 41 | `DOC-03712a2b0a99a314` | yes | 0.0000 | 729.8 | 119367 | 6876 | — |
-| 42 | `DOC-1cd38a83b224335d` | yes | 0.0588 | 326.1 | 78294 | 5167 | — |
-| 43 | `DOC-169bbcdc5d9e609c` | yes | 0.0769 | 417.7 | 134911 | 7417 | — |
-| 44 | `DOC-ab735131c00271bc` | yes | 0.0556 | 295.1 | 81228 | 5234 | — |
-| 45 | `DOC-f09307ad314d386f` | yes | 0.0588 | 863.8 | 103329 | 5748 | — |
-| 46 | `DOC-f449b47c7269f288` | yes | 0.0000 | 891.4 | 95394 | 6237 | — |
-| 47 | `DOC-ff3ceb691481f1bd` | yes | 0.0000 | 855.8 | 91432 | 4853 | — |
-| 48 | `DOC-681bc6115b882191` | yes | 0.0000 | 926.8 | 120554 | 6667 | — |
-| 49 | `DOC-23f224263f6974c5` | yes | 0.0000 | 869.8 | 83736 | 6026 | — |
-| 50 | `DOC-5d30efc302f3c431` | yes | 0.0625 | 1,075.4 | 130943 | 10330 | — |
+| 1 | `DOC-d4b1a7a2b981fbf4` | yes | 0.0000 | 295.3 | 81817 | 4545 | — |
+| 2 | `DOC-26933c93d649fa3f` | yes | 0.0625 | 322.4 | 96354 | 4739 | — |
+| 3 | `DOC-c96b9c7e12f91576` | yes | 0.0000 | 333.6 | 92490 | 6619 | — |
+| 4 | `DOC-5f5d40f6b2c338ac` | yes | 0.0000 | 338.8 | 109887 | 4772 | — |
+| 5 | `DOC-0a733ab86f2390ae` | yes | 0.0000 | 358.1 | 81545 | 6125 | — |
+| 6 | `DOC-45f801408be08af6` | yes | 0.0000 | 427.4 | 109920 | 6249 | — |
+| 7 | `DOC-4f45bef14dcd1dbf` | yes | 0.0625 | 246.0 | 70774 | 3906 | — |
+| 8 | `DOC-eb2b56fe30dc35f4` | yes | 0.1176 | 628.0 | 85298 | 4482 | — |
+| 9 | `DOC-9420b777a4b0784c` | yes | 0.0000 | 360.6 | 98627 | 6158 | — |
+| 10 | `DOC-e8538f75b0f993e6` | yes | 0.0000 | 329.0 | 113280 | 6573 | — |
+| 11 | `DOC-b03c0d2bbbb9659e` | yes | 0.0556 | 501.6 | 113393 | 8326 | — |
+| 12 | `DOC-882fabf7aba36941` | yes | 0.0000 | 282.2 | 92325 | 5553 | — |
+| 13 | `DOC-511062d64bc9afc6` | yes | 0.0000 | 291.9 | 97584 | 4639 | — |
+| 14 | `DOC-dc7f18df501aec90` | yes | 0.0667 | 970.5 | 83008 | 3969 | — |
+| 15 | `DOC-52f9a5be69429299` | yes | 0.0000 | 657.7 | 103918 | 10606 | — |
+| 16 | `DOC-30eda1e78a5f6fb5` | yes | 0.0000 | 430.5 | 107499 | 8083 | — |
+| 17 | `DOC-71bc59dd305ee8ed` | yes | 0.2308 | 767.1 | 109675 | 6673 | — |
+| 18 | `DOC-f90cc5fb2ceac154` | yes | 0.0000 | 308.3 | 93747 | 5227 | — |
+| 19 | `DOC-ab5578f1f9f04244` | yes | 0.0000 | 439.1 | 132059 | 7877 | — |
+| 20 | `DOC-1e016055aa435e71` | yes | 0.0000 | 334.4 | 109137 | 5155 | — |
+| 21 | `DOC-63beb09b179ea4ee` | yes | 0.0588 | 302.4 | 83572 | 6319 | — |
+| 22 | `DOC-bec74557186e9409` | yes | 0.0000 | 366.0 | 78918 | 6147 | — |
+| 23 | `DOC-fe9a8b51344d67d9` | yes | 0.0000 | 340.1 | 130099 | 6329 | — |
+| 24 | `DOC-5f8ef95caa2fd349` | yes | 0.0000 | 576.5 | 104105 | 8739 | — |
+| 25 | `DOC-2b9f668ab6cb8901` | yes | 0.0526 | 323.7 | 90831 | 5243 | — |
+| 26 | `DOC-0534799ed39ca0db` | yes | 0.0556 | 401.3 | 92828 | 6511 | — |
+| 27 | `DOC-7e2818ceb0167d5a` | yes | 0.0556 | 204.6 | 78432 | 4327 | — |
+| 28 | `DOC-37bc3c44ae2c4ef6` | yes | 0.0000 | 478.4 | 90012 | 7749 | — |
+| 29 | `DOC-72b0b8c8385edd48` | yes | 0.0556 | 275.9 | 84431 | 5479 | — |
+| 30 | `DOC-26fa94f698c37fc5` | yes | 0.0588 | 228.9 | 79931 | 4257 | — |
+| 31 | `DOC-297745a521cd1e8c` | yes | 0.0000 | 547.3 | 103150 | 10273 | — |
+| 32 | `DOC-c6b5f7ea5f718c28` | yes | 0.0588 | 552.9 | 82765 | 4430 | — |
+| 33 | `DOC-03712a2b0a99a314` | yes | 0.0588 | 437.0 | 119367 | 7899 | — |
+| 34 | `DOC-0070a4e34dddbfd5` | yes | 0.0588 | 311.7 | 85209 | 5373 | — |
+| 35 | `DOC-ac48214468deb8dd` | yes | 0.0588 | 304.1 | 72887 | 5627 | — |
+| 36 | `DOC-9d34581755c603a3` | yes | 0.0000 | 251.5 | 94942 | 4483 | — |
+| 37 | `DOC-386ac6d669b7731c` | yes | 0.0769 | 783.9 | 93831 | 8246 | — |
+| 38 | `DOC-e6c8852b877c4598` | yes | 0.0000 | 414.3 | 104093 | 7128 | — |
+| 39 | `DOC-1cd38a83b224335d` | yes | 0.0588 | 213.3 | 78294 | 3584 | — |
+| 40 | `DOC-f9870e3b8fd141b0` | yes | 0.0000 | 687.6 | 134889 | 7509 | — |
+| 41 | `DOC-169bbcdc5d9e609c` | yes | 0.0000 | 356.9 | 134911 | 6060 | — |
+| 42 | `DOC-fcaddb5bdc94ce63` | yes | 0.0000 | 702.4 | 82656 | 6424 | — |
+| 43 | `DOC-f449b47c7269f288` | yes | 0.0625 | 299.8 | 95394 | 5384 | — |
+| 44 | `DOC-f09307ad314d386f` | yes | 0.0000 | 359.9 | 103329 | 6709 | — |
+| 45 | `DOC-5d30efc302f3c431` | yes | 0.0000 | 521.5 | 130943 | 9344 | — |
+| 46 | `DOC-ff3ceb691481f1bd` | yes | 0.0000 | 333.7 | 91432 | 6132 | — |
+| 47 | `DOC-681bc6115b882191` | yes | 0.0000 | 358.3 | 120554 | 6773 | — |
+| 48 | `DOC-23f224263f6974c5` | yes | 0.0000 | 360.5 | 83736 | 8100 | — |
+| 49 | `DOC-b3d0149fd994357a` | yes | 0.0588 | 747.2 | 78500 | 9715 | — |
+| 50 | `DOC-ab735131c00271bc` | yes | 0.0000 | 786.1 | 81228 | 12061 | — |
 
-_Generated 2026-10-12T22:59:04+00:00 by `sandbox run card`. Machine-readable twin: `sand42-50-merger-specialist-awq-2l4-c8.card.json`._
+_Generated 2026-10-13T03:37:14+00:00 by `sandbox run card`. Machine-readable twin: `sand42-50-merger-specialist-awq-2l4-c8.card.json`._

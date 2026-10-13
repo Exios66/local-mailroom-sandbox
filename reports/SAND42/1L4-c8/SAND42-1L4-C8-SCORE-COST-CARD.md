@@ -6,7 +6,7 @@
 
 | Condition | Value |
 | --- | --- |
-| Engine | — · max_model_len 32768 · max_num_seqs 16/replica · max_inputs 32 |
+| Engine | Qwen/Qwen3-8B-AWQ · max_model_len 32768 · max_num_seqs 16/replica · max_inputs 32 |
 | Fleet | 1 replica(s) · client concurrency 8 (8 per replica) |
 | Dataset | `Lucius-Morningstar/mailroom-dataset` ground_truth @ ed7576b6, split=all, seed 42, one class bucket, 50 per class stratified over every subclass (min 1 per sub-type) |
 | Prompt | v1 `*_simplified` stems only |
@@ -21,12 +21,12 @@
 | Scored documents | 50 | 50 | 50 | 50 | 50 |
 | Quality SD | 0.238 | 0.062 | 0.248 | 0.120 | 0.041 |
 | Scoring method | suite | suite | suite | suite+cuad | suite+maud |
-| Clause metric | — | — | — | CUAD F1 0.593 · 50 labeled | MAUD acc 2.7% · 302/811 answered |
+| Clause metric | n/a (no clause scoring) | n/a (no clause scoring) | n/a (no clause scoring) | CUAD F1 0.593 · 50 labeled | MAUD acc 2.7% · 302/811 answered |
 | Ok rate (Wilson) | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] |
 | Schema-valid rate | 100.0% | 32.0% | 96.0% | 100.0% | 100.0% |
 | Parse errors | 0 | 0 | 0 | 0 | 0 |
 | Length-capped | 0 | 0 | 0 | 0 | 0 |
-| Error kinds | — | — | — | — | — |
+| Error kinds | none | none | none | none | none |
 | p50 latency (s) | 6.2 | 13.4 | 10.8 | 114.2 | 547.4 |
 | p95 latency (s) | 9.3 | 22.3 | 14.5 | 671.4 | 1,370.2 |
 | SLO (s) · met | 60 · yes | 60 · yes | 60 · yes | 300 · no | 1,800 · yes |
@@ -84,4 +84,4 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-12T22:59:17+00:00 by `sandbox run card --runbook sand42-1l4-c8` from the committed per-run `*.card.json`._
+_Generated 2026-10-13T03:36:33+00:00 by `sandbox run card --runbook sand42-1l4-c8` from the committed per-run `*.card.json`._
