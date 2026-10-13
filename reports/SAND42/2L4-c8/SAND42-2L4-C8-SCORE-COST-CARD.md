@@ -49,8 +49,8 @@
 | Sampling coverage | 100.0% | 94.7% | 100.0% | 98.9% | 99.0% |
 | GPU power (W, mean) | 59.8 | 67.0 | 65.6 | 66.4 | 69.9 |
 | GPU temp (C, mean) | 62.9 | 69.6 | 72.5 | 75.2 | 76.3 |
-| KV cache use, mid-run (max %) | 2.8% | 7.9% | 7.1% | 29.4% | 51.1% |
-| Queue depth, mid-run (running/waiting) | 4 running / 0 waiting | 4 running / 0 waiting | 5 running / 0 waiting | 7 running / 0 waiting | 8 running / 1 waiting |
+| KV cache use, mid-run (max %) | 2.8% | 7.9% | 10.2% | 29.4% | 51.1% |
+| Queue depth, mid-run (running/waiting) | 4 running / 0 waiting | 4 running / 0 waiting | 5 running / 3 waiting | 7 running / 5 waiting | 8 running / 1 waiting |
 | Preemptions | 0 | 0 | 0 | 0 | 0 |
 | Length finishes | 0 | 0 | 0 | 5 | 12 |
 
@@ -84,4 +84,4 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-13T03:36:34+00:00 by `sandbox run card --runbook sand42-2l4-c8` from the committed per-run `*.card.json`._
+_Generated 2026-10-13T04:33:13+00:00 by `sandbox run card --runbook sand42-2l4-c8` from the committed per-run `*.card.json`._

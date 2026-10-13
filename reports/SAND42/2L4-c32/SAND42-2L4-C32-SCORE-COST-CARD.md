@@ -17,42 +17,42 @@
 
 | Metric | Correspondence | Insurance Claims | Corporate Records | Contracts | Merger Agreements |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Quality (95% CI) | 0.378 [0.312, 0.443] | 0.670 [0.654, 0.688] | 0.485 [0.412, 0.555] | 0.593 [0.555, 0.628] | 0.024 [0.016, 0.032] |
-| Scored documents | 50 | 50 | 50 | 45 | 50 |
-| Quality SD | 0.236 | 0.062 | 0.253 | 0.126 | 0.030 |
+| Quality (95% CI) | 0.373 [0.310, 0.438] | 0.666 [0.649, 0.683] | 0.500 [0.428, 0.570] | 0.622 [0.584, 0.659] | 0.021 [0.013, 0.029] |
+| Scored documents | 50 | 50 | 50 | 50 | 50 |
+| Quality SD | 0.237 | 0.062 | 0.252 | 0.133 | 0.029 |
 | Scoring method | suite | suite | suite | suite+cuad | suite+maud |
-| Clause metric | n/a (no clause scoring) | n/a (no clause scoring) | n/a (no clause scoring) | CUAD F1 0.593 · 45 labeled | MAUD acc 2.5% · 267/811 answered |
+| Clause metric | n/a (no clause scoring) | n/a (no clause scoring) | n/a (no clause scoring) | CUAD F1 0.636 · 50 labeled | MAUD acc 2.1% · 260/811 answered |
 | Ok rate (Wilson) | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] |
 | Schema-valid rate | 100.0% | 30.0% | 96.0% | 100.0% | 100.0% |
 | Parse errors | 0 | 0 | 0 | 0 | 0 |
 | Length-capped | 0 | 0 | 0 | 0 | 0 |
 | Error kinds | none | none | none | none | none |
-| p50 latency (s) | 12.9 | 28.8 | 19.1 | 172.2 | 987.5 |
-| p95 latency (s) | 22.3 | 42.4 | 33.3 | 502.4 | 1,685.6 |
+| p50 latency (s) | 10.7 | 24.0 | 16.8 | 171.4 | 935.5 |
+| p95 latency (s) | 17.9 | 40.1 | 31.5 | 592.6 | 1,491.5 |
 | SLO (s) · met | 60 · yes | 60 · yes | 60 · yes | 300 · no | 1,800 · yes |
-| Documents/min | 76.82 | 40.24 | 61.14 | 2.92 | 1.52 |
-| Documents/min/GPU | 38.41 | 20.12 | 30.57 | 1.46 | 0.76 |
-| Goodput docs/min/GPU | 38.41 | 20.12 | 30.57 | 0.00 | 0.76 |
-| Tokens/s/GPU | 1,756.5 | 1,246.4 | 2,091.8 | 436.5 | 1,313.0 |
-| Mean TTFT (s) | 3.39 | 4.73 | 5.64 | 11.26 | 23.37 |
-| Prefix-cache hit | 61.7% | 55.1% | 48.3% | 37.1% | 16.9% |
-| Wall (s) | 39.1 | 74.6 | 49.1 | 1,026.4 | 1,972.3 |
-| Billed GPU $ (run) | $0.0176 | $0.0335 | $0.0221 | $0.4563 | $0.8767 |
-| $ / 1k ok docs | $0.352680 | $0.669460 | $0.442320 | $9.125560 | $17.534160 |
-| $ / 1k schema-valid | $0.352680 | $2.231533 | $0.460750 | $9.125560 | $17.534160 |
-| $ / doc | $0.000353 | $0.000669 | $0.000442 | $0.009126 | $0.017534 |
-| $ / ok doc | $0.000353 | $0.000669 | $0.000442 | $0.009126 | $0.017534 |
-| $ / 1M tokens | $0.129 | $0.180 | $0.108 | $0.509 | $0.169 |
-| GPU util (mean/p95/min–max) | 62.3% mean / 100.0 p95 / 0.0–100.0% min–max (n=11) | 75.6% mean / 100.0 p95 / 0.0–100.0% min–max (n=22) | 68.6% mean / 100.0 p95 / 0.0–100.0% min–max (n=13) | 83.1% mean / 100.0 p95 / 0.0–100.0% min–max (n=313) | 94.8% mean / 100.0 p95 / 0.0–100.0% min–max (n=596) |
-| GPU mem used (mean) | 20,981 MiB (91.1% of 23,034) | 21,023 MiB (91.3% of 23,034) | 21,023 MiB (91.3% of 23,034) | 21,027 MiB (91.3% of 23,034) | 21,027 MiB (91.3% of 23,034) |
-| GPU mem bandwidth (mean) | 54.5% mean | 70.3% mean | 49.4% mean | 79.8% mean | 74.8% mean |
-| Sampling coverage | 100.0% | 100.0% | 86.2% ⚠ below the 90% gate (issue #128) | 97.0% | 99.4% |
-| GPU power (W, mean) | 57.2 | 64.6 | 60.0 | 66.1 | 70.1 |
-| GPU temp (C, mean) | 67.5 | 74.6 | 76.4 | 76.0 | 75.8 |
-| KV cache use, mid-run (max %) | — | — | — | — | 99.0% |
-| Queue depth, mid-run (running/waiting) | — | — | — | — | 16 running / 10 waiting |
+| Documents/min | 76.82 | 39.53 | 61.14 | 2.92 | 1.52 |
+| Documents/min/GPU | 38.41 | 19.77 | 30.57 | 1.46 | 0.76 |
+| Goodput docs/min/GPU | 38.41 | 19.77 | 30.57 | 0.00 | 0.76 |
+| Tokens/s/GPU | 1,756.7 | 1,224.9 | 2,092.1 | 451.3 | 1,316.0 |
+| Mean TTFT (s) | 3.04 | 4.65 | 5.09 | 7.68 | 10.32 |
+| Prefix-cache hit | 61.9% | 56.4% | 49.1% | 36.9% | 17.4% |
+| Wall (s) | 39.1 | 75.9 | 49.1 | 1,026.4 | 1,972.3 |
+| Billed GPU $ (run) | $0.0168 | $0.0338 | $0.0217 | $0.3486 | $0.8619 |
+| $ / 1k ok docs | $0.335500 | $0.676280 | $0.433140 | $6.971020 | $17.237700 |
+| $ / 1k schema-valid | $0.335500 | $2.254267 | $0.451187 | $6.971020 | $17.237700 |
+| $ / doc | $0.000336 | $0.000676 | $0.000433 | $0.006971 | $0.017238 |
+| $ / ok doc | $0.000336 | $0.000676 | $0.000433 | $0.006971 | $0.017238 |
+| $ / 1M tokens | $0.122 | $0.182 | $0.105 | $0.376 | $0.166 |
+| GPU util (mean/p95/min–max) | 49.1% mean / 100.0 p95 / 0.0–100.0% min–max (n=10) | 74.8% mean / 99.0 p95 / 0.0–100.0% min–max (n=21) | 63.7% mean / 100.0 p95 / 0.0–100.0% min–max (n=14) | 86.8% mean / 100.0 p95 / 0.0–100.0% min–max (n=235) | 95.1% mean / 100.0 p95 / 0.0–100.0% min–max (n=588) |
+| GPU mem used (mean) | 20,976 MiB (91.1% of 23,034) | 21,022 MiB (91.3% of 23,034) | 21,023 MiB (91.3% of 23,034) | 21,026 MiB (91.3% of 23,034) | 21,026 MiB (91.3% of 23,034) |
+| GPU mem bandwidth (mean) | 42.0% mean | 71.1% mean | 46.6% mean | 80.6% mean | 73.5% mean |
+| Sampling coverage | 94.4% | 81.8% ⚠ below the 90% gate (issue #128) | 100.0% | 96.9% | 99.2% |
+| GPU power (W, mean) | 52.9 | 62.8 | 56.1 | 67.5 | 70.1 |
+| GPU temp (C, mean) | 60.3 | 68.1 | 70.8 | 75.3 | 75.9 |
+| KV cache use, mid-run (max %) | 3.6% | 10.2% | 0.0% | 64.2% | 96.3% |
+| Queue depth, mid-run (running/waiting) | 5 running / 0 waiting | 7 running / 0 waiting | 0 running / 0 waiting | 16 running / 5 waiting | 16 running / 4 waiting |
 | Preemptions | 0 | 0 | 0 | 0 | 0 |
-| Length finishes | 0 | 0 | 0 | 3 | 4 |
+| Length finishes | 0 | 0 | 0 | 5 | 4 |
 
 ## Figure
 
@@ -65,12 +65,12 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 | Fleet cost | Value |
 | --- | ---: |
 | Replicas × GPU | 2 × L4 @ $0.80/GPU-hr |
-| Cold boot (deploy → ready) | 217.0 s |
-| Fleet window (deploy → teardown) | 3,471.0 s |
-| Fleet GPU-hours | 1.9283 |
-| **Fleet GPU $** | **$1.5427** |
-| Of which the five runs | 3,164.0 s (91.2%) |
-| Boot + idle overhead | 307.0 s |
+| Cold boot (deploy → ready) | 143.0 s |
+| Fleet window (deploy → teardown) | 3,227.0 s |
+| Fleet GPU-hours | 1.7928 |
+| **Fleet GPU $** | **$1.4342** |
+| Of which the five runs | 2,886.0 s (89.4%) |
+| Boot + idle overhead | 341.0 s |
 
 ## Per-run cards
 
@@ -84,4 +84,4 @@ The fleet is pinned warm (`min_containers=1`) from deploy to teardown, so Modal 
 
 _Merger dominates pooled throughput (≈ 112k prompt tokens per agreement on the frozen settings), so no pooled column is reported here — compare per class._
 
-_Generated 2026-10-13T03:36:34+00:00 by `sandbox run card --runbook sand42-2l4-c32` from the committed per-run `*.card.json`._
+_Generated 2026-10-13T04:33:14+00:00 by `sandbox run card --runbook sand42-2l4-c32` from the committed per-run `*.card.json`._

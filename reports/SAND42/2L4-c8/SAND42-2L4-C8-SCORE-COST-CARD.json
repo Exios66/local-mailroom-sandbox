@@ -702,29 +702,29 @@
           }
         },
         "midrun": {
-          "at": 1791859605.254273,
+          "at": 1791859655.8441741,
           "cell_max": {
             "kv_cache_usage_perc": 0.2944,
             "num_requests_running": 7.0,
-            "num_requests_waiting": 0.0
+            "num_requests_waiting": 5.0
           },
           "coverage": "replicas observed: 2 of 2",
           "errors": [],
           "replicas": {
             "1791858143.3": {
-              "kv_cache_usage_perc": 0.0,
-              "num_requests_running": 0.0,
-              "num_requests_waiting": 0.0,
+              "kv_cache_usage_perc": 0.07159390214701888,
+              "num_requests_running": 2.0,
+              "num_requests_waiting": 5.0,
               "preemptions": 0.0
             },
             "1791858145.96": {
-              "kv_cache_usage_perc": 0.06903982759996807,
+              "kv_cache_usage_perc": 0.05866389975257402,
               "num_requests_running": 1.0,
               "num_requests_waiting": 0.0,
               "preemptions": 0.0
             }
           },
-          "samples": 40
+          "samples": 42
         },
         "replicas": [
           {
@@ -748,7 +748,7 @@
         ],
         "scrape_errors": []
       },
-      "generated_at": "2026-10-13T02:47:10+00:00",
+      "generated_at": "2026-10-13T04:32:54+00:00",
       "latency": {
         "max": 840.162988,
         "mean": 130.8308454,
@@ -1519,29 +1519,29 @@
           }
         },
         "midrun": {
-          "at": 1791858553.39583,
+          "at": 1791858602.084455,
           "cell_max": {
-            "kv_cache_usage_perc": 0.0713,
+            "kv_cache_usage_perc": 0.1023,
             "num_requests_running": 5.0,
-            "num_requests_waiting": 0.0
+            "num_requests_waiting": 3.0
           },
           "coverage": "replicas observed: 2 of 2",
           "errors": [],
           "replicas": {
             "1791858143.3": {
-              "kv_cache_usage_perc": 0.03998722962726475,
+              "kv_cache_usage_perc": 0.10232261154122435,
               "num_requests_running": 4.0,
-              "num_requests_waiting": 0.0,
+              "num_requests_waiting": 3.0,
               "preemptions": 0.0
             },
             "1791858145.96": {
-              "kv_cache_usage_perc": 0.0712746428286376,
-              "num_requests_running": 4.0,
+              "kv_cache_usage_perc": 0.046611860483677825,
+              "num_requests_running": 1.0,
               "num_requests_waiting": 0.0,
               "preemptions": 0.0
             }
           },
-          "samples": 2
+          "samples": 4
         },
         "replicas": [
           {
@@ -1565,7 +1565,7 @@
         ],
         "scrape_errors": []
       },
-      "generated_at": "2026-10-13T02:29:36+00:00",
+      "generated_at": "2026-10-13T04:32:55+00:00",
       "latency": {
         "max": 12.263264,
         "mean": 7.76142246,
@@ -2328,7 +2328,7 @@
           }
         },
         "midrun": {
-          "at": 1791858356.270085,
+          "at": 1791858380.146933,
           "cell_max": {
             "kv_cache_usage_perc": 0.028,
             "num_requests_running": 4.0,
@@ -2350,7 +2350,7 @@
               "preemptions": 0.0
             }
           },
-          "samples": 3
+          "samples": 4
         },
         "replicas": [
           {
@@ -2374,7 +2374,7 @@
         ],
         "scrape_errors": []
       },
-      "generated_at": "2026-10-13T02:26:03+00:00",
+      "generated_at": "2026-10-13T04:32:56+00:00",
       "latency": {
         "max": 8.532945,
         "mean": 5.42495546,
@@ -3137,7 +3137,7 @@
           }
         },
         "midrun": {
-          "at": 1791858478.793376,
+          "at": 1791858503.326727,
           "cell_max": {
             "kv_cache_usage_perc": 0.0789,
             "num_requests_running": 4.0,
@@ -3159,7 +3159,7 @@
               "preemptions": 0.0
             }
           },
-          "samples": 4
+          "samples": 5
         },
         "replicas": [
           {
@@ -3183,7 +3183,7 @@
         ],
         "scrape_errors": []
       },
-      "generated_at": "2026-10-13T02:28:11+00:00",
+      "generated_at": "2026-10-13T04:32:57+00:00",
       "latency": {
         "max": 38.329136,
         "mean": 12.74222896,
@@ -3952,14 +3952,25 @@
           }
         },
         "midrun": {
-          "at": 1791862543.124214,
+          "at": 1791862590.420413,
           "cell_max": {
             "kv_cache_usage_perc": 0.5114,
             "num_requests_running": 8.0,
             "num_requests_waiting": 1.0
           },
           "coverage": "replicas observed: 2 of 2",
-          "errors": [],
+          "errors": [
+            "HTTPStatusError: Client error '404 Not Found' for url 'https://exios66--sandbox-vllm-serve.modal.run/metrics'\nFor more information check:",
+            "HTTPStatusError: Client error '404 Not Found' for url 'https://exios66--sandbox-vllm-serve.modal.run/metrics'\nFor more information check:",
+            "HTTPStatusError: Client error '404 Not Found' for url 'https://exios66--sandbox-vllm-serve.modal.run/metrics'\nFor more information check:",
+            "HTTPStatusError: Client error '404 Not Found' for url 'https://exios66--sandbox-vllm-serve.modal.run/metrics'\nFor more information check:",
+            "HTTPStatusError: Client error '404 Not Found' for url 'https://exios66--sandbox-vllm-serve.modal.run/metrics'\nFor more information check:",
+            "HTTPStatusError: Client error '404 Not Found' for url 'https://exios66--sandbox-vllm-serve.modal.run/metrics'\nFor more information check:",
+            "HTTPStatusError: Client error '404 Not Found' for url 'https://exios66--sandbox-vllm-serve.modal.run/metrics'\nFor more information check:",
+            "HTTPStatusError: Client error '404 Not Found' for url 'https://exios66--sandbox-vllm-serve.modal.run/metrics'\nFor more information check:",
+            "HTTPStatusError: Client error '404 Not Found' for url 'https://exios66--sandbox-vllm-serve.modal.run/metrics'\nFor more information check:",
+            "HTTPStatusError: Client error '404 Not Found' for url 'https://exios66--sandbox-vllm-serve.modal.run/metrics'\nFor more information check:"
+          ],
           "replicas": {
             "1791858143.3": {
               "kv_cache_usage_perc": 0.0,
@@ -3974,7 +3985,7 @@
               "preemptions": 0.0
             }
           },
-          "samples": 97
+          "samples": 98
         },
         "replicas": [
           {
@@ -3998,7 +4009,7 @@
         ],
         "scrape_errors": []
       },
-      "generated_at": "2026-10-13T03:36:21+00:00",
+      "generated_at": "2026-10-13T04:32:59+00:00",
       "latency": {
         "max": 970.461714,
         "mean": 429.00013572,
@@ -4089,7 +4100,7 @@
     "replicas": 2,
     "teardown_ts": 1791862591.0
   },
-  "generated_at": "2026-10-13T03:36:34+00:00",
+  "generated_at": "2026-10-13T04:33:13+00:00",
   "kind": "cell",
   "replicas": 2,
   "runbook": "sand42-2l4-c8",
@@ -4199,7 +4210,7 @@
           }
         },
         "midrun": {
-          "at": 1791858356.270085,
+          "at": 1791858380.146933,
           "cell_max": {
             "kv_cache_usage_perc": 0.028,
             "num_requests_running": 4.0,
@@ -4221,7 +4232,7 @@
               "preemptions": 0.0
             }
           },
-          "samples": 3
+          "samples": 4
         },
         "replicas": [
           {
@@ -4509,7 +4520,7 @@
           }
         },
         "midrun": {
-          "at": 1791858478.793376,
+          "at": 1791858503.326727,
           "cell_max": {
             "kv_cache_usage_perc": 0.0789,
             "num_requests_running": 4.0,
@@ -4531,7 +4542,7 @@
               "preemptions": 0.0
             }
           },
-          "samples": 4
+          "samples": 5
         },
         "replicas": [
           {
@@ -4819,29 +4830,29 @@
           }
         },
         "midrun": {
-          "at": 1791858553.39583,
+          "at": 1791858602.084455,
           "cell_max": {
-            "kv_cache_usage_perc": 0.0713,
+            "kv_cache_usage_perc": 0.1023,
             "num_requests_running": 5.0,
-            "num_requests_waiting": 0.0
+            "num_requests_waiting": 3.0
           },
           "coverage": "replicas observed: 2 of 2",
           "errors": [],
           "replicas": {
             "1791858143.3": {
-              "kv_cache_usage_perc": 0.03998722962726475,
+              "kv_cache_usage_perc": 0.10232261154122435,
               "num_requests_running": 4.0,
-              "num_requests_waiting": 0.0,
+              "num_requests_waiting": 3.0,
               "preemptions": 0.0
             },
             "1791858145.96": {
-              "kv_cache_usage_perc": 0.0712746428286376,
-              "num_requests_running": 4.0,
+              "kv_cache_usage_perc": 0.046611860483677825,
+              "num_requests_running": 1.0,
               "num_requests_waiting": 0.0,
               "preemptions": 0.0
             }
           },
-          "samples": 2
+          "samples": 4
         },
         "replicas": [
           {
@@ -5129,29 +5140,29 @@
           }
         },
         "midrun": {
-          "at": 1791859605.254273,
+          "at": 1791859655.8441741,
           "cell_max": {
             "kv_cache_usage_perc": 0.2944,
             "num_requests_running": 7.0,
-            "num_requests_waiting": 0.0
+            "num_requests_waiting": 5.0
           },
           "coverage": "replicas observed: 2 of 2",
           "errors": [],
           "replicas": {
             "1791858143.3": {
-              "kv_cache_usage_perc": 0.0,
-              "num_requests_running": 0.0,
-              "num_requests_waiting": 0.0,
+              "kv_cache_usage_perc": 0.07159390214701888,
+              "num_requests_running": 2.0,
+              "num_requests_waiting": 5.0,
               "preemptions": 0.0
             },
             "1791858145.96": {
-              "kv_cache_usage_perc": 0.06903982759996807,
+              "kv_cache_usage_perc": 0.05866389975257402,
               "num_requests_running": 1.0,
               "num_requests_waiting": 0.0,
               "preemptions": 0.0
             }
           },
-          "samples": 40
+          "samples": 42
         },
         "replicas": [
           {
@@ -5447,14 +5458,25 @@
           }
         },
         "midrun": {
-          "at": 1791862543.124214,
+          "at": 1791862590.420413,
           "cell_max": {
             "kv_cache_usage_perc": 0.5114,
             "num_requests_running": 8.0,
             "num_requests_waiting": 1.0
           },
           "coverage": "replicas observed: 2 of 2",
-          "errors": [],
+          "errors": [
+            "HTTPStatusError: Client error '404 Not Found' for url 'https://exios66--sandbox-vllm-serve.modal.run/metrics'\nFor more information check:",
+            "HTTPStatusError: Client error '404 Not Found' for url 'https://exios66--sandbox-vllm-serve.modal.run/metrics'\nFor more information check:",
+            "HTTPStatusError: Client error '404 Not Found' for url 'https://exios66--sandbox-vllm-serve.modal.run/metrics'\nFor more information check:",
+            "HTTPStatusError: Client error '404 Not Found' for url 'https://exios66--sandbox-vllm-serve.modal.run/metrics'\nFor more information check:",
+            "HTTPStatusError: Client error '404 Not Found' for url 'https://exios66--sandbox-vllm-serve.modal.run/metrics'\nFor more information check:",
+            "HTTPStatusError: Client error '404 Not Found' for url 'https://exios66--sandbox-vllm-serve.modal.run/metrics'\nFor more information check:",
+            "HTTPStatusError: Client error '404 Not Found' for url 'https://exios66--sandbox-vllm-serve.modal.run/metrics'\nFor more information check:",
+            "HTTPStatusError: Client error '404 Not Found' for url 'https://exios66--sandbox-vllm-serve.modal.run/metrics'\nFor more information check:",
+            "HTTPStatusError: Client error '404 Not Found' for url 'https://exios66--sandbox-vllm-serve.modal.run/metrics'\nFor more information check:",
+            "HTTPStatusError: Client error '404 Not Found' for url 'https://exios66--sandbox-vllm-serve.modal.run/metrics'\nFor more information check:"
+          ],
           "replicas": {
             "1791858143.3": {
               "kv_cache_usage_perc": 0.0,
@@ -5469,7 +5491,7 @@
               "preemptions": 0.0
             }
           },
-          "samples": 97
+          "samples": 98
         },
         "replicas": [
           {

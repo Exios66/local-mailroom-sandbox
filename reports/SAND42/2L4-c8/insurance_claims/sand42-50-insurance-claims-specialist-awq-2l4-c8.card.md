@@ -145,4 +145,4 @@
 | 49 | `DOC-02f77aa77391a8c2` | yes | 0.6912 | 38.3 | 5091 | 1406 | — |
 | 50 | `DOC-5b97ae3f8558703c` | yes | 0.6245 | 25.6 | 4565 | 996 | — |
 
-_Generated 2026-10-13T03:37:13+00:00 by `sandbox run card`. Machine-readable twin: `sand42-50-insurance-claims-specialist-awq-2l4-c8.card.json`._
+_Generated 2026-10-13T04:32:57+00:00 by `sandbox run card`. Machine-readable twin: `sand42-50-insurance-claims-specialist-awq-2l4-c8.card.json`._

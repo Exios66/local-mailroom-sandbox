@@ -1,6 +1,6 @@
 # SAND-042 · paired comparison across the 5 cells
 
-**The cells do NOT all score the same documents.** `sand42-50-contracts`: ['2l4-c32'] (50 docs) vs ['1l4-c16', '1l4-c8', '2l4-c16', '2l4-c8'] (50 docs). Any delta between cells on different draws is **not paired** — the per-document difference is undefined across a draw change, so those columns compare different documents and must not be read as a comparison until every cell re-runs on one draw. Everything else in this table (cost, throughput, engine telemetry) is unaffected.
+All 5 cells score the **identical 250 documents** (5 specialists × 50 documents, one subclass-stratified draw per class), so every cell-to-cell delta below is **paired**: the unit of analysis is the per-document score difference. Intervals are 95% percentile bootstrap over documents; the last column is the paired n that Δ = 0.05 would need at 80% power.
 
 Reference cell: **1l4-c8** (1×L4, client concurrency 8).
 
@@ -38,11 +38,11 @@ Reference cell: **1l4-c8** (1×L4, client concurrency 8).
 
 | Class | Paired n | Δ mean | 95% CI | SD_diff | better / worse / tie | n for Δ=0.05 |
 | --- | ---: | ---: | --- | ---: | --- | ---: |
-| Contracts | 39 | -0.005 | [-0.046, 0.036] | 0.133 | 16 / 15 / 8 | 56 |
-| Corporate Records | 50 | +0.003 | [-0.017, 0.022] | 0.069 | 3 / 1 / 46 | 15 |
-| Correspondence | 50 | -0.010 | [-0.028, 0.001] | 0.053 | 2 / 5 / 43 | 9 |
-| Insurance Claims | 50 | -0.001 | [-0.006, 0.004] | 0.019 | 8 / 7 / 35 | 2 |
-| Merger Agreements | 50 | -0.003 | [-0.015, 0.006] | 0.039 | 4 / 3 / 43 | 5 |
+| Contracts | 50 | +0.023 | [-0.009, 0.055] | 0.119 | 27 / 16 / 7 | 45 |
+| Corporate Records | 50 | +0.018 | [-0.007, 0.045] | 0.095 | 7 / 1 / 42 | 29 |
+| Correspondence | 50 | -0.015 | [-0.037, 0.001] | 0.068 | 1 / 4 / 45 | 15 |
+| Insurance Claims | 50 | -0.005 | [-0.010, -0.001] | 0.016 | 7 / 12 / 31 | 1 |
+| Merger Agreements | 50 | -0.006 | [-0.019, 0.004] | 0.041 | 4 / 6 / 40 | 6 |
 
 ## Noise floor (run-to-run, same 50 documents)
 
@@ -68,4 +68,4 @@ Reference cell: **1l4-c8** (1×L4, client concurrency 8).
 ![Throughput](figures/cmp-throughput.png)
 ![Gpu](figures/cmp-gpu.png)
 
-_Generated 2026-10-13T03:36:36+00:00 by `sandbox run card --runbook sand42`._
+_Generated 2026-10-13T04:33:16+00:00 by `sandbox run card --runbook sand42`._
