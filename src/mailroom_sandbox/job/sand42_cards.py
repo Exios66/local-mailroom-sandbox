@@ -609,7 +609,7 @@ def render_cell_md(
         "",
         "| Condition | Value |",
         "| --- | --- |",
-        f"| Engine | {cond.get('engine', {}).get('model', '—')} · "
+        f"| Engine | {cond.get('model') or cond.get('engine', {}).get('model', '—')} · "
         f"max_model_len {cond.get('engine', {}).get('max_model_len', '—')} · "
         f"max_num_seqs {cond.get('engine', {}).get('max_num_seqs', '—')}/replica · "
         f"max_inputs {cond.get('engine', {}).get('max_inputs', '—')} |",
@@ -791,12 +791,12 @@ def _clause_text(clause: Mapping[str, Any]) -> str:
             f"MAUD acc {_pct(clause.get('accuracy'))} · "
             f"{clause.get('answered')}/{clause.get('questions')} answered"
         )
-    return "—"
+    return "n/a (no clause scoring)"
 
 
 def _error_kinds_text(kinds: Mapping[str, Any] | None) -> str:
     if not isinstance(kinds, Mapping) or not kinds:
-        return "—"
+        return "none"
     return ", ".join(f"{k}×{v}" for k, v in sorted(kinds.items(), key=lambda kv: -kv[1]))
 
 

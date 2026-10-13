@@ -10,7 +10,7 @@ Per-condition tables, engine and GPU telemetry, the paired comparison and the me
 
 | Condition | Value |
 | --- | --- |
-| Engine | — · max_model_len 32768 · max_num_seqs 16/replica · max_inputs 32 |
+| Engine | Qwen/Qwen3-8B-AWQ · max_model_len 32768 · max_num_seqs 16/replica · max_inputs 32 |
 | Fleet | 1 replica(s) · client concurrency 8 (8 per replica) |
 | Dataset | `Lucius-Morningstar/mailroom-dataset` ground_truth @ ed7576b6, split=all, seed 42, one class bucket, 50 per class stratified over every subclass (min 1 per sub-type) |
 | Prompt | v1 `*_simplified` stems only |
@@ -25,12 +25,12 @@ Per-condition tables, engine and GPU telemetry, the paired comparison and the me
 | Scored documents | 50 | 50 | 50 | 50 | 50 |
 | Quality SD | 0.238 | 0.062 | 0.248 | 0.120 | 0.041 |
 | Scoring method | suite | suite | suite | suite+cuad | suite+maud |
-| Clause metric | — | — | — | CUAD F1 0.593 · 50 labeled | MAUD acc 2.7% · 302/811 answered |
+| Clause metric | n/a (no clause scoring) | n/a (no clause scoring) | n/a (no clause scoring) | CUAD F1 0.593 · 50 labeled | MAUD acc 2.7% · 302/811 answered |
 | Ok rate (Wilson) | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] |
 | Schema-valid rate | 100.0% | 32.0% | 96.0% | 100.0% | 100.0% |
 | Parse errors | 0 | 0 | 0 | 0 | 0 |
 | Length-capped | 0 | 0 | 0 | 0 | 0 |
-| Error kinds | — | — | — | — | — |
+| Error kinds | none | none | none | none | none |
 | p50 latency (s) | 6.2 | 13.4 | 10.8 | 114.2 | 547.4 |
 | p95 latency (s) | 9.3 | 22.3 | 14.5 | 671.4 | 1,370.2 |
 | SLO (s) · met | 60 · yes | 60 · yes | 60 · yes | 300 · no | 1,800 · yes |
@@ -97,7 +97,7 @@ _Generated 2026-10-12T22:59:21+00:00 by `sandbox run card --runbook sand42-1l4-c
 
 | Condition | Value |
 | --- | --- |
-| Engine | — · max_model_len 32768 · max_num_seqs 16/replica · max_inputs 32 |
+| Engine | Qwen/Qwen3-8B-AWQ · max_model_len 32768 · max_num_seqs 16/replica · max_inputs 32 |
 | Fleet | 1 replica(s) · client concurrency 16 (16 per replica) |
 | Dataset | `Lucius-Morningstar/mailroom-dataset` ground_truth @ ed7576b6, split=all, seed 42, one class bucket, 50 per class stratified over every subclass (min 1 per sub-type) |
 | Prompt | v1 `*_simplified` stems only |
@@ -112,12 +112,12 @@ _Generated 2026-10-12T22:59:21+00:00 by `sandbox run card --runbook sand42-1l4-c
 | Scored documents | 50 | 50 | 50 | 50 | 50 |
 | Quality SD | 0.240 | 0.067 | 0.243 | 0.134 | 0.041 |
 | Scoring method | suite | suite | suite | suite+cuad | suite+maud |
-| Clause metric | — | — | — | CUAD F1 0.614 · 50 labeled | MAUD acc 2.8% · 286/811 answered |
+| Clause metric | n/a (no clause scoring) | n/a (no clause scoring) | n/a (no clause scoring) | CUAD F1 0.614 · 50 labeled | MAUD acc 2.8% · 286/811 answered |
 | Ok rate (Wilson) | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] |
 | Schema-valid rate | 100.0% | 34.0% | 96.0% | 100.0% | 100.0% |
 | Parse errors | 0 | 0 | 0 | 0 | 0 |
 | Length-capped | 0 | 0 | 0 | 0 | 0 |
-| Error kinds | — | — | — | — | — |
+| Error kinds | none | none | none | none | none |
 | p50 latency (s) | 9.6 | 21.4 | 19.5 | 167.9 | 948.7 |
 | p95 latency (s) | 14.4 | 31.9 | 27.3 | 791.9 | 1,917.9 |
 | SLO (s) · met | 60 · yes | 60 · yes | 60 · yes | 300 · no | 1,800 · no |
@@ -184,7 +184,7 @@ _Generated 2026-10-12T22:59:22+00:00 by `sandbox run card --runbook sand42-1l4-c
 
 | Condition | Value |
 | --- | --- |
-| Engine | — · max_model_len 32768 · max_num_seqs 16/replica · max_inputs 32 |
+| Engine | Qwen/Qwen3-8B-AWQ · max_model_len 32768 · max_num_seqs 16/replica · max_inputs 32 |
 | Fleet | 2 replica(s) · client concurrency 8 (4 per replica) |
 | Dataset | `Lucius-Morningstar/mailroom-dataset` ground_truth @ ed7576b6, split=all, seed 42, one class bucket, 50 per class stratified over every subclass (min 1 per sub-type) |
 | Prompt | v1 `*_simplified` stems only |
@@ -199,12 +199,12 @@ _Generated 2026-10-12T22:59:22+00:00 by `sandbox run card --runbook sand42-1l4-c
 | Scored documents | 50 | 50 | 50 | 44 | 50 |
 | Quality SD | 0.241 | 0.064 | 0.249 | 0.131 | 0.042 |
 | Scoring method | suite | suite | suite | suite+cuad | suite+maud |
-| Clause metric | — | — | — | CUAD F1 0.615 · 44 labeled | MAUD acc 3.1% · 283/811 answered |
+| Clause metric | n/a (no clause scoring) | n/a (no clause scoring) | n/a (no clause scoring) | CUAD F1 0.615 · 44 labeled | MAUD acc 3.1% · 283/811 answered |
 | Ok rate (Wilson) | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] | 49/50 98.0% [0.895, 0.996] | 50/50 100.0% [0.929, 1.000] |
 | Schema-valid rate | 100.0% | 30.0% | 96.0% | 100.0% | 100.0% |
 | Parse errors | 0 | 0 | 0 | 0 | 0 |
 | Length-capped | 0 | 0 | 0 | 1 | 0 |
-| Error kinds | — | — | — | LengthFinishReasonError×1 | — |
+| Error kinds | none | none | none | LengthFinishReasonError×1 | none |
 | p50 latency (s) | 5.4 | 11.4 | 7.7 | 76.5 | 389.7 |
 | p95 latency (s) | 8.1 | 18.6 | 11.5 | 293.0 | 891.4 |
 | SLO (s) · met | 60 · yes | 60 · yes | 60 · yes | 300 · yes | 1,800 · yes |
@@ -271,7 +271,7 @@ _Generated 2026-10-12T22:59:22+00:00 by `sandbox run card --runbook sand42-2l4-c
 
 | Condition | Value |
 | --- | --- |
-| Engine | — · max_model_len 32768 · max_num_seqs 16/replica · max_inputs 32 |
+| Engine | Qwen/Qwen3-8B-AWQ · max_model_len 32768 · max_num_seqs 16/replica · max_inputs 32 |
 | Fleet | 2 replica(s) · client concurrency 16 (8 per replica) |
 | Dataset | `Lucius-Morningstar/mailroom-dataset` ground_truth @ ed7576b6, split=all, seed 42, one class bucket, 50 per class stratified over every subclass (min 1 per sub-type) |
 | Prompt | v1 `*_simplified` stems only |
@@ -286,12 +286,12 @@ _Generated 2026-10-12T22:59:22+00:00 by `sandbox run card --runbook sand42-2l4-c
 | Scored documents | 50 | 50 | 50 | 50 | 50 |
 | Quality SD | 0.249 | 0.065 | 0.250 | 0.117 | 0.033 |
 | Scoring method | suite | suite | suite | suite+cuad | suite+maud |
-| Clause metric | — | — | — | CUAD F1 0.612 · 50 labeled | MAUD acc 2.6% · 280/811 answered |
+| Clause metric | n/a (no clause scoring) | n/a (no clause scoring) | n/a (no clause scoring) | CUAD F1 0.612 · 50 labeled | MAUD acc 2.6% · 280/811 answered |
 | Ok rate (Wilson) | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] |
 | Schema-valid rate | 100.0% | 30.0% | 96.0% | 100.0% | 100.0% |
 | Parse errors | 0 | 0 | 0 | 0 | 0 |
 | Length-capped | 0 | 0 | 0 | 0 | 0 |
-| Error kinds | — | — | — | — | — |
+| Error kinds | none | none | none | none | none |
 | p50 latency (s) | 6.9 | 16.2 | 12.5 | 102.8 | 579.4 |
 | p95 latency (s) | 13.3 | 23.6 | 25.3 | 504.7 | 1,047.8 |
 | SLO (s) · met | 60 · yes | 60 · yes | 60 · yes | 300 · no | 1,800 · yes |
@@ -358,7 +358,7 @@ _Generated 2026-10-12T22:59:22+00:00 by `sandbox run card --runbook sand42-2l4-c
 
 | Condition | Value |
 | --- | --- |
-| Engine | — · max_model_len 32768 · max_num_seqs 16/replica · max_inputs 32 |
+| Engine | Qwen/Qwen3-8B-AWQ · max_model_len 32768 · max_num_seqs 16/replica · max_inputs 32 |
 | Fleet | 2 replica(s) · client concurrency 32 (16 per replica) |
 | Dataset | `Lucius-Morningstar/mailroom-dataset` ground_truth @ ed7576b6, split=all, seed 42, one class bucket, 50 per class stratified over every subclass (min 1 per sub-type) |
 | Prompt | v1 `*_simplified` stems only |
@@ -373,12 +373,12 @@ _Generated 2026-10-12T22:59:22+00:00 by `sandbox run card --runbook sand42-2l4-c
 | Scored documents | 50 | 50 | 50 | 45 | 50 |
 | Quality SD | 0.236 | 0.062 | 0.253 | 0.126 | 0.030 |
 | Scoring method | suite | suite | suite | suite+cuad | suite+maud |
-| Clause metric | — | — | — | CUAD F1 0.593 · 45 labeled | MAUD acc 2.5% · 267/811 answered |
+| Clause metric | n/a (no clause scoring) | n/a (no clause scoring) | n/a (no clause scoring) | CUAD F1 0.593 · 45 labeled | MAUD acc 2.5% · 267/811 answered |
 | Ok rate (Wilson) | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] | 50/50 100.0% [0.929, 1.000] |
 | Schema-valid rate | 100.0% | 30.0% | 96.0% | 100.0% | 100.0% |
 | Parse errors | 0 | 0 | 0 | 0 | 0 |
 | Length-capped | 0 | 0 | 0 | 0 | 0 |
-| Error kinds | — | — | — | — | — |
+| Error kinds | none | none | none | none | none |
 | p50 latency (s) | 12.9 | 28.8 | 19.1 | 172.2 | 987.5 |
 | p95 latency (s) | 22.3 | 42.4 | 33.3 | 502.4 | 1,685.6 |
 | SLO (s) · met | 60 · yes | 60 · yes | 60 · yes | 300 · no | 1,800 · yes |
