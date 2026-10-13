@@ -1,6 +1,6 @@
 # SAND-042 · paired comparison across the 5 cells
 
-**The cells do NOT all score the same documents.** `sand42-50-contracts`: ['1l4-c16', '1l4-c8'] (50 docs) vs ['2l4-c16', '2l4-c32', '2l4-c8'] (50 docs). Any delta between cells on different draws is **not paired** — the per-document difference is undefined across a draw change, so those columns compare different documents and must not be read as a comparison until every cell re-runs on one draw. Everything else in this table (cost, throughput, engine telemetry) is unaffected.
+**The cells do NOT all score the same documents.** `sand42-50-contracts`: ['1l4-c16', '1l4-c8', '2l4-c16'] (50 docs) vs ['2l4-c32', '2l4-c8'] (50 docs). Any delta between cells on different draws is **not paired** — the per-document difference is undefined across a draw change, so those columns compare different documents and must not be read as a comparison until every cell re-runs on one draw. Everything else in this table (cost, throughput, engine telemetry) is unaffected.
 
 Reference cell: **1l4-c8** (1×L4, client concurrency 8).
 
@@ -28,11 +28,11 @@ Reference cell: **1l4-c8** (1×L4, client concurrency 8).
 
 | Class | Paired n | Δ mean | 95% CI | SD_diff | better / worse / tie | n for Δ=0.05 |
 | --- | ---: | ---: | --- | ---: | --- | ---: |
-| Contracts | 39 | -0.001 | [-0.044, 0.044] | 0.141 | 17 / 17 / 5 | 63 |
-| Corporate Records | 50 | +0.016 | [0.001, 0.036] | 0.067 | 5 / 2 / 43 | 14 |
-| Correspondence | 50 | -0.006 | [-0.033, 0.019] | 0.096 | 2 / 6 / 42 | 29 |
-| Insurance Claims | 50 | -0.003 | [-0.010, 0.004] | 0.026 | 16 / 13 / 21 | 3 |
-| Merger Agreements | 50 | -0.004 | [-0.018, 0.009] | 0.049 | 7 / 8 / 35 | 8 |
+| Contracts | 50 | +0.006 | [-0.025, 0.039] | 0.117 | 21 / 20 / 9 | 44 |
+| Corporate Records | 50 | +0.006 | [0.000, 0.012] | 0.023 | 5 / 1 / 44 | 2 |
+| Correspondence | 50 | +0.002 | [-0.021, 0.026] | 0.086 | 3 / 4 / 43 | 24 |
+| Insurance Claims | 50 | -0.001 | [-0.007, 0.004] | 0.019 | 11 / 6 / 33 | 2 |
+| Merger Agreements | 50 | -0.002 | [-0.016, 0.011] | 0.047 | 8 / 8 / 34 | 7 |
 
 ## 2l4-c32 (2× L4 · C32 · 16/replica) vs 1l4-c8
 
@@ -68,4 +68,4 @@ Reference cell: **1l4-c8** (1×L4, client concurrency 8).
 ![Throughput](figures/cmp-throughput.png)
 ![Gpu](figures/cmp-gpu.png)
 
-_Generated 2026-10-12T21:38:22+00:00 by `sandbox run card --runbook sand42`._
+_Generated 2026-10-12T22:59:20+00:00 by `sandbox run card --runbook sand42`._

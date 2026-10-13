@@ -158,4 +158,4 @@
 | 49 | `DOC-8f737e9fec8f24f0` | yes | 0.5455 | 246.4 | 35815 | 6494 | — |
 | 50 | `DOC-53e364f030a30b5c` | yes | 0.6383 | 802.8 | 69850 | 7063 | — |
 
-_Generated 2026-10-12T21:38:02+00:00 by `sandbox run card`. Machine-readable twin: `sand42-50-contracts-specialist-awq-2l4-c8.card.json`._
+_Generated 2026-10-12T22:59:00+00:00 by `sandbox run card`. Machine-readable twin: `sand42-50-contracts-specialist-awq-2l4-c8.card.json`._
