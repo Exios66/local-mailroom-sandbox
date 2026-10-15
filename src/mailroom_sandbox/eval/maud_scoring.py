@@ -76,6 +76,23 @@ def _multi_class_questions() -> frozenset[str]:
 MULTI_CLASS_QUESTIONS = _multi_class_questions()
 
 
+def _catalog_norms() -> dict[str, frozenset[str]]:
+    from llm_dojo_scoring.maud import MAUD_ANSWER_CLASSES
+
+    return {q: frozenset(norm(c) for c in cs) for q, cs in MAUD_ANSWER_CLASSES.items()}
+
+
+_CATALOG_NORMS = _catalog_norms()
+
+
+def is_non_answer(answer: Any, question: str | None = None) -> bool:
+    """Missing / placeholder answer. A placeholder that is itself a catalog
+    class for *question* (``"None"`` on the matching-rights and fiduciary
+    questions) is a real answer."""
+    na = norm(answer)
+    return na in _NON_ANSWERS and na not in _CATALOG_NORMS.get(question or "", ())
+
+
 def same_answer(a: Any, b: Any, question: str | None = None) -> bool:
     """Exact match after ``norm``; comma-joined answers compare as sets only
     for a multi-select *question* (:data:`MULTI_CLASS_QUESTIONS`)."""
@@ -113,7 +130,7 @@ def _reduce(answers: list[str], question: str | None = None) -> str:
     """
     real: list[str] = []
     for a in answers:
-        if norm(a) not in _NON_ANSWERS and not any(same_answer(a, r, question) for r in real):
+        if not is_non_answer(a, question) and not any(same_answer(a, r, question) for r in real):
             real.append(a)
     if not real:
         return answers[0] if answers else ""
@@ -150,7 +167,7 @@ def parse_maud_answers(pred: Mapping[str, Any], questions: list[str]) -> dict[st
                 continue
             break
     out = {q: _reduce(vals, q) for q, vals in seen.items()}
-    if TYPE_OF_CONSIDERATION in questions and norm(out.get(TYPE_OF_CONSIDERATION)) in _NON_ANSWERS:
+    if TYPE_OF_CONSIDERATION in questions and is_non_answer(out.get(TYPE_OF_CONSIDERATION), TYPE_OF_CONSIDERATION):
         enum = _CONSIDERATION_ENUM.get(str(pred.get("merger_consideration") or "").strip().lower())
         if enum:
             out[TYPE_OF_CONSIDERATION] = enum
@@ -160,7 +177,7 @@ def parse_maud_answers(pred: Mapping[str, Any], questions: list[str]) -> dict[st
 def score_maud(pred: Mapping[str, Any], maud_clause_labels: Any) -> dict[str, Any]:
     gt = gt_labels(maud_clause_labels)
     answers = parse_maud_answers(pred or {}, list(gt))
-    answered = {q: a for q, a in answers.items() if norm(a) not in _NON_ANSWERS}
+    answered = {q: a for q, a in answers.items() if not is_non_answer(a, q)}
     conflicts = sum(1 for a in answered.values() if a == CONFLICT)
     correct = sum(1 for q, a in answered.items() if same_answer(a, gt[q], q))
     n = len(gt)

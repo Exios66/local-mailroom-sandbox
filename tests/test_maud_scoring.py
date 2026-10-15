@@ -117,3 +117,18 @@ def test_unordered_match_only_for_multi_select_questions():
     # order is meaningful for a single-answer question
     assert not same_answer("A, then B", "then B, A", "No-Shop")
     assert not same_answer("A, then B", "then B, A")
+
+
+def test_catalog_none_is_an_answer_not_a_placeholder():
+    from mailroom_sandbox.eval.maud_scoring import is_non_answer, score_maud
+
+    cor = "Agreement provides for matching rights in connection with COR"
+    assert not is_non_answer("None", cor)
+    assert is_non_answer("None", "No-Shop")
+    assert is_non_answer("not specified", cor)
+    # a chunk saying "None" vs one saying "3 business days" is a real conflict
+    gt = {cor: {"answer": "None"}}
+    out = score_maud({"maud_clauses": [f"{cor}: None", f"{cor}: 3 business days"]}, gt)
+    assert out["maud_conflicts"] == 1 and out["maud_correct"] == 0
+    out = score_maud({"maud_clauses": [f"{cor}: None"]}, gt)
+    assert out["maud_correct"] == 1 and out["maud_answered"] == 1
