@@ -98,8 +98,9 @@ Repaired stems from the SAND-042 schema-adherence root-cause analysis
 full-text mutations `insurance_claims_specialist_v4` and
 `merger_agreement_specialist_v4` (parents: the v3 GEPA keys). Their sha256
 and char counts are pinned under `frozen_successors` in
-`eval_environment_lineage.json`, so any byte drift is refused at load time,
-the same as for the v1 stems. They do **not** change the default v1 stem a
+`eval_environment_lineage.json`. Byte drift is refused when a run resolves
+the stem as a local prompt (`assert_catalog_sha`) and when
+`verify_local_catalog` runs (the lineage tests), the same as for the v1 stems. They do **not** change the default v1 stem a
 run gets: a run uses them by pinning the stem, as `config/runs/rca/*.yaml`
 does.
 

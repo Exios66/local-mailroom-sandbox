@@ -159,11 +159,17 @@ def test_sibling_successor_check_reads_mutations_json(tmp_path):
         _verify_sibling_successors,
         successor_rows,
     )
+    from mailroom_sandbox.paths import prompts_dir
 
     rows = successor_rows()
     (tmp_path / "prompts").mkdir()
     mutations = [
-        {"key": r["eval_environment_key"], "parent": r["parent_key"], "sha256": r["sha256"]}
+        {
+            "key": r["eval_environment_key"],
+            "parent": r["parent_key"],
+            "sha256": r["sha256"],
+            "text": (prompts_dir() / f"{r['sandbox_stem']}.txt").read_text(encoding="utf-8"),
+        }
         for r in rows
     ]
     path = tmp_path / "prompts" / "mutations.json"
@@ -175,3 +181,30 @@ def test_sibling_successor_check_reads_mutations_json(tmp_path):
     errors = _verify_sibling_successors(tmp_path)
     assert any("sha256" in e for e in errors)
     assert any("missing" in e for e in errors)
+
+
+def test_sibling_successor_check_hashes_the_mutation_text(tmp_path):
+    """An edited mutation text whose recorded sha256 was left alone must fail."""
+    import json
+
+    from mailroom_sandbox.eval_environment_lineage import (
+        _verify_sibling_successors,
+        successor_rows,
+    )
+
+    (tmp_path / "prompts").mkdir()
+    mutations = [
+        {
+            "key": r["eval_environment_key"],
+            "parent": r["parent_key"],
+            "sha256": r["sha256"],
+            "text": "edited after the freeze",
+        }
+        for r in successor_rows()
+    ]
+    (tmp_path / "prompts" / "mutations.json").write_text(
+        json.dumps({"mutations": mutations}), encoding="utf-8"
+    )
+    errors = _verify_sibling_successors(tmp_path)
+    assert len(errors) == len(mutations)
+    assert all("text sha256" in e for e in errors)
