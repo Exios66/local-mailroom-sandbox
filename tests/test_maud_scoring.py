@@ -105,3 +105,15 @@ def test_multi_class_answer_order_insensitive_and_null_mapping():
     out = score_maud({"maud_clauses": {q: "Capitalization R&Ws, General R&Ws", "No-Shop": None}}, gt)
     assert out["maud_correct"] == 1
     assert out["maud_answered"] == 1
+
+
+def test_unordered_match_only_for_multi_select_questions():
+    from mailroom_sandbox.eval.maud_scoring import MULTI_CLASS_QUESTIONS, same_answer
+
+    rw = "Accuracy of Target R&W Closing Condition"
+    assert rw in MULTI_CLASS_QUESTIONS
+    assert "No-Shop" not in MULTI_CLASS_QUESTIONS
+    assert same_answer("Capitalization R&Ws, General R&Ws", "General R&Ws, Capitalization R&Ws", rw)
+    # order is meaningful for a single-answer question
+    assert not same_answer("A, then B", "then B, A", "No-Shop")
+    assert not same_answer("A, then B", "then B, A")
