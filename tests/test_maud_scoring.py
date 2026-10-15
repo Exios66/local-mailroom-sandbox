@@ -80,3 +80,28 @@ def test_clean_subset_counts_only_single_subquestion_items():
     s = score_maud({"maud_clauses": ["Type of Consideration: All Cash", "No-Shop: Yes"]}, GT)
     assert (s["maud_clean_questions"], s["maud_clean_correct"]) == (1, 1)
     assert s["maud_clean_accuracy"] == 1.0
+
+
+def test_chunk_merged_answers_are_not_first_wins():
+    """SAND-042 RCA: the preamble chunk's guess must not beat the clause chunk."""
+    from mailroom_sandbox.eval.maud_scoring import score_maud
+
+    gt = {"No-Shop": {"answer": "Yes"}, "Breach of No Shop": {"answer": "No"}}
+    pred = {"maud_clauses": [
+        "No-Shop: not specified", "Breach of No Shop: Yes",  # chunk 1
+        "No-Shop: Yes", "Breach of No Shop: No",             # chunk 4
+    ]}
+    out = score_maud(pred, gt)
+    assert out["maud_correct"] == 1          # No-Shop recovered
+    assert out["maud_conflicts"] == 1        # Breach of No Shop: Yes vs No
+    assert out["maud_accuracy"] == 0.5
+
+
+def test_multi_class_answer_order_insensitive_and_null_mapping():
+    from mailroom_sandbox.eval.maud_scoring import score_maud
+
+    q = "Accuracy of Target R&W Closing Condition"
+    gt = {q: {"answer": "General R&Ws, Capitalization R&Ws"}, "No-Shop": {"answer": "Yes"}}
+    out = score_maud({"maud_clauses": {q: "Capitalization R&Ws, General R&Ws", "No-Shop": None}}, gt)
+    assert out["maud_correct"] == 1
+    assert out["maud_answered"] == 1
