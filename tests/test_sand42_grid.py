@@ -297,8 +297,17 @@ def test_subclass_vocabulary_matches_the_corpus():
 # ── benchmark-check accepts every cell ───────────────────────────────────────
 
 
+@pytest.fixture
+def _modal_host(monkeypatch):
+    # The posture check also probes the operator's machine (modal CLI on PATH,
+    # an active ~/.modal.toml profile). CI has neither; these tests pin the
+    # run specs, so stub the host probes as the other gate tests do.
+    monkeypatch.setattr(benchmark_check, "active_modal_profile_name", lambda: "hermes-agent-jjb")
+    monkeypatch.setattr(benchmark_check, "_modal_cli_ok", lambda: {"ok": True, "version": "stub"})
+
+
 @pytest.mark.parametrize("cell", CELLS)
-def test_benchmark_check_accepts_every_config(cell, monkeypatch):
+def test_benchmark_check_accepts_every_config(cell, monkeypatch, _modal_host):
     for doc_class in CLASSES:
         spec = load_run_spec(_config_path(cell, doc_class))
         for key, val in deploy_env.spec_env(spec).items():
@@ -309,7 +318,7 @@ def test_benchmark_check_accepts_every_config(cell, monkeypatch):
         assert report["ok"], (spec.run_id, report["errors"])
 
 
-def test_benchmark_check_accepts_the_noise_floor_leg(monkeypatch):
+def test_benchmark_check_accepts_the_noise_floor_leg(monkeypatch, _modal_host):
     spec = load_run_spec(
         repo_root() / "config" / "runs" / f"{posture.SAND42_NOISE_FLOOR_RUN}.yaml"
     )
