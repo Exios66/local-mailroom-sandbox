@@ -53,13 +53,39 @@ def norm(text: Any) -> str:
     return s
 
 
-def same_answer(a: Any, b: Any) -> bool:
-    """Exact match after ``norm``; comma-joined multi-class answers are sets."""
+def _multi_class_questions() -> frozenset[str]:
+    """Questions whose catalog holds multi-select answers.
+
+    A question is multi-select when some catalog class is a comma-joined list
+    that includes another catalog class (``"General R&Ws, …"``). Only these
+    compare comma-joined answers as sets; elsewhere order is meaningful.
+    """
+    from llm_dojo_scoring.maud import MAUD_ANSWER_CLASSES
+
+    out = set()
+    for question, classes in MAUD_ANSWER_CLASSES.items():
+        singles = {norm(c) for c in classes}
+        for c in classes:
+            parts = [norm(p) for p in str(c).split(",") if p.strip()]
+            if len(parts) > 1 and any(p in singles for p in parts):
+                out.add(question)
+                break
+    return frozenset(out)
+
+
+MULTI_CLASS_QUESTIONS = _multi_class_questions()
+
+
+def same_answer(a: Any, b: Any, question: str | None = None) -> bool:
+    """Exact match after ``norm``; comma-joined answers compare as sets only
+    for a multi-select *question* (:data:`MULTI_CLASS_QUESTIONS`)."""
     na, nb = norm(a), norm(b)
     if na == nb:
         return True
+    if question not in MULTI_CLASS_QUESTIONS or "," not in na:
+        return False
     parts = lambda v: sorted(p.strip() for p in v.split(",") if p.strip())  # noqa: E731
-    return "," in na and parts(na) == parts(nb)
+    return parts(na) == parts(nb)
 
 
 def gt_labels(raw: Any) -> dict[str, str]:
@@ -77,7 +103,7 @@ def gt_labels(raw: Any) -> dict[str, str]:
 CONFLICT = "\x00conflict"
 
 
-def _reduce(answers: list[str]) -> str:
+def _reduce(answers: list[str], question: str | None = None) -> str:
     """One answer per question from a chunk-merged list (SAND-042 RCA).
 
     Chunked runs answer every question on every chunk, so the preamble chunk
@@ -87,7 +113,7 @@ def _reduce(answers: list[str]) -> str:
     """
     real: list[str] = []
     for a in answers:
-        if norm(a) not in _NON_ANSWERS and not any(same_answer(a, r) for r in real):
+        if norm(a) not in _NON_ANSWERS and not any(same_answer(a, r, question) for r in real):
             real.append(a)
     if not real:
         return answers[0] if answers else ""
@@ -123,7 +149,7 @@ def parse_maud_answers(pred: Mapping[str, Any], questions: list[str]) -> dict[st
             else:
                 continue
             break
-    out = {q: _reduce(vals) for q, vals in seen.items()}
+    out = {q: _reduce(vals, q) for q, vals in seen.items()}
     if TYPE_OF_CONSIDERATION in questions and norm(out.get(TYPE_OF_CONSIDERATION)) in _NON_ANSWERS:
         enum = _CONSIDERATION_ENUM.get(str(pred.get("merger_consideration") or "").strip().lower())
         if enum:
@@ -136,10 +162,10 @@ def score_maud(pred: Mapping[str, Any], maud_clause_labels: Any) -> dict[str, An
     answers = parse_maud_answers(pred or {}, list(gt))
     answered = {q: a for q, a in answers.items() if norm(a) not in _NON_ANSWERS}
     conflicts = sum(1 for a in answered.values() if a == CONFLICT)
-    correct = sum(1 for q, a in answered.items() if same_answer(a, gt[q]))
+    correct = sum(1 for q, a in answered.items() if same_answer(a, gt[q], q))
     n = len(gt)
     clean = [q for q in gt if q in CLEAN_QUESTIONS]
-    clean_correct = sum(1 for q in clean if q in answered and same_answer(answered[q], gt[q]))
+    clean_correct = sum(1 for q in clean if q in answered and same_answer(answered[q], gt[q], q))
     return {
         "maud_clean_questions": len(clean),
         "maud_clean_correct": clean_correct,
