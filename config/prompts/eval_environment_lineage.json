@@ -41,5 +41,33 @@
       "chars": 6116,
       "opening": "You are the merger-agreement specialist."
     }
-  }
+  },
+  "frozen_successors": [
+    {
+      "agent": "insurance_claims_specialist",
+      "eval_environment_key": "insurance_claims_specialist_v4",
+      "parent_key": "insurance_claims_specialist_v3",
+      "sandbox_stem": "insurance_claims_specialist_simplified_v2",
+      "sha256": "1ca6e83c944ca363e19f433089de375e799d10fa6ca2dde418feb93b84dc58ea",
+      "chars": 8461,
+      "opening": "You are the insurance-claims specialist.",
+      "frozen_at": "2026-10-15",
+      "source_path": "prompts/mutations.json",
+      "origin": "SAND-042 RCA (#134)",
+      "fix": "per-source layout cues; no phantom sorter doc_subclass handoff; bare-number claimed_amount"
+    },
+    {
+      "agent": "merger_agreement_specialist",
+      "eval_environment_key": "merger_agreement_specialist_v4",
+      "parent_key": "merger_agreement_specialist_v3",
+      "sandbox_stem": "merger_agreement_specialist_maud_v2",
+      "sha256": "da316691955a14537a4797ed1867b2c32a0dbd2851a634a1f21df0b5e9e21946",
+      "chars": 33125,
+      "opening": "You are the merger-agreement specialist.",
+      "frozen_at": "2026-10-15",
+      "source_path": "prompts/mutations.json",
+      "origin": "SAND-042 RCA (#134)",
+      "fix": "MAUD answer catalog generated from llm_dojo_scoring.maud_schema; no free text in maud_clauses; per-chunk answering duty"
+    }
+  ]
 }

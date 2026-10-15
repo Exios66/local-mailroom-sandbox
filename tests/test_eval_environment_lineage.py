@@ -96,3 +96,82 @@ def test_sibling_eval_environment_matches_when_present():
         pytest.skip("eval-environment checkout not adjacent")
     errors = verify_sibling_catalog(root)
     assert errors == [], errors
+
+
+# ---- SAND-042 repaired specialists frozen as eval-environment v4 ----------
+
+SAND42_SUCCESSORS = {
+    "insurance_claims_specialist_simplified_v2": (
+        "insurance_claims_specialist",
+        "insurance_claims_specialist_v4",
+        "insurance_claims_specialist_v3",
+    ),
+    "merger_agreement_specialist_maud_v2": (
+        "merger_agreement_specialist",
+        "merger_agreement_specialist_v4",
+        "merger_agreement_specialist_v3",
+    ),
+}
+
+
+def test_sand42_repaired_stems_are_frozen_successors():
+    from mailroom_sandbox.eval_environment_lineage import successor_rows
+
+    rows = {r["sandbox_stem"]: r for r in successor_rows()}
+    assert set(rows) == set(SAND42_SUCCESSORS)
+    for stem, (agent, key, parent) in SAND42_SUCCESSORS.items():
+        row = rows[stem]
+        assert (row["agent"], row["eval_environment_key"], row["parent_key"]) == (agent, key, parent)
+
+
+@pytest.mark.parametrize("stem", sorted(SAND42_SUCCESSORS))
+def test_successor_stem_resolves_to_its_frozen_key(stem):
+    from mailroom_sandbox.eval_environment_lineage import (
+        eval_environment_key_for,
+        lookup,
+    )
+
+    agent, key, _ = SAND42_SUCCESSORS[stem]
+    assert eval_environment_key_for(stem=stem) == key
+    assert lookup(key=key)["sandbox_stem"] == stem
+    assert agents_for_variant(stem) == [agent]
+    # Freezing a successor does not move the default v1 pin.
+    assert default_prompt_variant(agent) != stem
+    assert eval_environment_key_for(agent=agent) == agent + "_v1"
+
+
+@pytest.mark.parametrize("stem", sorted(SAND42_SUCCESSORS))
+def test_successor_drift_is_refused(stem):
+    from mailroom_sandbox.eval_environment_lineage import assert_catalog_sha
+    from mailroom_sandbox.paths import prompts_dir
+
+    agent = SAND42_SUCCESSORS[stem][0]
+    text = (prompts_dir() / f"{stem}.txt").read_text(encoding="utf-8")
+    assert_catalog_sha(agent, stem, text)
+    with pytest.raises(ValueError, match="lineage drift"):
+        assert_catalog_sha(agent, stem, text + " ")
+
+
+def test_sibling_successor_check_reads_mutations_json(tmp_path):
+    import json
+
+    from mailroom_sandbox.eval_environment_lineage import (
+        _verify_sibling_successors,
+        successor_rows,
+    )
+
+    rows = successor_rows()
+    (tmp_path / "prompts").mkdir()
+    mutations = [
+        {"key": r["eval_environment_key"], "parent": r["parent_key"], "sha256": r["sha256"]}
+        for r in rows
+    ]
+    path = tmp_path / "prompts" / "mutations.json"
+    path.write_text(json.dumps({"mutations": mutations}), encoding="utf-8")
+    assert _verify_sibling_successors(tmp_path) == []
+
+    mutations[0]["sha256"] = "0" * 64
+    path.write_text(json.dumps({"mutations": mutations[:1]}), encoding="utf-8")
+    errors = _verify_sibling_successors(tmp_path)
+    assert any("sha256" in e for e in errors)
+    assert any("missing" in e for e in errors)
