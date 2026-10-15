@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+### Fixed — SAND-042 schema-adherence RCA (`docs/SAND42-SCHEMA-ADHERENCE-RCA.md`)
+
+- Vendored `InsuranceClaimExtraction` (`insurer`, `insured_party`, `claim_type`, `damages_description`,
+  `coverage_determination`), `CorporateRecordExtraction` (`entity_name`, `record_type`) and
+  `CorrespondenceExtraction.communication_type` are contract-nullable; `claimed_amount` / `demand_amount`
+  accept currency phrases. Insurance schema-valid 0.26–0.34 was this bug, not the model.
+- Structured-output `intent` hints list the scored vocabulary (were `demand_payment`, `acknowledge`,
+  `coverage_denial`, … — none scorable).
+- `eval/maud_scoring.py`: chunk-merged answers are reduced (non-answers dropped, conflicts counted as
+  `maud_conflicts`) instead of first-chunk-wins; multi-class answers compare as sets; `{q: null}` is unanswered.
+- Vendored llm-dojo-scoring refreshed from v0.15 to the dojo `claude/schema-adherence-rca` branch (label
+  intents, stringified-GT parsing, MAUD catalog + fold/parse fixes, CMS `claim_type` ≡ `health`). Four tests
+  that pinned v0.15 empty-list / Modal serving-kind behavior now pin the dojo contract.
+  **Scores are not comparable to SAND-032…SAND-042 cards without re-scoring.**
+
+### Added
+
+- `tests/test_schema_contract.py` (dojo `contract_violations` over every vendored schema) and
+  `tests/test_specialist_intent_vocab.py`.
+- Candidate stems `insurance_claims_specialist_simplified_v2`, `merger_agreement_specialist_maud_v2`
+  (generated: `scripts/gen_maud_v2_prompt.py [--check]`) and `config/runs/rca/` re-check configs.
+
 ### Added — local-first job traces (pack → upload → prune)
 
 - Endpoint-mode runs (`sandbox run start`, the Modal-vLLM grid and SAND runs) now build a tracer; before this

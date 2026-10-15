@@ -91,6 +91,18 @@ python scripts/sync_specialist_prompts.py --overwrite-experiment
 That copies current vendor text onto the matching `*_simplified` stem (loud;
 almost never what a quality experiment wants).
 
+## SAND-042 RCA candidate stems (not frozen)
+
+Candidates produced by the SAND-042 schema-adherence root-cause analysis
+(`docs/SAND42-SCHEMA-ADHERENCE-RCA.md`). They do **not** replace the frozen
+v1 stems; they are pinned only by `config/runs/rca/*.yaml` until a
+sanctioned eval-environment re-freeze promotes them.
+
+| Stem | Agent | Built from | Change |
+| --- | --- | --- | --- |
+| `insurance_claims_specialist_simplified_v2` | `insurance_claims_specialist` | `insurance_claims_specialist_simplified` (frozen v1) | Layout cues for all five corpus sources (CMS MSN A/B/carrier, Part D pde, GNOTHEIA property FNOL, BDR auto decision letters, INSURBIAS narratives); no phantom "sorter handed you doc_subclass" (the isolated harness passes none); bare-number `claimed_amount`; a printed payment/approval is a stated `approved`. |
+| `merger_agreement_specialist_maud_v2` | `merger_agreement_specialist` | `merger_agreement_specialist_maud_v1` | Answer catalog **generated** from `llm_dojo_scoring.maud_schema.render_maud_question_block` (`scripts/gen_maud_v2_prompt.py --check` keeps it fresh); no free text inside `maud_clauses`; per-chunk answering duty instead of "answer everything". |
+
 ## Run YAML inventory (`config/runs/**`)
 
 Specialist extract runs (task = specialist agent) currently pin simplified

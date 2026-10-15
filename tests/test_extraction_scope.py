@@ -28,11 +28,11 @@ def test_empty_gt_treats_lists_and_blanks_as_absence_not_zero():
     assert not is_empty_gt(["breach"])
 
 
-def test_vendor_score_extraction_penalizes_empty_list_gt():
-    """Document the dojo bug this sandbox seam exists to paper over.
+def test_vendor_score_extraction_skips_empty_list_gt():
+    """The dojo bug this seam papered over is fixed upstream (>= v0.16).
 
-    ``score_extraction`` skips None/"" but treats ``denial_reasons: []`` as a
-    real event. A missing prediction scores 0.0 and pulls overall down.
+    Empty-field contract: correct emptiness is not folded into the overall
+    score, so ``denial_reasons: []`` GT is not a scored event at all.
     """
     result = score_extraction(
         "correspondence",
@@ -40,9 +40,8 @@ def test_vendor_score_extraction_penalizes_empty_list_gt():
         {"intent": "payment_demand"},
         {"intent": "payment_demand", "denial_reasons": []},
     )
-    assert result.field_scores.get("denial_reasons") == 0.0
-    assert result.overall_score is not None
-    assert result.overall_score < 1.0
+    assert "denial_reasons" not in result.field_scores
+    assert result.overall_score == 1.0
 
 
 def test_applicable_expected_drops_foreign_empty_insurance_fields():
