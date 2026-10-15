@@ -4,4 +4,4 @@
 
 -r base.txt
 
-modal==1.6.0
+modal==1.6.1
