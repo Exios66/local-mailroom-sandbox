@@ -294,4 +294,13 @@ def _verify_sibling_successors(root: Path) -> list[str]:
                 f"{row['agent']}: sandbox catalog sha256={row['sha256']} "
                 f"!= sibling {key} sha256={meta.get('sha256')}"
             )
+        # The recorded sha256 is metadata; the frozen bytes are ``text``.
+        text = meta.get("text")
+        if not isinstance(text, str):
+            errors.append(f"{row['agent']}: sibling {key} has no mutation text")
+        elif _sha(text) != str(row["sha256"]):
+            errors.append(
+                f"{row['agent']}: sibling {key} text sha256={_sha(text)} "
+                f"!= sandbox catalog sha256={row['sha256']}"
+            )
     return errors
