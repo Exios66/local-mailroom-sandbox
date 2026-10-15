@@ -172,8 +172,8 @@ CORPORATE_RECORDS_SCHEMA = build_structured_schema({
     "jurisdiction": _nullable_string("State/country of incorporation"),
     "filing_number": _nullable_string("Official filing or document reference number"),
     "intent": _nullable_string(
-        "Primary purpose as a short controlled label, e.g. record_filing, authorize, "
-        "amend_governance, appoint_officer, notice — one label, not a paragraph"
+        "Exactly one label: governance_rules, corporate_action_approval, "
+        "entity_formation, authority_delegation, investor_rights, other"
     ),
     "subject_matter": _nullable_string("One tight grounded sentence: what this record is about"),
     "keywords": _string_array(
@@ -191,8 +191,8 @@ CORRESPONDENCE_SCHEMA = build_structured_schema({
     "action_items": _string_array("At most 3 concrete actions required, with deadlines if stated"),
     "urgency": _nullable_string("Urgency level: routine, time-sensitive, urgent, critical"),
     "intent": _nullable_string(
-        "Primary communicative purpose as a short controlled label, e.g. demand_payment, "
-        "notice, request_information, threaten_litigation, acknowledge, schedule_meeting"
+        "Exactly one label: payment_demand, notice, analysis, request, update, "
+        "meeting_invite, press_communication, other"
     ),
     "subject_matter": _nullable_string("One tight grounded sentence: what this communication is about"),
     "keywords": _string_array(
@@ -215,9 +215,8 @@ INSURANCE_CLAIMS_SCHEMA = build_structured_schema({
     "denial_reasons": _string_array("Stated denial/limitation grounds, if denied"),
     "supporting_documents": _string_array("Referenced supporting documents"),
     "intent": _nullable_string(
-        "Primary claim purpose as a short controlled label, e.g. coverage_denial, "
-        "coverage_approval, demand_payment, notice_of_loss, reservation_of_rights, "
-        "request_information"
+        "Exactly one label: claim_filing, coverage_determination, loss_report, "
+        "claim_data_record, other"
     ),
     "subject_matter": _nullable_string("One tight grounded sentence: what this claim document is about"),
     "keywords": _string_array(
