@@ -121,6 +121,8 @@ stems. Sorter / scale / example runs do not load specialist prompts.
 | `run-20-insurance-claims-specialist-awq.yaml` | `run-20-insurance-claims-specialist-awq` | `insurance_claims_specialist` | `insurance_claims_specialist_simplified` |
 | `run-30-insurance-claims-specialist.yaml` | `run-30-insurance-claims-specialist` | `insurance_claims_specialist` | `insurance_claims_specialist_simplified` |
 | `run-30-merger-specialist.yaml` | `run-30-merger-specialist` | `merger_agreement_specialist` | `merger_agreement_specialist_simplified` |
+| `rca/rca-50-insurance-v2-awq-1l4-c8.yaml` | `rca-50-insurance-v2-awq-1l4-c8` | `insurance_claims_specialist` | `insurance_claims_specialist_simplified_v2` (candidate) |
+| `rca/rca-check-5-merger-maud-v2-awq-1l4-c8.yaml` | `rca-check-5-merger-maud-v2-awq-1l4-c8` | `merger_agreement_specialist` | `merger_agreement_specialist_maud_v2` (candidate) |
 | `suites/run-30-specialists-full.yaml` | suite | (chains the five run-30 YAMLs) | same as those YAMLs |
 | `suites/run-30-specialists-track-a.yaml` | suite | contracts + corporate + correspondence | same as those YAMLs |
 | `suites/run-30-specialists-track-b.yaml` | suite | merger + insurance | same as those YAMLs |
