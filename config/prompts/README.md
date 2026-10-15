@@ -106,7 +106,7 @@ sanctioned eval-environment re-freeze promotes them.
 ## Run YAML inventory (`config/runs/**`)
 
 Specialist extract runs (task = specialist agent) currently pin simplified
-stems. Sorter / scale / example runs do not load specialist prompts.
+stems, except the `rca/` re-check runs, which pin the RCA candidate stems above. Sorter / scale / example runs do not load specialist prompts.
 
 | Run YAML | `run_id` | Task | Local stem(s) |
 | --- | --- | --- | --- |
