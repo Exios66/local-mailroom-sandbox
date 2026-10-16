@@ -138,7 +138,7 @@ deploy/              Dockerfile + compose + Modal vLLM (modal_vllm.py) + Modal j
 notebooks/           offline env setup + data prep + mock smoke
 data/fixtures/       offline samples (see ATTRIBUTION.md)
 src/mailroom_sandbox/
-vendor/              tracked family snapshots (llm-mailroom v0.7.1 + llm-dojo-scoring v0.22.0 (pre-tag, 852b052); see VENDOR.md)
+vendor/              tracked family snapshots (llm-mailroom v0.7.1 + llm-dojo-scoring v0.22.0 (released 2026-10-16); see VENDOR.md)
 reports/             sandbox experiment log (not a sister-repo mirror)
 governance/          SAND-* board (README / PREFIX / TASKS / archive)
 api-evals/           OpenRouter API cost harness — its own config/runs/ + reports/ and its own CLI
@@ -165,7 +165,6 @@ See [`docs/setting-up/docker-offline.md`](docs/setting-up/docker-offline.md).
 <div align="center">
 
 **[llm-mailroom](https://github.com/Exios66/llm-mailroom)** ·
-**[llm-entity-extraction](https://github.com/Exios66/llm-entity-extraction)** ·
 **[llm-dojo-scoring](https://github.com/Exios66/llm-dojo-scoring)** ·
 **[The-Mailroom](https://github.com/Exios66/The-Mailroom)**
 

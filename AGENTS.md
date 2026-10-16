@@ -13,7 +13,7 @@ guard (`tests/test_vendor_drift.py`) enforces byte-identity and
 (DMR-070). The docclass-era compliance files are intentionally absent from
 the vendored llm-mailroom tree (retired agent, 59c47401). The sandbox is
 **self-contained**: no pip git pins, no `sandbox fetch-deps` step, no network
-needed to score or run evals. Prompt loops optionally in `llm-entity-extraction`.
+needed to score or run evals. Prompt loops run through the vendored `llm-mailroom`.
 
 Python 3.11+, no build step.
 
@@ -170,7 +170,7 @@ for source links and registered communication types.
   [`governance/TASKS.md`](governance/TASKS.md) (prefix cheat-sheet:
   [`governance/PREFIX.md`](governance/PREFIX.md)). Do **not** open `DMR-*`
   cards here. Cross-family / mailroom-pipeline work stays on
-  llm-entity-extraction's MESSAGE_BOARD as **`DMR-*`** — cite `Related:
+  the Digital-Mailroom hub board (`governance/TASKS.md`) as **`DMR-*`** — cite `Related:
   DMR-NNN` on a SAND card when a sandbox change is driven by family work.
   Do not invent a second family MESSAGE_BOARD in this repo.
 

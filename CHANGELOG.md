@@ -4,8 +4,8 @@
 
 ### Changed — breaking (vendored dojo)
 
-- **Vendored llm-dojo-scoring re-vendored at dojo commit `852b052`** (the unreleased fixes toward
-  v0.22.0; the pin becomes the `v0.22.0` tag once cut). Mirrored with the repo's own
+- **Vendored llm-dojo-scoring re-vendored at the `v0.22.0` tag** (`a2862cec`, cut and published
+  2026-10-16; the pre-tag snapshot was `852b052`). Mirrored with the repo's own
   `_refresh_vendor_from_workspace` (the `sandbox fetch-deps` workspace leg) because the monorepo layout is
   absent; every vendored-pin claim (`vendor/README.md`, `vendor/llm-dojo-scoring/VENDOR.md`, README,
   QUICKSTART, SANDBOX-GUIDE, sister-repos, htcondor README, `deploy/modal_job.py`, `pyproject.toml`, the
