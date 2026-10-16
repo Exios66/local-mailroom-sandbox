@@ -399,6 +399,7 @@ def test_compare_from_log_pairs_local_and_api(tmp_path, monkeypatch):
         model="qwen3:8b",
         prompt_version="mailroom-default",
         dataset_fingerprint="abc123",
+        dataset_revision=REV,
         ttft_seconds=0.5,
         e2e_latency_seconds=2.0,
         completion_tokens=40,
@@ -412,6 +413,7 @@ def test_compare_from_log_pairs_local_and_api(tmp_path, monkeypatch):
         model="qwen/qwen3.7-flash",
         prompt_version="mailroom-default",
         dataset_fingerprint="abc123",
+        dataset_revision=REV,
         ttft_seconds=0.2,
         e2e_latency_seconds=0.8,
         completion_tokens=40,
@@ -428,10 +430,10 @@ def test_compare_from_log_pairs_local_and_api(tmp_path, monkeypatch):
     assert result["comparison"]["scorecard"]["cost"]["local"]["estimated_cost_usd"] is None
     assert local["serving_kind"] == "local"
     assert api["serving_kind"] == "api"
-    # these isolated-style rows carry no dataset_revision: the dojo refuses the
-    # scorecard and the run reports that instead of pretending it was emitted.
-    assert result["scores"]["scorecards_refused"] == 1
-    assert "dataset_revision" in result["scorecards"][0]["reason"]
+    # the rows carry a real pinned Hub revision, so the scorecard is emitted
+    assert result["scores"]["scorecards_emitted"] == 1
+    assert result["scorecards"][0]["emitted"] is True
+    assert "scorecards_refused" not in result["scores"]
     md = (tmp_path / "experiment_log.md").read_text(encoding="utf-8")
     assert "local vs API serving scorecard" in md
 

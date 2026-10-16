@@ -24,7 +24,7 @@ from mailroom_sandbox.eval.prompt_provenance import (
     resolve_logged_prompt_version,
     stamp_prompt_provenance,
 )
-from mailroom_sandbox.eval.scoring import emit
+from mailroom_sandbox.eval.scoring import emit, validate_dataset_revision
 from mailroom_sandbox.mock_llm import fake_client, fake_structured_payload
 from mailroom_sandbox.runtime import activate, resolve_mailroom_src
 
@@ -714,6 +714,7 @@ def run_local_vs_api_eval(
     connected: bool = False,
     score_metadata: dict[str, Any] | None = None,
     group: str | int | None = None,
+    dataset_revision: str | None = None,
 ) -> dict[str, Any]:
     """Compare local (Ollama/vLLM/…) vs API-key (OpenRouter) serving metrics.
 
@@ -724,9 +725,15 @@ def run_local_vs_api_eval(
     (``identity_mixed``). With several groups the headline ``scores`` need one
     group: pass ``group`` (1-based index or unique label substring; CLI
     ``--group``); otherwise they stay empty and every group's scorecard is still
-    emitted under ``<name>.g<n>``. A group the dojo refuses (no
-    ``dataset_revision`` on its records, incomparable metric ids) is reported in
-    ``scorecards`` with its reason; the comparison itself still returns.
+    emitted under ``<name>.g<n>``.
+
+    Scorecards fail loudly: a group that cannot be emitted with honest
+    provenance (no ``dataset_revision`` on its records, an incomparable leg)
+    RAISES :class:`~mailroom_sandbox.eval.scoring.ScorecardEmissionError` and
+    nothing is written or logged. ``dataset_revision`` (CLI
+    ``--dataset-revision``) supplies the real 40-hex Hub sha the scored rows
+    came from when the records carry none; it can fill a gap, never override a
+    revision a record already has.
     """
     del sample, connected, agent_models  # unused; kept for eval kwargs parity
     from mailroom_sandbox.datasets import load_serving_fixtures
@@ -806,14 +813,17 @@ def run_local_vs_api_eval(
         "api_n": compared.get("api_n"),
         "n": (compared.get("local_n") or 0) + (compared.get("api_n") or 0),
     }
+    provenance = None
+    if dataset_revision:
+        rev = validate_dataset_revision(dataset_revision)
+        provenance = {"local": {"dataset_revision": rev}, "api": {"dataset_revision": rev}}
     scorecards = scoring.emit_group_scorecards(
         compared,
         run_id=experiment_name or "sandbox_local_vs_api",
         metadata=score_metadata,
+        provenance=provenance,
     )
-    refused = [c for c in scorecards if not c.get("emitted")]
-    scores["scorecards_emitted"] = len(scorecards) - len(refused)
-    scores["scorecards_refused"] = len(refused)
+    scores["scorecards_emitted"] = len(scorecards)
     scores["groups_n"] = len(compared.get("groups") or [])
     record = experiment_log.new_record(
         experiment_name=experiment_name or "sandbox_local_vs_api",

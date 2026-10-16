@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -480,39 +481,137 @@ def compare_from_records(
     return payload
 
 
+class ScorecardEmissionError(ProvenanceExportError):
+    """A scorecard cannot be emitted with honest provenance — never downgraded.
+
+    A :class:`~llm_dojo_scoring.scorecard_honesty.ProvenanceExportError` (so
+    ``except ProvenanceExportError`` still catches it) that carries the sandbox
+    hint: ``field`` is the missing/contradicted provenance key, ``group`` the
+    comparison group it was raised for, ``hint`` how to supply it. :meth:`one_line`
+    is the single-line CLI reason.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        field: str | None = None,
+        group: str | int | None = None,
+        hint: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.field = field
+        self.group = group
+        self.hint = hint
+
+    def one_line(self) -> str:
+        return " ".join(str(self).split())
+
+
+_REVISION_HINT = (
+    "pin a Hub revision (run through a job spec whose dataset pins a 40-hex "
+    "`revision`, e.g. job.spec.FAMILY_HF_REVISION) or pass `--dataset-revision "
+    "<40-hex Hub sha>` with the real revision the run scored; it is never derived "
+    "from the dataset fingerprint"
+)
+
+
+_FULL_SHA = re.compile(r"[0-9a-f]{40}")
+
+
+def validate_dataset_revision(value: str) -> str:
+    """A caller-supplied ``dataset_revision`` must be a full 40-hex Hub sha.
+
+    A branch name (``main``) moves and a short sha is ambiguous; neither is a
+    revision a scorecard can honestly claim, so both raise.
+    """
+    rev = str(value or "").strip().lower()
+    if not _FULL_SHA.fullmatch(rev):
+        raise ScorecardEmissionError(
+            f"dataset_revision {value!r} is not a full 40-hex Hub commit sha; "
+            "resolve the branch/tag to the commit the rows were scored from",
+            field="dataset_revision",
+            hint=_REVISION_HINT,
+        )
+    return rev
+
+
+class _CollectSink:
+    """In-memory sink: validates a whole emission before anything is written."""
+
+    def __init__(self) -> None:
+        self.records: list[Any] = []
+
+    def emit(self, record: Any) -> None:
+        self.records.append(record)
+
+    def flush(self) -> None:
+        return None
+
+
+def _leg_revisions(comparison: Mapping[str, Any]) -> dict[str, str]:
+    ident = ((comparison.get("scorecard") or {}).get("identity")) or {}
+    return {
+        side: str((ident.get(side) or {}).get("dataset_revision") or "")
+        for side in ("local", "api")
+    }
+
+
+def _check_override_agrees(
+    comparison: Mapping[str, Any], provenance: Mapping[str, Mapping[str, Any]] | None
+) -> None:
+    """A caller-supplied revision may fill a gap, never contradict the records."""
+    recorded = _leg_revisions(comparison)
+    for side, stamp in (provenance or {}).items():
+        claimed = str((stamp or {}).get("dataset_revision") or "")
+        have = recorded.get(side) or ""
+        if claimed and have and claimed != have:
+            raise ScorecardEmissionError(
+                f"{side} leg records dataset_revision {have[:12]} but the supplied "
+                f"provenance claims {claimed[:12]}; refusing to restamp a scorecard "
+                "with a different revision than the run scored",
+                field="dataset_revision",
+            )
+
+
 def emit_local_vs_api_scorecard(
     comparison: Mapping[str, Any],
     *,
     run_id: str | None = None,
     metadata: Mapping[str, Any] | None = None,
     provenance: Mapping[str, Mapping[str, Any]] | None = None,
+    emitter: Emitter | None = None,
 ) -> dict[str, Any]:
     """Persist local and API T0/T1 as separate scorecards (never averaged).
 
     The dojo (v0.22) refuses to emit a metric without a provenance stamp
     (``dataset_revision``, ``prompt_id``, ``serving_kind``, ``model_id``) and
-    refuses an ``identity_mixed`` leg. ``provenance`` is the optional
-    ``{"local": {...}, "api": {...}}`` override; keys it leaves out come from
-    the leg's own records, which is why serving records carry
+    refuses an ``identity_mixed`` leg; that refusal is RAISED
+    (:class:`ScorecardEmissionError`, a ``ProvenanceExportError``) — nothing is
+    written and nothing is downgraded to a report entry. ``provenance`` is the
+    optional ``{"local": {...}, "api": {...}}`` override; keys it leaves out
+    come from the leg's own records, which is why serving records carry
     ``dataset_revision`` (and ``split`` / ``draw_seed`` where known — see
     ``job.metrics.lock_dataset_provenance``). ``dataset_revision`` is never
-    derived from the dataset fingerprint.
+    derived from the dataset fingerprint, and an override may fill a gap but
+    never contradict a revision the records already carry.
     """
-    em = Emitter(sinks=[LocalManifestSink(scores_path(run_id, metadata=metadata))])
+    _check_override_agrees(comparison, provenance)
+    em = emitter or Emitter(sinks=[LocalManifestSink(scores_path(run_id, metadata=metadata))])
     try:
         return emit_serving_scorecard(
             comparison, run_id=run_id, emitter=em, provenance=provenance
         )
-    except ProvenanceExportError as exc:
-        if "dataset_revision" in str(exc):
-            raise ProvenanceExportError(
-                f"{exc} [sandbox: serving records get dataset_revision from the run "
-                "lock (job runs) or the committed serving fixtures; isolated "
-                "fixture evals and old experiment-log rows have no Hub revision to "
-                "stamp — pass provenance={'local': {'dataset_revision': ...}, "
-                "'api': {...}} only with the real revision the run scored]"
-            ) from exc
+    except ScorecardEmissionError:
         raise
+    except ProvenanceExportError as exc:
+        field = "dataset_revision" if "dataset_revision" in str(exc) else None
+        hint = _REVISION_HINT if field else None
+        raise ScorecardEmissionError(
+            f"{exc}" + (f" [sandbox: {hint}]" if hint else ""),
+            field=field,
+            hint=hint,
+        ) from exc
 
 
 def emit_group_scorecards(
@@ -525,28 +624,51 @@ def emit_group_scorecards(
     """Emit one scorecard per comparable group of :func:`compare_from_records`.
 
     One group keeps ``run_id`` unchanged (back-compatible); several get
-    ``<run_id>.g<n>`` so their rows never collide. An incomparable group, or one
-    the dojo refuses on provenance, is reported (``emitted: False`` + reason) —
-    never silently dropped and never averaged into another group.
+    ``<run_id>.g<n>`` so their rows never collide. Every group is validated
+    against an in-memory sink BEFORE any is written, and a group that cannot be
+    emitted with honest provenance — missing ``dataset_revision``, an
+    incomparable (``identity_mixed``) leg — RAISES
+    :class:`ScorecardEmissionError` naming the group. There is no "refused"
+    entry, no skip and no fabricated stamp: the call either writes every
+    group's scorecard or none.
     """
     groups = list(compared.get("groups") or [])
-    results: list[dict[str, Any]] = []
+    plan: list[tuple[dict[str, Any], Mapping[str, Any], str | None]] = []
     for entry in groups:
         comparison = entry.get("comparison") or {}
         gid = f"{run_id}.g{entry['group']}" if run_id and len(groups) > 1 else run_id
-        outcome: dict[str, Any] = {"group": entry["group"], "label": entry["label"], "run_id": gid}
+        label = f"group {entry['group']} ({entry['label']})"
         if comparison.get("incomparable"):
-            outcome.update(emitted=False, reason=f"incomparable: {comparison.get('incomparable_reason')}")
-        else:
-            try:
-                emit_local_vs_api_scorecard(
-                    comparison, run_id=gid, metadata=metadata, provenance=provenance
-                )
-                outcome["emitted"] = True
-            except ProvenanceExportError as exc:
-                _log.warning("local_vs_api group %s scorecard not emitted: %s", entry["group"], exc)
-                outcome.update(emitted=False, reason=str(exc))
-        results.append(outcome)
+            raise ScorecardEmissionError(
+                f"local_vs_api {label}: cannot emit a scorecard for an incomparable "
+                f"comparison ({comparison.get('incomparable_reason')}); fix the "
+                "records so the legs measure the same thing, or drop the group",
+                field=str(comparison.get("incomparable_reason") or "identity"),
+                group=entry["group"],
+            )
+        plan.append(({"group": entry["group"], "label": entry["label"], "run_id": gid}, comparison, gid))
+
+    def _emit(comparison: Mapping[str, Any], gid: str | None, entry: Mapping[str, Any], em: Emitter | None) -> None:
+        try:
+            emit_local_vs_api_scorecard(
+                comparison, run_id=gid, metadata=metadata, provenance=provenance, emitter=em
+            )
+        except ScorecardEmissionError as exc:
+            label = f"group {entry['group']} ({entry['label']})"
+            raise ScorecardEmissionError(
+                f"local_vs_api {label}: scorecard not emitted: {exc}",
+                field=exc.field,
+                group=entry["group"],
+                hint=exc.hint,
+            ) from exc
+
+    # Validate every group first so a late failure cannot leave a partial manifest.
+    for entry, comparison, gid in plan:
+        _emit(comparison, gid, entry, Emitter(sinks=[_CollectSink()]))
+    results: list[dict[str, Any]] = []
+    for entry, comparison, gid in plan:
+        _emit(comparison, gid, entry, None)
+        results.append({**entry, "emitted": True})
     return results
 
 

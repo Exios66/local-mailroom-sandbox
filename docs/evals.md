@@ -58,9 +58,18 @@ draw seed as `identity_mixed`.
   carry `dataset_revision = job.spec.FAMILY_HF_REVISION`. `dataset_revision` is
   never derived from the dataset fingerprint (the fingerprint maps to
   `draw_seed`). Isolated fixture evals and old log rows have no Hub revision, so
-  their scorecard emission is refused and reported (`scorecards[].reason`), not
-  faked; pass `provenance={"local": {...}, "api": {...}}` to
-  `emit_local_vs_api_scorecard` only with the real revision.
+  their scorecard emission **fails loudly**: `emit_local_vs_api_scorecard` /
+  `emit_group_scorecards` raise `ScorecardEmissionError` (a dojo
+  `ProvenanceExportError` carrying `field`, `group` and a sandbox hint), nothing
+  is written or logged (every group is validated before any is emitted), and
+  `sandbox eval` / `sandbox matrix` / a job run exit non-zero with one line,
+  e.g. `error: scorecard not emitted: local_vs_api group 2 (...): ... dataset_revision
+  ... pin a Hub revision or pass --dataset-revision <40-hex Hub sha>`. There is no
+  "refused" entry, no skip and no fabricated stamp. Supply the real revision with
+  `sandbox eval local_vs_api --dataset-revision <40-hex sha>` (or
+  `provenance={"local": {...}, "api": {...}}`); it fills a gap but never
+  contradicts a revision a record already carries, and a branch name or short sha
+  is rejected. An incomparable (`identity_mixed`) group raises too.
 * **`--from-log` / `sandbox matrix` group before comparing.** Rows are grouped
   by full identity and a local-side leg is paired with an API-side leg only when
   they measured the same thing (`mailroom_sandbox.serving_groups`, as dojo
