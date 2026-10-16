@@ -57,7 +57,7 @@ def regenerate_markdown(jsonl: Path | None = None) -> Path:
     lines = [
         "# Sandbox experiment log",
         "",
-        "Local-variant runs only. Not a mirror of llm-entity-extraction.",
+        "Local-variant runs only. Not a mirror of the hub experiment logs.",
         "",
         f"{len(records)} record(s).",
         "",

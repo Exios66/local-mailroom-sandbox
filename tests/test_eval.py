@@ -291,7 +291,7 @@ def test_local_vs_api_scorecard_path_with_a_recording_emitter(tmp_path, monkeypa
 
 
 def test_dojo_pin_is_v0_22():
-    """The sandbox pins llm-dojo-scoring at the v0.22 line (pre-tag 852b052)."""
+    """The sandbox pins llm-dojo-scoring at the v0.22.0 tag (released 2026-10-16)."""
     import re
 
     import llm_dojo_scoring as dojo
@@ -304,7 +304,7 @@ def test_dojo_pin_is_v0_22():
     assert vendor is not None, "vendored llm-dojo-scoring snapshot missing"
     vendor_md = (vendor.parent / "VENDOR.md").read_text(encoding="utf-8")
     assert "v0.22.0" in vendor_md
-    assert "852b052" in vendor_md
+    assert "a2862cec" in vendor_md
     assert str(vendor.resolve()) in sys.path, "vendored dojo must be on sys.path"
     assert str(Path(dojo.__file__).resolve()).startswith(str(vendor.resolve()))
     version = re.match(r"(\d+)\.(\d+)", dojo.__version__)

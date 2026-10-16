@@ -1,7 +1,7 @@
 """llm-dojo-scoring — dedicated scoring, error analysis, visualization, and
 interpretation suite for LLM document pipelines.
 
-Import into llm-entity-extraction / llm-mailroom to replace the project-local
+Import into llm-mailroom (and the vendored sandbox) to replace the project-local
 scoring code (``src/field_scoring.py``, ``src/metrics.py``, ``src/bootstrap.py``,
 ``src/cost_models.py``, ``src/scorers.py``, ``src/experiment_log.py``,
 ``src/taxonomy.py``, ``agents/sorter_agent.py`` equivalence constants,
@@ -15,7 +15,7 @@ from importlib import metadata
 try:
     __version__ = metadata.version("llm-dojo-scoring")
 except metadata.PackageNotFoundError:
-    __version__ = "0.21.0"
+    __version__ = "0.22.0"
 
 from . import (
     archive,
