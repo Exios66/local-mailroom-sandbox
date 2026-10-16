@@ -12,6 +12,20 @@
   `fetch-deps` fallback pin) now names it. New dojo contract: `Emitter.emit_score` requires provenance, a
   serving leg that mixes identities is `identity_mixed`, `metric_id_for` is strict.
 
+### Fixed — dojo v0.22 provenance + `identity_mixed`
+
+- Serving records and fixtures carry `dataset_revision` (+ `split` / `draw_seed` where known) so the
+  dojo's `emit_serving_scorecard` no longer raises `ProvenanceExportError` (4 tests). Job records take
+  them from the run lock (`job.metrics.lock_dataset_provenance`); the serving fixtures carry
+  `FAMILY_HF_REVISION`; token-price USD is labelled `cost_basis=token_price_estimate`. Never derived
+  from the dataset fingerprint. `emit_local_vs_api_scorecard` accepts `provenance=`.
+- `compare_from_records` (`sandbox eval local_vs_api --from-log`, `sandbox matrix`) and
+  `sandbox metrics compare` group rows by full identity (`serving_groups.py`) and compare per comparable
+  group instead of pooling every local/API row into one `identity_mixed` leg. New `--group`; one
+  scorecard per group (`<name>.g<n>`); a refused scorecard is reported, not hidden.
+- Scorecard tests now run the real `Emitter` + `LocalManifestSink`; `tests/test_serving_groups.py`
+  covers multi-model logs.
+
 ### Added
 
 - **SAND-042 repaired specialists frozen.** `insurance_claims_specialist_simplified_v2` and

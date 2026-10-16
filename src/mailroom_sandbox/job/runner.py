@@ -16,7 +16,7 @@ from typing import Any, Callable
 from mailroom_sandbox.eval import experiment_log
 from mailroom_sandbox.eval import runners as eval_runners  # noqa: F401
 from mailroom_sandbox.job.checkpoint import RunStore, utc_now
-from mailroom_sandbox.job.metrics import record_from_run
+from mailroom_sandbox.job.metrics import lock_dataset_provenance, record_from_run
 from mailroom_sandbox.eval.prompt_provenance import (
     resolve_logged_prompt_version,
     stamp_prompt_provenance,
@@ -335,6 +335,10 @@ def _run_whole_run(
         )
         record.setdefault("spec_hash", store.spec_hash() or "")
         record.setdefault("dataset_fingerprint", _fingerprint(store))
+        # The dojo refuses a serving scorecard without dataset_revision; the
+        # lock is the only truthful source (never derived from the fingerprint).
+        for key, value in lock_dataset_provenance(store.read_lock()).items():
+            record.setdefault(key, value)
         record.setdefault("prompt_version", logged or default_ref)
         if sha:
             record.setdefault("prompt_sha256", sha)
@@ -586,6 +590,7 @@ def _build_record(
         model=model,
         prompt_version=prompt_version,
         dataset_fingerprint=_fingerprint(store),
+        dataset_provenance=lock_dataset_provenance(lock),
         items=items,
         scores=scores or None,
         gpu=_lock_gpu(store),

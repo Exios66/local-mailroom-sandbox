@@ -713,12 +713,20 @@ def run_local_vs_api_eval(
     from_log: bool = False,
     connected: bool = False,
     score_metadata: dict[str, Any] | None = None,
+    group: str | int | None = None,
 ) -> dict[str, Any]:
     """Compare local (Ollama/vLLM/…) vs API-key (OpenRouter) serving metrics.
 
     ``--mock`` uses committed fixture timings (no LLM, no ``OPENROUTER_API_KEY``).
-    ``from_log`` partitions ``reports/experiment_log.jsonl`` via dojo
-    ``split_local_api`` / ``get_suite("local_vs_api")``.
+    ``from_log`` partitions ``reports/experiment_log.jsonl`` by full identity
+    (model / prompt / task / dataset) and compares every comparable local-vs-API
+    group separately — the dojo refuses a leg that pools different identities
+    (``identity_mixed``). With several groups the headline ``scores`` need one
+    group: pass ``group`` (1-based index or unique label substring; CLI
+    ``--group``); otherwise they stay empty and every group's scorecard is still
+    emitted under ``<name>.g<n>``. A group the dojo refuses (no
+    ``dataset_revision`` on its records, incomparable metric ids) is reported in
+    ``scorecards`` with its reason; the comparison itself still returns.
     """
     del sample, connected, agent_models  # unused; kept for eval kwargs parity
     from mailroom_sandbox.datasets import load_serving_fixtures
@@ -738,7 +746,7 @@ def run_local_vs_api_eval(
 
     activation = activate(profile, model=model, prompt_variant=prompt_version)
     if from_log:
-        compared = scoring.compare_from_records(experiment_log.load())
+        compared = scoring.compare_from_records(experiment_log.load(), group=group)
         source = "experiment_log"
         local_rec = None
         api_rec = None
@@ -756,6 +764,16 @@ def run_local_vs_api_eval(
             "api_n": 1,
             "unknown_n": 0,
             "pairs": [compared],
+            "groups": [
+                {
+                    "group": 1,
+                    "label": "fixtures",
+                    "comparison": compared,
+                    "incomparable_reason": compared.get("incomparable_reason"),
+                }
+            ],
+            "unpaired": [],
+            "selected_group": 1,
             "comparison": compared,
             "headlines": headlines,
             "table": compared.get("table") or [],
@@ -788,12 +806,15 @@ def run_local_vs_api_eval(
         "api_n": compared.get("api_n"),
         "n": (compared.get("local_n") or 0) + (compared.get("api_n") or 0),
     }
-    if comparison:
-        scoring.emit_local_vs_api_scorecard(
-            comparison,
-            run_id=experiment_name or "sandbox_local_vs_api",
-            metadata=score_metadata,
-        )
+    scorecards = scoring.emit_group_scorecards(
+        compared,
+        run_id=experiment_name or "sandbox_local_vs_api",
+        metadata=score_metadata,
+    )
+    refused = [c for c in scorecards if not c.get("emitted")]
+    scores["scorecards_emitted"] = len(scorecards) - len(refused)
+    scores["scorecards_refused"] = len(refused)
+    scores["groups_n"] = len(compared.get("groups") or [])
     record = experiment_log.new_record(
         experiment_name=experiment_name or "sandbox_local_vs_api",
         task="local_vs_api",
@@ -809,11 +830,18 @@ def run_local_vs_api_eval(
         tracing_backend=tracing.tracing_backend(),
         tags=tracing.default_tags("source-serving", "local-vs-api"),
         local_vs_api=compared,
+        scorecards=scorecards,
         serving_markdown=markdown,
         source=source,
     )
     experiment_log.append(record)
-    return {**plan, "scores": scores, "comparison": compared, "record": record}
+    return {
+        **plan,
+        "scores": scores,
+        "comparison": compared,
+        "scorecards": scorecards,
+        "record": record,
+    }
 
 
 def run_sorter_vs_modernbert_eval(
