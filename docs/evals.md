@@ -247,6 +247,49 @@ Isolated specialist evals and Modal + vLLM job runs inject that text —
 see [`config/prompts/README.md`](../config/prompts/README.md). Further catalog
 re-freezes land in eval-environment, not this repo.
 
+### Any eval-environment prompt version (`--prompt-version`)
+
+Run an eval or job with any archived (`_v0`), frozen (`_v1`) or mutation
+(`correspondence_specialist_v3`, `contracts_specialist_v2`, `sorter_v3`, ...) prompt:
+
+```bash
+sandbox eval correspondence_specialist --prompt-version correspondence_specialist=correspondence_specialist_v3
+sandbox eval sorter --prompt-version sorter_v3          # bare key: role inferred (<role>_v<N>)
+sandbox eval pipeline --prompt-version sorter_v3 --prompt-version contracts_specialist_v2
+sandbox run start --config run.yaml --prompt-version correspondence_specialist_v7
+```
+
+or in the run spec (`prompt.versions`, a `{role: key}` map or a list of `role=key` /
+bare keys; the CLI flag wins per role):
+
+```yaml
+prompt:
+  versions:
+    sorter: sorter_v3
+    correspondence_specialist: correspondence_specialist_v3
+```
+
+* Texts come from the dojo lineage (`llm_dojo_scoring.prompts.get_prompt_version`)
+  through ONE function, `prompt_versions.lookup_prompt_version`. They never come
+  from the vendored mailroom registry (`PROMPT_VERSIONS` also has `sorter_v0..v14`:
+  same names, other texts) or from `config/prompts/*.txt` (the stem `sorter_v1` is
+  the mailroom text, not eval-environment `sorter_v1`).
+* An unknown key, a key whose role differs from the one named, a role the pipeline
+  lacks (`pipeline_quality_v1`), a text whose sha256 differs from the dojo's, two
+  versions for one role, `--prompt` + `--prompt-version` for one role, or a selection
+  the task would not use is an error (exit 1, one `error: prompt version: ...` line;
+  a job fails preflight with the reason). Nothing falls back to a default.
+* The selected key + sha256 are stamped in the run lock (`prompt.agents.<role>` with
+  `source: eval-environment`, and `prompt_versions`), are part of `spec_hash` (another
+  mutation drifts the lock), and ride on every record: `prompt_version` = the key,
+  `prompt_sha256`, `eval_environment_prompt_key`, `prompt_versions` (`{role: {key,
+  sha256}}`). A pipeline-level task logs the whole selection (`keyA+keyB` + a digest).
+* `prompt_version` and `prompt_sha256` are grouping identity (`serving_groups`):
+  different mutations form different legs and never pair, and one name with
+  different bytes (eval-env `sorter_v1` vs the mailroom stem) never pools.
+* No flag = today's default (the `*_simplified` stems; correspondence / corporate
+  records are bytes-equal to eval-environment `_v7` / `_v6`).
+
 ## Component gates
 
 `config/components.yaml` enables/disables isolated evals and overlays

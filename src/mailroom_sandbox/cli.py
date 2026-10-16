@@ -54,6 +54,9 @@ def main(argv: list[str] | None = None) -> int:
     except FileNotFoundError as exc:
         print(f"command unavailable: {exc}", file=sys.stderr)
         return 1
+    except _prompt_selection_error() as exc:
+        print(f"error: prompt version: {_one_line(exc)}", file=sys.stderr)
+        return 1
     except _provenance_errors() as exc:
         # A scorecard that cannot carry honest provenance is a hard failure,
         # never a skipped/"refused" entry: one clear line, exit 1.
@@ -68,6 +71,12 @@ def _provenance_errors() -> tuple[type[BaseException], ...]:
     except ImportError:  # dojo not importable: nothing to translate
         return ()
     return (ProvenanceExportError,)
+
+
+def _prompt_selection_error() -> type[BaseException]:
+    from mailroom_sandbox.prompt_versions import PromptSelectionError
+
+    return PromptSelectionError
 
 
 def _one_line(exc: BaseException) -> str:
@@ -305,6 +314,20 @@ def build_parser() -> argparse.ArgumentParser:
             "local_vs_api --from-log: the log is grouped by full identity (model / prompt / task / "
             "dataset) and each comparable local-vs-API group is compared and emitted separately; "
             "with several groups pick the headline one by 1-based index or unique label substring"
+        ),
+    )
+    p.add_argument(
+        "--prompt-version",
+        action="append",
+        default=[],
+        dest="prompt_versions",
+        metavar="[ROLE=]KEY",
+        help=(
+            "Run with an eval-environment prompt version (archived _v0, frozen _v1 or any "
+            "GEPA/manual mutation), role=key e.g. correspondence_specialist=correspondence_specialist_v3, "
+            "or a bare key whose role is inferred (sorter_v3). Repeatable, one per role. Texts come "
+            "from the dojo lineage only; an unknown key, a key/role mismatch or a role the pipeline "
+            "lacks is an error. Default (no flag) is unchanged."
         ),
     )
     p.add_argument(
@@ -769,6 +792,20 @@ def _run_parser(sub, shared):
     common.add_argument("--watch", action="store_true")
     common.add_argument("--job-mode", dest="mode", choices=["endpoint", "modal"], default=None)
     common.add_argument("--max-items", type=int, default=None)
+    common.add_argument(
+        "--prompt-version",
+        action="append",
+        default=[],
+        dest="prompt_versions",
+        metavar="[ROLE=]KEY",
+        help=(
+            "Run with an eval-environment prompt version (archived _v0, frozen _v1 or any "
+            "GEPA/manual mutation), role=key e.g. correspondence_specialist=correspondence_specialist_v3, "
+            "or a bare key whose role is inferred (sorter_v3). Repeatable, one per role. Texts come "
+            "from the dojo lineage only; an unknown key, a key/role mismatch or a role the pipeline "
+            "lacks is an error. Default (no flag) is unchanged."
+        ),
+    )
     common.add_argument(
         "--suite",
         default=None,
@@ -1656,6 +1693,7 @@ def _cmd_eval(args: argparse.Namespace) -> int:
     console.phase("EVAL", "mock" if mock else args.profile or "local")
     if getattr(args, "dataset_revision", None) and args.task != "local_vs_api":
         raise SystemExit("error: --dataset-revision only applies to `eval local_vs_api`")
+    _select_prompt_versions(args)
     kwargs = {
         "mock": mock,
         "sample": args.sample,
@@ -1710,6 +1748,35 @@ def _cmd_eval(args: argparse.Namespace) -> int:
     console.complete(state="done", summary=summary or exp)
     _print(result)
     return 0
+
+
+def _select_prompt_versions(args) -> None:
+    """Resolve ``--prompt-version`` for an eval and make it the process's active selection."""
+    from mailroom_sandbox import prompt_versions as pv
+
+    items = getattr(args, "prompt_versions", None)
+    if not items:
+        pv.clear_active_selection()
+        return
+    selection = pv.resolve_selection(items)
+    pv.check_no_stem_conflict(selection.keys, getattr(args, "prompt", None))
+    from mailroom_sandbox.eval.agents import SPECS
+
+    task = args.task
+    if task in SPECS:
+        unused = sorted(set(selection.keys) - {task})
+    elif task in {"pipeline", "extract", "chained"}:
+        unused = []
+    elif task == "sorter_vs_modernbert":
+        unused = sorted(set(selection.keys) - {"sorter"})
+    else:
+        unused = sorted(selection.keys)
+    if unused:
+        raise pv.PromptSelectionError(
+            f"task {task!r} does not use the prompt(s) for {unused}; a selection that would "
+            "not run is refused"
+        )
+    pv.set_active_selection(selection)
 
 
 def _cmd_matrix(args: argparse.Namespace) -> int:
@@ -2537,7 +2604,15 @@ def _run_load_spec(args) -> tuple[object, Path]:
         raise SystemExit("run commands need --config <run.yaml>")
     from mailroom_sandbox.job.spec import load_run_spec
 
-    return load_run_spec(config), Path(config).resolve()
+    spec = load_run_spec(config)
+    cli_versions = getattr(args, "prompt_versions", None)
+    if cli_versions:
+        # --prompt-version wins per role over the spec's prompt.versions; the merged
+        # selection is part of spec_hash, so the lock names it.
+        from mailroom_sandbox.prompt_versions import merge_into_spec_prompt
+
+        spec.prompt = merge_into_spec_prompt(spec.prompt, cli_versions)
+    return spec, Path(config).resolve()
 
 
 def _run_id_required(args) -> str:
