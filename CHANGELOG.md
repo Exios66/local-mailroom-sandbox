@@ -4,7 +4,8 @@
 
 ### Changed — v1 specialist stems re-frozen (Exios66/llm-dojo-scoring#30)
 
-- `correspondence_specialist_simplified.txt` and `corporate_records_specialist_simplified.txt` now mirror the
+- `config/prompts/correspondence_specialist_simplified.txt` and
+  `config/prompts/corporate_records_specialist_simplified.txt` now mirror the
   dojo's corrected `production_prompts` v1 text (provenance comment stripped). `eval_environment_lineage.json`
   rows carry the new `sha256`/`chars` plus `previous_sha256`, `previous_chars` and `refrozen_at`
   (2026-10-15); `frozen_at` is unchanged. Correspondence `eab63b5a…`→`2b0b81ff…` (6061→6113 chars);

@@ -141,6 +141,21 @@ sandbox beacon update --job ID --package P --done N --total M   # shell jobs pub
   `insurance_claims_specialist`. Merger no longer rides the CUAD contracts
   agent.
 
+## Specialist extraction guidance
+
+- `config/prompts/corporate_records_specialist_simplified.txt`, line 11:
+  `subsidiary_list` maps to `record_type: other`; extract the parent into
+  `entity_name`, describe the subsidiary listing in `subject_matter`, and use
+  subsidiary names as `keywords`. Leave `filing_number` null unless an official
+  filing or document number is present; never use an exhibit ID.
+- `config/prompts/correspondence_specialist_simplified.txt`, lines 14 and 33:
+  emit null for `communication_type` when no registered token fits the text;
+  still extract sender, recipient, and date from headers. Never invent a type.
+
+Keep extraction guidance aligned with these frozen rules; see
+[prompt guidance](config/prompts/README.md#extraction-rules-in-the-re-frozen-v1-stems)
+for source links and registered communication types.
+
 ## Architecture gotchas
 
 - Activate **before** importing mailroom graph/agents: `mailroom_sandbox.runtime.activate(profile)`.
