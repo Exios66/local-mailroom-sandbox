@@ -52,6 +52,18 @@
 
 ### Added
 
+- **Run with any eval-environment prompt version** (archived `_v0`, frozen `_v1`, every GEPA / manual
+  mutation, sorter included): `sandbox eval <task> --prompt-version [role=]key` (repeatable),
+  `sandbox run ... --prompt-version`, and `prompt.versions` in a run spec. New seam
+  `mailroom_sandbox/prompt_versions.py` (`resolve_prompt(role, key=None) -> (key, text, sha256)`); the
+  dojo lookup is the single function `lookup_prompt_version` (the vendored dojo does not ship the
+  lineage API yet, so a selection fails loudly until it is re-vendored). Unknown key, key/role
+  mismatch, non-pipeline role, sha mismatch, `--prompt` vs `--prompt-version` clash: hard error. The
+  key + sha256 land in the run lock (`prompt_versions`, `source: eval-environment`), `spec_hash`, and
+  every record (`prompt_version`, `prompt_sha256`, `eval_environment_prompt_key`, `prompt_versions`).
+  `serving_groups` now also keys legs and pairs on `prompt_sha256`, so mutations never pool (and the
+  mailroom-text stem `sorter_v1` never pools with eval-environment `sorter_v1`). Default behaviour is
+  unchanged.
 - **SAND-042 repaired specialists frozen.** `insurance_claims_specialist_simplified_v2` and
   `merger_agreement_specialist_maud_v2` are frozen in eval-environment as
   `insurance_claims_specialist_v4` and `merger_agreement_specialist_v4`, and pinned under

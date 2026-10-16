@@ -43,6 +43,13 @@ LEG_IDENTITY_FIELDS: tuple[str, ...] = (
 
 #: What a local-side and an API-side leg must share to be compared. ``model``
 #: and ``serving_kind`` are deliberately absent: they are the thing compared.
+#: Sandbox-only identity on top of the dojo's eight: the sha256 of the prompt text.
+#: The dojo identifies a prompt by its label alone, but eval-environment keys can
+#: collide with other namespaces (a ``config/prompts`` stem named ``sorter_v1`` is
+#: the mailroom text, eval-environment ``sorter_v1`` is not), so runs of different
+#: prompt bytes never share a leg or pair, whatever they are called.
+EXTRA_IDENTITY_FIELDS: tuple[str, ...] = ("prompt_sha256",)
+
 PAIRING_FIELDS: tuple[str, ...] = (
     "task",
     "prompt_version",
@@ -54,24 +61,31 @@ PAIRING_FIELDS: tuple[str, ...] = (
 )
 
 
-def _identity_of(run: Any) -> dict[str, Any]:
-    return {name: getattr(run.identity, name, None) for name in LEG_IDENTITY_FIELDS}
+def _extra_of(record: Mapping[str, Any] | None) -> dict[str, Any]:
+    return {name: ((record or {}).get(name) or None) for name in EXTRA_IDENTITY_FIELDS}
 
 
-def _pairing_of(run: Any) -> dict[str, Any]:
+def _identity_of(run: Any, record: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    out = {name: getattr(run.identity, name, None) for name in LEG_IDENTITY_FIELDS}
+    out.update(_extra_of(record))
+    return out
+
+
+def _pairing_of(run: Any, record: Mapping[str, Any] | None = None) -> dict[str, Any]:
     key = {name: getattr(run.identity, name, None) for name in PAIRING_FIELDS if name != "metric_id"}
     key["metric_id"] = run.metric_id
+    key.update(_extra_of(record))
     return key
 
 
 def leg_identity(record: Mapping[str, Any]) -> dict[str, Any]:
-    """The eight leg-identity fields of one serving record (dojo's reading)."""
-    return _identity_of(normalize_serving_record(record))
+    """The eight leg-identity fields of one serving record (dojo's reading) + the prompt sha256."""
+    return _identity_of(normalize_serving_record(record), record)
 
 
 def pairing_key(record: Mapping[str, Any]) -> dict[str, Any]:
     """What a record measured, independent of who served it."""
-    return _pairing_of(normalize_serving_record(record))
+    return _pairing_of(normalize_serving_record(record), record)
 
 
 def _freeze(mapping: Mapping[str, Any]) -> tuple[tuple[str, Any], ...]:
@@ -114,7 +128,7 @@ def group_legs(
     for row in rows:
         side = bucket_of(row)
         run = normalize_serving_record(row)
-        identity, pairing = _identity_of(run), _pairing_of(run)
+        identity, pairing = _identity_of(run, row), _pairing_of(run, row)
         key = (side, _freeze(identity), _freeze(pairing))
         leg = legs.get(key)
         if leg is None:
@@ -163,7 +177,11 @@ def pair_legs(lefts: Sequence[Leg], rights: Sequence[Leg]) -> tuple[list[LegPair
 def pooled_identity_conflict(rows: Sequence[Mapping[str, Any]]) -> list[str]:
     """Identity fields that differ across ``rows`` (what dojo calls ``identity_mixed``)."""
     idents = [leg_identity(r) for r in rows]
-    return [name for name in LEG_IDENTITY_FIELDS if len({i.get(name) for i in idents}) > 1]
+    return [
+        name
+        for name in (*LEG_IDENTITY_FIELDS, *EXTRA_IDENTITY_FIELDS)
+        if len({i.get(name) for i in idents}) > 1
+    ]
 
 
 def select_pair(pairs: Sequence[LegPair], selector: str | int | None) -> LegPair:
