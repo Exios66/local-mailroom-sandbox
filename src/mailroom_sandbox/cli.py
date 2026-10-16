@@ -596,10 +596,19 @@ def build_parser() -> argparse.ArgumentParser:
     plug_list = prom_sub.add_parser("list", parents=[shared])
     plug_list.set_defaults(handler=_cmd_prompts_list)
     plug_show = prom_sub.add_parser("show", parents=[shared])
-    plug_show.add_argument("name", help="agent name (or --all)")
-    plug_show.add_argument("--variant", default=None, help="local variant stem")
+    plug_show.add_argument("name", help="agent name, or an eval-environment prompt version key (sorter_v3)")
+    plug_show.add_argument("--variant", default=None, help="agent: local variant stem")
     plug_show.add_argument("--json", action="store_true")
+    plug_show.add_argument("--diff", default=None, metavar="OTHER_KEY", help="version key: unified diff from <key> to OTHER_KEY")
+    plug_show.add_argument("--memo", action="store_true", help="version key: memo + what changed, no text")
     plug_show.set_defaults(handler=_cmd_prompts_show)
+    plug_lv = prom_sub.add_parser(
+        "list-versions", parents=[shared], help="every eval-environment prompt version (archived / frozen / mutation)"
+    )
+    plug_lv.add_argument("--role", default=None, help="only this role (e.g. sorter)")
+    plug_lv.add_argument("--lineage", default=None, choices=["archived", "frozen", "mutation"])
+    plug_lv.add_argument("--json", action="store_true")
+    plug_lv.set_defaults(handler=_cmd_prompts_list_versions)
     prom.set_defaults(handler=_cmd_prompts_help)
 
     mp = sub.add_parser("metrics", help="serving metrics compare (local vs Modal vs API)", parents=[shared])
@@ -3075,7 +3084,43 @@ def _cmd_runbook_write(args) -> int:
 
 
 def _cmd_prompts_help(args):
-    print("Use: sandbox prompts list | sandbox prompts show <agent> [--variant X]")
+    print(
+        "Use: sandbox prompts list | sandbox prompts show <agent> [--variant X]\n"
+        "     sandbox prompts list-versions [--role R] [--lineage archived|frozen|mutation] [--json]\n"
+        "     sandbox prompts show <version-key> [--diff <other-key> | --memo | --json]"
+    )
+    return 0
+
+
+def _cmd_prompts_list_versions(args) -> int:
+    from mailroom_sandbox import prompt_catalog as catalog
+
+    try:
+        rows = catalog.list_versions(role=args.role, lineage=args.lineage)
+    except KeyError as exc:
+        print(f"error: {exc.args[0]}", file=sys.stderr)
+        return 2
+    if getattr(args, "json", False):
+        _print(rows)
+    else:
+        print(catalog.format_version_table(rows))
+    return 0
+
+
+def _show_prompt_version(args) -> int:
+    from mailroom_sandbox import prompt_catalog as catalog
+
+    if args.diff and args.memo:
+        print("error: --diff and --memo are mutually exclusive", file=sys.stderr)
+        return 2
+    try:
+        if getattr(args, "json", False):
+            _print(catalog.version_json(args.name))
+            return 0
+        sys.stdout.write(catalog.show_version(args.name, memo_only=args.memo, diff_against=args.diff))
+    except KeyError as exc:
+        print(f"error: {exc.args[0]}", file=sys.stderr)
+        return 2
     return 0
 
 
@@ -3091,6 +3136,10 @@ def _cmd_prompts_show(args) -> int:
     from mailroom_sandbox.prompt_registry import FAMILY_B_KEYS, agent_prompt_names, resolve_prompt
 
     name = args.name
+    from mailroom_sandbox.prompt_catalog import is_version_key
+
+    if is_version_key(name) or getattr(args, "diff", None) or getattr(args, "memo", False):
+        return _show_prompt_version(args)
     if name not in agent_prompt_names():
         print(
             f"error: unknown agent {name!r} — have {sorted(agent_prompt_names())} "

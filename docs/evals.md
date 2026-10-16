@@ -249,6 +249,13 @@ re-freezes land in eval-environment, not this repo.
 
 ### Any eval-environment prompt version (`--prompt-version`)
 
+The full catalog — all 40 versions (archived `_v0`, frozen `_v1`, 20 mutations) with
+memos, what changed between versions, diffs and the exact text — is in
+[`docs/prompts/`](prompts/README.md) (generated from the vendored dojo lineage by
+`python scripts/render_prompt_catalog.py`; `--check` fails when it drifts). Browse it
+from the CLI with `sandbox prompts list-versions [--role R]` and
+`sandbox prompts show <key> [--diff <other-key> | --memo]`.
+
 Run an eval or job with any archived (`_v0`), frozen (`_v1`) or mutation
 (`correspondence_specialist_v3`, `contracts_specialist_v2`, `sorter_v3`, ...) prompt:
 

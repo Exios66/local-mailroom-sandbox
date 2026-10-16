@@ -1,5 +1,9 @@
 # Local prompt variants
 
+> Every eval-environment prompt version (archived / frozen / mutation, with memos and diffs) is catalogued in
+> [`docs/prompts/`](../../docs/prompts/README.md) and runs with `--prompt-version <key>`. The stems in this
+> directory are a different namespace: `sorter_v1.txt` here is the MAILROOM `sorter_v1`, not eval-environment `sorter_v1`.
+
 These templates override mailroom's Langfuse-managed prompts (`get_managed_prompt`)
 or the LangChain `PROMPT_VERSIONS` dict (Family B: sorter / contracts_specialist)
 for a single experiment cell. Resolution: `src/mailroom_sandbox/prompt_registry.py`
