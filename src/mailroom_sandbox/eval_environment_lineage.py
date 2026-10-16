@@ -10,6 +10,13 @@ the SAND-042 repaired insurance and merger stems frozen as eval-environment
 ``*_v4`` mutations) are byte-pinned the same way. They do not change the
 default v1 stem a run gets; a run opts in by pinning the successor stem.
 
+A specialist's default row may itself be a later eval-environment mutation
+that corrected the original v1 text (dojo #30 re-freeze: the corporate-records
+and correspondence stems carry ``*_v6`` / ``*_v7``). Such a row has a
+``parent_key`` and a ``superseded`` block (the original v1 key, sha256, chars
+and ``frozen_at``), so the v1 identity stays recoverable and is still checked
+against a sibling checkout's manifest.
+
 This module is hermetic: the sha256 lock lives in
 ``config/prompts/eval_environment_lineage.json``. A sibling eval-environment
 checkout is optional (``EVAL_ENVIRONMENT_ROOT`` or ``../eval-environment``).
@@ -64,6 +71,16 @@ def successor_rows() -> list[dict[str, Any]]:
     """Frozen post-v1 specialist versions (eval-environment mutations), each with ``agent``."""
     rows = load_catalog().get("frozen_successors") or []
     return [dict(row) for row in rows]
+
+
+def superseded_rows() -> list[dict[str, Any]]:
+    """Original v1 identities (key, sha256, chars, frozen_at) of re-frozen default rows."""
+    out: list[dict[str, Any]] = []
+    for agent, row in specialist_rows().items():
+        old = row.get("superseded")
+        if isinstance(old, dict):
+            out.append(dict(old, agent=agent, superseded_by=row.get("eval_environment_key")))
+    return out
 
 
 def _all_rows() -> list[dict[str, Any]]:
@@ -239,7 +256,25 @@ def verify_sibling_catalog(sibling: Path | None = None) -> list[str]:
     except (OSError, json.JSONDecodeError) as exc:
         return [f"could not read {manifest_path}: {exc}"]
     versions: Mapping[str, Any] = manifest.get("versions") or {}
+    mutation_rows: list[dict[str, Any]] = []
     for agent, row in specialist_rows().items():
+        row = dict(row, agent=agent)
+        if row.get("parent_key"):
+            # Default row is a later mutation: verify it (and its bytes) against
+            # the sibling's mutations.json, and the superseded v1 identity
+            # against the manifest.
+            mutation_rows.append(row)
+            old = row.get("superseded")
+            if isinstance(old, dict):
+                v1_meta = versions.get(str(old.get("eval_environment_key"))) if isinstance(versions, dict) else None
+                if not isinstance(v1_meta, dict):
+                    errors.append(f"{agent}: sibling manifest missing superseded {old.get('eval_environment_key')}")
+                elif str(v1_meta.get("sha256") or "") != str(old.get("sha256")):
+                    errors.append(
+                        f"{agent}: superseded {old.get('eval_environment_key')} sha256={old.get('sha256')} "
+                        f"!= sibling manifest sha256={v1_meta.get('sha256')}"
+                    )
+            continue
         key = str(row["eval_environment_key"])
         meta = versions.get(key) if isinstance(versions, dict) else None
         if not isinstance(meta, dict):
@@ -262,13 +297,17 @@ def verify_sibling_catalog(sibling: Path | None = None) -> list[str]:
                 f"{agent}: sibling {key}.md sha256={md_sha} "
                 f"!= sandbox {row['sandbox_stem']}.txt sha256={local_sha}"
             )
-    errors.extend(_verify_sibling_successors(root))
+    errors.extend(_verify_sibling_mutations(root, mutation_rows + successor_rows()))
     return errors
 
 
 def _verify_sibling_successors(root: Path) -> list[str]:
-    """Successor rows live in the sibling's ``prompts/mutations.json``, not its manifest."""
-    rows = successor_rows()
+    """Frozen-successor rows only (the SAND-042 ``*_v4`` stems)."""
+    return _verify_sibling_mutations(root, successor_rows())
+
+
+def _verify_sibling_mutations(root: Path, rows: list[dict[str, Any]]) -> list[str]:
+    """Mutation rows (successors, re-frozen defaults) live in the sibling's ``prompts/mutations.json``."""
     if not rows:
         return []
     path = root / "prompts" / "mutations.json"

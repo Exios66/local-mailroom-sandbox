@@ -12,6 +12,17 @@
   `fetch-deps` fallback pin) now names it. New dojo contract: `Emitter.emit_score` requires provenance, a
   serving leg that mixes identities is `identity_mixed`, `metric_id_for` is strict.
 
+### Changed — corrected v1 specialist stems (dojo #30)
+
+- `correspondence_specialist_simplified.txt` / `corporate_records_specialist_simplified.txt` now carry the
+  corrected text the dojo ships as `production_prompts` (eval-environment mutations
+  `correspondence_specialist_v7` / `corporate_records_specialist_v6`; sha256 `2b0b81ff…` / `fe13501f…`,
+  6113 / 5865 chars). `eval_environment_lineage.json` rows point at those keys with the new
+  sha256/chars, a `refrozen_at` stamp and a `superseded` block holding the original v1 key, sha256, chars
+  and `frozen_at`; the sibling check verifies both. **Runs that used these stems before this change
+  scored the v1 bytes** (`*_v1`, `eab63b5a…` / `484e64dd…`); the default stem's logged eval-environment
+  key is now `_v7` / `_v6`. The generated archived runbooks were re-rendered to the current key.
+
 ### Fixed — dojo v0.22 provenance + `identity_mixed`
 
 - Serving records and fixtures carry `dataset_revision` (+ `split` / `draw_seed` where known) so the

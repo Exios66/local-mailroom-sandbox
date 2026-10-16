@@ -37,6 +37,15 @@ specialist evals inject this text (not vendor `SYSTEM_PROMPT` / Langfuse
 without a sanctioned eval-environment re-freeze (eval-environment issue #19
 tracks cross-repo alignment).
 
+**Re-freeze (dojo #30):** `correspondence_specialist_simplified` and
+`corporate_records_specialist_simplified` carry the corrected text the dojo ships
+as `production_prompts` (eval-environment mutations `correspondence_specialist_v7`
+and `corporate_records_specialist_v6`; the file body equals the dojo template
+body, with no provenance comment). Their lineage rows name the `_v7` / `_v6`
+keys and new sha256/chars; each row's `superseded` block keeps the original v1
+key, sha256, chars and `frozen_at`. The other three stems are unchanged v1 bytes.
+Default `sync_specialist_prompts.py` never rewrites these stems.
+
 Parallel `*_simplified` stems for the offline sandbox. They intentionally
 diverge from vendor: **class-specific** extractors (not a lightly edited
 generic template). Each stem names the live registered schema, typical
