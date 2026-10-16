@@ -61,6 +61,7 @@ def test_resolve_catalog_stem_logs_eval_environment_key():
 
 
 def test_resolve_explicit_simplified_stem_is_eval_environment_v1():
+    """Map an explicit simplified stem to its frozen v1 label and digest."""
     label, sha = resolve_logged_prompt_version(
         "contracts_specialist_v33_simplified",
         task="contracts_specialist",
