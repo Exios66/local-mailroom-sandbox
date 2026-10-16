@@ -33,9 +33,22 @@
 - `compare_from_records` (`sandbox eval local_vs_api --from-log`, `sandbox matrix`) and
   `sandbox metrics compare` group rows by full identity (`serving_groups.py`) and compare per comparable
   group instead of pooling every local/API row into one `identity_mixed` leg. New `--group`; one
-  scorecard per group (`<name>.g<n>`); a refused scorecard is reported, not hidden.
+  scorecard per group (`<name>.g<n>`).
 - Scorecard tests now run the real `Emitter` + `LocalManifestSink`; `tests/test_serving_groups.py`
   covers multi-model logs.
+
+### Changed — scorecards fail loudly
+
+- A scorecard that cannot be emitted with honest provenance now RAISES instead of being reported as
+  "refused": `emit_local_vs_api_scorecard` / `emit_group_scorecards` raise `ScorecardEmissionError`
+  (subclass of the dojo's `ProvenanceExportError`; `.field`, `.group`, sandbox hint) for a missing
+  `dataset_revision` or an incomparable (`identity_mixed`) group. All groups are validated against an
+  in-memory sink before any is written, so a late failure leaves no partial manifest, and
+  `run_local_vs_api_eval` raises before appending its log record. `scores.scorecards_refused` and the
+  `emitted: False` entries are gone. `sandbox` exits 1 with `error: scorecard not emitted: <reason>` on
+  stderr (job runs fail with the same reason). New `sandbox eval local_vs_api --dataset-revision <sha>`
+  (full 40-hex only) supplies a real revision for log/fixture rows that have none; it never overrides a
+  recorded one. Reverses the report-don't-raise policy of the provenance fix above.
 
 ### Added
 

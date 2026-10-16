@@ -94,7 +94,7 @@ def test_missing_dataset_revision_is_refused_with_a_sandbox_hint(tmp_path, monke
     comparison = scoring.compare_local_vs_api(local, api)
     with pytest.raises(ProvenanceExportError, match="dataset_revision") as err:
         scoring.emit_local_vs_api_scorecard(comparison, run_id="no_rev")
-    assert "run lock" in str(err.value)
+    assert "pin a Hub revision" in str(err.value) and "--dataset-revision" in str(err.value)
     # explicit, caller-supplied provenance is honoured (and only then)
     stamp = {"dataset_revision": REV}
     scoring.emit_local_vs_api_scorecard(
@@ -107,9 +107,13 @@ def test_dataset_revision_is_never_derived_from_the_fingerprint(tmp_path, monkey
     compared = scoring.compare_from_records(
         [_row("local", "qwen3:8b", rev=None), _row("api", "qwen/qwen3.7-flash", rev=None)]
     )
-    (outcome,) = scoring.emit_group_scorecards(compared, run_id="fp_only")
-    assert outcome["emitted"] is False
-    assert "dataset_revision" in outcome["reason"]
+    with pytest.raises(ProvenanceExportError, match="dataset_revision") as err:
+        scoring.emit_group_scorecards(compared, run_id="fp_only")
+    assert isinstance(err.value, scoring.ScorecardEmissionError)
+    assert err.value.field == "dataset_revision" and err.value.group == 1
+    assert "--dataset-revision" in str(err.value)
+    # nothing was written for the refused scorecard
+    assert not (tmp_path / "reports" / "scores").exists()
 
 
 def test_pooling_a_multi_model_log_is_identity_mixed_in_the_dojo():
@@ -215,17 +219,116 @@ def test_emit_group_scorecards_per_group_with_the_real_emitter(tmp_path, monkeyp
     assert {"sand77-multi.g1:local", "sand77-multi.g2:local"} <= run_ids
 
 
-def test_emit_group_scorecards_reports_a_refused_group(tmp_path, monkeypatch):
-    monkeypatch.setattr(scoring, "reports_dir", lambda: tmp_path / "reports")
-    log = [
+def _mixed_revision_log():
+    return [
         _row("local", "qwen3:8b"),
         _row("api", "qwen/qwen3.7-flash"),
         _row("local", "llama3.1:8b", rev=None, fp="zzz"),
         _row("api", "qwen/qwen3.7-flash", rev=None, fp="zzz"),
     ]
-    outcomes = scoring.emit_group_scorecards(scoring.compare_from_records(log), run_id="mixed_rev")
-    assert [o["emitted"] for o in outcomes] == [True, False]
-    assert "dataset_revision" in outcomes[1]["reason"]
+
+
+def test_one_group_without_a_revision_raises_and_writes_nothing(tmp_path, monkeypatch):
+    """A late bad group must not leave the earlier good group half-emitted."""
+    monkeypatch.setattr(scoring, "reports_dir", lambda: tmp_path / "reports")
+    compared = scoring.compare_from_records(_mixed_revision_log())
+    with pytest.raises(scoring.ScorecardEmissionError, match="group 2") as err:
+        scoring.emit_group_scorecards(compared, run_id="mixed_rev")
+    assert "dataset_revision" in str(err.value)
+    assert not (tmp_path / "reports" / "scores").exists()
+
+
+def test_incomparable_group_raises_instead_of_being_reported():
+    compared = {
+        "groups": [
+            {
+                "group": 1,
+                "label": "g",
+                "comparison": {"incomparable": True, "incomparable_reason": "identity_mixed"},
+            }
+        ]
+    }
+    with pytest.raises(scoring.ScorecardEmissionError, match="identity_mixed") as err:
+        scoring.emit_group_scorecards(compared, run_id="x")
+    assert err.value.field == "identity_mixed"
+
+
+def test_supplied_revision_fills_a_gap_but_never_contradicts_a_record(tmp_path, monkeypatch):
+    monkeypatch.setattr(scoring, "reports_dir", lambda: tmp_path / "reports")
+    stamp = {"dataset_revision": REV}
+    prov = {"local": stamp, "api": stamp}
+    bare = scoring.compare_from_records(
+        [_row("local", "qwen3:8b", rev=None), _row("api", "qwen/qwen3.7-flash", rev=None)]
+    )
+    (outcome,) = scoring.emit_group_scorecards(bare, run_id="gap", provenance=prov)
+    assert outcome["emitted"] is True
+    other = "0" * 40
+    recorded = scoring.compare_from_records(
+        [_row("local", "qwen3:8b", rev=other), _row("api", "qwen/qwen3.7-flash", rev=other)]
+    )
+    with pytest.raises(scoring.ScorecardEmissionError, match="refusing to restamp"):
+        scoring.emit_group_scorecards(recorded, run_id="clash", provenance=prov)
+
+
+@pytest.mark.parametrize("bad", ["main", "abc1234", "", "Z" * 40])
+def test_validate_dataset_revision_rejects_anything_but_a_full_sha(bad):
+    with pytest.raises(scoring.ScorecardEmissionError, match="40-hex"):
+        scoring.validate_dataset_revision(bad)
+    assert scoring.validate_dataset_revision(REV.upper()) == REV
+
+
+def _log_env(tmp_path, monkeypatch, rows):
+    monkeypatch.setenv("MAILROOM_BASE_DIR", str(tmp_path))
+    log = tmp_path / "experiment_log.jsonl"
+    monkeypatch.setattr(experiment_log, "jsonl_path", lambda: log)
+    monkeypatch.setattr(experiment_log, "md_path", lambda: tmp_path / "experiment_log.md")
+    monkeypatch.setattr(scoring, "reports_dir", lambda: tmp_path / "reports")
+    for rec in rows:
+        experiment_log.append(rec)
+    return log
+
+
+def test_run_local_vs_api_raises_for_legacy_rows_without_a_revision(tmp_path, monkeypatch):
+    log = _log_env(
+        tmp_path,
+        monkeypatch,
+        [_row("local", "qwen3:8b", rev=None), _row("api", "qwen/qwen3.7-flash", rev=None)],
+    )
+    before = log.read_text(encoding="utf-8")
+    with pytest.raises(ProvenanceExportError, match="dataset_revision"):
+        runners.run_local_vs_api_eval(from_log=True, experiment_name="legacy")
+    # no comparison record was appended and no scorecard written
+    assert log.read_text(encoding="utf-8") == before
+    assert not (tmp_path / "reports" / "scores").exists()
+    # with the real pinned revision supplied it runs
+    ok = runners.run_local_vs_api_eval(from_log=True, experiment_name="legacy_ok", dataset_revision=REV)
+    assert ok["scores"]["scorecards_emitted"] == 1
+
+
+def test_cli_local_vs_api_fails_loudly_without_a_revision(tmp_path, monkeypatch, capsys):
+    from mailroom_sandbox.cli import main
+
+    _log_env(
+        tmp_path,
+        monkeypatch,
+        [_row("local", "qwen3:8b", rev=None), _row("api", "qwen/qwen3.7-flash", rev=None)],
+    )
+    rc = main(["eval", "local_vs_api", "--mock", "--from-log", "--name", "cli_legacy"])
+    captured = capsys.readouterr()
+    assert rc == 1
+    err_lines = [ln for ln in captured.err.splitlines() if ln.startswith("error:")]
+    assert len(err_lines) == 1 and err_lines[0].startswith("error: scorecard not emitted:")
+    assert "dataset_revision" in err_lines[0] and "--dataset-revision" in err_lines[0]
+    assert not (tmp_path / "reports" / "scores").exists()
+    rc = main(["eval", "local_vs_api", "--mock", "--from-log", "--name", "cli_ok", "--dataset-revision", REV])
+    assert rc == 0
+
+
+def test_cli_dataset_revision_is_local_vs_api_only(capsys):
+    from mailroom_sandbox.cli import main
+
+    with pytest.raises(SystemExit, match="only applies to"):
+        main(["eval", "sorter", "--mock", "--dataset-revision", REV])
 
 
 def test_run_local_vs_api_from_a_multi_model_log(tmp_path, monkeypatch):
@@ -239,7 +342,7 @@ def test_run_local_vs_api_from_a_multi_model_log(tmp_path, monkeypatch):
 
     result = runners.run_local_vs_api_eval(from_log=True, experiment_name="sand88_multi")
     assert result["scores"]["groups_n"] == 2
-    assert result["scores"]["scorecards_emitted"] == 2 and result["scores"]["scorecards_refused"] == 0
+    assert result["scores"]["scorecards_emitted"] == 2 and "scorecards_refused" not in result["scores"]
     assert result["scores"]["ttft_seconds_local"] is None  # no pooled headline
     assert "--group" in result["comparison"]["note"]
 

@@ -54,6 +54,24 @@ def main(argv: list[str] | None = None) -> int:
     except FileNotFoundError as exc:
         print(f"command unavailable: {exc}", file=sys.stderr)
         return 1
+    except _provenance_errors() as exc:
+        # A scorecard that cannot carry honest provenance is a hard failure,
+        # never a skipped/"refused" entry: one clear line, exit 1.
+        print(f"error: scorecard not emitted: {_one_line(exc)}", file=sys.stderr)
+        return 1
+
+
+def _provenance_errors() -> tuple[type[BaseException], ...]:
+    """The dojo's provenance error, imported lazily (the dojo path is resolved at runtime)."""
+    try:
+        from llm_dojo_scoring.scorecard_honesty import ProvenanceExportError
+    except ImportError:  # dojo not importable: nothing to translate
+        return ()
+    return (ProvenanceExportError,)
+
+
+def _one_line(exc: BaseException) -> str:
+    return " ".join(str(exc).split())
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -287,6 +305,17 @@ def build_parser() -> argparse.ArgumentParser:
             "local_vs_api --from-log: the log is grouped by full identity (model / prompt / task / "
             "dataset) and each comparable local-vs-API group is compared and emitted separately; "
             "with several groups pick the headline one by 1-based index or unique label substring"
+        ),
+    )
+    p.add_argument(
+        "--dataset-revision",
+        default=None,
+        dest="dataset_revision",
+        metavar="SHA",
+        help=(
+            "local_vs_api: the full 40-hex Hub commit sha the scored rows came from, for log/fixture "
+            "rows that carry no dataset_revision. A scorecard without a real revision is a hard error "
+            "(exit 1); this fills the gap, it never overrides a revision a record already has"
         ),
     )
     p.set_defaults(handler=_cmd_eval)
@@ -1625,6 +1654,8 @@ def _cmd_eval(args: argparse.Namespace) -> int:
     exp = args.experiment_name or f"sandbox_{args.task}"
     console.run_banner(run_id=exp, task=args.task, subtitle="sandbox eval")
     console.phase("EVAL", "mock" if mock else args.profile or "local")
+    if getattr(args, "dataset_revision", None) and args.task != "local_vs_api":
+        raise SystemExit("error: --dataset-revision only applies to `eval local_vs_api`")
     kwargs = {
         "mock": mock,
         "sample": args.sample,
@@ -1654,6 +1685,7 @@ def _cmd_eval(args: argparse.Namespace) -> int:
             prompt_version=args.prompt,
             from_log=bool(getattr(args, "from_log", False)),
             group=getattr(args, "group", None),
+            dataset_revision=getattr(args, "dataset_revision", None),
             **kwargs,
         )
     elif args.task == "sorter_vs_modernbert":
