@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import hashlib
+
 import pytest
 
 from mailroom_sandbox.eval_environment_lineage import (
     agents_for_variant,
     catalog_agents,
     default_prompt_variant,
+    load_catalog,
     sibling_eval_environment_root,
     verify_local_catalog,
     verify_sibling_catalog,
@@ -17,6 +20,109 @@ from mailroom_sandbox.job.specialist_posture import (
     SAND032_SORTER_RUNS,
     SPECIALIST_POSTURE,
 )
+from mailroom_sandbox.job.spec import PromptRef
+from mailroom_sandbox.prompt_registry import resolve_prompt
+from mailroom_sandbox.prompts import load_variant
+
+
+# The two sanctioned v1 corrections in PR #136. Reverse only those edits to
+# exercise rejection of the actual pre-correction bytes without a git checkout.
+REFROZEN_PROMPTS = {
+    "corporate_records_specialist": {
+        "sha256": "fe13501f667fcd9f64f7dfbf8b0f124f81d9dd039f4109288b43f106f82b1399",
+        "chars": 5865,
+        "previous_sha256": "484e64dd847b7bb35afebca74edc1fb6c381f0f7d5e9367ad8673bec0b8af45c",
+        "previous_chars": 5801,
+        "corrections": (
+            (
+                "filing_number if exhibit id present.",
+                "filing_number null unless an official filing or document number is present; "
+                "never use an exhibit ID.",
+            ),
+        ),
+    },
+    "correspondence_specialist": {
+        "sha256": "2b0b81ff98920b9207627707443e2b023db39212fda5bdcba7bfbded39fa38b6",
+        "chars": 6113,
+        "previous_sha256": "eab63b5afd29906b1ad3aca2d7698bf5c15d4b7f4ce9ade3b744be535d18d4f3",
+        "previous_chars": 6061,
+        "corrections": (
+            (
+                "communication_type other only when none of the above fit",
+                "communication_type null when none of the registered tokens fit",
+            ),
+            (
+                "communication_type (string|null): exactly one Hub token:",
+                "communication_type (string|null): null when no registered token fits; "
+                "otherwise exactly one Hub token:",
+            ),
+        ),
+    },
+}
+
+
+@pytest.fixture(params=REFROZEN_PROMPTS)
+def refrozen_prompt(request):
+    agent = request.param
+    expected = REFROZEN_PROMPTS[agent]
+    row = load_catalog()["specialists"][agent]
+    text = load_variant(row["sandbox_stem"])
+    previous_text = text
+    for previous, current in expected["corrections"]:
+        assert previous_text.count(current) == 1
+        previous_text = previous_text.replace(current, previous, 1)
+    return agent, row, expected, text, previous_text
+
+
+def test_refrozen_metadata_preserves_v1_identity_and_original_freeze(refrozen_prompt):
+    agent, row, expected, text, _ = refrozen_prompt
+    catalog = load_catalog()
+
+    assert catalog["frozen_version"] == 1
+    assert catalog["frozen_at"] == "2026-09-26T05:09:29+00:00"
+    assert row["eval_environment_key"] == f"{agent}_v1"
+    assert row["sandbox_stem"] == f"{agent}_simplified"
+    assert row["refrozen_at"] == "2026-10-15"
+    for field in ("sha256", "chars", "previous_sha256", "previous_chars"):
+        assert row[field] == expected[field], field
+    assert hashlib.sha256(text.encode("utf-8")).hexdigest() == expected["sha256"]
+    assert len(text) == expected["chars"]
+
+
+def test_refrozen_history_describes_the_actual_previous_prompt(refrozen_prompt):
+    _, row, _, text, previous_text = refrozen_prompt
+
+    assert hashlib.sha256(previous_text.encode("utf-8")).hexdigest() == row["previous_sha256"]
+    assert len(previous_text) == row["previous_chars"]
+    assert previous_text != text
+    assert row["previous_sha256"] != row["sha256"]
+
+
+def test_refrozen_prompt_resolves_offline_with_corrected_bytes(refrozen_prompt):
+    agent, row, expected, text, _ = refrozen_prompt
+
+    resolved = resolve_prompt(
+        agent, PromptRef(source="local", file=row["sandbox_stem"]), offline=True
+    )
+
+    assert resolved["file"] == row["sandbox_stem"]
+    assert resolved["text"] == text
+    assert resolved["sha256"] == expected["sha256"]
+
+
+def test_refrozen_prompt_rejects_pre_correction_bytes(refrozen_prompt, monkeypatch):
+    """Keeping a previous digest in lineage must not authorize the old text."""
+    agent, row, _, _, previous_text = refrozen_prompt
+    monkeypatch.setattr(
+        "mailroom_sandbox.prompt_registry.load_variant_text", lambda stem: previous_text
+    )
+
+    with pytest.raises(ValueError, match="eval-environment lineage drift") as exc:
+        resolve_prompt(
+            agent, PromptRef(source="local", file=row["sandbox_stem"]), offline=True
+        )
+    assert f"file_sha256={row['previous_sha256']}" in str(exc.value)
+    assert f"catalog_sha256={row['sha256']}" in str(exc.value)
 
 
 def test_local_stems_match_eval_environment_catalog():
