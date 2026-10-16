@@ -42,6 +42,7 @@ def test_resolve_local_lock_stem():
 
 
 def test_resolve_catalog_stem_logs_eval_environment_key():
+    """Resolve a catalog stem to its eval-environment key and locked digest."""
     label, sha = resolve_logged_prompt_version(
         None,
         task="correspondence_specialist",
@@ -50,16 +51,17 @@ def test_resolve_catalog_stem_logs_eval_environment_key():
                 "correspondence_specialist": {
                     "source": "local",
                     "file": "correspondence_specialist_simplified",
-                    "sha256": "eab63b5afd29906b1ad3aca2d7698bf5c15d4b7f4ce9ade3b744be535d18d4f3",
+                    "sha256": "2b0b81ff98920b9207627707443e2b023db39212fda5bdcba7bfbded39fa38b6",
                 }
             }
         },
     )
     assert label == "correspondence_specialist_v1"
-    assert sha == "eab63b5afd29906b1ad3aca2d7698bf5c15d4b7f4ce9ade3b744be535d18d4f3"
+    assert sha == "2b0b81ff98920b9207627707443e2b023db39212fda5bdcba7bfbded39fa38b6"
 
 
 def test_resolve_explicit_simplified_stem_is_eval_environment_v1():
+    """Map an explicit simplified stem to its frozen v1 label and digest."""
     label, sha = resolve_logged_prompt_version(
         "contracts_specialist_v33_simplified",
         task="contracts_specialist",
