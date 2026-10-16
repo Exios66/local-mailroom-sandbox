@@ -33,6 +33,7 @@ from mailroom_sandbox.job.spec import (
     spec_hash,
 )
 from mailroom_sandbox.prompt_registry import prompt_lock_block
+from mailroom_sandbox.prompt_versions import PromptSelectionError, selection_from_lock
 
 
 def _versions() -> dict[str, Any]:
@@ -233,7 +234,7 @@ def _prompt_summary(block: dict[str, Any]) -> str:
     agents = block.get("agents") or {}
     bits = [f"default={block.get('default', {}).get('source')}"]
     for agent, r in agents.items():
-        bits.append(f"{agent}={r.get('source')}")
+        bits.append(f"{agent}={r.get('key') or r.get('source')}" if r.get("source") == "eval-environment" else f"{agent}={r.get('source')}")
     return "; ".join(bits) if bits else "code-default"
 
 
@@ -341,7 +342,7 @@ def preflight(
     #    would otherwise resume with different prompt text (DMR-049).
     try:
         prompt_block = prompt_lock_block(spec.prompt, offline=offline)
-    except KeyError as exc:
+    except (KeyError, PromptSelectionError) as exc:
         report["status"] = "failed"
         report["checks"] = [{"name": "prompt", "ok": False, "detail": str(exc)}]
         return report
@@ -534,6 +535,10 @@ def preflight(
         lock["agent_knobs"] = agent_knobs_for_run(run_id) or {}
     except Exception:  # noqa: BLE001 — a lock must still be written
         lock["agent_knobs"] = {}
+    selected = selection_from_lock(prompt_block)
+    if selected:
+        # The selected eval-environment keys + sha256 are part of the run's identity.
+        lock["prompt_versions"] = selected.versions_stamp()
     if spec.runbook_id:
         lock["runbook_id"] = spec.runbook_id
     if report_group:

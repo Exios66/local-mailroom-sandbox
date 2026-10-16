@@ -40,6 +40,8 @@ prompt:                     # ALL pipeline agents: local variants + Langfuse + c
   agents:
     judge: {source: local, file: judge_local_v0}
     sorter: {source: langfuse, name: mailroom-sorter, version: 9}   # integer pin
+  versions:                 # eval-environment prompt versions (any _v0 / _v1 / mutation key)
+    correspondence_specialist: correspondence_specialist_v3   # one role: `prompt.agents` OR `versions`
 
 dataset:                    # full mailroom-dataset OR a subset
   provider: huggingface     # or file:/…/x.jsonl (offline)

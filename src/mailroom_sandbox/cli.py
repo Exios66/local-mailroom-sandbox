@@ -54,6 +54,33 @@ def main(argv: list[str] | None = None) -> int:
     except FileNotFoundError as exc:
         print(f"command unavailable: {exc}", file=sys.stderr)
         return 1
+    except _prompt_selection_error() as exc:
+        print(f"error: prompt version: {_one_line(exc)}", file=sys.stderr)
+        return 1
+    except _provenance_errors() as exc:
+        # A scorecard that cannot carry honest provenance is a hard failure,
+        # never a skipped/"refused" entry: one clear line, exit 1.
+        print(f"error: scorecard not emitted: {_one_line(exc)}", file=sys.stderr)
+        return 1
+
+
+def _provenance_errors() -> tuple[type[BaseException], ...]:
+    """The dojo's provenance error, imported lazily (the dojo path is resolved at runtime)."""
+    try:
+        from llm_dojo_scoring.scorecard_honesty import ProvenanceExportError
+    except ImportError:  # dojo not importable: nothing to translate
+        return ()
+    return (ProvenanceExportError,)
+
+
+def _prompt_selection_error() -> type[BaseException]:
+    from mailroom_sandbox.prompt_versions import PromptSelectionError
+
+    return PromptSelectionError
+
+
+def _one_line(exc: BaseException) -> str:
+    return " ".join(str(exc).split())
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -98,7 +125,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser(
         "fetch-deps",
-        help="Refresh tracked vendor snapshots (llm-mailroom v0.7.1, llm-dojo-scoring v0.15.0) from pinned tags",
+        help="Refresh tracked vendor snapshots (llm-mailroom v0.7.1, llm-dojo-scoring v0.22.0 (pre-tag, 852b052)) from pinned tags",
         parents=[shared],
     )
     p.add_argument("--visualizer", action="store_true", help="Also clone The-Mailroom (Langfuse observer)")
@@ -279,6 +306,40 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         dest="from_log",
         help="For local_vs_api / sorter_vs_modernbert: compare experiment_log.jsonl instead of fixtures",
+    )
+    p.add_argument(
+        "--group",
+        default=None,
+        help=(
+            "local_vs_api --from-log: the log is grouped by full identity (model / prompt / task / "
+            "dataset) and each comparable local-vs-API group is compared and emitted separately; "
+            "with several groups pick the headline one by 1-based index or unique label substring"
+        ),
+    )
+    p.add_argument(
+        "--prompt-version",
+        action="append",
+        default=[],
+        dest="prompt_versions",
+        metavar="[ROLE=]KEY",
+        help=(
+            "Run with an eval-environment prompt version (archived _v0, frozen _v1 or any "
+            "GEPA/manual mutation), role=key e.g. correspondence_specialist=correspondence_specialist_v3, "
+            "or a bare key whose role is inferred (sorter_v3). Repeatable, one per role. Texts come "
+            "from the dojo lineage only; an unknown key, a key/role mismatch or a role the pipeline "
+            "lacks is an error. Default (no flag) is unchanged."
+        ),
+    )
+    p.add_argument(
+        "--dataset-revision",
+        default=None,
+        dest="dataset_revision",
+        metavar="SHA",
+        help=(
+            "local_vs_api: the full 40-hex Hub commit sha the scored rows came from, for log/fixture "
+            "rows that carry no dataset_revision. A scorecard without a real revision is a hard error "
+            "(exit 1); this fills the gap, it never overrides a revision a record already has"
+        ),
     )
     p.set_defaults(handler=_cmd_eval)
 
@@ -535,10 +596,19 @@ def build_parser() -> argparse.ArgumentParser:
     plug_list = prom_sub.add_parser("list", parents=[shared])
     plug_list.set_defaults(handler=_cmd_prompts_list)
     plug_show = prom_sub.add_parser("show", parents=[shared])
-    plug_show.add_argument("name", help="agent name (or --all)")
-    plug_show.add_argument("--variant", default=None, help="local variant stem")
+    plug_show.add_argument("name", help="agent name, or an eval-environment prompt version key (sorter_v3)")
+    plug_show.add_argument("--variant", default=None, help="agent: local variant stem")
     plug_show.add_argument("--json", action="store_true")
+    plug_show.add_argument("--diff", default=None, metavar="OTHER_KEY", help="version key: unified diff from <key> to OTHER_KEY")
+    plug_show.add_argument("--memo", action="store_true", help="version key: memo + what changed, no text")
     plug_show.set_defaults(handler=_cmd_prompts_show)
+    plug_lv = prom_sub.add_parser(
+        "list-versions", parents=[shared], help="every eval-environment prompt version (archived / frozen / mutation)"
+    )
+    plug_lv.add_argument("--role", default=None, help="only this role (e.g. sorter)")
+    plug_lv.add_argument("--lineage", default=None, choices=["archived", "frozen", "mutation"])
+    plug_lv.add_argument("--json", action="store_true")
+    plug_lv.set_defaults(handler=_cmd_prompts_list_versions)
     prom.set_defaults(handler=_cmd_prompts_help)
 
     mp = sub.add_parser("metrics", help="serving metrics compare (local vs Modal vs API)", parents=[shared])
@@ -731,6 +801,20 @@ def _run_parser(sub, shared):
     common.add_argument("--watch", action="store_true")
     common.add_argument("--job-mode", dest="mode", choices=["endpoint", "modal"], default=None)
     common.add_argument("--max-items", type=int, default=None)
+    common.add_argument(
+        "--prompt-version",
+        action="append",
+        default=[],
+        dest="prompt_versions",
+        metavar="[ROLE=]KEY",
+        help=(
+            "Run with an eval-environment prompt version (archived _v0, frozen _v1 or any "
+            "GEPA/manual mutation), role=key e.g. correspondence_specialist=correspondence_specialist_v3, "
+            "or a bare key whose role is inferred (sorter_v3). Repeatable, one per role. Texts come "
+            "from the dojo lineage only; an unknown key, a key/role mismatch or a role the pipeline "
+            "lacks is an error. Default (no flag) is unchanged."
+        ),
+    )
     common.add_argument(
         "--suite",
         default=None,
@@ -1041,9 +1125,12 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
 # instead (DMR-057/070): tags can lag removals — the v0.7.1 tag predates the
 # five-class taxonomy removal (59c47401), so a tag-based refresh of
 # llm-mailroom would resurrect the deleted docclass-era files.
+# llm-dojo-scoring v0.22.0 is NOT tagged yet (the vendored tree is dojo commit
+# 852b052): until the tag exists the standalone fallback fails loudly
+# ("could not resolve v0.22.0") instead of silently downgrading the snapshot.
 _VENDOR_PINS: tuple[tuple[str, str, str], ...] = (
     ("llm-mailroom", "v0.7.1", "https://github.com/Exios66/llm-mailroom.git"),
-    ("llm-dojo-scoring", "v0.15.0", "https://github.com/Exios66/llm-dojo-scoring.git"),
+    ("llm-dojo-scoring", "v0.22.0", "https://github.com/Exios66/llm-dojo-scoring.git"),
 )
 
 
@@ -1613,6 +1700,9 @@ def _cmd_eval(args: argparse.Namespace) -> int:
     exp = args.experiment_name or f"sandbox_{args.task}"
     console.run_banner(run_id=exp, task=args.task, subtitle="sandbox eval")
     console.phase("EVAL", "mock" if mock else args.profile or "local")
+    if getattr(args, "dataset_revision", None) and args.task != "local_vs_api":
+        raise SystemExit("error: --dataset-revision only applies to `eval local_vs_api`")
+    _select_prompt_versions(args)
     kwargs = {
         "mock": mock,
         "sample": args.sample,
@@ -1641,6 +1731,8 @@ def _cmd_eval(args: argparse.Namespace) -> int:
         result = runners.run_local_vs_api_eval(
             prompt_version=args.prompt,
             from_log=bool(getattr(args, "from_log", False)),
+            group=getattr(args, "group", None),
+            dataset_revision=getattr(args, "dataset_revision", None),
             **kwargs,
         )
     elif args.task == "sorter_vs_modernbert":
@@ -1665,6 +1757,35 @@ def _cmd_eval(args: argparse.Namespace) -> int:
     console.complete(state="done", summary=summary or exp)
     _print(result)
     return 0
+
+
+def _select_prompt_versions(args) -> None:
+    """Resolve ``--prompt-version`` for an eval and make it the process's active selection."""
+    from mailroom_sandbox import prompt_versions as pv
+
+    items = getattr(args, "prompt_versions", None)
+    if not items:
+        pv.clear_active_selection()
+        return
+    selection = pv.resolve_selection(items)
+    pv.check_no_stem_conflict(selection.keys, getattr(args, "prompt", None))
+    from mailroom_sandbox.eval.agents import SPECS
+
+    task = args.task
+    if task in SPECS:
+        unused = sorted(set(selection.keys) - {task})
+    elif task in {"pipeline", "extract", "chained"}:
+        unused = []
+    elif task == "sorter_vs_modernbert":
+        unused = sorted(set(selection.keys) - {"sorter"})
+    else:
+        unused = sorted(selection.keys)
+    if unused:
+        raise pv.PromptSelectionError(
+            f"task {task!r} does not use the prompt(s) for {unused}; a selection that would "
+            "not run is refused"
+        )
+    pv.set_active_selection(selection)
 
 
 def _cmd_matrix(args: argparse.Namespace) -> int:
@@ -2492,7 +2613,15 @@ def _run_load_spec(args) -> tuple[object, Path]:
         raise SystemExit("run commands need --config <run.yaml>")
     from mailroom_sandbox.job.spec import load_run_spec
 
-    return load_run_spec(config), Path(config).resolve()
+    spec = load_run_spec(config)
+    cli_versions = getattr(args, "prompt_versions", None)
+    if cli_versions:
+        # --prompt-version wins per role over the spec's prompt.versions; the merged
+        # selection is part of spec_hash, so the lock names it.
+        from mailroom_sandbox.prompt_versions import merge_into_spec_prompt
+
+        spec.prompt = merge_into_spec_prompt(spec.prompt, cli_versions)
+    return spec, Path(config).resolve()
 
 
 def _run_id_required(args) -> str:
@@ -2955,7 +3084,43 @@ def _cmd_runbook_write(args) -> int:
 
 
 def _cmd_prompts_help(args):
-    print("Use: sandbox prompts list | sandbox prompts show <agent> [--variant X]")
+    print(
+        "Use: sandbox prompts list | sandbox prompts show <agent> [--variant X]\n"
+        "     sandbox prompts list-versions [--role R] [--lineage archived|frozen|mutation] [--json]\n"
+        "     sandbox prompts show <version-key> [--diff <other-key> | --memo | --json]"
+    )
+    return 0
+
+
+def _cmd_prompts_list_versions(args) -> int:
+    from mailroom_sandbox import prompt_catalog as catalog
+
+    try:
+        rows = catalog.list_versions(role=args.role, lineage=args.lineage)
+    except KeyError as exc:
+        print(f"error: {exc.args[0]}", file=sys.stderr)
+        return 2
+    if getattr(args, "json", False):
+        _print(rows)
+    else:
+        print(catalog.format_version_table(rows))
+    return 0
+
+
+def _show_prompt_version(args) -> int:
+    from mailroom_sandbox import prompt_catalog as catalog
+
+    if args.diff and args.memo:
+        print("error: --diff and --memo are mutually exclusive", file=sys.stderr)
+        return 2
+    try:
+        if getattr(args, "json", False):
+            _print(catalog.version_json(args.name))
+            return 0
+        sys.stdout.write(catalog.show_version(args.name, memo_only=args.memo, diff_against=args.diff))
+    except KeyError as exc:
+        print(f"error: {exc.args[0]}", file=sys.stderr)
+        return 2
     return 0
 
 
@@ -2971,6 +3136,10 @@ def _cmd_prompts_show(args) -> int:
     from mailroom_sandbox.prompt_registry import FAMILY_B_KEYS, agent_prompt_names, resolve_prompt
 
     name = args.name
+    from mailroom_sandbox.prompt_catalog import is_version_key
+
+    if is_version_key(name) or getattr(args, "diff", None) or getattr(args, "memo", False):
+        return _show_prompt_version(args)
     if name not in agent_prompt_names():
         print(
             f"error: unknown agent {name!r} — have {sorted(agent_prompt_names())} "

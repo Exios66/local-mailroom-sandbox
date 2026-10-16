@@ -73,6 +73,8 @@ sandbox run preflight|start|status|resume|cancel|list --config config/runs/<name
 sandbox watch [--web] [--config config/runs/<name>.yaml]       # mailroom TUI + Modal log tail (see docs/pretty-logging/mailroom-themed-logging.md)
 sandbox run start --config <run.yaml> --job-mode modal --watch   # Modal worker
 sandbox prompts list | show <agent> [--variant X]
+sandbox prompts list-versions [--role R] | show <key> [--diff <other-key> | --memo]   # every eval-environment prompt version
+sandbox eval sorter --prompt-version sorter_v4        # run any version: docs/prompts/
 sandbox metrics compare --runs local,modal,api | --log
 sandbox tunnel --profile vllm-remote plan|up|status|down
 sandbox traces export
@@ -129,13 +131,14 @@ for the registered communication types and source links.
 config/profiles/     provider profiles (local-first defaults)
 config/runs/         run specs for `sandbox run` (vllm-local / vllm-remote / modal-vllm)
 config/prompts/      frozen prompt stems (referenced by name from run specs)
+docs/prompts/        catalog of every eval-environment prompt version: memos, changes, diffs, full text (generated)
 config/taxonomy.overlay.yaml
 config/models.yaml   OpenRouter champion → local tag map
 deploy/              Dockerfile + compose + Modal vLLM (modal_vllm.py) + Modal job worker (modal_job.py) + htcondor/ + conda/
 notebooks/           offline env setup + data prep + mock smoke
 data/fixtures/       offline samples (see ATTRIBUTION.md)
 src/mailroom_sandbox/
-vendor/              tracked family snapshots (llm-mailroom v0.7.1 + llm-dojo-scoring v0.15.0; see VENDOR.md)
+vendor/              tracked family snapshots (llm-mailroom v0.7.1 + llm-dojo-scoring v0.22.0 (pre-tag, 852b052); see VENDOR.md)
 reports/             sandbox experiment log (not a sister-repo mirror)
 governance/          SAND-* board (README / PREFIX / TASKS / archive)
 api-evals/           OpenRouter API cost harness — its own config/runs/ + reports/ and its own CLI
