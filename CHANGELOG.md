@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-15
+
 ### Changed — v1 specialist stems re-frozen (Exios66/llm-dojo-scoring#30)
 
 - `config/prompts/correspondence_specialist_simplified.txt` and
@@ -11,8 +13,6 @@
   (2026-10-15); `frozen_at` is unchanged. Correspondence `eab63b5a…`→`2b0b81ff…` (6061→6113 chars);
   corporate-records `484e64dd…`→`fe13501f…` (5801→5865 chars). **Scores on these two stems are not
   comparable to earlier cards without re-scoring.**
-
-## [0.3.0] - 2026-10-15
 
 ### Fixed — SAND-042 schema-adherence RCA (`docs/SAND42-SCHEMA-ADHERENCE-RCA.md`)
 
