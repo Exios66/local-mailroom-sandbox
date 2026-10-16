@@ -42,6 +42,7 @@ def test_resolve_local_lock_stem():
 
 
 def test_resolve_catalog_stem_logs_eval_environment_key():
+    """Resolve a catalog stem to its eval-environment key and locked digest."""
     label, sha = resolve_logged_prompt_version(
         None,
         task="correspondence_specialist",
