@@ -21,7 +21,8 @@ sandbox eval pipeline --mock          # connected: class + stage + extract + rou
 sandbox eval chained --mock           # sorter → extract only
 sandbox eval legalbench --mock
 sandbox eval local_vs_api --mock  # fixture timings; no OPENROUTER_API_KEY
-sandbox eval local_vs_api --from-log  # pair experiment_log local vs API-key rows
+sandbox eval local_vs_api --from-log  # pair experiment_log local vs API-key rows (per comparable group)
+sandbox eval local_vs_api --from-log --group 2   # several groups: pick the headline one (index or label)
 sandbox eval sorter_vs_modernbert --mock  # LLM sorter vs ModernBERT accuracy+cost
 sandbox metrics compare --runs local,modal,api
 sandbox metrics compare --fixture   # Grant cost-compare parity (offline)
@@ -40,6 +41,37 @@ local Ollama cost stays `None` without a price table. The suite returns a
 scoring **table** (every T0/T1 metric, missing as `None`), a **scorecard**
 (identity + cost calculations), and markdown for the experiment log.
 Sorter headlines stay `accuracy` + `f1_macro`.
+
+### Serving provenance and comparable groups (dojo v0.22)
+
+The dojo refuses to emit a serving scorecard without a provenance stamp
+(`dataset_revision`, `prompt_id`, `serving_kind`, `model_id`; USD metrics also
+`cost_basis`) and treats a comparison leg that pools runs differing on
+serving kind / model / prompt / task / dataset fingerprint / revision / split /
+draw seed as `identity_mixed`.
+
+* **Records carry the stamp.** Job-run records (`record_from_run`) take
+  `dataset_revision` (the lock's resolved Hub sha), `split` and `draw_seed`
+  (`sample_seed`) from the run lock via `job.metrics.lock_dataset_provenance`;
+  a local `file` dataset has no Hub revision and gets none. Token-price USD is
+  labelled `cost_basis=token_price_estimate`. The committed serving fixtures
+  carry `dataset_revision = job.spec.FAMILY_HF_REVISION`. `dataset_revision` is
+  never derived from the dataset fingerprint (the fingerprint maps to
+  `draw_seed`). Isolated fixture evals and old log rows have no Hub revision, so
+  their scorecard emission is refused and reported (`scorecards[].reason`), not
+  faked; pass `provenance={"local": {...}, "api": {...}}` to
+  `emit_local_vs_api_scorecard` only with the real revision.
+* **`--from-log` / `sandbox matrix` group before comparing.** Rows are grouped
+  by full identity and a local-side leg is paired with an API-side leg only when
+  they measured the same thing (`mailroom_sandbox.serving_groups`, as dojo
+  `pair_comparable_runs`). Each comparable pair is one entry in `groups`; each
+  is emitted as `<name>.g<n>`. With several groups the headline `scores` stay
+  empty until `--group <n|label>` selects one; legs with no counterpart are
+  listed under `unpaired`. The run's own `local_vs_api` comparison records in the
+  log are skipped.
+* **`sandbox metrics compare`** pairs per group too (`pairwise` keys
+  `local_vs_api`, or `local_vs_api[n]` when several); a bucket that pools unlike
+  runs is flagged `identity_mixed` and incomparable legs are listed.
 
 ## Isolated vs connected
 

@@ -225,8 +225,49 @@ def test_score_emit_resolves_runbook_group_without_group_token(tmp_path, monkeyp
     assert emitted["record"] is record
 
 
+from mailroom_sandbox.job.spec import FAMILY_HF_REVISION as REV  # noqa: E402
+
+
+def _fixture_comparison():
+    """The committed serving fixtures, scored by the real dojo suite."""
+    from mailroom_sandbox.datasets import load_serving_fixtures
+
+    fixtures = load_serving_fixtures()
+    return scoring.compare_local_vs_api(fixtures["local"], fixtures["api"])
+
+
 def test_local_vs_api_scorecard_uses_run_group(tmp_path, monkeypatch):
-    """Local-vs-API scorecards follow the SAND token in the experiment name."""
+    """Local-vs-API scorecards follow the SAND token in the experiment name.
+
+    Runs the REAL Emitter + LocalManifestSink (no monkeypatched emitter) so the
+    dojo's provenance enforcement is exercised — a patched Emitter hid the
+    dataset_revision break from CI.
+    """
+    monkeypatch.setattr(scoring, "reports_dir", lambda: tmp_path / "reports")
+
+    scoring.emit_local_vs_api_scorecard(_fixture_comparison(), run_id="sand32-s3-corr50")
+
+    path = tmp_path / "reports" / "scores" / "SAND-32" / "scores.jsonl"
+    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    assert {r["run_id"] for r in rows} == {"sand32-s3-corr50:local", "sand32-s3-corr50:api"}
+    assert all(r["metadata"]["provenance"]["dataset_revision"] == REV for r in rows)
+
+
+def test_local_vs_api_scorecard_uses_locked_metadata_when_run_id_has_no_group(tmp_path, monkeypatch):
+    """Locked report_group metadata wins when the run id has no SAND token."""
+    monkeypatch.setattr(scoring, "reports_dir", lambda: tmp_path / "reports")
+
+    scoring.emit_local_vs_api_scorecard(
+        _fixture_comparison(),
+        run_id="sandbox_local_vs_api_job-204",
+        metadata={"report_group": "SAND-123"},
+    )
+
+    assert (tmp_path / "reports" / "scores" / "SAND-123" / "scores.jsonl").is_file()
+
+
+def test_local_vs_api_scorecard_path_with_a_recording_emitter(tmp_path, monkeypatch):
+    """Path-only unit: the sink path derives from the run id (emitter stubbed)."""
     captured = {}
 
     class RecordingSink:
@@ -247,34 +288,6 @@ def test_local_vs_api_scorecard_uses_run_group(tmp_path, monkeypatch):
     scoring.emit_local_vs_api_scorecard({}, run_id="sand32-s3-corr50")
 
     assert captured["path"] == tmp_path / "reports" / "scores" / "SAND-32" / "scores.jsonl"
-
-
-def test_local_vs_api_scorecard_uses_locked_metadata_when_run_id_has_no_group(tmp_path, monkeypatch):
-    """Locked report_group metadata wins when the run id has no SAND token."""
-    captured = {}
-
-    class RecordingSink:
-        def __init__(self, path):
-            """Capture the scorecard sink path."""
-            captured["path"] = Path(path)
-
-    class RecordingEmitter:
-        def __init__(self, *, sinks):
-            """Capture the first emitter sink."""
-            captured["sink"] = sinks[0]
-
-    monkeypatch.setattr(scoring, "reports_dir", lambda: tmp_path / "reports")
-    monkeypatch.setattr(scoring, "LocalManifestSink", RecordingSink)
-    monkeypatch.setattr(scoring, "Emitter", RecordingEmitter)
-    monkeypatch.setattr(scoring, "emit_serving_scorecard", lambda *args, **kwargs: {})
-
-    scoring.emit_local_vs_api_scorecard(
-        {},
-        run_id="sandbox_local_vs_api_job-204",
-        metadata={"report_group": "SAND-123"},
-    )
-
-    assert captured["path"] == tmp_path / "reports" / "scores" / "SAND-123" / "scores.jsonl"
 
 
 def test_dojo_pin_is_v0_22():
@@ -415,6 +428,10 @@ def test_compare_from_log_pairs_local_and_api(tmp_path, monkeypatch):
     assert result["comparison"]["scorecard"]["cost"]["local"]["estimated_cost_usd"] is None
     assert local["serving_kind"] == "local"
     assert api["serving_kind"] == "api"
+    # these isolated-style rows carry no dataset_revision: the dojo refuses the
+    # scorecard and the run reports that instead of pretending it was emitted.
+    assert result["scores"]["scorecards_refused"] == 1
+    assert "dataset_revision" in result["scorecards"][0]["reason"]
     md = (tmp_path / "experiment_log.md").read_text(encoding="utf-8")
     assert "local vs API serving scorecard" in md
 

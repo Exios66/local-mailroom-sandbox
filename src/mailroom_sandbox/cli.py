@@ -280,6 +280,15 @@ def build_parser() -> argparse.ArgumentParser:
         dest="from_log",
         help="For local_vs_api / sorter_vs_modernbert: compare experiment_log.jsonl instead of fixtures",
     )
+    p.add_argument(
+        "--group",
+        default=None,
+        help=(
+            "local_vs_api --from-log: the log is grouped by full identity (model / prompt / task / "
+            "dataset) and each comparable local-vs-API group is compared and emitted separately; "
+            "with several groups pick the headline one by 1-based index or unique label substring"
+        ),
+    )
     p.set_defaults(handler=_cmd_eval)
 
     p = sub.add_parser("matrix", help="provider × model × prompt grid", parents=[shared])
@@ -1644,6 +1653,7 @@ def _cmd_eval(args: argparse.Namespace) -> int:
         result = runners.run_local_vs_api_eval(
             prompt_version=args.prompt,
             from_log=bool(getattr(args, "from_log", False)),
+            group=getattr(args, "group", None),
             **kwargs,
         )
     elif args.task == "sorter_vs_modernbert":

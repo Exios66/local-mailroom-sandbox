@@ -23,6 +23,7 @@ import json
 import logging
 import math
 import os
+import re
 import statistics
 from datetime import datetime
 from pathlib import Path
@@ -31,7 +32,10 @@ from typing import Any, Mapping, Sequence, TYPE_CHECKING
 if TYPE_CHECKING:
     from mailroom_sandbox.job.checkpoint import RunStore
 
+from llm_dojo_scoring.scorecard_honesty import COST_BASIS_TOKEN_PRICE
 from llm_dojo_scoring.serving import compare_serving, estimate_cost
+
+from mailroom_sandbox.serving_groups import group_legs, pair_legs, pooled_identity_conflict
 
 from mailroom_sandbox.job.specialist_posture import as_metrics_sec_tables
 
@@ -246,6 +250,44 @@ def _gpu_seconds_from_items(
     return sum(latencies) / 1000.0
 
 
+_FULL_SHA_RE = re.compile(r"[0-9a-f]{40}")
+
+
+def lock_dataset_provenance(lock: Mapping[str, Any] | None) -> dict[str, str]:
+    """``dataset_revision`` / ``split`` / ``draw_seed`` a run lock actually knows.
+
+    The dojo (v0.22) refuses to emit a serving scorecard without
+    ``dataset_revision`` and never derives it from the dataset fingerprint
+    (the fingerprint maps to ``draw_seed``). The run lock is the one place the
+    sandbox records which Hub snapshot a run scored, so the stamp comes from
+    there and only there:
+
+    * ``dataset_revision`` — the lock's resolved 40-hex Hub sha (or a requested
+      revision that already is one). An offline ``file`` dataset has no Hub
+      revision, so nothing is stamped for it (never ``"offline"``).
+    * ``split`` — the locked split.
+    * ``draw_seed`` — the locked ``sample_seed`` (absent for an undrawn run).
+    """
+    dataset = (lock or {}).get("dataset")
+    if not isinstance(dataset, Mapping):
+        return {}
+    meta = dataset.get("metadata") if isinstance(dataset.get("metadata"), Mapping) else {}
+    out: dict[str, str] = {}
+    if meta.get("source") == "huggingface":
+        for key in ("revision_resolved", "revision"):
+            value = str(dataset.get(key) or "").strip().lower()
+            if _FULL_SHA_RE.fullmatch(value):
+                out["dataset_revision"] = value
+                break
+        split = str(dataset.get("split") or "").strip()
+        if split:
+            out["split"] = split
+    seed = dataset.get("sample_seed")
+    if seed is not None and not isinstance(seed, bool):
+        out["draw_seed"] = str(seed)
+    return out
+
+
 def record_from_run(
     *,
     run_id: str,
@@ -261,8 +303,14 @@ def record_from_run(
     billed_window_seconds: float | None = None,
     replicas: int = 1,
     mock: bool = False,
+    dataset_provenance: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Aggregate per-item captures into one dojo-compatible serving record."""
+    """Aggregate per-item captures into one dojo-compatible serving record.
+
+    ``dataset_provenance`` (``dataset_revision`` / ``split`` / ``draw_seed``,
+    see :func:`lock_dataset_provenance`) is stamped on the record when given so
+    the dojo can emit its scorecard; it is never inferred here.
+    """
     kind = bucket_kind({"serving_kind": "", "profile": profile, "provider": _provider_for(profile)})
     # hub#56: TTFT aggregation must treat failures like the latency
     # aggregation — failed/retried items carry inflated TTFT from backoff
@@ -289,6 +337,10 @@ def record_from_run(
         "run_id": run_id,
         "spec_hash": spec_hash,
     }
+    for key in ("dataset_revision", "split", "draw_seed"):
+        value = (dataset_provenance or {}).get(key)
+        if value not in (None, ""):
+            rec[key] = value
     if gpu:
         rec["gpu"] = gpu
     if latencies:
@@ -310,6 +362,9 @@ def record_from_run(
         cost = _estimate_cost(prompt_tokens, completion_tokens, model)
         if cost is not None:
             rec["estimated_cost_usd"] = float(cost)
+            # tokens x a price table: label it so the dojo can stamp USD rows
+            # (a USD metric without cost_basis is refused at emission).
+            rec["cost_basis"] = COST_BASIS_TOKEN_PRICE
             if n_ok > 0:
                 rec["cost_per_document"] = round(float(cost) / n_ok, 8)
         elif not mock and n_ok > 0 and total_tokens <= 0:
@@ -652,6 +707,7 @@ def serving_record_from_store(
         model=(engine.get("model") if isinstance(engine, dict) else None) or "?",
         prompt_version=_prompt_version_from_lock(lock),
         dataset_fingerprint=_dataset_fingerprint_from_store(store),
+        dataset_provenance=lock_dataset_provenance(lock),
         items=items,
         scores=scores,
         gpu=gpu,
@@ -816,13 +872,46 @@ def compare(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         "mean_cost_per_document": delta_vs_api("mean_cost_per_document"),
     }
 
+    # Pairwise dojo comparisons are made per comparable GROUP (full identity:
+    # model / prompt / task / dataset ...), not per serving kind: the dojo marks
+    # a leg that pools different identities ``identity_mixed`` and reports no
+    # delta. One comparable pair keeps the historical key ("local_vs_api");
+    # several get "local_vs_api[<n>]" and are listed under ``groups``.
     pairs: dict[str, Any] = {}
-    if buckets.get("local") and buckets.get("api"):
-        pairs["local_vs_api"] = compare_serving(buckets["local"], buckets["api"])
-    if buckets.get("modal") and buckets.get("api"):
-        pairs["modal_vs_api"] = compare_serving(buckets["modal"], buckets["api"])
-    if buckets.get("local") and buckets.get("modal"):
-        pairs["local_vs_modal"] = compare_serving(buckets["local"], buckets["modal"])
+    groups: list[dict[str, Any]] = []
+    unpaired: list[dict[str, Any]] = []
+    legs = {kind: group_legs(buckets.get(kind) or [], bucket_kind) for kind in ("local", "modal", "api")}
+    for name, (lk, rk) in (
+        ("local_vs_api", ("local", "api")),
+        ("modal_vs_api", ("modal", "api")),
+        ("local_vs_modal", ("local", "modal")),
+    ):
+        if not legs[lk] or not legs[rk]:
+            continue
+        leg_pairs, lone_l, lone_r = pair_legs(legs[lk], legs[rk])
+        for side, lone in ((lk, lone_l), (rk, lone_r)):
+            unpaired.extend(
+                {
+                    "comparison": name,
+                    "side": side,
+                    "label": leg.label,
+                    "n": len(leg.rows),
+                    "reason": "incomparable: no opposite-side leg measured the same "
+                    "task / prompt / dataset fingerprint / revision / split / draw seed",
+                }
+                for leg in lone
+            )
+        for idx, pair in enumerate(leg_pairs, start=1):
+            key = name if len(leg_pairs) == 1 else f"{name}[{idx}]"
+            pairs[key] = compare_serving(pair.left.rows, pair.right.rows)
+            groups.append({"pair": key, "label": pair.label, "n_left": len(pair.left.rows), "n_right": len(pair.right.rows)})
+    # The per-bucket summary above still pools every row of a kind (a plain
+    # mean over whatever was logged); say so when the pool mixes identities.
+    for kind, rows in buckets.items():
+        if rows and kind in summary:
+            conflict = pooled_identity_conflict(rows)
+            if conflict:
+                summary[kind]["identity_mixed"] = conflict
 
     cost_total = {
         kind: (agg.get("estimated_cost_usd") if agg else None)
@@ -832,13 +921,15 @@ def compare(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         kind: (agg.get("estimated_gpu_cost_usd") if agg else None)
         for kind, agg in summary.items()
     }
-    markdown = _markdown(summary, deltas, pairs)
+    markdown = _markdown(summary, deltas, pairs, groups, unpaired)
     return {
         "buckets": summary,
         "deltas_vs_api": deltas,
         "total_cost_usd": cost_total,
         "total_gpu_cost_usd": gpu_cost_total,
         "pairwise": pairs,
+        "groups": groups,
+        "unpaired": unpaired,
         "markdown": markdown,
     }
 
@@ -1026,7 +1117,13 @@ def _cell(value: Any) -> str:
     return "-" if value is None else str(value)
 
 
-def _markdown(summary: dict[str, Any], deltas: dict[str, Any], pairs: dict[str, Any]) -> str:
+def _markdown(
+    summary: dict[str, Any],
+    deltas: dict[str, Any],
+    pairs: dict[str, Any],
+    groups: Sequence[Mapping[str, Any]] = (),
+    unpaired: Sequence[Mapping[str, Any]] = (),
+) -> str:
     lines = ["## Serving metrics (local vs Modal vs API)", ""]
     header = (
         "| bucket | n | mean e2e (s) | mean ttft (s) | tok/s | total tokens | "
@@ -1044,6 +1141,14 @@ def _markdown(summary: dict[str, Any], deltas: dict[str, Any], pairs: dict[str, 
             f"{_cell(agg.get('estimated_gpu_cost_usd'))} | "
             f"{_cell(agg.get('mean_cost_per_document'))} |"
         )
+    mixed = {k: v["identity_mixed"] for k, v in summary.items() if v.get("identity_mixed")}
+    if mixed:
+        lines.append("")
+        for kind, fields in mixed.items():
+            lines.append(
+                f"> **{kind} bucket pools different {', '.join(fields)}** (identity_mixed): "
+                "the row above is a plain mean over unlike runs; compare the groups below."
+            )
     lines.append("")
     lines.append("### Delta vs API (%)")
     lines.append("| metric | local | modal |")
@@ -1052,8 +1157,12 @@ def _markdown(summary: dict[str, Any], deltas: dict[str, Any], pairs: dict[str, 
         lines.append(f"| {metric} | {_cell(d.get('local'))} | {_cell(d.get('modal'))} |")
     for name, pair in pairs.items():
         md = pair.get("markdown") if isinstance(pair, dict) else None
+        label = next((g["label"] for g in groups if g.get("pair") == name), None)
         if md:
-            lines += ["", f"### Pairwise: {name}", str(md)]
+            lines += ["", f"### Pairwise: {name}" + (f" - {label}" if label else ""), str(md)]
+    if unpaired:
+        lines += ["", "### Incomparable legs (no counterpart measured the same thing)"]
+        lines += [f"- {u['comparison']}: {u['side']} {u['label']} (n={u['n']})" for u in unpaired]
     return "\n".join(lines)
 
 

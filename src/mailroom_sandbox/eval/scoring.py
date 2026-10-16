@@ -23,6 +23,7 @@ from llm_dojo_scoring import (
     suite_for_doc_type,
 )
 from llm_dojo_scoring.extraction_metrics import extraction_binary_metrics
+from llm_dojo_scoring.scorecard_honesty import ProvenanceExportError
 from llm_dojo_scoring.serving import CANONICAL_SERVING_KEYS, pair_comparable_runs
 
 from mailroom_sandbox.eval.extraction_scope import scope_extraction_pair
@@ -324,15 +325,46 @@ def compare_local_vs_api(
     return get_suite("local_vs_api").score(local, api, **kwargs)
 
 
-def compare_from_records(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+_DERIVED_COMPARISON_TASKS = ("local_vs_api", "sorter_vs_modernbert")
+
+
+def compare_from_records(
+    records: Sequence[Mapping[str, Any]],
+    *,
+    group: str | int | None = None,
+) -> dict[str, Any]:
     """Partition an experiment log and compare local (or Modal) vs API-key runs.
 
-    Dojo ``split_local_api`` folds ``modal-vllm`` into ``local``. The sandbox
-    splitter keeps a Modal bucket (DMR-049) and still scores Modal↔API through
-    ``get_suite("local_vs_api")`` after ``to_dojo_serving_record`` so Grant
-    cost-compare logs work without a live GPU.
+    Dojo ``split_local_api`` no longer folds ``modal-vllm`` into ``local``
+    (#21); the sandbox splitter keeps its own Modal bucket (DMR-049) and a
+    Modal↔API comparison still goes through ``get_suite("local_vs_api")`` after
+    ``to_dojo_serving_record`` so Grant cost-compare logs work without a live
+    GPU.
+
+    Rows are grouped by FULL identity (serving kind, model, prompt, task,
+    dataset fingerprint / revision, split, draw seed) before comparing, because
+    the dojo marks a leg that pools runs differing on any of them
+    ``identity_mixed`` and ``emit_serving_scorecard`` refuses it. A local-side
+    leg is paired with an API-side leg only when they measured the same thing
+    (:func:`mailroom_sandbox.serving_groups.pair_legs`), so a multi-model log
+    yields one comparison per comparable pair — ``payload["groups"]`` — instead
+    of one pooled, meaningless one.
+
+    ``payload["comparison"]`` (and ``table`` / ``scorecard`` / ``cost`` /
+    ``markdown``) are filled when exactly one pair exists or ``group``
+    (1-based index or unique label substring) selects one; with several pairs
+    and no ``group`` they stay ``None`` and ``note`` lists the choices.
+    Legs that found no counterpart are listed under ``unpaired``.
     """
-    rows = [to_dojo_serving_record(r) for r in records]
+    from mailroom_sandbox.serving_groups import group_legs, pair_legs, select_pair
+
+    # `sandbox eval local_vs_api` / `sorter_vs_modernbert` log their own
+    # comparison output as a record; that is a derived result, not a serving
+    # run, and would only appear as an unpaired leg on the next --from-log.
+    derived = [r for r in records if r.get("task") in _DERIVED_COMPARISON_TASKS]
+    rows = [
+        to_dojo_serving_record(r) for r in records if r.get("task") not in _DERIVED_COMPARISON_TASKS
+    ]
     buckets = split_serving_records(rows)
     local = buckets["local"]
     modal = buckets["modal"]
@@ -343,7 +375,11 @@ def compare_from_records(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]
         "modal_n": len(modal),
         "api_n": len(api),
         "unknown_n": len(unknown),
+        "derived_skipped_n": len(derived),
         "pairs": [],
+        "groups": [],
+        "unpaired": [],
+        "selected_group": None,
         "comparison": None,
         "headlines": serving_headlines(),
         "table": [],
@@ -358,7 +394,7 @@ def compare_from_records(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]
         left_label = "modal"
         payload["note"] = (
             "Compared Modal vs API via get_suite('local_vs_api'); dojo "
-            "identity.serving_kind remaps modal→local (sandbox keeps modal)."
+            "identity.serving_kind is 'modal' (no modal→local remap, dojo #21)."
         )
     if not left or not api:
         payload["note"] = (
@@ -367,17 +403,80 @@ def compare_from_records(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]
             "fixtures work without OPENROUTER_API_KEY."
         )
         return payload
-    # pair_comparable_runs still uses dojo split (modal counts as local there).
+    # pair_comparable_runs pairs single runs (record-level); the group pairs
+    # below are the leg-level comparisons.
     pairs = pair_comparable_runs(rows)
     suite = get_suite("local_vs_api")
     payload["pairs"] = [suite.score(a, b) for a, b in pairs]
-    comparison = suite.score(left, api)
+
+    bucket_of = lambda rec: str(rec.get("serving_kind") or "unknown")  # noqa: E731
+    left_legs = group_legs(left, bucket_of)
+    api_legs = group_legs(api, bucket_of)
+    leg_pairs, lone_left, lone_api = pair_legs(left_legs, api_legs)
     payload["left_serving"] = left_label
-    payload["comparison"] = comparison
-    payload["table"] = comparison.get("table") or []
-    payload["scorecard"] = comparison.get("scorecard")
-    payload["cost"] = comparison.get("cost")
-    payload["markdown"] = comparison.get("markdown")
+    for idx, pair in enumerate(leg_pairs, start=1):
+        comparison = suite.score(pair.left.rows, pair.right.rows)
+        payload["groups"].append(
+            {
+                "group": idx,
+                "label": pair.label,
+                "left_serving": left_label,
+                "key": pair.key,
+                "local_identity": pair.left.identity,
+                "api_identity": pair.right.identity,
+                "local_n": len(pair.left.rows),
+                "api_n": len(pair.right.rows),
+                "comparison": comparison,
+                "incomparable_reason": comparison.get("incomparable_reason"),
+            }
+        )
+    for side, legs in ((left_label, lone_left), ("api", lone_api)):
+        for leg in legs:
+            payload["unpaired"].append(
+                {
+                    "side": side,
+                    "label": leg.label,
+                    "identity": leg.identity,
+                    "n": len(leg.rows),
+                    "reason": (
+                        "no opposite-side leg measured the same task / prompt / "
+                        "dataset fingerprint / revision / split / draw seed"
+                    ),
+                }
+            )
+    if not leg_pairs:
+        payload["note"] = (
+            f"{len(left_legs)} {left_label} leg(s) and {len(api_legs)} API leg(s) found, "
+            "but none measured the same task / prompt / dataset (fingerprint, "
+            "revision, split, draw seed) — nothing comparable. See `unpaired`."
+        )
+        return payload
+
+    chosen = None
+    if group is not None:
+        chosen = select_pair(leg_pairs, group)
+    elif len(leg_pairs) == 1:
+        chosen = leg_pairs[0]
+    else:
+        choices = "; ".join(f"{g['group']}: {g['label']}" for g in payload["groups"])
+        payload["note"] = (
+            f"{len(leg_pairs)} comparable groups (one comparison each in `groups`); "
+            f"pass group=<n|label> (CLI: --group) to pick one for the headline. {choices}"
+        )
+    if chosen is not None:
+        idx = leg_pairs.index(chosen) + 1
+        comparison = payload["groups"][idx - 1]["comparison"]
+        payload["selected_group"] = idx
+        payload["comparison"] = comparison
+        payload["table"] = comparison.get("table") or []
+        payload["scorecard"] = comparison.get("scorecard")
+        payload["cost"] = comparison.get("cost")
+        payload["markdown"] = comparison.get("markdown")
+    elif payload["groups"]:
+        payload["markdown"] = "\n\n".join(
+            f"### Group {g['group']}: {g['label']}\n\n{g['comparison'].get('markdown') or ''}".rstrip()
+            for g in payload["groups"]
+        )
     return payload
 
 
@@ -386,10 +485,69 @@ def emit_local_vs_api_scorecard(
     *,
     run_id: str | None = None,
     metadata: Mapping[str, Any] | None = None,
+    provenance: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Persist local and API T0/T1 as separate scorecards (never averaged)."""
+    """Persist local and API T0/T1 as separate scorecards (never averaged).
+
+    The dojo (v0.22) refuses to emit a metric without a provenance stamp
+    (``dataset_revision``, ``prompt_id``, ``serving_kind``, ``model_id``) and
+    refuses an ``identity_mixed`` leg. ``provenance`` is the optional
+    ``{"local": {...}, "api": {...}}`` override; keys it leaves out come from
+    the leg's own records, which is why serving records carry
+    ``dataset_revision`` (and ``split`` / ``draw_seed`` where known — see
+    ``job.metrics.lock_dataset_provenance``). ``dataset_revision`` is never
+    derived from the dataset fingerprint.
+    """
     em = Emitter(sinks=[LocalManifestSink(scores_path(run_id, metadata=metadata))])
-    return emit_serving_scorecard(comparison, run_id=run_id, emitter=em)
+    try:
+        return emit_serving_scorecard(
+            comparison, run_id=run_id, emitter=em, provenance=provenance
+        )
+    except ProvenanceExportError as exc:
+        if "dataset_revision" in str(exc):
+            raise ProvenanceExportError(
+                f"{exc} [sandbox: serving records get dataset_revision from the run "
+                "lock (job runs) or the committed serving fixtures; isolated "
+                "fixture evals and old experiment-log rows have no Hub revision to "
+                "stamp — pass provenance={'local': {'dataset_revision': ...}, "
+                "'api': {...}} only with the real revision the run scored]"
+            ) from exc
+        raise
+
+
+def emit_group_scorecards(
+    compared: Mapping[str, Any],
+    *,
+    run_id: str | None = None,
+    metadata: Mapping[str, Any] | None = None,
+    provenance: Mapping[str, Mapping[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    """Emit one scorecard per comparable group of :func:`compare_from_records`.
+
+    One group keeps ``run_id`` unchanged (back-compatible); several get
+    ``<run_id>.g<n>`` so their rows never collide. An incomparable group, or one
+    the dojo refuses on provenance, is reported (``emitted: False`` + reason) —
+    never silently dropped and never averaged into another group.
+    """
+    groups = list(compared.get("groups") or [])
+    results: list[dict[str, Any]] = []
+    for entry in groups:
+        comparison = entry.get("comparison") or {}
+        gid = f"{run_id}.g{entry['group']}" if run_id and len(groups) > 1 else run_id
+        outcome: dict[str, Any] = {"group": entry["group"], "label": entry["label"], "run_id": gid}
+        if comparison.get("incomparable"):
+            outcome.update(emitted=False, reason=f"incomparable: {comparison.get('incomparable_reason')}")
+        else:
+            try:
+                emit_local_vs_api_scorecard(
+                    comparison, run_id=gid, metadata=metadata, provenance=provenance
+                )
+                outcome["emitted"] = True
+            except ProvenanceExportError as exc:
+                _log.warning("local_vs_api group %s scorecard not emitted: %s", entry["group"], exc)
+                outcome.update(emitted=False, reason=str(exc))
+        results.append(outcome)
+    return results
 
 
 def score_one_serving_run(record: Mapping[str, Any]) -> dict[str, Any]:
