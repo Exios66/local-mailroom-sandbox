@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Changed — breaking (vendored dojo)
+
+- **Vendored llm-dojo-scoring re-vendored at dojo commit `8c7b7f1`** (the unreleased fixes toward
+  v0.22.0; the pin becomes the `v0.22.0` tag once cut). Mirrored with the repo's own
+  `_refresh_vendor_from_workspace` (the `sandbox fetch-deps` workspace leg) because the monorepo layout is
+  absent; every vendored-pin claim (`vendor/README.md`, `vendor/llm-dojo-scoring/VENDOR.md`, README,
+  QUICKSTART, SANDBOX-GUIDE, sister-repos, htcondor README, `deploy/modal_job.py`, `pyproject.toml`, the
+  `fetch-deps` fallback pin) now names it. New dojo contract: `Emitter.emit_score` requires provenance, a
+  serving leg that mixes identities is `identity_mixed`, `metric_id_for` is strict.
+
 ### Added
 
 - **SAND-042 repaired specialists frozen.** `insurance_claims_specialist_simplified_v2` and

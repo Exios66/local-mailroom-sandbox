@@ -98,7 +98,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser(
         "fetch-deps",
-        help="Refresh tracked vendor snapshots (llm-mailroom v0.7.1, llm-dojo-scoring v0.15.0) from pinned tags",
+        help="Refresh tracked vendor snapshots (llm-mailroom v0.7.1, llm-dojo-scoring v0.22.0 (pre-tag, 8c7b7f1)) from pinned tags",
         parents=[shared],
     )
     p.add_argument("--visualizer", action="store_true", help="Also clone The-Mailroom (Langfuse observer)")
@@ -1041,9 +1041,12 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
 # instead (DMR-057/070): tags can lag removals — the v0.7.1 tag predates the
 # five-class taxonomy removal (59c47401), so a tag-based refresh of
 # llm-mailroom would resurrect the deleted docclass-era files.
+# llm-dojo-scoring v0.22.0 is NOT tagged yet (the vendored tree is dojo commit
+# 8c7b7f1): until the tag exists the standalone fallback fails loudly
+# ("could not resolve v0.22.0") instead of silently downgrading the snapshot.
 _VENDOR_PINS: tuple[tuple[str, str, str], ...] = (
     ("llm-mailroom", "v0.7.1", "https://github.com/Exios66/llm-mailroom.git"),
-    ("llm-dojo-scoring", "v0.15.0", "https://github.com/Exios66/llm-dojo-scoring.git"),
+    ("llm-dojo-scoring", "v0.22.0", "https://github.com/Exios66/llm-dojo-scoring.git"),
 )
 
 

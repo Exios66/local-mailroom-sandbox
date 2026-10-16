@@ -277,8 +277,8 @@ def test_local_vs_api_scorecard_uses_locked_metadata_when_run_id_has_no_group(tm
     assert captured["path"] == tmp_path / "reports" / "scores" / "SAND-123" / "scores.jsonl"
 
 
-def test_dojo_pin_is_v0_15():
-    """The sandbox pins llm-dojo-scoring at the v0.15 line."""
+def test_dojo_pin_is_v0_22():
+    """The sandbox pins llm-dojo-scoring at the v0.22 line (pre-tag 8c7b7f1)."""
     import re
 
     import llm_dojo_scoring as dojo
@@ -290,7 +290,8 @@ def test_dojo_pin_is_v0_15():
     vendor = vendored_dojo_src()
     assert vendor is not None, "vendored llm-dojo-scoring snapshot missing"
     vendor_md = (vendor.parent / "VENDOR.md").read_text(encoding="utf-8")
-    assert "v0.15.0" in vendor_md
+    assert "v0.22.0" in vendor_md
+    assert "8c7b7f1" in vendor_md
     assert str(vendor.resolve()) in sys.path, "vendored dojo must be on sys.path"
     assert str(Path(dojo.__file__).resolve()).startswith(str(vendor.resolve()))
     version = re.match(r"(\d+)\.(\d+)", dojo.__version__)
