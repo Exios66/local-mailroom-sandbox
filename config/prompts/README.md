@@ -60,6 +60,20 @@ Hub `claimed_amount` vs correspondence `demand_amount`). Shared
 subclass tokens, null / `[]` / `0`, do-not-invent. **Current run-20 /
 run-30 specialist YAMLs pin these.**
 
+### Extraction rules in the re-frozen v1 stems
+
+- [`config/prompts/corporate_records_specialist_simplified.txt`](corporate_records_specialist_simplified.txt#L11),
+  line 11: `subsidiary_list` emits `record_type: other`, the parent as
+  `entity_name`, a subsidiary listing in `subject_matter`, and subsidiary names
+  in `keywords`. `filing_number` is null unless an official filing or document
+  number is present. An exhibit ID never qualifies as that number.
+- [`config/prompts/correspondence_specialist_simplified.txt`](correspondence_specialist_simplified.txt#L14),
+  lines 14 and [33](correspondence_specialist_simplified.txt#L33):
+  `communication_type` is null when no registered token fits the visible text;
+  still extract sender, recipient, and date from headers. Otherwise use exactly
+  one of `email`, `letter`, `memo`, `notice`, `demand`, `attorney_demand`,
+  `press_release`, or `meeting_request`. Do not emit `other` or invent a type.
+
 ### Simplified framing contract (issue #50)
 
 Every `*_simplified` specialist stem follows the same narrative shape:

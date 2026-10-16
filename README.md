@@ -111,6 +111,20 @@ GPU recommended for Qwen 8B.
 | [Layout contract](docs/setting-up/LAYOUT.md) | **Which folder owns what** — the two config trees, frozen surfaces, junk policy |
 | [Agent skills](.cursor/skills/README.md) | Langfuse, Phoenix, Braintrust, Ollama, Modal, Hugging Face |
 
+## Specialist extraction rules
+
+- `config/prompts/corporate_records_specialist_simplified.txt`, line 11:
+  `subsidiary_list` emits `record_type: other`, the parent as `entity_name`,
+  a subsidiary listing in `subject_matter`, and subsidiary names in `keywords`.
+  `filing_number` is null unless an official filing or document number is present;
+  an exhibit ID never qualifies.
+- `config/prompts/correspondence_specialist_simplified.txt`, lines 14 and 33:
+  `communication_type` is null when no registered token fits the visible text;
+  continue extracting sender, recipient, and date from headers. Do not invent a type.
+
+See [prompt guidance](config/prompts/README.md#extraction-rules-in-the-re-frozen-v1-stems)
+for the registered communication types and source links.
+
 ## Layout
 
 ```
