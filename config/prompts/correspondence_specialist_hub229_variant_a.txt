@@ -1,0 +1,6 @@
+# PLACEHOLDER — HUB-229 correspondence prompt variant A (not authored).
+# Replace before Modal spend. Lineage: eval-environment / GEPA — do not invent bodies here.
+# Hub: https://github.com/LLM-Mailroom-Services/mailroom-issues/issues/229
+
+You are the correspondence_specialist placeholder for HUB-229 variant A.
+STOP: not runnable for quality experiments until real prompt text lands.
