@@ -45,7 +45,40 @@ def _sha(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-# ── the one dojo-facing function (phase 2 wires the real import) ─────────────
+# ── the dojo-facing functions ─────────────────────────────────────────────────
+_LINEAGE_API = (
+    "PromptVersion",
+    "LINEAGE_SOURCE",
+    "list_prompt_versions",
+    "get_prompt_version",
+    "prompt_roles",
+    "prompt_chain",
+    "latest_prompt_version",
+    "default_prompt_version",
+    "diff_prompt_versions",
+)
+
+
+def lineage_api() -> Any:
+    """The dojo's prompt-lineage module (``llm_dojo_scoring.prompts``), checked for the full API.
+
+    The catalog renderer and the ``sandbox prompts`` commands read the lineage
+    through this (the one place that names the dojo module); a dojo without the
+    API raises :class:`PromptSelectionError`.
+    """
+    try:
+        import llm_dojo_scoring.prompts as api
+    except ImportError as exc:
+        raise PromptSelectionError(f"llm_dojo_scoring.prompts is not importable: {exc}") from exc
+    missing = [name for name in _LINEAGE_API if not hasattr(api, name)]
+    if missing:
+        raise PromptSelectionError(
+            f"the vendored llm-dojo-scoring lacks the prompt lineage API ({', '.join(missing)}); "
+            "re-vendor a dojo that ships llm_dojo_scoring.prompts.lineage"
+        )
+    return api
+
+
 def lookup_prompt_version(key: str) -> Any:
     """Return the dojo ``PromptVersion`` for ``key`` (``.role .text .sha256 .lineage ...``).
 

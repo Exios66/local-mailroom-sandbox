@@ -54,6 +54,21 @@
 
 ### Added
 
+- **Prompt catalog `docs/prompts/`** (generated, deterministic): an index of all 40 eval-environment versions
+  (5 archived, 15 frozen, 20 mutations; 15 roles) and one page per role with, per version oldest -> newest, the
+  metadata, the full memo, what changed against the predecessor (sections, +/- lines, chars delta, dojo notes such
+  as the `sorter_v3` duplicated block, non-monotonic dates), a unified diff, the full text and the exact
+  `--prompt-version` command. The index marks the sandbox default / eval-environment default / latest per role and
+  explains the name collisions (the `sorter_v1` stem and the mailroom `sorter_v0..v14` / `contracts_specialist_v1..v33`
+  registry are not eval-environment keys). `python scripts/render_prompt_catalog.py [--check]`;
+  `tests/test_prompt_catalog.py` fails when the pages drift from the vendored dojo.
+- `sandbox prompts list-versions [--role R] [--lineage L] [--json]` and `sandbox prompts show <key> [--diff <other-key> | --memo | --json]`.
+- The `prompt_versions` seam is wired to the real dojo lineage (`llm_dojo_scoring.prompts.get_prompt_version`);
+  `tests/test_prompt_versions_dojo.py` checks all 40 versions, the sorter `v1..v4` and every specialist mutation
+  against the lineage (and a sibling eval-environment checkout via `EVAL_ENVIRONMENT_ROOT` when present), that every
+  accepted lineage role is a sandbox pipeline role, and that `pipeline_quality` / `pipeline_verdict` are refused.
+  Finding: the lineage lock's `insurance_claims_specialist_v4` / `merger_agreement_specialist_v4` keys are not in
+  eval-environment `bdba24c`; those stems run with `--prompt <stem>`, not `--prompt-version`.
 - **Run with any eval-environment prompt version** (archived `_v0`, frozen `_v1`, every GEPA / manual
   mutation, sorter included): `sandbox eval <task> --prompt-version [role=]key` (repeatable),
   `sandbox run ... --prompt-version`, and `prompt.versions` in a run spec. New seam
