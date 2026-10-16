@@ -121,7 +121,7 @@ deploy/              Dockerfile + compose + Modal vLLM (modal_vllm.py) + Modal j
 notebooks/           offline env setup + data prep + mock smoke
 data/fixtures/       offline samples (see ATTRIBUTION.md)
 src/mailroom_sandbox/
-vendor/              tracked family snapshots (llm-mailroom v0.7.1 + llm-dojo-scoring v0.22.0 (pre-tag, 8c7b7f1); see VENDOR.md)
+vendor/              tracked family snapshots (llm-mailroom v0.7.1 + llm-dojo-scoring v0.22.0 (pre-tag, 852b052); see VENDOR.md)
 reports/             sandbox experiment log (not a sister-repo mirror)
 governance/          SAND-* board (README / PREFIX / TASKS / archive)
 api-evals/           OpenRouter API cost harness — its own config/runs/ + reports/ and its own CLI
