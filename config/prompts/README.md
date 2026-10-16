@@ -1,5 +1,9 @@
 # Local prompt variants
 
+> Every eval-environment prompt version (archived / frozen / mutation, with memos and diffs) is catalogued in
+> [`docs/prompts/`](../../docs/prompts/README.md) and runs with `--prompt-version <key>`. The stems in this
+> directory are a different namespace: `sorter_v1.txt` here is the MAILROOM `sorter_v1`, not eval-environment `sorter_v1`.
+
 These templates override mailroom's Langfuse-managed prompts (`get_managed_prompt`)
 or the LangChain `PROMPT_VERSIONS` dict (Family B: sorter / contracts_specialist)
 for a single experiment cell. Resolution: `src/mailroom_sandbox/prompt_registry.py`
@@ -36,6 +40,15 @@ specialist evals inject this text (not vendor `SYSTEM_PROMPT` / Langfuse
 `production`). Promotion issues #4–#8 are **closed**; do not edit the stems
 without a sanctioned eval-environment re-freeze (eval-environment issue #19
 tracks cross-repo alignment).
+
+**Re-freeze (dojo #30):** `correspondence_specialist_simplified` and
+`corporate_records_specialist_simplified` carry the corrected text the dojo ships
+as `production_prompts` (eval-environment mutations `correspondence_specialist_v7`
+and `corporate_records_specialist_v6`; the file body equals the dojo template
+body, with no provenance comment). Their lineage rows name the `_v7` / `_v6`
+keys and new sha256/chars; each row's `superseded` block keeps the original v1
+key, sha256, chars and `frozen_at`. The other three stems are unchanged v1 bytes.
+Default `sync_specialist_prompts.py` never rewrites these stems.
 
 Parallel `*_simplified` stems for the offline sandbox. They intentionally
 diverge from vendor: **class-specific** extractors (not a lightly edited

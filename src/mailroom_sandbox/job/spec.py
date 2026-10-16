@@ -503,9 +503,16 @@ class RunSpec(BaseModel):
 
     @model_validator(mode="after")
     def _prompt_map(self) -> "RunSpec":
-        allowed = {"default", "agents"}
+        allowed = {"default", "agents", "versions"}
         if not set(self.prompt).issubset(allowed):
             raise ValueError(f"prompt section allows only {sorted(allowed)}")
+        if "versions" in self.prompt:
+            # eval-environment prompt versions (any archived / frozen / mutation key),
+            # {role: key} or a list of "role=key" / bare keys. Format only here (no
+            # dojo needed to load a spec); preflight resolves + verifies against the dojo.
+            from mailroom_sandbox.prompt_versions import check_spec_prompt
+
+            self.prompt = {**self.prompt, "versions": check_spec_prompt(self.prompt)}
         return self
 
     @model_validator(mode="after")
@@ -548,6 +555,9 @@ def prompt_resolution_map(spec: RunSpec) -> dict[str, Any]:
         normalized["default"] = _strip_none(dict(PromptRef(**default)))
     for agent, ref in agents.items():
         normalized.setdefault("agents", {})[agent] = _strip_none(dict(PromptRef(**ref)))
+    # Hashed only when set, so every pre-existing run YAML keeps its spec_hash.
+    if spec.prompt.get("versions"):
+        normalized["versions"] = dict(sorted(dict(spec.prompt["versions"]).items()))
     return normalized if normalized else {"default": {"source": "code-default"}}
 
 

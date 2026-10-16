@@ -2,8 +2,85 @@
 
 ## [Unreleased]
 
+### Changed — breaking (vendored dojo)
+
+- **Vendored llm-dojo-scoring re-vendored at dojo commit `852b052`** (the unreleased fixes toward
+  v0.22.0; the pin becomes the `v0.22.0` tag once cut). Mirrored with the repo's own
+  `_refresh_vendor_from_workspace` (the `sandbox fetch-deps` workspace leg) because the monorepo layout is
+  absent; every vendored-pin claim (`vendor/README.md`, `vendor/llm-dojo-scoring/VENDOR.md`, README,
+  QUICKSTART, SANDBOX-GUIDE, sister-repos, htcondor README, `deploy/modal_job.py`, `pyproject.toml`, the
+  `fetch-deps` fallback pin) now names it. New dojo contract: `Emitter.emit_score` requires provenance, a
+  serving leg that mixes identities is `identity_mixed`, `metric_id_for` is strict. The snapshot also
+  ships the eval-environment prompt lineage API (`llm_dojo_scoring.prompts`: `get_prompt_version`,
+  `list_prompt_versions`, ... and `eval_environment_lineage.json`, 40 versions from eval-environment `bdba24c`).
+
+### Changed — corrected v1 specialist stems (dojo #30)
+
+- `correspondence_specialist_simplified.txt` / `corporate_records_specialist_simplified.txt` now carry the
+  corrected text the dojo ships as `production_prompts` (eval-environment mutations
+  `correspondence_specialist_v7` / `corporate_records_specialist_v6`; sha256 `2b0b81ff…` / `fe13501f…`,
+  6113 / 5865 chars). `eval_environment_lineage.json` rows point at those keys with the new
+  sha256/chars, a `refrozen_at` stamp and a `superseded` block holding the original v1 key, sha256, chars
+  and `frozen_at`; the sibling check verifies both. **Runs that used these stems before this change
+  scored the v1 bytes** (`*_v1`, `eab63b5a…` / `484e64dd…`); the default stem's logged eval-environment
+  key is now `_v7` / `_v6`. The generated archived runbooks were re-rendered to the current key.
+
+### Fixed — dojo v0.22 provenance + `identity_mixed`
+
+- Serving records and fixtures carry `dataset_revision` (+ `split` / `draw_seed` where known) so the
+  dojo's `emit_serving_scorecard` no longer raises `ProvenanceExportError` (4 tests). Job records take
+  them from the run lock (`job.metrics.lock_dataset_provenance`); the serving fixtures carry
+  `FAMILY_HF_REVISION`; token-price USD is labelled `cost_basis=token_price_estimate`. Never derived
+  from the dataset fingerprint. `emit_local_vs_api_scorecard` accepts `provenance=`.
+- `compare_from_records` (`sandbox eval local_vs_api --from-log`, `sandbox matrix`) and
+  `sandbox metrics compare` group rows by full identity (`serving_groups.py`) and compare per comparable
+  group instead of pooling every local/API row into one `identity_mixed` leg. New `--group`; one
+  scorecard per group (`<name>.g<n>`).
+- Scorecard tests now run the real `Emitter` + `LocalManifestSink`; `tests/test_serving_groups.py`
+  covers multi-model logs.
+
+### Changed — scorecards fail loudly
+
+- A scorecard that cannot be emitted with honest provenance now RAISES instead of being reported as
+  "refused": `emit_local_vs_api_scorecard` / `emit_group_scorecards` raise `ScorecardEmissionError`
+  (subclass of the dojo's `ProvenanceExportError`; `.field`, `.group`, sandbox hint) for a missing
+  `dataset_revision` or an incomparable (`identity_mixed`) group. All groups are validated against an
+  in-memory sink before any is written, so a late failure leaves no partial manifest, and
+  `run_local_vs_api_eval` raises before appending its log record. `scores.scorecards_refused` and the
+  `emitted: False` entries are gone. `sandbox` exits 1 with `error: scorecard not emitted: <reason>` on
+  stderr (job runs fail with the same reason). New `sandbox eval local_vs_api --dataset-revision <sha>`
+  (full 40-hex only) supplies a real revision for log/fixture rows that have none; it never overrides a
+  recorded one. Reverses the report-don't-raise policy of the provenance fix above.
+
 ### Added
 
+- **Prompt catalog `docs/prompts/`** (generated, deterministic): an index of all 40 eval-environment versions
+  (5 archived, 15 frozen, 20 mutations; 15 roles) and one page per role with, per version oldest -> newest, the
+  metadata, the full memo, what changed against the predecessor (sections, +/- lines, chars delta, dojo notes such
+  as the `sorter_v3` duplicated block, non-monotonic dates), a unified diff, the full text and the exact
+  `--prompt-version` command. The index marks the sandbox default / eval-environment default / latest per role and
+  explains the name collisions (the `sorter_v1` stem and the mailroom `sorter_v0..v14` / `contracts_specialist_v1..v33`
+  registry are not eval-environment keys). `python scripts/render_prompt_catalog.py [--check]`;
+  `tests/test_prompt_catalog.py` fails when the pages drift from the vendored dojo.
+- `sandbox prompts list-versions [--role R] [--lineage L] [--json]` and `sandbox prompts show <key> [--diff <other-key> | --memo | --json]`.
+- The `prompt_versions` seam is wired to the real dojo lineage (`llm_dojo_scoring.prompts.get_prompt_version`);
+  `tests/test_prompt_versions_dojo.py` checks all 40 versions, the sorter `v1..v4` and every specialist mutation
+  against the lineage (and a sibling eval-environment checkout via `EVAL_ENVIRONMENT_ROOT` when present), that every
+  accepted lineage role is a sandbox pipeline role, and that `pipeline_quality` / `pipeline_verdict` are refused.
+  Finding: the lineage lock's `insurance_claims_specialist_v4` / `merger_agreement_specialist_v4` keys are not in
+  eval-environment `bdba24c`; those stems run with `--prompt <stem>`, not `--prompt-version`.
+- **Run with any eval-environment prompt version** (archived `_v0`, frozen `_v1`, every GEPA / manual
+  mutation, sorter included): `sandbox eval <task> --prompt-version [role=]key` (repeatable),
+  `sandbox run ... --prompt-version`, and `prompt.versions` in a run spec. New seam
+  `mailroom_sandbox/prompt_versions.py` (`resolve_prompt(role, key=None) -> (key, text, sha256)`); the
+  dojo lookup is the single function `lookup_prompt_version` (the vendored dojo does not ship the
+  lineage API yet, so a selection fails loudly until it is re-vendored). Unknown key, key/role
+  mismatch, non-pipeline role, sha mismatch, `--prompt` vs `--prompt-version` clash: hard error. The
+  key + sha256 land in the run lock (`prompt_versions`, `source: eval-environment`), `spec_hash`, and
+  every record (`prompt_version`, `prompt_sha256`, `eval_environment_prompt_key`, `prompt_versions`).
+  `serving_groups` now also keys legs and pairs on `prompt_sha256`, so mutations never pool (and the
+  mailroom-text stem `sorter_v1` never pools with eval-environment `sorter_v1`). Default behaviour is
+  unchanged.
 - **SAND-042 repaired specialists frozen.** `insurance_claims_specialist_simplified_v2` and
   `merger_agreement_specialist_maud_v2` are frozen in eval-environment as
   `insurance_claims_specialist_v4` and `merger_agreement_specialist_v4`, and pinned under
