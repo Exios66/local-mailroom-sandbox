@@ -91,22 +91,28 @@ python scripts/sync_specialist_prompts.py --overwrite-experiment
 That copies current vendor text onto the matching `*_simplified` stem (loud;
 almost never what a quality experiment wants).
 
-## SAND-042 RCA candidate stems (not frozen)
+## SAND-042 repaired stems (frozen as eval-environment v4)
 
-Candidates produced by the SAND-042 schema-adherence root-cause analysis
-(`docs/SAND42-SCHEMA-ADHERENCE-RCA.md`). They do **not** replace the frozen
-v1 stems; they are pinned only by `config/runs/rca/*.yaml` until a
-sanctioned eval-environment re-freeze promotes them.
+Repaired stems from the SAND-042 schema-adherence root-cause analysis
+(`docs/SAND42-SCHEMA-ADHERENCE-RCA.md`), frozen in eval-environment as
+full-text mutations `insurance_claims_specialist_v4` and
+`merger_agreement_specialist_v4` (parents: the v3 GEPA keys). Their sha256
+and char counts are pinned under `frozen_successors` in
+`eval_environment_lineage.json`. Byte drift is refused when a run resolves
+the stem as a local prompt (`assert_catalog_sha`) and when
+`verify_local_catalog` runs (the lineage tests), the same as for the v1 stems. They do **not** change the default v1 stem a
+run gets: a run uses them by pinning the stem, as `config/runs/rca/*.yaml`
+does.
 
-| Stem | Agent | Built from | Change |
-| --- | --- | --- | --- |
-| `insurance_claims_specialist_simplified_v2` | `insurance_claims_specialist` | `insurance_claims_specialist_simplified` (frozen v1) | Layout cues for all five corpus sources (CMS MSN A/B/carrier, Part D pde, GNOTHEIA property FNOL, BDR auto decision letters, INSURBIAS narratives); no phantom "sorter handed you doc_subclass" (the isolated harness passes none); bare-number `claimed_amount`; a printed payment/approval is a stated `approved`. |
-| `merger_agreement_specialist_maud_v2` | `merger_agreement_specialist` | `merger_agreement_specialist_maud_v1` | Answer catalog **generated** from `llm_dojo_scoring.maud_schema.render_maud_question_block` (`scripts/gen_maud_v2_prompt.py --check` keeps it fresh); no free text inside `maud_clauses`; per-chunk answering duty instead of "answer everything". |
+| Stem | Agent | Frozen key | Built from | Change |
+| --- | --- | --- | --- | --- |
+| `insurance_claims_specialist_simplified_v2` | `insurance_claims_specialist` | `insurance_claims_specialist_v4` | `insurance_claims_specialist_simplified` (frozen v1) | Layout cues for all five corpus sources (CMS MSN A/B/carrier, Part D pde, GNOTHEIA property FNOL, BDR auto decision letters, INSURBIAS narratives); no phantom "sorter handed you doc_subclass" (the isolated harness passes none); bare-number `claimed_amount`; a printed payment/approval is a stated `approved`. |
+| `merger_agreement_specialist_maud_v2` | `merger_agreement_specialist` | `merger_agreement_specialist_v4` | `merger_agreement_specialist_maud_v1` | Answer catalog **generated** from `llm_dojo_scoring.maud_schema.render_maud_question_block` (`scripts/gen_maud_v2_prompt.py --check` keeps it fresh); no free text inside `maud_clauses`; per-chunk answering duty instead of "answer everything". |
 
 ## Run YAML inventory (`config/runs/**`)
 
 Specialist extract runs (task = specialist agent) currently pin simplified
-stems, except the `rca/` re-check runs, which pin the RCA candidate stems above. Sorter / scale / example runs do not load specialist prompts.
+stems, except the `rca/` re-check runs, which pin the SAND-042 repaired stems above. Sorter / scale / example runs do not load specialist prompts.
 
 | Run YAML | `run_id` | Task | Local stem(s) |
 | --- | --- | --- | --- |
@@ -121,8 +127,8 @@ stems, except the `rca/` re-check runs, which pin the RCA candidate stems above.
 | `run-20-insurance-claims-specialist-awq.yaml` | `run-20-insurance-claims-specialist-awq` | `insurance_claims_specialist` | `insurance_claims_specialist_simplified` |
 | `run-30-insurance-claims-specialist.yaml` | `run-30-insurance-claims-specialist` | `insurance_claims_specialist` | `insurance_claims_specialist_simplified` |
 | `run-30-merger-specialist.yaml` | `run-30-merger-specialist` | `merger_agreement_specialist` | `merger_agreement_specialist_simplified` |
-| `rca/rca-50-insurance-v2-awq-1l4-c8.yaml` | `rca-50-insurance-v2-awq-1l4-c8` | `insurance_claims_specialist` | `insurance_claims_specialist_simplified_v2` (candidate) |
-| `rca/rca-check-5-merger-maud-v2-awq-1l4-c8.yaml` | `rca-check-5-merger-maud-v2-awq-1l4-c8` | `merger_agreement_specialist` | `merger_agreement_specialist_maud_v2` (candidate) |
+| `rca/rca-50-insurance-v2-awq-1l4-c8.yaml` | `rca-50-insurance-v2-awq-1l4-c8` | `insurance_claims_specialist` | `insurance_claims_specialist_simplified_v2` (frozen v4) |
+| `rca/rca-check-5-merger-maud-v2-awq-1l4-c8.yaml` | `rca-check-5-merger-maud-v2-awq-1l4-c8` | `merger_agreement_specialist` | `merger_agreement_specialist_maud_v2` (frozen v4) |
 | `suites/run-30-specialists-full.yaml` | suite | (chains the five run-30 YAMLs) | same as those YAMLs |
 | `suites/run-30-specialists-track-a.yaml` | suite | contracts + corporate + correspondence | same as those YAMLs |
 | `suites/run-30-specialists-track-b.yaml` | suite | merger + insurance | same as those YAMLs |

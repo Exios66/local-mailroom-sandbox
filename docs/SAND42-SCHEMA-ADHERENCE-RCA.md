@@ -149,6 +149,21 @@ partly right, but on quality rather than validity:
 monorepo `packages/llm-mailroom`) so the vendor drift guard stays
 byte-identical.
 
+## Freeze status
+
+Both repaired stems are frozen in eval-environment as full-text mutations
+(2026-10-15) and pinned in `config/prompts/eval_environment_lineage.json`
+under `frozen_successors`:
+
+| Stem | eval-environment key | sha256 | chars |
+| --- | --- | --- | --- |
+| `insurance_claims_specialist_simplified_v2` | `insurance_claims_specialist_v4` | `1ca6e83c…58ea` | 8461 |
+| `merger_agreement_specialist_maud_v2` | `merger_agreement_specialist_v4` | `da316691…1946` | 33125 |
+
+The freeze fixes the bytes so the re-checks below measure a pinned version.
+The default stem for each specialist is still the frozen v1. Making v4 the
+default is a separate promotion decision, to be made on the re-check numbers.
+
 ## Re-check before re-running the grid
 
 ```bash

@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Added
+
+- **SAND-042 repaired specialists frozen.** `insurance_claims_specialist_simplified_v2` and
+  `merger_agreement_specialist_maud_v2` are frozen in eval-environment as
+  `insurance_claims_specialist_v4` and `merger_agreement_specialist_v4`, and pinned under
+  `frozen_successors` in `config/prompts/eval_environment_lineage.json` (sha256 `1ca6e83c…58ea` / 8461
+  chars and `da316691…1946` / 33125 chars). `assert_catalog_sha` and `verify_local_catalog` refuse drift
+  in either stem; `eval_environment_key_for(stem=…)` reports the v4 key on run records; the sibling check
+  reads eval-environment `prompts/mutations.json`. The default v1 stems are unchanged.
+
 ## [0.3.0] - 2026-10-15
 
 ### Fixed — SAND-042 schema-adherence RCA (`docs/SAND42-SCHEMA-ADHERENCE-RCA.md`)

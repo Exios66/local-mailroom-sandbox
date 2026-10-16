@@ -5,6 +5,11 @@ source of truth for specialist extraction prompts. Sandbox Modal + vLLM
 runs pin the matching local stems under ``config/prompts/``; those files
 must stay byte-identical to the frozen v1 sha256s.
 
+Later frozen versions of a specialist (``frozen_successors`` in the lock, e.g.
+the SAND-042 repaired insurance and merger stems frozen as eval-environment
+``*_v4`` mutations) are byte-pinned the same way. They do not change the
+default v1 stem a run gets; a run opts in by pinning the successor stem.
+
 This module is hermetic: the sha256 lock lives in
 ``config/prompts/eval_environment_lineage.json``. A sibling eval-environment
 checkout is optional (``EVAL_ENVIRONMENT_ROOT`` or ``../eval-environment``).
@@ -55,6 +60,17 @@ def specialist_rows() -> dict[str, dict[str, Any]]:
     return {str(agent): dict(row) for agent, row in rows.items()}
 
 
+def successor_rows() -> list[dict[str, Any]]:
+    """Frozen post-v1 specialist versions (eval-environment mutations), each with ``agent``."""
+    rows = load_catalog().get("frozen_successors") or []
+    return [dict(row) for row in rows]
+
+
+def _all_rows() -> list[dict[str, Any]]:
+    v1 = [dict(row, agent=name) for name, row in specialist_rows().items()]
+    return v1 + successor_rows()
+
+
 def catalog_agents() -> tuple[str, ...]:
     return tuple(sorted(specialist_rows()))
 
@@ -78,14 +94,14 @@ def lookup(
     rows = specialist_rows()
     needle = stem or key
     if needle:
-        for name, row in rows.items():
+        for row in _all_rows():
             if needle in {
                 str(row.get("sandbox_stem")),
                 str(row.get("eval_environment_key")),
             }:
-                if agent and agent != name:
+                if agent and agent != row["agent"]:
                     continue
-                return dict(row, agent=name)
+                return row
         return None
     if agent and agent in rows:
         return dict(rows[agent], agent=agent)
@@ -128,7 +144,7 @@ def agents_for_variant(variant: str) -> list[str]:
 
 
 def assert_catalog_sha(agent: str, stem: str, text: str) -> None:
-    """Refuse a catalog stem whose bytes drifted from the frozen v1 lock."""
+    """Refuse a catalog stem whose bytes drifted from its frozen lock row."""
     row = lookup(agent=agent, stem=stem)
     if not row:
         return
@@ -154,7 +170,8 @@ def local_stem_sha256(stem: str) -> str:
 def verify_local_catalog(*, require_opening: bool = True) -> list[str]:
     """Return errors if sandbox catalog stems drifted from the JSON lock."""
     errors: list[str] = []
-    for agent, row in specialist_rows().items():
+    for row in _all_rows():
+        agent = row["agent"]
         stem = str(row["sandbox_stem"])
         path = prompts_dir() / f"{stem}.txt"
         if not path.is_file():
@@ -244,5 +261,46 @@ def verify_sibling_catalog(sibling: Path | None = None) -> list[str]:
             errors.append(
                 f"{agent}: sibling {key}.md sha256={md_sha} "
                 f"!= sandbox {row['sandbox_stem']}.txt sha256={local_sha}"
+            )
+    errors.extend(_verify_sibling_successors(root))
+    return errors
+
+
+def _verify_sibling_successors(root: Path) -> list[str]:
+    """Successor rows live in the sibling's ``prompts/mutations.json``, not its manifest."""
+    rows = successor_rows()
+    if not rows:
+        return []
+    path = root / "prompts" / "mutations.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return [f"could not read {path}: {exc}"]
+    registered = {str(m.get("key")): m for m in data.get("mutations") or []}
+    errors: list[str] = []
+    for row in rows:
+        key = str(row["eval_environment_key"])
+        meta = registered.get(key)
+        if meta is None:
+            errors.append(f"{row['agent']}: sibling mutations.json missing {key}")
+            continue
+        if str(meta.get("parent")) != str(row.get("parent_key")):
+            errors.append(
+                f"{row['agent']}: sibling {key} parent={meta.get('parent')} "
+                f"!= catalog parent_key={row.get('parent_key')}"
+            )
+        if str(meta.get("sha256")) != str(row["sha256"]):
+            errors.append(
+                f"{row['agent']}: sandbox catalog sha256={row['sha256']} "
+                f"!= sibling {key} sha256={meta.get('sha256')}"
+            )
+        # The recorded sha256 is metadata; the frozen bytes are ``text``.
+        text = meta.get("text")
+        if not isinstance(text, str):
+            errors.append(f"{row['agent']}: sibling {key} has no mutation text")
+        elif _sha(text) != str(row["sha256"]):
+            errors.append(
+                f"{row['agent']}: sibling {key} text sha256={_sha(text)} "
+                f"!= sandbox catalog sha256={row['sha256']}"
             )
     return errors
