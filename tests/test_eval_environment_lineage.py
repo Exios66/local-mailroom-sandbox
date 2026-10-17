@@ -111,6 +111,11 @@ SAND42_SUCCESSORS = {
         "merger_agreement_specialist_v4",
         "merger_agreement_specialist_v3",
     ),
+    "corporate_records_specialist_subclass_v2": (
+        "corporate_records_specialist",
+        "corporate_records_specialist_v7",
+        "corporate_records_specialist_v6",
+    ),
 }
 
 
@@ -126,6 +131,7 @@ def test_sand42_repaired_stems_are_frozen_successors():
 
 @pytest.mark.parametrize("stem", sorted(SAND42_SUCCESSORS))
 def test_successor_stem_resolves_to_its_frozen_key(stem):
+    """Successor stems resolve to their frozen keys without changing default pins."""
     from mailroom_sandbox.eval_environment_lineage import (
         eval_environment_key_for,
         lookup,
@@ -137,7 +143,13 @@ def test_successor_stem_resolves_to_its_frozen_key(stem):
     assert agents_for_variant(stem) == [agent]
     # Freezing a successor does not move the default v1 pin.
     assert default_prompt_variant(agent) != stem
-    assert eval_environment_key_for(agent=agent) == agent + "_v1"
+    # The default pin is exactly the agent's specialists row (v1, or its
+    # re-frozen v6/v7 for corporate_records / correspondence) - never the successor.
+    from mailroom_sandbox.eval_environment_lineage import specialist_rows
+
+    default_key = eval_environment_key_for(agent=agent)
+    assert default_key == specialist_rows()[agent]["eval_environment_key"]
+    assert default_key != key
 
 
 @pytest.mark.parametrize("stem", sorted(SAND42_SUCCESSORS))
