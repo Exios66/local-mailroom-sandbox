@@ -130,7 +130,7 @@ Select it by pinning the successor stem; the default stem is unchanged.
 
 | Stem | Agent | Frozen key | Built from | Change |
 | --- | --- | --- | --- | --- |
-| `corporate_records_specialist_subclass_v2` | `corporate_records_specialist` | `corporate_records_specialist_v7` | `corporate_records_specialist_simplified` (re-frozen v6) | Per-subclass key-entity lines **generated** from `llm_dojo_scoring.corporate_record_schema.render_prompt_section` replace the executive brief (5865 → 5333 chars); subclass +keys emitted only for their subclass. |
+| `corporate_records_specialist_subclass_v2` | `corporate_records_specialist` | `corporate_records_specialist_v7` | `corporate_records_specialist_simplified` (re-frozen v6) | Per-subclass key-entity lines **generated** from `llm_dojo_scoring.corporate_record_schema.render_prompt_section` replace the executive brief (5865 → 5462 chars); subclass +keys emitted only for their subclass; `certificate_of_formation` has its own line and the `subsidiary_list` line pins `subject_matter` (the listing statement) / `keywords` (subsidiary names). |
 
 ## SAND-042 repaired stems (frozen as eval-environment v4)
 

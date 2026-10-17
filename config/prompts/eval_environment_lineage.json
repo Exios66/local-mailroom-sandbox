@@ -94,13 +94,13 @@
       "eval_environment_key": "corporate_records_specialist_v7",
       "parent_key": "corporate_records_specialist_v6",
       "sandbox_stem": "corporate_records_specialist_subclass_v2",
-      "sha256": "9d322ef2483ed64a3040b48ecc550e50570a3416448b8a5811ae5cec1fc78d4b",
-      "chars": 5397,
+      "sha256": "253559fcb7ac6b36878453821a4fab0aa94228ad5add77d5aeabb06bb265134c",
+      "chars": 5462,
       "opening": "You are the corporate-records specialist.",
       "frozen_at": "2026-10-17",
       "source_path": "prompts/mutations.json",
-      "origin": "dojo corporate_record_schema (per-subclass key entities)",
-      "fix": "one compact line per doc_subclass (record_type, intent, +extra entity keys); entity_name = owning company; 532 chars shorter than v6"
+      "origin": "dojo corporate_record_schema (per-subclass key entities); coordinated amendment: certificate_of_formation gets its own line, subsidiary_list's subject_matter = the listing statement, keywords = subsidiary names (resolves Exios66/local-mailroom-sandbox#143 CodeRabbit finding)",
+      "fix": "one compact line per doc_subclass (record_type, intent, +extra entity keys); entity_name = owning company; 403 chars shorter than v6"
     }
   ]
 }

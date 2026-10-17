@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Fixed — `corporate_records_specialist_subclass_v2` amended before first run
+
+- **`corporate_records_specialist_subclass_v2`** (eval-environment `corporate_records_specialist_v7`, now sha256
+  `253559fc…`): `certificate_of_formation` moved to its own line and the `subsidiary_list` line states where the listing
+  statement (`subject_matter`) and subsidiary names (`keywords`) go — resolving the PR #143 CodeRabbit finding; the
+  lineage lock and all stem pins were refreshed in the same change. The default pin is unchanged.
+
 ### Changed — breaking (vendored dojo)
 
 - **Vendored llm-dojo-scoring re-vendored at the `v0.22.0` tag** (`a2862cec`, cut and published
@@ -93,7 +100,7 @@
 
 ### Added
 
-- **`corporate_records_specialist_subclass_v2`** frozen successor (eval-environment `corporate_records_specialist_v7`, sha256 `b40963bb…`): per-subclass
+- **`corporate_records_specialist_subclass_v2`** frozen successor (eval-environment `corporate_records_specialist_v7`, sha256 `253559fc…`): per-subclass
   key-entity lines generated from the dojo's `corporate_record_schema`. The default pin is unchanged.
 
 ### Changed — v1 specialist stems re-frozen (Exios66/llm-dojo-scoring#30)
