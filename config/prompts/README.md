@@ -118,6 +118,20 @@ python scripts/sync_specialist_prompts.py --overwrite-experiment
 That copies current vendor text onto the matching `*_simplified` stem (loud;
 almost never what a quality experiment wants).
 
+## Corporate records subclass successor (frozen as eval-environment v7)
+
+`corporate_records_specialist_subclass_v2` is frozen as
+`corporate_records_specialist_v7`, with `corporate_records_specialist_v6`
+as its parent. It builds on the re-frozen
+`corporate_records_specialist_simplified` stem. Its sha256 and char count
+are pinned under `frozen_successors` in `eval_environment_lineage.json`;
+`assert_catalog_sha` and `verify_local_catalog` refuse byte drift.
+Select it by pinning the successor stem; the default stem is unchanged.
+
+| Stem | Agent | Frozen key | Built from | Change |
+| --- | --- | --- | --- | --- |
+| `corporate_records_specialist_subclass_v2` | `corporate_records_specialist` | `corporate_records_specialist_v7` | `corporate_records_specialist_simplified` (re-frozen v6) | Per-subclass key-entity lines **generated** from `llm_dojo_scoring.corporate_record_schema.render_prompt_section` replace the executive brief (5865 → 5333 chars); subclass +keys emitted only for their subclass. |
+
 ## SAND-042 repaired stems (frozen as eval-environment v4)
 
 Repaired stems from the SAND-042 schema-adherence root-cause analysis
@@ -133,7 +147,6 @@ does.
 
 | Stem | Agent | Frozen key | Built from | Change |
 | --- | --- | --- | --- | --- |
-| `corporate_records_specialist_subclass_v2` | `corporate_records_specialist` | `corporate_records_specialist_v7` | `corporate_records_specialist_simplified` (re-frozen v6) | Per-subclass key-entity lines **generated** from `llm_dojo_scoring.corporate_record_schema.render_prompt_section` replace the executive brief (5865 → 5333 chars); subclass +keys emitted only for their subclass. |
 | `insurance_claims_specialist_simplified_v2` | `insurance_claims_specialist` | `insurance_claims_specialist_v4` | `insurance_claims_specialist_simplified` (frozen v1) | Layout cues for all five corpus sources (CMS MSN A/B/carrier, Part D pde, GNOTHEIA property FNOL, BDR auto decision letters, INSURBIAS narratives); no phantom "sorter handed you doc_subclass" (the isolated harness passes none); bare-number `claimed_amount`; a printed payment/approval is a stated `approved`. |
 | `merger_agreement_specialist_maud_v2` | `merger_agreement_specialist` | `merger_agreement_specialist_v4` | `merger_agreement_specialist_maud_v1` | Answer catalog **generated** from `llm_dojo_scoring.maud_schema.render_maud_question_block` (`scripts/gen_maud_v2_prompt.py --check` keeps it fresh); no free text inside `maud_clauses`; per-chunk answering duty instead of "answer everything". |
 
