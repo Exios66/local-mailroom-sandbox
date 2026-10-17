@@ -131,6 +131,7 @@ def test_sand42_repaired_stems_are_frozen_successors():
 
 @pytest.mark.parametrize("stem", sorted(SAND42_SUCCESSORS))
 def test_successor_stem_resolves_to_its_frozen_key(stem):
+    """Successor stems resolve to their frozen keys without changing default pins."""
     from mailroom_sandbox.eval_environment_lineage import (
         eval_environment_key_for,
         lookup,
