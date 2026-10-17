@@ -7,7 +7,7 @@ By doc_subclass — `record_type, intent; +extra keys ([] = list); null = emit n
 - articles_of_incorporation: articles_of_incorporation, entity_formation; +incorporators[], registered_agent, authorized_capital
 - charter_amendment: articles_of_incorporation, entity_formation; +amended_provisions[], approval_date, prior_entity_name
 - powers_of_attorney: powers_of_attorney, authority_delegation; +principal, attorneys_in_fact[], authority_scope, expiration_date; null filing_number
-- subsidiary_list: other, other; +subsidiaries[], subsidiary_jurisdictions[]; null signatories, jurisdiction, filing_number
+- subsidiary_list: other, other; +subsidiaries[], subsidiary_jurisdictions[]; subject_matter listing subsidiaries; keywords subsidiary names; null signatories, jurisdiction, filing_number
 - rights_instrument: rights_instrument, investor_rights; +instrument_kind, holder, rights_agent, securities_covered, exercise_price; null filing_number
 - indenture: other, investor_rights; +trustee, guarantors[], securities_series, principal_amount, maturity_date; null filing_number
 - board_resolution: other, corporate_action_approval; +acting_body, action_approved, resolutions[]; null filing_number
