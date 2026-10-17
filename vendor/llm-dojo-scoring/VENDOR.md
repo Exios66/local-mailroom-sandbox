@@ -11,7 +11,12 @@ network or an install to score runs.
 - Pin: **workspace snapshot — see monorepo** (tracks `packages/llm-dojo-scoring`
   in the Digital-Mailroom monorepo — the development source of truth;
   hub#62 doctrine). Current snapshot: upstream dojo PR branch
-  **`feat/corporate-record-subclass-schemas` @ `8e6566c1d1c52efeb5ebbb57ddee90a94586f7da`**
+  **`feat/corporate-record-subclass-schemas` @ `8e6566c` + lineage JSON @ `3b2eeb4`** —
+  i.e. branch tip commit `8e6566c1d1c52efeb5ebbb57ddee90a94586f7da` (frozen sha,
+  verified by `sandbox fetch-deps` after clone via `git rev-parse HEAD`; the
+  branch stays the clone ref so a shallow clone still resolves) with the vendored
+  `prompts/eval_environment_lineage.json` byte-equal to the dojo branch's own
+  file at `3b2eeb4` (reviewer-verified).
   (draft #46, corporate-record per-subclass schema work: `corporate_record_schema.py`,
   `corporate_record_relabel.py`, `align_unlabeled` in `suites._score_extraction`,
   per-subclass `required_ftypes`/`unlabeled_fields`, the amended

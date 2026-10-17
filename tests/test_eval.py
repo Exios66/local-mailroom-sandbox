@@ -291,7 +291,13 @@ def test_local_vs_api_scorecard_path_with_a_recording_emitter(tmp_path, monkeypa
 
 
 def test_dojo_pin_is_the_subclass_branch_beyond_v0_22():
-    """The sandbox pins the dojo branch cargo past the v0.22.0 tag (PR #145 bump)."""
+    """The sandbox pins the dojo branch cargo past the v0.22.0 tag (PR #145 bump).
+
+    The pin is SHA-FROZEN, not just branch-named: the branch ref moves, so the
+    standalone-clone fallback pin in ``caller._VENDOR_PINS`` carries the
+    snapshot's frozen commit sha and `sandbox fetch-deps` fails loudly when
+    `git rev-parse HEAD` no longer matches (SAND-058).
+    """
     import re
 
     import llm_dojo_scoring as dojo
@@ -306,6 +312,16 @@ def test_dojo_pin_is_the_subclass_branch_beyond_v0_22():
     # the branch-pin snapshot supersedes the v0.22.0 tag (one sync cycle behind)
     assert "feat/corporate-record-subclass-schemas" in vendor_md
     assert "8e6566c1d1c52efeb5ebbb57ddee90a94586f7da" in vendor_md
+    # sha-frozen pin: "8e6566c + lineage JSON @ 3b2eeb4" — the lineage JSON is
+    # byte-equal to the dojo branch's own file at 3b2eeb4 (reviewer-verified)
+    assert "8e6566c + lineage JSON @ 3b2eeb4" in vendor_md.replace("`", "")
+    from mailroom_sandbox import cli as cli_mod
+
+    pins = {name: (pin, sha) for name, pin, _url, sha in cli_mod._VENDOR_PINS}
+    assert pins["llm-dojo-scoring"] == (
+        "feat/corporate-record-subclass-schemas",
+        "8e6566c1d1c52efeb5ebbb57ddee90a94586f7da",
+    ), "_VENDOR_PINS must keep the frozen sha alongside the branch clone ref"
     # the new per-subclass machinery is actually IN the snapshot
     import llm_dojo_scoring.corporate_record_schema as crs
 

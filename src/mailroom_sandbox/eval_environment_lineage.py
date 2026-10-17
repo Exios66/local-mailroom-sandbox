@@ -274,10 +274,12 @@ def verify_sibling_catalog(sibling: Path | None = None) -> list[str]:
                 if v1_sha == str(old.get("sha256")):
                     continue  # manifest preserves the original v1 identity (history-preserving doctrine)
                 if v1_sha == str(row.get("sha256")):
-                    continue  # sibling re-froze the v1 slot to the refrozen default bytes (manifest refreeze
-                    # doctrine, eval-environment CHANGELOG "PRE_EXISTING_SANDBOX_SHA256 ... updated
-                    # deliberately"): the slot holds this row's current default sha; the original v1
-                    # identity stays recorded in this row's superseded block.
+                    # Sibling re-froze the v1 slot to the refrozen default bytes
+                    # (manifest refreeze doctrine, eval-environment CHANGELOG
+                    # "PRE_EXISTING_SANDBOX_SHA256 ... updated deliberately"):
+                    # the slot holds this row's current default sha; the original
+                    # v1 identity stays recorded in this row's superseded block.
+                    continue
                 errors.append(
                     f"{agent}: superseded {old.get('eval_environment_key')} sha256={old.get('sha256')} "
                     f"!= sibling manifest sha256={v1_sha}"
