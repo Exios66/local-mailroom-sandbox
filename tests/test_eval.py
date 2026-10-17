@@ -290,8 +290,8 @@ def test_local_vs_api_scorecard_path_with_a_recording_emitter(tmp_path, monkeypa
     assert captured["path"] == tmp_path / "reports" / "scores" / "SAND-32" / "scores.jsonl"
 
 
-def test_dojo_pin_is_v0_22():
-    """The sandbox pins llm-dojo-scoring at the v0.22.0 tag (released 2026-10-16)."""
+def test_dojo_pin_is_the_subclass_branch_beyond_v0_22():
+    """The sandbox pins the dojo branch cargo past the v0.22.0 tag (PR #145 bump)."""
     import re
 
     import llm_dojo_scoring as dojo
@@ -303,8 +303,14 @@ def test_dojo_pin_is_v0_22():
     vendor = vendored_dojo_src()
     assert vendor is not None, "vendored llm-dojo-scoring snapshot missing"
     vendor_md = (vendor.parent / "VENDOR.md").read_text(encoding="utf-8")
-    assert "v0.22.0" in vendor_md
-    assert "a2862cec" in vendor_md
+    # the branch-pin snapshot supersedes the v0.22.0 tag (one sync cycle behind)
+    assert "feat/corporate-record-subclass-schemas" in vendor_md
+    assert "8e6566c1d1c52efeb5ebbb57ddee90a94586f7da" in vendor_md
+    # the new per-subclass machinery is actually IN the snapshot
+    import llm_dojo_scoring.corporate_record_schema as crs
+
+    assert crs.SUBCLASS_SCHEMAS and callable(crs.align_unlabeled)
+    assert "v0.22.0" in vendor_md  # the superseded tag stays documented
     assert str(vendor.resolve()) in sys.path, "vendored dojo must be on sys.path"
     assert str(Path(dojo.__file__).resolve()).startswith(str(vendor.resolve()))
     version = re.match(r"(\d+)\.(\d+)", dojo.__version__)
