@@ -22,11 +22,15 @@ from mailroom_sandbox.eval.scoring import score_extraction_row
 REPO = Path(__file__).resolve().parents[1]
 
 
-def _real_corporate_row(subclass: str = "bylaws") -> dict[str, Any]:
-    """One REAL published-v9.2 corporate row from the installed corpus cache.
+def _real_row(doc_class: str, subclass: str | None = None) -> dict[str, Any]:
+    """One REAL published-v9.2 row from the installed corpus cache.
 
     Skipped (not stubbed) when the cache is absent, so a fixture never drifts
-    from the published GT shape this wiring must serve.
+    from the published GT shape this wiring must serve. With *subclass* the row
+    must carry that ``expected_subclass`` (corporate-record machinery); without
+    it the first row of *doc_class* is used — the published rows all carry an
+    ``expected_subclass`` key, so the subclass-forwarding pin (below) runs on
+    the value the dataset actually stores.
     """
     for cache in sorted((REPO / "data" / "cache").glob("*mailroom-dataset*")):
         gt = cache / "ground_truth_all.jsonl"
@@ -34,12 +38,20 @@ def _real_corporate_row(subclass: str = "bylaws") -> dict[str, Any]:
             continue
         for line in gt.open(encoding="utf-8"):
             row = json.loads(line)
+            if row.get("expected_doc_class") != doc_class:
+                continue
             if (
-                row.get("expected_doc_class") == "corporate_record"
-                and str(row.get("expected_subclass") or "").lower() == subclass
+                subclass is not None
+                and str(row.get("expected_subclass") or "").lower() != subclass
             ):
-                return row
-    pytest.skip("no corporate GT row in the installed corpus cache")
+                continue
+            return row
+    pytest.skip(f"no {doc_class}/{subclass} GT row in the installed corpus cache")
+
+
+def _real_corporate_row(subclass: str = "bylaws") -> dict[str, Any]:
+    """One REAL published-v9.2 corporate row of *subclass* (see :func:`_real_row`)."""
+    return _real_row("corporate_record", subclass)
 
 
 def test_corporate_row_scores_with_dojo_alignment():
@@ -89,17 +101,96 @@ def test_corporate_row_scores_with_dojo_alignment():
     assert scored["overall_extraction_score"] >= raw_reference.overall_score - 1e-9
 
 
-def test_corporate_alignment_is_subclass_sensitive():
+_PIN_DOC_TYPES = (
+    "contract",
+    "correspondence",
+    "insurance_claim",
+    "merger_agreement",
+    "corporate_record",
+)
+
+
+@pytest.mark.parametrize("doc_type", _PIN_DOC_TYPES)
+def test_expected_subclass_is_score_comparable(doc_type: str):
+    """Equality pin: ``expected_subclass=`` must NEVER move a number.
+
+    Pins the 3,302-row comparability invariant the native adversarial review
+    PROVED NUMERICALLY for PR #145: forwarding the row's stored
+    ``expected_subclass`` into :func:`score_extraction_row` left the scores
+    identical old-vs-new across ALL 3,302 published corpus rows. On one REAL
+    row per doc type (the same installed corpus cache every other test here
+    reads), this asserts against the same call WITHOUT the kwarg:
+
+    * every numeric payload field — all five ``_EXTRACT_PRF_KEYS`` plus
+      ``overall_extraction_score`` — is byte-identical (a wiring bug that
+      changed any score on any doc type fails here), and
+    * the key-set delta is exactly within the two keys the subclass path may
+      add — the dojo's per-row ``unlabeled_fields`` provenance and the
+      detailed ``fields`` provenance block. No number may disappear.
+
+    The subclass is allowed to change provenance (that is the entire point of
+    the machinery); it is NOT allowed to change what the row scored.
+    """
+    from mailroom_sandbox.eval.scoring import _EXTRACT_PRF_KEYS
+
+    row = _real_row(doc_type)
+    sub = str(row.get("expected_subclass") or "").strip() or None
+    expected = row["expected_fields"]
+    # a realistic prediction from the GT itself; the semantic trio is filled
+    # when the published GT leaves it blank so the payload has numbers to pin.
+    predicted = dict(expected)
+    if not predicted.get("subject_matter"):
+        predicted["subject_matter"] = "comparability pin: subject matter"
+    if not predicted.get("keywords"):
+        predicted["keywords"] = ["comparability", "pin"]
+
+    with_sub = score_extraction_row(
+        doc_type,
+        dict(predicted),
+        expected,
+        doc_text=row.get("doc_text"),
+        expected_subclass=sub,
+    )
+    without = score_extraction_row(
+        doc_type, dict(predicted), dict(expected), doc_text=row.get("doc_text")
+    )
+
+    for key in ("overall_extraction_score", *_EXTRACT_PRF_KEYS):
+        assert with_sub.get(key) == without.get(key), (
+            f"{doc_type}/{row['id']}: forwarding expected_subclass={sub!r} "
+            f"changed payload[{key!r}]: {with_sub.get(key)!r} != {without.get(key)!r}"
+        )
+    vanished = set(without) - set(with_sub)
+    extra = set(with_sub) - set(without)
+    assert not vanished, f"{doc_type}/{row['id']}: keys vanished under the kwarg: {sorted(vanished)}"
+    assert extra <= {"unlabeled_fields", "fields"}, (
+        f"{doc_type}/{row['id']}: subclass kwarg added keys outside the two "
+        f"provenance keys: {sorted(extra)}"
+    )
+    if doc_type == "corporate_record" and sub:
+        assert "unlabeled_fields" in with_sub, (
+            "corporate_record forward must surface the dojo's per-row "
+            "unlabeled_fields (PR #145 wiring contract)"
+        )
+
+
+@pytest.mark.parametrize("subclass", ("powers_of_attorney", "rights_instrument"))
+def test_corporate_alignment_is_subclass_sensitive(subclass: str):
     """Without the subclass the alignment normalizes to ``other`` — detectable.
 
-    ``signature_block`` extension fields named only by the row's own subclass
-    (e.g. a ``powers_of_attorney`` row's ``principal``) must remain scorable
-    candidates under the forwarded subclass; the miss does not change the
-    unlabeled set the same way it would under "" → ``other``.
+    Extension fields named only by the row's own subclass (e.g. a
+    ``powers_of_attorney`` row's ``principal``, filled as a real prediction on
+    the published v9.2 shape where entity GT is blank/unlabeled) must remain
+    scorable candidates under the forwarded subclass; the miss does not change
+    the unlabeled set the same way it would under "" → ``other``. The second
+    parameter, ``rights_instrument``, is the same fill on a row whose OWN
+    extension keys (``instrument_kind``/``holder``/…) differ from
+    ``principal`` — the reviewer-sourced case of a real sub-vs-other alignment
+    divergence found in the same row cache.
     """
     from llm_dojo_scoring.corporate_record_schema import align_unlabeled
 
-    row = _real_corporate_row("powers_of_attorney")
+    row = _real_corporate_row(subclass)
     assert row.get("expected_subclass"), row["id"]
     expected = row["expected_fields"]
     predicted = dict(expected)
@@ -115,9 +206,8 @@ def test_corporate_alignment_is_subclass_sensitive():
     # the fwd subclass vs the default normalized one must be asserted to be
     # what the sandbox actually produced
     assert scored["unlabeled_fields"] == list(dojo_dropped)
-    # and (on the published v9.2 shape where entity GT is blank/unlabeled)
-    # the two alignments coincide for this row — the point is that the scored
-    # payload used the subclass, whatever the dojo itself computed from it.
+    # and the scored payload used the subclass, whatever the dojo itself
+    # computed from it: doc_subclass ≡ expected_subclass kwarg equivalence.
     scored_other = score_extraction_row(
         "corporate_record", predicted, expected,
         doc_subclass=row["expected_subclass"],
@@ -125,9 +215,16 @@ def test_corporate_alignment_is_subclass_sensitive():
     assert scored_other["unlabeled_fields"] == list(dojo_dropped)
     assert scored["overall_extraction_score"] == scored_other["overall_extraction_score"]
     # guard against a silent default-"other" fallback producing a different
-    # alignment than the dojo's own subclass-aware computation
-    if dojo_dropped != other_dropped:
-        assert scored["unlabeled_fields"] != list(other_dropped)
+    # alignment than the dojo's own subclass-aware computation — asserted
+    # UNCONDITIONALLY now: on the published v9.2 entity-GT-blank shape the two
+    # alignments genuinely diverge for every subclass with its own extension
+    # keys, so the fixture is first required to diverge, then the scored
+    # payload is required to differ from the "other" alignment directly.
+    assert dojo_dropped != other_dropped, (
+        "fixture lost its sub-vs-other fill divergence; pick a row whose "
+        "subclass extension keys are actually unlabeled"
+    )
+    assert scored["unlabeled_fields"] != list(other_dropped)
 
 
 def test_non_subclass_paths_are_unchanged():
