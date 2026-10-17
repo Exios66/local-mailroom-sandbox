@@ -88,6 +88,19 @@
       "source_path": "prompts/mutations.json",
       "origin": "SAND-042 RCA (#134)",
       "fix": "MAUD answer catalog generated from llm_dojo_scoring.maud_schema; no free text in maud_clauses; per-chunk answering duty"
+    },
+    {
+      "agent": "corporate_records_specialist",
+      "eval_environment_key": "corporate_records_specialist_v7",
+      "parent_key": "corporate_records_specialist_v6",
+      "sandbox_stem": "corporate_records_specialist_subclass_v2",
+      "sha256": "b40963bb3c53bdaa7089513c1186dec87fac210b28093008941b3c8a39dab77a",
+      "chars": 5333,
+      "opening": "You are the corporate-records specialist.",
+      "frozen_at": "2026-10-17",
+      "source_path": "prompts/mutations.json",
+      "origin": "dojo corporate_record_schema (per-subclass key entities)",
+      "fix": "one compact line per doc_subclass (record_type, intent, +extra entity keys); entity_name = owning company; 532 chars shorter than v6"
     }
   ]
 }
