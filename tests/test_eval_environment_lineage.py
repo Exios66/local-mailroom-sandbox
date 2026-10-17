@@ -142,10 +142,13 @@ def test_successor_stem_resolves_to_its_frozen_key(stem):
     assert agents_for_variant(stem) == [agent]
     # Freezing a successor does not move the default v1 pin.
     assert default_prompt_variant(agent) != stem
-    # The default pin is the agent's specialists row (v1, or its re-frozen
-    # v6/v7 for corporate_records / correspondence) - never the successor.
-    assert eval_environment_key_for(agent=agent) not in (key, "")
-    assert eval_environment_key_for(agent=agent).startswith(agent + "_v")
+    # The default pin is exactly the agent's specialists row (v1, or its
+    # re-frozen v6/v7 for corporate_records / correspondence) - never the successor.
+    from mailroom_sandbox.eval_environment_lineage import specialist_rows
+
+    default_key = eval_environment_key_for(agent=agent)
+    assert default_key == specialist_rows()[agent]["eval_environment_key"]
+    assert default_key != key
 
 
 @pytest.mark.parametrize("stem", sorted(SAND42_SUCCESSORS))
