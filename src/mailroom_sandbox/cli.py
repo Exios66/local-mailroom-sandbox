@@ -125,7 +125,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser(
         "fetch-deps",
-        help="Refresh tracked vendor snapshots (llm-mailroom v0.7.1, llm-dojo-scoring v0.22.0) from pinned tags",
+        help="Refresh tracked vendor snapshots (llm-mailroom v0.7.1, llm-dojo-scoring feat/corporate-record-subclass-schemas) from pinned refs",
         parents=[shared],
     )
     p.add_argument("--visualizer", action="store_true", help="Also clone The-Mailroom (Langfuse observer)")
@@ -1125,11 +1125,20 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
 # instead (DMR-057/070): tags can lag removals — the v0.7.1 tag predates the
 # five-class taxonomy removal (59c47401), so a tag-based refresh of
 # llm-mailroom would resurrect the deleted docclass-era files.
-# llm-dojo-scoring v0.22.0 is tagged (released 2026-10-16, commit a2862cec),
-# so the standalone fallback resolves the tag with no silent downgrade.
+# llm-dojo-scoring: the v0.22.0 tag (released 2026-10-16, commit a2862cec) is
+# one sync cycle behind the vendored snapshot: the tracked tree is the
+# `feat/corporate-record-subclass-schemas` branch @ 8e6566c (dojo draft #46,
+# per-subclass corporate-record scoring). The standalone fallback pins the
+# BRANCH ref, not the stale tag: `git clone --branch` accepts a branch, so the
+# fallback does not resurrect a scoring engine a sync cycle behind the
+# lineage/prompt registry (see vendor/llm-dojo-scoring/VENDOR.md).
 _VENDOR_PINS: tuple[tuple[str, str, str], ...] = (
     ("llm-mailroom", "v0.7.1", "https://github.com/Exios66/llm-mailroom.git"),
-    ("llm-dojo-scoring", "v0.22.0", "https://github.com/Exios66/llm-dojo-scoring.git"),
+    (
+        "llm-dojo-scoring",
+        "feat/corporate-record-subclass-schemas",
+        "https://github.com/Exios66/llm-dojo-scoring.git",
+    ),
 )
 
 
@@ -1235,7 +1244,7 @@ def _refresh_vendor(name: str, tag: str, url: str) -> int:
     import shutil
 
     stamp = subprocess.run(
-        ["git", "ls-remote", "--tags", url, tag],
+        ["git", "ls-remote", url, tag],
         capture_output=True,
         text=True,
         check=False,
