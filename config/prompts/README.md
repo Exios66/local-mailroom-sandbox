@@ -133,6 +133,7 @@ does.
 
 | Stem | Agent | Frozen key | Built from | Change |
 | --- | --- | --- | --- | --- |
+| `corporate_records_specialist_subclass_v2` | `corporate_records_specialist` | `corporate_records_specialist_v7` | `corporate_records_specialist_simplified` (re-frozen v6) | Per-subclass key-entity lines **generated** from `llm_dojo_scoring.corporate_record_schema.render_prompt_section` replace the executive brief (5865 → 5333 chars); subclass +keys emitted only for their subclass. |
 | `insurance_claims_specialist_simplified_v2` | `insurance_claims_specialist` | `insurance_claims_specialist_v4` | `insurance_claims_specialist_simplified` (frozen v1) | Layout cues for all five corpus sources (CMS MSN A/B/carrier, Part D pde, GNOTHEIA property FNOL, BDR auto decision letters, INSURBIAS narratives); no phantom "sorter handed you doc_subclass" (the isolated harness passes none); bare-number `claimed_amount`; a printed payment/approval is a stated `approved`. |
 | `merger_agreement_specialist_maud_v2` | `merger_agreement_specialist` | `merger_agreement_specialist_v4` | `merger_agreement_specialist_maud_v1` | Answer catalog **generated** from `llm_dojo_scoring.maud_schema.render_maud_question_block` (`scripts/gen_maud_v2_prompt.py --check` keeps it fresh); no free text inside `maud_clauses`; per-chunk answering duty instead of "answer everything". |
 

@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Added
+
+- **`corporate_records_specialist_subclass_v2`** frozen successor (eval-environment `corporate_records_specialist_v7`, sha256 `b40963bb…`): per-subclass
+  key-entity lines generated from the dojo's `corporate_record_schema`. The default pin is unchanged.
+
 ### Changed — breaking (vendored dojo)
 
 - **Vendored llm-dojo-scoring re-vendored at the `v0.22.0` tag** (`a2862cec`, cut and published
