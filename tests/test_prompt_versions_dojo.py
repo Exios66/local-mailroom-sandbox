@@ -128,13 +128,17 @@ def test_default_stems_are_bytes_equal_to_their_lineage_versions():
 
 
 def test_sandbox_successor_keys_not_in_the_lineage_are_not_selectable():
-    """insurance/merger ``*_v4`` stems claim an eval-environment key the lineage does not catalog.
+    """insurance/merger ``*_v4`` and corporate ``*_v7`` stems claim an eval-environment key the lineage does not catalog.
 
     Pinned so the gap is explicit: when the dojo catalogs them this test fails and the
     stems get byte-verified instead (``--prompt <stem>`` keeps running them meanwhile).
     """
     missing = {str(r["eval_environment_key"]) for r in lineage.successor_rows()} - {v.key for v in ALL}
-    assert missing == {"insurance_claims_specialist_v4", "merger_agreement_specialist_v4"}
+    assert missing == {
+        "corporate_records_specialist_v7",
+        "insurance_claims_specialist_v4",
+        "merger_agreement_specialist_v4",
+    }
     for key in sorted(missing):
         with pytest.raises(pv.PromptSelectionError, match="unknown eval-environment prompt version"):
             pv.resolve_selection([key])

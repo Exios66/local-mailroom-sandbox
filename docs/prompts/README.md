@@ -190,3 +190,4 @@ The sandbox lineage lock (`config/prompts/eval_environment_lineage.json`) names 
 | --- | --- | --- | --- |
 | `insurance_claims_specialist_v4` | insurance_claims_specialist | `config/prompts/insurance_claims_specialist_simplified_v2.txt` | `1ca6e83c944c` |
 | `merger_agreement_specialist_v4` | merger_agreement_specialist | `config/prompts/merger_agreement_specialist_maud_v2.txt` | `da316691955a` |
+| `corporate_records_specialist_v7` | corporate_records_specialist | `config/prompts/corporate_records_specialist_subclass_v2.txt` | `253559fcb7ac` |
