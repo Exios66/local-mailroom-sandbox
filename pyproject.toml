@@ -79,7 +79,7 @@ notebooks = [
     "matplotlib>=3.8",
 ]
 observability = [
-    "langfuse>=4.0,<5",
+    "langfuse>=4.0,<6",
     # Braintrust = opt-in hosted sink for eval spans. Verified against 0.42.0:
     # no start_root_span / Logger.score / Span.score in that line — see
     # src/mailroom_sandbox/eval/tracing.py for the adapter.
