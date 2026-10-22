@@ -14,13 +14,13 @@
       "opening": "You are the contracts specialist."
     },
     "corporate_records_specialist": {
-      "eval_environment_key": "corporate_records_specialist_v1",
-      "sandbox_stem": "corporate_records_specialist_simplified",
-      "sha256": "fe13501f667fcd9f64f7dfbf8b0f124f81d9dd039f4109288b43f106f82b1399",
-      "chars": 5865,
+      "eval_environment_key": "corporate_records_specialist_v7",
+      "sandbox_stem": "corporate_records_specialist_production",
+      "sha256": "253559fcb7ac6b36878453821a4fab0aa94228ad5add77d5aeabb06bb265134c",
+      "chars": 5462,
       "opening": "You are the corporate-records specialist.",
       "source": "llm-dojo-scoring production_prompts",
-      "refrozen_at": "2026-10-05"
+      "refrozen_at": "2026-10-17"
     },
     "correspondence_specialist": {
       "eval_environment_key": "correspondence_specialist_v1",
