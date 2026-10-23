@@ -257,8 +257,25 @@ def _parse_object_text(text: str) -> tuple[dict[str, Any] | None, str | None]:
     return None, None
 
 
-def _pydantic_valid(doc_type: str, payload: Mapping[str, Any]) -> bool | None:
-    """True/False when a pydantic schema is importable; None if unavailable."""
+def _pydantic_valid(
+    doc_type: str, payload: Mapping[str, Any], doc_subclass: str | None = None
+) -> bool | None:
+    """Validate extensions and the core model; None if the model is unavailable."""
+    if str(doc_type or "").strip() == "corporate_record" and doc_subclass:
+        from llm_dojo_scoring.corporate_record_schema import entity_field_types
+
+        # The core Pydantic model ignores extension keys. Their source schema
+        # declares string arrays for entity lists and nullable strings otherwise
+        # (including dates and money, which are extracted as written).
+        for key, field_type in entity_field_types(doc_subclass).items():
+            if key not in payload:
+                continue
+            value = payload[key]
+            if field_type.startswith("entity_list"):
+                if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+                    return False
+            elif value is not None and not isinstance(value, str):
+                return False
     try:
         from schemas.documents import get_extraction_schema
     except Exception:
@@ -300,7 +317,7 @@ def assess_extraction_payload(
         public = [k for k in payload if k not in _META_KEYS]
         extra = sorted(k for k in public if keys and k not in keys)
         legacy = sorted(k for k in public if k in _LEGACY_CORRESPONDENCE_KEYS)
-        typed = _pydantic_valid(doc_type, payload)
+        typed = _pydantic_valid(doc_type, payload, doc_subclass)
         if typed is None:
             # Structural fallback: a dict whose public keys are a subset of the
             # known schema (or unknown doc type → any dict that parsed).

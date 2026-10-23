@@ -125,7 +125,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser(
         "fetch-deps",
-        help="Refresh tracked vendor snapshots from reviewed, SHA-frozen standalone source refs",
+        help=(
+            "Refresh tracked vendor snapshots from the monorepo workspace when "
+            "present, otherwise reviewed, SHA-frozen standalone source refs"
+        ),
         parents=[shared],
     )
     p.add_argument("--visualizer", action="store_true", help="Also clone The-Mailroom (Langfuse observer)")
@@ -1071,18 +1074,17 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
     """Refresh the TRACKED vendor snapshots (DMR-057/DMR-070).
 
     The family code ships in-repo (DMR-057), so a fresh checkout needs no
-    network. Refresh order (DMR-070 rework): when the sandbox checkout lives
-    inside the Digital-Mailroom monorepo, the workspace package is the
-    reviewed standalone import and the vendor tree MIRRORS it — carrying
-    BOTH content updates AND deletions (a copy-only refresh is how the
-    removed docclass-era compliance files survived their upstream deletion).
-    Standalone clones fall back to the tag-based clone refresh, with a loud
-    warning that tags can lag removals (the v0.7.1 tag predates 59c47401).
+    network. When present, the Digital-Mailroom monorepo workspace packages
+    are mirrored into vendor, carrying both content updates and deletions.
+    Otherwise, refresh uses reviewed standalone main refs frozen to the
+    SHAs in _VENDOR_PINS. A moved-ref check rejects a SHA mismatch before
+    any tracked vendor files are replaced.
     """
     print(
         "vendor trees are tracked snapshots (self-contained); fetch-deps "
         "refreshes them — workspace mirror first (offline, carries "
-        "deletions), tag-based clone fallback for standalone clones"
+        "deletions), otherwise reviewed standalone main refs frozen to SHAs; "
+        "moved refs are rejected before tracked vendor files are replaced"
     )
     rc = 0
     for name, pin, url, sha in _VENDOR_PINS:
@@ -1093,9 +1095,9 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
         else:
             print(
                 f"== {name}: no monorepo workspace detected — falling back to the "
-                f"pin-based refresh ({pin}" + (f" @ sha {sha[:12]})" if sha else ")") +
-                f"; NOTE refs can move — prefer a reviewed imported workspace "
-                "revision",
+                f"reviewed standalone source refresh ({pin}" + (f" @ sha {sha[:12]})" if sha else ")") +
+                "; moved refs fail the SHA check before tracked vendor files "
+                "are replaced",
                 file=sys.stderr,
             )
             refresh_rc = _refresh_vendor(name, pin, url, sha)
@@ -1124,9 +1126,9 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
     return rc
 
 
-# Exact reviewed standalone source commits. Workspace refresh is allowed only
-# after those source revisions have been imported into the hub. Moving fallback
-# refs fail their SHA check before replacing any tracked vendor file.
+# Reviewed standalone main refs frozen to exact source SHAs. Mirror monorepo
+# workspace packages when available, after importing those reviewed revisions.
+# The fallback rejects moved refs before replacing any tracked vendor file.
 _VENDOR_PINS: tuple[tuple[str, str, str, str | None], ...] = (
     ("llm-mailroom", "main",
      "https://github.com/Exios66/llm-mailroom.git", "c529d3f3e4c10865b90f7d7d4675dbb2b8fbae5e"),
@@ -1186,7 +1188,7 @@ def _refresh_vendor_from_workspace(name: str, ws_root: Path) -> int:
     dest_root = vendor_dir() / name / "src"
     if ws_root.name != "src":
         # llm-dojo-scoring layout: the package dir relocates under src/
-        # (mirrors the tag-based path's DMR-058 normalization).
+        # (mirrors the standalone path's DMR-058 normalization).
         dest_root = dest_root / ws_root.name
     dest_root.parent.mkdir(parents=True, exist_ok=True)
 
