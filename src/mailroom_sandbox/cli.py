@@ -84,6 +84,7 @@ def _one_line(exc: BaseException) -> str:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the sandbox CLI parser with subcommands and handler defaults."""
     shared = argparse.ArgumentParser(add_help=False)
     shared.add_argument("--profile", default=os.environ.get("SANDBOX_PROFILE") or "ollama")
     shared.add_argument("--model", default=None, help="Override every agent's model tag")
@@ -2624,7 +2625,12 @@ def _cmd_modal_matrix_env(args) -> int:
 
 
 def _run_load_spec(args) -> tuple[object, Path]:
-    """Load the run spec and return it with a resolved ``--config`` path."""
+    """Return a run spec with CLI overrides and its resolved config path.
+
+    Per-agent and per-role CLI choices win over the YAML selections.
+    Raises SystemExit when ``--config`` is absent; loading and override
+    validation errors propagate.
+    """
     config = getattr(args, "config", None)
     if not config:
         raise SystemExit("run commands need --config <run.yaml>")
@@ -2806,7 +2812,11 @@ def _endpoint_tracer(run_id: str, lock: dict):
 
 
 def _finalize_remote(store) -> bool:
-    """Pull a terminal remote run's dir back and append its records locally."""
+    """Pull terminal artifacts and append records matching the local generation.
+
+    Return False for a reported transfer/validation failure, True otherwise.
+    Store validation, JSON parsing, and local log write errors propagate.
+    """
     from mailroom_sandbox.eval import experiment_log
     from mailroom_sandbox.job import remote as job_remote
 
@@ -2831,6 +2841,12 @@ def _finalize_remote(store) -> bool:
 
 
 def _watch_remote(store, args) -> int:
+    """Poll remote progress and finalize terminal artifacts into the local store.
+
+    Return 0 for a completed run or 1 for failure, failed finalization, or
+    20 minutes without a heartbeat when the remote call is no longer alive.
+    Store and finalization exceptions propagate.
+    """
     from mailroom_sandbox.job import remote as job_remote
     from mailroom_sandbox.tui.session import MailroomConsole, remote_progress_line
 
@@ -2896,6 +2912,12 @@ def _watch_remote(store, args) -> int:
 
 
 def _cmd_run_status(args) -> int:
+    """Print the local summary and available remote progress, or watch the run.
+
+    Fetch terminal remote artifacts before reporting. Return 1 for a missing
+    lock or failed finalization, otherwise 0, or the watch exit code.
+    Store and remote-operation exceptions propagate.
+    """
     from mailroom_sandbox.job.checkpoint import RunStore
     from mailroom_sandbox.job.spec import run_dir
     from mailroom_sandbox.job import remote as job_remote
@@ -2921,7 +2943,14 @@ def _cmd_run_status(args) -> int:
 
 
 def _cmd_run_resume(args) -> int:
-    """Resume a locked run after re-checking preflight when ``--config`` is set."""
+    """Resume a locked run after re-checking preflight when ``--config`` is set.
+
+    Run-ID-only overrides must match the frozen model and prompt choices.
+    Return 3 for drift or preflight refusal, 1 for missing/invalid artifacts
+    or execution failure, 2 for a paused local run, and 0 for local completion
+    or remote dispatch/attach. Watching returns its own exit code.
+    Uncaught spec-loading and remote-operation errors propagate.
+    """
     from mailroom_sandbox.job.checkpoint import RunStore
     from mailroom_sandbox.job.spec import run_dir
 
@@ -2987,6 +3016,12 @@ def _job_mode(store) -> str:
 
 
 def _cmd_run_cancel(args) -> int:
+    """Request remote cancellation or cooperative cancellation of a running local job.
+
+    Idle local runs are left without a pending request. Return 1 when no
+    local lock exists, otherwise 0 after reporting the request or idle state.
+    Remote cancellation and store errors propagate.
+    """
     from mailroom_sandbox.job.checkpoint import RunStore
     from mailroom_sandbox.job.remote import cancel as remote_cancel
     from mailroom_sandbox.job.spec import run_dir

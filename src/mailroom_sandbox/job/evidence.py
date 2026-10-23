@@ -7,6 +7,14 @@ from mailroom_sandbox.job.checkpoint import generation_identity
 
 
 def record_matches(record: dict[str, Any], store, lock: dict[str, Any], *, state: str = "done") -> bool:
+    """Return whether evidence matches the locked run, spec, task, and state.
+
+    Stamped records must match the full generation identity; task aliases
+    also require the matching scorer task. Unstamped evidence is accepted
+    only for successful, unarchived legacy runs with one matching prompt,
+    dataset fingerprint, and timestamp within the lock/checkpoint interval.
+    Missing or invalid legacy timestamps return False; store errors propagate.
+    """
     task = lock.get("task")
     if record.get("spec_hash") != lock.get("spec_hash"):
         return False

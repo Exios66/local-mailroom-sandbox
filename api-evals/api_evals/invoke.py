@@ -21,6 +21,7 @@ _log = logging.getLogger("api_evals.invoke")
 
 
 def _same_generation(record: dict[str, Any], store, lock: dict[str, Any]) -> bool:
+    """Return whether a successful record belongs to the locked run generation."""
     from mailroom_sandbox.job.evidence import record_matches
 
     return record_matches(record, store, lock)
@@ -37,10 +38,18 @@ def run_task(
 ) -> dict[str, Any]:
     """Run one api-evals task end-to-end and return the decorated summary.
 
-    Returns ``{run_id, task, n, rows, record, scores, cost, wall_seconds,
-    spec_hash, fingerprint}``. ``rows`` are the per-item entries (pred + tokens
-    + latency), ``cost`` is the REAL OpenRouter cost block, ``record`` is the
-    experiment-log record the runner appended.
+    Returns per-item ``rows``, the experiment-log ``record``, ``scores``,
+    ``cost``, wall time in seconds, and run, spec, and dataset identity.
+    ``prices`` overrides input/output prices in USD per million tokens.
+    A matching completed generation is reused without an API key or new
+    calls; its rows are empty and cost uses aggregate token counts.
+    ``force`` bypasses reuse and requests a new preflight generation.
+    ``dry_run`` returns spec metadata only, without preflight or API calls.
+
+    A supplied ``api_key`` is stored in ``OPENROUTER_API_KEY`` for execution.
+    Raises RuntimeError for a missing execution key, rejected preflight,
+    unusable terminal evidence, or a run that does not finish as ``done``.
+    Spec-loading, store, runner, and cost-accounting errors propagate.
     """
     from mailroom_sandbox.job.checkpoint import RunStore
     from mailroom_sandbox.job import preflight, runner

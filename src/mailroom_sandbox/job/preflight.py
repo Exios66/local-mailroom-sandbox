@@ -314,7 +314,17 @@ def preflight(
     dry_run: bool = False,
     live: bool = False,
 ) -> dict[str, Any]:
-    """Serialize generation changes with the runner; never wait to reset live work."""
+    """Prepare or validate a generation under the writer and control locks.
+
+    Load dotenv configuration before resolving prompts and probes. Return
+    the preflight report, or ``busy_refused`` when the writer lock is held.
+    ``force`` requests archival and a new generation but refuses possibly
+    active writers; ``offline`` avoids remote prompt/tracing requirements.
+    ``live`` probes the engine for a new generation. ``dry_run`` only checks
+    lock readability and returns without resolving or preparing artifacts;
+    the run directory and lock files may still be created.
+    Uncaught configuration and file-access errors propagate.
+    """
     # Dotenv supplies prompt credentials, endpoint and tracing configuration.
     # Loading it is independent of graph activation and preserves explicit env.
     from mailroom_sandbox.runtime import load_env_file
@@ -341,10 +351,14 @@ def _preflight(
     dry_run: bool = False,
     live: bool = False,
 ) -> dict[str, Any]:
-    """Confirm all spec domains, prepare artifacts, and write the lock.
+    """Validate an existing generation or prepare artifacts and write a new lock.
 
-    Returns a report dict with status ``prepared | drift_refused | failed``.
-    ``dry_run`` validates without writing; ``force`` re-locks a drifted run.
+    Return ``prepared``, ``failed``, ``drift_refused``, ``busy_refused``, or
+    ``foreign_store_refused`` in the report's status. ``dry_run`` checks only
+    existing lock readability, without validating domains or writing artifacts.
+    ``force`` archives an eligible existing generation before preparing its
+    replacement. Caught prompt, dataset, and tracing errors become failed
+    reports; uncaught configuration and file-access errors propagate.
     """
     run_id = run_id or resolve_run_id(spec)
     store = RunStore(run_dir(run_id))

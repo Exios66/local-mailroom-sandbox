@@ -97,7 +97,11 @@ def truncate_torn_tail(items_path: Path, events_path: Path) -> int:
 
 
 def generation_identity(lock: dict[str, Any]) -> dict[str, str]:
-    """Bind evidence to the immutable lock, resolved prompts and dataset bytes."""
+    """Return a canonical lock hash and its declared dataset/prompt digests.
+
+    Missing dataset or prompt digests become empty strings. This does not
+    read or validate the corresponding artifact files.
+    """
     import hashlib
 
     blob = json.dumps(lock, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
@@ -108,6 +112,7 @@ def generation_identity(lock: dict[str, Any]) -> dict[str, str]:
 
 class RunStore:
     def __init__(self, run_dir: Path):
+        """Create the run directory if needed and use its basename as the run ID."""
         self.dir = Path(run_dir)
         self.dir.mkdir(parents=True, exist_ok=True)
         self.lock_path = self.dir / "spec.lock.json"
@@ -125,6 +130,11 @@ class RunStore:
     # ── single-writer guard ─────────────────────────────────────────────────
     @contextmanager
     def acquire(self, *, blocking: bool = True) -> Iterator["RunStore"]:
+        """Yield this store while holding its advisory exclusive writer lock.
+
+        With ``blocking=False``, raise BlockingIOError if another writer holds
+        the lock. Release it on context exit, including when the body raises.
+        """
         with open(self.flock_path, "a+", encoding="utf-8") as fh:
             fcntl.flock(fh.fileno(), fcntl.LOCK_EX | (0 if blocking else fcntl.LOCK_NB))
             try:
@@ -156,10 +166,12 @@ class RunStore:
         return _read_json(self.lock_path, strict=True)
 
     def verify_generation(self) -> dict[str, Any]:
-        """Validate required immutable artifacts before activation or execution.
+        """Return the lock after validating its frozen artifacts and checkpoint.
 
-        Read frozen prompt bytes; never re-resolve today's mutable local stems.
-        Legacy locks without a generation_id retain their run/spec checks.
+        Raise RuntimeError for missing, corrupt, or mismatched run/spec locks,
+        datasets, prompt snapshots, or checkpoint identities/states. File-access
+        errors propagate. Frozen prompt text is checked without resolving current
+        local stems. Legacy locks need no checkpoint generation ID.
         """
         lock = self.read_lock()
         if not isinstance(lock, dict) or not lock.get("spec_hash") or lock.get("run_id") != self.run_id:
@@ -317,6 +329,12 @@ class RunStore:
     def append_item(self, record: dict[str, Any]) -> None:
         # Callers own acquire(); normalize the accepted crash tail before the
         # next append. Do not turn two valid JSON objects into one invalid line.
+        """Append a JSONL result after repairing an unterminated tail.
+
+        Preserve a parseable final record and separate it with a newline; discard
+        an unparseable final fragment. The caller must hold ``acquire()``.
+        Serialization and file-access errors propagate.
+        """
         if self.items_path.is_file() and self.items_path.stat().st_size:
             with self.items_path.open("rb") as tail:
                 tail.seek(-1, 2)
@@ -335,7 +353,11 @@ class RunStore:
         return self.load_items()
 
     def request_cancel(self) -> dict[str, Any]:
-        """Durable control plane; never wait on the runner's long writer lock."""
+        """Persist and return a cancellation token for the current generation.
+
+        Use the short control lock so a running provider call need not finish
+        before the request is written; the runner acknowledges it after draining.
+        """
         import uuid
 
         with self.control():
@@ -347,6 +369,11 @@ class RunStore:
             return request
 
     def pending_cancel(self) -> dict[str, Any] | None:
+        """Return an unacknowledged request matching the current generation.
+
+        Return None for absent, stale, or acknowledged requests. Corrupt control
+        or lock JSON raises RuntimeError; file-access errors propagate.
+        """
         request = _read_json(self.cancel_path, strict=True)
         if not request:
             return None
@@ -361,6 +388,10 @@ class RunStore:
     def acknowledge_cancel(self, request: dict[str, Any]) -> None:
         # A newer request arriving during drain stays pending: acknowledge only
         # the token this runner observed, never unlink the control file.
+        """Persist the observed request token without removing the request file.
+
+        A newer request remains pending when an older token is acknowledged.
+        """
         _atomic_write(self.cancel_ack_path, json.dumps(request, sort_keys=True))
 
     # ── checkpoint (atomic mirror) ──────────────────────────────────────────
@@ -374,6 +405,13 @@ class RunStore:
         last_error: dict[str, Any] | None = None,
         reconcile: tuple[int, int] | None = None,
     ) -> Path:
+        """Atomically replace the progress mirror and return its path.
+
+        Stamp the current run/spec/generation identity. ``cursor`` and ``total``
+        are item counts; optional ``reconcile`` holds old and new cursor counts
+        and adds a reconciliation event. Raise ValueError for an unknown state;
+        lock-reading, count-conversion, and file-access errors propagate.
+        """
         if state not in STATES:
             raise ValueError(f"state {state!r} not in {STATES}")
         cp = {

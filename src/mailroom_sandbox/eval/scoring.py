@@ -124,9 +124,16 @@ def score_extraction_row(
     the payload carries the per-row ``unlabeled_fields`` list. Without it the
     suite normalizes the subclass to ``"other"`` — the sandbox-#145 wiring gap.
 
-    The subclass path returns the dojo's detailed payload, so the row carries
-    the same provenance-stamped fields (`metric_id`) the per-row
-    ``unlabeled_fields`` contract is defined on.
+    Corporate rows use the detailed suite path even without a subclass,
+    preserving its aligned precision/recall/F1 and ``unlabeled_fields``.
+    ``doc_subclass`` takes precedence over ``expected_subclass``. Corporate
+    GT retains blank schema values and ``gt_presence`` annotation metadata.
+
+    Returns scores plus schema-adherence diagnostics. Suite lookup/scoring
+    errors fall back to generic scoring and set ``scoring_method``; failed
+    PRF derivation omits those fields. Errors from generic scoring and schema
+    diagnostics propagate. MAUD/CUAD labels replace the headline score when
+    present, retaining the suite headline separately.
     """
     sub = str(doc_subclass or expected_subclass or "").strip() or None
     scoring_method = "suite"

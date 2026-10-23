@@ -46,11 +46,14 @@ _LOCKED_RUNTIME: ContextVar[dict[str, Any] | None] = ContextVar("sandbox_locked_
 
 @contextmanager
 def locked_runtime(lock: dict[str, Any], prompt_lock: dict[str, Any]):
-    """Every existing eval activation in this call tree must honor the lock.
+    """Make activations in this context use copies of the frozen run settings.
 
-    Keep all knob keys verbatim (including model, temperature and chunk/input
-    budgets); an empty locked map deliberately defeats ambient env overrides.
-    Transport credentials/endpoints remain operator configuration.
+    Clear existing prompt overrides and selection on entry. Keep all knob keys
+    verbatim (including model, temperature, and chunk/input budgets); an empty
+    locked map defeats ambient knob overrides. Transport credentials/endpoints
+    remain operator configuration. Yield without activating the runtime.
+    Restore the prior context policy on exit, including on errors; applied
+    runtime globals, environment, and prompt patches are not restored.
     """
     from mailroom_sandbox.prompt_registry import deactivate_runtime_overrides
     from mailroom_sandbox.prompt_versions import clear_active_selection
@@ -171,7 +174,12 @@ def apply_profile_env(profile: dict, *, base_url_override: str | None = None) ->
 
 
 def resolve_agent_knobs(agent_knobs: dict | None = None) -> dict:
-    """Resolve initial operator overrides; locked replay never consults the env."""
+    """Return a deep copy of explicit knobs, or resolve them from the environment.
+
+    When ``agent_knobs`` is None, read ``SANDBOX_AGENT_KNOBS`` as JSON. Missing,
+    invalid, or non-object JSON yields an empty map. An explicit empty map
+    suppresses the environment fallback.
+    """
     if agent_knobs is None:
         raw = os.environ.get("SANDBOX_AGENT_KNOBS")
         if raw:
@@ -184,7 +192,11 @@ def resolve_agent_knobs(agent_knobs: dict | None = None) -> dict:
 
 
 def stamp_locked_record(record: dict[str, Any]) -> None:
-    """Stamp before append, including whole-run delegates' global log copies."""
+    """Mutate a record with the active lock's run/spec/generation and task identity.
+
+    Set ``run_state`` to ``done`` when a locked context exists; otherwise leave
+    the record untouched.
+    """
     policy = _LOCKED_RUNTIME.get()
     if policy is not None:
         from mailroom_sandbox.job.checkpoint import generation_identity
@@ -214,6 +226,14 @@ def activate(
     own decode/input budget. When None, it is read from the
     ``SANDBOX_AGENT_KNOBS`` env var (JSON), which is how ``sandbox run`` carries
     it without threading a new field through every call site.
+
+    Inside ``locked_runtime``, the frozen profile, model, per-agent settings,
+    and prompt texts override these arguments; ambient knob JSON is ignored.
+    The explicit ``base_url`` argument is ignored there, while transport
+    configuration still comes from the profile and environment. Return and
+    retain the resulting Activation as the active runtime. Profile, taxonomy,
+    and required prompt-application errors propagate; timeout, credential,
+    and sampling patch failures are caught so activation can continue.
     """
     global _ACTIVE
     policy = _LOCKED_RUNTIME.get()

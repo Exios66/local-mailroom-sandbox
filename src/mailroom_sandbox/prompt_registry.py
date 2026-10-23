@@ -467,7 +467,13 @@ def deactivate_runtime_overrides() -> None:
 
 
 def apply_locked_prompts(prompt_lock: dict[str, Any]) -> None:
-    """Apply the existing frozen prompt-selection and text contract."""
+    """Set the active frozen prompt selection and apply its stored agent texts.
+
+    Missing or empty texts are skipped. Raise RuntimeError when a non-default
+    source has text that cannot be applied; unpatchable code-default texts do
+    not raise this error. Selection and override errors propagate. Selection
+    and any successful patches remain applied if a later check fails.
+    """
     # eval-environment prompt versions: remember the locked selection so every
     # record the delegated runners write is stamped with its key + sha256.
     from mailroom_sandbox.prompt_versions import selection_from_lock, set_active_selection
