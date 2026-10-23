@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- Bind locked execution and reusable API results to immutable generation/task,
+  dataset and resolved prompt identity; freeze initial operator knobs and refuse
+  damaged artifacts before activation. Keep every managed vendor refresh eligible
+  after an earlier source failure.
+
 ### Fixed — DMR-091 source-owned sandbox lifecycle
 
 - Preserve existing matching preflight generations and their live remote identity;

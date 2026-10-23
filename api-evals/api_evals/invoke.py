@@ -20,6 +20,39 @@ from typing import Any
 _log = logging.getLogger("api_evals.invoke")
 
 
+def _same_generation(record: dict[str, Any], store, lock: dict[str, Any]) -> bool:
+    from mailroom_sandbox.job.checkpoint import generation_identity
+
+    if "run_generation" in record:
+        return (record["run_generation"] == generation_identity(lock)
+                and record.get("run_state") == "done"
+                and record.get("task") == lock.get("task"))
+    # Old append-only records have no generation stamp. Accept only an intact,
+    # unreset legacy generation with matching resolved content and bounded time.
+    if lock.get("generation_id") or any(store.dir.glob("archive-*")):
+        return False
+    if record.get("run_state") not in (None, "done"):
+        return False
+    from datetime import datetime
+    from mailroom_sandbox.job.runner import _fingerprint
+
+    try:
+        start = datetime.fromisoformat(lock["created_at"].replace("Z", "+00:00"))
+        end = datetime.fromisoformat(store.read_checkpoint()["updated_at"].replace("Z", "+00:00"))
+        stamp = datetime.fromisoformat(record["timestamp"].replace("Z", "+00:00"))
+        if not start <= stamp <= end:
+            return False
+    except (KeyError, TypeError, ValueError):
+        return False
+    agents = (lock.get("prompt") or {}).get("agents") or {}
+    # A single explicit task prompt can be proven by the old record's full SHA.
+    # Multi-role records without a full generation stamp cannot prove all texts.
+    prompt = agents.get(lock.get("task")) or {}
+    return (len(agents) == 1 and bool(prompt.get("sha256"))
+            and record.get("prompt_sha256") == prompt["sha256"]
+            and record.get("dataset_fingerprint") == _fingerprint(store))
+
+
 def run_task(
     yaml_path: Path | str,
     *,
@@ -39,7 +72,6 @@ def run_task(
     from mailroom_sandbox.job.checkpoint import RunStore
     from mailroom_sandbox.job import preflight, runner
     from mailroom_sandbox.job.spec import load_run_spec, run_dir
-    from mailroom_sandbox.runtime import activate
 
     from api_evals import cost as cost_mod
     from api_evals.registry import DEFAULT_API_MODEL
@@ -65,26 +97,30 @@ def run_task(
         report = preflight.preflight(spec, run_id=run_id, offline=True)
         if report.get("status") != "prepared":
             raise RuntimeError(f"preflight failed for {path.name}: {report.get('status')} — {report.get('checks')}")
-        expected_hash = spec.spec_hash()
-        expected_name = f"sandbox_{spec.task}_{run_id}"
-        records = [rec for rec in experiment_log.load()
-                   if rec.get("spec_hash") == expected_hash
-                   and (rec.get("run_id") == run_id if rec.get("run_id") is not None
-                        else rec.get("experiment_name") == expected_name)]
-        if not records:
-            raise RuntimeError(f"run {run_id} has no matching terminal record for its exact run/spec identity")
-        rec = records[-1]
-        model = rec.get("model") or spec.engine.model
-        c = cost_mod.cost_from_aggregate(
-            prompt_tokens=int(rec.get("prompt_tokens") or 0),
-            completion_tokens=int(rec.get("completion_tokens") or 0),
-            n=int(rec.get("n") or spec.dataset.limit or 0), model=model, prices=prices)
-        return {"run_id": run_id, "task": spec.task, "profile": spec.profile,
-                "model": model, "n": int(rec.get("n") or spec.dataset.limit or 0),
-                "rows": [], "record": rec, "scores": rec.get("scores") or {}, "cost": c,
-                "wall_seconds": rec.get("wall_seconds"), "spec_hash": expected_hash,
-                "dataset_fingerprint": rec.get("dataset_fingerprint") or "", "resumed": True}
-
+        with existing_store.acquire():
+            lock = existing_store.verify_generation()
+            expected_hash = spec.spec_hash()
+            expected_name = f"sandbox_{spec.task}_{run_id}"
+            if existing_store.state() != "done":
+                raise RuntimeError(f"run {run_id} is {existing_store.state()}; no successful terminal record can be reused")
+            records = [rec for rec in experiment_log.load()
+                       if rec.get("spec_hash") == expected_hash
+                       and (rec.get("run_id") == run_id if rec.get("run_id") is not None
+                            else rec.get("experiment_name") == expected_name)
+                       and _same_generation(rec, existing_store, lock)]
+            if not records:
+                raise RuntimeError(f"run {run_id} has no matching terminal record for its exact run/spec identity")
+            rec = records[-1]
+            model = rec.get("model") or spec.engine.model
+            c = cost_mod.cost_from_aggregate(
+                prompt_tokens=int(rec.get("prompt_tokens") or 0),
+                completion_tokens=int(rec.get("completion_tokens") or 0),
+                n=int(rec.get("n") or spec.dataset.limit or 0), model=model, prices=prices)
+            return {"run_id": run_id, "task": spec.task, "profile": spec.profile,
+                    "model": model, "n": int(rec.get("n") or spec.dataset.limit or 0),
+                    "rows": [], "record": rec, "scores": rec.get("scores") or {}, "cost": c,
+                    "wall_seconds": rec.get("wall_seconds"), "spec_hash": expected_hash,
+                    "dataset_fingerprint": rec.get("dataset_fingerprint") or "", "resumed": True}
     if api_key:
         os.environ["OPENROUTER_API_KEY"] = api_key
     if not os.environ.get("OPENROUTER_API_KEY"):
@@ -92,10 +128,6 @@ def run_task(
             "OPENROUTER_API_KEY is not set — api-evals runs are live OpenRouter "
             "calls; set the key in .env (gitignored) or pass --api-key"
         )
-
-    # Same activation contract as `sandbox run start` (DMR-072): without it the
-    # vendored pipeline loads its own config and silently returns doc_type=None.
-    activate(spec.profile, model=spec.engine.model)
 
     report = preflight.preflight(
         spec,

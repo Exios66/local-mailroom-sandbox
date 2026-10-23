@@ -642,6 +642,8 @@ def run_job(
     on_event=None,
 ) -> dict[str, Any]:
     """Run (or resume) the locked job to completion and return a summary."""
+    if not dry_run:
+        store.verify_generation()
     if dry_run:
         return _run_job(store, task=task, model=model, profile=profile, mock=mock, dry_run=True,
                         max_items=max_items, tracer=tracer, on_event=on_event)

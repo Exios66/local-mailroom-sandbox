@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import time
+import uuid
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -444,15 +445,7 @@ def _preflight(
             # Existing lock is the generation's commit point. Validate its
             # artifacts, never recreate missing bytes under that identity.
             try:
-                if not store.dataset_path.is_file() or not store.prompt_lock_path.is_file() or not cp:
-                    raise RuntimeError("locked generation is missing dataset, prompt lock, or checkpoint")
-                expected_sha = (existing.get("dataset") or {}).get("sha256")
-                if not expected_sha or store.dataset_sha256() != expected_sha:
-                    raise RuntimeError("locked dataset sha256 mismatch")
-                if store.read_prompt_lock() != existing.get("prompt"):
-                    raise RuntimeError("locked prompt artifacts differ")
-                if cp.get("spec_hash") != existing.get("spec_hash") or cp.get("run_id") != run_id:
-                    raise RuntimeError("checkpoint belongs to another run/spec")
+                store.verify_generation()
             except RuntimeError as exc:
                 report["status"] = "failed"
                 report["checks"].append({"name": "generation", "ok": False, "detail": str(exc)})
@@ -560,6 +553,7 @@ def _preflight(
         "lock_kind": "spec.lock",
         "run_id": run_id,
         "created_at": checkpoint.utc_now(),
+        "generation_id": uuid.uuid4().hex,
         "spec_hash": spec.spec_hash(),
         "prompt_text_sha": prompt_text_sha,
         "task": spec.task,
@@ -580,12 +574,11 @@ def _preflight(
     # table, so editing a posture later silently rewrites what every historical card
     # claims the run was configured with — and the contracts whole-document change is
     # exactly such an edit.
-    try:
-        from mailroom_sandbox.job.specialist_posture import agent_knobs_for_run
+    from mailroom_sandbox.job.specialist_posture import agent_knobs_for_run
+    from mailroom_sandbox.runtime import load_env_file, resolve_agent_knobs
 
-        lock["agent_knobs"] = agent_knobs_for_run(run_id) or {}
-    except Exception:  # noqa: BLE001 — a lock must still be written
-        lock["agent_knobs"] = {}
+    load_env_file()
+    lock["agent_knobs"] = resolve_agent_knobs(agent_knobs_for_run(run_id))
     selected = selection_from_lock(prompt_block)
     if selected:
         # The selected eval-environment keys + sha256 are part of the run's identity.

@@ -194,21 +194,9 @@ def run_job(payload: dict) -> dict:
     _enable_debug_logging()
     run_id = str(payload["run_id"])
     store = RunStore(Path(RUNS_MOUNT) / run_id)
-    lock = store.read_lock() or {}
+    lock = store.verify_generation()
     spec_hash = store.spec_hash() or ""
     state_dict = modal.Dict.from_name(STATE_DICT, create_if_missing=True)
-
-    # DMR-049: never score a dataset other than the locked one. The lock's
-    # sha256 is the hash of the payload written at preflight; the file must
-    # still match it on the Volume (a partial put or a drifted re-upload).
-    dataset_block = lock.get("dataset") if isinstance(lock.get("dataset"), dict) else {}
-    expected_sha = str((dataset_block or {}).get("sha256") or "")
-    actual_sha = store.dataset_sha256() or ""
-    if expected_sha and actual_sha and expected_sha != actual_sha:
-        raise RuntimeError(
-            f"dataset.jsonl sha256 mismatch for run {run_id}: "
-            f"lock={expected_sha[:12]} file={actual_sha[:12]} — re-fire the run (--force)"
-        )
 
     trace_block = lock.get("trace") or {}
     sink_cfg = resolve_sink(

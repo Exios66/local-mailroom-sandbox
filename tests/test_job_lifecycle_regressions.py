@@ -22,14 +22,14 @@ from mailroom_sandbox.job.spec import DatasetSpec, RunSpec, run_dir
 pytestmark = pytest.mark.usefixtures("job_data_dir")
 
 
-def prepare(tmp_path, *, count=3, concurrency=1, mock=True, task="sorter", run_id="lifecycle", prompt=None):
+def prepare(tmp_path, *, count=3, concurrency=1, mock=True, task="sorter", run_id="lifecycle", prompt=None, agent_models=None):
     source = tmp_path / "input.jsonl"
     source.write_text("".join(json.dumps({"id": f"d{i}", "filename": f"d{i}.txt",
         "doc_text": "Dear Alice, Please pay invoice 42. Regards Bob.",
         "expected": "correspondence", "question": "Is payment due?", "answer": "Yes"}) + "\n"
         for i in range(count)))
     run_id += "-" + __import__("hashlib").sha256(str(tmp_path).encode()).hexdigest()[:8]
-    spec = RunSpec(run_id=run_id, task=task, profile="ollama", prompt=prompt or {},
+    spec = RunSpec(run_id=run_id, task=task, profile="ollama", prompt=prompt or {}, agent_models=agent_models or {},
         dataset=DatasetSpec(provider="file", local_path=str(source)),
         engine={"kind": "vllm-local", "model": "locked-model", "modal": None},
         job={"mock": mock, "max_retries": 0, "concurrency": concurrency}, trace={"sink": "none"})
@@ -268,7 +268,10 @@ def test_api_eval_exact_terminal_reuse_needs_no_key(tmp_path, monkeypatch):
     from mailroom_sandbox.eval import experiment_log
     spec, store = prepare(tmp_path)
     store.write_checkpoint(state="done", cursor=3, total=3)
+    from mailroom_sandbox.job.checkpoint import generation_identity
+
     experiment_log.append({"run_id": store.run_id, "spec_hash": spec.spec_hash(),
+        "run_generation": generation_identity(store.read_lock()), "run_state": "done", "task": spec.task,
         "model": "locked-model", "n": 3, "scores": {"n": 3}, "prompt_tokens": 30, "completion_tokens": 6})
     path = tmp_path / "api.yaml"
     path.write_text(yaml.safe_dump(spec.model_dump(mode="json")))
@@ -336,7 +339,7 @@ if sys.argv[2] == "worker":
     modal.Image,modal.Volume,modal.Dict,modal.App=Image,Volume,Dict,App
     modal.Secret=types.SimpleNamespace(from_dict=lambda values:values)
     sys.modules["modal"]=modal
-    path=Path(os.environ["SANDBOX_ROOT"])/"deploy/modal_job.py"
+    path=Path(sys.argv[3])
     spec=importlib.util.spec_from_file_location("cold_modal_job",path)
     worker=importlib.util.module_from_spec(spec);spec.loader.exec_module(worker)
     worker.RUNS_MOUNT=str(store.dir.parent)
@@ -361,21 +364,24 @@ print("COLD_PROOF="+json.dumps({"requests":len(requests),"state":"done"}))
 
 
 @pytest.mark.parametrize("entry", ["worker", "resume"])
-def test_cold_execution_activates_locked_runtime_at_sdk_boundary(tmp_path, entry):
-    _, store = prepare(tmp_path, count=1, mock=False)
-    lock = store.read_lock()
-    lock["agent_models"] = {"judge": "locked-judge"}
-    lock["agent_knobs"] = {"sorter": {"max_tokens": 321, "max_input_chars": 9876,
-        "chunk_chars": 2345, "temperature": 0.2, "model": "locked-sorter"}}
-    store.lock_path.write_text(json.dumps(lock))
-    prompt = store.read_prompt_lock()
-    text = (Path(os.environ["SANDBOX_ROOT"]) / "config/prompts/sorter_local_v0.txt").read_text()
-    text += "\nLOCKED SORTER SENTINEL\n"
-    prompt["agents"]["sorter"] = {"source": "local", "text": text,
-        "sha256": __import__("hashlib").sha256(text.encode()).hexdigest(), "file": "sorter_local_v0"}
-    store.write_prompt_lock(prompt)
+def test_cold_execution_activates_locked_runtime_at_sdk_boundary(tmp_path, monkeypatch, entry):
+    import shutil
+
+    original = Path(os.environ["SANDBOX_ROOT"])
+    root = tmp_path / "sandbox"
+    shutil.copytree(original / "config", root / "config")
+    (root / "vendor").symlink_to(original / "vendor", target_is_directory=True)
+    monkeypatch.setenv("SANDBOX_ROOT", str(root))
+    text = (root / "config/prompts/sorter_local_v0.txt").read_text()
+    (root / "config/prompts/cold_lifecycle.txt").write_text(text + "\nLOCKED SORTER SENTINEL\n")
+    monkeypatch.setenv("SANDBOX_AGENT_KNOBS", json.dumps({"sorter": {
+        "max_tokens": 321, "max_input_chars": 9876, "chunk_chars": 2345,
+        "temperature": 0.2, "model": "locked-sorter"}}))
+    _, store = prepare(tmp_path, count=1, mock=False, agent_models={"judge": "locked-judge"},
+        prompt={"agents": {"sorter": {"source": "local", "file": "cold_lifecycle"}}})
     env = dict(os.environ, SANDBOX_AGENT_KNOBS='{"sorter":{"max_tokens":1}}')
-    result = subprocess.run([sys.executable, "-B", "-c", _COLD_PROCESS, str(store.dir), entry],
+    result = subprocess.run([sys.executable, "-B", "-c", _COLD_PROCESS, str(store.dir), entry,
+        str(Path(__file__).resolve().parents[1] / "deploy/modal_job.py")],
         env=env, capture_output=True, text=True, timeout=50)
     assert result.returncode == 0, result.stdout + result.stderr
     assert '"state": "done"' in result.stdout
