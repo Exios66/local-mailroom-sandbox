@@ -70,12 +70,17 @@ def _call_status(fc: Any) -> str | None:
 
 
 def generation_fields(lock: dict) -> dict:
+    """Return run/spec IDs, the optional generation ID, and content identity."""
     return {"run_id": lock["run_id"], "spec_hash": lock["spec_hash"],
             "generation_id": lock.get("generation_id"), "run_generation": generation_identity(lock)}
 
 
 def generation_path(lock: dict) -> str:
-    """Relative to RUNS_MOUNT; keep the run ID as the directory basename."""
+    """Return the content-addressed run path relative to RUNS_MOUNT.
+
+    Keep the run ID as the basename. Raise RuntimeError for an empty,
+    traversal, or path-containing run ID.
+    """
     run_id = lock["run_id"]
     if not isinstance(run_id, str) or run_id in {"", ".", ".."} or "/" in run_id or "\\" in run_id:
         raise RuntimeError("invalid remote run ID")
@@ -83,6 +88,11 @@ def generation_path(lock: dict) -> str:
 
 
 def _run_path(store: RunStore) -> str:
+    """Return the checkpoint's remote path, defaulting to the legacy run ID.
+
+    Raise RuntimeError if the path or stamped remote identity belongs to
+    another generation, or the lock's run ID is invalid.
+    """
     lock = store.read_lock() or {}
     remote = (store.read_checkpoint() or {}).get("remote") or {}
     path = remote.get("run_path", store.run_id)
@@ -94,10 +104,11 @@ def _run_path(store: RunStore) -> str:
 
 
 def _remote_lock(run_path: str) -> dict | None:
-    """Fetch the full immutable lock, never infer identity from spec_hash alone.
+    """Fetch the full remote lock, returning None for a nonzero CLI exit.
 
-    None means absent OR unknown. Uploads never force an overwrite in either
-    case; an unreadable existing destination therefore fails closed at put.
+    Raise RuntimeError for missing, ambiguous, unreadable, or non-object lock
+    JSON after a successful download. Process-launch and staging errors
+    propagate. Uploads never force an overwrite when identity is unknown.
     """
     with tempfile.TemporaryDirectory() as tmp:
         proc = subprocess.run(
@@ -120,6 +131,7 @@ def _remote_lock(run_path: str) -> dict | None:
 
 
 def _same_lock(left: dict | None, right: dict) -> bool:
+    """Return whether a remote lock exists and has the same content identity."""
     return isinstance(left, dict) and generation_identity(left) == generation_identity(right)
 
 
@@ -130,6 +142,13 @@ def _lock_mock(store: RunStore) -> bool:
 
 
 def upload_run_dir(run_dir: Path, *, run_path: str | None = None) -> tuple[int, str]:
+    """Upload a directory to a Volume path without requesting an overwrite.
+
+    ``run_path`` is relative to the Volume's ``/runs`` directory and defaults
+    to the local directory basename. Return the CLI exit code and stderr
+    (or stdout when stderr is empty). Raise FileNotFoundError with setup
+    guidance when the Modal CLI is missing; other process errors propagate.
+    """
     try:
         proc = subprocess.run(
             [
@@ -153,7 +172,16 @@ def upload_run_dir(run_dir: Path, *, run_path: str | None = None) -> tuple[int, 
 
 
 def fire(store: RunStore, *, payload: dict | None = None) -> dict[str, Any]:
-    """Push the run dir (when needed) and spawn the remote job; persist the call id."""
+    """Dispatch the verified generation and return its persisted call ID.
+
+    Reuse a matching remote directory or upload to a content-addressed path
+    without overwriting existing data. ``payload`` adds worker options but
+    cannot replace the locked identity, path, or mock setting. Update the
+    checkpoint and lifecycle journal after spawning.
+
+    Raise RuntimeError for invalid/mismatched generations or failed uploads.
+    CLI, SDK, and local store errors propagate.
+    """
     lock = store.verify_generation()
     # Prefer a prior matching location, including original /runs/<run_id>
     # stores. Mismatched legacy work is left untouched, even when apparently
@@ -254,7 +282,12 @@ def terminal_confirmed(store: RunStore) -> bool:
 
 
 def read_progress(store: RunStore) -> dict | None:
-    """Live progress from the job-state Dict; fall back to the checkpoint."""
+    """Return progress proven to match this generation, else the local checkpoint.
+
+    Legacy cache entries require matching run/spec identity, a fresh heartbeat,
+    and a matching remote lock. Remote lookup and validation errors are caught;
+    the fallback checkpoint may be stale or absent.
+    """
     try:
         modal = _modal()
         state_dict = modal.Dict.from_name(STATE_DICT, create_if_missing=True)
@@ -296,9 +329,13 @@ def read_progress(store: RunStore) -> dict | None:
 
 
 def pull_run_dir(store: RunStore) -> tuple[int, str]:
-    """Validate the complete fetched generation in staging before local writes.
+    """Validate fetched terminal artifacts in staging before replacing local results.
 
-    Immutable local artifacts and lock/control inodes are never replaced.
+    Immutable local artifacts and lock/control inodes are never replaced;
+    the local remote-call metadata is retained. Return ``(0, "")`` on success,
+    a CLI error pair on download failure, or ``(1, detail)`` for rejected
+    staged artifacts or a changed local generation. Initial local generation
+    validation, process-launch, writer-lock, and copy errors propagate.
     """
     lock = store.verify_generation()
     with tempfile.TemporaryDirectory() as tmp:
@@ -354,6 +391,12 @@ def pull_run_dir(store: RunStore) -> tuple[int, str]:
 
 
 def cancel(store: RunStore, *, terminate: bool = False) -> None:
+    """Request cancellation of the generation's remote call and journal the request.
+
+    ``terminate`` also requests container termination. Raise RuntimeError for
+    a missing call ID or mismatched generation/path; SDK and store errors
+    propagate. This does not mark the local checkpoint terminal.
+    """
     remote = (store.read_checkpoint() or {}).get("remote")
     call_id = remote.get("call_id") if isinstance(remote, dict) else None
     if not call_id:
@@ -365,7 +408,14 @@ def cancel(store: RunStore, *, terminate: bool = False) -> None:
 
 
 def ensure_running(store: RunStore) -> dict:
-    """Attach to a live call or (re)fire the job; returns the action taken."""
+    """Return ``action`` and ``call_id`` after attaching or dispatching a job.
+
+    An undetermined call status is treated as alive. Re-dispatch requires
+    confirmed completion and expiry of the 15-minute cooldown when a dispatch
+    time is recorded. Raise RuntimeError for unproven generation identity,
+    a malformed dispatch timestamp, an active cooldown, or unconfirmed
+    completion; remote dispatch and store errors propagate.
+    """
     cp = store.read_checkpoint() or {}
     remote = cp.get("remote")
     if isinstance(remote, dict) and remote.get("call_id"):

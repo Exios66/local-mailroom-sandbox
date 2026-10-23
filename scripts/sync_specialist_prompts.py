@@ -52,6 +52,12 @@ EXPERIMENT_STEMS: frozenset[str] = frozenset(EXPERIMENT_FROM_VENDOR.values())
 
 
 def _load_texts() -> dict[str, str]:
+    """Load export texts by prompt stem from the vendored family packages.
+
+    Adds vendor import paths as needed. Corporate evaluation text comes
+    from Dojo's production catalog, independently of the live pipeline
+    prompt. Import and prompt lookup errors propagate.
+    """
     if str(VENDOR_SRC) not in sys.path:
         sys.path.insert(0, str(VENDOR_SRC))
     # The vendored llm-dojo-scoring must be importable (frozen_v1 reads the

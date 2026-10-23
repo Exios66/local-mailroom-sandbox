@@ -86,6 +86,11 @@ def _refresh(name: str, dest: Path, source: Path) -> int:
 
 
 def main() -> int:
+    """Refresh the selected snapshot or all snapshots from workspace sources.
+
+    Parse the optional snapshot name from argv, attempt every selected
+    refresh, and return the largest refresh exit code.
+    """
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument(
         "snapshot", nargs="?", choices=[s[0] for s in _SNAPSHOTS], default=None

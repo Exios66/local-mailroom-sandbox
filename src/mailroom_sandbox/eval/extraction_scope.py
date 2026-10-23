@@ -167,7 +167,11 @@ def _apply_hub_aliases(doc_type: str, fields: Mapping[str, Any] | None) -> dict[
 
 
 def _allowed_fields(doc_type: str) -> frozenset[str] | None:
-    """Use dojo's registry for corporate extension names, without copying it."""
+    """Return live schema keys, including all registered corporate extensions.
+
+    Return None for an unknown document type. Corporate registry import
+    errors propagate.
+    """
     resolved = str(doc_type or "").strip()
     allowed = LIVE_SCHEMA_FIELDS.get(resolved)
     if resolved == "corporate_record":
@@ -184,10 +188,11 @@ def applicable_expected_fields(
 ) -> dict[str, Any]:
     """GT keys that may count as extraction events for ``doc_type``.
 
-    Drops (1) empty placeholders, (2) trace/Hub-metadata keys, and (3) keys
-    that belong to another live class's schema. Unknown ``doc_type`` still
-    drops empties / trace / metadata but keeps remaining keys (no invented
-    allow-list).
+    Applies Hub aliases, drops trace/Hub metadata, and keeps schema keys plus
+    shared content-scoring fields. Corporate records retain ``gt_presence`` and blank
+    schema values so Dojo can distinguish annotated absence from unlabeled
+    fields. Other classes drop empty placeholders. Unknown document types
+    keep remaining nonempty keys without an allow-list.
     """
     allowed = _allowed_fields(doc_type)
     corporate = str(doc_type or "").strip() == "corporate_record"

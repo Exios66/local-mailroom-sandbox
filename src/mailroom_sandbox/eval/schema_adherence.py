@@ -146,7 +146,13 @@ SCHEMA_ADHERENCE_ROW_KEYS = (
 
 
 def schema_keys_for(doc_type: str, doc_subclass: str | None = None) -> frozenset[str]:
-    """Live extraction-schema field names for ``doc_type``."""
+    """Return live extraction field names, or an empty set for an unknown type.
+
+    A corporate ``doc_subclass`` adds its registered extension fields to the
+    core keys. Other types use the pipeline schema when available, then
+    built-in fallback keys, including matches for agent names. Corporate
+    registry errors propagate; pipeline schema lookup errors use fallbacks.
+    """
     resolved = str(doc_type or "").strip()
     if resolved == "corporate_record" and doc_subclass:
         from llm_dojo_scoring.corporate_record_schema import entity_field_types
@@ -260,7 +266,14 @@ def _parse_object_text(text: str) -> tuple[dict[str, Any] | None, str | None]:
 def _pydantic_valid(
     doc_type: str, payload: Mapping[str, Any], doc_subclass: str | None = None
 ) -> bool | None:
-    """Validate extensions and the core model; None if the model is unavailable."""
+    """Validate core fields and any selected corporate subclass extensions.
+
+    Present corporate extension values must be string lists or nullable
+    strings, according to their registered field type. Return False for
+    invalid values or model validation errors, and None when no core model
+    can be loaded. Corporate registry and core schema lookup errors outside
+    the import guard propagate.
+    """
     if str(doc_type or "").strip() == "corporate_record" and doc_subclass:
         from llm_dojo_scoring.corporate_record_schema import entity_field_types
 
@@ -306,6 +319,11 @@ def assess_extraction_payload(
     Returns additive keys only. ``schema_adherence`` is 1.0 when the payload
     parsed *and* validated; 0.0 otherwise. Extra/legacy keys are reported
     even when pydantic would ignore them (default ``extra='ignore'``).
+
+    ``doc_subclass`` selects corporate extension keys and value types.
+    Without a core validator, a nonempty parsed payload passes when the schema
+    is unknown, no public keys are extra, or at least one public key is known.
+    Corporate registry and uncaught schema lookup errors propagate.
     """
     payload, meta = coerce_predicted_payload(predicted)
     parse_error = bool(meta.get("parse_error"))

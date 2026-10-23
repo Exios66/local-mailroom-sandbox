@@ -184,7 +184,18 @@ def _now() -> str:
     startup_timeout=60 * 5,
 )
 def run_job(payload: dict) -> dict:
-    """Run a locked job from the Volume; mirror progress to the state Dict."""
+    """Run a locked Volume job and return its summary with generation identity.
+
+    ``payload`` names the run and may include an expected generation, its
+    Volume-relative path, and a mock override. Invalid paths or mismatched
+    artifacts raise RuntimeError before execution. Progress is mirrored to
+    the state Dict and run artifacts are committed to the Volume.
+
+    Execution exceptions become a persisted ``failed`` result when the
+    generation still matches. Generation changes and terminal publication
+    failures propagate; failures to mirror intermediate progress do not
+    stop execution.
+    """
     import traceback
 
     from mailroom_sandbox.job.checkpoint import RunStore
@@ -232,6 +243,11 @@ def run_job(payload: dict) -> dict:
     events = {"n": 0}
 
     def on_event(progress: dict) -> None:
+        """Stamp progress with generation identity and mirror it remotely.
+
+        Mutates ``progress`` and periodically commits the Volume. Dict and
+        Volume publication errors are caught so execution can continue.
+        """
         progress.update({**identity, "heartbeat_at": _now()})
         # DMR-056: Dict.put(key, value) is two-arg in modal 1.5.5 — the old
         # one-arg call raised TypeError, killing the progress mirror + commit

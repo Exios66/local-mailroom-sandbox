@@ -463,6 +463,11 @@ def _fingerprint(store: RunStore) -> str:
 
 
 def _apply_prompt_overrides(store: RunStore) -> None:
+    """Apply the store's frozen prompt selection and texts to the runtime.
+
+    Propagate prompt-selection errors and RuntimeError for required texts
+    that cannot be applied.
+    """
     from mailroom_sandbox.prompt_registry import apply_locked_prompts
 
     apply_locked_prompts(store.read_prompt_lock() or {})
@@ -641,7 +646,17 @@ def run_job(
     tracer: Any = None,
     on_event=None,
 ) -> dict[str, Any]:
-    """Run (or resume) the locked job to completion and return a summary."""
+    """Run or resume a locked job and return its current summary.
+
+    The caller owns the store's writer lock. Non-dry runs validate the frozen
+    generation and activate its runtime settings before execution. Per-item
+    jobs may return ``paused`` after cancellation or ``running`` when
+    ``max_items`` limits this invocation. ``dry_run`` verifies dataset integrity
+    and returns row counts without activation or execution.
+
+    Generation, activation, and uncaught execution errors propagate; handled
+    item/delegate failures are reported in the returned summary.
+    """
     if not dry_run:
         store.verify_generation()
     if dry_run:
@@ -674,6 +689,17 @@ def _run_job(
     tracer: Any = None,
     on_event=None,
 ) -> dict[str, Any]:
+    """Execute pending rows or delegate a whole-run task and return its summary.
+
+    Per-item resumes skip recorded indices and retain prior error counts.
+    Cancellation stops new submissions, drains in-flight work, and records a
+    paused checkpoint. ``max_items`` limits pending rows for this invocation.
+    Item prediction failures are persisted; fail-fast/cost/wall guards and an
+    all-item failure produce failed summaries. Successful rows are scored and
+    logged. Dataset mismatch raises RuntimeError; unknown tasks and missing
+    LegalBench question/answer fields raise ValueError. Uncaught prompt,
+    scoring, and persistence errors propagate.
+    """
     task = task or _lock_task(store)
     model = model or _lock_model(store)
     profile = profile or _lock_profile(store)
@@ -921,6 +947,7 @@ def _run_job(
     cancel_request = None
 
     def _cancelled() -> bool:
+        """Remember an observed cancellation request and report whether to stop."""
         nonlocal cancel_request
         cancel_request = store.pending_cancel() or cancel_request
         return cancel_request is not None
@@ -951,6 +978,10 @@ def _run_job(
         futures: dict[Any, int] = {}
 
         def _submit_next() -> bool:
+            """Submit the next pending row with a copy of the current context.
+
+            Return False when cancellation is observed or no pending row remains.
+            """
             if _cancelled():
                 return False
             index = next(it, None)
