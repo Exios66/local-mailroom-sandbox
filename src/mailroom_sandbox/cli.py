@@ -2692,18 +2692,6 @@ def _cmd_run_start(args) -> int:
     from mailroom_sandbox.job.spec import run_dir
 
     spec, config_path = _run_load_spec(args)
-    # DMR-072: the job path must activate the runtime profile like every other
-    # live CLI path. Without it the vendored pipeline loads its own default
-    # config (openrouter, no key) and the sorter node falls through to the
-    # graph's doc_type="unknown" default — a 50-item "run" then "completes" in
-    # seconds with 0.0 scores, ok=True rows, and zero endpoint calls (the
-    # silent-fallback trap; now also hard-guarded in runner._predict_row).
-    activate(
-        spec.profile,
-        model=_activation_model(spec, getattr(args, "model", None)),
-        agent_models=spec.agent_models,
-        agent_knobs=_activation_knobs(spec),
-    )
     if getattr(args, "mock", None) is not None or getattr(args, "local", None) is not None:
         spec.job.mock = bool(args.mock)
     report = preflight.preflight(
@@ -2723,6 +2711,7 @@ def _cmd_run_start(args) -> int:
         _print({"run_id": run_id, "state": "dry_run"})
         return 0
     store = RunStore(run_dir(run_id))
+    store.verify_generation()
     mode = getattr(args, "mode", None) or spec.job.mode
     if mode == "modal":
         # DMR-048: default live probe before firing — a stale VLLM_BASE_URL
@@ -2950,7 +2939,11 @@ def _cmd_run_resume(args) -> int:
             return 3 if report.get("status") in _REFUSAL_STATUSES else 1
     # A run-id-only resume may repeat the locked choices, never alter them
     # implicitly. New choices need a config and an explicit safe generation reset.
-    lock = store.read_lock() or {}
+    try:
+        lock = store.verify_generation()
+    except RuntimeError as exc:
+        _print({"run_id": run_id, "status": "failed", "detail": str(exc)})
+        return 1
     cli_model = getattr(args, "model", None)
     cli_models = _agent_models(args) or {}
     from mailroom_sandbox.prompt_versions import parse_selection, selection_from_lock

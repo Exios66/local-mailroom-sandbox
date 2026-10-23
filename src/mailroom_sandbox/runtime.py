@@ -170,6 +170,30 @@ def apply_profile_env(profile: dict, *, base_url_override: str | None = None) ->
     os.environ.setdefault("MAILROOM_BASE_DIR", str(repo_root() / "data"))
 
 
+def resolve_agent_knobs(agent_knobs: dict | None = None) -> dict:
+    """Resolve initial operator overrides; locked replay never consults the env."""
+    if agent_knobs is None:
+        raw = os.environ.get("SANDBOX_AGENT_KNOBS")
+        if raw:
+            try:
+                parsed = json.loads(raw)
+                agent_knobs = parsed if isinstance(parsed, dict) else None
+            except json.JSONDecodeError:
+                _log.warning("SANDBOX_AGENT_KNOBS is not valid JSON — ignoring run-scoped generation-budget override")
+    return deepcopy(agent_knobs or {})
+
+
+def stamp_locked_record(record: dict[str, Any]) -> None:
+    """Stamp before append, including whole-run delegates' global log copies."""
+    policy = _LOCKED_RUNTIME.get()
+    if policy is not None:
+        from mailroom_sandbox.job.checkpoint import generation_identity
+
+        lock = policy["lock"]
+        record.update(run_id=lock["run_id"], spec_hash=lock["spec_hash"],
+                      run_generation=generation_identity(lock), run_state="done")
+
+
 def activate(
     profile_name: str | None = None,
     *,
@@ -203,18 +227,7 @@ def activate(
         base_url = None
     if load_env_file:
         _load_dotenv()
-    if agent_knobs is None:
-        raw = os.environ.get("SANDBOX_AGENT_KNOBS")
-        if raw:
-            try:
-                parsed = json.loads(raw)
-                agent_knobs = parsed if isinstance(parsed, dict) else None
-            except json.JSONDecodeError:
-                _log.warning(
-                    "SANDBOX_AGENT_KNOBS is not valid JSON — ignoring run-scoped "
-                    "generation-budget override"
-                )
-                agent_knobs = None
+    agent_knobs = resolve_agent_knobs(agent_knobs)
     name = profile_name or os.environ.get("SANDBOX_PROFILE") or "ollama"
     profile = load_profile(name)
     apply_profile_env(profile, base_url_override=base_url)

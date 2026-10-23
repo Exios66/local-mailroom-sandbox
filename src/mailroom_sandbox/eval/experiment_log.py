@@ -44,6 +44,9 @@ def new_record(**fields: Any) -> dict[str, Any]:
 
 
 def append(record: dict[str, Any], path: Path | None = None) -> Path:
+    from mailroom_sandbox.runtime import stamp_locked_record
+
+    stamp_locked_record(record)
     dest = path or jsonl_path()
     written = append_experiment(record, dest)
     regenerate_markdown(dest)

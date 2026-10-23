@@ -350,3 +350,13 @@ uv run pytest packages/local-mailroom-sandbox/tests/test_job_cli.py
 uv run pytest packages/local-mailroom-sandbox/tests/test_corpus.py
 uv run pytest packages/local-mailroom-sandbox/tests/test_prompt_registry.py
 ```
+### Generation integrity
+
+New locked generations carry a unique ID alongside the existing spec hash.
+Initial operator generation knobs and resolved prompt bytes are frozen at
+preflight. Every execution entry checks dataset, prompt and checkpoint identity
+before activation; resume uses the frozen prompt even if its local stem changes.
+A missing or damaged artifact refuses execution. An eligible explicit force reset
+archives the old generation; API result reuse requires successful evidence from
+the current generation and task. Complete old-format evidence retains a narrow
+compatibility path; unproven historical records cannot silently become current.

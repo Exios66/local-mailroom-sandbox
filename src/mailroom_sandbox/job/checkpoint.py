@@ -96,6 +96,16 @@ def truncate_torn_tail(items_path: Path, events_path: Path) -> int:
         return newline + 1
 
 
+def generation_identity(lock: dict[str, Any]) -> dict[str, str]:
+    """Bind evidence to the immutable lock, resolved prompts and dataset bytes."""
+    import hashlib
+
+    blob = json.dumps(lock, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return {"lock_sha256": hashlib.sha256(blob.encode("utf-8")).hexdigest(),
+            "dataset_sha256": (lock.get("dataset") or {}).get("sha256") or "",
+            "prompt_text_sha": lock.get("prompt_text_sha") or ""}
+
+
 class RunStore:
     def __init__(self, run_dir: Path):
         self.dir = Path(run_dir)
@@ -144,6 +154,35 @@ class RunStore:
 
     def read_lock(self) -> dict[str, Any] | None:
         return _read_json(self.lock_path, strict=True)
+
+    def verify_generation(self) -> dict[str, Any]:
+        """Validate required immutable artifacts before activation or execution.
+
+        Read frozen prompt bytes; never re-resolve today's mutable local stems.
+        Legacy locks without a generation_id retain their run/spec checks.
+        """
+        lock = self.read_lock()
+        if not isinstance(lock, dict) or not lock.get("spec_hash") or lock.get("run_id") != self.run_id:
+            raise RuntimeError("locked generation has no valid run/spec lock")
+        cp = _read_json(self.checkpoint_path, strict=True)
+        if not self.dataset_path.is_file() or not self.prompt_lock_path.is_file() or not isinstance(cp, dict) or not cp:
+            raise RuntimeError("locked generation is missing dataset, prompt lock, or checkpoint")
+        expected_sha = (lock.get("dataset") or {}).get("sha256")
+        if not expected_sha or self.dataset_sha256() != expected_sha:
+            raise RuntimeError("dataset.jsonl changed since the lock (locked dataset sha256 mismatch)")
+        prompt = self.read_prompt_lock()
+        if not isinstance(prompt, dict) or prompt != lock.get("prompt"):
+            raise RuntimeError("locked prompt artifacts differ")
+        if lock.get("prompt_text_sha"):
+            from mailroom_sandbox.job.preflight import _prompt_text_sha
+
+            if _prompt_text_sha(prompt) != lock["prompt_text_sha"]:
+                raise RuntimeError("locked resolved prompt sha256 mismatch")
+        if (cp.get("spec_hash") != lock["spec_hash"] or cp.get("run_id") != self.run_id
+                or cp.get("state") not in STATES
+                or (lock.get("generation_id") and cp.get("generation_id") != lock["generation_id"])):
+            raise RuntimeError("checkpoint belongs to another run/spec/generation or has invalid state")
+        return lock
 
     def spec_hash(self) -> str | None:
         lock = self.read_lock()
@@ -302,7 +341,7 @@ class RunStore:
         with self.control():
             lock = self.read_lock() or {}
             request = {"token": uuid.uuid4().hex, "spec_hash": lock.get("spec_hash"),
-                       "generation": lock.get("created_at"), "requested_at": utc_now()}
+                       "generation": lock.get("generation_id") or lock.get("created_at"), "requested_at": utc_now()}
             _atomic_write(self.cancel_path, json.dumps(request, sort_keys=True))
             self.append_event("cancel_requested", "info", token=request["token"])
             return request
@@ -313,7 +352,7 @@ class RunStore:
             return None
         lock = self.read_lock() or {}
         if (request.get("spec_hash"), request.get("generation")) != (
-            lock.get("spec_hash"), lock.get("created_at")
+            lock.get("spec_hash"), lock.get("generation_id") or lock.get("created_at")
         ):
             return None
         ack = _read_json(self.cancel_ack_path, strict=True) or {}
@@ -348,6 +387,9 @@ class RunStore:
             "remote": remote,
             "last_error": last_error,
         }
+        generation = (self.read_lock() or {}).get("generation_id")
+        if generation:
+            cp["generation_id"] = generation
         _atomic_write(self.checkpoint_path, json.dumps(cp, indent=2, sort_keys=True, default=str))
         if reconcile:
             self.append_event("checkpoint_reconciled", "warn", stored=reconcile[0], recomputed=reconcile[1])
