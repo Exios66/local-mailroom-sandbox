@@ -21,36 +21,9 @@ _log = logging.getLogger("api_evals.invoke")
 
 
 def _same_generation(record: dict[str, Any], store, lock: dict[str, Any]) -> bool:
-    from mailroom_sandbox.job.checkpoint import generation_identity
+    from mailroom_sandbox.job.evidence import record_matches
 
-    if "run_generation" in record:
-        return (record["run_generation"] == generation_identity(lock)
-                and record.get("run_state") == "done"
-                and record.get("task") == lock.get("task"))
-    # Old append-only records have no generation stamp. Accept only an intact,
-    # unreset legacy generation with matching resolved content and bounded time.
-    if lock.get("generation_id") or any(store.dir.glob("archive-*")):
-        return False
-    if record.get("run_state") not in (None, "done"):
-        return False
-    from datetime import datetime
-    from mailroom_sandbox.job.runner import _fingerprint
-
-    try:
-        start = datetime.fromisoformat(lock["created_at"].replace("Z", "+00:00"))
-        end = datetime.fromisoformat(store.read_checkpoint()["updated_at"].replace("Z", "+00:00"))
-        stamp = datetime.fromisoformat(record["timestamp"].replace("Z", "+00:00"))
-        if not start <= stamp <= end:
-            return False
-    except (KeyError, TypeError, ValueError):
-        return False
-    agents = (lock.get("prompt") or {}).get("agents") or {}
-    # A single explicit task prompt can be proven by the old record's full SHA.
-    # Multi-role records without a full generation stamp cannot prove all texts.
-    prompt = agents.get(lock.get("task")) or {}
-    return (len(agents) == 1 and bool(prompt.get("sha256"))
-            and record.get("prompt_sha256") == prompt["sha256"]
-            and record.get("dataset_fingerprint") == _fingerprint(store))
+    return record_matches(record, store, lock)
 
 
 def run_task(

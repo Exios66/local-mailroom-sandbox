@@ -191,7 +191,7 @@ def stamp_locked_record(record: dict[str, Any]) -> None:
 
         lock = policy["lock"]
         record.update(run_id=lock["run_id"], spec_hash=lock["spec_hash"],
-                      run_generation=generation_identity(lock), run_state="done")
+                      run_generation=generation_identity(lock), run_task=lock["task"], run_state="done")
 
 
 def activate(

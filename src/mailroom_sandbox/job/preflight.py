@@ -315,6 +315,11 @@ def preflight(
     live: bool = False,
 ) -> dict[str, Any]:
     """Serialize generation changes with the runner; never wait to reset live work."""
+    # Dotenv supplies prompt credentials, endpoint and tracing configuration.
+    # Loading it is independent of graph activation and preserves explicit env.
+    from mailroom_sandbox.runtime import load_env_file
+
+    load_env_file()
     run_id = run_id or resolve_run_id(spec)
     store = RunStore(run_dir(run_id))
     try:
@@ -435,10 +440,15 @@ def _preflight(
 
     if existing:
         cp = store.read_checkpoint() or {}
-        if force and (cp.get("state") == "running" or (
-            (cp.get("remote") or {}).get("call_id")
-            and cp.get("state") not in {"done", "failed", "cancelled"}
-        )):
+        remote_call = (cp.get("remote") or {}).get("call_id")
+        if force and remote_call:
+            from mailroom_sandbox.job.remote import terminal_confirmed
+
+            # A stale checkpoint or diagnostic call graph is not proof of death.
+            remote_busy = not terminal_confirmed(store)
+        else:
+            remote_busy = False
+        if force and (remote_busy or (cp.get("state") == "running" and not remote_call)):
             return {"status": "busy_refused", "run_id": run_id,
                     "detail": "generation may still have a live writer; cancel and confirm termination first"}
         if not force:
@@ -575,9 +585,8 @@ def _preflight(
     # claims the run was configured with — and the contracts whole-document change is
     # exactly such an edit.
     from mailroom_sandbox.job.specialist_posture import agent_knobs_for_run
-    from mailroom_sandbox.runtime import load_env_file, resolve_agent_knobs
+    from mailroom_sandbox.runtime import resolve_agent_knobs
 
-    load_env_file()
     lock["agent_knobs"] = resolve_agent_knobs(agent_knobs_for_run(run_id))
     selected = selection_from_lock(prompt_block)
     if selected:

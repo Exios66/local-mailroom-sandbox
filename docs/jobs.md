@@ -16,7 +16,7 @@ data/runtime/runs/<run_id>/
 ├── items.jsonl          # append-only per-item results (progress truth)
 ├── checkpoint.json      # atomic mirror (state/cursor/remote)
 ├── events.jsonl         # lifecycle journal (poll/pause/resume/fail)
-└── run.lock             # advisory single-writer flock
+└── run.lock             # advisory local-filesystem writer flock
 ```
 
 ## Spec
@@ -110,12 +110,20 @@ A matching repeated preflight validates the committed dataset hash, prompt lock,
 checkpoint and spec identity and leaves all generation artifacts byte-identical,
 including remote call identity. Missing/drifted artifacts fail rather than being
 silently rebuilt. It does not repeat live probes for an existing generation.
-Preflight holds the same writer lock as endpoint/worker execution and returns
-`busy_refused` immediately when that lock is held.
+Preflight shares the endpoint runner's local filesystem writer lock and returns
+`busy_refused` immediately when that lock is held. A worker's Volume copy of
+`run.lock` is separate: Modal Volumes do not support distributed file locks.
+Remote reset protection uses the checkpoint's call ID and a result-path
+completion check, never the local flock or a diagnostic call graph.
 
-`--force` is a generation reset. It refuses a running checkpoint or an unresolved
-remote call even if the local writer lock is free. Cancel and wait for a paused
-endpoint (or confirm a terminal remote checkpoint) first. An eligible reset
+`--force` is a generation reset. It refuses a running local checkpoint or a
+remote call whose completion cannot be proven, even if the local writer lock
+is free. For Modal SDK 1.6.2, a nonblocking `FunctionCall.get(timeout=0)` result,
+remote execution timeout, terminated-result error or expired output with no
+unfinished inputs permits reset. Pending polls, transport/lookup failures and
+ambiguous exceptions refuse reset. A terminal-looking checkpoint or call graph
+alone is insufficient. Cancel and wait for a paused endpoint or a proven
+terminal remote call first. An eligible reset
 archives the lock, dataset, items, prompts, checkpoint, events, cold-boot
 measurement, worker-local experiment log and cancellation controls together in a unique archive directory.
 It does not terminate remote work or bypass foreign-store ownership guards.
@@ -129,9 +137,12 @@ preserve legacy spec hashes. Run-id-only resume refuses runtime overrides that
 differ from the lock; use a config and a safe explicit reset for new choices.
 Provider endpoint URLs and credentials remain operator environment settings.
 
-For the row-resumable `sorter`/`legalbench` endpoint tasks, `run cancel` writes
-`cancel.request.json` without waiting for the runner's lock and reports
-`cancel_requested`. A separate short `cancel.lock` serializes control writes
+For a running row-resumable `sorter`/`legalbench` endpoint task, `run cancel`
+writes `cancel.request.json` without waiting for the runner's lock and reports
+`cancel_requested`. Prepared, paused and terminal local runs report their
+current state without creating a pending token. The runner marks `running`
+before the first provider submission, so a first-row cancellation still drains
+and pauses correctly. A separate short `cancel.lock` serializes control writes
 and generation resets without taking the runner lock. The runner checks before
 each submission, drains all
 submitted calls, persists their results, then acknowledges the token in
@@ -151,9 +162,19 @@ successful predictions, with their own explicit denominator.
 API-evals terminal reuse validates the requested spec/prompt/dataset lock and
 requires an exact run ID (or exact legacy experiment name) and spec hash in the
 record. Substring matches and stale scores cannot satisfy a changed request.
+New records also stamp `run_task` from the immutable lock before append,
+retaining the evaluator's `task` (`isolated` delegates to `sorter`; `chained`
+to `extract`). Both fields are validated: a foreign scorer task cannot pass
+by carrying a correct run-task stamp. Legacy records require exact task,
+full prompt SHA, dataset fingerprint, bounded time and an unreset legacy lock.
 Matching reuse still needs no API key; missing matching evidence fails loudly.
 
 ## Preflight
+
+The sandbox `.env` and `config/.env` load before prompt resolution, endpoint
+probes, trace credential checks or knob capture, without activating the runtime.
+Explicit environment values take precedence. Cold execution still restores
+locked prompts/models/knobs rather than later ambient generation settings.
 
 1. **prompt** — resolves every agent override (local file sha256, Langfuse
    pushed integer version id, or code default). Unknown agents fail closed.
@@ -198,10 +219,32 @@ Matching reuse still needs no API key; missing matching evidence fails loudly.
   4-16 against a Modal-hosted vLLM (JobSpec default is **4** — the efficient
   conservative sweet spot); set `concurrency: 1` explicitly for CPU Ollama or
   per-item latency-sensitive runs.
-- **Modal mode**: the run dir is pushed to the `sandbox-runs` Volume and the
-  remote worker mirrors progress to the `sandbox-job-state` Dict; the CLI
-  polls it. Resume re-attaches to a live `FunctionCall` or re-spawns the same
-  `run_id` after the lease goes stale (double-execution guard).
+- **Modal mode**: immutable lock content identifies the complete generation,
+  including its UUID, prompt text and dataset bytes. A new upload uses
+  `/runs/.generations/<lock_sha256>/<run_id>` on `sandbox-runs`, with no
+  `--force`; mismatched legacy directories are left untouched. An exactly
+  matching original `/runs/<run_id>` directory remains resumable. Deploy the
+  updated worker before dispatching this protocol; old worker images do not
+  understand the new path/expectation payload.
+- Spawn expectations and worker progress/terminal values carry the exact
+  generation identity. The worker reloads its mounted view before checking
+  the expectation, validates before activation, and commits terminal artifacts
+  before publishing terminal state. Dict keys include lock content identity.
+  Stamped runs reject unstamped/stale terminal caches. Old-format worker
+  progress needs a matching legacy lock and a heartbeat after lock creation.
+- Terminal pulls validate the fetched lock, dataset, prompt, checkpoint and
+  transferable JSON/JSONL in staging before changing local artifacts. Local
+  immutable files and writer/control lock inodes stay intact. Finalization
+  imports only matching run/spec/generation/task records; a refused pull makes
+  status/watch fail instead of reporting completion.
+- Resume attaches to a known matching live call. Re-fire requires an expired
+  cooldown and result-path proof of termination; unknown status fails closed.
+  These checks are not a distributed dispatch lease. Two independent clients
+  without a shared recorded call ID can still race to dispatch the same
+  generation, as in the baseline worker. Serialize control operations for one
+  run across clients; different runs remain independent. This proposal adds
+  no atomic lease or unsafe stale-owner takeover. Interrupted no-force uploads
+  can require operator recovery after confirming no live writer.
 
 ## Remote GPU (Modal)
 

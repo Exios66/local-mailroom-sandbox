@@ -913,6 +913,11 @@ def _run_job(
         store.append_event("failed", "error", cursor=done_count, last_error=last_error)
         return store.summary()
 
+    # Mark the first in-flight provider call as running too. Idle cancellation
+    # distinguishes an active runner from prepared/paused stores using this
+    # checkpoint; waiting until the first result loses first-row cancels.
+    store.write_checkpoint(state="running", cursor=done_count, total=total,
+                           remote=(store.read_checkpoint() or {}).get("remote"))
     cancel_request = None
 
     def _cancelled() -> bool:
