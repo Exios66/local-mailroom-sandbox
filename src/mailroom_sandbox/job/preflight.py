@@ -313,6 +313,28 @@ def preflight(
     dry_run: bool = False,
     live: bool = False,
 ) -> dict[str, Any]:
+    """Serialize generation changes with the runner; never wait to reset live work."""
+    run_id = run_id or resolve_run_id(spec)
+    store = RunStore(run_dir(run_id))
+    try:
+        with store.acquire(blocking=False), store.control():
+            return _preflight(spec, run_id=run_id, config_path=config_path,
+                              offline=offline, force=force, dry_run=dry_run, live=live)
+    except BlockingIOError:
+        return {"status": "busy_refused", "run_id": run_id,
+                "detail": "run writer is active; cancel and wait for paused before resetting"}
+
+
+def _preflight(
+    spec: RunSpec,
+    *,
+    run_id: str = "",
+    config_path: str | Path | None = None,
+    offline: bool = False,
+    force: bool = False,
+    dry_run: bool = False,
+    live: bool = False,
+) -> dict[str, Any]:
     """Confirm all spec domains, prepare artifacts, and write the lock.
 
     Returns a report dict with status ``prepared | drift_refused | failed``.
@@ -409,6 +431,34 @@ def preflight(
                     "take it over deliberately."
                 ),
             }
+
+    if existing:
+        cp = store.read_checkpoint() or {}
+        if force and (cp.get("state") == "running" or (
+            (cp.get("remote") or {}).get("call_id")
+            and cp.get("state") not in {"done", "failed", "cancelled"}
+        )):
+            return {"status": "busy_refused", "run_id": run_id,
+                    "detail": "generation may still have a live writer; cancel and confirm termination first"}
+        if not force:
+            # Existing lock is the generation's commit point. Validate its
+            # artifacts, never recreate missing bytes under that identity.
+            try:
+                if not store.dataset_path.is_file() or not store.prompt_lock_path.is_file() or not cp:
+                    raise RuntimeError("locked generation is missing dataset, prompt lock, or checkpoint")
+                expected_sha = (existing.get("dataset") or {}).get("sha256")
+                if not expected_sha or store.dataset_sha256() != expected_sha:
+                    raise RuntimeError("locked dataset sha256 mismatch")
+                if store.read_prompt_lock() != existing.get("prompt"):
+                    raise RuntimeError("locked prompt artifacts differ")
+                if cp.get("spec_hash") != existing.get("spec_hash") or cp.get("run_id") != run_id:
+                    raise RuntimeError("checkpoint belongs to another run/spec")
+            except RuntimeError as exc:
+                report["status"] = "failed"
+                report["checks"].append({"name": "generation", "ok": False, "detail": str(exc)})
+                return report
+            report.update({"spec_hash": existing["spec_hash"], "lock_path": str(store.lock_path)})
+            return report
 
     # write_lock refuses to overwrite in place, so a forced re-lock archives
     # the old generation first — new dataset bytes must never sit under an old
@@ -514,6 +564,7 @@ def preflight(
         "prompt_text_sha": prompt_text_sha,
         "task": spec.task,
         "profile": spec.profile,
+        "agent_models": dict(spec.agent_models),
         "prompt": prompt_block,
         "engine": spec.engine.model_dump(),
         "job": spec.job.model_dump(),

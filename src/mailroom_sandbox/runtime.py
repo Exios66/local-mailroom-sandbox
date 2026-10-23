@@ -7,6 +7,9 @@ import logging
 import os
 import sys
 from dataclasses import dataclass, field
+from contextlib import contextmanager
+from contextvars import ContextVar
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -38,6 +41,27 @@ class Activation:
 
 
 _ACTIVE: Activation | None = None
+_LOCKED_RUNTIME: ContextVar[dict[str, Any] | None] = ContextVar("sandbox_locked_runtime", default=None)
+
+
+@contextmanager
+def locked_runtime(lock: dict[str, Any], prompt_lock: dict[str, Any]):
+    """Every existing eval activation in this call tree must honor the lock.
+
+    Keep all knob keys verbatim (including model, temperature and chunk/input
+    budgets); an empty locked map deliberately defeats ambient env overrides.
+    Transport credentials/endpoints remain operator configuration.
+    """
+    from mailroom_sandbox.prompt_registry import deactivate_runtime_overrides
+    from mailroom_sandbox.prompt_versions import clear_active_selection
+
+    deactivate_runtime_overrides()
+    clear_active_selection()
+    token = _LOCKED_RUNTIME.set({"lock": deepcopy(lock), "prompt": deepcopy(prompt_lock)})
+    try:
+        yield
+    finally:
+        _LOCKED_RUNTIME.reset(token)
 
 
 def active() -> Activation | None:
@@ -168,6 +192,15 @@ def activate(
     it without threading a new field through every call site.
     """
     global _ACTIVE
+    policy = _LOCKED_RUNTIME.get()
+    if policy is not None:
+        lock = policy["lock"]
+        profile_name = lock.get("profile") or "ollama"
+        model = (lock.get("engine") or {}).get("model")
+        agent_models = deepcopy(lock.get("agent_models") or {})
+        agent_knobs = deepcopy(lock.get("agent_knobs") or {})
+        prompt_variant = None  # the locked TEXT, not today's local stem
+        base_url = None
     if load_env_file:
         _load_dotenv()
     if agent_knobs is None:
@@ -266,7 +299,12 @@ def activate(
     # apply their texts (loud when a role cannot be patched).
     from mailroom_sandbox.prompt_versions import apply_selection
 
-    if apply_selection():
+    if policy is not None:
+        from mailroom_sandbox.prompt_registry import apply_locked_prompts
+
+        apply_locked_prompts(policy["prompt"])
+        patched_prompts = True
+    elif apply_selection():
         patched_prompts = True
 
     activation = Activation(

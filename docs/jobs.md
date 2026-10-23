@@ -104,7 +104,54 @@ sandbox metrics compare --runs a,b[,c]     # local / Modal / API comparison
 sandbox metrics compare --log
 ```
 
-Exit codes: `0` done · `1` failed · `2` paused · `3` drift refused.
+Exit codes: `0` done · `1` failed · `2` paused · `3` drift/busy/foreign-store refusal.
+
+A matching repeated preflight validates the committed dataset hash, prompt lock,
+checkpoint and spec identity and leaves all generation artifacts byte-identical,
+including remote call identity. Missing/drifted artifacts fail rather than being
+silently rebuilt. It does not repeat live probes for an existing generation.
+Preflight holds the same writer lock as endpoint/worker execution and returns
+`busy_refused` immediately when that lock is held.
+
+`--force` is a generation reset. It refuses a running checkpoint or an unresolved
+remote call even if the local writer lock is free. Cancel and wait for a paused
+endpoint (or confirm a terminal remote checkpoint) first. An eligible reset
+archives the lock, dataset, items, prompts, checkpoint, events, cold-boot
+measurement, worker-local experiment log and cancellation controls together in a unique archive directory.
+It does not terminate remote work or bypass foreign-store ownership guards.
+
+Each execution process restores the locked profile, engine model, explicit
+`agent_models`, complete `agent_knobs` map and frozen prompt texts/selections.
+Existing eval runners' subsequent activations obey that policy too. CLI
+`--model`/`--agent-model` selections become lock/spec identity at start;
+`agent_models: {judge: model-id}` can also be specified in YAML. Empty maps
+preserve legacy spec hashes. Run-id-only resume refuses runtime overrides that
+differ from the lock; use a config and a safe explicit reset for new choices.
+Provider endpoint URLs and credentials remain operator environment settings.
+
+For the row-resumable `sorter`/`legalbench` endpoint tasks, `run cancel` writes
+`cancel.request.json` without waiting for the runner's lock and reports
+`cancel_requested`. A separate short `cancel.lock` serializes control writes
+and generation resets without taking the runner lock. The runner checks before
+each submission, drains all
+submitted calls, persists their results, then acknowledges the token in
+`cancel.ack.json` and writes `paused`. The checkpoint remains `running` while
+calls drain. Resume ignores an acknowledged token, skips completed indices and
+runs the remaining rows; a newer token cannot be erased by an older
+acknowledgement. A provider call already submitted can still finish, so pause
+latency includes its duration. Whole-run delegates retain their existing
+whole-run granularity; this row-level protocol does not add resumability to
+those evaluators. Remote `FunctionCall.cancel` behavior is unchanged.
+
+A recovered valid JSONL final record may lack LF; the next append supplies its
+separator. Completed per-item summaries and score error counts cover all stored
+indices, including earlier invocations. Quality metrics continue to score only
+successful predictions, with their own explicit denominator.
+
+API-evals terminal reuse validates the requested spec/prompt/dataset lock and
+requires an exact run ID (or exact legacy experiment name) and spec hash in the
+record. Substring matches and stale scores cannot satisfy a changed request.
+Matching reuse still needs no API key; missing matching evidence fails loudly.
 
 ## Preflight
 

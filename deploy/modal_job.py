@@ -242,12 +242,13 @@ def run_job(payload: dict) -> dict:
 
     payload_mock = payload.get("mock")
     try:
-        result = run_local_job(
-            store,
-            mock=None if payload_mock is None else bool(payload_mock),
-            tracer=tracer,
-            on_event=on_event,
-        )
+        with store.acquire():
+            result = run_local_job(
+                store,
+                mock=None if payload_mock is None else bool(payload_mock),
+                tracer=tracer,
+                on_event=on_event,
+            )
     except Exception as exc:  # noqa: BLE001 — DMR-053: terminal diagnostics, never a silent drop
         failed = {
             "run_id": run_id,

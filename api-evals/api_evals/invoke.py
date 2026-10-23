@@ -58,50 +58,32 @@ def run_task(
             "dry_run": True,
         }
 
-    # Resume-aware: a terminal run (matching spec_hash) is reused instead of
-    # re-spending on the API. The whole-run path persists the aggregate record
-    # (experiment log), not per-item rows, so resumed results carry aggregate
-    # cost math. No API key needed to RESUME — the spend already happened.
-    from mailroom_sandbox.job.checkpoint import RunStore
-    from mailroom_sandbox.job.spec import run_dir
-
     existing_store = RunStore(run_dir(run_id))
     if not force and existing_store.terminal():
         from mailroom_sandbox.eval import experiment_log
 
-        # The whole-run path names log records `sandbox_<task>_<run_id>`.
-        needle = f"_{run_id}"
-        records = [
-            r for r in experiment_log.load()
-            if needle in (r.get("experiment_name") or "")
-            or str(run_id) == str(r.get("run_id") or "")
-            or str(run_id) == str(r.get("name") or "")
-        ]
-        rec = records[-1] if records else None
-        if rec is not None:
-            model = rec.get("model") or spec.engine.model
-            c = cost_mod.cost_from_aggregate(
-                prompt_tokens=int(rec.get("prompt_tokens") or 0),
-                completion_tokens=int(rec.get("completion_tokens") or 0),
-                n=int(rec.get("n") or spec.dataset.limit or 0),
-                model=model,
-                prices=prices,
-            )
-            return {
-                "run_id": run_id,
-                "task": spec.task,
-                "profile": spec.profile,
-                "model": model,
-                "n": int(rec.get("n") or spec.dataset.limit or 0),
-                "rows": [],
-                "record": rec,
-                "scores": rec.get("scores") or {},
-                "cost": c,
-                "wall_seconds": rec.get("wall_seconds"),
-                "spec_hash": rec.get("spec_hash") or "",
-                "dataset_fingerprint": rec.get("dataset_fingerprint") or "",
-                "resumed": True,
-            }
+        report = preflight.preflight(spec, run_id=run_id, offline=True)
+        if report.get("status") != "prepared":
+            raise RuntimeError(f"preflight failed for {path.name}: {report.get('status')} — {report.get('checks')}")
+        expected_hash = spec.spec_hash()
+        expected_name = f"sandbox_{spec.task}_{run_id}"
+        records = [rec for rec in experiment_log.load()
+                   if rec.get("spec_hash") == expected_hash
+                   and (rec.get("run_id") == run_id if rec.get("run_id") is not None
+                        else rec.get("experiment_name") == expected_name)]
+        if not records:
+            raise RuntimeError(f"run {run_id} has no matching terminal record for its exact run/spec identity")
+        rec = records[-1]
+        model = rec.get("model") or spec.engine.model
+        c = cost_mod.cost_from_aggregate(
+            prompt_tokens=int(rec.get("prompt_tokens") or 0),
+            completion_tokens=int(rec.get("completion_tokens") or 0),
+            n=int(rec.get("n") or spec.dataset.limit or 0), model=model, prices=prices)
+        return {"run_id": run_id, "task": spec.task, "profile": spec.profile,
+                "model": model, "n": int(rec.get("n") or spec.dataset.limit or 0),
+                "rows": [], "record": rec, "scores": rec.get("scores") or {}, "cost": c,
+                "wall_seconds": rec.get("wall_seconds"), "spec_hash": expected_hash,
+                "dataset_fingerprint": rec.get("dataset_fingerprint") or "", "resumed": True}
 
     if api_key:
         os.environ["OPENROUTER_API_KEY"] = api_key
@@ -127,7 +109,8 @@ def run_task(
         raise RuntimeError(f"preflight failed for {path.name}: {report.get('status')} — {report.get('checks')}")
 
     store = RunStore(run_dir(run_id))
-    summary = runner.run_job(store, mock=mock, dry_run=False)
+    with store.acquire():
+        summary = runner.run_job(store, mock=mock, dry_run=False)
 
     if summary.get("state") != "done":
         raise RuntimeError(
