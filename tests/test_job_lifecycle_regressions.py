@@ -19,6 +19,8 @@ from mailroom_sandbox.job import preflight, runner
 from mailroom_sandbox.job.checkpoint import RunStore
 from mailroom_sandbox.job.spec import DatasetSpec, RunSpec, run_dir
 
+from test_generation_protocol import modal_fs
+
 pytestmark = pytest.mark.usefixtures("job_data_dir")
 
 
@@ -41,7 +43,7 @@ def snapshot(store):
     return {p.name: p.read_bytes() for p in store.dir.iterdir() if p.is_file() and p.name not in {"run.lock", "cancel.lock"}}
 
 
-def test_repeated_preflight_preserves_remote_generation_and_artifacts(tmp_path, monkeypatch):
+def test_repeated_preflight_preserves_remote_generation_and_artifacts(tmp_path, monkeypatch, modal_fs):
     spec, store = prepare(tmp_path)
     store.append_item({"index": 0, "item_id": "d0", "predicted": "correspondence", "ok": True})
     store.write_checkpoint(state="running", cursor=1, total=3,
@@ -52,18 +54,16 @@ def test_repeated_preflight_preserves_remote_generation_and_artifacts(tmp_path, 
     assert snapshot(store) == before
     assert store.read_checkpoint()["remote"]["call_id"] == "fc-ALIVE"
     from mailroom_sandbox.job import remote
-    lookups = []
-    class FunctionCall:
-        @staticmethod
-        def from_id(call_id):
-            lookups.append(call_id)
-            return types.SimpleNamespace(get_call_graph=lambda: [
-                types.SimpleNamespace(status=types.SimpleNamespace(name="RUNNING"))])
-    # If ensure_running tries to fire/upload instead, the offline socket guard
-    # and the deliberately absent Function SDK surface fail the regression.
-    monkeypatch.setitem(sys.modules, "modal", types.SimpleNamespace(FunctionCall=FunctionCall))
+    import shutil
+
+    # An actual old checkpoint has only call ID/time. Prove its full remote
+    # lock via the filesystem-backed CLI boundary before reattaching.
+    shutil.copytree(store.dir, modal_fs.volume / store.run_id)
+    modal_fs.calls["fc-ALIVE"] = "RUNNING"
     assert remote.ensure_running(store) == {"action": "attached", "call_id": "fc-ALIVE"}
-    assert lookups == ["fc-ALIVE"]
+    assert modal_fs.spawned == []
+    assert not any(cmd[2] == "put" for cmd in modal_fs.transfers)
+
 
 
 @pytest.mark.parametrize("artifact", ["dataset.jsonl", "prompt.lock.json", "checkpoint.json"])
@@ -345,7 +345,10 @@ if sys.argv[2] == "worker":
     worker.RUNS_MOUNT=str(store.dir.parent)
     worker.SANDBOX_ROOT=os.environ["SANDBOX_ROOT"]
     out=worker.run_job({"run_id":store.run_id})
-    assert Dict.values[store.run_id]["state"] == "done",out
+    values = list(Dict.values.values())
+    assert len(values) == 1 and values[0]["state"] == "done", out
+    from mailroom_sandbox.job.checkpoint import generation_identity
+    assert values[0]["run_generation"] == generation_identity(store.read_lock())
 else:
     from mailroom_sandbox.cli import main
     rc=main(["run","resume","--run-id",store.run_id])

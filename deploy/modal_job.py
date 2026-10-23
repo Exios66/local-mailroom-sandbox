@@ -188,14 +188,33 @@ def run_job(payload: dict) -> dict:
     import traceback
 
     from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.remote import generation_fields
     from mailroom_sandbox.job.otel import configure_tracing, flush_tracer, resolve_sink
     from mailroom_sandbox.job.runner import run_job as run_local_job
 
     _enable_debug_logging()
     run_id = str(payload["run_id"])
-    store = RunStore(Path(RUNS_MOUNT) / run_id)
+    expected = payload.get("run_generation")
+    if expected is not None:
+        # Containers can retain an older mounted view between inputs. No files
+        # are open yet. reload is a visibility operation, not a writer lease.
+        runs_volume.reload()
+    run_path = payload.get("run_path", run_id)
+    # Validate the path without accepting arbitrary filesystem locations.
+    if expected is not None:
+        expected_path = f".generations/{expected['lock_sha256']}/{run_id}"
+        if run_path not in {run_id, expected_path}:
+            raise RuntimeError("worker path differs from expected generation")
+    elif run_path != run_id:
+        raise RuntimeError("worker generation path needs an explicit expectation")
+    if run_id in {"", ".", ".."} or "/" in run_id or "\\" in run_id:
+        raise RuntimeError("invalid worker run ID")
+    store = RunStore(Path(RUNS_MOUNT) / run_path)
     lock = store.verify_generation()
-    spec_hash = store.spec_hash() or ""
+    identity = generation_fields(lock)
+    if expected is not None and any(payload.get(k) != v for k, v in identity.items()):
+        raise RuntimeError("worker generation differs from dispatch expectation")
+    state_key = f"generation:{identity['run_generation']['lock_sha256']}:{run_id}"
     state_dict = modal.Dict.from_name(STATE_DICT, create_if_missing=True)
 
     trace_block = lock.get("trace") or {}
@@ -213,12 +232,12 @@ def run_job(payload: dict) -> dict:
     events = {"n": 0}
 
     def on_event(progress: dict) -> None:
-        progress.update({"run_id": run_id, "spec_hash": spec_hash, "heartbeat_at": _now()})
+        progress.update({**identity, "heartbeat_at": _now()})
         # DMR-056: Dict.put(key, value) is two-arg in modal 1.5.5 — the old
         # one-arg call raised TypeError, killing the progress mirror + commit
         # cadence in a REAL deploy (invisible to the stubbed test suite).
         try:
-            state_dict.put(run_id, progress)
+            state_dict.put(state_key, progress)
         except Exception as exc:  # noqa: BLE001 — hub#41: loud, never silent
             logger.warning("state Dict put failed (progress mirror stale): %s", exc, exc_info=True)
         events["n"] += 1
@@ -230,7 +249,12 @@ def run_job(payload: dict) -> dict:
 
     payload_mock = payload.get("mock")
     try:
+        # Local filesystem protection only. Modal Volume flock does not
+        # serialize containers; independent same-generation dispatch remains
+        # an operator-serialized baseline limitation (see docs/jobs.md).
         with store.acquire():
+            if generation_fields(store.verify_generation()) != identity:
+                raise RuntimeError("worker generation changed before execution")
             result = run_local_job(
                 store,
                 mock=None if payload_mock is None else bool(payload_mock),
@@ -238,9 +262,10 @@ def run_job(payload: dict) -> dict:
                 on_event=on_event,
             )
     except Exception as exc:  # noqa: BLE001 — DMR-053: terminal diagnostics, never a silent drop
+        if generation_fields(store.verify_generation()) != identity:
+            raise RuntimeError("worker generation changed; refusing stale failure publication") from exc
         failed = {
-            "run_id": run_id,
-            "spec_hash": spec_hash,
+            **identity,
             "state": "failed",
             "error": f"{type(exc).__name__}: {str(exc)[:512]}",
             "traceback_tail": "\n".join(traceback.format_exc().splitlines()[-12:]),
@@ -248,8 +273,11 @@ def run_job(payload: dict) -> dict:
             "heartbeat_at": _now(),
         }
         try:
-            state_dict.put(run_id, failed)
+            cp = store.read_checkpoint() or {}
+            store.write_checkpoint(state="failed", cursor=cp.get("cursor", 0), total=cp.get("total", 0),
+                                   remote=cp.get("remote"), last_error=failed["error"])
             runs_volume.commit()
+            state_dict.put(state_key, failed)
         except Exception as exc:  # noqa: BLE001 — hub#41: a terminal state the CLI can never see
             logger.error(
                 "terminal state write failed (worker exit will not be observed by the CLI): %s",
@@ -266,6 +294,9 @@ def run_job(payload: dict) -> dict:
         flush_tracer(tracer)
         return failed
 
+    if generation_fields(store.verify_generation()) != identity:
+        raise RuntimeError("worker generation changed; refusing stale terminal publication")
+
     # The reports dir is container-local; copy the run's experiment records
     # into the volume-committed run dir so the CLI can pull them back (DMR-047).
     reports_log = Path(SANDBOX_ROOT) / "reports" / "experiment_log.jsonl"
@@ -276,8 +307,10 @@ def run_job(payload: dict) -> dict:
             logger.warning("could not copy experiment log into run dir: %s", exc, exc_info=True)
 
     try:
-        state_dict.put(run_id, {"run_id": run_id, "spec_hash": spec_hash, "heartbeat_at": _now(), **result})
+        # A terminal Dict cache is useful only after its artifacts commit.
+        # Publish immutable identity last so a summary cannot override it.
         runs_volume.commit()
+        state_dict.put(state_key, {**result, **identity, "heartbeat_at": _now()})
     except Exception as exc:  # noqa: BLE001 — hub#41: loud, never silent
         logger.error(
             "terminal state write failed (worker exit will not be observed by the CLI): %s",
@@ -285,6 +318,7 @@ def run_job(payload: dict) -> dict:
             exc_info=True,
         )
         raise
+    return {**result, **identity}
 
 
 def _deploy_operator_line(phase: str, message: str) -> None:

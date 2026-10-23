@@ -2821,7 +2821,12 @@ def _finalize_remote(store) -> bool:
     if record_path.is_file():
         for line in record_path.read_text(encoding="utf-8").splitlines():
             if line.strip():
-                experiment_log.append(json.loads(line))
+                from mailroom_sandbox.job.evidence import record_matches
+
+                record = json.loads(line)
+                lock = store.verify_generation()
+                if record_matches(record, store, lock, state=store.state()):
+                    experiment_log.append(record)
     return True
 
 
@@ -2862,7 +2867,8 @@ def _watch_remote(store, args) -> int:
             except ValueError:
                 pass
         if state in {"done", "failed"}:
-            _finalize_remote(store)
+            if not _finalize_remote(store):
+                return 1
             console.complete(state=state, summary=store.run_id)
             if state == "failed":
                 error = (progress or {}).get("error") or (store.read_checkpoint() or {}).get(
@@ -2904,7 +2910,8 @@ def _cmd_run_status(args) -> int:
     remote_progress = job_remote.read_progress(store) if _job_mode(store) == "modal" else None
     if remote_progress and remote_progress.get("state") in {"done", "failed"}:
         # Terminal remote run: sync items/checkpoints/records back locally.
-        _finalize_remote(store)
+        if not _finalize_remote(store):
+            return 1
     summary = store.summary()
     payload = summary
     if remote_progress:
@@ -2994,6 +3001,11 @@ def _cmd_run_cancel(args) -> int:
     if not store.read_lock():
         _print({"run_id": run_id, "error": "no locked run to cancel"})
         return 1
+    # Only a running writer can consume a pending token. Otherwise an idle
+    # cancel would make the next resume pause before submitting its first row.
+    if cp.get("state") != "running":
+        _print({"run_id": run_id, "state": cp.get("state"), "detail": "no active local runner"})
+        return 0
     store.request_cancel()
     _print({"run_id": run_id, "state": "cancel_requested"})
     return 0
