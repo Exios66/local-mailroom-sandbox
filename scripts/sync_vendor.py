@@ -101,7 +101,11 @@ def main() -> int:
     for name, dest, source in _SNAPSHOTS:
         if args.snapshot and name != args.snapshot:
             continue
-        rc = max(rc, _refresh(name, dest, source))
+        try:
+            rc = max(rc, _refresh(name, dest, source))
+        except OSError as exc:
+            print(f"error: refreshing {name}: {exc}", file=sys.stderr)
+            rc = max(rc, 1)
     return rc
 
 

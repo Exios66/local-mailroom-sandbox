@@ -105,6 +105,21 @@ def test_pull_run_dir_copies_files(tmp_path, source_root, modal_fs, sdk):
     assert store.state()=='done'
 
 
+def test_pull_run_dir_refuses_busy_store_then_retries(tmp_path, source_root, modal_fs, sdk):
+    store = prepared(tmp_path, source_root)
+    remote.fire(store)
+    modal_fs.worker(modal_fs.spawned[-1])
+    before = {p.name: p.read_bytes() for p in store.dir.iterdir()
+              if p.is_file() and p.name not in {'run.lock', 'cancel.lock'}}
+    with store.acquire():
+        rc, detail = remote.pull_run_dir(store)
+    assert rc == 1 and 'busy' in detail
+    assert {p.name: p.read_bytes() for p in store.dir.iterdir()
+            if p.is_file() and p.name not in {'run.lock', 'cancel.lock'}} == before
+    assert remote.pull_run_dir(store) == (0, '')
+    assert store.state() == 'done'
+
+
 def test_modal_job_state_dict_put_is_two_arg(tmp_path, source_root, modal_fs, sdk):
     store=prepared(tmp_path,source_root);remote.fire(store)
     modal_fs.worker(modal_fs.spawned[-1])

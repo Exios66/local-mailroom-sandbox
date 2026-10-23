@@ -334,8 +334,8 @@ def pull_run_dir(store: RunStore) -> tuple[int, str]:
     Immutable local artifacts and lock/control inodes are never replaced;
     the local remote-call metadata is retained. Return ``(0, "")`` on success,
     a CLI error pair on download failure, or ``(1, detail)`` for rejected
-    staged artifacts or a changed local generation. Initial local generation
-    validation, process-launch, writer-lock, and copy errors propagate.
+    staged artifacts, a changed local generation, or a busy local store. Initial
+    local generation validation, process-launch, and other store/copy errors propagate.
     """
     lock = store.verify_generation()
     with tempfile.TemporaryDirectory() as tmp:
@@ -373,20 +373,23 @@ def pull_run_dir(store: RunStore) -> tuple[int, str]:
                 json.loads(cold_boot.read_text(encoding="utf-8"))
         except (RuntimeError, OSError, ValueError) as exc:
             return 1, f"remote generation validation failed: {exc}"
-        with store.acquire(blocking=False), store.control():
-            if not _same_lock(store.verify_generation(), lock):
-                return 1, "local generation changed during remote fetch"
-            checkpoint = json.loads((source / "checkpoint.json").read_text(encoding="utf-8"))
-            checkpoint["remote"] = (store.read_checkpoint() or {}).get("remote")
-            (source / "checkpoint.json").write_text(json.dumps(checkpoint), encoding="utf-8")
-            for name in ("items.jsonl", "events.jsonl", "cold_boot.json", "experiment_log.jsonl", "checkpoint.json"):
-                item = source / name
-                if item.is_file():
-                    # Replace each file from a local staging file; checkpoint last.
-                    dest = store.dir / name
-                    staged_file = dest.with_name(dest.name + ".pull.tmp")
-                    shutil.copy2(item, staged_file)
-                    staged_file.replace(dest)
+        try:
+            with store.acquire(blocking=False), store.control():
+                if not _same_lock(store.verify_generation(), lock):
+                    return 1, "local generation changed during remote fetch"
+                checkpoint = json.loads((source / "checkpoint.json").read_text(encoding="utf-8"))
+                checkpoint["remote"] = (store.read_checkpoint() or {}).get("remote")
+                (source / "checkpoint.json").write_text(json.dumps(checkpoint), encoding="utf-8")
+                for name in ("items.jsonl", "events.jsonl", "cold_boot.json", "experiment_log.jsonl", "checkpoint.json"):
+                    item = source / name
+                    if item.is_file():
+                        # Replace each file from a local staging file; checkpoint last.
+                        dest = store.dir / name
+                        staged_file = dest.with_name(dest.name + ".pull.tmp")
+                        shutil.copy2(item, staged_file)
+                        staged_file.replace(dest)
+        except BlockingIOError:
+            return 1, "local store is busy; refusing remote pull"
     return 0, ""
 
 
