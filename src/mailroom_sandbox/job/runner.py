@@ -205,7 +205,7 @@ def _run_whole_run(
         # record 'mailroom-default' even when the lock pinned a local variant —
         # pass the LOCK's default variant stem so log records carry it.
         "prompt_version": prompt_variant,
-        "agent_models": None,
+        "agent_models": dict(lock.get("agent_models") or {}),
     }
     # DMR-056: whole-run tasks score the LOCKED live dataset when the run spec
     # prepared one (Hub/local); an empty lock falls back to the runners'
@@ -463,35 +463,9 @@ def _fingerprint(store: RunStore) -> str:
 
 
 def _apply_prompt_overrides(store: RunStore) -> None:
-    from mailroom_sandbox.prompt_registry import apply_runtime_overrides
+    from mailroom_sandbox.prompt_registry import apply_locked_prompts
 
-    prompt_lock = store.read_prompt_lock() or {}
-    # eval-environment prompt versions: remember the locked selection so every
-    # record the delegated runners write is stamped with its key + sha256.
-    from mailroom_sandbox.prompt_versions import selection_from_lock, set_active_selection
-
-    set_active_selection(selection_from_lock(prompt_lock))
-    texts = {}
-    must_apply = {}
-    for agent, ref in (prompt_lock.get("agents") or {}).items():
-        if isinstance(ref, dict) and ref.get("text"):
-            texts[agent] = ref["text"]
-            if ref.get("source") not in (None, "code-default"):
-                must_apply[agent] = ref.get("source")
-    if not texts:
-        return
-    patched = apply_runtime_overrides(texts)
-    missing = [a for a in must_apply if a not in patched]
-    if missing:
-        # Live-or-loud (hub#40, DMR-049 class): the lock pins local/langfuse
-        # text that the run cannot apply — failing loud beats a lock that
-        # claims a prompt text that never executed.
-        raise RuntimeError(
-            "prompt overrides not applied for %s (pinned %s) — the run would "
-            "execute code-default prompts; install the [pipeline] extra or "
-            "restore the vendored llm-mailroom tree"
-            % (sorted(missing), {a: must_apply[a] for a in sorted(missing)})
-        )
+    apply_locked_prompts(store.read_prompt_lock() or {})
 
 
 def _lock_gpu(store: RunStore) -> str | None:
@@ -673,8 +647,12 @@ def run_job(
                         max_items=max_items, tracer=tracer, on_event=on_event)
     wrapped, finish = _beacon_hook(store.run_id, task=task or _lock_task(store), on_event=on_event)
     try:
-        summary = _run_job(store, task=task, model=model, profile=profile, mock=mock, dry_run=False,
-                           max_items=max_items, tracer=tracer, on_event=wrapped)
+        from mailroom_sandbox.runtime import activate, locked_runtime
+
+        with locked_runtime(store.read_lock() or {}, store.read_prompt_lock() or {}):
+            activate()
+            summary = _run_job(store, task=task, model=model, profile=profile, mock=mock, dry_run=False,
+                               max_items=max_items, tracer=tracer, on_event=wrapped)
     except BaseException:
         finish({"state": "failed"})
         raise
@@ -759,11 +737,12 @@ def _run_job(
     if max_items is not None:
         pending = pending[:max_items]
 
-    ok_count = 0
-    error_count = 0
+    ok_count = sum(bool(item.get("ok")) for item in completed.values())
+    failures = [item for item in completed.values() if not item.get("ok")]
+    error_count = len(failures)
     done_count = len(completed)
-    last_error: str | None = None
-    last_error_item: str | None = None
+    last_error: str | None = failures[-1].get("error") if failures else None
+    last_error_item: str | None = failures[-1].get("item_id") if failures else None
     fail_fast = _fail_fast(store)
     retries = _max_retries(store)
     run_started = time.perf_counter()
@@ -932,9 +911,18 @@ def _run_job(
         store.append_event("failed", "error", cursor=done_count, last_error=last_error)
         return store.summary()
 
+    cancel_request = None
+
+    def _cancelled() -> bool:
+        nonlocal cancel_request
+        cancel_request = store.pending_cancel() or cancel_request
+        return cancel_request is not None
+
     concurrency = _concurrency(store)
     if concurrency <= 1:
         for index in pending:
+            if _cancelled():
+                break
             value, error, latency_ms, usage = _attempt(index)
             _record(index, value, error, latency_ms, usage)
             if cap_abort_reason:
@@ -956,6 +944,8 @@ def _run_job(
         futures: dict[Any, int] = {}
 
         def _submit_next() -> bool:
+            if _cancelled():
+                return False
             index = next(it, None)
             if index is None:
                 return False
@@ -997,6 +987,13 @@ def _run_job(
             return _fail_fast_failed()
 
     final_cursor = len(store.load_items())
+    if _cancelled():
+        store.write_checkpoint(state="paused", cursor=final_cursor, total=total,
+                               last_error={"type": "item", "message": last_error,
+                                           "item_id": last_error_item} if last_error else None)
+        store.acknowledge_cancel(cancel_request)
+        store.append_event("paused", "info", cursor=final_cursor)
+        return store.summary()
     if final_cursor < total:
         # max_items capped invocation: leave a resumable running state.
         store.write_checkpoint(state="running", cursor=final_cursor, total=total, remote=None)
@@ -1055,7 +1052,9 @@ def _run_job(
     record = _build_record(store, task, model, scores, mock=mock, wall_seconds=wall_seconds)
     experiment_log.append(record)
     store.append_event("done", "info", cursor=final_cursor, ok_count=ok_count)
-    store.write_checkpoint(state="done", cursor=final_cursor, total=total, remote=None)
+    store.write_checkpoint(state="done", cursor=final_cursor, total=total, remote=None,
+                           last_error={"type": "item", "message": last_error,
+                                       "item_id": last_error_item} if last_error else None)
     from mailroom_sandbox.job.dated_reports import maybe_write_run_reports
 
     maybe_write_run_reports(store, scores=scores, wall_seconds=wall_seconds)

@@ -228,19 +228,28 @@ def test_corporate_alignment_is_subclass_sensitive(subclass: str):
 
 
 def test_non_subclass_paths_are_unchanged():
-    """``doc_subclass=None`` (or an unknown class) keeps the legacy payload."""
-    predicted = {
+    """Correspondence retains its payload; corporate always uses canonical alignment."""
+    expected = {
         "intent": "payment_demand",
         "subject_matter": "unpaid invoices",
         "keywords": ["breach", "demand", "invoice"],
     }
-    clean = score_extraction_row("correspondence", predicted, dict(predicted))
-    scored = score_extraction_row("correspondence", dict(predicted), dict(predicted))
-    assert "unlabeled_fields" not in clean and "unlabeled_fields" not in scored
-    assert scored["overall_extraction_score"] == clean["overall_extraction_score"]
+    correspondence = score_extraction_row("correspondence", dict(expected), expected)
+    assert "unlabeled_fields" not in correspondence
+    assert correspondence["overall_extraction_score"] == 1.0
     corporate = score_extraction_row(
-        "corporate_record", dict(predicted), dict(predicted)
+        "corporate_record", {**expected, "entity_name": "Acme"}, expected
     )
-    # no subclass given → legacy single-path result; no alignment surfaced
-    assert "unlabeled_fields" not in corporate
-    assert corporate["overall_extraction_score"] is not None
+    # Three matching keyword entities, zero missing/spurious labels. Acme is
+    # unlabeled in GT, so it contributes neither a correct nor an incorrect fill.
+    assert corporate["unlabeled_fields"] == [
+        "entity_name", "record_type", "effective_date", "signatories",
+        "jurisdiction", "filing_number",
+    ]
+    keywords = corporate["fields"]["entity_list_scores"]["keywords"]
+    assert (keywords.matched, keywords.unmatched_predicted, keywords.unmatched_expected) == (3, 0, 0)
+    assert corporate["scoring_method"] == "suite"
+    assert corporate["extraction_precision"] == 1.0
+    assert corporate["extraction_recall"] == 1.0
+    assert corporate["extraction_f1"] == 1.0
+    assert corporate["overall_extraction_score"] == 1.0

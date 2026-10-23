@@ -2631,6 +2631,11 @@ def _run_load_spec(args) -> tuple[object, Path]:
     from mailroom_sandbox.job.spec import load_run_spec
 
     spec = load_run_spec(config)
+    if getattr(args, "model", None):
+        spec.engine.model = args.model
+    cli_models = _agent_models(args)
+    if cli_models:
+        spec.agent_models = {**getattr(spec, "agent_models", {}), **cli_models}
     cli_versions = getattr(args, "prompt_versions", None)
     if cli_versions:
         # --prompt-version wins per role over the spec's prompt.versions; the merged
@@ -2655,7 +2660,7 @@ def _run_id_required(args) -> str:
 
 # Preflight refusals are exit 3 — an operator must decide (re-lock, or name the
 # takeover). Any other non-prepared status is exit 1: something is broken.
-_REFUSAL_STATUSES = {"drift_refused", "foreign_store_refused"}
+_REFUSAL_STATUSES = {"drift_refused", "foreign_store_refused", "busy_refused"}
 
 
 def _cmd_run_preflight(args) -> int:
@@ -2696,7 +2701,7 @@ def _cmd_run_start(args) -> int:
     activate(
         spec.profile,
         model=_activation_model(spec, getattr(args, "model", None)),
-        agent_models=_agent_models(args),
+        agent_models=spec.agent_models,
         agent_knobs=_activation_knobs(spec),
     )
     if getattr(args, "mock", None) is not None or getattr(args, "local", None) is not None:
@@ -2925,18 +2930,6 @@ def _cmd_run_resume(args) -> int:
     from mailroom_sandbox.job.spec import run_dir
 
     run_id = _run_id_required(args)
-    # DMR-072: same profile-activation contract as `run start` — resuming an
-    # endpoint-mode job must not re-enter the unactivated silent-fallback path.
-    if getattr(args, "config", None):
-        from mailroom_sandbox.job.spec import load_run_spec
-
-        _spec = load_run_spec(args.config)
-        activate(
-            _spec.profile,
-            model=_activation_model(_spec, getattr(args, "model", None)),
-            agent_models=_agent_models(args),
-            agent_knobs=_activation_knobs(_spec),
-        )
     store = RunStore(run_dir(run_id))
     if not store.read_lock():
         _print({"run_id": run_id, "error": "no locked run to resume"})
@@ -2955,6 +2948,23 @@ def _cmd_run_resume(args) -> int:
         if report.get("status") != "prepared":
             _print(report)
             return 3 if report.get("status") in _REFUSAL_STATUSES else 1
+    # A run-id-only resume may repeat the locked choices, never alter them
+    # implicitly. New choices need a config and an explicit safe generation reset.
+    lock = store.read_lock() or {}
+    cli_model = getattr(args, "model", None)
+    cli_models = _agent_models(args) or {}
+    from mailroom_sandbox.prompt_versions import parse_selection, selection_from_lock
+
+    cli_prompts = parse_selection(getattr(args, "prompt_versions", None))
+    locked_prompts = selection_from_lock(store.read_prompt_lock() or {}).keys
+    drifted = (
+        (cli_model is not None and cli_model != (lock.get("engine") or {}).get("model"))
+        or any((lock.get("agent_models") or {}).get(name) != value for name, value in cli_models.items())
+        or any(locked_prompts.get(name) != value for name, value in cli_prompts.items())
+    )
+    if drifted:
+        _print({"run_id": run_id, "status": "drift_refused", "detail": "runtime overrides differ from the lock"})
+        return 3
     if _job_mode(store) == "modal":
         from mailroom_sandbox.job import remote as job_remote
 
@@ -2988,11 +2998,11 @@ def _cmd_run_cancel(args) -> int:
         remote_cancel(store)
         _print({"run_id": run_id, "state": "cancel_requested"})
         return 0
-    store.write_checkpoint(
-        state="paused", cursor=cp.get("cursor", 0), total=cp.get("total", 0), remote=None
-    )
-    store.append_event("cancel_requested", "info")
-    _print(store.summary())
+    if not store.read_lock():
+        _print({"run_id": run_id, "error": "no locked run to cancel"})
+        return 1
+    store.request_cancel()
+    _print({"run_id": run_id, "state": "cancel_requested"})
     return 0
 
 

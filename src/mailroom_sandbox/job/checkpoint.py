@@ -108,12 +108,24 @@ class RunStore:
         self.events_path = self.dir / "events.jsonl"
         self.cold_boot_path = self.dir / "cold_boot.json"
         self.flock_path = self.dir / "run.lock"
+        self.cancel_path = self.dir / "cancel.request.json"
+        self.cancel_ack_path = self.dir / "cancel.ack.json"
         self.run_id = self.dir.name
 
     # ── single-writer guard ─────────────────────────────────────────────────
     @contextmanager
-    def acquire(self) -> Iterator["RunStore"]:
+    def acquire(self, *, blocking: bool = True) -> Iterator["RunStore"]:
         with open(self.flock_path, "a+", encoding="utf-8") as fh:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_EX | (0 if blocking else fcntl.LOCK_NB))
+            try:
+                yield self
+            finally:
+                fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+
+    @contextmanager
+    def control(self) -> Iterator["RunStore"]:
+        """Short control/reset guard, independent of a running provider call."""
+        with open(self.dir / "cancel.lock", "a+", encoding="utf-8") as fh:
             fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
             try:
                 yield self
@@ -152,8 +164,11 @@ class RunStore:
         ):
             return None
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        dest = self.dir / f"archive-{stamp}"
-        dest.mkdir(parents=True, exist_ok=True)
+        # Two resets in one second must never overwrite an older archive.
+        import uuid
+
+        dest = self.dir / f"archive-{stamp}-{uuid.uuid4().hex[:8]}"
+        dest.mkdir(parents=True, exist_ok=False)
         for path in (
             self.lock_path,
             self.prompt_lock_path,
@@ -161,6 +176,10 @@ class RunStore:
             self.checkpoint_path,
             self.events_path,
             self.dataset_path,
+            self.cold_boot_path,
+            self.cancel_path,
+            self.cancel_ack_path,
+            self.dir / "experiment_log.jsonl",
         ):
             if path.is_file():
                 path.rename(dest / path.name)
@@ -257,6 +276,17 @@ class RunStore:
         return cursor
 
     def append_item(self, record: dict[str, Any]) -> None:
+        # Callers own acquire(); normalize the accepted crash tail before the
+        # next append. Do not turn two valid JSON objects into one invalid line.
+        if self.items_path.is_file() and self.items_path.stat().st_size:
+            with self.items_path.open("rb") as tail:
+                tail.seek(-1, 2)
+                terminated = tail.read(1) == b"\n"
+            if not terminated:
+                truncate_torn_tail(self.items_path, self.events_path)
+                if self.items_path.stat().st_size:
+                    with self.items_path.open("ab") as tail:
+                        tail.write(b"\n")
         with open(self.items_path, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(record, default=str) + "\n")
             fh.flush()
@@ -264,6 +294,35 @@ class RunStore:
     def load_item_rows(self) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         """Return (completed rows, expected/predicted reconstruction)."""
         return self.load_items()
+
+    def request_cancel(self) -> dict[str, Any]:
+        """Durable control plane; never wait on the runner's long writer lock."""
+        import uuid
+
+        with self.control():
+            lock = self.read_lock() or {}
+            request = {"token": uuid.uuid4().hex, "spec_hash": lock.get("spec_hash"),
+                       "generation": lock.get("created_at"), "requested_at": utc_now()}
+            _atomic_write(self.cancel_path, json.dumps(request, sort_keys=True))
+            self.append_event("cancel_requested", "info", token=request["token"])
+            return request
+
+    def pending_cancel(self) -> dict[str, Any] | None:
+        request = _read_json(self.cancel_path, strict=True)
+        if not request:
+            return None
+        lock = self.read_lock() or {}
+        if (request.get("spec_hash"), request.get("generation")) != (
+            lock.get("spec_hash"), lock.get("created_at")
+        ):
+            return None
+        ack = _read_json(self.cancel_ack_path, strict=True) or {}
+        return request if request.get("token") != ack.get("token") else None
+
+    def acknowledge_cancel(self, request: dict[str, Any]) -> None:
+        # A newer request arriving during drain stays pending: acknowledge only
+        # the token this runner observed, never unlink the control file.
+        _atomic_write(self.cancel_ack_path, json.dumps(request, sort_keys=True))
 
     # ── checkpoint (atomic mirror) ──────────────────────────────────────────
     def write_checkpoint(
