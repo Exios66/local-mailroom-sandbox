@@ -125,7 +125,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser(
         "fetch-deps",
-        help="Refresh tracked vendor snapshots (llm-mailroom v0.7.1, llm-dojo-scoring feat/corporate-record-subclass-schemas @ 8e6566c sha-frozen) from pinned refs",
+        help="Refresh tracked vendor snapshots from reviewed, SHA-frozen standalone source refs",
         parents=[shared],
     )
     p.add_argument("--visualizer", action="store_true", help="Also clone The-Mailroom (Langfuse observer)")
@@ -1073,7 +1073,7 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
     The family code ships in-repo (DMR-057), so a fresh checkout needs no
     network. Refresh order (DMR-070 rework): when the sandbox checkout lives
     inside the Digital-Mailroom monorepo, the workspace package is the
-    development source of truth and the vendor tree MIRRORS it — carrying
+    reviewed standalone import and the vendor tree MIRRORS it — carrying
     BOTH content updates AND deletions (a copy-only refresh is how the
     removed docclass-era compliance files survived their upstream deletion).
     Standalone clones fall back to the tag-based clone refresh, with a loud
@@ -1088,16 +1088,18 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
     for name, pin, url, sha in _VENDOR_PINS:
         ws = _monorepo_workspace_pkg(name)
         if ws is not None:
-            rc = rc or _refresh_vendor_from_workspace(name, ws)
+            refresh_rc = _refresh_vendor_from_workspace(name, ws)
+            rc = rc or refresh_rc
         else:
             print(
                 f"== {name}: no monorepo workspace detected — falling back to the "
                 f"pin-based refresh ({pin}" + (f" @ sha {sha[:12]})" if sha else ")") +
-                f"; NOTE refs can move — prefer the monorepo workspace as the "
-                "source of truth",
+                f"; NOTE refs can move — prefer a reviewed imported workspace "
+                "revision",
                 file=sys.stderr,
             )
-            rc = rc or _refresh_vendor(name, pin, url, sha)
+            refresh_rc = _refresh_vendor(name, pin, url, sha)
+            rc = rc or refresh_rc
     if getattr(args, "visualizer", False):
         dest = vendor_dir() / "The-Mailroom"
         if dest.is_dir() and (dest / ".git").exists():
@@ -1115,36 +1117,21 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
                 )
                 rc = rc or 1
         else:
-            rc = rc or subprocess.run(
+            clone_rc = subprocess.run(
                 ["git", "clone", "--depth", "1", "https://github.com/Exios66/The-Mailroom.git", str(dest)]
             ).returncode
+            rc = rc or clone_rc
     return rc
 
 
-# (vendor name, pinned ref, upstream url, frozen HEAD sha) — STANDALONE-clone
-# fallback pins. In the monorepo, fetch-deps ignores these and mirrors the
-# workspace package instead (DMR-057/070): tags can lag removals — the v0.7.1
-# tag predates the five-class taxonomy removal (59c47401), so a tag-based
-# refresh of llm-mailroom would resurrect the deleted docclass-era files.
-# llm-dojo-scoring: the v0.22.0 tag (released 2026-10-16, commit a2862cec) is
-# one sync cycle behind the vendored snapshot: the tracked tree is the
-# `feat/corporate-record-subclass-schemas` branch @ 8e6566c (dojo draft #46,
-# per-subclass corporate-record scoring). A branch ref MOVES, so the pin also
-# carries the FROZEN commit sha (8e6566c…, the snapshot's HEAD): the
-# standalone fallback still clones `--branch` (the branch stays the clone ref,
-# so a shallow clone resolves), then verifies `git rev-parse HEAD` against the
-# sha and FAILS LOUDLY on mismatch — a silently moved branch tip can no longer
-# resurrect a scoring engine that drifts from the vendored snapshot and the
-# lineage/prompt registry (see vendor/llm-dojo-scoring/VENDOR.md: pin
-# "8e6566c + lineage JSON @ 3b2eeb4").
+# Exact reviewed standalone source commits. Workspace refresh is allowed only
+# after those source revisions have been imported into the hub. Moving fallback
+# refs fail their SHA check before replacing any tracked vendor file.
 _VENDOR_PINS: tuple[tuple[str, str, str, str | None], ...] = (
-    ("llm-mailroom", "v0.7.1", "https://github.com/Exios66/llm-mailroom.git", None),
-    (
-        "llm-dojo-scoring",
-        "feat/corporate-record-subclass-schemas",
-        "https://github.com/Exios66/llm-dojo-scoring.git",
-        "8e6566c1d1c52efeb5ebbb57ddee90a94586f7da",
-    ),
+    ("llm-mailroom", "main",
+     "https://github.com/Exios66/llm-mailroom.git", "c529d3f3e4c10865b90f7d7d4675dbb2b8fbae5e"),
+    ("llm-dojo-scoring", "main",
+     "https://github.com/Exios66/llm-dojo-scoring.git", "bd5ed7c7f098f773b7e527f227cf2cf6e5e9e5f4"),
 )
 
 

@@ -7,7 +7,7 @@ The family code the sandbox imports at runtime — the pipeline
 `pipeline.*`/`graph.*`/`agents.*`/`llm.*`/`legalbench.*`) and scoring
 ([`llm-dojo-scoring`](https://github.com/Exios66/llm-dojo-scoring)) —
 ships as **tracked snapshots under `vendor/`** (DMR-057). Both snapshots
-track the monorepo **workspace packages** (hub#62 doctrine) — the drift
+consume the authoritative standalone package sources through reviewed imports — the drift
 guard (`tests/test_vendor_drift.py`) enforces byte-identity and
 `python scripts/sync_vendor.py` (monorepo root) is the refresh leg
 (DMR-070). The docclass-era compliance files are intentionally absent from
@@ -17,15 +17,16 @@ needed to score or run evals. Prompt loops run through the vendored `llm-mailroo
 
 Python 3.11+, no build step.
 
-**Monorepo-family flow:** this package syncs to
-`Exios66/local-mailroom-sandbox` via `scripts/sync_packages.py` on the org monorepo
-[LLM-Mailroom-Services/Digital-Mailroom](https://github.com/LLM-Mailroom-Services/Digital-Mailroom)
-(`status`/`push --all --patch` is the release-train sweep); the
-sandbox itself ships no releases, but sibling surfaces (llm-mailroom,
-llm-dojo-scoring) do — their version bumps flow through the same sync pass,
-the vendor refresh below, and the consuming pins. Full law: root
-`AGENTS.md` §Sub-package sync + `docs/wiki/Sub-Package-Sync.md` +
-`docs/wiki/Releases.md`.
+**Source ownership:** `Exios66/local-mailroom-sandbox` owns this package.
+Commit sandbox fixes here first, then import them into Digital-Mailroom.
+Do not export hub package edits back into standalone repositories. Dojo owns
+all scoring engine logic; llm-mailroom owns the pipeline. This sandbox owns
+the offline/local and Modal/vLLM GPU execution and testing environment.
+The-Mailroom is their shared visualizer. Vendor snapshots consume reviewed,
+committed standalone source revisions; the hub refresh mirrors packages only
+after those sources have been imported. Preserve live corporate v6 and sandbox
+evaluation v7 independently. The historical sandbox v0.2.0 release exists;
+current development version and immutable vendor pins are separate facts.
 
 ## Skills (tool selection)
 
