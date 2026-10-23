@@ -95,7 +95,7 @@ def test_named_posture_precedence_freezes_complete_map(tmp_path,source_root,monk
   assert runtime.activate().agent_knobs==expected
 
 def test_cli_loads_dotenv_before_resolving_pinned_langfuse_prompt(tmp_path,source_root,monkeypatch):
- import langfuse
+ langfuse=pytest.importorskip('langfuse')
  spec,path,store,_=spec_file(tmp_path,source_root)
  spec.job.mock=True
  spec.prompt={'agents':{'sorter':{'source':'langfuse','version':7}}}
@@ -270,15 +270,16 @@ def test_worker_refuses_wrong_expectation_before_provider_or_progress(tmp_path,s
     assert sdk['requests']==[] and modal_fs.state=={}
 
 
-@pytest.mark.parametrize('state',['prepared','paused','done','failed'])
-def test_idle_local_cancel_does_not_poison_next_resume(tmp_path,source_root,sdk,state):
+@pytest.mark.parametrize('state',['prepared','running','paused','done','failed'])
+def test_idle_local_cancel_does_not_poison_next_resume(tmp_path,source_root,sdk,state,capsys):
     spec,_,store,_=spec_file(tmp_path,source_root)
     assert preflight.preflight(spec,offline=True)['status']=='prepared'
     store.write_checkpoint(state=state,cursor=0,total=1)
     assert main(['run','cancel','--run-id',store.run_id])==0
+    assert json.loads(capsys.readouterr().out)=={'run_id':store.run_id,'state':state,'detail':'no active local runner'}
     assert store.pending_cancel() is None
     assert store.state()==state
-    if state in {'prepared','paused'}:
+    if state in {'prepared','running','paused'}:
         assert main(['run','resume','--run-id',store.run_id])==0
         assert len(sdk['requests'])==2
 

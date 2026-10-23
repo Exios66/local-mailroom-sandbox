@@ -3038,7 +3038,14 @@ def _cmd_run_cancel(args) -> int:
         return 1
     # Only a running writer can consume a pending token. Otherwise an idle
     # cancel would make the next resume pause before submitting its first row.
-    if cp.get("state") != "running":
+    active = False
+    if cp.get("state") == "running":
+        try:
+            with store.acquire(blocking=False):
+                pass
+        except BlockingIOError:
+            active = True
+    if not active:
         _print({"run_id": run_id, "state": cp.get("state"), "detail": "no active local runner"})
         return 0
     store.request_cancel()
