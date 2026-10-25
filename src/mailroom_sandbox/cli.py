@@ -1113,19 +1113,19 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
 # workspace packages when available, after importing those reviewed revisions.
 # The fallback rejects moved refs before replacing any tracked vendor file.
 _VENDOR_PINS: tuple[tuple[str, str, str, str | None], ...] = (
-    ("llm-mailroom", "31f89a82729e2a94314a372068af838ffa15def2",
-     "https://github.com/Exios66/llm-mailroom.git", "31f89a82729e2a94314a372068af838ffa15def2"),
-    ("llm-dojo-scoring", "refs/tags/v0.24.0",
-     "https://github.com/Exios66/llm-dojo-scoring.git", "d381b95f1182ef5b377b743988eb61e021579aac"),
+    ("llm-mailroom", "fb629f329f18835e78d5fea8631426b54f393c02",
+     "https://github.com/Exios66/llm-mailroom.git", "fb629f329f18835e78d5fea8631426b54f393c02"),
+    ("llm-dojo-scoring", "refs/tags/v0.24.2",
+     "https://github.com/Exios66/llm-dojo-scoring.git", "4740d76825217e746c645864c8510f12869db965"),
 )
 
 
 # Optional visualizer source is frozen independently of the two managed
 # runtime snapshots. Update only after reviewing its committed source.
 _VISUALIZER_PIN: tuple[str, str, str] = (
-    "81e8b6cea5dbae0cbfcb3a2a4e4f573de6c9e42e",
+    "ae7f794f14f34b55a942462b04705be1638e2b80",
     "https://github.com/Exios66/The-Mailroom.git",
-    "81e8b6cea5dbae0cbfcb3a2a4e4f573de6c9e42e",
+    "ae7f794f14f34b55a942462b04705be1638e2b80",
 )
 
 
