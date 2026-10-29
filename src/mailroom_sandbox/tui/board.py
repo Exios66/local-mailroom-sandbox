@@ -150,6 +150,10 @@ def render_board(jobs: list[dict[str, Any]], *, width: int = 100, on: bool = Fal
 
 
 def run_board_tui(*, root: Path | None, stale_s: float, interval: float, once: bool) -> int:
+    """Render the job board in the terminal and return 0.
+
+    Prints one frame with ``once``; otherwise redraws every ``interval`` seconds (floored at ``MIN_INTERVAL_S``) until interrupted.
+    """
     interval = max(interval, MIN_INTERVAL_S)
     if once:
         sys.stdout.write(render_board(list_jobs(root, stale_s=stale_s), width=shutil.get_terminal_size((100, 40)).columns, on=pl.use_color(sys.stdout)) + "\n")
@@ -262,6 +266,10 @@ def board_payload(root: Path, stale_s: float, heroes: dict[str, str]) -> dict[st
 
 
 def make_board_server(host: str, port: int, *, root: Path | None, stale_s: float = STALE_S, interval: float = 1.0) -> ThreadingHTTPServer:
+    """Build the board's HTTP server: the index page, a ``/api/jobs`` snapshot and a ``/api/jobs/stream`` SSE feed.
+
+    ``interval`` is floored at ``MIN_INTERVAL_S``. The caller serves it and sets ``board_stop`` to end open streams.
+    """
     root = Path(root) if root is not None else beacon_root()
     interval = max(interval, MIN_INTERVAL_S)
     stop = threading.Event()
@@ -347,6 +355,10 @@ def serve_board(
     interval: float = 1.0,
     demo: bool = False,
 ) -> int:
+    """Serve the job board in the browser until interrupted and return 0.
+
+    With ``demo`` it also advances synthetic jobs every ``interval`` seconds (floored at ``MIN_INTERVAL_S``).
+    """
     import webbrowser
 
     from mailroom_sandbox.tui.web import browser_url, should_open_browser

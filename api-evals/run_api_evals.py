@@ -60,6 +60,9 @@ def _resolve_prices(args: argparse.Namespace):
 
 
 def cmd_run(args: argparse.Namespace) -> int:
+    """Run one api-eval task by run id and print its summary as JSON; a dry run prints only the resolved plan.
+
+    """
     task = task_by_run_id(args.run_id)
     prices = _resolve_prices(args)
     result = invoke.run_task(
