@@ -680,6 +680,7 @@ def run_legalbench_eval(
             tags=tracing.default_tags("source-legalbench"),
         ):
             with tracing.child_observation("answer-question", as_type="generation"):
+                # The answer is already computed above; this span only marks it.
                 pass
     tracing.flush_traces()
     scores = scoring.score_legalbench(expected, predicted)
@@ -1240,6 +1241,7 @@ def _run_pipeline_doc(
             tags=tracing.default_tags("source-fixtures"),
         ):
             with tracing.child_observation("pipeline-result", as_type="generation", input=public_gt):
+                # Mock fallback: record the span without a second model call.
                 pass
         return fallback
 

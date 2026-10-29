@@ -60,8 +60,6 @@ def materialize_package(
         f"package: {package}\n"
         f"extends: family-roster.yaml\n"
     )
-    if package == "digital-mailroom":
-        pointer = dest_root / "config" / "subagents" / "roster.yaml"
     if not dry_run:
         pointer.parent.mkdir(parents=True, exist_ok=True)
         pointer.write_text(pointer_body, encoding="utf-8")
@@ -83,9 +81,8 @@ def materialize_package(
             shutil.copy2(src_prompt, dest_prompt)
         copied.append(dest_prompt)
 
-    written = dest_family if not dry_run else dest_family
     return MaterializeResult(
-        family_roster_written=written,
+        family_roster_written=dest_family,
         prompts_copied=copied,
         package=package,
     )
