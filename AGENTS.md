@@ -106,7 +106,7 @@ sandbox metrics compare --runs local,modal,api   # serving metrics comparison
 sandbox watch --web                   # mailroom pretty-logs TUI in the browser (http://127.0.0.1:8765/, SSE); full command matrix in docs/pretty-logging/mailroom-themed-logging.md
 sandbox dev                           # dev server: same themed UI on a synthetic looping run (no Modal/spend)
 scripts/mailroom-tui dev|web|score <run>   # launcher; .claude/launch.json → mailroom-watch-dev / -live
-sandbox board [--tui] [--demo]        # persistent job board: every mailroom.beacon/v1 job (~/.mailroom/jobs), browser :8767 or terminal
+sandbox board [--tui] [--demo] [--interval SECS]  # persistent job board: every mailroom.beacon/v1 job (~/.mailroom/jobs), browser :8767 or terminal; refresh floor 0.1 s
 sandbox beacon update --job ID --package P --done N --total M   # shell jobs publish to the board
 # long Python jobs: `with Beacon(job_id, package=...) as b: b.update(done=i, total=n)` (mailroom_sandbox/tui/beacon.py — vendorable single file)
 # keep the board up across reboots: deploy/launchd/com.mailroom.board.plist (install steps in the file)
