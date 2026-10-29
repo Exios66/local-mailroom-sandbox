@@ -458,7 +458,10 @@ class JobSpec(BaseModel):
     @field_validator("cost_cap_usd")
     @classmethod
     def _cost_cap(cls, v: float | None) -> float | None:
-        # NaN fails every comparison, so a NaN cap would pass `<= 0` and never trip.
+        """Reject a NaN or non-positive cost cap when one is set.
+
+        NaN fails every comparison, so it would pass ``<= 0`` and never trip.
+        """
         if v is not None and (math.isnan(v) or v <= 0):
             raise ValueError("cost_cap_usd must be > 0 when set")
         return v
@@ -466,6 +469,7 @@ class JobSpec(BaseModel):
     @field_validator("max_wall_seconds")
     @classmethod
     def _max_wall(cls, v: int | None) -> int | None:
+        """Reject a wall-clock cap under 60 seconds when one is set."""
         if v is not None and v < 60:
             raise ValueError("max_wall_seconds must be >= 60 when set")
         return v
