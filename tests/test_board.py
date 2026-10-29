@@ -216,3 +216,17 @@ def test_board_default_port_does_not_collide_with_watch_web(tmp_path, monkeypatc
     monkeypatch.setattr(bd, "serve_board", lambda **kw: seen.update(kw) or 0)
     cli.main(["board", "--root", str(tmp_path), "--no-browser"])
     assert seen["port"] == bd.DEFAULT_PORT == 8767 != web_mod.DEFAULT_PORT
+
+
+def test_tui_loop_clamps_a_zero_or_negative_interval(tmp_path, monkeypatch):
+    """`--interval 0` must not spin a core re-reading the board (nor crash on a negative sleep)."""
+    for requested in (0, -3):
+        slept: list[float] = []
+
+        def _sleep(seconds, slept=slept):
+            slept.append(seconds)
+            raise KeyboardInterrupt
+
+        monkeypatch.setattr(bd.time, "sleep", _sleep)
+        assert bd.run_board_tui(root=tmp_path, stale_s=120, interval=requested, once=False) == 0
+        assert slept == [bd.MIN_INTERVAL_S]

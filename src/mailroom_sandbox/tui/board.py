@@ -25,6 +25,7 @@ from mailroom_sandbox.tui.beacon import BEACON_VERSION, TERMINAL_STATES, beacon_
 from mailroom_sandbox.tui.web import THEME, ansi_to_html
 
 STALE_S = 120.0
+MIN_INTERVAL_S = 0.1  # `--interval 0` (or negative) would otherwise spin a core re-reading the board
 DEFAULT_PORT = 8767  # watch --web / sandbox dev own 8765
 _ORDER = {"running": 0, "stalled": 1, "failed": 2, "done": 2}
 _HOST = socket.gethostname()
@@ -149,6 +150,7 @@ def render_board(jobs: list[dict[str, Any]], *, width: int = 100, on: bool = Fal
 
 
 def run_board_tui(*, root: Path | None, stale_s: float, interval: float, once: bool) -> int:
+    interval = max(interval, MIN_INTERVAL_S)
     if once:
         sys.stdout.write(render_board(list_jobs(root, stale_s=stale_s), width=shutil.get_terminal_size((100, 40)).columns, on=pl.use_color(sys.stdout)) + "\n")
     else:
@@ -261,8 +263,9 @@ def board_payload(root: Path, stale_s: float, heroes: dict[str, str]) -> dict[st
 
 def make_board_server(host: str, port: int, *, root: Path | None, stale_s: float = STALE_S, interval: float = 1.0) -> ThreadingHTTPServer:
     root = Path(root) if root is not None else beacon_root()
+    interval = max(interval, MIN_INTERVAL_S)
     stop = threading.Event()
-    heroes = {"hero_html": board_hero(100), "hero_compact_html": board_hero(60)}
+    heroes ={"hero_html": board_hero(100), "hero_compact_html": board_hero(60)}
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, fmt: str, *args: Any) -> None:
@@ -349,6 +352,7 @@ def serve_board(
     from mailroom_sandbox.tui.web import browser_url, should_open_browser
 
     root = Path(root) if root is not None else beacon_root()
+    interval = max(interval, MIN_INTERVAL_S)
     httpd = make_board_server(host, port, root=root, stale_s=stale_s, interval=interval)
     if demo:
         writer = DemoJobs(root)
