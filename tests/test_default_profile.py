@@ -85,3 +85,44 @@ def test_dotenv_without_a_profile_falls_back_to_modal(monkeypatch, tmp_path):
     monkeypatch.setattr("mailroom_sandbox.paths.dotenv_files", lambda: [env_file])
     monkeypatch.delenv("SANDBOX_PROFILE", raising=False)
     assert default_profile() == "modal-vllm"
+
+
+def _isolated_environ(monkeypatch):
+    """Let `apply_profile_env` mutate a private copy of the environment."""
+    env = {k: v for k, v in os.environ.items() if k not in {"VLLM_BASE_URL", "MODAL_WORKSPACE"}}
+    monkeypatch.setattr(os, "environ", env)
+    return env
+
+
+def test_modal_activation_never_seeds_the_localhost_fallback(monkeypatch):
+    """An unset Modal URL must stay unset so the pipeline's live-or-loud warning fires."""
+    from mailroom_sandbox.runtime import apply_profile_env
+
+    env = _isolated_environ(monkeypatch)
+    apply_profile_env(load_profile("modal-vllm"))
+    assert "VLLM_BASE_URL" not in env
+    assert env["DEFAULT_PROVIDER"] == "vllm"
+
+
+def test_modal_activation_prefers_exported_url_then_workspace_gateway(monkeypatch):
+    from mailroom_sandbox.runtime import apply_profile_env
+
+    env = _isolated_environ(monkeypatch)
+    env["MODAL_WORKSPACE"] = "ws1"
+    apply_profile_env(load_profile("modal-vllm"))
+    assert env["VLLM_BASE_URL"] == "https://ws1--sandbox-vllm-serve.modal.run/v1"
+
+    env = _isolated_environ(monkeypatch)
+    env.update(MODAL_WORKSPACE="ws1", VLLM_BASE_URL="https://exported.example/v1")
+    apply_profile_env(load_profile("modal-vllm"))
+    assert env["VLLM_BASE_URL"] == "https://exported.example/v1"
+
+
+def test_other_profiles_still_seed_their_static_base_url(monkeypatch):
+    from mailroom_sandbox.providers import endpoints_for
+    from mailroom_sandbox.runtime import apply_profile_env
+
+    env = _isolated_environ(monkeypatch)
+    profile = load_profile("vllm-local")
+    apply_profile_env(profile)
+    assert env["VLLM_BASE_URL"] == endpoints_for(profile).base_url
