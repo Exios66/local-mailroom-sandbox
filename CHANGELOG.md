@@ -24,7 +24,10 @@
   runs no eval, and marks the endpoint URL as required before health; docs and
   skills that told people to run a bare `sandbox pull-models` for Ollama now pass
   `--profile ollama`; `health`'s exit-code description no longer claims Langfuse
-  or Phoenix gate it.
+  or Phoenix gate it; activating `modal-vllm` with no endpoint no longer seeds
+  `VLLM_BASE_URL` with the localhost fallback, so the pipeline's live-or-loud
+  warning fires instead of a run quietly using whatever listens on :8000;
+  `cost_cap_usd: .nan` is rejected instead of silently disabling the cap.
 - Record that Hub tag `v9.1` (`bc9eab28`) is published, and drop dead
   identical branches, constant conditions, and duplicated success returns
   flagged by CodeAnt (#144, #155–#159). `_cmd_run_cancel` already returns

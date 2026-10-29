@@ -138,12 +138,16 @@ def apply_profile_env(profile: dict, *, base_url_override: str | None = None) ->
     )
     if endpoints.base_url_env:
         # A deployed Modal endpoint wins: either the exported VLLM_BASE_URL or
-        # the deterministic gateway URL from MODAL_WORKSPACE. The profile's
-        # static localhost value is only the last-resort parity fallback.
+        # the deterministic gateway URL from MODAL_WORKSPACE. For the Modal
+        # profile an unset URL stays unset: seeding its static localhost value
+        # would defeat the pipeline's live-or-loud warning (DMR-052) and let a
+        # live run quietly use whatever listens on localhost:8000.
         if not os.environ.get(endpoints.base_url_env):
-            os.environ[endpoints.base_url_env] = (
-                modal_gateway_url(profile) or endpoints.base_url
-            )
+            gateway = modal_gateway_url(profile)
+            if gateway:
+                os.environ[endpoints.base_url_env] = gateway
+            elif str(profile.get("name") or "") != "modal-vllm":
+                os.environ[endpoints.base_url_env] = endpoints.base_url
     init_pub = os.environ.get("LANGFUSE_INIT_PROJECT_PUBLIC_KEY")
     init_sec = os.environ.get("LANGFUSE_INIT_PROJECT_SECRET_KEY")
     if init_pub:
