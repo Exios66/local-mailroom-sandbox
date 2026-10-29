@@ -71,20 +71,16 @@ def cmd_run(args: argparse.Namespace) -> int:
         force=args.force,
     )
     if result.get("dry_run"):
-        print(json.dumps(
-            {
-                "run_id": result.get("run_id"),
-                "task": result.get("task"),
-                "profile": result.get("profile"),
-                "model": result.get("model"),
-                "n": result.get("n"),
-                "dry_run": True,
-            },
-            indent=2,
-        ))
-        return 0
-    print(json.dumps(
-        {
+        payload = {
+            "run_id": result.get("run_id"),
+            "task": result.get("task"),
+            "profile": result.get("profile"),
+            "model": result.get("model"),
+            "n": result.get("n"),
+            "dry_run": True,
+        }
+    else:
+        payload = {
             "run_id": result["run_id"],
             "task": result["task"],
             "n": result["n"],
@@ -95,9 +91,8 @@ def cmd_run(args: argparse.Namespace) -> int:
             "spec_hash": result.get("spec_hash"),
             "dataset_fingerprint": result.get("dataset_fingerprint"),
             "dry_run": result.get("dry_run", False),
-        },
-        indent=2,
-    ))
+        }
+    print(json.dumps(payload, indent=2))
     return 0
 
 

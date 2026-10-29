@@ -151,19 +151,20 @@ def render_board(jobs: list[dict[str, Any]], *, width: int = 100, on: bool = Fal
 def run_board_tui(*, root: Path | None, stale_s: float, interval: float, once: bool) -> int:
     if once:
         sys.stdout.write(render_board(list_jobs(root, stale_s=stale_s), width=shutil.get_terminal_size((100, 40)).columns, on=pl.use_color(sys.stdout)) + "\n")
-        return 0
-    sys.stdout.write(pl.ALT_ENTER + pl.HIDE_CURSOR)
-    try:
-        while True:
-            frame = render_board(list_jobs(root, stale_s=stale_s), width=shutil.get_terminal_size((100, 40)).columns, on=pl.use_color(sys.stdout))
-            sys.stdout.write(pl.CURSOR_HOME + pl.CLEAR_SCREEN + frame + "\n")
+    else:
+        sys.stdout.write(pl.ALT_ENTER + pl.HIDE_CURSOR)
+        try:
+            while True:
+                frame = render_board(list_jobs(root, stale_s=stale_s), width=shutil.get_terminal_size((100, 40)).columns, on=pl.use_color(sys.stdout))
+                sys.stdout.write(pl.CURSOR_HOME + pl.CLEAR_SCREEN + frame + "\n")
+                sys.stdout.flush()
+                time.sleep(interval)
+        except KeyboardInterrupt:
+            pass
+        finally:
+            sys.stdout.write(pl.SHOW_CURSOR + pl.ALT_LEAVE)
             sys.stdout.flush()
-            time.sleep(interval)
-    except KeyboardInterrupt:
-        return 0
-    finally:
-        sys.stdout.write(pl.SHOW_CURSOR + pl.ALT_LEAVE)
-        sys.stdout.flush()
+    return 0
 
 
 # ── browser ────────────────────────────────────────────────────────────────────
