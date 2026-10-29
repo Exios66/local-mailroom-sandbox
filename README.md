@@ -48,9 +48,9 @@
 ## 🧪 What is this?
 
 A local-first experiment sandbox for the LLM-Mailroom pipeline. It runs the
-full classify → extract → report → archive graph on your own machine with
-Ollama, vLLM, llama.cpp or LM Studio, or on a rented GPU through Modal. Swap in
-OpenRouter when you need an API provider; it is opt-in and never the default.
+full classify → extract → report → archive graph on a Modal GPU (the default
+`modal-vllm` endpoint), on your own machine with Ollama, vLLM, llama.cpp or
+LM Studio, or against an opt-in OpenRouter key — never the default.
 
 This repository does **not** fork the pipeline. It ships the family code it
 needs as **tracked snapshots under `vendor/`** (DMR-057): the pipeline
@@ -82,7 +82,7 @@ serving, eval and scoring overlays on top.
 ## 🚀 Quickstart
 
 <div align="center">
-<img src="docs/assets/readme/terminal.svg" alt="Animated terminal: install, copy the env file, bring up Langfuse and Ollama, pull the model, check health, then run the pilot with the mock and with a local model" width="90%"/>
+<img src="docs/assets/readme/terminal.svg" alt="Animated terminal: install, copy the env file, bring up Langfuse, deploy the Modal vLLM endpoint, check health, then run the pilot with the mock and with the live model" width="90%"/>
 </div>
 
 ```bash
@@ -93,29 +93,40 @@ cp config/.env.example .env
 # commit/release refs frozen to SHAs otherwise, requiring network). Moved refs are rejected
 # before tracked vendor files are replaced:
 sandbox fetch-deps                 # mirror workspace packages or refresh SHA-frozen standalone commit/release refs
-sandbox up                         # Langfuse + Ollama
-sandbox pull-models                # ollama pull qwen3:8b
-sandbox health
+sandbox up                         # Langfuse (the Modal endpoint is deployed, not composed)
+sandbox runbook show serve         # DEFAULT: prewarm → deploy → point → verify → teardown
+sandbox health                     # probes the deployed modal-vllm endpoint
 sandbox pilot --mock               # machinery only, no LLM
-sandbox pilot --local              # real local model
+sandbox pilot --local              # real model on the deployed endpoint
 ```
 
-The one-command local path is the core of it:
+The default serving path is **Modal vLLM**: one L4 behind an OpenAI `/v1`
+endpoint — no local GPU, no Ollama daemon. `sandbox runbook show serve` prints
+the whole lifecycle as a copy-pasteable script:
 
-1. Install
-2. `sandbox up` (compose profiles `langfuse` + `ollama`)
-3. `sandbox pull-models`
-4. `sandbox pilot --mock`
-5. `sandbox pilot --local`
+1. `modal profile activate` + pre-warm the weights into the Modal volume
+2. `modal deploy deploy/modal_vllm.py` (prints the endpoint URL)
+3. export `VLLM_BASE_URL=…/v1` + `VLLM_API_KEY` (or just `MODAL_WORKSPACE`)
+4. `sandbox health`, then any eval or suite against the same warm endpoint
+5. `./deploy/teardown_vllm.sh` when the last eval finishes
+
+Offline and CPU-only work remains first-class — opt out explicitly:
+
+| Situation | Command |
+| --- | --- |
+| No Modal account / no network | `--profile ollama` (or `SANDBOX_PROFILE=ollama`) |
+| NVIDIA GPU in front of you | `sandbox up --compose-profile vllm` + `--profile vllm-local` |
+| GPU box over SSH | `sandbox tunnel --profile vllm-remote up` |
+| Machinery-only checks | `sandbox pilot --mock` (no endpoint at all) |
 
 <details>
-<summary>CPU-only configuration check</summary>
+<summary>CPU-only configuration check (Ollama fallback)</summary>
 
 Pull `llama3.2:3b`, select it, then probe the provider:
 
 ```bash
 sandbox cutover --profile ollama --model llama3.2:3b   # prints the assignment
-sandbox health                                         # probes the active provider
+sandbox health --profile ollama                        # probes the offline profile
 ```
 
 `cutover` does not call the model. GPU recommended for Qwen 8B.
@@ -129,7 +140,7 @@ sandbox health                                         # probes the active provi
 <div align="center">
 <picture>
   <source media="(max-width: 640px)" srcset="docs/assets/readme/flow-mobile.svg"/>
-  <img src="docs/assets/readme/flow.svg" alt="The local path from install to a scored run: install, bring up Langfuse and Ollama, pull the model, probe the provider and trace sinks, run the pilot with the mock and then a local model, and score with the vendored dojo; matrix, run specs, Modal workers, comparisons and the watch TUI branch off it" width="100%"/>
+  <img src="docs/assets/readme/flow.svg" alt="The default path from install to a scored run: install, bring up Langfuse, deploy the Modal vLLM endpoint with the serve runbook, probe the provider and trace sinks, run the pilot with the mock and then against the deployed endpoint, and score with the vendored dojo; matrix, run specs, Modal workers, comparisons and the watch TUI branch off it" width="100%"/>
 </picture>
 </div>
 
@@ -149,14 +160,14 @@ explicitly flagged `offline_fallback`.
 ## 📟 At a glance
 
 <div align="center">
-<img src="docs/assets/readme/tui.svg" alt="Dashboard: the seven provider profiles with what each targets, and a log of a mock pilot run on the default Ollama profile" width="90%"/>
+<img src="docs/assets/readme/tui.svg" alt="Dashboard: the seven provider profiles with what each targets, and a log of a mock pilot run on the default Modal vLLM profile" width="90%"/>
 </div>
 
 <div align="center">
 
 | Component | Default | Notes |
 | :--- | :--- | :--- |
-| **Default provider** | Ollama (`qwen3:8b`) | Fallback `qwen3:7b` |
+| **Default provider** | Modal vLLM (`modal-vllm`) | One L4 serving `Qwen/Qwen3-8B`; `--profile ollama` is the offline opt-out |
 | **Scoring** | `llm-dojo-scoring` (vendored) | Deterministic, field-type-aware |
 | **Pipeline** | `llm-mailroom` (vendored) | 13-node LangGraph state machine |
 | **Tracing** | Langfuse 3 / SDK v4 | `document-pipeline` traces |
@@ -169,6 +180,7 @@ explicitly flagged `offline_fallback`.
 ## ⌨️ CLI
 
 ```
+sandbox runbook show serve     # default path: Modal vLLM deploy → point → verify → teardown
 sandbox up | down | health | pull-models | fetch-deps | cutover | profiles | agents
 sandbox pipeline watcher | pipeline api
 sandbox pilot --mock|--local
@@ -330,9 +342,11 @@ active provider and the trace sinks.
 <details>
 <summary><b>Does anything cost money by default?</b></summary>
 
-No. The default profile is Ollama on your own machine. OpenRouter is opt-in,
-Modal runs bill your Modal account, and the `api-evals/` harness is the
-real-spend API path, kept outside the package.
+Not silently. The default profile is `modal-vllm`: its container scales to zero
+after 120s idle, and the runbook tears the app down when the last eval finishes,
+so you pay only for warm GPU-minutes on your own Modal account (L4 ≈ $0.80/hr).
+The offline opt-out (`--profile ollama`) costs nothing; OpenRouter is opt-in,
+and the `api-evals/` harness is the real-spend API path, kept outside the package.
 
 </details>
 
@@ -353,9 +367,9 @@ The sandbox drives the vendored family code through these open-source projects.
 
 | Project | What it does here |
 | :--- | :--- |
-| [Ollama](https://github.com/ollama/ollama) | The default local provider (`qwen3:8b`) |
-| [vLLM](https://github.com/vllm-project/vllm) | The `vllm-local`, `vllm-remote` and `modal-vllm` serving profiles |
-| [Modal](https://modal.com/) | GPU serving and job workers under `deploy/` (the `[deploy]` extra) |
+| [vLLM](https://github.com/vllm-project/vllm) | The serving engine behind every profile, including the default `modal-vllm` endpoint |
+| [Modal](https://modal.com/) | The default GPU host: Modal vLLM serving and job workers under `deploy/` (the `[deploy]` extra) |
+| [Ollama](https://github.com/ollama/ollama) | The offline/CPU fallback provider (`qwen3:8b`, `--profile ollama`) |
 | [LangGraph](https://github.com/langchain-ai/langgraph) | Runs the vendored 13-node pipeline graph (the `[pipeline]` extra) |
 | [Langfuse](https://github.com/langfuse/langfuse) | The canonical trace sink (the `[observability]` extra; Phoenix and Braintrust are alternatives) |
 | [OpenAI Python SDK](https://github.com/openai/openai-python) | Talks to every OpenAI-compatible endpoint, local or remote |

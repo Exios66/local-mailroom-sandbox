@@ -55,7 +55,9 @@ Helpers live in `mailroom_sandbox.prep` (`prepare_offline_datasets`, `environmen
 | `jupyter` | builds `deploy/Dockerfile`, Lab on `:8888` |
 | `phoenix` / `vllm` / `llamacpp` | optional sidecars |
 
-`sandbox up` (default ollama profile) starts `langfuse` + `ollama`. Add Jupyter explicitly:
+`sandbox up` (default `modal-vllm` profile) starts `langfuse` only: the GPU
+endpoint lives on Modal, not in compose. For the offline Ollama stack use
+`sandbox up --compose-profile ollama`. Add Jupyter explicitly:
 
 ```bash
 sandbox up --compose-profile jupyter

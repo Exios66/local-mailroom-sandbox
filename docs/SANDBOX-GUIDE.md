@@ -32,10 +32,10 @@ full verified command list, start with
 | Requirement | Version | Notes |
 | --- | --- | --- |
 | Python | 3.11+ | `pyproject.toml` `requires-python` |
-| Docker + Compose | latest | For compose profiles and the Jupyter image |
-| NVIDIA GPU (optional) | Any CUDA GPU | Required only for `vllm` compose profile or local vLLM |
-| Modal CLI (optional) | SDK 1.5.5 | For remote GPU deployment |
-| Ollama (optional) | latest | Default local LLM; CPU-capable for small models |
+| Modal CLI | SDK 1.6.2 | **Default path**: GPU serving via `modal-vllm` (the `deploy` extra) |
+| Docker + Compose | latest | Langfuse tracing + the Jupyter image (optional providers) |
+| NVIDIA GPU (optional) | Any CUDA GPU | Only for the `vllm` compose profile / `vllm-local` |
+| Ollama (optional) | latest | Offline/CPU fallback (`--profile ollama`) |
 
 ---
 
@@ -59,7 +59,7 @@ cp config/.env.example .env          # edit as needed
 | `dev` | pytest, ruff, mypy |
 | `notebooks` | jupyter, ipykernel |
 | `hf` | huggingface_hub, pyarrow |
-| `deploy` | modal (SDK 1.5.5 pinned) |
+| `deploy` | modal (SDK 1.6.2 pinned) |
 | `pipeline` | llm-mailroom + llm-dojo-scoring |
 | `observability` | opentelemetry-sdk, opentelemetry-exporter-otlp-proto-http |
 
@@ -73,8 +73,9 @@ The sandbox reads `.env` from the repo root. Key groups:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `SANDBOX_PROFILE` | `ollama` | Active provider profile |
-| `DEFAULT_PROVIDER` | `ollama` | Mailroom LLM provider |
+| `SANDBOX_PROFILE` | `modal-vllm` | Active provider profile (`ollama` is the offline opt-out) |
+| `DEFAULT_PROVIDER` | `vllm` | Mailroom LLM provider (matches `modal-vllm`) |
+| `VLLM_BASE_URL` | unset | Deployed Modal endpoint + `/v1` (or export `MODAL_WORKSPACE`) |
 | `OBSERVABILITY_PROVIDER` | `langfuse` | Tracing backend (`langfuse` / `phoenix` / `braintrust` / `none`) |
 | `OBSERVABILITY_ENVIRONMENT` | `pilot` | Trace environment tag |
 | `MAILROOM_BASE_DIR` | `./data` | Data root |
@@ -94,7 +95,7 @@ The sandbox reads `.env` from the repo root. Key groups:
 
 ```bash
 # Permanent (edit .env):
-SANDBOX_PROFILE=modal-vllm
+SANDBOX_PROFILE=ollama          # offline opt-out; the default is modal-vllm
 
 # Per-command:
 sandbox eval sorter --local --profile modal-vllm
@@ -112,10 +113,10 @@ SANDBOX_PROFILE=vllm-local sandbox eval sorter --local
 
 | Profile | Provider | Base URL | Default Model | When to use |
 | --- | --- | --- | --- | --- |
-| `ollama` | Ollama | `localhost:11434/v1` | `qwen3:8b` | Default; CPU-capable |
+| `modal-vllm` | vLLM | `*.modal.run/v1` | `Qwen/Qwen3-8B` | **Default**: zero-infra remote GPU (`sandbox runbook show serve`) |
+| `ollama` | Ollama | `localhost:11434/v1` | `qwen3:8b` | Offline/CPU fallback (`--profile ollama`) |
 | `vllm-local` | vLLM | `localhost:8000/v1` | `Qwen/Qwen3-8B` | Local GPU host |
 | `vllm-remote` | vLLM | `localhost:18000/v1` (SSH forward) | `Qwen/Qwen3-8B` | Lab/remote GPU |
-| `modal-vllm` | vLLM | `*.modal.run/v1` | `Qwen/Qwen3-8B` | Zero-infra remote GPU |
 | `llamacpp` | generic | `localhost:8080/v1` | `qwen3-8b` | llama.cpp server |
 | `lmstudio` | generic | `localhost:1234/v1` | `qwen3-8b` | LM Studio |
 | `openrouter` | openrouter | `openrouter.ai/api/v1` | `qwen/qwen3.7-flash` | Opt-in cloud only |
@@ -149,7 +150,8 @@ sandbox cutover --profile ollama --model llama3.2:3b   # all agents
 | `sandbox profiles` | List available profiles |
 | `sandbox agents list` | Show all pipeline agents and their current models |
 | `sandbox cutover --profile X --agent-model NAME=tag` | Override one agent's model |
-| `sandbox up` | Start compose services (default: langfuse + ollama) |
+| `sandbox runbook show serve` | Default Modal vLLM path: deploy → point → verify → teardown |
+| `sandbox up` | Start compose services (default `modal-vllm`: Langfuse only) |
 | `sandbox down` | Stop compose services |
 | `sandbox pull-models` | Pull required Ollama models |
 | `sandbox health` | Probe the active provider |
@@ -235,12 +237,12 @@ SANDBOX_LOCAL_LLM=1 pytest -v            # include live LLM tests
 ### Quick start
 
 ```bash
-# Full stack: Langfuse + Ollama + Jupyter
+# Offline stack (Ollama fallback): Langfuse + Ollama + Jupyter
 sandbox up --compose-profile langfuse --compose-profile ollama --compose-profile jupyter
 # → Lab: http://127.0.0.1:8888/lab
 # → Langfuse: http://127.0.0.1:3000 (pk-lf-sandbox / sk-lf-sandbox)
 
-sandbox pull-models                      # pull Ollama models
+SANDBOX_PROFILE=ollama sandbox pull-models   # pull Ollama models
 ```
 
 ### Standalone Docker image
@@ -408,6 +410,11 @@ logs and track spend — see [pretty-logging/mailroom-themed-logging.md](pretty-
 
 ## 9. Modal deployment
 
+This is the **default serving path**. The canonical, always-current script is
+[`sandbox runbook show serve`](runbooks/serving/modal-vllm.md) — generated from
+`config/runbooks/catalog.yaml`, so the pins below and the deploy code cannot
+drift apart.
+
 ### One-time setup
 
 ```bash
@@ -436,10 +443,18 @@ modal deploy deploy/modal_vllm.py
 ### Connect the sandbox
 
 ```bash
+# Option A: export the URL `modal deploy` printed, with /v1 appended
 export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
 export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+
+# Option B: let the profile derive that URL from the workspace slug
+export MODAL_WORKSPACE=<workspace>
+
 sandbox health --profile modal-vllm
 ```
+
+`modal-vllm` is the default profile, so the `--profile` flag is optional; it is
+spelled out here to make the endpoint being probed explicit.
 
 ### Key knobs
 
@@ -455,17 +470,19 @@ sandbox health --profile modal-vllm
 | `MODAL_VLLM_TP_SIZE` | GPU `:N` suffix (1 single-GPU) | Tensor-parallel size — must match `MODAL_VLLM_GPU="A100-80GB:2"` for 70B-class |
 | `MODAL_VLLM_IMAGE_TAG` | `v0.29.0` | vLLM version pin |
 | `MODAL_VLLM_REVISION` | empty | HF revision pin |
-| `MODAL_VLLM_SCALEDOWN_SECONDS` | `600` | Idle warm window |
+| `MODAL_VLLM_SCALEDOWN_SECONDS` | `120` | Idle warm window (600 unattended/overnight) |
 | `MODAL_VLLM_MAX_CONTAINERS` | `1` | Cost guard |
 
 ### Teardown
 
 ```bash
-modal app stop sandbox-vllm              # stop serving (volumes persist)
+./deploy/teardown_vllm.sh                # runbook step: stop the app after the last eval
+modal app stop sandbox-vllm              # equivalent stop (volumes persist)
 modal volume ls sandbox-hf-cache         # weights survive
 ```
 
-Cost: L4 ≈ $0.80/hr warm, scale-to-zero after 900s idle.
+Cost: L4 ≈ $0.80/hr warm, scale-to-zero after the 120s idle window; the runbook
+tears the app down instead of leaving it to idle.
 
 ---
 
