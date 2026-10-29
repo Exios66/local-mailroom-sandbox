@@ -98,6 +98,10 @@ _FG_DEFAULT = "#fbfcfe"
 
 
 def ansi_to_svg(ansi_text: str, *, title: str) -> str:
+    """Render ANSI text as a terminal-window SVG.
+
+    Foreground color, bold and dim are kept; background colors are not painted because a <rect> cannot be a child of <text>.
+    """
     lines = ansi_text.splitlines() or [""]
     cols = max((visible_len(ln) for ln in lines), default=10)
     cols = max(cols, 10)
