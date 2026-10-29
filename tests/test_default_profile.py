@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import os
+from types import SimpleNamespace
 
 import pytest
 
@@ -126,3 +128,161 @@ def test_other_profiles_still_seed_their_static_base_url(monkeypatch):
     profile = load_profile("vllm-local")
     apply_profile_env(profile)
     assert env["VLLM_BASE_URL"] == endpoints_for(profile).base_url
+
+
+# ── provenance: nothing may still assume the old Ollama default ──────────────
+
+
+def test_trace_tags_name_the_profile_that_is_actually_the_default(monkeypatch):
+    from mailroom_sandbox.eval.tracing import default_tags
+
+    monkeypatch.delenv("SANDBOX_PROFILE", raising=False)
+    assert "modal-vllm" in default_tags() and "ollama" not in default_tags()
+    monkeypatch.setenv("SANDBOX_PROFILE", "ollama")
+    assert "ollama" in default_tags() and "modal-vllm" not in default_tags()
+
+
+def test_lock_without_a_profile_falls_back_to_the_default_profile(monkeypatch):
+    """Same fallback as `runtime.activate`, so a record never names a profile that did not run."""
+    from mailroom_sandbox.job.runner import _lock_profile
+
+    monkeypatch.delenv("SANDBOX_PROFILE", raising=False)
+    assert _lock_profile(SimpleNamespace(read_lock=lambda: None)) == "modal-vllm"
+    assert _lock_profile(SimpleNamespace(read_lock=lambda: {})) == "modal-vllm"
+    assert _lock_profile(SimpleNamespace(read_lock=lambda: {"profile": "ollama"})) == "ollama"
+    monkeypatch.setenv("SANDBOX_PROFILE", "vllm-local")
+    assert _lock_profile(SimpleNamespace(read_lock=lambda: {})) == "vllm-local"
+
+
+def test_dotenv_files_lists_existing_files_in_precedence_order(monkeypatch, tmp_path):
+    from mailroom_sandbox import paths
+
+    monkeypatch.undo()  # the autouse fixture stubs dotenv_files; this test needs the real one
+    monkeypatch.setenv("SANDBOX_ROOT", str(tmp_path))
+    assert paths.dotenv_files() == []
+    (tmp_path / "config").mkdir()
+    (tmp_path / "config" / ".env").write_text("A=1\n", encoding="utf-8")
+    assert paths.dotenv_files() == [tmp_path.resolve() / "config" / ".env"]
+    (tmp_path / ".env").write_text("A=2\n", encoding="utf-8")
+    assert paths.dotenv_files() == [tmp_path.resolve() / ".env", tmp_path.resolve() / "config" / ".env"]
+
+
+def test_load_dotenv_never_overrides_the_real_environment(monkeypatch, tmp_path):
+    from mailroom_sandbox import runtime
+
+    first, second = tmp_path / "a.env", tmp_path / "b.env"
+    first.write_text("FROM_FIRST=1\nSHARED=first\nPRESET=file\n", encoding="utf-8")
+    second.write_text("FROM_SECOND=1\nSHARED=second\n", encoding="utf-8")
+    env = {"PRESET": "real"}
+    monkeypatch.setattr(os, "environ", env)
+    monkeypatch.setattr("mailroom_sandbox.runtime.dotenv_files", lambda: [first, second])
+    runtime._load_dotenv()
+    assert env == {"PRESET": "real", "FROM_FIRST": "1", "SHARED": "first", "FROM_SECOND": "1"}
+
+
+def test_modal_gateway_url_honours_the_app_name_override(monkeypatch):
+    monkeypatch.setenv("MODAL_WORKSPACE", "ws1")
+    profile = load_profile("modal-vllm")
+    monkeypatch.delenv("MODAL_VLLM_APP_NAME", raising=False)
+    assert modal_gateway_url(profile) == "https://ws1--sandbox-vllm-serve.modal.run/v1"
+    monkeypatch.setenv("MODAL_VLLM_APP_NAME", "sandbox-vllm-b")
+    assert modal_gateway_url(profile) == "https://ws1--sandbox-vllm-b-serve.modal.run/v1"
+    monkeypatch.setenv("MODAL_VLLM_APP_NAME", "  ")
+    assert modal_gateway_url(profile) == "https://ws1--sandbox-vllm-serve.modal.run/v1"
+    monkeypatch.setenv("MODAL_WORKSPACE", "  ")
+    assert modal_gateway_url(profile) is None
+
+
+# ── CLI surface of the default flip ──────────────────────────────────────────
+
+
+def test_profiles_marks_exactly_the_active_default(monkeypatch, capsys):
+    from mailroom_sandbox import cli
+
+    monkeypatch.delenv("SANDBOX_PROFILE", raising=False)
+    assert cli.main(["profiles"]) == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert [ln for ln in lines if "(default)" in ln] == ["modal-vllm  (default)"]
+    assert "ollama" in lines
+
+    monkeypatch.setenv("SANDBOX_PROFILE", "ollama")
+    assert cli.main(["profiles"]) == 0
+    assert [ln for ln in capsys.readouterr().out.splitlines() if "(default)" in ln] == ["ollama  (default)"]
+
+
+def test_up_explains_the_langfuse_only_compose_surface(monkeypatch, capsys):
+    from mailroom_sandbox import cli
+
+    started = []
+    monkeypatch.setattr("mailroom_sandbox.compose.run_compose", lambda profiles, *a, **k: started.append(list(profiles)))
+    monkeypatch.delenv("SANDBOX_PROFILE", raising=False)
+
+    assert cli.main(["up"]) == 0
+    assert "Langfuse only" in capsys.readouterr().out and started[-1] == ["langfuse"]
+
+    assert cli.main(["up", "--compose-profile", "ollama"]) == 0  # explicit list: no Modal hint
+    assert "Langfuse only" not in capsys.readouterr().out and started[-1] == ["ollama"]
+
+    assert cli.main(["up", "--profile", "ollama"]) == 0
+    assert "Langfuse only" not in capsys.readouterr().out and "ollama" in started[-1]
+
+
+def _stub_probes(monkeypatch, ok: bool):
+    from mailroom_sandbox.health import ProbeResult
+
+    probe = lambda profile, **kw: ProbeResult(ok, profile.get("name", "?"), "stub://", "stub")  # noqa: E731
+    monkeypatch.setattr("mailroom_sandbox.health.probe_models", probe)
+    monkeypatch.setattr("mailroom_sandbox.health.probe_chat", probe)
+    monkeypatch.setattr("mailroom_sandbox.runtime.load_env_file", lambda: None)
+
+
+def test_health_without_a_modal_endpoint_hints_and_exits_one(monkeypatch, capsys):
+    from mailroom_sandbox import cli
+
+    _stub_probes(monkeypatch, ok=True)  # even a reachable localhost must not count as the Modal endpoint
+    for name in ("VLLM_BASE_URL", "MODAL_WORKSPACE", "SANDBOX_PROFILE"):
+        monkeypatch.delenv(name, raising=False)
+    assert cli.main(["health"]) == 1
+    out = capsys.readouterr()
+    assert "hint: modal-vllm has no VLLM_BASE_URL" in out.err
+    assert json.loads(out.out)["ok"] is False
+
+
+def test_health_exit_code_ignores_langfuse_and_phoenix(monkeypatch, capsys):
+    """Provider healthy => exit 0, even though the sink probes are reported separately."""
+    from mailroom_sandbox import cli
+    from mailroom_sandbox.health import ProbeResult
+
+    monkeypatch.setattr("mailroom_sandbox.runtime.load_env_file", lambda: None)
+    monkeypatch.setenv("MODAL_WORKSPACE", "ws1")
+    monkeypatch.delenv("VLLM_BASE_URL", raising=False)
+
+    def probe(profile, **kw):
+        name = profile.get("name", "?")
+        return ProbeResult(name not in {"langfuse", "phoenix"}, name, "stub://", "stub")
+
+    monkeypatch.setattr("mailroom_sandbox.health.probe_models", probe)
+    monkeypatch.setattr("mailroom_sandbox.health.probe_chat", probe)
+    assert cli.main(["health"]) == 0
+    out = capsys.readouterr()
+    report = json.loads(out.out)
+    assert report["ok"] is True and report["langfuse"]["ok"] is False and report["phoenix"]["ok"] is False
+    assert "hint:" not in out.err
+
+
+def test_phased_redeploy_script_exports_the_bearer_after_defining_it():
+    from mailroom_sandbox.job import runbooks as rb
+
+    runbook = {"id": "t", "serving": "baseline", "phases": [{"id": "p1", "configs": ["config/runs/x.yaml"]}]}
+    lines = rb._phase_shell(runbook, deploy="modal deploy deploy/modal_vllm.py", preflight_force="", job_mode="endpoint")
+    token = next(i for i, ln in enumerate(lines) if "export MODAL_VLLM_API_TOKEN=" in ln)
+    key = next(i for i, ln in enumerate(lines) if ln.startswith('export VLLM_API_KEY="$MODAL_VLLM_API_TOKEN"'))
+    cutover = next(i for i, ln in enumerate(lines) if ln.startswith("sandbox cutover"))
+    assert token < key < cutover
+
+
+def test_api_key_export_is_a_comment_when_the_script_does_not_deploy():
+    from mailroom_sandbox.job.runbooks import _api_key_export
+
+    assert _api_key_export(deploys=True).startswith('export VLLM_API_KEY="$MODAL_VLLM_API_TOKEN"')
+    assert _api_key_export(deploys=False).startswith("# export VLLM_API_KEY=")

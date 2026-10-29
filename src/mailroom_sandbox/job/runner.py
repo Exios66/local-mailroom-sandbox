@@ -26,6 +26,7 @@ from mailroom_sandbox.job.usage_capture import (
     merge_item_metrics,
     usage_from_pipeline,
 )
+from mailroom_sandbox.providers import default_profile
 
 _log = logging.getLogger("mailroom_sandbox.job.runner")
 
@@ -444,7 +445,11 @@ def _lock_model(store: RunStore) -> str | None:
 
 
 def _lock_profile(store: RunStore) -> str:
-    return str((store.read_lock() or {}).get("profile") or "ollama")
+    """Profile recorded in the run lock.
+
+    A lock without one means the default profile, the same fallback ``runtime.activate`` applies.
+    """
+    return str((store.read_lock() or {}).get("profile") or default_profile())
 
 
 def _lock_mock(store: RunStore, default: bool) -> bool:
@@ -530,9 +535,13 @@ def _build_record(
     store: RunStore, task: str, model: str | None, scores: dict[str, Any], *, mock: bool,
     wall_seconds: float | None = None,
 ) -> dict[str, Any]:
+    """Build the experiment-log record for a finished run from its lock, items and scores.
+
+    The profile is the lock's, falling back to the default profile exactly as activation does, so a record never names a profile that did not run. Cost bills the measured wall time plus the cold boot, unless ``MODAL_BILLED_GPU_SECONDS`` overrides it.
+    """
     lock = store.read_lock() or {}
     prompt_block = lock.get("prompt") or {}
-    profile = str(lock.get("profile") or "ollama")
+    profile = str(lock.get("profile") or default_profile())
     engine = lock.get("engine") or {}
     model = model or (engine.get("model") if isinstance(engine, dict) else None) or "unknown"
     prompt_variant = _lock_prompt_variant(store, task=task)

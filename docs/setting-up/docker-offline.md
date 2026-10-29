@@ -64,7 +64,7 @@ sandbox up --compose-profile jupyter
 sandbox down --compose-profile jupyter
 ```
 
-Inside the Jupyter container, provider URLs point at compose DNS names (`http://ollama:11434/v1`, `http://langfuse-web:3000`). On the host, keep using `localhost` URLs from `config/.env.example`.
+The Jupyter service defaults to the `ollama` profile (`SANDBOX_PROFILE` in `deploy/docker-compose.yml`); export `SANDBOX_PROFILE` in the shell that runs `sandbox up` to change it. Inside the Jupyter container, provider URLs point at compose DNS names (`http://ollama:11434/v1`, `http://langfuse-web:3000`). On the host, keep using `localhost` URLs from `config/.env.example`.
 
 ## Offline data prep without Docker
 

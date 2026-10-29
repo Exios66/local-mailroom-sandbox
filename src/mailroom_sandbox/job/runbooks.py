@@ -756,6 +756,10 @@ def render_markdown(name: str, *, output_path: Path | None = None) -> str:
 
 
 def render_index(*, output_path: Path | None = None) -> str:
+    """Render the runbook index page (``docs/runbooks/README.md``) from the catalog.
+
+    It holds the command cheat sheet, a linked list of runbooks per family, and the anti-patterns.
+    """
     cat = load_catalog()
     docs = _generated_doc_paths()
     output_path = output_path or docs["index"]

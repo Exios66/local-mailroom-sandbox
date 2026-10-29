@@ -7,9 +7,10 @@ description: >-
 provider: vllm
 default_model: Qwen/Qwen3-8B
 judge_model: Qwen/Qwen3-8B
-# Parity fallback only. The real endpoint is exported after `modal deploy`
-# (VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1), and
-# health/activate prefer that env override.
+# Parity value for `endpoints_for()` and `sandbox profiles` only: health and
+# activation never use it for this profile. The real endpoint is VLLM_BASE_URL
+# (https://<workspace>--sandbox-vllm-serve.modal.run/v1 after `modal deploy`) or
+# the URL derived from MODAL_WORKSPACE; an unset URL stays unset.
 base_url: http://localhost:8000/v1
 base_url_env: VLLM_BASE_URL
 api_key_env: VLLM_API_KEY

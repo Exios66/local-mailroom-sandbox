@@ -27,7 +27,12 @@
   or Phoenix gate it; activating `modal-vllm` with no endpoint no longer seeds
   `VLLM_BASE_URL` with the localhost fallback, so the pipeline's live-or-loud
   warning fires instead of a run quietly using whatever listens on :8000;
-  `cost_cap_usd: .nan` is rejected instead of silently disabling the cap.
+  `cost_cap_usd: .nan` is rejected instead of silently disabling the cap. Stale
+  "Ollama is the default" wording is gone from the skills (router, ollama, modal,
+  langfuse, index), `docs/setting-up/` and the `modal-vllm` profile comment, the
+  `[deploy]` pin reads `modal==1.6.2`, trace tags and run records fall back to the
+  default profile like activation does, and every function this PR touches has a
+  docstring and test coverage.
 - Record that Hub tag `v9.1` (`bc9eab28`) is published, and drop dead
   identical branches, constant conditions, and duplicated success returns
   flagged by CodeAnt (#144, #155–#159). `_cmd_run_cancel` already returns
