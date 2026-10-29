@@ -76,7 +76,7 @@ sandbox agents list
 sandbox runbook show serve          # DEFAULT: Modal vLLM deploy → point → verify → teardown
 sandbox cutover --profile modal-vllm
 sandbox up                          # langfuse only (the Modal endpoint is external)
-sandbox pull-models                 # offline fallback: ollama pull qwen3:8b
+sandbox pull-models --profile ollama  # offline fallback: ollama pull qwen3:8b (on modal-vllm it only prints the prewarm command)
 sandbox health                      # probes the deployed modal-vllm endpoint
 sandbox fetch-deps                  # optional: refresh vendor snapshots (workspace packages first; SHA-frozen standalone commit/release refs otherwise)
 sandbox fetch-deps --visualizer     # also clone The-Mailroom

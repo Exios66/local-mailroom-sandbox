@@ -153,7 +153,7 @@ sandbox cutover --profile ollama --model llama3.2:3b   # all agents
 | `sandbox runbook show serve` | Default Modal vLLM path: deploy → point → verify → teardown |
 | `sandbox up` | Start compose services (default `modal-vllm`: Langfuse only) |
 | `sandbox down` | Stop compose services |
-| `sandbox pull-models` | Pull required Ollama models |
+| `sandbox pull-models --profile ollama` | Pull required Ollama models (on the default `modal-vllm` it only prints the Modal prewarm command) |
 | `sandbox health` | Probe the active provider |
 | `sandbox fetch-deps` | Optional: refresh the TRACKED vendor snapshots (workspace mirror in the monorepo; reviewed refs in `_VENDOR_PINS` otherwise) |
 | `sandbox fetch-deps --visualizer` | Also clone The-Mailroom |
@@ -602,8 +602,8 @@ python scripts/reporting/render_experiment_log.py
 # Setup
 pip install -e ".[dev]" && cp config/.env.example .env
 
-# Default offline workflow
-sandbox up && sandbox pull-models
+# Offline (Ollama) workflow
+sandbox up --compose-profile ollama && sandbox pull-models --profile ollama
 sandbox eval sorter --mock
 sandbox eval pipeline --mock
 

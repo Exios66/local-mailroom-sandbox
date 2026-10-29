@@ -81,10 +81,13 @@ sandbox health                          # provider /v1/models + chat + langfuse 
 
 - The endpoint is Modal (`modal-vllm`); export `VLLM_BASE_URL` (or
   `MODAL_WORKSPACE`) after `modal deploy`, as the runbook does.
-- Offline / CPU-only: `sandbox up --compose-profile ollama && sandbox pull-models`
-  then add `--profile ollama` (or set `SANDBOX_PROFILE=ollama`).
-- `health` exits 1 with a JSON report when anything is down (no traceback) and
-  prints a hint when the Modal endpoint URL is unset.
+- Offline / CPU-only: `sandbox up --compose-profile ollama && sandbox pull-models --profile ollama`
+  then add `--profile ollama` to later commands (or set `SANDBOX_PROFILE=ollama`,
+  in the shell or `.env`). Without it `pull-models` only prints the Modal prewarm
+  command.
+- `health` exits 1 with a JSON report when the provider endpoint is down (no
+  traceback) and prints a hint when the Modal endpoint URL is unset. Langfuse and
+  Phoenix are reported in the JSON but do not change the exit code.
 - No Docker daemon / no Ollama → clean one-line errors, exit 1.
 
 ## 4. Vendored family (self-containment)
@@ -249,7 +252,7 @@ after the subcommand always wins.
 
 ```bash
 .venv/bin/python -m pytest -q        # 230 passed / 1 skipped (network-free; live tests need SANDBOX_LOCAL_LLM=1)
-sandbox health                       # after the serve runbook: everything green, exit 0
+sandbox health                       # after the serve runbook: provider reachable, exit 0 (Langfuse/Phoenix are reported, not gated)
 ```
 
 ## 13. Troubleshooting (DMR-058 CLI sweep findings)

@@ -60,9 +60,27 @@ def load_endpoints(name: str, *, base_url_override: str | None = None) -> Provid
     return endpoints_for(load_profile(name), base_url_override=base_url_override)
 
 
+def _dotenv_profile() -> str:
+    """``SANDBOX_PROFILE`` from the sandbox ``.env`` files, without touching ``os.environ``.
+
+    The CLI resolves its default at parser-build time, before any ``.env`` is
+    loaded; reading the file here keeps an existing ``SANDBOX_PROFILE=ollama``
+    opt-out working. Same precedence as ``load_dotenv(override=False)``.
+    """
+    from dotenv import dotenv_values
+
+    from mailroom_sandbox.paths import dotenv_files
+
+    for path in dotenv_files():
+        value = (dotenv_values(path).get("SANDBOX_PROFILE") or "").strip()
+        if value:
+            return value
+    return ""
+
+
 def default_profile() -> str:
-    """Active default profile: ``SANDBOX_PROFILE`` when set, else ``DEFAULT_PROFILE``."""
-    return (os.environ.get("SANDBOX_PROFILE") or "").strip() or DEFAULT_PROFILE
+    """Active default: real env ``SANDBOX_PROFILE``, then ``.env``, then ``DEFAULT_PROFILE``."""
+    return (os.environ.get("SANDBOX_PROFILE") or "").strip() or _dotenv_profile() or DEFAULT_PROFILE
 
 
 def modal_gateway_url(profile: dict) -> str | None:
