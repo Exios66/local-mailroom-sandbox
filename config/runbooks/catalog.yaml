@@ -228,10 +228,10 @@ runbooks:
     notes:
       - "VLLM_BASE_URL is the FULL base URL: the URL `modal deploy` prints plus /v1. Without /v1 every chat call 404s."
       - "Export MODAL_WORKSPACE=<workspace slug> instead and the profile derives the same URL; health follows it too."
-      - "VLLM_API_KEY is the same value as MODAL_VLLM_API_TOKEN. A right URL with no bearer still returns 401."
+      - "VLLM_API_KEY is the same value as MODAL_VLLM_API_TOKEN; the script exports it for you. A right URL with no bearer still returns 401, so export it in any other shell you run evals from."
       - "One deploy serves every specialist class — do not redeploy between classes. For the 5×30 suite on this endpoint use `sandbox runbook show full`."
       - "Attended scaledown is 120s. Unattended/overnight: export MODAL_VLLM_SCALEDOWN_SECONDS=600 before deploy."
-      - "Teardown is a runbook step, not an afterthought: ./deploy/teardown_vllm.sh stops the app so scale-to-zero is not the only cost guard."
+      - "Teardown is a runbook step, not an afterthought: ./deploy/teardown_vllm.sh stops the app so scale-to-zero is not the only cost guard. The script leaves it commented: run it by hand after your last eval, so pasting the lifecycle never stops the endpoint before an eval has run."
       - "Offline or CPU-only work is the explicit opt-out: --profile ollama (or SANDBOX_PROFILE=ollama)."
     appendix: |
       ## The default contract

@@ -16,6 +16,15 @@
 
 ### Fixed
 
+- Review follow-ups on the Modal-default change: a `SANDBOX_PROFILE` set only in
+  `.env` (e.g. `ollama`) is honoured when the CLI resolves its default; the
+  `serve` script exports `VLLM_API_KEY` from the token it just deployed (and
+  every runbook that defines and deploys with that token now does the same, so
+  health no longer gets a 401), keeps its teardown commented because the script
+  runs no eval, and marks the endpoint URL as required before health; docs and
+  skills that told people to run a bare `sandbox pull-models` for Ollama now pass
+  `--profile ollama`; `health`'s exit-code description no longer claims Langfuse
+  or Phoenix gate it.
 - Record that Hub tag `v9.1` (`bc9eab28`) is published, and drop dead
   identical branches, constant conditions, and duplicated success returns
   flagged by CodeAnt (#144, #155–#159). `_cmd_run_cancel` already returns

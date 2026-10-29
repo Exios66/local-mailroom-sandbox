@@ -49,6 +49,36 @@ def test_serving_runbook_is_the_default_path():
     assert "VLLM_BASE_URL" in md and "MODAL_WORKSPACE" in md
 
 
+def test_serving_runbook_is_safe_to_paste_end_to_end():
+    """No eval runs in this script, so teardown stays a comment; health gets its bearer."""
+    lines = render_shell("serve").splitlines()
+    # A live teardown would stop the endpoint right after health, before any eval.
+    assert not any(ln.startswith("./deploy/teardown_vllm.sh") for ln in lines)
+    assert any(ln.startswith("# ./deploy/teardown_vllm.sh") for ln in lines)
+    # The deployed app only accepts the token it was started with; probes read VLLM_API_KEY.
+    token = next(i for i, ln in enumerate(lines) if ln.startswith("export MODAL_VLLM_API_TOKEN="))
+    key = next(i for i, ln in enumerate(lines) if ln.startswith('export VLLM_API_KEY="$MODAL_VLLM_API_TOKEN"'))
+    health = next(i for i, ln in enumerate(lines) if ln.startswith("sandbox health"))
+    assert token < key < health
+
+
+def test_live_bearer_export_always_follows_the_token_definition():
+    """`set -u` scripts: VLLM_API_KEY may only be live where the token is already defined."""
+    for rid in list_runbook_ids():
+        lines = render_shell(rid).splitlines()
+        live = [i for i, ln in enumerate(lines) if ln.startswith("export VLLM_API_KEY=")]
+        if not live:
+            continue
+        token = [i for i, ln in enumerate(lines) if ln.startswith("export MODAL_VLLM_API_TOKEN=")]
+        assert token and token[0] < live[0], rid
+
+
+def test_eval_runbooks_keep_their_live_teardown():
+    """Only the eval-less serving script comments its teardown out."""
+    lines = render_shell("l4-qwen3-8b").splitlines()
+    assert any(ln.startswith("./deploy/teardown_vllm.sh") for ln in lines)
+
+
 def test_aliases_resolve():
     assert resolve_runbook_id("l4") == "l4-qwen3-8b"
     assert resolve_runbook_id("singular") == "l4-qwen3-8b"

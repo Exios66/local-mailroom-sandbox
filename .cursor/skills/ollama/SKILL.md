@@ -22,9 +22,9 @@ description: Default local Ollama provider for local-mailroom-sandbox (compose s
 ## Commands
 
 ```bash
-sandbox up                              # starts langfuse + ollama
-sandbox pull-models                     # ollama pull qwen3:8b (container or host)
-sandbox pull-models llama3.2:3b         # CPU smoke
+sandbox up --compose-profile langfuse --compose-profile ollama   # the default modal-vllm profile starts langfuse only
+sandbox pull-models --profile ollama                     # ollama pull qwen3:8b (container or host)
+sandbox pull-models llama3.2:3b --profile ollama         # CPU smoke
 sandbox cutover --profile ollama --model llama3.2:3b
 sandbox cutover --agent-model judge=qwen3:14b
 sandbox health

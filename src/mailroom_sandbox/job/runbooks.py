@@ -289,6 +289,20 @@ def env_script(runbook: Mapping[str, Any], *, include_token: bool = True) -> str
     return "\n".join(lines)
 
 
+def _api_key_export(*, deploys: bool) -> str:
+    """The ``VLLM_API_KEY`` line before cutover/health.
+
+    The deployed app only accepts the ``MODAL_VLLM_API_TOKEN`` it was started
+    with, and probes read ``VLLM_API_KEY``. When this script both defines the
+    token (env step) and runs the deploy that bakes it in, the export is exact
+    and must be live: left as a comment, health sends no bearer and gets 401.
+    Otherwise the operator supplies the key of the endpoint they point at.
+    """
+    if deploys:
+        return 'export VLLM_API_KEY="$MODAL_VLLM_API_TOKEN"   # bearer this deploy was started with'
+    return "# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN"
+
+
 def _ops() -> dict[str, Any]:
     ops = load_catalog().get("ops") or {}
     return dict(ops) if isinstance(ops, Mapping) else {}
@@ -463,11 +477,12 @@ def render_shell(name: str) -> str:
         elif kind == "cutover":
             lines += [
                 "",
+                "# REQUIRED before health (shell or .env): `sandbox health` exits 1 without an endpoint",
                 "# VLLM_BASE_URL is the FULL base: deploy output + '/v1'",
                 "#   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1",
                 "#   or: export MODAL_WORKSPACE=<workspace slug>  (the profile derives that URL)",
                 "#   (without /v1 every chat call 404s — the profile appends /chat/completions)",
-                "# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN",
+                _api_key_export(deploys={"env", "deploy"} <= step_set),
                 "sandbox cutover --profile modal-vllm",
             ]
         elif kind == "health":
@@ -551,13 +566,13 @@ def render_shell(name: str) -> str:
                     lines.append(f"  {rel}{cont}")
                 lines += ["do", *_run_lines('"$cfg"', "  "), "done"]
         elif kind == "teardown":
-            if "suite" in step_set:
-                after = "the last config in this track"
-            elif _config_paths(runbook):
-                after = "this run"
+            if "suite" in step_set or _config_paths(runbook):
+                after = "the last config in this track" if "suite" in step_set else "this run"
+                lines += ["", f"{teardown}   # ONLY after {after}"]
             else:
-                after = "the last eval on this endpoint"
-            lines += ["", f"{teardown}   # ONLY after {after}"]
+                # No eval runs in this script, so a live teardown would stop the endpoint
+                # right after health: leave it for the operator's last eval.
+                lines += ["", f"# {teardown}   # run by hand ONLY after the last eval on this endpoint"]
         elif kind == "after":
             after = runbook.get("after") or []
             if after:
@@ -964,7 +979,8 @@ def _phase_shell(runbook: Mapping[str, Any], *, deploy: str, preflight_force: st
             "",
             deploy,
             "",
-            "# set VLLM_BASE_URL from deploy output + VLLM_API_KEY=$MODAL_VLLM_API_TOKEN",
+            "# set VLLM_BASE_URL from deploy output (shell or .env); the bearer is this deploy's token",
+            _api_key_export(deploys=True),
             "sandbox cutover --profile modal-vllm",
             "sandbox health --profile modal-vllm",
             "",

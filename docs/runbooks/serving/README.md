@@ -31,10 +31,10 @@ Edit [`config/runbooks/catalog.yaml`](../../../config/runbooks/catalog.yaml), th
 
 - VLLM_BASE_URL is the FULL base URL: the URL `modal deploy` prints plus /v1. Without /v1 every chat call 404s.
 - Export MODAL_WORKSPACE=<workspace slug> instead and the profile derives the same URL; health follows it too.
-- VLLM_API_KEY is the same value as MODAL_VLLM_API_TOKEN. A right URL with no bearer still returns 401.
+- VLLM_API_KEY is the same value as MODAL_VLLM_API_TOKEN; the script exports it for you. A right URL with no bearer still returns 401, so export it in any other shell you run evals from.
 - One deploy serves every specialist class — do not redeploy between classes. For the 5×30 suite on this endpoint use `sandbox runbook show full`.
 - Attended scaledown is 120s. Unattended/overnight: export MODAL_VLLM_SCALEDOWN_SECONDS=600 before deploy.
-- Teardown is a runbook step, not an afterthought: ./deploy/teardown_vllm.sh stops the app so scale-to-zero is not the only cost guard.
+- Teardown is a runbook step, not an afterthought: ./deploy/teardown_vllm.sh stops the app so scale-to-zero is not the only cost guard. The script leaves it commented: run it by hand after your last eval, so pasting the lifecycle never stops the endpoint before an eval has run.
 - Offline or CPU-only work is the explicit opt-out: --profile ollama (or SANDBOX_PROFILE=ollama).
 
 ## The default contract
@@ -99,15 +99,16 @@ modal run deploy/modal_vllm.py::download_model
 
 modal deploy deploy/modal_vllm.py
 
+# REQUIRED before health (shell or .env): `sandbox health` exits 1 without an endpoint
 # VLLM_BASE_URL is the FULL base: deploy output + '/v1'
 #   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
 #   or: export MODAL_WORKSPACE=<workspace slug>  (the profile derives that URL)
 #   (without /v1 every chat call 404s — the profile appends /chat/completions)
-# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
+export VLLM_API_KEY="$MODAL_VLLM_API_TOKEN"   # bearer this deploy was started with
 sandbox cutover --profile modal-vllm
 sandbox health --profile modal-vllm
 
-./deploy/teardown_vllm.sh   # ONLY after the last eval on this endpoint
+# ./deploy/teardown_vllm.sh   # run by hand ONLY after the last eval on this endpoint
 ```
 
 ---

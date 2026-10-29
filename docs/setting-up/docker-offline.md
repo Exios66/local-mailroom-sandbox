@@ -17,7 +17,7 @@ cp -n config/.env.example .env
 sandbox up --compose-profile langfuse --compose-profile ollama --compose-profile jupyter
 # Lab: http://127.0.0.1:8888/lab
 # Langfuse: http://127.0.0.1:3000  (pk-lf-sandbox / sk-lf-sandbox)
-sandbox pull-models
+sandbox pull-models --profile ollama
 ```
 
 Or build the image alone:

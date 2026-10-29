@@ -2,10 +2,20 @@
 
 from __future__ import annotations
 
+import os
+
+import pytest
+
 from mailroom_sandbox.cli import build_parser
 from mailroom_sandbox.health import _effective_base_url, health_check, missing_modal_endpoint
 from mailroom_sandbox.overlay import load_profile
 from mailroom_sandbox.providers import DEFAULT_PROFILE, default_profile, modal_gateway_url
+
+
+@pytest.fixture(autouse=True)
+def _no_dotenv(monkeypatch):
+    """A developer's real `.env` must not change what the defaults resolve to."""
+    monkeypatch.setattr("mailroom_sandbox.paths.dotenv_files", lambda: [])
 
 
 def test_default_profile_constant_is_modal_vllm():
@@ -47,3 +57,31 @@ def test_modal_profile_has_no_silent_localhost_health_probe(monkeypatch):
     )
     assert missing_modal_endpoint(load_profile("modal-vllm")) is False
     assert modal_gateway_url(load_profile("ollama")) is None
+
+
+def test_dotenv_profile_opt_out_survives_the_default_flip(monkeypatch, tmp_path):
+    """A pre-existing `.env` saying SANDBOX_PROFILE=ollama must keep winning.
+
+    The CLI resolves its default before any `.env` is loaded, so `default_profile()`
+    reads the file itself (real env still wins; `os.environ` is left untouched).
+    """
+    env_file = tmp_path / ".env"
+    env_file.write_text("SANDBOX_PROFILE=ollama   # offline opt-out\n", encoding="utf-8")
+    monkeypatch.setattr("mailroom_sandbox.paths.dotenv_files", lambda: [env_file])
+    monkeypatch.delenv("SANDBOX_PROFILE", raising=False)
+
+    assert default_profile() == "ollama"
+    assert build_parser().parse_args(["health"]).profile == "ollama"
+    assert "SANDBOX_PROFILE" not in os.environ
+
+    monkeypatch.setenv("SANDBOX_PROFILE", "vllm-local")
+    assert default_profile() == "vllm-local"
+    assert build_parser().parse_args(["health", "--profile", "ollama"]).profile == "ollama"
+
+
+def test_dotenv_without_a_profile_falls_back_to_modal(monkeypatch, tmp_path):
+    env_file = tmp_path / ".env"
+    env_file.write_text("OBSERVABILITY_PROVIDER=langfuse\nSANDBOX_PROFILE=\n", encoding="utf-8")
+    monkeypatch.setattr("mailroom_sandbox.paths.dotenv_files", lambda: [env_file])
+    monkeypatch.delenv("SANDBOX_PROFILE", raising=False)
+    assert default_profile() == "modal-vllm"

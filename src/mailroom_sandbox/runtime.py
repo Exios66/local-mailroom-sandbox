@@ -22,7 +22,7 @@ from mailroom_sandbox.overlay import (
     patch_mailroom_config,
     write_runtime_taxonomy,
 )
-from mailroom_sandbox.paths import repo_root, runtime_dir, vendor_dir
+from mailroom_sandbox.paths import dotenv_files, repo_root, runtime_dir, vendor_dir
 from mailroom_sandbox.providers import default_profile, endpoints_for, modal_gateway_url
 
 _log = logging.getLogger("mailroom_sandbox.runtime")
@@ -79,10 +79,8 @@ def agent_knobs_for(agent: str) -> dict[str, Any]:
 
 
 def _load_dotenv() -> None:
-    root = repo_root()
-    for candidate in (root / ".env", root / "config" / ".env"):
-        if candidate.is_file():
-            load_dotenv(candidate, override=False)
+    for candidate in dotenv_files():
+        load_dotenv(candidate, override=False)
 
 
 def load_env_file() -> None:
