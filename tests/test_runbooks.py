@@ -28,8 +28,25 @@ def test_catalog_has_required_runbooks():
     ids = list_runbook_ids()
     for rid in REQUIRED_IDS:
         assert rid in ids, rid
+    assert list_runbook_ids()[0] == "modal-vllm-serving"
+    assert list_runbook_ids(family="serving") == ["modal-vllm-serving"]
     assert list_runbook_ids(family="baseline")[0] == "l4-qwen3-8b"
     assert "improved-awq-c8" in list_runbook_ids(family="improved")
+
+
+def test_serving_runbook_is_the_default_path():
+    """`serve` is the documented default: deploy → point → verify → teardown."""
+    assert resolve_runbook_id("serve") == "modal-vllm-serving"
+    script = render_shell("serve")
+    assert "export SANDBOX_PROFILE=modal-vllm" in script
+    assert "modal run deploy/modal_vllm.py::download_model" in script
+    assert "modal deploy deploy/modal_vllm.py" in script
+    assert "sandbox cutover --profile modal-vllm" in script
+    assert "sandbox health --profile modal-vllm" in script
+    assert "./deploy/teardown_vllm.sh" in script
+    assert "ONLY after the last eval on this endpoint" in script
+    md = render_markdown("serve")
+    assert "VLLM_BASE_URL" in md and "MODAL_WORKSPACE" in md
 
 
 def test_aliases_resolve():

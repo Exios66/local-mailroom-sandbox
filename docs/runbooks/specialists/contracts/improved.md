@@ -81,6 +81,7 @@ modal deploy deploy/modal_vllm.py --strategy recreate
 
 # VLLM_BASE_URL is the FULL base: deploy output + '/v1'
 #   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+#   or: export MODAL_WORKSPACE=<workspace slug>  (the profile derives that URL)
 #   (without /v1 every chat call 404s — the profile appends /chat/completions)
 # export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
 sandbox cutover --profile modal-vllm
@@ -271,6 +272,7 @@ modal deploy deploy/modal_vllm.py --strategy recreate
 
 # VLLM_BASE_URL is the FULL base: deploy output + '/v1'
 #   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+#   or: export MODAL_WORKSPACE=<workspace slug>  (the profile derives that URL)
 #   (without /v1 every chat call 404s — the profile appends /chat/completions)
 # export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
 sandbox cutover --profile modal-vllm
@@ -362,6 +364,7 @@ modal deploy deploy/modal_vllm.py --strategy recreate
 
 # VLLM_BASE_URL is the FULL base: deploy output + '/v1'
 #   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+#   or: export MODAL_WORKSPACE=<workspace slug>  (the profile derives that URL)
 #   (without /v1 every chat call 404s — the profile appends /chat/completions)
 # export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
 sandbox cutover --profile modal-vllm
@@ -445,6 +448,7 @@ modal deploy deploy/modal_vllm.py --strategy recreate
 
 # VLLM_BASE_URL is the FULL base: deploy output + '/v1'
 #   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+#   or: export MODAL_WORKSPACE=<workspace slug>  (the profile derives that URL)
 #   (without /v1 every chat call 404s — the profile appends /chat/completions)
 # export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
 sandbox cutover --profile modal-vllm
@@ -528,6 +532,7 @@ modal deploy deploy/modal_vllm.py --strategy recreate
 
 # VLLM_BASE_URL is the FULL base: deploy output + '/v1'
 #   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+#   or: export MODAL_WORKSPACE=<workspace slug>  (the profile derives that URL)
 #   (without /v1 every chat call 404s — the profile appends /chat/completions)
 # export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
 sandbox cutover --profile modal-vllm
@@ -618,6 +623,7 @@ modal deploy deploy/modal_vllm.py --strategy recreate
 
 # VLLM_BASE_URL is the FULL base: deploy output + '/v1'
 #   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+#   or: export MODAL_WORKSPACE=<workspace slug>  (the profile derives that URL)
 #   (without /v1 every chat call 404s — the profile appends /chat/completions)
 # export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
 sandbox cutover --profile modal-vllm
@@ -730,6 +736,7 @@ modal deploy deploy/modal_vllm.py --strategy recreate
 
 # VLLM_BASE_URL is the FULL base: deploy output + '/v1'
 #   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+#   or: export MODAL_WORKSPACE=<workspace slug>  (the profile derives that URL)
 #   (without /v1 every chat call 404s — the profile appends /chat/completions)
 # export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
 sandbox cutover --profile modal-vllm
@@ -831,6 +838,7 @@ modal deploy deploy/modal_vllm.py --strategy recreate
 
 # VLLM_BASE_URL is the FULL base: deploy output + '/v1'
 #   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1
+#   or: export MODAL_WORKSPACE=<workspace slug>  (the profile derives that URL)
 #   (without /v1 every chat call 404s — the profile appends /chat/completions)
 # export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
 sandbox cutover --profile modal-vllm

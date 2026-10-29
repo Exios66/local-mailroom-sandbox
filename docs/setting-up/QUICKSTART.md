@@ -71,18 +71,20 @@ Global flags (before the subcommand is NOT where they live — see §2):
 - A `--profile` **before** the subcommand is clobbered by the subparser
   default — always pass it after, or set `SANDBOX_PROFILE`.
 
-## 3. Stack bring-up (Docker/Ollama)
+## 3. Serving bring-up (Modal vLLM is the default)
 
 ```bash
-sandbox up                              # compose: langfuse + provider (add --compose-profile jupyter)
-sandbox up -d                           # detach
-sandbox down                            # stop compose stack
-sandbox pull-models                     # ollama pull qwen3:8b (+ profile pull_models)
-sandbox pull-models qwen3:14b qwen3:8b  # explicit list
+sandbox runbook show serve              # DEFAULT: prewarm → deploy → point → verify → teardown
+sandbox up                              # compose: Langfuse (add --compose-profile jupyter)
 sandbox health                          # provider /v1/models + chat + langfuse + phoenix
 ```
 
-- `health` exits 1 with a JSON report when anything is down (no traceback).
+- The endpoint is Modal (`modal-vllm`); export `VLLM_BASE_URL` (or
+  `MODAL_WORKSPACE`) after `modal deploy`, as the runbook does.
+- Offline / CPU-only: `sandbox up --compose-profile ollama && sandbox pull-models`
+  then add `--profile ollama` (or set `SANDBOX_PROFILE=ollama`).
+- `health` exits 1 with a JSON report when anything is down (no traceback) and
+  prints a hint when the Modal endpoint URL is unset.
 - No Docker daemon / no Ollama → clean one-line errors, exit 1.
 
 ## 4. Vendored family (self-containment)
@@ -220,26 +222,34 @@ pip install -e ".[dev]" && sandbox datasets prepare \
   && sandbox run preflight --config config/runs/examples/example.yaml --mock
 ```
 
-**Local Ollama (default profile):**
-```bash
-sandbox up && sandbox pull-models && sandbox health \
-  && sandbox pilot --mock && sandbox pilot --local
-```
-
-**Modal remote GPU:**
+**Modal remote GPU (default profile):**
 ```bash
 pip install -e ".[deploy]" && modal token new
+sandbox runbook show serve        # the full lifecycle script (prewarm → deploy → point → verify → teardown)
+# or by hand:
 export MODAL_VLLM_MODEL=Qwen/Qwen3-8B MODAL_VLLM_GPU=L4 MODAL_VLLM_API_TOKEN=$(openssl rand -hex 24)
 modal run deploy/modal_vllm.py::download_model && modal deploy deploy/modal_vllm.py
 export VLLM_BASE_URL=https://<ws>--sandbox-vllm-serve.modal.run/v1 VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
-sandbox health --profile modal-vllm && sandbox run --profile modal-vllm start --config … --job-mode modal
+sandbox health && sandbox run start --config … --job-mode modal
 ```
+
+**Local Ollama (offline opt-out):**
+```bash
+SANDBOX_PROFILE=ollama sandbox up --compose-profile ollama
+sandbox pull-models --profile ollama && sandbox health --profile ollama \
+  && sandbox pilot --local --profile ollama
+```
+
+**Provider notes:** the default is `modal-vllm`; `ollama`, `vllm-local`,
+`vllm-remote`, `llamacpp`, `lmstudio` and `openrouter` are explicit
+alternatives. `sandbox profiles` marks the active default, and `--profile`
+after the subcommand always wins.
 
 ## 12. Verification
 
 ```bash
 .venv/bin/python -m pytest -q        # 230 passed / 1 skipped (network-free; live tests need SANDBOX_LOCAL_LLM=1)
-sandbox health                       # everything green: exit 0
+sandbox health                       # after the serve runbook: everything green, exit 0
 ```
 
 ## 13. Troubleshooting (DMR-058 CLI sweep findings)

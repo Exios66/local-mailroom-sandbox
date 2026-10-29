@@ -48,6 +48,7 @@ ENV_FIELDS: tuple[tuple[str, str], ...] = (
 )
 
 REQUIRED_IDS: tuple[str, ...] = (
+    "modal-vllm-serving",
     "l4-qwen3-8b",
     "l4-qwen3-8b-track-a",
     "l4-qwen3-8b-track-b",
@@ -74,6 +75,7 @@ REQUIRED_IDS: tuple[str, ...] = (
 )
 
 FAMILIES: tuple[tuple[str, str], ...] = (
+    ("serving", "Modal + vLLM serving (default path)"),
     ("baseline", "Singular 1×L4 / 1-container Qwen3-8B"),
     ("improved", "Improved run configurations"),
     ("grid", "Qwen3-8B-AWQ specialist grid (SAND-037)"),
@@ -463,6 +465,7 @@ def render_shell(name: str) -> str:
                 "",
                 "# VLLM_BASE_URL is the FULL base: deploy output + '/v1'",
                 "#   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1",
+                "#   or: export MODAL_WORKSPACE=<workspace slug>  (the profile derives that URL)",
                 "#   (without /v1 every chat call 404s — the profile appends /chat/completions)",
                 "# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN",
                 "sandbox cutover --profile modal-vllm",
@@ -548,11 +551,12 @@ def render_shell(name: str) -> str:
                     lines.append(f"  {rel}{cont}")
                 lines += ["do", *_run_lines('"$cfg"', "  "), "done"]
         elif kind == "teardown":
-            after = (
-                "the last config in this track"
-                if "suite" in step_set
-                else "this run"
-            )
+            if "suite" in step_set:
+                after = "the last config in this track"
+            elif _config_paths(runbook):
+                after = "this run"
+            else:
+                after = "the last eval on this endpoint"
             lines += ["", f"{teardown}   # ONLY after {after}"]
         elif kind == "after":
             after = runbook.get("after") or []
@@ -749,6 +753,7 @@ def render_index(*, output_path: Path | None = None) -> str:
         "",
         "```bash",
         "sandbox runbook list",
+        "sandbox runbook show serve                 # DEFAULT: Modal vLLM deploy → point → verify → teardown",
         "sandbox runbook show l4-qwen3-8b          # singular 1×L4 / 1-container Qwen3-8B",
         "sandbox runbook show l4-qwen3-8b-track-a  # Operator A",
         "sandbox runbook show improved-awq-c8      # improved config",

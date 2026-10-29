@@ -10,7 +10,7 @@ import sys
 import time
 from pathlib import Path
 
-from mailroom_sandbox.overlay import list_profiles, load_profile
+from mailroom_sandbox.overlay import load_profile
 from mailroom_sandbox.paths import repo_root, vendor_dir
 from mailroom_sandbox.runtime import activate, resolve_dojo_src, resolve_mailroom_src
 
@@ -85,8 +85,10 @@ def _one_line(exc: BaseException) -> str:
 
 def build_parser() -> argparse.ArgumentParser:
     """Build the sandbox CLI parser with subcommands and handler defaults."""
+    from mailroom_sandbox.providers import default_profile
+
     shared = argparse.ArgumentParser(add_help=False)
-    shared.add_argument("--profile", default=os.environ.get("SANDBOX_PROFILE") or "ollama")
+    shared.add_argument("--profile", default=default_profile())
     shared.add_argument("--model", default=None, help="Override every agent's model tag")
     shared.add_argument("--prompt", default=None, help="Local prompt variant stem (e.g. sorter_local_v0)")
     shared.add_argument(
@@ -993,6 +995,13 @@ def _cmd_up(args: argparse.Namespace) -> int:
     from mailroom_sandbox.compose import default_profiles_for, run_compose
 
     profiles = args.compose_profiles or default_profiles_for(args.profile)
+    if not args.compose_profiles and args.profile == "modal-vllm":
+        # Compose has no GPU service for the Modal profile: Langfuse comes up,
+        # the endpoint does not. Say so instead of leaving the operator to infer it.
+        print(
+            "modal-vllm: compose starts Langfuse only — deploy the GPU endpoint with "
+            "`sandbox runbook show serve`"
+        )
     extra = ["up", "-d"] if args.detach else ["up"]
     run_compose(profiles, *extra)
     return 0
@@ -1007,13 +1016,23 @@ def _cmd_down(args: argparse.Namespace) -> int:
 
 
 def _cmd_health(args: argparse.Namespace) -> int:
-    from mailroom_sandbox.health import health_check, probe_models
+    from mailroom_sandbox.health import health_check, missing_modal_endpoint, probe_models
     from mailroom_sandbox.overlay import load_profile as _lp
     from mailroom_sandbox.runtime import load_env_file
 
     # `.env` may carry VLLM_BASE_URL/VLLM_API_KEY for a deployed Modal endpoint
     # — without it the probe reports on localhost (DMR-048).
     load_env_file()
+    profile = _lp(args.profile)
+    if missing_modal_endpoint(profile):
+        # Loud, actionable hint instead of a silent localhost:8000 probe: the
+        # Modal profile is the default, and its base URL only exists after a
+        # deploy. health_check reports the same condition as a hard failure.
+        print(
+            "hint: modal-vllm has no VLLM_BASE_URL — after `modal deploy`, export the "
+            "printed URL plus /v1 (see `sandbox runbook show serve`)",
+            file=sys.stderr,
+        )
     result = health_check(args.profile)
     host = (
         os.environ.get("LANGFUSE_HOST")
@@ -2042,7 +2061,11 @@ def _cmd_traces_export(args: argparse.Namespace) -> int:
 
 
 def _cmd_profiles(args: argparse.Namespace) -> int:
-    _print(list_profiles())
+    from mailroom_sandbox.providers import available_profiles, default_profile
+
+    active = default_profile()
+    for name in available_profiles():
+        print(f"{name}  (default)" if name == active else name)
     return 0
 
 

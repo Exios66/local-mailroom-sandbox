@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Serve through **Modal vLLM by default**: `SANDBOX_PROFILE=modal-vllm` and
+  `DEFAULT_PROVIDER=vllm` (CLI, runtime fallbacks, `.env.example`, generated
+  runbooks and README/quickstart). `--profile ollama` is the explicit
+  offline/CPU opt-out. `sandbox profiles` marks the active default,
+  `sandbox health` prints a deploy hint when `VLLM_BASE_URL` is unset, and
+  `MODAL_WORKSPACE` derives the gateway URL when no endpoint is exported.
+  New `serving` runbook (`sandbox runbook show serve`) covers pre-warm →
+  deploy → point → verify → teardown and is the first entry in
+  `docs/runbooks/`.
+
 ### Fixed
 
 - Record that Hub tag `v9.1` (`bc9eab28`) is published, and drop dead
