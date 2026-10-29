@@ -60,8 +60,11 @@ def _resolve_prices(args: argparse.Namespace):
 
 
 def cmd_run(args: argparse.Namespace) -> int:
-    """Run one api-eval task by run id and print its summary as JSON; a dry run prints only the resolved plan.
+    """Run a registered API eval and print its summary as JSON, returning 0.
 
+    A dry run prints spec metadata without preflight or task execution.
+    Otherwise, a matching completed run may be reused. Unknown run ids raise
+    KeyError; task-loading, execution, and cost-accounting errors propagate.
     """
     task = task_by_run_id(args.run_id)
     prices = _resolve_prices(args)

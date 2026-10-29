@@ -34,7 +34,18 @@ def materialize_package(
     source_root: Path | None = None,
     dry_run: bool = False,
 ) -> MaterializeResult:
-    """Install family-roster.yaml and missing OpenCode prompts for *package*."""
+    """Install family-roster.yaml and missing OpenCode prompts for *package*.
+
+    Overwrite the destination roster and package pointer, copy the framework
+    document when present, and preserve existing prompts. Missing source
+    prompts are skipped. ``source_root`` defaults to this sandbox checkout.
+    With ``dry_run``, return planned roster and prompt paths without writing.
+
+    Return the normalized package id, destination roster path, and paths of
+    prompts copied or planned. Raise FileNotFoundError for a missing family
+    roster and KeyError for an unknown package; YAML and file I/O errors
+    propagate, possibly after some destination files have been written.
+    """
     package = normalize_package_id(package)
     src_root = source_root or repo_root()
     family_src = family_roster_path(src_root)

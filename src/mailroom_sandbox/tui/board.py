@@ -268,7 +268,10 @@ def board_payload(root: Path, stale_s: float, heroes: dict[str, str]) -> dict[st
 def make_board_server(host: str, port: int, *, root: Path | None, stale_s: float = STALE_S, interval: float = 1.0) -> ThreadingHTTPServer:
     """Build the board's HTTP server: the index page, a ``/api/jobs`` snapshot and a ``/api/jobs/stream`` SSE feed.
 
-    ``interval`` is floored at ``MIN_INTERVAL_S``. The caller serves it and sets ``board_stop`` to end open streams.
+    ``interval`` is the stream polling delay in seconds, floored at
+    ``MIN_INTERVAL_S``. Return a bound server without starting its serve loop;
+    port 0 selects an available port. The caller serves it, sets ``board_stop``
+    to end open streams, and closes the server. Socket binding errors propagate.
     """
     root = Path(root) if root is not None else beacon_root()
     interval = max(interval, MIN_INTERVAL_S)
