@@ -118,6 +118,10 @@ def missing_modal_endpoint(profile: dict) -> bool:
 
 
 def health_check(profile_name: str) -> dict:
+    """Probe a profile's models and chat endpoints and report ``ok`` only when both succeed.
+
+    A ``modal-vllm`` profile with no endpoint (neither ``VLLM_BASE_URL`` nor ``MODAL_WORKSPACE``) fails without probing, so localhost is never reported as the Modal endpoint.
+    """
     profile = load_profile(profile_name)
     if missing_modal_endpoint(profile):
         # Never report a localhost probe as the Modal endpoint's health: the

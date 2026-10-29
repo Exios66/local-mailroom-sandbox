@@ -992,6 +992,10 @@ def _print(obj: object) -> None:
 
 
 def _cmd_up(args: argparse.Namespace) -> int:
+    """Start the compose stack for the profile, or for the explicit ``--compose-profile`` list.
+
+    On ``modal-vllm`` compose only brings up Langfuse (the GPU endpoint lives on Modal), and the command says so.
+    """
     from mailroom_sandbox.compose import default_profiles_for, run_compose
 
     profiles = args.compose_profiles or default_profiles_for(args.profile)
@@ -1016,6 +1020,10 @@ def _cmd_down(args: argparse.Namespace) -> int:
 
 
 def _cmd_health(args: argparse.Namespace) -> int:
+    """Probe the provider, Langfuse and Phoenix and print the JSON report.
+
+    The exit code is 0 only when the provider endpoint is healthy; Langfuse and Phoenix are reported but never change it. A deploy hint goes to stderr when ``modal-vllm`` has no endpoint to probe.
+    """
     from mailroom_sandbox.health import health_check, missing_modal_endpoint, probe_models
     from mailroom_sandbox.overlay import load_profile as _lp
     from mailroom_sandbox.runtime import load_env_file
@@ -2065,6 +2073,10 @@ def _cmd_traces_export(args: argparse.Namespace) -> int:
 
 
 def _cmd_profiles(args: argparse.Namespace) -> int:
+    """List the available profiles and mark the active default.
+
+    The default is ``SANDBOX_PROFILE`` from the environment or ``.env``, else ``modal-vllm``.
+    """
     from mailroom_sandbox.providers import available_profiles, default_profile
 
     active = default_profile()

@@ -1,14 +1,14 @@
 ---
 name: modal
-description: Deploy and cut over to Modal-hosted vLLM for local-mailroom-sandbox (sandbox-vllm app). Use when the user needs remote GPU inference, SANDBOX_PROFILE=modal-vllm, modal deploy/token, or MODAL_VLLM_* knobs — not for default CPU/Ollama work.
+description: Deploy and cut over to Modal-hosted vLLM for local-mailroom-sandbox (sandbox-vllm app). Use when the user needs remote GPU inference, SANDBOX_PROFILE=modal-vllm, modal deploy/token, or MODAL_VLLM_* knobs — the default serving path; use the ollama skill for offline/CPU work.
 ---
 
 # Modal vLLM (remote GPU serve)
 
 **When:** No suitable local GPU, user asks for Modal, or profile `modal-vllm`.  
-**Prefer Ollama** for everyday local/CPU smoke ([ollama](../ollama/SKILL.md)). Local NVIDIA compose uses profile `vllm-local` + compose `vllm` (not Modal).
+**Default serving path:** `sandbox runbook show serve` prints the full deploy → verify → teardown script. Use [ollama](../ollama/SKILL.md) (`--profile ollama`) for offline/CPU smoke. Local NVIDIA compose uses profile `vllm-local` + compose `vllm` (not Modal).
 
-Pinned: Modal SDK **1.5.5** (`[deploy]` extra) + vLLM **v0.29.0**
+Pinned: Modal SDK **1.6.2** (`[deploy]` extra) + vLLM **v0.29.0**
 (`vllm/vllm-openai:v0.29.0`, matching the local compose pin). Full workflow:
 [`deploy/README.md`](../../../deploy/README.md).
 
@@ -94,7 +94,7 @@ spec's `job:` block so the runner fills vLLM's continuous batching
 (`docs/jobs.md`). Keep async scheduling off when the run depends on
 structured outputs.
 
-## SDK gotchas (1.5.5)
+## SDK gotchas (introduced by 1.5.5; the pin is now 1.6.2)
 
 - `Secret.from_local` was **removed** — use `from_dict` (skips missing keys,
   which keeps `HF_TOKEN`/`MODAL_VLLM_API_TOKEN` optional) or
@@ -113,6 +113,6 @@ structured outputs.
 
 ## Related
 
-- Local default: [ollama](../ollama/SKILL.md)  
+- Offline fallback: [ollama](../ollama/SKILL.md)  
 - Hub weights: [huggingface](../huggingface/SKILL.md)  
 - Docs: `deploy/README.md`, `docs/setting-up/remote-serving.md`, `docs/setting-up/providers.md`

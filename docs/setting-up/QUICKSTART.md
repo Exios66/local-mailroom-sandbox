@@ -29,7 +29,7 @@ Optional extras, only when you need them:
 | `[pipeline]` | langchain stack (vendored mailroom's live paths) | `legalbench --suite`, live mailroom agent calls |
 | `[hf]` | `huggingface_hub`, `pyarrow` (also in `[dev]`) | `sandbox datasets pull`, `hf-pilot` |
 | `[observability]` | Langfuse SDK + OTEL | live tracing (`trace.sink: langfuse`) |
-| `[deploy]` | Modal SDK 1.5.5 (pinned) | `sandbox run --job-mode modal`, `deploy/modal_vllm.py` |
+| `[deploy]` | Modal SDK 1.6.2 (pinned) | `sandbox run --job-mode modal`, `deploy/modal_vllm.py` |
 | `[notebooks]` | Jupyter + pandas/matplotlib | `sandbox up --compose-profile jupyter` |
 
 The family code is **already vendored and tracked** (`vendor/llm-mailroom`
@@ -251,7 +251,7 @@ after the subcommand always wins.
 ## 12. Verification
 
 ```bash
-.venv/bin/python -m pytest -q        # 230 passed / 1 skipped (network-free; live tests need SANDBOX_LOCAL_LLM=1)
+.venv/bin/python -m pytest -q        # network-free; live LLM tests need SANDBOX_LOCAL_LLM=1
 sandbox health                       # after the serve runbook: provider reachable, exit 0 (Langfuse/Phoenix are reported, not gated)
 ```
 

@@ -79,6 +79,9 @@ def agent_knobs_for(agent: str) -> dict[str, Any]:
 
 
 def _load_dotenv() -> None:
+    """Load the sandbox ``.env`` files into ``os.environ`` without overriding variables that are already set.
+
+    """
     for candidate in dotenv_files():
         load_dotenv(candidate, override=False)
 
@@ -131,6 +134,10 @@ def resolve_dojo_src() -> Path | None:
 
 
 def apply_profile_env(profile: dict, *, base_url_override: str | None = None) -> None:
+    """Export the profile's provider settings into ``os.environ``.
+
+    Sets ``SANDBOX_PROFILE`` and ``DEFAULT_PROVIDER``, the profile's base-URL variable when it is unset, and the Langfuse and observability defaults. For ``modal-vllm`` an unset URL stays unset unless ``MODAL_WORKSPACE`` derives the gateway URL.
+    """
     endpoints = endpoints_for(profile, base_url_override=base_url_override)
     os.environ["SANDBOX_PROFILE"] = str(profile.get("name") or "")
     os.environ["DEFAULT_PROVIDER"] = str(
