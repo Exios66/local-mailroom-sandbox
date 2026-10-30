@@ -23,7 +23,7 @@ from mailroom_sandbox.services._redact import redact_urls
 
 SERVICES = (
     "modal", "modal-auth", "hf", "hf-auth", "docker", "ollama", "ssh", "git", "vllm",
-    "provider", "langfuse", "phoenix", "tunnel", "compose",
+    "provider", "openrouter", "langfuse", "phoenix", "tunnel", "compose",
 )
 _MARK = {"ok": "ok  ", "warn": "WARN", "fail": "FAIL", "skipped": "skip"}
 
@@ -96,8 +96,29 @@ def _provider(profile: dict, *, live: bool) -> ServiceStatus:
     result = probe_models(profile)
     if not result.ok:
         return ServiceStatus("provider", "fail", f"{base}: {result.detail}", "sandbox modal status / sandbox health")
-    models = ", ".join(result.models or []) or "no models listed"
+    listed = result.models or []
+    models = ", ".join(listed[:3]) + (f" … ({len(listed)} models)" if len(listed) > 3 else "") if listed else "no models listed"
     return ServiceStatus("provider", "ok", f"{base}: {models}")
+
+
+def _openrouter(profile: dict, *, live: bool) -> ServiceStatus:
+    """API credential for the ``openrouter`` profile and for hybrid ``--agent-route NAME=openrouter:MODEL`` runs."""
+    from mailroom_sandbox.health import _api_key, probe_openrouter_key
+
+    needed = str(profile.get("provider")) == "openrouter"
+    key_env = str(profile.get("api_key_env") or "OPENROUTER_API_KEY") if needed else "OPENROUTER_API_KEY"
+    hint = f"export {key_env}=… (or add it to .env); rotate throwaway keys after testing"
+    if not _api_key(key_env):
+        if needed:
+            return ServiceStatus("openrouter", "fail", f"{key_env} unset; the openrouter profile cannot call the API", hint)
+        return ServiceStatus("openrouter", "skipped", f"{key_env} unset (only needed for the openrouter profile or API agent routes)")
+    if not live:
+        return ServiceStatus("openrouter", "ok", f"{key_env} set (value hidden; not probed, use --live)")
+    base = (profile.get("base_url") if needed else None) or None
+    result = probe_openrouter_key(os.environ.get("OPENROUTER_BASE_URL") or base, key_env=key_env)
+    if result.ok:
+        return ServiceStatus("openrouter", "ok", result.detail)
+    return ServiceStatus("openrouter", "fail" if needed else "warn", result.detail, hint)
 
 
 def _sink(name: str, url: str | None, *, configured: bool, live: bool, default_hint: str) -> ServiceStatus:
@@ -181,6 +202,7 @@ def run_doctor(profile_name: str, *, live: bool = False, services: list[str] | N
         "git": lambda: _binary("git", needed=True, hint="install git (`sandbox fetch-deps`)"),
         "vllm": lambda: _binary("vllm", needed=profile_name == "vllm-local", hint="pip install vllm on an NVIDIA host, or `sandbox modal deploy`"),
         "provider": lambda: _provider(profile, live=live),
+        "openrouter": lambda: _openrouter(profile, live=live),
         "langfuse": lambda: _langfuse(live=live),
         "phoenix": lambda: _phoenix(live=live),
         "tunnel": lambda: _tunnel(profile, live=live),

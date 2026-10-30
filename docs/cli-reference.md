@@ -1454,7 +1454,7 @@ Local-first LLM-Mailroom experiment sandbox.
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
-| `--service` | No | limit to one service (repeatable): modal, modal-auth, hf, hf-auth, docker, ollama, ssh, git, vllm, provider, langfuse, phoenix, tunnel, compose Choices: modal, modal-auth, hf, hf-auth, docker, ollama, ssh, git, vllm, provider, langfuse, phoenix, tunnel, compose. |
+| `--service` | No | limit to one service (repeatable): modal, modal-auth, hf, hf-auth, docker, ollama, ssh, git, vllm, provider, openrouter, langfuse, phoenix, tunnel, compose Choices: modal, modal-auth, hf, hf-auth, docker, ollama, ssh, git, vllm, provider, openrouter, langfuse, phoenix, tunnel, compose. |
 | `--live` | No | also probe endpoints over the network (can wake a billed Modal GPU) |
 | `--publish` | No | write the result for `sandbox board` (mailroom.services/v1) |
 | `--json` | No |  |

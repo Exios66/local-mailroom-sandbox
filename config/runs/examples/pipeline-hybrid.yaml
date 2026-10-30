@@ -1,0 +1,47 @@
+# Full mailroom pipeline, hybrid: the sorter and specialists run on the Modal
+# vLLM endpoint, the judge and boss over the OpenRouter API.
+#
+# Needs both the Modal endpoint (`sandbox runbook show serve`) and
+# OPENROUTER_API_KEY. Any agent can be moved without editing this file:
+#   sandbox run preflight --config config/runs/examples/pipeline-hybrid.yaml \
+#     --agent-route sorter=openrouter:qwen/qwen3.7-flash --dry-run
+# `sandbox doctor --live --service openrouter` validates the API key first.
+schema: sandbox.run/v1
+run_id: pipeline-hybrid-smoke
+task: pipeline
+profile: modal-vllm
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: file
+  local_path: data/fixtures/hf/docclass_mini.jsonl
+  limit: 5
+  sample_seed: 1
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B
+  vllm:
+    max_model_len: 16384
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 6
+    enable_prefix_caching: true
+    enforce_eager: true
+
+agent_routes:
+  judge: {provider: openrouter, model: deepseek/deepseek-v4-flash}
+  boss: {provider: openrouter, model: deepseek/deepseek-v4-flash}
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 4
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, pipeline, hybrid]

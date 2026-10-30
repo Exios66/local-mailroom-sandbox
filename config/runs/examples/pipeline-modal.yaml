@@ -1,0 +1,43 @@
+# Full 13-node mailroom pipeline on the default Modal vLLM endpoint (all GPU).
+#
+#   sandbox runbook show serve             # deploy → point → verify → teardown
+#   sandbox run preflight --config config/runs/examples/pipeline-modal.yaml --dry-run
+#   sandbox run start --config config/runs/examples/pipeline-modal.yaml --initials XX --watch
+#
+# Modal bills container time while the app is warm; stop it afterwards
+# (`sandbox modal stop`). See pipeline-hybrid.yaml to send some agents to the API.
+schema: sandbox.run/v1
+run_id: pipeline-modal-smoke
+task: pipeline
+profile: modal-vllm
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: file
+  local_path: data/fixtures/hf/docclass_mini.jsonl
+  limit: 5
+  sample_seed: 1
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B
+  vllm:
+    max_model_len: 16384
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 6
+    enable_prefix_caching: true
+    enforce_eager: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 4
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, pipeline, modal]

@@ -12,7 +12,7 @@ compose_profiles:
   - langfuse
 pull_models: []
 health:
-  models_url: https://openrouter.ai/api/v1/models
-  chat_url: https://openrouter.ai/api/v1/chat/completions
+  models_url: "{base_url}/models"
+  chat_url: "{base_url}/chat/completions"
 json_object: true
 requires_api_key: true

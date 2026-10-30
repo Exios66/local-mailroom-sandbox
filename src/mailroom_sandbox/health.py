@@ -88,9 +88,11 @@ def probe_models(profile: dict, *, timeout: float = 3.0, expect_json: bool = Tru
 def probe_chat(profile: dict, *, timeout: float = 8.0, json_object: bool = True) -> ProbeResult:
     endpoints = endpoints_for(profile, base_url_override=_effective_base_url(profile))
     url = endpoints.chat_url
-    from mailroom_sandbox.overlay import resolve_served_vllm_model
+    from mailroom_sandbox.overlay import resolve_served_vllm_model, serving_family
 
-    model = resolve_served_vllm_model() or profile.get("default_model") or "local"
+    # VLLM_MODEL pins the GPU half of a hybrid run; an API profile keeps its own id.
+    served = resolve_served_vllm_model() if serving_family(profile) == "vllm" else None
+    model = served or profile.get("default_model") or "local"
     body: dict = {
         "model": model,
         "messages": [
@@ -123,6 +125,55 @@ def probe_chat(profile: dict, *, timeout: float = 8.0, json_object: bool = True)
         return ProbeResult(False, profile.get("name", "?"), url, f"{type(exc).__name__}: {exc}")
 
 
+def _api_key(env_name: str) -> str:
+    key = os.environ.get(env_name, "").strip()
+    return "" if key == "mock-key" else key
+
+
+def probe_openrouter_key(
+    base_url: str | None = None, *, key_env: str = "OPENROUTER_API_KEY", timeout: float = 5.0, name: str = "openrouter"
+) -> ProbeResult:
+    """GET OpenRouter's ``/key`` and report whether the API key is accepted.
+
+    OpenRouter's ``/models`` listing is public, so it proves reachability but
+    not the credential; ``/key`` answers 401 for a bad key and returns the
+    key's label, usage and limit for a good one. The key itself is never
+    echoed: only the label OpenRouter shows for it.
+    """
+    base = (base_url or os.environ.get("OPENROUTER_BASE_URL") or "https://openrouter.ai/api/v1").rstrip("/")
+    url = f"{base}/key"
+    key = _api_key(key_env)
+    if not key:
+        return ProbeResult(False, name, url, f"{key_env} is not set (export it or add it to .env)")
+    try:
+        resp = httpx.get(url, headers={"Authorization": f"Bearer {key}"}, timeout=timeout)
+    except httpx.HTTPError as exc:
+        return ProbeResult(False, name, url, f"{type(exc).__name__}: {exc}")
+    if resp.status_code in (401, 403):
+        return ProbeResult(False, name, url, f"HTTP {resp.status_code}: {key_env} was rejected (revoked or mistyped)")
+    if not resp.is_success:
+        return ProbeResult(False, name, url, f"HTTP {resp.status_code}")
+    try:
+        data = resp.json().get("data") or {}
+    except (ValueError, AttributeError):
+        return ProbeResult(False, name, url, f"HTTP {resp.status_code} but non-JSON body")
+    usage, limit, remaining = data.get("usage"), data.get("limit"), data.get("limit_remaining")
+    parts = [f"key accepted ({data.get('label') or 'unlabelled'})"]
+    if isinstance(limit, (int, float)) and isinstance(remaining, (int, float)):
+        reset = f" {data['limit_reset']}" if data.get("limit_reset") else ""
+        parts.append(f"${remaining:.2f} of ${limit:.2f}{reset} limit left")
+    else:
+        parts.append("no credit limit")
+    if isinstance(usage, (int, float)):
+        parts.append(f"lifetime usage ${usage:.4f}")
+    if data.get("is_free_tier"):
+        parts.append("free tier")
+    if isinstance(remaining, (int, float)) and remaining <= 0:
+        # OpenRouter answers 402 for every paid request until the limit resets.
+        return ProbeResult(False, name, url, ", ".join(parts) + "; credit limit exhausted")
+    return ProbeResult(True, name, url, ", ".join(parts))
+
+
 def missing_modal_endpoint(profile: dict) -> bool:
     """True when the Modal profile has no endpoint to probe (not deployed/exported)."""
     return str(profile.get("name") or "") == "modal-vllm" and _effective_base_url(profile) is None
@@ -149,6 +200,8 @@ def health_check(profile_name: str) -> dict:
             "chat": chat.as_dict(),
         }
     override = _effective_base_url(profile)
+    if str(profile.get("provider")) == "openrouter":
+        return _openrouter_health(profile, profile_name, override)
     models = probe_models(profile)
     chat = probe_chat(profile) if models.ok else ProbeResult(
         False, profile_name, endpoints_for(profile, base_url_override=override).chat_url, "skipped (models probe failed)"
@@ -156,6 +209,26 @@ def health_check(profile_name: str) -> dict:
     return {
         "profile": profile_name,
         "ok": models.ok and chat.ok,
+        "models": models.as_dict(),
+        "chat": chat.as_dict(),
+    }
+
+
+def _openrouter_health(profile: dict, profile_name: str, override: str | None) -> dict:
+    """Key first, then models and a one-shot chat: a bad key never spends a request."""
+    base = endpoints_for(profile, base_url_override=override).base_url
+    key = probe_openrouter_key(base, key_env=str(profile.get("api_key_env") or "OPENROUTER_API_KEY"), name=profile_name)
+    skipped = "skipped (API key probe failed)"
+    models = probe_models(profile) if key.ok else ProbeResult(False, profile_name, endpoints_for(profile, base_url_override=override).models_url, skipped)
+    if models.ok and profile.get("default_model") and models.models and profile["default_model"] not in models.models:
+        models = ProbeResult(False, profile_name, models.url, f"default_model {profile['default_model']} is not in the OpenRouter catalog", models=None)
+    else:
+        models.models = None  # the full catalog is hundreds of ids; the key/chat rows carry the signal
+    chat = probe_chat(profile) if models.ok else ProbeResult(False, profile_name, endpoints_for(profile, base_url_override=override).chat_url, "skipped (models probe failed)")
+    return {
+        "profile": profile_name,
+        "ok": key.ok and models.ok and chat.ok,
+        "key": key.as_dict(),
         "models": models.as_dict(),
         "chat": chat.as_dict(),
     }

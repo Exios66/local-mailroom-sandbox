@@ -1,0 +1,40 @@
+# Full 13-node mailroom pipeline over the OpenRouter API (no GPU).
+#
+#   export OPENROUTER_API_KEY=...          # or put it in .env
+#   sandbox --profile openrouter health    # validates the key (/key), catalog and one chat call
+#   sandbox run preflight --config config/runs/examples/pipeline-openrouter.yaml --dry-run
+#   sandbox run start --config config/runs/examples/pipeline-openrouter.yaml --initials XX --watch
+#
+# Billing is per token (docs/RUN-COST-DERIVATION.md); `job.mock: false` makes
+# the run a spend, so `run start` needs your initials. Siblings:
+# pipeline-modal.yaml (all GPU) and pipeline-hybrid.yaml (GPU + API routes).
+schema: sandbox.run/v1
+run_id: pipeline-openrouter-smoke
+task: pipeline
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: file
+  local_path: data/fixtures/hf/docclass_mini.jsonl
+  limit: 5
+  sample_seed: 1
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.7-flash
+  modal: null
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 2
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, pipeline, openrouter]
