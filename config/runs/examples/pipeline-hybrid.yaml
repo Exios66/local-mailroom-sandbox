@@ -11,8 +11,21 @@ run_id: pipeline-hybrid-smoke
 task: pipeline
 profile: modal-vllm
 
+# Prompts. Every agent uses its production default unless a role is pinned here.
+#   Version texts: the dojo lineage (vendor/llm-dojo-scoring/src/llm_dojo_scoring/prompts/).
+#   Local variants: config/prompts/*.txt (`prompt.agents.<role>: {source: local, file: <stem>}`).
+#   sandbox prompts list-versions [--role contracts_specialist]   # archived / frozen / mutation
+#   sandbox prompts show contracts_specialist_v3                  # one version's text
+# The specialists and the sorter have several versions (e.g. correspondence_specialist_v0..v7).
+# The intake, sorter_reviewer, judge, arbiter and boss nodes have only v1.
+# Pin any role below (or pass `--prompt-version KEY` on the command line, which wins per role);
+# preflight rejects an unknown key or a role this task does not run.
 prompt:
   default: {source: code-default}
+  # versions:
+  #   contracts_specialist: contracts_specialist_v3
+  #   correspondence_specialist: correspondence_specialist_v7
+  #   sorter: sorter_v4
 
 dataset:
   provider: file

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from mailroom_sandbox.eval import experiment_log, runners
-from mailroom_sandbox.overlay import load_profile, map_model, serving_family
+from mailroom_sandbox.overlay import load_model_map, load_profile, map_model, serving_family
 
 
 def matrix_tasks() -> tuple[str, ...]:
@@ -47,12 +47,16 @@ def plan_matrix(
             f"unknown provider profile(s) {unknown}; have {sorted(known)} — "
             "--providers takes profile names (e.g. vllm-local, modal-vllm), not families"
         )
+    mapped_ids = load_model_map().get("map") or {}
     cells = []
     for provider in providers:
         profile = load_profile(provider)
         family = serving_family(profile)
         for model in models:
-            mapped = map_model(model, family) if "/" in model else model
+            # Only a models.yaml champion row is translated per family. Any other
+            # id is the model the operator asked for, so it is never swapped for
+            # the family default (Qwen/Qwen3.5-9B used to plan as Qwen3-8B).
+            mapped = map_model(model, family) if model in mapped_ids else model
             for prompt in prompts:
                 cells.append(
                     {
