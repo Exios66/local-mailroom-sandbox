@@ -43,6 +43,19 @@ def test_modal_profile_gateway_follows_the_run_spec_app_name(monkeypatch):
     assert engine_base_url(_modal_spec(app="sandbox-vllm-b")) == "https://ws1--sandbox-vllm-b-serve.modal.run"
 
 
+@pytest.mark.parametrize("app_env,expected_app", [(None, "sandbox-vllm"), ("custom-app", "custom-app")])
+def test_modal_spec_without_a_modal_block_uses_the_profile_app_name(monkeypatch, app_env, expected_app):
+    """`engine.modal` is optional (explicit `modal: null`): a modal-vllm spec without it must resolve, not AttributeError."""
+    monkeypatch.setenv("MODAL_WORKSPACE", "ws1")
+    if app_env:
+        monkeypatch.setenv("MODAL_VLLM_APP_NAME", app_env)
+    else:
+        monkeypatch.delenv("MODAL_VLLM_APP_NAME", raising=False)
+    spec = RunSpec(profile="modal-vllm", task="sorter", engine=EngineSpec(kind="modal-vllm", model="Qwen/Qwen3-8B", modal=None))
+    assert spec.engine.modal is None
+    assert engine_base_url(spec) == f"https://ws1--{expected_app}-serve.modal.run"
+
+
 def test_exported_endpoint_still_wins_over_the_workspace(monkeypatch):
     monkeypatch.setenv("MODAL_WORKSPACE", "ws1")
     monkeypatch.setenv("VLLM_BASE_URL", "https://exported.example/v1/")

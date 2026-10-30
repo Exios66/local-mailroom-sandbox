@@ -22,6 +22,7 @@ from urllib.parse import urlparse
 
 from mailroom_sandbox.tui import pretty_log as pl
 from mailroom_sandbox.tui.beacon import BEACON_VERSION, TERMINAL_STATES, beacon_root
+from mailroom_sandbox.tui.services_snapshot import read_services
 from mailroom_sandbox.tui.web import THEME, ansi_to_html
 
 STALE_S = 120.0
@@ -116,10 +117,39 @@ def board_header(n: int, *, width: int, on: bool) -> list[str]:
     return rows
 
 
-def render_board(jobs: list[dict[str, Any]], *, width: int = 100, on: bool = False) -> str:
+_SERVICE_MARK = {"ok": "ok  ", "warn": "WARN", "fail": "FAIL", "skipped": "skip"}
+
+
+def _services_box(services: dict[str, Any] | None, *, width: int, on: bool) -> str:
+    """The SERVICES box: the last published `sandbox doctor` rows, or how to publish them."""
+    p = pl.palette(on)
+    mw = width - 4
+    if not services:
+        lines = ["no service snapshot yet — run `sandbox doctor --publish`"]
+        return pl._box("SERVICES", [p["dim"](t) if on else t for t in lines], width=width, on=on)
+    lines = []
+    for row in services.get("services", []):
+        mark = _SERVICE_MARK.get(str(row.get("state")), "?   ")
+        lines.append(pl._metric(f"{mark} {row.get('name')}"[:20], str(row.get("detail", ""))[: mw - 22], total_w=mw, on=on))
+        if row.get("state") in ("warn", "fail") and row.get("hint"):
+            hint = f"  -> {row['hint']}"[:mw]
+            lines.append(p["dim"](hint) if on else hint)
+    age = int(services.get("age_s") or 0)
+    scope = "live probes" if services.get("live") else "offline checks"
+    note = f"{services.get('profile')} · {scope} · {age}s ago"
+    if services.get("stale"):
+        note = f"STALE ({age // 60}m old) — re-run `sandbox doctor --publish` · {note}"
+    lines.append(p["gold"](note) if on and services.get("stale") else (p["dim"](note) if on else note))
+    return pl._box("SERVICES", lines, width=width, on=on)
+
+
+def render_board(
+    jobs: list[dict[str, Any]], *, width: int = 100, on: bool = False, services: dict[str, Any] | None = None
+) -> str:
     width = max(60, min(int(width), pl.MAX_W))
     p = pl.palette(on)
     out = board_header(len(jobs), width=width, on=on)
+    out.append(_services_box(services, width=width, on=on))
     if not jobs:
         hint = [
             "no jobs yet — a long job publishes one line per step:",
@@ -156,12 +186,12 @@ def run_board_tui(*, root: Path | None, stale_s: float, interval: float, once: b
     """
     interval = max(interval, MIN_INTERVAL_S)
     if once:
-        sys.stdout.write(render_board(list_jobs(root, stale_s=stale_s), width=shutil.get_terminal_size((100, 40)).columns, on=pl.use_color(sys.stdout)) + "\n")
+        sys.stdout.write(render_board(list_jobs(root, stale_s=stale_s), width=shutil.get_terminal_size((100, 40)).columns, on=pl.use_color(sys.stdout), services=read_services(root)) + "\n")
     else:
         sys.stdout.write(pl.ALT_ENTER + pl.HIDE_CURSOR)
         try:
             while True:
-                frame = render_board(list_jobs(root, stale_s=stale_s), width=shutil.get_terminal_size((100, 40)).columns, on=pl.use_color(sys.stdout))
+                frame = render_board(list_jobs(root, stale_s=stale_s), width=shutil.get_terminal_size((100, 40)).columns, on=pl.use_color(sys.stdout), services=read_services(root))
                 sys.stdout.write(pl.CURSOR_HOME + pl.CLEAR_SCREEN + frame + "\n")
                 sys.stdout.flush()
                 time.sleep(interval)
@@ -195,6 +225,13 @@ body {{ margin: 0; min-height: 100vh; background: var(--navy); color: var(--snow
 .bar-top {{ display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 8px 10px; margin: 12px 0;
   background: rgba(36,86,214,0.25); border: 1px solid var(--teal); border-radius: 4px; font-size: 12px; }}
 .bar-top .k {{ color: var(--muted); }}
+.svc {{ display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 8px 10px; margin: 0 0 12px; font-size: 12px;
+  border: 1px solid var(--teal); border-radius: 4px; background: rgba(14,116,144,0.18); }}
+.svc .s {{ white-space: nowrap; }} .svc .s.ok::before {{ content: "● "; color: var(--teal); }}
+.svc .s.warn::before {{ content: "● "; color: var(--gold); }}
+.svc .s.fail {{ font-weight: 700; color: var(--gold); }} .svc .s.fail::before {{ content: "✖ "; color: var(--gold); }}
+.svc .s.skipped {{ color: var(--muted); }} .svc .s.skipped::before {{ content: "○ "; }}
+.svc .note {{ color: var(--muted); width: 100%; }} .svc.stale {{ opacity: 0.6; }}
 .cards {{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }}
 @media (max-width: 800px) {{ .cards {{ grid-template-columns: 1fr; }} }}
 .card {{ border: 1px solid var(--teal); border-radius: 6px; overflow: hidden; }}
@@ -220,6 +257,7 @@ footer {{ margin-top: 16px; font-size: 11px; color: var(--muted); text-align: ce
 <div class="bar-top"><span><span class="k">jobs</span> <span id="n">—</span></span>
 <span><span class="k">live</span> <span id="live">—</span></span><span><span class="k">stalled</span> <span id="stalled">—</span></span>
 <span><span class="k">root</span> <span id="root">—</span></span></div>
+<div class="svc" id="svc"><span class="note">no service snapshot yet — run <code>sandbox doctor --publish</code></span></div>
 <div class="cards" id="cards"></div>
 </div></div><footer>localhost-only · SSE live · jobs publish via mailroom.beacon/v1</footer></div>
 <script>
@@ -236,8 +274,19 @@ function card(j) {{
 ${{metric("sorted", `ok ${{j.ok}} · errors ${{j.errors}} · ${{Math.round(j.age_s)}}s ago`)}}${{extra}}
 ${{log ? `<div class="log">${{log}}</div>` : ""}}</div></section>`;
 }}
+function services(sv) {{
+  const el = document.getElementById("svc");
+  if (!sv) {{ el.className = "svc"; el.innerHTML = `<span class="note">no service snapshot yet — run <code>sandbox doctor --publish</code></span>`; return; }}
+  el.className = "svc" + (sv.stale ? " stale" : "");
+  const rows = (sv.services || []).map(r => `<span class="s ${{esc(r.state)}}" title="${{esc(r.detail)}}${{r.hint ? " → " + esc(r.hint) : ""}}">${{esc(r.name)}}</span>`).join("");
+  const age = Math.round(sv.age_s || 0);
+  const scope = sv.live ? "live probes" : "offline checks";
+  const note = (sv.stale ? `STALE (${{Math.round(age / 60)}}m old) — re-run sandbox doctor --publish · ` : "") + `${{esc(sv.profile)}} · ${{scope}} · ${{age}}s ago`;
+  el.innerHTML = rows + `<span class="note">${{note}}</span>`;
+}}
 function render(d) {{
   document.getElementById("err").hidden = true;
+  services(d.services);
   if (d.hero_html) document.getElementById("hero").innerHTML = d.hero_html;
   if (d.hero_compact_html) document.getElementById("hero-compact").innerHTML = d.hero_compact_html;
   const jobs = d.jobs || [];
@@ -262,7 +311,7 @@ def board_hero(width: int) -> str:
 
 
 def board_payload(root: Path, stale_s: float, heroes: dict[str, str]) -> dict[str, Any]:
-    return {"root": str(root), "jobs": list_jobs(root, stale_s=stale_s), **heroes}
+    return {"root": str(root), "jobs": list_jobs(root, stale_s=stale_s), "services": read_services(root), **heroes}
 
 
 def make_board_server(host: str, port: int, *, root: Path | None, stale_s: float = STALE_S, interval: float = 1.0) -> ThreadingHTTPServer:
@@ -292,6 +341,8 @@ def make_board_server(host: str, port: int, *, root: Path | None, stale_s: float
                 return self._send(200, "text/html; charset=utf-8", board_page())
             if path == "/api/jobs":
                 return self._send(200, "application/json", json.dumps(board_payload(root, stale_s, heroes)).encode())
+            if path == "/api/services":
+                return self._send(200, "application/json", json.dumps(read_services(root)).encode())
             if path == "/api/jobs/stream":
                 self.send_response(200)
                 self.send_header("Content-Type", "text/event-stream; charset=utf-8")

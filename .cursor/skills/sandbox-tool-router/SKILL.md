@@ -65,6 +65,7 @@ sandbox cutover --profile ollama
 sandbox up                                          # langfuse only (default modal-vllm); add --compose-profile ollama offline
 sandbox up --compose-profile phoenix                # optional sidecar
 sandbox health
+sandbox doctor                                      # offline status of modal/hf/docker/ollama/ssh/git/vllm…; --live probes, --publish feeds the board strip
 sandbox datasets prepare                            # offline
 sandbox datasets pull                               # Hub (network)
 ```

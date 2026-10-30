@@ -64,14 +64,14 @@ def probe_models(profile: dict, *, timeout: float = 3.0, expect_json: bool = Tru
     url = endpoints.models_url
     try:
         resp = httpx.get(url, headers=_headers(profile), timeout=timeout)
-        if resp.status_code >= 400:
+        if not resp.is_success:
             return ProbeResult(False, profile.get("name", "?"), url, f"HTTP {resp.status_code}")
         if not expect_json:
             return ProbeResult(True, profile.get("name", "?"), url, "ok")
         try:
             payload = resp.json()
         except ValueError:
-            return ProbeResult(False, profile.get("name", "?"), url, "HTTP 200 but non-JSON body")
+            return ProbeResult(False, profile.get("name", "?"), url, f"HTTP {resp.status_code} but non-JSON body")
         models = []
         data = payload.get("data") if isinstance(payload, dict) else payload
         if isinstance(data, list):

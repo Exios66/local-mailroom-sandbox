@@ -481,9 +481,7 @@ def build_parser() -> argparse.ArgumentParser:
         parents=[leaf],
     )
     tun_sub = tun.add_subparsers(dest="tunnel_cmd")
-    # NOTE: the leaf parsers deliberately omit parents=[leaf] — a leaf-level
-    # --profile default would clobber the value parsed at the tunnel level.
-    tp = tun_sub.add_parser("plan", help="Print the exact ssh forward command")
+    tp = tun_sub.add_parser("plan", help="Print the exact ssh forward command", parents=[leaf])
     tp.set_defaults(handler=_cmd_tunnel_plan)
     tu = tun_sub.add_parser("up", help="Start the detached forward (pidfile under data/runtime/)", parents=[leaf])
     tu.set_defaults(handler=_cmd_tunnel_up)
@@ -818,8 +816,9 @@ def build_parser() -> argparse.ArgumentParser:
     mm_env.set_defaults(handler=_cmd_modal_matrix_env)
     mm.set_defaults(handler=_cmd_modal_matrix_help)
 
-    from mailroom_sandbox.services import hf_cli, modal_cli, vllm_cli
+    from mailroom_sandbox.services import doctor, hf_cli, modal_cli, vllm_cli
 
+    doctor.register(sub, leaf)
     modal_cli.register(sub, leaf)
     vllm_cli.register(sub, leaf)
     hf_cli.register(sub, leaf)
@@ -2014,17 +2013,20 @@ def _cmd_datasets_help(args: argparse.Namespace) -> int:
 
 def _cmd_datasets_pull(args: argparse.Namespace) -> int:
     from mailroom_sandbox.datasets import pull_hf_dataset
+    from mailroom_sandbox.services.beacon import service_job
 
     try:
-        pull_hf_dataset(
-            args.dataset,
-            split=args.split,
-            max_rows=args.max_rows,
-            revision=args.revision,
-            config=args.config,
-            per_class=getattr(args, "per_class", 0) or None,
-            sample_seed=getattr(args, "sample_seed", 42),
-        )
+        with service_job("datasets-pull", title=f"datasets pull · {args.dataset}") as job:
+            job.update(phase="PULLING")
+            pull_hf_dataset(
+                args.dataset,
+                split=args.split,
+                max_rows=args.max_rows,
+                revision=args.revision,
+                config=args.config,
+                per_class=getattr(args, "per_class", 0) or None,
+                sample_seed=getattr(args, "sample_seed", 42),
+            )
     except ModuleNotFoundError as exc:
         # The Hub client lives in the [hf]/[dev] extras (offline-first base
         # install) — say how to get it instead of a bare traceback (DMR-058).
@@ -2147,8 +2149,13 @@ def _cmd_tunnel_plan(args: argparse.Namespace) -> int:
 def _cmd_tunnel_up(args: argparse.Namespace) -> int:
     from mailroom_sandbox.tunnel import spawn
 
+    from mailroom_sandbox.services.beacon import service_job
+
     spec = _tunnel_spec(args)
-    pid = spawn(spec)
+    with service_job("tunnel-up", title=f"tunnel up · {spec.profile}") as job:
+        job.update(phase="CONNECTING")
+        pid = spawn(spec)
+        job.log(f"pid {pid} localhost:{spec.local_port} -> {spec.destination}:{spec.remote_port}")
     print(f"tunnel up: pid {pid} forwarding localhost:{spec.local_port} -> {spec.destination}:{spec.remote_port}")
     print(f"stop with: sandbox tunnel --profile {spec.profile} down")
     return 0
@@ -2575,6 +2582,8 @@ def _cmd_beacon_update(args) -> int:
     if args.log:
         b.log(args.log)
     if args.finish:
+        if fields["phase"] is None:
+            del fields["phase"]  # let finish() stamp DONE/FAILED instead of keeping the old phase
         b.finish(args.finish, metrics=metrics or None, **fields)
     else:
         b.update(metrics=metrics or None, **fields)

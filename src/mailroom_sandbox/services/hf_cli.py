@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 from mailroom_sandbox.paths import repo_root
+from mailroom_sandbox.services.beacon import service_job
 from mailroom_sandbox.services._cli import format_command, print_plan, strip_separator
 from mailroom_sandbox.services._exec import (
     ServiceError,
@@ -91,13 +92,20 @@ def _cmd_download(args: argparse.Namespace) -> int:
     print(f"cache: {_cache_in_use(overrides)}")
     print(f"-> {format_command(argv, overrides)}")
     tail: list[str] = []
-    rc = stream_tool(argv, env=_child_env(overrides), hint=INSTALL_HINT, on_line=tail.append)
-    if rc != 0:
-        recent = "\n".join(tail[-5:])
-        message = str(ToolFailed(argv, rc, recent))
-        if _AUTH_FAILURE.search(recent):
-            message += f" — {LOGIN_HINT}"
-        raise ServiceError(message)
+    with service_job("hf-download", title=f"hf download · {argv[2]}") as job:
+        job.update(phase="DOWNLOADING")
+
+        def _line(line: str) -> None:
+            tail.append(line)
+            job.log(line)
+
+        rc = stream_tool(argv, env=_child_env(overrides), hint=INSTALL_HINT, on_line=_line)
+        if rc != 0:  # raised inside the job so the board shows it failed, not done
+            recent = "\n".join(tail[-5:])
+            message = str(ToolFailed(argv, rc, recent))
+            if _AUTH_FAILURE.search(recent):
+                message += f" — {LOGIN_HINT}"
+            raise ServiceError(message)
     print("next: `sandbox datasets sample --per-class 40` / `sandbox datasets prepare` "
           "(use --sandbox-cache so the files land where `sandbox datasets pull` reads them)")
     return 0

@@ -105,6 +105,7 @@ sandbox subagents materialize --package digital-mailroom --root <path>  # monore
 sandbox metrics compare --runs local,modal,api   # serving metrics comparison
 sandbox modal deploy|prewarm|status|logs|stop|url|raw   # guarded Modal CLI passthrough (--dry-run on each; stop is idempotent + verified)
 sandbox vllm probe|command|serve|metrics   # endpoint probe (models/chat//health//metrics), `vllm serve` argv, local serve, metrics scrape
+sandbox doctor [--service NAME] [--live] [--publish] [--json]   # one status table for every external CLI/service (offline by default); --publish feeds the board's services strip
 sandbox hf whoami|download|cache|raw   # guarded hf CLI passthrough (pinned dataset revision; --sandbox-cache = data/cache/hf)
 sandbox watch --web                   # mailroom pretty-logs TUI in the browser (http://127.0.0.1:8765/, SSE); full command matrix in docs/pretty-logging/mailroom-themed-logging.md
 sandbox dev                           # dev server: same themed UI on a synthetic looping run (no Modal/spend)
