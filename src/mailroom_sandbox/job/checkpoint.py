@@ -14,6 +14,7 @@ Layout under ``data/runtime/runs/<run_id>/``:
 from __future__ import annotations
 
 import fcntl
+import io
 import json
 import os
 from contextlib import contextmanager
@@ -510,6 +511,63 @@ class RunStore:
     def state(self) -> str | None:
         cp = self.read_checkpoint()
         return cp.get("state") if cp else None
+
+
+class NodeLogCursor:
+    """Read only the node records appended to ``nodes.jsonl`` since the last call.
+
+    The cursor remembers how many bytes it has consumed. It stops before an
+    incomplete last line, so a record the writer is still appending is read on
+    a later call. When the file is gone, shrinks below the offset, is replaced
+    by another file, or no longer starts with the bytes already read, the cursor
+    starts again from byte 0 and reports a reset. Lines are split and decoded as
+    :meth:`RunStore.iter_nodes` does, and corrupt lines are skipped.
+    """
+
+    HEAD_BYTES = 64  # leading bytes kept to notice a rewrite in place
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self.offset = 0
+        self._ident: tuple[int, int] | None = None
+        self._head = b""
+
+    def read_new(self) -> tuple[bool, list[dict[str, Any]]]:
+        """Return ``(reset, rows)``; on a reset ``rows`` restarts from the top."""
+        try:
+            fh = open(self.path, "rb")
+        except OSError:
+            reset = self.offset > 0 or self._ident is not None
+            self.offset, self._ident, self._head = 0, None, b""
+            return reset, []
+        with fh:
+            st = os.fstat(fh.fileno())
+            ident = (st.st_dev, st.st_ino)
+            reset = False
+            if self._ident is not None and (ident != self._ident or st.st_size < self.offset
+                                            or fh.read(len(self._head)) != self._head):
+                reset = True
+                self.offset, self._head = 0, b""
+            self._ident = ident
+            fh.seek(self.offset)
+            chunk = fh.read()
+            end = chunk.rfind(b"\n") + 1
+            if end == 0:
+                return reset, []
+            chunk = chunk[:end]
+            if len(self._head) < self.HEAD_BYTES:
+                fh.seek(0)
+                self._head = fh.read(min(self.HEAD_BYTES, self.offset + end))
+            self.offset += end
+        rows = []
+        for line in io.TextIOWrapper(io.BytesIO(chunk), encoding="utf-8", errors="replace"):
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(row, dict):
+                rows.append(row)
+        return reset, rows
 
 
 def list_runs(root: Path) -> list[dict[str, Any]]:
