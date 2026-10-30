@@ -816,7 +816,7 @@ es.onerror = () => {{
 }};
 </script>
 </body>
-</html>"""
+</html>"""  # nosec B608 - HTML page template, not SQL
     return page.encode("utf-8")
 
 

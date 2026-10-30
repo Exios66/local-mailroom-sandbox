@@ -151,7 +151,7 @@ def run_shell(default_args: list[str] | None = None) -> int:
                     index = int(argv[0]) - 1
                     if node.get("targets"):
                         if not 0 <= index < len(node["targets"]):
-                            print(f"error: select 1-{len(node['targets'])} from the menu")
+                            print(f"error: select 1-{len(node['targets'])} from the menu")  # nosec B608 - menu text, not SQL
                             continue
                         command = node["targets"][index][1] + " "
                         if readline:
@@ -164,7 +164,7 @@ def run_shell(default_args: list[str] | None = None) -> int:
                         print(f"error: {' '.join(['sandbox', *menu])} has no subcommands · back, or type the command with options")
                         continue
                     if not 0 <= index < len(node["children"]):
-                        print(f"error: select 1-{len(node['children'])} from the menu")
+                        print(f"error: select 1-{len(node['children'])} from the menu")  # nosec B608 - menu text, not SQL
                         continue
                     argv = ["menu", *menu, node["children"][index]]
                 if argv[0] == "menu":
