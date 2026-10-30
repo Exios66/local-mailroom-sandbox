@@ -50,7 +50,7 @@ CAUSE_LABELS: dict[str, str] = {
     REVIEWER_NO_TEXT: "document has no usable text for the decision reviewer",
     REVIEWER_INELIGIBLE_LABEL: "sorter or reviewer label is not an eligible class",
     REVIEWER_DISAGREEMENT: "sorter and decision reviewer labels disagree",
-    REVIEWER_LOW_CONFIDENCE: "decision reviewer confidence below the class cutoff",
+    REVIEWER_LOW_CONFIDENCE: "decision reviewer confidence below the class cutoff or no valid cutoff exists",
 }
 
 _PUBLIC_SKIP = frozenset({"reasoning", "confidence", "mock_extraction"})
@@ -257,7 +257,11 @@ def collect_review_causes(
     scores: Optional[Mapping[str, Any]] = None,
     verdict: Optional[str] = None,
 ) -> list[str]:
-    """Canonical cause tokens from pipeline state and/or Langfuse scores."""
+    """Return unique cause tokens from pipeline state and/or Langfuse scores.
+
+    Nonempty string reviewer causes from a state list or tuple are included;
+    duplicate tokens retain their first position.
+    """
     data = dict(state or {})
     scores = dict(scores or {})
     causes: list[str] = []

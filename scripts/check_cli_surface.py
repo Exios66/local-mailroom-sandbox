@@ -41,7 +41,7 @@ def risk(path):
     command = ' '.join(path)
     if not path:
         return 'Varies by subcommand'
-    if path[0] in {'modal', 'vllm', 'hf', 'up', 'down', 'health', 'pull-models', 'fetch-deps', 'tunnel', 'pipeline'}:
+    if path[0] in {'modal', 'vllm', 'hf', 'up', 'down', 'health', 'pull-models', 'fetch-deps', 'tunnel', 'pipeline', 'review'}:
         return 'May invoke services, network, deployment, or local processes'
     if path[0] in {'experiment', 'run', 'watch', 'dev', 'board'}:
         return 'May write files, run jobs, serve a UI, or contact services'

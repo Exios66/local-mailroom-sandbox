@@ -10,6 +10,31 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-30-decision-model-reviewer-design.md`
 
+## Handoff checkpoint — 2026-10-30
+
+- Tasks 1–3 exist in standalone `llm-mailroom` on `feat/decision-reviewer` at
+  `1530f496a6c745186bb86d12b5f0472c667a404a`. The focused routing/node/evidence
+  suite passes **66 tests** with the pinned Dojo package on `PYTHONPATH`.
+  This is not a claim that the complete upstream suite was run.
+- Task 4 has an exact-SHA generated **interim branch snapshot**; upstream merge
+  and release finalization remain approval-gated. The previous interim snapshot
+  predated seven committed source updates and failed the drift guard.
+- Tasks 5–6 were committed before this handoff; backend, frozen-spec and CLI
+  coverage are in `tests/test_decision_backends.py` and `tests/test_reviewer_spec.py`.
+- Tasks 7–8 are implemented locally: terminal client plus six offline exhibits,
+  real graph/bin/catalog integration, API-backed approve/reject, and SQLite
+  restart recovery. See `tests/test_review_cli.py`, `tests/test_decision_pilot.py`
+  and `config/experiments/decision-pilot/README.md`.
+- Task 9 is **blocked on operator approvals and data/credential/spend gates**.
+  No live run, push or merge has been performed. Later plans remain separate.
+- Final sandbox validation: **2006 passed / 20 skipped** (`python -m pytest -q`);
+  CLI-reference and requirements generation checks, `uv lock --check`,
+  `uv pip check`, and staged/unstaged whitespace checks pass. `SAND-074` tracks
+  the remaining operator gates; skipped tests are not live evidence.
+
+The original step checkboxes below are retained as the implementation recipe;
+unchecked historical steps are not a replacement for this verified checkpoint.
+
 ## Scope and schedule
 
 This is plan 1 of 5. The spec covers independent subsystems, so each later plan gets its own document and review. Dates are proposed targets against the December 15, 2026 final presentation.
