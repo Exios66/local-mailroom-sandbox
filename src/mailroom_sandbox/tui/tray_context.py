@@ -296,6 +296,17 @@ def job_context_lines(store: RunStore, *, app: str) -> list[str]:
     return lines
 
 
+def _config_value(value: Any) -> str:
+    """Manifest values as an operator reads them, not as Python reprs (True, ['a'])."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (list, tuple)):
+        return ", ".join(_config_value(v) for v in value) or "none"
+    if isinstance(value, dict):
+        return ", ".join(f"{k}={_config_value(v)}" for k, v in value.items()) or "none"
+    return str(value)
+
+
 def configuration_lines(lock: dict[str, Any]) -> list[str]:
     """Display only reviewed configuration fields; never dump keys or endpoint URLs."""
     lines = []
@@ -306,7 +317,7 @@ def configuration_lines(lock: dict[str, Any]) -> list[str]:
         "trace": ("sink", "environment", "tags"),
     }.items():
         data = lock.get(group) or {}
-        lines += [f"{group}.{key}: {data[key]}" for key in keys if data.get(key) is not None]
+        lines += [f"{group}.{key}: {_config_value(data[key])}" for key in keys if data.get(key) is not None]
     engine = lock.get("engine") or {}
     for group, keys in {
         "vllm": ("quantization", "kv_cache_dtype", "max_model_len", "max_num_seqs", "enable_prefix_caching", "enforce_eager"),
@@ -314,11 +325,11 @@ def configuration_lines(lock: dict[str, Any]) -> list[str]:
     }.items():
         data = engine.get(group) or {}
         if engine.get("kind") != "openrouter":
-            lines += [f"{group}.{key}: {data[key]}" for key in keys if data.get(key) is not None]
+            lines += [f"{group}.{key}: {_config_value(data[key])}" for key in keys if data.get(key) is not None]
     for name, route in (lock.get("agent_routes") or {}).items():
         lines.append(f"agent {name}: {route.get('provider', '—')} · {route.get('model', '—')}")
     for name, knobs in (lock.get("agent_knobs") or {}).items():
-        lines += [f"{name}.{key}: {knobs[key]}" for key in ("temperature", "max_tokens", "enable_thinking") if key in knobs]
+        lines += [f"{name}.{key}: {_config_value(knobs[key])}" for key in ("temperature", "max_tokens", "enable_thinking") if key in knobs]
     for name, prompt in ((lock.get("prompt") or {}).get("agents") or {}).items():
         lines.append(f"prompt {name}: {prompt}")
     for name, model in (lock.get("agent_assignments") or {}).items():

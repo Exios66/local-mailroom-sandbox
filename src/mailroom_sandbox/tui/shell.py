@@ -140,7 +140,7 @@ OPERATOR_CSS = """
 """
 
 OPERATOR_HTML = """
-<section class="operator" data-view="terminal" hidden aria-labelledby="terminal-heading">
+<section class="operator" data-view="terminal" id="view-terminal" role="tabpanel" aria-labelledby="tab-terminal" hidden>
   <h2 id="terminal-heading">Command terminal</h2>
   <div class="tools"><button type="button" id="command-back">← Parent</button>
     <label>Command <select id="command-menu" aria-label="Nested CLI commands"></select></label>
