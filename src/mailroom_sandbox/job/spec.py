@@ -386,6 +386,10 @@ MODEL_SERVE_DEFAULTS: dict[str, dict[str, Any]] = {
         "quantization": "fp8",
         "limit_mm_per_prompt": {"image": 0, "video": 0, "audio": 0},
     },
+    "Qwen/Qwen3.5-27B": {  # SAND-078 judge tier
+        "quantization": "fp8",
+        "limit_mm_per_prompt": {"image": 0, "video": 0, "audio": 0},
+    },
 }
 
 

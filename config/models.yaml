@@ -18,7 +18,7 @@ defaults:
 # weights Qwen3.5 checkpoint, so the same HF id can be served on Modal+vLLM:
 #   1. qwen/qwen3.5-9b       = Qwen/Qwen3.5-9B, the Modal default (same weights)
 #   2. qwen/qwen3.5-35b-a3b  = Qwen/Qwen3.5-35B-A3B, the Modal L4:2 TP=2 row (MoE)
-#   3. qwen/qwen3.5-27b      = Qwen/Qwen3.5-27B, dense; no Modal row yet
+#   3. qwen/qwen3.5-27b      = Qwen/Qwen3.5-27B, dense; the Modal judge tier (L40S)
 # OpenRouter routes each id across hosts at different precisions (fp4 to bf16:
 # GET /api/v1/models/<id>/endpoints), so outputs can differ from a Modal run
 # even on the same weights.
@@ -26,6 +26,25 @@ openrouter_preference:
   - qwen/qwen3.5-9b
   - qwen/qwen3.5-35b-a3b
   - qwen/qwen3.5-27b
+
+# Critical tier (SAND-078): the judge gets a larger, more capable sibling of
+# the default model on its own Modal app, deployed beside the 9B base engine.
+# `sandbox experiment create --provider modal-vllm --task pipeline` adds this
+# route unless --agent-route/--agent-model already sets the judge. OpenRouter
+# runs keep the openrouter profile's deepseek judge. The specialists stay on
+# the base model until the judge result tests the hypothesis.
+critical_tier:
+  judge:
+    provider: modal-vllm
+    model: Qwen/Qwen3.5-27B
+    modal:
+      app: sandbox-vllm-critical-judge
+      gpu: L40S
+      max_containers: 1
+    vllm:
+      quantization: fp8
+      max_model_len: 16384
+      limit_mm_per_prompt: {image: 0, video: 0, audio: 0}
 
 map:
   # The vendored mailroom assigns every agent this champion id; its vllm and
@@ -236,6 +255,15 @@ modal_models:
       independent 1-GPU replicas (DMR-068 G1 compares that trade). Same online
       FP8 + kernel-deps posture as the 9B row. DoD incomplete until spend
       reopens."
+  Qwen/Qwen3.5-27B:
+    gpu: L40S
+    quantization: fp8
+    max_model_len: 16384
+    tp_size: 1
+    notes: "SAND-078 judge tier. Dense; online FP8 is ~27GB of weights, so it
+      needs a 48GB L40S (not an L4). Text-only serve like the 9B row, and the
+      same causal_conv1d + fla kernel deps. Unverified: /health and the VRAM
+      peak wait for the first spend-gated deploy."
   Qwen/Qwen3-32B:
     gpu: A100-80GB
     quantization: ""

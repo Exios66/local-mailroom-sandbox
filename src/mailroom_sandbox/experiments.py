@@ -121,13 +121,19 @@ def _create(args) -> int:
         raise ServiceError('sand42 fixes replica/concurrency axes at {1,2} × {8,16}; use single for custom values')
     selected = args.doc_class or list(CLASSES)
     generated = []
-    from mailroom_sandbox.agent_routes import parse_routes, known_agents
+    from mailroom_sandbox.agent_routes import critical_route, parse_routes, known_agents
     routes = parse_routes(args.agent_routes)
     from mailroom_sandbox.overlay import parse_agent_models
     try:
         agent_models = parse_agent_models(getattr(args, 'agent_models', None))
     except ValueError as exc:
         raise ServiceError(str(exc)) from exc
+    # SAND-078: on Modal the judge runs a larger sibling of the base model on its
+    # own app. OpenRouter keeps the profile's judge; an explicit judge pin wins.
+    if (args.provider == 'modal-vllm' and args.design != 'sand42' and args.task == 'pipeline'
+            and 'judge' not in routes and 'judge' not in agent_models and (judge := critical_route('judge'))):
+        judge.modal.app = f'sandbox-vllm-{args.study}-judge'
+        routes['judge'] = judge
     if args.design == 'sand42':  # frozen study: keeps its AWQ / champion pair
         default_model = 'Qwen/Qwen3-8B-AWQ' if args.provider == 'modal-vllm' else 'qwen/qwen3.7-flash'
     else:  # SAND-077: Qwen3.5-9B on Modal, the same weights on OpenRouter

@@ -34,12 +34,23 @@ counterpart:
 1. `qwen/qwen3.5-9b`: the same weights as the Modal default `Qwen/Qwen3.5-9B`.
    It is also the `openrouter` profile default.
 2. `qwen/qwen3.5-35b-a3b`: `Qwen/Qwen3.5-35B-A3B`, the Modal `L4:2` TP=2 row.
-3. `qwen/qwen3.5-27b`: `Qwen/Qwen3.5-27B` (dense; no Modal row yet).
+3. `qwen/qwen3.5-27b`: `Qwen/Qwen3.5-27B` (dense; the Modal judge tier on
+   `L40S`).
 
 OpenRouter serves each id from several hosts at different precisions, from fp4
 to bf16 (`GET /api/v1/models/<id>/endpoints`). Outputs can therefore differ from
 a Modal run even on the same weights. The `openrouter` profile's judge stays
 `deepseek/deepseek-v4-flash`.
+
+**Judge tier on Modal (SAND-078).** On Modal the judge runs a larger, more
+capable sibling of the base model: `Qwen/Qwen3.5-27B` at fp8 on its own `L40S`
+app, beside the 9B base engine. `config/models.yaml` `critical_tier.judge`
+defines the route. `sandbox experiment create --provider modal-vllm --task
+pipeline` adds it unless `--agent-route judge=...` or `--agent-model judge=...`
+already sets the judge. Plain `sandbox run` configs do not deploy route apps,
+so add the judge route there only when its app is already up. The specialists
+stay on the base model until the judge result tests the hypothesis that larger
+models in critical roles help. Expect a second GPU in the cost estimate.
 
 ## Why an overlay
 

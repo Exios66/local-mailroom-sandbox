@@ -42,6 +42,13 @@ def parse_routes(values: list[str] | None) -> dict[str, AgentRoute]:
     return result
 
 
+def critical_route(agent: str) -> AgentRoute | None:
+    """The models.yaml ``critical_tier`` Modal route for an agent (SAND-078)."""
+    from mailroom_sandbox.overlay import load_model_map
+    raw = (load_model_map().get("critical_tier") or {}).get(agent)
+    return AgentRoute.model_validate(raw) if raw else None
+
+
 def known_agents() -> set[str]:
     from mailroom_sandbox.components import load_components
     from mailroom_sandbox.overlay import load_yaml, mailroom_taxonomy_path
