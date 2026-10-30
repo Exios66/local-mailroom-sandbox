@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from mailroom_sandbox.job.checkpoint import RunStore, TERMINAL_STATES
-from mailroom_sandbox.watch import PROGRAM, lifecycle, read_times
+from mailroom_sandbox.watch import PROGRAM, lifecycle
 
 TRAY_PRODUCT = "Tray TUI"
 BRAND = "DIGITAL MAILROOM"
@@ -392,7 +392,6 @@ def build_tray_layout(
     stage = stage_tag(store.run_id, task=task, profile=profile)
 
     times_file = resolve_times_file(store, times_dir)
-    times = read_times(times_file) if times_file else {}
 
     program: list[str] | None = None
     program_title: str | None = None

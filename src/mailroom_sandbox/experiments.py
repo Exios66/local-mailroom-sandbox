@@ -17,7 +17,6 @@ import sys
 from collections import defaultdict
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
@@ -281,8 +280,8 @@ def _prepare(path: Path, plan: Plan, runs: list[tuple[Path, RunSpec]]) -> list[R
                 raise ServiceError('experiment launch needs MODAL_WORKSPACE to address each scoped cell app')
             if spec.trace.sink != 'none':
                 try:
-                    from opentelemetry.sdk.trace import TracerProvider
-                    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+                    from opentelemetry.sdk.trace import TracerProvider  # noqa: F401 - availability probe
+                    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter  # noqa: F401 - availability probe
                 except ImportError as exc:
                     raise ServiceError('selected trace sink requires pip install -e ".[observability]"') from exc
         _deployments(spec)
@@ -468,10 +467,10 @@ def _deployments(spec: RunSpec) -> list[RunSpec]:
 
 
 def _deploy(spec: RunSpec) -> None:
-    from mailroom_sandbox.services.modal_cli import INSTALL_HINT, PINNED_SDK, _is_deployed
+    from mailroom_sandbox.services.modal_cli import INSTALL_HINT, PINNED_SDK
     from mailroom_sandbox.services._exec import run_tool
     result = run_tool(['modal', '--version'], hint=INSTALL_HINT)
-    if PINNED_SDK not in result.stdout:
+    if not re.search(rf'(?<![\d.]){re.escape(PINNED_SDK)}(?![\d.])', result.stdout or ''):
         raise ServiceError(f'install verified Modal SDK {PINNED_SDK} before launching')
     commands = []
     if spec.engine.modal.prewarm:

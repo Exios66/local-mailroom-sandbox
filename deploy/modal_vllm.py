@@ -488,7 +488,7 @@ def build_vllm_command(model: str) -> list[str]:
     """Assemble the `vllm serve` argv for the subprocess."""
     cmd = [
         "vllm", "serve", model,
-        "--host", "0.0.0.0",
+        "--host", "0.0.0.0",  # nosec B104
         "--port", str(SERVER_PORT),
         "--max-model-len", MAX_MODEL_LEN,
         "--gpu-memory-utilization", GPU_MEMORY_UTILIZATION,

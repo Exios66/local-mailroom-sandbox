@@ -24,7 +24,7 @@ from mailroom_sandbox.tui.services_snapshot import read_services
 from mailroom_sandbox.tui.shell import OPERATOR_CSS, OPERATOR_HTML, OPERATOR_JS
 from mailroom_sandbox.job.checkpoint import RunStore
 from mailroom_sandbox.tui import pretty_log as pl
-from mailroom_sandbox.watch import _LOG_ROLE, LogBuffer, _header, _stream_logs, compose_watch_state
+from mailroom_sandbox.watch import _LOG_ROLE, LogBuffer, _header, compose_watch_state
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
@@ -113,7 +113,7 @@ def should_open_browser(*, stream: Any = None) -> bool:
 
 
 def browser_url(host: str, port: int) -> str:
-    display_host = "127.0.0.1" if host in ("0.0.0.0", "::") else host
+    display_host = "127.0.0.1" if host in ("0.0.0.0", "::") else host  # nosec B104
     return f"http://{display_host}:{port}/"
 
 

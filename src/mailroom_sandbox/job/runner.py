@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Callable
+from typing import Any
 
 from mailroom_sandbox.eval import experiment_log
 from mailroom_sandbox.eval import runners as eval_runners  # noqa: F401
@@ -179,7 +179,6 @@ def _run_whole_run(
     from mailroom_sandbox.eval import runners as eval_runners
 
     lock = store.read_lock() or {}
-    prompt_block = lock.get("prompt") or {}
     default_ref = _lock_prompt_source(store)
     prompt_variant = _lock_prompt_variant(store, task=task)
     kwargs: dict[str, Any] = {
@@ -585,7 +584,6 @@ def _build_record(
     The profile is the lock's, falling back to the default profile exactly as activation does, so a record never names a profile that did not run. Cost bills the measured wall time plus the cold boot, unless ``MODAL_BILLED_GPU_SECONDS`` overrides it.
     """
     lock = store.read_lock() or {}
-    prompt_block = lock.get("prompt") or {}
     profile = str(lock.get("profile") or default_profile())
     engine = lock.get("engine") or {}
     model = model or (engine.get("model") if isinstance(engine, dict) else None) or "unknown"
