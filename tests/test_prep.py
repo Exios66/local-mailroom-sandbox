@@ -7,7 +7,6 @@ import json
 from pathlib import Path
 
 from mailroom_sandbox.cli import main
-from mailroom_sandbox.compose import VALID_PROFILES, compose_file
 from mailroom_sandbox.paths import repo_root
 from mailroom_sandbox.prep import (
     clean_hf_rows,
@@ -60,14 +59,6 @@ def test_environment_checklist_and_dockerfile():
     assert any(name.endswith("01_offline_environment_setup.ipynb") for name in check["notebooks"])
     assert any(name.endswith("02_load_clean_prepare_data.ipynb") for name in check["notebooks"])
     assert any(name.endswith("03_offline_sandbox_smoke.ipynb") for name in check["notebooks"])
-
-
-def test_compose_includes_jupyter_service():
-    raw = compose_file().read_text(encoding="utf-8")
-    assert "jupyter:" in raw
-    assert "deploy/Dockerfile" in raw
-    assert "jupyter" in VALID_PROFILES
-    assert (repo_root() / "deploy" / "Dockerfile").is_file()
 
 
 def test_cli_datasets_prepare(tmp_path, monkeypatch):

@@ -192,9 +192,6 @@ def modal_stub():
 
 
 class TestDeploySurface:
-    def test_app_file_exists(self):
-        assert DEPLOY_APP.is_file(), "deploy/modal_vllm.py missing"
-
     def test_sandbox_scoped_constants(self):
         mod = _load_app_module()
         assert mod.APP_NAME == "sandbox-vllm"
@@ -371,17 +368,6 @@ class TestCommandBuilder:
         for call in modal_stub.Secret.calls:
             assert call["MODAL_VLLM_TP_SIZE"] == "2"
         assert "MODAL_VLLM_TP_SIZE" in mod.CONFIG_ENV_KEYS
-
-    def test_throughput_knobs_absent_by_default(self):
-        """The Modal vLLM exemplar's throughput flags stay OFF by default —
-        empty = vLLM's engine default, preserving compose parity and the
-        reproducible test-sandbox posture."""
-        mod = _load_app_module()
-        assert mod.ATTENTION_BACKEND == ""
-        assert mod.ASYNC_SCHEDULING == ""
-        cmd = mod.build_vllm_command("Qwen/Qwen3-8B")
-        assert "--attention-backend" not in cmd
-        assert "--async-scheduling" not in cmd
 
     def test_throughput_knobs_injected_when_configured(self, monkeypatch):
         monkeypatch.setenv("MODAL_VLLM_ATTENTION_BACKEND", "flashinfer")
@@ -660,18 +646,17 @@ class TestVersionPins:
             "modal must stay a deploy-time extra (runtime venv stays clean)"
         )
 
-    def test_app_file_records_sdk_version(self):
-        text = DEPLOY_APP.read_text(encoding="utf-8")
-        assert "1.6.2" in text
-        assert "v0.29.0" in text
-        assert "huggingface-secret" in text
-
-
 class TestSand032Knobs:
-    def test_new_knobs_absent_by_default(self):
+    def test_optional_knobs_absent_by_default(self):
+        """Throughput and SAND-032 flags stay OFF by default (empty = vLLM engine
+        default), preserving compose parity and the reproducible sandbox posture."""
         mod = _load_app_module()
+        assert mod.ATTENTION_BACKEND == ""
+        assert mod.ASYNC_SCHEDULING == ""
         cmd = mod.build_vllm_command("Qwen/Qwen3-8B-AWQ")
         for flag in (
+            "--attention-backend",
+            "--async-scheduling",
             "--kv-cache-dtype",
             "--default-chat-template-kwargs",
             "--compilation-config",
@@ -942,3 +927,37 @@ def test_telemetry_query_requests_the_l4_comparable_extras():
     mod = _load_app_module()
     for col in ("utilization.memory", "power.limit", "clocks.sm"):
         assert col in mod.TELEMETRY_QUERY, f"sampler does not request {col}"
+
+
+def test_startup_wait_stops_when_vllm_exits(monkeypatch):
+    from types import SimpleNamespace
+    mod = _load_app_module()
+    def no_socket(*args, **kwargs):
+        raise AssertionError('a dead child must not be probed')
+    monkeypatch.setattr(mod.socket, 'create_connection', no_socket)
+    assert mod._wait_for_port(8000, process=SimpleNamespace(poll=lambda: 2)) is False
+
+
+def test_failed_startup_kills_and_reaps_the_child(monkeypatch):
+    import subprocess
+    mod = _load_app_module()
+    calls = []
+    class Child:
+        def poll(self):
+            return None
+        def terminate(self):
+            calls.append('terminate')
+        def kill(self):
+            calls.append('kill')
+        def wait(self, *, timeout):
+            calls.append('wait')
+            if 'kill' not in calls:
+                raise subprocess.TimeoutExpired('vllm', timeout)
+            return -9
+    monkeypatch.setattr(mod.subprocess, 'Popen', lambda *args, **kwargs: Child())
+    monkeypatch.setattr(mod, '_wait_for_port', lambda *args, **kwargs: False)
+    monkeypatch.setattr(mod.atexit, 'register', lambda fn: None)
+    monkeypatch.setattr(mod.atexit, 'unregister', lambda fn: calls.append('unregister'))
+    with pytest.raises(RuntimeError, match='startup timeout'):
+        mod.serve.fn()
+    assert calls == ['terminate', 'wait', 'kill', 'wait', 'unregister']

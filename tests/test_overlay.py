@@ -8,7 +8,6 @@ from mailroom_sandbox.overlay import (
     list_profiles,
     load_profile,
     map_model,
-    rewrite_agents,
     serving_family,
 )
 from mailroom_sandbox.providers import MAILROOM_PROVIDER_KEYS, endpoints_for, load_endpoints

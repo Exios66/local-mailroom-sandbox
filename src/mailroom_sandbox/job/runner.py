@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Callable
+from typing import Any
 
 from mailroom_sandbox.eval import experiment_log
 from mailroom_sandbox.eval import runners as eval_runners  # noqa: F401
@@ -193,7 +193,6 @@ def _run_whole_run(
     from mailroom_sandbox.eval import runners as eval_runners
 
     lock = store.read_lock() or {}
-    prompt_block = lock.get("prompt") or {}
     default_ref = _lock_prompt_source(store)
     prompt_variant = _lock_prompt_variant(store, task=task)
     kwargs: dict[str, Any] = {
@@ -259,7 +258,11 @@ def _run_whole_run(
 
     try:
         if task == "pipeline":
-            result = eval_runners.run_pipeline_eval(connected=True, rows=locked_rows, **kwargs)
+            result = eval_runners.run_pipeline_eval(
+                connected=True, rows=locked_rows,
+                row_cb=lambda entry: _persist_isolated_items(store, [entry]),
+                progress_cb=_progress, max_wall_seconds=max_wall,
+                cost_cap_usd=cost_cap, gpu=gpu, replicas=replicas, **kwargs)
         elif task == "extract":
             result = eval_runners.run_extract_eval(rows=locked_rows, **kwargs)
         elif task == "chained":
@@ -540,7 +543,6 @@ def _build_record(
     The profile is the lock's, falling back to the default profile exactly as activation does, so a record never names a profile that did not run. Cost bills the measured wall time plus the cold boot, unless ``MODAL_BILLED_GPU_SECONDS`` overrides it.
     """
     lock = store.read_lock() or {}
-    prompt_block = lock.get("prompt") or {}
     profile = str(lock.get("profile") or default_profile())
     engine = lock.get("engine") or {}
     model = model or (engine.get("model") if isinstance(engine, dict) else None) or "unknown"
@@ -633,6 +635,12 @@ def _beacon_hook(run_id: str, *, task: str, on_event: Any = None) -> tuple[Any, 
     def finish(summary: dict[str, Any] | None) -> None:
         summary = summary or {}
         state = str(summary.get("state") or "")
+        if state in ("paused", "running"):
+            # Cancelled mid-run or limited by --max-items: not finished. Leave the beacon
+            # non-terminal so the board shows PAUSED (then stalled once this process exits)
+            # instead of claiming the run is done.
+            beacon.update(phase=state.upper(), done=summary.get("cursor"), total=summary.get("total"))
+            return
         beacon.finish(
             "failed" if state in ("failed", "cancelled") else "done",
             done=summary.get("cursor"),

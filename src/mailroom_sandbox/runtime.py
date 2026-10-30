@@ -228,6 +228,7 @@ def activate(
     load_env_file: bool = True,
     agent_models: dict[str, str] | None = None,
     agent_knobs: dict | None = None,
+    agent_routes: dict | None = None,
 ) -> Activation:
     """Load overlay, write runtime taxonomy, patch mailroom, set env.
 
@@ -256,6 +257,7 @@ def activate(
         model = (lock.get("engine") or {}).get("model")
         agent_models = deepcopy(lock.get("agent_models") or {})
         agent_knobs = deepcopy(lock.get("agent_knobs") or {})
+        agent_routes = deepcopy(lock.get("agent_routes") or {})
         prompt_variant = None  # the locked TEXT, not today's local stem
         base_url = None
     if load_env_file:
@@ -293,12 +295,24 @@ def activate(
             vendor_dir() / "llm-dojo-scoring",
         )
 
+    frozen_models = {name: row["model"] for name, row in (policy["lock"].get("agent_assignments") or {}).items()} if policy else {}
+    # A frozen assignment is the *resolved* table: for agents whose model comes from a
+    # per-agent knob ("model") it only echoes the engine default, and must not clobber
+    # the knob that was frozen alongside it.
+    knob_models = {name for name, knob in (agent_knobs or {}).items() if isinstance(knob, dict) and knob.get("model")}
+    effective_agent_models = {
+        **{name: model for name, model in frozen_models.items() if name not in knob_models},
+        **(agent_models or {}),
+    }
     taxonomy = build_merged_taxonomy(
         profile,
         model_override=model,
-        agent_models=agent_models,
+        agent_models=effective_agent_models,
         agent_knobs=agent_knobs,
     )
+    from mailroom_sandbox.agent_routes import install as install_agent_routes
+
+    install_agent_routes(agent_routes or {}, taxonomy, agent_models=effective_agent_models)
     taxonomy_path = write_runtime_taxonomy(taxonomy)
     os.environ["MAILROOM_TAXONOMY"] = str(taxonomy_path)
     patched = patch_mailroom_config(taxonomy_path)

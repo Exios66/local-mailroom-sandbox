@@ -203,6 +203,8 @@ def worker_body(monkeypatch, store):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     module.RUNS_MOUNT = str(store.dir.parent)
+    # The deployed body appends to <SANDBOX_ROOT>/reports; /root is unwritable off-Modal.
+    module.SANDBOX_ROOT = str(store.dir.parent / "sandbox_root")
     return module.run_job
 
 

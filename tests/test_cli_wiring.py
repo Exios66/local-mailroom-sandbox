@@ -60,6 +60,7 @@ def test_health_follows_base_url_env(monkeypatch):
 
     class _Resp:
         status_code = 200
+        is_success = True
 
         def json(self):
             return {"data": [{"id": "Qwen/Qwen3-8B"}]}
@@ -265,7 +266,6 @@ def test_pull_models_missing_ollama_degrades_cleanly(mocker, capsys):
 def test_up_detach_defaults_to_foreground():
     """hub#56: `sandbox up` runs in the FOREGROUND by default (the old
     action='store_true', default=True made -d a permanent no-op)."""
-    import argparse
 
     parser = cli.build_parser()
     args = parser.parse_args(["up"])
