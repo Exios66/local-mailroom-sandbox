@@ -296,7 +296,14 @@ def activate(
         )
 
     frozen_models = {name: row["model"] for name, row in (policy["lock"].get("agent_assignments") or {}).items()} if policy else {}
-    effective_agent_models = {**frozen_models, **(agent_models or {})}
+    # A frozen assignment is the *resolved* table: for agents whose model comes from a
+    # per-agent knob ("model") it only echoes the engine default, and must not clobber
+    # the knob that was frozen alongside it.
+    knob_models = {name for name, knob in (agent_knobs or {}).items() if isinstance(knob, dict) and knob.get("model")}
+    effective_agent_models = {
+        **{name: model for name, model in frozen_models.items() if name not in knob_models},
+        **(agent_models or {}),
+    }
     taxonomy = build_merged_taxonomy(
         profile,
         model_override=model,
