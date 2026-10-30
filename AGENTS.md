@@ -81,9 +81,9 @@ sandbox health                      # probes the deployed modal-vllm endpoint
 sandbox fetch-deps                  # optional: refresh vendor snapshots (workspace packages first; SHA-frozen standalone commit/release refs otherwise)
 sandbox fetch-deps --visualizer     # also clone The-Mailroom
 sandbox pilot --mock                # no LLM
-sandbox eval sorter --mock
-sandbox eval judge --mock
-sandbox eval pipeline --mock        # connected graph scores
+sandbox eval specialist [TARGET] --mock   # primary: all five specialists, or one (contract, merger_agreement, …)
+sandbox eval pipeline [--class C] --mock  # primary: full connected graph, every class or one
+sandbox eval --all-tasks            # other tasks (sorter, judge, …) still run; hidden from menus
 sandbox eval local_vs_api --mock    # Ollama vs OpenRouter serving (no API key)
 sandbox matrix --providers ollama --models qwen3:8b --prompts sorter_local_v0 --mock --dry-run
 pytest -v                           # network-free; live LLM tests need SANDBOX_LOCAL_LLM=1

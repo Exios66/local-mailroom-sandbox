@@ -31,7 +31,7 @@ from mailroom_sandbox.providers import default_profile
 _log = logging.getLogger("mailroom_sandbox.job.runner")
 
 PER_ITEM_TASKS = ("sorter",)
-_WHOLE_RUN_TASKS = ("pipeline", "extract", "chained", "local_vs_api", "sorter_vs_modernbert", "isolated")
+_WHOLE_RUN_TASKS = ("specialist", "pipeline", "extract", "chained", "local_vs_api", "sorter_vs_modernbert", "isolated")
 
 # DMR-056: every registered isolated agent (SPECS in eval/agents.py) is also a
 # runnable whole-run job task — registering a new AgentSpec is the ONE-file
@@ -207,6 +207,12 @@ def _run_whole_run(
             f"re-run `sandbox datasets pull/prepare` with a nonzero limit"
         )
     locked_rows = locked_rows or None
+    from mailroom_sandbox.eval import primary
+
+    target = lock.get("target")
+    if target and task == "pipeline":
+        # Level 2: one document class through the full graph.
+        locked_rows = primary.rows_for_class(locked_rows or eval_runners.load_manifest(), target)
     # SAND-018: the measured cold boot (written by `preflight --live`) travels
     # into the whole-run record too — isolated agent tasks append their own
     # experiment-log copy, so it must be passed through explicitly.
@@ -243,8 +249,57 @@ def _run_whole_run(
             except Exception as exc:  # noqa: BLE001
                 _log.warning("on_event callback raised — --watch may stop updating: %s", exc)
 
+    def _isolated(agent: str, rows: list[dict[str, Any]] | None, progress: Any = None, **extra: Any) -> dict[str, Any]:
+        return eval_runners.run_isolated_eval(
+            agent,
+            rows=rows,
+            cold_boot_seconds=cold_boot_seconds,
+            concurrency=concurrency,
+            max_wall_seconds=max_wall,
+            cost_cap_usd=cost_cap,
+            gpu=gpu,
+            replicas=replicas,
+            progress_cb=progress or _progress,
+            row_cb=lambda entry: _persist_isolated_items(store, [entry]),
+            score_metadata=score_metadata,
+            **{**kwargs, **extra},
+        )
+
     try:
-        if task == "pipeline":
+        if task == "specialist":
+            # Level 1 sweeps all five specialists, level 2 (`target`) runs one.
+            # Each specialist scores only its own class's locked rows; with no
+            # locked dataset it falls back to its committed fixture rows.
+            agents = primary.specialists_for(target)
+            per_agent: dict[str, Any] = {}
+            offset, grand_total = 0, len(locked_rows or [])
+            for agent in agents:
+                cls = next(c for c, a in primary.SPECIALISTS.items() if a == agent)
+                rows = [r for r in locked_rows if primary.row_class(r) == cls] if locked_rows else None
+                if locked_rows and not rows:
+                    continue  # the locked subset has no documents of this class
+                def swept(done: int, total: int, ok: int, errors: int, _base: int = offset) -> None:
+                    # One cursor across the sweep, not one per specialist.
+                    _progress(_base + done, grand_total or total, ok, errors)
+
+                per_agent[agent] = _isolated(agent, rows, progress=swept if len(agents) > 1 else None,
+                                             experiment_name=f"sandbox_{agent}_{store.run_id}",
+                                             prompt_version=_lock_prompt_variant(store, task=agent))
+                offset += len(rows or [])
+            if not per_agent:
+                raise ValueError("the locked dataset has no documents for any live-class specialist")
+            if len(per_agent) == 1:
+                result = next(iter(per_agent.values()))
+            else:
+                result = {
+                    "task": "specialist",
+                    "targets": list(per_agent),
+                    "summary": {agent: primary._headline(r) for agent, r in per_agent.items()},
+                    "n": sum(int((r.get("scores") or {}).get("n") or r.get("n") or 0) for r in per_agent.values()),
+                    "rows": [row for r in per_agent.values() for row in (r.get("rows") or [])],
+                    "scores": {},
+                }
+        elif task == "pipeline":
             result = eval_runners.run_pipeline_eval(
                 connected=True, rows=locked_rows,
                 row_cb=lambda entry: _persist_isolated_items(store, [entry]),

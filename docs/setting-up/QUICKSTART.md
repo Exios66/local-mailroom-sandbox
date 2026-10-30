@@ -136,9 +136,11 @@ sandbox datasets pull --dataset Lucius-Morningstar/mailroom-dataset --max-rows 2
 sandbox pilot --mock                     # full fixture pilot through the connected machinery
 sandbox hf-pilot --check                 # verify fixture/GT schema without running
 sandbox hf-pilot --mock                  # HF docclass mini-pilot, mocked
-sandbox eval sorter --mock               # isolated agent eval
-sandbox eval judge --mock
-sandbox eval pipeline --mock             # connected graph scoring (full 13-node path)
+sandbox eval specialist --mock           # primary: all five specialists in isolation
+sandbox eval specialist contract --mock  # …or one specialist
+sandbox eval pipeline --mock             # primary: connected graph scoring (full 13-node path)
+sandbox eval pipeline --class merger_agreement --mock   # …over one document class
+sandbox eval sorter --mock               # other tasks stay available (`sandbox eval --all-tasks`)
 sandbox eval pipeline --mock --connected # same (flag is accepted on pipeline)
 sandbox eval sorter --dry-run --name my-exp   # plan only; --name for the experiment log
 sandbox matrix --providers ollama --models qwen3:8b --prompts sorter_local_v0 --mock --sample 4

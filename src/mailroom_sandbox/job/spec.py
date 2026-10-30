@@ -421,6 +421,7 @@ def known_tasks() -> tuple[str, ...]:
     """
     base = (
         "sorter",
+        "specialist",
         "pipeline",
         "extract",
         "chained",
@@ -522,6 +523,9 @@ class RunSpec(BaseModel):
     run_id: str | None = None
     runbook_id: str | None = None
     task: str = "sorter"
+    # Level 2 of the primary tasks: one specialist (task: specialist) or one
+    # document class through the full graph (task: pipeline). None = all.
+    target: str | None = None
     profile: str = "modal-vllm"
     prompt: dict[str, Any] = Field(default_factory=dict)  # {default:..., agents:{name:...}}
     dataset: DatasetSpec = Field(default_factory=DatasetSpec)
@@ -557,6 +561,17 @@ class RunSpec(BaseModel):
     @classmethod
     def _task_known(cls, v: str) -> str:
         return _check_task(v)
+
+    @model_validator(mode="after")
+    def _target(self) -> "RunSpec":
+        if self.target is None:
+            return self
+        from mailroom_sandbox.eval.primary import PRIMARY_TASKS, resolve_class
+
+        if self.task not in PRIMARY_TASKS:
+            raise ValueError(f"target only applies to task specialist or pipeline, not {self.task!r}")
+        self.target = resolve_class(self.target)
+        return self
 
     @model_validator(mode="after")
     def _prompt_map(self) -> "RunSpec":
@@ -640,6 +655,8 @@ def spec_core(spec: RunSpec) -> dict[str, Any]:
         **({"agent_knobs": spec.agent_knobs} if spec.agent_knobs else {}),
         **({"agent_routes": {name: route.model_dump() for name, route in spec.agent_routes.items()}} if spec.agent_routes else {}),
         "task": spec.task,
+        # Hashed only when set, so every pre-existing run YAML keeps its spec_hash.
+        **({"target": spec.target} if spec.target else {}),
         "profile": spec.profile,
         "engine": {
             "kind": spec.engine.kind,

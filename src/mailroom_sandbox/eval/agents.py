@@ -583,6 +583,7 @@ _register(
 )
 
 COMPOSITE_TASKS = (
+    "specialist",
     "extract",
     "chained",
     "pipeline",

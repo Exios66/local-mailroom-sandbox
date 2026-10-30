@@ -388,28 +388,42 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(handler=_cmd_hf_pilot)
 
     from mailroom_sandbox.eval.agents import EVAL_TASKS
+    from mailroom_sandbox.eval import primary
 
-    p = sub.add_parser("eval", help="Run a scoring eval (isolated agent or connected pipeline)", parents=[leaf])
-    p.add_argument("task", choices=tuple(EVAL_TASKS))
-    g = p.add_mutually_exclusive_group()
+    p = sub.add_parser(
+        "eval",
+        help="score the specialists or the full mailroom pipeline",
+        parents=[leaf],
+        description=(
+            "Primary tasks: `specialist [TARGET]` (all five live-class specialists, or one) and "
+            "`pipeline [--class CLASS]` (the full connected graph over every class, or one). "
+            "Other eval tasks still run for existing configs; `sandbox eval --all-tasks` lists them."
+        ),
+    )
+    p.add_argument("--all-tasks", action="store_true", help="list every eval task, including the non-primary ones")
+    p.set_defaults(handler=_cmd_eval, task=None)
+    ec = argparse.ArgumentParser(add_help=False)
+    connected = argparse.ArgumentParser(add_help=False)  # pipeline only
+    compare = argparse.ArgumentParser(add_help=False)  # local_vs_api / sorter_vs_modernbert only
+    g = ec.add_mutually_exclusive_group()
     g.add_argument("--mock", action="store_true", default=False)
     g.add_argument("--local", action="store_true", default=False)
-    p.add_argument("--sample", type=_positive_int, default=None)
-    p.add_argument("--dry-run", action="store_true")
-    p.add_argument("--name", dest="experiment_name")
-    p.add_argument(
+    ec.add_argument("--sample", type=_positive_int, default=None)
+    ec.add_argument("--dry-run", action="store_true")
+    ec.add_argument("--name", dest="experiment_name")
+    connected.add_argument(
         "--connected",
         action="store_true",
         default=False,
         help="Score class + stage + extraction + routing (pipeline default; flag is accepted on pipeline)",
     )
-    p.add_argument(
+    compare.add_argument(
         "--from-log",
         action="store_true",
         dest="from_log",
         help="For local_vs_api / sorter_vs_modernbert: compare experiment_log.jsonl instead of fixtures",
     )
-    p.add_argument(
+    compare.add_argument(
         "--group",
         default=None,
         help=(
@@ -418,7 +432,7 @@ def build_parser() -> argparse.ArgumentParser:
             "with several groups pick the headline one by 1-based index or unique label substring"
         ),
     )
-    p.add_argument(
+    ec.add_argument(
         "--prompt-version",
         action="append",
         default=[],
@@ -432,7 +446,7 @@ def build_parser() -> argparse.ArgumentParser:
             "lacks is an error. Default (no flag) is unchanged."
         ),
     )
-    p.add_argument(
+    compare.add_argument(
         "--dataset-revision",
         default=None,
         dest="dataset_revision",
@@ -443,7 +457,31 @@ def build_parser() -> argparse.ArgumentParser:
             "(exit 1); this fills the gap, it never overrides a revision a record already has"
         ),
     )
-    p.set_defaults(handler=_cmd_eval)
+
+    def eval_target(value: str) -> str:
+        try:
+            return primary.resolve_class(value) or value
+        except ValueError as exc:
+            raise argparse.ArgumentTypeError(str(exc)) from exc
+
+    targets = ", ".join(primary.DOC_CLASSES)
+    ev = p.add_subparsers(dest="task", metavar="{specialist,pipeline}")
+    t = ev.add_parser("specialist", parents=[leaf, ec], help="isolated specialist eval: all five, or one TARGET",
+                      description=f"Score the live-class specialists in isolation. TARGET: {targets} (or the specialist name, e.g. contracts_specialist).")
+    t.add_argument("target", nargs="?", type=eval_target, default=None, metavar="TARGET", help=f"one specialist: {targets}")
+    t._sandbox_targets = [["all five specialists", "eval specialist"], *[[c, f"eval specialist {c}"] for c in primary.DOC_CLASSES]]
+    t = ev.add_parser("pipeline", parents=[leaf, ec, connected], help="full connected mailroom pipeline: every class, or one --class",
+                      description="Run documents through the full 13-node graph and score class, stage, extraction and routing.")
+    t.add_argument("--class", dest="doc_class", type=eval_target, default=None, metavar="CLASS", help=f"only this document class: {targets}")
+    t._sandbox_targets = [["every class", "eval pipeline"], *[[c, f"eval pipeline --class {c}"] for c in primary.DOC_CLASSES]]
+    for name in EVAL_TASKS:
+        if name not in primary.PRIMARY_TASKS:
+            # Kept parseable for existing run configs and scripts; hidden from help and menus.
+            # Legacy tasks keep their full original flag set (and its usage errors).
+            hidden = ev.add_parser(name, parents=[leaf, ec, connected, compare])
+            hidden._sandbox_hidden = True
+    for child in ev.choices.values():
+        child.set_defaults(handler=_cmd_eval)
 
     p = sub.add_parser("matrix", help="provider × model × prompt grid", parents=[leaf])
     from mailroom_sandbox.eval.matrix import matrix_tasks
@@ -913,6 +951,7 @@ def _run_parser(sub, shared):
     common.add_argument("--json", action="store_true")
     common.add_argument("--watch", action="store_true")
     common.add_argument("--initials", default=None, help="sign the reviewed settings to authorize Modal/OpenRouter spend (2–6 letters)")
+    common.add_argument("--target", default=None, metavar="TARGET", help="level 2 of task specialist/pipeline: one specialist or document class (contract, merger_agreement, corporate_record, correspondence, insurance_claim)")
     common.add_argument("--agent-route", action="append", dest="agent_routes", default=[], metavar="NAME=PROVIDER:MODEL", help="per-agent transport, or NAME=@route.yaml for endpoint/GPU/vLLM settings")
     common.add_argument("--job-mode", dest="mode", choices=["endpoint", "modal"], default=None)
     common.add_argument("--max-items", type=_positive_int, default=None)
@@ -1952,11 +1991,35 @@ def _cmd_hf_pilot(args: argparse.Namespace) -> int:
     return 0
 
 
+def _eval_overview(all_tasks: bool) -> str:
+    from mailroom_sandbox.eval import primary
+    from mailroom_sandbox.eval.agents import EVAL_TASKS
+
+    classes = " | ".join(primary.DOC_CLASSES)
+    lines = [
+        "sandbox eval: two primary tasks, each with two levels",
+        "  specialist             isolated eval of all five live-class specialists",
+        f"  specialist TARGET      one specialist; TARGET = {classes}",
+        "  pipeline               full connected mailroom pipeline over every class",
+        f"  pipeline --class C     full pipeline over one class; C = {classes}",
+        "add --mock for an offline run, --dry-run to see the plan; `sandbox eval <task> --help` for options",
+    ]
+    if all_tasks:
+        others = [name for name in EVAL_TASKS if name not in primary.PRIMARY_TASKS]
+        lines += ["", "other tasks (kept for existing run configs; not primary operations):", "  " + ", ".join(others)]
+    else:
+        lines.append("other tasks: `sandbox eval --all-tasks`")
+    return "\n".join(lines)
+
+
 def _cmd_eval(args: argparse.Namespace) -> int:
-    from mailroom_sandbox.eval import runners
+    from mailroom_sandbox.eval import primary, runners
     from mailroom_sandbox.eval.agents import SPECS
     from mailroom_sandbox.tui.session import MailroomConsole
 
+    if args.task is None:
+        print(_eval_overview(bool(getattr(args, "all_tasks", False))))
+        return 0
     if getattr(args, "from_log", False) and args.task not in {"local_vs_api", "sorter_vs_modernbert"}:
         raise CLIUsageError("--from-log only applies to comparison tasks")
     if getattr(args, "group", None) and not (args.task == "local_vs_api" and getattr(args, "from_log", False)):
@@ -1966,7 +2029,13 @@ def _cmd_eval(args: argparse.Namespace) -> int:
     mock = _mock_for(args, subcommand="eval")
     os.environ["SANDBOX_RUN_MODE"] = "mock" if mock else "local"
     console = MailroomConsole()
-    exp = args.experiment_name or f"sandbox_{args.task}"
+    if args.task == "specialist" and getattr(args, "target", None):
+        default_exp = f"sandbox_{primary.specialists_for(args.target)[0]}"  # same log identity as `eval <agent>`
+    elif args.task == "pipeline" and getattr(args, "doc_class", None):
+        default_exp = f"sandbox_pipeline_{args.doc_class}"
+    else:
+        default_exp = f"sandbox_{args.task}"
+    exp = args.experiment_name or default_exp
     console.run_banner(run_id=exp, task=args.task, subtitle="sandbox eval")
     console.phase("EVAL", "mock" if mock else args.profile or "local")
     if getattr(args, "dataset_revision", None) and args.task != "local_vs_api":
@@ -1976,7 +2045,7 @@ def _cmd_eval(args: argparse.Namespace) -> int:
         "mock": mock,
         "sample": args.sample,
         "dry_run": args.dry_run,
-        "experiment_name": args.experiment_name or f"sandbox_{args.task}",
+        "experiment_name": exp,
         "profile": args.profile,
         "model": args.model,
         "agent_models": _agent_models(args),
@@ -1984,13 +2053,19 @@ def _cmd_eval(args: argparse.Namespace) -> int:
     def _eval_progress(done: int, total: int, ok: int, errors: int) -> None:
         console.progress(done, total, ok=ok, errors=errors)
 
-    if args.task in SPECS:
+    if args.task == "specialist":
+        result = primary.run_specialist_eval(
+            getattr(args, "target", None), prompt_version=args.prompt, progress_cb=_eval_progress, **kwargs
+        )
+    elif args.task in SPECS:
         result = runners.run_isolated_eval(
             args.task, prompt_version=args.prompt, progress_cb=_eval_progress, **kwargs
         )
     elif args.task == "pipeline":
+        doc_class = getattr(args, "doc_class", None)
+        rows = primary.rows_for_class(runners.load_manifest(), doc_class) if doc_class else None
         result = runners.run_pipeline_eval(
-            prompt_version=args.prompt, connected=True, **kwargs
+            prompt_version=args.prompt, connected=True, rows=rows, **kwargs
         )
     elif args.task == "extract":
         result = runners.run_extract_eval(prompt_version=args.prompt, **kwargs)
@@ -2982,6 +3057,14 @@ def _run_load_spec(args) -> tuple[object, Path]:
     if getattr(args, "agent_routes", None):
         from mailroom_sandbox.agent_routes import parse_routes
         spec.agent_routes = {**spec.agent_routes, **parse_routes(args.agent_routes)}
+    if getattr(args, "target", None):
+        # Re-validate so the CLI target gets the same task check and normalization as the YAML.
+        try:
+            spec = type(spec).model_validate({**spec.model_dump(by_alias=True), "target": args.target})
+        except ValueError as exc:
+            errors = getattr(exc, "errors", None)
+            message = errors()[0]["msg"].removeprefix("Value error, ") if callable(errors) else str(exc)
+            raise CLIUsageError(f"--target: {message}") from exc
     cli_versions = getattr(args, "prompt_versions", None)
     if cli_versions:
         # --prompt-version wins per role over the spec's prompt.versions; the merged

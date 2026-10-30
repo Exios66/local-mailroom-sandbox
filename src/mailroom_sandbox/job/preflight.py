@@ -552,6 +552,20 @@ def _preflight(
         report["checks"].append({"name": "dataset", "ok": False, "detail": str(exc)})
         return report
 
+    if spec.target:
+        # Level-2 target: the lock keeps the prepared subset (its sha is the
+        # dataset identity); the runner narrows it. Zero matching rows is a
+        # config error now, not an empty run later.
+        from mailroom_sandbox.eval.primary import rows_for_class
+
+        try:
+            narrowed = len(rows_for_class(store.dataset_rows(), spec.target))
+        except ValueError as exc:
+            report["status"] = "failed"
+            report["checks"].append({"name": "target", "ok": False, "detail": str(exc)})
+            return report
+        report["checks"].append({"name": "target", "ok": True, "detail": f"{spec.target}: {narrowed} row(s)"})
+
     # 3) engine spec validators (pydantic ranges + repo guards)
     eng_errors = _engine_errors(spec)
     if eng_errors:
@@ -623,6 +637,7 @@ def _preflight(
         "spec_hash": spec.spec_hash(),
         "prompt_text_sha": prompt_text_sha,
         "task": spec.task,
+        **({"target": spec.target} if spec.target else {}),
         "profile": spec.profile,
         "agent_models": dict(spec.agent_models),
         **({"agent_routes": {name: route.model_dump() for name, route in spec.agent_routes.items()}} if spec.agent_routes else {}),
@@ -661,6 +676,10 @@ def _preflight(
         lock["report_group"] = report_group
     store.write_lock(lock)
     total = len(store.dataset_rows())
+    if spec.target:
+        from mailroom_sandbox.eval.primary import rows_for_class
+
+        total = len(rows_for_class(store.dataset_rows(), spec.target))
     store.write_checkpoint(state="prepared", cursor=0, total=total, remote=None)
     store.append_event("preflight_ok", "info", spec_hash=spec.spec_hash())
     report.update({"status": "prepared", "spec_hash": spec.spec_hash(), "lock_path": str(store.lock_path)})

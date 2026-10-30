@@ -188,7 +188,9 @@ sandbox hf whoami|download|cache|raw                    # pinned revision by def
 sandbox pipeline watcher | pipeline api
 sandbox pilot --mock|--local
 sandbox hf-pilot --check|--mock|--local
-sandbox eval <agent>|extract|chained|pipeline|local_vs_api [--mock|--local]
+sandbox eval specialist [TARGET] [--mock|--local]      # all five specialists, or one
+sandbox eval pipeline [--class CLASS] [--mock|--local] # full pipeline, every class or one
+sandbox eval --all-tasks                               # other (non-primary) eval tasks
 sandbox eval local_vs_api --from-log   # compare experiment_log local vs API-key runs
 sandbox matrix --providers ollama --models qwen3:8b --prompts sorter_local_v0
 sandbox datasets pull          # LIVE pinned FULL Hub pull (3302 rows) → data/cache/

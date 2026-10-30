@@ -11,6 +11,14 @@ sandbox agents list
 sandbox agents show judge
 sandbox cutover --agent-model judge=qwen3:14b
 
+# Primary tasks (two levels each; `sandbox eval` alone prints them):
+sandbox eval specialist --mock                 # all five live-class specialists
+sandbox eval specialist contract --mock        # one specialist (or merger_agreement, corporate_record, …)
+sandbox eval pipeline --mock                   # full connected pipeline, every class
+sandbox eval pipeline --class contract --mock  # full pipeline, one class
+
+# Other tasks: kept for existing run configs, hidden from help and menus
+# (`sandbox eval --all-tasks` lists them).
 sandbox eval sorter --mock
 sandbox eval sorter_reviewer --mock
 sandbox eval contracts_specialist --mock

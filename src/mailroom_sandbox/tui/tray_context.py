@@ -52,8 +52,17 @@ def _engine_bits(lock: dict[str, Any]) -> tuple[str, str, str, str]:
     return subtitle, gpu, app, model
 
 
-def route_for_task(task: str | None) -> str:
+def route_for_task(task: str | None, target: str | None = None) -> str:
+    """The run's route line; a primary task's level-2 target names the lane it narrows to."""
     t = (task or "").strip().lower()
+    if t == "pipeline" and target:
+        return f"INBOX → SORTER → {target.upper()} → REPORT  (full pipeline · {target} only)"
+    if t == "specialist":
+        if target:
+            from mailroom_sandbox.eval.primary import SPECIALISTS
+
+            return f"INBOX → {SPECIALISTS.get(target, target).upper()} → REPORT"
+        return "INBOX → ALL FIVE SPECIALISTS → REPORT"
     if t in {"pipeline", "extract", "chained"}:
         return "INBOX → SORTER → SPECIALISTS → REPORT"
     if t == "sorter":
@@ -368,7 +377,7 @@ def build_tray_layout(
     job = lock.get("job") or {}
     job_mode = str(job.get("mode") or "endpoint")
     subtitle, gpu, _modal_app, _model = _engine_bits(lock)
-    route_label = route_for_task(task)
+    route_label = route_for_task(task, lock.get("target"))
     stage = stage_tag(store.run_id, task=task, profile=profile)
 
     times_file = resolve_times_file(store, times_dir)
