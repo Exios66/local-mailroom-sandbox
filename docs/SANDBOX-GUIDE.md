@@ -104,8 +104,8 @@ sandbox eval sorter --local --profile modal-vllm
 SANDBOX_PROFILE=vllm-local sandbox eval sorter --local
 ```
 
-**Important:** pass `--profile` AFTER the subcommand, not before. A
-`--profile` before the subcommand is clobbered by the subparser default.
+Shared flags `--profile`, `--model`, `--prompt`, and `--agent-model` work
+before or after the subcommand; a later occurrence wins.
 
 ---
 
@@ -143,6 +143,11 @@ sandbox cutover --profile ollama --model llama3.2:3b   # all agents
 
 ## 5. CLI reference
 
+This section is a curated map of the common paths. The complete, generated
+reference — every command, subcommand, argument and parser-required marker — is
+[`docs/cli-reference.md`](cli-reference.md); regenerate it with
+`python scripts/check_cli_surface.py` after changing the parser.
+
 ### Core commands
 
 | Command | Description |
@@ -155,8 +160,23 @@ sandbox cutover --profile ollama --model llama3.2:3b   # all agents
 | `sandbox down` | Stop compose services |
 | `sandbox pull-models --profile ollama` | Pull required Ollama models (on the default `modal-vllm` it only prints the Modal prewarm command) |
 | `sandbox health` | Probe the active provider |
+| `sandbox doctor [--service modal] [--live] [--publish] [--json]` | Offline status of 14 tools/config surfaces; `--live` probes endpoints, `--publish` feeds the board strip |
 | `sandbox fetch-deps` | Optional: refresh the TRACKED vendor snapshots (workspace mirror in the monorepo; reviewed refs in `_VENDOR_PINS` otherwise) |
 | `sandbox fetch-deps --visualizer` | Also clone The-Mailroom |
+
+### Service commands
+
+| Command | Description |
+| --- | --- |
+| `sandbox modal deploy\|prewarm\|status\|stop\|logs\|url\|raw` | Guarded Modal passthrough; `stop` is idempotent and verified |
+| `sandbox vllm probe\|command\|serve\|metrics` | Endpoint probe, the exact `vllm serve` line, local serving, and serving metrics |
+| `sandbox hf whoami\|download\|cache\|raw` | Hugging Face access; `download` defaults to the pinned dataset revision |
+
+Commands that would deploy, start, stop, serve, or download accept `--dry-run`;
+read-only commands such as `status`, `probe`, and `url` do not. Pass extra
+flags through `sandbox modal raw -- <args>`, `sandbox hf raw -- <args>`, or
+`sandbox vllm serve -- <vllm args>`.
+
 
 ### Eval commands
 
@@ -199,10 +219,8 @@ sandbox cutover --profile ollama --model llama3.2:3b   # all agents
 
 ### Tunnel commands
 
-> **Flag placement (hub#56):** `--profile` goes BEFORE the sub-subcommand
-> (`sandbox tunnel --profile vllm-remote plan`) — the leaf parsers omit
-> `parents=[shared]` deliberately, so `sandbox tunnel plan --profile …`
-> rejects the flag.
+> Shared flags such as `--profile` are accepted before or after the command,
+> including on tunnel leaf commands. A later occurrence wins.
 
 | Command | Description |
 | --- | --- |
@@ -238,7 +256,7 @@ SANDBOX_LOCAL_LLM=1 pytest -v            # include live LLM tests
 
 ```bash
 # Offline stack (Ollama fallback): Langfuse + Ollama + Jupyter
-sandbox up --compose-profile langfuse --compose-profile ollama --compose-profile jupyter
+sandbox up -d --compose-profile langfuse --compose-profile ollama --compose-profile jupyter
 # → Lab: http://127.0.0.1:8888/lab
 # → Langfuse: http://127.0.0.1:3000 (pk-lf-sandbox / sk-lf-sandbox)
 
@@ -603,7 +621,7 @@ python scripts/reporting/render_experiment_log.py
 pip install -e ".[dev]" && cp config/.env.example .env
 
 # Offline (Ollama) workflow
-sandbox up --compose-profile ollama && sandbox pull-models --profile ollama
+sandbox up -d --compose-profile ollama && sandbox pull-models --profile ollama
 sandbox eval sorter --mock
 sandbox eval pipeline --mock
 

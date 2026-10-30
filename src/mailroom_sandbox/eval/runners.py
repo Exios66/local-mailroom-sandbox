@@ -127,6 +127,7 @@ def run_isolated_eval(
     *,
     mock: bool = True,
     sample: int | None = None,
+    sample_seed: int | None = None,
     dry_run: bool = False,
     experiment_name: str | None = None,
     prompt_version: str | None = None,
@@ -168,8 +169,10 @@ def run_isolated_eval(
 
         prompt_version = default_prompt_variant(task)
     rows = spec.load_rows() if rows is None else rows
-    if sample:
-        rows = rows[: sample]
+    if sample is not None:
+        if sample <= 0:
+            raise ValueError("sample must be positive")
+        rows = _seeded_sample(rows, sample, sample_seed) if sample_seed is not None else rows[:sample]
     plan = {
         "task": task,
         "n": len(rows),
@@ -411,6 +414,7 @@ def run_sorter_eval(
     *,
     mock: bool = True,
     sample: int | None = None,
+    sample_seed: int | None = None,
     dry_run: bool = False,
     experiment_name: str | None = None,
     prompt_version: str | None = None,
@@ -420,8 +424,10 @@ def run_sorter_eval(
     rows: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     rows = load_manifest() if rows is None else rows
-    if sample:
-        rows = rows[: sample]
+    if sample is not None:
+        if sample <= 0:
+            raise ValueError("sample must be positive")
+        rows = _seeded_sample(rows, sample, sample_seed) if sample_seed is not None else rows[:sample]
     plan = {
         "task": "sorter",
         "n": len(rows),
@@ -495,6 +501,7 @@ def run_extract_eval(
     *,
     mock: bool = True,
     sample: int | None = None,
+    sample_seed: int | None = None,
     dry_run: bool = False,
     experiment_name: str | None = None,
     profile: str | None = None,
@@ -504,8 +511,10 @@ def run_extract_eval(
     rows: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     rows = [r for r in (load_manifest() if rows is None else rows) if parse_expected_fields(r)]
-    if sample:
-        rows = rows[: sample]
+    if sample is not None:
+        if sample <= 0:
+            raise ValueError("sample must be positive")
+        rows = _seeded_sample(rows, sample, sample_seed) if sample_seed is not None else rows[:sample]
     plan = {"task": "extract", "n": len(rows), "mock": mock, "fingerprint": dataset_fingerprint(rows)}
     if dry_run:
         return plan
@@ -1015,6 +1024,7 @@ def run_pipeline_eval(
     *,
     mock: bool = True,
     sample: int | None = None,
+    sample_seed: int | None = None,
     dry_run: bool = False,
     experiment_name: str | None = None,
     profile: str | None = None,
@@ -1033,8 +1043,10 @@ def run_pipeline_eval(
     # DMR-056: rows=None keeps the fixture manifest default; the sandbox job
     # whole-run path passes the LOCKED live dataset rows instead.
     rows = load_manifest() if rows is None else rows
-    if sample:
-        rows = rows[: sample]
+    if sample is not None:
+        if sample <= 0:
+            raise ValueError("sample must be positive")
+        rows = _seeded_sample(rows, sample, sample_seed) if sample_seed is not None else rows[:sample]
     plan = {
         "task": "pipeline",
         "n": len(rows),

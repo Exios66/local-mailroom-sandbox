@@ -35,6 +35,19 @@ def test_periodic_checks_publish_and_stop(tmp_path, monkeypatch):
     assert len(calls) == count
 
 
+def test_initial_publish_failure_warns_and_still_yields(tmp_path, monkeypatch, capsys):
+    """A read-only/missing --root must not stop the board: publishing is optional."""
+    monkeypatch.setattr(poll, 'run_doctor', lambda profile, **kw: [ServiceStatus('test', 'ok', 'ready')])
+
+    def unavailable(*args, **kwargs):
+        raise OSError('read-only root')
+
+    monkeypatch.setattr(poll, 'publish_services', unavailable)
+    with poll.periodic_services('modal-vllm', interval=0.01, root=tmp_path):
+        pass
+    assert 'could not publish service snapshot' in capsys.readouterr().err
+
+
 def test_board_passes_polling_options_to_tui(monkeypatch, tmp_path):
     calls = []
     monkeypatch.setattr(poll, 'run_doctor', lambda profile, **kw: calls.append((profile, kw)) or [])

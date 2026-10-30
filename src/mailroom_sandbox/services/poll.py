@@ -31,7 +31,12 @@ def periodic_services(profile: str, *, interval: float = 0, live: bool = False,
 
     if live and profile == "modal-vllm":
         warn("periodic --live probes can cold-start a billed Modal GPU container")
-    refresh()
+    try:
+        refresh()
+    except OSError as exc:
+        # Publishing is optional for the board: a read-only/missing --root must
+        # not prevent it from starting.
+        warn(f"could not publish service snapshot: {exc}")
 
     def loop() -> None:
         while not stop.wait(interval):

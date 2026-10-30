@@ -4,6 +4,10 @@
 
 ### Added
 
+- `docs/cli-reference.md`: generated, complete reference for every parser node,
+  argument, parser-required marker and choice, plus `python scripts/check_cli_surface.py
+  [--check]` and parser-surface tests that exercise help, required arguments and
+  handler dispatch for every leaf (no live services).
 - `sandbox experiment designs|create|review|preflight|launch|watch|report`: single and
   SAND42 paired designs, pinned Hub slices/sample sizes, full pipeline or specialist
   jobs, explicit vLLM/GPU/decode/trace choices, separate bounded smoke subsets,
@@ -54,6 +58,11 @@
 
 ### Changed
 
+- CLI startup loads the checkout's `.env` files (root `.env`, then `config/.env`) before
+  building the parser, so profiles and secrets resolve from `config/.env.example`;
+  exported variables still win, then root `.env`, then `config/.env`. The template is
+  refreshed against the variables the CLI, deploy scripts and Modal app actually read
+  (Modal workspace/app name, deploy knobs, per-agent route key variables).
 - Serve through **Modal vLLM by default**: `SANDBOX_PROFILE=modal-vllm` and
   `DEFAULT_PROVIDER=vllm` (CLI, runtime fallbacks, `.env.example`, generated
   runbooks and README/quickstart). `--profile ollama` is the explicit
@@ -66,6 +75,19 @@
 
 ### Fixed
 
+- Command-audit fixes: repeatable `--agent-model` accumulates across the root, group
+  and leaf parsers (last value wins); `--mock` and `--local` are mutually exclusive;
+  zero, negative, NaN and infinite sample/cost/concurrency inputs are rejected;
+  options that would have been silently ignored (`--from-log`, `--group`,
+  `--connected`, empty matrix lists, unknown agents) return a usage error; commands
+  that cannot honor `--dry-run` reject it instead of acting; `pilot`, `legalbench`,
+  `matrix` and `hf-pilot` forward agent overrides; matrix cells share one seeded draw
+  and forward the seed.
+- Direct live probes now persist `cold_boot.json` (preflight/start), per-agent Modal
+  route probes wait out the boot budget, teardown keeps the original failure when
+  cleanup also fails, the engine probe uses the credential of the resolved transport,
+  model-only runs freeze `agent_assignments`, ambiguous credential URLs are rejected
+  by redaction, and an unwritable snapshot root no longer stops the board.
 - Complete SAND-064 review fixes: credential-free doctor URLs and fake-tool logs; `.env`
   loading for HF and local vLLM commands; malformed snapshot rejection; safe HTML
   attributes; independent doctor checks; per-app teardown guidance; trimmed workspaces;

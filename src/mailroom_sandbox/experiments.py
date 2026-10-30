@@ -361,6 +361,42 @@ def _smoke(spec: RunSpec, store: RunStore, plan: Plan) -> None:
     store.append_event('experiment_smoke_passed', 'info', smoke_run_id=smoke.run_id, rows=len(rows))
 
 
+def _route_model_ids(name: str, route, base: str, headers: dict[str, str], spec: RunSpec) -> list[str]:
+    """Read ``/models`` for a route, waiting out a scale-to-zero boot.
+
+    A managed Modal route holds the request open (minutes) while its container
+    boots, so the old single 60 s GET failed verification and tore down a
+    healthy app. Reuse the preflight boot budget; a refused connection still
+    means a dead/wrong endpoint and fails fast.
+    """
+    import time
+
+    import httpx
+
+    budget_spec = spec.model_copy(deep=True)
+    if route.provider == 'modal-vllm':
+        budget_spec.engine.kind = 'modal-vllm'
+    budget = preflight.probe_timeout_seconds(budget_spec)
+    deadline = time.monotonic() + budget
+    last_error: Exception | None = None
+    while True:
+        timeout = max(1.0, deadline - time.monotonic())
+        try:
+            models = httpx.get(base + '/models', headers=headers, timeout=timeout)
+            models.raise_for_status()
+            return [row.get('id') for row in models.json().get('data', [])]
+        except httpx.ConnectError:
+            raise
+        except (httpx.HTTPError, ValueError) as exc:
+            last_error = exc
+        if time.monotonic() >= deadline:
+            raise ServiceError(
+                f'{name}: no /models response within the {budget:.0f}s probe budget: '
+                + redact_urls(str(last_error))
+            )
+        time.sleep(1.0)
+
+
 def _probe(spec: RunSpec) -> None:
     from mailroom_sandbox.health import probe_chat
     from mailroom_sandbox.overlay import load_profile
@@ -387,9 +423,7 @@ def _probe(spec: RunSpec) -> None:
             headers = {'Authorization': f'Bearer {key}'} if key else {}
             try:
                 if route.provider in {'modal-vllm', 'vllm'}:
-                    models = httpx.get(base + '/models', headers=headers, timeout=60)
-                    models.raise_for_status()
-                    ids = [row.get('id') for row in models.json().get('data', [])]
+                    ids = _route_model_ids(name, route, base, headers, spec)
                     if route.model not in ids:
                         raise ServiceError(f'{name}: endpoint does not serve {route.model}')
                 response = httpx.post(base + '/chat/completions', headers=headers, timeout=60,
@@ -536,7 +570,9 @@ def _cmd_launch(args) -> int:
                             except Exception as exc:
                                 failures.append(str(exc))
                         if failures:
-                            raise ServiceError('teardown failed: ' + '; '.join(failures))
+                            cause = sys.exc_info()[1]
+                            prefix = f'{cause}; ' if cause else ''
+                            raise ServiceError(prefix + 'teardown failed: ' + '; '.join(failures))
         finally:
             _write_report(path, plan, runs)
     return 0

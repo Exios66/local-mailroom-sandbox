@@ -37,7 +37,7 @@ Sandbox evals implement the Langfuse v4 `document-pipeline` contract in `mailroo
 
 1. **`--mock` / offline prep** — no live LLM  
 2. **Modal vLLM** — the default (`modal-vllm`): remote GPU; `pip install -e ".[deploy]"` + `sandbox runbook show serve` (see [modal](../modal/SKILL.md))
-3. **Ollama** — offline/CPU fallback (`--profile ollama`; `sandbox up --compose-profile ollama`, `sandbox pull-models --profile ollama`)  
+3. **Ollama** — offline/CPU fallback (`--profile ollama`; `sandbox up -d --compose-profile ollama`, `sandbox pull-models --profile ollama`)
 4. **vLLM local** — NVIDIA host + compose profile `vllm`  
 5. **llama.cpp / LM Studio** — generic OpenAI base URL profiles  
 6. **OpenRouter** — opt-in only (`OPENROUTER_API_KEY`); never the sandbox default  
@@ -62,8 +62,8 @@ Always `mailroom_sandbox.runtime.activate(profile)` before importing mailroom gr
 ```bash
 sandbox profiles
 sandbox cutover --profile ollama
-sandbox up                                          # langfuse only (default modal-vllm); add --compose-profile ollama offline
-sandbox up --compose-profile phoenix                # optional sidecar
+sandbox up -d                                       # langfuse only (default modal-vllm); select both profiles for Ollama + Langfuse
+sandbox up -d --compose-profile phoenix             # optional sidecar
 sandbox health
 sandbox doctor                                      # offline status of modal/hf/docker/ollama/ssh/git/vllm…; --live probes, --publish feeds the board strip
 sandbox datasets prepare                            # offline

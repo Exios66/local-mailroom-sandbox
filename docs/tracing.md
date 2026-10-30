@@ -14,7 +14,8 @@ LANGFUSE_SECRET_KEY=sk-lf-sandbox
 
 `sandbox up` (default `modal-vllm` profile) starts **langfuse**; the GPU
 endpoint is deployed to Modal, not composed. The offline stack is
-`sandbox up --compose-profile ollama` (+ `--profile ollama`). Phoenix remains an
+`sandbox up -d --compose-profile langfuse --compose-profile ollama`
+(+ `--profile ollama`). Phoenix remains an
 optional sidecar (`--compose-profile phoenix`) — The-Mailroom cannot plot
 Phoenix spans.
 

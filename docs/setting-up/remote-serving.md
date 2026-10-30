@@ -19,7 +19,7 @@ one env contract (`VLLM_BASE_URL` / `VLLM_API_KEY` everywhere).
 ## Local vLLM
 
 ```bash
-sandbox up --compose-profile vllm        # docker compose, needs NVIDIA GPU
+sandbox up -d --compose-profile vllm     # docker compose, needs NVIDIA GPU
 sandbox health --profile vllm-local
 ```
 
@@ -56,7 +56,7 @@ The Modal app exposes both as deploy knobs (`MODAL_VLLM_QUANTIZATION`,
 ## Modal
 
 Modal SDK **1.6.2** (pinned in the `[deploy]` extra) + vLLM **v0.29.0**
-(the newest upstream stable, v0.29.0, flips the engine core — bump both pins
+(v0.29.0 flips the engine core — bump both pins
 after a parity run); full workflow (knobs, costs, security, troubleshooting)
 in [`deploy/README.md`](../../deploy/README.md).
 
@@ -120,10 +120,9 @@ sandbox eval sorter --local                  # evals hit the tunneled engine
 sandbox tunnel  --profile vllm-remote down
 ```
 
-CLI conventions (whole `sandbox` CLI, not just tunnel): pass `--profile`
-AFTER the subcommand (`sandbox tunnel --profile vllm-remote up`) or via
-`SANDBOX_PROFILE` — a `--profile` placed before the subcommand is clobbered
-by the subparser default (pre-existing argparse behavior in this CLI).
+CLI conventions: `--profile`, `--model`, `--prompt`, and `--agent-model`
+work before or after subcommands, including tunnel leaf commands. A later
+occurrence wins; `SANDBOX_PROFILE` sets the default profile.
 
 The forward is an `ssh -N -L` with `ExitOnForwardFailure` + keepalives;
 `up` refuses to double-forward a live port and records the pid under

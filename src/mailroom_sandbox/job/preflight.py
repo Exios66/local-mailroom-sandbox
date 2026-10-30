@@ -120,6 +120,12 @@ def _probe_engine(spec: RunSpec) -> dict[str, Any]:
     from mailroom_sandbox.overlay import load_profile
     profile = load_profile(spec.profile)
     api_key_env = str(profile.get("api_key_env") or "VLLM_API_KEY")
+    # ``engine_base_url`` resolves VLLM_BASE_URL BEFORE the profile base for
+    # every non-OpenRouter kind. The probe must then use the vLLM credential:
+    # an ``openrouter`` profile pointed at a vLLM endpoint would otherwise
+    # send OPENROUTER_API_KEY to that host.
+    if spec.engine.kind != "openrouter" and os.environ.get("VLLM_BASE_URL", "").strip():
+        api_key_env = "VLLM_API_KEY"
     api_key = os.environ.get(api_key_env, "").strip()
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
     detail: dict[str, Any] = {"base_url": base}
@@ -208,6 +214,35 @@ def probe_engine(spec: RunSpec) -> dict[str, Any]:
     the whole preflight.
     """
     return _probe_engine(spec)
+
+
+def probe_timeout_seconds(spec: RunSpec) -> float:
+    """Public boot budget for direct probes (CLI and per-agent route checks)."""
+    return _probe_timeout_seconds(spec)
+
+
+def record_cold_boot(store: RunStore, probe: Mapping[str, Any], *, run_id: str | None = None) -> dict[str, Any] | None:
+    """Persist a successful live-probe measurement as the run's cold boot.
+
+    Direct probes (``sandbox run preflight --live`` / ``run start``) bypass
+    ``preflight(live=True)``, so the runner and metrics never saw the measured
+    boot time. Only successful measurements are recorded; a failed probe must
+    not overwrite an existing measurement.
+    """
+    boot_seconds = probe.get("cold_boot_seconds") if probe.get("ok") else None
+    if boot_seconds is None:
+        return None
+    measurement = {
+        "cold_boot_seconds": float(boot_seconds),
+        "base_url": probe.get("base_url"),
+        "served_models": probe.get("served_models"),
+        "probe_timeout_seconds": probe.get("probe_timeout_seconds"),
+        "measured_at": checkpoint.utc_now(),
+        "run_id": run_id or store.run_id,
+    }
+    store.write_cold_boot(measurement)
+    store.append_event("cold_boot", "info", **measurement)
+    return measurement
 
 
 def _modal_check(spec: RunSpec) -> bool:
@@ -541,21 +576,13 @@ def _preflight(
             return report
         boot_seconds = probe.get("cold_boot_seconds")
         if boot_seconds is not None:
-            measurement = {
-                "cold_boot_seconds": float(boot_seconds),
-                "base_url": probe.get("base_url"),
-                "served_models": probe.get("served_models"),
-                "probe_timeout_seconds": probe.get("probe_timeout_seconds"),
-                "measured_at": checkpoint.utc_now(),
-                "run_id": run_id,
-            }
-            store.write_cold_boot(measurement)
-            store.append_event("cold_boot", "info", **measurement)
-            report["cold_boot_seconds"] = float(boot_seconds)
-            report["cold_boot_path"] = str(store.cold_boot_path)
-            report["checks"][-1]["detail"] += (
-                f" | cold_boot={float(boot_seconds):.2f}s"
-            )
+            measurement = record_cold_boot(store, probe, run_id=run_id)
+            if measurement is not None:
+                report["cold_boot_seconds"] = measurement["cold_boot_seconds"]
+                report["cold_boot_path"] = str(store.cold_boot_path)
+                report["checks"][-1]["detail"] += (
+                    f" | cold_boot={measurement['cold_boot_seconds']:.2f}s"
+                )
 
     # 5) trace sink
     try:
@@ -618,7 +645,10 @@ def _preflight(
     from mailroom_sandbox.runtime import resolve_agent_knobs
 
     lock["agent_knobs"] = resolve_agent_knobs(spec.agent_knobs or agent_knobs_for_run(run_id))
-    if spec.agent_routes or spec.agent_knobs:
+    # Freeze the resolved table for model-only runs too: otherwise runtime.activate()
+    # rebuilds the remaining agents from the live profile/taxonomy, so a later
+    # judge_model edit silently changes a resumed run without changing its lock.
+    if spec.agent_routes or spec.agent_knobs or spec.agent_models:
         from mailroom_sandbox.agent_routes import describe
         lock["agent_assignments"] = describe(spec)
     selected = selection_from_lock(prompt_block)
