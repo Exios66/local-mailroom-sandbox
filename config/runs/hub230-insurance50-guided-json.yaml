@@ -1,0 +1,74 @@
+# SPEND-GATED — do not run until Jack go
+# Hub #230 — STUB: constrained JSON / vLLM guided decoding cell.
+#
+# HARNESS GAP: sandbox.run/v1 has no supported engine flag for guided JSON.
+# Specialists already use LangChain with_structured_output client-side; this YAML
+# mirrors baseline serving until a future RunSpec field exists. See runbook.
+#
+# # When harness adds support, uncomment and wire (example only — NOT ACTIVE):
+# # job:
+# #   structured_output: guided_json   # <-- does not exist in RunSpec today
+schema: sandbox.run/v1
+run_id: hub230-insurance50-guided-json
+task: insurance_claims_specialist
+profile: modal-vllm
+
+prompt:
+  default: {source: code-default}
+  agents:
+    insurance_claims_specialist:
+      source: local
+      file: insurance_claims_specialist_simplified
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  revision: ed7576b676343e0b402ec5412cded301e629bdee
+  strata:
+    buckets:
+      - {doc_class: insurance_claim, count: 50}
+  limit: 50
+  sample_seed: 42
+
+engine:
+  kind: modal-vllm
+  model: Qwen/Qwen3-8B-AWQ
+  vllm:
+    max_model_len: 32768
+    gpu_memory_utilization: 0.90
+    max_num_seqs: 16
+    enable_prefix_caching: true
+    enforce_eager: false
+    quantization: "awq_marlin"
+    revision: ""
+    kv_cache_dtype: "fp8"
+    enable_thinking: false
+    cudagraph_capture_sizes: [1, 2, 4, 8, 16]
+    max_inputs: 32
+  modal:
+    app: sandbox-vllm-hub230
+    gpu: L4
+    image_tag: v0.29.0
+    scaledown_seconds: 120
+    max_containers: 2
+    min_containers: 2
+    prewarm: true
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 32
+  cost_cap_usd: 0.80
+  max_wall_seconds: 3600
+
+trace:
+  sink: none
+  otlp: false
+  environment: hub230
+  tags: [sandbox, hub230, spend-gated, stub, insurance_claim, guided_json]
+
+note: "NOT RUNNABLE as guided-decode A/B until RunSpec exposes structured-output mode — baseline parity only."
