@@ -14,7 +14,7 @@ There is no second mailroom pipeline inside the image — only the sandbox overl
 ```bash
 pip install -e ".[dev,notebooks]"
 cp -n config/.env.example .env
-sandbox up --compose-profile langfuse --compose-profile ollama --compose-profile jupyter
+sandbox up -d --compose-profile langfuse --compose-profile ollama --compose-profile jupyter
 # Lab: http://127.0.0.1:8888/lab
 # Langfuse: http://127.0.0.1:3000  (pk-lf-sandbox / sk-lf-sandbox)
 sandbox pull-models --profile ollama
@@ -57,10 +57,11 @@ Helpers live in `mailroom_sandbox.prep` (`prepare_offline_datasets`, `environmen
 
 `sandbox up` (default `modal-vllm` profile) starts `langfuse` only: the GPU
 endpoint lives on Modal, not in compose. For the offline Ollama stack use
-`sandbox up --compose-profile ollama`. Add Jupyter explicitly:
+`sandbox up --compose-profile ollama`. Explicit compose profiles replace the profile defaults;
+select each service you need. To start Jupyter alone:
 
 ```bash
-sandbox up --compose-profile jupyter
+sandbox up -d --compose-profile jupyter
 sandbox down --compose-profile jupyter
 ```
 

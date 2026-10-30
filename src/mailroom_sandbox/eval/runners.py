@@ -127,6 +127,7 @@ def run_isolated_eval(
     *,
     mock: bool = True,
     sample: int | None = None,
+    sample_seed: int | None = None,
     dry_run: bool = False,
     experiment_name: str | None = None,
     prompt_version: str | None = None,
@@ -168,8 +169,10 @@ def run_isolated_eval(
 
         prompt_version = default_prompt_variant(task)
     rows = spec.load_rows() if rows is None else rows
-    if sample:
-        rows = rows[: sample]
+    if sample is not None:
+        if sample <= 0:
+            raise ValueError("sample must be positive")
+        rows = _seeded_sample(rows, sample, sample_seed) if sample_seed is not None else rows[:sample]
     plan = {
         "task": task,
         "n": len(rows),
@@ -411,6 +414,7 @@ def run_sorter_eval(
     *,
     mock: bool = True,
     sample: int | None = None,
+    sample_seed: int | None = None,
     dry_run: bool = False,
     experiment_name: str | None = None,
     prompt_version: str | None = None,
@@ -420,8 +424,10 @@ def run_sorter_eval(
     rows: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     rows = load_manifest() if rows is None else rows
-    if sample:
-        rows = rows[: sample]
+    if sample is not None:
+        if sample <= 0:
+            raise ValueError("sample must be positive")
+        rows = _seeded_sample(rows, sample, sample_seed) if sample_seed is not None else rows[:sample]
     plan = {
         "task": "sorter",
         "n": len(rows),
@@ -495,6 +501,7 @@ def run_extract_eval(
     *,
     mock: bool = True,
     sample: int | None = None,
+    sample_seed: int | None = None,
     dry_run: bool = False,
     experiment_name: str | None = None,
     profile: str | None = None,
@@ -504,8 +511,10 @@ def run_extract_eval(
     rows: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     rows = [r for r in (load_manifest() if rows is None else rows) if parse_expected_fields(r)]
-    if sample:
-        rows = rows[: sample]
+    if sample is not None:
+        if sample <= 0:
+            raise ValueError("sample must be positive")
+        rows = _seeded_sample(rows, sample, sample_seed) if sample_seed is not None else rows[:sample]
     plan = {"task": "extract", "n": len(rows), "mock": mock, "fingerprint": dataset_fingerprint(rows)}
     if dry_run:
         return plan
@@ -598,7 +607,7 @@ def _mock_legalbench_answer(row: dict[str, Any]) -> str:
     import hashlib
 
     blob = str(row.get("doc_text") or row.get("text") or row.get("document_text") or "")
-    return "Yes" if int(hashlib.md5(blob.encode()).hexdigest()[:2], 16) % 2 else "No"
+    return "Yes" if int(hashlib.md5(blob.encode(), usedforsecurity=False).hexdigest()[:2], 16) % 2 else "No"
 
 
 def run_legalbench_eval(
@@ -1022,6 +1031,7 @@ def run_pipeline_eval(
     *,
     mock: bool = True,
     sample: int | None = None,
+    sample_seed: int | None = None,
     dry_run: bool = False,
     experiment_name: str | None = None,
     profile: str | None = None,
@@ -1030,12 +1040,20 @@ def run_pipeline_eval(
     agent_models: dict[str, str] | None = None,
     connected: bool = True,
     rows: list[dict[str, Any]] | None = None,
+    row_cb=None,
+    progress_cb=None,
+    max_wall_seconds: int | None = None,
+    cost_cap_usd: float | None = None,
+    gpu: str | None = None,
+    replicas: int = 1,
 ) -> dict[str, Any]:
     # DMR-056: rows=None keeps the fixture manifest default; the sandbox job
     # whole-run path passes the LOCKED live dataset rows instead.
     rows = load_manifest() if rows is None else rows
-    if sample:
-        rows = rows[: sample]
+    if sample is not None:
+        if sample <= 0:
+            raise ValueError("sample must be positive")
+        rows = _seeded_sample(rows, sample, sample_seed) if sample_seed is not None else rows[:sample]
     plan = {
         "task": "pipeline",
         "n": len(rows),
@@ -1051,8 +1069,27 @@ def run_pipeline_eval(
     )
     session = tracing.session_id_for("pipeline")
     results = []
+    import time
+    started = time.monotonic()
     for row in rows:
-        results.append(_run_pipeline_doc(row, mock=mock, session_id=session, experiment_name=experiment_name))
+        elapsed = time.monotonic() - started
+        if not mock:
+            if max_wall_seconds is not None and elapsed >= max_wall_seconds:
+                raise RuntimeError("pipeline wall-time cap exceeded before next document")
+            if cost_cap_usd is not None:
+                from mailroom_sandbox.job.metrics import estimate_gpu_cost_usd
+                if float(estimate_gpu_cost_usd(elapsed, gpu=gpu or "L4", replicas=replicas) or 0) >= cost_cap_usd:
+                    raise RuntimeError("pipeline estimated GPU cost cap exceeded before next document")
+        before = time.monotonic()
+        result = _run_pipeline_doc(row, mock=mock, session_id=session, experiment_name=experiment_name)
+        results.append(result)
+        if row_cb:
+            row_cb({"id": row.get("id"), "pred": result, "error": result.get("error"),
+                    "score": {"match": float(result.get("doc_type") == row.get("expected_doc_class"))},
+                    "latency_ms": (time.monotonic() - before) * 1000})
+        if progress_cb:
+            errors = sum(bool(item.get("error")) for item in results)
+            progress_cb(len(results), len(rows), len(results) - errors, errors)
     expected = [r["expected_doc_class"] for r in rows]
     predicted: list[str] = []
     for row, result in zip(rows, results):
@@ -1296,6 +1333,7 @@ def _run_pipeline_doc(
         "stage": result.get("stage"),
         "extracted_data": result.get("extracted_data"),
         "classification_confidence": result.get("classification_confidence"),
+        "error": result.get("error") or result.get("errors"),
         "offline_fallback": False,
         "mailroom_src": str(src) if src else None,
     }

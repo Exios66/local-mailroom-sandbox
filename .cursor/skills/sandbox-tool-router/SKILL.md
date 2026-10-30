@@ -12,11 +12,11 @@ Read this skill **first** when the task touches providers, tracing, datasets, Do
 | Job | Use | Skill | Do **not** use |
 | --- | --- | --- | --- |
 | Offline / CPU-only inference | Ollama (`--profile ollama`) | [ollama](../ollama/SKILL.md) | OpenRouter, Modal, vLLM (unless GPU/Modal requested) |
-| Default live serving; GPU / remote OpenAI-compatible serve | Modal vLLM (`modal-vllm`, the default) or compose `vllm` | [modal](../modal/SKILL.md) | Ollama for 70B-class / long-context GPU work |
+| Default live serving; GPU / remote OpenAI-compatible serve | Modal vLLM (`modal-vllm`, the default; drive it with `sandbox modal …` / `sandbox vllm …`) or compose `vllm` | [modal](../modal/SKILL.md) | Ollama for 70B-class / long-context GPU work |
 | Default tracing + The-Mailroom | Langfuse 3 / SDK v4 | [langfuse](../langfuse/SKILL.md) | Phoenix as the only sink if The-Mailroom is required |
 | Optional OTEL / Arize UI sidecar | Apache Phoenix compose profile | [apache-phoenix](../apache-phoenix/SKILL.md) | Phoenix as The-Mailroom input |
 | Hosted eval / experiment logs (opt-in) | Braintrust | [braintrust](../braintrust/SKILL.md) | Braintrust as the default offline sink |
-| Hub datasets / model cards / HF cache | Hugging Face Hub + `sandbox datasets pull` | [huggingface](../huggingface/SKILL.md) | Live Hub pulls in default pytest |
+| Hub datasets / model cards / HF cache | Hugging Face Hub + `sandbox datasets pull` / `sandbox hf …` | [huggingface](../huggingface/SKILL.md) | Live Hub pulls in default pytest |
 | Offline fixture prep | `sandbox datasets prepare` + notebooks | (prep helpers; no cloud) | Hub network in CI |
 | Sandbox-isolated tasks / governance | Local **`SAND-*`** board (`governance/TASKS.md`) | (this router + `governance/PREFIX.md`) | Family **`DMR-*`** MESSAGE_BOARD (cross-repo only) |
 
@@ -37,7 +37,7 @@ Sandbox evals implement the Langfuse v4 `document-pipeline` contract in `mailroo
 
 1. **`--mock` / offline prep** — no live LLM  
 2. **Modal vLLM** — the default (`modal-vllm`): remote GPU; `pip install -e ".[deploy]"` + `sandbox runbook show serve` (see [modal](../modal/SKILL.md))
-3. **Ollama** — offline/CPU fallback (`--profile ollama`; `sandbox up --compose-profile ollama`, `sandbox pull-models --profile ollama`)  
+3. **Ollama** — offline/CPU fallback (`--profile ollama`; `sandbox up -d --compose-profile ollama`, `sandbox pull-models --profile ollama`)
 4. **vLLM local** — NVIDIA host + compose profile `vllm`  
 5. **llama.cpp / LM Studio** — generic OpenAI base URL profiles  
 6. **OpenRouter** — opt-in only (`OPENROUTER_API_KEY`); never the sandbox default  
@@ -62,9 +62,10 @@ Always `mailroom_sandbox.runtime.activate(profile)` before importing mailroom gr
 ```bash
 sandbox profiles
 sandbox cutover --profile ollama
-sandbox up                                          # langfuse only (default modal-vllm); add --compose-profile ollama offline
-sandbox up --compose-profile phoenix                # optional sidecar
+sandbox up -d                                       # langfuse only (default modal-vllm); select both profiles for Ollama + Langfuse
+sandbox up -d --compose-profile phoenix             # optional sidecar
 sandbox health
+sandbox doctor                                      # offline status of modal/hf/docker/ollama/ssh/git/vllm…; --live probes, --publish feeds the board strip
 sandbox datasets prepare                            # offline
 sandbox datasets pull                               # Hub (network)
 ```

@@ -8,6 +8,12 @@ from mailroom_sandbox.eval import experiment_log, runners
 from mailroom_sandbox.overlay import load_profile, map_model, serving_family
 
 
+def matrix_tasks() -> tuple[str, ...]:
+    from mailroom_sandbox.eval.agents import SPECS
+
+    return tuple(dict.fromkeys((*SPECS, "extract", "chained", "pipeline", "legalbench", "local_vs_api")))
+
+
 def cell_name(task: str, provider: str, model: str, prompt: str) -> str:
     slug = model.split("/")[-1].replace(":", "-")
     prompt_slug = prompt.replace("/", "-")
@@ -25,6 +31,12 @@ def plan_matrix(
 ) -> list[dict[str, Any]]:
     from mailroom_sandbox.overlay import list_profiles
 
+    if task not in matrix_tasks():
+        raise ValueError(f"unknown matrix task {task!r}; have {matrix_tasks()}")
+    if not providers or not models or not prompts or any(not str(x).strip() for x in [*providers, *models, *prompts]):
+        raise ValueError("matrix providers, models and prompts must each contain a nonempty value")
+    if sample <= 0:
+        raise ValueError("matrix sample must be positive")
     # --providers takes PROFILE names, not serving families (DMR-048 G34):
     # 'vllm' is a family, 'vllm-local'/'modal-vllm' are profiles. A silent
     # family name used to plan cells that crashed at activate().
@@ -67,6 +79,7 @@ def run_matrix(
     mock: bool = True,
     dry_run: bool = False,
     console: Any = None,
+    agent_models: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     cells = plan_matrix(
         task=task,
@@ -107,9 +120,14 @@ def run_matrix(
             "experiment_name": cell["experiment_name"],
             "profile": cell["provider"],
             "model": cell["model"],
+            "agent_models": agent_models,
         }
         if task != "legalbench":
             kwargs["prompt_version"] = cell["prompt"]
+        if task == "legalbench":
+            kwargs["seed"] = seed
+        elif task != "local_vs_api":
+            kwargs["sample_seed"] = seed
         results.append(runner(**kwargs))
         if console is not None and not dry_run:
             rec = results[-1].get("record") if isinstance(results[-1], dict) else None

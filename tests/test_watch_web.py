@@ -125,7 +125,6 @@ def test_web_handler_serves_index_and_state(tmp_path):
 
 # ── theming parity, hero art, transport, CLI wiring ────────────────────────
 import re
-import sys
 import time
 
 from mailroom_sandbox.tui import pretty_log as pl
@@ -320,3 +319,25 @@ def test_state_tokens_and_log_source_rendering():
     assert 'class="src"' in page or 'class="src"' in page.replace("'", '"')
     assert "Tray TUI watcher" in page or "watcher_label" in page
     assert "lifecycle-pulse" in page
+
+
+def test_watch_reads_published_services_without_probing(tmp_path, monkeypatch):
+    from mailroom_sandbox.tui.services_snapshot import publish_services
+    import httpx
+
+    def no_network(*args, **kwargs):
+        raise AssertionError('watch rendering must not probe services')
+
+    monkeypatch.setattr(httpx, 'get', no_network)
+    publish_services([{'name': 'provider', 'state': 'fail', 'detail': 'missing endpoint', 'hint': 'sandbox modal deploy'}], profile='modal-vllm', live=False)
+    store = _store(tmp_path)
+    session = web_mod.WatchWebSession(resolve=lambda: (store, 'sandbox-vllm'), ledger=None,
+        cap_usd=5, times_dir=None, serving_dir=tmp_path / 'serving', interval=0.1, follow_logs=False)
+    try:
+        state = session.refresh()
+        assert state['services']['services'][0]['state'] == 'fail'
+        page = web_mod._html_page().decode()
+        assert 'services(state && state.services)' in page and 'id="svc"' in page
+        assert '.replace(/"/g,"&quot;")' in page
+    finally:
+        session.stop()
