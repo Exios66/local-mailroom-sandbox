@@ -198,7 +198,7 @@ def _save(out: Path, checkpoint: Path, queue_ids: list[str], record: dict) -> No
 
 
 def _post(url: str, api_key: str, body: dict) -> dict:
-    if not url.startswith(("https://", "http://")):
+    if not url.lower().startswith(("https://", "http://")):
         raise ValueError(f"base URL must be http(s), got {url!r}")
     data = json.dumps(body).encode("utf-8")
     request = urllib.request.Request(
