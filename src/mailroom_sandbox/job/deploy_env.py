@@ -17,7 +17,7 @@ from mailroom_sandbox.job.specialist_posture import sand42_cell_label
 from mailroom_sandbox.job.spec import MODEL_SERVE_DEFAULTS, RunSpec
 
 # deploy/modal_vllm.py maps this to no --quantization flag.
-BF16_QUANTIZATION = "none"
+BF16_QUANTIZATION = "bf16"
 
 
 _DEPLOY_DEFAULT_KEYS = (

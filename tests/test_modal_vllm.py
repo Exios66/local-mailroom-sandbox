@@ -242,6 +242,13 @@ class TestDeploySurface:
         assert mod.MIN_CONTAINERS == 0  # scale-to-zero
         assert mod.STARTUP_TIMEOUT_SECONDS == 20 * 60
 
+    @pytest.mark.parametrize("value", ["", "bf16"])
+    def test_explicit_no_quantization_overrides_the_model_default(self, monkeypatch, value):
+        monkeypatch.setenv("MODAL_VLLM_QUANTIZATION", value)
+        mod = _load_app_module()
+        assert mod.QUANTIZATION == ""
+        assert "--quantization" not in mod.build_vllm_command(mod.MODEL)
+
     def test_serve_function_config(self):
         mod = _load_app_module()
         kwargs = mod.serve.kwargs
@@ -1001,12 +1008,12 @@ def test_failed_startup_kills_and_reaps_the_child(monkeypatch):
     assert calls == ['terminate', 'wait', 'kill', 'wait', 'unregister']
 
 
-def test_quantization_none_serves_bf16_on_a_quantized_default_row(monkeypatch):
-    # spec_env renders an explicit bf16 as "none"; an empty value would be
-    # unset by the exports and fall back to the row's fp8.
+def test_quantization_bf16_serves_unquantized_on_a_quantized_default_row(monkeypatch):
+    # spec_env renders an explicit unquantized serve as "bf16"; an empty value
+    # would be unset by the exports and fall back to the row's fp8.
     monkeypatch.setenv("MODAL_VLLM_MODEL", "Qwen/Qwen3.5-9B")
     assert _load_app_module().QUANTIZATION == "fp8"
-    monkeypatch.setenv("MODAL_VLLM_QUANTIZATION", "none")
+    monkeypatch.setenv("MODAL_VLLM_QUANTIZATION", "bf16")
     mod = _load_app_module()
     assert mod.QUANTIZATION == ""
     assert "--quantization" not in mod.build_vllm_command("Qwen/Qwen3.5-9B")
