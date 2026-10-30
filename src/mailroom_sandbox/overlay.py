@@ -278,6 +278,12 @@ def write_runtime_taxonomy(taxonomy: dict, dest: Path | None = None) -> Path:
     return dest
 
 
+def live_doc_classes() -> list[str]:
+    """Live (non-retired) document class keys of the shipped mailroom taxonomy."""
+    classes = load_yaml(mailroom_taxonomy_path()).get("doc_classes") or []
+    return [c["key"] for c in classes if c.get("key") and c.get("status") != "retired"]
+
+
 def patch_mailroom_config(taxonomy_path: Path) -> bool:
     """Point mailroom's cached config loader at the sandbox runtime YAML."""
     try:
