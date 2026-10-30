@@ -575,6 +575,25 @@ def build_parser() -> argparse.ArgumentParser:
     td.set_defaults(handler=_cmd_tunnel_down)
     tun.set_defaults(handler=_cmd_tunnel_help)
 
+    rev = sub.add_parser(
+        "review",
+        help="Terminal human review: list parked documents, inspect the reviewer's opinion, resolve (needs a running API)",
+        parents=[leaf],
+    )
+    rev_sub = rev.add_subparsers(dest="review_cmd")
+    rl = rev_sub.add_parser("list", help="Parked documents with sorter and reviewer labels and causes", parents=[leaf])
+    rl.set_defaults(handler=_cmd_review_list)
+    rs = rev_sub.add_parser("show", help="One parked document: both opinions, causes and the class cutoff", parents=[leaf])
+    rs.add_argument("doc_id")
+    rs.set_defaults(handler=_cmd_review_show)
+    rr = rev_sub.add_parser("resolve", help="Approve or reject a parked document", parents=[leaf])
+    rr.add_argument("doc_id")
+    rr.add_argument("--decision", required=True, choices=("approved", "rejected"))
+    rr.add_argument("--doc-type", default=None, help="Class to route an approved document to (required to approve a reviewer_disagreement; the API validates the class)")
+    rr.add_argument("--notes", default="", help="Free-text note recorded in the audit trail")
+    rr.set_defaults(handler=_cmd_review_resolve)
+    rev.set_defaults(handler=_cmd_review_help)
+
     _run_parser(sub, leaf)
 
     watch_p = sub.add_parser(
@@ -1285,8 +1304,8 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
 # The Dojo pin is the interim post-v0.24.2 zero-token fix; return to the next
 # released commit when v0.24.3 is published.
 _VENDOR_PINS: tuple[tuple[str, str, str, str | None], ...] = (
-    ("llm-mailroom", "1a1ec3dfb4e71f615f5d34f6198f9d06fd8c26dd",
-     "https://github.com/Exios66/llm-mailroom.git", "1a1ec3dfb4e71f615f5d34f6198f9d06fd8c26dd"),
+    ("llm-mailroom", "1530f496a6c745186bb86d12b5f0472c667a404a",
+     "https://github.com/Exios66/llm-mailroom.git", "1530f496a6c745186bb86d12b5f0472c667a404a"),
     ("llm-dojo-scoring", "718e326c1fe5a49b3f1cfd43a3ac10c73e7e01a4",
      "https://github.com/Exios66/llm-dojo-scoring.git", "718e326c1fe5a49b3f1cfd43a3ac10c73e7e01a4"),
 )
@@ -2254,6 +2273,29 @@ def _cmd_profiles(args: argparse.Namespace) -> int:
     for name in available_profiles():
         print(f"{name}  (default)" if name == active else name)
     return 0
+
+
+def _cmd_review_help(args: argparse.Namespace) -> int:
+    print("Use: sandbox review list | show DOC_ID | resolve DOC_ID --decision approved|rejected")
+    return 0
+
+
+def _cmd_review_list(args: argparse.Namespace) -> int:
+    from mailroom_sandbox.review_cli import cmd_list
+
+    return cmd_list(args)
+
+
+def _cmd_review_show(args: argparse.Namespace) -> int:
+    from mailroom_sandbox.review_cli import cmd_show
+
+    return cmd_show(args)
+
+
+def _cmd_review_resolve(args: argparse.Namespace) -> int:
+    from mailroom_sandbox.review_cli import cmd_resolve
+
+    return cmd_resolve(args)
 
 
 def _tunnel_spec(args: argparse.Namespace):

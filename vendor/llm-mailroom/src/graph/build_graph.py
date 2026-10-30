@@ -1049,28 +1049,40 @@ def retry_classify_node(state: DocumentState) -> dict[str, Any]:
 
 
 def _valid_unit_float(value: Any) -> bool:
+    """Accept finite numeric values in [0, 1], excluding booleans.
+
+    An integer too large to convert to a float raises OverflowError.
+    """
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return False
-    return math.isfinite(value) and 0.0 <= value <= 1.0
+    return 0.0 <= value <= 1.0 and math.isfinite(value)
 
 
 def _fmt_conf(value: Any) -> str:
+    """Format valid confidence to two decimals, or return ``n/a``.
+
+    OverflowError from converting an oversized integer propagates.
+    """
     return f"{float(value):.2f}" if _valid_unit_float(value) else "n/a"
 
 
 def _fmt_label(value: Any) -> str:
+    """Return ``none`` for None, otherwise the first 40 characters."""
     return "none" if value is None else str(value)[:40]
 
 
 def _decision_review_classify(state: DocumentState) -> dict[str, Any]:
-    """Decision-model branch of ``review_classify_node`` (strictly fail-safe).
+    """Decision-model branch of ``review_classify_node``.
 
-    Reaches ``extract`` only when ``decide_review`` accepts; every other
-    outcome (no backend, no text, backend error, malformed answer, label
-    disagreement, low confidence) goes to ``human_review``. There is no LLM
-    fallback. The sorter's label and confidence are kept unless the route is
-    ``extract``, and ``escalation_reason`` is built from structured fields
-    only, never from model text.
+    Returns partial state updates. Missing text or backend, non-transient
+    backend errors, malformed answers, and rejected decisions route to human
+    review without an LLM fallback. Transient backend errors instead return a
+    retry flag and increment the review node's retry count. Guard failures are
+    treated as absent answers. The sorter's label and confidence are kept
+    unless the decision accepts, and ``escalation_reason`` uses structured
+    fields rather than model text. Errors outside the backend and guard
+    handling propagate, including configuration loading errors and oversized
+    sorter confidences or cutoffs that cannot be converted to float.
     """
     from agents.decision_backend import get_decision_backend
     from langchain_agents.doc_inventories import sorter_subclass_catalog
@@ -1138,13 +1150,12 @@ def _decision_review_classify(state: DocumentState) -> dict[str, Any]:
                     "doc_subclass": raw.doc_subclass,
                 }
             )
-            # The guard only ever lowers a valid confidence; an invalid one
-            # is kept as-is so decide_review rejects it instead of seeing a
-            # clamp that could pass a low cutoff.
+            # A guard rejection must never pass even a low class cutoff.
+            # Invalid values must also remain safe for the manifest schema.
             confidence = (
                 guarded_confidence
-                if _valid_unit_float(raw.confidence)
-                else raw.confidence
+                if guard["ok"] and _valid_unit_float(raw.confidence)
+                else None
             )
             subclass = raw.doc_subclass
             if any(str(i).startswith("doc_subclass_") for i in guard["issues"]):
@@ -1213,14 +1224,14 @@ def review_classify_node(state: DocumentState) -> dict[str, Any]:
     """KANBAN-062 (Lane A): independent agent second opinion on a medium-band
     classification.
 
-    The reviewer classifies the document BLIND (no hint of the sorter's
-    answer — independence is the point). Agreement/override is computed here
-    in code. The lane never changes the failure surface: reviewer high-
-    confidence → extract with the reviewer's label applied; anything else →
-    human_review with BOTH opinions preserved on state.
-
-    Classes configured ``decision_only`` (taxonomy ``reviewer:``) take the
-    decision-model branch instead and never reach the LLM reviewer below.
+    The reviewer classifies without the sorter's answer. In the LLM branch,
+    a high-confidence agreement or override applies the reviewer's label;
+    other verdicts retain the sorter label for human review. Classes configured
+    ``decision_only`` use the decision-model branch instead, which requires
+    agreement and its class cutoff. Transient errors from reviewer calls return
+    a retry flag; non-transient call errors produce an escalation update.
+    Errors outside those handlers can propagate. The router also checks
+    extractability and ground truth before extraction.
     """
     from pipeline.config import get_review_mode
 
@@ -1971,9 +1982,10 @@ def _paused_review_result(result, initial_state, thread_id: str, trace_id: str) 
 def human_review_node(state: DocumentState) -> dict[str, Any]:
     """Park the document for a human, then ``interrupt()`` until they decide.
 
-    Side effects before ``interrupt()`` are idempotent (park upsert + catalog
-    upsert + manifest overwrite) because LangGraph restarts this node from
-    the beginning on ``Command(resume=...)``.
+    When a file path is present, the parked manifest and catalog retain the
+    reviewer opinion and collected causes. Side effects before ``interrupt()``
+    are idempotent (park upsert + catalog upsert + manifest overwrite) because
+    LangGraph restarts this node from the beginning on ``Command(resume=...)``.
     """
     from pipeline.bins import park_for_review
     from pipeline.reconsideration import collect_review_causes, format_causes
@@ -1995,6 +2007,11 @@ def human_review_node(state: DocumentState) -> dict[str, Any]:
 
     dest: Path | None = None
     newly_parked = False
+    parked_extracted_data = {
+        **(state.get("extracted_data") if isinstance(state.get("extracted_data"), dict) else {}),
+        "_lane_b": _lane_b_manifest_fields(state),
+        "_review": _review_evidence_fields(state, causes),
+    }
     if file_path_str:
         manifest = DocumentManifest(
             doc_id=doc_id,
@@ -2028,11 +2045,7 @@ def human_review_node(state: DocumentState) -> dict[str, Any]:
                 "doc_subclass": state.get("doc_subclass"),
                 "classification_confidence": state.get("classification_confidence"),
                 "extraction_confidence": state.get("extraction_confidence"),
-                "extracted_data": {
-                    **(state.get("extracted_data") or {} if isinstance(state.get("extracted_data"), dict) else {}),
-                    "_lane_b": _lane_b_manifest_fields(state),
-                    "_review": _review_evidence_fields(state, causes),
-                },
+                "extracted_data": parked_extracted_data,
                 "escalation_reason": esc_reason,
                 "trace_id": state.get("trace_id"),
                 "stage": PipelineStage.REVIEW.value,
@@ -2132,6 +2145,7 @@ def human_review_node(state: DocumentState) -> dict[str, Any]:
             "original_filename": state.get("original_filename", ""),
             "doc_type": state.get("doc_type"),
             "stage": PipelineStage.FAILED.value,
+            "extracted_data": parked_extracted_data,
             "escalation_reason": esc_reason,
             "trace_id": state.get("trace_id"),
         },
@@ -2361,6 +2375,7 @@ def _lane_b_manifest_fields(state: Mapping[str, Any] | dict) -> dict[str, Any]:
 
 
 def _reviewer_cause_tokens() -> frozenset[str]:
+    """Return decision reviewer causes retained on stateless resume."""
     from pipeline.reconsideration import (
         REVIEWER_DISAGREEMENT,
         REVIEWER_INELIGIBLE_LABEL,
@@ -2417,6 +2432,7 @@ def archive_node(state: DocumentState) -> dict[str, Any]:
         extraction_attempts=state.get("extraction_attempts", 0),
         intake=state.get("intake_meta") or None,
         **_lane_b_manifest_fields(state),
+        **_review_evidence_fields(state, state.get("review_causes")),
     )
 
     file_path_str = state.get("file_path", "")
@@ -2451,6 +2467,10 @@ def archive_node(state: DocumentState) -> dict[str, Any]:
 
     # Final conveyor position: the catalog record (created at intake/catalog
     # write) must show archived, not classified — archive is the terminal stage.
+    review_evidence = _review_evidence_fields(state, state.get("review_causes"))
+    extracted_data = manifest.extracted_data
+    if any(value is not None for value in review_evidence.values()):
+        extracted_data = {**(extracted_data or {}), "_review": review_evidence}
     _catalog_upsert(
         {
             "doc_id": manifest.doc_id,
@@ -2461,7 +2481,7 @@ def archive_node(state: DocumentState) -> dict[str, Any]:
             "doc_subclass": getattr(manifest, "doc_subclass", None),
             "classification_confidence": manifest.classification_confidence,
             "extraction_confidence": manifest.extraction_confidence,
-            "extracted_data": manifest.extracted_data,
+            "extracted_data": extracted_data,
             "escalation_reason": manifest.escalation_reason,
             "trace_id": manifest.trace_id,
             "stage": PipelineStage.ARCHIVED.value,
@@ -2678,7 +2698,10 @@ def _resolved_models(state: dict) -> str:
         _add("sorter")
         row = get_doc_class(state.get("doc_type") or "") or {}
         _add(str(row.get("specialist") or ""))
-        if state.get("review_verdict"):
+        if state.get("review_verdict") in ("decision_accepts", "decision_escalates"):
+            if state.get("reviewer_model"):
+                names.append(f"decision_reviewer={state['reviewer_model']}")
+        elif state.get("review_verdict"):
             _add("sorter_reviewer")
         if state.get("judge_verdict") and state.get("judge_verdict") != "skipped":
             _add("judge")
@@ -3544,7 +3567,10 @@ def resume_from_review(manifest, review_file: Path, notes: str = "") -> dict[str
     checkpoint (same process, MemorySaver still live). If the checkpoint is
     gone (process restart + MemorySaver), falls back to the stateless
     re-invoke: requeue from the review bin and start at extract under the
-    original ``doc_id``.
+    original ``doc_id``. Both paths use the manifest's classification,
+    including any human override. The fallback retains reviewer evidence if the
+    document parks again. Raises ValueError if the manifest has no class;
+    file requeue errors propagate.
     """
     from pipeline import limits
     from pipeline.bins import requeue_from_review, get_worker_id
@@ -3585,6 +3611,7 @@ def resume_from_review(manifest, review_file: Path, notes: str = "") -> dict[str
                     "doc_type": manifest.doc_type,
                     "contract_subtype": manifest.contract_subtype,
                     "doc_subclass": getattr(manifest, "doc_subclass", None),
+                    "classification_confidence": None,
                 },
             ),
             trace_input={
@@ -3640,6 +3667,7 @@ def resume_from_review(manifest, review_file: Path, notes: str = "") -> dict[str
         "reviewer_confidence": getattr(manifest, "reviewer_confidence", None),
         "review_verdict": getattr(manifest, "review_verdict", None),
         "reviewer_model": getattr(manifest, "reviewer_model", None),
+        "review_causes": list(getattr(manifest, "review_causes", None) or []),
         "reviewer_causes": [
             t
             for t in (getattr(manifest, "review_causes", None) or [])
