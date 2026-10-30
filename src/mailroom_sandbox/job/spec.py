@@ -16,6 +16,7 @@ from urllib.parse import urlparse
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from mailroom_sandbox.paths import data_dir
+from mailroom_sandbox.services._exec import ServiceError
 
 _log = logging.getLogger("mailroom_sandbox.job.spec")
 
@@ -657,6 +658,14 @@ def engine_probe_base(profile: str) -> str | None:
     return prof.get("base_url") or None
 
 
+class EndpointUnresolved(ServiceError, ValueError):
+    """A Modal run has neither ``VLLM_BASE_URL`` nor ``MODAL_WORKSPACE`` to build its endpoint from.
+
+    A ``ValueError`` so existing callers keep working; a ``ServiceError`` so the CLI
+    reports it as one actionable line.
+    """
+
+
 def engine_base_url(spec: RunSpec, *, profile: str | None = None) -> str:
     """Resolve the engine base_url: VLLM_BASE_URL, profile default, or profile gateway.
 
@@ -672,12 +681,16 @@ def engine_base_url(spec: RunSpec, *, profile: str | None = None) -> str:
 
     profile_data = load_profile(prof)  # raises FileNotFoundError naming profile + available
     base = profile_data.get("base_url") or ""
-    if base:
+    # The `modal-vllm` profile's static base_url is a localhost parity value only
+    # (health and activation never use it); a Modal run resolves its gateway below
+    # or fails loudly, never probing whatever listens on localhost:8000.
+    modal_parity = spec.engine.kind == "modal-vllm" and profile_data.get("name") == "modal-vllm"
+    if base and not modal_parity:
         return str(base).rstrip("/")
     if spec.engine.kind == "modal-vllm":
         workspace = os.environ.get("MODAL_WORKSPACE")
         if not workspace:
-            raise ValueError(
+            raise EndpointUnresolved(
                 "MODAL_WORKSPACE is not set but the engine kind is 'modal-vllm' — "
                 "cannot resolve the Modal gateway URL without it. Set "
                 "MODAL_WORKSPACE=<your-workspace> or VLLM_BASE_URL, or fix the "

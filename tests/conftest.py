@@ -17,6 +17,20 @@ def _sandbox_root(monkeypatch):
 
 
 @pytest.fixture
+def fake_bin(tmp_path, monkeypatch):
+    """Fake external CLIs on an isolated ``PATH`` (see ``tests/_fakebin.py``).
+
+    ``PATH`` holds only the shim directory, so a tool a test did not ``add`` is genuinely
+    missing and no real ``modal``/``hf``/``docker``/``ssh`` on the host can be reached.
+    """
+    from _fakebin import FakeBin
+
+    fake = FakeBin(tmp_path / "fakebin")
+    fake.isolate_path(monkeypatch)
+    return fake
+
+
+@pytest.fixture
 def job_data_dir(monkeypatch, tmp_path):
     """Point run-store writes at tmp (DMR-027 tests)."""
     monkeypatch.setenv("MAILROOM_BASE_DIR", str(tmp_path))
