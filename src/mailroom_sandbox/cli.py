@@ -818,6 +818,12 @@ def build_parser() -> argparse.ArgumentParser:
     mm_env.set_defaults(handler=_cmd_modal_matrix_env)
     mm.set_defaults(handler=_cmd_modal_matrix_help)
 
+    from mailroom_sandbox.services import hf_cli, modal_cli, vllm_cli
+
+    modal_cli.register(sub, leaf)
+    vllm_cli.register(sub, leaf)
+    hf_cli.register(sub, leaf)
+
     return parser
 
 

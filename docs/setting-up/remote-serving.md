@@ -77,6 +77,12 @@ sandbox run benchmark-check --config config/runs/legacy/run-30-contracts-special
 sandbox health --profile modal-vllm              # 401 = token mismatch
 ```
 
+The same steps through the sandbox CLI (each command takes `--dry-run`, which prints
+the exact argv and spends nothing): `sandbox modal prewarm`, `sandbox modal deploy`,
+`sandbox vllm probe`, `sandbox modal status`, `sandbox modal stop` (idempotent, verified).
+`sandbox vllm command` prints the `vllm serve` line the app launches; `sandbox hf download`
+fetches the pinned dataset revision.
+
 Full specialist suite + cost extrapolation: [`docs/runbooks/archived-experiments/qwen/STALE/l4-qwen3-8b.md`](../runbooks/archived-experiments/qwen/STALE/l4-qwen3-8b.md)
 (`sandbox runbook show l4-qwen3-8b`). Default lifecycle:
 [`docs/runbooks/serving/modal-vllm.md`](../runbooks/serving/modal-vllm.md)
