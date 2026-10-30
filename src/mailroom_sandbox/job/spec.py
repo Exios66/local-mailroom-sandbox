@@ -457,18 +457,16 @@ class JobSpec(BaseModel):
     @field_validator("cost_cap_usd")
     @classmethod
     def _cost_cap(cls, v: float | None) -> float | None:
-        if v is None:
-            return v
-        if v <= 0:
+        """Reject a non-positive cost cap when one is set."""
+        if v is not None and v <= 0:
             raise ValueError("cost_cap_usd must be > 0 when set")
         return v
 
     @field_validator("max_wall_seconds")
     @classmethod
     def _max_wall(cls, v: int | None) -> int | None:
-        if v is None:
-            return v
-        if v < 60:
+        """Reject a wall-clock cap under 60 seconds when one is set."""
+        if v is not None and v < 60:
             raise ValueError("max_wall_seconds must be >= 60 when set")
         return v
 
