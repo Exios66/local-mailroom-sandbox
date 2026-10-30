@@ -120,20 +120,39 @@ def _file_spec(tmp_path, **overrides) -> RunSpec:
     )
 
 
+def _failed_detail(report) -> str:
+    assert report["status"] == "failed", report
+    return " ".join(c["detail"] for c in report["checks"] if not c["ok"])
+
+
 def test_preflight_requires_typesafe_key_for_jev(tmp_path, job_data_dir, monkeypatch):
     monkeypatch.setattr("mailroom_sandbox.runtime._load_dotenv", lambda: None)
     monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
-    spec = _file_spec(tmp_path, reviewer=_reviewer())
-    report = preflight.preflight(spec, offline=True)
-    assert report["status"] == "failed"
-    failed = [c for c in report["checks"] if not c["ok"]]
-    assert failed and "TYPESAFE_API_KEY" in failed[0]["detail"]
+    spec = _file_spec(tmp_path, reviewer=_reviewer(), job={"mock": False})
+    detail = _failed_detail(preflight.preflight(spec, offline=True))
+    assert "TYPESAFE_API_KEY" in detail and "backend mock" in detail
+
+
+def test_preflight_refuses_jev_in_a_mock_run(tmp_path, job_data_dir, monkeypatch):
+    monkeypatch.setattr("mailroom_sandbox.runtime._load_dotenv", lambda: None)
+    monkeypatch.setenv("TYPESAFE_API_KEY", "ts-secret-value")
+    spec = _file_spec(tmp_path, run_id="rv-jev-mock", reviewer=_reviewer(), job={"mock": True})
+    detail = _failed_detail(preflight.preflight(spec, offline=True))
+    assert "mock run" in detail and "backend mock" in detail
+    assert "ts-secret-value" not in detail
+
+
+def test_preflight_refuses_unknown_reviewer_class(tmp_path, job_data_dir, monkeypatch):
+    monkeypatch.setattr("mailroom_sandbox.runtime._load_dotenv", lambda: None)
+    spec = _file_spec(tmp_path, run_id="rv-typo", reviewer=_reviewer(backend="mock", model="mock", classes={"contrat": 0.9}))
+    detail = _failed_detail(preflight.preflight(spec, offline=True))
+    assert "contrat" in detail and "contract" in detail
 
 
 def test_preflight_passes_with_key_and_never_echoes_it(tmp_path, job_data_dir, monkeypatch):
     monkeypatch.setattr("mailroom_sandbox.runtime._load_dotenv", lambda: None)
     monkeypatch.setenv("TYPESAFE_API_KEY", "ts-secret-value")
-    spec = _file_spec(tmp_path, run_id="rv-key", reviewer=_reviewer())
+    spec = _file_spec(tmp_path, run_id="rv-key", reviewer=_reviewer(), job={"mock": False})
     report = preflight.preflight(spec, offline=True)
     assert report["status"] == "prepared", report
     assert "ts-secret-value" not in json.dumps(report)
@@ -152,7 +171,7 @@ def test_lock_freezes_the_reviewer(tmp_path, job_data_dir, monkeypatch):
 
     monkeypatch.setattr("mailroom_sandbox.runtime._load_dotenv", lambda: None)
     monkeypatch.setenv("TYPESAFE_API_KEY", "ts-secret-value")
-    spec = _file_spec(tmp_path, run_id="rv-lock", reviewer=_reviewer())
+    spec = _file_spec(tmp_path, run_id="rv-lock", reviewer=_reviewer(), job={"mock": False})
     report = preflight.preflight(spec, offline=True)
     lock = RunStore(run_dir(report["run_id"])).read_lock()
     assert lock["reviewer"] == spec.reviewer.model_dump()
@@ -282,8 +301,16 @@ def test_experiment_create_without_flags_has_no_reviewer(create_experiment):
     ["--decision-reviewer", "jev:jev-1.13.0", "--decision-class", "contract=high"],
     ["--decision-reviewer", "jev:jev-1.13.0", "--decision-class", "contract=1.5"],
     ["--decision-reviewer", "jev:jev-1.13.0", "--decision-class", "correspondence=0.9"],
+    ["--decision-reviewer", "jev:jev-1.13.0", "--decision-class", "contrat=0.9"],
+    ["--decision-reviewer", "mock:mock", "--decision-class", "contract=0.9", "--decision-class", "contract=0.8"],
 ])
 def test_experiment_create_refuses_bad_reviewer_flags(create_experiment, options, tmp_path):
     code, _ = create_experiment(*options)
     assert code == 1
     assert not list(tmp_path.glob("exp-*/experiment.yaml"))
+
+
+def test_experiment_create_names_bad_key_and_valid_classes(create_experiment, capsys):
+    code, _ = create_experiment("--decision-reviewer", "mock:mock", "--decision-class", "contrat=0.9")
+    err = capsys.readouterr().err
+    assert code == 1 and "contrat" in err and "contract" in err and "insurance_claim" in err

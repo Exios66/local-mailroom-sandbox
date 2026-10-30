@@ -114,15 +114,23 @@ def _reviewer_settings(reviewer: str | None, classes: list[str] | None) -> dict 
     backend, sep, model = reviewer.partition(':')
     if not sep or not backend or not model:
         raise ServiceError('--decision-reviewer must be BACKEND:MODEL, e.g. jev:jev-1.13.0')
+    from mailroom_sandbox.overlay import live_doc_classes
+
+    live = live_doc_classes()
     cutoffs = {}
     for item in classes:
-        name, sep, raw = item.partition('=')
+        name, equals, raw = item.partition('=')
         try:
-            cutoffs[name] = float(raw)
+            cutoff = float(raw)
         except ValueError:
-            sep = ''
-        if not name or not sep:
+            cutoff = None
+        if not name or not equals or cutoff is None:
             raise ServiceError(f'--decision-class must be CLASS=CUTOFF, got {item!r}')
+        if name not in live:
+            raise ServiceError(f'--decision-class {name!r} is not a live taxonomy class; valid: {sorted(live)}')
+        if name in cutoffs:
+            raise ServiceError(f'--decision-class {name!r} given more than once')
+        cutoffs[name] = cutoff
     try:
         return ReviewerSpec(backend=backend, model=model, classes=cutoffs).model_dump()
     except ValueError as exc:
