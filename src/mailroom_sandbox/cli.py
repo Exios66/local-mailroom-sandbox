@@ -2116,7 +2116,12 @@ def _select_prompt_versions(args) -> None:
     from mailroom_sandbox.eval.agents import SPECS
 
     task = args.task
-    if task in SPECS:
+    if task == "specialist":
+        from mailroom_sandbox.eval import primary
+
+        # The sweep runs every specialist; a target runs only its own.
+        unused = sorted(set(selection.keys) - set(primary.specialists_for(getattr(args, "target", None))))
+    elif task in SPECS:
         unused = sorted(set(selection.keys) - {task})
     elif task in {"pipeline", "extract", "chained"}:
         unused = []

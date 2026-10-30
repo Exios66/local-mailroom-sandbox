@@ -1,7 +1,7 @@
 # Full 13-node mailroom pipeline on the default Modal vLLM endpoint (all GPU).
 #
 #   sandbox runbook show serve             # deploy → point → verify → teardown
-#   sandbox run preflight --config config/runs/examples/pipeline-modal.yaml --dry-run
+#   sandbox run preflight --config config/runs/examples/pipeline-modal.yaml   # validates dataset, prompts, engine
 #   sandbox run start --config config/runs/examples/pipeline-modal.yaml --initials XX --watch
 #
 # Modal bills container time while the app is warm; stop it afterwards

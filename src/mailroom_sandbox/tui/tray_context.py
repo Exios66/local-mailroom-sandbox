@@ -315,6 +315,16 @@ def _config_value(value: Any) -> str:
     return str(value)
 
 
+def prompt_identity(prompt: Any) -> str:
+    """A locked prompt's identity fields; the resolved ``text`` body is never shown."""
+    if not isinstance(prompt, dict):
+        return _config_value(prompt)
+    bits = [f"{key}={prompt[key]}" for key in ("source", "name", "file", "version", "label") if prompt.get(key)]
+    if prompt.get("sha256"):
+        bits.append(f"sha256={str(prompt['sha256'])[:12]}")
+    return " · ".join(bits) or "—"
+
+
 def configuration_lines(lock: dict[str, Any]) -> list[str]:
     """Display only reviewed configuration fields; never dump keys or endpoint URLs."""
     lines = []
@@ -339,7 +349,7 @@ def configuration_lines(lock: dict[str, Any]) -> list[str]:
     for name, knobs in (lock.get("agent_knobs") or {}).items():
         lines += [f"{name}.{key}: {_config_value(knobs[key])}" for key in ("temperature", "max_tokens", "enable_thinking") if key in knobs]
     for name, prompt in ((lock.get("prompt") or {}).get("agents") or {}).items():
-        lines.append(f"prompt {name}: {prompt}")
+        lines.append(f"prompt {name}: {prompt_identity(prompt)}")
     for name, model in (lock.get("agent_assignments") or {}).items():
         lines.append(f"resolved {name}: {model}")
     return lines

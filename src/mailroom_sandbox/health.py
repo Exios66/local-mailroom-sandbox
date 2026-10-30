@@ -154,9 +154,12 @@ def probe_openrouter_key(
     if not resp.is_success:
         return ProbeResult(False, name, url, f"HTTP {resp.status_code}")
     try:
-        data = resp.json().get("data") or {}
+        data = resp.json().get("data")
     except (ValueError, AttributeError):
         return ProbeResult(False, name, url, f"HTTP {resp.status_code} but non-JSON body")
+    if not isinstance(data, dict) or not data:
+        # A missing, empty or non-object `data` would otherwise read as "key accepted".
+        return ProbeResult(False, name, url, f"HTTP {resp.status_code} but no key record in `data`")
     usage, limit, remaining = data.get("usage"), data.get("limit"), data.get("limit_remaining")
     parts = [f"key accepted ({data.get('label') or 'unlabelled'})"]
     if isinstance(limit, (int, float)) and isinstance(remaining, (int, float)):

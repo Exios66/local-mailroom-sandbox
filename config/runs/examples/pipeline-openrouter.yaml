@@ -2,7 +2,7 @@
 #
 #   export OPENROUTER_API_KEY=...          # or put it in .env
 #   sandbox --profile openrouter health    # validates the key (/key), catalog and one chat call
-#   sandbox run preflight --config config/runs/examples/pipeline-openrouter.yaml --dry-run
+#   sandbox run preflight --config config/runs/examples/pipeline-openrouter.yaml   # validates dataset, prompts, engine
 #   sandbox run start --config config/runs/examples/pipeline-openrouter.yaml --initials XX --watch
 #
 # Billing is per token (docs/RUN-COST-DERIVATION.md); `job.mock: false` makes
