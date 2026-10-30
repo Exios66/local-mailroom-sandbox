@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Added
+
+- `tests/_fakebin.py` and the `fake_bin` fixture: fake `modal`/`vllm`/`hf`/`ssh`/
+  `docker`/`ollama` executables on an isolated `PATH` (argv logged, canned output per
+  subcommand), so CLI wrappers are tested without the real tools or a network.
+- `mailroom_sandbox.services._exec`: one guarded way to run an external CLI
+  (`require_tool`, `run_tool`; `ToolMissing`, `ToolFailed`, `ToolTimeout`).
+  `main()` renders any `ServiceError` as a single `error:` line (exit 1).
+
 ### Changed
 
 - Serve through **Modal vLLM by default**: `SANDBOX_PROFILE=modal-vllm` and
@@ -15,6 +24,22 @@
   `docs/runbooks/`.
 
 ### Fixed
+
+- `run preflight --live`, `run start` and `run scrape-metrics` no longer resolve the
+  default `modal-vllm` profile to `http://localhost:8000/v1`: the run-spec resolver now
+  uses `VLLM_BASE_URL`, then the `MODAL_WORKSPACE` gateway for the spec's Modal app, and
+  fails with a clear error (`EndpointUnresolved`) instead of probing localhost.
+- `sandbox health` no longer crashes with `JSONDecodeError` when an endpoint answers
+  2xx with a non-JSON body; a model endpoint reports `non-JSON body`, and the Langfuse
+  and Phoenix liveness probes treat any 2xx as healthy.
+- `--profile`, `--model`, `--prompt` and `--agent-model` now work before or after the
+  subcommand on every command, including `tunnel` and `run`; a value before the
+  subcommand was previously overwritten by the leaf default.
+- `sandbox tunnel up` reports a missing `ssh`, shows ssh's own error, waits for the
+  forward port and cleans up a forward that never opened; `tunnel down` clears a stale
+  pidfile instead of failing forever and never signals a process that is not ssh;
+  `tunnel status` reports `pid_alive`; a non-numeric `SANDBOX_TUNNEL_PORT` is a clear
+  error. A port already in use and a timed-out external tool are one-line errors.
 
 - Review follow-ups on the Modal-default change: a `SANDBOX_PROFILE` set only in
   `.env` (e.g. `ollama`) is honoured when the CLI resolves its default; the

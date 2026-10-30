@@ -53,14 +53,25 @@ def _effective_base_url(profile: dict) -> str | None:
     return modal_gateway_url(profile)
 
 
-def probe_models(profile: dict, *, timeout: float = 3.0) -> ProbeResult:
+def probe_models(profile: dict, *, timeout: float = 3.0, expect_json: bool = True) -> ProbeResult:
+    """GET the profile's models URL and report reachability.
+
+    A model endpoint must answer JSON; a non-JSON 2xx body is reported as a failure
+    instead of raising. Liveness endpoints (Langfuse, Phoenix) pass
+    ``expect_json=False``: any 2xx is healthy and the body is ignored.
+    """
     endpoints = endpoints_for(profile, base_url_override=_effective_base_url(profile))
     url = endpoints.models_url
     try:
         resp = httpx.get(url, headers=_headers(profile), timeout=timeout)
         if resp.status_code >= 400:
             return ProbeResult(False, profile.get("name", "?"), url, f"HTTP {resp.status_code}")
-        payload = resp.json()
+        if not expect_json:
+            return ProbeResult(True, profile.get("name", "?"), url, "ok")
+        try:
+            payload = resp.json()
+        except ValueError:
+            return ProbeResult(False, profile.get("name", "?"), url, "HTTP 200 but non-JSON body")
         models = []
         data = payload.get("data") if isinstance(payload, dict) else payload
         if isinstance(data, list):
