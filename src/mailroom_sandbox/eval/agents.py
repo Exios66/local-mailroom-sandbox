@@ -586,7 +586,6 @@ COMPOSITE_TASKS = (
     "extract",
     "chained",
     "pipeline",
-    "legalbench",
     "local_vs_api",
     "sorter_vs_modernbert",
 )

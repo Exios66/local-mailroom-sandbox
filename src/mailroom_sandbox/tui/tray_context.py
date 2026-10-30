@@ -66,8 +66,6 @@ def route_for_task(task: str | None) -> str:
         "insurance_claims_specialist",
     }:
         return "INBOX → SPECIALIST → REPORT"
-    if t == "legalbench":
-        return "INBOX → LEGALBENCH → SCORE"
     if t:
         return f"INBOX → {t.upper()} → REPORT"
     return DEFAULT_ROUTE

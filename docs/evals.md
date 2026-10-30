@@ -19,7 +19,6 @@ sandbox eval judge --mock
 sandbox eval arbiter --mock
 sandbox eval pipeline --mock          # connected: class + stage + extract + routing
 sandbox eval chained --mock           # sorter → extract only
-sandbox eval legalbench --mock
 sandbox eval local_vs_api --mock  # fixture timings; no OPENROUTER_API_KEY
 sandbox eval local_vs_api --from-log  # pair experiment_log local vs API-key rows (per comparable group)
 sandbox eval local_vs_api --from-log --group 2   # several groups: pick the headline one (index or label)
@@ -124,8 +123,7 @@ Empty-field and partial-credit behavior is documented in
 ## Fixtures
 
 Offline catalog: `data/fixtures/` (see `ATTRIBUTION.md`). Tiny HF slice:
-`data/fixtures/hf/docclass_mini.jsonl`. LegalBench Yes/No:
-`data/fixtures/legalbench/contract_qa.jsonl`. Per-agent gold:
+`data/fixtures/hf/docclass_mini.jsonl`. Per-agent gold:
 `data/fixtures/agents/*.jsonl`. Tiny PDF/PNG: `data/fixtures/intake/`.
 Synthetic serving pair: `data/fixtures/serving/local_vs_api.json`.
 Grant-style local / Modal / API triple (ms fields + HF id):
@@ -163,8 +161,8 @@ a Hub `dataset:` block (below).
 `sandbox run` whole-run tasks (`pipeline`, `extract`, `chained`, `isolated`,
 and every registered agent name) score the run spec's LOCKED dataset rows —
 Hub or local — when the preflight prepared any. An empty lock (serving-only
-specs) falls back to the runner's fixture defaults. Per-item tasks
-(`sorter`, `legalbench`) always score the locked rows row-by-row. Example:
+specs) falls back to the runner's fixture defaults. The per-item task
+(`sorter`) always scores the locked rows row-by-row. Example:
 a spec with a Hub `dataset:` block and `task: pipeline` scores the live
 corpus subset through the connected graph (see `config/runs/examples/example.yaml`'s
 commented Hub block).
@@ -192,7 +190,7 @@ A registered task needs `mock_predict` + `score_one` (fixture rows via
 **Composite task** (`extract`-style): touch all five seams —
 `COMPOSITE_TASKS` in `eval/agents.py`, a `_cmd_eval` arm in `cli.py`, the
 matrix map in `eval/matrix.py`, `_WHOLE_RUN_TASKS` in `job/runner.py`, and a
-`_run_whole_run` arm. The `_cmd_eval` fall-through to LegalBench is now an
+`_run_whole_run` arm. The `_cmd_eval` fall-through is an
 explicit `raise` — an unregistered composite fails loudly instead of being
 misrouted.
 

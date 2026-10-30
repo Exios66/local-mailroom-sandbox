@@ -1,7 +1,7 @@
 """Checkpoint-aware item loop + scoring + experiment-log append (DMR-027).
 
 ``run_job`` executes the locked dataset row-by-row for the per-item tasks
-(``sorter``, ``legalbench`` in v1) so a pause/error resumes from the last
+(``sorter``) so a pause/error resumes from the last
 appended item. Progress source of truth is ``items.jsonl``;
 ``checkpoint.json`` is the atomic mirror. Other tasks delegate to the
 existing public eval runner at whole-run granularity.
@@ -30,7 +30,7 @@ from mailroom_sandbox.providers import default_profile
 
 _log = logging.getLogger("mailroom_sandbox.job.runner")
 
-PER_ITEM_TASKS = ("sorter", "legalbench")
+PER_ITEM_TASKS = ("sorter",)
 _WHOLE_RUN_TASKS = ("pipeline", "extract", "chained", "local_vs_api", "sorter_vs_modernbert", "isolated")
 
 # DMR-056: every registered isolated agent (SPECS in eval/agents.py) is also a
@@ -64,14 +64,7 @@ def _agent_task_names() -> tuple[str, ...]:
 
 
 def _expected_for(task: str, row: dict[str, Any]) -> str:
-    """Ground-truth label for a row, by task.
-
-    LegalBench rows carry the label in ``answer`` (the corpus QA schema), not
-    ``expected_doc_class`` — reading the wrong field scored every legalbench
-    prediction as wrong (DMR-049 F1).
-    """
-    if task == "legalbench":
-        return str(row.get("answer") or row.get("expected") or "")
+    """Ground-truth label for a row, by task."""
     return str(row.get("expected_doc_class") or "")
 
 
@@ -115,19 +108,12 @@ def _predict_row(
                 f"'unknown' (recorded ok=True would lie)"
             )
         return doc_type, usage_from_pipeline()
-    if task == "legalbench":
-        if mock:
-            return eval_runners._mock_legalbench_answer(row), {}
-        answer, usage = eval_runners._live_legalbench_answer_with_usage(row, model=model)
-        return answer, usage
     raise ValueError(f"task {task!r} is not a per-item task in v1")
 
 
 def _score(task: str, expected: list[str], predicted: list[str]) -> dict[str, Any]:
     from mailroom_sandbox.eval import scoring as sc
 
-    if task == "legalbench":
-        return sc.score_legalbench(expected, predicted)
     return sc.score_classification(expected, predicted)
 
 
@@ -182,7 +168,7 @@ def _run_whole_run(
 ) -> dict[str, Any]:
     """Delegate a whole-run task to the existing public eval runner.
 
-    Per-item tasks (``sorter``, ``legalbench``) run row-by-row so a
+    The per-item task (``sorter``) runs row-by-row so a
     pause/error resumes from the last appended item. Everything else in
     ``RUNNABLE_TASKS`` delegates to the matching ``eval.runners`` function at
     whole-run granularity: the locked prompt overrides are applied, the runner
@@ -715,8 +701,8 @@ def _run_job(
     paused checkpoint. ``max_items`` limits pending rows for this invocation.
     Item prediction failures are persisted; fail-fast/cost/wall guards and an
     all-item failure produce failed summaries. Successful rows are scored and
-    logged. Dataset mismatch raises RuntimeError; unknown tasks and missing
-    LegalBench question/answer fields raise ValueError. Uncaught prompt,
+    logged. Dataset mismatch raises RuntimeError; unknown tasks raise
+    ValueError. Uncaught prompt,
     scoring, and persistence errors propagate.
     """
     task = task or _lock_task(store)
@@ -746,18 +732,6 @@ def _run_job(
         store.write_checkpoint(state="done", cursor=0, total=0, remote=None)
         store.append_event("done", "info", cursor=0)
         return {"state": "done", "cursor": 0, "total": 0, "ok": 0, "errors": 0}
-
-    if task == "legalbench":
-        missing = [
-            str(r.get("id") or r.get("filename") or i)
-            for i, r in enumerate(rows)
-            if not r.get("question") or r.get("answer") in (None, "")
-        ]
-        if missing:
-            raise ValueError(
-                f"legalbench rows require question+answer (missing on {len(missing)} row(s), "
-                f"e.g. {missing[:3]}) — this dataset is not a legalbench subset (DMR-049 F6)"
-            )
 
     # Reconstruct already-completed predictions so final scoring covers all rows.
     completed: dict[int, dict[str, Any]] = {}

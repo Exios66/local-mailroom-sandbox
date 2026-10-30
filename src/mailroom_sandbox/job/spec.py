@@ -421,7 +421,6 @@ def known_tasks() -> tuple[str, ...]:
     """
     base = (
         "sorter",
-        "legalbench",
         "pipeline",
         "extract",
         "chained",
@@ -432,7 +431,7 @@ def known_tasks() -> tuple[str, ...]:
     try:
         from mailroom_sandbox.eval.agents import SPECS
 
-        agents = tuple(n for n in SPECS if n not in ("sorter", "legalbench"))
+        agents = tuple(n for n in SPECS if n != "sorter")
     except Exception as exc:  # pragma: no cover — defensive for partial tooling imports
         _log.warning(
             "eval.agents.SPECS unavailable — agent-registered tasks are NOT in the "

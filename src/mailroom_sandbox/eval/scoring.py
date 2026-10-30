@@ -266,14 +266,6 @@ def score_extraction_row(
     return payload
 
 
-def score_legalbench(expected: list[str], predicted: list[str]) -> dict[str, Any]:
-    result = score_task("legalbench", expected, predicted)
-    if not isinstance(result, dict):
-        result = {"result": result}
-    result.setdefault("exact_match", accuracy(expected, predicted))
-    return result
-
-
 def score_stage(expected: list[str], predicted: list[str]) -> dict[str, Any]:
     acc = accuracy(expected, predicted)
     matches = [exact_match(p, e) for p, e in zip(predicted, expected)]

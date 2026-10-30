@@ -11,7 +11,7 @@ from mailroom_sandbox.overlay import load_profile, map_model, serving_family
 def matrix_tasks() -> tuple[str, ...]:
     from mailroom_sandbox.eval.agents import SPECS
 
-    return tuple(dict.fromkeys((*SPECS, "extract", "chained", "pipeline", "legalbench", "local_vs_api")))
+    return tuple(dict.fromkeys((*SPECS, "extract", "chained", "pipeline", "local_vs_api")))
 
 
 def cell_name(task: str, provider: str, model: str, prompt: str) -> str:
@@ -97,7 +97,6 @@ def run_matrix(
         "extract": runners.run_extract_eval,
         "chained": runners.run_chained_eval,
         "pipeline": runners.run_pipeline_eval,
-        "legalbench": runners.run_legalbench_eval,
         "local_vs_api": runners.run_local_vs_api_eval,
     }.get(task)
     if runner is None:
@@ -122,11 +121,8 @@ def run_matrix(
             "model": cell["model"],
             "agent_models": agent_models,
         }
-        if task != "legalbench":
-            kwargs["prompt_version"] = cell["prompt"]
-        if task == "legalbench":
-            kwargs["seed"] = seed
-        elif task != "local_vs_api":
+        kwargs["prompt_version"] = cell["prompt"]
+        if task != "local_vs_api":
             kwargs["sample_seed"] = seed
         results.append(runner(**kwargs))
         if console is not None and not dry_run:

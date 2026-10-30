@@ -376,7 +376,7 @@ def test_cli_eval_errors_exit_nonzero_with_one_line(stub_dojo, log_env, capsys, 
 
 
 def test_cli_eval_refuses_a_selection_the_task_would_ignore(stub_dojo, log_env, capsys):
-    assert main(["eval", "legalbench", "--mock", "--prompt-version", "sorter_v3"]) == 1
+    assert main(["eval", "local_vs_api", "--mock", "--prompt-version", "sorter_v3"]) == 1
     assert "does not use the prompt" in capsys.readouterr().err
 
 
