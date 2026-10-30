@@ -14,7 +14,7 @@ from typing import Mapping
 
 from mailroom_sandbox.job.runbooks import _shell_quote
 from mailroom_sandbox.job.specialist_posture import sand42_cell_label
-from mailroom_sandbox.job.spec import RunSpec
+from mailroom_sandbox.job.spec import MODEL_SERVE_DEFAULTS, RunSpec
 
 
 _DEPLOY_DEFAULT_KEYS = (
@@ -52,7 +52,9 @@ def spec_env(spec: RunSpec) -> dict[str, str]:
         "MODAL_VLLM_MAX_NUM_SEQS": str(v.max_num_seqs),
         "MODAL_VLLM_ENABLE_PREFIX_CACHING": _b(v.enable_prefix_caching),
         "MODAL_VLLM_ENFORCE_EAGER": _b(v.enforce_eager),
-        "MODAL_VLLM_QUANTIZATION": v.quantization,
+        "MODAL_VLLM_QUANTIZATION": (
+            v.quantization or ("bf16" if MODEL_SERVE_DEFAULTS.get(spec.engine.model, {}).get("quantization") else "")
+        ),
         "MODAL_VLLM_REVISION": v.revision,
         "MODAL_VLLM_KV_CACHE_DTYPE": v.kv_cache_dtype,
         "MODAL_VLLM_DEFAULT_CHAT_TEMPLATE_KWARGS": kwargs,

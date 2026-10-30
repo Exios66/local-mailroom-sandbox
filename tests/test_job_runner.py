@@ -569,6 +569,27 @@ def test_whole_run_pipeline_receives_locked_rows(tmp_path, monkeypatch):
     assert captured["n"] == 3, "whole-run pipeline must score the locked rows"
 
 
+def test_pipeline_cost_resources_come_from_distinct_locked_modal_apps(tmp_path, monkeypatch):
+    store = _whole_run_store(tmp_path, task="pipeline")
+    lock = store.read_lock()
+    lock["engine"] = {"kind": "modal-vllm", "modal": {"app": "base", "gpu": "L4:2", "max_containers": 2}}
+    lock["agent_routes"] = {
+        "judge": {"provider": "modal-vllm", "modal": {"app": "judge", "gpu": "L40S", "max_containers": 2}},
+        "specialist": {"provider": "modal-vllm", "modal": {"app": "judge", "gpu": "L40S", "max_containers": 2}},
+        "sorter": {"provider": "modal-vllm", "modal": {"app": "mid", "gpu": "L4:2", "max_containers": 3}},
+        "base_agent": {"provider": "modal-vllm", "modal": {"app": "base", "gpu": "L4"}},
+        "api": {"provider": "openrouter", "modal": None},
+    }
+    store.lock_path.unlink()
+    store.write_lock(lock)
+    captured = {}
+    monkeypatch.setattr(runner.eval_runners, "run_pipeline_eval", lambda **kwargs: captured.update(kwargs) or {"scores": {}, "n": 0})
+    runner._run_whole_run(store, "pipeline", mock=True, model=None, profile="ollama")
+    assert (captured["gpu"], captured["replicas"]) == ("L4", 4)
+    assert captured["route_gpu_resources"] == [("L40S", 2), ("L4", 6)]
+    assert runner._pipeline_route_gpu_resources({}) == []
+
+
 def test_registering_new_agent_spec_is_the_extension_point(tmp_path, monkeypatch):
     # THE DMR-056 extension-point contract: registering ONE AgentSpec is the
     # one-file change; the new task then passes spec validation, is a whole-run
