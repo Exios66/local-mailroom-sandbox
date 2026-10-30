@@ -345,6 +345,9 @@ class ModalSpec(BaseModel):
         base = v.split(":")[0]
         if base not in KNOWN_GPUS:
             raise ValueError(f"gpu {v!r} not in known classes {sorted(KNOWN_GPUS)}")
+        parts = v.split(":")
+        if len(parts) > 2 or (len(parts) == 2 and (not parts[1].isdigit() or int(parts[1]) < 1)):
+            raise ValueError("GPU count must be a positive integer, e.g. H100:2")
         return v
 
     @field_validator("image_tag")
@@ -374,6 +377,37 @@ class EngineSpec(BaseModel):
     model: str = "Qwen/Qwen3-8B"
     vllm: VLLMSpec = Field(default_factory=VLLMSpec)
     modal: ModalSpec | None = Field(default_factory=ModalSpec)
+
+
+class AgentRoute(BaseModel):
+    """One agent's explicit OpenAI-compatible transport and optional Modal deployment."""
+    model_config = {"extra": "forbid"}
+    provider: Literal["modal-vllm", "vllm", "openrouter", "api"]
+    model: str = Field(min_length=1)
+    base_url: str | None = None
+    api_key_env: str | None = None
+    modal: ModalSpec | None = None
+    vllm: VLLMSpec = Field(default_factory=VLLMSpec)
+
+    @model_validator(mode="after")
+    def _transport(self) -> "AgentRoute":
+        if self.provider == "modal-vllm" and self.modal is None:
+            raise ValueError("modal-vllm agent route requires a scoped modal deployment")
+        if self.provider == "modal-vllm" and self.base_url:
+            raise ValueError("managed Modal route derives its endpoint; use provider=vllm for an existing URL")
+        if self.provider != "modal-vllm" and self.modal is not None:
+            raise ValueError("modal deployment settings require provider=modal-vllm")
+        if self.provider in {"vllm", "api"} and not self.base_url:
+            raise ValueError("vllm/api agent route requires base_url")
+        if self.provider == "api" and not self.api_key_env:
+            raise ValueError("api agent route requires api_key_env")
+        if self.base_url:
+            url = urlparse(self.base_url)
+            if url.scheme not in {"http", "https"} or not url.netloc or url.username or url.password or url.query or url.fragment:
+                raise ValueError("base_url must be an HTTP(S) endpoint without credentials, query, or fragment; use api_key_env")
+        if self.api_key_env and not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", self.api_key_env):
+            raise ValueError("api_key_env must name an environment variable, not contain a credential")
+        return self
 
 
 def known_tasks() -> tuple[str, ...]:
@@ -463,7 +497,7 @@ class JobSpec(BaseModel):
 
         NaN fails every comparison, so it would pass ``<= 0`` and never trip.
         """
-        if v is not None and (math.isnan(v) or v <= 0):
+        if v is not None and (not math.isfinite(v) or v <= 0):
             raise ValueError("cost_cap_usd must be > 0 when set")
         return v
 
@@ -497,8 +531,28 @@ class RunSpec(BaseModel):
     trace: TraceSpec = Field(default_factory=TraceSpec)
     note: str | None = None
     agent_models: dict[str, str] = Field(default_factory=dict)
+    agent_knobs: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    agent_routes: dict[str, AgentRoute] = Field(default_factory=dict)
 
     model_config = {"populate_by_name": True}
+
+    @field_validator("agent_knobs")
+    @classmethod
+    def _knobs(cls, values: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+        allowed = {"max_tokens", "temperature", "max_input_chars", "reasoning_effort", "chunk_chars", "overlap_chars"}
+        for name, knobs in values.items():
+            if set(knobs) - allowed:
+                raise ValueError(f"{name}: unsupported generation knobs {sorted(set(knobs) - allowed)}; configure transports with agent_routes")
+            for key, value in knobs.items():
+                if key == "reasoning_effort":
+                    if value is not None and not isinstance(value, str):
+                        raise ValueError("reasoning_effort must be a string")
+                elif key == "temperature":
+                    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 <= value <= 2:
+                        raise ValueError("temperature must be finite in [0, 2]")
+                elif isinstance(value, bool) or not isinstance(value, int) or value < (0 if key == "overlap_chars" else 1):
+                    raise ValueError(f"{key} must be a positive integer (overlap may be zero)")
+        return values
 
     @field_validator("task")
     @classmethod
@@ -584,6 +638,8 @@ def spec_core(spec: RunSpec) -> dict[str, Any]:
     """The behavioral core the spec_hash covers (excludes run_id/timestamps)."""
     return {
         **({"agent_models": dict(sorted(spec.agent_models.items()))} if spec.agent_models else {}),
+        **({"agent_knobs": spec.agent_knobs} if spec.agent_knobs else {}),
+        **({"agent_routes": {name: route.model_dump() for name, route in spec.agent_routes.items()}} if spec.agent_routes else {}),
         "task": spec.task,
         "profile": spec.profile,
         "engine": {
@@ -673,6 +729,10 @@ def engine_base_url(spec: RunSpec, *, profile: str | None = None) -> str:
     (load_profile names the profile + available list) — a typo'd profile must
     never silently resolve to localhost.
     """
+    if spec.engine.kind == "openrouter":
+        from mailroom_sandbox.overlay import load_profile
+        from mailroom_sandbox.providers import endpoints_for
+        return endpoints_for(load_profile(profile or spec.profile)).base_url.rstrip("/")
     env_base = os.environ.get("VLLM_BASE_URL", "").strip().rstrip("/")
     if env_base:
         return env_base
@@ -688,7 +748,7 @@ def engine_base_url(spec: RunSpec, *, profile: str | None = None) -> str:
     if base and not modal_parity:
         return str(base).rstrip("/")
     if spec.engine.kind == "modal-vllm":
-        workspace = os.environ.get("MODAL_WORKSPACE")
+        workspace = os.environ.get("MODAL_WORKSPACE", "").strip()
         if not workspace:
             raise EndpointUnresolved(
                 "MODAL_WORKSPACE is not set but the engine kind is 'modal-vllm' — "
@@ -696,7 +756,7 @@ def engine_base_url(spec: RunSpec, *, profile: str | None = None) -> str:
                 "MODAL_WORKSPACE=<your-workspace> or VLLM_BASE_URL, or fix the "
                 "run spec's engine.kind."
             )
-        app = spec.engine.modal.app if spec.engine.modal else (os.environ.get("MODAL_VLLM_APP_NAME") or "sandbox-vllm")
+        app = spec.engine.modal.app if spec.engine.modal else (os.environ.get("MODAL_VLLM_APP_NAME", "").strip() or "sandbox-vllm")
         return f"https://{workspace}--{app}-serve.modal.run"
     return "http://localhost:8000"
 

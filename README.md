@@ -192,6 +192,7 @@ sandbox matrix --providers ollama --models qwen3:8b --prompts sorter_local_v0
 sandbox datasets pull          # LIVE pinned FULL Hub pull (3302 rows) → data/cache/
 sandbox datasets sample --per-class 40  # offline 20/40/100… per live class from that cache
 sandbox datasets prepare   # offline clean → data/runtime/prepared/
+sandbox experiment designs|create|review|preflight|launch|watch|report
 sandbox run preflight|start|status|resume|cancel|list --config config/runs/<name>.yaml
 sandbox watch [--web] [--config config/runs/<name>.yaml]       # mailroom TUI + Modal log tail (see docs/pretty-logging/mailroom-themed-logging.md)
 sandbox run start --config <run.yaml> --job-mode modal --watch   # Modal worker
@@ -212,6 +213,7 @@ the [Quickstart guide](docs/setting-up/QUICKSTART.md).
 
 | Guide | Description |
 | :--- | :--- |
+| [Experiment workflow](docs/experiments.md) | Paired designs, pipeline/hybrid agent models, initials-gated spend, smoke, observer, and reports |
 | [Quickstart](docs/setting-up/QUICKSTART.md) | **Start here** — install, full CLI reference, canonical workflows |
 | [Providers](docs/setting-up/providers.md) | Ollama, vLLM, Modal, llama.cpp, LM Studio, OpenRouter |
 | [Evals](docs/evals.md) | Runners, matrix, scoring, experiment log |

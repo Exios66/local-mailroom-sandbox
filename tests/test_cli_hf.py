@@ -167,3 +167,27 @@ def test_whoami_failure_detail_has_no_colour_codes(fake_bin, capsys):
     assert cli.main(["hf", "whoami"]) == 1
     err = capsys.readouterr().err
     assert "\x1b" not in err and "Not logged in" in err
+
+
+@pytest.mark.parametrize('command', [['whoami'], ['download'], ['cache'], ['raw', '--', 'auth', 'whoami']])
+def test_dotenv_settings_reach_every_hf_child(fake_bin, monkeypatch, tmp_path, command):
+    import hashlib
+
+    env_file = tmp_path / '.env'
+    env_file.write_text('HF_TOKEN=dotenv-secret\nHF_HOME=/dotenv/cache\n')
+    monkeypatch.setattr('mailroom_sandbox.runtime.dotenv_files', lambda: [env_file])
+    fake_bin.add('hf')
+    assert cli.main(['hf', *command]) == 0
+    env = fake_bin.envs('hf')[0]
+    assert env['HF_HOME'] == '/dotenv/cache'
+    assert env['HF_TOKEN'] == 'sha256:' + hashlib.sha256(b'dotenv-secret').hexdigest()
+    assert 'dotenv-secret' not in fake_bin.log.read_text()
+
+
+def test_fake_binary_never_records_inherited_credentials(fake_bin, monkeypatch):
+    monkeypatch.setenv('HF_TOKEN', 'inherited-hf-secret')
+    monkeypatch.setenv('VLLM_API_KEY', 'inherited-vllm-secret')
+    fake_bin.add('hf')
+    assert cli.main(['hf', 'whoami']) == 0
+    logged = fake_bin.log.read_text()
+    assert 'inherited-hf-secret' not in logged and 'inherited-vllm-secret' not in logged

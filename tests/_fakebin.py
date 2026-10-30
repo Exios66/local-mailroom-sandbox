@@ -19,12 +19,15 @@ from typing import Any
 _ENV_KEYS = ("HF_HOME", "HF_TOKEN", "VLLM_API_KEY", "MODAL_VLLM_MODEL", "MODAL_VLLM_GPU", "MODAL_VLLM_QUANTIZATION", "MODAL_VLLM_TP_SIZE")
 
 _SHIM = """#!{python}
-import json, os, sys, time
+import hashlib, json, os, sys, time
 name = {name!r}
 cfg = json.loads(open({cfg!r}, encoding="utf-8").read())
 argv = sys.argv[1:]
 with open({log!r}, "a", encoding="utf-8") as fh:
     env = {{k: os.environ[k] for k in {env_keys!r} if k in os.environ}}
+    for key in ("HF_TOKEN", "VLLM_API_KEY"):
+        if key in env:
+            env[key] = "sha256:" + hashlib.sha256(env[key].encode()).hexdigest()
     fh.write(json.dumps({{"tool": name, "argv": argv, "env": env}}) + "\\n")
 rule = cfg.get("default", {{}})
 for candidate in cfg.get("rules", []):

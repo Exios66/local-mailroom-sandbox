@@ -7,6 +7,7 @@ printed command can never drift from what the Modal app actually launches.
 
 from __future__ import annotations
 
+import hashlib
 import json
 
 import httpx
@@ -201,7 +202,7 @@ def test_serve_exports_the_gateway_token_as_vllm_api_key(fake_bin, monkeypatch):
     fake_bin.add("vllm")
     fake_bin.add("nvidia-smi")
     assert cli.main(["vllm", "serve"]) == 0
-    assert fake_bin.envs("vllm")[0]["VLLM_API_KEY"] == "tok"
+    assert fake_bin.envs("vllm")[0]["VLLM_API_KEY"] == "sha256:" + hashlib.sha256(b"tok").hexdigest()
 
 
 def test_serve_warns_when_there_is_no_nvidia_gpu(fake_bin, capsys):

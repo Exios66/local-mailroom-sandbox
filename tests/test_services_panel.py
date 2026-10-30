@@ -67,6 +67,27 @@ def test_the_snapshot_is_not_listed_as_a_job(tmp_path):
     assert [j["job_id"] for j in bd.list_jobs(tmp_path)] == ["real-job"]
 
 
+@pytest.mark.parametrize("fields", [
+    {"generated_at": "invalid"}, {"generated_at": []}, {"generated_at": None},
+    {"generated_at": float("nan")}, {"generated_at": float("inf")},
+    {"services": [None]}, {"services": ["invalid"]}, {"services": [{"state": []}]},
+])
+def test_malformed_snapshots_are_unreadable(tmp_path, fields):
+    publish_services(ROWS, root=tmp_path, profile="p", live=False)
+    path = tmp_path / "services.json"
+    data = json.loads(path.read_text())
+    data.update(fields)
+    path.write_text(json.dumps(data))
+    assert read_services(tmp_path) is None
+
+
+def test_service_attribute_text_is_escaped(server, tmp_path):
+    publish_services([{"name": "provider", "state": "fail", "detail": 'bad" onmouseover="alert(1)', "hint": ""}], root=tmp_path, profile="p", live=False)
+    page = _get(server, "/")[1].decode()
+    assert '.replace(/"/g,"&quot;")' in page
+    assert "esc(r.detail)" in page and "esc(r.hint)" in page and "esc(r.state)" in page
+
+
 def test_board_payload_carries_the_services(tmp_path):
     publish_services(ROWS, root=tmp_path, profile="modal-vllm", live=True)
     payload = bd.board_payload(tmp_path, 120.0, {})

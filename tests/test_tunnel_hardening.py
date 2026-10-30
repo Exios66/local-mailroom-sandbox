@@ -95,6 +95,20 @@ def test_spawn_records_the_pid_once_the_port_answers(fake_bin, spec, monkeypatch
     assert tunnel.read_pid(spec.profile) == pid
 
 
+def test_interrupt_during_startup_reaps_child(fake_bin, spec, monkeypatch, spawned):
+    fake_bin.add("ssh", sleep=30)
+    monkeypatch.setattr(tunnel, "is_up", lambda port, **kw: False)
+
+    def interrupt(seconds):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(tunnel.time, "sleep", interrupt)
+    with pytest.raises(KeyboardInterrupt):
+        tunnel.spawn(spec)
+    assert spawned and spawned[0].poll() is not None
+    assert not tunnel.pidfile(spec.profile).exists()
+
+
 def test_spawn_still_refuses_to_double_forward(fake_bin, spec, monkeypatch):
     fake_bin.add("ssh")
     monkeypatch.setattr(tunnel, "is_up", lambda port, **k: True)

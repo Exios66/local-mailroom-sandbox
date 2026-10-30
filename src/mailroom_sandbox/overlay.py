@@ -263,10 +263,10 @@ def build_merged_taxonomy(
     # context-fit for 16384 while letting one run widen its own budget.
     merged = apply_agent_overrides(merged, agent_knobs)
     # CLI --agent-model is surgical and always wins last.
-    merged = apply_agent_models(merged, agent_models)
     served = resolve_served_vllm_model(model_override)
     if served and serving_family(profile) == "vllm":
         pin_served_vllm_ids(merged, served)
+    merged = apply_agent_models(merged, agent_models)
     return merged
 
 

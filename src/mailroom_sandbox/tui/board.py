@@ -23,6 +23,7 @@ from urllib.parse import urlparse
 from mailroom_sandbox.tui import pretty_log as pl
 from mailroom_sandbox.tui.beacon import BEACON_VERSION, TERMINAL_STATES, beacon_root
 from mailroom_sandbox.tui.services_snapshot import read_services
+from mailroom_sandbox.tui.services_panel import SERVICES_CSS, SERVICES_HTML, SERVICES_JS
 from mailroom_sandbox.tui.web import THEME, ansi_to_html
 
 STALE_S = 120.0
@@ -225,13 +226,7 @@ body {{ margin: 0; min-height: 100vh; background: var(--navy); color: var(--snow
 .bar-top {{ display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 8px 10px; margin: 12px 0;
   background: rgba(36,86,214,0.25); border: 1px solid var(--teal); border-radius: 4px; font-size: 12px; }}
 .bar-top .k {{ color: var(--muted); }}
-.svc {{ display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 8px 10px; margin: 0 0 12px; font-size: 12px;
-  border: 1px solid var(--teal); border-radius: 4px; background: rgba(14,116,144,0.18); }}
-.svc .s {{ white-space: nowrap; }} .svc .s.ok::before {{ content: "● "; color: var(--teal); }}
-.svc .s.warn::before {{ content: "● "; color: var(--gold); }}
-.svc .s.fail {{ font-weight: 700; color: var(--gold); }} .svc .s.fail::before {{ content: "✖ "; color: var(--gold); }}
-.svc .s.skipped {{ color: var(--muted); }} .svc .s.skipped::before {{ content: "○ "; }}
-.svc .note {{ color: var(--muted); width: 100%; }} .svc.stale {{ opacity: 0.6; }}
+{SERVICES_CSS}
 .cards {{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }}
 @media (max-width: 800px) {{ .cards {{ grid-template-columns: 1fr; }} }}
 .card {{ border: 1px solid var(--teal); border-radius: 6px; overflow: hidden; }}
@@ -257,11 +252,11 @@ footer {{ margin-top: 16px; font-size: 11px; color: var(--muted); text-align: ce
 <div class="bar-top"><span><span class="k">jobs</span> <span id="n">—</span></span>
 <span><span class="k">live</span> <span id="live">—</span></span><span><span class="k">stalled</span> <span id="stalled">—</span></span>
 <span><span class="k">root</span> <span id="root">—</span></span></div>
-<div class="svc" id="svc"><span class="note">no service snapshot yet — run <code>sandbox doctor --publish</code></span></div>
+{SERVICES_HTML}
 <div class="cards" id="cards"></div>
 </div></div><footer>localhost-only · SSE live · jobs publish via mailroom.beacon/v1</footer></div>
 <script>
-function esc(s) {{ return String(s ?? "—").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }}
+function esc(s) {{ return String(s ?? "—").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }}
 function metric(k, v) {{ return `<div class="metric"><span class="k">${{esc(k)}}</span><span class="v">${{esc(v)}}</span></div>`; }}
 function card(j) {{
   const count = j.total ? `${{j.done}}/${{j.total}}` : `${{j.done}}`;
@@ -274,16 +269,7 @@ function card(j) {{
 ${{metric("sorted", `ok ${{j.ok}} · errors ${{j.errors}} · ${{Math.round(j.age_s)}}s ago`)}}${{extra}}
 ${{log ? `<div class="log">${{log}}</div>` : ""}}</div></section>`;
 }}
-function services(sv) {{
-  const el = document.getElementById("svc");
-  if (!sv) {{ el.className = "svc"; el.innerHTML = `<span class="note">no service snapshot yet — run <code>sandbox doctor --publish</code></span>`; return; }}
-  el.className = "svc" + (sv.stale ? " stale" : "");
-  const rows = (sv.services || []).map(r => `<span class="s ${{esc(r.state)}}" title="${{esc(r.detail)}}${{r.hint ? " → " + esc(r.hint) : ""}}">${{esc(r.name)}}</span>`).join("");
-  const age = Math.round(sv.age_s || 0);
-  const scope = sv.live ? "live probes" : "offline checks";
-  const note = (sv.stale ? `STALE (${{Math.round(age / 60)}}m old) — re-run sandbox doctor --publish · ` : "") + `${{esc(sv.profile)}} · ${{scope}} · ${{age}}s ago`;
-  el.innerHTML = rows + `<span class="note">${{note}}</span>`;
-}}
+{SERVICES_JS}
 function render(d) {{
   document.getElementById("err").hidden = true;
   services(d.services);
@@ -315,7 +301,7 @@ def board_payload(root: Path, stale_s: float, heroes: dict[str, str]) -> dict[st
 
 
 def make_board_server(host: str, port: int, *, root: Path | None, stale_s: float = STALE_S, interval: float = 1.0) -> ThreadingHTTPServer:
-    """Build the board's HTTP server: the index page, a ``/api/jobs`` snapshot and a ``/api/jobs/stream`` SSE feed.
+    """Build the board's HTTP server: the index page, ``/api/jobs`` and ``/api/services`` snapshots, and a ``/api/jobs/stream`` SSE feed.
 
     ``interval`` is floored at ``MIN_INTERVAL_S``. The caller serves it and sets ``board_stop`` to end open streams.
     """

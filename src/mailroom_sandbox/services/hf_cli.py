@@ -37,7 +37,14 @@ def sandbox_cache() -> Path:
 
 
 def _env_overrides(args: argparse.Namespace) -> dict[str, str]:
+    _prepare()
     return {"HF_HOME": str(sandbox_cache())} if getattr(args, "sandbox_cache", False) else {}
+
+
+def _prepare() -> None:
+    from mailroom_sandbox.runtime import load_env_file
+
+    load_env_file()
 
 
 def _cache_in_use(overrides: dict[str, str]) -> str:
@@ -51,6 +58,7 @@ def _child_env(overrides: dict[str, str]) -> dict[str, str]:
 
 
 def _cmd_whoami(args: argparse.Namespace) -> int:
+    _prepare()
     argv = ["hf", "auth", "whoami"]
     result = run_tool(argv, timeout=60.0, check=False, hint=INSTALL_HINT)
     if result.returncode != 0:
@@ -125,6 +133,7 @@ def _cmd_raw(args: argparse.Namespace) -> int:
     if not rest:
         print("error: usage: sandbox hf raw -- <hf arguments>", file=sys.stderr)
         return 2
+    _prepare()
     return passthrough_tool(["hf", *rest], hint=INSTALL_HINT)
 
 

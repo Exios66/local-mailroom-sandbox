@@ -77,11 +77,12 @@ sandbox run benchmark-check --config config/runs/legacy/run-30-contracts-special
 sandbox health --profile modal-vllm              # 401 = token mismatch
 ```
 
-The same steps through the sandbox CLI (each command takes `--dry-run`, which prints
-the exact argv and spends nothing): `sandbox modal prewarm`, `sandbox modal deploy`,
+The same steps through the sandbox CLI: `sandbox modal prewarm`, `sandbox modal deploy`,
 `sandbox vllm probe`, `sandbox modal status`, `sandbox modal stop` (idempotent, verified).
 `sandbox vllm command` prints the `vllm serve` line the app launches; `sandbox hf download`
-fetches the pinned dataset revision.
+fetches the pinned dataset revision. `--dry-run` prints the argv and spends nothing
+on `modal deploy`, `modal prewarm`, `modal stop`, `modal logs`, `vllm serve`, and
+`hf download`.
 
 Full specialist suite + cost extrapolation: [`docs/runbooks/archived-experiments/qwen/STALE/l4-qwen3-8b.md`](../runbooks/archived-experiments/qwen/STALE/l4-qwen3-8b.md)
 (`sandbox runbook show l4-qwen3-8b`). Default lifecycle:
@@ -167,3 +168,22 @@ token through the authenticated `/v1/models` probe (a 401 there means token
 mismatch; use `/health` only for "is the process up"). Modal-hosted servers
 return 503 while scaled to zero, so retry rather than treating 503 as a
 failure.
+
+### Service checks and smoke tests
+
+`sandbox doctor --publish` checks local tools and configuration and publishes the
+services strip shown in `sandbox board` and `sandbox watch --web`. Old snapshots
+are marked stale. For periodic offline refresh, use
+`sandbox board --probe-interval 60`; `--root` selects where snapshots are written.
+Add `--live` explicitly to probe endpoints. Live Modal probes can cold-start a
+billed GPU, so periodic live checks can prevent scale-to-zero.
+
+Run real, read-only CLI flag checks with the verified Modal SDK and installed `hf`:
+
+```bash
+SANDBOX_SERVICE_SMOKE=1 pytest -q tests/test_service_cli_smoke.py
+```
+
+That command does not deploy, download, stop apps, or probe the provider. To also
+probe an existing endpoint (a billed request), explicitly export `VLLM_BASE_URL`
+and set `SANDBOX_LIVE_PROVIDER_SMOKE=1`. The default pytest suite remains offline.
