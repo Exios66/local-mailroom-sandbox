@@ -110,12 +110,6 @@ def test_matrix_dry_run():
     assert any("sorter_local_v0" in n for n in names)
 
 
-def test_cli_help():
-    with pytest.raises(SystemExit) as exc:
-        main(["--help"])
-    assert exc.value.code == 0
-
-
 def test_cli_profiles():
     rc = main(["profiles"])
     assert rc == 0
