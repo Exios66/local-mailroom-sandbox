@@ -53,6 +53,18 @@ def _versions() -> dict[str, Any]:
 
 def _engine_errors(spec: RunSpec) -> list[str]:
     errs: list[str] = []
+    if spec.agent_models or spec.agent_knobs:
+        from mailroom_sandbox.agent_routes import known_agents
+        unknown = (set(spec.agent_models) | set(spec.agent_knobs)) - known_agents()
+        if unknown:
+            errs.append(f"unknown or retired agents: {sorted(unknown)}")
+    if spec.agent_routes:
+        from mailroom_sandbox.agent_routes import validate
+        from mailroom_sandbox.services._exec import ServiceError
+        try:
+            validate(spec.agent_routes, credentials=not spec.job.mock)
+        except (ValueError, ServiceError) as exc:
+            errs.append(str(exc))
     vllm = spec.engine.vllm
     if vllm.max_model_len < 1:
         errs.append("max_model_len must be >= 1")
@@ -105,7 +117,10 @@ def _probe_timeout_seconds(spec: RunSpec) -> float:
 
 def _probe_engine(spec: RunSpec) -> dict[str, Any]:
     base = engine_base_url(spec)
-    api_key = os.environ.get("VLLM_API_KEY", "").strip()
+    from mailroom_sandbox.overlay import load_profile
+    profile = load_profile(spec.profile)
+    api_key_env = str(profile.get("api_key_env") or "VLLM_API_KEY")
+    api_key = os.environ.get(api_key_env, "").strip()
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
     detail: dict[str, Any] = {"base_url": base}
     import httpx
@@ -142,7 +157,7 @@ def _probe_engine(spec: RunSpec) -> dict[str, Any]:
             if resp.status_code == 401:
                 return {
                     "ok": False,
-                    "reason": "401 — set VLLM_API_KEY to the deployed token",
+                    "reason": f"401 — set {api_key_env} to the configured provider token",
                     "cold_boot_seconds": round(time.perf_counter() - started, 3),
                     **detail,
                 }
@@ -583,6 +598,7 @@ def _preflight(
         "task": spec.task,
         "profile": spec.profile,
         "agent_models": dict(spec.agent_models),
+        **({"agent_routes": {name: route.model_dump() for name, route in spec.agent_routes.items()}} if spec.agent_routes else {}),
         "prompt": prompt_block,
         "engine": spec.engine.model_dump(),
         "job": spec.job.model_dump(),
@@ -601,7 +617,10 @@ def _preflight(
     from mailroom_sandbox.job.specialist_posture import agent_knobs_for_run
     from mailroom_sandbox.runtime import resolve_agent_knobs
 
-    lock["agent_knobs"] = resolve_agent_knobs(agent_knobs_for_run(run_id))
+    lock["agent_knobs"] = resolve_agent_knobs(spec.agent_knobs or agent_knobs_for_run(run_id))
+    if spec.agent_routes or spec.agent_knobs:
+        from mailroom_sandbox.agent_routes import describe
+        lock["agent_assignments"] = describe(spec)
     selected = selection_from_lock(prompt_block)
     if selected:
         # The selected eval-environment keys + sha256 are part of the run's identity.

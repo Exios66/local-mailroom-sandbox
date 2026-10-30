@@ -107,3 +107,31 @@ def test_datasets_pull_publishes_a_job(monkeypatch):
     monkeypatch.setattr("mailroom_sandbox.datasets.pull_hf_dataset", lambda *a, **k: None)
     assert cli.main(["datasets", "pull"]) == 0
     assert _job("datasets-pull")["state"] == "done"
+
+
+def test_doctor_beacon_records_failed_checks(fake_bin):
+    assert cli.main(['doctor', '--profile', 'modal-vllm', '--service', 'provider']) == 1
+    assert _job('doctor')['state'] == 'failed'
+
+
+def test_doctor_beacon_records_a_success(fake_bin):
+    assert cli.main(['doctor', '--service', 'git']) == 0
+    assert _job('doctor')['state'] == 'done'
+
+
+def test_compose_start_beacon_tracks_tool_failure(fake_bin):
+    fake_bin.add('docker', rc=1)
+    assert cli.main(['up', '-d']) == 1
+    assert _job('up')['state'] == 'failed'
+
+
+@pytest.mark.parametrize('rc', [0, 1])
+def test_pull_models_beacon_tracks_return_code(monkeypatch, rc):
+    monkeypatch.setattr('mailroom_sandbox.compose.pull_ollama_models', lambda models: rc)
+    assert cli.main(['pull-models', '--profile', 'ollama']) == rc
+    assert _job('pull-models')['state'] == ('failed' if rc else 'done')
+
+
+def test_modal_pull_models_guidance_does_not_claim_a_download():
+    assert cli.main(['pull-models', '--profile', 'modal-vllm']) == 0
+    assert not (beacon_root() / 'svc-pull-models.json').exists()

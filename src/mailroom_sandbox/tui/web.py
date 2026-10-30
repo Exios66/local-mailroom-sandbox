@@ -19,6 +19,8 @@ from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import urlparse
 
+from mailroom_sandbox.tui.services_panel import SERVICES_CSS, SERVICES_HTML, SERVICES_JS
+from mailroom_sandbox.tui.services_snapshot import read_services
 from mailroom_sandbox.job.checkpoint import RunStore
 from mailroom_sandbox.tui import pretty_log as pl
 from mailroom_sandbox.watch import _LOG_ROLE, LogBuffer, _header, _stream_logs, compose_watch_state
@@ -200,6 +202,7 @@ class WatchWebSession:
         state["hero_compact_html"] = ansi_to_html(
             "\n".join(_header(rid, width=60, on=True, **hero_kw))
         )
+        state["services"] = read_services()
         state["ok"] = True
         with self._lock:
             self._version += 1
@@ -273,6 +276,7 @@ header .route {{ color: var(--cyan); font-size: 11px; letter-spacing: 0.06em; }}
   padding: 8px 10px; margin: 12px 0; background: rgba(36,86,214,0.25);
   border: 1px solid var(--teal); border-radius: 4px; font-size: 12px;
 }}
+{SERVICES_CSS}
 .status .stage {{ color: var(--gold); font-weight: 600; }}
 .grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }}
 @media (max-width: 800px) {{ .grid {{ grid-template-columns: 1fr; }} }}
@@ -336,6 +340,7 @@ footer {{ margin-top: 16px; font-size: 11px; color: var(--muted); text-align: ce
       <span id="ts">—</span>
       <span id="app-line">—</span>
     </div>
+    {SERVICES_HTML}
     <div class="lifecycle" id="lifecycle" hidden></div>
     <div class="route-lines" id="program-route" hidden></div>
     <div class="grid">
@@ -366,10 +371,12 @@ function metric(k, v) {{
   return `<div class="metric"><span class="k">${{k}}</span><span class="v">${{esc(v)}}</span></div>`;
 }}
 function esc(s) {{
-  return String(s ?? "—").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  return String(s ?? "—").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
 }}
 
+{SERVICES_JS}
 function render(state) {{
+  services(state && state.services);
   if (!state || (state.ok === false && !state.snapshot)) {{
     document.getElementById("error").hidden = false;
     document.getElementById("error").textContent = (state && state.error) || "unknown error";

@@ -77,3 +77,15 @@ def test_non_modal_profiles_keep_their_static_base_url():
     )
     expected = str(load_profile("vllm-local")["base_url"]).rstrip("/")
     assert engine_base_url(spec) == expected
+
+
+@pytest.mark.parametrize('workspace', [' ws1 ', '\tws1\n'])
+def test_workspace_is_trimmed(monkeypatch, workspace):
+    monkeypatch.setenv('MODAL_WORKSPACE', workspace)
+    assert engine_base_url(_modal_spec()) == 'https://ws1--sandbox-vllm-serve.modal.run'
+
+
+def test_blank_workspace_is_unresolved(monkeypatch):
+    monkeypatch.setenv('MODAL_WORKSPACE', '  ')
+    with pytest.raises(ValueError, match='MODAL_WORKSPACE'):
+        engine_base_url(_modal_spec())

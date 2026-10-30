@@ -157,7 +157,16 @@ def is_alive(pid: int) -> bool:
         stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
         return stat.rsplit(")", 1)[1].split()[0] != "Z"
     except (OSError, IndexError):
-        return True
+        # macOS has no /proc; kill(pid, 0) also succeeds for an unreaped zombie.
+        try:
+            result = subprocess.run(
+                ["/bin/ps" if Path("/bin/ps").is_file() else "ps", "-p", str(pid), "-o", "stat="],
+                capture_output=True, text=True, timeout=5, check=False,
+            )
+            state = result.stdout.strip()
+            return bool(state) and not state.startswith("Z")
+        except (OSError, subprocess.SubprocessError):
+            return True
 
 
 def _command_tokens(pid: int) -> list[str]:
@@ -168,7 +177,7 @@ def _command_tokens(pid: int) -> list[str]:
         pass
     try:
         out = subprocess.run(
-            ["ps", "-p", str(pid), "-o", "command="], capture_output=True, text=True, timeout=5, check=False
+            ["/bin/ps" if Path("/bin/ps").is_file() else "ps", "-p", str(pid), "-o", "command="], capture_output=True, text=True, timeout=5, check=False
         ).stdout
         return out.split()
     except (OSError, subprocess.SubprocessError):
@@ -206,6 +215,7 @@ def spawn(spec: TunnelSpec, *, wait: float = 10.0) -> int:
         raise TunnelError(str(exc)) from exc
     argv = build_ssh_argv(spec)
     errfile = tempfile.NamedTemporaryFile(prefix="sandbox-tunnel-", suffix=".err", delete=False)
+    proc = None
     try:
         proc = subprocess.Popen(
             argv,
@@ -234,12 +244,16 @@ def spawn(spec: TunnelSpec, *, wait: float = 10.0) -> int:
                     + (f": {detail}" if detail else "")
                 )
             time.sleep(0.1)
+        path = pidfile(spec.profile)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"{proc.pid}\n", encoding="utf-8")
+    except BaseException:
+        if proc is not None and proc.poll() is None:
+            _kill_group(proc)
+        raise
     finally:
         errfile.close()
         Path(errfile.name).unlink(missing_ok=True)
-    path = pidfile(spec.profile)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(f"{proc.pid}\n", encoding="utf-8")
     return proc.pid
 
 

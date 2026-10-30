@@ -67,6 +67,9 @@ def _load_modal_vllm(overrides: dict[str, str]) -> ModuleType:
 
 
 def _serve_argv(args: argparse.Namespace) -> tuple[list[str], dict[str, str], ModuleType]:
+    from mailroom_sandbox.runtime import load_env_file
+
+    load_env_file()
     overrides = _matrix_env(args)
     module = _load_modal_vllm(overrides)
     model = overrides.get("MODAL_VLLM_MODEL") or module.MODEL

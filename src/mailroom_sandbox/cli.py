@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import errno
 import json
+import math
 import os
 import subprocess
 import sys
@@ -102,6 +103,12 @@ def _one_line(exc: BaseException) -> str:
 def build_parser() -> argparse.ArgumentParser:
     """Build the sandbox CLI parser with subcommands and handler defaults."""
     from mailroom_sandbox.providers import default_profile
+
+    def positive_seconds(value: str) -> float:
+        seconds = float(value)
+        if not math.isfinite(seconds) or seconds <= 0:
+            raise argparse.ArgumentTypeError("seconds must be finite and positive")
+        return seconds
 
     def _shared_flags(*, root: bool) -> argparse.ArgumentParser:
         """The cross-command flags. The root copy carries the real defaults; the copy
@@ -562,6 +569,8 @@ def build_parser() -> argparse.ArgumentParser:
     board_p.add_argument("--no-browser", action="store_true", help="do not open a browser tab")
     board_p.add_argument("--stale-s", type=float, default=120.0, help="heartbeat age that marks a running job stalled")
     board_p.add_argument("--interval", type=float, default=1.0, help="refresh seconds (minimum 0.1; smaller values are raised to it)")
+    board_p.add_argument("--probe-interval", type=positive_seconds, default=0, metavar="SECS", help="opt in to periodic doctor snapshots (offline checks by default)")
+    board_p.add_argument("--live", action="store_true", help="with --probe-interval: probe endpoints too (can wake a billed Modal GPU)")
     board_p.add_argument("--demo", action="store_true", help="also run synthetic demo jobs (dev server; no Modal)")
     board_p.set_defaults(handler=_cmd_board)
 
@@ -817,11 +826,13 @@ def build_parser() -> argparse.ArgumentParser:
     mm.set_defaults(handler=_cmd_modal_matrix_help)
 
     from mailroom_sandbox.services import doctor, hf_cli, modal_cli, vllm_cli
+    from mailroom_sandbox import experiments
 
     doctor.register(sub, leaf)
     modal_cli.register(sub, leaf)
     vllm_cli.register(sub, leaf)
     hf_cli.register(sub, leaf)
+    experiments.register(sub, leaf)
 
     return parser
 
@@ -836,6 +847,8 @@ def _run_parser(sub, shared):
     common.add_argument("--live", action="store_true")
     common.add_argument("--json", action="store_true")
     common.add_argument("--watch", action="store_true")
+    common.add_argument("--initials", default=None, help="sign the reviewed settings to authorize Modal/OpenRouter spend (2–6 letters)")
+    common.add_argument("--agent-route", action="append", dest="agent_routes", default=[], metavar="NAME=PROVIDER:MODEL", help="per-agent transport, or NAME=@route.yaml for endpoint/GPU/vLLM settings")
     common.add_argument("--job-mode", dest="mode", choices=["endpoint", "modal"], default=None)
     common.add_argument("--max-items", type=int, default=None)
     common.add_argument(
@@ -1028,6 +1041,7 @@ def _cmd_up(args: argparse.Namespace) -> int:
     On ``modal-vllm`` compose only brings up Langfuse (the GPU endpoint lives on Modal), and the command says so.
     """
     from mailroom_sandbox.compose import default_profiles_for, run_compose
+    from mailroom_sandbox.services.beacon import service_job
 
     profiles = args.compose_profiles or default_profiles_for(args.profile)
     if not args.compose_profiles and args.profile == "modal-vllm":
@@ -1038,7 +1052,9 @@ def _cmd_up(args: argparse.Namespace) -> int:
             "`sandbox runbook show serve`"
         )
     extra = ["up", "-d"] if args.detach else ["up"]
-    run_compose(profiles, *extra)
+    with service_job("up", title="compose up · " + ", ".join(profiles)) as job:
+        job.update(phase="STARTING")
+        run_compose(profiles, *extra)
     return 0
 
 
@@ -1106,6 +1122,7 @@ def _cmd_health(args: argparse.Namespace) -> int:
 def _cmd_pull_models(args: argparse.Namespace) -> int:
     from mailroom_sandbox.compose import pull_ollama_models
     from mailroom_sandbox.overlay import serving_family
+    from mailroom_sandbox.services.beacon import service_job
 
     profile = load_profile(args.profile)
     models = list(args.models) or list(profile.get("pull_models") or [])
@@ -1128,7 +1145,11 @@ def _cmd_pull_models(args: argparse.Namespace) -> int:
                 "pre-warm with `docker compose --profile vllm up vllm`."
             )
         return 0
-    return pull_ollama_models(models)
+    with service_job("pull-models", title="pull models · " + ", ".join(models)) as job:
+        job.update(phase="DOWNLOADING")
+        rc = pull_ollama_models(models)
+        job.finish("failed" if rc else "done", metrics={"returncode": rc})
+        return rc
 
 
 def _cmd_fetch_deps(args: argparse.Namespace) -> int:
@@ -2557,6 +2578,18 @@ def _cmd_dev(args) -> int:
 
 
 def _cmd_board(args) -> int:
+    from mailroom_sandbox.services.poll import periodic_services
+
+    interval = getattr(args, "probe_interval", 0)
+    live = getattr(args, "live", False)
+    if live and not interval:
+        raise ServiceError("board --live requires --probe-interval SECS")
+    root = Path(args.root).expanduser() if args.root else None
+    with periodic_services(args.profile, interval=interval, live=live, root=root):
+        return _run_board(args)
+
+
+def _run_board(args) -> int:
     from mailroom_sandbox.tui import board as board_mod
 
     root = Path(args.root).expanduser() if args.root else None
@@ -2838,6 +2871,9 @@ def _run_load_spec(args) -> tuple[object, Path]:
     cli_models = _agent_models(args)
     if cli_models:
         spec.agent_models = {**getattr(spec, "agent_models", {}), **cli_models}
+    if getattr(args, "agent_routes", None):
+        from mailroom_sandbox.agent_routes import parse_routes
+        spec.agent_routes = {**spec.agent_routes, **parse_routes(args.agent_routes)}
     cli_versions = getattr(args, "prompt_versions", None)
     if cli_versions:
         # --prompt-version wins per role over the spec's prompt.versions; the merged
@@ -2877,8 +2913,18 @@ def _cmd_run_preflight(args) -> int:
         offline=bool(getattr(args, "offline", False)),
         force=bool(getattr(args, "force", False)),
         dry_run=bool(getattr(args, "dry_run", False)),
-        live=bool(getattr(args, "live", False)),
+        live=False,
     )
+    if report.get("status") == "prepared" and getattr(args, "live", False) and not getattr(args, "dry_run", False):
+        from mailroom_sandbox.job.checkpoint import RunStore
+        from mailroom_sandbox.job.spec import run_dir
+        from mailroom_sandbox.job.spend import authorize
+
+        authorize(RunStore(run_dir(report["run_id"])), initials=getattr(args, "initials", None), probe=True)
+        probe = preflight.probe_engine(spec)
+        report["checks"].append({"name": "live_engine", **probe})
+        if not probe.get("ok"):
+            report["status"] = "failed"
     _print(report)
     if report.get("status") == "prepared":
         return 0
@@ -2896,6 +2942,8 @@ def _cmd_run_start(args) -> int:
     spec, config_path = _run_load_spec(args)
     if getattr(args, "mock", None) is not None or getattr(args, "local", None) is not None:
         spec.job.mock = bool(args.mock)
+    if getattr(args, "mode", None):
+        spec.job.mode = args.mode
     report = preflight.preflight(
         spec,
         run_id=getattr(args, "run_id", None) or "",
@@ -2903,7 +2951,7 @@ def _cmd_run_start(args) -> int:
         offline=bool(getattr(args, "offline", False)),
         force=bool(getattr(args, "force", False)),
         dry_run=bool(getattr(args, "dry_run", False)),
-        live=bool(getattr(args, "live", False)),
+        live=False,
     )
     if report.get("status") != "prepared":
         _print(report)
@@ -2914,6 +2962,14 @@ def _cmd_run_start(args) -> int:
         return 0
     store = RunStore(run_dir(run_id))
     store.verify_generation()
+    from mailroom_sandbox.job.spend import authorize
+
+    authorize(store, initials=getattr(args, "initials", None), probe=bool(getattr(args, "live", False)))
+    if getattr(args, "live", False):
+        probe = preflight.probe_engine(spec)
+        if not probe.get("ok"):
+            _print({"run_id": run_id, "state": "engine_unreachable", **probe})
+            return 1
     mode = getattr(args, "mode", None) or spec.job.mode
     if mode == "modal":
         # DMR-048: default live probe before firing — a stale VLLM_BASE_URL
@@ -3178,6 +3234,8 @@ def _cmd_run_resume(args) -> int:
         return 1
     cli_model = getattr(args, "model", None)
     cli_models = _agent_models(args) or {}
+    from mailroom_sandbox.agent_routes import parse_routes
+    cli_routes = {name: route.model_dump() for name, route in parse_routes(getattr(args, "agent_routes", None)).items()}
     from mailroom_sandbox.prompt_versions import parse_selection, selection_from_lock
 
     cli_prompts = parse_selection(getattr(args, "prompt_versions", None))
@@ -3186,10 +3244,14 @@ def _cmd_run_resume(args) -> int:
         (cli_model is not None and cli_model != (lock.get("engine") or {}).get("model"))
         or any((lock.get("agent_models") or {}).get(name) != value for name, value in cli_models.items())
         or any(locked_prompts.get(name) != value for name, value in cli_prompts.items())
+        or any((lock.get("agent_routes") or {}).get(name) != value for name, value in cli_routes.items())
     )
     if drifted:
         _print({"run_id": run_id, "status": "drift_refused", "detail": "runtime overrides differ from the lock"})
         return 3
+    from mailroom_sandbox.job.spend import authorize
+
+    authorize(store, initials=getattr(args, "initials", None))
     if _job_mode(store) == "modal":
         from mailroom_sandbox.job import remote as job_remote
 

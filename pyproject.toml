@@ -121,6 +121,7 @@ mailroom_sandbox = ["py.typed"]
 testpaths = ["tests"]
 pythonpath = ["src"]
 markers = [
+    "service_smoke: opt-in real Modal/HF CLI contract checks (SANDBOX_SERVICE_SMOKE=1)",
     "local_llm: live test against a local OpenAI-compatible server (skipped unless SANDBOX_LOCAL_LLM=1)",
 ]
 

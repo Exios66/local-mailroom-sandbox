@@ -8,6 +8,7 @@ older than ``STALE_S`` is flagged ``stale`` instead of being shown as current.
 from __future__ import annotations
 
 import json
+import math
 import os
 import socket
 import time
@@ -55,7 +56,16 @@ def read_services(root: Path | str | None = None, *, stale_s: float = STALE_S) -
         return None
     if not isinstance(data, dict) or data.get("schema") != SERVICES_VERSION or not isinstance(data.get("services"), list):
         return None
-    age = max(0.0, time.time() - float(data.get("generated_at") or 0))
+    if any(not isinstance(row, dict) or any(not isinstance(row.get(key, ""), str)
+           for key in ("name", "state", "detail", "hint")) for row in data["services"]):
+        return None
+    try:
+        generated_at = float(data.get("generated_at", 0))
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if not math.isfinite(generated_at):
+        return None
+    age = max(0.0, time.time() - generated_at)
     data["age_s"] = round(age, 1)
     data["stale"] = age > stale_s
     return data

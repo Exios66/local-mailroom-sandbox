@@ -18,7 +18,8 @@ from pathlib import Path
 from typing import Any
 
 from mailroom_sandbox.services._cli import print_json, warn
-from mailroom_sandbox.services._exec import ServiceError, run_tool
+from mailroom_sandbox.services._exec import ServiceError, run_tool, strip_ansi
+from mailroom_sandbox.services._redact import redact_urls
 
 SERVICES = (
     "modal", "modal-auth", "hf", "hf-auth", "docker", "ollama", "ssh", "git", "vllm",
@@ -52,6 +53,8 @@ def _binary(name: str, *, needed: bool, hint: str, version: list[str] | None = N
         state = "warn" if needed else "skipped"
         return ServiceStatus(name, state, "not installed" + ("" if needed else " (not needed by this profile)"), hint)
     found = _version(version) if version else None
+    if version and not found:
+        return ServiceStatus(name, "warn", f"could not determine {name} version", hint)
     if pin and found and found != pin:
         return ServiceStatus(name, "warn", f"{name} {found}, sandbox verified against {pin}", hint)
     return ServiceStatus(name, "ok", f"{name} {found}" if found else path)
@@ -151,7 +154,7 @@ def _compose(*, live: bool, docker_present: bool) -> ServiceStatus:
         return ServiceStatus("compose", "skipped", "not probed (use --live)")
     result = run_tool(compose_argv([], "ps", "--services", "--status", "running"), timeout=30.0, check=False)
     if result.returncode != 0:
-        return ServiceStatus("compose", "warn", " ".join((result.stderr or "").split())[:160] or "docker compose failed")
+        return ServiceStatus("compose", "warn", " ".join(strip_ansi(result.stderr or "").split())[:160] or "docker compose failed")
     running = [line.strip() for line in (result.stdout or "").splitlines() if line.strip()]
     if running:
         return ServiceStatus("compose", "ok", "running: " + ", ".join(running))
@@ -184,10 +187,29 @@ def run_doctor(profile_name: str, *, live: bool = False, services: list[str] | N
         "compose": lambda: _compose(live=live, docker_present=docker_present),
     }
     wanted = [name for name in SERVICES if not services or name in services]
-    return [checks[name]() for name in wanted]
+    rows = []
+    for name in wanted:
+        try:
+            row = checks[name]()
+        except ServiceError as exc:
+            row = ServiceStatus(name, "warn", " ".join(str(exc).split()))
+        row.detail = redact_urls(row.detail)
+        row.hint = redact_urls(row.hint)
+        rows.append(row)
+    return rows
 
 
 def _cmd_doctor(args: argparse.Namespace) -> int:
+    from mailroom_sandbox.services.beacon import service_job
+
+    with service_job("doctor", title=f"doctor · {args.profile}") as job:
+        job.update(phase="CHECKING")
+        rc = _run_doctor_command(args)
+        job.finish("failed" if rc else "done", metrics={"returncode": rc})
+        return rc
+
+
+def _run_doctor_command(args: argparse.Namespace) -> int:
     from mailroom_sandbox.runtime import load_env_file
 
     load_env_file()

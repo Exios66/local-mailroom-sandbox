@@ -308,3 +308,14 @@ def test_bare_modal_group_prints_usage(capsys):
     assert cli.main(["modal"]) == 0
     out = capsys.readouterr().out
     assert "deploy" in out and "stop" in out and "status" in out
+
+
+def test_status_recommends_teardown_for_each_deployed_app(fake_bin, capsys):
+    _modal(fake_bin, rules=[{'prefix': ['--version'], 'stdout': PIN}, _apps(
+        {'description': 'sandbox-vllm', 'state': 'deployed'},
+        {'description': 'sandbox-job', 'state': 'deployed'},
+    )])
+    assert cli.main(['modal', 'status']) == 0
+    out = capsys.readouterr().out
+    assert 'sandbox modal stop --app sandbox-vllm' in out
+    assert 'sandbox modal stop --app sandbox-job' in out

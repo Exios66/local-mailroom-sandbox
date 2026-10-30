@@ -100,7 +100,7 @@ def test_ollama_missing_warns_under_the_ollama_profile(fake_bin, capsys):
 @pytest.mark.parametrize(
     ("setup", "state"),
     [
-        ({"MODAL_TOKEN_ID": "a", "MODAL_TOKEN_SECRET": "b"}, "ok"),
+        ({"MODAL_TOKEN_ID": "tok-id-9f3", "MODAL_TOKEN_SECRET": "tok-secret-7c1"}, "ok"),
         ({}, "warn"),
     ],
     ids=["env-tokens", "none"],
@@ -113,7 +113,80 @@ def test_modal_auth_is_detected_without_reading_secrets(fake_bin, capsys, monkey
     assert rows["modal-auth"]["state"] == state
     if state == "warn":
         assert "modal token new" in rows["modal-auth"]["hint"]
-    assert "a" != rows["modal-auth"]["detail"]  # never echo the token
+    dumped = json.dumps(rows)
+    assert "tok-id-9f3" not in dumped and "tok-secret-7c1" not in dumped
+
+
+@pytest.mark.parametrize("live", [False, True])
+def test_endpoint_credentials_never_reach_output_or_snapshot(fake_bin, monkeypatch, capsys, live):
+    from mailroom_sandbox.tui.beacon import beacon_root
+
+    base = "https://user-secret:password-secret@vllm.test/v1?token=query-secret#fragment-secret"
+    monkeypatch.setenv("VLLM_BASE_URL", base)
+    monkeypatch.setenv("LANGFUSE_HOST", base)
+
+    def get(url, **kw):
+        raise httpx.ConnectError(f"failed: {url}")
+
+    monkeypatch.setattr("mailroom_sandbox.health.httpx.get", get)
+    cli.main(["doctor", "--json", "--publish", *(["--live"] if live else [])])
+    captured = capsys.readouterr()
+    output = captured.out + captured.err + json.dumps(read_services(beacon_root()))
+    assert "vllm.test" in output
+    for secret in ("user-secret", "password-secret", "query-secret", "fragment-secret"):
+        assert secret not in output
+
+
+def test_one_failed_check_does_not_abort_remaining_checks(fake_bin, monkeypatch, capsys):
+    from mailroom_sandbox.services import doctor
+    from mailroom_sandbox.services._exec import ToolTimeout
+
+    _tools(fake_bin)
+    monkeypatch.setenv("VLLM_BASE_URL", "http://vllm.test/v1")
+    original = doctor.run_tool
+
+    def run(argv, **kw):
+        if argv[0] == "modal":
+            raise ToolTimeout(argv, 15)
+        return original(argv, **kw)
+
+    monkeypatch.setattr(doctor, "run_tool", run)
+    rc, rows = _doctor(capsys)
+    assert rc == 0 and rows["modal"]["state"] == "warn"
+    assert "timed out" in rows["modal"]["detail"]
+    assert rows["hf"]["state"] == "ok" and rows["provider"]["state"] == "ok"
+
+
+@pytest.mark.parametrize(("stdout", "stderr", "code", "state", "detail"), [
+    ("", "\x1b[31mdaemon\n unavailable\x1b[0m", 1, "warn", "daemon unavailable"),
+    ("langfuse\npostgres\n", "", 0, "ok", "running: langfuse, postgres"),
+    ("", "", 0, "warn", "no compose service running"),
+])
+def test_live_compose_states(fake_bin, capsys, stdout, stderr, code, state, detail):
+    _tools(fake_bin)
+    fake_bin.add("docker", stdout=stdout, stderr=stderr, rc=code)
+    rc, rows = _doctor(capsys, "--live", "--service", "compose")
+    assert rc == 0 and rows["compose"]["state"] == state
+    assert rows["compose"]["detail"] == detail
+
+
+def test_unrecognized_version_warns(fake_bin, capsys):
+    fake_bin.add("modal", stdout="development build\n")
+    rc, rows = _doctor(capsys, "--service", "modal")
+    assert rc == 0 and rows["modal"]["state"] == "warn"
+    assert "could not determine" in rows["modal"]["detail"]
+
+
+def test_live_tunnel_with_closed_port_warns(fake_bin, monkeypatch, capsys):
+    monkeypatch.setenv("SANDBOX_TUNNEL_HOST", "gpu.test")
+    monkeypatch.setenv("SANDBOX_TUNNEL_USER", "alice")
+    monkeypatch.setattr("mailroom_sandbox.tunnel.read_pid", lambda name: 1234)
+    monkeypatch.setattr("mailroom_sandbox.tunnel.is_alive", lambda pid: True)
+    monkeypatch.setattr("mailroom_sandbox.tunnel.is_ssh_process", lambda pid: True)
+    monkeypatch.setattr("mailroom_sandbox.tunnel.is_up", lambda port: False)
+    rc, rows = _doctor(capsys, "--profile", "vllm-remote", "--live", "--service", "tunnel")
+    assert rc == 0 and rows["tunnel"]["state"] == "warn"
+    assert "not answering" in rows["tunnel"]["detail"]
 
 
 def test_modal_auth_ok_from_the_config_file(fake_bin, capsys, monkeypatch, tmp_path):

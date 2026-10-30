@@ -4,6 +4,17 @@
 
 ### Added
 
+- `sandbox experiment designs|create|review|preflight|launch|watch|report`: single and
+  SAND42 paired designs, pinned Hub slices/sample sizes, full pipeline or specialist
+  jobs, explicit vLLM/GPU/decode/trace choices, separate bounded smoke subsets,
+  managed-cell teardown, observer following, coverage and paired outcome reports.
+- Per-agent `agent_routes` and `--agent-route NAME=PROVIDER:MODEL` (or a route YAML):
+  API, Modal/vLLM, and hybrid pipelines through the native/LangChain shared seam.
+  Resolved agent assignments and generation knobs are locked; vendor bytes stay intact.
+- Configuration-bound, expiring initials receipts for paid run start/resume and live
+  preflight; campaign receipts also bind smoke settings. Mock endpoint work stays
+  unsigned. Initials attest operator review; they are not cryptographic identity proof.
+
 - `tests/_fakebin.py` and the `fake_bin` fixture: fake `modal`/`vllm`/`hf`/`ssh`/
   `docker`/`ollama` executables on an isolated `PATH` (argv logged, canned output per
   subcommand), so CLI wrappers are tested without the real tools or a network.
@@ -12,8 +23,8 @@
   `main()` renders any `ServiceError` as a single `error:` line (exit 1).
 - `sandbox modal deploy|prewarm|status|logs|stop|url|raw`: guarded passthrough to the
   Modal CLI. Injects the pinned `deploy/modal_vllm.py` entrypoint and the `--model`/`--gpu`
-  row from `config/models.yaml`; every command has `--dry-run` (prints the argv, spends
-  nothing); `deploy` prints the endpoint exports; `stop` is idempotent and verified
+  row from `config/models.yaml`; `deploy`, `prewarm`, `stop` and `logs` have
+  `--dry-run` (prints the argv, spends nothing); `deploy` prints the endpoint exports; `stop` is idempotent and verified
   against `modal app list --json`; an SDK other than the `modal==1.6.2` pin warns.
 - `sandbox vllm probe|command|serve|metrics`: `probe` checks models, chat, `/health` and
   `/metrics` plus that the served model is the one a run will ask for; `command` prints
@@ -32,10 +43,13 @@
   adds network probes and warns that a request to a scale-to-zero Modal URL wakes a
   billed GPU. Exit 1 only on a `fail` row. `--publish` writes the snapshot the board shows.
 - TUI services panel: `sandbox board` renders the published `mailroom.services/v1`
-  snapshot as a status strip (terminal and browser, `/api/services`); a snapshot older
-  than 15 minutes is marked stale. The board itself stays network-free.
+  snapshot as a status strip (terminal and browser, `/api/services`), also in
+  `sandbox watch --web`; a snapshot older
+  than 15 minutes is marked stale. `board --probe-interval SECS` refreshes offline checks;
+  add `--live` explicitly for network probes (can wake a billed GPU). Viewing snapshots stays network-free.
 - Service beacons: `sandbox modal deploy|prewarm|stop`, `sandbox hf download`,
-  `sandbox tunnel up` and `sandbox datasets pull` publish a `mailroom.beacon/v1` job, so
+  `sandbox tunnel up`, `sandbox datasets pull`, `sandbox doctor`, `sandbox up` and
+  Ollama `sandbox pull-models` publish a `mailroom.beacon/v1` job, so
   they appear on the board like `run start` does.
 
 ### Changed
@@ -51,6 +65,15 @@
   `docs/runbooks/`.
 
 ### Fixed
+
+- Complete SAND-064 review fixes: credential-free doctor URLs and fake-tool logs; `.env`
+  loading for HF and local vLLM commands; malformed snapshot rejection; safe HTML
+  attributes; independent doctor checks; per-app teardown guidance; trimmed workspaces;
+  interrupted SSH startup cleanup and macOS zombie detection.
+- Deploy startup detects an exited vLLM child and reaps failed children. Teardown
+  refuses failed/malformed Modal listings, uses `MODAL_VLLM_APP_NAME`, and is idempotent.
+- Opt-in real CLI contract tests (`SANDBOX_SERVICE_SMOKE=1`); a live endpoint probe
+  additionally requires `SANDBOX_LIVE_PROVIDER_SMOKE=1` and an explicit endpoint.
 
 - Review follow-ups on the Slice 1 fixes: `tunnel plan` accepts the shared flags after the
   subcommand; the health probe treats only 2xx as healthy (a 3xx is `HTTP 3xx`, and the

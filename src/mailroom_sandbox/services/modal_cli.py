@@ -13,6 +13,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 import sys
 import time
 from typing import Any
@@ -170,7 +171,9 @@ def _app_rows(payload: Any) -> list[dict[str, Any]]:
                 break
     if not isinstance(payload, list):
         raise ServiceError("could not parse `modal app list --json` output: expected a list of apps")
-    return [row for row in payload if isinstance(row, dict)]
+    if any(not isinstance(row, dict) or not _field(row, _NAME_KEYS) or not _field(row, _STATE_KEYS) for row in payload):
+        raise ServiceError("could not parse `modal app list --json` output: app name/state missing")
+    return payload
 
 
 def _list_apps() -> list[dict[str, Any]]:
@@ -184,7 +187,9 @@ def _list_apps() -> list[dict[str, Any]]:
 
 def _app_state(rows: list[dict[str, Any]], app: str) -> dict[str, Any]:
     """The sandbox view of one app; names match exactly (a scoped fleet is not the default app)."""
-    for row in rows:
+    # Listings can retain a stopped version alongside a newer deployment.
+    ordered = sorted(rows, key=lambda row: _field(row, _STATE_KEYS).lower() == "stopped")
+    for row in ordered:
         if _field(row, _NAME_KEYS) == app:
             state = _field(row, _STATE_KEYS) or "unknown"
             return {
@@ -197,7 +202,8 @@ def _app_state(rows: list[dict[str, Any]], app: str) -> dict[str, Any]:
 
 
 def _is_deployed(app: str) -> bool:
-    return bool(_app_state(_list_apps(), app)["deployed"])
+    state = _app_state(_list_apps(), app)["state"].lower()
+    return state not in {"stopped", "not deployed"}
 
 
 def _cmd_status(args: argparse.Namespace) -> int:
@@ -213,7 +219,8 @@ def _cmd_status(args: argparse.Namespace) -> int:
     for a in apps:
         print(f"{a['name']:<20} {a['state']}")
     if warm:
-        print(f"next: `sandbox modal stop` — {', '.join(warm)} still deployed (it bills while containers are warm)")
+        for name in warm:
+            print(f"next: `sandbox modal stop --app {shlex.quote(name)}` — {name} still deployed (it bills while containers are warm)")
     else:
         print("next: `sandbox modal prewarm` then `sandbox modal deploy` for a run")
     return 0
@@ -317,7 +324,7 @@ def _cmd_help(args: argparse.Namespace) -> int:
         "  logs [--follow] [--app NAME]               modal app logs\n"
         "  url [--json]                               the endpoint VLLM_BASE_URL should hold\n"
         "  raw -- <args>                              any other modal command, unchanged\n"
-        "Every command supports --dry-run (prints the argv, spends nothing). Flow: `sandbox runbook show serve`."
+        "deploy, prewarm, stop and logs support --dry-run (prints the argv, spends nothing). Flow: `sandbox runbook show serve`."
     )
     return 0
 
