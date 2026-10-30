@@ -121,6 +121,7 @@ class RunStore:
         self.items_path = self.dir / "items.jsonl"
         self.checkpoint_path = self.dir / "checkpoint.json"
         self.events_path = self.dir / "events.jsonl"
+        self.nodes_path = self.dir / "nodes.jsonl"
         self.cold_boot_path = self.dir / "cold_boot.json"
         self.flock_path = self.dir / "run.lock"
         self.cancel_path = self.dir / "cancel.request.json"
@@ -226,6 +227,7 @@ class RunStore:
             self.items_path,
             self.checkpoint_path,
             self.events_path,
+            self.nodes_path,
             self.dataset_path,
             self.cold_boot_path,
             self.cancel_path,
@@ -449,6 +451,35 @@ class RunStore:
         for line in self.events_path.read_text(encoding="utf-8").splitlines():
             if line.strip():
                 rows.append(json.loads(line))
+        return rows
+
+    # ── pipeline nodes (SAND-076) ───────────────────────────────────────────
+    def append_node(self, record: dict[str, Any]) -> None:
+        """Append one graph-node start/end record (``job.node_trace``)."""
+        with open(self.nodes_path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record, default=str) + "\n")
+            fh.flush()
+
+    def nodes(self, *, tail_bytes: int = 256_000) -> list[dict[str, Any]]:
+        """The latest node records; a torn or corrupt line is skipped."""
+        try:
+            with open(self.nodes_path, "rb") as fh:
+                size = fh.seek(0, 2)
+                fh.seek(max(0, size - tail_bytes))
+                chunk = fh.read().decode("utf-8", errors="replace")
+        except OSError:
+            return []
+        lines = chunk.splitlines()
+        if size > tail_bytes and lines:
+            lines = lines[1:]  # the first line of a tail read is partial
+        rows = []
+        for line in lines:
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(row, dict):
+                rows.append(row)
         return rows
 
     # ── resume / drift ──────────────────────────────────────────────────────

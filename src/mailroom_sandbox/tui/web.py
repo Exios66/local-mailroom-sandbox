@@ -385,7 +385,24 @@ header .route {{ color: var(--cyan); font-size: 11px; letter-spacing: 0.06em; }}
 .log-tools input[type="search"] {{ width: 180px; }}
 :focus-visible {{ outline: 2px solid var(--gold); outline-offset: 3px; }}
 .sr-only {{ position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }}
-@media (prefers-reduced-motion: reduce) {{ .replay.live .lane.now .trail, .blink .stage {{ animation: none; }} }}
+/* pipeline floor: the current document's graph-node route (SAND-076) */
+.floor {{ margin: 0 0 16px; padding: 12px 16px; border: 1px solid var(--rule); border-radius: 4px; background: #0a141e; }}
+.floor-head {{ display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; margin-bottom: 8px; }}
+.floor-head h2 {{ margin: 0; font-size: inherit; color: var(--snow); }}
+.floor-head .doc {{ color: var(--cyan); overflow-wrap: anywhere; }}
+.floor-doc + .floor-doc {{ margin-top: 10px; }}
+.floor-doc h3 {{ margin: 0 0 4px; font-size: inherit; font-weight: 400; color: var(--ink-2); overflow-wrap: anywhere; }}
+.hops {{ list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: max-content max-content minmax(0, 1fr); gap: 2px 14px; }}
+.hop {{ display: contents; }}
+.hop .node {{ color: var(--ink-2); }} .hop .ms {{ color: #3b5468; text-align: right; font-variant-numeric: tabular-nums; }}
+.hop .what {{ color: var(--ink-2); overflow-wrap: anywhere; }}
+.hop.done .node {{ color: var(--teal); }} .hop.running .node {{ color: var(--gold); font-weight: 600; }}
+.hop.paused .node {{ color: var(--cyan); }} .hop.error .node, .hop.error .what {{ color: var(--ruby); }}
+.hop .who {{ display: block; color: #5b7a92; }}
+@media (max-width: 560px) {{ .hops {{ grid-template-columns: max-content minmax(0, 1fr); }} .hop .ms {{ display: none; }} }}
+.floor-totals {{ margin-top: 8px; color: var(--ink-2); overflow-wrap: anywhere; }}
+.floor .hop.running .node {{ animation: lifecycle-pulse 2.2s ease-in-out infinite; }}
+@media (prefers-reduced-motion: reduce) {{ .floor .hop.running .node, .replay.live .lane.now .trail, .blink .stage {{ animation: none; }} }}
 @media (max-width: 600px) {{ .view-nav kbd {{ display: none; }} }}
 #hero {{ font-size: min(12px, calc((100vw - 84px) / 60)); }}
 #hero-compact {{ display: none; font-size: min(12px, calc((100vw - 84px) / 36)); }}
@@ -443,6 +460,11 @@ footer .keys {{ justify-content: center; }}
       <div class="lanes" id="lanes" role="list"></div>
       <div class="timeline" id="timeline" role="img" aria-label="Document timeline"></div>
       <div class="stats" id="stats"></div>
+    </section>
+    <section class="floor" id="floor" aria-labelledby="floor-heading" hidden>
+      <div class="floor-head"><h2 id="floor-heading">Pipeline floor</h2><span class="doc" id="floor-doc"></span></div>
+      <div id="floor-docs"></div>
+      <div class="floor-totals" id="floor-totals"></div>
     </section>
     <details><summary class="view-note">Run route and campaign details</summary><div class="route-lines" id="program-route" hidden></div></details>
     <div class="grid">
@@ -612,6 +634,39 @@ function renderReplay(state, phase, detail) {{
     `<span>p95 <b>${{s.p95_s != null ? s.p95_s + "s" : "—"}}</b></span>` +
     `<span>first-pass <b class="good">${{firstPass}}</b></span>`;
 }}
+// Pipeline floor: each graph node the newest document has entered, with the
+// typed decisions (noul / choice / score) its agent returned.
+const HOP_MARK = {{ done: "done", running: "in flight", paused: "paused for review", error: "failed" }};
+function decisionText(d) {{
+  let t = `${{d.question}} → ${{d.answer}}`;
+  if (d.p != null) t += ` · p ${{Number(d.p).toFixed(2)}}`;
+  if (d.expected != null) t += ` · expected ${{Number(d.expected).toFixed(2)}}`;
+  const opts = Object.entries(d.options || {{}}).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  if (opts.length) t += " · " + opts.map(([k, v]) => `${{k}} ${{Number(v).toFixed(2)}}`).join(", ");
+  return `${{t}} (${{d.type}})`;
+}}
+function hopRow(h) {{
+  const who = [h.agent, h.model].filter(Boolean).join(" · ");
+  const ds = (h.decisions || []).map(decisionText);
+  const what = h.status === "error" ? (h.error || "failed") : (ds.join("; ") || HOP_MARK[h.status] || "");
+  const ms = h.ms != null ? `${{Math.round(h.ms)}} ms` : "";
+  return `<li class="hop ${{esc(h.status)}}" aria-label="${{esc(h.node + ": " + (HOP_MARK[h.status] || h.status) + (ms ? ", " + ms : ""))}}"><span class="node">${{esc(h.node)}}</span><span class="ms">${{esc(ms)}}</span><span class="what">${{esc(what)}}${{who ? `<span class="who">${{esc(who)}}</span>` : ""}}</span></li>`;
+}}
+function renderFloor(pipe) {{
+  const floor = document.getElementById("floor");
+  floor.hidden = !pipe;
+  if (!pipe) return;
+  // Newest document first; the one before it shows its whole route and decisions.
+  const docs = (pipe.recent || []).slice(-2).reverse();
+  document.getElementById("floor-doc").textContent = `${{pipe.docs_seen}} documents in view`;
+  document.getElementById("floor-docs").innerHTML = docs.map((d, i) => {{
+    const label = i === 0 ? "now" : "previous";
+    return `<div class="floor-doc"><h3>${{label}} · document ${{esc(d.doc)}}</h3><ol class="hops">${{d.route.map(hopRow).join("")}}</ol></div>`;
+  }}).join("");
+  document.getElementById("floor-totals").textContent = (pipe.nodes || []).map(t =>
+    `${{t.node}} ${{t.visits}}×${{t.errors ? ` (${{t.errors}} failed)` : ""}}${{t.mean_ms != null ? ` ${{Math.round(t.mean_ms)}} ms avg` : ""}}`).join(" · ");
+}}
+
 function setConnection(kind, text) {{
   document.querySelector("#connection .dot").className = "dot " + kind;
   document.getElementById("connection-text").textContent = text;
@@ -685,6 +740,7 @@ function render(state) {{
   document.getElementById("app-line").textContent = watcher;
 
   renderReplay(state, phase, detail);
+  renderFloor(state.pipeline);
   const route = document.getElementById("program-route");
   if (state.route && state.route.length) {{
     route.hidden = false;
