@@ -37,3 +37,4 @@ ignores:
   - reports/**
   - docs/prompts/**
   - CHANGELOG.md
+  - docs/cli-reference.md   # generated
