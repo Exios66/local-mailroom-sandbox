@@ -514,7 +514,6 @@ def render_shell(name: str) -> str:
                 )
             else:
                 rels = _config_paths(runbook)
-                pid_file = f"$HOME/.sand42-{midrun_cell}-midrun.pid"
                 lines += [
                     "",
                     "# SAND-047: sample /metrics MID-RUN every $MIDRUN_INTERVAL seconds.",

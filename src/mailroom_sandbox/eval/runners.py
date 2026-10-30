@@ -607,7 +607,7 @@ def _mock_legalbench_answer(row: dict[str, Any]) -> str:
     import hashlib
 
     blob = str(row.get("doc_text") or row.get("text") or row.get("document_text") or "")
-    return "Yes" if int(hashlib.md5(blob.encode()).hexdigest()[:2], 16) % 2 else "No"
+    return "Yes" if int(hashlib.md5(blob.encode(), usedforsecurity=False).hexdigest()[:2], 16) % 2 else "No"
 
 
 def run_legalbench_eval(

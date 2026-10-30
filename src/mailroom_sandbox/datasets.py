@@ -76,7 +76,7 @@ def dataset_fingerprint(rows: list[dict[str, str]]) -> str:
         ],
         sort_keys=True,
     )
-    return hashlib.md5(blob.encode()).hexdigest()[:12]
+    return hashlib.md5(blob.encode(), usedforsecurity=False).hexdigest()[:12]
 
 
 def load_hf_fixtures() -> list[dict[str, Any]]:

@@ -306,7 +306,8 @@ def build_tray_layout(
     stage = stage_tag(store.run_id, task=task, profile=profile)
 
     times_file = resolve_times_file(store, times_dir)
-    times = read_times(times_file) if times_file else {}
+    if times_file:
+        read_times(times_file)
 
     program: list[str] | None = None
     program_title: str | None = None
