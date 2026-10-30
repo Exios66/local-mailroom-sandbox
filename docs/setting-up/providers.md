@@ -8,8 +8,8 @@ points mailroom at `data/runtime/taxonomy.yaml`.
 | --- | --- | --- | --- |
 | `modal-vllm` (default) | `vllm` | Modal `*.modal.run/v1` | `Qwen/Qwen3.5-9B` (online fp8) |
 | `ollama` (offline) | `ollama` | `http://localhost:11434/v1` | `qwen3:8b` |
-| `vllm-local` | `vllm` | `http://localhost:8000/v1` | `Qwen/Qwen3-8B` |
-| `vllm-remote` | `vllm` | `http://localhost:18000/v1` (SSH forward) | `Qwen/Qwen3-8B` |
+| `vllm-local` | `vllm` | `http://localhost:8000/v1` | `Qwen/Qwen3.5-9B` (compose serves it bf16) |
+| `vllm-remote` | `vllm` | `http://localhost:18000/v1` (SSH forward) | `Qwen/Qwen3.5-9B` |
 | `llamacpp` | `generic` | `http://localhost:8080/v1` | `qwen3-8b` |
 | `lmstudio` | `generic` | `http://localhost:1234/v1` | `qwen3-8b` |
 | `openrouter` | `openrouter` | `https://openrouter.ai/api/v1` | `qwen/qwen3.5-9b` (same weights as the Modal default) |

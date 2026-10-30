@@ -187,6 +187,19 @@ sandbox pipeline watcher                          # long-running Langfuse watche
 sandbox pipeline api                              # long-running API server
 ```
 
+**Paired experiments and model tiers (SAND-077–079).** The base model is
+`Qwen/Qwen3.5-9B` on Modal and `qwen/qwen3.5-9b` on OpenRouter. Modal pipeline
+experiments put the judge on `Qwen/Qwen3.5-27B` (its own L40S app);
+`--specialist-tier mid|full` moves the five specialists onto
+`Qwen/Qwen3.5-35B-A3B` or the judge's 27B. Launch asks for your initials.
+
+```bash
+sandbox experiment create tiers-full --task pipeline --specialist-tier full --samples 2 --seed 42
+sandbox experiment review   --config config/experiments/tiers-full/experiment.yaml
+sandbox experiment preflight --config config/experiments/tiers-full/experiment.yaml
+sandbox experiment launch    --config config/experiments/tiers-full/experiment.yaml   # initials-gated spend
+```
+
 ## 10. Mailroom live watch (long Modal jobs)
 
 Full guide: **[mailroom-themed-logging.md](../pretty-logging/mailroom-themed-logging.md)**.
@@ -225,7 +238,7 @@ pip install -e ".[dev]" && sandbox datasets prepare \
 pip install -e ".[deploy]" && modal token new
 sandbox runbook show serve        # the full lifecycle script (prewarm → deploy → point → verify → teardown)
 # or by hand:
-export MODAL_VLLM_MODEL=Qwen/Qwen3-8B MODAL_VLLM_GPU=L4 MODAL_VLLM_API_TOKEN=$(openssl rand -hex 24)
+export MODAL_VLLM_MODEL=Qwen/Qwen3.5-9B MODAL_VLLM_GPU=L4 MODAL_VLLM_API_TOKEN=$(openssl rand -hex 24)
 modal run deploy/modal_vllm.py::download_model && modal deploy deploy/modal_vllm.py
 export VLLM_BASE_URL=https://<ws>--sandbox-vllm-serve.modal.run/v1 VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
 sandbox health && sandbox run start --config … --job-mode modal
