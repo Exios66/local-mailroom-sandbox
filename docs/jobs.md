@@ -26,7 +26,7 @@ data/runtime/runs/<run_id>/
 ```yaml
 schema: sandbox.run/v1
 run_id: <optional; auto ><task>-<model>-<utc>
-task: sorter                # per-item: sorter | legalbench (resumable row-by-row)
+task: sorter                # per-item: sorter (resumable row-by-row)
                             # whole-run: pipeline | extract | chained | local_vs_api
                             #   | isolated (sorter spec) | ANY registered agent name
                             #   (e.g. judge, contracts_specialist — DMR-056: every
@@ -137,7 +137,7 @@ preserve legacy spec hashes. Run-id-only resume refuses runtime overrides that
 differ from the lock; use a config and a safe explicit reset for new choices.
 Provider endpoint URLs and credentials remain operator environment settings.
 
-For a running row-resumable `sorter`/`legalbench` endpoint task, `run cancel`
+For a running row-resumable `sorter` endpoint task, `run cancel`
 writes `cancel.request.json` without waiting for the runner's lock and reports
 `cancel_requested`. Prepared, paused and terminal local runs report their
 current state without creating a pending token. The runner marks `running`

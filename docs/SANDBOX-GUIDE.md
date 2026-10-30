@@ -366,7 +366,7 @@ sandbox run list
 ```yaml
 schema: sandbox.run/v1
 run_id: <auto if omitted>
-task: sorter                  # sorter | legalbench (per-item) | pipeline | extract |
+task: sorter                  # sorter (per-item) | pipeline | extract |
                               # chained | local_vs_api | isolated | ANY agent name
                               # (DMR-056: every AgentSpec is a whole-run task)
 profile: vllm-local           # provider profile

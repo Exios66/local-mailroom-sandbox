@@ -387,17 +387,6 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--dry-run", action="store_true")
     p.set_defaults(handler=_cmd_hf_pilot)
 
-    p = sub.add_parser("legalbench", help="LegalBench Yes/No fixture harness", parents=[leaf])
-    p.add_argument("--task", default="contract_qa", choices=("contract_qa", "family_classification"))
-    g = p.add_mutually_exclusive_group()
-    g.add_argument("--mock", action="store_true")
-    g.add_argument("--local", action="store_true")
-    p.add_argument("--n", type=_positive_int, default=None, help="seeded sample size (never first-N)")
-    p.add_argument("--seed", type=int, default=42, help="sample seed (recorded in the experiment log)")
-    p.add_argument("--suite", action="store_true", help="use the vendored llm-mailroom suite (needs data/cuad)")
-    p.add_argument("--dry-run", action="store_true")
-    p.set_defaults(handler=_cmd_legalbench)
-
     from mailroom_sandbox.eval.agents import EVAL_TASKS
 
     p = sub.add_parser("eval", help="Run a scoring eval (isolated agent or connected pipeline)", parents=[leaf])
@@ -1963,39 +1952,6 @@ def _cmd_hf_pilot(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_legalbench(args: argparse.Namespace) -> int:
-    from mailroom_sandbox.eval.runners import run_legalbench_eval
-
-    mock = _mock_for(args, subcommand="legalbench")
-    name = f"sandbox_legalbench_{args.task}"
-    if args.suite:
-        name += f"_n{args.n or 0}_s{args.seed}"
-    try:
-        result = run_legalbench_eval(
-            mock=mock,
-            sample=args.n,
-            seed=args.seed,
-            task=args.task,
-            suite=args.suite,
-            dry_run=args.dry_run,
-            experiment_name=name,
-            profile=args.profile,
-            model=args.model,
-            agent_models=_agent_models(args),
-        )
-    except ValueError as exc:
-        # Loud guard (unwired task / suite without --n / empty rows): clean
-        # one-liner, not a traceback (DMR-058).
-        print(f"error: {exc}")
-        return 1
-    except Exception as exc:  # live-or-loud (DMR-049/058): CorpusUnavailable &
-        # missing-corpus keep naming the fetch command, without a traceback.
-        print(f"error: {type(exc).__name__}: {exc}")
-        return 1
-    _print(result)
-    return 0
-
-
 def _cmd_eval(args: argparse.Namespace) -> int:
     from mailroom_sandbox.eval import runners
     from mailroom_sandbox.eval.agents import SPECS
@@ -2054,12 +2010,10 @@ def _cmd_eval(args: argparse.Namespace) -> int:
             from_log=bool(getattr(args, "from_log", False)),
             **kwargs,
         )
-    elif args.task == "legalbench":
-        result = runners.run_legalbench_eval(**kwargs)
     else:
-        # DMR-056: never fall through to the LegalBench runner for an unknown
-        # task — a future composite registered without its own arm would have
-        # been silently misrouted (scorecard pollution).
+        # DMR-056: an unknown task never falls through to another runner — a
+        # future composite registered without its own arm would have been
+        # silently misrouted (scorecard pollution).
         raise SystemExit(f"error: task {args.task!r} has no dispatch arm in _cmd_eval")
     scores = result.get("scores") if isinstance(result, dict) else None
     summary = ""

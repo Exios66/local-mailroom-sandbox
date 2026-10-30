@@ -26,7 +26,7 @@ Optional extras, only when you need them:
 
 | Extra | Adds | Needed for |
 | --- | --- | --- |
-| `[pipeline]` | langchain stack (vendored mailroom's live paths) | `legalbench --suite`, live mailroom agent calls |
+| `[pipeline]` | langchain stack (vendored mailroom's live paths) | live mailroom agent calls |
 | `[hf]` | `huggingface_hub`, `pyarrow` (also in `[dev]`) | `sandbox datasets pull`, `hf-pilot` |
 | `[observability]` | Langfuse SDK + OTEL | live tracing (`trace.sink: langfuse`) |
 | `[deploy]` | Modal SDK 1.6.2 (pinned) | `sandbox run --job-mode modal`, `deploy/modal_vllm.py` |
@@ -40,7 +40,7 @@ and `vendor/llm-dojo-scoring`, at the commits recorded in each `VENDOR.md`) — 
 ```
 sandbox up | down | health | pull-models | fetch-deps | cutover
        | agents list|show | pipeline watcher|api
-       | pilot | hf-pilot | legalbench
+       | pilot | hf-pilot
        | eval <task> | matrix | metrics compare
        | datasets pull|prepare | traces export
        | profiles | tunnel plan|up|status|down
@@ -136,11 +136,6 @@ sandbox datasets pull --dataset Lucius-Morningstar/mailroom-dataset --max-rows 2
 sandbox pilot --mock                     # full fixture pilot through the connected machinery
 sandbox hf-pilot --check                 # verify fixture/GT schema without running
 sandbox hf-pilot --mock                  # HF docclass mini-pilot, mocked
-sandbox legalbench --task contract_qa --mock             # offline LegalBench fixture
-sandbox legalbench --task contract_qa --n 5 --seed 42    # seeded draw (never first-N)
-sandbox legalbench --task contract_qa --suite --n 3 --seed 7 --mock
-#   vendored real-suite path: needs `pip install -e ".[pipeline]"` + the CUAD
-#   corpus (`python scripts/fetch_full_cuad.py` inside the vendored tree)
 sandbox eval sorter --mock               # isolated agent eval
 sandbox eval judge --mock
 sandbox eval pipeline --mock             # connected graph scoring (full 13-node path)
@@ -259,7 +254,6 @@ sandbox health                       # after the serve runbook: provider reachab
 | --- | --- |
 | `ModuleNotFoundError: numpy` on first `sandbox` call | stale editable install; `pip uninstall mailroom-sandbox` then `pip install -e ".[dev]"` |
 | `sandbox datasets pull` says `pip install -e "[hf]"` | base install is offline-first; Hub client lives in `[dev]`/`[hf]` |
-| `legalbench --suite` says `[pipeline]` | suite needs the vendored langchain stack → `pip install -e ".[pipeline]"` |
 | `run … --job-mode modal` says `[deploy]` | Modal SDK is an opt-in extra → `pip install -e ".[deploy]"` + `modal token new` |
 | `sandbox tunnel up --profile X` cannot connect | Check the SSH host, port, and credentials for profile `X` (see §2) |
 | `run status --config …` demands `--run-id` | fixed (DMR-058): `--config` resolves the run_id; still passes an explicit `--run-id` to override |
