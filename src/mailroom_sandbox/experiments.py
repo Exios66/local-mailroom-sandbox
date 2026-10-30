@@ -470,7 +470,7 @@ def _deploy(spec: RunSpec) -> None:
     from mailroom_sandbox.services.modal_cli import INSTALL_HINT, PINNED_SDK
     from mailroom_sandbox.services._exec import run_tool
     result = run_tool(['modal', '--version'], hint=INSTALL_HINT)
-    if PINNED_SDK not in result.stdout:
+    if not re.search(rf'(?<![\d.]){re.escape(PINNED_SDK)}(?![\d.])', result.stdout or ''):
         raise ServiceError(f'install verified Modal SDK {PINNED_SDK} before launching')
     commands = []
     if spec.engine.modal.prewarm:
