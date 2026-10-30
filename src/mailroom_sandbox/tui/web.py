@@ -582,7 +582,7 @@ function renderReplay(state, phase, detail) {{
   document.getElementById("replay-detail").textContent = detail || "";
   document.getElementById("replay").classList.toggle("live", phase === "SORTING" || !!state.animate_lifecycle);
   document.getElementById("lanes").innerHTML = LANES.map(([p, name], i) => {{
-    const skip = !deployed && i < 3;
+    const skip = !deployed && i < 3 && i !== idx;
     const isNow = i === idx && !terminal;
     const cls = skip ? "skip" : failed && i === idx ? "failed" : (i < idx || (terminal && i <= idx)) ? "done" : isNow ? "now" : "";
     const filled = cls === "done" ? 10 : isNow ? (p === "SORTING" && total ? Math.round(10 * done / total) : 5) : 0;
@@ -654,7 +654,7 @@ function render(state) {{
   document.getElementById("campaign-content").innerHTML = campaign
     ? `<p>${{esc(campaign.study)}} · ${{esc(campaign.design)}} · ${{esc(campaign.completed)}}/${{esc(campaign.total)}} runs complete</p>` +
       campaign.runs.map(run => `<div class="campaign-run"><span>${{run.run_id === campaign.current ? "▶ " : ""}}${{esc(run.run_id)}}</span><span>${{esc(run.state)}} · ${{esc(run.done)}}/${{esc(run.total)}}</span></div>`).join("")
-    : "No campaign associated with this watcher. Use sandbox experiment watch --config <experiment.yaml>.";
+    : "No campaign associated with this watcher. Use sandbox experiment watch --config &lt;experiment.yaml&gt;.";
   document.title = panels.window_title || "Tray TUI · THE MAILROOM · live watch";
   document.getElementById("brand-sub").hidden = false;
   document.getElementById("route-label").hidden = false;

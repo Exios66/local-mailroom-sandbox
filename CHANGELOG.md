@@ -1,15 +1,18 @@
 # Changelog
 
-## In progress — SAND-067 operator audit
-
-- Add the local `sandbox tui` interactive command terminal and a browser live inspector with parser-derived nested CLI manuals. Full execution stays local and retains the existing spend gates.
-- Harden observer numeric arguments, incompatible options and malformed beacon handling; follow campaign run-ID markers and switch the associated log streams.
-- Show locked model/provider settings and campaign checkpoints instead of inherited demo labels; add log filters, follow controls and accessibility improvements.
-- Verification is in progress; no paid deployment or inference is included in this checkpoint.
-
 ## [Unreleased]
 
 ### Added
+
+- `sandbox eval` has two primary tasks with two levels: `specialist [TARGET]` (all five
+  live-class specialists, or one) and `pipeline [--class C]` (the full connected graph,
+  every class or one). Run YAMLs take an optional `target`; `run --target` narrows it.
+  Every other eval task still runs and is listed by `sandbox eval --all-tasks`.
+- OpenRouter key probe (`/key`: limit, remaining credit, usage) in `sandbox health` and
+  a `sandbox doctor --service openrouter` row; example API, Modal and hybrid pipeline
+  run configs under `config/runs/examples/pipeline-*.yaml`.
+- `sandbox tui`, a local interactive command terminal, and a browser live inspector with
+  parser-derived nested CLI manuals. Full execution stays local and keeps the spend gates.
 
 - `docs/cli-reference.md`: generated, complete reference for every parser node,
   argument, parser-required marker and choice, plus `python scripts/check_cli_surface.py
@@ -65,6 +68,15 @@
 
 ### Changed
 
+- Vendored llm-mailroom pin moves to `main` HEAD `175e6711` (snapshot bytes unchanged;
+  the intervening commit is README-only). llm-dojo-scoring stays on `main` HEAD
+  `718e326c` (0.24.2 plus the DMR-113 zero-token fix), the newest Dojo source.
+
+- Observer numeric arguments, incompatible options and malformed beacon handling are
+  hardened; campaign run-ID markers are followed and switch the associated log streams.
+- The watch UI shows locked model/provider settings and campaign checkpoints instead of
+  inherited demo labels, with log filters, follow controls and accessibility fixes.
+
 - CLI startup loads the checkout's `.env` files (root `.env`, then `config/.env`) before
   building the parser, so profiles and secrets resolve from `config/.env.example`;
   exported variables still win, then root `.env`, then `config/.env`. The template is
@@ -80,7 +92,28 @@
   deploy → point → verify → teardown and is the first entry in
   `docs/runbooks/`.
 
+### Removed
+
+- LegalBench: the `sandbox legalbench` command, the `legalbench` eval/run task, its
+  loaders, scorer and fixtures.
+
 ### Fixed
+
+- Serving records follow the vendored Dojo's repaired usage rules. A cost the sandbox
+  writes is authoritative in the Dojo, so `record_from_run` now applies the same gates.
+  An ok item with no recorded usage makes the run cost unknown (Dojo 0.24.2): the
+  record carries `usage_unobserved_items` and no `estimated_cost_usd`. Explicit zero
+  usage on a priced model is a known `0.0` (DMR-113). OpenAI usage parsing keeps an
+  explicit `prompt_tokens: 0` instead of falling through to `input_tokens`.
+- The GPU telemetry sampler takes an optional stop event. Its test now stops the
+  thread, which had outlived its monkeypatches and printed into a later test's
+  captured `doctor --json` output (the CircleCI `test` failure).
+- `sandbox board` rejects beacon counters and timestamps too large for a float
+  instead of raising `OverflowError` for every job.
+- Watch UI: the current phase's lane is never marked skipped; the no-campaign hint
+  shows its `<experiment.yaml>` placeholder; a campaign keeps the run manifest and
+  drops the SAND-032 program title; the single-stream dispatch title names the
+  tailed app.
 
 - Command-audit fixes: repeatable `--agent-model` accumulates across the root, group
   and leaf parsers (last value wins); `--mock` and `--local` are mutually exclusive;

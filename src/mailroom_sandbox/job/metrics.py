@@ -33,7 +33,7 @@ if TYPE_CHECKING:
     from mailroom_sandbox.job.checkpoint import RunStore
 
 from llm_dojo_scoring.scorecard_honesty import COST_BASIS_TOKEN_PRICE
-from llm_dojo_scoring.serving import compare_serving, estimate_cost
+from llm_dojo_scoring.serving import compare_serving, estimate_cost, price_for
 
 from mailroom_sandbox.serving_groups import group_legs, pair_legs, pooled_identity_conflict
 
@@ -203,6 +203,24 @@ def _estimate_cost(
     )
 
 
+def _has_token_price(model: str) -> bool:
+    """A price is known for ``model`` (override, dojo table, or sandbox table)."""
+    if _token_price_override() is not None:
+        return True
+    try:
+        if price_for(model) is not None:
+            return True
+    except Exception:  # noqa: BLE001 — same soft fallback as _estimate_cost
+        pass
+    return bool(model) and any(model.startswith(known) for known in SANDBOX_MODEL_PRICES)
+
+
+def _usage_observed(item: Mapping[str, Any]) -> bool:
+    """Dojo 0.24.2 rule: a request counts as observed when it recorded any token
+    component; an explicit 0 is observed zero usage (DMR-113), absent is unknown."""
+    return item.get("prompt_tokens") is not None or item.get("completion_tokens") is not None
+
+
 def bucket_kind(record: Mapping[str, Any]) -> str:
     kind = str(record.get("serving_kind") or "").lower()
     if kind in {"local", "api", "modal"}:
@@ -357,9 +375,22 @@ def record_from_run(
         rec["scores"] = dict(scores)
 
     # Token-proxy cost (OpenRouter-like). Absent when tokens or prices missing —
-    # never write estimated_cost_usd=0 as a stand-in for "unknown".
+    # never write estimated_cost_usd=0 as a stand-in for "unknown". Aligned with
+    # the dojo's serving rules, because a cost written here is authoritative there:
+    # an ok item that recorded no usage at all makes the run cost unknown (dojo
+    # 0.24.2), and a run whose every ok item recorded explicit zero usage on a
+    # priced model costs a known 0.0 (DMR-113). Failed items that never got a
+    # response carry no usage and do not block the estimate.
+    unobserved = sum(1 for i in ok_items if not _usage_observed(i))
+    if unobserved:
+        rec["usage_unobserved_items"] = unobserved
     try:
-        cost = _estimate_cost(prompt_tokens, completion_tokens, model)
+        if unobserved and total_tokens > 0:
+            cost = None
+        elif ok_items and not unobserved and total_tokens == 0 and _has_token_price(model):
+            cost = 0.0
+        else:
+            cost = _estimate_cost(prompt_tokens, completion_tokens, model)
         if cost is not None:
             rec["estimated_cost_usd"] = float(cost)
             # tokens x a price table: label it so the dojo can stamp USD rows
@@ -375,6 +406,14 @@ def record_from_run(
                 run_id,
                 kind,
                 profile,
+                n_ok,
+            )
+        elif not mock and unobserved and total_tokens > 0:
+            _log.warning(
+                "run %r: %d of %d ok items recorded no token usage — "
+                "estimated_cost_usd ABSENT (a partial sum would understate it)",
+                run_id,
+                unobserved,
                 n_ok,
             )
         elif not mock and total_tokens > 0 and cost is None:
