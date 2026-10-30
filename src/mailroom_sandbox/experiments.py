@@ -17,7 +17,6 @@ import sys
 from collections import defaultdict
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
@@ -154,15 +153,43 @@ def _create(args) -> int:
         raise ServiceError('sand42 fixes replica/concurrency axes at {1,2} × {8,16}; use single for custom values')
     selected = args.doc_class or list(CLASSES)
     generated = []
-    from mailroom_sandbox.agent_routes import parse_routes, known_agents
+    from mailroom_sandbox.agent_routes import (critical_route, known_agents, live_specialists, parse_routes,
+                                               specialist_tier)
     routes = parse_routes(args.agent_routes)
     from mailroom_sandbox.overlay import parse_agent_models
     try:
         agent_models = parse_agent_models(getattr(args, 'agent_models', None))
     except ValueError as exc:
         raise ServiceError(str(exc)) from exc
-    reviewer = _reviewer_settings(getattr(args, 'decision_reviewer', None), getattr(args, 'decision_class', None))
-    chosen_model = args.model or ('Qwen/Qwen3-8B-AWQ' if args.provider == 'modal-vllm' else 'qwen/qwen3.7-flash')
+
+    def scoped(route):
+        # One app per tier model per study, so the judge and `full` specialists share it.
+        route = route.model_copy(deep=True)
+        route.modal.app = f"sandbox-vllm-{args.study}-{route.modal.app.removeprefix('sandbox-vllm-critical-')}"
+        return route
+
+    # SAND-078: on Modal the judge runs a larger sibling of the base model on its
+    # own app. OpenRouter keeps the profile's judge; an explicit judge pin wins.
+    if (args.provider == 'modal-vllm' and args.design != 'sand42' and args.task == 'pipeline'
+            and 'judge' not in routes and 'judge' not in agent_models and (judge := critical_route('judge'))):
+        routes['judge'] = scoped(judge)
+    # SAND-079: move the specialists to the mid or full tier; explicit pins win.
+    if args.specialist_tier != 'base':
+        if args.design == 'sand42' or args.task == 'sorter':
+            raise ServiceError('--specialist-tier applies to specialists/pipeline experiments, not sand42 or sorter')
+        tier = specialist_tier(args.specialist_tier, args.provider)
+        for name in live_specialists():
+            if name in routes or name in agent_models:
+                continue
+            if isinstance(tier, str):
+                agent_models[name] = tier
+            else:
+                routes[name] = scoped(tier)
+    if args.design == 'sand42':  # frozen study: keeps its AWQ / champion pair
+        default_model = 'Qwen/Qwen3-8B-AWQ' if args.provider == 'modal-vllm' else 'qwen/qwen3.7-flash'
+    else:  # SAND-077: Qwen3.5-9B on Modal, the same weights on OpenRouter
+        default_model = 'Qwen/Qwen3.5-9B' if args.provider == 'modal-vllm' else 'qwen/qwen3.5-9b'
+    chosen_model = args.model or default_model
     for cell_index, (replicas, concurrency) in enumerate(cells):
         for doc_class in (selected if args.task == 'specialists' else [selected[0]]):
             template = repo_root() / 'config' / 'runs' / f'sand42-50-{CLASSES[doc_class]}-awq-1l4-c8.yaml'
@@ -315,8 +342,8 @@ def _prepare(path: Path, plan: Plan, runs: list[tuple[Path, RunSpec]]) -> list[R
                 raise ServiceError('experiment launch needs MODAL_WORKSPACE to address each scoped cell app')
             if spec.trace.sink != 'none':
                 try:
-                    from opentelemetry.sdk.trace import TracerProvider
-                    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+                    from opentelemetry.sdk.trace import TracerProvider  # noqa: F401 - availability probe
+                    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter  # noqa: F401 - availability probe
                 except ImportError as exc:
                     raise ServiceError('selected trace sink requires pip install -e ".[observability]"') from exc
         _deployments(spec)
@@ -502,10 +529,10 @@ def _deployments(spec: RunSpec) -> list[RunSpec]:
 
 
 def _deploy(spec: RunSpec) -> None:
-    from mailroom_sandbox.services.modal_cli import INSTALL_HINT, PINNED_SDK, _is_deployed
+    from mailroom_sandbox.services.modal_cli import INSTALL_HINT, PINNED_SDK
     from mailroom_sandbox.services._exec import run_tool
     result = run_tool(['modal', '--version'], hint=INSTALL_HINT)
-    if PINNED_SDK not in result.stdout:
+    if not re.search(rf'(?<![\d.]){re.escape(PINNED_SDK)}(?![\d.])', result.stdout or ''):
         raise ServiceError(f'install verified Modal SDK {PINNED_SDK} before launching')
     commands = []
     if spec.engine.modal.prewarm:
@@ -701,8 +728,8 @@ def register(sub, leaf) -> None:
     create.add_argument('study')
     create.add_argument('--task', choices=['specialists', 'pipeline', 'sorter'], default='specialists')
     create.add_argument('--agent-route', action='append', dest='agent_routes', default=[], metavar='NAME=PROVIDER:MODEL', help='per-agent provider/model; NAME=@route.yaml includes endpoint/GPU/vLLM settings')
-    create.add_argument('--decision-reviewer', default=None, metavar='BACKEND:MODEL', help='freeze a decision-model reviewer (jev:jev-1.13.0 or mock:mock); needs --decision-class')
-    create.add_argument('--decision-class', action='append', default=[], metavar='CLASS=CUTOFF', help='class the decision reviewer handles, with its cutoff in [0, 1] (repeatable)')
+    create.add_argument('--specialist-tier', choices=['base', 'mid', 'full'], default='base',
+                        help="specialists' model: base = the run's model, mid = Qwen3.5-35B-A3B, full = the judge's Qwen3.5-27B (config/models.yaml critical_tier)")
     create.add_argument('--design', choices=DESIGNS, default='single')
     create.add_argument('--doc-class', action='append', choices=CLASSES)
     create.add_argument('--samples', type=int, default=50, help='documents per selected class, shared across every cell')
@@ -729,8 +756,14 @@ def register(sub, leaf) -> None:
     create.add_argument('--set', action='append', dest='settings', default=[], metavar='PATH=YAML_VALUE')
     create.add_argument('--output', default=None)
     create.set_defaults(handler=_create)
-    for name, handler in [('review', _cmd_review), ('preflight', _cmd_preflight), ('launch', _cmd_launch), ('watch', _cmd_watch), ('report', _cmd_report)]:
-        parser = commands.add_parser(name, parents=[leaf])
+    for name, handler, summary in [
+        ('review', _cmd_review, 'print the full configuration and spend review'),
+        ('preflight', _cmd_preflight, 'prepare locked datasets/prompts for every run; no provider or deploy call'),
+        ('launch', _cmd_launch, 'launch experiment; paid runs require authorization via --initials or a terminal prompt; mock runs do not'),
+        ('watch', _cmd_watch, 'follow campaign membership and its current run'),
+        ('report', _cmd_report, 'build coverage and paired reports from finished runs'),
+    ]:
+        parser = commands.add_parser(name, parents=[leaf], help=summary)
         parser.add_argument('--config', required=True, help='experiment.yaml created by experiment create')
         if name == 'launch':
             parser.add_argument('--initials', default=None, help='sign the displayed full configuration and spend review')

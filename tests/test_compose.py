@@ -45,7 +45,6 @@ def test_compose_file_parses():
 def test_compose_jupyter_build_and_mount_resolve_from_package_root():
     """DMR-043: jupyter build context/volume must resolve against the package
     root, not the compose file's own directory (deploy/)."""
-    from pathlib import Path
 
     data = yaml.safe_load(compose_file().read_text(encoding="utf-8"))
     jupyter = data["services"]["jupyter"]

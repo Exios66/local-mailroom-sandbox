@@ -118,6 +118,27 @@ def test_whole_run_forwards_report_group_to_scoring_runner(tmp_path, monkeypatch
     assert captured["kwargs"]["score_metadata"] == {"report_group": "SAND-123"}
 
 
+def test_target_specialist_starts_with_selected_row_total(tmp_path, monkeypatch):
+    from mailroom_sandbox.eval import runners as eval_runners
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    store = RunStore(tmp_path / "targeted")
+    store.write_lock({"task": "specialist", "target": "contract", "profile": "ollama",
+                      "engine": {"model": "test", "modal": None}, "job": {"mock": True}})
+    store.dataset_path.write_text('\n'.join(json.dumps(row) for row in [
+        {"id": "a", "expected_doc_class": "contract"},
+        {"id": "b", "expected_doc_class": "insurance_claim"},
+        {"id": "c", "expected_doc_class": "contract"},
+    ]) + '\n')
+    def fake_eval(agent, **kwargs):
+        assert store.read_checkpoint()["total"] == 2
+        assert len(kwargs["rows"]) == 2
+        return {"n": 2, "scores": {"n": 2}}
+
+    monkeypatch.setattr(eval_runners, "run_isolated_eval", fake_eval)
+    assert runner._run_whole_run(store, "specialist", mock=True, model=None, profile="ollama")["state"] == "done"
+
+
 def test_whole_run_local_vs_api_forwards_score_metadata(tmp_path, monkeypatch):
     """local_vs_api whole-run scoring receives the lock's report_group."""
     from mailroom_sandbox.eval import runners as eval_runners
@@ -546,6 +567,27 @@ def test_whole_run_pipeline_receives_locked_rows(tmp_path, monkeypatch):
     summary = runner.run_job(store, mock=None)
     assert summary["state"] == "done"
     assert captured["n"] == 3, "whole-run pipeline must score the locked rows"
+
+
+def test_pipeline_cost_resources_come_from_distinct_locked_modal_apps(tmp_path, monkeypatch):
+    store = _whole_run_store(tmp_path, task="pipeline")
+    lock = store.read_lock()
+    lock["engine"] = {"kind": "modal-vllm", "modal": {"app": "base", "gpu": "L4:2", "max_containers": 2}}
+    lock["agent_routes"] = {
+        "judge": {"provider": "modal-vllm", "modal": {"app": "judge", "gpu": "L40S", "max_containers": 2}},
+        "specialist": {"provider": "modal-vllm", "modal": {"app": "judge", "gpu": "L40S", "max_containers": 2}},
+        "sorter": {"provider": "modal-vllm", "modal": {"app": "mid", "gpu": "L4:2", "max_containers": 3}},
+        "base_agent": {"provider": "modal-vllm", "modal": {"app": "base", "gpu": "L4"}},
+        "api": {"provider": "openrouter", "modal": None},
+    }
+    store.lock_path.unlink()
+    store.write_lock(lock)
+    captured = {}
+    monkeypatch.setattr(runner.eval_runners, "run_pipeline_eval", lambda **kwargs: captured.update(kwargs) or {"scores": {}, "n": 0})
+    runner._run_whole_run(store, "pipeline", mock=True, model=None, profile="ollama")
+    # base L4:2 x 2 containers, judge app once (shared), mid L4:2 x 3; the
+    # route on the base app is not billed twice.
+    assert sorted(captured["gpu_fleet"]) == [("L4", 4), ("L4", 6), ("L40S", 2)]
 
 
 def test_registering_new_agent_spec_is_the_extension_point(tmp_path, monkeypatch):

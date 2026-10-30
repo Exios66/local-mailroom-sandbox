@@ -25,7 +25,7 @@ def _env(monkeypatch, tmp_path):
     for name in (
         "MODAL_WORKSPACE", "VLLM_BASE_URL", "VLLM_API_KEY", "MODAL_TOKEN_ID", "MODAL_TOKEN_SECRET",
         "MODAL_CONFIG_PATH", "HF_TOKEN", "HUGGING_FACE_HUB_TOKEN", "HF_HOME", "LANGFUSE_HOST",
-        "LANGFUSE_BASE_URL", "PHOENIX_ENDPOINT", "MODAL_VLLM_APP_NAME",
+        "LANGFUSE_BASE_URL", "PHOENIX_ENDPOINT", "MODAL_VLLM_APP_NAME", "OPENROUTER_API_KEY",
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -54,7 +54,7 @@ def test_offline_doctor_reports_every_service_without_network(fake_bin, capsys, 
     rc, rows = _doctor(capsys)
     assert rc == 0
     assert {"modal", "modal-auth", "hf", "hf-auth", "docker", "ollama", "ssh", "git", "vllm",
-            "provider", "langfuse", "phoenix", "tunnel", "compose"} <= set(rows)
+            "provider", "openrouter", "langfuse", "phoenix", "tunnel", "compose"} <= set(rows)
     assert all(r["state"] in {"ok", "warn", "fail", "skipped"} for r in rows.values())
 
 

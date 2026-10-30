@@ -28,6 +28,7 @@ KNOB_ENV = (
     "MODAL_VLLM_MODEL",
     "MODAL_VLLM_GPU",
     "MODAL_VLLM_QUANTIZATION",
+    "MODAL_VLLM_LIMIT_MM_PER_PROMPT",
     "MODAL_VLLM_MAX_MODEL_LEN",
     "MODAL_VLLM_GPU_MEMORY_UTILIZATION",
     "MODAL_VLLM_MAX_NUM_SEQS",
@@ -226,7 +227,9 @@ class TestDeploySurface:
 
     def test_defaults_are_pinned_and_cost_guarded(self):
         mod = _load_app_module()
-        assert mod.MODEL == "Qwen/Qwen3-8B"
+        assert mod.MODEL == "Qwen/Qwen3.5-9B"  # SAND-077 app default
+        assert mod.QUANTIZATION == "fp8"  # no published FP8 checkpoint: online fp8
+        assert mod.LIMIT_MM_PER_PROMPT == '{"image":0,"video":0,"audio":0}'  # text-only
         assert mod.GPU == "L4"
         assert mod.VLLM_IMAGE_TAG == "v0.29.0"  # never `latest`
         assert mod.MAX_MODEL_LEN == "16384"  # DMR-056: L4-bf16 boot-valid default
@@ -238,6 +241,13 @@ class TestDeploySurface:
         assert mod.MAX_CONTAINERS == 1  # a test sandbox must not fan out GPUs
         assert mod.MIN_CONTAINERS == 0  # scale-to-zero
         assert mod.STARTUP_TIMEOUT_SECONDS == 20 * 60
+
+    @pytest.mark.parametrize("value", ["", "bf16"])
+    def test_explicit_no_quantization_overrides_the_model_default(self, monkeypatch, value):
+        monkeypatch.setenv("MODAL_VLLM_QUANTIZATION", value)
+        mod = _load_app_module()
+        assert mod.QUANTIZATION == ""
+        assert "--quantization" not in mod.build_vllm_command(mod.MODEL)
 
     def test_serve_function_config(self):
         mod = _load_app_module()
@@ -296,7 +306,15 @@ class TestDeploySurface:
 class TestCommandBuilder:
     def test_command_defaults(self):
         mod = _load_app_module()
-        cmd = mod.build_vllm_command("Qwen/Qwen3-8B")
+        cmd = mod.build_vllm_command(mod.MODEL)
+        assert cmd[:3] == ["vllm", "serve", "Qwen/Qwen3.5-9B"]
+        assert cmd[cmd.index("--quantization") + 1] == "fp8"
+        assert cmd[cmd.index("--limit-mm-per-prompt") + 1] == '{"image":0,"video":0,"audio":0}'
+
+    def test_frozen_qwen3_8b_deploy_keeps_bf16_and_no_mm_limits(self, monkeypatch):
+        monkeypatch.setenv("MODAL_VLLM_MODEL", "Qwen/Qwen3-8B")
+        mod = _load_app_module()
+        cmd = mod.build_vllm_command(mod.MODEL)
         assert cmd[:3] == ["vllm", "serve", "Qwen/Qwen3-8B"]
         assert "--host" in cmd and cmd[cmd.index("--host") + 1] == "0.0.0.0"
         assert "--port" in cmd and cmd[cmd.index("--port") + 1] == "8000"
@@ -308,6 +326,7 @@ class TestCommandBuilder:
         assert "--enforce-eager" in cmd
         # fp16/bf16 default: no quantization or revision flag unless configured.
         assert "--quantization" not in cmd
+        assert "--limit-mm-per-prompt" not in cmd
         assert "--revision" not in cmd
         # v0.28.0 renamed the log flag (opt-in `--enable-log-requests`); the
         # explicit negation keeps request logging off, and the pre-0.28 flag
@@ -545,7 +564,7 @@ class TestComposeParity:
 
     def test_command_parity(self):
         cmd = self._vllm_service()["command"]
-        assert cmd[0] == "${VLLM_MODEL:-Qwen/Qwen3-8B}"
+        assert cmd[0] == f"${{VLLM_MODEL:-{_load_app_module().DEFAULT_MODEL}}}"
         assert cmd[cmd.index("--host") + 1] == "0.0.0.0"
         assert cmd[cmd.index("--port") + 1] == "8000"
         assert cmd[cmd.index("--max-model-len") + 1] == "${VLLM_MAX_MODEL_LEN:-16384}"
@@ -622,7 +641,7 @@ class TestSmokeCheckDiagnostics:
         cfg = mod._masked_config()
         assert cfg["VLLM_API_KEY"] == "set"
         assert "super-secret-token" not in str(cfg)
-        assert cfg["model"] == "Qwen/Qwen3-8B"
+        assert cfg["model"] == "Qwen/Qwen3.5-9B"
         monkeypatch.delenv("MODAL_VLLM_API_TOKEN")
 
 
@@ -888,18 +907,27 @@ class TestSand042Telemetry:
             mod, "_nvidia_smi_sample", lambda: {"t": 1.0, "gpus": [{"utilization_gpu_perc": 90.0}]}
         )
 
-        mod._start_telemetry_sampler()
         import json
+        import threading
         import time
 
+        stop = threading.Event()
+        thread = mod._start_telemetry_sampler(stop)
         target = tmp_path / "sand42-1l4-c8"
         deadline = time.time() + 10
         files: list[Path] = []
-        while time.time() < deadline:
-            files = list(target.glob("*.jsonl"))
-            if files and files[0].read_text().strip():
-                break
-            time.sleep(0.05)
+        try:
+            while time.time() < deadline:
+                files = list(target.glob("*.jsonl"))
+                if files and files[0].read_text().strip():
+                    break
+                time.sleep(0.05)
+        finally:
+            # A sampler left running outlives this test's monkeypatches and prints
+            # into later tests' captured stdout (the CI doctor --json failure).
+            stop.set()
+            thread.join(timeout=5)
+        assert not thread.is_alive()
         assert files, "sampler wrote no file"
         row = json.loads(files[0].read_text().splitlines()[0])
         assert row["gpus"][0]["utilization_gpu_perc"] == 90.0
@@ -978,3 +1006,14 @@ def test_failed_startup_kills_and_reaps_the_child(monkeypatch):
     with pytest.raises(RuntimeError, match='startup timeout'):
         mod.serve.fn()
     assert calls == ['terminate', 'wait', 'kill', 'wait', 'unregister']
+
+
+def test_quantization_bf16_serves_unquantized_on_a_quantized_default_row(monkeypatch):
+    # spec_env renders an explicit unquantized serve as "bf16"; an empty value
+    # would be unset by the exports and fall back to the row's fp8.
+    monkeypatch.setenv("MODAL_VLLM_MODEL", "Qwen/Qwen3.5-9B")
+    assert _load_app_module().QUANTIZATION == "fp8"
+    monkeypatch.setenv("MODAL_VLLM_QUANTIZATION", "bf16")
+    mod = _load_app_module()
+    assert mod.QUANTIZATION == ""
+    assert "--quantization" not in mod.build_vllm_command("Qwen/Qwen3.5-9B")
