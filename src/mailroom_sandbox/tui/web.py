@@ -24,7 +24,7 @@ from mailroom_sandbox.tui.services_snapshot import read_services
 from mailroom_sandbox.tui.shell import OPERATOR_CSS, OPERATOR_HTML, OPERATOR_JS
 from mailroom_sandbox.job.checkpoint import RunStore
 from mailroom_sandbox.tui import pretty_log as pl
-from mailroom_sandbox.watch import _LOG_ROLE, LogBuffer, _header, compose_watch_state
+from mailroom_sandbox.watch import _LOG_ROLE, LogBuffer, PipelineTotals, _header, compose_watch_state
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
@@ -153,6 +153,7 @@ class WatchWebSession:
         self._started = time.time()
         self._last_run_id: str | None = None
         self._boot_mark: dict[str, int] = {}
+        self._pipeline_totals = PipelineTotals()
         self._log_stop = threading.Event()
         self._follow_logs = follow_logs
         self._log_identity: tuple[Path, str] | None = None
@@ -205,6 +206,7 @@ class WatchWebSession:
             width=100,
             blink=int(time.time()) % 7 == 0,
             campaign_path=self.campaign_path,
+            pipeline_totals=self._pipeline_totals,
         )
         layout = state.get("layout") or {}
         rid = state["snapshot"]["run_id"]
