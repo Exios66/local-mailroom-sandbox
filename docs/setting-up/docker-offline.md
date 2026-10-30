@@ -17,7 +17,7 @@ cp -n config/.env.example .env
 sandbox up --compose-profile langfuse --compose-profile ollama --compose-profile jupyter
 # Lab: http://127.0.0.1:8888/lab
 # Langfuse: http://127.0.0.1:3000  (pk-lf-sandbox / sk-lf-sandbox)
-sandbox pull-models
+sandbox pull-models --profile ollama
 ```
 
 Or build the image alone:
@@ -55,14 +55,16 @@ Helpers live in `mailroom_sandbox.prep` (`prepare_offline_datasets`, `environmen
 | `jupyter` | builds `deploy/Dockerfile`, Lab on `:8888` |
 | `phoenix` / `vllm` / `llamacpp` | optional sidecars |
 
-`sandbox up` (default ollama profile) starts `langfuse` + `ollama`. Add Jupyter explicitly:
+`sandbox up` (default `modal-vllm` profile) starts `langfuse` only: the GPU
+endpoint lives on Modal, not in compose. For the offline Ollama stack use
+`sandbox up --compose-profile ollama`. Add Jupyter explicitly:
 
 ```bash
 sandbox up --compose-profile jupyter
 sandbox down --compose-profile jupyter
 ```
 
-Inside the Jupyter container, provider URLs point at compose DNS names (`http://ollama:11434/v1`, `http://langfuse-web:3000`). On the host, keep using `localhost` URLs from `config/.env.example`.
+The Jupyter service defaults to the `ollama` profile (`SANDBOX_PROFILE` in `deploy/docker-compose.yml`); export `SANDBOX_PROFILE` in the shell that runs `sandbox up` to change it. Inside the Jupyter container, provider URLs point at compose DNS names (`http://ollama:11434/v1`, `http://langfuse-web:3000`). On the host, keep using `localhost` URLs from `config/.env.example`.
 
 ## Offline data prep without Docker
 

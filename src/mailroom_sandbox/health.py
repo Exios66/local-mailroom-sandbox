@@ -39,14 +39,18 @@ def _effective_base_url(profile: dict) -> str | None:
 
     A deployed Modal endpoint lives in ``VLLM_BASE_URL`` while the profile's
     static ``base_url`` stays localhost — the health probe must follow the
-    env override or it reports on the wrong server (DMR-048).
+    env override or it reports on the wrong server (DMR-048). When the env is
+    unset but ``MODAL_WORKSPACE`` is known, derive the same gateway URL the run
+    spec uses instead of probing localhost.
     """
     env_name = str(profile.get("base_url_env") or "").strip()
     if env_name:
         value = os.environ.get(env_name, "").strip()
         if value:
             return value
-    return None
+    from mailroom_sandbox.providers import modal_gateway_url
+
+    return modal_gateway_url(profile)
 
 
 def probe_models(profile: dict, *, timeout: float = 3.0) -> ProbeResult:
@@ -108,8 +112,31 @@ def probe_chat(profile: dict, *, timeout: float = 8.0, json_object: bool = True)
         return ProbeResult(False, profile.get("name", "?"), url, f"{type(exc).__name__}: {exc}")
 
 
+def missing_modal_endpoint(profile: dict) -> bool:
+    """True when the Modal profile has no endpoint to probe (not deployed/exported)."""
+    return str(profile.get("name") or "") == "modal-vllm" and _effective_base_url(profile) is None
+
+
 def health_check(profile_name: str) -> dict:
+    """Probe a profile's models and chat endpoints and report ``ok`` only when both succeed.
+
+    A ``modal-vllm`` profile with no endpoint (neither ``VLLM_BASE_URL`` nor ``MODAL_WORKSPACE``) fails without probing, so localhost is never reported as the Modal endpoint.
+    """
     profile = load_profile(profile_name)
+    if missing_modal_endpoint(profile):
+        # Never report a localhost probe as the Modal endpoint's health: the
+        # profile's static URL is only a parity fallback. Fail with the fix.
+        detail = "set VLLM_BASE_URL (or MODAL_WORKSPACE) after `modal deploy`"
+        models = ProbeResult(False, profile_name, "(VLLM_BASE_URL unset)", detail)
+        chat = ProbeResult(
+            False, profile_name, "(VLLM_BASE_URL unset)", "skipped (models probe failed)"
+        )
+        return {
+            "profile": profile_name,
+            "ok": False,
+            "models": models.as_dict(),
+            "chat": chat.as_dict(),
+        }
     override = _effective_base_url(profile)
     models = probe_models(profile)
     chat = probe_chat(profile) if models.ok else ProbeResult(

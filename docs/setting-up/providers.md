@@ -6,16 +6,17 @@ points mailroom at `data/runtime/taxonomy.yaml`.
 
 | Profile | Mailroom provider | Default base URL | Default model |
 | --- | --- | --- | --- |
-| `ollama` (default) | `ollama` | `http://localhost:11434/v1` | `qwen3:8b` |
+| `modal-vllm` (default) | `vllm` | Modal `*.modal.run/v1` | `Qwen/Qwen3-8B` |
+| `ollama` (offline) | `ollama` | `http://localhost:11434/v1` | `qwen3:8b` |
 | `vllm-local` | `vllm` | `http://localhost:8000/v1` | `Qwen/Qwen3-8B` |
 | `vllm-remote` | `vllm` | `http://localhost:18000/v1` (SSH forward) | `Qwen/Qwen3-8B` |
-| `modal-vllm` | `vllm` | Modal `*.modal.run/v1` | `Qwen/Qwen3-8B` |
 | `llamacpp` | `generic` | `http://localhost:8080/v1` | `qwen3-8b` |
 | `lmstudio` | `generic` | `http://localhost:1234/v1` | `qwen3-8b` |
 | `openrouter` | `openrouter` | `https://openrouter.ai/api/v1` | `qwen/qwen3.7-flash` |
 
-Remote serving — Modal deployment, SSH-tunnel workflow (`sandbox tunnel`),
-CHTC/HTCondor job paths, and the portable conda env — is documented in
+Remote serving — Modal deployment (the **default path**: `sandbox runbook show serve`),
+SSH-tunnel workflow (`sandbox tunnel`), CHTC/HTCondor job paths, and the
+portable conda env — is documented in
 [`remote-serving.md`](remote-serving.md).
 
 OpenRouter is **opt-in**. The default `.env` does not set `OPENROUTER_API_KEY`.
@@ -27,8 +28,9 @@ no API key is required for the fixture path.
 
 ## Why an overlay
 
-`DEFAULT_PROVIDER=ollama` alone still sends Ollama the OpenRouter id
-`qwen/qwen3.7-flash`. `config/models.yaml` maps champion ids onto local tags.
+`DEFAULT_PROVIDER=vllm` alone still sends the OpenAI-compatible endpoint the
+OpenRouter id `qwen/qwen3.7-flash`. `config/models.yaml` maps champion ids onto
+served ids (the `vllm` column is the `modal-vllm` default).
 `sandbox cutover --agent-model judge=qwen3:14b` is the surgical override
 (`--model` still rewrites every agent). Overlay knobs (temperature, max_tokens,
 …) live in `config/taxonomy.overlay.yaml` and win after the profile rewrite.
