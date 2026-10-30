@@ -203,3 +203,17 @@ def test_configuration_allowlist_hides_keys_and_urls():
     text = "\n".join(tc.configuration_lines(lock))
     assert "actual-model" in text and "routed-model" in text
     assert "secret" not in text and "private" not in text
+
+
+def test_configuration_lines_render_manifest_values_not_python_reprs():
+    from mailroom_sandbox.tui.tray_context import configuration_lines
+
+    lines = configuration_lines({
+        "job": {"mock": True, "concurrency": 8},
+        "trace": {"tags": ["sand42", "c8"]},
+        "engine": {"kind": "vllm", "vllm": {"enable_prefix_caching": False}},
+    })
+    assert "job.mock: true" in lines
+    assert "trace.tags: sand42, c8" in lines
+    assert "vllm.enable_prefix_caching: false" in lines
+    assert not any("True" in line or "[" in line for line in lines)

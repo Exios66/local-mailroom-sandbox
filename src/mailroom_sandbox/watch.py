@@ -85,6 +85,7 @@ _LIFECYCLE_ROLE = {
 
 # phases with a pulsing lifecycle animation (terminal blink + browser pulse)
 ANIMATED_PHASES = ("DEPLOYING", "COLD BOOT", "PREFLIGHT", "REMOTE", "SORTING")
+TIMELINE_MAX = 400
 
 
 # log class -> mailroom-ml palette role
@@ -802,6 +803,9 @@ def compose_watch_state(
         "animate_lifecycle": phase in ANIMATED_PHASES,
         "lifecycle_role": _LIFECYCLE_ROLE.get(phase, "gold"),
         "watchdog": dog,
+        # Per-document outcome in store order (True delivered, False returned) for
+        # the browser's document timeline; capped so a 1000-doc run stays a small frame.
+        "timeline": [item.get("ok", True) is not False for item in items][-TIMELINE_MAX:],
     }
 
 

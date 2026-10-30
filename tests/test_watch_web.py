@@ -383,3 +383,24 @@ def test_web_bind_failure_stops_session(tmp_path, monkeypatch):
     with pytest.raises(OSError, match="busy"):
         web_mod.serve_watch_web(resolve=session.resolve, ledger=None, logs=False)
     assert session._stop.is_set() and session._log_stop.is_set()
+
+
+def test_watch_state_carries_capped_document_timeline(tmp_path):
+    from mailroom_sandbox.tui.demo import DemoRun
+    from mailroom_sandbox.tui import web
+    from mailroom_sandbox import watch
+
+    demo = DemoRun(tmp_path)
+    session = web.WatchWebSession(resolve=demo.resolve, ledger=demo.ledger, cap_usd=5,
+        times_dir=demo.times_dir, serving_dir=demo.serving_dir, interval=0.1, follow_logs=False,
+        tick=demo.step)
+    for _ in range(12):
+        state = session.refresh()
+    store, _ = demo.resolve()
+    items = store.load_items()
+    assert state["timeline"] == [i.get("ok", True) is not False for i in items][-watch.TIMELINE_MAX:]
+    assert False in state["timeline"]  # the demo returns one document
+    page = web._html_page().decode()
+    assert 'role="tablist"' in page and 'aria-controls="view-terminal"' in page
+    assert 'id="keymap"' in page and "rel=\"icon\"" in page
+    session.stop()
