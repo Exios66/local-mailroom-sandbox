@@ -152,6 +152,38 @@ def estimate_gpu_cost_usd(
     return round(gpu_seconds / 3600.0 * rate, 6)
 
 
+def _billed_gpu(modal: Mapping[str, Any]) -> tuple[str, int]:
+    """(GPU class, GPUs billed) for one Modal app: ``L4:2`` × max_containers."""
+    cls, _, count = str(modal.get("gpu") or "L4").partition(":")
+    per_container = int(count) if count.isdigit() and int(count) > 0 else 1
+    return cls, per_container * max(1, int(modal.get("max_containers") or 1))
+
+
+def lock_gpu_fleet(lock: Mapping[str, Any]) -> list[tuple[str, int]]:
+    """Every Modal app a locked run keeps warm: the base engine plus each
+    distinct ``modal-vllm`` agent-route app (shared apps are billed once)."""
+    engine = lock.get("engine") if isinstance(lock.get("engine"), Mapping) else {}
+    modal = engine.get("modal") if isinstance(engine.get("modal"), Mapping) else None
+    fleet = [_billed_gpu(modal) if modal else ("L4", 1)]
+    apps = {str(modal.get("app"))} if modal and modal.get("app") else set()
+    routes = lock.get("agent_routes") if isinstance(lock.get("agent_routes"), Mapping) else {}
+    for route in routes.values():
+        route_modal = route.get("modal") if isinstance(route, Mapping) else None
+        if route.get("provider") != "modal-vllm" or not isinstance(route_modal, Mapping):
+            continue
+        app = str(route_modal.get("app") or "")
+        if app in apps:
+            continue
+        apps.add(app)
+        fleet.append(_billed_gpu(route_modal))
+    return fleet
+
+
+def fleet_gpu_cost_usd(gpu_seconds: float, fleet: Sequence[tuple[str, int]]) -> float:
+    """USD for ``gpu_seconds`` of wall across every app in ``fleet``."""
+    return round(sum(estimate_gpu_cost_usd(gpu_seconds, gpu=gpu, replicas=n) or 0.0 for gpu, n in fleet), 6)
+
+
 def _token_price_override() -> tuple[float, float] | None:
     """Optional global token price override (per-1M in/out)."""
     pin = _env_float("SANDBOX_TOKEN_PRICE_IN_PER_M")

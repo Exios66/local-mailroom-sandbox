@@ -999,3 +999,14 @@ def test_failed_startup_kills_and_reaps_the_child(monkeypatch):
     with pytest.raises(RuntimeError, match='startup timeout'):
         mod.serve.fn()
     assert calls == ['terminate', 'wait', 'kill', 'wait', 'unregister']
+
+
+def test_quantization_none_serves_bf16_on_a_quantized_default_row(monkeypatch):
+    # spec_env renders an explicit bf16 as "none"; an empty value would be
+    # unset by the exports and fall back to the row's fp8.
+    monkeypatch.setenv("MODAL_VLLM_MODEL", "Qwen/Qwen3.5-9B")
+    assert _load_app_module().QUANTIZATION == "fp8"
+    monkeypatch.setenv("MODAL_VLLM_QUANTIZATION", "none")
+    mod = _load_app_module()
+    assert mod.QUANTIZATION == ""
+    assert "--quantization" not in mod.build_vllm_command("Qwen/Qwen3.5-9B")

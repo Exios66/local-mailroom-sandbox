@@ -12,7 +12,7 @@ import json
 import pytest
 
 from mailroom_sandbox import modal_matrix
-from mailroom_sandbox.job.deploy_env import spec_env
+from mailroom_sandbox.job.deploy_env import BF16_QUANTIZATION, spec_env
 from mailroom_sandbox.job.spec import DEFAULT_ENGINE_MODEL, MODEL_SERVE_DEFAULTS, EngineSpec, RunSpec, spec_core
 from mailroom_sandbox.overlay import build_merged_taxonomy, load_model_map, load_profile
 from mailroom_sandbox.paths import repo_root
@@ -158,3 +158,14 @@ def test_local_vllm_compose_and_pull_hint_serve_the_profile_default(capsys):
     assert load_profile("vllm-local")["pull_models"] == [DEFAULT_ENGINE_MODEL]
     assert main(["pull-models", "--profile", "vllm-local"]) == 0
     assert f"First boot downloads {DEFAULT_ENGINE_MODEL} " in capsys.readouterr().out
+
+
+def test_explicit_bf16_on_a_serve_default_model_is_not_rendered_as_unset():
+    # An explicit quantization: "" means bf16. Rendered as "" it would be
+    # unset and the deploy would fall back to the row's fp8.
+    bf16 = RunSpec.model_validate({
+        **_run(DEFAULT_ENGINE_MODEL).model_dump(by_alias=True),
+        "engine": {"kind": "modal-vllm", "model": DEFAULT_ENGINE_MODEL, "vllm": {"quantization": ""}},
+    })
+    assert spec_env(bf16)["MODAL_VLLM_QUANTIZATION"] == BF16_QUANTIZATION
+    assert spec_env(_run("Qwen/Qwen3-8B"))["MODAL_VLLM_QUANTIZATION"] == ""

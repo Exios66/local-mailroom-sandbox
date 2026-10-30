@@ -229,6 +229,7 @@ def _run_whole_run(
     cost_cap = _cost_cap_usd(store)
     gpu = _lock_gpu(store)
     replicas = _lock_replicas(store)
+    gpu_fleet = _lock_fleet(store)
     from mailroom_sandbox.report_paths import experiment_prefix
 
     report_group = experiment_prefix(store.run_id, lock)
@@ -261,6 +262,7 @@ def _run_whole_run(
             cost_cap_usd=cost_cap,
             gpu=gpu,
             replicas=replicas,
+            gpu_fleet=gpu_fleet,
             progress_cb=progress or _progress,
             row_cb=lambda entry: _persist_isolated_items(store, [entry]),
             score_metadata=score_metadata,
@@ -306,7 +308,7 @@ def _run_whole_run(
                 connected=True, rows=locked_rows,
                 row_cb=lambda entry: _persist_isolated_items(store, [entry]),
                 progress_cb=_progress, node_cb=store.append_node, max_wall_seconds=max_wall,
-                cost_cap_usd=cost_cap, gpu=gpu, replicas=replicas, **kwargs)
+                cost_cap_usd=cost_cap, gpu=gpu, replicas=replicas, gpu_fleet=gpu_fleet, **kwargs)
         elif task == "extract":
             result = eval_runners.run_extract_eval(rows=locked_rows, **kwargs)
         elif task == "chained":
@@ -329,6 +331,7 @@ def _run_whole_run(
                 cost_cap_usd=cost_cap,
                 gpu=gpu,
                 replicas=replicas,
+                gpu_fleet=gpu_fleet,
                 progress_cb=_progress,
                 row_cb=lambda entry: _persist_isolated_items(store, [entry]),
                 score_metadata=score_metadata,
@@ -346,6 +349,7 @@ def _run_whole_run(
                 cost_cap_usd=cost_cap,
                 gpu=gpu,
                 replicas=replicas,
+                gpu_fleet=gpu_fleet,
                 progress_cb=_progress,
                 row_cb=lambda entry: _persist_isolated_items(store, [entry]),
                 score_metadata=score_metadata,
@@ -453,12 +457,16 @@ def _max_wall_seconds(store: RunStore) -> int | None:
 
 def _estimate_run_gpu_usd(store: RunStore, wall_seconds: float) -> float:
     """Wall-clock GPU $ estimate for abort caps (Modal endpoint = warm GPU)."""
-    from mailroom_sandbox.job.metrics import estimate_gpu_cost_usd
+    from mailroom_sandbox.job.metrics import fleet_gpu_cost_usd
 
-    gpu = _lock_gpu(store) or "L4"
-    return float(
-        estimate_gpu_cost_usd(wall_seconds, gpu=gpu, replicas=_lock_replicas(store)) or 0.0
-    )
+    return fleet_gpu_cost_usd(wall_seconds, _lock_fleet(store))
+
+
+def _lock_fleet(store: RunStore) -> list[tuple[str, int]]:
+    """Base engine plus per-agent Modal route apps (SAND-078 judge, SAND-079 tiers)."""
+    from mailroom_sandbox.job.metrics import lock_gpu_fleet
+
+    return lock_gpu_fleet(store.read_lock() or {})
 
 
 def verify_dataset_lock(store: RunStore) -> None:

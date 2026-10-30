@@ -38,6 +38,17 @@ except Exception as exc:  # pragma: no cover
     ScoreRecord = None  # type: ignore
 
 
+def _estimated_gpu_usd(
+    wall: float, *, gpu: str | None, replicas: int, gpu_fleet: list[tuple[str, int]] | None
+) -> float:
+    """Warm-GPU $ for a spend cap: the whole routed fleet when known, else the base engine."""
+    from mailroom_sandbox.job.metrics import estimate_gpu_cost_usd, fleet_gpu_cost_usd
+
+    if gpu_fleet:
+        return fleet_gpu_cost_usd(wall, gpu_fleet)
+    return float(estimate_gpu_cost_usd(wall, gpu=gpu or "L4", replicas=replicas) or 0.0)
+
+
 def _expect_from_row(row: dict[str, Any]) -> dict[str, Any]:
     doc_type = row.get("expected_doc_class") or row.get("doc_type") or "contract"
     conf = 0.40 if row.get("id") == "ambiguous_01" else 0.97
@@ -138,6 +149,7 @@ def run_isolated_eval(
     gpu: str | None = None,
     progress_cb: Any = None,
     replicas: int = 1,
+    gpu_fleet: list[tuple[str, int]] | None = None,
     row_cb: Any = None,
     score_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -267,11 +279,7 @@ def run_isolated_eval(
                 f"exceeded (wall={wall:.1f}s) — protecting spend"
             )
         if cost_cap_usd is not None:
-            from mailroom_sandbox.job.metrics import estimate_gpu_cost_usd
-
-            est = float(
-                estimate_gpu_cost_usd(wall, gpu=gpu or "L4", replicas=replicas) or 0.0
-            )
+            est = _estimated_gpu_usd(wall, gpu=gpu, replicas=replicas, gpu_fleet=gpu_fleet)
             if est >= float(cost_cap_usd):
                 raise RuntimeError(
                     f"isolated eval aborted: cost_cap_usd={cost_cap_usd} exceeded "
@@ -919,6 +927,7 @@ def run_pipeline_eval(
     cost_cap_usd: float | None = None,
     gpu: str | None = None,
     replicas: int = 1,
+    gpu_fleet: list[tuple[str, int]] | None = None,
 ) -> dict[str, Any]:
     # DMR-056: rows=None keeps the fixture manifest default; the sandbox job
     # whole-run path passes the LOCKED live dataset rows instead.
@@ -950,8 +959,7 @@ def run_pipeline_eval(
             if max_wall_seconds is not None and elapsed >= max_wall_seconds:
                 raise RuntimeError("pipeline wall-time cap exceeded before next document")
             if cost_cap_usd is not None:
-                from mailroom_sandbox.job.metrics import estimate_gpu_cost_usd
-                if float(estimate_gpu_cost_usd(elapsed, gpu=gpu or "L4", replicas=replicas) or 0) >= cost_cap_usd:
+                if _estimated_gpu_usd(elapsed, gpu=gpu, replicas=replicas, gpu_fleet=gpu_fleet) >= cost_cap_usd:
                     raise RuntimeError("pipeline estimated GPU cost cap exceeded before next document")
         before = time.monotonic()
         with ExitStack() as nodes:
