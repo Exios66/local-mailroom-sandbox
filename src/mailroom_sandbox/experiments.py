@@ -695,7 +695,7 @@ def register(sub, leaf) -> None:
     for name, handler, summary in [
         ('review', _cmd_review, 'print the full configuration and spend review'),
         ('preflight', _cmd_preflight, 'prepare locked datasets/prompts for every run; no provider or deploy call'),
-        ('launch', _cmd_launch, 'run the signed experiment (requires --initials)'),
+        ('launch', _cmd_launch, 'launch experiment; paid runs require authorization via --initials or a terminal prompt; mock runs do not'),
         ('watch', _cmd_watch, 'follow campaign membership and its current run'),
         ('report', _cmd_report, 'build coverage and paired reports from finished runs'),
     ]:

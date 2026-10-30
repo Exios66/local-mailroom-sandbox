@@ -5,6 +5,8 @@
 # OPENROUTER_API_KEY. Any agent can be moved without editing this file:
 #   sandbox run preflight --config config/runs/examples/pipeline-hybrid.yaml \
 #     --agent-route sorter=openrouter:qwen/qwen3.7-flash   # validates the routes too
+#   sandbox run start --config config/runs/examples/pipeline-hybrid.yaml \
+#     --agent-route sorter=openrouter:qwen/qwen3.7-flash
 # `sandbox doctor --live --service openrouter` validates the API key first.
 schema: sandbox.run/v1
 run_id: pipeline-hybrid-smoke

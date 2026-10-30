@@ -481,6 +481,20 @@ class RunStore:
                 rows.append(row)
         return rows
 
+    def iter_nodes(self) -> Iterator[dict[str, Any]]:
+        """Stream all node records for run-wide statistics, skipping corrupt lines."""
+        try:
+            with open(self.nodes_path, encoding="utf-8", errors="replace") as fh:
+                for line in fh:
+                    try:
+                        row = json.loads(line)
+                    except ValueError:
+                        continue
+                    if isinstance(row, dict):
+                        yield row
+        except OSError:
+            return
+
     # ── resume / drift ──────────────────────────────────────────────────────
     def verify_spec(self, expected_hash: str, *, store_dir: Path | None = None) -> tuple[bool, str | None]:
         cp = self.read_checkpoint()
