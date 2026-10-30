@@ -926,7 +926,7 @@ def build_parser() -> argparse.ArgumentParser:
         parents=[leaf],
         help='print export lines for eval "$(sandbox modal-matrix env …)"',
     )
-    mm_env.add_argument("model", nargs="?", default=None, help="HF id (default: Qwen/Qwen3-8B)")
+    mm_env.add_argument("model", nargs="?", default=None, help="HF id (default: Qwen/Qwen3.5-9B)")
     mm_env.add_argument("--gpu", default=None, help="override matrix GPU")
     mm_env.set_defaults(handler=_cmd_modal_matrix_env)
     mm.set_defaults(handler=_cmd_modal_matrix_help)
@@ -1250,7 +1250,7 @@ def _cmd_pull_models(args: argparse.Namespace) -> int:
         # vLLM weights live in the HF cache — `ollama pull` would be wrong.
         # Modal: pre-warm the HF Volume; local compose: first serve downloads.
         name = str(profile.get("name") or "")
-        model = models[0] if models else str(profile.get("default_model") or "Qwen/Qwen3-8B")
+        model = models[0] if models else str(profile.get("default_model") or "Qwen/Qwen3.5-9B")
         if "modal" in name:
             print(
                 "vLLM profile is Modal-backed — weights are cached on the Modal Volume.\n"
@@ -2981,7 +2981,7 @@ def _cmd_modernbert_eval(args) -> int:
 def _cmd_modal_matrix_help(args) -> int:
     print(
         "Use: sandbox modal-matrix list | show <model> | env [<model>] [--gpu GPU]\n"
-        "Default catalog row (specialist suite): Qwen/Qwen3-8B @ L4\n"
+        "Default catalog row: Qwen/Qwen3.5-9B @ L4 (fp8); frozen specialist suite: Qwen/Qwen3-8B @ L4\n"
         'Swap: eval "$(sandbox modal-matrix env Qwen/Qwen3-8B-AWQ)" && '
         "modal deploy deploy/modal_vllm.py --strategy recreate"
     )

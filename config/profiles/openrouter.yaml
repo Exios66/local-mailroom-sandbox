@@ -2,7 +2,7 @@
 name: openrouter
 description: Opt-in cloud API. Never the sandbox default.
 provider: openrouter
-default_model: qwen/qwen3.7-flash
+default_model: qwen/qwen3.5-9b
 judge_model: deepseek/deepseek-v4-flash
 base_url: https://openrouter.ai/api/v1
 base_url_env: OPENROUTER_BASE_URL

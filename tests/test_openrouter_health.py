@@ -13,6 +13,8 @@ import pytest
 from mailroom_sandbox import cli
 from mailroom_sandbox.health import health_check, probe_chat, probe_openrouter_key
 
+OPENROUTER_DEFAULT = "qwen/qwen3.5-9b"  # SAND-077: the openrouter profile default
+
 KEY = "sk-or-test-not-a-real-key"
 
 
@@ -24,7 +26,7 @@ def _env(monkeypatch, tmp_path):
         monkeypatch.delenv(name, raising=False)
 
 
-def _server(monkeypatch, *, key_status=200, models=("qwen/qwen3.7-flash",), chat_status=200, limit=None, remaining=None):
+def _server(monkeypatch, *, key_status=200, models=(OPENROUTER_DEFAULT,), chat_status=200, limit=None, remaining=None):
     calls = []
 
     def get(url, headers=None, **kw):
@@ -132,7 +134,7 @@ def test_api_chat_probe_ignores_the_hybrid_vllm_pin(monkeypatch):
     from mailroom_sandbox.overlay import load_profile
 
     assert probe_chat(load_profile("openrouter")).ok
-    assert calls[-1] == ("POST", "https://openrouter.ai/api/v1/chat/completions", "qwen/qwen3.7-flash")
+    assert calls[-1] == ("POST", "https://openrouter.ai/api/v1/chat/completions", OPENROUTER_DEFAULT)
 
 
 def test_health_cli_output_never_contains_the_key(monkeypatch, capsys):

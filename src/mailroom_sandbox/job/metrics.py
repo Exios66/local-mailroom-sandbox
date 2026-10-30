@@ -56,6 +56,11 @@ API_PROFILES = ("openrouter",)
 # slugs; without this the flagship default model always costed None (DMR-049).
 SANDBOX_MODEL_PRICES: dict[str, tuple[float, float]] = {
     "Qwen/Qwen3-8B": (0.03, 0.13),  # qwen/qwen3.7-flash champion
+    # SAND-077: Qwen3.5 rows price at their own OpenRouter twin (same weights),
+    # list price checked 2026-10-30.
+    "Qwen/Qwen3.5-9B": (0.17, 0.25),  # qwen/qwen3.5-9b
+    "Qwen/Qwen3.5-35B-A3B": (0.14, 1.00),  # qwen/qwen3.5-35b-a3b
+    "Qwen/Qwen3.5-27B": (0.26, 2.60),  # qwen/qwen3.5-27b
     "Qwen/Qwen3-8B-AWQ": (0.03, 0.13),
     "Qwen/Qwen3-14B": (0.03, 0.13),
     "Qwen/Qwen3-14B-AWQ": (0.03, 0.13),
