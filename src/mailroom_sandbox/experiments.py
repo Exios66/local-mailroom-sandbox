@@ -121,19 +121,38 @@ def _create(args) -> int:
         raise ServiceError('sand42 fixes replica/concurrency axes at {1,2} × {8,16}; use single for custom values')
     selected = args.doc_class or list(CLASSES)
     generated = []
-    from mailroom_sandbox.agent_routes import critical_route, parse_routes, known_agents
+    from mailroom_sandbox.agent_routes import (critical_route, known_agents, live_specialists, parse_routes,
+                                               specialist_tier)
     routes = parse_routes(args.agent_routes)
     from mailroom_sandbox.overlay import parse_agent_models
     try:
         agent_models = parse_agent_models(getattr(args, 'agent_models', None))
     except ValueError as exc:
         raise ServiceError(str(exc)) from exc
+
+    def scoped(route):
+        # One app per tier model per study, so the judge and `full` specialists share it.
+        route = route.model_copy(deep=True)
+        route.modal.app = f"sandbox-vllm-{args.study}-{route.modal.app.removeprefix('sandbox-vllm-critical-')}"
+        return route
+
     # SAND-078: on Modal the judge runs a larger sibling of the base model on its
     # own app. OpenRouter keeps the profile's judge; an explicit judge pin wins.
     if (args.provider == 'modal-vllm' and args.design != 'sand42' and args.task == 'pipeline'
             and 'judge' not in routes and 'judge' not in agent_models and (judge := critical_route('judge'))):
-        judge.modal.app = f'sandbox-vllm-{args.study}-judge'
-        routes['judge'] = judge
+        routes['judge'] = scoped(judge)
+    # SAND-079: move the specialists to the mid or full tier; explicit pins win.
+    if args.specialist_tier != 'base':
+        if args.design == 'sand42' or args.task == 'sorter':
+            raise ServiceError('--specialist-tier applies to specialists/pipeline experiments, not sand42 or sorter')
+        tier = specialist_tier(args.specialist_tier, args.provider)
+        for name in live_specialists():
+            if name in routes or name in agent_models:
+                continue
+            if isinstance(tier, str):
+                agent_models[name] = tier
+            else:
+                routes[name] = scoped(tier)
     if args.design == 'sand42':  # frozen study: keeps its AWQ / champion pair
         default_model = 'Qwen/Qwen3-8B-AWQ' if args.provider == 'modal-vllm' else 'qwen/qwen3.7-flash'
     else:  # SAND-077: Qwen3.5-9B on Modal, the same weights on OpenRouter
@@ -676,6 +695,8 @@ def register(sub, leaf) -> None:
     create.add_argument('study')
     create.add_argument('--task', choices=['specialists', 'pipeline', 'sorter'], default='specialists')
     create.add_argument('--agent-route', action='append', dest='agent_routes', default=[], metavar='NAME=PROVIDER:MODEL', help='per-agent provider/model; NAME=@route.yaml includes endpoint/GPU/vLLM settings')
+    create.add_argument('--specialist-tier', choices=['base', 'mid', 'full'], default='base',
+                        help="specialists' model: base = the run's model, mid = Qwen3.5-35B-A3B, full = the judge's Qwen3.5-27B (config/models.yaml critical_tier)")
     create.add_argument('--design', choices=DESIGNS, default='single')
     create.add_argument('--doc-class', action='append', choices=CLASSES)
     create.add_argument('--samples', type=int, default=50, help='documents per selected class, shared across every cell')

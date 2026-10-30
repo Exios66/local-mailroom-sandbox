@@ -1783,6 +1783,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `study` | Yes |  |
 | `--task` | No | Choices: specialists, pipeline, sorter. |
 | `--agent-route` | No | per-agent provider/model; NAME=@route.yaml includes endpoint/GPU/vLLM settings |
+| `--specialist-tier` | No | specialists' model: base = the run's model, mid = Qwen3.5-35B-A3B, full = the judge's Qwen3.5-27B (config/models.yaml critical_tier) Choices: base, mid, full. |
 | `--design` | No | Choices: single, sand42. |
 | `--doc-class` | No | Choices: contract, corporate_record, correspondence, insurance_claim, merger_agreement. |
 | `--samples` | No | documents per selected class, shared across every cell |

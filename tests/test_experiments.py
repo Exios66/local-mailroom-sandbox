@@ -309,3 +309,53 @@ def test_critical_judge_is_skipped_off_modal_or_when_the_judge_is_pinned(design,
     spec = ex._load(design('--task', 'pipeline', '--mock', *options))[2][0][1]
     judge = spec.agent_routes.get('judge')
     assert judge is None or judge.model == 'deepseek/deepseek-v4-flash'
+
+
+SPECIALISTS = {'contracts_specialist', 'corporate_records_specialist', 'correspondence_specialist',
+               'insurance_claims_specialist', 'merger_agreement_specialist'}
+
+
+def test_full_specialist_tier_shares_the_judge_app(design):
+    # SAND-079: `full` is the judge's own model, so one app serves both roles.
+    spec = ex._load(design('--task', 'pipeline', '--specialist-tier', 'full', '--mock'))[2][0][1]
+    assert set(spec.agent_routes) == SPECIALISTS | {'judge'}
+    assert {r.model for r in spec.agent_routes.values()} == {'Qwen/Qwen3.5-27B'}
+    assert len({r.modal.app for r in spec.agent_routes.values()}) == 1
+    assert {d.engine.model for d in ex._deployments(spec)} == {'Qwen/Qwen3.5-9B', 'Qwen/Qwen3.5-27B'}
+
+
+def test_mid_specialist_tier_sits_between_base_and_judge(design):
+    spec = ex._load(design('--task', 'pipeline', '--specialist-tier', 'mid', '--mock'))[2][0][1]
+    mid = spec.agent_routes['contracts_specialist']
+    assert (mid.model, mid.modal.gpu, mid.vllm.quantization) == ('Qwen/Qwen3.5-35B-A3B', 'L4:2', 'fp8')
+    assert spec.agent_routes['judge'].model == 'Qwen/Qwen3.5-27B'
+    assert {d.engine.model for d in ex._deployments(spec)} == {
+        'Qwen/Qwen3.5-9B', 'Qwen/Qwen3.5-35B-A3B', 'Qwen/Qwen3.5-27B'}
+
+
+@pytest.mark.parametrize(('tier', 'model'), [('mid', 'qwen/qwen3.5-35b-a3b'), ('full', 'qwen/qwen3.5-27b')])
+def test_openrouter_specialist_tiers_use_the_preference_models(design, tier, model):
+    spec = ex._load(design('--task', 'pipeline', '--provider', 'openrouter', '--specialist-tier', tier, '--mock'))[2][0][1]
+    assert not spec.agent_routes
+    assert {spec.agent_models[name] for name in SPECIALISTS} == {model}
+    assert 'judge' not in spec.agent_models  # the openrouter judge stays deepseek
+
+
+def test_specialists_task_on_a_tier_skips_the_unused_base_engine(design):
+    spec = ex._load(design('--specialist-tier', 'full', '--mock'))[2][0][1]
+    assert spec.task == 'correspondence_specialist'
+    assert [d.engine.model for d in ex._deployments(spec)] == ['Qwen/Qwen3.5-27B']
+
+
+def test_explicit_specialist_pin_beats_the_tier(design):
+    spec = ex._load(design('--task', 'pipeline', '--specialist-tier', 'mid', '--mock',
+                           '--agent-route', 'contracts_specialist=openrouter:api-model'))[2][0][1]
+    assert spec.agent_routes['contracts_specialist'].model == 'api-model'
+    assert spec.agent_routes['correspondence_specialist'].model == 'Qwen/Qwen3.5-35B-A3B'
+
+
+def test_specialist_tier_is_refused_for_the_frozen_sand42_study(tmp_path, capsys):
+    assert cli.main(['experiment', 'create', 'frozen', '--design', 'sand42', '--specialist-tier', 'full',
+                     '--output', str(tmp_path / 'frozen'), '--mock']) != 0
+    assert '--specialist-tier' in capsys.readouterr().err
+    assert not (tmp_path / 'frozen').exists()
