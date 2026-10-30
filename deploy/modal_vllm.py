@@ -85,6 +85,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 import modal
 
@@ -425,26 +426,29 @@ def _commit_telemetry_volume() -> str | None:
         )
 
 
-def _start_telemetry_sampler() -> None:
+def _start_telemetry_sampler(stop: Any = None) -> Any:
     """Daemon thread: append nvidia-smi samples to the telemetry volume.
 
     One file per container (``<label>/<process_start_time_seconds>.jsonl``) so the
-    scraper can tell replicas apart the way the /metrics scrape does.
+    scraper can tell replicas apart the way the /metrics scrape does. Setting the
+    optional ``stop`` event ends the loop; the container never sets it.
     """
     import threading
     from pathlib import Path
+
+    stop = stop if stop is not None else threading.Event()
 
     label_dir = Path(TELEMETRY_MOUNT) / TELEMETRY_LABEL
     try:
         label_dir.mkdir(parents=True, exist_ok=True)
     except Exception as exc:  # noqa: BLE001
         print(f"telemetry: cannot create {label_dir}: {exc}")
-        return
+        return None
     target = label_dir / f"{_telemetry_replica_key()}.jsonl"
 
     def _loop() -> None:
         written = 0
-        while True:
+        while not stop.is_set():
             sample = _nvidia_smi_sample()
             try:
                 with target.open("a", encoding="utf-8") as fh:
@@ -456,14 +460,16 @@ def _start_telemetry_sampler() -> None:
                         print(message)
             except Exception as exc:  # noqa: BLE001
                 print(f"telemetry: write failed ({type(exc).__name__}: {exc})")
-            time.sleep(max(1.0, TELEMETRY_INTERVAL))
+            stop.wait(max(1.0, TELEMETRY_INTERVAL))
 
-    threading.Thread(target=_loop, name="gpu-telemetry", daemon=True).start()
+    thread = threading.Thread(target=_loop, name="gpu-telemetry", daemon=True)
+    thread.start()
     print(
         f"telemetry: sampling every {TELEMETRY_INTERVAL}s → "
         f"{target} (volume {TELEMETRY_VOLUME_NAME})"
     )
     sys.stdout.flush()
+    return thread
 
 
 def _server_env() -> dict[str, str]:

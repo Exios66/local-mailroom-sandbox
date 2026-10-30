@@ -44,13 +44,13 @@ def risk(path):
     command = ' '.join(path)
     if not path:
         return 'Varies by subcommand'
-    if path[0] in {'modal', 'vllm', 'hf', 'up', 'down', 'health', 'pull-models', 'fetch-deps', 'tunnel', 'pipeline'}:
+    if path[0] in {'modal', 'vllm', 'hf', 'up', 'down', 'health', 'pull-models', 'fetch-deps', 'tunnel', 'pipeline', 'tui'}:
         return 'May invoke services, network, deployment, or local processes'
     if path[0] in {'experiment', 'run', 'watch', 'dev', 'board'}:
         return 'May write files, run jobs, serve a UI, or contact services'
     if path[0] in {'datasets', 'traces', 'beacon', 'subagents'}:
         return 'May write files or contact services'
-    if path[0] in {'eval', 'pilot', 'hf-pilot', 'legalbench', 'matrix'}:
+    if path[0] in {'eval', 'pilot', 'hf-pilot', 'matrix'}:
         return 'May run inference or write results; mock/dry-run options vary'
     if command.startswith('metrics serving-record') or command.startswith('runbook write'):
         return 'May write files'

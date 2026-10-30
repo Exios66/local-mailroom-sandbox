@@ -888,18 +888,27 @@ class TestSand042Telemetry:
             mod, "_nvidia_smi_sample", lambda: {"t": 1.0, "gpus": [{"utilization_gpu_perc": 90.0}]}
         )
 
-        mod._start_telemetry_sampler()
         import json
+        import threading
         import time
 
+        stop = threading.Event()
+        thread = mod._start_telemetry_sampler(stop)
         target = tmp_path / "sand42-1l4-c8"
         deadline = time.time() + 10
         files: list[Path] = []
-        while time.time() < deadline:
-            files = list(target.glob("*.jsonl"))
-            if files and files[0].read_text().strip():
-                break
-            time.sleep(0.05)
+        try:
+            while time.time() < deadline:
+                files = list(target.glob("*.jsonl"))
+                if files and files[0].read_text().strip():
+                    break
+                time.sleep(0.05)
+        finally:
+            # A sampler left running outlives this test's monkeypatches and prints
+            # into later tests' captured stdout (the CI doctor --json failure).
+            stop.set()
+            thread.join(timeout=5)
+        assert not thread.is_alive()
         assert files, "sampler wrote no file"
         row = json.loads(files[0].read_text().splitlines()[0])
         assert row["gpus"][0]["utilization_gpu_perc"] == 90.0

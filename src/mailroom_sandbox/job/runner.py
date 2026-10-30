@@ -915,11 +915,12 @@ def _run_job(
         item.update(
             merge_item_metrics(latency_ms=latency_ms, usage=usage or {})
         )
-        if not mock and ok and not item.get("prompt_tokens") and not item.get("completion_tokens"):
+        if not mock and ok and item.get("prompt_tokens") is None and item.get("completion_tokens") is None:
             _log.warning(
-                "item %s ok but recorded 0 tokens — estimated_cost_usd will be "
-                "absent for this run unless other items carry usage (live "
-                "OpenAI-compatible responses must expose usage.prompt_tokens)",
+                "item %s ok but recorded no token usage — the run's "
+                "estimated_cost_usd will be absent, as one unobserved request "
+                "makes the run cost unknown (live OpenAI-compatible responses "
+                "must expose usage.prompt_tokens)",
                 item_id,
             )
         store.append_item(item)

@@ -612,7 +612,7 @@ def build_parser() -> argparse.ArgumentParser:
     watch_p.add_argument("--config", default=None, help="run YAML to watch")
     watch_p.add_argument(
         "--follow", default=None,
-        help="file holding the CURRENT run YAML path; re-read every frame",
+        help="file holding the CURRENT run YAML path or run ID; re-read every frame",
     )
     watch_p.add_argument("--app", default=None, help="Modal serve app override (default: engine.modal.app; modal job mode also tails sandbox-job)")
     watch_p.add_argument("--ledger", default=None, help="spend ledger JSON ({spent_usd})")
@@ -1313,8 +1313,8 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
 # The Dojo pin is the interim post-v0.24.2 zero-token fix; return to the next
 # released commit when v0.24.3 is published.
 _VENDOR_PINS: tuple[tuple[str, str, str, str | None], ...] = (
-    ("llm-mailroom", "1a1ec3dfb4e71f615f5d34f6198f9d06fd8c26dd",
-     "https://github.com/Exios66/llm-mailroom.git", "1a1ec3dfb4e71f615f5d34f6198f9d06fd8c26dd"),
+    ("llm-mailroom", "175e6711077f92cee16e6bf2488844f92d9cb36d",
+     "https://github.com/Exios66/llm-mailroom.git", "175e6711077f92cee16e6bf2488844f92d9cb36d"),
     ("llm-dojo-scoring", "718e326c1fe5a49b3f1cfd43a3ac10c73e7e01a4",
      "https://github.com/Exios66/llm-dojo-scoring.git", "718e326c1fe5a49b3f1cfd43a3ac10c73e7e01a4"),
 )

@@ -38,6 +38,8 @@ def test_shell_dispatch_and_nested_numeric_menu(monkeypatch, capsys):
     assert shell.run_shell() == 0
     output = capsys.readouterr().out
     assert "usage: sandbox run" in output and "Select a number" in output
+    # "1" must open the first registered subcommand, not just reprint the run menu.
+    assert "sandbox run preflight  (leaf command)" in output and "usage: sandbox run preflight" in output
     assert seen == [["run", "start", "--help"], ["profiles"]]
 
 

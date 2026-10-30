@@ -222,9 +222,10 @@ WORKER_APP = "sandbox-job"
 def dispatch_source(store: RunStore, cli_app: str | None = None) -> dict[str, Any]:
     """Per-job dispatch source: serve app + optional Modal worker app.
 
-    ``cli_app`` (--app) always wins for the serve stream. When
-    ``job.mode == "modal"`` the ``sandbox-job`` worker container is a second
-    stream; otherwise only the serve app is tailed.
+    ``cli_app`` (--app) overrides the serve app name. The serve app is tailed
+    only when the lock has an ``engine.modal`` block; when ``job.mode ==
+    "modal"`` the ``sandbox-job`` worker is tailed too (alone, when there is no
+    Modal serve block). No streams means the job is local.
     """
     lock = store.read_lock() or {}
     job = lock.get("job") or {}
@@ -394,11 +395,12 @@ def build_tray_layout(
     if not program:
         job_route = job_context_lines(store, app=app)
     if campaign:
-        job_route = (job_route or []) + [
+        job_route = (job_route or job_context_lines(store, app=app)) + [
             f"campaign {campaign['study']} · {campaign['design']} · {campaign['completed']}/{campaign['total']} runs done",
             *[f"  {r['run_id']} · {r['state']} · {r['done']}/{r['total']}" for r in campaign['runs']],
         ]
         program = None  # Explicit campaign membership supersedes the historical SAND-032 route.
+        program_title = None
         subtitle += f" · study {campaign['study']}" if f"study {campaign['study']}" not in subtitle else ""
 
     cost_cap = job.get("cost_cap_usd")
@@ -414,7 +416,7 @@ def build_tray_layout(
     if len(streams) > 1:
         dispatch_title = f"Dispatch log · {' + '.join(f'modal app logs {a}' for a in streams)}"
     elif streams:
-        dispatch_title = f"Dispatch log · modal app logs {app}"
+        dispatch_title = f"Dispatch log · modal app logs {streams[0]}"
     else:
         dispatch_title = "Dispatch log · local job events"
     tray_title = f"{TRAY_PRODUCT} · In-tray"

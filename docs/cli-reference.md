@@ -30,7 +30,7 @@ Local-first LLM-Mailroom experiment sandbox.
 
 ### `sandbox tui`
 
-**Scope:** Inspect help and implementation for side effects.
+**Scope:** May invoke services, network, deployment, or local processes.
 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
@@ -1054,7 +1054,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
 | `--config` | No | run YAML to watch |
-| `--follow` | No | file holding the CURRENT run YAML path; re-read every frame |
+| `--follow` | No | file holding the CURRENT run YAML path or run ID; re-read every frame |
 | `--app` | No | Modal serve app override (default: engine.modal.app; modal job mode also tails sandbox-job) |
 | `--ledger` | No | spend ledger JSON ({spent_usd}) |
 | `--cap-usd` | No |  |
