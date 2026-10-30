@@ -177,7 +177,6 @@ read-only commands such as `status`, `probe`, and `url` do not. Pass extra
 flags through `sandbox modal raw -- <args>`, `sandbox hf raw -- <args>`, or
 `sandbox vllm serve -- <vllm args>`.
 
-
 ### Eval commands
 
 | Command | Description |
