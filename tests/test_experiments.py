@@ -1,13 +1,12 @@
 """Experiment design, paired data, spend gates and smoke-before-launch contracts."""
 import json
-from pathlib import Path
 
 import pytest
 import yaml
 
 from mailroom_sandbox import cli, experiments as ex
 from mailroom_sandbox.job.checkpoint import RunStore
-from mailroom_sandbox.job.spec import load_run_spec, run_dir
+from mailroom_sandbox.job.spec import run_dir
 from mailroom_sandbox.services._exec import ServiceError
 
 
@@ -160,7 +159,7 @@ def test_pipeline_supports_hybrid_routes_and_agent_models(design):
     assert spec.agent_routes['sorter'].model == 'api-sorter'
     assert spec.agent_routes['contracts_specialist'].modal.app.startswith('sandbox-vllm-')
     assert spec.agent_models['boss'] == 'api-boss'
-    assert len(ex._deployments(spec)) == 2
+    assert len(ex._deployments(spec)) == 3  # base + contracts route + SAND-078 judge tier
     assert 'sorter' in spec.agent_knobs and 'sorter_reviewer' in spec.agent_knobs
 
 
@@ -288,3 +287,75 @@ def test_teardown_failure_preserves_the_original_failure(design, monkeypatch, ca
     err = capsys.readouterr().err
     assert 'deployment failed first' in err
     assert 'teardown failed' in err and 'stop refused' in err
+
+
+def test_modal_pipeline_judge_gets_the_critical_tier_route(design):
+    # SAND-078: the judge runs a larger sibling of the base model on its own app.
+    spec = ex._load(design('--task', 'pipeline', '--mock'))[2][0][1]
+    judge = spec.agent_routes['judge']
+    assert (judge.provider, judge.model, judge.modal.gpu) == ('modal-vllm', 'Qwen/Qwen3.5-27B', 'L40S')
+    assert judge.vllm.quantization == 'fp8' and judge.vllm.limit_mm_per_prompt == {'image': 0, 'video': 0, 'audio': 0}
+    assert spec.engine.model == 'Qwen/Qwen3.5-9B'
+    assert {d.engine.model for d in ex._deployments(spec)} == {'Qwen/Qwen3.5-9B', 'Qwen/Qwen3.5-27B'}
+    assert set(spec.agent_routes) == {'judge'}  # the specialists stay on the base model
+
+
+@pytest.mark.parametrize('options', [
+    ('--provider', 'openrouter'),
+    ('--agent-model', 'judge=Qwen/Qwen3.5-9B'),
+    ('--agent-route', 'judge=openrouter:deepseek/deepseek-v4-flash'),
+])
+def test_critical_judge_is_skipped_off_modal_or_when_the_judge_is_pinned(design, options):
+    spec = ex._load(design('--task', 'pipeline', '--mock', *options))[2][0][1]
+    judge = spec.agent_routes.get('judge')
+    assert judge is None or judge.model == 'deepseek/deepseek-v4-flash'
+
+
+SPECIALISTS = {'contracts_specialist', 'corporate_records_specialist', 'correspondence_specialist',
+               'insurance_claims_specialist', 'merger_agreement_specialist'}
+
+
+def test_full_specialist_tier_shares_the_judge_app(design):
+    # SAND-079: `full` is the judge's own model, so one app serves both roles.
+    spec = ex._load(design('--task', 'pipeline', '--specialist-tier', 'full', '--mock'))[2][0][1]
+    assert set(spec.agent_routes) == SPECIALISTS | {'judge'}
+    assert {r.model for r in spec.agent_routes.values()} == {'Qwen/Qwen3.5-27B'}
+    assert len({r.modal.app for r in spec.agent_routes.values()}) == 1
+    assert {d.engine.model for d in ex._deployments(spec)} == {'Qwen/Qwen3.5-9B', 'Qwen/Qwen3.5-27B'}
+
+
+def test_mid_specialist_tier_sits_between_base_and_judge(design):
+    spec = ex._load(design('--task', 'pipeline', '--specialist-tier', 'mid', '--mock'))[2][0][1]
+    mid = spec.agent_routes['contracts_specialist']
+    assert (mid.model, mid.modal.gpu, mid.vllm.quantization) == ('Qwen/Qwen3.5-35B-A3B', 'L4:2', 'fp8')
+    assert spec.agent_routes['judge'].model == 'Qwen/Qwen3.5-27B'
+    assert {d.engine.model for d in ex._deployments(spec)} == {
+        'Qwen/Qwen3.5-9B', 'Qwen/Qwen3.5-35B-A3B', 'Qwen/Qwen3.5-27B'}
+
+
+@pytest.mark.parametrize(('tier', 'model'), [('mid', 'qwen/qwen3.5-35b-a3b'), ('full', 'qwen/qwen3.5-27b')])
+def test_openrouter_specialist_tiers_use_the_preference_models(design, tier, model):
+    spec = ex._load(design('--task', 'pipeline', '--provider', 'openrouter', '--specialist-tier', tier, '--mock'))[2][0][1]
+    assert not spec.agent_routes
+    assert {spec.agent_models[name] for name in SPECIALISTS} == {model}
+    assert 'judge' not in spec.agent_models  # the openrouter judge stays deepseek
+
+
+def test_specialists_task_on_a_tier_skips_the_unused_base_engine(design):
+    spec = ex._load(design('--specialist-tier', 'full', '--mock'))[2][0][1]
+    assert spec.task == 'correspondence_specialist'
+    assert [d.engine.model for d in ex._deployments(spec)] == ['Qwen/Qwen3.5-27B']
+
+
+def test_explicit_specialist_pin_beats_the_tier(design):
+    spec = ex._load(design('--task', 'pipeline', '--specialist-tier', 'mid', '--mock',
+                           '--agent-route', 'contracts_specialist=openrouter:api-model'))[2][0][1]
+    assert spec.agent_routes['contracts_specialist'].model == 'api-model'
+    assert spec.agent_routes['correspondence_specialist'].model == 'Qwen/Qwen3.5-35B-A3B'
+
+
+def test_specialist_tier_is_refused_for_the_frozen_sand42_study(tmp_path, capsys):
+    assert cli.main(['experiment', 'create', 'frozen', '--design', 'sand42', '--specialist-tier', 'full',
+                     '--output', str(tmp_path / 'frozen'), '--mock']) != 0
+    assert '--specialist-tier' in capsys.readouterr().err
+    assert not (tmp_path / 'frozen').exists()

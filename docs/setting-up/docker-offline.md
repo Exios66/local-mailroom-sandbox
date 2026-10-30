@@ -41,7 +41,7 @@ reproducibility — bump pins deliberately.
 | Notebook | Purpose |
 | --- | --- |
 | [`notebooks/01_offline_environment_setup.ipynb`](../../notebooks/01_offline_environment_setup.ipynb) | Copy `.env`, activate profile, verify Dockerfile/compose/fixtures |
-| [`notebooks/02_load_clean_prepare_data.ipynb`](../../notebooks/02_load_clean_prepare_data.ipynb) | Load catalog + HF + LegalBench + agent gold; clean; write `data/runtime/prepared/` |
+| [`notebooks/02_load_clean_prepare_data.ipynb`](../../notebooks/02_load_clean_prepare_data.ipynb) | Load catalog + HF + agent gold; clean; write `data/runtime/prepared/` |
 | [`notebooks/03_offline_sandbox_smoke.ipynb`](../../notebooks/03_offline_sandbox_smoke.ipynb) | Mock pilot / sorter smoke against prepared JSONL (no live LLM) |
 
 Helpers live in `mailroom_sandbox.prep` (`prepare_offline_datasets`, `environment_checklist`).

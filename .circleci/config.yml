@@ -17,17 +17,20 @@ jobs:
       - run:
           name: Install lint tools
           command: |
-            pip install --quiet ruff yamllint
+            pip install --quiet ruff yamllint bandit
             sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
       - run:
           name: ruff (correctness gate, config in pyproject.toml)
           command: ruff check src tests scripts deploy reports
       - run:
+          name: bandit (medium+ severity; LOW findings are not gated)
+          command: bandit -q -ll -r src deploy scripts
+      - run:
           name: yamllint
           command: yamllint -c .yamllint.yaml .
       - run:
-          name: shellcheck (errors only)
-          command: git ls-files '*.sh' | grep -v '^vendor/' | xargs shellcheck -S error
+          name: shellcheck (warning level, config in .shellcheckrc)
+          command: git ls-files '*.sh' | grep -v '^vendor/' | xargs shellcheck -S warning
       - run:
           name: markdownlint (GFM, config in .markdownlint-cli2.yaml)
           command: npx --yes markdownlint-cli2@0.18.1
@@ -48,7 +51,7 @@ jobs:
             - ~/.cache/pip
       - run:
           name: Pytest (network-free)
-          command: pytest -v -m "not local_llm" --junitxml=test-results/junit.xml
+          command: pytest -v -m "not local_llm" --junitxml=test-results/junit.xml --cov --cov-report=term --cov-report=xml:coverage/coverage.xml
       - run:
           name: Reports hub committed snapshot
           command: python reports/dashboard/build_hub.py --check
@@ -57,6 +60,8 @@ jobs:
           command: python scripts/sync_requirements.py --check
       - store_test_results:
           path: test-results
+      - store_artifacts:
+          path: coverage
 
 workflows:
   ci:
