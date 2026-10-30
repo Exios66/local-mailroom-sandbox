@@ -64,44 +64,67 @@ _NODE_PATHS = [path for path, _ in surface.nodes(cli.build_parser())]
 _LEAF_PATHS = [path for path, parser in surface.nodes(cli.build_parser()) if not list(surface.children(parser))]
 
 
-@pytest.mark.parametrize('path', _NODE_PATHS, ids=lambda path: 'sandbox ' + ' '.join(path))
-def test_every_node_help_exits_successfully(path, capsys):
-    parser = cli.build_parser()
-    with pytest.raises(SystemExit) as exc:
-        parser.parse_args([*path, '--help'])
-    assert exc.value.code == 0
-    assert 'usage:' in capsys.readouterr().out.lower()
+def _label(path):
+    return 'sandbox ' + ' '.join(path)
 
 
-@pytest.mark.parametrize('path', _LEAF_PATHS, ids=lambda path: 'sandbox ' + ' '.join(path))
-def test_every_leaf_dispatches_to_registered_handler(path, monkeypatch):
-    parser = cli.build_parser()
-    leaf = _parser_at(parser, path)
-    assert callable(leaf.get_default('handler')), f'{path} has no callable handler'
-    argv, _ = _arguments(parser, path)
-    seen = []
+def _each(paths, check):
+    """Run ``check(path)`` for every command; fail once naming every offender."""
+    failures = []
+    for path in paths:
+        try:
+            check(path)
+        except (AssertionError, pytest.fail.Exception) as exc:
+            failures.append(f'{_label(path)}: {exc}')
+    assert not failures, '\n'.join(failures)
 
-    def stub(args):
-        seen.append(args)
-        return 17
 
-    leaf.set_defaults(handler=stub)
-    monkeypatch.setattr(cli, 'build_parser', lambda: parser)
+def test_every_node_help_exits_successfully(capsys):
+    def check(path):
+        parser = cli.build_parser()
+        with pytest.raises(SystemExit) as exc:
+            parser.parse_args([*path, '--help'])
+        assert exc.value.code == 0
+        assert 'usage:' in capsys.readouterr().out.lower()
+
+    _each(_NODE_PATHS, check)
+
+
+def test_every_leaf_dispatches_to_registered_handler(monkeypatch):
     from mailroom_sandbox import runtime
     monkeypatch.setattr(runtime, 'load_env_file', lambda: None)
-    assert cli.main(argv) == 17
-    assert len(seen) == 1
+
+    def check(path):
+        parser = cli.build_parser()
+        leaf = _parser_at(parser, path)
+        assert callable(leaf.get_default('handler')), 'no callable handler'
+        argv, _ = _arguments(parser, path)
+        seen = []
+
+        def stub(args):
+            seen.append(args)
+            return 17
+
+        leaf.set_defaults(handler=stub)
+        with monkeypatch.context() as mp:
+            mp.setattr(cli, 'build_parser', lambda: parser)
+            assert cli.main(argv) == 17
+        assert len(seen) == 1
+
+    _each(_LEAF_PATHS, check)
 
 
-@pytest.mark.parametrize('path', _LEAF_PATHS, ids=lambda path: 'sandbox ' + ' '.join(path))
-def test_parser_rejects_each_missing_required_argument(path, capsys):
-    parser = cli.build_parser()
-    argv, spans = _arguments(parser, path)
-    for start, end, dest in spans:
-        with pytest.raises(SystemExit) as exc:
-            parser.parse_args(argv[:start] + argv[end:])
-        assert exc.value.code == 2, (path, dest)
-        assert 'required' in capsys.readouterr().err.lower(), (path, dest)
+def test_parser_rejects_each_missing_required_argument(capsys):
+    def check(path):
+        parser = cli.build_parser()
+        argv, spans = _arguments(parser, path)
+        for start, end, dest in spans:
+            with pytest.raises(SystemExit) as exc:
+                parser.parse_args(argv[:start] + argv[end:])
+            assert exc.value.code == 2, dest
+            assert 'required' in capsys.readouterr().err.lower(), dest
+
+    _each(_LEAF_PATHS, check)
 
 
 def test_generated_reference_is_current():
