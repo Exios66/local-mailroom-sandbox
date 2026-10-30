@@ -100,6 +100,19 @@ def test_compose_state_includes_layout_and_job_route(tmp_path):
     assert "animate_lifecycle" in state
 
 
+def test_compose_state_survives_unreadable_campaign(tmp_path):
+    store = _generic_store(tmp_path)
+    campaign_path = tmp_path / "my-study" / "experiment.yaml"
+    state = compose_watch_state(store=store, app="sandbox-vllm", sink=LogBuffer(None), ledger=None,
+                                cap_usd=5, times_dir=None, serving_dir=tmp_path, started=0,
+                                boot_mark={}, campaign_path=campaign_path)
+    campaign = state["campaign"]
+    assert campaign["study"] == "my-study" and campaign["design"] == "unreadable"
+    assert campaign["current"] == store.run_id
+    assert campaign["runs"] == [] and campaign["completed"] == campaign["total"] == 0
+    assert "cannot load experiment" in campaign["error"]
+
+
 def test_resolve_watch_paths_prefers_run_dir_log(tmp_path):
     store = _generic_store(tmp_path)
     td, log_path = tc.resolve_watch_paths(store, sand032_root=tmp_path / "sand032")

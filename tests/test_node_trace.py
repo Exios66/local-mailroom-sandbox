@@ -84,6 +84,54 @@ def test_store_node_tail_skips_torn_lines(tmp_path):
     assert RunStore(tmp_path / "empty").nodes() == []
 
 
+def test_watch_totals_cover_full_stream_while_routes_use_bounded_tail(tmp_path):
+    store = RunStore(tmp_path / "r")
+    store.append_node({"doc": "old", "node": "intake", "status": "done", "ms": 10, "padding": "x" * 300_000})
+    with open(store.nodes_path, "a", encoding="utf-8") as fh:
+        fh.write('invalid json\n')
+    store.append_node({"doc": "new", "node": "intake", "status": "error", "ms": 30})
+    state = compose_watch_state(store=store, app="a", sink=LogBuffer(None), ledger=None, cap_usd=5,
+                                times_dir=None, serving_dir=tmp_path, started=0, boot_mark={})
+    pipe = state["pipeline"]
+    assert pipe["docs_seen"] == 2
+    assert pipe["nodes"] == [{"node": "intake", "visits": 2, "errors": 1, "mean_ms": 20.0}]
+    assert [route["doc"] for route in pipe["recent"]] == ["new"]
+
+
+def test_empty_route_tail_still_renders_aggregate_totals(tmp_path):
+    store = RunStore(tmp_path / "r")
+    store.append_node({"doc": "large", "node": "intake", "status": "done", "ms": 10, "padding": "x" * 300_000})
+    pipe = node_trace.summarize(store.iter_nodes(), recent_records=store.nodes())
+    assert pipe["current"] is None and pipe["recent"] == []
+    assert "1 docs" in pipeline_lines(pipe)[0]
+
+
+def test_node_helpers_and_watch_import_without_langchain():
+    import subprocess
+    import sys
+
+    code = '''
+import importlib.abc
+import sys
+class BlockLangchain(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname == "langchain_core" or fullname.startswith("langchain_core."):
+            raise ModuleNotFoundError("blocked langchain_core")
+sys.meta_path.insert(0, BlockLangchain())
+from mailroom_sandbox.job import node_trace
+from mailroom_sandbox import watch
+assert node_trace.summarize([{"doc": "a", "node": "intake", "status": "done", "ms": 1}])["docs_seen"] == 1
+try:
+    with node_trace.track_nodes("a", lambda rec: None):
+        pass
+except RuntimeError as exc:
+    assert "langchain_core" in str(exc)
+else:
+    raise AssertionError("tracking should require the hook")
+'''
+    subprocess.run([sys.executable, "-c", code], check=True)
+
+
 def _pipeline_run(tmp_path, capsys):
     config = tmp_path / "run.yaml"
     run_id = f"nodes-{tmp_path.name[-8:]}"

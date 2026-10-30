@@ -588,7 +588,8 @@ def pipeline_lines(pipeline: Mapping[str, Any], *, width: int = 96, on: bool = F
     p = pl.palette(on)
     lines: list[str] = []
     # Newest document first; the one before it shows its whole route and decisions.
-    for label, doc in zip(("now", "previous"), reversed((pipeline.get("recent") or [pipeline["current"]])[-2:])):
+    recent = pipeline.get("recent") or ([pipeline["current"]] if pipeline.get("current") else [])
+    for label, doc in zip(("now", "previous"), reversed(recent[-2:])):
         route = doc["route"]
         lines.append(f"{label} · {doc['doc']}: {node_trace.route_text(route)}"[:width])
         for hop in route:
@@ -876,7 +877,7 @@ def compose_watch_state(
         # the browser's document timeline; capped so a 1000-doc run stays a small frame.
         "timeline": [item.get("ok", True) is not False for item in items][-TIMELINE_MAX:],
         # SAND-076: live graph-node route of the newest pipeline documents.
-        "pipeline": node_trace.summarize(store.nodes(), docs=PIPELINE_DOCS),
+        "pipeline": node_trace.summarize(store.iter_nodes(), docs=PIPELINE_DOCS, recent_records=store.nodes()),
     }
 
 
