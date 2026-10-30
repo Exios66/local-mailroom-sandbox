@@ -51,7 +51,7 @@ Local-first LLM-Mailroom experiment sandbox.
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
-| `--compose-profile` | No |  |
+| `--compose-profile` | No | Choices: phoenix, ollama, vllm, llamacpp, langfuse, jupyter. |
 | `-d, --detach` | No |  |
 
 ### `sandbox down`
@@ -65,7 +65,7 @@ Local-first LLM-Mailroom experiment sandbox.
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
-| `--compose-profile` | No |  |
+| `--compose-profile` | No | Choices: phoenix, ollama, vllm, llamacpp, langfuse, jupyter. |
 
 ### `sandbox health`
 
