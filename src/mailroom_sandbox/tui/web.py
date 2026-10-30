@@ -717,7 +717,7 @@ function render(state) {{
     metric("live run", "$" + Number(sp.live_usd || 0).toFixed(4)) +
     metric("total", `$${{Number(sp.total_usd || 0).toFixed(4)}} / $${{Number(sp.cap_usd || 0).toFixed(2)}}`) +
     `<div class="bar">${{esc(sp.bar || "")}}  ${{pct}}</div>` +
-    metric("gate", `$${{Number(sp.gate_usd || 4.5).toFixed(2)}} projected-total stop`) +
+    metric("gate", `$${{Number(sp.gate_usd || 4.5).toFixed(2)}} configured estimate gate`) +
     (sp.over_gate ? `<div class="metric"><span class="v" style="color:var(--gold)">⚠ OVER GATE</span></div>` : "");
   const foot = document.getElementById("footer-line");
   if (foot) {{
