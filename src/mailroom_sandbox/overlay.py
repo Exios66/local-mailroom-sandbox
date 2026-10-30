@@ -94,8 +94,12 @@ def load_model_map() -> dict:
     return load_yaml(config_dir() / "models.yaml")
 
 
-class UnknownProfileError(FileNotFoundError):
-    """No ``config/profiles/<name>.yaml``: an operator typo, not a missing tool."""
+class UnknownNameError(FileNotFoundError):
+    """A profile or prompt variant name with no config file: an operator typo, not a missing tool."""
+
+
+class UnknownProfileError(UnknownNameError):
+    """No ``config/profiles/<name>.yaml``."""
 
 
 def load_profile(name: str) -> dict:
