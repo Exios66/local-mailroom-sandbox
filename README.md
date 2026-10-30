@@ -87,7 +87,7 @@ serving, eval and scoring overlays on top.
 
 ```bash
 pip install -e ".[dev]"
-cp config/.env.example .env
+cp config/.env.example .env   # sandbox loads .env at startup; exported vars win
 # family code is already vendored under vendor/ (self-contained); fetch-deps
 # only refreshes the snapshots (workspace packages first; reviewed standalone
 # commit/release refs frozen to SHAs otherwise, requiring network). Moved refs are rejected

@@ -18,7 +18,7 @@ python3 -m venv .venv                # deps live INSIDE the repo — never the m
 # Specialist / Modal live path:
 #   pip install -e ".[pipeline,deploy]"
 #   # or: pip install -r requirements/pipeline.txt -r requirements/deploy.txt
-cp config/.env.example .env          # profiles/tracing knobs (edit if needed)
+cp config/.env.example .env          # profiles/tracing/secrets; loaded at startup, exported vars win
 export PATH="$PWD/.venv/bin:$PATH"   # or call ./.venv/bin/sandbox explicitly
 ```
 
