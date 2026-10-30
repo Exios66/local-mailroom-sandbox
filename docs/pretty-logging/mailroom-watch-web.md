@@ -33,7 +33,7 @@ sandbox experiment watch --config config/experiments/my-study/experiment.yaml
 
 Default URL: **http://127.0.0.1:8765/** — live JSON via **SSE** at `/api/stream`; snapshot at `/api/state`.
 
-The browser is the **Tray TUI**: per-job subtitle/route from `spec.lock.json`, `Tray TUI watcher · <profile> · <job.mode>` status line, job-manifest strip for non-SAND-032 runs, phase-colored lifecycle (pulse only while active), and a Dispatch log merging the Modal serve stream (+ `sandbox-job` worker when `job.mode=modal`) with `job:` event lines. `sandbox pipeline watcher` is a different surface (mailroom inbox drain), not this viewer.
+The browser is the **Tray TUI**: per-job subtitle/route from `spec.lock.json` and a `Tray TUI watcher · <profile> · <job.mode>` status line. A replay strip shows the lifecycle lanes and a document timeline (it pulses only while the run is active). The route and run manifest lines sit in the collapsed **Run route and campaign details** section. The Dispatch log tails the Modal serve stream only when the lock has an `engine.modal` block, plus the `sandbox-job` worker when `job.mode=modal`, merged with `job:` event lines; API-only runs show local job events only. `sandbox pipeline watcher` is a different surface (mailroom inbox drain), not this viewer.
 
 Stop the server with **Ctrl+C** in the terminal that launched it (does not stop the eval).
 
@@ -108,7 +108,7 @@ The `COLD BOOT` detail is derived from Modal log markers (`watch.py::BOOT_MARKER
 
 | Aesthetic | Screenshot | What to notice |
 |---|---|---|
-| Postage over-gate warning | ![Postage panel with over-gate warning](../assets/watch/over-gate.svg) | Gold `OVER $4.50 GATE` row when `total > GATE_USD`; the gate is a projected-total stop, not the cap. |
+| Postage over-gate warning | ![Postage panel with over-gate warning](../assets/watch/over-gate.svg) | Gold `OVER $4.50 GATE` row when `total > GATE_USD`; the gate is `job.cost_cap_usd` when the lock sets one, otherwise the default estimate gate (captures predate the relabel). |
 | Blink frame — owl `(-,-)` | ![Sorting frame with blinking owl](../assets/watch/blink-owl.svg) | Same SORTING frame with `blink=True`: the owl blinks every 7th second (`blink=int(time.time())%7==0`). Compare with the open `(o,o)` owl above. |
 | Dispatch log — every role | ![Dispatch log with every colour role](../assets/watch/dispatch-roles.svg) | One line per `classify_log_line` role: error, warn, throughput, kv, ready, plain, plus the reconnect note (`RECONNECT_NOTE`) shown when the app is stopped between runs. |
 | Color vs plain, wide vs narrow | Compare `sorting-wide-color` with `queued-narrow-plain` | Color on: amber owl + blue-teal double frame + truecolor wordmark (`pl.palette(True)`). Plain (`NO_COLOR` / `SANDBOX_PLAIN_LOGS=1` / non-TTY): same layout, no ANSI. Wide `>=100` cols: in-tray + postage side by side. Narrow `<90` cols: stacked panels + compact stacked hero (`_wordmark_lines(compact=width<90)`). |
