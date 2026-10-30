@@ -31,20 +31,43 @@ openrouter_preference:
 # the default model on its own Modal app, deployed beside the 9B base engine.
 # `sandbox experiment create --provider modal-vllm --task pipeline` adds this
 # route unless --agent-route/--agent-model already sets the judge. OpenRouter
-# runs keep the openrouter profile's deepseek judge. The specialists stay on
-# the base model until the judge result tests the hypothesis.
+# runs keep the openrouter profile's deepseek judge.
+#
+# Specialist tiers (SAND-079): `experiment create --specialist-tier` moves the
+# five live-class specialists off the base model. `base` keeps the run's model;
+# `mid` is the Qwen3.5-35B-A3B MoE, between the 9B base and the 27B judge;
+# `full` is the judge's own 27B. On Modal, `full` reuses the judge's route, so
+# the judge and the specialists share one app and one GPU. On OpenRouter the
+# tiers follow openrouter_preference (same weights as the Modal tiers).
 critical_tier:
-  judge:
+  judge: &full_tier_route
     provider: modal-vllm
     model: Qwen/Qwen3.5-27B
     modal:
-      app: sandbox-vllm-critical-judge
+      app: sandbox-vllm-critical-27b
       gpu: L40S
       max_containers: 1
     vllm:
       quantization: fp8
       max_model_len: 16384
       limit_mm_per_prompt: {image: 0, video: 0, audio: 0}
+  specialists:
+    mid:
+      modal-vllm:
+        provider: modal-vllm
+        model: Qwen/Qwen3.5-35B-A3B
+        modal:
+          app: sandbox-vllm-critical-35b-a3b
+          gpu: L4:2
+          max_containers: 1
+        vllm:
+          quantization: fp8
+          max_model_len: 16384
+          limit_mm_per_prompt: {image: 0, video: 0, audio: 0}
+      openrouter: qwen/qwen3.5-35b-a3b
+    full:
+      modal-vllm: *full_tier_route
+      openrouter: qwen/qwen3.5-27b
 
 map:
   # The vendored mailroom assigns every agent this champion id; its vllm and
@@ -250,7 +273,7 @@ modal_models:
     quantization: fp8
     max_model_len: 16384
     tp_size: 2
-    notes: "SAND-021. MoE (35B total / 3B active). TP=2 across two L4s over
+    notes: "SAND-021; SAND-079 mid specialist tier. MoE (35B total / 3B active). TP=2 across two L4s over
       PCIe — L4 has no NVLink; inter-GPU bandwidth is the bottleneck vs two
       independent 1-GPU replicas (DMR-068 G1 compares that trade). Same online
       FP8 + kernel-deps posture as the 9B row. DoD incomplete until spend

@@ -48,9 +48,23 @@ app, beside the 9B base engine. `config/models.yaml` `critical_tier.judge`
 defines the route. `sandbox experiment create --provider modal-vllm --task
 pipeline` adds it unless `--agent-route judge=...` or `--agent-model judge=...`
 already sets the judge. Plain `sandbox run` configs do not deploy route apps,
-so add the judge route there only when its app is already up. The specialists
-stay on the base model until the judge result tests the hypothesis that larger
-models in critical roles help. Expect a second GPU in the cost estimate.
+so add the judge route there only when its app is already up. Expect a second
+GPU in the cost estimate.
+
+**Specialist tiers (SAND-079).** The five specialists stay on the base model
+unless `sandbox experiment create --specialist-tier` moves them:
+
+| Tier | Modal / vLLM | OpenRouter | Extra Modal GPU |
+| --- | --- | --- | --- |
+| `base` (default) | the run's model (`Qwen/Qwen3.5-9B`) | the run's model | none |
+| `mid` | `Qwen/Qwen3.5-35B-A3B` (MoE, fp8, `L4:2`) | `qwen/qwen3.5-35b-a3b` | one `L4:2` app |
+| `full` | `Qwen/Qwen3.5-27B`, the judge's own route | `qwen/qwen3.5-27b` | none beyond the judge's `L40S` |
+
+`full` shares the judge's app, so it adds no deployment. An explicit
+`--agent-route` or `--agent-model` for one specialist overrides the tier for
+that specialist. The tiers apply to `specialists` and `pipeline` experiments,
+not the frozen `sand42` study. `config/models.yaml`
+`critical_tier.specialists` defines them.
 
 ## Why an overlay
 

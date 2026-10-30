@@ -127,3 +127,19 @@ def test_critical_judge_route_matches_its_serve_defaults_and_modal_row():
     row = modal_matrix.modal_models()[judge["model"]]
     assert (row["gpu"], row["quantization"]) == (judge["modal"]["gpu"], serve["quantization"])
     assert load_profile("openrouter")["judge_model"] == "deepseek/deepseek-v4-flash"
+
+
+def test_specialist_tiers_match_serve_defaults_modal_rows_and_openrouter_preference():
+    # SAND-079: mid is the Qwen3.5-35B-A3B MoE, full is the judge's 27B route.
+    tiers = MODELS["critical_tier"]["specialists"]
+    assert tiers["full"]["modal-vllm"] == MODELS["critical_tier"]["judge"]
+    mid = tiers["mid"]["modal-vllm"]
+    serve = MODEL_SERVE_DEFAULTS[mid["model"]]
+    assert mid["vllm"]["quantization"] == serve["quantization"]
+    assert mid["vllm"]["limit_mm_per_prompt"] == serve["limit_mm_per_prompt"]
+    assert _deploy_constants()["MODEL_SERVE_DEFAULTS"][mid["model"]]["quantization"] == serve["quantization"]
+    assert modal_matrix.modal_models()[mid["model"]]["gpu"] == mid["modal"]["gpu"]
+    # OpenRouter tiers are the 2nd and 3rd preference picks, the same weights as Modal.
+    assert [tiers["mid"]["openrouter"], tiers["full"]["openrouter"]] == PREFERENCE[1:]
+    for tier in ("mid", "full"):
+        assert MODELS["map"][tiers[tier]["openrouter"]]["vllm"] == tiers[tier]["modal-vllm"]["model"]
