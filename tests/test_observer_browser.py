@@ -51,6 +51,18 @@ def test_operator_workspaces_and_keyboard(tmp_path, width, height):
                 assert page.locator("#command-path").inner_text() == f"sandbox {group}"
                 assert page.locator("#command-menu").is_enabled()
 
+            # Two-level primary tasks: eval → specialist|pipeline → target.
+            page.locator("#command-input").fill("menu eval")
+            page.locator("#command-input").press("Enter")
+            options = page.locator("#command-menu option").all_inner_texts()
+            assert options[1:] == ["specialist", "pipeline"]
+            page.locator("#command-menu").select_option("pipeline")
+            assert page.locator("#command-menu").is_enabled()
+            page.locator("#command-menu").select_option(label="merger_agreement")
+            assert page.locator("#command-input").input_value() == "eval pipeline --class merger_agreement --mock"
+            assert "sandbox eval pipeline --class merger_agreement" in page.locator("#command-output").inner_text()
+            assert page.locator("#command-input").evaluate("el => el === document.activeElement")
+
             field = page.locator("#command-input")
             field.fill("run res")
             field.press("Tab")

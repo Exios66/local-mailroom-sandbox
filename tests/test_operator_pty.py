@@ -161,3 +161,17 @@ def test_tui_inside_tui_and_exit(term):
     assert "Already in the Mailroom terminal" in term.run("tui")
     term.send("exit\n")
     assert term.exit_status() == 0
+
+
+def test_two_level_eval_menu_prefills_the_target_command(term):
+    level1 = term.run("menu eval")
+    assert "1. specialist" in level1 and "2. pipeline" in level1 and "judge" not in level1
+    level2 = term.run("1")
+    assert "2. contract" in level2 and "eval specialist contract" in level2
+    term.send("2\n")
+    term.read_until("\n")  # echo of the selection
+    term.read_until(PROMPT + "eval specialist contract ")  # prefilled, not executed
+    term.send("--mock --dry-run\n")
+    out = term.read_until(PROMPT)
+    assert '"task": "contracts_specialist"' in out
+    assert "error: select 1-6" in term.run("menu eval pipeline") + term.run("9")

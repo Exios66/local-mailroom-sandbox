@@ -26,13 +26,18 @@ data/runtime/runs/<run_id>/
 ```yaml
 schema: sandbox.run/v1
 run_id: <optional; auto ><task>-<model>-<utc>
-task: sorter                # per-item: sorter (resumable row-by-row)
+task: sorter                # primary: specialist | pipeline (whole-run)
+                            # per-item: sorter (resumable row-by-row)
                             # whole-run: pipeline | extract | chained | local_vs_api
                             #   | isolated (sorter spec) | ANY registered agent name
                             #   (e.g. judge, contracts_specialist — DMR-056: every
                             #   AgentSpec in eval/agents.py is a whole-run task; a
                             #   bogus task is rejected at spec parse, never "locks
                             #   prepared then dies")
+target: null                # level 2 of specialist/pipeline: contract | merger_agreement
+                            #   | corporate_record | correspondence | insurance_claim
+                            #   (or the specialist name); unset = all five / every class.
+                            #   `sandbox run … --target X` overrides it. Hashed only when set.
 profile: vllm-local         # ollama | vllm-local | vllm-remote | modal-vllm | openrouter
 
 prompt:                     # ALL pipeline agents: local variants + Langfuse + code

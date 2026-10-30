@@ -8,9 +8,11 @@ import sys
 
 
 def children(parser: argparse.ArgumentParser) -> dict[str, argparse.ArgumentParser]:
+    """Visible subcommands; ones marked ``_sandbox_hidden`` still parse but stay out of menus."""
     return {name: child for action in parser._actions
             if isinstance(action, argparse._SubParsersAction)
-            for name, child in action.choices.items()}
+            for name, child in action.choices.items()
+            if not getattr(child, "_sandbox_hidden", False)}
 
 
 def summaries(parser: argparse.ArgumentParser) -> dict[str, str]:
@@ -23,7 +25,8 @@ def summaries(parser: argparse.ArgumentParser) -> dict[str, str]:
 def command_catalog(parser: argparse.ArgumentParser, path: tuple[str, ...] = ()) -> list[dict]:
     """One parser-derived catalog for completion, menus and browser manuals."""
     return [{"path": list(path), "help": parser.format_help(), "children": list(children(parser)),
-             "usage": " ".join(parser.format_usage().split()), "summaries": summaries(parser)},
+             "usage": " ".join(parser.format_usage().split()), "summaries": summaries(parser),
+             "targets": list(getattr(parser, "_sandbox_targets", []))},
             *[row for name, child in children(parser).items()
               for row in command_catalog(child, (*path, name))]]
 
@@ -31,6 +34,12 @@ def command_catalog(parser: argparse.ArgumentParser, path: tuple[str, ...] = ())
 def render_menu(node: dict) -> str:
     """Compact numbered menu: the choices, not the whole manual (help shows that)."""
     path = " ".join(["sandbox", *node["path"]])
+    if node.get("targets"):
+        # Level 2 of a primary task: each target is a ready command line.
+        width = len(str(len(node["targets"])))
+        label_w = max(len(label) for label, _ in node["targets"])
+        rows = [f"{i:>{width}}. {label:<{label_w}}  {command}" for i, (label, command) in enumerate(node["targets"], 1)]
+        return "\n".join([path, *rows, "Select a number to put that command on the prompt (add --mock to run offline) · back"])
     if not node["children"]:
         return (f"{path}  (leaf command)\n{node['usage']}\n"
                 f"Type '{' '.join(node['path'])} <options>' to execute · help {' '.join(node['path'])} for the manual · back")
@@ -140,6 +149,17 @@ def run_shell(default_args: list[str] | None = None) -> int:
                         print("error: no open menu · type menu to browse commands")
                         continue
                     index = int(argv[0]) - 1
+                    if node.get("targets"):
+                        if not 0 <= index < len(node["targets"]):
+                            print(f"error: select 1-{len(node['targets'])} from the menu")
+                            continue
+                        command = node["targets"][index][1] + " "
+                        if readline:
+                            # Prefill the next prompt; nothing runs until Enter.
+                            readline.set_startup_hook(lambda text=command: (readline.insert_text(text), readline.set_startup_hook(None)))
+                        else:
+                            print(f"type: {command.strip()} [--mock]")
+                        continue
                     if not node["children"]:
                         print(f"error: {' '.join(['sandbox', *menu])} has no subcommands · back, or type the command with options")
                         continue
@@ -224,6 +244,11 @@ function commandPrint(text) {
 function commandNode(path) { return commandCatalog.find(row => JSON.stringify(row.path) === JSON.stringify(path)); }
 function menuText(node) {
   const path = ["sandbox", ...node.path].join(" ");
+  if ((node.targets || []).length) {
+    const width = Math.max(...node.targets.map(t => t[0].length));
+    return [path, ...node.targets.map(([label, command], i) => `${String(i + 1).padStart(String(node.targets.length).length)}. ${label.padEnd(width)}  ${command}`),
+      "Choose a target from the selector to put its command on the input"].join("\n");
+  }
   if (!node.children.length) return `${path}  (leaf command)\n${node.usage || ""}\nRun locally: ${path} <options> · help ${node.path.join(" ")} for the manual`;
   const width = Math.max(...node.children.map(name => name.length));
   return [path, ...node.children.map((name, i) => `${String(i + 1).padStart(String(node.children.length).length)}. ${name.padEnd(width)}  ${(node.summaries || {})[name] || ""}`.trimEnd()),
@@ -248,13 +273,21 @@ function commandMenu(path, { manual = false } = {}) {
   commandPath = path;
   document.getElementById("command-path").textContent = "sandbox " + path.join(" ");
   const menu = document.getElementById("command-menu");
-  menu.replaceChildren(new Option(node.children.length ? "Choose subcommand…" : "Leaf command", ""));
+  const targets = node.targets || [];
+  menu.replaceChildren(new Option(targets.length ? "Choose target…" : node.children.length ? "Choose subcommand…" : "Leaf command", ""));
   for (const child of node.children) menu.add(new Option(child, child));
-  menu.disabled = !node.children.length;
+  targets.forEach(([label], i) => menu.add(new Option(label, "#" + i)));
+  menu.disabled = !node.children.length && !targets.length;
   commandPrint(manual ? node.help : menuText(node));
 }
 document.getElementById("command-menu").addEventListener("change", ev => {
-  if (ev.target.value) commandMenu([...commandPath, ev.target.value]);
+  const value = ev.target.value;
+  if (value.startsWith("#")) {
+    const [label, command] = commandNode(commandPath).targets[Number(value.slice(1))];
+    commandInput.value = command + " --mock";
+    commandPrint(`${label}: run locally with  sandbox ${command} [--mock | --local]`);
+    commandInput.focus(); ev.target.value = "";
+  } else if (value) commandMenu([...commandPath, value]);
 });
 document.getElementById("command-back").addEventListener("click", () => commandMenu(commandPath.slice(0, -1)));
 function commandRun(line) {
