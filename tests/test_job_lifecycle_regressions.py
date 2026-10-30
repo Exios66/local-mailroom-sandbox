@@ -154,17 +154,15 @@ def test_resume_reports_run_wide_errors_and_scored_denominator(tmp_path):
 
 @pytest.mark.parametrize("concurrency", [1, 2])
 def test_endpoint_cancel_drains_inflight_then_resumes(tmp_path, monkeypatch, concurrency):
-    import httpx
-    import openai
-
-    _, store = prepare(tmp_path, count=5, concurrency=concurrency, mock=False, task="legalbench")
-    real_openai = openai.OpenAI
+    _, store = prepare(tmp_path, count=5, concurrency=concurrency, mock=False, task="sorter")
     entered = []
     entered_lock = threading.Lock()
     barrier = threading.Barrier(concurrency) if concurrency > 1 else None
     release = threading.Event()
 
-    def transport(request):
+    def predict(task, row, **kwargs):
+        # A live endpoint call: the first `concurrency` items block until the
+        # operator's cancel has been recorded, so cancel must drain them.
         with entered_lock:
             number = len(entered)
             entered.append(number)
@@ -173,16 +171,9 @@ def test_endpoint_cancel_drains_inflight_then_resumes(tmp_path, monkeypatch, con
                 barrier.wait(timeout=10)
             if number > 0:
                 assert release.wait(timeout=10)
-        return httpx.Response(200, json={"id": "offline", "object": "chat.completion",
-            "created": 0, "model": "locked-model", "choices": [{"index": 0,
-            "message": {"role": "assistant", "content": "Yes"}, "finish_reason": "stop"}],
-            "usage": {"prompt_tokens": 3, "completion_tokens": 1, "total_tokens": 4}})
+        return "correspondence", {"prompt_tokens": 3, "completion_tokens": 1, "llm_calls": 1}
 
-    def client(*args, **kwargs):
-        kwargs["http_client"] = httpx.Client(transport=httpx.MockTransport(transport))
-        return real_openai(*args, **kwargs)
-
-    monkeypatch.setattr(openai, "OpenAI", client)
+    monkeypatch.setattr(runner, "_predict_row", predict)
     immediate = []
     def progress(event):
         if event["cursor"] == 1:

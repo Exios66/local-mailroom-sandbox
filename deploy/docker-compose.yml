@@ -130,7 +130,9 @@ services:
       # Gated/private weights; vLLM reads HF_TOKEN via huggingface_hub.
       HF_TOKEN: ${HF_TOKEN:-}
     command:
-      - ${VLLM_MODEL:-Qwen/Qwen3-8B}
+      # SAND-077: the vllm-local profile default. Compose serves it bf16 (no
+      # --quantization knob here); the Modal app adds fp8 + text-only limits.
+      - ${VLLM_MODEL:-Qwen/Qwen3.5-9B}
       - --host
       - 0.0.0.0
       - --port

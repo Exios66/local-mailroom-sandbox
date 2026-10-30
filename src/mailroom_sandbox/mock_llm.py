@@ -62,8 +62,6 @@ def fake_structured_payload(user_content: str, expect: dict[str, Any]) -> dict[s
         }
     if "matter-record summary" in text or "compile this into" in text.lower():
         return {"summary": "mock report", "confidence": 0.9}
-    if "Yes" in text and "No" in text and expect.get("legalbench_answer"):
-        return {"answer": expect["legalbench_answer"]}
     payload = {"confidence": conf, "mock_extraction": True}
     payload.update(fields)
     return payload

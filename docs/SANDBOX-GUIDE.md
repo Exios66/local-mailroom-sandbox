@@ -113,13 +113,13 @@ before or after the subcommand; a later occurrence wins.
 
 | Profile | Provider | Base URL | Default Model | When to use |
 | --- | --- | --- | --- | --- |
-| `modal-vllm` | vLLM | `*.modal.run/v1` | `Qwen/Qwen3-8B` | **Default**: zero-infra remote GPU (`sandbox runbook show serve`) |
+| `modal-vllm` | vLLM | `*.modal.run/v1` | `Qwen/Qwen3.5-9B` | **Default**: zero-infra remote GPU (`sandbox runbook show serve`) |
 | `ollama` | Ollama | `localhost:11434/v1` | `qwen3:8b` | Offline/CPU fallback (`--profile ollama`) |
-| `vllm-local` | vLLM | `localhost:8000/v1` | `Qwen/Qwen3-8B` | Local GPU host |
-| `vllm-remote` | vLLM | `localhost:18000/v1` (SSH forward) | `Qwen/Qwen3-8B` | Lab/remote GPU |
+| `vllm-local` | vLLM | `localhost:8000/v1` | `Qwen/Qwen3.5-9B` | Local GPU host |
+| `vllm-remote` | vLLM | `localhost:18000/v1` (SSH forward) | `Qwen/Qwen3.5-9B` | Lab/remote GPU |
 | `llamacpp` | generic | `localhost:8080/v1` | `qwen3-8b` | llama.cpp server |
 | `lmstudio` | generic | `localhost:1234/v1` | `qwen3-8b` | LM Studio |
-| `openrouter` | openrouter | `openrouter.ai/api/v1` | `qwen/qwen3.7-flash` | Opt-in cloud only |
+| `openrouter` | openrouter | `openrouter.ai/api/v1` | `qwen/qwen3.5-9b` | Opt-in cloud only |
 
 ### Health check
 
@@ -366,7 +366,7 @@ sandbox run list
 ```yaml
 schema: sandbox.run/v1
 run_id: <auto if omitted>
-task: sorter                  # sorter | legalbench (per-item) | pipeline | extract |
+task: sorter                  # sorter (per-item) | pipeline | extract |
                               # chained | local_vs_api | isolated | ANY agent name
                               # (DMR-056: every AgentSpec is a whole-run task)
 profile: vllm-local           # provider profile
@@ -477,7 +477,7 @@ spelled out here to make the endpoint being probed explicit.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `MODAL_VLLM_MODEL` | `Qwen/Qwen3-8B` | HF model id |
+| `MODAL_VLLM_MODEL` | `Qwen/Qwen3.5-9B` | HF model id |
 | `MODAL_VLLM_GPU` | `L4` | GPU type |
 | `MODAL_VLLM_MAX_MODEL_LEN` | `16384` | Context cap — DMR-056: boot-valid default (v0.29.0 raises when the KV pool can't hold one request); AWQ/FP8 rows use 32768 |
 | `MODAL_VLLM_GPU_MEMORY_UTILIZATION` | `0.90` | GPU memory fraction |

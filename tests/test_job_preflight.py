@@ -5,7 +5,7 @@ import pytest
 import json
 
 from mailroom_sandbox.job import preflight
-from mailroom_sandbox.job.spec import DatasetSpec, RunSpec, run_dir
+from mailroom_sandbox.job.spec import DEFAULT_ENGINE_MODEL, DatasetSpec, RunSpec, run_dir
 
 
 def _run_spec(tmp_path, *, rows=2, limit=2, run_id="pf-1") -> RunSpec:
@@ -148,7 +148,7 @@ class _FakeResp:
     def __init__(self, status_code, payload=None):
         """Minimal httpx-like response for engine-probe tests."""
         self.status_code = status_code
-        self._payload = payload or {"data": [{"id": "Qwen/Qwen3-8B"}]}
+        self._payload = payload or {"data": [{"id": DEFAULT_ENGINE_MODEL}]}
 
     def json(self):
         return self._payload

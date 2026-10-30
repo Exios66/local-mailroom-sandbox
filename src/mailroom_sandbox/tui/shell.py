@@ -1,0 +1,343 @@
+"""Local interactive CLI; dispatches the existing parser, never a system shell."""
+from __future__ import annotations
+
+import argparse
+import difflib
+import shlex
+import sys
+
+
+def children(parser: argparse.ArgumentParser) -> dict[str, argparse.ArgumentParser]:
+    """Visible subcommands; ones marked ``_sandbox_hidden`` still parse but stay out of menus."""
+    return {name: child for action in parser._actions
+            if isinstance(action, argparse._SubParsersAction)
+            for name, child in action.choices.items()
+            if not getattr(child, "_sandbox_hidden", False)}
+
+
+def summaries(parser: argparse.ArgumentParser) -> dict[str, str]:
+    """One-line help per subcommand, as argparse lists it under the parent."""
+    return {choice.dest: " ".join((choice.help or "").split())
+            for action in parser._actions if isinstance(action, argparse._SubParsersAction)
+            for choice in action._choices_actions}
+
+
+def command_catalog(parser: argparse.ArgumentParser, path: tuple[str, ...] = ()) -> list[dict]:
+    """One parser-derived catalog for completion, menus and browser manuals."""
+    return [{"path": list(path), "help": parser.format_help(), "children": list(children(parser)),
+             "usage": " ".join(parser.format_usage().split()), "summaries": summaries(parser),
+             "targets": list(getattr(parser, "_sandbox_targets", []))},
+            *[row for name, child in children(parser).items()
+              for row in command_catalog(child, (*path, name))]]
+
+
+def render_menu(node: dict) -> str:
+    """Compact numbered menu: the choices, not the whole manual (help shows that)."""
+    path = " ".join(["sandbox", *node["path"]])
+    if node.get("targets"):
+        # Level 2 of a primary task: each target is a ready command line.
+        width = len(str(len(node["targets"])))
+        label_w = max(len(label) for label, _ in node["targets"])
+        rows = [f"{i:>{width}}. {label:<{label_w}}  {command}" for i, (label, command) in enumerate(node["targets"], 1)]
+        return "\n".join([path, *rows, "Select a number to put that command on the prompt (add --mock to run offline) · back"])
+    if not node["children"]:
+        return (f"{path}  (leaf command)\n{node['usage']}\n"
+                f"Type '{' '.join(node['path'])} <options>' to execute · help {' '.join(node['path'])} for the manual · back")
+    width = len(str(len(node["children"])))
+    name_w = max(len(name) for name in node["children"])
+    rows = [f"{i:>{width}}. {name:<{name_w}}  {node['summaries'].get(name, '')}".rstrip()
+            for i, name in enumerate(node["children"], 1)]
+    back = " · back" if node["path"] else ""
+    return "\n".join([path, *rows, f"Select a number{back} · help [command] for a manual · or type a full command"])
+
+
+def unknown_path(words: list[str], catalog: list[dict]) -> str | None:
+    """Name the first unknown command word and suggest the closest siblings."""
+    node, known = catalog[0], []
+    for word in words:
+        if word.startswith("-"):
+            return None
+        if word not in node["children"]:
+            close = difflib.get_close_matches(word, node["children"], n=3)
+            hint = f" · did you mean {', '.join(close)}?" if close else f" · try menu {' '.join(known)}".rstrip()
+            return f"error: unknown command '{' '.join([*known, word])}'{hint}"
+        known.append(word)
+        node = next(row for row in catalog if row["path"] == known)
+        if not node["children"]:
+            return None
+    return None
+
+
+def completions(line: str, catalog: list[dict]) -> list[str]:
+    """Complete command paths only; quoted arguments are left to argparse."""
+    try:
+        tokens = shlex.split(line)
+    except ValueError:
+        return []
+    if tokens[:1] == ["sandbox"]:
+        tokens = tokens[1:]
+    if tokens[:1] in (["help"], ["man"], ["menu"]):
+        tokens = tokens[1:]
+    if line.endswith(" "):
+        parent, prefix = tokens, ""
+    else:
+        parent, prefix = tokens[:-1], tokens[-1] if tokens else ""
+    node = next((row for row in catalog if row["path"] == parent), None)
+    return [name for name in (node["children"] if node else []) if name.startswith(prefix)]
+
+
+def run_shell(default_args: list[str] | None = None) -> int:
+    from mailroom_sandbox import cli
+
+    if not sys.stdin.isatty():
+        raise cli.CLIUsageError("tui requires an interactive terminal; use sandbox --help in scripts")
+    parser = cli.build_parser()
+    catalog = command_catalog(parser)
+    try:
+        import readline
+    except ImportError:
+        readline = None
+    old_completer = readline.get_completer() if readline else None
+    if readline:
+        def complete(text, state):
+            matches = completions(readline.get_line_buffer(), catalog)
+            return matches[state] if state < len(matches) else None
+        readline.set_completer(complete)
+        readline.parse_and_bind("bind ^I rl_complete" if "libedit" in (readline.__doc__ or "") else "tab: complete")
+        readline.set_auto_history(False)
+    history: list[str] = []
+    menu: list[str] | None = None
+    print("THE MAILROOM · local command terminal\nTab completes · ↑/↓ history · Ctrl+C interrupt · Ctrl+D exit\nmenu [command] · help [command] · history · clear · exit\nExisting CLI spend/initials gates still apply. No persistent command history.")
+    try:
+        while True:
+            try:
+                line = input("mailroom> ").strip()
+                if not line:
+                    continue
+                argv = shlex.split(line)
+                if argv[:1] == ["sandbox"]:
+                    argv = argv[1:]
+                if not argv:
+                    continue
+                if argv[0] in {"exit", "quit"}:
+                    return 0
+                if argv == ["clear"]:
+                    print("\033[2J\033[H", end="")
+                    continue
+                if argv == ["history"]:
+                    print("\n".join(history))
+                    continue
+                # Never retain pasted credentials, even in this process's history;
+                # bare menu navigation (numbers, back) is not worth recalling either.
+                sensitive = any(word in line.lower() for word in ("token", "secret", "api-key", "sk-or-", "hf_"))
+                navigation = argv == ["back"] or (len(argv) == 1 and argv[0].lstrip("-").isdigit())
+                if not sensitive and not navigation:
+                    history.append(line)
+                    if readline:
+                        readline.add_history(line)
+                if argv == ["back"]:
+                    if menu is None:
+                        print("error: no open menu · type menu to browse commands")
+                        continue
+                    if not menu:
+                        print("Already at the top menu · select a number or type a command")
+                        continue
+                    argv = ["menu", *menu[:-1]]
+                elif len(argv) == 1 and argv[0].lstrip("-").isdigit():
+                    node = next((row for row in catalog if row["path"] == menu), None) if menu is not None else None
+                    if node is None:
+                        print("error: no open menu · type menu to browse commands")
+                        continue
+                    index = int(argv[0]) - 1
+                    if node.get("targets"):
+                        if not 0 <= index < len(node["targets"]):
+                            print(f"error: select 1-{len(node['targets'])} from the menu")  # nosec B608 - menu text, not SQL
+                            continue
+                        command = node["targets"][index][1] + " "
+                        if readline:
+                            # Prefill the next prompt; nothing runs until Enter.
+                            readline.set_startup_hook(lambda text=command: (readline.insert_text(text), readline.set_startup_hook(None)))
+                        else:
+                            print(f"type: {command.strip()} [--mock]")
+                        continue
+                    if not node["children"]:
+                        print(f"error: {' '.join(['sandbox', *menu])} has no subcommands · back, or type the command with options")
+                        continue
+                    if not 0 <= index < len(node["children"]):
+                        print(f"error: select 1-{len(node['children'])} from the menu")  # nosec B608 - menu text, not SQL
+                        continue
+                    argv = ["menu", *menu, node["children"][index]]
+                if argv[0] == "menu":
+                    path = argv[1:]
+                    node = next((row for row in catalog if row["path"] == path), None)
+                    if node is None:
+                        print(unknown_path(path, catalog) or "error: unknown command path")
+                        continue
+                    menu = path
+                    print(render_menu(node))
+                    continue
+                menu = None
+                if argv[0] in {"help", "man"}:
+                    problem = unknown_path(argv[1:], catalog)
+                    if problem:
+                        print(problem)
+                        continue
+                    argv = [*argv[1:], "--help"]
+                if argv[0] == "tui":
+                    print("Already in the Mailroom terminal.")
+                    continue
+                try:
+                    rc = cli.main([*(default_args or []), *argv])
+                except SystemExit as exc:
+                    rc = exc.code
+                if rc:
+                    print(f"command exited {rc}")
+            except EOFError:
+                print()
+                return 0
+            except KeyboardInterrupt:
+                print("\nInterrupted · back at the prompt")
+            except (ValueError, OSError) as exc:
+                print(f"error: {exc}")
+    finally:
+        if readline:
+            readline.set_completer(old_completer)
+            readline.set_auto_history(True)
+
+
+OPERATOR_CSS = """
+.operator { margin: 16px 0; border: 1px solid var(--cyan); border-radius: 6px; background: #050f1a; }
+.operator h2 { padding: 10px; margin: 0; color: var(--gold); font-size: 14px; border-bottom: 1px solid #294051; }
+.operator .tools, .operator form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 10px; }
+.operator input, .operator select, .operator button { font: inherit; color: var(--snow); background: #071a2e; border: 1px solid var(--cyan); padding: 8px; border-radius: 3px; max-width: 100%; }
+.operator input { flex: 1; min-width: 140px; }
+.operator pre { white-space: pre-wrap; overflow-wrap: anywhere; height: min(52vh, 560px); overflow: auto; padding: 16px; margin: 0; line-height: 1.6; }
+.operator .hint { padding: 0 10px 10px; color: #b6c8d8; font-size: 11px; }
+"""
+
+OPERATOR_HTML = """
+<section class="operator" data-view="terminal" id="view-terminal" role="tabpanel" aria-labelledby="tab-terminal" hidden>
+  <h2 id="terminal-heading">Command terminal</h2>
+  <div class="tools"><button type="button" id="command-back">← Parent</button>
+    <label>Command <select id="command-menu" aria-label="Nested CLI commands"></select></label>
+    <span id="command-path">sandbox</span></div>
+  <pre id="command-output" tabindex="0" aria-label="Command output">Loading command catalog…</pre>
+  <form id="command-form"><label for="command-input">mailroom&gt;</label>
+    <input id="command-input" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="help · status · config · campaign" aria-describedby="command-hint">
+    <button type="submit">Enter</button></form>
+  <div class="hint" id="command-hint">Tab completes · ↑/↓ history · Ctrl+L clears · Escape resets. Browser commands inspect live state and CLI manuals. Execute full commands locally with <code>sandbox tui</code>; no paid actions run from this page.</div>
+</section>
+"""
+
+OPERATOR_JS = r"""
+let operatorState = {};
+let commandCatalog = [];
+let commandPath = [];
+const commandHistory = [];
+let historyIndex = 0;
+const commandOutput = document.getElementById("command-output");
+const commandInput = document.getElementById("command-input");
+function commandPrint(text) {
+  commandOutput.textContent = (commandOutput.textContent + "\n" + text).slice(-24000);
+  commandOutput.scrollTop = commandOutput.scrollHeight;
+}
+function commandNode(path) { return commandCatalog.find(row => JSON.stringify(row.path) === JSON.stringify(path)); }
+function menuText(node) {
+  const path = ["sandbox", ...node.path].join(" ");
+  if ((node.targets || []).length) {
+    const width = Math.max(...node.targets.map(t => t[0].length));
+    return [path, ...node.targets.map(([label, command], i) => `${String(i + 1).padStart(String(node.targets.length).length)}. ${label.padEnd(width)}  ${command}`),
+      "Choose a target from the selector to put its command on the input"].join("\n");
+  }
+  if (!node.children.length) return `${path}  (leaf command)\n${node.usage || ""}\nRun locally: ${path} <options> · help ${node.path.join(" ")} for the manual`;
+  const width = Math.max(...node.children.map(name => name.length));
+  return [path, ...node.children.map((name, i) => `${String(i + 1).padStart(String(node.children.length).length)}. ${name.padEnd(width)}  ${(node.summaries || {})[name] || ""}`.trimEnd()),
+    "Choose from the selector · help <command> for a manual"].join("\n");
+}
+function unknownPath(words) {
+  let node = commandCatalog[0], known = [];
+  for (const word of words) {
+    if (word.startsWith("-")) return null;
+    if (!node.children.includes(word)) {
+      const close = node.children.filter(name => name.startsWith(word.slice(0, 2))).slice(0, 3);
+      return `Unknown command '${[...known, word].join(" ")}'` + (close.length ? ` · did you mean ${close.join(", ")}?` : " · type menu to browse");
+    }
+    known.push(word); node = commandNode(known);
+    if (!node.children.length) return null;
+  }
+  return null;
+}
+function commandMenu(path, { manual = false } = {}) {
+  const node = commandNode(path);
+  if (!node) { commandPrint(unknownPath(path) || "Unknown command path. Type menu."); return; }
+  commandPath = path;
+  document.getElementById("command-path").textContent = "sandbox " + path.join(" ");
+  const menu = document.getElementById("command-menu");
+  const targets = node.targets || [];
+  menu.replaceChildren(new Option(targets.length ? "Choose target…" : node.children.length ? "Choose subcommand…" : "Leaf command", ""));
+  for (const child of node.children) menu.add(new Option(child, child));
+  targets.forEach(([label], i) => menu.add(new Option(label, "#" + i)));
+  menu.disabled = !node.children.length && !targets.length;
+  commandPrint(manual ? node.help : menuText(node));
+}
+document.getElementById("command-menu").addEventListener("change", ev => {
+  const value = ev.target.value;
+  if (value.startsWith("#")) {
+    const [label, command] = commandNode(commandPath).targets[Number(value.slice(1))];
+    commandInput.value = command + " --mock";
+    commandPrint(`${label}: run locally with  sandbox ${command} [--mock | --local]`);
+    commandInput.focus(); ev.target.value = "";
+  } else if (value) commandMenu([...commandPath, value]);
+});
+document.getElementById("command-back").addEventListener("click", () => commandMenu(commandPath.slice(0, -1)));
+function commandRun(line) {
+  const words = line.trim().split(/\s+/).filter(Boolean);
+  if (words[0] === "sandbox") words.shift();
+  const name = words[0] || "help";
+  if (/(?:token|secret|api.key|sk-or-|hf_)/i.test(line)) {
+    commandPrint("Credentials are not accepted in the browser terminal. Configure them in your local environment.");
+    return;
+  }
+  if (name === "clear") { commandOutput.textContent = ""; return; }
+  commandPrint("mailroom> " + line);
+  if (name === "history") { commandPrint(commandHistory.join("\n")); return; }
+  commandHistory.push(line); if (commandHistory.length > 100) commandHistory.shift();
+  historyIndex = commandHistory.length;
+  const live = {status: operatorState.snapshot, config: operatorState.layout?.configuration,
+    campaign: operatorState.campaign, services: operatorState.services, logs: operatorState.logs};
+  if (Object.hasOwn(live, name)) {
+    commandPrint(live[name] == null ? "Not available for the current run." : JSON.stringify(live[name], null, 2)); return;
+  }
+  if (["help", "man", "menu"].includes(name)) {
+    if (words.length === 1 && name !== "menu") commandPrint("Live inspection: status · config · campaign · services · logs\nShell: menu [command] · help/man [command] · history · clear");
+    commandMenu(words.slice(1), { manual: name !== "menu" }); return;
+  }
+  const path = words.filter(word => word !== "--help" && word !== "-h");
+  if (commandNode(path)) { commandMenu(path, { manual: words.includes("--help") || words.includes("-h") }); commandPrint("Run locally: sandbox " + path.join(" ")); return; }
+  const problem = unknownPath(path);
+  if (problem) { commandPrint(problem); return; }
+  commandPrint("Not a browser inspection command. Use help [command path], or execute with sandbox tui locally.");
+}
+document.getElementById("command-form").addEventListener("submit", ev => {
+  ev.preventDefault(); const line = commandInput.value; commandInput.value = ""; commandRun(line);
+});
+commandInput.addEventListener("keydown", ev => {
+  if (ev.key === "Tab") {
+    ev.preventDefault();
+    const words = commandInput.value.trimStart().split(/\s+/);
+    const prefix = words.pop() || "";
+    if (["sandbox", "help", "man", "menu"].includes(words[0])) words.shift();
+    const local = words.length ? [] : ["help", "man", "menu", "status", "config", "campaign", "services", "logs", "history", "clear"];
+    const matches = [...new Set([...local, ...(commandNode(words)?.children || [])])].filter(name => name.startsWith(prefix));
+    if (matches.length === 1) commandInput.value = commandInput.value.slice(0, commandInput.value.length - prefix.length) + matches[0] + " ";
+    else commandPrint(matches.join("  ") || "No matching commands");
+  } else if (ev.key === "ArrowUp" || ev.key === "ArrowDown") {
+    ev.preventDefault(); historyIndex = Math.max(0, Math.min(commandHistory.length, historyIndex + (ev.key === "ArrowUp" ? -1 : 1)));
+    commandInput.value = commandHistory[historyIndex] || "";
+  } else if (ev.key === "Escape") { commandInput.value = ""; }
+  else if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "l") { ev.preventDefault(); commandOutput.textContent = ""; }
+});
+fetch("/api/commands", {cache: "no-store"}).then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+  .then(rows => { commandCatalog = rows; commandMenu([]); commandOutput.textContent = "THE MAILROOM · operator terminal\n\nLive commands    status · config · campaign · services · logs\nCLI navigation   help · man <command> · menu <command>\n\nChoose a command above or type help to begin.\nFull CLI execution: sandbox tui in your local terminal."; })
+  .catch(err => { commandOutput.textContent = "Command catalog unavailable: " + err.message; });
+"""
