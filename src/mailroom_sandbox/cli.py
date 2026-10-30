@@ -2989,10 +2989,8 @@ def _cmd_modal_matrix_help(args) -> int:
 
 
 def _cmd_modal_matrix_list(args) -> int:
-    """List the Modal vLLM matrix models (table, or JSON with --json); the default specialist posture is starred.
-
-    """
-    from mailroom_sandbox.modal_matrix import list_modal_models
+    """List the Modal vLLM matrix models (table, or JSON with --json); the app default is starred."""
+    from mailroom_sandbox.modal_matrix import DEFAULT_MODAL_MODEL, list_modal_models
 
     rows = list_modal_models()
     if getattr(args, "json", False):
@@ -3007,7 +3005,10 @@ def _cmd_modal_matrix_list(args) -> int:
                 f"{str(row.get('max_model_len') or '-'):6} "
                 f"{str(row.get('tp_size') or 1):3} {row['model']}"
             )
-        print("\n* = default specialist cost-eval posture (sandbox runbook show l4-qwen3-8b)")
+        print(
+            f"\n* = app default {DEFAULT_MODAL_MODEL}; the frozen specialist cost-eval posture is "
+            "Qwen/Qwen3-8B (sandbox runbook show l4-qwen3-8b)"
+        )
     return 0
 
 
