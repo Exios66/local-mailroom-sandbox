@@ -215,3 +215,40 @@ def test_workspace_keybindings_and_replay_strip(tmp_path):
         session.stop()
         server.shutdown()
         server.server_close()
+
+
+@pytest.mark.parametrize("width", [375, 1280])
+def test_pipeline_floor_renders_routes_and_decisions(tmp_path, width):
+    if os.environ.get("SANDBOX_BROWSER_TESTS") != "1":
+        pytest.skip("SANDBOX_BROWSER_TESTS not set")
+    pw = pytest.importorskip("playwright.sync_api")
+    from mailroom_sandbox.watch import LogBuffer
+
+    demo = DemoRun(tmp_path, n_docs=4, pipeline=True)
+    for tick in range(10):
+        demo.step(LogBuffer(None), tick=tick)
+    session = web.WatchWebSession(resolve=demo.resolve, ledger=demo.ledger,
+        cap_usd=5, times_dir=demo.times_dir, serving_dir=demo.serving_dir,
+        interval=0.1, follow_logs=False)
+    session.refresh()
+    server = ThreadingHTTPServer(("127.0.0.1", 0), web.make_handler(session))
+    Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        with pw.sync_playwright() as p:
+            browser = p.chromium.launch(executable_path=os.environ.get("SANDBOX_BROWSER_EXECUTABLE"))
+            page = browser.new_page(viewport={"width": width, "height": 900}, reduced_motion="reduce")
+            errors = []
+            page.on("pageerror", lambda error: errors.append(str(error)))
+            page.goto(f"http://127.0.0.1:{server.server_port}")
+            page.wait_for_selector("#floor:not([hidden]) .hop.done")
+            text = page.locator("#floor").inner_text()
+            assert "now · document DOC-demo-00-003" in text and "previous · document DOC-demo-00-002" in text
+            assert "doc_type → insurance_claim · p 0.89 (choice)" in text
+            assert page.get_by_role("listitem", name="intake: in flight").count() == 1
+            assert not page.evaluate("document.documentElement.scrollWidth > window.innerWidth")
+            assert not errors
+            browser.close()
+    finally:
+        session.stop()
+        server.shutdown()
+        server.server_close()

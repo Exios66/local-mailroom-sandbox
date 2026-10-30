@@ -86,6 +86,7 @@ _LIFECYCLE_ROLE = {
 # phases with a pulsing lifecycle animation (terminal blink + browser pulse)
 ANIMATED_PHASES = ("DEPLOYING", "COLD BOOT", "PREFLIGHT", "REMOTE", "SORTING")
 TIMELINE_MAX = 400
+PIPELINE_DOCS = 3  # recent documents carried in the frame's node view
 
 
 # log class -> mailroom-ml palette role
@@ -424,6 +425,7 @@ def render_frame(
     layout: dict[str, Any] | None = None,
     watchdog: Mapping[str, Any] | None = None,
     log_rows: int = 14,
+    pipeline: Mapping[str, Any] | None = None,
 ) -> str:
     width = max(60, min(int(width), pl.MAX_W))
     p = pl.palette(on)
@@ -469,6 +471,10 @@ def render_frame(
         out.append(pl._box(title, route, width=width, on=on))
     elif job_route:
         out.append(pl._box("JOB · run manifest", job_route, width=width, on=on))
+
+    if pipeline:
+        out.append(pl._box("PIPELINE FLOOR",
+                           pipeline_lines(pipeline, width=width - 4, on=on), width=width, on=on))
 
     wide = width >= 100
     box_w = (width - 2) // 2 if wide else width
@@ -538,6 +544,45 @@ def render_frame(
     dispatch_title = panels.get("dispatch") or f"DISPATCH LOG · modal app logs {app}"
     out.append(pl._box(dispatch_title, log, width=width, on=on))
     return "\n".join(out)
+
+
+_HOP_ROLE = {"done": "teal", "error": "warn", "running": "gold", "paused": "cyan"}
+
+
+def _node_total(t: Mapping[str, Any]) -> str:
+    text = f"{t['node']} {t['visits']}×"
+    if t.get("errors"):
+        text += f" {t['errors']}✗"
+    if t.get("mean_ms") is not None:
+        text += f" {t['mean_ms']:.0f}ms"
+    return text
+
+
+def pipeline_lines(pipeline: Mapping[str, Any], *, width: int = 96, on: bool = False) -> list[str]:
+    """The current document's node route, its decisions, and per-node totals."""
+    from mailroom_sandbox.job import node_trace
+
+    p = pl.palette(on)
+    lines: list[str] = []
+    # Newest document first; the one before it shows its whole route and decisions.
+    for label, doc in zip(("now", "previous"), reversed((pipeline.get("recent") or [pipeline["current"]])[-2:])):
+        route = doc["route"]
+        lines.append(f"{label} · {doc['doc']}: {node_trace.route_text(route)}"[:width])
+        for hop in route:
+            who = " · ".join(str(b) for b in (hop.get("agent"), hop.get("model")) if b)
+            for d in hop.get("decisions") or []:
+                text = f"  {hop['node']}: {node_trace.decision_text(d)}" + (f"  ({who})" if who else "")
+                lines.append(text[:width])
+            if hop.get("status") in ("running", "error"):
+                role = _HOP_ROLE[hop["status"]]
+                text = f"  {hop['node']}: {'in flight' if hop['status'] == 'running' else hop.get('error') or 'failed'}"
+                text += f"  ({who})" if who else ""
+                lines.append(p[role](text[:width]) if on else text[:width])
+    totals = " · ".join(_node_total(t) for t in pipeline.get("nodes") or [])
+    if totals:
+        lines.append((p["dim"](f"{pipeline['docs_seen']} docs · {totals}"[:width]) if on
+                      else f"{pipeline['docs_seen']} docs · {totals}"[:width]))
+    return lines
 
 
 RECONNECT_NOTE = "… waiting for app (stopped between runs or booting) — will attach when it is live"
@@ -670,6 +715,7 @@ def compose_watch_state(
     campaign_path: Path | None = None,
 ) -> dict[str, Any]:
     """JSON-serializable Tray TUI snapshot (terminal + browser)."""
+    from mailroom_sandbox.job import node_trace
     from mailroom_sandbox.tui import tray_context as tc
 
     snap = run_snapshot(store)
@@ -806,6 +852,8 @@ def compose_watch_state(
         # Per-document outcome in store order (True delivered, False returned) for
         # the browser's document timeline; capped so a 1000-doc run stays a small frame.
         "timeline": [item.get("ok", True) is not False for item in items][-TIMELINE_MAX:],
+        # SAND-076: live graph-node route of the newest pipeline documents.
+        "pipeline": node_trace.summarize(store.nodes(), docs=PIPELINE_DOCS),
     }
 
 
@@ -851,7 +899,7 @@ def log_rows_for(rows: int) -> int:
 
 def _store_sig(store: RunStore) -> tuple:
     sig = []
-    for path in (store.checkpoint_path, store.dir / "items.jsonl", store.dir / "events.jsonl"):
+    for path in (store.checkpoint_path, store.dir / "items.jsonl", store.dir / "events.jsonl", store.nodes_path):
         try:
             st = path.stat()
             sig.append((st.st_mtime_ns, st.st_size))
@@ -974,6 +1022,7 @@ def watch(
                 layout=state.get("layout"),
                 watchdog=state.get("watchdog"),
                 log_rows=rows,
+                pipeline=state.get("pipeline"),
             )
             if once:
                 sys.stdout.write(frame + "\n")

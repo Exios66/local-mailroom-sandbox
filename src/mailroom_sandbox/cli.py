@@ -658,6 +658,8 @@ def build_parser() -> argparse.ArgumentParser:
     dev_p.add_argument("--port", type=_port, default=None, help="port (default 8765; 0 = ephemeral)")
     dev_p.add_argument("--interval", type=_positive_float, default=1.0, help="seconds per demo tick")
     dev_p.add_argument("--no-browser", action="store_true", help="do not open a browser tab")
+    dev_p.add_argument("--pipeline", action="store_true",
+                       help="synthetic full-pipeline run: live per-node route and decisions")
     dev_p.set_defaults(handler=_cmd_dev)
 
     board_p = sub.add_parser(
@@ -2733,7 +2735,7 @@ def _serve_demo(args) -> int:
     from mailroom_sandbox.tui.demo import DemoRun
 
     root = Path(tempfile.mkdtemp(prefix="mailroom-watch-demo-"))
-    demo = DemoRun(root)
+    demo = DemoRun(root, pipeline=bool(getattr(args, "pipeline", False)))
     return web_mod.serve_watch_web(
         resolve=demo.resolve,
         ledger=demo.ledger,

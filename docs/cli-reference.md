@@ -1083,6 +1083,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--port` | No | port (default 8765; 0 = ephemeral) |
 | `--interval` | No | seconds per demo tick |
 | `--no-browser` | No | do not open a browser tab |
+| `--pipeline` | No | synthetic full-pipeline run: live per-node route and decisions |
 
 ### `sandbox board`
 

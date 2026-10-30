@@ -4,6 +4,8 @@
 
 ### Added
 
+- **SAND-076 — live pipeline floor.** `task: pipeline` runs record each graph node a document enters, as it starts and ends, in `nodes.jsonl`. They use a LangChain configure hook, so no vendored code changes. `sandbox watch` (terminal) and `watch --web` show the newest document's route and the previous document's full route, with latency, routed agent and model, and per-node totals. Decision nodes record typed decisions (`noul` / `choice` / `score`) that match the incoming Decisions-API model (`openai/gpt-6-luna-decisions`, Discussion #193). A native `decisions` list passes through validated. `sandbox dev --pipeline` demos it.
+
 - `sandbox eval` has two primary tasks with two levels: `specialist [TARGET]` (all five
   live-class specialists, or one) and `pipeline [--class C]` (the full connected graph,
   every class or one). Run YAMLs take an optional `target`; `run --target` narrows it.

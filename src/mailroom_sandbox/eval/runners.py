@@ -915,6 +915,7 @@ def run_pipeline_eval(
     rows: list[dict[str, Any]] | None = None,
     row_cb=None,
     progress_cb=None,
+    node_cb=None,
     max_wall_seconds: int | None = None,
     cost_cap_usd: float | None = None,
     gpu: str | None = None,
@@ -954,7 +955,15 @@ def run_pipeline_eval(
                 if float(estimate_gpu_cost_usd(elapsed, gpu=gpu or "L4", replicas=replicas) or 0) >= cost_cap_usd:
                     raise RuntimeError("pipeline estimated GPU cost cap exceeded before next document")
         before = time.monotonic()
-        result = _run_pipeline_doc(row, mock=mock, session_id=session, experiment_name=experiment_name)
+        with ExitStack() as nodes:
+            if node_cb is not None:
+                # SAND-076: report each graph node as it starts and ends.
+                from mailroom_sandbox.job.node_trace import track_nodes
+
+                models = {agent: model for agent, _provider, model in activation.assignments}
+                models.update(activation.agent_models)
+                nodes.enter_context(track_nodes(str(row.get("id")), node_cb, models=models))
+            result = _run_pipeline_doc(row, mock=mock, session_id=session, experiment_name=experiment_name)
         results.append(result)
         if row_cb:
             row_cb({"id": row.get("id"), "pred": result, "error": result.get("error"),

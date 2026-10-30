@@ -303,7 +303,7 @@ def _run_whole_run(
             result = eval_runners.run_pipeline_eval(
                 connected=True, rows=locked_rows,
                 row_cb=lambda entry: _persist_isolated_items(store, [entry]),
-                progress_cb=_progress, max_wall_seconds=max_wall,
+                progress_cb=_progress, node_cb=store.append_node, max_wall_seconds=max_wall,
                 cost_cap_usd=cost_cap, gpu=gpu, replicas=replicas, **kwargs)
         elif task == "extract":
             result = eval_runners.run_extract_eval(rows=locked_rows, **kwargs)
