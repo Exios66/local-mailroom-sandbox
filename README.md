@@ -413,7 +413,6 @@ The sandbox drives the vendored family code through these open-source projects.
 
 </div>
 
-
 ### Reviewed dependency refreshes (DMR-111)
 
 The tracked snapshots contain pipeline 0.8.1 and Dojo 0.24.0 from the exact
