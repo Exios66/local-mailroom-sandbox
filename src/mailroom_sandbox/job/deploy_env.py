@@ -14,7 +14,10 @@ from typing import Mapping
 
 from mailroom_sandbox.job.runbooks import _shell_quote
 from mailroom_sandbox.job.specialist_posture import sand42_cell_label
-from mailroom_sandbox.job.spec import RunSpec
+from mailroom_sandbox.job.spec import MODEL_SERVE_DEFAULTS, RunSpec
+
+# deploy/modal_vllm.py maps this to no --quantization flag.
+BF16_QUANTIZATION = "none"
 
 
 _DEPLOY_DEFAULT_KEYS = (
@@ -40,6 +43,14 @@ def _b(value: bool) -> str:
     return "1" if value else "0"
 
 
+def _quantization(spec: RunSpec) -> str:
+    """An explicit bf16 ("") on a model with a quantized serve default must not read as unset."""
+    quant = spec.engine.vllm.quantization
+    if not quant and MODEL_SERVE_DEFAULTS.get(spec.engine.model, {}).get("quantization"):
+        return BF16_QUANTIZATION
+    return quant
+
+
 def spec_env(spec: RunSpec) -> dict[str, str]:
     """Every deploy knob the spec pins, as the exact env string modal_vllm reads."""
     v = spec.engine.vllm
@@ -52,7 +63,7 @@ def spec_env(spec: RunSpec) -> dict[str, str]:
         "MODAL_VLLM_MAX_NUM_SEQS": str(v.max_num_seqs),
         "MODAL_VLLM_ENABLE_PREFIX_CACHING": _b(v.enable_prefix_caching),
         "MODAL_VLLM_ENFORCE_EAGER": _b(v.enforce_eager),
-        "MODAL_VLLM_QUANTIZATION": v.quantization,
+        "MODAL_VLLM_QUANTIZATION": _quantization(spec),
         "MODAL_VLLM_REVISION": v.revision,
         "MODAL_VLLM_KV_CACHE_DTYPE": v.kv_cache_dtype,
         "MODAL_VLLM_DEFAULT_CHAT_TEMPLATE_KWARGS": kwargs,

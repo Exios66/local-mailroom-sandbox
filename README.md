@@ -191,8 +191,10 @@ document enters in `nodes.jsonl` (SAND-076), so `sandbox watch` and
 ## 🎚️ Model tiers
 
 The judge and the five specialists are the critical roles, so the sandbox can
-give them a stronger model than the base agents. Every tier has the same
-weights on Modal and on OpenRouter, so the two serving paths stay comparable.
+give them a stronger model than the base agents. The base and specialist tiers
+use the same weights on Modal and on OpenRouter, so those comparisons isolate
+serving. The judge does not: OpenRouter runs keep the DeepSeek judge, so a judge
+score compares different models.
 `config/models.yaml` (`openrouter_preference`, `critical_tier`) defines them.
 
 | Role | Modal + vLLM | OpenRouter | Extra Modal GPU |
@@ -402,8 +404,9 @@ Not silently. The default profile is `modal-vllm`: its container scales to zero
 after 120s idle, and the runbook tears the app down when the last eval finishes,
 so you pay only for warm GPU-minutes on your own Modal account (L4 ≈ $0.80/hr).
 A Modal pipeline experiment also deploys the judge's L40S app (≈ $1.95/hr), and
-`--specialist-tier mid` adds an `L4:2` app; the cost estimate counts each one,
-and `sandbox experiment launch` asks for your initials before it spends.
+`--specialist-tier mid` adds an `L4:2` app. Each run's cost cap prices every
+app it keeps warm, and `sandbox experiment launch` asks for your initials
+before it spends.
 The offline opt-out (`--profile ollama`) costs nothing; OpenRouter is opt-in,
 and the `api-evals/` harness is the real-spend API path, kept outside the package.
 
