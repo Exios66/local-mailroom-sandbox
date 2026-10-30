@@ -96,7 +96,7 @@ modal run deploy/modal_vllm.py --check
 
 | Env | Default | Notes |
 | --- | --- | --- |
-| `MODAL_VLLM_MODEL` | `Qwen/Qwen3-8B` | HF repo id |
+| `MODAL_VLLM_MODEL` | `Qwen/Qwen3.5-9B` | HF repo id (SAND-077). Qwen3.5 rows get fp8 and text-only `--limit-mm-per-prompt` from `MODEL_SERVE_DEFAULTS` |
 | `MODAL_VLLM_GPU` | `L4` | 24 GB VRAM |
 | `MODAL_VLLM_MAX_MODEL_LEN` | `16384` | context cap (KV-cache budget). DMR-056: v0.29.0 RAISES at boot when the pool can't hold one request — L4-bf16 8B rows cap at 16384; AWQ/FP8 rows set 32768 |
 | `MODAL_VLLM_GPU_MEMORY_UTILIZATION` | `0.90` | fraction of GPU memory; vLLM's default is `0.92` |
@@ -105,7 +105,7 @@ modal run deploy/modal_vllm.py --check
 | `MODAL_VLLM_ENFORCE_EAGER` | `1` | skip CUDA-graph capture for faster cold boot (`--enforce-eager`; set `0` for graphs / higher steady-state tok/s) |
 | `MODAL_VLLM_ATTENTION_BACKEND` | empty | `flashinfer` for throughput runs (Modal vllm_throughput exemplar); empty = vLLM engine default (parity + reproducible posture) |
 | `MODAL_VLLM_ASYNC_SCHEDULING` | empty | `1`/`true` enables the async batch scheduler (exemplar throughput knob). Not every vLLM feature is supported under it — keep off when a run depends on structured outputs |
-| `MODAL_VLLM_QUANTIZATION` | empty | `awq` / `gptq` / … |
+| `MODAL_VLLM_QUANTIZATION` | the row default (`fp8` for Qwen3.5 rows, else empty) | `awq` / `gptq` / `fp8` / …; any set value, even empty, overrides the row default |
 | `MODAL_VLLM_TP_SIZE` | from GPU suffix | tensor-parallel size; default derived from `:N` in `MODAL_VLLM_GPU` (1 for single GPU). **Only** for models that won't fit one GPU (70B-class). For a second L4 on 8B, raise `MAX_CONTAINERS` instead |
 | `MODAL_VLLM_IMAGE_TAG` | `v0.29.0` | pin; tag or `@sha256:` digest |
 | `MODAL_VLLM_REVISION` | empty | HF revision (recommended for runs; travels via the deploy Secret) |

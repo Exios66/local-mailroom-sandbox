@@ -73,6 +73,7 @@
 
 ### Changed
 
+- The local `vllm` compose service and the `vllm-local` profile's `pull-models` hint now serve and name `Qwen/Qwen3.5-9B`, the profile's own default (bf16; compose has no quantization knob). Before this, a `vllm-local` run asked a Qwen3-8B server for Qwen3.5-9B. README, Quickstart, providers, deploy and remote-serving docs cover the SAND-074–079 model tiers, primary eval tasks and live pipeline view.
 - Vendored llm-mailroom pin moves to `main` HEAD `175e6711` (snapshot bytes unchanged;
   the intervening commit is README-only). llm-dojo-scoring stays on `main` HEAD
   `718e326c` (0.24.2 plus the DMR-113 zero-token fix), the newest Dojo source.

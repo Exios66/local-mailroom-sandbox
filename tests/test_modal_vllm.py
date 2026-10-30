@@ -557,7 +557,7 @@ class TestComposeParity:
 
     def test_command_parity(self):
         cmd = self._vllm_service()["command"]
-        assert cmd[0] == "${VLLM_MODEL:-Qwen/Qwen3-8B}"
+        assert cmd[0] == f"${{VLLM_MODEL:-{_load_app_module().DEFAULT_MODEL}}}"
         assert cmd[cmd.index("--host") + 1] == "0.0.0.0"
         assert cmd[cmd.index("--port") + 1] == "8000"
         assert cmd[cmd.index("--max-model-len") + 1] == "${VLLM_MAX_MODEL_LEN:-16384}"

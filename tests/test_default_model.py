@@ -143,3 +143,18 @@ def test_specialist_tiers_match_serve_defaults_modal_rows_and_openrouter_prefere
     assert [tiers["mid"]["openrouter"], tiers["full"]["openrouter"]] == PREFERENCE[1:]
     for tier in ("mid", "full"):
         assert MODELS["map"][tiers[tier]["openrouter"]]["vllm"] == tiers[tier]["modal-vllm"]["model"]
+
+
+def test_local_vllm_compose_and_pull_hint_serve_the_profile_default(capsys):
+    # vllm-local asks the compose server for its default_model; the server and
+    # the `pull-models` hint must name the same weights, or every call 404s.
+    import yaml
+
+    from mailroom_sandbox.cli import main
+
+    compose = yaml.safe_load((repo_root() / "deploy" / "docker-compose.yml").read_text(encoding="utf-8"))
+    served = compose["services"]["vllm"]["command"][0]
+    assert served == "${VLLM_MODEL:-" + DEFAULT_ENGINE_MODEL + "}"
+    assert load_profile("vllm-local")["pull_models"] == [DEFAULT_ENGINE_MODEL]
+    assert main(["pull-models", "--profile", "vllm-local"]) == 0
+    assert f"First boot downloads {DEFAULT_ENGINE_MODEL} " in capsys.readouterr().out
