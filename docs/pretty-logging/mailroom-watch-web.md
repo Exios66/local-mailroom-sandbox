@@ -108,7 +108,7 @@ The `COLD BOOT` detail is derived from Modal log markers (`watch.py::BOOT_MARKER
 
 | Aesthetic | Screenshot | What to notice |
 |---|---|---|
-| Postage over-gate warning | ![Postage panel with over-gate warning](../assets/watch/over-gate.svg) | Gold `OVER $4.50 GATE` row when `total > GATE_USD`; the gate is `job.cost_cap_usd` when the lock sets one, otherwise the default estimate gate (captures predate the relabel). |
+| Postage over-gate warning | ![Postage panel with over-gate warning](../assets/watch/over-gate.svg) | Gold `OVER $4.50 GATE` row when `total` exceeds `spend.gate_usd`, the configured estimate gate: `job.cost_cap_usd` when the lock sets one, otherwise the `$4.50` default. Both the terminal and the browser label it "configured estimate gate" (these captures predate the relabel). |
 | Blink frame — owl `(-,-)` | ![Sorting frame with blinking owl](../assets/watch/blink-owl.svg) | Same SORTING frame with `blink=True`: the owl blinks every 7th second (`blink=int(time.time())%7==0`). Compare with the open `(o,o)` owl above. |
 | Dispatch log — every role | ![Dispatch log with every colour role](../assets/watch/dispatch-roles.svg) | One line per `classify_log_line` role: error, warn, throughput, kv, ready, plain, plus the reconnect note (`RECONNECT_NOTE`) shown when the app is stopped between runs. |
 | Color vs plain, wide vs narrow | Compare `sorting-wide-color` with `queued-narrow-plain` | Color on: amber owl + blue-teal double frame + truecolor wordmark (`pl.palette(True)`). Plain (`NO_COLOR` / `SANDBOX_PLAIN_LOGS=1` / non-TTY): same layout, no ANSI. Wide `>=100` cols: in-tray + postage side by side. Narrow `<90` cols: stacked panels + compact stacked hero (`_wordmark_lines(compact=width<90)`). |
