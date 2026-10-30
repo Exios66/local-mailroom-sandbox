@@ -663,7 +663,7 @@ function renderFloor(pipe) {{
   if (!pipe) return;
   // Newest document first; the one before it shows its whole route and decisions.
   const docs = (pipe.recent || []).slice(-2).reverse();
-  document.getElementById("floor-doc").textContent = `${{pipe.docs_seen}} documents in view`;
+  document.getElementById("floor-doc").textContent = `${{pipe.docs_seen}} documents seen`;
   document.getElementById("floor-docs").innerHTML = docs.map((d, i) => {{
     const label = i === 0 ? "now" : "previous";
     return `<div class="floor-doc"><h3>${{label}} · document ${{esc(d.doc)}}</h3><ol class="hops">${{d.route.map(hopRow).join("")}}</ol></div>`;

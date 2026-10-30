@@ -31,11 +31,15 @@ import threading
 import time
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import Any, Callable, Iterator
+from typing import Any, Callable, Iterable, Iterator
 from uuid import UUID
 
-from langchain_core.callbacks import BaseCallbackHandler
-from langchain_core.tracers.context import register_configure_hook
+try:
+    from langchain_core.callbacks import BaseCallbackHandler
+    from langchain_core.tracers.context import register_configure_hook
+except ImportError:
+    BaseCallbackHandler = object
+    register_configure_hook = None
 
 DECISION_TYPES = ("noul", "choice", "score")
 MAX_DECISIONS = 200  # one Decisions request carries at most 200 questions
@@ -190,13 +194,16 @@ class NodeTracker(BaseCallbackHandler):
 
 
 _TRACKER: ContextVar[NodeTracker | None] = ContextVar("sandbox_node_tracker", default=None)
-register_configure_hook(_TRACKER, inheritable=True)
+if register_configure_hook is not None:
+    register_configure_hook(_TRACKER, inheritable=True)
 
 
 @contextmanager
 def track_nodes(doc_id: str, sink: Callable[[dict[str, Any]], None], *,
                 models: dict[str, str] | None = None) -> Iterator[NodeTracker]:
     """Track the graph nodes of every LangGraph run started in this context."""
+    if register_configure_hook is None:
+        raise RuntimeError("node tracking requires langchain_core and its configure hook")
     tracker = NodeTracker(doc_id, sink, models=models)
     token = _TRACKER.set(tracker)
     try:
@@ -205,14 +212,29 @@ def track_nodes(doc_id: str, sink: Callable[[dict[str, Any]], None], *,
         _TRACKER.reset(token)
 
 
-def summarize(records: list[dict[str, Any]], *, docs: int = 1) -> dict[str, Any] | None:
+def summarize(records: Iterable[dict[str, Any]], *, docs: int = 1,
+              recent_records: Iterable[dict[str, Any]] | None = None) -> dict[str, Any] | None:
     """Watch-frame view: the latest document's route plus per-node totals."""
-    if not records:
-        return None
     totals: dict[str, dict[str, Any]] = {}
+    seen: set[str] = set()
+    # When given a separate tail, aggregate the stream without retaining routes.
+    # The fallback preserves the single-iterable helper API.
+    routes_input = [] if recent_records is None else recent_records
+    for rec in records:
+        seen.add(str(rec.get("doc")))
+        if recent_records is None:
+            routes_input.append(rec)
+        if rec.get("status") != "running":
+            node = str(rec.get("node"))
+            t = totals.setdefault(node, {"node": node, "visits": 0, "errors": 0, "ms": 0.0})
+            t["visits"] += 1
+            t["errors"] += rec.get("status") == "error"
+            t["ms"] += float(rec.get("ms") or 0.0)
+    if not seen:
+        return None
     routes: dict[str, list[dict[str, Any]]] = {}
     order: list[str] = []
-    for rec in records:
+    for rec in routes_input:
         doc, node = str(rec.get("doc")), str(rec.get("node"))
         if doc not in routes:
             routes[doc] = []
@@ -231,15 +253,11 @@ def summarize(records: list[dict[str, Any]], *, docs: int = 1) -> dict[str, Any]
             route.append(hop)
         hop.update(status=rec.get("status"), ms=rec.get("ms"), decisions=rec.get("decisions") or [],
                    error=rec.get("error"))
-        t = totals.setdefault(node, {"node": node, "visits": 0, "errors": 0, "ms": 0.0})
-        t["visits"] += 1
-        t["errors"] += rec.get("status") == "error"
-        t["ms"] += float(rec.get("ms") or 0.0)
     for t in totals.values():
         t["mean_ms"] = round(t.pop("ms") / t["visits"], 1) if t["visits"] else None
     ranked = [totals[n] for n in NODE_AGENTS if n in totals]
     recent = [{"doc": d, "route": routes[d]} for d in order[-max(1, docs):]]
-    return {"current": recent[-1], "recent": recent, "nodes": ranked, "docs_seen": len(order)}
+    return {"current": recent[-1] if recent else None, "recent": recent, "nodes": ranked, "docs_seen": len(seen)}
 
 
 def route_text(route: list[dict[str, Any]]) -> str:

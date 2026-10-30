@@ -236,7 +236,10 @@ def _run_whole_run(
     # SAND-018: the isolated-agent path used to show nothing until it finished.
     # Write a running checkpoint per completed item and forward events so
     # `sandbox run status` (and --watch) track a live specialist run.
-    store.write_checkpoint(state="running", cursor=0, total=len(locked_rows or []), remote=None)
+    startup_total = len(locked_rows or [])
+    if target and task == "specialist" and locked_rows:
+        startup_total = len(primary.rows_for_class(locked_rows, target))
+    store.write_checkpoint(state="running", cursor=0, total=startup_total, remote=None)
 
     def _progress(done: int, total: int, ok: int, errors: int) -> None:
         store.write_checkpoint(state="running", cursor=done, total=total, remote=None)
