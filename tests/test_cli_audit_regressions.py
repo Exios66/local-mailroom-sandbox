@@ -1,7 +1,6 @@
 """Operator-visible defects found by the SAND-066 Terra command audit."""
 from __future__ import annotations
 
-import argparse
 
 import pytest
 

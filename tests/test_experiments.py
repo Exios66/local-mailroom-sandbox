@@ -1,13 +1,12 @@
 """Experiment design, paired data, spend gates and smoke-before-launch contracts."""
 import json
-from pathlib import Path
 
 import pytest
 import yaml
 
 from mailroom_sandbox import cli, experiments as ex
 from mailroom_sandbox.job.checkpoint import RunStore
-from mailroom_sandbox.job.spec import load_run_spec, run_dir
+from mailroom_sandbox.job.spec import run_dir
 from mailroom_sandbox.services._exec import ServiceError
 
 

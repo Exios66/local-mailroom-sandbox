@@ -10,7 +10,6 @@ from pathlib import Path
 import subprocess
 import sys
 import threading
-import types
 
 import pytest
 import yaml
@@ -19,7 +18,7 @@ from mailroom_sandbox.job import preflight, runner
 from mailroom_sandbox.job.checkpoint import RunStore
 from mailroom_sandbox.job.spec import DatasetSpec, RunSpec, run_dir
 
-from test_generation_protocol import modal_fs
+from test_generation_protocol import modal_fs  # noqa: F401 - pytest fixture
 
 pytestmark = pytest.mark.usefixtures("job_data_dir")
 

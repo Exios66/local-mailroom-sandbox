@@ -125,7 +125,6 @@ def test_web_handler_serves_index_and_state(tmp_path):
 
 # ── theming parity, hero art, transport, CLI wiring ────────────────────────
 import re
-import sys
 import time
 
 from mailroom_sandbox.tui import pretty_log as pl
