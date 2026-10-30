@@ -31,7 +31,6 @@ from mailroom_sandbox.job.spec import (
     resolve_run_id,
     run_dir,
     spec_core,
-    spec_hash,
 )
 from mailroom_sandbox.prompt_registry import prompt_lock_block
 from mailroom_sandbox.prompt_versions import PromptSelectionError, selection_from_lock

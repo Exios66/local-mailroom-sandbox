@@ -9,7 +9,6 @@ from pydantic import ValidationError
 
 from mailroom_sandbox.job.spec import (
     DatasetSpec,
-    ModalSpec,
     PromptRef,
     RunSpec,
     VLLMSpec,

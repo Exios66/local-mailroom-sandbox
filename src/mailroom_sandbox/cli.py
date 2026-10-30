@@ -3038,7 +3038,6 @@ def _cmd_run_start(args) -> int:
     """Lock a run via preflight, then start it locally or on Modal."""
     from mailroom_sandbox.job import preflight
     from mailroom_sandbox.job import remote as job_remote
-    from mailroom_sandbox.job import runner
     from mailroom_sandbox.job.checkpoint import RunStore
     from mailroom_sandbox.job.spec import run_dir
 
@@ -3108,7 +3107,6 @@ def _run_endpoint(store, args) -> dict:
     from mailroom_sandbox.job import otel, runner
     from mailroom_sandbox.tui.session import MailroomConsole, run_event_handler
 
-    watch = bool(getattr(args, "watch", False))
     console = MailroomConsole()
     lock = store.read_lock() or {}
     task = str(lock.get("task") or "")
@@ -3837,7 +3835,7 @@ def _cmd_metrics_compare(args) -> int:
                     file=sys.stderr,
                 )
                 return 1
-            lock = store.read_lock() or {}
+            store.read_lock()  # a corrupt/missing lock still surfaces here
             # Use the same source as the cards: the run's own container-telemetry
             # window x replicas x rate. Calling record_from_run directly leaves
             # billed_window_seconds unset, which falls back to the latency SUM —

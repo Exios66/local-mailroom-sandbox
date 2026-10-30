@@ -1,10 +1,10 @@
 """Independent DMR-091 frozen-source edge probes; no production substitutions."""
-import os, sys, json, shutil, types, subprocess, threading
+import os, json, shutil, types, subprocess, threading
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import pytest
 import yaml
-from test_job_generation_residuals import source_root, sdk, spec_file, worker_body
+from test_job_generation_residuals import source_root, sdk, spec_file, worker_body  # noqa: F401 - pytest fixtures
 from mailroom_sandbox import runtime
 from mailroom_sandbox.cli import main
 from mailroom_sandbox.job import preflight, runner, remote
