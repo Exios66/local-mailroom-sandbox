@@ -32,32 +32,6 @@ class _FakeAgentState:
         }
 
 
-@pytest.fixture(autouse=True)
-def _family_decision_types(monkeypatch):
-    """Make ``pipeline.decision_review.DecisionAnswer`` importable.
-
-    The vendored llm-mailroom snapshot gains it with the vendor refresh. Until
-    then, and only if the real module cannot be imported, a same-shape
-    stand-in keeps these tests runnable; afterwards this is a no-op.
-    """
-    try:
-        import pipeline.decision_review  # noqa: F401
-    except ImportError:
-        from dataclasses import dataclass
-        from typing import Optional
-
-        @dataclass(frozen=True)
-        class DecisionAnswer:
-            doc_type: Optional[str]
-            doc_subclass: Optional[str]
-            confidence: Optional[float]
-            model: str
-
-        module = types.ModuleType("pipeline.decision_review")
-        module.DecisionAnswer = DecisionAnswer  # type: ignore[attr-defined]
-        monkeypatch.setitem(sys.modules, "pipeline.decision_review", module)
-
-
 @pytest.fixture
 def fake_agent(monkeypatch):
     """Stand in for ``pydantic_ai.Agent`` so no model, key or network is touched."""
