@@ -562,10 +562,12 @@ def _masked_config() -> dict[str, str]:
     }
 
 
-def _wait_for_port(port: int, timeout: int = 600) -> bool:
-    """Block until localhost:*port* accepts connections."""
-    deadline = time.time() + timeout
-    while time.time() < deadline:
+def _wait_for_port(port: int, timeout: int = 600, *, process=None) -> bool:
+    """Wait for the server socket, stopping early if its subprocess has exited."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if process is not None and process.poll() is not None:
+            return False
         try:
             with socket.create_connection(("127.0.0.1", port), timeout=2.0):
                 return True
@@ -633,14 +635,19 @@ def serve() -> None:
                 vllm_proc.wait(timeout=10)
             except subprocess.TimeoutExpired:
                 vllm_proc.kill()
+                vllm_proc.wait(timeout=10)
 
     atexit.register(_cleanup)
 
-    if not _wait_for_port(SERVER_PORT, timeout=STARTUP_TIMEOUT_SECONDS):
-        print(f"ERROR: vLLM did not start on port {SERVER_PORT} within "
-              f"{STARTUP_TIMEOUT_SECONDS}s")
-        vllm_proc.terminate()
-        raise RuntimeError("vLLM startup timeout")
+    try:
+        if not _wait_for_port(SERVER_PORT, timeout=STARTUP_TIMEOUT_SECONDS, process=vllm_proc):
+            code = vllm_proc.poll()
+            detail = f"vLLM exited during startup (rc={code})" if code is not None else "vLLM startup timeout"
+            raise RuntimeError(detail)
+    except BaseException:
+        _cleanup()
+        atexit.unregister(_cleanup)
+        raise
 
     print(f"vLLM ready on port {SERVER_PORT} (pid={vllm_proc.pid})")
     sys.stdout.flush()

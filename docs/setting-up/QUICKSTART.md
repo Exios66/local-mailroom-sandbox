@@ -18,7 +18,7 @@ python3 -m venv .venv                # deps live INSIDE the repo — never the m
 # Specialist / Modal live path:
 #   pip install -e ".[pipeline,deploy]"
 #   # or: pip install -r requirements/pipeline.txt -r requirements/deploy.txt
-cp config/.env.example .env          # profiles/tracing knobs (edit if needed)
+cp config/.env.example .env          # profiles/tracing/secrets; loaded at startup, exported vars win
 export PATH="$PWD/.venv/bin:$PATH"   # or call ./.venv/bin/sandbox explicitly
 ```
 
@@ -48,7 +48,7 @@ sandbox up | down | health | pull-models | fetch-deps | cutover
        | prompts list|show
 ```
 
-Global flags (before the subcommand is NOT where they live — see §2):
+Shared flags (accepted before or after subcommands — see §2):
 
 ```
 --profile NAME         # SANDBOX_PROFILE env works too
@@ -57,31 +57,29 @@ Global flags (before the subcommand is NOT where they live — see §2):
 --prompt STEM          # local prompt variant stem, e.g. sorter_local_v0
 ```
 
-## 2. Flag placement rules (the only real gotcha)
+## 2. Flag placement
 
-- `--profile` goes on the **group** command for `tunnel` and `run`:
+`--profile`, `--model`, `--prompt`, and `--agent-model` are accepted before or
+after subcommands, including nested commands. A later occurrence wins.
+`SANDBOX_PROFILE` also sets the default profile.
 
-  ```bash
-  sandbox tunnel --profile vllm-remote plan        # NOT: tunnel plan --profile …
-  sandbox run --profile modal-vllm preflight --config config/runs/x.yaml
-  ```
-
-- Everywhere else `--profile` is accepted on the leaf command
-  (`sandbox cutover --profile ollama`, `sandbox eval sorter --profile ollama`, …).
-- A `--profile` **before** the subcommand is clobbered by the subparser
-  default — always pass it after, or set `SANDBOX_PROFILE`.
+```bash
+sandbox --profile vllm-remote tunnel plan
+sandbox tunnel plan --profile vllm-remote
+sandbox run preflight --profile modal-vllm --config config/runs/x.yaml
+```
 
 ## 3. Serving bring-up (Modal vLLM is the default)
 
 ```bash
 sandbox runbook show serve              # DEFAULT: prewarm → deploy → point → verify → teardown
-sandbox up                              # compose: Langfuse (add --compose-profile jupyter)
+sandbox up -d                           # compose: Langfuse (select langfuse and jupyter explicitly to run both)
 sandbox health                          # provider /v1/models + chat + langfuse + phoenix
 ```
 
 - The endpoint is Modal (`modal-vllm`); export `VLLM_BASE_URL` (or
   `MODAL_WORKSPACE`) after `modal deploy`, as the runbook does.
-- Offline / CPU-only: `sandbox up --compose-profile ollama && sandbox pull-models --profile ollama`
+- Offline / CPU-only: `sandbox up -d --compose-profile ollama && sandbox pull-models --profile ollama`
   then add `--profile ollama` to later commands (or set `SANDBOX_PROFILE=ollama`,
   in the shell or `.env`). Without it `pull-models` only prints the Modal prewarm
   command.
@@ -122,7 +120,7 @@ sandbox prompts show sorter --variant sorter_local_v0   # local variant stem
 ```bash
 sandbox datasets prepare                # offline: load/clean fixtures → data/runtime/prepared/ (no network)
 sandbox datasets pull                   # LIVE pinned FULL Hub pull (NETWORK):
-#   Lucius-Morningstar/mailroom-dataset@ed7576b6 ground_truth train+test
+#   Lucius-Morningstar/mailroom-dataset@bc9eab28 (v9.1; data revision ed7576b6) ground_truth train+test
 #   (3,302 rows) → data/cache/…, sha256-verified. Required for 20/40/100-per-class.
 sandbox datasets sample --per-class 40  # offline draw from that cache (merger cap 152)
 sandbox datasets pull --max-rows 50 --config ground_truth --split test --revision <sha-or-tag>
@@ -238,7 +236,7 @@ sandbox health && sandbox run start --config … --job-mode modal
 
 **Local Ollama (offline opt-out):**
 ```bash
-SANDBOX_PROFILE=ollama sandbox up --compose-profile ollama
+SANDBOX_PROFILE=ollama sandbox up -d --compose-profile ollama
 sandbox pull-models --profile ollama && sandbox health --profile ollama \
   && sandbox pilot --local --profile ollama
 ```
@@ -263,7 +261,7 @@ sandbox health                       # after the serve runbook: provider reachab
 | `sandbox datasets pull` says `pip install -e "[hf]"` | base install is offline-first; Hub client lives in `[dev]`/`[hf]` |
 | `legalbench --suite` says `[pipeline]` | suite needs the vendored langchain stack → `pip install -e ".[pipeline]"` |
 | `run … --job-mode modal` says `[deploy]` | Modal SDK is an opt-in extra → `pip install -e ".[deploy]"` + `modal token new` |
-| `sandbox tunnel --profile X plan` "unrecognized arguments" | `--profile` belongs on `tunnel`, not on `plan` (see §2) |
+| `sandbox tunnel up --profile X` cannot connect | Check the SSH host, port, and credentials for profile `X` (see §2) |
 | `run status --config …` demands `--run-id` | fixed (DMR-058): `--config` resolves the run_id; still passes an explicit `--run-id` to override |
 | `sandbox up` prints a Python traceback | fixed (DMR-058): compose/ollama/ssh failures are one-line errors, exit 1 |
 | `fetch-deps` wiped part of `vendor/` | fixed (DMR-058): layout-aware + validates before touching the tracked tree |
