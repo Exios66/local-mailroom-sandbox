@@ -26,6 +26,18 @@
 - `services._exec.stream_tool` / `passthrough_tool` (live-streamed and terminal-attached
   runs) and ANSI stripping in tool-failure messages.
 
+- `sandbox doctor [--service NAME]… [--live] [--publish] [--json]`: one status table for
+  modal, modal-auth, hf, hf-auth, docker, ollama, ssh, git, vllm, provider, langfuse,
+  phoenix, tunnel and compose. Offline by default (binaries and config only); `--live`
+  adds network probes and warns that a request to a scale-to-zero Modal URL wakes a
+  billed GPU. Exit 1 only on a `fail` row. `--publish` writes the snapshot the board shows.
+- TUI services panel: `sandbox board` renders the published `mailroom.services/v1`
+  snapshot as a status strip (terminal and browser, `/api/services`); a snapshot older
+  than 15 minutes is marked stale. The board itself stays network-free.
+- Service beacons: `sandbox modal deploy|prewarm|stop`, `sandbox hf download`,
+  `sandbox tunnel up` and `sandbox datasets pull` publish a `mailroom.beacon/v1` job, so
+  they appear on the board like `run start` does.
+
 ### Changed
 
 - Serve through **Modal vLLM by default**: `SANDBOX_PROFILE=modal-vllm` and
@@ -40,6 +52,18 @@
 
 ### Fixed
 
+- Review follow-ups on the Slice 1 fixes: `tunnel plan` accepts the shared flags after the
+  subcommand; the health probe treats only 2xx as healthy (a 3xx is `HTTP 3xx`, and the
+  non-JSON detail names the real status); a modal-vllm run spec with `engine.modal: null`
+  resolves its gateway from `MODAL_VLLM_APP_NAME`/`sandbox-vllm` instead of raising.
+- `sandbox beacon update --finish` clears the stale `phase`; a paused or still-running
+  job's runner no longer stamps its beacon `done` (it publishes `PAUSED`/`RUNNING`).
+- `sandbox watch` no longer leaks the `modal app logs -f` child it spawned when the
+  watcher stops.
+- Test suite: the vendored pipeline's fire-and-forget `relations-scan` threads are joined
+  at the end of each test (`tests/conftest.py`). Their `schema_ready` log line used to
+  land in a later test's captured stdout and intermittently broke
+  `test_generation_protocol.py::test_idle_local_cancel_does_not_poison_next_resume`.
 - `run preflight --live`, `run start` and `run scrape-metrics` no longer resolve the
   default `modal-vllm` profile to `http://localhost:8000/v1`: the run-spec resolver now
   uses `VLLM_BASE_URL`, then the `MODAL_WORKSPACE` gateway for the spec's Modal app, and

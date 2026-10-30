@@ -696,7 +696,8 @@ def engine_base_url(spec: RunSpec, *, profile: str | None = None) -> str:
                 "MODAL_WORKSPACE=<your-workspace> or VLLM_BASE_URL, or fix the "
                 "run spec's engine.kind."
             )
-        return f"https://{workspace}--{spec.engine.modal.app}-serve.modal.run"
+        app = spec.engine.modal.app if spec.engine.modal else (os.environ.get("MODAL_VLLM_APP_NAME") or "sandbox-vllm")
+        return f"https://{workspace}--{app}-serve.modal.run"
     return "http://localhost:8000"
 
 

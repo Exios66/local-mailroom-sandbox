@@ -67,3 +67,19 @@ def _no_leaked_prompt_selection():
     prompt_versions.clear_active_selection()
     yield
     prompt_versions.clear_active_selection()
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_runtest_teardown(item):
+    """Join the vendored pipeline's fire-and-forget scan threads before the next test.
+
+    ``pipeline.relations`` starts daemon ``relations-scan`` threads that write to the
+    default DB; ``ensure_schema`` logs ``schema_ready`` the first time it sees a URL.
+    Left running, that line lands in whichever later test is capturing stdout and
+    corrupts its JSON. ``tryfirst`` joins them before fixtures (and env) are undone.
+    """
+    import threading
+
+    for t in threading.enumerate():
+        if t.name == "relations-scan" and t is not threading.current_thread():
+            t.join(timeout=10)

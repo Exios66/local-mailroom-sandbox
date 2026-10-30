@@ -17,6 +17,7 @@ COMMANDS = [
     ["eval", "sorter"],
     ["profiles"],
     ["cutover"],
+    ["tunnel", "plan"],
     ["tunnel", "status"],
     ["tunnel", "up"],
     ["run", "status", "--run-id", "x"],

@@ -633,6 +633,12 @@ def _beacon_hook(run_id: str, *, task: str, on_event: Any = None) -> tuple[Any, 
     def finish(summary: dict[str, Any] | None) -> None:
         summary = summary or {}
         state = str(summary.get("state") or "")
+        if state in ("paused", "running"):
+            # Cancelled mid-run or limited by --max-items: not finished. Leave the beacon
+            # non-terminal so the board shows PAUSED (then stalled once this process exits)
+            # instead of claiming the run is done.
+            beacon.update(phase=state.upper(), done=summary.get("cursor"), total=summary.get("total"))
+            return
         beacon.finish(
             "failed" if state in ("failed", "cancelled") else "done",
             done=summary.get("cursor"),

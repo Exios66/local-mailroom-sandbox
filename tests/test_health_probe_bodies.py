@@ -83,3 +83,25 @@ def test_health_command_survives_plain_text_sink_endpoints(monkeypatch, capsys):
     assert report["ok"] is True
     assert report["phoenix"]["ok"] is True
     assert report["langfuse"]["ok"] is True
+
+
+@pytest.mark.parametrize("status", [301, 302, 303, 307])
+def test_sink_probe_does_not_call_a_redirect_healthy(monkeypatch, status):
+    """httpx does not follow redirects here, so a 3xx is not a 2xx liveness answer."""
+    _reply(monkeypatch, httpx.Response(status, headers={"location": "http://elsewhere.invalid/"}))
+    result = probe_models(PROFILE, expect_json=False)
+    assert result.ok is False and result.detail == f"HTTP {status}"
+
+
+def test_model_probe_redirect_is_an_http_status_not_a_non_json_200(monkeypatch):
+    """A 303 on the models URL must report its real status, not 'HTTP 200 but non-JSON'."""
+    _reply(monkeypatch, httpx.Response(303, headers={"location": "http://elsewhere.invalid/"}))
+    result = probe_models(PROFILE)
+    assert result.ok is False and result.detail == "HTTP 303"
+
+
+def test_non_json_detail_names_the_real_status(monkeypatch):
+    """A 204 with no JSON must not be described as 'HTTP 200'."""
+    _reply(monkeypatch, httpx.Response(204))
+    result = probe_models(PROFILE)
+    assert result.ok is False and result.detail == "HTTP 204 but non-JSON body"

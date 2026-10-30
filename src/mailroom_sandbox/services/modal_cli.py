@@ -18,6 +18,7 @@ import time
 from typing import Any
 
 from mailroom_sandbox.paths import repo_root
+from mailroom_sandbox.services.beacon import service_job
 from mailroom_sandbox.services._cli import format_command, print_json, print_plan, strip_separator, warn
 from mailroom_sandbox.services._exec import (
     ServiceError,
@@ -97,8 +98,8 @@ def _endpoint() -> tuple[str, str] | None:
 # --------------------------------------------------------------------------- deploy / prewarm
 
 
-def _run_streamed(argv: list[str], env: dict[str, str]) -> None:
-    rc = stream_tool(argv, env=_child_env(env), cwd=repo_root(), hint=INSTALL_HINT)
+def _run_streamed(argv: list[str], env: dict[str, str], *, on_line=None) -> None:
+    rc = stream_tool(argv, env=_child_env(env), cwd=repo_root(), hint=INSTALL_HINT, on_line=on_line)
     if rc != 0:
         raise ToolFailed(argv, rc)
 
@@ -115,7 +116,9 @@ def _cmd_deploy(args: argparse.Namespace) -> int:
     _check_version()
     print("note: deploy registers a scale-to-zero app; the GPU bills from the first request until `sandbox modal stop`.")
     print(f"-> {format_command(argv, env)}")
-    _run_streamed(argv, env)
+    with service_job("modal-deploy", title="modal deploy · sandbox-vllm") as job:
+        job.update(phase="DEPLOYING")
+        _run_streamed(argv, env, on_line=job.log)
     endpoint = _endpoint()
     if endpoint:
         url, _source = endpoint
@@ -141,7 +144,9 @@ def _cmd_prewarm(args: argparse.Namespace) -> int:
     _check_version()
     print("note: prewarm is a CPU-only download job (no GPU); weights persist in the Modal volume.")
     print(f"-> {format_command(argv, env)}")
-    _run_streamed(argv, env)
+    with service_job("modal-prewarm", title="modal prewarm · weights") as job:
+        job.update(phase="DOWNLOADING")
+        _run_streamed(argv, env, on_line=job.log)
     print("next: `sandbox modal deploy`")
     return 0
 
@@ -223,6 +228,12 @@ def _cmd_stop(args: argparse.Namespace) -> int:
         print("dry-run: nothing stopped. Volumes (weights, compile cache) persist across a stop.")
         return 0
     _check_version()
+    with service_job("modal-stop", title=f"modal stop · {app}") as job:
+        job.update(phase="STOPPING")
+        return _stop(app, argv, args, job)
+
+
+def _stop(app: str, argv: list[str], args: argparse.Namespace, job) -> int:
     if not _is_deployed(app):
         print(f"{app}: already stopped (not deployed)")
         return 0
@@ -239,6 +250,7 @@ def _cmd_stop(args: argparse.Namespace) -> int:
         return 0
     for attempt in range(VERIFY_ATTEMPTS):
         if not _is_deployed(app):
+            job.log("stopped and verified")
             print(f"{app}: stopped and verified — no deployment running; volumes persist")
             print("next: `sandbox modal status`")
             return 0
