@@ -238,6 +238,72 @@ def test_probe_timeout_modal_uses_boot_budget(monkeypatch, tmp_path):
     assert preflight._probe_timeout_seconds(spec) == 1200.0
     monkeypatch.setenv("SANDBOX_ENGINE_PROBE_TIMEOUT_SECONDS", "42")
     assert preflight._probe_timeout_seconds(spec) == 42.0
+    # Public wrapper used by route probes reads the same budget.
+    assert preflight.probe_timeout_seconds(spec) == 42.0
+
+
+def test_probe_uses_vllm_credential_when_vllm_base_url_wins(monkeypatch, tmp_path):
+    """A profile's key must never travel to the endpoint engine_base_url()
+    resolved: VLLM_BASE_URL wins over an openrouter profile base, so the probe
+    has to send VLLM_API_KEY, not OPENROUTER_API_KEY."""
+    seen: dict[str, str] = {}
+
+    def fake_get(url, headers=None, timeout=None):
+        seen.update(headers or {})
+        return _FakeResp(200)
+
+    monkeypatch.setattr("httpx.get", fake_get)
+    monkeypatch.setenv("VLLM_BASE_URL", "https://vllm.example.test/v1")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "or-secret")
+    monkeypatch.setenv("VLLM_API_KEY", "vllm-secret")
+    spec = _run_spec(tmp_path)
+    spec.profile = "openrouter"
+    spec.engine.kind = "vllm-local"
+
+    result = preflight.probe_engine(spec)
+
+    assert result["ok"] is True
+    assert seen == {"Authorization": "Bearer vllm-secret"}
+
+
+@pytest.mark.parametrize("probe", [
+    {"ok": False, "cold_boot_seconds": 1.0},
+    {"ok": True},
+])
+def test_record_cold_boot_ignores_incomplete_probes(tmp_path, probe, job_data_dir):
+    spec = _run_spec(tmp_path, run_id="pf-record-coldboot")
+    report = preflight.preflight(spec, offline=True)
+    store = _store(report)
+
+    assert preflight.record_cold_boot(store, probe) is None
+    assert store.read_cold_boot() is None
+
+
+def test_record_cold_boot_persists_measurement(tmp_path, job_data_dir):
+    spec = _run_spec(tmp_path, run_id="pf-record-coldboot-ok")
+    report = preflight.preflight(spec, offline=True)
+    store = _store(report)
+    probe = {"ok": True, "cold_boot_seconds": 2.5, "base_url": "https://vllm.example.test/v1",
+             "served_models": ["Qwen/Qwen3-8B"], "probe_timeout_seconds": 10.0}
+
+    measurement = preflight.record_cold_boot(store, probe)
+
+    assert measurement is not None
+    assert measurement["run_id"] == spec.run_id
+    assert store.read_cold_boot()["cold_boot_seconds"] == 2.5
+
+
+def test_model_only_agent_models_are_frozen_in_the_lock(tmp_path, job_data_dir):
+    """agent_models without routes/knobs must still freeze agent_assignments;
+    otherwise runtime.activate() rebuilds the rest from the live profile."""
+    spec = _run_spec(tmp_path, run_id="pf-model-only")
+    spec.agent_models = {"sorter": "frozen-sorter-model"}
+
+    report = preflight.preflight(spec, offline=True)
+
+    assert report["status"] == "prepared", report
+    assignments = _store(report).read_lock()["agent_assignments"]
+    assert assignments["sorter"]["model"] == "frozen-sorter-model"
 
 
 def test_preflight_live_persists_cold_boot_and_record_carries_it(

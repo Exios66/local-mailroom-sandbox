@@ -60,6 +60,7 @@ def test_health_follows_base_url_env(monkeypatch):
 
     class _Resp:
         status_code = 200
+        is_success = True
 
         def json(self):
             return {"data": [{"id": "Qwen/Qwen3-8B"}]}

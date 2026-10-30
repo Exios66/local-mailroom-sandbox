@@ -87,13 +87,13 @@ serving, eval and scoring overlays on top.
 
 ```bash
 pip install -e ".[dev]"
-cp config/.env.example .env
+cp config/.env.example .env   # sandbox loads .env at startup; exported vars win
 # family code is already vendored under vendor/ (self-contained); fetch-deps
 # only refreshes the snapshots (workspace packages first; reviewed standalone
 # commit/release refs frozen to SHAs otherwise, requiring network). Moved refs are rejected
 # before tracked vendor files are replaced:
-sandbox fetch-deps                 # mirror workspace packages or refresh SHA-frozen standalone commit/release refs
-sandbox up                         # Langfuse (the Modal endpoint is deployed, not composed)
+# sandbox fetch-deps               # optional: refresh tracked snapshots (may require network)
+sandbox up -d                      # Langfuse (the Modal endpoint is deployed, not composed)
 sandbox runbook show serve         # DEFAULT: prewarm → deploy → point → verify → teardown
 sandbox health                     # probes the deployed modal-vllm endpoint
 sandbox pilot --mock               # machinery only, no LLM
@@ -181,7 +181,10 @@ explicitly flagged `offline_fallback`.
 
 ```
 sandbox runbook show serve     # default path: Modal vLLM deploy → point → verify → teardown
-sandbox up | down | health | pull-models | fetch-deps | cutover | profiles | agents
+sandbox up | down | health | doctor | pull-models | fetch-deps | cutover | profiles | agents
+sandbox modal deploy|prewarm|status|stop|logs|url|raw   # guarded Modal passthrough
+sandbox vllm probe|command|serve|metrics                # endpoint probe + local serving
+sandbox hf whoami|download|cache|raw                    # pinned revision by default
 sandbox pipeline watcher | pipeline api
 sandbox pilot --mock|--local
 sandbox hf-pilot --check|--mock|--local
@@ -192,6 +195,7 @@ sandbox matrix --providers ollama --models qwen3:8b --prompts sorter_local_v0
 sandbox datasets pull          # LIVE pinned FULL Hub pull (3302 rows) → data/cache/
 sandbox datasets sample --per-class 40  # offline 20/40/100… per live class from that cache
 sandbox datasets prepare   # offline clean → data/runtime/prepared/
+sandbox experiment designs|create|review|preflight|launch|watch|report
 sandbox run preflight|start|status|resume|cancel|list --config config/runs/<name>.yaml
 sandbox watch [--web] [--config config/runs/<name>.yaml]       # mailroom TUI + Modal log tail (see docs/pretty-logging/mailroom-themed-logging.md)
 sandbox run start --config <run.yaml> --job-mode modal --watch   # Modal worker
@@ -203,8 +207,11 @@ sandbox tunnel --profile vllm-remote plan|up|status|down
 sandbox traces export
 ```
 
-`SANDBOX_DEBUG=1` traces CHTC/Modal scripts (DMR-053). The full reference is in
-the [Quickstart guide](docs/setting-up/QUICKSTART.md).
+`SANDBOX_DEBUG=1` traces CHTC/Modal scripts (DMR-053). The complete generated
+reference — every command, subcommand and argument — is
+[`docs/cli-reference.md`](docs/cli-reference.md) (regenerate with
+`python scripts/check_cli_surface.py`); the curated on-ramp is the
+[Quickstart guide](docs/setting-up/QUICKSTART.md).
 
 <a id="docs"></a>
 
@@ -212,6 +219,7 @@ the [Quickstart guide](docs/setting-up/QUICKSTART.md).
 
 | Guide | Description |
 | :--- | :--- |
+| [Experiment workflow](docs/experiments.md) | Paired designs, pipeline/hybrid agent models, initials-gated spend, smoke, observer, and reports |
 | [Quickstart](docs/setting-up/QUICKSTART.md) | **Start here** — install, full CLI reference, canonical workflows |
 | [Providers](docs/setting-up/providers.md) | Ollama, vLLM, Modal, llama.cpp, LM Studio, OpenRouter |
 | [Evals](docs/evals.md) | Runners, matrix, scoring, experiment log |
@@ -277,7 +285,7 @@ The exact snapshot commits are in
 
 ```bash
 pip install -e ".[dev,notebooks]"
-sandbox up --compose-profile langfuse --compose-profile ollama --compose-profile jupyter
+sandbox up -d --compose-profile langfuse --compose-profile ollama --compose-profile jupyter
 # Lab → http://127.0.0.1:8888/lab
 sandbox datasets prepare
 ```
