@@ -60,7 +60,9 @@ def unknown_path(words: list[str], catalog: list[dict]) -> str | None:
         if word not in node["children"]:
             close = difflib.get_close_matches(word, node["children"], n=3)
             hint = f" · did you mean {', '.join(close)}?" if close else f" · try menu {' '.join(known)}".rstrip()
-            return f"error: unknown command '{' '.join([*known, word])}'{hint}"
+            shown = " ".join([*known, word])
+            shown = shown if len(shown) <= 60 else shown[:59] + "…"
+            return f"error: unknown command '{shown}'{hint}"
         known.append(word)
         node = next(row for row in catalog if row["path"] == known)
         if not node["children"]:
@@ -183,6 +185,12 @@ def run_shell(default_args: list[str] | None = None) -> int:
                         print(problem)
                         continue
                     argv = [*argv[1:], "--help"]
+                else:
+                    # Same one-line answer as help/menu, not argparse's full usage dump.
+                    problem = unknown_path(argv, catalog)
+                    if problem:
+                        print(problem)
+                        continue
                 if argv[0] == "tui":
                     print("Already in the Mailroom terminal.")
                     continue

@@ -13,7 +13,7 @@ import time
 from pathlib import Path
 
 from mailroom_sandbox.compose import VALID_PROFILES as COMPOSE_PROFILES
-from mailroom_sandbox.overlay import UnknownProfileError, load_profile
+from mailroom_sandbox.overlay import UnknownNameError, load_profile
 from mailroom_sandbox.paths import repo_root, vendor_dir
 from mailroom_sandbox.runtime import activate, resolve_dojo_src, resolve_mailroom_src
 from mailroom_sandbox.services._exec import ServiceError
@@ -124,10 +124,14 @@ def main(argv: list[str] | None = None) -> int:
         if exc.stderr:
             print(exc.stderr.decode() if isinstance(exc.stderr, bytes) else exc.stderr, end="", file=sys.stderr)
         return 1
-    except UnknownProfileError as exc:
+    except UnknownNameError as exc:
         print(f"error: {_one_line(exc)}", file=sys.stderr)
         return 1
     except FileNotFoundError as exc:
+        # A path the operator typed (--config, --run, ...) vs a tool missing from PATH.
+        if exc.filename and os.sep in str(exc.filename):
+            print(f"error: file not found: {exc.filename}", file=sys.stderr)
+            return 1
         print(f"command unavailable: {exc}", file=sys.stderr)
         return 1
     except ServiceError as exc:
@@ -188,6 +192,14 @@ def build_parser() -> argparse.ArgumentParser:
         if not value.strip():
             raise argparse.ArgumentTypeError("value is empty; omit the flag to use the default")
         return value.strip()
+
+    def known_package(value: str) -> str:
+        from mailroom_sandbox.subagents import list_packages
+
+        value, known = nonempty(value), list_packages()
+        if value not in known:
+            raise argparse.ArgumentTypeError(f"unknown package {value!r}; known: {', '.join(known)}")
+        return value
 
     def _shared_flags(*, root: bool) -> argparse.ArgumentParser:
         """The cross-command flags. The root copy carries the real defaults; the copy
@@ -274,6 +286,7 @@ def build_parser() -> argparse.ArgumentParser:
     sa_list.add_argument("--json", action="store_true")
     sa_list.add_argument(
         "--package",
+        type=known_package,
         default=None,
         help="Family package filter (default: local-mailroom-sandbox or SUBAGENT_PACKAGE)",
     )
@@ -284,7 +297,7 @@ def build_parser() -> argparse.ArgumentParser:
     sa_show = subagents_sub.add_parser("show", parents=[leaf], help="show one subagent's roster entry and prompt")
     sa_show.add_argument("id")
     sa_show.add_argument("--json", action="store_true")
-    sa_show.add_argument("--package", default=None)
+    sa_show.add_argument("--package", type=known_package, default=None)
     sa_show.set_defaults(handler=_cmd_subagents_show)
     sa_sync = subagents_sub.add_parser("sync", parents=[leaf], help="write OpenCode frontmatter and Cursor agent stubs")
     sa_sync.add_argument(
@@ -295,11 +308,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sa_sync.add_argument(
         "--package",
+        type=known_package,
         default=None,
         help="Family package filter for roster entries",
     )
     sa_sync.add_argument(
         "--root",
+        type=nonempty,
         default=None,
         help="Checkout root to write into (default: this repo)",
     )
@@ -312,6 +327,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sa_doc.add_argument(
         "--root",
+        type=nonempty,
         default=None,
         help="Family checkout root (default: this repo)",
     )
@@ -343,16 +359,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sa_mat.add_argument(
         "--package",
+        type=known_package,
         required=True,
         help="Target package id (llm-mailroom, digital-mailroom, …)",
     )
     sa_mat.add_argument(
         "--root",
+        type=nonempty,
         required=True,
         help="Destination checkout root (e.g. monorepo packages/llm-mailroom)",
     )
     sa_mat.add_argument(
         "--source-root",
+        type=nonempty,
         default=None,
         help="Prompt source checkout (default: this sandbox repo)",
     )
@@ -365,10 +384,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sa_prop.add_argument(
         "--monorepo-root",
+        type=nonempty,
         default=None,
         help="Digital-Mailroom root (DIGITAL_MAILROOM_ROOT / MONOREPO_ROOT)",
     )
-    sa_prop.add_argument("--package", action="append", dest="packages", default=None)
+    sa_prop.add_argument("--package", action="append", dest="packages", type=known_package, default=None)
     sa_prop.add_argument("--dry-run", action="store_true")
     sa_prop.add_argument("--json", action="store_true")
     sa_prop.set_defaults(handler=_cmd_subagents_propagate)
@@ -469,6 +489,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     def eval_target(value: str) -> str:
+        nonempty(value)  # an empty TARGET/--class must not mean "every class"
         try:
             return primary.resolve_class(value) or value
         except ValueError as exc:
@@ -1905,6 +1926,8 @@ def _cmd_agents_show(args: argparse.Namespace) -> int:
     )
     roster = {row["agent"]: row for row in agent_roster(load_yaml(activation.taxonomy_path))}
     spec = SPECS.get(args.name)
+    if args.name not in roster and spec is None:
+        raise CLIUsageError(f"unknown agent {args.name!r}; known: {', '.join(sorted(roster))}")
     payload = roster.get(args.name, {"agent": args.name, "enabled": False})
     if spec:
         payload["observation"] = spec.observation

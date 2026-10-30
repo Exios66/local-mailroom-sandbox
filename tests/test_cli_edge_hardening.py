@@ -50,3 +50,71 @@ def test_an_unknown_profile_is_an_error_not_a_missing_command(capsys):
     err = capsys.readouterr().err
     assert err.startswith("error: Unknown profile 'nope'") and 'modal-vllm' in err
     assert 'command unavailable' not in err
+
+
+def test_tui_answers_an_unknown_command_in_one_line(monkeypatch, capsys):
+    import sys
+
+    from mailroom_sandbox.tui import shell
+
+    monkeypatch.setattr(sys.stdin, 'isatty', lambda: True)
+    entries = iter(['nope', 'run strat', 'x' * 400, 'exit'])
+    monkeypatch.setattr('builtins.input', lambda prompt: next(entries))
+    monkeypatch.setattr(cli, 'main', lambda argv: pytest.fail(f'dispatched an unknown command: {argv[:2]}'))
+    assert shell.run_shell() == 0
+    out = capsys.readouterr().out
+    assert "error: unknown command 'nope'" in out
+    assert "error: unknown command 'run strat' · did you mean start" in out
+    assert 'usage: sandbox' not in out
+    assert 'x' * 80 not in out
+
+
+def test_a_missing_input_file_is_named_not_reported_as_a_missing_command(tmp_path, capsys):
+    missing = tmp_path / 'nope.yaml'
+    assert cli.main(['run', 'preflight', '--config', str(missing)]) == 1
+    err = capsys.readouterr().err
+    assert err.strip() == f'error: file not found: {missing}'
+
+
+@pytest.mark.parametrize('argv', [
+    ['eval', 'specialist', ''], ['eval', 'pipeline', '--class', ' '],
+    ['subagents', 'sync', '--root', ''], ['subagents', 'doctor', '--root', ''],
+    ['subagents', 'list', '--package', '__bogus__'], ['subagents', 'sync', '--package', ''],
+    ['subagents', 'propagate', '--package', 'nope'],
+])
+def test_empty_or_unknown_values_are_usage_errors(argv, capsys):
+    # Each used to exit 0: an empty target ran every specialist, an empty --root
+    # synced into the working directory, an unknown package listed nothing.
+    with pytest.raises(SystemExit) as exc:
+        cli.build_parser().parse_args(argv)
+    assert exc.value.code == 2
+    err = capsys.readouterr().err
+    assert 'empty' in err or 'unknown package' in err
+
+
+def test_known_package_still_parses():
+    from mailroom_sandbox.subagents import list_packages
+
+    package = list_packages()[0]
+    assert cli.build_parser().parse_args(['subagents', 'list', '--package', package]).package == package
+
+
+def test_agents_show_rejects_an_unknown_agent(capsys):
+    assert cli.main(['agents', 'show', '__bogus__']) == 2
+    err = capsys.readouterr().err
+    assert err.startswith("error: unknown agent '__bogus__'") and 'sorter' in err
+
+
+def test_an_unknown_prompt_variant_is_an_error_not_a_missing_command(capsys):
+    assert cli.main(['--prompt', '__bogus__', 'agents', 'list']) == 1
+    err = capsys.readouterr().err
+    assert err.startswith("error: Unknown prompt variant '__bogus__'")
+
+
+def test_a_missing_family_roster_names_the_file(tmp_path, monkeypatch, capsys):
+    from mailroom_sandbox.subagents import family
+
+    missing = tmp_path / 'config' / 'subagents' / 'family-roster.yaml'
+    monkeypatch.setattr(family, 'family_roster_path', lambda root=None: missing)
+    assert cli.main(['subagents', 'packages']) == 1
+    assert capsys.readouterr().err.strip() == f'error: file not found: {missing}'
