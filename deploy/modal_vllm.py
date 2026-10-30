@@ -129,9 +129,9 @@ MODEL = os.environ.get("MODAL_VLLM_MODEL", DEFAULT_MODEL)
 _SERVE_DEFAULTS = MODEL_SERVE_DEFAULTS.get(MODEL, {})
 GPU = os.environ.get("MODAL_VLLM_GPU", "L4")
 QUANTIZATION = os.environ.get("MODAL_VLLM_QUANTIZATION", _SERVE_DEFAULTS.get("quantization", ""))
-# "none" is an explicit bf16 serve for a row whose default is quantized; an
-# empty value is unset by the exports, so it cannot override the row default.
-if QUANTIZATION.lower() == "none":
+# "bf16" is an explicit unquantized serve for a row whose default is quantized;
+# an empty value is unset by the exports, so it cannot override the row default.
+if QUANTIZATION.lower() == "bf16":
     QUANTIZATION = ""
 # JSON per-modality item caps; {"image":0,...} skips the vision encoder's
 # memory reservation for a text-only multimodal checkpoint (Qwen3.5).

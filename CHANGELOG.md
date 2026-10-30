@@ -74,7 +74,7 @@
 ### Changed
 
 - Spend caps price every Modal app a run keeps warm. `job.cost_cap_usd` on a routed run now sums the base engine and each distinct `modal-vllm` agent-route app (the SAND-078 judge's L40S, a SAND-079 `mid` specialist `L4:2` app), counting the GPUs in an `L4:2` suffix. It previously priced the base engine alone.
-- An explicit `quantization: ""` (bf16) on a model whose serve default is fp8 now reaches the deploy as `MODAL_VLLM_QUANTIZATION=none`. It previously rendered as unset, so the deploy served fp8 while the run lock said bf16.
+- An explicit `quantization: ""` (bf16) on a model whose serve default is fp8 now reaches the deploy as `MODAL_VLLM_QUANTIZATION=bf16`. It previously rendered as unset, so the deploy served fp8 while the run lock said bf16.
 - The local `vllm` compose service and the `vllm-local` profile's `pull-models` hint now serve and name `Qwen/Qwen3.5-9B`, the profile's own default (bf16; compose has no quantization knob). Before this, a `vllm-local` run asked a Qwen3-8B server for Qwen3.5-9B. README, Quickstart, providers, deploy and remote-serving docs cover the SAND-074–079 model tiers, primary eval tasks and live pipeline view.
 - Vendored llm-mailroom pin moves to `main` HEAD `175e6711` (snapshot bytes unchanged;
   the intervening commit is README-only). llm-dojo-scoring stays on `main` HEAD

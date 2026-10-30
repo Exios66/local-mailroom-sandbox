@@ -12,7 +12,7 @@ import json
 import pytest
 
 from mailroom_sandbox import modal_matrix
-from mailroom_sandbox.job.deploy_env import BF16_QUANTIZATION, spec_env
+from mailroom_sandbox.job.deploy_env import BF16_QUANTIZATION, render_exports, spec_env
 from mailroom_sandbox.job.spec import DEFAULT_ENGINE_MODEL, MODEL_SERVE_DEFAULTS, EngineSpec, RunSpec, spec_core
 from mailroom_sandbox.overlay import build_merged_taxonomy, load_model_map, load_profile
 from mailroom_sandbox.paths import repo_root
@@ -167,5 +167,6 @@ def test_explicit_bf16_on_a_serve_default_model_is_not_rendered_as_unset():
         **_run(DEFAULT_ENGINE_MODEL).model_dump(by_alias=True),
         "engine": {"kind": "modal-vllm", "model": DEFAULT_ENGINE_MODEL, "vllm": {"quantization": ""}},
     })
-    assert spec_env(bf16)["MODAL_VLLM_QUANTIZATION"] == BF16_QUANTIZATION
+    assert spec_env(bf16)["MODAL_VLLM_QUANTIZATION"] == BF16_QUANTIZATION == "bf16"
+    assert "export MODAL_VLLM_QUANTIZATION=bf16" in render_exports(bf16)
     assert spec_env(_run("Qwen/Qwen3-8B"))["MODAL_VLLM_QUANTIZATION"] == ""
