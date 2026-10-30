@@ -110,8 +110,9 @@ def test_hf_pilot_scores_hf_text_and_labels(live, monkeypatch, tmp_path):
 def test_matrix_forwards_seed_and_models(monkeypatch):
     seen = []
     monkeypatch.setattr(runners, 'run_pipeline_eval', lambda **kw: seen.append(kw) or {})
-    matrix.run_matrix(task='pipeline', providers=['ollama'], models=['qwen3:8b'], prompts=['mailroom-default'], sample=2, seed=99, agent_models={'judge': 'custom'})
+    matrix.run_matrix(task='pipeline', providers=['modal-vllm'], models=['Qwen/Qwen3.5-9B'], prompts=['mailroom-default'], sample=2, seed=99, agent_models={'judge': 'custom'})
     assert seen[0]['sample_seed'] == 99
+    assert seen[0]['model'] == 'Qwen/Qwen3.5-9B'  # the requested model, not the family default
     assert seen[0]['agent_models'] == {'judge': 'custom'}
 
 

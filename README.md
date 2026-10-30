@@ -192,7 +192,8 @@ sandbox eval specialist [TARGET] [--mock|--local]      # all five specialists, o
 sandbox eval pipeline [--class CLASS] [--mock|--local] # full pipeline, every class or one
 sandbox eval --all-tasks                               # other (non-primary) eval tasks
 sandbox eval local_vs_api --from-log   # compare experiment_log local vs API-key runs
-sandbox matrix --providers ollama --models qwen3:8b --prompts sorter_local_v0
+sandbox matrix --providers modal-vllm --models Qwen/Qwen3.5-9B --prompts sorter_v1   # default serving
+sandbox matrix --providers openrouter --models qwen/qwen3.5-9b --prompts sorter_v1   # API serving
 sandbox datasets pull          # LIVE pinned FULL Hub pull (3302 rows) → data/cache/
 sandbox datasets sample --per-class 40  # offline 20/40/100… per live class from that cache
 sandbox datasets prepare   # offline clean → data/runtime/prepared/
