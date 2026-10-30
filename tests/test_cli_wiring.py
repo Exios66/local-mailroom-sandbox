@@ -240,7 +240,7 @@ def test_matrix_rejects_family_names():
 @pytest.mark.parametrize(("provider", "model", "planned"), [
     ("openrouter", "qwen/qwen3.5-9b", "qwen/qwen3.5-9b"),  # unmapped: kept, not the family default
     ("modal-vllm", "Qwen/Qwen3.5-9B", "Qwen/Qwen3.5-9B"),
-    ("modal-vllm", "qwen/qwen3.7-flash", "Qwen/Qwen3-8B"),  # a champion row still maps per family
+    ("modal-vllm", "qwen/qwen3.7-flash", "Qwen/Qwen3.5-9B"),  # a champion row still maps per family
     ("ollama", "qwen/qwen3.7-flash", "qwen3:8b"),
 ])
 def test_matrix_plans_the_requested_model(provider, model, planned):
