@@ -510,6 +510,35 @@ class JobSpec(BaseModel):
         return v
 
 
+class ReviewerSpec(BaseModel):
+    """Frozen decision-model reviewer: which backend, which pinned model, which classes at what cutoff."""
+    model_config = {"extra": "forbid"}
+    backend: Literal["jev", "mock"]
+    model: str = Field(min_length=1)
+    classes: dict[str, float]
+
+    @field_validator("classes", mode="before")
+    @classmethod
+    def _cutoffs(cls, values: Any) -> Any:
+        if not isinstance(values, dict) or not values:
+            raise ValueError("reviewer classes must map at least one class to a cutoff")
+        for name, cutoff in values.items():
+            if isinstance(cutoff, bool) or not isinstance(cutoff, (int, float)) or not math.isfinite(cutoff) or not 0 <= cutoff <= 1:
+                raise ValueError(f"{name}: cutoff must be a finite number in [0, 1]")
+        return values
+
+    @model_validator(mode="after")
+    def _backend_pin(self) -> "ReviewerSpec":
+        # The pin check lives with the backends; building one does no network call.
+        from mailroom_sandbox.decision_backends import build_backend
+
+        build_backend(self.backend, self.model)
+        if self.backend == "jev" and "correspondence" in self.classes:
+            # Dropped when the correspondence reviewer path is supported live.
+            raise ValueError("correspondence cannot use the live jev backend yet; use mock offline")
+        return self
+
+
 class TraceSpec(BaseModel):
     sink: Literal["langfuse", "phoenix", "otlp", "none"] = "langfuse"
     otlp: bool = True
@@ -533,6 +562,7 @@ class RunSpec(BaseModel):
     agent_models: dict[str, str] = Field(default_factory=dict)
     agent_knobs: dict[str, dict[str, Any]] = Field(default_factory=dict)
     agent_routes: dict[str, AgentRoute] = Field(default_factory=dict)
+    reviewer: ReviewerSpec | None = None
 
     model_config = {"populate_by_name": True}
 
@@ -640,6 +670,7 @@ def spec_core(spec: RunSpec) -> dict[str, Any]:
         **({"agent_models": dict(sorted(spec.agent_models.items()))} if spec.agent_models else {}),
         **({"agent_knobs": spec.agent_knobs} if spec.agent_knobs else {}),
         **({"agent_routes": {name: route.model_dump() for name, route in spec.agent_routes.items()}} if spec.agent_routes else {}),
+        **({"reviewer": spec.reviewer.model_dump()} if spec.reviewer else {}),
         "task": spec.task,
         "profile": spec.profile,
         "engine": {

@@ -1749,6 +1749,8 @@ Local-first LLM-Mailroom experiment sandbox.
 | `study` | Yes |  |
 | `--task` | No | Choices: specialists, pipeline, sorter. |
 | `--agent-route` | No | per-agent provider/model; NAME=@route.yaml includes endpoint/GPU/vLLM settings |
+| `--decision-reviewer` | No | freeze a decision-model reviewer (jev:jev-1.13.0 or mock:mock); needs --decision-class |
+| `--decision-class` | No | class the decision reviewer handles, with its cutoff in [0, 1] (repeatable) |
 | `--design` | No | Choices: single, sand42. |
 | `--doc-class` | No | Choices: contract, corporate_record, correspondence, insurance_claim, merger_agreement. |
 | `--samples` | No | documents per selected class, shared across every cell |
