@@ -254,13 +254,28 @@ function menuText(node) {
   return [path, ...node.children.map((name, i) => `${String(i + 1).padStart(String(node.children.length).length)}. ${name.padEnd(width)}  ${(node.summaries || {})[name] || ""}`.trimEnd()),
     "Choose from the selector · help <command> for a manual"].join("\n");
 }
+function clip(text, max = 60) { return text.length > max ? text.slice(0, max - 1) + "…" : text; }
+function editDistance(a, b) {
+  // Optimal string alignment: a swapped pair of letters ("strat") costs one edit.
+  const d = Array.from({length: a.length + 1}, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) {
+    d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+  }
+  return d[a.length][b.length];
+}
+function closeNames(word, names) {
+  const limit = Math.max(1, Math.floor(word.length / 3));
+  return names.filter(name => (word.length >= 3 && name.startsWith(word)) || editDistance(word, name) <= limit).slice(0, 3);
+}
 function unknownPath(words) {
   let node = commandCatalog[0], known = [];
   for (const word of words) {
     if (word.startsWith("-")) return null;
     if (!node.children.includes(word)) {
-      const close = node.children.filter(name => name.startsWith(word.slice(0, 2))).slice(0, 3);
-      return `Unknown command '${[...known, word].join(" ")}'` + (close.length ? ` · did you mean ${close.join(", ")}?` : " · type menu to browse");
+      const close = closeNames(word, node.children);
+      return `Unknown command '${clip([...known, word].join(" "))}'` + (close.length ? ` · did you mean ${close.join(", ")}?` : " · type menu to browse");
     }
     known.push(word); node = commandNode(known);
     if (!node.children.length) return null;
@@ -298,8 +313,9 @@ function commandRun(line) {
     commandPrint("Credentials are not accepted in the browser terminal. Configure them in your local environment.");
     return;
   }
+  if (!words.length && !line.trim()) { commandPrint("mailroom> "); return; }
   if (name === "clear") { commandOutput.textContent = ""; return; }
-  commandPrint("mailroom> " + line);
+  commandPrint("mailroom> " + clip(line, 120));
   if (name === "history") { commandPrint(commandHistory.join("\n")); return; }
   commandHistory.push(line); if (commandHistory.length > 100) commandHistory.shift();
   historyIndex = commandHistory.length;
@@ -316,6 +332,12 @@ function commandRun(line) {
   if (commandNode(path)) { commandMenu(path, { manual: words.includes("--help") || words.includes("-h") }); commandPrint("Run locally: sandbox " + path.join(" ")); return; }
   const problem = unknownPath(path);
   if (problem) { commandPrint(problem); return; }
+  const leaf = [];
+  for (const word of path) { if (!commandNode([...leaf, word])) break; leaf.push(word); }
+  if (leaf.length && !commandNode(leaf).children.length) {
+    commandPrint(`This page does not run commands. Run it in a local terminal:\n  sandbox ${clip(words.join(" "), 200)}\nOptions: help ${leaf.join(" ")}`);
+    return;
+  }
   commandPrint("Not a browser inspection command. Use help [command path], or execute with sandbox tui locally.");
 }
 document.getElementById("command-form").addEventListener("submit", ev => {

@@ -12,7 +12,8 @@ import sys
 import time
 from pathlib import Path
 
-from mailroom_sandbox.overlay import load_profile
+from mailroom_sandbox.compose import VALID_PROFILES as COMPOSE_PROFILES
+from mailroom_sandbox.overlay import UnknownProfileError, load_profile
 from mailroom_sandbox.paths import repo_root, vendor_dir
 from mailroom_sandbox.runtime import activate, resolve_dojo_src, resolve_mailroom_src
 from mailroom_sandbox.services._exec import ServiceError
@@ -123,6 +124,9 @@ def main(argv: list[str] | None = None) -> int:
         if exc.stderr:
             print(exc.stderr.decode() if isinstance(exc.stderr, bytes) else exc.stderr, end="", file=sys.stderr)
         return 1
+    except UnknownProfileError as exc:
+        print(f"error: {_one_line(exc)}", file=sys.stderr)
+        return 1
     except FileNotFoundError as exc:
         print(f"command unavailable: {exc}", file=sys.stderr)
         return 1
@@ -179,6 +183,12 @@ def build_parser() -> argparse.ArgumentParser:
             raise argparse.ArgumentTypeError("seconds must be finite and positive")
         return seconds
 
+    def nonempty(value: str) -> str:
+        # `--profile "$UNSET"` must fail loudly, not fall back to the default.
+        if not value.strip():
+            raise argparse.ArgumentTypeError("value is empty; omit the flag to use the default")
+        return value.strip()
+
     def _shared_flags(*, root: bool) -> argparse.ArgumentParser:
         """The cross-command flags. The root copy carries the real defaults; the copy
         every subparser inherits uses ``default=SUPPRESS`` so a value parsed at the
@@ -186,9 +196,9 @@ def build_parser() -> argparse.ArgumentParser:
         a flag placed after the subcommand still wins."""
         none = None if root else argparse.SUPPRESS
         flags = argparse.ArgumentParser(add_help=False)
-        flags.add_argument("--profile", default=default_profile() if root else argparse.SUPPRESS)
-        flags.add_argument("--model", default=none, help="Override every agent's model tag")
-        flags.add_argument("--prompt", default=none, help="Local prompt variant stem (e.g. sorter_local_v0)")
+        flags.add_argument("--profile", type=nonempty, default=default_profile() if root else argparse.SUPPRESS)
+        flags.add_argument("--model", type=nonempty, default=none, help="Override every agent's model tag")
+        flags.add_argument("--prompt", type=nonempty, default=none, help="Local prompt variant stem (e.g. sorter_local_v0)")
         flags.add_argument(
             "--agent-model",
             action="append",
@@ -213,7 +223,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(handler=_cmd_tui)
 
     p = sub.add_parser("up", help="Start compose profiles (langfuse + provider)", parents=[leaf])
-    p.add_argument("--compose-profile", action="append", dest="compose_profiles")
+    p.add_argument("--compose-profile", action="append", dest="compose_profiles", choices=COMPOSE_PROFILES)
     # hub#56: -d opts in to detached mode; the default is foreground (the old
     # action='store_true', default=True made -d a permanent no-op and `sandbox
     # up` could NEVER run in the foreground).
@@ -221,7 +231,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(handler=_cmd_up)
 
     p = sub.add_parser("down", help="Stop compose stack", parents=[leaf])
-    p.add_argument("--compose-profile", action="append", dest="compose_profiles")
+    p.add_argument("--compose-profile", action="append", dest="compose_profiles", choices=COMPOSE_PROFILES)
     p.set_defaults(handler=_cmd_down)
 
     p = sub.add_parser("health", help="Probe the active provider + Langfuse", parents=[leaf])
@@ -1916,12 +1926,33 @@ def _mailroom_env() -> dict[str, str]:
     return env
 
 
+# Third-party modules the vendored service imports at startup, with the install
+# that provides each. Checked up front so a missing extra is one line, not the
+# child interpreter's ModuleNotFoundError traceback.
+_SERVICE_DEPS = {
+    "watcher": (("structlog", "pip install structlog"), ("watchdog", "pip install -e '.[pipeline]'"),
+                ("langgraph", "pip install -e '.[pipeline]'"), ("langfuse", "pip install -e '.[observability]'")),
+    "api": (("fastapi", "pip install fastapi"), ("structlog", "pip install structlog"),
+            ("langgraph", "pip install -e '.[pipeline]'"), ("langfuse", "pip install -e '.[observability]'")),
+}
+
+
+def _require_service_deps(service: str) -> None:
+    import importlib.util
+
+    for module, install in _SERVICE_DEPS[service]:
+        if importlib.util.find_spec(module) is None:
+            raise ServiceError(f"pipeline {service} needs {module}, which is not installed: {install}")
+
+
 def _cmd_watcher(args: argparse.Namespace) -> int:
+    _require_service_deps("watcher")
     activate(args.profile, model=args.model, prompt_variant=args.prompt, agent_models=_agent_models(args))
     return subprocess.call([sys.executable, "-m", "pipeline.watcher"], env=_mailroom_env())
 
 
 def _cmd_api(args: argparse.Namespace) -> int:
+    _require_service_deps("api")
     activate(args.profile, model=args.model, prompt_variant=args.prompt, agent_models=_agent_models(args))
     return subprocess.call([sys.executable, "-m", "api.main"], env=_mailroom_env())
 
