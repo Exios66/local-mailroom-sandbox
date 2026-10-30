@@ -27,7 +27,13 @@ def nodes(parser, path=()):
 
 
 def required(action):
-    return not isinstance(action, argparse._SubParsersAction) and bool(action.required or (not action.option_strings and action.nargs not in ('?', '*', argparse.REMAINDER)))
+    if isinstance(action, argparse._SubParsersAction):
+        return False
+    if action.option_strings:
+        return bool(action.required)
+    # Positionals: derive from nargs, not ``action.required`` -- Python < 3.12 marks
+    # ``nargs='*'`` positionals required even though parsing accepts zero values.
+    return action.nargs not in ('?', '*', argparse.REMAINDER)
 
 
 def risk(path):
