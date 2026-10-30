@@ -927,3 +927,37 @@ def test_telemetry_query_requests_the_l4_comparable_extras():
     mod = _load_app_module()
     for col in ("utilization.memory", "power.limit", "clocks.sm"):
         assert col in mod.TELEMETRY_QUERY, f"sampler does not request {col}"
+
+
+def test_startup_wait_stops_when_vllm_exits(monkeypatch):
+    from types import SimpleNamespace
+    mod = _load_app_module()
+    def no_socket(*args, **kwargs):
+        raise AssertionError('a dead child must not be probed')
+    monkeypatch.setattr(mod.socket, 'create_connection', no_socket)
+    assert mod._wait_for_port(8000, process=SimpleNamespace(poll=lambda: 2)) is False
+
+
+def test_failed_startup_kills_and_reaps_the_child(monkeypatch):
+    import subprocess
+    mod = _load_app_module()
+    calls = []
+    class Child:
+        def poll(self):
+            return None
+        def terminate(self):
+            calls.append('terminate')
+        def kill(self):
+            calls.append('kill')
+        def wait(self, *, timeout):
+            calls.append('wait')
+            if 'kill' not in calls:
+                raise subprocess.TimeoutExpired('vllm', timeout)
+            return -9
+    monkeypatch.setattr(mod.subprocess, 'Popen', lambda *args, **kwargs: Child())
+    monkeypatch.setattr(mod, '_wait_for_port', lambda *args, **kwargs: False)
+    monkeypatch.setattr(mod.atexit, 'register', lambda fn: None)
+    monkeypatch.setattr(mod.atexit, 'unregister', lambda fn: calls.append('unregister'))
+    with pytest.raises(RuntimeError, match='startup timeout'):
+        mod.serve.fn()
+    assert calls == ['terminate', 'wait', 'kill', 'wait', 'unregister']

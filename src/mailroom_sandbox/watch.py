@@ -567,13 +567,25 @@ def _stream_logs(app: str, sink: Any, stop: threading.Event, *, prefix: str = ""
             sink.append("ERROR modal CLI not found on PATH — logs unavailable")
             return
         assert proc.stdout is not None
+        # A quiet stream blocks the read below, so `stop` must also be able to end the child.
+        stream_over = threading.Event()
+
+        def _end_child_on_stop(proc=proc, stream_over=stream_over) -> None:
+            while not stream_over.is_set():
+                if stop.wait(0.2):
+                    proc.terminate()
+                    return
+
+        threading.Thread(target=_end_child_on_stop, daemon=True).start()
         for raw in proc.stdout:
             if stop.is_set():
                 break
             line = raw.rstrip()
             if line:
                 sink.append(f"{prefix}{line}" if prefix else line)
+        stream_over.set()
         proc.terminate()
+        proc.wait()
         if not stop.is_set():
             note_reconnect(sink)
             stop.wait(10)

@@ -53,6 +53,18 @@ def _versions() -> dict[str, Any]:
 
 def _engine_errors(spec: RunSpec) -> list[str]:
     errs: list[str] = []
+    if spec.agent_models or spec.agent_knobs:
+        from mailroom_sandbox.agent_routes import known_agents
+        unknown = (set(spec.agent_models) | set(spec.agent_knobs)) - known_agents()
+        if unknown:
+            errs.append(f"unknown or retired agents: {sorted(unknown)}")
+    if spec.agent_routes:
+        from mailroom_sandbox.agent_routes import validate
+        from mailroom_sandbox.services._exec import ServiceError
+        try:
+            validate(spec.agent_routes, credentials=not spec.job.mock)
+        except (ValueError, ServiceError) as exc:
+            errs.append(str(exc))
     vllm = spec.engine.vllm
     if vllm.max_model_len < 1:
         errs.append("max_model_len must be >= 1")
@@ -105,7 +117,16 @@ def _probe_timeout_seconds(spec: RunSpec) -> float:
 
 def _probe_engine(spec: RunSpec) -> dict[str, Any]:
     base = engine_base_url(spec)
-    api_key = os.environ.get("VLLM_API_KEY", "").strip()
+    from mailroom_sandbox.overlay import load_profile
+    profile = load_profile(spec.profile)
+    api_key_env = str(profile.get("api_key_env") or "VLLM_API_KEY")
+    # ``engine_base_url`` resolves VLLM_BASE_URL BEFORE the profile base for
+    # every non-OpenRouter kind. The probe must then use the vLLM credential:
+    # an ``openrouter`` profile pointed at a vLLM endpoint would otherwise
+    # send OPENROUTER_API_KEY to that host.
+    if spec.engine.kind != "openrouter" and os.environ.get("VLLM_BASE_URL", "").strip():
+        api_key_env = "VLLM_API_KEY"
+    api_key = os.environ.get(api_key_env, "").strip()
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
     detail: dict[str, Any] = {"base_url": base}
     import httpx
@@ -142,7 +163,7 @@ def _probe_engine(spec: RunSpec) -> dict[str, Any]:
             if resp.status_code == 401:
                 return {
                     "ok": False,
-                    "reason": "401 — set VLLM_API_KEY to the deployed token",
+                    "reason": f"401 — set {api_key_env} to the configured provider token",
                     "cold_boot_seconds": round(time.perf_counter() - started, 3),
                     **detail,
                 }
@@ -193,6 +214,35 @@ def probe_engine(spec: RunSpec) -> dict[str, Any]:
     the whole preflight.
     """
     return _probe_engine(spec)
+
+
+def probe_timeout_seconds(spec: RunSpec) -> float:
+    """Public boot budget for direct probes (CLI and per-agent route checks)."""
+    return _probe_timeout_seconds(spec)
+
+
+def record_cold_boot(store: RunStore, probe: Mapping[str, Any], *, run_id: str | None = None) -> dict[str, Any] | None:
+    """Persist a successful live-probe measurement as the run's cold boot.
+
+    Direct probes (``sandbox run preflight --live`` / ``run start``) bypass
+    ``preflight(live=True)``, so the runner and metrics never saw the measured
+    boot time. Only successful measurements are recorded; a failed probe must
+    not overwrite an existing measurement.
+    """
+    boot_seconds = probe.get("cold_boot_seconds") if probe.get("ok") else None
+    if boot_seconds is None:
+        return None
+    measurement = {
+        "cold_boot_seconds": float(boot_seconds),
+        "base_url": probe.get("base_url"),
+        "served_models": probe.get("served_models"),
+        "probe_timeout_seconds": probe.get("probe_timeout_seconds"),
+        "measured_at": checkpoint.utc_now(),
+        "run_id": run_id or store.run_id,
+    }
+    store.write_cold_boot(measurement)
+    store.append_event("cold_boot", "info", **measurement)
+    return measurement
 
 
 def _modal_check(spec: RunSpec) -> bool:
@@ -526,21 +576,13 @@ def _preflight(
             return report
         boot_seconds = probe.get("cold_boot_seconds")
         if boot_seconds is not None:
-            measurement = {
-                "cold_boot_seconds": float(boot_seconds),
-                "base_url": probe.get("base_url"),
-                "served_models": probe.get("served_models"),
-                "probe_timeout_seconds": probe.get("probe_timeout_seconds"),
-                "measured_at": checkpoint.utc_now(),
-                "run_id": run_id,
-            }
-            store.write_cold_boot(measurement)
-            store.append_event("cold_boot", "info", **measurement)
-            report["cold_boot_seconds"] = float(boot_seconds)
-            report["cold_boot_path"] = str(store.cold_boot_path)
-            report["checks"][-1]["detail"] += (
-                f" | cold_boot={float(boot_seconds):.2f}s"
-            )
+            measurement = record_cold_boot(store, probe, run_id=run_id)
+            if measurement is not None:
+                report["cold_boot_seconds"] = measurement["cold_boot_seconds"]
+                report["cold_boot_path"] = str(store.cold_boot_path)
+                report["checks"][-1]["detail"] += (
+                    f" | cold_boot={measurement['cold_boot_seconds']:.2f}s"
+                )
 
     # 5) trace sink
     try:
@@ -583,6 +625,7 @@ def _preflight(
         "task": spec.task,
         "profile": spec.profile,
         "agent_models": dict(spec.agent_models),
+        **({"agent_routes": {name: route.model_dump() for name, route in spec.agent_routes.items()}} if spec.agent_routes else {}),
         "prompt": prompt_block,
         "engine": spec.engine.model_dump(),
         "job": spec.job.model_dump(),
@@ -601,7 +644,13 @@ def _preflight(
     from mailroom_sandbox.job.specialist_posture import agent_knobs_for_run
     from mailroom_sandbox.runtime import resolve_agent_knobs
 
-    lock["agent_knobs"] = resolve_agent_knobs(agent_knobs_for_run(run_id))
+    lock["agent_knobs"] = resolve_agent_knobs(spec.agent_knobs or agent_knobs_for_run(run_id))
+    # Freeze the resolved table for model-only runs too: otherwise runtime.activate()
+    # rebuilds the remaining agents from the live profile/taxonomy, so a later
+    # judge_model edit silently changes a resumed run without changing its lock.
+    if spec.agent_routes or spec.agent_knobs or spec.agent_models:
+        from mailroom_sandbox.agent_routes import describe
+        lock["agent_assignments"] = describe(spec)
     selected = selection_from_lock(prompt_block)
     if selected:
         # The selected eval-environment keys + sha256 are part of the run's identity.

@@ -26,6 +26,21 @@ modal run deploy/modal_vllm.py::download_model   # pre-warm weights (CPU-only)
 modal deploy deploy/modal_vllm.py                # prints the modal.run URL
 ```
 
+### Through the sandbox CLI (guarded passthrough)
+
+```bash
+sandbox modal deploy --model Qwen/Qwen3-8B-AWQ --dry-run   # prints the exact argv + MODAL_VLLM_* row, spends nothing
+sandbox modal prewarm        # CPU-only weight download
+sandbox modal deploy         # prints the endpoint + export lines
+sandbox vllm probe           # models + chat + /health + /metrics (wakes a billed GPU)
+sandbox modal status         # is sandbox-vllm deployed (billing)?
+sandbox modal stop           # idempotent teardown, verified via `modal app list --json`
+sandbox modal raw -- <modal args>    # anything else, unchanged
+```
+
+A missing `modal` binary is one `error:` line with the install hint. `sandbox vllm command`
+prints the `vllm serve` line the app launches (from `build_vllm_command`).
+
 App name: **`sandbox-vllm`** (sandbox-scoped; Volumes `sandbox-hf-cache` +
 `sandbox-vllm-cache`). Source: `deploy/modal_vllm.py`.
 

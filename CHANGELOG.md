@@ -2,8 +2,67 @@
 
 ## [Unreleased]
 
+### Added
+
+- `docs/cli-reference.md`: generated, complete reference for every parser node,
+  argument, parser-required marker and choice, plus `python scripts/check_cli_surface.py
+  [--check]` and parser-surface tests that exercise help, required arguments and
+  handler dispatch for every leaf (no live services).
+- `sandbox experiment designs|create|review|preflight|launch|watch|report`: single and
+  SAND42 paired designs, pinned Hub slices/sample sizes, full pipeline or specialist
+  jobs, explicit vLLM/GPU/decode/trace choices, separate bounded smoke subsets,
+  managed-cell teardown, observer following, coverage and paired outcome reports.
+- Per-agent `agent_routes` and `--agent-route NAME=PROVIDER:MODEL` (or a route YAML):
+  API, Modal/vLLM, and hybrid pipelines through the native/LangChain shared seam.
+  Resolved agent assignments and generation knobs are locked; vendor bytes stay intact.
+- Configuration-bound, expiring initials receipts for paid run start/resume and live
+  preflight; campaign receipts also bind smoke settings. Mock endpoint work stays
+  unsigned. Initials attest operator review; they are not cryptographic identity proof.
+
+- `tests/_fakebin.py` and the `fake_bin` fixture: fake `modal`/`vllm`/`hf`/`ssh`/
+  `docker`/`ollama` executables on an isolated `PATH` (argv logged, canned output per
+  subcommand), so CLI wrappers are tested without the real tools or a network.
+- `mailroom_sandbox.services._exec`: one guarded way to run an external CLI
+  (`require_tool`, `run_tool`; `ToolMissing`, `ToolFailed`, `ToolTimeout`).
+  `main()` renders any `ServiceError` as a single `error:` line (exit 1).
+- `sandbox modal deploy|prewarm|status|logs|stop|url|raw`: guarded passthrough to the
+  Modal CLI. Injects the pinned `deploy/modal_vllm.py` entrypoint and the `--model`/`--gpu`
+  row from `config/models.yaml`; `deploy`, `prewarm`, `stop` and `logs` have
+  `--dry-run` (prints the argv, spends nothing); `deploy` prints the endpoint exports; `stop` is idempotent and verified
+  against `modal app list --json`; an SDK other than the `modal==1.6.2` pin warns.
+- `sandbox vllm probe|command|serve|metrics`: `probe` checks models, chat, `/health` and
+  `/metrics` plus that the served model is the one a run will ask for; `command` prints
+  the exact `vllm serve` argv the Modal app launches (loaded from
+  `deploy/modal_vllm.py::build_vllm_command`, no Modal SDK needed); `serve` runs it on a
+  local NVIDIA host bound to 127.0.0.1; `metrics` wraps `vllm_metrics.scrape`.
+- `sandbox hf whoami|download|cache|raw`: guarded passthrough to the `hf` CLI. `download`
+  defaults to the sandbox dataset at the pinned `FAMILY_HF_REVISION`; the cache is
+  explicit (your own `HF_HOME`, or `--sandbox-cache` for `data/cache/hf`).
+- `services._exec.stream_tool` / `passthrough_tool` (live-streamed and terminal-attached
+  runs) and ANSI stripping in tool-failure messages.
+
+- `sandbox doctor [--service NAME]… [--live] [--publish] [--json]`: one status table for
+  modal, modal-auth, hf, hf-auth, docker, ollama, ssh, git, vllm, provider, langfuse,
+  phoenix, tunnel and compose. Offline by default (binaries and config only); `--live`
+  adds network probes and warns that a request to a scale-to-zero Modal URL wakes a
+  billed GPU. Exit 1 only on a `fail` row. `--publish` writes the snapshot the board shows.
+- TUI services panel: `sandbox board` renders the published `mailroom.services/v1`
+  snapshot as a status strip (terminal and browser, `/api/services`), also in
+  `sandbox watch --web`; a snapshot older
+  than 15 minutes is marked stale. `board --probe-interval SECS` refreshes offline checks;
+  add `--live` explicitly for network probes (can wake a billed GPU). Viewing snapshots stays network-free.
+- Service beacons: `sandbox modal deploy|prewarm|stop`, `sandbox hf download`,
+  `sandbox tunnel up`, `sandbox datasets pull`, `sandbox doctor`, `sandbox up` and
+  Ollama `sandbox pull-models` publish a `mailroom.beacon/v1` job, so
+  they appear on the board like `run start` does.
+
 ### Changed
 
+- CLI startup loads the checkout's `.env` files (root `.env`, then `config/.env`) before
+  building the parser, so profiles and secrets resolve from `config/.env.example`;
+  exported variables still win, then root `.env`, then `config/.env`. The template is
+  refreshed against the variables the CLI, deploy scripts and Modal app actually read
+  (Modal workspace/app name, deploy knobs, per-agent route key variables).
 - Serve through **Modal vLLM by default**: `SANDBOX_PROFILE=modal-vllm` and
   `DEFAULT_PROVIDER=vllm` (CLI, runtime fallbacks, `.env.example`, generated
   runbooks and README/quickstart). `--profile ollama` is the explicit
@@ -15,6 +74,56 @@
   `docs/runbooks/`.
 
 ### Fixed
+
+- Command-audit fixes: repeatable `--agent-model` accumulates across the root, group
+  and leaf parsers (last value wins); `--mock` and `--local` are mutually exclusive;
+  zero, negative, NaN and infinite sample/cost/concurrency inputs are rejected;
+  options that would have been silently ignored (`--from-log`, `--group`,
+  `--connected`, empty matrix lists, unknown agents) return a usage error; commands
+  that cannot honor `--dry-run` reject it instead of acting; `pilot`, `legalbench`,
+  `matrix` and `hf-pilot` forward agent overrides; matrix cells share one seeded draw
+  and forward the seed.
+- Direct live probes now persist `cold_boot.json` (preflight/start), per-agent Modal
+  route probes wait out the boot budget, teardown keeps the original failure when
+  cleanup also fails, the engine probe uses the credential of the resolved transport,
+  model-only runs freeze `agent_assignments`, ambiguous credential URLs are rejected
+  by redaction, and an unwritable snapshot root no longer stops the board.
+- Complete SAND-064 review fixes: credential-free doctor URLs and fake-tool logs; `.env`
+  loading for HF and local vLLM commands; malformed snapshot rejection; safe HTML
+  attributes; independent doctor checks; per-app teardown guidance; trimmed workspaces;
+  interrupted SSH startup cleanup and macOS zombie detection.
+- Deploy startup detects an exited vLLM child and reaps failed children. Teardown
+  refuses failed/malformed Modal listings, uses `MODAL_VLLM_APP_NAME`, and is idempotent.
+- Opt-in real CLI contract tests (`SANDBOX_SERVICE_SMOKE=1`); a live endpoint probe
+  additionally requires `SANDBOX_LIVE_PROVIDER_SMOKE=1` and an explicit endpoint.
+
+- Review follow-ups on the Slice 1 fixes: `tunnel plan` accepts the shared flags after the
+  subcommand; the health probe treats only 2xx as healthy (a 3xx is `HTTP 3xx`, and the
+  non-JSON detail names the real status); a modal-vllm run spec with `engine.modal: null`
+  resolves its gateway from `MODAL_VLLM_APP_NAME`/`sandbox-vllm` instead of raising.
+- `sandbox beacon update --finish` clears the stale `phase`; a paused or still-running
+  job's runner no longer stamps its beacon `done` (it publishes `PAUSED`/`RUNNING`).
+- `sandbox watch` no longer leaks the `modal app logs -f` child it spawned when the
+  watcher stops.
+- Test suite: the vendored pipeline's fire-and-forget `relations-scan` threads are joined
+  at the end of each test (`tests/conftest.py`). Their `schema_ready` log line used to
+  land in a later test's captured stdout and intermittently broke
+  `test_generation_protocol.py::test_idle_local_cancel_does_not_poison_next_resume`.
+- `run preflight --live`, `run start` and `run scrape-metrics` no longer resolve the
+  default `modal-vllm` profile to `http://localhost:8000/v1`: the run-spec resolver now
+  uses `VLLM_BASE_URL`, then the `MODAL_WORKSPACE` gateway for the spec's Modal app, and
+  fails with a clear error (`EndpointUnresolved`) instead of probing localhost.
+- `sandbox health` no longer crashes with `JSONDecodeError` when an endpoint answers
+  2xx with a non-JSON body; a model endpoint reports `non-JSON body`, and the Langfuse
+  and Phoenix liveness probes treat any 2xx as healthy.
+- `--profile`, `--model`, `--prompt` and `--agent-model` now work before or after the
+  subcommand on every command, including `tunnel` and `run`; a value before the
+  subcommand was previously overwritten by the leaf default.
+- `sandbox tunnel up` reports a missing `ssh`, shows ssh's own error, waits for the
+  forward port and cleans up a forward that never opened; `tunnel down` clears a stale
+  pidfile instead of failing forever and never signals a process that is not ssh;
+  `tunnel status` reports `pid_alive`; a non-numeric `SANDBOX_TUNNEL_PORT` is a clear
+  error. A port already in use and a timed-out external tool are one-line errors.
 
 - Review follow-ups on the Modal-default change: a `SANDBOX_PROFILE` set only in
   `.env` (e.g. `ollama`) is honoured when the CLI resolves its default; the

@@ -9,13 +9,15 @@ have their own guides: [`conda/`](conda/) (environment spec),
 
 ```bash
 sandbox up                       # langfuse only (default modal-vllm: the GPU endpoint is on Modal)
-sandbox up --compose-profile ollama   # offline fallback: langfuse + ollama
+sandbox up --compose-profile langfuse --compose-profile ollama   # offline fallback: langfuse + ollama
 sandbox up --compose-profile phoenix --compose-profile vllm
 sandbox up --compose-profile jupyter   # builds deploy/Dockerfile → Lab :8888
 sandbox down
 ```
 
 Profiles: `langfuse`, `phoenix`, `ollama`, `vllm`, `llamacpp`, `jupyter`.
+Each `up` line above is an alternative; `up` runs in the foreground unless `-d`
+is supplied. Explicit compose profiles replace the selected profile defaults.
 
 Langfuse 3 (`langfuse-web` + `langfuse-worker`) is the default tracing sink.
 Phoenix is optional. Headless project keys are `pk-lf-sandbox` / `sk-lf-sandbox`
@@ -34,7 +36,7 @@ Jupyter Lab). Full walkthrough: [`docs/setting-up/docker-offline.md`](../docs/se
 docker build -f deploy/Dockerfile -t mailroom-sandbox:offline .
 
 # Or via compose (mounts the repo at /workspace)
-sandbox up --compose-profile langfuse --compose-profile ollama --compose-profile jupyter
+sandbox up -d --compose-profile langfuse --compose-profile ollama --compose-profile jupyter
 # → http://127.0.0.1:8888/lab  (notebooks/01…03)
 sandbox datasets prepare         # same cleaners the notebooks call
 ```
