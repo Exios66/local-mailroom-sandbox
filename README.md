@@ -167,7 +167,7 @@ explicitly flagged `offline_fallback`.
 
 | Component | Default | Notes |
 | :--- | :--- | :--- |
-| **Default provider** | Modal vLLM (`modal-vllm`) | One L4 serving `Qwen/Qwen3-8B`; `--profile ollama` is the offline opt-out |
+| **Default provider** | Modal vLLM (`modal-vllm`) | One L4 serving `Qwen/Qwen3.5-9B`; `--profile ollama` is the offline opt-out  <!-- coderabbit-ai-generated:v1 --> <!-- coderabbit-ai-generated-section:v1:20238b90f6e36cc0014c891946de1a3d491a141e5193381a3e26c56019a128d0 --> <!-- /coderabbit-ai-generated:v1 --> |
 | **Scoring** | `llm-dojo-scoring` (vendored) | Deterministic, field-type-aware |
 | **Pipeline** | `llm-mailroom` (vendored) | 13-node LangGraph state machine |
 | **Tracing** | Langfuse 3 / SDK v4 | `document-pipeline` traces |
@@ -192,8 +192,21 @@ sandbox eval specialist [TARGET] [--mock|--local]      # all five specialists, o
 sandbox eval pipeline [--class CLASS] [--mock|--local] # full pipeline, every class or one
 sandbox eval --all-tasks                               # other (non-primary) eval tasks
 sandbox eval local_vs_api --from-log   # compare experiment_log local vs API-key runs
-sandbox matrix --providers modal-vllm --models Qwen/Qwen3.5-9B --prompts sorter_v1   # default serving
-sandbox matrix --providers openrouter --models qwen/qwen3.5-9b --prompts sorter_v1   # API serving
+```
+
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:1c8dca68d68dc8c169953c7d3f1b0712553a603ab000e489c5634376d2cd1f44 -->
+
+```
+sandbox matrix --providers modal-vllm --models Qwen/Qwen3.5-9B --prompts sorter_v1 --local   # default serving
+sandbox matrix --providers openrouter --models qwen/qwen3.5-9b --prompts sorter_v1 --local   # API serving
+```
+
+<!-- /coderabbit-ai-generated:v1 -->
+
+```
+
 sandbox datasets pull          # LIVE pinned FULL Hub pull (3302 rows) → data/cache/
 sandbox datasets sample --per-class 40  # offline 20/40/100… per live class from that cache
 sandbox datasets prepare   # offline clean → data/runtime/prepared/

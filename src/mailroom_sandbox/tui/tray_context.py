@@ -359,8 +359,13 @@ def campaign_context(path: Path, current: str) -> dict[str, Any]:
     """Read campaign membership and fresh checkpoints without probes or inference."""
     from mailroom_sandbox.experiments import _load
     from mailroom_sandbox.job.spec import run_dir
+    from mailroom_sandbox.services._exec import ServiceError
 
-    _, plan, runs = _load(path)
+    try:
+        _, plan, runs = _load(path)
+    except ServiceError as exc:
+        return {"study": path.parent.name, "design": "unreadable", "current": current,
+                "runs": [], "completed": 0, "total": 0, "error": str(exc)}
     rows = []
     for _, spec in runs:
         directory = run_dir(spec.run_id)

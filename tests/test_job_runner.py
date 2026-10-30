@@ -118,6 +118,27 @@ def test_whole_run_forwards_report_group_to_scoring_runner(tmp_path, monkeypatch
     assert captured["kwargs"]["score_metadata"] == {"report_group": "SAND-123"}
 
 
+def test_target_specialist_starts_with_selected_row_total(tmp_path, monkeypatch):
+    from mailroom_sandbox.eval import runners as eval_runners
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    store = RunStore(tmp_path / "targeted")
+    store.write_lock({"task": "specialist", "target": "contract", "profile": "ollama",
+                      "engine": {"model": "test", "modal": None}, "job": {"mock": True}})
+    store.dataset_path.write_text('\n'.join(json.dumps(row) for row in [
+        {"id": "a", "expected_doc_class": "contract"},
+        {"id": "b", "expected_doc_class": "insurance_claim"},
+        {"id": "c", "expected_doc_class": "contract"},
+    ]) + '\n')
+    def fake_eval(agent, **kwargs):
+        assert store.read_checkpoint()["total"] == 2
+        assert len(kwargs["rows"]) == 2
+        return {"n": 2, "scores": {"n": 2}}
+
+    monkeypatch.setattr(eval_runners, "run_isolated_eval", fake_eval)
+    assert runner._run_whole_run(store, "specialist", mock=True, model=None, profile="ollama")["state"] == "done"
+
+
 def test_whole_run_local_vs_api_forwards_score_metadata(tmp_path, monkeypatch):
     """local_vs_api whole-run scoring receives the lock's report_group."""
     from mailroom_sandbox.eval import runners as eval_runners
