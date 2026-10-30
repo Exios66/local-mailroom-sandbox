@@ -623,12 +623,19 @@ def run_legalbench_eval(
     model: str | None = None,
     agent_models: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    """Run the LegalBench harness (binary QA / family classification).
+    """Run the LegalBench binary QA harness.
 
     ``suite=True`` loads a seeded subset from the vendored llm-mailroom suite
     (the real CUAD corpora — loud failure when unavailable); the default is
     the committed offline fixture. ``sample`` is a seeded draw, never
     first-N, and the seed lands in the plan/record (DMR-049 F5).
+
+    Return the plan alone for ``dry_run``; otherwise add ``scores`` and append
+    an experiment record. Raise ValueError for unknown tasks, the unsupported
+    ``family_classification`` task, a suite without a sample, or empty input.
+    Dataset-loading errors propagate. Individual live-answer errors become
+    empty predictions and an ``error_count`` score; if every row fails, raise
+    RuntimeError. Activation, scoring, and experiment-log errors propagate.
     """
     if task not in LEGALBENCH_TASKS:
         raise ValueError(f"unknown legalbench task {task!r}; have {sorted(LEGALBENCH_TASKS)}")
@@ -1249,6 +1256,12 @@ def _run_pipeline_doc(
     fallback; mock runs keep the deterministic fallback. ``run_id`` rides
     into ``run_pipeline`` so the catalog provenance is not NULL for
     sandbox-driven runs (DMR-052).
+
+    Return classification, stage, extraction, and ``offline_fallback`` fields;
+    successful pipeline calls also include confidence and source-path fields.
+    Import failures raise RuntimeError in live mode. Document-materialization
+    and pipeline errors propagate in both modes; mock fallback applies only
+    to import failures.
     """
     src = resolve_mailroom_src()
     name = _doc_source_name(row)

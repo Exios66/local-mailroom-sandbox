@@ -83,7 +83,7 @@ observability = [
     # Braintrust = opt-in hosted sink for eval spans. Verified against 0.42.0:
     # no start_root_span / Logger.score / Span.score in that line — see
     # src/mailroom_sandbox/eval/tracing.py for the adapter.
-    "braintrust>=0.42,<0.47",
+    "braintrust>=0.42,<0.49",
     "opentelemetry-sdk>=1.25",
     "opentelemetry-exporter-otlp-proto-http>=1.25",
 ]
@@ -128,3 +128,13 @@ markers = [
 # DMR-057: no workspace redirects needed — the family code is vendored and
 # tracked in this package (vendor/llm-mailroom + vendor/llm-dojo-scoring).
 # A plain `pip install .` (or `pip install -e ".[dev]"`) is fully self-contained.
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+extend-exclude = ["vendor", "data", "notebooks"]
+
+[tool.ruff.lint]
+# Correctness-first gate: syntax errors, undefined names, mutable defaults,
+# useless expressions, pylint errors. Widen (F401, B, UP, I) as debt is paid.
+select = ["E9", "F63", "F7", "F82", "B006", "B018", "PLE"]

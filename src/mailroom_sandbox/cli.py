@@ -1800,9 +1800,12 @@ def _cmd_subagents_materialize(args: argparse.Namespace) -> int:
 
 
 def _cmd_subagents_propagate(args: argparse.Namespace) -> int:
-    """Materialize and sync the coding subagents into every mapped family checkout.
+    """Materialize and sync coding subagents into mapped family checkouts.
 
-    Prints the per-package result as JSON and returns 1 when any package errored.
+    ``args.packages`` optionally limits the targets; ``args.dry_run`` previews
+    writes. Prints per-package results as JSON and returns 1 for any package
+    error (including a missing checkout), otherwise 0. Discovery and config
+    loading errors propagate; individual package failures appear in the results.
     """
     from mailroom_sandbox.subagents import propagate_family_checkouts
 
@@ -3432,8 +3435,10 @@ def _cmd_runbook_help(args) -> int:
 
 
 def _cmd_runbook_list(args) -> int:
-    """List runbook ids with family, title, serving variant and blocked flag, optionally filtered by family.
+    """Print runbooks, optionally filtered by family, and return 0.
 
+    Text lists ids, families, titles, and blocked markers; JSON also includes
+    serving variants. Catalog loading and validation errors propagate.
     """
     from mailroom_sandbox.job.runbooks import get_runbook, list_runbook_ids
 
