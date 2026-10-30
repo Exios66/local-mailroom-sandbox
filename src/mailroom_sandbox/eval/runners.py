@@ -919,6 +919,7 @@ def run_pipeline_eval(
     cost_cap_usd: float | None = None,
     gpu: str | None = None,
     replicas: int = 1,
+    route_gpu_resources: list[tuple[str, int]] | None = None,
 ) -> dict[str, Any]:
     # DMR-056: rows=None keeps the fixture manifest default; the sandbox job
     # whole-run path passes the LOCKED live dataset rows instead.
@@ -951,7 +952,12 @@ def run_pipeline_eval(
                 raise RuntimeError("pipeline wall-time cap exceeded before next document")
             if cost_cap_usd is not None:
                 from mailroom_sandbox.job.metrics import estimate_gpu_cost_usd
-                if float(estimate_gpu_cost_usd(elapsed, gpu=gpu or "L4", replicas=replicas) or 0) >= cost_cap_usd:
+                cost = float(estimate_gpu_cost_usd(elapsed, gpu=gpu or "L4", replicas=replicas) or 0)
+                cost += sum(
+                    estimate_gpu_cost_usd(elapsed, gpu=route_gpu, replicas=route_replicas) or 0
+                    for route_gpu, route_replicas in (route_gpu_resources or [])
+                )
+                if cost >= cost_cap_usd:
                     raise RuntimeError("pipeline estimated GPU cost cap exceeded before next document")
         before = time.monotonic()
         with ExitStack() as nodes:

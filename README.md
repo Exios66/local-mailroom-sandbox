@@ -191,8 +191,9 @@ document enters in `nodes.jsonl` (SAND-076), so `sandbox watch` and
 ## 🎚️ Model tiers
 
 The judge and the five specialists are the critical roles, so the sandbox can
-give them a stronger model than the base agents. Every tier has the same
-weights on Modal and on OpenRouter, so the two serving paths stay comparable.
+give them a stronger model than the base agents. The base and specialist tiers
+use the same weights on Modal and OpenRouter. The judge row compares different
+models, so it is not a serving-only comparison.
 `config/models.yaml` (`openrouter_preference`, `critical_tier`) defines them.
 
 | Role | Modal + vLLM | OpenRouter | Extra Modal GPU |

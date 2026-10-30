@@ -16,6 +16,24 @@ from mailroom_sandbox.mock_llm import fake_client, fake_structured_payload
 from mailroom_sandbox.runtime import activate
 
 
+def test_pipeline_cost_cap_includes_route_apps(monkeypatch):
+    from mailroom_sandbox.job import metrics
+
+    calls = []
+    def estimate(_elapsed, *, gpu, replicas):
+        calls.append((gpu, replicas))
+        return {"L4": 0.1, "L40S": 0.3}[gpu] * replicas
+
+    monkeypatch.setattr(metrics, "estimate_gpu_cost_usd", estimate)
+    monkeypatch.setattr(runners, "activate", lambda *args, **kwargs: None)
+    monkeypatch.setattr(runners.tracing, "session_id_for", lambda *_: "test")
+    rows = [{"id": "one", "expected_doc_class": "contract"}]
+    with pytest.raises(RuntimeError, match="estimated GPU cost cap"):
+        runners.run_pipeline_eval(mock=False, rows=rows, cost_cap_usd=0.5, gpu="L4", replicas=2,
+                                  route_gpu_resources=[("L40S", 1)])
+    assert calls == [("L4", 2), ("L40S", 1)]
+
+
 def test_activate_writes_taxonomy(tmp_path, monkeypatch):
     monkeypatch.setenv("MAILROOM_BASE_DIR", str(tmp_path))
     act = activate("ollama", load_env_file=False)

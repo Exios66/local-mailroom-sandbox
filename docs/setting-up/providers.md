@@ -48,8 +48,10 @@ app, beside the 9B base engine. `config/models.yaml` `critical_tier.judge`
 defines the route. `sandbox experiment create --provider modal-vllm --task
 pipeline` adds it unless `--agent-route judge=...` or `--agent-model judge=...`
 already sets the judge. Plain `sandbox run` configs do not deploy route apps,
-so add the judge route there only when its app is already up. Expect a second
-GPU in the cost estimate.
+so add the judge route there only when its app is already up. The pipeline
+cost cap estimates the base engine and each distinct configured Modal route app
+over the elapsed run time, including their GPU counts and maximum replicas. This
+includes the judge app when configured; it is an estimate, not actual billing.
 
 **Specialist tiers (SAND-079).** The five specialists stay on the base model
 unless `sandbox experiment create --specialist-tier` moves them:

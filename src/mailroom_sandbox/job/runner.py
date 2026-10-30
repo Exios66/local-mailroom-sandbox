@@ -306,7 +306,8 @@ def _run_whole_run(
                 connected=True, rows=locked_rows,
                 row_cb=lambda entry: _persist_isolated_items(store, [entry]),
                 progress_cb=_progress, node_cb=store.append_node, max_wall_seconds=max_wall,
-                cost_cap_usd=cost_cap, gpu=gpu, replicas=replicas, **kwargs)
+                cost_cap_usd=cost_cap, gpu=gpu, replicas=replicas * _gpu_count((lock.get("engine") or {}).get("modal") or {}),
+                route_gpu_resources=_pipeline_route_gpu_resources(lock), **kwargs)
         elif task == "extract":
             result = eval_runners.run_extract_eval(rows=locked_rows, **kwargs)
         elif task == "chained":
@@ -563,6 +564,30 @@ def _persist_isolated_items(store: RunStore, rows: list[dict[str, Any]] | None) 
         seen.add(item_id)
         written += 1
     return written
+
+
+def _gpu_count(modal: dict[str, Any]) -> int:
+    _, _, count = str(modal.get("gpu") or "L4").partition(":")
+    return int(count) if count else 1
+
+
+def _pipeline_route_gpu_resources(lock: dict[str, Any]) -> list[tuple[str, int]]:
+    """Locked Modal routes, counted once per app, excluding the base app."""
+    engine = lock.get("engine") or {}
+    base_modal = engine.get("modal") or {}
+    seen = {base_modal.get("app")} if engine.get("kind") == "modal-vllm" else set()
+    resources = []
+    for route in (lock.get("agent_routes") or {}).values():
+        if route.get("provider") != "modal-vllm":
+            continue
+        modal = route.get("modal") or {}
+        app = modal.get("app")
+        if not app or app in seen:
+            continue
+        seen.add(app)
+        gpu = str(modal.get("gpu") or "L4").split(":")[0]
+        resources.append((gpu, max(1, int(modal.get("max_containers") or 1)) * _gpu_count(modal)))
+    return resources
 
 
 def _lock_replicas(store: RunStore) -> int:

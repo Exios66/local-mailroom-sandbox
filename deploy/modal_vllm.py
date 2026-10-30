@@ -129,6 +129,8 @@ MODEL = os.environ.get("MODAL_VLLM_MODEL", DEFAULT_MODEL)
 _SERVE_DEFAULTS = MODEL_SERVE_DEFAULTS.get(MODEL, {})
 GPU = os.environ.get("MODAL_VLLM_GPU", "L4")
 QUANTIZATION = os.environ.get("MODAL_VLLM_QUANTIZATION", _SERVE_DEFAULTS.get("quantization", ""))
+if QUANTIZATION == "bf16":
+    QUANTIZATION = ""
 # JSON per-modality item caps; {"image":0,...} skips the vision encoder's
 # memory reservation for a text-only multimodal checkpoint (Qwen3.5).
 LIMIT_MM_PER_PROMPT = os.environ.get(

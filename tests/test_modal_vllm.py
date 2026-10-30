@@ -242,6 +242,13 @@ class TestDeploySurface:
         assert mod.MIN_CONTAINERS == 0  # scale-to-zero
         assert mod.STARTUP_TIMEOUT_SECONDS == 20 * 60
 
+    @pytest.mark.parametrize("value", ["", "bf16"])
+    def test_explicit_no_quantization_overrides_the_model_default(self, monkeypatch, value):
+        monkeypatch.setenv("MODAL_VLLM_QUANTIZATION", value)
+        mod = _load_app_module()
+        assert mod.QUANTIZATION == ""
+        assert "--quantization" not in mod.build_vllm_command(mod.MODEL)
+
     def test_serve_function_config(self):
         mod = _load_app_module()
         kwargs = mod.serve.kwargs

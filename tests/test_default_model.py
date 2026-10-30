@@ -12,7 +12,7 @@ import json
 import pytest
 
 from mailroom_sandbox import modal_matrix
-from mailroom_sandbox.job.deploy_env import spec_env
+from mailroom_sandbox.job.deploy_env import render_exports, spec_env
 from mailroom_sandbox.job.spec import DEFAULT_ENGINE_MODEL, MODEL_SERVE_DEFAULTS, EngineSpec, RunSpec, spec_core
 from mailroom_sandbox.overlay import build_merged_taxonomy, load_model_map, load_profile
 from mailroom_sandbox.paths import repo_root
@@ -113,6 +113,14 @@ def test_spec_env_renders_the_deploy_default_mm_limits_byte_for_byte():
     assert env["MODAL_VLLM_LIMIT_MM_PER_PROMPT"] == deploy["limit_mm_per_prompt"]
     assert env["MODAL_VLLM_QUANTIZATION"] == "fp8"
     assert spec_env(_run("Qwen/Qwen3-8B"))["MODAL_VLLM_LIMIT_MM_PER_PROMPT"] == ""
+
+
+def test_spec_env_preserves_an_explicit_unquantized_model():
+    spec = _run(DEFAULT_ENGINE_MODEL)
+    spec.engine.vllm.quantization = ""
+    assert spec_env(spec)["MODAL_VLLM_QUANTIZATION"] == "bf16"
+    assert "export MODAL_VLLM_QUANTIZATION=bf16" in render_exports(spec)
+    assert spec_env(_run("Qwen/Qwen3-8B"))["MODAL_VLLM_QUANTIZATION"] == ""
 
 
 def test_critical_judge_route_matches_its_serve_defaults_and_modal_row():

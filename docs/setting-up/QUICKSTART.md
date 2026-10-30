@@ -194,10 +194,10 @@ experiments put the judge on `Qwen/Qwen3.5-27B` (its own L40S app);
 `Qwen/Qwen3.5-35B-A3B` or the judge's 27B. Launch asks for your initials.
 
 ```bash
-sandbox experiment create tiers-full --task pipeline --specialist-tier full --samples 2 --seed 42
-sandbox experiment review   --config config/experiments/tiers-full/experiment.yaml
-sandbox experiment preflight --config config/experiments/tiers-full/experiment.yaml
-sandbox experiment launch    --config config/experiments/tiers-full/experiment.yaml   # initials-gated spend
+sandbox experiment create quickstart-full --task pipeline --specialist-tier full --samples 2 --seed 42
+sandbox experiment review   --config config/experiments/quickstart-full/experiment.yaml
+sandbox experiment preflight --config config/experiments/quickstart-full/experiment.yaml
+sandbox experiment launch    --config config/experiments/quickstart-full/experiment.yaml   # initials-gated spend
 ```
 
 ## 10. Mailroom live watch (long Modal jobs)
