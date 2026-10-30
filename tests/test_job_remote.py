@@ -7,8 +7,8 @@ import shutil
 
 import pytest
 
-from test_generation_protocol import modal_fs
-from test_job_generation_residuals import source_root, spec_file, sdk
+from test_generation_protocol import modal_fs  # noqa: F401 - pytest fixture
+from test_job_generation_residuals import source_root, spec_file, sdk  # noqa: F401 - pytest fixtures
 from mailroom_sandbox.job import preflight, remote
 
 pytestmark = pytest.mark.usefixtures('job_data_dir')

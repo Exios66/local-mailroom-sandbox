@@ -293,7 +293,7 @@ def test_dojo_pin_matches_current_vendored_snapshot():
 
     import llm_dojo_scoring as dojo
     from llm_dojo_scoring import get_suite, headline_metrics
-    from mailroom_sandbox.paths import repo_root, vendored_dojo_src
+    from mailroom_sandbox.paths import vendored_dojo_src
 
     # DMR-057: the scoring engine is the TRACKED vendored snapshot — resolved
     # from the vendored tree's VENDOR.md, not a pyproject git pin.

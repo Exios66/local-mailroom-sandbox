@@ -1596,7 +1596,6 @@ def estimate_suite(
         }
         # Re-scale wall from likely sec/doc mix: use suite busy (excl overhead)
         # / total_docs as mean busy, then wall = (mean × N) / concurrency.
-        conc = max(1, int(rows[0]["concurrency"]))
         corpus_wall_h = {}
         for band in _BANDS:
             busy_suite = sum(float(r["wall_seconds"][band]) for r in rows)
