@@ -1,4 +1,4 @@
-# requirements/ 
+# requirements/
 
 > pip-installable mirrors of pyproject.toml extras.
 #
@@ -8,7 +8,6 @@
 > Get a complete, pinned-enough list without inventing a second dependency graph. Keep them in sync via tests/test_requirements.py.
 
  **Install (from package root):**
-
 
 ```bash
 pip install -r requirements/base.txt
