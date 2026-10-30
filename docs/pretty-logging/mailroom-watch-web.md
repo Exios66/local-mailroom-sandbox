@@ -23,6 +23,12 @@ NO_BROWSER=1 sandbox watch --web --config …
 # Synthetic UI (no Modal spend)
 sandbox dev
 sandbox watch --web --demo
+
+# Full interactive CLI in your local terminal (existing spend gates apply)
+sandbox tui
+
+# Follow campaign membership and its current run
+sandbox experiment watch --config config/experiments/my-study/experiment.yaml
 ```
 
 Default URL: **http://127.0.0.1:8765/** — live JSON via **SSE** at `/api/stream`; snapshot at `/api/state`.
@@ -30,6 +36,39 @@ Default URL: **http://127.0.0.1:8765/** — live JSON via **SSE** at `/api/strea
 The browser is the **Tray TUI**: per-job subtitle/route from `spec.lock.json`, `Tray TUI watcher · <profile> · <job.mode>` status line, job-manifest strip for non-SAND-032 runs, phase-colored lifecycle (pulse only while active), and a Dispatch log merging the Modal serve stream (+ `sandbox-job` worker when `job.mode=modal`) with `job:` event lines. `sandbox pipeline watcher` is a different surface (mailroom inbox drain), not this viewer.
 
 Stop the server with **Ctrl+C** in the terminal that launched it (does not stop the eval).
+
+## Operator workspaces
+
+- **Overview:** lifecycle, run progress, cost basis and filtered dispatch logs. The ASCII wordmark and route details are collapsed rather than crowding out the run.
+- **Terminal:** live `status`, `config`, `campaign`, `services`, `logs`; `help`, `man` and `menu` navigate the full parser-derived sandbox command tree. Tab completes command paths, Up/Down recall session history, Ctrl+L clears output, Escape clears the input. This browser inspector does not execute deployments or arbitrary shell commands.
+- **Configuration:** an allow-listed view of the current locked dataset, model/provider, vLLM, fleet capacity, job and prompt settings. No endpoint credentials are dumped. Capacity is configured, not measured active GPU count.
+- **Campaign:** the experiment's membership and current checkpoints when following its `current-run` marker. No campaign data is invented for an unrelated watcher.
+
+For full CLI execution use **`sandbox tui`** locally: numeric `menu` navigation,
+`back`, `help [command]`, Tab completion, session history, Ctrl+C interruption and
+Ctrl+D/`exit`. It dispatches existing CLI handlers without a system shell. Existing
+evaluation review/initials gates are unchanged; this is not an additional spend approval.
+
+The log **Follow latest** checkbox controls scrolling; disabling it preserves the
+scroll offset on updates. Filter by text or level. `/` focuses the filter from
+outside inputs; Escape clears it. Reduced-motion preferences disable pulsing.
+
+Repeatable browser checks are opt-in and use only synthetic local state:
+
+```bash
+SANDBOX_BROWSER_TESTS=1 uv run --extra dev --with playwright pytest -q tests/test_observer_browser.py
+# Set SANDBOX_BROWSER_EXECUTABLE to a local Chromium executable if needed.
+```
+
+### Remaining roadmap (non-closing links)
+
+Related: [SAND-068 command audit](https://github.com/Exios66/local-mailroom-sandbox/issues/185),
+[SAND-069 terminal parity](https://github.com/Exios66/local-mailroom-sandbox/issues/189),
+[SAND-070 campaign/spend truth](https://github.com/Exios66/local-mailroom-sandbox/issues/190),
+[SAND-071 browser/PTY coverage](https://github.com/Exios66/local-mailroom-sandbox/issues/186),
+[SAND-072 bounded live connectivity](https://github.com/Exios66/local-mailroom-sandbox/issues/188),
+[SAND-073 release gates](https://github.com/Exios66/local-mailroom-sandbox/issues/187).
+Merging the checkpoint PR does not complete or close these roadmap items.
 
 ## Tray TUI screenshots (pretty logs)
 

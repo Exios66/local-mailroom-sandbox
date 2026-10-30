@@ -58,6 +58,37 @@ def test_smoke_and_full_run_are_separate_locked_subsets(design):
     assert len(main_store.dataset_rows()) == 3
 
 
+def test_campaign_watch_resolves_run_id_marker_and_live_context(design, monkeypatch):
+    from mailroom_sandbox.tui import web
+    config = design('--design', 'sand42', '--mock')
+    assert cli.main(['experiment', 'preflight', '--config', str(config)]) == 0
+    _, plan, runs = ex._load(config)
+    marker = config.parent / 'current-run'
+    marker.write_text(runs[0][1].run_id)
+    states = []
+    def serve(**kw):
+        session = web.WatchWebSession(resolve=kw['resolve'], ledger=None,
+            cap_usd=5, interval=1, times_dir=None, serving_dir=config.parent,
+            follow_logs=False, campaign_path=kw['campaign_path'])
+        try:
+            states.append(session.refresh())
+            second = runs[1][1]
+            store = RunStore(run_dir(runs[0][1].run_id))
+            store.write_checkpoint(state='done', cursor=3, total=3)
+            marker.write_text(second.run_id)
+            states.append(session.refresh())
+        finally:
+            session.stop()
+        return 0
+    monkeypatch.setattr(web, 'serve_watch_web', serve)
+    assert cli.main(['experiment', 'watch', '--config', str(config), '--no-browser']) == 0
+    assert states[0]['campaign']['study'] == plan.study
+    assert states[0]['campaign']['total'] == 4
+    assert states[1]['campaign']['completed'] == 1
+    assert states[1]['snapshot']['run_id'] == runs[1][1].run_id
+    assert states[1]['campaign']['current'] == runs[1][1].run_id
+
+
 def _fake_execute(store):
     for row in store.dataset_rows():
         store.append_item({'item_id': row['id'], 'ok': True, 'score': {'match': 1.0}})

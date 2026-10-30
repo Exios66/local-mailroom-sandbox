@@ -342,3 +342,44 @@ def test_watch_reads_published_services_without_probing(tmp_path, monkeypatch):
         assert '.replace(/"/g,"&quot;")' in page
     finally:
         session.stop()
+
+
+def test_follow_switch_replaces_log_streams_and_header(tmp_path, monkeypatch):
+    from mailroom_sandbox import watch
+    from mailroom_sandbox.tui.demo import DemoRun
+
+    first = _store(tmp_path)
+    second, _ = DemoRun(tmp_path / "second").resolve()
+    lock = second.read_lock()
+    lock["engine"]["model"] = "provider/second-model"
+    lock["task"] = "sorter"
+    second.lock_path.write_text(json.dumps(lock))
+    current = [first, "first-app"]
+    streams = []
+    monkeypatch.setattr(watch, "start_log_streams", lambda store, app, sink, stop: streams.append((app, stop)))
+    session = web_mod.WatchWebSession(resolve=lambda: tuple(current), ledger=None, cap_usd=5,
+        times_dir=None, serving_dir=tmp_path / "serving", interval=1, follow_logs=True)
+    try:
+        a = session.refresh()
+        session.sink.append("old app line")
+        current[:] = [second, "second-app"]
+        b = session.refresh()
+        assert "second-model" in b["hero_html"] and "second-model" not in a["hero_html"]
+        assert b["route_label"] == "INBOX → SORTER → TRAY"
+        assert "old app line" not in str(b["logs"])
+        assert streams[0][1].is_set() and not streams[1][1].is_set()
+    finally:
+        session.stop()
+    assert streams[-1][1].is_set()
+
+
+def test_web_bind_failure_stops_session(tmp_path, monkeypatch):
+    session = _session(tmp_path)
+    monkeypatch.setattr(web_mod, "WatchWebSession", lambda **kw: session)
+    def busy(*a, **k):
+        raise OSError("busy")
+    monkeypatch.setattr(web_mod, "ThreadingHTTPServer", busy)
+    import pytest
+    with pytest.raises(OSError, match="busy"):
+        web_mod.serve_watch_web(resolve=session.resolve, ledger=None, logs=False)
+    assert session._stop.is_set() and session._log_stop.is_set()

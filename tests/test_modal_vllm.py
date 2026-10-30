@@ -1,8 +1,7 @@
 """Modal deploy app contract tests — network-free, `modal` SDK stubbed.
 
-The real `modal` package is a deploy-time extra, never installed in the
-runtime venv (same rule as llm-mailroom's
-`src/tests/test_vllm_modal_capability.py`). These tests pin the deploy
+The real `modal` package may be installed by the deploy extra; these tests
+always isolate its stub and restore any preloaded SDK afterwards. They pin the deploy
 surface: app/volume scoping, the vLLM argv builder (v0.29.0 flags), the
 bearer-env mapping, the cost guards, the SDK-1.6.0 secret API
 (``from_local`` was removed; the named ``huggingface-secret`` carries
@@ -57,9 +56,10 @@ KNOB_ENV = (
 
 def _install_modal_stub() -> None:
     """Minimal stand-in for the `modal` surface used by the app (SDK 1.6.0)."""
-    if "modal" in sys.modules:
+    if getattr(sys.modules.get("modal"), "_sandbox_test_stub", False):
         return
     stub = types.ModuleType("modal")
+    stub._sandbox_test_stub = True
 
     class _Secret:
         calls: list[dict] = []
@@ -180,6 +180,23 @@ def _clear_deploy_knobs(monkeypatch):
     """Deploy knobs come from the local env at import time — normalize them."""
     for name in KNOB_ENV:
         monkeypatch.delenv(name, raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _isolate_modal_module():
+    previous = sys.modules.pop("modal", None)
+    yield
+    if previous is None:
+        sys.modules.pop("modal", None)
+    else:
+        sys.modules["modal"] = previous
+
+
+def test_stub_replaces_an_already_imported_sdk(monkeypatch):
+    monkeypatch.setitem(sys.modules, "modal", types.ModuleType("preloaded-real-sdk"))
+    mod = _load_app_module()
+    assert mod.serve.kwargs["gpu"] == "L4"
+    assert sys.modules["modal"]._sandbox_test_stub
 
 
 @pytest.fixture

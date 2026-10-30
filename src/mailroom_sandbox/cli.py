@@ -54,9 +54,23 @@ def _nonnegative_int(value: str) -> int:
 
 
 def _nonnegative_float(value: str) -> float:
-    number = float(value)
-    if not math.isfinite(number) or number < 0:
+    number = _finite_float(value)
+    if number < 0:
         raise argparse.ArgumentTypeError("must be finite and nonnegative")
+    return number
+
+
+def _finite_float(value: str) -> float:
+    number = float(value)
+    if not math.isfinite(number):
+        raise argparse.ArgumentTypeError("must be finite")
+    return number
+
+
+def _port(value: str) -> int:
+    number = int(value)
+    if not 0 <= number <= 65535:
+        raise argparse.ArgumentTypeError("port must be between 0 and 65535")
     return number
 
 
@@ -194,6 +208,9 @@ def build_parser() -> argparse.ArgumentParser:
         parents=[shared],
     )
     sub = parser.add_subparsers(dest="command")
+
+    p = sub.add_parser("tui", help="interactive local Mailroom CLI: nested menus, completion and session history", parents=[leaf])
+    p.set_defaults(handler=_cmd_tui)
 
     p = sub.add_parser("up", help="Start compose profiles (langfuse + provider)", parents=[leaf])
     p.add_argument("--compose-profile", action="append", dest="compose_profiles")
@@ -572,8 +589,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     watch_p.add_argument("--app", default=None, help="Modal serve app override (default: engine.modal.app; modal job mode also tails sandbox-job)")
     watch_p.add_argument("--ledger", default=None, help="spend ledger JSON ({spent_usd})")
-    watch_p.add_argument("--cap-usd", type=float, default=5.0)
-    watch_p.add_argument("--interval", type=float, default=1.0, help="max seconds between redraws (logs and run-store changes redraw immediately)")
+    watch_p.add_argument("--cap-usd", type=_positive_float, default=5.0)
+    watch_p.add_argument("--interval", type=_positive_float, default=1.0, help="max seconds between redraws (logs and run-store changes redraw immediately)")
     watch_p.add_argument("--no-bell", action="store_true", help="do not ring the terminal bell on a new critical watchdog alert")
     watch_p.add_argument("--once", action="store_true", help="render one frame and exit")
     watch_p.add_argument("--no-logs", action="store_true", help="do not follow Modal dispatch logs (serve + worker); job events still shown")
@@ -589,7 +606,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     watch_p.add_argument(
         "--port",
-        type=int,
+        type=_port,
         default=None,
         help="web UI port (default 8765; 0 = ephemeral; only with --web)",
     )
@@ -611,8 +628,8 @@ def build_parser() -> argparse.ArgumentParser:
         parents=[leaf],
     )
     dev_p.add_argument("--host", default=None, help="bind host (default 127.0.0.1)")
-    dev_p.add_argument("--port", type=int, default=None, help="port (default 8765; 0 = ephemeral)")
-    dev_p.add_argument("--interval", type=float, default=1.0, help="seconds per demo tick")
+    dev_p.add_argument("--port", type=_port, default=None, help="port (default 8765; 0 = ephemeral)")
+    dev_p.add_argument("--interval", type=_positive_float, default=1.0, help="seconds per demo tick")
     dev_p.add_argument("--no-browser", action="store_true", help="do not open a browser tab")
     dev_p.set_defaults(handler=_cmd_dev)
 
@@ -625,10 +642,10 @@ def build_parser() -> argparse.ArgumentParser:
     board_p.add_argument("--tui", action="store_true", help="terminal TUI instead of the browser page")
     board_p.add_argument("--once", action="store_true", help="with --tui: render one frame and exit")
     board_p.add_argument("--host", default=None, help="bind host (default 127.0.0.1)")
-    board_p.add_argument("--port", type=int, default=None, help="port (default 8767; 0 = ephemeral)")
+    board_p.add_argument("--port", type=_port, default=None, help="port (default 8767; 0 = ephemeral)")
     board_p.add_argument("--no-browser", action="store_true", help="do not open a browser tab")
-    board_p.add_argument("--stale-s", type=float, default=120.0, help="heartbeat age that marks a running job stalled")
-    board_p.add_argument("--interval", type=float, default=1.0, help="refresh seconds (minimum 0.1; smaller values are raised to it)")
+    board_p.add_argument("--stale-s", type=_positive_float, default=120.0, help="heartbeat age that marks a running job stalled")
+    board_p.add_argument("--interval", type=_finite_float, default=1.0, help="refresh seconds (minimum 0.1; smaller values are raised to it)")
     board_p.add_argument("--probe-interval", type=positive_seconds, default=0, metavar="SECS", help="opt in to periodic doctor snapshots (offline checks by default)")
     board_p.add_argument("--live", action="store_true", help="with --probe-interval: probe endpoints too (can wake a billed Modal GPU)")
     board_p.add_argument("--demo", action="store_true", help="also run synthetic demo jobs (dev server; no Modal)")
@@ -641,10 +658,10 @@ def build_parser() -> argparse.ArgumentParser:
     bu.add_argument("--package", required=True)
     bu.add_argument("--title", default="")
     bu.add_argument("--phase", default=None)
-    bu.add_argument("--done", type=int, default=None)
-    bu.add_argument("--total", type=int, default=None)
-    bu.add_argument("--ok", type=int, default=None)
-    bu.add_argument("--errors", type=int, default=None)
+    bu.add_argument("--done", type=_nonnegative_int, default=None)
+    bu.add_argument("--total", type=_nonnegative_int, default=None)
+    bu.add_argument("--ok", type=_nonnegative_int, default=None)
+    bu.add_argument("--errors", type=_nonnegative_int, default=None)
     bu.add_argument("--metric", action="append", default=[], help="key=value (repeatable)")
     bu.add_argument("--log", default=None, help="append one log line")
     bu.add_argument("--finish", choices=("done", "failed"), default=None)
@@ -2600,6 +2617,18 @@ def _cmd_run_dispose(args) -> int:
     return 0
 
 
+def _cmd_tui(args) -> int:
+    from mailroom_sandbox.tui.shell import run_shell
+
+    defaults = ["--profile", args.profile]
+    for name in ("model", "prompt"):
+        if getattr(args, name, None) is not None:
+            defaults += [f"--{name}", getattr(args, name)]
+    for assignment in args.agent_models:
+        defaults += ["--agent-model", assignment]
+    return run_shell(defaults)
+
+
 def _cmd_watch(args) -> int:
     from mailroom_sandbox import watch as watch_mod
     from mailroom_sandbox.job import spec as spec_mod
@@ -2607,6 +2636,12 @@ def _cmd_watch(args) -> int:
 
     from mailroom_sandbox import paths
 
+    if not args.web and (args.host is not None or args.port is not None or args.no_browser or args.demo):
+        raise CLIUsageError("--host, --port, --no-browser and --demo require --web")
+    if args.web and args.once:
+        raise CLIUsageError("--once is only available in the terminal (without --web)")
+    if args.demo and (args.config or args.follow or args.ledger or args.app):
+        raise CLIUsageError("--demo cannot watch --config, --follow, --ledger or --app")
     if getattr(args, "demo", False):
         return _serve_demo(args)
     sand032 = paths.runtime_dir() / "sand032"
@@ -2623,6 +2658,18 @@ def _cmd_watch(args) -> int:
         cfg = args.config
         if args.follow:
             cfg = Path(args.follow).read_text(encoding="utf-8").strip() or args.config
+            if cfg and not Path(cfg).is_file():
+                try:
+                    directory = spec_mod.run_dir(cfg)
+                except ValueError as exc:
+                    raise ServiceError(f"follow marker must contain an existing run YAML or valid run ID: {exc}") from exc
+                if (directory / "spec.lock.json").is_file():
+                    store = RunStore(directory)
+                    lock = store.read_lock() or {}
+                    app = args.app or (((lock.get("engine") or {}).get("modal") or {}).get("app")) or "sandbox-vllm"
+                    return store, app
+        if not cfg:
+            raise ServiceError("watch follow marker is empty and no --config fallback was provided")
         spec = spec_mod.load_run_spec(cfg)
         app = args.app or (spec.engine.modal.app if spec.engine.modal else "sandbox-vllm")
         return RunStore(spec_mod.runs_root() / spec_mod.resolve_run_id(spec)), app
@@ -2635,6 +2682,10 @@ def _cmd_watch(args) -> int:
         interval=args.interval,
         sand032_root=sand032 if sand032.is_dir() else None,
     )
+    if args.follow:
+        campaign_path = Path(args.follow).resolve().parent / "experiment.yaml"
+        if campaign_path.is_file():
+            common["campaign_path"] = campaign_path
     if getattr(args, "web", False):
         from mailroom_sandbox.tui import web as web_mod
 
@@ -2677,6 +2728,10 @@ def _cmd_dev(args) -> int:
 def _cmd_board(args) -> int:
     from mailroom_sandbox.services.poll import periodic_services
 
+    if args.once and not args.tui:
+        raise CLIUsageError("--once requires --tui")
+    if args.tui and (args.host is not None or args.port is not None or args.no_browser or args.demo):
+        raise CLIUsageError("--host, --port, --no-browser and --demo are browser-only (without --tui)")
     interval = getattr(args, "probe_interval", 0)
     live = getattr(args, "live", False)
     if live and not interval:
@@ -2706,8 +2761,10 @@ def _run_board(args) -> int:
 def _cmd_beacon_update(args) -> int:
     from mailroom_sandbox.tui.beacon import Beacon
 
+    if any("=" not in m or not m.split("=", 1)[0].strip() for m in args.metric):
+        raise CLIUsageError("--metric must be KEY=VALUE with a nonempty key")
     b = Beacon(args.job, package=args.package, title=args.title, root=args.root, resume=True, pid=None)
-    metrics = dict(m.split("=", 1) for m in args.metric if "=" in m)
+    metrics = dict(m.split("=", 1) for m in args.metric)
     fields = {k: getattr(args, k) for k in ("phase", "done", "total", "ok", "errors")}
     if args.log:
         b.log(args.log)
