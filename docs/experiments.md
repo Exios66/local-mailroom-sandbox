@@ -119,7 +119,16 @@ not in YAML; route URLs reject embedded credentials/query parameters. Existing
 
 ## Review, authorize, smoke, and launch
 
-Set credentials and `MODAL_WORKSPACE` in `.env` or your shell. The selected trace
+Copy `config/.env.example` to the checkout's `.env` and set the credentials and
+`MODAL_WORKSPACE` needed by your routes. The CLI loads the checkout's root `.env`
+first and then `config/.env`; exported environment variables take precedence over
+both, and root `.env` takes precedence over `config/.env`. Both files are
+gitignored. A route's `api_key_env` can name any valid environment variable: put
+its value in either file or export it, and put only the variable name in YAML.
+Local `HF_TOKEN` is used for local Hub access; managed Modal downloads use the
+named Modal Hugging Face secret described in the template.
+
+The selected trace
 sink must be configured too: Langfuse is the default; `none`, explicit `otlp`, and
 an optional Phoenix sidecar are available. Phoenix does not replace The-Mailroom's
 Langfuse sink. Live tracing needs `pip install -e ".[observability]"`; the Modal

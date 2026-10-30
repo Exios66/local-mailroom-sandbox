@@ -27,7 +27,7 @@ endpoint). `sandbox runbook show serve` is the deploy → point → verify →
 teardown script; a fresh `.env` needs `VLLM_BASE_URL` (or `MODAL_WORKSPACE`)
 after the first `modal deploy`.
 
-Select another profile with **`--profile`** (after the subcommand) or the
+Select another profile with **`--profile`** (before or after the subcommand) or the
 **`SANDBOX_PROFILE`** environment variable:
 
 ```bash

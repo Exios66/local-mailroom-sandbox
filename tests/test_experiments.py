@@ -189,3 +189,71 @@ def test_route_can_replace_an_unused_default_deployment(design):
     config = design('--agent-route', 'correspondence_specialist=openrouter:api-model', '--mock')
     spec = ex._load(config)[2][0][1]
     assert ex._deployments(spec) == []
+
+
+def _route_spec():
+    from mailroom_sandbox.job.spec import AgentRoute, DatasetSpec, RunSpec
+    return RunSpec(
+        run_id='route-probe',
+        task='sorter',
+        profile='modal-vllm',
+        dataset=DatasetSpec(provider='file', local_path='unused.jsonl'),
+        engine={'kind': 'vllm-local', 'model': 'default-model', 'modal': None},
+        agent_routes={'sorter': AgentRoute(provider='vllm', model='served-model', base_url='http://route.test/v1')},
+        trace={'sink': 'none'},
+    )
+
+
+def test_route_models_probe_retries_while_the_route_boots(monkeypatch):
+    """A scale-to-zero route holds /models open while booting; one 60 s GET
+    used to fail verification and tear down a healthy app."""
+    import httpx
+
+    calls = {'get': 0}
+
+    class _Resp:
+        def __init__(self, payload):
+            self.payload = payload
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return self.payload
+
+    def fake_get(url, headers=None, timeout=None):
+        calls['get'] += 1
+        if calls['get'] == 1:
+            raise httpx.ReadTimeout('container booting')
+        return _Resp({'data': [{'id': 'served-model'}]})
+
+    def fake_post(url, headers=None, timeout=None, json=None):
+        assert json['model'] == 'served-model'
+        return _Resp({'choices': [{'message': {'content': 'OK'}}]})
+
+    monkeypatch.setattr('httpx.get', fake_get)
+    monkeypatch.setattr('httpx.post', fake_post)
+    monkeypatch.setenv('SANDBOX_ENGINE_PROBE_TIMEOUT_SECONDS', '5')
+
+    ex._probe(_route_spec())
+
+    assert calls['get'] == 2
+
+
+def test_teardown_failure_preserves_the_original_failure(design, monkeypatch, capsys):
+    config = design('--task', 'pipeline', '--agent-route', 'sorter=modal-vllm:Qwen/Qwen3-8B')
+    monkeypatch.setattr('mailroom_sandbox.services.modal_cli._is_deployed', lambda app: False)
+
+    def fail_deploy(spec):
+        raise ServiceError('deployment failed first')
+
+    def fail_teardown(spec):
+        raise ServiceError('stop refused')
+
+    monkeypatch.setattr(ex, '_deploy', fail_deploy)
+    monkeypatch.setattr(ex, '_teardown', fail_teardown)
+
+    assert cli.main(['experiment', 'launch', '--config', str(config), '--initials', 'JB']) == 1
+    err = capsys.readouterr().err
+    assert 'deployment failed first' in err
+    assert 'teardown failed' in err and 'stop refused' in err
