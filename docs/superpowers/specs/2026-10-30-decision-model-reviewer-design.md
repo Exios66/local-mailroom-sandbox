@@ -39,7 +39,8 @@ for production use, and no pilot result may be presented as if it does.
 | Pipeline edits | In scope and first in order |
 | Serving | Full pipeline on Modal + vLLM, API, or a hybrid |
 
-Demo date is not yet known, so section 11 orders work by dependency, not by date.
+The final presentation is December 15, 2026. Pilots come first, and section 11
+orders the work by dependency.
 
 ## 3. Decision models
 
