@@ -535,7 +535,7 @@ def build_parser() -> argparse.ArgumentParser:
     board_p.add_argument("--port", type=int, default=None, help="port (default 8767; 0 = ephemeral)")
     board_p.add_argument("--no-browser", action="store_true", help="do not open a browser tab")
     board_p.add_argument("--stale-s", type=float, default=120.0, help="heartbeat age that marks a running job stalled")
-    board_p.add_argument("--interval", type=float, default=1.0, help="refresh seconds")
+    board_p.add_argument("--interval", type=float, default=1.0, help="refresh seconds (minimum 0.1; smaller values are raised to it)")
     board_p.add_argument("--demo", action="store_true", help="also run synthetic demo jobs (dev server; no Modal)")
     board_p.set_defaults(handler=_cmd_board)
 
@@ -1647,6 +1647,13 @@ def _cmd_subagents_materialize(args: argparse.Namespace) -> int:
 
 
 def _cmd_subagents_propagate(args: argparse.Namespace) -> int:
+    """Materialize and sync coding subagents into mapped family checkouts.
+
+    ``args.packages`` optionally limits the targets; ``args.dry_run`` previews
+    writes. Prints per-package results as JSON and returns 1 for any package
+    error (including a missing checkout), otherwise 0. Discovery and config
+    loading errors propagate; individual package failures appear in the results.
+    """
     from mailroom_sandbox.subagents import propagate_family_checkouts
 
     mono = Path(args.monorepo_root).expanduser().resolve() if args.monorepo_root else None
@@ -1671,10 +1678,8 @@ def _cmd_subagents_propagate(args: argparse.Namespace) -> int:
             for row in result.packages
         ],
     }
-    if getattr(args, "json", False):
-        _print(payload)
-    else:
-        _print(payload)
+    # Text and --json both emit this payload; propagate has no prose view.
+    _print(payload)
     return 1 if any(row.error for row in result.packages) else 0
 
 
@@ -2100,14 +2105,15 @@ def _cmd_tunnel_status(args: argparse.Namespace) -> int:
 
 
 def _cmd_tunnel_down(args: argparse.Namespace) -> int:
+    """Terminate the recorded SSH tunnel for the profile, or report that none is recorded."""
     from mailroom_sandbox.tunnel import terminate
 
     spec = _tunnel_spec(args)
     pid = terminate(spec)
     if pid is None:
         print(f"no recorded tunnel for profile '{spec.profile}'")
-        return 0
-    print(f"tunnel down: killed pid {pid}")
+    else:
+        print(f"tunnel down: killed pid {pid}")
     return 0
 
 
@@ -2680,46 +2686,50 @@ def _cmd_modal_matrix_help(args) -> int:
 
 
 def _cmd_modal_matrix_list(args) -> int:
+    """List the Modal vLLM matrix models (table, or JSON with --json); the default specialist posture is starred.
+
+    """
     from mailroom_sandbox.modal_matrix import list_modal_models
 
     rows = list_modal_models()
     if getattr(args, "json", False):
         _print({"models": rows})
-        return 0
-    print(f"{'default':8} {'gpu':14} {'quant':8} {'ctx':6} {'tp':3} model")
-    for row in rows:
-        flag = "*" if row.get("default") else " "
-        print(
-            f"{flag:8} {str(row.get('gpu') or '-'):14} "
-            f"{str(row.get('quantization') or '-'):8} "
-            f"{str(row.get('max_model_len') or '-'):6} "
-            f"{str(row.get('tp_size') or 1):3} {row['model']}"
-        )
-    print("\n* = default specialist cost-eval posture (sandbox runbook show l4-qwen3-8b)")
+    else:
+        print(f"{'default':8} {'gpu':14} {'quant':8} {'ctx':6} {'tp':3} model")
+        for row in rows:
+            flag = "*" if row.get("default") else " "
+            print(
+                f"{flag:8} {str(row.get('gpu') or '-'):14} "
+                f"{str(row.get('quantization') or '-'):8} "
+                f"{str(row.get('max_model_len') or '-'):6} "
+                f"{str(row.get('tp_size') or 1):3} {row['model']}"
+            )
+        print("\n* = default specialist cost-eval posture (sandbox runbook show l4-qwen3-8b)")
     return 0
 
 
 def _cmd_modal_matrix_show(args) -> int:
+    """Show one Modal matrix row with its env exports and cutover hints (JSON with --json)."""
     from mailroom_sandbox.modal_matrix import cutover_hints, resolve_modal_row
 
     resolved = resolve_modal_row(args.model, gpu_override=args.gpu)
     if getattr(args, "json", False):
         _print({**resolved, "hints": cutover_hints(resolved)})
-        return 0
-    print(f"model:          {resolved['model']}")
-    print(f"gpu:            {resolved['gpu']}")
-    print(f"quantization:   {resolved['quantization'] or '(none / bf16 or auto-FP8)'}")
-    print(f"max_model_len:  {resolved['max_model_len']}")
-    print(f"tp_size:        {resolved['tp_size']}")
-    print(f"default_posture:{resolved['is_default']}")
-    if resolved.get("notes"):
-        print(f"notes:          {resolved['notes']}")
-    print("env:")
-    for k, v in resolved["env"].items():
-        print(f"  export {k}={v}")
-    print("hints:")
-    for h in cutover_hints(resolved):
-        print(f"  - {h}")
+    else:
+        print(f"model:          {resolved['model']}")
+        print(f"gpu:            {resolved['gpu']}")
+        print(f"quantization:   {resolved['quantization'] or '(none / bf16 or auto-FP8)'}")
+        print(f"max_model_len:  {resolved['max_model_len']}")
+        print(f"tp_size:        {resolved['tp_size']}")
+        print(f"default_posture:{resolved['is_default']}")
+        if resolved.get("notes"):
+            print(f"notes:          {resolved['notes']}")
+        print("env:")
+        for k, v in resolved["env"].items():
+            print(f"  export {k}={v}")
+        print("hints:")
+        for h in cutover_hints(resolved):
+            print(f"  - {h}")
     return 0
 
 
@@ -3178,6 +3188,11 @@ def _cmd_runbook_help(args) -> int:
 
 
 def _cmd_runbook_list(args) -> int:
+    """Print runbooks, optionally filtered by family, and return 0.
+
+    Text lists ids, families, titles, and blocked markers; JSON also includes
+    serving variants. Catalog loading and validation errors propagate.
+    """
     from mailroom_sandbox.job.runbooks import get_runbook, list_runbook_ids
 
     ids = list_runbook_ids(family=getattr(args, "family", None))
@@ -3195,12 +3210,12 @@ def _cmd_runbook_list(args) -> int:
         )
     if getattr(args, "json", False):
         _print({"runbooks": rows})
-        return 0
-    print("Runbooks (config/runbooks/catalog.yaml):")
-    for row in rows:
-        flag = " BLOCKED" if row["blocked"] else ""
-        print(f"  {row['id']:36}  [{row['family']}]{flag}  {row['title']}")
-    print("Show: sandbox runbook show l4-qwen3-8b")
+    else:
+        print("Runbooks (config/runbooks/catalog.yaml):")
+        for row in rows:
+            flag = " BLOCKED" if row["blocked"] else ""
+            print(f"  {row['id']:36}  [{row['family']}]{flag}  {row['title']}")
+        print("Show: sandbox runbook show l4-qwen3-8b")
     return 0
 
 

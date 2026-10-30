@@ -22,7 +22,7 @@ Part B (Tasks 10–15) is live execution with explicit spend gates, on the **`ex
 - **Modal profile:** `exios66` for every live run.
 - **Serving pins:**
   - model `Qwen/Qwen3-8B-AWQ`, image `v0.29.0`, `max_model_len` 32768, `gpu_memory_utilization` 0.90, prefix caching on, seed 42
-  - dataset `Lucius-Morningstar/mailroom-dataset` config `ground_truth` at `FAMILY_HF_REVISION` (`ed7576b676343e0b402ec5412cded301e629bdee`), `split: all`
+  - dataset `Lucius-Morningstar/mailroom-dataset` config `ground_truth` at `FAMILY_HF_REVISION` as of 2026-09-27 (`ed7576b676343e0b402ec5412cded301e629bdee`, now `FAMILY_HF_DATA_REVISION`; the constant records Hub tag `v9.1` = `bc9eab28…`), `split: all`
   - **`kv_cache_dtype=fp8` on every Stage 2–3 run** (and the 1-replica baseline)
   - bf16 arm: `Qwen/Qwen3-8B`, `max_model_len` 16384
 - **Data:** only the public HF dataset. No AmFam/proprietary data, and no wording that implies otherwise.
