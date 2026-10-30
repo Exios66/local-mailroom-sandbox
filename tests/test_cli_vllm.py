@@ -14,6 +14,7 @@ import httpx
 import pytest
 
 from mailroom_sandbox import cli
+from mailroom_sandbox.job.spec import DEFAULT_ENGINE_MODEL
 
 BASE = "http://vllm.test/v1"
 
@@ -31,7 +32,7 @@ def _env(monkeypatch):
         monkeypatch.delenv(name, raising=False)
 
 
-def _serve(monkeypatch, *, models=("Qwen/Qwen3-8B",), health=200, metrics=200, down=False, seen=None):
+def _serve(monkeypatch, *, models=(DEFAULT_ENGINE_MODEL,), health=200, metrics=200, down=False, seen=None):
     """Answer the four endpoints a vLLM server exposes."""
 
     def get(url, **kw):
@@ -76,7 +77,7 @@ def test_probe_reports_models_chat_health_and_metrics(monkeypatch, capsys):
     out = capsys.readouterr().out
     for word in ("models", "chat", "health", "metrics"):
         assert word in out
-    assert "Qwen/Qwen3-8B" in out
+    assert DEFAULT_ENGINE_MODEL in out
 
 
 def test_probe_json_shape(monkeypatch, capsys):
@@ -138,8 +139,16 @@ def test_probe_warns_that_a_modal_endpoint_may_wake_a_billed_gpu(monkeypatch, ca
 def test_command_prints_the_exact_vllm_serve_line_the_modal_app_uses(capsys):
     assert cli.main(["vllm", "command"]) == 0
     out = capsys.readouterr().out.strip()
-    assert out.startswith("vllm serve Qwen/Qwen3-8B ")
+    assert out.startswith(f"vllm serve {DEFAULT_ENGINE_MODEL} ")
     assert "--host 0.0.0.0" in out and "--port 8000" in out and "--max-model-len" in out
+    # SAND-077: the default serves online fp8, text-only (no vision memory reserve).
+    assert "--quantization fp8" in out and """--limit-mm-per-prompt '{"image":0,"video":0,"audio":0}'""" in out
+
+
+def test_command_for_the_frozen_qwen3_8b_row_keeps_bf16_and_no_mm_limits(capsys):
+    assert cli.main(["vllm", "command", "--model", "Qwen/Qwen3-8B"]) == 0
+    out = capsys.readouterr().out
+    assert "--quantization" not in out and "--limit-mm-per-prompt" not in out
 
 
 def test_command_follows_the_matrix_row_for_the_model(capsys):
@@ -156,8 +165,8 @@ def test_command_gpu_override_sets_tensor_parallel_size(capsys):
 def test_command_json_lists_the_argv(capsys):
     assert cli.main(["vllm", "command", "--json"]) == 0
     payload = json.loads(capsys.readouterr().out)
-    assert payload["argv"][:3] == ["vllm", "serve", "Qwen/Qwen3-8B"]
-    assert payload["model"] == "Qwen/Qwen3-8B"
+    assert payload["argv"][:3] == ["vllm", "serve", DEFAULT_ENGINE_MODEL]
+    assert payload["model"] == DEFAULT_ENGINE_MODEL
 
 
 def test_command_unknown_model_is_a_clean_error(capsys):
@@ -193,7 +202,7 @@ def test_serve_runs_vllm_with_extra_arguments_appended(fake_bin):
     fake_bin.add("nvidia-smi")
     assert cli.main(["vllm", "serve", "--", "--max-num-seqs", "2"]) == 0
     argv = fake_bin.calls("vllm")[0]
-    assert argv[:3] == ["serve", "Qwen/Qwen3-8B", "--host"] and argv[3] == "127.0.0.1"
+    assert argv[:3] == ["serve", DEFAULT_ENGINE_MODEL, "--host"] and argv[3] == "127.0.0.1"
     assert argv[-2:] == ["--max-num-seqs", "2"]
 
 

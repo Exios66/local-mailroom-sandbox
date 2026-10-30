@@ -113,13 +113,13 @@ before or after the subcommand; a later occurrence wins.
 
 | Profile | Provider | Base URL | Default Model | When to use |
 | --- | --- | --- | --- | --- |
-| `modal-vllm` | vLLM | `*.modal.run/v1` | `Qwen/Qwen3-8B` | **Default**: zero-infra remote GPU (`sandbox runbook show serve`) |
+| `modal-vllm` | vLLM | `*.modal.run/v1` | `Qwen/Qwen3.5-9B` | **Default**: zero-infra remote GPU (`sandbox runbook show serve`) |
 | `ollama` | Ollama | `localhost:11434/v1` | `qwen3:8b` | Offline/CPU fallback (`--profile ollama`) |
 | `vllm-local` | vLLM | `localhost:8000/v1` | `Qwen/Qwen3-8B` | Local GPU host |
 | `vllm-remote` | vLLM | `localhost:18000/v1` (SSH forward) | `Qwen/Qwen3-8B` | Lab/remote GPU |
 | `llamacpp` | generic | `localhost:8080/v1` | `qwen3-8b` | llama.cpp server |
 | `lmstudio` | generic | `localhost:1234/v1` | `qwen3-8b` | LM Studio |
-| `openrouter` | openrouter | `openrouter.ai/api/v1` | `qwen/qwen3.7-flash` | Opt-in cloud only |
+| `openrouter` | openrouter | `openrouter.ai/api/v1` | `qwen/qwen3.5-9b` | Opt-in cloud only |
 
 ### Health check
 

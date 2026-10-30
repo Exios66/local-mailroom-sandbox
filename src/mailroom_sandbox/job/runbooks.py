@@ -13,6 +13,7 @@ come from ``specialist_posture``; suite order comes from ``config/runs/suites/``
 
 from __future__ import annotations
 
+import json
 import os
 import re
 from functools import lru_cache
@@ -82,8 +83,11 @@ FAMILIES: tuple[tuple[str, str], ...] = (
     ("sand42", "SAND-042 paired concurrency × fleet grid (n=50, five specialists)"),
 )
 
+# SAND-077: the serving variant that the serve runbook and deploy defaults share.
+APP_DEFAULT_SERVING = "qwen35-9b"
+
 _DEPLOY_DEFAULT_RE = {
-    "model": re.compile(r'MODEL = os\.environ\.get\("MODAL_VLLM_MODEL", "([^"]+)"\)'),
+    "model": re.compile(r'^DEFAULT_MODEL = "([^"]+)"', re.M),
     "gpu": re.compile(r'GPU = os\.environ\.get\("MODAL_VLLM_GPU", "([^"]+)"\)'),
     "max_model_len": re.compile(
         r'MAX_MODEL_LEN = os\.environ\.get\("MODAL_VLLM_MAX_MODEL_LEN", "([^"]+)"\)'
@@ -1040,6 +1044,10 @@ def verify_live_pins() -> list[str]:
         if rid not in cat["runbooks"]:
             errors.append(f"catalog missing required runbook {rid}")
     baseline = serving_knobs("baseline")
+    # The deploy script's defaults are the app default (SAND-077), not the frozen
+    # Qwen3-8B cost-eval baseline: GPU / container / window knobs are shared,
+    # the model and its serve flags come from the APP_DEFAULT_SERVING variant.
+    app_default = serving_knobs(APP_DEFAULT_SERVING)
     deploy = _deploy_defaults()
     for key in (
         "model",
@@ -1051,12 +1059,24 @@ def verify_live_pins() -> list[str]:
         "max_containers",
         "min_containers",
     ):
-        left = str(baseline.get(key))
+        left = str(app_default.get(key))
         right = str(deploy.get(key))
         if left != right:
             errors.append(
-                f"serving.baseline.{key}={left!r} != deploy/modal_vllm.py default {right!r}"
+                f"serving.{APP_DEFAULT_SERVING}.{key}={left!r} != deploy/modal_vllm.py default {right!r}"
             )
+
+    from mailroom_sandbox.job.spec import DEFAULT_ENGINE_MODEL, MODEL_SERVE_DEFAULTS
+
+    if str(app_default.get("model")) != DEFAULT_ENGINE_MODEL:
+        errors.append(f"serving.{APP_DEFAULT_SERVING}.model != job.spec.DEFAULT_ENGINE_MODEL")
+    serve = MODEL_SERVE_DEFAULTS.get(DEFAULT_ENGINE_MODEL, {})
+    if str(app_default.get("quantization") or "") != str(serve.get("quantization", "")):
+        errors.append(f"serving.{APP_DEFAULT_SERVING}.quantization != job.spec.MODEL_SERVE_DEFAULTS")
+    mm = (app_default.get("extra_env") or {}).get("MODAL_VLLM_LIMIT_MM_PER_PROMPT", "")
+    want_mm = serve.get("limit_mm_per_prompt")
+    if (json.loads(mm) if mm else None) != want_mm:
+        errors.append(f"serving.{APP_DEFAULT_SERVING} MODAL_VLLM_LIMIT_MM_PER_PROMPT != job.spec.MODEL_SERVE_DEFAULTS")
 
     from mailroom_sandbox.job.specialist_posture import BENCHMARK_MODEL, MAX_MODEL_LEN
     from mailroom_sandbox.modal_matrix import DEFAULT_MODAL_GPU, DEFAULT_MODAL_MODEL, modal_models
@@ -1067,14 +1087,15 @@ def verify_live_pins() -> list[str]:
         )
     if int(baseline.get("max_model_len")) != int(MAX_MODEL_LEN):
         errors.append("serving.baseline.max_model_len != specialist_posture.MAX_MODEL_LEN")
-    if str(baseline.get("model")) != DEFAULT_MODAL_MODEL:
-        errors.append("serving.baseline.model != modal_matrix.DEFAULT_MODAL_MODEL")
-    if str(baseline.get("gpu")) != DEFAULT_MODAL_GPU:
-        errors.append("serving.baseline.gpu != modal_matrix.DEFAULT_MODAL_GPU")
+    if str(app_default.get("model")) != DEFAULT_MODAL_MODEL:
+        errors.append(f"serving.{APP_DEFAULT_SERVING}.model != modal_matrix.DEFAULT_MODAL_MODEL")
+    if str(app_default.get("gpu")) != DEFAULT_MODAL_GPU:
+        errors.append(f"serving.{APP_DEFAULT_SERVING}.gpu != modal_matrix.DEFAULT_MODAL_GPU")
 
     models = modal_models()
     expected_matrix = {
         "baseline": str(baseline.get("model")),
+        APP_DEFAULT_SERVING: DEFAULT_MODAL_MODEL,
         "awq-16k": "Qwen/Qwen3-8B-AWQ",
         "awq-32k": "Qwen/Qwen3-8B-AWQ",
         "granite-fp8": "ibm-granite/granite-4.2-8b-fp8",

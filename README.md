@@ -167,7 +167,7 @@ explicitly flagged `offline_fallback`.
 
 | Component | Default | Notes |
 | :--- | :--- | :--- |
-| **Default provider** | Modal vLLM (`modal-vllm`) | One L4 serving `Qwen/Qwen3-8B`; `--profile ollama` is the offline opt-out |
+| **Default provider** | Modal vLLM (`modal-vllm`) | One L4 serving `Qwen/Qwen3.5-9B`; `--profile ollama` is the offline opt-out  <!-- coderabbit-ai-generated:v1 --> <!-- coderabbit-ai-generated-section:v1:20238b90f6e36cc0014c891946de1a3d491a141e5193381a3e26c56019a128d0 --> <!-- /coderabbit-ai-generated:v1 --> |
 | **Scoring** | `llm-dojo-scoring` (vendored) | Deterministic, field-type-aware |
 | **Pipeline** | `llm-mailroom` (vendored) | 13-node LangGraph state machine |
 | **Tracing** | Langfuse 3 / SDK v4 | `document-pipeline` traces |
@@ -196,10 +196,10 @@ sandbox eval local_vs_api --from-log   # compare experiment_log local vs API-key
 
 <!-- coderabbit-ai-generated:v1 -->
 
-<!-- coderabbit-ai-generated-section:v1:ac1482769de05283abaf000536c505aba1b63c70ad8a3354f720980996c01835 -->
+<!-- coderabbit-ai-generated-section:v1:1c8dca68d68dc8c169953c7d3f1b0712553a603ab000e489c5634376d2cd1f44 -->
 
 ```
-sandbox matrix --providers modal-vllm --models Qwen/Qwen3-8B --prompts sorter_v1 --local   # default serving
+sandbox matrix --providers modal-vllm --models Qwen/Qwen3.5-9B --prompts sorter_v1 --local   # default serving
 sandbox matrix --providers openrouter --models qwen/qwen3.5-9b --prompts sorter_v1 --local   # API serving
 ```
 

@@ -60,7 +60,7 @@ sandbox-local cost/scale knobs.
 pip install -e ".[deploy]"
 modal token new
 
-export MODAL_VLLM_MODEL=Qwen/Qwen3-8B                   # default
+export MODAL_VLLM_MODEL=Qwen/Qwen3.5-9B                 # default (online fp8, text-only)
 export MODAL_VLLM_GPU=L4                                # 24 GB; justify bigger
 export MODAL_VLLM_API_TOKEN="$(openssl rand -hex 24)"   # shared endpoints
 # optional: export HF_TOKEN=...                         # gated weights
@@ -158,7 +158,8 @@ cap, and tensor-parallel size. Rules of thumb (verified against v0.29.0,
   `eval "$(sandbox modal-matrix env <HF-id> [--gpu GPU])"`) then
   `modal deploy deploy/modal_vllm.py --strategy recreate`. A rolling
   redeploy keeps the old model warm for the scaledown window.
-  **Default specialist cost-eval path stays Qwen/Qwen3-8B @ L4**
+  The app default is Qwen/Qwen3.5-9B @ L4 (online fp8, text-only; SAND-077).
+  **The frozen specialist cost-eval path stays Qwen/Qwen3-8B @ L4**
   (`sandbox runbook show l4-qwen3-8b`); do not edit `run-30-*-specialist.yaml` for
   one-off swaps — copy the YAML if an alternate scorecard needs matching
   `engine.model` / `engine.modal.gpu`.
