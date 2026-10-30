@@ -113,3 +113,17 @@ def test_spec_env_renders_the_deploy_default_mm_limits_byte_for_byte():
     assert env["MODAL_VLLM_LIMIT_MM_PER_PROMPT"] == deploy["limit_mm_per_prompt"]
     assert env["MODAL_VLLM_QUANTIZATION"] == "fp8"
     assert spec_env(_run("Qwen/Qwen3-8B"))["MODAL_VLLM_LIMIT_MM_PER_PROMPT"] == ""
+
+
+def test_critical_judge_route_matches_its_serve_defaults_and_modal_row():
+    # SAND-078: the judge tier route, the spec/deploy serve defaults and the
+    # modal_models row all describe the same Qwen3.5-27B serve.
+    judge = MODELS["critical_tier"]["judge"]
+    serve = MODEL_SERVE_DEFAULTS[judge["model"]]
+    assert judge["vllm"]["quantization"] == serve["quantization"]
+    assert judge["vllm"]["limit_mm_per_prompt"] == serve["limit_mm_per_prompt"]
+    deploy = _deploy_constants()["MODEL_SERVE_DEFAULTS"][judge["model"]]
+    assert json.loads(deploy["limit_mm_per_prompt"]) == serve["limit_mm_per_prompt"]
+    row = modal_matrix.modal_models()[judge["model"]]
+    assert (row["gpu"], row["quantization"]) == (judge["modal"]["gpu"], serve["quantization"])
+    assert load_profile("openrouter")["judge_model"] == "deepseek/deepseek-v4-flash"

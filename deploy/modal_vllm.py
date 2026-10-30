@@ -122,6 +122,7 @@ DEFAULT_MODEL = "Qwen/Qwen3.5-9B"
 TEXT_ONLY_MM_LIMITS = '{"image":0,"video":0,"audio":0}'
 MODEL_SERVE_DEFAULTS = {
     "Qwen/Qwen3.5-9B": {"quantization": "fp8", "limit_mm_per_prompt": TEXT_ONLY_MM_LIMITS},
+    "Qwen/Qwen3.5-27B": {"quantization": "fp8", "limit_mm_per_prompt": TEXT_ONLY_MM_LIMITS},
 }
 MODEL = os.environ.get("MODAL_VLLM_MODEL", DEFAULT_MODEL)
 _SERVE_DEFAULTS = MODEL_SERVE_DEFAULTS.get(MODEL, {})

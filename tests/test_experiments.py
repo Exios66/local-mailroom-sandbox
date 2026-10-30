@@ -159,7 +159,7 @@ def test_pipeline_supports_hybrid_routes_and_agent_models(design):
     assert spec.agent_routes['sorter'].model == 'api-sorter'
     assert spec.agent_routes['contracts_specialist'].modal.app.startswith('sandbox-vllm-')
     assert spec.agent_models['boss'] == 'api-boss'
-    assert len(ex._deployments(spec)) == 2
+    assert len(ex._deployments(spec)) == 3  # base + contracts route + SAND-078 judge tier
     assert 'sorter' in spec.agent_knobs and 'sorter_reviewer' in spec.agent_knobs
 
 
@@ -287,3 +287,25 @@ def test_teardown_failure_preserves_the_original_failure(design, monkeypatch, ca
     err = capsys.readouterr().err
     assert 'deployment failed first' in err
     assert 'teardown failed' in err and 'stop refused' in err
+
+
+def test_modal_pipeline_judge_gets_the_critical_tier_route(design):
+    # SAND-078: the judge runs a larger sibling of the base model on its own app.
+    spec = ex._load(design('--task', 'pipeline', '--mock'))[2][0][1]
+    judge = spec.agent_routes['judge']
+    assert (judge.provider, judge.model, judge.modal.gpu) == ('modal-vllm', 'Qwen/Qwen3.5-27B', 'L40S')
+    assert judge.vllm.quantization == 'fp8' and judge.vllm.limit_mm_per_prompt == {'image': 0, 'video': 0, 'audio': 0}
+    assert spec.engine.model == 'Qwen/Qwen3.5-9B'
+    assert {d.engine.model for d in ex._deployments(spec)} == {'Qwen/Qwen3.5-9B', 'Qwen/Qwen3.5-27B'}
+    assert set(spec.agent_routes) == {'judge'}  # the specialists stay on the base model
+
+
+@pytest.mark.parametrize('options', [
+    ('--provider', 'openrouter'),
+    ('--agent-model', 'judge=Qwen/Qwen3.5-9B'),
+    ('--agent-route', 'judge=openrouter:deepseek/deepseek-v4-flash'),
+])
+def test_critical_judge_is_skipped_off_modal_or_when_the_judge_is_pinned(design, options):
+    spec = ex._load(design('--task', 'pipeline', '--mock', *options))[2][0][1]
+    judge = spec.agent_routes.get('judge')
+    assert judge is None or judge.model == 'deepseek/deepseek-v4-flash'
