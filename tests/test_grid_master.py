@@ -266,3 +266,13 @@ def test_master_reports_carry_experiment_labels_not_study_ids():
         visible = re.sub(r"\]\([^)]*\)", "]()", md)  # drop link targets (file names)
         assert "SAND" not in visible
         assert "Experiment 4" in visible
+
+
+def test_deepseek_reference_is_brief_on_the_card_and_full_in_the_appendix():
+    data = grid_master.collect_master()
+    md, appendix = grid_master.render_master_md(data), grid_master.render_appendix_md(data)
+    assert "**DeepSeek V4.1 Flash (API) benchmark.**" in md
+    assert md.index("## DeepSeek V4.1 Flash (API) reference") < md.index("## Cost")
+    assert "## External reference: DeepSeek V4.1 Flash via API" in appendix
+    # merger compares with the frozen cell (same prompt), never the † cell
+    assert "| Merger Agreements | different metric | different metric | — |" in appendix
