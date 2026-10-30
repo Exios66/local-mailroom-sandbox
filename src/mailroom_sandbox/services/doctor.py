@@ -15,7 +15,6 @@ import re
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
 
 from mailroom_sandbox.services._cli import print_json, warn
 from mailroom_sandbox.services._exec import ServiceError, run_tool, strip_ansi
