@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import math
 import os
 import re
 from datetime import datetime, timezone
@@ -457,8 +458,11 @@ class JobSpec(BaseModel):
     @field_validator("cost_cap_usd")
     @classmethod
     def _cost_cap(cls, v: float | None) -> float | None:
-        """Reject a non-positive cost cap when one is set."""
-        if v is not None and v <= 0:
+        """Reject a NaN or non-positive cost cap when one is set.
+
+        NaN fails every comparison, so it would pass ``<= 0`` and never trip.
+        """
+        if v is not None and (math.isnan(v) or v <= 0):
             raise ValueError("cost_cap_usd must be > 0 when set")
         return v
 

@@ -2,8 +2,37 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Serve through **Modal vLLM by default**: `SANDBOX_PROFILE=modal-vllm` and
+  `DEFAULT_PROVIDER=vllm` (CLI, runtime fallbacks, `.env.example`, generated
+  runbooks and README/quickstart). `--profile ollama` is the explicit
+  offline/CPU opt-out. `sandbox profiles` marks the active default,
+  `sandbox health` prints a deploy hint when `VLLM_BASE_URL` is unset, and
+  `MODAL_WORKSPACE` derives the gateway URL when no endpoint is exported.
+  New `serving` runbook (`sandbox runbook show serve`) covers pre-warm →
+  deploy → point → verify → teardown and is the first entry in
+  `docs/runbooks/`.
+
 ### Fixed
 
+- Review follow-ups on the Modal-default change: a `SANDBOX_PROFILE` set only in
+  `.env` (e.g. `ollama`) is honoured when the CLI resolves its default; the
+  `serve` script exports `VLLM_API_KEY` from the token it just deployed (and
+  every runbook that defines and deploys with that token now does the same, so
+  health no longer gets a 401), keeps its teardown commented because the script
+  runs no eval, and marks the endpoint URL as required before health; docs and
+  skills that told people to run a bare `sandbox pull-models` for Ollama now pass
+  `--profile ollama`; `health`'s exit-code description no longer claims Langfuse
+  or Phoenix gate it; activating `modal-vllm` with no endpoint no longer seeds
+  `VLLM_BASE_URL` with the localhost fallback, so the pipeline's live-or-loud
+  warning fires instead of a run quietly using whatever listens on :8000;
+  `cost_cap_usd: .nan` is rejected instead of silently disabling the cap. Stale
+  "Ollama is the default" wording is gone from the skills (router, ollama, modal,
+  langfuse, index), `docs/setting-up/` and the `modal-vllm` profile comment, the
+  `[deploy]` pin reads `modal==1.6.2`, trace tags and run records fall back to the
+  default profile like activation does, and every function this PR touches has a
+  docstring and test coverage.
 - Record that Hub tag `v9.1` (`bc9eab28`) is published, and drop dead
   identical branches, constant conditions, and duplicated success returns
   flagged by CodeAnt (#144, #155–#159). `_cmd_run_cancel` already returns

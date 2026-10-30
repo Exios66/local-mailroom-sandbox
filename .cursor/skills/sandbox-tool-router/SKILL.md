@@ -5,14 +5,14 @@ description: Choose the correct local-mailroom-sandbox tool for serving, tracing
 
 # Sandbox tool router
 
-Read this skill **first** when the task touches providers, tracing, datasets, Docker, or deploys. Then open exactly one specialty skill below. Do not invent a second tracing backend or cloud LLM path when the local-first default already fits.
+Read this skill **first** when the task touches providers, tracing, datasets, Docker, or deploys. Then open exactly one specialty skill below. Do not invent a second tracing backend or cloud LLM path when the default already fits.
 
 ## Decision table
 
 | Job | Use | Skill | Do **not** use |
 | --- | --- | --- | --- |
-| Default local LLM inference | Ollama (`SANDBOX_PROFILE=ollama`) | [ollama](../ollama/SKILL.md) | OpenRouter, Modal, vLLM (unless GPU/Modal requested) |
-| GPU / remote OpenAI-compatible serve | Modal vLLM (`modal-vllm`) or compose `vllm` | [modal](../modal/SKILL.md) | Ollama for 70B-class / long-context GPU work |
+| Offline / CPU-only inference | Ollama (`--profile ollama`) | [ollama](../ollama/SKILL.md) | OpenRouter, Modal, vLLM (unless GPU/Modal requested) |
+| Default live serving; GPU / remote OpenAI-compatible serve | Modal vLLM (`modal-vllm`, the default) or compose `vllm` | [modal](../modal/SKILL.md) | Ollama for 70B-class / long-context GPU work |
 | Default tracing + The-Mailroom | Langfuse 3 / SDK v4 | [langfuse](../langfuse/SKILL.md) | Phoenix as the only sink if The-Mailroom is required |
 | Optional OTEL / Arize UI sidecar | Apache Phoenix compose profile | [apache-phoenix](../apache-phoenix/SKILL.md) | Phoenix as The-Mailroom input |
 | Hosted eval / experiment logs (opt-in) | Braintrust | [braintrust](../braintrust/SKILL.md) | Braintrust as the default offline sink |
@@ -36,9 +36,9 @@ Sandbox evals implement the Langfuse v4 `document-pipeline` contract in `mailroo
 ## Serving precedence
 
 1. **`--mock` / offline prep** — no live LLM  
-2. **Ollama** — default local path (`sandbox up`, `sandbox pull-models`)  
-3. **vLLM local** — NVIDIA host + compose profile `vllm`  
-4. **Modal vLLM** — remote GPU; `pip install -e ".[deploy]"` + pre-warm + `modal deploy` (see [modal](../modal/SKILL.md))
+2. **Modal vLLM** — the default (`modal-vllm`): remote GPU; `pip install -e ".[deploy]"` + `sandbox runbook show serve` (see [modal](../modal/SKILL.md))
+3. **Ollama** — offline/CPU fallback (`--profile ollama`; `sandbox up --compose-profile ollama`, `sandbox pull-models --profile ollama`)  
+4. **vLLM local** — NVIDIA host + compose profile `vllm`  
 5. **llama.cpp / LM Studio** — generic OpenAI base URL profiles  
 6. **OpenRouter** — opt-in only (`OPENROUTER_API_KEY`); never the sandbox default  
 
@@ -62,7 +62,7 @@ Always `mailroom_sandbox.runtime.activate(profile)` before importing mailroom gr
 ```bash
 sandbox profiles
 sandbox cutover --profile ollama
-sandbox up                                          # langfuse + ollama
+sandbox up                                          # langfuse only (default modal-vllm); add --compose-profile ollama offline
 sandbox up --compose-profile phoenix                # optional sidecar
 sandbox health
 sandbox datasets prepare                            # offline

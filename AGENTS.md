@@ -39,8 +39,8 @@ provider, tracing, dataset, or deploy task, then open exactly one specialty skil
 | Skill | Appropriate for |
 | --- | --- |
 | `sandbox-tool-router` | Choosing among the stacks below |
-| `ollama` | Default local LLM (prefer over OpenRouter/Modal) |
-| `modal` | Remote GPU vLLM (`sandbox-vllm`) |
+| `modal` | **Default** serving: Modal vLLM (`modal-vllm`, `sandbox runbook show serve`) |
+| `ollama` | Offline/CPU fallback (`--profile ollama`); not the default |
 | `langfuse` | Default tracing + The-Mailroom (Langfuse 3 / SDK v4) |
 | `apache-phoenix` | Optional Arize Phoenix OTEL sidecar only |
 | `braintrust` | Opt-in hosted Braintrust (never default offline) |
@@ -73,10 +73,11 @@ pip install -e ".[dev]"
 cp config/.env.example .env
 sandbox profiles
 sandbox agents list
-sandbox cutover --profile ollama --agent-model judge=qwen3:14b
-sandbox up                          # langfuse + ollama compose profiles
-sandbox pull-models                 # ollama pull qwen3:8b
-sandbox health
+sandbox runbook show serve          # DEFAULT: Modal vLLM deploy → point → verify → teardown
+sandbox cutover --profile modal-vllm
+sandbox up                          # langfuse only (the Modal endpoint is external)
+sandbox pull-models --profile ollama  # offline fallback: ollama pull qwen3:8b (on modal-vllm it only prints the prewarm command)
+sandbox health                      # probes the deployed modal-vllm endpoint
 sandbox fetch-deps                  # optional: refresh vendor snapshots (workspace packages first; SHA-frozen standalone commit/release refs otherwise)
 sandbox fetch-deps --visualizer     # also clone The-Mailroom
 sandbox pilot --mock                # no LLM
@@ -113,7 +114,7 @@ sandbox beacon update --job ID --package P --done N --total M   # shell jobs pub
 ```
 
 - Config: `config/profiles/*.yaml` + `config/taxonomy.overlay.yaml` + `config/components.yaml` + `config/models.yaml` + `config/runbooks/catalog.yaml`.
-- Remote serving (Modal / SSH-tunneled vLLM / CHTC / conda): `docs/setting-up/remote-serving.md` + `deploy/htcondor/` + `deploy/conda/`. Modal deploy workflow (SDK pinned `modal==1.6.1`; pre-warm → deploy → verify → teardown, cost guards, troubleshooting) lives in `deploy/README.md`. CLI rule: pass `--profile` AFTER the subcommand (or via `SANDBOX_PROFILE`) — a `--profile` before the subcommand is clobbered by the subparser default.
+- Remote serving (Modal / SSH-tunneled vLLM / CHTC / conda): `docs/setting-up/remote-serving.md` + `deploy/htcondor/` + `deploy/conda/`. Modal deploy workflow (SDK pinned `modal==1.6.2`; pre-warm → deploy → verify → teardown, cost guards, troubleshooting) lives in `deploy/README.md`. CLI rule: pass `--profile` AFTER the subcommand (or via `SANDBOX_PROFILE`) — a `--profile` before the subcommand is clobbered by the subparser default.
 - Runtime taxonomy is written to `data/runtime/taxonomy.yaml` (gitignored).
 - Prepared fixtures: `data/runtime/prepared/` via notebooks or `sandbox datasets prepare`.
 - Experiment log: `reports/experiment_log.jsonl` (sandbox-local, not a sister-repo mirror).

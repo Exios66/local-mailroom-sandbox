@@ -8,7 +8,8 @@ have their own guides: [`conda/`](conda/) (environment spec),
 ## Compose
 
 ```bash
-sandbox up                       # langfuse + ollama (from the ollama profile)
+sandbox up                       # langfuse only (default modal-vllm: the GPU endpoint is on Modal)
+sandbox up --compose-profile ollama   # offline fallback: langfuse + ollama
 sandbox up --compose-profile phoenix --compose-profile vllm
 sandbox up --compose-profile jupyter   # builds deploy/Dockerfile → Lab :8888
 sandbox down
@@ -46,7 +47,7 @@ Dedicated notebooks:
 
 ## Modal vLLM (remote GPU)
 
-Modal SDK **1.6.1** (pinned in the `[deploy]` extra) + vLLM **v0.29.0**
+Modal SDK **1.6.2** (pinned in the `[deploy]` extra) + vLLM **v0.29.0**
 (`vllm/vllm-openai:v0.29.0`, matching the local compose pin). Same knob
 contract as llm-mailroom KANBAN-064 / entity-extraction KANBAN-096, plus
 sandbox-local cost/scale knobs.
@@ -84,8 +85,10 @@ curl -sS -H "Authorization: Bearer $VLLM_API_KEY" "$VLLM_BASE_URL/models"
 modal run deploy/modal_vllm.py --check
 ```
 
-For evals: `SANDBOX_PROFILE=modal-vllm` + `DEFAULT_PROVIDER=vllm` (see
-`config/.env.example`), then `sandbox pilot --local --profile modal-vllm`.
+`modal-vllm` is the default (`SANDBOX_PROFILE=modal-vllm` +
+`DEFAULT_PROVIDER=vllm` in `config/.env.example`), so
+`sandbox pilot --local` uses the deployed endpoint. The offline opt-out is
+`--profile ollama`.
 
 ### Knobs
 

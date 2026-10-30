@@ -4,6 +4,11 @@ The sandbox is local-first, but its eval surfaces are provider-agnostic:
 anything that speaks OpenAI `/v1` can back a profile. Four supported paths,
 one env contract (`VLLM_BASE_URL` / `VLLM_API_KEY` everywhere).
 
+> **Default path:** `modal-vllm`. The canonical lifecycle script is
+> [`sandbox runbook show serve`](../runbooks/serving/modal-vllm.md) — generated
+> from `config/runbooks/catalog.yaml`. This page is the overview of all four
+> serving paths; the runbook is the one to execute.
+
 | Path | Profile | Best for |
 | --- | --- | --- |
 | Local vLLM (GPU host) | `vllm-local` | a machine with the GPU in front of you |
@@ -50,7 +55,7 @@ The Modal app exposes both as deploy knobs (`MODAL_VLLM_QUANTIZATION`,
 
 ## Modal
 
-Modal SDK **1.5.5** (pinned in the `[deploy]` extra) + vLLM **v0.29.0**
+Modal SDK **1.6.2** (pinned in the `[deploy]` extra) + vLLM **v0.29.0**
 (the newest upstream stable, v0.29.0, flips the engine core — bump both pins
 after a parity run); full workflow (knobs, costs, security, troubleshooting)
 in [`deploy/README.md`](../../deploy/README.md).
@@ -73,7 +78,9 @@ sandbox health --profile modal-vllm              # 401 = token mismatch
 ```
 
 Full specialist suite + cost extrapolation: [`docs/runbooks/archived-experiments/qwen/STALE/l4-qwen3-8b.md`](../runbooks/archived-experiments/qwen/STALE/l4-qwen3-8b.md)
-(`sandbox runbook show l4-qwen3-8b`). Index: [`docs/modal/benchmark-l4.md`](../modal/benchmark-l4.md).
+(`sandbox runbook show l4-qwen3-8b`). Default lifecycle:
+[`docs/runbooks/serving/modal-vllm.md`](../runbooks/serving/modal-vllm.md)
+(`sandbox runbook show serve`). Index: [`docs/modal/benchmark-l4.md`](../modal/benchmark-l4.md).
 
 Cost posture (specialist suite): `scaledown=120` attended / `600` unattended,
 `max_containers=1`, one warm app for all five runs then

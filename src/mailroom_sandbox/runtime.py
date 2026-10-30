@@ -22,8 +22,8 @@ from mailroom_sandbox.overlay import (
     patch_mailroom_config,
     write_runtime_taxonomy,
 )
-from mailroom_sandbox.paths import repo_root, runtime_dir, vendor_dir
-from mailroom_sandbox.providers import endpoints_for
+from mailroom_sandbox.paths import dotenv_files, repo_root, runtime_dir, vendor_dir
+from mailroom_sandbox.providers import default_profile, endpoints_for, modal_gateway_url
 
 _log = logging.getLogger("mailroom_sandbox.runtime")
 
@@ -79,10 +79,11 @@ def agent_knobs_for(agent: str) -> dict[str, Any]:
 
 
 def _load_dotenv() -> None:
-    root = repo_root()
-    for candidate in (root / ".env", root / "config" / ".env"):
-        if candidate.is_file():
-            load_dotenv(candidate, override=False)
+    """Load the sandbox ``.env`` files into ``os.environ`` without overriding variables that are already set.
+
+    """
+    for candidate in dotenv_files():
+        load_dotenv(candidate, override=False)
 
 
 def load_env_file() -> None:
@@ -133,15 +134,27 @@ def resolve_dojo_src() -> Path | None:
 
 
 def apply_profile_env(profile: dict, *, base_url_override: str | None = None) -> None:
+    """Export the profile's provider settings into ``os.environ``.
+
+    Sets ``SANDBOX_PROFILE`` and ``DEFAULT_PROVIDER``, the profile's base-URL variable when it is unset, and the Langfuse and observability defaults. For ``modal-vllm`` an unset URL stays unset unless ``MODAL_WORKSPACE`` derives the gateway URL.
+    """
     endpoints = endpoints_for(profile, base_url_override=base_url_override)
     os.environ["SANDBOX_PROFILE"] = str(profile.get("name") or "")
     os.environ["DEFAULT_PROVIDER"] = str(
         profile.get("default_provider_env") or profile.get("provider") or "ollama"
     )
     if endpoints.base_url_env:
-        os.environ.setdefault(endpoints.base_url_env, endpoints.base_url)
+        # A deployed Modal endpoint wins: either the exported VLLM_BASE_URL or
+        # the deterministic gateway URL from MODAL_WORKSPACE. For the Modal
+        # profile an unset URL stays unset: seeding its static localhost value
+        # would defeat the pipeline's live-or-loud warning (DMR-052) and let a
+        # live run quietly use whatever listens on localhost:8000.
         if not os.environ.get(endpoints.base_url_env):
-            os.environ[endpoints.base_url_env] = endpoints.base_url
+            gateway = modal_gateway_url(profile)
+            if gateway:
+                os.environ[endpoints.base_url_env] = gateway
+            elif str(profile.get("name") or "") != "modal-vllm":
+                os.environ[endpoints.base_url_env] = endpoints.base_url
     init_pub = os.environ.get("LANGFUSE_INIT_PROJECT_PUBLIC_KEY")
     init_sec = os.environ.get("LANGFUSE_INIT_PROJECT_SECRET_KEY")
     if init_pub:
@@ -239,7 +252,7 @@ def activate(
     policy = _LOCKED_RUNTIME.get()
     if policy is not None:
         lock = policy["lock"]
-        profile_name = lock.get("profile") or "ollama"
+        profile_name = lock.get("profile") or default_profile()
         model = (lock.get("engine") or {}).get("model")
         agent_models = deepcopy(lock.get("agent_models") or {})
         agent_knobs = deepcopy(lock.get("agent_knobs") or {})
@@ -248,7 +261,7 @@ def activate(
     if load_env_file:
         _load_dotenv()
     agent_knobs = resolve_agent_knobs(agent_knobs)
-    name = profile_name or os.environ.get("SANDBOX_PROFILE") or "ollama"
+    name = profile_name or default_profile()
     profile = load_profile(name)
     apply_profile_env(profile, base_url_override=base_url)
     if not model and str(profile.get("provider") or "") == "vllm":
