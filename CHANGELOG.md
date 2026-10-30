@@ -4,6 +4,7 @@
 
 ### Added
 
+- **SAND-077 — Qwen3.5-9B is the default model.** `modal-vllm`, `vllm-local` and `vllm-remote` default to `Qwen/Qwen3.5-9B`, served with online fp8 and text-only `--limit-mm-per-prompt` (deploy script, run spec, `sandbox runbook show serve`, `modal-matrix`). The `openrouter` profile defaults to `qwen/qwen3.5-9b`, the same weights, so API runs compare directly with Modal runs. `config/models.yaml` `openrouter_preference` ranks the OpenRouter picks: `qwen/qwen3.5-9b`, `qwen/qwen3.5-35b-a3b`, `qwen/qwen3.5-27b`. Frozen Qwen3-8B studies keep their model and spec hash. A served-model pin now re-points both the old and new default ids, so a Qwen3-8B serve never leaves the champion on Qwen3.5-9B. Unverified on L4: `/health`, VRAM peak, and the Gated-DeltaNet kernels missing from the deploy image.
 - **SAND-076 — live pipeline floor.** `task: pipeline` runs record each graph node a document enters, as it starts and ends, in `nodes.jsonl`. They use a LangChain configure hook, so no vendored code changes. `sandbox watch` (terminal) and `watch --web` show the newest document's route and the previous document's full route, with latency, routed agent and model, and per-node totals. Decision nodes record typed decisions (`noul` / `choice` / `score`) that match the incoming Decisions-API model (`openai/gpt-6-luna-decisions`, Discussion #193). A native `decisions` list passes through validated. `sandbox dev --pipeline` demos it.
 
 - `sandbox eval` has two primary tasks with two levels: `specialist [TARGET]` (all five
@@ -100,6 +101,12 @@
   loaders, scorer and fixtures.
 
 ### Fixed
+
+- **Runtime taxonomy no longer becomes the next merge base.** After
+  `patch_mailroom_config` pointed mailroom at `data/runtime/taxonomy.yaml`,
+  a second `build_merged_taxonomy` in the same process merged onto that
+  output and kept the previous run's served-model pins. The shipped path is
+  now remembered before the patch (SAND-077).
 
 - `sandbox matrix` plans the model you ask for. An id with no `config/models.yaml` row (e.g. `Qwen/Qwen3.5-9B`, `qwen/qwen3.5-9b`) used to be swapped silently for the serving family's default (`Qwen/Qwen3-8B`, `qwen/qwen3.7-flash`). Champion rows still map per family. The pipeline example configs now say where prompt versions live and how to pin one per role.
 - **PR #192 review fixes (CodeRabbit).** Switching runs in `watch` / `watch --web` now closes the old log buffer, so the new buffer takes the writer lock and `--no-logs` still loads the saved dispatch log. `eval specialist <target> --prompt-version` accepts versions for that target's specialists. The tray configuration shows a prompt's identity and hash, never its text. `probe_openrouter_key` fails when the key response has no key record. The pipeline example configs no longer suggest `--dry-run` preflight, which skips the checks. The browser-test docs install Chromium first.

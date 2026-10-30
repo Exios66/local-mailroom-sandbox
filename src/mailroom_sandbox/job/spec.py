@@ -274,6 +274,9 @@ class VLLMSpec(BaseModel):
     #  "original_max_position_embeddings": 32768, "rope_theta": 1000000}}
     # (v0.29.0 reads Transformers-v5 `rope_parameters`; vLLM derives max len 65536).
     hf_overrides: dict[str, Any] | None = None
+    # SAND-077: per-modality item caps (`vllm serve --limit-mm-per-prompt`).
+    # {"image": 0, ...} keeps a multimodal checkpoint (Qwen3.5) text-only.
+    limit_mm_per_prompt: dict[str, int] | None = None
 
     @field_validator("kv_cache_dtype")
     @classmethod
@@ -372,11 +375,34 @@ class ModalSpec(BaseModel):
         return v
 
 
+DEFAULT_ENGINE_MODEL = "Qwen/Qwen3.5-9B"  # SAND-077 app default (Modal+vLLM)
+
+# Serve flags a model needs when the spec leaves them unset. Mirrors the
+# config/models.yaml row and deploy/modal_vllm.py MODEL_SERVE_DEFAULTS (parity
+# tested): Qwen3.5 has no published FP8 checkpoint, so it serves online fp8,
+# text-only.
+MODEL_SERVE_DEFAULTS: dict[str, dict[str, Any]] = {
+    "Qwen/Qwen3.5-9B": {
+        "quantization": "fp8",
+        "limit_mm_per_prompt": {"image": 0, "video": 0, "audio": 0},
+    },
+}
+
+
 class EngineSpec(BaseModel):
     kind: Literal["vllm-local", "vllm-remote", "modal-vllm", "openrouter"] = "modal-vllm"
-    model: str = "Qwen/Qwen3-8B"
+    model: str = DEFAULT_ENGINE_MODEL
     vllm: VLLMSpec = Field(default_factory=VLLMSpec)
     modal: ModalSpec | None = Field(default_factory=ModalSpec)
+
+    @model_validator(mode="after")
+    def _serve_defaults(self) -> "EngineSpec":
+        """Fill a model's required serve flags; an explicit value always wins."""
+        for key, value in MODEL_SERVE_DEFAULTS.get(self.model, {}).items():
+            unset = key not in self.vllm.model_fields_set if key == "quantization" else getattr(self.vllm, key) is None
+            if unset:
+                setattr(self.vllm, key, value.copy() if isinstance(value, dict) else value)
+        return self
 
 
 class AgentRoute(BaseModel):
@@ -636,7 +662,7 @@ def prompt_resolution_map(spec: RunSpec) -> dict[str, Any]:
 # SAND-032 knobs hash only when set, so pre-SAND-032 run YAMLs keep their
 # recorded spec_hash (locks, resume, and hashes cited in committed reports).
 _HASH_WHEN_SET = ("kv_cache_dtype", "enable_thinking", "cudagraph_capture_sizes",
-                  "max_num_batched_tokens", "max_inputs", "hf_overrides")
+                  "max_num_batched_tokens", "max_inputs", "hf_overrides", "limit_mm_per_prompt")
 
 
 def _vllm_core(vllm: VLLMSpec) -> dict[str, Any]:

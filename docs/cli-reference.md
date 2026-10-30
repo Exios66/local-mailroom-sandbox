@@ -1474,7 +1474,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
-| `model` | No | HF id (default: Qwen/Qwen3-8B) |
+| `model` | No | HF id (default: Qwen/Qwen3.5-9B) |
 | `--gpu` | No | override matrix GPU |
 
 ### `sandbox doctor`

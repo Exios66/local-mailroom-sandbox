@@ -35,7 +35,7 @@ dataset:
 
 engine:
   kind: modal-vllm
-  model: Qwen/Qwen3-8B
+  model: Qwen/Qwen3.5-9B
   vllm:
     max_model_len: 16384
     gpu_memory_utilization: 0.90

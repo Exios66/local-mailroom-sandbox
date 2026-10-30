@@ -350,8 +350,13 @@ def test_force_reset_isolates_cancel_identity_even_with_same_spec(tmp_path, sour
 
 
 def test_old_empty_hash_and_empty_knob_replay_remain_compatible(tmp_path, source_root, monkeypatch, sdk):
-    assert RunSpec().spec_hash() == "c9f10813c1da4c634a5100a59ff484d6f7342a598688ab62934efa35593015ee"
-    assert RunSpec(agent_models={}).spec_hash() == "c9f10813c1da4c634a5100a59ff484d6f7342a598688ab62934efa35593015ee"
+    # SAND-077 moved the bare-spec default engine model to Qwen/Qwen3.5-9B (plus its
+    # fp8 / text-only serve flags), so the all-defaults hash moved once. Every
+    # committed run YAML pins engine.model and keeps its hash. The property
+    # under test is unchanged: an empty agent_models map adds nothing.
+    bare = "0419b616f6485018dd300ec638c1f64a416140b77a714115167a0c5e9e82e899"
+    assert RunSpec().spec_hash() == bare
+    assert RunSpec(agent_models={}).spec_hash() == bare
     spec, _, store, _ = spec_file(tmp_path, source_root)
     monkeypatch.delenv("SANDBOX_AGENT_KNOBS", raising=False)
     assert preflight.preflight(spec, offline=True)["status"] == "prepared"

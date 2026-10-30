@@ -128,7 +128,11 @@ def _create(args) -> int:
         agent_models = parse_agent_models(getattr(args, 'agent_models', None))
     except ValueError as exc:
         raise ServiceError(str(exc)) from exc
-    chosen_model = args.model or ('Qwen/Qwen3-8B-AWQ' if args.provider == 'modal-vllm' else 'qwen/qwen3.7-flash')
+    if args.design == 'sand42':  # frozen study: keeps its AWQ / champion pair
+        default_model = 'Qwen/Qwen3-8B-AWQ' if args.provider == 'modal-vllm' else 'qwen/qwen3.7-flash'
+    else:  # SAND-077: Qwen3.5-9B on Modal, the same weights on OpenRouter
+        default_model = 'Qwen/Qwen3.5-9B' if args.provider == 'modal-vllm' else 'qwen/qwen3.5-9b'
+    chosen_model = args.model or default_model
     for cell_index, (replicas, concurrency) in enumerate(cells):
         for doc_class in (selected if args.task == 'specialists' else [selected[0]]):
             template = repo_root() / 'config' / 'runs' / f'sand42-50-{CLASSES[doc_class]}-awq-1l4-c8.yaml'

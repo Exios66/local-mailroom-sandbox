@@ -62,6 +62,9 @@ def spec_env(spec: RunSpec) -> dict[str, str]:
         ),
         "MODAL_VLLM_MAX_INPUTS": str(v.max_inputs) if v.max_inputs else "",
         "MODAL_VLLM_HF_OVERRIDES": json.dumps(v.hf_overrides, sort_keys=True) if v.hf_overrides else "",
+        "MODAL_VLLM_LIMIT_MM_PER_PROMPT": (
+            "" if v.limit_mm_per_prompt is None else json.dumps(v.limit_mm_per_prompt, separators=(",", ":"))
+        ),
         # SAND-042: the serving container writes its nvidia-smi series under this
         # label. Derived from the run id (one label per cell, shared by its five
         # configs) so the scraper finds the series from any of them; "" elsewhere.

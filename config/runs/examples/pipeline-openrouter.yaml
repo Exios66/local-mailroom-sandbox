@@ -37,7 +37,7 @@ dataset:
 
 engine:
   kind: openrouter
-  model: qwen/qwen3.7-flash
+  model: qwen/qwen3.5-9b
   modal: null
 
 job:
