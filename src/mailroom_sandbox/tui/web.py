@@ -172,8 +172,13 @@ class WatchWebSession:
             self._log_stop = threading.Event()
             _, resolved_log = _watch_paths(store, times_dir=self.times_dir,
                 sand032_root=self.sand032_root, log_path=self._log_path_override)
-            if self._follow_logs or self._log_identity is not None:
-                self.sink = LogBuffer(resolved_log)
+            previous = self.sink
+            previous.close()  # hand the log file's writer lock to the new buffer
+            self.sink = LogBuffer(resolved_log)
+            if previous.path is None:
+                # The startup buffer is memory-only (a demo tick may already have
+                # written to it); keep its lines. --no-logs still loads the saved log.
+                self.sink.adopt(previous.tail(2000))
             if self._follow_logs:
                 start_log_streams(store, app, self.sink, self._log_stop)
             self._log_identity = identity

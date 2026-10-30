@@ -64,6 +64,14 @@ def test_weekly_limit_reports_remaining_not_lifetime_usage(monkeypatch):
     assert result.ok and "$8.00 of $8.00 weekly limit left" in result.detail
 
 
+@pytest.mark.parametrize("body", [{"data": [1, 2]}, {"data": "ok"}, {"data": {}}, {"data": None}, {}])
+def test_a_key_response_without_a_key_record_fails(monkeypatch, body):
+    monkeypatch.setenv("OPENROUTER_API_KEY", KEY)
+    monkeypatch.setattr("mailroom_sandbox.health.httpx.get", lambda url, headers=None, **kw: httpx.Response(200, json=body))
+    result = probe_openrouter_key()
+    assert not result.ok and "no key record" in result.detail
+
+
 @pytest.mark.parametrize("remaining", [0, -0.5])
 def test_exhausted_limit_fails_before_a_billed_chat(monkeypatch, remaining):
     monkeypatch.setenv("OPENROUTER_API_KEY", KEY)

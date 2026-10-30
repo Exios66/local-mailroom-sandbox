@@ -101,6 +101,7 @@
 
 ### Fixed
 
+- **PR #192 review fixes (CodeRabbit).** Switching runs in `watch` / `watch --web` now closes the old log buffer, so the new buffer takes the writer lock and `--no-logs` still loads the saved dispatch log. `eval specialist <target> --prompt-version` accepts versions for that target's specialists. The tray configuration shows a prompt's identity and hash, never its text. `probe_openrouter_key` fails when the key response has no key record. The pipeline example configs no longer suggest `--dry-run` preflight, which skips the checks. The browser-test docs install Chromium first.
 - Serving records follow the vendored Dojo's repaired usage rules. A cost the sandbox
   writes is authoritative in the Dojo, so `record_from_run` now applies the same gates.
   An ok item with no recorded usage makes the run cost unknown (Dojo 0.24.2): the

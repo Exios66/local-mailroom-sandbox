@@ -95,8 +95,10 @@ outside inputs; Escape clears it. Reduced-motion preferences disable pulsing.
 Repeatable browser checks are opt-in and use only synthetic local state:
 
 ```bash
+# Once per machine: the Playwright package does not bring a browser with it.
+uv run --with playwright playwright install chromium
+# (or skip that and set SANDBOX_BROWSER_EXECUTABLE to a local Chromium/Chrome)
 SANDBOX_BROWSER_TESTS=1 uv run --extra dev --with playwright pytest -q tests/test_observer_browser.py
-# Set SANDBOX_BROWSER_EXECUTABLE to a local Chromium executable if needed.
 ```
 
 ### Remaining roadmap (non-closing links)

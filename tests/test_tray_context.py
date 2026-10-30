@@ -217,3 +217,12 @@ def test_configuration_lines_render_manifest_values_not_python_reprs():
     assert "trace.tags: sand42, c8" in lines
     assert "vllm.enable_prefix_caching: false" in lines
     assert not any("True" in line or "[" in line for line in lines)
+
+
+def test_configuration_shows_prompt_identity_never_the_prompt_body():
+    lock = {"prompt": {"agents": {"sorter": {
+        "agent": "sorter", "source": "local", "name": "mailroom-sorter", "file": "config/prompts/sorter_v3.txt",
+        "version": None, "label": None, "sha256": "abcdef0123456789ff", "text": "SECRET PROMPT BODY"}}}}
+    (line,) = [ln for ln in tc.configuration_lines(lock) if ln.startswith("prompt ")]
+    assert line == "prompt sorter: source=local · name=mailroom-sorter · file=config/prompts/sorter_v3.txt · sha256=abcdef012345"
+    assert "SECRET" not in line

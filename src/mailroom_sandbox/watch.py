@@ -252,6 +252,7 @@ class LogBuffer:
         self._lock = threading.Lock()
         self._path = path
         self._writer = False
+        self._lockfh = None
         if path is not None:
             # One writer per log file: the first TUI instance takes an exclusive
             # lock; later instances display the stream but never append.
@@ -266,6 +267,28 @@ class LogBuffer:
                 self._writer = False
         if path is not None and path.is_file():
             for line in path.read_text(encoding="utf-8", errors="ignore").splitlines()[-maxlen:]:
+                self._lines.append(line)
+                self._count += 1
+
+    @property
+    def path(self) -> Path | None:
+        return self._path
+
+    def close(self) -> None:
+        """Release the writer lock so a replacement buffer on the same file can write.
+
+        A stream thread still holding this buffer keeps appending in memory only.
+        """
+        with self._lock:
+            self._writer = False
+            if self._lockfh is not None:
+                self._lockfh.close()  # closing the descriptor drops its flock
+                self._lockfh = None
+
+    def adopt(self, lines: list[str]) -> None:
+        """Carry in-memory lines over from a replaced buffer without writing them."""
+        with self._lock:
+            for line in lines:
                 self._lines.append(line)
                 self._count += 1
 
@@ -965,6 +988,7 @@ def watch(
                 log_stop = threading.Event()
                 _, resolved_log = _watch_paths(store, times_dir=times_dir,
                     sand032_root=sand032_root, log_path=log_path)
+                sink.close()  # hand the log file's writer lock to the new buffer
                 sink = LogBuffer(resolved_log)
                 started = time.time()
                 boot_mark.clear()
