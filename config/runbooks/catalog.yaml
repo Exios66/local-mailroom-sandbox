@@ -40,8 +40,9 @@ ops:
     - Edit run-30-*-specialist.yaml for a one-off model swap
 
 serving:
-  # Singular L4, one container, Qwen3-8B — the default cost-eval posture.
-  # Must match deploy/modal_vllm.py defaults + models.yaml + run-30 YAML engine.
+  # Singular L4, one container, Qwen3-8B — the frozen cost-eval posture.
+  # Must match models.yaml + run-30 YAML engine. The app default (serve
+  # runbook) is the qwen35-9b variant below (SAND-077).
   baseline:
     model: Qwen/Qwen3-8B
     gpu: L4
@@ -57,6 +58,13 @@ serving:
     quantization: ""
     tp_size: 1
   variants:
+    # SAND-077 app default = deploy/modal_vllm.py defaults: online fp8, text-only.
+    qwen35-9b:
+      model: Qwen/Qwen3.5-9B
+      quantization: fp8
+      max_model_len: 16384
+      extra_env:
+        MODAL_VLLM_LIMIT_MM_PER_PROMPT: '{"image":0,"video":0,"audio":0}'
     awq-16k:
       model: Qwen/Qwen3-8B-AWQ
       quantization: awq
@@ -211,11 +219,11 @@ runbooks:
     family: serving
     title: Modal vLLM — deploy, point, verify, teardown (default path)
     summary: >
-      The sandbox default. One Modal L4 serves Qwen/Qwen3-8B behind an OpenAI
+      The sandbox default. One Modal L4 serves Qwen/Qwen3.5-9B (online fp8) behind an OpenAI
       /v1 surface; the host needs no GPU and no Ollama daemon. Pre-warm the
       weights, deploy once, export VLLM_BASE_URL/VLLM_API_KEY, verify with
       health, run any eval against the same warm endpoint, then tear it down.
-    serving: baseline
+    serving: qwen35-9b
     modal_profile: track-a
     steps:
       - env
@@ -242,7 +250,8 @@ runbooks:
       | Mailroom provider | `vllm` (`DEFAULT_PROVIDER`) |
       | Endpoint | `https://<workspace>--sandbox-vllm-serve.modal.run/v1` |
       | Auth | `VLLM_API_KEY` = `MODAL_VLLM_API_TOKEN` (bearer) |
-      | Serving shape | one L4, one container, Qwen/Qwen3-8B, 16384 ctx, `max_num_seqs` 6 |
+      | Serving shape | one L4, one container, Qwen/Qwen3.5-9B online fp8 (text-only), 16384 ctx, `max_num_seqs` 6 |
+      | API counterpart | `--profile openrouter` runs `qwen/qwen3.5-9b`, the same weights (`models.yaml` `openrouter_preference`) |
       | Cost guard | `min_containers` 0, `scaledown_seconds` 120 (600 unattended), teardown at the end |
 
       `sandbox health` exits 1 with a hint when `VLLM_BASE_URL` is unset — the
@@ -253,7 +262,7 @@ runbooks:
 
       - More concurrency / longer context: pick the matching `serving` variant
         and the catalog runbook that cites it (`improved-awq-c8`, `grid-2l4`, …).
-      - A full eval campaign: `l4-qwen3-8b` (5×30 specialists on the same shape).
+      - The frozen Qwen3-8B eval campaign: `l4-qwen3-8b` (5×30 specialists, bf16 Qwen3-8B on L4).
       - Local post-processing only: `--profile ollama` (mock/offline paths do
         not need any endpoint).
 

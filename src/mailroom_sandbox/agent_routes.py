@@ -42,6 +42,34 @@ def parse_routes(values: list[str] | None) -> dict[str, AgentRoute]:
     return result
 
 
+SPECIALIST_TIERS = ("base", "mid", "full")
+
+
+def critical_route(agent: str) -> AgentRoute | None:
+    """The models.yaml ``critical_tier`` Modal route for an agent (SAND-078)."""
+    from mailroom_sandbox.overlay import load_model_map
+    raw = (load_model_map().get("critical_tier") or {}).get(agent)
+    return AgentRoute.model_validate(raw) if raw else None
+
+
+def specialist_tier(tier: str, provider: str) -> AgentRoute | str | None:
+    """What a specialist tier runs on (SAND-079): a Modal route, an OpenRouter
+    model id, or None for ``base`` (the run's own model)."""
+    from mailroom_sandbox.overlay import load_model_map
+    if tier not in SPECIALIST_TIERS:
+        raise ServiceError(f"unknown specialist tier {tier!r}; choose one of {', '.join(SPECIALIST_TIERS)}")
+    raw = (((load_model_map().get("critical_tier") or {}).get("specialists") or {}).get(tier) or {}).get(provider)
+    if raw is None:
+        if tier != "base":
+            raise ServiceError(f"specialist tier {tier!r} has no {provider} entry in config/models.yaml")
+        return None
+    return AgentRoute.model_validate(raw) if isinstance(raw, dict) else str(raw)
+
+
+def live_specialists() -> list[str]:
+    return sorted(name for name in known_agents() if name.endswith("_specialist"))
+
+
 def known_agents() -> set[str]:
     from mailroom_sandbox.components import load_components
     from mailroom_sandbox.overlay import load_yaml, mailroom_taxonomy_path

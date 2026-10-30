@@ -10,7 +10,6 @@ from mailroom_sandbox.cli import main
 from mailroom_sandbox.paths import repo_root
 from mailroom_sandbox.prep import (
     clean_hf_rows,
-    clean_legalbench_rows,
     clean_manifest_rows,
     environment_checklist,
     normalize_text,
@@ -31,9 +30,6 @@ def test_clean_manifest_and_prepare(tmp_path, monkeypatch):
 
     hf_rows, hf_report = clean_hf_rows()
     assert hf_report.kept_rows >= 4
-    lb_rows, lb_report = clean_legalbench_rows()
-    assert lb_report.kept_rows >= 1
-    assert all(r["answer"] in {"yes", "no"} for r in lb_rows)
 
     summary = prepare_offline_datasets()
     assert summary["counts"]["fixtures"] == report.kept_rows

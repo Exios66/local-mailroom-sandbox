@@ -38,6 +38,13 @@ def resolve_served_vllm_model(explicit: str | None = None) -> str | None:
     return None
 
 
+def _default_vllm_ids() -> set[str]:
+    """Ids a champion remap may hold before a pin: the frozen dense Qwen3-8B and
+    the current models.yaml vLLM default (SAND-077: Qwen/Qwen3.5-9B)."""
+    default = (load_model_map().get("defaults") or {}).get("vllm")
+    return {_DENSE_QWEN3_8B, *([str(default)] if default else [])}
+
+
 def pin_served_vllm_ids(taxonomy: dict, served: str | None) -> dict:
     """Force every vLLM agent + champion remap onto the served HF id."""
     if not served:
@@ -50,11 +57,13 @@ def pin_served_vllm_ids(taxonomy: dict, served: str | None) -> dict:
         if isinstance(agent, dict) and str(agent.get("provider") or "") == "vllm":
             agent["model"] = served
     mapping = taxonomy.setdefault("vllm_model_map", {})
-    if isinstance(mapping, dict) and served != _DENSE_QWEN3_8B:
+    if isinstance(mapping, dict):
+        defaults = _default_vllm_ids() - {served}
         for key, val in list(mapping.items()):
-            if val == _DENSE_QWEN3_8B:
+            if val in defaults:
                 mapping[key] = served
-        mapping[_DENSE_QWEN3_8B] = served
+        for default_id in sorted(defaults):
+            mapping[default_id] = served
     return taxonomy
 
 
@@ -99,12 +108,17 @@ def list_profiles() -> list[str]:
     return sorted(p.stem for p in profiles_dir().glob("*.yaml"))
 
 
+_PACKAGED_ATTR = "_sandbox_packaged_config_path"
+
+
 def mailroom_taxonomy_path() -> Path:
     """Shipped mailroom taxonomy: installed package, then vendored base."""
     try:
         import pipeline.config as cfg  # type: ignore
 
-        packaged = Path(cfg.CONFIG_PATH)
+        # Once patch_mailroom_config has run, CONFIG_PATH is the runtime YAML;
+        # merging onto it would carry the last run's pins into this one.
+        packaged = Path(getattr(cfg, _PACKAGED_ATTR, cfg.CONFIG_PATH))
         if packaged.is_file():
             return packaged
     except Exception as exc:
@@ -291,6 +305,8 @@ def patch_mailroom_config(taxonomy_path: Path) -> bool:
             exc_info=exc,
         )
         return False
+    if not hasattr(cfg, _PACKAGED_ATTR):
+        setattr(cfg, _PACKAGED_ATTR, cfg.CONFIG_PATH)
     cfg.CONFIG_PATH = Path(taxonomy_path)
     cache_clear = getattr(cfg.load_config, "cache_clear", None)
     if callable(cache_clear):

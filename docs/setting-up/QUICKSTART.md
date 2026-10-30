@@ -26,7 +26,7 @@ Optional extras, only when you need them:
 
 | Extra | Adds | Needed for |
 | --- | --- | --- |
-| `[pipeline]` | langchain stack (vendored mailroom's live paths) | `legalbench --suite`, live mailroom agent calls |
+| `[pipeline]` | langchain stack (vendored mailroom's live paths) | live mailroom agent calls |
 | `[hf]` | `huggingface_hub`, `pyarrow` (also in `[dev]`) | `sandbox datasets pull`, `hf-pilot` |
 | `[observability]` | Langfuse SDK + OTEL | live tracing (`trace.sink: langfuse`) |
 | `[deploy]` | Modal SDK 1.6.2 (pinned) | `sandbox run --job-mode modal`, `deploy/modal_vllm.py` |
@@ -40,7 +40,7 @@ and `vendor/llm-dojo-scoring`, at the commits recorded in each `VENDOR.md`) — 
 ```
 sandbox up | down | health | pull-models | fetch-deps | cutover
        | agents list|show | pipeline watcher|api
-       | pilot | hf-pilot | legalbench
+       | pilot | hf-pilot
        | eval <task> | matrix | metrics compare
        | datasets pull|prepare | traces export
        | profiles | tunnel plan|up|status|down
@@ -136,14 +136,11 @@ sandbox datasets pull --dataset Lucius-Morningstar/mailroom-dataset --max-rows 2
 sandbox pilot --mock                     # full fixture pilot through the connected machinery
 sandbox hf-pilot --check                 # verify fixture/GT schema without running
 sandbox hf-pilot --mock                  # HF docclass mini-pilot, mocked
-sandbox legalbench --task contract_qa --mock             # offline LegalBench fixture
-sandbox legalbench --task contract_qa --n 5 --seed 42    # seeded draw (never first-N)
-sandbox legalbench --task contract_qa --suite --n 3 --seed 7 --mock
-#   vendored real-suite path: needs `pip install -e ".[pipeline]"` + the CUAD
-#   corpus (`python scripts/fetch_full_cuad.py` inside the vendored tree)
-sandbox eval sorter --mock               # isolated agent eval
-sandbox eval judge --mock
-sandbox eval pipeline --mock             # connected graph scoring (full 13-node path)
+sandbox eval specialist --mock           # primary: all five specialists in isolation
+sandbox eval specialist contract --mock  # …or one specialist
+sandbox eval pipeline --mock             # primary: connected graph scoring (full 13-node path)
+sandbox eval pipeline --class merger_agreement --mock   # …over one document class
+sandbox eval sorter --mock               # other tasks stay available (`sandbox eval --all-tasks`)
 sandbox eval pipeline --mock --connected # same (flag is accepted on pipeline)
 sandbox eval sorter --dry-run --name my-exp   # plan only; --name for the experiment log
 sandbox matrix --providers ollama --models qwen3:8b --prompts sorter_local_v0 --mock --sample 4
@@ -190,6 +187,23 @@ sandbox pipeline watcher                          # long-running Langfuse watche
 sandbox pipeline api                              # long-running API server
 ```
 
+**Paired experiments and model tiers (SAND-077–079).** The base model is
+`Qwen/Qwen3.5-9B` on Modal and `qwen/qwen3.5-9b` on OpenRouter. Modal pipeline
+experiments put the judge on `Qwen/Qwen3.5-27B` (its own L40S app);
+`--specialist-tier mid|full` moves the five specialists onto
+`Qwen/Qwen3.5-35B-A3B` or the judge's 27B. Launch asks for your initials.
+
+```bash
+sandbox experiment create my-tiers --task pipeline --specialist-tier full --samples 2 --seed 42
+sandbox experiment review   --config config/experiments/my-tiers/experiment.yaml
+sandbox experiment preflight --config config/experiments/my-tiers/experiment.yaml
+sandbox experiment launch    --config config/experiments/my-tiers/experiment.yaml   # initials-gated spend
+```
+
+`create` refuses an existing study directory. The paired base/mid/full
+comparison is already committed as `config/experiments/tiers-{base,mid,full}/`;
+run `review`, `preflight` and `launch` on those directly.
+
 ## 10. Mailroom live watch (long Modal jobs)
 
 Full guide: **[mailroom-themed-logging.md](../pretty-logging/mailroom-themed-logging.md)**.
@@ -228,7 +242,7 @@ pip install -e ".[dev]" && sandbox datasets prepare \
 pip install -e ".[deploy]" && modal token new
 sandbox runbook show serve        # the full lifecycle script (prewarm → deploy → point → verify → teardown)
 # or by hand:
-export MODAL_VLLM_MODEL=Qwen/Qwen3-8B MODAL_VLLM_GPU=L4 MODAL_VLLM_API_TOKEN=$(openssl rand -hex 24)
+export MODAL_VLLM_MODEL=Qwen/Qwen3.5-9B MODAL_VLLM_GPU=L4 MODAL_VLLM_API_TOKEN=$(openssl rand -hex 24)
 modal run deploy/modal_vllm.py::download_model && modal deploy deploy/modal_vllm.py
 export VLLM_BASE_URL=https://<ws>--sandbox-vllm-serve.modal.run/v1 VLLM_API_KEY=$MODAL_VLLM_API_TOKEN
 sandbox health && sandbox run start --config … --job-mode modal
@@ -259,7 +273,6 @@ sandbox health                       # after the serve runbook: provider reachab
 | --- | --- |
 | `ModuleNotFoundError: numpy` on first `sandbox` call | stale editable install; `pip uninstall mailroom-sandbox` then `pip install -e ".[dev]"` |
 | `sandbox datasets pull` says `pip install -e "[hf]"` | base install is offline-first; Hub client lives in `[dev]`/`[hf]` |
-| `legalbench --suite` says `[pipeline]` | suite needs the vendored langchain stack → `pip install -e ".[pipeline]"` |
 | `run … --job-mode modal` says `[deploy]` | Modal SDK is an opt-in extra → `pip install -e ".[deploy]"` + `modal token new` |
 | `sandbox tunnel up --profile X` cannot connect | Check the SSH host, port, and credentials for profile `X` (see §2) |
 | `run status --config …` demands `--run-id` | fixed (DMR-058): `--config` resolves the run_id; still passes an explicit `--run-id` to override |

@@ -54,9 +54,23 @@ def _nonnegative_int(value: str) -> int:
 
 
 def _nonnegative_float(value: str) -> float:
-    number = float(value)
-    if not math.isfinite(number) or number < 0:
+    number = _finite_float(value)
+    if number < 0:
         raise argparse.ArgumentTypeError("must be finite and nonnegative")
+    return number
+
+
+def _finite_float(value: str) -> float:
+    number = float(value)
+    if not math.isfinite(number):
+        raise argparse.ArgumentTypeError("must be finite")
+    return number
+
+
+def _port(value: str) -> int:
+    number = int(value)
+    if not 0 <= number <= 65535:
+        raise argparse.ArgumentTypeError("port must be between 0 and 65535")
     return number
 
 
@@ -195,6 +209,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command")
 
+    p = sub.add_parser("tui", help="interactive local Mailroom CLI: nested menus, completion and session history", parents=[leaf])
+    p.set_defaults(handler=_cmd_tui)
+
     p = sub.add_parser("up", help="Start compose profiles (langfuse + provider)", parents=[leaf])
     p.add_argument("--compose-profile", action="append", dest="compose_profiles")
     # hub#56: -d opts in to detached mode; the default is foreground (the old
@@ -230,9 +247,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     agents_p = sub.add_parser("agents", help="List or show pipeline agents", parents=[leaf])
     agents_sub = agents_p.add_subparsers(dest="agents_cmd")
-    al = agents_sub.add_parser("list", parents=[leaf])
+    al = agents_sub.add_parser("list", parents=[leaf], help="list pipeline agents and their prompts")
     al.set_defaults(handler=_cmd_agents_list)
-    ash = agents_sub.add_parser("show", parents=[leaf])
+    ash = agents_sub.add_parser("show", parents=[leaf], help="show one pipeline agent")
     ash.add_argument("name")
     ash.set_defaults(handler=_cmd_agents_show)
     agents_p.set_defaults(handler=_cmd_agents_list)
@@ -243,7 +260,7 @@ def build_parser() -> argparse.ArgumentParser:
         parents=[leaf],
     )
     subagents_sub = subagents_p.add_subparsers(dest="subagents_cmd")
-    sa_list = subagents_sub.add_parser("list", parents=[leaf])
+    sa_list = subagents_sub.add_parser("list", parents=[leaf], help="list coding subagents for a family package")
     sa_list.add_argument("--json", action="store_true")
     sa_list.add_argument(
         "--package",
@@ -251,15 +268,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Family package filter (default: local-mailroom-sandbox or SUBAGENT_PACKAGE)",
     )
     sa_list.set_defaults(handler=_cmd_subagents_list)
-    sa_pkgs = subagents_sub.add_parser("packages", parents=[leaf])
+    sa_pkgs = subagents_sub.add_parser("packages", parents=[leaf], help="list family packages in the roster")
     sa_pkgs.add_argument("--json", action="store_true")
     sa_pkgs.set_defaults(handler=_cmd_subagents_packages)
-    sa_show = subagents_sub.add_parser("show", parents=[leaf])
+    sa_show = subagents_sub.add_parser("show", parents=[leaf], help="show one subagent's roster entry and prompt")
     sa_show.add_argument("id")
     sa_show.add_argument("--json", action="store_true")
     sa_show.add_argument("--package", default=None)
     sa_show.set_defaults(handler=_cmd_subagents_show)
-    sa_sync = subagents_sub.add_parser("sync", parents=[leaf])
+    sa_sync = subagents_sub.add_parser("sync", parents=[leaf], help="write OpenCode frontmatter and Cursor agent stubs")
     sa_sync.add_argument(
         "--harness",
         default="all",
@@ -349,9 +366,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     pipe = sub.add_parser("pipeline", help="Run mailroom inbox watcher or API (not the Tray TUI watch)", parents=[leaf])
     pipe_sub = pipe.add_subparsers(dest="pipeline_cmd")
-    w = pipe_sub.add_parser("watcher", parents=[leaf])
+    w = pipe_sub.add_parser("watcher", parents=[leaf], help="run the vendored mailroom inbox watcher")
     w.set_defaults(handler=_cmd_watcher)
-    a = pipe_sub.add_parser("api", parents=[leaf])
+    a = pipe_sub.add_parser("api", parents=[leaf], help="run the vendored mailroom HTTP API")
     a.set_defaults(handler=_cmd_api)
 
     p = sub.add_parser("pilot", help="Run the fixture pilot (--mock or --local)", parents=[leaf])
@@ -370,40 +387,43 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--dry-run", action="store_true")
     p.set_defaults(handler=_cmd_hf_pilot)
 
-    p = sub.add_parser("legalbench", help="LegalBench Yes/No fixture harness", parents=[leaf])
-    p.add_argument("--task", default="contract_qa", choices=("contract_qa", "family_classification"))
-    g = p.add_mutually_exclusive_group()
-    g.add_argument("--mock", action="store_true")
-    g.add_argument("--local", action="store_true")
-    p.add_argument("--n", type=_positive_int, default=None, help="seeded sample size (never first-N)")
-    p.add_argument("--seed", type=int, default=42, help="sample seed (recorded in the experiment log)")
-    p.add_argument("--suite", action="store_true", help="use the vendored llm-mailroom suite (needs data/cuad)")
-    p.add_argument("--dry-run", action="store_true")
-    p.set_defaults(handler=_cmd_legalbench)
-
     from mailroom_sandbox.eval.agents import EVAL_TASKS
+    from mailroom_sandbox.eval import primary
 
-    p = sub.add_parser("eval", help="Run a scoring eval (isolated agent or connected pipeline)", parents=[leaf])
-    p.add_argument("task", choices=tuple(EVAL_TASKS))
-    g = p.add_mutually_exclusive_group()
+    p = sub.add_parser(
+        "eval",
+        help="score the specialists or the full mailroom pipeline",
+        parents=[leaf],
+        description=(
+            "Primary tasks: `specialist [TARGET]` (all five live-class specialists, or one) and "
+            "`pipeline [--class CLASS]` (the full connected graph over every class, or one). "
+            "Other eval tasks still run for existing configs; `sandbox eval --all-tasks` lists them."
+        ),
+    )
+    p.add_argument("--all-tasks", action="store_true", help="list every eval task, including the non-primary ones")
+    p.set_defaults(handler=_cmd_eval, task=None)
+    ec = argparse.ArgumentParser(add_help=False)
+    connected = argparse.ArgumentParser(add_help=False)  # pipeline only
+    compare = argparse.ArgumentParser(add_help=False)  # local_vs_api / sorter_vs_modernbert only
+    g = ec.add_mutually_exclusive_group()
     g.add_argument("--mock", action="store_true", default=False)
     g.add_argument("--local", action="store_true", default=False)
-    p.add_argument("--sample", type=_positive_int, default=None)
-    p.add_argument("--dry-run", action="store_true")
-    p.add_argument("--name", dest="experiment_name")
-    p.add_argument(
+    ec.add_argument("--sample", type=_positive_int, default=None)
+    ec.add_argument("--dry-run", action="store_true")
+    ec.add_argument("--name", dest="experiment_name")
+    connected.add_argument(
         "--connected",
         action="store_true",
         default=False,
         help="Score class + stage + extraction + routing (pipeline default; flag is accepted on pipeline)",
     )
-    p.add_argument(
+    compare.add_argument(
         "--from-log",
         action="store_true",
         dest="from_log",
         help="For local_vs_api / sorter_vs_modernbert: compare experiment_log.jsonl instead of fixtures",
     )
-    p.add_argument(
+    compare.add_argument(
         "--group",
         default=None,
         help=(
@@ -412,7 +432,7 @@ def build_parser() -> argparse.ArgumentParser:
             "with several groups pick the headline one by 1-based index or unique label substring"
         ),
     )
-    p.add_argument(
+    ec.add_argument(
         "--prompt-version",
         action="append",
         default=[],
@@ -426,7 +446,7 @@ def build_parser() -> argparse.ArgumentParser:
             "lacks is an error. Default (no flag) is unchanged."
         ),
     )
-    p.add_argument(
+    compare.add_argument(
         "--dataset-revision",
         default=None,
         dest="dataset_revision",
@@ -437,7 +457,31 @@ def build_parser() -> argparse.ArgumentParser:
             "(exit 1); this fills the gap, it never overrides a revision a record already has"
         ),
     )
-    p.set_defaults(handler=_cmd_eval)
+
+    def eval_target(value: str) -> str:
+        try:
+            return primary.resolve_class(value) or value
+        except ValueError as exc:
+            raise argparse.ArgumentTypeError(str(exc)) from exc
+
+    targets = ", ".join(primary.DOC_CLASSES)
+    ev = p.add_subparsers(dest="task", metavar="{specialist,pipeline}")
+    t = ev.add_parser("specialist", parents=[leaf, ec], help="isolated specialist eval: all five, or one TARGET",
+                      description=f"Score the live-class specialists in isolation. TARGET: {targets} (or the specialist name, e.g. contracts_specialist).")
+    t.add_argument("target", nargs="?", type=eval_target, default=None, metavar="TARGET", help=f"one specialist: {targets}")
+    t._sandbox_targets = [["all five specialists", "eval specialist"], *[[c, f"eval specialist {c}"] for c in primary.DOC_CLASSES]]
+    t = ev.add_parser("pipeline", parents=[leaf, ec, connected], help="full connected mailroom pipeline: every class, or one --class",
+                      description="Run documents through the full 13-node graph and score class, stage, extraction and routing.")
+    t.add_argument("--class", dest="doc_class", type=eval_target, default=None, metavar="CLASS", help=f"only this document class: {targets}")
+    t._sandbox_targets = [["every class", "eval pipeline"], *[[c, f"eval pipeline --class {c}"] for c in primary.DOC_CLASSES]]
+    for name in EVAL_TASKS:
+        if name not in primary.PRIMARY_TASKS:
+            # Kept parseable for existing run configs and scripts; hidden from help and menus.
+            # Legacy tasks keep their full original flag set (and its usage errors).
+            hidden = ev.add_parser(name, parents=[leaf, ec, connected, compare])
+            hidden._sandbox_hidden = True
+    for child in ev.choices.values():
+        child.set_defaults(handler=_cmd_eval)
 
     p = sub.add_parser("matrix", help="provider × model × prompt grid", parents=[leaf])
     from mailroom_sandbox.eval.matrix import matrix_tasks
@@ -519,7 +563,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("traces", help="Trace helpers", parents=[leaf])
     tr = p.add_subparsers(dest="traces_cmd")
-    exp = tr.add_parser("export", parents=[leaf])
+    exp = tr.add_parser("export", parents=[leaf], help="write a trace bookmark (Langfuse host + last session/trace ids)")
     exp.set_defaults(handler=_cmd_traces_export)
     pk = tr.add_parser(
         "pack",
@@ -568,12 +612,12 @@ def build_parser() -> argparse.ArgumentParser:
     watch_p.add_argument("--config", default=None, help="run YAML to watch")
     watch_p.add_argument(
         "--follow", default=None,
-        help="file holding the CURRENT run YAML path; re-read every frame",
+        help="file holding the CURRENT run YAML path or run ID; re-read every frame",
     )
     watch_p.add_argument("--app", default=None, help="Modal serve app override (default: engine.modal.app; modal job mode also tails sandbox-job)")
     watch_p.add_argument("--ledger", default=None, help="spend ledger JSON ({spent_usd})")
-    watch_p.add_argument("--cap-usd", type=float, default=5.0)
-    watch_p.add_argument("--interval", type=float, default=1.0, help="max seconds between redraws (logs and run-store changes redraw immediately)")
+    watch_p.add_argument("--cap-usd", type=_positive_float, default=5.0)
+    watch_p.add_argument("--interval", type=_positive_float, default=1.0, help="max seconds between redraws (logs and run-store changes redraw immediately)")
     watch_p.add_argument("--no-bell", action="store_true", help="do not ring the terminal bell on a new critical watchdog alert")
     watch_p.add_argument("--once", action="store_true", help="render one frame and exit")
     watch_p.add_argument("--no-logs", action="store_true", help="do not follow Modal dispatch logs (serve + worker); job events still shown")
@@ -589,7 +633,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     watch_p.add_argument(
         "--port",
-        type=int,
+        type=_port,
         default=None,
         help="web UI port (default 8765; 0 = ephemeral; only with --web)",
     )
@@ -611,9 +655,11 @@ def build_parser() -> argparse.ArgumentParser:
         parents=[leaf],
     )
     dev_p.add_argument("--host", default=None, help="bind host (default 127.0.0.1)")
-    dev_p.add_argument("--port", type=int, default=None, help="port (default 8765; 0 = ephemeral)")
-    dev_p.add_argument("--interval", type=float, default=1.0, help="seconds per demo tick")
+    dev_p.add_argument("--port", type=_port, default=None, help="port (default 8765; 0 = ephemeral)")
+    dev_p.add_argument("--interval", type=_positive_float, default=1.0, help="seconds per demo tick")
     dev_p.add_argument("--no-browser", action="store_true", help="do not open a browser tab")
+    dev_p.add_argument("--pipeline", action="store_true",
+                       help="synthetic full-pipeline run: live per-node route and decisions")
     dev_p.set_defaults(handler=_cmd_dev)
 
     board_p = sub.add_parser(
@@ -625,10 +671,10 @@ def build_parser() -> argparse.ArgumentParser:
     board_p.add_argument("--tui", action="store_true", help="terminal TUI instead of the browser page")
     board_p.add_argument("--once", action="store_true", help="with --tui: render one frame and exit")
     board_p.add_argument("--host", default=None, help="bind host (default 127.0.0.1)")
-    board_p.add_argument("--port", type=int, default=None, help="port (default 8767; 0 = ephemeral)")
+    board_p.add_argument("--port", type=_port, default=None, help="port (default 8767; 0 = ephemeral)")
     board_p.add_argument("--no-browser", action="store_true", help="do not open a browser tab")
-    board_p.add_argument("--stale-s", type=float, default=120.0, help="heartbeat age that marks a running job stalled")
-    board_p.add_argument("--interval", type=float, default=1.0, help="refresh seconds (minimum 0.1; smaller values are raised to it)")
+    board_p.add_argument("--stale-s", type=_positive_float, default=120.0, help="heartbeat age that marks a running job stalled")
+    board_p.add_argument("--interval", type=_finite_float, default=1.0, help="refresh seconds (minimum 0.1; smaller values are raised to it)")
     board_p.add_argument("--probe-interval", type=positive_seconds, default=0, metavar="SECS", help="opt in to periodic doctor snapshots (offline checks by default)")
     board_p.add_argument("--live", action="store_true", help="with --probe-interval: probe endpoints too (can wake a billed Modal GPU)")
     board_p.add_argument("--demo", action="store_true", help="also run synthetic demo jobs (dev server; no Modal)")
@@ -641,10 +687,10 @@ def build_parser() -> argparse.ArgumentParser:
     bu.add_argument("--package", required=True)
     bu.add_argument("--title", default="")
     bu.add_argument("--phase", default=None)
-    bu.add_argument("--done", type=int, default=None)
-    bu.add_argument("--total", type=int, default=None)
-    bu.add_argument("--ok", type=int, default=None)
-    bu.add_argument("--errors", type=int, default=None)
+    bu.add_argument("--done", type=_nonnegative_int, default=None)
+    bu.add_argument("--total", type=_nonnegative_int, default=None)
+    bu.add_argument("--ok", type=_nonnegative_int, default=None)
+    bu.add_argument("--errors", type=_nonnegative_int, default=None)
     bu.add_argument("--metric", action="append", default=[], help="key=value (repeatable)")
     bu.add_argument("--log", default=None, help="append one log line")
     bu.add_argument("--finish", choices=("done", "failed"), default=None)
@@ -692,9 +738,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     prom = sub.add_parser("prompts", help="Pipeline-agent prompt surface (local + Langfuse)", parents=[leaf])
     prom_sub = prom.add_subparsers(dest="prompts_cmd")
-    plug_list = prom_sub.add_parser("list", parents=[leaf])
+    plug_list = prom_sub.add_parser("list", parents=[leaf], help="list every pipeline agent prompt (local + Langfuse)")
     plug_list.set_defaults(handler=_cmd_prompts_list)
-    plug_show = prom_sub.add_parser("show", parents=[leaf])
+    plug_show = prom_sub.add_parser("show", parents=[leaf], help="print one agent prompt or prompt version")
     plug_show.add_argument("name", help="agent name, or an eval-environment prompt version key (sorter_v3)")
     plug_show.add_argument("--variant", default=None, help="agent: local variant stem")
     plug_show.add_argument("--json", action="store_true")
@@ -712,7 +758,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     mp = sub.add_parser("metrics", help="serving metrics compare (local vs Modal vs API)", parents=[leaf])
     metrics_sub = mp.add_subparsers(dest="metrics_cmd")
-    mcomp = metrics_sub.add_parser("compare", parents=[leaf])
+    mcomp = metrics_sub.add_parser("compare", parents=[leaf], help="compare serving metrics across runs")
     mcomp.add_argument("--runs", default="", help="comma-separated run-ids")
     mcomp.add_argument("--log", action="store_true", help="read experiments from the log instead")
     mcomp.add_argument(
@@ -880,7 +926,7 @@ def build_parser() -> argparse.ArgumentParser:
         parents=[leaf],
         help='print export lines for eval "$(sandbox modal-matrix env …)"',
     )
-    mm_env.add_argument("model", nargs="?", default=None, help="HF id (default: Qwen/Qwen3-8B)")
+    mm_env.add_argument("model", nargs="?", default=None, help="HF id (default: Qwen/Qwen3.5-9B)")
     mm_env.add_argument("--gpu", default=None, help="override matrix GPU")
     mm_env.set_defaults(handler=_cmd_modal_matrix_env)
     mm.set_defaults(handler=_cmd_modal_matrix_help)
@@ -907,6 +953,7 @@ def _run_parser(sub, shared):
     common.add_argument("--json", action="store_true")
     common.add_argument("--watch", action="store_true")
     common.add_argument("--initials", default=None, help="sign the reviewed settings to authorize Modal/OpenRouter spend (2–6 letters)")
+    common.add_argument("--target", default=None, metavar="TARGET", help="level 2 of task specialist/pipeline: one specialist or document class (contract, merger_agreement, corporate_record, correspondence, insurance_claim)")
     common.add_argument("--agent-route", action="append", dest="agent_routes", default=[], metavar="NAME=PROVIDER:MODEL", help="per-agent transport, or NAME=@route.yaml for endpoint/GPU/vLLM settings")
     common.add_argument("--job-mode", dest="mode", choices=["endpoint", "modal"], default=None)
     common.add_argument("--max-items", type=_positive_int, default=None)
@@ -951,19 +998,19 @@ def _run_parser(sub, shared):
 
     run = sub.add_parser("run", help="Spec-driven job lifecycle (DMR-027)", parents=[shared])
     run_sub = run.add_subparsers(dest="run_cmd")
-    pre = run_sub.add_parser("preflight", parents=[common])
+    pre = run_sub.add_parser("preflight", parents=[common], help="validate a run config and print its lock report; no inference")
     pre.add_argument("--dry-run", action="store_true")
     pre.set_defaults(handler=_cmd_run_preflight)
-    start = run_sub.add_parser("start", parents=[common])
+    start = run_sub.add_parser("start", parents=[common], help="start a locked run (spend gates and initials apply)")
     start.add_argument("--dry-run", action="store_true")
     start.set_defaults(handler=_cmd_run_start)
-    status = run_sub.add_parser("status", parents=[common])
+    status = run_sub.add_parser("status", parents=[common], help="progress, errors and spend for a run")
     status.set_defaults(handler=_cmd_run_status)
-    resume = run_sub.add_parser("resume", parents=[common])
+    resume = run_sub.add_parser("resume", parents=[common], help="continue an interrupted run from its checkpoint")
     resume.set_defaults(handler=_cmd_run_resume)
-    cancel = run_sub.add_parser("cancel", parents=[common])
+    cancel = run_sub.add_parser("cancel", parents=[common], help="request cancellation of a running job")
     cancel.set_defaults(handler=_cmd_run_cancel)
-    runlist = run_sub.add_parser("list", parents=[common])
+    runlist = run_sub.add_parser("list", parents=[common], help="list local run stores and their states")
     runlist.set_defaults(handler=_cmd_run_list)
     bcheck = run_sub.add_parser(
         "benchmark-check",
@@ -1203,7 +1250,7 @@ def _cmd_pull_models(args: argparse.Namespace) -> int:
         # vLLM weights live in the HF cache — `ollama pull` would be wrong.
         # Modal: pre-warm the HF Volume; local compose: first serve downloads.
         name = str(profile.get("name") or "")
-        model = models[0] if models else str(profile.get("default_model") or "Qwen/Qwen3-8B")
+        model = models[0] if models else str(profile.get("default_model") or "Qwen/Qwen3.5-9B")
         if "modal" in name:
             print(
                 "vLLM profile is Modal-backed — weights are cached on the Modal Volume.\n"
@@ -1268,8 +1315,8 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
 # The Dojo pin is the interim post-v0.24.2 zero-token fix; return to the next
 # released commit when v0.24.3 is published.
 _VENDOR_PINS: tuple[tuple[str, str, str, str | None], ...] = (
-    ("llm-mailroom", "1a1ec3dfb4e71f615f5d34f6198f9d06fd8c26dd",
-     "https://github.com/Exios66/llm-mailroom.git", "1a1ec3dfb4e71f615f5d34f6198f9d06fd8c26dd"),
+    ("llm-mailroom", "175e6711077f92cee16e6bf2488844f92d9cb36d",
+     "https://github.com/Exios66/llm-mailroom.git", "175e6711077f92cee16e6bf2488844f92d9cb36d"),
     ("llm-dojo-scoring", "718e326c1fe5a49b3f1cfd43a3ac10c73e7e01a4",
      "https://github.com/Exios66/llm-dojo-scoring.git", "718e326c1fe5a49b3f1cfd43a3ac10c73e7e01a4"),
 )
@@ -1946,44 +1993,35 @@ def _cmd_hf_pilot(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_legalbench(args: argparse.Namespace) -> int:
-    from mailroom_sandbox.eval.runners import run_legalbench_eval
+def _eval_overview(all_tasks: bool) -> str:
+    from mailroom_sandbox.eval import primary
+    from mailroom_sandbox.eval.agents import EVAL_TASKS
 
-    mock = _mock_for(args, subcommand="legalbench")
-    name = f"sandbox_legalbench_{args.task}"
-    if args.suite:
-        name += f"_n{args.n or 0}_s{args.seed}"
-    try:
-        result = run_legalbench_eval(
-            mock=mock,
-            sample=args.n,
-            seed=args.seed,
-            task=args.task,
-            suite=args.suite,
-            dry_run=args.dry_run,
-            experiment_name=name,
-            profile=args.profile,
-            model=args.model,
-            agent_models=_agent_models(args),
-        )
-    except ValueError as exc:
-        # Loud guard (unwired task / suite without --n / empty rows): clean
-        # one-liner, not a traceback (DMR-058).
-        print(f"error: {exc}")
-        return 1
-    except Exception as exc:  # live-or-loud (DMR-049/058): CorpusUnavailable &
-        # missing-corpus keep naming the fetch command, without a traceback.
-        print(f"error: {type(exc).__name__}: {exc}")
-        return 1
-    _print(result)
-    return 0
+    classes = " | ".join(primary.DOC_CLASSES)
+    lines = [
+        "sandbox eval: two primary tasks, each with two levels",
+        "  specialist             isolated eval of all five live-class specialists",
+        f"  specialist TARGET      one specialist; TARGET = {classes}",
+        "  pipeline               full connected mailroom pipeline over every class",
+        f"  pipeline --class C     full pipeline over one class; C = {classes}",
+        "add --mock for an offline run, --dry-run to see the plan; `sandbox eval <task> --help` for options",
+    ]
+    if all_tasks:
+        others = [name for name in EVAL_TASKS if name not in primary.PRIMARY_TASKS]
+        lines += ["", "other tasks (kept for existing run configs; not primary operations):", "  " + ", ".join(others)]
+    else:
+        lines.append("other tasks: `sandbox eval --all-tasks`")
+    return "\n".join(lines)
 
 
 def _cmd_eval(args: argparse.Namespace) -> int:
-    from mailroom_sandbox.eval import runners
+    from mailroom_sandbox.eval import primary, runners
     from mailroom_sandbox.eval.agents import SPECS
     from mailroom_sandbox.tui.session import MailroomConsole
 
+    if args.task is None:
+        print(_eval_overview(bool(getattr(args, "all_tasks", False))))
+        return 0
     if getattr(args, "from_log", False) and args.task not in {"local_vs_api", "sorter_vs_modernbert"}:
         raise CLIUsageError("--from-log only applies to comparison tasks")
     if getattr(args, "group", None) and not (args.task == "local_vs_api" and getattr(args, "from_log", False)):
@@ -1993,7 +2031,13 @@ def _cmd_eval(args: argparse.Namespace) -> int:
     mock = _mock_for(args, subcommand="eval")
     os.environ["SANDBOX_RUN_MODE"] = "mock" if mock else "local"
     console = MailroomConsole()
-    exp = args.experiment_name or f"sandbox_{args.task}"
+    if args.task == "specialist" and getattr(args, "target", None):
+        default_exp = f"sandbox_{primary.specialists_for(args.target)[0]}"  # same log identity as `eval <agent>`
+    elif args.task == "pipeline" and getattr(args, "doc_class", None):
+        default_exp = f"sandbox_pipeline_{args.doc_class}"
+    else:
+        default_exp = f"sandbox_{args.task}"
+    exp = args.experiment_name or default_exp
     console.run_banner(run_id=exp, task=args.task, subtitle="sandbox eval")
     console.phase("EVAL", "mock" if mock else args.profile or "local")
     if getattr(args, "dataset_revision", None) and args.task != "local_vs_api":
@@ -2003,7 +2047,7 @@ def _cmd_eval(args: argparse.Namespace) -> int:
         "mock": mock,
         "sample": args.sample,
         "dry_run": args.dry_run,
-        "experiment_name": args.experiment_name or f"sandbox_{args.task}",
+        "experiment_name": exp,
         "profile": args.profile,
         "model": args.model,
         "agent_models": _agent_models(args),
@@ -2011,13 +2055,19 @@ def _cmd_eval(args: argparse.Namespace) -> int:
     def _eval_progress(done: int, total: int, ok: int, errors: int) -> None:
         console.progress(done, total, ok=ok, errors=errors)
 
-    if args.task in SPECS:
+    if args.task == "specialist":
+        result = primary.run_specialist_eval(
+            getattr(args, "target", None), prompt_version=args.prompt, progress_cb=_eval_progress, **kwargs
+        )
+    elif args.task in SPECS:
         result = runners.run_isolated_eval(
             args.task, prompt_version=args.prompt, progress_cb=_eval_progress, **kwargs
         )
     elif args.task == "pipeline":
+        doc_class = getattr(args, "doc_class", None)
+        rows = primary.rows_for_class(runners.load_manifest(), doc_class) if doc_class else None
         result = runners.run_pipeline_eval(
-            prompt_version=args.prompt, connected=True, **kwargs
+            prompt_version=args.prompt, connected=True, rows=rows, **kwargs
         )
     elif args.task == "extract":
         result = runners.run_extract_eval(prompt_version=args.prompt, **kwargs)
@@ -2037,12 +2087,10 @@ def _cmd_eval(args: argparse.Namespace) -> int:
             from_log=bool(getattr(args, "from_log", False)),
             **kwargs,
         )
-    elif args.task == "legalbench":
-        result = runners.run_legalbench_eval(**kwargs)
     else:
-        # DMR-056: never fall through to the LegalBench runner for an unknown
-        # task — a future composite registered without its own arm would have
-        # been silently misrouted (scorecard pollution).
+        # DMR-056: an unknown task never falls through to another runner — a
+        # future composite registered without its own arm would have been
+        # silently misrouted (scorecard pollution).
         raise SystemExit(f"error: task {args.task!r} has no dispatch arm in _cmd_eval")
     scores = result.get("scores") if isinstance(result, dict) else None
     summary = ""
@@ -2068,7 +2116,12 @@ def _select_prompt_versions(args) -> None:
     from mailroom_sandbox.eval.agents import SPECS
 
     task = args.task
-    if task in SPECS:
+    if task == "specialist":
+        from mailroom_sandbox.eval import primary
+
+        # The sweep runs every specialist; a target runs only its own.
+        unused = sorted(set(selection.keys) - set(primary.specialists_for(getattr(args, "target", None))))
+    elif task in SPECS:
         unused = sorted(set(selection.keys) - {task})
     elif task in {"pipeline", "extract", "chained"}:
         unused = []
@@ -2600,6 +2653,18 @@ def _cmd_run_dispose(args) -> int:
     return 0
 
 
+def _cmd_tui(args) -> int:
+    from mailroom_sandbox.tui.shell import run_shell
+
+    defaults = ["--profile", args.profile]
+    for name in ("model", "prompt"):
+        if getattr(args, name, None) is not None:
+            defaults += [f"--{name}", getattr(args, name)]
+    for assignment in args.agent_models:
+        defaults += ["--agent-model", assignment]
+    return run_shell(defaults)
+
+
 def _cmd_watch(args) -> int:
     from mailroom_sandbox import watch as watch_mod
     from mailroom_sandbox.job import spec as spec_mod
@@ -2607,6 +2672,12 @@ def _cmd_watch(args) -> int:
 
     from mailroom_sandbox import paths
 
+    if not args.web and (args.host is not None or args.port is not None or args.no_browser or args.demo):
+        raise CLIUsageError("--host, --port, --no-browser and --demo require --web")
+    if args.web and args.once:
+        raise CLIUsageError("--once is only available in the terminal (without --web)")
+    if args.demo and (args.config or args.follow or args.ledger or args.app):
+        raise CLIUsageError("--demo cannot watch --config, --follow, --ledger or --app")
     if getattr(args, "demo", False):
         return _serve_demo(args)
     sand032 = paths.runtime_dir() / "sand032"
@@ -2623,6 +2694,18 @@ def _cmd_watch(args) -> int:
         cfg = args.config
         if args.follow:
             cfg = Path(args.follow).read_text(encoding="utf-8").strip() or args.config
+            if cfg and not Path(cfg).is_file():
+                try:
+                    directory = spec_mod.run_dir(cfg)
+                except ValueError as exc:
+                    raise ServiceError(f"follow marker must contain an existing run YAML or valid run ID: {exc}") from exc
+                if (directory / "spec.lock.json").is_file():
+                    store = RunStore(directory)
+                    lock = store.read_lock() or {}
+                    app = args.app or (((lock.get("engine") or {}).get("modal") or {}).get("app")) or "sandbox-vllm"
+                    return store, app
+        if not cfg:
+            raise ServiceError("watch follow marker is empty and no --config fallback was provided")
         spec = spec_mod.load_run_spec(cfg)
         app = args.app or (spec.engine.modal.app if spec.engine.modal else "sandbox-vllm")
         return RunStore(spec_mod.runs_root() / spec_mod.resolve_run_id(spec)), app
@@ -2635,6 +2718,10 @@ def _cmd_watch(args) -> int:
         interval=args.interval,
         sand032_root=sand032 if sand032.is_dir() else None,
     )
+    if args.follow:
+        campaign_path = Path(args.follow).resolve().parent / "experiment.yaml"
+        if campaign_path.is_file():
+            common["campaign_path"] = campaign_path
     if getattr(args, "web", False):
         from mailroom_sandbox.tui import web as web_mod
 
@@ -2653,7 +2740,7 @@ def _serve_demo(args) -> int:
     from mailroom_sandbox.tui.demo import DemoRun
 
     root = Path(tempfile.mkdtemp(prefix="mailroom-watch-demo-"))
-    demo = DemoRun(root)
+    demo = DemoRun(root, pipeline=bool(getattr(args, "pipeline", False)))
     return web_mod.serve_watch_web(
         resolve=demo.resolve,
         ledger=demo.ledger,
@@ -2677,6 +2764,10 @@ def _cmd_dev(args) -> int:
 def _cmd_board(args) -> int:
     from mailroom_sandbox.services.poll import periodic_services
 
+    if args.once and not args.tui:
+        raise CLIUsageError("--once requires --tui")
+    if args.tui and (args.host is not None or args.port is not None or args.no_browser or args.demo):
+        raise CLIUsageError("--host, --port, --no-browser and --demo are browser-only (without --tui)")
     interval = getattr(args, "probe_interval", 0)
     live = getattr(args, "live", False)
     if live and not interval:
@@ -2706,8 +2797,10 @@ def _run_board(args) -> int:
 def _cmd_beacon_update(args) -> int:
     from mailroom_sandbox.tui.beacon import Beacon
 
+    if any("=" not in m or not m.split("=", 1)[0].strip() for m in args.metric):
+        raise CLIUsageError("--metric must be KEY=VALUE with a nonempty key")
     b = Beacon(args.job, package=args.package, title=args.title, root=args.root, resume=True, pid=None)
-    metrics = dict(m.split("=", 1) for m in args.metric if "=" in m)
+    metrics = dict(m.split("=", 1) for m in args.metric)
     fields = {k: getattr(args, k) for k in ("phase", "done", "total", "ok", "errors")}
     if args.log:
         b.log(args.log)
@@ -2888,7 +2981,7 @@ def _cmd_modernbert_eval(args) -> int:
 def _cmd_modal_matrix_help(args) -> int:
     print(
         "Use: sandbox modal-matrix list | show <model> | env [<model>] [--gpu GPU]\n"
-        "Default catalog row (specialist suite): Qwen/Qwen3-8B @ L4\n"
+        "Default catalog row: Qwen/Qwen3.5-9B @ L4 (fp8); frozen specialist suite: Qwen/Qwen3-8B @ L4\n"
         'Swap: eval "$(sandbox modal-matrix env Qwen/Qwen3-8B-AWQ)" && '
         "modal deploy deploy/modal_vllm.py --strategy recreate"
     )
@@ -2896,10 +2989,8 @@ def _cmd_modal_matrix_help(args) -> int:
 
 
 def _cmd_modal_matrix_list(args) -> int:
-    """List the Modal vLLM matrix models (table, or JSON with --json); the default specialist posture is starred.
-
-    """
-    from mailroom_sandbox.modal_matrix import list_modal_models
+    """List the Modal vLLM matrix models (table, or JSON with --json); the app default is starred."""
+    from mailroom_sandbox.modal_matrix import DEFAULT_MODAL_MODEL, list_modal_models
 
     rows = list_modal_models()
     if getattr(args, "json", False):
@@ -2914,7 +3005,10 @@ def _cmd_modal_matrix_list(args) -> int:
                 f"{str(row.get('max_model_len') or '-'):6} "
                 f"{str(row.get('tp_size') or 1):3} {row['model']}"
             )
-        print("\n* = default specialist cost-eval posture (sandbox runbook show l4-qwen3-8b)")
+        print(
+            f"\n* = app default {DEFAULT_MODAL_MODEL}; the frozen specialist cost-eval posture is "
+            "Qwen/Qwen3-8B (sandbox runbook show l4-qwen3-8b)"
+        )
     return 0
 
 
@@ -2971,6 +3065,14 @@ def _run_load_spec(args) -> tuple[object, Path]:
     if getattr(args, "agent_routes", None):
         from mailroom_sandbox.agent_routes import parse_routes
         spec.agent_routes = {**spec.agent_routes, **parse_routes(args.agent_routes)}
+    if getattr(args, "target", None):
+        # Re-validate so the CLI target gets the same task check and normalization as the YAML.
+        try:
+            spec = type(spec).model_validate({**spec.model_dump(by_alias=True), "target": args.target})
+        except ValueError as exc:
+            errors = getattr(exc, "errors", None)
+            message = errors()[0]["msg"].removeprefix("Value error, ") if callable(errors) else str(exc)
+            raise CLIUsageError(f"--target: {message}") from exc
     cli_versions = getattr(args, "prompt_versions", None)
     if cli_versions:
         # --prompt-version wins per role over the spec's prompt.versions; the merged

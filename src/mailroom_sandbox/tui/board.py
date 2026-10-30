@@ -21,7 +21,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from mailroom_sandbox.tui import pretty_log as pl
-from mailroom_sandbox.tui.beacon import BEACON_VERSION, TERMINAL_STATES, beacon_root
+from mailroom_sandbox.tui.beacon import BEACON_VERSION, TERMINAL_STATES, beacon_root, safe_job_id
 from mailroom_sandbox.tui.services_snapshot import read_services
 from mailroom_sandbox.tui.services_panel import SERVICES_CSS, SERVICES_HTML, SERVICES_JS
 from mailroom_sandbox.tui.web import THEME, ansi_to_html
@@ -30,6 +30,8 @@ STALE_S = 120.0
 MIN_INTERVAL_S = 0.1  # `--interval 0` (or negative) would otherwise spin a core re-reading the board
 DEFAULT_PORT = 8767  # watch --web / sandbox dev own 8765
 _ORDER = {"running": 0, "stalled": 1, "failed": 2, "done": 2}
+_MAX_COUNT = 2**53  # largest int a float holds exactly; beacon counters never get near it
+_MAX_EPOCH_S = 1e15  # updated_at is a Unix timestamp in seconds
 _HOST = socket.gethostname()
 
 
@@ -39,7 +41,7 @@ def _pid_alive(pid: Any) -> bool:
         os.kill(int(pid), 0)
     except PermissionError:
         return True
-    except (OSError, ValueError, TypeError):
+    except (OSError, ValueError, TypeError, OverflowError):
         return False
     return True
 
@@ -82,6 +84,21 @@ def list_jobs(root: Path | None = None, *, stale_s: float = STALE_S, tail: int =
         except (OSError, ValueError):
             continue
         if not isinstance(job, dict) or job.get("schema") != BEACON_VERSION or not job.get("job_id"):
+            continue
+        jid = job["job_id"]
+        if not isinstance(jid, str) or safe_job_id(jid) != jid:
+            continue
+        # Bounds by comparison: an int too large for a float (10**400 parses fine) would
+        # raise OverflowError in the progress maths; NaN and inf fail the range test.
+        if any(type(job.get(k, 0)) is not int or not 0 <= job.get(k, 0) <= _MAX_COUNT for k in ("done", "ok", "errors")):
+            continue
+        total = job.get("total")
+        if total is not None and (type(total) is not int or not 0 <= total <= _MAX_COUNT):
+            continue
+        updated = job.get("updated_at", 0)
+        if type(updated) not in (int, float) or not 0 <= updated < _MAX_EPOCH_S:
+            continue
+        if not isinstance(job.get("metrics", {}), dict) or not isinstance(job.get("state", "running"), str):
             continue
         job["status"] = status_of(job, now=now, stale_s=stale_s)
         done, total = job.get("done") or 0, job.get("total")
@@ -260,7 +277,7 @@ function esc(s) {{ return String(s ?? "—").replace(/&/g,"&amp;").replace(/</g,
 function metric(k, v) {{ return `<div class="metric"><span class="k">${{esc(k)}}</span><span class="v">${{esc(v)}}</span></div>`; }}
 function card(j) {{
   const count = j.total ? `${{j.done}}/${{j.total}}` : `${{j.done}}`;
-  const pct = j.pct == null ? 0 : j.pct;
+   const pct = Math.max(0, Math.min(100, Number(j.pct) || 0));
   const extra = Object.entries(j.metrics || {{}}).slice(0, 4).map(([k, v]) => metric(k, v)).join("");
   const log = (j.log_tail || []).slice(-3).map(l => esc(l)).join("\\n");
   return `<section class="card ${{esc(j.status)}}"><h2><span>${{esc(j.title)}}</span><span>${{esc(j.status)}}</span></h2>
