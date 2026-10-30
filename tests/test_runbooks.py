@@ -28,8 +28,55 @@ def test_catalog_has_required_runbooks():
     ids = list_runbook_ids()
     for rid in REQUIRED_IDS:
         assert rid in ids, rid
+    assert list_runbook_ids()[0] == "modal-vllm-serving"
+    assert list_runbook_ids(family="serving") == ["modal-vllm-serving"]
     assert list_runbook_ids(family="baseline")[0] == "l4-qwen3-8b"
     assert "improved-awq-c8" in list_runbook_ids(family="improved")
+
+
+def test_serving_runbook_is_the_default_path():
+    """`serve` is the documented default: deploy → point → verify → teardown."""
+    assert resolve_runbook_id("serve") == "modal-vllm-serving"
+    script = render_shell("serve")
+    assert "export SANDBOX_PROFILE=modal-vllm" in script
+    assert "modal run deploy/modal_vllm.py::download_model" in script
+    assert "modal deploy deploy/modal_vllm.py" in script
+    assert "sandbox cutover --profile modal-vllm" in script
+    assert "sandbox health --profile modal-vllm" in script
+    assert "./deploy/teardown_vllm.sh" in script
+    assert "ONLY after the last eval on this endpoint" in script
+    md = render_markdown("serve")
+    assert "VLLM_BASE_URL" in md and "MODAL_WORKSPACE" in md
+
+
+def test_serving_runbook_is_safe_to_paste_end_to_end():
+    """No eval runs in this script, so teardown stays a comment; health gets its bearer."""
+    lines = render_shell("serve").splitlines()
+    # A live teardown would stop the endpoint right after health, before any eval.
+    assert not any(ln.startswith("./deploy/teardown_vllm.sh") for ln in lines)
+    assert any(ln.startswith("# ./deploy/teardown_vllm.sh") for ln in lines)
+    # The deployed app only accepts the token it was started with; probes read VLLM_API_KEY.
+    token = next(i for i, ln in enumerate(lines) if ln.startswith("export MODAL_VLLM_API_TOKEN="))
+    key = next(i for i, ln in enumerate(lines) if ln.startswith('export VLLM_API_KEY="$MODAL_VLLM_API_TOKEN"'))
+    health = next(i for i, ln in enumerate(lines) if ln.startswith("sandbox health"))
+    assert token < key < health
+
+
+def test_live_bearer_export_always_follows_the_token_definition():
+    """`set -u` scripts: VLLM_API_KEY may only be live where the token is already defined."""
+    for rid in list_runbook_ids():
+        lines = render_shell(rid).splitlines()
+        live = [i for i, ln in enumerate(lines) if ln.startswith("export VLLM_API_KEY=")]
+        if not live:
+            continue
+        token = [i for i, ln in enumerate(lines) if ln.startswith("export MODAL_VLLM_API_TOKEN=")]
+        assert token and token[0] < live[0], rid
+
+
+def test_eval_runbooks_keep_their_live_teardown():
+    """Only the eval-less serving script comments its teardown out."""
+    lines = render_shell("l4-qwen3-8b").splitlines()
+    assert any(ln.startswith("./deploy/teardown_vllm.sh") for ln in lines)
 
 
 def test_aliases_resolve():
@@ -166,17 +213,40 @@ def test_verify_live_pins_clean():
 
 
 def test_generated_docs_match_renderer():
+    """Generated runbook and family docs match the renderer, including catalog depths."""
     errors = docs_are_current()
     assert errors == [], errors
     dest = generated_dir()
-    assert (dest / "l4-qwen3-8b.md").is_file()
-    assert (dest / "improved.md").is_file()
-    text = (dest / "l4-qwen3-8b.md").read_text(encoding="utf-8")
+    generated = load_catalog()["generated_docs"]
+    l4_doc = dest / generated["runbooks"]["l4-qwen3-8b"]
+    improved_doc = dest / generated["families"]["improved"]
+    grid_family = dest / generated["families"]["grid"]
+    assert l4_doc.is_file()
+    assert improved_doc.is_file()
+    text = l4_doc.read_text(encoding="utf-8")
     assert "Qwen/Qwen3-8B" in text
     assert "max_containers" in text
-    improved = (dest / "improved.md").read_text(encoding="utf-8")
+    assert "../../../../../config/runbooks/catalog.yaml" in text
+    improved = improved_doc.read_text(encoding="utf-8")
     assert "Qwen/Qwen3-8B-AWQ" in improved
     assert "ibm-granite/granite-4.2-8b-fp8" in improved
+    # Family rollups sit at a different depth than nested cards; catalog links
+    # must be rewritten for the family file, not copied from the nested path.
+    assert improved.count("](../../../../config/runbooks/catalog.yaml)") >= 8
+    assert "](../../../config/runbooks/catalog.yaml)" not in grid_family.read_text(
+        encoding="utf-8"
+    )
+    assert "docs/pretty-logging/mailroom-themed-logging.md" in (
+        dest / generated["runbooks"]["a100-qwen3-14b-awq-sorter400"]
+    ).read_text(encoding="utf-8")
+
+
+def test_runbook_writer_preserves_unmanaged_markdown(tmp_path):
+    """write_docs leaves handwritten markdown beside generated cards."""
+    keep = tmp_path / "handwritten.md"
+    keep.write_text("User-authored note.\n", encoding="utf-8")
+    write_docs(dest=tmp_path)
+    assert keep.read_text(encoding="utf-8") == "User-authored note.\n"
 
 
 def test_cli_list_show_check(capsys, tmp_path):
@@ -253,8 +323,8 @@ def test_grid_shell_relocks_1l4_and_leaves_decode_to_posture():
     assert "grid-20-merger-specialist-awq-1l4-rerun.yaml" in sh
     assert "SANDBOX_AGENT_KNOBS" not in sh  # decode comes from the posture row at start
     sh2 = render_shell("grid-2l4")
-    assert "config/runs/grid-50-contracts-specialist-awq-2l4-rerun.yaml" in sh2
-    assert "config/runs/grid-50-contracts-specialist-awq-2l4.yaml" not in sh2
+    assert "config/runs/sand037/grid-50-contracts-specialist-awq-2l4-rerun.yaml" in sh2
+    assert "config/runs/sand037/grid-50-contracts-specialist-awq-2l4.yaml" not in sh2
 
 
 def test_grid_family_renders():
@@ -268,7 +338,8 @@ def test_grid_family_renders():
     md = render_markdown("grid-1l4")
     assert "## Per-cell posture (live)" in md
     assert "`grid-50-merger-specialist-awq-1l4` | `merger_agreement_specialist` | 8 | 8192" in md
-    assert (generated_dir() / "grid.md").is_file()
+    grid_doc = load_catalog()["generated_docs"]["families"]["grid"]
+    assert (generated_dir() / grid_doc).is_file()
 
 
 def test_grid_runbooks_scrape_and_export_cards():

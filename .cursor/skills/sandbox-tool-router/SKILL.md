@@ -5,18 +5,18 @@ description: Choose the correct local-mailroom-sandbox tool for serving, tracing
 
 # Sandbox tool router
 
-Read this skill **first** when the task touches providers, tracing, datasets, Docker, or deploys. Then open exactly one specialty skill below. Do not invent a second tracing backend or cloud LLM path when the local-first default already fits.
+Read this skill **first** when the task touches providers, tracing, datasets, Docker, or deploys. Then open exactly one specialty skill below. Do not invent a second tracing backend or cloud LLM path when the default already fits.
 
 ## Decision table
 
 | Job | Use | Skill | Do **not** use |
 | --- | --- | --- | --- |
-| Default local LLM inference | Ollama (`SANDBOX_PROFILE=ollama`) | [ollama](../ollama/SKILL.md) | OpenRouter, Modal, vLLM (unless GPU/Modal requested) |
-| GPU / remote OpenAI-compatible serve | Modal vLLM (`modal-vllm`) or compose `vllm` | [modal](../modal/SKILL.md) | Ollama for 70B-class / long-context GPU work |
+| Offline / CPU-only inference | Ollama (`--profile ollama`) | [ollama](../ollama/SKILL.md) | OpenRouter, Modal, vLLM (unless GPU/Modal requested) |
+| Default live serving; GPU / remote OpenAI-compatible serve | Modal vLLM (`modal-vllm`, the default; drive it with `sandbox modal …` / `sandbox vllm …`) or compose `vllm` | [modal](../modal/SKILL.md) | Ollama for 70B-class / long-context GPU work |
 | Default tracing + The-Mailroom | Langfuse 3 / SDK v4 | [langfuse](../langfuse/SKILL.md) | Phoenix as the only sink if The-Mailroom is required |
 | Optional OTEL / Arize UI sidecar | Apache Phoenix compose profile | [apache-phoenix](../apache-phoenix/SKILL.md) | Phoenix as The-Mailroom input |
 | Hosted eval / experiment logs (opt-in) | Braintrust | [braintrust](../braintrust/SKILL.md) | Braintrust as the default offline sink |
-| Hub datasets / model cards / HF cache | Hugging Face Hub + `sandbox datasets pull` | [huggingface](../huggingface/SKILL.md) | Live Hub pulls in default pytest |
+| Hub datasets / model cards / HF cache | Hugging Face Hub + `sandbox datasets pull` / `sandbox hf …` | [huggingface](../huggingface/SKILL.md) | Live Hub pulls in default pytest |
 | Offline fixture prep | `sandbox datasets prepare` + notebooks | (prep helpers; no cloud) | Hub network in CI |
 | Sandbox-isolated tasks / governance | Local **`SAND-*`** board (`governance/TASKS.md`) | (this router + `governance/PREFIX.md`) | Family **`DMR-*`** MESSAGE_BOARD (cross-repo only) |
 
@@ -36,9 +36,9 @@ Sandbox evals implement the Langfuse v4 `document-pipeline` contract in `mailroo
 ## Serving precedence
 
 1. **`--mock` / offline prep** — no live LLM  
-2. **Ollama** — default local path (`sandbox up`, `sandbox pull-models`)  
-3. **vLLM local** — NVIDIA host + compose profile `vllm`  
-4. **Modal vLLM** — remote GPU; `pip install -e ".[deploy]"` + pre-warm + `modal deploy` (see [modal](../modal/SKILL.md))
+2. **Modal vLLM** — the default (`modal-vllm`): remote GPU; `pip install -e ".[deploy]"` + `sandbox runbook show serve` (see [modal](../modal/SKILL.md))
+3. **Ollama** — offline/CPU fallback (`--profile ollama`; `sandbox up -d --compose-profile ollama`, `sandbox pull-models --profile ollama`)
+4. **vLLM local** — NVIDIA host + compose profile `vllm`  
 5. **llama.cpp / LM Studio** — generic OpenAI base URL profiles  
 6. **OpenRouter** — opt-in only (`OPENROUTER_API_KEY`); never the sandbox default  
 
@@ -53,8 +53,8 @@ Always `mailroom_sandbox.runtime.activate(profile)` before importing mailroom gr
 | Compose + Dockerfile | `deploy/docker-compose.yml`, `deploy/Dockerfile` |
 | Modal app | `deploy/modal_vllm.py` |
 | Tracing | `docs/tracing.md`, `src/mailroom_sandbox/eval/tracing.py` |
-| Providers | `docs/providers.md` |
-| Offline Docker + notebooks | `docs/docker-offline.md` |
+| Providers | `docs/setting-up/providers.md` |
+| Offline Docker + notebooks | `docs/setting-up/docker-offline.md` |
 | Project skills (this tree) | `.cursor/skills/*/SKILL.md` |
 
 ## Quick commands
@@ -62,9 +62,10 @@ Always `mailroom_sandbox.runtime.activate(profile)` before importing mailroom gr
 ```bash
 sandbox profiles
 sandbox cutover --profile ollama
-sandbox up                                          # langfuse + ollama
-sandbox up --compose-profile phoenix                # optional sidecar
+sandbox up -d                                       # langfuse only (default modal-vllm); select both profiles for Ollama + Langfuse
+sandbox up -d --compose-profile phoenix             # optional sidecar
 sandbox health
+sandbox doctor                                      # offline status of modal/hf/docker/ollama/ssh/git/vllm…; --live probes, --publish feeds the board strip
 sandbox datasets prepare                            # offline
 sandbox datasets pull                               # Hub (network)
 ```

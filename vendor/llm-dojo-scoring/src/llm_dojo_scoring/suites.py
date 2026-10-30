@@ -3,7 +3,7 @@
 Task bundles (``bundles``) group metrics by what an agent *does*.
 Doc-type bundles (``doc_bundles``) group them by the *kind of document*.
 This module is the third, consumer-facing layer: **one importable suite
-per pipeline agent**, so llm-mailroom / llm-entity-extraction can do::
+per pipeline agent**, so llm-mailroom / local-mailroom-sandbox can do::
 
     from llm_dojo_scoring import get_suite, score_suite
 
@@ -55,6 +55,7 @@ __all__ = [
 #: Specialist profile name → native mailroom document class.
 SPECIALIST_DOC_TYPES: dict[str, str] = {
     "contracts_specialist": "contract",
+    "merger_agreement_specialist": "merger_agreement",
     "corporate_records_specialist": "corporate_record",
     "due_diligence_specialist": "due_diligence",
     "correspondence_specialist": "correspondence",
@@ -64,11 +65,10 @@ SPECIALIST_DOC_TYPES: dict[str, str] = {
 }
 
 #: Doc-type lookup aliases (mailroom ``doc_type`` → specialist suite).
-#: ``merger_agreement`` is a MAUD-grounded contract subtype scored by the
-#: contracts specialist with the MAUD consideration catalog rebound.
+#: ``merger_agreement`` is ``MergerAgreementExtraction`` scored by its own
+#: specialist — not an extract alias of ``contract``.
 DOC_TYPE_ALIASES: dict[str, str] = {
     **{doc_type: agent for agent, doc_type in SPECIALIST_DOC_TYPES.items()},
-    "merger_agreement": "contracts_specialist",
 }
 
 #: Default field→scoring-type maps, mirrored from llm-mailroom
@@ -99,7 +99,7 @@ DEFAULT_FIELD_TYPES: dict[str, dict[str, str]] = {
         "signatories": "entity_list:name",
         "jurisdiction": "name",
         "filing_number": "id",
-        "intent": "name",
+        "intent": "label",
         "subject_matter": "free_text",
         "keywords": "entity_list:name",
     },
@@ -121,7 +121,7 @@ DEFAULT_FIELD_TYPES: dict[str, dict[str, str]] = {
         "demand_amount": "money",
         "action_items": "entity_list",
         "urgency": "name",
-        "intent": "name",
+        "intent": "label",
         "subject_matter": "free_text",
         "keywords": "entity_list:name",
     },
@@ -162,7 +162,7 @@ DEFAULT_FIELD_TYPES: dict[str, dict[str, str]] = {
         "coverage_determination": "name",
         "denial_reasons": "entity_list:free_text",
         "supporting_documents": "entity_list",
-        "intent": "name",
+        "intent": "label",
         "subject_matter": "free_text",
         "keywords": "entity_list:name",
         "claim_checklist": "entity_list:free_text",
@@ -171,14 +171,13 @@ DEFAULT_FIELD_TYPES: dict[str, dict[str, str]] = {
         "document_name": "name",
         "parties": "entity_list:name",
         "effective_date": "date",
-        "term_length": "free_text",
+        "effective_time": "free_text",
         "governing_law": "name",
-        "contract_value": "money",
-        "renewal_terms": "free_text",
-        "cuad_family": "name",
         "merger_consideration": "name",
-        "cuad_clauses": "entity_list:free_text",
         "maud_clauses": "entity_list:free_text",
+        "intent": "name",
+        "subject_matter": "free_text",
+        "keywords": "entity_list:name",
     },
 }
 
@@ -266,6 +265,16 @@ _AGENT_EXTRAS: dict[str, tuple[str, ...]] = {
         "maud_clause_presence",
         "maud_valid_class_rate",
     ),
+    "merger_agreement_specialist": (
+        "date_mae_days",
+        "per_field_scores",
+        "hallucination_rate",
+        "maud_question_accuracy",
+        "maud_question_macro_accuracy",
+        "maud_clause_presence",
+        "maud_valid_class_rate",
+        "maud_category_accuracy",
+    ),
     "corporate_records_specialist": (
         "date_mae_days",
         "per_field_scores",
@@ -346,6 +355,21 @@ _MERGER_EXTRAS: tuple[str, ...] = (
     "maud_category_accuracy",
 )
 
+#: Corpus GT differentiator a content/MAUD extra can actually score. When a
+#: suite carries the extra, a GT row holding only that key is scorable on the
+#: content metric instead of being suppressed by the fail-closed GT gate (#16).
+_GT_KEYS_BY_EXTRA: dict[str, str] = {
+    "content_topic_accuracy": "content_topic",
+    "content_topic_f1_macro": "content_topic",
+    "sentiment_accuracy": "sentiment_label",
+    "sentiment_f1_macro": "sentiment_label",
+    "maud_question_accuracy": "maud_clause_labels",
+    "maud_question_macro_accuracy": "maud_clause_labels",
+    "maud_clause_presence": "maud_clause_labels",
+    "maud_valid_class_rate": "maud_clause_labels",
+    "maud_category_accuracy": "maud_clause_labels",
+}
+
 #: Honest-gap notes — type-specific scorers that do NOT exist yet.
 _HONEST_GAPS: dict[str, str] = {
     "insurance_claims_specialist": (
@@ -371,16 +395,19 @@ _HONEST_GAPS: dict[str, str] = {
     ),
     "corporate_records_specialist": (
         "HONEST GAP: no *external* extraction benchmark (CUAD/MAUD-grade "
-        "coverage is not claimed). The published merge covers 39 "
-        "corporate_record rows with record-type subclasses "
-        "(articles_of_incorporation, rights_instrument, …). Suite scores "
-        "typed-extraction field-micro P/R/F1/F2 plus that subclass catalog."
+        "coverage is not claimed). The published merge covers 450 "
+        "corporate_record rows in 10 record-shape subclasses with per-subclass "
+        "entity schemas (corporate_record_schema). Key-entity GT is unlabeled "
+        "on every row, so those fields are excluded rather than scored as "
+        "expected-empty. Suite scores field-micro P/R/F1/F2 on the labeled "
+        "fields (intent / subject_matter / keywords today)."
     ),
     "compliance_specialist": (
-        "HONEST GAP: compliance_filing has zero rows in Lucius-Morningstar/"
+        "HONEST GAP: compliance_filing was RETIRED from the live llm-mailroom "
+        "extract roster (2026-09-15). Zero rows in Lucius-Morningstar/"
         "mailroom-dataset. Hub SEC form-body inventory (10-K, 10-Q, 8-K, …) "
-        "is the live subclass catalog; suite scores typed-extraction plus "
-        "that inventory (no corpus-backed rows yet)."
+        "stays the historical subclass catalog; this suite remains for "
+        "traces, not archive scoring."
     ),
     "local_vs_api": (
         "HONEST GAP: TTFT is None unless a first-token timestamp or explicit "
@@ -417,6 +444,7 @@ _COMPUTABLE_KINDS = frozenset(
 
 
 def _kind_for(profile: AgentProfile) -> str:
+    """Choose the scoring kind from an agent's name and declared tasks."""
     if profile.name == "intake" or "prepare" in profile.tasks or "normalize" in profile.tasks:
         return _KIND_INTAKE
     if profile.name in SPECIALIST_DOC_TYPES:
@@ -441,6 +469,7 @@ def _kind_for(profile: AgentProfile) -> str:
 
 
 def _task_key_for(profile: AgentProfile, kind: str) -> str | None:
+    """Resolve task keys for classification, review, court-opinion, and intake suites."""
     if profile.name == "sorter":
         return "docclass"
     if profile.name == "sorter_reviewer":
@@ -484,6 +513,7 @@ class ScoringSuite:
         return self.kind in _COMPUTABLE_KINDS
 
     def resolve_bundle(self, *, fallback: bool = False) -> Bundle:
+        """Delegate metric-bundle resolution and fallback handling to the profile."""
         return self.profile.resolve_bundle(fallback=fallback)
 
     def resolve_doc_bundle(
@@ -492,6 +522,7 @@ class ScoringSuite:
         *,
         fallback: bool = True,
     ) -> tuple[Bundle, bool]:
+        """Resolve a document bundle for the requested type or this suite's type."""
         return self.profile.resolve_doc_bundle(
             doc_type or self.doc_type, fallback=fallback
         )
@@ -526,6 +557,7 @@ class ScoringSuite:
         return names
 
     def headline_names(self) -> list[str]:
+        """Return the pruned headline metric names for this agent suite."""
         from .pruning import headline_metrics
 
         return headline_metrics(self.name)
@@ -551,6 +583,7 @@ class ScoringSuite:
         field_types: dict[str, str] | None = None,
         task: str | None = None,
         metrics: dict[str, Any] | None = None,
+        detailed: bool = False,
         **kwargs: Any,
     ) -> Any:
         """Score this agent's outputs with the existing package functions.
@@ -563,7 +596,16 @@ class ScoringSuite:
           ``content_topic`` / ``sentiment_label`` and merger
           ``maud_clause_labels`` are scored as content extras (not
           extraction fields) when present on the dicts or passed as
-          kwargs.
+          kwargs. Pass ``detailed=True`` (or call
+          :meth:`score_document`) to get the full per-document payload
+          including ``schema_valid`` / ``parse_ok``, field-micro
+          P/R/F1/F2, ``metric_id``, and provenance; the default keeps the
+          single-document ``ExtractionScoreResult`` when no extras are
+          produced. Batches and results with extras return dictionaries.
+          Missing, malformed, or nonempty GT without scorable fields returns
+          an unscorable dictionary for a single document. GT may also be a
+          JSON or Python dict-repr string; Hub metadata is scoped to the
+          suite and stringified field containers are parsed.
         - **classification / review** — :func:`score_task` (default task
           from the suite; override via ``task=``).
         - **audit** — field-type-aware comparison of specialist vs
@@ -585,13 +627,13 @@ class ScoringSuite:
         if not self.computable:
             raise TypeError(
                 f"{self.name} suite is emit-only (kind={self.kind}); "
-                "pass metrics={{name: value}} to validate, or emit through "
+                "pass metrics={name: value} to validate, or emit through "
                 f"Emitter using metric_names={self.metric_names()!r}"
             )
         if self.kind == _KIND_EXTRACTION:
             return self._score_extraction(
                 expected, predicted, doc_text=doc_text, field_types=field_types,
-                **kwargs,
+                detailed=detailed, **kwargs,
             )
         if self.kind == _KIND_AUDIT:
             return self._score_audit(
@@ -617,6 +659,47 @@ class ScoringSuite:
             task_name = "docclass"
         return score_task(task_name, expected, predicted, **kwargs)
 
+    def score_document(
+        self,
+        expected: Any,
+        predicted: Any,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Score **one document** and return the full payload for that class.
+
+        Extraction suites only. This is the per-document surface consumers
+        should use for archive / comparison work. For scorable document
+        dictionaries, it carries
+        ``extraction`` (the :class:`ExtractionScoreResult`), field-micro
+        ``extraction_precision`` / ``extraction_recall`` / ``extraction_f1`` /
+        ``extraction_f2``,
+        ``schema_valid`` / ``parse_ok``, applicable class extras (content /
+        MAUD / insurance consistency), ``metric_id``, and ``provenance``. It is
+        ``score(..., detailed=True)`` with a stable name.
+
+        ``score_document`` accepts the same keyword arguments as
+        :meth:`score` (``doc_text``, ``field_types``, provenance stamps,
+        ``presence_expectations``, content/MAUD kwargs), except ``detailed``,
+        which is supplied internally. Missing, malformed, or nonempty GT
+        without scorable fields returns an unscorable dictionary with a
+        reason and null scores instead of the full extraction payload.
+        Presence-only GT has null field-micro scores and ``overall_score``.
+
+        Raise ``TypeError`` for emit-only or non-extraction suites; errors
+        from :meth:`score` propagate.
+        """
+        if not self.computable:
+            raise TypeError(
+                f"{self.name} suite is emit-only (kind={self.kind}); "
+                "score_document requires an extraction suite"
+            )
+        if self.kind != _KIND_EXTRACTION:
+            raise TypeError(
+                f"{self.name} suite kind={self.kind} is not extraction; "
+                "score_document is the per-document extraction surface"
+            )
+        return self.score(expected, predicted, detailed=True, **kwargs)
+
     def validate_metrics(self, metrics: dict[str, Any]) -> dict[str, Any]:
         """Keep only registry-known names; unknown keys are dropped.
 
@@ -641,8 +724,29 @@ class ScoringSuite:
         *,
         doc_text: str | None,
         field_types: dict[str, str] | None,
+        detailed: bool = False,
         **kwargs: Any,
     ) -> ExtractionScoreResult | list[ExtractionScoreResult] | dict[str, Any]:
+        """Normalize GT and score extraction, format, and available class extras.
+
+        Return a single ``ExtractionScoreResult`` when there are no extras and
+        ``detailed`` is false; otherwise return a dictionary with provenance.
+        Invalid or nonempty unscorable single-document GT returns an unscorable
+        dictionary. Batches pad missing predictions with ``None`` and ignore
+        surplus predictions; a list of ``doc_text`` values can further limit
+        extraction results.
+        Explicit presence expectations override labels derived from Hub GT.
+
+        Corporate-record dictionary pairs exclude unlabeled entities from both
+        sides using ``doc_subclass`` (or ``expected_subclass``), which may be a
+        per-row list for batches. Scorable dictionary payloads report
+        ``unlabeled_fields``; batch rows without a dictionary pair report ``[]``.
+        Extension entities are scored when labeled but are not added to the
+        format layer's required keys.
+
+        Dictionary payloads raise ``ProvenanceExportError`` for a conflicting
+        caller-supplied ``metric_id`` or an unsupported ``cost_basis``.
+        """
         from .content_scoring import (
             peel_non_extraction_fields,
             score_correspondence_content,
@@ -653,19 +757,265 @@ class ScoringSuite:
             merge_extraction_counts,
             prf_bundle_keys,
         )
+        from .scorecard_honesty import (
+            COST_BASIS_VALUES,
+            GtAssessment,
+            ProvenanceExportError,
+            _try_parse_json,
+            aggregate_quality_honest,
+            assess_extraction_gt,
+            check_schema_promotion_gate,
+            metric_id_for,
+            score_format_layer,
+            stamp_provenance,
+            unscorable_extraction_result,
+        )
 
         ftypes = field_types or self.field_types
         doc_class = self.doc_type or self.name
+        presence = kwargs.get("presence_expectations")
+        # The format layer requires the registered core only; subclass key
+        # entities are scored (when the dataset labels them) but never required.
+        required_ftypes = ftypes
+        if doc_class == "corporate_record" and ftypes:
+            from .corporate_record_schema import all_entity_field_types
+
+            ftypes = {**all_entity_field_types(), **ftypes}
+
+        def _stamp(payload: dict[str, Any], mid: str) -> dict[str, Any]:
+            """Validate caller metric and cost claims before stamping provenance."""
+            # Same refusal as Emitter / score_archive_block (#17, #22): a
+            # caller's metric_id or cost_basis is checked, never overridden.
+            claimed = kwargs.get("metric_id")
+            if claimed is not None and claimed != mid:
+                raise ProvenanceExportError(
+                    f"provenance metric_id {claimed!r} contradicts this "
+                    f"payload's metric_id {mid!r}"
+                )
+            basis = kwargs.get("cost_basis")
+            if basis is not None and basis not in COST_BASIS_VALUES:
+                raise ProvenanceExportError(
+                    f"cost_basis {basis!r} is not one of {sorted(COST_BASIS_VALUES)}"
+                )
+            return stamp_provenance(
+                payload,
+                metric_id=mid,
+                prompt_id=kwargs.get("prompt_id"),
+                dataset_revision=kwargs.get("dataset_revision"),
+                split=kwargs.get("split"),
+                draw_seed=kwargs.get("draw_seed"),
+                serving_kind=kwargs.get("serving_kind"),
+                model_id=kwargs.get("model_id"),
+                cost_basis=basis,
+            )
+        # Content/MAUD differentiators this suite can actually score — a GT
+        # row holding only these is not suppressed as "no extractable fields".
+        scorable_gt_keys = tuple(
+            sorted(
+                {
+                    _GT_KEYS_BY_EXTRA[extra]
+                    for extra in self.extra_metrics
+                    if extra in _GT_KEYS_BY_EXTRA
+                }
+            )
+        )
+        # --- Hub GT metadata normalization -----------------------------------
+        # ``mailroom-dataset`` rows carry the union of every class's fields
+        # plus annotation stats and a stringified gt_presence map. Scope the
+        # GT to THIS suite's class surface so fields that do not apply to the
+        # document type (empty / not_applicable / schema_documented_absence /
+        # pending_annotation) are never required events, and parse the
+        # stringified JSON values ("[]", "{}", '["a", "b"]'). See
+        # llm_dojo_scoring.gt_metadata.
+        from . import gt_metadata as _gtm
+
+        carries_presence = "extraction_category_presence" in self.extra_metrics
+
+        def _parse_expected_one(value: Any) -> Any:
+            """Parse GT dictionaries or strings, retaining invalid strings for assessment."""
+            if isinstance(value, str):
+                try:
+                    return _gtm.parse_gt_fields(value)
+                except (TypeError, ValueError):
+                    return value  # fail closed -> gt_wrong_schema
+            if isinstance(value, dict):
+                return _gtm.parse_gt_fields(value)
+            return value
+
+        def _scope_expected_one(value: Any) -> Any:
+            """Remove annotation keys and blank absent fields in a GT dictionary.
+
+            Apply :func:`scoring_gt_fields` to Hub metadata; preserve unmapped
+            keys in plain dictionaries and return non-dict inputs unchanged.
+            """
+            if not isinstance(value, dict):
+                return value
+            # Hub metadata carries the stringified gt_presence map; plain
+            # field dicts (historical consumers) keep their unmapped keys.
+            is_hub_metadata = bool(_gtm.gt_presence_map(value)) or (
+                _gtm.GT_PRESENCE_KEY in value
+            )
+            return _gtm.scoring_gt_fields(
+                value,
+                field_types=ftypes,
+                extra_keys=scorable_gt_keys,
+                drop_unmapped=is_hub_metadata,
+            )
+
+        scoped_to_empty = False
+        scoped_empty_rows: list[bool] = []
+        if isinstance(expected, list):
+            parsed_expected = [_parse_expected_one(item) for item in expected]
+            expected = [_scope_expected_one(item) for item in parsed_expected]
+            # Annotation-only Hub rows (e.g. pending CUAD labels) parse as
+            # nonempty but scope to {}; keep the flag per row so batches can
+            # mark them unscorable without breaking alignment.
+            scoped_empty_rows = [
+                isinstance(parsed, dict) and bool(parsed) and scoped == {}
+                for parsed, scoped in zip(parsed_expected, expected)
+            ]
+            if presence is None and carries_presence:
+                derived = [
+                    _gtm.derive_presence_from_gt(item)
+                    if isinstance(item, dict)
+                    else None
+                    for item in parsed_expected
+                ]
+                if any(entry for entry in derived):
+                    presence = derived
+        else:
+            parsed_one = _parse_expected_one(expected)
+            if presence is None and carries_presence and isinstance(parsed_one, dict):
+                presence = _gtm.derive_presence_from_gt(parsed_one)
+            expected = _scope_expected_one(parsed_one)
+            # Annotation-only Hub rows (e.g. pending CUAD labels) parse as
+            # nonempty but scope to {}; they carry no extractable fields.
+            scoped_to_empty = (
+                isinstance(parsed_one, dict) and bool(parsed_one) and expected == {}
+            )
+        def _parse_predicted_one(value: Any) -> Any:
+            """Raw model text → parsed dict, else ``None`` (scored as no fill).
+
+            The raw string still reaches the format layer, so invalid JSON
+            fails ``parse_ok`` / ``schema_valid`` instead of crashing the
+            field scorer (#18).
+            """
+            if not isinstance(value, str):
+                return value
+            parsed, ok = _try_parse_json(value)
+            return parsed if ok and isinstance(parsed, dict) else None
+
+        raw_predicted = predicted
+        if isinstance(expected, list) and predicted is None:
+            # No predictions at all: every GT row is an unfilled prediction.
+            raw_predicted = predicted = [None] * len(expected)
+        elif isinstance(expected, list) and isinstance(predicted, str):
+            # A whole batch answered as one JSON array string.
+            parsed_batch, batch_ok = _try_parse_json(predicted)
+            raw_predicted = predicted = (
+                list(parsed_batch)
+                if batch_ok and isinstance(parsed_batch, list)
+                else [predicted]
+            )
+        n_missing_predictions = 0
+        if isinstance(expected, list) and isinstance(predicted, list):
+            # A GT row with no prediction is an unfilled answer (scored as
+            # false negatives), never silently dropped by zip().
+            n_missing_predictions = max(0, len(expected) - len(predicted))
+            predicted = list(predicted) + [None] * n_missing_predictions
+        if isinstance(predicted, str):
+            predicted = _parse_predicted_one(predicted)
+        elif isinstance(predicted, list):
+            predicted = [_parse_predicted_one(item) for item in predicted]
+        if isinstance(predicted, dict):
+            predicted = _gtm.normalize_field_values(predicted)
+        elif isinstance(predicted, list):
+            predicted = [
+                _gtm.normalize_field_values(item) if isinstance(item, dict) else item
+                for item in predicted
+            ]
+        # corporate_record: key-entity fields the dataset leaves blank without
+        # documenting absence are *unlabeled*, not "expected empty". Drop them
+        # from both sides so a correct extraction is not scored as spurious
+        # fill. See llm_dojo_scoring.corporate_record_schema.
+        unlabeled: list[tuple[str, ...]] = []
+        audit_predictions = None
+        if doc_class == "corporate_record":
+            from .corporate_record_schema import align_unlabeled
+
+            # Alignment replaces dictionaries (and batch entries). Keep the
+            # original populated fields for verification against doc_text.
+            audit_predictions = (
+                list(predicted) if isinstance(predicted, list) else predicted
+            )
+            sub_kw = kwargs.get("doc_subclass") or kwargs.get("expected_subclass")
+            if isinstance(expected, list):
+                # ``unlabeled_fields`` on a batch payload is per-row and must
+                # stay aligned with the GT row order: a row whose prediction
+                # is missing (padded ``None``), whose model JSON does not
+                # parse, or whose GT object is unparseable gets no alignment
+                # at all and reports ``[]`` — never a skipped entry that
+                # would shift later rows out of alignment.
+                for idx in range(len(expected)):
+                    pred = (
+                        predicted[idx]
+                        if isinstance(predicted, list) and idx < len(predicted)
+                        else None
+                    )
+                    if isinstance(expected[idx], dict) and isinstance(pred, dict):
+                        sub = sub_kw[idx] if isinstance(sub_kw, list) and idx < len(sub_kw) else (
+                            None if isinstance(sub_kw, list) else sub_kw
+                        )
+                        expected[idx], predicted[idx], dropped = align_unlabeled(
+                            sub, parsed_expected[idx], expected[idx], pred
+                        )
+                    else:
+                        dropped = ()
+                    unlabeled.append(dropped)
+            elif isinstance(expected, dict) and isinstance(predicted, dict):
+                expected, predicted, dropped = align_unlabeled(
+                    None if isinstance(sub_kw, list) else sub_kw,
+                    parsed_one, expected, predicted,
+                )
+                unlabeled.append(dropped)
+        format_predictions = raw_predicted
+        if isinstance(expected, list) and isinstance(raw_predicted, list):
+            # The gate covers exactly the GT rows: surplus predictions are
+            # dropped and a GT row with no prediction counts as unparsed,
+            # so a short prediction list cannot pass on its paired subset.
+            padded = list(raw_predicted) + [None] * max(
+                0, len(expected) - len(raw_predicted)
+            )
+            format_predictions = padded[: len(expected)]
+            if isinstance(doc_text, list):
+                format_predictions = format_predictions[:len(doc_text)]
+        format_scores = score_format_layer(
+            predicted=format_predictions if not isinstance(raw_predicted, str) else None,
+            predicted_raw=(
+                raw_predicted
+                if isinstance(raw_predicted, str)
+                else kwargs.get("predicted_raw")
+            ),
+            required_keys=list(required_ftypes.keys()) if required_ftypes else None,
+        )
         extras: dict[str, Any] = {}
         peeled_exp: list = []
         peeled_pred: list = []
+        unscorable_rows: set[int] = set()
 
-        def _run(exp: Any, pred: Any, text: str | None):
-            return score_extraction(doc_class, ftypes, pred, exp, doc_text=text)
+        def _run(exp: Any, pred: Any, text: str | None, audit_pred: Any = None):
+            """Score one extraction using this suite's document class and field types."""
+            return score_extraction(
+                doc_class, ftypes, pred, exp, doc_text=text, audit_predicted=audit_pred,
+            )
 
         def _prf_one(exp: Any, pred: Any, result: ExtractionScoreResult) -> dict[str, Any]:
-            if not isinstance(exp, dict) or not isinstance(pred, dict):
+            """Compute field-presence metrics, treating non-mapping predictions as misses."""
+            if not isinstance(exp, dict):
                 return {}
+            if not isinstance(pred, dict):
+                # Missing or unparseable answer: every GT field is a miss.
+                pred = {}
             return extraction_binary_metrics(
                 exp, pred, field_map=ftypes, doc_class=doc_class, result=result
             )
@@ -676,6 +1026,37 @@ class ScoringSuite:
         sent_p = kwargs.get("predicted_sentiment")
         maud_e = kwargs.get("expected_maud")
         maud_p = kwargs.get("predicted_maud")
+
+        gt_target = expected
+        if isinstance(expected, list) and len(expected) == 1:
+            gt_target = expected[0]
+        assessment = assess_extraction_gt(
+            gt_target,
+            ftypes,
+            doc_class=doc_class,
+            presence_expectations=presence,
+            scorable_gt_keys=scorable_gt_keys,
+        )
+        if scoped_to_empty and not presence:
+            assessment = GtAssessment("unscorable", "gt_no_extractable_fields")
+        if not assessment.scorable and not isinstance(expected, list):
+            unscorable = unscorable_extraction_result(
+                assessment,
+                doc_class=doc_class,
+                metric_id=metric_id_for(
+                    "extraction_overall_score", doc_class=doc_class
+                ),
+            )
+            # The format layer does not depend on GT: a well-formed answer to
+            # a triage-only row is not a schema failure.
+            unscorable.update(format_scores)
+            unscorable["schema_promotion_gate"] = check_schema_promotion_gate(
+                format_scores.get("schema_valid"), doc_class=doc_class
+            )
+            return _stamp(
+                unscorable,
+                metric_id_for("extraction_overall_score", doc_class=doc_class),
+            )
 
         if isinstance(expected, list) and isinstance(predicted, list):
             texts: Iterable[str | None]
@@ -690,9 +1071,48 @@ class ScoringSuite:
             mauds_e: list = []
             mauds_p: list = []
             saw_topic = saw_sent = saw_maud = False
-            for exp, pred in zip(expected, predicted):
-                if isinstance(exp, dict) and isinstance(pred, dict):
-                    e2, p2, payload = peel_non_extraction_fields(exp, pred)
+            row_assessments: list[GtAssessment] = []
+            for idx in range(len(expected)):
+                row_presence = (
+                    presence[idx]
+                    if isinstance(presence, list) and idx < len(presence)
+                    else presence
+                )
+                if (
+                    idx < len(scoped_empty_rows)
+                    and scoped_empty_rows[idx]
+                    and not row_presence
+                ):
+                    row_assessments.append(
+                        GtAssessment("unscorable", "gt_no_extractable_fields")
+                    )
+                else:
+                    # Same fail-closed check as a single document (#16): a
+                    # plain triage-only / malformed GT row is unscorable,
+                    # never a 0.0 quality row or a run of false negatives.
+                    row_assessments.append(
+                        assess_extraction_gt(
+                            expected[idx],
+                            ftypes,
+                            doc_class=doc_class,
+                            presence_expectations=row_presence,
+                            scorable_gt_keys=scorable_gt_keys,
+                        )
+                    )
+            for idx, (exp, pred) in enumerate(zip(expected, predicted)):
+                if not row_assessments[idx].scorable:
+                    # A GT-less row feeds no topic / sentiment / MAUD / claims
+                    # extras; it stays in place only to keep row alignment.
+                    peeled_exp.append(exp)
+                    peeled_pred.append(pred)
+                    unscorable_rows.add(idx)
+                elif isinstance(exp, dict):
+                    # Missing/malformed answers remain misses in every scored
+                    # population. Peel GT extras even when there is no dict
+                    # prediction, so they cannot leak into extraction counts.
+                    e2, p2, payload = peel_non_extraction_fields(
+                        exp, pred if isinstance(pred, dict) else {}
+                    )
                     peeled_exp.append(e2)
                     peeled_pred.append(p2)
                     if "content_topic" in payload:
@@ -710,20 +1130,41 @@ class ScoringSuite:
                 else:
                     peeled_exp.append(exp)
                     peeled_pred.append(pred)
-            extraction = [
-                _run(exp, pred, text)
-                for exp, pred, text in zip(peeled_exp, peeled_pred, texts)
-            ]
+            extraction = []
+            for idx, (exp, pred, text) in enumerate(
+                zip(peeled_exp, peeled_pred, texts)
+            ):
+                row_assessment = row_assessments[idx]
+                if not row_assessment.scorable:
+                    # Keep row alignment: this row is honestly unscorable,
+                    # never scored as gt_empty.
+                    extraction.append(
+                        unscorable_extraction_result(
+                            row_assessment,
+                            doc_class=doc_class,
+                            metric_id=metric_id_for(
+                                "extraction_overall_score", doc_class=doc_class
+                            ),
+                        )
+                    )
+                else:
+                    audit_pred = (
+                        audit_predictions[idx]
+                        if isinstance(audit_predictions, list) else None
+                    )
+                    extraction.append(_run(exp, pred, text, audit_pred))
             if saw_topic and topic_e is None:
                 topic_e, topic_p = topics_e, topics_p
             if saw_sent and sent_e is None:
                 sent_e, sent_p = sents_e, sents_p
             if saw_maud and maud_e is None:
                 maud_e, maud_p = mauds_e, mauds_p
-        elif isinstance(expected, dict) and isinstance(predicted, dict):
-            e2, p2, payload = peel_non_extraction_fields(expected, predicted)
+        elif isinstance(expected, dict):
+            e2, p2, payload = peel_non_extraction_fields(
+                expected, predicted if isinstance(predicted, dict) else {}
+            )
             peeled_exp, peeled_pred = [e2], [p2]
-            extraction = _run(e2, p2, doc_text)
+            extraction = _run(e2, p2, doc_text, audit_predictions)
             if "content_topic" in payload and topic_e is None:
                 topic_e, topic_p = payload["content_topic"]
             if "sentiment_label" in payload and sent_e is None:
@@ -731,7 +1172,7 @@ class ScoringSuite:
             if "maud" in payload and maud_e is None:
                 maud_e, maud_p = payload["maud"]
         else:
-            extraction = _run(expected, predicted, doc_text)
+            extraction = _run(expected, predicted, doc_text, audit_predictions)
 
         if topic_e is not None or topic_p is not None:
             extras.update(
@@ -754,25 +1195,25 @@ class ScoringSuite:
 
         # CUAD / claim checklist presence (mailroom v0.6.0 board path). Pass
         # presence_expectations= from Hub GT; default field is cuad_clauses.
-        presence = kwargs.get("presence_expectations")
         if presence:
             from .field_scoring import score_category_presence
 
             pred_rows: list = []
             if peeled_pred:
-                pred_rows = [p for p in peeled_pred if isinstance(p, dict)]
+                pred_rows = [p if isinstance(p, dict) else {} for p in peeled_pred]
             elif isinstance(predicted, dict):
                 pred_rows = [predicted]
             elif isinstance(predicted, list):
-                pred_rows = [p for p in predicted if isinstance(p, dict)]
+                pred_rows = [p if isinstance(p, dict) else {} for p in predicted]
             if isinstance(presence, list):
                 pairs = [
                     (pred, pe)
-                    for pred, pe in zip(pred_rows, presence)
-                    if isinstance(pe, dict) and pe
+                    for idx, (pred, pe) in enumerate(zip(pred_rows, presence))
+                    if idx not in unscorable_rows and isinstance(pe, dict) and pe
                 ]
             else:
-                pairs = [(pred, presence) for pred in pred_rows]
+                pairs = [(pred, presence) for idx, pred in enumerate(pred_rows)
+                         if idx not in unscorable_rows]
             presence_scores: list[float] = []
             presence_detail = None
             for pred, pe in pairs:
@@ -790,13 +1231,43 @@ class ScoringSuite:
 
         is_batch = isinstance(extraction, list)
         prf_payload: dict[str, Any] = {}
-        if is_batch and peeled_exp:
-            rows = [
-                _prf_one(exp, pred, result)
-                for exp, pred, result in zip(peeled_exp, peeled_pred, extraction)
-                if isinstance(result, ExtractionScoreResult)
-            ]
-            rows = [row for row in rows if row]
+        # Presence-only GT rows carry no extraction events; predicted clause
+        # spans are presence candidates, not false positives. Keep P/R/F1/F2
+        # explicitly null rather than reporting a misleading 0.0.
+        has_extraction_events = any(
+            not _gtm.is_empty_value(value)
+            for exp in peeled_exp
+            if isinstance(exp, dict)
+            for value in exp.values()
+        )
+        if presence and not has_extraction_events:
+            prf_payload = prf_bundle_keys({})
+        elif is_batch and peeled_exp:
+            rows = []
+            for idx, (exp, pred, result) in enumerate(
+                zip(peeled_exp, peeled_pred, extraction)
+            ):
+                if not isinstance(result, ExtractionScoreResult):
+                    continue
+                row_presence = (
+                    presence[idx]
+                    if isinstance(presence, list) and idx < len(presence)
+                    else presence
+                )
+                # Presence-only rows are scored by the presence metric; their
+                # predicted clause spans must not count as spurious field
+                # fills (a zero-denominator row otherwise drags micro P/R/F1).
+                if (
+                    row_presence
+                    and isinstance(exp, dict)
+                    and not any(
+                        not _gtm.is_empty_value(value) for value in exp.values()
+                    )
+                ):
+                    continue
+                row = _prf_one(exp, pred, result)
+                if row:
+                    rows.append(row)
             if rows:
                 prf_payload = prf_bundle_keys(merge_extraction_counts(rows))
         elif isinstance(extraction, ExtractionScoreResult) and peeled_exp:
@@ -804,15 +1275,21 @@ class ScoringSuite:
             if one:
                 prf_payload = prf_bundle_keys(one)
 
-        # Claims extras wrap the return (batch always; single-doc stays the
-        # dataclass unless other extras already force a dict).
-        if self.name == "insurance_claims_specialist" and peeled_exp and is_batch:
+        # Claims extras wrap the return (batch always; single-doc when the
+        # caller asked for the full per-document payload via detailed=True).
+        if (
+            self.name == "insurance_claims_specialist"
+            and peeled_exp
+            and (is_batch or detailed)
+        ):
             from .claims_consistency import score_claims_extras
 
             claim_rows = [
                 score_claims_extras(exp, pred)
-                for exp, pred in zip(peeled_exp, peeled_pred)
-                if isinstance(exp, dict) and isinstance(pred, dict)
+                for idx, (exp, pred) in enumerate(zip(peeled_exp, peeled_pred))
+                if idx not in unscorable_rows
+                and isinstance(exp, dict)
+                and isinstance(pred, dict)
             ]
             if claim_rows:
                 consist = [row["determination_consistency"] for row in claim_rows]
@@ -828,16 +1305,78 @@ class ScoringSuite:
                     round(sum(amounts) / len(amounts), 4) if amounts else None
                 )
 
-        if not extras and not is_batch:
+        if not extras and not is_batch and not detailed:
             return extraction
+        # Batch population counts (#16): unscorable rows are reported, never
+        # folded into the quality mean.
+        batch_quality: dict[str, Any] = {}
+        if is_batch:
+            batch_quality = aggregate_quality_honest(
+                [
+                    row
+                    if isinstance(row, dict)
+                    else {"overall_score": getattr(row, "overall_score", None)}
+                    for row in extraction
+                ]
+            )
+            batch_quality["n_missing_predictions"] = n_missing_predictions
         if not extras and is_batch:
-            return {"extraction": extraction, **prf_payload}
+            return _stamp(
+                {
+                    "extraction": extraction,
+                    **prf_payload,
+                    **format_scores,
+                    **batch_quality,
+                    **(
+                        {"unlabeled_fields": [list(u) for u in unlabeled]}
+                        if unlabeled
+                        else {}
+                    ),
+                    "schema_promotion_gate": check_schema_promotion_gate(
+                        format_scores.get("schema_valid"), doc_class=doc_class
+                    ),
+                    "metric_id": metric_id_for(
+                        "extraction_overall_score", doc_class=doc_class
+                    ),
+                },
+                metric_id_for("extraction_overall_score", doc_class=doc_class),
+            )
         filtered = {
             k: v for k, v in extras.items()
             if k not in {"task", "kind", "topic", "sentiment", "per_question",
                          "per_document"}
         }
-        return {"extraction": extraction, **prf_payload, **filtered, "detail": extras}
+        mid = metric_id_for(
+            "extraction_category_presence" if presence else "extraction_overall_score",
+            doc_class=doc_class,
+            presence_mode=bool(presence),
+        )
+        filtered["schema_promotion_gate"] = check_schema_promotion_gate(
+            format_scores.get("schema_valid"), doc_class=doc_class
+        )
+        payload = {
+            "extraction": extraction,
+            **prf_payload,
+            **filtered,
+            **format_scores,
+            **batch_quality,
+            "detail": extras,
+            "metric_id": mid,
+        }
+        if unlabeled:
+            # Same contract as the no-extras batch branch above:
+            # ``unlabeled_fields`` is per-row (list of lists, aligned with the
+            # GT row order) whenever *is_batch*, and a flat field list only on
+            # a single-document payload. A one-row batch therefore stays
+            # ``[[...]]`` instead of collapsing to a bare field list.
+            payload["unlabeled_fields"] = (
+                [list(u) for u in unlabeled] if is_batch else list(unlabeled[0])
+            )
+        if isinstance(extraction, ExtractionScoreResult):
+            # Single-document payload: flatten the document's own overall
+            # score so consumers do not have to dig into the dataclass.
+            payload["overall_score"] = extraction.overall_score
+        return _stamp(payload, mid)
 
     def _score_audit(
         self,
@@ -876,6 +1415,7 @@ class ScoringSuite:
         }
 
     def _score_transcription(self, expected: Any, predicted: Any) -> dict[str, Any]:
+        """Combine exact-match and token-F1 scores with word and character ASR metrics."""
         from .asr import score_transcription
         from .classification import accuracy, exact_match
 
@@ -914,11 +1454,13 @@ class ScoringSuite:
         *,
         raw_text: str | None = None,
     ) -> dict[str, Any]:
+        """Delegate intake scoring with optional raw source text."""
         from .intake import score_intake
 
         return score_intake(expected, predicted, raw_text=raw_text)
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialize suite configuration, metric names, and corpus metadata."""
         return {
             "name": self.name,
             "title": self.title,
@@ -940,6 +1482,7 @@ class ScoringSuite:
 
 
 def _suite_for_profile(profile: AgentProfile) -> ScoringSuite:
+    """Build a suite with corpus-aligned fields and specialist or auditor metadata."""
     kind = _kind_for(profile)
     doc_type = SPECIALIST_DOC_TYPES.get(profile.name) or profile.doc_bundle
     # Per-specialist auditors inherit the specialist's field types so
@@ -1014,6 +1557,7 @@ DEFAULT_SUITES: dict[str, ScoringSuite] = {
 
 
 def _resolve_suite_name(name: str) -> str:
+    """Resolve agent names and document aliases, raising KeyError for unknown suites."""
     if name in DEFAULT_SUITES:
         return name
     if name.startswith("agent:"):
@@ -1039,10 +1583,9 @@ def _requested_doc_type(name: str) -> str | None:
 def _rebind_for_doc_type(suite: ScoringSuite, doc_type: str) -> ScoringSuite:
     """Keep the specialist profile but bind this document class's catalogs.
 
-    ``merger_agreement`` shares the contracts specialist (same extraction
-    fields) but has a MAUD consideration subclass — not the CUAD family
-    catalog. Without this rebind, ``get_suite("merger_agreement")`` would
-    silently score CUAD families.
+    ``merger_agreement`` is ``MergerAgreementExtraction`` (no CUAD family
+    or ``cuad_clauses``). Historical callers that rebound the contracts
+    specialist onto the merger class pick up the MAUD catalog here.
     """
     from dataclasses import replace
 
@@ -1081,9 +1624,9 @@ def get_suite(name: str) -> ScoringSuite:
     types (``insurance_claim``), and ``doc:`` prefixes.
 
     Doc-type aliases that share a specialist but have their own subclass
-    catalog (today: ``merger_agreement``) are rebound so ``suite.doc_type``,
-    ``suite.subclasses``, and ``suite.differentiators`` match the requested
-    class — not the specialist's native class.
+    catalog are rebound so ``suite.doc_type``, ``suite.subclasses``, and
+    ``suite.differentiators`` match the requested class — not the
+    specialist's native class.
     """
     suite = DEFAULT_SUITES[_resolve_suite_name(name)]
     requested = _requested_doc_type(name)

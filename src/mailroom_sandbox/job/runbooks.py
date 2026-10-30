@@ -13,6 +13,7 @@ come from ``specialist_posture``; suite order comes from ``config/runs/suites/``
 
 from __future__ import annotations
 
+import os
 import re
 from functools import lru_cache
 from pathlib import Path
@@ -47,6 +48,7 @@ ENV_FIELDS: tuple[tuple[str, str], ...] = (
 )
 
 REQUIRED_IDS: tuple[str, ...] = (
+    "modal-vllm-serving",
     "l4-qwen3-8b",
     "l4-qwen3-8b-track-a",
     "l4-qwen3-8b-track-b",
@@ -64,12 +66,20 @@ REQUIRED_IDS: tuple[str, ...] = (
     "sand39-1l4-n50",
     "sand40-probe",
     "sand40",
+    "sand42-1l4-c8",
+    "sand42-1l4-c16",
+    "sand42-2l4-c8",
+    "sand42-2l4-c16",
+    "sand42-smoke",
+    "sand42-noise-floor",
 )
 
 FAMILIES: tuple[tuple[str, str], ...] = (
+    ("serving", "Modal + vLLM serving (default path)"),
     ("baseline", "Singular 1×L4 / 1-container Qwen3-8B"),
     ("improved", "Improved run configurations"),
     ("grid", "Qwen3-8B-AWQ specialist grid (SAND-037)"),
+    ("sand42", "SAND-042 paired concurrency × fleet grid (n=50, five specialists)"),
 )
 
 _DEPLOY_DEFAULT_RE = {
@@ -122,6 +132,47 @@ def load_catalog() -> dict[str, Any]:
     if not isinstance(serving, Mapping) or not isinstance(serving.get("baseline"), Mapping):
         raise ValueError(f"{path}: serving.baseline is required")
     return dict(data)
+
+
+def _doc_path(value: Any) -> Path:
+    path = Path(str(value))
+    if path.is_absolute() or ".." in path.parts or path.suffix.lower() != ".md":
+        raise ValueError(f"invalid generated runbook path {value!r}")
+    return path
+
+
+def _generated_doc_paths() -> dict[str, Any]:
+    catalog = load_catalog()
+    raw = catalog.get("generated_docs")
+    if not isinstance(raw, Mapping):
+        raise ValueError("catalog.generated_docs must define index, families, and runbooks")
+    families = raw.get("families")
+    runbooks = raw.get("runbooks")
+    if not isinstance(families, Mapping) or not isinstance(runbooks, Mapping):
+        raise ValueError("catalog.generated_docs families and runbooks must be mappings")
+    expected_families = {family for family, _heading in FAMILIES}
+    if set(families) != expected_families:
+        raise ValueError(f"catalog.generated_docs families must be {sorted(expected_families)}")
+    expected_runbooks = set(catalog["runbooks"])
+    if set(runbooks) != expected_runbooks:
+        raise ValueError(
+            "catalog.generated_docs.runbooks must map every runbook exactly once; "
+            f"missing={sorted(expected_runbooks - set(runbooks))}, "
+            f"extra={sorted(set(runbooks) - expected_runbooks)}"
+        )
+    paths = {
+        "index": _doc_path(raw.get("index")),
+        "families": {str(k): _doc_path(v) for k, v in families.items()},
+        "runbooks": {str(k): _doc_path(v) for k, v in runbooks.items()},
+    }
+    all_paths = [paths["index"], *paths["families"].values(), *paths["runbooks"].values()]
+    if len(set(all_paths)) != len(all_paths):
+        raise ValueError("catalog.generated_docs paths must be unique")
+    return paths
+
+
+def _catalog_link(output_path: Path) -> str:
+    return Path(os.path.relpath(catalog_path(), start=(generated_dir() / output_path).parent)).as_posix()
 
 
 def _aliases() -> dict[str, str]:
@@ -238,6 +289,20 @@ def env_script(runbook: Mapping[str, Any], *, include_token: bool = True) -> str
     return "\n".join(lines)
 
 
+def _api_key_export(*, deploys: bool) -> str:
+    """The ``VLLM_API_KEY`` line before cutover/health.
+
+    The deployed app only accepts the ``MODAL_VLLM_API_TOKEN`` it was started
+    with, and probes read ``VLLM_API_KEY``. When this script both defines the
+    token (env step) and runs the deploy that bakes it in, the export is exact
+    and must be live: left as a comment, health sends no bearer and gets 401.
+    Otherwise the operator supplies the key of the endpoint they point at.
+    """
+    if deploys:
+        return 'export VLLM_API_KEY="$MODAL_VLLM_API_TOKEN"   # bearer this deploy was started with'
+    return "# export VLLM_API_KEY=$MODAL_VLLM_API_TOKEN"
+
+
 def _ops() -> dict[str, Any]:
     ops = load_catalog().get("ops") or {}
     return dict(ops) if isinstance(ops, Mapping) else {}
@@ -261,6 +326,21 @@ def _profile_activate(runbook: Mapping[str, Any]) -> list[str]:
         lines.append(f'modal profile activate "${{{env}:-{default}}}"')
         lines.append("modal profile current")
     return lines
+
+
+def _midrun_cell(runbook: Mapping[str, Any]) -> str:
+    """The cell whose mid-run series this runbook writes, e.g. ``2l4-c32``.
+
+    Taken from the configs (``sand42-50-<class>-specialist-awq-<cell>.yaml``) rather than
+    from the runbook id, so it also covers the grid/other ``-awq-<shape>`` runbooks whose
+    ids do not name a SAND-042 cell. "" when nothing matches — the step then declines to
+    guess a filename instead of writing samples nowhere useful.
+    """
+    for rel in _config_paths(runbook):
+        m = re.search(r"-awq-(.+)$", Path(rel).stem)
+        if m:
+            return m.group(1)
+    return ""
 
 
 def _config_paths(runbook: Mapping[str, Any]) -> list[str]:
@@ -313,14 +393,34 @@ def render_shell(name: str) -> str:
     # vLLM /metrics snapshots; export_card writes reports/SAND-37/<shape>/<specialist>/.
     scrape = bool(runbook.get("scrape_metrics"))
     export_card = bool(runbook.get("export_card"))
+    # SAND-047: a MID-RUN /metrics sample. The before/after scrapes bracket each start but
+    # fire at the run's drained edges, where kv_cache_usage_perc (live sequences in a
+    # pre-allocated cache) is 0 by construction — without this the KV/queue columns can
+    # only ever report 0, and no rerun under the same bracket design changes that.
+    midrun = bool(runbook.get("midrun_metrics"))
+    midrun_cell = _midrun_cell(runbook) if midrun else ""
 
     def _run_lines(cfg: str, indent: str) -> list[str]:
         out = [f"{indent}sandbox run preflight --config {cfg} --live{preflight_force}"]
         if scrape:
             out.append(f"{indent}sandbox run scrape-metrics --config {cfg} --label before")
+        if midrun and midrun_cell:
+            # Point the mid-run sampler at THIS run: `scrape-metrics --config X` writes
+            # into X's run dir, so a loop stuck on the first config would file every
+            # sample under the first run of the cell.
+            out.append(
+                f'{indent}echo {cfg} > "$HOME/.sand42-{midrun_cell}-active-cfg"'
+            )
         out.append(f"{indent}sandbox run start --config {cfg} --job-mode {job_mode} --watch{start_force}")
         if scrape:
             out.append(f"{indent}sandbox run scrape-metrics --config {cfg} --label after")
+        if midrun and midrun_cell:
+            # Fold BEFORE the card: the fold is what writes the per-run mid-run block, and
+            # a card is built from whatever exists at the moment it runs.
+            out.append(
+                f"{indent}.venv/bin/python scripts/sand42/midrun_kv.py fold "
+                f"--cell {midrun_cell} >/dev/null 2>&1 || true"
+            )
         if export_card:
             out.append(f"{indent}sandbox run card --config {cfg}")
         return out
@@ -377,7 +477,12 @@ def render_shell(name: str) -> str:
         elif kind == "cutover":
             lines += [
                 "",
-                "# set VLLM_BASE_URL from deploy output + VLLM_API_KEY=$MODAL_VLLM_API_TOKEN",
+                "# REQUIRED before health (shell or .env): `sandbox health` exits 1 without an endpoint",
+                "# VLLM_BASE_URL is the FULL base: deploy output + '/v1'",
+                "#   e.g. export VLLM_BASE_URL=https://<workspace>--sandbox-vllm-serve.modal.run/v1",
+                "#   or: export MODAL_WORKSPACE=<workspace slug>  (the profile derives that URL)",
+                "#   (without /v1 every chat call 404s — the profile appends /chat/completions)",
+                _api_key_export(deploys={"env", "deploy"} <= step_set),
                 "sandbox cutover --profile modal-vllm",
             ]
         elif kind == "health":
@@ -402,6 +507,36 @@ def render_shell(name: str) -> str:
                 lines += ["do", *_run_lines('"$cfg"', "  "), "done"]
         elif kind == "phases":
             lines.extend(_phase_shell(runbook, deploy=deploy, preflight_force=preflight_force, job_mode=job_mode))
+        elif kind == "midrun_metrics":
+            if not midrun_cell:
+                lines.append(
+                    "# midrun_metrics: no `-awq-<cell>` config to name the series — skipped"
+                )
+            else:
+                rels = _config_paths(runbook)
+                pid_file = f"$HOME/.sand42-{midrun_cell}-midrun.pid"
+                lines += [
+                    "",
+                    "# SAND-047: sample /metrics MID-RUN every $MIDRUN_INTERVAL seconds.",
+                    "# The before/after scrapes fire at each run's DRAINED EDGES, where",
+                    "# kv_cache_usage_perc gauges a pre-allocated cache with no live sequences",
+                    "# and therefore reads 0 by construction — a mid sample is the only source.",
+                    "# It goes through `scrape-metrics` on purpose: that also preserves the",
+                    "# VERBATIM exporter text (~120 families) at the mid point, and appends",
+                    "# every sample to vllm_metrics_mid.series.jsonl so the card reports the",
+                    "# run's MAXIMUM instead of whichever probe happened to run last.",
+                    f'MIDRUN_INTERVAL="${{MIDRUN_INTERVAL:-30}}"',
+                    f'MIDRUN_CFG_FILE="$HOME/.sand42-{midrun_cell}-active-cfg"',
+                    f"echo {rels[0]} > \"$MIDRUN_CFG_FILE\"",
+                    f'while :; do',
+                    f'  cfg="$(cat "$MIDRUN_CFG_FILE" 2>/dev/null || true)"',
+                    f'  [ -n "$cfg" ] && sandbox run scrape-metrics --config "$cfg" '
+                    f'--label mid || true',
+                    f'  sleep "$MIDRUN_INTERVAL"',
+                    f'done >>"$HOME/sand42-{midrun_cell}-midrun.log" 2>&1 &',
+                    f'MIDRUN_PID=$!',
+                    f'trap \'kill "$MIDRUN_PID" 2>/dev/null || true\' EXIT',
+                ]
         elif kind == "configs":
             rels = _config_paths(runbook)
             if not rels:
@@ -431,12 +566,13 @@ def render_shell(name: str) -> str:
                     lines.append(f"  {rel}{cont}")
                 lines += ["do", *_run_lines('"$cfg"', "  "), "done"]
         elif kind == "teardown":
-            after = (
-                "the last config in this track"
-                if "suite" in step_set
-                else "this run"
-            )
-            lines += ["", f"{teardown}   # ONLY after {after}"]
+            if "suite" in step_set or _config_paths(runbook):
+                after = "the last config in this track" if "suite" in step_set else "this run"
+                lines += ["", f"{teardown}   # ONLY after {after}"]
+            else:
+                # No eval runs in this script, so a live teardown would stop the endpoint
+                # right after health: leave it for the operator's last eval.
+                lines += ["", f"# {teardown}   # run by hand ONLY after the last eval on this endpoint"]
         elif kind == "after":
             after = runbook.get("after") or []
             if after:
@@ -519,8 +655,10 @@ def _pin_table(runbook: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def render_markdown(name: str) -> str:
+def render_markdown(name: str, *, output_path: Path | None = None) -> str:
     runbook = get_runbook(name)
+    docs = _generated_doc_paths()
+    output_path = output_path or docs["runbooks"][runbook["id"]]
     ops = _ops()
     family = str(runbook.get("family") or "")
     lines = [
@@ -533,7 +671,7 @@ def render_markdown(name: str) -> str:
         "",
         str(runbook.get("summary") or "").strip(),
         "",
-        "Edit [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml), "
+        f"Edit [`config/runbooks/catalog.yaml`]({_catalog_link(output_path)}), "
         f"then `sandbox runbook write`. Print this card: `sandbox runbook show {runbook['id']}`.",
         "",
     ]
@@ -617,8 +755,14 @@ def render_markdown(name: str) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def render_index() -> str:
+def render_index(*, output_path: Path | None = None) -> str:
+    """Render the runbook index page (``docs/runbooks/README.md``) from the catalog.
+
+    It holds the command cheat sheet, a linked list of runbooks per family, and the anti-patterns.
+    """
     cat = load_catalog()
+    docs = _generated_doc_paths()
+    output_path = output_path or docs["index"]
     lines = [
         GENERATED_HEADER,
         "",
@@ -628,6 +772,7 @@ def render_index() -> str:
         "",
         "```bash",
         "sandbox runbook list",
+        "sandbox runbook show serve                 # DEFAULT: Modal vLLM deploy → point → verify → teardown",
         "sandbox runbook show l4-qwen3-8b          # singular 1×L4 / 1-container Qwen3-8B",
         "sandbox runbook show l4-qwen3-8b-track-a  # Operator A",
         "sandbox runbook show improved-awq-c8      # improved config",
@@ -638,7 +783,7 @@ def render_index() -> str:
         "sandbox runbook write                     # regenerate this directory",
         "```",
         "",
-        "Source of truth: [`config/runbooks/catalog.yaml`](../../config/runbooks/catalog.yaml).",
+        f"Source of truth: [`config/runbooks/catalog.yaml`]({_catalog_link(output_path)}).",
         "",
     ]
     for family, heading in FAMILIES:
@@ -648,7 +793,9 @@ def render_index() -> str:
         for rid in list_runbook_ids(family=family):
             row = get_runbook(rid)
             blocked = " — **BLOCKED**" if row.get("blocked") else ""
-            lines.append(f"- [`{rid}`]({rid}.md) — {row.get('title')}{blocked}")
+            doc_path = generated_dir() / docs["runbooks"][rid]
+            link = Path(os.path.relpath(doc_path, start=(generated_dir() / output_path).parent)).as_posix()
+            lines.append(f"- [`{rid}`]({link}) — {row.get('title')}{blocked}")
         lines.append("")
     anti = cat.get("anti_patterns") or []
     if anti:
@@ -668,18 +815,22 @@ def render_index() -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def render_family(family: str) -> str:
+def render_family(family: str, *, output_path: Path | None = None) -> str:
+    """Render a family rollup with catalog links relative to the family file."""
+    docs = _generated_doc_paths()
+    output_path = output_path or docs["families"][family]
     heading = dict(FAMILIES).get(family, family)
     chunks = [
         GENERATED_HEADER,
         "",
         f"# {heading}",
         "",
-        "Generated family rollup. Canonical per-id cards live beside this file.",
+        "Generated family rollup. Canonical per-id cards live at their catalog paths.",
         "",
     ]
     for rid in list_runbook_ids(family=family):
-        body = render_markdown(rid)
+        # Resolve relative catalog links from the family file, not the nested card.
+        body = render_markdown(rid, output_path=output_path)
         # Drop the generated header from nested cards.
         nested = "\n".join(
             line for line in body.splitlines() if line != GENERATED_HEADER
@@ -689,14 +840,15 @@ def render_family(family: str) -> str:
 
 
 def generated_files() -> dict[str, str]:
+    docs = _generated_doc_paths()
     files = {
-        "README.md": render_index(),
-        "baseline.md": render_family("baseline"),
-        "improved.md": render_family("improved"),
-        "grid.md": render_family("grid"),
+        docs["index"].as_posix(): render_index(output_path=docs["index"]),
     }
+    for family, path in docs["families"].items():
+        files[path.as_posix()] = render_family(family, output_path=path)
     for rid in list_runbook_ids():
-        files[f"{rid}.md"] = render_markdown(rid)
+        path = docs["runbooks"][rid]
+        files[path.as_posix()] = render_markdown(rid, output_path=path)
     return files
 
 
@@ -707,13 +859,10 @@ def write_docs(*, dest: Path | None = None) -> list[Path]:
     written: list[Path] = []
     wanted = generated_files()
     for name, text in wanted.items():
-        path = target / name
+        path = target / _doc_path(name)
+        path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
         written.append(path)
-    keep = set(wanted)
-    for existing in target.glob("*.md"):
-        if existing.name not in keep:
-            existing.unlink()
     return written
 
 
@@ -723,7 +872,11 @@ def docs_are_current() -> list[str]:
     wanted = generated_files()
     if not target.is_dir():
         return [f"missing generated runbook dir {target}"]
-    on_disk = {p.name for p in target.glob("*.md")}
+    on_disk = {
+        p.relative_to(target).as_posix()
+        for p in target.rglob("*.md")
+        if p.is_file() and p.open(encoding="utf-8").readline().strip() == GENERATED_HEADER
+    }
     extra = sorted(on_disk - set(wanted))
     missing = sorted(set(wanted) - on_disk)
     if extra:
@@ -731,7 +884,7 @@ def docs_are_current() -> list[str]:
     if missing:
         errors.append(f"missing generated files: {missing} (run sandbox runbook write)")
     for name, text in wanted.items():
-        path = target / name
+        path = target / _doc_path(name)
         if not path.is_file():
             continue
         actual = path.read_text(encoding="utf-8")
@@ -830,7 +983,8 @@ def _phase_shell(runbook: Mapping[str, Any], *, deploy: str, preflight_force: st
             "",
             deploy,
             "",
-            "# set VLLM_BASE_URL from deploy output + VLLM_API_KEY=$MODAL_VLLM_API_TOKEN",
+            "# set VLLM_BASE_URL from deploy output (shell or .env); the bearer is this deploy's token",
+            _api_key_export(deploys=True),
             "sandbox cutover --profile modal-vllm",
             "sandbox health --profile modal-vllm",
             "",

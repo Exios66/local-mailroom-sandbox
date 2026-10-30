@@ -1,10 +1,10 @@
 """Live LLM-Mailroom / The-Mailroom pipeline contract.
 
-Pinned to llm-mailroom main after PRs #21–#29 (five live extraction classes,
-``unknown`` routing token, merger extract alias, Hub subclass inventories,
-CUAD/MAUD clause fields, Langfuse data-model observation types, score
-transport aliases) and The-Mailroom PR #10 (interpreter mirror of those
-observation types plus ``user_id`` / ``release``).
+Pinned to llm-mailroom taxonomy after mailroom-issues #236–#238: five live
+extraction classes (``contract``, ``merger_agreement``, ``corporate_record``,
+``correspondence``, ``insurance_claim``), ``unknown`` routing token, no
+merger→contract extract alias, Hub subclass inventories, CUAD/MAUD clause
+fields, Langfuse data-model observation types, score transport aliases.
 
 This module is organizational: it does not invent KPIs. Retired specialists
 keep their scoring suites so historical traces and LegalBench still score;
@@ -14,6 +14,8 @@ they are flagged ``retired`` and never treated as live extract classes.
 from __future__ import annotations
 
 from typing import Any, Iterable
+
+from ._paired import require_equal_lengths
 
 from .intake import (
     INTAKE_HANDOFF_NODE,
@@ -62,54 +64,55 @@ __all__ = [
 ]
 
 
-#: Live taxonomy classes that dispatch to a specialist (llm-mailroom v0.5+).
+#: Live taxonomy classes that dispatch to a specialist (mailroom-issues
+#: #236–#238). ``merger_agreement`` is ``MergerAgreementExtraction``, not
+#: an extract alias of ``contract``.
 LIVE_DOC_TYPES: tuple[str, ...] = (
     "contract",
+    "merger_agreement",
     "corporate_record",
     "correspondence",
-    "compliance_filing",
     "insurance_claim",
 )
 
-#: Retired from the live pipeline (PR #21). Sorter emits ``unknown``;
-#: scoring suites remain for historical traces / LegalBench.
+#: Retired from the live pipeline. Sorter emits ``unknown``; scoring
+#: suites remain for historical traces / LegalBench. ``compliance_filing``
+#: left the live extract roster with the mailroom 2026-09-15 cut.
 RETIRED_DOC_TYPES: tuple[str, ...] = (
     "court_opinion",
     "due_diligence",
+    "compliance_filing",
 )
 
 #: Routing token — not a taxonomy class and not a specialist.
 UNKNOWN_DOC_TYPE = "unknown"
 
 #: Sorter / HF labels that extract through a live specialist without a
-#: new taxonomy row. ``state["doc_type"]`` stays the alias so exact HF
-#: accuracy can still score 1.0 when the model emits ``merger_agreement``.
-EXTRACT_CLASS_ALIASES: dict[str, str] = {
-    "merger_agreement": "contract",
-}
+#: new taxonomy row. Empty: ``merger_agreement`` is a live MAUD class,
+#: not an alias of CUAD ``contract`` (mailroom-issues #237 / #238).
+EXTRACT_CLASS_ALIASES: dict[str, str] = {}
 
 #: Labels the sorter / Lane A reviewer may emit.
-SORTER_LABEL_SET: tuple[str, ...] = LIVE_DOC_TYPES + (
-    UNKNOWN_DOC_TYPE,
-    "merger_agreement",
-)
+SORTER_LABEL_SET: tuple[str, ...] = LIVE_DOC_TYPES + (UNKNOWN_DOC_TYPE,)
 
 LIVE_SPECIALISTS: tuple[str, ...] = (
     "contracts_specialist",
+    "merger_agreement_specialist",
     "corporate_records_specialist",
     "correspondence_specialist",
-    "compliance_specialist",
     "insurance_claims_specialist",
 )
 
 RETIRED_SPECIALISTS: tuple[str, ...] = (
     "court_opinions_specialist",
     "due_diligence_specialist",
+    "compliance_specialist",
 )
 
 RETIRED_AUDITORS: tuple[str, ...] = (
     "court_opinions_auditor",
     "due_diligence_auditor",
+    "compliance_auditor",
 )
 
 INTAKE_AGENT = "intake"
@@ -248,10 +251,12 @@ def resolve_extract_class(doc_type: str | None) -> str | None:
 
 
 def is_live_extract_class(doc_type: str | None) -> bool:
+    """Return whether a document type resolves to a live extraction class."""
     return resolve_extract_class(doc_type) is not None
 
 
 def is_retired_doc_type(doc_type: str | None) -> bool:
+    """Check whether a normalized document type is explicitly retired."""
     return (doc_type or "").strip().lower() in RETIRED_DOC_TYPES
 
 
@@ -269,7 +274,7 @@ def canonical_score_name(name: str) -> str:
 
 
 def align_doc_type(value: Any) -> str:
-    """HF aligned label: ``merger_agreement`` ≡ ``contract``."""
+    """HF aligned label. Extract aliases resolve; merger stays merger."""
     key = str(value or "").strip().lower()
     return EXTRACT_CLASS_ALIASES.get(key, key)
 
@@ -280,9 +285,12 @@ def score_aligned_classification(
 ) -> dict[str, float | int]:
     """Exact vs aligned doc-type accuracy (The-Mailroom ``eval_pipeline``).
 
-    Aligned treats ``merger_agreement`` as ``contract``. ``unknown`` and
-    retired types never extract, so they stay distinct from live classes.
+    Aligned applies :data:`EXTRACT_CLASS_ALIASES` only. ``merger_agreement``
+    is not equivalent to ``contract`` — predicting ``contract`` for a MAUD
+    document is a miss. ``unknown`` and retired types stay distinct.
     """
+    expected, predicted = list(expected), list(predicted)
+    require_equal_lengths(expected, predicted)
     pairs = list(zip(expected, predicted))
     n = len(pairs)
     if not n:
@@ -311,6 +319,7 @@ def trace_identity(trace: dict[str, Any]) -> dict[str, Any]:
         meta = {}
 
     def _both(*keys: str) -> Any:
+        """Find the first nonempty key value, checking trace fields before metadata per key."""
         for key in keys:
             if trace.get(key) not in (None, ""):
                 return trace[key]

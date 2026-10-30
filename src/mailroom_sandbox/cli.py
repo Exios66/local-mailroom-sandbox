@@ -3,15 +3,68 @@
 from __future__ import annotations
 
 import argparse
+import errno
 import json
+import math
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
-from mailroom_sandbox.overlay import list_profiles, load_profile
+from mailroom_sandbox.overlay import load_profile
 from mailroom_sandbox.paths import repo_root, vendor_dir
 from mailroom_sandbox.runtime import activate, resolve_dojo_src, resolve_mailroom_src
+from mailroom_sandbox.services._exec import ServiceError
+
+
+class CLIUsageError(ValueError):
+    """An invalid operator choice, distinct from unexpected implementation errors."""
+
+
+class _AccumulatingSubparsers(argparse._SubParsersAction):
+    """Keep repeatable model overrides across root, group and leaf parsers."""
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        before = getattr(namespace, "agent_models", None)
+        super().__call__(parser, namespace, values, option_string)
+        after = getattr(namespace, "agent_models", None)
+        if before and after is not before:
+            namespace.agent_models = [*before, *(after or [])]
+
+
+class _SandboxParser(argparse.ArgumentParser):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.register("action", "parsers", _AccumulatingSubparsers)
+
+
+def _positive_int(value: str) -> int:
+    number = int(value)
+    if number <= 0:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return number
+
+
+def _nonnegative_int(value: str) -> int:
+    number = int(value)
+    if number < 0:
+        raise argparse.ArgumentTypeError("must be a nonnegative integer")
+    return number
+
+
+def _nonnegative_float(value: str) -> float:
+    number = float(value)
+    if not math.isfinite(number) or number < 0:
+        raise argparse.ArgumentTypeError("must be finite and nonnegative")
+    return number
+
+
+def _positive_float(value: str) -> float:
+    number = _nonnegative_float(value)
+    if number == 0:
+        raise argparse.ArgumentTypeError("must be finite and positive")
+    return number
 
 
 
@@ -36,6 +89,9 @@ def _activation_knobs(spec):
     return knobs
 
 def main(argv: list[str] | None = None) -> int:
+    from mailroom_sandbox.runtime import load_env_file
+
+    load_env_file()
     parser = build_parser()
     args = parser.parse_args(argv)
     if not hasattr(args, "handler"):
@@ -43,6 +99,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     try:
         return int(args.handler(args) or 0)
+    except CLIUsageError as exc:
+        print(f"error: {_one_line(exc)}", file=sys.stderr)
+        return 2
     except subprocess.CalledProcessError as exc:
         # Docker/ollama/ssh failures surface the tool's own message; don't
         # dump a Python traceback for a missing daemon/container (DMR-058).
@@ -53,30 +112,90 @@ def main(argv: list[str] | None = None) -> int:
     except FileNotFoundError as exc:
         print(f"command unavailable: {exc}", file=sys.stderr)
         return 1
+    except ServiceError as exc:
+        # A missing/failed/hung external tool, a tunnel problem, an unresolved Modal
+        # endpoint: one actionable line. Plain ValueError/KeyError still propagate.
+        print(f"error: {_one_line(exc)}", file=sys.stderr)
+        return 1
+    except subprocess.TimeoutExpired as exc:
+        cmd = " ".join(map(str, exc.cmd)) if isinstance(exc.cmd, (list, tuple)) else str(exc.cmd)
+        print(f"error: `{' '.join(cmd.split())}` timed out after {exc.timeout:g}s", file=sys.stderr)
+        return 1
+    except OSError as exc:
+        if exc.errno != errno.EADDRINUSE:
+            raise
+        print(f"error: address already in use: {_one_line(exc)}", file=sys.stderr)
+        return 1
+    except _prompt_selection_error() as exc:
+        print(f"error: prompt version: {_one_line(exc)}", file=sys.stderr)
+        return 1
+    except _provenance_errors() as exc:
+        # A scorecard that cannot carry honest provenance is a hard failure,
+        # never a skipped/"refused" entry: one clear line, exit 1.
+        print(f"error: scorecard not emitted: {_one_line(exc)}", file=sys.stderr)
+        return 1
+
+
+def _provenance_errors() -> tuple[type[BaseException], ...]:
+    """The dojo's provenance error, imported lazily (the dojo path is resolved at runtime)."""
+    try:
+        from llm_dojo_scoring.scorecard_honesty import ProvenanceExportError
+    except ImportError:  # dojo not importable: nothing to translate
+        return ()
+    return (ProvenanceExportError,)
+
+
+def _prompt_selection_error() -> type[BaseException]:
+    from mailroom_sandbox.prompt_versions import PromptSelectionError
+
+    return PromptSelectionError
+
+
+def _one_line(exc: BaseException) -> str:
+    return " ".join(str(exc).split())
 
 
 def build_parser() -> argparse.ArgumentParser:
-    shared = argparse.ArgumentParser(add_help=False)
-    shared.add_argument("--profile", default=os.environ.get("SANDBOX_PROFILE") or "ollama")
-    shared.add_argument("--model", default=None, help="Override every agent's model tag")
-    shared.add_argument("--prompt", default=None, help="Local prompt variant stem (e.g. sorter_local_v0)")
-    shared.add_argument(
-        "--agent-model",
-        action="append",
-        default=[],
-        dest="agent_models",
-        metavar="NAME=TAG",
-        help="Surgical per-agent model override (repeatable)",
-    )
+    """Build the sandbox CLI parser with subcommands and handler defaults."""
+    from mailroom_sandbox.providers import default_profile
 
-    parser = argparse.ArgumentParser(
+    def positive_seconds(value: str) -> float:
+        seconds = float(value)
+        if not math.isfinite(seconds) or seconds <= 0:
+            raise argparse.ArgumentTypeError("seconds must be finite and positive")
+        return seconds
+
+    def _shared_flags(*, root: bool) -> argparse.ArgumentParser:
+        """The cross-command flags. The root copy carries the real defaults; the copy
+        every subparser inherits uses ``default=SUPPRESS`` so a value parsed at the
+        root (`sandbox --profile ollama health`) is not clobbered by the leaf, while
+        a flag placed after the subcommand still wins."""
+        none = None if root else argparse.SUPPRESS
+        flags = argparse.ArgumentParser(add_help=False)
+        flags.add_argument("--profile", default=default_profile() if root else argparse.SUPPRESS)
+        flags.add_argument("--model", default=none, help="Override every agent's model tag")
+        flags.add_argument("--prompt", default=none, help="Local prompt variant stem (e.g. sorter_local_v0)")
+        flags.add_argument(
+            "--agent-model",
+            action="append",
+            default=[] if root else argparse.SUPPRESS,
+            dest="agent_models",
+            metavar="NAME=TAG",
+            help="Surgical per-agent model override (repeatable)",
+        )
+        return flags
+
+    shared = _shared_flags(root=True)
+    leaf = _shared_flags(root=False)
+
+    parser = _SandboxParser(
         prog="sandbox",
         description="Local-first LLM-Mailroom experiment sandbox.",
         parents=[shared],
     )
     sub = parser.add_subparsers(dest="command")
 
-    p = sub.add_parser("up", help="Start compose profiles (langfuse + provider)", parents=[shared])
+    p = sub.add_parser("up", help="Start compose profiles (langfuse + provider)", parents=[leaf])
     p.add_argument("--compose-profile", action="append", dest="compose_profiles")
     # hub#56: -d opts in to detached mode; the default is foreground (the old
     # action='store_true', default=True made -d a permanent no-op and `sandbox
@@ -84,33 +203,36 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("-d", "--detach", action="store_true", default=False)
     p.set_defaults(handler=_cmd_up)
 
-    p = sub.add_parser("down", help="Stop compose stack", parents=[shared])
+    p = sub.add_parser("down", help="Stop compose stack", parents=[leaf])
     p.add_argument("--compose-profile", action="append", dest="compose_profiles")
     p.set_defaults(handler=_cmd_down)
 
-    p = sub.add_parser("health", help="Probe the active provider + Langfuse", parents=[shared])
+    p = sub.add_parser("health", help="Probe the active provider + Langfuse", parents=[leaf])
     p.set_defaults(handler=_cmd_health)
 
-    p = sub.add_parser("pull-models", help="Pull Ollama (or listed) weights", parents=[shared])
+    p = sub.add_parser("pull-models", help="Pull Ollama (or listed) weights", parents=[leaf])
     p.add_argument("models", nargs="*")
     p.set_defaults(handler=_cmd_pull_models)
 
     p = sub.add_parser(
         "fetch-deps",
-        help="Refresh tracked vendor snapshots (llm-mailroom v0.7.1, llm-dojo-scoring v0.15.0) from pinned tags",
-        parents=[shared],
+        help=(
+            "Refresh tracked vendor snapshots from the monorepo workspace when "
+            "present, otherwise reviewed, SHA-frozen standalone source refs"
+        ),
+        parents=[leaf],
     )
     p.add_argument("--visualizer", action="store_true", help="Also clone The-Mailroom (Langfuse observer)")
     p.set_defaults(handler=_cmd_fetch_deps)
 
-    p = sub.add_parser("cutover", help="Show effective agent→provider/model assignments", parents=[shared])
+    p = sub.add_parser("cutover", help="Show effective agent→provider/model assignments", parents=[leaf])
     p.set_defaults(handler=_cmd_cutover)
 
-    agents_p = sub.add_parser("agents", help="List or show pipeline agents", parents=[shared])
+    agents_p = sub.add_parser("agents", help="List or show pipeline agents", parents=[leaf])
     agents_sub = agents_p.add_subparsers(dest="agents_cmd")
-    al = agents_sub.add_parser("list", parents=[shared])
+    al = agents_sub.add_parser("list", parents=[leaf])
     al.set_defaults(handler=_cmd_agents_list)
-    ash = agents_sub.add_parser("show", parents=[shared])
+    ash = agents_sub.add_parser("show", parents=[leaf])
     ash.add_argument("name")
     ash.set_defaults(handler=_cmd_agents_show)
     agents_p.set_defaults(handler=_cmd_agents_list)
@@ -118,10 +240,10 @@ def build_parser() -> argparse.ArgumentParser:
     subagents_p = sub.add_parser(
         "subagents",
         help="Central coding subagent roster (Cursor + OpenCode adapters)",
-        parents=[shared],
+        parents=[leaf],
     )
     subagents_sub = subagents_p.add_subparsers(dest="subagents_cmd")
-    sa_list = subagents_sub.add_parser("list", parents=[shared])
+    sa_list = subagents_sub.add_parser("list", parents=[leaf])
     sa_list.add_argument("--json", action="store_true")
     sa_list.add_argument(
         "--package",
@@ -129,15 +251,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Family package filter (default: local-mailroom-sandbox or SUBAGENT_PACKAGE)",
     )
     sa_list.set_defaults(handler=_cmd_subagents_list)
-    sa_pkgs = subagents_sub.add_parser("packages", parents=[shared])
+    sa_pkgs = subagents_sub.add_parser("packages", parents=[leaf])
     sa_pkgs.add_argument("--json", action="store_true")
     sa_pkgs.set_defaults(handler=_cmd_subagents_packages)
-    sa_show = subagents_sub.add_parser("show", parents=[shared])
+    sa_show = subagents_sub.add_parser("show", parents=[leaf])
     sa_show.add_argument("id")
     sa_show.add_argument("--json", action="store_true")
     sa_show.add_argument("--package", default=None)
     sa_show.set_defaults(handler=_cmd_subagents_show)
-    sa_sync = subagents_sub.add_parser("sync", parents=[shared])
+    sa_sync = subagents_sub.add_parser("sync", parents=[leaf])
     sa_sync.add_argument(
         "--harness",
         default="all",
@@ -159,7 +281,7 @@ def build_parser() -> argparse.ArgumentParser:
     sa_doc = subagents_sub.add_parser(
         "doctor",
         help="Audit harness health (OpenCode global, roster sync, framework v2)",
-        parents=[shared],
+        parents=[leaf],
     )
     sa_doc.add_argument(
         "--root",
@@ -190,7 +312,7 @@ def build_parser() -> argparse.ArgumentParser:
     sa_mat = subagents_sub.add_parser(
         "materialize",
         help="Copy family-roster.yaml + missing prompts into another package checkout",
-        parents=[shared],
+        parents=[leaf],
     )
     sa_mat.add_argument(
         "--package",
@@ -212,7 +334,7 @@ def build_parser() -> argparse.ArgumentParser:
     sa_prop = subagents_sub.add_parser(
         "propagate",
         help="Materialize + sync all mapped family checkouts",
-        parents=[shared],
+        parents=[leaf],
     )
     sa_prop.add_argument(
         "--monorepo-root",
@@ -225,22 +347,22 @@ def build_parser() -> argparse.ArgumentParser:
     sa_prop.set_defaults(handler=_cmd_subagents_propagate)
     subagents_p.set_defaults(handler=_cmd_subagents_list)
 
-    pipe = sub.add_parser("pipeline", help="Run mailroom inbox watcher or API (not the Tray TUI watch)", parents=[shared])
+    pipe = sub.add_parser("pipeline", help="Run mailroom inbox watcher or API (not the Tray TUI watch)", parents=[leaf])
     pipe_sub = pipe.add_subparsers(dest="pipeline_cmd")
-    w = pipe_sub.add_parser("watcher", parents=[shared])
+    w = pipe_sub.add_parser("watcher", parents=[leaf])
     w.set_defaults(handler=_cmd_watcher)
-    a = pipe_sub.add_parser("api", parents=[shared])
+    a = pipe_sub.add_parser("api", parents=[leaf])
     a.set_defaults(handler=_cmd_api)
 
-    p = sub.add_parser("pilot", help="Run the fixture pilot (--mock or --local)", parents=[shared])
+    p = sub.add_parser("pilot", help="Run the fixture pilot (--mock or --local)", parents=[leaf])
     g = p.add_mutually_exclusive_group()
     g.add_argument("--mock", action="store_true", default=False)
     g.add_argument("--local", action="store_true", default=False)
-    p.add_argument("--sample", type=int, default=None)
+    p.add_argument("--sample", type=_positive_int, default=None)
     p.add_argument("--dry-run", action="store_true")
     p.set_defaults(handler=_cmd_pilot)
 
-    p = sub.add_parser("hf-pilot", help="HF docclass mini-pilot", parents=[shared])
+    p = sub.add_parser("hf-pilot", help="HF docclass mini-pilot", parents=[leaf])
     g = p.add_mutually_exclusive_group()
     g.add_argument("--check", action="store_true")
     g.add_argument("--mock", action="store_true")
@@ -248,11 +370,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--dry-run", action="store_true")
     p.set_defaults(handler=_cmd_hf_pilot)
 
-    p = sub.add_parser("legalbench", help="LegalBench Yes/No fixture harness", parents=[shared])
+    p = sub.add_parser("legalbench", help="LegalBench Yes/No fixture harness", parents=[leaf])
     p.add_argument("--task", default="contract_qa", choices=("contract_qa", "family_classification"))
-    p.add_argument("--mock", action="store_true")
-    p.add_argument("--local", action="store_true")
-    p.add_argument("--n", type=int, default=None, help="seeded sample size (never first-N)")
+    g = p.add_mutually_exclusive_group()
+    g.add_argument("--mock", action="store_true")
+    g.add_argument("--local", action="store_true")
+    p.add_argument("--n", type=_positive_int, default=None, help="seeded sample size (never first-N)")
     p.add_argument("--seed", type=int, default=42, help="sample seed (recorded in the experiment log)")
     p.add_argument("--suite", action="store_true", help="use the vendored llm-mailroom suite (needs data/cuad)")
     p.add_argument("--dry-run", action="store_true")
@@ -260,11 +383,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     from mailroom_sandbox.eval.agents import EVAL_TASKS
 
-    p = sub.add_parser("eval", help="Run a scoring eval (isolated agent or connected pipeline)", parents=[shared])
+    p = sub.add_parser("eval", help="Run a scoring eval (isolated agent or connected pipeline)", parents=[leaf])
     p.add_argument("task", choices=tuple(EVAL_TASKS))
-    p.add_argument("--mock", action="store_true", default=False)
-    p.add_argument("--local", action="store_true", default=False)
-    p.add_argument("--sample", type=int, default=None)
+    g = p.add_mutually_exclusive_group()
+    g.add_argument("--mock", action="store_true", default=False)
+    g.add_argument("--local", action="store_true", default=False)
+    p.add_argument("--sample", type=_positive_int, default=None)
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--name", dest="experiment_name")
     p.add_argument(
@@ -279,27 +403,64 @@ def build_parser() -> argparse.ArgumentParser:
         dest="from_log",
         help="For local_vs_api / sorter_vs_modernbert: compare experiment_log.jsonl instead of fixtures",
     )
+    p.add_argument(
+        "--group",
+        default=None,
+        help=(
+            "local_vs_api --from-log: the log is grouped by full identity (model / prompt / task / "
+            "dataset) and each comparable local-vs-API group is compared and emitted separately; "
+            "with several groups pick the headline one by 1-based index or unique label substring"
+        ),
+    )
+    p.add_argument(
+        "--prompt-version",
+        action="append",
+        default=[],
+        dest="prompt_versions",
+        metavar="[ROLE=]KEY",
+        help=(
+            "Run with an eval-environment prompt version (archived _v0, frozen _v1 or any "
+            "GEPA/manual mutation), role=key e.g. correspondence_specialist=correspondence_specialist_v3, "
+            "or a bare key whose role is inferred (sorter_v3). Repeatable, one per role. Texts come "
+            "from the dojo lineage only; an unknown key, a key/role mismatch or a role the pipeline "
+            "lacks is an error. Default (no flag) is unchanged."
+        ),
+    )
+    p.add_argument(
+        "--dataset-revision",
+        default=None,
+        dest="dataset_revision",
+        metavar="SHA",
+        help=(
+            "local_vs_api: the full 40-hex Hub commit sha the scored rows came from, for log/fixture "
+            "rows that carry no dataset_revision. A scorecard without a real revision is a hard error "
+            "(exit 1); this fills the gap, it never overrides a revision a record already has"
+        ),
+    )
     p.set_defaults(handler=_cmd_eval)
 
-    p = sub.add_parser("matrix", help="provider × model × prompt grid", parents=[shared])
-    p.add_argument("--task", default="sorter")
+    p = sub.add_parser("matrix", help="provider × model × prompt grid", parents=[leaf])
+    from mailroom_sandbox.eval.matrix import matrix_tasks
+
+    p.add_argument("--task", default="sorter", choices=matrix_tasks())
     p.add_argument("--providers", default="ollama")
     p.add_argument("--models", default="qwen3:8b")
     p.add_argument("--prompts", default="mailroom-default")
-    p.add_argument("--sample", type=int, default=10)
-    p.add_argument("--seed", type=int, default=42)
-    p.add_argument("--mock", action="store_true")
-    p.add_argument("--local", action="store_true")
+    p.add_argument("--sample", type=_positive_int, default=10)
+    p.add_argument("--seed", type=int, default=42, help="deterministic dataset draw shared by all cells")
+    g = p.add_mutually_exclusive_group()
+    g.add_argument("--mock", action="store_true")
+    g.add_argument("--local", action="store_true")
     p.add_argument("--dry-run", action="store_true")
     p.set_defaults(handler=_cmd_matrix)
 
-    p = sub.add_parser("datasets", help="Dataset helpers", parents=[shared])
+    p = sub.add_parser("datasets", help="Dataset helpers", parents=[leaf])
     ds = p.add_subparsers(dest="datasets_cmd")
-    pull = ds.add_parser("pull", parents=[shared], help="Live pinned Hub pull of the FULL ground_truth corpus into data/cache (network)")
+    pull = ds.add_parser("pull", parents=[leaf], help="Live pinned Hub pull of the FULL ground_truth corpus into data/cache (network)")
     pull.add_argument("--dataset", default="Lucius-Morningstar/mailroom-dataset")
     pull.add_argument(
         "--max-rows",
-        type=int,
+        type=_nonnegative_int,
         default=0,
         help="Cap rows after the draw (0 = full corpus; default). Legacy tiny slices used 50.",
     )
@@ -321,7 +482,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     pull.add_argument(
         "--per-class",
-        type=int,
+        type=_nonnegative_int,
         default=0,
         help="Also draw N rows per live doc type (20/40/100…) from the pulled corpus",
     )
@@ -335,10 +496,10 @@ def build_parser() -> argparse.ArgumentParser:
     pull.set_defaults(handler=_cmd_datasets_pull)
     sample = ds.add_parser(
         "sample",
-        parents=[shared],
+        parents=[leaf],
         help="Offline per-class draw from the cached full corpus (no network)",
     )
-    sample.add_argument("--per-class", type=int, required=True, help="rows per live doc type (20/40/100…)")
+    sample.add_argument("--per-class", type=_positive_int, required=True, help="rows per live doc type (20/40/100…)")
     sample.add_argument("--seed", type=int, default=42, dest="sample_seed")
     sample.add_argument(
         "--classes",
@@ -351,19 +512,19 @@ def build_parser() -> argparse.ArgumentParser:
     prep = ds.add_parser(
         "prepare",
         help="Load/clean fixtures into data/runtime/prepared/ (offline, no network)",
-        parents=[shared],
+        parents=[leaf],
     )
     prep.set_defaults(handler=_cmd_datasets_prepare)
     p.set_defaults(handler=_cmd_datasets_help)
 
-    p = sub.add_parser("traces", help="Trace helpers", parents=[shared])
+    p = sub.add_parser("traces", help="Trace helpers", parents=[leaf])
     tr = p.add_subparsers(dest="traces_cmd")
-    exp = tr.add_parser("export", parents=[shared])
+    exp = tr.add_parser("export", parents=[leaf])
     exp.set_defaults(handler=_cmd_traces_export)
     pk = tr.add_parser(
         "pack",
         help="Zip a run's local span mirror (Parquet), copy it to --dest and verify; --prune deletes local copies",
-        parents=[shared],
+        parents=[leaf],
     )
     pk.add_argument("run_id")
     pk.add_argument("--experiment", help="experiment label for the zip name (default: run_id prefix)")
@@ -378,33 +539,31 @@ def build_parser() -> argparse.ArgumentParser:
     pk.set_defaults(handler=_cmd_traces_pack)
     p.set_defaults(handler=_cmd_traces_help)
 
-    p = sub.add_parser("profiles", help="List provider profiles", parents=[shared])
+    p = sub.add_parser("profiles", help="List provider profiles", parents=[leaf])
     p.set_defaults(handler=_cmd_profiles)
 
     tun = sub.add_parser(
         "tunnel",
         help="SSH local port forward for remote-serving profiles (plan/up/status/down)",
-        parents=[shared],
+        parents=[leaf],
     )
     tun_sub = tun.add_subparsers(dest="tunnel_cmd")
-    # NOTE: the leaf parsers deliberately omit parents=[shared] — a leaf-level
-    # --profile default would clobber the value parsed at the tunnel level.
-    tp = tun_sub.add_parser("plan", help="Print the exact ssh forward command")
+    tp = tun_sub.add_parser("plan", help="Print the exact ssh forward command", parents=[leaf])
     tp.set_defaults(handler=_cmd_tunnel_plan)
-    tu = tun_sub.add_parser("up", help="Start the detached forward (pidfile under data/runtime/)")
+    tu = tun_sub.add_parser("up", help="Start the detached forward (pidfile under data/runtime/)", parents=[leaf])
     tu.set_defaults(handler=_cmd_tunnel_up)
-    ts = tun_sub.add_parser("status", help="Is the forward port answering / pid recorded?")
+    ts = tun_sub.add_parser("status", help="Is the forward port answering / pid recorded?", parents=[leaf])
     ts.set_defaults(handler=_cmd_tunnel_status)
-    td = tun_sub.add_parser("down", help="Stop the recorded forward")
+    td = tun_sub.add_parser("down", help="Stop the recorded forward", parents=[leaf])
     td.set_defaults(handler=_cmd_tunnel_down)
     tun.set_defaults(handler=_cmd_tunnel_help)
 
-    _run_parser(sub, shared)
+    _run_parser(sub, leaf)
 
     watch_p = sub.add_parser(
         "watch",
         help="Tray TUI: live in-tray + spend + Modal dispatch log for any locked run",
-        parents=[shared],
+        parents=[leaf],
     )
     watch_p.add_argument("--config", default=None, help="run YAML to watch")
     watch_p.add_argument(
@@ -449,7 +608,7 @@ def build_parser() -> argparse.ArgumentParser:
     dev_p = sub.add_parser(
         "dev",
         help="Tray TUI dev server: themed browser UI on a synthetic run (= watch --web --demo)",
-        parents=[shared],
+        parents=[leaf],
     )
     dev_p.add_argument("--host", default=None, help="bind host (default 127.0.0.1)")
     dev_p.add_argument("--port", type=int, default=None, help="port (default 8765; 0 = ephemeral)")
@@ -460,7 +619,7 @@ def build_parser() -> argparse.ArgumentParser:
     board_p = sub.add_parser(
         "board",
         help="persistent mailroom job board: every beacon job in the package family (browser; --tui for terminal)",
-        parents=[shared],
+        parents=[leaf],
     )
     board_p.add_argument("--root", default=None, help="beacon dir (default $MAILROOM_BEACON_DIR or ~/.mailroom/jobs)")
     board_p.add_argument("--tui", action="store_true", help="terminal TUI instead of the browser page")
@@ -469,13 +628,15 @@ def build_parser() -> argparse.ArgumentParser:
     board_p.add_argument("--port", type=int, default=None, help="port (default 8767; 0 = ephemeral)")
     board_p.add_argument("--no-browser", action="store_true", help="do not open a browser tab")
     board_p.add_argument("--stale-s", type=float, default=120.0, help="heartbeat age that marks a running job stalled")
-    board_p.add_argument("--interval", type=float, default=1.0, help="refresh seconds")
+    board_p.add_argument("--interval", type=float, default=1.0, help="refresh seconds (minimum 0.1; smaller values are raised to it)")
+    board_p.add_argument("--probe-interval", type=positive_seconds, default=0, metavar="SECS", help="opt in to periodic doctor snapshots (offline checks by default)")
+    board_p.add_argument("--live", action="store_true", help="with --probe-interval: probe endpoints too (can wake a billed Modal GPU)")
     board_p.add_argument("--demo", action="store_true", help="also run synthetic demo jobs (dev server; no Modal)")
     board_p.set_defaults(handler=_cmd_board)
 
-    beacon_p = sub.add_parser("beacon", help="publish a mailroom.beacon/v1 heartbeat (shell jobs)", parents=[shared])
+    beacon_p = sub.add_parser("beacon", help="publish a mailroom.beacon/v1 heartbeat (shell jobs)", parents=[leaf])
     beacon_sub = beacon_p.add_subparsers(dest="beacon_cmd", required=True)
-    bu = beacon_sub.add_parser("update", help="create/update a job heartbeat", parents=[shared])
+    bu = beacon_sub.add_parser("update", help="create/update a job heartbeat", parents=[leaf])
     bu.add_argument("--job", required=True)
     bu.add_argument("--package", required=True)
     bu.add_argument("--title", default="")
@@ -493,56 +654,65 @@ def build_parser() -> argparse.ArgumentParser:
     score_p = sub.add_parser(
         "scorecard",
         help="mailroom TUI scorecard for a finished run (SAND-032)",
-        parents=[shared],
+        parents=[leaf],
     )
     score_p.add_argument("--run", dest="run_id", required=True, help="run id (e.g. sand032-l0-baseline)")
-    score_p.add_argument("--serving-dir", default=None, help="default: reports/serving")
+    score_p.add_argument("--serving-dir", default=None, help="default: reports/serving (nested SAND trees and legacy flat exports)")
     score_p.set_defaults(handler=_cmd_scorecard)
 
     rb = sub.add_parser(
         "runbook",
         help="Operator runbooks (catalog → show / check / write)",
-        parents=[shared],
+        parents=[leaf],
     )
     rb_sub = rb.add_subparsers(dest="runbook_cmd")
-    rb_list = rb_sub.add_parser("list", parents=[shared], help="list catalog ids")
+    rb_list = rb_sub.add_parser("list", parents=[leaf], help="list catalog ids")
     rb_list.add_argument("--family", choices=["baseline", "improved"], default=None)
     rb_list.add_argument("--json", action="store_true")
     rb_list.set_defaults(handler=_cmd_runbook_list)
-    rb_show = rb_sub.add_parser("show", parents=[shared], help="print one operator card")
+    rb_show = rb_sub.add_parser("show", parents=[leaf], help="print one operator card")
     rb_show.add_argument("name", help="runbook id or alias (l4-qwen3-8b, awq-c8, granite…)")
     rb_show.add_argument("--shell", action="store_true", help="print the bash script only")
     rb_show.add_argument("--json", action="store_true")
     rb_show.set_defaults(handler=_cmd_runbook_show)
     rb_check = rb_sub.add_parser(
         "check",
-        parents=[shared],
+        parents=[leaf],
         help="catalog vs live pins + generated docs freshness",
     )
     rb_check.add_argument("--json", action="store_true")
     rb_check.set_defaults(handler=_cmd_runbook_check)
     rb_write = rb_sub.add_parser(
         "write",
-        parents=[shared],
+        parents=[leaf],
         help="regenerate docs/runbooks/ from the catalog",
     )
     rb_write.set_defaults(handler=_cmd_runbook_write)
     rb.set_defaults(handler=_cmd_runbook_help)
 
-    prom = sub.add_parser("prompts", help="Pipeline-agent prompt surface (local + Langfuse)", parents=[shared])
+    prom = sub.add_parser("prompts", help="Pipeline-agent prompt surface (local + Langfuse)", parents=[leaf])
     prom_sub = prom.add_subparsers(dest="prompts_cmd")
-    plug_list = prom_sub.add_parser("list", parents=[shared])
+    plug_list = prom_sub.add_parser("list", parents=[leaf])
     plug_list.set_defaults(handler=_cmd_prompts_list)
-    plug_show = prom_sub.add_parser("show", parents=[shared])
-    plug_show.add_argument("name", help="agent name (or --all)")
-    plug_show.add_argument("--variant", default=None, help="local variant stem")
+    plug_show = prom_sub.add_parser("show", parents=[leaf])
+    plug_show.add_argument("name", help="agent name, or an eval-environment prompt version key (sorter_v3)")
+    plug_show.add_argument("--variant", default=None, help="agent: local variant stem")
     plug_show.add_argument("--json", action="store_true")
+    plug_show.add_argument("--diff", default=None, metavar="OTHER_KEY", help="version key: unified diff from <key> to OTHER_KEY")
+    plug_show.add_argument("--memo", action="store_true", help="version key: memo + what changed, no text")
     plug_show.set_defaults(handler=_cmd_prompts_show)
+    plug_lv = prom_sub.add_parser(
+        "list-versions", parents=[leaf], help="every eval-environment prompt version (archived / frozen / mutation)"
+    )
+    plug_lv.add_argument("--role", default=None, help="only this role (e.g. sorter)")
+    plug_lv.add_argument("--lineage", default=None, choices=["archived", "frozen", "mutation"])
+    plug_lv.add_argument("--json", action="store_true")
+    plug_lv.set_defaults(handler=_cmd_prompts_list_versions)
     prom.set_defaults(handler=_cmd_prompts_help)
 
-    mp = sub.add_parser("metrics", help="serving metrics compare (local vs Modal vs API)", parents=[shared])
+    mp = sub.add_parser("metrics", help="serving metrics compare (local vs Modal vs API)", parents=[leaf])
     metrics_sub = mp.add_subparsers(dest="metrics_cmd")
-    mcomp = metrics_sub.add_parser("compare", parents=[shared])
+    mcomp = metrics_sub.add_parser("compare", parents=[leaf])
     mcomp.add_argument("--runs", default="", help="comma-separated run-ids")
     mcomp.add_argument("--log", action="store_true", help="read experiments from the log instead")
     mcomp.add_argument(
@@ -559,45 +729,45 @@ def build_parser() -> argparse.ArgumentParser:
     mcomp.set_defaults(handler=_cmd_metrics_compare)
     mext = metrics_sub.add_parser(
         "extrapolate",
-        parents=[shared],
+        parents=[leaf],
         help="extrapolate run cost/doc to full corpus / docs-per-day",
     )
     mext.add_argument("--run", dest="run_id", required=True, help="run-id with a lock + items")
     mext.add_argument(
         "--corpus-size",
-        type=int,
+        type=_positive_int,
         default=None,
         help="target N (default: FAMILY_CORPUS_SIZE=3302)",
     )
-    mext.add_argument("--docs-per-day", type=float, default=None)
-    mext.add_argument("--docs-per-month", type=float, default=None)
-    mext.add_argument("--cold-start-seconds", type=float, default=120.0)
-    mext.add_argument("--scaledown-seconds", type=float, default=120.0)
-    mext.add_argument("--concurrency", type=int, default=4)
+    mext.add_argument("--docs-per-day", type=_nonnegative_float, default=None)
+    mext.add_argument("--docs-per-month", type=_nonnegative_float, default=None)
+    mext.add_argument("--cold-start-seconds", type=_nonnegative_float, default=120.0)
+    mext.add_argument("--scaledown-seconds", type=_nonnegative_float, default=120.0)
+    mext.add_argument("--concurrency", type=_positive_int, default=4)
     mext.add_argument("--json", action="store_true")
     mext.set_defaults(handler=_cmd_metrics_extrapolate)
     mserv = metrics_sub.add_parser(
         "serving-record",
-        parents=[shared],
-        help="write reports/serving/<run_id>.serving.json from a stored run",
+        parents=[leaf],
+        help="write a serving export under the canonical reports/serving tree",
     )
     mserv.add_argument("--run", dest="run_id", required=True, help="run-id with lock + items")
     mserv.add_argument(
         "--wall-seconds",
-        type=float,
+        type=_positive_float,
         default=None,
         help="override wall clock when item timestamps are absent",
     )
     mserv.add_argument(
         "--out",
         default="",
-        help="output path (default: reports/serving/<run_id>.serving.json)",
+        help="output path (default: canonical nested reports/serving path for this run)",
     )
     mserv.add_argument("--json", action="store_true", help="print the record to stdout")
     mserv.set_defaults(handler=_cmd_metrics_serving_record)
     mest = metrics_sub.add_parser(
         "estimate-suite",
-        parents=[shared],
+        parents=[leaf],
         help="pre-flight GPU $/wall estimate from run YAML(s) (no Modal spend)",
     )
     mest.add_argument(
@@ -618,38 +788,38 @@ def build_parser() -> argparse.ArgumentParser:
     )
     mest.add_argument(
         "--sec-per-doc",
-        type=float,
+        type=_positive_float,
         default=None,
         help="override busy seconds/doc for every run (skips class defaults)",
     )
     mest.add_argument(
         "--gen-tok-per-s",
-        type=float,
+        type=_positive_float,
         default=None,
         help="derive sec/doc from assumed completion tokens ÷ gen rate",
     )
     mest.add_argument(
         "--gpu-usd-per-hour",
-        type=float,
+        type=_nonnegative_float,
         default=None,
         help="override L4 rate (default $0.80 or MODAL_GPU_USD_PER_HOUR)",
     )
-    mest.add_argument("--cold-start-seconds", type=float, default=120.0)
+    mest.add_argument("--cold-start-seconds", type=_nonnegative_float, default=120.0)
     mest.add_argument(
         "--scaledown-seconds",
-        type=float,
+        type=_nonnegative_float,
         default=None,
         help="suite teardown scaledown (default: max from YAMLs, usually 120 attended)",
     )
     mest.add_argument(
         "--inter-run-gap-seconds",
-        type=float,
+        type=_nonnegative_float,
         default=60.0,
         help="warm idle between classes (preflight) while app stays up",
     )
     mest.add_argument(
         "--corpus-size",
-        type=int,
+        type=_positive_int,
         default=None,
         help="also print linear extrapolation (default: FAMILY_CORPUS_SIZE)",
     )
@@ -665,13 +835,13 @@ def build_parser() -> argparse.ArgumentParser:
     mb = sub.add_parser(
         "modernbert",
         help="mailroom-ml ModernBERT feeder (path status + live eval)",
-        parents=[shared],
+        parents=[leaf],
     )
     mb_sub = mb.add_subparsers(dest="modernbert_cmd")
-    mb_status = mb_sub.add_parser("status", parents=[shared], help="resolve MAILROOM_ML_SRC + checkpoint")
+    mb_status = mb_sub.add_parser("status", parents=[leaf], help="resolve MAILROOM_ML_SRC + checkpoint")
     mb_status.set_defaults(handler=_cmd_modernbert_status)
-    mb_eval = mb_sub.add_parser("eval", parents=[shared], help="run mailroom-ml eval_modernbert.py")
-    mb_eval.add_argument("--sample", type=int, default=50)
+    mb_eval = mb_sub.add_parser("eval", parents=[leaf], help="run mailroom-ml eval_modernbert.py")
+    mb_eval.add_argument("--sample", type=_positive_int, default=50)
     mb_eval.add_argument("--seed", type=int, default=42)
     mb_eval.add_argument(
         "--subset",
@@ -694,20 +864,20 @@ def build_parser() -> argparse.ArgumentParser:
     mm = sub.add_parser(
         "modal-matrix",
         help="list/apply Modal+vLLM model/GPU rows from config/models.yaml",
-        parents=[shared],
+        parents=[leaf],
     )
     mm_sub = mm.add_subparsers(dest="modal_matrix_cmd")
-    mm_list = mm_sub.add_parser("list", parents=[shared], help="catalog rows (default marked)")
+    mm_list = mm_sub.add_parser("list", parents=[leaf], help="catalog rows (default marked)")
     mm_list.add_argument("--json", action="store_true")
     mm_list.set_defaults(handler=_cmd_modal_matrix_list)
-    mm_show = mm_sub.add_parser("show", parents=[shared], help="one row + cutover hints")
+    mm_show = mm_sub.add_parser("show", parents=[leaf], help="one row + cutover hints")
     mm_show.add_argument("model", help="HF id (e.g. Qwen/Qwen3-8B or Qwen/Qwen3-8B-AWQ)")
     mm_show.add_argument("--gpu", default=None, help="override matrix GPU (e.g. A100-40GB:2)")
     mm_show.add_argument("--json", action="store_true")
     mm_show.set_defaults(handler=_cmd_modal_matrix_show)
     mm_env = mm_sub.add_parser(
         "env",
-        parents=[shared],
+        parents=[leaf],
         help='print export lines for eval "$(sandbox modal-matrix env …)"',
     )
     mm_env.add_argument("model", nargs="?", default=None, help="HF id (default: Qwen/Qwen3-8B)")
@@ -715,21 +885,45 @@ def build_parser() -> argparse.ArgumentParser:
     mm_env.set_defaults(handler=_cmd_modal_matrix_env)
     mm.set_defaults(handler=_cmd_modal_matrix_help)
 
+    from mailroom_sandbox.services import doctor, hf_cli, modal_cli, vllm_cli
+    from mailroom_sandbox import experiments
+
+    doctor.register(sub, leaf)
+    modal_cli.register(sub, leaf)
+    vllm_cli.register(sub, leaf)
+    hf_cli.register(sub, leaf)
+    experiments.register(sub, leaf)
+
     return parser
 
 
 def _run_parser(sub, shared):
-    common = argparse.ArgumentParser(add_help=False)
+    common = argparse.ArgumentParser(add_help=False, parents=[shared])
     common.add_argument("--config", default=None)
     common.add_argument("--run-id", default=None)
-    common.add_argument("--offline", action="store_true")
+    common.add_argument("--offline", action="store_true", help="skip network during preflight only; start/resume still execute the locked job")
     common.add_argument("--force", action="store_true")
-    common.add_argument("--dry-run", action="store_true")
     common.add_argument("--live", action="store_true")
     common.add_argument("--json", action="store_true")
     common.add_argument("--watch", action="store_true")
+    common.add_argument("--initials", default=None, help="sign the reviewed settings to authorize Modal/OpenRouter spend (2–6 letters)")
+    common.add_argument("--agent-route", action="append", dest="agent_routes", default=[], metavar="NAME=PROVIDER:MODEL", help="per-agent transport, or NAME=@route.yaml for endpoint/GPU/vLLM settings")
     common.add_argument("--job-mode", dest="mode", choices=["endpoint", "modal"], default=None)
-    common.add_argument("--max-items", type=int, default=None)
+    common.add_argument("--max-items", type=_positive_int, default=None)
+    common.add_argument(
+        "--prompt-version",
+        action="append",
+        default=[],
+        dest="prompt_versions",
+        metavar="[ROLE=]KEY",
+        help=(
+            "Run with an eval-environment prompt version (archived _v0, frozen _v1 or any "
+            "GEPA/manual mutation), role=key e.g. correspondence_specialist=correspondence_specialist_v3, "
+            "or a bare key whose role is inferred (sorter_v3). Repeatable, one per role. Texts come "
+            "from the dojo lineage only; an unknown key, a key/role mismatch or a role the pipeline "
+            "lacks is an error. Default (no flag) is unchanged."
+        ),
+    )
     common.add_argument(
         "--suite",
         default=None,
@@ -758,8 +952,10 @@ def _run_parser(sub, shared):
     run = sub.add_parser("run", help="Spec-driven job lifecycle (DMR-027)", parents=[shared])
     run_sub = run.add_subparsers(dest="run_cmd")
     pre = run_sub.add_parser("preflight", parents=[common])
+    pre.add_argument("--dry-run", action="store_true")
     pre.set_defaults(handler=_cmd_run_preflight)
     start = run_sub.add_parser("start", parents=[common])
+    start.add_argument("--dry-run", action="store_true")
     start.set_defaults(handler=_cmd_run_start)
     status = run_sub.add_parser("status", parents=[common])
     status.set_defaults(handler=_cmd_run_status)
@@ -786,18 +982,45 @@ def _run_parser(sub, shared):
         parents=[common],
         help="sample vLLM /metrics per replica into the run dir (SAND-032)",
     )
-    scrape_p.add_argument("--label", choices=["before", "after"], required=True)
+    scrape_p.add_argument(
+        "--label",
+        choices=["before", "after", "mid"],
+        required=True,
+        help=(
+            "before|after bracket the run (they fire at its drained edges, where the KV "
+            "gauge is 0 by construction); mid is a point sample taken WHILE the run is "
+            "working — the only label that can see KV/queue pressure"
+        ),
+    )
     scrape_p.set_defaults(handler=_cmd_run_scrape_metrics)
     card_p = run_sub.add_parser(
         "card",
         parents=[common],
-        help="SAND-037 score & cost card: --config (one run) or --runbook grid-1l4|grid-2l4 (suite)",
+        help=(
+            "score & cost card: --config (one run) or --runbook "
+            "grid-1l4|grid-2l4|sand42-<cell>|sand42|sand42-noise-floor"
+        ),
     )
     card_p.add_argument(
         "--runbook",
         default=None,
-        choices=["grid-1l4", "grid-2l4"],
-        help="write the finalized L4x1 / L4x2 suite card from the per-run cards",
+        choices=[
+            "grid-1l4",
+            "grid-2l4",
+            "sand42-1l4-c8",
+            "sand42-1l4-c16",
+            "sand42-2l4-c8",
+            "sand42-2l4-c16",
+            "sand42-2l4-c32",
+            "sand42",
+            "sand42-noise-floor",
+        ],
+        help=(
+            "grid-1l4|grid-2l4: the finalized L4x1 / L4x2 suite card. "
+            "sand42-<cell>: one SAND-042 condition card. "
+            "sand42: all five conditions + comparison + master cost card + master report. "
+            "sand42-noise-floor: the noise-floor memo."
+        ),
     )
     card_p.add_argument(
         "--master",
@@ -835,6 +1058,7 @@ def _run_parser(sub, shared):
         parents=[common],
         help="two-operator / full specialist suite runbook (DMR-077)",
     )
+    suite_p.add_argument("--dry-run", action="store_true")
     suite_p.add_argument(
         "--list",
         action="store_true",
@@ -863,7 +1087,17 @@ def _run_parser(sub, shared):
 def _agent_models(args: argparse.Namespace) -> dict[str, str]:
     from mailroom_sandbox.overlay import parse_agent_models
 
-    return parse_agent_models(getattr(args, "agent_models", None) or [])
+    try:
+        models = parse_agent_models(getattr(args, "agent_models", None) or [])
+        if models:
+            from mailroom_sandbox.agent_routes import known_agents
+
+            unknown = set(models) - known_agents()
+            if unknown:
+                raise ValueError(f"unknown or retired agents in --agent-model: {sorted(unknown)}")
+        return models
+    except ValueError as exc:
+        raise CLIUsageError(str(exc)) from exc
 
 
 def _print(obj: object) -> None:
@@ -874,11 +1108,25 @@ def _print(obj: object) -> None:
 
 
 def _cmd_up(args: argparse.Namespace) -> int:
+    """Start the compose stack for the profile, or for the explicit ``--compose-profile`` list.
+
+    On ``modal-vllm`` compose only brings up Langfuse (the GPU endpoint lives on Modal), and the command says so.
+    """
     from mailroom_sandbox.compose import default_profiles_for, run_compose
+    from mailroom_sandbox.services.beacon import service_job
 
     profiles = args.compose_profiles or default_profiles_for(args.profile)
+    if not args.compose_profiles and args.profile == "modal-vllm":
+        # Compose has no GPU service for the Modal profile: Langfuse comes up,
+        # the endpoint does not. Say so instead of leaving the operator to infer it.
+        print(
+            "modal-vllm: compose starts Langfuse only — deploy the GPU endpoint with "
+            "`sandbox runbook show serve`"
+        )
     extra = ["up", "-d"] if args.detach else ["up"]
-    run_compose(profiles, *extra)
+    with service_job("up", title="compose up · " + ", ".join(profiles)) as job:
+        job.update(phase="STARTING")
+        run_compose(profiles, *extra)
     return 0
 
 
@@ -891,13 +1139,27 @@ def _cmd_down(args: argparse.Namespace) -> int:
 
 
 def _cmd_health(args: argparse.Namespace) -> int:
-    from mailroom_sandbox.health import health_check, probe_models
+    """Probe the provider, Langfuse and Phoenix and print the JSON report.
+
+    The exit code is 0 only when the provider endpoint is healthy; Langfuse and Phoenix are reported but never change it. A deploy hint goes to stderr when ``modal-vllm`` has no endpoint to probe.
+    """
+    from mailroom_sandbox.health import health_check, missing_modal_endpoint, probe_models
     from mailroom_sandbox.overlay import load_profile as _lp
     from mailroom_sandbox.runtime import load_env_file
 
     # `.env` may carry VLLM_BASE_URL/VLLM_API_KEY for a deployed Modal endpoint
     # — without it the probe reports on localhost (DMR-048).
     load_env_file()
+    profile = _lp(args.profile)
+    if missing_modal_endpoint(profile):
+        # Loud, actionable hint instead of a silent localhost:8000 probe: the
+        # Modal profile is the default, and its base URL only exists after a
+        # deploy. health_check reports the same condition as a hard failure.
+        print(
+            "hint: modal-vllm has no VLLM_BASE_URL — after `modal deploy`, export the "
+            "printed URL plus /v1 (see `sandbox runbook show serve`)",
+            file=sys.stderr,
+        )
     result = health_check(args.profile)
     host = (
         os.environ.get("LANGFUSE_HOST")
@@ -909,7 +1171,8 @@ def _cmd_health(args: argparse.Namespace) -> int:
             "name": "langfuse",
             "base_url": host,
             "health": {"models_url": f"{host.rstrip('/')}/api/public/health"},
-        }
+        },
+        expect_json=False,
     )
     result["langfuse"] = langfuse.as_dict()
     phoenix = probe_models(
@@ -920,7 +1183,8 @@ def _cmd_health(args: argparse.Namespace) -> int:
             # the old hardcoded localhost:6006/healthz probed the wrong server
             # whenever PHOENIX_ENDPOINT pointed at a remote Phoenix.
             "health": {"models_url": (os.environ.get("PHOENIX_ENDPOINT", "http://localhost:6006/v1/traces").rsplit("/v1", 1)[0]) + "/healthz"},
-        }
+        },
+        expect_json=False,
     )
     result["phoenix"] = phoenix.as_dict()
     _print(result)
@@ -930,6 +1194,7 @@ def _cmd_health(args: argparse.Namespace) -> int:
 def _cmd_pull_models(args: argparse.Namespace) -> int:
     from mailroom_sandbox.compose import pull_ollama_models
     from mailroom_sandbox.overlay import serving_family
+    from mailroom_sandbox.services.beacon import service_job
 
     profile = load_profile(args.profile)
     models = list(args.models) or list(profile.get("pull_models") or [])
@@ -952,70 +1217,70 @@ def _cmd_pull_models(args: argparse.Namespace) -> int:
                 "pre-warm with `docker compose --profile vllm up vllm`."
             )
         return 0
-    return pull_ollama_models(models)
+    with service_job("pull-models", title="pull models · " + ", ".join(models)) as job:
+        job.update(phase="DOWNLOADING")
+        rc = pull_ollama_models(models)
+        job.finish("failed" if rc else "done", metrics={"returncode": rc})
+        return rc
 
 
 def _cmd_fetch_deps(args: argparse.Namespace) -> int:
     """Refresh the TRACKED vendor snapshots (DMR-057/DMR-070).
 
     The family code ships in-repo (DMR-057), so a fresh checkout needs no
-    network. Refresh order (DMR-070 rework): when the sandbox checkout lives
-    inside the Digital-Mailroom monorepo, the workspace package is the
-    development source of truth and the vendor tree MIRRORS it — carrying
-    BOTH content updates AND deletions (a copy-only refresh is how the
-    removed docclass-era compliance files survived their upstream deletion).
-    Standalone clones fall back to the tag-based clone refresh, with a loud
-    warning that tags can lag removals (the v0.7.1 tag predates 59c47401).
+    network. When present, the Digital-Mailroom monorepo workspace packages
+    are mirrored into vendor, carrying both content updates and deletions.
+    Otherwise, refresh uses reviewed standalone refs frozen to the
+    SHAs in _VENDOR_PINS. A moved-ref check rejects a SHA mismatch before
+    any tracked vendor files are replaced.
     """
     print(
         "vendor trees are tracked snapshots (self-contained); fetch-deps "
         "refreshes them — workspace mirror first (offline, carries "
-        "deletions), tag-based clone fallback for standalone clones"
+        "deletions), otherwise reviewed standalone refs frozen to SHAs; "
+        "moved refs are rejected before tracked vendor files are replaced"
     )
     rc = 0
-    for name, tag, url in _VENDOR_PINS:
+    for name, pin, url, sha in _VENDOR_PINS:
         ws = _monorepo_workspace_pkg(name)
         if ws is not None:
-            rc = rc or _refresh_vendor_from_workspace(name, ws)
+            refresh_rc = _refresh_vendor_from_workspace(name, ws)
+            rc = rc or refresh_rc
         else:
             print(
                 f"== {name}: no monorepo workspace detected — falling back to the "
-                f"tag-based refresh ({tag}); NOTE tags can lag removals — prefer "
-                "the monorepo workspace as the source of truth",
+                f"reviewed standalone source refresh ({pin}" + (f" @ sha {sha[:12]})" if sha else ")") +
+                "; moved refs fail the SHA check before tracked vendor files "
+                "are replaced",
                 file=sys.stderr,
             )
-            rc = rc or _refresh_vendor(name, tag, url)
+            refresh_rc = _refresh_vendor(name, pin, url, sha)
+            rc = rc or refresh_rc
     if getattr(args, "visualizer", False):
-        dest = vendor_dir() / "The-Mailroom"
-        if dest.is_dir() and (dest / ".git").exists():
-            pull = subprocess.run(
-                ["git", "-C", str(dest), "pull", "--ff-only"],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if pull.returncode != 0:
-                print(
-                    f"!! visualizer refresh (git pull --ff-only) failed: "
-                    f"{pull.stderr.strip() or pull.stdout.strip()}",
-                    file=sys.stderr,
-                )
-                rc = rc or 1
-        else:
-            rc = rc or subprocess.run(
-                ["git", "clone", "--depth", "1", "https://github.com/Exios66/The-Mailroom.git", str(dest)]
-            ).returncode
+        visualizer_rc = _refresh_visualizer(*_VISUALIZER_PIN)
+        rc = rc or visualizer_rc
     return rc
 
 
-# (vendor name, pinned tag, upstream url) — STANDALONE-clone fallback pins.
-# In the monorepo, fetch-deps ignores these and mirrors the workspace package
-# instead (DMR-057/070): tags can lag removals — the v0.7.1 tag predates the
-# five-class taxonomy removal (59c47401), so a tag-based refresh of
-# llm-mailroom would resurrect the deleted docclass-era files.
-_VENDOR_PINS: tuple[tuple[str, str, str], ...] = (
-    ("llm-mailroom", "v0.7.1", "https://github.com/Exios66/llm-mailroom.git"),
-    ("llm-dojo-scoring", "v0.15.0", "https://github.com/Exios66/llm-dojo-scoring.git"),
+# Reviewed standalone refs frozen to exact source SHAs. Mirror monorepo
+# workspace packages when available, after importing those reviewed revisions.
+# The fallback rejects moved refs before replacing any tracked vendor file.
+# The Dojo pin is the interim post-v0.24.2 zero-token fix; return to the next
+# released commit when v0.24.3 is published.
+_VENDOR_PINS: tuple[tuple[str, str, str, str | None], ...] = (
+    ("llm-mailroom", "1a1ec3dfb4e71f615f5d34f6198f9d06fd8c26dd",
+     "https://github.com/Exios66/llm-mailroom.git", "1a1ec3dfb4e71f615f5d34f6198f9d06fd8c26dd"),
+    ("llm-dojo-scoring", "718e326c1fe5a49b3f1cfd43a3ac10c73e7e01a4",
+     "https://github.com/Exios66/llm-dojo-scoring.git", "718e326c1fe5a49b3f1cfd43a3ac10c73e7e01a4"),
+)
+
+
+# Optional visualizer source is frozen independently of the two managed
+# runtime snapshots. Update only after reviewing its committed source.
+_VISUALIZER_PIN: tuple[str, str, str] = (
+    "cab7a41636b8092b434ffe9e478a8ebfd05d4ca3",
+    "https://github.com/Exios66/The-Mailroom.git",
+    "cab7a41636b8092b434ffe9e478a8ebfd05d4ca3",
 )
 
 
@@ -1040,7 +1305,7 @@ def _monorepo_workspace_pkg(name: str):
 _VENDOR_EXCLUDE_NAMES = {"__pycache__"}
 _VENDOR_EXCLUDE_SUFFIXES = {".pyc"}
 _VENDOR_EXCLUDE_REL_PREFIXES = {"legalbench/reports"}
-_VENDOR_EXCLUDE_TOP_LEVEL_DIRS = {"tests"}
+_VENDOR_EXCLUDE_TOP_LEVEL_DIRS = {"tests", "test"}
 
 
 def _vendor_rel_excluded(rel: Path) -> bool:
@@ -1052,7 +1317,7 @@ def _vendor_rel_excluded(rel: Path) -> bool:
         return True
     if rel.suffix in _VENDOR_EXCLUDE_SUFFIXES:
         return True
-    if any("/".join(rel.parts).startswith(p) for p in _VENDOR_EXCLUDE_REL_PREFIXES):
+    if any(rel == Path(p) or Path(p) in rel.parents for p in _VENDOR_EXCLUDE_REL_PREFIXES):
         return True
     return False
 
@@ -1070,7 +1335,7 @@ def _refresh_vendor_from_workspace(name: str, ws_root: Path) -> int:
     dest_root = vendor_dir() / name / "src"
     if ws_root.name != "src":
         # llm-dojo-scoring layout: the package dir relocates under src/
-        # (mirrors the tag-based path's DMR-058 normalization).
+        # (mirrors the standalone path's DMR-058 normalization).
         dest_root = dest_root / ws_root.name
     dest_root.parent.mkdir(parents=True, exist_ok=True)
 
@@ -1117,70 +1382,197 @@ def _package_src_dir(clone_root: Path) -> Path | None:
     return None
 
 
-def _refresh_vendor(name: str, tag: str, url: str) -> int:
-    import shutil
+def _fetch_reviewed_checkout(work: Path, pin: str, url: str, sha: str | None) -> str | None:
+    """Fetch a ref or full commit and verify its peeled commit BEFORE checkout.
 
-    stamp = subprocess.run(
-        ["git", "ls-remote", "--tags", url, tag],
-        capture_output=True,
-        text=True,
-        check=False,
+    An annotated tag names a tag object; compare its commit, not that object.
+    A full commit ref remains usable after main advances. Mutable refs still
+    fail closed if moved. LFS pointers remain pointers during this source-only
+    refresh; fetching a visualizer never downloads its large assets.
+    """
+    if not sha or len(sha) != 40 or any(c not in "0123456789abcdef" for c in sha):
+        print(f"!! {pin}: an exact reviewed 40-character commit SHA is required", file=sys.stderr)
+        return None
+    env = dict(os.environ, GIT_LFS_SKIP_SMUDGE="1")
+    reviewed_ref = "refs/vendor/reviewed"
+    commands = (
+        ["git", "init", "--quiet", str(work)],
+        ["git", "-C", str(work), "fetch", "--quiet", "--no-tags", "--depth", "1",
+         "--no-write-fetch-head", url, f"{pin}:{reviewed_ref}"],
     )
-    if stamp.returncode != 0 or not stamp.stdout.strip():
-        print(f"!! could not resolve {tag} of {url}", file=sys.stderr)
-        return 1
-    work = vendor_dir() / ".refresh" / name
-    if work.is_dir():
-        shutil.rmtree(work)
-    work.parent.mkdir(parents=True, exist_ok=True)
-    clone = subprocess.run(
-        ["git", "clone", "--depth", "1", "--branch", tag, url, str(work)],
-        capture_output=True,
-        text=True,
-        check=False,
+    for command in commands:
+        result = subprocess.run(command, capture_output=True, text=True, check=False, env=env)
+        if result.returncode:
+            print(f"!! could not fetch {pin} from {url}: {result.stderr.strip()}", file=sys.stderr)
+            return None
+    resolved = subprocess.run(
+        ["git", "-C", str(work), "rev-parse", "--verify", f"{reviewed_ref}^{{commit}}"],
+        capture_output=True, text=True, check=False, env=env,
     )
-    if clone.returncode != 0:
-        print(f"!! clone {name}@{tag} failed: {clone.stderr.strip()}", file=sys.stderr)
-        return 1
-    dest = vendor_dir() / name
-    dest.mkdir(parents=True, exist_ok=True)
-    # Mirror the committed layout — llm-mailroom keeps src/; llm-dojo-scoring
-    # ships the package at the repo ROOT (llm_dojo_scoring/) and the snapshot
-    # normalizes it under src/. Validate the source BEFORE touching dest so a
-    # layout surprise can never half-wipe the tracked tree (DMR-058).
-    package_src = _package_src_dir(work)
-    if package_src is None:
+    head = resolved.stdout.strip() if resolved.returncode == 0 else "unknown"
+    if head != sha:
         print(
-            f"!! unexpected layout in {name}@{tag} clone (no src/, llm_dojo_scoring/, "
-            f"or llm_mailroom/ at root) — vendor/{name} left untouched",
-            file=sys.stderr,
+            f"!! pin mismatch: {pin} resolved to commit {head[:12]} but the "
+            f"reviewed snapshot is frozen at {sha[:12]} — tracked files left untouched. "
+            "Review and update the source pin first.", file=sys.stderr,
         )
-        shutil.rmtree(work, ignore_errors=True)
-        return 1
-    shutil.rmtree(dest / "src", ignore_errors=True)
-    # The tracked layout is vendor/<name>/src/<pkgdir> for BOTH trees:
-    # llm-mailroom already ships src/<pkgdir>, llm-dojo-scoring ships the
-    # package at the clone root and gets normalized under src/ (DMR-058).
-    dest_src = dest / "src" / package_src.name if package_src.name != "src" else dest / "src"
-    shutil.copytree(package_src, dest_src, ignore=shutil.ignore_patterns("tests", "__pycache__", "*.pyc"))
-    head_proc = subprocess.run(
-        ["git", "-C", str(work), "rev-parse", "HEAD"],
-        capture_output=True,
-        text=True,
-        check=False,
+        return None
+    checkout = subprocess.run(
+        ["git", "-c", "filter.lfs.required=false", "-c", "filter.lfs.process=",
+         "-c", "filter.lfs.smudge=", "-C", str(work), "checkout", "--quiet", "--detach", reviewed_ref],
+        capture_output=True, text=True, check=False, env=env,
     )
-    if head_proc.returncode != 0:
-        head = "unknown"
-        print(
-            f"!! could not read the refreshed {name} commit: "
-            f"{head_proc.stderr.strip() or head_proc.stdout.strip()}",
-            file=sys.stderr,
+    if checkout.returncode:
+        print(f"!! checkout {pin} failed: {checkout.stderr.strip()}", file=sys.stderr)
+        return None
+    return head
+
+
+def _refresh_vendor(name: str, pin: str, url: str, sha: str | None = None) -> int:
+    import shutil
+    import tempfile
+
+    refresh_root = vendor_dir() / ".refresh"
+    try:
+        refresh_root.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix=f"{name}-", dir=refresh_root) as tmp:
+            work = Path(tmp) / "checkout"
+            head = _fetch_reviewed_checkout(work, pin, url, sha)
+            if head is None:
+                return 1
+            package_src = _package_src_dir(work)
+            if package_src is None:
+                print(f"!! unexpected layout in {name}@{pin} — vendor/{name} left untouched", file=sys.stderr)
+                return 1
+            # Build the complete normalized replacement before moving existing
+            # tracked bytes. The same predicate governs workspace and Git copies.
+            staged = Path(tmp) / "src"
+            staged_package = staged if package_src.name == "src" else staged / package_src.name
+
+            def ignore(directory, names):
+                return [entry for entry in names
+                        if _vendor_rel_excluded((Path(directory) / entry).relative_to(package_src))]
+
+            shutil.copytree(package_src, staged_package, ignore=ignore)
+            dest = vendor_dir() / name / "src"
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            had_dest = dest.exists()
+            recovery = None
+            if had_dest:
+                # Keep recovery bytes OUTSIDE the auto-cleaned checkout. A
+                # failed install and failed rollback must never delete them.
+                recovery = Path(tempfile.mkdtemp(prefix=f"{name}-recovery-", dir=refresh_root))
+                backup = recovery / "src"
+                dest.rename(backup)
+            try:
+                staged.rename(dest)
+            except OSError as install_error:
+                if recovery is not None:
+                    try:
+                        backup.rename(dest)
+                    except OSError as restore_error:
+                        print(
+                            f"!! install failed ({install_error}); rollback failed "
+                            f"({restore_error}). Original snapshot preserved at {backup}",
+                            file=sys.stderr,
+                        )
+                        return 1
+                    recovery.rmdir()
+                raise
+            if recovery is not None:
+                shutil.rmtree(recovery)
+        print(f"== refreshed vendor/{name} @ {pin} (commit {head[:12]}) — commit the diff")
+        return 0
+    except OSError as exc:
+        print(f"!! refresh {name}@{pin} failed: {exc}", file=sys.stderr)
+        return 1
+
+
+def _refresh_visualizer(pin: str, url: str, sha: str) -> int:
+    """Retrieve the reviewed visualizer without discarding local work.
+
+    Dirty or divergent checkouts are preserved. A clean checkout whose HEAD
+    matches the reviewed-head marker written by an earlier refresh is an older
+    reviewed snapshot and is replaced atomically; local commits and unrelated
+    HEADs are never reset.
+    """
+    import shutil
+    import tempfile
+
+    dest = vendor_dir() / "The-Mailroom"
+    existing_head = None
+    if dest.exists() or dest.is_symlink():
+        if dest.is_symlink() or not (dest / ".git").exists():
+            print(f"!! visualizer path already exists; left untouched: {dest}", file=sys.stderr)
+            return 1
+        status = subprocess.run(
+            ["git", "--no-optional-locks", "-c", "filter.lfs.required=false",
+             "-c", "filter.lfs.process=", "-c", "filter.lfs.clean=", "-C", str(dest),
+             "status", "--porcelain=v1", "--untracked-files=all", "--ignored"],
+            capture_output=True, text=True, check=False,
         )
-    else:
-        head = head_proc.stdout.strip()
-    shutil.rmtree(work, ignore_errors=True)
-    print(f"== refreshed vendor/{name} @ {tag} (commit {head[:12]}) — commit the diff")
-    return 0
+        current = subprocess.run(
+            ["git", "-C", str(dest), "rev-parse", "--verify", "HEAD^{commit}"],
+            capture_output=True, text=True, check=False,
+        )
+        if status.returncode or status.stdout or current.returncode:
+            print("!! visualizer has local files; left untouched", file=sys.stderr)
+            return 1
+        existing_head = current.stdout.strip()
+        marker = dest / ".git" / "mailroom-reviewed-head"
+        try:
+            reviewed_head = marker.read_text(encoding="utf-8").strip()
+        except OSError:
+            reviewed_head = None
+        if existing_head != sha and reviewed_head != existing_head:
+            print(
+                "!! visualizer HEAD is not a previously reviewed snapshot; left untouched",
+                file=sys.stderr,
+            )
+            return 1
+    refresh_root = vendor_dir() / ".refresh"
+    try:
+        refresh_root.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="visualizer-", dir=refresh_root) as tmp:
+            work = Path(tmp) / "checkout"
+            if _fetch_reviewed_checkout(work, pin, url, sha) is None:
+                return 1
+            if not dest.exists():
+                work.rename(dest)
+            elif existing_head != sha:
+                recovery = Path(
+                    tempfile.mkdtemp(prefix="visualizer-recovery-", dir=refresh_root)
+                )
+                backup = recovery / "The-Mailroom"
+                dest.rename(backup)
+                try:
+                    work.rename(dest)
+                except OSError as install_error:
+                    try:
+                        backup.rename(dest)
+                    except OSError as restore_error:
+                        print(
+                            f"!! visualizer install failed ({install_error}); rollback failed "
+                            f"({restore_error}). Original snapshot preserved at {backup}",
+                            file=sys.stderr,
+                        )
+                        return 1
+                    shutil.rmtree(recovery)
+                    raise
+                shutil.rmtree(recovery)
+            marker = dest / ".git" / "mailroom-reviewed-head"
+            try:
+                marker.write_text(f"{sha}\n", encoding="utf-8")
+            except OSError as marker_error:
+                print(
+                    f"!! visualizer updated but could not record the reviewed HEAD: {marker_error}",
+                    file=sys.stderr,
+                )
+        print(f"== visualizer pinned @ {sha[:12]}")
+        return 0
+    except OSError as exc:
+        print(f"!! visualizer refresh failed: {exc}", file=sys.stderr)
+        return 1
 
 
 def _cmd_cutover(args: argparse.Namespace) -> int:
@@ -1408,6 +1800,13 @@ def _cmd_subagents_materialize(args: argparse.Namespace) -> int:
 
 
 def _cmd_subagents_propagate(args: argparse.Namespace) -> int:
+    """Materialize and sync coding subagents into mapped family checkouts.
+
+    ``args.packages`` optionally limits the targets; ``args.dry_run`` previews
+    writes. Prints per-package results as JSON and returns 1 for any package
+    error (including a missing checkout), otherwise 0. Discovery and config
+    loading errors propagate; individual package failures appear in the results.
+    """
     from mailroom_sandbox.subagents import propagate_family_checkouts
 
     mono = Path(args.monorepo_root).expanduser().resolve() if args.monorepo_root else None
@@ -1432,10 +1831,8 @@ def _cmd_subagents_propagate(args: argparse.Namespace) -> int:
             for row in result.packages
         ],
     }
-    if getattr(args, "json", False):
-        _print(payload)
-    else:
-        _print(payload)
+    # Text and --json both emit this payload; propagate has no prose view.
+    _print(payload)
     return 1 if any(row.error for row in result.packages) else 0
 
 
@@ -1515,6 +1912,7 @@ def _cmd_pilot(args: argparse.Namespace) -> int:
         profile=args.profile,
         model=args.model,
         prompt_version=args.prompt,
+        agent_models=_agent_models(args),
     )
     _print(result)
     return 0
@@ -1524,6 +1922,10 @@ def _cmd_hf_pilot(args: argparse.Namespace) -> int:
     from mailroom_sandbox.datasets import load_hf_fixtures
 
     rows = load_hf_fixtures()
+    rows = [{**row, "expected_doc_class": row.get("expected_doc_class") or row.get("doc_type")} for row in rows]
+    models = _agent_models(args)
+    if not rows or any(not row.get("expected_doc_class") or not (row.get("doc_text") or row.get("text")) for row in rows):
+        raise CLIUsageError("HF fixtures must contain labeled document text")
     if args.check or args.dry_run:
         _print({"ok": True, "n": len(rows), "classes": sorted({r.get("doc_type") for r in rows})})
         return 0 if rows else 1
@@ -1537,6 +1939,8 @@ def _cmd_hf_pilot(args: argparse.Namespace) -> int:
         profile=args.profile,
         model=args.model,
         prompt_version=args.prompt,
+        agent_models=models,
+        rows=rows,
     )
     _print(result)
     return 0
@@ -1560,6 +1964,7 @@ def _cmd_legalbench(args: argparse.Namespace) -> int:
             experiment_name=name,
             profile=args.profile,
             model=args.model,
+            agent_models=_agent_models(args),
         )
     except ValueError as exc:
         # Loud guard (unwired task / suite without --n / empty rows): clean
@@ -1579,12 +1984,21 @@ def _cmd_eval(args: argparse.Namespace) -> int:
     from mailroom_sandbox.eval.agents import SPECS
     from mailroom_sandbox.tui.session import MailroomConsole
 
+    if getattr(args, "from_log", False) and args.task not in {"local_vs_api", "sorter_vs_modernbert"}:
+        raise CLIUsageError("--from-log only applies to comparison tasks")
+    if getattr(args, "group", None) and not (args.task == "local_vs_api" and getattr(args, "from_log", False)):
+        raise CLIUsageError("--group requires `eval local_vs_api --from-log`")
+    if getattr(args, "connected", False) and args.task != "pipeline":
+        raise CLIUsageError("--connected only applies to `eval pipeline`")
     mock = _mock_for(args, subcommand="eval")
     os.environ["SANDBOX_RUN_MODE"] = "mock" if mock else "local"
     console = MailroomConsole()
     exp = args.experiment_name or f"sandbox_{args.task}"
     console.run_banner(run_id=exp, task=args.task, subtitle="sandbox eval")
     console.phase("EVAL", "mock" if mock else args.profile or "local")
+    if getattr(args, "dataset_revision", None) and args.task != "local_vs_api":
+        raise SystemExit("error: --dataset-revision only applies to `eval local_vs_api`")
+    _select_prompt_versions(args)
     kwargs = {
         "mock": mock,
         "sample": args.sample,
@@ -1613,6 +2027,8 @@ def _cmd_eval(args: argparse.Namespace) -> int:
         result = runners.run_local_vs_api_eval(
             prompt_version=args.prompt,
             from_log=bool(getattr(args, "from_log", False)),
+            group=getattr(args, "group", None),
+            dataset_revision=getattr(args, "dataset_revision", None),
             **kwargs,
         )
     elif args.task == "sorter_vs_modernbert":
@@ -1639,6 +2055,35 @@ def _cmd_eval(args: argparse.Namespace) -> int:
     return 0
 
 
+def _select_prompt_versions(args) -> None:
+    """Resolve ``--prompt-version`` for an eval and make it the process's active selection."""
+    from mailroom_sandbox import prompt_versions as pv
+
+    items = getattr(args, "prompt_versions", None)
+    if not items:
+        pv.clear_active_selection()
+        return
+    selection = pv.resolve_selection(items)
+    pv.check_no_stem_conflict(selection.keys, getattr(args, "prompt", None))
+    from mailroom_sandbox.eval.agents import SPECS
+
+    task = args.task
+    if task in SPECS:
+        unused = sorted(set(selection.keys) - {task})
+    elif task in {"pipeline", "extract", "chained"}:
+        unused = []
+    elif task == "sorter_vs_modernbert":
+        unused = sorted(set(selection.keys) - {"sorter"})
+    else:
+        unused = sorted(selection.keys)
+    if unused:
+        raise pv.PromptSelectionError(
+            f"task {task!r} does not use the prompt(s) for {unused}; a selection that would "
+            "not run is refused"
+        )
+    pv.set_active_selection(selection)
+
+
 def _cmd_matrix(args: argparse.Namespace) -> int:
     from mailroom_sandbox.eval.matrix import run_matrix
     from mailroom_sandbox.tui.session import MailroomConsole
@@ -1647,6 +2092,13 @@ def _cmd_matrix(args: argparse.Namespace) -> int:
     console = MailroomConsole()
     providers = [p.strip() for p in args.providers.split(",") if p.strip()]
     models = [m.strip() for m in args.models.split(",") if m.strip()]
+    prompts = [x.strip() for x in args.prompts.split(",") if x.strip()]
+    from mailroom_sandbox.eval.matrix import plan_matrix
+
+    try:
+        plan_matrix(task=args.task, providers=providers, models=models, prompts=prompts, sample=args.sample, seed=args.seed)
+    except ValueError as exc:
+        raise CLIUsageError(str(exc)) from exc
     console.run_banner(
         run_id=f"matrix_{args.task}",
         task=args.task,
@@ -1656,12 +2108,13 @@ def _cmd_matrix(args: argparse.Namespace) -> int:
         task=args.task,
         providers=providers,
         models=models,
-        prompts=[x.strip() for x in args.prompts.split(",") if x.strip()],
+        prompts=prompts,
         sample=args.sample,
         seed=args.seed,
         mock=mock,
         dry_run=args.dry_run,
         console=console,
+        agent_models=_agent_models(args),
     )
     if args.dry_run:
         console.complete(state="prepared", summary=f"{result.get('n', 0)} cells planned")
@@ -1678,17 +2131,20 @@ def _cmd_datasets_help(args: argparse.Namespace) -> int:
 
 def _cmd_datasets_pull(args: argparse.Namespace) -> int:
     from mailroom_sandbox.datasets import pull_hf_dataset
+    from mailroom_sandbox.services.beacon import service_job
 
     try:
-        pull_hf_dataset(
-            args.dataset,
-            split=args.split,
-            max_rows=args.max_rows,
-            revision=args.revision,
-            config=args.config,
-            per_class=getattr(args, "per_class", 0) or None,
-            sample_seed=getattr(args, "sample_seed", 42),
-        )
+        with service_job("datasets-pull", title=f"datasets pull · {args.dataset}") as job:
+            job.update(phase="PULLING")
+            pull_hf_dataset(
+                args.dataset,
+                split=args.split,
+                max_rows=args.max_rows,
+                revision=args.revision,
+                config=args.config,
+                per_class=getattr(args, "per_class", 0) or None,
+                sample_seed=getattr(args, "sample_seed", 42),
+            )
     except ModuleNotFoundError as exc:
         # The Hub client lives in the [hf]/[dev] extras (offline-first base
         # install) — say how to get it instead of a bare traceback (DMR-058).
@@ -1771,7 +2227,15 @@ def _cmd_traces_export(args: argparse.Namespace) -> int:
 
 
 def _cmd_profiles(args: argparse.Namespace) -> int:
-    _print(list_profiles())
+    """List the available profiles and mark the active default.
+
+    The default is ``SANDBOX_PROFILE`` from the environment or ``.env``, else ``modal-vllm``.
+    """
+    from mailroom_sandbox.providers import available_profiles, default_profile
+
+    active = default_profile()
+    for name in available_profiles():
+        print(f"{name}  (default)" if name == active else name)
     return 0
 
 
@@ -1803,38 +2267,49 @@ def _cmd_tunnel_plan(args: argparse.Namespace) -> int:
 def _cmd_tunnel_up(args: argparse.Namespace) -> int:
     from mailroom_sandbox.tunnel import spawn
 
+    from mailroom_sandbox.services.beacon import service_job
+
     spec = _tunnel_spec(args)
-    pid = spawn(spec)
+    with service_job("tunnel-up", title=f"tunnel up · {spec.profile}") as job:
+        job.update(phase="CONNECTING")
+        pid = spawn(spec)
+        job.log(f"pid {pid} localhost:{spec.local_port} -> {spec.destination}:{spec.remote_port}")
     print(f"tunnel up: pid {pid} forwarding localhost:{spec.local_port} -> {spec.destination}:{spec.remote_port}")
     print(f"stop with: sandbox tunnel --profile {spec.profile} down")
     return 0
 
 
 def _cmd_tunnel_status(args: argparse.Namespace) -> int:
-    from mailroom_sandbox.tunnel import is_up, read_pid
+    from mailroom_sandbox.tunnel import is_alive, is_ssh_process, is_up, read_pid
 
     spec = _tunnel_spec(args)
+    pid = read_pid(spec.profile)
     _print(
         {
             "profile": spec.profile,
             "local_port": spec.local_port,
             "destination": spec.destination,
             "port_answering": is_up(spec.local_port),
-            "pid": read_pid(spec.profile),
+            "pid": pid,
+            "pid_alive": pid is not None and is_alive(pid) and is_ssh_process(pid),
         }
     )
     return 0
 
 
 def _cmd_tunnel_down(args: argparse.Namespace) -> int:
-    from mailroom_sandbox.tunnel import terminate
+    """Terminate the recorded SSH tunnel for the profile, or report that none is recorded."""
+    from mailroom_sandbox.tunnel import read_pid, terminate
 
     spec = _tunnel_spec(args)
+    recorded = read_pid(spec.profile)
     pid = terminate(spec)
-    if pid is None:
+    if pid is not None:
+        print(f"tunnel down: killed pid {pid}")
+    elif recorded is not None:
+        print(f"cleared stale pidfile for profile '{spec.profile}' (pid {recorded} is not a running ssh forward)")
+    else:
         print(f"no recorded tunnel for profile '{spec.profile}'")
-        return 0
-    print(f"tunnel down: killed pid {pid}")
     return 0
 
 
@@ -1895,27 +2370,100 @@ def _cmd_run_deploy_env(args) -> int:
 
 
 def _cmd_run_scrape_metrics(args) -> int:
-    """SAND-032: per-replica vLLM /metrics snapshot (measured TTFT, KV, preemptions)."""
+    """SAND-032/042: per-replica vLLM /metrics snapshot + container GPU telemetry.
+
+    ``--label before`` also records the window start so the ``after``/``mid`` passes can
+    slice the cell's nvidia-smi series to this run alone. ``mid`` is the same scrape while
+    the run is in flight: the before/after pair brackets the run and therefore reads
+    ``kv_cache_usage_perc`` as 0 (a pre-allocated cache with no live sequences), so mid is
+    the only label that can see KV/queue pressure at all.
+    """
+    from mailroom_sandbox.job import container_telemetry
     from mailroom_sandbox.job import spec as spec_mod
     from mailroom_sandbox.job import vllm_metrics
+    from mailroom_sandbox.job.specialist_posture import sand42_cell_label
 
     if not getattr(args, "config", None):
         print("ERROR: --config required", file=sys.stderr)
         return 2
     spec = spec_mod.load_run_spec(args.config)
+    run_id = spec_mod.resolve_run_id(spec)
+    dest = spec_mod.runs_root() / run_id
     expected = spec.engine.modal.max_containers if spec.engine.modal else 1
     result = vllm_metrics.scrape(
         spec_mod.engine_base_url(spec),
         os.environ.get("VLLM_API_KEY", "").strip(),
         expected=expected,
     )
-    dest = spec_mod.runs_root() / spec_mod.resolve_run_id(spec) / f"vllm_metrics_{args.label}.json"
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_text(json.dumps(result, indent=2, sort_keys=True), encoding="utf-8")
-    print(f"{result['coverage']} → {dest}")
+    dest.mkdir(parents=True, exist_ok=True)
+    # Preserve the exporter output verbatim (every family), one section per replica;
+    # the JSON keeps only the summarized fields the cards render.
+    raws = result.pop("raw", None) or {}
+    target = dest / f"vllm_metrics_{args.label}.json"
+    target.write_text(json.dumps(result, indent=2, sort_keys=True), encoding="utf-8")
+    if args.label == "mid":
+        # A mid sample is a POINT reading of instantaneous gauges (kv_cache_usage_perc,
+        # num_requests_running/waiting), so the run's interesting value is the maximum
+        # across the series. Append each one; the card collapses them.
+        reps = result.get("replicas") if isinstance(result.get("replicas"), dict) else {}
+        series = {
+            str(rid): {k: v for k, v in (rep if isinstance(rep, dict) else {}).items()
+                       if k in ("kv_cache_usage_perc", "num_requests_running",
+                                "num_requests_waiting", "preemptions")}
+            for rid, rep in reps.items()
+        }
+        with (dest / "vllm_metrics_mid.series.jsonl").open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps({"at": result.get("at"), "replicas": series}) + "\n")
+    if raws:
+        blob = "\n".join(
+            f"# replica process_start_time_seconds={key}\n{text.rstrip()}\n"
+            for key, text in sorted(raws.items())
+        )
+        (dest / f"vllm_metrics_{args.label}.txt").write_text(blob, encoding="utf-8")
+    print(f"{result['coverage']} → {target}")
     for err in result.get("errors") or []:
         print(f"WARN: scrape error: {err}", file=sys.stderr)
+
+    _capture_container_telemetry(
+        container_telemetry, dest, label=args.label, cell=sand42_cell_label(run_id)
+    )
     return 0
+
+
+def _capture_container_telemetry(module, dest: Path, *, label: str, cell: str) -> None:
+    """SAND-042: mark the window on ``before``; pull and slice the series on ``after``."""
+    if not cell:
+        return  # not a SAND-042 run: no container series to claim
+    if label == "before":
+        (dest / "container_telemetry_window.json").write_text(
+            json.dumps({"cell": cell, "start": time.time()}, indent=2), encoding="utf-8"
+        )
+        return
+    window = {}
+    window_path = dest / "container_telemetry_window.json"
+    if window_path.is_file():
+        try:
+            window = json.loads(window_path.read_text(encoding="utf-8"))
+        except ValueError:
+            window = {}
+    doc = module.pull(cell, start=window.get("start"), end=time.time())
+    out = dest / f"container_telemetry_{label}.json"
+    out.write_text(json.dumps(doc, indent=2, sort_keys=True), encoding="utf-8")
+    summary = module.summarize_samples(doc)
+    if summary.get("captured"):
+        util = summary.get("util_mean_perc")
+        print(
+            f"gpu telemetry ({cell}): {summary['samples']} samples, "
+            f"util mean {util:.1f}% max {summary['util_max_perc']:.1f}% → {out}"
+            if util is not None
+            else f"gpu telemetry ({cell}): {summary['samples']} samples → {out}"
+        )
+    else:
+        print(
+            f"WARN: gpu telemetry not captured for {cell}: {summary.get('reason')}",
+            file=sys.stderr,
+        )
+
 
 
 def _cmd_run_card(args) -> int:
@@ -1923,10 +2471,15 @@ def _cmd_run_card(args) -> int:
     from mailroom_sandbox.job import grid_cards
 
     if getattr(args, "record_metered", None):
-        from mailroom_sandbox.job.grid_master import record_metered
-
         study, metered, billed = args.record_metered
-        print(f"metered spend → {record_metered(study, float(metered), float(billed))}")
+        if study.replace("-", "").upper().startswith("SAND42"):
+            from mailroom_sandbox.job import sand42_cards
+
+            print(f"metered spend → {sand42_cards.write_metered(study, float(metered), float(billed))}")
+        else:
+            from mailroom_sandbox.job.grid_master import record_metered
+
+            print(f"metered spend → {record_metered(study, float(metered), float(billed))}")
         if not getattr(args, "master", False):
             return 0
     if getattr(args, "master", False):
@@ -1944,7 +2497,32 @@ def _cmd_run_card(args) -> int:
             print("reader PDF skipped: Chrome not found (set SANDBOX_CHROME); READER-REPORT.pdf is now stale")
         return 0
     if getattr(args, "runbook", None):
-        replicas = 1 if args.runbook == "grid-1l4" else 2
+        runbook = str(args.runbook)
+        if runbook.startswith("sand42"):
+            from mailroom_sandbox.job import sand42_cards
+
+            # Two parallel fleets, the sequential driver and the handoff all rebuild
+            # these files from one tree; serialize them or the master/comparison
+            # (and figures/) can be torn mid-write.
+            with sand42_cards.report_lock():
+                if runbook == "sand42":
+                    for label, path in sand42_cards.write_all().items():
+                        print(f"{label} → {path}")
+                    return 0
+                if runbook == "sand42-noise-floor":
+                    print(f"noise floor → {sand42_cards.write_noise_floor()['md']}")
+                    return 0
+                cell = runbook.removeprefix("sand42-")
+                if cell not in sand42_cards.CELLS:
+                    print(
+                        f"ERROR: unknown SAND-042 cell {cell!r} "
+                        f"(want one of {sorted(sand42_cards.CELLS)}, sand42, sand42-noise-floor)",
+                        file=sys.stderr,
+                    )
+                    return 2
+                print(f"suite card → {sand42_cards.write_cell(cell)['md']}")
+                return 0
+        replicas = 1 if runbook == "grid-1l4" else 2
         paths = grid_cards.write_suite(replicas)
         print(f"suite card → {paths['md']}")
         return 0
@@ -2097,6 +2675,18 @@ def _cmd_dev(args) -> int:
 
 
 def _cmd_board(args) -> int:
+    from mailroom_sandbox.services.poll import periodic_services
+
+    interval = getattr(args, "probe_interval", 0)
+    live = getattr(args, "live", False)
+    if live and not interval:
+        raise ServiceError("board --live requires --probe-interval SECS")
+    root = Path(args.root).expanduser() if args.root else None
+    with periodic_services(args.profile, interval=interval, live=live, root=root):
+        return _run_board(args)
+
+
+def _run_board(args) -> int:
     from mailroom_sandbox.tui import board as board_mod
 
     root = Path(args.root).expanduser() if args.root else None
@@ -2122,6 +2712,8 @@ def _cmd_beacon_update(args) -> int:
     if args.log:
         b.log(args.log)
     if args.finish:
+        if fields["phase"] is None:
+            del fields["phase"]  # let finish() stamp DONE/FAILED instead of keeping the old phase
         b.finish(args.finish, metrics=metrics or None, **fields)
     else:
         b.update(metrics=metrics or None, **fields)
@@ -2222,10 +2814,10 @@ def _cmd_run_suite(args) -> int:
                     file=sys.stderr,
                 )
                 return rc
-        print(
-            f"suite {suite.suite_id} complete — teardown with "
-            "./deploy/teardown_vllm.sh (do not teardown between configs)"
-        )
+        if getattr(args, "dry_run", False):
+            print(f"suite {suite.suite_id} planned — no jobs executed")
+        else:
+            print(f"suite {suite.suite_id} complete — teardown with ./deploy/teardown_vllm.sh (do not teardown between configs)")
         return 0
 
     if getattr(args, "json", False):
@@ -2304,46 +2896,50 @@ def _cmd_modal_matrix_help(args) -> int:
 
 
 def _cmd_modal_matrix_list(args) -> int:
+    """List the Modal vLLM matrix models (table, or JSON with --json); the default specialist posture is starred.
+
+    """
     from mailroom_sandbox.modal_matrix import list_modal_models
 
     rows = list_modal_models()
     if getattr(args, "json", False):
         _print({"models": rows})
-        return 0
-    print(f"{'default':8} {'gpu':14} {'quant':8} {'ctx':6} {'tp':3} model")
-    for row in rows:
-        flag = "*" if row.get("default") else " "
-        print(
-            f"{flag:8} {str(row.get('gpu') or '-'):14} "
-            f"{str(row.get('quantization') or '-'):8} "
-            f"{str(row.get('max_model_len') or '-'):6} "
-            f"{str(row.get('tp_size') or 1):3} {row['model']}"
-        )
-    print("\n* = default specialist cost-eval posture (sandbox runbook show l4-qwen3-8b)")
+    else:
+        print(f"{'default':8} {'gpu':14} {'quant':8} {'ctx':6} {'tp':3} model")
+        for row in rows:
+            flag = "*" if row.get("default") else " "
+            print(
+                f"{flag:8} {str(row.get('gpu') or '-'):14} "
+                f"{str(row.get('quantization') or '-'):8} "
+                f"{str(row.get('max_model_len') or '-'):6} "
+                f"{str(row.get('tp_size') or 1):3} {row['model']}"
+            )
+        print("\n* = default specialist cost-eval posture (sandbox runbook show l4-qwen3-8b)")
     return 0
 
 
 def _cmd_modal_matrix_show(args) -> int:
+    """Show one Modal matrix row with its env exports and cutover hints (JSON with --json)."""
     from mailroom_sandbox.modal_matrix import cutover_hints, resolve_modal_row
 
     resolved = resolve_modal_row(args.model, gpu_override=args.gpu)
     if getattr(args, "json", False):
         _print({**resolved, "hints": cutover_hints(resolved)})
-        return 0
-    print(f"model:          {resolved['model']}")
-    print(f"gpu:            {resolved['gpu']}")
-    print(f"quantization:   {resolved['quantization'] or '(none / bf16 or auto-FP8)'}")
-    print(f"max_model_len:  {resolved['max_model_len']}")
-    print(f"tp_size:        {resolved['tp_size']}")
-    print(f"default_posture:{resolved['is_default']}")
-    if resolved.get("notes"):
-        print(f"notes:          {resolved['notes']}")
-    print("env:")
-    for k, v in resolved["env"].items():
-        print(f"  export {k}={v}")
-    print("hints:")
-    for h in cutover_hints(resolved):
-        print(f"  - {h}")
+    else:
+        print(f"model:          {resolved['model']}")
+        print(f"gpu:            {resolved['gpu']}")
+        print(f"quantization:   {resolved['quantization'] or '(none / bf16 or auto-FP8)'}")
+        print(f"max_model_len:  {resolved['max_model_len']}")
+        print(f"tp_size:        {resolved['tp_size']}")
+        print(f"default_posture:{resolved['is_default']}")
+        if resolved.get("notes"):
+            print(f"notes:          {resolved['notes']}")
+        print("env:")
+        for k, v in resolved["env"].items():
+            print(f"  export {k}={v}")
+        print("hints:")
+        for h in cutover_hints(resolved):
+            print(f"  - {h}")
     return 0
 
 
@@ -2355,15 +2951,38 @@ def _cmd_modal_matrix_env(args) -> int:
 
 
 def _run_load_spec(args) -> tuple[object, Path]:
+    """Return a run spec with CLI overrides and its resolved config path.
+
+    Per-agent and per-role CLI choices win over the YAML selections.
+    Raises SystemExit when ``--config`` is absent; loading and override
+    validation errors propagate.
+    """
     config = getattr(args, "config", None)
     if not config:
         raise SystemExit("run commands need --config <run.yaml>")
     from mailroom_sandbox.job.spec import load_run_spec
 
-    return load_run_spec(config), Path(config)
+    spec = load_run_spec(config)
+    if getattr(args, "model", None):
+        spec.engine.model = args.model
+    cli_models = _agent_models(args)
+    if cli_models:
+        spec.agent_models = {**getattr(spec, "agent_models", {}), **cli_models}
+    if getattr(args, "agent_routes", None):
+        from mailroom_sandbox.agent_routes import parse_routes
+        spec.agent_routes = {**spec.agent_routes, **parse_routes(args.agent_routes)}
+    cli_versions = getattr(args, "prompt_versions", None)
+    if cli_versions:
+        # --prompt-version wins per role over the spec's prompt.versions; the merged
+        # selection is part of spec_hash, so the lock names it.
+        from mailroom_sandbox.prompt_versions import merge_into_spec_prompt
+
+        spec.prompt = merge_into_spec_prompt(spec.prompt, cli_versions)
+    return spec, Path(config).resolve()
 
 
 def _run_id_required(args) -> str:
+    """Return ``--run-id`` or the id embedded in ``--config``."""
     run_id = getattr(args, "run_id", None) or ""
     if not run_id and getattr(args, "config", None):
         from mailroom_sandbox.job.spec import load_run_spec
@@ -2374,62 +2993,87 @@ def _run_id_required(args) -> str:
     return run_id
 
 
+# Preflight refusals are exit 3 — an operator must decide (re-lock, or name the
+# takeover). Any other non-prepared status is exit 1: something is broken.
+_REFUSAL_STATUSES = {"drift_refused", "foreign_store_refused", "busy_refused"}
+
+
 def _cmd_run_preflight(args) -> int:
+    """Run job preflight and print the lock report."""
     from mailroom_sandbox.job import preflight
 
-    spec, _ = _run_load_spec(args)
+    spec, config_path = _run_load_spec(args)
     report = preflight.preflight(
         spec,
         run_id=getattr(args, "run_id", None) or "",
+        config_path=config_path,
         offline=bool(getattr(args, "offline", False)),
         force=bool(getattr(args, "force", False)),
         dry_run=bool(getattr(args, "dry_run", False)),
-        live=bool(getattr(args, "live", False)),
+        live=False,
     )
+    if report.get("status") == "prepared" and getattr(args, "live", False) and not getattr(args, "dry_run", False):
+        from mailroom_sandbox.job.checkpoint import RunStore
+        from mailroom_sandbox.job.spec import run_dir
+        from mailroom_sandbox.job.spend import authorize
+
+        store = RunStore(run_dir(report["run_id"]))
+        authorize(store, initials=getattr(args, "initials", None), probe=True)
+        probe = preflight.probe_engine(spec)
+        report["checks"].append({"name": "live_engine", **probe})
+        if not probe.get("ok"):
+            report["status"] = "failed"
+        else:
+            measurement = preflight.record_cold_boot(store, probe, run_id=report["run_id"])
+            if measurement is not None:
+                report["cold_boot_seconds"] = measurement["cold_boot_seconds"]
+                report["cold_boot_path"] = str(store.cold_boot_path)
     _print(report)
     if report.get("status") == "prepared":
         return 0
-    return 3 if report.get("status") == "drift_refused" else 1
+    return 3 if report.get("status") in _REFUSAL_STATUSES else 1
 
 
 def _cmd_run_start(args) -> int:
+    """Lock a run via preflight, then start it locally or on Modal."""
     from mailroom_sandbox.job import preflight
     from mailroom_sandbox.job import remote as job_remote
     from mailroom_sandbox.job import runner
     from mailroom_sandbox.job.checkpoint import RunStore
     from mailroom_sandbox.job.spec import run_dir
 
-    spec, _ = _run_load_spec(args)
-    # DMR-072: the job path must activate the runtime profile like every other
-    # live CLI path. Without it the vendored pipeline loads its own default
-    # config (openrouter, no key) and the sorter node falls through to the
-    # graph's doc_type="unknown" default — a 50-item "run" then "completes" in
-    # seconds with 0.0 scores, ok=True rows, and zero endpoint calls (the
-    # silent-fallback trap; now also hard-guarded in runner._predict_row).
-    activate(
-        spec.profile,
-        model=_activation_model(spec, getattr(args, "model", None)),
-        agent_models=_agent_models(args),
-        agent_knobs=_activation_knobs(spec),
-    )
+    spec, config_path = _run_load_spec(args)
     if getattr(args, "mock", None) is not None or getattr(args, "local", None) is not None:
         spec.job.mock = bool(args.mock)
+    if getattr(args, "mode", None):
+        spec.job.mode = args.mode
     report = preflight.preflight(
         spec,
         run_id=getattr(args, "run_id", None) or "",
+        config_path=config_path,
         offline=bool(getattr(args, "offline", False)),
         force=bool(getattr(args, "force", False)),
         dry_run=bool(getattr(args, "dry_run", False)),
-        live=bool(getattr(args, "live", False)),
+        live=False,
     )
     if report.get("status") != "prepared":
         _print(report)
-        return 3 if report.get("status") == "drift_refused" else 1
+        return 3 if report.get("status") in _REFUSAL_STATUSES else 1
     run_id = report["run_id"]
     if getattr(args, "dry_run", False):
         _print({"run_id": run_id, "state": "dry_run"})
         return 0
     store = RunStore(run_dir(run_id))
+    store.verify_generation()
+    from mailroom_sandbox.job.spend import authorize
+
+    authorize(store, initials=getattr(args, "initials", None), probe=bool(getattr(args, "live", False)))
+    if getattr(args, "live", False):
+        probe = preflight.probe_engine(spec)
+        if not probe.get("ok"):
+            _print({"run_id": run_id, "state": "engine_unreachable", **probe})
+            return 1
+        preflight.record_cold_boot(store, probe, run_id=run_id)
     mode = getattr(args, "mode", None) or spec.job.mode
     if mode == "modal":
         # DMR-048: default live probe before firing — a stale VLLM_BASE_URL
@@ -2449,6 +3093,7 @@ def _cmd_run_start(args) -> int:
                     }
                 )
                 return 1
+            _pf.record_cold_boot(store, probe, run_id=run_id)
         remote_action = job_remote.ensure_running(store)
         _print(remote_action)
         if not getattr(args, "watch", False):
@@ -2524,7 +3169,11 @@ def _endpoint_tracer(run_id: str, lock: dict):
 
 
 def _finalize_remote(store) -> bool:
-    """Pull a terminal remote run's dir back and append its records locally."""
+    """Pull terminal artifacts and append records matching the local generation.
+
+    Return False for a reported transfer/validation failure, True otherwise.
+    Store validation, JSON parsing, and local log write errors propagate.
+    """
     from mailroom_sandbox.eval import experiment_log
     from mailroom_sandbox.job import remote as job_remote
 
@@ -2539,11 +3188,22 @@ def _finalize_remote(store) -> bool:
     if record_path.is_file():
         for line in record_path.read_text(encoding="utf-8").splitlines():
             if line.strip():
-                experiment_log.append(json.loads(line))
+                from mailroom_sandbox.job.evidence import record_matches
+
+                record = json.loads(line)
+                lock = store.verify_generation()
+                if record_matches(record, store, lock, state=store.state()):
+                    experiment_log.append(record)
     return True
 
 
 def _watch_remote(store, args) -> int:
+    """Poll remote progress and finalize terminal artifacts into the local store.
+
+    Return 0 for a completed run or 1 for failure, failed finalization, or
+    20 minutes without a heartbeat when the remote call is no longer alive.
+    Store and finalization exceptions propagate.
+    """
     from mailroom_sandbox.job import remote as job_remote
     from mailroom_sandbox.tui.session import MailroomConsole, remote_progress_line
 
@@ -2580,7 +3240,8 @@ def _watch_remote(store, args) -> int:
             except ValueError:
                 pass
         if state in {"done", "failed"}:
-            _finalize_remote(store)
+            if not _finalize_remote(store):
+                return 1
             console.complete(state=state, summary=store.run_id)
             if state == "failed":
                 error = (progress or {}).get("error") or (store.read_checkpoint() or {}).get(
@@ -2608,6 +3269,12 @@ def _watch_remote(store, args) -> int:
 
 
 def _cmd_run_status(args) -> int:
+    """Print the local summary and available remote progress, or watch the run.
+
+    Fetch terminal remote artifacts before reporting. Return 1 for a missing
+    lock or failed finalization, otherwise 0, or the watch exit code.
+    Store and remote-operation exceptions propagate.
+    """
     from mailroom_sandbox.job.checkpoint import RunStore
     from mailroom_sandbox.job.spec import run_dir
     from mailroom_sandbox.job import remote as job_remote
@@ -2622,7 +3289,8 @@ def _cmd_run_status(args) -> int:
     remote_progress = job_remote.read_progress(store) if _job_mode(store) == "modal" else None
     if remote_progress and remote_progress.get("state") in {"done", "failed"}:
         # Terminal remote run: sync items/checkpoints/records back locally.
-        _finalize_remote(store)
+        if not _finalize_remote(store):
+            return 1
     summary = store.summary()
     payload = summary
     if remote_progress:
@@ -2632,22 +3300,18 @@ def _cmd_run_status(args) -> int:
 
 
 def _cmd_run_resume(args) -> int:
+    """Resume a locked run after re-checking preflight when ``--config`` is set.
+
+    Run-ID-only overrides must match the frozen model and prompt choices.
+    Return 3 for drift or preflight refusal, 1 for missing/invalid artifacts
+    or execution failure, 2 for a paused local run, and 0 for local completion
+    or remote dispatch/attach. Watching returns its own exit code.
+    Uncaught spec-loading and remote-operation errors propagate.
+    """
     from mailroom_sandbox.job.checkpoint import RunStore
     from mailroom_sandbox.job.spec import run_dir
 
     run_id = _run_id_required(args)
-    # DMR-072: same profile-activation contract as `run start` — resuming an
-    # endpoint-mode job must not re-enter the unactivated silent-fallback path.
-    if getattr(args, "config", None):
-        from mailroom_sandbox.job.spec import load_run_spec
-
-        _spec = load_run_spec(args.config)
-        activate(
-            _spec.profile,
-            model=_activation_model(_spec, getattr(args, "model", None)),
-            agent_models=_agent_models(args),
-            agent_knobs=_activation_knobs(_spec),
-        )
     store = RunStore(run_dir(run_id))
     if not store.read_lock():
         _print({"run_id": run_id, "error": "no locked run to resume"})
@@ -2655,11 +3319,44 @@ def _cmd_run_resume(args) -> int:
     if getattr(args, "config", None):
         from mailroom_sandbox.job import preflight
 
-        spec, _ = _run_load_spec(args)
-        report = preflight.preflight(spec, run_id=run_id, offline=False, force=bool(getattr(args, "force", False)))
-        if report.get("status") == "drift_refused":
+        spec, config_path = _run_load_spec(args)
+        report = preflight.preflight(
+            spec,
+            run_id=run_id,
+            config_path=config_path,
+            offline=bool(getattr(args, "offline", False)),
+            force=bool(getattr(args, "force", False)),
+        )
+        if report.get("status") != "prepared":
             _print(report)
-            return 3
+            return 3 if report.get("status") in _REFUSAL_STATUSES else 1
+    # A run-id-only resume may repeat the locked choices, never alter them
+    # implicitly. New choices need a config and an explicit safe generation reset.
+    try:
+        lock = store.verify_generation()
+    except RuntimeError as exc:
+        _print({"run_id": run_id, "status": "failed", "detail": str(exc)})
+        return 1
+    cli_model = getattr(args, "model", None)
+    cli_models = _agent_models(args) or {}
+    from mailroom_sandbox.agent_routes import parse_routes
+    cli_routes = {name: route.model_dump() for name, route in parse_routes(getattr(args, "agent_routes", None)).items()}
+    from mailroom_sandbox.prompt_versions import parse_selection, selection_from_lock
+
+    cli_prompts = parse_selection(getattr(args, "prompt_versions", None))
+    locked_prompts = selection_from_lock(store.read_prompt_lock() or {}).keys
+    drifted = (
+        (cli_model is not None and cli_model != (lock.get("engine") or {}).get("model"))
+        or any((lock.get("agent_models") or {}).get(name) != value for name, value in cli_models.items())
+        or any(locked_prompts.get(name) != value for name, value in cli_prompts.items())
+        or any((lock.get("agent_routes") or {}).get(name) != value for name, value in cli_routes.items())
+    )
+    if drifted:
+        _print({"run_id": run_id, "status": "drift_refused", "detail": "runtime overrides differ from the lock"})
+        return 3
+    from mailroom_sandbox.job.spend import authorize
+
+    authorize(store, initials=getattr(args, "initials", None))
     if _job_mode(store) == "modal":
         from mailroom_sandbox.job import remote as job_remote
 
@@ -2682,6 +3379,12 @@ def _job_mode(store) -> str:
 
 
 def _cmd_run_cancel(args) -> int:
+    """Request remote cancellation or cooperative cancellation of a running local job.
+
+    Idle local runs are left without a pending request. Return 1 when no
+    local lock exists, otherwise 0 after reporting the request or idle state.
+    Remote cancellation and store errors propagate.
+    """
     from mailroom_sandbox.job.checkpoint import RunStore
     from mailroom_sandbox.job.remote import cancel as remote_cancel
     from mailroom_sandbox.job.spec import run_dir
@@ -2693,11 +3396,23 @@ def _cmd_run_cancel(args) -> int:
         remote_cancel(store)
         _print({"run_id": run_id, "state": "cancel_requested"})
         return 0
-    store.write_checkpoint(
-        state="paused", cursor=cp.get("cursor", 0), total=cp.get("total", 0), remote=None
-    )
-    store.append_event("cancel_requested", "info")
-    _print(store.summary())
+    if not store.read_lock():
+        _print({"run_id": run_id, "error": "no locked run to cancel"})
+        return 1
+    # Only a running writer can consume a pending token. Otherwise an idle
+    # cancel would make the next resume pause before submitting its first row.
+    active = False
+    if cp.get("state") == "running":
+        try:
+            with store.acquire(blocking=False):
+                pass
+        except BlockingIOError:
+            active = True
+    if not active:
+        _print({"run_id": run_id, "state": cp.get("state"), "detail": "no active local runner"})
+        return 0
+    store.request_cancel()
+    _print({"run_id": run_id, "state": "cancel_requested"})
     return 0
 
 
@@ -2720,6 +3435,11 @@ def _cmd_runbook_help(args) -> int:
 
 
 def _cmd_runbook_list(args) -> int:
+    """Print runbooks, optionally filtered by family, and return 0.
+
+    Text lists ids, families, titles, and blocked markers; JSON also includes
+    serving variants. Catalog loading and validation errors propagate.
+    """
     from mailroom_sandbox.job.runbooks import get_runbook, list_runbook_ids
 
     ids = list_runbook_ids(family=getattr(args, "family", None))
@@ -2737,12 +3457,12 @@ def _cmd_runbook_list(args) -> int:
         )
     if getattr(args, "json", False):
         _print({"runbooks": rows})
-        return 0
-    print("Runbooks (config/runbooks/catalog.yaml):")
-    for row in rows:
-        flag = " BLOCKED" if row["blocked"] else ""
-        print(f"  {row['id']:36}  [{row['family']}]{flag}  {row['title']}")
-    print("Show: sandbox runbook show l4-qwen3-8b")
+    else:
+        print("Runbooks (config/runbooks/catalog.yaml):")
+        for row in rows:
+            flag = " BLOCKED" if row["blocked"] else ""
+            print(f"  {row['id']:36}  [{row['family']}]{flag}  {row['title']}")
+        print("Show: sandbox runbook show l4-qwen3-8b")
     return 0
 
 
@@ -2806,7 +3526,43 @@ def _cmd_runbook_write(args) -> int:
 
 
 def _cmd_prompts_help(args):
-    print("Use: sandbox prompts list | sandbox prompts show <agent> [--variant X]")
+    print(
+        "Use: sandbox prompts list | sandbox prompts show <agent> [--variant X]\n"
+        "     sandbox prompts list-versions [--role R] [--lineage archived|frozen|mutation] [--json]\n"
+        "     sandbox prompts show <version-key> [--diff <other-key> | --memo | --json]"
+    )
+    return 0
+
+
+def _cmd_prompts_list_versions(args) -> int:
+    from mailroom_sandbox import prompt_catalog as catalog
+
+    try:
+        rows = catalog.list_versions(role=args.role, lineage=args.lineage)
+    except KeyError as exc:
+        print(f"error: {exc.args[0]}", file=sys.stderr)
+        return 2
+    if getattr(args, "json", False):
+        _print(rows)
+    else:
+        print(catalog.format_version_table(rows))
+    return 0
+
+
+def _show_prompt_version(args) -> int:
+    from mailroom_sandbox import prompt_catalog as catalog
+
+    if args.diff and args.memo:
+        print("error: --diff and --memo are mutually exclusive", file=sys.stderr)
+        return 2
+    try:
+        if getattr(args, "json", False):
+            _print(catalog.version_json(args.name))
+            return 0
+        sys.stdout.write(catalog.show_version(args.name, memo_only=args.memo, diff_against=args.diff))
+    except KeyError as exc:
+        print(f"error: {exc.args[0]}", file=sys.stderr)
+        return 2
     return 0
 
 
@@ -2822,6 +3578,10 @@ def _cmd_prompts_show(args) -> int:
     from mailroom_sandbox.prompt_registry import FAMILY_B_KEYS, agent_prompt_names, resolve_prompt
 
     name = args.name
+    from mailroom_sandbox.prompt_catalog import is_version_key
+
+    if is_version_key(name) or getattr(args, "diff", None) or getattr(args, "memo", False):
+        return _show_prompt_version(args)
     if name not in agent_prompt_names():
         print(
             f"error: unknown agent {name!r} — have {sorted(agent_prompt_names())} "
@@ -2858,11 +3618,11 @@ def _cmd_metrics_help(args):
 
 
 _DEFAULT_SPECIALIST_SUITE = (
-    "config/runs/run-30-contracts-specialist.yaml",
-    "config/runs/run-30-merger-specialist.yaml",
-    "config/runs/run-30-corporate-records-specialist.yaml",
-    "config/runs/run-30-correspondence-specialist.yaml",
-    "config/runs/run-30-insurance-claims-specialist.yaml",
+    "config/runs/legacy/run-30-contracts-specialist.yaml",
+    "config/runs/legacy/run-30-merger-specialist.yaml",
+    "config/runs/legacy/run-30-corporate-records-specialist.yaml",
+    "config/runs/legacy/run-30-correspondence-specialist.yaml",
+    "config/runs/legacy/run-30-insurance-claims-specialist.yaml",
 )
 
 
@@ -3078,21 +3838,12 @@ def _cmd_metrics_compare(args) -> int:
                 )
                 return 1
             lock = store.read_lock() or {}
-            items = store.load_items()
-            engine = lock.get("engine") or {}
-            modal = (engine.get("modal") or {}) if isinstance(engine, dict) else {}
-            gpu = str(modal.get("gpu") or "").split(":")[0] or None
-            rec = metrics.record_from_run(
-                run_id=run_id,
-                spec_hash=store.spec_hash() or "",
-                task=lock.get("task", "?"),
-                profile=lock.get("profile", "?"),
-                model=(lock.get("engine") or {}).get("model") or "?",
-                prompt_version=str((lock.get("prompt") or {}).get("default", {}).get("source") or "code-default"),
-                dataset_fingerprint=(lock.get("dataset") or {}).get("sha256", "") or "",
-                items=items,
-                gpu=gpu,
-            )
+            # Use the same source as the cards: the run's own container-telemetry
+            # window x replicas x rate. Calling record_from_run directly leaves
+            # billed_window_seconds unset, which falls back to the latency SUM —
+            # a busy-time lower bound the cost doc itself warns OVERCOUNTS at
+            # concurrency > 1 (it read 1.91 USD against 0.27 USD of real spend).
+            rec = metrics.serving_record_from_store(store)
             records.append(rec)
     result = metrics.compare(records)
     if getattr(args, "json", False):

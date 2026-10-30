@@ -134,4 +134,4 @@ Review any new hits against the classification legend and update this file.
 
 1. Before any OpenRouter spend: confirm `qwen/qwen3.7-flash` still listed (or pick a successor and update `config/models.yaml` + api-evals pins).
 2. Do **not** point hosted runs at `qwen/qwen3-8b` after 2026-10-10.
-3. Keep default profiles on `ollama` / `modal-vllm` for cost-eval; OpenRouter remains opt-in (`docs/providers.md`).
+3. Keep default profiles on `ollama` / `modal-vllm` for cost-eval; OpenRouter remains opt-in (`docs/setting-up/providers.md`).

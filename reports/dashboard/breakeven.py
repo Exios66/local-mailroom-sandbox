@@ -69,7 +69,7 @@ def analyze(D, exclude=frozenset()) -> dict:
     s2a, s2b = (D["fleet"][k]["busy_usd"] / D["fleet"][k]["ok"] for k in ("sand032-s2a-corr100-1rep", "sand032-s2b-corr100-2rep"))
     by_cls: dict[str, list[dict]] = {}
     for run, f in D["fleet"].items():
-        c = CLS_OF_DIR.get(f["report"].split("/")[0])
+        c = next((CLS_OF_DIR[part] for part in f["report"].split("/") if part in CLS_OF_DIR), None)
         if c and run not in exclude:
             by_cls.setdefault(c, []).append(_modal(D, run))
     rows, configs = [], []

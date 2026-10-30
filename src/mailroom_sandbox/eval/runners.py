@@ -24,7 +24,7 @@ from mailroom_sandbox.eval.prompt_provenance import (
     resolve_logged_prompt_version,
     stamp_prompt_provenance,
 )
-from mailroom_sandbox.eval.scoring import emit
+from mailroom_sandbox.eval.scoring import emit, validate_dataset_revision
 from mailroom_sandbox.mock_llm import fake_client, fake_structured_payload
 from mailroom_sandbox.runtime import activate, resolve_mailroom_src
 
@@ -127,6 +127,7 @@ def run_isolated_eval(
     *,
     mock: bool = True,
     sample: int | None = None,
+    sample_seed: int | None = None,
     dry_run: bool = False,
     experiment_name: str | None = None,
     prompt_version: str | None = None,
@@ -143,6 +144,7 @@ def run_isolated_eval(
     progress_cb: Any = None,
     replicas: int = 1,
     row_cb: Any = None,
+    score_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Run one live agent / node against fixtures, nested under document-pipeline.
 
@@ -167,8 +169,10 @@ def run_isolated_eval(
 
         prompt_version = default_prompt_variant(task)
     rows = spec.load_rows() if rows is None else rows
-    if sample:
-        rows = rows[: sample]
+    if sample is not None:
+        if sample <= 0:
+            raise ValueError("sample must be positive")
+        rows = _seeded_sample(rows, sample, sample_seed) if sample_seed is not None else rows[:sample]
     plan = {
         "task": task,
         "n": len(rows),
@@ -331,6 +335,7 @@ def run_isolated_eval(
                 value=float(mean),
                 agent=task,
                 run_id=experiment_name,
+                metadata=dict(score_metadata or {}),
             )
         )
     completed = [e for e in per_row if e is not None]
@@ -409,6 +414,7 @@ def run_sorter_eval(
     *,
     mock: bool = True,
     sample: int | None = None,
+    sample_seed: int | None = None,
     dry_run: bool = False,
     experiment_name: str | None = None,
     prompt_version: str | None = None,
@@ -418,8 +424,10 @@ def run_sorter_eval(
     rows: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     rows = load_manifest() if rows is None else rows
-    if sample:
-        rows = rows[: sample]
+    if sample is not None:
+        if sample <= 0:
+            raise ValueError("sample must be positive")
+        rows = _seeded_sample(rows, sample, sample_seed) if sample_seed is not None else rows[:sample]
     plan = {
         "task": "sorter",
         "n": len(rows),
@@ -493,6 +501,7 @@ def run_extract_eval(
     *,
     mock: bool = True,
     sample: int | None = None,
+    sample_seed: int | None = None,
     dry_run: bool = False,
     experiment_name: str | None = None,
     profile: str | None = None,
@@ -502,8 +511,10 @@ def run_extract_eval(
     rows: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     rows = [r for r in (load_manifest() if rows is None else rows) if parse_expected_fields(r)]
-    if sample:
-        rows = rows[: sample]
+    if sample is not None:
+        if sample <= 0:
+            raise ValueError("sample must be positive")
+        rows = _seeded_sample(rows, sample, sample_seed) if sample_seed is not None else rows[:sample]
     plan = {"task": "extract", "n": len(rows), "mock": mock, "fingerprint": dataset_fingerprint(rows)}
     if dry_run:
         return plan
@@ -523,6 +534,9 @@ def run_extract_eval(
             # DMR-056: live corpus rows carry doc_text inline (no fixture file).
             doc_text=row.get("doc_text")
             or (fixture_file(row).read_text(encoding="utf-8") if fixture_file(row).is_file() else None),
+            # Per-subclass scoring (sandbox #145): the row's GT subclass drives
+            # the vendored corporate-record alignment (see scoring.py).
+            expected_subclass=row.get("expected_subclass"),
         )
         schema_rows.append(scored)
         value = scored.get("overall_extraction_score")
@@ -609,12 +623,19 @@ def run_legalbench_eval(
     model: str | None = None,
     agent_models: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    """Run the LegalBench harness (binary QA / family classification).
+    """Run the LegalBench binary QA harness.
 
     ``suite=True`` loads a seeded subset from the vendored llm-mailroom suite
     (the real CUAD corpora — loud failure when unavailable); the default is
     the committed offline fixture. ``sample`` is a seeded draw, never
     first-N, and the seed lands in the plan/record (DMR-049 F5).
+
+    Return the plan alone for ``dry_run``; otherwise add ``scores`` and append
+    an experiment record. Raise ValueError for unknown tasks, the unsupported
+    ``family_classification`` task, a suite without a sample, or empty input.
+    Dataset-loading errors propagate. Individual live-answer errors become
+    empty predictions and an ``error_count`` score; if every row fails, raise
+    RuntimeError. Activation, scoring, and experiment-log errors propagate.
     """
     if task not in LEGALBENCH_TASKS:
         raise ValueError(f"unknown legalbench task {task!r}; have {sorted(LEGALBENCH_TASKS)}")
@@ -675,6 +696,7 @@ def run_legalbench_eval(
             tags=tracing.default_tags("source-legalbench"),
         ):
             with tracing.child_observation("answer-question", as_type="generation"):
+                # The answer is already computed above; this span only marks it.
                 pass
     tracing.flush_traces()
     scores = scoring.score_legalbench(expected, predicted)
@@ -710,12 +732,28 @@ def run_local_vs_api_eval(
     agent_models: dict[str, str] | None = None,
     from_log: bool = False,
     connected: bool = False,
+    score_metadata: dict[str, Any] | None = None,
+    group: str | int | None = None,
+    dataset_revision: str | None = None,
 ) -> dict[str, Any]:
     """Compare local (Ollama/vLLM/…) vs API-key (OpenRouter) serving metrics.
 
     ``--mock`` uses committed fixture timings (no LLM, no ``OPENROUTER_API_KEY``).
-    ``from_log`` partitions ``reports/experiment_log.jsonl`` via dojo
-    ``split_local_api`` / ``get_suite("local_vs_api")``.
+    ``from_log`` partitions ``reports/experiment_log.jsonl`` by full identity
+    (model / prompt / task / dataset) and compares every comparable local-vs-API
+    group separately — the dojo refuses a leg that pools different identities
+    (``identity_mixed``). With several groups the headline ``scores`` need one
+    group: pass ``group`` (1-based index or unique label substring; CLI
+    ``--group``); otherwise they stay empty and every group's scorecard is still
+    emitted under ``<name>.g<n>``.
+
+    Scorecards fail loudly: a group that cannot be emitted with honest
+    provenance (no ``dataset_revision`` on its records, an incomparable leg)
+    RAISES :class:`~mailroom_sandbox.eval.scoring.ScorecardEmissionError` and
+    nothing is written or logged. ``dataset_revision`` (CLI
+    ``--dataset-revision``) supplies the real 40-hex Hub sha the scored rows
+    came from when the records carry none; it can fill a gap, never override a
+    revision a record already has.
     """
     del sample, connected, agent_models  # unused; kept for eval kwargs parity
     from mailroom_sandbox.datasets import load_serving_fixtures
@@ -735,7 +773,7 @@ def run_local_vs_api_eval(
 
     activation = activate(profile, model=model, prompt_variant=prompt_version)
     if from_log:
-        compared = scoring.compare_from_records(experiment_log.load())
+        compared = scoring.compare_from_records(experiment_log.load(), group=group)
         source = "experiment_log"
         local_rec = None
         api_rec = None
@@ -753,6 +791,16 @@ def run_local_vs_api_eval(
             "api_n": 1,
             "unknown_n": 0,
             "pairs": [compared],
+            "groups": [
+                {
+                    "group": 1,
+                    "label": "fixtures",
+                    "comparison": compared,
+                    "incomparable_reason": compared.get("incomparable_reason"),
+                }
+            ],
+            "unpaired": [],
+            "selected_group": 1,
             "comparison": compared,
             "headlines": headlines,
             "table": compared.get("table") or [],
@@ -785,10 +833,18 @@ def run_local_vs_api_eval(
         "api_n": compared.get("api_n"),
         "n": (compared.get("local_n") or 0) + (compared.get("api_n") or 0),
     }
-    if comparison:
-        scoring.emit_local_vs_api_scorecard(
-            comparison, run_id=experiment_name or "sandbox_local_vs_api"
-        )
+    provenance = None
+    if dataset_revision:
+        rev = validate_dataset_revision(dataset_revision)
+        provenance = {"local": {"dataset_revision": rev}, "api": {"dataset_revision": rev}}
+    scorecards = scoring.emit_group_scorecards(
+        compared,
+        run_id=experiment_name or "sandbox_local_vs_api",
+        metadata=score_metadata,
+        provenance=provenance,
+    )
+    scores["scorecards_emitted"] = len(scorecards)
+    scores["groups_n"] = len(compared.get("groups") or [])
     record = experiment_log.new_record(
         experiment_name=experiment_name or "sandbox_local_vs_api",
         task="local_vs_api",
@@ -804,11 +860,18 @@ def run_local_vs_api_eval(
         tracing_backend=tracing.tracing_backend(),
         tags=tracing.default_tags("source-serving", "local-vs-api"),
         local_vs_api=compared,
+        scorecards=scorecards,
         serving_markdown=markdown,
         source=source,
     )
     experiment_log.append(record)
-    return {**plan, "scores": scores, "comparison": compared, "record": record}
+    return {
+        **plan,
+        "scores": scores,
+        "comparison": compared,
+        "scorecards": scorecards,
+        "record": record,
+    }
 
 
 def run_sorter_vs_modernbert_eval(
@@ -968,6 +1031,7 @@ def run_pipeline_eval(
     *,
     mock: bool = True,
     sample: int | None = None,
+    sample_seed: int | None = None,
     dry_run: bool = False,
     experiment_name: str | None = None,
     profile: str | None = None,
@@ -976,12 +1040,20 @@ def run_pipeline_eval(
     agent_models: dict[str, str] | None = None,
     connected: bool = True,
     rows: list[dict[str, Any]] | None = None,
+    row_cb=None,
+    progress_cb=None,
+    max_wall_seconds: int | None = None,
+    cost_cap_usd: float | None = None,
+    gpu: str | None = None,
+    replicas: int = 1,
 ) -> dict[str, Any]:
     # DMR-056: rows=None keeps the fixture manifest default; the sandbox job
     # whole-run path passes the LOCKED live dataset rows instead.
     rows = load_manifest() if rows is None else rows
-    if sample:
-        rows = rows[: sample]
+    if sample is not None:
+        if sample <= 0:
+            raise ValueError("sample must be positive")
+        rows = _seeded_sample(rows, sample, sample_seed) if sample_seed is not None else rows[:sample]
     plan = {
         "task": "pipeline",
         "n": len(rows),
@@ -997,8 +1069,27 @@ def run_pipeline_eval(
     )
     session = tracing.session_id_for("pipeline")
     results = []
+    import time
+    started = time.monotonic()
     for row in rows:
-        results.append(_run_pipeline_doc(row, mock=mock, session_id=session, experiment_name=experiment_name))
+        elapsed = time.monotonic() - started
+        if not mock:
+            if max_wall_seconds is not None and elapsed >= max_wall_seconds:
+                raise RuntimeError("pipeline wall-time cap exceeded before next document")
+            if cost_cap_usd is not None:
+                from mailroom_sandbox.job.metrics import estimate_gpu_cost_usd
+                if float(estimate_gpu_cost_usd(elapsed, gpu=gpu or "L4", replicas=replicas) or 0) >= cost_cap_usd:
+                    raise RuntimeError("pipeline estimated GPU cost cap exceeded before next document")
+        before = time.monotonic()
+        result = _run_pipeline_doc(row, mock=mock, session_id=session, experiment_name=experiment_name)
+        results.append(result)
+        if row_cb:
+            row_cb({"id": row.get("id"), "pred": result, "error": result.get("error"),
+                    "score": {"match": float(result.get("doc_type") == row.get("expected_doc_class"))},
+                    "latency_ms": (time.monotonic() - before) * 1000})
+        if progress_cb:
+            errors = sum(bool(item.get("error")) for item in results)
+            progress_cb(len(results), len(rows), len(results) - errors, errors)
     expected = [r["expected_doc_class"] for r in rows]
     predicted: list[str] = []
     for row, result in zip(rows, results):
@@ -1033,6 +1124,9 @@ def run_pipeline_eval(
                     if "subdir" in row and fixture_file(row).is_file()
                     else None
                 ),
+                # Per-subclass scoring (sandbox #145): the row's GT subclass
+                # drives the vendored corporate-record alignment.
+                expected_subclass=row.get("expected_subclass"),
             )
             schema_rows.append(scored)
             value = scored.get("overall_extraction_score")
@@ -1162,6 +1256,12 @@ def _run_pipeline_doc(
     fallback; mock runs keep the deterministic fallback. ``run_id`` rides
     into ``run_pipeline`` so the catalog provenance is not NULL for
     sandbox-driven runs (DMR-052).
+
+    Return classification, stage, extraction, and ``offline_fallback`` fields;
+    successful pipeline calls also include confidence and source-path fields.
+    Import failures raise RuntimeError in live mode. Document-materialization
+    and pipeline errors propagate in both modes; mock fallback applies only
+    to import failures.
     """
     src = resolve_mailroom_src()
     name = _doc_source_name(row)
@@ -1191,6 +1291,7 @@ def _run_pipeline_doc(
             tags=tracing.default_tags("source-fixtures"),
         ):
             with tracing.child_observation("pipeline-result", as_type="generation", input=public_gt):
+                # Mock fallback: record the span without a second model call.
                 pass
         return fallback
 
@@ -1232,6 +1333,7 @@ def _run_pipeline_doc(
         "stage": result.get("stage"),
         "extracted_data": result.get("extracted_data"),
         "classification_confidence": result.get("classification_confidence"),
+        "error": result.get("error") or result.get("errors"),
         "offline_fallback": False,
         "mailroom_src": str(src) if src else None,
     }

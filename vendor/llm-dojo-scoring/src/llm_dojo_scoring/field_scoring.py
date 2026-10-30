@@ -44,8 +44,28 @@ from typing import Any, Optional
 import structlog
 
 from .config import get_settings
+from .gt_metadata import ANNOTATION_KEYS, is_empty_value, parse_json_container
+from .intents import INTENT_LABELS, normalize_intent
 
 logger = structlog.get_logger(__name__)
+
+#: Trace / format artifacts and Hub annotation stats — never enter
+#: :func:`score_extraction` (mailroom-issues #237 / #238).
+NEVER_SCORED_FIELDS: frozenset[str] = frozenset(
+    {"confidence", "reasoning"}
+) | ANNOTATION_KEYS
+
+#: Prompt-catalog keys retired from live models. Ignored unless the caller
+#: passed them in an explicit ``field_types`` map (historical rescoring).
+RETIRED_PROMPT_KEYS: frozenset[str] = frozenset(
+    {
+        "key_obligations",
+        "termination_clauses",
+        "key_provisions",
+        "key_points",
+        "referenced_communications",
+    }
+)
 
 # ---------------------------------------------------------------------------
 # Configuration accessors (kept for drop-in compatibility with the
@@ -53,19 +73,42 @@ logger = structlog.get_logger(__name__)
 # ---------------------------------------------------------------------------
 
 
+#: CMS DE-SynPUF table tokens. The published merge labels every CMS row
+#: ``claim_type=health`` while the frozen insurance prompt (and mailroom's
+#: ``INSURANCE_CLAIM_TYPES``) direct the specialist to the table token, so a
+#: correct, more specific answer used to score as a wrong name (SAND-042 RCA).
+CMS_CLAIM_TYPES: frozenset[str] = frozenset({"pde", "inpatient", "outpatient", "carrier"})
+
+
+def canonical_claim_type(predicted: Any, expected: Any) -> Any:
+    """Fold a CMS table token onto ``health`` when the GT is ``health``.
+
+    Only the CMS → health direction is folded: ``health`` predicted against
+    a CMS-token GT, or one CMS token against another, still mismatches.
+    """
+    pred = str(predicted).strip().lower()
+    if pred in CMS_CLAIM_TYPES and str(expected).strip().lower() == "health":
+        return "health"
+    return predicted
+
+
 def get_ambiguous_band() -> tuple[float, float]:
+    """Return the configured global half-open judge-review score band."""
     return get_settings().field_scoring.ambiguous_band
 
 
 def get_bipartite_match_threshold() -> float:
+    """Return the minimum similarity used for bipartite entity matching."""
     return get_settings().field_scoring.bipartite_match_threshold
 
 
 def get_embedding_model() -> str:
+    """Return the configured local sentence-transformer model name."""
     return get_settings().field_scoring.embedding_model
 
 
 def get_embedding_rescue_below() -> float:
+    """Return the string-score threshold below which embedding rescue is attempted."""
     return get_settings().field_scoring.embedding_rescue_below
 
 
@@ -76,6 +119,7 @@ def get_presence_embedding_threshold() -> float:
 
 
 def embedding_enabled() -> bool:
+    """Return whether embedding-based scoring is enabled in settings."""
     return get_settings().field_scoring.embedding_enabled
 
 
@@ -135,6 +179,7 @@ def warm_embedding_model(blocking: bool = False) -> None:
     log = logging.getLogger(__name__)
 
     def _run() -> None:
+        """Warm the embedding matcher, logging failures without interrupting scoring."""
         try:
             _get_embedding()
         except Exception as exc:  # scoring degrades to string-only
@@ -222,6 +267,7 @@ def _containment_tokens(text: str) -> set[str]:
 
 
 def _seq_ratio(a: str, b: str) -> float:
+    """Return sequence similarity, scoring two empty strings as an exact match."""
     if not a and not b:
         return 1.0
     if not a or not b:
@@ -359,6 +405,7 @@ def score_money_field(pred, exp, embedding=None) -> float:
 
 
 def _jaro_winkler(a: str, b: str) -> float:
+    """Return Jaro-Winkler similarity, falling back to sequence matching on failure."""
     if not a or not b:
         return 0.0
     try:
@@ -406,6 +453,18 @@ def score_name_field(pred, exp, embedding=None) -> float:
     if set(_tokenize(np_)) & set(_tokenize(ne)):
         base = max(base, _jaro_winkler(np_, ne))
     return _with_embedding_rescue(base, pred, exp, embedding)
+
+
+def score_label_field(pred, exp, embedding=None) -> float:
+    """Exact match on a controlled label: 1.0 when both sides compact
+    (lowercase, alphanumerics only) to the same non-empty token, else 0.0.
+
+    No partial credit — a wrong label is a miss, not a near-miss. Callers
+    canonicalize aliases first (see ``score_extraction`` / ``intents``).
+    """
+    cp = re.sub(r"[^a-z0-9]", "", str(pred or "").lower())
+    ce = re.sub(r"[^a-z0-9]", "", str(exp or "").lower())
+    return 1.0 if cp and cp == ce else 0.0
 
 
 def score_free_text_field(pred, exp, embedding=None) -> float:
@@ -489,6 +548,7 @@ def _date_expected_is_null(exp: str) -> bool:
 def _date_phrase_contained(container: str, target: str) -> bool:
     """True when a date phrase stated in ``target`` appears in ``container``."""
     def norm(text: str) -> str:
+        """Lowercase a date phrase and collapse non-alphanumeric separators to spaces."""
         return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9]+", " ", str(text).lower())).strip()
 
     nc = norm(container)
@@ -522,6 +582,7 @@ def _date_phrase_contained(container: str, target: str) -> bool:
 
 @dataclass
 class EntityListScore:
+    """Entity-list matching counts and precision, recall, and F1 for one field."""
     field_name: str
     precision: float
     recall: float
@@ -538,6 +599,7 @@ class EntityListScore:
         return self.recall if self.partial_gt else self.f1
 
     def to_dict(self) -> dict:
+        """Serialize rounded list metrics and reconstruct predicted and expected counts."""
         return {
             "field": self.field_name,
             "precision": round(self.precision, 4),
@@ -551,6 +613,11 @@ class EntityListScore:
 
 
 def _as_list(value) -> list:
+    """Parse a JSON container, then return a list or wrap a non-list value.
+
+    ``None`` becomes ``[]``; existing lists are returned unchanged.
+    """
+    value = parse_json_container(value)
     if value is None:
         return []
     if isinstance(value, list):
@@ -575,6 +642,7 @@ _ROLE_WORDS = {
 
 
 def _is_role_word(text: str) -> bool:
+    """Recognize short phrases consisting entirely of generic party-role words."""
     tokens = _tokenize(str(text))
     return 1 <= len(tokens) <= 3 and all(t in _ROLE_WORDS for t in tokens)
 
@@ -622,6 +690,7 @@ def score_entity_list(element_type: str, pred, exp, embedding=None,
         pred_token_lists = [_tokenize(str(p)) for p in pred_items]
 
         def _label_contained(label: str) -> bool:
+            """Check whether a three-to-six-token label occurs contiguously in a prediction."""
             label_tokens = _tokenize(str(label))
             if not label_tokens:
                 return False
@@ -900,17 +969,29 @@ def _presence_candidates(predicted: dict, category: str, field: str) -> list[str
 
     Prefers spans routed explicitly by the extractor's reasoning trace
     (``reasoning.entries[]`` whose ``field`` is the canonical CUAD category
-    name — issue #21 retag), falling back to the disaggregated items of the
-    category's mapped field (e.g. ``cuad_clauses``)."""
-    entries = (predicted.get("reasoning") or {}).get("entries") or []
-    routed = [
-        str(e.get("evidence") or e.get("section_ref") or "")
-        for e in entries
-        if str(e.get("field") or "").strip() == category
-    ]
-    if routed:
-        return [r for r in routed if r.strip()]
-    return disaggregate_clause_spans(predicted.get(field))
+    name — issue #21 retag), falling back to the category's mapped field
+    (e.g. ``cuad_clauses``): both the disaggregated spans and the raw items,
+    so a model that quotes a multi-sentence clause as one item is not lost to
+    sentence-level splitting. Disable routing with
+    ``trace_knobs.reasoning_routes_presence``.
+    """
+    if get_settings().trace_knobs.reasoning_routes_presence:
+        entries = (predicted.get("reasoning") or {}).get("entries") or []
+        routed = [
+            str(e.get("evidence") or e.get("section_ref") or "")
+            for e in entries
+            if str(e.get("field") or "").strip() == category
+        ]
+        if routed:
+            return [r for r in routed if r.strip()]
+    items = disaggregate_clause_spans(predicted.get(field))
+    seen = set(items)
+    for raw in _as_list(predicted.get(field)):
+        text = str(raw)
+        if text.strip() and text not in seen:
+            seen.add(text)
+            items.append(text)
+    return items
 
 
 def _presence_matched(item: str, answer: str) -> bool:
@@ -987,18 +1068,21 @@ class _EmbeddingMatcher:
 
     @classmethod
     def get(cls) -> "_EmbeddingMatcher":
+        """Return the singleton matcher, creating it under the class lock."""
         with cls._lock:
             if cls._instance is None:
                 cls._instance = cls()
             return cls._instance
 
     def __init__(self) -> None:
+        """Initialize unloaded local and remote backends and an empty vector cache."""
         self._model = None
         self._model_loaded = False
         self._client = None
         self._vectors: dict[str, object] = {}
 
     def _load_local(self) -> None:
+        """Attempt local model loading once, retaining None when loading fails."""
         if self._model_loaded:
             return
         self._model_loaded = True
@@ -1010,6 +1094,7 @@ class _EmbeddingMatcher:
             self._model = None
 
     def _load_remote(self) -> None:
+        """Initialize the remote embedding client when an API key is available."""
         if self._client is not None:
             return
         api_key = os.environ.get("OPENROUTER_API_KEY")
@@ -1026,6 +1111,7 @@ class _EmbeddingMatcher:
             self._client = None
 
     def _embed(self, text: str):
+        """Produce a unit-normalized local or remote embedding, or None without a backend."""
         import numpy as np
 
         if self._model is not None:
@@ -1043,6 +1129,7 @@ class _EmbeddingMatcher:
         return vector
 
     def similarity(self, a: str, b: str) -> Optional[float]:
+        """Return cached embedding cosine clipped to [0, 1], or None on unavailability."""
         if not embedding_enabled():
             return None
         try:
@@ -1068,10 +1155,40 @@ class _EmbeddingMatcher:
 
 
 def _get_embedding() -> Optional[_EmbeddingMatcher]:
+    """Return the shared embedding matcher when enabled, or None on failure."""
     if not embedding_enabled():
         return None
     try:
         return _EmbeddingMatcher.get()
+    except Exception:
+        return None
+
+
+def embed_texts(texts: list[str]) -> Optional[list[list[float]]]:
+    """Embed ``texts`` with the scorer's own model (unit-normalized vectors).
+
+    The public handle on the embedding backend that ``similarity`` uses:
+    the local SentenceTransformer named by ``get_embedding_model()`` when it
+    loads, else the remote fallback. Vectors are cached per text for the
+    process. Returns ``None`` when embeddings are disabled or no backend is
+    available, or if any text fails to embed (fail-soft — callers skip the
+    cosine signal rather than score with a partial batch).
+    """
+    matcher = _get_embedding()
+    if matcher is None:
+        return None
+    try:
+        matcher._load_local()
+        out: list[list[float]] = []
+        for text in texts:
+            vector = matcher._vectors.get(text)
+            if vector is None:
+                vector = matcher._embed(text)
+                if vector is None:
+                    return None
+                matcher._vectors[text] = vector
+            out.append([float(x) for x in vector])
+        return out
     except Exception:
         return None
 
@@ -1085,6 +1202,7 @@ FIELD_SCORERS = {
     "date": score_date_field,
     "money": score_money_field,
     "name": score_name_field,
+    "label": score_label_field,
     "free_text": score_free_text_field,
     "containment": score_containment_field,
 }
@@ -1095,6 +1213,7 @@ LIST_PREFIX = "entity_list"
 
 
 def is_entity_list(field_type: str) -> bool:
+    """Recognize the entity-list field type and its element-type suffix variants."""
     return field_type == LIST_PREFIX or field_type.startswith(LIST_PREFIX + ":")
 
 
@@ -1134,8 +1253,8 @@ def get_field_types(doc_class: str, taxonomy: dict | None = None) -> dict[str, s
        once at import.
     3. ``{}`` when neither is available (no taxonomy configured).
 
-    Returns {} when the class is absent. ``EXTRACT_CLASS_ALIASES`` is applied
-    so aliases resolve to their canonical class.
+    Returns {} when the class is absent. Extract aliases (currently none)
+    resolve to their canonical class; ``merger_agreement`` is its own map.
     """
     from .mailroom import EXTRACT_CLASS_ALIASES
 
@@ -1151,6 +1270,7 @@ def get_field_types(doc_class: str, taxonomy: dict | None = None) -> dict[str, s
 
 @dataclass
 class ExtractionScoreResult:
+    """Per-document field scores, judge-review candidates, and list factuality audits."""
     doc_class: str
     field_scores: dict[str, float]
     overall_score: Optional[float]
@@ -1159,10 +1279,20 @@ class ExtractionScoreResult:
     # Factuality audit per list field: {field: audit dict} with
     # verified_precision / hallucination_rate (see audit_list_field).
     entity_list_audit: dict[str, dict] = field(default_factory=dict)
+    #: Captured confidence / reasoning knobs (never in ``field_scores``).
+    trace: dict[str, Any] | None = None
 
     @property
     def needs_judge_review(self) -> bool:
+        """Return whether any field score requires judge review."""
         return bool(self.ambiguous_fields)
+
+    @property
+    def audit_support(self) -> dict:
+        """Canonical field-count factuality support (additive; serialization unchanged)."""
+        from .field_support import field_audit_support
+
+        return field_audit_support(self.entity_list_audit)
 
     @property
     def overall_verified_precision(self) -> Optional[float]:
@@ -1183,6 +1313,7 @@ class ExtractionScoreResult:
                 k: v.to_dict() for k, v in self.entity_list_scores.items()
             },
             "entity_list_audit": self.entity_list_audit,
+            "trace": self.trace,
         }
 
 
@@ -1192,22 +1323,30 @@ def score_extraction(
     predicted: dict | None,
     expected: dict | None,
     doc_text: str | None = None,
+    *,
+    audit_predicted: dict | None = None,
 ) -> ExtractionScoreResult:
     """Score one extraction deterministically.
 
     - Only expected fields with a non-null/non-empty value count toward the
-      overall score (null expectations are not requirements).
+      overall score (null expectations are not requirements). Stringified
+      JSON containers are parsed on both sides; empty containers and
+      case-insensitive ``null`` / ``none`` / ``n/a`` / ``n.a.`` expectations
+      are skipped. Trace and annotation keys are never scored; retired
+      prompt keys require an explicit entry in ``field_types``.
     - ``overall_score`` is the mean of the per-field scores (None when no
       field is scored).
     - ``ambiguous_fields`` collects fields landing in the ambiguous band —
       the signal that escalates to the LLM judge.
     - List fields also produce ``entity_list_scores`` with precision/recall.
-    - When ``doc_text`` is provided, EVERY field the model populated produces
-      an ``entity_list_audit`` entry (the factuality guard).
+    - When verification is enabled and ``doc_text`` is nonempty, populated
+      fields in ``field_types`` produce ``entity_list_audit`` entries,
+      including scalar fields and fields absent from GT. Trace and
+      annotation keys are excluded. ``audit_predicted``, when supplied,
+      preserves predictions omitted from GT scoring for this audit.
     """
     predicted = predicted or {}
     expected = expected or {}
-    band_low, band_high = get_ambiguous_band()
     partial_gt_fields = get_partial_gt_fields()
     containment_fields = get_containment_fields()
     needs_embedding = any(
@@ -1222,10 +1361,27 @@ def score_extraction(
     entity_list_audit: dict[str, dict] = {}
 
     for key, exp_value in expected.items():
-        if exp_value is None or exp_value == "":
+        if key in NEVER_SCORED_FIELDS:
+            continue
+        if key in RETIRED_PROMPT_KEYS and key not in field_types:
+            continue
+        exp_value = parse_json_container(exp_value)
+        if is_empty_value(exp_value):
             continue
         field_type = field_types.get(key) or _heuristic_field_type(key, exp_value)
+        # Judge escalation uses the configured type's band, not the
+        # containment override applied for scoring below.
+        original_field_type = field_type
         pred_value = predicted.get(key)
+        if pred_value is not None:
+            pred_value = parse_json_container(pred_value)
+        if field_type == "label" and key == "intent" and doc_class in INTENT_LABELS:
+            exp_value = normalize_intent(doc_class, exp_value) or exp_value
+            if pred_value is not None:
+                pred_value = normalize_intent(doc_class, pred_value) or pred_value
+        if (doc_class == "insurance_claim" and key == "claim_type"
+                and pred_value is not None):
+            pred_value = canonical_claim_type(pred_value, exp_value)
         if pred_value is None:
             # A null answer satisfies a null-expectation date (blank-template
             # or label-only GT holds no real date).
@@ -1248,15 +1404,18 @@ def score_extraction(
                 score = result
         score = round(score, 4)
         field_scores[key] = score
-        if band_low <= score <= band_high:
+        if field_is_ambiguous(original_field_type, score):
             ambiguous.append(key)
 
     if verification_enabled() and doc_text:
         # Factuality audit for EVERY content field the model populated —
         # including fields the ground truth does not label.
+        audit_source = predicted if audit_predicted is None else audit_predicted
         for key, field_type in sorted(field_types.items()):
-            pred_value = predicted.get(key)
-            if pred_value in (None, "", []) or key in entity_list_audit:
+            pred_value = parse_json_container(audit_source.get(key))
+            if is_empty_value(pred_value) or key in entity_list_audit:
+                continue
+            if key in NEVER_SCORED_FIELDS:
                 continue
             if is_entity_list(field_type):
                 element_type = field_type.split(":", 1)[1] if ":" in field_type else "name"
@@ -1270,6 +1429,8 @@ def score_extraction(
 
     scored = list(field_scores.values())
     overall = round(sum(scored) / len(scored), 4) if scored else None
+    from .trace_knobs import capture_trace_knobs
+
     return ExtractionScoreResult(
         doc_class=doc_class,
         field_scores=field_scores,
@@ -1277,4 +1438,5 @@ def score_extraction(
         ambiguous_fields=ambiguous,
         entity_list_scores=entity_list_scores,
         entity_list_audit=entity_list_audit,
+        trace=capture_trace_knobs(predicted, expected=expected, correctness=overall),
     )

@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """SAND-032 report generator — every number is computed from recorded artifacts.
 
-Per run  → reports/<class-dir>/SAND032-<RUN>-REPORT.md
-Ladder   → reports/serving/SAND032-LADDER.md
+Per run  → reports/SAND-32/<class-dir>/SAND032-<RUN>-REPORT.md
+Ladder   → reports/serving/SAND-32/SAND032-LADDER.md
 Usage:
   scripts/sand032/report.py run  <run-id> [<run-id> ...]
   scripts/sand032/report.py ladder
-Inputs (all local): config/runs/<run>.yaml, data/runtime/runs/<run>/{spec.lock.json,
+Inputs (all local): config/runs/sand032/<run>.yaml, data/runtime/runs/<run>/{spec.lock.json,
 dataset.jsonl,items.jsonl,cold_boot.json,vllm_metrics_{before,after}.json},
-reports/serving/<run>.serving.json, data/runtime/sand032/{logs/<run>.times,fleets.json}.
+reports/serving/SAND-32/<run>.serving.json, data/runtime/sand032/{logs/<run>.times,fleets.json}.
 Public HF mailroom-dataset only — no partner / proprietary data.
 """
 from __future__ import annotations
@@ -23,14 +23,43 @@ from pathlib import Path
 
 import yaml
 
+# Import the harness first to expose its tracked, offline Dojo snapshot.
+import mailroom_sandbox  # noqa: F401
+from llm_dojo_scoring import aggregate_sandbox_scores
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import viz  # noqa: E402  (/dataviz chart kit, validated palette)
 
 ROOT = Path(__file__).resolve().parents[2]
 RUNS = ROOT / "data" / "runtime" / "runs"
 RT = ROOT / "data" / "runtime" / "sand032"
-SERVING = ROOT / "reports" / "serving"
-L4_USD_PER_HOUR = 0.80
+SERVING = ROOT / "reports" / "serving" / "SAND-32"
+# Hourly GPU rates (USD per GPU-hour), keyed by canonical GPU id. Every cost line here is
+# ($/hr) × (seconds)/3600 × replicas, so the rate must track the run's actual GPU.
+#   L4   = 0.80 — Modal L4 list rate; the rate every SAND-032 L4 run to date was costed at
+#                 (reports/dashboard/export_hub_reports.py cites docs/RUN-COST-DERIVATION.md).
+#   A100 = 2.10 — Modal A100 40 GB, per _a100_inputs/cards/A100-Research-Report.md
+#                 ("GPU: Modal A100 40 GB ($2.10 per GPU-hour)"; source: A100 section,
+#                  experiments & cost-estimates deck, Grant Mooslin & Jack Burleson).
+GPU_USD_PER_HOUR = {"L4": 0.80, "A100": 2.10}
+DEFAULT_GPU = "L4"  # unknown/missing engine.modal.gpu resolves here — never a silent mis-cost
+L4_USD_PER_HOUR = GPU_USD_PER_HOUR[DEFAULT_GPU]  # back-compat alias for existing callers
+
+
+def gpu_hourly(gpu: str | None) -> tuple[str, float]:
+    """Resolve ``(label, USD/GPU-hour)`` from a run's ``engine.modal.gpu`` field.
+
+    Accepts Modal's GPU value with or without a size or replica suffix — ``"L4"``,
+    ``"L4:2"``, ``"A100"``, ``"A100-40GB"``, ``"A100-80GB:2"``. Unknown or missing GPUs
+    fall back to ``DEFAULT_GPU`` (L4) so a report never silently uses the wrong rate.
+    """
+    key = (gpu or "").strip().upper().split(":")[0]  # drop the replica suffix, e.g. ":2"
+    for gid in GPU_USD_PER_HOUR:
+        if key == gid or key.startswith(f"{gid}-"):
+            return gid, GPU_USD_PER_HOUR[gid]
+    return DEFAULT_GPU, GPU_USD_PER_HOUR[DEFAULT_GPU]
+
+
 CLASS_DIR = {
     "correspondence": "correspondence",
     "insurance_claim": "insurance",
@@ -83,7 +112,7 @@ def p95(xs: list[float]) -> float:
 
 def load(rid: str) -> dict:
     run = RUNS / rid
-    spec = yaml.safe_load((ROOT / "config" / "runs" / f"{rid}.yaml").read_text())
+    spec = yaml.safe_load((ROOT / "config" / "runs" / "sand032" / f"{rid}.yaml").read_text())
     items = {i["item_id"]: i for i in _jsonl(run / "items.jsonl")}
     ds = _jsonl(run / "dataset.jsonl")
     sub = {r["id"]: r.get("expected_subclass") or "?" for r in ds}
@@ -107,9 +136,11 @@ def metrics(d: dict) -> dict:
     sv = [bool(i["score"].get("schema_valid")) for i in ok if "schema_valid" in (i.get("score") or {})]
     pe = sum(1 for i in ok if (i.get("score") or {}).get("parse_error"))
     s = d["serving"]
-    rep = int((d["spec"]["engine"]["modal"]).get("max_containers") or 1)
+    mo = d["spec"]["engine"]["modal"]
+    rep = int(mo.get("max_containers") or 1)
+    gpu, usd_per_hour = gpu_hourly(mo.get("gpu"))
     wall = s.get("wall_seconds")
-    busy_usd = wall / 3600 * L4_USD_PER_HOUR * rep if wall else None
+    busy_usd = wall / 3600 * usd_per_hour * rep if wall else None
     ptok = sum(int(i.get("prompt_tokens") or 0) for i in ok)
     ctok = sum(int(i.get("completion_tokens") or 0) for i in ok)
     t = d["times"]
@@ -124,10 +155,11 @@ def metrics(d: dict) -> dict:
         "wall": wall, "p50": statistics.median(lat) if lat else None, "p95": p95(lat) if lat else None,
         "lat_max": max(lat) if lat else None, "lat_sum": sum(lat), "ptok": ptok, "ctok": ctok,
         "tps": s.get("tokens_per_second"), "rep": rep, "conc": d["spec"]["job"]["concurrency"],
+        "gpu": gpu, "usd_per_hour": usd_per_hour,
         "busy_usd": busy_usd, "usd_doc": busy_usd / len(ok) if busy_usd and ok else None,
         "cold": (d["cold"] or {}).get("cold_boot_seconds"),
         "boot_ready_s": (t["ready"] - t["deploy_done"]) if "ready" in t and "deploy_done" in t else None,
-        "fleet_s": fleet, "fleet_usd": fleet / 3600 * L4_USD_PER_HOUR * rep if fleet else None,
+        "fleet_s": fleet, "fleet_usd": fleet / 3600 * usd_per_hour * rep if fleet else None,
     }
 
 
@@ -210,7 +242,7 @@ def figures(d: dict, m: dict, cls: str, by: dict) -> list[str]:
                 for i in ok]
     refs = [(round(m["p50"], 1), f"p50 {m['p50']:.1f}s"), (round(m["p95"], 1), f"p95 {m['p95']:.1f}s")] if m["p50"] else []
     lat_svg = viz.hbar(f"Per-document latency · {rid}",
-                       f"{m['ok']} docs, slowest first · c{m['conc']} on {m['rep']}×L4 · wall {m['wall']:.1f}s",
+                       f"{m['ok']} docs, slowest first · c{m['conc']} on {m['rep']}×{m['gpu']} · wall {m['wall']:.1f}s",
                        lat_rows, unit="s", fmt=lambda v: f"{v:.1f}", refs=refs)
     (fig_dir / f"{rid}-latency.svg").write_text(lat_svg)
     if m["score"] is None:  # merger/contracts: suite scorer emits no overall score
@@ -234,10 +266,10 @@ def scoring_section(d: dict) -> list[str]:
     """Merger/contract rows carry MAUD/CUAD label maps only — say what the headline means."""
     sc = [i["score"] for i in d["items"].values() if i.get("ok") and isinstance(i.get("score"), dict)]
     method = next((x.get("scoring_method") for x in sc if x.get("scoring_method")), "")
-    tot = lambda k: sum(int(x.get(k) or 0) for x in sc)  # noqa: E731
     if method.endswith("+maud"):
-        q, a, c = tot("maud_questions"), tot("maud_answered"), tot("maud_correct")
-        cq, cc = tot("maud_clean_questions"), tot("maud_clean_correct")
+        pooled = aggregate_sandbox_scores("maud", sc)
+        q, a, c = pooled["questions"], pooled["answered"], pooled["correct"]
+        cq, cc = pooled["clean_questions"], pooled["clean_correct"]
         return ["## Scoring method — MAUD answer accuracy", "",
                 "The pinned Hub merger rows carry ground truth only as `maud_clause_labels` (LegalBench MAUD "
                 "question → answer). The suite field map scores document_name/parties/…, which those rows never "
@@ -245,21 +277,19 @@ def scoring_section(d: dict) -> list[str]:
                 "(`src/mailroom_sandbox/eval/maud_scoring.py`); an unanswered question counts as wrong.", "",
                 "| metric | value |", "| --- | --- |",
                 f"| labeled MAUD questions | {q} |",
-                f"| answered | {a} ({a / q:.1%} coverage) |" if q else "| answered | — |",
-                f"| correct | {c} → **micro accuracy {c / q:.1%}** |" if q else "| correct | — |",
-                f"| precision on answered | {c / a:.1%} |" if a else "| precision on answered | — |",
-                f"| clean subset (single MAUD sub-question per name) | {cc}/{cq} = {cc / cq:.1%} |" if cq else "| clean subset | — |",
+                f"| answered | {a} ({pooled['coverage']:.1%} coverage) |" if q else "| answered | — |",
+                f"| correct | {c} → **micro accuracy {pooled['accuracy']:.1%}** |" if q else "| correct | — |",
+                f"| precision on answered | {pooled['precision_answered']:.1%} |" if a else "| precision on answered | — |",
+                f"| clean subset (single MAUD sub-question per name) | {cc}/{cq} = {pooled['clean_accuracy']:.1%} |" if cq else "| clean subset | — |",
                 "",
                 "**Dataset caveat:** the corpus collapses several MAUD sub-questions under one name (e.g. `No-Shop` "
                 "answers include `Yes`, `Strict liability`, `Reasonable standard`), so a per-doc target on those "
                 "names is ambiguous; the clean subset excludes them.", ""]
     if method.endswith("+cuad"):
-        tp, fp, fn = tot("cuad_tp"), tot("cuad_fp"), tot("cuad_fn")
-        P = tp / (tp + fp) if tp + fp else 0.0
-        R = tp / (tp + fn) if tp + fn else 0.0
-        F = 2 * P * R / (P + R) if P + R else 0.0
-        vc, vk = tot("cuad_value_correct"), tot("cuad_value_checked")
-        labeled = sum(1 for x in sc if x.get("cuad_presence_f1") is not None)
+        pooled = aggregate_sandbox_scores("cuad", sc)
+        P, R, F = pooled["precision"], pooled["recall"], pooled["f1"]
+        vc, vk = pooled["value_correct"], pooled["value_checked"]
+        labeled = pooled["docs_labeled"]
         return ["## Scoring method — CUAD clause detection", "",
                 "The pinned Hub contract rows carry ground truth only as `cuad_clause_labels` (CUAD category → "
                 "annotated spans). The suite field map never meets them, so field F1 was 0 and the overall score "
@@ -267,7 +297,7 @@ def scoring_section(d: dict) -> list[str]:
                 "row's labeled universe (`src/mailroom_sandbox/eval/cuad_scoring.py`).", "",
                 "| metric | value |", "| --- | --- |",
                 f"| docs with CUAD labels (scored) | {labeled} of {len(sc)} ok |",
-                f"| micro precision / recall / F1 | {P:.3f} / {R:.3f} / **{F:.3f}** |",
+                f"| micro precision / recall / F1 | {P:.3f} / {R:.3f} / **{F:.3f}** |" if labeled else "| micro precision / recall / F1 | — |",
                 f"| metadata value checks (name, parties, governing law) | {vc}/{vk} = {vc / vk:.1%} |" if vk else "| metadata value checks | — |",
                 f"| predicted categories outside the labeled universe (ignored, scored docs) | {sum(int(x.get('cuad_out_of_universe') or 0) for x in sc if x.get('cuad_presence_f1') is not None)} |", ""]
     return []
@@ -303,11 +333,12 @@ def sorter_report(rid: str) -> Path:
     ct = sorted(int(i.get("completion_tokens") or 0) for i in ok)
     med = lambda xs: xs[len(xs) // 2] if xs else None  # noqa: E731
     v, mo = d["spec"]["engine"]["vllm"], d["spec"]["engine"]["modal"]
+    sorter_gpu, _ = gpu_hourly(mo.get("gpu"))
     lines = [f"# SAND-032 {rid} — isolated LLM sorter (SorterAgent only)", "",
              "Public HF `mailroom-dataset` @ `ed7576b` only (no partner or proprietary data). "
              "`task: isolated` calls `SorterAgent` alone — no reviewer, specialist, or judge prompts.", "",
              "| field | value |", "| --- | --- |",
-             f"| engine | `{d['spec']['engine']['model']}`, {mo.get('max_containers')}× L4, "
+             f"| engine | `{d['spec']['engine']['model']}`, {mo.get('max_containers')}× {sorter_gpu}, "
              f"seqs {v.get('max_num_seqs')}, kv `{v.get('kv_cache_dtype')}`, `{v.get('quantization')}`, "
              f"graphs {v.get('cudagraph_capture_sizes')}, batched tokens {v.get('max_num_batched_tokens') or 'default'} |",
              f"| concurrency | {d['spec']['job']['concurrency']} |",
@@ -361,14 +392,14 @@ def run_report(rid: str) -> Path:
         f"# Run report — `{rid}`",
         "",
         f"SAND-032 Modal × vLLM specialist extract: **{m['n']} {cls} docs** on **{spec['engine']['model']}** at "
-        f"**concurrency {m['conc']}** on **{m['rep']}×L4** (MIN=MAX={m['rep']} pinned, dedicated app "
+        f"**concurrency {m['conc']}** on **{m['rep']}×{m['gpu']}** (MIN=MAX={m['rep']} pinned, dedicated app "
         f"`{mo['app']}`). Public HF `mailroom-dataset` only.",
         "",
         "| | |", "| --- | --- |",
         f"| run_id | `{rid}` |",
         f"| task / agent | `{agent}` |",
         f"| prompt | `{prompt}` (local pin) |",
-        f"| engine | `{spec['engine']['model']}`, vLLM `{mo['image_tag']}`, {m['rep']}× L4 "
+        f"| engine | `{spec['engine']['model']}`, vLLM `{mo['image_tag']}`, {m['rep']}× {m['gpu']} "
         f"({'data-parallel replicas' if m['rep'] > 1 else 'single replica'}) |",
         f"| context / quant | `max_model_len={v['max_model_len']}`, quant=`{v['quantization'] or 'bf16'}`, "
         f"gpu_util={v['gpu_memory_utilization']}, max_num_seqs={v['max_num_seqs']} |",
@@ -401,7 +432,7 @@ def run_report(rid: str) -> Path:
         f"| latency p50 / p95 / max | {_f(m['p50'], 2)} / {_f(m['p95'], 2)} / {_f(m['lat_max'], 2)} s |",
         f"| prompt / completion tokens | {m['ptok']} / {m['ctok']} |",
         f"| throughput | {_f(m['tps'], 1, ' tok/s')} |",
-        f"| GPU $ over busy wall (×{m['rep']} L4 @ ${L4_USD_PER_HOUR}/h) | {_f(m['busy_usd'], 6, '')} |",
+        f"| GPU $ over busy wall (×{m['rep']} {m['gpu']} @ ${m['usd_per_hour']}/h) | {_f(m['busy_usd'], 6, '')} |",
         f"| **$ per doc (busy)** | **{_f(m['usd_doc'], 6)}** |",
         f"| fleet window deploy→stop (upper est.) | {_f(m['fleet_s'], 0, ' s')} → {_f(m['fleet_usd'], 4)} USD |",
         f"| cost cap | ${spec['job']['cost_cap_usd']} (config) |",
@@ -434,12 +465,12 @@ def run_report(rid: str) -> Path:
             f"{(i.get('error') or '')[:60]} |")
     lines += ["", "## Reproduce", "", "```bash",
               "modal profile activate exios66",
-              f"scripts/sand032/run_one.sh config/runs/{rid}.yaml deploy stop   # or: warm (reuse fleet)",
+              f"scripts/sand032/run_one.sh config/runs/sand032/{rid}.yaml deploy stop   # or: warm (reuse fleet)",
               f"scripts/mailroom-tui score {rid}",
               "```", "",
               "## Artifacts", "",
               "| path | role |", "| --- | --- |",
-              f"| `config/runs/{rid}.yaml` | run spec |",
+              f"| `config/runs/sand032/{rid}.yaml` | run spec |",
               f"| `reports/serving/{rid}.serving.json` | serving record (busy wall, tokens, p50/p95, run-span lower bound) |",
               f"| `data/runtime/runs/{rid}/` | run store (lock, dataset, items, /metrics before/after) — gitignored |",
               f"| `data/runtime/bt_experiments/{rid}/` | offline Braintrust-shaped rows — disposed after this report is committed |",

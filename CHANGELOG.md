@@ -2,6 +2,381 @@
 
 ## [Unreleased]
 
+### Added
+
+- `docs/cli-reference.md`: generated, complete reference for every parser node,
+  argument, parser-required marker and choice, plus `python scripts/check_cli_surface.py
+  [--check]` and parser-surface tests that exercise help, required arguments and
+  handler dispatch for every leaf (no live services).
+- `sandbox experiment designs|create|review|preflight|launch|watch|report`: single and
+  SAND42 paired designs, pinned Hub slices/sample sizes, full pipeline or specialist
+  jobs, explicit vLLM/GPU/decode/trace choices, separate bounded smoke subsets,
+  managed-cell teardown, observer following, coverage and paired outcome reports.
+- Per-agent `agent_routes` and `--agent-route NAME=PROVIDER:MODEL` (or a route YAML):
+  API, Modal/vLLM, and hybrid pipelines through the native/LangChain shared seam.
+  Resolved agent assignments and generation knobs are locked; vendor bytes stay intact.
+- Configuration-bound, expiring initials receipts for paid run start/resume and live
+  preflight; campaign receipts also bind smoke settings. Mock endpoint work stays
+  unsigned. Initials attest operator review; they are not cryptographic identity proof.
+
+- `tests/_fakebin.py` and the `fake_bin` fixture: fake `modal`/`vllm`/`hf`/`ssh`/
+  `docker`/`ollama` executables on an isolated `PATH` (argv logged, canned output per
+  subcommand), so CLI wrappers are tested without the real tools or a network.
+- `mailroom_sandbox.services._exec`: one guarded way to run an external CLI
+  (`require_tool`, `run_tool`; `ToolMissing`, `ToolFailed`, `ToolTimeout`).
+  `main()` renders any `ServiceError` as a single `error:` line (exit 1).
+- `sandbox modal deploy|prewarm|status|logs|stop|url|raw`: guarded passthrough to the
+  Modal CLI. Injects the pinned `deploy/modal_vllm.py` entrypoint and the `--model`/`--gpu`
+  row from `config/models.yaml`; `deploy`, `prewarm`, `stop` and `logs` have
+  `--dry-run` (prints the argv, spends nothing); `deploy` prints the endpoint exports; `stop` is idempotent and verified
+  against `modal app list --json`; an SDK other than the `modal==1.6.2` pin warns.
+- `sandbox vllm probe|command|serve|metrics`: `probe` checks models, chat, `/health` and
+  `/metrics` plus that the served model is the one a run will ask for; `command` prints
+  the exact `vllm serve` argv the Modal app launches (loaded from
+  `deploy/modal_vllm.py::build_vllm_command`, no Modal SDK needed); `serve` runs it on a
+  local NVIDIA host bound to 127.0.0.1; `metrics` wraps `vllm_metrics.scrape`.
+- `sandbox hf whoami|download|cache|raw`: guarded passthrough to the `hf` CLI. `download`
+  defaults to the sandbox dataset at the pinned `FAMILY_HF_REVISION`; the cache is
+  explicit (your own `HF_HOME`, or `--sandbox-cache` for `data/cache/hf`).
+- `services._exec.stream_tool` / `passthrough_tool` (live-streamed and terminal-attached
+  runs) and ANSI stripping in tool-failure messages.
+
+- `sandbox doctor [--service NAME]… [--live] [--publish] [--json]`: one status table for
+  modal, modal-auth, hf, hf-auth, docker, ollama, ssh, git, vllm, provider, langfuse,
+  phoenix, tunnel and compose. Offline by default (binaries and config only); `--live`
+  adds network probes and warns that a request to a scale-to-zero Modal URL wakes a
+  billed GPU. Exit 1 only on a `fail` row. `--publish` writes the snapshot the board shows.
+- TUI services panel: `sandbox board` renders the published `mailroom.services/v1`
+  snapshot as a status strip (terminal and browser, `/api/services`), also in
+  `sandbox watch --web`; a snapshot older
+  than 15 minutes is marked stale. `board --probe-interval SECS` refreshes offline checks;
+  add `--live` explicitly for network probes (can wake a billed GPU). Viewing snapshots stays network-free.
+- Service beacons: `sandbox modal deploy|prewarm|stop`, `sandbox hf download`,
+  `sandbox tunnel up`, `sandbox datasets pull`, `sandbox doctor`, `sandbox up` and
+  Ollama `sandbox pull-models` publish a `mailroom.beacon/v1` job, so
+  they appear on the board like `run start` does.
+
+### Changed
+
+- CLI startup loads the checkout's `.env` files (root `.env`, then `config/.env`) before
+  building the parser, so profiles and secrets resolve from `config/.env.example`;
+  exported variables still win, then root `.env`, then `config/.env`. The template is
+  refreshed against the variables the CLI, deploy scripts and Modal app actually read
+  (Modal workspace/app name, deploy knobs, per-agent route key variables).
+- Serve through **Modal vLLM by default**: `SANDBOX_PROFILE=modal-vllm` and
+  `DEFAULT_PROVIDER=vllm` (CLI, runtime fallbacks, `.env.example`, generated
+  runbooks and README/quickstart). `--profile ollama` is the explicit
+  offline/CPU opt-out. `sandbox profiles` marks the active default,
+  `sandbox health` prints a deploy hint when `VLLM_BASE_URL` is unset, and
+  `MODAL_WORKSPACE` derives the gateway URL when no endpoint is exported.
+  New `serving` runbook (`sandbox runbook show serve`) covers pre-warm →
+  deploy → point → verify → teardown and is the first entry in
+  `docs/runbooks/`.
+
+### Fixed
+
+- Command-audit fixes: repeatable `--agent-model` accumulates across the root, group
+  and leaf parsers (last value wins); `--mock` and `--local` are mutually exclusive;
+  zero, negative, NaN and infinite sample/cost/concurrency inputs are rejected;
+  options that would have been silently ignored (`--from-log`, `--group`,
+  `--connected`, empty matrix lists, unknown agents) return a usage error; commands
+  that cannot honor `--dry-run` reject it instead of acting; `pilot`, `legalbench`,
+  `matrix` and `hf-pilot` forward agent overrides; matrix cells share one seeded draw
+  and forward the seed.
+- Direct live probes now persist `cold_boot.json` (preflight/start), per-agent Modal
+  route probes wait out the boot budget, teardown keeps the original failure when
+  cleanup also fails, the engine probe uses the credential of the resolved transport,
+  model-only runs freeze `agent_assignments`, ambiguous credential URLs are rejected
+  by redaction, and an unwritable snapshot root no longer stops the board.
+- Complete SAND-064 review fixes: credential-free doctor URLs and fake-tool logs; `.env`
+  loading for HF and local vLLM commands; malformed snapshot rejection; safe HTML
+  attributes; independent doctor checks; per-app teardown guidance; trimmed workspaces;
+  interrupted SSH startup cleanup and macOS zombie detection.
+- Deploy startup detects an exited vLLM child and reaps failed children. Teardown
+  refuses failed/malformed Modal listings, uses `MODAL_VLLM_APP_NAME`, and is idempotent.
+- Opt-in real CLI contract tests (`SANDBOX_SERVICE_SMOKE=1`); a live endpoint probe
+  additionally requires `SANDBOX_LIVE_PROVIDER_SMOKE=1` and an explicit endpoint.
+
+- Review follow-ups on the Slice 1 fixes: `tunnel plan` accepts the shared flags after the
+  subcommand; the health probe treats only 2xx as healthy (a 3xx is `HTTP 3xx`, and the
+  non-JSON detail names the real status); a modal-vllm run spec with `engine.modal: null`
+  resolves its gateway from `MODAL_VLLM_APP_NAME`/`sandbox-vllm` instead of raising.
+- `sandbox beacon update --finish` clears the stale `phase`; a paused or still-running
+  job's runner no longer stamps its beacon `done` (it publishes `PAUSED`/`RUNNING`).
+- `sandbox watch` no longer leaks the `modal app logs -f` child it spawned when the
+  watcher stops.
+- Test suite: the vendored pipeline's fire-and-forget `relations-scan` threads are joined
+  at the end of each test (`tests/conftest.py`). Their `schema_ready` log line used to
+  land in a later test's captured stdout and intermittently broke
+  `test_generation_protocol.py::test_idle_local_cancel_does_not_poison_next_resume`.
+- `run preflight --live`, `run start` and `run scrape-metrics` no longer resolve the
+  default `modal-vllm` profile to `http://localhost:8000/v1`: the run-spec resolver now
+  uses `VLLM_BASE_URL`, then the `MODAL_WORKSPACE` gateway for the spec's Modal app, and
+  fails with a clear error (`EndpointUnresolved`) instead of probing localhost.
+- `sandbox health` no longer crashes with `JSONDecodeError` when an endpoint answers
+  2xx with a non-JSON body; a model endpoint reports `non-JSON body`, and the Langfuse
+  and Phoenix liveness probes treat any 2xx as healthy.
+- `--profile`, `--model`, `--prompt` and `--agent-model` now work before or after the
+  subcommand on every command, including `tunnel` and `run`; a value before the
+  subcommand was previously overwritten by the leaf default.
+- `sandbox tunnel up` reports a missing `ssh`, shows ssh's own error, waits for the
+  forward port and cleans up a forward that never opened; `tunnel down` clears a stale
+  pidfile instead of failing forever and never signals a process that is not ssh;
+  `tunnel status` reports `pid_alive`; a non-numeric `SANDBOX_TUNNEL_PORT` is a clear
+  error. A port already in use and a timed-out external tool are one-line errors.
+
+- Review follow-ups on the Modal-default change: a `SANDBOX_PROFILE` set only in
+  `.env` (e.g. `ollama`) is honoured when the CLI resolves its default; the
+  `serve` script exports `VLLM_API_KEY` from the token it just deployed (and
+  every runbook that defines and deploys with that token now does the same, so
+  health no longer gets a 401), keeps its teardown commented because the script
+  runs no eval, and marks the endpoint URL as required before health; docs and
+  skills that told people to run a bare `sandbox pull-models` for Ollama now pass
+  `--profile ollama`; `health`'s exit-code description no longer claims Langfuse
+  or Phoenix gate it; activating `modal-vllm` with no endpoint no longer seeds
+  `VLLM_BASE_URL` with the localhost fallback, so the pipeline's live-or-loud
+  warning fires instead of a run quietly using whatever listens on :8000;
+  `cost_cap_usd: .nan` is rejected instead of silently disabling the cap. Stale
+  "Ollama is the default" wording is gone from the skills (router, ollama, modal,
+  langfuse, index), `docs/setting-up/` and the `modal-vllm` profile comment, the
+  `[deploy]` pin reads `modal==1.6.2`, trace tags and run records fall back to the
+  default profile like activation does, and every function this PR touches has a
+  docstring and test coverage.
+- Record that Hub tag `v9.1` (`bc9eab28`) is published, and drop dead
+  identical branches, constant conditions, and duplicated success returns
+  flagged by CodeAnt (#144, #155–#159). `_cmd_run_cancel` already returns
+  distinct codes and was left as-is. Review follow-ups: the dataset card and
+  `SANDBOX-GUIDE.md` now label `ed7576b6` as the parquet data revision
+  (`FAMILY_HF_DATA_REVISION`) and cite tag `v9.1` as `bc9eab28`; the Hub `v9.2`
+  / `main` SHAs are marked unverified; `sandbox board --interval` is clamped to
+  0.1 s so `0` no longer spins a core (TUI, SSE stream, demo loop); the floor is
+  in the `--interval` help, `AGENTS.md` and the board docs. Docstrings now cover
+  every function the PR touches, and `tests/test_cli_simplified_commands.py` pins
+  the exit codes of the commands whose redundant returns were collapsed (it
+  passes on `main` too). The two dated 2026-09-27 serving-ladder docs carry an
+  as-of note for the `FAMILY_HF_REVISION` pin.
+- DMR-111: refresh reviewed standalone snapshots to released Dojo v0.24.2,
+  consuming source-owned cost/FNOL and document-ownership/storage corrections;
+  provenance and loaded scorer identity agree with the generated bytes.
+- DMR-112: freeze the vendored pipeline to `60cd5fa` and optional visualizer
+  retrieval to `98ae227`, matching the reviewed DMR-112 source tips.
+- DMR-113: return a failure code instead of escaping when the `.refresh`
+  directory cannot be created, and refresh a clean visualizer checkout left at
+  an earlier reviewed commit while still preserving local commits and dirty
+  trees.
+- DMR-113: freeze the tracked snapshots to pipeline `1a1ec3d` and the interim
+  post-v0.24.2 Dojo commit `718e326` (explicit zero-token usage fix), and the
+  optional visualizer to `cab7a41`; regenerate both snapshots and their
+  provenance.
+
+- DMR-111: delegate CUAD/MAUD benchmark engines and pooled headline scores to
+  released Dojo 0.24.0. Null MAUD ground truth is unlabelled; real CUAD zero
+  scores no longer disappear. Preserve existing public adapter/result names.
+- Retrieve reviewed commit refs and peeled release tags immutably, validate
+  before checkout/replacement, and preserve vendor recovery bytes if installation
+  and rollback both fail. Use identical exclusion rules for Git/workspace copies.
+- Refresh tracked pipeline/scoring snapshots and truthful source provenance;
+  freeze optional visualizer retrieval and preserve existing local checkouts.
+
+- Complete the SAND-062 dependency lock updates: pypdf 6.21.2, filelock 4.2.1, nbconvert 7.17.2 and OpenTelemetry API/SDK/exporters 1.45.1 (semantic conventions and shared HTTP transport 0.66b1). Initialize sandbox vendor paths in the cold-resume test subprocess before patching its real OpenAI client, and scope the API-evals import path to the test fixture so the module also passes independently; no runtime behavior changes. Related: DMR-097.
+
+- Add the DMR-088 `fetch-deps` regression test (`tests/test_fetch_deps_rc.py`), previously carried only in the Digital-Mailroom hub copy: every vendor refresh runs after an earlier failure and the command exits non-zero if any failed.
+
+- Make the ModernBERT feeder path tests hermetic: they build a fake `mailroom-ml` checkout under `tmp_path` instead of discovering a sibling on the developer's machine, and pin that `feeder_status()` reports not-ok when the eval entrypoint is missing.
+
+- Bind locked execution and reusable API results to immutable generation/task,
+  dataset and resolved prompt identity; freeze initial operator knobs and refuse
+  damaged artifacts before activation. Keep every managed vendor refresh eligible
+  after an earlier source failure.
+
+### Fixed — DMR-091 source-owned sandbox lifecycle
+
+- Preserve existing matching preflight generations and their live remote identity;
+  refuse unsafe resets and archive cancellation/cold-boot artifacts with the generation.
+- Activate frozen profile/model, per-agent model and full generation-knob maps,
+  and prompt selections in cold workers and fresh-process resumes, including
+  subsequent activations by existing eval runners.
+- Add durable cooperative cancellation for row-resumable endpoint jobs: stop
+  submissions, drain in-flight work, acknowledge paused, and resume pending rows.
+- Require exact lock/spec/run identity for API-evals terminal reuse; safely append
+  after a valid unterminated JSONL tail; report resumed run-wide error totals.
+- Reconcile the corporate optional-subclass assertion with canonical detailed
+  alignment using three hand-counted matching keywords and unlabeled entity GT.
+
+### Fixed — `corporate_records_specialist_subclass_v2` amended before first run
+
+- **`corporate_records_specialist_subclass_v2`** (eval-environment `corporate_records_specialist_v7`, now sha256
+  `253559fc…`): `certificate_of_formation` moved to its own line and the `subsidiary_list` line states where the listing
+  statement (`subject_matter`) and subsidiary names (`keywords`) go — resolving the PR #143 CodeRabbit finding; the
+  lineage lock and all stem pins were refreshed in the same change. The default pin moved to `v7` in the follow-up
+  re-freeze below (see "default-pin move").
+
+### Changed — breaking (vendored dojo)
+
+- **Vendored llm-dojo-scoring re-vendored when the scoring engine was bumped** (2026-10-17,
+  the `feat/corporate-record-subclass-schemas` branch mechanics). Every vendored-pin claim
+  (`vendor/README.md`, `vendor/llm-dojo-scoring/VENDOR.md`, README, QUICKSTART, SANDBOX-GUIDE, sister-repos,
+  htcondor README, `deploy/modal_job.py`, `pyproject.toml`, the `fetch-deps` fallback pin) carries it. The snapshot
+  ships the eval-environment prompt lineage API (`llm_dojo_scoring.prompts`: `get_prompt_version`,
+  `list_prompt_versions`, ... and `eval_environment_lineage.json`).
+
+### Changed — vendored dojo bump: per-subclass corporate scoring (sandbox #145)
+
+- **Re-vendored llm-dojo-scoring past `v0.22.0`** at the dojo PR branch `feat/corporate-record-subclass-schemas`
+  @ `8e6566c1d1c52efeb5ebbb57ddee90a94586f7da` (draft Exios66/llm-dojo-scoring#46) — the tag `a2862cec` was one
+  sync cycle behind. New in the snapshot: `corporate_record_schema.py` (per-subclass `SUBCLASS_SCHEMAS` incl.
+  `omit_entity_keys` + `core_guidance`), `corporate_record_relabel.py` (GT-row relabel CLI), `align_unlabeled` in
+  `suites._score_extraction`, per-subclass `required_ftypes` (key entities score when the dataset labels them but
+  are never required), and the amended `corporate_records_specialist_v7` (`253559fc…`) production template. See
+  `vendor/llm-dojo-scoring/VENDOR.md` — the pin is recorded there. The lineage JSON in the snapshot was
+  regenerated with the dojo's own `scripts/sync_eval_environment_lineage.py` against the sibling
+  eval-environment checkout @ `22d217ab…`, so the vendored registry now carries **43 versions** (5 archived /
+  15 frozen / 23 mutations) including `corporate_records_specialist_v7` **and** the SAND-042 frozen successors
+  `insurance_claims_specialist_v4` (`1ca6e83c…`) / `merger_agreement_specialist_v4` (`da316691…`) the tag-era
+  registry lacked.
+- **`score_extraction_row` wires the subclass into the vendored suite score path** (closing the
+  ISSUE_ALIGNMENT gap): `doc_subclass` / `expected_subclass` (the row's GT `expected_subclass`) flow into
+  `suite.score(..., doc_subclass=...)`, so `align_unlabeled` drops blank unlabeled key-entity fields from both
+  sides instead of scoring them as expected-empty, unlabeled extension keys are never spurious fills, and the
+  row carries the vendored per-row `unlabeled_fields` payload (`tests/test_corporate_scoring.py` computes the
+  dojo-side expectation IN TEST from the vendored module). Runner/agent call sites pass the row's
+  `expected_subclass`; without it the alignment normalizes to `"other"` as before.
+- **Emit provenance (dataset_revision)** — audited rather than changed: the gap is already closed upstream of the
+  emitter by SAND-032 (`--dataset-revision` CLI handling; serving fixtures record the pinned `FAMILY_HF_REVISION`
+  `bc9eab28…`; job records take the run-lock provenance), and the vendored `Emitter`/`serving.py` are untouched by
+  the branch diff, so `emit_serving_scorecard` already receives a provenance source everywhere it is called
+  (`validating` tests in `tests/test_serving_groups.py`).
+- **Default-pin move — corporate_records_specialist default v6→v7** (deliberate re-freeze, following the
+  coordinated amendment and the vendored scoring bump): the lineage lock's corporate default row now serves
+  `corporate_records_specialist_v7` (`253559fc…`, canonical amended text, 5462 chars, via stem
+  `corporate_records_specialist_subclass_v2`) — the text the vendored catalog's `production_prompts` template and
+  the `corporate_record_schema` prompt renderer now ship, so default runs stopped serving v6 doctrine that
+  conflicts with the per-subclass schema the scorer now enforces. The re-freeze keeps the successor chain honest:
+  `parent_key` = `_v6` (its bytes remain pinned as stem `corporate_records_specialist_simplified`),
+  `superseded` v1 block untouched, documented in the lock's `notes` + the row's `origin`. The vendored
+  `llm-mailroom` `llm/frozen_v1/lineage.json` row (frozen-v1 specialist serving via the dojo
+  `production_prompts` catalog) records the same promotion, and
+  `config/prompts/corporate_records_specialist_production.txt` was re-exported to the v7 bytes
+  (`scripts/sync_specialist_prompts.py`). Historical posture runs that pinned the then-default
+  `_simplified` stem are now intentional non-catalog pins. `--prompt-version` now selects all three successor
+  keys (`v7` + the two `*_v4`s) and `docs/prompts/` was re-rendered (43 versions).
+
+### Changed — corrected v1 specialist stems (dojo #30)
+
+- `correspondence_specialist_simplified.txt` / `corporate_records_specialist_simplified.txt` now carry the
+  corrected text the dojo ships as `production_prompts` (eval-environment mutations
+  `correspondence_specialist_v7` / `corporate_records_specialist_v6`; sha256 `2b0b81ff…` / `fe13501f…`,
+  6113 / 5865 chars). `eval_environment_lineage.json` rows point at those keys with the new
+  sha256/chars, a `refrozen_at` stamp and a `superseded` block holding the original v1 key, sha256, chars
+  and `frozen_at`; the sibling check verifies both. **Runs that used these stems before this change
+  scored the v1 bytes** (`*_v1`, `eab63b5a…` / `484e64dd…`); the default stem's logged eval-environment
+  key is now `_v7` / `_v6` (corporate's default moved on to `_v7` via the successor stem in the vendor
+  bump section below). The generated archived runbooks were re-rendered to the current key.
+
+### Fixed — dojo v0.22 provenance + `identity_mixed`
+
+- Serving records and fixtures carry `dataset_revision` (+ `split` / `draw_seed` where known) so the
+  dojo's `emit_serving_scorecard` no longer raises `ProvenanceExportError` (4 tests). Job records take
+  them from the run lock (`job.metrics.lock_dataset_provenance`); the serving fixtures carry
+  `FAMILY_HF_REVISION`; token-price USD is labelled `cost_basis=token_price_estimate`. Never derived
+  from the dataset fingerprint. `emit_local_vs_api_scorecard` accepts `provenance=`.
+- `compare_from_records` (`sandbox eval local_vs_api --from-log`, `sandbox matrix`) and
+  `sandbox metrics compare` group rows by full identity (`serving_groups.py`) and compare per comparable
+  group instead of pooling every local/API row into one `identity_mixed` leg. New `--group`; one
+  scorecard per group (`<name>.g<n>`).
+- Scorecard tests now run the real `Emitter` + `LocalManifestSink`; `tests/test_serving_groups.py`
+  covers multi-model logs.
+
+### Changed — scorecards fail loudly
+
+- A scorecard that cannot be emitted with honest provenance now RAISES instead of being reported as
+  "refused": `emit_local_vs_api_scorecard` / `emit_group_scorecards` raise `ScorecardEmissionError`
+  (subclass of the dojo's `ProvenanceExportError`; `.field`, `.group`, sandbox hint) for a missing
+  `dataset_revision` or an incomparable (`identity_mixed`) group. All groups are validated against an
+  in-memory sink before any is written, so a late failure leaves no partial manifest, and
+  `run_local_vs_api_eval` raises before appending its log record. `scores.scorecards_refused` and the
+  `emitted: False` entries are gone. `sandbox` exits 1 with `error: scorecard not emitted: <reason>` on
+  stderr (job runs fail with the same reason). New `sandbox eval local_vs_api --dataset-revision <sha>`
+  (full 40-hex only) supplies a real revision for log/fixture rows that have none; it never overrides a
+  recorded one. Reverses the report-don't-raise policy of the provenance fix above.
+
+### Added
+
+- **Prompt catalog `docs/prompts/`** (generated, deterministic): an index of all 43 eval-environment versions
+  (5 archived, 15 frozen, 23 mutations; 15 roles) and one page per role with, per version oldest -> newest, the
+  metadata, the full memo, what changed against the predecessor (sections, +/- lines, chars delta, dojo notes such
+  as the `sorter_v3` duplicated block, non-monotonic dates), a unified diff, the full text and the exact
+  `--prompt-version` command. The index marks the sandbox default / eval-environment default / latest per role and
+  explains the name collisions (the `sorter_v1` stem and the mailroom `sorter_v0..v14` / `contracts_specialist_v1..v33`
+  registry are not eval-environment keys). `python scripts/render_prompt_catalog.py [--check]`;
+  `tests/test_prompt_catalog.py` fails when the pages drift from the vendored dojo.
+- `sandbox prompts list-versions [--role R] [--lineage L] [--json]` and `sandbox prompts show <key> [--diff <other-key> | --memo | --json]`.
+- The `prompt_versions` seam is wired to the real dojo lineage (`llm_dojo_scoring.prompts.get_prompt_version`);
+  `tests/test_prompt_versions_dojo.py` checks all 43 versions, the sorter `v1..v4` and every specialist mutation
+  against the lineage (and a sibling eval-environment checkout via `EVAL_ENVIRONMENT_ROOT` when present), that every
+  accepted lineage role is a sandbox pipeline role, and that `pipeline_quality` / `pipeline_verdict` are refused.
+  Finding, since resolved by the vendor bump: the lineage lock's `insurance_claims_specialist_v4` /
+  `merger_agreement_specialist_v4` keys were not in the tag-era registry; those stems ran with `--prompt <stem>`
+  and now resolve through `--prompt-version` as well.
+- **Run with any eval-environment prompt version** (archived `_v0`, frozen `_v1`, every GEPA / manual
+  mutation, sorter included): `sandbox eval <task> --prompt-version [role=]key` (repeatable),
+  `sandbox run ... --prompt-version`, and `prompt.versions` in a run spec. New seam
+  `mailroom_sandbox/prompt_versions.py` (`resolve_prompt(role, key=None) -> (key, text, sha256)`); the
+  dojo lookup is the single function `lookup_prompt_version` (the vendored dojo does not ship the
+  lineage API yet, so a selection fails loudly until it is re-vendored). Unknown key, key/role
+  mismatch, non-pipeline role, sha mismatch, `--prompt` vs `--prompt-version` clash: hard error. The
+  key + sha256 land in the run lock (`prompt_versions`, `source: eval-environment`), `spec_hash`, and
+  every record (`prompt_version`, `prompt_sha256`, `eval_environment_prompt_key`, `prompt_versions`).
+  `serving_groups` now also keys legs and pairs on `prompt_sha256`, so mutations never pool (and the
+  mailroom-text stem `sorter_v1` never pools with eval-environment `sorter_v1`). Default behaviour is
+  unchanged.
+- **SAND-042 repaired specialists frozen.** `insurance_claims_specialist_simplified_v2` and
+  `merger_agreement_specialist_maud_v2` are frozen in eval-environment as
+  `insurance_claims_specialist_v4` and `merger_agreement_specialist_v4`, and pinned under
+  `frozen_successors` in `config/prompts/eval_environment_lineage.json` (sha256 `1ca6e83c…58ea` / 8461
+  chars and `da316691…1946` / 33125 chars). `assert_catalog_sha` and `verify_local_catalog` refuse drift
+  in either stem; `eval_environment_key_for(stem=…)` reports the v4 key on run records; the sibling check
+  reads eval-environment `prompts/mutations.json`. The default v1 stems are unchanged.
+
+## [0.3.0] - 2026-10-17
+
+### Added
+
+- **`corporate_records_specialist_subclass_v2`** frozen successor (eval-environment `corporate_records_specialist_v7`, sha256 `253559fc…`): per-subclass
+  key-entity lines generated from the dojo's `corporate_record_schema`. The default pin is unchanged.
+
+### Changed — v1 specialist stems re-frozen (Exios66/llm-dojo-scoring#30)
+
+- `config/prompts/correspondence_specialist_simplified.txt` and
+  `config/prompts/corporate_records_specialist_simplified.txt` now mirror the
+  dojo's corrected `production_prompts` v1 text (provenance comment stripped). `eval_environment_lineage.json`
+  rows carry the new `sha256`/`chars` plus `previous_sha256`, `previous_chars` and `refrozen_at`
+  (2026-10-15); `frozen_at` is unchanged. Correspondence `eab63b5a…`→`2b0b81ff…` (6061→6113 chars);
+  corporate-records `484e64dd…`→`fe13501f…` (5801→5865 chars). **Scores on these two stems are not
+  comparable to earlier cards without re-scoring.**
+
+### Fixed — SAND-042 schema-adherence RCA (`docs/SAND42-SCHEMA-ADHERENCE-RCA.md`)
+
+- Vendored `InsuranceClaimExtraction` (`insurer`, `insured_party`, `claim_type`, `damages_description`,
+  `coverage_determination`), `CorporateRecordExtraction` (`entity_name`, `record_type`) and
+  `CorrespondenceExtraction.communication_type` are contract-nullable; `claimed_amount` / `demand_amount`
+  accept currency phrases. Insurance schema-valid 0.26–0.34 was this bug, not the model.
+- Structured-output `intent` hints list the scored vocabulary (were `demand_payment`, `acknowledge`,
+  `coverage_denial`, … — none scorable).
+- `eval/maud_scoring.py`: chunk-merged answers are reduced (non-answers dropped, conflicts counted as
+  `maud_conflicts`) instead of first-chunk-wins; multi-class answers compare as sets; `{q: null}` is unanswered.
+- Vendored llm-dojo-scoring refreshed from v0.15 to the dojo `claude/schema-adherence-rca` branch (label
+  intents, stringified-GT parsing, MAUD catalog + fold/parse fixes, CMS `claim_type` ≡ `health`). Four tests
+  that pinned v0.15 empty-list / Modal serving-kind behavior now pin the dojo contract.
+  **Scores are not comparable to SAND-032…SAND-042 cards without re-scoring.**
+
+### Added
+
+- `tests/test_schema_contract.py` (dojo `contract_violations` over every vendored schema) and
+  `tests/test_specialist_intent_vocab.py`.
+- Candidate stems `insurance_claims_specialist_simplified_v2`, `merger_agreement_specialist_maud_v2`
+  (generated: `scripts/gen_maud_v2_prompt.py [--check]`) and `config/runs/rca/` re-check configs.
+
 ### Added — local-first job traces (pack → upload → prune)
 
 - Endpoint-mode runs (`sandbox run start`, the Modal-vLLM grid and SAND runs) now build a tracer; before this
@@ -175,7 +550,7 @@
   (blocked), Granite 4.2-8B FP8 swap-in, second-L4 data parallel, scale-matrix
   cells — `sandbox runbook list --family improved`.
 - CLI: `sandbox runbook list|show|check|write`. Tests:
-  `tests/test_runbooks.py`. `docs/benchmark-l4.md` is now the pointer;
+  `tests/test_runbooks.py`. `docs/modal/benchmark-l4.md` is now the pointer;
   operator scripts are generated.
 
 ### Changed — monorepo target Digital-Mailroom (2026-09-24)
@@ -212,8 +587,8 @@
 - `VLLMSpec` gains `enable_prefix_caching` / `enforce_eager`; specialist and
   cost-eval run YAMLs pin the new posture. Scale-matrix cells keep
   `max_num_seqs: 256` and must export `MODAL_VLLM_MAX_NUM_SEQS=256` at deploy.
-- Docs: `deploy/README.md`, `docs/benchmark-l4.md`, `docs/scale-matrix.md`
-  (container topology), `docs/modal-serving-ops.md`, skill knobs.
+- Docs: `deploy/README.md`, `docs/modal/benchmark-l4.md`, `docs/scale-matrix.md`
+  (container topology), `docs/modal/modal-serving-ops.md`, skill knobs.
 
 ### Added — SAND-020 correspondence extraction-quality diagnosis (issue #21)
 
@@ -226,9 +601,9 @@
   scalars are not events; empty-list inventions zero overall; F1 TP requires
   typed score ≥ 1.0; isolated `exact_match` is a runner alias of overall.
 - **Offline diagnosis** of `run-20-correspondence-awq-c8` (fingerprint
-  `285f423d3708`): [`docs/extraction-quality-diagnosis.md`](docs/archive/extraction-quality-diagnosis.md)
+  `285f423d3708`): [`docs/archive/extraction-quality-diagnosis.md`](docs/archive/extraction-quality-diagnosis.md)
   (best/worst docs, token evidence, owner-locked 0.25 / 0.50 gates).
-- **FP16 twin YAML** [`config/runs/run-20-correspondence-fp16-c8.yaml`](config/runs/run-20-correspondence-fp16-c8.yaml)
+- **FP16 twin YAML** [`config/runs/legacy/run-20-correspondence-fp16-c8.yaml`](config/runs/legacy/run-20-correspondence-fp16-c8.yaml)
   — same draw, `Qwen/Qwen3-8B`, **not run** (spend/auth blocked). Runbook:
   [`docs/jobs.md`](docs/jobs.md) §AWQ vs FP16 isolation.
 
@@ -259,8 +634,8 @@
 
 ### Added — SAND-018 single-class 20-contract Modal run + full-corpus logged sample (2026-09-25)
 
-- **`config/runs/run-20-contracts-specialist.yaml`** — the runbook's
-  [`docs/benchmark-l4.md`](docs/modal/benchmark-l4.md) L4 Qwen pins (`Qwen/Qwen3-8B`,
+- **`config/runs/legacy/run-20-contracts-specialist.yaml`** — the runbook's
+  [`docs/modal/benchmark-l4.md`](docs/modal/benchmark-l4.md) L4 Qwen pins (`Qwen/Qwen3-8B`,
   L4, `v0.29.0`, `max_model_len=16384`, scaledown 120, `contracts_specialist_v33`
   local prompt) applied to a **20-contract** single-class run drawn as a seeded
   random sample (`sample_seed=42`) from the **full** corpus (`split: all`, 3,302
@@ -322,7 +697,7 @@
   class from that local JSONL (offline; merger_agreement ceiling is 152).
 - Corpus loader accepts `split: all`. Class-bucket quotas above availability
   now hard-fail (same as nested sub_buckets). Template:
-  `config/runs/example-per-class.yaml`.
+  `config/runs/examples/example-per-class.yaml`.
 
 ### Added — SAND-001 local SAND board prefix (2026-09-24)
 
@@ -332,7 +707,7 @@
   llm-entity-extraction's MESSAGE_BOARD — do not open DMR cards on the
   local board.
 - Legacy `SANDBOX-050-*` mission archived → epic `SAND-010` (+ sub-cards).
-- Docs: `AGENTS.md`, `docs/sister-repos.md`, `docs/modal-doc-jobs.md` gate
+- Docs: `AGENTS.md`, `docs/setting-up/sister-repos.md`, `docs/modal/modal-doc-jobs.md` gate
   rows (`SAND-014`). Drift guard: `tests/test_governance_sand.py`.
 
 ### Added — DMR-078b requirements completeness (2026-09-24)
@@ -376,7 +751,7 @@
 - **CLI:** `sandbox run suite --suite track-a|track-b|full` (runbook /
   `--print-loop` / `--check` / `--execute`); `sandbox metrics estimate-suite
   --suite …`; `sandbox run benchmark-check --suite …`.
-- **Docs:** two-operator runbook in `docs/benchmark-l4.md` + `.env.example`
+- **Docs:** two-operator runbook in `docs/modal/benchmark-l4.md` + `.env.example`
   profile-name placeholders (no secrets). Spend posture unchanged: scaledown
   120, c=4, L4, max_containers=1, warm-once per track.
 
@@ -385,7 +760,7 @@
 - **Attended scaledown 120s** pinned in all five `run-30-*-specialist.yaml`
   (`engine.modal.scaledown_seconds`) + deploy default
   `MODAL_VLLM_SCALEDOWN_SECONDS=120`; restore **600** for unattended/overnight.
-- **Loud warm-once headers** on every run-30 YAML + `docs/benchmark-l4.md`
+- **Loud warm-once headers** on every run-30 YAML + `docs/modal/benchmark-l4.md`
   (one `sandbox-vllm` app through all five runs; teardown only after the fifth).
 - **`sandbox run benchmark-check`** enforces spend posture: scaledown=120,
   min_containers=0, max_containers=1, concurrency=4, limit=30, DMR-074 local
@@ -438,7 +813,7 @@
 
 ### Planned (not yet shipped — hub#54)
 
-- **DMR-059 — Modal doc-pipeline job queue plan**: `docs/modal-doc-jobs.md`
+- **DMR-059 — Modal doc-pipeline job queue plan**: `docs/modal/modal-doc-jobs.md`
   designs a `sandbox-doc-jobs` Modal app modeled on the Modal docs tutorial
   (`09_job_queues/doc_ocr_jobs.py`) — a CPU-side document job queue whose LLM
   is the already-deployed `sandbox-vllm` endpoint: bytes staged on a
@@ -448,7 +823,7 @@
   progress mirror, `modal run` local-entrypoint smoke, and
   `Function.from_name(...).spawn(...)` consumption. Three phases (mock
   smoke → live vLLM → CLI). **Not yet shipped** — the card is still
-  `in_progress` on the board and neither `docs/modal-doc-jobs.md` nor
+  `in_progress` on the board and neither `docs/modal/modal-doc-jobs.md` nor
   `.opencode/agents/` now ships the coding subagent roster (SAND-017); Modal
   doc-jobs code remains unshipped — this entry documents the queue plan only.
 
@@ -468,7 +843,7 @@
   data, a constant stratum field with >1 requested value (the run-50 trap,
   named), and a draw/limit that drops a requested stratum; the lock records
   `strata_actual` (drawn distribution) so a lock proves what was drawn.
-  Delivered: `config/runs/run-50-subclass.yaml` (13 strata · Service 8, …
+  Delivered: `config/runs/legacy/run-50-subclass.yaml` (13 strata · Service 8, …
   Manufacturing 2 · 50 rows; `preflight --force` locked with `strata_actual`
   matching exactly; old generation archived per DMR-049), spec validation
   (unknown keys / counts length / positive ints), 6 new corpus tests + 3
@@ -496,12 +871,12 @@
   est. **$13.08 ≤ $15** at $0.80/GPU-hr, teardown per cell via
   `deploy/teardown_vllm.sh`, measurement contract (items.jsonl primary,
   engine `/metrics` + log windows secondary, billing per cell). Exemplar
-  specs `config/runs/scale-c1-4xl4-c16.yaml` (bf16 baseline) +
+  specs `config/runs/scale/scale-c1-4xl4-c16.yaml` (bf16 baseline) +
   `scale-d1-awq-4xl4-c16.yaml` (quant-only delta); fleet pinning via
   `MODAL_VLLM_MIN_CONTAINERS=4` (already supported by the deploy app).
 
 - **DMR-063 — 50-doc Modal vLLM scale-out run + teardown safeguards (SHIPPED
-  2026-09-16)**: `config/runs/run-50-modal-hf.yaml` — 50 contract-class rows
+  2026-09-16)**: `config/runs/legacy/run-50-modal-hf.yaml` — 50 contract-class rows
   (19 subclasses; Hub pinned revision), concurrency 16, `max_containers: 4`
   (2–3 warm L4s), `scaledown_seconds: 600`. Result: **49/50 = 98.0 %**,
   0 run errors, 0 timeouts; one out-of-set misclassification
@@ -537,12 +912,12 @@
   base that already carries the `/v1` seam (`.../v1/v1/models` → live 404);
   the probe now normalizes (pinned by `test_engine_probe_url_seam_normalizes_v1_suffix`).
   `test_vendor` stale-pin scan no longer trips on pip-installed venv wheels.
-  First live pilot spec: `config/runs/pilot-sorter-modal-hf.yaml`.
+  First live pilot spec: `config/runs/examples/pilot-sorter-modal-hf.yaml`.
   260 passed / 3 skipped.
 
 - **DMR-058 — full CLI verification sweep + quickstart**: every `sandbox`
   command exercised against a fresh in-repo `.venv` (offline + live Hub
-  paths); `docs/QUICKSTART.md` is the verified full command reference
+  paths); `docs/setting-up/QUICKSTART.md` is the verified full command reference
   (install, flag-placement rules, workflows, exit codes, troubleshooting).
   New extras: `[pipeline]` (vendored langchain stack for the legalbench
   suite / live mailroom paths), `[dev]` now carries the Hub client
@@ -557,7 +932,7 @@
   the package at the repo root; the old `work/name` fallback half-wiped the
   tracked tree before crashing). `run status/resume/cancel --config`
   resolves the embedded `run_id` (previously demanded `--run-id` even with a
-  config). `config/runs/example.yaml` fixture path is CWD-relative again.
+  config). `config/runs/examples/example.yaml` fixture path is CWD-relative again.
   ~6 new network-free tests (230 passed / 1 skipped).
 
 - **HUB-026 — remote-serving integration completeness**: `vllm-remote`
@@ -568,7 +943,7 @@
   `deploy/htcondor/` CHTC job templates — batch eval (in-job vLLM, works
   on the shared GPU Lab where `condor_ssh_to_job` is unavailable) and an
   owned-GPU server variant tied to the tunnel profile
-  (`docs/remote-serving.md` is the overview).
+  (`docs/setting-up/remote-serving.md` is the overview).
 - **Modal deploy hardening (SDK 1.5.5 / vLLM v0.28.0)**: `deploy/modal_vllm.py`
   now pins the Modal SDK (`modal==1.5.5` in the `[deploy]` extra), defaults to
   `vllm/vllm-openai:v0.28.0` (matching the local compose pin), caches vLLM
@@ -583,7 +958,7 @@
   (`tests/test_modal_vllm.py`) pin the argv builder, bearer env mapping,
   secret construction, cost guards, and the SDK/image pins. Docs:
   `deploy/README.md` (deploy → verify → cost → security → troubleshooting),
-  `.cursor/skills/modal/SKILL.md`, `docs/remote-serving.md`,
+  `.cursor/skills/modal/SKILL.md`, `docs/setting-up/remote-serving.md`,
   `config/.env.example`.
 
 - **DMR-027 — sandbox job CLI (`sandbox run`)**: a spec-driven, locked,

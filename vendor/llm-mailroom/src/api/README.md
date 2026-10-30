@@ -6,7 +6,7 @@ This is the **front door** to Mailroom. It's a small web server (FastAPI) that l
 
 You use it to:
 
-- Upload a document (`POST /upload`) — drops it in the inbox for the watcher to process. The upload carries a tracking `upload_id` and honors the submitted `matter_id` via a `<file>.meta` sidecar the watcher reads.
+- Upload a document (`POST /upload`) — drops it in the inbox for the watcher to process. The upload carries a tracking `upload_id` and honors the submitted `matter_id` via a `<file>.meta` sidecar the watcher reads. FastAPI defaults omitted or empty multipart `matter_id` fields to `DEFAULT`; whitespace-only and path-bearing identifiers are rejected with HTTP 400. Direct adapter calls also reject an empty identifier.
 - See the live inbox → processing queue (`GET /queue`) — queued uploads (with their metadata), in-flight worker claims, and recent documents.
 - Check where a document is in the pipeline (`GET /status/{doc_id}`).
 - Approve/reject/record/requeue/complete documents on human review (`POST /review/{doc_id}/resolve`, dispositions from The-Mailroom PR #18/#20 — `doc_type` / `doc_subclass` class correction); list the tray (`GET /review/queue`), look up by trace/filename (`GET /lookup`), and read the parked file (`GET /documents/{doc_id}/source`, `?download=1` for original bytes).
@@ -45,7 +45,7 @@ typed endpoints required.
 - `GET /audit/{doc_id}` returns the hash chain from `storage/audit_log.py` plus a `chain_valid` bool from `schemas/audit.py:verify_chain`.
 - `POST /ops/resume` — clear the ingestion-pause flag (there is no `/ops/pause` endpoint; the pause flag is written by the ops monitor / operator); `GET /ops/status` reports `paused_ingestion` and pipeline-wide metrics.
 - Full endpoint docs (request/response shapes): `docs/api.md`.
-- Railway: root `railway.json` + [docs/deployment.md](../../docs/deployment.md) § Railway.
+- Railway: root `railway.json` + [docs/deployment.md](../../docs/pipeline-reference-llm-mailroom/deployment/README.md) § Railway.
 
 ### Wiring notes
 
