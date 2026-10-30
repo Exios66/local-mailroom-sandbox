@@ -14,6 +14,7 @@ pip install -r requirements/base.txt
 #   pip install -r requirements/dev.txt          # offline pytest + Hub + pipeline
 #   pip install -r requirements/pipeline.txt     # vendored mailroom live path
 #   pip install -r requirements/deploy.txt       # Modal SDK
+#   pip install -r requirements/decision.txt     # Pydantic AI + TypeSafe (Jev decision backend)
 #   pip install -r requirements/all.txt          # everything
 # Or (preferred editable):
 #   pip install -e ".[dev,pipeline,deploy]"
