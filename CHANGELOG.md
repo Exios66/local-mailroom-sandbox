@@ -10,6 +10,21 @@
 - `mailroom_sandbox.services._exec`: one guarded way to run an external CLI
   (`require_tool`, `run_tool`; `ToolMissing`, `ToolFailed`, `ToolTimeout`).
   `main()` renders any `ServiceError` as a single `error:` line (exit 1).
+- `sandbox modal deploy|prewarm|status|logs|stop|url|raw`: guarded passthrough to the
+  Modal CLI. Injects the pinned `deploy/modal_vllm.py` entrypoint and the `--model`/`--gpu`
+  row from `config/models.yaml`; every command has `--dry-run` (prints the argv, spends
+  nothing); `deploy` prints the endpoint exports; `stop` is idempotent and verified
+  against `modal app list --json`; an SDK other than the `modal==1.6.2` pin warns.
+- `sandbox vllm probe|command|serve|metrics`: `probe` checks models, chat, `/health` and
+  `/metrics` plus that the served model is the one a run will ask for; `command` prints
+  the exact `vllm serve` argv the Modal app launches (loaded from
+  `deploy/modal_vllm.py::build_vllm_command`, no Modal SDK needed); `serve` runs it on a
+  local NVIDIA host bound to 127.0.0.1; `metrics` wraps `vllm_metrics.scrape`.
+- `sandbox hf whoami|download|cache|raw`: guarded passthrough to the `hf` CLI. `download`
+  defaults to the sandbox dataset at the pinned `FAMILY_HF_REVISION`; the cache is
+  explicit (your own `HF_HOME`, or `--sandbox-cache` for `data/cache/hf`).
+- `services._exec.stream_tool` / `passthrough_tool` (live-streamed and terminal-attached
+  runs) and ANSI stripping in tool-failure messages.
 
 ### Changed
 

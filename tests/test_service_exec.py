@@ -70,3 +70,59 @@ def test_run_tool_never_goes_through_a_shell(fake_bin):
     fake_bin.add("hf")
     run_tool(["hf", "download", "a; rm -rf /", "$(whoami)"])
     assert fake_bin.calls("hf") == [["download", "a; rm -rf /", "$(whoami)"]]
+
+
+def test_stream_tool_echoes_every_line_and_returns_the_exit_code(fake_bin, capsys):
+    from mailroom_sandbox.services._exec import stream_tool
+
+    fake_bin.add("modal", stdout="building image\nready\n", rc=0)
+    lines: list[str] = []
+    rc = stream_tool(["modal", "deploy", "x.py"], on_line=lines.append)
+    assert rc == 0
+    assert lines == ["building image", "ready"]
+    assert "building image" in capsys.readouterr().out
+    assert fake_bin.calls("modal") == [["deploy", "x.py"]]
+
+
+def test_stream_tool_returns_a_non_zero_exit_code_without_raising(fake_bin):
+    from mailroom_sandbox.services._exec import stream_tool
+
+    fake_bin.add("modal", stderr="boom\n", rc=4)
+    assert stream_tool(["modal", "deploy", "x.py"]) == 4
+
+
+def test_stream_tool_missing_binary_raises_tool_missing(fake_bin):
+    from mailroom_sandbox.services._exec import stream_tool
+
+    with pytest.raises(ToolMissing):
+        stream_tool(["modal", "deploy", "x.py"], hint="pip install -e '.[deploy]'")
+
+
+def test_stream_tool_kills_a_hung_process_after_the_timeout(fake_bin):
+    from mailroom_sandbox.services._exec import stream_tool
+
+    fake_bin.add("modal", sleep=30)
+    with pytest.raises(ToolTimeout):
+        stream_tool(["modal", "deploy", "x.py"], timeout=0.5)
+
+
+def test_passthrough_tool_returns_the_exit_code_and_records_argv(fake_bin):
+    from mailroom_sandbox.services._exec import passthrough_tool
+
+    fake_bin.add("hf", rc=5)
+    assert passthrough_tool(["hf", "auth", "login"]) == 5
+    assert fake_bin.calls("hf") == [["auth", "login"]]
+
+
+def test_passthrough_tool_missing_binary_raises_tool_missing(fake_bin):
+    from mailroom_sandbox.services._exec import passthrough_tool
+
+    with pytest.raises(ToolMissing):
+        passthrough_tool(["hf", "auth", "login"], hint="pip install -U huggingface_hub")
+
+
+def test_tool_failed_strips_terminal_colour_codes_from_the_message():
+    """The real `hf` colours its errors; escape codes must not leak into the one-line `error:` message."""
+    exc = ToolFailed(["hf", "auth", "whoami"], 1, "\x1b[1m\x1b[31mError: Not logged in.\x1b[0m")
+    assert "\x1b" not in str(exc)
+    assert "Error: Not logged in." in str(exc)

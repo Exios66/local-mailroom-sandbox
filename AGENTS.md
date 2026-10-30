@@ -103,6 +103,9 @@ sandbox subagents sync --harness all  # OpenCode frontmatter + .cursor/agents/ s
 sandbox subagents propagate              # materialize + sync all mapped family checkouts
 sandbox subagents materialize --package digital-mailroom --root <path>  # monorepo hub export
 sandbox metrics compare --runs local,modal,api   # serving metrics comparison
+sandbox modal deploy|prewarm|status|logs|stop|url|raw   # guarded Modal CLI passthrough (--dry-run on each; stop is idempotent + verified)
+sandbox vllm probe|command|serve|metrics   # endpoint probe (models/chat//health//metrics), `vllm serve` argv, local serve, metrics scrape
+sandbox hf whoami|download|cache|raw   # guarded hf CLI passthrough (pinned dataset revision; --sandbox-cache = data/cache/hf)
 sandbox watch --web                   # mailroom pretty-logs TUI in the browser (http://127.0.0.1:8765/, SSE); full command matrix in docs/pretty-logging/mailroom-themed-logging.md
 sandbox dev                           # dev server: same themed UI on a synthetic looping run (no Modal/spend)
 scripts/mailroom-tui dev|web|score <run>   # launcher; .claude/launch.json → mailroom-watch-dev / -live
