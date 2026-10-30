@@ -118,7 +118,7 @@ def run_snapshot(store: RunStore) -> dict[str, Any]:
         "ok": len(ok),
         "errors": len(errs),
         "replicas": max(1, int(modal.get("max_containers") or 1)),
-        "gpu": str(modal.get("gpu") or "L4"),
+        "gpu": str(modal.get("gpu") or "—"),
         "p50_s": round(statistics.median(lat), 3) if lat else None,
         "p95_s": round(p95, 3) if p95 is not None else None,
         "mean_score": round(statistics.mean(scores), 4) if scores else None,
@@ -476,7 +476,7 @@ def render_frame(
     tray = [
         pl._metric("run", s["run_id"], total_w=mw, on=on),
         pl._metric("specialist", s["task"], total_w=mw, on=on),
-        pl._metric("fleet", f"×{s['replicas']} {s['gpu']} · {s['state']}", total_w=mw, on=on),
+        pl._metric("capacity", f"×{s['replicas']} {s['gpu']} · {s['state']}", total_w=mw, on=on),
         (p["cyan"](bar) if on else bar) + f"  {s['done']}/{s['total']}",
         pl._metric("sorted", f"delivered {s['ok']} · returned {s['errors']}", total_w=mw, on=on),
         pl._metric("postmark", f"p50 {_fmt(s['p50_s'], 's')} · p95 {_fmt(s['p95_s'], 's')}", total_w=mw, on=on),
@@ -491,6 +491,7 @@ def render_frame(
     spent = float(spend.get("spent_usd") or 0.0)
     live = float(spend.get("live_usd") or 0.0)
     cap = float(spend.get("cap_usd") or 5.0)
+    gate = float(spend.get("gate_usd") or GATE_USD)
     # compose_watch_state binds ledger and live to the same run when there is no ledger; its
     # total_usd is authoritative (spent + live would count the open run twice).
     total = float(spend["total_usd"]) if spend.get("total_usd") is not None else spent + live
@@ -508,10 +509,10 @@ def render_frame(
         pl._metric("live run", f"${live:.4f}", total_w=mw, on=on),
         pl._metric("total", f"${total:.4f} / ${cap:.2f}", total_w=mw, on=on),
         (p["gold"](pbar) if on else pbar) + f"  {100 * total / cap:.0f}%",
-        pl._metric("gate", f"${GATE_USD:.2f} projected-total stop", total_w=mw, on=on),
+        pl._metric("gate", f"${gate:.2f} configured estimate gate", total_w=mw, on=on),
     ]
-    if total > GATE_USD:
-        warn = f"⚠ OVER ${GATE_USD:.2f} GATE — stop and reconcile"
+    if total > gate:
+        warn = f"⚠ OVER ${gate:.2f} GATE — stop and reconcile"
         postage.append(p["warn"](warn) if on else warn)
     postage_title = panels.get("postage") or "POSTAGE ($)"
     postage_box = pl._box(postage_title, postage, width=box_w, on=on)
@@ -597,17 +598,14 @@ def start_log_streams(store: RunStore, app: str, sink: Any, stop: threading.Even
 
     src = tc.dispatch_source(store, cli_app=app)
     threads: list[threading.Thread] = []
-    serve = src["serve_app"]
-    t = threading.Thread(target=_stream_logs, args=(serve, sink, stop), daemon=True)
-    t.start()
-    threads.append(t)
     worker = src.get("worker_app")
-    if worker and worker != serve:
-        tw = threading.Thread(
-            target=_stream_logs, args=(worker, sink, stop), kwargs={"prefix": "[worker] "}, daemon=True
+    for app_name in src["streams"]:
+        thread = threading.Thread(
+            target=_stream_logs, args=(app_name, sink, stop),
+            kwargs={"prefix": "[worker] "} if app_name == worker else {}, daemon=True
         )
-        tw.start()
-        threads.append(tw)
+        thread.start()
+        threads.append(thread)
     return threads
 
 
@@ -627,6 +625,9 @@ def _live_run_usd(store: RunStore, snap: Mapping[str, Any], started: float) -> f
     """GPU $ for the open job. Running cells extend first-item ts → now so $ ticks."""
     from mailroom_sandbox.job.metrics import _parse_item_ts, estimate_gpu_cost_usd
 
+    lock = store.read_lock() or {}
+    if not (lock.get("engine") or {}).get("modal") or (lock.get("job") or {}).get("mock"):
+        return 0.0  # No evidence of a billed GPU; API spend must not be invented from L4 time.
     now = time.time()
     watch_wall = max(0.0, now - started)
     stamps: list[float] = []
@@ -665,15 +666,18 @@ def compose_watch_state(
     width: int = 100,
     blink: bool = False,
     log_rows: int = 14,
+    campaign_path: Path | None = None,
 ) -> dict[str, Any]:
     """JSON-serializable Tray TUI snapshot (terminal + browser)."""
     from mailroom_sandbox.tui import tray_context as tc
 
     snap = run_snapshot(store)
+    campaign = tc.campaign_context(campaign_path, store.run_id) if campaign_path else None
     layout = tc.build_tray_layout(
-        store, app=app, times_dir=times_dir, cap_usd=cap_usd, gate_usd=GATE_USD, width=width
+        store, app=app, times_dir=times_dir, cap_usd=cap_usd, gate_usd=GATE_USD, width=width, campaign=campaign
     )
     cap_usd = float(layout.get("cap_usd") or cap_usd)
+    gate_usd = float(layout.get("gate_usd") or GATE_USD)
     times_file = tc.resolve_times_file(store, times_dir)
     times = read_times(times_file) if times_file else {}
     key = f"{snap['run_id']}@{times.get('deploy_done', times.get('ready', 0))}"
@@ -709,10 +713,14 @@ def compose_watch_state(
         live = run_usd
         total = spent + live
     spend = {
+        "basis": "published ledger" if ledger and ledger.is_file() else (
+            "MOCK · no inference" if ((store.read_lock() or {}).get("job") or {}).get("mock") else (
+                "GPU capacity estimate · not invoice" if ((store.read_lock() or {}).get("engine") or {}).get("modal")
+                else "cost not measured · no GPU estimate")),
         "spent_usd": spent,
         "live_usd": live,
         "cap_usd": cap_usd,
-        "gate_usd": GATE_USD,
+        "gate_usd": gate_usd,
         "ok": snap["ok"],
         "errors": snap["errors"],
         "done": snap["done"],
@@ -723,7 +731,7 @@ def compose_watch_state(
     }
     spend["total_usd"] = total
     spend["pct_of_cap"] = round(100 * total / cap_usd, 1) if cap_usd else 0.0
-    spend["over_gate"] = total > GATE_USD
+    spend["over_gate"] = total > gate_usd
     spend["bar"] = progress_bar(int(total * 100), int(cap_usd * 100), width=30)
     from mailroom_sandbox.tui import watchdog as wd
 
@@ -777,6 +785,7 @@ def compose_watch_state(
         "route": route,
         "job_route": job_route,
         "layout": layout,
+        "campaign": campaign,
         "logs": logs,
         "subtitle": layout.get("subtitle") or SUBTITLE_PATH,
         "route_label": layout.get("route_label") or ROUTE,
@@ -868,6 +877,7 @@ def watch(
     log_path: Path | None = None,
     serving_dir: Path | None = None,
     bell: bool = True,
+    campaign_path: Path | None = None,
 ) -> int:
     """Live Tray TUI. Redraws when a log line lands or the run store changes, and at
     least every ``interval`` seconds (clocks, spend), painting in place without clearing."""
@@ -880,11 +890,13 @@ def watch(
     )
     sink = LogBuffer(resolved_log)
     stop = threading.Event()
+    log_stop = threading.Event()
     store, app = resolve()
     if not once:
         sys.stdout.write(pl.ALT_ENTER + pl.HIDE_CURSOR + pl.CLEAR_SCREEN)
     if logs and not once:
-        start_log_streams(store, app, sink, stop)
+        start_log_streams(store, app, sink, log_stop)
+    log_identity = (store.dir, app)
     started = time.time()
     boot_mark: dict[str, int] = {}
     announced: set[str] = set()
@@ -896,6 +908,18 @@ def watch(
     try:
         while True:
             store, app = resolve()  # --follow: the current run can change between frames
+            if (store.dir, app) != log_identity:
+                log_stop.set()
+                log_stop = threading.Event()
+                _, resolved_log = _watch_paths(store, times_dir=times_dir,
+                    sand032_root=sand032_root, log_path=log_path)
+                sink = LogBuffer(resolved_log)
+                started = time.time()
+                boot_mark.clear()
+                announced.clear()
+                if logs and not once:
+                    start_log_streams(store, app, sink, log_stop)
+                log_identity = (store.dir, app)
             size = shutil.get_terminal_size((100, 40))
             sig = (store.dir, _store_sig(store))
             due = (
@@ -929,6 +953,7 @@ def watch(
                 width=width,
                 blink=blink,
                 log_rows=rows,
+                campaign_path=campaign_path,
             )
             frame = render_frame(
                 snapshot=state["snapshot"],
@@ -959,6 +984,7 @@ def watch(
         return 0
     finally:
         stop.set()
+        log_stop.set()
         if not once:
             sys.stdout.write(pl.SHOW_CURSOR + pl.ALT_LEAVE)
             sys.stdout.flush()

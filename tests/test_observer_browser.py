@@ -1,0 +1,110 @@
+"""Opt-in real Chromium UX checks; no network providers or paid jobs.
+
+SANDBOX_BROWSER_TESTS=1 uv run --extra dev --with playwright pytest -q tests/test_observer_browser.py
+Set SANDBOX_BROWSER_EXECUTABLE to a local Chromium/Chrome executable, or install
+Playwright Chromium first. These are separate from the default offline gate.
+"""
+import os
+from http.server import ThreadingHTTPServer
+from threading import Thread
+
+import pytest
+
+from mailroom_sandbox.tui import web
+from mailroom_sandbox.tui.demo import DemoRun
+
+
+@pytest.mark.parametrize("width,height", [(375, 812), (1280, 900)])
+def test_operator_workspaces_and_keyboard(tmp_path, width, height):
+    if os.environ.get("SANDBOX_BROWSER_TESTS") != "1":
+        pytest.skip("SANDBOX_BROWSER_TESTS not set")
+    pw = pytest.importorskip("playwright.sync_api")
+    demo = DemoRun(tmp_path)
+    session = web.WatchWebSession(resolve=demo.resolve, ledger=demo.ledger,
+        cap_usd=5, times_dir=demo.times_dir, serving_dir=demo.serving_dir,
+        interval=0.1, follow_logs=False)
+    state = session.refresh()
+    server = ThreadingHTTPServer(("127.0.0.1", 0), web.make_handler(session))
+    Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        with pw.sync_playwright() as p:
+            browser = p.chromium.launch(executable_path=os.environ.get("SANDBOX_BROWSER_EXECUTABLE"))
+            page = browser.new_page(viewport={"width": width, "height": height}, reduced_motion="reduce")
+            errors = []
+            page.on("pageerror", lambda error: errors.append(str(error)))
+            page.goto(f"http://127.0.0.1:{server.server_port}")
+            page.wait_for_function("commandCatalog.length > 0 && operatorState.ok")
+            assert page.locator('[data-view="overview"]').is_visible()
+            assert not page.locator('[data-view="terminal"]').is_visible()
+            assert not page.locator(".brand-art").get_attribute("open")
+
+            page.get_by_role("button", name="Terminal", exact=True).click()
+            assert page.locator("#command-input").evaluate("el => el === document.activeElement")
+            for group, child in [("run", "start"), ("experiment", "create"), ("modal", "deploy")]:
+                page.locator("#command-input").fill("menu")
+                page.locator("#command-input").press("Enter")
+                page.locator("#command-menu").select_option(group)
+                page.locator("#command-menu").select_option(child)
+                assert page.locator("#command-path").inner_text() == f"sandbox {group} {child}"
+                assert page.locator("#command-menu").is_disabled()
+                page.get_by_role("button", name="← Parent").click()
+                assert page.locator("#command-path").inner_text() == f"sandbox {group}"
+                assert page.locator("#command-menu").is_enabled()
+
+            field = page.locator("#command-input")
+            field.fill("run res")
+            field.press("Tab")
+            assert field.input_value() == "run resume "
+            field.fill("status")
+            field.press("Enter")
+            assert state["snapshot"]["run_id"] in page.locator("#command-output").inner_text()
+            field.press("ArrowUp")
+            assert field.input_value() == "status"
+            field.press("ArrowDown")
+            assert field.input_value() == ""
+            field.fill("secret=dummy-browser-secret")
+            field.press("Enter")
+            assert "dummy-browser-secret" not in page.locator("#command-output").inner_text()
+            field.press("Control+l")
+            assert page.locator("#command-output").inner_text() == ""
+
+            page.get_by_role("button", name="Configuration", exact=True).click()
+            assert "engine.model" in page.locator("#configuration").inner_text()
+            page.get_by_role("button", name="Campaign", exact=True).click()
+            assert "No campaign" in page.locator("#campaign-content").inner_text()
+            page.get_by_role("button", name="Overview", exact=True).click()
+            hostile = {**state, "logs": [
+                {"text": f"line {i}", "role": "plain"} for i in range(80)] + [
+                {"text": '<img src=x onerror="alert(1)"> ERROR', "role": "error"}]}
+            page.evaluate("state => render(state)", hostile)
+            assert page.locator("#logs img").count() == 0
+            page.locator("#log-follow").uncheck()
+            page.locator("#logs").evaluate("el => el.parentElement.scrollTop = 30")
+            page.evaluate("state => render(state)", hostile)
+            assert page.locator("#logs").evaluate("el => el.parentElement.scrollTop") == 30
+            page.locator("#log-level").select_option("error")
+            assert page.locator("#logs .log-line").count() == 1
+            page.locator("#log-query").fill("no-match")
+            assert "No matching" in page.locator("#logs").inner_text()
+            page.locator("#log-query").press("Escape")
+            assert page.locator("#log-query").input_value() == ""
+            assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+            assert not errors, errors
+            output = os.environ.get("SANDBOX_BROWSER_SCREENSHOTS")
+            if output:
+                from pathlib import Path
+                path = Path(output)
+                path.mkdir(parents=True, exist_ok=True)
+                page.locator("#log-level").select_option("all")
+                page.locator("#log-follow").check()
+                page.evaluate("state => render(state)", state)
+                page.screenshot(path=str(path / f"overview-{width}.png"), full_page=True)
+                page.get_by_role("button", name="Terminal", exact=True).click()
+                page.locator("#command-input").fill("status")
+                page.locator("#command-input").press("Enter")
+                page.screenshot(path=str(path / f"terminal-{width}.png"), full_page=True)
+            browser.close()
+    finally:
+        session.stop()
+        server.shutdown()
+        server.server_close()

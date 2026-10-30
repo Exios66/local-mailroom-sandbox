@@ -21,6 +21,7 @@ from urllib.parse import urlparse
 
 from mailroom_sandbox.tui.services_panel import SERVICES_CSS, SERVICES_HTML, SERVICES_JS
 from mailroom_sandbox.tui.services_snapshot import read_services
+from mailroom_sandbox.tui.shell import OPERATOR_CSS, OPERATOR_HTML, OPERATOR_JS
 from mailroom_sandbox.job.checkpoint import RunStore
 from mailroom_sandbox.tui import pretty_log as pl
 from mailroom_sandbox.watch import _LOG_ROLE, LogBuffer, _header, _stream_logs, compose_watch_state
@@ -132,8 +133,10 @@ class WatchWebSession:
         interval: float,
         follow_logs: bool,
         tick: Callable[[LogBuffer], None] | None = None,
+        campaign_path: Path | None = None,
     ) -> None:
         self.resolve = resolve
+        self.campaign_path = campaign_path
         self.tick = tick  # dev-server hook: advance a synthetic run before each refresh
         self.ledger = ledger
         self.cap_usd = cap_usd
@@ -151,15 +154,8 @@ class WatchWebSession:
         self._last_run_id: str | None = None
         self._boot_mark: dict[str, int] = {}
         self._log_stop = threading.Event()
-        if follow_logs:
-            from mailroom_sandbox.watch import _watch_paths, start_log_streams
-
-            store, app = resolve()
-            _td, resolved_log = _watch_paths(
-                store, times_dir=times_dir, sand032_root=sand032_root, log_path=log_path
-            )
-            self.sink = LogBuffer(resolved_log)
-            start_log_streams(store, app, self.sink, self._log_stop)
+        self._follow_logs = follow_logs
+        self._log_identity: tuple[Path, str] | None = None
 
     def refresh(self) -> dict[str, Any]:
         if self.tick is not None:
@@ -168,6 +164,19 @@ class WatchWebSession:
 
         store, app = self.resolve()
         rid = store.run_id
+        identity = (store.dir, app)
+        if identity != self._log_identity:
+            from mailroom_sandbox.watch import start_log_streams
+
+            self._log_stop.set()
+            self._log_stop = threading.Event()
+            _, resolved_log = _watch_paths(store, times_dir=self.times_dir,
+                sand032_root=self.sand032_root, log_path=self._log_path_override)
+            if self._follow_logs or self._log_identity is not None:
+                self.sink = LogBuffer(resolved_log)
+            if self._follow_logs:
+                start_log_streams(store, app, self.sink, self._log_stop)
+            self._log_identity = identity
         if self._last_run_id != rid:
             self._started = time.time()
             self._boot_mark = {}
@@ -190,6 +199,7 @@ class WatchWebSession:
             boot_mark=self._boot_mark,
             width=100,
             blink=int(time.time()) % 7 == 0,
+            campaign_path=self.campaign_path,
         )
         layout = state.get("layout") or {}
         rid = state["snapshot"]["run_id"]
@@ -257,39 +267,53 @@ def _html_page() -> bytes:
 * {{ box-sizing: border-box; }}
 body {{
   margin: 0; min-height: 100vh; font-family: ui-monospace, "IBM Plex Mono", Menlo, monospace;
-  background: var(--navy); color: var(--snow); font-size: 13px; line-height: 1.45;
+  background: #080f17; color: var(--snow); font-size: 13px; line-height: 1.5;
 }}
-.wrap {{ max-width: 1100px; margin: 0 auto; padding: 16px; }}
+.wrap {{ max-width: 1280px; margin: 0 auto; padding: 24px; }}
 .frame {{
-  border: 3px double var(--cyan); border-radius: 4px; padding: 2px;
-  background: var(--frame);
+  border: 1px solid #294051; border-radius: 8px;
+  background: #101c28;
 }}
-.inner {{ background: #071a2e; padding: 16px 18px; border-radius: 2px; }}
+.inner {{ padding: 24px; }}
+header {{ position: relative; padding-right: 120px; }}
 header h1 {{
-  margin: 0 0 4px; font-size: 22px; letter-spacing: 0.08em;
-  color: var(--gold); text-shadow: 0 1px 0 #8a5a12;
+  margin: 0 0 6px; font-size: 20px; letter-spacing: 0.1em;
+  color: var(--gold);
 }}
-header .sub {{ color: var(--cream); font-size: 12px; margin-bottom: 8px; }}
+header .sub {{ color: #b6c8d8; font-size: 12px; margin-bottom: 8px; overflow-wrap: anywhere; }}
+header .brand-art {{ position: absolute; top: 0; right: 0; color: #b6c8d8; font-size: 11px; }}
+header .brand-art[open] {{ position: static; padding: 12px 0; }}
+summary {{ cursor: pointer; }}
+.view-nav {{ display: flex; gap: 4px; border-bottom: 1px solid #294051; margin: 20px 0; overflow-x: auto; }}
+.view-nav button {{ font: inherit; padding: 10px 14px; background: transparent; color: #b6c8d8; border: 0; border-bottom: 2px solid transparent; cursor: pointer; }}
+.view-nav button[aria-current="page"] {{ color: var(--gold); border-bottom-color: var(--gold); }}
+[hidden] {{ display: none !important; }}
+.view-heading {{ font-size: 15px; color: var(--cream); margin: 0 0 12px; }}
+.view-note {{ color: #b6c8d8; font-size: 12px; }}
+.configuration {{ border: 1px solid #294051; padding: 16px; border-radius: 4px; }}
+.campaign-run {{ display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid #294051; padding: 12px 0; overflow-wrap: anywhere; }}
+@media (max-width: 600px) {{ .wrap {{ padding: 8px; }} .inner {{ padding: 14px; }} header {{ padding-right: 0; }} header .brand-art {{ position: static; margin-top: 8px; }} .view-nav button {{ padding: 10px 8px; font-size: 12px; }} }}
 header .route {{ color: var(--cyan); font-size: 11px; letter-spacing: 0.06em; }}
 .status {{
   display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center;
-  padding: 8px 10px; margin: 12px 0; background: rgba(36,86,214,0.25);
-  border: 1px solid var(--teal); border-radius: 4px; font-size: 12px;
+  padding: 10px 12px; margin: 16px 0 12px; background: #080f17;
+  border: 1px solid #294051; border-radius: 4px; font-size: 12px;
 }}
 {SERVICES_CSS}
+{OPERATOR_CSS}
 .status .stage {{ color: var(--gold); font-weight: 600; }}
 .grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }}
 @media (max-width: 800px) {{ .grid {{ grid-template-columns: 1fr; }} }}
 .panel {{
-  border: 1px solid var(--teal); border-radius: 6px; overflow: hidden;
+  border: 1px solid #294051; border-radius: 4px; overflow: hidden; min-width: 0;
 }}
 .panel h2 {{
-  margin: 0; padding: 6px 10px; font-size: 11px; letter-spacing: 0.1em;
-  background: rgba(14,116,144,0.35); color: var(--cyan); text-transform: uppercase;
+  margin: 0; padding: 10px 14px; font-size: 11px; letter-spacing: 0.1em;
+  background: #172836; color: var(--cream); text-transform: uppercase;
 }}
-.panel .body {{ padding: 10px 12px; }}
+.panel .body {{ padding: 14px; }}
 .metric {{ display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; }}
-.metric .k {{ color: var(--muted); }}
+.metric .k {{ color: #b6c8d8; }}
 .metric .v {{ color: var(--snow); text-align: right; overflow-wrap: anywhere; min-width: 0; }}
 .bar {{
   font-family: inherit; letter-spacing: 1px; color: var(--cyan);
@@ -301,17 +325,27 @@ header .route {{ color: var(--cyan); font-size: 11px; letter-spacing: 0.06em; }}
 }}
 .lifecycle.live {{ animation: lifecycle-pulse 2.2s ease-in-out infinite; }}
 @keyframes lifecycle-pulse {{ 50% {{ border-left-color: var(--cyan); opacity: 0.92; }} }}
-.route-lines {{ white-space: pre-wrap; color: var(--muted); font-size: 11px; line-height: 1.5; }}
+.route-lines {{ white-space: pre-wrap; overflow-wrap: anywhere; color: #b6c8d8; font-size: 11px; line-height: 1.5; }}
 .log {{
   margin-top: 12px; max-height: 280px; overflow-y: auto;
   border: 1px solid var(--teal); border-radius: 6px; background: #050f1a;
 }}
 .log h2 {{ position: sticky; top: 0; }}
 .log-line {{ padding: 2px 10px; border-bottom: 1px solid rgba(14,116,144,0.2); word-break: break-all; }}
-.log-line .src {{ color: var(--muted); opacity: 0.7; font-size: 10px; text-transform: uppercase; margin-right: 6px; }}
+.log-line .src {{ color: #b6c8d8; font-size: 10px; text-transform: uppercase; margin-right: 6px; }}
 {roles}
 .log-line.error {{ font-weight: 600; }}
-.log-line.dim {{ color: var(--muted); opacity: 0.7; }}
+.log-line.dim {{ color: #b6c8d8; }}
+.log-line.plain {{ color: #b6c8d8; }}
+.log-line.ready {{ color: var(--cyan); }}
+.stage-complete, .stage-stopped, .stage-teardown {{ color: var(--cyan); }}
+.hero span[style="color:#0e7490"] {{ color: var(--cyan) !important; }}
+.log-tools {{ display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 16px; }}
+.log-tools input, .log-tools select {{ font: inherit; color: var(--snow); background: #071a2e; border: 1px solid var(--cyan); padding: 6px; border-radius: 4px; max-width: 100%; }}
+.log-tools input[type="search"] {{ width: 180px; }}
+:focus-visible {{ outline: 2px solid var(--gold); outline-offset: 3px; }}
+.sr-only {{ position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }}
+@media (prefers-reduced-motion: reduce) {{ .lifecycle.live, .blink .stage {{ animation: none; }} }}
 #hero {{ font-size: min(12px, calc((100vw - 84px) / 60)); }}
 #hero-compact {{ display: none; font-size: min(12px, calc((100vw - 84px) / 36)); }}
 @media (max-width: 800px) {{ #hero {{ display: none; }} #hero-compact {{ display: block; }} }}
@@ -322,27 +356,48 @@ header .route {{ color: var(--cyan); font-size: 11px; letter-spacing: 0.06em; }}
 .err-banner {{ background: var(--gold); color: #1a0505; padding: 10px; border-radius: 4px; margin-bottom: 12px; }}
 .blink .stage {{ animation: pulse 1s ease-in-out infinite; }}
 @keyframes pulse {{ 50% {{ opacity: 0.55; }} }}
-footer {{ margin-top: 16px; font-size: 11px; color: var(--muted); text-align: center; }}
+footer {{ margin-top: 16px; font-size: 11px; color: #b6c8d8; text-align: center; }}
 </style>
 </head>
 <body>
-<div class="wrap">
+<main class="wrap">
   <div class="frame"><div class="inner">
     <header>
-      <pre class="hero" id="hero" aria-label="THE MAILROOM">(o,o) THE MAILROOM</pre>
-      <pre class="hero" id="hero-compact" aria-label="THE MAILROOM">(o,o) THE MAILROOM</pre>
+      <h1>THE MAILROOM <span aria-hidden="true">(o,o)</span></h1>
       <div class="sub" id="brand-sub" hidden>DIGITAL MAILROOM</div>
       <div class="route" id="route-label" hidden>INBOX → SPECIALIST → REPORT</div>
+      <details class="brand-art"><summary>Wordmark</summary>
+        <pre class="hero" id="hero" aria-hidden="true">(o,o) THE MAILROOM</pre>
+        <pre class="hero" id="hero-compact" aria-hidden="true">(o,o) THE MAILROOM</pre>
+      </details>
     </header>
-    <div id="error" class="err-banner" hidden></div>
+    <div id="error" class="err-banner" role="alert" hidden></div>
     <div class="status" id="status-bar">
       <span class="stage" id="stage">—</span>
       <span id="ts">—</span>
       <span id="app-line">—</span>
+      <span id="connection" role="status">Connecting…</span>
     </div>
     {SERVICES_HTML}
+    <nav class="view-nav" aria-label="Operator workspace">
+      <button type="button" data-target="overview" aria-current="page">Overview</button>
+      <button type="button" data-target="terminal">Terminal</button>
+      <button type="button" data-target="configuration">Configuration</button>
+      <button type="button" data-target="campaign">Campaign</button>
+    </nav>
+    <section data-view="configuration" hidden aria-labelledby="config-heading">
+      <h2 class="view-heading" id="config-heading">Locked run configuration</h2>
+      <p class="view-note">Values from the active run manifest. Configured capacity is not a measurement of active GPUs.</p>
+      <pre class="route-lines configuration" id="configuration"></pre>
+    </section>
+    <section data-view="campaign" hidden aria-labelledby="campaign-heading">
+      <h2 class="view-heading" id="campaign-heading">Experimental campaign</h2>
+      <div id="campaign-content" class="view-note">No campaign associated with this watcher.</div>
+    </section>
+    {OPERATOR_HTML}
+    <section data-view="overview" aria-label="Run overview">
     <div class="lifecycle" id="lifecycle" hidden></div>
-    <div class="route-lines" id="program-route" hidden></div>
+    <details><summary class="view-note">Run route and campaign details</summary><div class="route-lines" id="program-route" hidden></div></details>
     <div class="grid">
       <section class="panel">
         <h2 id="tray-heading">Tray TUI · In-tray</h2>
@@ -357,13 +412,20 @@ footer {{ margin-top: 16px; font-size: 11px; color: var(--muted); text-align: ce
       <h2 id="scorecard-heading">Scorecard</h2>
       <div class="body" id="scorecard"></div>
     </section>
-    <section class="panel log">
+    <div class="log-tools" aria-label="Dispatch log controls">
+      <label>Filter <input id="log-query" type="search" placeholder="Search log text" aria-keyshortcuts="/ Escape"></label>
+      <label>Level <select id="log-level"><option value="all">All messages</option><option value="error">Errors</option><option value="warn">Warnings + errors</option></select></label>
+      <label><input id="log-follow" type="checkbox" checked> Follow latest</label>
+      <span id="log-count"></span>
+    </div>
+    <section class="panel log" tabindex="0" aria-labelledby="dispatch-heading">
       <h2 id="dispatch-heading">Dispatch log</h2>
       <div id="logs"></div>
     </section>
+    </section>
   </div></div>
   <footer id="footer-line">Tray TUI · localhost-only · SSE + poll · hard-refresh after a watch restart</footer>
-</div>
+</main>
 <script>
 const LOG_CLASS = {{ error: "error", warn: "warn", throughput: "throughput", kv: "kv", ready: "ready", plain: "plain" }};  // = watch._LOG_ROLE keys
 
@@ -373,9 +435,45 @@ function metric(k, v) {{
 function esc(s) {{
   return String(s ?? "—").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
 }}
+function showView(name) {{
+  for (const panel of document.querySelectorAll("[data-view]")) panel.hidden = panel.dataset.view !== name;
+  for (const button of document.querySelectorAll("[data-target]")) {{
+    if (button.dataset.target === name) button.setAttribute("aria-current", "page");
+    else button.removeAttribute("aria-current");
+  }}
+  if (name === "terminal") document.getElementById("command-input").focus();
+}}
+for (const button of document.querySelectorAll("[data-target]")) button.addEventListener("click", () => showView(button.dataset.target));
+let logLines = [];
+let dispatchName = "Dispatch log";
+function renderLogs() {{
+  const logs = document.getElementById("logs");
+  const pane = logs.parentElement;
+  const scrollTop = pane.scrollTop;
+  const query = document.getElementById("log-query").value.toLowerCase();
+  const level = document.getElementById("log-level").value;
+  const lines = logLines.filter(e => (level === "all" || e.role === "error" || (level === "warn" && e.role === "warn")) &&
+    String(e.text ?? "").toLowerCase().includes(query));
+  logs.innerHTML = lines.length
+    ? lines.map(e => `<div class="log-line ${{LOG_CLASS[e.role] || "plain"}}"><span class="src">${{esc(e.source || "modal")}}</span> ${{esc(e.text)}}</div>`).join("")
+    : `<div class="log-line dim">${{logLines.length ? "No matching messages" : `(waiting on ${{esc(dispatchName)}} · job events appear here)…`}}</div>`;
+  document.getElementById("log-count").textContent = `${{lines.length}}/${{logLines.length}} messages`;
+  if (document.getElementById("log-follow").checked) pane.scrollTop = pane.scrollHeight;
+  else pane.scrollTop = scrollTop;
+}}
+for (const id of ["log-query", "log-level", "log-follow"]) document.getElementById(id).addEventListener("input", renderLogs);
+document.addEventListener("keydown", ev => {{
+  const editing = ev.target.closest("input, select, textarea, [contenteditable]");
+  if (ev.key === "/" && !editing && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {{
+    ev.preventDefault(); document.getElementById("log-query").focus();
+  }}
+  if (ev.key === "Escape" && ev.target.id === "log-query") {{ ev.target.value = ""; renderLogs(); }}
+}});
 
 {SERVICES_JS}
+{OPERATOR_JS}
 function render(state) {{
+  operatorState = state || {{}};
   services(state && state.services);
   if (!state || (state.ok === false && !state.snapshot)) {{
     document.getElementById("error").hidden = false;
@@ -394,6 +492,12 @@ function render(state) {{
   const sp = state.spend || {{}};
   const layout = state.layout || {{}};
   const panels = layout.panels || {{}};
+  document.getElementById("configuration").textContent = (layout.configuration || []).join("\\n");
+  const campaign = state.campaign;
+  document.getElementById("campaign-content").innerHTML = campaign
+    ? `<p>${{esc(campaign.study)}} · ${{esc(campaign.design)}} · ${{esc(campaign.completed)}}/${{esc(campaign.total)}} runs complete</p>` +
+      campaign.runs.map(run => `<div class="campaign-run"><span>${{run.run_id === campaign.current ? "▶ " : ""}}${{esc(run.run_id)}}</span><span>${{esc(run.state)}} · ${{esc(run.done)}}/${{esc(run.total)}}</span></div>`).join("")
+    : "No campaign associated with this watcher. Use sandbox experiment watch --config <experiment.yaml>.";
   document.title = panels.window_title || "Tray TUI · THE MAILROOM · live watch";
   document.getElementById("brand-sub").hidden = false;
   document.getElementById("route-label").hidden = false;
@@ -418,7 +522,7 @@ function render(state) {{
   }}
   const stageEl = document.getElementById("stage");
   stageEl.textContent = phase;
-  stageEl.className = "stage-" + String(phase || "unknown").toLowerCase().replace(/\\s+/g, "-");
+   stageEl.className = "stage stage-" + String(phase || "unknown").toLowerCase().replace(/\\s+/g, "-");
   document.getElementById("ts").textContent = state.ts || "";
   const watcher = state.watcher_label || ("Tray TUI watcher · app " + (state.app || "—"));
   document.getElementById("app-line").textContent = watcher;
@@ -445,7 +549,7 @@ function render(state) {{
   document.getElementById("intray").innerHTML =
     metric("run", s.run_id) +
     metric("specialist", s.task) +
-    metric("fleet", `×${{s.replicas}} ${{s.gpu}} · ${{s.state}}`) +
+    metric("capacity", `${{s.gpu === "—" ? "no GPU declared" : `×${{s.replicas}} ${{s.gpu}}`}} · ${{s.state}}`) +
     `<div class="bar">${{esc(prog.bar)}}  ${{prog.done}}/${{prog.total}}</div>` +
     metric("sorted", `delivered ${{s.ok}} · returned ${{s.errors}}`) +
     metric("postmark", `p50 ${{s.p50_s ?? "—"}}s · p95 ${{s.p95_s ?? "—"}}s`) +
@@ -456,6 +560,7 @@ function render(state) {{
   const tokIn = Number(s.prompt_tokens ?? sp.prompt_tokens ?? 0);
   const tokOut = Number(s.completion_tokens ?? sp.completion_tokens ?? 0);
   document.getElementById("postage").innerHTML =
+    metric("basis", sp.basis || "not measured") +
     metric("sorted", `delivered ${{s.ok ?? sp.ok ?? 0}} · returned ${{s.errors ?? sp.errors ?? 0}}`) +
     metric("docs", `${{prog.done ?? s.done ?? 0}}/${{prog.total ?? s.total ?? 0}}`) +
     metric("tokens", `${{tokIn}} in · ${{tokOut}} out`) +
@@ -476,29 +581,26 @@ function render(state) {{
     document.getElementById("scorecard").innerHTML = state.scorecard.map(l => `<div>${{esc(l)}}</div>`).join("");
   }} else sc.hidden = true;
 
-  const logs = document.getElementById("logs");
-  const lines = state.logs || [];
-  const dispatchName = (panels.dispatch || "Dispatch log").replace(/^Dispatch log · /, "");
-  logs.innerHTML = lines.length
-    ? lines.map(e => `<div class="log-line ${{LOG_CLASS[e.role] || "plain"}}"><span class="src">${{esc(e.source || "modal")}}</span> ${{esc(e.text)}}</div>`).join("")
-    : `<div class="log-line dim">(waiting on ${{esc(dispatchName)}} · job events appear here)…</div>`;
-  const pane = logs.parentElement;  // the .log panel owns overflow-y
-  pane.scrollTop = pane.scrollHeight;
+   logLines = state.logs || [];
+   dispatchName = (panels.dispatch || "Dispatch log").replace(/^Dispatch log · /, "");
+   renderLogs();
 }}
 
 function pullState() {{
   fetch("/api/state?t=" + Date.now(), {{ cache: "no-store" }})
-    .then((r) => r.json())
-    .then(render)
-    .catch(() => {{}});
+    .then((r) => {{ if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); }})
+    .then(state => {{ document.getElementById("connection").textContent = es.readyState === EventSource.OPEN ? "Live · SSE" : "Connected · polling"; render(state); }})
+    .catch(() => {{ document.getElementById("connection").textContent = "Disconnected · retrying"; }});
 }}
 pullState();
 setInterval(pullState, 2000);
 const es = new EventSource("/api/stream?t=" + Date.now());
 es.onmessage = (ev) => {{
+  document.getElementById("connection").textContent = "Live · SSE";
   try {{ render(JSON.parse(ev.data)); }} catch (e) {{ console.error(e); }}
 }};
 es.onerror = () => {{
+  document.getElementById("connection").textContent = "Reconnecting · polling";
   document.getElementById("error").hidden = false;
   document.getElementById("error").textContent = "SSE disconnected — polling /api/state…";
 }};
@@ -522,6 +624,12 @@ def make_handler(session: WatchWebSession) -> type[BaseHTTPRequestHandler]:
             if path == "/api/state":
                 _, state = session.snapshot()
                 self._send_json(state)
+                return
+            if path == "/api/commands":
+                from mailroom_sandbox.cli import build_parser
+                from mailroom_sandbox.tui.shell import command_catalog
+
+                self._send(200, "application/json", json.dumps(command_catalog(build_parser())).encode())
                 return
             if path == "/api/stream":
                 self.send_response(200)
@@ -575,6 +683,7 @@ def serve_watch_web(
     port: int = DEFAULT_PORT,
     open_browser: bool | None = None,
     tick: Callable[[LogBuffer], None] | None = None,
+    campaign_path: Path | None = None,
 ) -> int:
     from mailroom_sandbox.paths import reports_dir
 
@@ -590,12 +699,16 @@ def serve_watch_web(
         interval=interval,
         follow_logs=logs,
         tick=tick,
+        campaign_path=campaign_path,
     )
-    session.refresh()
+    try:
+        session.refresh()
+        handler = make_handler(session)
+        httpd = ThreadingHTTPServer((host, port), handler)
+    except BaseException:
+        session.stop()
+        raise
     threading.Thread(target=session.run_refresh_loop, daemon=True).start()
-
-    handler = make_handler(session)
-    httpd = ThreadingHTTPServer((host, port), handler)
     bound_host, bound_port = httpd.server_address[0], httpd.server_address[1]
     url = browser_url(bound_host, bound_port)
     print(f"Tray TUI watch (browser) at {url}", file=sys.stderr)

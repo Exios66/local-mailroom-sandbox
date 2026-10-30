@@ -97,13 +97,14 @@ class DemoRun:
         store.write_lock(
             {
                 "run_id": RUN_ID,
+                "profile": "demo · synthetic",
                 "task": "correspondence_specialist",
                 "engine": {
                     "model": "Qwen/Qwen3-8B-AWQ",
                     "vllm": {"kv_cache_dtype": "fp8", "quantization": "awq_marlin", "max_num_seqs": 16},
                     "modal": {"gpu": "L4", "max_containers": 2, "min_containers": 2, "app": APP},
                 },
-                "job": {"concurrency": 32},
+                "job": {"concurrency": 32, "mock": True},
             }
         )
         store.write_checkpoint(state="prepared", cursor=0, total=self.n_docs)

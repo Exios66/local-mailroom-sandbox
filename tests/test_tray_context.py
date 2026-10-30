@@ -179,4 +179,27 @@ def test_failed_state_detail_and_no_animation(tmp_path):
     assert state["lifecycle"]["phase"] == "FAILED"
     assert "OOM" in state["lifecycle"]["detail"]
     assert state["animate_lifecycle"] is False
-    assert state["scorecard"] is not None or True  # scorecard path is best-effort offline
+    assert state["scorecard"] is not None
+
+
+def test_api_run_never_inherits_gpu_subtitle_or_log_stream(tmp_path):
+    store = _generic_store(tmp_path)
+    lock = store.read_lock()
+    lock.update(profile="openrouter")
+    lock["engine"].update(kind="openrouter", model="provider/actual-api-model", modal=None)
+    lock["trace"] = {"environment": "actual-study", "tags": ["experiment"]}
+    import json
+    store.lock_path.write_text(json.dumps(lock))
+    layout = tc.build_tray_layout(store, app="unused", times_dir=None, cap_usd=5, gate_usd=4.5)
+    assert "actual-api-model · openrouter · study actual-study" == layout["subtitle"]
+    assert "vLLM" not in layout["subtitle"] and "fp8" not in layout["subtitle"]
+    assert layout["dispatch"]["streams"] == []
+    assert layout["gate_usd"] == 0.55
+
+
+def test_configuration_allowlist_hides_keys_and_urls():
+    lock = {"engine": {"kind": "openrouter", "model": "actual-model", "api_key": "secret-value"},
+            "agent_routes": {"sorter": {"provider": "openrouter", "model": "routed-model", "base_url": "https://secret.example?key=private"}}}
+    text = "\n".join(tc.configuration_lines(lock))
+    assert "actual-model" in text and "routed-model" in text
+    assert "secret" not in text and "private" not in text

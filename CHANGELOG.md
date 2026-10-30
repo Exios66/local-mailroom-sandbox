@@ -1,5 +1,12 @@
 # Changelog
 
+## In progress — SAND-067 operator audit
+
+- Add the local `sandbox tui` interactive command terminal and a browser live inspector with parser-derived nested CLI manuals. Full execution stays local and retains the existing spend gates.
+- Harden observer numeric arguments, incompatible options and malformed beacon handling; follow campaign run-ID markers and switch the associated log streams.
+- Show locked model/provider settings and campaign checkpoints instead of inherited demo labels; add log filters, follow controls and accessibility improvements.
+- Verification is in progress; no paid deployment or inference is included in this checkpoint.
+
 ## [Unreleased]
 
 ### Added
