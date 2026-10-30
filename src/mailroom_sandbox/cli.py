@@ -247,9 +247,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     agents_p = sub.add_parser("agents", help="List or show pipeline agents", parents=[leaf])
     agents_sub = agents_p.add_subparsers(dest="agents_cmd")
-    al = agents_sub.add_parser("list", parents=[leaf])
+    al = agents_sub.add_parser("list", parents=[leaf], help="list pipeline agents and their prompts")
     al.set_defaults(handler=_cmd_agents_list)
-    ash = agents_sub.add_parser("show", parents=[leaf])
+    ash = agents_sub.add_parser("show", parents=[leaf], help="show one pipeline agent")
     ash.add_argument("name")
     ash.set_defaults(handler=_cmd_agents_show)
     agents_p.set_defaults(handler=_cmd_agents_list)
@@ -260,7 +260,7 @@ def build_parser() -> argparse.ArgumentParser:
         parents=[leaf],
     )
     subagents_sub = subagents_p.add_subparsers(dest="subagents_cmd")
-    sa_list = subagents_sub.add_parser("list", parents=[leaf])
+    sa_list = subagents_sub.add_parser("list", parents=[leaf], help="list coding subagents for a family package")
     sa_list.add_argument("--json", action="store_true")
     sa_list.add_argument(
         "--package",
@@ -268,15 +268,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Family package filter (default: local-mailroom-sandbox or SUBAGENT_PACKAGE)",
     )
     sa_list.set_defaults(handler=_cmd_subagents_list)
-    sa_pkgs = subagents_sub.add_parser("packages", parents=[leaf])
+    sa_pkgs = subagents_sub.add_parser("packages", parents=[leaf], help="list family packages in the roster")
     sa_pkgs.add_argument("--json", action="store_true")
     sa_pkgs.set_defaults(handler=_cmd_subagents_packages)
-    sa_show = subagents_sub.add_parser("show", parents=[leaf])
+    sa_show = subagents_sub.add_parser("show", parents=[leaf], help="show one subagent's roster entry and prompt")
     sa_show.add_argument("id")
     sa_show.add_argument("--json", action="store_true")
     sa_show.add_argument("--package", default=None)
     sa_show.set_defaults(handler=_cmd_subagents_show)
-    sa_sync = subagents_sub.add_parser("sync", parents=[leaf])
+    sa_sync = subagents_sub.add_parser("sync", parents=[leaf], help="write OpenCode frontmatter and Cursor agent stubs")
     sa_sync.add_argument(
         "--harness",
         default="all",
@@ -366,9 +366,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     pipe = sub.add_parser("pipeline", help="Run mailroom inbox watcher or API (not the Tray TUI watch)", parents=[leaf])
     pipe_sub = pipe.add_subparsers(dest="pipeline_cmd")
-    w = pipe_sub.add_parser("watcher", parents=[leaf])
+    w = pipe_sub.add_parser("watcher", parents=[leaf], help="run the vendored mailroom inbox watcher")
     w.set_defaults(handler=_cmd_watcher)
-    a = pipe_sub.add_parser("api", parents=[leaf])
+    a = pipe_sub.add_parser("api", parents=[leaf], help="run the vendored mailroom HTTP API")
     a.set_defaults(handler=_cmd_api)
 
     p = sub.add_parser("pilot", help="Run the fixture pilot (--mock or --local)", parents=[leaf])
@@ -536,7 +536,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("traces", help="Trace helpers", parents=[leaf])
     tr = p.add_subparsers(dest="traces_cmd")
-    exp = tr.add_parser("export", parents=[leaf])
+    exp = tr.add_parser("export", parents=[leaf], help="write a trace bookmark (Langfuse host + last session/trace ids)")
     exp.set_defaults(handler=_cmd_traces_export)
     pk = tr.add_parser(
         "pack",
@@ -709,9 +709,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     prom = sub.add_parser("prompts", help="Pipeline-agent prompt surface (local + Langfuse)", parents=[leaf])
     prom_sub = prom.add_subparsers(dest="prompts_cmd")
-    plug_list = prom_sub.add_parser("list", parents=[leaf])
+    plug_list = prom_sub.add_parser("list", parents=[leaf], help="list every pipeline agent prompt (local + Langfuse)")
     plug_list.set_defaults(handler=_cmd_prompts_list)
-    plug_show = prom_sub.add_parser("show", parents=[leaf])
+    plug_show = prom_sub.add_parser("show", parents=[leaf], help="print one agent prompt or prompt version")
     plug_show.add_argument("name", help="agent name, or an eval-environment prompt version key (sorter_v3)")
     plug_show.add_argument("--variant", default=None, help="agent: local variant stem")
     plug_show.add_argument("--json", action="store_true")
@@ -729,7 +729,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     mp = sub.add_parser("metrics", help="serving metrics compare (local vs Modal vs API)", parents=[leaf])
     metrics_sub = mp.add_subparsers(dest="metrics_cmd")
-    mcomp = metrics_sub.add_parser("compare", parents=[leaf])
+    mcomp = metrics_sub.add_parser("compare", parents=[leaf], help="compare serving metrics across runs")
     mcomp.add_argument("--runs", default="", help="comma-separated run-ids")
     mcomp.add_argument("--log", action="store_true", help="read experiments from the log instead")
     mcomp.add_argument(
@@ -968,19 +968,19 @@ def _run_parser(sub, shared):
 
     run = sub.add_parser("run", help="Spec-driven job lifecycle (DMR-027)", parents=[shared])
     run_sub = run.add_subparsers(dest="run_cmd")
-    pre = run_sub.add_parser("preflight", parents=[common])
+    pre = run_sub.add_parser("preflight", parents=[common], help="validate a run config and print its lock report; no inference")
     pre.add_argument("--dry-run", action="store_true")
     pre.set_defaults(handler=_cmd_run_preflight)
-    start = run_sub.add_parser("start", parents=[common])
+    start = run_sub.add_parser("start", parents=[common], help="start a locked run (spend gates and initials apply)")
     start.add_argument("--dry-run", action="store_true")
     start.set_defaults(handler=_cmd_run_start)
-    status = run_sub.add_parser("status", parents=[common])
+    status = run_sub.add_parser("status", parents=[common], help="progress, errors and spend for a run")
     status.set_defaults(handler=_cmd_run_status)
-    resume = run_sub.add_parser("resume", parents=[common])
+    resume = run_sub.add_parser("resume", parents=[common], help="continue an interrupted run from its checkpoint")
     resume.set_defaults(handler=_cmd_run_resume)
-    cancel = run_sub.add_parser("cancel", parents=[common])
+    cancel = run_sub.add_parser("cancel", parents=[common], help="request cancellation of a running job")
     cancel.set_defaults(handler=_cmd_run_cancel)
-    runlist = run_sub.add_parser("list", parents=[common])
+    runlist = run_sub.add_parser("list", parents=[common], help="list local run stores and their states")
     runlist.set_defaults(handler=_cmd_run_list)
     bcheck = run_sub.add_parser(
         "benchmark-check",

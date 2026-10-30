@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import difflib
 import shlex
 import sys
 
@@ -12,11 +13,50 @@ def children(parser: argparse.ArgumentParser) -> dict[str, argparse.ArgumentPars
             for name, child in action.choices.items()}
 
 
+def summaries(parser: argparse.ArgumentParser) -> dict[str, str]:
+    """One-line help per subcommand, as argparse lists it under the parent."""
+    return {choice.dest: " ".join((choice.help or "").split())
+            for action in parser._actions if isinstance(action, argparse._SubParsersAction)
+            for choice in action._choices_actions}
+
+
 def command_catalog(parser: argparse.ArgumentParser, path: tuple[str, ...] = ()) -> list[dict]:
     """One parser-derived catalog for completion, menus and browser manuals."""
-    return [{"path": list(path), "help": parser.format_help(), "children": list(children(parser))},
+    return [{"path": list(path), "help": parser.format_help(), "children": list(children(parser)),
+             "usage": " ".join(parser.format_usage().split()), "summaries": summaries(parser)},
             *[row for name, child in children(parser).items()
               for row in command_catalog(child, (*path, name))]]
+
+
+def render_menu(node: dict) -> str:
+    """Compact numbered menu: the choices, not the whole manual (help shows that)."""
+    path = " ".join(["sandbox", *node["path"]])
+    if not node["children"]:
+        return (f"{path}  (leaf command)\n{node['usage']}\n"
+                f"Type '{' '.join(node['path'])} <options>' to execute · help {' '.join(node['path'])} for the manual · back")
+    width = len(str(len(node["children"])))
+    name_w = max(len(name) for name in node["children"])
+    rows = [f"{i:>{width}}. {name:<{name_w}}  {node['summaries'].get(name, '')}".rstrip()
+            for i, name in enumerate(node["children"], 1)]
+    back = " · back" if node["path"] else ""
+    return "\n".join([path, *rows, f"Select a number{back} · help [command] for a manual · or type a full command"])
+
+
+def unknown_path(words: list[str], catalog: list[dict]) -> str | None:
+    """Name the first unknown command word and suggest the closest siblings."""
+    node, known = catalog[0], []
+    for word in words:
+        if word.startswith("-"):
+            return None
+        if word not in node["children"]:
+            close = difflib.get_close_matches(word, node["children"], n=3)
+            hint = f" · did you mean {', '.join(close)}?" if close else f" · try menu {' '.join(known)}".rstrip()
+            return f"error: unknown command '{' '.join([*known, word])}'{hint}"
+        known.append(word)
+        node = next(row for row in catalog if row["path"] == known)
+        if not node["children"]:
+            return None
+    return None
 
 
 def completions(line: str, catalog: list[dict]) -> list[str]:
@@ -58,7 +98,7 @@ def run_shell(default_args: list[str] | None = None) -> int:
         readline.set_auto_history(False)
     history: list[str] = []
     menu: list[str] | None = None
-    print("THE MAILROOM · local command terminal\nTab completes · ↑/↓ history · Ctrl+C interrupt · Ctrl+D exit\nhelp [command] · menu [command] · history · clear · exit\nExisting CLI spend/initials gates still apply. No persistent command history.")
+    print("THE MAILROOM · local command terminal\nTab completes · ↑/↓ history · Ctrl+C interrupt · Ctrl+D exit\nmenu [command] · help [command] · history · clear · exit\nExisting CLI spend/initials gates still apply. No persistent command history.")
     try:
         while True:
             try:
@@ -78,34 +118,50 @@ def run_shell(default_args: list[str] | None = None) -> int:
                 if argv == ["history"]:
                     print("\n".join(history))
                     continue
-                # Never retain pasted credentials, even in this process's history.
+                # Never retain pasted credentials, even in this process's history;
+                # bare menu navigation (numbers, back) is not worth recalling either.
                 sensitive = any(word in line.lower() for word in ("token", "secret", "api-key", "sk-or-", "hf_"))
-                if not sensitive:
+                navigation = argv == ["back"] or (len(argv) == 1 and argv[0].lstrip("-").isdigit())
+                if not sensitive and not navigation:
                     history.append(line)
                     if readline:
                         readline.add_history(line)
-                if menu is not None and argv == ["back"]:
+                if argv == ["back"]:
+                    if menu is None:
+                        print("error: no open menu · type menu to browse commands")
+                        continue
+                    if not menu:
+                        print("Already at the top menu · select a number or type a command")
+                        continue
                     argv = ["menu", *menu[:-1]]
-                elif menu is not None and len(argv) == 1 and argv[0].isdigit():
-                    node = next(row for row in catalog if row["path"] == menu)
+                elif len(argv) == 1 and argv[0].lstrip("-").isdigit():
+                    node = next((row for row in catalog if row["path"] == menu), None) if menu is not None else None
+                    if node is None:
+                        print("error: no open menu · type menu to browse commands")
+                        continue
                     index = int(argv[0]) - 1
+                    if not node["children"]:
+                        print(f"error: {' '.join(['sandbox', *menu])} has no subcommands · back, or type the command with options")
+                        continue
                     if not 0 <= index < len(node["children"]):
-                        print("error: select one of the listed numbers")
+                        print(f"error: select 1-{len(node['children'])} from the menu")
                         continue
                     argv = ["menu", *menu, node["children"][index]]
                 if argv[0] == "menu":
                     path = argv[1:]
                     node = next((row for row in catalog if row["path"] == path), None)
                     if node is None:
-                        print("error: unknown command path")
+                        print(unknown_path(path, catalog) or "error: unknown command path")
                         continue
                     menu = path
-                    print(node["help"])
-                    print("\n".join(f"{i}. {name}" for i, name in enumerate(node["children"], 1)))
-                    print("Select a number · back · or type the full sandbox command to execute")
+                    print(render_menu(node))
                     continue
                 menu = None
                 if argv[0] in {"help", "man"}:
+                    problem = unknown_path(argv[1:], catalog)
+                    if problem:
+                        print(problem)
+                        continue
                     argv = [*argv[1:], "--help"]
                 if argv[0] == "tui":
                     print("Already in the Mailroom terminal.")
@@ -166,16 +222,36 @@ function commandPrint(text) {
   commandOutput.scrollTop = commandOutput.scrollHeight;
 }
 function commandNode(path) { return commandCatalog.find(row => JSON.stringify(row.path) === JSON.stringify(path)); }
-function commandMenu(path) {
+function menuText(node) {
+  const path = ["sandbox", ...node.path].join(" ");
+  if (!node.children.length) return `${path}  (leaf command)\n${node.usage || ""}\nRun locally: ${path} <options> · help ${node.path.join(" ")} for the manual`;
+  const width = Math.max(...node.children.map(name => name.length));
+  return [path, ...node.children.map((name, i) => `${String(i + 1).padStart(String(node.children.length).length)}. ${name.padEnd(width)}  ${(node.summaries || {})[name] || ""}`.trimEnd()),
+    "Choose from the selector · help <command> for a manual"].join("\n");
+}
+function unknownPath(words) {
+  let node = commandCatalog[0], known = [];
+  for (const word of words) {
+    if (word.startsWith("-")) return null;
+    if (!node.children.includes(word)) {
+      const close = node.children.filter(name => name.startsWith(word.slice(0, 2))).slice(0, 3);
+      return `Unknown command '${[...known, word].join(" ")}'` + (close.length ? ` · did you mean ${close.join(", ")}?` : " · type menu to browse");
+    }
+    known.push(word); node = commandNode(known);
+    if (!node.children.length) return null;
+  }
+  return null;
+}
+function commandMenu(path, { manual = false } = {}) {
   const node = commandNode(path);
-  if (!node) { commandPrint("Unknown command path. Type help."); return; }
+  if (!node) { commandPrint(unknownPath(path) || "Unknown command path. Type menu."); return; }
   commandPath = path;
   document.getElementById("command-path").textContent = "sandbox " + path.join(" ");
   const menu = document.getElementById("command-menu");
   menu.replaceChildren(new Option(node.children.length ? "Choose subcommand…" : "Leaf command", ""));
   for (const child of node.children) menu.add(new Option(child, child));
   menu.disabled = !node.children.length;
-  commandPrint(node.help);
+  commandPrint(manual ? node.help : menuText(node));
 }
 document.getElementById("command-menu").addEventListener("change", ev => {
   if (ev.target.value) commandMenu([...commandPath, ev.target.value]);
@@ -200,11 +276,13 @@ function commandRun(line) {
     commandPrint(live[name] == null ? "Not available for the current run." : JSON.stringify(live[name], null, 2)); return;
   }
   if (["help", "man", "menu"].includes(name)) {
-    if (words.length === 1) commandPrint("Live inspection: status · config · campaign · services · logs\nShell: help/man/menu [sandbox command path] · history · clear");
-    commandMenu(words.slice(1)); return;
+    if (words.length === 1 && name !== "menu") commandPrint("Live inspection: status · config · campaign · services · logs\nShell: menu [command] · help/man [command] · history · clear");
+    commandMenu(words.slice(1), { manual: name !== "menu" }); return;
   }
   const path = words.filter(word => word !== "--help" && word !== "-h");
-  if (commandNode(path)) { commandMenu(path); commandPrint("Run locally: sandbox " + path.join(" ")); return; }
+  if (commandNode(path)) { commandMenu(path, { manual: words.includes("--help") || words.includes("-h") }); commandPrint("Run locally: sandbox " + path.join(" ")); return; }
+  const problem = unknownPath(path);
+  if (problem) { commandPrint(problem); return; }
   commandPrint("Not a browser inspection command. Use help [command path], or execute with sandbox tui locally.");
 }
 document.getElementById("command-form").addEventListener("submit", ev => {

@@ -693,8 +693,14 @@ def register(sub, leaf) -> None:
     create.add_argument('--set', action='append', dest='settings', default=[], metavar='PATH=YAML_VALUE')
     create.add_argument('--output', default=None)
     create.set_defaults(handler=_create)
-    for name, handler in [('review', _cmd_review), ('preflight', _cmd_preflight), ('launch', _cmd_launch), ('watch', _cmd_watch), ('report', _cmd_report)]:
-        parser = commands.add_parser(name, parents=[leaf])
+    for name, handler, summary in [
+        ('review', _cmd_review, 'print the full configuration and spend review'),
+        ('preflight', _cmd_preflight, 'prepare locked datasets/prompts for every run; no provider or deploy call'),
+        ('launch', _cmd_launch, 'run the signed experiment (requires --initials)'),
+        ('watch', _cmd_watch, 'follow campaign membership and its current run'),
+        ('report', _cmd_report, 'build coverage and paired reports from finished runs'),
+    ]:
+        parser = commands.add_parser(name, parents=[leaf], help=summary)
         parser.add_argument('--config', required=True, help='experiment.yaml created by experiment create')
         if name == 'launch':
             parser.add_argument('--initials', default=None, help='sign the displayed full configuration and spend review')
