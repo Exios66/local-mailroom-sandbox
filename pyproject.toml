@@ -150,5 +150,8 @@ source = ["src/mailroom_sandbox"]
 branch = false
 
 [tool.coverage.report]
+# Measured 79% on CircleCI (2026-10-30); floor leaves ~2 points of headroom.
+# Ratchet it up as coverage improves; never lower it to land a change.
+fail_under = 77
 show_missing = false
 skip_empty = true
