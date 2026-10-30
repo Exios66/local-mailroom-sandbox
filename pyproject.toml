@@ -127,3 +127,13 @@ markers = [
 # DMR-057: no workspace redirects needed — the family code is vendored and
 # tracked in this package (vendor/llm-mailroom + vendor/llm-dojo-scoring).
 # A plain `pip install .` (or `pip install -e ".[dev]"`) is fully self-contained.
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+extend-exclude = ["vendor", "data", "notebooks"]
+
+[tool.ruff.lint]
+# Correctness-first gate: syntax errors, undefined names, mutable defaults,
+# useless expressions, pylint errors. Widen (F401, B, UP, I) as debt is paid.
+select = ["E9", "F63", "F7", "F82", "B006", "B018", "PLE"]
