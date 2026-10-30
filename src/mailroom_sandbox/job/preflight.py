@@ -2,15 +2,20 @@
 
 Writes ``spec.lock.json`` (immutable) LAST — it is the commit point. Resume
 refuses on spec drift unless ``--force`` (which archives the old generation,
-re-preps, and re-locks). Live engine/sink probes are opt-in (``live=True``)
-so the default is network-free and CI-safe.
+re-preps, and re-locks) — except that a store locked to a DIFFERENT Modal app
+is refused outright, even under ``--force``: see ``_foreign_app``
+(``SANDBOX_TAKEOVER_FOREIGN_STORE=1`` is the deliberate override). Live
+engine/sink probes are opt-in (``live=True``) so the default is network-free
+and CI-safe.
 """
 
 from __future__ import annotations
 
 import os
 import time
-from typing import Any
+import uuid
+from pathlib import Path
+from typing import Any, Mapping
 
 import llm_dojo_scoring
 from llm_dojo_scoring.experiment import git_snapshot
@@ -29,6 +34,7 @@ from mailroom_sandbox.job.spec import (
     spec_hash,
 )
 from mailroom_sandbox.prompt_registry import prompt_lock_block
+from mailroom_sandbox.prompt_versions import PromptSelectionError, selection_from_lock
 
 
 def _versions() -> dict[str, Any]:
@@ -47,6 +53,18 @@ def _versions() -> dict[str, Any]:
 
 def _engine_errors(spec: RunSpec) -> list[str]:
     errs: list[str] = []
+    if spec.agent_models or spec.agent_knobs:
+        from mailroom_sandbox.agent_routes import known_agents
+        unknown = (set(spec.agent_models) | set(spec.agent_knobs)) - known_agents()
+        if unknown:
+            errs.append(f"unknown or retired agents: {sorted(unknown)}")
+    if spec.agent_routes:
+        from mailroom_sandbox.agent_routes import validate
+        from mailroom_sandbox.services._exec import ServiceError
+        try:
+            validate(spec.agent_routes, credentials=not spec.job.mock)
+        except (ValueError, ServiceError) as exc:
+            errs.append(str(exc))
     vllm = spec.engine.vllm
     if vllm.max_model_len < 1:
         errs.append("max_model_len must be >= 1")
@@ -99,7 +117,16 @@ def _probe_timeout_seconds(spec: RunSpec) -> float:
 
 def _probe_engine(spec: RunSpec) -> dict[str, Any]:
     base = engine_base_url(spec)
-    api_key = os.environ.get("VLLM_API_KEY", "").strip()
+    from mailroom_sandbox.overlay import load_profile
+    profile = load_profile(spec.profile)
+    api_key_env = str(profile.get("api_key_env") or "VLLM_API_KEY")
+    # ``engine_base_url`` resolves VLLM_BASE_URL BEFORE the profile base for
+    # every non-OpenRouter kind. The probe must then use the vLLM credential:
+    # an ``openrouter`` profile pointed at a vLLM endpoint would otherwise
+    # send OPENROUTER_API_KEY to that host.
+    if spec.engine.kind != "openrouter" and os.environ.get("VLLM_BASE_URL", "").strip():
+        api_key_env = "VLLM_API_KEY"
+    api_key = os.environ.get(api_key_env, "").strip()
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
     detail: dict[str, Any] = {"base_url": base}
     import httpx
@@ -136,7 +163,7 @@ def _probe_engine(spec: RunSpec) -> dict[str, Any]:
             if resp.status_code == 401:
                 return {
                     "ok": False,
-                    "reason": "401 — set VLLM_API_KEY to the deployed token",
+                    "reason": f"401 — set {api_key_env} to the configured provider token",
                     "cold_boot_seconds": round(time.perf_counter() - started, 3),
                     **detail,
                 }
@@ -189,6 +216,35 @@ def probe_engine(spec: RunSpec) -> dict[str, Any]:
     return _probe_engine(spec)
 
 
+def probe_timeout_seconds(spec: RunSpec) -> float:
+    """Public boot budget for direct probes (CLI and per-agent route checks)."""
+    return _probe_timeout_seconds(spec)
+
+
+def record_cold_boot(store: RunStore, probe: Mapping[str, Any], *, run_id: str | None = None) -> dict[str, Any] | None:
+    """Persist a successful live-probe measurement as the run's cold boot.
+
+    Direct probes (``sandbox run preflight --live`` / ``run start``) bypass
+    ``preflight(live=True)``, so the runner and metrics never saw the measured
+    boot time. Only successful measurements are recorded; a failed probe must
+    not overwrite an existing measurement.
+    """
+    boot_seconds = probe.get("cold_boot_seconds") if probe.get("ok") else None
+    if boot_seconds is None:
+        return None
+    measurement = {
+        "cold_boot_seconds": float(boot_seconds),
+        "base_url": probe.get("base_url"),
+        "served_models": probe.get("served_models"),
+        "probe_timeout_seconds": probe.get("probe_timeout_seconds"),
+        "measured_at": checkpoint.utc_now(),
+        "run_id": run_id or store.run_id,
+    }
+    store.write_cold_boot(measurement)
+    store.append_event("cold_boot", "info", **measurement)
+    return measurement
+
+
 def _modal_check(spec: RunSpec) -> bool:
     modal = spec.engine.modal
     if modal is None:
@@ -196,11 +252,40 @@ def _modal_check(spec: RunSpec) -> bool:
     return modal.image_tag != "latest" and modal.max_containers >= 1
 
 
+def _foreign_app(existing: Mapping[str, Any], spec: RunSpec) -> str | None:
+    """The lock's Modal app when the store belongs to a DIFFERENT fleet, else None.
+
+    The run store is the one writable resource the app name does not scope (the
+    Modal cache volumes are app-scoped for exactly this reason), so ``--force``
+    is how two fleets sharing a run_id would collide: ``archive_generation()``
+    moves ``items.jsonl`` aside, but a LIVE writer reopens it by path
+    (``RunStore.append_item`` opens ``"a"`` per item) and recreates it under the
+    same name — both fleets then append to one ``items.jsonl``. A plain resume
+    already refuses (``engine.modal`` is inside ``spec_hash``); this closes the
+    ``--force`` door too.
+    """
+    locked = ((existing.get("engine") or {}).get("modal") or {}).get("app")
+    current = spec.engine.modal.app if spec.engine.modal else None
+    if locked and current and locked != current:
+        return str(locked)
+    return None
+
+
+def _takeover_foreign_store() -> bool:
+    """Deliberate override for ``_foreign_app`` — a human taking over a store."""
+    return os.environ.get("SANDBOX_TAKEOVER_FOREIGN_STORE", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
 def _prompt_summary(block: dict[str, Any]) -> str:
     agents = block.get("agents") or {}
     bits = [f"default={block.get('default', {}).get('source')}"]
     for agent, r in agents.items():
-        bits.append(f"{agent}={r.get('source')}")
+        bits.append(f"{agent}={r.get('key') or r.get('source')}" if r.get("source") == "eval-environment" else f"{agent}={r.get('source')}")
     return "; ".join(bits) if bits else "code-default"
 
 
@@ -246,19 +331,84 @@ def _prompt_text_sha(block: dict[str, Any]) -> str:
     return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
 
 
+def _resolve_report_group(
+    spec: RunSpec,
+    *,
+    run_id: str,
+    config_path: str | Path | None,
+) -> str | None:
+    """Resolve the report group; fail if an explicit runbook id is unknown."""
+    from mailroom_sandbox.report_paths import (
+        experiment_prefix,
+        report_group_for_config,
+        report_group_for_runbook,
+    )
+
+    if spec.runbook_id:
+        group = report_group_for_runbook(spec.runbook_id)
+        if group is None:
+            raise ValueError(
+                f"unknown runbook_id {spec.runbook_id!r}: no report-group catalog entry"
+            )
+        return group
+    return report_group_for_config(config_path) or experiment_prefix(run_id)
+
+
 def preflight(
     spec: RunSpec,
     *,
     run_id: str = "",
+    config_path: str | Path | None = None,
     offline: bool = False,
     force: bool = False,
     dry_run: bool = False,
     live: bool = False,
 ) -> dict[str, Any]:
-    """Confirm all spec domains, prepare artifacts, and write the lock.
+    """Prepare or validate a generation under the writer and control locks.
 
-    Returns a report dict with status ``prepared | drift_refused | failed``.
-    ``dry_run`` validates without writing; ``force`` re-locks a drifted run.
+    Load dotenv configuration before resolving prompts and probes. Return
+    the preflight report, or ``busy_refused`` when the writer lock is held.
+    ``force`` requests archival and a new generation but refuses possibly
+    active writers; ``offline`` avoids remote prompt/tracing requirements.
+    ``live`` probes the engine for a new generation. ``dry_run`` only checks
+    lock readability and returns without resolving or preparing artifacts;
+    the run directory and lock files may still be created.
+    Uncaught configuration and file-access errors propagate.
+    """
+    # Dotenv supplies prompt credentials, endpoint and tracing configuration.
+    # Loading it is independent of graph activation and preserves explicit env.
+    from mailroom_sandbox.runtime import load_env_file
+
+    load_env_file()
+    run_id = run_id or resolve_run_id(spec)
+    store = RunStore(run_dir(run_id))
+    try:
+        with store.acquire(blocking=False), store.control():
+            return _preflight(spec, run_id=run_id, config_path=config_path,
+                              offline=offline, force=force, dry_run=dry_run, live=live)
+    except BlockingIOError:
+        return {"status": "busy_refused", "run_id": run_id,
+                "detail": "run writer is active; cancel and wait for paused before resetting"}
+
+
+def _preflight(
+    spec: RunSpec,
+    *,
+    run_id: str = "",
+    config_path: str | Path | None = None,
+    offline: bool = False,
+    force: bool = False,
+    dry_run: bool = False,
+    live: bool = False,
+) -> dict[str, Any]:
+    """Validate an existing generation or prepare artifacts and write a new lock.
+
+    Return ``prepared``, ``failed``, ``drift_refused``, ``busy_refused``, or
+    ``foreign_store_refused`` in the report's status. ``dry_run`` checks only
+    existing lock readability, without validating domains or writing artifacts.
+    ``force`` archives an eligible existing generation before preparing its
+    replacement. Caught prompt, dataset, and tracing errors become failed
+    reports; uncaught configuration and file-access errors propagate.
     """
     run_id = run_id or resolve_run_id(spec)
     store = RunStore(run_dir(run_id))
@@ -284,7 +434,7 @@ def preflight(
     #    would otherwise resume with different prompt text (DMR-049).
     try:
         prompt_block = prompt_lock_block(spec.prompt, offline=offline)
-    except KeyError as exc:
+    except (KeyError, PromptSelectionError) as exc:
         report["status"] = "failed"
         report["checks"] = [{"name": "prompt", "ok": False, "detail": str(exc)}]
         return report
@@ -293,9 +443,29 @@ def preflight(
         {"name": "prompt", "ok": True, "detail": _prompt_summary(prompt_block)}
     )
 
+    try:
+        report_group = _resolve_report_group(spec, run_id=run_id, config_path=config_path)
+    except ValueError as exc:
+        report["status"] = "failed"
+        report["checks"].append({"name": "report_group", "ok": False, "detail": str(exc)})
+        return report
+
     if existing and not force:
         drifted = existing.get("spec_hash") != spec.spec_hash()
         if not drifted and existing.get("prompt_text_sha") and existing.get("prompt_text_sha") != prompt_text_sha:
+            drifted = True
+        # Keys absent on pre-catalog locks: resume. Present keys still drift.
+        if (
+            not drifted
+            and "runbook_id" in existing
+            and existing.get("runbook_id") != (spec.runbook_id or None)
+        ):
+            drifted = True
+        if (
+            not drifted
+            and "report_group" in existing
+            and existing.get("report_group") != (report_group or None)
+        ):
             drifted = True
         if drifted:
             return {
@@ -303,8 +473,59 @@ def preflight(
                 "run_id": run_id,
                 "spec_hash": spec.spec_hash(),
                 "locked_spec_hash": existing.get("spec_hash"),
-                "detail": "spec (or resolved prompt text) drifted since the lock; pass --force to re-lock",
+                "detail": (
+                    "spec, resolved prompt text, runbook, or report group drifted "
+                    "since the lock; pass --force to re-lock"
+                ),
             }
+
+    # A --force re-lock of a store locked to ANOTHER Modal app is refused: the
+    # archive below cannot stop that fleet's live writer (it reopens items.jsonl
+    # by path and recreates it), so two fleets would end up appending to one
+    # file. Taking the store over anyway is a deliberate, named act.
+    if existing and force and not _takeover_foreign_store():
+        foreign = _foreign_app(existing, spec)
+        if foreign:
+            current_app = spec.engine.modal.app if spec.engine.modal else None
+            return {
+                "status": "foreign_store_refused",
+                "run_id": run_id,
+                "lock_app": foreign,
+                "spec_app": current_app,
+                "detail": (
+                    f"this store is locked to modal app {foreign!r}, this fleet is "
+                    f"{current_app!r} — a --force re-lock would archive another "
+                    "fleet's items and both fleets would then append to the same "
+                    "items.jsonl. Run the cell on the fleet that owns the store, "
+                    "remove the store, or set SANDBOX_TAKEOVER_FOREIGN_STORE=1 to "
+                    "take it over deliberately."
+                ),
+            }
+
+    if existing:
+        cp = store.read_checkpoint() or {}
+        remote_call = (cp.get("remote") or {}).get("call_id")
+        if force and remote_call:
+            from mailroom_sandbox.job.remote import terminal_confirmed
+
+            # A stale checkpoint or diagnostic call graph is not proof of death.
+            remote_busy = not terminal_confirmed(store)
+        else:
+            remote_busy = False
+        if force and (remote_busy or (cp.get("state") == "running" and not remote_call)):
+            return {"status": "busy_refused", "run_id": run_id,
+                    "detail": "generation may still have a live writer; cancel and confirm termination first"}
+        if not force:
+            # Existing lock is the generation's commit point. Validate its
+            # artifacts, never recreate missing bytes under that identity.
+            try:
+                store.verify_generation()
+            except RuntimeError as exc:
+                report["status"] = "failed"
+                report["checks"].append({"name": "generation", "ok": False, "detail": str(exc)})
+                return report
+            report.update({"spec_hash": existing["spec_hash"], "lock_path": str(store.lock_path)})
+            return report
 
     # write_lock refuses to overwrite in place, so a forced re-lock archives
     # the old generation first — new dataset bytes must never sit under an old
@@ -355,21 +576,13 @@ def preflight(
             return report
         boot_seconds = probe.get("cold_boot_seconds")
         if boot_seconds is not None:
-            measurement = {
-                "cold_boot_seconds": float(boot_seconds),
-                "base_url": probe.get("base_url"),
-                "served_models": probe.get("served_models"),
-                "probe_timeout_seconds": probe.get("probe_timeout_seconds"),
-                "measured_at": checkpoint.utc_now(),
-                "run_id": run_id,
-            }
-            store.write_cold_boot(measurement)
-            store.append_event("cold_boot", "info", **measurement)
-            report["cold_boot_seconds"] = float(boot_seconds)
-            report["cold_boot_path"] = str(store.cold_boot_path)
-            report["checks"][-1]["detail"] += (
-                f" | cold_boot={float(boot_seconds):.2f}s"
-            )
+            measurement = record_cold_boot(store, probe, run_id=run_id)
+            if measurement is not None:
+                report["cold_boot_seconds"] = measurement["cold_boot_seconds"]
+                report["cold_boot_path"] = str(store.cold_boot_path)
+                report["checks"][-1]["detail"] += (
+                    f" | cold_boot={measurement['cold_boot_seconds']:.2f}s"
+                )
 
     # 5) trace sink
     try:
@@ -406,10 +619,13 @@ def preflight(
         "lock_kind": "spec.lock",
         "run_id": run_id,
         "created_at": checkpoint.utc_now(),
+        "generation_id": uuid.uuid4().hex,
         "spec_hash": spec.spec_hash(),
         "prompt_text_sha": prompt_text_sha,
         "task": spec.task,
         "profile": spec.profile,
+        "agent_models": dict(spec.agent_models),
+        **({"agent_routes": {name: route.model_dump() for name, route in spec.agent_routes.items()}} if spec.agent_routes else {}),
         "prompt": prompt_block,
         "engine": spec.engine.model_dump(),
         "job": spec.job.model_dump(),
@@ -420,6 +636,29 @@ def preflight(
         "git": git_snapshot(),
         "spec_core": spec_core(spec),
     }
+    # Freeze the resolved per-agent generation knobs (max_tokens / max_input_chars /
+    # chunk_chars / temperature). Without this the card can only read the LIVE posture
+    # table, so editing a posture later silently rewrites what every historical card
+    # claims the run was configured with — and the contracts whole-document change is
+    # exactly such an edit.
+    from mailroom_sandbox.job.specialist_posture import agent_knobs_for_run
+    from mailroom_sandbox.runtime import resolve_agent_knobs
+
+    lock["agent_knobs"] = resolve_agent_knobs(spec.agent_knobs or agent_knobs_for_run(run_id))
+    # Freeze the resolved table for model-only runs too: otherwise runtime.activate()
+    # rebuilds the remaining agents from the live profile/taxonomy, so a later
+    # judge_model edit silently changes a resumed run without changing its lock.
+    if spec.agent_routes or spec.agent_knobs or spec.agent_models:
+        from mailroom_sandbox.agent_routes import describe
+        lock["agent_assignments"] = describe(spec)
+    selected = selection_from_lock(prompt_block)
+    if selected:
+        # The selected eval-environment keys + sha256 are part of the run's identity.
+        lock["prompt_versions"] = selected.versions_stamp()
+    if spec.runbook_id:
+        lock["runbook_id"] = spec.runbook_id
+    if report_group:
+        lock["report_group"] = report_group
     store.write_lock(lock)
     total = len(store.dataset_rows())
     store.write_checkpoint(state="prepared", cursor=0, total=total, remote=None)

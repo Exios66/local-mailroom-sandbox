@@ -350,6 +350,10 @@ def scorecard_lines(store: RunStore, *, serving_dir: Path, width: int = 100, on:
     ]
     rec: dict[str, Any] = {}
     path = serving_dir / f"{snap['run_id']}.serving.json"
+    if not path.is_file():
+        matches = sorted(serving_dir.rglob(path.name))
+        if len(matches) == 1:
+            path = matches[0]
     if path.is_file():
         try:
             rec = json.loads(path.read_text())
@@ -563,13 +567,25 @@ def _stream_logs(app: str, sink: Any, stop: threading.Event, *, prefix: str = ""
             sink.append("ERROR modal CLI not found on PATH — logs unavailable")
             return
         assert proc.stdout is not None
+        # A quiet stream blocks the read below, so `stop` must also be able to end the child.
+        stream_over = threading.Event()
+
+        def _end_child_on_stop(proc=proc, stream_over=stream_over) -> None:
+            while not stream_over.is_set():
+                if stop.wait(0.2):
+                    proc.terminate()
+                    return
+
+        threading.Thread(target=_end_child_on_stop, daemon=True).start()
         for raw in proc.stdout:
             if stop.is_set():
                 break
             line = raw.rstrip()
             if line:
                 sink.append(f"{prefix}{line}" if prefix else line)
+        stream_over.set()
         proc.terminate()
+        proc.wait()
         if not stop.is_set():
             note_reconnect(sink)
             stop.wait(10)

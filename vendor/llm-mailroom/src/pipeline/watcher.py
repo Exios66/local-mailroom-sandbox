@@ -23,6 +23,7 @@ logger = structlog.get_logger(__name__)
 
 # O-1: kick the score-config warm-up off the document path at startup.
 from observability.scores import warmup_score_configs
+from observability.masking import allowlist_intake_meta
 from observability.tracing import install_on_dropped, pipeline_trace
 
 install_on_dropped()  # O-3: dropped trace events log a warning, never vanish
@@ -91,6 +92,9 @@ TERMINAL_STAGES = ("archived", "failed", "review")
 # Stale-claim cutoff for startup reconciliation (L-1/A-18): claims older than
 # this are presumed orphaned by a crashed process and re-queued.
 STALE_CLAIM_MINUTES = int(os.environ.get("WATCHER_STALE_CLAIM_MINUTES", "60"))
+# A stranded same-name claim must not block the inbox until the next restart.
+# Re-run the stale-claim reconciliation periodically while the watcher drains.
+STALE_RECONCILE_INTERVAL_SECONDS = 60.0
 
 WATCHER_LOCK_NAME = "watcher.lock"
 
@@ -449,6 +453,7 @@ _INTAKE_META_KEYS = (
     "upload_id",
     "uploaded_at",
     "original_filename",
+    "group_size",
 )
 
 
@@ -673,6 +678,46 @@ def _triage_catalog_upsert(
         logger.debug("triage_catalog_upserted", doc_id=manifest.doc_id, stage=doc_record["stage"])
     except Exception:
         logger.exception("triage_catalog_upsert_failed")
+
+
+def _triage_trace_kwargs(claimed: Path, intake_meta: dict) -> dict:
+    """``pipeline_trace`` kwargs for the Gmail triage lane.
+
+    Same mandatory tag taxonomy as ``run_pipeline`` (``mailroom`` + the
+    environment tag + source/route tags). The trace input is file metadata
+    only — never document text.
+    """
+    environment = (
+        os.environ.get("OBSERVABILITY_ENVIRONMENT")
+        or os.environ.get("LANGFUSE_TRACING_ENVIRONMENT")
+        or "live"
+    )
+    try:
+        size = Path(claimed).stat().st_size
+    except OSError:
+        size = None
+    return {
+        "seed": Path(claimed).name,
+        "name": "gmail-triage",
+        "tags": ["mailroom", environment, "source-gmail", "route-triage"],
+        "environment": environment,
+        "input": {"filename": Path(claimed).name, "size_bytes": size},
+        "metadata": allowlist_intake_meta(intake_meta),
+    }
+
+
+def _run_triage_traced(claimed: Path, matter_id: str, intake_meta: dict) -> dict:
+    """Run the triage lane inside its trace; always flush, even on failure."""
+    try:
+        with pipeline_trace(session_id=matter_id, **_triage_trace_kwargs(claimed, intake_meta)):
+            return _run_triage_lane(claimed, matter_id, intake_meta)
+    finally:
+        try:
+            from observability.tracing import flush
+
+            flush()
+        except Exception:
+            logger.warning("triage_trace_flush_failed", exc_info=True)
 
 
 def _run_triage_lane(claimed: Path, matter_id: str, intake_meta: dict) -> dict:
@@ -1031,15 +1076,7 @@ class InboxHandler(FileSystemEventHandler):
                     matter_id=matter_id,
                     intake_source=intake_meta.get("source"),
                 )
-                with pipeline_trace(
-                    seed=claimed.name,
-                    session_id=matter_id,
-                    name="gmail-triage",
-                    tags=["source-gmail", "route-triage"],
-                    metadata=intake_meta or {},
-                    environment="live",
-                ) as _triage_trace:
-                    _run_triage_lane(claimed, matter_id, intake_meta)
+                _run_triage_traced(claimed, matter_id, intake_meta)
             else:
                 logger.info(
                     "file_claimed",
@@ -1132,6 +1169,11 @@ class Watcher:
 
             self._gmail_poller = start_embedded_poller()
 
+            # Durable echo outbox: drains queued completion echoes with backoff.
+            from .mail_outbox import start_outbox_worker
+
+            self._outbox_worker = start_outbox_worker()
+
             # Relations sweeper (HUB-040): the regular archive association
             # sweep — same embedded pattern, watermark-incremental, fail-soft.
             from .relations import start_embedded_relations_scanner
@@ -1170,6 +1212,7 @@ class Watcher:
         import time as _time
 
         poll = float(os.environ.get("WATCHER_POLL_INTERVAL_SECONDS", str(DEFAULT_POLL_INTERVAL_SECONDS)))
+        last_stale_check = _time.monotonic()
         while self._running:
             _time.sleep(poll)
             # Liveness beacon for /health + the HUB-050 watchdog: proves the
@@ -1182,6 +1225,12 @@ class Watcher:
             _get_manifest_index()
             if is_ingestion_paused():
                 continue
+            now = _time.monotonic()
+            if now - last_stale_check >= STALE_RECONCILE_INTERVAL_SECONDS:
+                # Startup-only reconciliation leaves a dead worker's same-name
+                # claim blocking new inbox uploads until the next restart.
+                self._reconcile_stale_claims()
+                last_stale_check = now
             for f in list_inbox_files():
                 if f.name in _active_files:
                     continue
@@ -1196,6 +1245,10 @@ class Watcher:
 
         stop_embedded_poller(self._gmail_poller)
         self._gmail_poller = None
+        from .mail_outbox import stop_outbox_worker
+
+        stop_outbox_worker(getattr(self, "_outbox_worker", None))
+        self._outbox_worker = None
         stop_embedded_relations_scanner(getattr(self, "_relations_sweeper", None))
         self._relations_sweeper = None
         if self._running:
@@ -1251,15 +1304,7 @@ class Watcher:
                     matter_id=matter_id,
                     intake_source=intake_meta.get("source"),
                 )
-                with pipeline_trace(
-                    seed=claimed.name,
-                    session_id=matter_id,
-                    name="gmail-triage",
-                    tags=["source-gmail", "route-triage"],
-                    metadata=intake_meta or {},
-                    environment="live",
-                ) as _triage_trace:
-                    _run_triage_lane(claimed, matter_id, intake_meta)
+                _run_triage_traced(claimed, matter_id, intake_meta)
             else:
                 logger.info(
                     "existing_file_claimed",
@@ -1283,8 +1328,17 @@ class Watcher:
 
 
 if __name__ == "__main__":
-    from observability.tracing import ensure_process_tracing
+    import argparse
 
+    from observability.tracing import ensure_process_tracing
+    from pipeline.pager import Pager, load_pager_config, prompt_on_start
+
+    _ap = argparse.ArgumentParser(description="Run the mailroom watcher.")
+    _ap.add_argument("--pager", action=argparse.BooleanOptionalAction, default=None,
+                     help="Turn operator text alerts on/off without the start prompt.")
+    _pager_cfg = prompt_on_start(load_pager_config(), flag=_ap.parse_args().pager)
+    if _pager_cfg.active:
+        Pager(_pager_cfg).start_background()
     watcher = Watcher()
     _shutdown = threading.Event()
 

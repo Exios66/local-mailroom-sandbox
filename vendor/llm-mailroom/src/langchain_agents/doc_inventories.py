@@ -25,6 +25,16 @@ import json
 import re
 from typing import Any
 
+# Intent vocabulary, descriptions, aliases and normalizer live in the dojo
+# (single source of truth); re-exported so callers keep importing from here.
+from llm_dojo_scoring.intents import (  # noqa: F401
+    INTENT_ALIASES as _INTENT_ALIASES,
+)
+from llm_dojo_scoring.intents import (  # noqa: F401
+    INTENT_DESCRIPTIONS,
+    INTENT_LABELS,
+    normalize_intent,
+)
 
 CORPORATE_RECORD_TYPES: tuple[str, ...] = (
     "articles_of_incorporation",
@@ -113,148 +123,11 @@ CORRESPONDENCE_GT_KEYS: tuple[str, ...] = (
 )
 
 # === Intent (purpose) controlled vocabulary ================================
-# ``intent`` is a ONE-label purpose tag per document class, grounded in the
-# document (never inferred beyond what the text states). Each class keeps its
-# own closed set so graders can exact-match the label; ``other`` is the
-# residual. These tokens back the Hub ground_truth ``intent`` column and the
-# mailroom extraction schemas (CorporateRecordExtraction / Correspondence
-# Extraction / InsuranceClaimExtraction). Pushed to Hub by
-# scripts/sync_hf_ground_truth.py.
-INTENT_LABELS: dict[str, tuple[str, ...]] = {
-    "corporate_record": (
-        "governance_rules",          # bylaws / governance instruments
-        "corporate_action_approval", # board written consents / resolutions
-        "entity_formation",          # articles / certificates of incorporation
-        "authority_delegation",      # powers of attorney
-        "investor_rights",           # rights instruments, warrants, specimen stock
-        "other",
-    ),
-    "correspondence": (
-        "payment_demand",            # demand for payment / cure
-        "notice",                    # formal notice of a fact, breach, or intent
-        "analysis",                  # internal memo analyzing options/remedies
-        "request",                   # request for information or action
-        "update",                    # informational status update
-        "meeting_invite",            # meeting/calendar request
-        "press_communication",       # press release / public statement
-        "other",
-    ),
-    "insurance_claim": (
-        "claim_filing",              # first notice of loss / claim submission
-        "coverage_determination",    # approved / denied / partial determination
-        "loss_report",               # adjuster report / appraisal / examination
-        "claim_data_record",         # CMS / DE-SynPUF table row (pde, inpatient, ...)
-        "other",
-    ),
-}
-
-INTENT_DESCRIPTIONS: dict[str, str] = {
-    "corporate_record": (
-        "One controlled purpose label for THIS corporate record. "
-        "governance_rules = bylaws or equivalent governance instruments; "
-        "corporate_action_approval = board written consents / resolutions "
-        "authorizing transactions or actions; entity_formation = articles or "
-        "certificates of incorporation/formation; authority_delegation = "
-        "powers of attorney; investor_rights = stockholder rights, warrants, "
-        "preferred certificates, specimen stock. other = residual."
-    ),
-    "correspondence": (
-        "One controlled purpose label for THIS message. payment_demand = "
-        "demand for payment or cure; notice = formal notice of a fact, breach, "
-        "or intent; analysis = internal memo analyzing options/remedies; "
-        "request = request for information or action; update = informational "
-        "status update; meeting_invite = meeting/calendar request; "
-        "press_communication = press release / public statement. other = residual."
-    ),
-    "insurance_claim": (
-        "One controlled purpose label for THIS claim document. claim_filing = "
-        "first notice of loss / claim submission; coverage_determination = "
-        "approved/denied/partial determination letter; loss_report = adjuster "
-        "report / appraisal / examination; claim_data_record = CMS/DE-SynPUF "
-        "table row (pde, inpatient, outpatient, carrier). other = residual."
-    ),
-}
-
-# Backwards-compatible aliases for the earlier draft vocabulary tokens
-# (record_governance / demand_payment / coverage_approval etc.) so labels
-# produced or documented before the vocabulary was finalized still normalize.
-_INTENT_ALIASES = {
-    "record_governance": "governance_rules",
-    "recordgovernance": "governance_rules",
-    "governance": "governance_rules",
-    "governancerules": "governance_rules",
-    "governingrules": "governance_rules",
-    "bylaws": "governance_rules",
-    "boardresolution": "corporate_action_approval",
-    "corporateaction": "corporate_action_approval",
-    "corporateactionapproval": "corporate_action_approval",
-    "approval": "corporate_action_approval",
-    "entityformation": "entity_formation",
-    "formation": "entity_formation",
-    "incorporation": "entity_formation",
-    "articlesofincorporation": "entity_formation",
-    "powerofattorney": "authority_delegation",
-    "authoritydelegation": "authority_delegation",
-    "investorrights": "investor_rights",
-    "rightsinstrument": "investor_rights",
-    "demand": "payment_demand",
-    "paymentdemand": "payment_demand",
-    "demandforpayment": "payment_demand",
-    "demandletter": "payment_demand",
-    "attorneydemand": "payment_demand",
-    "noticedefault": "notice",
-    "noticeofbreach": "notice",
-    "noticeofnoncompliance": "notice",
-    "noticeofintent": "notice",
-    "analysis": "analysis",
-    "remediesanalysis": "analysis",
-    "recommendation": "analysis",
-    "request": "request",
-    "update": "update",
-    "statusupdate": "update",
-    "meetinginvite": "meeting_invite",
-    "meetingrequest": "meeting_invite",
-    "pressrelease": "press_communication",
-    "presscommunication": "press_communication",
-    "publicstatement": "press_communication",
-    "claimfiling": "claim_filing",
-    "filing": "claim_filing",
-    "firstnoticeofloss": "claim_filing",
-    "fnol": "claim_filing",
-    "initialfnol": "claim_filing",
-    "coveragedetermination": "coverage_determination",
-    "determination": "coverage_determination",
-    "denial": "coverage_determination",
-    "denialletter": "coverage_determination",
-    "denialnotice": "coverage_determination",
-    "denied": "coverage_determination",
-    "approved": "coverage_determination",
-    "partial": "coverage_determination",
-    "claimdenied": "coverage_determination",
-    "claimapproved": "coverage_determination",
-    "claimpartiallyapproved": "coverage_determination",
-    "partialapproval": "coverage_determination",
-    "coverage_approval": "coverage_determination",
-    "coverage_denial": "coverage_determination",
-    "coverage_partial": "coverage_determination",
-    "lossreport": "loss_report",
-    "adjusterreport": "loss_report",
-    "claimdatarecord": "claim_data_record",
-    "data record": "claim_data_record",
-}
-
-
-def normalize_intent(doc_type: str | None, value: Any) -> str:
-    """Map a free-text purpose onto the class's controlled intent label.
-
-    Unknown/unmapped values return ``""`` (never ``other`` inventively) —
-    callers decide whether ``other`` is warranted by the document.
-    """
-    kind = str(doc_type or "")
-    keys = INTENT_LABELS.get(kind, ())
-    if not keys:
-        return ""
-    return _normalize(value, keys, _INTENT_ALIASES)
+# The vocabulary, descriptions, aliases and ``normalize_intent`` live in
+# llm-dojo-scoring (``llm_dojo_scoring.intents``, the single source of truth;
+# the dojo ``label`` field type scores against the same closed sets). They are
+# re-exported here so existing callers keep importing from this module.
+# ``_INTENT_ALIASES`` is kept as an alias of the dojo ``INTENT_ALIASES``.
 
 
 # Sorter subclass catalogs from llm-dojo-scoring 0.9.0 (PR #4). Hub extraction
@@ -329,43 +202,16 @@ def valid_sorter_subclasses(doc_type: str | None) -> frozenset[str]:
 
 
 def normalize_sorter_subclass(doc_type: str | None, value: Any) -> str | None:
-    """Canonical subclass for ``doc_type``, or None when empty/uncatalogued."""
+    """Canonical scoped normalization over the producer's accepted tokens."""
+    from llm_dojo_scoring.pilot_labels import normalize_sorter_token
+
     kind = str(doc_type or "")
-    if value is None:
-        return None
-    text = str(value).strip()
-    if not text:
-        return None
-    catalog = valid_sorter_subclasses(kind)
-    if not catalog:
-        return None
+    token = None
     if kind == "contract":
         from langchain_agents.sorter_agent import normalize_subtype
 
-        token = normalize_subtype(text)
-        return token if token in catalog else None
-    try:
-        from llm_dojo_scoring.corpus import normalize_corpus_subclass
-
-        token = normalize_corpus_subclass(kind, text)
-    except ImportError:
-        token = None
-        compact = re.sub(r"[^a-z0-9]", "", text.lower())
-        for key in catalog:
-            if re.sub(r"[^a-z0-9]", "", key.lower()) == compact:
-                token = key
-                break
-        if token is None and kind == "insurance_claim":
-            token = normalize_claim_type(text) or None
-        elif token is None and kind == "corporate_record":
-            token = normalize_record_type(text) or None
-        elif token is None and kind == "correspondence":
-            token = normalize_communication_type(text) or None
-    if token in catalog:
-        return token
-    if text in catalog:
-        return text
-    return None
+        token = normalize_subtype(value)
+    return normalize_sorter_token(kind, value, valid_sorter_subclasses(kind), contract_token=token)
 
 
 def format_sorter_subclass_catalogs() -> str:
@@ -488,48 +334,17 @@ _INSURANCE_ALIASES = {
 
 
 def _compact(value: Any) -> str:
-    return re.sub(r"[^a-z0-9]", "", str(value or "").lower())
+    """Compatibility alias for the canonical compact-label policy."""
+    from llm_dojo_scoring.pilot_labels import compact_label
+
+    return compact_label(value)
 
 
 def _normalize(value: Any, keys: tuple[str, ...], aliases: dict[str, str]) -> str:
-    """Map a free-text label onto a canonical inventory token.
+    """Canonical inventory matching over the unchanged producer catalog."""
+    from llm_dojo_scoring.pilot_labels import normalize_inventory_label
 
-    Longest canonical key wins so ``attorney_demand`` is not swallowed by
-    ``demand``, and ``articles_of_incorporation`` is not swallowed by a
-    short alias collision.
-    """
-    key = _compact(value)
-    if not key:
-        return ""
-    compact_keys = {_compact(k): k for k in keys}
-    if key in compact_keys:
-        return compact_keys[key]
-    alias_norm = {_compact(k): v for k, v in aliases.items()}
-    if key in alias_norm:
-        return alias_norm[key]
-    ranked_aliases = sorted(aliases.items(), key=lambda kv: -len(_compact(kv[0])))
-    for alias, canonical in ranked_aliases:
-        ak = _compact(alias)
-        if len(ak) >= 8 and (key.startswith(ak) or ak in key):
-            return canonical
-    ranked = sorted(keys, key=lambda item: -len(_compact(item)))
-    for canonical in ranked:
-        ck = _compact(canonical)
-        if not ck or canonical == "other":
-            continue
-        if key.startswith(ck):
-            return canonical
-    for canonical in ranked:
-        ck = _compact(canonical)
-        if not ck or canonical == "other":
-            continue
-        if len(ck) >= 4 and ck in key:
-            return canonical
-        if len(ck) >= 3 and ck[:1].isdigit() and ck in key:
-            return canonical
-    if key == "other":
-        return "other"
-    return ""
+    return normalize_inventory_label(value, keys, aliases)
 
 
 def normalize_record_type(value: Any) -> str:
@@ -617,7 +432,13 @@ def enrich_extraction(
     extract_class: str | None = None,
     subtype: str | None = None,
 ) -> dict:
-    """Fill Hub inventory fields without overwriting a specialist value."""
+    """Fill Hub inventory fields without overwriting a specialist value.
+
+    Inventory/type tokens are canonicalized; a free-text ``intent`` is mapped
+    onto the class's controlled vocabulary (``normalize_intent``) when it maps,
+    and left untouched when it does not — the extract path therefore emits the
+    canonical label rather than whatever the model chose (HUB intent fix).
+    """
     kind = str(doc_type or "")
     resolved = str(extract_class or kind)
     if resolved == "contract" or kind in ("contract", "merger_agreement"):
@@ -634,15 +455,20 @@ def enrich_extraction(
         if token:
             result["record_type"] = token
     elif kind == "correspondence":
-        token = normalize_communication_type(
-            result.get("communication_type") or subtype
-        )
-        if token:
+        own = result.get("communication_type")
+        token = normalize_communication_type(own or subtype)
+        # The model's own null is a valid contract answer; do not backfill
+        # it from a sorter subtype that only normalizes to the residual "other".
+        if token and not (not own and token == "other"):
             result["communication_type"] = token
     elif kind == "insurance_claim":
         token = normalize_claim_type(result.get("claim_type") or subtype)
         if token:
             result["claim_type"] = token
+    if kind in INTENT_LABELS:
+        intent = normalize_intent(kind, result.get("intent"))
+        if intent:
+            result["intent"] = intent
     return result
 
 

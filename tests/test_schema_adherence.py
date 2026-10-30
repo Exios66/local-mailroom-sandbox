@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from llm_dojo_scoring.extraction_metrics import extraction_binary_metrics
 from llm_dojo_scoring.field_scoring import score_extraction
 
@@ -107,6 +109,75 @@ def test_schema_clean_payload_adheres():
     assert classify_floor_mode(out) == "scorer"
 
 
+@pytest.mark.parametrize("subclass,field", [
+    ("bylaws", "certifying_officer"),
+    ("bylaws", "last_amended_date"),
+    ("articles_of_incorporation", "authorized_capital"),
+    ("rights_instrument", "exercise_price"),
+])
+@pytest.mark.parametrize("value,valid", [
+    ("As stated in the document", True),
+    (None, True),
+    (42, False),
+    (True, False),
+    ([], False),
+    ({"name": "Alice"}, False),
+])
+def test_corporate_extension_scalar_types(subclass, field, value, valid):
+    out = assess_extraction_payload({field: value}, "corporate_record", subclass)
+    assert out["parse_error"] is False
+    assert out["extra_schema_keys"] == []
+    assert out["schema_valid"] is valid
+    assert out["schema_adherence"] == float(valid)
+
+
+@pytest.mark.parametrize("subclass,field", [
+    ("subsidiary_list", "subsidiaries"),
+    ("board_resolution", "resolutions"),
+])
+@pytest.mark.parametrize("value,valid", [
+    (["Example LLC"], True),
+    ([], True),
+    (None, False),
+    ("Example LLC", False),
+    ({"name": "Example LLC"}, False),
+    (["Example LLC", 42], False),
+    ([{"name": "Example LLC"}], False),
+    ([["Example LLC"]], False),
+])
+def test_corporate_extension_list_types(subclass, field, value, valid):
+    out = assess_extraction_payload({field: value}, "corporate_record", subclass)
+    assert out["parse_error"] is False
+    assert out["extra_schema_keys"] == []
+    assert out["schema_valid"] is valid
+    assert out["schema_adherence"] == float(valid)
+
+
+@pytest.mark.parametrize("core", [
+    {"entity_name": {"name": "Example LLC"}},
+    {"signatories": "Alice"},
+    {"keywords": [42]},
+])
+def test_corporate_extensions_preserve_core_validation(core):
+    out = assess_extraction_payload(
+        {**core, "certifying_officer": "Alice"}, "corporate_record", "bylaws"
+    )
+    assert out["parse_error"] is False
+    assert out["extra_schema_keys"] == []
+    assert out["schema_valid"] is False
+
+
+def test_corporate_invalid_extension_reaches_score_report():
+    out = scoring.score_extraction_row(
+        "corporate_record",
+        {"intent": "governance_rules", "certifying_officer": {"name": "Alice"}},
+        {"intent": "governance_rules"},
+        expected_subclass="bylaws",
+    )
+    assert out["schema_valid"] is False
+    assert out["schema_adherence"] == 0.0
+
+
 def test_merge_schema_adherence_rates_are_additive():
     rows = [
         assess_extraction_payload({"_parse_error": True}, "correspondence"),
@@ -191,15 +262,17 @@ def test_empty_list_both_empty_scores_one():
     expected = {"sender": "Dana Alvarez", "additional_recipients": []}
     predicted = {"sender": "Dana Alvarez", "additional_recipients": []}
     result = score_extraction("correspondence", CORRESPONDENCE_TYPES, predicted, expected)
-    assert result.field_scores["additional_recipients"] == 1.0
+    # Dojo empty-field contract: correct emptiness is not a scored event.
+    assert "additional_recipients" not in result.field_scores
     assert result.overall_score == 1.0
 
 
-def test_spurious_items_on_empty_list_zero_that_field_like_a_miss():
-    """Empty-list GT + invented items → list F1 0.0, same as missing a populated field.
+def test_spurious_items_on_empty_list_are_not_in_overall():
+    """Empty-list GT + invented items: not an overall event (dojo >= v0.16).
 
-    ``overall_extraction_score`` therefore punishes prompt-discipline on empty
-    *lists* as hard as an extraction miss. Empty *scalars* (None/\"\") do not.
+    The dojo empty-field contract keeps emptiness out of ``overall_score``;
+    spurious fill is charged in the PRF / empty-field-credit layer instead
+    (see the next test).
     """
     expected = {"sender": "Dana Alvarez", "additional_recipients": []}
     predicted = {
@@ -207,12 +280,12 @@ def test_spurious_items_on_empty_list_zero_that_field_like_a_miss():
         "additional_recipients": ["cc@example.com"],
     }
     result = score_extraction("correspondence", CORRESPONDENCE_TYPES, predicted, expected)
-    assert result.field_scores["additional_recipients"] == 0.0
-    assert result.overall_score == 0.5
+    assert "additional_recipients" not in result.field_scores
+    assert result.overall_score == 1.0
 
 
 def test_extraction_f1_skips_empty_lists_so_spurious_cc_is_not_fn():
-    """PRF events skip empty lists; overall still includes them (see previous test)."""
+    """PRF events skip empty lists; overall skips them too (see previous test)."""
     expected = {"sender": "Dana Alvarez", "additional_recipients": []}
     predicted = {
         "sender": "Dana Alvarez",

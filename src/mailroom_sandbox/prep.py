@@ -309,7 +309,11 @@ def prepare_offline_datasets(*, agents: list[str] | None = None) -> dict[str, An
 
 
 def environment_checklist(profile: str = "ollama") -> dict[str, Any]:
-    """Inspect whether the offline sandbox can activate without guessing."""
+    """Inspect whether the offline sandbox can activate without guessing.
+
+    ``profile`` defaults to ``ollama`` on purpose: the prep notebooks run offline,
+    without a deployed Modal endpoint, whatever the sandbox default profile is.
+    """
     root = repo_root()
     env_candidates = [root / ".env", root / "config" / ".env", root / "config" / ".env.example"]
     env_found = next((p for p in env_candidates if p.is_file()), None)

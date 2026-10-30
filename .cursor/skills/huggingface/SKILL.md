@@ -21,7 +21,7 @@ description: Hugging Face Hub usage for local-mailroom-sandbox — fixture schem
 sandbox datasets prepare                                    # offline cleaners
 sandbox datasets pull                                       # FULL ground_truth train+test (3302 rows)
 sandbox datasets sample --per-class 40                      # 20/40/100… from the local cache
-#   pinned revision ed7576b6… (FAMILY_HF_REVISION, v9.1 mailroom-dataset Hub tip),
+#   pinned Hub tag v9.1 / bc9eab28… (FAMILY_HF_REVISION; data commit ed7576b6…),
 #   ground_truth + default
 #   merged on filename, content_sha256 verified, exit 1 on any failure (DMR-056)
 ```
@@ -64,3 +64,17 @@ old `[hf_transfer]` extra / `HF_HUB_ENABLE_HF_TRANSFER` are dead (DMR-056).
 - Router: [sandbox-tool-router](../sandbox-tool-router/SKILL.md)  
 - Evals: `docs/evals.md`  
 - Attribution: `data/fixtures/ATTRIBUTION.md`
+
+## `sandbox hf` (guarded `hf` CLI passthrough)
+
+```bash
+sandbox hf whoami                      # hf auth whoami (HF_TOKEN or `hf auth login`)
+sandbox hf download --dry-run          # the sandbox dataset at the pinned FAMILY_HF_REVISION
+sandbox hf download --sandbox-cache    # cache in data/cache/hf, where `sandbox datasets pull` reads
+sandbox hf cache --revisions           # hf cache ls
+sandbox hf raw -- <hf args>            # anything else, unchanged
+```
+
+Uses the maintained `hf` binary, never `huggingface-cli`. `HF_HOME` is your own unless
+`--sandbox-cache` is given, and the cache in use is always printed. Only the sandbox dataset
+is pinned to `FAMILY_HF_REVISION`; other repos are not.

@@ -46,6 +46,35 @@ DOC_CLASSES = [
 DOC_CLASS_KEYS = [d["key"] for d in DOC_CLASSES]
 
 
+def fill_sorter_placeholders(base_prompt: str) -> str:
+    """Compile sorter Mustache catalogs (taxonomy classes, CUAD subtypes, subclasses).
+
+    MAILROOM PATCH: extracted so the mailroom wrapper can run the same
+    substitution after ``get_managed_prompt`` (Langfuse production label)
+    without duplicating the catalog wiring.
+    """
+    if "{{doc_type_descriptions}}" not in base_prompt:
+        return base_prompt
+    doc_type_descriptions = "\n".join(
+        f"- {d['key']}: {d['label']} — {d['description']}"
+        for d in _doc_classes_for_prompt()
+    )
+    base_prompt = base_prompt.replace("{{doc_type_descriptions}}", doc_type_descriptions)
+    if "{{contract_subtypes}}" in base_prompt:
+        contract_subtypes = "\n".join(
+            f"- {s['key']}: {s['label']} — {s['description']}"
+            for s in CONTRACT_SUBTYPES
+        )
+        base_prompt = base_prompt.replace("{{contract_subtypes}}", contract_subtypes)
+    if "{{doc_subclasses}}" in base_prompt:
+        from langchain_agents.doc_inventories import format_sorter_subclass_catalogs
+
+        base_prompt = base_prompt.replace(
+            "{{doc_subclasses}}", format_sorter_subclass_catalogs()
+        )
+    return base_prompt
+
+
 def _doc_classes_for_prompt() -> list[dict]:
     """Prefer the live taxonomy catalog; fall back to the hardcoded table."""
     try:
@@ -192,34 +221,20 @@ SUBTYPE_EQUIVALENCES: list[frozenset[str]] = [
 
 
 def equivalent_subtypes(a: str, b: str) -> bool:
-    """Return True when two subtype keys are the same family or members of
-    the same interchangeable family class (see ``SUBTYPE_EQUIVALENCES``)."""
-    a, b = str(a), str(b)
-    if a == b:
-        return True
-    return any(a in cls and b in cls for cls in SUBTYPE_EQUIVALENCES)
+    """Canonical Dojo CUAD family equivalence."""
+    from llm_dojo_scoring.pilot_labels import catalog_subtypes_equivalent as score
+
+    return score(a, b, SUBTYPE_EQUIVALENCES)
 
 
 def normalize_subtype(value) -> str:
-    """Coerce a raw sorter subtype output (or a CUAD folder name) to a
-    canonical subtype key; unknown/non-contract values become ``other``."""
-    if value is None:
-        return SUBTYPE_UNKNOWN
-    key = re.sub(r"[^a-z0-9]", "", str(value).strip().lower())
-    if not key:
-        return SUBTYPE_UNKNOWN
-    compact = {re.sub(r"[^a-z0-9]", "", k): k for k in CONTRACT_SUBTYPE_KEYS}
-    if key in compact:
-        return compact[key]
-    alias_norm = {re.sub(r"[^a-z0-9]", "", k): v for k, v in _SUBTYPE_ALIASES.items()}
-    if key in alias_norm:
-        return alias_norm[key]
-    # "License Agreement" -> "license"; "Non-Compete" -> non_compete_no_solicit.
-    for subtype in CONTRACT_SUBTYPES:
-        norm_label = re.sub(r"[^a-z0-9]", "", subtype["label"].lower())
-        if key == norm_label or key.startswith(norm_label[:8]):
-            return subtype["key"]
-    return SUBTYPE_UNKNOWN
+    """Canonical policy over this producer's unchanged CUAD catalog."""
+    from llm_dojo_scoring.pilot_labels import normalize_pipeline_subtype
+
+    return normalize_pipeline_subtype(
+        value, keys=CONTRACT_SUBTYPE_KEYS, aliases=_SUBTYPE_ALIASES,
+        subtypes=CONTRACT_SUBTYPES,
+    )
 
 
 def finalize_sorter_result(result: dict) -> dict:
@@ -320,27 +335,7 @@ class SorterAgent(BaseAgent):
         self._reasoning_effort = "medium"
 
     def system_prompt(self) -> str:
-        base_prompt = get_prompt(self.prompt_version)
-        if "{{doc_type_descriptions}}" not in base_prompt:
-            return base_prompt
-        doc_type_descriptions = "\n".join(
-            f"- {d['key']}: {d['label']} — {d['description']}"
-            for d in _doc_classes_for_prompt()
-        )
-        base_prompt = base_prompt.replace("{{doc_type_descriptions}}", doc_type_descriptions)
-        if "{{contract_subtypes}}" in base_prompt:
-            contract_subtypes = "\n".join(
-                f"- {s['key']}: {s['label']} — {s['description']}"
-                for s in CONTRACT_SUBTYPES
-            )
-            base_prompt = base_prompt.replace("{{contract_subtypes}}", contract_subtypes)
-        if "{{doc_subclasses}}" in base_prompt:
-            from langchain_agents.doc_inventories import format_sorter_subclass_catalogs
-
-            base_prompt = base_prompt.replace(
-                "{{doc_subclasses}}", format_sorter_subclass_catalogs()
-            )
-        return base_prompt
+        return fill_sorter_placeholders(get_prompt(self.prompt_version))
 
     def classify(
         self, doc_text: str, pages: list[str] | None = None  # MAILROOM PATCH: pages

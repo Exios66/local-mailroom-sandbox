@@ -26,13 +26,15 @@
 > (`vllm-local` / `vllm-remote` / `modal-vllm`). The real-spend OpenRouter
 > `api-*` specs live in [`../api-evals/config/runs/`](../api-evals/config/runs/)
 > and run through `python ../api-evals/run_api_evals.py`. See
-> [`../docs/LAYOUT.md`](../docs/LAYOUT.md).
+> [`../docs/setting-up/LAYOUT.md`](../docs/setting-up/LAYOUT.md).
 
 ## Profile selection
 
-Profiles are selected with the **`SANDBOX_PROFILE`** env var
-(`ollama`, `vllm-local`, `modal-vllm`, `vllm-remote`, `llamacpp`,
-`lmstudio`, `openrouter`) — see [`profiles/README.md`](profiles/README.md).
+The default profile is **`modal-vllm`** (one Modal L4 behind OpenAI `/v1`;
+`sandbox runbook show serve`). Profiles are selected with `--profile` or the
+**`SANDBOX_PROFILE`** env var (`modal-vllm`, `ollama` for offline, `vllm-local`,
+`vllm-remote`, `llamacpp`, `lmstudio`, `openrouter`) — see
+[`profiles/README.md`](profiles/README.md).
 
 ## Environment
 

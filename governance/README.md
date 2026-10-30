@@ -8,10 +8,10 @@ Local board for **sandbox-isolated** work in
 | Prefix | Where it lives | Use for |
 | --- | --- | --- |
 | **`SAND-NNN`** | this repo — [`TASKS.md`](TASKS.md) | Sandbox harness, Modal runbooks, offline fixtures, vendor sync *as consumed by the sandbox*, job CLI, requirements mirrors, local docs |
-| **`DMR-NNN`** | llm-entity-extraction **MESSAGE_BOARD** | Cross-family / mailroom-pipeline / dojo / entity work shared across the governed family |
+| **`DMR-NNN`** | Digital-Mailroom hub board (`governance/TASKS.md`) | Cross-family / mailroom-pipeline / dojo work shared across the governed family |
 
 **Do not** open `DMR-*` cards on this board. **Do not** invent a second
-family MESSAGE_BOARD here (AGENTS.md / `docs/sister-repos.md`). When a
+family MESSAGE_BOARD here (AGENTS.md / `docs/setting-up/sister-repos.md`). When a
 sandbox change is *driven by* a family DMR, cite the DMR in the SAND card
 notes (`Related: DMR-078`) — the card ID stays `SAND-*`.
 

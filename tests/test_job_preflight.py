@@ -9,6 +9,7 @@ from mailroom_sandbox.job.spec import DatasetSpec, RunSpec, run_dir
 
 
 def _run_spec(tmp_path, *, rows=2, limit=2, run_id="pf-1") -> RunSpec:
+    """Write a tiny local fixture and return an offline sorter RunSpec."""
     path = tmp_path / "f.jsonl"
     with open(path, "w", encoding="utf-8") as fh:
         for i in range(rows):
@@ -34,8 +35,118 @@ def _run_spec(tmp_path, *, rows=2, limit=2, run_id="pf-1") -> RunSpec:
     )
 
 
+def test_preflight_locks_runbook_identity_without_hashing_it(tmp_path):
+    """runbook_id is stored on the lock but excluded from spec_hash."""
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    spec = _run_spec(tmp_path, run_id="report-group-lock")
+    expected_hash = spec.spec_hash()
+    spec.runbook_id = "grid-1l4"
+
+    assert spec.spec_hash() == expected_hash
+    report = preflight.preflight(spec, offline=True)
+    assert report["status"] == "prepared", report
+
+    lock = RunStore(run_dir(spec.run_id)).read_lock()
+    assert lock["runbook_id"] == "grid-1l4"
+    assert lock["report_group"] == "SAND-37"
+    assert lock["spec_hash"] == expected_hash
+
+
+def test_preflight_unknown_runbook_id_fails_without_fallback(tmp_path, job_data_dir):
+    """An explicit unknown runbook_id fails preflight instead of falling through."""
+    spec = _run_spec(tmp_path, run_id="sand40-unknown-runbook")
+    spec.runbook_id = "not-a-cataloged-runbook"
+
+    report = preflight.preflight(spec, offline=True)
+
+    assert report["status"] == "failed", report
+    check = report["checks"][-1]
+    assert check["name"] == "report_group"
+    assert check["ok"] is False
+    assert "not-a-cataloged-runbook" in check["detail"]
+
+
+def test_preflight_report_group_drift_refuses_unless_forced(tmp_path, job_data_dir):
+    """A changed runbook_id on an existing lock is drift unless --force."""
+    spec = _run_spec(tmp_path, run_id="pf-report-group-drift")
+    spec.runbook_id = "grid-1l4"
+    report = preflight.preflight(spec, offline=True)
+    assert report["status"] == "prepared", report
+    store = _store(report)
+    locked = store.read_lock()
+    assert locked["runbook_id"] == "grid-1l4"
+    assert locked["report_group"] == "SAND-37"
+
+    drifted = _run_spec(tmp_path, run_id=spec.run_id)
+    drifted.dataset = DatasetSpec(local_path=spec.dataset.local_path, limit=spec.dataset.limit)
+    drifted.runbook_id = "sand40"
+    assert drifted.spec_hash() == spec.spec_hash()
+
+    report2 = preflight.preflight(drifted, offline=True)
+    assert report2["status"] == "drift_refused"
+    assert store.read_lock()["runbook_id"] == "grid-1l4"
+    assert store.read_lock()["report_group"] == "SAND-37"
+
+    report3 = preflight.preflight(drifted, offline=True, force=True)
+    assert report3["status"] == "prepared", report3
+    relocked = store.read_lock()
+    assert relocked["runbook_id"] == "sand40"
+    assert relocked["report_group"] == "SAND-40"
+
+
+def test_preflight_legacy_lock_without_report_identity_resumes(tmp_path, job_data_dir):
+    """Locks that omit runbook_id/report_group still resume; --force upgrades."""
+    spec = _run_spec(tmp_path, run_id="pf-legacy-report-group")
+    report = preflight.preflight(spec, offline=True)
+    assert report["status"] == "prepared", report
+    store = _store(report)
+    lock = store.read_lock()
+    assert "runbook_id" not in lock
+    assert "report_group" not in lock
+
+    resumed = _run_spec(tmp_path, run_id=spec.run_id)
+    resumed.dataset = DatasetSpec(local_path=spec.dataset.local_path, limit=spec.dataset.limit)
+    resumed.runbook_id = "grid-1l4"
+    assert resumed.spec_hash() == spec.spec_hash()
+
+    report2 = preflight.preflight(resumed, offline=True)
+    assert report2["status"] == "prepared", report2
+    still = store.read_lock()
+    assert "runbook_id" not in still
+    assert "report_group" not in still
+
+    report3 = preflight.preflight(resumed, offline=True, force=True)
+    assert report3["status"] == "prepared", report3
+    relocked = store.read_lock()
+    assert relocked["runbook_id"] == "grid-1l4"
+    assert relocked["report_group"] == "SAND-37"
+
+
+def test_run_load_spec_resolves_relative_config(tmp_path, monkeypatch):
+    """Relative --config paths resolve against cwd, not the repo root."""
+    from argparse import Namespace
+    from pathlib import Path
+
+    from mailroom_sandbox.cli import _run_load_spec
+
+    nested = tmp_path / "nested"
+    nested.mkdir()
+    cfg = nested / "run.yaml"
+    cfg.write_text("schema: sandbox.run/v1\n", encoding="utf-8")
+    monkeypatch.setattr("mailroom_sandbox.job.spec.load_run_spec", lambda path: object())
+    monkeypatch.chdir(nested)
+
+    spec, config_path = _run_load_spec(Namespace(config="run.yaml"))
+
+    assert spec is not None
+    assert config_path == Path(cfg).resolve()
+    assert config_path.is_absolute()
+
+
 class _FakeResp:
     def __init__(self, status_code, payload=None):
+        """Minimal httpx-like response for engine-probe tests."""
         self.status_code = status_code
         self._payload = payload or {"data": [{"id": "Qwen/Qwen3-8B"}]}
 
@@ -127,6 +238,72 @@ def test_probe_timeout_modal_uses_boot_budget(monkeypatch, tmp_path):
     assert preflight._probe_timeout_seconds(spec) == 1200.0
     monkeypatch.setenv("SANDBOX_ENGINE_PROBE_TIMEOUT_SECONDS", "42")
     assert preflight._probe_timeout_seconds(spec) == 42.0
+    # Public wrapper used by route probes reads the same budget.
+    assert preflight.probe_timeout_seconds(spec) == 42.0
+
+
+def test_probe_uses_vllm_credential_when_vllm_base_url_wins(monkeypatch, tmp_path):
+    """A profile's key must never travel to the endpoint engine_base_url()
+    resolved: VLLM_BASE_URL wins over an openrouter profile base, so the probe
+    has to send VLLM_API_KEY, not OPENROUTER_API_KEY."""
+    seen: dict[str, str] = {}
+
+    def fake_get(url, headers=None, timeout=None):
+        seen.update(headers or {})
+        return _FakeResp(200)
+
+    monkeypatch.setattr("httpx.get", fake_get)
+    monkeypatch.setenv("VLLM_BASE_URL", "https://vllm.example.test/v1")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "or-secret")
+    monkeypatch.setenv("VLLM_API_KEY", "vllm-secret")
+    spec = _run_spec(tmp_path)
+    spec.profile = "openrouter"
+    spec.engine.kind = "vllm-local"
+
+    result = preflight.probe_engine(spec)
+
+    assert result["ok"] is True
+    assert seen == {"Authorization": "Bearer vllm-secret"}
+
+
+@pytest.mark.parametrize("probe", [
+    {"ok": False, "cold_boot_seconds": 1.0},
+    {"ok": True},
+])
+def test_record_cold_boot_ignores_incomplete_probes(tmp_path, probe, job_data_dir):
+    spec = _run_spec(tmp_path, run_id="pf-record-coldboot")
+    report = preflight.preflight(spec, offline=True)
+    store = _store(report)
+
+    assert preflight.record_cold_boot(store, probe) is None
+    assert store.read_cold_boot() is None
+
+
+def test_record_cold_boot_persists_measurement(tmp_path, job_data_dir):
+    spec = _run_spec(tmp_path, run_id="pf-record-coldboot-ok")
+    report = preflight.preflight(spec, offline=True)
+    store = _store(report)
+    probe = {"ok": True, "cold_boot_seconds": 2.5, "base_url": "https://vllm.example.test/v1",
+             "served_models": ["Qwen/Qwen3-8B"], "probe_timeout_seconds": 10.0}
+
+    measurement = preflight.record_cold_boot(store, probe)
+
+    assert measurement is not None
+    assert measurement["run_id"] == spec.run_id
+    assert store.read_cold_boot()["cold_boot_seconds"] == 2.5
+
+
+def test_model_only_agent_models_are_frozen_in_the_lock(tmp_path, job_data_dir):
+    """agent_models without routes/knobs must still freeze agent_assignments;
+    otherwise runtime.activate() rebuilds the rest from the live profile."""
+    spec = _run_spec(tmp_path, run_id="pf-model-only")
+    spec.agent_models = {"sorter": "frozen-sorter-model"}
+
+    report = preflight.preflight(spec, offline=True)
+
+    assert report["status"] == "prepared", report
+    assignments = _store(report).read_lock()["agent_assignments"]
+    assert assignments["sorter"]["model"] == "frozen-sorter-model"
 
 
 def test_preflight_live_persists_cold_boot_and_record_carries_it(
@@ -197,6 +374,54 @@ def test_preflight_drift_refusal_then_force(tmp_path):
     assert report2["status"] == "drift_refused"
     report3 = preflight.preflight(drifted, offline=True, force=True)
     assert report3["status"] == "prepared"
+
+
+def test_force_relock_refuses_a_store_another_fleet_owns(tmp_path, monkeypatch):
+    """--force must not take over a store locked to a different Modal app.
+
+    SAND-046: two fleets run one cell under different app names, sharing a run_id.
+    `engine.modal` is inside spec_hash, so a plain resume is refused. The open door
+    was `--force`: archive_generation() moves items.jsonl aside, but the owning
+    fleet's LIVE writer reopens it BY PATH (RunStore.append_item opens "a" per
+    item) and recreates it — both fleets would then append to one items.jsonl.
+    """
+    from pathlib import Path
+
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.spec import EngineSpec, ModalSpec
+
+    spec = _run_spec(tmp_path, run_id="pf-fleet-a")
+    spec.engine = EngineSpec(kind="modal-vllm", modal=ModalSpec(app="sandbox-vllm"))
+    report = preflight.preflight(spec, offline=True)
+    assert report["status"] == "prepared", report
+    store = _store(report)
+    store.append_item({"item_id": "d0", "index": 0, "ok": True, "ts": "2026-01-01T00:00:00+00:00"})
+    assert store.items_path.is_file()
+
+    other = _run_spec(tmp_path, run_id=spec.run_id)
+    other.engine = EngineSpec(kind="modal-vllm", modal=ModalSpec(app="sandbox-vllm-b"))
+    assert other.spec_hash() != spec.spec_hash(), "the app must be inside spec_hash"
+
+    # Without --force the drift is refused and the items stay untouched.
+    refused = preflight.preflight(other, offline=True)
+    assert refused["status"] == "drift_refused"
+    assert store.items_path.is_file()
+
+    # WITH --force it is still refused — the archive cannot stop a live writer.
+    blocked = preflight.preflight(other, offline=True, force=True)
+    assert blocked["status"] == "foreign_store_refused", blocked
+    assert blocked["lock_app"] == "sandbox-vllm"
+    assert blocked["spec_app"] == "sandbox-vllm-b"
+    assert store.items_path.is_file(), "the owning fleet's items must survive"
+
+    # A deliberate takeover still archives the old generation, items included.
+    monkeypatch.setenv("SANDBOX_TAKEOVER_FOREIGN_STORE", "1")
+    taken = preflight.preflight(other, offline=True, force=True)
+    assert taken["status"] == "prepared", taken
+    archived = Path(taken["archived"])
+    assert (archived / "items.jsonl").is_file()
+    assert not store.items_path.exists(), "stale items must not survive a forced re-lock"
+    assert RunStore(store.dir).resume_cursor() == 0
 
 
 def test_force_relock_archives_old_generation(tmp_path, job_data_dir):

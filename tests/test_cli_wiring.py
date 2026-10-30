@@ -60,6 +60,7 @@ def test_health_follows_base_url_env(monkeypatch):
 
     class _Resp:
         status_code = 200
+        is_success = True
 
         def json(self):
             return {"data": [{"id": "Qwen/Qwen3-8B"}]}
@@ -254,7 +255,9 @@ def test_pull_models_missing_ollama_degrades_cleanly(mocker, capsys):
     from mailroom_sandbox.cli import main as cli_main
 
     mocker.patch("mailroom_sandbox.compose.pull_ollama_models", side_effect=FileNotFoundError("no ollama"))
-    assert cli_main(["pull-models"]) == 1
+    # The Ollama pull path is opt-in now; a bare `pull-models` on the default
+    # modal-vllm profile only prints the prewarm command (and exits 0).
+    assert cli_main(["pull-models", "--profile", "ollama"]) == 1
     assert "command unavailable" in capsys.readouterr().err
 
 # ── hub#56: -d/--detach default, phoenix health URL derivation ──────────────

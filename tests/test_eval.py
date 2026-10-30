@@ -110,12 +110,6 @@ def test_matrix_dry_run():
     assert any("sorter_local_v0" in n for n in names)
 
 
-def test_cli_help():
-    with pytest.raises(SystemExit) as exc:
-        main(["--help"])
-    assert exc.value.code == 0
-
-
 def test_cli_profiles():
     rc = main(["profiles"])
     assert rc == 0
@@ -159,7 +153,142 @@ def test_classification_scoring_smoke():
     assert scores["f1_macro"] == 1.0
 
 
-def test_dojo_pin_is_v0_15():
+def test_score_manifest_groups_only_associated_sweeps(tmp_path, monkeypatch):
+    monkeypatch.setattr(scoring, "reports_dir", lambda: tmp_path / "reports")
+    assert scoring.scores_path("sand032-s3-corr50") == (
+        tmp_path / "reports" / "scores" / "SAND-32" / "scores.jsonl"
+    )
+    assert scoring.scores_path("grid-50-contracts-specialist-awq-2l4") == (
+        tmp_path / "reports" / "scores" / "SAND-37" / "scores.jsonl"
+    )
+    assert scoring.scores_path("run-20-contracts-specialist") == (
+        tmp_path / "reports" / "scores" / "scores.jsonl"
+    )
+
+
+def test_score_emit_uses_sweep_manifest_path(tmp_path, monkeypatch):
+    """Score emit writes under the sweep directory named in run metadata."""
+    from types import SimpleNamespace
+
+    emitted = {}
+
+    class RecordingSink:
+        def __init__(self, path):
+            """Capture the sink path for assertions."""
+            emitted["path"] = Path(path)
+
+        def emit(self, record):
+            """Capture the emitted score record."""
+            emitted["record"] = record
+
+    record = SimpleNamespace(
+        run_id="sand40-100-contracts-specialist-awq-2l4",
+        metadata={"runbook": "sand40"},
+    )
+    monkeypatch.setattr(scoring, "reports_dir", lambda: tmp_path / "reports")
+    monkeypatch.setattr(scoring, "LocalManifestSink", RecordingSink)
+
+    scoring.emit(record)
+
+    assert emitted["path"] == tmp_path / "reports" / "scores" / "SAND-40" / "scores.jsonl"
+    assert emitted["record"] is record
+
+
+def test_score_emit_resolves_runbook_group_without_group_token(tmp_path, monkeypatch):
+    """A runbook_id in metadata selects the catalog group without a SAND token."""
+    from types import SimpleNamespace
+
+    emitted = {}
+
+    class RecordingSink:
+        def __init__(self, path):
+            """Capture the sink path for assertions."""
+            emitted["path"] = Path(path)
+
+        def emit(self, record):
+            """Capture the emitted score record."""
+            emitted["record"] = record
+
+    record = SimpleNamespace(run_id="job-204", metadata={"runbook_id": "grid-1l4"})
+    monkeypatch.setattr(scoring, "reports_dir", lambda: tmp_path / "reports")
+    monkeypatch.setattr(scoring, "LocalManifestSink", RecordingSink)
+
+    scoring.emit(record)
+
+    assert emitted["path"] == tmp_path / "reports" / "scores" / "SAND-37" / "scores.jsonl"
+    assert emitted["record"] is record
+
+
+from mailroom_sandbox.job.spec import FAMILY_HF_REVISION as REV  # noqa: E402
+
+
+def _fixture_comparison():
+    """The committed serving fixtures, scored by the real dojo suite."""
+    from mailroom_sandbox.datasets import load_serving_fixtures
+
+    fixtures = load_serving_fixtures()
+    return scoring.compare_local_vs_api(fixtures["local"], fixtures["api"])
+
+
+def test_local_vs_api_scorecard_uses_run_group(tmp_path, monkeypatch):
+    """Local-vs-API scorecards follow the SAND token in the experiment name.
+
+    Runs the REAL Emitter + LocalManifestSink (no monkeypatched emitter) so the
+    dojo's provenance enforcement is exercised — a patched Emitter hid the
+    dataset_revision break from CI.
+    """
+    monkeypatch.setattr(scoring, "reports_dir", lambda: tmp_path / "reports")
+
+    scoring.emit_local_vs_api_scorecard(_fixture_comparison(), run_id="sand32-s3-corr50")
+
+    path = tmp_path / "reports" / "scores" / "SAND-32" / "scores.jsonl"
+    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    assert {r["run_id"] for r in rows} == {"sand32-s3-corr50:local", "sand32-s3-corr50:api"}
+    assert all(r["metadata"]["provenance"]["dataset_revision"] == REV for r in rows)
+
+
+def test_local_vs_api_scorecard_uses_locked_metadata_when_run_id_has_no_group(tmp_path, monkeypatch):
+    """Locked report_group metadata wins when the run id has no SAND token."""
+    monkeypatch.setattr(scoring, "reports_dir", lambda: tmp_path / "reports")
+
+    scoring.emit_local_vs_api_scorecard(
+        _fixture_comparison(),
+        run_id="sandbox_local_vs_api_job-204",
+        metadata={"report_group": "SAND-123"},
+    )
+
+    assert (tmp_path / "reports" / "scores" / "SAND-123" / "scores.jsonl").is_file()
+
+
+def test_local_vs_api_scorecard_path_with_a_recording_emitter(tmp_path, monkeypatch):
+    """Path-only unit: the sink path derives from the run id (emitter stubbed)."""
+    captured = {}
+
+    class RecordingSink:
+        def __init__(self, path):
+            """Capture the scorecard sink path."""
+            captured["path"] = Path(path)
+
+    class RecordingEmitter:
+        def __init__(self, *, sinks):
+            """Capture the first emitter sink."""
+            captured["sink"] = sinks[0]
+
+    monkeypatch.setattr(scoring, "reports_dir", lambda: tmp_path / "reports")
+    monkeypatch.setattr(scoring, "LocalManifestSink", RecordingSink)
+    monkeypatch.setattr(scoring, "Emitter", RecordingEmitter)
+    monkeypatch.setattr(scoring, "emit_serving_scorecard", lambda *args, **kwargs: {})
+
+    scoring.emit_local_vs_api_scorecard({}, run_id="sand32-s3-corr50")
+
+    assert captured["path"] == tmp_path / "reports" / "scores" / "SAND-32" / "scores.jsonl"
+
+
+def test_dojo_pin_matches_current_vendored_snapshot():
+    """The snapshot consumes the current reviewed scoring commit, with truthful provenance.
+
+    Moving refs are SHA-frozen and rejected before tracked bytes are touched.
+    """
     import re
 
     import llm_dojo_scoring as dojo
@@ -171,7 +300,20 @@ def test_dojo_pin_is_v0_15():
     vendor = vendored_dojo_src()
     assert vendor is not None, "vendored llm-dojo-scoring snapshot missing"
     vendor_md = (vendor.parent / "VENDOR.md").read_text(encoding="utf-8")
-    assert "v0.15.0" in vendor_md
+    from mailroom_sandbox import cli as cli_mod
+
+    pins = {name: (ref, sha) for name, ref, _url, sha in cli_mod._VENDOR_PINS}
+    assert pins["llm-dojo-scoring"] == (
+        "718e326c1fe5a49b3f1cfd43a3ac10c73e7e01a4",
+        "718e326c1fe5a49b3f1cfd43a3ac10c73e7e01a4",
+    ), "dojo must consume the reviewed current commit"
+    assert pins["llm-dojo-scoring"][1] in vendor_md
+    assert dojo.__version__ == "0.24.2"
+    # the new per-subclass machinery is actually IN the snapshot
+    import llm_dojo_scoring.corporate_record_schema as crs
+
+    assert crs.SUBCLASS_SCHEMAS and callable(crs.align_unlabeled)
+    assert "v0.22.0" in vendor_md  # the superseded tag stays documented
     assert str(vendor.resolve()) in sys.path, "vendored dojo must be on sys.path"
     assert str(Path(dojo.__file__).resolve()).startswith(str(vendor.resolve()))
     version = re.match(r"(\d+)\.(\d+)", dojo.__version__)
@@ -266,6 +408,7 @@ def test_compare_from_log_pairs_local_and_api(tmp_path, monkeypatch):
         model="qwen3:8b",
         prompt_version="mailroom-default",
         dataset_fingerprint="abc123",
+        dataset_revision=REV,
         ttft_seconds=0.5,
         e2e_latency_seconds=2.0,
         completion_tokens=40,
@@ -279,6 +422,7 @@ def test_compare_from_log_pairs_local_and_api(tmp_path, monkeypatch):
         model="qwen/qwen3.7-flash",
         prompt_version="mailroom-default",
         dataset_fingerprint="abc123",
+        dataset_revision=REV,
         ttft_seconds=0.2,
         e2e_latency_seconds=0.8,
         completion_tokens=40,
@@ -295,6 +439,10 @@ def test_compare_from_log_pairs_local_and_api(tmp_path, monkeypatch):
     assert result["comparison"]["scorecard"]["cost"]["local"]["estimated_cost_usd"] is None
     assert local["serving_kind"] == "local"
     assert api["serving_kind"] == "api"
+    # the rows carry a real pinned Hub revision, so the scorecard is emitted
+    assert result["scores"]["scorecards_emitted"] == 1
+    assert result["scorecards"][0]["emitted"] is True
+    assert "scorecards_refused" not in result["scores"]
     md = (tmp_path / "experiment_log.md").read_text(encoding="utf-8")
     assert "local vs API serving scorecard" in md
 

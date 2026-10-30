@@ -27,7 +27,8 @@ merger_agreement    MAUD (152 rows, consideration subclass + 22 question
 correspondence      Enron (110 rows, form + topic + sentiment) —
                     content_topic + sentiment_label accuracy / macro-F1
 due_diligence       zero rows in the published merge — extraction schema
-corporate_record    39 rows (record-type subclass) — no external
+corporate_record    450 rows (10 record-shape subclasses; per-subclass entity
+                    schemas, key-entity GT unlabeled) — no external
                     extraction benchmark
 compliance_filing   zero rows in the published merge — extraction schema
 court_opinion       zero rows in the published merge; LegalBench metrics
@@ -51,8 +52,8 @@ __all__ = [
 ]
 
 #: The canonical document classes, in mailroom taxonomy order (the sorter's
-#: 7 labels) plus ``merger_agreement`` — the MAUD-grounded contract subtype
-#: scored as its own final-output class per KANBAN-067.
+#: 7 labels) plus ``merger_agreement`` — the MAUD-grounded class scored
+#: as ``MergerAgreementExtraction`` (mailroom-issues #237 / #238).
 DOC_TYPES: tuple[str, ...] = (
     "contract",
     "corporate_record",
@@ -71,6 +72,7 @@ def _doc(
     metric_names: tuple[str, ...],
     agent_overrides: dict[str, tuple[str, ...]] | None = None,
 ) -> Bundle:
+    """Construct a document-prefixed bundle with optional per-agent metric extras."""
     return Bundle(
         name=f"doc:{name}",
         description=description,
@@ -130,17 +132,15 @@ DOC_TYPE_BUNDLES: dict[str, Bundle] = {
             "Merger agreements — MAUD-grounded (EDA: "
             "Exios66/atticus-investigation). Per-question extraction over "
             "the 22 Hub maud_clause_labels keys (exact / valid-class / "
-            "presence) plus the shared ContractExtraction field map and "
-            "MAUD consideration subclass catalog.",
+            "presence) plus MergerAgreementExtraction (effective_time, "
+            "intent, subject_matter, keywords; no cuad_family / "
+            "cuad_clauses).",
             _EXTRACTION_BASE,
             {
-                "contracts_specialist": (
-                    "jaccard_similarity",
-                    "laziness_rate",
-                    "hallucination_rate",
-                    "extraction_category_presence",
+                "merger_agreement_specialist": (
                     "date_mae_days",
-                    "money_mae_usd",
+                    "per_field_scores",
+                    "hallucination_rate",
                     "maud_question_accuracy",
                     "maud_question_macro_accuracy",
                     "maud_clause_presence",
@@ -186,9 +186,10 @@ DOC_TYPE_BUNDLES: dict[str, Bundle] = {
         (
             "corporate_record",
             "Corporate records — no *external* extraction benchmark "
-            "(39-row GT is enough for field-micro P/R/F1/F2; do not claim "
-            "CUAD/MAUD-grade coverage). record_type is a typed name field "
-            "plus the subclass catalog.",
+            "(450-row GT in 10 record-shape subclasses; per-subclass entity "
+            "schemas; unlabeled key-entity fields are excluded from "
+            "scoring; do not claim CUAD/MAUD-grade coverage). record_type "
+            "is a typed name field plus the subclass catalog.",
             _EXTRACTION_BASE,
             {
                 "corporate_records_specialist": (
@@ -268,6 +269,7 @@ def get_doc_bundle(
 
 
 def list_doc_types() -> list[str]:
+    """Return supported document bundle types in sorted order."""
     return sorted(DOC_TYPE_BUNDLES)
 
 

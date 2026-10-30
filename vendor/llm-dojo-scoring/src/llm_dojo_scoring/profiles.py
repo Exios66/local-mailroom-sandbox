@@ -15,8 +15,8 @@ Example YAML::
         metrics_bundle: audit
         fallback_bundle: extraction
 
-the default profile table covers every pipeline agent: sorter, seven
-specialists (five live + two retired), reporter, judge, boss,
+the default profile table covers every pipeline agent: sorter, eight
+specialists (five live + three retired), reporter, judge, boss,
 pdf_transcriber, image_extractor, archivist, intake clerk (pre-sorter
 text prep), audit_agent, the review/audit lanes (sorter_reviewer,
 per-specialist auditors, arbiter), the insurance_claims_auditor
@@ -147,6 +147,7 @@ def _p(
     bundle: str | None = None,
     **kw: Any,
 ) -> AgentProfile:
+    """Construct a profile with its optional metrics bundle and extra settings."""
     return AgentProfile(name=name, title=title, tasks=tasks, metrics_bundle=bundle, **kw)
 
 
@@ -160,6 +161,13 @@ DEFAULT_PROFILES: dict[str, AgentProfile] = {
             ("extract",),
             "extraction",
             doc_bundle="contract",
+        ),
+        _p(
+            "merger_agreement_specialist",
+            "Merger Agreement Extraction",
+            ("extract",),
+            "extraction",
+            doc_bundle="merger_agreement",
         ),
         _p(
             "corporate_records_specialist",
@@ -390,6 +398,7 @@ def load_profiles(path: str | Path | None = None) -> dict[str, AgentProfile]:
 
 
 def get_profile(name: str, *, path: str | Path | None = None) -> AgentProfile:
+    """Look up a loaded profile, listing known names in an unknown-name error."""
     try:
         return load_profiles(path)[name]
     except KeyError:
@@ -399,8 +408,10 @@ def get_profile(name: str, *, path: str | Path | None = None) -> AgentProfile:
 
 
 def list_profiles(*, path: str | Path | None = None) -> list[str]:
+    """Return sorted profile names from the selected profile catalog."""
     return sorted(load_profiles(path))
 
 
 def clear_profile_cache() -> None:
+    """Discard all cached profile catalogs so subsequent loads read them again."""
     _CACHE.clear()

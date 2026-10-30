@@ -31,7 +31,7 @@ specialist task and for the sorter, both routes on one axis) · Classifier (Mode
 `dashboard/export_hub_reports.py` turns the hub data into the cost comparison, the master status report and the
 Modal + vLLM GPU economics report (`dashboard/gpu_report.py`) published in
 `LLM-Mailroom-Services/mailroom-issues` under `reports/` (markdown + SVG only; that repo holds no code). The GPU
-report reads the hub's `fleet` section: every `serving/sand032-*.serving.json` cross-checked against its run report.
+report reads the hub's `fleet` section: every `serving/SAND-32/sand032-*.serving.json` cross-checked against its run report.
 `dashboard/report_audit.json` records the figure/link audit the master report cites.
 `dashboard/breakeven.py` is the single Modal-vs-API break-even calculation (per document: warm-fleet and cold-batch
 break-evens, the optimal measured deployment) that the cost comparison, the GPU report and the site all quote.
@@ -53,7 +53,7 @@ python reports/dashboard/export_hub_reports.py --out ../mailroom-issues/reports 
 
 ## SAND-032 figures
 
-`<class>/figures/*.svg` and `serving/figures/*.svg` are written by `scripts/sand032/report.py`
+`SAND-32/<class>/figures/*.svg` and `serving/figures/*.svg` are written by `scripts/sand032/report.py`
 (needs the machine-local `data/runtime/` run artifacts). To apply a chart-kit (`scripts/sand032/viz.py`)
 layout change to the committed figures without re-running GPU jobs:
 

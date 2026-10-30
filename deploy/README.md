@@ -3,18 +3,21 @@
 Remote-serving paths (Modal, SSH-tunneled vLLM, CHTC/HTCondor, conda env)
 have their own guides: [`conda/`](conda/) (environment spec),
 [`htcondor/`](htcondor/) (CHTC job templates), and
-[`../docs/remote-serving.md`](../docs/remote-serving.md) (the overview).
+[`../docs/setting-up/remote-serving.md`](../docs/setting-up/remote-serving.md) (the overview).
 
 ## Compose
 
 ```bash
-sandbox up                       # langfuse + ollama (from the ollama profile)
+sandbox up                       # langfuse only (default modal-vllm: the GPU endpoint is on Modal)
+sandbox up --compose-profile langfuse --compose-profile ollama   # offline fallback: langfuse + ollama
 sandbox up --compose-profile phoenix --compose-profile vllm
 sandbox up --compose-profile jupyter   # builds deploy/Dockerfile → Lab :8888
 sandbox down
 ```
 
 Profiles: `langfuse`, `phoenix`, `ollama`, `vllm`, `llamacpp`, `jupyter`.
+Each `up` line above is an alternative; `up` runs in the foreground unless `-d`
+is supplied. Explicit compose profiles replace the selected profile defaults.
 
 Langfuse 3 (`langfuse-web` + `langfuse-worker`) is the default tracing sink.
 Phoenix is optional. Headless project keys are `pk-lf-sandbox` / `sk-lf-sandbox`
@@ -26,14 +29,14 @@ vLLM needs an NVIDIA GPU on the host. Ollama runs on CPU for smoke models
 ## Offline Dockerfile + Jupyter notebooks
 
 [`Dockerfile`](Dockerfile) builds `mailroom-sandbox:offline` (Python 3.13 + sandbox +
-Jupyter Lab). Full walkthrough: [`docs/docker-offline.md`](../docs/docker-offline.md).
+Jupyter Lab). Full walkthrough: [`docs/setting-up/docker-offline.md`](../docs/setting-up/docker-offline.md).
 
 ```bash
 # Image alone
 docker build -f deploy/Dockerfile -t mailroom-sandbox:offline .
 
 # Or via compose (mounts the repo at /workspace)
-sandbox up --compose-profile langfuse --compose-profile ollama --compose-profile jupyter
+sandbox up -d --compose-profile langfuse --compose-profile ollama --compose-profile jupyter
 # → http://127.0.0.1:8888/lab  (notebooks/01…03)
 sandbox datasets prepare         # same cleaners the notebooks call
 ```
@@ -46,7 +49,7 @@ Dedicated notebooks:
 
 ## Modal vLLM (remote GPU)
 
-Modal SDK **1.5.5** (pinned in the `[deploy]` extra) + vLLM **v0.29.0**
+Modal SDK **1.6.2** (pinned in the `[deploy]` extra) + vLLM **v0.29.0**
 (`vllm/vllm-openai:v0.29.0`, matching the local compose pin). Same knob
 contract as llm-mailroom KANBAN-064 / entity-extraction KANBAN-096, plus
 sandbox-local cost/scale knobs.
@@ -84,8 +87,10 @@ curl -sS -H "Authorization: Bearer $VLLM_API_KEY" "$VLLM_BASE_URL/models"
 modal run deploy/modal_vllm.py --check
 ```
 
-For evals: `SANDBOX_PROFILE=modal-vllm` + `DEFAULT_PROVIDER=vllm` (see
-`config/.env.example`), then `sandbox pilot --local --profile modal-vllm`.
+`modal-vllm` is the default (`SANDBOX_PROFILE=modal-vllm` +
+`DEFAULT_PROVIDER=vllm` in `config/.env.example`), so
+`sandbox pilot --local` uses the deployed endpoint. The offline opt-out is
+`--profile ollama`.
 
 ### Knobs
 
@@ -258,6 +263,37 @@ runner (concurrency) and the server (`--max-num-seqs`).
   free) and persist weights + compile artifacts across deploys.
 - Spend check: `modal billing summary` / `modal billing rates` (SDK 1.5.3+).
 
+### Ground-truth labeler (`sandbox-vllm-gt-labeler`, SAND-045)
+
+Separate app from `sandbox-vllm`. It hosts `Qwen/Qwen3-14B-AWQ` on L4
+(data parallel, not `L4:2`) for unfinished ground-truth fields on
+`Lucius-Morningstar/mailroom-dataset` Hub tag `v9.1`
+(`bc9eab280044befb51e19dda3071d290a8677f42`; parquet parent
+`ed7576b676343e0b402ec5412cded301e629bdee`). The deployed function still
+allows `max_containers=2`. A live EX-10 pass uses one replica: the client
+default `--replicas 1` sends 8 requests, matching `max_num_seqs` and
+`max_inputs`, so that GPU stays full and the autoscaler is not asked for a
+second container. `min_containers=0`, so deploy itself does not start a GPU.
+Do not run `download_model` unless a chunk is about to be labeled. Do not
+redeploy mid-chunk; a new revision cold-boots the warm L4.
+
+```bash
+python deploy/modal_gt_labeler.py --check
+python deploy/modal_gt_labeler.py --export
+modal deploy deploy/modal_gt_labeler.py
+modal app stop sandbox-vllm-gt-labeler
+```
+
+One invocation is one chunk from `mailroom_sandbox.gt_labeler.next_chunk`:
+at most 40 documents and a projected bill of $2. `scripts/gt_label_ex10.py`
+defaults to `--replicas 1` and `--usd-cap 2`. Spend is estimated as
+wall-clock × $0.80 × replicas, and the client stops before the next chunk
+once that estimate or a 45-minute wall hits. The 3,302-document corpus is
+refused as one submission. Prompts ask only for the fields on that document.
+Golden CUAD and MAUD clause maps are not requested. The live unfinished
+queue is the 91 SEC EDGAR EX-10 contracts whose `cuad_clause_labels` is
+still `pending_annotation`.
+
 ### Teardown + resource safeguards (DMR-063)
 
 ```bash
@@ -285,7 +321,7 @@ export MODAL_VLLM_MAX_CONTAINERS=4      # 4 × L4 replicas (documented raise)
 export MODAL_VLLM_SCALEDOWN_SECONDS=600 # unattended / overnight idle window
 modal deploy deploy/modal_vllm.py
 # Specialist 5×30 attended suite uses MODAL_VLLM_SCALEDOWN_SECONDS=120
-# (docs/benchmark-l4.md); one warm app, teardown only after the fifth.
+# (docs/modal/benchmark-l4.md); one warm app, teardown only after the fifth.
 ```
 
 ### Security model
@@ -339,7 +375,7 @@ sandbox run start --job-mode modal --config <run.yaml> --watch
 
 Long attended runs: **`sandbox watch --web`** (or terminal `sandbox watch`) tails the
 vLLM **serve** app while showing spend and checkpoints — operator guide:
-[`docs/mailroom-themed-logging.md`](../docs/mailroom-themed-logging.md).
+[`docs/pretty-logging/mailroom-themed-logging.md`](../docs/pretty-logging/mailroom-themed-logging.md).
 
 Deploy-time env (export before `modal deploy`): `LANGFUSE_*`,
 `OTEL_EXPORTER_OTLP_ENDPOINT`, `VLLM_BASE_URL`, `VLLM_API_KEY`, `HF_TOKEN`,

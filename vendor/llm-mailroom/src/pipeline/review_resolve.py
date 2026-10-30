@@ -177,29 +177,24 @@ def apply_classification_override(
 def locate_document_file(manifest: DocumentManifest) -> Path | None:
     """Best-effort locate the on-disk file for a manifest across bins."""
     from pipeline.bins import (
-        archive_dir,
-        failed_dir,
-        processing_dir,
-        review_dir,
+        archived_file_path,
+        failed_file_path,
+        processing_file_path,
+        review_file_path,
     )
 
     name = manifest.original_filename
     if not name:
         return None
     candidates: list[Path] = [
-        review_dir() / name,
-        failed_dir() / name,
+        review_file_path(manifest),
     ]
+    candidates.append(failed_file_path(manifest))
     if manifest.doc_type:
-        arch = archive_dir(manifest.matter_id, manifest.doc_type)
-        candidates.append(arch / name)
-        stem, suffix = Path(name).stem, Path(name).suffix
-        candidates.append(arch / f"{stem}--{manifest.doc_id}{suffix}")
-    proc = processing_dir()
-    if proc.exists():
-        for worker in proc.iterdir():
-            if worker.is_dir():
-                candidates.append(worker / name)
+        candidates.append(archived_file_path(manifest))
+    processing = processing_file_path(manifest)
+    if processing is not None:
+        candidates.append(processing)
     for path in candidates:
         try:
             if path.is_file():

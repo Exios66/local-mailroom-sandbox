@@ -91,7 +91,9 @@ class BaseAgent(ABC):
         callbacks: list | None = None,
     ):
         self.model = model or "qwen/qwen3.7-flash"
-        self.api_key = api_key or os.environ.get("OPENROUTER_API_KEY", "")
+        # Only an explicit caller override belongs here. Environment keys
+        # are selected after the provider is resolved, never across providers.
+        self.api_key = api_key
         # Optional LangChain callback handlers (e.g. the Langfuse
         # CallbackHandler) attached to every invoke; None keeps the default
         # (langfuse.openai auto-tracing) path unchanged. Upstream feature,
@@ -183,22 +185,18 @@ class BaseAgent(ABC):
             # the live pilot, 2026-09-04). Same law, same error shape.
             # DMR-076: self-hosted providers (vllm/ollama/llamafile/generic)
             # are exempt — same exemption set as the native path.
-            from llm.client import (
-                assert_free_model,
-                is_free_only_exempt,
-                _self_hosted_model,
-            )
-            from llm.providers import resolve_provider
-            from pipeline.config import get_agent_config
+            from llm.client import check_spend_guardrail, resolve_agent_model
 
-            provider, model = resolve_provider(get_agent_config(self.agent_name))
-            # MAILROOM PATCH (hub#42 + DMR-076): the client resolves through
-            # the SHARED provider seam; the champion id is remapped to the
-            # served id for vllm/ollama/llamafile before the client exists.
-            if provider.name in ("vllm", "ollama", "llamafile"):
-                model = _self_hosted_model(model, provider.name)
-            if not is_free_only_exempt(provider.name):
-                assert_free_model(model)
+            # MAILROOM PATCH (hub#42 + DMR-076 + gateway tiers): the client
+            # resolves through the SHARED seam — served-id remap for
+            # vllm/ollama/llamafile, tier alias on the LiteLLM gateway, and
+            # the same free-only guardrail as llm/client.get_llm.
+            resolved = resolve_agent_model(self.agent_name)
+            check_spend_guardrail(self.agent_name, resolved)
+            provider, model = resolved.provider, resolved.model
+            # Usage accounting/logging price the id actually served (a GPU
+            # tier alias is zero-priced in cost_models).
+            self.model = model
             # MAILROOM PATCH (L-16/L-17): max_retries=0 — the SDK's internal
             # retry layer is disabled so the mailroom's shared retry contract
             # (llm/retry.py) is the SINGLE retry layer. Upstream used
@@ -209,11 +207,10 @@ class BaseAgent(ABC):
                 api_key=(
                     self.api_key
                     or (os.environ.get(provider.api_key_env) if provider.api_key_env else None)
-                    # DMR-076 keyless parity: ollama/llamafile have
-                    # api_key_env=None — send the same "not-needed"
-                    # placeholder the native path (llm/client.get_llm) uses,
-                    # because langchain-openai raises without any api_key.
-                    or ("not-needed" if provider.api_key_env is None else None)
+                    # Always pass an explicit placeholder when the selected
+                    # provider has no key, matching the native client. None
+                    # lets the SDK inherit an unrelated OPENAI_API_KEY.
+                    or "not-needed"
                 ),
                 base_url=provider.base_url,
                 temperature=self._temperature,
@@ -222,7 +219,11 @@ class BaseAgent(ABC):
                 max_retries=0,
             )
             if self._reasoning_effort:
-                self._llm.extra_body = {"reasoning": {"effort": self._reasoning_effort}}
+                from llm.client import reasoning_extra_body
+
+                self._llm.extra_body = reasoning_extra_body(
+                    self._reasoning_effort, self.agent_name
+                )
         return self._llm
 
     # ------------------------------------------------------------------
@@ -268,7 +269,10 @@ class BaseAgent(ABC):
                     raise
                 from llm.retry import retry_sleep_seconds
 
-                delay = retry_sleep_seconds(exc, attempt, cfg)
+                # Endpoint-aware backoff: Modal / gateway 503s are cold
+                # starts and need the long ladder (DMR-052).
+                base_url = str(getattr(self._llm, "openai_api_base", "") or "")
+                delay = retry_sleep_seconds(exc, attempt, cfg, base_url=base_url)
                 logger.warning(
                     "llm_retry",
                     agent=self.agent_name,
@@ -343,7 +347,17 @@ class BaseAgent(ABC):
         try:
             from llm.vision import is_vision_capable
 
-            return is_vision_capable(self.model)
+            model = self.model
+            try:
+                # Judge the id actually sent on the wire (self-hosted remap /
+                # gateway tier alias), not the taxonomy champion — a text-only
+                # GPU tier must never receive image_url parts.
+                from llm.client import resolve_agent_model
+
+                model = resolve_agent_model(self.agent_name).model
+            except Exception:
+                pass
+            return is_vision_capable(model)
         except Exception:
             return False
 
@@ -422,7 +436,9 @@ class BaseAgent(ABC):
                 max_tokens=max_tokens or self._max_tokens,
             )
         if reasoning_effort:
-            llm = llm.bind(extra_body={"reasoning": {"effort": reasoning_effort}})
+            from llm.client import reasoning_extra_body
+
+            llm = llm.bind(extra_body=reasoning_extra_body(reasoning_effort, self.agent_name))
 
         self._check_deadline()  # MAILROOM PATCH
         system = system_prompt or self.augmented_system_prompt()

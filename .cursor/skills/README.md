@@ -5,8 +5,8 @@ Committed Cursor skills for **local-mailroom-sandbox**. Agents should discover t
 | Skill | Use for |
 | --- | --- |
 | [sandbox-tool-router](sandbox-tool-router/SKILL.md) | **Start here** — pick the right tool |
-| [ollama](ollama/SKILL.md) | Default local LLM |
-| [modal](modal/SKILL.md) | Remote Modal vLLM |
+| [ollama](ollama/SKILL.md) | Offline/CPU fallback LLM (`--profile ollama`) |
+| [modal](modal/SKILL.md) | **Default** serving: Modal vLLM |
 | [langfuse](langfuse/SKILL.md) | Default tracing / The-Mailroom |
 | [apache-phoenix](apache-phoenix/SKILL.md) | Optional Phoenix sidecar |
 | [braintrust](braintrust/SKILL.md) | Opt-in hosted Braintrust |
@@ -17,4 +17,4 @@ adversarial reviewer): roster in [`config/subagents/`](../../config/subagents/),
 prompts in [`.opencode/agents/`](../../.opencode/agents/) — sync Cursor stubs
 with `sandbox subagents sync --harness cursor`.
 
-Also see root [`AGENTS.md`](../../AGENTS.md) and [`docs/docker-offline.md`](../../docs/docker-offline.md).
+Also see root [`AGENTS.md`](../../AGENTS.md) and [`docs/setting-up/docker-offline.md`](../../docs/setting-up/docker-offline.md).

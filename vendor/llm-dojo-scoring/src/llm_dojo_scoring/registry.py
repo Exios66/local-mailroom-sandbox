@@ -66,6 +66,7 @@ __all__ = [
 # All specialists the registry still scores (live + retired historical).
 SPECIALIST_AGENTS: tuple[str, ...] = (
     "contracts_specialist",
+    "merger_agreement_specialist",
     "corporate_records_specialist",
     "due_diligence_specialist",
     "correspondence_specialist",
@@ -73,13 +74,14 @@ SPECIALIST_AGENTS: tuple[str, ...] = (
     "court_opinions_specialist",
     "insurance_claims_specialist",
 )
-#: Live llm-mailroom extraction roster (v0.5+). Retired specialists stay
-#: in SPECIALIST_AGENTS so historical traces still validate.
+#: Live llm-mailroom extraction roster (mailroom-issues #236–#238).
+#: Retired specialists stay in SPECIALIST_AGENTS so historical traces
+#: still validate.
 LIVE_SPECIALIST_AGENTS: tuple[str, ...] = (
     "contracts_specialist",
+    "merger_agreement_specialist",
     "corporate_records_specialist",
     "correspondence_specialist",
-    "compliance_specialist",
     "insurance_claims_specialist",
 )
 
@@ -181,6 +183,7 @@ class MetricDef:
     ground_truth: str = ""
 
     def applies_to(self, agent: str) -> bool:
+        """Check whether the metric targets this agent or all agents."""
         return "ALL" in self.applicable_agents or agent in self.applicable_agents
 
 
@@ -193,6 +196,7 @@ class Registry:
     # -- lookups -------------------------------------------------------------
 
     def get(self, name: str) -> MetricDef:
+        """Look up a metric, listing known names when the name is unknown."""
         try:
             return self.metrics[name]
         except KeyError:
@@ -201,6 +205,7 @@ class Registry:
             ) from None
 
     def names(self) -> list[str]:
+        """Return all registered metric names in sorted order."""
         return sorted(self.metrics)
 
     # -- filtering -----------------------------------------------------------
@@ -230,17 +235,20 @@ class Registry:
         return sorted(out, key=lambda m: (m.tier, m.name))
 
     def names_for(self, *, max_tier: int | None = None, agent: str | None = None) -> list[str]:
+        """Return names of metrics matching the optional tier and agent filters."""
         return [m.name for m in self.filter(max_tier=max_tier, agent=agent)]
 
     # -- construction ----------------------------------------------------------
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> "Registry":
+        """Load metric definitions from a UTF-8 YAML registry file."""
         data = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
         return cls.from_dict(data)
 
     @classmethod
     def from_dict(cls, data: dict) -> "Registry":
+        """Build a registry, normalizing tiers and agents and validating GT labels."""
         reg = cls()
         for name, spec in (data.get("metrics") or {}).items():
             spec = dict(spec or {})
@@ -325,7 +333,7 @@ metrics:
   extraction_overall_score:
     tier: 0
     description: "Specialist headline: overall extraction score for the run"
-    applicable_agents: [SPECIALISTS]
+    applicable_agents: [SPECIALISTS, reporter, boss]
     aggregation: mean
     source: "field_scoring.score_extraction"
     citation: "Mean of per-field typed scores from field_scoring.score_extraction (soft mean; partial list credit stays here)."
@@ -484,16 +492,27 @@ metrics:
   verified_precision:
     tier: 1
     description: "Precision restricted to doc-verifiable items"
-    applicable_agents: [SPECIALISTS]
+    applicable_agents: [SPECIALISTS, AUDITORS]
     source: "field_scoring.audit_list_field"
     notes: "mailroom alias: extraction_overall_verified_precision"
   schema_valid:
     tier: 1
-    description: "Output parsed to the expected schema (quick health check — promoted per pruning plan)"
+    description: "Output parsed to the expected schema (T1 headline gate — v0.18)"
     applicable_agents: [ALL]
-    notes: "mailroom SCORE_CONFIGS name preserved; not computed in this package"
-    source: null
-    ground_truth: none
+    source: "scorecard_honesty.score_format_layer"
+    ground_truth: structural
+  parse_ok:
+    tier: 1
+    description: "Prediction parsed as JSON / structured output without prose wrapper"
+    applicable_agents: [ALL]
+    source: "scorecard_honesty.score_format_layer"
+    ground_truth: structural
+  schema_adherence:
+    tier: 1
+    description: "Required schema keys present after parse (alias of schema_valid when keys match)"
+    applicable_agents: [ALL]
+    source: "scorecard_honesty.score_format_layer"
+    ground_truth: structural
   parse_error:
     tier: 1
     description: "Output failed to parse (quick health check — promoted per pruning plan)"
@@ -572,7 +591,7 @@ metrics:
     source: "mailroom.score_aligned_classification"
   aligned_accuracy:
     tier: 1
-    description: "HF pipeline aligned doc-type accuracy (merger_agreement ≡ contract)"
+    description: "HF pipeline aligned doc-type accuracy (extract aliases only; merger_agreement ≠ contract)"
     applicable_agents: [CLASSIFIERS]
     source: "mailroom.score_aligned_classification"
   subclass_accuracy:
@@ -682,27 +701,27 @@ metrics:
   maud_question_accuracy:
     tier: 1
     description: "MAUD per-question micro exact-answer accuracy over the 22 Hub keys"
-    applicable_agents: [contracts_specialist]
+    applicable_agents: [contracts_specialist, merger_agreement_specialist]
     source: "content_scoring.score_maud_extraction"
   maud_question_macro_accuracy:
     tier: 1
     description: "MAUD per-question macro accuracy (unweighted mean over questions)"
-    applicable_agents: [contracts_specialist]
+    applicable_agents: [contracts_specialist, merger_agreement_specialist]
     source: "content_scoring.score_maud_extraction"
   maud_clause_presence:
     tier: 1
     description: "Share of expected MAUD questions present in the prediction"
-    applicable_agents: [contracts_specialist]
+    applicable_agents: [contracts_specialist, merger_agreement_specialist]
     source: "content_scoring.score_maud_extraction"
   maud_valid_class_rate:
     tier: 1
     description: "Share of predicted MAUD answers in the question's known class set"
-    applicable_agents: [contracts_specialist]
+    applicable_agents: [contracts_specialist, merger_agreement_specialist]
     source: "content_scoring.score_maud_extraction"
   maud_category_accuracy:
     tier: 2
     description: "MAUD clause-category exact match when both sides have a category"
-    applicable_agents: [contracts_specialist]
+    applicable_agents: [contracts_specialist, merger_agreement_specialist]
     source: "content_scoring.score_maud_extraction"
   wer:
     tier: 1
@@ -997,6 +1016,7 @@ metrics:
     tier: 2
     description: "|confidence - correctness| calibration gap"
     applicable_agents: [ALL]
+    source: "trace_knobs.confidence_calibration_error"
     notes: "absorbs mailroom classification_confidence + extraction_confidence (raw confidences stay at T3 as inputs)"
   hallucination_rate:
     tier: 2
@@ -1037,6 +1057,50 @@ metrics:
     applicable_agents: [court_opinions_specialist]
     source: "tasks.legalbench_score"
     notes: "legalbench_* cluster"
+
+  # Additive sandbox benchmark rates: distinct populations from current suites.
+  sandbox_maud_accuracy:
+    tier: 1
+    description: "All labeled sandbox MAUD questions; missing answers and conflicts miss; None with no labels."
+    applicable_agents: [merger_agreement_specialist]
+    source: "sandbox_scoring.sandbox_metric_scores"
+    aggregation: none
+    ground_truth: required
+  sandbox_maud_clean_accuracy:
+    tier: 2
+    description: "Frozen sandbox CLEAN_QUESTIONS subset; None with no supported questions."
+    applicable_agents: [merger_agreement_specialist]
+    source: "sandbox_scoring.sandbox_metric_scores"
+    aggregation: none
+    ground_truth: required
+  sandbox_maud_precision_answered:
+    tier: 2
+    description: "Sandbox real answers only; placeholders excluded except catalog classes; conflicts count answered and wrong."
+    applicable_agents: [merger_agreement_specialist]
+    source: "sandbox_scoring.sandbox_metric_scores"
+    aggregation: none
+    ground_truth: required
+  sandbox_cuad_presence_f1:
+    tier: 1
+    description: "Category detection within the row-labeled universe; empty universe is unscorable."
+    applicable_agents: [contracts_specialist]
+    source: "sandbox_scoring.sandbox_metric_scores"
+    aggregation: none
+    ground_truth: required
+  sandbox_cuad_presence_precision:
+    tier: 2
+    description: "TP/(TP+FP) within row-labeled categories; zero when no detected categories on a labeled row."
+    applicable_agents: [contracts_specialist]
+    source: "sandbox_scoring.sandbox_metric_scores"
+    aggregation: none
+    ground_truth: required
+  sandbox_cuad_presence_recall:
+    tier: 2
+    description: "TP/(TP+FN) within row-labeled categories; zero when no positive categories on a labeled row."
+    applicable_agents: [contracts_specialist]
+    source: "sandbox_scoring.sandbox_metric_scores"
+    aggregation: none
+    ground_truth: required
 
   # ===================== T3 — LOG =====================
   classification_confidence:
@@ -1085,6 +1149,56 @@ metrics:
     description: "Wall-clock run duration"
     applicable_agents: [ALL]
     aggregation: mean
+
+  # ============ MAILROOM BERT FAST PATH (#98 intake gate; KANBAN-061) ============
+  # Latency/cost/agreement telemetry for the ONNX BERT classification fast
+  # path in llm-mailroom intake. Registered for llm-mailroom SCORE_CONFIGS;
+  # not computed in this package.
+  bert_pass:
+    tier: 1
+    units: boolean
+    description: "Intake BERT gate verdict (true = gate passed / BERT label forwarded)"
+    applicable_agents: [INTAKE]
+    aggregation: none
+    source: null
+    ground_truth: none
+    notes: "mailroom SCORE_CONFIGS name; emitted by intake gate (llm-mailroom agents/bert_intake.py)"
+  bert_sorter_agreement:
+    tier: 1
+    units: boolean
+    description: "BERT fast-path label agrees with the sorter/reviewer reference label"
+    applicable_agents: [INTAKE, sorter]
+    aggregation: none
+    source: null
+    ground_truth: none
+    notes: "mailroom SCORE_CONFIGS name; computed off-line for drift tracking"
+  bert_fail_soft:
+    tier: 1
+    units: boolean
+    description: "BERT gate failed OPEN (label discarded, sorter authority restored)"
+    applicable_agents: [INTAKE]
+    aggregation: none
+    source: null
+    ground_truth: none
+    notes: "mailroom SCORE_CONFIGS name; never true with bert_pass true for the same doc"
+  bert_elapsed_ms:
+    tier: 0
+    units: milliseconds
+    description: "BERT fast-path classifier wall-clock time (ONNX inference, intake doc)"
+    applicable_agents: [INTAKE]
+    aggregation: mean
+    source: null
+    ground_truth: none
+    notes: "mailroom SCORE_CONFIGS name; measured at intake gate"
+  fast_path_est_cost_usd:
+    tier: 1
+    units: USD
+    description: "Derived estimated cost of the BERT fast path (elapsed_ms x power x power price)"
+    applicable_agents: [INTAKE]
+    aggregation: sum
+    source: null
+    ground_truth: none
+    notes: "mailroom SCORE_CONFIGS name; derived from bert_elapsed_ms, never conflated with estimated_cost_usd (LLM call cost)"
   classification_attempts:
     tier: 3
     units: count

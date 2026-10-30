@@ -25,6 +25,7 @@ import structlog
 logger = structlog.get_logger(__name__)
 
 _configs_ensured: set[str] = set()
+_config_ids: dict[str, str] = {}  # wire score name -> Langfuse score-config id
 _last_warmup_attempt: float = 0.0
 _WARMUP_RETRY_SECONDS = 600.0  # sticky-bounded retry (O-1): at most once per 10 min
 
@@ -167,11 +168,11 @@ try:
             f"registry: {_unregistered}. Register them upstream or remove "
             "them here."
         )
-    # dojo 0.14.0: field_presence is catalogued but score_extraction does not
+    # The Dojo registry: field_presence is catalogued but score_extraction does not
     # emit it. A missing key is not 0.0.
     if any(c["name"] == "field_presence" for c in SCORE_CONFIGS):
         raise RuntimeError(
-            "field_presence is an unemitted dojo 0.14.0 honesty gap; do not "
+            "field_presence is an unemitted Dojo honesty gap; do not "
             "add it to SCORE_CONFIGS."
         )
     logger.debug(
@@ -235,6 +236,9 @@ def ensure_score_configs() -> list[str]:
         try:
             page = client.api.score_configs.get(limit=100)
             existing = [c.name for c in (page.data or [])]
+            for c in page.data or []:
+                if getattr(c, "id", None):
+                    _config_ids[c.name] = c.id
         except Exception:
             existing = []
         created = list(existing)
@@ -253,7 +257,9 @@ def ensure_score_configs() -> list[str]:
                 kwargs["categories"] = [
                     ConfigCategory(value=c["value"], label=c["label"]) for c in spec["categories"]
                 ]
-            client.api.score_configs.create(**kwargs)
+            made = client.api.score_configs.create(**kwargs)
+            if getattr(made, "id", None):
+                _config_ids[wire_name] = made.id
             created.append(wire_name)
             logger.info("score_config_created", name=wire_name, data_type=spec["data_type"])
     except Exception:
@@ -317,7 +323,7 @@ def score_trace(
             value=value,
             data_type=data_type,
             comment=comment,
-            config_id=config_id,
+            config_id=config_id or _config_ids.get(langfuse_score_name(name)),
             score_id=score_id,
         )
         logger.debug("score_attached", name=name, value=value)
@@ -348,7 +354,7 @@ def create_trace_score(
             value=value,
             data_type=data_type,
             comment=comment,
-            config_id=config_id,
+            config_id=config_id or _config_ids.get(langfuse_score_name(name)),
             score_id=score_id,
             observation_id=observation_id,
         )
@@ -369,25 +375,22 @@ def deterministic_verdict_label(
     still leaves a verdict on the trace. Ambiguous-band fields are PARTIAL;
     class mismatch is always MISS.
     """
-    if class_mismatch:
-        return "MISS"
-    if needs_judge_review:
-        return "PARTIAL"
-    if overall_score is None:
-        return "PARTIAL"
-    try:
-        from pipeline.config import load_config
+    from llm_dojo_scoring.pipeline_verdict import deterministic_verdict_label as verdict
 
-        band = (load_config().get("field_scoring") or {}).get("ambiguous_band") or [0.5, 0.85]
-        low, high = float(band[0]), float(band[1])
-    except Exception:
-        low, high = 0.5, 0.85
-    score = float(overall_score)
-    if score >= high:
-        return "CORRECT"
-    if score <= low:
-        return "MISS"
-    return "PARTIAL"
+    band = None
+    if not class_mismatch and not needs_judge_review and overall_score is not None:
+        try:
+            from pipeline.config import load_config
+
+            band = (load_config().get("field_scoring") or {}).get("ambiguous_band")
+        except Exception:
+            pass
+    return verdict(
+        overall_score,
+        needs_judge_review=needs_judge_review,
+        class_mismatch=class_mismatch,
+        ambiguous_band=band,
+    )
 
 
 def emit_in_pipeline_judge_scores(state: dict) -> None:
