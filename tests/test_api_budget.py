@@ -153,3 +153,23 @@ def test_reports_estimate_api_spend_apart_from_gpu_cost():
     estimate = api_budget.spend_estimate(lock, [{"prompt_tokens": 1_000_000, "completion_tokens": 1_000_000}])
     assert estimate["est_api_usd"] == pytest.approx(0.42) and estimate["models"] == ["qwen/qwen3.5-9b"]
     assert api_budget.spend_estimate({"engine": {"kind": "modal-vllm", "model": "m"}}, []) is None
+
+
+def test_a_pipeline_document_that_raises_after_a_paid_call_reports_its_usage(monkeypatch):
+    from mailroom_sandbox.eval import runners
+
+    def fake_doc(row, **_):
+        from pipeline import limits
+
+        limits.reset_run_usage()
+        limits.record_usage({"input_tokens": 300_000, "output_tokens": 1}, agent="sorter")
+        raise RuntimeError("graph raised after the call")
+
+    monkeypatch.setattr(runners, "_run_pipeline_doc", fake_doc)
+    budget = api_budget.ApiBudget(1.0, 0.17, 0.25, ["qwen/qwen3.5-9b"])
+    rows = [{"id": "d0", "expected_doc_class": "contract", "doc_text": "x"}]
+    with pytest.raises(RuntimeError) as raised:
+        runners.run_pipeline_eval(profile="ollama", rows=rows, mock=False, api_budget=budget)
+    assert raised.value.sandbox_failed_usage["item_id"] == "d0"
+    assert raised.value.sandbox_failed_usage["prompt_tokens"] == 300_000
+    assert budget.spent_usd == pytest.approx(0.051, abs=1e-4)
