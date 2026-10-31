@@ -196,9 +196,10 @@ def _create(args) -> int:
                 # With --subclass the draw keeps only matching rows (corpus.filter_rows), so count those.
                 from mailroom_sandbox.corpus import _subclass_matches
 
+                # --subclass is repeatable; _subclass_matches takes one requested value.
                 have = sum(1 for sub in local.get(name, [])
-                           if _subclass_matches({'expected_doc_class': name,
-                                                'expected_subclass': sub}, args.subclass))
+                           if any(_subclass_matches({'expected_doc_class': name, 'expected_subclass': sub}, want)
+                                  for want in args.subclass))
             else:
                 have = len(local.get(name, []))
             if have < args.samples:
