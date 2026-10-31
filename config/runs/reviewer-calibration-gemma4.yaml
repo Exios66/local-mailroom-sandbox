@@ -1,8 +1,10 @@
 # SAND-085: calibrate the in-house decision reviewer's per-class cutoffs.
 #
 # Reviewer only, one L4. The labels come from the corpus, so the sorter is not
-# served. Estimated at 15 to 20 minutes and about $0.25; the caps below stop it
-# at $1. A signed `sandbox run start` is the spend approval. Afterwards:
+# served. No measured results exist for this model on this deployment, so run
+# reviewer-probe-gemma4.yaml first and take the duration and cost from it. The
+# caps below stop this run at $1. A signed `sandbox run start` is the spend
+# approval. Afterwards:
 #   python scripts/calibrate_reviewer.py --run reviewer-calibration-gemma4
 schema: sandbox.run/v1
 run_id: reviewer-calibration-gemma4

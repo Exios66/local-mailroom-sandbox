@@ -67,12 +67,34 @@ def calibrate(store: RunStore, *, target: float = 0.95, seed: int = 42) -> dict:
     return {"run_id": store.run_id, "target_accuracy": target, "seed": seed, "classes": classes}
 
 
+def probe(store: RunStore, *, min_valid: int = 9, max_mean_seconds: float = 10.0) -> dict:
+    """Whether a model is fit to calibrate: valid answers, real confidences, usable speed."""
+    items = store.load_items()
+    valid = 0
+    for item in items:
+        pred = item.get("pred") if isinstance(item.get("pred"), dict) else {}
+        confidence = pred.get("confidence")
+        if (item.get("ok") and pred.get("doc_type") and not isinstance(confidence, bool)
+                and isinstance(confidence, (int, float)) and 0.0 <= confidence <= 1.0):
+            valid += 1
+    latency = [float(item["latency_ms"]) / 1000.0 for item in items if item.get("latency_ms") is not None]
+    mean_seconds = sum(latency) / len(latency) if latency else None
+    passed = valid >= min_valid and mean_seconds is not None and mean_seconds <= max_mean_seconds
+    return {"run_id": store.run_id, "documents": len(items), "valid_answers": valid,
+            "mean_seconds_per_document": mean_seconds, "passed": passed}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run", required=True)
     parser.add_argument("--target", type=float, default=0.95)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--probe", action="store_true", help="check the model is fit to calibrate")
     args = parser.parse_args()
+    if args.probe:
+        verdict = probe(RunStore(run_dir(args.run)))
+        print(json.dumps(verdict, indent=2, sort_keys=True))
+        return 0 if verdict["passed"] else 1
     result = calibrate(RunStore(run_dir(args.run)), target=args.target, seed=args.seed)
     path = repo_root() / "reports" / "reviewer-calibration" / f"{args.run}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
