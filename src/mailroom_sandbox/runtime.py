@@ -184,6 +184,8 @@ def apply_profile_env(profile: dict, *, base_url_override: str | None = None) ->
     os.environ.setdefault("PHOENIX_ENDPOINT", "http://localhost:6006/v1/traces")
     os.environ.setdefault("PHOENIX_PROJECT", "mailroom-sandbox")
     os.environ.setdefault("MAILROOM_BASE_DIR", str(repo_root() / "data"))
+    # Parked human reviews keep their graph position across a process restart.
+    os.environ.setdefault("MAILROOM_CHECKPOINTER", "sqlite")
 
 
 def resolve_agent_knobs(agent_knobs: dict | None = None) -> dict:
