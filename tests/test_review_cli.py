@@ -309,9 +309,37 @@ def test_resolve_does_not_claim_success_for_unexpected_response(api, capsys, bod
     ("http://[::1]", TOKEN, False),
 ])
 def test_http_token_warning(monkeypatch, capsys, url, token, warn):
+    monkeypatch.setattr(review_cli, "_INSECURE_WARNED", False)
     monkeypatch.setenv("MAILROOM_API_URL", url)
     monkeypatch.setenv("MAILROOM_API_TOKEN", token)
     assert review_cli.api_url() == url
     captured = capsys.readouterr()
     assert ("Warning" in captured.err) is warn
     assert TOKEN not in captured.err
+
+
+def test_plain_http_token_warns_once(capsys):
+    review_cli._INSECURE_WARNED = False
+    review_cli._warn_plain_http_token("http://203.0.113.7:8000", "s3cr3t")
+    first = capsys.readouterr().err
+    assert "MAILROOM_API_TOKEN" in first and "plain HTTP" in first
+    # second call is suppressed (once per process)
+    review_cli._warn_plain_http_token("http://203.0.113.7:8000", "s3cr3t")
+    assert capsys.readouterr().err == ""
+    # loopback hosts do not warn
+    review_cli._INSECURE_WARNED = False
+    review_cli._warn_plain_http_token("http://127.0.0.1:8000", "s3cr3t")
+    assert capsys.readouterr().err == ""
+    review_cli._INSECURE_WARNED = False
+
+
+def test_api_url_warns_once_before_constructing_client(monkeypatch, capsys):
+    monkeypatch.setattr(review_cli, "_INSECURE_WARNED", False)
+    monkeypatch.setenv("MAILROOM_API_URL", "http://mailroom.test")
+    monkeypatch.setenv("MAILROOM_API_TOKEN", TOKEN)
+    url = review_cli.api_url()
+    assert "plain HTTP" in capsys.readouterr().err
+    assert review_cli.api_url() == url
+    with review_cli._client(url, TOKEN, 1):
+        pass
+    assert capsys.readouterr().err == ""
