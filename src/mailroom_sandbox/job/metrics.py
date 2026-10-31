@@ -159,13 +159,10 @@ def _billed_gpu(modal: Mapping[str, Any]) -> tuple[str, int]:
     return cls, per_container * max(1, int(modal.get("max_containers") or 1))
 
 
-def lock_gpu_fleet(lock: Mapping[str, Any]) -> list[tuple[str, int]]:
-    """Every Modal app a locked run keeps warm: the base engine plus each
-    distinct ``modal-vllm`` agent-route app (shared apps are billed once)."""
-    engine = lock.get("engine") if isinstance(lock.get("engine"), Mapping) else {}
-    modal = engine.get("modal") if isinstance(engine.get("modal"), Mapping) else None
-    fleet = [_billed_gpu(modal) if modal else ("L4", 1)]
-    apps = {str(modal.get("app"))} if modal and modal.get("app") else set()
+def _route_gpu_apps(lock: Mapping[str, Any], *, skip: set[str]) -> list[tuple[str, int]]:
+    """Billed GPUs of each distinct ``modal-vllm`` agent-route app not in ``skip``."""
+    apps = set(skip)
+    out: list[tuple[str, int]] = []
     routes = lock.get("agent_routes") if isinstance(lock.get("agent_routes"), Mapping) else {}
     for route in routes.values():
         route_modal = route.get("modal") if isinstance(route, Mapping) else None
@@ -175,8 +172,25 @@ def lock_gpu_fleet(lock: Mapping[str, Any]) -> list[tuple[str, int]]:
         if app in apps:
             continue
         apps.add(app)
-        fleet.append(_billed_gpu(route_modal))
-    return fleet
+        out.append(_billed_gpu(route_modal))
+    return out
+
+
+def lock_gpu_fleet(lock: Mapping[str, Any]) -> list[tuple[str, int]]:
+    """Every Modal app a locked run keeps warm: the base engine plus each
+    distinct ``modal-vllm`` agent-route app (shared apps are billed once).
+
+    A non-Modal base (e.g. ``openrouter``) still carries the default ``modal``
+    block in its lock; it is left out when route apps exist, since it never runs.
+    """
+    engine = lock.get("engine") if isinstance(lock.get("engine"), Mapping) else {}
+    modal = engine.get("modal") if isinstance(engine.get("modal"), Mapping) else None
+    apps = {str(modal.get("app"))} if modal and modal.get("app") else set()
+    routes = _route_gpu_apps(lock, skip=apps)
+    base = [_billed_gpu(modal) if modal else ("L4", 1)]
+    if routes and engine.get("kind", "modal-vllm") != "modal-vllm":
+        base = []
+    return base + routes
 
 
 def fleet_gpu_cost_usd(gpu_seconds: float, fleet: Sequence[tuple[str, int]]) -> float:
@@ -186,8 +200,10 @@ def fleet_gpu_cost_usd(gpu_seconds: float, fleet: Sequence[tuple[str, int]]) -> 
 
 def routed_gpu_fleet(lock: Mapping[str, Any]) -> list[tuple[str, int]] | None:
     """The locked fleet when agent routes add Modal apps beyond the base engine, else None."""
-    fleet = lock_gpu_fleet(lock)
-    return fleet if len(fleet) > 1 else None
+    engine = lock.get("engine") if isinstance(lock.get("engine"), Mapping) else {}
+    modal = engine.get("modal") if isinstance(engine.get("modal"), Mapping) else None
+    apps = {str(modal.get("app"))} if modal and modal.get("app") else set()
+    return lock_gpu_fleet(lock) if _route_gpu_apps(lock, skip=apps) else None
 
 
 def _gpu_usd(
