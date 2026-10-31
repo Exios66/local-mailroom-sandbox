@@ -258,7 +258,8 @@ def create_experiment(tmp_path):
     source = tmp_path / "docs.jsonl"
     source.write_text("".join(
         json.dumps({"id": f"c{i}", "doc_text": "Email from Jane to John.", "expected_doc_class": "contract",
-                    "expected_subclass": "nda", "expected_stage": "archived", "expected_fields": {}}) + "\n"
+                    "expected_subclass": "nda", "expected_stage": "archived",
+                    "expected_fields": {"cuad_clause_labels": ["nda"]}}) + "\n"
         for i in range(3)
     ))
 
