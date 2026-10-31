@@ -107,8 +107,11 @@ def _activation_knobs(spec):
     return knobs
 
 def main(argv: list[str] | None = None) -> int:
+    from mailroom_sandbox import prefer_own_venv_tools
     from mailroom_sandbox.runtime import load_env_file
 
+    if argv is None:  # the console script's own process; an importing host keeps its PATH
+        prefer_own_venv_tools()
     load_env_file()
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -1387,8 +1390,8 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
 # The Dojo pin is the interim post-v0.24.2 zero-token fix; return to the next
 # released commit when v0.24.3 is published.
 _VENDOR_PINS: tuple[tuple[str, str, str, str | None], ...] = (
-    ("llm-mailroom", "1530f496a6c745186bb86d12b5f0472c667a404a",
-     "https://github.com/Exios66/llm-mailroom.git", "1530f496a6c745186bb86d12b5f0472c667a404a"),
+    ("llm-mailroom", "16ddd08a3f32b5f442891032d095a6bed744da41",
+     "https://github.com/Exios66/llm-mailroom.git", "16ddd08a3f32b5f442891032d095a6bed744da41"),
     ("llm-dojo-scoring", "718e326c1fe5a49b3f1cfd43a3ac10c73e7e01a4",
      "https://github.com/Exios66/llm-dojo-scoring.git", "718e326c1fe5a49b3f1cfd43a3ac10c73e7e01a4"),
 )

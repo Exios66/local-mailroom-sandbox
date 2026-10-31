@@ -21,7 +21,7 @@ def locked(tmp_path, monkeypatch, job_data_dir):
     spec = RunSpec(run_id='spend-test', task='sorter', profile='modal-vllm',
         dataset=DatasetSpec(provider='file', local_path=str(data)),
         engine=EngineSpec(kind='modal-vllm'), trace=TraceSpec(sink='none', otlp=False),
-        job=JobSpec(mock=False, cost_cap_usd=1, max_wall_seconds=60))
+        job=JobSpec(mock=False, concurrency=1, cost_cap_usd=1, max_wall_seconds=60))
     import yaml
     config = tmp_path / 'run.yaml'
     config.write_text(yaml.safe_dump(spec.model_dump(by_alias=True)))
@@ -85,3 +85,16 @@ def test_signature_output_and_receipt_redact_credentials(locked, monkeypatch, ca
     text = capsys.readouterr().err + (store.dir / spend.RECEIPT).read_text()
     assert 'gpu.test' in text
     assert all(secret not in text for secret in ['user-secret', 'password-secret', 'query-secret'])
+
+
+@pytest.mark.parametrize("name", ["pipeline-modal", "pipeline-openrouter", "pipeline-hybrid", "pilot-sorter-modal-hf"])
+def test_paid_example_configs_carry_a_budget(name):
+    """SAND-087: shipped paid examples must pass the spend budget guard as written."""
+    from pathlib import Path
+
+    from mailroom_sandbox.job.spec import load_run_spec
+
+    spec = load_run_spec(Path(__file__).resolve().parents[1] / "config" / "runs" / "examples" / f"{name}.yaml")
+    assert spec.job.mock is False
+    assert (spec.job.cost_cap_usd, spec.job.max_wall_seconds) == (1.0, 1800)
+    spend.require_budget({"job": spec.job.model_dump()})

@@ -19,9 +19,13 @@ Profiles: `langfuse`, `phoenix`, `ollama`, `vllm`, `llamacpp`, `jupyter`.
 Each `up` line above is an alternative; `up` runs in the foreground unless `-d`
 is supplied. Explicit compose profiles replace the selected profile defaults.
 
-Langfuse 3 (`langfuse-web` + `langfuse-worker`) is the default tracing sink.
-Phoenix is optional. Headless project keys are `pk-lf-sandbox` / `sk-lf-sandbox`
-(see `config/.env.example`).
+Langfuse 3 (`langfuse-web` + `langfuse-worker`, both pinned to `3.225.15`) is the
+default tracing sink. Phoenix is optional. Headless project keys are
+`pk-lf-sandbox` / `sk-lf-sandbox`, and the sign-in email defaults to
+`sandbox@example.com` (see `config/.env.example`). Every published port binds
+`127.0.0.1`. MinIO is the Chainguard image; a `minio_data` volume left by the old
+`minio/minio` image needs its owner changed once before Langfuse can store
+events and media. The steps are in [`docs/setting-up/docker-offline.md`](../docs/setting-up/docker-offline.md).
 
 vLLM needs an NVIDIA GPU on the host. Ollama runs on CPU for smoke models
 (`llama3.2:3b`); use a GPU host for `qwen3:8b`.
@@ -73,6 +77,22 @@ modal deploy deploy/modal_vllm.py
 ```
 
 Endpoint: `https://<workspace>--sandbox-vllm-serve.modal.run`.
+
+To skip the image build on later deploys, publish the image once and deploy from it:
+
+```bash
+sandbox modal publish-image             # sandbox-vllm:v0.29.0 in the active workspace
+sandbox modal deploy --named-image      # sets MODAL_VLLM_USE_NAMED_IMAGE=1
+```
+
+A named image belongs to one workspace, so publish once per Modal account
+(`MODAL_PROFILE`). `--tag TAG` publishes another tag; a deploy uses the tag in
+`MODAL_VLLM_IMAGE_TAG`. `--dry-run` shows the command without running it. Only the
+serving image is published: the job image in `deploy/modal_job.py` bundles the code.
+`sandbox experiment create` sets `engine.modal.named_image: true` on Modal engines and
+routes, so experiments reuse the image; `--no-named-image` builds it instead. Any other
+run YAML opts in with the same field, and a stale shell value shows up as drift. If the
+workspace has no published image, the deploy fails before any GPU starts.
 
 ### Verify + point the sandbox at it
 
@@ -298,6 +318,8 @@ still `pending_annotation`.
 ### Teardown + resource safeguards (DMR-063)
 
 ```bash
+sandbox modal status                    # sandbox-vllm, sandbox-job and any other sandbox-* app that is not stopped (except sandbox-image-builds); containers shown when deployed
+sandbox doctor --service modal --live   # the Modal account check: lists apps, deploys nothing
 ./deploy/teardown_vllm.sh              # stop + VERIFY zero containers + spend check
 modal app stop sandbox-vllm          # manual fallback (Volumes persist)
 modal volume ls sandbox-hf-cache     # weights survive

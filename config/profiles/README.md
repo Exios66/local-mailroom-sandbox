@@ -35,6 +35,11 @@ SANDBOX_PROFILE=ollama sandbox up --compose-profile ollama
 sandbox tunnel --profile vllm-remote plan
 ```
 
+Decision-reviewer runs choose their profile per run. The `api` reviewer backend
+needs an `openrouter` route (`openrouter.yaml`, opt-in), and the `local` backend
+needs the run's `modal-vllm` or `vllm` route. See
+`config/experiments/decision-pilot/README.md`.
+
 `sandbox profiles` lists the profiles and marks the active default.
 
 See `docs/SANDBOX-GUIDE.md` (profiles + tunnel sections) for the full flow.

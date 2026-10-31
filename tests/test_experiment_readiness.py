@@ -111,6 +111,11 @@ def test_mock_pipeline_campaign_prepares_without_modal_workspace_and_reports_qua
     assert all({"class_correct", "stage_correct", "overall_extraction_score"} <= set(score) for score in scores)
     report = (config.parent / "report.md").read_text()
     assert "## Quality" in report and "| Headline |" in report
+    assert "## Sand42 metrics" in report and "## Pipeline routing" in report
+    data = json.loads((config.parent / "report.json").read_text())["runs"][0]["sand42"]
+    assert data["pipeline"]["documents"] == 2 and data["reliability"]["ok"] == 2
+    card = json.loads((config.parent / "cards" / f"{store.run_id}.card.json").read_text())
+    assert card["cost"] == {}  # a mock run billed no GPU
     assert any(e["event"] == "start" for e in store.events())
 
 
@@ -124,6 +129,7 @@ def test_report_shows_paired_quality_deltas(tmp_path):
     report = (config.parent / "report.md").read_text()
     assert "## Paired comparisons" in report and report.count("+0.000") >= 3
     data = json.loads((config.parent / "report.json").read_text())
+    assert all(item["paired_quality"]["paired_documents"] == 2 for item in data["comparisons"])
     assert all(run["stored_score_means"]["overall_extraction_score"] == 1.0 for run in data["runs"])
 
 
