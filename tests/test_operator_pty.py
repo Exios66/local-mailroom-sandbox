@@ -5,6 +5,7 @@ prompt instead of sleeping, so the suite stays fast. POSIX only.
 """
 from __future__ import annotations
 
+import codecs
 import os
 import re
 import select
@@ -18,7 +19,15 @@ pty = pytest.importorskip("pty")
 pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="POSIX pseudo-terminal")
 
 PROMPT = "mailroom> "
+try:  # the child runs this same interpreter, so it has the same readline backend
+    import readline as _readline
+    from mailroom_sandbox.tui.shell import uses_libedit
+
+    _LIBEDIT = uses_libedit(_readline)
+except ImportError:
+    _LIBEDIT = False
 _ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b[=>]|[\r\x07]")
+_PARTIAL_ESCAPE = re.compile(r"\x1b\[?[0-9;?]*\Z")  # an escape split across two reads
 
 
 class Terminal:
@@ -29,6 +38,8 @@ class Terminal:
             os.execvp(sys.executable, [sys.executable, "-c",
                       "import sys; from mailroom_sandbox.cli import main; sys.exit(main(['tui']))"])
         self.buf = ""
+        self._pending = ""  # undecoded tail: a control sequence cut off mid-read
+        self._decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")  # keeps split multibyte chars
 
     def read_until(self, needle: str, timeout: float = 20.0) -> str:
         end = time.monotonic() + timeout
@@ -39,12 +50,15 @@ class Terminal:
             ready, _, _ = select.select([self.fd], [], [], min(remaining, 0.2))
             if ready:
                 try:
-                    chunk = os.read(self.fd, 65536).decode(errors="replace")
+                    data = os.read(self.fd, 65536)
                 except OSError:  # child exited and closed the pty
-                    chunk = ""
-                if not chunk:
+                    data = b""
+                if not data:
                     raise AssertionError(f"terminal closed waiting for {needle!r}; got:\n{self.buf[-2000:]}")
-                self.buf += _ANSI.sub("", chunk)
+                text = self._pending + self._decoder.decode(data)
+                cut = _PARTIAL_ESCAPE.search(text)
+                self._pending = text[cut.start():] if cut else ""
+                self.buf += _ANSI.sub("", text[:cut.start()] if cut else text)
         head, _, self.buf = self.buf.partition(needle)
         return head
 
@@ -150,6 +164,10 @@ def test_credentials_never_enter_history(term):
 
 def test_ctrl_c_returns_to_prompt_and_ctrl_d_exits(term):
     term.send("half typed")
+    # Wait until readline has consumed (echoed) every byte: a Ctrl+C that lands
+    # while bytes are still queued makes the tty flush them, and readline's
+    # rl_getc then blocks on the discarded input until the next key.
+    term.read_until("half typed")
     term.send("\x03")
     assert "Interrupted" in term.read_until(PROMPT)
     assert "modal-vllm" in term.run("profiles")  # still dispatching after the interrupt
@@ -170,8 +188,14 @@ def test_two_level_eval_menu_prefills_the_target_command(term):
     assert "2. contract" in level2 and "eval specialist contract" in level2
     term.send("2\n")
     term.read_until("\n")  # echo of the selection
-    term.read_until(PROMPT + "eval specialist contract ")  # prefilled, not executed
-    term.send("--mock --dry-run\n")
+    if _LIBEDIT:  # libedit never runs readline's startup hook: recall via history
+        assert "press ↑ to recall: eval specialist contract" in term.read_until(PROMPT)
+        term.send("\x1b[A")
+        term.read_until("eval specialist contract")
+        term.send(" --mock --dry-run\n")  # the recalled line has no trailing space
+    else:
+        term.read_until(PROMPT + "eval specialist contract ")  # prefilled, not executed
+        term.send("--mock --dry-run\n")
     out = term.read_until(PROMPT)
     assert '"task": "contracts_specialist"' in out
     assert "error: select 1-6" in term.run("menu eval pipeline") + term.run("9")
