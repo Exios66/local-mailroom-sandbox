@@ -8,6 +8,10 @@ import pytest
 
 from mailroom_sandbox.paths import repo_root
 
+# Set before any test, so subprocesses inherit it too: a key in .env can bill real calls.
+os.environ["SANDBOX_SKIP_DOTENV"] = "1"
+os.environ.pop("OPENROUTER_API_KEY", None)
+
 
 @pytest.fixture(autouse=True)
 def _sandbox_root(monkeypatch):

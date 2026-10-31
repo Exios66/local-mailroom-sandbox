@@ -62,9 +62,30 @@ def test_core_freezes_backend_model_and_cutoffs():
     }
 
 
-def test_rejects_correspondence_for_live_backend():
-    with pytest.raises(ValidationError, match="correspondence"):
-        _spec(reviewer=_reviewer(classes={"correspondence": 0.9}))
+@pytest.mark.parametrize(("backend", "model"), [("jev", "jev-1.13.0"), ("api", "openai/gpt-6-luna")])
+def test_third_party_backends_may_review_correspondence(backend, model):
+    spec = _spec(reviewer=_reviewer(backend=backend, model=model, classes={"correspondence": 0.9}))
+    assert spec.reviewer.classes == {"correspondence": 0.9}
+
+
+@pytest.mark.parametrize("model", ["~openai/gpt-luna-latest", "openai/gpt-luna-latest", "openai/gpt-6-luna:batch", "gpt-6-luna"])
+def test_api_backend_refuses_a_moving_model_id(model):
+    with pytest.raises(ValidationError, match="pinned API model"):
+        _spec(reviewer=_reviewer(backend="api", model=model))
+
+
+def _api_errors(route=None, model="openai/gpt-6-luna", **job):
+    routes = {"sorter_reviewer": route} if route else {}
+    spec = _spec(reviewer=_reviewer(backend="api", model=model, classes={"contract": 0.9}), agent_routes=routes)
+    spec.job = spec.job.model_copy(update={"mock": False, **job})
+    return " ".join(preflight._api_reviewer_errors(spec))
+
+
+def test_api_reviewer_needs_an_openrouter_route_serving_its_model():
+    assert "agent_routes.sorter_reviewer" in _api_errors()
+    assert "provider openrouter" in _api_errors({"provider": "vllm", "model": "openai/gpt-6-luna", "base_url": "http://127.0.0.1:8000/v1"})
+    assert "differs" in _api_errors({"provider": "openrouter", "model": "openai/gpt-5.6-luna"})
+    assert _api_errors({"provider": "openrouter", "model": "openai/gpt-6-luna"}) == ""
 
 
 def test_local_backend_may_use_correspondence():
@@ -373,7 +394,6 @@ def test_experiment_create_without_flags_has_no_reviewer(create_experiment):
     ["--decision-reviewer", "jev:jev-1.13.0", "--decision-class", "contract"],
     ["--decision-reviewer", "jev:jev-1.13.0", "--decision-class", "contract=high"],
     ["--decision-reviewer", "jev:jev-1.13.0", "--decision-class", "contract=1.5"],
-    ["--decision-reviewer", "jev:jev-1.13.0", "--decision-class", "correspondence=0.9"],
     ["--decision-reviewer", "jev:jev-1.13.0", "--decision-class", "contrat=0.9"],
     ["--decision-reviewer", "mock:mock", "--decision-class", "contract=0.9", "--decision-class", "contract=0.8"],
 ])

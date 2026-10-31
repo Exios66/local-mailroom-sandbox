@@ -426,3 +426,17 @@ def test_without_publish_nothing_is_written(fake_bin, capsys, monkeypatch):
     monkeypatch.setenv("VLLM_BASE_URL", "http://vllm.test/v1")
     cli.main(["doctor"])
     assert read_services(beacon_root()) is None
+
+
+def test_the_suite_never_loads_a_developers_env_file(monkeypatch, tmp_path):
+    import os
+
+    from mailroom_sandbox import runtime
+
+    env_file = tmp_path / ".env"
+    env_file.write_text("SANDBOX_ENV_LEAK=1\n")
+    monkeypatch.setattr("mailroom_sandbox.runtime.dotenv_files", lambda: [env_file], raising=False)
+    monkeypatch.setattr("mailroom_sandbox.paths.dotenv_files", lambda: [env_file])
+    monkeypatch.delenv("SANDBOX_ENV_LEAK", raising=False)
+    runtime.load_env_file()
+    assert "SANDBOX_ENV_LEAK" not in os.environ

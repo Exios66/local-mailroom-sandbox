@@ -213,6 +213,8 @@ Live runs use the signed, capped run path.
 
 ## 9. Sanitized correspondence dataset
 
+> **Superseded 2026-10-31:** the Enron correspondence is already public, so this copy is not needed and no backend refuses correspondence (SAND-086 cancelled).
+
 ### Goal
 
 A private, separately versioned copy in which the 1,000 Enron correspondence

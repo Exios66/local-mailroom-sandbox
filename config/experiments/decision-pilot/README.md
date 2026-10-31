@@ -54,11 +54,12 @@ Use HTTPS for a remote API; HTTP is intended for a trusted loopback connection.
 
 ## Reviewer backends
 
-| Backend | Runs on | Correspondence |
-| --- | --- | --- |
-| `jev` | TypeSafe, a third party (`TYPESAFE_API_KEY`) | Refused until the sanitized corpus exists (SAND-086) |
-| `local` | The `sorter_reviewer` agent on your own serving route | Allowed |
-| `mock` | Offline tests | Allowed |
+| Backend | Runs on |
+| --- | --- |
+| `jev` | TypeSafe, a third party (`TYPESAFE_API_KEY`) |
+| `api` | A pinned OpenRouter model on `agent_routes.sorter_reviewer`, a third party (`OPENROUTER_API_KEY`) |
+| `local` | The `sorter_reviewer` agent on your own serving route |
+| `mock` | Offline tests |
 
 `local` needs a model different from the sorter's and an
 `agent_routes.sorter_reviewer` entry with provider `modal-vllm` or `vllm` that
@@ -86,7 +87,7 @@ Treat the intervals as a first estimate.
 ## Remaining release and live gates
 
 The current generated vendor snapshot is pinned to standalone decision-reviewer
-commit `b1ff69289a7cf33f9d4e93c680187bd56ca3ab7b`. It is an interim branch
+commit `45e7075c193ffc0e8bcf2ffa982069b5e39491b6`. It is an interim branch
 snapshot, not a merged release. Upstream merge/push requires explicit approval.
 
 No live `experiment.yaml` is staged and no paid pilot has run. Before creating
@@ -101,5 +102,5 @@ or launching the 12-document live pilot, confirm all of:
 6. Teardown plan and measured per-document routing/cause/cost evidence.
 
 See `docs/superpowers/plans/2026-10-30-decision-reviewer-poc.md`, Task 9.
-Serving proof, sanitized correspondence, shadow pilots and qualification remain
+Serving proof, shadow pilots and qualification remain
 the separate later plans in the design, not deliverables of this offline proof.

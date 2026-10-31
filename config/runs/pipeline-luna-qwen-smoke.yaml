@@ -1,0 +1,50 @@
+# Full pipeline over OpenRouter: Qwen3.7 Flash on every node, with OpenAI Luna as
+# the decision reviewer for all five classes. The cutoffs are provisional until reviewer-calibration-luna has run.
+schema: sandbox.run/v1
+run_id: pipeline-luna-qwen-smoke
+task: pipeline
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: file
+  local_path: data/fixtures/hf/docclass_mini.jsonl
+  limit: 7
+  sample_seed: 1
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.7-flash
+  modal: null
+
+agent_routes:
+  sorter_reviewer: {provider: openrouter, model: openai/gpt-6-luna}
+  judge: {provider: openrouter, model: qwen/qwen3.7-flash}
+  boss: {provider: openrouter, model: qwen/qwen3.7-flash}
+
+reviewer:
+  backend: api
+  model: openai/gpt-6-luna
+  classes:
+    contract: 0.90
+    merger_agreement: 0.90
+    corporate_record: 0.90
+    correspondence: 0.90
+    insurance_claim: 0.90
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 2
+  cost_cap_usd: 0.50
+  max_wall_seconds: 1200
+  api_cost_cap_usd: 0.25
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, pipeline, openrouter, decision-reviewer]

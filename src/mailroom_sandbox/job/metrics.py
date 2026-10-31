@@ -78,6 +78,8 @@ SANDBOX_MODEL_PRICES: dict[str, tuple[float, float]] = {
     "qwen/qwen3.5-35b-a3b": (0.14, 1.00),
     "qwen/qwen3.5-27b": (0.26, 2.60),
     "openai/gpt-4o": (2.50, 10.00),
+    "openai/gpt-6-luna": (0.10, 0.50),
+    "qwen/qwen3.7-flash": (0.03, 0.13),
 }
 
 # Modal GPU $/hr (modal.com/pricing, verified 2026-09-09 — see deploy/README.md).

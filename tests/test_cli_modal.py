@@ -157,6 +157,41 @@ def test_status_matches_app_names_exactly(fake_bin, capsys):
     assert by_name["sandbox-vllm"]["deployed"] is False  # a concurrent fleet is not the default app
 
 
+def test_status_reports_a_scoped_app_this_shell_does_not_name(fake_bin, capsys):
+    rows = [
+        {"description": "sandbox-vllm-reviewer", "state": "deployed", "tasks": "1"},
+        {"description": "sandbox-vllm-old", "state": "stopped"},
+        {"description": "mailroom-ml-eval", "state": "deployed"},
+    ]
+    _modal(fake_bin, rules=[{"prefix": ["--version"], "stdout": PIN}, _apps(*rows)])
+    assert cli.main(["modal", "status", "--json"]) == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["any_deployed"] is True
+    assert [row["name"] for row in report["apps"]] == ["sandbox-vllm", "sandbox-job", "sandbox-vllm-reviewer"]
+    assert cli.main(["modal", "status"]) == 0
+    assert "sandbox modal stop --app sandbox-vllm-reviewer" in capsys.readouterr().out
+
+
+def test_cli_runs_its_own_venv_tools_when_the_venv_is_not_activated(monkeypatch, tmp_path):
+    import os
+    import sys
+
+    from mailroom_sandbox import prefer_own_venv_tools
+
+    own_bin = str(tmp_path / "venv" / "bin")
+    monkeypatch.setattr(sys, "prefix", str(tmp_path / "venv"))
+    monkeypatch.setattr(sys, "base_prefix", "/usr/local")
+    monkeypatch.setattr(sys, "executable", own_bin + "/python")
+    monkeypatch.setenv("PATH", os.pathsep.join(["/opt/homebrew/bin", own_bin]))
+    prefer_own_venv_tools()
+    assert os.environ["PATH"].split(os.pathsep) == [own_bin, "/opt/homebrew/bin"]
+
+    monkeypatch.setattr(sys, "base_prefix", sys.prefix)  # outside a venv PATH is the operator's
+    monkeypatch.setenv("PATH", "/opt/homebrew/bin")
+    prefer_own_venv_tools()
+    assert os.environ["PATH"] == "/opt/homebrew/bin"
+
+
 def test_status_text_marks_a_warm_app_as_billing(fake_bin, capsys):
     _modal(fake_bin, rules=[{"prefix": ["--version"], "stdout": PIN}, _apps({"description": "sandbox-vllm", "state": "deployed"})])
     assert cli.main(["modal", "status"]) == 0

@@ -72,8 +72,9 @@ def _review_evidence(doc) -> dict[str, Any]:
 def with_review_evidence(extracted: Any, manifest) -> Any:
     """Catalog ``extracted_data`` carrying the manifest's reviewer evidence.
 
-    Archive and rejection replace the row's parked payload, so ``_review`` is
-    copied forward. Without evidence ``extracted`` is returned unchanged.
+    Archive, operator completion, rejection and run aborts replace the row's
+    parked payload, so ``_review`` is copied forward. Without evidence
+    ``extracted`` is returned unchanged.
     """
     evidence = {name: getattr(manifest, name, None) for name in REVIEW_EVIDENCE_FIELDS}
     if all(value is None for value in evidence.values()):
@@ -191,8 +192,11 @@ def apply_classification_override(
                 f"doc_type must be one of {sorted(allowed)}; got {kind!r}"
             )
         if kind != manifest.doc_type:
-            # That score was for the old class; a person chose this one.
+            # These belong to the old class; a person chose this one. An
+            # explicit subclass or subtype below replaces them.
             manifest.classification_confidence = None
+            manifest.doc_subclass = None
+            manifest.contract_subtype = None
         manifest.doc_type = kind
         applied["doc_type"] = kind
 
@@ -459,6 +463,11 @@ def complete_human_extraction(
         raise ValueError("extracted_data must be a non-empty object for disposition=complete")
     if not manifest.doc_type:
         raise ValueError("Document has no classification to complete; set override_doc_type")
+    # Reviewer evidence comes only from manifest fields; an operator-supplied
+    # ``_review`` would masquerade as it in lookup and queue payloads.
+    extracted_data = {k: v for k, v in extracted_data.items() if k != "_review"}
+    if not extracted_data:
+        raise ValueError("extracted_data must be a non-empty object for disposition=complete")
     extracted_data = validate_operator_extraction(manifest.doc_type, extracted_data)
 
     conf = extracted_data.get("confidence")
