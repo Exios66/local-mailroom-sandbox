@@ -1,0 +1,102 @@
+"""Pipeline runs report the sand42 metric contract (SAND-085)."""
+from __future__ import annotations
+
+import json
+
+from mailroom_sandbox.job import grid_cards, sand42_cards
+from mailroom_sandbox.job.checkpoint import RunStore
+
+
+def _store(tmp_path, items, rows):
+    store = RunStore(tmp_path / "run")
+    store.dir.mkdir(parents=True, exist_ok=True)
+    store.lock_path.write_text(json.dumps({
+        "run_id": "exp-pipeline", "task": "pipeline", "generation_id": "g1",
+        "job": {"concurrency": 1}, "dataset": {"limit": len(items)},
+        "prompt": {"agents": {"sorter": {"file": "sorter.txt"}, "judge": {"file": "judge.txt"}}},
+        "engine": {"model": "m", "modal": {"gpu": "L4", "max_containers": 1}},
+    }))
+    store.dataset_path.write_text("".join(json.dumps(row) + "\n" for row in rows))
+    for item in items:
+        store.append_item(item)
+    return store
+
+
+def _item(item_id, stage, *, cls=1.0, causes=None, adherence=1.0, latency=1000.0):
+    return {"item_id": item_id, "ok": True, "latency_ms": latency, "prompt_tokens": 100, "completion_tokens": 20,
+            "pred": {"id": item_id, "stage": stage, "doc_type": "contract", "review_causes": causes},
+            "score": {"class_correct": cls, "stage_correct": float(stage == "archived"),
+                      "overall_extraction_score": 0.8, "schema_adherence": adherence}}
+
+
+def _sample(tmp_path):
+    rows = [{"id": "a", "expected_doc_class": "contract", "expected_stage": "archived"},
+            {"id": "b", "expected_doc_class": "contract", "expected_stage": "archived"},
+            {"id": "c", "expected_doc_class": "merger_agreement", "expected_stage": "archived"},
+            {"id": "d", "expected_doc_class": "correspondence", "expected_stage": "archived"}]
+    items = [_item("a", "archived"), _item("b", "review", causes=["reviewer_disagreement"], adherence=0.5),
+             _item("c", "review", cls=0.0, causes=["reviewer_disagreement", "class_miss"]),
+             _item("d", "archived", latency=120000.0)]
+    return _store(tmp_path, items, rows)
+
+
+def test_card_carries_pipeline_routing_outcomes(tmp_path):
+    card = grid_cards.collect_card(_sample(tmp_path), wall_seconds=60.0)
+    block = card["pipeline"]
+    assert block["stages"] == {"archived": 2, "review": 2}
+    assert block["review_rate"] == 0.5
+    assert block["class_correct"] == 0.75
+    assert block["stage_correct"] == 0.5
+    assert block["review_causes"] == {"reviewer_disagreement": 2, "class_miss": 1}
+    assert block["by_class"]["contract"]["documents"] == 2
+    assert block["by_class"]["contract"]["review_rate"] == 0.5
+
+
+def test_card_names_no_single_prompt_for_a_multi_agent_run(tmp_path):
+    card = grid_cards.collect_card(_sample(tmp_path), wall_seconds=60.0)
+    assert card["conditions"]["prompt"] == "2 agent prompts"
+    assert card["quality"]["schema_valid_rate"] == 0.75
+
+
+def test_pipeline_goodput_uses_each_class_slo(tmp_path):
+    card = grid_cards.collect_card(_sample(tmp_path), wall_seconds=60.0)
+    summary = sand42_cards._summary("exp-pipeline", card, "pipeline")
+    assert summary["pipeline"]["review_rate"] == 0.5
+    goodput = summary["goodput"]
+    assert goodput["documents_per_minute_per_gpu"] == 4.0
+    assert goodput["slo_by_class"]["correspondence"] == {"slo_seconds": 60.0, "meets_slo": False}
+    assert goodput["slo_by_class"]["contract"]["meets_slo"] is True
+    assert goodput["meets_slo"] is False
+    assert goodput["goodput_documents_per_minute_per_gpu"] == 0.0
+
+
+def test_pipeline_rows_report_each_documents_own_tokens_and_review_cause(monkeypatch):
+    from mailroom_sandbox.eval import runners
+    from pipeline import limits
+
+    def fake_doc(row, **_):
+        limits.reset_run_usage()  # as _execute_run does on entry
+        limits.record_usage({"input_tokens": 100, "output_tokens": 10}, agent="sorter")
+        return {"id": row["id"], "doc_type": "contract", "stage": "review", "extracted_data": {},
+                "review_causes": ["reviewer_disagreement"], "review_verdict": "decision_escalates"}
+
+    monkeypatch.setattr(runners, "_run_pipeline_doc", fake_doc)
+    rows = [{"id": str(i), "expected_doc_class": "contract", "doc_text": "x"} for i in range(2)]
+    seen = []
+    runners.run_pipeline_eval(profile="ollama", rows=rows, mock=True, row_cb=seen.append)
+    assert [(r["prompt_tokens"], r["completion_tokens"], r["llm_calls"]) for r in seen] == [(100, 10, 1)] * 2
+    assert seen[0]["pred"]["review_causes"] == ["reviewer_disagreement"]
+
+
+def test_pipeline_doc_result_keeps_the_review_outcome(tmp_path, monkeypatch):
+    import graph.build_graph as bg
+    from mailroom_sandbox.eval import runners
+
+    monkeypatch.setenv("MAILROOM_BASE_DIR", str(tmp_path))
+    outcome = {"doc_type": "contract", "stage": "review", "review_causes": ["reviewer_low_confidence"],
+               "review_verdict": "decision_escalates", "escalation_reason": "reviewer unsure",
+               "reviewer_doc_type": "contract", "reviewer_confidence": 0.4}
+    monkeypatch.setattr(bg, "run_pipeline", lambda *a, **k: outcome)
+    row = {"id": "a", "doc_text": "text", "expected_doc_class": "contract"}
+    result = runners._run_pipeline_doc(row, mock=False)
+    assert {key: result[key] for key in outcome} == outcome

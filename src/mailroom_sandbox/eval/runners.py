@@ -960,6 +960,8 @@ def run_pipeline_eval(
 ) -> dict[str, Any]:
     # DMR-056: rows=None keeps the fixture manifest default; the sandbox job
     # whole-run path passes the LOCKED live dataset rows instead.
+    from mailroom_sandbox.job import usage_capture
+
     rows = load_manifest() if rows is None else rows
     if sample is not None:
         if sample <= 0:
@@ -1000,6 +1002,7 @@ def run_pipeline_eval(
                 models = {agent: model for agent, _provider, model in activation.assignments}
                 models.update(activation.agent_models)
                 nodes.enter_context(track_nodes(str(row.get("id")), node_cb, models=models))
+            usage_capture.reset_usage()
             result = _run_pipeline_doc(row, mock=mock, session_id=session, experiment_name=experiment_name)
         results.append(result)
         scored = _score_pipeline_extraction(row, result) if connected else None
@@ -1013,7 +1016,7 @@ def run_pipeline_eval(
             score.update({k: v for k, v in (scored or {}).items()
                           if isinstance(v, (int, float)) and not isinstance(v, bool)})
             row_cb({"id": row.get("id"), "pred": result, "error": result.get("error"), "score": score,
-                    "latency_ms": (time.monotonic() - before) * 1000})
+                    "latency_ms": (time.monotonic() - before) * 1000, **usage_capture.usage_from_pipeline()})
         if progress_cb:
             errors = sum(bool(item.get("error")) for item in results)
             progress_cb(len(results), len(rows), len(results) - errors, errors)
@@ -1242,6 +1245,11 @@ def _run_pipeline_doc(
         "stage": result.get("stage"),
         "extracted_data": result.get("extracted_data"),
         "classification_confidence": result.get("classification_confidence"),
+        "review_causes": result.get("review_causes"),
+        "review_verdict": result.get("review_verdict"),
+        "escalation_reason": result.get("escalation_reason"),
+        "reviewer_doc_type": result.get("reviewer_doc_type"),
+        "reviewer_confidence": result.get("reviewer_confidence"),
         "error": result.get("error") or result.get("errors"),
         "offline_fallback": False,
         "mailroom_src": str(src) if src else None,
