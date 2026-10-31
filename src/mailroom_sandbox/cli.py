@@ -4086,3 +4086,7 @@ def _cmd_metrics_sorter_vs_modernbert(args) -> int:
     else:
         print(result.get("markdown", ""))
     return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

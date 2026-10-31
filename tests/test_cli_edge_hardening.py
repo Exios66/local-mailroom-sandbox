@@ -118,3 +118,15 @@ def test_a_missing_family_roster_names_the_file(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(family, 'family_roster_path', lambda root=None: missing)
     assert cli.main(['subagents', 'packages']) == 1
     assert capsys.readouterr().err.strip() == f'error: file not found: {missing}'
+
+
+@pytest.mark.parametrize('module', ['mailroom_sandbox', 'mailroom_sandbox.cli'])
+def test_python_dash_m_runs_the_cli(module):
+    # `python -m mailroom_sandbox.cli` used to import the module and exit 0 silently.
+    import subprocess
+    import sys
+
+    ok = subprocess.run([sys.executable, '-m', module, 'profiles'], capture_output=True, text=True, timeout=120)
+    assert ok.returncode == 0 and 'modal-vllm' in ok.stdout
+    bad = subprocess.run([sys.executable, '-m', module, 'nope'], capture_output=True, text=True, timeout=120)
+    assert bad.returncode == 2 and 'invalid choice' in bad.stderr
