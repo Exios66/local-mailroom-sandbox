@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import difflib
 import shlex
+import signal
 import sys
+import threading
 
 
 def children(parser: argparse.ArgumentParser) -> dict[str, argparse.ArgumentParser]:
@@ -94,6 +97,41 @@ def completions(line: str, catalog: list[dict]) -> list[str]:
     return [name for name in (node["children"] if node else []) if name.startswith(prefix)]
 
 
+def uses_libedit(readline) -> bool:
+    """libedit's readline emulation never calls the startup/pre-input hooks."""
+    return getattr(readline, "backend", None) == "editline" or "libedit" in (readline.__doc__ or "")
+
+
+@contextlib.contextmanager
+def interruptible_prompt(interval: float = 0.05):
+    """Keep Ctrl+C responsive while readline waits for a line.
+
+    CPython's readline loop only raises a pending KeyboardInterrupt when its
+    ``select()`` fails with EINTR. A SIGINT that lands after readline consumed a
+    keystroke but before that ``select()`` starts only sets a flag, and the
+    prompt froze until the next key. A short no-op SIGALRM heartbeat interrupts
+    the ``select()`` (never restarted, even with SA_RESTART), so the interrupt
+    surfaces within ``interval``. SA_RESTART keeps every other read/write
+    uninterrupted, and the previous handler and timer are restored before any
+    command runs.
+
+    Not fixable from Python: Ctrl+C while typed bytes are still queued. The tty
+    flushes them on INTR and readline's own ``rl_getc`` keeps waiting for the
+    discarded byte (it retries on EINTR) until another key arrives.
+    """
+    if not hasattr(signal, "setitimer") or threading.current_thread() is not threading.main_thread():
+        yield
+        return
+    previous = signal.signal(signal.SIGALRM, lambda signum, frame: None)
+    signal.siginterrupt(signal.SIGALRM, False)
+    old_timer = signal.setitimer(signal.ITIMER_REAL, interval, interval)
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, *old_timer)
+        signal.signal(signal.SIGALRM, signal.SIG_DFL if previous is None else previous)
+
+
 def run_shell(default_args: list[str] | None = None) -> int:
     from mailroom_sandbox import cli
 
@@ -111,7 +149,7 @@ def run_shell(default_args: list[str] | None = None) -> int:
             matches = completions(readline.get_line_buffer(), catalog)
             return matches[state] if state < len(matches) else None
         readline.set_completer(complete)
-        readline.parse_and_bind("bind ^I rl_complete" if "libedit" in (readline.__doc__ or "") else "tab: complete")
+        readline.parse_and_bind("bind ^I rl_complete" if uses_libedit(readline) else "tab: complete")
         readline.set_auto_history(False)
     history: list[str] = []
     menu: list[str] | None = None
@@ -119,7 +157,8 @@ def run_shell(default_args: list[str] | None = None) -> int:
     try:
         while True:
             try:
-                line = input("mailroom> ").strip()
+                with interruptible_prompt():
+                    line = input("mailroom> ").strip()
                 if not line:
                     continue
                 argv = shlex.split(line)
@@ -162,7 +201,13 @@ def run_shell(default_args: list[str] | None = None) -> int:
                             print(f"error: select 1-{len(node['targets'])} from the menu")  # nosec B608 - menu text, not SQL
                             continue
                         command = node["targets"][index][1] + " "
-                        if readline:
+                        if readline and uses_libedit(readline):
+                            # libedit ignores the startup hook, so a prefill would be
+                            # silently dropped; queue it as the newest history entry
+                            # (libedit drops the trailing space on recall).
+                            readline.add_history(command.strip())
+                            print(f"press ↑ to recall: {command.strip()} · then a space, options, Enter")
+                        elif readline:
                             # Prefill the next prompt; nothing runs until Enter.
                             readline.set_startup_hook(lambda text=command: (readline.insert_text(text), readline.set_startup_hook(None)))
                         else:
