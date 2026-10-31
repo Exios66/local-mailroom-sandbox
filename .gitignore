@@ -128,3 +128,7 @@ reports/SAND42/.*.tmp*
 data/provider_health.json
 data/provider_health.lock
 .venv
+
+# Pipeline output from mock and live runs
+/data/archive
+/data/warehouse

@@ -128,11 +128,18 @@ def scenarios():
                              "judge_verify": [transient("judge_verify"), judge("partial")],
                              "arbiter": [transient("arbiter"), {"arbiter_decision": "accept_with_caveats",
                                                                 "transient_error": False}]}, "archived"),
-        "extraction_exhausted": ({"classify": [sorted_as(HIGH)], "extract": [extracted(LOW, attempt=3)]}, "review"),
+        "extraction_exhausted": ({"classify": [sorted_as(HIGH)], "extract": [extracted(LOW, attempt=3)],
+                                  "judge_verify": [judge("complete")]}, "review"),
+        "extraction_verified": ({"classify": [sorted_as(HIGH)], "extract": [extracted(LOW, attempt=3)],
+                                 "judge_verify": [{**judge("complete"), "judge_source_verified": True}]}, "archived"),
+        "extraction_empty": ({"classify": [sorted_as(HIGH)], "extract": [extracted(LOW, data={}, attempt=3)]}, "review"),
         "retry_extract_recovers": ({"classify": [sorted_as(HIGH)], "extract": [extracted(LOW)],
                                     "retry_extract": [extracted(attempt=2)]}, "archived"),
         "retry_extract_exhausted": ({"classify": [sorted_as(HIGH)], "extract": [extracted(LOW)],
-                                     "retry_extract": [extracted(LOW, attempt=3)]}, "review"),
+                                     "retry_extract": [extracted(LOW, attempt=3)],
+                                     "judge_verify": [judge("complete")]}, "review"),
+        "retry_extract_empty": ({"classify": [sorted_as(HIGH)], "extract": [extracted(LOW)],
+                                 "retry_extract": [extracted(LOW, data={}, attempt=3)]}, "review"),
         "retry_extract_conflict": ({"classify": [sorted_as(HIGH)], "extract": [extracted(LOW)],
                                     "retry_extract": [extracted(attempt=2, conflict_detected=True)],
                                     "boss_escalation": [{"review_decision": "approved", "conflict_detected": False,
@@ -155,8 +162,8 @@ def scenarios():
 
 @pytest.mark.parametrize("name", [
     "happy_path", "unknown_class", "low_confidence", "low_then_recovered", "reviewer_accepts",
-    "reviewer_rejects", "transient_loops", "extraction_exhausted", "retry_extract_recovers",
-    "retry_extract_exhausted", "retry_extract_conflict", "boss_rejects", "judge_clean",
+    "reviewer_rejects", "transient_loops", "extraction_exhausted", "extraction_verified", "extraction_empty",
+    "retry_extract_recovers", "retry_extract_exhausted", "retry_extract_empty", "retry_extract_conflict", "boss_rejects", "judge_clean",
     "judge_error", "arbiter_retries", "arbiter_escalates"])
 def test_route(name, graph, monkeypatch, tmp_path):
     script, stage = scenarios()[name]
@@ -202,7 +209,8 @@ def test_human_decision_resumes_the_parked_graph(decision, stage, graph, monkeyp
     from langgraph.types import Command
 
     result, visited = walk(graph, monkeypatch, tmp_path, {
-        "classify": [sorted_as(HIGH)], "extract": [extracted(LOW, attempt=3), extracted()]})
+        "classify": [sorted_as(HIGH)], "extract": [extracted(LOW, attempt=3), extracted()],
+        "judge_verify": [{"judge_verdict": "complete", "judge_pass_count": 1, "transient_error": False}]})
     config = {"configurable": {"thread_id": result["checkpoint_thread_id"]}}
     outcome = graph.get_compiled_graph().invoke(Command(resume={"decision": decision}), config)
     record(visited, stop=None if decision == "approved" else "__end__")
@@ -213,7 +221,8 @@ def test_stateless_resume_enters_at_extract_after_the_checkpoint_is_gone(graph, 
     from pipeline.bins import load_manifest, review_file_path
 
     result, visited = walk(graph, monkeypatch, tmp_path, {
-        "classify": [sorted_as(HIGH)], "extract": [extracted(LOW, attempt=3), extracted()]})
+        "classify": [sorted_as(HIGH)], "extract": [extracted(LOW, attempt=3), extracted()],
+        "judge_verify": [{"judge_verdict": "complete", "judge_pass_count": 1, "transient_error": False}]})
     manifest = load_manifest(result["doc_id"])
     monkeypatch.setenv("MAILROOM_CHECKPOINTER", "memory")
     graph.reset_compiled_graph()  # a restart without the durable checkpoint
