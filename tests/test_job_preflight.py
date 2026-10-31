@@ -5,7 +5,8 @@ import pytest
 import json
 
 from mailroom_sandbox.job import preflight
-from mailroom_sandbox.job.spec import DEFAULT_ENGINE_MODEL, DatasetSpec, RunSpec, run_dir
+from mailroom_sandbox.job.spec import (DEFAULT_ENGINE_MODEL, DatasetSpec, JobSpec,
+    ReviewerSpec, RunSpec, run_dir)
 
 
 def _run_spec(tmp_path, *, rows=2, limit=2, run_id="pf-1") -> RunSpec:
@@ -608,3 +609,26 @@ def test_preflight_hub_spec_locks_pinned_revision(tmp_path, monkeypatch):
 
 
 pytestmark = pytest.mark.usefixtures("job_data_dir")
+
+
+def test_preflight_rejects_jev_reviewer_in_modal_mode(tmp_path, monkeypatch):
+    """The Modal worker image has no decision extra, so a jev reviewer there would ImportError."""
+    monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
+    path = tmp_path / "d.jsonl"
+    path.write_text(json.dumps({"id": "d0", "filename": "0.txt", "doc_text": "t",
+                               "expected": "contract", "expected_subclass": "service"}) + "\n",
+                   encoding="utf-8")
+    spec = RunSpec(
+        run_id="pf-jev-modal",
+        task="sorter",
+        dataset=DatasetSpec(local_path=f"file://{path}", limit=2),
+        engine={"kind": "vllm-local", "modal": None},
+        trace={"sink": "none"},
+        job=JobSpec(mode="modal", mock=False),
+        reviewer=ReviewerSpec(backend="jev", model="jev-1.13.0",
+                             classes={"contract": 0.85}),
+    )
+    report = preflight.preflight(spec, offline=True, live=False)
+    assert report["status"] == "failed"
+    detail = " ".join(c.get("detail", "") for c in report["checks"])
+    assert "Modal worker image" in detail

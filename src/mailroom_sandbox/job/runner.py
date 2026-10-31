@@ -241,6 +241,8 @@ def _run_whole_run(
     if target and task == "specialist" and locked_rows:
         startup_total = len(primary.rows_for_class(locked_rows, target))
     store.write_checkpoint(state="running", cursor=0, total=startup_total, remote=None)
+    # The watchers time the SORTING stage from the latest start/resume.
+    store.append_event("resume" if store.load_items() else "start", task=task)
 
     def _progress(done: int, total: int, ok: int, errors: int) -> None:
         store.write_checkpoint(state="running", cursor=done, total=total, remote=None)
@@ -1002,6 +1004,7 @@ def _run_job(
     # checkpoint; waiting until the first result loses first-row cancels.
     store.write_checkpoint(state="running", cursor=done_count, total=total,
                            remote=(store.read_checkpoint() or {}).get("remote"))
+    store.append_event("resume" if done_count else "start", task=task)
     cancel_request = None
 
     def _cancelled() -> bool:

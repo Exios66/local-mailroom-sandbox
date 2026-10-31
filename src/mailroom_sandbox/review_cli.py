@@ -9,7 +9,9 @@ printed, including inside error text.
 
 from __future__ import annotations
 
+import ipaddress
 import os
+import sys
 from typing import Any
 from urllib.parse import quote, urlsplit
 
@@ -19,6 +21,8 @@ from mailroom_sandbox.services._exec import ServiceError
 
 # The vendored API binds 127.0.0.1:8000 unless MAILROOM_API_HOST / MAILROOM_API_PORT say otherwise.
 DEFAULT_API_URL = "http://127.0.0.1:8000"
+# Warn once per process when a bearer token rides plain HTTP off loopback.
+_INSECURE_WARNED = False
 DISAGREEMENT = "reviewer_disagreement"
 LIST_TIMEOUT = 30.0
 # An approving resume re-runs extraction (an LLM call) inside the request.
@@ -50,6 +54,7 @@ def api_url() -> str:
         valid = False
     if not valid:
         raise _usage("MAILROOM_API_URL must be an HTTP(S) URL without credentials, query, or fragment")
+    _warn_plain_http_token(url, _token())
     return url.rstrip("/")
 
 
@@ -57,7 +62,25 @@ def _token() -> str | None:
     return (os.environ.get("MAILROOM_API_TOKEN") or "").strip() or None
 
 
+def _warn_plain_http_token(base_url: str, token: str | None) -> None:
+    """Stderr-warn once when a bearer token is sent over plain HTTP to a non-loopback host."""
+    global _INSECURE_WARNED
+    if _INSECURE_WARNED or not token or urlsplit(base_url).scheme != "http":
+        return
+    host = (urlsplit(base_url).hostname or "").rstrip(".").lower()
+    try:
+        loopback = ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        loopback = host == "localhost" or host.endswith(".localhost")
+    if loopback:
+        return
+    _INSECURE_WARNED = True
+    print("Warning: MAILROOM_API_TOKEN is sent over plain HTTP to a non-loopback host; use HTTPS or a loopback URL",
+          file=sys.stderr)
+
+
 def _client(base_url: str, token: str | None, timeout: float) -> httpx.Client:
+    _warn_plain_http_token(base_url, token)
     headers = {"Authorization": f"Bearer {token}"} if token else {}
     return httpx.Client(base_url=base_url, headers=headers, timeout=timeout)
 
