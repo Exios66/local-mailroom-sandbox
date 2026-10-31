@@ -225,7 +225,13 @@ def _cmd_status(args: argparse.Namespace) -> int:
     _prepare()
     _check_version()
     rows = _list_apps()
-    names = list(dict.fromkeys([vllm_app(), JOB_APP]))
+    # A scoped fleet (sandbox-vllm-reviewer, route apps) bills whatever this shell's env names.
+    live = [
+        _field(row, _NAME_KEYS)
+        for row in rows
+        if _field(row, _NAME_KEYS).startswith("sandbox-") and _field(row, _STATE_KEYS).lower() != "stopped"
+    ]
+    names = list(dict.fromkeys([vllm_app(), JOB_APP, *live]))
     apps = [_app_state(rows, name) for name in names]
     warm = [a["name"] for a in apps if a["deployed"]]
     if args.json:
@@ -340,7 +346,7 @@ def _cmd_help(args: argparse.Namespace) -> int:
         "Use: sandbox modal deploy|prewarm|status|logs|stop|url|raw\n"
         "  deploy [--model M] [--gpu G] [--dry-run]   modal deploy deploy/modal_vllm.py (prints the endpoint exports)\n"
         "  prewarm [--model M]                        CPU-only weight download into the Modal volume\n"
-        "  status [--json]                            is sandbox-vllm / sandbox-job deployed (billing)?\n"
+        "  status [--json]                            is sandbox-vllm / sandbox-job / any scoped sandbox-* app deployed (billing)?\n"
         "  stop [--app NAME] [--no-verify]            idempotent teardown, verified by `modal app list`\n"
         "  logs [--follow] [--app NAME]               modal app logs\n"
         "  url [--json]                               the endpoint VLLM_BASE_URL should hold\n"

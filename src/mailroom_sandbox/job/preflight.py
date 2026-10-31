@@ -114,6 +114,27 @@ def _local_reviewer_errors(spec: RunSpec) -> list[str]:
     return errs
 
 
+def _api_reviewer_errors(spec: RunSpec) -> list[str]:
+    """The API reviewer must be a second model on an OpenRouter route with a token cap."""
+    model = spec.reviewer.model
+    errs = []
+    if model == _effective_model(spec, "sorter"):
+        errs.append("decision reviewer backend api must use a different model from the sorter, or it only repeats its answer")
+    if spec.job.mock:
+        return errs
+    route = spec.agent_routes.get("sorter_reviewer")
+    if route is None:
+        errs.append("decision reviewer backend api needs an agent_routes.sorter_reviewer entry serving its model")
+    elif route.provider != "openrouter":
+        errs.append(f"decision reviewer backend api needs provider openrouter; agent route provider is {route.provider!r}")
+    elif _effective_model(spec, "sorter_reviewer") != model:
+        errs.append(f"decision reviewer model {model!r} differs from the sorter_reviewer agent's effective model "
+                    f"{_effective_model(spec, 'sorter_reviewer')!r}")
+    if spec.job.mode == "modal":
+        errs.append("decision reviewer backend api is not supported for modal jobs (use job.mode endpoint)")
+    return errs
+
+
 def _engine_errors(spec: RunSpec) -> list[str]:
     errs: list[str] = []
     if spec.agent_models or spec.agent_knobs:
@@ -145,6 +166,8 @@ def _engine_errors(spec: RunSpec) -> list[str]:
             errs.append("decision reviewer backend jev needs TYPESAFE_API_KEY set (offline runs should use backend mock)")
         if spec.reviewer.backend == "local":
             errs.extend(_local_reviewer_errors(spec))
+        if spec.reviewer.backend == "api":
+            errs.extend(_api_reviewer_errors(spec))
     vllm = spec.engine.vllm
     if vllm.max_model_len < 1:
         errs.append("max_model_len must be >= 1")

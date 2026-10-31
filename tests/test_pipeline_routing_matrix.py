@@ -227,6 +227,8 @@ def test_stateless_resume_enters_at_extract_after_the_checkpoint_is_gone(graph, 
 
 def test_every_graph_edge_was_walked(graph):
     """Must run last: the union of the scenarios above covers the compiled graph."""
+    if not WALKED:
+        pytest.skip("needs the scenarios above in the same pytest run")
     edges = {(edge.source, edge.target) for edge in graph.build_graph().get_graph().edges}
     WALKED.add(("__start__", "intake"))
     assert not edges - WALKED, sorted(edges - WALKED)

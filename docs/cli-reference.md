@@ -1838,7 +1838,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `study` | Yes |  |
 | `--task` | No | Choices: specialists, pipeline, sorter. |
 | `--agent-route` | No | per-agent provider/model; NAME=@route.yaml includes endpoint/GPU/vLLM settings |
-| `--decision-reviewer` | No | freeze a decision-model reviewer (local:MODEL, jev:jev-1.13.0 or mock:mock); needs --decision-class |
+| `--decision-reviewer` | No | freeze a decision-model reviewer (local:MODEL, api:openai/gpt-6-luna, jev:jev-1.13.0 or mock:mock); needs --decision-class |
 | `--decision-class` | No | class the decision reviewer handles, with its cutoff in [0, 1] (repeatable) |
 | `--specialist-tier` | No | specialists' model: base = the run's model, mid = Qwen3.5-35B-A3B, full = the judge's Qwen3.5-27B (config/models.yaml critical_tier) Choices: base, mid, full. |
 | `--design` | No | Choices: single, sand42. |

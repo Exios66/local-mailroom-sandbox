@@ -1,6 +1,7 @@
 import dataclasses
 import functools
 import math
+import re
 import structlog
 import threading
 import time
@@ -1069,6 +1070,101 @@ def _fmt_label(value: Any) -> str:
     return "none" if value is None else str(value)[:40]
 
 
+# ``_read_file_text`` failure stubs are a single bracketed line, e.g.
+# "[Unreadable file: a.pdf]". Only a text that is entirely that stub is a
+# failed extraction; a real document that merely starts with those words is not.
+_UNREADABLE_STUB = re.compile(r"\s*\[Unreadable file:[^\]]*\]\s*")
+# Timed-out backend calls leave a daemon thread behind. Past this many live
+# abandoned threads, new backend calls are refused (the document parks).
+_MAX_ABANDONED_BACKEND_THREADS = 4
+_abandoned_backend_threads: list[threading.Thread] = []
+_abandoned_lock = threading.Lock()
+
+
+def _has_readable_text(state: Mapping[str, Any]) -> bool:
+    """True when ``doc_text`` is non-blank and is not an extraction-failure stub.
+
+    ``_read_file_text`` returns an ``[Unreadable file: ...]`` stub (with
+    ``text_ok=False``) when extraction fails; the stub is non-blank, so it
+    must be rejected explicitly or a confident backend match could send
+    unreadable content on to extraction. Only a text that is entirely the
+    stub counts; the seeded ``error_message`` is the second signal.
+    """
+    doc_text = state.get("doc_text")
+    if not isinstance(doc_text, str) or not doc_text.strip():
+        return False
+    if _UNREADABLE_STUB.fullmatch(doc_text):
+        return False
+    error = state.get("error_message")
+    return not (isinstance(error, str) and error.startswith("Could not extract text"))
+
+
+class DecisionBackendTimeout(Exception):
+    """The decision backend did not answer within the call/run deadline."""
+
+
+def _call_decision_backend(backend, doc_text, doc_types, catalogs):
+    """Call ``backend`` with a wall-clock bound.
+
+    The timeout is ``llm_call_timeout_seconds``, shortened to the time left on
+    the run deadline. The call runs on a daemon thread so a stalled backend
+    can neither block the worker nor keep the process alive; on expiry
+    ``DecisionBackendTimeout`` is raised and the stray thread is tracked.
+    At ``_MAX_ABANDONED_BACKEND_THREADS`` live abandoned threads, new calls
+    are refused with ``DecisionBackendTimeout`` instead of starting another.
+    Backend exceptions propagate unchanged.
+    """
+    import contextvars
+
+    from pipeline import limits
+
+    timeout = float(limits.get_call_timeout_seconds())
+    deadline = limits.get_run_deadline()
+    if deadline is not None:
+        timeout = min(timeout, deadline - time.time())
+    if timeout <= 0:
+        raise DecisionBackendTimeout("no time left on the run deadline")
+    with _abandoned_lock:
+        _abandoned_backend_threads[:] = [
+            t for t in _abandoned_backend_threads if t.is_alive()
+        ]
+        if len(_abandoned_backend_threads) >= _MAX_ABANDONED_BACKEND_THREADS:
+            raise DecisionBackendTimeout(
+                f"{len(_abandoned_backend_threads)} stalled backend calls still running"
+            )
+
+    box: dict[str, Any] = {}
+    ctx = contextvars.copy_context()
+
+    def _target() -> None:
+        """Run the backend on this thread and hand its result or error back."""
+        try:
+            box["value"] = ctx.run(backend, doc_text, doc_types, catalogs)
+        except BaseException as exc:  # re-raised on the caller's thread
+            box["error"] = exc
+
+    thread = threading.Thread(target=_target, name="decision-backend", daemon=True)
+    thread.start()
+    thread.join(timeout)
+    if thread.is_alive():
+        with _abandoned_lock:
+            _abandoned_backend_threads.append(thread)
+        raise DecisionBackendTimeout(f"decision backend exceeded {timeout:.0f}s")
+    if "error" in box:
+        raise box["error"]
+    return box.get("value")
+
+
+def _sorter_is_unsure(state: DocumentState) -> bool:
+    """True when the sorter ended below its class's low band (or gave no score)."""
+    confidence = state.get("classification_confidence")
+    if not _valid_unit_float(confidence):
+        return True
+    return float(confidence) < float(
+        get_confidence_thresholds(state.get("doc_type")).get("low", 0.70)
+    )
+
+
 def _decision_review_classify(state: DocumentState) -> dict[str, Any]:
     """Decision-model branch of ``review_classify_node``.
 
@@ -1094,7 +1190,7 @@ def _decision_review_classify(state: DocumentState) -> dict[str, Any]:
     doc_text = state.get("doc_text")
     sorter_type = state.get("doc_type")
     sorter_confidence = state.get("classification_confidence")
-    has_text = isinstance(doc_text, str) and doc_text.strip() != ""
+    has_text = _has_readable_text(state)
 
     by_class = get_reviewer_config()["by_class"]
     eligible = [k for k, v in by_class.items() if v.get("mode") == "decision_only"]
@@ -1109,7 +1205,16 @@ def _decision_review_classify(state: DocumentState) -> dict[str, Any]:
             try:
                 doc_types = sorted(get_sorter_label_set())
                 catalogs = {t: list(sorter_subclass_catalog(t)) for t in doc_types}
-                raw = backend(doc_text, doc_types, catalogs)
+                raw = _call_decision_backend(backend, doc_text, doc_types, catalogs)
+            except DecisionBackendTimeout as exc:
+                # A stalled backend is unavailable, not retryable: retrying
+                # would stall again. Park for a person.
+                logger.warning(
+                    "decision_review_timeout",
+                    doc_id=state.get("doc_id"),
+                    error=str(exc),
+                )
+                raw = None
             except Exception as exc:
                 if is_transient_error(exc):
                     transient = state.get("transient_retries_review_classify", 0) + 1
@@ -1173,6 +1278,7 @@ def _decision_review_classify(state: DocumentState) -> dict[str, Any]:
         eligible=eligible,
         cutoffs=cutoffs,
         has_text=has_text,
+        sorter_unsure=_sorter_is_unsure(state),
     )
     cutoff_key = answer.doc_type if answer is not None else sorter_type
     cutoff = cutoffs.get(cutoff_key) if isinstance(cutoff_key, str) else None
@@ -2417,6 +2523,12 @@ def _review_evidence_fields(
 
 
 def archive_node(state: DocumentState) -> dict[str, Any]:
+    """Archive the document: save the manifest, move the file, write the catalog row.
+
+    The manifest and catalog row carry any reviewer evidence from the state
+    (``with_review_evidence``), so an approved or auto-accepted document keeps
+    both reviewers' opinions and causes after it leaves the review bin.
+    """
     from pipeline.review_resolve import with_review_evidence
 
     manifest = DocumentManifest(
@@ -2920,6 +3032,28 @@ def _existing_processing_doc_id(original_filename: str) -> str | None:
     return None
 
 
+def _abort_review_evidence(state: dict, doc_id: str | None) -> dict[str, Any]:
+    """Reviewer evidence for an aborted run: state, else the parked manifest.
+
+    An interrupt resume aborts with a minimal state, and the abort manifest
+    replaces the parked one, so its evidence is read before that happens.
+    """
+    from pipeline.bins import load_manifest
+    from pipeline.review_resolve import REVIEW_EVIDENCE_FIELDS
+
+    evidence = _review_evidence_fields(state, state.get("review_causes"))
+    parked = None
+    if doc_id and any(value is None for value in evidence.values()):
+        try:
+            parked = load_manifest(doc_id)
+        except Exception:
+            logger.exception("abort_review_evidence_load_failed", doc_id=doc_id)
+    return {
+        name: evidence[name] if evidence[name] is not None else getattr(parked, name, None)
+        for name in REVIEW_EVIDENCE_FIELDS
+    }
+
+
 def _finalize_aborted(initial_state: dict, reason: str, *, failure_class: str | None = None) -> dict:
     """Turn a run that hit a hard limit (or crashed) into a failed result.
 
@@ -2953,6 +3087,7 @@ def _finalize_aborted(initial_state: dict, reason: str, *, failure_class: str | 
         escalation_reason=f"run aborted: {reason}",
         trace_id=state.get("trace_id"),
         intake=state.get("intake_meta") or None,
+        **_abort_review_evidence(state, aborted_doc_id),
     )
     if aborted_doc_id:
         manifest_kwargs["doc_id"] = aborted_doc_id
@@ -2979,7 +3114,7 @@ def _finalize_aborted(initial_state: dict, reason: str, *, failure_class: str | 
     except Exception:
         logger.exception("abort_manifest_save_error", doc_id=manifest.doc_id)
     try:
-        _write_catalog_record(state)
+        _write_catalog_record(state, manifest)
     except Exception:
         logger.exception("abort_catalog_write_error", doc_id=manifest.doc_id)
     # A-1: a failed/aborted run is a compliance-record event (previously only
@@ -3008,10 +3143,11 @@ def _finalize_aborted(initial_state: dict, reason: str, *, failure_class: str | 
     return state
 
 
-def _write_catalog_record(state: dict):
+def _write_catalog_record(state: dict, manifest: DocumentManifest):
     """Persist a minimal catalog record (used for aborted runs that never
     reach the catalog_write node, so they show up in compare_runs)."""
     import asyncio
+    from pipeline.review_resolve import with_review_evidence
     from storage.catalog import write_document_record
 
     doc_record = {
@@ -3022,7 +3158,7 @@ def _write_catalog_record(state: dict):
         "stage": state.get("stage", "failed"),
         "classification_confidence": state.get("classification_confidence"),
         "extraction_confidence": state.get("extraction_confidence"),
-        "extracted_data": state.get("extracted_data"),
+        "extracted_data": with_review_evidence(state.get("extracted_data"), manifest),
         "escalation_reason": state.get("escalation_reason") or state.get("error_message"),
         "trace_id": state.get("trace_id"),
     }

@@ -117,7 +117,7 @@ def _reviewer_settings(reviewer: str | None, classes: list[str] | None) -> dict 
         raise ServiceError('--decision-reviewer and --decision-class must be given together')
     backend, sep, model = reviewer.partition(':')
     if not sep or not backend or not model:
-        raise ServiceError('--decision-reviewer must be BACKEND:MODEL, e.g. local:Org/Model or jev:jev-1.13.0')
+        raise ServiceError('--decision-reviewer must be BACKEND:MODEL, e.g. local:Org/Model, api:openai/gpt-6-luna or jev:jev-1.13.0')
     from mailroom_sandbox.overlay import live_doc_classes
 
     live = live_doc_classes()
@@ -859,6 +859,8 @@ def _write_report(path: Path, plan: Plan, runs) -> dict:
         from mailroom_sandbox.job.spend import bills_gpu
         if spec.job.mock or not bills_gpu(lock):
             summary['sand42']['cost'] = {}  # no GPU was billed (mock, or API-only)
+            if card:
+                card['cost'] = {}
         if not spec.job.mock and (api_spend := spend_estimate(lock, store.load_items())):
             summary['sand42']['api_cost'] = api_spend  # SAND-089: token spend, reported apart from GPU
         if card:
@@ -977,7 +979,7 @@ def register(sub, leaf) -> None:
     create.add_argument('study')
     create.add_argument('--task', choices=['specialists', 'pipeline', 'sorter'], default='specialists')
     create.add_argument('--agent-route', action='append', dest='agent_routes', default=[], metavar='NAME=PROVIDER:MODEL', help='per-agent provider/model; NAME=@route.yaml includes endpoint/GPU/vLLM settings')
-    create.add_argument('--decision-reviewer', default=None, metavar='BACKEND:MODEL', help='freeze a decision-model reviewer (local:MODEL, jev:jev-1.13.0 or mock:mock); needs --decision-class')
+    create.add_argument('--decision-reviewer', default=None, metavar='BACKEND:MODEL', help='freeze a decision-model reviewer (local:MODEL, api:openai/gpt-6-luna, jev:jev-1.13.0 or mock:mock); needs --decision-class')
     create.add_argument('--decision-class', action='append', default=[], metavar='CLASS=CUTOFF', help='class the decision reviewer handles, with its cutoff in [0, 1] (repeatable)')
     create.add_argument('--specialist-tier', choices=['base', 'mid', 'full'], default='base',
                         help="specialists' model: base = the run's model, mid = Qwen3.5-35B-A3B, full = the judge's Qwen3.5-27B (config/models.yaml critical_tier)")

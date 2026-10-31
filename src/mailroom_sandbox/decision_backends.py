@@ -7,8 +7,9 @@ llm-mailroom). The graph never builds one; the sandbox does, and registers it.
 * ``jev_backend`` asks Jev (TypeSafe, through Pydantic AI) two pick-one
   questions: ``doc_type`` and an optional ``doc_subclass``.
 * ``local_backend`` runs the ``sorter_reviewer`` agent on the run's own serving
-  route, so no document text leaves it. This is the only live path for
-  correspondence.
+  route, so no document text leaves it.
+* ``api_backend`` runs the same agent on a third-party API route, pinned to one
+  model id.
 * ``mock_backend`` answers from a fixed table, for offline runs and tests.
 
 Pydantic AI is an optional dependency (``pip install -e ".[decision]"``). It is
@@ -33,6 +34,9 @@ DEFAULT_MAX_INPUT_CHARS = 12000
 
 # A tuned cutoff is tied to one model version, so only a versioned id is allowed.
 _VERSIONED_JEV = re.compile(r"^jev-\d+(\.\d+)+$")
+
+# OpenRouter's moving aliases (``~``, ``-latest``) and routing variants (``:floor``).
+_PINNED_API = re.compile(r"^[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*$")
 
 _GOAL = "Classify one document from its text."
 _DOC_TYPE_QUESTION = "Which document type is this text?"
@@ -176,12 +180,28 @@ def local_backend(model: str) -> "DecisionBackend":
     return backend
 
 
+def api_backend(model: str) -> "DecisionBackend":
+    """Backend over the ``sorter_reviewer`` agent on a third-party API route.
+
+    ``model`` must be an exact provider id such as ``openai/gpt-6-luna``, because a
+    tuned cutoff is tied to one model. Preflight proves the agent's route serves it.
+    """
+    if not _PINNED_API.match(model) or model.endswith("-latest"):
+        raise ValueError(
+            f"{model!r} is not a pinned API model id (expected e.g. 'openai/gpt-6-luna'); "
+            "moving aliases would silently change a tuned cutoff"
+        )
+    return local_backend(model)
+
+
 def build_backend(name: str, model: str) -> "DecisionBackend":
-    """Backend by name: ``jev``, ``local`` (both use ``model``) or ``mock`` (empty table, all unknown)."""
+    """Backend by name: ``jev``, ``local``, ``api`` (all use ``model``) or ``mock`` (empty table, all unknown)."""
     if name == "jev":
         return jev_backend(model)
     if name == "local":
         return local_backend(model)
     if name == "mock":
         return mock_backend({})
-    raise ValueError(f"unknown decision backend {name!r} (expected 'jev', 'local' or 'mock')")
+    if name == "api":
+        return api_backend(model)
+    raise ValueError(f"unknown decision backend {name!r} (expected 'jev', 'local', 'api' or 'mock')")

@@ -30,6 +30,7 @@ def http_fixture():
  server.shutdown();server.server_close();thread.join(timeout=3)
 
 def test_cli_loads_dotenv_endpoint_before_live_preflight(tmp_path,source_root,monkeypatch,http_fixture):
+ monkeypatch.delenv("SANDBOX_SKIP_DOTENV", raising=False)
  spec,path,store,_=spec_file(tmp_path,source_root)
  spec.job.mock=True;path.write_text(yaml.safe_dump(spec.model_dump(mode='json')))
  base,calls=http_fixture
@@ -42,6 +43,7 @@ def test_cli_loads_dotenv_endpoint_before_live_preflight(tmp_path,source_root,mo
  assert rc==0 and '/v1/models' in calls
 
 def test_cli_loads_dotenv_trace_keys_before_preflight(tmp_path,source_root,monkeypatch,http_fixture):
+ monkeypatch.delenv("SANDBOX_SKIP_DOTENV", raising=False)
  spec,path,store,_=spec_file(tmp_path,source_root)
  base,calls=http_fixture
  spec.job.mock=True;spec.trace.sink='langfuse';spec.trace.endpoint=base+'/api/public/otel';path.write_text(yaml.safe_dump(spec.model_dump(mode='json')))
@@ -98,6 +100,7 @@ def test_named_posture_precedence_freezes_complete_map(tmp_path,source_root,monk
   assert runtime.activate().agent_knobs==expected
 
 def test_cli_loads_dotenv_before_resolving_pinned_langfuse_prompt(tmp_path,source_root,monkeypatch):
+ monkeypatch.delenv("SANDBOX_SKIP_DOTENV", raising=False)
  langfuse=pytest.importorskip('langfuse')
  spec,path,store,_=spec_file(tmp_path,source_root)
  spec.job.mock=True

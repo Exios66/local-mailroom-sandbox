@@ -82,6 +82,8 @@ def _load_dotenv() -> None:
     """Load the sandbox ``.env`` files into ``os.environ`` without overriding variables that are already set.
 
     """
+    if os.environ.get("SANDBOX_SKIP_DOTENV"):
+        return  # tests: a developer's real keys must never reach a test
     for candidate in dotenv_files():
         load_dotenv(candidate, override=False)
 

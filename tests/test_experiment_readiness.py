@@ -114,7 +114,8 @@ def test_mock_pipeline_campaign_prepares_without_modal_workspace_and_reports_qua
     assert "## Sand42 metrics" in report and "## Pipeline routing" in report
     data = json.loads((config.parent / "report.json").read_text())["runs"][0]["sand42"]
     assert data["pipeline"]["documents"] == 2 and data["reliability"]["ok"] == 2
-    assert (config.parent / "cards" / f"{store.run_id}.card.json").is_file()
+    card = json.loads((config.parent / "cards" / f"{store.run_id}.card.json").read_text())
+    assert card["cost"] == {}  # a mock run billed no GPU
     assert any(e["event"] == "start" for e in store.events())
 
 
