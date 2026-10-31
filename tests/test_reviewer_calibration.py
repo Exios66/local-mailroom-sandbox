@@ -135,3 +135,11 @@ def test_calibration_run_is_capped_and_uses_a_non_qwen_model():
     run = load_run_spec(ROOT / "config/runs/reviewer-calibration-gemma4.yaml")
     assert run.task == "sorter_reviewer" and run.engine.model.startswith("google/gemma-4")
     assert run.job.cost_cap_usd <= 1.0 and run.engine.modal.max_containers == 1
+
+
+def test_calibrate_rejects_a_target_outside_zero_to_one(tmp_path):
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    for target in (0.0, -0.1, 1.5):
+        with pytest.raises(ValueError, match="target accuracy"):
+            calibrate_reviewer.calibrate(RunStore(tmp_path / "r"), target=target)
