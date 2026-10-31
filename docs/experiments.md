@@ -200,12 +200,38 @@ sandbox run cancel --run-id <run-id>
 
 `report.md` and `report.json` beside the manifest show successful/expected counts,
 errors, configuration links, scorer aggregates, stored per-document score means,
-and paired cell deltas when dataset bytes and complete coverage match. Incomplete
+and paired cell deltas when dataset bytes and complete coverage match. The
+`## Quality` table gives each run's headline (`overall_extraction_score`), its
+class-native metric (CUAD category F1, MAUD accuracy or field F1), schema
+adherence, token totals and median latency; `## Paired comparisons` gives each
+cell's deltas against the first complete cell of its task. Full-pipeline items
+store per-document `class_correct`, `stage_correct` and the extraction scores. Incomplete
 runs stay visibly incomplete. Native dated quality/serving artifacts remain under
 `reports/`; the workflow never invents scores for missing documents. Re-running
 launch rechecks locked configurations and skips completed jobs. A failed smoke
 must be investigated and safely reset with the existing run lifecycle before retry.
 
 For an offline end-to-end check, add `--mock --local-dataset FILE.jsonl
---trace-sink none` to create. The default tests use fake tools and local data; the
-opt-in CLI contract checks in `tests/test_service_cli_smoke.py` do not deploy.
+--trace-sink none` to create. `create` refuses a local file with fewer rows of a
+class than `--samples`, and drops the template's Hub subclass quotas when the file
+cannot fill them. The default tests use fake tools and local data; the opt-in CLI
+contract checks in `tests/test_service_cli_smoke.py` do not deploy.
+
+## Pre-flight smoke before an experiment day
+
+```bash
+sandbox datasets pull                 # once: the pinned Hub dataset into data/cache/
+python scripts/smoke_campaign.py      # about a minute; no provider, deploy or spend
+```
+
+The script runs three mock campaigns through create, preflight, launch and report:
+the five specialists, the paired `sand42` grid (contracts and mergers) and the full
+connected pipeline. It fails unless every run completes, paired cells share dataset
+bytes, and every specialist run scores 1.0. A mock specialist answers with the
+row's ground truth rewritten into the specialist's output schema
+(`mock_llm.oracle_extraction`): CUAD spans become `cuad_clauses`, MAUD labels
+become `maud_clauses`, JSON-string lists become lists, and ground-truth-only keys
+are dropped. That answer scores 1.0 on every scoreable row of the pinned corpus,
+so anything less means ground truth or predictions no longer reach the Dojo
+scorers in the shape they read. Mock scores check the wiring, never a model.
+Run stores go to a temporary directory; `--keep DIR` keeps them for inspection.

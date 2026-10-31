@@ -104,6 +104,27 @@ def _set(data: dict, assignment: str) -> None:
         raise ServiceError(f'invalid YAML value for {name}: {exc}') from exc
 
 
+def _local_strata(path: Path) -> dict[str, dict[str, int]]:
+    """Rows per doc class and subclass in a local JSONL, read the way the corpus loader keys them."""
+    from collections import Counter
+
+    out: dict[str, Counter] = defaultdict(Counter)
+    try:
+        lines = path.read_text(encoding='utf-8').splitlines()
+    except OSError as exc:
+        raise ServiceError(f'cannot read --local-dataset {path}: {exc}') from exc
+    for line in lines:
+        try:
+            row = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(row, dict):
+            doc_class = row.get('expected') or row.get('expected_doc_class') or row.get('doc_type')
+            if doc_class:
+                out[str(doc_class)][str(row.get('expected_subclass') or '')] += 1
+    return {name: dict(counts) for name, counts in out.items()}
+
+
 def _create(args) -> int:
     if not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,23}', args.study):
         raise ServiceError('study must be 1–24 lowercase letters/digits/hyphens')
@@ -117,6 +138,13 @@ def _create(args) -> int:
     if root.exists():
         raise ServiceError(f'{root} already exists; choose a new study/output (nothing overwritten)')
     cells = DESIGNS[args.design]
+    local = _local_strata(Path(args.local_dataset)) if args.local_dataset else None
+    if local is not None:
+        for name in args.doc_class or list(CLASSES):
+            have = sum(local.get(name, {}).values())
+            if have < args.samples:
+                raise ServiceError(f'--local-dataset has {have} {name} row(s); lower --samples to {max(have, 1)} '
+                                   'or drop that class with --doc-class')
     if args.design == 'sand42' and (args.replicas is not None or args.concurrency is not None):
         raise ServiceError('sand42 fixes replica/concurrency axes at {1,2} × {8,16}; use single for custom values')
     selected = args.doc_class or list(CLASSES)
@@ -191,6 +219,10 @@ def _create(args) -> int:
             bucket['count'] = args.samples
             if bucket.get('sub_buckets'):
                 bucket['sub_buckets'] = _quotas(bucket['sub_buckets'], args.samples)
+                # The published quotas name Hub subclasses; a local file may hold others.
+                if local is not None and any(local.get(doc_class, {}).get(sb['subclass'], 0) < sb['count']
+                                             for sb in bucket['sub_buckets']):
+                    del bucket['sub_buckets']
             if args.task != 'specialists':
                 data['task'] = args.task
                 ds['strata'] = {'buckets': [{'doc_class': name, 'count': args.samples} for name in selected]}
@@ -606,6 +638,36 @@ def _cmd_launch(args) -> int:
     return 0
 
 
+# The class-native headline each specialist is judged on, first match wins.
+_TASK_METRICS = ('cuad_presence_f1', 'maud_accuracy', 'extraction_f1', 'doc_type_accuracy', 'accuracy')
+
+
+def _task_metric(values: dict) -> tuple[str | None, float | None]:
+    for name in _TASK_METRICS:
+        if values.get(name) is not None:
+            return name, values[name]
+    return None, None
+
+
+def _fmt_score(value) -> str:
+    return '—' if value is None else f'{value:.3f}'
+
+
+def _fmt_delta(value) -> str:
+    return '—' if value is None else f'{value:+.3f}'
+
+
+def _usage(items: list[dict]) -> dict:
+    """Token totals and median latency over successful items; None when not reported."""
+    ok = [item for item in items if item.get('ok')]
+    prompt = [item['prompt_tokens'] for item in ok if isinstance(item.get('prompt_tokens'), int)]
+    completion = [item['completion_tokens'] for item in ok if isinstance(item.get('completion_tokens'), int)]
+    latency = sorted(item['latency_ms'] for item in ok if isinstance(item.get('latency_ms'), (int, float)))
+    return {'prompt_tokens': sum(prompt) if prompt else None,
+            'completion_tokens': sum(completion) if completion else None,
+            'p50_latency_ms': latency[len(latency) // 2] if latency else None}
+
+
 def _write_report(path: Path, plan: Plan, runs) -> dict:
     rows = []
     paired = defaultdict(list)
@@ -637,6 +699,7 @@ def _write_report(path: Path, plan: Plan, runs) -> dict:
                 if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
                     scores[key].append(value)
         summary['stored_score_means'] = {key: sum(values)/len(values) for key, values in scores.items()}
+        summary['usage'] = _usage(store.load_items())
         rows.append(summary)
         paired[spec.task].append(hashlib.sha256(store.dataset_path.read_bytes()).hexdigest())
     complete = all(row.get('state') == 'done' and row.get('ok') == row.get('expected') and not row.get('errors') for row in rows)
@@ -663,6 +726,31 @@ def _write_report(path: Path, plan: Plan, runs) -> dict:
              '| Run | State | Successful / expected | Errors |', '| --- | --- | --- | --- |']
     for row in rows:
         lines.append(f'| {row["run_id"]} | {row["state"]} | {row.get("ok", 0)} / {row.get("expected")} | {row.get("errors", 0)} |')
+    scored = [row for row in rows if row.get('stored_score_means')]
+    if scored:
+        lines += ['', '## Quality', '', 'Means over successful documents, from the Dojo scorers stored with each item.', '',
+                  '| Run | Model | n | Headline | Task metric | Schema adherence | Tokens (in / out) | p50 latency |',
+                  '| --- | --- | --- | --- | --- | --- | --- | --- |']
+        for row in scored:
+            means = row['stored_score_means']
+            name, value = _task_metric(means)
+            usage = row.get('usage') or {}
+            tokens = (f"{usage['prompt_tokens']:,} / {usage['completion_tokens']:,}"
+                      if usage.get('prompt_tokens') is not None else 'not reported')
+            p50 = f"{usage['p50_latency_ms']:.0f} ms" if usage.get('p50_latency_ms') is not None else '—'
+            lines.append(f"| {row['run_id']} | {row.get('model')} | {row.get('ok', 0)} | "
+                         f"{_fmt_score(means.get('overall_extraction_score'))} | "
+                         f"{name + ' ' + _fmt_score(value) if name else '—'} | "
+                         f"{_fmt_score(means.get('schema_adherence'))} | {tokens} | {p50} |")
+    if comparisons:
+        lines += ['', '## Paired comparisons', '', 'Each run against the first complete run of its task on identical dataset bytes.', '',
+                  '| Reference | Run | Paired n | Δ headline | Δ task metric |', '| --- | --- | --- | --- | --- |']
+        for item in comparisons:
+            deltas = item['stored_score_mean_deltas']
+            name, value = _task_metric(deltas)
+            lines.append(f"| {item['reference']} | {item['run']} | {item['paired_n']} | "
+                         f"{_fmt_delta(deltas.get('overall_extraction_score'))} | "
+                         f"{name + ' ' + _fmt_delta(value) if name else '—'} |")
     lines += ['', 'Per-run scorer metrics and configuration links are in report.json; native quality/serving reports remain under reports/.',
               'A completed mock run validates orchestration only. Failed/missing documents are never counted as successful observations.', '']
     _atomic_write(path.parent / 'report.md', '\n'.join(lines))
