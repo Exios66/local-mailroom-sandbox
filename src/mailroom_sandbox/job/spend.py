@@ -81,15 +81,47 @@ def review_settings(store: RunStore) -> dict[str, Any]:
             "agent_knobs": lock.get("agent_knobs", {}), "dataset": lock.get("dataset"),
             "agents": lock.get("agent_assignments", {}),
             "context": {key: redact_urls(value) if isinstance(value, str) else value for key, value in context.items()},
-            "budget_note": "Modal cost caps estimate GPU time; CPU/build/scaledown and in-flight calls can add cost. OpenRouter billing is token-based; the GPU-time cap is not an API dollar limit."})
+            "budget": _budget_review(lock),
+            "budget_note": "Modal cost caps estimate GPU time; CPU/build/scaledown and in-flight calls can add cost. "
+                           "OpenRouter bills tokens: api_cost_cap_usd limits that spend, pricing every observed token "
+                           "at the highest API model price. Both caps are checked between documents."})
+
+
+def _budget_review(lock: dict) -> dict[str, Any]:
+    """The run's three ceilings and the API models/prices the token ceiling relies on."""
+    from mailroom_sandbox.job.api_budget import api_models
+    from mailroom_sandbox.job.metrics import token_price
+
+    job = lock.get("job") or {}
+    models = api_models(lock)
+    return {"gpu_cost_cap_usd": job.get("cost_cap_usd"), "max_wall_seconds": job.get("max_wall_seconds"),
+            "api_cost_cap_usd": job.get("api_cost_cap_usd"),
+            "api_models": {model: (list(price) if (price := token_price(model)) else "UNPRICED") for model in models}}
+
+
+def bills_gpu(lock: dict) -> bool:
+    """Whether the run warms a Modal GPU: the engine, a per-agent route, or a Modal job worker."""
+    job = lock.get("job") or {}
+    return (job.get("mode") == "modal" or (lock.get("engine") or {}).get("kind") == "modal-vllm"
+            or any((route or {}).get("provider") == "modal-vllm" for route in (lock.get("agent_routes") or {}).values()))
 
 
 def require_budget(lock: dict) -> None:
     job = lock.get("job") or {}
     cap = job.get("cost_cap_usd")
     wall = job.get("max_wall_seconds")
-    if not isinstance(cap, (int, float)) or not math.isfinite(cap) or cap <= 0 or not wall:
+    gpu_cap_ok = isinstance(cap, (int, float)) and math.isfinite(cap) and cap > 0
+    from mailroom_sandbox.job.api_budget import api_models
+
+    # A run with no Modal GPU (API only) is bounded by api_cost_cap_usd instead of the GPU cap.
+    if not wall or (not gpu_cap_ok and (bills_gpu(lock) or not api_models(lock))):
         raise ServiceError("paid execution requires finite job.cost_cap_usd and job.max_wall_seconds; review and re-preflight the configuration")
+    # SAND-089: token-billed agents need a priced model and their own ceiling.
+    from mailroom_sandbox.job.api_budget import budget_errors
+
+    errors = budget_errors(lock)
+    if errors:
+        raise ServiceError("paid execution refused: " + "; ".join(errors))
 
 
 def authorize(store: RunStore, *, initials: str | None = None, probe: bool = False,

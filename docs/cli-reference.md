@@ -1859,8 +1859,9 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--temperature` | No |  |
 | `--trace-sink` | No | Choices: langfuse, otlp, phoenix, none. |
 | `--trace-endpoint` | No |  |
-| `--cost-cap-usd` | No | per-run estimated GPU cap, reviewed before spend |
-| `--max-wall-seconds` | No |  |
+| `--cost-cap-usd` | No | per-run estimated Modal GPU cap; default: recommended from samples, concurrency, GPUs and task |
+| `--max-wall-seconds` | No | per-run wall-clock ceiling (the run aborts and its fleet is torn down); default: recommended |
+| `--api-cost-cap-usd` | No | per-run API token spend cap for OpenRouter agents; default: recommended from token prices |
 | `--smoke-rows` | No |  |
 | `--smoke-cost-cap-usd` | No |  |
 | `--mock` | No | create an offline mock experiment; never deploys/calls providers |

@@ -151,6 +151,7 @@ def run_isolated_eval(
     concurrency: int = 1,
     max_wall_seconds: float | None = None,
     cost_cap_usd: float | None = None,
+    api_budget: Any = None,
     gpu: str | None = None,
     progress_cb: Any = None,
     replicas: int = 1,
@@ -290,12 +291,17 @@ def run_isolated_eval(
                     f"isolated eval aborted: cost_cap_usd={cost_cap_usd} exceeded "
                     f"(est_gpu_usd={est:.4f} at wall={wall:.1f}s) — protecting spend"
                 )
+        if api_budget is not None and not mock:
+            # SAND-089: token spend on API-billed agents, priced at the run's highest API price.
+            api_budget.check("isolated eval aborted: ")
 
     workers = max(1, min(int(concurrency), len(rows) or 1))
 
     def _record(index: int, entry: dict[str, Any]) -> None:
         per_row[index] = entry
         _absorb(entry)
+        if api_budget is not None:
+            api_budget.add_usage(entry)
         # SAND-032: stream each finished row to the caller (main thread) so a
         # later cap abort / raise cannot drop rows whose GPU time was paid.
         if row_cb is not None:
@@ -958,6 +964,7 @@ def run_pipeline_eval(
     node_cb=None,
     max_wall_seconds: int | None = None,
     cost_cap_usd: float | None = None,
+    api_budget: Any = None,
     gpu: str | None = None,
     replicas: int = 1,
     gpu_fleet: list[tuple[str, int]] | None = None,
@@ -997,6 +1004,8 @@ def run_pipeline_eval(
             if cost_cap_usd is not None:
                 if _estimated_gpu_usd(elapsed, gpu=gpu, replicas=replicas, gpu_fleet=gpu_fleet) >= cost_cap_usd:
                     raise RuntimeError("pipeline estimated GPU cost cap exceeded before next document")
+            if api_budget is not None:
+                api_budget.check("pipeline API spend cap reached before next document: ")
         before = time.monotonic()
         with ExitStack() as nodes:
             if node_cb is not None:
@@ -1008,6 +1017,9 @@ def run_pipeline_eval(
                 nodes.enter_context(track_nodes(str(row.get("id")), node_cb, models=models))
             usage_capture.reset_usage()
             result = _run_pipeline_doc(row, mock=mock, session_id=session, experiment_name=experiment_name)
+        doc_usage = usage_capture.usage_from_pipeline()
+        if api_budget is not None:
+            api_budget.add_usage(doc_usage)
         results.append(result)
         scored = _score_pipeline_extraction(row, result) if connected else None
         extraction_rows.append(scored)
@@ -1022,7 +1034,7 @@ def run_pipeline_eval(
             # Keep the parse facts: whole-run jobs fail when every answer is unparseable.
             score.update({k: scored[k] for k in ("parse_error", "schema_valid") if k in (scored or {})})
             row_cb({"id": row.get("id"), "pred": result, "error": result.get("error"), "score": score,
-                    "latency_ms": (time.monotonic() - before) * 1000, **usage_capture.usage_from_pipeline()})
+                    "latency_ms": (time.monotonic() - before) * 1000, **doc_usage})
         if progress_cb:
             errors = sum(bool(item.get("error")) for item in results)
             progress_cb(len(results), len(rows), len(results) - errors, errors)

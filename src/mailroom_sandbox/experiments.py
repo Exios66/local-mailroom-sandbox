@@ -185,8 +185,13 @@ def _create(args) -> int:
         raise ServiceError('study must be 1–24 lowercase letters/digits/hyphens')
     if args.max_tokens < 1 or not math.isfinite(args.temperature) or not 0 <= args.temperature <= 2:
         raise ServiceError('max tokens must be positive; temperature must be finite in [0, 2]')
-    if args.samples < 1 or not math.isfinite(args.cost_cap_usd) or args.cost_cap_usd <= 0:
-        raise ServiceError('sample size and finite per-run cost cap must be positive')
+    if args.samples < 1:
+        raise ServiceError('sample size must be positive')
+    for flag, value in (('--cost-cap-usd', args.cost_cap_usd), ('--api-cost-cap-usd', args.api_cost_cap_usd)):
+        if value is not None and (not math.isfinite(value) or value <= 0):
+            raise ServiceError(f'{flag} must be a finite positive number (omit it to use the recommendation)')
+    if args.max_wall_seconds is not None and args.max_wall_seconds < 60:
+        raise ServiceError('--max-wall-seconds must be >= 60 (omit it to use the recommendation)')
     if not re.fullmatch(r'[a-fA-F0-9]{40}', args.revision):
         raise ServiceError('pin --revision to a full Hugging Face commit SHA')
     root = Path(args.output or repo_root() / 'config' / 'experiments' / args.study).resolve()
@@ -276,8 +281,10 @@ def _create(args) -> int:
                     min_containers=0, max_containers=args.replicas or replicas)
             else:
                 data['engine']['modal'] = None
+            # None = fill from the design-informed recommendation once the spec is complete.
             data['job'].update(mock=args.mock, mode='endpoint', concurrency=args.concurrency or concurrency,
-                               cost_cap_usd=args.cost_cap_usd, max_wall_seconds=args.max_wall_seconds)
+                               cost_cap_usd=args.cost_cap_usd, max_wall_seconds=args.max_wall_seconds,
+                               api_cost_cap_usd=args.api_cost_cap_usd)
             ds = data['dataset']
             ds.update(repo=args.dataset, config=args.dataset_config, split=args.split, revision=args.revision,
                       limit=args.samples, sample_seed=args.seed, require_task_gt=True)
@@ -323,7 +330,7 @@ def _create(args) -> int:
                 for section, model in [('engine', spec.engine), ('job', spec.job), ('trace', spec.trace), ('dataset', spec.dataset)]:
                     if set(data[section]) - set(type(model).model_fields):
                         raise ValueError(f'unknown {section} fields')
-                result = RunSpec.model_validate(data)
+                result = _with_recommended_budget(RunSpec.model_validate(data))
                 if result.job.mode != 'endpoint':
                     raise ValueError('experiment launch requires endpoint mode')
             except ValueError as exc:
@@ -344,8 +351,60 @@ def _create(args) -> int:
     manifest = root / 'experiment.yaml'
     manifest.write_text(yaml.safe_dump(plan.model_dump(by_alias=True), sort_keys=False))
     print(f'Created {manifest} ({len(generated)} runs; no downloads or paid actions).')
+    _print_budget(generated)
     print(f'Next: sandbox experiment preflight --config {manifest}')
     return 0
+
+
+def _with_recommended_budget(spec: RunSpec) -> RunSpec:
+    """Fill every unset ceiling from the design-informed recommendation (SAND-089).
+
+    Flags and --set values win; a GPU cap is only filled for runs that warm a Modal
+    GPU, an API cap only for runs that bill API tokens.
+    """
+    from mailroom_sandbox.job.budget_advice import recommend
+
+    advice = recommend(spec)
+    job = spec.job.model_dump()
+    if job['cost_cap_usd'] is None:
+        job['cost_cap_usd'] = advice['gpu_cost_cap_usd']
+    if job['max_wall_seconds'] is None:
+        job['max_wall_seconds'] = advice['max_wall_seconds']
+    if job['api_cost_cap_usd'] is None:
+        job['api_cost_cap_usd'] = advice['api_cost_cap_usd']
+    data = spec.model_dump(by_alias=True)
+    data['job'] = job
+    return RunSpec.model_validate(data)
+
+
+def _budget_rows(specs) -> list[dict]:
+    from mailroom_sandbox.job.budget_advice import compare, recommend
+
+    rows = []
+    for spec in specs:
+        advice = recommend(spec)
+        rows.append({'run_id': spec.run_id,
+                     'configured': {'cost_cap_usd': spec.job.cost_cap_usd, 'max_wall_seconds': spec.job.max_wall_seconds,
+                                    'api_cost_cap_usd': spec.job.api_cost_cap_usd},
+                     'recommended': {'cost_cap_usd': advice['gpu_cost_cap_usd'],
+                                     'max_wall_seconds': advice['max_wall_seconds'],
+                                     'api_cost_cap_usd': advice['api_cost_cap_usd']},
+                     'basis': advice['basis'], 'warnings': compare(spec, advice)})
+    return rows
+
+
+def _print_budget(specs) -> None:
+    def money(value):
+        return '-' if value is None else f'${value:.2f}'
+
+    print('Budget ceilings (configured / recommended from the design; GPU = Modal time, API = tokens):')
+    for row in _budget_rows(specs):
+        have, want = row['configured'], row['recommended']
+        print(f"  {row['run_id']}: GPU {money(have['cost_cap_usd'])} / {money(want['cost_cap_usd'])}  "
+              f"wall {have['max_wall_seconds']}s / {want['max_wall_seconds']}s  "
+              f"API {money(have['api_cost_cap_usd'])} / {money(want['api_cost_cap_usd'])}")
+        for warning in row['warnings']:
+            print(f'    warning: {warning}')
 
 
 @contextmanager
@@ -424,10 +483,13 @@ def _review(path: Path, plan: Plan, runs, stores=None) -> dict:
         rows.append({'config': str(config), 'review': settings})
         rows[-1]['managed_deployments'] = [{'model': item.engine.model, 'modal': item.engine.modal.model_dump(),
             'vllm': item.engine.vllm.model_dump(), 'environment': spec_env(item)} for item in _deployments(spec)]
+    for row, budget in zip(rows, _budget_rows([spec for _, spec in runs])):
+        row['budget'] = budget
     return {'study': plan.study, 'design': plan.design, 'runs': rows,
             'smoke_rows_per_run': plan.smoke_rows, 'smoke_cost_cap_usd': plan.smoke_cost_cap_usd,
             'smoke_wall_seconds': plan.smoke_wall_seconds,
             'sum_run_and_smoke_caps_usd': sum(float(spec.job.cost_cap_usd or 0) + plan.smoke_cost_cap_usd for _, spec in runs),
+            'sum_api_caps_usd': sum(float(spec.job.api_cost_cap_usd or 0) for _, spec in runs),
             'spend': 'mock; no provider calls' if all(spec.job.mock for _, spec in runs) else 'Modal/OpenRouter: initials required before paid actions',
             'observer': f'sandbox experiment watch --config {path}',
             'reports': f'sandbox experiment report --config {path}'}
@@ -473,6 +535,8 @@ def _smoke(spec: RunSpec, store: RunStore, plan: Plan) -> None:
     smoke.job.concurrency = min(spec.job.concurrency, len(rows))
     smoke.job.cost_cap_usd = min(float(spec.job.cost_cap_usd or plan.smoke_cost_cap_usd), plan.smoke_cost_cap_usd)
     smoke.job.max_wall_seconds = min(spec.job.max_wall_seconds or plan.smoke_wall_seconds, plan.smoke_wall_seconds)
+    if spec.job.api_cost_cap_usd is not None:
+        smoke.job.api_cost_cap_usd = min(float(spec.job.api_cost_cap_usd), plan.smoke_cost_cap_usd)
     smoke.agent_knobs = copy.deepcopy((store.read_lock() or {}).get('agent_knobs') or {})
     report = preflight.preflight(smoke, offline=smoke.job.mock, live=False)
     if report.get('status') != 'prepared':
@@ -930,8 +994,12 @@ def register(sub, leaf) -> None:
     create.add_argument('--temperature', type=float, default=0.1)
     create.add_argument('--trace-sink', choices=['langfuse', 'otlp', 'phoenix', 'none'], default='langfuse')
     create.add_argument('--trace-endpoint', default=None)
-    create.add_argument('--cost-cap-usd', type=float, default=1.0, help='per-run estimated GPU cap, reviewed before spend')
-    create.add_argument('--max-wall-seconds', type=int, default=2400)
+    create.add_argument('--cost-cap-usd', type=float, default=None,
+                        help='per-run estimated Modal GPU cap; default: recommended from samples, concurrency, GPUs and task')
+    create.add_argument('--max-wall-seconds', type=int, default=None,
+                        help='per-run wall-clock ceiling (the run aborts and its fleet is torn down); default: recommended')
+    create.add_argument('--api-cost-cap-usd', type=float, default=None,
+                        help='per-run API token spend cap for OpenRouter agents; default: recommended from token prices')
     create.add_argument('--smoke-rows', type=int, default=1)
     create.add_argument('--smoke-cost-cap-usd', type=float, default=0.10)
     create.add_argument('--mock', action='store_true', help='create an offline mock experiment; never deploys/calls providers')

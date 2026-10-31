@@ -90,7 +90,15 @@ job:
                             # loud. An in-flight document is not interrupted and
                             # can take spend past the cap
   max_wall_seconds: 1800    # seconds (>= 60); checked the same way, before each
-                            # document. Paid runs need both, or the spend guard refuses them
+                            # document. The run then aborts and its fleet is torn down
+  api_cost_cap_usd: 0.25    # USD; OpenRouter token spend (SAND-089), priced at the
+                            # highest input/output price among the run's API models
+                            # and checked before each document. Required when any
+                            # agent bills tokens; every such model needs a price
+                            # (SANDBOX_MODEL_PRICES in job/metrics.py) or the run
+                            # is refused. Paid runs need max_wall_seconds, plus
+                            # cost_cap_usd when they warm a Modal GPU and
+                            # api_cost_cap_usd when they bill API tokens
 
 trace:
   sink: langfuse            # langfuse | phoenix | otlp | none

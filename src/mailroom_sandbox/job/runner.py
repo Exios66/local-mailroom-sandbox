@@ -227,6 +227,7 @@ def _run_whole_run(
     concurrency = _concurrency(store)
     max_wall = _max_wall_seconds(store)
     cost_cap = _cost_cap_usd(store)
+    api_budget = _api_budget(store)
     gpu = _lock_gpu(store)
     replicas = _lock_replicas(store)
     gpu_fleet = _lock_fleet(store)
@@ -262,6 +263,7 @@ def _run_whole_run(
             concurrency=concurrency,
             max_wall_seconds=max_wall,
             cost_cap_usd=cost_cap,
+            api_budget=api_budget,
             gpu=gpu,
             replicas=replicas,
             gpu_fleet=gpu_fleet,
@@ -310,7 +312,8 @@ def _run_whole_run(
                 connected=True, rows=locked_rows,
                 row_cb=lambda entry: _persist_isolated_items(store, [entry]),
                 progress_cb=_progress, node_cb=store.append_node, max_wall_seconds=max_wall,
-                cost_cap_usd=cost_cap, gpu=gpu, replicas=replicas, gpu_fleet=gpu_fleet, **kwargs)
+                cost_cap_usd=cost_cap, api_budget=api_budget, gpu=gpu, replicas=replicas,
+                gpu_fleet=gpu_fleet, **kwargs)
         elif task == "extract":
             result = eval_runners.run_extract_eval(rows=locked_rows, **kwargs)
         elif task == "chained":
@@ -331,6 +334,7 @@ def _run_whole_run(
                 concurrency=concurrency,
                 max_wall_seconds=max_wall,
                 cost_cap_usd=cost_cap,
+                api_budget=api_budget,
                 gpu=gpu,
                 replicas=replicas,
                 gpu_fleet=gpu_fleet,
@@ -349,6 +353,7 @@ def _run_whole_run(
                 concurrency=concurrency,
                 max_wall_seconds=max_wall,
                 cost_cap_usd=cost_cap,
+                api_budget=api_budget,
                 gpu=gpu,
                 replicas=replicas,
                 gpu_fleet=gpu_fleet,
@@ -461,6 +466,13 @@ def _cost_cap_usd(store: RunStore) -> float | None:
     if raw is None or raw == "":
         return None
     return float(raw)
+
+
+def _api_budget(store: RunStore):
+    """SAND-089: the run's API token budget, seeded with already-persisted items' tokens."""
+    from mailroom_sandbox.job.api_budget import budget_for
+
+    return budget_for(store.read_lock() or {}, store.load_items())
 
 
 def _max_wall_seconds(store: RunStore) -> int | None:
@@ -852,7 +864,9 @@ def _run_job(
     run_started = time.perf_counter()
     cost_cap = _cost_cap_usd(store)
     max_wall = _max_wall_seconds(store)
+    api_budget = None if mock else _api_budget(store)
     cap_abort_reason: str | None = None
+    cap_abort_type: str | None = None
 
     # Worker threads do not inherit the caller's otel context; hand it over
     # explicitly so item spans nest under the run span.
@@ -918,7 +932,7 @@ def _run_job(
         concurrent paths — worker threads only compute, so append_item /
         append_event / write_checkpoint / on_event never race.
         """
-        nonlocal ok_count, error_count, done_count, last_error, last_error_item, cap_abort_reason
+        nonlocal ok_count, error_count, done_count, last_error, last_error_item, cap_abort_reason, cap_abort_type
         row = rows[index]
         item_id = str(row.get("id") or row.get("filename") or index)
         ok = error is None
@@ -965,21 +979,27 @@ def _run_job(
                     "stop updating while the run continues: %s",
                     exc,
                 )
+        if api_budget is not None:
+            api_budget.add_usage(item)
         # DMR-078: cost / wall abort guards (Modal warm-GPU wall × $/hr).
         if not mock and cap_abort_reason is None:
             wall_s = time.perf_counter() - run_started
             if max_wall is not None and wall_s >= float(max_wall):
+                cap_abort_type = "max_wall"
                 cap_abort_reason = (
                     f"max_wall_seconds={max_wall} exceeded "
                     f"(wall={wall_s:.1f}s) — aborting to protect spend"
                 )
-            elif cost_cap is not None:
-                est = _estimate_run_gpu_usd(store, wall_s)
-                if est >= float(cost_cap):
-                    cap_abort_reason = (
-                        f"cost_cap_usd={cost_cap} exceeded "
-                        f"(est_gpu_usd={est:.4f} at wall={wall_s:.1f}s) — aborting"
-                    )
+            elif cost_cap is not None and (est := _estimate_run_gpu_usd(store, wall_s)) >= float(cost_cap):
+                cap_abort_type = "cost_cap"
+                cap_abort_reason = (
+                    f"cost_cap_usd={cost_cap} exceeded "
+                    f"(est_gpu_usd={est:.4f} at wall={wall_s:.1f}s) — aborting"
+                )
+            elif api_budget is not None and (reason := api_budget.exceeded()):
+                # SAND-089: token spend on API-billed agents.
+                cap_abort_type = "api_cost_cap"
+                cap_abort_reason = reason
         return ok
 
     def _cap_abort_failed():
@@ -989,7 +1009,7 @@ def _run_job(
             cursor=done_count,
             total=total,
             last_error={
-                "type": "cost_cap" if cost_cap is not None else "max_wall",
+                "type": cap_abort_type or ("cost_cap" if cost_cap is not None else "max_wall"),
                 "message": cap_abort_reason,
                 "at": utc_now(),
                 "item_id": last_error_item,
