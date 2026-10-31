@@ -159,13 +159,10 @@ def _billed_gpu(modal: Mapping[str, Any]) -> tuple[str, int]:
     return cls, per_container * max(1, int(modal.get("max_containers") or 1))
 
 
-def lock_gpu_fleet(lock: Mapping[str, Any]) -> list[tuple[str, int]]:
-    """Every Modal app a locked run keeps warm: the base engine plus each
-    distinct ``modal-vllm`` agent-route app (shared apps are billed once)."""
-    engine = lock.get("engine") if isinstance(lock.get("engine"), Mapping) else {}
-    modal = engine.get("modal") if isinstance(engine.get("modal"), Mapping) else None
-    fleet = [_billed_gpu(modal) if modal else ("L4", 1)]
-    apps = {str(modal.get("app"))} if modal and modal.get("app") else set()
+def _route_gpu_apps(lock: Mapping[str, Any], *, skip: set[str]) -> list[tuple[str, int]]:
+    """Billed GPUs of each distinct ``modal-vllm`` agent-route app not in ``skip``."""
+    apps = set(skip)
+    out: list[tuple[str, int]] = []
     routes = lock.get("agent_routes") if isinstance(lock.get("agent_routes"), Mapping) else {}
     for route in routes.values():
         route_modal = route.get("modal") if isinstance(route, Mapping) else None
@@ -175,13 +172,60 @@ def lock_gpu_fleet(lock: Mapping[str, Any]) -> list[tuple[str, int]]:
         if app in apps:
             continue
         apps.add(app)
-        fleet.append(_billed_gpu(route_modal))
-    return fleet
+        out.append(_billed_gpu(route_modal))
+    return out
+
+
+def _lock_base(lock: Mapping[str, Any]) -> tuple[Mapping[str, Any] | None, bool]:
+    """The lock's base ``modal`` block and whether the base engine runs on Modal."""
+    engine = lock.get("engine") if isinstance(lock.get("engine"), Mapping) else {}
+    modal = engine.get("modal") if isinstance(engine.get("modal"), Mapping) else None
+    return modal, engine.get("kind", "modal-vllm") == "modal-vllm"
+
+
+def _routed_apps(lock: Mapping[str, Any]) -> list[tuple[str, int]]:
+    """Route apps beyond the base; only a Modal base's app is already warm."""
+    modal, on_modal = _lock_base(lock)
+    skip = {str(modal.get("app"))} if on_modal and modal and modal.get("app") else set()
+    return _route_gpu_apps(lock, skip=skip)
+
+
+def lock_gpu_fleet(lock: Mapping[str, Any]) -> list[tuple[str, int]]:
+    """Every Modal app a locked run keeps warm: the base engine plus each
+    distinct ``modal-vllm`` agent-route app (shared apps are billed once).
+
+    A non-Modal base (e.g. ``openrouter``) still carries the default ``modal``
+    block in its lock; it is left out when route apps exist, since it never runs.
+    """
+    modal, on_modal = _lock_base(lock)
+    routes = _routed_apps(lock)
+    base = [_billed_gpu(modal) if modal else ("L4", 1)]
+    if routes and not on_modal:
+        base = []
+    return base + routes
 
 
 def fleet_gpu_cost_usd(gpu_seconds: float, fleet: Sequence[tuple[str, int]]) -> float:
     """USD for ``gpu_seconds`` of wall across every app in ``fleet``."""
     return round(sum(estimate_gpu_cost_usd(gpu_seconds, gpu=gpu, replicas=n) or 0.0 for gpu, n in fleet), 6)
+
+
+def routed_gpu_fleet(lock: Mapping[str, Any]) -> list[tuple[str, int]] | None:
+    """The locked fleet when agent routes add Modal apps beyond the base engine, else None."""
+    return lock_gpu_fleet(lock) if _routed_apps(lock) else None
+
+
+def _gpu_usd(
+    gpu_seconds: float,
+    *,
+    gpu: str | None,
+    replicas: int,
+    gpu_fleet: Sequence[tuple[str, int]] | None,
+) -> float | None:
+    """Warm-GPU $ priced like the run's cost cap: the routed fleet when given, else the base GPU."""
+    if gpu_fleet:
+        return fleet_gpu_cost_usd(gpu_seconds, gpu_fleet) if gpu_seconds and gpu_seconds > 0 else None
+    return estimate_gpu_cost_usd(gpu_seconds, gpu=gpu, replicas=replicas)
 
 
 def _token_price_override() -> tuple[float, float] | None:
@@ -359,12 +403,14 @@ def record_from_run(
     replicas: int = 1,
     mock: bool = False,
     dataset_provenance: Mapping[str, Any] | None = None,
+    gpu_fleet: Sequence[tuple[str, int]] | None = None,
 ) -> dict[str, Any]:
     """Aggregate per-item captures into one dojo-compatible serving record.
 
     ``dataset_provenance`` (``dataset_revision`` / ``split`` / ``draw_seed``,
     see :func:`lock_dataset_provenance`) is stamped on the record when given so
     the dojo can emit its scorecard; it is never inferred here.
+    ``gpu_fleet`` (see :func:`routed_gpu_fleet`) prices every warm route app.
     """
     kind = bucket_kind({"serving_kind": "", "profile": profile, "provider": _provider_for(profile)})
     # hub#56: TTFT aggregation must treat failures like the latency
@@ -470,14 +516,15 @@ def record_from_run(
         )
 
     # Modal GPU-hour cost (orthogonal to token proxy). Local Ollama and API
-    # buckets skip this; Modal / vLLM-remote may attribute busy GPU seconds.
-    if kind == "modal" or (kind == "local" and profile in {"vllm-local", "vllm-remote"}):
+    # buckets skip this; Modal / vLLM-remote may attribute busy GPU seconds. A routed
+    # fleet bills whatever the base profile is (an API base can route to Modal apps).
+    if gpu_fleet or kind == "modal" or (kind == "local" and profile in {"vllm-local", "vllm-remote"}):
         gpu_seconds = _gpu_seconds_from_items(
             items, billed_window_seconds=billed_window_seconds
         )
         if gpu_seconds is not None:
             rec["gpu_seconds"] = round(gpu_seconds, 3)
-            gpu_cost = estimate_gpu_cost_usd(gpu_seconds, gpu=gpu, replicas=replicas)
+            gpu_cost = _gpu_usd(gpu_seconds, gpu=gpu, replicas=replicas, gpu_fleet=gpu_fleet)
             if gpu_cost is not None:
                 rec["estimated_gpu_cost_usd"] = gpu_cost
                 if n_ok > 0:
@@ -603,10 +650,13 @@ def enrich_serving_report(
     replicas: int = 1,
     scaledown_seconds: float | None = None,
     billed_window_seconds: float | None = None,
+    gpu_fleet: Sequence[tuple[str, int]] | None = None,
 ) -> dict[str, Any]:
     """Extend a ``record_from_run`` dict with wall/concurrency/latency_sum fields.
 
     Also adds the SAND-028-1 idle-fraction block when wall and latency sums exist.
+    A ``gpu_fleet`` prices the billed window over every warm route app; the idle
+    and boot diagnostics stay on the base engine, whose slots they measure.
     """
     out = dict(record)
     replicas = max(1, int(replicas or 1))
@@ -657,7 +707,7 @@ def enrich_serving_report(
 
     kind = bucket_kind(out)
     gpu_class = gpu or out.get("gpu")
-    if kind == "modal" and wall_seconds and wall_seconds > 0:
+    if (gpu_fleet or kind == "modal") and wall_seconds and wall_seconds > 0:
         # Prefer the run's OWN container-telemetry window: it brackets the run, so it
         # is what Modal metered — computed from the run, not scraped from a billing
         # CLI. Falls back to boot + wall, which under-counts because the item-`ts`
@@ -669,16 +719,18 @@ def enrich_serving_report(
             + (float(cold_boot_seconds) if cold_boot_seconds is not None else 0.0)
         )
         out["gpu_seconds"] = round(billed, 3)
-        gpu_cost = estimate_gpu_cost_usd(billed, gpu=gpu_class, replicas=replicas)
+        gpu_cost = _gpu_usd(billed, gpu=gpu_class, replicas=replicas, gpu_fleet=gpu_fleet)
         # SAND-032: on every replica. With the telemetry window this is the metered
         # figure; without it, a LOWER bound (boot + wall), excluding pre-run warm
         # time and the idle gaps between suite configs. Pinned MIN=MAX fleets pass
-        # scaledown_seconds=None.
+        # scaledown_seconds=None. Base engine only: route apps that scale to zero
+        # can bill less than the fleet estimate, so it would not be a lower bound.
         span = billed + float(scaledown_seconds or 0.0)
         out["run_span_seconds_lower_bound"] = round(span, 3)
-        out["run_span_usd_lower_bound"] = estimate_gpu_cost_usd(
-            span, gpu=gpu_class, replicas=replicas
-        )
+        if kind == "modal":
+            out["run_span_usd_lower_bound"] = estimate_gpu_cost_usd(
+                span, gpu=gpu_class, replicas=replicas
+            )
         if gpu_cost is not None:
             out["estimated_gpu_cost_usd"] = gpu_cost
             n_ok = len(ok_items) or int(out.get("n") or 0)
@@ -744,6 +796,10 @@ def serving_record_from_store(
     engine = lock.get("engine") or {}
     modal = (engine.get("modal") or {}) if isinstance(engine, dict) else {}
     gpu = str(modal.get("gpu") or "").split(":")[0] or None
+    # Routed runs (SAND-078 judge, SAND-079 specialist tiers) keep route apps warm
+    # too: price them like the runner and the cost cap do. Unrouted runs keep the
+    # base-GPU formula.
+    gpu_fleet = routed_gpu_fleet(lock)
     job = lock.get("job") or {}
     concurrency = int(job.get("concurrency") or 1)
     if mock is None:
@@ -792,8 +848,9 @@ def serving_record_from_store(
         # 2xL4 cell's GPU-seconds cost twice a 1xL4 cell's at the same wall.
         replicas=max(1, int(modal.get("max_containers") or 1)),
         mock=bool(mock),
+        gpu_fleet=gpu_fleet,
     )
-    return enrich_serving_report(
+    out = enrich_serving_report(
         base,
         items=items,
         wall_seconds=wall,
@@ -810,7 +867,11 @@ def serving_record_from_store(
             else float(modal["scaledown_seconds"])
         ),
         billed_window_seconds=billed_window if billed_window and billed_window > 0 else None,
+        gpu_fleet=gpu_fleet,
     )
+    if gpu_fleet:
+        out["gpu_fleet"] = [{"gpu": cls, "gpus": n} for cls, n in gpu_fleet]
+    return out
 
 
 def default_serving_json_path(run_id: str, *, store: RunStore | None = None) -> Path:
