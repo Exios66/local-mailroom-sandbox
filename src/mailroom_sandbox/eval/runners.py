@@ -1020,10 +1020,17 @@ def run_pipeline_eval(
             usage_capture.reset_usage()
             try:
                 result = _run_pipeline_doc(row, mock=mock, session_id=session, experiment_name=experiment_name)
-            except Exception:
-                # SAND-089: calls made before the failure were billed; count them before the run stops.
+            except Exception as exc:
+                # SAND-089: calls made before the failure were billed; count them before the run stops,
+                # and hand them to the job runner, which records them for a resumed run's budget.
+                failed_usage = usage_capture.usage_from_pipeline()
                 if api_budget is not None:
-                    api_budget.add_usage(usage_capture.usage_from_pipeline())
+                    api_budget.add_usage(failed_usage)
+                if failed_usage:
+                    try:
+                        exc.sandbox_failed_usage = {"item_id": row.get("id"), **failed_usage}
+                    except (AttributeError, TypeError):
+                        pass
                 raise
         doc_usage = usage_capture.usage_from_pipeline()
         if api_budget is not None:

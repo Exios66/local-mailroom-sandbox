@@ -852,3 +852,24 @@ def test_per_item_run_aborts_once_api_token_spend_reaches_its_cap(tmp_path, monk
     error = (store.read_checkpoint() or {})["last_error"]
     assert error["type"] == "api_cost_cap" and "api_cost_cap_usd=0.1 reached" in error["message"]
     assert len(store.load_items()) < 4
+
+
+def test_a_resumed_run_counts_the_tokens_of_a_pipeline_document_that_raised(tmp_path, monkeypatch):
+    """SAND-089: the failed document has no item row, so its usage is kept as an event."""
+    from mailroom_sandbox.eval import runners as eval_runners
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    store = RunStore(tmp_path / "r")
+    store.write_lock({"task": "pipeline", "profile": "openrouter", "prompt": {},
+                      "engine": {"kind": "openrouter", "model": "qwen/qwen3.5-9b"},
+                      "job": {"mock": False, "concurrency": 1, "api_cost_cap_usd": 1.0}})
+
+    def fake_pipeline(**kwargs):
+        exc = RuntimeError("graph raised after a paid call")
+        exc.sandbox_failed_usage = {"item_id": "d0", "prompt_tokens": 1_000_000, "completion_tokens": 0}
+        raise exc
+
+    monkeypatch.setattr(eval_runners, "run_pipeline_eval", fake_pipeline)
+    out = runner._run_whole_run(store, "pipeline", mock=False, model=None, profile="openrouter")
+    assert out["state"] == "failed" and store.load_items() == []
+    assert runner._api_budget(store).spent_usd == pytest.approx(0.17)
