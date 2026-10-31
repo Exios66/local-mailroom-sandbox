@@ -42,6 +42,15 @@ def test_fleet_without_routes_is_the_base_engine_alone():
     lock = {"engine": {"modal": {"gpu": "L4", "max_containers": 2}}}
     assert metrics.lock_gpu_fleet(lock) == [("L4", 2)]
     assert metrics.lock_gpu_fleet({}) == [("L4", 1)]
+    # Unrouted non-Modal base: unchanged, the base entry stays.
+    assert metrics.lock_gpu_fleet({"engine": {"kind": "openrouter", **lock["engine"]}}) == [("L4", 2)]
+    assert metrics.routed_gpu_fleet(lock) is None
+
+
+def test_fleet_drops_an_unused_base_on_a_non_modal_engine():
+    lock = {**ROUTED_LOCK, "engine": {"kind": "openrouter", "modal": {"gpu": "L4", "max_containers": 1}}}
+    assert metrics.lock_gpu_fleet(lock) == [("L40S", 1), ("L4", 2)]
+    assert metrics.routed_gpu_fleet(lock) == [("L40S", 1), ("L4", 2)]
 
 
 def test_fleet_cost_sums_every_app():
@@ -134,7 +143,10 @@ def test_serving_report_keeps_the_base_gpu_formula_without_routes(tmp_path, monk
 def test_serving_report_prices_modal_routes_on_an_api_base(tmp_path, monkeypatch):
     """An API base profile with Modal routes still bills the fleet, like the runner."""
     monkeypatch.delenv("MODAL_BILLED_GPU_SECONDS", raising=False)
-    store = _serving_store(tmp_path, ROUTED_LOCK, profile="openrouter")
+    # The lock keeps the default modal block on a non-Modal base; it never runs.
+    engine = {"kind": "openrouter", "model": "qwen/qwen3.5-9b", "modal": {"gpu": "L4", "max_containers": 1}}
+    store = _serving_store(tmp_path, {**ROUTED_LOCK, "engine": engine}, profile="openrouter")
     rec = metrics.serving_record_from_store(store, wall_seconds=3570.0, mock=False)
-    assert rec["estimated_gpu_cost_usd"] == pytest.approx(L4 + L40S + 2 * L4)
+    assert rec["estimated_gpu_cost_usd"] == pytest.approx(L40S + 2 * L4)
+    assert sorted((f["gpu"], f["gpus"]) for f in rec["gpu_fleet"]) == [("L4", 2), ("L40S", 1)]
     assert "run_span_usd_lower_bound" not in rec

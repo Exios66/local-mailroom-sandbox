@@ -100,8 +100,8 @@ on every replica (SAND-032), so a 2×L4 cell costs twice a 1×L4 cell at the sam
 
 **Routed runs** (per-agent Modal routes: the SAND-078 judge tier, the SAND-079 specialist
 tiers) keep every route app warm for the same window, so the serving report prices the
-locked fleet instead — the base engine plus each distinct `modal-vllm` route app in the
-lock's `agent_routes`, each billed as `gpu` count × `max_containers` (SAND-083):
+locked fleet instead — the base engine (only when it is `modal-vllm`) plus each distinct
+`modal-vllm` route app in the lock's `agent_routes`, each billed as `gpu` count × `max_containers` (SAND-083):
 
 ```
 billed_gpu_usd = billed_seconds × Σ_apps (gpus_app × gpu_usd_per_hour_app) / 3600
