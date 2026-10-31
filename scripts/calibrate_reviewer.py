@@ -2,10 +2,12 @@
 """Pick each class's decision-reviewer cutoff from a labelled reviewer run.
 
 Answers are grouped by the class the reviewer predicted, since that class's
-cutoff is the one that admits them. Each class is split in half by a seeded
-shuffle. The cutoff is the lowest confidence at which the tuning half's
-accepted answers reach the target accuracy; the other half reports what that cutoff delivers. A class that never
-reaches the target gets no cutoff, so it should not be configured as reviewed.
+cutoff is the one that admits them. The cutoff is the lowest confidence at which
+a class's accepted answers reach the target accuracy. Five seeded folds estimate
+what that rule delivers: each fold is scored with a cutoff tuned on the other
+four, so every answer is test data once. ``meets_target`` is true only when the
+interval's lower bound clears the target. A class that never reaches the target
+gets no cutoff, so it should not be configured as reviewed.
 A run that is not done, or misses any locked document, is refused. Each class also
 reports its answers at the top confidence: wrong ones there no cutoff can remove.
 """
@@ -21,6 +23,8 @@ from mailroom_sandbox.job.sand42_cards import wilson
 from mailroom_sandbox.job.spec import run_dir
 from mailroom_sandbox.overlay import live_doc_classes
 from mailroom_sandbox.paths import repo_root
+
+FOLDS = 5
 
 
 def _incomplete(store: RunStore) -> str | None:
@@ -85,6 +89,18 @@ def _cutoff(rows: list[tuple[float, bool]], target: float) -> float | None:
     return None
 
 
+def _cross_fit(rows: list[tuple[float, bool]], target: float, folds: int = FOLDS) -> tuple[int, int]:
+    """(right, accepted) over all folds, each scored with a cutoff tuned on the others."""
+    right = kept = 0
+    for fold in range(folds):
+        held = rows[fold::folds]
+        cutoff = _cutoff([row for index, row in enumerate(rows) if index % folds != fold], target)
+        if cutoff is not None:
+            fold_right, fold_kept = _accepted(held, cutoff)
+            right, kept = right + fold_right, kept + fold_kept
+    return right, kept
+
+
 def calibrate(store: RunStore, *, target: float = 0.95, seed: int = 42,
               classes: set[str] | None = None) -> dict:
     """Cutoffs from a finished run; raises ``ValueError`` on a run that misses locked documents."""
@@ -97,16 +113,16 @@ def calibrate(store: RunStore, *, target: float = 0.95, seed: int = 42,
     for name, rows in sorted(_rows(store, classes).items()):
         rows = sorted(rows)
         random.Random(seed).shuffle(rows)
-        middle = len(rows) // 2
-        tune, holdout = rows[:middle], rows[middle:]
-        cutoff = _cutoff(tune, target)
+        cutoff = _cutoff(rows, target)
         result = {"documents": len(rows), "cutoff": cutoff, **_saturation(rows)}
         if cutoff is not None:
-            right, kept = _accepted(holdout, cutoff)
-            result.update({"holdout_documents": len(holdout), "holdout_accepted": kept,
+            right, kept = _cross_fit(rows, target)
+            interval = wilson(right, kept) if kept else None
+            result.update({"holdout_documents": len(rows), "holdout_accepted": kept,
                            "holdout_accuracy": right / kept if kept else None,
-                           "holdout_accuracy_ci": wilson(right, kept) if kept else None,
-                           "holdout_share_accepted": kept / len(holdout) if holdout else None})
+                           "holdout_accuracy_ci": interval,
+                           "holdout_share_accepted": kept / len(rows) if rows else None,
+                           "meets_target": bool(interval and interval[0] >= target)})
         results[name] = result
     return {"run_id": store.run_id, "target_accuracy": target, "seed": seed, "classes": results}
 
