@@ -551,7 +551,7 @@ class JobSpec(BaseModel):
 class ReviewerSpec(BaseModel):
     """Frozen decision-model reviewer: which backend, which pinned model, which classes at what cutoff."""
     model_config = {"extra": "forbid"}
-    backend: Literal["jev", "mock"]
+    backend: Literal["jev", "local", "mock"]
     model: str = Field(min_length=1)
     classes: dict[str, float]
 
@@ -572,8 +572,8 @@ class ReviewerSpec(BaseModel):
 
         build_backend(self.backend, self.model)
         if self.backend == "jev" and "correspondence" in self.classes:
-            # Dropped when the correspondence reviewer path is supported live.
-            raise ValueError("correspondence cannot use the live jev backend yet; use mock offline")
+            # Jev is a third party; correspondence needs the sanitized corpus first (SAND-086).
+            raise ValueError("correspondence text may not go to the jev backend; use the in-house local backend")
         return self
 
 

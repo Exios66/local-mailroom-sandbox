@@ -67,6 +67,34 @@ def test_rejects_correspondence_for_live_backend():
         _spec(reviewer=_reviewer(classes={"correspondence": 0.9}))
 
 
+def test_local_backend_may_use_correspondence():
+    spec = _spec(reviewer=_reviewer(backend="local", model="Org/Second", classes={"correspondence": 0.9}))
+    assert spec.reviewer.classes == {"correspondence": 0.9}
+
+
+def _local_errors(model="Org/Second", route=None, mock=False):
+    routes = {"sorter_reviewer": route} if route else {}
+    spec = _spec(reviewer=_reviewer(backend="local", model=model, classes={"correspondence": 0.9}),
+                 agent_routes=routes, job={"mock": mock})
+    return " ".join(preflight._local_reviewer_errors(spec))
+
+
+def test_local_reviewer_needs_a_second_model():
+    assert "different model" in _local_errors(model="Qwen/Qwen3-8B", mock=True)
+
+
+def test_local_reviewer_needs_a_route_serving_its_model():
+    assert "agent_routes.sorter_reviewer" in _local_errors()
+    route = {"provider": "vllm", "model": "Org/Other", "base_url": "http://10.0.0.1:8000/v1"}
+    assert "differs from agent route" in _local_errors(route=route)
+    assert _local_errors(route={**route, "model": "Org/Second"}) == ""
+
+
+def test_local_reviewer_refuses_a_third_party_route():
+    route = {"provider": "openrouter", "model": "Org/Second"}
+    assert "third party" in _local_errors(route=route)
+
+
 def test_mock_backend_may_use_correspondence_offline():
     spec = _spec(reviewer=_reviewer(backend="mock", model="mock", classes={"correspondence": 0.9}))
     assert spec.reviewer.classes == {"correspondence": 0.9}

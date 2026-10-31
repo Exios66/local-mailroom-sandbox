@@ -6,6 +6,9 @@ llm-mailroom). The graph never builds one; the sandbox does, and registers it.
 
 * ``jev_backend`` asks Jev (TypeSafe, through Pydantic AI) two pick-one
   questions: ``doc_type`` and an optional ``doc_subclass``.
+* ``local_backend`` runs the ``sorter_reviewer`` agent on the run's own serving
+  route, so no document text leaves it. This is the only live path for
+  correspondence.
 * ``mock_backend`` answers from a fixed table, for offline runs and tests.
 
 Pydantic AI is an optional dependency (``pip install -e ".[decision]"``). It is
@@ -152,10 +155,33 @@ def jev_backend(
     return backend
 
 
+def local_backend(model: str) -> "DecisionBackend":
+    """Backend over the ``sorter_reviewer`` agent, served in-house.
+
+    ``model`` records which model answered; preflight proves the agent's route
+    serves it and that it is not the sorter's own model. Provider errors
+    propagate, so the graph's transient and failed-review handling applies.
+    """
+
+    def backend(
+        doc_text: str, doc_types: list[str], subclass_catalogs: dict[str, list[str]]
+    ) -> "DecisionAnswer":
+        from agents.sorter_reviewer import SorterReviewerAgent
+
+        picked = SorterReviewerAgent().review(
+            doc_text, valid_doc_types=doc_types, doc_subclass_catalogs=subclass_catalogs
+        )
+        return _answer(picked.get("doc_type"), picked.get("doc_subclass"), picked.get("confidence"), model)
+
+    return backend
+
+
 def build_backend(name: str, model: str) -> "DecisionBackend":
-    """Backend by name: ``jev`` (uses ``model``) or ``mock`` (empty table, all unknown)."""
+    """Backend by name: ``jev``, ``local`` (both use ``model``) or ``mock`` (empty table, all unknown)."""
     if name == "jev":
         return jev_backend(model)
+    if name == "local":
+        return local_backend(model)
     if name == "mock":
         return mock_backend({})
-    raise ValueError(f"unknown decision backend {name!r} (expected 'jev' or 'mock')")
+    raise ValueError(f"unknown decision backend {name!r} (expected 'jev', 'local' or 'mock')")

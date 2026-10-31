@@ -7,7 +7,7 @@ Cross-family work stays on the Digital-Mailroom hub board
 (`governance/TASKS.md` at the monorepo root) as **`DMR-*`**. This file is the **only** sandbox-local task board — do not
 open `DMR-*` cards here.
 
-**Next ID: `SAND-086`**
+**Next ID: `SAND-087`**
 
 <!-- coderabbit-ai-generated:v1 -->
 
@@ -30,6 +30,7 @@ Lanes: `todo` → `in_progress` → `needs_attention` → `review` → `done`.
 
 | ID | Title | Owner | Status | Notes |
 | --- | --- | --- | --- | --- |
+| SAND-086 | Sanitized correspondence corpus for the Jev reviewer | unassigned | **todo** | Private, separately versioned copy of the 1,000 Enron documents, per section 9 of the decision-reviewer design. Until it exists `jev` refuses correspondence and the in-house `local` backend is its only live reviewer. Related: SAND-085 |
 | SAND-085 | Pipeline routing matrix and sand42 experiment reporting | claude 2026-10-31 | **review** | Every compiled graph edge is walked in `tests/test_pipeline_routing_matrix.py`. Pipeline items record tokens and review causes; cards, `report.json` and `report.md` carry the sand42 contract, per-class routing and paired CIs. Whole-run jobs report real ok/error counts and fail when no answer is usable. Quality counts documents attempted. Low-confidence parks carry `sorter_low_confidence`, finished runs drop their checkpoints, and Modal jobs keep mailroom state on the run Volume. Open: no live run yet, and no clause-level gate for contracts or mergers. *Related: DMR routing fix on llm-mailroom `fix/coverage-routing-gate`* |
 | SAND-082 | Finish decision-reviewer offline proof and terminal human review | opencode | **done** | Merged as `07e1e43` (2026-10-31, PR #195); renumbered from colliding branch-local SAND-074 (main owns that ID for primary eval tasks). Original offline checkpoint: 2006 passed / 20 skipped. Integrating main and repairing the platform-dependent historical hash fixture before landing. Six fictional graph exhibits, API-backed human decisions and SQLite restart recovery. Guide: `config/experiments/decision-pilot/README.md`. Upstream decision-reviewer merge/pin finalization remains separate from live data/credential/spend approval; no paid calls performed. SAND-081 is reserved by PR #201. |
 | SAND-067 | CLI/observer audit, live campaign context and interactive operator terminal | opencode 2026-10-30 | **in_progress** | User-requested comprehensive follow-up. Checkpoint includes observer numeric/option validation, malformed beacon isolation and path validation, parser-derived local `sandbox tui` menus/completion, browser live inspector/manual navigator, log filtering/follow controls, accessibility changes, actual locked-run settings and campaign context, run-ID follow-marker support and switching log streams. Baseline as of `00dbd24` (default suite, `-m "not local_llm"`): 1849 passed / 19 skipped; SAND-066's 2244 was measured at `675989a` on PR #179; the two are separate per-commit snapshots, not one baseline. New observer regression slice: 84 passed. Installed Modal/HF CLI contracts: 2 passed / 1 billed-endpoint test skipped. No deployment or inference performed. Final full-suite, browser interaction checks and audit evidence remain in progress; not a complete/live-certified release. |
