@@ -278,7 +278,7 @@ def _create(args) -> int:
                 data['engine']['vllm'].update(max_model_len=int(row['env']['MODAL_VLLM_MAX_MODEL_LEN']), quantization=row['env']['MODAL_VLLM_QUANTIZATION'])
             if args.provider == 'modal-vllm':
                 data['engine']['modal'].update(app=f'sandbox-vllm-{args.study}-{label}', gpu=args.gpu,
-                    min_containers=0, max_containers=args.replicas or replicas)
+                    min_containers=0, max_containers=args.replicas or replicas, named_image=args.named_image)
             else:
                 data['engine']['modal'] = None
             # None = fill from the design-informed recommendation once the spec is complete.
@@ -315,6 +315,8 @@ def _create(args) -> int:
             data['reviewer'] = reviewer
             data['agent_routes'] = {name: route.model_dump() for name, route in routes.items()}
             for name, route in data['agent_routes'].items():
+                if route['provider'] == 'modal-vllm':
+                    route['modal']['named_image'] = args.named_image
                 if route['provider'] == 'modal-vllm' and route['modal']['app'].startswith('sandbox-vllm-route-'):
                     route_key = hashlib.sha256(json.dumps({'model': route['model'], 'gpu': args.gpu, 'vllm': route['vllm']}, sort_keys=True).encode()).hexdigest()[:8]
                     route['modal'].update(app=f'sandbox-vllm-{args.study}-{route_key}-{label}', gpu=args.gpu,
@@ -1002,6 +1004,8 @@ def register(sub, leaf) -> None:
     create.add_argument('--local-dataset', default=None, help='local JSONL instead of Hub (also useful for offline mock checks)')
     create.add_argument('--provider', choices=['modal-vllm', 'openrouter'], default='modal-vllm')
     create.add_argument('--gpu', default='L4', help='Modal GPU class, optionally :N for tensor parallel')
+    create.add_argument('--no-named-image', dest='named_image', action='store_false',
+                        help='build the serving image instead of reusing the published sandbox-vllm:<tag>')
     create.add_argument('--replicas', type=int, default=None, help='override cell replica count')
     create.add_argument('--concurrency', type=int, default=None)
     create.add_argument('--max-tokens', type=int, default=8192)

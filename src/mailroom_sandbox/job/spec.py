@@ -345,6 +345,8 @@ class ModalSpec(BaseModel):
     max_containers: int = 1
     min_containers: int = 0  # scale-to-zero; mirror MODAL_VLLM_MIN_CONTAINERS
     prewarm: bool = True
+    # Deploy from the workspace's published sandbox-vllm:<image_tag> instead of building.
+    named_image: bool = False
 
     @field_validator("gpu")
     @classmethod
@@ -730,7 +732,7 @@ def spec_core(spec: RunSpec) -> dict[str, Any]:
     return {
         **({"agent_models": dict(sorted(spec.agent_models.items()))} if spec.agent_models else {}),
         **({"agent_knobs": spec.agent_knobs} if spec.agent_knobs else {}),
-        **({"agent_routes": {name: route.model_dump() for name, route in spec.agent_routes.items()}} if spec.agent_routes else {}),
+        **({"agent_routes": {name: _route_core(route) for name, route in spec.agent_routes.items()}} if spec.agent_routes else {}),
         **({"reviewer": spec.reviewer.model_dump()} if spec.reviewer else {}),
         "task": spec.task,
         # Hashed only when set, so every pre-existing run YAML keeps its spec_hash.
@@ -740,7 +742,7 @@ def spec_core(spec: RunSpec) -> dict[str, Any]:
             "kind": spec.engine.kind,
             "model": spec.engine.model,
             "vllm": _vllm_core(spec.engine.vllm),
-            "modal": spec.engine.modal.model_dump() if spec.engine.modal else None,
+            "modal": _modal_core(spec.engine.modal),
         },
         # api_cost_cap_usd is hashed only when set, so pre-SAND-089 YAMLs keep their hash.
         "job": {key: value for key, value in spec.job.model_dump().items()
@@ -749,6 +751,17 @@ def spec_core(spec: RunSpec) -> dict[str, Any]:
         "prompt": prompt_resolution_map(spec),
         "dataset": spec.dataset.request_core(),
     }
+
+
+def _modal_core(modal: ModalSpec | None) -> dict[str, Any] | None:
+    """named_image is hashed only when set, so existing run YAMLs keep their hash."""
+    if modal is None:
+        return None
+    return {key: value for key, value in modal.model_dump().items() if key != "named_image" or value}
+
+
+def _route_core(route: Any) -> dict[str, Any]:
+    return {**route.model_dump(), "modal": _modal_core(route.modal)}
 
 
 def spec_hash(spec: RunSpec) -> str:

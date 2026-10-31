@@ -89,8 +89,10 @@ A named image belongs to one workspace, so publish once per Modal account
 (`MODAL_PROFILE`). `--tag TAG` publishes another tag; a deploy uses the tag in
 `MODAL_VLLM_IMAGE_TAG`. `--dry-run` shows the command without running it. Only the
 serving image is published: the job image in `deploy/modal_job.py` bundles the code.
-Run specs pin `MODAL_VLLM_USE_NAMED_IMAGE` to unset, so spec-driven deploys build the
-image and a stale shell value shows up as drift.
+`sandbox experiment create` sets `engine.modal.named_image: true` on Modal engines and
+routes, so experiments reuse the image; `--no-named-image` builds it instead. Any other
+run YAML opts in with the same field, and a stale shell value shows up as drift. If the
+workspace has no published image, the deploy fails before any GPU starts.
 
 ### Verify + point the sandbox at it
 

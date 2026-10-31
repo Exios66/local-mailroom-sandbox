@@ -100,6 +100,7 @@ def spec_env(spec: RunSpec) -> dict[str, str]:
                 "MODAL_VLLM_MAX_CONTAINERS": str(m.max_containers),
                 "MODAL_VLLM_MIN_CONTAINERS": str(m.min_containers),
                 "MODAL_VLLM_SCALEDOWN_SECONDS": str(m.scaledown_seconds),
+                "MODAL_VLLM_USE_NAMED_IMAGE": "1" if m.named_image else "",
             }
         )
     return env
