@@ -79,8 +79,9 @@ def budget_errors(lock: Mapping[str, Any]) -> list[str]:
     if missing:
         errors.append(
             f"no token price for {', '.join(missing)}: the API spend ceiling cannot be enforced. "
-            "Add the model to SANDBOX_MODEL_PRICES (job/metrics.py) or set "
-            "SANDBOX_TOKEN_PRICE_IN_PER_M / SANDBOX_TOKEN_PRICE_OUT_PER_M"
+            "Add the model to SANDBOX_MODEL_PRICES (src/mailroom_sandbox/job/metrics.py) or set both "
+            "SANDBOX_TOKEN_PRICE_IN_PER_M and SANDBOX_TOKEN_PRICE_OUT_PER_M "
+            "(a missing side is priced at 0 and its tokens are not counted)"
         )
     cap = (lock.get("job") or {}).get("api_cost_cap_usd")
     if not isinstance(cap, (int, float)) or isinstance(cap, bool) or not math.isfinite(cap) or cap <= 0:
@@ -136,3 +137,16 @@ def budget_for(lock: Mapping[str, Any], items: Iterable[Mapping[str, Any]] = ())
     for item in items:
         budget.add_usage(item)
     return budget
+
+
+def spend_estimate(lock: Mapping[str, Any], items: Iterable[Mapping[str, Any]]) -> dict[str, Any] | None:
+    """Estimated API token spend of persisted items at the run's price bound (None: no priced API model)."""
+    models = api_models(lock)
+    if not models or unpriced(models):
+        return None
+    price_in, price_out = price_bound(models)
+    budget = ApiBudget(float("inf"), price_in, price_out, models)
+    for item in items:
+        budget.add_usage(item)
+    return {"est_api_usd": round(budget.spent_usd, 6), "usd_per_million_tokens": [price_in, price_out],
+            "models": models, "basis": "observed tokens at the highest API model price"}

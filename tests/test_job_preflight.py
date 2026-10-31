@@ -36,14 +36,16 @@ def _run_spec(tmp_path, *, rows=2, limit=2, run_id="pf-1") -> RunSpec:
     )
 
 
-@pytest.mark.parametrize(("concurrency", "max_inputs", "ok"), [(6, 0, False), (1, 0, True), (6, 6, True)])
-def test_preflight_refuses_concurrency_modal_would_serialize(tmp_path, job_data_dir, concurrency, max_inputs, ok):
+@pytest.mark.parametrize(("concurrency", "max_inputs", "mock", "ok"),
+                         [(6, 0, False, False), (1, 0, False, True), (6, 6, False, True), (6, 0, True, True)])
+def test_preflight_refuses_concurrency_modal_would_serialize(tmp_path, job_data_dir, concurrency, max_inputs, mock, ok):
     from mailroom_sandbox.job.spec import EngineSpec, ModalSpec
 
-    spec = _run_spec(tmp_path, run_id=f"pf-serial-{concurrency}-{max_inputs}")
+    spec = _run_spec(tmp_path, run_id=f"pf-serial-{concurrency}-{max_inputs}-{mock}")
     spec.engine = EngineSpec(kind="modal-vllm", modal=ModalSpec(app="sandbox-vllm"))
     spec.engine.vllm.max_inputs = max_inputs
     spec.job.concurrency = concurrency
+    spec.job.mock = mock  # a mock run calls no vLLM endpoint, so it is not refused
     report = preflight.preflight(spec, offline=True)
     assert (report["status"] == "prepared") is ok
     assert ok or "max_inputs" in json.dumps(report)

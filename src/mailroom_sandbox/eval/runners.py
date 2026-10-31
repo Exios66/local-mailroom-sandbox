@@ -242,6 +242,8 @@ def run_isolated_eval(
             usage = usage_from_pipeline()
         except Exception as exc:  # noqa: BLE001 — recorded as an item error, never a silent mock
             error = f"{type(exc).__name__}: {str(exc)[:300]}"
+            # SAND-089: a call made before the failure was still billed; keep its tokens.
+            usage = usage_from_pipeline()
         entry: dict[str, Any] = {
             "id": row.get("id"),
             "pred": pred,
@@ -1016,7 +1018,13 @@ def run_pipeline_eval(
                 models.update(activation.agent_models)
                 nodes.enter_context(track_nodes(str(row.get("id")), node_cb, models=models))
             usage_capture.reset_usage()
-            result = _run_pipeline_doc(row, mock=mock, session_id=session, experiment_name=experiment_name)
+            try:
+                result = _run_pipeline_doc(row, mock=mock, session_id=session, experiment_name=experiment_name)
+            except Exception:
+                # SAND-089: calls made before the failure were billed; count them before the run stops.
+                if api_budget is not None:
+                    api_budget.add_usage(usage_capture.usage_from_pipeline())
+                raise
         doc_usage = usage_capture.usage_from_pipeline()
         if api_budget is not None:
             api_budget.add_usage(doc_usage)

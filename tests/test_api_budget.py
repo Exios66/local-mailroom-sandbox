@@ -16,6 +16,12 @@ def _lock(**overrides):
     return lock
 
 
+@pytest.fixture(autouse=True)
+def _no_price_override(monkeypatch):
+    monkeypatch.delenv("SANDBOX_TOKEN_PRICE_IN_PER_M", raising=False)
+    monkeypatch.delenv("SANDBOX_TOKEN_PRICE_OUT_PER_M", raising=False)
+
+
 def test_the_openrouter_default_model_has_a_price():
     assert token_price("qwen/qwen3.5-9b") == (0.17, 0.25)
 
@@ -120,3 +126,30 @@ def test_compare_warns_when_a_ceiling_is_below_its_recommendation():
     warnings = " ".join(budget_advice.compare(spec))
     assert "max_wall_seconds=600 is below the recommended 3000" in warnings
     assert "api_cost_cap_usd=0.05 is below the recommended 0.15" in warnings
+
+
+def test_an_isolated_document_that_fails_after_a_paid_call_still_counts_its_tokens(monkeypatch):
+    from mailroom_sandbox.eval import runners
+
+    def predict(spec, row, *, mock):
+        from pipeline import limits
+
+        limits.record_usage({"input_tokens": 600_000, "output_tokens": 1}, agent="judge")
+        raise RuntimeError("scoring blew up after the call")
+
+    monkeypatch.setattr(runners, "_predict_spec", predict)
+    budget = api_budget.ApiBudget(0.10, 0.17, 0.25, ["qwen/qwen3.5-9b"])
+    rows = [{"id": str(i), "doc_text": "x", "expected": "contract"} for i in range(3)]
+    with pytest.raises(RuntimeError, match="api_cost_cap_usd=0.1 reached"):
+        runners.run_isolated_eval("judge", profile="ollama", rows=rows, mock=False, api_budget=budget, concurrency=1)
+    assert budget.spent_usd == pytest.approx(0.102, abs=1e-3)
+
+
+def test_reports_estimate_api_spend_apart_from_gpu_cost():
+    from mailroom_sandbox.job.spend import bills_gpu
+
+    lock = _lock()
+    assert not bills_gpu(lock)  # the report drops its GPU cost
+    estimate = api_budget.spend_estimate(lock, [{"prompt_tokens": 1_000_000, "completion_tokens": 1_000_000}])
+    assert estimate["est_api_usd"] == pytest.approx(0.42) and estimate["models"] == ["qwen/qwen3.5-9b"]
+    assert api_budget.spend_estimate({"engine": {"kind": "modal-vllm", "model": "m"}}, []) is None

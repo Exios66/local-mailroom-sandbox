@@ -71,7 +71,7 @@ confidence is the model's own and is uncalibrated, so tune them first.
 it on this deployment. `config/runs/reviewer-probe-gemma4.yaml` must pass first
 (`scripts/calibrate_reviewer.py --run reviewer-probe-gemma4 --probe`: a
 finished run with every locked document answered, 9 of 10 answers naming a
-live class with a confidence, under 10 s per document). Then
+live class with a confidence, and a mean of at most 10 s per document). Then
 `config/runs/reviewer-calibration-gemma4.yaml` runs one L4 over 40 train
 documents per class, capped at $1, and
 `scripts/calibrate_reviewer.py --run reviewer-calibration-gemma4` picks each

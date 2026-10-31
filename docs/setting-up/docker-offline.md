@@ -43,8 +43,12 @@ store. Change the volume's owner once:
 
 ```bash
 docker compose -f deploy/docker-compose.yml --profile langfuse stop minio
-docker volume ls --filter name=minio_data   # e.g. mailroom-sandbox_minio_data
-docker run --rm -v mailroom-sandbox_minio_data:/data alpine chown -R 65532:65532 /data
+volume=$(docker volume ls -q --filter name=minio_data)   # e.g. mailroom-sandbox_minio_data
+if [ "$(printf '%s\n' "$volume" | grep -c .)" -eq 1 ]; then
+  docker run --rm -v "$volume":/data alpine chown -R 65532:65532 /data
+else
+  echo "expected exactly one minio_data volume, found: ${volume:-none}"   # chown it by name
+fi
 docker compose -f deploy/docker-compose.yml --profile langfuse up -d minio
 ```
 
