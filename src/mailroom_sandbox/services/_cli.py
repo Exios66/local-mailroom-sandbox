@@ -2,17 +2,20 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import shlex
 import sys
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from mailroom_sandbox.services._redact import redact_urls
+
 
 def format_command(argv: Sequence[str], env: Mapping[str, str] | None = None) -> str:
     """The exact command line a person could paste: ``KEY=value … tool arg …``."""
     prefix = [f"{key}={shlex.quote(str(value))}" for key, value in (env or {}).items()]
-    return " ".join([*prefix, *(shlex.quote(part) for part in argv)])
+    return redact_urls(" ".join([*prefix, *(shlex.quote(part) for part in argv)]))
 
 
 def print_plan(argv: Sequence[str], env: Mapping[str, str] | None = None, *, cwd: str | None = None) -> None:
@@ -23,7 +26,14 @@ def print_plan(argv: Sequence[str], env: Mapping[str, str] | None = None, *, cwd
 
 
 def print_json(payload: Any) -> None:
-    print(json.dumps(payload, indent=2, sort_keys=True))
+    print(redact_urls(json.dumps(payload, indent=2, sort_keys=True)))
+
+
+def nonempty(value: str) -> str:
+    """Parser type: an empty ``--app "$UNSET"`` must fail, not fall back to the default target."""
+    if not value.strip():
+        raise argparse.ArgumentTypeError("value is empty; omit the flag to use the default")
+    return value.strip()
 
 
 def warn(message: str) -> None:

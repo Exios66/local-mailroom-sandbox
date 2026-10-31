@@ -109,11 +109,13 @@ def run_shell(default_args: list[str] | None = None) -> int:
         readline.set_auto_history(False)
     history: list[str] = []
     menu: list[str] | None = None
+    prefill = ""
     print("THE MAILROOM · local command terminal\nTab completes · ↑/↓ history · Ctrl+C interrupt · Ctrl+D exit\nmenu [command] · help [command] · history · clear · exit\nExisting CLI spend/initials gates still apply. No persistent command history.")
     try:
         while True:
             try:
-                line = input("mailroom> ").strip()
+                pending, prefill = prefill, ""
+                line = (pending + input("mailroom> " + pending)).strip()
                 if not line:
                     continue
                 argv = shlex.split(line)
@@ -156,7 +158,11 @@ def run_shell(default_args: list[str] | None = None) -> int:
                             print(f"error: select 1-{len(node['targets'])} from the menu")  # nosec B608 - menu text, not SQL
                             continue
                         command = node["targets"][index][1] + " "
-                        if readline:
+                        if readline and "libedit" in (readline.__doc__ or ""):
+                            # libedit never fires the startup hook under input().
+                            # The text joins the prompt; Ctrl+C discards it.
+                            prefill = command
+                        elif readline:
                             # Prefill the next prompt; nothing runs until Enter.
                             readline.set_startup_hook(lambda text=command: (readline.insert_text(text), readline.set_startup_hook(None)))
                         else:

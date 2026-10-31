@@ -380,6 +380,12 @@ def preflight(
 
     load_env_file()
     run_id = run_id or resolve_run_id(spec)
+    if dry_run:
+        # Read-only: no run directory and no lock files for a dry run.
+        if not run_dir(run_id).exists():
+            return {"run_id": run_id, "status": "prepared", "checks": []}
+        return _preflight(spec, run_id=run_id, config_path=config_path,
+                          offline=offline, force=force, dry_run=True, live=live)
     store = RunStore(run_dir(run_id))
     try:
         with store.acquire(blocking=False), store.control():

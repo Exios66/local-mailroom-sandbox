@@ -137,3 +137,188 @@ def test_legalbench_run_spec_is_rejected():
     assert 'legalbench' not in known_tasks()
     with pytest.raises(ValueError, match='unknown task'):
         RunSpec(run_id='x', task='legalbench')
+
+
+# --- SAND-068: spend and safety gates -----------------------------------------------------
+
+
+SECRET_URL = 'https://operator:s3cret@endpoint.example/v1?token=tok3n'
+
+
+def _assert_no_secret(capsys):
+    captured = capsys.readouterr()
+    text = captured.out + captured.err
+    assert 's3cret' not in text and 'tok3n' not in text
+    return text
+
+
+def _locked_run(tmp_path, run_id, *, mock, mode='endpoint'):
+    """A really prepared run store; the runner and the Modal worker stay stubbed."""
+    from mailroom_sandbox.job.preflight import preflight
+    from mailroom_sandbox.job.spec import RunSpec
+
+    source = tmp_path / 'input.jsonl'
+    source.write_text('{"id":"d0","doc_text":"hello"}\n', encoding='utf-8')
+    spec = RunSpec(
+        run_id=run_id,
+        dataset={'provider': 'file', 'local_path': str(source)},
+        engine={'kind': 'vllm-local', 'modal': None},
+        job={'mock': mock, 'mode': mode, 'cost_cap_usd': 1.0, 'max_wall_seconds': 60},
+        trace={'sink': 'none'},
+    )
+    assert preflight(spec, offline=True)['status'] == 'prepared'
+
+
+def _no_execution(monkeypatch):
+    def forbidden(*args, **kwargs):
+        raise AssertionError('reached execution')
+
+    monkeypatch.setattr(cli, '_run_endpoint', forbidden)
+    monkeypatch.setattr('mailroom_sandbox.job.spend.authorize', forbidden)
+    monkeypatch.setattr('mailroom_sandbox.job.remote.ensure_running', forbidden)
+
+
+@pytest.mark.parametrize('argv', [
+    ['modal', 'stop', '--app', ''], ['modal', 'stop', '--app', '  ', '--dry-run'],
+    ['modal', 'logs', '--app', ''], ['hf', 'download', ''], ['hf', 'download', '--revision', ''],
+    ['hf', 'download', '--local-dir', ' '],
+])
+def test_empty_targets_never_fall_back_to_the_default(argv):
+    with pytest.raises(SystemExit) as exc:
+        cli.build_parser().parse_args(argv)
+    assert exc.value.code == 2
+
+
+@pytest.mark.parametrize('rest', [
+    ['--dry-run'], ['--', '--max-num-seqs', '2', '--dry-run'], ['--dry-run', '--', '--max-num-seqs', '2'],
+])
+def test_vllm_serve_dry_run_never_starts_a_server(rest, monkeypatch, capsys):
+    from mailroom_sandbox.services import vllm_cli
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError('started vllm serve')
+
+    monkeypatch.setattr(vllm_cli, 'stream_tool', forbidden)
+    monkeypatch.setattr(vllm_cli, '_serve_argv', lambda args: (['vllm', 'serve'], {}, None))
+    assert cli.main(['vllm', 'serve', *rest]) == 0
+    out = capsys.readouterr().out
+    assert 'nothing started' in out and '--dry-run' not in out.splitlines()[0]
+
+
+def test_run_start_refuses_a_cap_the_modal_worker_would_ignore(tmp_path, monkeypatch, job_data_dir):
+    import yaml
+
+    config = tmp_path / 'run.yaml'
+    config.write_text(yaml.safe_dump({
+        'run_id': 'modal-cap', 'dataset': {'provider': 'file', 'local_path': str(tmp_path / 'x.jsonl')},
+        'engine': {'kind': 'vllm-local', 'modal': None}, 'job': {'mode': 'modal'}, 'trace': {'sink': 'none'},
+    }), encoding='utf-8')
+    monkeypatch.setattr('mailroom_sandbox.job.preflight.preflight', lambda *a, **k: pytest.fail('preflight ran'))
+    assert cli.main(['run', 'start', '--config', str(config), '--max-items', '5']) == 2
+    with pytest.raises(pytest.fail.Exception):
+        cli.main(['run', 'start', '--config', str(config)])  # the cap was the only refusal
+
+
+@pytest.mark.parametrize(('flags', 'mock', 'mode', 'code'), [
+    (['--mock'], False, 'endpoint', 3),
+    (['--local'], True, 'endpoint', 3),
+    (['--job-mode', 'modal'], False, 'endpoint', 3),
+    (['--job-mode', 'endpoint'], False, 'modal', 3),
+    (['--live'], False, 'endpoint', 2),
+    (['--max-items', '5'], False, 'modal', 2),
+])
+def test_run_resume_refuses_flags_it_cannot_honour(flags, mock, mode, code, tmp_path, monkeypatch, job_data_dir, capsys):
+    _locked_run(tmp_path, 'resume-refused', mock=mock, mode=mode)
+    _no_execution(monkeypatch)
+    assert cli.main(['run', 'resume', '--run-id', 'resume-refused', *flags]) == code
+    if code == 3:
+        assert 'drift_refused' in capsys.readouterr().out
+
+
+def test_run_resume_accepts_flags_matching_the_lock(tmp_path, monkeypatch, job_data_dir):
+    _locked_run(tmp_path, 'resume-same', mock=True)
+    monkeypatch.setattr(cli, '_run_endpoint', lambda store, args: {'state': 'done'})
+    monkeypatch.setattr('mailroom_sandbox.job.spend.authorize', lambda *a, **k: None)
+    assert cli.main(['run', 'resume', '--run-id', 'resume-same', '--mock', '--job-mode', 'endpoint', '--max-items', '1']) == 0
+
+
+@pytest.mark.parametrize(('pinned', 'flag', 'expected', 'ok'), [
+    (None, 'custom', 'custom', True),  # used to check nothing at all
+    ('custom', 'custom', 'custom', True),
+    ('pinned', 'other', None, False),  # a conflict must block, not silently check the pin
+])
+def test_benchmark_check_enforces_the_requested_modal_profile(pinned, flag, expected, ok, monkeypatch):
+    from types import SimpleNamespace
+
+    seen = {}
+
+    def posture(*, expected_modal_profile, **kwargs):
+        seen['expected'] = expected_modal_profile
+        return {'ok': True, 'errors': [], 'warnings': []}
+
+    suite = SimpleNamespace(suite_id='s', track='a', configs=['c.yaml'], modal_profile_env='',
+                            resolve_modal_profile=lambda: pinned)
+    monkeypatch.setattr('mailroom_sandbox.job.suite.load_suite', lambda name: suite)
+    monkeypatch.setattr('mailroom_sandbox.job.spec.load_run_spec', lambda cfg: SimpleNamespace(run_id='r'))
+    monkeypatch.setattr('mailroom_sandbox.job.benchmark_check.check_benchmark_posture', posture)
+    rc = cli.main(['run', 'benchmark-check', '--suite', 's', '--modal-profile', flag])
+    assert rc == (0 if ok else 1)
+    assert seen.get('expected') == expected
+
+
+def test_health_never_prints_endpoint_credentials(monkeypatch, capsys):
+    from types import SimpleNamespace
+
+    monkeypatch.setattr('mailroom_sandbox.health.health_check', lambda profile: {'ok': True, 'base_url': SECRET_URL})
+    monkeypatch.setattr('mailroom_sandbox.health.missing_modal_endpoint', lambda profile: False)
+    monkeypatch.setattr('mailroom_sandbox.health.probe_models', lambda *a, **k: SimpleNamespace(as_dict=lambda: {'detail': SECRET_URL}))
+    assert cli.main(['health', '--profile', 'ollama']) == 0
+    assert 'endpoint.example' in _assert_no_secret(capsys)
+
+
+@pytest.mark.parametrize('flags', [[], ['--json']])
+def test_modal_url_never_prints_endpoint_credentials(flags, monkeypatch, capsys):
+    monkeypatch.setenv('VLLM_BASE_URL', SECRET_URL)
+    assert cli.main(['modal', 'url', *flags]) == 0
+    assert 'endpoint.example' in _assert_no_secret(capsys)
+
+
+@pytest.mark.parametrize('flags', [[], ['--json']])
+def test_vllm_probe_never_prints_endpoint_credentials(flags, monkeypatch, capsys):
+    from mailroom_sandbox import health
+    from mailroom_sandbox.services import vllm_cli
+
+    failed = health.ProbeResult(False, 'models', SECRET_URL, f'ConnectError: {SECRET_URL}')
+    monkeypatch.setattr(vllm_cli, '_endpoint', lambda name: ({'name': 'modal-vllm'}, SECRET_URL))
+    monkeypatch.setattr(vllm_cli, '_get', lambda url, headers: {'ok': False, 'url': url, 'detail': url})
+    monkeypatch.setattr(health, '_headers', lambda profile: {})
+    monkeypatch.setattr(health, 'probe_models', lambda profile: failed)
+    monkeypatch.setattr('mailroom_sandbox.providers.endpoints_for', lambda *a, **k: type('E', (), {'chat_url': SECRET_URL}))
+    assert cli.main(['vllm', 'probe', *flags]) == 1
+    _assert_no_secret(capsys)
+
+
+def test_uncaught_service_errors_never_print_endpoint_credentials(monkeypatch, capsys):
+    from mailroom_sandbox.services import vllm_cli
+
+    def fail(name):
+        raise vllm_cli.ServiceError(f'cannot reach {SECRET_URL}')
+
+    monkeypatch.setattr(vllm_cli, '_endpoint', fail)
+    assert cli.main(['vllm', 'probe']) == 1
+    _assert_no_secret(capsys)
+
+
+@pytest.mark.parametrize('command', ['preflight', 'start'])
+def test_dry_run_creates_no_run_directory(command, tmp_path, job_data_dir):
+    import yaml
+
+    from mailroom_sandbox.job.spec import run_dir
+
+    config = tmp_path / 'run.yaml'
+    config.write_text(yaml.safe_dump({
+        'run_id': 'dry-only', 'dataset': {'provider': 'file', 'local_path': str(tmp_path / 'x.jsonl')},
+        'engine': {'kind': 'vllm-local', 'modal': None}, 'trace': {'sink': 'none'},
+    }), encoding='utf-8')
+    assert cli.main(['run', command, '--config', str(config), '--dry-run']) == 0
+    assert not run_dir('dry-only').exists()
