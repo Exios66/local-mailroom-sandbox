@@ -7,9 +7,10 @@ preflight → launch → report`` on the pinned dataset, then checks the reports
 
 * every run completes with every document successful;
 * paired cells share identical dataset bytes;
-* the mock oracle (``mock_llm.oracle_extraction``) scores 1.0 on every
-  specialist run, so the Dojo scorers still receive ground truth and
-  predictions in the shape they read.
+* the mock oracle (``mock_llm.oracle_extraction``) scores an extraction
+  headline of 1.0 on every run, and the pipeline classifies every document
+  correctly, so the Dojo scorers still receive ground truth and predictions in
+  the shape they read. Pipeline stage is reported, not gated (see SAND-081).
 
 Run stores go to a temporary ``MAILROOM_BASE_DIR`` (``--keep DIR`` keeps them);
 the dataset is read from the ``sandbox datasets pull`` cache, or ``--local-dataset``.
@@ -57,9 +58,11 @@ def _check(name: str, report: dict) -> list[str]:
     for run in report.get("runs", []):
         means = run.get("stored_score_means") or {}
         headline = means.get("overall_extraction_score")
-        if name != "pipeline" and (headline is None or headline < 0.999):
-            problems.append(f"{run['run_id']}: oracle headline {headline} (expected 1.0)")
-        if name == "pipeline" and means.get("class_correct", 0) < 0.999:
+        if headline is None or headline < 0.999:
+            problems.append(f"{run['run_id']}: oracle extraction headline {headline} (expected 1.0)")
+        # Pipeline stage is not gated: llm-mailroom's extraction coverage check parks
+        # every contract and merger agreement at review even for a perfect answer (SAND-081).
+        if name == "pipeline" and (means.get("class_correct") or 0) < 0.999:
             problems.append(f"{run['run_id']}: class_correct {means.get('class_correct')} (expected 1.0)")
     return problems
 

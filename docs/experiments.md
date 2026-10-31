@@ -227,7 +227,10 @@ python scripts/smoke_campaign.py      # about a minute; no provider, deploy or s
 The script runs three mock campaigns through create, preflight, launch and report:
 the five specialists, the paired `sand42` grid (contracts and mergers) and the full
 connected pipeline. It fails unless every run completes, paired cells share dataset
-bytes, and every specialist run scores 1.0. A mock specialist answers with the
+bytes, every run's extraction headline is 1.0 and the pipeline classifies every
+document correctly. Pipeline stage is reported but not gated: llm-mailroom's
+extraction coverage check currently sends every contract and merger agreement to
+review even for a perfect answer (SAND-081). A mock specialist answers with the
 row's ground truth rewritten into the specialist's output schema
 (`mock_llm.oracle_extraction`): CUAD spans become `cuad_clauses`, MAUD labels
 become `maud_clauses`, JSON-string lists become lists, and ground-truth-only keys
