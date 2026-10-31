@@ -105,21 +105,24 @@ def run_shell(default_args: list[str] | None = None) -> int:
         import readline
     except ImportError:
         readline = None
+    libedit = bool(readline) and "libedit" in (readline.__doc__ or "")
     old_completer = readline.get_completer() if readline else None
     if readline:
         def complete(text, state):
             matches = completions(readline.get_line_buffer(), catalog)
             return matches[state] if state < len(matches) else None
         readline.set_completer(complete)
-        readline.parse_and_bind("bind ^I rl_complete" if "libedit" in (readline.__doc__ or "") else "tab: complete")
+        readline.parse_and_bind("bind ^I rl_complete" if libedit else "tab: complete")
         readline.set_auto_history(False)
     history: list[str] = []
     menu: list[str] | None = None
+    prefill = ""
     print("THE MAILROOM · local command terminal\nTab completes · ↑/↓ history · Ctrl+C interrupt · Ctrl+D exit\nmenu [command] · help [command] · history · clear · exit\nExisting CLI spend/initials gates still apply. No persistent command history.")
     try:
         while True:
             try:
-                line = input("mailroom> ").strip()
+                pending, prefill = prefill, ""
+                line = (pending + input(f"mailroom> {pending}")).strip()
                 if not line:
                     continue
                 argv = shlex.split(line)
@@ -162,7 +165,10 @@ def run_shell(default_args: list[str] | None = None) -> int:
                             print(f"error: select 1-{len(node['targets'])} from the menu")  # nosec B608 - menu text, not SQL
                             continue
                         command = node["targets"][index][1] + " "
-                        if readline:
+                        if libedit:
+                            # libedit drops text inserted from readline hooks.
+                            prefill = command
+                        elif readline:
                             # Prefill the next prompt; nothing runs until Enter.
                             readline.set_startup_hook(lambda text=command: (readline.insert_text(text), readline.set_startup_hook(None)))
                         else:
