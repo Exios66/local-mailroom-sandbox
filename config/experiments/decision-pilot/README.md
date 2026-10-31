@@ -55,7 +55,7 @@ Use HTTPS for a remote API; HTTP is intended for a trusted loopback connection.
 ## Remaining release and live gates
 
 The current generated vendor snapshot is pinned to standalone decision-reviewer
-commit `40cd75c9391ecfc4e891aacf1a9665edd3b0d028`. It is an interim branch
+commit `b1ff69289a7cf33f9d4e93c680187bd56ca3ab7b`. It is an interim branch
 snapshot, not a merged release. Upstream merge/push requires explicit approval.
 
 No live `experiment.yaml` is staged and no paid pilot has run. Before creating

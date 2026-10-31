@@ -199,6 +199,7 @@ def run_job(payload: dict) -> dict:
     import traceback
 
     from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.deploy_env import durable_mailroom_env
     from mailroom_sandbox.job.remote import generation_fields
     from mailroom_sandbox.job.otel import configure_tracing, flush_tracer, resolve_sink
     from mailroom_sandbox.job.runner import run_job as run_local_job
@@ -222,6 +223,7 @@ def run_job(payload: dict) -> dict:
         raise RuntimeError("invalid worker run ID")
     store = RunStore(Path(RUNS_MOUNT) / run_path)
     lock = store.verify_generation()
+    os.environ.update(durable_mailroom_env(store.dir))
     identity = generation_fields(lock)
     if expected is not None and any(payload.get(k) != v for k, v in identity.items()):
         raise RuntimeError("worker generation differs from dispatch expectation")

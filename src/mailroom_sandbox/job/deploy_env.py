@@ -10,6 +10,7 @@ ever rendered (the API token and HF token stay out of this module).
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Mapping
 
 from mailroom_sandbox.job.runbooks import _shell_quote
@@ -117,3 +118,12 @@ def render_exports(spec: RunSpec) -> str:
         # "" means deploy default: unset it (an exported "" breaks int() knobs).
         lines.append(f"unset {key}" if val == "" else f"export {key}={_shell_quote(val)}")
     return "\n".join(lines) + "\n"
+
+
+def durable_mailroom_env(run_dir: Path) -> dict[str, str]:
+    """Keep a remote run's bins, catalog and review checkpoints on the run's Volume.
+
+    The mailroom defaults to ``./data``, which dies with a Modal container, and
+    a parked document is only reviewable while those files exist.
+    """
+    return {"MAILROOM_BASE_DIR": str(run_dir / "mailroom")}

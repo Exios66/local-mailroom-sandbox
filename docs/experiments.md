@@ -215,11 +215,11 @@ same summary under `runs[].sand42`.
 Full-pipeline items store per-document `class_correct`, `stage_correct`, the extraction scores,
 tokens and the review outcome (`review_causes`, `review_verdict`, `escalation_reason`,
 `reviewer_doc_type`, `reviewer_confidence`). `## Pipeline routing` shows stages, review rate and
-accuracy for the run and each class, then the review causes. A document parked by a low-confidence
-sorter has a reason but no cause token and is counted as `no_cause_recorded`. A pipeline run mixes
+accuracy for the run and each class, then the review causes. A pipeline run mixes
 classes, so it meets its SLO only when every class meets its own. Incomplete
 runs stay visibly incomplete. Native dated quality/serving artifacts remain under
-`reports/`; the workflow never invents scores for missing documents. Re-running
+`reports/`; a Modal job keeps its bins, catalog and review checkpoints on the `sandbox-runs` Volume
+under `<run>/mailroom`. The workflow never invents scores for missing documents. Re-running
 launch rechecks locked configurations and skips completed jobs. A failed smoke
 must be investigated and safely reset with the existing run lifecycle before retry.
 

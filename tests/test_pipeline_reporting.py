@@ -108,6 +108,25 @@ def test_pipeline_doc_result_keeps_the_review_outcome(tmp_path, monkeypatch):
     assert {key: result[key] for key in outcome} == outcome
 
 
+def test_low_confidence_park_is_attributed(tmp_path, monkeypatch):
+    import graph.build_graph as bg
+    from mailroom_sandbox.eval import runners
+    from mailroom_sandbox.runtime import activate
+
+    monkeypatch.setattr("mailroom_sandbox.runtime._load_dotenv", lambda: None)
+    monkeypatch.setenv("MAILROOM_BASE_DIR", str(tmp_path))
+    monkeypatch.setenv("DATABASE_URL", f"sqlite+aiosqlite:///{tmp_path / 'catalog.db'}")
+    monkeypatch.setenv("OBSERVABILITY_PROVIDER", "none")
+    activate("ollama", load_env_file=False)
+    bg.reset_compiled_graph()
+    row = {"id": "memo", "doc_text": "Internal memo about the office move.", "expected_doc_class": "correspondence"}
+    try:
+        result = runners._run_pipeline_doc(row, mock=True)
+    finally:
+        bg.reset_compiled_graph()
+    assert result["review_causes"] == ["sorter_low_confidence"]
+
+
 def test_parked_document_reports_the_cause_the_manifest_holds(tmp_path, monkeypatch):
     """A parked run returns pre-interrupt state; the real graph proves the cause still arrives."""
     import graph.build_graph as bg
@@ -137,3 +156,9 @@ def test_a_failed_document_counts_against_quality_and_pairing():
     quality = sand42_cards._summary("r", arm, "specialist")["quality"]
     assert (quality["mean"], quality["scored_documents"], quality["attempted_documents"]) == (0.5, 1, 2)
     assert sand42_cards.paired_delta(arm, other)["delta_mean"] == 0.5
+
+
+def test_remote_mailroom_state_lives_on_the_run_volume(tmp_path):
+    from mailroom_sandbox.job.deploy_env import durable_mailroom_env
+
+    assert durable_mailroom_env(tmp_path) == {"MAILROOM_BASE_DIR": str(tmp_path / "mailroom")}
