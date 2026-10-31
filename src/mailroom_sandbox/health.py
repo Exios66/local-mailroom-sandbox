@@ -86,7 +86,10 @@ def probe_models(profile: dict, *, timeout: float = 3.0, expect_json: bool = Tru
 
 
 def explain_modal_timeout(profile: dict, result: ProbeResult) -> bool:
-    """Say why a Modal endpoint timed out; True when containers are up (booting or hung), not proof of startup.
+    """Say why a Modal endpoint timed out; True when the app status explains it, not proof of startup or health.
+
+    True covers a deployed app with containers up (booting or hung) and one with no
+    container yet (queued for a GPU or starting). False leaves the timeout a failure.
 
     A request to a scale-to-zero app waits on a GPU, so a timeout alone reads like an
     outage. The app listing answers without touching the endpoint. ``result.detail`` keeps
