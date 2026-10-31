@@ -69,7 +69,11 @@ engine:
   model: Qwen/Qwen3-8B
   vllm: {max_model_len: 16384, gpu_memory_utilization: 0.90,
          max_num_seqs: 6, enable_prefix_caching: true, enforce_eager: true,
-         quantization: "", revision: ""}
+         quantization: "", revision: "", max_inputs: 4}
+  # max_inputs: requests one Modal container admits at once (@modal.concurrent).
+  # Default 0 serves one request at a time; preflight refuses a live modal-vllm
+  # run with job.concurrency > 1 and max_inputs 0, since the GPU bills while
+  # the other requests queue. Mock runs are not checked.
   # DMR-056: 16384 default — L4-bf16 8B-class rows cannot hold 32768 (v0.29.0
   # raises at boot when the KV pool can't fit one request); AWQ rows set 32768.
   modal: {app: sandbox-vllm, gpu: L4, image_tag: v0.29.0,

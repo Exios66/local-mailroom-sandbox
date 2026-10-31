@@ -854,8 +854,13 @@ def _write_report(path: Path, plan: Plan, runs) -> dict:
         # A run stopped before its first document has nothing to measure.
         card = collect_card(store, wall_seconds=infer_wall_seconds_from_store(store)) if store.load_items() else None
         summary['sand42'] = sand42_summary(spec.run_id, card, spec.task)
-        if spec.job.mock:
-            summary['sand42']['cost'] = {}  # no GPU was billed
+        lock = store.read_lock() or {}
+        from mailroom_sandbox.job.api_budget import spend_estimate
+        from mailroom_sandbox.job.spend import bills_gpu
+        if spec.job.mock or not bills_gpu(lock):
+            summary['sand42']['cost'] = {}  # no GPU was billed (mock, or API-only)
+        if not spec.job.mock and (api_spend := spend_estimate(lock, store.load_items())):
+            summary['sand42']['api_cost'] = api_spend  # SAND-089: token spend, reported apart from GPU
         if card:
             cards[spec.run_id] = card
             (path.parent / 'cards').mkdir(exist_ok=True)

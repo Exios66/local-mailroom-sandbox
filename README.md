@@ -406,7 +406,11 @@ so you pay only for warm GPU-minutes on your own Modal account (L4 ≈ $0.80/hr)
 A Modal pipeline experiment also deploys the judge's L40S app (≈ $1.95/hr), and
 `--specialist-tier mid` adds an `L4:2` app. Each run's cost cap prices every
 app it keeps warm, and `sandbox experiment launch` asks for your initials
-before it spends.
+before it spends. Every paid run needs `job.max_wall_seconds`; a run that warms a
+Modal GPU also needs `job.cost_cap_usd`, and a run that sends any agent to
+OpenRouter needs `job.api_cost_cap_usd` and a known token price for each API
+model. The GPU cap does not limit OpenRouter spend. `sandbox experiment create`
+recommends all three from the design.
 The offline opt-out (`--profile ollama`) costs nothing; OpenRouter is opt-in,
 and the `api-evals/` harness is the real-spend API path, kept outside the package.
 

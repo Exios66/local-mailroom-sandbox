@@ -45,7 +45,7 @@ GPUs within each container, while `--replicas 2` means independent containers.
 `--cost-cap-usd` (GPU), `--max-wall-seconds` (the wall ceiling after which the run
 aborts and its fleet is torn down) and `--api-cost-cap-usd` (OpenRouter token
 spend) are optional. Create fills each unset ceiling with a recommendation derived
-from the design (`job/budget_advice.py`): documents, effective concurrency (at most
+from the design (`src/mailroom_sandbox/job/budget_advice.py`): documents, effective concurrency (at most
 4 in flight per Modal replica), the task's per-document latency band, cold start
 and scaledown, the GPU rate of every Modal app the run deploys, and the token price
 and calls per document of every API model, with a 1.5× margin. A GPU cap is only
