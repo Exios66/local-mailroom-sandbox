@@ -164,6 +164,20 @@ def test_status_text_marks_a_warm_app_as_billing(fake_bin, capsys):
     assert "sandbox-vllm" in out and "deployed" in out and "sandbox modal stop" in out
 
 
+@pytest.mark.parametrize(
+    ("tasks", "shown", "billing"),
+    [("0", "containers=0", "not billing now"), ("2", "containers=2", "bills while containers are warm")],
+)
+def test_status_separates_an_idle_deployment_from_a_billing_one(fake_bin, capsys, tasks, shown, billing):
+    row = {"description": "sandbox-vllm", "state": "deployed", "tasks": tasks}
+    _modal(fake_bin, rules=[{"prefix": ["--version"], "stdout": PIN}, _apps(row)])
+    assert cli.main(["modal", "status"]) == 0
+    out = capsys.readouterr().out
+    assert shown in out and billing in out
+    assert cli.main(["modal", "status", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["apps"][0]["tasks"] == int(tasks)
+
+
 def test_status_reports_unparseable_output_as_an_error(fake_bin, capsys):
     _modal(fake_bin, rules=[{"prefix": ["--version"], "stdout": PIN}, {"prefix": ["app", "list"], "stdout": "not json at all"}])
     assert cli.main(["modal", "status"]) == 1
