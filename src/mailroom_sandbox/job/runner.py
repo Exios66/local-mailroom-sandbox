@@ -375,6 +375,8 @@ def _run_whole_run(
         # SAND-089: a document that raised has no item row (a resume re-runs it), but its
         # billed tokens must still count against the API ceiling of a resumed run.
         if failed_usage := getattr(exc, "sandbox_failed_usage", None):
+            from mailroom_sandbox.job.api_budget import FAILED_USAGE_EVENT
+
             store.append_event(FAILED_USAGE_EVENT, "warning", **failed_usage)
         return {"state": "failed", "task": task, "error": str(exc)[:512], "ok": 0, "errors": 1}
 
@@ -472,19 +474,15 @@ def _cost_cap_usd(store: RunStore) -> float | None:
     return float(raw)
 
 
-FAILED_USAGE_EVENT = "api_usage_of_failed_document"
-
-
 def _api_budget(store: RunStore):
     """SAND-089: the run's API token budget, seeded with tokens already spent.
 
     That is every persisted item plus every document that raised after a paid call
     (recorded as a ``FAILED_USAGE_EVENT``; it has no item row).
     """
-    from mailroom_sandbox.job.api_budget import budget_for
+    from mailroom_sandbox.job.api_budget import budget_for, usage_records
 
-    failed = [event.get("detail") or {} for event in store.events() if event.get("event") == FAILED_USAGE_EVENT]
-    return budget_for(store.read_lock() or {}, [*store.load_items(), *failed])
+    return budget_for(store.read_lock() or {}, usage_records(store))
 
 
 def _max_wall_seconds(store: RunStore) -> int | None:

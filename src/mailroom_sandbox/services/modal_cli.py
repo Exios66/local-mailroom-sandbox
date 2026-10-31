@@ -248,6 +248,11 @@ def app_status(app: str) -> dict[str, Any]:
     return _app_state(_list_apps(), app)
 
 
+def _is_active(app: dict[str, Any]) -> bool:
+    """Deployed, or a live ephemeral app: anything that can be billing right now."""
+    return app["deployed"] or (app["state"].lower() not in {"stopped", "not deployed"} and app["tasks"] != 0)
+
+
 def _is_deployed(app: str) -> bool:
     state = _app_state(_list_apps(), app)["state"].lower()
     return state not in {"stopped", "not deployed"}
@@ -266,21 +271,21 @@ def _cmd_status(args: argparse.Namespace) -> int:
     ]
     names = list(dict.fromkeys([vllm_app(), JOB_APP, *live]))
     apps = [_app_state(rows, name) for name in names]
-    warm = [a["name"] for a in apps if a["deployed"]]
+    warm = [a["name"] for a in apps if _is_active(a)]
     if args.json:
         print_json({"apps": apps, "any_deployed": bool(warm)})
         return 0
     width = max(20, *(len(a["name"]) for a in apps))
     for a in apps:
-        tasks = "" if not a["deployed"] else f"  containers={'?' if a['tasks'] is None else a['tasks']}"
+        tasks = "" if not _is_active(a) else f"  containers={'?' if a['tasks'] is None else a['tasks']}"
         print(f"{a['name']:<{width}} {a['state']}{tasks}")
     if warm:
         for a in apps:
-            if a["deployed"]:
+            if _is_active(a):
                 billing = {0: "no containers running, not billing now"}.get(
                     a["tasks"], "it bills while containers are warm"
                 )
-                print(f"next: `sandbox modal stop --app {shlex.quote(a['name'])}` — {a['name']} still deployed ({billing})")
+                print(f"next: `sandbox modal stop --app {shlex.quote(a['name'])}` — {a['name']} still {a['state'].lower()} ({billing})")
     else:
         print("next: `sandbox modal prewarm` then `sandbox modal deploy` for a run")
     return 0

@@ -184,9 +184,9 @@ def api_backend(model: str) -> "DecisionBackend":
     """Backend over the ``sorter_reviewer`` agent on a third-party API route.
 
     ``model`` must be an exact provider id such as ``openai/gpt-6-luna``, because a
-    tuned cutoff is tied to one model. Preflight proves the agent's route serves it.
+    tuned cutoff is tied to one model; ``openrouter/*`` ids route dynamically. Preflight proves the agent's route serves it.
     """
-    if not _PINNED_API.match(model) or model.endswith("-latest"):
+    if not _PINNED_API.match(model) or model.endswith("-latest") or model.startswith("openrouter/"):
         raise ValueError(
             f"{model!r} is not a pinned API model id (expected e.g. 'openai/gpt-6-luna'); "
             "moving aliases would silently change a tuned cutoff"
