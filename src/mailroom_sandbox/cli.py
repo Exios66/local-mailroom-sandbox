@@ -7,10 +7,13 @@ import errno
 import json
 import math
 import os
+import socket
 import subprocess
 import sys
 import time
 from pathlib import Path
+
+import yaml
 
 from mailroom_sandbox.compose import VALID_PROFILES as COMPOSE_PROFILES
 from mailroom_sandbox.overlay import UnknownNameError, load_profile
@@ -143,10 +146,23 @@ def main(argv: list[str] | None = None) -> int:
         cmd = " ".join(map(str, exc.cmd)) if isinstance(exc.cmd, (list, tuple)) else str(exc.cmd)
         print(f"error: `{' '.join(cmd.split())}` timed out after {exc.timeout:g}s", file=sys.stderr)
         return 1
+    except _InvalidRunIdError() as exc:
+        print(f"error: {_one_line(exc)}", file=sys.stderr)
+        return 2
+    except IsADirectoryError as exc:
+        print(f"error: expected a file, got a directory: {exc.filename}", file=sys.stderr)
+        return 1
+    except socket.gaierror:
+        print(f"error: cannot resolve host {getattr(args, 'host', None)!r}", file=sys.stderr)
+        return 1
     except OSError as exc:
         if exc.errno != errno.EADDRINUSE:
             raise
         print(f"error: address already in use: {_one_line(exc)}", file=sys.stderr)
+        return 1
+    except yaml.YAMLError as exc:
+        where = getattr(getattr(exc, "problem_mark", None), "name", None)
+        print(f"error: not valid YAML{f' ({where})' if where else ''}: {_one_line(exc)}", file=sys.stderr)
         return 1
     except _prompt_selection_error() as exc:
         print(f"error: prompt version: {_one_line(exc)}", file=sys.stderr)
@@ -171,6 +187,12 @@ def _prompt_selection_error() -> type[BaseException]:
     from mailroom_sandbox.prompt_versions import PromptSelectionError
 
     return PromptSelectionError
+
+
+def _InvalidRunIdError() -> type[BaseException]:  # noqa: N802 - used as an except clause
+    from mailroom_sandbox.job.spec import InvalidRunIdError
+
+    return InvalidRunIdError
 
 
 def _one_line(exc: BaseException) -> str:
@@ -3066,11 +3088,21 @@ def _cmd_modal_matrix_list(args) -> int:
     return 0
 
 
+def _resolve_modal_row(args) -> dict:
+    """Resolve a matrix row; an unknown model or GPU is a usage error, not a traceback."""
+    from mailroom_sandbox.modal_matrix import resolve_modal_row
+
+    try:
+        return resolve_modal_row(getattr(args, "model", None), gpu_override=args.gpu)
+    except (KeyError, ValueError) as exc:
+        raise CLIUsageError(exc.args[0] if exc.args else str(exc)) from exc
+
+
 def _cmd_modal_matrix_show(args) -> int:
     """Show one Modal matrix row with its env exports and cutover hints (JSON with --json)."""
-    from mailroom_sandbox.modal_matrix import cutover_hints, resolve_modal_row
+    from mailroom_sandbox.modal_matrix import cutover_hints
 
-    resolved = resolve_modal_row(args.model, gpu_override=args.gpu)
+    resolved = _resolve_modal_row(args)
     if getattr(args, "json", False):
         _print({**resolved, "hints": cutover_hints(resolved)})
     else:
@@ -3094,6 +3126,7 @@ def _cmd_modal_matrix_show(args) -> int:
 def _cmd_modal_matrix_env(args) -> int:
     from mailroom_sandbox.modal_matrix import env_exports
 
+    _resolve_modal_row(args)
     sys.stdout.write(env_exports(args.model, gpu_override=args.gpu))
     return 0
 
@@ -4086,3 +4119,7 @@ def _cmd_metrics_sorter_vs_modernbert(args) -> int:
     else:
         print(result.get("markdown", ""))
     return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

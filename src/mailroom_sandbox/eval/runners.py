@@ -397,7 +397,12 @@ def run_isolated_eval(
         billed_seconds = wall_seconds + (
             float(cold_boot_seconds) if cold_boot_seconds is not None else 0.0
         )
-        gpu_cost = estimate_gpu_cost_usd(billed_seconds, gpu=gpu or "L4", replicas=replicas)
+        # Price the record like the cost cap: every warm route app when routed.
+        gpu_cost = (
+            _estimated_gpu_usd(billed_seconds, gpu=gpu, replicas=replicas, gpu_fleet=gpu_fleet)
+            if gpu_fleet
+            else estimate_gpu_cost_usd(billed_seconds, gpu=gpu or "L4", replicas=replicas)
+        )
         record["replicas"] = max(1, int(replicas))
         if gpu_cost is not None:
             record["gpu_seconds"] = round(billed_seconds, 3)
