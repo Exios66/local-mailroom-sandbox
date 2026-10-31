@@ -136,7 +136,7 @@ def pipeline_provider(sink: str | None) -> str:
 
 @contextmanager
 def locked_pipeline_provider(lock: dict[str, Any]) -> Iterator[str]:
-    """Point the vendored pipeline's tracing at the locked sink; restore the env on exit (SAND-083).
+    """Point the vendored pipeline's tracing at the locked sink; restore the env on exit (SAND-087).
 
     Without this, an ambient ``OBSERVABILITY_PROVIDER=langfuse`` (the ``.env``
     default) beats ``trace.sink: none``: the pipeline then passes Langfuse-only

@@ -98,6 +98,23 @@ output, whose figures are credits-based and workspace-wide rather than per run �
 number is a reconciliation cross-check, never the source. `replicas` bills the full wall
 on every replica (SAND-032), so a 2×L4 cell costs twice a 1×L4 cell at the same wall.
 
+**Routed runs** (per-agent Modal routes: the SAND-078 judge tier, the SAND-079 specialist
+tiers) keep every route app warm for the same window, so the serving report prices the
+locked fleet instead — the base engine (only when it is `modal-vllm`) plus each distinct
+`modal-vllm` route app in the lock's `agent_routes`, each billed as `gpu` count × `max_containers` (SAND-083):
+
+```
+billed_gpu_usd = billed_seconds × Σ_apps (gpus_app × gpu_usd_per_hour_app) / 3600
+```
+
+This is the same formula the runner's record and the spend cap use (`lock_gpu_fleet` /
+`fleet_gpu_cost_usd` in `job/metrics.py`), so the dated serving report and the run record
+agree; the report lists the priced apps under `gpu_fleet`. It applies whatever the base
+profile is, since an API base can route agents to Modal apps. It is a capacity estimate
+for the billed window: a route app that scales to zero bills less. So
+`run_span_usd_lower_bound` and the idle and boot diagnostics stay on the base engine.
+Unrouted runs keep the base-GPU formula above.
+
 **Cell cost.** `min_containers=1` pins the fleet warm from deploy to teardown, so the cold
 boot and the idle between specialists bill too. A cell therefore reports:
 
