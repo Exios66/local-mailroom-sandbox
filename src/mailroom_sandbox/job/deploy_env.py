@@ -10,6 +10,8 @@ ever rendered (the API token and HF token stay out of this module).
 from __future__ import annotations
 
 import json
+import threading
+import time
 from pathlib import Path
 from typing import Mapping
 
@@ -127,3 +129,27 @@ def durable_mailroom_env(run_dir: Path) -> dict[str, str]:
     a parked document is only reviewable while those files exist.
     """
     return {"MAILROOM_BASE_DIR": str(run_dir / "mailroom")}
+
+
+# Background writers the vendored pipeline leaves on mailroom.db after a document
+# archives: the post-archive relations pass and aiosqlite's per-connection thread.
+_MAILROOM_WRITER_THREADS = ("relations-scan", "_connection_worker_thread")
+
+
+def settle_mailroom_writers(timeout: float = 60.0) -> list[str]:
+    """Wait for the pipeline's background ``mailroom.db`` writers to finish.
+
+    ``dispatch_relations_scan`` runs on a daemon thread that outlives the
+    document. A Volume commit (or a pull) taken while it holds the database
+    captures a WAL mid-write, and a container exit kills the scan. Call this
+    before committing a run directory. Returns the names of writers still
+    running when ``timeout`` expires (empty when everything settled).
+    """
+    deadline = time.monotonic() + timeout
+    current = threading.current_thread()
+    for thread in threading.enumerate():
+        if thread is current or not any(tag in thread.name for tag in _MAILROOM_WRITER_THREADS):
+            continue
+        thread.join(max(0.0, deadline - time.monotonic()))
+    return [t.name for t in threading.enumerate()
+            if t is not current and t.is_alive() and any(tag in t.name for tag in _MAILROOM_WRITER_THREADS)]

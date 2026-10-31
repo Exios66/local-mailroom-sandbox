@@ -173,3 +173,17 @@ def test_remote_mailroom_state_lives_on_the_run_volume(tmp_path):
     from mailroom_sandbox.job.deploy_env import durable_mailroom_env
 
     assert durable_mailroom_env(tmp_path) == {"MAILROOM_BASE_DIR": str(tmp_path / "mailroom")}
+
+
+def test_worker_waits_for_background_mailroom_writers_before_commit():
+    import threading
+
+    from mailroom_sandbox.job.deploy_env import settle_mailroom_writers
+
+    release, finished = threading.Event(), []
+    scan = threading.Thread(target=lambda: (release.wait(5), finished.append(True)),
+                            name="relations-scan", daemon=True)
+    scan.start()
+    assert settle_mailroom_writers(timeout=0.05) == ["relations-scan"]
+    release.set()
+    assert settle_mailroom_writers(timeout=5) == [] and finished == [True]
