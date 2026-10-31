@@ -1,7 +1,6 @@
 """Operator-visible defects found by the SAND-066 Terra command audit."""
 from __future__ import annotations
 
-import argparse
 
 import pytest
 
@@ -19,7 +18,7 @@ def test_repeatable_models_accumulate_across_command_levels(argv):
     assert cli._agent_models(args) == expected
 
 
-@pytest.mark.parametrize('command', [['eval', 'sorter'], ['legalbench'], ['matrix']])
+@pytest.mark.parametrize('command', [['eval', 'sorter'], ['matrix']])
 def test_mock_and_live_are_exclusive(command):
     with pytest.raises(SystemExit) as exc:
         cli.build_parser().parse_args([*command, '--mock', '--local'])
@@ -28,7 +27,7 @@ def test_mock_and_live_are_exclusive(command):
 
 @pytest.mark.parametrize('argv', [
     ['eval', 'sorter', '--sample', '0'], ['eval', 'sorter', '--sample', '-3'],
-    ['pilot', '--sample', '0'], ['legalbench', '--n', '-1'],
+    ['pilot', '--sample', '0'],
     ['matrix', '--sample', '0'], ['modernbert', 'eval', '--sample', '-1'],
     ['datasets', 'sample', '--per-class', '-1'], ['datasets', 'pull', '--max-rows', '-1'],
     ['metrics', 'estimate-suite', '--gpu-usd-per-hour', '-1'],
@@ -74,11 +73,10 @@ def test_misleading_ignored_options_return_usage_error(argv, capsys):
     assert 'error:' in capsys.readouterr().err
 
 
-@pytest.mark.parametrize('command,runner', [(['pilot'], 'run_pipeline_eval'), (['legalbench'], 'run_legalbench_eval')])
-def test_pilot_and_legalbench_forward_agent_overrides(command, runner, monkeypatch):
+def test_pilot_forwards_agent_overrides(monkeypatch):
     seen = {}
-    monkeypatch.setattr(runners, runner, lambda **kw: seen.update(kw) or {})
-    assert cli.main([*command, '--mock', '--dry-run', '--agent-model', 'sorter=custom']) == 0
+    monkeypatch.setattr(runners, 'run_pipeline_eval', lambda **kw: seen.update(kw) or {})
+    assert cli.main(['pilot', '--mock', '--dry-run', '--agent-model', 'sorter=custom']) == 0
     assert seen['agent_models'] == {'sorter': 'custom'}
 
 
@@ -111,12 +109,10 @@ def test_hf_pilot_scores_hf_text_and_labels(live, monkeypatch, tmp_path):
 def test_matrix_forwards_seed_and_models(monkeypatch):
     seen = []
     monkeypatch.setattr(runners, 'run_pipeline_eval', lambda **kw: seen.append(kw) or {})
-    matrix.run_matrix(task='pipeline', providers=['ollama'], models=['qwen3:8b'], prompts=['mailroom-default'], sample=2, seed=99, agent_models={'judge': 'custom'})
+    matrix.run_matrix(task='pipeline', providers=['modal-vllm'], models=['Qwen/Qwen3.5-9B'], prompts=['mailroom-default'], sample=2, seed=99, agent_models={'judge': 'custom'})
     assert seen[0]['sample_seed'] == 99
+    assert seen[0]['model'] == 'Qwen/Qwen3.5-9B'  # the requested model, not the family default
     assert seen[0]['agent_models'] == {'judge': 'custom'}
-    monkeypatch.setattr(runners, 'run_legalbench_eval', lambda **kw: seen.append(kw) or {})
-    matrix.run_matrix(task='legalbench', providers=['ollama'], models=['qwen3:8b'], prompts=['mailroom-default'], seed=71)
-    assert seen[-1]['seed'] == 71
 
 
 def test_seeded_pipeline_draw_is_shared_across_cells_and_changes_with_seed():
@@ -125,3 +121,19 @@ def test_seeded_pipeline_draw_is_shared_across_cells_and_changes_with_seed():
         return runners.run_pipeline_eval(rows=rows, sample=5, sample_seed=seed, dry_run=True)['fingerprint']
     assert fingerprint(12) == fingerprint(12)
     assert fingerprint(12) != fingerprint(13)
+
+
+@pytest.mark.parametrize('argv', [['legalbench', '--mock'], ['eval', 'legalbench', '--mock'], ['matrix', '--task', 'legalbench', '--mock']])
+def test_legalbench_is_not_a_sandbox_task(argv, capsys):
+    """LegalBench is not a primary operation; the vendored package stays, the CLI surface does not."""
+    with pytest.raises(SystemExit) as exc:
+        cli.main(argv)
+    assert exc.value.code == 2 and 'invalid choice' in capsys.readouterr().err
+
+
+def test_legalbench_run_spec_is_rejected():
+    from mailroom_sandbox.job.spec import RunSpec, known_tasks
+
+    assert 'legalbench' not in known_tasks()
+    with pytest.raises(ValueError, match='unknown task'):
+        RunSpec(run_id='x', task='legalbench')

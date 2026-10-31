@@ -73,6 +73,16 @@ sandbox experiment create pipeline-hybrid --task pipeline \
   --trace-sink langfuse
 ```
 
+Larger specialists (SAND-079): `--specialist-tier mid` serves the specialists
+from `Qwen/Qwen3.5-35B-A3B`, and `--specialist-tier full` from the judge's
+`Qwen/Qwen3.5-27B` app. See
+[providers](setting-up/providers.md) (Specialist tiers) for the tier table.
+
+```bash
+sandbox experiment create pipeline-full --task pipeline \
+  --specialist-tier full --samples 10 --trace-sink langfuse
+```
+
 `--agent-model NAME=MODEL` changes a model on its current transport.
 `--agent-route NAME=PROVIDER:MODEL` changes both. Routes override the global
 provider, and explicit agent-model choices win last. Model/route selections are

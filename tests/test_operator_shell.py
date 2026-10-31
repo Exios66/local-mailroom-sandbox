@@ -38,16 +38,18 @@ def test_shell_dispatch_and_nested_numeric_menu(monkeypatch, capsys):
     assert shell.run_shell() == 0
     output = capsys.readouterr().out
     assert "usage: sandbox run" in output and "Select a number" in output
+    # "1" must open the first registered subcommand, not just reprint the run menu.
+    assert "sandbox run preflight  (leaf command)" in output and "usage: sandbox run preflight" in output
     assert seen == [["run", "start", "--help"], ["profiles"]]
 
 
 def test_shell_survives_parse_error_and_interrupt(monkeypatch, capsys):
     monkeypatch.setattr(shell.sys.stdin, "isatty", lambda: True)
-    entries = iter(["not-a-command", "interrupt", "exit"])
+    entries = iter(["run start --max-items 0", "profiles", "exit"])
     monkeypatch.setattr("builtins.input", lambda prompt: next(entries))
     real = cli.main
     def dispatch(argv):
-        if argv == ["interrupt"]:
+        if argv == ["profiles"]:
             raise KeyboardInterrupt
         return real(argv)
     monkeypatch.setattr(cli, "main", dispatch)

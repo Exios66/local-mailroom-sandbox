@@ -11,8 +11,9 @@ from mailroom_sandbox.job import preflight
 from mailroom_sandbox.job.spec import DatasetSpec, ReviewerSpec, RunSpec, spec_core
 from mailroom_sandbox.runtime import activate
 
-# spec_hash of _spec() computed at 48c3f8f, before RunSpec.reviewer existed.
-PRE_REVIEWER_HASH = "cbb3a04efaa61c15e69f0664ae1513e44f3675d5eb469bb1332909e24f921a88"
+# Computed with the spec implementation at 48c3f8f, before reviewer existed.
+# Pin the model and use a Hub request: local /tmp resolves differently on macOS.
+PRE_REVIEWER_HASH = "0b474bf41250f04433674038acc55a3e03326be20863bbf0fc0f74506837efd2"
 
 
 def _reviewer(**overrides) -> dict:
@@ -24,8 +25,8 @@ def _reviewer(**overrides) -> dict:
 def _spec(**overrides) -> RunSpec:
     base = dict(
         task="sorter",
-        dataset=DatasetSpec(local_path="file:///tmp/x.jsonl"),
-        engine={"kind": "vllm-local", "modal": None},
+        dataset=DatasetSpec(repo="example/corpus", revision="a" * 40),
+        engine={"kind": "vllm-local", "model": "Qwen/Qwen3-8B", "modal": None},
     )
     base.update(overrides)
     return RunSpec(**base)

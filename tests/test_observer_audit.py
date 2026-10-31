@@ -41,6 +41,7 @@ def test_ignored_observer_options_fail_before_starting(argv, monkeypatch, capsys
     {"updated_at": float("inf")}, {"done": "3"}, {"done": -1},
     {"done": True}, {"total": []}, {"total": -2}, {"metrics": []},
     {"state": {}}, {"job_id": "../../outside"}, {"job_id": ["j"]},
+    {"done": 10**400}, {"total": 10**400}, {"updated_at": 10**400},
 ])
 def test_one_malformed_beacon_does_not_break_the_board(tmp_path, changes):
     Beacon("healthy", package="test", root=tmp_path)

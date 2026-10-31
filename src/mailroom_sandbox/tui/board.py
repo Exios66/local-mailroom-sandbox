@@ -9,7 +9,6 @@ its own, so it survives job restarts and can be restarted without losing anythin
 from __future__ import annotations
 
 import json
-import math
 import os
 import shutil
 import socket
@@ -25,12 +24,14 @@ from mailroom_sandbox.tui import pretty_log as pl
 from mailroom_sandbox.tui.beacon import BEACON_VERSION, TERMINAL_STATES, beacon_root, safe_job_id
 from mailroom_sandbox.tui.services_snapshot import read_services
 from mailroom_sandbox.tui.services_panel import SERVICES_CSS, SERVICES_HTML, SERVICES_JS
-from mailroom_sandbox.tui.web import THEME, ansi_to_html
+from mailroom_sandbox.tui.web import FAVICON_LINK, THEME, ansi_to_html
 
 STALE_S = 120.0
 MIN_INTERVAL_S = 0.1  # `--interval 0` (or negative) would otherwise spin a core re-reading the board
 DEFAULT_PORT = 8767  # watch --web / sandbox dev own 8765
 _ORDER = {"running": 0, "stalled": 1, "failed": 2, "done": 2}
+_MAX_COUNT = 2**53  # largest int a float holds exactly; beacon counters never get near it
+_MAX_EPOCH_S = 1e15  # updated_at is a Unix timestamp in seconds
 _HOST = socket.gethostname()
 
 
@@ -87,13 +88,15 @@ def list_jobs(root: Path | None = None, *, stale_s: float = STALE_S, tail: int =
         jid = job["job_id"]
         if not isinstance(jid, str) or safe_job_id(jid) != jid:
             continue
-        if any(type(job.get(k, 0)) is not int or job.get(k, 0) < 0 for k in ("done", "ok", "errors")):
+        # Bounds by comparison: an int too large for a float (10**400 parses fine) would
+        # raise OverflowError in the progress maths; NaN and inf fail the range test.
+        if any(type(job.get(k, 0)) is not int or not 0 <= job.get(k, 0) <= _MAX_COUNT for k in ("done", "ok", "errors")):
             continue
         total = job.get("total")
-        if total is not None and (type(total) is not int or total < 0):
+        if total is not None and (type(total) is not int or not 0 <= total <= _MAX_COUNT):
             continue
         updated = job.get("updated_at", 0)
-        if type(updated) not in (int, float) or not math.isfinite(updated) or updated < 0:
+        if type(updated) not in (int, float) or not 0 <= updated < _MAX_EPOCH_S:
             continue
         if not isinstance(job.get("metrics", {}), dict) or not isinstance(job.get("state", "running"), str):
             continue
@@ -225,6 +228,7 @@ def board_page() -> bytes:
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>THE MAILROOM · job board</title>
+{FAVICON_LINK}
 <style>
 :root {{ {tokens}; --frame: linear-gradient(135deg, var(--blue), var(--teal)); }}
 * {{ box-sizing: border-box; }}
