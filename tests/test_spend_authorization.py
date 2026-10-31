@@ -96,4 +96,5 @@ def test_paid_example_configs_carry_a_budget(name):
 
     spec = load_run_spec(Path(__file__).resolve().parents[1] / "config" / "runs" / "examples" / f"{name}.yaml")
     assert spec.job.mock is False
+    assert (spec.job.cost_cap_usd, spec.job.max_wall_seconds) == (1.0, 1800)
     spend.require_budget({"job": spec.job.model_dump()})
