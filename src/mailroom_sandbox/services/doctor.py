@@ -59,6 +59,24 @@ def _binary(name: str, *, needed: bool, hint: str, version: list[str] | None = N
     return ServiceStatus(name, "ok", f"{name} {found}" if found else path)
 
 
+def _modal(profile_name: str, *, live: bool) -> ServiceStatus:
+    from mailroom_sandbox.services.modal_cli import INSTALL_HINT, PINNED_SDK, app_status, vllm_app
+
+    needed = profile_name == "modal-vllm"
+    row = _binary("modal", needed=needed, hint=INSTALL_HINT, version=["modal", "--version"], pin=PINNED_SDK)
+    if not live or "not installed" in row.detail:
+        return row
+    app = vllm_app()
+    try:
+        status = app_status(app)
+    except ServiceError as exc:
+        detail = f"{row.detail}; account check failed: {' '.join(str(exc).split())}"
+        return ServiceStatus("modal", "fail" if needed else "warn", detail, "modal token new  (or check MODAL_PROFILE)")
+    tasks = "" if not status["deployed"] else f", containers={'?' if status['tasks'] is None else status['tasks']}"
+    account = os.environ.get("MODAL_PROFILE") or "active profile"
+    return ServiceStatus("modal", row.state, f"{row.detail}; {account}: {app} {status['state']}{tasks}", row.hint)
+
+
 def _modal_auth(profile_name: str) -> ServiceStatus:
     if os.environ.get("MODAL_TOKEN_ID") and os.environ.get("MODAL_TOKEN_SECRET"):
         return ServiceStatus("modal-auth", "ok", "token from MODAL_TOKEN_ID/MODAL_TOKEN_SECRET")
@@ -81,7 +99,7 @@ def _hf_auth() -> ServiceStatus:
 
 
 def _provider(profile: dict, *, live: bool) -> ServiceStatus:
-    from mailroom_sandbox.health import _effective_base_url, missing_modal_endpoint, probe_models
+    from mailroom_sandbox.health import _effective_base_url, explain_modal_timeout, missing_modal_endpoint, probe_models
     from mailroom_sandbox.providers import endpoints_for
 
     if missing_modal_endpoint(profile):
@@ -94,7 +112,8 @@ def _provider(profile: dict, *, live: bool) -> ServiceStatus:
         return ServiceStatus("provider", "ok", f"{base} (not probed; use --live)")
     result = probe_models(profile)
     if not result.ok:
-        return ServiceStatus("provider", "fail", f"{base}: {result.detail}", "sandbox modal status / sandbox health")
+        state = "warn" if explain_modal_timeout(profile, result) else "fail"
+        return ServiceStatus("provider", state, f"{base}: {result.detail}", "sandbox modal status / sandbox health")
     listed = result.models or []
     models = ", ".join(listed[:3]) + (f" … ({len(listed)} models)" if len(listed) > 3 else "") if listed else "no models listed"
     return ServiceStatus("provider", "ok", f"{base}: {models}")
@@ -186,12 +205,10 @@ def run_doctor(profile_name: str, *, live: bool = False, services: list[str] | N
     import shutil
 
     from mailroom_sandbox.overlay import load_profile
-    from mailroom_sandbox.services.modal_cli import INSTALL_HINT, PINNED_SDK
-
     profile = load_profile(profile_name)
     docker_present = bool(shutil.which("docker"))
     checks = {
-        "modal": lambda: _binary("modal", needed=profile_name == "modal-vllm", hint=INSTALL_HINT, version=["modal", "--version"], pin=PINNED_SDK),
+        "modal": lambda: _modal(profile_name, live=live),
         "modal-auth": lambda: _modal_auth(profile_name),
         "hf": lambda: _binary("hf", needed=True, hint="pip install -U huggingface_hub", version=["hf", "--version"]),
         "hf-auth": _hf_auth,
