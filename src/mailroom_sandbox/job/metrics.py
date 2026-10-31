@@ -176,6 +176,20 @@ def _route_gpu_apps(lock: Mapping[str, Any], *, skip: set[str]) -> list[tuple[st
     return out
 
 
+def _lock_base(lock: Mapping[str, Any]) -> tuple[Mapping[str, Any] | None, bool]:
+    """The lock's base ``modal`` block and whether the base engine runs on Modal."""
+    engine = lock.get("engine") if isinstance(lock.get("engine"), Mapping) else {}
+    modal = engine.get("modal") if isinstance(engine.get("modal"), Mapping) else None
+    return modal, engine.get("kind", "modal-vllm") == "modal-vllm"
+
+
+def _routed_apps(lock: Mapping[str, Any]) -> list[tuple[str, int]]:
+    """Route apps beyond the base; only a Modal base's app is already warm."""
+    modal, on_modal = _lock_base(lock)
+    skip = {str(modal.get("app"))} if on_modal and modal and modal.get("app") else set()
+    return _route_gpu_apps(lock, skip=skip)
+
+
 def lock_gpu_fleet(lock: Mapping[str, Any]) -> list[tuple[str, int]]:
     """Every Modal app a locked run keeps warm: the base engine plus each
     distinct ``modal-vllm`` agent-route app (shared apps are billed once).
@@ -183,12 +197,10 @@ def lock_gpu_fleet(lock: Mapping[str, Any]) -> list[tuple[str, int]]:
     A non-Modal base (e.g. ``openrouter``) still carries the default ``modal``
     block in its lock; it is left out when route apps exist, since it never runs.
     """
-    engine = lock.get("engine") if isinstance(lock.get("engine"), Mapping) else {}
-    modal = engine.get("modal") if isinstance(engine.get("modal"), Mapping) else None
-    apps = {str(modal.get("app"))} if modal and modal.get("app") else set()
-    routes = _route_gpu_apps(lock, skip=apps)
+    modal, on_modal = _lock_base(lock)
+    routes = _routed_apps(lock)
     base = [_billed_gpu(modal) if modal else ("L4", 1)]
-    if routes and engine.get("kind", "modal-vllm") != "modal-vllm":
+    if routes and not on_modal:
         base = []
     return base + routes
 
@@ -200,10 +212,7 @@ def fleet_gpu_cost_usd(gpu_seconds: float, fleet: Sequence[tuple[str, int]]) -> 
 
 def routed_gpu_fleet(lock: Mapping[str, Any]) -> list[tuple[str, int]] | None:
     """The locked fleet when agent routes add Modal apps beyond the base engine, else None."""
-    engine = lock.get("engine") if isinstance(lock.get("engine"), Mapping) else {}
-    modal = engine.get("modal") if isinstance(engine.get("modal"), Mapping) else None
-    apps = {str(modal.get("app"))} if modal and modal.get("app") else set()
-    return lock_gpu_fleet(lock) if _route_gpu_apps(lock, skip=apps) else None
+    return lock_gpu_fleet(lock) if _routed_apps(lock) else None
 
 
 def _gpu_usd(

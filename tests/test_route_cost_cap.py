@@ -150,3 +150,27 @@ def test_serving_report_prices_modal_routes_on_an_api_base(tmp_path, monkeypatch
     assert rec["estimated_gpu_cost_usd"] == pytest.approx(L40S + 2 * L4)
     assert sorted((f["gpu"], f["gpus"]) for f in rec["gpu_fleet"]) == [("L4", 2), ("L40S", 1)]
     assert "run_span_usd_lower_bound" not in rec
+
+
+def test_a_route_reusing_the_unused_base_app_name_is_still_billed():
+    # The openrouter base keeps the default `sandbox-vllm` app name; it never deploys.
+    lock = {"engine": {"kind": "openrouter", "modal": {"app": "sandbox-vllm", "gpu": "L4"}},
+            "agent_routes": {"judge": {"provider": "modal-vllm",
+                                       "modal": {"app": "sandbox-vllm", "gpu": "L40S"}}}}
+    assert metrics.lock_gpu_fleet(lock) == [("L40S", 1)]
+    assert metrics.routed_gpu_fleet(lock) == [("L40S", 1)]
+    # On a Modal base the same name is the base app itself: billed once.
+    modal_base = {**lock, "engine": {"kind": "modal-vllm", "modal": lock["engine"]["modal"]}}
+    assert metrics.lock_gpu_fleet(modal_base) == [("L4", 1)]
+    assert metrics.routed_gpu_fleet(modal_base) is None
+
+
+def test_per_item_run_record_prices_the_routed_fleet(tmp_path, monkeypatch):
+    """The per-item runner record agrees with its cost cap on a routed run."""
+    from mailroom_sandbox.job.runner import _build_record, _estimate_run_gpu_usd
+
+    monkeypatch.delenv("MODAL_BILLED_GPU_SECONDS", raising=False)
+    store = _serving_store(tmp_path, ROUTED_LOCK)
+    rec = _build_record(store, "contracts_specialist", None, {}, mock=False, wall_seconds=3570.0)
+    assert rec["estimated_gpu_cost_usd"] == pytest.approx(_estimate_run_gpu_usd(store, 3600.0))
+    assert rec["estimated_gpu_cost_usd"] == pytest.approx(L4 + L40S + 2 * L4)
