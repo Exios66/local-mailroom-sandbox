@@ -262,7 +262,7 @@ def _scores_by_id(card: Mapping[str, Any]) -> dict[str, float]:
     out: dict[str, float] = {}
     for doc in card.get("documents") or []:
         item = doc.get("item_id")
-        score = doc.get("score")
+        score = 0.0 if doc.get("ok") is False and doc.get("score") is None else doc.get("score")
         if item is None or not isinstance(score, (int, float)):
             continue
         out[str(item)] = float(score)
@@ -369,7 +369,9 @@ def _summary(run_id: str, card: Mapping[str, Any] | None, task: str) -> dict[str
     if not card:
         return {"run_id": run_id, "task": task, "reported": False}
     docs = card.get("documents") or []
-    scores = [float(d["score"]) for d in docs if isinstance(d.get("score"), (int, float))]
+    scored = [float(d["score"]) for d in docs if isinstance(d.get("score"), (int, float))]
+    # The denominator is documents attempted: a failed document counts as zero.
+    scores = scored + [0.0] * sum(1 for d in docs if d.get("ok") is False and d.get("score") is None)
     quality_ci = bootstrap_mean_ci(scores)
     return {
         "run_id": run_id,
@@ -382,7 +384,8 @@ def _summary(run_id: str, card: Mapping[str, Any] | None, task: str) -> dict[str
             "sd": (card.get("quality") or {}).get("overall_sd"),
             "scoring_method": (card.get("quality") or {}).get("scoring_method"),
             "clause": (card.get("quality") or {}).get("clause"),
-            "scored_documents": len(scores),
+            "scored_documents": len(scored),
+            "attempted_documents": len(scores),
         },
         "reliability": _reliability(card),
         "cost": _cost_per_usable(card),

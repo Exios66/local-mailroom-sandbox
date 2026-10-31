@@ -49,6 +49,10 @@ def _estimated_gpu_usd(
     return float(estimate_gpu_cost_usd(wall, gpu=gpu or "L4", replicas=replicas) or 0.0)
 
 
+REVIEW_OUTCOME_FIELDS = ("review_causes", "review_verdict", "escalation_reason",
+                        "reviewer_doc_type", "reviewer_confidence")
+
+
 def _expect_from_row(row: dict[str, Any]) -> dict[str, Any]:
     doc_type = row.get("expected_doc_class") or row.get("doc_type") or "contract"
     conf = 0.40 if row.get("id") == "ambiguous_01" else 0.99  # above every class high threshold
@@ -1239,17 +1243,20 @@ def _run_pipeline_doc(
             result = run_pipeline(queued, matter_id, **kwargs)
     else:
         result = run_pipeline(queued, matter_id, **kwargs)
+    # A parked run returns the state from before the review interrupt; the manifest holds the outcome.
+    outcome = dict(result)
+    if result.get("stage") == "review" and result.get("doc_id"):
+        from pipeline.bins import load_manifest  # type: ignore
+
+        manifest = load_manifest(result["doc_id"]).model_dump(mode="json")
+        outcome.update({key: manifest.get(key) for key in REVIEW_OUTCOME_FIELDS if manifest.get(key) is not None})
     return {
         "id": row.get("id"),
         "doc_type": result.get("doc_type"),
         "stage": result.get("stage"),
         "extracted_data": result.get("extracted_data"),
         "classification_confidence": result.get("classification_confidence"),
-        "review_causes": result.get("review_causes"),
-        "review_verdict": result.get("review_verdict"),
-        "escalation_reason": result.get("escalation_reason"),
-        "reviewer_doc_type": result.get("reviewer_doc_type"),
-        "reviewer_confidence": result.get("reviewer_confidence"),
+        **{key: outcome.get(key) for key in REVIEW_OUTCOME_FIELDS},
         "error": result.get("error") or result.get("errors"),
         "offline_fallback": False,
         "mailroom_src": str(src) if src else None,
