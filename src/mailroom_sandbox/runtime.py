@@ -222,8 +222,8 @@ def stamp_locked_record(record: dict[str, Any]) -> None:
 def _install_reviewer(reviewer: Any, taxonomy: dict) -> Any:
     """Write the taxonomy ``reviewer`` block; return the backend to register (or None).
 
-    The base taxonomy is read back from the previously patched config path, so
-    the block is always rewritten rather than inherited from an earlier run.
+    The base taxonomy comes from the shipped taxonomy. The reviewer block is
+    overwritten unconditionally, including when no reviewer is configured.
     """
     if reviewer is None:
         taxonomy["reviewer"] = {"default_mode": "llm", "by_class": {}}

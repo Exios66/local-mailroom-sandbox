@@ -49,7 +49,13 @@ This is plan 1 of 5. The spec covers independent subsystems, so each later plan 
 
 ## Global Constraints
 
-- Name no outside organization and imply no affiliation, endorsement, sponsorship or shared work in any file, commit, PR or report.
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:27caf21551400a2d2e07ae9edfb73c127a428b294812a86a69ab65b15f6735d7 -->
+
+- Do not imply affiliation, endorsement, sponsorship or shared work in any file, commit, PR or report without written clearance from the user.
+
+<!-- /coderabbit-ai-generated:v1 -->
 - Source changes land in `Exios66/llm-mailroom` first, then reach `vendor/` through the reviewed refresh. Never edit `vendor/` by hand.
 - Default behavior is unchanged: without explicit config, the mode is `llm`, and no decision-model call occurs.
 - The default test suites make no network calls.
@@ -400,7 +406,13 @@ Pin validation matches Task 5. The correspondence rejection stays until plan 3 r
 
 - [ ] **Step 4: Implement activation and CLI flags**
 
-`activate` writes the `reviewer` block into the merged taxonomy and registers the backend. Clear the registration on deactivation. Regenerate the CLI reference.
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:bd1c364cb17ac806601d42b287e3062d593324d3e3f799f6f176db9cc2cc89e7 -->
+
+`activate` writes the `reviewer` block into the merged taxonomy and registers the backend. An activation without a reviewer clears the registration. Regenerate the CLI reference.
+
+<!-- /coderabbit-ai-generated:v1 -->
 
 - [ ] **Step 5: Run tests and the CLI surface check**
 

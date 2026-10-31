@@ -296,3 +296,22 @@ def test_resolve_does_not_claim_success_for_unexpected_response(api, capsys, bod
     captured = capsys.readouterr()
     assert "Resolved" not in captured.out
     assert "check `sandbox review list`" in captured.err
+
+
+@pytest.mark.parametrize("url,token,warn", [
+    ("http://mailroom.test", TOKEN, True),
+    ("http://192.0.2.1", TOKEN, True),
+    ("http://mailroom.test", "", False),
+    ("https://mailroom.test", TOKEN, False),
+    ("http://localhost", TOKEN, False),
+    ("http://mailroom.localhost.", TOKEN, False),
+    ("http://127.0.0.2", TOKEN, False),
+    ("http://[::1]", TOKEN, False),
+])
+def test_http_token_warning(monkeypatch, capsys, url, token, warn):
+    monkeypatch.setenv("MAILROOM_API_URL", url)
+    monkeypatch.setenv("MAILROOM_API_TOKEN", token)
+    assert review_cli.api_url() == url
+    captured = capsys.readouterr()
+    assert ("Warning" in captured.err) is warn
+    assert TOKEN not in captured.err

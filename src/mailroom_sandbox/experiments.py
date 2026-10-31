@@ -191,8 +191,17 @@ def _create(args) -> int:
     cells = DESIGNS[args.design]
     local = _local_strata(Path(args.local_dataset)) if args.local_dataset else None
     if local is not None:
+        from mailroom_sandbox.corpus import _subclass_matches
+
         for name in args.doc_class or list(CLASSES):
-            have = len(local.get(name, []))
+            subclasses = local.get(name, [])
+            have = sum(
+                not args.subclass or any(
+                    _subclass_matches({'expected_doc_class': name, 'expected_subclass': sub}, requested)
+                    for requested in args.subclass
+                )
+                for sub in subclasses
+            )
             if have < args.samples:
                 raise ServiceError(f'--local-dataset has {have} scoreable {name} row(s); lower --samples to '
                                    f'{max(have, 1)} or drop that class with --doc-class')

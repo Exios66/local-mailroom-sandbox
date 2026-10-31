@@ -9,7 +9,9 @@ printed, including inside error text.
 
 from __future__ import annotations
 
+import ipaddress
 import os
+import sys
 from typing import Any
 from urllib.parse import quote, urlsplit
 
@@ -50,6 +52,14 @@ def api_url() -> str:
         valid = False
     if not valid:
         raise _usage("MAILROOM_API_URL must be an HTTP(S) URL without credentials, query, or fragment")
+    if parts.scheme == "http" and _token():
+        host = parts.hostname.rstrip(".").lower()
+        try:
+            loopback = ipaddress.ip_address(host).is_loopback
+        except ValueError:
+            loopback = host == "localhost" or host.endswith(".localhost")
+        if not loopback:
+            print("Warning: MAILROOM_API_TOKEN will be sent over HTTP to a non-loopback host", file=sys.stderr)
     return url.rstrip("/")
 
 
