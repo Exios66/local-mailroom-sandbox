@@ -85,6 +85,41 @@ def probe_models(profile: dict, *, timeout: float = 3.0, expect_json: bool = Tru
         return ProbeResult(False, profile.get("name", "?"), url, f"{type(exc).__name__}: {exc}")
 
 
+def explain_modal_timeout(profile: dict, result: ProbeResult) -> bool:
+    """Say why a Modal endpoint timed out; True when the app status explains it, not proof of startup or health.
+
+    True covers a deployed app with containers up (booting or hung) and one with no
+    container yet (queued for a GPU or starting). False leaves the timeout a failure.
+
+    A request to a scale-to-zero app waits on a GPU, so a timeout alone reads like an
+    outage. The app listing answers without touching the endpoint. ``result.detail`` keeps
+    the raw error when the listing is unavailable.
+    """
+    if str(profile.get("name") or "") != "modal-vllm" or "Timeout" not in result.detail:
+        return False
+    from mailroom_sandbox.services._exec import ServiceError
+    from mailroom_sandbox.services.modal_cli import app_status, vllm_app
+
+    app = vllm_app()
+    try:
+        status = app_status(app)
+    except ServiceError:
+        return False
+    tasks = status["tasks"]
+    if not status["deployed"]:
+        result.detail = f"{app} is not deployed; run `sandbox modal deploy` ({result.detail})"
+        return False
+    if tasks is None:
+        return False
+    if tasks:
+        # The app listing cannot tell a booting engine from a hung one; say both.
+        result.detail = (f"{app}: {tasks} container(s) up but not answering: engine still booting "
+                         f"(billing), or hung; if it persists, see `sandbox modal logs`")
+    else:
+        result.detail = f"{app}: no container yet, queued for a GPU or starting (not billing); see `sandbox modal logs`"
+    return True
+
+
 def probe_chat(profile: dict, *, timeout: float = 8.0, json_object: bool = True) -> ProbeResult:
     endpoints = endpoints_for(profile, base_url_override=_effective_base_url(profile))
     url = endpoints.chat_url
@@ -206,6 +241,7 @@ def health_check(profile_name: str) -> dict:
     if str(profile.get("provider")) == "openrouter":
         return _openrouter_health(profile, profile_name, override)
     models = probe_models(profile)
+    explain_modal_timeout(profile, models)
     chat = probe_chat(profile) if models.ok else ProbeResult(
         False, profile_name, endpoints_for(profile, base_url_override=override).chat_url, "skipped (models probe failed)"
     )

@@ -88,6 +88,7 @@ serving, eval and scoring overlays on top.
 
 ```bash
 pip install -e ".[dev]"
+# .venv/bin/sandbox uses its own venv's modal even when the venv is not activated
 cp config/.env.example .env   # sandbox loads .env at startup; exported vars win
 # family code is already vendored under vendor/ (self-contained); fetch-deps
 # only refreshes the snapshots (workspace packages first; reviewed standalone
@@ -225,7 +226,7 @@ spend. See [Providers](docs/setting-up/providers.md) and
 ```
 sandbox runbook show serve     # default path: Modal vLLM deploy → point → verify → teardown
 sandbox up | down | health | doctor | pull-models | fetch-deps | cutover | profiles | agents
-sandbox modal deploy|prewarm|status|stop|logs|url|raw   # guarded Modal passthrough
+sandbox modal deploy|prewarm|status|stop|logs|url|raw   # guarded Modal passthrough (status lists scoped sandbox-* apps too)
 sandbox vllm probe|command|serve|metrics                # endpoint probe + local serving
 sandbox hf whoami|download|cache|raw                    # pinned revision by default
 sandbox pipeline watcher | pipeline api
@@ -242,6 +243,7 @@ sandbox datasets sample --per-class 40  # offline 20/40/100… per live class fr
 sandbox datasets prepare   # offline clean → data/runtime/prepared/
 sandbox experiment designs|create|review|preflight|launch|watch|report
 sandbox experiment create NAME --task pipeline --specialist-tier base|mid|full   # stronger specialists
+sandbox experiment create NAME --task pipeline --agent-route sorter_reviewer=openrouter:openai/gpt-6-luna --decision-reviewer api:openai/gpt-6-luna --decision-class contract=0.90   # frozen decision reviewer; api needs the matching sorter_reviewer route
 sandbox run preflight|start|status|resume|cancel|list --config config/runs/<name>.yaml
 sandbox watch [--web] [--config config/runs/<name>.yaml]       # mailroom TUI + Modal log tail (see docs/pretty-logging/mailroom-themed-logging.md)
 sandbox run start --config <run.yaml> --job-mode modal --watch   # Modal worker
@@ -252,7 +254,7 @@ sandbox metrics compare --runs local,modal,api | --log
 sandbox tunnel --profile vllm-remote plan|up|status|down
 sandbox traces export
 sandbox tui                     # interactive operator terminal (spend gates stay on)
-sandbox doctor [--service NAME] [--live] [--publish]   # one status table for every external CLI/service
+sandbox doctor [--service NAME] [--live] [--publish]   # one status table for every external CLI/service; --live adds the Modal account check
 sandbox board [--tui]           # persistent job board for every mailroom.beacon/v1 job
 sandbox dev [--pipeline]        # themed watch UI on a synthetic run (no Modal, no spend)
 ```
@@ -406,7 +408,11 @@ so you pay only for warm GPU-minutes on your own Modal account (L4 ≈ $0.80/hr)
 A Modal pipeline experiment also deploys the judge's L40S app (≈ $1.95/hr), and
 `--specialist-tier mid` adds an `L4:2` app. Each run's cost cap prices every
 app it keeps warm, and `sandbox experiment launch` asks for your initials
-before it spends.
+before it spends. Every paid run needs `job.max_wall_seconds`; a run that warms a
+Modal GPU (or has no API model) also needs `job.cost_cap_usd`, and a run that
+sends any agent to OpenRouter needs `job.api_cost_cap_usd` and a known token price for each API
+model. The GPU cap does not limit OpenRouter spend. `sandbox experiment create`
+recommends all three from the design.
 The offline opt-out (`--profile ollama`) costs nothing; OpenRouter is opt-in,
 and the `api-evals/` harness is the real-spend API path, kept outside the package.
 

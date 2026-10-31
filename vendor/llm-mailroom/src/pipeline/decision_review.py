@@ -2,8 +2,9 @@
 
 A ``decision_only`` document reaches ``extract`` only when every condition
 holds; each failed condition is recorded (not just the first) and any
-failure routes to ``human_review``. Overrides never auto-accept. The
-function does no I/O and reads no config: eligible classes and cutoffs are
+failure routes to ``human_review``. A reviewer may only correct a sorter
+that stayed below its low band; any other disagreement parks. The function
+does no I/O and reads no config: eligible classes and cutoffs are
 passed in, so the graph and the evals call the same code.
 """
 
@@ -42,17 +43,18 @@ class ReviewRoute:
 def _valid_confidence(value: object) -> bool:
     """Accept finite numeric values in [0, 1], excluding booleans.
 
-    An integer too large to convert to a float raises OverflowError.
+    An oversized integer fails the bounds check and returns False.
     """
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return False
+    # Bounds first: math.isfinite raises OverflowError on an oversized int.
     return 0.0 <= value <= 1.0 and math.isfinite(value)
 
 
 def _meets_cutoff(confidence: object, cutoff: object) -> bool:
-    """Return whether valid confidence meets or equals a valid cutoff.
+    """Return whether a valid confidence meets a valid cutoff.
 
-    OverflowError from converting an oversized integer propagates.
+    Anything invalid, including an oversized integer, returns False.
     """
     if not _valid_confidence(confidence) or not _valid_confidence(cutoff):
         return False
@@ -73,16 +75,19 @@ def decide_review(
     eligible: Collection[str],
     cutoffs: Mapping[str, float],
     has_text: bool,
+    sorter_unsure: bool = False,
 ) -> ReviewRoute:
     """Route a decision review and return its destination, causes, and verdict.
 
     Extraction requires text, matching sorter and reviewer labels in
     ``eligible``, and confidence at or above the reviewer's class cutoff.
+    With ``sorter_unsure`` the sorter's label carries no weight, so only the
+    reviewer's label must be eligible and it replaces the sorter's.
     Confidence and cutoff must be finite numbers in [0, 1], excluding
     booleans. Missing or invalid cutoffs and confidence cause escalation.
     An absent answer records unavailability and, if applicable, missing text;
     otherwise all failed conditions are recorded in the spec's table order.
-    Oversized integers that cannot be converted to float raise OverflowError.
+    Oversized integers count as invalid and escalate; they never raise.
     """
     causes: list[str] = []
     if answer is None:
@@ -93,9 +98,9 @@ def decide_review(
 
     if not has_text:
         causes.append(REVIEWER_NO_TEXT)
-    if sorter_type not in eligible or answer.doc_type not in eligible:
+    if answer.doc_type not in eligible or (not sorter_unsure and sorter_type not in eligible):
         causes.append(REVIEWER_INELIGIBLE_LABEL)
-    if sorter_type is None or sorter_type != answer.doc_type:
+    if not sorter_unsure and (sorter_type is None or sorter_type != answer.doc_type):
         causes.append(REVIEWER_DISAGREEMENT)
     cutoff = cutoffs.get(answer.doc_type) if answer.doc_type is not None else None
     if not _meets_cutoff(answer.confidence, cutoff):

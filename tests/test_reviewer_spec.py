@@ -62,9 +62,100 @@ def test_core_freezes_backend_model_and_cutoffs():
     }
 
 
-def test_rejects_correspondence_for_live_backend():
-    with pytest.raises(ValidationError, match="correspondence"):
-        _spec(reviewer=_reviewer(classes={"correspondence": 0.9}))
+@pytest.mark.parametrize(("backend", "model"), [("jev", "jev-1.13.0"), ("api", "openai/gpt-6-luna")])
+def test_third_party_backends_may_review_correspondence(backend, model):
+    spec = _spec(reviewer=_reviewer(backend=backend, model=model, classes={"correspondence": 0.9}))
+    assert spec.reviewer.classes == {"correspondence": 0.9}
+
+
+@pytest.mark.parametrize("model", ["~openai/gpt-luna-latest", "openai/gpt-luna-latest", "openai/gpt-6-luna:batch", "gpt-6-luna", "openrouter/auto"])
+def test_api_backend_refuses_a_moving_model_id(model):
+    with pytest.raises(ValidationError, match="pinned API model"):
+        _spec(reviewer=_reviewer(backend="api", model=model))
+
+
+def _api_errors(route=None, model="openai/gpt-6-luna", **job):
+    routes = {"sorter_reviewer": route} if route else {}
+    spec = _spec(reviewer=_reviewer(backend="api", model=model, classes={"contract": 0.9}), agent_routes=routes)
+    spec.job = spec.job.model_copy(update={"mock": False, **job})
+    return " ".join(preflight._api_reviewer_errors(spec))
+
+
+def test_api_reviewer_needs_an_openrouter_route_serving_its_model():
+    assert "agent_routes.sorter_reviewer" in _api_errors()
+    assert "provider openrouter" in _api_errors({"provider": "vllm", "model": "openai/gpt-6-luna", "base_url": "http://127.0.0.1:8000/v1"})
+    assert "differs" in _api_errors({"provider": "openrouter", "model": "openai/gpt-5.6-luna"})
+    assert _api_errors({"provider": "openrouter", "model": "openai/gpt-6-luna"}) == ""
+
+
+def test_local_backend_may_use_correspondence():
+    spec = _spec(reviewer=_reviewer(backend="local", model="Org/Second", classes={"correspondence": 0.9}))
+    assert spec.reviewer.classes == {"correspondence": 0.9}
+
+
+def _local_errors(model="Org/Second", route=None, mock=False, agent_models=None, sorter_route=None):
+    routes = {"sorter_reviewer": route} if route else {}
+    if sorter_route:
+        routes["sorter"] = sorter_route
+    spec = _spec(reviewer=_reviewer(backend="local", model=model, classes={"correspondence": 0.9}),
+                 agent_routes=routes, job={"mock": mock}, agent_models=agent_models or {})
+    return " ".join(preflight._local_reviewer_errors(spec))
+
+
+def test_local_reviewer_needs_a_second_model():
+    assert "different model" in _local_errors(model="Qwen/Qwen3-8B", mock=True)
+
+
+def test_local_reviewer_needs_a_route_serving_its_model():
+    assert "agent_routes.sorter_reviewer" in _local_errors()
+    route = {"provider": "vllm", "model": "Org/Other", "base_url": "http://10.0.0.1:8000/v1"}
+    assert "effective model 'Org/Other'" in _local_errors(route=route)
+    assert _local_errors(route={**route, "model": "Org/Second"}) == ""
+
+
+PRIVATE_ROUTE = {"provider": "vllm", "model": "Org/Second", "base_url": "http://10.0.0.1:8000/v1"}
+
+
+def test_local_reviewer_checks_the_overridden_reviewer_model():
+    # agent_models wins over the route pin at activation, so preflight must check it.
+    errors = _local_errors(route=PRIVATE_ROUTE, agent_models={"sorter_reviewer": "Qwen/Qwen3-8B"})
+    assert "effective model 'Qwen/Qwen3-8B'" in errors and "different model" in errors
+
+
+def test_local_reviewer_checks_the_effective_sorter_model():
+    sorter = {"provider": "vllm", "model": "Org/Second", "base_url": "http://10.0.0.2:8000/v1"}
+    assert "different model" in _local_errors(route=PRIVATE_ROUTE, sorter_route=sorter)
+    assert "different model" in _local_errors(route=PRIVATE_ROUTE, agent_models={"sorter": "Org/Second"})
+
+
+@pytest.mark.parametrize("url", ["https://api.example.com/v1", "http://8.8.8.8:8000/v1",
+                                 "https://other--app.modal.run/v1"])
+def test_local_reviewer_refuses_a_vllm_route_outside_the_run(url, monkeypatch):
+    monkeypatch.setenv("MODAL_WORKSPACE", "mine")
+    monkeypatch.setenv("VLLM_BASE_URL", "http://127.0.0.1:8000/v1")
+    assert "not a loopback/private address" in _local_errors(route={**PRIVATE_ROUTE, "base_url": url})
+
+
+@pytest.mark.parametrize("url", ["http://localhost:8001/v1", "http://127.0.0.1:8001/v1",
+                                 "https://mine--reviewer.modal.run/v1", "https://engine.internal.test/v1"])
+def test_local_reviewer_accepts_a_vllm_route_the_run_controls(url, monkeypatch):
+    monkeypatch.setenv("MODAL_WORKSPACE", "mine")
+    monkeypatch.setenv("VLLM_BASE_URL", "https://engine.internal.test/v1")
+    assert _local_errors(route={**PRIVATE_ROUTE, "base_url": url}) == ""
+
+
+def test_local_reviewer_refuses_a_vllm_route_to_an_openrouter_engine_host():
+    # An OpenRouter engine's host is a third party: matching it proves nothing.
+    spec = _spec(engine={"kind": "openrouter", "model": "qwen/qwen3.5-9b", "modal": None},
+                 profile="openrouter", job={"mock": False},
+                 reviewer=_reviewer(backend="local", model="Org/Second", classes={"correspondence": 0.9}),
+                 agent_routes={"sorter_reviewer": {**PRIVATE_ROUTE, "base_url": "https://openrouter.ai/api/v1"}})
+    assert "not a loopback/private address" in " ".join(preflight._local_reviewer_errors(spec))
+
+
+def test_local_reviewer_refuses_a_third_party_route():
+    route = {"provider": "openrouter", "model": "Org/Second"}
+    assert "third party" in _local_errors(route=route)
 
 
 def test_mock_backend_may_use_correspondence_offline():
@@ -303,7 +394,6 @@ def test_experiment_create_without_flags_has_no_reviewer(create_experiment):
     ["--decision-reviewer", "jev:jev-1.13.0", "--decision-class", "contract"],
     ["--decision-reviewer", "jev:jev-1.13.0", "--decision-class", "contract=high"],
     ["--decision-reviewer", "jev:jev-1.13.0", "--decision-class", "contract=1.5"],
-    ["--decision-reviewer", "jev:jev-1.13.0", "--decision-class", "correspondence=0.9"],
     ["--decision-reviewer", "jev:jev-1.13.0", "--decision-class", "contrat=0.9"],
     ["--decision-reviewer", "mock:mock", "--decision-class", "contract=0.9", "--decision-class", "contract=0.8"],
 ])

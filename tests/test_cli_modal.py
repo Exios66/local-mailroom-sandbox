@@ -9,6 +9,9 @@ pinned app name) are injected, and ``stop`` is idempotent.
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 
 import pytest
 
@@ -119,6 +122,23 @@ def test_an_sdk_version_other_than_the_pin_warns_but_still_runs(fake_bin, capsys
     assert fake_bin.calls("modal")[-1] == DEPLOY_ARGV
 
 
+def test_publish_image_dry_run_names_the_image_and_builds_nothing(fake_bin, capsys, monkeypatch):
+    monkeypatch.setenv("MODAL_PROFILE", "jjburleson")
+    assert cli.main(["modal", "publish-image", "--tag", "v0.30.0", "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert "publish_modal_image.py" in out and "sandbox-vllm:v0.30.0" in out and "jjburleson" in out
+
+
+def test_publish_image_refuses_a_moving_tag(fake_bin, capsys):
+    assert cli.main(["modal", "publish-image", "--tag", "latest", "--dry-run"]) != 0
+    assert "never latest" in capsys.readouterr().err
+
+
+def test_deploy_named_image_passes_the_switch_to_the_app(fake_bin, capsys):
+    assert cli.main(["modal", "deploy", "--named-image", "--dry-run"]) == 0
+    assert "MODAL_VLLM_USE_NAMED_IMAGE=1" in capsys.readouterr().out
+
+
 def test_prewarm_runs_the_download_entrypoint_and_points_to_deploy(fake_bin, capsys):
     _modal(fake_bin)
     assert cli.main(["modal", "prewarm"]) == 0
@@ -157,11 +177,60 @@ def test_status_matches_app_names_exactly(fake_bin, capsys):
     assert by_name["sandbox-vllm"]["deployed"] is False  # a concurrent fleet is not the default app
 
 
+def test_status_reports_a_scoped_app_this_shell_does_not_name(fake_bin, capsys):
+    rows = [
+        {"description": "sandbox-vllm-reviewer", "state": "deployed", "tasks": "1"},
+        {"description": "sandbox-vllm-old", "state": "stopped"},
+        {"description": "mailroom-ml-eval", "state": "deployed"},
+    ]
+    _modal(fake_bin, rules=[{"prefix": ["--version"], "stdout": PIN}, _apps(*rows)])
+    assert cli.main(["modal", "status", "--json"]) == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["any_deployed"] is True
+    assert [row["name"] for row in report["apps"]] == ["sandbox-vllm", "sandbox-job", "sandbox-vllm-reviewer"]
+    assert cli.main(["modal", "status"]) == 0
+    assert "sandbox modal stop --app sandbox-vllm-reviewer" in capsys.readouterr().out
+
+
+def test_cli_runs_its_own_venv_tools_when_the_venv_is_not_activated(monkeypatch, tmp_path):
+    import os
+    import sys
+
+    from mailroom_sandbox import prefer_own_venv_tools
+
+    own_bin = str(tmp_path / "venv" / "bin")
+    monkeypatch.setattr(sys, "prefix", str(tmp_path / "venv"))
+    monkeypatch.setattr(sys, "base_prefix", "/usr/local")
+    monkeypatch.setattr(sys, "executable", own_bin + "/python")
+    monkeypatch.setenv("PATH", os.pathsep.join(["/opt/homebrew/bin", own_bin]))
+    prefer_own_venv_tools()
+    assert os.environ["PATH"].split(os.pathsep) == [own_bin, "/opt/homebrew/bin"]
+
+    monkeypatch.setattr(sys, "base_prefix", sys.prefix)  # outside a venv PATH is the operator's
+    monkeypatch.setenv("PATH", "/opt/homebrew/bin")
+    prefer_own_venv_tools()
+    assert os.environ["PATH"] == "/opt/homebrew/bin"
+
+
 def test_status_text_marks_a_warm_app_as_billing(fake_bin, capsys):
     _modal(fake_bin, rules=[{"prefix": ["--version"], "stdout": PIN}, _apps({"description": "sandbox-vllm", "state": "deployed"})])
     assert cli.main(["modal", "status"]) == 0
     out = capsys.readouterr().out
     assert "sandbox-vllm" in out and "deployed" in out and "sandbox modal stop" in out
+
+
+@pytest.mark.parametrize(
+    ("tasks", "shown", "billing"),
+    [("0", "containers=0", "not billing now"), ("2", "containers=2", "bills while containers are warm")],
+)
+def test_status_separates_an_idle_deployment_from_a_billing_one(fake_bin, capsys, tasks, shown, billing):
+    row = {"description": "sandbox-vllm", "state": "deployed", "tasks": tasks}
+    _modal(fake_bin, rules=[{"prefix": ["--version"], "stdout": PIN}, _apps(row)])
+    assert cli.main(["modal", "status"]) == 0
+    out = capsys.readouterr().out
+    assert shown in out and billing in out
+    assert cli.main(["modal", "status", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["apps"][0]["tasks"] == int(tasks)
 
 
 def test_status_reports_unparseable_output_as_an_error(fake_bin, capsys):
@@ -319,3 +388,31 @@ def test_status_recommends_teardown_for_each_deployed_app(fake_bin, capsys):
     out = capsys.readouterr().out
     assert 'sandbox modal stop --app sandbox-vllm' in out
     assert 'sandbox modal stop --app sandbox-job' in out
+
+
+def test_status_counts_a_live_ephemeral_app_as_billing(fake_bin, capsys):
+    row = {"description": "sandbox-vllm-probe", "state": "ephemeral", "tasks": "1"}
+    _modal(fake_bin, rules=[{"prefix": ["--version"], "stdout": PIN}, _apps(row)])
+    assert cli.main(["modal", "status", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["any_deployed"] is True
+    assert cli.main(["modal", "status"]) == 0
+    assert "sandbox modal stop --app sandbox-vllm-probe" in capsys.readouterr().out
+
+
+def test_prefer_own_venv_tools_uses_the_default_path_when_path_is_unset(tmp_path, monkeypatch):
+    from mailroom_sandbox import prefer_own_venv_tools
+
+    own_bin = str(tmp_path / "venv" / "bin")
+    monkeypatch.setattr(sys, "prefix", str(tmp_path / "venv"))
+    monkeypatch.setattr(sys, "base_prefix", "/usr/local")
+    monkeypatch.setattr(sys, "executable", own_bin + "/python")
+    monkeypatch.delenv("PATH")
+    prefer_own_venv_tools()
+    assert os.environ["PATH"] == os.pathsep.join([own_bin, os.defpath])
+
+
+def test_importing_the_package_leaves_path_alone():
+    code = "import os, mailroom_sandbox; print(os.environ['PATH'])"
+    env = {**os.environ, "PATH": "/custom/bin"}
+    out = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, check=True).stdout
+    assert out.strip() == "/custom/bin"

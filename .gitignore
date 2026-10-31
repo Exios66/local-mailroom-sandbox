@@ -19,6 +19,8 @@ data/cache/**
 !data/cache/README.md
 data/traces/
 data/pipeline/
+data/archive/
+data/warehouse/
 data/manifests/
 data/watcher.lock
 data/watcher_heartbeat
@@ -126,3 +128,7 @@ reports/SAND42/.*.tmp*
 data/provider_health.json
 data/provider_health.lock
 .venv
+
+# Pipeline output from mock and live runs
+/data/archive
+/data/warehouse

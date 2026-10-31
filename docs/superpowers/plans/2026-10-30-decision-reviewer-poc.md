@@ -6,6 +6,8 @@
 
 **Architecture:** `llm-mailroom` gains a pure routing function, a pluggable decision backend and durable reviewer fields. The sandbox supplies the Jev backend, a frozen run setting and `sandbox review`, which is a thin client over the existing review API. Pilot 1 runs offline first, then as one bounded live run.
 
+> **Updated 2026-10-31:** the sandbox now supplies four backends, `jev`, `local`, `api` and `mock`, not only Jev. The current routing and backend rules are in `config/experiments/decision-pilot/README.md`. The text above is the original plan.
+
 **Tech Stack:** Python 3.11+, LangGraph, Pydantic, pytest, Pydantic AI (`pydantic-ai-slim[typesafe]`), httpx.
 
 **Spec:** `docs/superpowers/specs/2026-10-30-decision-model-reviewer-design.md`
@@ -37,6 +39,8 @@ unchecked historical steps are not a replacement for this verified checkpoint.
 
 ## Scope and schedule
 
+> **Updated 2026-10-31:** plan 3 (sanitized correspondence) is cancelled (SAND-086). The Enron correspondence is public, so no sanitized dataset is needed and every backend accepts correspondence. The row below is kept as the original plan.
+
 This is plan 1 of 5. The spec covers independent subsystems, so each later plan gets its own document and review. Dates are proposed targets against the December 15, 2026 final presentation.
 
 | Plan | Delivers | Target |
@@ -48,6 +52,8 @@ This is plan 1 of 5. The spec covers independent subsystems, so each later plan 
 | 5. Qualification and demo | Section 10 evidence, exhibits, backup recording | Dec 4, freeze Dec 8 |
 
 ## Global Constraints
+
+> **Updated 2026-10-31:** the correspondence bullet below is superseded: correspondence is accepted by every backend and needs no sanitized dataset (SAND-086 cancelled). Failure routes still end in `human_review`, but a decision class now reaches its reviewer at any sorter confidence, and a reviewer may correct a sorter below its low band at the cutoff. See `config/experiments/decision-pilot/README.md`.
 
 <!-- coderabbit-ai-generated:v1 -->
 
@@ -82,6 +88,8 @@ This is plan 1 of 5. The spec covers independent subsystems, so each later plan 
 ---
 
 ### Task 1: Pure review routing (`llm-mailroom`)
+
+> **Updated 2026-10-31:** `decide_review` gained a `sorter_unsure` argument. When the sorter is below its low band, only the reviewer's label must be eligible, and the reviewer may correct the sorter at the cutoff. The override-never-accepts test below covers a sorter at or above its low band, where disagreement still parks.
 
 **Files:**
 - Create: `src/pipeline/decision_review.py`
@@ -326,6 +334,8 @@ git commit -m "chore: vendor llm-mailroom decision reviewer"
 
 ### Task 5: Decision backends
 
+> **Updated 2026-10-31:** `build_backend` now accepts `jev`, `local`, `api` and `mock`. `api` requires an exact provider id such as `openai/gpt-6-luna` (no `-latest` or `~` aliases), and the Decisions API adapter described below was not built. The `local` and `api` backends run the `sorter_reviewer` agent.
+
 **Files:**
 - Create: `src/mailroom_sandbox/decision_backends.py`
 - Modify: `pyproject.toml`
@@ -376,6 +386,8 @@ git commit -m "feat: add Jev and mock decision backends"
 ```
 
 ### Task 6: Frozen reviewer setting
+
+> **Updated 2026-10-31:** `ReviewerSpec.backend` is `Literal["jev", "local", "api", "mock"]`. The correspondence rejection described below was removed, so `test_rejects_correspondence_for_live_backend` no longer applies. Preflight checks each route: `local` needs a `modal-vllm` or `vllm` route, and `api` needs an `openrouter` route.
 
 **Files:**
 - Modify: `src/mailroom_sandbox/job/spec.py:382,521,638`, `src/mailroom_sandbox/job/preflight.py`, `src/mailroom_sandbox/runtime.py:222` (`activate`), `src/mailroom_sandbox/experiments.py`, `src/mailroom_sandbox/cli.py`

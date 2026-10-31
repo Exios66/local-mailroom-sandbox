@@ -72,6 +72,14 @@ SANDBOX_MODEL_PRICES: dict[str, tuple[float, float]] = {
     "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B": (0.05, 0.25),  # deepseek-v4-flash
     "deepseek-ai/DeepSeek-R1-Distill-Llama-8B": (0.05, 0.25),
     "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B": (0.435, 0.87),  # deepseek-v4-pro
+    # SAND-089: the OpenRouter ids themselves, so a paid API run can price (and cap)
+    # its token spend. OpenRouter /api/v1/models list price, checked 2026-10-31.
+    "qwen/qwen3.5-9b": (0.17, 0.25),
+    "qwen/qwen3.5-35b-a3b": (0.14, 1.00),
+    "qwen/qwen3.5-27b": (0.26, 2.60),
+    "openai/gpt-4o": (2.50, 10.00),
+    "openai/gpt-6-luna": (0.10, 0.50),
+    "qwen/qwen3.7-flash": (0.03, 0.13),
 }
 
 # Modal GPU $/hr (modal.com/pricing, verified 2026-09-09 — see deploy/README.md).
@@ -284,16 +292,32 @@ def _estimate_cost(
     )
 
 
+def token_price(model: str) -> tuple[float, float] | None:
+    """USD per 1M (input, output) tokens for ``model``, in ``_estimate_cost``'s order.
+
+    The global override wins, then the dojo table, then the sandbox table (exact id,
+    then prefix). None when no price is known.
+    """
+    override = _token_price_override()
+    if override is not None:
+        return override
+    if not model:
+        return None
+    try:
+        dojo = price_for(model)
+    except Exception:  # noqa: BLE001 — same soft fallback as _estimate_cost
+        dojo = None
+    if dojo is not None:
+        return float(dojo[0]), float(dojo[1])
+    prices = SANDBOX_MODEL_PRICES.get(model)
+    if prices is None:
+        prices = next((price for known, price in SANDBOX_MODEL_PRICES.items() if model.startswith(known)), None)
+    return prices
+
+
 def _has_token_price(model: str) -> bool:
     """A price is known for ``model`` (override, dojo table, or sandbox table)."""
-    if _token_price_override() is not None:
-        return True
-    try:
-        if price_for(model) is not None:
-            return True
-    except Exception:  # noqa: BLE001 — same soft fallback as _estimate_cost
-        pass
-    return bool(model) and any(model.startswith(known) for known in SANDBOX_MODEL_PRICES)
+    return token_price(model) is not None
 
 
 def _usage_observed(item: Mapping[str, Any]) -> bool:

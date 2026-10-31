@@ -38,6 +38,7 @@ engine:
   model: Qwen/Qwen3.5-9B
   vllm:
     max_model_len: 16384
+    max_inputs: 4              # match job.concurrency (preflight refuses 0)
     gpu_memory_utilization: 0.90
     max_num_seqs: 6
     enable_prefix_caching: true
@@ -49,6 +50,8 @@ job:
   max_retries: 2
   fail_fast: false
   concurrency: 4
+  cost_cap_usd: 1.00          # paid runs refuse to start without a finite cap
+  max_wall_seconds: 1800
 
 trace:
   sink: none
