@@ -29,7 +29,7 @@ MAX_CHOICE_OPTIONS = 255
 DEFAULT_MAX_INPUT_CHARS = 12000
 
 # A tuned cutoff is tied to one model version, so only a versioned id is allowed.
-_VERSIONED_JEV = re.compile(r"^jev-\d+(\.\d+)+$")
+_VERSIONED_JEV = re.compile(r"jev-\d+(\.\d+)+")
 
 _GOAL = "Classify one document from its text."
 _DOC_TYPE_QUESTION = "Which document type is this text?"
@@ -116,7 +116,7 @@ def jev_backend(
     ``max_input_chars`` before it is sent. The answer's confidence is the model's
     confidence in ``doc_type`` (``None`` when it reports none).
     """
-    if not _VERSIONED_JEV.match(model):
+    if not _VERSIONED_JEV.fullmatch(model):
         raise ValueError(
             f"{model!r} is not a pinned Jev version (expected e.g. 'jev-1.13.0'); "
             "moving aliases would silently change a tuned cutoff"

@@ -49,7 +49,7 @@ def risk(path):
         return 'May write files or contact services'
     if path[0] in {'eval', 'pilot', 'hf-pilot', 'legalbench', 'matrix'}:
         return 'May run inference or write results; mock/dry-run options vary'
-    if command.startswith('metrics serving-record') or command.startswith('runbook write'):
+    if command.startswith(('metrics serving-record', 'runbook write', 'calibrate')):
         return 'May write files'
     return 'Inspect help and implementation for side effects'
 

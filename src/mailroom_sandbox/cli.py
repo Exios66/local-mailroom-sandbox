@@ -677,6 +677,21 @@ def build_parser() -> argparse.ArgumentParser:
     score_p.add_argument("--serving-dir", default=None, help="default: reports/serving (nested SAND trees and legacy flat exports)")
     score_p.set_defaults(handler=_cmd_scorecard)
 
+    cal = sub.add_parser("calibrate", help="offline reviewer calibration from recorded rows (no LLM, no config writes)", parents=[leaf])
+    cal_sub = cal.add_subparsers(dest="calibrate_cmd")
+    cal_d = cal_sub.add_parser(
+        "decision",
+        help="per class and pinned model: may a class skip the backup LLM reviewer, and at what cutoff",
+        parents=[leaf],
+    )
+    cal_d.add_argument("--input", required=True, metavar="FILE", help="JSONL, one row per reviewer-band document")
+    cal_d.add_argument("--out", required=True, metavar="DIR", help="directory for calibration.json and calibration.md")
+    cal_d.add_argument("--risk-bar", type=float, default=0.01, help="maximum 95%% upper bound on wrong accepts (default %(default)s)")
+    cal_d.add_argument("--tune-fraction", type=float, default=0.5, help="share of documents used to tune; the rest are held out (default %(default)s)")
+    cal_d.add_argument("--allow-correspondence", action="store_true", help="calibrate correspondence rows for a live model; the class still stays on llm")
+    cal_d.set_defaults(handler=_cmd_calibrate_decision)
+    cal.set_defaults(handler=_cmd_calibrate_help)
+
     rb = sub.add_parser(
         "runbook",
         help="Operator runbooks (catalog → show / check / write)",
@@ -2786,6 +2801,40 @@ def _cmd_scorecard(args) -> int:
     store = RunStore(spec_mod.runs_root() / str(args.run_id))
     serving = Path(args.serving_dir) if args.serving_dir else reports_dir() / "serving"
     return watch_mod.print_scorecard(store, serving_dir=serving)
+
+
+def _cmd_calibrate_help(args) -> int:
+    print("Use: sandbox calibrate decision --input FILE --out DIR")
+    return 0
+
+
+def _cmd_calibrate_decision(args) -> int:
+    from mailroom_sandbox import calibration
+    from mailroom_sandbox.overlay import live_doc_classes
+    from mailroom_sandbox.paths import repo_root
+
+    out = Path(args.out).resolve()
+    if out.is_relative_to((repo_root() / "config").resolve()):
+        raise ServiceError(f"--out {out} is inside config/; calibration never writes config")
+    try:
+        report = calibration.calibrate_file(
+            args.input,
+            live_classes=live_doc_classes(),
+            risk_bar=args.risk_bar,
+            tune_fraction=args.tune_fraction,
+            allow_correspondence=args.allow_correspondence,
+        )
+    except calibration.CalibrationError as exc:
+        raise ServiceError(str(exc)) from exc
+    calibration.write_report(report, out)
+    for note in report["notes"]:
+        print(f"note: {note}")
+    for name, result in report["classes"].items():
+        print(f"{name}: {result['verdict']} ({result['reason']})")
+    print(f"Wrote {out}/calibration.json and calibration.md")
+    flags = calibration.decision_flags(report)
+    print(flags if flags else "No class qualifies; every class stays on llm.")
+    return 0
 
 
 def _cmd_run_suite(args) -> int:
