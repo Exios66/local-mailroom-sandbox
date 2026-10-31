@@ -270,3 +270,16 @@ def test_isolated_eval_streams_each_row_to_row_cb(tmp_path, monkeypatch):
     result = runners.run_isolated_eval("judge", mock=True, row_cb=seen.append)
     assert len(seen) == result["scores"]["n"] > 0
     assert all("latency_ms" in e for e in seen)
+
+
+def test_isolated_eval_record_prices_the_whole_routed_fleet(tmp_path, monkeypatch):
+    """A routed run's record must bill every warm route app, like its cost cap does."""
+    from mailroom_sandbox.job import metrics
+
+    _isolate_log(tmp_path, monkeypatch)
+    monkeypatch.setenv("MAILROOM_BASE_DIR", str(tmp_path))
+    monkeypatch.setattr(metrics, "estimate_gpu_cost_usd",
+                        lambda _s, *, gpu, replicas: {"L4": 1.0, "L40S": 3.0}[gpu] * replicas)
+    rec = runners.run_isolated_eval("compile_report", mock=False, gpu="L4", replicas=2,
+                                    gpu_fleet=[("L4", 2), ("L40S", 1)])["record"]
+    assert rec["estimated_gpu_cost_usd"] == 5.0

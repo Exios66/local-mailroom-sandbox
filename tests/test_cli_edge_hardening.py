@@ -130,3 +130,43 @@ def test_python_dash_m_runs_the_cli(module):
     assert ok.returncode == 0 and 'modal-vllm' in ok.stdout
     bad = subprocess.run([sys.executable, '-m', module, 'nope'], capture_output=True, text=True, timeout=120)
     assert bad.returncode == 2 and 'invalid choice' in bad.stderr
+
+
+def test_hidden_eval_tasks_still_dispatch_from_the_tui():
+    # Hidden tasks (eval judge, eval sorter) still parse; the shell must not reject them.
+    from mailroom_sandbox.tui import shell
+
+    catalog = shell.command_catalog(cli.build_parser())
+    assert 'judge' not in catalog[[n['path'] for n in catalog].index(['eval'])]['children']
+    assert shell.unknown_path(['eval', 'judge'], catalog) is None
+    assert shell.unknown_path(['eval', 'sorter', '--mock'], catalog) is None
+    assert shell.unknown_path(['eval', 'judgee'], catalog).startswith("error: unknown command 'eval judgee'")
+
+
+@pytest.mark.parametrize(('argv', 'code', 'starts'), [
+    (['run', 'status', '--run-id', '-1'], 2, "error: run_id '-1' must match"),
+    (['metrics', 'compare', '--runs', '/etc'], 2, "error: run_id '/etc' must match"),
+    (['modal-matrix', 'show', '__bogus__'], 2, "error: model '__bogus__' not in config/models.yaml"),
+    (['modal-matrix', 'env', '--gpu', '__bogus__'], 2, "error: gpu '__bogus__' not in known classes"),
+])
+def test_bad_ids_and_catalog_names_are_one_line_errors(argv, code, starts, tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv('MAILROOM_BASE_DIR', str(tmp_path))
+    assert cli.main(argv) == code
+    err = capsys.readouterr().err
+    assert err.startswith(starts) and len(err.strip().splitlines()) == 1
+
+
+def test_a_directory_or_non_yaml_config_is_named_in_one_line(tmp_path, capsys):
+    assert cli.main(['run', 'preflight', '--config', str(tmp_path)]) == 1
+    assert capsys.readouterr().err.strip() == f'error: expected a file, got a directory: {tmp_path}'
+    bad = tmp_path / 'bad.yaml'
+    bad.write_text('a: [unclosed\n')
+    assert cli.main(['run', 'preflight', '--config', str(bad)]) == 1
+    err = capsys.readouterr().err
+    assert err.startswith('error: not valid YAML') and len(err.strip().splitlines()) == 1
+
+
+def test_an_unresolvable_host_is_one_line(tmp_path, capsys):
+    assert cli.main(['board', '--host', 'no-such-host.invalid', '--root', str(tmp_path)]) == 1
+    err = capsys.readouterr().err
+    assert err.strip() == "error: cannot resolve host 'no-such-host.invalid'"
