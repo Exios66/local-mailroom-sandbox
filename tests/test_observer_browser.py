@@ -252,3 +252,96 @@ def test_pipeline_floor_renders_routes_and_decisions(tmp_path, width):
         session.stop()
         server.shutdown()
         server.server_close()
+
+
+def test_terminal_edge_input_stays_short_and_actionable(tmp_path):
+    if os.environ.get("SANDBOX_BROWSER_TESTS") != "1":
+        pytest.skip("SANDBOX_BROWSER_TESTS not set")
+    pw = pytest.importorskip("playwright.sync_api")
+    demo = DemoRun(tmp_path)
+    session = web.WatchWebSession(resolve=demo.resolve, ledger=demo.ledger,
+        cap_usd=5, times_dir=demo.times_dir, serving_dir=demo.serving_dir,
+        interval=0.1, follow_logs=False)
+    session.refresh()
+    server = ThreadingHTTPServer(("127.0.0.1", 0), web.make_handler(session))
+    Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        with pw.sync_playwright() as p:
+            browser = p.chromium.launch(executable_path=os.environ.get("SANDBOX_BROWSER_EXECUTABLE"))
+            page = browser.new_page(viewport={"width": 375, "height": 812}, reduced_motion="reduce")
+            errors = []
+            page.on("pageerror", lambda error: errors.append(str(error)))
+            page.goto(f"http://127.0.0.1:{server.server_port}/#terminal")
+            page.wait_for_function("commandCatalog.length > 0")
+            field = page.locator("#command-input")
+
+            def run(line):
+                page.evaluate("commandOutput.textContent = ''")
+                field.fill(line)
+                field.press("Enter")
+                return page.locator("#command-output").inner_text().strip()
+
+            # A blank line is a fresh prompt: no root usage dump, nothing in history.
+            assert run("") == "mailroom>"
+            assert run("   ") == "mailroom>"
+            assert "usage:" not in run("")
+            history = run("history")
+            assert history == "mailroom> history"
+
+            # Suggestions are close spellings, not any name sharing two letters.
+            assert "did you mean" not in run("definitely-not-a-command")
+            assert "did you mean start" in run("run strat")
+            assert "did you mean doctor" in run("docter")
+
+            # Hidden legacy tasks still parse in the CLI: point at the local command.
+            out = run("eval judge --mock")
+            assert "Unknown command" not in out and "sandbox eval judge --mock" in out
+            assert "sandbox eval judge --help" in out
+
+            # Long input is echoed once at the prompt, and clipped in the error.
+            out = run("x" * 3000)
+            assert out.count("x") < 200, len(out)
+            assert "…" in out
+
+            # A real leaf command with options names the local command to run.
+            out = run("run start --config config/runs/x.yaml")
+            assert "sandbox run start --config config/runs/x.yaml" in out
+            assert "help run start" in out
+            assert "Not a browser inspection command" not in out
+            assert not errors, errors
+            browser.close()
+    finally:
+        session.stop()
+        server.shutdown()
+        server.server_close()
+
+
+@pytest.mark.parametrize("width", [375, 1280])
+def test_board_page_loads_clean_and_flags_a_dead_server(tmp_path, width):
+    if os.environ.get("SANDBOX_BROWSER_TESTS") != "1":
+        pytest.skip("SANDBOX_BROWSER_TESTS not set")
+    pw = pytest.importorskip("playwright.sync_api")
+    from mailroom_sandbox.tui import board
+
+    demo = board.DemoJobs(tmp_path)
+    for _ in range(5):
+        demo.step()
+    server = board.make_board_server("127.0.0.1", 0, root=tmp_path, interval=0.1)
+    Thread(target=server.serve_forever, daemon=True).start()
+    with pw.sync_playwright() as p:
+        browser = p.chromium.launch(executable_path=os.environ.get("SANDBOX_BROWSER_EXECUTABLE"))
+        page = browser.new_page(viewport={"width": width, "height": 860}, reduced_motion="reduce")
+        problems = []
+        page.on("pageerror", lambda error: problems.append(str(error)))
+        page.on("console", lambda m: problems.append(m.text) if m.type == "error" else None)
+        page.goto(f"http://127.0.0.1:{server.server_port}/")
+        page.wait_for_function("document.querySelectorAll('.card').length === 2")
+        assert page.locator("#n").inner_text() == "2"
+        assert not page.evaluate("document.documentElement.scrollWidth > window.innerWidth")
+        assert not problems, problems  # no favicon 404 or script error
+        server.board_stop.set()
+        server.shutdown()
+        server.server_close()
+        page.wait_for_selector("#err:not([hidden])", timeout=10000)
+        assert "disconnected" in page.locator("#err").inner_text().lower()
+        browser.close()
