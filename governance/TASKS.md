@@ -14,8 +14,8 @@ open `DMR-*` cards here.
 <!-- coderabbit-ai-generated-section:v1:0dfa4a29d5bbd485910d79fa324b57ed49826439a7a50407d1ba4a48b51476cb -->
 
 Reconciled against the [issue tracker](https://github.com/Exios66/local-mailroom-sandbox/issues)
-on 2026-10-31: this board has 100 card rows (66 primary cards) and its highest
-primary ID is `SAND-082`. The tracker has 40 issues, 18 with a `SAND-*` ID in
+on 2026-10-31: this board has 101 card rows (67 primary cards) and its highest
+primary ID is `SAND-083`. The tracker has 40 issues, 18 with a `SAND-*` ID in
 the title; its highest such ID is `SAND-073` (#187), and all title IDs have
 rows here. **This board is the numbering authority:** allocate the next ID
 here first, then open the issue.
