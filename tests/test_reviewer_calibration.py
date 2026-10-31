@@ -135,3 +135,14 @@ def test_calibration_run_is_capped_and_uses_a_non_qwen_model():
     run = load_run_spec(ROOT / "config/runs/reviewer-calibration-gemma4.yaml")
     assert run.task == "sorter_reviewer" and run.engine.model.startswith("google/gemma-4")
     assert run.job.cost_cap_usd <= 1.0 and run.engine.modal.max_containers == 1
+
+
+def test_saturation_counts_answers_at_the_top_confidence(tmp_path):
+    # A cutoff cannot separate these: both the right and the wrong answer score 1.0.
+    rows = [{"id": str(i), "expected_doc_class": "contract" if i < 3 else "correspondence"} for i in range(4)]
+    items = [{"item_id": str(i), "ok": True, "pred": {"doc_type": "contract", "confidence": 0.8 if i == 0 else 1.0}}
+             for i in range(4)]
+    result = calibrate_reviewer.calibrate(_store(tmp_path, items, rows), classes=CLASSES)["classes"]["contract"]
+    assert result["top_confidence"] == 1.0
+    assert result["top_confidence_documents"] == 3
+    assert result["top_confidence_wrong"] == 1
