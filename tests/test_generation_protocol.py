@@ -45,6 +45,9 @@ def test_cli_loads_dotenv_trace_keys_before_preflight(tmp_path,source_root,monke
  spec,path,store,_=spec_file(tmp_path,source_root)
  base,calls=http_fixture
  spec.job.mock=True;spec.trace.sink='langfuse';spec.trace.endpoint=base+'/api/public/otel';path.write_text(yaml.safe_dump(spec.model_dump(mode='json')))
+ # The SDK guard is not under test here; CI installs [dev] without langfuse.
+ real_find_spec=preflight.find_spec
+ monkeypatch.setattr(preflight,'find_spec',lambda name:object() if name=='langfuse' else real_find_spec(name))
  for key in ('LANGFUSE_PUBLIC_KEY','LANGFUSE_SECRET_KEY','LANGFUSE_INIT_PROJECT_PUBLIC_KEY','LANGFUSE_INIT_PROJECT_SECRET_KEY'):
   monkeypatch.delenv(key,raising=False)
  (source_root/'.env').write_text('LANGFUSE_PUBLIC_KEY=pk-review-fixture\nLANGFUSE_SECRET_KEY=sk-review-fixture\nLANGFUSE_HOST='+base+'\n')

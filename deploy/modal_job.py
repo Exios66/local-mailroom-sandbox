@@ -199,7 +199,7 @@ def run_job(payload: dict) -> dict:
     import traceback
 
     from mailroom_sandbox.job.checkpoint import RunStore
-    from mailroom_sandbox.job.deploy_env import durable_mailroom_env
+    from mailroom_sandbox.job.deploy_env import durable_mailroom_env, settle_mailroom_writers
     from mailroom_sandbox.job.remote import generation_fields
     from mailroom_sandbox.job.otel import configure_tracing, flush_tracer, resolve_sink
     from mailroom_sandbox.job.runner import run_job as run_local_job
@@ -265,6 +265,12 @@ def run_job(payload: dict) -> dict:
             except Exception as exc:  # noqa: BLE001 — hub#41: loud, never silent
                 logger.warning("runs_volume.commit failed: %s", exc, exc_info=True)
 
+    def settle_writers() -> None:
+        """Let the pipeline's background mailroom.db writers finish before a commit."""
+        pending = settle_mailroom_writers()
+        if pending:
+            logger.warning("mailroom.db writers still running at commit: %s", pending)
+
     payload_mock = payload.get("mock")
     try:
         # Local filesystem protection only. Modal Volume flock does not
@@ -290,6 +296,7 @@ def run_job(payload: dict) -> dict:
             "diagnostics": _diagnostics(),
             "heartbeat_at": _now(),
         }
+        settle_writers()
         try:
             cp = store.read_checkpoint() or {}
             store.write_checkpoint(state="failed", cursor=cp.get("cursor", 0), total=cp.get("total", 0),
@@ -315,6 +322,7 @@ def run_job(payload: dict) -> dict:
     if generation_fields(store.verify_generation()) != identity:
         raise RuntimeError("worker generation changed; refusing stale terminal publication")
 
+    settle_writers()
     # The reports dir is container-local; copy the run's experiment records
     # into the volume-committed run dir so the CLI can pull them back (DMR-047).
     reports_log = Path(SANDBOX_ROOT) / "reports" / "experiment_log.jsonl"
