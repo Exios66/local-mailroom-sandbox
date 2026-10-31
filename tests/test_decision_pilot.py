@@ -58,6 +58,7 @@ def run_pilot_row(row: dict, spec: ReviewerSpec, pilot) -> dict:
     from pipeline.bins import inbox_dir
 
     _, monkeypatch = pilot
+    sorter_confidence = row.get("sorter_confidence", 0.93)
     activate("ollama", load_env_file=False, reviewer=spec)
     backend = mock_backend({row["doc_text"]: (row["reviewer_type"], row["reviewer_confidence"])})
 
@@ -96,7 +97,7 @@ def run_pilot_row(row: dict, spec: ReviewerSpec, pilot) -> dict:
         monkeypatch.setattr(bg, name + "_node", observe(name, getattr(bg, name + "_node")))
 
     # Same model seams as the sandbox mock runner; graph and routing stay real.
-    expect = {"doc_type": row["sorter_type"], "conf": 0.93, "expected_fields": {
+    expect = {"doc_type": row["sorter_type"], "conf": sorter_confidence, "expected_fields": {
         "entity_name": "Cedar Sample Ltd", "record_type": "minutes",
         "claim_number": "C-17", "insured_party": "Cedar Sample Ltd",
     }}
@@ -105,7 +106,7 @@ def run_pilot_row(row: dict, spec: ReviewerSpec, pilot) -> dict:
         stack.enter_context(patch(
             target, return_value=(fake_client(expect), "mock-model")))
     fake = FakeLangChainLLM(classification={
-        "doc_type": row["sorter_type"], "confidence": 0.93,
+        "doc_type": row["sorter_type"], "confidence": sorter_confidence,
         "contract_subtype": "other" if row["sorter_type"] == "contract" else None,
         "doc_subclass": {"contract": "other", "corporate_record": "minutes",
                          "insurance_claim": "carrier"}[row["sorter_type"]],
@@ -136,7 +137,7 @@ def run(pilot):
         return result
 
     yield run
-    for result in results:
+    for result in reversed(results):  # nested patches unwind last-in, first-out
         result["stack"].close()
 
 
@@ -187,6 +188,21 @@ def test_each_cause_parks(row, run):
     assert not {"extract", "archive"} & set(result["visited"])
     assert result["llm_reviewer"].call_count == 0
     assert result["backend"].call_count == (0 if row["id"] in {"no_text", "unavailable"} else 1)
+
+
+def test_confident_sorter_cannot_skip_the_reviewer(run):
+    """The sorter's own 0.99 is no second opinion; only agreement archives."""
+    accepted = run({**ROWS[0], "sorter_confidence": 0.99})
+    assert accepted["stage"] == "archived"
+    assert accepted["backend"].call_count == 1
+
+    from pipeline.bins import load_manifest
+
+    parked = run({**ROWS[1], "sorter_confidence": 0.99})
+    manifest = load_manifest(parked["doc_id"])
+    assert parked["stage"] == manifest.stage.value == "review"
+    assert "reviewer_disagreement" in manifest.review_causes
+    assert "extract" not in parked["visited"]
 
 
 def connect_review_api(monkeypatch):
