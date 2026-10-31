@@ -194,3 +194,13 @@ def test_local_dataset_count_applies_the_requested_subclass(tmp_path, capsys):
             "--subclass", "email", "--local-dataset", str(source), "--output", str(tmp_path / "sub")]
     assert cli.main(args) != 0
     assert "has 1 scoreable correspondence row(s)" in capsys.readouterr().err
+
+
+def test_local_dataset_count_accepts_several_requested_subclasses(tmp_path):
+    rows = [_row(0, "correspondence", "email"), _row(1, "correspondence", "letter"),
+            _row(2, "correspondence", "memo")]
+    source = _write(tmp_path / "docs.jsonl", rows)
+    args = ["experiment", "create", "subs", "--doc-class", "correspondence", "--samples", "2", "--mock",
+            "--subclass", "email", "--subclass", "letter", "--trace-sink", "none",
+            "--local-dataset", str(source), "--output", str(tmp_path / "subs")]
+    assert cli.main(args) == 0
