@@ -184,6 +184,12 @@ The reviewer is written to the run's `reviewer:` block and into the pipeline's
 taxonomy, so it governs routing in `--task pipeline` runs. Preflight checks it:
 `local` and `api` need a `sorter_reviewer` route that serves the reviewer's model.
 
+### Reuse the serving image
+
+Modal experiments deploy from the workspace's published `sandbox-vllm:<image_tag>`, so
+run `sandbox modal publish-image` once per Modal account first. `--no-named-image` on
+`experiment create` builds the image instead.
+
 ### Calibrate the cutoffs
 
 Issue #208 tracks the 200-document calibration run. `scripts/calibrate_reviewer.py`
