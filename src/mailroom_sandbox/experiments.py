@@ -818,6 +818,15 @@ def _sand42_row(run_id: str, metrics: dict) -> str:
             f"{_fmt_score(pipeline.get('review_rate'))} |")
 
 
+def _clear_gpu_metrics(metrics: dict, card: dict | None) -> None:
+    """No GPU was billed (mock, or API-only): the card's L4 × 1 is a default, not a measurement."""
+    metrics['cost'] = {}
+    metrics['goodput'] = {}
+    if card:
+        card['cost'] = {}
+        card['conditions'] = {**(card.get('conditions') or {}), 'gpu': None, 'gpu_usd_per_hour': None, 'replicas': None}
+
+
 def _write_report(path: Path, plan: Plan, runs) -> dict:
     rows = []
     cards = {}
@@ -855,13 +864,11 @@ def _write_report(path: Path, plan: Plan, runs) -> dict:
         card = collect_card(store, wall_seconds=infer_wall_seconds_from_store(store)) if store.load_items() else None
         summary['sand42'] = sand42_summary(spec.run_id, card, spec.task)
         lock = store.read_lock() or {}
-        from mailroom_sandbox.job.api_budget import spend_estimate
+        from mailroom_sandbox.job.api_budget import spend_estimate, usage_records
         from mailroom_sandbox.job.spend import bills_gpu
         if spec.job.mock or not bills_gpu(lock):
-            summary['sand42']['cost'] = {}  # no GPU was billed (mock, or API-only)
-            if card:
-                card['cost'] = {}
-        if not spec.job.mock and (api_spend := spend_estimate(lock, store.load_items())):
+            _clear_gpu_metrics(summary['sand42'], card)
+        if not spec.job.mock and (api_spend := spend_estimate(lock, usage_records(store))):
             summary['sand42']['api_cost'] = api_spend  # SAND-089: token spend, reported apart from GPU
         if card:
             cards[spec.run_id] = card

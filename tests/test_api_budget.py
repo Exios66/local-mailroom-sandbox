@@ -173,3 +173,34 @@ def test_a_pipeline_document_that_raises_after_a_paid_call_reports_its_usage(mon
     assert raised.value.sandbox_failed_usage["item_id"] == "d0"
     assert raised.value.sandbox_failed_usage["prompt_tokens"] == 300_000
     assert budget.spent_usd == pytest.approx(0.051, abs=1e-4)
+
+
+def test_a_modal_route_on_an_api_engine_counts_its_replicas_and_overhead():
+    spec = _spec(agent_routes={"judge": {"provider": "modal-vllm", "model": "Qwen/Qwen3.5-27B",
+                                         "modal": {"app": "sandbox-vllm-judge", "gpu": "L4", "max_containers": 1,
+                                                   "scaledown_seconds": 60}}},
+                 job={"mock": False, "concurrency": 16})
+    basis = budget_advice.recommend(spec)["basis"]
+    assert basis["effective_concurrency"] == 4
+    assert basis["cold_start_and_scaledown_seconds"] == 180
+
+
+def test_reported_api_spend_includes_documents_that_failed_after_a_paid_call(tmp_path):
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    store = RunStore(tmp_path / "run")
+    store.append_item({"item_id": "1", "ok": True, "usage": {"prompt_tokens": 10}})
+    store.append_event(api_budget.FAILED_USAGE_EVENT, "warning", item_id="2", prompt_tokens=20)
+    records = api_budget.usage_records(store)
+    assert [record["item_id"] for record in records] == ["1", "2"]
+
+
+def test_a_run_without_a_billed_gpu_reports_no_gpu_metrics():
+    from mailroom_sandbox.experiments import _clear_gpu_metrics
+
+    metrics = {"cost": {"usd_per_1k_ok": 1}, "goodput": {"documents_per_minute_per_gpu": 2}}
+    card = {"cost": {"x": 1}, "conditions": {"gpu": "L4", "replicas": 1, "model": "m"}}
+    _clear_gpu_metrics(metrics, card)
+    assert metrics == {"cost": {}, "goodput": {}}
+    assert card["conditions"]["gpu"] is None and card["conditions"]["replicas"] is None
+    assert card["conditions"]["model"] == "m"

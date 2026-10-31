@@ -9,6 +9,9 @@ pinned app name) are injected, and ``stop`` is idempotent.
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 
 import pytest
 
@@ -385,3 +388,31 @@ def test_status_recommends_teardown_for_each_deployed_app(fake_bin, capsys):
     out = capsys.readouterr().out
     assert 'sandbox modal stop --app sandbox-vllm' in out
     assert 'sandbox modal stop --app sandbox-job' in out
+
+
+def test_status_counts_a_live_ephemeral_app_as_billing(fake_bin, capsys):
+    row = {"description": "sandbox-vllm-probe", "state": "ephemeral", "tasks": "1"}
+    _modal(fake_bin, rules=[{"prefix": ["--version"], "stdout": PIN}, _apps(row)])
+    assert cli.main(["modal", "status", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["any_deployed"] is True
+    assert cli.main(["modal", "status"]) == 0
+    assert "sandbox modal stop --app sandbox-vllm-probe" in capsys.readouterr().out
+
+
+def test_prefer_own_venv_tools_uses_the_default_path_when_path_is_unset(tmp_path, monkeypatch):
+    from mailroom_sandbox import prefer_own_venv_tools
+
+    own_bin = str(tmp_path / "venv" / "bin")
+    monkeypatch.setattr(sys, "prefix", str(tmp_path / "venv"))
+    monkeypatch.setattr(sys, "base_prefix", "/usr/local")
+    monkeypatch.setattr(sys, "executable", own_bin + "/python")
+    monkeypatch.delenv("PATH")
+    prefer_own_venv_tools()
+    assert os.environ["PATH"] == os.pathsep.join([own_bin, os.defpath])
+
+
+def test_importing_the_package_leaves_path_alone():
+    code = "import os, mailroom_sandbox; print(os.environ['PATH'])"
+    env = {**os.environ, "PATH": "/custom/bin"}
+    out = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, check=True).stdout
+    assert out.strip() == "/custom/bin"
