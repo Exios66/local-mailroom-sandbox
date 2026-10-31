@@ -78,8 +78,10 @@ documents per class, capped at $1, and
 class's cutoff on half the draw and reports it on the other half. Answers count
 toward the class the reviewer predicted, because that class's cutoff admits
 them. The script refuses a run that is not done or misses a locked document. A class with
-no cutoff stays unreviewed. With 20 documents per class in the holdout, treat
-the intervals as a first estimate.
+no cutoff stays unreviewed. The holdout is half of the usable answers predicted
+as each class, so its size varies by class. `holdout_documents` is that size;
+`holdout_accepted` is the denominator of the reported accuracy and its interval.
+Treat the intervals as a first estimate.
 
 ## Remaining release and live gates
 

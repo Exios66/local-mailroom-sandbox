@@ -123,6 +123,15 @@ def test_local_reviewer_accepts_a_vllm_route_the_run_controls(url, monkeypatch):
     assert _local_errors(route={**PRIVATE_ROUTE, "base_url": url}) == ""
 
 
+def test_local_reviewer_refuses_a_vllm_route_to_an_openrouter_engine_host():
+    # An OpenRouter engine's host is a third party: matching it proves nothing.
+    spec = _spec(engine={"kind": "openrouter", "model": "qwen/qwen3.5-9b", "modal": None},
+                 profile="openrouter", job={"mock": False},
+                 reviewer=_reviewer(backend="local", model="Org/Second", classes={"correspondence": 0.9}),
+                 agent_routes={"sorter_reviewer": {**PRIVATE_ROUTE, "base_url": "https://openrouter.ai/api/v1"}})
+    assert "not a loopback/private address" in " ".join(preflight._local_reviewer_errors(spec))
+
+
 def test_local_reviewer_refuses_a_third_party_route():
     route = {"provider": "openrouter", "model": "Org/Second"}
     assert "third party" in _local_errors(route=route)

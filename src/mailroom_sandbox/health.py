@@ -109,7 +109,9 @@ def explain_modal_timeout(profile: dict, result: ProbeResult) -> bool:
     if tasks is None:
         return False
     if tasks:
-        result.detail = f"{app}: {tasks} container(s) up, engine still booting (billing)"
+        # The app listing cannot tell a booting engine from a hung one; say both.
+        result.detail = (f"{app}: {tasks} container(s) up but not answering: engine still booting "
+                         f"(billing), or hung; if it persists, see `sandbox modal logs`")
     else:
         result.detail = f"{app}: no container yet, queued for a GPU or starting (not billing); see `sandbox modal logs`"
     return True

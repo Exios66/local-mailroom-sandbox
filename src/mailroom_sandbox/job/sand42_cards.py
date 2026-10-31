@@ -314,7 +314,8 @@ def _pipeline_goodput(card: Mapping[str, Any]) -> dict[str, Any]:
         p95 = row.get("latency_p95")
         by_class[name] = {"slo_seconds": slo, "meets_slo": None if slo is None or p95 is None else p95 <= slo}
     verdicts = [row["meets_slo"] for row in by_class.values()]
-    meets = None if not verdicts or None in verdicts else all(verdicts)
+    # A known miss decides the verdict; a missing measurement only blocks a pass.
+    meets = False if False in verdicts else (None if not verdicts or None in verdicts else True)
     out: dict[str, Any] = {"documents_per_minute_per_gpu": None, "slo_seconds": None,
                            "meets_slo": meets, "slo_by_class": by_class}
     if wall and docs:
