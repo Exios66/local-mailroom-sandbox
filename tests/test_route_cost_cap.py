@@ -87,13 +87,13 @@ def test_cap_guard_trips_on_the_fleet_not_the_base_gpu():
     assert _estimated_gpu_usd(1800, gpu="L4", replicas=1, gpu_fleet=metrics.lock_gpu_fleet(ROUTED_LOCK)) >= 1.0
 
 
-def _serving_store(tmp_path, lock):
+def _serving_store(tmp_path, lock, profile="modal-vllm"):
     import json
 
     from mailroom_sandbox.job.checkpoint import RunStore
 
     store = RunStore(tmp_path / "r")
-    store.write_lock({**lock, "task": "contracts_specialist", "profile": "modal-vllm",
+    store.write_lock({**lock, "task": "contracts_specialist", "profile": profile,
                       "job": {"mock": False, "concurrency": 4}})
     for i, ts in enumerate(("2026-01-01T00:00:00.000+00:00", "2026-01-01T00:01:00.000+00:00")):
         store.append_item({"item_id": f"d{i}", "ok": True, "latency_ms": 1000.0, "prompt_tokens": 1,
@@ -118,7 +118,8 @@ def test_serving_report_prices_the_routed_fleet_like_the_run_record(tmp_path, mo
     assert rec["estimated_gpu_cost_usd"] == pytest.approx(runner_cost)
     assert rec["estimated_gpu_cost_usd"] == pytest.approx(L4 + L40S + 2 * L4)
     assert rec["gpu_cost_per_document"] == pytest.approx(runner_cost / 2)
-    assert rec["run_span_usd_lower_bound"] == pytest.approx(runner_cost)
+    # The lower bound stays on the base engine; route apps may scale to zero.
+    assert rec["run_span_usd_lower_bound"] == pytest.approx(L4)
     assert sorted((f["gpu"], f["gpus"]) for f in rec["gpu_fleet"]) == [("L4", 1), ("L4", 2), ("L40S", 1)]
 
 
@@ -128,3 +129,12 @@ def test_serving_report_keeps_the_base_gpu_formula_without_routes(tmp_path, monk
     rec = metrics.serving_record_from_store(_serving_store(tmp_path, lock), wall_seconds=3570.0, mock=False)
     assert rec["estimated_gpu_cost_usd"] == pytest.approx(L4)
     assert "gpu_fleet" not in rec
+
+
+def test_serving_report_prices_modal_routes_on_an_api_base(tmp_path, monkeypatch):
+    """An API base profile with Modal routes still bills the fleet, like the runner."""
+    monkeypatch.delenv("MODAL_BILLED_GPU_SECONDS", raising=False)
+    store = _serving_store(tmp_path, ROUTED_LOCK, profile="openrouter")
+    rec = metrics.serving_record_from_store(store, wall_seconds=3570.0, mock=False)
+    assert rec["estimated_gpu_cost_usd"] == pytest.approx(L4 + L40S + 2 * L4)
+    assert "run_span_usd_lower_bound" not in rec
