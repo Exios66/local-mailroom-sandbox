@@ -11,7 +11,6 @@ from __future__ import annotations
 import argparse
 import json
 import random
-from pathlib import Path
 
 from mailroom_sandbox.job.checkpoint import RunStore
 from mailroom_sandbox.job.sand42_cards import wilson
