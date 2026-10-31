@@ -52,6 +52,12 @@ def test_card_carries_pipeline_routing_outcomes(tmp_path):
     assert block["by_class"]["contract"]["review_rate"] == 0.5
 
 
+def test_card_counts_parked_documents_with_no_cause_token(tmp_path):
+    rows = [{"id": "a", "expected_doc_class": "contract"}]
+    card = grid_cards.collect_card(_store(tmp_path, [_item("a", "review")], rows), wall_seconds=60.0)
+    assert card["pipeline"]["review_causes"] == {"no_cause_recorded": 1}
+
+
 def test_card_names_no_single_prompt_for_a_multi_agent_run(tmp_path):
     card = grid_cards.collect_card(_sample(tmp_path), wall_seconds=60.0)
     assert card["conditions"]["prompt"] == "2 agent prompts"
@@ -100,3 +106,34 @@ def test_pipeline_doc_result_keeps_the_review_outcome(tmp_path, monkeypatch):
     row = {"id": "a", "doc_text": "text", "expected_doc_class": "contract"}
     result = runners._run_pipeline_doc(row, mock=False)
     assert {key: result[key] for key in outcome} == outcome
+
+
+def test_parked_document_reports_the_cause_the_manifest_holds(tmp_path, monkeypatch):
+    """A parked run returns pre-interrupt state; the real graph proves the cause still arrives."""
+    import graph.build_graph as bg
+    from mailroom_sandbox.eval import runners
+    from mailroom_sandbox.runtime import activate
+
+    monkeypatch.setattr("mailroom_sandbox.runtime._load_dotenv", lambda: None)
+    monkeypatch.setenv("MAILROOM_BASE_DIR", str(tmp_path))
+    monkeypatch.setenv("DATABASE_URL", f"sqlite+aiosqlite:///{tmp_path / 'catalog.db'}")
+    monkeypatch.setenv("OBSERVABILITY_PROVIDER", "none")
+    activate("ollama", load_env_file=False)
+    bg.reset_compiled_graph()
+    row = next(row for row in runners.load_manifest() if row["id"] == "corporate_bylaws")
+    try:
+        result = runners._run_pipeline_doc(row, mock=True)
+    finally:
+        bg.reset_compiled_graph()
+    assert result["stage"] == "review"
+    assert result["review_causes"] == ["extraction_miss"]
+
+
+def test_a_failed_document_counts_against_quality_and_pairing():
+    arm = {"documents": [{"item_id": "a", "ok": True, "score": 1.0},
+                         {"item_id": "b", "ok": False, "score": None}]}
+    other = {"documents": [{"item_id": "a", "ok": True, "score": 1.0},
+                           {"item_id": "b", "ok": True, "score": 1.0}]}
+    quality = sand42_cards._summary("r", arm, "specialist")["quality"]
+    assert (quality["mean"], quality["scored_documents"], quality["attempted_documents"]) == (0.5, 1, 2)
+    assert sand42_cards.paired_delta(arm, other)["delta_mean"] == 0.5

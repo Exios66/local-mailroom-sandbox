@@ -124,6 +124,8 @@ sandbox beacon update --job ID --package P --done N --total M   # shell jobs pub
 - Runtime taxonomy is written to `data/runtime/taxonomy.yaml` (gitignored).
 - Prepared fixtures: `data/runtime/prepared/` via notebooks or `sandbox datasets prepare`.
 - Experiment log: `reports/experiment_log.jsonl` (sandbox-local, not a sister-repo mirror).
+- Experiment reports: `sandbox experiment report` writes `report.md`, `report.json` and `cards/<run-id>.card.json` beside the manifest with the sand42 card contract (`docs/SAND42-EXPERIMENT-DESIGN.md` section 5), per-class routing and paired CIs.
+- Human review: `activate` defaults `MAILROOM_CHECKPOINTER=sqlite`, so parked documents survive a restart. Decision-reviewer classes (`--decision-reviewer`, `--decision-class`) go through Lane A at any sorter confidence; only agreement reaches `extract`.
 - Tracing default: Langfuse 3 / SDK v4 (`OBSERVABILITY_PROVIDER=langfuse`). Phoenix is an optional sidecar. OpenRouter is opt-in.
 - Docker: `deploy/Dockerfile` + Compose profiles including `jupyter` — see `docs/setting-up/docker-offline.md`.
 - Serving/run cost: [`docs/RUN-COST-DERIVATION.md`](docs/RUN-COST-DERIVATION.md) — per-doc cost

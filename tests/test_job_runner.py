@@ -173,6 +173,33 @@ def test_whole_run_local_vs_api_forwards_score_metadata(tmp_path, monkeypatch):
     assert captured["kwargs"]["score_metadata"] == {"report_group": "SAND-123"}
 
 
+def _whole_run_with(rows, tmp_path, monkeypatch):
+    store = _prepped_store(tmp_path, rows=len(rows), job={"mock": True, "concurrency": 1})
+    lock = store.read_lock()
+    store.lock_path.write_text(json.dumps({**lock, "task": "local_vs_api", "profile": "ollama", "dataset": {}}))
+    monkeypatch.setattr(runner.eval_runners, "run_local_vs_api_eval", lambda **_: {"rows": rows, "scores": {}})
+    return store, runner._run_whole_run(store, "local_vs_api", mock=True, model=None, profile="ollama")
+
+
+def test_whole_run_counts_failed_rows_as_errors(tmp_path, monkeypatch):
+    rows = [{"id": "a", "score": {}}, {"id": "b", "error": "boom", "score": {}}]
+    _, summary = _whole_run_with(rows, tmp_path, monkeypatch)
+    assert summary["state"] == "done"
+    assert (summary["ok"], summary["errors"]) == (1, 1)
+
+
+@pytest.mark.parametrize("row, message", [
+    ({"error": "engine unreachable"}, "engine unreachable"),
+    ({"score": {"parse_error": True}}, "failed to parse"),
+], ids=["errored", "unparseable"])
+def test_whole_run_with_no_usable_answer_fails(row, message, tmp_path, monkeypatch):
+    rows = [{"id": str(i), **row} for i in range(2)]
+    store, summary = _whole_run_with(rows, tmp_path, monkeypatch)
+    assert summary["state"] == store.read_checkpoint()["state"] == "failed"
+    assert message in summary["last_error"]["message"]
+    assert not any(e["event"] == "done" for e in store.events())
+
+
 def test_run_job_all_items_failed_writes_failed_not_done(tmp_path, monkeypatch):
     """hub#39: a run where EVERY item errored must write state=failed with a
     last_error, exit 1 (CLI maps state != done), and never append a 'done'

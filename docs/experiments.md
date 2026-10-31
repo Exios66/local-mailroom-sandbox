@@ -204,8 +204,20 @@ and paired cell deltas when dataset bytes and complete coverage match. The
 `## Quality` table gives each run's headline (`overall_extraction_score`), its
 class-native metric (CUAD category F1, MAUD accuracy or field F1), schema
 adherence, token totals and median latency; `## Paired comparisons` gives each
-cell's deltas against the first complete cell of its task. Full-pipeline items
-store per-document `class_correct`, `stage_correct` and the extraction scores. Incomplete
+cell's deltas against the first complete cell of its task, with the paired 95% CI and the
+better/worse/tie split. `## Sand42 metrics` gives the card contract of
+[SAND42-EXPERIMENT-DESIGN.md](SAND42-EXPERIMENT-DESIGN.md) section 5 for every run: ok rate and
+quality with 95% CIs over documents attempted, schema-valid rate, cost per 1k usable records,
+docs/min/GPU, goodput at the SLO, latency, tokens and review rate. Mock runs show no cost. Each
+run's full card is at `cards/<run-id>.card.json` beside the report, and `report.json` holds the
+same summary under `runs[].sand42`.
+
+Full-pipeline items store per-document `class_correct`, `stage_correct`, the extraction scores,
+tokens and the review outcome (`review_causes`, `review_verdict`, `escalation_reason`,
+`reviewer_doc_type`, `reviewer_confidence`). `## Pipeline routing` shows stages, review rate and
+accuracy for the run and each class, then the review causes. A document parked by a low-confidence
+sorter has a reason but no cause token and is counted as `no_cause_recorded`. A pipeline run mixes
+classes, so it meets its SLO only when every class meets its own. Incomplete
 runs stay visibly incomplete. Native dated quality/serving artifacts remain under
 `reports/`; the workflow never invents scores for missing documents. Re-running
 launch rechecks locked configurations and skips completed jobs. A failed smoke

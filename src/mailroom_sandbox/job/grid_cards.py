@@ -394,7 +394,11 @@ def _pipeline_block(store: RunStore, items: list[dict[str, Any]]) -> dict[str, A
         }
 
     block = outcomes(items)
-    causes = Counter(cause for item in items for cause in (_d(item.get("pred")).get("review_causes") or []))
+    causes: Counter[str] = Counter()
+    for pred in (_d(item.get("pred")) for item in items):
+        if pred.get("stage") == "review":
+            # A low-confidence sorter parks with a reason but no cause token.
+            causes.update(pred.get("review_causes") or ["no_cause_recorded"])
     block["review_causes"] = dict(causes.most_common())
     by_class: dict[str, list[dict[str, Any]]] = {}
     for item in items:
