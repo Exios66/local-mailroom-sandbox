@@ -735,9 +735,11 @@ def run_job(
                         max_items=max_items, tracer=tracer, on_event=on_event)
     wrapped, finish = _beacon_hook(store.run_id, task=task or _lock_task(store), on_event=on_event)
     try:
+        from mailroom_sandbox.job.otel import locked_pipeline_provider
         from mailroom_sandbox.runtime import activate, locked_runtime
 
-        with locked_runtime(store.read_lock() or {}, store.read_prompt_lock() or {}):
+        lock = store.read_lock() or {}
+        with locked_runtime(lock, store.read_prompt_lock() or {}), locked_pipeline_provider(lock):
             activate()
             summary = _run_job(store, task=task, model=model, profile=profile, mock=mock, dry_run=False,
                                max_items=max_items, tracer=tracer, on_event=wrapped)

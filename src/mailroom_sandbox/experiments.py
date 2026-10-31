@@ -25,6 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from mailroom_sandbox.job import preflight
 from mailroom_sandbox.job.checkpoint import RunStore, _atomic_write
 from mailroom_sandbox.job.deploy_env import spec_env
+from mailroom_sandbox.job.otel import pipeline_provider
 from mailroom_sandbox.job.spec import DatasetSpec, FAMILY_HF_REVISION, ReviewerSpec, RunSpec, load_run_spec, run_dir
 from mailroom_sandbox.job.spend import authorize, review_settings
 from mailroom_sandbox.paths import repo_root
@@ -349,7 +350,7 @@ def _environment(spec: RunSpec):
     """Use only reviewed deploy/model settings; restore the caller environment on exit."""
     overrides = spec_env(spec) if spec.engine.kind == 'modal-vllm' else {}
     overrides['VLLM_MODEL'] = spec.engine.model
-    overrides['OBSERVABILITY_PROVIDER'] = spec.trace.sink if spec.trace.sink in {'langfuse', 'phoenix', 'none'} else 'none'
+    overrides['OBSERVABILITY_PROVIDER'] = pipeline_provider(spec.trace.sink)
     overrides['OBSERVABILITY_ENVIRONMENT'] = spec.trace.environment
     if spec.engine.kind == 'modal-vllm' and os.environ.get('MODAL_VLLM_API_TOKEN'):
         overrides['VLLM_API_KEY'] = os.environ['MODAL_VLLM_API_TOKEN']
