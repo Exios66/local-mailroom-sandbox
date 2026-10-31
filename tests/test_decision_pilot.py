@@ -264,3 +264,16 @@ def test_activate_defaults_to_durable_review_checkpoints(tmp_path, monkeypatch):
     monkeypatch.setenv("MAILROOM_CHECKPOINTER", "memory")
     activate("ollama", load_env_file=False)
     assert os.environ["MAILROOM_CHECKPOINTER"] == "memory"
+
+
+def test_only_a_parked_run_keeps_its_checkpoints(run):
+    """Finished runs drop the document text they checkpointed; parked ones must resume."""
+    import graph.build_graph as bg
+    from pipeline.bins import load_manifest
+
+    def rows(result):
+        thread = load_manifest(result["doc_id"]).checkpoint_thread_id
+        return list(bg.get_compiled_graph().checkpointer.list({"configurable": {"thread_id": thread}}))
+
+    assert not rows(run(ROWS[0]))
+    assert rows(run(ROWS[1]))
