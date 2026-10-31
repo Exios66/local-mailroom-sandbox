@@ -129,6 +129,14 @@ def _mock_extract(row: dict[str, Any]) -> dict[str, Any]:
     return dict(fields) if isinstance(fields, dict) else {}
 
 
+def _mock_specialist(row: dict[str, Any]) -> dict[str, Any]:
+    """An oracle answer in the specialist's own output schema (``mock_llm.oracle_extraction``)."""
+    from mailroom_sandbox.mock_llm import oracle_extraction
+
+    doc_type = str(row.get("expected_doc_class") or row.get("doc_type") or "")
+    return oracle_extraction(_mock_extract(row), doc_type, row.get("expected_subclass"))
+
+
 def _live_sorter(row: dict[str, Any]) -> dict[str, Any]:
     from agents.sorter import SorterAgent  # type: ignore
 
@@ -478,7 +486,7 @@ for _agent, _cls in SPECIALIST_CLASS.items():
             observation="extract-fields",
             dojo_profile=_agent,
             load_rows=lambda c=_cls, a=_agent: _rows_or_agent_jsonl(a, lambda: _manifest_for_class(c)),
-            mock_predict=_mock_extract,
+            mock_predict=_mock_specialist,
             live_predict=lambda row, a=_agent: _live_specialist(a, row),
             score_one=_score_extract,
         )

@@ -668,6 +668,11 @@ def start_log_streams(store: RunStore, app: str, sink: Any, stop: threading.Even
 
     src = tc.dispatch_source(store, cli_app=app)
     threads: list[threading.Thread] = []
+    lock = (store.read_lock() if store.lock_path.is_file() else None) or {}
+    if (lock.get("job") or {}).get("mock"):
+        # A mock run deploys nothing, so there is no Modal app to stream.
+        sink.append("mock run · no Modal app to stream")
+        return threads
     worker = src.get("worker_app")
     for app_name in src["streams"]:
         thread = threading.Thread(

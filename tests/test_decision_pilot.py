@@ -43,6 +43,7 @@ def pilot(tmp_path, monkeypatch):
     yield tmp_path, monkeypatch
     bg.reset_compiled_graph()
     register_decision_backend(None)
+    activate("ollama", load_env_file=False)  # rewrite the reviewer block back to all-llm
 
 
 def run_pilot_row(row: dict, spec: ReviewerSpec, pilot) -> dict:

@@ -11,9 +11,15 @@ the governed `llm-mailroom` pipeline and public or sanitized evaluation data. Th
 design offers one concrete use case: a low-cost reviewer with an explicit,
 enforced route to a human.
 
-External naming: this spec and the artifacts built from it name no outside
-organization, and imply no affiliation, endorsement, sponsorship or shared work.
-Any such statement waits for written clearance from the user.
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:eabd32c20eaf4f6e03ce3be4f3bde7c1758f20f271acb14e1e0f77514dfd1643 -->
+
+External naming: this spec and its artifacts must not imply affiliation,
+endorsement, sponsorship or shared work without written clearance from the user.
+Vendor names may be used to identify products and sources.
+
+<!-- /coderabbit-ai-generated:v1 -->
 
 Success has two levels:
 
@@ -190,9 +196,15 @@ Live runs use the signed, capped run path.
 - Graph, routing, schema and agent changes land in standalone `llm-mailroom`
   first, then reach the sandbox through the reviewed vendor refresh. Vendored
   files are not edited by hand. The source is
-  https://github.com/Exios66/llm-mailroom (public, vendored at `1a1ec3df`). No
-  checkout was found beside this repo, so one is needed. Because it is public,
-  commits there follow the external naming rule in section 1.
+  <!-- coderabbit-ai-generated:v1 -->
+
+  <!-- coderabbit-ai-generated-section:v1:478bf37d72a99d552d93622f5bc4b8de24d205c78ea395aa626fb5f281eec39e -->
+
+  https://github.com/Exios66/llm-mailroom (public, vendored at
+  `1530f496a6c745186bb86d12b5f0472c667a404a`). A source checkout is needed
+  for upstream changes. Commits there follow the external naming rule in section 1.
+
+  <!-- /coderabbit-ai-generated:v1 -->
 - Backend adapters and pilots live behind an opt-in sandbox path. The default
   profile, offline runs and the default test suite make no decision-model call.
 - Sandbox work uses a `SAND-*` card. Family-wide work cites a related `DMR-*`.
