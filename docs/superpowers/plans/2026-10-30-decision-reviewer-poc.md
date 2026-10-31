@@ -400,7 +400,7 @@ Pin validation matches Task 5. The correspondence rejection stays until plan 3 r
 
 - [ ] **Step 4: Implement activation and CLI flags**
 
-`activate` writes the `reviewer` block into the merged taxonomy and registers the backend. Clear the registration on deactivation. Regenerate the CLI reference.
+`activate` writes the `reviewer` block into the merged taxonomy and registers the backend. An activation without `reviewer` clears the registration. Regenerate the CLI reference.
 
 - [ ] **Step 5: Run tests and the CLI surface check**
 
