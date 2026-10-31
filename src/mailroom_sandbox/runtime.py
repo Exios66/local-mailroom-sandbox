@@ -222,8 +222,9 @@ def stamp_locked_record(record: dict[str, Any]) -> None:
 def _install_reviewer(reviewer: Any, taxonomy: dict) -> Any:
     """Write the taxonomy ``reviewer`` block; return the backend to register (or None).
 
-    The base taxonomy comes from the shipped taxonomy. The reviewer block is
-    overwritten unconditionally, including when no reviewer is configured.
+    The base taxonomy comes from the shipped file (``overlay.mailroom_taxonomy_path``),
+    and the reviewer block is overwritten unconditionally, including when no
+    reviewer is configured, so earlier settings do not carry over.
     """
     if reviewer is None:
         taxonomy["reviewer"] = {"default_mode": "llm", "by_class": {}}

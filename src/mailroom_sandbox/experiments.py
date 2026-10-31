@@ -194,6 +194,7 @@ def _create(args) -> int:
         from mailroom_sandbox.corpus import _subclass_matches
 
         for name in args.doc_class or list(CLASSES):
+            # Count only rows the subclass filter can retain.
             subclasses = local.get(name, [])
             have = sum(
                 not args.subclass or any(
