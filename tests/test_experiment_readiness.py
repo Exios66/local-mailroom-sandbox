@@ -184,3 +184,13 @@ def test_local_dataset_counts_only_requested_subclasses(tmp_path, capsys):
     assert not (tmp_path / "campaign").exists()
     assert cli.main(base + ["--subclass", "license", "--subclass", "service"]) == 0
     assert cli.main(["experiment", "preflight", "--config", str(tmp_path / "campaign" / "experiment.yaml")]) == 0
+
+
+def test_local_dataset_count_applies_the_requested_subclass(tmp_path, capsys):
+    rows = [_row(0, "correspondence", "email"), _row(1, "correspondence", "letter"),
+            _row(2, "correspondence", "letter")]
+    source = _write(tmp_path / "docs.jsonl", rows)
+    args = ["experiment", "create", "sub", "--doc-class", "correspondence", "--samples", "2", "--mock",
+            "--subclass", "email", "--local-dataset", str(source), "--output", str(tmp_path / "sub")]
+    assert cli.main(args) != 0
+    assert "has 1 scoreable correspondence row(s)" in capsys.readouterr().err

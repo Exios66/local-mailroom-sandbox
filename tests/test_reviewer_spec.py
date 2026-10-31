@@ -187,7 +187,7 @@ def registry():
     decision_backend.register_decision_backend(None)
     yield decision_backend
     decision_backend.register_decision_backend(None)
-    activate("ollama", load_env_file=False)
+    activate("ollama", load_env_file=False)  # rewrite the reviewer block back to all-llm
 
 
 def test_activate_registers_backend_and_class_modes(registry):
