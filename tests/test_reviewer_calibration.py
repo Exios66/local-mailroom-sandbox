@@ -137,9 +137,34 @@ def test_calibration_run_is_capped_and_uses_a_non_qwen_model():
     assert run.job.cost_cap_usd <= 1.0 and run.engine.modal.max_containers == 1
 
 
+def test_saturation_counts_answers_at_the_top_confidence(tmp_path):
+    # A cutoff cannot separate these: both the right and the wrong answer score 1.0.
+    rows = [{"id": str(i), "expected_doc_class": "contract" if i < 3 else "correspondence"} for i in range(4)]
+    items = [{"item_id": str(i), "ok": True, "pred": {"doc_type": "contract", "confidence": 0.8 if i == 0 else 1.0}}
+             for i in range(4)]
+    result = calibrate_reviewer.calibrate(_store(tmp_path, items, rows), classes=CLASSES)["classes"]["contract"]
+    assert result["top_confidence"] == 1.0
+    assert result["top_confidence_documents"] == 3
+    assert result["top_confidence_wrong"] == 1
+
+
 def test_calibrate_rejects_a_target_outside_zero_to_one(tmp_path):
     from mailroom_sandbox.job.checkpoint import RunStore
 
     for target in (0.0, -0.1, 1.5):
         with pytest.raises(ValueError, match="target accuracy"):
             calibrate_reviewer.calibrate(RunStore(tmp_path / "r"), target=target)
+
+
+def test_every_answer_is_tested_once_and_the_lower_bound_decides(tmp_path):
+    rows = [{"id": str(i), "expected_doc_class": "contract"} for i in range(150)]
+    items = [{"item_id": str(i), "ok": True, "pred": {"doc_type": "contract", "confidence": 0.9}} for i in range(150)]
+    result = calibrate_reviewer.calibrate(_store(tmp_path, items, rows), classes=CLASSES)["classes"]["contract"]
+    assert result["holdout_accepted"] == 150 and result["meets_target"] is True
+
+
+def test_a_small_perfect_class_does_not_meet_the_target(tmp_path):
+    rows = [{"id": str(i), "expected_doc_class": "contract"} for i in range(40)]
+    items = [{"item_id": str(i), "ok": True, "pred": {"doc_type": "contract", "confidence": 0.9}} for i in range(40)]
+    result = calibrate_reviewer.calibrate(_store(tmp_path, items, rows), classes=CLASSES)["classes"]["contract"]
+    assert result["holdout_accuracy"] == 1.0 and result["meets_target"] is False
