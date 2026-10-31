@@ -122,7 +122,16 @@ def run_shell(default_args: list[str] | None = None) -> int:
         while True:
             try:
                 pending, prefill = prefill, ""
-                line = (pending + input(f"mailroom> {pending}")).strip()
+                if pending and readline:
+                    # The prefix sits outside libedit's buffer: a recalled history
+                    # line would follow it, so recall is off for this one prompt.
+                    readline.clear_history()
+                try:
+                    line = (pending + input(f"mailroom> {pending}")).strip()
+                finally:
+                    if pending and readline:
+                        for entry in history:
+                            readline.add_history(entry)
                 if not line:
                     continue
                 argv = shlex.split(line)

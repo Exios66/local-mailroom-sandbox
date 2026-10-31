@@ -1019,6 +1019,8 @@ def run_pipeline_eval(
             # The same scorer output the run-level aggregate uses, so a report can read it per document.
             score.update({k: v for k, v in (scored or {}).items()
                           if isinstance(v, (int, float)) and not isinstance(v, bool)})
+            # Keep the parse facts: whole-run jobs fail when every answer is unparseable.
+            score.update({k: scored[k] for k in ("parse_error", "schema_valid") if k in (scored or {})})
             row_cb({"id": row.get("id"), "pred": result, "error": result.get("error"), "score": score,
                     "latency_ms": (time.monotonic() - before) * 1000, **usage_capture.usage_from_pipeline()})
         if progress_cb:

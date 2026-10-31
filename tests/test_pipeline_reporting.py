@@ -169,6 +169,16 @@ def test_a_failed_document_counts_against_quality_and_pairing():
     assert sand42_cards.paired_delta(arm, other)["delta_mean"] == 0.5
 
 
+def test_a_failed_document_scores_zero_even_with_a_partial_score():
+    card = {"documents": [{"item_id": "a", "ok": True, "score": 1.0},
+                          {"item_id": "b", "ok": False, "score": 0.8},
+                          {"item_id": "c", "ok": True, "score": None}]}
+    quality = sand42_cards._summary("r", card, "specialist")["quality"]
+    assert (quality["mean"], quality["scored_documents"], quality["attempted_documents"],
+            quality["unscored_documents"]) == (0.5, 1, 2, 1)
+    assert sand42_cards._scores_by_id(card) == {"a": 1.0, "b": 0.0}
+
+
 def test_remote_mailroom_state_lives_on_the_run_volume(tmp_path):
     from mailroom_sandbox.job.deploy_env import durable_mailroom_env
 

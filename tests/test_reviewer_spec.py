@@ -72,10 +72,12 @@ def test_local_backend_may_use_correspondence():
     assert spec.reviewer.classes == {"correspondence": 0.9}
 
 
-def _local_errors(model="Org/Second", route=None, mock=False):
+def _local_errors(model="Org/Second", route=None, mock=False, agent_models=None, sorter_route=None):
     routes = {"sorter_reviewer": route} if route else {}
+    if sorter_route:
+        routes["sorter"] = sorter_route
     spec = _spec(reviewer=_reviewer(backend="local", model=model, classes={"correspondence": 0.9}),
-                 agent_routes=routes, job={"mock": mock})
+                 agent_routes=routes, job={"mock": mock}, agent_models=agent_models or {})
     return " ".join(preflight._local_reviewer_errors(spec))
 
 
@@ -86,8 +88,39 @@ def test_local_reviewer_needs_a_second_model():
 def test_local_reviewer_needs_a_route_serving_its_model():
     assert "agent_routes.sorter_reviewer" in _local_errors()
     route = {"provider": "vllm", "model": "Org/Other", "base_url": "http://10.0.0.1:8000/v1"}
-    assert "differs from agent route" in _local_errors(route=route)
+    assert "effective model 'Org/Other'" in _local_errors(route=route)
     assert _local_errors(route={**route, "model": "Org/Second"}) == ""
+
+
+PRIVATE_ROUTE = {"provider": "vllm", "model": "Org/Second", "base_url": "http://10.0.0.1:8000/v1"}
+
+
+def test_local_reviewer_checks_the_overridden_reviewer_model():
+    # agent_models wins over the route pin at activation, so preflight must check it.
+    errors = _local_errors(route=PRIVATE_ROUTE, agent_models={"sorter_reviewer": "Qwen/Qwen3-8B"})
+    assert "effective model 'Qwen/Qwen3-8B'" in errors and "different model" in errors
+
+
+def test_local_reviewer_checks_the_effective_sorter_model():
+    sorter = {"provider": "vllm", "model": "Org/Second", "base_url": "http://10.0.0.2:8000/v1"}
+    assert "different model" in _local_errors(route=PRIVATE_ROUTE, sorter_route=sorter)
+    assert "different model" in _local_errors(route=PRIVATE_ROUTE, agent_models={"sorter": "Org/Second"})
+
+
+@pytest.mark.parametrize("url", ["https://api.example.com/v1", "http://8.8.8.8:8000/v1",
+                                 "https://other--app.modal.run/v1"])
+def test_local_reviewer_refuses_a_vllm_route_outside_the_run(url, monkeypatch):
+    monkeypatch.setenv("MODAL_WORKSPACE", "mine")
+    monkeypatch.setenv("VLLM_BASE_URL", "http://127.0.0.1:8000/v1")
+    assert "not a loopback/private address" in _local_errors(route={**PRIVATE_ROUTE, "base_url": url})
+
+
+@pytest.mark.parametrize("url", ["http://localhost:8001/v1", "http://127.0.0.1:8001/v1",
+                                 "https://mine--reviewer.modal.run/v1", "https://engine.internal.test/v1"])
+def test_local_reviewer_accepts_a_vllm_route_the_run_controls(url, monkeypatch):
+    monkeypatch.setenv("MODAL_WORKSPACE", "mine")
+    monkeypatch.setenv("VLLM_BASE_URL", "https://engine.internal.test/v1")
+    assert _local_errors(route={**PRIVATE_ROUTE, "base_url": url}) == ""
 
 
 def test_local_reviewer_refuses_a_third_party_route():
