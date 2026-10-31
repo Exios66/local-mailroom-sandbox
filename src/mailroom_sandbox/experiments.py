@@ -192,10 +192,15 @@ def _create(args) -> int:
     local = _local_strata(Path(args.local_dataset)) if args.local_dataset else None
     if local is not None:
         for name in args.doc_class or list(CLASSES):
-            # With --subclass the draw keeps only matching rows (corpus.filter_rows), so count those.
-            have = (len(local.get(name, [])) if not args.subclass else
-                    sum(any(_fills({name: [sub]}, name, {'subclass': want, 'count': 1}) for want in args.subclass)
-                        for sub in local.get(name, [])))
+            if args.subclass:
+                # With --subclass the draw keeps only matching rows (corpus.filter_rows), so count those.
+                from mailroom_sandbox.corpus import _subclass_matches
+
+                have = sum(1 for sub in local.get(name, [])
+                           if _subclass_matches({'expected_doc_class': name,
+                                                'expected_subclass': sub}, args.subclass))
+            else:
+                have = len(local.get(name, []))
             if have < args.samples:
                 raise ServiceError(f'--local-dataset has {have} scoreable {name} row(s); lower --samples to '
                                    f'{max(have, 1)} or drop that class with --doc-class')

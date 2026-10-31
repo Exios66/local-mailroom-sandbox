@@ -11,9 +11,9 @@ the governed `llm-mailroom` pipeline and public or sanitized evaluation data. Th
 design offers one concrete use case: a low-cost reviewer with an explicit,
 enforced route to a human.
 
-External naming: this spec and the artifacts built from it name no outside
-organization, and imply no affiliation, endorsement, sponsorship or shared work.
-Any such statement waits for written clearance from the user.
+External naming: this spec and the artifacts built from it claim no affiliation,
+endorsement, sponsorship or shared work with the outside vendors they name.
+Any such claim waits for written clearance from the user.
 
 Success has two levels:
 
@@ -190,9 +190,9 @@ Live runs use the signed, capped run path.
 - Graph, routing, schema and agent changes land in standalone `llm-mailroom`
   first, then reach the sandbox through the reviewed vendor refresh. Vendored
   files are not edited by hand. The source is
-  https://github.com/Exios66/llm-mailroom (public, vendored at `1a1ec3df`). No
-  checkout was found beside this repo, so one is needed. Because it is public,
-  commits there follow the external naming rule in section 1.
+  https://github.com/Exios66/llm-mailroom (public, vendored at `1530f496` as of
+  2026-10-31). Because it is public, commits there follow the external naming
+  rule in section 1.
 - Backend adapters and pilots live behind an opt-in sandbox path. The default
   profile, offline runs and the default test suite make no decision-model call.
 - Sandbox work uses a `SAND-*` card. Family-wide work cites a related `DMR-*`.

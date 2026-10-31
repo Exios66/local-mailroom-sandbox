@@ -74,6 +74,10 @@ def _engine_errors(spec: RunSpec) -> list[str]:
         if spec.reviewer.backend == "jev" and spec.job.mock:
             # A mock pipeline run patches the LLM clients but not the decision backend.
             errs.append("decision reviewer backend jev would make live Jev calls in a mock run; use backend mock")
+        elif spec.reviewer.backend == "jev" and spec.job.mode == "modal":
+            # The Modal worker image excludes the decision extra (pydantic_ai is
+            # imported lazily), so the first reviewer call would ImportError there.
+            errs.append("decision reviewer backend jev needs job mode endpoint (the Modal worker image has no decision extra); use backend mock")
         elif spec.reviewer.backend == "jev" and not os.environ.get("TYPESAFE_API_KEY", "").strip():
             errs.append("decision reviewer backend jev needs TYPESAFE_API_KEY set (offline runs should use backend mock)")
     vllm = spec.engine.vllm

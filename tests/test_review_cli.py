@@ -296,3 +296,18 @@ def test_resolve_does_not_claim_success_for_unexpected_response(api, capsys, bod
     captured = capsys.readouterr()
     assert "Resolved" not in captured.out
     assert "check `sandbox review list`" in captured.err
+
+
+def test_plain_http_token_warns_once(capsys):
+    review_cli._INSECURE_WARNED = False
+    review_cli._warn_plain_http_token("http://203.0.113.7:8000", "s3cr3t")
+    first = capsys.readouterr().err
+    assert "MAILROOM_API_TOKEN" in first and "plain HTTP" in first
+    # second call is suppressed (once per process)
+    review_cli._warn_plain_http_token("http://203.0.113.7:8000", "s3cr3t")
+    assert capsys.readouterr().err == ""
+    # loopback hosts do not warn
+    review_cli._INSECURE_WARNED = False
+    review_cli._warn_plain_http_token("http://127.0.0.1:8000", "s3cr3t")
+    assert capsys.readouterr().err == ""
+    review_cli._INSECURE_WARNED = False
