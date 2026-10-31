@@ -114,6 +114,13 @@ CLASS_SLO_SECONDS: dict[str, float] = {
     "contracts_specialist": 300.0,
     "merger_agreement_specialist": 1800.0,
 }
+DOC_CLASS_SLO_SECONDS: dict[str, float] = {
+    "correspondence": 60.0,
+    "insurance_claim": 60.0,
+    "corporate_record": 60.0,
+    "contract": 300.0,
+    "merger_agreement": 1800.0,
+}
 NOISE_FLOOR_RUN = "sand42-noisefloor-correspondence-awq-1l4-c8"
 
 
@@ -288,8 +295,32 @@ def _reliability(card: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _pipeline_goodput(card: Mapping[str, Any]) -> dict[str, Any]:
+    """A connected run mixes classes, so it meets its SLO only if every class does."""
+    replicas = max(1, int((card.get("conditions") or {}).get("replicas") or 1))
+    wall = (card.get("time") or {}).get("wall_seconds")
+    docs = int((card.get("quality") or {}).get("documents") or 0)
+    by_class: dict[str, dict[str, Any]] = {}
+    for name, row in ((card.get("pipeline") or {}).get("by_class") or {}).items():
+        slo = DOC_CLASS_SLO_SECONDS.get(name)
+        p95 = row.get("latency_p95")
+        by_class[name] = {"slo_seconds": slo, "meets_slo": None if slo is None or p95 is None else p95 <= slo}
+    verdicts = [row["meets_slo"] for row in by_class.values()]
+    meets = None if not verdicts or None in verdicts else all(verdicts)
+    out: dict[str, Any] = {"documents_per_minute_per_gpu": None, "slo_seconds": None,
+                           "meets_slo": meets, "slo_by_class": by_class}
+    if wall and docs:
+        rate = docs / wall * 60.0 / replicas
+        out["documents_per_minute_per_gpu"] = rate
+        if meets is not None:
+            out["goodput_documents_per_minute_per_gpu"] = rate if meets else 0.0
+    return out
+
+
 def _goodput(card: Mapping[str, Any], task: str) -> dict[str, Any]:
     """docs/min/GPU at the class SLO: throughput only counts a run that meets it."""
+    if task == "pipeline":
+        return _pipeline_goodput(card)
     replicas = max(1, int((card.get("conditions") or {}).get("replicas") or 1))
     wall = (card.get("time") or {}).get("wall_seconds")
     docs = int((card.get("quality") or {}).get("documents") or 0)
@@ -363,6 +394,7 @@ def _summary(run_id: str, card: Mapping[str, Any] | None, task: str) -> dict[str
         "concurrency": card.get("concurrency") or {},
         "engine_telemetry": card.get("engine_telemetry") or {},
         "gpu": _gpu_block(card),
+        "pipeline": card.get("pipeline"),
     }
 
 

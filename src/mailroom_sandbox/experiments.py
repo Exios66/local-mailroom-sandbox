@@ -25,7 +25,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from mailroom_sandbox.job import preflight
 from mailroom_sandbox.job.checkpoint import RunStore, _atomic_write
 from mailroom_sandbox.job.deploy_env import spec_env
+from mailroom_sandbox.job.grid_cards import collect_card
+from mailroom_sandbox.job.metrics import infer_wall_seconds_from_store
 from mailroom_sandbox.job.otel import pipeline_provider
+from mailroom_sandbox.job.sand42_cards import _summary as sand42_summary, paired_delta
 from mailroom_sandbox.job.spec import DatasetSpec, FAMILY_HF_REVISION, ReviewerSpec, RunSpec, load_run_spec, run_dir
 from mailroom_sandbox.job.spend import authorize, review_settings
 from mailroom_sandbox.paths import repo_root
@@ -731,8 +734,29 @@ def _usage(items: list[dict]) -> dict:
             'p50_latency_ms': statistics.median(latency) if latency else None}
 
 
+def _sand42_row(run_id: str, metrics: dict) -> str:
+    def number(value, spec='.2f'):
+        return '—' if value is None else format(value, spec)
+
+    def interval(mean, low, high):
+        return '—' if mean is None else f'{mean:.3f} [{number(low, ".3f")}, {number(high, ".3f")}]'
+
+    rel, quality, cost, goodput = metrics['reliability'], metrics['quality'], metrics['cost'], metrics['goodput']
+    latency, tokens, pipeline = metrics['latency'], metrics['tokens'], metrics.get('pipeline') or {}
+    ok_ci = rel.get('ok_rate_ci') or (None, None)
+    return (f"| {run_id} | {interval(rel.get('ok_rate'), *ok_ci)} | "
+            f"{interval(quality.get('mean'), quality.get('ci_low'), quality.get('ci_high'))} | "
+            f"{_fmt_score(rel.get('schema_valid_rate'))} | {number(cost.get('usd_per_1k_ok'))} | "
+            f"{number(goodput.get('documents_per_minute_per_gpu'))} | "
+            f"{number(goodput.get('goodput_documents_per_minute_per_gpu'))} | "
+            f"{number(latency.get('p50'), '.1f')} / {number(latency.get('p95'), '.1f')} | "
+            f"{number(tokens.get('prompt'), ',')} / {number(tokens.get('completion'), ',')} | "
+            f"{_fmt_score(pipeline.get('review_rate'))} |")
+
+
 def _write_report(path: Path, plan: Plan, runs) -> dict:
     rows = []
+    cards = {}
     paired = defaultdict(list)
     for config, spec in runs:
         store = RunStore(run_dir(spec.run_id))
@@ -763,6 +787,16 @@ def _write_report(path: Path, plan: Plan, runs) -> dict:
                     scores[key].append(value)
         summary['stored_score_means'] = {key: sum(values)/len(values) for key, values in scores.items()}
         summary['usage'] = _usage(store.load_items())
+        # A run stopped before its first document has nothing to measure.
+        card = collect_card(store, wall_seconds=infer_wall_seconds_from_store(store)) if store.load_items() else None
+        summary['sand42'] = sand42_summary(spec.run_id, card, spec.task)
+        if spec.job.mock:
+            summary['sand42']['cost'] = {}  # no GPU was billed
+        if card:
+            cards[spec.run_id] = card
+            (path.parent / 'cards').mkdir(exist_ok=True)
+            _atomic_write(path.parent / 'cards' / f'{spec.run_id}.card.json',
+                          json.dumps(card, indent=2, sort_keys=True, default=str))
         rows.append(summary)
         paired[spec.task].append(hashlib.sha256(store.dataset_path.read_bytes()).hexdigest())
     complete = all(row.get('state') == 'done' and row.get('ok') == row.get('expected') and not row.get('errors') for row in rows)
@@ -781,6 +815,7 @@ def _write_report(path: Path, plan: Plan, runs) -> dict:
         if ref['dataset_sha256'] != row['dataset_sha256']:
             continue
         comparisons.append({'reference': ref['run_id'], 'run': row['run_id'], 'paired_n': row['ok'],
+            'paired_quality': paired_delta(cards[ref['run_id']], cards[row['run_id']]),
             'stored_score_mean_deltas': {metric: value-ref['stored_score_means'][metric]
                 for metric, value in row['stored_score_means'].items() if metric in ref['stored_score_means']}})
     report['comparisons'] = comparisons
@@ -806,14 +841,37 @@ def _write_report(path: Path, plan: Plan, runs) -> dict:
                          f"{_fmt_score(means.get('overall_extraction_score'))} | "
                          f"{name + ' ' + _fmt_score(value) if name else '—'} | "
                          f"{_fmt_score(means.get('schema_adherence'))} | {tokens} | {p50} |")
+    measured = [row for row in rows if (row.get('sand42') or {}).get('reported')]
+    if measured:
+        lines += ['', '## Sand42 metrics', '', 'The card contract of docs/SAND42-EXPERIMENT-DESIGN.md section 5; each run\'s card is under cards/.', '',
+                  '| Run | Ok rate (95% CI) | Quality (95% CI) | Schema valid | $/1k ok | Docs/min/GPU | Goodput at SLO | p50 / p95 s | Tokens in / out | Review rate |',
+                  '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |']
+        lines += [_sand42_row(row['run_id'], row['sand42']) for row in measured]
+    routed = [row for row in measured if row['sand42'].get('pipeline')]
+    if routed:
+        lines += ['', '## Pipeline routing', '',
+                  '| Run | Class | Documents | Stages | Review rate | Class correct | Stage correct |',
+                  '| --- | --- | --- | --- | --- | --- | --- |']
+        for row in routed:
+            block = row['sand42']['pipeline']
+            for name, part in {'all': block, **block['by_class']}.items():
+                stages = ', '.join(f'{stage} {count}' for stage, count in sorted(part['stages'].items()))
+                lines.append(f"| {row['run_id']} | {name} | {part['documents']} | {stages} | {_fmt_score(part['review_rate'])} | "
+                             f"{_fmt_score(part['class_correct'])} | {_fmt_score(part['stage_correct'])} |")
+            causes = ', '.join(f'{cause} {count}' for cause, count in block['review_causes'].items())
+            lines.append(f"\nReview causes in {row['run_id']}: {causes or 'none'}.\n")
     if comparisons:
         lines += ['', '## Paired comparisons', '', 'Each run against the first complete run of its task on identical dataset bytes.', '',
-                  '| Reference | Run | Paired n | Δ headline | Δ task metric |', '| --- | --- | --- | --- | --- |']
+                  '| Reference | Run | Paired n | Δ headline | Δ headline 95% CI | Better / worse / tie | Δ task metric |',
+                  '| --- | --- | --- | --- | --- | --- | --- |']
         for item in comparisons:
             deltas = item['stored_score_mean_deltas']
             name, value = _task_metric(deltas)
+            pair = item['paired_quality'] or {}
+            ci = f"[{_fmt_delta(pair['ci_low'])}, {_fmt_delta(pair['ci_high'])}]" if pair.get('ci_low') is not None else '—'
+            split = f"{pair['better']} / {pair['worse']} / {pair['tie']}" if pair else '—'
             lines.append(f"| {item['reference']} | {item['run']} | {item['paired_n']} | "
-                         f"{_fmt_delta(deltas.get('overall_extraction_score'))} | "
+                         f"{_fmt_delta(deltas.get('overall_extraction_score'))} | {ci} | {split} | "
                          f"{name + ' ' + _fmt_delta(value) if name else '—'} |")
     lines += ['', 'Per-run scorer metrics and configuration links are in report.json; native quality/serving reports remain under reports/.',
               'A completed mock run validates orchestration only. Failed/missing documents are never counted as successful observations.', '']
