@@ -14,6 +14,7 @@ import os
 import re
 import sys
 from dataclasses import asdict, dataclass
+from importlib.util import find_spec
 from pathlib import Path
 
 from mailroom_sandbox.services._cli import print_json, warn
@@ -157,7 +158,13 @@ def _langfuse(*, live: bool) -> ServiceStatus:
     if not host and not live:
         return ServiceStatus("langfuse", "skipped", "LANGFUSE_HOST unset (default http://localhost:3000 after `sandbox up`)")
     host = host or "http://localhost:3000"
-    return _sink("langfuse", f"{host.rstrip('/')}/api/public/health", configured=True, live=live, default_hint="")
+    row = _sink("langfuse", f"{host.rstrip('/')}/api/public/health", configured=True, live=live, default_hint="")
+    if os.environ.get("OBSERVABILITY_PROVIDER", "langfuse") == "langfuse" and not find_spec("langfuse"):
+        return ServiceStatus(
+            "langfuse", "warn", f"{row.detail}; langfuse SDK not installed, so runs record no traces",
+            'pip install -e ".[observability]"',
+        )
+    return row
 
 
 def _phoenix(*, live: bool) -> ServiceStatus:

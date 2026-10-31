@@ -317,6 +317,15 @@ def test_live_modal_row_fails_when_the_account_cannot_be_read(fake_bin, capsys, 
     assert rc == 1 and rows["modal"]["state"] == "fail" and "account check failed" in rows["modal"]["detail"]
 
 
+def test_langfuse_warns_when_the_sdk_is_missing(fake_bin, capsys, monkeypatch):
+    monkeypatch.setenv("LANGFUSE_HOST", "http://lf.test")
+    monkeypatch.setenv("OBSERVABILITY_PROVIDER", "langfuse")
+    monkeypatch.setattr("mailroom_sandbox.services.doctor.find_spec", lambda name: None)
+    _, rows = _doctor(capsys)
+    assert rows["langfuse"]["state"] == "warn" and "no traces" in rows["langfuse"]["detail"]
+    assert "observability" in rows["langfuse"]["hint"]
+
+
 def test_live_states_that_probing_modal_can_wake_a_billed_gpu(fake_bin, capsys, monkeypatch):
     monkeypatch.setenv("VLLM_BASE_URL", "https://ws--sandbox-vllm-serve.modal.run/v1")
     monkeypatch.setattr("mailroom_sandbox.health.httpx.get", lambda url, **kw: httpx.Response(200, json={"data": []}))

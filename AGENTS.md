@@ -68,8 +68,8 @@ sibling checkouts). Durable eve doctor:
 pip install -e ".[dev]"
 # or: pip install -r requirements.txt   # → requirements/dev.txt (mirrors pyproject)
 # specialist / Modal live path also needs:
-#   pip install -e ".[pipeline,deploy]"
-#   # or: pip install -r requirements/pipeline.txt && pip install -r requirements/deploy.txt
+#   pip install -e ".[pipeline,deploy,observability]"   # observability = the Langfuse SDK; without it runs record no traces
+#   # or: pip install -r requirements/pipeline.txt -r requirements/deploy.txt -r requirements/observability.txt
 cp config/.env.example .env
 sandbox profiles
 sandbox agents list

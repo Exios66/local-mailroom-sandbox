@@ -36,6 +36,19 @@ def _run_spec(tmp_path, *, rows=2, limit=2, run_id="pf-1") -> RunSpec:
     )
 
 
+@pytest.mark.parametrize(("concurrency", "max_inputs", "ok"), [(6, 0, False), (1, 0, True), (6, 6, True)])
+def test_preflight_refuses_concurrency_modal_would_serialize(tmp_path, job_data_dir, concurrency, max_inputs, ok):
+    from mailroom_sandbox.job.spec import EngineSpec, ModalSpec
+
+    spec = _run_spec(tmp_path, run_id=f"pf-serial-{concurrency}-{max_inputs}")
+    spec.engine = EngineSpec(kind="modal-vllm", modal=ModalSpec(app="sandbox-vllm"))
+    spec.engine.vllm.max_inputs = max_inputs
+    spec.job.concurrency = concurrency
+    report = preflight.preflight(spec, offline=True)
+    assert (report["status"] == "prepared") is ok
+    assert ok or "max_inputs" in json.dumps(report)
+
+
 def test_preflight_locks_runbook_identity_without_hashing_it(tmp_path):
     """runbook_id is stored on the lock but excluded from spec_hash."""
     from mailroom_sandbox.job.checkpoint import RunStore
@@ -393,6 +406,7 @@ def test_force_relock_refuses_a_store_another_fleet_owns(tmp_path, monkeypatch):
 
     spec = _run_spec(tmp_path, run_id="pf-fleet-a")
     spec.engine = EngineSpec(kind="modal-vllm", modal=ModalSpec(app="sandbox-vllm"))
+    spec.job.concurrency = 1
     report = preflight.preflight(spec, offline=True)
     assert report["status"] == "prepared", report
     store = _store(report)
@@ -401,6 +415,7 @@ def test_force_relock_refuses_a_store_another_fleet_owns(tmp_path, monkeypatch):
 
     other = _run_spec(tmp_path, run_id=spec.run_id)
     other.engine = EngineSpec(kind="modal-vllm", modal=ModalSpec(app="sandbox-vllm-b"))
+    other.job.concurrency = 1
     assert other.spec_hash() != spec.spec_hash(), "the app must be inside spec_hash"
 
     # Without --force the drift is refused and the items stay untouched.
