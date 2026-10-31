@@ -8,9 +8,9 @@ import pytest
 
 from mailroom_sandbox import cli
 from mailroom_sandbox.job import node_trace
-from mailroom_sandbox.job.checkpoint import RunStore
+from mailroom_sandbox.job.checkpoint import NodeLogCursor, RunStore
 from mailroom_sandbox.tui.demo import DemoRun
-from mailroom_sandbox.watch import LogBuffer, compose_watch_state, pipeline_lines, render_frame
+from mailroom_sandbox.watch import LogBuffer, PipelineTotals, compose_watch_state, pipeline_lines, render_frame
 
 
 @pytest.mark.parametrize(("node", "out", "expected"), [
@@ -212,3 +212,167 @@ def test_specialist_runs_have_no_floor(tmp_path):
 
 def test_dev_pipeline_flag_parses():
     assert cli.build_parser().parse_args(["dev", "--pipeline", "--no-browser"]).pipeline is True
+
+
+# ── incremental run-wide totals ──────────────────────────────────────────────
+GRAPH_NODES = list(node_trace.NODE_AGENTS)
+
+
+def _doc_records(doc: str, i: int) -> list[dict]:
+    """The ~26 start/end records one pipeline document writes (13 graph nodes)."""
+    recs = []
+    for k, node in enumerate(GRAPH_NODES):
+        recs.append({"doc": doc, "node": node, "status": "running", "agent": None, "model": None, "ts": i})
+        status = "error" if (i + k) % 11 == 0 else "done"
+        recs.append({"doc": doc, "node": node, "status": status, "ms": 0.1 * (i + 1) + k / 3,
+                     "decisions": [], "ts": i})
+    return recs
+
+
+def _full(store: RunStore) -> str:
+    return json.dumps(node_trace.summarize(store.iter_nodes(), docs=3, recent_records=store.nodes()),
+                      sort_keys=False)
+
+
+def _incremental(totals: PipelineTotals, store: RunStore) -> str:
+    return json.dumps(totals.summarize(store, docs=3), sort_keys=False)
+
+
+def test_incremental_totals_match_full_recompute_on_a_growing_file(tmp_path):
+    store = RunStore(tmp_path / "r")
+    totals = PipelineTotals()
+    assert totals.summarize(store, docs=3) is None  # no nodes.jsonl yet
+    for i in range(40):
+        for rec in _doc_records(f"DOC-{i:03d}", i):
+            store.append_node(rec)
+        if i % 7 == 3:
+            with open(store.nodes_path, "a", encoding="utf-8") as fh:
+                fh.write("not json\n[1, 2]\n")  # corrupt lines are skipped, as in a full read
+        assert _incremental(totals, store) == _full(store)
+
+
+def test_incremental_totals_wait_for_a_torn_last_line(tmp_path):
+    store = RunStore(tmp_path / "r")
+    totals = PipelineTotals()
+    store.append_node({"doc": "a", "node": "intake", "status": "done", "ms": 10})
+    assert _incremental(totals, store) == _full(store)
+    line = json.dumps({"doc": "b", "node": "intake", "status": "error", "ms": 30})
+    with open(store.nodes_path, "a", encoding="utf-8") as fh:
+        fh.write(line[:12])  # the writer is mid-append
+    before = totals._cursor.offset
+    pipe = totals.summarize(store, docs=3)
+    assert totals._cursor.offset == before  # did not advance past the incomplete line
+    assert pipe["docs_seen"] == 1 and pipe["nodes"][0]["visits"] == 1
+    with open(store.nodes_path, "a", encoding="utf-8") as fh:
+        fh.write(line[12:] + "\n")
+    assert _incremental(totals, store) == _full(store)
+    assert totals.summarize(store, docs=3)["nodes"][0] == {"node": "intake", "visits": 2, "errors": 1,
+                                                           "mean_ms": 20.0}
+
+
+def test_incremental_totals_reset_when_the_file_is_truncated_or_replaced(tmp_path):
+    store = RunStore(tmp_path / "r")
+    totals = PipelineTotals()
+    for i in range(5):
+        for rec in _doc_records(f"DOC-{i}", i):
+            store.append_node(rec)
+    assert _incremental(totals, store) == _full(store)
+
+    # Truncated: the offset is now beyond the file's size.
+    store.nodes_path.write_text("")
+    for rec in _doc_records("NEW-0", 0)[:4]:
+        store.append_node(rec)
+    assert _incremental(totals, store) == _full(store)
+    assert totals.summarize(store, docs=3)["docs_seen"] == 1
+
+    # Replaced by a different (longer) file via rename.
+    other = tmp_path / "nodes.new"
+    with open(other, "w", encoding="utf-8") as fh:
+        for i in range(8):
+            for rec in _doc_records(f"REPL-{i}", i):
+                fh.write(json.dumps(rec) + "\n")
+    other.replace(store.nodes_path)
+    assert _incremental(totals, store) == _full(store)
+
+    # Rewritten in place, same inode, longer than the old offset, different leading bytes.
+    offset = totals._cursor.offset
+    with open(store.nodes_path, "w", encoding="utf-8") as fh:
+        while fh.tell() <= offset + 100:
+            for rec in _doc_records("SAME-INODE", 1):
+                fh.write(json.dumps(rec) + "\n")
+    assert _incremental(totals, store) == _full(store)
+
+    # Removed: totals vanish just as a full read would show.
+    store.nodes_path.unlink()
+    assert totals.summarize(store, docs=3) is None and _full(store) == "null"
+
+
+def test_incremental_totals_follow_a_watcher_switching_runs(tmp_path):
+    a, b = RunStore(tmp_path / "a"), RunStore(tmp_path / "b")
+    for rec in _doc_records("A", 0):
+        a.append_node(rec)
+    for rec in _doc_records("B", 1)[:6]:
+        b.append_node(rec)
+    totals = PipelineTotals()
+    assert _incremental(totals, a) == _full(a)
+    assert _incremental(totals, b) == _full(b)
+    assert _incremental(totals, a) == _full(a)
+
+
+def test_compose_watch_state_uses_the_watcher_totals(tmp_path):
+    store = RunStore(tmp_path / "r")
+    for rec in _doc_records("DOC-0", 0):
+        store.append_node(rec)
+    kw = dict(store=store, app="a", sink=LogBuffer(None), ledger=None, cap_usd=5,
+              times_dir=None, serving_dir=tmp_path, started=0, boot_mark={})
+    totals = PipelineTotals()
+    with_totals = compose_watch_state(**kw, pipeline_totals=totals)["pipeline"]
+    assert json.dumps(with_totals) == json.dumps(compose_watch_state(**kw)["pipeline"])
+    assert totals._cursor.offset == store.nodes_path.stat().st_size
+
+
+def test_refresh_at_1000_docs_parses_only_the_new_lines(tmp_path):
+    """A refresh after one more document costs that document's lines, not the run's."""
+    import time
+
+    store = RunStore(tmp_path / "r")
+    with open(store.nodes_path, "w", encoding="utf-8") as fh:
+        for i in range(1000):
+            for rec in _doc_records(f"DOC-{i:04d}", i):
+                fh.write(json.dumps(rec) + "\n")
+    totals = PipelineTotals()
+    totals.summarize(store, docs=3)  # the watcher's first frame reads the whole run once
+    size_1000 = store.nodes_path.stat().st_size
+    assert totals._cursor.offset == size_1000
+
+    new = _doc_records("DOC-1000", 1000)
+    for rec in new:
+        store.append_node(rec)
+    parsed: list[int] = []
+    cursor = totals._cursor
+    original = cursor.read_new
+
+    def counting_read_new():
+        reset, rows = original()
+        parsed.append(len(rows))
+        return reset, rows
+
+    cursor.read_new = counting_read_new
+    t0 = time.perf_counter()
+    incremental = totals.summarize(store, docs=3)
+    inc_s = time.perf_counter() - t0
+    t0 = time.perf_counter()
+    full = node_trace.summarize(store.iter_nodes(), docs=3, recent_records=store.nodes())
+    full_s = time.perf_counter() - t0
+    assert parsed == [len(new)] == [26]  # only the appended document's records were parsed
+    assert json.dumps(incremental) == json.dumps(full)
+    assert full["docs_seen"] == 1001
+    print(f"\nrefresh at 1001 docs: incremental {inc_s * 1000:.1f} ms vs full {full_s * 1000:.1f} ms")
+
+
+def test_node_log_cursor_reads_nothing_new_without_appends(tmp_path):
+    store = RunStore(tmp_path / "r")
+    store.append_node({"doc": "a", "node": "intake", "status": "done"})
+    cursor = NodeLogCursor(store.nodes_path)
+    assert cursor.read_new() == (False, [{"doc": "a", "node": "intake", "status": "done"}])
+    assert cursor.read_new() == (False, [])
