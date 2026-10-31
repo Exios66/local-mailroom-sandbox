@@ -109,7 +109,7 @@ def run_pilot_row(row: dict, spec: ReviewerSpec, pilot) -> dict:
         "doc_type": row["sorter_type"], "confidence": sorter_confidence,
         "contract_subtype": "other" if row["sorter_type"] == "contract" else None,
         "doc_subclass": {"contract": "other", "corporate_record": "minutes",
-                         "insurance_claim": "carrier"}[row["sorter_type"]],
+                         "insurance_claim": "carrier", "correspondence": "memo"}[row["sorter_type"]],
         "reasoning": "curated reviewer-band sorter output",
     }, extraction={**expect["expected_fields"], "confidence": 0.99})
     stack.enter_context(patch("langchain_agents.base_agent.BaseAgent.llm", lambda self: fake))
@@ -277,3 +277,37 @@ def test_only_a_parked_run_keeps_its_checkpoints(run):
 
     assert not rows(run(ROWS[0]))
     assert rows(run(ROWS[1]))
+
+
+def test_correspondence_disagreement_parks_through_the_in_house_reviewer(run, pilot):
+    """The real local backend and graph; only the reviewer model's answer is canned."""
+    from agents.decision_backend import register_decision_backend
+    from mailroom_sandbox.decision_backends import local_backend
+    from pipeline.bins import load_manifest
+    import graph.build_graph as bg
+
+    spec = ReviewerSpec(backend="local", model="Org/Second", classes={"correspondence": 0.8})
+    row = {"id": "memo", "doc_text": "Internal memo about the merger.", "sorter_type": "correspondence",
+           "reviewer_type": "contract", "reviewer_confidence": 0.95}
+    real = bg.run_pipeline
+
+    class Reviewer:
+        def review(self, text, **_):
+            return {"doc_type": "contract", "doc_subclass": None, "confidence": 0.95}
+
+    def with_local(*args, **kwargs):
+        # run_pilot_row bars the LLM reviewer; here it is the decision backend.
+        pilot[1].setattr("agents.sorter_reviewer.SorterReviewerAgent", Reviewer)
+        register_decision_backend(local_backend("Org/Second"))
+        return real(*args, **kwargs)
+
+    pilot[1].setattr(bg, "run_pipeline", with_local)
+    result = run_pilot_row(row, spec, pilot)
+    try:
+        manifest = load_manifest(result["doc_id"])
+        assert result["stage"] == manifest.stage.value == "review"
+        assert "reviewer_disagreement" in manifest.review_causes
+        assert manifest.reviewer_doc_type == "contract"
+        assert "extract" not in result["visited"]
+    finally:
+        result["stack"].close()

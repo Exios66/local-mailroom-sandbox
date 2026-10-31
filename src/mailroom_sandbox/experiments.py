@@ -117,7 +117,7 @@ def _reviewer_settings(reviewer: str | None, classes: list[str] | None) -> dict 
         raise ServiceError('--decision-reviewer and --decision-class must be given together')
     backend, sep, model = reviewer.partition(':')
     if not sep or not backend or not model:
-        raise ServiceError('--decision-reviewer must be BACKEND:MODEL, e.g. jev:jev-1.13.0')
+        raise ServiceError('--decision-reviewer must be BACKEND:MODEL, e.g. local:Org/Model or jev:jev-1.13.0')
     from mailroom_sandbox.overlay import live_doc_classes
 
     live = live_doc_classes()
@@ -850,13 +850,16 @@ def _write_report(path: Path, plan: Plan, runs) -> dict:
     routed = [row for row in measured if row['sand42'].get('pipeline')]
     if routed:
         lines += ['', '## Pipeline routing', '',
-                  '| Run | Class | Documents | Stages | Review rate | Class correct | Stage correct |',
-                  '| --- | --- | --- | --- | --- | --- | --- |']
+                  'A class with no decision reviewer has no disagreement check: its LLM reviewer only runs on medium-confidence sorter results.', '',
+                  '| Run | Class | Reviewer | Documents | Stages | Review rate | Class correct | Stage correct |',
+                  '| --- | --- | --- | --- | --- | --- | --- | --- |']
         for row in routed:
             block = row['sand42']['pipeline']
             for name, part in {'all': block, **block['by_class']}.items():
                 stages = ', '.join(f'{stage} {count}' for stage, count in sorted(part['stages'].items()))
-                lines.append(f"| {row['run_id']} | {name} | {part['documents']} | {stages} | {_fmt_score(part['review_rate'])} | "
+                reviewer = part.get('reviewer')
+                reviewer = '' if name == 'all' else f"{reviewer} at {part['reviewer_cutoff']}" if reviewer else 'none'
+                lines.append(f"| {row['run_id']} | {name} | {reviewer} | {part['documents']} | {stages} | {_fmt_score(part['review_rate'])} | "
                              f"{_fmt_score(part['class_correct'])} | {_fmt_score(part['stage_correct'])} |")
             causes = ', '.join(f'{cause} {count}' for cause, count in block['review_causes'].items())
             lines.append(f"\nReview causes in {row['run_id']}: {causes or 'none'}.\n")
@@ -905,7 +908,7 @@ def register(sub, leaf) -> None:
     create.add_argument('study')
     create.add_argument('--task', choices=['specialists', 'pipeline', 'sorter'], default='specialists')
     create.add_argument('--agent-route', action='append', dest='agent_routes', default=[], metavar='NAME=PROVIDER:MODEL', help='per-agent provider/model; NAME=@route.yaml includes endpoint/GPU/vLLM settings')
-    create.add_argument('--decision-reviewer', default=None, metavar='BACKEND:MODEL', help='freeze a decision-model reviewer (jev:jev-1.13.0 or mock:mock); needs --decision-class')
+    create.add_argument('--decision-reviewer', default=None, metavar='BACKEND:MODEL', help='freeze a decision-model reviewer (local:MODEL, jev:jev-1.13.0 or mock:mock); needs --decision-class')
     create.add_argument('--decision-class', action='append', default=[], metavar='CLASS=CUTOFF', help='class the decision reviewer handles, with its cutoff in [0, 1] (repeatable)')
     create.add_argument('--specialist-tier', choices=['base', 'mid', 'full'], default='base',
                         help="specialists' model: base = the run's model, mid = Qwen3.5-35B-A3B, full = the judge's Qwen3.5-27B (config/models.yaml critical_tier)")

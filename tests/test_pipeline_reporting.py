@@ -58,6 +58,17 @@ def test_card_counts_parked_documents_with_no_cause_token(tmp_path):
     assert card["pipeline"]["review_causes"] == {"no_cause_recorded": 1}
 
 
+def test_card_shows_which_classes_had_a_reviewer(tmp_path):
+    store = _sample(tmp_path)
+    lock = json.loads(store.lock_path.read_text())
+    lock["reviewer"] = {"backend": "local", "model": "Org/Second", "classes": {"correspondence": 0.8}}
+    store.lock_path.write_text(json.dumps(lock))
+    by_class = grid_cards.collect_card(store, wall_seconds=60.0)["pipeline"]["by_class"]
+    assert by_class["correspondence"]["reviewer"] == "local:Org/Second"
+    assert by_class["correspondence"]["reviewer_cutoff"] == 0.8
+    assert by_class["contract"]["reviewer"] is None
+
+
 def test_card_names_no_single_prompt_for_a_multi_agent_run(tmp_path):
     card = grid_cards.collect_card(_sample(tmp_path), wall_seconds=60.0)
     assert card["conditions"]["prompt"] == "2 agent prompts"

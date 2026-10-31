@@ -403,6 +403,12 @@ def _pipeline_block(store: RunStore, items: list[dict[str, Any]]) -> dict[str, A
     for item in items:
         by_class.setdefault(expected.get(str(item.get("item_id")), "unknown"), []).append(item)
     block["by_class"] = {name: outcomes(rows) for name, rows in sorted(by_class.items())}
+    # A class without a decision reviewer gets the LLM band, which a confident sorter skips.
+    reviewer = _d((store.read_lock() or {}).get("reviewer"))
+    cutoffs = _d(reviewer.get("classes"))
+    for name, row in block["by_class"].items():
+        row["reviewer"] = f"{reviewer.get('backend')}:{reviewer.get('model')}" if name in cutoffs else None
+        row["reviewer_cutoff"] = cutoffs.get(name)
     return block
 
 

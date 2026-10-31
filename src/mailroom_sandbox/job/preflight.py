@@ -51,6 +51,24 @@ def _versions() -> dict[str, Any]:
     return out
 
 
+def _local_reviewer_errors(spec: RunSpec) -> list[str]:
+    """The in-house reviewer must be a second model, on a route the run controls."""
+    model = spec.reviewer.model
+    errs = []
+    if model == spec.agent_models.get("sorter", spec.engine.model):
+        errs.append("decision reviewer backend local must use a different model from the sorter, or it only repeats its answer")
+    if spec.job.mock:
+        return errs
+    route = spec.agent_routes.get("sorter_reviewer")
+    if route is None:
+        errs.append("decision reviewer backend local needs an agent_routes.sorter_reviewer entry serving its model")
+    elif route.provider not in {"modal-vllm", "vllm"}:
+        errs.append(f"decision reviewer backend local must stay in-house; agent route provider {route.provider!r} is a third party")
+    elif route.model != model:
+        errs.append(f"decision reviewer model {model!r} differs from agent route model {route.model!r}")
+    return errs
+
+
 def _engine_errors(spec: RunSpec) -> list[str]:
     errs: list[str] = []
     if spec.agent_models or spec.agent_knobs:
@@ -80,6 +98,8 @@ def _engine_errors(spec: RunSpec) -> list[str]:
             errs.append("decision reviewer backend jev is not supported for modal jobs (the Modal worker image has no decision extra); use endpoint mode or backend mock")
         elif spec.reviewer.backend == "jev" and not os.environ.get("TYPESAFE_API_KEY", "").strip():
             errs.append("decision reviewer backend jev needs TYPESAFE_API_KEY set (offline runs should use backend mock)")
+        if spec.reviewer.backend == "local":
+            errs.extend(_local_reviewer_errors(spec))
     vllm = spec.engine.vllm
     if vllm.max_model_len < 1:
         errs.append("max_model_len must be >= 1")

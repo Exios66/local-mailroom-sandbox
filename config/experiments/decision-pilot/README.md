@@ -52,6 +52,20 @@ can make paid model calls on the server. A timeout is not a cancellation; inspec
 the queue before retrying. Keep the token in the environment, never the URL.
 Use HTTPS for a remote API; HTTP is intended for a trusted loopback connection.
 
+## Reviewer backends
+
+| Backend | Runs on | Correspondence |
+| --- | --- | --- |
+| `jev` | TypeSafe, a third party (`TYPESAFE_API_KEY`) | Refused until the sanitized corpus exists (SAND-086) |
+| `local` | The `sorter_reviewer` agent on your own serving route | Allowed |
+| `mock` | Offline tests | Allowed |
+
+`local` needs a model different from the sorter's and an
+`agent_routes.sorter_reviewer` entry with provider `modal-vllm` or `vllm` that
+serves it; preflight refuses anything else. Set its cutoffs per class. Its
+confidence is the model's own and is uncalibrated, so tune them on a labelled
+draw before reading review rates as evidence.
+
 ## Remaining release and live gates
 
 The current generated vendor snapshot is pinned to standalone decision-reviewer
