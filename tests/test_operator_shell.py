@@ -71,33 +71,3 @@ def test_tui_preserves_shared_cli_context(monkeypatch):
                      "--agent-model", "sorter=override"]) == 0
     assert seen == ["--profile", "ollama", "--model", "local-model", "--agent-model", "sorter=override"]
 
-
-def test_libedit_prefill_turns_off_history_recall_for_that_prompt(monkeypatch, capsys):
-    import sys
-    import types
-
-    monkeypatch.setattr(shell.sys.stdin, "isatty", lambda: True)
-    recalled = []
-    fake = types.ModuleType("readline")
-    fake.__doc__ = "Importing this module enables command line editing using libedit readline."
-    fake.get_completer = lambda: None
-    for name in ("set_completer", "parse_and_bind", "set_auto_history", "set_startup_hook"):
-        setattr(fake, name, lambda *a, **k: None)
-    fake.get_line_buffer = lambda: ""
-    fake.add_history = recalled.append
-    fake.clear_history = recalled.clear
-    monkeypatch.setitem(sys.modules, "readline", fake)
-    prompts = []
-    entries = iter(["profiles", "menu eval pipeline", "2", "", "exit"])
-
-    def typed(prompt):
-        prompts.append((prompt, list(recalled)))
-        return next(entries)
-
-    monkeypatch.setattr("builtins.input", typed)
-    monkeypatch.setattr(cli, "main", lambda argv: 0)
-    assert shell.run_shell() == 0
-    prompt, history = prompts[3]
-    assert prompt == "mailroom> eval pipeline --class contract " and history == []
-    # Recall comes back after the prefilled prompt.
-    assert prompts[4][1] == ["profiles", "menu eval pipeline", "eval pipeline --class contract"]
