@@ -88,6 +88,8 @@ def _cutoff(rows: list[tuple[float, bool]], target: float) -> float | None:
 def calibrate(store: RunStore, *, target: float = 0.95, seed: int = 42,
               classes: set[str] | None = None) -> dict:
     """Cutoffs from a finished run; raises ``ValueError`` on a run that misses locked documents."""
+    if not 0.0 < target <= 1.0:
+        raise ValueError(f"target accuracy must be in (0, 1]; got {target}")
     reason = _incomplete(store)
     if reason:
         raise ValueError(reason)

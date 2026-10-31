@@ -175,6 +175,28 @@ def test_a_pipeline_document_that_raises_after_a_paid_call_reports_its_usage(mon
     assert budget.spent_usd == pytest.approx(0.051, abs=1e-4)
 
 
+def test_a_document_the_pipeline_aborted_fails_alone(monkeypatch):
+    from mailroom_sandbox.eval import runners
+
+    rows = [{"id": name, "expected_doc_class": "contract", "text": "x"} for name in ("dead", "live")]
+    results = {"dead": {"stage": "failed", "escalation_reason": "run aborted [run_budget]"},
+               "live": {"stage": "archived", "doc_type": "contract"}}
+    monkeypatch.setattr(runners, "_run_pipeline_doc", lambda row, **_: results[row["id"]])
+    items = []
+    runners.run_pipeline_eval(profile="ollama", rows=rows, mock=False, connected=False, row_cb=items.append)
+    assert [bool(item["error"]) for item in items] == [True, False]
+
+
+def test_a_run_with_no_classified_document_still_refuses_to_score(monkeypatch):
+    from mailroom_sandbox.eval import runners
+
+    rows = [{"id": "dead", "expected_doc_class": "contract", "text": "x"}]
+    monkeypatch.setattr(runners, "_run_pipeline_doc",
+                        lambda row, **_: {"stage": "failed", "escalation_reason": "run aborted"})
+    with pytest.raises(RuntimeError, match="no doc_type"):
+        runners.run_pipeline_eval(profile="ollama", rows=rows, mock=False, connected=False)
+
+
 def test_a_modal_route_on_an_api_engine_counts_its_replicas_and_overhead():
     spec = _spec(agent_routes={"judge": {"provider": "modal-vllm", "model": "Qwen/Qwen3.5-27B",
                                          "modal": {"app": "sandbox-vllm-judge", "gpu": "L4", "max_containers": 1,

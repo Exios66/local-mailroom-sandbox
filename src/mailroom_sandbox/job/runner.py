@@ -53,6 +53,9 @@ except Exception as exc:  # pragma: no cover — import fallback for isolated to
     )
     ISOLATED_AGENT_TASKS = ()
 
+# Whole-run evaluators that take no ``api_budget``: a capped API run on them would spend unbounded.
+_API_CAP_UNENFORCED_TASKS = ("extract", "chained", "local_vs_api", "sorter_vs_modernbert")
+
 RUNNABLE_TASKS = PER_ITEM_TASKS + _WHOLE_RUN_TASKS + ISOLATED_AGENT_TASKS
 
 
@@ -274,6 +277,11 @@ def _run_whole_run(
         )
 
     try:
+        if api_budget is not None and task in _API_CAP_UNENFORCED_TASKS:
+            raise ValueError(
+                f"task {task!r} cannot enforce job.api_cost_cap_usd (its evaluator makes API calls without a "
+                "token budget); run it on a local or Modal route, or use a task that enforces the cap"
+            )
         if task == "specialist":
             # Level 1 sweeps all five specialists, level 2 (`target`) runs one.
             # Each specialist scores only its own class's locked rows; with no
@@ -595,7 +603,7 @@ def _persist_isolated_items(store: RunStore, rows: list[dict[str, Any]] | None) 
         store.append_item(
             {
                 "item_id": item_id,
-                "ok": not row.get("error"),
+                "ok": not row.get("error") and not (row.get("score") or {}).get("parse_error"),
                 "error": row.get("error"),
                 "pred": row.get("pred"),
                 "score": row.get("score"),
@@ -889,6 +897,7 @@ def _run_job(
         value: Any = None
         error: str | None = None
         usage: dict[str, Any] = {}
+        failed_usage: dict[str, int] = {}  # billed by attempts that raised, then retried
         with job_span(
             tracer,
             "job.item",
@@ -913,8 +922,15 @@ def _run_job(
                 except Exception as exc:  # noqa: BLE001
                     error = f"{type(exc).__name__}: {str(exc)[:512]}"
                     usage = {}
+                    if not mock:
+                        # The failed call was billed; the next attempt's graph run resets the accumulator.
+                        for key, value in usage_from_pipeline().items():
+                            failed_usage[key] = failed_usage.get(key, 0) + value
                     if attempt <= retries:
                         time.sleep(0.2)
+            if failed_usage:
+                usage = {key: int(usage.get(key) or 0) + failed_usage.get(key, 0)
+                         for key in {*usage, *failed_usage}}
             span.set_attribute("job.ok", error is None)
             span.set_attribute("job.attempts", attempt)
             if error is not None:

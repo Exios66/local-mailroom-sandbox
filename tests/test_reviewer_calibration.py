@@ -146,3 +146,11 @@ def test_saturation_counts_answers_at_the_top_confidence(tmp_path):
     assert result["top_confidence"] == 1.0
     assert result["top_confidence_documents"] == 3
     assert result["top_confidence_wrong"] == 1
+
+
+def test_calibrate_rejects_a_target_outside_zero_to_one(tmp_path):
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    for target in (0.0, -0.1, 1.5):
+        with pytest.raises(ValueError, match="target accuracy"):
+            calibrate_reviewer.calibrate(RunStore(tmp_path / "r"), target=target)

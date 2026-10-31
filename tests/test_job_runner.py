@@ -873,3 +873,49 @@ def test_a_resumed_run_counts_the_tokens_of_a_pipeline_document_that_raised(tmp_
     out = runner._run_whole_run(store, "pipeline", mock=False, model=None, profile="openrouter")
     assert out["state"] == "failed" and store.load_items() == []
     assert runner._api_budget(store).spent_usd == pytest.approx(0.17)
+
+
+def test_a_capped_api_run_is_refused_on_tasks_whose_evaluator_cannot_enforce_the_cap(tmp_path):
+    """CodeRabbit: extract/chained/local_vs_api/sorter_vs_modernbert take no api_budget."""
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    for task in ("extract", "chained", "local_vs_api", "sorter_vs_modernbert"):
+        store = RunStore(tmp_path / task)
+        store.write_lock({"task": task, "profile": "openrouter", "prompt": {},
+                          "engine": {"kind": "openrouter", "model": "qwen/qwen3.5-9b"},
+                          "job": {"mock": False, "concurrency": 1, "api_cost_cap_usd": 1.0}})
+        out = runner._run_whole_run(store, task, mock=False, model=None, profile="openrouter")
+        assert out["state"] == "failed" and "cannot enforce job.api_cost_cap_usd" in out["error"]
+
+
+def test_a_parse_failed_isolated_answer_is_not_persisted_as_ok(tmp_path):
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    store = RunStore(tmp_path / "r")
+    runner._persist_isolated_items(store, [
+        {"id": "a", "score": {"parse_error": True}, "error": None},
+        {"id": "b", "score": {"parse_error": False}, "error": None},
+    ])
+    assert {i["item_id"]: i["ok"] for i in store.load_items()} == {"a": False, "b": True}
+
+
+def test_the_tokens_of_a_sorter_attempt_that_raised_are_counted_on_the_retried_item(tmp_path, monkeypatch):
+    """CodeRabbit: a paid call that raised was billed; retries must not hide it from the API cap."""
+    from mailroom_sandbox.eval import runners as eval_runners
+
+    store = _prepped_store(tmp_path, rows=1, job={"mock": False, "max_retries": 1, "concurrency": 1})
+    calls = {"n": 0}
+    billed = {"prompt_tokens": 100, "completion_tokens": 10, "llm_calls": 1}
+
+    def flaky(task, row, **_):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("paid call, then the graph raised")
+        return eval_runners._classify_mock(row), dict(billed)
+
+    monkeypatch.setattr(runner, "_predict_row", flaky)
+    monkeypatch.setattr(runner, "usage_from_pipeline", lambda: dict(billed))
+    monkeypatch.setattr(runner.time, "sleep", lambda _s: None)
+    assert runner.run_job(store, mock=None)["state"] == "done"
+    (item,) = store.load_items()
+    assert (item["prompt_tokens"], item["completion_tokens"], item["llm_calls"]) == (200, 20, 2)
