@@ -107,8 +107,11 @@ def _activation_knobs(spec):
     return knobs
 
 def main(argv: list[str] | None = None) -> int:
+    from mailroom_sandbox import prefer_own_venv_tools
     from mailroom_sandbox.runtime import load_env_file
 
+    if argv is None:  # the console script's own process; an importing host keeps its PATH
+        prefer_own_venv_tools()
     load_env_file()
     parser = build_parser()
     args = parser.parse_args(argv)

@@ -50,10 +50,8 @@ def _task_key(spec: Any) -> str:
     return spec.task
 
 
-def _fleet_usd_per_hour(spec: Any) -> float:
-    """USD/hour while every Modal app the run deploys is warm (engine + per-agent routes)."""
-    from mailroom_sandbox.job.metrics import _billed_gpu, gpu_usd_per_hour
-
+def _modal_apps(spec: Any) -> list[dict[str, Any]]:
+    """Every Modal app the run deploys (engine + per-agent routes)."""
     apps = []
     if spec.engine.kind == "modal-vllm" and spec.engine.modal:
         apps.append(spec.engine.modal.model_dump())
@@ -62,8 +60,15 @@ def _fleet_usd_per_hour(spec: Any) -> float:
         if route.provider == "modal-vllm" and route.modal and route.modal.app not in seen:
             seen.add(route.modal.app)
             apps.append(route.modal.model_dump())
+    return apps
+
+
+def _fleet_usd_per_hour(spec: Any) -> float:
+    """USD/hour while every Modal app the run deploys is warm."""
+    from mailroom_sandbox.job.metrics import _billed_gpu, gpu_usd_per_hour
+
     total = 0.0
-    for app in apps:
+    for app in _modal_apps(spec):
         gpu, count = _billed_gpu(app)
         total += gpu_usd_per_hour(gpu) * count
     return total
@@ -98,12 +103,14 @@ def recommend(spec: Any) -> dict[str, Any]:
 
     docs = int(spec.dataset.limit or 0)
     concurrency = max(1, int(spec.job.concurrency or 1))
-    if spec.engine.kind == "modal-vllm" and spec.engine.modal:
-        concurrency = min(concurrency, PER_REPLICA_CONCURRENCY * max(1, int(spec.engine.modal.max_containers or 1)))
+    apps = _modal_apps(spec)
+    if apps:  # the smallest app is the bottleneck
+        concurrency = min(concurrency, *(PER_REPLICA_CONCURRENCY * max(1, int(app.get("max_containers") or 1))
+                                         for app in apps))
     key = _task_key(spec)
     sec_per_doc = SINGLE_CALL_SEC_PER_DOC.get(key) or _sec_per_doc_for("", key)["likely"]  # not the run postures
     busy_wall = docs * sec_per_doc / concurrency
-    scaledown = float(spec.engine.modal.scaledown_seconds) if spec.engine.modal else 0.0
+    scaledown = max((float(app.get("scaledown_seconds") or 0) for app in apps), default=0.0)
     fleet_rate = _fleet_usd_per_hour(spec)
     overhead = (COLD_START_S + scaledown) if fleet_rate else 0.0
     wall = int(max(MIN_WALL_S, _ceil_to(busy_wall * MARGIN + overhead, 60)))
