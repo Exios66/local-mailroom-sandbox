@@ -1035,6 +1035,9 @@ def run_pipeline_eval(
         doc_usage = usage_capture.usage_from_pipeline()
         if api_budget is not None:
             api_budget.add_usage(doc_usage)
+        if result.get("stage") == "failed" and not result.get("error"):
+            # A run the pipeline aborted is a failed document, not a finished one.
+            result = {**result, "error": result.get("escalation_reason") or "pipeline failed"}
         results.append(result)
         scored = _score_pipeline_extraction(row, result) if connected else None
         extraction_rows.append(scored)
@@ -1057,13 +1060,15 @@ def run_pipeline_eval(
     predicted: list[str] = []
     for row, result in zip(rows, results):
         doc_type = result.get("doc_type")
-        if not mock and not doc_type:
+        if not mock and not doc_type and not result.get("error"):
             raise RuntimeError(
                 f"live pipeline returned no doc_type for row "
                 f"{row.get('id') or row.get('filename') or '?'} — refusing to "
                 f"score a dead live path as 'unknown'"
             )
         predicted.append(doc_type or "unknown")
+    if not mock and results and not any(r.get("doc_type") for r in results):
+        raise RuntimeError("live pipeline returned no doc_type for any row — refusing to score a dead live path")
     class_scores = scoring.score_classification(expected, predicted)
     stage_expected = [str(r.get("expected_stage") or "archived") for r in rows]
     stage_predicted = [str(r.get("stage") or "unknown") for r in results]

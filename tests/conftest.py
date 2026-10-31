@@ -11,6 +11,9 @@ from mailroom_sandbox.paths import repo_root
 # Set before any test, so subprocesses inherit it too: a key in .env can bill real calls.
 os.environ["SANDBOX_SKIP_DOTENV"] = "1"
 os.environ.pop("OPENROUTER_API_KEY", None)
+# A commit hook exports these, and `git init` in a test would then rewrite the real repo's config.
+for _name in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR", "GIT_PREFIX"):
+    os.environ.pop(_name, None)
 
 
 @pytest.fixture(autouse=True)
