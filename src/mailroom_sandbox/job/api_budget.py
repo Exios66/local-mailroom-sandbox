@@ -125,6 +125,15 @@ class ApiBudget:
             raise RuntimeError(prefix + reason)
 
 
+FAILED_USAGE_EVENT = "api_usage_of_failed_document"
+
+
+def usage_records(store: Any) -> list[dict[str, Any]]:
+    """Every persisted item, plus each document that raised after a paid call (it has no item row)."""
+    failed = [event.get("detail") or {} for event in store.events() if event.get("event") == FAILED_USAGE_EVENT]
+    return [*store.load_items(), *failed]
+
+
 def budget_for(lock: Mapping[str, Any], items: Iterable[Mapping[str, Any]] = ()) -> ApiBudget | None:
     """The run's API budget, seeded with tokens already spent by persisted items (resume)."""
     job = lock.get("job") or {}

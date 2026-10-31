@@ -68,7 +68,7 @@ def test_third_party_backends_may_review_correspondence(backend, model):
     assert spec.reviewer.classes == {"correspondence": 0.9}
 
 
-@pytest.mark.parametrize("model", ["~openai/gpt-luna-latest", "openai/gpt-luna-latest", "openai/gpt-6-luna:batch", "gpt-6-luna"])
+@pytest.mark.parametrize("model", ["~openai/gpt-luna-latest", "openai/gpt-luna-latest", "openai/gpt-6-luna:batch", "gpt-6-luna", "openrouter/auto"])
 def test_api_backend_refuses_a_moving_model_id(model):
     with pytest.raises(ValidationError, match="pinned API model"):
         _spec(reviewer=_reviewer(backend="api", model=model))

@@ -31,12 +31,10 @@ def prefer_own_venv_tools() -> None:
     if sys.prefix == sys.base_prefix:
         return
     own_bin = os.path.dirname(sys.executable)
-    entries = os.environ.get("PATH", "").split(os.pathsep)
+    entries = (os.environ.get("PATH") or os.defpath).split(os.pathsep)
     if entries[0] != own_bin:
         os.environ["PATH"] = os.pathsep.join([own_bin, *(e for e in entries if e != own_bin)])
 
-
-prefer_own_venv_tools()
 
 from mailroom_sandbox.runtime import activate
 
