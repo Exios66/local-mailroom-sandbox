@@ -1231,5 +1231,3 @@ def _run_pipeline_doc(
         "offline_fallback": False,
         "mailroom_src": str(src) if src else None,
     }
-
-

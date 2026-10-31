@@ -58,6 +58,10 @@ pipeline = [
     "langchain-core>=0.3",
     "langchain-openai>=0.2",
     "langgraph>=0.2",
+    # Terminal review uses the API and durable interrupt checkpoints.
+    "fastapi>=0.115",
+    "python-multipart>=0.0.9",
+    "langgraph-checkpoint-sqlite>=2.0",
     "requests>=2.31",
     "watchdog>=4.0",
     # DMR-067/078: vendored graph live storage (storage.catalog / audit_log)
@@ -98,13 +102,20 @@ deploy = [
     # notes — 1.5.5 removed `Secret.from_local`.
     "modal==1.6.2",
 ]
+decision = [
+    # Decision-model reviewer backend (src/mailroom_sandbox/decision_backends.py).
+    # Exact pin: a tuned confidence cutoff is tied to one model version, and the
+    # `typesafe:` model names and `provider_details["confidence"]` come from this
+    # release's source. Imported lazily, so the offline install never needs it.
+    "pydantic-ai-slim[typesafe]==2.63.0",
+]
 # DMR-057: the family eval stack (llm-mailroom + llm-dojo-scoring) is
 # vendored under vendor/ and wired onto sys.path at import — the old
 # `[pipeline]`/`[evals]` git-pin extras are gone; refresh the snapshots with
 # `sandbox fetch-deps` instead. Current pins live in `_VENDOR_PINS`; each
 # `vendor/*/VENDOR.md` records the exact provenance.
 all = [
-    "mailroom-sandbox[dev,deploy,hf,observability,notebooks,pipeline]",
+    "mailroom-sandbox[dev,deploy,hf,observability,notebooks,pipeline,decision]",
 ]
 
 [project.scripts]

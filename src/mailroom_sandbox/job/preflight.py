@@ -64,6 +64,18 @@ def _engine_errors(spec: RunSpec) -> list[str]:
             validate(spec.agent_routes, credentials=not spec.job.mock)
         except (ValueError, ServiceError) as exc:
             errs.append(str(exc))
+    if spec.reviewer:
+        from mailroom_sandbox.overlay import live_doc_classes
+
+        live = live_doc_classes()
+        unknown = sorted(set(spec.reviewer.classes) - set(live))
+        if unknown:
+            errs.append(f"decision reviewer classes {unknown} are not live taxonomy classes; valid: {sorted(live)}")
+        if spec.reviewer.backend == "jev" and spec.job.mock:
+            # A mock pipeline run patches the LLM clients but not the decision backend.
+            errs.append("decision reviewer backend jev would make live Jev calls in a mock run; use backend mock")
+        elif spec.reviewer.backend == "jev" and not os.environ.get("TYPESAFE_API_KEY", "").strip():
+            errs.append("decision reviewer backend jev needs TYPESAFE_API_KEY set (offline runs should use backend mock)")
     vllm = spec.engine.vllm
     if vllm.max_model_len < 1:
         errs.append("max_model_len must be >= 1")
@@ -640,6 +652,7 @@ def _preflight(
         "profile": spec.profile,
         "agent_models": dict(spec.agent_models),
         **({"agent_routes": {name: route.model_dump() for name, route in spec.agent_routes.items()}} if spec.agent_routes else {}),
+        **({"reviewer": spec.reviewer.model_dump()} if spec.reviewer else {}),
         "prompt": prompt_block,
         "engine": spec.engine.model_dump(),
         "job": spec.job.model_dump(),

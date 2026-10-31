@@ -125,3 +125,4 @@ reports/SAND42/.*.tmp*
 # Runtime provider-health probes write these; never commit live state.
 data/provider_health.json
 data/provider_health.lock
+.venv
