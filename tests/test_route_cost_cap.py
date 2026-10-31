@@ -85,3 +85,46 @@ def test_cap_guard_trips_on_the_fleet_not_the_base_gpu():
     # $1 cap: 30 min on the base L4 alone is $0.40, the routed fleet is $2.18.
     assert _estimated_gpu_usd(1800, gpu="L4", replicas=1, gpu_fleet=None) < 1.0
     assert _estimated_gpu_usd(1800, gpu="L4", replicas=1, gpu_fleet=metrics.lock_gpu_fleet(ROUTED_LOCK)) >= 1.0
+
+
+def _serving_store(tmp_path, lock):
+    import json
+
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    store = RunStore(tmp_path / "r")
+    store.write_lock({**lock, "task": "contracts_specialist", "profile": "modal-vllm",
+                      "job": {"mock": False, "concurrency": 4}})
+    for i, ts in enumerate(("2026-01-01T00:00:00.000+00:00", "2026-01-01T00:01:00.000+00:00")):
+        store.append_item({"item_id": f"d{i}", "ok": True, "latency_ms": 1000.0, "prompt_tokens": 1,
+                           "completion_tokens": 1, "ts": ts})
+    (store.dir / "cold_boot.json").write_text(json.dumps({"cold_boot_seconds": 30.0}), encoding="utf-8")
+    return store
+
+
+def test_serving_report_prices_the_routed_fleet_like_the_run_record(tmp_path, monkeypatch):
+    """Dated serving reports and the runner's record agree on a routed run's GPU cost."""
+    from mailroom_sandbox.eval.runners import _estimated_gpu_usd
+    from mailroom_sandbox.job.runner import _lock_fleet, _lock_gpu, _lock_replicas
+
+    monkeypatch.delenv("MODAL_BILLED_GPU_SECONDS", raising=False)
+    store = _serving_store(tmp_path, ROUTED_LOCK)
+    rec = metrics.serving_record_from_store(store, wall_seconds=3570.0, mock=False)
+    billed = 3570.0 + 30.0  # wall + cold boot, as the runner bills it
+    runner_cost = _estimated_gpu_usd(
+        billed, gpu=_lock_gpu(store), replicas=_lock_replicas(store), gpu_fleet=_lock_fleet(store)
+    )
+    assert rec["gpu_seconds"] == pytest.approx(billed)
+    assert rec["estimated_gpu_cost_usd"] == pytest.approx(runner_cost)
+    assert rec["estimated_gpu_cost_usd"] == pytest.approx(L4 + L40S + 2 * L4)
+    assert rec["gpu_cost_per_document"] == pytest.approx(runner_cost / 2)
+    assert rec["run_span_usd_lower_bound"] == pytest.approx(runner_cost)
+    assert sorted((f["gpu"], f["gpus"]) for f in rec["gpu_fleet"]) == [("L4", 1), ("L4", 2), ("L40S", 1)]
+
+
+def test_serving_report_keeps_the_base_gpu_formula_without_routes(tmp_path, monkeypatch):
+    monkeypatch.delenv("MODAL_BILLED_GPU_SECONDS", raising=False)
+    lock = {"engine": ROUTED_LOCK["engine"]}
+    rec = metrics.serving_record_from_store(_serving_store(tmp_path, lock), wall_seconds=3570.0, mock=False)
+    assert rec["estimated_gpu_cost_usd"] == pytest.approx(L4)
+    assert "gpu_fleet" not in rec
