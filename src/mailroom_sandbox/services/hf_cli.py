@@ -16,7 +16,7 @@ from pathlib import Path
 
 from mailroom_sandbox.paths import repo_root
 from mailroom_sandbox.services.beacon import service_job
-from mailroom_sandbox.services._cli import format_command, print_plan, strip_separator
+from mailroom_sandbox.services._cli import format_command, nonempty, print_plan, strip_separator
 from mailroom_sandbox.services._exec import (
     ServiceError,
     ToolFailed,
@@ -159,12 +159,12 @@ def register(sub: argparse._SubParsersAction, leaf: argparse.ArgumentParser) -> 
     whoami.set_defaults(handler=_cmd_whoami)
 
     download = cmds.add_parser("download", parents=[leaf], help="hf download (default: the pinned sandbox dataset)")
-    download.add_argument("repo", nargs="?", default=None, help="repo id (default: the sandbox dataset)")
+    download.add_argument("repo", nargs="?", type=nonempty, default=None, help="repo id (default: the sandbox dataset)")
     download.add_argument("--repo-type", choices=["model", "dataset", "space"], default=None)
-    download.add_argument("--revision", default=None, help="default: FAMILY_HF_REVISION for the sandbox dataset only")
+    download.add_argument("--revision", type=nonempty, default=None, help="default: FAMILY_HF_REVISION for the sandbox dataset only")
     download.add_argument("--include", action="append", default=[], metavar="GLOB")
     download.add_argument("--exclude", action="append", default=[], metavar="GLOB")
-    download.add_argument("--local-dir", default=None)
+    download.add_argument("--local-dir", type=nonempty, default=None)
     download.add_argument("--sandbox-cache", action="store_true", help="use data/cache/hf as HF_HOME")
     download.add_argument("--dry-run", action="store_true")
     download.set_defaults(handler=_cmd_download)

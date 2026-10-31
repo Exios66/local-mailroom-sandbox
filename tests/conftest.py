@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import pytest
 
@@ -14,6 +15,10 @@ def _sandbox_root(monkeypatch):
     monkeypatch.setenv("SANDBOX_ROOT", str(repo_root()))
     monkeypatch.setenv("OBSERVABILITY_PROVIDER", "none")
     monkeypatch.setenv("PHOENIX_TRACING", "disabled")
+    # Child interpreters must import this checkout, not whichever one the venv's
+    # editable install happens to point at (pytest's `pythonpath` is in-process only).
+    src = str(Path(__file__).resolve().parents[1] / "src")
+    monkeypatch.setenv("PYTHONPATH", os.pathsep.join(filter(None, [src, os.environ.get("PYTHONPATH")])))
 
 
 @pytest.fixture

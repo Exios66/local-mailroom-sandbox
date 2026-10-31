@@ -20,7 +20,8 @@ from typing import Any
 
 from mailroom_sandbox.paths import repo_root
 from mailroom_sandbox.services.beacon import service_job
-from mailroom_sandbox.services._cli import format_command, print_json, print_plan, strip_separator, warn
+from mailroom_sandbox.services._cli import format_command, nonempty, print_json, print_plan, strip_separator, warn
+from mailroom_sandbox.services._redact import redact_urls
 from mailroom_sandbox.services._exec import (
     ServiceError,
     ToolFailed,
@@ -122,7 +123,7 @@ def _cmd_deploy(args: argparse.Namespace) -> int:
         _run_streamed(argv, env, on_line=job.log)
     endpoint = _endpoint()
     if endpoint:
-        url, _source = endpoint
+        url = redact_urls(endpoint[0])
         print(f"\nendpoint: {url}")
         print(f"export VLLM_BASE_URL={url}")
     else:
@@ -284,7 +285,7 @@ def _cmd_url(args: argparse.Namespace) -> int:
     if args.json:
         print_json({"base_url": url, "source": source, "app": vllm_app()})
     else:
-        print(url)
+        print(redact_urls(url))
     return 0
 
 
@@ -351,13 +352,13 @@ def register(sub: argparse._SubParsersAction, leaf: argparse.ArgumentParser) -> 
     status.set_defaults(handler=_cmd_status)
 
     stop = cmds.add_parser("stop", parents=[leaf], help="stop the app (idempotent) and verify it is gone")
-    stop.add_argument("--app", default=None, help="app name (default: MODAL_VLLM_APP_NAME or sandbox-vllm)")
+    stop.add_argument("--app", type=nonempty, default=None, help="app name (default: MODAL_VLLM_APP_NAME or sandbox-vllm)")
     stop.add_argument("--no-verify", action="store_true", help="skip the post-stop `modal app list` check")
     stop.add_argument("--dry-run", action="store_true")
     stop.set_defaults(handler=_cmd_stop)
 
     logs = cmds.add_parser("logs", parents=[leaf], help="modal app logs")
-    logs.add_argument("--app", default=None)
+    logs.add_argument("--app", type=nonempty, default=None)
     logs.add_argument("--follow", action="store_true", help="stream live (modal app logs -f)")
     logs.add_argument("--dry-run", action="store_true")
     logs.set_defaults(handler=_cmd_logs)
