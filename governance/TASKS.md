@@ -7,7 +7,7 @@ Cross-family work stays on the Digital-Mailroom hub board
 (`governance/TASKS.md` at the monorepo root) as **`DMR-*`**. This file is the **only** sandbox-local task board — do not
 open `DMR-*` cards here.
 
-**Next ID: `SAND-081`**
+**Next ID: `SAND-083`**
 
 Reconciled against the [issue tracker](https://github.com/Exios66/local-mailroom-sandbox/issues)
 on 2026-09-28: the highest `SAND-*` id in use anywhere is `SAND-034` (this
@@ -23,6 +23,7 @@ Lanes: `todo` → `in_progress` → `needs_attention` → `review` → `done`.
 
 | ID | Title | Owner | Status | Notes |
 | --- | --- | --- | --- | --- |
+| SAND-082 | Finish decision-reviewer offline proof and terminal human review | opencode | **needs_attention** | PR #195; renumbered from colliding branch-local SAND-074 (main owns that ID for primary eval tasks). Original offline checkpoint: 2006 passed / 20 skipped. Integrating main and repairing the platform-dependent historical hash fixture before landing. Six fictional graph exhibits, API-backed human decisions and SQLite restart recovery. Guide: `config/experiments/decision-pilot/README.md`. Upstream decision-reviewer merge/pin finalization remains separate from live data/credential/spend approval; no paid calls performed. SAND-081 is reserved by PR #201. |
 | SAND-067 | CLI/observer audit, live campaign context and interactive operator terminal | opencode 2026-10-30 | **in_progress** | User-requested comprehensive follow-up. Checkpoint includes observer numeric/option validation, malformed beacon isolation and path validation, parser-derived local `sandbox tui` menus/completion, browser live inspector/manual navigator, log filtering/follow controls, accessibility changes, actual locked-run settings and campaign context, run-ID follow-marker support and switching log streams. Baseline as of `00dbd24` (default suite, `-m "not local_llm"`): 1849 passed / 19 skipped; SAND-066's 2244 was measured at `675989a` on PR #179; the two are separate per-commit snapshots, not one baseline. New observer regression slice: 84 passed. Installed Modal/HF CLI contracts: 2 passed / 1 billed-endpoint test skipped. No deployment or inference performed. Final full-suite, browser interaction checks and audit evidence remain in progress; not a complete/live-certified release. |
 | SAND-068 | Complete command-by-command behavior and configuration audit | unassigned | **todo** | [#185](https://github.com/Exios66/local-mailroom-sandbox/issues/185). Related: SAND-067. Go beyond parser stubs: real offline handlers, nested selection, argument/environment precedence, errors, dry-run/no-spend contracts and external CLI failure paths. |
 | SAND-069 | Interactive operator terminal parity and safe execution roadmap | unassigned | **todo** | [#189](https://github.com/Exios66/local-mailroom-sandbox/issues/189). Related: SAND-067. Local shell executes existing CLI; browser currently inspects state/manuals only. Define any browser mutation/auth boundary before implementing signed actions; verify completion, history, interruption and recursive menus with real terminals. |

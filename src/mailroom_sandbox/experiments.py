@@ -24,7 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from mailroom_sandbox.job import preflight
 from mailroom_sandbox.job.checkpoint import RunStore, _atomic_write
 from mailroom_sandbox.job.deploy_env import spec_env
-from mailroom_sandbox.job.spec import DatasetSpec, FAMILY_HF_REVISION, RunSpec, load_run_spec, run_dir
+from mailroom_sandbox.job.spec import DatasetSpec, FAMILY_HF_REVISION, ReviewerSpec, RunSpec, load_run_spec, run_dir
 from mailroom_sandbox.job.spend import authorize, review_settings
 from mailroom_sandbox.paths import repo_root
 from mailroom_sandbox.services._exec import ServiceError, ToolFailed, stream_tool
@@ -104,6 +104,38 @@ def _set(data: dict, assignment: str) -> None:
         raise ServiceError(f'invalid YAML value for {name}: {exc}') from exc
 
 
+def _reviewer_settings(reviewer: str | None, classes: list[str] | None) -> dict | None:
+    """The frozen decision reviewer from ``BACKEND:MODEL`` and ``CLASS=CUTOFF`` flags (None when unset)."""
+    if not reviewer and not classes:
+        return None
+    if not reviewer or not classes:
+        raise ServiceError('--decision-reviewer and --decision-class must be given together')
+    backend, sep, model = reviewer.partition(':')
+    if not sep or not backend or not model:
+        raise ServiceError('--decision-reviewer must be BACKEND:MODEL, e.g. jev:jev-1.13.0')
+    from mailroom_sandbox.overlay import live_doc_classes
+
+    live = live_doc_classes()
+    cutoffs = {}
+    for item in classes:
+        name, equals, raw = item.partition('=')
+        try:
+            cutoff = float(raw)
+        except ValueError:
+            cutoff = None
+        if not name or not equals or cutoff is None:
+            raise ServiceError(f'--decision-class must be CLASS=CUTOFF, got {item!r}')
+        if name not in live:
+            raise ServiceError(f'--decision-class {name!r} is not a live taxonomy class; valid: {sorted(live)}')
+        if name in cutoffs:
+            raise ServiceError(f'--decision-class {name!r} given more than once')
+        cutoffs[name] = cutoff
+    try:
+        return ReviewerSpec(backend=backend, model=model, classes=cutoffs).model_dump()
+    except ValueError as exc:
+        raise ServiceError(f'invalid decision reviewer: {exc}') from exc
+
+
 def _create(args) -> int:
     if not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,23}', args.study):
         raise ServiceError('study must be 1–24 lowercase letters/digits/hyphens')
@@ -129,6 +161,7 @@ def _create(args) -> int:
         agent_models = parse_agent_models(getattr(args, 'agent_models', None))
     except ValueError as exc:
         raise ServiceError(str(exc)) from exc
+    reviewer = _reviewer_settings(getattr(args, 'decision_reviewer', None), getattr(args, 'decision_class', None))
 
     def scoped(route):
         # One app per tier model per study, so the judge and `full` specialists share it.
@@ -208,6 +241,7 @@ def _create(args) -> int:
                                  environment=args.study, tags=['sandbox', 'experiment', args.study, label])
             data['agent_knobs'] = {name: {'max_tokens': args.max_tokens, 'temperature': args.temperature} for name in (known_agents() if args.task == 'pipeline' else [data['task']])}
             data['agent_models'] = dict(agent_models)
+            data['reviewer'] = reviewer
             data['agent_routes'] = {name: route.model_dump() for name, route in routes.items()}
             for name, route in data['agent_routes'].items():
                 if route['provider'] == 'modal-vllm' and route['modal']['app'].startswith('sandbox-vllm-route-'):
@@ -695,6 +729,8 @@ def register(sub, leaf) -> None:
     create.add_argument('study')
     create.add_argument('--task', choices=['specialists', 'pipeline', 'sorter'], default='specialists')
     create.add_argument('--agent-route', action='append', dest='agent_routes', default=[], metavar='NAME=PROVIDER:MODEL', help='per-agent provider/model; NAME=@route.yaml includes endpoint/GPU/vLLM settings')
+    create.add_argument('--decision-reviewer', default=None, metavar='BACKEND:MODEL', help='freeze a decision-model reviewer (jev:jev-1.13.0 or mock:mock); needs --decision-class')
+    create.add_argument('--decision-class', action='append', default=[], metavar='CLASS=CUTOFF', help='class the decision reviewer handles, with its cutoff in [0, 1] (repeatable)')
     create.add_argument('--specialist-tier', choices=['base', 'mid', 'full'], default='base',
                         help="specialists' model: base = the run's model, mid = Qwen3.5-35B-A3B, full = the judge's Qwen3.5-27B (config/models.yaml critical_tier)")
     create.add_argument('--design', choices=DESIGNS, default='single')
