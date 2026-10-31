@@ -63,8 +63,13 @@ Use HTTPS for a remote API; HTTP is intended for a trusted loopback connection.
 `local` needs a model different from the sorter's and an
 `agent_routes.sorter_reviewer` entry with provider `modal-vllm` or `vllm` that
 serves it; preflight refuses anything else. Set its cutoffs per class. Its
-confidence is the model's own and is uncalibrated, so tune them on a labelled
-draw before reading review rates as evidence.
+confidence is the model's own and is uncalibrated, so tune them first:
+`config/runs/reviewer-calibration-gemma4.yaml` runs `google/gemma-4-E4B-it` on
+one L4 over 40 train documents per class, capped at $1, and
+`scripts/calibrate_reviewer.py --run reviewer-calibration-gemma4` picks each
+class's cutoff on half the draw and reports it on the other half. A class with
+no cutoff stays unreviewed. With 20 documents per class in the holdout, treat
+the intervals as a first estimate.
 
 ## Remaining release and live gates
 
