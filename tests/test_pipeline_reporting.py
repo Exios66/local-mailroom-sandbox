@@ -87,6 +87,15 @@ def test_pipeline_goodput_uses_each_class_slo(tmp_path):
     assert goodput["goodput_documents_per_minute_per_gpu"] == 0.0
 
 
+def test_a_known_slo_miss_beats_a_class_without_a_measurement():
+    card = {"conditions": {"replicas": 1}, "time": {"wall_seconds": 60.0}, "quality": {"documents": 4},
+            "pipeline": {"by_class": {"correspondence": {"latency_p95": 999.0},
+                                      "contract": {"latency_p95": None}}}}
+    goodput = sand42_cards._pipeline_goodput(card)
+    assert goodput["slo_by_class"]["contract"]["meets_slo"] is None
+    assert goodput["meets_slo"] is False and goodput["goodput_documents_per_minute_per_gpu"] == 0.0
+
+
 def test_pipeline_rows_report_each_documents_own_tokens_and_review_cause(monkeypatch):
     from mailroom_sandbox.eval import runners
     from pipeline import limits

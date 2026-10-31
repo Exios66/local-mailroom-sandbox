@@ -63,7 +63,8 @@ def _in_house_url(spec: RunSpec, base_url: str) -> bool:
     """Whether a ``vllm`` route's URL is one the run controls, not any OpenAI-compatible host.
 
     Loopback, private and link-local addresses (a local server or SSH tunnel),
-    the run's own engine host, and this Modal workspace's apps qualify.
+    the run's own engine host (unless that engine is OpenRouter), and this Modal
+    workspace's apps qualify.
     """
     host = (urlparse(base_url).hostname or "").lower()
     if not host:
@@ -79,6 +80,8 @@ def _in_house_url(spec: RunSpec, base_url: str) -> bool:
     workspace = os.environ.get("MODAL_WORKSPACE", "").strip().lower()
     if workspace and host.endswith(".modal.run") and host.startswith(f"{workspace}--"):
         return True
+    if spec.engine.kind == "openrouter":
+        return False  # the engine itself is a third party, so its host proves nothing
     try:
         engine_host = (urlparse(engine_base_url(spec)).hostname or "").lower()
     except Exception:  # noqa: BLE001 - an unresolvable engine proves nothing about the route

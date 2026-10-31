@@ -265,11 +265,17 @@ def run_job(payload: dict) -> dict:
             except Exception as exc:  # noqa: BLE001 — hub#41: loud, never silent
                 logger.warning("runs_volume.commit failed: %s", exc, exc_info=True)
 
-    def settle_writers() -> None:
-        """Let the pipeline's background mailroom.db writers finish before a commit."""
+    def settle_writers() -> str | None:
+        """Let the pipeline's background mailroom.db writers finish before a commit.
+
+        Returns an error when a writer outlives the wait: mailroom.db is still
+        changing, so the run must not be published as durably done.
+        """
         pending = settle_mailroom_writers()
-        if pending:
-            logger.warning("mailroom.db writers still running at commit: %s", pending)
+        if not pending:
+            return None
+        logger.error("mailroom.db writers still running at commit: %s", pending)
+        return f"mailroom.db writers still running at commit: {', '.join(pending)}"
 
     payload_mock = payload.get("mock")
     try:
@@ -322,7 +328,13 @@ def run_job(payload: dict) -> dict:
     if generation_fields(store.verify_generation()) != identity:
         raise RuntimeError("worker generation changed; refusing stale terminal publication")
 
-    settle_writers()
+    unsettled = settle_writers()
+    if unsettled and result.get("state") == "done":
+        # Never claim durable completion while mailroom.db is still being written.
+        cp = store.read_checkpoint() or {}
+        store.write_checkpoint(state="failed", cursor=cp.get("cursor", 0), total=cp.get("total", 0),
+                               remote=cp.get("remote"), last_error=unsettled)
+        result = {**result, "state": "failed", "error": unsettled}
     # The reports dir is container-local; copy the run's experiment records
     # into the volume-committed run dir so the CLI can pull them back (DMR-047).
     reports_log = Path(SANDBOX_ROOT) / "reports" / "experiment_log.jsonl"

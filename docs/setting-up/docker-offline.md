@@ -32,9 +32,21 @@ Image hardening (HUB-015): the sandbox image runs as a **non-root user**
 whose first user is not uid 1000, pass `--user "$(id -u):$(id -g)"`. All
 compose images are **version-pinned** (ollama `0.33.2`, vllm `v0.29.0`,
 phoenix `version-20.4.0`, llama.cpp `full-e95b6554b493e71a0275764342e09bd5784a7026`,
-minio `RELEASE.2025-09-07…`, langfuse `3`,
+minio `cgr.dev/chainguard/minio@sha256:3b6e40c3…`, langfuse `3`,
 redis `7`, clickhouse `24-alpine`, pgvector `pg16`) for offline
 reproducibility — bump pins deliberately.
+
+Upgrading from the old `minio/minio` image: the Chainguard image runs as UID
+65532, but a `minio_data` volume created by the old image is root-owned, so
+MinIO cannot create `/data/langfuse` and Langfuse loses its event and media
+store. Change the volume's owner once:
+
+```bash
+docker compose -f deploy/docker-compose.yml --profile langfuse stop minio
+docker volume ls --filter name=minio_data   # e.g. mailroom-sandbox_minio_data
+docker run --rm -v mailroom-sandbox_minio_data:/data alpine chown -R 65532:65532 /data
+docker compose -f deploy/docker-compose.yml --profile langfuse up -d minio
+```
 
 ## Notebooks (dedicated prep path)
 
