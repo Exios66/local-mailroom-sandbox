@@ -85,6 +85,10 @@ job:
                             # vs Modal vLLM continuous batching (docs: 4-16);
                             # set 1 explicitly for serial/CPU-Ollama runs
                             # — bounded to [1, 64] at spec validation
+  cost_cap_usd: 1.00        # USD; the run fails loud once its estimated GPU
+                            # spend (every warm Modal app) reaches the cap
+  max_wall_seconds: 1800    # seconds (>= 60); the run fails loud past this wall
+                            # time. Paid runs need both, or the spend guard refuses them
 
 trace:
   sink: langfuse            # langfuse | phoenix | otlp | none

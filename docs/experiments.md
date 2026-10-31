@@ -219,7 +219,9 @@ accuracy for the run and each class, then the review causes. A pipeline run mixe
 classes, so it meets its SLO only when every class meets its own. Incomplete
 runs stay visibly incomplete. Native dated quality/serving artifacts remain under
 `reports/`; a Modal job keeps its bins, catalog and review checkpoints on the `sandbox-runs` Volume
-under `<run>/mailroom`. The workflow never invents scores for missing documents. Re-running
+under `<run>/mailroom`. A failed document scores 0.0 in the quality mean and its
+interval, even when it kept a partial score; a document with nothing to score
+it against is counted as unscored and left out. Re-running
 launch rechecks locked configurations and skips completed jobs. A failed smoke
 must be investigated and safely reset with the existing run lifecycle before retry.
 

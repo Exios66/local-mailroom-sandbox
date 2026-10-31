@@ -258,11 +258,19 @@ def paired_n_for(delta: float, sd_diff: float | None, *, power: float = 2.8) -> 
     return int(-(-(power * sd_diff / abs(delta)) ** 2 // 1))
 
 
+def _doc_score(doc: Mapping[str, Any]) -> float | None:
+    """A document's quality: zero when it failed (whatever partial score it kept), else its score."""
+    if doc.get("ok") is False:
+        return 0.0
+    score = doc.get("score")
+    return float(score) if isinstance(score, (int, float)) and not isinstance(score, bool) else None
+
+
 def _scores_by_id(card: Mapping[str, Any]) -> dict[str, float]:
     out: dict[str, float] = {}
     for doc in card.get("documents") or []:
         item = doc.get("item_id")
-        score = 0.0 if doc.get("ok") is False and doc.get("score") is None else doc.get("score")
+        score = _doc_score(doc)
         if item is None or not isinstance(score, (int, float)):
             continue
         out[str(item)] = float(score)
@@ -369,9 +377,12 @@ def _summary(run_id: str, card: Mapping[str, Any] | None, task: str) -> dict[str
     if not card:
         return {"run_id": run_id, "task": task, "reported": False}
     docs = card.get("documents") or []
-    scored = [float(d["score"]) for d in docs if isinstance(d.get("score"), (int, float))]
-    # The denominator is documents attempted: a failed document counts as zero.
-    scores = scored + [0.0] * sum(1 for d in docs if d.get("ok") is False and d.get("score") is None)
+    # The denominator is documents attempted: a failed document counts as zero,
+    # even when it kept a partial score. A successful document with no score
+    # (nothing to score it against) is counted apart, never as an observation.
+    scores = [score for score in map(_doc_score, docs) if score is not None]
+    scored = [d for d in docs if d.get("ok") is not False and _doc_score(d) is not None]
+    unscored = sum(1 for d in docs if _doc_score(d) is None)
     quality_ci = bootstrap_mean_ci(scores)
     return {
         "run_id": run_id,
@@ -386,6 +397,7 @@ def _summary(run_id: str, card: Mapping[str, Any] | None, task: str) -> dict[str
             "clause": (card.get("quality") or {}).get("clause"),
             "scored_documents": len(scored),
             "attempted_documents": len(scores),
+            "unscored_documents": unscored,
         },
         "reliability": _reliability(card),
         "cost": _cost_per_usable(card),

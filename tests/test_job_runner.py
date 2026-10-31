@@ -200,6 +200,22 @@ def test_whole_run_with_no_usable_answer_fails(row, message, tmp_path, monkeypat
     assert not any(e["event"] == "done" for e in store.events())
 
 
+def test_pipeline_run_whose_every_extraction_fails_to_parse_fails(tmp_path, monkeypatch):
+    """The real run_pipeline_eval path must keep parse_error on each item for the run to fail."""
+    store = _prepped_store(tmp_path, rows=2, job={"mock": True, "concurrency": 1})
+    lock = store.read_lock()
+    store.lock_path.write_text(json.dumps({**lock, "task": "pipeline", "profile": "ollama"}))
+    rows = [{**row, "expected_fields": json.dumps({"agreement_date": "2020-01-01"})} for row in store.dataset_rows()]
+    store.dataset_path.write_text("".join(json.dumps(row) + "\n" for row in rows))
+    monkeypatch.setattr(runner.eval_runners, "_run_pipeline_doc", lambda row, **_: {
+        "id": row["id"], "doc_type": row["expected_doc_class"], "stage": "archived",
+        "extracted_data": {"_parse_error": "unterminated JSON", "_raw": "{"}, "error": None})
+    summary = runner._run_whole_run(store, "pipeline", mock=True, model=None, profile="ollama")
+    assert all(item["score"]["parse_error"] is True for item in store.load_items())
+    assert summary["state"] == store.read_checkpoint()["state"] == "failed"
+    assert "failed to parse" in summary["last_error"]["message"]
+
+
 def test_run_job_all_items_failed_writes_failed_not_done(tmp_path, monkeypatch):
     """hub#39: a run where EVERY item errored must write state=failed with a
     last_error, exit 1 (CLI maps state != done), and never append a 'done'

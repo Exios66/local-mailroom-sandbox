@@ -11,12 +11,14 @@ and CI-safe.
 
 from __future__ import annotations
 
+import ipaddress
 import os
 import time
 import uuid
 from importlib.util import find_spec
 from pathlib import Path
 from typing import Any, Mapping
+from urllib.parse import urlparse
 
 import llm_dojo_scoring
 from llm_dojo_scoring.experiment import git_snapshot
@@ -51,11 +53,46 @@ def _versions() -> dict[str, Any]:
     return out
 
 
+def _effective_model(spec: RunSpec, agent: str) -> str:
+    """The model activation installs for ``agent``: ``agent_models`` wins, then its route, then the engine."""
+    route = spec.agent_routes.get(agent)
+    return spec.agent_models.get(agent) or (route.model if route else spec.engine.model)
+
+
+def _in_house_url(spec: RunSpec, base_url: str) -> bool:
+    """Whether a ``vllm`` route's URL is one the run controls, not any OpenAI-compatible host.
+
+    Loopback, private and link-local addresses (a local server or SSH tunnel),
+    the run's own engine host, and this Modal workspace's apps qualify.
+    """
+    host = (urlparse(base_url).hostname or "").lower()
+    if not host:
+        return False
+    if host == "localhost":
+        return True
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        address = None
+    if address is not None:
+        return address.is_loopback or address.is_private or address.is_link_local
+    workspace = os.environ.get("MODAL_WORKSPACE", "").strip().lower()
+    if workspace and host.endswith(".modal.run") and host.startswith(f"{workspace}--"):
+        return True
+    try:
+        engine_host = (urlparse(engine_base_url(spec)).hostname or "").lower()
+    except Exception:  # noqa: BLE001 - an unresolvable engine proves nothing about the route
+        return False
+    return host == engine_host
+
+
 def _local_reviewer_errors(spec: RunSpec) -> list[str]:
     """The in-house reviewer must be a second model, on a route the run controls."""
     model = spec.reviewer.model
     errs = []
-    if model == spec.agent_models.get("sorter", spec.engine.model):
+    reviewer_model = _effective_model(spec, "sorter_reviewer")
+    if model == _effective_model(spec, "sorter") or (
+            spec.agent_routes.get("sorter_reviewer") and reviewer_model == _effective_model(spec, "sorter")):
         errs.append("decision reviewer backend local must use a different model from the sorter, or it only repeats its answer")
     if spec.job.mock:
         return errs
@@ -64,8 +101,13 @@ def _local_reviewer_errors(spec: RunSpec) -> list[str]:
         errs.append("decision reviewer backend local needs an agent_routes.sorter_reviewer entry serving its model")
     elif route.provider not in {"modal-vllm", "vllm"}:
         errs.append(f"decision reviewer backend local must stay in-house; agent route provider {route.provider!r} is a third party")
-    elif route.model != model:
-        errs.append(f"decision reviewer model {model!r} differs from agent route model {route.model!r}")
+    else:
+        if route.provider == "vllm" and not _in_house_url(spec, route.base_url or ""):
+            errs.append(f"decision reviewer backend local must stay in-house; vllm route {route.base_url!r} is not a "
+                        "loopback/private address, the run's engine host or this MODAL_WORKSPACE (use provider modal-vllm)")
+        if reviewer_model != model:
+            errs.append(f"decision reviewer model {model!r} differs from the sorter_reviewer agent's effective model "
+                        f"{reviewer_model!r}")
     return errs
 
 
