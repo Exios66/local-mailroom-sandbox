@@ -14,6 +14,7 @@ from __future__ import annotations
 import os
 import time
 import uuid
+from importlib.util import find_spec
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -627,6 +628,13 @@ def _preflight(
             report["status"] = "failed"
             report["checks"].append(
                 {"name": "trace_sink", "ok": False, "detail": "langfuse keys unset (LANGFUSE_PUBLIC_KEY/SECRET_KEY)"}
+            )
+            return report
+        if spec.trace.sink == "langfuse" and not offline and find_spec("langfuse") is None:
+            report["status"] = "failed"
+            report["checks"].append(
+                {"name": "trace_sink", "ok": False,
+                 "detail": "langfuse SDK missing: install mailroom-sandbox[observability] or set trace.sink: none"}
             )
             return report
         report["checks"].append({"name": "trace_sink", "ok": True, "detail": f"{spec.trace.sink} -> {sink.endpoint or '(no exporter)'}"})

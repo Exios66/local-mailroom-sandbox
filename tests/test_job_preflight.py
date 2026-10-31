@@ -6,7 +6,7 @@ import json
 
 from mailroom_sandbox.job import preflight
 from mailroom_sandbox.job.spec import (DEFAULT_ENGINE_MODEL, DatasetSpec, JobSpec,
-    ReviewerSpec, RunSpec, run_dir)
+    ReviewerSpec, RunSpec, TraceSpec, run_dir)
 
 
 def _run_spec(tmp_path, *, rows=2, limit=2, run_id="pf-1") -> RunSpec:
@@ -632,3 +632,16 @@ def test_preflight_rejects_jev_reviewer_in_modal_mode(tmp_path, monkeypatch):
     assert report["status"] == "failed"
     detail = " ".join(c.get("detail", "") for c in report["checks"])
     assert "Modal worker image" in detail
+
+
+def test_preflight_refuses_langfuse_sink_without_the_sdk(tmp_path, job_data_dir, monkeypatch):
+    """SAND-083: the chat client fails on every call without the SDK, so stop before spend."""
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk")
+    monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk")
+    monkeypatch.setattr(preflight, "find_spec", lambda name: None)
+    spec = _run_spec(tmp_path, run_id="pf-no-sdk").model_copy(
+        update={"trace": TraceSpec(sink="langfuse")})
+    report = preflight.preflight(spec)
+    assert report["status"] == "failed"
+    check = next(c for c in report["checks"] if c["name"] == "trace_sink")
+    assert check["ok"] is False and "observability" in check["detail"]
