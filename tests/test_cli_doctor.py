@@ -274,6 +274,7 @@ def test_langfuse_and_phoenix_never_fail_the_command_when_down(fake_bin, capsys,
 
 def test_phoenix_is_skipped_unless_configured(fake_bin, capsys, monkeypatch):
     monkeypatch.setenv("VLLM_BASE_URL", "http://vllm.test/v1")
+    monkeypatch.setenv("PHOENIX_ENDPOINT", "")  # an operator .env must not configure it
     _rc, rows = _doctor(capsys)
     assert rows["phoenix"]["state"] == "skipped"
 

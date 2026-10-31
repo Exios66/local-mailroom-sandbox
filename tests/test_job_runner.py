@@ -768,3 +768,28 @@ def test_aborted_isolated_run_keeps_completed_items(tmp_path, monkeypatch):
     out = runner._run_whole_run(store, "judge", mock=False, model=None, profile="modal-vllm")
     assert out["state"] == "failed"
     assert [i["item_id"] for i in store.load_items()] == ["d0", "d1"]
+
+
+def test_run_job_uses_locked_trace_sink_over_ambient_provider(tmp_path, monkeypatch):
+    """SAND-083: `.env`'s OBSERVABILITY_PROVIDER=langfuse must not beat `trace.sink: none`.
+
+    The pipeline adds Langfuse-only `name=` kwargs under the langfuse provider;
+    without the SDK installed every chat call then failed.
+    """
+    import os
+
+    from mailroom_sandbox.eval import runners as eval_runners
+
+    store = _prepped_store(tmp_path, rows=2, job={"mock": False, "max_retries": 0})
+    monkeypatch.setenv("OBSERVABILITY_PROVIDER", "langfuse")
+    seen = []
+
+    def _record_provider(task, row, *, mock, model, run_id=None):
+        seen.append(os.environ.get("OBSERVABILITY_PROVIDER"))
+        return eval_runners._classify_mock(row), {}
+
+    monkeypatch.setattr(runner, "_predict_row", _record_provider)
+    summary = runner.run_job(store, mock=None)
+    assert summary["state"] == "done"
+    assert seen == ["none", "none"]
+    assert os.environ["OBSERVABILITY_PROVIDER"] == "langfuse"
