@@ -154,3 +154,17 @@ def test_calibrate_rejects_a_target_outside_zero_to_one(tmp_path):
     for target in (0.0, -0.1, 1.5):
         with pytest.raises(ValueError, match="target accuracy"):
             calibrate_reviewer.calibrate(RunStore(tmp_path / "r"), target=target)
+
+
+def test_every_answer_is_tested_once_and_the_lower_bound_decides(tmp_path):
+    rows = [{"id": str(i), "expected_doc_class": "contract"} for i in range(150)]
+    items = [{"item_id": str(i), "ok": True, "pred": {"doc_type": "contract", "confidence": 0.9}} for i in range(150)]
+    result = calibrate_reviewer.calibrate(_store(tmp_path, items, rows), classes=CLASSES)["classes"]["contract"]
+    assert result["holdout_accepted"] == 150 and result["meets_target"] is True
+
+
+def test_a_small_perfect_class_does_not_meet_the_target(tmp_path):
+    rows = [{"id": str(i), "expected_doc_class": "contract"} for i in range(40)]
+    items = [{"item_id": str(i), "ok": True, "pred": {"doc_type": "contract", "confidence": 0.9}} for i in range(40)]
+    result = calibrate_reviewer.calibrate(_store(tmp_path, items, rows), classes=CLASSES)["classes"]["contract"]
+    assert result["holdout_accuracy"] == 1.0 and result["meets_target"] is False
