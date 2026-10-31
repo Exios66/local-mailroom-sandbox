@@ -85,6 +85,12 @@ job:
                             # vs Modal vLLM continuous batching (docs: 4-16);
                             # set 1 explicitly for serial/CPU-Ollama runs
                             # — bounded to [1, 64] at spec validation
+  cost_cap_usd: 1.00        # USD; estimated GPU spend (every warm Modal app) is
+                            # checked before each document; the run then fails
+                            # loud. An in-flight document is not interrupted and
+                            # can take spend past the cap
+  max_wall_seconds: 1800    # seconds (>= 60); checked the same way, before each
+                            # document. Paid runs need both, or the spend guard refuses them
 
 trace:
   sink: langfuse            # langfuse | phoenix | otlp | none
@@ -379,8 +385,10 @@ AWQ floor (no GPU):
 [`docs/archive/extraction-quality-diagnosis.md`](archive/extraction-quality-diagnosis.md).
 
 TTFT is only populated when a run records it (never inferred from e2e).
-Document-pipeline eval traces stay on the Langfuse SDK path (family
-contract); job/preflight/item spans travel over OTEL (job spans only).
+Document-pipeline eval traces follow the locked `trace.sink`: `langfuse` or
+`phoenix` sets the vendored pipeline's SDK to that sink, while `otlp` and
+`none` turn the pipeline SDK off (`otel.pipeline_provider`). Job, preflight and
+item spans travel over OTEL (job spans only).
 
 ## Tests
 

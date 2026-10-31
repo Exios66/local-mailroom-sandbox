@@ -173,6 +173,49 @@ def test_whole_run_local_vs_api_forwards_score_metadata(tmp_path, monkeypatch):
     assert captured["kwargs"]["score_metadata"] == {"report_group": "SAND-123"}
 
 
+def _whole_run_with(rows, tmp_path, monkeypatch):
+    store = _prepped_store(tmp_path, rows=len(rows), job={"mock": True, "concurrency": 1})
+    lock = store.read_lock()
+    store.lock_path.write_text(json.dumps({**lock, "task": "local_vs_api", "profile": "ollama", "dataset": {}}))
+    monkeypatch.setattr(runner.eval_runners, "run_local_vs_api_eval", lambda **_: {"rows": rows, "scores": {}})
+    return store, runner._run_whole_run(store, "local_vs_api", mock=True, model=None, profile="ollama")
+
+
+def test_whole_run_counts_failed_rows_as_errors(tmp_path, monkeypatch):
+    rows = [{"id": "a", "score": {}}, {"id": "b", "error": "boom", "score": {}}]
+    _, summary = _whole_run_with(rows, tmp_path, monkeypatch)
+    assert summary["state"] == "done"
+    assert (summary["ok"], summary["errors"]) == (1, 1)
+
+
+@pytest.mark.parametrize("row, message", [
+    ({"error": "engine unreachable"}, "engine unreachable"),
+    ({"score": {"parse_error": True}}, "failed to parse"),
+], ids=["errored", "unparseable"])
+def test_whole_run_with_no_usable_answer_fails(row, message, tmp_path, monkeypatch):
+    rows = [{"id": str(i), **row} for i in range(2)]
+    store, summary = _whole_run_with(rows, tmp_path, monkeypatch)
+    assert summary["state"] == store.read_checkpoint()["state"] == "failed"
+    assert message in summary["last_error"]["message"]
+    assert not any(e["event"] == "done" for e in store.events())
+
+
+def test_pipeline_run_whose_every_extraction_fails_to_parse_fails(tmp_path, monkeypatch):
+    """The real run_pipeline_eval path must keep parse_error on each item for the run to fail."""
+    store = _prepped_store(tmp_path, rows=2, job={"mock": True, "concurrency": 1})
+    lock = store.read_lock()
+    store.lock_path.write_text(json.dumps({**lock, "task": "pipeline", "profile": "ollama"}))
+    rows = [{**row, "expected_fields": json.dumps({"agreement_date": "2020-01-01"})} for row in store.dataset_rows()]
+    store.dataset_path.write_text("".join(json.dumps(row) + "\n" for row in rows))
+    monkeypatch.setattr(runner.eval_runners, "_run_pipeline_doc", lambda row, **_: {
+        "id": row["id"], "doc_type": row["expected_doc_class"], "stage": "archived",
+        "extracted_data": {"_parse_error": "unterminated JSON", "_raw": "{"}, "error": None})
+    summary = runner._run_whole_run(store, "pipeline", mock=True, model=None, profile="ollama")
+    assert all(item["score"]["parse_error"] is True for item in store.load_items())
+    assert summary["state"] == store.read_checkpoint()["state"] == "failed"
+    assert "failed to parse" in summary["last_error"]["message"]
+
+
 def test_run_job_all_items_failed_writes_failed_not_done(tmp_path, monkeypatch):
     """hub#39: a run where EVERY item errored must write state=failed with a
     last_error, exit 1 (CLI maps state != done), and never append a 'done'
@@ -768,3 +811,28 @@ def test_aborted_isolated_run_keeps_completed_items(tmp_path, monkeypatch):
     out = runner._run_whole_run(store, "judge", mock=False, model=None, profile="modal-vllm")
     assert out["state"] == "failed"
     assert [i["item_id"] for i in store.load_items()] == ["d0", "d1"]
+
+
+def test_run_job_uses_locked_trace_sink_over_ambient_provider(tmp_path, monkeypatch):
+    """SAND-087: `.env`'s OBSERVABILITY_PROVIDER=langfuse must not beat `trace.sink: none`.
+
+    The pipeline adds Langfuse-only `name=` kwargs under the langfuse provider;
+    without the SDK installed every chat call then failed.
+    """
+    import os
+
+    from mailroom_sandbox.eval import runners as eval_runners
+
+    store = _prepped_store(tmp_path, rows=2, job={"mock": False, "max_retries": 0})
+    monkeypatch.setenv("OBSERVABILITY_PROVIDER", "langfuse")
+    seen = []
+
+    def _record_provider(task, row, *, mock, model, run_id=None):
+        seen.append(os.environ.get("OBSERVABILITY_PROVIDER"))
+        return eval_runners._classify_mock(row), {}
+
+    monkeypatch.setattr(runner, "_predict_row", _record_provider)
+    summary = runner.run_job(store, mock=None)
+    assert summary["state"] == "done"
+    assert seen == ["none", "none"]
+    assert os.environ["OBSERVABILITY_PROVIDER"] == "langfuse"

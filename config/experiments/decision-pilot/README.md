@@ -15,7 +15,8 @@ The insurance example is synthetic, not evidence about real claims.
 `tests/test_decision_pilot.py` uses the actual vendored graph, temporary SQLite
 checkpoints/catalog and real bin/archive files. Sorter and specialist calls are
 canned; the decision backend is a mock with a registered subclass added by the
-test adapter. Sorter confidence is injected at 0.93 to reach Lane A. The blank
+test adapter. Sorter confidence is injected at 0.93, and a separate test uses 0.99: `decision_only`
+classes reach Lane A at any sorter confidence. The blank
 exhibit additionally injects a sorter result: ordinarily the sorter parks blank
 text before the decision reviewer. Routing, guards and persistence are not
 mocked. External HTTP is blocked.
@@ -51,10 +52,41 @@ can make paid model calls on the server. A timeout is not a cancellation; inspec
 the queue before retrying. Keep the token in the environment, never the URL.
 Use HTTPS for a remote API; HTTP is intended for a trusted loopback connection.
 
+## Reviewer backends
+
+| Backend | Runs on | Correspondence |
+| --- | --- | --- |
+| `jev` | TypeSafe, a third party (`TYPESAFE_API_KEY`) | Refused until the sanitized corpus exists (SAND-086) |
+| `local` | The `sorter_reviewer` agent on your own serving route | Allowed |
+| `mock` | Offline tests | Allowed |
+
+`local` needs a model different from the sorter's and an
+`agent_routes.sorter_reviewer` entry with provider `modal-vllm` or `vllm` that
+serves it. Preflight compares the models activation installs, so an
+`agent_models` override counts. A `vllm` route must point at a loopback,
+private or link-local address, the run's own engine host, or an app in this
+`MODAL_WORKSPACE`; preflight refuses anything else. Set its cutoffs per class. Its
+confidence is the model's own and is uncalibrated, so tune them first.
+`google/gemma-4-E4B-it` is an unmeasured candidate: the repo has no results for
+it on this deployment. `config/runs/reviewer-probe-gemma4.yaml` must pass first
+(`scripts/calibrate_reviewer.py --run reviewer-probe-gemma4 --probe`: a
+finished run with every locked document answered, 9 of 10 answers naming a
+live class with a confidence, under 10 s per document). Then
+`config/runs/reviewer-calibration-gemma4.yaml` runs one L4 over 40 train
+documents per class, capped at $1, and
+`scripts/calibrate_reviewer.py --run reviewer-calibration-gemma4` picks each
+class's cutoff on half the draw and reports it on the other half. Answers count
+toward the class the reviewer predicted, because that class's cutoff admits
+them. The script refuses a run that is not done or misses a locked document. A class with
+no cutoff stays unreviewed. The holdout is half of the usable answers predicted
+as each class, so its size varies by class. `holdout_documents` is that size;
+`holdout_accepted` is the denominator of the reported accuracy and its interval.
+Treat the intervals as a first estimate.
+
 ## Remaining release and live gates
 
 The current generated vendor snapshot is pinned to standalone decision-reviewer
-commit `1530f496a6c745186bb86d12b5f0472c667a404a`. It is an interim branch
+commit `b1ff69289a7cf33f9d4e93c680187bd56ca3ab7b`. It is an interim branch
 snapshot, not a merged release. Upstream merge/push requires explicit approval.
 
 No live `experiment.yaml` is staged and no paid pilot has run. Before creating

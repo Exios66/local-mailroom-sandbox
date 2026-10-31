@@ -11,11 +11,14 @@ and CI-safe.
 
 from __future__ import annotations
 
+import ipaddress
 import os
 import time
 import uuid
+from importlib.util import find_spec
 from pathlib import Path
 from typing import Any, Mapping
+from urllib.parse import urlparse
 
 import llm_dojo_scoring
 from llm_dojo_scoring.experiment import git_snapshot
@@ -50,6 +53,67 @@ def _versions() -> dict[str, Any]:
     return out
 
 
+def _effective_model(spec: RunSpec, agent: str) -> str:
+    """The model activation installs for ``agent``: ``agent_models`` wins, then its route, then the engine."""
+    route = spec.agent_routes.get(agent)
+    return spec.agent_models.get(agent) or (route.model if route else spec.engine.model)
+
+
+def _in_house_url(spec: RunSpec, base_url: str) -> bool:
+    """Whether a ``vllm`` route's URL is one the run controls, not any OpenAI-compatible host.
+
+    Loopback, private and link-local addresses (a local server or SSH tunnel),
+    the run's own engine host (unless that engine is OpenRouter), and this Modal
+    workspace's apps qualify.
+    """
+    host = (urlparse(base_url).hostname or "").lower()
+    if not host:
+        return False
+    if host == "localhost":
+        return True
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        address = None
+    if address is not None:
+        return address.is_loopback or address.is_private or address.is_link_local
+    workspace = os.environ.get("MODAL_WORKSPACE", "").strip().lower()
+    if workspace and host.endswith(".modal.run") and host.startswith(f"{workspace}--"):
+        return True
+    if spec.engine.kind == "openrouter":
+        return False  # the engine itself is a third party, so its host proves nothing
+    try:
+        engine_host = (urlparse(engine_base_url(spec)).hostname or "").lower()
+    except Exception:  # noqa: BLE001 - an unresolvable engine proves nothing about the route
+        return False
+    return host == engine_host
+
+
+def _local_reviewer_errors(spec: RunSpec) -> list[str]:
+    """The in-house reviewer must be a second model, on a route the run controls."""
+    model = spec.reviewer.model
+    errs = []
+    reviewer_model = _effective_model(spec, "sorter_reviewer")
+    if model == _effective_model(spec, "sorter") or (
+            spec.agent_routes.get("sorter_reviewer") and reviewer_model == _effective_model(spec, "sorter")):
+        errs.append("decision reviewer backend local must use a different model from the sorter, or it only repeats its answer")
+    if spec.job.mock:
+        return errs
+    route = spec.agent_routes.get("sorter_reviewer")
+    if route is None:
+        errs.append("decision reviewer backend local needs an agent_routes.sorter_reviewer entry serving its model")
+    elif route.provider not in {"modal-vllm", "vllm"}:
+        errs.append(f"decision reviewer backend local must stay in-house; agent route provider {route.provider!r} is a third party")
+    else:
+        if route.provider == "vllm" and not _in_house_url(spec, route.base_url or ""):
+            errs.append(f"decision reviewer backend local must stay in-house; vllm route {route.base_url!r} is not a "
+                        "loopback/private address, the run's engine host or this MODAL_WORKSPACE (use provider modal-vllm)")
+        if reviewer_model != model:
+            errs.append(f"decision reviewer model {model!r} differs from the sorter_reviewer agent's effective model "
+                        f"{reviewer_model!r}")
+    return errs
+
+
 def _engine_errors(spec: RunSpec) -> list[str]:
     errs: list[str] = []
     if spec.agent_models or spec.agent_knobs:
@@ -79,6 +143,8 @@ def _engine_errors(spec: RunSpec) -> list[str]:
             errs.append("decision reviewer backend jev is not supported for modal jobs (the Modal worker image has no decision extra); use endpoint mode or backend mock")
         elif spec.reviewer.backend == "jev" and not os.environ.get("TYPESAFE_API_KEY", "").strip():
             errs.append("decision reviewer backend jev needs TYPESAFE_API_KEY set (offline runs should use backend mock)")
+        if spec.reviewer.backend == "local":
+            errs.extend(_local_reviewer_errors(spec))
     vllm = spec.engine.vllm
     if vllm.max_model_len < 1:
         errs.append("max_model_len must be >= 1")
@@ -91,6 +157,11 @@ def _engine_errors(spec: RunSpec) -> list[str]:
             errs.append("modal image_tag must be pinned (never 'latest')")
         if spec.engine.modal.max_containers < 1:
             errs.append("modal max_containers must be >= 1 (cost guard)")
+        if spec.engine.kind == "modal-vllm" and spec.job.concurrency > 1 and vllm.max_inputs < 1:
+            errs.append(
+                f"job.concurrency {spec.job.concurrency} needs engine.vllm.max_inputs >= 1: "
+                "with 0 Modal serves one request at a time while the GPU bills"
+            )
     return errs
 
 
@@ -627,6 +698,13 @@ def _preflight(
             report["status"] = "failed"
             report["checks"].append(
                 {"name": "trace_sink", "ok": False, "detail": "langfuse keys unset (LANGFUSE_PUBLIC_KEY/SECRET_KEY)"}
+            )
+            return report
+        if spec.trace.sink == "langfuse" and not offline and find_spec("langfuse") is None:
+            report["status"] = "failed"
+            report["checks"].append(
+                {"name": "trace_sink", "ok": False,
+                 "detail": "langfuse SDK missing: install mailroom-sandbox[observability] or set trace.sink: none"}
             )
             return report
         report["checks"].append({"name": "trace_sink", "ok": True, "detail": f"{spec.trace.sink} -> {sink.endpoint or '(no exporter)'}"})

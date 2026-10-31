@@ -1051,18 +1051,16 @@ def retry_classify_node(state: DocumentState) -> dict[str, Any]:
 def _valid_unit_float(value: Any) -> bool:
     """Accept finite numeric values in [0, 1], excluding booleans.
 
-    An integer too large to convert to a float raises OverflowError.
+    An oversized integer fails the bounds check and returns False.
     """
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return False
+    # Bounds first: math.isfinite raises OverflowError on an oversized int.
     return 0.0 <= value <= 1.0 and math.isfinite(value)
 
 
 def _fmt_conf(value: Any) -> str:
-    """Format valid confidence to two decimals, or return ``n/a``.
-
-    OverflowError from converting an oversized integer propagates.
-    """
+    """Format valid confidence to two decimals, or return ``n/a``."""
     return f"{float(value):.2f}" if _valid_unit_float(value) else "n/a"
 
 
@@ -1077,12 +1075,13 @@ def _decision_review_classify(state: DocumentState) -> dict[str, Any]:
     Returns partial state updates. Missing text or backend, non-transient
     backend errors, malformed answers, and rejected decisions route to human
     review without an LLM fallback. Transient backend errors instead return a
-    retry flag and increment the review node's retry count. Guard failures are
-    treated as absent answers. The sorter's label and confidence are kept
-    unless the decision accepts, and ``escalation_reason`` uses structured
-    fields rather than model text. Errors outside the backend and guard
-    handling propagate, including configuration loading errors and oversized
-    sorter confidences or cutoffs that cannot be converted to float.
+    retry flag and increment the review node's retry count, then route to
+    human review once that budget is spent. A guard rejection or invalid
+    confidence becomes None, and a guard exception is an absent answer; both
+    park. Oversized confidences and cutoffs also park. The sorter's label and
+    confidence are kept unless the decision accepts, and
+    ``escalation_reason`` uses structured fields rather than model text.
+    Configuration loading errors propagate.
     """
     from agents.decision_backend import get_decision_backend
     from langchain_agents.doc_inventories import sorter_subclass_catalog
@@ -1150,8 +1149,9 @@ def _decision_review_classify(state: DocumentState) -> dict[str, Any]:
                     "doc_subclass": raw.doc_subclass,
                 }
             )
-            # A guard rejection must never pass even a low class cutoff.
-            # Invalid values must also remain safe for the manifest schema.
+            # A rejected answer or an invalid confidence becomes None, never
+            # the guard's clamp, which could pass a low cutoff. decide_review
+            # parks None and the manifest accepts it.
             confidence = (
                 guarded_confidence
                 if guard["ok"] and _valid_unit_float(raw.confidence)
@@ -1377,7 +1377,10 @@ def _fetch_matter_context(state: dict) -> list[dict]:
             {
                 "doc_id": r.doc_id,
                 "doc_type": r.doc_type,
-                "extracted_data": r.extracted_data or {},
+                # Reviewer evidence is audit data, not matter content.
+                "extracted_data": {
+                    k: v for k, v in (r.extracted_data or {}).items() if k != "_review"
+                },
                 "stage": r.stage,
             }
             for r in rows
@@ -2414,6 +2417,8 @@ def _review_evidence_fields(
 
 
 def archive_node(state: DocumentState) -> dict[str, Any]:
+    from pipeline.review_resolve import with_review_evidence
+
     manifest = DocumentManifest(
         doc_id=state.get("doc_id", ""),
         matter_id=state.get("matter_id", "DEFAULT"),
@@ -2467,10 +2472,6 @@ def archive_node(state: DocumentState) -> dict[str, Any]:
 
     # Final conveyor position: the catalog record (created at intake/catalog
     # write) must show archived, not classified — archive is the terminal stage.
-    review_evidence = _review_evidence_fields(state, state.get("review_causes"))
-    extracted_data = manifest.extracted_data
-    if any(value is not None for value in review_evidence.values()):
-        extracted_data = {**(extracted_data or {}), "_review": review_evidence}
     _catalog_upsert(
         {
             "doc_id": manifest.doc_id,
@@ -2481,7 +2482,7 @@ def archive_node(state: DocumentState) -> dict[str, Any]:
             "doc_subclass": getattr(manifest, "doc_subclass", None),
             "classification_confidence": manifest.classification_confidence,
             "extraction_confidence": manifest.extraction_confidence,
-            "extracted_data": extracted_data,
+            "extracted_data": with_review_evidence(manifest.extracted_data, manifest),
             "escalation_reason": manifest.escalation_reason,
             "trace_id": manifest.trace_id,
             "stage": PipelineStage.ARCHIVED.value,
@@ -3175,6 +3176,15 @@ def _emit_pipeline_result(root, result: dict, state: dict, judge_required: bool 
             gen.update(output=output)
 
 
+def _discard_checkpoints(graph, thread_id: str) -> None:
+    """Drop a finished run's checkpoints: they hold the document text and only
+    a parked run can resume. Fail-soft; a leftover row costs disk, not a run."""
+    try:
+        graph.checkpointer.delete_thread(thread_id)
+    except Exception:
+        logger.warning("checkpoint_discard_failed", thread_id=thread_id, exc_info=True)
+
+
 def _execute_run(
     initial_state: DocumentState,
     seed: str,
@@ -3364,6 +3374,8 @@ def _execute_run(
             )
         if _result_is_interrupted(result):
             result = _paused_review_result(result, initial_state, thread_id, state_trace_id)
+        elif result.get("stage") in {PipelineStage.ARCHIVED.value, PipelineStage.FAILED.value}:
+            _discard_checkpoints(graph, thread_id)
         # Ensure the trace id survives into the final state (intake_node creates
         # the manifest with its own doc_id; the trace id must be attached even
         # when the graph never ran intake, e.g. aborted runs).
@@ -3611,7 +3623,7 @@ def resume_from_review(manifest, review_file: Path, notes: str = "") -> dict[str
                     "doc_type": manifest.doc_type,
                     "contract_subtype": manifest.contract_subtype,
                     "doc_subclass": getattr(manifest, "doc_subclass", None),
-                    "classification_confidence": None,
+                    "classification_confidence": manifest.classification_confidence,
                 },
             ),
             trace_input={

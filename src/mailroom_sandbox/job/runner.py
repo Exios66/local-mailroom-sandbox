@@ -406,8 +406,21 @@ def _run_whole_run(
             record, record["prompt_version"], record.get("prompt_sha256"), prompt_lock=lock_prompt
         )
         record.setdefault("run_id", store.run_id)
+    items = store.load_items()
+    ok_items = [item for item in items if item.get("ok")]
+    if items and all((item.get("score") or {}).get("parse_error") for item in ok_items):
+        # Live-or-loud: nothing usable came back, whether the rows errored or
+        # every answer was unparseable. The same doctrine as the per-item path.
+        failed = next((item for item in items if not item.get("ok")), items[0])
+        message = str(failed.get("error") or "every document's answer failed to parse")
+        last_error = {"type": "item", "message": message[:512], "at": utc_now(),
+                      "item_id": failed.get("item_id"), "retryable": False}
+        store.write_checkpoint(state="failed", cursor=processed, total=processed, remote=None, last_error=last_error)
+        store.append_event("failed", "error", cursor=processed, last_error=message[:512])
+        return {"state": "failed", "task": task, "cursor": processed, "total": processed, "ok": 0,
+                "errors": len(items), "last_error": last_error}
     store.write_checkpoint(state="done", cursor=processed, total=processed, remote=None)
-    store.append_event("done", "info", cursor=processed, ok_count=processed)
+    store.append_event("done", "info", cursor=processed, ok_count=len(ok_items) if items else processed)
     from mailroom_sandbox.job.dated_reports import maybe_write_run_reports
 
     maybe_write_run_reports(store, scores=scores if isinstance(scores, dict) else None)
@@ -419,8 +432,8 @@ def _run_whole_run(
         "task": task,
         "cursor": processed,
         "total": processed,
-        "ok": processed,
-        "errors": 0,
+        "ok": len(ok_items) if items else processed,
+        "errors": len(items) - len(ok_items),
         "scores": scores,
         "default_prompt_source": default_ref,
         "spec_hash": store.spec_hash() or "",
@@ -737,9 +750,11 @@ def run_job(
                         max_items=max_items, tracer=tracer, on_event=on_event)
     wrapped, finish = _beacon_hook(store.run_id, task=task or _lock_task(store), on_event=on_event)
     try:
+        from mailroom_sandbox.job.otel import locked_pipeline_provider
         from mailroom_sandbox.runtime import activate, locked_runtime
 
-        with locked_runtime(store.read_lock() or {}, store.read_prompt_lock() or {}):
+        lock = store.read_lock() or {}
+        with locked_runtime(lock, store.read_prompt_lock() or {}), locked_pipeline_provider(lock):
             activate()
             summary = _run_job(store, task=task, model=model, profile=profile, mock=mock, dry_run=False,
                                max_items=max_items, tracer=tracer, on_event=wrapped)

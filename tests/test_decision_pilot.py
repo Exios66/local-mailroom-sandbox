@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from contextlib import nullcontext
 from dataclasses import replace
 from functools import wraps
@@ -57,6 +58,7 @@ def run_pilot_row(row: dict, spec: ReviewerSpec, pilot) -> dict:
     from pipeline.bins import inbox_dir
 
     _, monkeypatch = pilot
+    sorter_confidence = row.get("sorter_confidence", 0.93)
     activate("ollama", load_env_file=False, reviewer=spec)
     backend = mock_backend({row["doc_text"]: (row["reviewer_type"], row["reviewer_confidence"])})
 
@@ -95,7 +97,7 @@ def run_pilot_row(row: dict, spec: ReviewerSpec, pilot) -> dict:
         monkeypatch.setattr(bg, name + "_node", observe(name, getattr(bg, name + "_node")))
 
     # Same model seams as the sandbox mock runner; graph and routing stay real.
-    expect = {"doc_type": row["sorter_type"], "conf": 0.93, "expected_fields": {
+    expect = {"doc_type": row["sorter_type"], "conf": sorter_confidence, "expected_fields": {
         "entity_name": "Cedar Sample Ltd", "record_type": "minutes",
         "claim_number": "C-17", "insured_party": "Cedar Sample Ltd",
     }}
@@ -104,10 +106,10 @@ def run_pilot_row(row: dict, spec: ReviewerSpec, pilot) -> dict:
         stack.enter_context(patch(
             target, return_value=(fake_client(expect), "mock-model")))
     fake = FakeLangChainLLM(classification={
-        "doc_type": row["sorter_type"], "confidence": 0.93,
+        "doc_type": row["sorter_type"], "confidence": sorter_confidence,
         "contract_subtype": "other" if row["sorter_type"] == "contract" else None,
         "doc_subclass": {"contract": "other", "corporate_record": "minutes",
-                         "insurance_claim": "carrier"}[row["sorter_type"]],
+                         "insurance_claim": "carrier", "correspondence": "memo"}[row["sorter_type"]],
         "reasoning": "curated reviewer-band sorter output",
     }, extraction={**expect["expected_fields"], "confidence": 0.99})
     stack.enter_context(patch("langchain_agents.base_agent.BaseAgent.llm", lambda self: fake))
@@ -135,7 +137,7 @@ def run(pilot):
         return result
 
     yield run
-    for result in results:
+    for result in reversed(results):  # nested patches unwind last-in, first-out
         result["stack"].close()
 
 
@@ -188,6 +190,21 @@ def test_each_cause_parks(row, run):
     assert result["backend"].call_count == (0 if row["id"] in {"no_text", "unavailable"} else 1)
 
 
+def test_confident_sorter_cannot_skip_the_reviewer(run):
+    """The sorter's own 0.99 is no second opinion; only agreement archives."""
+    accepted = run({**ROWS[0], "sorter_confidence": 0.99})
+    assert accepted["stage"] == "archived"
+    assert accepted["backend"].call_count == 1
+
+    from pipeline.bins import load_manifest
+
+    parked = run({**ROWS[1], "sorter_confidence": 0.99})
+    manifest = load_manifest(parked["doc_id"])
+    assert parked["stage"] == manifest.stage.value == "review"
+    assert "reviewer_disagreement" in manifest.review_causes
+    assert "extract" not in parked["visited"]
+
+
 def connect_review_api(monkeypatch):
     from fastapi.testclient import TestClient
     from api.main import app
@@ -236,3 +253,61 @@ def test_reject_ends_failed(run, pilot):
     assert not list(archive_dir().rglob("*.txt"))
     assert "extract" not in result["visited"]
     assert result["llm_reviewer"].call_count == 0
+
+
+def test_activate_defaults_to_durable_review_checkpoints(tmp_path, monkeypatch):
+    monkeypatch.setattr("mailroom_sandbox.runtime._load_dotenv", lambda: None)
+    monkeypatch.setenv("MAILROOM_BASE_DIR", str(tmp_path))
+    monkeypatch.delenv("MAILROOM_CHECKPOINTER", raising=False)
+    activate("ollama", load_env_file=False)
+    assert os.environ["MAILROOM_CHECKPOINTER"] == "sqlite"
+    monkeypatch.setenv("MAILROOM_CHECKPOINTER", "memory")
+    activate("ollama", load_env_file=False)
+    assert os.environ["MAILROOM_CHECKPOINTER"] == "memory"
+
+
+def test_only_a_parked_run_keeps_its_checkpoints(run):
+    """Finished runs drop the document text they checkpointed; parked ones must resume."""
+    import graph.build_graph as bg
+    from pipeline.bins import load_manifest
+
+    def rows(result):
+        thread = load_manifest(result["doc_id"]).checkpoint_thread_id
+        return list(bg.get_compiled_graph().checkpointer.list({"configurable": {"thread_id": thread}}))
+
+    assert not rows(run(ROWS[0]))
+    assert rows(run(ROWS[1]))
+
+
+def test_correspondence_disagreement_parks_through_the_in_house_reviewer(run, pilot):
+    """The real local backend and graph; only the reviewer model's answer is canned."""
+    from agents.decision_backend import register_decision_backend
+    from mailroom_sandbox.decision_backends import local_backend
+    from pipeline.bins import load_manifest
+    import graph.build_graph as bg
+
+    spec = ReviewerSpec(backend="local", model="Org/Second", classes={"correspondence": 0.8})
+    row = {"id": "memo", "doc_text": "Internal memo about the merger.", "sorter_type": "correspondence",
+           "reviewer_type": "contract", "reviewer_confidence": 0.95}
+    real = bg.run_pipeline
+
+    class Reviewer:
+        def review(self, text, **_):
+            return {"doc_type": "contract", "doc_subclass": None, "confidence": 0.95}
+
+    def with_local(*args, **kwargs):
+        # run_pilot_row bars the LLM reviewer; here it is the decision backend.
+        pilot[1].setattr("agents.sorter_reviewer.SorterReviewerAgent", Reviewer)
+        register_decision_backend(local_backend("Org/Second"))
+        return real(*args, **kwargs)
+
+    pilot[1].setattr(bg, "run_pipeline", with_local)
+    result = run_pilot_row(row, spec, pilot)
+    try:
+        manifest = load_manifest(result["doc_id"])
+        assert result["stage"] == manifest.stage.value == "review"
+        assert "reviewer_disagreement" in manifest.review_causes
+        assert manifest.reviewer_doc_type == "contract"
+        assert "extract" not in result["visited"]
+    finally:
+        result["stack"].close()

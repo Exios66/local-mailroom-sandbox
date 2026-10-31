@@ -6,7 +6,7 @@ import json
 
 from mailroom_sandbox.job import preflight
 from mailroom_sandbox.job.spec import (DEFAULT_ENGINE_MODEL, DatasetSpec, JobSpec,
-    ReviewerSpec, RunSpec, run_dir)
+    ReviewerSpec, RunSpec, TraceSpec, run_dir)
 
 
 def _run_spec(tmp_path, *, rows=2, limit=2, run_id="pf-1") -> RunSpec:
@@ -34,6 +34,19 @@ def _run_spec(tmp_path, *, rows=2, limit=2, run_id="pf-1") -> RunSpec:
         engine={"kind": "vllm-local", "modal": None},
         trace={"sink": "none"},
     )
+
+
+@pytest.mark.parametrize(("concurrency", "max_inputs", "ok"), [(6, 0, False), (1, 0, True), (6, 6, True)])
+def test_preflight_refuses_concurrency_modal_would_serialize(tmp_path, job_data_dir, concurrency, max_inputs, ok):
+    from mailroom_sandbox.job.spec import EngineSpec, ModalSpec
+
+    spec = _run_spec(tmp_path, run_id=f"pf-serial-{concurrency}-{max_inputs}")
+    spec.engine = EngineSpec(kind="modal-vllm", modal=ModalSpec(app="sandbox-vllm"))
+    spec.engine.vllm.max_inputs = max_inputs
+    spec.job.concurrency = concurrency
+    report = preflight.preflight(spec, offline=True)
+    assert (report["status"] == "prepared") is ok
+    assert ok or "max_inputs" in json.dumps(report)
 
 
 def test_preflight_locks_runbook_identity_without_hashing_it(tmp_path):
@@ -393,6 +406,7 @@ def test_force_relock_refuses_a_store_another_fleet_owns(tmp_path, monkeypatch):
 
     spec = _run_spec(tmp_path, run_id="pf-fleet-a")
     spec.engine = EngineSpec(kind="modal-vllm", modal=ModalSpec(app="sandbox-vllm"))
+    spec.job.concurrency = 1
     report = preflight.preflight(spec, offline=True)
     assert report["status"] == "prepared", report
     store = _store(report)
@@ -401,6 +415,7 @@ def test_force_relock_refuses_a_store_another_fleet_owns(tmp_path, monkeypatch):
 
     other = _run_spec(tmp_path, run_id=spec.run_id)
     other.engine = EngineSpec(kind="modal-vllm", modal=ModalSpec(app="sandbox-vllm-b"))
+    other.job.concurrency = 1
     assert other.spec_hash() != spec.spec_hash(), "the app must be inside spec_hash"
 
     # Without --force the drift is refused and the items stay untouched.
@@ -632,3 +647,16 @@ def test_preflight_rejects_jev_reviewer_in_modal_mode(tmp_path, monkeypatch):
     assert report["status"] == "failed"
     detail = " ".join(c.get("detail", "") for c in report["checks"])
     assert "Modal worker image" in detail
+
+
+def test_preflight_refuses_langfuse_sink_without_the_sdk(tmp_path, job_data_dir, monkeypatch):
+    """SAND-087: the chat client fails on every call without the SDK, so stop before spend."""
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk")
+    monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk")
+    monkeypatch.setattr(preflight, "find_spec", lambda name: None)
+    spec = _run_spec(tmp_path, run_id="pf-no-sdk").model_copy(
+        update={"trace": TraceSpec(sink="langfuse")})
+    report = preflight.preflight(spec)
+    assert report["status"] == "failed"
+    check = next(c for c in report["checks"] if c["name"] == "trace_sink")
+    assert check["ok"] is False and "observability" in check["detail"]
