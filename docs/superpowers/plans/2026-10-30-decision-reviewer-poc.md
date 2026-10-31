@@ -53,7 +53,13 @@ This is plan 1 of 5. The spec covers independent subsystems, so each later plan 
 
 <!-- coderabbit-ai-generated-section:v1:27caf21551400a2d2e07ae9edfb73c127a428b294812a86a69ab65b15f6735d7 -->
 
-- Do not imply affiliation, endorsement, sponsorship or shared work in any file, commit, PR or report without written clearance from the user.
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:957026ee265cb142728a060f197830c1b0b8b7f3ed8684c8fbecbb929b469e91 -->
+
+- Name outside vendors only to describe their products. Do not imply affiliation, endorsement, sponsorship or shared work in any file, commit, PR or report without written clearance from the user.
+
+<!-- /coderabbit-ai-generated:v1 -->
 
 <!-- /coderabbit-ai-generated:v1 -->
 - Source changes land in `Exios66/llm-mailroom` first, then reach `vendor/` through the reviewed refresh. Never edit `vendor/` by hand.
