@@ -491,8 +491,9 @@ def record_from_run(
         )
 
     # Modal GPU-hour cost (orthogonal to token proxy). Local Ollama and API
-    # buckets skip this; Modal / vLLM-remote may attribute busy GPU seconds.
-    if kind == "modal" or (kind == "local" and profile in {"vllm-local", "vllm-remote"}):
+    # buckets skip this; Modal / vLLM-remote may attribute busy GPU seconds. A routed
+    # fleet bills whatever the base profile is (an API base can route to Modal apps).
+    if gpu_fleet or kind == "modal" or (kind == "local" and profile in {"vllm-local", "vllm-remote"}):
         gpu_seconds = _gpu_seconds_from_items(
             items, billed_window_seconds=billed_window_seconds
         )
@@ -681,7 +682,7 @@ def enrich_serving_report(
 
     kind = bucket_kind(out)
     gpu_class = gpu or out.get("gpu")
-    if kind == "modal" and wall_seconds and wall_seconds > 0:
+    if (gpu_fleet or kind == "modal") and wall_seconds and wall_seconds > 0:
         # Prefer the run's OWN container-telemetry window: it brackets the run, so it
         # is what Modal metered — computed from the run, not scraped from a billing
         # CLI. Falls back to boot + wall, which under-counts because the item-`ts`
@@ -697,12 +698,14 @@ def enrich_serving_report(
         # SAND-032: on every replica. With the telemetry window this is the metered
         # figure; without it, a LOWER bound (boot + wall), excluding pre-run warm
         # time and the idle gaps between suite configs. Pinned MIN=MAX fleets pass
-        # scaledown_seconds=None.
+        # scaledown_seconds=None. Base engine only: route apps that scale to zero
+        # can bill less than the fleet estimate, so it would not be a lower bound.
         span = billed + float(scaledown_seconds or 0.0)
         out["run_span_seconds_lower_bound"] = round(span, 3)
-        out["run_span_usd_lower_bound"] = _gpu_usd(
-            span, gpu=gpu_class, replicas=replicas, gpu_fleet=gpu_fleet
-        )
+        if kind == "modal":
+            out["run_span_usd_lower_bound"] = estimate_gpu_cost_usd(
+                span, gpu=gpu_class, replicas=replicas
+            )
         if gpu_cost is not None:
             out["estimated_gpu_cost_usd"] = gpu_cost
             n_ok = len(ok_items) or int(out.get("n") or 0)
