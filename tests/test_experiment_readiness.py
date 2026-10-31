@@ -171,3 +171,13 @@ def test_usage_reports_a_true_median_and_tolerates_missing_completion_tokens():
     items = [{"ok": True, "latency_ms": ms, "prompt_tokens": 10} for ms in (1, 2, 3, 10)]
     usage = ex._usage(items)
     assert usage == {"prompt_tokens": 40, "completion_tokens": None, "p50_latency_ms": 2.5}
+
+
+def test_local_dataset_count_applies_the_requested_subclass(tmp_path, capsys):
+    rows = [_row(0, "correspondence", "email"), _row(1, "correspondence", "letter"),
+            _row(2, "correspondence", "letter")]
+    source = _write(tmp_path / "docs.jsonl", rows)
+    args = ["experiment", "create", "sub", "--doc-class", "correspondence", "--samples", "2", "--mock",
+            "--subclass", "email", "--local-dataset", str(source), "--output", str(tmp_path / "sub")]
+    assert cli.main(args) != 0
+    assert "has 1 scoreable correspondence row(s)" in capsys.readouterr().err

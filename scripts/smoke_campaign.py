@@ -58,11 +58,11 @@ def _check(name: str, report: dict) -> list[str]:
     for run in report.get("runs", []):
         means = run.get("stored_score_means") or {}
         headline = means.get("overall_extraction_score")
-        if headline is None or headline < 0.999:
+        if headline is None or headline < 1.0:
             problems.append(f"{run['run_id']}: oracle extraction headline {headline} (expected 1.0)")
         # Pipeline stage is not gated: llm-mailroom's extraction coverage check parks
         # every contract and merger agreement at review even for a perfect answer (SAND-081).
-        if name == "pipeline" and (means.get("class_correct") or 0) < 0.999:
+        if name == "pipeline" and (means.get("class_correct") or 0) < 1.0:
             problems.append(f"{run['run_id']}: class_correct {means.get('class_correct')} (expected 1.0)")
     return problems
 
