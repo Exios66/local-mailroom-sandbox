@@ -155,7 +155,7 @@ def _get(url: str, headers: dict[str, str]) -> dict[str, Any]:
 
 
 def _cmd_probe(args: argparse.Namespace) -> int:
-    from mailroom_sandbox.health import ProbeResult, _headers, probe_chat, probe_models
+    from mailroom_sandbox.health import ProbeResult, _headers, explain_modal_timeout, probe_chat, probe_models
     from mailroom_sandbox.overlay import resolve_served_vllm_model
     from mailroom_sandbox.providers import endpoints_for
 
@@ -164,6 +164,7 @@ def _cmd_probe(args: argparse.Namespace) -> int:
         warn("a request to a scale-to-zero Modal endpoint can cold-start a billed GPU container")
     headers = _headers(profile)
     models = probe_models(profile)
+    starting = explain_modal_timeout(profile, models)
     chat = (
         probe_chat(profile)
         if models.ok
@@ -175,8 +176,9 @@ def _cmd_probe(args: argparse.Namespace) -> int:
         )
     )
     root = _root(base_url)
-    health = _get(f"{root}/health", headers)
-    metrics = _get(f"{root}/metrics", headers)
+    skipped = {"ok": False, "detail": "skipped (endpoint still starting)"}
+    health = {**skipped, "url": f"{root}/health"} if starting else _get(f"{root}/health", headers)
+    metrics = {**skipped, "url": f"{root}/metrics"} if starting else _get(f"{root}/metrics", headers)
 
     expected = resolve_served_vllm_model() or str(profile.get("default_model") or "") or None
     served = models.models or []
@@ -208,6 +210,8 @@ def _cmd_probe(args: argparse.Namespace) -> int:
             "set VLLM_MODEL/MODAL_VLLM_MODEL to the served id (or redeploy that model)",
             file=sys.stderr,
         )
+    elif starting:
+        print(f"not ready: {models.detail}", file=sys.stderr)
     elif not ok:
         failing = models if not models.ok else chat
         print(f"error: endpoint is not healthy — {failing.name}: {failing.detail}", file=sys.stderr)
