@@ -7,7 +7,7 @@ Cross-family work stays on the Digital-Mailroom hub board
 (`governance/TASKS.md` at the monorepo root) as **`DMR-*`**. This file is the **only** sandbox-local task board — do not
 open `DMR-*` cards here.
 
-**Next ID: `SAND-091`**
+**Next ID: `SAND-093`**
 
 <!-- coderabbit-ai-generated:v1 -->
 
@@ -30,6 +30,7 @@ Lanes: `todo` → `in_progress` → `needs_attention` → `review` → `done`.
 
 | ID | Title | Owner | Status | Notes |
 | --- | --- | --- | --- | --- |
+| SAND-092 | Smoke audit fixes: unsure extractions, token ceiling and aborted documents | claude 2026-10-31 | **review** | Vendors llm-mailroom `16ddd08`. Related: SAND-090, issue #208. |
 | SAND-089 | API token spend ceiling, priced API models, and design-informed run ceilings | claude | **review** | Related: SAND-088, PR #205. Owner request 2026-10-31. New `job.api_cost_cap_usd` limits OpenRouter token spend: the GPU `cost_cap_usd` estimates Modal container time and never limited tokens. The running total prices every observed token at the highest input/output price among the run's API models and is checked before each document (per-item runner, isolated and pipeline evals); an abort records `last_error.type: api_cost_cap`. A paid run that sends any agent to a model without a price is refused (`job/api_budget.py`). `qwen/qwen3.5-9b`, `qwen/qwen3.5-35b-a3b`, `qwen/qwen3.5-27b` and `openai/gpt-4o` gained OpenRouter list prices (checked 2026-10-31). API-only runs no longer need a GPU cap. `experiment create` fills unset GPU, wall and API ceilings from `job/budget_advice.py` (documents, effective concurrency capped at 4 per Modal replica, the task latency band, cold start and scaledown, the fleet GPU rate, API prices and calls per document, 1.5× margin); flags win, and create and review print configured against recommended. Dojo's `deepseek/deepseek-v4-flash` price (0.05/0.25) is behind OpenRouter's 0.091/0.182: dojo owns that table. |
 | SAND-090 | Vendor the llm-mailroom decision-reviewer routing fixes | claude 2026-10-31 | **review** | llm-mailroom `fix/routing-on-main` (`45e7075`) adds the review-evidence and routing fixes to `main` after #134. Decision classes reach their reviewer at any sorter confidence, and a confident reviewer may correct a sorter below its low band. Upstream merge awaits operator approval; cutoffs are calibrated in #208. Related: SAND-085, SAND-088 |
 | SAND-088 | Parked-perfect contracts and mergers: coverage routing and durable review | claude | **review** | Related: SAND-081, SAND-082. Renumbered from colliding SAND-084 (main's PTY prompt-timeout card, PR #206). Owner request 2026-10-31. llm-mailroom `b7cd59f` (branch `fix/coverage-routing-gate`) treats an empty coverage scope as no signal, and review causes use the same scope. On the pinned corpus, perfect mergers no longer park (152/152 route to compile) and false `extraction_miss` falls from 3,302 rows to 0; 91 contracts still park on the mock only, because no CUAD labels means an empty oracle answer. `activate()` now defaults `MAILROOM_CHECKPOINTER=sqlite`. llm-mailroom `40cd75c` reviews `decision_only` classes at any sorter confidence; a score above the class `high` threshold used to skip the reviewer, so disagreement could not park. Upstream merge to the decision-reviewer line stays open. Contracts and mergers have no clause-level coverage gate yet. Related: SAND-090 |
