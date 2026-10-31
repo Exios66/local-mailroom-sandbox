@@ -32,7 +32,10 @@ from mailroom_sandbox.services._exec import (
 PINNED_SDK = "1.6.2"  # pyproject [deploy] extra: modal==1.6.2
 INSTALL_HINT = 'pip install -e ".[deploy]" && modal token new'
 ENTRYPOINT = "deploy/modal_vllm.py"
+PUBLISH_SCRIPT = "deploy/publish_modal_image.py"
+DEFAULT_IMAGE_TAG = "v0.29.0"  # deploy/modal_vllm.py VLLM_IMAGE_TAG
 JOB_APP = "sandbox-job"
+IMAGE_BUILD_APP = "sandbox-image-builds"  # holds no function, so it can never bill
 VERIFY_ATTEMPTS = 5
 VERIFY_DELAY = 2.0
 
@@ -63,6 +66,10 @@ def _check_version() -> None:
             f"modal {match.group(0)} installed, but the sandbox is verified against {PINNED_SDK} "
             f'(pip install -e ".[deploy]") — flags may differ'
         )
+
+
+def _named_image(tag: str) -> str:
+    return f"sandbox-vllm:{tag}"
 
 
 def _matrix_env(args: argparse.Namespace) -> dict[str, str]:
@@ -109,6 +116,8 @@ def _run_streamed(argv: list[str], env: dict[str, str], *, on_line=None) -> None
 def _cmd_deploy(args: argparse.Namespace) -> int:
     _prepare()
     env = _matrix_env(args)
+    if args.named_image:
+        env["MODAL_VLLM_USE_NAMED_IMAGE"] = "1"
     argv = ["modal", "deploy", ENTRYPOINT]
     if args.dry_run:
         print_plan(argv, env, cwd=str(repo_root()))
@@ -132,6 +141,29 @@ def _cmd_deploy(args: argparse.Namespace) -> int:
         print("export VLLM_BASE_URL=<that url>/v1   # or set MODAL_WORKSPACE=<workspace slug>")
     print('export VLLM_API_KEY="$MODAL_VLLM_API_TOKEN"   # the bearer the gateway requires')
     print("next: `sandbox health` (wakes the GPU), then `sandbox modal stop` when the run is finished")
+    return 0
+
+
+def _cmd_publish_image(args: argparse.Namespace) -> int:
+    """Build the vLLM serving image and publish it under a pinned name."""
+    _prepare()
+    tag = args.tag or os.environ.get("MODAL_VLLM_IMAGE_TAG") or DEFAULT_IMAGE_TAG
+    if tag == "latest":
+        raise ServiceError("--tag must be pinned, never latest: a run locks the tag it ran on")
+    env = {"MODAL_VLLM_IMAGE_TAG": tag}
+    argv = [sys.executable, PUBLISH_SCRIPT]
+    account = os.environ.get("MODAL_PROFILE") or "the active profile"
+    if args.dry_run:
+        print_plan(argv, env, cwd=str(repo_root()))
+        print(f"dry-run: nothing built. Would publish {_named_image(tag)} to {account}.")
+        return 0
+    _check_version()
+    print(f"note: named images belong to one workspace; publishing {_named_image(tag)} to {account}.")
+    with service_job("modal-publish-image", title="modal publish · serving image") as job:
+        job.update(phase="BUILDING")
+        _run_streamed(argv, env, on_line=job.log)
+    print(f"published {_named_image(tag)}")
+    print("next: `sandbox modal deploy --named-image`")
     return 0
 
 
@@ -229,7 +261,8 @@ def _cmd_status(args: argparse.Namespace) -> int:
     live = [
         _field(row, _NAME_KEYS)
         for row in rows
-        if _field(row, _NAME_KEYS).startswith("sandbox-") and _field(row, _STATE_KEYS).lower() != "stopped"
+        if _field(row, _NAME_KEYS).startswith("sandbox-") and _field(row, _NAME_KEYS) != IMAGE_BUILD_APP
+        and _field(row, _STATE_KEYS).lower() != "stopped"
     ]
     names = list(dict.fromkeys([vllm_app(), JOB_APP, *live]))
     apps = [_app_state(rows, name) for name in names]
@@ -343,8 +376,9 @@ def _cmd_raw(args: argparse.Namespace) -> int:
 
 def _cmd_help(args: argparse.Namespace) -> int:
     print(
-        "Use: sandbox modal deploy|prewarm|status|logs|stop|url|raw\n"
-        "  deploy [--model M] [--gpu G] [--dry-run]   modal deploy deploy/modal_vllm.py (prints the endpoint exports)\n"
+        "Use: sandbox modal deploy|prewarm|publish-image|status|logs|stop|url|raw\n"
+        "  deploy [--model M] [--gpu G] [--named-image] [--dry-run]   modal deploy deploy/modal_vllm.py (prints the endpoint exports)\n"
+        "  publish-image [--tag T] [--dry-run]        build the serving image and publish sandbox-vllm:T to this workspace\n"
         "  prewarm [--model M]                        CPU-only weight download into the Modal volume\n"
         "  status [--json]                            is sandbox-vllm / sandbox-job / any scoped sandbox-* app deployed (billing)?\n"
         "  stop [--app NAME] [--no-verify]            idempotent teardown, verified by `modal app list`\n"
@@ -365,8 +399,14 @@ def register(sub: argparse._SubParsersAction, leaf: argparse.ArgumentParser) -> 
 
     deploy = cmds.add_parser("deploy", parents=[leaf], help="modal deploy deploy/modal_vllm.py")
     deploy.add_argument("--gpu", default=None, help="override the matrix GPU (e.g. A100-40GB:2)")
+    deploy.add_argument("--named-image", action="store_true", help="use the published sandbox-vllm:TAG, never rebuild")
     deploy.add_argument("--dry-run", action="store_true", help="print the argv, deploy nothing")
     deploy.set_defaults(handler=_cmd_deploy)
+
+    publish = cmds.add_parser("publish-image", parents=[leaf], help="build and publish the vLLM serving image by name")
+    publish.add_argument("--tag", default=None, help="vLLM image tag (default: MODAL_VLLM_IMAGE_TAG or the deploy default)")
+    publish.add_argument("--dry-run", action="store_true")
+    publish.set_defaults(handler=_cmd_publish_image)
 
     prewarm = cmds.add_parser("prewarm", parents=[leaf], help="modal run …::download_model (CPU-only)")
     prewarm.add_argument("--gpu", default=None, help=argparse.SUPPRESS)

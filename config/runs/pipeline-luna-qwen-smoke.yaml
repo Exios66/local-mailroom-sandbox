@@ -1,5 +1,5 @@
 # Full pipeline over OpenRouter: Qwen3.7 Flash on every node, with OpenAI Luna as
-# the decision reviewer for all five classes. The cutoffs are provisional until reviewer-calibration-luna has run.
+# the decision reviewer for all five classes. The 0.90 cutoffs are untuned and stay provisional until issue #208 sets them.
 schema: sandbox.run/v1
 run_id: pipeline-luna-qwen-smoke
 task: pipeline

@@ -16,7 +16,7 @@ pip install -e ".[dev,notebooks]"
 cp -n config/.env.example .env
 sandbox up -d --compose-profile langfuse --compose-profile ollama --compose-profile jupyter
 # Lab: http://127.0.0.1:8888/lab
-# Langfuse: http://127.0.0.1:3000  (pk-lf-sandbox / sk-lf-sandbox)
+# Langfuse: http://127.0.0.1:3000  (pk-lf-sandbox / sk-lf-sandbox; sign-in email LANGFUSE_INIT_USER_EMAIL, default sandbox@example.com)
 sandbox pull-models --profile ollama
 ```
 
@@ -24,7 +24,7 @@ Or build the image alone:
 
 ```bash
 docker build -f deploy/Dockerfile -t mailroom-sandbox:offline .
-docker run --rm -p 8888:8888 -v "$PWD":/workspace mailroom-sandbox:offline
+docker run --rm -p 127.0.0.1:8888:8888 -v "$PWD":/workspace mailroom-sandbox:offline
 ```
 
 Image hardening (HUB-015): the sandbox image runs as a **non-root user**
@@ -32,9 +32,10 @@ Image hardening (HUB-015): the sandbox image runs as a **non-root user**
 whose first user is not uid 1000, pass `--user "$(id -u):$(id -g)"`. All
 compose images are **version-pinned** (ollama `0.33.2`, vllm `v0.29.0`,
 phoenix `version-20.4.0`, llama.cpp `full-e95b6554b493e71a0275764342e09bd5784a7026`,
-minio `cgr.dev/chainguard/minio@sha256:3b6e40c3…`, langfuse `3`,
-redis `7`, clickhouse `24-alpine`, pgvector `pg16`) for offline
-reproducibility — bump pins deliberately.
+minio `cgr.dev/chainguard/minio@sha256:3b6e40c3…`, langfuse web and worker
+`3.225.15`, redis `7`, clickhouse `24-alpine`, pgvector `pg16`) for offline
+reproducibility — bump pins deliberately. Every published Compose port binds
+`127.0.0.1`, so the services are reachable from the host only.
 
 Upgrading from the old `minio/minio` image: the Chainguard image runs as UID
 65532, but a `minio_data` volume created by the old image is root-owned, so

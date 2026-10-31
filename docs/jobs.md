@@ -99,10 +99,17 @@ job:
                             # highest input/output price among the run's API models
                             # and checked before each document. Required when any
                             # agent bills tokens; every such model needs a price
-                            # (SANDBOX_MODEL_PRICES in job/metrics.py) or the run
+                            # (SANDBOX_MODEL_PRICES in job/metrics.py, or both
+                            # SANDBOX_TOKEN_PRICE_IN_PER_M and _OUT_PER_M) or the run
                             # is refused. Paid runs need max_wall_seconds, plus
                             # cost_cap_usd when they warm a Modal GPU and
-                            # api_cost_cap_usd when they bill API tokens
+                            # api_cost_cap_usd when they bill API tokens. `experiment
+                            # create` fills unset ceilings from a recommendation.
+
+reviewer:                   # optional decision reviewer (SAND-085); see docs/experiments.md
+  backend: api              # jev | local | api | mock
+  model: openai/gpt-6-luna  # pinned: jev-X.Y.Z, the in-house model, or an OpenRouter id
+  classes: {contract: 0.90, correspondence: 0.90}   # class -> cutoff in [0, 1]
 
 trace:
   sink: langfuse            # langfuse | phoenix | otlp | none
@@ -219,6 +226,12 @@ locked prompts/models/knobs rather than later ambient generation settings.
    prompt-text change refuses (DMR-049), and `dataset.sha256` is re-verified
    at worker start and at resume — drift refuses (exit 3) unless `--force`
    re-locks and archives the old generation.
+
+The engine step also refuses a live `modal-vllm` run whose `job.concurrency` is
+above 1 while `engine.vllm.max_inputs` is 0 (mock runs are not checked). The
+reviewer gets its own checks: `local` must be in-house and a different model from
+the sorter, `api` needs an OpenRouter `sorter_reviewer` route, and `jev` is refused
+for mock runs and Modal jobs.
 
 ## Checkpoint / resume
 
@@ -407,16 +420,17 @@ item spans travel over OTEL (job spans only).
 The job surface is covered by network-free suites:
 
 ```
-uv run pytest packages/local-mailroom-sandbox/tests/test_job_spec.py
-uv run pytest packages/local-mailroom-sandbox/tests/test_job_checkpoint.py
-uv run pytest packages/local-mailroom-sandbox/tests/test_job_preflight.py
-uv run pytest packages/local-mailroom-sandbox/tests/test_job_runner.py
-uv run pytest packages/local-mailroom-sandbox/tests/test_job_otel.py
-uv run pytest packages/local-mailroom-sandbox/tests/test_job_remote.py
-uv run pytest packages/local-mailroom-sandbox/tests/test_job_metrics.py
-uv run pytest packages/local-mailroom-sandbox/tests/test_job_cli.py
-uv run pytest packages/local-mailroom-sandbox/tests/test_corpus.py
-uv run pytest packages/local-mailroom-sandbox/tests/test_prompt_registry.py
+uv run pytest tests/test_job_spec.py
+uv run pytest tests/test_job_checkpoint.py
+uv run pytest tests/test_job_preflight.py
+uv run pytest tests/test_job_runner.py
+uv run pytest tests/test_job_otel.py
+uv run pytest tests/test_job_remote.py
+uv run pytest tests/test_job_metrics.py
+uv run pytest tests/test_job_cli.py
+uv run pytest tests/test_corpus.py
+uv run pytest tests/test_prompt_registry.py
+uv run pytest tests/test_api_budget.py
 ```
 ### Generation integrity
 

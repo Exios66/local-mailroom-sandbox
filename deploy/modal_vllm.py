@@ -178,6 +178,9 @@ TP_SIZE = os.environ.get("MODAL_VLLM_TP_SIZE", "") or str(
     else 1
 )
 VLLM_IMAGE_TAG = os.environ.get("MODAL_VLLM_IMAGE_TAG", "v0.29.0")
+# `sandbox modal publish-image` publishes this name to one workspace. A tag, not
+# :latest, so a run's locked image_tag still names the image it ran on.
+NAMED_IMAGE = f"sandbox-vllm:{VLLM_IMAGE_TAG}"
 
 # Attended specialist suite default: 120s idle warm (DMR-076 cost-saver).
 # Unattended / overnight: export MODAL_VLLM_SCALEDOWN_SECONDS=600 before deploy.
@@ -250,7 +253,7 @@ def _config_secrets() -> list[modal.Secret]:
 hf_cache = modal.Volume.from_name(HF_CACHE_VOLUME_NAME, create_if_missing=True)
 vllm_cache = modal.Volume.from_name(VLLM_CACHE_VOLUME_NAME, create_if_missing=True)
 
-image = (
+serving_image = (
     modal.Image.from_registry(f"vllm/vllm-openai:{VLLM_IMAGE_TAG}", add_python="3.12")
     .entrypoint([])
     .run_commands("pip install --no-cache-dir huggingface_hub httpx")
@@ -260,6 +263,12 @@ image = (
             "NETWORKX_AUTOMATIC_BACKEND_SELECTION": "0",
         }
     )
+)
+# A named image never rebuilds on deploy; a missing name fails the deploy.
+image = (
+    modal.Image.from_name(NAMED_IMAGE)
+    if os.environ.get("MODAL_VLLM_USE_NAMED_IMAGE")
+    else serving_image
 )
 
 download_image = (

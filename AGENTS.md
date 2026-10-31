@@ -67,6 +67,7 @@ sibling checkouts). Durable eve doctor:
 ```bash
 pip install -e ".[dev]"
 # or: pip install -r requirements.txt   # → requirements/dev.txt (mirrors pyproject)
+# .venv/bin/sandbox puts its own venv's bin first on PATH, so its pinned `modal` is used even when the venv is not activated
 # specialist / Modal live path also needs:
 #   pip install -e ".[pipeline,deploy,observability]"   # observability = the Langfuse SDK; without it runs record no traces
 #   # or: pip install -r requirements/pipeline.txt -r requirements/deploy.txt -r requirements/observability.txt
@@ -103,11 +104,13 @@ sandbox subagents sync --harness all  # OpenCode frontmatter + .cursor/agents/ s
 sandbox subagents propagate              # materialize + sync all mapped family checkouts
 sandbox subagents materialize --package digital-mailroom --root <path>  # monorepo hub export
 sandbox metrics compare --runs local,modal,api   # serving metrics comparison
-sandbox modal deploy|prewarm|status|logs|stop|url|raw   # guarded Modal CLI passthrough (--dry-run on deploy/prewarm/stop/logs; stop is idempotent + verified)
+sandbox modal deploy|prewarm|status|logs|stop|url|raw|publish-image   # guarded Modal CLI passthrough (--dry-run on deploy/prewarm/stop/logs/publish-image; stop is idempotent + verified)
+sandbox modal publish-image [--tag TAG]   # publish the vLLM image to the active workspace; `sandbox modal deploy --named-image` then reuses it
+sandbox modal status                  # lists sandbox-vllm, sandbox-job and every other sandbox-* app that is not stopped (not sandbox-image-builds); containers shown for deployed apps
 sandbox vllm probe|command|serve|metrics   # endpoint probe (models/chat//health//metrics), `vllm serve` argv, local serve, metrics scrape
 sandbox experiment designs|create|review|preflight|launch|watch|report  # guided designs + initials-gated spend; docs/experiments.md
 python scripts/smoke_campaign.py      # offline pre-flight: specialist, sand42 and pipeline mock campaigns must reach a 1.0 extraction headline (needs `sandbox datasets pull` once)
-sandbox doctor [--service NAME] [--live] [--publish] [--json]   # one status table for every external CLI/service (offline by default); --publish feeds the board's services strip
+sandbox doctor [--service NAME] [--live] [--publish] [--json]   # one status table for every external CLI/service (offline by default); --publish feeds the board's services strip; --live adds the active Modal account's app listing (read-only, deploys nothing)
 sandbox hf whoami|download|cache|raw   # guarded hf CLI passthrough (pinned dataset revision; --sandbox-cache = data/cache/hf)
 sandbox watch --web                   # mailroom pretty-logs TUI in the browser (http://127.0.0.1:8765/, SSE); full command matrix in docs/pretty-logging/mailroom-themed-logging.md
 sandbox dev                           # dev server: same themed UI on a synthetic looping run (no Modal/spend)
@@ -125,10 +128,12 @@ sandbox beacon update --job ID --package P --done N --total M   # shell jobs pub
 - Prepared fixtures: `data/runtime/prepared/` via notebooks or `sandbox datasets prepare`.
 - Experiment log: `reports/experiment_log.jsonl` (sandbox-local, not a sister-repo mirror).
 - Experiment reports: `sandbox experiment report` writes `report.md`, `report.json` and `cards/<run-id>.card.json` beside the manifest with the sand42 card contract (`docs/SAND42-EXPERIMENT-DESIGN.md` section 5), per-class routing and paired CIs.
-- Human review: `activate` defaults `MAILROOM_CHECKPOINTER=sqlite`, so parked documents survive a restart. Decision-reviewer classes (`--decision-reviewer`, `--decision-class`) go through Lane A at any sorter confidence, after the sorter's retries. Agreement at the cutoff reaches `extract`; a sorter below its low band may also be corrected by a reviewer at the cutoff. An unsure reviewer, or disagreement with a medium or high sorter, parks for a person. Other classes have no disagreement check. Every live class, correspondence included, may use any backend: `local`, `jev` or `api` (a pinned OpenRouter model on `agent_routes.sorter_reviewer`). The Enron correspondence is already public.
-- Paid runs (SAND-089): every paid run needs `job.max_wall_seconds`; a run that warms a Modal GPU also needs `job.cost_cap_usd`; a run that sends any agent to OpenRouter needs `job.api_cost_cap_usd` and a token price for every API model (`SANDBOX_MODEL_PRICES` in `src/mailroom_sandbox/job/metrics.py`). The GPU cap does not limit OpenRouter spend. `sandbox experiment create` recommends all three from the design.
+- Human review: `activate` defaults `MAILROOM_CHECKPOINTER=sqlite`, so parked documents survive a restart. Decision-reviewer classes (`--decision-reviewer BACKEND:MODEL`, `--decision-class CLASS=CUTOFF`) reach their reviewer at any sorter confidence, after the sorter's retries. Agreement at the cutoff goes to `extract`. A sorter below its low band may be corrected by a reviewer at the cutoff. An unsure reviewer, or disagreement with a medium or high sorter, parks for human review. Cutoffs are provisional until issue #208. Other classes have no disagreement check.
+- Decision backends (SAND-085): `local` runs `sorter_reviewer` on the run's own serving route; `api` runs it through OpenRouter on `agent_routes.sorter_reviewer` (e.g. `api:openai/gpt-6-luna`) and accepts pinned provider ids only, so `-latest`, `~` and `:floor` variants are refused; `jev` and `mock` are the other backends. Every live class, correspondence included, accepts every backend. The Enron correspondence is public, so no backend refuses it (SAND-086 cancelled).
+- Reviewer runs: `config/runs/pipeline-luna-qwen-smoke.yaml` is a 7-document full-pipeline smoke on OpenRouter (`qwen/qwen3.7-flash`) with the same reviewer at 0.90 on all five classes; those cutoffs are provisional until issue #208. `scripts/calibrate_reviewer.py --run <id>` picks each class's cutoff from a finished calibration run. Start: `sandbox run preflight --config <file>`, then `sandbox run start --config <file> --initials <XX>` (the spend gate; initials are 2–6 capital letters).
+- Paid runs (SAND-089): every paid run needs `job.max_wall_seconds`; a run that warms a Modal GPU, or has no API model, also needs `job.cost_cap_usd`; a run that sends any agent to OpenRouter needs `job.api_cost_cap_usd` and a token price for every API model (`SANDBOX_MODEL_PRICES` in `src/mailroom_sandbox/job/metrics.py`). The GPU cap does not limit OpenRouter spend. `sandbox experiment create` recommends all three from the design.
 - Tracing default: Langfuse 3 / SDK v4 (`OBSERVABILITY_PROVIDER=langfuse`). Phoenix is an optional sidecar. OpenRouter is opt-in.
-- Docker: `deploy/Dockerfile` + Compose profiles including `jupyter` — see `docs/setting-up/docker-offline.md`.
+- Docker: `deploy/Dockerfile` + Compose profiles including `jupyter` — see `docs/setting-up/docker-offline.md`. Every Compose port binds `127.0.0.1`; Langfuse web and worker are pinned to `3.225.15`.
 - Serving/run cost: [`docs/RUN-COST-DERIVATION.md`](docs/RUN-COST-DERIVATION.md) — per-doc cost
   derivation (OpenRouter token-billing is exact; Modal is container-time), the wave/escalation cap
   rules, and the repo layout index at `docs/setting-up/LAYOUT.md`.
@@ -190,4 +195,4 @@ for source links and registered communication types.
 
 ## Tests
 
-No real LLM calls in the default suite. `@pytest.mark.local_llm` is skipped unless `SANDBOX_LOCAL_LLM=1`.
+No real LLM calls in the default suite. `@pytest.mark.local_llm` is skipped unless `SANDBOX_LOCAL_LLM=1`. `tests/conftest.py` sets `SANDBOX_SKIP_DOTENV=1` before any test, so a developer's `.env` (real keys) never loads into the suite. `runtime._load_dotenv` honours the variable, so set it only for tests.
