@@ -54,6 +54,31 @@ def test_failed_answers_cannot_clear_a_cutoff(tmp_path):
     assert calibrate_reviewer._rows(store) == {"contract": [(0.0, False)]}
 
 
+def _probe_store(tmp_path, valid, latency_ms=2000.0):
+    rows = [{"id": str(i), "expected_doc_class": "contract"} for i in range(10)]
+    items = [{"item_id": str(i), "ok": True, "latency_ms": latency_ms,
+              "pred": {"doc_type": "contract", "confidence": 0.9 if i < valid else None}} for i in range(10)]
+    return _store(tmp_path, items, rows)
+
+
+def test_probe_passes_on_valid_fast_answers(tmp_path):
+    verdict = calibrate_reviewer.probe(_probe_store(tmp_path, 9))
+    assert verdict["passed"] and verdict["valid_answers"] == 9
+
+
+def test_probe_fails_on_missing_confidences(tmp_path):
+    assert not calibrate_reviewer.probe(_probe_store(tmp_path, 8))["passed"]
+
+
+def test_probe_fails_when_too_slow(tmp_path):
+    assert not calibrate_reviewer.probe(_probe_store(tmp_path, 10, latency_ms=11000.0))["passed"]
+
+
+def test_probe_run_stays_inside_its_budget():
+    run = load_run_spec(ROOT / "config/runs/reviewer-probe-gemma4.yaml")
+    assert run.dataset.limit == 10 and run.job.cost_cap_usd <= 0.25 and run.job.max_wall_seconds <= 300
+
+
 def test_calibration_run_is_capped_and_uses_a_non_qwen_model():
     run = load_run_spec(ROOT / "config/runs/reviewer-calibration-gemma4.yaml")
     assert run.task == "sorter_reviewer" and run.engine.model.startswith("google/gemma-4")
