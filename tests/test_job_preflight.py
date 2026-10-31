@@ -635,7 +635,7 @@ def test_preflight_rejects_jev_reviewer_in_modal_mode(tmp_path, monkeypatch):
 
 
 def test_preflight_refuses_langfuse_sink_without_the_sdk(tmp_path, job_data_dir, monkeypatch):
-    """SAND-083: the chat client fails on every call without the SDK, so stop before spend."""
+    """SAND-087: the chat client fails on every call without the SDK, so stop before spend."""
     monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk")
     monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk")
     monkeypatch.setattr(preflight, "find_spec", lambda name: None)

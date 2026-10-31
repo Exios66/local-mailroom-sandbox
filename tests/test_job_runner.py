@@ -798,7 +798,7 @@ def test_aborted_isolated_run_keeps_completed_items(tmp_path, monkeypatch):
 
 
 def test_run_job_uses_locked_trace_sink_over_ambient_provider(tmp_path, monkeypatch):
-    """SAND-083: `.env`'s OBSERVABILITY_PROVIDER=langfuse must not beat `trace.sink: none`.
+    """SAND-087: `.env`'s OBSERVABILITY_PROVIDER=langfuse must not beat `trace.sink: none`.
 
     The pipeline adds Langfuse-only `name=` kwargs under the langfuse provider;
     without the SDK installed every chat call then failed.

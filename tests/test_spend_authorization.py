@@ -89,7 +89,7 @@ def test_signature_output_and_receipt_redact_credentials(locked, monkeypatch, ca
 
 @pytest.mark.parametrize("name", ["pipeline-modal", "pipeline-openrouter", "pipeline-hybrid", "pilot-sorter-modal-hf"])
 def test_paid_example_configs_carry_a_budget(name):
-    """SAND-083: shipped paid examples must pass the spend budget guard as written."""
+    """SAND-087: shipped paid examples must pass the spend budget guard as written."""
     from pathlib import Path
 
     from mailroom_sandbox.job.spec import load_run_spec

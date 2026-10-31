@@ -50,7 +50,7 @@ def test_configure_tracing_none_is_noop():
     assert otel.configure_tracing(otel.resolve_sink(sink="none")) is None
 
 def test_pipeline_provider_maps_locked_sink():
-    """SAND-083: otlp exports through the sandbox, so the pipeline SDKs stay off."""
+    """SAND-087: otlp exports through the sandbox, so the pipeline SDKs stay off."""
     assert otel.pipeline_provider("langfuse") == "langfuse"
     assert otel.pipeline_provider("phoenix") == "phoenix"
     assert otel.pipeline_provider("none") == "none"
