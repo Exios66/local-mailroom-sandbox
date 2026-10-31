@@ -69,6 +69,18 @@ def _review_evidence(doc) -> dict[str, Any]:
     return evidence
 
 
+def with_review_evidence(extracted: Any, manifest) -> Any:
+    """Catalog ``extracted_data`` carrying the manifest's reviewer evidence.
+
+    Archive and rejection replace the row's parked payload, so ``_review`` is
+    copied forward. Without evidence ``extracted`` is returned unchanged.
+    """
+    evidence = {name: getattr(manifest, name, None) for name in REVIEW_EVIDENCE_FIELDS}
+    if all(value is None for value in evidence.values()):
+        return extracted
+    return {**(extracted if isinstance(extracted, dict) else {}), "_review": evidence}
+
+
 def serialize_document(doc) -> dict[str, Any]:
     """Catalog or manifest → JSON-safe lookup/tray payload.
 
@@ -178,6 +190,9 @@ def apply_classification_override(
             raise ValueError(
                 f"doc_type must be one of {sorted(allowed)}; got {kind!r}"
             )
+        if kind != manifest.doc_type:
+            # That score was for the old class; a person chose this one.
+            manifest.classification_confidence = None
         manifest.doc_type = kind
         applied["doc_type"] = kind
 
@@ -486,7 +501,7 @@ def complete_human_extraction(
             "stage": PipelineStage.ARCHIVED.value,
             "classification_confidence": manifest.classification_confidence,
             "extraction_confidence": extraction_confidence,
-            "extracted_data": extracted_data,
+            "extracted_data": with_review_evidence(extracted_data, manifest),
             "escalation_reason": None,
             "trace_id": manifest.trace_id,
         },

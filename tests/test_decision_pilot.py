@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from contextlib import nullcontext
 from dataclasses import replace
 from functools import wraps
@@ -236,3 +237,14 @@ def test_reject_ends_failed(run, pilot):
     assert not list(archive_dir().rglob("*.txt"))
     assert "extract" not in result["visited"]
     assert result["llm_reviewer"].call_count == 0
+
+
+def test_activate_defaults_to_durable_review_checkpoints(tmp_path, monkeypatch):
+    monkeypatch.setattr("mailroom_sandbox.runtime._load_dotenv", lambda: None)
+    monkeypatch.setenv("MAILROOM_BASE_DIR", str(tmp_path))
+    monkeypatch.delenv("MAILROOM_CHECKPOINTER", raising=False)
+    activate("ollama", load_env_file=False)
+    assert os.environ["MAILROOM_CHECKPOINTER"] == "sqlite"
+    monkeypatch.setenv("MAILROOM_CHECKPOINTER", "memory")
+    activate("ollama", load_env_file=False)
+    assert os.environ["MAILROOM_CHECKPOINTER"] == "memory"
