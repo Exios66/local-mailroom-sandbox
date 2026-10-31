@@ -6,7 +6,8 @@ cutoff is the one that admits them. Each class is split in half by a seeded
 shuffle. The cutoff is the lowest confidence at which the tuning half's
 accepted answers reach the target accuracy; the other half reports what that cutoff delivers. A class that never
 reaches the target gets no cutoff, so it should not be configured as reviewed.
-A run that is not done, or misses any locked document, is refused.
+A run that is not done, or misses any locked document, is refused. Each class also
+reports its answers at the top confidence: wrong ones there no cutoff can remove.
 """
 from __future__ import annotations
 
@@ -67,6 +68,15 @@ def _accepted(rows: list[tuple[float, bool]], cutoff: float) -> tuple[int, int]:
     return sum(kept), len(kept)
 
 
+def _saturation(rows: list[tuple[float, bool]]) -> dict:
+    """The answers at the highest confidence, which no cutoff can separate."""
+    if not rows:
+        return {"top_confidence": None, "top_confidence_documents": 0, "top_confidence_wrong": 0}
+    top = max(confidence for confidence, _ in rows)
+    right, kept = _accepted(rows, top)
+    return {"top_confidence": top, "top_confidence_documents": kept, "top_confidence_wrong": kept - right}
+
+
 def _cutoff(rows: list[tuple[float, bool]], target: float) -> float | None:
     for cutoff in sorted({confidence for confidence, _ in rows if confidence > 0}):
         right, kept = _accepted(rows, cutoff)
@@ -88,7 +98,7 @@ def calibrate(store: RunStore, *, target: float = 0.95, seed: int = 42,
         middle = len(rows) // 2
         tune, holdout = rows[:middle], rows[middle:]
         cutoff = _cutoff(tune, target)
-        result = {"documents": len(rows), "cutoff": cutoff}
+        result = {"documents": len(rows), "cutoff": cutoff, **_saturation(rows)}
         if cutoff is not None:
             right, kept = _accepted(holdout, cutoff)
             result.update({"holdout_documents": len(holdout), "holdout_accepted": kept,

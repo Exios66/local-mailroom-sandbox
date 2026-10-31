@@ -186,13 +186,22 @@ taxonomy, so it governs routing in `--task pipeline` runs. Preflight checks it:
 
 ### Calibrate the cutoffs
 
-Issue #208 tracks the 200-document calibration run. `scripts/calibrate_reviewer.py`
-reads a finished reviewer run:
+`config/runs/reviewer-calibration-luna.yaml` runs `openai/gpt-6-luna` as the reviewer
+over 200 labelled training documents (40 per class) with a `$0.25` API cap. Its header
+estimates about $0.07. Start it through the signed run lifecycle (a paid run asks for
+initials unless `--initials` is given), then calibrate:
 
 ```bash
-python scripts/calibrate_reviewer.py --run <run-id> --probe
-python scripts/calibrate_reviewer.py --run <run-id>
+sandbox run preflight --config config/runs/reviewer-calibration-luna.yaml
+sandbox run start --config config/runs/reviewer-calibration-luna.yaml
+python scripts/calibrate_reviewer.py --run reviewer-calibration-luna --probe
+python scripts/calibrate_reviewer.py --run reviewer-calibration-luna
 ```
+
+Each class also reports `top_confidence`, `top_confidence_documents` and
+`top_confidence_wrong`. Wrong answers at the top confidence are confidence saturation:
+no cutoff removes them. This run samples ordinary documents, so it does not measure
+wrong corrections on hard documents; issue #208 tracks that separately.
 
 - `--probe` checks a finished run is fit to calibrate: at least 9 taxonomy-valid
   answers and a mean of at most 10 s per document. It exits 1 when the run fails.
