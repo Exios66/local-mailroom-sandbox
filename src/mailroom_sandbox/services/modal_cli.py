@@ -40,6 +40,7 @@ _NOT_FOUND = re.compile(r"not found|no such app|no app|could not find|does not e
 _NAME_KEYS = ("description", "Description", "name", "Name", "app_name")
 _STATE_KEYS = ("state", "State", "status", "Status")
 _ID_KEYS = ("app_id", "App ID", "id", "Id")
+_TASK_KEYS = ("tasks", "Tasks")
 
 
 def vllm_app() -> str:
@@ -185,6 +186,14 @@ def _list_apps() -> list[dict[str, Any]]:
     return _app_rows(payload)
 
 
+def _task_count(row: dict[str, Any]) -> int | None:
+    """Live containers for an app; ``None`` when the listing does not report them."""
+    try:
+        return int(_field(row, _TASK_KEYS))
+    except ValueError:
+        return None
+
+
 def _app_state(rows: list[dict[str, Any]], app: str) -> dict[str, Any]:
     """The sandbox view of one app; names match exactly (a scoped fleet is not the default app)."""
     # Listings can retain a stopped version alongside a newer deployment.
@@ -197,8 +206,14 @@ def _app_state(rows: list[dict[str, Any]], app: str) -> dict[str, Any]:
                 "deployed": state.lower() == "deployed",
                 "state": state,
                 "app_id": _field(row, _ID_KEYS) or None,
+                "tasks": _task_count(row),
             }
-    return {"name": app, "deployed": False, "state": "not deployed", "app_id": None}
+    return {"name": app, "deployed": False, "state": "not deployed", "app_id": None, "tasks": 0}
+
+
+def app_status(app: str) -> dict[str, Any]:
+    """Current state of one app, for callers outside this CLI."""
+    return _app_state(_list_apps(), app)
 
 
 def _is_deployed(app: str) -> bool:
@@ -216,11 +231,17 @@ def _cmd_status(args: argparse.Namespace) -> int:
     if args.json:
         print_json({"apps": apps, "any_deployed": bool(warm)})
         return 0
+    width = max(20, *(len(a["name"]) for a in apps))
     for a in apps:
-        print(f"{a['name']:<20} {a['state']}")
+        tasks = "" if not a["deployed"] else f"  containers={'?' if a['tasks'] is None else a['tasks']}"
+        print(f"{a['name']:<{width}} {a['state']}{tasks}")
     if warm:
-        for name in warm:
-            print(f"next: `sandbox modal stop --app {shlex.quote(name)}` — {name} still deployed (it bills while containers are warm)")
+        for a in apps:
+            if a["deployed"]:
+                billing = {0: "no containers running, not billing now"}.get(
+                    a["tasks"], "it bills while containers are warm"
+                )
+                print(f"next: `sandbox modal stop --app {shlex.quote(a['name'])}` — {a['name']} still deployed ({billing})")
     else:
         print("next: `sandbox modal prewarm` then `sandbox modal deploy` for a run")
     return 0
