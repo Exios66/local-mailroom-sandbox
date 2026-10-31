@@ -15,7 +15,8 @@ The insurance example is synthetic, not evidence about real claims.
 `tests/test_decision_pilot.py` uses the actual vendored graph, temporary SQLite
 checkpoints/catalog and real bin/archive files. Sorter and specialist calls are
 canned; the decision backend is a mock with a registered subclass added by the
-test adapter. Sorter confidence is injected at 0.93 to reach Lane A. The blank
+test adapter. Sorter confidence is injected at 0.93, and a separate test uses 0.99: `decision_only`
+classes reach Lane A at any sorter confidence. The blank
 exhibit additionally injects a sorter result: ordinarily the sorter parks blank
 text before the decision reviewer. Routing, guards and persistence are not
 mocked. External HTTP is blocked.
@@ -54,7 +55,7 @@ Use HTTPS for a remote API; HTTP is intended for a trusted loopback connection.
 ## Remaining release and live gates
 
 The current generated vendor snapshot is pinned to standalone decision-reviewer
-commit `b7cd59f836fadf0107d0f6da1889e208a5ecd4eb`. It is an interim branch
+commit `40cd75c9391ecfc4e891aacf1a9665edd3b0d028`. It is an interim branch
 snapshot, not a merged release. Upstream merge/push requires explicit approval.
 
 No live `experiment.yaml` is staged and no paid pilot has run. Before creating
