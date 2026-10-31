@@ -204,3 +204,8 @@ def test_jev_against_real_pydantic_ai(monkeypatch):
     assert (answer.doc_type, answer.doc_subclass, answer.confidence) == ("contract", "nda", 0.88)
     assert seen["max_retries"] == 0
     assert seen["questions"] == ["doc_subclass", "doc_type"]
+
+
+def test_jev_refuses_id_with_trailing_newline():
+    with pytest.raises(ValueError):
+        jev_backend("jev-1.13.0\n")

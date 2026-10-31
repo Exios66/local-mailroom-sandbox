@@ -103,6 +103,7 @@ sandbox subagents sync --harness all  # OpenCode frontmatter + .cursor/agents/ s
 sandbox subagents propagate              # materialize + sync all mapped family checkouts
 sandbox subagents materialize --package digital-mailroom --root <path>  # monorepo hub export
 sandbox metrics compare --runs local,modal,api   # serving metrics comparison
+sandbox calibrate decision --input FILE --out DIR  # offline reviewer cutoffs per class + pinned model; prints flags, never writes config
 sandbox modal deploy|prewarm|status|logs|stop|url|raw   # guarded Modal CLI passthrough (--dry-run on deploy/prewarm/stop/logs; stop is idempotent + verified)
 sandbox vllm probe|command|serve|metrics   # endpoint probe (models/chat//health//metrics), `vllm serve` argv, local serve, metrics scrape
 sandbox experiment designs|create|review|preflight|launch|watch|report  # guided designs + initials-gated spend; docs/experiments.md

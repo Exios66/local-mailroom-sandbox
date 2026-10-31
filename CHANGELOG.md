@@ -11,6 +11,11 @@
 
 ### Added
 
+- `sandbox calibrate decision`: offline per-class, per-pinned-model cutoff calibration
+  for the decision-model reviewer. Tunes on one SHA-256 split of the reviewer-band rows,
+  bounds wrong accepts on the other (one-sided 95% Clopper-Pearson, default bar 1%),
+  writes JSON and Markdown, and prints flags for qualifying classes only. It never
+  writes config and calls no model.
 - `docs/cli-reference.md`: generated, complete reference for every parser node,
   argument, parser-required marker and choice, plus `python scripts/check_cli_surface.py
   [--check]` and parser-surface tests that exercise help, required arguments and
