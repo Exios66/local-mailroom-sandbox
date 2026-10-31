@@ -5,6 +5,7 @@ prompt instead of sleeping, so the suite stays fast. POSIX only.
 """
 from __future__ import annotations
 
+import codecs
 import os
 import re
 import select
@@ -38,6 +39,7 @@ class Terminal:
                       "import sys; from mailroom_sandbox.cli import main; sys.exit(main(['tui']))"])
         self.buf = ""
         self._pending = ""  # undecoded tail: a control sequence cut off mid-read
+        self._decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")  # keeps split multibyte chars
 
     def read_until(self, needle: str, timeout: float = 20.0) -> str:
         end = time.monotonic() + timeout
@@ -48,12 +50,12 @@ class Terminal:
             ready, _, _ = select.select([self.fd], [], [], min(remaining, 0.2))
             if ready:
                 try:
-                    chunk = os.read(self.fd, 65536).decode(errors="replace")
+                    data = os.read(self.fd, 65536)
                 except OSError:  # child exited and closed the pty
-                    chunk = ""
-                if not chunk:
+                    data = b""
+                if not data:
                     raise AssertionError(f"terminal closed waiting for {needle!r}; got:\n{self.buf[-2000:]}")
-                text = self._pending + chunk
+                text = self._pending + self._decoder.decode(data)
                 cut = _PARTIAL_ESCAPE.search(text)
                 self._pending = text[cut.start():] if cut else ""
                 self.buf += _ANSI.sub("", text[:cut.start()] if cut else text)
