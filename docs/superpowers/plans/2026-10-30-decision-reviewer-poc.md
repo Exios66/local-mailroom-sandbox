@@ -49,7 +49,7 @@ This is plan 1 of 5. The spec covers independent subsystems, so each later plan 
 
 ## Global Constraints
 
-- Name no outside organization and imply no affiliation, endorsement, sponsorship or shared work in any file, commit, PR or report.
+- Name outside vendors only to describe their products; claim no affiliation, endorsement, sponsorship or shared work with them in any file, commit, PR or report.
 - Source changes land in `Exios66/llm-mailroom` first, then reach `vendor/` through the reviewed refresh. Never edit `vendor/` by hand.
 - Default behavior is unchanged: without explicit config, the mode is `llm`, and no decision-model call occurs.
 - The default test suites make no network calls.
