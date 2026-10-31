@@ -171,3 +171,16 @@ def test_usage_reports_a_true_median_and_tolerates_missing_completion_tokens():
     items = [{"ok": True, "latency_ms": ms, "prompt_tokens": 10} for ms in (1, 2, 3, 10)]
     usage = ex._usage(items)
     assert usage == {"prompt_tokens": 40, "completion_tokens": None, "p50_latency_ms": 2.5}
+
+
+def test_local_dataset_counts_only_requested_subclasses(tmp_path, capsys):
+    rows = [{**_row(i, "contract", sub), "expected_fields": {"cuad_clause_labels": json.dumps(CUAD_LABELS)}}
+            for i, sub in enumerate(["License_Agreements", "service", "service"])]
+    source = _write(tmp_path / "subclasses.jsonl", rows)
+    base = ["experiment", "create", "subclass", "--doc-class", "contract", "--samples", "2", "--mock",
+            "--trace-sink", "none", "--local-dataset", str(source), "--output", str(tmp_path / "campaign")]
+    assert cli.main(base + ["--subclass", "license"]) != 0
+    assert "has 1 scoreable contract row(s)" in capsys.readouterr().err
+    assert not (tmp_path / "campaign").exists()
+    assert cli.main(base + ["--subclass", "license", "--subclass", "service"]) == 0
+    assert cli.main(["experiment", "preflight", "--config", str(tmp_path / "campaign" / "experiment.yaml")]) == 0

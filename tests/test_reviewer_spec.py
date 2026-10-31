@@ -187,6 +187,7 @@ def registry():
     decision_backend.register_decision_backend(None)
     yield decision_backend
     decision_backend.register_decision_backend(None)
+    activate("ollama", load_env_file=False)
 
 
 def test_activate_registers_backend_and_class_modes(registry):
@@ -316,3 +317,17 @@ def test_experiment_create_names_bad_key_and_valid_classes(create_experiment, ca
     code, _ = create_experiment("--decision-reviewer", "mock:mock", "--decision-class", "contrat=0.9")
     err = capsys.readouterr().err
     assert code == 1 and "contrat" in err and "contract" in err and "insurance_claim" in err
+
+
+@pytest.mark.parametrize("key", [None, "local-secret"])
+@pytest.mark.parametrize("mock", [False, True])
+def test_jev_modal_job_rejected_before_key_check(monkeypatch, key, mock):
+    if key is None:
+        monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
+    else:
+        monkeypatch.setenv("TYPESAFE_API_KEY", key)
+    spec = _spec(reviewer=_reviewer(), job={"mode": "modal", "mock": mock})
+    errors = preflight._engine_errors(spec)
+    assert len(errors) == 1
+    assert ("mock run" if mock else "modal jobs") in errors[0]
+    assert "TYPESAFE_API_KEY" not in errors[0]
