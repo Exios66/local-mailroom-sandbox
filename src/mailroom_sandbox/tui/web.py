@@ -466,7 +466,7 @@ footer .keys {{ justify-content: center; }}
     {OPERATOR_HTML}
     <section data-view="overview" id="view-overview" role="tabpanel" aria-labelledby="tab-overview">
     <section class="replay" id="replay" aria-label="Run lifecycle and document timeline">
-      <div class="replay-head"><span>replay</span><span class="rid" id="replay-run">—</span><span class="clock" id="replay-clock">00:00</span><span class="detail" id="replay-detail"></span></div>
+      <div class="replay-head"><span>lifecycle</span><span class="rid" id="replay-run">—</span><span class="clock" id="replay-clock">00:00</span><span class="detail" id="replay-detail"></span></div>
       <div class="lanes" id="lanes" role="list"></div>
       <div class="timeline" id="timeline" role="img" aria-label="Document timeline"></div>
       <div class="stats" id="stats"></div>
