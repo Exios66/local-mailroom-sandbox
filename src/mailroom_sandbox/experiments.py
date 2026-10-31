@@ -13,6 +13,7 @@ import json
 import math
 import os
 import re
+import statistics
 import sys
 from collections import defaultdict
 from contextlib import contextmanager
@@ -104,25 +105,45 @@ def _set(data: dict, assignment: str) -> None:
         raise ServiceError(f'invalid YAML value for {name}: {exc}') from exc
 
 
-def _local_strata(path: Path) -> dict[str, dict[str, int]]:
-    """Rows per doc class and subclass in a local JSONL, read the way the corpus loader keys them."""
-    from collections import Counter
+def _local_strata(path: Path) -> dict[str, list[str]]:
+    """Subclasses of the scoreable rows per doc class in a local JSONL.
 
-    out: dict[str, Counter] = defaultdict(Counter)
+    Rows are read as the corpus loader keys them and kept only when they carry
+    the task ground truth the generated specs require (``require_task_gt``).
+    """
+    from mailroom_sandbox.corpus import _has_task_gt
+
+    out: dict[str, list[str]] = defaultdict(list)
     try:
-        lines = path.read_text(encoding='utf-8').splitlines()
+        text = path.read_text(encoding='utf-8')
     except OSError as exc:
         raise ServiceError(f'cannot read --local-dataset {path}: {exc}') from exc
-    for line in lines:
+    for line in text.split('\n'):  # JSONL records end at \n only; strings may hold U+2028
         try:
             row = json.loads(line)
         except ValueError:
             continue
-        if isinstance(row, dict):
-            doc_class = row.get('expected') or row.get('expected_doc_class') or row.get('doc_type')
-            if doc_class:
-                out[str(doc_class)][str(row.get('expected_subclass') or '')] += 1
-    return {name: dict(counts) for name, counts in out.items()}
+        if not isinstance(row, dict):
+            continue
+        doc_class = row.get('expected') or row.get('expected_doc_class') or row.get('doc_type')
+        fields = row.get('expected_fields') if row.get('expected_fields') is not None else row.get('gt_fields')
+        if isinstance(fields, str):
+            try:
+                fields = json.loads(fields or '{}')
+            except ValueError:
+                fields = {}
+        if doc_class and _has_task_gt({'expected_doc_class': doc_class, 'expected_fields': fields or {}}):
+            out[str(doc_class)].append(str(row.get('expected_subclass') or ''))
+    return dict(out)
+
+
+def _fills(local: dict[str, list[str]], doc_class: str, quota: dict) -> bool:
+    """Whether the local rows can fill one subclass quota, matched as the sampler matches."""
+    from mailroom_sandbox.corpus import _subclass_matches
+
+    have = sum(_subclass_matches({'expected_doc_class': doc_class, 'expected_subclass': sub}, quota['subclass'])
+               for sub in local.get(doc_class, []))
+    return have >= quota['count']
 
 
 def _create(args) -> int:
@@ -141,10 +162,10 @@ def _create(args) -> int:
     local = _local_strata(Path(args.local_dataset)) if args.local_dataset else None
     if local is not None:
         for name in args.doc_class or list(CLASSES):
-            have = sum(local.get(name, {}).values())
+            have = len(local.get(name, []))
             if have < args.samples:
-                raise ServiceError(f'--local-dataset has {have} {name} row(s); lower --samples to {max(have, 1)} '
-                                   'or drop that class with --doc-class')
+                raise ServiceError(f'--local-dataset has {have} scoreable {name} row(s); lower --samples to '
+                                   f'{max(have, 1)} or drop that class with --doc-class')
     if args.design == 'sand42' and (args.replicas is not None or args.concurrency is not None):
         raise ServiceError('sand42 fixes replica/concurrency axes at {1,2} × {8,16}; use single for custom values')
     selected = args.doc_class or list(CLASSES)
@@ -220,8 +241,7 @@ def _create(args) -> int:
             if bucket.get('sub_buckets'):
                 bucket['sub_buckets'] = _quotas(bucket['sub_buckets'], args.samples)
                 # The published quotas name Hub subclasses; a local file may hold others.
-                if local is not None and any(local.get(doc_class, {}).get(sb['subclass'], 0) < sb['count']
-                                             for sb in bucket['sub_buckets']):
+                if local is not None and not all(_fills(local, doc_class, sb) for sb in bucket['sub_buckets']):
                     del bucket['sub_buckets']
             if args.task != 'specialists':
                 data['task'] = args.task
@@ -662,10 +682,10 @@ def _usage(items: list[dict]) -> dict:
     ok = [item for item in items if item.get('ok')]
     prompt = [item['prompt_tokens'] for item in ok if isinstance(item.get('prompt_tokens'), int)]
     completion = [item['completion_tokens'] for item in ok if isinstance(item.get('completion_tokens'), int)]
-    latency = sorted(item['latency_ms'] for item in ok if isinstance(item.get('latency_ms'), (int, float)))
+    latency = [item['latency_ms'] for item in ok if isinstance(item.get('latency_ms'), (int, float))]
     return {'prompt_tokens': sum(prompt) if prompt else None,
             'completion_tokens': sum(completion) if completion else None,
-            'p50_latency_ms': latency[len(latency) // 2] if latency else None}
+            'p50_latency_ms': statistics.median(latency) if latency else None}
 
 
 def _write_report(path: Path, plan: Plan, runs) -> dict:
@@ -735,8 +755,9 @@ def _write_report(path: Path, plan: Plan, runs) -> dict:
             means = row['stored_score_means']
             name, value = _task_metric(means)
             usage = row.get('usage') or {}
-            tokens = (f"{usage['prompt_tokens']:,} / {usage['completion_tokens']:,}"
-                      if usage.get('prompt_tokens') is not None else 'not reported')
+            tokens = ' / '.join('—' if usage.get(key) is None else f'{usage[key]:,}'
+                                for key in ('prompt_tokens', 'completion_tokens'))
+            tokens = 'not reported' if tokens == '— / —' else tokens
             p50 = f"{usage['p50_latency_ms']:.0f} ms" if usage.get('p50_latency_ms') is not None else '—'
             lines.append(f"| {row['run_id']} | {row.get('model')} | {row.get('ok', 0)} | "
                          f"{_fmt_score(means.get('overall_extraction_score'))} | "

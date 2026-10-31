@@ -78,7 +78,7 @@ def test_local_dataset_too_small_is_refused_at_create(tmp_path, capsys):
     args = ["experiment", "create", "tiny", "--doc-class", "correspondence", "--samples", "3", "--mock",
             "--local-dataset", str(source), "--output", str(tmp_path / "tiny")]
     assert cli.main(args) != 0
-    assert "has 1 correspondence row(s); lower --samples to 1" in capsys.readouterr().err
+    assert "has 1 scoreable correspondence row(s); lower --samples to 1" in capsys.readouterr().err
     assert not (tmp_path / "tiny").exists()
 
 
@@ -150,3 +150,24 @@ def test_mock_run_starts_no_modal_log_streams(job_data_dir, monkeypatch):
 
     assert watch.start_log_streams(store, "sandbox-vllm", sink, threading.Event()) == []
     assert sink.tail(1) == ["mock run · no Modal app to stream"]
+
+
+def test_local_strata_counts_scoreable_rows_and_keeps_unicode_separators(tmp_path):
+    rows = [{**_row(0), "doc_text": "line\u2028separator"},
+            {**_row(1, "contract", "license"), "expected_fields": {"cuad_clause_labels": json.dumps(CUAD_LABELS)}},
+            {**_row(2, "contract", "license"), "expected_fields": {}}]  # no CUAD labels: never scoreable
+    source = tmp_path / "docs.jsonl"
+    source.write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows), encoding="utf-8")
+    assert ex._local_strata(source) == {"correspondence": ["email"], "contract": ["license"]}
+
+
+def test_subclass_quota_matches_aliases_as_the_sampler_does():
+    local = {"contract": ["License_Agreements", "License_Agreements"]}
+    assert ex._fills(local, "contract", {"subclass": "license", "count": 2})
+    assert not ex._fills(local, "contract", {"subclass": "license", "count": 3})
+
+
+def test_usage_reports_a_true_median_and_tolerates_missing_completion_tokens():
+    items = [{"ok": True, "latency_ms": ms, "prompt_tokens": 10} for ms in (1, 2, 3, 10)]
+    usage = ex._usage(items)
+    assert usage == {"prompt_tokens": 40, "completion_tokens": None, "p50_latency_ms": 2.5}
