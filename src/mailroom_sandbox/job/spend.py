@@ -67,7 +67,12 @@ def review_settings(store: RunStore) -> dict[str, Any]:
         from mailroom_sandbox.job.spec import AgentRoute
         for name, raw in lock["agent_routes"].items():
             route = AgentRoute.model_validate(raw)
-            context[f"agent_endpoint:{name}"] = endpoint(route)
+            try:
+                context[f"agent_endpoint:{name}"] = endpoint(route)
+            except ServiceError:
+                # As for the main endpoint: a Modal route without MODAL_WORKSPACE is shown,
+                # not refused; paid preparation validates every route with credentials.
+                context[f"agent_endpoint:{name}"] = "unresolved (MODAL_WORKSPACE not set)"
     # Raw URLs are hashed in memory; only redacted context is persisted/displayed.
     fingerprint = hashlib.sha256(json.dumps({"lock": lock, "prompt": store.read_prompt_lock(),
                                             "context": context}, sort_keys=True).encode()).hexdigest()
