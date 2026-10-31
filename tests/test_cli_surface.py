@@ -28,7 +28,10 @@ def _example(action):
     if action.type is not None:
         # Required typed arguments currently accept 1; verify rather than silently
         # producing a misleading dispatch test if a new constraint is added.
-        for candidate in ('1', '10', 'test'):
+        # A validated id (`subagents materialize --package`) needs a real one.
+        from mailroom_sandbox.subagents import list_packages
+
+        for candidate in ('1', '10', 'test', *list_packages()[:1]):
             try:
                 action.type(candidate)
                 return candidate

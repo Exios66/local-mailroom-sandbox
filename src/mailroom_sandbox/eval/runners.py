@@ -51,12 +51,13 @@ def _estimated_gpu_usd(
 
 def _expect_from_row(row: dict[str, Any]) -> dict[str, Any]:
     doc_type = row.get("expected_doc_class") or row.get("doc_type") or "contract"
-    conf = 0.40 if row.get("id") == "ambiguous_01" else 0.97
+    conf = 0.40 if row.get("id") == "ambiguous_01" else 0.99  # above every class high threshold
     return {
         "id": row.get("id"),
         "doc_type": doc_type,
         "expected_doc_class": doc_type,
         "conf": conf,
+        "expected_subclass": row.get("expected_subclass"),
         "expected_fields": parse_expected_fields(row) if "expected_fields" in row else row.get("expected_fields"),
     }
 
@@ -907,6 +908,29 @@ def _sorter_modernbert_from_log(
     return sorter, modernbert
 
 
+def _score_pipeline_extraction(row: dict[str, Any], result: dict[str, Any]) -> dict[str, Any] | None:
+    """Score one connected-pipeline document's extraction; None when the row has no field GT."""
+    expected_fields = parse_expected_fields(row) or {}
+    if not expected_fields:
+        return None
+    return scoring.score_extraction_row(
+        row["expected_doc_class"],
+        result.get("extracted_data") or {},
+        expected_fields,
+        # DMR-056: live corpus rows carry doc_text inline; fixture rows
+        # read from disk (subdir guard — live rows have no subdir key).
+        doc_text=row.get("doc_text")
+        or (
+            fixture_file(row).read_text(encoding="utf-8")
+            if "subdir" in row and fixture_file(row).is_file()
+            else None
+        ),
+        # Per-subclass scoring (sandbox #145): the row's GT subclass
+        # drives the vendored corporate-record alignment.
+        expected_subclass=row.get("expected_subclass"),
+    )
+
+
 def run_pipeline_eval(
     *,
     mock: bool = True,
@@ -951,6 +975,7 @@ def run_pipeline_eval(
     )
     session = tracing.session_id_for("pipeline")
     results = []
+    extraction_rows: list[dict[str, Any] | None] = []
     import time
     started = time.monotonic()
     for row in rows:
@@ -972,9 +997,17 @@ def run_pipeline_eval(
                 nodes.enter_context(track_nodes(str(row.get("id")), node_cb, models=models))
             result = _run_pipeline_doc(row, mock=mock, session_id=session, experiment_name=experiment_name)
         results.append(result)
+        scored = _score_pipeline_extraction(row, result) if connected else None
+        extraction_rows.append(scored)
         if row_cb:
-            row_cb({"id": row.get("id"), "pred": result, "error": result.get("error"),
-                    "score": {"match": float(result.get("doc_type") == row.get("expected_doc_class"))},
+            stage = str(result.get("stage") or "unknown")
+            score = {"match": float(result.get("doc_type") == row.get("expected_doc_class")),
+                     "class_correct": float(result.get("doc_type") == row.get("expected_doc_class")),
+                     "stage_correct": float(stage == str(row.get("expected_stage") or "archived"))}
+            # The same scorer output the run-level aggregate uses, so a report can read it per document.
+            score.update({k: v for k, v in (scored or {}).items()
+                          if isinstance(v, (int, float)) and not isinstance(v, bool)})
+            row_cb({"id": row.get("id"), "pred": result, "error": result.get("error"), "score": score,
                     "latency_ms": (time.monotonic() - before) * 1000})
         if progress_cb:
             errors = sum(bool(item.get("error")) for item in results)
@@ -996,31 +1029,13 @@ def run_pipeline_eval(
     stage_scores = scoring.score_stage(stage_expected, stage_predicted)
     extract_vals: list[float] = []
     schema_rows: list[dict[str, Any]] = []
-    if connected:
-        for row, result in zip(rows, results):
-            expected_fields = parse_expected_fields(row) or {}
-            if not expected_fields:
-                continue
-            scored = scoring.score_extraction_row(
-                row["expected_doc_class"],
-                result.get("extracted_data") or {},
-                expected_fields,
-                # DMR-056: live corpus rows carry doc_text inline; fixture rows
-                # read from disk (subdir guard — live rows have no subdir key).
-                doc_text=row.get("doc_text")
-                or (
-                    fixture_file(row).read_text(encoding="utf-8")
-                    if "subdir" in row and fixture_file(row).is_file()
-                    else None
-                ),
-                # Per-subclass scoring (sandbox #145): the row's GT subclass
-                # drives the vendored corporate-record alignment.
-                expected_subclass=row.get("expected_subclass"),
-            )
-            schema_rows.append(scored)
-            value = scored.get("overall_extraction_score")
-            if isinstance(value, (int, float)):
-                extract_vals.append(float(value))
+    for scored in extraction_rows:
+        if scored is None:
+            continue
+        schema_rows.append(scored)
+        value = scored.get("overall_extraction_score")
+        if isinstance(value, (int, float)):
+            extract_vals.append(float(value))
     routing_expected = ["review" if s == "review" else "continue" for s in stage_expected]
     routing_predicted = ["review" if s == "review" else "continue" for s in stage_predicted]
     routing = scoring.score_classification(routing_expected, routing_predicted)
