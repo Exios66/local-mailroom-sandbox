@@ -15,6 +15,12 @@ def children(parser: argparse.ArgumentParser) -> dict[str, argparse.ArgumentPars
             if not getattr(child, "_sandbox_hidden", False)}
 
 
+def hidden(parser: argparse.ArgumentParser) -> list[str]:
+    """Subcommands that parse but stay out of menus (legacy eval tasks)."""
+    return [name for action in parser._actions if isinstance(action, argparse._SubParsersAction)
+            for name, child in action.choices.items() if getattr(child, "_sandbox_hidden", False)]
+
+
 def summaries(parser: argparse.ArgumentParser) -> dict[str, str]:
     """One-line help per subcommand, as argparse lists it under the parent."""
     return {choice.dest: " ".join((choice.help or "").split())
@@ -26,7 +32,7 @@ def command_catalog(parser: argparse.ArgumentParser, path: tuple[str, ...] = ())
     """One parser-derived catalog for completion, menus and browser manuals."""
     return [{"path": list(path), "help": parser.format_help(), "children": list(children(parser)),
              "usage": " ".join(parser.format_usage().split()), "summaries": summaries(parser),
-             "targets": list(getattr(parser, "_sandbox_targets", []))},
+             "targets": list(getattr(parser, "_sandbox_targets", [])), "hidden": hidden(parser)},
             *[row for name, child in children(parser).items()
               for row in command_catalog(child, (*path, name))]]
 
@@ -55,7 +61,7 @@ def unknown_path(words: list[str], catalog: list[dict]) -> str | None:
     """Name the first unknown command word and suggest the closest siblings."""
     node, known = catalog[0], []
     for word in words:
-        if word.startswith("-"):
+        if word.startswith("-") or word in node.get("hidden", ()):
             return None
         if word not in node["children"]:
             close = difflib.get_close_matches(word, node["children"], n=3)
@@ -280,7 +286,7 @@ function closeNames(word, names) {
 function unknownPath(words) {
   let node = commandCatalog[0], known = [];
   for (const word of words) {
-    if (word.startsWith("-")) return null;
+    if (word.startsWith("-") || (node.hidden || []).includes(word)) return null;
     if (!node.children.includes(word)) {
       const close = closeNames(word, node.children);
       return `Unknown command '${clip([...known, word].join(" "))}'` + (close.length ? ` · did you mean ${close.join(", ")}?` : " · type menu to browse");
@@ -341,9 +347,15 @@ function commandRun(line) {
   const problem = unknownPath(path);
   if (problem) { commandPrint(problem); return; }
   const leaf = [];
-  for (const word of path) { if (!commandNode([...leaf, word])) break; leaf.push(word); }
-  if (leaf.length && !commandNode(leaf).children.length) {
-    commandPrint(`This page does not run commands. Run it in a local terminal:\n  sandbox ${clip(words.join(" "), 200)}\nOptions: help ${leaf.join(" ")}`);
+  let hidden = false;
+  for (const word of path) {
+    // Hidden legacy tasks parse in the CLI but have no browser manual.
+    if ((commandNode(leaf)?.hidden || []).includes(word)) { leaf.push(word); hidden = true; break; }
+    if (!commandNode([...leaf, word])) break; leaf.push(word);
+  }
+  if (leaf.length && (hidden || !commandNode(leaf).children.length)) {
+    const options = hidden ? `sandbox ${leaf.join(" ")} --help` : `help ${leaf.join(" ")}`;
+    commandPrint(`This page does not run commands. Run it in a local terminal:\n  sandbox ${clip(words.join(" "), 200)}\nOptions: ${options}`);
     return;
   }
   commandPrint("Not a browser inspection command. Use help [command path], or execute with sandbox tui locally.");

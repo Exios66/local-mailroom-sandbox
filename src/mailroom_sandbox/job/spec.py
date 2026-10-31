@@ -80,6 +80,10 @@ VALID_QUANTIZATIONS = {
 _RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 
 
+class InvalidRunIdError(ValueError):
+    """A run id that is not a safe directory name (an input error, not a bug)."""
+
+
 class PromptRef(BaseModel):
     """One agent's prompt resolution: local file-, Langfuse pin, or code default."""
 
@@ -722,7 +726,7 @@ def _slug(value: str) -> str:
 def resolve_run_id(spec: RunSpec) -> str:
     if spec.run_id:
         if not _RUN_ID_RE.match(spec.run_id):
-            raise ValueError(f"run_id {spec.run_id!r} must match {_RUN_ID_RE.pattern}")
+            raise InvalidRunIdError(f"run_id {spec.run_id!r} must match {_RUN_ID_RE.pattern}")
         return spec.run_id
     return f"{_slug(spec.task)}-{_slug(spec.engine.model.split('/')[-1])}-{utc_stamp()}"
 
@@ -735,7 +739,7 @@ def runs_root() -> Path:
 
 def run_dir(run_id: str) -> Path:
     if not _RUN_ID_RE.match(run_id):
-        raise ValueError(f"run_id {run_id!r} must match {_RUN_ID_RE.pattern}")
+        raise InvalidRunIdError(f"run_id {run_id!r} must match {_RUN_ID_RE.pattern}")
     return runs_root() / run_id
 
 
