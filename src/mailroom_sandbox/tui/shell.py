@@ -112,15 +112,17 @@ def interruptible_prompt(interval: float = 0.05):
     prompt froze until the next key. A short no-op SIGALRM heartbeat interrupts
     the ``select()`` (never restarted, even with SA_RESTART), so the interrupt
     surfaces within ``interval``. SA_RESTART keeps every other read/write
-    uninterrupted, and the previous handler and timer are restored before any
-    command runs.
+    uninterrupted, and the previous handler is restored before any command
+    runs. An ``ITIMER_REAL`` alarm that is already armed is left alone (no
+    heartbeat) so its deadline still fires on time.
 
     Not fixable from Python: Ctrl+C while typed bytes are still queued. The tty
     flushes them on INTR and readline's own ``rl_getc`` keeps waiting for the
     discarded byte (it retries on EINTR) until another key arrives.
     """
-    if not hasattr(signal, "setitimer") or threading.current_thread() is not threading.main_thread():
-        yield
+    if (not hasattr(signal, "setitimer") or threading.current_thread() is not threading.main_thread()
+            or signal.getitimer(signal.ITIMER_REAL)[0] > 0):
+        yield  # an alarm already armed (e.g. inherited across exec) keeps its deadline
         return
     previous = signal.signal(signal.SIGALRM, lambda signum, frame: None)
     signal.siginterrupt(signal.SIGALRM, False)
