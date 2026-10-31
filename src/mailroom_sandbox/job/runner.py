@@ -16,7 +16,7 @@ from typing import Any
 from mailroom_sandbox.eval import experiment_log
 from mailroom_sandbox.eval import runners as eval_runners  # noqa: F401
 from mailroom_sandbox.job.checkpoint import RunStore, utc_now
-from mailroom_sandbox.job.metrics import lock_dataset_provenance, record_from_run
+from mailroom_sandbox.job.metrics import lock_dataset_provenance, record_from_run, routed_gpu_fleet
 from mailroom_sandbox.eval.prompt_provenance import (
     resolve_logged_prompt_version,
     stamp_prompt_provenance,
@@ -653,6 +653,8 @@ def _build_record(
         gpu=_lock_gpu(store),
         billed_window_seconds=billed_window if billed_window and billed_window > 0 else None,
         mock=bool(mock),
+        # Price route apps like the cost cap does (SAND-083).
+        gpu_fleet=routed_gpu_fleet(lock),
     )
     record["experiment_name"] = f"sandbox_{task}_{store.run_id}"
     record["mock"] = bool(mock)
