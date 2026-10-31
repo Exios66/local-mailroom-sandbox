@@ -33,7 +33,7 @@ if TYPE_CHECKING:
     from mailroom_sandbox.job.checkpoint import RunStore
 
 from llm_dojo_scoring.scorecard_honesty import COST_BASIS_TOKEN_PRICE
-from llm_dojo_scoring.serving import compare_serving, estimate_cost
+from llm_dojo_scoring.serving import compare_serving, estimate_cost, price_for
 
 from mailroom_sandbox.serving_groups import group_legs, pair_legs, pooled_identity_conflict
 
@@ -56,6 +56,11 @@ API_PROFILES = ("openrouter",)
 # slugs; without this the flagship default model always costed None (DMR-049).
 SANDBOX_MODEL_PRICES: dict[str, tuple[float, float]] = {
     "Qwen/Qwen3-8B": (0.03, 0.13),  # qwen/qwen3.7-flash champion
+    # SAND-077: Qwen3.5 rows price at their own OpenRouter twin (same weights),
+    # list price checked 2026-10-30.
+    "Qwen/Qwen3.5-9B": (0.17, 0.25),  # qwen/qwen3.5-9b
+    "Qwen/Qwen3.5-35B-A3B": (0.14, 1.00),  # qwen/qwen3.5-35b-a3b
+    "Qwen/Qwen3.5-27B": (0.26, 2.60),  # qwen/qwen3.5-27b
     "Qwen/Qwen3-8B-AWQ": (0.03, 0.13),
     "Qwen/Qwen3-14B": (0.03, 0.13),
     "Qwen/Qwen3-14B-AWQ": (0.03, 0.13),
@@ -147,6 +152,38 @@ def estimate_gpu_cost_usd(
     return round(gpu_seconds / 3600.0 * rate, 6)
 
 
+def _billed_gpu(modal: Mapping[str, Any]) -> tuple[str, int]:
+    """(GPU class, GPUs billed) for one Modal app: ``L4:2`` × max_containers."""
+    cls, _, count = str(modal.get("gpu") or "L4").partition(":")
+    per_container = int(count) if count.isdigit() and int(count) > 0 else 1
+    return cls, per_container * max(1, int(modal.get("max_containers") or 1))
+
+
+def lock_gpu_fleet(lock: Mapping[str, Any]) -> list[tuple[str, int]]:
+    """Every Modal app a locked run keeps warm: the base engine plus each
+    distinct ``modal-vllm`` agent-route app (shared apps are billed once)."""
+    engine = lock.get("engine") if isinstance(lock.get("engine"), Mapping) else {}
+    modal = engine.get("modal") if isinstance(engine.get("modal"), Mapping) else None
+    fleet = [_billed_gpu(modal) if modal else ("L4", 1)]
+    apps = {str(modal.get("app"))} if modal and modal.get("app") else set()
+    routes = lock.get("agent_routes") if isinstance(lock.get("agent_routes"), Mapping) else {}
+    for route in routes.values():
+        route_modal = route.get("modal") if isinstance(route, Mapping) else None
+        if route.get("provider") != "modal-vllm" or not isinstance(route_modal, Mapping):
+            continue
+        app = str(route_modal.get("app") or "")
+        if app in apps:
+            continue
+        apps.add(app)
+        fleet.append(_billed_gpu(route_modal))
+    return fleet
+
+
+def fleet_gpu_cost_usd(gpu_seconds: float, fleet: Sequence[tuple[str, int]]) -> float:
+    """USD for ``gpu_seconds`` of wall across every app in ``fleet``."""
+    return round(sum(estimate_gpu_cost_usd(gpu_seconds, gpu=gpu, replicas=n) or 0.0 for gpu, n in fleet), 6)
+
+
 def _token_price_override() -> tuple[float, float] | None:
     """Optional global token price override (per-1M in/out)."""
     pin = _env_float("SANDBOX_TOKEN_PRICE_IN_PER_M")
@@ -201,6 +238,24 @@ def _estimate_cost(
         + completion_tokens * per_million_out / 1_000_000,
         6,
     )
+
+
+def _has_token_price(model: str) -> bool:
+    """A price is known for ``model`` (override, dojo table, or sandbox table)."""
+    if _token_price_override() is not None:
+        return True
+    try:
+        if price_for(model) is not None:
+            return True
+    except Exception:  # noqa: BLE001 — same soft fallback as _estimate_cost
+        pass
+    return bool(model) and any(model.startswith(known) for known in SANDBOX_MODEL_PRICES)
+
+
+def _usage_observed(item: Mapping[str, Any]) -> bool:
+    """Dojo 0.24.2 rule: a request counts as observed when it recorded any token
+    component; an explicit 0 is observed zero usage (DMR-113), absent is unknown."""
+    return item.get("prompt_tokens") is not None or item.get("completion_tokens") is not None
 
 
 def bucket_kind(record: Mapping[str, Any]) -> str:
@@ -357,9 +412,22 @@ def record_from_run(
         rec["scores"] = dict(scores)
 
     # Token-proxy cost (OpenRouter-like). Absent when tokens or prices missing —
-    # never write estimated_cost_usd=0 as a stand-in for "unknown".
+    # never write estimated_cost_usd=0 as a stand-in for "unknown". Aligned with
+    # the dojo's serving rules, because a cost written here is authoritative there:
+    # an ok item that recorded no usage at all makes the run cost unknown (dojo
+    # 0.24.2), and a run whose every ok item recorded explicit zero usage on a
+    # priced model costs a known 0.0 (DMR-113). Failed items that never got a
+    # response carry no usage and do not block the estimate.
+    unobserved = sum(1 for i in ok_items if not _usage_observed(i))
+    if unobserved:
+        rec["usage_unobserved_items"] = unobserved
     try:
-        cost = _estimate_cost(prompt_tokens, completion_tokens, model)
+        if unobserved and total_tokens > 0:
+            cost = None
+        elif ok_items and not unobserved and total_tokens == 0 and _has_token_price(model):
+            cost = 0.0
+        else:
+            cost = _estimate_cost(prompt_tokens, completion_tokens, model)
         if cost is not None:
             rec["estimated_cost_usd"] = float(cost)
             # tokens x a price table: label it so the dojo can stamp USD rows
@@ -375,6 +443,14 @@ def record_from_run(
                 run_id,
                 kind,
                 profile,
+                n_ok,
+            )
+        elif not mock and unobserved and total_tokens > 0:
+            _log.warning(
+                "run %r: %d of %d ok items recorded no token usage — "
+                "estimated_cost_usd ABSENT (a partial sum would understate it)",
+                run_id,
+                unobserved,
                 n_ok,
             )
         elif not mock and total_tokens > 0 and cost is None:
@@ -1596,7 +1672,6 @@ def estimate_suite(
         }
         # Re-scale wall from likely sec/doc mix: use suite busy (excl overhead)
         # / total_docs as mean busy, then wall = (mean × N) / concurrency.
-        conc = max(1, int(rows[0]["concurrency"]))
         corpus_wall_h = {}
         for band in _BANDS:
             busy_suite = sum(float(r["wall_seconds"][band]) for r in rows)

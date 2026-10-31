@@ -65,7 +65,11 @@ def test_tunnel_down_reports_and_exits_zero(monkeypatch, capsys, pid, message):
 def test_modal_matrix_list_table_and_json(capsys):
     assert cli.main(["modal-matrix", "list"]) == 0
     text = capsys.readouterr().out
-    assert text.startswith("default  gpu") and "* = default specialist cost-eval posture" in text
+    assert text.startswith("default  gpu")
+    # SAND-077: the star is the app default; the frozen cost-eval posture is Qwen3-8B.
+    starred = [line for line in text.splitlines() if line.startswith("*  ")]
+    assert len(starred) == 1 and starred[0].endswith(" Qwen/Qwen3.5-9B")
+    assert "* = app default Qwen/Qwen3.5-9B" in text and "Qwen/Qwen3-8B (sandbox runbook show l4-qwen3-8b)" in text
 
     assert cli.main(["modal-matrix", "list", "--json"]) == 0
     models = json.loads(capsys.readouterr().out)["models"]

@@ -29,7 +29,7 @@
   No live run, push or merge has been performed. Later plans remain separate.
 - Final sandbox validation: **2006 passed / 20 skipped** (`python -m pytest -q`);
   CLI-reference and requirements generation checks, `uv lock --check`,
-  `uv pip check`, and staged/unstaged whitespace checks pass. `SAND-074` tracks
+  `uv pip check`, and staged/unstaged whitespace checks pass. `SAND-082` tracks
   the remaining operator gates; skipped tests are not live evidence.
 
 The original step checkboxes below are retained as the implementation recipe;
