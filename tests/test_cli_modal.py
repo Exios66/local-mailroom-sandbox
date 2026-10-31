@@ -119,6 +119,23 @@ def test_an_sdk_version_other_than_the_pin_warns_but_still_runs(fake_bin, capsys
     assert fake_bin.calls("modal")[-1] == DEPLOY_ARGV
 
 
+def test_publish_image_dry_run_names_the_image_and_builds_nothing(fake_bin, capsys, monkeypatch):
+    monkeypatch.setenv("MODAL_PROFILE", "jjburleson")
+    assert cli.main(["modal", "publish-image", "--tag", "v0.30.0", "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert "publish_modal_image.py" in out and "sandbox-vllm:v0.30.0" in out and "jjburleson" in out
+
+
+def test_publish_image_refuses_a_moving_tag(fake_bin, capsys):
+    assert cli.main(["modal", "publish-image", "--tag", "latest", "--dry-run"]) != 0
+    assert "never latest" in capsys.readouterr().err
+
+
+def test_deploy_named_image_passes_the_switch_to_the_app(fake_bin, capsys):
+    assert cli.main(["modal", "deploy", "--named-image", "--dry-run"]) == 0
+    assert "MODAL_VLLM_USE_NAMED_IMAGE=1" in capsys.readouterr().out
+
+
 def test_prewarm_runs_the_download_entrypoint_and_points_to_deploy(fake_bin, capsys):
     _modal(fake_bin)
     assert cli.main(["modal", "prewarm"]) == 0

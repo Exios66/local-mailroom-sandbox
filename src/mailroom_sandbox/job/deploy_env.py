@@ -33,6 +33,7 @@ _DEPLOY_DEFAULT_KEYS = (
     "MODAL_VLLM_ENABLE_AUTO_TOOL_CHOICE",
     "MODAL_VLLM_STARTUP_TIMEOUT_SECONDS",
     "MODAL_VLLM_CHAT_TEMPLATE",
+    "MODAL_VLLM_USE_NAMED_IMAGE",
     # SAND-042 in-container GPU telemetry: deploy defaults are on / 5s / 6 / the
     # shared volume, so a stale shell cannot silently redirect or silence it.
     "MODAL_VLLM_TELEMETRY",
