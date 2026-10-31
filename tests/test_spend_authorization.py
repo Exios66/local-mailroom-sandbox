@@ -21,7 +21,7 @@ def locked(tmp_path, monkeypatch, job_data_dir):
     spec = RunSpec(run_id='spend-test', task='sorter', profile='modal-vllm',
         dataset=DatasetSpec(provider='file', local_path=str(data)),
         engine=EngineSpec(kind='modal-vllm'), trace=TraceSpec(sink='none', otlp=False),
-        job=JobSpec(mock=False, cost_cap_usd=1, max_wall_seconds=60))
+        job=JobSpec(mock=False, concurrency=1, cost_cap_usd=1, max_wall_seconds=60))
     import yaml
     config = tmp_path / 'run.yaml'
     config.write_text(yaml.safe_dump(spec.model_dump(by_alias=True)))

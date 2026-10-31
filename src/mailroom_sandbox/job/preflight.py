@@ -154,6 +154,11 @@ def _engine_errors(spec: RunSpec) -> list[str]:
             errs.append("modal image_tag must be pinned (never 'latest')")
         if spec.engine.modal.max_containers < 1:
             errs.append("modal max_containers must be >= 1 (cost guard)")
+        if spec.engine.kind == "modal-vllm" and spec.job.concurrency > 1 and vllm.max_inputs < 1:
+            errs.append(
+                f"job.concurrency {spec.job.concurrency} needs engine.vllm.max_inputs >= 1: "
+                "with 0 Modal serves one request at a time while the GPU bills"
+            )
     return errs
 
 

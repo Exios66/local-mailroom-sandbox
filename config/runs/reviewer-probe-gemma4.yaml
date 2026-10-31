@@ -43,6 +43,7 @@ engine:
     quantization: ""
     revision: ee0ef6023621cff504d758262d4e04895a5af4a2
     limit_mm_per_prompt: {image: 0, video: 0, audio: 0}
+    max_inputs: 6
   modal:
     app: sandbox-vllm-reviewer
     gpu: L4
