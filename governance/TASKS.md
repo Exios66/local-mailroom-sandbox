@@ -7,15 +7,15 @@ Cross-family work stays on the Digital-Mailroom hub board
 (`governance/TASKS.md` at the monorepo root) as **`DMR-*`**. This file is the **only** sandbox-local task board — do not
 open `DMR-*` cards here.
 
-**Next ID: `SAND-089`**
+**Next ID: `SAND-090`**
 
 <!-- coderabbit-ai-generated:v1 -->
 
 <!-- coderabbit-ai-generated-section:v1:0dfa4a29d5bbd485910d79fa324b57ed49826439a7a50407d1ba4a48b51476cb -->
 
 Reconciled against the [issue tracker](https://github.com/Exios66/local-mailroom-sandbox/issues)
-on 2026-10-31: this board has 107 card rows (72 primary cards) and its highest
-primary ID is `SAND-088`. The tracker has 40 issues, 18 with a `SAND-*` ID in
+on 2026-10-31: this board has 108 card rows (73 primary cards) and its highest
+primary ID is `SAND-089`. The tracker has 40 issues, 18 with a `SAND-*` ID in
 the title; its highest such ID is `SAND-073` (#187), and all title IDs have
 rows here. **This board is the numbering authority:** allocate the next ID
 here first, then open the issue.
@@ -30,6 +30,7 @@ Lanes: `todo` → `in_progress` → `needs_attention` → `review` → `done`.
 
 | ID | Title | Owner | Status | Notes |
 | --- | --- | --- | --- | --- |
+| SAND-089 | API token spend ceiling, priced API models, and design-informed run ceilings | claude | **review** | Related: SAND-088, PR #205. Owner request 2026-10-31. New `job.api_cost_cap_usd` limits OpenRouter token spend: the GPU `cost_cap_usd` estimates Modal container time and never limited tokens. The running total prices every observed token at the highest input/output price among the run's API models and is checked before each document (per-item runner, isolated and pipeline evals); an abort records `last_error.type: api_cost_cap`. A paid run that sends any agent to a model without a price is refused (`job/api_budget.py`). `qwen/qwen3.5-9b`, `qwen/qwen3.5-35b-a3b`, `qwen/qwen3.5-27b` and `openai/gpt-4o` gained OpenRouter list prices (checked 2026-10-31). API-only runs no longer need a GPU cap. `experiment create` fills unset GPU, wall and API ceilings from `job/budget_advice.py` (documents, effective concurrency capped at 4 per Modal replica, the task latency band, cold start and scaledown, the fleet GPU rate, API prices and calls per document, 1.5× margin); flags win, and create and review print configured against recommended. Dojo's `deepseek/deepseek-v4-flash` price (0.05/0.25) is behind OpenRouter's 0.091/0.182: dojo owns that table. |
 | SAND-088 | Parked-perfect contracts and mergers: coverage routing and durable review | claude | **review** | Related: SAND-081, SAND-082. Renumbered from colliding SAND-084 (main's PTY prompt-timeout card, PR #206). Owner request 2026-10-31. llm-mailroom `b7cd59f` (branch `fix/coverage-routing-gate`) treats an empty coverage scope as no signal, and review causes use the same scope. On the pinned corpus, perfect mergers no longer park (152/152 route to compile) and false `extraction_miss` falls from 3,302 rows to 0; 91 contracts still park on the mock only, because no CUAD labels means an empty oracle answer. `activate()` now defaults `MAILROOM_CHECKPOINTER=sqlite`. llm-mailroom `40cd75c` reviews `decision_only` classes at any sorter confidence; a score above the class `high` threshold used to skip the reviewer, so disagreement could not park. Upstream merge to the decision-reviewer line stays open. Contracts and mergers have no clause-level coverage gate yet. |
 | SAND-087 | Live Modal smoke fixes: `run start` honors `trace.sink`; paid examples carry budgets | claude | **review** | Related: SAND-081, SAND-072. Renumbered from colliding SAND-082, then SAND-083 (main's routed-fleet pricing card). Owner-requested live CLI smoke 2026-10-30 (`exios66`, Qwen3.5-9B on 1×L4, 5-doc `pipeline-modal`, initials JJB). Found: `sandbox run start` left the ambient `OBSERVABILITY_PROVIDER=langfuse` (`.env` default) in force under `trace.sink: none`, so the vendored pipeline passed Langfuse-only `name=` kwargs to a plain OpenAI client (langfuse is the optional `[observability]` extra) and every extraction failed with `Completions.create() got an unexpected keyword argument 'name'`. Fix: `otel.locked_pipeline_provider` maps the locked sink onto the pipeline for each `run_job` (start, resume, Modal worker) and restores the env; `sandbox experiment` shares `otel.pipeline_provider`. The four paid `config/runs/examples/` configs now set `cost_cap_usd: 1.00` / `max_wall_seconds: 1800` (the spend guard refused them as shipped). With tracing off the live run scored `class_correct` 1.0 / `extraction_overall` 0.961; app stopped and verified. Since fixed: a run whose every extraction is a `_parse_error` now fails (the scorer keeps the parse flag through field scoping and pipeline items keep `parse_error`), and preflight refuses a `langfuse` sink when the SDK is missing. **Still open:** OpenRouter free-model live smoke pending a key. |
 | SAND-086 | Sanitized correspondence corpus for the Jev reviewer | unassigned | **todo** | Private, separately versioned copy of the 1,000 Enron documents, per section 9 of the decision-reviewer design. Until it exists `jev` refuses correspondence and the in-house `local` backend is its only live reviewer. Related: SAND-085 |

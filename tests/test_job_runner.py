@@ -836,3 +836,19 @@ def test_run_job_uses_locked_trace_sink_over_ambient_provider(tmp_path, monkeypa
     assert summary["state"] == "done"
     assert seen == ["none", "none"]
     assert os.environ["OBSERVABILITY_PROVIDER"] == "langfuse"
+
+
+def test_per_item_run_aborts_once_api_token_spend_reaches_its_cap(tmp_path, monkeypatch):
+    """SAND-089: token spend on API-billed agents aborts the run as its own cap type."""
+    from mailroom_sandbox.eval import runners as eval_runners
+    from mailroom_sandbox.job.api_budget import ApiBudget
+
+    store = _prepped_store(tmp_path, rows=4, job={"mock": False, "max_retries": 0, "concurrency": 1})
+    monkeypatch.setattr(runner, "_api_budget", lambda _store: ApiBudget(0.10, 0.17, 0.25, ["qwen/qwen3.5-9b"]))
+    monkeypatch.setattr(runner, "_predict_row", lambda task, row, **_: (
+        eval_runners._classify_mock(row), {"prompt_tokens": 600_000, "completion_tokens": 1}))
+    summary = runner.run_job(store, mock=None)
+    assert summary["state"] == "failed"
+    error = (store.read_checkpoint() or {})["last_error"]
+    assert error["type"] == "api_cost_cap" and "api_cost_cap_usd=0.1 reached" in error["message"]
+    assert len(store.load_items()) < 4

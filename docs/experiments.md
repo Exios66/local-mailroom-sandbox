@@ -42,6 +42,19 @@ unknown paths fail. `--design single` also accepts `--replicas` and `--concurren
 `--gpu H100` selects another GPU class; `--gpu A100-80GB:2` requests tensor parallel
 GPUs within each container, while `--replicas 2` means independent containers.
 
+`--cost-cap-usd` (GPU), `--max-wall-seconds` (the wall ceiling after which the run
+aborts and its fleet is torn down) and `--api-cost-cap-usd` (OpenRouter token
+spend) are optional. Create fills each unset ceiling with a recommendation derived
+from the design (`job/budget_advice.py`): documents, effective concurrency (at most
+4 in flight per Modal replica), the task's per-document latency band, cold start
+and scaledown, the GPU rate of every Modal app the run deploys, and the token price
+and calls per document of every API model, with a 1.5× margin. A GPU cap is only
+recommended for runs that warm a Modal GPU; an API cap only for runs that bill API
+tokens. Flags and `--set job.*` values win. Create prints configured against
+recommended for each run, and `experiment review` shows the same block with a
+warning wherever a ceiling is unset or below its recommendation. These are planning
+figures: replace them with a smoke run's measurements when you have one.
+
 Hub selectors are `--dataset`, `--dataset-config`, `--split`, `--revision` (a full
 commit SHA), `--samples`, `--seed`, `--doc-class`, and `--subclass`. The default is
 the family's frozen dataset SHA and all splits. `--local-dataset FILE.jsonl` uses
@@ -173,10 +186,13 @@ run. Every explicit route receives its own connectivity/chat check.
 
 Cost caps are runtime estimates of GPU time, not hard invoice limits. Modal image
 builds, CPU prewarm, cold boot, scaledown, concurrent replicas/model deployments,
-and in-flight calls can add charges. OpenRouter is token-billed; the existing GPU
-time cap is not an API dollar cap. The review names this distinction; configure
-provider-side spending limits when a hard billing ceiling is required. Teardown
-runs after each cell on success, failure, or interruption.
+and in-flight calls can add charges. OpenRouter is token-billed, so the GPU cap
+does not limit it: `api_cost_cap_usd` does. It prices every observed token at the
+highest price among the run's API models and is checked before each document. A
+paid run that sends any agent to an unpriced model is refused. The review lists
+the three ceilings and each API model's price. Configure provider-side spending
+limits when a hard billing ceiling is required. Teardown runs after each cell on
+success, failure, or interruption.
 
 ## Observe and analyze
 

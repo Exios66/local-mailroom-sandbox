@@ -508,6 +508,10 @@ class JobSpec(BaseModel):
     # runs; exceeding either cap fails the run loud (no silent overspend).
     cost_cap_usd: float | None = None
     max_wall_seconds: int | None = None
+    # SAND-089: token spend ceiling for agents on a token-billed API (OpenRouter).
+    # cost_cap_usd estimates GPU time only; a paid run that bills API tokens needs
+    # this too, and a known price for every API model (job/api_budget.py).
+    api_cost_cap_usd: float | None = None
 
     @field_validator("task")
     @classmethod
@@ -537,6 +541,14 @@ class JobSpec(BaseModel):
         """
         if v is not None and (not math.isfinite(v) or v <= 0):
             raise ValueError("cost_cap_usd must be > 0 when set")
+        return v
+
+    @field_validator("api_cost_cap_usd")
+    @classmethod
+    def _api_cost_cap(cls, v: float | None) -> float | None:
+        """Reject a NaN or non-positive API spend ceiling when one is set."""
+        if v is not None and (not math.isfinite(v) or v <= 0):
+            raise ValueError("api_cost_cap_usd must be > 0 when set")
         return v
 
     @field_validator("max_wall_seconds")
@@ -733,7 +745,9 @@ def spec_core(spec: RunSpec) -> dict[str, Any]:
             "vllm": _vllm_core(spec.engine.vllm),
             "modal": spec.engine.modal.model_dump() if spec.engine.modal else None,
         },
-        "job": spec.job.model_dump(),
+        # api_cost_cap_usd is hashed only when set, so pre-SAND-089 YAMLs keep their hash.
+        "job": {key: value for key, value in spec.job.model_dump().items()
+                if not (key == "api_cost_cap_usd" and value is None)},
         "trace": spec.trace.model_dump(),
         "prompt": prompt_resolution_map(spec),
         "dataset": spec.dataset.request_core(),

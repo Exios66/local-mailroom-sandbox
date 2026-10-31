@@ -359,3 +359,15 @@ def test_specialist_tier_is_refused_for_the_frozen_sand42_study(tmp_path, capsys
                      '--output', str(tmp_path / 'frozen'), '--mock']) != 0
     assert '--specialist-tier' in capsys.readouterr().err
     assert not (tmp_path / 'frozen').exists()
+
+
+def test_create_fills_unset_ceilings_from_the_design_and_keeps_explicit_ones(design, capsys):
+    from mailroom_sandbox.job.budget_advice import recommend
+    _, _, runs = ex._load(design())
+    spec = runs[0][1]
+    advice = recommend(spec)
+    assert spec.job.max_wall_seconds == advice['max_wall_seconds']
+    assert spec.job.cost_cap_usd == advice['gpu_cost_cap_usd']
+    assert 'recommended' in capsys.readouterr().out
+    _, _, runs = ex._load(design('--max-wall-seconds', '900', '--cost-cap-usd', '3'))
+    assert (runs[0][1].job.max_wall_seconds, runs[0][1].job.cost_cap_usd) == (900, 3.0)
