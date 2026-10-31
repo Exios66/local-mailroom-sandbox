@@ -7,12 +7,16 @@ import errno
 import json
 import math
 import os
+import socket
 import subprocess
 import sys
 import time
 from pathlib import Path
 
-from mailroom_sandbox.overlay import load_profile
+import yaml
+
+from mailroom_sandbox.compose import VALID_PROFILES as COMPOSE_PROFILES
+from mailroom_sandbox.overlay import UnknownNameError, load_profile
 from mailroom_sandbox.paths import repo_root, vendor_dir
 from mailroom_sandbox.runtime import activate, resolve_dojo_src, resolve_mailroom_src
 from mailroom_sandbox.services._exec import ServiceError
@@ -123,7 +127,14 @@ def main(argv: list[str] | None = None) -> int:
         if exc.stderr:
             print(exc.stderr.decode() if isinstance(exc.stderr, bytes) else exc.stderr, end="", file=sys.stderr)
         return 1
+    except UnknownNameError as exc:
+        print(f"error: {_one_line(exc)}", file=sys.stderr)
+        return 1
     except FileNotFoundError as exc:
+        # A path the operator typed (--config, --run, ...) vs a tool missing from PATH.
+        if exc.filename and os.sep in str(exc.filename):
+            print(f"error: file not found: {exc.filename}", file=sys.stderr)
+            return 1
         print(f"command unavailable: {exc}", file=sys.stderr)
         return 1
     except ServiceError as exc:
@@ -135,10 +146,23 @@ def main(argv: list[str] | None = None) -> int:
         cmd = " ".join(map(str, exc.cmd)) if isinstance(exc.cmd, (list, tuple)) else str(exc.cmd)
         print(f"error: `{' '.join(cmd.split())}` timed out after {exc.timeout:g}s", file=sys.stderr)
         return 1
+    except _InvalidRunIdError() as exc:
+        print(f"error: {_one_line(exc)}", file=sys.stderr)
+        return 2
+    except IsADirectoryError as exc:
+        print(f"error: expected a file, got a directory: {exc.filename}", file=sys.stderr)
+        return 1
+    except socket.gaierror:
+        print(f"error: cannot resolve host {getattr(args, 'host', None)!r}", file=sys.stderr)
+        return 1
     except OSError as exc:
         if exc.errno != errno.EADDRINUSE:
             raise
         print(f"error: address already in use: {_one_line(exc)}", file=sys.stderr)
+        return 1
+    except yaml.YAMLError as exc:
+        where = getattr(getattr(exc, "problem_mark", None), "name", None)
+        print(f"error: not valid YAML{f' ({where})' if where else ''}: {_one_line(exc)}", file=sys.stderr)
         return 1
     except _prompt_selection_error() as exc:
         print(f"error: prompt version: {_one_line(exc)}", file=sys.stderr)
@@ -165,6 +189,12 @@ def _prompt_selection_error() -> type[BaseException]:
     return PromptSelectionError
 
 
+def _InvalidRunIdError() -> type[BaseException]:  # noqa: N802 - used as an except clause
+    from mailroom_sandbox.job.spec import InvalidRunIdError
+
+    return InvalidRunIdError
+
+
 def _one_line(exc: BaseException) -> str:
     return " ".join(str(exc).split())
 
@@ -179,6 +209,20 @@ def build_parser() -> argparse.ArgumentParser:
             raise argparse.ArgumentTypeError("seconds must be finite and positive")
         return seconds
 
+    def nonempty(value: str) -> str:
+        # `--profile "$UNSET"` must fail loudly, not fall back to the default.
+        if not value.strip():
+            raise argparse.ArgumentTypeError("value is empty; omit the flag to use the default")
+        return value.strip()
+
+    def known_package(value: str) -> str:
+        from mailroom_sandbox.subagents import list_packages
+
+        value, known = nonempty(value), list_packages()
+        if value not in known:
+            raise argparse.ArgumentTypeError(f"unknown package {value!r}; known: {', '.join(known)}")
+        return value
+
     def _shared_flags(*, root: bool) -> argparse.ArgumentParser:
         """The cross-command flags. The root copy carries the real defaults; the copy
         every subparser inherits uses ``default=SUPPRESS`` so a value parsed at the
@@ -186,9 +230,9 @@ def build_parser() -> argparse.ArgumentParser:
         a flag placed after the subcommand still wins."""
         none = None if root else argparse.SUPPRESS
         flags = argparse.ArgumentParser(add_help=False)
-        flags.add_argument("--profile", default=default_profile() if root else argparse.SUPPRESS)
-        flags.add_argument("--model", default=none, help="Override every agent's model tag")
-        flags.add_argument("--prompt", default=none, help="Local prompt variant stem (e.g. sorter_local_v0)")
+        flags.add_argument("--profile", type=nonempty, default=default_profile() if root else argparse.SUPPRESS)
+        flags.add_argument("--model", type=nonempty, default=none, help="Override every agent's model tag")
+        flags.add_argument("--prompt", type=nonempty, default=none, help="Local prompt variant stem (e.g. sorter_local_v0)")
         flags.add_argument(
             "--agent-model",
             action="append",
@@ -213,7 +257,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(handler=_cmd_tui)
 
     p = sub.add_parser("up", help="Start compose profiles (langfuse + provider)", parents=[leaf])
-    p.add_argument("--compose-profile", action="append", dest="compose_profiles")
+    p.add_argument("--compose-profile", action="append", dest="compose_profiles", choices=COMPOSE_PROFILES)
     # hub#56: -d opts in to detached mode; the default is foreground (the old
     # action='store_true', default=True made -d a permanent no-op and `sandbox
     # up` could NEVER run in the foreground).
@@ -221,7 +265,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(handler=_cmd_up)
 
     p = sub.add_parser("down", help="Stop compose stack", parents=[leaf])
-    p.add_argument("--compose-profile", action="append", dest="compose_profiles")
+    p.add_argument("--compose-profile", action="append", dest="compose_profiles", choices=COMPOSE_PROFILES)
     p.set_defaults(handler=_cmd_down)
 
     p = sub.add_parser("health", help="Probe the active provider + Langfuse", parents=[leaf])
@@ -264,6 +308,7 @@ def build_parser() -> argparse.ArgumentParser:
     sa_list.add_argument("--json", action="store_true")
     sa_list.add_argument(
         "--package",
+        type=known_package,
         default=None,
         help="Family package filter (default: local-mailroom-sandbox or SUBAGENT_PACKAGE)",
     )
@@ -274,7 +319,7 @@ def build_parser() -> argparse.ArgumentParser:
     sa_show = subagents_sub.add_parser("show", parents=[leaf], help="show one subagent's roster entry and prompt")
     sa_show.add_argument("id")
     sa_show.add_argument("--json", action="store_true")
-    sa_show.add_argument("--package", default=None)
+    sa_show.add_argument("--package", type=known_package, default=None)
     sa_show.set_defaults(handler=_cmd_subagents_show)
     sa_sync = subagents_sub.add_parser("sync", parents=[leaf], help="write OpenCode frontmatter and Cursor agent stubs")
     sa_sync.add_argument(
@@ -285,11 +330,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sa_sync.add_argument(
         "--package",
+        type=known_package,
         default=None,
         help="Family package filter for roster entries",
     )
     sa_sync.add_argument(
         "--root",
+        type=nonempty,
         default=None,
         help="Checkout root to write into (default: this repo)",
     )
@@ -302,6 +349,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sa_doc.add_argument(
         "--root",
+        type=nonempty,
         default=None,
         help="Family checkout root (default: this repo)",
     )
@@ -333,16 +381,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sa_mat.add_argument(
         "--package",
+        type=known_package,
         required=True,
         help="Target package id (llm-mailroom, digital-mailroom, …)",
     )
     sa_mat.add_argument(
         "--root",
+        type=nonempty,
         required=True,
         help="Destination checkout root (e.g. monorepo packages/llm-mailroom)",
     )
     sa_mat.add_argument(
         "--source-root",
+        type=nonempty,
         default=None,
         help="Prompt source checkout (default: this sandbox repo)",
     )
@@ -355,10 +406,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sa_prop.add_argument(
         "--monorepo-root",
+        type=nonempty,
         default=None,
         help="Digital-Mailroom root (DIGITAL_MAILROOM_ROOT / MONOREPO_ROOT)",
     )
-    sa_prop.add_argument("--package", action="append", dest="packages", default=None)
+    sa_prop.add_argument("--package", action="append", dest="packages", type=known_package, default=None)
     sa_prop.add_argument("--dry-run", action="store_true")
     sa_prop.add_argument("--json", action="store_true")
     sa_prop.set_defaults(handler=_cmd_subagents_propagate)
@@ -459,6 +511,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     def eval_target(value: str) -> str:
+        nonempty(value)  # an empty TARGET/--class must not mean "every class"
         try:
             return primary.resolve_class(value) or value
         except ValueError as exc:
@@ -1895,6 +1948,8 @@ def _cmd_agents_show(args: argparse.Namespace) -> int:
     )
     roster = {row["agent"]: row for row in agent_roster(load_yaml(activation.taxonomy_path))}
     spec = SPECS.get(args.name)
+    if args.name not in roster and spec is None:
+        raise CLIUsageError(f"unknown agent {args.name!r}; known: {', '.join(sorted(roster))}")
     payload = roster.get(args.name, {"agent": args.name, "enabled": False})
     if spec:
         payload["observation"] = spec.observation
@@ -1916,12 +1971,33 @@ def _mailroom_env() -> dict[str, str]:
     return env
 
 
+# Third-party modules the vendored service imports at startup, with the install
+# that provides each. Checked up front so a missing extra is one line, not the
+# child interpreter's ModuleNotFoundError traceback.
+_SERVICE_DEPS = {
+    "watcher": (("structlog", "pip install structlog"), ("watchdog", "pip install -e '.[pipeline]'"),
+                ("langgraph", "pip install -e '.[pipeline]'"), ("langfuse", "pip install -e '.[observability]'")),
+    "api": (("fastapi", "pip install fastapi"), ("structlog", "pip install structlog"),
+            ("langgraph", "pip install -e '.[pipeline]'"), ("langfuse", "pip install -e '.[observability]'")),
+}
+
+
+def _require_service_deps(service: str) -> None:
+    import importlib.util
+
+    for module, install in _SERVICE_DEPS[service]:
+        if importlib.util.find_spec(module) is None:
+            raise ServiceError(f"pipeline {service} needs {module}, which is not installed: {install}")
+
+
 def _cmd_watcher(args: argparse.Namespace) -> int:
+    _require_service_deps("watcher")
     activate(args.profile, model=args.model, prompt_variant=args.prompt, agent_models=_agent_models(args))
     return subprocess.call([sys.executable, "-m", "pipeline.watcher"], env=_mailroom_env())
 
 
 def _cmd_api(args: argparse.Namespace) -> int:
+    _require_service_deps("api")
     activate(args.profile, model=args.model, prompt_variant=args.prompt, agent_models=_agent_models(args))
     return subprocess.call([sys.executable, "-m", "api.main"], env=_mailroom_env())
 
@@ -3012,11 +3088,21 @@ def _cmd_modal_matrix_list(args) -> int:
     return 0
 
 
+def _resolve_modal_row(args) -> dict:
+    """Resolve a matrix row; an unknown model or GPU is a usage error, not a traceback."""
+    from mailroom_sandbox.modal_matrix import resolve_modal_row
+
+    try:
+        return resolve_modal_row(getattr(args, "model", None), gpu_override=args.gpu)
+    except (KeyError, ValueError) as exc:
+        raise CLIUsageError(exc.args[0] if exc.args else str(exc)) from exc
+
+
 def _cmd_modal_matrix_show(args) -> int:
     """Show one Modal matrix row with its env exports and cutover hints (JSON with --json)."""
-    from mailroom_sandbox.modal_matrix import cutover_hints, resolve_modal_row
+    from mailroom_sandbox.modal_matrix import cutover_hints
 
-    resolved = resolve_modal_row(args.model, gpu_override=args.gpu)
+    resolved = _resolve_modal_row(args)
     if getattr(args, "json", False):
         _print({**resolved, "hints": cutover_hints(resolved)})
     else:
@@ -3040,6 +3126,7 @@ def _cmd_modal_matrix_show(args) -> int:
 def _cmd_modal_matrix_env(args) -> int:
     from mailroom_sandbox.modal_matrix import env_exports
 
+    _resolve_modal_row(args)
     sys.stdout.write(env_exports(args.model, gpu_override=args.gpu))
     return 0
 
@@ -4032,3 +4119,7 @@ def _cmd_metrics_sorter_vs_modernbert(args) -> int:
     else:
         print(result.get("markdown", ""))
     return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

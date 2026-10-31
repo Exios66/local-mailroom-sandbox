@@ -15,6 +15,12 @@ def children(parser: argparse.ArgumentParser) -> dict[str, argparse.ArgumentPars
             if not getattr(child, "_sandbox_hidden", False)}
 
 
+def hidden(parser: argparse.ArgumentParser) -> list[str]:
+    """Subcommands that parse but stay out of menus (legacy eval tasks)."""
+    return [name for action in parser._actions if isinstance(action, argparse._SubParsersAction)
+            for name, child in action.choices.items() if getattr(child, "_sandbox_hidden", False)]
+
+
 def summaries(parser: argparse.ArgumentParser) -> dict[str, str]:
     """One-line help per subcommand, as argparse lists it under the parent."""
     return {choice.dest: " ".join((choice.help or "").split())
@@ -26,7 +32,7 @@ def command_catalog(parser: argparse.ArgumentParser, path: tuple[str, ...] = ())
     """One parser-derived catalog for completion, menus and browser manuals."""
     return [{"path": list(path), "help": parser.format_help(), "children": list(children(parser)),
              "usage": " ".join(parser.format_usage().split()), "summaries": summaries(parser),
-             "targets": list(getattr(parser, "_sandbox_targets", []))},
+             "targets": list(getattr(parser, "_sandbox_targets", [])), "hidden": hidden(parser)},
             *[row for name, child in children(parser).items()
               for row in command_catalog(child, (*path, name))]]
 
@@ -55,12 +61,14 @@ def unknown_path(words: list[str], catalog: list[dict]) -> str | None:
     """Name the first unknown command word and suggest the closest siblings."""
     node, known = catalog[0], []
     for word in words:
-        if word.startswith("-"):
+        if word.startswith("-") or word in node.get("hidden", ()):
             return None
         if word not in node["children"]:
             close = difflib.get_close_matches(word, node["children"], n=3)
             hint = f" · did you mean {', '.join(close)}?" if close else f" · try menu {' '.join(known)}".rstrip()
-            return f"error: unknown command '{' '.join([*known, word])}'{hint}"
+            shown = " ".join([*known, word])
+            shown = shown if len(shown) <= 60 else shown[:59] + "…"
+            return f"error: unknown command '{shown}'{hint}"
         known.append(word)
         node = next(row for row in catalog if row["path"] == known)
         if not node["children"]:
@@ -183,6 +191,12 @@ def run_shell(default_args: list[str] | None = None) -> int:
                         print(problem)
                         continue
                     argv = [*argv[1:], "--help"]
+                else:
+                    # Same one-line answer as help/menu, not argparse's full usage dump.
+                    problem = unknown_path(argv, catalog)
+                    if problem:
+                        print(problem)
+                        continue
                 if argv[0] == "tui":
                     print("Already in the Mailroom terminal.")
                     continue
@@ -254,13 +268,28 @@ function menuText(node) {
   return [path, ...node.children.map((name, i) => `${String(i + 1).padStart(String(node.children.length).length)}. ${name.padEnd(width)}  ${(node.summaries || {})[name] || ""}`.trimEnd()),
     "Choose from the selector · help <command> for a manual"].join("\n");
 }
+function clip(text, max = 60) { return text.length > max ? text.slice(0, max - 1) + "…" : text; }
+function editDistance(a, b) {
+  // Optimal string alignment: a swapped pair of letters ("strat") costs one edit.
+  const d = Array.from({length: a.length + 1}, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) {
+    d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+  }
+  return d[a.length][b.length];
+}
+function closeNames(word, names) {
+  const limit = Math.max(1, Math.floor(word.length / 3));
+  return names.filter(name => (word.length >= 3 && name.startsWith(word)) || editDistance(word, name) <= limit).slice(0, 3);
+}
 function unknownPath(words) {
   let node = commandCatalog[0], known = [];
   for (const word of words) {
-    if (word.startsWith("-")) return null;
+    if (word.startsWith("-") || (node.hidden || []).includes(word)) return null;
     if (!node.children.includes(word)) {
-      const close = node.children.filter(name => name.startsWith(word.slice(0, 2))).slice(0, 3);
-      return `Unknown command '${[...known, word].join(" ")}'` + (close.length ? ` · did you mean ${close.join(", ")}?` : " · type menu to browse");
+      const close = closeNames(word, node.children);
+      return `Unknown command '${clip([...known, word].join(" "))}'` + (close.length ? ` · did you mean ${close.join(", ")}?` : " · type menu to browse");
     }
     known.push(word); node = commandNode(known);
     if (!node.children.length) return null;
@@ -298,8 +327,9 @@ function commandRun(line) {
     commandPrint("Credentials are not accepted in the browser terminal. Configure them in your local environment.");
     return;
   }
+  if (!words.length && !line.trim()) { commandPrint("mailroom> "); return; }
   if (name === "clear") { commandOutput.textContent = ""; return; }
-  commandPrint("mailroom> " + line);
+  commandPrint("mailroom> " + clip(line, 120));
   if (name === "history") { commandPrint(commandHistory.join("\n")); return; }
   commandHistory.push(line); if (commandHistory.length > 100) commandHistory.shift();
   historyIndex = commandHistory.length;
@@ -316,6 +346,18 @@ function commandRun(line) {
   if (commandNode(path)) { commandMenu(path, { manual: words.includes("--help") || words.includes("-h") }); commandPrint("Run locally: sandbox " + path.join(" ")); return; }
   const problem = unknownPath(path);
   if (problem) { commandPrint(problem); return; }
+  const leaf = [];
+  let hidden = false;
+  for (const word of path) {
+    // Hidden legacy tasks parse in the CLI but have no browser manual.
+    if ((commandNode(leaf)?.hidden || []).includes(word)) { leaf.push(word); hidden = true; break; }
+    if (!commandNode([...leaf, word])) break; leaf.push(word);
+  }
+  if (leaf.length && (hidden || !commandNode(leaf).children.length)) {
+    const options = hidden ? `sandbox ${leaf.join(" ")} --help` : `help ${leaf.join(" ")}`;
+    commandPrint(`This page does not run commands. Run it in a local terminal:\n  sandbox ${clip(words.join(" "), 200)}\nOptions: ${options}`);
+    return;
+  }
   commandPrint("Not a browser inspection command. Use help [command path], or execute with sandbox tui locally.");
 }
 document.getElementById("command-form").addEventListener("submit", ev => {

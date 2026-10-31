@@ -24,7 +24,7 @@ from mailroom_sandbox.tui import pretty_log as pl
 from mailroom_sandbox.tui.beacon import BEACON_VERSION, TERMINAL_STATES, beacon_root, safe_job_id
 from mailroom_sandbox.tui.services_snapshot import read_services
 from mailroom_sandbox.tui.services_panel import SERVICES_CSS, SERVICES_HTML, SERVICES_JS
-from mailroom_sandbox.tui.web import THEME, ansi_to_html
+from mailroom_sandbox.tui.web import FAVICON_LINK, THEME, ansi_to_html
 
 STALE_S = 120.0
 MIN_INTERVAL_S = 0.1  # `--interval 0` (or negative) would otherwise spin a core re-reading the board
@@ -228,6 +228,7 @@ def board_page() -> bytes:
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>THE MAILROOM · job board</title>
+{FAVICON_LINK}
 <style>
 :root {{ {tokens}; --frame: linear-gradient(135deg, var(--blue), var(--teal)); }}
 * {{ box-sizing: border-box; }}

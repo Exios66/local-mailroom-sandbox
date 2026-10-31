@@ -94,11 +94,19 @@ def load_model_map() -> dict:
     return load_yaml(config_dir() / "models.yaml")
 
 
+class UnknownNameError(FileNotFoundError):
+    """A profile or prompt variant name with no config file: an operator typo, not a missing tool."""
+
+
+class UnknownProfileError(UnknownNameError):
+    """No ``config/profiles/<name>.yaml``."""
+
+
 def load_profile(name: str) -> dict:
     path = profiles_dir() / f"{name}.yaml"
     if not path.is_file():
         available = sorted(p.stem for p in profiles_dir().glob("*.yaml"))
-        raise FileNotFoundError(f"Unknown profile {name!r}. Available: {available}")
+        raise UnknownProfileError(f"Unknown profile {name!r}. Available: {available}")
     profile = load_yaml(path)
     profile.setdefault("name", name)
     return profile
