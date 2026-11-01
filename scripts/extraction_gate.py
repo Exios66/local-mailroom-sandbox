@@ -33,6 +33,7 @@ import argparse
 import collections
 import hashlib
 import json
+import math
 import random
 from pathlib import Path
 from typing import Any
@@ -382,15 +383,52 @@ def _field_truth(doc_type: str, row: dict, fields: dict, good: float) -> tuple[d
     return out, None
 
 
+# Fields whose labels come from mailbox/template metadata the text does not carry (dojo truth
+# rate 0-6% on every class in the 1.1.0 pooled calibration): never part of the key-field target.
+UNGROUNDED = {"subject_matter", "keywords", "damages_description", "supporting_documents", "maud_clauses"}
+
+
+def key_fields(qset: dict | None, doc_type: str) -> set[str]:
+    """The key fields of a class: the ones the gate asks about, minus the ungrounded ones."""
+    return set(((qset or {}).get("fields") or {}).get(doc_type) or {}) - UNGROUNDED
+
+
+def _at(scores: list[float], labels: list[bool], cut: float) -> dict[str, float | None]:
+    """Accept rate, precision and recall of ``score >= cut``."""
+    sel = [y for s, y in zip(scores, labels) if s >= cut]
+    return {"cutoff": cut, "accept_rate": round(len(sel) / len(labels), 4) if labels else None,
+            "precision": round(sum(sel) / len(sel), 4) if sel else None,
+            "recall": round(sum(sel) / max(1, sum(labels)), 4)}
+
+
+def corrected_truth(doc_type: str, row: dict, fields: dict, truth: dict[str, bool]) -> dict[str, bool]:
+    """Field truth with the documented GT/scorer defects corrected (interim_labels.contract_correction).
+
+    Only the Hub's own evidence decides (every extracted party is a CUAD Parties span; the date
+    equals the CUAD Agreement Date when CUAD has no Effective Date): the gate is never consulted.
+    """
+    if doc_type != "contract":
+        return truth
+    from mailroom_sandbox.interim_labels import contract_correction
+
+    exp = _expected(row)
+    return {f: ok or bool(contract_correction(f, fields.get(f), exp)) for f, ok in truth.items()}
+
+
 def calibrate(items: list[dict], rows: dict[str, dict], handoff: dict[str, dict], *, good: float, precision: float,
-              include_truncated: bool = False) -> dict:
-    """Per-class and per-field calibration of the gate's answers against the Dojo scores.
+              qset: dict | None = None, corrected: bool = False, include_truncated: bool = False) -> dict:
+    """Score the gate against two targets.
 
     A row whose document was cut at the question set's input cap (``pred.truncated``) is
     skipped unless ``include_truncated``: the gate judged an extraction of text it never saw, so
-    clauses past the cap look unsupported (most merger agreements exceed the 240k cap).
+    clauses past the cap look unsupported (1.0.0 cut most merger agreements at 240k).
+
+    ``classes``: the dojo extraction score >= ``good`` (every scored field, free text included).
+    ``keyfields``: every labelled key field right (:func:`key_fields`), and the fraction right,
+    so a gate that judges key fields is measured on what it can see.
     """
     per: dict[str, dict[str, list]] = collections.defaultdict(lambda: {"p": [], "y": [], "score": [], "verdict": []})
+    keyed: dict[str, dict[str, list]] = collections.defaultdict(lambda: {"p": [], "y": [], "frac": [], "verdict": [], "fs": []})
     fields: dict[tuple[str, str], dict[str, list]] = collections.defaultdict(lambda: {"p": [], "y": []})
     skipped = collections.Counter()
     for item in items:
@@ -409,17 +447,32 @@ def calibrate(items: list[dict], rows: dict[str, dict], handoff: dict[str, dict]
             per[key]["y"].append(float(s) >= good)
             per[key]["score"].append(float(s))
             per[key]["verdict"].append(pred.get("verdict"))
-        truth, error = (_field_truth(cls, rows[doc_id], (handoff.get(doc_id) or {}).get("fields") or {}, good)
-                        if doc_id in rows else ({}, None))
+        ext = (handoff.get(doc_id) or {}).get("fields") or {}
+        truth, error = _field_truth(cls, rows[doc_id], ext, good) if doc_id in rows else ({}, None)
         if error:
             # Reported per class: a Dojo source without the scorer's names loses a whole class silently otherwise.
             skipped[f"field_truth_error:{cls}"] += 1
+        if corrected and doc_id in rows:
+            truth = corrected_truth(cls, rows[doc_id], ext, truth)
+        wanted = key_fields(qset, cls)
+        key_truth = [ok for f, ok in truth.items() if f in wanted]
+        if key_truth:
+            support = pred.get("field_support") or {}
+            asked = [float(support[f]) for f in sorted(wanted) if isinstance(support.get(f), (int, float))]
+            fscore = math.prod(asked) if asked else float(p)  # 1.0.0 sets ask no key field: the verdict
+            for key in (cls, "all"):
+                keyed[key]["fs"].append(fscore)
+                keyed[key]["p"].append(float(p))
+                keyed[key]["y"].append(all(key_truth))
+                keyed[key]["frac"].append(sum(key_truth) / len(key_truth))
+                keyed[key]["verdict"].append(pred.get("verdict"))
         for field, ok in truth.items():
             prob = (pred.get("field_support") or {}).get(field)
             if isinstance(prob, (int, float)):
                 fields[(cls, field)]["p"].append(float(prob))
                 fields[(cls, field)]["y"].append(ok)
-    report: dict[str, Any] = {"good_threshold": good, "target_precision": precision, "skipped": dict(skipped), "classes": {}}
+    report: dict[str, Any] = {"good_threshold": good, "target_precision": precision, "skipped": dict(skipped),
+                              "field_truth": "dojo+gt-corrections" if corrected else "dojo", "classes": {}}
     for cls, d in sorted(per.items()):
         n = len(d["y"])
         median = sorted(d["score"])[n // 2]
@@ -435,6 +488,23 @@ def calibrate(items: list[dict], rows: dict[str, dict], handoff: dict[str, dict]
             "accept_verdict_precision": (round(sum(y for y, v in zip(d["y"], d["verdict"]) if v == "accept")
                                                / max(1, sum(v == "accept" for v in d["verdict"])), 4)),
             "cutoff": cutoff_for_precision(d["p"], d["y"], precision),
+        }
+    report["keyfields"] = {}
+    for cls, d in sorted(keyed.items()):
+        n = len(d["y"])
+        accepted = [y for y, v in zip(d["y"], d["verdict"]) if v == "accept"]
+        report["keyfields"][cls] = {
+            "n": n, "fields": sorted(key_fields(qset, cls)) if cls != "all" else None,
+            "all_right_rate": round(sum(d["y"]) / n, 4), "mean_fraction_right": round(sum(d["frac"]) / n, 4),
+            "accept_auroc": auroc(d["p"], d["y"]), "spearman_accept_vs_fraction": spearman(d["p"], d["frac"]),
+            "verdicts": dict(collections.Counter(d["verdict"])),
+            "accept_verdict_precision": round(sum(accepted) / len(accepted), 4) if accepted else None,
+            "accept_verdict_recall": round(sum(accepted) / max(1, sum(d["y"])), 4),
+            "cutoff": cutoff_for_precision(d["p"], d["y"], precision),
+            # The gating score (decision_backends.key_field_score): product of key-field supports.
+            "field_score_auroc": auroc(d["fs"], d["y"]),
+            "field_score_at_half": _at(d["fs"], d["y"], 0.5),
+            "field_score_cutoff": cutoff_for_precision(d["fs"], d["y"], precision),
         }
     report["fields"] = {f"{cls}.{field}": {"n": len(d["y"]), "truth_rate": round(sum(d["y"]) / len(d["y"]), 4),
                                            "support_auroc": auroc(d["p"], d["y"])}
@@ -472,15 +542,20 @@ def cmd_calibrate(args: argparse.Namespace) -> int:
     if len({r.get("questions_sha256") for r in reviewers}) > 1:
         print("extraction_gate: the runs used different question sets; calibrate them separately")
         return 1
+    from mailroom_sandbox.decision_backends import load_question_set
+
+    # --key-set scores an older run's gate on a newer set's key fields, so two sets compare on one target.
+    key_stem = args.key_set or reviewers[0].get("questions")
+    qset = load_question_set(key_stem) if key_stem else None
     name = args.name or "+".join(args.run)
     report = {"run_id": name, "runs": list(args.run), "question_set": reviewers[0].get("questions"),
-              "questions_sha256": reviewers[0].get("questions_sha256"),
-              **calibrate(items, rows, handoff, good=args.good, precision=args.precision,
-                          include_truncated=args.include_truncated)}
+              "questions_sha256": reviewers[0].get("questions_sha256"), "key_field_set": key_stem,
+              **calibrate(items, rows, handoff, good=args.good, precision=args.precision, qset=qset,
+                          corrected=args.corrected_truth, include_truncated=args.include_truncated)}
     out = repo_root() / "reports" / "extraction-gate" / f"{name}.calibration.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    print(json.dumps(report["classes"], indent=2, sort_keys=True))
+    print(json.dumps({"classes": report["classes"], "keyfields": report["keyfields"]}, indent=2, sort_keys=True))
     print(f"wrote {out.relative_to(repo_root())}")
     return 0
 
@@ -503,6 +578,9 @@ def main() -> int:
     p_ca = sub.add_parser("calibrate", help="score a finished gate run against the dojo")
     p_ca.add_argument("--run", action="append", required=True, help="gate run (repeat to pool rounds)")
     p_ca.add_argument("--name", help="report name when pooling (default: the run ids joined by +)")
+    p_ca.add_argument("--corrected-truth", action="store_true",
+                      help="correct documented GT/scorer defects in the field truth (CUAD parties/effective date)")
+    p_ca.add_argument("--key-set", help="question set whose key fields define the key-field target (default: the run's own)")
     p_ca.add_argument("--good", type=float, default=0.8, help="dojo score at or above which an extraction is good")
     p_ca.add_argument("--precision", type=float, default=0.9, help="target precision of the accepted set")
     p_ca.add_argument("--include-truncated", action="store_true",

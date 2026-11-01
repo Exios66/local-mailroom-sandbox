@@ -299,23 +299,54 @@ def _checked_gate_set(stem: str, qset: dict[str, Any]) -> dict[str, Any]:
     return qset
 
 
-def gate_questions(qset: Mapping[str, Any], doc_type: str) -> dict[str, Any]:
-    """The gate request's questions: the verdict plus one yes/no per key field of ``doc_type``."""
-    questions: dict[str, Any] = {"verdict": {"type": "choice", "instructions": qset["verdict"]["instructions"],
+def gate_questions(qset: Mapping[str, Any], doc_type: str, subclass: str | None = None) -> dict[str, Any]:
+    """The gate request's questions: the verdict plus one yes/no per key field of ``doc_type``.
+
+    1.3.0+: ``subclass_fields[doc_type][subclass]`` replaces the class rule of the fields it names,
+    so the gate is asked only the rule of the document's own template. Unknown or missing
+    subclass: the class rules.
+    """
+    instructions = str(qset["verdict"]["instructions"])
+    scope = (qset["verdict"].get("class_scope") or {}).get(doc_type)
+    if scope:  # 1.2.0+: the verdict judges only the class's key fields, named here
+        instructions = f"{instructions} {scope}"
+    questions: dict[str, Any] = {"verdict": {"type": "choice", "instructions": instructions,
                                              "criteria": dict(qset["verdict"]["criteria"])}}
+    by_sub = (((qset.get("subclass_fields") or {}).get(doc_type) or {}).get(subclass or "") or {})
     for field, meaning in ((qset.get("fields") or {}).get(doc_type) or {}).items():
+        meaning = by_sub.get(field, meaning)
         questions[f"field__{field}"] = {"type": "noul",
                                         "instructions": str(qset["field_instructions"]).format(field=field, meaning=meaning)}
     return questions
 
 
-def extraction_handoff(doc_type: str, extraction: Mapping[str, Any] | None) -> dict[str, Any]:
+def key_field_score(field_support: Mapping[str, float]) -> float | None:
+    """The gating score of a 1.2.0+ answer: the product of the key-field support probabilities.
+
+    The verdict question is answered on its own and ignores the per-template field rules; on the
+    1.3.0 calibration (1,591 labelled documents) this product separates extractions whose key
+    fields are all right from the rest far better than ``accept_probability`` (AUROC 0.76 vs
+    0.67 overall; corporate 0.89 vs 0.52, insurance 0.87 vs 0.78). None when no field was asked.
+    """
+    import math
+
+    values = [float(v) for v in field_support.values()]
+    return round(math.prod(values), 6) if values else None
+
+
+def extraction_handoff(doc_type: str, extraction: Mapping[str, Any] | None,
+                       doc_subclass: str | None = None) -> dict[str, Any]:
     """What the gate sees of a specialist's answer: the class it extracted for and the fields.
 
-    Underscore keys (parse diagnostics, raw text) are dropped; nothing of the scoring travels.
+    ``doc_subclass`` is the sorter's subclass when the pipeline knows it (selects the 1.3.0+
+    template rules). Underscore keys (parse diagnostics, raw text) are dropped; nothing of the
+    scoring travels.
     """
     fields = {k: v for k, v in (extraction or {}).items() if not str(k).startswith("_")}
-    return {"doc_type": doc_type, "fields": fields} if extraction else {"doc_type": doc_type, "available": False}
+    out: dict[str, Any] = {"doc_type": doc_type, "fields": fields} if extraction else {"doc_type": doc_type, "available": False}
+    if doc_subclass:
+        out["doc_subclass"] = str(doc_subclass)
+    return out
 
 
 def _post_decision(body: Mapping[str, Any], *, timeout: float, attempts: int) -> dict[str, Any]:
@@ -350,11 +381,12 @@ def _post_decision(body: Mapping[str, Any], *, timeout: float, attempts: int) ->
 
 
 def decide_extraction(doc_text: str, handoff: Mapping[str, Any], *, model: str, qset: Mapping[str, Any],
-                      timeout: float = 120.0, attempts: int = 3) -> dict[str, Any]:
+                      timeout: float = 120.0, attempts: int = 3, subclass: str | None = None) -> dict[str, Any]:
     """One extraction-gate request: ``{document, extraction_handoff}`` and the gate questions.
 
     Returns the verdict, ``accept_probability`` (the gating score), the human-review
-    probability and one support probability per field.
+    probability and one support probability per field. ``subclass`` (else the handoff's
+    ``doc_subclass``) selects the template rules of a 1.3.0+ set.
     """
     if not is_decisions_model(model):
         raise ValueError(f"{model!r} is not a Decisions-API model")
@@ -364,7 +396,7 @@ def decide_extraction(doc_text: str, handoff: Mapping[str, Any], *, model: str, 
     text = (doc_text or "")[:limit]
     body = {"model": model, "state": {"document": text if text.strip() else "(empty document)",
                                       "extraction_handoff": dict(handoff)},
-            "questions": gate_questions(qset, doc_type)}
+            "questions": gate_questions(qset, doc_type, subclass or handoff.get("doc_subclass"))}
     # A whole long document (up to ~250k tokens) takes longer to read than the 120 s default allows.
     data = _post_decision(body, timeout=max(timeout, 60.0 + len(text) / 4_000), attempts=attempts)
     usage = data.get("usage") or {}
@@ -380,6 +412,7 @@ def decide_extraction(doc_text: str, handoff: Mapping[str, Any], *, model: str, 
             fields[key.removeprefix("field__")] = float(value)
     return {
         "doc_type": doc_type,
+        "doc_subclass": subclass or handoff.get("doc_subclass"),
         "input_chars": len(text),
         "truncated": len(doc_text or "") > limit,
         "verdict": verdict.get("choice"),
@@ -387,6 +420,7 @@ def decide_extraction(doc_text: str, handoff: Mapping[str, Any], *, model: str, 
         "accept_probability": probs.get("accept"),
         "human_review_probability": sum(v for k, v in probs.items() if k in human) if probs else None,
         "field_support": fields,
+        "key_field_score": key_field_score(fields),
         "confidence": probs.get("accept"),
         "served_model": data.get("model"),
         "usage": {"input_tokens": usage.get("input_tokens"), "output_tokens": usage.get("output_tokens"),
