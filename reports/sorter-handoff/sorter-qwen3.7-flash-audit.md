@@ -51,13 +51,17 @@ reviewer's input. Each targets row has `target_doc_class` / `target_subclass`, `
 | unannotated | 49 | 8 | merger `other` with no MAUD Type of Consideration: class used, subclass not scored |
 | ambiguous | 5 | 0 | sorter and reviewer both dispute a label no rule confirms: an example only, not a target |
 
-The corrections are the known label noise:
+The corrections are the known label noise. In train (28):
 - 14 Certificates of Amendment labelled board_resolution → charter_amendment;
 - 6 bylaws labelled articles_of_incorporation;
 - 2 bylaws labelled powers_of_attorney;
 - 2 restated charters labelled charter_amendment;
 - one each of other → articles, board_resolution → officer_certificate, articles → charter_amendment, and articles → rights_instrument;
-- in test, the LIMITED POWER OF ATTORNEY labelled contract/Service → corporate_record/powers_of_attorney.
+
+In test (4; `test.corrections.json`):
+- the LIMITED POWER OF ATTORNEY labelled contract/Service → corporate_record/powers_of_attorney;
+- 2 Certificates of Amendment labelled board_resolution → charter_amendment;
+- a registration rights agreement labelled articles_of_incorporation → rights_instrument.
 
 To settle the 19 rows where only one source disputed the label, and the sorter errors no rule
 confirmed, `reviewer-verify-sorter-handoff-train` ran the Decisions model (question set 3.1.0)

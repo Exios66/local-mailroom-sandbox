@@ -46,8 +46,9 @@ cost_api(N) = Σ_docs ( prompt_tokens × price_in + completion_tokens × price_o
 ```
 
 `price_in`/`price_out` come from `SANDBOX_TOKEN_PRICE_IN_PER_M` /
-`SANDBOX_TOKEN_PRICE_OUT_PER_M` overrides or the `SANDBOX_MODEL_PRICES` table
-(`src/mailroom_sandbox/job/metrics.py`, table at line 57); for
+`SANDBOX_TOKEN_PRICE_OUT_PER_M` overrides, else the price sheet in `config/api_prices.yaml`
+(a tier applies to a whole call whose prompt reaches its `min_prompt_tokens`), else the built-in
+`SANDBOX_MODEL_PRICES` table in `src/mailroom_sandbox/job/metrics.py` as the fallback; for
 `ibm-granite/granite-4.2-8b` that is **$0.06 / $0.25 per 1M**. No boot, no concurrency term, no
 idle: **Leg B's cost per doc is a pure function of the documents themselves.**
 

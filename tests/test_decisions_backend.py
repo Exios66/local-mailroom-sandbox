@@ -349,14 +349,16 @@ def test_saved_sorter_targets_are_consistent():
         assert len(rows) == len(raw) == n
         for r in rows:
             assert r["sorter_doc_type"] == raw[r["id"]]["sorter_doc_type"]
-            assert r["target_status"] in {"label", "label_normalized", "corrected", "unannotated", "ambiguous"}
+            assert r["target_status"] in {"label", "label_normalized", "corrected", "unannotated", "ambiguous", "disputed"}
             if r["target_status"] == "corrected":
                 assert any("Decisions reviewer agrees" in e for e in r["target_evidence"])
             if r["target_status"] == "unannotated":
                 assert r["target_doc_class"] == "merger_agreement" and r["target_subclass"] is None
                 assert r["use_for_class"] and not r["use_for_subclass"]
-            if r["target_status"] == "ambiguous":
-                assert r["target_doc_class"] is None and not r["use_for_class"]
+            if r["target_status"] in ("ambiguous", "disputed"):
+                # Neither is a target: kept as examples, never scored.
+                assert r["target_doc_class"] is None and r["target_subclass"] is None
+                assert not r["use_for_class"] and not r["use_for_subclass"] and r["sorter_class_correct"] is None
             if r["target_doc_class"] == "contract":
                 assert r["target_subclass"] == r["target_subclass"].lower()
 

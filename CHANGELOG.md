@@ -19,7 +19,7 @@
   - Contracts and mergers keep their frozen prompts.
 - **Extraction-gate question set 1.1.0.** Every document is read whole (limit 1,000,000 chars for every class); 1.0.0 cut 24 of the 220 baseline documents at 120k (merger 240k). The request timeout scales with document length.
   - `calibrate` pools several gate runs (`--run` repeated, `--name`) and refuses overlapping documents or mixed question sets.
-  - Pooled 910-document calibration: `reports/extraction-gate/extraction-gate-luna-v1.1.0-pooled.calibration.json`.
+  - Pooled 910-document calibration: `reports/extraction-gate/extraction-gate-luna-v1.1.0-pooled.calibration.json`. Its insurance extractions mix two prompts: the baseline round used the frozen specialist prompt and round 2 (240 documents) used `insurance_claims_specialist_condensed_v2`, the frontrunner when it ran; v3 came after.
 - `scripts/estimate_spend.py` sizes a pinned local prompt file from the file itself.
 - **Dojo: installed release first, vendored snapshot as fallback** (`mailroom_sandbox/dojo_source.py`).
   - When a `llm-dojo-scoring` release is installed (`pip install -r requirements/dojo-release.txt`, the pinned GitHub release) and matches the snapshot's version and commit, it is the scoring source.
@@ -38,7 +38,7 @@
   - it is a Markdown table that `mailroom_sandbox.job.ledger.rows()` parses back;
   - tests write to a temporary ledger, never the tracked one.
 - **Key-headroom spend gate.** A paid OpenRouter run refuses to start when its `job.api_cost_cap_usd` exceeds the key's remaining limit (`GET /api/v1/key`). The check fails closed when the limit cannot be read.
-- `scripts/estimate_spend.py` estimates the planned runs' token spend and checks the total against the key's live remaining limit. On the measured V14 pass it is within 3%.
+- `scripts/estimate_spend.py` estimates the planned runs' token spend and checks the total against the key's live remaining limit. (Its accuracy against a measured run is unverified: no comparison is recorded.)
 - **Sorter-condensed lineage, the sorter mutation surface.**
   - `config/prompts/sorter_condensed_v1.txt` is V15's class boundaries and subclass conventions, condensed.
   - Its system prompt renders to 3,681 chars against V15's 25,074, about 5.3k fewer prompt tokens per call. Per-key meanings stay in the Dojo catalog in the user message.

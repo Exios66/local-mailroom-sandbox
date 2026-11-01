@@ -1,7 +1,7 @@
 # API models the sandbox may call, with their full OpenRouter price sheets.
 # A tier applies to a whole call whose prompt reaches min_prompt_tokens.
 # Read by mailroom_sandbox.job.metrics (call_price / call_cost); refresh with
-# scripts/refresh_api_prices.py (--check in CI to catch drift).
+# scripts/refresh_api_prices.py (run it with --check to see drift; no workflow runs it).
 source: https://openrouter.ai/api/v1/models
 checked: '2026-11-01'
 unit: USD per 1M tokens

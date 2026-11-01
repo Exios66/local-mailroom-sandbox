@@ -382,7 +382,14 @@ def _field_truth(doc_type: str, row: dict, fields: dict, good: float) -> tuple[d
     return out, None
 
 
-def calibrate(items: list[dict], rows: dict[str, dict], handoff: dict[str, dict], *, good: float, precision: float) -> dict:
+def calibrate(items: list[dict], rows: dict[str, dict], handoff: dict[str, dict], *, good: float, precision: float,
+              include_truncated: bool = False) -> dict:
+    """Per-class and per-field calibration of the gate's answers against the Dojo scores.
+
+    A row whose document was cut at the question set's input cap (``pred.truncated``) is
+    skipped unless ``include_truncated``: the gate judged an extraction of text it never saw, so
+    clauses past the cap look unsupported (most merger agreements exceed the 240k cap).
+    """
     per: dict[str, dict[str, list]] = collections.defaultdict(lambda: {"p": [], "y": [], "score": [], "verdict": []})
     fields: dict[tuple[str, str], dict[str, list]] = collections.defaultdict(lambda: {"p": [], "y": []})
     skipped = collections.Counter()
@@ -394,6 +401,9 @@ def calibrate(items: list[dict], rows: dict[str, dict], handoff: dict[str, dict]
             skipped["no_answer_or_score"] += 1
             continue
         cls = score.get("doc_type") or pred.get("doc_type")
+        if pred.get("truncated") and not include_truncated:
+            skipped[f"truncated_input:{cls}"] += 1
+            continue
         for key in (cls, "all"):
             per[key]["p"].append(float(p))
             per[key]["y"].append(float(s) >= good)
@@ -465,7 +475,8 @@ def cmd_calibrate(args: argparse.Namespace) -> int:
     name = args.name or "+".join(args.run)
     report = {"run_id": name, "runs": list(args.run), "question_set": reviewers[0].get("questions"),
               "questions_sha256": reviewers[0].get("questions_sha256"),
-              **calibrate(items, rows, handoff, good=args.good, precision=args.precision)}
+              **calibrate(items, rows, handoff, good=args.good, precision=args.precision,
+                          include_truncated=args.include_truncated)}
     out = repo_root() / "reports" / "extraction-gate" / f"{name}.calibration.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -494,6 +505,8 @@ def main() -> int:
     p_ca.add_argument("--name", help="report name when pooling (default: the run ids joined by +)")
     p_ca.add_argument("--good", type=float, default=0.8, help="dojo score at or above which an extraction is good")
     p_ca.add_argument("--precision", type=float, default=0.9, help="target precision of the accepted set")
+    p_ca.add_argument("--include-truncated", action="store_true",
+                      help="also calibrate rows whose document was cut at the input cap (skipped by default)")
     args = parser.parse_args()
     return {"inputs": cmd_inputs, "expand": cmd_expand, "calibrate": cmd_calibrate}[args.cmd](args)
 

@@ -167,17 +167,21 @@ errors. More documents tighten it, which is the job of the full run.
 
 ## Applied to the pipeline
 
-`config/runs/pipeline-luna-qwen-smoke.yaml` (the decision-reviewer smoke)
-carries the reviewer on all five classes with the decision_v1 cutoffs and the
-`sorter_reviewer_decision_v1` prompt override. Its first run used the
-pilot's three-class cutoffs and the code-default prompt; it is recorded below. Every cutoff stays
-provisional for issue #208 until the full calibration confirms it.
+> **Historical.** This page records the chat-model pilot (`openai/gpt-6-luna`), which preflight now
+> refuses as a decision reviewer. The current reviewer is the Decisions model; see
+> `reviewer-calibration-luna-decisions.md`.
 
-## Next
+`config/runs/pipeline-luna-qwen-smoke.yaml` (the chat-model decision-reviewer smoke) now
+carries the reviewer on all five classes with the `sorter_reviewer_decision_v3` prompt and the
+cutoffs of the full-corpus calibration, `reviewer-calibration-luna-v3-train-all.json`
+(0.79 / 0.90 / 0.88 / 0.54 / 0.78). Its first run used the pilot's three-class cutoffs and the
+code-default prompt; it is recorded in `pipeline-luna-qwen-smoke-3class.json`.
 
-1. Full calibration with decision_v1: `config/runs/reviewer-calibration-luna-full.yaml`
-   (1,888 train documents, concurrency 32). It confirms the cutoffs on 2.6× the
-   documents.
+## Next (as of the pilot)
+
+1. ~~Full calibration with decision_v1~~: done on the chat model as
+   `reviewer-calibration-luna-v3-train-all.json` (all train documents, v3 prompt);
+   the reviewer then moved to the Decisions model.
 2. Take decision_v1 upstream as the `sorter_reviewer` code default in
    `llm-mailroom` (and the class descriptions into the reviewer's user
    message). The sandbox override then becomes a vendor mirror.

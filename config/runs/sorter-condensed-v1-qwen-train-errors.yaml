@@ -9,6 +9,10 @@
 #
 #   sandbox run start --config config/runs/sorter-condensed-v1-qwen-train-errors.yaml --initials XX
 #   python scripts/compare_sorter_prompt.py --split train score --run sorter-condensed-v1-qwen-train-errors
+#   python scripts/compare_sorter_prompt.py --split train score --run sorter-v15-qwen-train-errors
+# `score` measures each run against the saved V14 pass on these same 1,003 documents, so the
+# two reports compare condensed with V15 directly: adopt when the condensed run's fixed - broken
+# (class and subclass) is at least V15's.
 #
 # Cost: about 10.8M prompt + 0.15M completion tokens. Qwen 3.7 Flash bills a call at $0.03/$0.13
 # per 1M below 32k prompt tokens and $0.10/$0.40 from 32k (scripts/estimate_spend.py prices each

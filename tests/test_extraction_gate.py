@@ -252,3 +252,14 @@ def test_calibration_reports_field_truth_errors(monkeypatch):
               "score": {"extraction_score": 0.9, "doc_type": "contract"}}]
     report = eg.calibrate(items, {"d1": {"id": "d1"}}, {}, good=0.8, precision=0.9)
     assert report["skipped"] == {"field_truth_error:contract": 1}
+
+
+def test_calibration_skips_truncated_input_by_default(monkeypatch):
+    """A document cut at the input cap is not calibrated unless asked for."""
+    eg = _script("extraction_gate")
+    monkeypatch.setattr(eg, "_field_truth", lambda *a, **k: ({}, None))
+    items = [{"item_id": "m1", "ok": True, "pred": {"accept_probability": 0.2, "truncated": True},
+              "score": {"extraction_score": 0.9, "doc_type": "merger_agreement"}}]
+    report = eg.calibrate(items, {}, {}, good=0.8, precision=0.9)
+    assert report["skipped"] == {"truncated_input:merger_agreement": 1} and report["classes"] == {}
+    assert eg.calibrate(items, {}, {}, good=0.8, precision=0.9, include_truncated=True)["classes"]["merger_agreement"]["n"] == 1
