@@ -191,11 +191,7 @@ def _live_extraction_gate(row: dict[str, Any]) -> dict[str, Any]:
         raise RuntimeError(f"no specialist extraction for document {row.get('id')!r} in reviewer.handoff_run")
     from mailroom_sandbox.decision_backends import decide_extraction
 
-    # The pipeline's handoff carries the sorter's subclass; a calibration run has none, so the
-    # labelled subclass stands in for it (an oracle sorter: report gate numbers as such).
-    subclass = handoff.get("doc_subclass") or row.get("expected_subclass")
-    return decide_extraction(_doc_text(row), handoff, model=reviewer["model"], qset=reviewer["question_set"],
-                             subclass=str(subclass) if subclass else None)
+    return decide_extraction(_doc_text(row), handoff, model=reviewer["model"], qset=reviewer["question_set"])
 
 
 def _mock_extraction_gate(row: dict[str, Any]) -> dict[str, Any]:
