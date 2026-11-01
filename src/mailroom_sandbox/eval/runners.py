@@ -1037,6 +1037,12 @@ def run_pipeline_eval(
 
                 models = {agent: model for agent, _provider, model in activation.assignments}
                 models.update(activation.agent_models)
+                from mailroom_sandbox.runtime import active_reviewer
+
+                reviewer = active_reviewer() or {}
+                if reviewer.get("backend") in {"decisions", "jev"} and reviewer.get("model"):
+                    # The review node is answered by the decision backend, not the sorter_reviewer chat route.
+                    models["sorter_reviewer"] = reviewer["model"]
                 nodes.enter_context(track_nodes(str(row.get("id")), node_cb, models=models))
             usage_capture.reset_usage()
             try:

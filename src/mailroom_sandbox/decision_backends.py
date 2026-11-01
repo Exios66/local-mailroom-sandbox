@@ -10,6 +10,9 @@ llm-mailroom). The graph never builds one; the sandbox does, and registers it.
   route, so no document text leaves it.
 * ``api_backend`` runs the same agent on a third-party API route, pinned to one
   model id.
+* ``decisions_backend`` asks a Decisions-API model (``openai/gpt-6-luna-decisions``
+  on OpenRouter) a question set from ``config/decisions``: one request per document,
+  a probability for every option, no output tokens.
 * ``mock_backend`` answers from a fixed table, for offline runs and tests.
 
 Pydantic AI is an optional dependency (``pip install -e ".[decision]"``). It is
@@ -194,8 +197,211 @@ def api_backend(model: str) -> "DecisionBackend":
     return local_backend(model)
 
 
-def build_backend(name: str, model: str) -> "DecisionBackend":
-    """Backend by name: ``jev``, ``local``, ``api`` (all use ``model``) or ``mock`` (empty table, all unknown)."""
+# ---------------------------------------------------------------------------
+# Decisions API (OpenRouter alpha): typed answers with a probability per option.
+# ---------------------------------------------------------------------------
+
+DECISIONS_URL = "https://openrouter.ai/api/alpha/decisions"
+DECISIONS_DIR_NAME = "decisions"
+# Full documents fit: the largest train document is about 1.0M characters (~250k tokens),
+# inside Luna Decisions' 1.05M-token context. The cap only guards against a runaway input.
+DECISIONS_MAX_INPUT_CHARS = 2_000_000
+_TRANSIENT = {408, 429, 500, 502, 503, 504, 524, 529}
+NOT_THIS_CLASS = "not_this_class"
+
+
+def is_decisions_model(model: str | None) -> bool:
+    """True for a Decisions-API model id (``openai/gpt-6-luna-decisions``), which has no chat route."""
+    return bool(model) and str(model).split(":", 1)[0].endswith("-decisions")
+
+
+def decisions_dir() -> "Any":
+    from mailroom_sandbox.paths import repo_root
+
+    return repo_root() / "config" / DECISIONS_DIR_NAME
+
+
+def load_question_set(stem: str) -> dict[str, Any]:
+    """Parse ``config/decisions/<stem>.yaml`` and check its shape."""
+    import yaml
+
+    if not stem or "/" in stem or stem.startswith("."):
+        raise ValueError(f"question set {stem!r} must be a plain stem under config/decisions/")
+    path = decisions_dir() / f"{stem}.yaml"
+    if not path.is_file():
+        raise ValueError(f"question set {stem!r} not found at {path}")
+    qset = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    doc_type = qset.get("doc_type") or {}
+    if not isinstance(doc_type.get("criteria"), dict) or len(doc_type["criteria"]) < 2:
+        raise ValueError(f"{stem}: doc_type needs instructions and at least two criteria")
+    for cls, block in (qset.get("subclass") or {}).items():
+        if not isinstance(block, dict) or not isinstance(block.get("criteria"), dict) or not block["criteria"]:
+            raise ValueError(f"{stem}: subclass.{cls} needs instructions and criteria")
+        if block.get("markers") is not None:
+            markers, order = block["markers"], block.get("order") or []
+            if not isinstance(markers, dict) or not markers or set(order) - set(markers):
+                raise ValueError(f"{stem}: subclass.{cls}.order must name only keys of its markers")
+    return qset
+
+
+def decision_questions(qset: Mapping[str, Any], doc_types: list[str] | None = None) -> dict[str, Any]:
+    """The request's ``questions``: ``doc_type`` plus one ``subclass__<class>`` per class.
+
+    ``doc_types`` (the live taxonomy) limits the doc_type options; an option with no
+    criterion in the set gets its own name, so a new class is never silently dropped.
+    """
+    criteria = dict(qset["doc_type"]["criteria"])
+    if doc_types:
+        criteria = {cls: criteria.get(cls) or cls for cls in dict.fromkeys(doc_types)}
+    _checked_options("doc_type", list(criteria))
+    questions: dict[str, Any] = {
+        "doc_type": {"type": "choice", "instructions": qset["doc_type"].get("instructions") or _DOC_TYPE_QUESTION,
+                     "criteria": criteria},
+    }
+    for cls, block in (qset.get("subclass") or {}).items():
+        if doc_types and cls not in criteria:
+            continue
+        if block.get("markers"):
+            # Marker classes: one yes/no question per marker; marker_subclass applies the order.
+            for key, text in block["markers"].items():
+                questions[f"marker__{cls}__{key}"] = {"type": "noul", "instructions": text}
+            continue
+        # Every subclass question is asked of every document, and the model refuses a question
+        # with no option that fits; NOT_THIS_CLASS is that option. Only the chosen class's
+        # answer is used.
+        options = {**block["criteria"], NOT_THIS_CLASS: f"The document is not {cls}."}
+        _checked_options(f"subclass.{cls}", list(options))
+        questions[f"subclass__{cls}"] = {"type": "choice", "instructions": block.get("instructions") or _DOC_SUBCLASS_QUESTION,
+                                         "criteria": options}
+    return questions
+
+
+def marker_subclass(block: Mapping[str, Any], answers: Mapping[str, Any], cls: str) -> tuple[str | None, float | None, dict[str, float]]:
+    """Subclass from yes/no marker answers: the first marker in ``order`` with p >= 0.5, else ``default``.
+
+    The confidence is the chosen marker's probability, or for the default the probability
+    that no earlier marker is present (the smallest of 1 - p).
+    """
+    probs: dict[str, float] = {}
+    for key in block["markers"]:
+        value = (answers.get(f"marker__{cls}__{key}") or {}).get("noul")
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            probs[key] = float(value)
+    for key in block.get("order") or list(block["markers"]):
+        if probs.get(key, 0.0) >= 0.5:
+            return key, probs[key], probs
+    default = block.get("default")
+    return default, (min((1.0 - p for p in probs.values()), default=None) if default else None), probs
+
+
+def _record_usage(model: str, usage: Mapping[str, Any]) -> None:
+    """Count the call in the run's usage accumulator, so job budgets and cost see it."""
+    try:
+        from pipeline.limits import record_usage
+    except ImportError:
+        return
+    # prompt_/completion_ keys: record_usage reads ``output_tokens or completion_tokens``, so a
+    # Decisions call's output_tokens=0 under the output_ key would read as missing and drop the call.
+    record_usage({"prompt_tokens": int(usage.get("input_tokens") or 0), "completion_tokens": int(usage.get("output_tokens") or 0)},
+                 model=model, agent="sorter_reviewer")
+
+
+def decide(doc_text: str, *, model: str, questions: Mapping[str, Any], timeout: float = 120.0,
+           attempts: int = 3, max_input_chars: int = DECISIONS_MAX_INPUT_CHARS,
+           qset: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    """One Decisions request: the document as ``state``, every question at once.
+
+    Returns ``{doc_type, doc_subclass, contract_subtype, confidence, probabilities,
+    subclass_confidence, subclass_probabilities, served_model, usage}``. ``confidence`` is
+    the probability the model gives the chosen doc_type. Transient HTTP errors are retried
+    (``attempts`` in all); anything else raises.
+    """
+    import os
+    import time
+
+    import httpx
+
+    key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+    if not key:
+        raise RuntimeError("Decisions backend needs OPENROUTER_API_KEY")
+    if not is_decisions_model(model):
+        raise ValueError(f"{model!r} is not a Decisions-API model")
+    text = doc_text or ""
+    if len(text) > max_input_chars:
+        text = text[:max_input_chars]
+    body = {"model": model, "state": text if text.strip() else "(empty document)", "questions": dict(questions)}
+    last: Exception | None = None
+    for attempt in range(max(1, attempts)):
+        try:
+            resp = httpx.post(DECISIONS_URL, json=body, timeout=timeout,
+                              headers={"Authorization": f"Bearer {key}", "X-Title": "local-mailroom-sandbox"})
+        except httpx.TransportError as exc:
+            last = exc
+        else:
+            if resp.status_code == 200:
+                break
+            last = RuntimeError(f"Decisions API {resp.status_code}: {resp.text[:300]}")
+            if resp.status_code not in _TRANSIENT or "refused to answer" in resp.text:
+                raise last
+        time.sleep(2 ** attempt)
+    else:
+        raise last or RuntimeError("Decisions API failed")
+    data = resp.json()
+    usage = data.get("usage") or {}
+    _record_usage(model, usage)
+    answers = data.get("answers") or {}
+    top = answers.get("doc_type") or {}
+    doc_type = top.get("choice")
+    probs = top.get("probabilities") or {}
+    confidence = probs.get(doc_type, top.get("confidence")) if doc_type else None
+    block = ((qset or {}).get("subclass") or {}).get(doc_type) or {}
+    sub: dict[str, Any] = {}
+    if block.get("markers"):
+        subclass, sub_conf, sub_probs = marker_subclass(block, answers, doc_type)
+    else:
+        sub = answers.get(f"subclass__{doc_type}") or {}
+        subclass = sub.get("choice")
+        sub_probs = {k: v for k, v in (sub.get("probabilities") or {}).items() if k != NOT_THIS_CLASS}
+        if subclass == NOT_THIS_CLASS:
+            # The subclass question disagrees with doc_type: report the best real subclass.
+            subclass = max(sub_probs, key=sub_probs.get) if sub_probs else None
+        sub_conf = sub_probs.get(subclass, sub.get("confidence")) if subclass else None
+    return {
+        "doc_type": doc_type,
+        "doc_subclass": subclass,
+        "contract_subtype": subclass if doc_type == "contract" else None,
+        "confidence": float(confidence) if isinstance(confidence, (int, float)) else None,
+        "probabilities": probs,
+        "subclass_confidence": sub_conf,
+        "subclass_probabilities": sub_probs,
+        "served_model": data.get("model"),
+        "usage": {"input_tokens": usage.get("input_tokens"), "output_tokens": usage.get("output_tokens"),
+                  "cost": usage.get("cost")},
+    }
+
+
+def decisions_backend(model: str, questions: str | None = None, *, qset: Mapping[str, Any] | None = None) -> "DecisionBackend":
+    """Backend over a Decisions-API model with a question set from ``config/decisions``."""
+    if not is_decisions_model(model) or not _PINNED_API.match(model.split(":", 1)[0]):
+        raise ValueError(f"{model!r} is not a pinned Decisions-API model id (expected e.g. 'openai/gpt-6-luna-decisions')")
+    if qset is None and not questions:
+        raise ValueError("decisions backend needs questions: <stem> (config/decisions/<stem>.yaml)")
+    loaded: dict[str, Any] = {}
+
+    def backend(doc_text: str, doc_types: list[str], subclass_catalogs: dict[str, list[str]]) -> "DecisionAnswer":
+        if not loaded:
+            loaded.update(qset if qset is not None else load_question_set(str(questions)))
+        picked = decide(doc_text, model=model, questions=decision_questions(loaded, doc_types),
+                        max_input_chars=int(loaded.get("max_input_chars") or DECISIONS_MAX_INPUT_CHARS), qset=loaded)
+        return _answer(picked["doc_type"], picked["doc_subclass"], picked["confidence"], model)
+
+    return backend
+
+
+def build_backend(name: str, model: str, *, questions: str | None = None) -> "DecisionBackend":
+    """Backend by name: ``jev``, ``local``, ``api``, ``decisions`` (all use ``model``) or ``mock`` (empty table, all unknown)."""
+    if name == "decisions":
+        return decisions_backend(model, questions)
     if name == "jev":
         return jev_backend(model)
     if name == "local":
@@ -204,4 +410,4 @@ def build_backend(name: str, model: str) -> "DecisionBackend":
         return mock_backend({})
     if name == "api":
         return api_backend(model)
-    raise ValueError(f"unknown decision backend {name!r} (expected 'jev', 'local', 'api' or 'mock')")
+    raise ValueError(f"unknown decision backend {name!r} (expected 'jev', 'local', 'api', 'decisions' or 'mock')")

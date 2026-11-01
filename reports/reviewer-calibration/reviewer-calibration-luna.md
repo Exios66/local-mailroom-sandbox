@@ -1,5 +1,13 @@
 # Decision reviewer calibration pilot: `openai/gpt-6-luna` (SAND-085, issue #208)
 
+> **Superseded (2026-11-01).** Every run in this report used the chat model
+> `openai/gpt-6-luna` through the `api` backend, not the Decisions-API model
+> `openai/gpt-6-luna-decisions` the reviewer is meant to be. Its cutoffs do not
+> apply. The calibration on the Decisions model is
+> [`reviewer-calibration-luna-decisions.md`](reviewer-calibration-luna-decisions.md).
+> The class conventions, subclass rules and label-noise findings below carried
+> into its question sets.
+
 Run `reviewer-calibration-luna`, 2026-11-01, signed JB. Spec
 `config/runs/reviewer-calibration-luna.yaml` (spec hash `9fe4f4da…`, dataset
 sha256 `1975326bfa88`, pinned revision `ed7576b6`). Cutoffs:

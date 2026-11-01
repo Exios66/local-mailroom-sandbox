@@ -19,6 +19,9 @@ PRE_REVIEWER_HASH = "0b474bf41250f04433674038acc55a3e03326be20863bbf0fc0f7450683
 def _reviewer(**overrides) -> dict:
     base = {"backend": "jev", "model": "jev-1.13.0", "classes": {"contract": 0.9}}
     base.update(overrides)
+    if base["backend"] == "api":
+        # A chat model as decision reviewer is an explicit opt-in (test_decisions_backend.py).
+        base.setdefault("allow_chat_model", True)
     return base
 
 

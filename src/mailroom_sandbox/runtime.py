@@ -41,6 +41,7 @@ class Activation:
 
 
 _ACTIVE: Activation | None = None
+_ACTIVE_REVIEWER: dict[str, Any] | None = None
 _LOCKED_RUNTIME: ContextVar[dict[str, Any] | None] = ContextVar("sandbox_locked_runtime", default=None)
 
 
@@ -69,6 +70,11 @@ def locked_runtime(lock: dict[str, Any], prompt_lock: dict[str, Any]):
 
 def active() -> Activation | None:
     return _ACTIVE
+
+
+def active_reviewer() -> dict[str, Any] | None:
+    """The reviewer block of the last activation (a locked run's includes its frozen question set)."""
+    return _ACTIVE_REVIEWER
 
 
 def agent_knobs_for(agent: str) -> dict[str, Any]:
@@ -236,12 +242,22 @@ def _install_reviewer(reviewer: Any, taxonomy: dict) -> Any:
     from mailroom_sandbox.decision_backends import build_backend
     from mailroom_sandbox.job.spec import ReviewerSpec
 
+    if not isinstance(reviewer, ReviewerSpec):
+        # A locked block also carries the frozen question set and its hash.
+        reviewer = {k: v for k, v in dict(reviewer).items() if k not in {"question_set", "questions_sha256"}}
     spec = reviewer if isinstance(reviewer, ReviewerSpec) else ReviewerSpec.model_validate(reviewer)
     taxonomy["reviewer"] = {
         "default_mode": "llm",
         "by_class": {name: {"mode": "decision_only", "cutoff": cutoff} for name, cutoff in spec.classes.items()},
     }
-    return build_backend(spec.backend, spec.model)
+    if spec.backend == "decisions":
+        from mailroom_sandbox.decision_backends import decisions_backend
+
+        policy = _LOCKED_RUNTIME.get()
+        locked = ((policy or {}).get("lock") or {}).get("reviewer") or {}
+        # A locked run answers from the frozen question set, never a later edit of the file.
+        return decisions_backend(spec.model, spec.questions, qset=locked.get("question_set"))
+    return build_backend(spec.backend, spec.model, questions=spec.questions)
 
 
 def _register_reviewer(backend: Any) -> None:
@@ -359,6 +375,10 @@ def activate(
 
     install_agent_routes(agent_routes or {}, taxonomy, agent_models=effective_agent_models)
     reviewer_backend = _install_reviewer(reviewer, taxonomy)
+    global _ACTIVE_REVIEWER
+    # Process-wide, like the registered backend: agent-task workers do not inherit the lock's ContextVar.
+    _ACTIVE_REVIEWER = None if reviewer is None else (
+        reviewer.model_dump() if hasattr(reviewer, "model_dump") else deepcopy(dict(reviewer)))
     taxonomy_path = write_runtime_taxonomy(taxonomy)
     os.environ["MAILROOM_TAXONOMY"] = str(taxonomy_path)
     patched = patch_mailroom_config(taxonomy_path)
