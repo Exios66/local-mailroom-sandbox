@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Spend guard: a fixed 3.00 USD reserve of the OpenRouter key's remaining limit is never spent. `require_key_headroom` and `scripts/estimate_spend.py` compare caps/estimates with `remaining - reserve`; `OPENROUTER_KEY_RESERVE_USD` can raise the floor, never lower it.
+
 ### Added
 
 - **Extraction-gate round 2: 690 new real documents, no repeats.** `scripts/extraction_gate.py expand` draws documents no finished specialist run has extracted, checked by id and by whitespace/case-folded text (the run refuses when it finds no history to exclude).

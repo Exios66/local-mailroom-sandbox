@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Estimate the OpenRouter spend of planned runs and check it fits the key's remaining limit.
+"""Estimate the OpenRouter spend of planned runs and check it fits the key's remaining limit
+less the untouchable reserve (``spend.KEY_RESERVE_USD``).
 
 For each run config: documents (the locked dataset.jsonl when preflighted, else the spec's
 local file), calls per document (chunked agents read a long document in windows), prompt
@@ -121,15 +122,17 @@ def main() -> int:
     caps = sum(float(r["api_cap_usd"] or 0) for r in out)
     print(f"{'TOTAL':52} {'':>5} {'':>6} {'':>7} {'':>7} {total:>7.3f} {caps:>6.2f}")
     if os.environ.get("OPENROUTER_API_KEY", "").strip():
-        from mailroom_sandbox.job.spend import key_headroom
+        from mailroom_sandbox.job.spend import key_headroom, key_reserve_usd, spendable_usd
 
         head = key_headroom()
         remaining = head.get("limit_remaining")
-        fits = remaining is None or total * args.margin <= float(remaining)
+        spendable = spendable_usd(remaining)
+        fits = spendable is None or total * args.margin <= spendable
         print(f"key remaining: {remaining} USD (limit {head.get('limit')}, reset {head.get('limit_reset')}); "
+              f"reserve {key_reserve_usd():.2f} USD -> spendable {spendable if spendable is None else round(spendable, 2)} USD; "
               f"estimate x{args.margin} = {total * args.margin:.2f} USD -> {'FITS' if fits else 'DOES NOT FIT'}")
-        if remaining is not None and caps > float(remaining):
-            print(f"note: the caps sum to {caps:.2f} USD, above what remains; each run is checked at its own start")
+        if spendable is not None and caps > spendable:
+            print(f"note: the caps sum to {caps:.2f} USD, above what is spendable; each run is checked at its own start")
         return 0 if fits else 1
     print("OPENROUTER_API_KEY not set: key headroom not checked", file=sys.stderr)
     return 0

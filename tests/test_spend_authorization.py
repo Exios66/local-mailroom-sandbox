@@ -122,7 +122,7 @@ def test_refused_gate_appends_nothing(locked):
     assert ledger.rows() == []
 
 
-@pytest.mark.parametrize('remaining, ok', [(5.0, True), (0.5, False), (None, True)])
+@pytest.mark.parametrize('remaining, ok', [(5.0, True), (4.0, False), (0.5, False), (None, True)])
 def test_key_headroom_gate(monkeypatch, remaining, ok):
     lock = {'engine': {'kind': 'openrouter'}, 'job': {'mock': False, 'api_cost_cap_usd': 1.2}}
     monkeypatch.setenv('OPENROUTER_API_KEY', 'test-not-a-key')
@@ -132,6 +132,15 @@ def test_key_headroom_gate(monkeypatch, remaining, ok):
     else:
         with pytest.raises(ServiceError, match='remaining'):
             spend.require_key_headroom(lock)
+
+
+def test_key_reserve_is_a_floor(monkeypatch):
+    monkeypatch.setenv('OPENROUTER_KEY_RESERVE_USD', '1.0')
+    assert spend.key_reserve_usd() == 3.0          # cannot be lowered
+    assert spend.spendable_usd(5.25) == pytest.approx(2.25)
+    assert spend.spendable_usd(2.0) == 0.0
+    monkeypatch.setenv('OPENROUTER_KEY_RESERVE_USD', '4.5')
+    assert spend.key_reserve_usd() == 4.5          # can be raised
 
 
 def test_key_headroom_fails_closed(monkeypatch):
