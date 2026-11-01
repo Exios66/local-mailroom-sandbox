@@ -18,6 +18,7 @@ Read this skill **first** when the task touches providers, tracing, datasets, Do
 | Hosted eval / experiment logs (opt-in) | Braintrust | [braintrust](../braintrust/SKILL.md) | Braintrust as the default offline sink |
 | Hub datasets / model cards / HF cache | Hugging Face Hub + `sandbox datasets pull` / `sandbox hf …` | [huggingface](../huggingface/SKILL.md) | Live Hub pulls in default pytest |
 | Offline fixture prep | `sandbox datasets prepare` + notebooks | (prep helpers; no cloud) | Hub network in CI |
+| Decision-reviewer calibration (paid OpenRouter `sorter_reviewer` runs) | `sandbox run preflight` → `sandbox run start --initials XX` → `scripts/calibrate_reviewer.py --run <id>` | `config/experiments/decision-pilot/README.md`, `reports/reviewer-calibration/` | Hand-picked cutoffs; `-latest` / `~` model ids |
 | Sandbox-isolated tasks / governance | Local **`SAND-*`** board (`governance/TASKS.md`) | (this router + `governance/PREFIX.md`) | Family **`DMR-*`** MESSAGE_BOARD (cross-repo only) |
 
 ## Observability precedence (`OBSERVABILITY_PROVIDER`)
@@ -43,6 +44,14 @@ Sandbox evals implement the Langfuse v4 `document-pipeline` contract in `mailroo
 6. **OpenRouter** — opt-in only (`OPENROUTER_API_KEY`); never the sandbox default  
 
 Always `mailroom_sandbox.runtime.activate(profile)` before importing mailroom graph/agents. Rewrite models via overlay / `--agent-model`; do not hardcode OpenRouter ids into Ollama.
+
+## Gotchas
+
+- **Spend initials belong to the operator.** `sandbox run start` on a paid run needs `--initials` (2–6 capital letters). An agent asks for them and never signs on its own.
+- **Price check before a paid OpenRouter run.** The cost comes from `SANDBOX_MODEL_PRICES` (`src/mailroom_sandbox/job/metrics.py`) and the live `https://openrouter.ai/api/v1/models` list. Reviewer output is about 100 tokens per document, because the schema requires `reasoning`. Do not strip that field to save cost: the cutoffs would then not match the production reviewer.
+- **Full `task: pipeline` runs are slow on long documents.** A contract or merger takes minutes, since the specialist reads it in chunks. A shell or tool timeout kills the process, not the run: the checkpoint stays `running`, and `sandbox run resume --config <file> --initials XX` continues from the cursor.
+- **A `sorter_reviewer` run is fast:** 735 documents took 100 s at concurrency 16 with no throttling (2026-11-01).
+- **A calibration only fixes thresholds, not taxonomy confusion.** Confidently wrong answers (≥0.94) at a class boundary need a prompt or catalog fix, not a cutoff. Check `top_confidence_wrong` and the confusion matrix before trusting a cutoff.
 
 ## Repo anchors
 

@@ -7,10 +7,12 @@
 # subclasses (every small subclass is taken whole) so a common subclass cannot
 # set the cutoff alone. 1,888 documents in all, 2.6x the 735-document draw.
 # Reviewer only; the labels come from the corpus. At gpt-6-luna's $0.10/$0.50
-# per 1M tokens this measures at about $0.65 (output ~15% of it). A signed
+# per 1M tokens this measures at about $0.80 with the decision_v1 prompt (output ~12%). A signed
 # `sandbox run start --initials XX` is the spend approval. Afterwards:
 #   python scripts/calibrate_reviewer.py --run reviewer-calibration-luna-full
 # Its cutoffs are candidates for issue #208 and are not applied automatically.
+# Uses the decision_v1 reviewer prompt, which the 735 pilot and the test-split
+# check selected (reports/reviewer-calibration/reviewer-calibration-luna.md).
 schema: sandbox.run/v1
 run_id: reviewer-calibration-luna-full
 task: sorter_reviewer
@@ -18,6 +20,8 @@ profile: openrouter
 
 prompt:
   default: {source: code-default}
+  agents:
+    sorter_reviewer: {source: local, file: sorter_reviewer_decision_v1}
 
 dataset:
   provider: huggingface
@@ -111,7 +115,7 @@ job:
   mock: false
   max_retries: 1
   fail_fast: false
-  concurrency: 16
+  concurrency: 32
   cost_cap_usd: 1.00
   max_wall_seconds: 5400
   api_cost_cap_usd: 1.50
