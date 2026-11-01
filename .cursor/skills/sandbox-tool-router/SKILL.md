@@ -51,7 +51,7 @@ Always `mailroom_sandbox.runtime.activate(profile)` before importing mailroom gr
 - **Spend initials belong to the operator.** `sandbox run start` on a paid run needs `--initials` (2–6 capital letters). An agent asks for them and never signs on its own.
 - **Price check before a paid OpenRouter run.** The cost comes from `SANDBOX_MODEL_PRICES` (`src/mailroom_sandbox/job/metrics.py`) and the live model endpoints list (`https://openrouter.ai/api/v1/models/<id>/endpoints`; Decisions models are missing from the plain `/models` list). Luna Decisions bills input only ($0.10/M); the document is billed once per request however many questions it carries.
 - **Full `task: pipeline` runs are slow on long documents.** A contract or merger takes minutes, since the specialist reads it in chunks. A shell or tool timeout kills the process, not the run: the checkpoint stays `running`, and `sandbox run resume --config <file> --initials XX` continues from the cursor.
-- **A `sorter_reviewer` run is fast:** 735 documents took 100 s at concurrency 16 with no throttling (2026-11-01).
+- **A reviewer run is fast.** On the Decisions model (`openai/gpt-6-luna-decisions`) a document takes p50 0.5 s and p95 0.9 s at concurrency 16 (`reviewer-calibration-luna-decisions.md`). The 735 documents in 100 s figure was the superseded chat-model run (`openai/gpt-6-luna`, 2026-11-01).
 - **A calibration only fixes thresholds, not taxonomy confusion.** Confidently wrong answers (≥0.94) at a class boundary need a prompt or catalog fix, not a cutoff. Check `top_confidence_wrong` and the confusion matrix before trusting a cutoff.
 
 ## Repo anchors

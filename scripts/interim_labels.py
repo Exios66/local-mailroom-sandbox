@@ -70,8 +70,8 @@ def _gate_run(run_id: str) -> dict[str, Any]:
             continue
         row = rows[doc]
         fields = handoff[doc].get("fields") or {}
-        truth = {k: v for k, v in eg._field_truth(str(row.get("expected_doc_class")), row, fields, 0.8).items()
-                 if not k.startswith("_")}
+        # A scorer error leaves the row with no field truth, as before (the error is reported by calibrate).
+        truth, _error = eg._field_truth(str(row.get("expected_doc_class")), row, fields, 0.8)
         docs.append({"row": row, "fields": fields, "gate": pred, "truth": truth, "source": source_of.get(doc, {})})
     return {"run_id": run_id, "question_set": qversion, "dataset_revision": (lock.get("dataset") or {}).get("revision"),
             "dataset_sha256": (lock.get("dataset") or {}).get("sha256"), "docs": docs}

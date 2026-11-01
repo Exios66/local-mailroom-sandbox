@@ -58,8 +58,18 @@ def _specialist_prompt_chars(spec: dict, agent: str, root: Path) -> int:
     return PROMPT_CHARS.get(agent, 6_000)
 
 
-def estimate(spec: dict, root: Path) -> dict:
+def _price(model: str | None, prompt_tokens: float) -> tuple[float, float]:
+    """``call_price`` at this call size; an unpriced model fails closed instead of costing $0."""
     from mailroom_sandbox.job.metrics import call_price
+
+    price = call_price(model, prompt_tokens)
+    if price is None:
+        raise SystemExit(f"no token price for {model!r}: add it to config/api_prices.yaml or set "
+                         "SANDBOX_TOKEN_PRICE_IN_PER_M and SANDBOX_TOKEN_PRICE_OUT_PER_M")
+    return price
+
+
+def estimate(spec: dict, root: Path) -> dict:
 
     task = spec.get("task")
     # An isolated run's agent is job.task (default sorter, as the spec model fills it).
@@ -81,7 +91,7 @@ def estimate(spec: dict, root: Path) -> dict:
             handoff = 1_500 if task == "extraction_gate" else 200   # extraction / sorter answer, chars
             t = (min(n, int(limit_by.get(cls) or limit)) + len(json.dumps(q)) + handoff) / CHARS_PER_TOKEN
             tokens_in += t
-            usd += t * (call_price(model, t) or (0.0, 0.0))[0] / 1e6
+            usd += t * _price(model, t)[0] / 1e6
         tokens_out, calls = 0.0, len(rows)
     else:
         agent = job_task if job_task in PROMPT_CHARS else task
@@ -98,7 +108,7 @@ def estimate(spec: dict, root: Path) -> dict:
             calls += k
             t = (read + k * prompt) / CHARS_PER_TOKEN
             tokens_in += t
-            p_in, p_out = call_price(model, t / k) or (0.0, 0.0)   # each call priced at its own tier
+            p_in, p_out = _price(model, t / k)   # each call priced at its own tier
             usd += (t * p_in + k * out_per_call * p_out) / 1e6
         tokens_out = calls * out_per_call
     list_usd = usd
