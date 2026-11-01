@@ -14,6 +14,15 @@ from mailroom_sandbox.cli import build_parser  # noqa: E402
 REFERENCE = ROOT / 'docs' / 'cli-reference.md'
 
 
+
+def _expand_help(action, prog: str) -> str:
+    """Help text as argparse prints it: ``%(name)s`` substituted and ``%%`` unescaped."""
+    params = {k: v for k, v in vars(action).items() if v is not argparse.SUPPRESS}
+    params["prog"] = prog
+    if params.get("choices") is not None:
+        params["choices"] = ", ".join(map(str, params["choices"]))
+    return (action.help or "") % params
+
 def children(parser, *, hidden=True):
     """Subcommands; ``hidden=False`` drops ones marked ``_sandbox_hidden`` (still parsed and tested)."""
     for action in parser._actions:
@@ -96,7 +105,7 @@ def render(parser):
             lines.extend(['| Argument | Required by parser | Description |', '| --- | --- | --- |'])
             for action in actions:
                 name = ', '.join(action.option_strings) if action.option_strings else action.dest
-                help_text = (action.help or '').replace('%(default)s', str(action.default)).replace('%(prog)s', p.prog)
+                help_text = _expand_help(action, p.prog)
                 if action.choices is not None:
                     help_text += (' ' if help_text else '') + 'Choices: ' + ', '.join(map(str, action.choices)) + '.'
                 lines.append(f'| `{escape(name)}` | {"Yes" if required(action) else "No"} | {escape(help_text)} |')

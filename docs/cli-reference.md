@@ -1242,7 +1242,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
 | `--input` | Yes | JSONL, one row per reviewer-band document |
 | `--out` | Yes | directory for calibration.json and calibration.md |
-| `--risk-bar` | No | maximum 95%% upper bound on wrong accepts (default 0.01) |
+| `--risk-bar` | No | maximum 95% upper bound on wrong accepts (default 0.01) |
 | `--tune-fraction` | No | share of documents used to tune; the rest are held out (default 0.5) |
 | `--allow-correspondence` | No | calibrate correspondence rows for a live model; the class still stays on llm |
 
