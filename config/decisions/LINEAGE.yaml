@@ -48,7 +48,15 @@ versions:
     summary: >-
       insurance_claim subclasses cover the whole taxonomy (liability, health, life,
       workers_comp, other); a forward inside an email is not multiple_documents.
-    runs: []
+    runs:
+      - {run: reviewer-verify-sorter-handoff-train, split: train, documents: 46, purpose: settle disputed handoff targets, input_tokens: 535592}
+    scoring: >-
+      Scored against the verified targets of the saved Qwen pass
+      (data/handoff/sorter-qwen3.7-flash/<split>.targets.jsonl). The 32 label corrections and
+      the unannotated merger subclass are the conventions this set already states (charter
+      amendments, Certificates of Designation as officer_certificate, bylaws vs charter).
+      Next: reviewer-calibration-luna-decisions-v3.1.0-train, all 2,979 train documents with the
+      sorter handoff (preflight prepared; about 20.5M input tokens, about $2.05; cap $2.60).
     open_for_4.0.0: >-
       Derive continue / correct subclass / reclassify in code from the doc_type and subclass
       answers against the handoff, and keep only the human edge cases as a model question.

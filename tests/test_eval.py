@@ -307,8 +307,8 @@ def test_dojo_pin_matches_current_vendored_snapshot():
 
     pins = {name: (ref, sha) for name, ref, _url, sha in cli_mod._VENDOR_PINS}
     assert pins["llm-dojo-scoring"] == (
-        "718e326c1fe5a49b3f1cfd43a3ac10c73e7e01a4",
-        "718e326c1fe5a49b3f1cfd43a3ac10c73e7e01a4",
+        "db15b7c593a533bb07c388a5af74f70750769055",
+        "db15b7c593a533bb07c388a5af74f70750769055",
     ), "dojo must consume the reviewed current commit"
     assert pins["llm-dojo-scoring"][1] in vendor_md
     assert dojo.__version__ == "0.24.2"

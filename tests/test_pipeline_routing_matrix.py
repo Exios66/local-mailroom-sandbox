@@ -12,7 +12,7 @@ import pytest
 from mailroom_sandbox.runtime import activate
 
 MODEL_NODES = ("classify", "retry_classify", "review_classify", "extract", "retry_extract",
-               "judge_verify", "arbiter", "boss_escalation")
+               "judge_verify", "arbiter", "boss_escalation", "classification_arbiter")
 REAL_NODES = ("intake", "human_review", "compile_report", "catalog_write", "archive")
 WALKED: set[tuple[str, str]] = set()
 DATA = {"entity_name": "Cedar Sample Ltd", "record_type": "minutes", "confidence": 0.99}
@@ -109,6 +109,9 @@ def scenarios():
     judge = lambda verdict, passes=1: {"judge_verdict": verdict, "judge_pass_count": passes, "transient_error": False}  # noqa: E731
     accept = {"review_verdict": "reviewer_agrees_high", "reviewer_confidence": 0.99,
               "reviewer_doc_type": "corporate_record", "transient_error": False}
+    parked = {"review_verdict": "decision_parks", "review_route": "human_review", "reviewer_confidence": 0.4,
+              "reviewer_doc_type": "corporate_record", "reviewer_causes": ["reviewer_low_confidence"],
+              "transient_error": False}
     return {
         "happy_path": ({"classify": [sorted_as(HIGH)], "extract": [extracted()]}, "archived"),
         "unknown_class": ({"classify": [sorted_as(HIGH, doc_type="unknown")]}, "review"),
@@ -154,6 +157,19 @@ def scenarios():
         "arbiter_retries": ({"classify": [sorted_as(HIGH)], "extract": [extracted(band)],
                              "judge_verify": [judge("partial")], "arbiter": [arbiter_retry],
                              "retry_extract": [extracted(attempt=2)]}, "archived"),
+        # Decision review parks below its cutoff -> classification arbiter -> extract / a person.
+        "classification_arbiter_accepts": ({"classify": [sorted_as(medium_sort)],
+                                            "retry_classify": [sorted_as(medium_sort, attempt=2)],
+                                            "review_classify": [parked],
+                                            "classification_arbiter": [{"classification_arbiter_decision": "accept_sorter",
+                                                                        "classification_arbiter_confidence": 0.99,
+                                                                        "transient_error": False}],
+                                            "extract": [extracted()]}, "archived"),
+        "classification_arbiter_escalates": ({"classify": [sorted_as(medium_sort)],
+                                              "retry_classify": [sorted_as(medium_sort, attempt=2)],
+                                              "review_classify": [parked],
+                                              "classification_arbiter": [{"classification_arbiter_decision": "human_review",
+                                                                          "transient_error": False}]}, "review"),
         "arbiter_escalates": ({"classify": [sorted_as(HIGH)], "extract": [extracted(band)],
                                "judge_verify": [judge("incomplete")],
                                "arbiter": [{"arbiter_decision": "escalate", "transient_error": False}]}, "review"),
@@ -164,7 +180,8 @@ def scenarios():
     "happy_path", "unknown_class", "low_confidence", "low_then_recovered", "reviewer_accepts",
     "reviewer_rejects", "transient_loops", "extraction_exhausted", "extraction_verified", "extraction_empty",
     "retry_extract_recovers", "retry_extract_exhausted", "retry_extract_empty", "retry_extract_conflict", "boss_rejects", "judge_clean",
-    "judge_error", "arbiter_retries", "arbiter_escalates"])
+    "judge_error", "arbiter_retries", "arbiter_escalates", "classification_arbiter_accepts",
+    "classification_arbiter_escalates"])
 def test_route(name, graph, monkeypatch, tmp_path):
     script, stage = scenarios()[name]
     result, visited = walk(graph, monkeypatch, tmp_path, script)

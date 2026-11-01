@@ -24,7 +24,13 @@ the Digital-Mailroom workspace and these generated snapshots must match.
 Dojo owns scoring; llm-mailroom owns the pipeline. Production corporate v6
 and sandbox evaluation v7 remain separate intentional prompt catalogs.
 
+Mirrored from llm-mailroom PR #135 (branch `docs/decision-reviewer-luna-decisions`):
+the sorter handoff to decision backends, the classification arbiter, and the frozen
+sorter prompt V15 (class boundaries B1-B3, subclass conventions S1-S5) with its
+subclass catalog rendered from the Dojo sorter guide
+(`langchain_agents/prompts.py`, `langchain_agents/doc_inventories.py`).
+
 The pipeline now declares the interim post-v0.24.2 Dojo commit
-`718e326c1fe5a49b3f1cfd43a3ac10c73e7e01a4` (explicit zero-token usage fix),
+`db15b7c593a533bb07c388a5af74f70750769055` (zero-token fix, sorter subclass guide),
 and its vendored bump tool validates SHA targets without rewriting that pin
 back to a movable tag.

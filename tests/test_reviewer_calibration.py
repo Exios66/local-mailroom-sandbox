@@ -168,3 +168,80 @@ def test_a_small_perfect_class_does_not_meet_the_target(tmp_path):
     items = [{"item_id": str(i), "ok": True, "pred": {"doc_type": "contract", "confidence": 0.9}} for i in range(40)]
     result = calibrate_reviewer.calibrate(_store(tmp_path, items, rows), classes=CLASSES)["classes"]["contract"]
     assert result["holdout_accuracy"] == 1.0 and result["meets_target"] is False
+
+
+def _targets_run(tmp_path):
+    """A reviewer run with a saved handoff and verified targets next to it."""
+    rows = [{"id": "a", "expected_doc_class": "contract", "expected_subclass": "License_Agreements"},
+            {"id": "b", "expected_doc_class": "corporate_record", "expected_subclass": "board_resolution"},
+            {"id": "c", "expected_doc_class": "merger_agreement", "expected_subclass": "other"},
+            {"id": "d", "expected_doc_class": "contract", "expected_subclass": "Service"}]
+    targets = [
+        {"id": "a", "target_doc_class": "contract", "target_subclass": "license",
+         "use_for_class": True, "use_for_subclass": True},
+        # label corrected: a Certificate of Amendment labelled board_resolution
+        {"id": "b", "target_doc_class": "corporate_record", "target_subclass": "charter_amendment",
+         "use_for_class": True, "use_for_subclass": True},
+        # unannotated merger: class scored, subclass not
+        {"id": "c", "target_doc_class": "merger_agreement", "target_subclass": None,
+         "use_for_class": True, "use_for_subclass": False},
+        # ambiguous: not scored at all
+        {"id": "d", "target_doc_class": None, "target_subclass": None,
+         "use_for_class": False, "use_for_subclass": False},
+    ]
+    handoff = tmp_path / "handoff" / "train.jsonl"
+    handoff.parent.mkdir(parents=True)
+    handoff.write_text("")
+    (tmp_path / "handoff" / "train.targets.jsonl").write_text("".join(json.dumps(t) + "\n" for t in targets))
+    items = [
+        {"item_id": "a", "ok": True, "pred": {"doc_type": "contract", "doc_subclass": "license", "confidence": 0.99}},
+        {"item_id": "b", "ok": True, "pred": {"doc_type": "corporate_record", "doc_subclass": "charter_amendment",
+                                              "confidence": 0.99, "verdict": "continue_with_subclass_correction"}},
+        {"item_id": "c", "ok": True, "pred": {"doc_type": "merger_agreement", "doc_subclass": "all_cash",
+                                              "confidence": 0.99}},
+        {"item_id": "d", "ok": True, "pred": {"doc_type": "correspondence", "confidence": 0.99}},
+    ]
+    store = _store(tmp_path, items, rows)
+    store.write_lock({"reviewer": {"handoff_run": str(handoff), "handoff": {
+        "b": {"sorter_doc_type": "corporate_record", "sorter_doc_subclass": "board_resolution"}}}})
+    return store
+
+
+def test_targets_next_to_the_handoff_are_the_default_truth(tmp_path):
+    store = _targets_run(tmp_path)
+    truth = calibrate_reviewer.Truth(store)
+    assert truth.source.startswith("targets ") and "sha256" in truth.source
+    assert truth.doc_class("d") is None
+    assert truth.subclass("c") == (False, None)
+    assert calibrate_reviewer.Truth(store, labels=True).source == "dataset labels"
+
+
+def test_scoring_against_targets_skips_unscored_rows(tmp_path):
+    store = _targets_run(tmp_path)
+    classes = {"contract", "corporate_record", "merger_agreement", "correspondence"}
+    truth = calibrate_reviewer.Truth(store)
+    rows = calibrate_reviewer._rows(store, classes, truth)
+    assert "correspondence" not in rows or rows["correspondence"] == []
+    assert all(correct for values in rows.values() for _, correct in values)
+    sub = calibrate_reviewer.subclass_report(store, truth)
+    assert (sub["subclass_correct"], sub["subclass_scored"]) == (2, 2)
+    out = calibrate_reviewer.routing(store, {"contract": 0.5, "corporate_record": 0.5,
+                                             "merger_agreement": 0.5, "correspondence": 0.5}, truth)
+    assert out["misrouted"] == 0 and out["not_scored"] == 1
+    # the corrected label makes the sorter's board_resolution a subclass error
+    assert out["verdicts_by_expected"] == {
+        "continue_with_subclass_correction": {"continue_with_subclass_correction": 1}}
+
+
+def test_raw_labels_count_the_label_noise_as_reviewer_errors(tmp_path):
+    store = _targets_run(tmp_path)
+    sub = calibrate_reviewer.subclass_report(store, calibrate_reviewer.Truth(store, labels=True))
+    assert sub["subclass_correct"] < sub["subclass_scored"]
+
+
+def test_targets_missing_a_locked_document_are_refused(tmp_path):
+    store = _targets_run(tmp_path)
+    path = tmp_path / "short.targets.jsonl"
+    path.write_text(json.dumps({"id": "a", "target_doc_class": "contract", "use_for_class": True}) + "\n")
+    with pytest.raises(ValueError, match="no row for 3"):
+        calibrate_reviewer.Truth(store, path)
