@@ -80,3 +80,26 @@ def test_gate_runs_count_as_openrouter_spend():
 
     assert uses_openrouter({"engine": {"kind": "vllm"}, "extraction_gate": {"model": GATE["model"]}})
     assert not uses_openrouter({"engine": {"kind": "vllm"}})
+
+
+def test_mock_runs_get_an_offline_gate(monkeypatch):
+    """A job.mock run never reaches the Decisions API through the gate."""
+    from mailroom_sandbox import runtime
+
+    monkeypatch.setattr(db, "decide_extraction", lambda *a, **k: pytest.fail("mock gate called the Decisions API"))
+    block = {**GATE, "question_set": db.load_question_set("extraction_gate_v1.3.0")}
+    gate = runtime._extraction_gate_backend(block, mock=True)
+    answer = gate("text", {"doc_type": "insurance_claim", "fields": {}})
+    assert answer["mock"] is True and answer["verdict"] == "accept" and answer["doc_type"] == "insurance_claim"
+
+
+def test_the_gate_model_is_in_the_api_budget():
+    """A vLLM pipeline with a Decisions gate still bills the API: the cap check must see the gate."""
+    from mailroom_sandbox.job import api_budget
+
+    lock = {"task": "pipeline", "engine": {"kind": "vllm", "model": "Qwen/Qwen3-8B"},
+            "extraction_gate": {"model": GATE["model"]}, "job": {"mock": False}}
+    assert api_budget.api_models(lock) == [GATE["model"]]
+    assert any("api_cost_cap_usd" in e for e in api_budget.budget_errors(lock))
+    spec = _spec(extraction_gate=GATE)
+    assert GATE["model"] in api_budget.spec_api_models(spec)
