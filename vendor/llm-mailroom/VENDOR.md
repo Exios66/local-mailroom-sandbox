@@ -30,7 +30,7 @@ sorter prompt V15 (class boundaries B1-B3, subclass conventions S1-S5) with its
 subclass catalog rendered from the Dojo sorter guide
 (`langchain_agents/prompts.py`, `langchain_agents/doc_inventories.py`).
 
-The pipeline now declares the interim post-v0.24.2 Dojo commit
-`db15b7c593a533bb07c388a5af74f70750769055` (zero-token fix, sorter subclass guide),
+The pipeline now declares llm-dojo-scoring 0.25.0 by its release merge commit
+`e35504db12f09aeda07ae116663c177acd8c0d6e` (sorter subclass guide, zero-token fix),
 and its vendored bump tool validates SHA targets without rewriting that pin
 back to a movable tag.

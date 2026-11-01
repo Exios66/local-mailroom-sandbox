@@ -132,3 +132,5 @@ data/provider_health.lock
 # Pipeline output from mock and live runs
 /data/archive
 /data/warehouse
+reports/run-ledger.md.lock
+reports/run-ledger.md.tmp

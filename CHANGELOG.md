@@ -4,6 +4,30 @@
 
 ### Added
 
+- **Run ledger (`reports/run-ledger.md`).** Every paid run that passes the spend gate appends one row:
+  - columns: UTC time, the signer's initials, `start` or `resume`, run id, config, spec hash, rows, API cap and result;
+  - the result cell is filled when the run reaches a terminal state (`✓` done, `✗` failed). For a Modal run this happens when `sandbox run status` syncs it back;
+  - it is a Markdown table that `mailroom_sandbox.job.ledger.rows()` parses back;
+  - tests write to a temporary ledger, never the tracked one.
+- **Key-headroom spend gate.** A paid OpenRouter run refuses to start when its `job.api_cost_cap_usd` exceeds the key's remaining limit (`GET /api/v1/key`). The check fails closed when the limit cannot be read.
+- `scripts/estimate_spend.py` estimates the planned runs' token spend and checks the total against the key's live remaining limit. On the measured V14 pass it is within 3%.
+- **Sorter-condensed lineage, the sorter mutation surface.**
+  - `config/prompts/sorter_condensed_v1.txt` is V15's class boundaries and subclass conventions, condensed.
+  - Its system prompt renders to 3,681 chars against V15's 25,074, about 5.3k fewer prompt tokens per call. Per-key meanings stay in the Dojo catalog in the user message.
+  - `sorter_condensed_lineage.yaml` lists the versions and the frontrunner. `tests/test_sorter_condensed_prompt.py` holds the 4,000-char budget and the V15 conventions.
+  - Validation run: `config/runs/sorter-condensed-v1-qwen-train-errors.yaml`, the same 1,003 documents as the V15 run.
+- **Extraction quality gate (`task: extraction_gate`).**
+  - `openai/gpt-6-luna-decisions` reads a document together with the specialist's real extraction of it, under question set `config/decisions/extraction_gate_v1.0.0.yaml`.
+  - It answers a verdict (`accept`, `retry_extraction` or `human_review`) plus one yes/no support question per key field, for all five classes.
+  - Contract and merger_agreement fields cover entity extraction and the native CUAD clauses / MAUD answers.
+  - `reviewer.handoff_run` names the finished specialist runs. Preflight refuses mock, unfinished or non-specialist runs.
+  - The gate's truth is the dojo score of the extraction it judged. `scripts/extraction_gate.py` builds the 220-document stratified train baseline and calibrates per class and per field (AUROC, accept cutoff at a target precision).
+  - Specs: `config/runs/extraction-gate-specialist-<class>-qwen.yaml` (qwen/qwen3.7-flash) and `config/runs/extraction-gate-luna-v1.0.0-baseline.yaml`.
+
+### Changed
+
+- Vendored llm-dojo-scoring 0.25.0, the release merge commit `e35504db` of Dojo PR #91, replacing the interim `db15b7c5`.
+
 - **SAND-085 — sorter V15 with the V14 subclass fixes, scored on verified targets.**
   - The vendored sorter prompt V15 (llm-mailroom PR #135) now carries subclass conventions S1-S5 alongside its class boundaries. They cover:
     - CMS carrier vs outpatient;

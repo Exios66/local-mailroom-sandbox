@@ -1,0 +1,53 @@
+# Condensed sorter prompt v1 (config/prompts/sorter_condensed_v1.txt) against V15 on the same 1,003
+# train documents as sorter-v15-qwen-train-errors.yaml: every document V14 got wrong against the
+# verified targets (122 class, 681 subclass) plus 200 seeded controls (40 per class).
+#
+# Token budget: the condensed system prompt renders to 3,681 chars against V15's 25,074 (about
+# 5.3k fewer prompt tokens per call); both send the same 5,490-char subclass catalog in the user
+# message. tests/test_sorter_condensed_prompt.py holds the budget. Adopt the condensed lineage when it
+# matches or beats V15 on fixed - broken; mutations go into sorter_condensed_v<N>.
+#
+#   sandbox run start --config config/runs/sorter-condensed-v1-qwen-train-errors.yaml --initials XX
+#   python scripts/compare_sorter_prompt.py --split train score --run sorter-condensed-v1-qwen-train-errors
+#
+# Cost: about 11.1M prompt + 0.15M completion tokens; list price ($0.03/$0.13 per 1M) about
+# $0.35. The API cap prices every token at the profile's highest route ($0.05/$0.25): about
+# $0.60, so the cap is $0.90.
+schema: sandbox.run/v1
+run_id: sorter-condensed-v1-qwen-train-errors
+task: isolated
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+  agents:
+    sorter: {source: local, file: sorter_condensed_v1}
+
+dataset:
+  provider: file
+  local_path: data/runtime/handoff/train-sorter-errors.jsonl
+  config: ground_truth
+  split: train
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.7-flash
+  modal: null
+
+agent_knobs:
+  sorter: {max_input_chars: 600000}
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 24
+  cost_cap_usd: 2.00
+  max_wall_seconds: 5400
+  api_cost_cap_usd: 0.90
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, sorter-handoff, sorter-condensed-v1]

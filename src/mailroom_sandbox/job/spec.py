@@ -689,7 +689,7 @@ class RunSpec(BaseModel):
 
     @model_validator(mode="after")
     def _reviewer_classes(self) -> "RunSpec":
-        if self.reviewer is not None and not self.reviewer.classes and self.task != "sorter_reviewer":
+        if self.reviewer is not None and not self.reviewer.classes and self.task not in ("sorter_reviewer", "extraction_gate"):
             raise ValueError("reviewer classes must map at least one class to a cutoff "
                              "(an empty map is only for a task: sorter_reviewer calibration run)")
         return self
