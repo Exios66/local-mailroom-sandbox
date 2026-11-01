@@ -565,15 +565,23 @@ class JobSpec(BaseModel):
 class ReviewerSpec(BaseModel):
     """Frozen decision-model reviewer: which backend, which pinned model, which classes at what cutoff."""
     model_config = {"extra": "forbid"}
-    backend: Literal["jev", "local", "api", "mock"]
+    backend: Literal["jev", "local", "api", "decisions", "mock"]
     model: str = Field(min_length=1)
-    classes: dict[str, float]
+    # Per-class cutoffs. Empty only on a calibration run (task: sorter_reviewer), which
+    # routes nothing; preflight requires at least one class on a pipeline run.
+    classes: dict[str, float] = Field(default_factory=dict)
+    # backend decisions: the question-set stem, config/decisions/<stem>.yaml (locked by content).
+    questions: str | None = None
+    # A chat model as the decision reviewer must be chosen on purpose (see _decision_model_guard).
+    allow_chat_model: bool = False
 
     @field_validator("classes", mode="before")
     @classmethod
     def _cutoffs(cls, values: Any) -> Any:
-        if not isinstance(values, dict) or not values:
-            raise ValueError("reviewer classes must map at least one class to a cutoff")
+        if values is None:
+            return {}
+        if not isinstance(values, dict):
+            raise ValueError("reviewer classes must map class names to cutoffs")
         for name, cutoff in values.items():
             if isinstance(cutoff, bool) or not isinstance(cutoff, (int, float)) or not math.isfinite(cutoff) or not 0 <= cutoff <= 1:
                 raise ValueError(f"{name}: cutoff must be a finite number in [0, 1]")
@@ -584,7 +592,38 @@ class ReviewerSpec(BaseModel):
         # The pin check lives with the backends; building one does no network call.
         from mailroom_sandbox.decision_backends import build_backend
 
-        build_backend(self.backend, self.model)
+        build_backend(self.backend, self.model, questions=self.questions)
+        return self
+
+    def model_dump(self, **kwargs: Any) -> dict[str, Any]:  # type: ignore[override]
+        # Fields added for the Decisions backend are omitted at their defaults, so the
+        # spec hash of every reviewer block written before them is unchanged.
+        out = super().model_dump(**kwargs)
+        if out.get("questions") is None:
+            out.pop("questions", None)
+        if out.get("allow_chat_model") is False:
+            out.pop("allow_chat_model", None)
+        return out
+
+    @model_validator(mode="after")
+    def _decision_model_guard(self) -> "ReviewerSpec":
+        # 2026-11-01: a whole calibration ran on the chat model openai/gpt-6-luna through the api
+        # backend when the intended reviewer was the Decisions model openai/gpt-6-luna-decisions.
+        # A Decisions model only works on backend decisions, and a chat model on api needs an
+        # explicit opt-in, so the two can no longer be swapped silently.
+        from mailroom_sandbox.decision_backends import is_decisions_model
+
+        if self.backend == "decisions" and not is_decisions_model(self.model):
+            raise ValueError(f"reviewer backend decisions needs a Decisions-API model (e.g. 'openai/gpt-6-luna-decisions'); "
+                             f"{self.model!r} is a chat model")
+        if self.backend == "decisions" and not self.questions:
+            raise ValueError("reviewer backend decisions needs questions: <stem> (config/decisions/<stem>.yaml)")
+        if self.backend != "decisions" and is_decisions_model(self.model):
+            raise ValueError(f"{self.model!r} is a Decisions-API model; use reviewer backend decisions, not {self.backend!r}")
+        if self.backend == "api" and not self.allow_chat_model:
+            raise ValueError(f"reviewer backend api runs the chat model {self.model!r} as the decision reviewer; "
+                             "the decision reviewer is a Decisions-API model (backend decisions). "
+                             "Set allow_chat_model: true only to compare against a chat model on purpose")
         return self
 
 
@@ -640,6 +679,13 @@ class RunSpec(BaseModel):
     @classmethod
     def _task_known(cls, v: str) -> str:
         return _check_task(v)
+
+    @model_validator(mode="after")
+    def _reviewer_classes(self) -> "RunSpec":
+        if self.reviewer is not None and not self.reviewer.classes and self.task != "sorter_reviewer":
+            raise ValueError("reviewer classes must map at least one class to a cutoff "
+                             "(an empty map is only for a task: sorter_reviewer calibration run)")
+        return self
 
     @model_validator(mode="after")
     def _target(self) -> "RunSpec":

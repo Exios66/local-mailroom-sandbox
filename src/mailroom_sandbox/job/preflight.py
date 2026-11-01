@@ -135,6 +135,40 @@ def _api_reviewer_errors(spec: RunSpec) -> list[str]:
     return errs
 
 
+def _reviewer_lock(spec: RunSpec) -> dict[str, Any]:
+    """The reviewer block as locked; a Decisions question set is frozen by content and hash."""
+    block = spec.reviewer.model_dump()
+    if spec.reviewer.backend == "decisions" and spec.reviewer.questions:
+        import hashlib
+
+        from mailroom_sandbox.decision_backends import decisions_dir, load_question_set
+
+        path = decisions_dir() / f"{spec.reviewer.questions}.yaml"
+        block["questions_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+        block["question_set"] = load_question_set(spec.reviewer.questions)
+    return block
+
+
+def _decisions_reviewer_errors(spec: RunSpec) -> list[str]:
+    """The Decisions reviewer: a loadable question set, an OpenRouter key, and on a calibration
+    run the engine model must be the reviewer model (the run's model label and price)."""
+    from mailroom_sandbox.decision_backends import decision_questions, load_question_set
+
+    errs: list[str] = []
+    try:
+        decision_questions(load_question_set(spec.reviewer.questions or ""))
+    except Exception as exc:  # noqa: BLE001 - every shape error is a preflight error
+        errs.append(f"decision reviewer questions: {exc}")
+    if spec.job.mode == "modal":
+        errs.append("decision reviewer backend decisions is not supported for modal jobs (use job.mode endpoint)")
+    if not spec.job.mock and not os.environ.get("OPENROUTER_API_KEY", "").strip():
+        errs.append("decision reviewer backend decisions needs OPENROUTER_API_KEY")
+    if spec.task == "sorter_reviewer" and spec.engine.model != spec.reviewer.model:
+        errs.append(f"sorter_reviewer calibration: engine.model {spec.engine.model!r} must equal reviewer.model "
+                    f"{spec.reviewer.model!r}, so the run is labelled and priced as the model it calls")
+    return errs
+
+
 def _engine_errors(spec: RunSpec) -> list[str]:
     errs: list[str] = []
     if spec.agent_models or spec.agent_knobs:
@@ -168,6 +202,15 @@ def _engine_errors(spec: RunSpec) -> list[str]:
             errs.extend(_local_reviewer_errors(spec))
         if spec.reviewer.backend == "api":
             errs.extend(_api_reviewer_errors(spec))
+        if spec.reviewer.backend == "decisions":
+            errs.extend(_decisions_reviewer_errors(spec))
+        if spec.task == "pipeline" and not spec.reviewer.classes:
+            errs.append("decision reviewer on a pipeline run needs at least one class with a cutoff")
+    elif spec.task == "sorter_reviewer" and not spec.job.mock and spec.engine.kind == "openrouter":
+        # A paid reviewer calibration must name its reviewer: without a reviewer block the
+        # sorter_reviewer chat agent runs, which is how chat Luna was calibrated by mistake.
+        errs.append("a paid sorter_reviewer run needs a reviewer block: backend decisions with a Decisions-API model "
+                    "(e.g. openai/gpt-6-luna-decisions) and questions, or backend api with allow_chat_model: true")
     vllm = spec.engine.vllm
     if vllm.max_model_len < 1:
         errs.append("max_model_len must be >= 1")
@@ -757,7 +800,7 @@ def _preflight(
         "profile": spec.profile,
         "agent_models": dict(spec.agent_models),
         **({"agent_routes": {name: route.model_dump() for name, route in spec.agent_routes.items()}} if spec.agent_routes else {}),
-        **({"reviewer": spec.reviewer.model_dump()} if spec.reviewer else {}),
+        **({"reviewer": _reviewer_lock(spec)} if spec.reviewer else {}),
         "prompt": prompt_block,
         "engine": spec.engine.model_dump(),
         "job": spec.job.model_dump(),

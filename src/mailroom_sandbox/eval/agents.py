@@ -145,7 +145,23 @@ def _live_sorter(row: dict[str, Any]) -> dict[str, Any]:
     return SorterAgent().classify_json(_doc_text(row))
 
 
+def _locked_reviewer() -> dict[str, Any] | None:
+    from mailroom_sandbox.runtime import active_reviewer
+
+    return active_reviewer()
+
+
 def _live_reviewer(row: dict[str, Any]) -> dict[str, Any]:
+    reviewer = _locked_reviewer()
+    if reviewer and reviewer.get("backend") == "decisions":
+        if not reviewer.get("question_set"):
+            raise RuntimeError("decisions reviewer has no locked question set; re-run sandbox run preflight")
+        # The Decisions-API reviewer, with the question set frozen in the run lock.
+        from mailroom_sandbox.decision_backends import DECISIONS_MAX_INPUT_CHARS, decide, decision_questions
+
+        qset = reviewer["question_set"]
+        return decide(_doc_text(row), model=reviewer["model"], questions=decision_questions(qset),
+                      max_input_chars=int(qset.get("max_input_chars") or DECISIONS_MAX_INPUT_CHARS), qset=qset)
     from agents.sorter_reviewer import SorterReviewerAgent  # type: ignore
 
     return SorterReviewerAgent().review(_doc_text(row))
