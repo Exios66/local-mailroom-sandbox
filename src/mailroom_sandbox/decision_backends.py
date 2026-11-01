@@ -373,6 +373,19 @@ def extraction_gate_backend(model: str, qset: Mapping[str, Any]) -> Callable[[st
     return gate
 
 
+def mock_extraction_gate_backend(model: str, qset: Mapping[str, Any]) -> Callable[[str, Mapping[str, Any]], dict[str, Any]]:
+    """An offline gate for mock pipeline runs: a fixed neutral answer, no network call, no usage."""
+    version = str((qset or {}).get("version") or "")
+
+    def gate(doc_text: str, handoff: Mapping[str, Any]) -> dict[str, Any]:
+        """Answer one extraction without calling the Decisions API."""
+        return {"doc_type": handoff.get("doc_type"), "verdict": "accept", "accept_probability": 0.5,
+                "human_review_probability": 0.0, "verdict_probabilities": {"accept": 0.5}, "field_support": {},
+                "question_set": version, "model": model, "mock": True}
+
+    return gate
+
+
 def _post_decision(body: Mapping[str, Any], *, timeout: float, attempts: int) -> dict[str, Any]:
     """POST one Decisions request and return its JSON; the one retry loop for every caller.
 
