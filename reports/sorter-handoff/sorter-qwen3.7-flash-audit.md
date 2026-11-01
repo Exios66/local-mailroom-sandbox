@@ -36,14 +36,48 @@ The Decisions-model reviewer had already answered 33 of these 127 (from the 735-
 train draw), and it agreed with the label on all 33. These are sorter errors, not label errors.
 The other 94 have no reviewer evidence yet; they are the same patterns.
 
-## Before using it as a training target (next agent)
+## Patched targets (applied)
 
-1. For each row the target is `expected_doc_class` / `expected_subclass`; `sorter_*` is the input.
-2. Known label noise to fix or exclude first: merger `other` = no MAUD annotation (57 rows, not
-   a consideration type); 9+ charter amendments labelled board_resolution; bylaws labelled
-   articles_of_incorporation; the LIMITED POWER OF ATTORNEY labelled contract/Service
-   (see `reports/reviewer-calibration/reviewer-calibration-luna-decisions.md`).
-3. The 94 sorter class errors with no reviewer evidence: check them with the Decisions
-   reviewer (about $0.0006 per document measured on test, so about $0.06) or by hand.
-4. Fix the sorter prompt for indentures/rights instruments (corporate_record) and mailbox
-   fragments (correspondence). Those 119 errors are 94% of its class errors.
+`scripts/patch_sorter_handoff.py` writes `data/handoff/sorter-qwen3.7-flash/{train,test}.targets.jsonl`
+and `{split}.corrections.json`. The raw sorter answers in `{split}.jsonl` are unchanged: they are the
+reviewer's input. Each targets row has `target_doc_class` / `target_subclass`, `target_status`,
+`target_evidence`, `use_for_class` / `use_for_subclass`, and the sorter's correctness against the target.
+
+| Status | Train | Test | Meaning |
+| --- | ---: | ---: | --- |
+| label | 2,359 | 252 | label kept |
+| label_normalized | 538 | 59 | contract CUAD folder name mapped to the taxonomy key |
+| corrected | 28 | 4 | the title line and the Decisions reviewer (p >= 0.9) both contradict the label |
+| unannotated | 49 | 8 | merger `other` with no MAUD Type of Consideration: class used, subclass not scored |
+| ambiguous | 5 | 0 | sorter and reviewer both dispute a label no rule confirms: an example only, not a target |
+
+The corrections are the known label noise:
+- 14 Certificates of Amendment labelled board_resolution → charter_amendment;
+- 6 bylaws labelled articles_of_incorporation;
+- 2 bylaws labelled powers_of_attorney;
+- 2 restated charters labelled charter_amendment;
+- one each of other → articles, board_resolution → officer_certificate, articles → charter_amendment, and articles → rights_instrument;
+- in test, the LIMITED POWER OF ATTORNEY labelled contract/Service → corporate_record/powers_of_attorney.
+
+To settle the 19 rows where only one source disputed the label, and the sorter errors no rule
+confirmed, `reviewer-verify-sorter-handoff-train` ran the Decisions model (question set 3.1.0)
+on 46 documents: 535,592 input tokens, $0.054 at list price.
+
+**Sorter against the patched targets.**
+
+| | Train | Test |
+| --- | ---: | ---: |
+| Class correct | 2,852 / 2,974 (95.9%) | 310 / 323 (96.0%) |
+| Subclass correct | 2,122 / 2,925 (72.5%) | 226 / 315 (71.7%) |
+| Class errors with the label confirmed | 121 of 122 | 13 of 13 |
+
+A label is confirmed by the Enron maildir rule, a title rule, or the Decisions reviewer.
+
+## Next agent
+
+1. Score reviewer and sorter runs against `target_*` with `use_for_*`, not the raw labels.
+   `calibrate_reviewer.py` still reads the raw labels; switch it to the targets file.
+2. Fix the sorter prompt for indentures and rights instruments (corporate_record) and for mailbox
+   fragments (correspondence). Those are 119 of its 122 class errors.
+3. Upstream the 32 label corrections and the merger `unannotated` subclass to the dataset
+   (Lucius-Morningstar/mailroom-dataset), citing `{split}.corrections.json`.
