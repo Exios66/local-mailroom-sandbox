@@ -106,7 +106,7 @@ def test_live_reviewer_uses_the_activated_decisions_reviewer_from_a_worker_threa
     monkeypatch.setattr(runtime, "_ACTIVE_REVIEWER", {"backend": "decisions", "model": DECISIONS, "question_set": qset})
     seen = {}
 
-    def fake_decide(text, *, model, questions, max_input_chars, qset=None):
+    def fake_decide(text, *, model, questions, max_input_chars, qset=None, handoff=None):
         seen.update(model=model, n=len(questions), cap=max_input_chars)
         return {"doc_type": "contract", "confidence": 0.9}
 
@@ -147,3 +147,187 @@ def test_v2_asks_marker_questions_for_correspondence():
     assert "subclass__correspondence" not in questions
     assert questions["marker__correspondence__memo"]["type"] == "noul"
     assert "subclass__contract" in questions
+
+
+# --- 3.0.0: sorter handoff in the state and the verdict question -------------------------
+
+
+def _v3_response(doc_type="contract", p=0.97, verdict="continue_sorter_correct"):
+    class Resp:
+        status_code = 200
+        text = ""
+
+        @staticmethod
+        def json():
+            return {"model": DECISIONS,
+                    "answers": {"doc_type": {"type": "choice", "choice": doc_type, "probabilities": {doc_type: p}},
+                                "verdict": {"type": "choice", "choice": verdict,
+                                            "probabilities": {verdict: 0.9, "route_to_human_review": 0.1}},
+                                "subclass__contract": {"type": "choice", "choice": "supply", "probabilities": {"supply": 0.9}}},
+                    "usage": {"input_tokens": 10, "output_tokens": 0}}
+    return Resp()
+
+
+def _decide_v3(monkeypatch, handoff, **resp):
+    sent = {}
+
+    def post(url, json, timeout, headers):
+        sent.update(json)
+        return _v3_response(**resp)
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test")
+    monkeypatch.setattr("httpx.post", post)
+    monkeypatch.setattr(db, "_record_usage", lambda model, usage: None)
+    qset = db.load_question_set("reviewer_decisions_v3.0.0")
+    out = db.decide("doc text", model=DECISIONS, questions=db.decision_questions(qset), qset=qset,
+                    handoff=handoff, max_input_chars=1000)
+    return sent, out
+
+
+def test_v3_loads_with_verdict_and_handoff():
+    qset = db.load_question_set("reviewer_decisions_v3.0.0")
+    questions = db.decision_questions(qset)
+    assert {"doc_type", "verdict", "subclass__contract"} <= set(questions)
+    verdicts = set(qset["verdict"]["criteria"])
+    assert {"continue_sorter_correct", "route_to_human_review", "reclassify"} <= verdicts
+    assert set(qset["human_verdicts"]) <= verdicts
+
+
+def test_v3_state_carries_the_sorter_handoff(monkeypatch):
+    handoff = db.build_handoff("contract", "supply", 0.912345)
+    sent, out = _decide_v3(monkeypatch, handoff)
+    assert sent["state"] == {"document": "doc text", "sorter_handoff": handoff}
+    assert handoff["sorter_confidence"] == 0.9123 and handoff["review_trigger"] == ["decision_class_review"]
+    assert out["verdict"] == "continue_sorter_correct" and out["route_to_human"] is False
+    assert out["confidence"] == 0.97
+
+
+def test_v3_without_a_handoff_says_so(monkeypatch):
+    sent, _ = _decide_v3(monkeypatch, None)
+    assert sent["state"]["sorter_handoff"]["available"] is False
+
+
+@pytest.mark.parametrize("verdict", ["route_to_human_review", "unreadable", "out_of_scope", "multiple_documents"])
+def test_v3_human_verdict_gates_confidence_to_zero(monkeypatch, verdict):
+    _, out = _decide_v3(monkeypatch, None, verdict=verdict)
+    assert out["route_to_human"] is True and out["confidence"] == 0.0
+    assert out["doc_type_probability"] == 0.97
+
+
+def test_handoff_triggers():
+    h = db.build_handoff("correspondence", None, 0.4, sorter_unsure=True, retried=True)
+    assert h["review_trigger"] == ["decision_class_review", "sorter_below_low_band", "after_sorter_retry"]
+    assert db.build_handoff("contract", None, "high")["sorter_confidence"] is None
+    assert db.calibration_handoff(None) is None
+    low = db.calibration_handoff({"sorter_doc_type": "contract", "sorter_doc_subclass": "supply", "sorter_confidence": 0.05})
+    assert "sorter_below_low_band" in low["review_trigger"]
+
+
+def test_sorter_handoff_map_reads_a_finished_run(tmp_path, monkeypatch):
+    import json
+
+    from mailroom_sandbox.job import preflight
+
+    run = tmp_path / "sorter-run"
+    run.mkdir()
+
+    class Store:
+        def __init__(self, path):
+            self.path = path
+
+        def read_checkpoint(self):
+            return json.loads((self.path / "checkpoint.json").read_text())
+
+        def load_items(self):
+            return [json.loads(line) for line in (self.path / "items.jsonl").read_text().splitlines()]
+
+    (run / "checkpoint.json").write_text(json.dumps({"state": "done"}))
+    (run / "items.jsonl").write_text("\n".join(json.dumps(r) for r in [
+        {"item_id": "a", "ok": True, "pred": {"doc_type": "contract", "contract_subtype": "supply", "confidence": 0.9}},
+        {"item_id": "b", "ok": False, "error": "boom"},
+    ]))
+    monkeypatch.setattr("mailroom_sandbox.job.checkpoint.RunStore", Store)
+    monkeypatch.setattr("mailroom_sandbox.job.spec.run_dir", lambda rid: tmp_path / rid)
+    assert preflight.sorter_handoff_map("sorter-run") == {
+        "a": {"sorter_doc_type": "contract", "sorter_doc_subclass": "supply", "sorter_confidence": 0.9}}
+    (run / "checkpoint.json").write_text(json.dumps({"state": "running"}))
+    with pytest.raises(ValueError, match="not a finished run"):
+        preflight.sorter_handoff_map("sorter-run")
+
+
+def test_sorter_handoff_map_merges_runs_and_accepts_a_cost_capped_run(tmp_path, monkeypatch):
+    import json
+
+    from mailroom_sandbox.job import preflight
+
+    class Store:
+        def __init__(self, path):
+            self.path = path
+
+        def read_checkpoint(self):
+            return json.loads((self.path / "checkpoint.json").read_text())
+
+        def load_items(self):
+            return [json.loads(line) for line in (self.path / "items.jsonl").read_text().splitlines()]
+
+    def make(rid, checkpoint, items):
+        (tmp_path / rid).mkdir()
+        (tmp_path / rid / "checkpoint.json").write_text(json.dumps(checkpoint))
+        (tmp_path / rid / "items.jsonl").write_text("\n".join(json.dumps(i) for i in items))
+
+    make("capped", {"state": "failed", "last_error": {"message": "api_cost_cap_usd=2.0 reached"}},
+         [{"item_id": "a", "ok": True, "pred": {"doc_type": "contract", "confidence": 0.9}}])
+    make("rest", {"state": "done"}, [{"item_id": "b", "ok": True, "pred": {"doc_type": "merger_agreement", "confidence": 1.0}}])
+    make("broken", {"state": "failed", "last_error": {"message": "network"}}, [])
+    monkeypatch.setattr("mailroom_sandbox.job.checkpoint.RunStore", Store)
+    monkeypatch.setattr("mailroom_sandbox.job.spec.run_dir", lambda rid: tmp_path / rid)
+    assert set(preflight.sorter_handoff_map(["capped", "rest"])) == {"a", "b"}
+    with pytest.raises(ValueError, match="not a finished run"):
+        preflight.sorter_handoff_map(["broken"])
+
+
+def test_committed_handoff_file_matches_the_runs():
+    from mailroom_sandbox.job import preflight
+    from mailroom_sandbox.paths import repo_root
+
+    path = "data/handoff/sorter-qwen3.7-flash/test.jsonl"
+    if not (repo_root() / path).is_file():
+        pytest.skip("saved sorter pass not present")
+    handoff = preflight.sorter_handoff_map(path)
+    assert len(handoff) == 323
+    one = next(iter(handoff.values()))
+    assert set(one) == {"sorter_doc_type", "sorter_doc_subclass", "sorter_confidence"}
+
+
+# Subclasses the mailroom taxonomy supports (vendor/llm-mailroom/src/langchain_agents/
+# doc_inventories.py). Every question set from 3.1.0 must offer each one, or the reviewer
+# cannot answer a document of that subclass. Corpus conventions folded into another option
+# are listed with where they go.
+TAXONOMY = {
+    "insurance_claim": ("pde", "inpatient", "outpatient", "carrier", "auto", "property",
+                        "liability", "health", "life", "workers_comp", "other"),
+    "corporate_record": ("articles_of_incorporation", "bylaws", "powers_of_attorney", "rights_instrument", "other"),
+    "correspondence": ("email", "letter", "memo", "notice", "demand", "attorney_demand", "press_release",
+                       "meeting_request"),
+}
+
+
+@pytest.mark.parametrize("stem", ["reviewer_decisions_v3.1.0"])
+@pytest.mark.parametrize("cls", sorted(TAXONOMY))
+def test_question_set_offers_every_taxonomy_subclass(stem, cls):
+    block = db.load_question_set(stem)["subclass"][cls]
+    missing = set(TAXONOMY[cls]) - set(block["criteria"])
+    assert not missing, f"{stem} {cls} cannot answer {sorted(missing)}"
+
+
+def test_taxonomy_table_matches_the_vendored_mailroom():
+    inv = pytest.importorskip("langchain_agents.doc_inventories")
+    assert set(TAXONOMY["insurance_claim"]) == set(inv.INSURANCE_CLAIM_TYPES)
+    assert set(TAXONOMY["corporate_record"]) == set(inv.CORPORATE_RECORD_TYPES)
+    assert set(TAXONOMY["correspondence"]) == set(inv.CORRESPONDENCE_TYPES)
+
+
+def test_v3_1_asks_insurance_liability_and_workers_comp():
+    q = db.decision_questions(db.load_question_set("reviewer_decisions_v3.1.0"))
+    options = set(q["subclass__insurance_claim"]["criteria"])
+    assert {"liability", "health", "life", "workers_comp", "other", db.NOT_THIS_CLASS} <= options

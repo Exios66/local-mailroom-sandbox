@@ -342,6 +342,11 @@ def run_isolated_eval(
     ]
     if schema_rows:
         scores.update(scoring.aggregate_schema_adherence(schema_rows))
+    from mailroom_sandbox.eval import human_review
+
+    routed = human_review.for_isolated(task, [(e or {}).get("pred") for e in per_row if e and e.get("ok", True) and not e.get("error")])
+    if routed is not None:
+        scores.update(routed)
     tracing.emit_langfuse_score("class_correct" if spec.observation == "classify-document" else "stage_completed", mean)
     tracing.flush_traces()
     if ScoreRecord is not None:
@@ -1184,6 +1189,9 @@ def run_pipeline_eval(
         "routing_accuracy": routing.get("exact_match"),
         "connected": connected,
     }
+    from mailroom_sandbox.eval import human_review
+
+    scores.update(human_review.for_pipeline(results))
     if schema_rows:
         scores.update(scoring.aggregate_schema_adherence(schema_rows))
     tracing.emit_langfuse_score("class_correct", float(scores["class_correct"] or 0))

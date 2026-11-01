@@ -10,6 +10,9 @@ interval's lower bound clears the target. A class that never reaches the target
 gets no cutoff, so it should not be configured as reviewed.
 A run that is not done, or misses any locked document, is refused. Each class also
 reports its answers at the top confidence: wrong ones there no cutoff can remove.
+Every result also reports ``routing_at_cutoffs``: documents routed to human review,
+sent on unattended and misrouted at the chosen cutoffs. ``--cutoffs-from`` scores a
+held-out run at cutoffs calibrated on another run.
 """
 from __future__ import annotations
 
@@ -127,6 +130,52 @@ def calibrate(store: RunStore, *, target: float = 0.95, seed: int = 42,
     return {"run_id": store.run_id, "target_accuracy": target, "seed": seed, "classes": results}
 
 
+def routing(store: RunStore, cutoffs: dict[str, float | None]) -> dict:
+    """What the reviewer does to every document of a run at ``cutoffs``.
+
+    ``routed_to_human_review`` counts documents a person gets: a human verdict
+    (question set 3.0.0 and later), a class with no cutoff, or a gated confidence
+    below the class cutoff. ``misrouted`` counts documents sent on unattended with
+    the wrong class. With a sorter handoff in the lock, ``verdicts`` scores the
+    verdict against the label: the sorter's class and subclass right is
+    continue_sorter_correct, class right and subclass wrong is
+    continue_with_subclass_correction, class wrong is reclassify.
+    """
+    from mailroom_sandbox.eval.human_review import reviewer_routes_to_human, summarize
+
+    usable = {name: float(value) for name, value in cutoffs.items() if value is not None}
+    rows = {str(row.get("id")): row for row in store.dataset_rows()}
+    handoff = ((store.read_lock() or {}).get("reviewer") or {}).get("handoff") or {}
+    flags, misrouted, unattended = [], 0, 0
+    verdicts: dict[str, dict[str, int]] = {}
+    for item in store.load_items():
+        row = rows.get(str(item.get("item_id")))
+        if row is None:
+            continue
+        pred = item.get("pred") if item.get("ok") else None
+        routed = reviewer_routes_to_human(pred, usable)
+        flags.append((routed, (pred or {}).get("doc_type")))
+        if not routed:
+            unattended += 1
+            misrouted += pred.get("doc_type") != row.get("expected_doc_class")
+        sorter = handoff.get(str(item.get("item_id")))
+        if pred and sorter and pred.get("verdict"):
+            if sorter.get("sorter_doc_type") != row.get("expected_doc_class"):
+                want = "reclassify"
+            elif sorter.get("sorter_doc_subclass") != row.get("expected_subclass"):
+                want = "continue_with_subclass_correction"
+            else:
+                want = "continue_sorter_correct"
+            cell = verdicts.setdefault(want, {})
+            cell[pred["verdict"]] = cell.get(pred["verdict"], 0) + 1
+    out = {**summarize(flags, "reviewer"), "cutoffs": usable, "sent_on_unattended": unattended,
+           "misrouted": misrouted,
+           "misrouted_rate_among_unattended": round(misrouted / unattended, 6) if unattended else None}
+    if verdicts:
+        out["verdicts_by_expected"] = verdicts
+    return out
+
+
 def probe(store: RunStore, *, min_valid: int = 9, max_mean_seconds: float = 10.0,
           classes: set[str] | None = None) -> dict:
     """Whether a model is fit to calibrate: a finished run, taxonomy-valid answers, usable speed."""
@@ -148,7 +197,21 @@ def main() -> int:
     parser.add_argument("--target", type=float, default=0.95)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--probe", action="store_true", help="check the model is fit to calibrate")
+    parser.add_argument("--cutoffs-from", default=None, metavar="RUN",
+                        help="score --run (e.g. a held-out validation run) at the cutoffs calibrated on RUN; "
+                             "writes reports/reviewer-calibration/<run>.routing.json")
     args = parser.parse_args()
+    out_dir = repo_root() / "reports" / "reviewer-calibration"
+    if args.cutoffs_from:
+        source = json.loads((out_dir / f"{args.cutoffs_from}.json").read_text(encoding="utf-8"))
+        cutoffs = {name: cls.get("cutoff") for name, cls in source["classes"].items()}
+        result = {"run_id": args.run, "cutoffs_from": args.cutoffs_from,
+                  **routing(RunStore(run_dir(args.run)), cutoffs)}
+        path = out_dir / f"{args.run}.routing.json"
+        path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        print(json.dumps(result, indent=2, sort_keys=True))
+        print(f"wrote {path}")
+        return 0
     if args.probe:
         verdict = probe(RunStore(run_dir(args.run)))
         print(json.dumps(verdict, indent=2, sort_keys=True))
@@ -158,7 +221,9 @@ def main() -> int:
     except ValueError as exc:
         print(f"calibrate_reviewer: {exc}", file=sys.stderr)
         return 1
-    path = repo_root() / "reports" / "reviewer-calibration" / f"{args.run}.json"
+    result["routing_at_cutoffs"] = routing(RunStore(run_dir(args.run)),
+                                           {name: cls.get("cutoff") for name, cls in result["classes"].items()})
+    path = out_dir / f"{args.run}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps(result["classes"], indent=2, sort_keys=True))
