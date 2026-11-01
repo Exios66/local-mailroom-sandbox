@@ -1387,12 +1387,12 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
 # Reviewed standalone refs frozen to exact source SHAs. Mirror monorepo
 # workspace packages when available, after importing those reviewed revisions.
 # The fallback rejects moved refs before replacing any tracked vendor file.
-# The Dojo pin is the interim post-v0.24.2 commit (zero-token fix, sorter subclass
-# guide, unannotated merger subclass); return to the next released commit once published.
+# llm-mailroom: v0.8.1 merged into #135 (sorter V15) until #135 lands in a release.
+# llm-dojo-scoring: the published v0.25.0 release.
 _VENDOR_PINS: tuple[tuple[str, str, str, str | None], ...] = (
-    ("llm-mailroom", "16ddd08a3f32b5f442891032d095a6bed744da41",
-     "https://github.com/Exios66/llm-mailroom.git", "16ddd08a3f32b5f442891032d095a6bed744da41"),
-    ("llm-dojo-scoring", "e35504db12f09aeda07ae116663c177acd8c0d6e",
+    ("llm-mailroom", "d1e2811845627f3a933d1fb3ff909a4e3199e700",
+     "https://github.com/Exios66/llm-mailroom.git", "d1e2811845627f3a933d1fb3ff909a4e3199e700"),
+    ("llm-dojo-scoring", "v0.25.0",
      "https://github.com/Exios66/llm-dojo-scoring.git", "e35504db12f09aeda07ae116663c177acd8c0d6e"),
 )
 
