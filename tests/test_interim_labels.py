@@ -68,6 +68,14 @@ def test_contract_corrections_rest_on_the_hubs_own_cuad_evidence(monkeypatch):
     exp = {"cuad_clause_labels": "{}"}
     assert il.contract_correction("parties", ['NMS COMMUNICATIONS CORP. ("Seller")', "Verso Backhaul Solutions, Inc."], exp) == "cuad_party_spans"
     assert il.contract_correction("parties", ["NMS COMMUNICATIONS CORP.", "Someone Else LLC"], exp) is None
+    # A subset of the parties is incomplete, not a correction: Verso's legal name is unaccounted for.
+    assert il.contract_correction("parties", ['NMS COMMUNICATIONS CORP. ("Seller")'], exp) is None
+    # Without annotations: "Seller" and "Backhaul" name no further legal entity; still complete.
+    assert il.contract_correction("parties", ["NMS COMMUNICATIONS CORP.", "Verso Backhaul Solutions, Inc."], exp) == "cuad_party_spans"
+    spans["Parties"] = ["we", "NMS COMMUNICATIONS CORP.", "Verso Backhaul Solutions, Inc.",
+                        "NMS and Verso may each be referred to herein as a Party"]
+    assert il.contract_correction("parties", ["NMS Communications Corp.", "Verso Backhaul Solutions, Inc."], exp) == "cuad_party_spans"
+    spans["Parties"] = ["Seller", "NMS COMMUNICATIONS CORP.", "Backhaul", "VERSO BACKHAUL SOLUTIONS, INC."]
     assert il.contract_correction("effective_date", "2007-12-20", exp) == "cuad_agreement_date"
     assert il.contract_correction("effective_date", "2008-01-01", exp) is None
     spans["Effective Date"] = ["January 1, 2008"]
