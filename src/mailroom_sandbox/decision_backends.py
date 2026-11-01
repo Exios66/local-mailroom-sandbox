@@ -24,7 +24,7 @@ types (``DecisionAnswer``) are imported lazily too, after
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Any, Literal, Mapping, Optional
+from typing import TYPE_CHECKING, Any, Iterable, Literal, Mapping, Optional
 
 if TYPE_CHECKING:  # family types are imported lazily: activate() must run first
     from agents.decision_backend import DecisionBackend
@@ -320,17 +320,23 @@ def gate_questions(qset: Mapping[str, Any], doc_type: str, subclass: str | None 
     return questions
 
 
-def key_field_score(field_support: Mapping[str, float]) -> float | None:
+def key_field_score(field_support: Mapping[str, float], asked: Iterable[str] | None = None) -> float | None:
     """The gating score of a 1.2.0+ answer: the product of the key-field support probabilities.
 
     The verdict question is answered on its own and ignores the per-template field rules; on the
     1.3.0 calibration (1,591 labelled documents) this product separates extractions whose key
     fields are all right from the rest far better than ``accept_probability`` (AUROC 0.76 vs
     0.67 overall; corporate 0.89 vs 0.52, insurance 0.87 vs 0.78). None when no field was asked.
+
+    ``asked`` names the fields the request asked about; an asked field with no numeric answer
+    counts as support 0.0, so a missing answer can never raise the score.
     """
     import math
 
-    values = [float(v) for v in field_support.values()]
+    if asked is None:
+        values = [float(v) for v in field_support.values()]
+    else:
+        values = [float(field_support.get(f, 0.0)) for f in asked]
     return round(math.prod(values), 6) if values else None
 
 
@@ -396,7 +402,7 @@ def decide_extraction(doc_text: str, handoff: Mapping[str, Any], *, model: str, 
     text = (doc_text or "")[:limit]
     body = {"model": model, "state": {"document": text if text.strip() else "(empty document)",
                                       "extraction_handoff": dict(handoff)},
-            "questions": gate_questions(qset, doc_type, subclass or handoff.get("doc_subclass"))}
+            "questions": (questions := gate_questions(qset, doc_type, subclass or handoff.get("doc_subclass")))}
     # A whole long document (up to ~250k tokens) takes longer to read than the 120 s default allows.
     data = _post_decision(body, timeout=max(timeout, 60.0 + len(text) / 4_000), attempts=attempts)
     usage = data.get("usage") or {}
@@ -420,7 +426,8 @@ def decide_extraction(doc_text: str, handoff: Mapping[str, Any], *, model: str, 
         "accept_probability": probs.get("accept"),
         "human_review_probability": sum(v for k, v in probs.items() if k in human) if probs else None,
         "field_support": fields,
-        "key_field_score": key_field_score(fields),
+        "key_field_score": key_field_score(
+            fields, [k.removeprefix("field__") for k in questions if k.startswith("field__")]),
         "confidence": probs.get("accept"),
         "served_model": data.get("model"),
         "usage": {"input_tokens": usage.get("input_tokens"), "output_tokens": usage.get("output_tokens"),

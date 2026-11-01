@@ -459,8 +459,13 @@ def calibrate(items: list[dict], rows: dict[str, dict], handoff: dict[str, dict]
         if key_truth:
             support = pred.get("field_support") or {}
             asked = [float(support[f]) for f in sorted(wanted) if isinstance(support.get(f), (int, float))]
+            if asked and len(asked) < len(wanted):
+                # Some key fields have no support (e.g. --key-set names fields an older run never
+                # asked): a product over the rest would be inflated, so the document is not scored.
+                skipped[f"key_support_missing:{cls}"] += 1
+                asked = None
             fscore = math.prod(asked) if asked else float(p)  # 1.0.0 sets ask no key field: the verdict
-            for key in (cls, "all"):
+            for key in (cls, "all") if asked is not None else ():
                 keyed[key]["fs"].append(fscore)
                 keyed[key]["p"].append(float(p))
                 keyed[key]["y"].append(all(key_truth))

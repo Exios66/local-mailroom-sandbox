@@ -94,7 +94,7 @@ def test_apply_overlay_merges_truth_only_and_hub_wins():
     assert exp["entity_name"] == "Hub Name Inc." and exp["intent"] == "governance_rules"
     assert exp["record_type"] == "bylaws" and exp["jurisdiction"] is None
     pres = json.loads(exp["gt_presence"])
-    assert pres["record_type"] == "populated" and pres["jurisdiction"] == "interim_absent"
+    assert pres["record_type"] == "populated" and pres["jurisdiction"] == "schema_documented_absence"
     assert out["interim_labels"] == {"fields": ["jurisdiction", "record_type"], "overlay_sha256": "abc"}
     changed = {**row, "doc_text": row["doc_text"] + " amended"}
     assert il.apply_overlay(changed, {"D1": rec}, overlay_sha="abc") == changed  # stale text: untouched
@@ -144,3 +144,55 @@ def test_prepare_subset_applies_the_overlay_only_when_asked(tmp_path, monkeypatc
 
     with pytest.raises(ValueError, match="inconsistent"):
         prepare_subset(DatasetSpec(local_path=str(src), interim_labels=True), tmp_path / "bad.jsonl")
+
+
+def test_null_truth_label_is_a_documented_absence_the_dojo_scores():
+    """A null gap fill must read as "expected empty", not unlabeled, so corporate scoring keeps it."""
+    from llm_dojo_scoring.corporate_record_schema import unlabeled_fields
+
+    row = _row()
+    rec = {"doc_id": "D1", "doc_sha256": il.doc_sha(row["doc_text"]), "labels": {
+        "jurisdiction": {"value": None, "status": "gap_fill", "use_as_truth": True}}}
+    exp = json.loads(il.apply_overlay(row, {"D1": rec}, overlay_sha="abc")["expected_fields"])
+    assert "jurisdiction" not in unlabeled_fields("bylaws", exp)
+    assert "jurisdiction" in unlabeled_fields("bylaws", json.loads(row["expected_fields"]))
+
+
+def _overlay_two_labels(root):
+    """An overlay of one document with two gap fills, written as the builder would."""
+    import importlib.util
+    import pathlib
+
+    spec = importlib.util.spec_from_file_location(
+        "interim_labels_script", pathlib.Path(__file__).resolve().parents[1] / "scripts" / "interim_labels.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    row = _row()
+    rec = {"doc_id": "D1", "doc_class": "corporate_record", "doc_sha256": il.doc_sha(row["doc_text"]), "labels": {
+        "entity_name": {"value": "Acme", "status": "gap_fill", "use_as_truth": True},
+        "jurisdiction": {"value": "Delaware", "status": "gap_fill", "use_as_truth": True}}}
+    root.mkdir()
+    text = json.dumps(rec, sort_keys=True) + "\n"
+    (root / "corporate_record.jsonl").write_text(text, encoding="utf-8")
+    man = {"schema": il.SCHEMA, "sources": [], "files": {"corporate_record.jsonl": il._sha(text)},
+           "counts": {"corporate_record": {"entity_name": {"gap_fill": 1}, "jurisdiction": {"gap_fill": 1}}}}
+    (root / "MANIFEST.json").write_text(json.dumps(man), encoding="utf-8")
+    hub = _row(entity_name="Acme", gt_presence=json.dumps({"entity_name": "populated"}))
+    return mod, hub
+
+
+def test_prune_rewrites_counts_and_still_fails_on_other_problems(tmp_path, monkeypatch):
+    root = tmp_path / "interim"
+    mod, hub = _overlay_two_labels(root)
+    monkeypatch.setattr(mod, "_local_gate_runs", lambda: {})
+    rows = tmp_path / "rows.jsonl"
+    rows.write_text(json.dumps(hub) + "\n", encoding="utf-8")
+    assert mod.check(root, rows, prune=True) == 0
+    man = json.loads((root / "MANIFEST.json").read_text())
+    assert man["counts"] == {"corporate_record": {"jurisdiction": {"gap_fill": 1}}}
+    assert il.verify(root) == []
+    # An integrity problem left beside the pruned labels must still fail the check.
+    (root / "stray.jsonl").write_text("", encoding="utf-8")
+    hub2 = _row(jurisdiction="Delaware", gt_presence=json.dumps({"jurisdiction": "populated"}))
+    rows.write_text(json.dumps(hub2) + "\n", encoding="utf-8")
+    assert mod.check(root, rows, prune=True) == 1

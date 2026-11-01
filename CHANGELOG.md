@@ -4,6 +4,11 @@
 
 - Vendor pins after merging `main`: llm-mailroom `d1e2811`, which is `v0.8.1` merged into llm-mailroom #135 (sorter V15), and llm-dojo-scoring by its published `v0.25.0` tag (SHA-verified `e35504db`).
 - CI lint: drop an unused counter in `scripts/export_sorter_handoff.py`; `scripts/refresh_api_prices.py` accepts only an `https://` catalog URL (bandit B310).
+- PR #226 review fixes:
+  - Interim labels: a null truth label is written as `gt_presence` `schema_documented_absence` (was `interim_absent`), so the Dojo's corporate scorer counts it as expected-empty instead of dropping it as unlabeled.
+  - `scripts/interim_labels.py check --prune` still exits 1 when integrity or stale-run problems remain, and rewrites the manifest `counts` from the pruned files. `build` and `--prune` replace each file atomically and remove old class files only after every replacement is written.
+  - `key_field_score` scores every key field the gate asked. A missing or non-numeric answer counts as support 0.0, so it can never raise the gating score. Calibration skips a document (`key_support_missing:<class>`) when some key fields have no support, for example `--key-set` fields an older run never asked.
+  - The serving report's TTFT note says "hosted API" for OpenRouter runs. It said "served locally" for every run.
 - Spend guard: a fixed 3.00 USD reserve of the OpenRouter key's remaining limit is never spent. `require_key_headroom` and `scripts/estimate_spend.py` compare caps/estimates with `remaining - reserve`; `OPENROUTER_KEY_RESERVE_USD` can raise the floor, never lower it.
 
 ### Added
