@@ -346,7 +346,10 @@ def apply_overlay(row: Mapping[str, Any], overlay: Mapping[str, Mapping[str, Any
         if lab["status"] in ("gap_fill", "derived") and hub_has(exp, field):
             continue
         exp[field] = lab["value"]
-        pres[field] = "populated" if lab["value"] is not None else "interim_absent"
+        # The Dojo's documented-absence status: a null truth label is "expected empty", not unlabeled
+        # (``corporate_record_schema.unlabeled_fields`` drops any other status). ``interim_labels``
+        # below records which fields came from the overlay.
+        pres[field] = "populated" if lab["value"] is not None else "schema_documented_absence"
         applied.append(field)
     if not applied:
         return out

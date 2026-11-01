@@ -686,6 +686,10 @@ def record_from_run(
 TTFT_NEVER_INFERRED_NOTE = (
     "TTFT never inferred (served locally; do not infer from e2e)"
 )
+# The same rule for a hosted API run (OpenRouter): no first-token timestamp is recorded.
+TTFT_NEVER_INFERRED_API_NOTE = (
+    "TTFT never inferred (hosted API; do not infer from e2e)"
+)
 
 
 def _parse_item_ts(ts: Any) -> float | None:
@@ -837,7 +841,11 @@ def enrich_serving_report(
         out["tokens_per_second"] = round(total_tokens / wall_seconds, 2)
     if out.get("ttft_seconds") is None:
         out["ttft_seconds"] = None
-        out["ttft_note"] = TTFT_NEVER_INFERRED_NOTE
+        out["ttft_note"] = (
+            TTFT_NEVER_INFERRED_API_NOTE
+            if str(out.get("provider") or "").lower() == "openrouter"
+            else TTFT_NEVER_INFERRED_NOTE
+        )
 
     kind = bucket_kind(out)
     gpu_class = gpu or out.get("gpu")
