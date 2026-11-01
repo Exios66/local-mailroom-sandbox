@@ -73,11 +73,28 @@ on 46 documents: 535,592 input tokens, $0.054 at list price.
 
 A label is confirmed by the Enron maildir rule, a title rule, or the Decisions reviewer.
 
-## Next agent
+## Status of the follow-ups
 
-1. Score reviewer and sorter runs against `target_*` with `use_for_*`, not the raw labels.
-   `calibrate_reviewer.py` still reads the raw labels; switch it to the targets file.
-2. Fix the sorter prompt for indentures and rights instruments (corporate_record) and for mailbox
-   fragments (correspondence). Those are 119 of its 122 class errors.
-3. Upstream the 32 label corrections and the merger `unannotated` subclass to the dataset
-   (Lucius-Morningstar/mailroom-dataset), citing `{split}.corrections.json`.
+1. **Done.** `scripts/calibrate_reviewer.py` scores against the verified targets. By default it
+   uses `<split>.targets.jsonl` next to the lock's `reviewer.handoff_run`, and only rows with
+   `use_for_class` / `use_for_subclass`. Every report records which truth it used (`truth`:
+   path and sha256); `--labels` scores the raw labels instead. It now also reports reviewer
+   subclass accuracy (`subclass`).
+2. **Done, not yet validated by a run.** Sorter prompt V15 is frozen in llm-mailroom (PR #135)
+   and vendored here. It covers both kinds of V14 error. The class boundaries (B1-B3) cover
+   indentures and rights instruments as corporate_record and mailbox fragments as
+   correspondence. The subclass conventions (S1-S5) cover:
+   - CMS carrier vs outpatient by the Medicare notice (116 errors);
+   - Certificates of Designation as officer_certificate (48);
+   - charter amendments vs the charter, with no `certificate_of_formation` (35);
+   - board-adopted bylaw amendments as board_resolution (9);
+   - the correspondence marker precedence (364);
+   - contract family over `other` (36).
+   The subclass catalog the sorter sees is the Dojo sorter guide
+   (`llm_dojo_scoring.sorter_guide`, Dojo `db15b7c`) and no longer a bare key list.
+   Validate with `config/runs/sorter-v15-qwen-train-errors.yaml`: 1,003 documents, all 803
+   V14 errors plus 200 controls; about $0.49 list. Score it with
+   `scripts/compare_sorter_prompt.py`.
+3. **Open.** Upstream the 32 label corrections and the merger `unannotated` subclass to the
+   dataset (Lucius-Morningstar/mailroom-dataset), citing `{split}.corrections.json`. The Dojo
+   already stops scoring merger `other` (`subclass_scorable`, `n_subclass_unannotated`).

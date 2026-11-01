@@ -4,6 +4,20 @@
 
 ### Added
 
+- **SAND-085 — sorter V15 with the V14 subclass fixes, scored on verified targets.**
+  - The vendored sorter prompt V15 (llm-mailroom PR #135) now carries subclass conventions S1-S5 alongside its class boundaries. They cover:
+    - CMS carrier vs outpatient;
+    - Certificates of Designation as officer_certificate;
+    - charter amendments vs the charter;
+    - board-adopted bylaw amendments;
+    - the correspondence marker precedence;
+    - contract family over `other`.
+  - The sorter's subclass catalog is the Dojo sorter guide. The Dojo pin moves to `db15b7c`, which adds `sorter_guide`, stops scoring the unannotated merger `other`, and adds the `arbitrate-classification` node.
+  - `scripts/calibrate_reviewer.py` scores against `data/handoff/<name>/<split>.targets.jsonl` next to the lock's `handoff_run`, with `--targets` or `--labels` to override. It also reports reviewer subclass accuracy and records the truth it used.
+  - `scripts/compare_sorter_prompt.py` builds the V15 validation set and scores it: every V14 error plus 200 controls, 1,003 train documents.
+  - `config/runs/sorter-v15-qwen-train-errors.yaml` raises its API cap to $1.20, since the cap prices tokens at the profile's DeepSeek route (about $0.83).
+- **Fixed: decision review parked every document.** A decision backend behind a `**kwargs` wrapper (a Mock or a forwarding decorator) was passed `handoff=` and raised `TypeError`, so every document parked as `reviewer_unavailable`. The handoff now goes only to a backend that declares a `handoff` parameter (vendored llm-mailroom, PR #135). The routing matrix walks the new classification-arbiter edges, and the stale V14 CLI test and CLI reference are updated.
+
 - **SAND-092 — Smoke audit fixes.** `llm-mailroom` re-vendored at `16ddd08`: corporate, insurance and correspondence extractions now report confidence, an unsure extraction reaches the judge before a person, and the judge checks accuracy against the source. `run_limits.max_total_output_tokens` rises to 200000 per document. An aborted document is now recorded as failed and no longer fails the whole run, and tests can no longer rewrite the real repo's git config from a commit hook.
 - **SAND-085 — OpenRouter decision reviewer.** A new `api` decision backend (`--decision-reviewer api:openai/gpt-6-luna`, with `--decision-class CLASS=CUTOFF`) runs `sorter_reviewer` through OpenRouter on `agent_routes.sorter_reviewer`. Only pinned provider ids are accepted: `-latest`, `~`, `:floor` and `openrouter/*` ids are refused, because a tuned cutoff is tied to one model. The `local` backend runs the same agent on the run's own serving route. Decision classes reach their reviewer at any sorter confidence after the sorter's retries; agreement at the cutoff goes to `extract`, a sorter below its low band may be corrected at the cutoff, and an unsure reviewer or a disagreement with a medium or high sorter parks for human review. Cutoffs are provisional until issue #208. `config/runs/pipeline-luna-qwen-smoke.yaml` is a 7-document pipeline smoke with the reviewer on all five classes. `scripts/calibrate_reviewer.py --run <id>` picks each class's cutoff from a finished calibration run. `activate` defaults `MAILROOM_CHECKPOINTER=sqlite`, so parked reviews survive a restart. The vendored llm-mailroom pin moves to `45e7075` for the decision-reviewer routing fixes (SAND-090).
 - **Named Modal image.** `sandbox modal publish-image` publishes the vLLM serving image to the active workspace as `sandbox-vllm:v0.29.0`, and `sandbox modal deploy --named-image` deploys from it without rebuilding. `sandbox experiment create` turns this on through `engine.modal.named_image`; `--no-named-image` opts out. A named image belongs to one workspace, so publish once per Modal account.

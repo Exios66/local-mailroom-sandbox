@@ -7,7 +7,7 @@ import pytest
 
 prompts = pytest.importorskip("langchain_agents.prompts")
 
-SORTER_V15_SHA256 = "06a58b614fba37e0e5d26eb74a6d24efa7e197a443177d44f825f58fa507a7a7"
+SORTER_V15_SHA256 = "78f95ca4b6b40bc35e91c7e8fcf4593a3ae3f7fb0989350a4a6ca49d83d50666"
 BROKEN_SHA256 = {"905abc696c1975d5fe29c3f773738ac6836993d8f8e4cef40d1f6c30012e164f"}  # V14
 
 
