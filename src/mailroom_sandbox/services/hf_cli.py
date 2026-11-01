@@ -16,7 +16,7 @@ from pathlib import Path
 
 from mailroom_sandbox.paths import repo_root
 from mailroom_sandbox.services.beacon import service_job
-from mailroom_sandbox.services._cli import format_command, nonempty, print_plan, strip_separator
+from mailroom_sandbox.services._cli import format_command, nonblank_path, nonempty, print_plan, strip_separator
 from mailroom_sandbox.services._exec import (
     ServiceError,
     ToolFailed,
@@ -164,7 +164,7 @@ def register(sub: argparse._SubParsersAction, leaf: argparse.ArgumentParser) -> 
     download.add_argument("--revision", type=nonempty, default=None, help="default: FAMILY_HF_REVISION for the sandbox dataset only")
     download.add_argument("--include", action="append", default=[], metavar="GLOB")
     download.add_argument("--exclude", action="append", default=[], metavar="GLOB")
-    download.add_argument("--local-dir", type=nonempty, default=None)
+    download.add_argument("--local-dir", type=nonblank_path, default=None)
     download.add_argument("--sandbox-cache", action="store_true", help="use data/cache/hf as HF_HOME")
     download.add_argument("--dry-run", action="store_true")
     download.set_defaults(handler=_cmd_download)

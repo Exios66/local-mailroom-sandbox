@@ -3552,6 +3552,9 @@ def _cmd_run_resume(args) -> int:
     from mailroom_sandbox.job.checkpoint import RunStore
     from mailroom_sandbox.job.spec import run_dir
 
+    # Refused before anything else: a --config --force preflight could archive the generation.
+    if getattr(args, "live", False):
+        raise CLIUsageError("run resume has no --live probe; use `sandbox run preflight --live` first")
     run_id = _run_id_required(args)
     store = RunStore(run_dir(run_id))
     if not store.read_lock():
@@ -3602,8 +3605,6 @@ def _cmd_run_resume(args) -> int:
     if drifted:
         _print({"run_id": run_id, "status": "drift_refused", "detail": "runtime overrides differ from the lock"})
         return 3
-    if getattr(args, "live", False):
-        raise CLIUsageError("run resume has no --live probe; use `sandbox run preflight --live` first")
     _refuse_modal_max_items(args, _job_mode(store))
     from mailroom_sandbox.job.spend import authorize
 

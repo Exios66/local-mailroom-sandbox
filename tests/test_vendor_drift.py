@@ -142,7 +142,11 @@ def _at_pin(package_root: Path, sha: str | None) -> Iterator[Path]:
         yield package_root
         return
     with tempfile.TemporaryDirectory() as tmp, tarfile.open(fileobj=io.BytesIO(archive.stdout)) as tar:
-        tar.extractall(tmp, filter="data")
+        # ``filter`` arrived in 3.11.4 (and 3.12); the archive is our own git output.
+        if hasattr(tarfile, "data_filter"):
+            tar.extractall(tmp, filter="data")
+        else:  # pragma: no cover - Python 3.11.0-3.11.3
+            tar.extractall(tmp)  # noqa: S202 - trusted local git archive
         yield Path(tmp) / package_root.name
 
 
