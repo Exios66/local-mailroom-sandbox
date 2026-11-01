@@ -141,6 +141,21 @@ def _api_reviewer_errors(spec: RunSpec) -> list[str]:
     return errs
 
 
+def _extraction_gate_lock(spec: RunSpec) -> dict[str, Any]:
+    """The pipeline extraction-gate block as locked: the question set frozen by content and hash."""
+    import hashlib
+
+    from mailroom_sandbox.decision_backends import EXTRACTION_GATE, decisions_dir, load_question_set
+
+    gate = spec.extraction_gate
+    qset = load_question_set(gate.questions)
+    if qset.get("kind") != EXTRACTION_GATE:
+        raise ValueError(f"extraction_gate.questions {gate.questions!r} is not an extraction_gate question set")
+    path = decisions_dir() / f"{gate.questions}.yaml"
+    return {**gate.model_dump(), "questions_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            "question_set": qset}
+
+
 def _reviewer_lock(spec: RunSpec) -> dict[str, Any]:
     """The reviewer block as locked; a Decisions question set is frozen by content and hash."""
     block = spec.reviewer.model_dump()
@@ -931,6 +946,7 @@ def _preflight(
         "agent_models": dict(spec.agent_models),
         **({"agent_routes": {name: route.model_dump() for name, route in spec.agent_routes.items()}} if spec.agent_routes else {}),
         **({"reviewer": _reviewer_lock(spec)} if spec.reviewer else {}),
+        **({"extraction_gate": _extraction_gate_lock(spec)} if spec.extraction_gate else {}),
         "prompt": prompt_block,
         "engine": spec.engine.model_dump(),
         "job": spec.job.model_dump(),

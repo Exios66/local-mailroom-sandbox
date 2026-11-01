@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Pipeline extraction gate** (`extraction_gate:` in a `task: pipeline` run spec). It is advisory.
+  - Preflight freezes the question set into the lock.
+  - Activation registers `decision_backends.extraction_gate_backend` with llm-mailroom's `agents.extraction_gate` hook (llm-mailroom #136). An activation without the block clears it.
+  - The gate reads the **sorter's** `doc_subclass` from the pipeline handoff, with no fallback to the labelled subclass.
+  - Pipeline records carry `doc_subclass` and `extraction_gate`.
+  - Gate calls count against the run budget and the OpenRouter key reserve.
+  - The spec hash changes only for specs that set the block.
+
 - Vendor pins after merging `main`: llm-mailroom `d1e2811`, which is `v0.8.1` merged into llm-mailroom #135 (sorter V15), and llm-dojo-scoring by its published `v0.25.0` tag (SHA-verified `e35504db`).
 - CI lint: drop an unused counter in `scripts/export_sorter_handoff.py`; `scripts/refresh_api_prices.py` accepts only an `https://` catalog URL (bandit B310).
 - Spend guard: a fixed 3.00 USD reserve of the OpenRouter key's remaining limit is never spent. `require_key_headroom` and `scripts/estimate_spend.py` compare caps/estimates with `remaining - reserve`; `OPENROUTER_KEY_RESERVE_USD` can raise the floor, never lower it.

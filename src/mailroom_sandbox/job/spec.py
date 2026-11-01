@@ -658,6 +658,26 @@ class TraceSpec(BaseModel):
     tags: list[str] = ["sandbox", "job"]
 
 
+class ExtractionGateSpec(BaseModel):
+    """The Decisions-model extraction gate in a pipeline run (advisory; llm-mailroom >= the gate hook).
+
+    The pipeline sends the sorter's subclass with every extraction; the gate's answers are
+    recorded per document (``extraction_gate``) and never change routing.
+    """
+    model_config = {"extra": "forbid"}
+    model: str = Field(min_length=1)
+    # The question-set stem, config/decisions/<stem>.yaml, of kind extraction_gate (locked by content).
+    questions: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _decisions_model(self) -> "ExtractionGateSpec":
+        from mailroom_sandbox.decision_backends import is_decisions_model
+
+        if not is_decisions_model(self.model):
+            raise ValueError(f"extraction_gate model {self.model!r} is not a Decisions-API model")
+        return self
+
+
 class RunSpec(BaseModel):
     schema_name: str = Field(default="sandbox.run/v1", alias="schema")
     run_id: str | None = None
@@ -677,6 +697,7 @@ class RunSpec(BaseModel):
     agent_knobs: dict[str, dict[str, Any]] = Field(default_factory=dict)
     agent_routes: dict[str, AgentRoute] = Field(default_factory=dict)
     reviewer: ReviewerSpec | None = None
+    extraction_gate: ExtractionGateSpec | None = None
 
     model_config = {"populate_by_name": True}
 
@@ -702,6 +723,13 @@ class RunSpec(BaseModel):
     @classmethod
     def _task_known(cls, v: str) -> str:
         return _check_task(v)
+
+    @model_validator(mode="after")
+    def _gate_in_pipeline(self) -> "RunSpec":
+        if self.extraction_gate is not None and self.task != "pipeline":
+            raise ValueError(f"extraction_gate reviews pipeline extractions; task {self.task!r} runs none "
+                             "(calibrate the gate with task: extraction_gate and a reviewer block)")
+        return self
 
     @model_validator(mode="after")
     def _reviewer_classes(self) -> "RunSpec":
@@ -803,6 +831,8 @@ def spec_core(spec: RunSpec) -> dict[str, Any]:
         **({"agent_knobs": spec.agent_knobs} if spec.agent_knobs else {}),
         **({"agent_routes": {name: _route_core(route) for name, route in spec.agent_routes.items()}} if spec.agent_routes else {}),
         **({"reviewer": spec.reviewer.model_dump()} if spec.reviewer else {}),
+        # Hashed only when set, so every pre-existing run YAML keeps its spec_hash.
+        **({"extraction_gate": spec.extraction_gate.model_dump()} if spec.extraction_gate else {}),
         "task": spec.task,
         # Hashed only when set, so every pre-existing run YAML keeps its spec_hash.
         **({"target": spec.target} if spec.target else {}),
