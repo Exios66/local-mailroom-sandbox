@@ -46,6 +46,9 @@ job:
   max_retries: 2
   fail_fast: false
   concurrency: 2
+  cost_cap_usd: 1.00          # paid runs refuse to start without a finite cap
+  max_wall_seconds: 1800
+  api_cost_cap_usd: 0.25      # OpenRouter token spend; recommended $0.05 for 5 docs (budget_advice), raised for headroom
 
 trace:
   sink: none

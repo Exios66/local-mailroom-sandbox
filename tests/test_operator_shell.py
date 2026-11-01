@@ -70,3 +70,4 @@ def test_tui_preserves_shared_cli_context(monkeypatch):
     assert cli.main(["--profile", "ollama", "--model", "local-model", "tui",
                      "--agent-model", "sorter=override"]) == 0
     assert seen == ["--profile", "ollama", "--model", "local-model", "--agent-model", "sorter=override"]
+

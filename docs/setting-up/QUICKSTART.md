@@ -204,6 +204,13 @@ sandbox experiment launch    --config config/experiments/my-tiers/experiment.yam
 comparison is already committed as `config/experiments/tiers-{base,mid,full}/`;
 run `review`, `preflight` and `launch` on those directly.
 
+After the runs, `sandbox experiment report --config …` writes `report.md`, `report.json`
+and `cards/<run-id>.card.json` beside the manifest. Mock and API-only runs carry no GPU
+cost. A decision reviewer is frozen with `--decision-reviewer BACKEND:MODEL` and
+`--decision-class CLASS=CUTOFF`, and `scripts/calibrate_reviewer.py` picks its cutoffs.
+See [experiments.md](../experiments.md#decision-reviewer) and
+[experiments.md](../experiments.md#calibrate-the-cutoffs).
+
 ## 10. Mailroom live watch (long Modal jobs)
 
 Full guide: **[mailroom-themed-logging.md](../pretty-logging/mailroom-themed-logging.md)**.

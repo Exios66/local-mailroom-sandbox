@@ -7,10 +7,13 @@ import errno
 import json
 import math
 import os
+import socket
 import subprocess
 import sys
 import time
 from pathlib import Path
+
+import yaml
 
 from mailroom_sandbox.compose import VALID_PROFILES as COMPOSE_PROFILES
 from mailroom_sandbox.overlay import UnknownNameError, load_profile
@@ -105,8 +108,11 @@ def _activation_knobs(spec):
     return knobs
 
 def main(argv: list[str] | None = None) -> int:
+    from mailroom_sandbox import prefer_own_venv_tools
     from mailroom_sandbox.runtime import load_env_file
 
+    if argv is None:  # the console script's own process; an importing host keeps its PATH
+        prefer_own_venv_tools()
     load_env_file()
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -144,10 +150,23 @@ def main(argv: list[str] | None = None) -> int:
         cmd = " ".join(map(str, exc.cmd)) if isinstance(exc.cmd, (list, tuple)) else str(exc.cmd)
         print(f"error: `{' '.join(cmd.split())}` timed out after {exc.timeout:g}s", file=sys.stderr)
         return 1
+    except _InvalidRunIdError() as exc:
+        print(f"error: {_one_line(exc)}", file=sys.stderr)
+        return 2
+    except IsADirectoryError as exc:
+        print(f"error: expected a file, got a directory: {exc.filename}", file=sys.stderr)
+        return 1
+    except socket.gaierror:
+        print(f"error: cannot resolve host {getattr(args, 'host', None)!r}", file=sys.stderr)
+        return 1
     except OSError as exc:
         if exc.errno != errno.EADDRINUSE:
             raise
         print(f"error: address already in use: {_one_line(exc)}", file=sys.stderr)
+        return 1
+    except yaml.YAMLError as exc:
+        where = getattr(getattr(exc, "problem_mark", None), "name", None)
+        print(f"error: not valid YAML{f' ({where})' if where else ''}: {_one_line(exc)}", file=sys.stderr)
         return 1
     except _prompt_selection_error() as exc:
         print(f"error: prompt version: {_one_line(exc)}", file=sys.stderr)
@@ -172,6 +191,12 @@ def _prompt_selection_error() -> type[BaseException]:
     from mailroom_sandbox.prompt_versions import PromptSelectionError
 
     return PromptSelectionError
+
+
+def _InvalidRunIdError() -> type[BaseException]:  # noqa: N802 - used as an except clause
+    from mailroom_sandbox.job.spec import InvalidRunIdError
+
+    return InvalidRunIdError
 
 
 def _one_line(exc: BaseException) -> str:
@@ -633,6 +658,25 @@ def build_parser() -> argparse.ArgumentParser:
     td = tun_sub.add_parser("down", help="Stop the recorded forward", parents=[leaf])
     td.set_defaults(handler=_cmd_tunnel_down)
     tun.set_defaults(handler=_cmd_tunnel_help)
+
+    rev = sub.add_parser(
+        "review",
+        help="Terminal human review: list parked documents, inspect the reviewer's opinion, resolve (needs a running API)",
+        parents=[leaf],
+    )
+    rev_sub = rev.add_subparsers(dest="review_cmd")
+    rl = rev_sub.add_parser("list", help="Parked documents with sorter and reviewer labels and causes", parents=[leaf])
+    rl.set_defaults(handler=_cmd_review_list)
+    rs = rev_sub.add_parser("show", help="One parked document: both opinions, causes and the class cutoff", parents=[leaf])
+    rs.add_argument("doc_id")
+    rs.set_defaults(handler=_cmd_review_show)
+    rr = rev_sub.add_parser("resolve", help="Approve or reject a parked document", parents=[leaf])
+    rr.add_argument("doc_id")
+    rr.add_argument("--decision", required=True, choices=("approved", "rejected"))
+    rr.add_argument("--doc-type", default=None, help="Class to route an approved document to (required to approve a reviewer_disagreement; the API validates the class)")
+    rr.add_argument("--notes", default="", help="Free-text note recorded in the audit trail")
+    rr.set_defaults(handler=_cmd_review_resolve)
+    rev.set_defaults(handler=_cmd_review_help)
 
     _run_parser(sub, leaf)
 
@@ -1347,8 +1391,8 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
 # The Dojo pin is the interim post-v0.24.2 zero-token fix; return to the next
 # released commit when v0.24.3 is published.
 _VENDOR_PINS: tuple[tuple[str, str, str, str | None], ...] = (
-    ("llm-mailroom", "175e6711077f92cee16e6bf2488844f92d9cb36d",
-     "https://github.com/Exios66/llm-mailroom.git", "175e6711077f92cee16e6bf2488844f92d9cb36d"),
+    ("llm-mailroom", "v0.8.1",
+     "https://github.com/Exios66/llm-mailroom.git", "808d7861bb8ebbaef866ced799f2850137d48078"),
     ("llm-dojo-scoring", "718e326c1fe5a49b3f1cfd43a3ac10c73e7e01a4",
      "https://github.com/Exios66/llm-dojo-scoring.git", "718e326c1fe5a49b3f1cfd43a3ac10c73e7e01a4"),
 )
@@ -2347,6 +2391,29 @@ def _cmd_profiles(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_review_help(args: argparse.Namespace) -> int:
+    print("Use: sandbox review list | show DOC_ID | resolve DOC_ID --decision approved|rejected")
+    return 0
+
+
+def _cmd_review_list(args: argparse.Namespace) -> int:
+    from mailroom_sandbox.review_cli import cmd_list
+
+    return cmd_list(args)
+
+
+def _cmd_review_show(args: argparse.Namespace) -> int:
+    from mailroom_sandbox.review_cli import cmd_show
+
+    return cmd_show(args)
+
+
+def _cmd_review_resolve(args: argparse.Namespace) -> int:
+    from mailroom_sandbox.review_cli import cmd_resolve
+
+    return cmd_resolve(args)
+
+
 def _tunnel_spec(args: argparse.Namespace):
     from mailroom_sandbox.overlay import load_profile
     from mailroom_sandbox.tunnel import TunnelError, tunnel_spec
@@ -3068,11 +3135,21 @@ def _cmd_modal_matrix_list(args) -> int:
     return 0
 
 
+def _resolve_modal_row(args) -> dict:
+    """Resolve a matrix row; an unknown model or GPU is a usage error, not a traceback."""
+    from mailroom_sandbox.modal_matrix import resolve_modal_row
+
+    try:
+        return resolve_modal_row(getattr(args, "model", None), gpu_override=args.gpu)
+    except (KeyError, ValueError) as exc:
+        raise CLIUsageError(exc.args[0] if exc.args else str(exc)) from exc
+
+
 def _cmd_modal_matrix_show(args) -> int:
     """Show one Modal matrix row with its env exports and cutover hints (JSON with --json)."""
-    from mailroom_sandbox.modal_matrix import cutover_hints, resolve_modal_row
+    from mailroom_sandbox.modal_matrix import cutover_hints
 
-    resolved = resolve_modal_row(args.model, gpu_override=args.gpu)
+    resolved = _resolve_modal_row(args)
     if getattr(args, "json", False):
         _print({**resolved, "hints": cutover_hints(resolved)})
     else:
@@ -3096,6 +3173,7 @@ def _cmd_modal_matrix_show(args) -> int:
 def _cmd_modal_matrix_env(args) -> int:
     from mailroom_sandbox.modal_matrix import env_exports
 
+    _resolve_modal_row(args)
     sys.stdout.write(env_exports(args.model, gpu_override=args.gpu))
     return 0
 
@@ -4105,3 +4183,7 @@ def _cmd_metrics_sorter_vs_modernbert(args) -> int:
     else:
         print(result.get("markdown", ""))
     return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

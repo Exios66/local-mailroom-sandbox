@@ -82,6 +82,8 @@ def _load_dotenv() -> None:
     """Load the sandbox ``.env`` files into ``os.environ`` without overriding variables that are already set.
 
     """
+    if os.environ.get("SANDBOX_SKIP_DOTENV"):
+        return  # tests: a developer's real keys must never reach a test
     for candidate in dotenv_files():
         load_dotenv(candidate, override=False)
 
@@ -184,6 +186,8 @@ def apply_profile_env(profile: dict, *, base_url_override: str | None = None) ->
     os.environ.setdefault("PHOENIX_ENDPOINT", "http://localhost:6006/v1/traces")
     os.environ.setdefault("PHOENIX_PROJECT", "mailroom-sandbox")
     os.environ.setdefault("MAILROOM_BASE_DIR", str(repo_root() / "data"))
+    # Parked human reviews keep their graph position across a process restart.
+    os.environ.setdefault("MAILROOM_CHECKPOINTER", "sqlite")
 
 
 def resolve_agent_knobs(agent_knobs: dict | None = None) -> dict:
@@ -219,6 +223,38 @@ def stamp_locked_record(record: dict[str, Any]) -> None:
                       run_generation=generation_identity(lock), run_task=lock["task"], run_state="done")
 
 
+def _install_reviewer(reviewer: Any, taxonomy: dict) -> Any:
+    """Write the taxonomy ``reviewer`` block; return the backend to register (or None).
+
+    The base taxonomy comes from the shipped file (``overlay.mailroom_taxonomy_path``),
+    and the reviewer block is overwritten unconditionally, including when no
+    reviewer is configured, so earlier settings do not carry over.
+    """
+    if reviewer is None:
+        taxonomy["reviewer"] = {"default_mode": "llm", "by_class": {}}
+        return None
+    from mailroom_sandbox.decision_backends import build_backend
+    from mailroom_sandbox.job.spec import ReviewerSpec
+
+    spec = reviewer if isinstance(reviewer, ReviewerSpec) else ReviewerSpec.model_validate(reviewer)
+    taxonomy["reviewer"] = {
+        "default_mode": "llm",
+        "by_class": {name: {"mode": "decision_only", "cutoff": cutoff} for name, cutoff in spec.classes.items()},
+    }
+    return build_backend(spec.backend, spec.model)
+
+
+def _register_reviewer(backend: Any) -> None:
+    """Replace the process-wide decision backend (None clears it)."""
+    try:
+        from agents.decision_backend import register_decision_backend
+    except ImportError:
+        if backend is not None:
+            raise
+        return  # no mailroom source: nothing could have been registered
+    register_decision_backend(backend)
+
+
 def activate(
     profile_name: str | None = None,
     *,
@@ -229,6 +265,7 @@ def activate(
     agent_models: dict[str, str] | None = None,
     agent_knobs: dict | None = None,
     agent_routes: dict | None = None,
+    reviewer: Any = None,
 ) -> Activation:
     """Load overlay, write runtime taxonomy, patch mailroom, set env.
 
@@ -240,6 +277,13 @@ def activate(
     own decode/input budget. When None, it is read from the
     ``SANDBOX_AGENT_KNOBS`` env var (JSON), which is how ``sandbox run`` carries
     it without threading a new field through every call site.
+
+    ``reviewer`` (a ``ReviewerSpec`` or its dict form) selects the decision-model
+    reviewer: its classes become ``decision_only`` in the runtime taxonomy and
+    its backend is registered with the graph. There is no deactivate step, so
+    every activation replaces the previous registration and rewrites the
+    ``reviewer`` block; an activation without ``reviewer`` leaves every class
+    on ``llm`` and nothing registered.
 
     Inside ``locked_runtime``, the frozen profile, model, per-agent settings,
     and prompt texts override these arguments; ambient knob JSON is ignored.
@@ -258,6 +302,7 @@ def activate(
         agent_models = deepcopy(lock.get("agent_models") or {})
         agent_knobs = deepcopy(lock.get("agent_knobs") or {})
         agent_routes = deepcopy(lock.get("agent_routes") or {})
+        reviewer = deepcopy(lock.get("reviewer"))
         prompt_variant = None  # the locked TEXT, not today's local stem
         base_url = None
     if load_env_file:
@@ -313,9 +358,11 @@ def activate(
     from mailroom_sandbox.agent_routes import install as install_agent_routes
 
     install_agent_routes(agent_routes or {}, taxonomy, agent_models=effective_agent_models)
+    reviewer_backend = _install_reviewer(reviewer, taxonomy)
     taxonomy_path = write_runtime_taxonomy(taxonomy)
     os.environ["MAILROOM_TAXONOMY"] = str(taxonomy_path)
     patched = patch_mailroom_config(taxonomy_path)
+    _register_reviewer(reviewer_backend)
 
     # SAND-018: the vendored LangChain agents hardcode timeout=120 (drift-
     # guarded). Apply the taxonomy's run_limits pin so a long L4 generation does

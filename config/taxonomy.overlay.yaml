@@ -47,6 +47,8 @@ cost_models:
 # (overlay), not in the drift-guarded vendored file.
 run_limits:
   llm_call_timeout_seconds: 600
+  # Per document. A 233k-character contract passed 22k at retry_classify, so 20000 aborted it.
+  max_total_output_tokens: 200000
 
 # Surgical knobs — overlay wins after profile rewrite. Omit `model` to keep
 # the mapped local tag from the active profile.

@@ -293,6 +293,11 @@ def test_terminal_edge_input_stays_short_and_actionable(tmp_path):
             assert "did you mean start" in run("run strat")
             assert "did you mean doctor" in run("docter")
 
+            # Hidden legacy tasks still parse in the CLI: point at the local command.
+            out = run("eval judge --mock")
+            assert "Unknown command" not in out and "sandbox eval judge --mock" in out
+            assert "sandbox eval judge --help" in out
+
             # Long input is echoed once at the prompt, and clipped in the error.
             out = run("x" * 3000)
             assert out.count("x") < 200, len(out)

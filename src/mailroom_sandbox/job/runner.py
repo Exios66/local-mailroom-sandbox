@@ -16,7 +16,7 @@ from typing import Any
 from mailroom_sandbox.eval import experiment_log
 from mailroom_sandbox.eval import runners as eval_runners  # noqa: F401
 from mailroom_sandbox.job.checkpoint import RunStore, utc_now
-from mailroom_sandbox.job.metrics import lock_dataset_provenance, record_from_run
+from mailroom_sandbox.job.metrics import lock_dataset_provenance, record_from_run, routed_gpu_fleet
 from mailroom_sandbox.eval.prompt_provenance import (
     resolve_logged_prompt_version,
     stamp_prompt_provenance,
@@ -52,6 +52,9 @@ except Exception as exc:  # pragma: no cover — import fallback for isolated to
         exc_info=exc,
     )
     ISOLATED_AGENT_TASKS = ()
+
+# Whole-run evaluators that take no ``api_budget``: a capped API run on them would spend unbounded.
+_API_CAP_UNENFORCED_TASKS = ("extract", "chained", "local_vs_api", "sorter_vs_modernbert")
 
 RUNNABLE_TASKS = PER_ITEM_TASKS + _WHOLE_RUN_TASKS + ISOLATED_AGENT_TASKS
 
@@ -227,6 +230,7 @@ def _run_whole_run(
     concurrency = _concurrency(store)
     max_wall = _max_wall_seconds(store)
     cost_cap = _cost_cap_usd(store)
+    api_budget = _api_budget(store)
     gpu = _lock_gpu(store)
     replicas = _lock_replicas(store)
     gpu_fleet = _lock_fleet(store)
@@ -241,6 +245,8 @@ def _run_whole_run(
     if target and task == "specialist" and locked_rows:
         startup_total = len(primary.rows_for_class(locked_rows, target))
     store.write_checkpoint(state="running", cursor=0, total=startup_total, remote=None)
+    # The watchers time the SORTING stage from the latest start/resume.
+    store.append_event("resume" if store.load_items() else "start", task=task)
 
     def _progress(done: int, total: int, ok: int, errors: int) -> None:
         store.write_checkpoint(state="running", cursor=done, total=total, remote=None)
@@ -260,6 +266,7 @@ def _run_whole_run(
             concurrency=concurrency,
             max_wall_seconds=max_wall,
             cost_cap_usd=cost_cap,
+            api_budget=api_budget,
             gpu=gpu,
             replicas=replicas,
             gpu_fleet=gpu_fleet,
@@ -270,6 +277,11 @@ def _run_whole_run(
         )
 
     try:
+        if api_budget is not None and task in _API_CAP_UNENFORCED_TASKS:
+            raise ValueError(
+                f"task {task!r} cannot enforce job.api_cost_cap_usd (its evaluator makes API calls without a "
+                "token budget); run it on a local or Modal route, or use a task that enforces the cap"
+            )
         if task == "specialist":
             # Level 1 sweeps all five specialists, level 2 (`target`) runs one.
             # Each specialist scores only its own class's locked rows; with no
@@ -308,7 +320,8 @@ def _run_whole_run(
                 connected=True, rows=locked_rows,
                 row_cb=lambda entry: _persist_isolated_items(store, [entry]),
                 progress_cb=_progress, node_cb=store.append_node, max_wall_seconds=max_wall,
-                cost_cap_usd=cost_cap, gpu=gpu, replicas=replicas, gpu_fleet=gpu_fleet, **kwargs)
+                cost_cap_usd=cost_cap, api_budget=api_budget, gpu=gpu, replicas=replicas,
+                gpu_fleet=gpu_fleet, **kwargs)
         elif task == "extract":
             result = eval_runners.run_extract_eval(rows=locked_rows, **kwargs)
         elif task == "chained":
@@ -329,6 +342,7 @@ def _run_whole_run(
                 concurrency=concurrency,
                 max_wall_seconds=max_wall,
                 cost_cap_usd=cost_cap,
+                api_budget=api_budget,
                 gpu=gpu,
                 replicas=replicas,
                 gpu_fleet=gpu_fleet,
@@ -347,6 +361,7 @@ def _run_whole_run(
                 concurrency=concurrency,
                 max_wall_seconds=max_wall,
                 cost_cap_usd=cost_cap,
+                api_budget=api_budget,
                 gpu=gpu,
                 replicas=replicas,
                 gpu_fleet=gpu_fleet,
@@ -365,6 +380,12 @@ def _run_whole_run(
             last_error={"type": "whole-run", "message": f"{type(exc).__name__}: {str(exc)[:512]}", "at": utc_now(), "retryable": False},
         )
         store.append_event("failed", "error", cursor=0, last_error=str(exc)[:512])
+        # SAND-089: a document that raised has no item row (a resume re-runs it), but its
+        # billed tokens must still count against the API ceiling of a resumed run.
+        if failed_usage := getattr(exc, "sandbox_failed_usage", None):
+            from mailroom_sandbox.job.api_budget import FAILED_USAGE_EVENT
+
+            store.append_event(FAILED_USAGE_EVENT, "warning", **failed_usage)
         return {"state": "failed", "task": task, "error": str(exc)[:512], "ok": 0, "errors": 1}
 
     _persist_isolated_items(store, result.get("rows") if isinstance(result, dict) else None)
@@ -404,8 +425,21 @@ def _run_whole_run(
             record, record["prompt_version"], record.get("prompt_sha256"), prompt_lock=lock_prompt
         )
         record.setdefault("run_id", store.run_id)
+    items = store.load_items()
+    ok_items = [item for item in items if item.get("ok")]
+    if items and all((item.get("score") or {}).get("parse_error") for item in ok_items):
+        # Live-or-loud: nothing usable came back, whether the rows errored or
+        # every answer was unparseable. The same doctrine as the per-item path.
+        failed = next((item for item in items if not item.get("ok")), items[0])
+        message = str(failed.get("error") or "every document's answer failed to parse")
+        last_error = {"type": "item", "message": message[:512], "at": utc_now(),
+                      "item_id": failed.get("item_id"), "retryable": False}
+        store.write_checkpoint(state="failed", cursor=processed, total=processed, remote=None, last_error=last_error)
+        store.append_event("failed", "error", cursor=processed, last_error=message[:512])
+        return {"state": "failed", "task": task, "cursor": processed, "total": processed, "ok": 0,
+                "errors": len(items), "last_error": last_error}
     store.write_checkpoint(state="done", cursor=processed, total=processed, remote=None)
-    store.append_event("done", "info", cursor=processed, ok_count=processed)
+    store.append_event("done", "info", cursor=processed, ok_count=len(ok_items) if items else processed)
     from mailroom_sandbox.job.dated_reports import maybe_write_run_reports
 
     maybe_write_run_reports(store, scores=scores if isinstance(scores, dict) else None)
@@ -417,8 +451,8 @@ def _run_whole_run(
         "task": task,
         "cursor": processed,
         "total": processed,
-        "ok": processed,
-        "errors": 0,
+        "ok": len(ok_items) if items else processed,
+        "errors": len(items) - len(ok_items),
         "scores": scores,
         "default_prompt_source": default_ref,
         "spec_hash": store.spec_hash() or "",
@@ -446,6 +480,17 @@ def _cost_cap_usd(store: RunStore) -> float | None:
     if raw is None or raw == "":
         return None
     return float(raw)
+
+
+def _api_budget(store: RunStore):
+    """SAND-089: the run's API token budget, seeded with tokens already spent.
+
+    That is every persisted item plus every document that raised after a paid call
+    (recorded as a ``FAILED_USAGE_EVENT``; it has no item row).
+    """
+    from mailroom_sandbox.job.api_budget import budget_for, usage_records
+
+    return budget_for(store.read_lock() or {}, usage_records(store))
 
 
 def _max_wall_seconds(store: RunStore) -> int | None:
@@ -558,7 +603,7 @@ def _persist_isolated_items(store: RunStore, rows: list[dict[str, Any]] | None) 
         store.append_item(
             {
                 "item_id": item_id,
-                "ok": not row.get("error"),
+                "ok": not row.get("error") and not (row.get("score") or {}).get("parse_error"),
                 "error": row.get("error"),
                 "pred": row.get("pred"),
                 "score": row.get("score"),
@@ -651,6 +696,8 @@ def _build_record(
         gpu=_lock_gpu(store),
         billed_window_seconds=billed_window if billed_window and billed_window > 0 else None,
         mock=bool(mock),
+        # Price route apps like the cost cap does (SAND-083).
+        gpu_fleet=routed_gpu_fleet(lock),
     )
     record["experiment_name"] = f"sandbox_{task}_{store.run_id}"
     record["mock"] = bool(mock)
@@ -733,9 +780,11 @@ def run_job(
                         max_items=max_items, tracer=tracer, on_event=on_event)
     wrapped, finish = _beacon_hook(store.run_id, task=task or _lock_task(store), on_event=on_event)
     try:
+        from mailroom_sandbox.job.otel import locked_pipeline_provider
         from mailroom_sandbox.runtime import activate, locked_runtime
 
-        with locked_runtime(store.read_lock() or {}, store.read_prompt_lock() or {}):
+        lock = store.read_lock() or {}
+        with locked_runtime(lock, store.read_prompt_lock() or {}), locked_pipeline_provider(lock):
             activate()
             summary = _run_job(store, task=task, model=model, profile=profile, mock=mock, dry_run=False,
                                max_items=max_items, tracer=tracer, on_event=wrapped)
@@ -833,7 +882,9 @@ def _run_job(
     run_started = time.perf_counter()
     cost_cap = _cost_cap_usd(store)
     max_wall = _max_wall_seconds(store)
+    api_budget = None if mock else _api_budget(store)
     cap_abort_reason: str | None = None
+    cap_abort_type: str | None = None
 
     # Worker threads do not inherit the caller's otel context; hand it over
     # explicitly so item spans nest under the run span.
@@ -846,6 +897,7 @@ def _run_job(
         value: Any = None
         error: str | None = None
         usage: dict[str, Any] = {}
+        failed_usage: dict[str, int] = {}  # billed by attempts that raised, then retried
         with job_span(
             tracer,
             "job.item",
@@ -870,8 +922,15 @@ def _run_job(
                 except Exception as exc:  # noqa: BLE001
                     error = f"{type(exc).__name__}: {str(exc)[:512]}"
                     usage = {}
+                    if not mock:
+                        # The failed call was billed; the next attempt's graph run resets the accumulator.
+                        for key, value in usage_from_pipeline().items():
+                            failed_usage[key] = failed_usage.get(key, 0) + value
                     if attempt <= retries:
                         time.sleep(0.2)
+            if failed_usage:
+                usage = {key: int(usage.get(key) or 0) + failed_usage.get(key, 0)
+                         for key in {*usage, *failed_usage}}
             span.set_attribute("job.ok", error is None)
             span.set_attribute("job.attempts", attempt)
             if error is not None:
@@ -899,7 +958,7 @@ def _run_job(
         concurrent paths — worker threads only compute, so append_item /
         append_event / write_checkpoint / on_event never race.
         """
-        nonlocal ok_count, error_count, done_count, last_error, last_error_item, cap_abort_reason
+        nonlocal ok_count, error_count, done_count, last_error, last_error_item, cap_abort_reason, cap_abort_type
         row = rows[index]
         item_id = str(row.get("id") or row.get("filename") or index)
         ok = error is None
@@ -946,21 +1005,27 @@ def _run_job(
                     "stop updating while the run continues: %s",
                     exc,
                 )
+        if api_budget is not None:
+            api_budget.add_usage(item)
         # DMR-078: cost / wall abort guards (Modal warm-GPU wall × $/hr).
         if not mock and cap_abort_reason is None:
             wall_s = time.perf_counter() - run_started
             if max_wall is not None and wall_s >= float(max_wall):
+                cap_abort_type = "max_wall"
                 cap_abort_reason = (
                     f"max_wall_seconds={max_wall} exceeded "
                     f"(wall={wall_s:.1f}s) — aborting to protect spend"
                 )
-            elif cost_cap is not None:
-                est = _estimate_run_gpu_usd(store, wall_s)
-                if est >= float(cost_cap):
-                    cap_abort_reason = (
-                        f"cost_cap_usd={cost_cap} exceeded "
-                        f"(est_gpu_usd={est:.4f} at wall={wall_s:.1f}s) — aborting"
-                    )
+            elif cost_cap is not None and (est := _estimate_run_gpu_usd(store, wall_s)) >= float(cost_cap):
+                cap_abort_type = "cost_cap"
+                cap_abort_reason = (
+                    f"cost_cap_usd={cost_cap} exceeded "
+                    f"(est_gpu_usd={est:.4f} at wall={wall_s:.1f}s) — aborting"
+                )
+            elif api_budget is not None and (reason := api_budget.exceeded()):
+                # SAND-089: token spend on API-billed agents.
+                cap_abort_type = "api_cost_cap"
+                cap_abort_reason = reason
         return ok
 
     def _cap_abort_failed():
@@ -970,7 +1035,7 @@ def _run_job(
             cursor=done_count,
             total=total,
             last_error={
-                "type": "cost_cap" if cost_cap is not None else "max_wall",
+                "type": cap_abort_type or ("cost_cap" if cost_cap is not None else "max_wall"),
                 "message": cap_abort_reason,
                 "at": utc_now(),
                 "item_id": last_error_item,
@@ -1002,6 +1067,7 @@ def _run_job(
     # checkpoint; waiting until the first result loses first-row cancels.
     store.write_checkpoint(state="running", cursor=done_count, total=total,
                            remote=(store.read_checkpoint() or {}).get("remote"))
+    store.append_event("resume" if done_count else "start", task=task)
     cancel_request = None
 
     def _cancelled() -> bool:

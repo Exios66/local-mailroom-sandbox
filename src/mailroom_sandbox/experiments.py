@@ -13,6 +13,7 @@ import json
 import math
 import os
 import re
+import statistics
 import sys
 from collections import defaultdict
 from contextlib import contextmanager
@@ -24,7 +25,11 @@ from pydantic import BaseModel, ConfigDict, Field
 from mailroom_sandbox.job import preflight
 from mailroom_sandbox.job.checkpoint import RunStore, _atomic_write
 from mailroom_sandbox.job.deploy_env import spec_env
-from mailroom_sandbox.job.spec import DatasetSpec, FAMILY_HF_REVISION, RunSpec, load_run_spec, run_dir
+from mailroom_sandbox.job.grid_cards import collect_card
+from mailroom_sandbox.job.metrics import infer_wall_seconds_from_store
+from mailroom_sandbox.job.otel import pipeline_provider
+from mailroom_sandbox.job.sand42_cards import _summary as sand42_summary, paired_delta
+from mailroom_sandbox.job.spec import DatasetSpec, FAMILY_HF_REVISION, ReviewerSpec, RunSpec, load_run_spec, run_dir
 from mailroom_sandbox.job.spend import authorize, review_settings
 from mailroom_sandbox.paths import repo_root
 from mailroom_sandbox.services._exec import ServiceError, ToolFailed, stream_tool
@@ -104,19 +109,112 @@ def _set(data: dict, assignment: str) -> None:
         raise ServiceError(f'invalid YAML value for {name}: {exc}') from exc
 
 
+def _reviewer_settings(reviewer: str | None, classes: list[str] | None) -> dict | None:
+    """The frozen decision reviewer from ``BACKEND:MODEL`` and ``CLASS=CUTOFF`` flags (None when unset)."""
+    if not reviewer and not classes:
+        return None
+    if not reviewer or not classes:
+        raise ServiceError('--decision-reviewer and --decision-class must be given together')
+    backend, sep, model = reviewer.partition(':')
+    if not sep or not backend or not model:
+        raise ServiceError('--decision-reviewer must be BACKEND:MODEL, e.g. local:Org/Model, api:openai/gpt-6-luna or jev:jev-1.13.0')
+    from mailroom_sandbox.overlay import live_doc_classes
+
+    live = live_doc_classes()
+    cutoffs = {}
+    for item in classes:
+        name, equals, raw = item.partition('=')
+        try:
+            cutoff = float(raw)
+        except ValueError:
+            cutoff = None
+        if not name or not equals or cutoff is None:
+            raise ServiceError(f'--decision-class must be CLASS=CUTOFF, got {item!r}')
+        if name not in live:
+            raise ServiceError(f'--decision-class {name!r} is not a live taxonomy class; valid: {sorted(live)}')
+        if name in cutoffs:
+            raise ServiceError(f'--decision-class {name!r} given more than once')
+        cutoffs[name] = cutoff
+    try:
+        return ReviewerSpec(backend=backend, model=model, classes=cutoffs).model_dump()
+    except ValueError as exc:
+        raise ServiceError(f'invalid decision reviewer: {exc}') from exc
+def _local_strata(path: Path) -> dict[str, list[str]]:
+    """Subclasses of the scoreable rows per doc class in a local JSONL.
+
+    Rows are read as the corpus loader keys them and kept only when they carry
+    the task ground truth the generated specs require (``require_task_gt``).
+    """
+    from mailroom_sandbox.corpus import _has_task_gt
+
+    out: dict[str, list[str]] = defaultdict(list)
+    try:
+        text = path.read_text(encoding='utf-8')
+    except OSError as exc:
+        raise ServiceError(f'cannot read --local-dataset {path}: {exc}') from exc
+    for line in text.split('\n'):  # JSONL records end at \n only; strings may hold U+2028
+        try:
+            row = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(row, dict):
+            continue
+        doc_class = row.get('expected') or row.get('expected_doc_class') or row.get('doc_type')
+        fields = row.get('expected_fields') if row.get('expected_fields') is not None else row.get('gt_fields')
+        if isinstance(fields, str):
+            try:
+                fields = json.loads(fields or '{}')
+            except ValueError:
+                fields = {}
+        if doc_class and _has_task_gt({'expected_doc_class': doc_class, 'expected_fields': fields or {}}):
+            out[str(doc_class)].append(str(row.get('expected_subclass') or ''))
+    return dict(out)
+
+
+def _fills(local: dict[str, list[str]], doc_class: str, quota: dict) -> bool:
+    """Whether the local rows can fill one subclass quota, matched as the sampler matches."""
+    from mailroom_sandbox.corpus import _subclass_matches
+
+    have = sum(_subclass_matches({'expected_doc_class': doc_class, 'expected_subclass': sub}, quota['subclass'])
+               for sub in local.get(doc_class, []))
+    return have >= quota['count']
+
+
 def _create(args) -> int:
     if not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,23}', args.study):
         raise ServiceError('study must be 1–24 lowercase letters/digits/hyphens')
     if args.max_tokens < 1 or not math.isfinite(args.temperature) or not 0 <= args.temperature <= 2:
         raise ServiceError('max tokens must be positive; temperature must be finite in [0, 2]')
-    if args.samples < 1 or not math.isfinite(args.cost_cap_usd) or args.cost_cap_usd <= 0:
-        raise ServiceError('sample size and finite per-run cost cap must be positive')
+    if args.samples < 1:
+        raise ServiceError('sample size must be positive')
+    for flag, value in (('--cost-cap-usd', args.cost_cap_usd), ('--api-cost-cap-usd', args.api_cost_cap_usd)):
+        if value is not None and (not math.isfinite(value) or value <= 0):
+            raise ServiceError(f'{flag} must be a finite positive number (omit it to use the recommendation)')
+    if args.max_wall_seconds is not None and args.max_wall_seconds < 60:
+        raise ServiceError('--max-wall-seconds must be >= 60 (omit it to use the recommendation)')
     if not re.fullmatch(r'[a-fA-F0-9]{40}', args.revision):
         raise ServiceError('pin --revision to a full Hugging Face commit SHA')
     root = Path(args.output or repo_root() / 'config' / 'experiments' / args.study).resolve()
     if root.exists():
         raise ServiceError(f'{root} already exists; choose a new study/output (nothing overwritten)')
     cells = DESIGNS[args.design]
+    local = _local_strata(Path(args.local_dataset)) if args.local_dataset else None
+    if local is not None:
+        from mailroom_sandbox.corpus import _subclass_matches
+
+        for name in args.doc_class or list(CLASSES):
+            # Count only rows the subclass filter can retain.
+            subclasses = local.get(name, [])
+            have = sum(
+                not args.subclass or any(
+                    _subclass_matches({'expected_doc_class': name, 'expected_subclass': sub}, requested)
+                    for requested in args.subclass
+                )
+                for sub in subclasses
+            )
+            if have < args.samples:
+                raise ServiceError(f'--local-dataset has {have} scoreable {name} row(s); lower --samples to '
+                                   f'{max(have, 1)} or drop that class with --doc-class')
     if args.design == 'sand42' and (args.replicas is not None or args.concurrency is not None):
         raise ServiceError('sand42 fixes replica/concurrency axes at {1,2} × {8,16}; use single for custom values')
     selected = args.doc_class or list(CLASSES)
@@ -129,6 +227,7 @@ def _create(args) -> int:
         agent_models = parse_agent_models(getattr(args, 'agent_models', None))
     except ValueError as exc:
         raise ServiceError(str(exc)) from exc
+    reviewer = _reviewer_settings(getattr(args, 'decision_reviewer', None), getattr(args, 'decision_class', None))
 
     def scoped(route):
         # One app per tier model per study, so the judge and `full` specialists share it.
@@ -179,11 +278,13 @@ def _create(args) -> int:
                 data['engine']['vllm'].update(max_model_len=int(row['env']['MODAL_VLLM_MAX_MODEL_LEN']), quantization=row['env']['MODAL_VLLM_QUANTIZATION'])
             if args.provider == 'modal-vllm':
                 data['engine']['modal'].update(app=f'sandbox-vllm-{args.study}-{label}', gpu=args.gpu,
-                    min_containers=0, max_containers=args.replicas or replicas)
+                    min_containers=0, max_containers=args.replicas or replicas, named_image=args.named_image)
             else:
                 data['engine']['modal'] = None
+            # None = fill from the design-informed recommendation once the spec is complete.
             data['job'].update(mock=args.mock, mode='endpoint', concurrency=args.concurrency or concurrency,
-                               cost_cap_usd=args.cost_cap_usd, max_wall_seconds=args.max_wall_seconds)
+                               cost_cap_usd=args.cost_cap_usd, max_wall_seconds=args.max_wall_seconds,
+                               api_cost_cap_usd=args.api_cost_cap_usd)
             ds = data['dataset']
             ds.update(repo=args.dataset, config=args.dataset_config, split=args.split, revision=args.revision,
                       limit=args.samples, sample_seed=args.seed, require_task_gt=True)
@@ -191,6 +292,9 @@ def _create(args) -> int:
             bucket['count'] = args.samples
             if bucket.get('sub_buckets'):
                 bucket['sub_buckets'] = _quotas(bucket['sub_buckets'], args.samples)
+                # The published quotas name Hub subclasses; a local file may hold others.
+                if local is not None and not all(_fills(local, doc_class, sb) for sb in bucket['sub_buckets']):
+                    del bucket['sub_buckets']
             if args.task != 'specialists':
                 data['task'] = args.task
                 ds['strata'] = {'buckets': [{'doc_class': name, 'count': args.samples} for name in selected]}
@@ -208,8 +312,11 @@ def _create(args) -> int:
                                  environment=args.study, tags=['sandbox', 'experiment', args.study, label])
             data['agent_knobs'] = {name: {'max_tokens': args.max_tokens, 'temperature': args.temperature} for name in (known_agents() if args.task == 'pipeline' else [data['task']])}
             data['agent_models'] = dict(agent_models)
+            data['reviewer'] = reviewer
             data['agent_routes'] = {name: route.model_dump() for name, route in routes.items()}
             for name, route in data['agent_routes'].items():
+                if route['provider'] == 'modal-vllm':
+                    route['modal']['named_image'] = args.named_image
                 if route['provider'] == 'modal-vllm' and route['modal']['app'].startswith('sandbox-vllm-route-'):
                     route_key = hashlib.sha256(json.dumps({'model': route['model'], 'gpu': args.gpu, 'vllm': route['vllm']}, sort_keys=True).encode()).hexdigest()[:8]
                     route['modal'].update(app=f'sandbox-vllm-{args.study}-{route_key}-{label}', gpu=args.gpu,
@@ -225,7 +332,7 @@ def _create(args) -> int:
                 for section, model in [('engine', spec.engine), ('job', spec.job), ('trace', spec.trace), ('dataset', spec.dataset)]:
                     if set(data[section]) - set(type(model).model_fields):
                         raise ValueError(f'unknown {section} fields')
-                result = RunSpec.model_validate(data)
+                result = _with_recommended_budget(RunSpec.model_validate(data))
                 if result.job.mode != 'endpoint':
                     raise ValueError('experiment launch requires endpoint mode')
             except ValueError as exc:
@@ -246,8 +353,60 @@ def _create(args) -> int:
     manifest = root / 'experiment.yaml'
     manifest.write_text(yaml.safe_dump(plan.model_dump(by_alias=True), sort_keys=False))
     print(f'Created {manifest} ({len(generated)} runs; no downloads or paid actions).')
+    _print_budget(generated)
     print(f'Next: sandbox experiment preflight --config {manifest}')
     return 0
+
+
+def _with_recommended_budget(spec: RunSpec) -> RunSpec:
+    """Fill every unset ceiling from the design-informed recommendation (SAND-089).
+
+    Flags and --set values win; a GPU cap is only filled for runs that warm a Modal
+    GPU, an API cap only for runs that bill API tokens.
+    """
+    from mailroom_sandbox.job.budget_advice import recommend
+
+    advice = recommend(spec)
+    job = spec.job.model_dump()
+    if job['cost_cap_usd'] is None:
+        job['cost_cap_usd'] = advice['gpu_cost_cap_usd']
+    if job['max_wall_seconds'] is None:
+        job['max_wall_seconds'] = advice['max_wall_seconds']
+    if job['api_cost_cap_usd'] is None:
+        job['api_cost_cap_usd'] = advice['api_cost_cap_usd']
+    data = spec.model_dump(by_alias=True)
+    data['job'] = job
+    return RunSpec.model_validate(data)
+
+
+def _budget_rows(specs) -> list[dict]:
+    from mailroom_sandbox.job.budget_advice import compare, recommend
+
+    rows = []
+    for spec in specs:
+        advice = recommend(spec)
+        rows.append({'run_id': spec.run_id,
+                     'configured': {'cost_cap_usd': spec.job.cost_cap_usd, 'max_wall_seconds': spec.job.max_wall_seconds,
+                                    'api_cost_cap_usd': spec.job.api_cost_cap_usd},
+                     'recommended': {'cost_cap_usd': advice['gpu_cost_cap_usd'],
+                                     'max_wall_seconds': advice['max_wall_seconds'],
+                                     'api_cost_cap_usd': advice['api_cost_cap_usd']},
+                     'basis': advice['basis'], 'warnings': compare(spec, advice)})
+    return rows
+
+
+def _print_budget(specs) -> None:
+    def money(value):
+        return '-' if value is None else f'${value:.2f}'
+
+    print('Budget ceilings (configured / recommended from the design; GPU = Modal time, API = tokens):')
+    for row in _budget_rows(specs):
+        have, want = row['configured'], row['recommended']
+        print(f"  {row['run_id']}: GPU {money(have['cost_cap_usd'])} / {money(want['cost_cap_usd'])}  "
+              f"wall {have['max_wall_seconds']}s / {want['max_wall_seconds']}s  "
+              f"API {money(have['api_cost_cap_usd'])} / {money(want['api_cost_cap_usd'])}")
+        for warning in row['warnings']:
+            print(f'    warning: {warning}')
 
 
 @contextmanager
@@ -255,7 +414,7 @@ def _environment(spec: RunSpec):
     """Use only reviewed deploy/model settings; restore the caller environment on exit."""
     overrides = spec_env(spec) if spec.engine.kind == 'modal-vllm' else {}
     overrides['VLLM_MODEL'] = spec.engine.model
-    overrides['OBSERVABILITY_PROVIDER'] = spec.trace.sink if spec.trace.sink in {'langfuse', 'phoenix', 'none'} else 'none'
+    overrides['OBSERVABILITY_PROVIDER'] = pipeline_provider(spec.trace.sink)
     overrides['OBSERVABILITY_ENVIRONMENT'] = spec.trace.environment
     if spec.engine.kind == 'modal-vllm' and os.environ.get('MODAL_VLLM_API_TOKEN'):
         overrides['VLLM_API_KEY'] = os.environ['MODAL_VLLM_API_TOKEN']
@@ -326,10 +485,13 @@ def _review(path: Path, plan: Plan, runs, stores=None) -> dict:
         rows.append({'config': str(config), 'review': settings})
         rows[-1]['managed_deployments'] = [{'model': item.engine.model, 'modal': item.engine.modal.model_dump(),
             'vllm': item.engine.vllm.model_dump(), 'environment': spec_env(item)} for item in _deployments(spec)]
+    for row, budget in zip(rows, _budget_rows([spec for _, spec in runs])):
+        row['budget'] = budget
     return {'study': plan.study, 'design': plan.design, 'runs': rows,
             'smoke_rows_per_run': plan.smoke_rows, 'smoke_cost_cap_usd': plan.smoke_cost_cap_usd,
             'smoke_wall_seconds': plan.smoke_wall_seconds,
             'sum_run_and_smoke_caps_usd': sum(float(spec.job.cost_cap_usd or 0) + plan.smoke_cost_cap_usd for _, spec in runs),
+            'sum_api_caps_usd': sum(float(spec.job.api_cost_cap_usd or 0) for _, spec in runs),
             'spend': 'mock; no provider calls' if all(spec.job.mock for _, spec in runs) else 'Modal/OpenRouter: initials required before paid actions',
             'observer': f'sandbox experiment watch --config {path}',
             'reports': f'sandbox experiment report --config {path}'}
@@ -375,6 +537,8 @@ def _smoke(spec: RunSpec, store: RunStore, plan: Plan) -> None:
     smoke.job.concurrency = min(spec.job.concurrency, len(rows))
     smoke.job.cost_cap_usd = min(float(spec.job.cost_cap_usd or plan.smoke_cost_cap_usd), plan.smoke_cost_cap_usd)
     smoke.job.max_wall_seconds = min(spec.job.max_wall_seconds or plan.smoke_wall_seconds, plan.smoke_wall_seconds)
+    if spec.job.api_cost_cap_usd is not None:
+        smoke.job.api_cost_cap_usd = min(float(spec.job.api_cost_cap_usd), plan.smoke_cost_cap_usd)
     smoke.agent_knobs = copy.deepcopy((store.read_lock() or {}).get('agent_knobs') or {})
     report = preflight.preflight(smoke, offline=smoke.job.mock, live=False)
     if report.get('status') != 'prepared':
@@ -606,8 +770,68 @@ def _cmd_launch(args) -> int:
     return 0
 
 
+# The class-native headline each specialist is judged on, first match wins.
+_TASK_METRICS = ('cuad_presence_f1', 'maud_accuracy', 'extraction_f1', 'doc_type_accuracy', 'accuracy')
+
+
+def _task_metric(values: dict) -> tuple[str | None, float | None]:
+    for name in _TASK_METRICS:
+        if values.get(name) is not None:
+            return name, values[name]
+    return None, None
+
+
+def _fmt_score(value) -> str:
+    return '—' if value is None else f'{value:.3f}'
+
+
+def _fmt_delta(value) -> str:
+    return '—' if value is None else f'{value:+.3f}'
+
+
+def _usage(items: list[dict]) -> dict:
+    """Token totals and median latency over successful items; None when not reported."""
+    ok = [item for item in items if item.get('ok')]
+    prompt = [item['prompt_tokens'] for item in ok if isinstance(item.get('prompt_tokens'), int)]
+    completion = [item['completion_tokens'] for item in ok if isinstance(item.get('completion_tokens'), int)]
+    latency = [item['latency_ms'] for item in ok if isinstance(item.get('latency_ms'), (int, float))]
+    return {'prompt_tokens': sum(prompt) if prompt else None,
+            'completion_tokens': sum(completion) if completion else None,
+            'p50_latency_ms': statistics.median(latency) if latency else None}
+
+
+def _sand42_row(run_id: str, metrics: dict) -> str:
+    def number(value, spec='.2f'):
+        return '—' if value is None else format(value, spec)
+
+    def interval(mean, low, high):
+        return '—' if mean is None else f'{mean:.3f} [{number(low, ".3f")}, {number(high, ".3f")}]'
+
+    rel, quality, cost, goodput = metrics['reliability'], metrics['quality'], metrics['cost'], metrics['goodput']
+    latency, tokens, pipeline = metrics['latency'], metrics['tokens'], metrics.get('pipeline') or {}
+    ok_ci = rel.get('ok_rate_ci') or (None, None)
+    return (f"| {run_id} | {interval(rel.get('ok_rate'), *ok_ci)} | "
+            f"{interval(quality.get('mean'), quality.get('ci_low'), quality.get('ci_high'))} | "
+            f"{_fmt_score(rel.get('schema_valid_rate'))} | {number(cost.get('usd_per_1k_ok'))} | "
+            f"{number(goodput.get('documents_per_minute_per_gpu'))} | "
+            f"{number(goodput.get('goodput_documents_per_minute_per_gpu'))} | "
+            f"{number(latency.get('p50'), '.1f')} / {number(latency.get('p95'), '.1f')} | "
+            f"{number(tokens.get('prompt'), ',')} / {number(tokens.get('completion'), ',')} | "
+            f"{_fmt_score(pipeline.get('review_rate'))} |")
+
+
+def _clear_gpu_metrics(metrics: dict, card: dict | None) -> None:
+    """No GPU was billed (mock, or API-only): the card's L4 × 1 is a default, not a measurement."""
+    metrics['cost'] = {}
+    metrics['goodput'] = {}
+    if card:
+        card['cost'] = {}
+        card['conditions'] = {**(card.get('conditions') or {}), 'gpu': None, 'gpu_usd_per_hour': None, 'replicas': None}
+
+
 def _write_report(path: Path, plan: Plan, runs) -> dict:
     rows = []
+    cards = {}
     paired = defaultdict(list)
     for config, spec in runs:
         store = RunStore(run_dir(spec.run_id))
@@ -637,6 +861,22 @@ def _write_report(path: Path, plan: Plan, runs) -> dict:
                 if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
                     scores[key].append(value)
         summary['stored_score_means'] = {key: sum(values)/len(values) for key, values in scores.items()}
+        summary['usage'] = _usage(store.load_items())
+        # A run stopped before its first document has nothing to measure.
+        card = collect_card(store, wall_seconds=infer_wall_seconds_from_store(store)) if store.load_items() else None
+        summary['sand42'] = sand42_summary(spec.run_id, card, spec.task)
+        lock = store.read_lock() or {}
+        from mailroom_sandbox.job.api_budget import spend_estimate, usage_records
+        from mailroom_sandbox.job.spend import bills_gpu
+        if spec.job.mock or not bills_gpu(lock):
+            _clear_gpu_metrics(summary['sand42'], card)
+        if not spec.job.mock and (api_spend := spend_estimate(lock, usage_records(store))):
+            summary['sand42']['api_cost'] = api_spend  # SAND-089: token spend, reported apart from GPU
+        if card:
+            cards[spec.run_id] = card
+            (path.parent / 'cards').mkdir(exist_ok=True)
+            _atomic_write(path.parent / 'cards' / f'{spec.run_id}.card.json',
+                          json.dumps(card, indent=2, sort_keys=True, default=str))
         rows.append(summary)
         paired[spec.task].append(hashlib.sha256(store.dataset_path.read_bytes()).hexdigest())
     complete = all(row.get('state') == 'done' and row.get('ok') == row.get('expected') and not row.get('errors') for row in rows)
@@ -655,6 +895,7 @@ def _write_report(path: Path, plan: Plan, runs) -> dict:
         if ref['dataset_sha256'] != row['dataset_sha256']:
             continue
         comparisons.append({'reference': ref['run_id'], 'run': row['run_id'], 'paired_n': row['ok'],
+            'paired_quality': paired_delta(cards[ref['run_id']], cards[row['run_id']]),
             'stored_score_mean_deltas': {metric: value-ref['stored_score_means'][metric]
                 for metric, value in row['stored_score_means'].items() if metric in ref['stored_score_means']}})
     report['comparisons'] = comparisons
@@ -663,6 +904,58 @@ def _write_report(path: Path, plan: Plan, runs) -> dict:
              '| Run | State | Successful / expected | Errors |', '| --- | --- | --- | --- |']
     for row in rows:
         lines.append(f'| {row["run_id"]} | {row["state"]} | {row.get("ok", 0)} / {row.get("expected")} | {row.get("errors", 0)} |')
+    scored = [row for row in rows if row.get('stored_score_means')]
+    if scored:
+        lines += ['', '## Quality', '', 'Means over successful documents, from the Dojo scorers stored with each item.', '',
+                  '| Run | Model | n | Headline | Task metric | Schema adherence | Tokens (in / out) | p50 latency |',
+                  '| --- | --- | --- | --- | --- | --- | --- | --- |']
+        for row in scored:
+            means = row['stored_score_means']
+            name, value = _task_metric(means)
+            usage = row.get('usage') or {}
+            tokens = ' / '.join('—' if usage.get(key) is None else f'{usage[key]:,}'
+                                for key in ('prompt_tokens', 'completion_tokens'))
+            tokens = 'not reported' if tokens == '— / —' else tokens
+            p50 = f"{usage['p50_latency_ms']:.0f} ms" if usage.get('p50_latency_ms') is not None else '—'
+            lines.append(f"| {row['run_id']} | {row.get('model')} | {row.get('ok', 0)} | "
+                         f"{_fmt_score(means.get('overall_extraction_score'))} | "
+                         f"{name + ' ' + _fmt_score(value) if name else '—'} | "
+                         f"{_fmt_score(means.get('schema_adherence'))} | {tokens} | {p50} |")
+    measured = [row for row in rows if (row.get('sand42') or {}).get('reported')]
+    if measured:
+        lines += ['', '## Sand42 metrics', '', 'The card contract of docs/SAND42-EXPERIMENT-DESIGN.md section 5; each run\'s card is under cards/.', '',
+                  '| Run | Ok rate (95% CI) | Quality (95% CI) | Schema valid | $/1k ok | Docs/min/GPU | Goodput at SLO | p50 / p95 s | Tokens in / out | Review rate |',
+                  '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |']
+        lines += [_sand42_row(row['run_id'], row['sand42']) for row in measured]
+    routed = [row for row in measured if row['sand42'].get('pipeline')]
+    if routed:
+        lines += ['', '## Pipeline routing', '',
+                  'A class with no decision reviewer has no disagreement check: its LLM reviewer only runs on medium-confidence sorter results.', '',
+                  '| Run | Class | Reviewer | Documents | Stages | Review rate | Class correct | Stage correct |',
+                  '| --- | --- | --- | --- | --- | --- | --- | --- |']
+        for row in routed:
+            block = row['sand42']['pipeline']
+            for name, part in {'all': block, **block['by_class']}.items():
+                stages = ', '.join(f'{stage} {count}' for stage, count in sorted(part['stages'].items()))
+                reviewer = part.get('reviewer')
+                reviewer = '' if name == 'all' else f"{reviewer} at {part['reviewer_cutoff']}" if reviewer else 'none'
+                lines.append(f"| {row['run_id']} | {name} | {reviewer} | {part['documents']} | {stages} | {_fmt_score(part['review_rate'])} | "
+                             f"{_fmt_score(part['class_correct'])} | {_fmt_score(part['stage_correct'])} |")
+            causes = ', '.join(f'{cause} {count}' for cause, count in block['review_causes'].items())
+            lines.append(f"\nReview causes in {row['run_id']}: {causes or 'none'}.\n")
+    if comparisons:
+        lines += ['', '## Paired comparisons', '', 'Each run against the first complete run of its task on identical dataset bytes.', '',
+                  '| Reference | Run | Paired n | Δ headline | Δ headline 95% CI | Better / worse / tie | Δ task metric |',
+                  '| --- | --- | --- | --- | --- | --- | --- |']
+        for item in comparisons:
+            deltas = item['stored_score_mean_deltas']
+            name, value = _task_metric(deltas)
+            pair = item['paired_quality'] or {}
+            ci = f"[{_fmt_delta(pair['ci_low'])}, {_fmt_delta(pair['ci_high'])}]" if pair.get('ci_low') is not None else '—'
+            split = f"{pair['better']} / {pair['worse']} / {pair['tie']}" if pair else '—'
+            lines.append(f"| {item['reference']} | {item['run']} | {item['paired_n']} | "
+                         f"{_fmt_delta(deltas.get('overall_extraction_score'))} | {ci} | {split} | "
+                         f"{name + ' ' + _fmt_delta(value) if name else '—'} |")
     lines += ['', 'Per-run scorer metrics and configuration links are in report.json; native quality/serving reports remain under reports/.',
               'A completed mock run validates orchestration only. Failed/missing documents are never counted as successful observations.', '']
     _atomic_write(path.parent / 'report.md', '\n'.join(lines))
@@ -695,6 +988,8 @@ def register(sub, leaf) -> None:
     create.add_argument('study')
     create.add_argument('--task', choices=['specialists', 'pipeline', 'sorter'], default='specialists')
     create.add_argument('--agent-route', action='append', dest='agent_routes', default=[], metavar='NAME=PROVIDER:MODEL', help='per-agent provider/model; NAME=@route.yaml includes endpoint/GPU/vLLM settings')
+    create.add_argument('--decision-reviewer', default=None, metavar='BACKEND:MODEL', help='freeze a decision-model reviewer (local:MODEL, api:openai/gpt-6-luna, jev:jev-1.13.0 or mock:mock); needs --decision-class')
+    create.add_argument('--decision-class', action='append', default=[], metavar='CLASS=CUTOFF', help='class the decision reviewer handles, with its cutoff in [0, 1] (repeatable)')
     create.add_argument('--specialist-tier', choices=['base', 'mid', 'full'], default='base',
                         help="specialists' model: base = the run's model, mid = Qwen3.5-35B-A3B, full = the judge's Qwen3.5-27B (config/models.yaml critical_tier)")
     create.add_argument('--design', choices=DESIGNS, default='single')
@@ -709,14 +1004,20 @@ def register(sub, leaf) -> None:
     create.add_argument('--local-dataset', default=None, help='local JSONL instead of Hub (also useful for offline mock checks)')
     create.add_argument('--provider', choices=['modal-vllm', 'openrouter'], default='modal-vllm')
     create.add_argument('--gpu', default='L4', help='Modal GPU class, optionally :N for tensor parallel')
+    create.add_argument('--no-named-image', dest='named_image', action='store_false',
+                        help='build the serving image instead of reusing the published sandbox-vllm:<tag>')
     create.add_argument('--replicas', type=int, default=None, help='override cell replica count')
     create.add_argument('--concurrency', type=int, default=None)
     create.add_argument('--max-tokens', type=int, default=8192)
     create.add_argument('--temperature', type=float, default=0.1)
     create.add_argument('--trace-sink', choices=['langfuse', 'otlp', 'phoenix', 'none'], default='langfuse')
     create.add_argument('--trace-endpoint', default=None)
-    create.add_argument('--cost-cap-usd', type=float, default=1.0, help='per-run estimated GPU cap, reviewed before spend')
-    create.add_argument('--max-wall-seconds', type=int, default=2400)
+    create.add_argument('--cost-cap-usd', type=float, default=None,
+                        help='per-run estimated Modal GPU cap; default: recommended from samples, concurrency, GPUs and task')
+    create.add_argument('--max-wall-seconds', type=int, default=None,
+                        help='per-run wall-clock ceiling (the run aborts and its fleet is torn down); default: recommended')
+    create.add_argument('--api-cost-cap-usd', type=float, default=None,
+                        help='per-run API token spend cap for OpenRouter agents; default: recommended from token prices')
     create.add_argument('--smoke-rows', type=int, default=1)
     create.add_argument('--smoke-cost-cap-usd', type=float, default=0.10)
     create.add_argument('--mock', action='store_true', help='create an offline mock experiment; never deploys/calls providers')

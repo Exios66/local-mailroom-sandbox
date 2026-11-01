@@ -184,10 +184,14 @@ def lifecycle_from_store(
         job = lock.get("job") or {}
         conc = job.get("concurrency")
         conc_s = f" · concurrency {conc}" if conc else ""
+        # The checkpoint is rewritten per document, so time the stage from the
+        # latest start/resume instead (runs from before that event keep the old clock).
+        started = [t for e in events if e.get("event") in ("start", "resume")
+                   and (t := _parse_ts(e.get("ts"))) is not None]
         return {
             "phase": "SORTING",
             "detail": f"{task} in flight{conc_s}",
-            "elapsed_s": elapsed_s,
+            "elapsed_s": int(max(0.0, now - started[-1])) if started else elapsed_s,
         }
     if state == "prepared":
         return {"phase": "QUEUED", "detail": "prepared · waiting for start", "elapsed_s": elapsed_s}
