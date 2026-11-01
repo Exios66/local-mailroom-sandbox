@@ -273,6 +273,30 @@ def _install_reviewer(reviewer: Any, taxonomy: dict) -> Any:
     return build_backend(spec.backend, spec.model, questions=spec.questions)
 
 
+def _extraction_gate_backend(gate: Any) -> Any:
+    """The gate callable for a locked ``extraction_gate`` block (frozen question set), or None."""
+    if not gate:
+        return None
+    from mailroom_sandbox.decision_backends import extraction_gate_backend
+
+    qset = gate.get("question_set")
+    if not qset:
+        raise ValueError("extraction_gate needs its frozen question set; re-run sandbox run preflight")
+    return extraction_gate_backend(str(gate["model"]), qset)
+
+
+def _register_extraction_gate(gate: Any) -> None:
+    """Replace the process-wide pipeline extraction gate (None clears it)."""
+    try:
+        from agents.extraction_gate import register_extraction_gate
+    except ImportError:
+        if gate is not None:
+            raise RuntimeError("the vendored llm-mailroom has no extraction-gate hook (agents.extraction_gate); "
+                               "re-vendor llm-mailroom at a commit that includes it") from None
+        return
+    register_extraction_gate(gate)
+
+
 def _register_reviewer(backend: Any) -> None:
     """Replace the process-wide decision backend (None clears it)."""
     try:
@@ -295,6 +319,7 @@ def activate(
     agent_knobs: dict | None = None,
     agent_routes: dict | None = None,
     reviewer: Any = None,
+    extraction_gate: Any = None,
 ) -> Activation:
     """Load overlay, write runtime taxonomy, patch mailroom, set env.
 
@@ -307,6 +332,8 @@ def activate(
     ``SANDBOX_AGENT_KNOBS`` env var (JSON), which is how ``sandbox run`` carries
     it without threading a new field through every call site.
 
+    ``extraction_gate`` (a locked block with its frozen question set) registers the
+    advisory pipeline extraction gate with llm-mailroom; without it any earlier gate is cleared.
     ``reviewer`` (a ``ReviewerSpec`` or its dict form) selects the decision-model
     reviewer: its classes become ``decision_only`` in the runtime taxonomy and
     its backend is registered with the graph. There is no deactivate step, so
@@ -332,6 +359,7 @@ def activate(
         agent_knobs = deepcopy(lock.get("agent_knobs") or {})
         agent_routes = deepcopy(lock.get("agent_routes") or {})
         reviewer = deepcopy(lock.get("reviewer"))
+        extraction_gate = deepcopy(lock.get("extraction_gate"))
         prompt_variant = None  # the locked TEXT, not today's local stem
         base_url = None
     if load_env_file:
@@ -396,6 +424,8 @@ def activate(
     os.environ["MAILROOM_TAXONOMY"] = str(taxonomy_path)
     patched = patch_mailroom_config(taxonomy_path)
     _register_reviewer(reviewer_backend)
+    # Always replaced, so a gate from an earlier activation never carries over.
+    _register_extraction_gate(_extraction_gate_backend(extraction_gate))
 
     # SAND-018: the vendored LangChain agents hardcode timeout=120 (drift-
     # guarded). Apply the taxonomy's run_limits pin so a long L4 generation does
