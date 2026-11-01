@@ -48,6 +48,15 @@ def _sorter_prompt_chars(spec: dict) -> int:
     return PROMPT_CHARS["sorter"] if (agents.get("sorter") or {}).get("file") else V15_SORTER_CHARS
 
 
+def _specialist_prompt_chars(spec: dict, agent: str, root: Path) -> int:
+    """System prompt chars: a pinned local file's own length, else the frozen default's."""
+    pinned = (((spec.get("prompt") or {}).get("agents") or {}).get(agent) or {}).get("file")
+    path = root / "config" / "prompts" / f"{pinned}.txt" if pinned else None
+    if path is not None and path.is_file():
+        return len(path.read_text(encoding="utf-8"))
+    return PROMPT_CHARS.get(agent, 6_000)
+
+
 def estimate(spec: dict, root: Path) -> dict:
     from mailroom_sandbox.job.metrics import call_price
 
@@ -76,7 +85,7 @@ def estimate(spec: dict, root: Path) -> dict:
     else:
         agent = job_task if job_task in PROMPT_CHARS else task
         knobs = ((spec.get("agent_knobs") or {}).get(agent) or {})
-        prompt = _sorter_prompt_chars(spec) if agent == "sorter" else PROMPT_CHARS.get(agent, 6_000)
+        prompt = _sorter_prompt_chars(spec) if agent == "sorter" else _specialist_prompt_chars(spec, agent, root)
         window = int(knobs.get("chunk_chars") or 0)
         cap = int(knobs.get("max_input_chars") or 10**9)
         calls = 0

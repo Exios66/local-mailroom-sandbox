@@ -12,6 +12,12 @@ one file per class for the specialist runs (``data/runtime/handoff/gate-<split>-
 and their union for the gate run (``gate-<split>.jsonl``). A class's rows must carry its ground
 truth (CUAD / MAUD labels for contract / merger, populated fields otherwise).
 
+``expand`` writes a further round (``--tag r2``: ``gate-<split>-r2-<class>.jsonl`` and their union)
+of documents no live specialist run has extracted yet, by id and by folded text, so no example is
+collected twice. Each subclass draws from its shorter half first (cheap documents), contracts cover
+every CUAD subtype, and merger agreements are limited to labelled consideration subclasses. Contracts
+and merger agreements are the exception to short-first: drawn representatively, full length.
+
 ``calibrate`` reads a finished gate run: per class and overall, how well ``accept_probability``
 separates good extractions (dojo score >= --good) from bad ones (AUROC), the accept cutoff that
 keeps precision >= --precision, and per-field support against per-field truth.
@@ -108,6 +114,144 @@ def cmd_inputs(args: argparse.Namespace) -> int:
                         "sha256": hashlib.sha256(text.encode()).hexdigest()}
     text = "".join(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n" for r in sorted(union, key=lambda r: r["id"]))
     path = out_dir / f"gate-{args.split}.jsonl"
+    path.write_text(text, encoding="utf-8")
+    summary["all"] = {"file": str(path.relative_to(root)), "documents": len(union),
+                      "doc_chars": sum(len(r["doc_text"]) for r in union), "sha256": hashlib.sha256(text.encode()).hexdigest()}
+    print(json.dumps(summary, indent=2))
+    return 0
+
+
+# ---------------------------------------------------------------------------- expansion rounds
+
+# Round-2 additions per class (on top of the baseline): many more of the small, cheap classes,
+# a slight increase in contracts spread over every CUAD subtype, and a minimal merger top-up
+# restricted to labelled consideration subclasses.
+ROUND2 = {"insurance_claim": 240, "correspondence": 240, "corporate_record": 160, "contract": 40,
+          "merger_agreement": 10}
+EXCLUDE_SUBCLASSES = {"merger_agreement": {"other", "", "None"}}
+# Exceptions to short-first: contracts and merger agreements are drawn representatively by length
+# (seeded random within each subtype) with no length cap, so full-length documents stay in.
+REPRESENTATIVE = {"contract", "merger_agreement"}
+
+
+def text_key(text: str | None) -> str:
+    """Whitespace- and case-folded text hash: the same document under two ids is one example."""
+    return hashlib.sha256(" ".join((text or "").split()).lower().encode()).hexdigest()
+
+
+def collected(root: Path) -> tuple[set[str], set[str], list[str]]:
+    """Ids and text keys of every document a live specialist run already extracted."""
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    ids: set[str] = set()
+    keys: set[str] = set()
+    runs: list[str] = []
+    for lock_path in sorted((root / "data" / "runtime" / "runs").glob("*/spec.lock.json")):
+        try:
+            store = RunStore(lock_path.parent)
+            lock = store.read_lock()
+        except Exception:  # noqa: BLE001 - unreadable runs cannot have collected anything
+            continue
+        if not str(lock.get("task") or "").endswith("_specialist") or (lock.get("job") or {}).get("mock"):
+            continue
+        rows = {str(r["id"]): r for r in store.dataset_rows()}
+        done = {str(i["item_id"]) for i in store.load_items() if i.get("ok") and not i.get("error")}
+        if not done:
+            continue
+        runs.append(lock_path.parent.name)
+        for doc_id in done:
+            ids.add(doc_id)
+            if doc_id in rows:
+                keys.add(text_key(rows[doc_id].get("doc_text")))
+    # Earlier rounds' input files count too (a round prepared but not yet run is still taken).
+    for path in sorted((root / "data" / "runtime" / "handoff").glob("gate-*.jsonl")):
+        for row in _lines(path):
+            ids.add(str(row["id"]))
+            keys.add(text_key(row.get("doc_text")))
+    return ids, keys, runs
+
+
+def short_first(rows: list[dict], count: int, seed: int, *, short_share: float = 0.5) -> list[dict]:
+    """Like :func:`stratified`, but each subclass draws from its shorter half first.
+
+    Within a subclass the rows are split at the ``short_share`` length quantile; the short part is
+    shuffled (seeded) and drawn first, then the long part, so every subclass is represented and
+    the sample leans to cheap documents without being only the very shortest.
+    """
+    rng = random.Random(seed)
+    by_sub: dict[str, list[dict]] = collections.defaultdict(list)
+    for row in sorted(rows, key=lambda r: r["id"]):
+        by_sub[str(row.get("expected_subclass") or "")].append(row)
+    queues: dict[str, list[dict]] = {}
+    for sub, bucket in by_sub.items():
+        bucket.sort(key=lambda r: (len(r.get("doc_text") or ""), r["id"]))
+        cut = max(1, round(len(bucket) * short_share))
+        short, long_ = bucket[:cut], bucket[cut:]
+        rng.shuffle(short)
+        rng.shuffle(long_)
+        queues[sub] = long_[::-1] + short[::-1]  # pop() from the end: short part first
+    picked: list[dict] = []
+    order = sorted(queues)
+    while len(picked) < count and any(queues.values()):
+        for sub in order:
+            if queues[sub] and len(picked) < count:
+                picked.append(queues[sub].pop())
+    return sorted(picked, key=lambda r: r["id"])
+
+
+def cmd_expand(args: argparse.Namespace) -> int:
+    root = repo_root()
+    rows: dict[str, dict] = {}
+    for rid in args.dataset_run:
+        for row in _lines(root / "data" / "runtime" / "runs" / rid / "dataset.jsonl"):
+            if row.get("split", args.split) == args.split:
+                rows.setdefault(row["id"], row)
+    for stale in (root / "data" / "runtime" / "handoff").glob(f"gate-{args.split}-{args.tag}*.jsonl"):
+        stale.unlink()  # rebuilding this round: its own earlier files are not "collected"
+    seen_ids, seen_keys, runs = collected(root)
+    if not runs and not args.allow_no_history:
+        print("extraction_gate expand: found no finished specialist run to exclude; refusing "
+              "(pass --allow-no-history for a first round)")
+        return 1
+    counts = dict(ROUND2)
+    for spec in args.count:
+        cls, _, n = spec.partition("=")
+        counts[cls] = int(n)
+    out_dir = root / "data" / "runtime" / "handoff"
+    tag = args.tag
+    union: list[dict] = []
+    summary: dict[str, Any] = {"excluded_runs": runs, "excluded_ids": len(seen_ids)}
+    for cls in CLASSES:
+        if not counts.get(cls):
+            continue
+        skip_sub = EXCLUDE_SUBCLASSES.get(cls, set())
+        pool, keys = [], set(seen_keys)
+        for r in sorted(rows.values(), key=lambda r: r["id"]):
+            key = text_key(r.get("doc_text"))
+            if (r.get("expected_doc_class") != cls or not has_truth(r) or r["id"] in seen_ids or key in keys
+                    or str(r.get("expected_subclass")) in skip_sub
+                    or (cls not in REPRESENTATIVE and len(r.get("doc_text") or "") > MAX_CHARS.get(cls, 10**9))):
+                continue
+            keys.add(key)  # one example per distinct text inside the pool as well
+            pool.append(r)
+        picked = (stratified(pool, counts[cls], args.seed) if cls in REPRESENTATIVE
+                  else short_first(pool, counts[cls], args.seed, short_share=args.short_share))
+        text = "".join(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n" for r in picked)
+        path = out_dir / f"gate-{args.split}-{tag}-{cls}.jsonl"
+        path.write_text(text, encoding="utf-8")
+        union.extend(picked)
+        chars = sorted(len(r["doc_text"]) for r in picked)
+        summary[cls] = {"file": str(path.relative_to(root)), "documents": len(picked), "pool": len(pool),
+                        "sampling": "representative" if cls in REPRESENTATIVE else f"short-first ({args.short_share})",
+                        "pool_median_chars": sorted(len(r["doc_text"]) for r in pool)[len(pool) // 2] if pool else 0,
+                        "max_chars": chars[-1] if chars else 0,
+                        "doc_chars": sum(chars), "median_chars": chars[len(chars) // 2] if chars else 0,
+                        "by_subclass": dict(sorted(collections.Counter(str(r.get("expected_subclass")) for r in picked).items())),
+                        "sha256": hashlib.sha256(text.encode()).hexdigest()}
+    overlap = {r["id"] for r in union} & seen_ids
+    assert not overlap, f"round {tag} repeats collected documents: {sorted(overlap)[:5]}"
+    text = "".join(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n" for r in sorted(union, key=lambda r: r["id"]))
+    path = out_dir / f"gate-{args.split}-{tag}.jsonl"
     path.write_text(text, encoding="utf-8")
     summary["all"] = {"file": str(path.relative_to(root)), "documents": len(union),
                       "doc_chars": sum(len(r["doc_text"]) for r in union), "sha256": hashlib.sha256(text.encode()).hexdigest()}
@@ -255,23 +399,40 @@ def calibrate(items: list[dict], rows: dict[str, dict], handoff: dict[str, dict]
 
 
 def cmd_calibrate(args: argparse.Namespace) -> int:
+    """Calibrate one gate run, or several pooled (``--run`` repeated; rounds never share a document)."""
     from mailroom_sandbox.job.checkpoint import RunStore
     from mailroom_sandbox.job.spec import run_dir
 
-    store = RunStore(run_dir(args.run))
-    lock = store.read_lock() or {}
-    if lock.get("task") != "extraction_gate":
-        print(f"extraction_gate: {args.run} is not an extraction_gate run")
+    items: list[dict] = []
+    rows: dict[str, dict] = {}
+    handoff: dict[str, Any] = {}
+    reviewers = []
+    for run_id in args.run:
+        store = RunStore(run_dir(run_id))
+        lock = store.read_lock() or {}
+        if lock.get("task") != "extraction_gate":
+            print(f"extraction_gate: {run_id} is not an extraction_gate run")
+            return 1
+        if (lock.get("job") or {}).get("mock", True):
+            print(f"extraction_gate: {run_id} is a mock run; nothing to calibrate")
+            return 1
+        run_rows = {r["id"]: r for r in store.dataset_rows()}
+        repeated = set(run_rows) & set(rows)
+        if repeated:
+            print(f"extraction_gate: {run_id} repeats {len(repeated)} documents of an earlier --run")
+            return 1
+        rows.update(run_rows)
+        handoff.update((lock.get("reviewer") or {}).get("handoff") or {})
+        items.extend(store.load_items())
+        reviewers.append(lock.get("reviewer") or {})
+    if len({r.get("questions_sha256") for r in reviewers}) > 1:
+        print("extraction_gate: the runs used different question sets; calibrate them separately")
         return 1
-    if (lock.get("job") or {}).get("mock", True):
-        print(f"extraction_gate: {args.run} is a mock run; nothing to calibrate")
-        return 1
-    rows = {r["id"]: r for r in store.dataset_rows()}
-    handoff = (lock.get("reviewer") or {}).get("handoff") or {}
-    report = {"run_id": args.run, "question_set": (lock.get("reviewer") or {}).get("questions"),
-              "questions_sha256": (lock.get("reviewer") or {}).get("questions_sha256"),
-              **calibrate(store.load_items(), rows, handoff, good=args.good, precision=args.precision)}
-    out = repo_root() / "reports" / "extraction-gate" / f"{args.run}.calibration.json"
+    name = args.name or "+".join(args.run)
+    report = {"run_id": name, "runs": list(args.run), "question_set": reviewers[0].get("questions"),
+              "questions_sha256": reviewers[0].get("questions_sha256"),
+              **calibrate(items, rows, handoff, good=args.good, precision=args.precision)}
+    out = repo_root() / "reports" / "extraction-gate" / f"{name}.calibration.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps(report["classes"], indent=2, sort_keys=True))
@@ -286,12 +447,20 @@ def main() -> int:
     sub = parser.add_subparsers(dest="cmd", required=True)
     p_in = sub.add_parser("inputs", help="write the baseline documents")
     p_in.add_argument("--dataset-run", action="append", required=True)
+    p_ex = sub.add_parser("expand", help="write a new round of documents no specialist run has extracted")
+    p_ex.add_argument("--dataset-run", action="append", required=True)
+    p_ex.add_argument("--tag", default="r2", help="round name used in the output file names")
+    p_ex.add_argument("--count", action="append", default=[], metavar="CLASS=N", help="override a ROUND2 count")
+    p_ex.add_argument("--allow-no-history", action="store_true")
+    p_ex.add_argument("--short-share", type=float, default=0.5,
+                      help="draw each subclass from its shortest share of documents first")
     p_ca = sub.add_parser("calibrate", help="score a finished gate run against the dojo")
-    p_ca.add_argument("--run", required=True)
+    p_ca.add_argument("--run", action="append", required=True, help="gate run (repeat to pool rounds)")
+    p_ca.add_argument("--name", help="report name when pooling (default: the run ids joined by +)")
     p_ca.add_argument("--good", type=float, default=0.8, help="dojo score at or above which an extraction is good")
     p_ca.add_argument("--precision", type=float, default=0.9, help="target precision of the accepted set")
     args = parser.parse_args()
-    return cmd_inputs(args) if args.cmd == "inputs" else cmd_calibrate(args)
+    return {"inputs": cmd_inputs, "expand": cmd_expand, "calibrate": cmd_calibrate}[args.cmd](args)
 
 
 if __name__ == "__main__":

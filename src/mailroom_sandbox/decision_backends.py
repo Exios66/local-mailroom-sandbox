@@ -351,7 +351,8 @@ def decide_extraction(doc_text: str, handoff: Mapping[str, Any], *, model: str, 
     body = {"model": model, "state": {"document": text if text.strip() else "(empty document)",
                                       "extraction_handoff": dict(handoff)},
             "questions": gate_questions(qset, doc_type)}
-    data = _post_decision(body, timeout=timeout, attempts=attempts)
+    # A whole long document (up to ~250k tokens) takes longer to read than the 120 s default allows.
+    data = _post_decision(body, timeout=max(timeout, 60.0 + len(text) / 4_000), attempts=attempts)
     usage = data.get("usage") or {}
     _record_usage(model, usage, agent=EXTRACTION_GATE)
     answers = data.get("answers") or {}

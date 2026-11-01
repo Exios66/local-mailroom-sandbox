@@ -4,6 +4,19 @@
 
 ### Added
 
+- **Extraction-gate round 2: 690 new real documents, no repeats.** `scripts/extraction_gate.py expand` draws documents no finished specialist run has extracted, checked by id and by whitespace/case-folded text (the run refuses when it finds no history to exclude).
+  - insurance_claim +240, correspondence +240, corporate_record +160: each subclass drawn from its shorter half first.
+  - contract +40 and merger_agreement +10: drawn representatively at full length; contracts cover all 26 CUAD subtypes, mergers only labelled consideration subclasses (no `other`).
+  - Merger specialist input limit raised to 1,000,000 chars, so the longest (739,511 chars) is read in one call.
+- **Specialist-condensed prompt lineage** (`config/prompts/specialist_condensed_lineage.yaml`, `<agent>_condensed_v<N>.txt`). Each version is validated against the frozen prompt on the baseline documents with `scripts/compare_specialist_prompt.py`; those validation runs are never handed to the gate.
+  - insurance v3: a per-template field map for all six corpus templates (Medicare Part A/B/carrier notices, Part D pharmacy statements, auto decision letters, auto system claim extracts, property FNOL). Mean 0.770 → 0.899, better on 60/60 documents. v1 was superseded; v2 was adopted, then replaced by v3.
+  - correspondence v2: mean +0.002, −28% input tokens. v1 was rejected: it over-predicted `update`.
+  - corporate v1: mean 0.352 → 0.427.
+  - Contracts and mergers keep their frozen prompts.
+- **Extraction-gate question set 1.1.0.** Every document is read whole (limit 1,000,000 chars for every class); 1.0.0 cut 24 of the 220 baseline documents at 120k (merger 240k). The request timeout scales with document length.
+  - `calibrate` pools several gate runs (`--run` repeated, `--name`) and refuses overlapping documents or mixed question sets.
+  - Pooled 910-document calibration: `reports/extraction-gate/extraction-gate-luna-v1.1.0-pooled.calibration.json`.
+- `scripts/estimate_spend.py` sizes a pinned local prompt file from the file itself.
 - **Dojo: installed release first, vendored snapshot as fallback** (`mailroom_sandbox/dojo_source.py`).
   - When a `llm-dojo-scoring` release is installed (`pip install -r requirements/dojo-release.txt`, the pinned GitHub release) and matches the snapshot's version and commit, it is the scoring source.
   - The snapshot under `vendor/llm-dojo-scoring` takes over when the release is missing, off-pin or fails to import, so scoring keeps working through a broken install or outage.
