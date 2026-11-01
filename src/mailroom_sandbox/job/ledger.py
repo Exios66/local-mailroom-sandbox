@@ -17,12 +17,15 @@ from __future__ import annotations
 
 import contextlib
 import fcntl
+import logging
 import os
 import time
 from pathlib import Path
 from typing import Any, Iterator
 
 from mailroom_sandbox.paths import repo_root
+
+_log = logging.getLogger(__name__)
 
 COLUMNS = ("signed_utc", "initials", "action", "run_id", "config", "spec", "rows", "api_cap_usd", "result")
 OK, FAILED = "✓", "✗"
@@ -127,6 +130,22 @@ def mark_result(run_id: str, spec_hash: str | None, *, ok: bool, path: Path | No
         if closed:
             _write(path, "\n".join(lines) + "\n")
     return closed
+
+
+def close_run(store: Any) -> int:
+    """Close a terminal run's open ledger rows; a ledger write error is logged, never raised.
+
+    The ledger is bookkeeping: an unwritable ledger (read-only checkout, a bad
+    ``SANDBOX_RUN_LEDGER`` directory) must not fail the checkpoint write or the remote sync
+    that calls this. Returns the number of rows closed (0 on error or when not terminal).
+    """
+    if not store.terminal():
+        return 0
+    try:
+        return mark_result(store.run_id, store.spec_hash(), ok=store.state() == "done")
+    except OSError as exc:
+        _log.warning("run ledger not updated for %s: %s", store.run_id, exc)
+        return 0
 
 
 def _relative(config: str | None) -> str | None:

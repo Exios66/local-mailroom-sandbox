@@ -125,6 +125,7 @@ def test_refused_gate_appends_nothing(locked):
 @pytest.mark.parametrize('remaining, ok', [(5.0, True), (4.0, False), (0.5, False), (None, True)])
 def test_key_headroom_gate(monkeypatch, remaining, ok):
     lock = {'engine': {'kind': 'openrouter'}, 'job': {'mock': False, 'api_cost_cap_usd': 1.2}}
+    monkeypatch.delenv('OPENROUTER_KEY_RESERVE_USD', raising=False)  # the cases assume the default $3.00 reserve
     monkeypatch.setenv('OPENROUTER_API_KEY', 'test-not-a-key')
     monkeypatch.setattr(spend, 'key_headroom', lambda: {'limit': 12, 'limit_remaining': remaining, 'limit_reset': 'weekly'})
     if ok:

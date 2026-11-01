@@ -72,7 +72,8 @@ def test_missing_file_falls_back_to_builtin(monkeypatch):
 
 @pytest.mark.parametrize("lock,expected", [
     ({"task": "isolated", "job": {}}, {"sorter"}),
-    ({"task": "isolated", "job": {"task": "judge"}}, {"judge"}),
+    # The isolated runner always runs the sorter spec, so job.task cannot hide its model.
+    ({"task": "isolated", "job": {"task": "judge"}}, {"sorter"}),
     ({"task": "contract_specialist"}, {"contract_specialist"}),
     ({"task": "pipeline"}, None),
 ])

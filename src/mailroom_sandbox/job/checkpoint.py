@@ -434,7 +434,7 @@ class RunStore:
         if state in TERMINAL_STATES:
             from mailroom_sandbox.job import ledger
 
-            ledger.mark_result(self.run_id, cp["spec_hash"], ok=state == "done")
+            ledger.close_run(self)
         if reconcile:
             self.append_event("checkpoint_reconciled", "warn", stored=reconcile[0], recomputed=reconcile[1])
         return self.checkpoint_path

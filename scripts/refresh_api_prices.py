@@ -62,7 +62,8 @@ def refresh(doc: dict, catalog: dict[str, dict], *, today: str) -> tuple[dict, l
     models = dict(doc.get("models") or {})
     for model_id, row in models.items():
         if model_id not in catalog:
-            if not (row or {}).get("endpoint"):
+            # Decisions-API ids are not in the chat catalog: kept as written, never flagged.
+            if not model_id.endswith("-decisions") and not (row or {}).get("endpoint"):
                 changed.append(f"{model_id}: not in the OpenRouter catalog")
             continue
         new = {**(row or {}), **sheet_from_catalog(catalog[model_id])}
