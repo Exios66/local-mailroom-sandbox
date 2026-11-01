@@ -32,7 +32,7 @@ agents:
         parent: insurance_claims_specialist_condensed_v1 (claimed_amount = CMS paid line, FNOL Estimated Damage, never an invoice total)
         reference_run: extraction-gate-specialist-insurance-claim-qwen
         validation_run: specialist-condensed-v2-insurance-claim-qwen-ab
-        status: adopted   # mean +0.006 (0.770 -> 0.776), claimed_amount 55 -> 58 exact, insurer 40 -> 46, 0 parse errors, -22% input tokens
+        status: superseded   # by v3; was adopted: mean +0.006 (0.770 -> 0.776), claimed_amount 55 -> 58 exact, insurer 40 -> 46, 0 parse errors, -22% input tokens
       - version: insurance_claims_specialist_condensed_v3
         parent: insurance_claims_specialist_condensed_v2 (per-template field map for all six corpus templates, incl. the system claim extract and FNOL; claim_type = printed line of business)
         reference_run: extraction-gate-specialist-insurance-claim-qwen

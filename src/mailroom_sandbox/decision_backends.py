@@ -286,7 +286,16 @@ def _checked_gate_set(stem: str, qset: dict[str, Any]) -> dict[str, Any]:
         raise ValueError(f"{stem}: fields must map each gated class to {{field: meaning}}")
     if "{field}" not in str(qset.get("field_instructions") or ""):
         raise ValueError(f"{stem}: field_instructions must contain {{field}}")
+    if not str(verdict.get("instructions") or "").strip():
+        raise ValueError(f"{stem}: the verdict needs instructions")
     _checked_options("verdict", list(verdict["criteria"]))
+    # Build every class's questions now: a format typo ({meanin}, a stray brace) fails at load,
+    # not on each row of a paid run.
+    for doc_type in fields:
+        try:
+            gate_questions(qset, doc_type)
+        except (KeyError, IndexError, ValueError) as exc:
+            raise ValueError(f"{stem}: field_instructions do not format for {doc_type}: {exc!r}") from exc
     return qset
 
 
@@ -341,6 +350,11 @@ def extraction_handoff(doc_type: str, extraction: Mapping[str, Any] | None,
 
 
 def _post_decision(body: Mapping[str, Any], *, timeout: float, attempts: int) -> dict[str, Any]:
+    """POST one Decisions request and return its JSON; the one retry loop for every caller.
+
+    Transport errors and ``_TRANSIENT`` statuses are retried with backoff (``attempts`` in all);
+    any other status, or a refusal, raises at once.
+    """
     import os
     import time
 
@@ -528,14 +542,6 @@ def decide(doc_text: str, *, model: str, questions: Mapping[str, Any], timeout: 
     the probability the model gives the chosen doc_type. Transient HTTP errors are retried
     (``attempts`` in all); anything else raises.
     """
-    import os
-    import time
-
-    import httpx
-
-    key = os.environ.get("OPENROUTER_API_KEY", "").strip()
-    if not key:
-        raise RuntimeError("Decisions backend needs OPENROUTER_API_KEY")
     if not is_decisions_model(model):
         raise ValueError(f"{model!r} is not a Decisions-API model")
     text = doc_text or ""
@@ -548,23 +554,7 @@ def decide(doc_text: str, *, model: str, questions: Mapping[str, Any], timeout: 
         state = {"document": document,
                  "sorter_handoff": dict(handoff) if handoff else {"available": False, "note": "no sorter answer was passed"}}
     body = {"model": model, "state": state, "questions": dict(questions)}
-    last: Exception | None = None
-    for attempt in range(max(1, attempts)):
-        try:
-            resp = httpx.post(DECISIONS_URL, json=body, timeout=timeout,
-                              headers={"Authorization": f"Bearer {key}", "X-Title": "local-mailroom-sandbox"})
-        except httpx.TransportError as exc:
-            last = exc
-        else:
-            if resp.status_code == 200:
-                break
-            last = RuntimeError(f"Decisions API {resp.status_code}: {resp.text[:300]}")
-            if resp.status_code not in _TRANSIENT or "refused to answer" in resp.text:
-                raise last
-        time.sleep(2 ** attempt)
-    else:
-        raise last or RuntimeError("Decisions API failed")
-    data = resp.json()
+    data = _post_decision(body, timeout=timeout, attempts=attempts)
     usage = data.get("usage") or {}
     _record_usage(model, usage)
     answers = data.get("answers") or {}

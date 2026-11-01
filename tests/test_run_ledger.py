@@ -76,3 +76,44 @@ def test_terminal_checkpoint_closes_the_row(tmp_path):
     assert ledger.rows()[0]["result"] == ""
     store.write_checkpoint(state="done", cursor=1, total=1)
     assert ledger.rows()[0]["result"] == ledger.OK
+
+
+def test_close_run_logs_and_continues_when_the_ledger_is_unwritable(monkeypatch, caplog):
+    """A ledger write error must not fail the run's terminal checkpoint."""
+    def _boom(*_args, **_kwargs):
+        raise PermissionError("read-only checkout")
+
+    monkeypatch.setattr(ledger, "mark_result", _boom)
+
+    class _Store:
+        run_id = "exp-a"
+
+        def terminal(self):
+            return True
+
+        def state(self):
+            return "done"
+
+        def spec_hash(self):
+            return "abcdef0123456789"
+
+    with caplog.at_level("WARNING"):
+        assert ledger.close_run(_Store()) == 0
+    assert "run ledger not updated for exp-a" in caplog.text
+
+
+def test_finalize_remote_closes_the_ledger_row(tmp_path, monkeypatch):
+    """A Modal run followed with --watch closes its row when the terminal checkpoint is synced."""
+    from mailroom_sandbox import cli
+    from mailroom_sandbox.job import remote as job_remote
+
+    closed = []
+    monkeypatch.setattr(job_remote, "pull_run_dir", lambda store: (0, ""))
+    monkeypatch.setattr(ledger, "close_run", lambda store: closed.append(store) or 1)
+
+    class _Store:
+        dir = tmp_path
+
+    store = _Store()
+    assert cli._finalize_remote(store) is True
+    assert closed == [store]

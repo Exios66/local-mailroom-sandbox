@@ -226,3 +226,31 @@ def test_a_run_without_a_billed_gpu_reports_no_gpu_metrics():
     assert metrics == {"cost": {}, "goodput": {}}
     assert card["conditions"]["gpu"] is None and card["conditions"]["replicas"] is None
     assert card["conditions"]["model"] == "m"
+
+
+def test_in_flight_documents_count_against_the_cap():
+    """Concurrent starts: each unfinished document is counted at the mean finished-document cost."""
+    budget = api_budget.ApiBudget(1.0, 0.17, 0.25, ["qwen/qwen3.5-9b"])
+    budget.spent_usd, budget.documents = 0.6, 3          # $0.20 per finished document
+    assert budget.exceeded() is None
+    assert budget.exceeded(in_flight=1) is None          # 0.80
+    assert "2 in flight" in budget.exceeded(in_flight=2)  # 1.00 reaches the cap
+    with pytest.raises(RuntimeError, match="in flight"):
+        budget.check("stop: ", in_flight=2)
+
+
+def test_price_bound_uses_the_dearest_tier():
+    """The signed ceiling prices Qwen 3.7 Flash at its 256k+ tier, not the base tier."""
+    from mailroom_sandbox.job.metrics import token_price_ceiling
+
+    assert token_price("qwen/qwen3.7-flash") == (0.03, 0.13)
+    assert token_price_ceiling("qwen/qwen3.7-flash") == (0.20, 0.80)
+    assert api_budget.price_bound(["qwen/qwen3.7-flash", "qwen/qwen3.5-9b"]) == (0.20, 0.80)
+
+
+def test_isolated_runs_price_the_sorter_whatever_job_task_says():
+    """The isolated runner always runs the sorter; job.task must not drop its model from the cap check."""
+    lock = {"task": "isolated", "job": {"task": "judge", "mock": False},
+            "agent_assignments": {"sorter": {"provider": "openrouter", "model": "qwen/qwen3.5-9b"}}}
+    assert api_budget.api_models(lock) == ["qwen/qwen3.5-9b"]
+    assert any("api_cost_cap_usd" in e for e in api_budget.budget_errors(lock))

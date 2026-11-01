@@ -7,7 +7,8 @@
 # (llm_dojo_scoring.sorter_guide, ~5.5k chars) travels in the user message for every version.
 # A mutation is adopted only when it matches or beats the frontrunner on the same validation set
 # (scripts/compare_sorter_prompt.py: class and subclass fixed - broken against the V14 saved pass)
-# at equal or lower prompt length. Enforced by tests/test_sorter_condensed_prompt.py.
+# at equal or lower prompt length. The rule is applied by hand from the compare reports;
+# tests/test_sorter_condensed_prompt.py checks only the prompt budget, structure and this metadata.
 lineage: sorter-condensed
 agent: sorter
 budget_chars: 4000

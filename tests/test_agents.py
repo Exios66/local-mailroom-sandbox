@@ -146,7 +146,7 @@ def test_run_rows_bounded_respects_window():
         workers=2,
         run_one=run_one,
         on_result=lambda i, v: results.__setitem__(i, v),
-        guard=lambda: None,
+        guard=lambda in_flight: None,
     )
     assert results == {i: f"r{i}" for i in range(6)}
     assert live["max"] <= 2
@@ -164,7 +164,7 @@ def test_run_rows_bounded_guard_stops_new_submissions():
         started.append(index)
         return index
 
-    def guard():
+    def guard(in_flight):
         calls["n"] += 1
         if calls["n"] > 2:
             raise RuntimeError("cap tripped")

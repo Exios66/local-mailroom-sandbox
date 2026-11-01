@@ -641,6 +641,12 @@ class ReviewerSpec(BaseModel):
                              f"{self.model!r} is a chat model")
         if self.backend == "decisions" and not self.questions:
             raise ValueError("reviewer backend decisions needs questions: <stem> (config/decisions/<stem>.yaml)")
+        if self.backend == "decisions":
+            # A human verdict gates at confidence 0.0, parked only by a cutoff above 0.
+            zero = sorted(name for name, cutoff in self.classes.items() if cutoff <= 0)
+            if zero:
+                raise ValueError(f"reviewer backend decisions needs cutoffs above 0 ({', '.join(zero)}): "
+                                 "a human verdict gates at 0.0 and a cutoff of 0 would never park it")
         if self.backend != "decisions" and is_decisions_model(self.model):
             raise ValueError(f"{self.model!r} is a Decisions-API model; use reviewer backend decisions, not {self.backend!r}")
         if self.backend == "api" and not self.allow_chat_model:

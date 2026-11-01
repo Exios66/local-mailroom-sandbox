@@ -13,9 +13,10 @@ the snapshot is used instead, so scoring never goes down with the install.
 * ``installed``: installed whenever it imports, even off-pin; vendored only if it is absent.
 * ``vendored``: always the snapshot (the pre-0.25 behaviour).
 
-``DOJO_SRC`` (a source tree) overrides all three. :func:`choose` runs once, from the
-package ``__init__``, before anything imports the Dojo; :func:`current` reports the choice
-(the run lock records it under ``versions.llm_dojo_scoring_source``).
+``DOJO_SRC`` (a source tree) overrides all three. Both are read from the environment, then
+from the sandbox ``.env`` files: :func:`choose` runs once, from the package ``__init__``,
+before the CLI loads ``.env`` and before anything imports the Dojo. :func:`current` reports
+the choice (the run lock records it under ``versions.llm_dojo_scoring_source``).
 """
 
 from __future__ import annotations
@@ -31,7 +32,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from mailroom_sandbox.paths import vendored_dojo_src
+from mailroom_sandbox.paths import dotenv_files, vendored_dojo_src
 
 DIST = "llm-dojo-scoring"
 PACKAGE = "llm_dojo_scoring"
@@ -85,6 +86,59 @@ def installed() -> dict[str, str | None] | None:
     return {"version": dist.version, "commit": commit}
 
 
+def _setting(name: str) -> str:
+    """``name`` from the environment, else from the sandbox ``.env`` files (highest precedence first).
+
+    Only this one key is read; nothing is loaded into ``os.environ``. ``SANDBOX_SKIP_DOTENV``
+    (tests) skips the files, as ``runtime.load_env_file`` does.
+    """
+    value = os.environ.get(name, "").strip()
+    if value or os.environ.get("SANDBOX_SKIP_DOTENV"):
+        return value
+    try:
+        from dotenv import dotenv_values
+    except ImportError:  # pragma: no cover - python-dotenv is a base dependency
+        return ""
+    for path in dotenv_files():
+        found = (dotenv_values(path).get(name) or "").strip()
+        if found:
+            return found
+    return ""
+
+
+def _installed_package_dirs() -> list[Path] | None:
+    """Where the installed distribution's package may live, or None when it cannot be located."""
+    try:
+        dist = importlib.metadata.distribution(DIST)
+    except importlib.metadata.PackageNotFoundError:
+        return None
+    dirs = [Path(str(dist.locate_file(PACKAGE))).resolve()]
+    raw = dist.read_text("direct_url.json")
+    if raw:
+        try:
+            url = json.loads(raw)
+        except ValueError:
+            url = {}
+        # An editable install imports from its source tree, not from site-packages.
+        if (url.get("dir_info") or {}).get("editable") and str(url.get("url", "")).startswith("file://"):
+            dirs.append((Path(url["url"][len("file://"):]) / PACKAGE).resolve())
+    return dirs
+
+
+def _origin_mismatch() -> str | None:
+    """Why the imported ``llm_dojo_scoring`` is not the installed distribution's (None when it is,
+    or when the distribution cannot be located to compare)."""
+    expected = _installed_package_dirs()
+    module = sys.modules.get(PACKAGE)
+    origin = getattr(module, "__file__", None)
+    if not expected or not origin:
+        return None
+    where = Path(origin).resolve().parent
+    if any(where == d for d in expected):
+        return None
+    return f"{PACKAGE} imported from {where}, not from the installed distribution"
+
+
 def _purge() -> None:
     for name in [m for m in sys.modules if m == PACKAGE or m.startswith(PACKAGE + ".")]:
         del sys.modules[name]
@@ -121,10 +175,10 @@ def _vendored(mode: str, reason: str) -> DojoSource:
 def choose(*, mode: str | None = None, verify_import: bool = True) -> DojoSource:
     """Pick the Dojo source, put it on ``sys.path``, and remember the choice."""
     global _CHOICE
-    mode = (mode or os.environ.get("SANDBOX_DOJO_SOURCE") or "auto").strip().lower()
+    mode = (mode or _setting("SANDBOX_DOJO_SOURCE") or "auto").strip().lower()
     if mode not in MODES:
         mode = "auto"
-    env = os.environ.get("DOJO_SRC", "").strip()
+    env = _setting("DOJO_SRC")
     if env and (Path(env) / PACKAGE / "__init__.py").is_file():
         _CHOICE = DojoSource("env", _prepend(Path(env)), None, None, mode, "DOJO_SRC")
         return _CHOICE
@@ -139,7 +193,12 @@ def choose(*, mode: str | None = None, verify_import: bool = True) -> DojoSource
         if pin["version"] and have["version"] != pin["version"]:
             _CHOICE = _vendored(mode, f"installed {have['version']} != pinned {pin['version']}")
             return _CHOICE
-        if pin["commit"] and have["commit"] and have["commit"] != pin["commit"]:
+        if pin["commit"] and not have["commit"]:
+            # A non-git install of the same version cannot be checked against the pin.
+            _CHOICE = _vendored(mode, f"installed {have['version']} has no recorded commit to match pinned "
+                                      f"{pin['commit'][:12]}")
+            return _CHOICE
+        if pin["commit"] and have["commit"] != pin["commit"]:
             _CHOICE = _vendored(mode, f"installed commit {have['commit'][:12]} != pinned {pin['commit'][:12]}")
             return _CHOICE
     # The vendored root must not shadow the release we are about to verify.
@@ -147,7 +206,14 @@ def choose(*, mode: str | None = None, verify_import: bool = True) -> DojoSource
     if src is not None:
         vendored = src.resolve()
         sys.path[:] = [p for p in sys.path if not p or Path(p).resolve() != vendored]
-    error = _import_ok() if verify_import else None
+    error = None
+    if verify_import:
+        # A module imported earlier (or from another checkout ahead on sys.path) must not be
+        # recorded as the installed release: import afresh, then check where it came from.
+        _purge()
+        error = _import_ok() or _origin_mismatch()
+        if error is not None:
+            _purge()
     if error is not None:
         _CHOICE = _vendored(mode, f"installed release failed to import ({error})")
         return _CHOICE

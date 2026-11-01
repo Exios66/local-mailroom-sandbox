@@ -265,6 +265,19 @@ def sorter_handoff_map(run_id: str | list[str]) -> dict[str, dict[str, Any]]:
     return out
 
 
+def _reviewer_route_bills_tokens(spec: RunSpec) -> bool:
+    """Whether the sorter_reviewer chat agent would call a token-billed API.
+
+    Its own route decides when it has one (a paid route can sit on a local engine); otherwise
+    it runs on the engine.
+    """
+    from mailroom_sandbox.job.api_budget import API_PROVIDERS
+
+    route = spec.agent_routes.get("sorter_reviewer")
+    provider = route.provider if route is not None else spec.engine.kind
+    return str(provider) in API_PROVIDERS
+
+
 def _decisions_reviewer_errors(spec: RunSpec) -> list[str]:
     """The Decisions reviewer: a loadable question set, an OpenRouter key, and on a calibration
     run the engine model must be the reviewer model (the run's model label and price)."""
@@ -336,7 +349,13 @@ def _engine_errors(spec: RunSpec) -> list[str]:
             errs.extend(_decisions_reviewer_errors(spec))
         if spec.task == "pipeline" and not spec.reviewer.classes:
             errs.append("decision reviewer on a pipeline run needs at least one class with a cutoff")
-    elif spec.task == "sorter_reviewer" and not spec.job.mock and spec.engine.kind == "openrouter":
+        if spec.task == "extraction_gate" and not spec.job.mock and spec.reviewer.backend != "decisions":
+            errs.append("a live extraction_gate run needs reviewer backend decisions; "
+                        f"{spec.reviewer.backend!r} has no extraction-gate path")
+    elif spec.task == "extraction_gate" and not spec.job.mock:
+        errs.append("a live extraction_gate run needs a reviewer block: backend decisions with a Decisions-API "
+                    "model, a kind: extraction_gate question set and reviewer.handoff_run")
+    elif spec.task == "sorter_reviewer" and not spec.job.mock and _reviewer_route_bills_tokens(spec):
         # A paid reviewer calibration must name its reviewer: without a reviewer block the
         # sorter_reviewer chat agent runs, which is how chat Luna was calibrated by mistake.
         errs.append("a paid sorter_reviewer run needs a reviewer block: backend decisions with a Decisions-API model "
