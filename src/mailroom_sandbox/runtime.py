@@ -244,7 +244,7 @@ def _install_reviewer(reviewer: Any, taxonomy: dict) -> Any:
 
     if not isinstance(reviewer, ReviewerSpec):
         # A locked block also carries the frozen question set and its hash.
-        reviewer = {k: v for k, v in dict(reviewer).items() if k not in {"question_set", "questions_sha256"}}
+        reviewer = {k: v for k, v in dict(reviewer).items() if k not in {"question_set", "questions_sha256", "handoff"}}
     spec = reviewer if isinstance(reviewer, ReviewerSpec) else ReviewerSpec.model_validate(reviewer)
     taxonomy["reviewer"] = {
         "default_mode": "llm",

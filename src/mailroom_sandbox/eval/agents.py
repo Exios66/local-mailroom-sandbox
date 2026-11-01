@@ -157,11 +157,20 @@ def _live_reviewer(row: dict[str, Any]) -> dict[str, Any]:
         if not reviewer.get("question_set"):
             raise RuntimeError("decisions reviewer has no locked question set; re-run sandbox run preflight")
         # The Decisions-API reviewer, with the question set frozen in the run lock.
-        from mailroom_sandbox.decision_backends import DECISIONS_MAX_INPUT_CHARS, decide, decision_questions
+        from mailroom_sandbox.decision_backends import (
+            DECISIONS_MAX_INPUT_CHARS,
+            calibration_handoff,
+            decide,
+            decision_questions,
+        )
 
         qset = reviewer["question_set"]
+        handoff = None
+        if qset.get("handoff"):
+            handoff = calibration_handoff((reviewer.get("handoff") or {}).get(str(row.get("id"))))
         return decide(_doc_text(row), model=reviewer["model"], questions=decision_questions(qset),
-                      max_input_chars=int(qset.get("max_input_chars") or DECISIONS_MAX_INPUT_CHARS), qset=qset)
+                      max_input_chars=int(qset.get("max_input_chars") or DECISIONS_MAX_INPUT_CHARS), qset=qset,
+                      handoff=handoff)
     from agents.sorter_reviewer import SorterReviewerAgent  # type: ignore
 
     return SorterReviewerAgent().review(_doc_text(row))

@@ -146,7 +146,78 @@ def _reviewer_lock(spec: RunSpec) -> dict[str, Any]:
         path = decisions_dir() / f"{spec.reviewer.questions}.yaml"
         block["questions_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
         block["question_set"] = load_question_set(spec.reviewer.questions)
+    if spec.reviewer.handoff_run:
+        # Freeze the sorter's answers (by document id) so a resumed run sees the same handoff.
+        block["handoff"] = sorter_handoff_map(spec.reviewer.handoff_run)
     return block
+
+
+def _committed_handoff(path: str) -> dict[str, dict[str, Any]]:
+    """A sorter pass saved by scripts/export_sorter_handoff.py (repo-relative .jsonl path)."""
+    import json
+    from pathlib import Path
+
+    from mailroom_sandbox.paths import repo_root
+
+    file = Path(path)
+    file = file if file.is_absolute() else repo_root() / file
+    if not file.is_file():
+        raise ValueError(f"handoff_run file {path!r} not found")
+    out: dict[str, dict[str, Any]] = {}
+    with file.open(encoding="utf-8", newline="\n") as handle:
+        for line in handle.read().split("\n"):
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            if row.get("ok") and row.get("sorter_doc_type"):
+                out[str(row["id"])] = {
+                    "sorter_doc_type": row["sorter_doc_type"],
+                    "sorter_doc_subclass": row.get("sorter_doc_subclass"),
+                    "sorter_confidence": row.get("sorter_confidence"),
+                }
+    if not out:
+        raise ValueError(f"handoff_run file {path!r} has no usable sorter answers")
+    return out
+
+
+def sorter_handoff_map(run_id: str | list[str]) -> dict[str, dict[str, Any]]:
+    """``{doc_id: sorter answer}`` from finished sorter runs (isolated or per-item sorter task).
+
+    A list merges several runs, the later run winning on overlap. A run stopped by its API
+    cost cap counts as finished: every persisted item is a complete sorter answer, and the
+    run that sorts the documents it did not reach goes later in the list.
+    """
+    import json
+
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.spec import run_dir
+
+    out: dict[str, dict[str, Any]] = {}
+    for rid in [run_id] if isinstance(run_id, str) else list(run_id):
+        if str(rid).endswith(".jsonl"):
+            out.update(_committed_handoff(rid))
+            continue
+        store = RunStore(run_dir(rid))
+        checkpoint = store.read_checkpoint() or {}
+        state = checkpoint.get("state")
+        capped = state == "failed" and "api_cost_cap_usd" in str((checkpoint.get("last_error") or {}).get("message"))
+        if state != "done" and not capped:
+            raise ValueError(f"handoff_run {rid!r} is not a finished run (state {state!r})")
+        found = 0
+        for item in store.load_items():
+            pred = item.get("pred") or {}
+            if not item.get("ok") or not isinstance(pred, dict) or not pred.get("doc_type"):
+                continue
+            found += 1
+            out[str(item.get("item_id"))] = {
+                "sorter_doc_type": pred.get("doc_type"),
+                "sorter_doc_subclass": pred.get("doc_subclass") or pred.get("contract_subtype"),
+                "sorter_confidence": pred.get("confidence"),
+            }
+        if not found:
+            raise ValueError(f"handoff_run {rid!r} has no usable sorter answers")
+    json.dumps(out)  # must serialise into the lock
+    return out
 
 
 def _decisions_reviewer_errors(spec: RunSpec) -> list[str]:
@@ -163,6 +234,11 @@ def _decisions_reviewer_errors(spec: RunSpec) -> list[str]:
         errs.append("decision reviewer backend decisions is not supported for modal jobs (use job.mode endpoint)")
     if not spec.job.mock and not os.environ.get("OPENROUTER_API_KEY", "").strip():
         errs.append("decision reviewer backend decisions needs OPENROUTER_API_KEY")
+    if spec.reviewer.handoff_run:
+        try:
+            sorter_handoff_map(spec.reviewer.handoff_run)
+        except Exception as exc:  # noqa: BLE001
+            errs.append(f"decision reviewer handoff_run: {exc}")
     if spec.task == "sorter_reviewer" and spec.engine.model != spec.reviewer.model:
         errs.append(f"sorter_reviewer calibration: engine.model {spec.engine.model!r} must equal reviewer.model "
                     f"{spec.reviewer.model!r}, so the run is labelled and priced as the model it calls")

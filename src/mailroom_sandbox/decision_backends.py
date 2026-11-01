@@ -215,6 +215,26 @@ def is_decisions_model(model: str | None) -> bool:
     return bool(model) and str(model).split(":", 1)[0].endswith("-decisions")
 
 
+# The decision models the reviewer lane supports, by backend. A model outside this list can
+# still be frozen (the spec guards check its shape), but these are the ones calibrated here.
+SUPPORTED_DECISION_MODELS: dict[str, tuple[str, ...]] = {
+    "jev": ("jev-1.13.0",),
+    "decisions": ("openai/gpt-6-luna-decisions",),
+}
+
+
+def frontrunner_question_set() -> str:
+    """The question-set stem the lineage (config/decisions/LINEAGE.yaml) names as frontrunner."""
+    import yaml
+
+    lineage = yaml.safe_load((decisions_dir() / "LINEAGE.yaml").read_text(encoding="utf-8")) or {}
+    front = str(lineage.get("frontrunner") or "")
+    for entry in lineage.get("versions") or []:
+        if str(entry.get("version")) == front:
+            return str(entry["file"]).removesuffix(".yaml")
+    raise ValueError(f"LINEAGE.yaml frontrunner {front!r} has no versions entry")
+
+
 def decisions_dir() -> "Any":
     from mailroom_sandbox.paths import repo_root
 
@@ -234,6 +254,12 @@ def load_question_set(stem: str) -> dict[str, Any]:
     doc_type = qset.get("doc_type") or {}
     if not isinstance(doc_type.get("criteria"), dict) or len(doc_type["criteria"]) < 2:
         raise ValueError(f"{stem}: doc_type needs instructions and at least two criteria")
+    verdict = qset.get("verdict")
+    if verdict is not None:
+        if not isinstance(verdict.get("criteria"), dict) or len(verdict["criteria"]) < 2:
+            raise ValueError(f"{stem}: verdict needs instructions and at least two criteria")
+        if set(qset.get("human_verdicts") or []) - set(verdict["criteria"]):
+            raise ValueError(f"{stem}: human_verdicts must name verdict options")
     for cls, block in (qset.get("subclass") or {}).items():
         if not isinstance(block, dict) or not isinstance(block.get("criteria"), dict) or not block["criteria"]:
             raise ValueError(f"{stem}: subclass.{cls} needs instructions and criteria")
@@ -258,6 +284,10 @@ def decision_questions(qset: Mapping[str, Any], doc_types: list[str] | None = No
         "doc_type": {"type": "choice", "instructions": qset["doc_type"].get("instructions") or _DOC_TYPE_QUESTION,
                      "criteria": criteria},
     }
+    if qset.get("verdict"):
+        # 3.0.0+: the routing outcome against the sorter handoff, including the human-review cases.
+        questions["verdict"] = {"type": "choice", "instructions": qset["verdict"]["instructions"],
+                                "criteria": dict(qset["verdict"]["criteria"])}
     for cls, block in (qset.get("subclass") or {}).items():
         if doc_types and cls not in criteria:
             continue
@@ -274,6 +304,44 @@ def decision_questions(qset: Mapping[str, Any], doc_types: list[str] | None = No
         questions[f"subclass__{cls}"] = {"type": "choice", "instructions": block.get("instructions") or _DOC_SUBCLASS_QUESTION,
                                          "criteria": options}
     return questions
+
+
+def build_handoff(sorter_doc_type: Any, sorter_doc_subclass: Any, sorter_confidence: Any,
+                  *, sorter_unsure: bool | None = None, retried: bool | None = None) -> dict[str, Any]:
+    """The sorter handoff the reviewer sees, the same shape in the pipeline and in calibration.
+
+    Every document of a decision class reaches the reviewer at any sorter confidence, so the
+    trigger says that, plus whether the sorter ended below its class's low band.
+    """
+    triggers = ["decision_class_review"]
+    if sorter_unsure:
+        triggers.append("sorter_below_low_band")
+    if retried:
+        triggers.append("after_sorter_retry")
+    confidence = sorter_confidence if isinstance(sorter_confidence, (int, float)) and not isinstance(sorter_confidence, bool) else None
+    return {
+        "sorter_doc_type": sorter_doc_type,
+        "sorter_doc_subclass": sorter_doc_subclass,
+        "sorter_confidence": round(float(confidence), 4) if confidence is not None else None,
+        "review_trigger": triggers,
+    }
+
+
+def calibration_handoff(answer: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """A frozen sorter answer as the pipeline would hand it over (low band from the live taxonomy)."""
+    if not answer:
+        return None
+    unsure = None
+    try:
+        from pipeline.config import get_confidence_thresholds
+
+        conf = answer.get("sorter_confidence")
+        if isinstance(conf, (int, float)):
+            unsure = float(conf) < float(get_confidence_thresholds(answer.get("sorter_doc_type")).get("low", 0.70))
+    except Exception:  # noqa: BLE001 - no mailroom config: leave the band unknown
+        unsure = None
+    return build_handoff(answer.get("sorter_doc_type"), answer.get("sorter_doc_subclass"),
+                         answer.get("sorter_confidence"), sorter_unsure=unsure)
 
 
 def marker_subclass(block: Mapping[str, Any], answers: Mapping[str, Any], cls: str) -> tuple[str | None, float | None, dict[str, float]]:
@@ -308,7 +376,7 @@ def _record_usage(model: str, usage: Mapping[str, Any]) -> None:
 
 def decide(doc_text: str, *, model: str, questions: Mapping[str, Any], timeout: float = 120.0,
            attempts: int = 3, max_input_chars: int = DECISIONS_MAX_INPUT_CHARS,
-           qset: Mapping[str, Any] | None = None) -> dict[str, Any]:
+           qset: Mapping[str, Any] | None = None, handoff: Mapping[str, Any] | None = None) -> dict[str, Any]:
     """One Decisions request: the document as ``state``, every question at once.
 
     Returns ``{doc_type, doc_subclass, contract_subtype, confidence, probabilities,
@@ -329,7 +397,13 @@ def decide(doc_text: str, *, model: str, questions: Mapping[str, Any], timeout: 
     text = doc_text or ""
     if len(text) > max_input_chars:
         text = text[:max_input_chars]
-    body = {"model": model, "state": text if text.strip() else "(empty document)", "questions": dict(questions)}
+    document = text if text.strip() else "(empty document)"
+    state: Any = document
+    if (qset or {}).get("handoff"):
+        # 3.0.0+: the sorter's answer travels with the document as a claim to check.
+        state = {"document": document,
+                 "sorter_handoff": dict(handoff) if handoff else {"available": False, "note": "no sorter answer was passed"}}
+    body = {"model": model, "state": state, "questions": dict(questions)}
     last: Exception | None = None
     for attempt in range(max(1, attempts)):
         try:
@@ -366,11 +440,27 @@ def decide(doc_text: str, *, model: str, questions: Mapping[str, Any], timeout: 
             # The subclass question disagrees with doc_type: report the best real subclass.
             subclass = max(sub_probs, key=sub_probs.get) if sub_probs else None
         sub_conf = sub_probs.get(subclass, sub.get("confidence")) if subclass else None
+    verdict_answer = answers.get("verdict") or {}
+    verdict = verdict_answer.get("choice")
+    verdict_probs = verdict_answer.get("probabilities") or {}
+    human = set((qset or {}).get("human_verdicts") or [])
+    human_probability = sum(float(v) for k, v in verdict_probs.items() if k in human) if verdict_probs else None
+    route_to_human = bool(verdict and verdict in human)
+    doc_type_probability = float(confidence) if isinstance(confidence, (int, float)) else None
+    # The gating confidence: the doc_type probability, or 0 when the verdict sends the document
+    # to a person, so every cutoff parks it.
+    gated = 0.0 if route_to_human else doc_type_probability
     return {
         "doc_type": doc_type,
         "doc_subclass": subclass,
+        "doc_type_probability": doc_type_probability,
+        "verdict": verdict,
+        "verdict_probabilities": verdict_probs,
+        "human_review_probability": human_probability,
+        "route_to_human": route_to_human,
+        "handoff": dict(handoff) if handoff else None,
         "contract_subtype": subclass if doc_type == "contract" else None,
-        "confidence": float(confidence) if isinstance(confidence, (int, float)) else None,
+        "confidence": gated,
         "probabilities": probs,
         "subclass_confidence": sub_conf,
         "subclass_probabilities": sub_probs,
@@ -388,11 +478,13 @@ def decisions_backend(model: str, questions: str | None = None, *, qset: Mapping
         raise ValueError("decisions backend needs questions: <stem> (config/decisions/<stem>.yaml)")
     loaded: dict[str, Any] = {}
 
-    def backend(doc_text: str, doc_types: list[str], subclass_catalogs: dict[str, list[str]]) -> "DecisionAnswer":
+    def backend(doc_text: str, doc_types: list[str], subclass_catalogs: dict[str, list[str]],
+                handoff: Mapping[str, Any] | None = None) -> "DecisionAnswer":
         if not loaded:
             loaded.update(qset if qset is not None else load_question_set(str(questions)))
         picked = decide(doc_text, model=model, questions=decision_questions(loaded, doc_types),
-                        max_input_chars=int(loaded.get("max_input_chars") or DECISIONS_MAX_INPUT_CHARS), qset=loaded)
+                        max_input_chars=int(loaded.get("max_input_chars") or DECISIONS_MAX_INPUT_CHARS), qset=loaded,
+                        handoff=handoff)
         return _answer(picked["doc_type"], picked["doc_subclass"], picked["confidence"], model)
 
     return backend

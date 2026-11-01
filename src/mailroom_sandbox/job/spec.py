@@ -574,6 +574,11 @@ class ReviewerSpec(BaseModel):
     questions: str | None = None
     # A chat model as the decision reviewer must be chosen on purpose (see _decision_model_guard).
     allow_chat_model: bool = False
+    # Calibration only (task: sorter_reviewer): a finished sorter run whose answers are the
+    # sorter handoff for each document. The pipeline passes the live handoff instead.
+    # A finished sorter run, a saved pass (data/handoff/<name>/<split>.jsonl), or several of
+    # these merged (later entries win on overlap).
+    handoff_run: str | list[str] | None = None
 
     @field_validator("classes", mode="before")
     @classmethod
@@ -603,6 +608,8 @@ class ReviewerSpec(BaseModel):
             out.pop("questions", None)
         if out.get("allow_chat_model") is False:
             out.pop("allow_chat_model", None)
+        if out.get("handoff_run") is None:
+            out.pop("handoff_run", None)
         return out
 
     @model_validator(mode="after")
