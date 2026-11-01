@@ -475,3 +475,23 @@ def test_frontrunner_question_set_matches_the_lineage():
     assert load_question_set(stem)["version"] == lineage["frontrunner"] == "3.1.0"
     assert [v for v in lineage["versions"] if v["status"] == "frontrunner"] == [
         v for v in lineage["versions"] if v["version"] == lineage["frontrunner"]]
+
+
+def test_a_paid_reviewer_route_on_a_local_engine_needs_a_reviewer_block():
+    """The sorter_reviewer's own openrouter route bills tokens even when the engine is local."""
+    local = _spec(task="sorter_reviewer")
+    assert not preflight._reviewer_route_bills_tokens(local)
+    paid = _spec(task="sorter_reviewer",
+                 agent_routes={"sorter_reviewer": {"provider": "openrouter", "model": "openai/gpt-6-luna"}})
+    assert preflight._reviewer_route_bills_tokens(paid)
+    paid.job = paid.job.model_copy(update={"mock": False})
+    assert any("needs a reviewer block" in e for e in preflight._engine_errors(paid))
+
+
+def test_a_live_extraction_gate_run_needs_a_decisions_reviewer():
+    """Without one, every row would raise in _live_extraction_gate."""
+    spec = _spec(task="extraction_gate")
+    spec.job = spec.job.model_copy(update={"mock": False})
+    assert any("live extraction_gate run needs a reviewer block" in e for e in preflight._engine_errors(spec))
+    spec.job = spec.job.model_copy(update={"mock": True})
+    assert not any("extraction_gate" in e for e in preflight._engine_errors(spec))

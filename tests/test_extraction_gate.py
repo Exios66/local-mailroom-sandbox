@@ -211,3 +211,44 @@ def test_round2_inputs_never_repeat_collected_documents():
     assert not {r["id"] for r in new} & {r["id"] for r in old}
     assert not {eg.text_key(r["doc_text"]) for r in new} & {eg.text_key(r["doc_text"]) for r in old}
     assert len({eg.text_key(r["doc_text"]) for r in new}) == len(new)
+
+
+def test_round_files_match_the_tag_exactly(tmp_path):
+    """Round r2's files never include r20's."""
+    eg = _script("extraction_gate")
+    handoff = tmp_path / "data" / "runtime" / "handoff"
+    handoff.mkdir(parents=True)
+    for name in ("gate-train-r2.jsonl", "gate-train-r2-contract.jsonl", "gate-train-r20.jsonl",
+                 "gate-train-r20-contract.jsonl", "gate-train.jsonl"):
+        (handoff / name).write_text("")
+    assert [p.name for p in eg.round_files(tmp_path, "train", "r2")] == [
+        "gate-train-r2-contract.jsonl", "gate-train-r2.jsonl"]
+
+
+def test_expand_refuses_to_rebuild_a_round_and_keeps_its_files(tmp_path, monkeypatch, capsys):
+    """An existing round is not deleted or rebuilt without --overwrite; a bad --count deletes nothing."""
+    import argparse
+
+    eg = _script("extraction_gate")
+    monkeypatch.setattr(eg, "repo_root", lambda: tmp_path)
+    monkeypatch.setattr(eg, "run_dir", lambda rid: tmp_path / "runs" / rid)
+    handoff = tmp_path / "data" / "runtime" / "handoff"
+    handoff.mkdir(parents=True)
+    kept = handoff / "gate-train-r2.jsonl"
+    kept.write_text('{"id": "a"}\n')
+    args = argparse.Namespace(dataset_run=[], split="train", tag="r2", count=[], allow_no_history=True,
+                              short_share=0.5, seed=1, overwrite=False)
+    assert eg.cmd_expand(args) == 1 and "already has 1 input file" in capsys.readouterr().out
+    assert kept.is_file()
+    args.overwrite, args.count = True, ["contract=many"]
+    assert eg.cmd_expand(args) == 1 and kept.is_file()
+
+
+def test_calibration_reports_field_truth_errors(monkeypatch):
+    """A scorer failure is counted per class in skipped, not only printed."""
+    eg = _script("extraction_gate")
+    monkeypatch.setattr(eg, "_field_truth", lambda *a, **k: ({}, "ImportError: gone"))
+    items = [{"item_id": "d1", "ok": True, "pred": {"accept_probability": 0.9, "doc_type": "contract"},
+              "score": {"extraction_score": 0.9, "doc_type": "contract"}}]
+    report = eg.calibrate(items, {"d1": {"id": "d1"}}, {}, good=0.8, precision=0.9)
+    assert report["skipped"] == {"field_truth_error:contract": 1}

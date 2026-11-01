@@ -367,3 +367,17 @@ def test_decisions_backend_rejects_a_zero_cutoff():
         ReviewerSpec(backend="decisions", model=DECISIONS, questions="reviewer_decisions_v1",
                      classes={"contract": 0.0, "email": 0.5})
     ReviewerSpec(backend="decisions", model=DECISIONS, questions="reviewer_decisions_v1", classes={"contract": 0.01})
+
+
+def test_a_gate_set_that_does_not_format_fails_at_load():
+    """A field_instructions typo or a missing verdict instruction fails on load, not per row."""
+    from mailroom_sandbox.decision_backends import _checked_gate_set
+
+    qset = {"verdict": {"instructions": "Judge it.", "criteria": {"accept": "ok", "reject": "bad"}},
+            "fields": {"contract": {"parties": "who signed"}},
+            "field_instructions": "Is {field} supported? ({meaning})"}
+    assert _checked_gate_set("t", qset) is qset
+    with pytest.raises(ValueError, match="do not format for contract"):
+        _checked_gate_set("t", {**qset, "field_instructions": "Is {field} supported? ({meanin})"})
+    with pytest.raises(ValueError, match="verdict needs instructions"):
+        _checked_gate_set("t", {**qset, "verdict": {"criteria": qset["verdict"]["criteria"]}})

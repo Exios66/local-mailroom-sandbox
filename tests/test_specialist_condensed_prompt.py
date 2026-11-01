@@ -71,3 +71,6 @@ def test_compare_verdict_rule():
     assert cmp.compare(ref, {"a": item(0.79), "b": item(0.6)}, max_mean_drop=0.02)["verdict"] == "adopt"
     assert cmp.compare(ref, {"a": item(0.5), "b": item(0.6)}, max_mean_drop=0.02)["verdict"] == "reject"
     assert cmp.compare(ref, {"a": item(0.9), "b": item(0.6, err=True)}, max_mean_drop=0.02)["verdict"] == "reject"
+    # A partial candidate (one reference document missing) is rejected, however good the rest is.
+    partial = cmp.compare(ref, {"a": item(0.95)}, max_mean_drop=0.02)
+    assert partial["verdict"] == "reject" and partial["missing_from_candidate"] == 1
