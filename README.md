@@ -243,7 +243,7 @@ sandbox datasets sample --per-class 40  # offline 20/40/100… per live class fr
 sandbox datasets prepare   # offline clean → data/runtime/prepared/
 sandbox experiment designs|create|review|preflight|launch|watch|report
 sandbox experiment create NAME --task pipeline --specialist-tier base|mid|full   # stronger specialists
-sandbox experiment create NAME --task pipeline --agent-route sorter_reviewer=openrouter:openai/gpt-6-luna --decision-reviewer api:openai/gpt-6-luna --decision-class contract=0.90   # frozen decision reviewer; api needs the matching sorter_reviewer route
+sandbox experiment create NAME --task pipeline --decision-reviewer decisions:openai/gpt-6-luna-decisions --decision-class contract=0.90   # frozen Decisions reviewer, lineage frontrunner question set
 sandbox run preflight|start|status|resume|cancel|list --config config/runs/<name>.yaml
 sandbox watch [--web] [--config config/runs/<name>.yaml]       # mailroom TUI + Modal log tail (see docs/pretty-logging/mailroom-themed-logging.md)
 sandbox run start --config <run.yaml> --job-mode modal --watch   # Modal worker
@@ -296,6 +296,19 @@ reference — every command, subcommand and argument — is
 
 See [prompt guidance](config/prompts/README.md#extraction-rules-in-the-re-frozen-v1-stems)
 for the registered communication types and source links.
+
+### Extraction gate (`task: extraction_gate`)
+
+The extraction gate is a Decisions-API reviewer of a specialist's extraction: it reads the
+document plus the extracted fields and answers a verdict (accept, retry the extraction, or
+human review) and a yes/no "is this field supported" probability per key field.
+
+- The run needs `reviewer.backend: decisions`, a `kind: extraction_gate` question set
+  (`config/decisions/extraction_gate_v*.yaml`) and `reviewer.handoff_run`: the finished
+  specialist run(s) whose extractions it reviews. Preflight refuses a live run without them.
+- `scripts/extraction_gate.py` builds the input rounds (`inputs`, `expand`) and calibrates a
+  finished gate run against the Dojo scores (`calibrate`, which pools rounds with `--run`
+  repeated). Reports go to `reports/extraction-gate/`.
 
 <a id="layout"></a>
 

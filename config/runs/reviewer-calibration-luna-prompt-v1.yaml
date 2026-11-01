@@ -1,3 +1,7 @@
+# SUPERSEDED: chat model openai/gpt-6-luna as the decision reviewer; preflight now refuses
+# a paid chat-model reviewer run without an explicit opt-in. Kept as the record of
+# reports/reviewer-calibration/reviewer-calibration-luna-prompt-v1.json.
+#
 # Prompt A/B for SAND-085 / issue #208: the 735-document pilot draw, unchanged,
 # with the decision reviewer on config/prompts/sorter_reviewer_decision_v1.txt
 # instead of the code-default prompt. That prompt adds class definitions, the

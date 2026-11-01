@@ -1,3 +1,7 @@
+# SUPERSEDED: chat model openai/gpt-6-luna as the decision reviewer; preflight now refuses
+# a paid chat-model reviewer run without an explicit opt-in. Kept as the record of
+# reports/reviewer-calibration/reviewer-calibration-luna-v3-train-all.json.
+#
 # SAND-085 / issue #208: full-corpus decision-reviewer calibration.
 #
 # Every train document (2,979), all five classes and every subclass, through

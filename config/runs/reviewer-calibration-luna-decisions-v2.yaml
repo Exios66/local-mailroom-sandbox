@@ -1,9 +1,9 @@
 # SAND-085: calibrate the decision reviewer on the DECISIONS model, openai/gpt-6-luna-decisions
-# v2 question set (config/decisions/reviewer_decisions_v2.yaml): improvement loop over the v1 run.
-# (OpenRouter Decisions API, POST /api/alpha/decisions). Same 735-document train draw as the
-# chat-model pilot (reviewer-calibration-luna, which used openai/gpt-6-luna by mistake).
+# (OpenRouter Decisions API, POST /api/alpha/decisions), with the v2 question set: the
+# improvement loop over the v1 run. Same 735-document train draw as the chat-model pilot
+# (reviewer-calibration-luna, which used openai/gpt-6-luna by mistake).
 # One request per document: the full document text as `state`, and the question set
-# config/decisions/reviewer_decisions_v1.yaml (doc_type plus one subclass question per class).
+# config/decisions/reviewer_decisions_v2.yaml (doc_type plus one subclass question per class).
 # The confidence is the model's probability for the chosen doc_type. Input only, no output
 # charge: $0.10 per 1M input tokens. A signed `sandbox run start --initials XX` is the spend
 # approval. Afterwards:
