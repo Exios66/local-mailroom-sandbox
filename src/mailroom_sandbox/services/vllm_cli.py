@@ -106,6 +106,8 @@ def _cmd_serve(args: argparse.Namespace) -> int:
     extras = strip_separator(args.rest)
     dry_run = args.dry_run or "--dry-run" in extras
     extras = [part for part in extras if part != "--dry-run"]
+    if any(part == "--host" or part.startswith("--host=") for part in extras):
+        raise ServiceError("a local serve binds 127.0.0.1; --host cannot be overridden")
     argv, overrides, _module = _serve_argv(args)
     argv = _local_host(argv) + extras
     env = {**os.environ, **overrides}

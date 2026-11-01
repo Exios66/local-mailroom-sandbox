@@ -36,6 +36,13 @@ def nonempty(value: str) -> str:
     return value.strip()
 
 
+def nonblank_path(value: str) -> str:
+    """Parser type for a path: refuse a blank value but keep the path exactly as given."""
+    if not value.strip():
+        raise argparse.ArgumentTypeError("value is empty; omit the flag to use the default")
+    return value
+
+
 def warn(message: str) -> None:
     print(f"warning: {message}", file=sys.stderr)
 

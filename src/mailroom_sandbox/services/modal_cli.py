@@ -295,6 +295,9 @@ def _cmd_status(args: argparse.Namespace) -> int:
 def _cmd_stop(args: argparse.Namespace) -> int:
     _prepare()
     app = args.app or vllm_app()
+    # Sandbox-scoped: only the configured app or a ``sandbox-*`` app (what ``status`` lists).
+    if app != vllm_app() and not app.startswith("sandbox-"):
+        raise ServiceError(f"{app!r} is not a sandbox Modal app; stop it with `modal app stop` directly")
     argv = ["modal", "app", "stop", app, "--yes"]
     if args.dry_run:
         print_plan(argv)

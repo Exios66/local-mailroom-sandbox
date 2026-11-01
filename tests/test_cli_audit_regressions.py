@@ -322,3 +322,43 @@ def test_dry_run_creates_no_run_directory(command, tmp_path, job_data_dir):
     }), encoding='utf-8')
     assert cli.main(['run', command, '--config', str(config), '--dry-run']) == 0
     assert not run_dir('dry-only').exists()
+
+
+def test_run_resume_live_is_refused_before_any_preflight(tmp_path, monkeypatch, job_data_dir):
+    """`--config --force --live` must not let a preflight archive the generation before refusing."""
+    _locked_run(tmp_path, 'resume-live', mock=True)
+    monkeypatch.setattr('mailroom_sandbox.job.preflight.preflight', lambda *a, **k: pytest.fail('preflight ran'))
+    config = tmp_path / 'unused.yaml'
+    assert cli.main(['run', 'resume', '--run-id', 'resume-live', '--config', str(config), '--force', '--live']) == 2
+
+
+def test_hf_local_dir_is_kept_exactly():
+    """A blank --local-dir is refused, but a real path is not stripped."""
+    args = cli.build_parser().parse_args(['hf', 'download', '--local-dir', ' data dir '])
+    assert args.local_dir == ' data dir '
+
+
+@pytest.mark.parametrize(('app', 'ok'), [('sandbox-other', True), ('prod-api', False), ('my-sandbox', False)])
+def test_modal_stop_is_scoped_to_sandbox_apps(app, ok, monkeypatch, capsys):
+    """`sandbox modal stop` never stops an app outside the sandbox's namespace."""
+    from mailroom_sandbox.services import modal_cli
+
+    monkeypatch.setattr(modal_cli, '_prepare', lambda: None)
+    code = cli.main(['modal', 'stop', '--app', app, '--dry-run'])
+    out = capsys.readouterr()
+    if ok:
+        assert code == 0 and 'nothing stopped' in out.out
+    else:
+        assert code != 0 and 'not a sandbox Modal app' in out.out + out.err
+
+
+@pytest.mark.parametrize('extra', [['--host', '0.0.0.0'], ['--host=0.0.0.0']])
+def test_vllm_serve_never_overrides_the_loopback_host(extra, monkeypatch, capsys):
+    """Extras cannot re-bind a local serve beyond loopback."""
+    from mailroom_sandbox.services import vllm_cli
+
+    monkeypatch.setattr(vllm_cli, 'stream_tool', lambda *a, **k: pytest.fail('started vllm serve'))
+    monkeypatch.setattr(vllm_cli, '_serve_argv', lambda args: (['vllm', 'serve', '--host', '0.0.0.0'], {}, None))
+    assert cli.main(['vllm', 'serve', '--dry-run', '--', *extra]) != 0
+    out = capsys.readouterr()
+    assert '127.0.0.1' in out.out + out.err
