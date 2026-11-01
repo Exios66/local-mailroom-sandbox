@@ -24,7 +24,7 @@ from collections import deque
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
-from mailroom_sandbox.job.checkpoint import RunStore
+from mailroom_sandbox.job.checkpoint import NodeLogCursor, RunStore
 from mailroom_sandbox.tui import pretty_log as pl
 
 _ANSI = re.compile(r"\x1b\[[0-9;?]*[a-zA-Z]")
@@ -668,6 +668,11 @@ def start_log_streams(store: RunStore, app: str, sink: Any, stop: threading.Even
 
     src = tc.dispatch_source(store, cli_app=app)
     threads: list[threading.Thread] = []
+    lock = (store.read_lock() if store.lock_path.is_file() else None) or {}
+    if (lock.get("job") or {}).get("mock"):
+        # A mock run deploys nothing, so there is no Modal app to stream.
+        sink.append("mock run · no Modal app to stream")
+        return threads
     worker = src.get("worker_app")
     for app_name in src["streams"]:
         thread = threading.Thread(
@@ -722,6 +727,35 @@ def _live_run_usd(store: RunStore, snap: Mapping[str, Any], started: float) -> f
     )
 
 
+class PipelineTotals:
+    """One watcher's run-wide node totals, fed only the lines appended since its last frame.
+
+    A full re-read of ``nodes.jsonl`` costs time linear in the run (about 26
+    records a document); this keeps the totals and a byte offset instead. The
+    frame it returns equals ``node_trace.summarize`` over the whole file.
+    """
+
+    def __init__(self) -> None:
+        from mailroom_sandbox.job import node_trace
+
+        self._lock = threading.Lock()
+        self._cursor: NodeLogCursor | None = None
+        self._totals = node_trace.NodeTotals()
+
+    def summarize(self, store: RunStore, *, docs: int) -> dict[str, Any] | None:
+        from mailroom_sandbox.job import node_trace
+
+        with self._lock:
+            if self._cursor is None or self._cursor.path != store.nodes_path:
+                self._cursor = NodeLogCursor(store.nodes_path)
+                self._totals = node_trace.NodeTotals()
+            reset, rows = self._cursor.read_new()
+            if reset:
+                self._totals = node_trace.NodeTotals()
+            self._totals.update(rows)
+            return node_trace.summarize_totals(self._totals, docs=docs, recent_records=store.nodes())
+
+
 def compose_watch_state(
     *,
     store: RunStore,
@@ -737,8 +771,13 @@ def compose_watch_state(
     blink: bool = False,
     log_rows: int = 14,
     campaign_path: Path | None = None,
+    pipeline_totals: PipelineTotals | None = None,
 ) -> dict[str, Any]:
-    """JSON-serializable Tray TUI snapshot (terminal + browser)."""
+    """JSON-serializable Tray TUI snapshot (terminal + browser).
+
+    Pass the watcher's ``pipeline_totals`` so each refresh reads only new node
+    records; without it the run-wide totals are recomputed from the whole file.
+    """
     from mailroom_sandbox.job import node_trace
     from mailroom_sandbox.tui import tray_context as tc
 
@@ -877,7 +916,9 @@ def compose_watch_state(
         # the browser's document timeline; capped so a 1000-doc run stays a small frame.
         "timeline": [item.get("ok", True) is not False for item in items][-TIMELINE_MAX:],
         # SAND-076: live graph-node route of the newest pipeline documents.
-        "pipeline": node_trace.summarize(store.iter_nodes(), docs=PIPELINE_DOCS, recent_records=store.nodes()),
+        "pipeline": (pipeline_totals.summarize(store, docs=PIPELINE_DOCS) if pipeline_totals is not None
+                     else node_trace.summarize(store.iter_nodes(), docs=PIPELINE_DOCS,
+                                               recent_records=store.nodes())),
     }
 
 
@@ -975,6 +1016,7 @@ def watch(
     log_identity = (store.dir, app)
     started = time.time()
     boot_mark: dict[str, int] = {}
+    pipeline_totals = PipelineTotals()
     announced: set[str] = set()
     last_frame = ""
     last_sig: tuple | None = None
@@ -1031,6 +1073,7 @@ def watch(
                 blink=blink,
                 log_rows=rows,
                 campaign_path=campaign_path,
+                pipeline_totals=pipeline_totals,
             )
             frame = render_frame(
                 snapshot=state["snapshot"],

@@ -69,6 +69,7 @@ def test_dotenv_profile_opt_out_survives_the_default_flip(monkeypatch, tmp_path)
     """
     env_file = tmp_path / ".env"
     env_file.write_text("SANDBOX_PROFILE=ollama   # offline opt-out\n", encoding="utf-8")
+    monkeypatch.delenv("SANDBOX_SKIP_DOTENV", raising=False)
     monkeypatch.setattr("mailroom_sandbox.paths.dotenv_files", lambda: [env_file])
     monkeypatch.delenv("SANDBOX_PROFILE", raising=False)
 
@@ -84,6 +85,7 @@ def test_dotenv_profile_opt_out_survives_the_default_flip(monkeypatch, tmp_path)
 def test_dotenv_without_a_profile_falls_back_to_modal(monkeypatch, tmp_path):
     env_file = tmp_path / ".env"
     env_file.write_text("OBSERVABILITY_PROVIDER=langfuse\nSANDBOX_PROFILE=\n", encoding="utf-8")
+    monkeypatch.delenv("SANDBOX_SKIP_DOTENV", raising=False)
     monkeypatch.setattr("mailroom_sandbox.paths.dotenv_files", lambda: [env_file])
     monkeypatch.delenv("SANDBOX_PROFILE", raising=False)
     assert default_profile() == "modal-vllm"
@@ -175,6 +177,7 @@ def test_load_dotenv_never_overrides_the_real_environment(monkeypatch, tmp_path)
     second.write_text("FROM_SECOND=1\nSHARED=second\n", encoding="utf-8")
     env = {"PRESET": "real"}
     monkeypatch.setattr(os, "environ", env)
+    monkeypatch.delenv("SANDBOX_SKIP_DOTENV", raising=False)
     monkeypatch.setattr("mailroom_sandbox.runtime.dotenv_files", lambda: [first, second])
     runtime._load_dotenv()
     assert env == {"PRESET": "real", "FROM_FIRST": "1", "SHARED": "first", "FROM_SECOND": "1"}

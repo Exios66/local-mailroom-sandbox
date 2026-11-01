@@ -212,29 +212,65 @@ def track_nodes(doc_id: str, sink: Callable[[dict[str, Any]], None], *,
         _TRACKER.reset(token)
 
 
-def summarize(records: Iterable[dict[str, Any]], *, docs: int = 1,
-              recent_records: Iterable[dict[str, Any]] | None = None) -> dict[str, Any] | None:
-    """Watch-frame view: the latest document's route plus per-node totals."""
-    totals: dict[str, dict[str, Any]] = {}
-    seen: set[str] = set()
-    # When given a separate tail, aggregate the stream without retaining routes.
-    # The fallback preserves the single-iterable helper API.
-    routes_input = [] if recent_records is None else recent_records
-    for rec in records:
-        seen.add(str(rec.get("doc")))
-        if recent_records is None:
-            routes_input.append(rec)
+class NodeTotals:
+    """Run-wide per-node aggregates that can be fed records a batch at a time.
+
+    :func:`summarize` builds one over the whole stream; a watcher keeps one and
+    feeds it only the records appended since its last frame.
+    """
+
+    def __init__(self) -> None:
+        self.seen: set[str] = set()
+        self.totals: dict[str, dict[str, Any]] = {}
+
+    def add(self, rec: dict[str, Any]) -> None:
+        self.seen.add(str(rec.get("doc")))
         if rec.get("status") != "running":
             node = str(rec.get("node"))
-            t = totals.setdefault(node, {"node": node, "visits": 0, "errors": 0, "ms": 0.0})
+            t = self.totals.setdefault(node, {"node": node, "visits": 0, "errors": 0, "ms": 0.0})
             t["visits"] += 1
             t["errors"] += rec.get("status") == "error"
             t["ms"] += float(rec.get("ms") or 0.0)
-    if not seen:
+
+    def update(self, records: Iterable[dict[str, Any]]) -> None:
+        for rec in records:
+            self.add(rec)
+
+    def ranked(self) -> list[dict[str, Any]]:
+        """Per-node totals in graph order, with the mean in place of the raw sum."""
+        out = []
+        for n in NODE_AGENTS:
+            t = self.totals.get(n)
+            if t is not None:
+                mean = round(t["ms"] / t["visits"], 1) if t["visits"] else None
+                out.append({"node": n, "visits": t["visits"], "errors": t["errors"], "mean_ms": mean})
+        return out
+
+
+def summarize(records: Iterable[dict[str, Any]], *, docs: int = 1,
+              recent_records: Iterable[dict[str, Any]] | None = None) -> dict[str, Any] | None:
+    """Watch-frame view: the latest document's route plus per-node totals."""
+    acc = NodeTotals()
+    # When given a separate tail, aggregate the stream without retaining routes.
+    # The fallback preserves the single-iterable helper API.
+    if recent_records is None:
+        recent_records = []
+        for rec in records:
+            acc.add(rec)
+            recent_records.append(rec)
+    else:
+        acc.update(records)
+    return summarize_totals(acc, docs=docs, recent_records=recent_records)
+
+
+def summarize_totals(acc: NodeTotals, *, docs: int = 1,
+                     recent_records: Iterable[dict[str, Any]]) -> dict[str, Any] | None:
+    """:func:`summarize` over totals already accumulated, with routes from ``recent_records``."""
+    if not acc.seen:
         return None
     routes: dict[str, list[dict[str, Any]]] = {}
     order: list[str] = []
-    for rec in routes_input:
+    for rec in recent_records:
         doc, node = str(rec.get("doc")), str(rec.get("node"))
         if doc not in routes:
             routes[doc] = []
@@ -253,11 +289,9 @@ def summarize(records: Iterable[dict[str, Any]], *, docs: int = 1,
             route.append(hop)
         hop.update(status=rec.get("status"), ms=rec.get("ms"), decisions=rec.get("decisions") or [],
                    error=rec.get("error"))
-    for t in totals.values():
-        t["mean_ms"] = round(t.pop("ms") / t["visits"], 1) if t["visits"] else None
-    ranked = [totals[n] for n in NODE_AGENTS if n in totals]
     recent = [{"doc": d, "route": routes[d]} for d in order[-max(1, docs):]]
-    return {"current": recent[-1] if recent else None, "recent": recent, "nodes": ranked, "docs_seen": len(seen)}
+    return {"current": recent[-1] if recent else None, "recent": recent, "nodes": acc.ranked(),
+            "docs_seen": len(acc.seen)}
 
 
 def route_text(route: list[dict[str, Any]]) -> str:

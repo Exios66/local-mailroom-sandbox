@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import difflib
 import shlex
+import signal
 import sys
+import threading
 
 
 def children(parser: argparse.ArgumentParser) -> dict[str, argparse.ArgumentParser]:
@@ -13,6 +16,12 @@ def children(parser: argparse.ArgumentParser) -> dict[str, argparse.ArgumentPars
             if isinstance(action, argparse._SubParsersAction)
             for name, child in action.choices.items()
             if not getattr(child, "_sandbox_hidden", False)}
+
+
+def hidden(parser: argparse.ArgumentParser) -> list[str]:
+    """Subcommands that parse but stay out of menus (legacy eval tasks)."""
+    return [name for action in parser._actions if isinstance(action, argparse._SubParsersAction)
+            for name, child in action.choices.items() if getattr(child, "_sandbox_hidden", False)]
 
 
 def summaries(parser: argparse.ArgumentParser) -> dict[str, str]:
@@ -26,7 +35,7 @@ def command_catalog(parser: argparse.ArgumentParser, path: tuple[str, ...] = ())
     """One parser-derived catalog for completion, menus and browser manuals."""
     return [{"path": list(path), "help": parser.format_help(), "children": list(children(parser)),
              "usage": " ".join(parser.format_usage().split()), "summaries": summaries(parser),
-             "targets": list(getattr(parser, "_sandbox_targets", []))},
+             "targets": list(getattr(parser, "_sandbox_targets", [])), "hidden": hidden(parser)},
             *[row for name, child in children(parser).items()
               for row in command_catalog(child, (*path, name))]]
 
@@ -55,7 +64,7 @@ def unknown_path(words: list[str], catalog: list[dict]) -> str | None:
     """Name the first unknown command word and suggest the closest siblings."""
     node, known = catalog[0], []
     for word in words:
-        if word.startswith("-"):
+        if word.startswith("-") or word in node.get("hidden", ()):
             return None
         if word not in node["children"]:
             close = difflib.get_close_matches(word, node["children"], n=3)
@@ -88,6 +97,43 @@ def completions(line: str, catalog: list[dict]) -> list[str]:
     return [name for name in (node["children"] if node else []) if name.startswith(prefix)]
 
 
+def uses_libedit(readline) -> bool:
+    """libedit's readline emulation never calls the startup/pre-input hooks."""
+    return getattr(readline, "backend", None) == "editline" or "libedit" in (readline.__doc__ or "")
+
+
+@contextlib.contextmanager
+def interruptible_prompt(interval: float = 0.05):
+    """Keep Ctrl+C responsive while readline waits for a line.
+
+    CPython's readline loop only raises a pending KeyboardInterrupt when its
+    ``select()`` fails with EINTR. A SIGINT that lands after readline consumed a
+    keystroke but before that ``select()`` starts only sets a flag, and the
+    prompt froze until the next key. A short no-op SIGALRM heartbeat interrupts
+    the ``select()`` (never restarted, even with SA_RESTART), so the interrupt
+    surfaces within ``interval``. SA_RESTART keeps every other read/write
+    uninterrupted, and the previous handler is restored before any command
+    runs. An ``ITIMER_REAL`` alarm that is already armed is left alone (no
+    heartbeat) so its deadline still fires on time.
+
+    Not fixable from Python: Ctrl+C while typed bytes are still queued. The tty
+    flushes them on INTR and readline's own ``rl_getc`` keeps waiting for the
+    discarded byte (it retries on EINTR) until another key arrives.
+    """
+    if (not hasattr(signal, "setitimer") or threading.current_thread() is not threading.main_thread()
+            or signal.getitimer(signal.ITIMER_REAL)[0] > 0):
+        yield  # an alarm already armed (e.g. inherited across exec) keeps its deadline
+        return
+    previous = signal.signal(signal.SIGALRM, lambda signum, frame: None)
+    signal.siginterrupt(signal.SIGALRM, False)
+    old_timer = signal.setitimer(signal.ITIMER_REAL, interval, interval)
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, *old_timer)
+        signal.signal(signal.SIGALRM, signal.SIG_DFL if previous is None else previous)
+
+
 def run_shell(default_args: list[str] | None = None) -> int:
     from mailroom_sandbox import cli
 
@@ -105,17 +151,16 @@ def run_shell(default_args: list[str] | None = None) -> int:
             matches = completions(readline.get_line_buffer(), catalog)
             return matches[state] if state < len(matches) else None
         readline.set_completer(complete)
-        readline.parse_and_bind("bind ^I rl_complete" if "libedit" in (readline.__doc__ or "") else "tab: complete")
+        readline.parse_and_bind("bind ^I rl_complete" if uses_libedit(readline) else "tab: complete")
         readline.set_auto_history(False)
     history: list[str] = []
     menu: list[str] | None = None
-    prefill = ""
     print("THE MAILROOM · local command terminal\nTab completes · ↑/↓ history · Ctrl+C interrupt · Ctrl+D exit\nmenu [command] · help [command] · history · clear · exit\nExisting CLI spend/initials gates still apply. No persistent command history.")
     try:
         while True:
             try:
-                pending, prefill = prefill, ""
-                line = (pending + input("mailroom> " + pending)).strip()
+                with interruptible_prompt():
+                    line = input("mailroom> ").strip()
                 if not line:
                     continue
                 argv = shlex.split(line)
@@ -158,10 +203,12 @@ def run_shell(default_args: list[str] | None = None) -> int:
                             print(f"error: select 1-{len(node['targets'])} from the menu")  # nosec B608 - menu text, not SQL
                             continue
                         command = node["targets"][index][1] + " "
-                        if readline and "libedit" in (readline.__doc__ or ""):
-                            # libedit never fires the startup hook under input().
-                            # The text joins the prompt; Ctrl+C discards it.
-                            prefill = command
+                        if readline and uses_libedit(readline):
+                            # libedit ignores the startup hook, so a prefill would be
+                            # silently dropped; queue it as the newest history entry
+                            # (libedit drops the trailing space on recall).
+                            readline.add_history(command.strip())
+                            print(f"press ↑ to recall: {command.strip()} · then a space, options, Enter")
                         elif readline:
                             # Prefill the next prompt; nothing runs until Enter.
                             readline.set_startup_hook(lambda text=command: (readline.insert_text(text), readline.set_startup_hook(None)))
@@ -286,7 +333,7 @@ function closeNames(word, names) {
 function unknownPath(words) {
   let node = commandCatalog[0], known = [];
   for (const word of words) {
-    if (word.startsWith("-")) return null;
+    if (word.startsWith("-") || (node.hidden || []).includes(word)) return null;
     if (!node.children.includes(word)) {
       const close = closeNames(word, node.children);
       return `Unknown command '${clip([...known, word].join(" "))}'` + (close.length ? ` · did you mean ${close.join(", ")}?` : " · type menu to browse");
@@ -347,9 +394,15 @@ function commandRun(line) {
   const problem = unknownPath(path);
   if (problem) { commandPrint(problem); return; }
   const leaf = [];
-  for (const word of path) { if (!commandNode([...leaf, word])) break; leaf.push(word); }
-  if (leaf.length && !commandNode(leaf).children.length) {
-    commandPrint(`This page does not run commands. Run it in a local terminal:\n  sandbox ${clip(words.join(" "), 200)}\nOptions: help ${leaf.join(" ")}`);
+  let hidden = false;
+  for (const word of path) {
+    // Hidden legacy tasks parse in the CLI but have no browser manual.
+    if ((commandNode(leaf)?.hidden || []).includes(word)) { leaf.push(word); hidden = true; break; }
+    if (!commandNode([...leaf, word])) break; leaf.push(word);
+  }
+  if (leaf.length && (hidden || !commandNode(leaf).children.length)) {
+    const options = hidden ? `sandbox ${leaf.join(" ")} --help` : `help ${leaf.join(" ")}`;
+    commandPrint(`This page does not run commands. Run it in a local terminal:\n  sandbox ${clip(words.join(" "), 200)}\nOptions: ${options}`);
     return;
   }
   commandPrint("Not a browser inspection command. Use help [command path], or execute with sandbox tui locally.");

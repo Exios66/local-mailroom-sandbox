@@ -49,14 +49,19 @@ def _estimated_gpu_usd(
     return float(estimate_gpu_cost_usd(wall, gpu=gpu or "L4", replicas=replicas) or 0.0)
 
 
+REVIEW_OUTCOME_FIELDS = ("review_causes", "review_verdict", "escalation_reason",
+                        "reviewer_doc_type", "reviewer_confidence")
+
+
 def _expect_from_row(row: dict[str, Any]) -> dict[str, Any]:
     doc_type = row.get("expected_doc_class") or row.get("doc_type") or "contract"
-    conf = 0.40 if row.get("id") == "ambiguous_01" else 0.97
+    conf = 0.40 if row.get("id") == "ambiguous_01" else 0.99  # above every class high threshold
     return {
         "id": row.get("id"),
         "doc_type": doc_type,
         "expected_doc_class": doc_type,
         "conf": conf,
+        "expected_subclass": row.get("expected_subclass"),
         "expected_fields": parse_expected_fields(row) if "expected_fields" in row else row.get("expected_fields"),
     }
 
@@ -146,6 +151,7 @@ def run_isolated_eval(
     concurrency: int = 1,
     max_wall_seconds: float | None = None,
     cost_cap_usd: float | None = None,
+    api_budget: Any = None,
     gpu: str | None = None,
     progress_cb: Any = None,
     replicas: int = 1,
@@ -236,6 +242,8 @@ def run_isolated_eval(
             usage = usage_from_pipeline()
         except Exception as exc:  # noqa: BLE001 — recorded as an item error, never a silent mock
             error = f"{type(exc).__name__}: {str(exc)[:300]}"
+            # SAND-089: a call made before the failure was still billed; keep its tokens.
+            usage = usage_from_pipeline()
         entry: dict[str, Any] = {
             "id": row.get("id"),
             "pred": pred,
@@ -285,12 +293,17 @@ def run_isolated_eval(
                     f"isolated eval aborted: cost_cap_usd={cost_cap_usd} exceeded "
                     f"(est_gpu_usd={est:.4f} at wall={wall:.1f}s) — protecting spend"
                 )
+        if api_budget is not None and not mock:
+            # SAND-089: token spend on API-billed agents, priced at the run's highest API price.
+            api_budget.check("isolated eval aborted: ")
 
     workers = max(1, min(int(concurrency), len(rows) or 1))
 
     def _record(index: int, entry: dict[str, Any]) -> None:
         per_row[index] = entry
         _absorb(entry)
+        if api_budget is not None:
+            api_budget.add_usage(entry)
         # SAND-032: stream each finished row to the caller (main thread) so a
         # later cap abort / raise cannot drop rows whose GPU time was paid.
         if row_cb is not None:
@@ -396,7 +409,12 @@ def run_isolated_eval(
         billed_seconds = wall_seconds + (
             float(cold_boot_seconds) if cold_boot_seconds is not None else 0.0
         )
-        gpu_cost = estimate_gpu_cost_usd(billed_seconds, gpu=gpu or "L4", replicas=replicas)
+        # Price the record like the cost cap: every warm route app when routed.
+        gpu_cost = (
+            _estimated_gpu_usd(billed_seconds, gpu=gpu, replicas=replicas, gpu_fleet=gpu_fleet)
+            if gpu_fleet
+            else estimate_gpu_cost_usd(billed_seconds, gpu=gpu or "L4", replicas=replicas)
+        )
         record["replicas"] = max(1, int(replicas))
         if gpu_cost is not None:
             record["gpu_seconds"] = round(billed_seconds, 3)
@@ -907,6 +925,29 @@ def _sorter_modernbert_from_log(
     return sorter, modernbert
 
 
+def _score_pipeline_extraction(row: dict[str, Any], result: dict[str, Any]) -> dict[str, Any] | None:
+    """Score one connected-pipeline document's extraction; None when the row has no field GT."""
+    expected_fields = parse_expected_fields(row) or {}
+    if not expected_fields:
+        return None
+    return scoring.score_extraction_row(
+        row["expected_doc_class"],
+        result.get("extracted_data") or {},
+        expected_fields,
+        # DMR-056: live corpus rows carry doc_text inline; fixture rows
+        # read from disk (subdir guard — live rows have no subdir key).
+        doc_text=row.get("doc_text")
+        or (
+            fixture_file(row).read_text(encoding="utf-8")
+            if "subdir" in row and fixture_file(row).is_file()
+            else None
+        ),
+        # Per-subclass scoring (sandbox #145): the row's GT subclass
+        # drives the vendored corporate-record alignment.
+        expected_subclass=row.get("expected_subclass"),
+    )
+
+
 def run_pipeline_eval(
     *,
     mock: bool = True,
@@ -925,12 +966,15 @@ def run_pipeline_eval(
     node_cb=None,
     max_wall_seconds: int | None = None,
     cost_cap_usd: float | None = None,
+    api_budget: Any = None,
     gpu: str | None = None,
     replicas: int = 1,
     gpu_fleet: list[tuple[str, int]] | None = None,
 ) -> dict[str, Any]:
     # DMR-056: rows=None keeps the fixture manifest default; the sandbox job
     # whole-run path passes the LOCKED live dataset rows instead.
+    from mailroom_sandbox.job import usage_capture
+
     rows = load_manifest() if rows is None else rows
     if sample is not None:
         if sample <= 0:
@@ -951,6 +995,7 @@ def run_pipeline_eval(
     )
     session = tracing.session_id_for("pipeline")
     results = []
+    extraction_rows: list[dict[str, Any] | None] = []
     import time
     started = time.monotonic()
     for row in rows:
@@ -961,6 +1006,8 @@ def run_pipeline_eval(
             if cost_cap_usd is not None:
                 if _estimated_gpu_usd(elapsed, gpu=gpu, replicas=replicas, gpu_fleet=gpu_fleet) >= cost_cap_usd:
                     raise RuntimeError("pipeline estimated GPU cost cap exceeded before next document")
+            if api_budget is not None:
+                api_budget.check("pipeline API spend cap reached before next document: ")
         before = time.monotonic()
         with ExitStack() as nodes:
             if node_cb is not None:
@@ -970,12 +1017,42 @@ def run_pipeline_eval(
                 models = {agent: model for agent, _provider, model in activation.assignments}
                 models.update(activation.agent_models)
                 nodes.enter_context(track_nodes(str(row.get("id")), node_cb, models=models))
-            result = _run_pipeline_doc(row, mock=mock, session_id=session, experiment_name=experiment_name)
+            usage_capture.reset_usage()
+            try:
+                result = _run_pipeline_doc(row, mock=mock, session_id=session, experiment_name=experiment_name)
+            except Exception as exc:
+                # SAND-089: calls made before the failure were billed; count them before the run stops,
+                # and hand them to the job runner, which records them for a resumed run's budget.
+                failed_usage = usage_capture.usage_from_pipeline()
+                if api_budget is not None:
+                    api_budget.add_usage(failed_usage)
+                if failed_usage:
+                    try:
+                        exc.sandbox_failed_usage = {"item_id": row.get("id"), **failed_usage}
+                    except (AttributeError, TypeError):
+                        pass
+                raise
+        doc_usage = usage_capture.usage_from_pipeline()
+        if api_budget is not None:
+            api_budget.add_usage(doc_usage)
+        if result.get("stage") == "failed" and not result.get("error"):
+            # A run the pipeline aborted is a failed document, not a finished one.
+            result = {**result, "error": result.get("escalation_reason") or "pipeline failed"}
         results.append(result)
+        scored = _score_pipeline_extraction(row, result) if connected else None
+        extraction_rows.append(scored)
         if row_cb:
-            row_cb({"id": row.get("id"), "pred": result, "error": result.get("error"),
-                    "score": {"match": float(result.get("doc_type") == row.get("expected_doc_class"))},
-                    "latency_ms": (time.monotonic() - before) * 1000})
+            stage = str(result.get("stage") or "unknown")
+            score = {"match": float(result.get("doc_type") == row.get("expected_doc_class")),
+                     "class_correct": float(result.get("doc_type") == row.get("expected_doc_class")),
+                     "stage_correct": float(stage == str(row.get("expected_stage") or "archived"))}
+            # The same scorer output the run-level aggregate uses, so a report can read it per document.
+            score.update({k: v for k, v in (scored or {}).items()
+                          if isinstance(v, (int, float)) and not isinstance(v, bool)})
+            # Keep the parse facts: whole-run jobs fail when every answer is unparseable.
+            score.update({k: scored[k] for k in ("parse_error", "schema_valid") if k in (scored or {})})
+            row_cb({"id": row.get("id"), "pred": result, "error": result.get("error"), "score": score,
+                    "latency_ms": (time.monotonic() - before) * 1000, **doc_usage})
         if progress_cb:
             errors = sum(bool(item.get("error")) for item in results)
             progress_cb(len(results), len(rows), len(results) - errors, errors)
@@ -983,44 +1060,28 @@ def run_pipeline_eval(
     predicted: list[str] = []
     for row, result in zip(rows, results):
         doc_type = result.get("doc_type")
-        if not mock and not doc_type:
+        if not mock and not doc_type and not result.get("error"):
             raise RuntimeError(
                 f"live pipeline returned no doc_type for row "
                 f"{row.get('id') or row.get('filename') or '?'} — refusing to "
                 f"score a dead live path as 'unknown'"
             )
         predicted.append(doc_type or "unknown")
+    if not mock and results and not any(r.get("doc_type") for r in results):
+        raise RuntimeError("live pipeline returned no doc_type for any row — refusing to score a dead live path")
     class_scores = scoring.score_classification(expected, predicted)
     stage_expected = [str(r.get("expected_stage") or "archived") for r in rows]
     stage_predicted = [str(r.get("stage") or "unknown") for r in results]
     stage_scores = scoring.score_stage(stage_expected, stage_predicted)
     extract_vals: list[float] = []
     schema_rows: list[dict[str, Any]] = []
-    if connected:
-        for row, result in zip(rows, results):
-            expected_fields = parse_expected_fields(row) or {}
-            if not expected_fields:
-                continue
-            scored = scoring.score_extraction_row(
-                row["expected_doc_class"],
-                result.get("extracted_data") or {},
-                expected_fields,
-                # DMR-056: live corpus rows carry doc_text inline; fixture rows
-                # read from disk (subdir guard — live rows have no subdir key).
-                doc_text=row.get("doc_text")
-                or (
-                    fixture_file(row).read_text(encoding="utf-8")
-                    if "subdir" in row and fixture_file(row).is_file()
-                    else None
-                ),
-                # Per-subclass scoring (sandbox #145): the row's GT subclass
-                # drives the vendored corporate-record alignment.
-                expected_subclass=row.get("expected_subclass"),
-            )
-            schema_rows.append(scored)
-            value = scored.get("overall_extraction_score")
-            if isinstance(value, (int, float)):
-                extract_vals.append(float(value))
+    for scored in extraction_rows:
+        if scored is None:
+            continue
+        schema_rows.append(scored)
+        value = scored.get("overall_extraction_score")
+        if isinstance(value, (int, float)):
+            extract_vals.append(float(value))
     routing_expected = ["review" if s == "review" else "continue" for s in stage_expected]
     routing_predicted = ["review" if s == "review" else "continue" for s in stage_predicted]
     routing = scoring.score_classification(routing_expected, routing_predicted)
@@ -1216,15 +1277,21 @@ def _run_pipeline_doc(
             result = run_pipeline(queued, matter_id, **kwargs)
     else:
         result = run_pipeline(queued, matter_id, **kwargs)
+    # A parked run returns the state from before the review interrupt; the manifest holds the outcome.
+    outcome = dict(result)
+    if result.get("stage") == "review" and result.get("doc_id"):
+        from pipeline.bins import load_manifest  # type: ignore
+
+        manifest = load_manifest(result["doc_id"]).model_dump(mode="json")
+        outcome.update({key: manifest.get(key) for key in REVIEW_OUTCOME_FIELDS if manifest.get(key) is not None})
     return {
         "id": row.get("id"),
         "doc_type": result.get("doc_type"),
         "stage": result.get("stage"),
         "extracted_data": result.get("extracted_data"),
         "classification_confidence": result.get("classification_confidence"),
+        **{key: outcome.get(key) for key in REVIEW_OUTCOME_FIELDS},
         "error": result.get("error") or result.get("errors"),
         "offline_fallback": False,
         "mailroom_src": str(src) if src else None,
     }
-
-

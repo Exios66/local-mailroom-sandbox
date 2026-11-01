@@ -10,6 +10,7 @@ works offline with no pip git pins and no ``sandbox fetch-deps`` step.
 
 from __future__ import annotations
 
+import os
 import sys
 
 from mailroom_sandbox.paths import vendored_dojo_src, vendored_mailroom_src
@@ -19,6 +20,21 @@ for _vendored in (vendored_mailroom_src(), vendored_dojo_src()):
         _resolved = str(_vendored.resolve())
         if _resolved not in sys.path:
             sys.path.insert(0, _resolved)
+
+
+def prefer_own_venv_tools() -> None:
+    """Run this venv's pinned CLIs even when the venv is not activated.
+
+    ``.venv/bin/sandbox`` would otherwise shell out to whichever ``modal`` comes
+    first on ``PATH``, which can be a global install on another SDK version.
+    """
+    if sys.prefix == sys.base_prefix:
+        return
+    own_bin = os.path.dirname(sys.executable)
+    entries = (os.environ.get("PATH") or os.defpath).split(os.pathsep)
+    if entries[0] != own_bin:
+        os.environ["PATH"] = os.pathsep.join([own_bin, *(e for e in entries if e != own_bin)])
+
 
 from mailroom_sandbox.runtime import activate
 

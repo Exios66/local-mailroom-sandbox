@@ -198,6 +198,8 @@ flags through `sandbox modal raw -- <args>`, `sandbox hf raw -- <args>`, or
 | `sandbox run resume --config <run.yaml> --run-id <id>` | Resume a paused/failed run |
 | `sandbox run cancel --run-id <id>` | Cancel a running job |
 | `sandbox run list` | List all runs |
+| `sandbox experiment create\|review\|preflight\|launch\|report` | Paired experiments: design, review, initials-gated launch, report ([experiments.md](experiments.md)) |
+| `sandbox review list\|show\|resolve` | Human review of parked documents |
 
 ### Prompt & metric commands
 
@@ -411,6 +413,14 @@ data/runtime/runs/<run_id>/
 ├── events.jsonl         # lifecycle journal
 └── run.lock             # advisory single-writer flock
 ```
+
+### Budget ceilings
+
+`job.cost_cap_usd` (Modal GPU time), `job.max_wall_seconds` and `job.api_cost_cap_usd`
+(OpenRouter token spend) are checked before each document. A paid run must set the ceilings
+that apply to it. See [jobs.md](jobs.md#spec) for the keys and
+[RUN-COST-DERIVATION.md](RUN-COST-DERIVATION.md) section 2b for how the recommendations are
+derived.
 
 ### Modal remote mode
 

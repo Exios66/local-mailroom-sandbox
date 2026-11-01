@@ -80,6 +80,10 @@ VALID_QUANTIZATIONS = {
 _RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 
 
+class InvalidRunIdError(ValueError):
+    """A run id that is not a safe directory name (an input error, not a bug)."""
+
+
 class PromptRef(BaseModel):
     """One agent's prompt resolution: local file-, Langfuse pin, or code default."""
 
@@ -341,6 +345,8 @@ class ModalSpec(BaseModel):
     max_containers: int = 1
     min_containers: int = 0  # scale-to-zero; mirror MODAL_VLLM_MIN_CONTAINERS
     prewarm: bool = True
+    # Deploy from the workspace's published sandbox-vllm:<image_tag> instead of building.
+    named_image: bool = False
 
     @field_validator("gpu")
     @classmethod
@@ -504,6 +510,10 @@ class JobSpec(BaseModel):
     # runs; exceeding either cap fails the run loud (no silent overspend).
     cost_cap_usd: float | None = None
     max_wall_seconds: int | None = None
+    # SAND-089: token spend ceiling for agents on a token-billed API (OpenRouter).
+    # cost_cap_usd estimates GPU time only; a paid run that bills API tokens needs
+    # this too, and a known price for every API model (job/api_budget.py).
+    api_cost_cap_usd: float | None = None
 
     @field_validator("task")
     @classmethod
@@ -535,6 +545,14 @@ class JobSpec(BaseModel):
             raise ValueError("cost_cap_usd must be > 0 when set")
         return v
 
+    @field_validator("api_cost_cap_usd")
+    @classmethod
+    def _api_cost_cap(cls, v: float | None) -> float | None:
+        """Reject a NaN or non-positive API spend ceiling when one is set."""
+        if v is not None and (not math.isfinite(v) or v <= 0):
+            raise ValueError("api_cost_cap_usd must be > 0 when set")
+        return v
+
     @field_validator("max_wall_seconds")
     @classmethod
     def _max_wall(cls, v: int | None) -> int | None:
@@ -542,6 +560,32 @@ class JobSpec(BaseModel):
         if v is not None and v < 60:
             raise ValueError("max_wall_seconds must be >= 60 when set")
         return v
+
+
+class ReviewerSpec(BaseModel):
+    """Frozen decision-model reviewer: which backend, which pinned model, which classes at what cutoff."""
+    model_config = {"extra": "forbid"}
+    backend: Literal["jev", "local", "api", "mock"]
+    model: str = Field(min_length=1)
+    classes: dict[str, float]
+
+    @field_validator("classes", mode="before")
+    @classmethod
+    def _cutoffs(cls, values: Any) -> Any:
+        if not isinstance(values, dict) or not values:
+            raise ValueError("reviewer classes must map at least one class to a cutoff")
+        for name, cutoff in values.items():
+            if isinstance(cutoff, bool) or not isinstance(cutoff, (int, float)) or not math.isfinite(cutoff) or not 0 <= cutoff <= 1:
+                raise ValueError(f"{name}: cutoff must be a finite number in [0, 1]")
+        return values
+
+    @model_validator(mode="after")
+    def _backend_pin(self) -> "ReviewerSpec":
+        # The pin check lives with the backends; building one does no network call.
+        from mailroom_sandbox.decision_backends import build_backend
+
+        build_backend(self.backend, self.model)
+        return self
 
 
 class TraceSpec(BaseModel):
@@ -570,6 +614,7 @@ class RunSpec(BaseModel):
     agent_models: dict[str, str] = Field(default_factory=dict)
     agent_knobs: dict[str, dict[str, Any]] = Field(default_factory=dict)
     agent_routes: dict[str, AgentRoute] = Field(default_factory=dict)
+    reviewer: ReviewerSpec | None = None
 
     model_config = {"populate_by_name": True}
 
@@ -687,7 +732,8 @@ def spec_core(spec: RunSpec) -> dict[str, Any]:
     return {
         **({"agent_models": dict(sorted(spec.agent_models.items()))} if spec.agent_models else {}),
         **({"agent_knobs": spec.agent_knobs} if spec.agent_knobs else {}),
-        **({"agent_routes": {name: route.model_dump() for name, route in spec.agent_routes.items()}} if spec.agent_routes else {}),
+        **({"agent_routes": {name: _route_core(route) for name, route in spec.agent_routes.items()}} if spec.agent_routes else {}),
+        **({"reviewer": spec.reviewer.model_dump()} if spec.reviewer else {}),
         "task": spec.task,
         # Hashed only when set, so every pre-existing run YAML keeps its spec_hash.
         **({"target": spec.target} if spec.target else {}),
@@ -696,13 +742,26 @@ def spec_core(spec: RunSpec) -> dict[str, Any]:
             "kind": spec.engine.kind,
             "model": spec.engine.model,
             "vllm": _vllm_core(spec.engine.vllm),
-            "modal": spec.engine.modal.model_dump() if spec.engine.modal else None,
+            "modal": _modal_core(spec.engine.modal),
         },
-        "job": spec.job.model_dump(),
+        # api_cost_cap_usd is hashed only when set, so pre-SAND-089 YAMLs keep their hash.
+        "job": {key: value for key, value in spec.job.model_dump().items()
+                if not (key == "api_cost_cap_usd" and value is None)},
         "trace": spec.trace.model_dump(),
         "prompt": prompt_resolution_map(spec),
         "dataset": spec.dataset.request_core(),
     }
+
+
+def _modal_core(modal: ModalSpec | None) -> dict[str, Any] | None:
+    """named_image is hashed only when set, so existing run YAMLs keep their hash."""
+    if modal is None:
+        return None
+    return {key: value for key, value in modal.model_dump().items() if key != "named_image" or value}
+
+
+def _route_core(route: Any) -> dict[str, Any]:
+    return {**route.model_dump(), "modal": _modal_core(route.modal)}
 
 
 def spec_hash(spec: RunSpec) -> str:
@@ -722,7 +781,7 @@ def _slug(value: str) -> str:
 def resolve_run_id(spec: RunSpec) -> str:
     if spec.run_id:
         if not _RUN_ID_RE.match(spec.run_id):
-            raise ValueError(f"run_id {spec.run_id!r} must match {_RUN_ID_RE.pattern}")
+            raise InvalidRunIdError(f"run_id {spec.run_id!r} must match {_RUN_ID_RE.pattern}")
         return spec.run_id
     return f"{_slug(spec.task)}-{_slug(spec.engine.model.split('/')[-1])}-{utc_stamp()}"
 
@@ -735,7 +794,7 @@ def runs_root() -> Path:
 
 def run_dir(run_id: str) -> Path:
     if not _RUN_ID_RE.match(run_id):
-        raise ValueError(f"run_id {run_id!r} must match {_RUN_ID_RE.pattern}")
+        raise InvalidRunIdError(f"run_id {run_id!r} must match {_RUN_ID_RE.pattern}")
     return runs_root() / run_id
 
 

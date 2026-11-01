@@ -250,6 +250,82 @@ def test_live_ok_endpoint(fake_bin, capsys, monkeypatch):
     assert rc == 0 and rows["provider"]["state"] == "ok" and "Qwen/Qwen3-8B" in rows["provider"]["detail"]
 
 
+def _modal_endpoint_times_out(fake_bin, monkeypatch, rows):
+    monkeypatch.setenv("VLLM_BASE_URL", "https://ws--sandbox-vllm-serve.modal.run/v1")
+    fake_bin.add("modal", rules=[
+        {"prefix": ["--version"], "stdout": "modal client version: 1.6.2\n"},
+        {"prefix": ["app", "list"], "stdout": json.dumps(rows)},
+    ])
+
+    def get(url, **kw):
+        raise httpx.ReadTimeout("The read operation timed out")
+
+    monkeypatch.setattr("mailroom_sandbox.health.httpx.get", get)
+
+
+APP = {"description": "sandbox-vllm", "state": "deployed", "tasks": "0"}
+
+
+def test_a_queued_modal_endpoint_warns_instead_of_failing(fake_bin, capsys, monkeypatch):
+    _modal_endpoint_times_out(fake_bin, monkeypatch, [APP])
+    rc, rows = _doctor(capsys, "--live")
+    assert rc == 0 and rows["provider"]["state"] == "warn"
+    assert "queued for a GPU" in rows["provider"]["detail"] and "not billing" in rows["provider"]["detail"]
+
+
+def test_a_booting_modal_container_is_called_out_as_billing(fake_bin, capsys, monkeypatch):
+    _modal_endpoint_times_out(fake_bin, monkeypatch, [{**APP, "tasks": "1"}])
+    rc, rows = _doctor(capsys, "--live")
+    assert rc == 0 and "still booting (billing)" in rows["provider"]["detail"]
+
+
+def test_a_timeout_on_an_undeployed_app_still_fails(fake_bin, capsys, monkeypatch):
+    _modal_endpoint_times_out(fake_bin, monkeypatch, [])
+    rc, rows = _doctor(capsys, "--live")
+    assert rc == 1 and rows["provider"]["state"] == "fail" and "not deployed" in rows["provider"]["detail"]
+
+
+def test_vllm_probe_says_a_queued_endpoint_is_not_ready(fake_bin, capsys, monkeypatch):
+    _modal_endpoint_times_out(fake_bin, monkeypatch, [APP])
+    assert cli.main(["vllm", "probe", "--profile", "modal-vllm"]) == 1
+    captured = capsys.readouterr()
+    assert "not ready:" in captured.err and "not healthy" not in captured.err
+    assert "skipped (endpoint still starting)" in captured.out
+
+
+def test_health_explains_a_queued_endpoint(fake_bin, capsys, monkeypatch):
+    from mailroom_sandbox.health import health_check
+
+    _modal_endpoint_times_out(fake_bin, monkeypatch, [APP])
+    report = health_check("modal-vllm")
+    assert report["ok"] is False and "queued for a GPU" in report["models"]["detail"]
+
+
+def test_live_modal_row_reads_the_account_without_touching_the_endpoint(fake_bin, capsys, monkeypatch):
+    _modal_endpoint_times_out(fake_bin, monkeypatch, [APP])
+    rc, rows = _doctor(capsys, "--live", "--service", "modal")
+    assert rc == 0 and "sandbox-vllm deployed, containers=0" in rows["modal"]["detail"]
+
+
+def test_live_modal_row_fails_when_the_account_cannot_be_read(fake_bin, capsys, monkeypatch):
+    monkeypatch.setenv("VLLM_BASE_URL", "https://ws--sandbox-vllm-serve.modal.run/v1")
+    fake_bin.add("modal", rules=[
+        {"prefix": ["--version"], "stdout": "modal client version: 1.6.2\n"},
+        {"prefix": ["app", "list"], "code": 1, "stderr": "token invalid"},
+    ])
+    rc, rows = _doctor(capsys, "--live", "--service", "modal")
+    assert rc == 1 and rows["modal"]["state"] == "fail" and "account check failed" in rows["modal"]["detail"]
+
+
+def test_langfuse_warns_when_the_sdk_is_missing(fake_bin, capsys, monkeypatch):
+    monkeypatch.setenv("LANGFUSE_HOST", "http://lf.test")
+    monkeypatch.setenv("OBSERVABILITY_PROVIDER", "langfuse")
+    monkeypatch.setattr("mailroom_sandbox.services.doctor.find_spec", lambda name: None)
+    _, rows = _doctor(capsys)
+    assert rows["langfuse"]["state"] == "warn" and "no traces" in rows["langfuse"]["detail"]
+    assert "observability" in rows["langfuse"]["hint"]
+
+
 def test_live_states_that_probing_modal_can_wake_a_billed_gpu(fake_bin, capsys, monkeypatch):
     monkeypatch.setenv("VLLM_BASE_URL", "https://ws--sandbox-vllm-serve.modal.run/v1")
     monkeypatch.setattr("mailroom_sandbox.health.httpx.get", lambda url, **kw: httpx.Response(200, json={"data": []}))
@@ -274,6 +350,7 @@ def test_langfuse_and_phoenix_never_fail_the_command_when_down(fake_bin, capsys,
 
 def test_phoenix_is_skipped_unless_configured(fake_bin, capsys, monkeypatch):
     monkeypatch.setenv("VLLM_BASE_URL", "http://vllm.test/v1")
+    monkeypatch.setenv("PHOENIX_ENDPOINT", "")  # an operator .env must not configure it
     _rc, rows = _doctor(capsys)
     assert rows["phoenix"]["state"] == "skipped"
 
@@ -349,3 +426,17 @@ def test_without_publish_nothing_is_written(fake_bin, capsys, monkeypatch):
     monkeypatch.setenv("VLLM_BASE_URL", "http://vllm.test/v1")
     cli.main(["doctor"])
     assert read_services(beacon_root()) is None
+
+
+def test_the_suite_never_loads_a_developers_env_file(monkeypatch, tmp_path):
+    import os
+
+    from mailroom_sandbox import runtime
+
+    env_file = tmp_path / ".env"
+    env_file.write_text("SANDBOX_ENV_LEAK=1\n")
+    monkeypatch.setattr("mailroom_sandbox.runtime.dotenv_files", lambda: [env_file], raising=False)
+    monkeypatch.setattr("mailroom_sandbox.paths.dotenv_files", lambda: [env_file])
+    monkeypatch.delenv("SANDBOX_ENV_LEAK", raising=False)
+    runtime.load_env_file()
+    assert "SANDBOX_ENV_LEAK" not in os.environ
