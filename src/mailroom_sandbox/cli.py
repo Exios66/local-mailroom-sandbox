@@ -1390,8 +1390,8 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
 # The Dojo pin is the interim post-v0.24.2 zero-token fix; return to the next
 # released commit when v0.24.3 is published.
 _VENDOR_PINS: tuple[tuple[str, str, str, str | None], ...] = (
-    ("llm-mailroom", "16ddd08a3f32b5f442891032d095a6bed744da41",
-     "https://github.com/Exios66/llm-mailroom.git", "16ddd08a3f32b5f442891032d095a6bed744da41"),
+    ("llm-mailroom", "v0.8.1",
+     "https://github.com/Exios66/llm-mailroom.git", "808d7861bb8ebbaef866ced799f2850137d48078"),
     ("llm-dojo-scoring", "718e326c1fe5a49b3f1cfd43a3ac10c73e7e01a4",
      "https://github.com/Exios66/llm-dojo-scoring.git", "718e326c1fe5a49b3f1cfd43a3ac10c73e7e01a4"),
 )
