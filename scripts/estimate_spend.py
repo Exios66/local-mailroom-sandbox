@@ -49,7 +49,7 @@ def _sorter_prompt_chars(spec: dict) -> int:
 
 
 def estimate(spec: dict, root: Path) -> dict:
-    from mailroom_sandbox.job.metrics import token_price
+    from mailroom_sandbox.job.metrics import call_price
 
     task = spec.get("task")
     # An isolated run's agent is job.task (default sorter, as the spec model fills it).
@@ -64,12 +64,14 @@ def estimate(spec: dict, root: Path) -> dict:
         qset = load_question_set(reviewer["questions"])
         limit_by = qset.get("max_input_chars_by_class") or {}
         limit = int(qset.get("max_input_chars") or 120_000)
-        tokens_in = 0.0
+        tokens_in = usd = 0.0
         for row, n in zip(rows, lengths):
             cls = row.get("expected_doc_class")
             q = gate_questions(qset, cls) if task == "extraction_gate" else decision_questions(qset)
             handoff = 1_500 if task == "extraction_gate" else 200   # extraction / sorter answer, chars
-            tokens_in += (min(n, int(limit_by.get(cls) or limit)) + len(json.dumps(q)) + handoff) / CHARS_PER_TOKEN
+            t = (min(n, int(limit_by.get(cls) or limit)) + len(json.dumps(q)) + handoff) / CHARS_PER_TOKEN
+            tokens_in += t
+            usd += t * (call_price(model, t) or (0.0, 0.0))[0] / 1e6
         tokens_out, calls = 0.0, len(rows)
     else:
         agent = job_task if job_task in PROMPT_CHARS else task
@@ -78,15 +80,18 @@ def estimate(spec: dict, root: Path) -> dict:
         window = int(knobs.get("chunk_chars") or 0)
         cap = int(knobs.get("max_input_chars") or 10**9)
         calls = 0
-        tokens_in = 0.0
+        tokens_in = usd = 0.0
+        out_per_call = OUTPUT_TOKENS["sorter" if agent == "sorter" else "specialist"]
         for n in lengths:
             k = max(1, math.ceil(n / window)) if window and n > cap else 1
             read = n + (k - 1) * int(knobs.get("overlap_chars") or 0) if k > 1 else min(n, cap)
             calls += k
-            tokens_in += (read + k * prompt) / CHARS_PER_TOKEN
-        tokens_out = calls * OUTPUT_TOKENS["sorter" if agent == "sorter" else "specialist"]
-    p_in, p_out = token_price(model) or (0.0, 0.0)
-    list_usd = (tokens_in * p_in + tokens_out * p_out) / 1e6
+            t = (read + k * prompt) / CHARS_PER_TOKEN
+            tokens_in += t
+            p_in, p_out = call_price(model, t / k) or (0.0, 0.0)   # each call priced at its own tier
+            usd += (t * p_in + k * out_per_call * p_out) / 1e6
+        tokens_out = calls * out_per_call
+    list_usd = usd
     return {"run_id": spec["run_id"], "model": model, "documents": len(rows), "calls": calls,
             "input_tokens_m": round(tokens_in / 1e6, 3), "output_tokens_m": round(tokens_out / 1e6, 3),
             "list_usd": round(list_usd, 3), "api_cap_usd": (spec.get("job") or {}).get("api_cost_cap_usd")}

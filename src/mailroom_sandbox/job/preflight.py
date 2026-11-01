@@ -44,6 +44,12 @@ def _versions() -> dict[str, Any]:
         "mailroom_sandbox": sandbox_version,
         "llm_dojo_scoring": getattr(llm_dojo_scoring, "__version__", "?"),
     }
+    from mailroom_sandbox import dojo_source
+
+    choice = dojo_source.current()
+    if choice is not None:
+        # installed (the release) or vendored (the fallback snapshot): which one scored this run.
+        out["llm_dojo_scoring_source"] = choice.source
     try:
         import opentelemetry  # type: ignore
 

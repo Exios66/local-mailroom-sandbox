@@ -4,6 +4,17 @@
 
 ### Added
 
+- **Dojo: installed release first, vendored snapshot as fallback** (`mailroom_sandbox/dojo_source.py`).
+  - When a `llm-dojo-scoring` release is installed (`pip install -r requirements/dojo-release.txt`, the pinned GitHub release) and matches the snapshot's version and commit, it is the scoring source.
+  - The snapshot under `vendor/llm-dojo-scoring` takes over when the release is missing, off-pin or fails to import, so scoring keeps working through a broken install or outage.
+  - `SANDBOX_DOJO_SOURCE=auto|installed|vendored` picks the policy; `DOJO_SRC` still overrides. The run lock records the source as `versions.llm_dojo_scoring_source`.
+  - The release pin lives in `requirements/`, not `pyproject.toml`, so the base install stays offline (DMR-057).
+- **Full API price sheets (`config/api_prices.yaml`).** Qwen 3.7 Flash, GPT-6 Luna, Luna Decisions, DeepSeek V4 Flash and Qwen3.5-9B each carry their complete OpenRouter sheet:
+  - every long-prompt tier (Qwen 3.7 Flash: $0.03/$0.13 per 1M below 32k prompt tokens, $0.10/$0.40 from 32k, $0.20/$0.80 from 256k), input-cache read/write, context length and max completion tokens.
+  - `call_price` / `call_cost` price each call at its own tier; the built-in table is the fallback if the file is missing.
+  - `scripts/refresh_api_prices.py` rewrites the file from `GET /api/v1/models` (`--check` reports drift, `--add MODEL` adds one).
+  - The openrouter profile lists the callable models under `api_models`.
+- **Extraction-gate baseline results.** Five Qwen 3.7 Flash specialist runs (220 real dataset documents, all five classes, one call per document, no chunking) and the `openai/gpt-6-luna-decisions` gate over their handoffs; calibration in `reports/extraction-gate/extraction-gate-luna-v1.0.0-baseline.calibration.json`.
 - **Run ledger (`reports/run-ledger.md`).** Every paid run that passes the spend gate appends one row:
   - columns: UTC time, the signer's initials, `start` or `resume`, run id, config, spec hash, rows, API cap and result;
   - the result cell is filled when the run reaches a terminal state (`✓` done, `✗` failed). For a Modal run this happens when `sandbox run status` syncs it back;

@@ -81,7 +81,97 @@ SANDBOX_MODEL_PRICES: dict[str, tuple[float, float]] = {
     "openai/gpt-6-luna-decisions": (0.10, 0.0),   # Decisions API: input only, no output charge
     "openai/gpt-6-luna": (0.10, 0.50),
     "qwen/qwen3.7-flash": (0.03, 0.13),
+    "deepseek/deepseek-v4-flash": (0.091, 0.182),
 }
+
+# Full OpenRouter price sheets (USD per 1M tokens) for the API models the sandbox runs, from
+# GET https://openrouter.ai/api/v1/models, checked 2026-11-01. A tier applies to a whole call
+# whose prompt reaches ``min_prompt_tokens``: Qwen 3.7 Flash is $0.03/$0.13 below 32k prompt
+# tokens, $0.10/$0.40 from 32k and $0.20/$0.80 from 256k, so a flat price under-counts every
+# long document. The live copy is config/api_prices.yaml (refresh it with
+# scripts/refresh_api_prices.py); this table is the fallback when that file is missing.
+API_PRICES_CHECKED = "2026-11-01"
+API_PRICE_SHEETS: dict[str, list[dict[str, float]]] = {
+    "qwen/qwen3.7-flash": [
+        {"min_prompt_tokens": 0, "prompt": 0.03, "completion": 0.13, "cache_read": 0.006, "cache_write": 0.038},
+        {"min_prompt_tokens": 32_000, "prompt": 0.10, "completion": 0.40, "cache_read": 0.02, "cache_write": 0.125},
+        {"min_prompt_tokens": 256_000, "prompt": 0.20, "completion": 0.80, "cache_read": 0.04, "cache_write": 0.25},
+    ],
+    "openai/gpt-6-luna-decisions": [
+        # Decisions API (/api/alpha/decisions): billed on input only.
+        {"min_prompt_tokens": 0, "prompt": 0.10, "completion": 0.0},
+    ],
+    "openai/gpt-6-luna": [
+        {"min_prompt_tokens": 0, "prompt": 0.10, "completion": 0.50, "cache_read": 0.01, "cache_write": 0.125},
+        {"min_prompt_tokens": 272_000, "prompt": 0.20, "completion": 0.75, "cache_read": 0.02, "cache_write": 0.25},
+    ],
+    "deepseek/deepseek-v4-flash": [
+        {"min_prompt_tokens": 0, "prompt": 0.091, "completion": 0.182, "cache_read": 0.0182},
+    ],
+}
+
+
+_FILE_SHEETS: dict[str, list[dict[str, float]]] | None = None
+
+
+def api_price_sheets() -> dict[str, list[dict[str, float]]]:
+    """Tier sheets from ``config/api_prices.yaml`` over the built-in table (the fallback).
+
+    The file is the one the refresh script keeps current; the built-in copy keeps pricing
+    (and the spend gate) working when the file is missing or unreadable.
+    """
+    global _FILE_SHEETS
+    if _FILE_SHEETS is None:
+        loaded: dict[str, list[dict[str, float]]] = {}
+        try:
+            import yaml
+
+            from mailroom_sandbox.paths import repo_root
+
+            doc = yaml.safe_load((repo_root() / "config" / "api_prices.yaml").read_text(encoding="utf-8")) or {}
+            for model_id, row in (doc.get("models") or {}).items():
+                tiers = [dict(t) for t in (row or {}).get("tiers") or [] if "prompt" in t]
+                if tiers:
+                    loaded[str(model_id)] = sorted(tiers, key=lambda t: t.get("min_prompt_tokens", 0))
+        except Exception:  # noqa: BLE001 - fall back to the built-in sheets
+            loaded = {}
+        _FILE_SHEETS = loaded
+    return {**API_PRICE_SHEETS, **_FILE_SHEETS}
+
+
+def price_sheet(model: str | None) -> list[dict[str, float]] | None:
+    """The tiered sheet for ``model`` (exact id, then a dated/suffixed id by prefix)."""
+    if not model:
+        return None
+    base = str(model).split(":", 1)[0]
+    sheets = api_price_sheets()
+    sheet = sheets.get(base)
+    if sheet is None:
+        # Longest matching prefix, so "openai/gpt-6-luna-decisions-2026…" is not priced as gpt-6-luna.
+        sheet = next((sheets[k] for k in sorted(sheets, key=len, reverse=True) if base.startswith(k)), None)
+    return sheet
+
+
+def call_price(model: str | None, prompt_tokens: float = 0) -> tuple[float, float] | None:
+    """USD per 1M (input, output) tokens for ONE call of ``prompt_tokens`` (its tier)."""
+    override = _token_price_override()
+    if override is not None:
+        return override
+    sheet = price_sheet(model)
+    if sheet is None:
+        return token_price(model) if model else None
+    tier = max((t for t in sheet if float(prompt_tokens or 0) >= t.get("min_prompt_tokens", 0)),
+               key=lambda t: t.get("min_prompt_tokens", 0), default=sheet[0])
+    return float(tier["prompt"]), float(tier["completion"])
+
+
+def call_cost(model: str | None, prompt_tokens: float, completion_tokens: float, *, calls: int = 1) -> float | None:
+    """USD for ``calls`` calls totalling these tokens, each priced at its own (average) tier."""
+    calls = max(1, int(calls or 1))
+    price = call_price(model, float(prompt_tokens or 0) / calls)
+    if price is None:
+        return None
+    return (float(prompt_tokens or 0) * price[0] + float(completion_tokens or 0) * price[1]) / 1_000_000
 
 # Modal GPU $/hr (modal.com/pricing, verified 2026-09-09 — see deploy/README.md).
 # Override a single rate with MODAL_GPU_USD_PER_HOUR (applies to whatever GPU
@@ -304,6 +394,10 @@ def token_price(model: str) -> tuple[float, float] | None:
         return override
     if not model:
         return None
+    sheet = price_sheet(model)
+    if sheet is not None:
+        # The checked sheet wins over the dojo table (whose deepseek-v4-flash price is stale).
+        return float(sheet[0]["prompt"]), float(sheet[0]["completion"])
     try:
         dojo = price_for(model)
     except Exception:  # noqa: BLE001 — same soft fallback as _estimate_cost

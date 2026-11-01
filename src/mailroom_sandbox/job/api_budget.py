@@ -20,11 +20,28 @@ from typing import Any
 API_PROVIDERS = frozenset({"openrouter"})
 
 
+def task_agents(lock: Mapping[str, Any]) -> set[str] | None:
+    """The agents a run's task calls, or None when it may call any (pipeline and the like).
+
+    A single-agent task calls only that agent, so the profile's other assignments (for
+    example the openrouter judge on deepseek) never set the price of a Qwen sorter run.
+    """
+    task = str(lock.get("task") or "")
+    if task == "isolated":
+        return {str((lock.get("job") or {}).get("task") or "sorter")}
+    if task == "sorter" or task.endswith("_specialist"):
+        return {task}
+    return None
+
+
 def api_models(lock: Mapping[str, Any]) -> list[str]:
     """Token-billed models a locked run (or a lock-shaped spec dump) can call."""
     models: set[str] = set()
     assignments = lock.get("agent_assignments") or {}
-    for assignment in assignments.values():
+    used = task_agents(lock)
+    for name, assignment in assignments.items():
+        if used is not None and name not in used:
+            continue
         if str(assignment.get("provider")) in API_PROVIDERS and assignment.get("model"):
             models.add(str(assignment["model"]))
     agent_models = lock.get("agent_models") or {}
@@ -103,15 +120,21 @@ class ApiBudget:
         self.spent_usd = 0.0
         self._lock = threading.Lock()
 
-    def add(self, prompt_tokens: Any, completion_tokens: Any) -> None:
+    def add(self, prompt_tokens: Any, completion_tokens: Any, calls: Any = 1) -> None:
+        """Price the tokens at each model's tier for the average call size, the dearest model winning."""
+        from mailroom_sandbox.job.metrics import call_cost
+
         prompt = float(prompt_tokens or 0)
         completion = float(completion_tokens or 0)
+        costs = [call_cost(m, prompt, completion, calls=int(calls or 1)) for m in self.models]
+        known = [c for c in costs if c is not None]
+        cost = max(known) if known else (prompt * self.usd_per_m_in + completion * self.usd_per_m_out) / 1_000_000
         with self._lock:
-            self.spent_usd += (prompt * self.usd_per_m_in + completion * self.usd_per_m_out) / 1_000_000
+            self.spent_usd += cost
 
     def add_usage(self, usage: Mapping[str, Any] | None) -> None:
         usage = usage or {}
-        self.add(usage.get("prompt_tokens"), usage.get("completion_tokens"))
+        self.add(usage.get("prompt_tokens"), usage.get("completion_tokens"), usage.get("llm_calls") or 1)
 
     def exceeded(self) -> str | None:
         if self.spent_usd >= self.cap_usd:
@@ -158,4 +181,4 @@ def spend_estimate(lock: Mapping[str, Any], items: Iterable[Mapping[str, Any]]) 
     for item in items:
         budget.add_usage(item)
     return {"est_api_usd": round(budget.spent_usd, 6), "usd_per_million_tokens": [price_in, price_out],
-            "models": models, "basis": "observed tokens at the highest API model price"}
+            "models": models, "basis": "observed tokens at each call's price tier, the highest API model price"}
