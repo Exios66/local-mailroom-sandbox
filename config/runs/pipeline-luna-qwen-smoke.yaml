@@ -1,11 +1,13 @@
 # Full pipeline over OpenRouter: Qwen3.7 Flash on every node, with OpenAI Luna as
-# the decision reviewer on the three classes whose cutoffs met the 95% target in the
-# 735-document calibration pilot (reports/reviewer-calibration/reviewer-calibration-luna.json).
-# contract and corporate_record are left out, so they keep the LLM reviewer: Luna files
-# registration-rights agreements and indentures (corporate records) as contracts at
-# 0.94-0.99 confidence, so no contract cutoff reaches 95%, and corporate_record's
-# 0.86 cutoff scored 98.5% but its lower bound (94.7%) misses the target.
-# Provisional for issue #208 until the full 1,888-document calibration confirms them.
+# the decision reviewer on all five primary classes (corporate_record included), on the
+# sorter_reviewer_decision_v3 prompt and the cutoffs its full-corpus calibration picked
+# (all 2,979 train documents; 98.8% routed unattended with one misroute on the 323-document
+# test split; reports/reviewer-calibration/reviewer-calibration-luna.md). Every decision
+# class is reviewed at any sorter confidence (#215).
+# The sorter and intake read the whole document in ONE call (max_input_chars 600,000 covers
+# the largest smoke document, a 504k-character merger; Qwen3.7 Flash has a 1M-token context).
+# Only the extraction specialists chunk. Documents run 10 at a time.
+# The earlier three-class run is kept in reports/reviewer-calibration/pipeline-luna-qwen-smoke-3class.json.
 schema: sandbox.run/v1
 run_id: pipeline-luna-qwen-smoke
 task: pipeline
@@ -13,6 +15,8 @@ profile: openrouter
 
 prompt:
   default: {source: code-default}
+  agents:
+    sorter_reviewer: {source: local, file: sorter_reviewer_decision_v3}
 
 dataset:
   provider: huggingface
@@ -61,22 +65,28 @@ agent_routes:
   judge: {provider: openrouter, model: qwen/qwen3.7-flash}
   boss: {provider: openrouter, model: qwen/qwen3.7-flash}
 
+agent_knobs:
+  sorter: {max_input_chars: 600000}
+  intake: {max_input_chars: 600000}
+
 reviewer:
   backend: api
   model: openai/gpt-6-luna
   classes:
-    merger_agreement: 0.98
-    correspondence: 0.71
-    insurance_claim: 0.61
+    contract: 0.79
+    merger_agreement: 0.90
+    corporate_record: 0.88
+    correspondence: 0.54
+    insurance_claim: 0.78
 
 job:
   mode: endpoint
   mock: false
   max_retries: 1
   fail_fast: false
-  concurrency: 2
+  concurrency: 10
   cost_cap_usd: 0.50
-  max_wall_seconds: 2400
+  max_wall_seconds: 4800
   api_cost_cap_usd: 0.50   # the ceiling prices every token at Luna; Qwen bills about a third
 
 trace:
