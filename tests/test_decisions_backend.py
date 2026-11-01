@@ -120,10 +120,10 @@ def test_live_reviewer_uses_the_activated_decisions_reviewer_from_a_worker_threa
 
 
 def test_zero_output_tokens_are_still_recorded():
-    """A Decisions call has no output tokens; the run's usage must still count its input."""
-    from mailroom_sandbox import runtime
+    """A Decisions call has no output tokens; the run's usage must still count its input.
 
-    runtime.activate("openrouter")
+    No ``runtime.activate``: it switches the process-wide profile and leaked into later tests
+    (``cli health`` then probed the openrouter profile)."""
     from pipeline.limits import reset_run_usage, usage_summary
 
     reset_run_usage()
