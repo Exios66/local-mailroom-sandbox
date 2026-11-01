@@ -377,6 +377,12 @@ def test_calibration_skips_key_field_score_with_missing_support(monkeypatch):
     report = eg.calibrate([item], {"d1": {"id": "d1"}}, {}, good=0.8, precision=0.9, qset=qset)
     assert report["skipped"] == {"key_support_missing:contract": 1}
     assert "contract" not in report.get("keyfields", {})
-    item["pred"]["field_support"]["b"] = 0.5
+    item["pred"]["field_support"] = {"other": 0.9}  # fields answered, but none of the key fields
+    report = eg.calibrate([item], {"d1": {"id": "d1"}}, {}, good=0.8, precision=0.9, qset=qset)
+    assert report["skipped"] == {"key_support_missing:contract": 1}
+    item["pred"]["field_support"] = {}  # a set that asks no field: scored on the verdict
+    report = eg.calibrate([item], {"d1": {"id": "d1"}}, {}, good=0.8, precision=0.9, qset=qset)
+    assert report["keyfields"]["contract"]["n"] == 1 and not report["skipped"]
+    item["pred"]["field_support"] = {"a": 0.9, "b": 0.5}
     report = eg.calibrate([item], {"d1": {"id": "d1"}}, {}, good=0.8, precision=0.9, qset=qset)
     assert report["keyfields"]["contract"]["n"] == 1
