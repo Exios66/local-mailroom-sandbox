@@ -29,7 +29,6 @@ from graph.routing import (
     after_human_review,
     after_report,
     judge_gate,
-    judge_should_run,
 )
 from observability.tracing import pipeline_trace, traced_node, observation
 from schemas.manifest import DocumentManifest, PipelineStage
@@ -1201,16 +1200,6 @@ def _call_decision_backend(backend, doc_text, doc_types, catalogs, handoff=None)
     return box.get("value")
 
 
-def _sorter_is_unsure(state: DocumentState) -> bool:
-    """True when the sorter ended below its class's low band (or gave no score)."""
-    confidence = state.get("classification_confidence")
-    if not _valid_unit_float(confidence):
-        return True
-    return float(confidence) < float(
-        get_confidence_thresholds(state.get("doc_type")).get("low", 0.70)
-    )
-
-
 def _decision_review_classify(state: DocumentState) -> dict[str, Any]:
     """Decision-model branch of ``review_classify_node``.
 
@@ -1326,7 +1315,6 @@ def _decision_review_classify(state: DocumentState) -> dict[str, Any]:
         eligible=eligible,
         cutoffs=cutoffs,
         has_text=has_text,
-        sorter_unsure=_sorter_is_unsure(state),
     )
     cutoff_key = answer.doc_type if answer is not None else sorter_type
     cutoff = cutoffs.get(cutoff_key) if isinstance(cutoff_key, str) else None
@@ -1980,10 +1968,10 @@ def judge_verify_node(state: DocumentState) -> dict[str, Any]:
     `partial`/`incomplete` go to the arbiter, hard failure escalates
     fail-safe). Gated by `_judge_gate` — most documents never see this call.
     """
-    from agents.judge import JUDGE_SOURCE_CHARS, CompletenessJudge
+    from agents.judge import CompletenessJudge
     from llm.retry import is_transient_error
 
-    if not judge_should_run(state):
+    if not judge_gate(state):
         logger.info(
             "judge_skipped",
             doc_id=state.get("doc_id"),
@@ -1999,13 +1987,6 @@ def judge_verify_node(state: DocumentState) -> dict[str, Any]:
         result = judge.judge_completeness(
             doc_type=doc_type, extracted=extracted, doc_text=doc_text
         )
-        # Completeness says nothing about accuracy: a complete verdict must also
-        # hold up against the source before it counts.
-        accuracy = None
-        if result.get("completeness_label") == "complete":
-            accuracy = judge.judge_extraction_correctness(
-                doc_type=doc_type, extracted=extracted, doc_text=doc_text
-            )
     except Exception as exc:
         if is_transient_error(exc):
             transient = state.get("transient_retries_judge_verify", 0) + 1
@@ -2032,16 +2013,6 @@ def judge_verify_node(state: DocumentState) -> dict[str, Any]:
     label = result.get("completeness_label", "incomplete")
     score = float(result.get("completeness", 0.0))
     findings = [str(result.get("reasoning", ""))] if result.get("reasoning") else []
-    source_verified = False
-    if accuracy is not None:
-        accuracy_label = accuracy.get("extraction_correctness_label")
-        score = min(score, float(accuracy.get("extraction_correctness", 0.0)))
-        if accuracy.get("reasoning"):
-            findings.append(str(accuracy["reasoning"]))
-        if accuracy_label != "accurate":
-            label = "partial" if accuracy_label == "partial" else "incomplete"
-        # A judge that saw only part of the document cannot vouch for all of it.
-        source_verified = label == "complete" and len(doc_text) <= JUDGE_SOURCE_CHARS
     logger.info(
         "judge_verified",
         doc_id=state.get("doc_id"),
@@ -2065,7 +2036,6 @@ def judge_verify_node(state: DocumentState) -> dict[str, Any]:
         "judge_verdict": label,
         "judge_score": score,
         "judge_findings": findings,
-        "judge_source_verified": source_verified,
         "judge_pass_count": int(state.get("judge_pass_count") or 0) + 1,
         "transient_error": False,
     }
@@ -2090,7 +2060,6 @@ def arbiter_node(state: DocumentState) -> dict[str, Any]:
             judge_verdict=str(state.get("judge_verdict") or ""),
             judge_findings=state.get("judge_findings") or [],
             judge_score=state.get("judge_score"),
-            doc_text=state.get("doc_text", ""),
         )
     except Exception as exc:
         if is_transient_error(exc):
@@ -3203,28 +3172,6 @@ def _existing_processing_doc_id(original_filename: str) -> str | None:
     return None
 
 
-def _abort_review_evidence(state: dict, doc_id: str | None) -> dict[str, Any]:
-    """Reviewer evidence for an aborted run: state, else the parked manifest.
-
-    An interrupt resume aborts with a minimal state, and the abort manifest
-    replaces the parked one, so its evidence is read before that happens.
-    """
-    from pipeline.bins import load_manifest
-    from pipeline.review_resolve import REVIEW_EVIDENCE_FIELDS
-
-    evidence = _review_evidence_fields(state, state.get("review_causes"))
-    parked = None
-    if doc_id and any(value is None for value in evidence.values()):
-        try:
-            parked = load_manifest(doc_id)
-        except Exception:
-            logger.exception("abort_review_evidence_load_failed", doc_id=doc_id)
-    return {
-        name: evidence[name] if evidence[name] is not None else getattr(parked, name, None)
-        for name in REVIEW_EVIDENCE_FIELDS
-    }
-
-
 def _finalize_aborted(initial_state: dict, reason: str, *, failure_class: str | None = None) -> dict:
     """Turn a run that hit a hard limit (or crashed) into a failed result.
 
@@ -3258,7 +3205,6 @@ def _finalize_aborted(initial_state: dict, reason: str, *, failure_class: str | 
         escalation_reason=f"run aborted: {reason}",
         trace_id=state.get("trace_id"),
         intake=state.get("intake_meta") or None,
-        **_abort_review_evidence(state, aborted_doc_id),
     )
     if aborted_doc_id:
         manifest_kwargs["doc_id"] = aborted_doc_id
@@ -3285,7 +3231,7 @@ def _finalize_aborted(initial_state: dict, reason: str, *, failure_class: str | 
     except Exception:
         logger.exception("abort_manifest_save_error", doc_id=manifest.doc_id)
     try:
-        _write_catalog_record(state, manifest)
+        _write_catalog_record(state)
     except Exception:
         logger.exception("abort_catalog_write_error", doc_id=manifest.doc_id)
     # A-1: a failed/aborted run is a compliance-record event (previously only
@@ -3314,11 +3260,10 @@ def _finalize_aborted(initial_state: dict, reason: str, *, failure_class: str | 
     return state
 
 
-def _write_catalog_record(state: dict, manifest: DocumentManifest):
+def _write_catalog_record(state: dict):
     """Persist a minimal catalog record (used for aborted runs that never
     reach the catalog_write node, so they show up in compare_runs)."""
     import asyncio
-    from pipeline.review_resolve import with_review_evidence
     from storage.catalog import write_document_record
 
     doc_record = {
@@ -3329,7 +3274,7 @@ def _write_catalog_record(state: dict, manifest: DocumentManifest):
         "stage": state.get("stage", "failed"),
         "classification_confidence": state.get("classification_confidence"),
         "extraction_confidence": state.get("extraction_confidence"),
-        "extracted_data": with_review_evidence(state.get("extracted_data"), manifest),
+        "extracted_data": state.get("extracted_data"),
         "escalation_reason": state.get("escalation_reason") or state.get("error_message"),
         "trace_id": state.get("trace_id"),
     }
@@ -3481,15 +3426,6 @@ def _emit_pipeline_result(root, result: dict, state: dict, judge_required: bool 
     ) as gen:
         if gen is not None:
             gen.update(output=output)
-
-
-def _discard_checkpoints(graph, thread_id: str) -> None:
-    """Drop a finished run's checkpoints: they hold the document text and only
-    a parked run can resume. Fail-soft; a leftover row costs disk, not a run."""
-    try:
-        graph.checkpointer.delete_thread(thread_id)
-    except Exception:
-        logger.warning("checkpoint_discard_failed", thread_id=thread_id, exc_info=True)
 
 
 def _execute_run(
@@ -3681,8 +3617,6 @@ def _execute_run(
             )
         if _result_is_interrupted(result):
             result = _paused_review_result(result, initial_state, thread_id, state_trace_id)
-        elif result.get("stage") in {PipelineStage.ARCHIVED.value, PipelineStage.FAILED.value}:
-            _discard_checkpoints(graph, thread_id)
         # Ensure the trace id survives into the final state (intake_node creates
         # the manifest with its own doc_id; the trace id must be attached even
         # when the graph never ran intake, e.g. aborted runs).

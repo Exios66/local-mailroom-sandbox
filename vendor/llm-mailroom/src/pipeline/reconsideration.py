@@ -28,7 +28,6 @@ REPORTING_INCOMPLETE = "reporting_incomplete"
 NEEDS_JUDGE = "needs_judge_review"
 HOLLOW_EXTRACTION = "hollow_extraction"
 # Decision-model reviewer causes (see ``pipeline.decision_review``).
-SORTER_LOW_CONFIDENCE = "sorter_low_confidence"
 REVIEWER_UNAVAILABLE = "reviewer_unavailable"
 REVIEWER_NO_TEXT = "reviewer_no_text"
 REVIEWER_INELIGIBLE_LABEL = "reviewer_ineligible_label"
@@ -47,7 +46,6 @@ CAUSE_LABELS: dict[str, str] = {
     REPORTING_INCOMPLETE: "report / completeness incomplete",
     NEEDS_JUDGE: "deterministic scorer wanted a judge that the high-conf path skipped",
     HOLLOW_EXTRACTION: "hollow extraction payload (no public fields)",
-    SORTER_LOW_CONFIDENCE: "sorter confidence below the low threshold",
     REVIEWER_UNAVAILABLE: "decision reviewer returned no valid answer",
     REVIEWER_NO_TEXT: "document has no usable text for the decision reviewer",
     REVIEWER_INELIGIBLE_LABEL: "sorter or reviewer label is not an eligible class",
@@ -164,18 +162,21 @@ def routing_coverage_expected_fields(
         if str(src.get(key) or "").lower() == "posthoc":
             continue
         filtered[key] = value
-    return filtered or None
+    return filtered
 
 
 def expected_field_coverage(
     extracted: Mapping[str, Any] | None,
     expected_fields: Mapping[str, Any] | None,
+    *,
+    coverage_fields: Mapping[str, Any] | None = None,
 ) -> float | None:
     """Fraction of non-empty expected fields that the extract surfaced."""
-    if not expected_fields:
+    expected = coverage_fields if coverage_fields is not None else expected_fields
+    if not expected:
         return None
     required = {
-        key: value for key, value in expected_fields.items() if value not in _EMPTY
+        key: value for key, value in expected.items() if value not in _EMPTY
     }
     if not required:
         return None
@@ -191,24 +192,6 @@ def expected_field_coverage(
     return round(present / len(required), 3)
 
 
-def routed_field_coverage(
-    extracted: Mapping[str, Any] | None,
-    expected_fields: Mapping[str, Any] | None,
-    *,
-    doc_type: str | None = None,
-    sources: Mapping[str, str] | None = None,
-) -> float | None:
-    """Coverage over the routing scope; None when no grounded field is in scope.
-
-    CUAD/MAUD ground truth holds clause labels and no schema fields, so it
-    scopes to nothing. That is an absent signal, never a coverage failure.
-    """
-    scoped = routing_coverage_expected_fields(
-        expected_fields, doc_type, sources=sources
-    )
-    return expected_field_coverage(extracted, scoped)
-
-
 def coverage_below_floor(
     extracted: Mapping[str, Any] | None,
     expected_fields: Mapping[str, Any] | None,
@@ -222,9 +205,10 @@ def coverage_below_floor(
         from pipeline.config import get_confidence_thresholds
 
         floor = float(get_confidence_thresholds().get("low", 0.70))
-    coverage = routed_field_coverage(
-        extracted, expected_fields, doc_type=doc_type, sources=sources
+    scoped = routing_coverage_expected_fields(
+        expected_fields, doc_type, sources=sources
     )
+    coverage = expected_field_coverage(extracted, expected_fields, coverage_fields=scoped)
     if coverage is None:
         return False
     return coverage < floor
@@ -308,13 +292,7 @@ def collect_review_causes(
         causes.append(EXTRACTION_MISS)
     presence = _as_float(scores.get("expected_field_presence"))
     if presence is None:
-        sources = gt.get("expected_fields_sources") if isinstance(gt, dict) else None
-        presence = routed_field_coverage(
-            extracted,
-            expected_fields,
-            doc_type=data.get("doc_type"),
-            sources=sources if isinstance(sources, dict) else None,
-        )
+        presence = expected_field_coverage(extracted, expected_fields)
     if presence is not None and presence < floor and EXTRACTION_MISS not in causes:
         causes.append(EXTRACTION_MISS)
     # Missing extracted_data is not hollow (classify-only park). An empty or
@@ -349,11 +327,6 @@ def collect_review_causes(
 
     if _is_true_flag(scores.get("extraction_needs_judge_review")):
         causes.append(NEEDS_JUDGE)
-
-    sorter_confidence = _as_float(data.get("classification_confidence"))
-    sorter_floor = float(get_confidence_thresholds(data.get("doc_type")).get("low", 0.70))
-    if not causes and sorter_confidence is not None and sorter_confidence < sorter_floor:
-        causes.append(SORTER_LOW_CONFIDENCE)
 
     # Decision-model reviewer causes recorded by review_classify_node.
     reviewer_causes = data.get("reviewer_causes")

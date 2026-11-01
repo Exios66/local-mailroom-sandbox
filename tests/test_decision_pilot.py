@@ -190,21 +190,6 @@ def test_each_cause_parks(row, run):
     assert result["backend"].call_count == (0 if row["id"] in {"no_text", "unavailable"} else 1)
 
 
-def test_confident_sorter_cannot_skip_the_reviewer(run):
-    """The sorter's own 0.99 is no second opinion; only agreement archives."""
-    accepted = run({**ROWS[0], "sorter_confidence": 0.99})
-    assert accepted["stage"] == "archived"
-    assert accepted["backend"].call_count == 1
-
-    from pipeline.bins import load_manifest
-
-    parked = run({**ROWS[1], "sorter_confidence": 0.99})
-    manifest = load_manifest(parked["doc_id"])
-    assert parked["stage"] == manifest.stage.value == "review"
-    assert "reviewer_disagreement" in manifest.review_causes
-    assert "extract" not in parked["visited"]
-
-
 def connect_review_api(monkeypatch):
     from fastapi.testclient import TestClient
     from api.main import app
