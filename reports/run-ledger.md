@@ -26,3 +26,7 @@ Do not edit rows by hand. Parse with `mailroom_sandbox.job.ledger.rows()`.
 | 2026-11-01T09:29:17Z | JB | start | specialist-condensed-v3-insurance-claim-qwen-ab | config/runs/specialist-condensed-v3-insurance-claim-qwen-ab.yaml | 0fc01e19c6c5 | 60 | 0.05 | ✓ |
 | 2026-11-01T09:31:11Z | JB | start | extraction-gate-luna-v1.1.0-baseline | config/runs/extraction-gate-luna-v1.1.0-baseline.yaml | 9e0cf931bac9 | 220 | 0.5 | ✓ |
 | 2026-11-01T09:31:33Z | JB | start | extraction-gate-luna-v1.1.0-r2 | config/runs/extraction-gate-luna-v1.1.0-r2.yaml | 49e01f82d137 | 690 | 0.6 | ✓ |
+| 2026-11-01T09:47:34Z | JB | start | extraction-gate-specialist-insurance-claim-qwen-r3 | config/runs/extraction-gate-specialist-insurance-claim-qwen-r3.yaml | 93186912f7e4 | 686 | 0.3 | ✓ |
+| 2026-11-01T09:47:34Z | JB | start | extraction-gate-luna-v1.2.0-rereview | config/runs/extraction-gate-luna-v1.2.0-rereview.yaml | 020ed35827a9 | 880 | 0.6 | ✓ |
+| 2026-11-01T18:20:07Z | JB | start | extraction-gate-luna-v1.2.0-r3 | config/runs/extraction-gate-luna-v1.2.0-r3.yaml | 07da15f0519a | 686 | 0.35 | ✓ |
+| 2026-11-01T18:27:18Z | JB | start | extraction-gate-luna-v1.3.0 | config/runs/extraction-gate-luna-v1.3.0.yaml | f6743d5a3496 | 1596 | 1.1 | ✓ |
