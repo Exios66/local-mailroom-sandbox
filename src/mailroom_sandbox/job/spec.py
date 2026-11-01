@@ -135,6 +135,10 @@ class DatasetSpec(BaseModel):
     # column was computed on 45 of 50 documents for exactly this reason. Off by
     # default: synthetic fixtures and other studies draw deliberately unlabeled rows.
     require_task_gt: bool = False
+    # Merge the interim GT overlay (data/labels/interim, mailroom_sandbox.interim_labels) into the
+    # drawn rows' expected_fields: the labels the next dataset revision is expected to publish.
+    # Off by default; the lock records the overlay's sha256 so such scores never pass for Hub-GT ones.
+    interim_labels: bool = False
     columns: dict[str, str] | None = None
     expected_fields: list[str] | None = None
     local_path: str | None = None  # file:// or absolute path (offline)
@@ -212,7 +216,19 @@ class DatasetSpec(BaseModel):
         return Path(url)
 
     def request_core(self) -> dict[str, Any]:
-        """The reproducibility-relevant spec (never row counts/hashes)."""
+        """The reproducibility-relevant spec (never row counts/hashes).
+
+        ``interim_labels`` is hashed only when set (with the overlay's fingerprint, so a rebuilt
+        overlay is a new spec), so every pre-existing run YAML keeps its spec_hash.
+        """
+        core = self._request_core()
+        if self.interim_labels:
+            from mailroom_sandbox.interim_labels import overlay_fingerprint
+
+            core["interim_labels"] = overlay_fingerprint()
+        return core
+
+    def _request_core(self) -> dict[str, Any]:
         if self.is_local() and self.local_file():
             local = self.local_file()
             core = {"provider": "file"}
