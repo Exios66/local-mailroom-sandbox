@@ -1,3 +1,7 @@
+# SUPERSEDED: chat model openai/gpt-6-luna as the decision reviewer; preflight now refuses
+# a paid chat-model reviewer run without an explicit opt-in. Kept as the record of
+# reports/reviewer-calibration/reviewer-calibration-luna.md (the default-prompt test arm).
+#
 # Baseline arm: code-default reviewer prompt on the same test documents as
 # reviewer-validation-luna-prompt-v1-test. Out-of-sample check for sorter_reviewer_decision_v1 (issue #208): every test-split
 # document with task ground truth (317), never seen while writing the prompt or picking

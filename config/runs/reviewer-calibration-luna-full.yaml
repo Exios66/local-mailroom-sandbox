@@ -1,3 +1,7 @@
+# SUPERSEDED: chat model openai/gpt-6-luna as the decision reviewer; preflight now refuses
+# a paid chat-model reviewer run without an explicit opt-in. Kept as the record of
+# reports/reviewer-calibration/reviewer-calibration-luna.md (never run; the full calibration ran as reviewer-calibration-luna-v3-train-all).
+#
 # SAND-085 (expanded): calibrate the OpenRouter decision reviewer's per-class cutoffs
 # on the largest balanced draw the train split allows.
 #

@@ -73,6 +73,15 @@ TITLE_RULES = (
 MAILDIR = re.compile(r"^[a-z]+-[a-z]+/[^/]+(/[^/]+)*/\d+\.?$")
 
 
+
+def label_confirmed(evidence: list[str]) -> bool:
+    """Whether a corpus rule confirmed the label: the maildir rule, a title rule or the reviewer.
+
+    The one definition for rule 6 and the ``sorter_class_errors_label_confirmed`` count; an
+    evidence note that confirms nothing (a folder-name mapping, the MAUD unannotated note) does not.
+    """
+    return any("confirm" in e or "maildir" in e or "reviewer agrees" in e for e in evidence)
+
 def _lines(path: Path) -> list[dict]:
     with path.open(encoding="utf-8", newline="\n") as handle:
         return [json.loads(line) for line in handle.read().split("\n") if line.strip()]
@@ -188,7 +197,7 @@ def main() -> int:
                 evidence.append(f"title line confirms {title[0]}")
             if rev_sure and rev_sure["doc_type"] == target_cls:
                 evidence.append(f"Decisions reviewer confirms the class ({rev_sure['run']}, p={rev_sure['p']:.2f})")
-            confirmed = any("confirm" in e or "maildir" in e or "reviewer agrees" in e for e in evidence)
+            confirmed = label_confirmed(evidence)
             if not confirmed and rev is not None and rev.get("doc_type") != target_cls:
                 # Rule 6: sorter and reviewer both disagree with an unconfirmed label: a real
                 # ambiguity case. Kept as an example, not used as a class target.
@@ -231,7 +240,7 @@ def main() -> int:
         "sorter_class_errors_by_pattern": dict(collections.Counter(
             f"{r['target_doc_class']} -> {r['sorter_doc_type']}" for r in cls_rows if not r["sorter_class_correct"])),
         "sorter_class_errors_label_confirmed": sum(
-            1 for r in cls_rows if not r["sorter_class_correct"] and len(r["target_evidence"]) > (r["target_status"] == "label_normalized")),
+            1 for r in cls_rows if not r["sorter_class_correct"] and label_confirmed(r["target_evidence"])),
         "corrections": corrections, "disputes": disputes,
         "rules": "scripts/patch_sorter_handoff.py docstring",
     }

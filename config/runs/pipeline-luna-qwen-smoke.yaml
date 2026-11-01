@@ -1,3 +1,8 @@
+# SUPERSEDED: chat model openai/gpt-6-luna as the decision reviewer; preflight now refuses
+# a paid chat-model reviewer run without an explicit opt-in. allow_chat_model: true marks the chat
+# comparison as deliberate. Kept as the record of
+# reports/reviewer-calibration/reviewer-calibration-luna.md and pipeline-luna-qwen-smoke-3class.json; the current smoke is pipeline-luna-decisions-qwen-smoke.yaml.
+#
 # Full pipeline over OpenRouter: Qwen3.7 Flash on every node, with OpenAI Luna as
 # the decision reviewer on all five primary classes (corporate_record included), on the
 # sorter_reviewer_decision_v3 prompt and the cutoffs its full-corpus calibration picked
@@ -72,6 +77,7 @@ agent_knobs:
 reviewer:
   backend: api
   model: openai/gpt-6-luna
+  allow_chat_model: true
   classes:
     contract: 0.79
     merger_agreement: 0.90

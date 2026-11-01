@@ -50,4 +50,7 @@ job:
 trace:
   sink: none
   environment: pilot
+  # The tag says 1.0.0 but this run used question set 1.1.0. It is kept as run: the trace block is
+  # in the spec hash, so changing it would split this finished run from its lock, and its traces
+  # were already sent with this tag. Filter 1.1.0 traces by run id. New runs tag their own version.
   tags: [sandbox, job, extraction-gate, decisions-api, extraction-gate-1.0.0]
