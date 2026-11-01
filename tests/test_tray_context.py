@@ -100,6 +100,19 @@ def test_compose_state_includes_layout_and_job_route(tmp_path):
     assert "animate_lifecycle" in state
 
 
+def test_compose_state_survives_unreadable_campaign(tmp_path):
+    store = _generic_store(tmp_path)
+    campaign_path = tmp_path / "my-study" / "experiment.yaml"
+    state = compose_watch_state(store=store, app="sandbox-vllm", sink=LogBuffer(None), ledger=None,
+                                cap_usd=5, times_dir=None, serving_dir=tmp_path, started=0,
+                                boot_mark={}, campaign_path=campaign_path)
+    campaign = state["campaign"]
+    assert campaign["study"] == "my-study" and campaign["design"] == "unreadable"
+    assert campaign["current"] == store.run_id
+    assert campaign["runs"] == [] and campaign["completed"] == campaign["total"] == 0
+    assert "cannot load experiment" in campaign["error"]
+
+
 def test_resolve_watch_paths_prefers_run_dir_log(tmp_path):
     store = _generic_store(tmp_path)
     td, log_path = tc.resolve_watch_paths(store, sand032_root=tmp_path / "sand032")
@@ -203,3 +216,26 @@ def test_configuration_allowlist_hides_keys_and_urls():
     text = "\n".join(tc.configuration_lines(lock))
     assert "actual-model" in text and "routed-model" in text
     assert "secret" not in text and "private" not in text
+
+
+def test_configuration_lines_render_manifest_values_not_python_reprs():
+    from mailroom_sandbox.tui.tray_context import configuration_lines
+
+    lines = configuration_lines({
+        "job": {"mock": True, "concurrency": 8},
+        "trace": {"tags": ["sand42", "c8"]},
+        "engine": {"kind": "vllm", "vllm": {"enable_prefix_caching": False}},
+    })
+    assert "job.mock: true" in lines
+    assert "trace.tags: sand42, c8" in lines
+    assert "vllm.enable_prefix_caching: false" in lines
+    assert not any("True" in line or "[" in line for line in lines)
+
+
+def test_configuration_shows_prompt_identity_never_the_prompt_body():
+    lock = {"prompt": {"agents": {"sorter": {
+        "agent": "sorter", "source": "local", "name": "mailroom-sorter", "file": "config/prompts/sorter_v3.txt",
+        "version": None, "label": None, "sha256": "abcdef0123456789ff", "text": "SECRET PROMPT BODY"}}}}
+    (line,) = [ln for ln in tc.configuration_lines(lock) if ln.startswith("prompt ")]
+    assert line == "prompt sorter: source=local · name=mailroom-sorter · file=config/prompts/sorter_v3.txt · sha256=abcdef012345"
+    assert "SECRET" not in line

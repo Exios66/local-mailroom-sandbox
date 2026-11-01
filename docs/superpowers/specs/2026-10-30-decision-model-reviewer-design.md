@@ -11,9 +11,15 @@ the governed `llm-mailroom` pipeline and public or sanitized evaluation data. Th
 design offers one concrete use case: a low-cost reviewer with an explicit,
 enforced route to a human.
 
-External naming: this spec and the artifacts built from it name no outside
-organization, and imply no affiliation, endorsement, sponsorship or shared work.
-Any such statement waits for written clearance from the user.
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:eabd32c20eaf4f6e03ce3be4f3bde7c1758f20f271acb14e1e0f77514dfd1643 -->
+
+External naming: this spec and its artifacts must not imply affiliation,
+endorsement, sponsorship or shared work without written clearance from the user.
+Vendor names may be used to identify products and sources.
+
+<!-- /coderabbit-ai-generated:v1 -->
 
 Success has two levels:
 
@@ -27,6 +33,8 @@ A pilot shows that the approach works mechanically. It does not qualify a class
 for production use, and no pilot result may be presented as if it does.
 
 ## 2. Decisions made
+
+> **Updated 2026-10-31:** the sanitization row is superseded. The Enron correspondence is public, so no backend refuses correspondence and no sanitized copy is needed (SAND-086 cancelled; see section 9). The routing row is superseded by the note under section 5.
 
 | Topic | Decision |
 |---|---|
@@ -43,6 +51,8 @@ The final presentation is December 15, 2026. Pilots come first, and section 11
 orders the work by dependency.
 
 ## 3. Decision models
+
+> **Updated 2026-10-31:** the shipped backends are `jev`, `local`, `api` and `mock`. The `api` backend runs the `sorter_reviewer` agent on an OpenRouter route pinned to one model id (for example `openai/gpt-6-luna`, set through `agent_routes.sorter_reviewer`). The `local` backend runs the same agent on the run's own serving route. No Decisions API adapter exists, so the "Interface" row and the Decisions API sentence below describe the original plan only.
 
 | | Jev (`jev-1.13.0`) | GPT-6 Luna Decisions |
 |---|---|---|
@@ -91,6 +101,8 @@ For a medium-confidence document, record what the decision model answers before
 avoided. This estimate does not change routing.
 
 ## 5. Routing contract
+
+> **Updated 2026-10-31:** where the rules below conflict with this note, this note wins. A decision class reaches its reviewer at any sorter confidence, after the sorter's retries. Agreement at the cutoff goes to `extract`. A sorter below its low band may be corrected by a reviewer at the cutoff: only the reviewer's label must be an eligible class, and it replaces the sorter's label. An unsure reviewer, or disagreement with a medium or high sorter, parks for human review. The "overrides never auto-accept" rule no longer holds. Cutoffs are provisional until issue #208.
 
 Each class is configured as either `llm` or `decision_only`. Classes set to
 `llm` keep the existing reviewer and do not call a decision model.
@@ -143,6 +155,8 @@ change the path to the fresh-extract fallback.
 
 ## 7. Full pipeline serving
 
+> **Updated 2026-10-31:** the `api` and `local` backends reach their model through `agent_routes.sorter_reviewer`, so that route does carry the reviewer's transport. The frozen `reviewer` block still pins backend and model. The sentence beginning "`AgentRoute` only describes" below is superseded for those two backends.
+
 Pilots run through the full pipeline, not only an isolated reviewer eval. "Full
 pipeline" means the complete 13-node `llm-mailroom` graph, from document intake
 to an organized archive entry per document:
@@ -190,9 +204,15 @@ Live runs use the signed, capped run path.
 - Graph, routing, schema and agent changes land in standalone `llm-mailroom`
   first, then reach the sandbox through the reviewed vendor refresh. Vendored
   files are not edited by hand. The source is
-  https://github.com/Exios66/llm-mailroom (public, vendored at `1a1ec3df`). No
-  checkout was found beside this repo, so one is needed. Because it is public,
-  commits there follow the external naming rule in section 1.
+  <!-- coderabbit-ai-generated:v1 -->
+
+  <!-- coderabbit-ai-generated-section:v1:478bf37d72a99d552d93622f5bc4b8de24d205c78ea395aa626fb5f281eec39e -->
+
+  https://github.com/Exios66/llm-mailroom (public, vendored at
+  `1530f496a6c745186bb86d12b5f0472c667a404a`). A source checkout is needed
+  for upstream changes. Commits there follow the external naming rule in section 1.
+
+  <!-- /coderabbit-ai-generated:v1 -->
 - Backend adapters and pilots live behind an opt-in sandbox path. The default
   profile, offline runs and the default test suite make no decision-model call.
 - Sandbox work uses a `SAND-*` card. Family-wide work cites a related `DMR-*`.
@@ -200,6 +220,8 @@ Live runs use the signed, capped run path.
   run path.
 
 ## 9. Sanitized correspondence dataset
+
+> **Superseded 2026-10-31:** the Enron correspondence is already public, so this copy is not needed and no backend refuses correspondence (SAND-086 cancelled).
 
 ### Goal
 
@@ -239,6 +261,8 @@ card-like matches in `insurance_claim`, with no rewriting.
 
 ### Data
 
+> **Updated 2026-10-31:** correspondence needs no sanitized copy, because the Enron corpus is public (SAND-086 cancelled). The bullet below is superseded.
+
 - Freeze `FAMILY_HF_REVISION` (`bc9eab28`) as the source revision. Configs
   currently also cite `ed7576b6`, and `main` is `670e8bc6`.
 - Correspondence is evaluated only from the sanitized copy.
@@ -270,6 +294,8 @@ human-review rate, cause counts, measured cost and sample size.
 - Any document reaching `extract` outside the accept rule fails the run.
 
 ## 11. Order of work
+
+> **Updated 2026-10-31:** item 4 is no longer a prerequisite. Correspondence needs no sanitized dataset (SAND-086 cancelled).
 
 1. **Pilot enablers:** `llm-mailroom` routing function, causes, persisted fields
    and override path; backend adapters with mocks.

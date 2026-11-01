@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 
 import pytest
 
@@ -90,7 +89,6 @@ def test_metrics_compare_requires_runs(capsys):
 
 
 def test_run_parser_has_lifecycle(tmp_path, capsys):
-    import json as _json
 
     # A config pointing at a non-existent dataset fails harmlessly under dry-run.
     path = tmp_path / "run.yaml"
@@ -142,7 +140,7 @@ def test_run_resume_passes_resolved_config_path(tmp_path, monkeypatch):
     nested.mkdir()
     cfg = nested / "run.yaml"
     cfg.write_text("schema: sandbox.run/v1\n", encoding="utf-8")
-    store = RunStore(run_dir("cli-resume"))
+    RunStore(run_dir("cli-resume"))
     from mailroom_sandbox.job.preflight import preflight
     from mailroom_sandbox.job.spec import RunSpec
 

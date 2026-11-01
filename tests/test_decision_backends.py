@@ -209,3 +209,25 @@ def test_jev_against_real_pydantic_ai(monkeypatch):
 def test_jev_refuses_id_with_trailing_newline():
     with pytest.raises(ValueError):
         jev_backend("jev-1.13.0\n")
+
+
+def test_local_backend_answers_from_the_in_house_reviewer(monkeypatch):
+    from mailroom_sandbox.decision_backends import local_backend
+    from mailroom_sandbox.runtime import activate
+
+    activate("ollama", load_env_file=False)
+    calls = []
+
+    def review(self, doc_text, **kwargs):
+        calls.append((doc_text, kwargs))
+        return {"doc_type": "correspondence", "doc_subclass": "memo", "confidence": 0.81}
+
+    monkeypatch.setattr("agents.sorter_reviewer.SorterReviewerAgent.review", review)
+    answer = local_backend("Org/Second")("text", DOC_TYPES, CATALOGS)
+    assert (answer.doc_type, answer.doc_subclass, answer.confidence, answer.model) == (
+        "correspondence", "memo", 0.81, "Org/Second")
+    assert calls == [("text", {"valid_doc_types": DOC_TYPES, "doc_subclass_catalogs": CATALOGS})]
+
+
+def test_build_backend_names_the_local_backend():
+    assert callable(build_backend("local", "Org/Second"))

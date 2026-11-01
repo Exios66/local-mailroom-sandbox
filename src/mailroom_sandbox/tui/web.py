@@ -24,7 +24,7 @@ from mailroom_sandbox.tui.services_snapshot import read_services
 from mailroom_sandbox.tui.shell import OPERATOR_CSS, OPERATOR_HTML, OPERATOR_JS
 from mailroom_sandbox.job.checkpoint import RunStore
 from mailroom_sandbox.tui import pretty_log as pl
-from mailroom_sandbox.watch import _LOG_ROLE, LogBuffer, _header, _stream_logs, compose_watch_state
+from mailroom_sandbox.watch import _LOG_ROLE, LogBuffer, PipelineTotals, _header, compose_watch_state
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
@@ -34,6 +34,9 @@ def _hex(rgb: tuple[int, int, int]) -> str:
 
 
 # Mailroom brand — derived from pretty_log so the browser and terminal never drift.
+# Inline so the page never requests /favicon.ico (a console 404 on every load).
+FAVICON_LINK = '<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 16 16\'%3E%3Crect width=\'16\' height=\'16\' rx=\'3\' fill=\'%23101c28\'/%3E%3Ctext x=\'8\' y=\'12\' font-size=\'10\' text-anchor=\'middle\' fill=\'%23f5c445\' font-family=\'monospace\'%3Eo%3C/text%3E%3C/svg%3E">'
+
 THEME = {
     "blue": _hex(pl.BLUE),
     "teal": _hex(pl.TEAL),
@@ -113,7 +116,7 @@ def should_open_browser(*, stream: Any = None) -> bool:
 
 
 def browser_url(host: str, port: int) -> str:
-    display_host = "127.0.0.1" if host in ("0.0.0.0", "::") else host
+    display_host = "127.0.0.1" if host in ("0.0.0.0", "::") else host  # nosec B104
     return f"http://{display_host}:{port}/"
 
 
@@ -153,6 +156,7 @@ class WatchWebSession:
         self._started = time.time()
         self._last_run_id: str | None = None
         self._boot_mark: dict[str, int] = {}
+        self._pipeline_totals = PipelineTotals()
         self._log_stop = threading.Event()
         self._follow_logs = follow_logs
         self._log_identity: tuple[Path, str] | None = None
@@ -172,8 +176,13 @@ class WatchWebSession:
             self._log_stop = threading.Event()
             _, resolved_log = _watch_paths(store, times_dir=self.times_dir,
                 sand032_root=self.sand032_root, log_path=self._log_path_override)
-            if self._follow_logs or self._log_identity is not None:
-                self.sink = LogBuffer(resolved_log)
+            previous = self.sink
+            previous.close()  # hand the log file's writer lock to the new buffer
+            self.sink = LogBuffer(resolved_log)
+            if previous.path is None:
+                # The startup buffer is memory-only (a demo tick may already have
+                # written to it); keep its lines. --no-logs still loads the saved log.
+                self.sink.adopt(previous.tail(2000))
             if self._follow_logs:
                 start_log_streams(store, app, self.sink, self._log_stop)
             self._log_identity = identity
@@ -200,6 +209,7 @@ class WatchWebSession:
             width=100,
             blink=int(time.time()) % 7 == 0,
             campaign_path=self.campaign_path,
+            pipeline_totals=self._pipeline_totals,
         )
         layout = state.get("layout") or {}
         rid = state["snapshot"]["run_id"]
@@ -259,14 +269,18 @@ def _html_page() -> bytes:
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tray TUI · THE MAILROOM · live watch</title>
+{FAVICON_LINK}
 <style>
 :root {{
   {tokens};
   --frame: linear-gradient(135deg, var(--blue), var(--teal));
+  --ruby: #f0606b;
+  --rule: #294051;
+  --ink-2: #b6c8d8;
 }}
 * {{ box-sizing: border-box; }}
 body {{
-  margin: 0; min-height: 100vh; font-family: ui-monospace, "IBM Plex Mono", Menlo, monospace;
+  margin: 0; min-height: 100vh; font-family: "JetBrains Mono", "Berkeley Mono", "IBM Plex Mono", ui-monospace, Menlo, monospace;
   background: #080f17; color: var(--snow); font-size: 13px; line-height: 1.5;
 }}
 .wrap {{ max-width: 1280px; margin: 0 auto; padding: 24px; }}
@@ -286,7 +300,47 @@ header .brand-art[open] {{ position: static; padding: 12px 0; }}
 summary {{ cursor: pointer; }}
 .view-nav {{ display: flex; gap: 4px; border-bottom: 1px solid #294051; margin: 20px 0; overflow-x: auto; }}
 .view-nav button {{ font: inherit; padding: 10px 14px; background: transparent; color: #b6c8d8; border: 0; border-bottom: 2px solid transparent; cursor: pointer; }}
-.view-nav button[aria-current="page"] {{ color: var(--gold); border-bottom-color: var(--gold); }}
+.view-nav button[aria-selected="true"] {{ color: var(--gold); border-bottom-color: var(--gold); }}
+.view-nav button:hover {{ color: var(--snow); }}
+.view-nav kbd {{ color: var(--muted); font: inherit; font-size: 10px; margin-left: 6px; }}
+/* replay strip: lifecycle lanes + per-document timeline (mailroom-reloaded replay viewer) */
+.replay {{ margin: 16px 0; padding: 14px 16px 12px; border: 1px solid var(--rule); border-radius: 4px; background: #0a141e; }}
+.replay-head {{ display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; margin-bottom: 10px; }}
+.replay-head .rid {{ color: var(--cyan); }}
+.replay-head .clock {{ color: var(--snow); font-variant-numeric: tabular-nums; }}
+.replay-head .detail {{ color: var(--ink-2); flex: 1 1 260px; overflow-wrap: anywhere; }}
+.lanes {{ display: grid; grid-template-columns: max-content minmax(0, 14ch) max-content; gap: 1px 18px; margin: 0; }}
+.lane {{ display: contents; }}
+.lane .name {{ color: var(--ink-2); }}
+.lane .trail {{ color: #3b5468; letter-spacing: 1px; overflow: hidden; white-space: nowrap; }}
+.lane .mark {{ min-width: 2ch; }}
+.lane.done .name {{ color: var(--snow); }} .lane.done .trail {{ color: var(--teal); }} .lane.done .mark {{ color: var(--teal); }}
+.lane.now .name {{ color: var(--gold); font-weight: 600; }} .lane.now .trail {{ color: var(--gold); }}
+.lane.failed .name, .lane.failed .mark {{ color: var(--ruby); }}
+.lane.skip .name, .lane.skip .trail {{ color: #3b5468; }}
+.timeline {{ position: relative; height: 22px; margin: 14px 0 6px; }}
+.timeline::before {{ content: ""; position: absolute; left: 0; right: 0; top: 10px; border-top: 1px solid #3b5468; }}
+.timeline .played {{ position: absolute; left: 0; top: 10px; border-top: 2px solid var(--teal); }}
+.timeline .tick {{ position: absolute; top: 5px; width: 1px; height: 11px; background: var(--teal); }}
+.timeline .tick.err {{ top: 4px; width: 7px; height: 7px; margin-left: -3px; background: var(--ruby); transform: rotate(45deg); }}
+.timeline .cursor {{ position: absolute; top: 3px; width: 8px; height: 15px; margin-left: -4px; background: var(--amber); border-radius: 1px; }}
+.stats {{ display: flex; flex-wrap: wrap; gap: 2px 16px; color: var(--ink-2); font-variant-numeric: tabular-nums; }}
+.stats b {{ font-weight: 500; color: var(--snow); }} .stats .good {{ color: var(--teal); }} .stats .bad {{ color: var(--ruby); }}
+.keys {{ margin-top: 8px; color: var(--muted); font-size: 12px; display: flex; flex-wrap: wrap; gap: 2px 14px; }}
+.keys kbd {{ font: inherit; color: var(--ink-2); }}
+dialog.keymap {{ background: #0a141e; color: var(--snow); border: 1px solid var(--cyan); border-radius: 4px; padding: 18px 22px; max-width: min(520px, calc(100vw - 32px)); }}
+dialog.keymap::backdrop {{ background: rgba(4, 9, 14, 0.7); }}
+dialog.keymap h2 {{ margin: 0 0 10px; font-size: 14px; color: var(--gold); }}
+dialog.keymap dl {{ display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0 0 14px; }}
+dialog.keymap dt {{ color: var(--cyan); }} dialog.keymap dd {{ margin: 0; color: var(--ink-2); }}
+dialog.keymap button {{ font: inherit; color: var(--snow); background: transparent; border: 1px solid var(--rule); padding: 6px 12px; border-radius: 3px; cursor: pointer; }}
+.config-grid {{ display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 0 20px; margin: 0; }}
+.config-grid .grp {{ grid-column: 1 / -1; color: var(--gold); padding: 12px 0 4px; }}
+.config-grid .grp:first-child {{ padding-top: 0; }}
+.config-grid dt {{ color: var(--ink-2); padding: 2px 0; }} .config-grid dd {{ margin: 0; padding: 2px 0; color: var(--snow); overflow-wrap: anywhere; }}
+.dot {{ display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); margin-right: 6px; vertical-align: 1px; }}
+.dot.live {{ background: var(--teal); }} .dot.poll {{ background: var(--gold); }} .dot.down {{ background: var(--ruby); }}
+#connection {{ margin-left: auto; }}
 [hidden] {{ display: none !important; }}
 .view-heading {{ font-size: 15px; color: var(--cream); margin: 0 0 12px; }}
 .view-note {{ color: #b6c8d8; font-size: 12px; }}
@@ -319,19 +373,15 @@ header .route {{ color: var(--cyan); font-size: 11px; letter-spacing: 0.06em; }}
   font-family: inherit; letter-spacing: 1px; color: var(--cyan);
   margin: 6px 0; white-space: nowrap; overflow: hidden;
 }}
-.lifecycle {{
-  margin: 12px 0; padding: 10px 12px; border-left: 3px solid var(--gold);
-  background: rgba(245,196,69,0.08); color: var(--cream);
-}}
-.lifecycle.live {{ animation: lifecycle-pulse 2.2s ease-in-out infinite; }}
-@keyframes lifecycle-pulse {{ 50% {{ border-left-color: var(--cyan); opacity: 0.92; }} }}
+.replay.live .lane.now .trail {{ animation: lifecycle-pulse 2.2s ease-in-out infinite; }}
+@keyframes lifecycle-pulse {{ 50% {{ opacity: 0.45; }} }}
 .route-lines {{ white-space: pre-wrap; overflow-wrap: anywhere; color: #b6c8d8; font-size: 11px; line-height: 1.5; }}
 .log {{
   margin-top: 12px; max-height: 280px; overflow-y: auto;
   border: 1px solid var(--teal); border-radius: 6px; background: #050f1a;
 }}
 .log h2 {{ position: sticky; top: 0; }}
-.log-line {{ padding: 2px 10px; border-bottom: 1px solid rgba(14,116,144,0.2); word-break: break-all; }}
+.log-line {{ padding: 2px 10px; border-bottom: 1px solid rgba(14,116,144,0.2); overflow-wrap: anywhere; }}
 .log-line .src {{ color: #b6c8d8; font-size: 10px; text-transform: uppercase; margin-right: 6px; }}
 {roles}
 .log-line.error {{ font-weight: 600; }}
@@ -345,7 +395,25 @@ header .route {{ color: var(--cyan); font-size: 11px; letter-spacing: 0.06em; }}
 .log-tools input[type="search"] {{ width: 180px; }}
 :focus-visible {{ outline: 2px solid var(--gold); outline-offset: 3px; }}
 .sr-only {{ position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }}
-@media (prefers-reduced-motion: reduce) {{ .lifecycle.live, .blink .stage {{ animation: none; }} }}
+/* pipeline floor: the current document's graph-node route (SAND-076) */
+.floor {{ margin: 0 0 16px; padding: 12px 16px; border: 1px solid var(--rule); border-radius: 4px; background: #0a141e; }}
+.floor-head {{ display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; margin-bottom: 8px; }}
+.floor-head h2 {{ margin: 0; font-size: inherit; color: var(--snow); }}
+.floor-head .doc {{ color: var(--cyan); overflow-wrap: anywhere; }}
+.floor-doc + .floor-doc {{ margin-top: 10px; }}
+.floor-doc h3 {{ margin: 0 0 4px; font-size: inherit; font-weight: 400; color: var(--ink-2); overflow-wrap: anywhere; }}
+.hops {{ list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: max-content max-content minmax(0, 1fr); gap: 2px 14px; }}
+.hop {{ display: contents; }}
+.hop .node {{ color: var(--ink-2); }} .hop .ms {{ color: #3b5468; text-align: right; font-variant-numeric: tabular-nums; }}
+.hop .what {{ color: var(--ink-2); overflow-wrap: anywhere; }}
+.hop.done .node {{ color: var(--teal); }} .hop.running .node {{ color: var(--gold); font-weight: 600; }}
+.hop.paused .node {{ color: var(--cyan); }} .hop.error .node, .hop.error .what {{ color: var(--ruby); }}
+.hop .who {{ display: block; color: #5b7a92; }}
+@media (max-width: 560px) {{ .hops {{ grid-template-columns: max-content minmax(0, 1fr); }} .hop .ms {{ display: none; }} }}
+.floor-totals {{ margin-top: 8px; color: var(--ink-2); overflow-wrap: anywhere; }}
+.floor .hop.running .node {{ animation: lifecycle-pulse 2.2s ease-in-out infinite; }}
+@media (prefers-reduced-motion: reduce) {{ .floor .hop.running .node, .replay.live .lane.now .trail, .blink .stage {{ animation: none; }} }}
+@media (max-width: 600px) {{ .view-nav kbd {{ display: none; }} }}
 #hero {{ font-size: min(12px, calc((100vw - 84px) / 60)); }}
 #hero-compact {{ display: none; font-size: min(12px, calc((100vw - 84px) / 36)); }}
 @media (max-width: 800px) {{ #hero {{ display: none; }} #hero-compact {{ display: block; }} }}
@@ -357,6 +425,7 @@ header .route {{ color: var(--cyan); font-size: 11px; letter-spacing: 0.06em; }}
 .blink .stage {{ animation: pulse 1s ease-in-out infinite; }}
 @keyframes pulse {{ 50% {{ opacity: 0.55; }} }}
 footer {{ margin-top: 16px; font-size: 11px; color: #b6c8d8; text-align: center; }}
+footer .keys {{ justify-content: center; }}
 </style>
 </head>
 <body>
@@ -376,27 +445,37 @@ footer {{ margin-top: 16px; font-size: 11px; color: #b6c8d8; text-align: center;
       <span class="stage" id="stage">—</span>
       <span id="ts">—</span>
       <span id="app-line">—</span>
-      <span id="connection" role="status">Connecting…</span>
+      <span id="connection" role="status"><span class="dot" aria-hidden="true"></span><span id="connection-text">Connecting…</span></span>
     </div>
     {SERVICES_HTML}
-    <nav class="view-nav" aria-label="Operator workspace">
-      <button type="button" data-target="overview" aria-current="page">Overview</button>
-      <button type="button" data-target="terminal">Terminal</button>
-      <button type="button" data-target="configuration">Configuration</button>
-      <button type="button" data-target="campaign">Campaign</button>
-    </nav>
-    <section data-view="configuration" hidden aria-labelledby="config-heading">
+    <div class="view-nav" role="tablist" aria-label="Operator workspace">
+      <button type="button" role="tab" id="tab-overview" data-target="overview" aria-controls="view-overview" aria-selected="true" aria-keyshortcuts="1">Overview<kbd aria-hidden="true">1</kbd></button>
+      <button type="button" role="tab" id="tab-terminal" data-target="terminal" aria-controls="view-terminal" aria-selected="false" tabindex="-1" aria-keyshortcuts="2">Terminal<kbd aria-hidden="true">2</kbd></button>
+      <button type="button" role="tab" id="tab-configuration" data-target="configuration" aria-controls="view-configuration" aria-selected="false" tabindex="-1" aria-keyshortcuts="3">Configuration<kbd aria-hidden="true">3</kbd></button>
+      <button type="button" role="tab" id="tab-campaign" data-target="campaign" aria-controls="view-campaign" aria-selected="false" tabindex="-1" aria-keyshortcuts="4">Campaign<kbd aria-hidden="true">4</kbd></button>
+    </div>
+    <section data-view="configuration" id="view-configuration" role="tabpanel" aria-labelledby="tab-configuration" hidden>
       <h2 class="view-heading" id="config-heading">Locked run configuration</h2>
       <p class="view-note">Values from the active run manifest. Configured capacity is not a measurement of active GPUs.</p>
-      <pre class="route-lines configuration" id="configuration"></pre>
+      <div class="configuration"><dl class="config-grid" id="configuration"></dl></div>
     </section>
-    <section data-view="campaign" hidden aria-labelledby="campaign-heading">
+    <section data-view="campaign" id="view-campaign" role="tabpanel" aria-labelledby="tab-campaign" hidden>
       <h2 class="view-heading" id="campaign-heading">Experimental campaign</h2>
       <div id="campaign-content" class="view-note">No campaign associated with this watcher.</div>
     </section>
     {OPERATOR_HTML}
-    <section data-view="overview" aria-label="Run overview">
-    <div class="lifecycle" id="lifecycle" hidden></div>
+    <section data-view="overview" id="view-overview" role="tabpanel" aria-labelledby="tab-overview">
+    <section class="replay" id="replay" aria-label="Run lifecycle and document timeline">
+      <div class="replay-head"><span>lifecycle</span><span class="rid" id="replay-run">—</span><span class="clock" id="replay-clock">00:00</span><span class="detail" id="replay-detail"></span></div>
+      <div class="lanes" id="lanes" role="list"></div>
+      <div class="timeline" id="timeline" role="img" aria-label="Document timeline"></div>
+      <div class="stats" id="stats"></div>
+    </section>
+    <section class="floor" id="floor" aria-labelledby="floor-heading" hidden>
+      <div class="floor-head"><h2 id="floor-heading">Pipeline floor</h2><span class="doc" id="floor-doc"></span></div>
+      <div id="floor-docs"></div>
+      <div class="floor-totals" id="floor-totals"></div>
+    </section>
     <details><summary class="view-note">Run route and campaign details</summary><div class="route-lines" id="program-route" hidden></div></details>
     <div class="grid">
       <section class="panel">
@@ -424,8 +503,24 @@ footer {{ margin-top: 16px; font-size: 11px; color: #b6c8d8; text-align: center;
     </section>
     </section>
   </div></div>
-  <footer id="footer-line">Tray TUI · localhost-only · SSE + poll · hard-refresh after a watch restart</footer>
+  <footer>
+    <div id="footer-line">Tray TUI · localhost-only · SSE + poll · hard-refresh after a watch restart</div>
+    <div class="keys" aria-label="Keyboard shortcuts"><span><kbd>1-4</kbd> workspace</span><span><kbd>←/→</kbd> tabs</span><span><kbd>/</kbd> filter logs</span><span><kbd>f</kbd> follow</span><span><kbd>w</kbd> wordmark</span><span><kbd>?</kbd> keys</span></div>
+  </footer>
 </main>
+<dialog class="keymap" id="keymap" aria-labelledby="keymap-heading">
+  <h2 id="keymap-heading">Keyboard shortcuts</h2>
+  <dl>
+    <dt>1 2 3 4</dt><dd>Overview, Terminal, Configuration, Campaign</dd>
+    <dt>← → Home End</dt><dd>Move between workspace tabs when a tab has focus</dd>
+    <dt>/</dt><dd>Search the dispatch log; Escape clears the search</dd>
+    <dt>f</dt><dd>Follow the latest log line, or hold the current scroll position</dd>
+    <dt>w</dt><dd>Show or hide the ASCII wordmark</dd>
+    <dt>Terminal</dt><dd>Tab completes, ↑/↓ history, Ctrl+L clears, Escape resets</dd>
+    <dt>?</dt><dd>Open this list; Escape closes it</dd>
+  </dl>
+  <form method="dialog"><button type="submit">Close</button></form>
+</dialog>
 <script>
 const LOG_CLASS = {{ error: "error", warn: "warn", throughput: "throughput", kv: "kv", ready: "ready", plain: "plain" }};  // = watch._LOG_ROLE keys
 
@@ -435,15 +530,32 @@ function metric(k, v) {{
 function esc(s) {{
   return String(s ?? "—").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
 }}
-function showView(name) {{
+const VIEWS = ["overview", "terminal", "configuration", "campaign"];
+const TABS = [...document.querySelectorAll('[role="tab"]')];
+function showView(name, {{ focusTab = false }} = {{}}) {{
+  if (!VIEWS.includes(name)) name = "overview";
   for (const panel of document.querySelectorAll("[data-view]")) panel.hidden = panel.dataset.view !== name;
-  for (const button of document.querySelectorAll("[data-target]")) {{
-    if (button.dataset.target === name) button.setAttribute("aria-current", "page");
-    else button.removeAttribute("aria-current");
+  for (const tab of TABS) {{
+    const on = tab.dataset.target === name;
+    tab.setAttribute("aria-selected", String(on));
+    tab.tabIndex = on ? 0 : -1;
+    if (on && focusTab) tab.focus();
   }}
-  if (name === "terminal") document.getElementById("command-input").focus();
+  if (location.hash.slice(1) !== name) history.replaceState(null, "", name === "overview" ? location.pathname : "#" + name);
+  if (name === "terminal" && !focusTab) document.getElementById("command-input").focus();
 }}
-for (const button of document.querySelectorAll("[data-target]")) button.addEventListener("click", () => showView(button.dataset.target));
+for (const tab of TABS) {{
+  tab.addEventListener("click", () => showView(tab.dataset.target));
+  tab.addEventListener("keydown", ev => {{
+    const i = TABS.indexOf(tab);
+    const next = {{ ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: TABS.length - 1 }}[ev.key];
+    if (next === undefined) return;
+    ev.preventDefault();
+    showView(TABS[(next + TABS.length) % TABS.length].dataset.target, {{ focusTab: true }});
+  }});
+}}
+window.addEventListener("hashchange", () => showView(location.hash.slice(1)));
+showView(location.hash.slice(1));
 let logLines = [];
 let dispatchName = "Dispatch log";
 function renderLogs() {{
@@ -464,11 +576,111 @@ function renderLogs() {{
 for (const id of ["log-query", "log-level", "log-follow"]) document.getElementById(id).addEventListener("input", renderLogs);
 document.addEventListener("keydown", ev => {{
   const editing = ev.target.closest("input, select, textarea, [contenteditable]");
-  if (ev.key === "/" && !editing && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {{
-    ev.preventDefault(); document.getElementById("log-query").focus();
+  if (ev.key === "Escape" && ev.target.id === "log-query") {{ ev.target.value = ""; renderLogs(); return; }}
+  if (editing || ev.ctrlKey || ev.metaKey || ev.altKey || document.getElementById("keymap").open) return;
+  if (ev.key === "/") {{
+    ev.preventDefault(); showView("overview"); document.getElementById("log-query").focus();
+  }} else if (/^[1-4]$/.test(ev.key)) {{
+    ev.preventDefault(); showView(VIEWS[Number(ev.key) - 1]);
+  }} else if (ev.key === "f") {{
+    const follow = document.getElementById("log-follow");
+    follow.checked = !follow.checked; renderLogs();
+  }} else if (ev.key === "w") {{
+    const art = document.querySelector(".brand-art"); art.open = !art.open;
+  }} else if (ev.key === "?") {{
+    ev.preventDefault(); document.getElementById("keymap").showModal();
   }}
-  if (ev.key === "Escape" && ev.target.id === "log-query") {{ ev.target.value = ""; renderLogs(); }}
 }});
+// Lifecycle lanes mirror watch.lifecycle(); endpoint/API runs never deploy, so their
+// deploy lanes read as skipped rather than pending.
+const LANES = [["DEPLOYING", "deploy"], ["COLD BOOT", "cold boot"], ["PREFLIGHT", "preflight"],
+  ["SORTING", "sorting"], ["TEARDOWN", "teardown"], ["STOPPED", "stopped"]];
+function clock(sec) {{
+  sec = Math.max(0, Math.floor(Number(sec) || 0));
+  const h = Math.floor(sec / 3600), m = Math.floor(sec / 60) % 60, s = sec % 60;
+  return (h ? h + ":" + String(m).padStart(2, "0") : String(m).padStart(2, "0")) + ":" + String(s).padStart(2, "0");
+}}
+function renderReplay(state, phase, detail) {{
+  const s = state.snapshot || {{}}, sp = state.spend || {{}}, L = state.lifecycle || {{}};
+  const terminal = s.state === "done" || s.state === "failed" || ["COMPLETE", "STOPPED"].includes(phase);
+  const deployed = !!(state.layout && state.layout.times_path);
+  let idx = LANES.findIndex(([p]) => p === phase);
+  if (phase === "COMPLETE") idx = LANES.length;
+  const failed = phase === "FAILED" || s.state === "failed";
+  if (idx < 0) idx = failed ? 3 : (phase === "QUEUED" ? -1 : 3);
+  const done = Number(s.done || 0), total = Number(s.total || 0);
+  document.getElementById("replay-run").textContent = s.run_id ? "run:" + s.run_id : "—";
+  document.getElementById("replay-clock").textContent = clock(L.elapsed_s) + (L.elapsed_s != null ? " in " + phase.toLowerCase() : "");
+  document.getElementById("replay-detail").textContent = detail || "";
+  document.getElementById("replay").classList.toggle("live", phase === "SORTING" || !!state.animate_lifecycle);
+  document.getElementById("lanes").innerHTML = LANES.map(([p, name], i) => {{
+    const skip = !deployed && i < 3 && i !== idx;
+    const isNow = i === idx && !terminal;
+    const cls = skip ? "skip" : failed && i === idx ? "failed" : (i < idx || (terminal && i <= idx)) ? "done" : isNow ? "now" : "";
+    const filled = cls === "done" ? 10 : isNow ? (p === "SORTING" && total ? Math.round(10 * done / total) : 5) : 0;
+    const trail = "•".repeat(filled) + "·".repeat(10 - filled);
+    const mark = skip ? "—" : cls === "failed" ? "◆" : cls === "done" ? "✓" : isNow ? "▸" : "";
+    const label = `${{name}}: ${{skip ? "not used on this route" : cls === "done" ? "done" : cls === "failed" ? "failed" : isNow ? "in progress" : "pending"}}`;
+    return `<div class="lane ${{cls}}" role="listitem" aria-label="${{esc(label)}}"><span class="name">${{esc(name)}}</span><span class="trail" aria-hidden="true">${{trail}}</span><span class="mark" aria-hidden="true">${{mark}}</span></div>`;
+  }}).join("");
+  const marks = state.timeline || [];
+  const span = Math.max(total, marks.length, 1);
+  const offset = Math.max(0, done - marks.length);  // timeline is capped to the latest documents
+  const pos = i => (100 * (i + offset + 0.5) / span).toFixed(3) + "%";
+  const errors = marks.filter(ok => !ok).length;
+  const tl = document.getElementById("timeline");
+  tl.innerHTML = `<div class="played" style="width:${{(100 * Math.min(done, span) / span).toFixed(3)}}%"></div>` +
+    marks.map((ok, i) => `<div class="tick${{ok ? "" : " err"}}" style="left:${{pos(i)}}"></div>`).join("") +
+    (total && done < total ? `<div class="cursor" style="left:${{(100 * done / span).toFixed(3)}}%"></div>` : "");
+  tl.setAttribute("aria-label", `Document timeline: ${{done}} of ${{total || "unknown"}} processed, ${{errors}} returned`);
+  const tokens = Number(s.total_tokens ?? ((s.prompt_tokens || 0) + (s.completion_tokens || 0)));
+  const firstPass = done ? Math.round(100 * Number(s.ok || 0) / done) + "%" : "—";
+  document.getElementById("stats").innerHTML =
+    `<span>docs <b>${{done}}</b> of <b>${{total || "—"}}</b></span>` +
+    `<span>delivered <b class="good">${{esc(s.ok ?? 0)}}</b></span>` +
+    `<span>returned <b class="${{Number(s.errors) ? "bad" : ""}}">${{esc(s.errors ?? 0)}}</b></span>` +
+    `<span>tokens <b>${{tokens.toLocaleString()}}</b></span>` +
+    `<span>spend <b>$${{Number(sp.total_usd || 0).toFixed(4)}}</b></span>` +
+    `<span>p95 <b>${{s.p95_s != null ? s.p95_s + "s" : "—"}}</b></span>` +
+    `<span>first-pass <b class="good">${{firstPass}}</b></span>`;
+}}
+// Pipeline floor: each graph node the newest document has entered, with the
+// typed decisions (noul / choice / score) its agent returned.
+const HOP_MARK = {{ done: "done", running: "in flight", paused: "paused for review", error: "failed" }};
+function decisionText(d) {{
+  let t = `${{d.question}} → ${{d.answer}}`;
+  if (d.p != null) t += ` · p ${{Number(d.p).toFixed(2)}}`;
+  if (d.expected != null) t += ` · expected ${{Number(d.expected).toFixed(2)}}`;
+  const opts = Object.entries(d.options || {{}}).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  if (opts.length) t += " · " + opts.map(([k, v]) => `${{k}} ${{Number(v).toFixed(2)}}`).join(", ");
+  return `${{t}} (${{d.type}})`;
+}}
+function hopRow(h) {{
+  const who = [h.agent, h.model].filter(Boolean).join(" · ");
+  const ds = (h.decisions || []).map(decisionText);
+  const what = h.status === "error" ? (h.error || "failed") : (ds.join("; ") || HOP_MARK[h.status] || "");
+  const ms = h.ms != null ? `${{Math.round(h.ms)}} ms` : "";
+  return `<li class="hop ${{esc(h.status)}}" aria-label="${{esc(h.node + ": " + (HOP_MARK[h.status] || h.status) + (ms ? ", " + ms : ""))}}"><span class="node">${{esc(h.node)}}</span><span class="ms">${{esc(ms)}}</span><span class="what">${{esc(what)}}${{who ? `<span class="who">${{esc(who)}}</span>` : ""}}</span></li>`;
+}}
+function renderFloor(pipe) {{
+  const floor = document.getElementById("floor");
+  floor.hidden = !pipe;
+  if (!pipe) return;
+  // Newest document first; the one before it shows its whole route and decisions.
+  const docs = (pipe.recent || []).slice(-2).reverse();
+  document.getElementById("floor-doc").textContent = `${{pipe.docs_seen}} documents seen`;
+  document.getElementById("floor-docs").innerHTML = docs.map((d, i) => {{
+    const label = i === 0 ? "now" : "previous";
+    return `<div class="floor-doc"><h3>${{label}} · document ${{esc(d.doc)}}</h3><ol class="hops">${{d.route.map(hopRow).join("")}}</ol></div>`;
+  }}).join("");
+  document.getElementById("floor-totals").textContent = (pipe.nodes || []).map(t =>
+    `${{t.node}} ${{t.visits}}×${{t.errors ? ` (${{t.errors}} failed)` : ""}}${{t.mean_ms != null ? ` ${{Math.round(t.mean_ms)}} ms avg` : ""}}`).join(" · ");
+}}
+
+function setConnection(kind, text) {{
+  document.querySelector("#connection .dot").className = "dot " + kind;
+  document.getElementById("connection-text").textContent = text;
+}}
 
 {SERVICES_JS}
 {OPERATOR_JS}
@@ -492,12 +704,22 @@ function render(state) {{
   const sp = state.spend || {{}};
   const layout = state.layout || {{}};
   const panels = layout.panels || {{}};
-  document.getElementById("configuration").textContent = (layout.configuration || []).join("\\n");
+  let lastGroup = null;
+  document.getElementById("configuration").innerHTML = (layout.configuration || []).map(line => {{
+    const cut = line.indexOf(": ");
+    const key = cut < 0 ? line : line.slice(0, cut), value = cut < 0 ? "" : line.slice(cut + 2);
+    const dot = key.indexOf("."), space = key.indexOf(" ");
+    const split = dot > 0 && (space < 0 || dot < space) ? dot : space;
+    const group = split > 0 ? key.slice(0, split) : key, name = split > 0 ? key.slice(split + 1) : key;
+    const head = group !== lastGroup ? `<div class="grp">${{esc(group)}}</div>` : "";
+    lastGroup = group;
+    return head + `<dt title="${{esc(key)}}">${{esc(name)}}</dt><dd>${{esc(value)}}</dd>`;
+  }}).join("") || `<div class="grp">Configuration not locked yet</div>`;
   const campaign = state.campaign;
   document.getElementById("campaign-content").innerHTML = campaign
     ? `<p>${{esc(campaign.study)}} · ${{esc(campaign.design)}} · ${{esc(campaign.completed)}}/${{esc(campaign.total)}} runs complete</p>` +
       campaign.runs.map(run => `<div class="campaign-run"><span>${{run.run_id === campaign.current ? "▶ " : ""}}${{esc(run.run_id)}}</span><span>${{esc(run.state)}} · ${{esc(run.done)}}/${{esc(run.total)}}</span></div>`).join("")
-    : "No campaign associated with this watcher. Use sandbox experiment watch --config <experiment.yaml>.";
+    : "No campaign associated with this watcher. Use sandbox experiment watch --config &lt;experiment.yaml&gt;.";
   document.title = panels.window_title || "Tray TUI · THE MAILROOM · live watch";
   document.getElementById("brand-sub").hidden = false;
   document.getElementById("route-label").hidden = false;
@@ -527,15 +749,8 @@ function render(state) {{
   const watcher = state.watcher_label || ("Tray TUI watcher · app " + (state.app || "—"));
   document.getElementById("app-line").textContent = watcher;
 
-  const life = document.getElementById("lifecycle");
-  if (state.lifecycle || s.state === "running") {{
-    life.hidden = false;
-    life.classList.toggle("live", phase === "SORTING" || !!state.animate_lifecycle);
-    const el = L.elapsed_s || 0;
-    const tag = layout.stage || "";
-    life.textContent = `▸${{phase}}◂  ${{detail}}  ·  ${{Math.floor(el/60)}}m${{String(el%60).padStart(2,"0")}}s` + (tag ? `  ·  ${{tag}}` : "");
-  }} else {{ life.hidden = true; life.classList.remove("live"); }}
-
+  renderReplay(state, phase, detail);
+  renderFloor(state.pipeline);
   const route = document.getElementById("program-route");
   if (state.route && state.route.length) {{
     route.hidden = false;
@@ -568,11 +783,11 @@ function render(state) {{
     metric("live run", "$" + Number(sp.live_usd || 0).toFixed(4)) +
     metric("total", `$${{Number(sp.total_usd || 0).toFixed(4)}} / $${{Number(sp.cap_usd || 0).toFixed(2)}}`) +
     `<div class="bar">${{esc(sp.bar || "")}}  ${{pct}}</div>` +
-    metric("gate", `$${{Number(sp.gate_usd || 4.5).toFixed(2)}} projected-total stop`) +
+    (sp.gate_usd != null ? metric("gate", `$${{Number(sp.gate_usd).toFixed(2)}} configured estimate gate`) : "") +
     (sp.over_gate ? `<div class="metric"><span class="v" style="color:var(--gold)">⚠ OVER GATE</span></div>` : "");
   const foot = document.getElementById("footer-line");
   if (foot) {{
-    foot.textContent = `Tray TUI · ${{s.run_id || "—"}} · ${{prog.done ?? 0}}/${{prog.total ?? 0}} · $${{Number(sp.total_usd || 0).toFixed(4)}} · v${{state.ui_version || "—"}}`;
+    foot.textContent = `Tray TUI · ${{s.run_id || "—"}} · ${{prog.done ?? 0}}/${{prog.total ?? 0}} · $${{Number(sp.total_usd || 0).toFixed(4)}} · updated ${{state.ts ? state.ts.slice(11) : "—"}}`;
   }}
 
   const sc = document.getElementById("scorecard-wrap");
@@ -589,24 +804,24 @@ function render(state) {{
 function pullState() {{
   fetch("/api/state?t=" + Date.now(), {{ cache: "no-store" }})
     .then((r) => {{ if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); }})
-    .then(state => {{ document.getElementById("connection").textContent = es.readyState === EventSource.OPEN ? "Live · SSE" : "Connected · polling"; render(state); }})
-    .catch(() => {{ document.getElementById("connection").textContent = "Disconnected · retrying"; }});
+    .then(state => {{ if (es.readyState === EventSource.OPEN) setConnection("live", "Live · SSE"); else setConnection("poll", "Connected · polling"); render(state); }})
+    .catch(() => {{ setConnection("down", "Disconnected · retrying"); }});
 }}
 pullState();
 setInterval(pullState, 2000);
 const es = new EventSource("/api/stream?t=" + Date.now());
 es.onmessage = (ev) => {{
-  document.getElementById("connection").textContent = "Live · SSE";
+  setConnection("live", "Live · SSE");
   try {{ render(JSON.parse(ev.data)); }} catch (e) {{ console.error(e); }}
 }};
 es.onerror = () => {{
-  document.getElementById("connection").textContent = "Reconnecting · polling";
+  setConnection("poll", "Reconnecting · polling");
   document.getElementById("error").hidden = false;
   document.getElementById("error").textContent = "SSE disconnected — polling /api/state…";
 }};
 </script>
 </body>
-</html>"""
+</html>"""  # nosec B608 - HTML page template, not SQL
     return page.encode("utf-8")
 
 

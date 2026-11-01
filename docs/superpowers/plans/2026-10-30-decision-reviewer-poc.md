@@ -6,11 +6,40 @@
 
 **Architecture:** `llm-mailroom` gains a pure routing function, a pluggable decision backend and durable reviewer fields. The sandbox supplies the Jev backend, a frozen run setting and `sandbox review`, which is a thin client over the existing review API. Pilot 1 runs offline first, then as one bounded live run.
 
+> **Updated 2026-10-31:** the sandbox now supplies four backends, `jev`, `local`, `api` and `mock`, not only Jev. The current routing and backend rules are in `config/experiments/decision-pilot/README.md`. The text above is the original plan.
+
 **Tech Stack:** Python 3.11+, LangGraph, Pydantic, pytest, Pydantic AI (`pydantic-ai-slim[typesafe]`), httpx.
 
 **Spec:** `docs/superpowers/specs/2026-10-30-decision-model-reviewer-design.md`
 
+## Handoff checkpoint — 2026-10-30
+
+- Tasks 1–3 exist in standalone `llm-mailroom` on `feat/decision-reviewer` at
+  `1530f496a6c745186bb86d12b5f0472c667a404a`. The focused routing/node/evidence
+  suite passes **66 tests** with the pinned Dojo package on `PYTHONPATH`.
+  This is not a claim that the complete upstream suite was run.
+- Task 4 has an exact-SHA generated **interim branch snapshot**; upstream merge
+  and release finalization remain approval-gated. The previous interim snapshot
+  predated seven committed source updates and failed the drift guard.
+- Tasks 5–6 were committed before this handoff; backend, frozen-spec and CLI
+  coverage are in `tests/test_decision_backends.py` and `tests/test_reviewer_spec.py`.
+- Tasks 7–8 are implemented locally: terminal client plus six offline exhibits,
+  real graph/bin/catalog integration, API-backed approve/reject, and SQLite
+  restart recovery. See `tests/test_review_cli.py`, `tests/test_decision_pilot.py`
+  and `config/experiments/decision-pilot/README.md`.
+- Task 9 is **blocked on operator approvals and data/credential/spend gates**.
+  No live run, push or merge has been performed. Later plans remain separate.
+- Final sandbox validation: **2006 passed / 20 skipped** (`python -m pytest -q`);
+  CLI-reference and requirements generation checks, `uv lock --check`,
+  `uv pip check`, and staged/unstaged whitespace checks pass. `SAND-082` tracks
+  the remaining operator gates; skipped tests are not live evidence.
+
+The original step checkboxes below are retained as the implementation recipe;
+unchecked historical steps are not a replacement for this verified checkpoint.
+
 ## Scope and schedule
+
+> **Updated 2026-10-31:** plan 3 (sanitized correspondence) is cancelled (SAND-086). The Enron correspondence is public, so no sanitized dataset is needed and every backend accepts correspondence. The row below is kept as the original plan.
 
 This is plan 1 of 5. The spec covers independent subsystems, so each later plan gets its own document and review. Dates are proposed targets against the December 15, 2026 final presentation.
 
@@ -24,7 +53,21 @@ This is plan 1 of 5. The spec covers independent subsystems, so each later plan 
 
 ## Global Constraints
 
-- Name no outside organization and imply no affiliation, endorsement, sponsorship or shared work in any file, commit, PR or report.
+> **Updated 2026-10-31:** the correspondence bullet below is superseded: correspondence is accepted by every backend and needs no sanitized dataset (SAND-086 cancelled). Failure routes still end in `human_review`, but a decision class now reaches its reviewer at any sorter confidence, and a reviewer may correct a sorter below its low band at the cutoff. See `config/experiments/decision-pilot/README.md`.
+
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:27caf21551400a2d2e07ae9edfb73c127a428b294812a86a69ab65b15f6735d7 -->
+
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:957026ee265cb142728a060f197830c1b0b8b7f3ed8684c8fbecbb929b469e91 -->
+
+- Name outside vendors only to describe their products. Do not imply affiliation, endorsement, sponsorship or shared work in any file, commit, PR or report without written clearance from the user.
+
+<!-- /coderabbit-ai-generated:v1 -->
+
+<!-- /coderabbit-ai-generated:v1 -->
 - Source changes land in `Exios66/llm-mailroom` first, then reach `vendor/` through the reviewed refresh. Never edit `vendor/` by hand.
 - Default behavior is unchanged: without explicit config, the mode is `llm`, and no decision-model call occurs.
 - The default test suites make no network calls.
@@ -45,6 +88,8 @@ This is plan 1 of 5. The spec covers independent subsystems, so each later plan 
 ---
 
 ### Task 1: Pure review routing (`llm-mailroom`)
+
+> **Updated 2026-10-31:** `decide_review` gained a `sorter_unsure` argument. When the sorter is below its low band, only the reviewer's label must be eligible, and the reviewer may correct the sorter at the cutoff. The override-never-accepts test below covers a sorter at or above its low band, where disagreement still parks.
 
 **Files:**
 - Create: `src/pipeline/decision_review.py`
@@ -289,6 +334,8 @@ git commit -m "chore: vendor llm-mailroom decision reviewer"
 
 ### Task 5: Decision backends
 
+> **Updated 2026-10-31:** `build_backend` now accepts `jev`, `local`, `api` and `mock`. `api` requires an exact provider id such as `openai/gpt-6-luna` (no `-latest` or `~` aliases), and the Decisions API adapter described below was not built. The `local` and `api` backends run the `sorter_reviewer` agent.
+
 **Files:**
 - Create: `src/mailroom_sandbox/decision_backends.py`
 - Modify: `pyproject.toml`
@@ -340,6 +387,8 @@ git commit -m "feat: add Jev and mock decision backends"
 
 ### Task 6: Frozen reviewer setting
 
+> **Updated 2026-10-31:** `ReviewerSpec.backend` is `Literal["jev", "local", "api", "mock"]`. The correspondence rejection described below was removed, so `test_rejects_correspondence_for_live_backend` no longer applies. Preflight checks each route: `local` needs a `modal-vllm` or `vllm` route, and `api` needs an `openrouter` route.
+
 **Files:**
 - Modify: `src/mailroom_sandbox/job/spec.py:382,521,638`, `src/mailroom_sandbox/job/preflight.py`, `src/mailroom_sandbox/runtime.py:222` (`activate`), `src/mailroom_sandbox/experiments.py`, `src/mailroom_sandbox/cli.py`
 - Test: `tests/test_reviewer_spec.py`
@@ -375,7 +424,13 @@ Pin validation matches Task 5. The correspondence rejection stays until plan 3 r
 
 - [ ] **Step 4: Implement activation and CLI flags**
 
-`activate` writes the `reviewer` block into the merged taxonomy and registers the backend. Clear the registration on deactivation. Regenerate the CLI reference.
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:bd1c364cb17ac806601d42b287e3062d593324d3e3f799f6f176db9cc2cc89e7 -->
+
+`activate` writes the `reviewer` block into the merged taxonomy and registers the backend. An activation without a reviewer clears the registration. Regenerate the CLI reference.
+
+<!-- /coderabbit-ai-generated:v1 -->
 
 - [ ] **Step 5: Run tests and the CLI surface check**
 

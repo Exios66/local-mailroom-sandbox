@@ -82,6 +82,8 @@ def _load_dotenv() -> None:
     """Load the sandbox ``.env`` files into ``os.environ`` without overriding variables that are already set.
 
     """
+    if os.environ.get("SANDBOX_SKIP_DOTENV"):
+        return  # tests: a developer's real keys must never reach a test
     for candidate in dotenv_files():
         load_dotenv(candidate, override=False)
 
@@ -184,6 +186,8 @@ def apply_profile_env(profile: dict, *, base_url_override: str | None = None) ->
     os.environ.setdefault("PHOENIX_ENDPOINT", "http://localhost:6006/v1/traces")
     os.environ.setdefault("PHOENIX_PROJECT", "mailroom-sandbox")
     os.environ.setdefault("MAILROOM_BASE_DIR", str(repo_root() / "data"))
+    # Parked human reviews keep their graph position across a process restart.
+    os.environ.setdefault("MAILROOM_CHECKPOINTER", "sqlite")
 
 
 def resolve_agent_knobs(agent_knobs: dict | None = None) -> dict:
@@ -222,8 +226,9 @@ def stamp_locked_record(record: dict[str, Any]) -> None:
 def _install_reviewer(reviewer: Any, taxonomy: dict) -> Any:
     """Write the taxonomy ``reviewer`` block; return the backend to register (or None).
 
-    The base taxonomy is read back from the previously patched config path, so
-    the block is always rewritten rather than inherited from an earlier run.
+    The base taxonomy comes from the shipped file (``overlay.mailroom_taxonomy_path``),
+    and the reviewer block is overwritten unconditionally, including when no
+    reviewer is configured, so earlier settings do not carry over.
     """
     if reviewer is None:
         taxonomy["reviewer"] = {"default_mode": "llm", "by_class": {}}

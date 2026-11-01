@@ -80,6 +80,10 @@ VALID_QUANTIZATIONS = {
 _RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 
 
+class InvalidRunIdError(ValueError):
+    """A run id that is not a safe directory name (an input error, not a bug)."""
+
+
 class PromptRef(BaseModel):
     """One agent's prompt resolution: local file-, Langfuse pin, or code default."""
 
@@ -274,6 +278,9 @@ class VLLMSpec(BaseModel):
     #  "original_max_position_embeddings": 32768, "rope_theta": 1000000}}
     # (v0.29.0 reads Transformers-v5 `rope_parameters`; vLLM derives max len 65536).
     hf_overrides: dict[str, Any] | None = None
+    # SAND-077: per-modality item caps (`vllm serve --limit-mm-per-prompt`).
+    # {"image": 0, ...} keeps a multimodal checkpoint (Qwen3.5) text-only.
+    limit_mm_per_prompt: dict[str, int] | None = None
 
     @field_validator("kv_cache_dtype")
     @classmethod
@@ -338,6 +345,8 @@ class ModalSpec(BaseModel):
     max_containers: int = 1
     min_containers: int = 0  # scale-to-zero; mirror MODAL_VLLM_MIN_CONTAINERS
     prewarm: bool = True
+    # Deploy from the workspace's published sandbox-vllm:<image_tag> instead of building.
+    named_image: bool = False
 
     @field_validator("gpu")
     @classmethod
@@ -372,11 +381,42 @@ class ModalSpec(BaseModel):
         return v
 
 
+DEFAULT_ENGINE_MODEL = "Qwen/Qwen3.5-9B"  # SAND-077 app default (Modal+vLLM)
+
+# Serve flags a model needs when the spec leaves them unset. Mirrors the
+# config/models.yaml row and deploy/modal_vllm.py MODEL_SERVE_DEFAULTS (parity
+# tested): Qwen3.5 has no published FP8 checkpoint, so it serves online fp8,
+# text-only.
+MODEL_SERVE_DEFAULTS: dict[str, dict[str, Any]] = {
+    "Qwen/Qwen3.5-9B": {
+        "quantization": "fp8",
+        "limit_mm_per_prompt": {"image": 0, "video": 0, "audio": 0},
+    },
+    "Qwen/Qwen3.5-35B-A3B": {  # SAND-079 mid specialist tier
+        "quantization": "fp8",
+        "limit_mm_per_prompt": {"image": 0, "video": 0, "audio": 0},
+    },
+    "Qwen/Qwen3.5-27B": {  # SAND-078 judge tier
+        "quantization": "fp8",
+        "limit_mm_per_prompt": {"image": 0, "video": 0, "audio": 0},
+    },
+}
+
+
 class EngineSpec(BaseModel):
     kind: Literal["vllm-local", "vllm-remote", "modal-vllm", "openrouter"] = "modal-vllm"
-    model: str = "Qwen/Qwen3-8B"
+    model: str = DEFAULT_ENGINE_MODEL
     vllm: VLLMSpec = Field(default_factory=VLLMSpec)
     modal: ModalSpec | None = Field(default_factory=ModalSpec)
+
+    @model_validator(mode="after")
+    def _serve_defaults(self) -> "EngineSpec":
+        """Fill a model's required serve flags; an explicit value always wins."""
+        for key, value in MODEL_SERVE_DEFAULTS.get(self.model, {}).items():
+            unset = key not in self.vllm.model_fields_set if key == "quantization" else getattr(self.vllm, key) is None
+            if unset:
+                setattr(self.vllm, key, value.copy() if isinstance(value, dict) else value)
+        return self
 
 
 class AgentRoute(BaseModel):
@@ -421,7 +461,7 @@ def known_tasks() -> tuple[str, ...]:
     """
     base = (
         "sorter",
-        "legalbench",
+        "specialist",
         "pipeline",
         "extract",
         "chained",
@@ -432,7 +472,7 @@ def known_tasks() -> tuple[str, ...]:
     try:
         from mailroom_sandbox.eval.agents import SPECS
 
-        agents = tuple(n for n in SPECS if n not in ("sorter", "legalbench"))
+        agents = tuple(n for n in SPECS if n != "sorter")
     except Exception as exc:  # pragma: no cover — defensive for partial tooling imports
         _log.warning(
             "eval.agents.SPECS unavailable — agent-registered tasks are NOT in the "
@@ -470,6 +510,10 @@ class JobSpec(BaseModel):
     # runs; exceeding either cap fails the run loud (no silent overspend).
     cost_cap_usd: float | None = None
     max_wall_seconds: int | None = None
+    # SAND-089: token spend ceiling for agents on a token-billed API (OpenRouter).
+    # cost_cap_usd estimates GPU time only; a paid run that bills API tokens needs
+    # this too, and a known price for every API model (job/api_budget.py).
+    api_cost_cap_usd: float | None = None
 
     @field_validator("task")
     @classmethod
@@ -501,6 +545,14 @@ class JobSpec(BaseModel):
             raise ValueError("cost_cap_usd must be > 0 when set")
         return v
 
+    @field_validator("api_cost_cap_usd")
+    @classmethod
+    def _api_cost_cap(cls, v: float | None) -> float | None:
+        """Reject a NaN or non-positive API spend ceiling when one is set."""
+        if v is not None and (not math.isfinite(v) or v <= 0):
+            raise ValueError("api_cost_cap_usd must be > 0 when set")
+        return v
+
     @field_validator("max_wall_seconds")
     @classmethod
     def _max_wall(cls, v: int | None) -> int | None:
@@ -513,7 +565,7 @@ class JobSpec(BaseModel):
 class ReviewerSpec(BaseModel):
     """Frozen decision-model reviewer: which backend, which pinned model, which classes at what cutoff."""
     model_config = {"extra": "forbid"}
-    backend: Literal["jev", "mock"]
+    backend: Literal["jev", "local", "api", "mock"]
     model: str = Field(min_length=1)
     classes: dict[str, float]
 
@@ -533,9 +585,6 @@ class ReviewerSpec(BaseModel):
         from mailroom_sandbox.decision_backends import build_backend
 
         build_backend(self.backend, self.model)
-        if self.backend == "jev" and "correspondence" in self.classes:
-            # Dropped when the correspondence reviewer path is supported live.
-            raise ValueError("correspondence cannot use the live jev backend yet; use mock offline")
         return self
 
 
@@ -552,6 +601,9 @@ class RunSpec(BaseModel):
     run_id: str | None = None
     runbook_id: str | None = None
     task: str = "sorter"
+    # Level 2 of the primary tasks: one specialist (task: specialist) or one
+    # document class through the full graph (task: pipeline). None = all.
+    target: str | None = None
     profile: str = "modal-vllm"
     prompt: dict[str, Any] = Field(default_factory=dict)  # {default:..., agents:{name:...}}
     dataset: DatasetSpec = Field(default_factory=DatasetSpec)
@@ -588,6 +640,17 @@ class RunSpec(BaseModel):
     @classmethod
     def _task_known(cls, v: str) -> str:
         return _check_task(v)
+
+    @model_validator(mode="after")
+    def _target(self) -> "RunSpec":
+        if self.target is None:
+            return self
+        from mailroom_sandbox.eval.primary import PRIMARY_TASKS, resolve_class
+
+        if self.task not in PRIMARY_TASKS:
+            raise ValueError(f"target only applies to task specialist or pipeline, not {self.task!r}")
+        self.target = resolve_class(self.target)
+        return self
 
     @model_validator(mode="after")
     def _prompt_map(self) -> "RunSpec":
@@ -652,7 +715,7 @@ def prompt_resolution_map(spec: RunSpec) -> dict[str, Any]:
 # SAND-032 knobs hash only when set, so pre-SAND-032 run YAMLs keep their
 # recorded spec_hash (locks, resume, and hashes cited in committed reports).
 _HASH_WHEN_SET = ("kv_cache_dtype", "enable_thinking", "cudagraph_capture_sizes",
-                  "max_num_batched_tokens", "max_inputs", "hf_overrides")
+                  "max_num_batched_tokens", "max_inputs", "hf_overrides", "limit_mm_per_prompt")
 
 
 def _vllm_core(vllm: VLLMSpec) -> dict[str, Any]:
@@ -669,21 +732,36 @@ def spec_core(spec: RunSpec) -> dict[str, Any]:
     return {
         **({"agent_models": dict(sorted(spec.agent_models.items()))} if spec.agent_models else {}),
         **({"agent_knobs": spec.agent_knobs} if spec.agent_knobs else {}),
-        **({"agent_routes": {name: route.model_dump() for name, route in spec.agent_routes.items()}} if spec.agent_routes else {}),
+        **({"agent_routes": {name: _route_core(route) for name, route in spec.agent_routes.items()}} if spec.agent_routes else {}),
         **({"reviewer": spec.reviewer.model_dump()} if spec.reviewer else {}),
         "task": spec.task,
+        # Hashed only when set, so every pre-existing run YAML keeps its spec_hash.
+        **({"target": spec.target} if spec.target else {}),
         "profile": spec.profile,
         "engine": {
             "kind": spec.engine.kind,
             "model": spec.engine.model,
             "vllm": _vllm_core(spec.engine.vllm),
-            "modal": spec.engine.modal.model_dump() if spec.engine.modal else None,
+            "modal": _modal_core(spec.engine.modal),
         },
-        "job": spec.job.model_dump(),
+        # api_cost_cap_usd is hashed only when set, so pre-SAND-089 YAMLs keep their hash.
+        "job": {key: value for key, value in spec.job.model_dump().items()
+                if not (key == "api_cost_cap_usd" and value is None)},
         "trace": spec.trace.model_dump(),
         "prompt": prompt_resolution_map(spec),
         "dataset": spec.dataset.request_core(),
     }
+
+
+def _modal_core(modal: ModalSpec | None) -> dict[str, Any] | None:
+    """named_image is hashed only when set, so existing run YAMLs keep their hash."""
+    if modal is None:
+        return None
+    return {key: value for key, value in modal.model_dump().items() if key != "named_image" or value}
+
+
+def _route_core(route: Any) -> dict[str, Any]:
+    return {**route.model_dump(), "modal": _modal_core(route.modal)}
 
 
 def spec_hash(spec: RunSpec) -> str:
@@ -703,7 +781,7 @@ def _slug(value: str) -> str:
 def resolve_run_id(spec: RunSpec) -> str:
     if spec.run_id:
         if not _RUN_ID_RE.match(spec.run_id):
-            raise ValueError(f"run_id {spec.run_id!r} must match {_RUN_ID_RE.pattern}")
+            raise InvalidRunIdError(f"run_id {spec.run_id!r} must match {_RUN_ID_RE.pattern}")
         return spec.run_id
     return f"{_slug(spec.task)}-{_slug(spec.engine.model.split('/')[-1])}-{utc_stamp()}"
 
@@ -716,7 +794,7 @@ def runs_root() -> Path:
 
 def run_dir(run_id: str) -> Path:
     if not _RUN_ID_RE.match(run_id):
-        raise ValueError(f"run_id {run_id!r} must match {_RUN_ID_RE.pattern}")
+        raise InvalidRunIdError(f"run_id {run_id!r} must match {_RUN_ID_RE.pattern}")
     return runs_root() / run_id
 
 

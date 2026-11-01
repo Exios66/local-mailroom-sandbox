@@ -40,18 +40,28 @@ class ReviewRoute:
 
 
 def _valid_confidence(value: object) -> bool:
+    """Accept finite numeric values in [0, 1], excluding booleans.
+
+    An oversized integer fails the bounds check and returns False.
+    """
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return False
-    return math.isfinite(value) and 0.0 <= value <= 1.0
+    # Bounds first: math.isfinite raises OverflowError on an oversized int.
+    return 0.0 <= value <= 1.0 and math.isfinite(value)
 
 
 def _meets_cutoff(confidence: object, cutoff: object) -> bool:
+    """Return whether a valid confidence meets a valid cutoff.
+
+    Anything invalid, including an oversized integer, returns False.
+    """
     if not _valid_confidence(confidence) or not _valid_confidence(cutoff):
         return False
     return float(confidence) >= float(cutoff)  # type: ignore[arg-type]
 
 
 def _route(causes: list[str]) -> ReviewRoute:
+    """Escalate when causes are present; otherwise accept for extraction."""
     if causes:
         return ReviewRoute("human_review", tuple(causes), "decision_escalates")
     return ReviewRoute("extract", (), "decision_accepts")
@@ -65,7 +75,16 @@ def decide_review(
     cutoffs: Mapping[str, float],
     has_text: bool,
 ) -> ReviewRoute:
-    """Route one document; causes are listed in the spec's table order."""
+    """Route a decision review and return its destination, causes, and verdict.
+
+    Extraction requires text, matching sorter and reviewer labels in
+    ``eligible``, and confidence at or above the reviewer's class cutoff.
+    Confidence and cutoff must be finite numbers in [0, 1], excluding
+    booleans. Missing or invalid cutoffs and confidence cause escalation.
+    An absent answer records unavailability and, if applicable, missing text;
+    otherwise all failed conditions are recorded in the spec's table order.
+    Oversized integers count as invalid and escalate; they never raise.
+    """
     causes: list[str] = []
     if answer is None:
         causes.append(REVIEWER_UNAVAILABLE)
