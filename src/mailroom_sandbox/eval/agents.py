@@ -145,10 +145,67 @@ def _live_sorter(row: dict[str, Any]) -> dict[str, Any]:
     return SorterAgent().classify_json(_doc_text(row))
 
 
+def _locked_reviewer() -> dict[str, Any] | None:
+    from mailroom_sandbox.runtime import active_reviewer
+
+    return active_reviewer()
+
+
 def _live_reviewer(row: dict[str, Any]) -> dict[str, Any]:
+    reviewer = _locked_reviewer()
+    if reviewer and reviewer.get("backend") == "decisions":
+        if not reviewer.get("question_set"):
+            raise RuntimeError("decisions reviewer has no locked question set; re-run sandbox run preflight")
+        # The Decisions-API reviewer, with the question set frozen in the run lock.
+        from mailroom_sandbox.decision_backends import (
+            DECISIONS_MAX_INPUT_CHARS,
+            calibration_handoff,
+            decide,
+            decision_questions,
+        )
+
+        qset = reviewer["question_set"]
+        handoff = None
+        if qset.get("handoff"):
+            handoff = calibration_handoff((reviewer.get("handoff") or {}).get(str(row.get("id"))))
+        return decide(_doc_text(row), model=reviewer["model"], questions=decision_questions(qset),
+                      max_input_chars=int(qset.get("max_input_chars") or DECISIONS_MAX_INPUT_CHARS), qset=qset,
+                      handoff=handoff)
     from agents.sorter_reviewer import SorterReviewerAgent  # type: ignore
 
     return SorterReviewerAgent().review(_doc_text(row))
+
+
+def _gate_handoff(row: dict[str, Any]) -> dict[str, Any] | None:
+    reviewer = _locked_reviewer() or {}
+    return (reviewer.get("handoff") or {}).get(str(row.get("id")))
+
+
+def _live_extraction_gate(row: dict[str, Any]) -> dict[str, Any]:
+    """The Decisions-model extraction gate on the specialist's frozen extraction of this row."""
+    reviewer = _locked_reviewer()
+    if not reviewer or reviewer.get("backend") != "decisions" or not reviewer.get("question_set"):
+        raise RuntimeError("extraction_gate needs a locked decisions reviewer with a question set; re-run sandbox run preflight")
+    handoff = _gate_handoff(row)
+    if not handoff:
+        raise RuntimeError(f"no specialist extraction for document {row.get('id')!r} in reviewer.handoff_run")
+    from mailroom_sandbox.decision_backends import decide_extraction
+
+    return decide_extraction(_doc_text(row), handoff, model=reviewer["model"], qset=reviewer["question_set"])
+
+
+def _mock_extraction_gate(row: dict[str, Any]) -> dict[str, Any]:
+    return {"verdict": "accept", "accept_probability": 0.5, "verdict_probabilities": {"accept": 0.5},
+            "field_support": {}, "confidence": 0.5, "mock": True}
+
+
+def _score_extraction_gate(row: dict[str, Any], pred: dict[str, Any]) -> dict[str, Any]:
+    """The gate's answer next to the dojo score of the extraction it judged (the gate's truth)."""
+    handoff = _gate_handoff(row) or {}
+    truth = _score_extract(row, handoff.get("fields") or {}) if handoff.get("fields") else {}
+    return {"accept_probability": pred.get("accept_probability"), "verdict": pred.get("verdict"),
+            "extraction_score": truth.get("overall_extraction_score"),
+            "scoring_method": truth.get("scoring_method"), "doc_type": handoff.get("doc_type")}
 
 
 def chunk_window(max_input_chars: int, chunk_chars: int, overlap_chars: int) -> tuple[int, int]:
@@ -491,6 +548,18 @@ for _agent, _cls in SPECIALIST_CLASS.items():
             score_one=_score_extract,
         )
     )
+
+_register(
+    AgentSpec(
+        name="extraction_gate",
+        observation="extraction-gate",
+        dojo_profile="judge",
+        load_rows=lambda: [r for r in load_manifest() if parse_expected_fields(r)][:2],
+        mock_predict=_mock_extraction_gate,
+        live_predict=_live_extraction_gate,
+        score_one=_score_extraction_gate,
+    )
+)
 
 _register(
     AgentSpec(

@@ -61,6 +61,12 @@ def pytest_collection_modifyitems(config, items):
 
 
 @pytest.fixture(autouse=True)
+def _isolated_run_ledger(tmp_path, monkeypatch):
+    """Signed test runs must not append to the tracked reports/run-ledger.md."""
+    monkeypatch.setenv("SANDBOX_RUN_LEDGER", str(tmp_path / "_ledger" / "run-ledger.md"))
+
+
+@pytest.fixture(autouse=True)
 def _isolated_beacon_dir(tmp_path, monkeypatch):
     """Runs started in tests publish mailroom beacons — keep them out of ~/.mailroom/jobs."""
     monkeypatch.setenv("MAILROOM_BEACON_DIR", str(tmp_path / "_beacons"))

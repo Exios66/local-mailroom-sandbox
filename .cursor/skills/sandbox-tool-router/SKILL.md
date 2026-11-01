@@ -18,6 +18,7 @@ Read this skill **first** when the task touches providers, tracing, datasets, Do
 | Hosted eval / experiment logs (opt-in) | Braintrust | [braintrust](../braintrust/SKILL.md) | Braintrust as the default offline sink |
 | Hub datasets / model cards / HF cache | Hugging Face Hub + `sandbox datasets pull` / `sandbox hf …` | [huggingface](../huggingface/SKILL.md) | Live Hub pulls in default pytest |
 | Offline fixture prep | `sandbox datasets prepare` + notebooks | (prep helpers; no cloud) | Hub network in CI |
+| Decision-reviewer calibration (paid OpenRouter `sorter_reviewer` runs) | `reviewer: {backend: decisions, model: openai/gpt-6-luna-decisions, questions: <stem>}` + `sandbox run preflight` → `sandbox run start --initials XX` → `scripts/calibrate_reviewer.py --run <id>` | `config/decisions/*.yaml`, `reports/reviewer-calibration/` | The chat model `openai/gpt-6-luna` as the reviewer; hand-picked cutoffs; `-latest` / `~` model ids |
 | Sandbox-isolated tasks / governance | Local **`SAND-*`** board (`governance/TASKS.md`) | (this router + `governance/PREFIX.md`) | Family **`DMR-*`** MESSAGE_BOARD (cross-repo only) |
 
 ## Observability precedence (`OBSERVABILITY_PROVIDER`)
@@ -43,6 +44,15 @@ Sandbox evals implement the Langfuse v4 `document-pipeline` contract in `mailroo
 6. **OpenRouter** — opt-in only (`OPENROUTER_API_KEY`); never the sandbox default  
 
 Always `mailroom_sandbox.runtime.activate(profile)` before importing mailroom graph/agents. Rewrite models via overlay / `--agent-model`; do not hardcode OpenRouter ids into Ollama.
+
+## Gotchas
+
+- **The decision reviewer is a Decisions-API model, not a chat model.** `openai/gpt-6-luna-decisions` is served at `POST https://openrouter.ai/api/alpha/decisions` (no chat route): it takes `state` plus typed `questions` and returns a probability for every option, with no output tokens. `openai/gpt-6-luna` is the plain chat model. On 2026-11-01 a whole calibration ran on the chat model by mistake (about $2.50). Preflight now refuses a paid `sorter_reviewer` run without a `reviewer:` block, and `backend: api` (chat) needs `allow_chat_model: true`. Before a paid reviewer run, confirm the model id in the lock ends in `-decisions`.
+- **Spend initials belong to the operator.** `sandbox run start` on a paid run needs `--initials` (2–6 capital letters). An agent asks for them and never signs on its own.
+- **Price check before a paid OpenRouter run.** The cost comes from `SANDBOX_MODEL_PRICES` (`src/mailroom_sandbox/job/metrics.py`) and the live model endpoints list (`https://openrouter.ai/api/v1/models/<id>/endpoints`; Decisions models are missing from the plain `/models` list). Luna Decisions bills input only ($0.10/M); the document is billed once per request however many questions it carries.
+- **Full `task: pipeline` runs are slow on long documents.** A contract or merger takes minutes, since the specialist reads it in chunks. A shell or tool timeout kills the process, not the run: the checkpoint stays `running`, and `sandbox run resume --config <file> --initials XX` continues from the cursor.
+- **A reviewer run is fast.** On the Decisions model (`openai/gpt-6-luna-decisions`) a document takes p50 0.5 s and p95 0.9 s at concurrency 16 (`reviewer-calibration-luna-decisions.md`). The 735 documents in 100 s figure was the superseded chat-model run (`openai/gpt-6-luna`, 2026-11-01).
+- **A calibration only fixes thresholds, not taxonomy confusion.** Confidently wrong answers (≥0.94) at a class boundary need a prompt or catalog fix, not a cutoff. Check `top_confidence_wrong` and the confusion matrix before trusting a cutoff.
 
 ## Repo anchors
 

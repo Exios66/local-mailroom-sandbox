@@ -117,7 +117,7 @@ def _reviewer_settings(reviewer: str | None, classes: list[str] | None) -> dict 
         raise ServiceError('--decision-reviewer and --decision-class must be given together')
     backend, sep, model = reviewer.partition(':')
     if not sep or not backend or not model:
-        raise ServiceError('--decision-reviewer must be BACKEND:MODEL, e.g. local:Org/Model, api:openai/gpt-6-luna or jev:jev-1.13.0')
+        raise ServiceError('--decision-reviewer must be BACKEND:MODEL, e.g. decisions:openai/gpt-6-luna-decisions, jev:jev-1.13.0 or local:Org/Model')
     from mailroom_sandbox.overlay import live_doc_classes
 
     live = live_doc_classes()
@@ -136,7 +136,12 @@ def _reviewer_settings(reviewer: str | None, classes: list[str] | None) -> dict 
             raise ServiceError(f'--decision-class {name!r} given more than once')
         cutoffs[name] = cutoff
     try:
-        return ReviewerSpec(backend=backend, model=model, classes=cutoffs).model_dump()
+        extra = {}
+        if backend == 'decisions':
+            from mailroom_sandbox.decision_backends import frontrunner_question_set
+
+            extra['questions'] = frontrunner_question_set()
+        return ReviewerSpec(backend=backend, model=model, classes=cutoffs, **extra).model_dump()
     except ValueError as exc:
         raise ServiceError(f'invalid decision reviewer: {exc}') from exc
 def _local_strata(path: Path) -> dict[str, list[str]]:
@@ -988,7 +993,7 @@ def register(sub, leaf) -> None:
     create.add_argument('study')
     create.add_argument('--task', choices=['specialists', 'pipeline', 'sorter'], default='specialists')
     create.add_argument('--agent-route', action='append', dest='agent_routes', default=[], metavar='NAME=PROVIDER:MODEL', help='per-agent provider/model; NAME=@route.yaml includes endpoint/GPU/vLLM settings')
-    create.add_argument('--decision-reviewer', default=None, metavar='BACKEND:MODEL', help='freeze a decision-model reviewer (local:MODEL, api:openai/gpt-6-luna, jev:jev-1.13.0 or mock:mock); needs --decision-class')
+    create.add_argument('--decision-reviewer', default=None, metavar='BACKEND:MODEL', help='freeze a decision-model reviewer (decisions:openai/gpt-6-luna-decisions with the lineage frontrunner question set, jev:jev-1.13.0, local:MODEL or mock:mock); needs --decision-class')
     create.add_argument('--decision-class', action='append', default=[], metavar='CLASS=CUTOFF', help='class the decision reviewer handles, with its cutoff in [0, 1] (repeatable)')
     create.add_argument('--specialist-tier', choices=['base', 'mid', 'full'], default='base',
                         help="specialists' model: base = the run's model, mid = Qwen3.5-35B-A3B, full = the judge's Qwen3.5-27B (config/models.yaml critical_tier)")

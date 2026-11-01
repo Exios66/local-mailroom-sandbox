@@ -431,6 +431,10 @@ class RunStore:
         if generation:
             cp["generation_id"] = generation
         _atomic_write(self.checkpoint_path, json.dumps(cp, indent=2, sort_keys=True, default=str))
+        if state in TERMINAL_STATES:
+            from mailroom_sandbox.job import ledger
+
+            ledger.close_run(self)
         if reconcile:
             self.append_event("checkpoint_reconciled", "warn", stored=reconcile[0], recomputed=reconcile[1])
         return self.checkpoint_path

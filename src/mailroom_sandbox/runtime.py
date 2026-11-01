@@ -41,6 +41,7 @@ class Activation:
 
 
 _ACTIVE: Activation | None = None
+_ACTIVE_REVIEWER: dict[str, Any] | None = None
 _LOCKED_RUNTIME: ContextVar[dict[str, Any] | None] = ContextVar("sandbox_locked_runtime", default=None)
 
 
@@ -69,6 +70,11 @@ def locked_runtime(lock: dict[str, Any], prompt_lock: dict[str, Any]):
 
 def active() -> Activation | None:
     return _ACTIVE
+
+
+def active_reviewer() -> dict[str, Any] | None:
+    """The reviewer block of the last activation (a locked run's includes its frozen question set)."""
+    return _ACTIVE_REVIEWER
 
 
 def agent_knobs_for(agent: str) -> dict[str, Any]:
@@ -117,8 +123,21 @@ def resolve_mailroom_src() -> Path | None:
     return None
 
 
+def dojo_uses_installed_release() -> bool:
+    from mailroom_sandbox import dojo_source
+
+    choice = dojo_source.current()
+    return choice is not None and choice.source == "installed"
+
+
 def resolve_dojo_src() -> Path | None:
-    """llm-dojo-scoring import root (vendored snapshot first, DMR-057)."""
+    """llm-dojo-scoring source tree to prepend, or None when the installed release is in use.
+
+    ``mailroom_sandbox.dojo_source`` picks the installed release first and the vendored
+    snapshot (DMR-057) as the fallback; a sibling checkout is the last resort.
+    """
+    if dojo_uses_installed_release():
+        return None
     env = os.environ.get("DOJO_SRC")
     candidates = []
     if env:
@@ -236,12 +255,22 @@ def _install_reviewer(reviewer: Any, taxonomy: dict) -> Any:
     from mailroom_sandbox.decision_backends import build_backend
     from mailroom_sandbox.job.spec import ReviewerSpec
 
+    if not isinstance(reviewer, ReviewerSpec):
+        # A locked block also carries the frozen question set and its hash.
+        reviewer = {k: v for k, v in dict(reviewer).items() if k not in {"question_set", "questions_sha256", "handoff"}}
     spec = reviewer if isinstance(reviewer, ReviewerSpec) else ReviewerSpec.model_validate(reviewer)
     taxonomy["reviewer"] = {
         "default_mode": "llm",
         "by_class": {name: {"mode": "decision_only", "cutoff": cutoff} for name, cutoff in spec.classes.items()},
     }
-    return build_backend(spec.backend, spec.model)
+    if spec.backend == "decisions":
+        from mailroom_sandbox.decision_backends import decisions_backend
+
+        policy = _LOCKED_RUNTIME.get()
+        locked = ((policy or {}).get("lock") or {}).get("reviewer") or {}
+        # A locked run answers from the frozen question set, never a later edit of the file.
+        return decisions_backend(spec.model, spec.questions, qset=locked.get("question_set"))
+    return build_backend(spec.backend, spec.model, questions=spec.questions)
 
 
 def _register_reviewer(backend: Any) -> None:
@@ -332,7 +361,7 @@ def activate(
     dojo_src = resolve_dojo_src()
     if dojo_src is not None:
         _prepend_sys_path(dojo_src)
-    else:
+    elif not dojo_uses_installed_release():
         _log.warning(
             "no llm-dojo-scoring source resolvable (vendored snapshot under %s, "
             "sibling repo, or DOJO_SRC) — scoring will fail on import. Run "
@@ -359,6 +388,10 @@ def activate(
 
     install_agent_routes(agent_routes or {}, taxonomy, agent_models=effective_agent_models)
     reviewer_backend = _install_reviewer(reviewer, taxonomy)
+    global _ACTIVE_REVIEWER
+    # Process-wide, like the registered backend: agent-task workers do not inherit the lock's ContextVar.
+    _ACTIVE_REVIEWER = None if reviewer is None else (
+        reviewer.model_dump() if hasattr(reviewer, "model_dump") else deepcopy(dict(reviewer)))
     taxonomy_path = write_runtime_taxonomy(taxonomy)
     os.environ["MAILROOM_TAXONOMY"] = str(taxonomy_path)
     patched = patch_mailroom_config(taxonomy_path)

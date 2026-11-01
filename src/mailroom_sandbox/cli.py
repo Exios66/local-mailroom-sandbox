@@ -1387,13 +1387,13 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
 # Reviewed standalone refs frozen to exact source SHAs. Mirror monorepo
 # workspace packages when available, after importing those reviewed revisions.
 # The fallback rejects moved refs before replacing any tracked vendor file.
-# The Dojo pin is the interim post-v0.24.2 zero-token fix; return to the next
-# released commit when v0.24.3 is published.
+# llm-mailroom: v0.8.1 merged into #135 (sorter V15) until #135 lands in a release.
+# llm-dojo-scoring: the published v0.25.0 release.
 _VENDOR_PINS: tuple[tuple[str, str, str, str | None], ...] = (
-    ("llm-mailroom", "v0.8.1",
-     "https://github.com/Exios66/llm-mailroom.git", "808d7861bb8ebbaef866ced799f2850137d48078"),
-    ("llm-dojo-scoring", "718e326c1fe5a49b3f1cfd43a3ac10c73e7e01a4",
-     "https://github.com/Exios66/llm-dojo-scoring.git", "718e326c1fe5a49b3f1cfd43a3ac10c73e7e01a4"),
+    ("llm-mailroom", "d1e2811845627f3a933d1fb3ff909a4e3199e700",
+     "https://github.com/Exios66/llm-mailroom.git", "d1e2811845627f3a933d1fb3ff909a4e3199e700"),
+    ("llm-dojo-scoring", "v0.25.0",
+     "https://github.com/Exios66/llm-dojo-scoring.git", "e35504db12f09aeda07ae116663c177acd8c0d6e"),
 )
 
 
@@ -3300,7 +3300,8 @@ def _cmd_run_start(args) -> int:
     store.verify_generation()
     from mailroom_sandbox.job.spend import authorize
 
-    authorize(store, initials=getattr(args, "initials", None), probe=bool(getattr(args, "live", False)))
+    authorize(store, initials=getattr(args, "initials", None), probe=bool(getattr(args, "live", False)),
+              ledger={"action": "start", "config": config_path})
     if getattr(args, "live", False):
         probe = preflight.probe_engine(spec)
         if not probe.get("ok"):
@@ -3426,6 +3427,11 @@ def _finalize_remote(store) -> bool:
                 lock = store.verify_generation()
                 if record_matches(record, store, lock, state=store.state()):
                     experiment_log.append(record)
+    # A Modal run's terminal checkpoint is synced back as a file, so write_checkpoint never
+    # closed its ledger row; close it here for both `run status` and the `--watch` paths.
+    from mailroom_sandbox.job import ledger
+
+    ledger.close_run(store)
     return True
 
 
@@ -3524,6 +3530,11 @@ def _cmd_run_status(args) -> int:
         if not _finalize_remote(store):
             return 1
     summary = store.summary()
+    if store.terminal():
+        # Idempotent backfill for a row a sync before close_run existed left open.
+        from mailroom_sandbox.job import ledger
+
+        ledger.close_run(store)
     payload = summary
     if remote_progress:
         payload["remote"] = remote_progress
@@ -3588,7 +3599,8 @@ def _cmd_run_resume(args) -> int:
         return 3
     from mailroom_sandbox.job.spend import authorize
 
-    authorize(store, initials=getattr(args, "initials", None))
+    authorize(store, initials=getattr(args, "initials", None),
+              ledger={"action": "resume", "config": getattr(args, "config", None)})
     if _job_mode(store) == "modal":
         from mailroom_sandbox.job import remote as job_remote
 

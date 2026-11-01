@@ -321,7 +321,7 @@ def _run_whole_run(
                 row_cb=lambda entry: _persist_isolated_items(store, [entry]),
                 progress_cb=_progress, node_cb=store.append_node, max_wall_seconds=max_wall,
                 cost_cap_usd=cost_cap, api_budget=api_budget, gpu=gpu, replicas=replicas,
-                gpu_fleet=gpu_fleet, **kwargs)
+                gpu_fleet=gpu_fleet, concurrency=concurrency, **kwargs)
         elif task == "extract":
             result = eval_runners.run_extract_eval(rows=locked_rows, **kwargs)
         elif task == "chained":

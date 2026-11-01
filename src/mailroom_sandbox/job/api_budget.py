@@ -20,11 +20,29 @@ from typing import Any
 API_PROVIDERS = frozenset({"openrouter"})
 
 
+def task_agents(lock: Mapping[str, Any]) -> set[str] | None:
+    """The agents a run's task calls, or None when it may call any (pipeline and the like).
+
+    A single-agent task calls only that agent, so the profile's other assignments (for
+    example the openrouter judge on deepseek) never set the price of a Qwen sorter run.
+    """
+    task = str(lock.get("task") or "")
+    if task == "isolated":
+        # The isolated runner always runs the sorter spec, whatever job.task says (job/runner.py).
+        return {"sorter"}
+    if task == "sorter" or task.endswith("_specialist"):
+        return {task}
+    return None
+
+
 def api_models(lock: Mapping[str, Any]) -> list[str]:
     """Token-billed models a locked run (or a lock-shaped spec dump) can call."""
     models: set[str] = set()
     assignments = lock.get("agent_assignments") or {}
-    for assignment in assignments.values():
+    used = task_agents(lock)
+    for name, assignment in assignments.items():
+        if used is not None and name not in used:
+            continue
         if str(assignment.get("provider")) in API_PROVIDERS and assignment.get("model"):
             models.add(str(assignment["model"]))
     agent_models = lock.get("agent_models") or {}
@@ -58,14 +76,17 @@ def unpriced(models: Iterable[str]) -> list[str]:
 
 
 def price_bound(models: Iterable[str]) -> tuple[float, float]:
-    """Highest USD per 1M (input, output) tokens across ``models``; raises on an unpriced model."""
-    from mailroom_sandbox.job.metrics import token_price
+    """Highest USD per 1M (input, output) tokens across ``models`` and their price tiers.
+
+    Raises on an unpriced model.
+    """
+    from mailroom_sandbox.job.metrics import token_price_ceiling
 
     models = list(models)
     missing = unpriced(models)
     if missing:
         raise ValueError(f"no token price for {', '.join(missing)}")
-    prices = [token_price(model) for model in models]
+    prices = [token_price_ceiling(model) for model in models]
     return (max((p[0] for p in prices), default=0.0), max((p[1] for p in prices), default=0.0))
 
 
@@ -101,26 +122,50 @@ class ApiBudget:
         self.usd_per_m_out = float(usd_per_m_out)
         self.models = list(models)
         self.spent_usd = 0.0
+        self.documents = 0
         self._lock = threading.Lock()
 
-    def add(self, prompt_tokens: Any, completion_tokens: Any) -> None:
+    def add(self, prompt_tokens: Any, completion_tokens: Any, calls: Any = 1) -> None:
+        """Price the tokens at each model's tier for the average call size, the dearest model winning."""
+        from mailroom_sandbox.job.metrics import call_cost
+
         prompt = float(prompt_tokens or 0)
         completion = float(completion_tokens or 0)
+        costs = [call_cost(m, prompt, completion, calls=int(calls or 1)) for m in self.models]
+        known = [c for c in costs if c is not None]
+        cost = max(known) if known else (prompt * self.usd_per_m_in + completion * self.usd_per_m_out) / 1_000_000
         with self._lock:
-            self.spent_usd += (prompt * self.usd_per_m_in + completion * self.usd_per_m_out) / 1_000_000
+            self.spent_usd += cost
 
     def add_usage(self, usage: Mapping[str, Any] | None) -> None:
+        """Add one finished (or failed) document's token usage."""
         usage = usage or {}
-        self.add(usage.get("prompt_tokens"), usage.get("completion_tokens"))
+        self.add(usage.get("prompt_tokens"), usage.get("completion_tokens"), usage.get("llm_calls") or 1)
+        with self._lock:
+            self.documents += 1
 
-    def exceeded(self) -> str | None:
-        if self.spent_usd >= self.cap_usd:
-            return (f"api_cost_cap_usd={self.cap_usd} reached (est_api_usd={self.spent_usd:.4f} "
+    def projected_usd(self, in_flight: int = 0) -> float:
+        """Spend so far plus ``in_flight`` unfinished documents at the mean cost per finished document."""
+        with self._lock:
+            mean = self.spent_usd / self.documents if self.documents else 0.0
+            return self.spent_usd + max(0, int(in_flight)) * mean
+
+    def exceeded(self, in_flight: int = 0) -> str | None:
+        """Why no further document may start, or None.
+
+        ``in_flight`` documents have started but not finished: their spend is not in the total yet,
+        so concurrent runs count each at the mean finished-document cost.
+        """
+        projected = self.projected_usd(in_flight)
+        if projected >= self.cap_usd:
+            pending = f", {in_flight} in flight" if in_flight else ""
+            return (f"api_cost_cap_usd={self.cap_usd} reached (est_api_usd={projected:.4f}{pending} "
                     f"at ${self.usd_per_m_in}/${self.usd_per_m_out} per 1M tokens) — aborting to protect spend")
         return None
 
-    def check(self, prefix: str = "") -> None:
-        reason = self.exceeded()
+    def check(self, prefix: str = "", in_flight: int = 0) -> None:
+        """Raise when the cap is reached, counting ``in_flight`` documents (see ``exceeded``)."""
+        reason = self.exceeded(in_flight)
         if reason:
             raise RuntimeError(prefix + reason)
 
@@ -158,4 +203,4 @@ def spend_estimate(lock: Mapping[str, Any], items: Iterable[Mapping[str, Any]]) 
     for item in items:
         budget.add_usage(item)
     return {"est_api_usd": round(budget.spent_usd, 6), "usd_per_million_tokens": [price_in, price_out],
-            "models": models, "basis": "observed tokens at the highest API model price"}
+            "models": models, "basis": "observed tokens at each call's price tier, the highest API model price"}

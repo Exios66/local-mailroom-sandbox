@@ -83,14 +83,16 @@ def _run_rows_bounded(
     Guards *before every new submission*: a tripped wall/cost cap must stop
     starting work immediately. An eager submit-all pool would keep burning GPU
     on already-queued rows after the cap fired, so a concurrent run could
-    silently overshoot its budget (SAND-018 cost-guard accuracy).
+    silently overshoot its budget (SAND-018 cost-guard accuracy). The guard is
+    called as ``guard(in_flight)`` with the number of rows started but not yet
+    recorded, whose spend is not in any running total yet.
     """
     from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 
     n = len(rows)
     if workers <= 1:
         for index in range(n):
-            guard()
+            guard(0)
             on_result(index, run_one(index, rows[index]))
         return
 
@@ -99,8 +101,10 @@ def _run_rows_bounded(
         nxt = 0
         try:
             while nxt < n or futures:
-                guard()
+                guard(len(futures))
                 while nxt < n and len(futures) < workers:
+                    if futures:
+                        guard(len(futures))
                     futures[pool.submit(run_one, nxt, rows[nxt])] = nxt
                     nxt += 1
                 if not futures:
@@ -274,11 +278,12 @@ def run_isolated_eval(
 
     budget_started = time.perf_counter()
 
-    def _guard() -> None:
+    def _guard(in_flight: int = 0) -> None:
         """Wall/cost abort so a whole-run task cannot silently overrun its caps.
 
         The per-item loop already enforces these; isolated agent tasks had no
         guard at all (SAND-018: a 20-doc run overspent its $0.55 cap).
+        ``in_flight`` rows are started but unbilled; the API check counts them.
         """
         wall = time.perf_counter() - budget_started
         if max_wall_seconds is not None and wall >= float(max_wall_seconds):
@@ -295,7 +300,7 @@ def run_isolated_eval(
                 )
         if api_budget is not None and not mock:
             # SAND-089: token spend on API-billed agents, priced at the run's highest API price.
-            api_budget.check("isolated eval aborted: ")
+            api_budget.check("isolated eval aborted: ", in_flight=in_flight)
 
     workers = max(1, min(int(concurrency), len(rows) or 1))
 
@@ -342,6 +347,11 @@ def run_isolated_eval(
     ]
     if schema_rows:
         scores.update(scoring.aggregate_schema_adherence(schema_rows))
+    from mailroom_sandbox.eval import human_review
+
+    routed = human_review.for_isolated(task, [(e or {}).get("pred") for e in per_row if e and e.get("ok", True) and not e.get("error")])
+    if routed is not None:
+        scores.update(routed)
     tracing.emit_langfuse_score("class_correct" if spec.observation == "classify-document" else "stage_completed", mean)
     tracing.flush_traces()
     if ScoreRecord is not None:
@@ -970,9 +980,11 @@ def run_pipeline_eval(
     gpu: str | None = None,
     replicas: int = 1,
     gpu_fleet: list[tuple[str, int]] | None = None,
+    concurrency: int = 1,
 ) -> dict[str, Any]:
     # DMR-056: rows=None keeps the fixture manifest default; the sandbox job
     # whole-run path passes the LOCKED live dataset rows instead.
+    # ``concurrency`` (the job's ``job.concurrency``) runs that many documents at once.
     from mailroom_sandbox.job import usage_capture
 
     rows = load_manifest() if rows is None else rows
@@ -994,20 +1006,43 @@ def run_pipeline_eval(
         profile, model=model, prompt_variant=prompt_version, agent_models=agent_models
     )
     session = tracing.session_id_for("pipeline")
-    results = []
-    extraction_rows: list[dict[str, Any] | None] = []
+    import threading
     import time
     started = time.monotonic()
-    for row in rows:
+    # Mock documents patch ``get_llm`` process-wide (unittest.mock), so two at once would
+    # answer from each other's fake client; only live runs fan out.
+    workers = 1 if mock else max(1, min(int(concurrency or 1), len(rows) or 1))
+    if node_cb is not None and workers > 1:
+        # Concurrent documents report nodes from worker threads; keep each record's write whole.
+        node_lock, raw_node_cb = threading.Lock(), node_cb
+
+        def node_cb(record: dict[str, Any]) -> None:  # noqa: F811 — locked wrapper of the caller's sink
+            with node_lock:
+                raw_node_cb(record)
+
+    def _check_caps(in_flight: int = 0) -> None:
+        """Refuse to START another document once a wall, GPU or API cap is reached.
+
+        ``in_flight`` documents are running but not yet billed into the total; the API check
+        counts each at the mean finished-document cost so concurrent starts cannot overshoot.
+        """
+        if mock:
+            return
         elapsed = time.monotonic() - started
-        if not mock:
-            if max_wall_seconds is not None and elapsed >= max_wall_seconds:
-                raise RuntimeError("pipeline wall-time cap exceeded before next document")
-            if cost_cap_usd is not None:
-                if _estimated_gpu_usd(elapsed, gpu=gpu, replicas=replicas, gpu_fleet=gpu_fleet) >= cost_cap_usd:
-                    raise RuntimeError("pipeline estimated GPU cost cap exceeded before next document")
-            if api_budget is not None:
-                api_budget.check("pipeline API spend cap reached before next document: ")
+        if max_wall_seconds is not None and elapsed >= max_wall_seconds:
+            raise RuntimeError("pipeline wall-time cap exceeded before next document")
+        if cost_cap_usd is not None:
+            if _estimated_gpu_usd(elapsed, gpu=gpu, replicas=replicas, gpu_fleet=gpu_fleet) >= cost_cap_usd:
+                raise RuntimeError("pipeline estimated GPU cost cap exceeded before next document")
+        if api_budget is not None:
+            api_budget.check("pipeline API spend cap reached before next document: ", in_flight=in_flight)
+
+    def _process(row: dict[str, Any]) -> tuple[dict[str, Any], dict[str, int], float]:
+        """Run one document: (result, its token usage, latency ms). Safe on a worker thread.
+
+        Usage is per thread (``pipeline.limits`` keeps a ContextVar that ``reset_usage`` replaces)
+        and node tracking is per thread (a ContextVar tracker), so documents never share either.
+        """
         before = time.monotonic()
         with ExitStack() as nodes:
             if node_cb is not None:
@@ -1016,31 +1051,48 @@ def run_pipeline_eval(
 
                 models = {agent: model for agent, _provider, model in activation.assignments}
                 models.update(activation.agent_models)
+                from mailroom_sandbox.runtime import active_reviewer
+
+                reviewer = active_reviewer() or {}
+                if reviewer.get("backend") in {"decisions", "jev"} and reviewer.get("model"):
+                    # The review node is answered by the decision backend, not the sorter_reviewer chat route.
+                    models["sorter_reviewer"] = reviewer["model"]
                 nodes.enter_context(track_nodes(str(row.get("id")), node_cb, models=models))
             usage_capture.reset_usage()
             try:
                 result = _run_pipeline_doc(row, mock=mock, session_id=session, experiment_name=experiment_name)
             except Exception as exc:
-                # SAND-089: calls made before the failure were billed; count them before the run stops,
-                # and hand them to the job runner, which records them for a resumed run's budget.
+                # SAND-089: calls made before the failure were billed; hand them to the job runner,
+                # which records them for a resumed run's budget (counted in _count_failed).
                 failed_usage = usage_capture.usage_from_pipeline()
-                if api_budget is not None:
-                    api_budget.add_usage(failed_usage)
                 if failed_usage:
                     try:
                         exc.sandbox_failed_usage = {"item_id": row.get("id"), **failed_usage}
                     except (AttributeError, TypeError):
                         pass
                 raise
-        doc_usage = usage_capture.usage_from_pipeline()
+        return result, usage_capture.usage_from_pipeline(), (time.monotonic() - before) * 1000
+
+    def _count_failed(exc: BaseException) -> None:
+        """Count a failed document's billed calls against the API budget (main thread)."""
+        if api_budget is not None:
+            failed = getattr(exc, "sandbox_failed_usage", None) or {}
+            api_budget.add_usage({k: v for k, v in failed.items() if k != "item_id"})
+
+    by_index: dict[int, dict[str, Any]] = {}
+    scored_by_index: dict[int, dict[str, Any] | None] = {}
+
+    def _record(index: int, result: dict[str, Any], doc_usage: dict[str, int], latency_ms: float) -> None:
+        """Account, score and report one finished document (main thread only)."""
+        row = rows[index]
         if api_budget is not None:
             api_budget.add_usage(doc_usage)
         if result.get("stage") == "failed" and not result.get("error"):
             # A run the pipeline aborted is a failed document, not a finished one.
             result = {**result, "error": result.get("escalation_reason") or "pipeline failed"}
-        results.append(result)
+        by_index[index] = result
         scored = _score_pipeline_extraction(row, result) if connected else None
-        extraction_rows.append(scored)
+        scored_by_index[index] = scored
         if row_cb:
             stage = str(result.get("stage") or "unknown")
             score = {"match": float(result.get("doc_type") == row.get("expected_doc_class")),
@@ -1052,10 +1104,63 @@ def run_pipeline_eval(
             # Keep the parse facts: whole-run jobs fail when every answer is unparseable.
             score.update({k: scored[k] for k in ("parse_error", "schema_valid") if k in (scored or {})})
             row_cb({"id": row.get("id"), "pred": result, "error": result.get("error"), "score": score,
-                    "latency_ms": (time.monotonic() - before) * 1000, **doc_usage})
+                    "latency_ms": latency_ms, **doc_usage})
         if progress_cb:
-            errors = sum(bool(item.get("error")) for item in results)
-            progress_cb(len(results), len(rows), len(results) - errors, errors)
+            errors = sum(bool(item.get("error")) for item in by_index.values())
+            progress_cb(len(by_index), len(rows), len(by_index) - errors, errors)
+
+    if workers == 1:
+        for index, row in enumerate(rows):
+            _check_caps()
+            try:
+                outcome = _process(row)
+            except Exception as exc:
+                _count_failed(exc)
+                raise
+            _record(index, *outcome)
+    else:
+        # job.concurrency documents in flight at once. Caps are checked before each new document
+        # starts; after the first failure no new document starts, the in-flight ones finish and
+        # are recorded (they were billed), then the first error is raised.
+        from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+
+        queue = iter(range(len(rows)))
+        first_error: BaseException | None = None
+        with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="pipeline-doc") as pool:
+            futures: dict[Any, int] = {}
+
+            def _fill() -> None:
+                while len(futures) < workers:
+                    index = next(queue, None)
+                    if index is None:
+                        return
+                    _check_caps(in_flight=len(futures))
+                    futures[pool.submit(_process, rows[index])] = index
+
+            try:
+                _fill()
+            except Exception as exc:  # noqa: BLE001 — a cap reached before the first wave
+                first_error = exc
+            while futures:
+                done, _ = wait(futures, return_when=FIRST_COMPLETED)
+                for future in done:
+                    index = futures.pop(future)
+                    try:
+                        outcome = future.result()
+                    except Exception as exc:  # noqa: BLE001 — recorded, then re-raised below
+                        _count_failed(exc)
+                        first_error = first_error or exc
+                        continue
+                    _record(index, *outcome)
+                if first_error is None:
+                    try:
+                        _fill()
+                    except Exception as exc:  # noqa: BLE001 — a cap reached mid-run
+                        first_error = exc
+        if first_error is not None:
+            raise first_error
+    results = [by_index[index] for index in range(len(rows))]
+    extraction_rows: list[dict[str, Any] | None] = [scored_by_index[index] for index in range(len(rows))]
     expected = [r["expected_doc_class"] for r in rows]
     predicted: list[str] = []
     for row, result in zip(rows, results):
@@ -1093,6 +1198,9 @@ def run_pipeline_eval(
         "routing_accuracy": routing.get("exact_match"),
         "connected": connected,
     }
+    from mailroom_sandbox.eval import human_review
+
+    scores.update(human_review.for_pipeline(results))
     if schema_rows:
         scores.update(scoring.aggregate_schema_adherence(schema_rows))
     tracing.emit_langfuse_score("class_correct", float(scores["class_correct"] or 0))

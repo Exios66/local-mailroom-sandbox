@@ -7,6 +7,8 @@
 #   python scripts/calibrate_reviewer.py --run reviewer-calibration-luna
 # That writes reports/reviewer-calibration/reviewer-calibration-luna.json. Its
 # cutoffs are candidates for issue #208 and are not applied automatically.
+# Pilot run 2026-11-01 at concurrency 16: 0 failures, 100 s, $0.26 (see
+# reports/reviewer-calibration/reviewer-calibration-luna.md).
 schema: sandbox.run/v1
 run_id: reviewer-calibration-luna
 task: sorter_reviewer
@@ -107,7 +109,7 @@ job:
   mock: false
   max_retries: 1
   fail_fast: false
-  concurrency: 4
+  concurrency: 16
   cost_cap_usd: 0.50
   max_wall_seconds: 3600
   api_cost_cap_usd: 0.60
