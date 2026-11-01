@@ -170,15 +170,45 @@ def _same_date(a: Any, b: str) -> bool:
         return False
 
 
+#: Tokens that mark a span as a legal entity's name.
+_ENTITY_SUFFIXES = frozenset({
+    "inc", "incorporated", "llc", "l", "corp", "corporation", "co", "company", "ltd", "limited", "lp",
+    "llp", "plc", "gmbh", "ag", "sa", "nv", "bv", "pty", "trust", "bank", "holdings", "partnership",
+})
+
+
+def _parties_cover_spans(value: list[Any], spans: list[str]) -> bool:
+    """Whether the extracted parties are CUAD ``Parties`` spans and miss no named entity.
+
+    Each extracted party (annotation stripped) must be a span. CUAD's ``Parties`` spans also
+    hold defined terms, pronouns, abbreviations and whole "referred to as the Parties"
+    sentences; those name no further party. A span that carries an entity suffix
+    (``Inc.``, ``LLC``, ``Corporation`` ...) and is neither an extracted party, a defined term
+    the extraction attaches, nor contained in an extracted party's name is a **missed legal
+    entity**: the extraction is incomplete, and is not a correction of the Hub label.
+    """
+    gt = {_party_core(s) for s in spans} - {""}
+    cores = [_party_core(v) for v in value]
+    if not gt or not all(c in gt for c in cores):
+        return False
+    defined = {_party_core(m.group(0).strip("()\"“”")) for v in value for m in _ANNOTATION.finditer(str(v))}
+    party_tokens = [_tokens(c) for c in cores]
+    for span in gt:
+        toks = _tokens(span)
+        if span in cores or span in defined or any(toks <= p for p in party_tokens):
+            continue
+        if toks & _ENTITY_SUFFIXES and len(toks) <= 12:
+            return False
+    return True
+
+
 def contract_correction(field: str, value: Any, exp: Mapping[str, Any]) -> str | None:
     """The basis that makes a contract value a correction of its CUAD label, or None."""
     from llm_dojo_scoring.sandbox_scoring import gt_categories
 
     spans = gt_categories(exp.get("cuad_clause_labels"))
-    if field == "parties" and isinstance(value, list) and value:
-        gt = {_party_core(s) for s in spans.get("Parties") or []}
-        if gt and all(_party_core(v) in gt for v in value):
-            return "cuad_party_spans"
+    if field == "parties" and isinstance(value, list) and value and _parties_cover_spans(value, spans.get("Parties") or []):
+        return "cuad_party_spans"
     if field == "effective_date" and not _empty(value):
         agreement = spans.get("Agreement Date") or []
         if not (spans.get("Effective Date") or []) and agreement and any(_same_date(value, a) for a in agreement):
