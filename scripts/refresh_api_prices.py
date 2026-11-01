@@ -50,7 +50,9 @@ def sheet_from_catalog(entry: dict) -> dict:
 
 
 def fetch_catalog(url: str = CATALOG_URL) -> dict[str, dict]:
-    with urllib.request.urlopen(url, timeout=30) as resp:
+    if not url.startswith("https://"):
+        raise ValueError(f"model catalog URL must be https: {url!r}")
+    with urllib.request.urlopen(url, timeout=30) as resp:  # nosec B310 - https only, checked above
         return {m["id"]: m for m in json.load(resp)["data"]}
 
 

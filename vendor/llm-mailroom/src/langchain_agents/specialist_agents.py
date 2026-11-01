@@ -116,12 +116,6 @@ def normalize_extraction(result: dict, schema: dict) -> dict:
 # Extraction schemas (single source of truth for specialists + judges)
 # =============================================================================
 
-_CONFIDENCE = {
-    "type": "number", "minimum": 0.0, "maximum": 1.0,
-    "description": "Evidence-grounded extraction confidence (share of fields found, "
-                    "lowered by uncertain values or truncation; never a fixed default)",
-}
-
 CONTRACTS_SCHEMA = build_structured_schema({
     "reasoning": {
         "type": "object",
@@ -199,7 +193,6 @@ CORPORATE_RECORDS_SCHEMA = build_structured_schema({
     "keywords": _string_array(
         "Up to 8 salient terms/phrases grounded in the text (no invented topics)"
     ),
-    "confidence": _CONFIDENCE,
 })
 
 CORRESPONDENCE_SCHEMA = build_structured_schema({
@@ -216,7 +209,6 @@ CORRESPONDENCE_SCHEMA = build_structured_schema({
     "keywords": _string_array(
         "Up to 8 salient terms/phrases grounded in the text (no invented topics)"
     ),
-    "confidence": _CONFIDENCE,
 })
 
 INSURANCE_CLAIMS_SCHEMA = build_structured_schema({
@@ -244,7 +236,6 @@ INSURANCE_CLAIMS_SCHEMA = build_structured_schema({
         "Deductible, Reservation Of Rights, Timely Notice, Proof Of Loss, "
         "Subrogation, Independent Medical Exam, Amount Consistency. Omit absent."
     ),
-    "confidence": _CONFIDENCE,
 })
 
 

@@ -59,7 +59,7 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / f"{args.split}.jsonl"
     price_in, price_out = token_price(model) or (0.0, 0.0)
-    tokens_in = tokens_out = right = sub_right = answered = 0
+    tokens_in = tokens_out = right = answered = 0
     lines = []
     for doc_id in sorted(rows):
         row, item = rows[doc_id], items.get(doc_id)

@@ -2,7 +2,7 @@
 
 Authoritative source: https://github.com/Exios66/llm-dojo-scoring
 
-- Source ref: `e35504db12f09aeda07ae116663c177acd8c0d6e`
+- Source ref: `v0.25.0` (tag)
 - Exact source commit: `e35504db12f09aeda07ae116663c177acd8c0d6e`
 - Source package version: `0.25.0`
 - Snapshot layout: llm_dojo_scoring/ relocated under src/ with the same shared exclusions.
@@ -21,5 +21,5 @@ This adopts llm-dojo-scoring 0.25.0, the release merge commit `e35504db` of Dojo
 (`llm_dojo_scoring.sorter_guide`, the sorter-facing subclass catalog that sorter prompt V15
 and the sorter-condensed lineage are built on; the unannotated merger subclass `other` is no
 longer scored; the classification arbiter node). It supersedes the interim commit `db15b7c5`
-and the historical v0.22.0 snapshot. The pin is by commit until the `v0.25.0` tag is
-published; the snapshot does not change when it is.
+and the historical v0.22.0 snapshot. The `v0.25.0` tag is published and points at this
+commit; the pin now names the tag and verifies its SHA.
