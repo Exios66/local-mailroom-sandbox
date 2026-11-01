@@ -10,9 +10,9 @@
 #   sandbox run start --config config/runs/sorter-condensed-v1-qwen-train-errors.yaml --initials XX
 #   python scripts/compare_sorter_prompt.py --split train score --run sorter-condensed-v1-qwen-train-errors
 #
-# Cost: about 11.1M prompt + 0.15M completion tokens; list price ($0.03/$0.13 per 1M) about
-# $0.35. The API cap prices every token at the profile's highest route ($0.05/$0.25): about
-# $0.60, so the cap is $0.90.
+# Cost: about 10.8M prompt + 0.15M completion tokens. Qwen 3.7 Flash bills a call at $0.03/$0.13
+# per 1M below 32k prompt tokens and $0.10/$0.40 from 32k (scripts/estimate_spend.py prices each
+# call at its tier): about $0.78, so the cap is $1.10.
 schema: sandbox.run/v1
 run_id: sorter-condensed-v1-qwen-train-errors
 task: isolated
@@ -45,7 +45,7 @@ job:
   concurrency: 24
   cost_cap_usd: 2.00
   max_wall_seconds: 5400
-  api_cost_cap_usd: 0.90
+  api_cost_cap_usd: 1.10
 
 trace:
   sink: none

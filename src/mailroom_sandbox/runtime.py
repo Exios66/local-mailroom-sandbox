@@ -123,8 +123,21 @@ def resolve_mailroom_src() -> Path | None:
     return None
 
 
+def dojo_uses_installed_release() -> bool:
+    from mailroom_sandbox import dojo_source
+
+    choice = dojo_source.current()
+    return choice is not None and choice.source == "installed"
+
+
 def resolve_dojo_src() -> Path | None:
-    """llm-dojo-scoring import root (vendored snapshot first, DMR-057)."""
+    """llm-dojo-scoring source tree to prepend, or None when the installed release is in use.
+
+    ``mailroom_sandbox.dojo_source`` picks the installed release first and the vendored
+    snapshot (DMR-057) as the fallback; a sibling checkout is the last resort.
+    """
+    if dojo_uses_installed_release():
+        return None
     env = os.environ.get("DOJO_SRC")
     candidates = []
     if env:
@@ -348,7 +361,7 @@ def activate(
     dojo_src = resolve_dojo_src()
     if dojo_src is not None:
         _prepend_sys_path(dojo_src)
-    else:
+    elif not dojo_uses_installed_release():
         _log.warning(
             "no llm-dojo-scoring source resolvable (vendored snapshot under %s, "
             "sibling repo, or DOJO_SRC) — scoring will fail on import. Run "

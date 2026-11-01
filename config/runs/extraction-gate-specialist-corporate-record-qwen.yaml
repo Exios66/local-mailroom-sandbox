@@ -26,7 +26,7 @@ engine:
   modal: null
 
 agent_knobs:
-  corporate_records_specialist: {max_input_chars: 120000, chunk_chars: 100000, overlap_chars: 8000}
+  corporate_records_specialist: {max_input_chars: 700000}   # whole document in one call (Qwen 3.7 Flash: 1M-token context)
 
 job:
   mode: endpoint

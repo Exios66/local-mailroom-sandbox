@@ -54,11 +54,14 @@ fields:
     intent: the record's purpose label
     keywords: the salient names, terms and identifiers in the record
   correspondence:
+    # Only fields the correspondence specialist emits (it has no content_topic / sentiment_label).
     subject_matter: a one-sentence statement of what the message is about
-    content_topic: the business topic category of the message
     intent: what the sender wants or is doing (inform, request, schedule, demand, ...)
-    sentiment_label: the overall tone (positive, neutral, negative)
     keywords: the salient names, terms and identifiers in the message
+    communication_type: the form of the message (email, letter, memo, notice, press release, ...)
+    sender: who sent the message
+    recipient: who the message is addressed to
+    communication_date: the date the message was sent
   contract:
     # Entity extraction (truth: the CUAD spans for these categories) ...
     document_name: the agreement's title as the document gives it

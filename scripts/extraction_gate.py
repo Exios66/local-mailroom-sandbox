@@ -127,6 +127,31 @@ def auroc(scores: list[float], labels: list[bool]) -> float | None:
     return round(wins / (len(pos) * len(neg)), 4)
 
 
+def spearman(xs: list[float], ys: list[float]) -> float | None:
+    """Rank correlation of the gate's accept probability with the dojo score."""
+    if len(xs) < 3:
+        return None
+
+    def ranks(v):
+        order = sorted(range(len(v)), key=lambda i: v[i])
+        out = [0.0] * len(v)
+        i = 0
+        while i < len(order):
+            j = i
+            while j + 1 < len(order) and v[order[j + 1]] == v[order[i]]:
+                j += 1
+            for k in range(i, j + 1):
+                out[order[k]] = (i + j) / 2
+            i = j + 1
+        return out
+
+    rx, ry = ranks(xs), ranks(ys)
+    mx, my = sum(rx) / len(rx), sum(ry) / len(ry)
+    cov = sum((a - mx) * (b - my) for a, b in zip(rx, ry))
+    var = (sum((a - mx) ** 2 for a in rx) * sum((b - my) ** 2 for b in ry)) ** 0.5
+    return round(cov / var, 4) if var else None
+
+
 def cutoff_for_precision(scores: list[float], labels: list[bool], precision: float) -> dict[str, Any]:
     """Lowest accept cutoff whose accepted set keeps the target precision (most coverage)."""
     best: dict[str, Any] = {"cutoff": None, "precision": None, "accept_rate": 0.0, "recall": 0.0}
@@ -209,9 +234,15 @@ def calibrate(items: list[dict], rows: dict[str, dict], handoff: dict[str, dict]
     report: dict[str, Any] = {"good_threshold": good, "target_precision": precision, "skipped": dict(skipped), "classes": {}}
     for cls, d in sorted(per.items()):
         n = len(d["y"])
+        median = sorted(d["score"])[n // 2]
         report["classes"][cls] = {
             "n": n, "good_rate": round(sum(d["y"]) / n, 4), "mean_extraction_score": round(sum(d["score"]) / n, 4),
             "accept_auroc": auroc(d["p"], d["y"]),
+            # Within-class view: a class whose scores sit far below --good (correspondence free text)
+            # still shows whether the gate ranks its better extractions above its worse ones.
+            "median_score": round(median, 4),
+            "accept_auroc_above_median": auroc(d["p"], [s > median for s in d["score"]]),
+            "spearman_accept_vs_score": spearman(d["p"], d["score"]),
             "verdicts": dict(collections.Counter(d["verdict"])),
             "accept_verdict_precision": (round(sum(y for y, v in zip(d["y"], d["verdict"]) if v == "accept")
                                                / max(1, sum(v == "accept" for v in d["verdict"])), 4)),
