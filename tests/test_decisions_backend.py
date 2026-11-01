@@ -359,3 +359,11 @@ def test_saved_sorter_targets_are_consistent():
                 assert r["target_doc_class"] is None and not r["use_for_class"]
             if r["target_doc_class"] == "contract":
                 assert r["target_subclass"] == r["target_subclass"].lower()
+
+
+def test_decisions_backend_rejects_a_zero_cutoff():
+    """A human verdict gates at 0.0, so a cutoff of 0 would never park it."""
+    with pytest.raises(ValueError, match="cutoffs above 0 \\(contract\\)"):
+        ReviewerSpec(backend="decisions", model=DECISIONS, questions="reviewer_decisions_v1",
+                     classes={"contract": 0.0, "email": 0.5})
+    ReviewerSpec(backend="decisions", model=DECISIONS, questions="reviewer_decisions_v1", classes={"contract": 0.01})
