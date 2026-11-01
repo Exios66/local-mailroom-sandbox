@@ -331,3 +331,31 @@ def test_v3_1_asks_insurance_liability_and_workers_comp():
     q = db.decision_questions(db.load_question_set("reviewer_decisions_v3.1.0"))
     options = set(q["subclass__insurance_claim"]["criteria"])
     assert {"liability", "health", "life", "workers_comp", "other", db.NOT_THIS_CLASS} <= options
+
+
+def test_saved_sorter_targets_are_consistent():
+    """The patched targets (scripts/patch_sorter_handoff.py) never change the sorter input and
+    only correct a label on two sources."""
+    import json
+
+    from mailroom_sandbox.paths import repo_root
+
+    folder = repo_root() / "data" / "handoff" / "sorter-qwen3.7-flash"
+    if not (folder / "train.targets.jsonl").is_file():
+        pytest.skip("saved targets not present")
+    for split, n in (("train", 2979), ("test", 323)):
+        raw = {json.loads(x)["id"]: json.loads(x) for x in (folder / f"{split}.jsonl").read_text().split("\n") if x.strip()}
+        rows = [json.loads(x) for x in (folder / f"{split}.targets.jsonl").read_text().split("\n") if x.strip()]
+        assert len(rows) == len(raw) == n
+        for r in rows:
+            assert r["sorter_doc_type"] == raw[r["id"]]["sorter_doc_type"]
+            assert r["target_status"] in {"label", "label_normalized", "corrected", "unannotated", "ambiguous"}
+            if r["target_status"] == "corrected":
+                assert any("Decisions reviewer agrees" in e for e in r["target_evidence"])
+            if r["target_status"] == "unannotated":
+                assert r["target_doc_class"] == "merger_agreement" and r["target_subclass"] is None
+                assert r["use_for_class"] and not r["use_for_subclass"]
+            if r["target_status"] == "ambiguous":
+                assert r["target_doc_class"] is None and not r["use_for_class"]
+            if r["target_doc_class"] == "contract":
+                assert r["target_subclass"] == r["target_subclass"].lower()
