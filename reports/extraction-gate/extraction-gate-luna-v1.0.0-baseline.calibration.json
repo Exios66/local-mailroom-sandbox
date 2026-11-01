@@ -243,6 +243,9 @@
   "question_set": "extraction_gate_v1.0.0",
   "questions_sha256": "dec943182cabe76e135656a411dbeba07143728a0cf8c401942cd9a9a29587d2",
   "run_id": "extraction-gate-luna-v1.0.0-baseline",
+  "runs": [
+    "extraction-gate-luna-v1.0.0-baseline"
+  ],
   "skipped": {},
   "target_precision": 0.9
 }

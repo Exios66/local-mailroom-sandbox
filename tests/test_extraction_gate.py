@@ -166,3 +166,48 @@ def test_spend_estimator_prices_condensed_below_v15():
     base = {"run_id": "x", "task": "isolated", "engine": {"model": "qwen/qwen3.7-flash"}, "job": {}}
     assert est._sorter_prompt_chars({**base, "prompt": {"agents": {"sorter": {"file": "sorter_condensed_v1"}}}}) \
         < est._sorter_prompt_chars(base)
+
+
+def _row(doc_id, cls, sub, n, text=None):
+    return {"id": doc_id, "expected_doc_class": cls, "expected_subclass": sub,
+            "doc_text": text or (doc_id + " ") * max(1, n // (len(doc_id) + 1))}
+
+
+def test_short_first_covers_every_subclass_and_leans_short():
+    """Round-2 sampler covers every subclass and draws its shorter half first."""
+    eg = _script("extraction_gate")
+    rows = [_row(f"{s}{i:02d}", "insurance_claim", s, 100 * (i + 1)) for s in ("a", "b", "c") for i in range(20)]
+    picked = eg.short_first(rows, 15, 42)
+    assert {r["expected_subclass"] for r in picked} == {"a", "b", "c"}
+    median = sorted(len(r["doc_text"]) for r in rows)[len(rows) // 2]
+    assert all(len(r["doc_text"]) <= median for r in picked)
+    assert picked == eg.short_first(rows, 15, 42)
+
+
+def test_text_key_folds_whitespace_and_case():
+    """Text key folds whitespace and case."""
+    eg = _script("extraction_gate")
+    assert eg.text_key("Hello  World\n") == eg.text_key("hello world")
+    assert eg.text_key("hello world") != eg.text_key("hello there")
+
+
+def test_round2_rules():
+    """Round-2 rules: mergers exclude other, contracts and mergers sampled representatively."""
+    eg = _script("extraction_gate")
+    assert "other" in eg.EXCLUDE_SUBCLASSES["merger_agreement"]
+    assert eg.REPRESENTATIVE == {"contract", "merger_agreement"}
+    assert set(eg.ROUND2) == set(eg.CLASSES)
+    assert eg.ROUND2["merger_agreement"] < eg.ROUND2["contract"] < eg.ROUND2["corporate_record"] < eg.ROUND2["insurance_claim"]
+
+
+def test_round2_inputs_never_repeat_collected_documents():
+    """Round-2 inputs share no id or text with the baseline inputs."""
+    eg = _script("extraction_gate")
+    handoff = repo_root() / "data" / "runtime" / "handoff"
+    r2, base = handoff / "gate-train-r2.jsonl", handoff / "gate-train.jsonl"
+    if not (r2.is_file() and base.is_file()):
+        pytest.skip("round-2 inputs not built in this checkout")
+    new, old = eg._lines(r2), eg._lines(base)
+    assert not {r["id"] for r in new} & {r["id"] for r in old}
+    assert not {eg.text_key(r["doc_text"]) for r in new} & {eg.text_key(r["doc_text"]) for r in old}
+    assert len({eg.text_key(r["doc_text"]) for r in new}) == len(new)
