@@ -145,7 +145,7 @@ def test_accept_rule_matches_the_pipeline_function():
         assert is_accepted(row, 0.8) == (route.destination == "extract"), (sorter, decision, confidence)
 
 
-@pytest.mark.parametrize("confidence", [None, float("nan"), float("inf"), True, 1.01, -0.5, "0.99"])
+@pytest.mark.parametrize("confidence", [None, float("nan"), float("inf"), True, 1.01, -0.5, "0.99", 10**400])
 def test_invalid_confidence_is_never_accepted_and_is_not_malformed(confidence):
     rows = [_row(i, confidence=confidence) for i in _ids(4, tune=True) + _ids(4, tune=False)]
     result = _run(rows)["classes"]["contract"]
@@ -543,3 +543,9 @@ def test_cli_refuses_an_out_dir_inside_config(tmp_path, capsys):
     assert cli.main(["calibrate", "decision", "--input", str(FIXTURE), "--out", str(target)]) == 1
     assert "config" in capsys.readouterr().err
     assert not target.exists()
+
+
+def test_cli_reference_unescapes_percent_signs():
+    """The generated reference shows help as argparse prints it (``95%``, not ``95%%``)."""
+    text = (Path(__file__).resolve().parents[1] / "docs" / "cli-reference.md").read_text(encoding="utf-8")
+    assert "%%" not in text and "maximum 95% upper bound" in text

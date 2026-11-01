@@ -74,7 +74,10 @@ class Row:
 def _valid_confidence(value: object) -> bool:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return False
-    return math.isfinite(value) and 0.0 <= value <= 1.0
+    try:
+        return math.isfinite(value) and 0.0 <= value <= 1.0
+    except OverflowError:  # an int too large for a float (``1e400`` as a JSON integer)
+        return False
 
 
 def is_accepted(row: Row, cutoff: float) -> bool:
