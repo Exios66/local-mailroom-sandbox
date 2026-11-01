@@ -383,11 +383,26 @@ def _estimate_cost(
     )
 
 
+def token_price_ceiling(model: str) -> tuple[float, float] | None:
+    """Highest USD per 1M (input, output) tokens ``model`` can bill at any prompt size.
+
+    Same lookup order as ``token_price``, but a tiered price sheet gives its dearest tier
+    (Qwen 3.7 Flash: $0.20/$0.80 at 256k+ prompt tokens, not the $0.03/$0.13 base). Spend
+    ceilings and the signed budget bound use this; per-call cost uses ``call_cost``.
+    """
+    if _token_price_override() is None and model:
+        sheet = price_sheet(model)
+        if sheet is not None:
+            return (max(float(t["prompt"]) for t in sheet), max(float(t["completion"]) for t in sheet))
+    return token_price(model)
+
+
 def token_price(model: str) -> tuple[float, float] | None:
     """USD per 1M (input, output) tokens for ``model``, in ``_estimate_cost``'s order.
 
-    The global override wins, then the dojo table, then the sandbox table (exact id,
-    then prefix). None when no price is known.
+    The global override wins, then the checked price sheet (its base tier, ``min_prompt_tokens``
+    0), then the dojo table, then the sandbox table (exact id, then prefix). None when no price
+    is known. For an upper bound over every prompt size use ``token_price_ceiling``.
     """
     override = _token_price_override()
     if override is not None:

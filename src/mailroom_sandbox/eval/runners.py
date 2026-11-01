@@ -83,14 +83,16 @@ def _run_rows_bounded(
     Guards *before every new submission*: a tripped wall/cost cap must stop
     starting work immediately. An eager submit-all pool would keep burning GPU
     on already-queued rows after the cap fired, so a concurrent run could
-    silently overshoot its budget (SAND-018 cost-guard accuracy).
+    silently overshoot its budget (SAND-018 cost-guard accuracy). The guard is
+    called as ``guard(in_flight)`` with the number of rows started but not yet
+    recorded, whose spend is not in any running total yet.
     """
     from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 
     n = len(rows)
     if workers <= 1:
         for index in range(n):
-            guard()
+            guard(0)
             on_result(index, run_one(index, rows[index]))
         return
 
@@ -99,8 +101,10 @@ def _run_rows_bounded(
         nxt = 0
         try:
             while nxt < n or futures:
-                guard()
+                guard(len(futures))
                 while nxt < n and len(futures) < workers:
+                    if futures:
+                        guard(len(futures))
                     futures[pool.submit(run_one, nxt, rows[nxt])] = nxt
                     nxt += 1
                 if not futures:
@@ -274,11 +278,12 @@ def run_isolated_eval(
 
     budget_started = time.perf_counter()
 
-    def _guard() -> None:
+    def _guard(in_flight: int = 0) -> None:
         """Wall/cost abort so a whole-run task cannot silently overrun its caps.
 
         The per-item loop already enforces these; isolated agent tasks had no
         guard at all (SAND-018: a 20-doc run overspent its $0.55 cap).
+        ``in_flight`` rows are started but unbilled; the API check counts them.
         """
         wall = time.perf_counter() - budget_started
         if max_wall_seconds is not None and wall >= float(max_wall_seconds):
@@ -295,7 +300,7 @@ def run_isolated_eval(
                 )
         if api_budget is not None and not mock:
             # SAND-089: token spend on API-billed agents, priced at the run's highest API price.
-            api_budget.check("isolated eval aborted: ")
+            api_budget.check("isolated eval aborted: ", in_flight=in_flight)
 
     workers = max(1, min(int(concurrency), len(rows) or 1))
 
@@ -1015,8 +1020,12 @@ def run_pipeline_eval(
             with node_lock:
                 raw_node_cb(record)
 
-    def _check_caps() -> None:
-        """Refuse to START another document once a wall, GPU or API cap is reached."""
+    def _check_caps(in_flight: int = 0) -> None:
+        """Refuse to START another document once a wall, GPU or API cap is reached.
+
+        ``in_flight`` documents are running but not yet billed into the total; the API check
+        counts each at the mean finished-document cost so concurrent starts cannot overshoot.
+        """
         if mock:
             return
         elapsed = time.monotonic() - started
@@ -1026,7 +1035,7 @@ def run_pipeline_eval(
             if _estimated_gpu_usd(elapsed, gpu=gpu, replicas=replicas, gpu_fleet=gpu_fleet) >= cost_cap_usd:
                 raise RuntimeError("pipeline estimated GPU cost cap exceeded before next document")
         if api_budget is not None:
-            api_budget.check("pipeline API spend cap reached before next document: ")
+            api_budget.check("pipeline API spend cap reached before next document: ", in_flight=in_flight)
 
     def _process(row: dict[str, Any]) -> tuple[dict[str, Any], dict[str, int], float]:
         """Run one document: (result, its token usage, latency ms). Safe on a worker thread.
@@ -1125,7 +1134,7 @@ def run_pipeline_eval(
                     index = next(queue, None)
                     if index is None:
                         return
-                    _check_caps()
+                    _check_caps(in_flight=len(futures))
                     futures[pool.submit(_process, rows[index])] = index
 
             try:

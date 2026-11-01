@@ -1,8 +1,14 @@
 # Verify the saved Qwen sorter pass before it is used as training targets
 # (scripts/patch_sorter_handoff.py): the 19 train rows whose title contradicts the label with
 # no reviewer answer, and the sorter class errors no corpus rule confirms. Decisions model,
-# question set 3.1.0, with the saved sorter handoff. About 46 documents at ~$0.0006 each
-# (measured on the 3.0.0 test run) = about $0.03. Rows: data/runtime/handoff/train-verify.jsonl.
+# question set 3.1.0, with the saved sorter handoff. Ran on 2026-11-01: 46 documents,
+# 535,592 input tokens, $0.054 at list price (about $0.0012 per document; the pre-run
+# estimate of $0.03 used the shorter 3.0.0 test documents).
+#
+# Rows: data/runtime/handoff/train-verify.jsonl (not tracked). To rebuild it, take the train
+# rows of the dataset runs sorter-handoff-qwen-train and sorter-handoff-qwen-train-rest whose
+# ids are the 46 rows of data/handoff/sorter-qwen3.7-flash/train.targets.jsonl with
+# reviewer_evidence.run == "reviewer-verify-sorter-handoff-train", in id order.
 schema: sandbox.run/v1
 run_id: reviewer-verify-sorter-handoff-train
 task: sorter_reviewer

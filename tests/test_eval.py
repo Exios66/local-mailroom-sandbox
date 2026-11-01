@@ -317,8 +317,18 @@ def test_dojo_pin_matches_current_vendored_snapshot():
 
     assert crs.SUBCLASS_SCHEMAS and callable(crs.align_unlabeled)
     assert "v0.22.0" in vendor_md  # the superseded tag stays documented
-    assert str(vendor.resolve()) in sys.path, "vendored dojo must be on sys.path"
-    assert str(Path(dojo.__file__).resolve()).startswith(str(vendor.resolve()))
+    # The Dojo comes from the selected source: the vendored snapshot, or an installed release
+    # matching the pin (requirements/dojo-release.txt). Its module must come from that source.
+    from mailroom_sandbox import dojo_source
+
+    choice = dojo_source.current()
+    assert choice is not None and choice.source in {"vendored", "installed", "env"}
+    if choice.source == "vendored":
+        assert str(vendor.resolve()) in sys.path, "vendored dojo must be on sys.path"
+        assert str(Path(dojo.__file__).resolve()).startswith(str(vendor.resolve()))
+    elif choice.source == "installed":
+        assert choice.version == "0.25.0" and dojo_source._origin_mismatch() is None
+        assert not str(Path(dojo.__file__).resolve()).startswith(str(vendor.resolve()))
     version = re.match(r"(\d+)\.(\d+)", dojo.__version__)
     assert version is not None
     assert tuple(map(int, version.groups())) >= (0, 12)

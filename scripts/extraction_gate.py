@@ -38,6 +38,7 @@ import random
 from pathlib import Path
 from typing import Any
 
+from mailroom_sandbox.job.spec import run_dir, runs_root
 from mailroom_sandbox.paths import repo_root
 
 CLASSES = ("insurance_claim", "corporate_record", "correspondence", "contract", "merger_agreement")
@@ -94,7 +95,7 @@ def cmd_inputs(args: argparse.Namespace) -> int:
     root = repo_root()
     rows: dict[str, dict] = {}
     for rid in args.dataset_run:
-        for row in _lines(root / "data" / "runtime" / "runs" / rid / "dataset.jsonl"):
+        for row in _lines(run_dir(rid) / "dataset.jsonl"):
             if row.get("split", args.split) == args.split:
                 rows.setdefault(row["id"], row)
     out_dir = root / "data" / "runtime" / "handoff"
@@ -140,14 +141,27 @@ def text_key(text: str | None) -> str:
     return hashlib.sha256(" ".join((text or "").split()).lower().encode()).hexdigest()
 
 
-def collected(root: Path) -> tuple[set[str], set[str], list[str]]:
-    """Ids and text keys of every document a live specialist run already extracted."""
+def round_files(root: Path, split: str, tag: str) -> list[Path]:
+    """This round's input files: ``gate-<split>-<tag>.jsonl`` and ``gate-<split>-<tag>-<class>.jsonl``.
+
+    Matched exactly, so round ``r2`` never picks up ``r20``'s files.
+    """
+    handoff = root / "data" / "runtime" / "handoff"
+    return sorted({*handoff.glob(f"gate-{split}-{tag}.jsonl"), *handoff.glob(f"gate-{split}-{tag}-*.jsonl")})
+
+
+def collected(root: Path, *, skip: set[Path] = frozenset()) -> tuple[set[str], set[str], list[str]]:
+    """Ids and text keys of every document a live specialist run already extracted.
+
+    Runs are read from the configured run root (``MAILROOM_BASE_DIR``). Earlier rounds' input
+    files count too, except those in ``skip`` (the round being rebuilt).
+    """
     from mailroom_sandbox.job.checkpoint import RunStore
 
     ids: set[str] = set()
     keys: set[str] = set()
     runs: list[str] = []
-    for lock_path in sorted((root / "data" / "runtime" / "runs").glob("*/spec.lock.json")):
+    for lock_path in sorted(runs_root().glob("*/spec.lock.json")):
         try:
             store = RunStore(lock_path.parent)
             lock = store.read_lock()
@@ -166,6 +180,8 @@ def collected(root: Path) -> tuple[set[str], set[str], list[str]]:
                 keys.add(text_key(rows[doc_id].get("doc_text")))
     # Earlier rounds' input files count too (a round prepared but not yet run is still taken).
     for path in sorted((root / "data" / "runtime" / "handoff").glob("gate-*.jsonl")):
+        if path in skip:
+            continue
         for row in _lines(path):
             ids.add(str(row["id"]))
             keys.add(text_key(row.get("doc_text")))
@@ -204,20 +220,31 @@ def cmd_expand(args: argparse.Namespace) -> int:
     root = repo_root()
     rows: dict[str, dict] = {}
     for rid in args.dataset_run:
-        for row in _lines(root / "data" / "runtime" / "runs" / rid / "dataset.jsonl"):
+        for row in _lines(run_dir(rid) / "dataset.jsonl"):
             if row.get("split", args.split) == args.split:
                 rows.setdefault(row["id"], row)
-    for stale in (root / "data" / "runtime" / "handoff").glob(f"gate-{args.split}-{args.tag}*.jsonl"):
-        stale.unlink()  # rebuilding this round: its own earlier files are not "collected"
-    seen_ids, seen_keys, runs = collected(root)
-    if not runs and not args.allow_no_history:
-        print("extraction_gate expand: found no finished specialist run to exclude; refusing "
-              "(pass --allow-no-history for a first round)")
+    existing = round_files(root, args.split, args.tag)
+    if existing and not args.overwrite:
+        # Once the round's specialist runs finish, its documents count as history, so a rebuild
+        # would pick different documents than the runs (and the gate config) used.
+        print(f"extraction_gate expand: round {args.tag!r} already has {len(existing)} input file(s); refusing "
+              "to rebuild it (pass --overwrite only if none of its runs has started)")
         return 1
     counts = dict(ROUND2)
     for spec in args.count:
         cls, _, n = spec.partition("=")
+        if cls not in CLASSES or not n.isdigit():
+            print(f"extraction_gate expand: --count {spec!r} must be CLASS=N with CLASS one of {', '.join(CLASSES)}")
+            return 1
         counts[cls] = int(n)
+    # Rebuilding this round: its own earlier files are not "collected".
+    seen_ids, seen_keys, runs = collected(root, skip=set(existing))
+    if not runs and not args.allow_no_history:
+        print("extraction_gate expand: found no finished specialist run to exclude; refusing "
+              "(pass --allow-no-history for a first round)")
+        return 1
+    for stale in existing:
+        stale.unlink()  # only after every check passed
     out_dir = root / "data" / "runtime" / "handoff"
     tag = args.tag
     union: list[dict] = []
@@ -310,8 +337,11 @@ def cutoff_for_precision(scores: list[float], labels: list[bool], precision: flo
     return best
 
 
-def _field_truth(doc_type: str, row: dict, fields: dict, good: float) -> dict[str, bool]:
-    """Per-field correctness of the extraction, from the dojo scorers."""
+def _field_truth(doc_type: str, row: dict, fields: dict, good: float) -> tuple[dict[str, bool], str | None]:
+    """Per-field correctness of the extraction, from the dojo scorers, and the scorer error if any.
+
+    On an error the row's fields are unscored; ``calibrate`` counts it in ``skipped``.
+    """
     exp = _expected(row)
     out: dict[str, bool] = {}
     try:
@@ -327,7 +357,7 @@ def _field_truth(doc_type: str, row: dict, fields: dict, good: float) -> dict[st
             from mailroom_sandbox.eval.cuad_scoring import score_cuad
 
             out["cuad_clauses"] = float(score_cuad(fields, exp["cuad_clause_labels"]).get("cuad_presence_f1") or 0) >= good
-            return out
+            return out, None
         if doc_type == "merger_agreement":
             from mailroom_sandbox.eval.maud_scoring import score_maud
 
@@ -335,7 +365,7 @@ def _field_truth(doc_type: str, row: dict, fields: dict, good: float) -> dict[st
             sub = row.get("expected_subclass")
             if sub and sub != "other":
                 out["merger_consideration"] = fields.get("merger_consideration") == sub
-            return out
+            return out, None
         from mailroom_sandbox.datasets import parse_expected_fields
         from mailroom_sandbox.eval.scoring import suite_for_doc_type
 
@@ -348,9 +378,9 @@ def _field_truth(doc_type: str, row: dict, fields: dict, good: float) -> dict[st
             if field not in unlabeled:
                 out[field] = float(getattr(score, "score", score)) >= good
     except Exception as exc:  # noqa: BLE001 - a scorer gap leaves that row's fields unscored, reported
-        out["_error"] = False
         print(f"field truth {doc_type} {row.get('id')}: {type(exc).__name__}: {exc}")
-    return out
+        return {}, f"{type(exc).__name__}: {exc}"
+    return out, None
 
 
 # Fields whose labels come from mailbox/template metadata the text does not carry (dojo truth
@@ -386,8 +416,12 @@ def corrected_truth(doc_type: str, row: dict, fields: dict, truth: dict[str, boo
 
 
 def calibrate(items: list[dict], rows: dict[str, dict], handoff: dict[str, dict], *, good: float, precision: float,
-              qset: dict | None = None, corrected: bool = False) -> dict:
+              qset: dict | None = None, corrected: bool = False, include_truncated: bool = False) -> dict:
     """Score the gate against two targets.
+
+    A row whose document was cut at the question set's input cap (``pred.truncated``) is
+    skipped unless ``include_truncated``: the gate judged an extraction of text it never saw, so
+    clauses past the cap look unsupported (1.0.0 cut most merger agreements at 240k).
 
     ``classes``: the dojo extraction score >= ``good`` (every scored field, free text included).
     ``keyfields``: every labelled key field right (:func:`key_fields`), and the fraction right,
@@ -405,13 +439,19 @@ def calibrate(items: list[dict], rows: dict[str, dict], handoff: dict[str, dict]
             skipped["no_answer_or_score"] += 1
             continue
         cls = score.get("doc_type") or pred.get("doc_type")
+        if pred.get("truncated") and not include_truncated:
+            skipped[f"truncated_input:{cls}"] += 1
+            continue
         for key in (cls, "all"):
             per[key]["p"].append(float(p))
             per[key]["y"].append(float(s) >= good)
             per[key]["score"].append(float(s))
             per[key]["verdict"].append(pred.get("verdict"))
         ext = (handoff.get(doc_id) or {}).get("fields") or {}
-        truth = _field_truth(cls, rows[doc_id], ext, good) if doc_id in rows else {}
+        truth, error = _field_truth(cls, rows[doc_id], ext, good) if doc_id in rows else ({}, None)
+        if error:
+            # Reported per class: a Dojo source without the scorer's names loses a whole class silently otherwise.
+            skipped[f"field_truth_error:{cls}"] += 1
         if corrected and doc_id in rows:
             truth = corrected_truth(cls, rows[doc_id], ext, truth)
         wanted = key_fields(qset, cls)
@@ -428,7 +468,7 @@ def calibrate(items: list[dict], rows: dict[str, dict], handoff: dict[str, dict]
                 keyed[key]["verdict"].append(pred.get("verdict"))
         for field, ok in truth.items():
             prob = (pred.get("field_support") or {}).get(field)
-            if not field.startswith("_") and isinstance(prob, (int, float)):
+            if isinstance(prob, (int, float)):
                 fields[(cls, field)]["p"].append(float(prob))
                 fields[(cls, field)]["y"].append(ok)
     report: dict[str, Any] = {"good_threshold": good, "target_precision": precision, "skipped": dict(skipped),
@@ -511,7 +551,7 @@ def cmd_calibrate(args: argparse.Namespace) -> int:
     report = {"run_id": name, "runs": list(args.run), "question_set": reviewers[0].get("questions"),
               "questions_sha256": reviewers[0].get("questions_sha256"), "key_field_set": key_stem,
               **calibrate(items, rows, handoff, good=args.good, precision=args.precision, qset=qset,
-                          corrected=args.corrected_truth)}
+                          corrected=args.corrected_truth, include_truncated=args.include_truncated)}
     out = repo_root() / "reports" / "extraction-gate" / f"{name}.calibration.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -532,6 +572,7 @@ def main() -> int:
     p_ex.add_argument("--tag", default="r2", help="round name used in the output file names")
     p_ex.add_argument("--count", action="append", default=[], metavar="CLASS=N", help="override a ROUND2 count")
     p_ex.add_argument("--allow-no-history", action="store_true")
+    p_ex.add_argument("--overwrite", action="store_true", help="rebuild a round whose input files exist")
     p_ex.add_argument("--short-share", type=float, default=0.5,
                       help="draw each subclass from its shortest share of documents first")
     p_ca = sub.add_parser("calibrate", help="score a finished gate run against the dojo")
@@ -542,6 +583,8 @@ def main() -> int:
     p_ca.add_argument("--key-set", help="question set whose key fields define the key-field target (default: the run's own)")
     p_ca.add_argument("--good", type=float, default=0.8, help="dojo score at or above which an extraction is good")
     p_ca.add_argument("--precision", type=float, default=0.9, help="target precision of the accepted set")
+    p_ca.add_argument("--include-truncated", action="store_true",
+                      help="also calibrate rows whose document was cut at the input cap (skipped by default)")
     args = parser.parse_args()
     return {"inputs": cmd_inputs, "expand": cmd_expand, "calibrate": cmd_calibrate}[args.cmd](args)
 

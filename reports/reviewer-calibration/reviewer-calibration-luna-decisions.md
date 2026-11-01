@@ -42,9 +42,12 @@ set's content and sha256 in the run lock.
 | Run | Documents | Question set | Class accuracy | Subclass accuracy | Input tokens | Cost |
 | --- | ---: | --- | ---: | ---: | ---: | ---: |
 | `reviewer-calibration-luna-decisions` (train) | 735 | v1 | 98.4% (723) | 78.0% | ~7.1M | $0.71 |
-| `reviewer-calibration-luna-decisions-v2` (train, in-sample) | 735 | v2 | **100% (735)** | 82.6% | 8.55M | $0.69 |
+| `reviewer-calibration-luna-decisions-v2` (train, in-sample) | 735 | v2 | **100% (735)** | 82.6% | 8.55M | $0.86 |
 | `reviewer-validation-luna-decisions-v2-test` (held-out test) | 323 | v2 | **98.5% (318)** | 83.3% | 2.38M | $0.24 |
 | `pipeline-luna-decisions-qwen-smoke` (full pipeline) | 10 | v2 | 10/10 | — | — | $0.10 |
+
+Costs are input tokens at the list price, $0.10 per 1M (no output charge). The v2 train row
+earlier read $0.69, which does not match its 8.55M tokens; it is corrected to $0.86.
 
 The 735 train documents are the pilot's balanced draw (dataset sha256
 `1975326bfa88`). Latency was p50 0.5 s and p95 0.9 s per document at
@@ -176,8 +179,11 @@ recorded under the `prompt_tokens` / `completion_tokens` keys.
 
 1. Dataset: relabel merger `other` as unannotated; review the corporate-record
    and power-of-attorney labels listed above.
-2. The full train split (2,979 documents) on v2 to tighten the intervals:
-   about 30M input tokens at the 120k cap, roughly $3.
+2. The full train split (2,979 documents) to tighten the intervals: about 20.5M
+   input tokens, about $2.05, from the measured token fit of 2026-11-01 (0.2073 tokens
+   per character up to the 120,000-character cap, plus 3,095 question tokens per
+   request; `config/runs/reviewer-calibration-luna-decisions-v3.1.0-train.yaml`). It
+   replaces the earlier rough guess of 30M tokens / $3.
 3. Extraction review on the same model: yes/no "is this field supported by
    the text" questions per extracted field, each with its own cutoff.
    Dates and arithmetic stay with the LLM judge.

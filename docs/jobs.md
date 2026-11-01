@@ -99,7 +99,8 @@ job:
                             # highest input/output price among the run's API models
                             # and checked before each document. Required when any
                             # agent bills tokens; every such model needs a price
-                            # (SANDBOX_MODEL_PRICES in job/metrics.py, or both
+                            # (config/api_prices.yaml, the built-in fallback
+                            # SANDBOX_MODEL_PRICES in job/metrics.py, or both
                             # SANDBOX_TOKEN_PRICE_IN_PER_M and _OUT_PER_M) or the run
                             # is refused. Paid runs need max_wall_seconds, plus
                             # cost_cap_usd when they warm a Modal GPU and

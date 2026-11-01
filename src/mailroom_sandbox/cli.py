@@ -3427,6 +3427,11 @@ def _finalize_remote(store) -> bool:
                 lock = store.verify_generation()
                 if record_matches(record, store, lock, state=store.state()):
                     experiment_log.append(record)
+    # A Modal run's terminal checkpoint is synced back as a file, so write_checkpoint never
+    # closed its ledger row; close it here for both `run status` and the `--watch` paths.
+    from mailroom_sandbox.job import ledger
+
+    ledger.close_run(store)
     return True
 
 
@@ -3526,10 +3531,10 @@ def _cmd_run_status(args) -> int:
             return 1
     summary = store.summary()
     if store.terminal():
-        # A Modal run's terminal checkpoint is synced back as a file, not written here.
+        # Idempotent backfill for a row a sync before close_run existed left open.
         from mailroom_sandbox.job import ledger
 
-        ledger.mark_result(run_id, store.spec_hash(), ok=store.state() == "done")
+        ledger.close_run(store)
     payload = summary
     if remote_progress:
         payload["remote"] = remote_progress
