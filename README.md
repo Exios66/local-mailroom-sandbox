@@ -31,6 +31,7 @@
 - [🚀 Quickstart](#quickstart)
 - [🧭 How it works](#how-it-works)
 - [📟 At a glance](#at-a-glance)
+- [🎚️ Model tiers](#model-tiers)
 - [⌨️ CLI](#cli)
 - [📚 Docs](#docs)
 - [✍️ Specialist extraction rules](#specialist-extraction-rules)
@@ -87,6 +88,7 @@ serving, eval and scoring overlays on top.
 
 ```bash
 pip install -e ".[dev]"
+# .venv/bin/sandbox uses its own venv's modal even when the venv is not activated
 cp config/.env.example .env   # sandbox loads .env at startup; exported vars win
 # family code is already vendored under vendor/ (self-contained); fetch-deps
 # only refreshes the snapshots (workspace packages first; reviewed standalone
@@ -129,7 +131,7 @@ sandbox cutover --profile ollama --model llama3.2:3b   # prints the assignment
 sandbox health --profile ollama                        # probes the offline profile
 ```
 
-`cutover` does not call the model. GPU recommended for Qwen 8B.
+`cutover` does not call the model. A GPU is recommended for the default Qwen3.5-9B.
 
 </details>
 
@@ -155,6 +157,13 @@ mocking (DMR-048); live eval errors are recorded per item instead of being
 replaced by mock answers (DMR-044), and a task that has no live predictor is
 explicitly flagged `offline_fallback`.
 
+Two eval tasks are primary (SAND-074): `sandbox eval specialist [TARGET]` scores
+the five live-class specialists (or one), and `sandbox eval pipeline [--class C]`
+runs the full connected graph. Every other task still runs and is listed by
+`sandbox eval --all-tasks`. A `task: pipeline` run records each graph node a
+document enters in `nodes.jsonl` (SAND-076), so `sandbox watch` and
+`watch --web` show the live route, latency, routed agent and model per node.
+
 <a id="at-a-glance"></a>
 
 ## 📟 At a glance
@@ -167,13 +176,48 @@ explicitly flagged `offline_fallback`.
 
 | Component | Default | Notes |
 | :--- | :--- | :--- |
-| **Default provider** | Modal vLLM (`modal-vllm`) | One L4 serving `Qwen/Qwen3-8B`; `--profile ollama` is the offline opt-out |
+| **Default provider** | Modal vLLM (`modal-vllm`) | One L4 serving `Qwen/Qwen3.5-9B` (fp8, text-only); `--profile ollama` is the offline opt-out |
+| **API comparison** | OpenRouter (opt-in) | `qwen/qwen3.5-9b`, the same weights as the Modal default |
+| **Judge** | `Qwen/Qwen3.5-27B` on Modal | Its own L40S app in Modal pipeline experiments; `deepseek/deepseek-v4-flash` on OpenRouter |
+| **Specialists** | the base model | `--specialist-tier mid` or `full` moves all five onto a stronger model |
 | **Scoring** | `llm-dojo-scoring` (vendored) | Deterministic, field-type-aware |
 | **Pipeline** | `llm-mailroom` (vendored) | 13-node LangGraph state machine |
 | **Tracing** | Langfuse 3 / SDK v4 | `document-pipeline` traces |
 | **Storage** | SQLite under `./data` | Mailroom default |
 
 </div>
+
+<a id="model-tiers"></a>
+
+## 🎚️ Model tiers
+
+The judge and the five specialists are the critical roles, so the sandbox can
+give them a stronger model than the base agents. The base and specialist tiers
+use the same weights on Modal and on OpenRouter, so those comparisons isolate
+serving. The judge does not: OpenRouter runs keep the DeepSeek judge, so a judge
+score compares different models.
+`config/models.yaml` (`openrouter_preference`, `critical_tier`) defines them.
+
+| Role | Modal + vLLM | OpenRouter | Extra Modal GPU |
+| :--- | :--- | :--- | :--- |
+| Base agents | `Qwen/Qwen3.5-9B` (fp8, L4) | `qwen/qwen3.5-9b` | the base engine |
+| Judge (SAND-078) | `Qwen/Qwen3.5-27B` (fp8) | `deepseek/deepseek-v4-flash` | one L40S app |
+| Specialists, `mid` (SAND-079) | `Qwen/Qwen3.5-35B-A3B` MoE (fp8) | `qwen/qwen3.5-35b-a3b` | one `L4:2` app |
+| Specialists, `full` (SAND-079) | `Qwen/Qwen3.5-27B`, the judge's own app | `qwen/qwen3.5-27b` | none |
+
+```bash
+sandbox experiment create pipeline-full --task pipeline --specialist-tier full --samples 2 --seed 42
+```
+
+`sandbox experiment create --provider modal-vllm --task pipeline` adds the
+judge route unless `--agent-route judge=…` or `--agent-model judge=…` sets it.
+An explicit route or model for one specialist overrides its tier, and the
+frozen `sand42` study refuses `--specialist-tier`. The paired comparison is
+committed as `config/experiments/tiers-{base,mid,full}/`: 10 documents each,
+the same dataset slice and seed. Launch each with `sandbox experiment preflight`
+and then `sandbox experiment launch`, which asks for your initials before any
+spend. See [Providers](docs/setting-up/providers.md) and
+[Experiment workflow](docs/experiments.md).
 
 <a id="cli"></a>
 
@@ -182,20 +226,24 @@ explicitly flagged `offline_fallback`.
 ```
 sandbox runbook show serve     # default path: Modal vLLM deploy → point → verify → teardown
 sandbox up | down | health | doctor | pull-models | fetch-deps | cutover | profiles | agents
-sandbox modal deploy|prewarm|status|stop|logs|url|raw   # guarded Modal passthrough
+sandbox modal deploy|prewarm|status|stop|logs|url|raw   # guarded Modal passthrough (status lists scoped sandbox-* apps too)
 sandbox vllm probe|command|serve|metrics                # endpoint probe + local serving
 sandbox hf whoami|download|cache|raw                    # pinned revision by default
 sandbox pipeline watcher | pipeline api
 sandbox pilot --mock|--local
 sandbox hf-pilot --check|--mock|--local
-sandbox legalbench --mock|--local
-sandbox eval <agent>|extract|chained|pipeline|legalbench|local_vs_api [--mock|--local]
+sandbox eval specialist [TARGET] [--mock|--local]      # all five specialists, or one
+sandbox eval pipeline [--class CLASS] [--mock|--local] # full pipeline, every class or one
+sandbox eval --all-tasks                               # other (non-primary) eval tasks
 sandbox eval local_vs_api --from-log   # compare experiment_log local vs API-key runs
-sandbox matrix --providers ollama --models qwen3:8b --prompts sorter_local_v0
+sandbox matrix --providers modal-vllm --models Qwen/Qwen3.5-9B --prompts sorter_v1 --local   # default serving
+sandbox matrix --providers openrouter --models qwen/qwen3.5-9b --prompts sorter_v1 --local   # API serving
 sandbox datasets pull          # LIVE pinned FULL Hub pull (3302 rows) → data/cache/
 sandbox datasets sample --per-class 40  # offline 20/40/100… per live class from that cache
 sandbox datasets prepare   # offline clean → data/runtime/prepared/
 sandbox experiment designs|create|review|preflight|launch|watch|report
+sandbox experiment create NAME --task pipeline --specialist-tier base|mid|full   # stronger specialists
+sandbox experiment create NAME --task pipeline --agent-route sorter_reviewer=openrouter:openai/gpt-6-luna --decision-reviewer api:openai/gpt-6-luna --decision-class contract=0.90   # frozen decision reviewer; api needs the matching sorter_reviewer route
 sandbox run preflight|start|status|resume|cancel|list --config config/runs/<name>.yaml
 sandbox watch [--web] [--config config/runs/<name>.yaml]       # mailroom TUI + Modal log tail (see docs/pretty-logging/mailroom-themed-logging.md)
 sandbox run start --config <run.yaml> --job-mode modal --watch   # Modal worker
@@ -205,6 +253,10 @@ sandbox eval sorter --prompt-version sorter_v4        # run any version: docs/pr
 sandbox metrics compare --runs local,modal,api | --log
 sandbox tunnel --profile vllm-remote plan|up|status|down
 sandbox traces export
+sandbox tui                     # interactive operator terminal (spend gates stay on)
+sandbox doctor [--service NAME] [--live] [--publish]   # one status table for every external CLI/service; --live adds the Modal account check
+sandbox board [--tui]           # persistent job board for every mailroom.beacon/v1 job
+sandbox dev [--pipeline]        # themed watch UI on a synthetic run (no Modal, no spend)
 ```
 
 `SANDBOX_DEBUG=1` traces CHTC/Modal scripts (DMR-053). The complete generated
@@ -320,7 +372,7 @@ See [`docs/setting-up/docker-offline.md`](docs/setting-up/docker-offline.md).
 
 Not on your machine. `sandbox pilot --mock` exercises the machinery with no
 model at all, and a small model such as `llama3.2:3b` runs on CPU through Ollama
-(see the CPU-only smoke test above). A GPU is recommended for the default Qwen 8B.
+(see the CPU-only smoke test above). A GPU is recommended for the default Qwen3.5-9B.
 `vllm-local` needs a local GPU; `vllm-remote` reaches a GPU box over an SSH
 tunnel and `modal-vllm` rents one on Modal.
 
@@ -353,6 +405,14 @@ active provider and the trace sinks.
 Not silently. The default profile is `modal-vllm`: its container scales to zero
 after 120s idle, and the runbook tears the app down when the last eval finishes,
 so you pay only for warm GPU-minutes on your own Modal account (L4 ≈ $0.80/hr).
+A Modal pipeline experiment also deploys the judge's L40S app (≈ $1.95/hr), and
+`--specialist-tier mid` adds an `L4:2` app. Each run's cost cap prices every
+app it keeps warm, and `sandbox experiment launch` asks for your initials
+before it spends. Every paid run needs `job.max_wall_seconds`; a run that warms a
+Modal GPU (or has no API model) also needs `job.cost_cap_usd`, and a run that
+sends any agent to OpenRouter needs `job.api_cost_cap_usd` and a known token price for each API
+model. The GPU cap does not limit OpenRouter spend. `sandbox experiment create`
+recommends all three from the design.
 The offline opt-out (`--profile ollama`) costs nothing; OpenRouter is opt-in,
 and the `api-evals/` harness is the real-spend API path, kept outside the package.
 

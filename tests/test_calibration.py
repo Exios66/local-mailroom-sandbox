@@ -423,8 +423,9 @@ def test_correspondence_allowed_by_flag_is_reported_but_never_printed():
     assert result["verdict"] == "llm"
     assert "correspondence" in result["reason"]
     assert decision_flags(report) is None
-    with pytest.raises(ValueError):  # the rejection this tool must not route around
-        ReviewerSpec(backend="jev", model=PIN, classes={"correspondence": 0.9})
+    # SAND-086 was cancelled on main: no backend refuses correspondence any more, so the
+    # calibration tool's own refusal to print a correspondence flag is the only gate left.
+    assert ReviewerSpec(backend="jev", model=PIN, classes={"correspondence": 0.9}).classes == {"correspondence": 0.9}
 
 
 def test_correspondence_on_mock_needs_no_flag():

@@ -1,8 +1,7 @@
-"""Eval runners: sorter / extract / chained / pipeline / legalbench."""
+"""Eval runners: sorter / extract / chained / pipeline / specialist."""
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 from contextlib import ExitStack
@@ -11,11 +10,8 @@ from typing import Any
 from unittest.mock import patch
 
 from mailroom_sandbox.datasets import (
-    LEGALBENCH_TASKS,
     dataset_fingerprint,
     fixture_file,
-    load_legalbench_fixtures,
-    load_legalbench_suite_rows,
     load_manifest,
     parse_expected_fields,
 )
@@ -42,16 +38,31 @@ except Exception as exc:  # pragma: no cover
     ScoreRecord = None  # type: ignore
 
 
+def _estimated_gpu_usd(
+    wall: float, *, gpu: str | None, replicas: int, gpu_fleet: list[tuple[str, int]] | None
+) -> float:
+    """Warm-GPU $ for a spend cap: the whole routed fleet when known, else the base engine."""
+    from mailroom_sandbox.job.metrics import estimate_gpu_cost_usd, fleet_gpu_cost_usd
+
+    if gpu_fleet:
+        return fleet_gpu_cost_usd(wall, gpu_fleet)
+    return float(estimate_gpu_cost_usd(wall, gpu=gpu or "L4", replicas=replicas) or 0.0)
+
+
+REVIEW_OUTCOME_FIELDS = ("review_causes", "review_verdict", "escalation_reason",
+                        "reviewer_doc_type", "reviewer_confidence")
+
+
 def _expect_from_row(row: dict[str, Any]) -> dict[str, Any]:
     doc_type = row.get("expected_doc_class") or row.get("doc_type") or "contract"
-    conf = 0.40 if row.get("id") == "ambiguous_01" else 0.97
+    conf = 0.40 if row.get("id") == "ambiguous_01" else 0.99  # above every class high threshold
     return {
         "id": row.get("id"),
         "doc_type": doc_type,
         "expected_doc_class": doc_type,
         "conf": conf,
+        "expected_subclass": row.get("expected_subclass"),
         "expected_fields": parse_expected_fields(row) if "expected_fields" in row else row.get("expected_fields"),
-        "legalbench_answer": row.get("answer"),
     }
 
 
@@ -140,9 +151,11 @@ def run_isolated_eval(
     concurrency: int = 1,
     max_wall_seconds: float | None = None,
     cost_cap_usd: float | None = None,
+    api_budget: Any = None,
     gpu: str | None = None,
     progress_cb: Any = None,
     replicas: int = 1,
+    gpu_fleet: list[tuple[str, int]] | None = None,
     row_cb: Any = None,
     score_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -229,6 +242,8 @@ def run_isolated_eval(
             usage = usage_from_pipeline()
         except Exception as exc:  # noqa: BLE001 — recorded as an item error, never a silent mock
             error = f"{type(exc).__name__}: {str(exc)[:300]}"
+            # SAND-089: a call made before the failure was still billed; keep its tokens.
+            usage = usage_from_pipeline()
         entry: dict[str, Any] = {
             "id": row.get("id"),
             "pred": pred,
@@ -272,22 +287,23 @@ def run_isolated_eval(
                 f"exceeded (wall={wall:.1f}s) — protecting spend"
             )
         if cost_cap_usd is not None:
-            from mailroom_sandbox.job.metrics import estimate_gpu_cost_usd
-
-            est = float(
-                estimate_gpu_cost_usd(wall, gpu=gpu or "L4", replicas=replicas) or 0.0
-            )
+            est = _estimated_gpu_usd(wall, gpu=gpu, replicas=replicas, gpu_fleet=gpu_fleet)
             if est >= float(cost_cap_usd):
                 raise RuntimeError(
                     f"isolated eval aborted: cost_cap_usd={cost_cap_usd} exceeded "
                     f"(est_gpu_usd={est:.4f} at wall={wall:.1f}s) — protecting spend"
                 )
+        if api_budget is not None and not mock:
+            # SAND-089: token spend on API-billed agents, priced at the run's highest API price.
+            api_budget.check("isolated eval aborted: ")
 
     workers = max(1, min(int(concurrency), len(rows) or 1))
 
     def _record(index: int, entry: dict[str, Any]) -> None:
         per_row[index] = entry
         _absorb(entry)
+        if api_budget is not None:
+            api_budget.add_usage(entry)
         # SAND-032: stream each finished row to the caller (main thread) so a
         # later cap abort / raise cannot drop rows whose GPU time was paid.
         if row_cb is not None:
@@ -393,7 +409,12 @@ def run_isolated_eval(
         billed_seconds = wall_seconds + (
             float(cold_boot_seconds) if cold_boot_seconds is not None else 0.0
         )
-        gpu_cost = estimate_gpu_cost_usd(billed_seconds, gpu=gpu or "L4", replicas=replicas)
+        # Price the record like the cost cap: every warm route app when routed.
+        gpu_cost = (
+            _estimated_gpu_usd(billed_seconds, gpu=gpu, replicas=replicas, gpu_fleet=gpu_fleet)
+            if gpu_fleet
+            else estimate_gpu_cost_usd(billed_seconds, gpu=gpu or "L4", replicas=replicas)
+        )
         record["replicas"] = max(1, int(replicas))
         if gpu_cost is not None:
             record["gpu_seconds"] = round(billed_seconds, 3)
@@ -595,129 +616,6 @@ def _seeded_sample(rows: list[dict[str, Any]], sample: int, seed: int) -> list[d
     if sample >= len(ordered):
         return ordered
     return random.Random(seed).sample(ordered, k=sample)
-
-
-def _mock_legalbench_answer(row: dict[str, Any]) -> str:
-    """Deterministic mock answer (md5 parity), shared by every mock path.
-
-    A mock must exercise the scoring machinery without being self-fulfilling:
-    predicting the expected answer would pin every mock run to 1.0 and mask
-    scoring defects (DMR-049 F8).
-    """
-    import hashlib
-
-    blob = str(row.get("doc_text") or row.get("text") or row.get("document_text") or "")
-    return "Yes" if int(hashlib.md5(blob.encode()).hexdigest()[:2], 16) % 2 else "No"
-
-
-def run_legalbench_eval(
-    *,
-    mock: bool = True,
-    sample: int | None = None,
-    seed: int = 42,
-    task: str = "contract_qa",
-    suite: bool = False,
-    dry_run: bool = False,
-    experiment_name: str | None = None,
-    profile: str | None = None,
-    model: str | None = None,
-    agent_models: dict[str, str] | None = None,
-) -> dict[str, Any]:
-    """Run the LegalBench binary QA harness.
-
-    ``suite=True`` loads a seeded subset from the vendored llm-mailroom suite
-    (the real CUAD corpora — loud failure when unavailable); the default is
-    the committed offline fixture. ``sample`` is a seeded draw, never
-    first-N, and the seed lands in the plan/record (DMR-049 F5).
-
-    Return the plan alone for ``dry_run``; otherwise add ``scores`` and append
-    an experiment record. Raise ValueError for unknown tasks, the unsupported
-    ``family_classification`` task, a suite without a sample, or empty input.
-    Dataset-loading errors propagate. Individual live-answer errors become
-    empty predictions and an ``error_count`` score; if every row fails, raise
-    RuntimeError. Activation, scoring, and experiment-log errors propagate.
-    """
-    if task not in LEGALBENCH_TASKS:
-        raise ValueError(f"unknown legalbench task {task!r}; have {sorted(LEGALBENCH_TASKS)}")
-    if task == "family_classification":
-        raise ValueError(
-            "family_classification is not wired into the sandbox harness (no fixture and no "
-            "family prompt) — run it from llm-mailroom's legalbench CLI: "
-            "`PYTHONPATH=src python -m legalbench.cli --task family_classification`"
-        )
-    if suite:
-        if not sample:
-            raise ValueError("suite runs need an explicit --n/--sample (the full corpus is not a smoke run)")
-        rows = load_legalbench_suite_rows(task, sample=sample, seed=seed)
-    else:
-        rows = load_legalbench_fixtures(task=task)
-        if sample:
-            rows = _seeded_sample(rows, sample, seed)
-    if not rows:
-        raise ValueError(
-            f"legalbench task {task!r} produced no samples"
-            + ("" if suite else " from the committed fixture — try --suite for the real corpus")
-        )
-    plan = {
-        "task": "legalbench",
-        "legalbench_task": task,
-        "n": len(rows),
-        "mock": mock,
-        "seed": seed,
-        "suite": suite,
-    }
-    if dry_run:
-        return plan
-    activation = activate(profile, model=model, agent_models=agent_models)
-    expected = [str(r.get("answer") or r.get("expected") or "") for r in rows]
-    errors: list[dict[str, Any]] = []
-    if mock:
-        predicted = [_mock_legalbench_answer(r) for r in rows]
-    else:
-        predicted = []
-        for row in rows:
-            try:
-                predicted.append(_live_legalbench_answer(row, model=model))
-            except Exception as exc:  # noqa: BLE001 — recorded per row, not fatal per row
-                predicted.append("")
-                errors.append({"id": row.get("id"), "error": f"{type(exc).__name__}: {str(exc)[:300]}"})
-        if len(errors) == len(rows):
-            raise RuntimeError(
-                f"legalbench task {task!r}: all {len(rows)} row(s) failed — the live path was "
-                f"not exercised (last error: {errors[-1]['error']})"
-            )
-    session = tracing.session_id_for("legalbench")
-    for row, pred in zip(rows, predicted):
-        with tracing.document_pipeline_trace(
-            seed=str(row.get("id") or "legalbench"),
-            session_id=session,
-            input={"filename": row.get("id"), **tracing.public_ground_truth({"expected": row.get("answer")})},
-            metadata={"pipeline": "mailroom", "source": "legalbench", "run_id": experiment_name},
-            tags=tracing.default_tags("source-legalbench"),
-        ):
-            with tracing.child_observation("answer-question", as_type="generation"):
-                # The answer is already computed above; this span only marks it.
-                pass
-    tracing.flush_traces()
-    scores = scoring.score_legalbench(expected, predicted)
-    if errors:
-        scores["error_count"] = len(errors)
-    record = experiment_log.new_record(
-        experiment_name=experiment_name or "sandbox_legalbench",
-        task="legalbench",
-        legalbench_task=task,
-        profile=activation.profile_name,
-        provider=os.environ.get("DEFAULT_PROVIDER"),
-        model="mock/mock-legalbench" if mock else model,
-        mock=mock,
-        seed=seed,
-        n=len(rows),
-        scores=scores,
-        tracing_backend=tracing.tracing_backend(),
-        tags=tracing.default_tags("source-legalbench"),
-    )
-    experiment_log.append(record)
-    return {**plan, "scores": scores}
 
 
 def run_local_vs_api_eval(
@@ -1027,6 +925,29 @@ def _sorter_modernbert_from_log(
     return sorter, modernbert
 
 
+def _score_pipeline_extraction(row: dict[str, Any], result: dict[str, Any]) -> dict[str, Any] | None:
+    """Score one connected-pipeline document's extraction; None when the row has no field GT."""
+    expected_fields = parse_expected_fields(row) or {}
+    if not expected_fields:
+        return None
+    return scoring.score_extraction_row(
+        row["expected_doc_class"],
+        result.get("extracted_data") or {},
+        expected_fields,
+        # DMR-056: live corpus rows carry doc_text inline; fixture rows
+        # read from disk (subdir guard — live rows have no subdir key).
+        doc_text=row.get("doc_text")
+        or (
+            fixture_file(row).read_text(encoding="utf-8")
+            if "subdir" in row and fixture_file(row).is_file()
+            else None
+        ),
+        # Per-subclass scoring (sandbox #145): the row's GT subclass
+        # drives the vendored corporate-record alignment.
+        expected_subclass=row.get("expected_subclass"),
+    )
+
+
 def run_pipeline_eval(
     *,
     mock: bool = True,
@@ -1042,13 +963,18 @@ def run_pipeline_eval(
     rows: list[dict[str, Any]] | None = None,
     row_cb=None,
     progress_cb=None,
+    node_cb=None,
     max_wall_seconds: int | None = None,
     cost_cap_usd: float | None = None,
+    api_budget: Any = None,
     gpu: str | None = None,
     replicas: int = 1,
+    gpu_fleet: list[tuple[str, int]] | None = None,
 ) -> dict[str, Any]:
     # DMR-056: rows=None keeps the fixture manifest default; the sandbox job
     # whole-run path passes the LOCKED live dataset rows instead.
+    from mailroom_sandbox.job import usage_capture
+
     rows = load_manifest() if rows is None else rows
     if sample is not None:
         if sample <= 0:
@@ -1069,6 +995,7 @@ def run_pipeline_eval(
     )
     session = tracing.session_id_for("pipeline")
     results = []
+    extraction_rows: list[dict[str, Any] | None] = []
     import time
     started = time.monotonic()
     for row in rows:
@@ -1077,16 +1004,55 @@ def run_pipeline_eval(
             if max_wall_seconds is not None and elapsed >= max_wall_seconds:
                 raise RuntimeError("pipeline wall-time cap exceeded before next document")
             if cost_cap_usd is not None:
-                from mailroom_sandbox.job.metrics import estimate_gpu_cost_usd
-                if float(estimate_gpu_cost_usd(elapsed, gpu=gpu or "L4", replicas=replicas) or 0) >= cost_cap_usd:
+                if _estimated_gpu_usd(elapsed, gpu=gpu, replicas=replicas, gpu_fleet=gpu_fleet) >= cost_cap_usd:
                     raise RuntimeError("pipeline estimated GPU cost cap exceeded before next document")
+            if api_budget is not None:
+                api_budget.check("pipeline API spend cap reached before next document: ")
         before = time.monotonic()
-        result = _run_pipeline_doc(row, mock=mock, session_id=session, experiment_name=experiment_name)
+        with ExitStack() as nodes:
+            if node_cb is not None:
+                # SAND-076: report each graph node as it starts and ends.
+                from mailroom_sandbox.job.node_trace import track_nodes
+
+                models = {agent: model for agent, _provider, model in activation.assignments}
+                models.update(activation.agent_models)
+                nodes.enter_context(track_nodes(str(row.get("id")), node_cb, models=models))
+            usage_capture.reset_usage()
+            try:
+                result = _run_pipeline_doc(row, mock=mock, session_id=session, experiment_name=experiment_name)
+            except Exception as exc:
+                # SAND-089: calls made before the failure were billed; count them before the run stops,
+                # and hand them to the job runner, which records them for a resumed run's budget.
+                failed_usage = usage_capture.usage_from_pipeline()
+                if api_budget is not None:
+                    api_budget.add_usage(failed_usage)
+                if failed_usage:
+                    try:
+                        exc.sandbox_failed_usage = {"item_id": row.get("id"), **failed_usage}
+                    except (AttributeError, TypeError):
+                        pass
+                raise
+        doc_usage = usage_capture.usage_from_pipeline()
+        if api_budget is not None:
+            api_budget.add_usage(doc_usage)
+        if result.get("stage") == "failed" and not result.get("error"):
+            # A run the pipeline aborted is a failed document, not a finished one.
+            result = {**result, "error": result.get("escalation_reason") or "pipeline failed"}
         results.append(result)
+        scored = _score_pipeline_extraction(row, result) if connected else None
+        extraction_rows.append(scored)
         if row_cb:
-            row_cb({"id": row.get("id"), "pred": result, "error": result.get("error"),
-                    "score": {"match": float(result.get("doc_type") == row.get("expected_doc_class"))},
-                    "latency_ms": (time.monotonic() - before) * 1000})
+            stage = str(result.get("stage") or "unknown")
+            score = {"match": float(result.get("doc_type") == row.get("expected_doc_class")),
+                     "class_correct": float(result.get("doc_type") == row.get("expected_doc_class")),
+                     "stage_correct": float(stage == str(row.get("expected_stage") or "archived"))}
+            # The same scorer output the run-level aggregate uses, so a report can read it per document.
+            score.update({k: v for k, v in (scored or {}).items()
+                          if isinstance(v, (int, float)) and not isinstance(v, bool)})
+            # Keep the parse facts: whole-run jobs fail when every answer is unparseable.
+            score.update({k: scored[k] for k in ("parse_error", "schema_valid") if k in (scored or {})})
+            row_cb({"id": row.get("id"), "pred": result, "error": result.get("error"), "score": score,
+                    "latency_ms": (time.monotonic() - before) * 1000, **doc_usage})
         if progress_cb:
             errors = sum(bool(item.get("error")) for item in results)
             progress_cb(len(results), len(rows), len(results) - errors, errors)
@@ -1094,44 +1060,28 @@ def run_pipeline_eval(
     predicted: list[str] = []
     for row, result in zip(rows, results):
         doc_type = result.get("doc_type")
-        if not mock and not doc_type:
+        if not mock and not doc_type and not result.get("error"):
             raise RuntimeError(
                 f"live pipeline returned no doc_type for row "
                 f"{row.get('id') or row.get('filename') or '?'} — refusing to "
                 f"score a dead live path as 'unknown'"
             )
         predicted.append(doc_type or "unknown")
+    if not mock and results and not any(r.get("doc_type") for r in results):
+        raise RuntimeError("live pipeline returned no doc_type for any row — refusing to score a dead live path")
     class_scores = scoring.score_classification(expected, predicted)
     stage_expected = [str(r.get("expected_stage") or "archived") for r in rows]
     stage_predicted = [str(r.get("stage") or "unknown") for r in results]
     stage_scores = scoring.score_stage(stage_expected, stage_predicted)
     extract_vals: list[float] = []
     schema_rows: list[dict[str, Any]] = []
-    if connected:
-        for row, result in zip(rows, results):
-            expected_fields = parse_expected_fields(row) or {}
-            if not expected_fields:
-                continue
-            scored = scoring.score_extraction_row(
-                row["expected_doc_class"],
-                result.get("extracted_data") or {},
-                expected_fields,
-                # DMR-056: live corpus rows carry doc_text inline; fixture rows
-                # read from disk (subdir guard — live rows have no subdir key).
-                doc_text=row.get("doc_text")
-                or (
-                    fixture_file(row).read_text(encoding="utf-8")
-                    if "subdir" in row and fixture_file(row).is_file()
-                    else None
-                ),
-                # Per-subclass scoring (sandbox #145): the row's GT subclass
-                # drives the vendored corporate-record alignment.
-                expected_subclass=row.get("expected_subclass"),
-            )
-            schema_rows.append(scored)
-            value = scored.get("overall_extraction_score")
-            if isinstance(value, (int, float)):
-                extract_vals.append(float(value))
+    for scored in extraction_rows:
+        if scored is None:
+            continue
+        schema_rows.append(scored)
+        value = scored.get("overall_extraction_score")
+        if isinstance(value, (int, float)):
+            extract_vals.append(float(value))
     routing_expected = ["review" if s == "review" else "continue" for s in stage_expected]
     routing_predicted = ["review" if s == "review" else "continue" for s in stage_predicted]
     routing = scoring.score_classification(routing_expected, routing_predicted)
@@ -1327,85 +1277,21 @@ def _run_pipeline_doc(
             result = run_pipeline(queued, matter_id, **kwargs)
     else:
         result = run_pipeline(queued, matter_id, **kwargs)
+    # A parked run returns the state from before the review interrupt; the manifest holds the outcome.
+    outcome = dict(result)
+    if result.get("stage") == "review" and result.get("doc_id"):
+        from pipeline.bins import load_manifest  # type: ignore
+
+        manifest = load_manifest(result["doc_id"]).model_dump(mode="json")
+        outcome.update({key: manifest.get(key) for key in REVIEW_OUTCOME_FIELDS if manifest.get(key) is not None})
     return {
         "id": row.get("id"),
         "doc_type": result.get("doc_type"),
         "stage": result.get("stage"),
         "extracted_data": result.get("extracted_data"),
         "classification_confidence": result.get("classification_confidence"),
+        **{key: outcome.get(key) for key in REVIEW_OUTCOME_FIELDS},
         "error": result.get("error") or result.get("errors"),
         "offline_fallback": False,
         "mailroom_src": str(src) if src else None,
     }
-
-
-def _live_serve_target() -> tuple[str, str]:
-    """(base_url, model) for a direct live call, following the active provider.
-
-    ``DEFAULT_PROVIDER`` picks the family; the fallback model matches the
-    served vLLM id (``Qwen/Qwen3-8B-AWQ``) so a live client never 404s on the
-    dense ``Qwen/Qwen3-8B`` name while the replica is AWQ-only.
-    """
-    provider = (os.environ.get("DEFAULT_PROVIDER") or "").strip().lower()
-    if provider == "vllm":
-        from mailroom_sandbox.overlay import resolve_served_vllm_model
-
-        return (
-            os.environ.get("VLLM_BASE_URL") or "http://localhost:8000/v1",
-            resolve_served_vllm_model() or "Qwen/Qwen3-8B-AWQ",
-        )
-    if provider == "ollama":
-        return (
-            os.environ.get("OLLAMA_BASE_URL") or "http://localhost:11434/v1",
-            "qwen3:8b",
-        )
-    return (
-        os.environ.get("OLLAMA_BASE_URL")
-        or os.environ.get("VLLM_BASE_URL")
-        or "http://localhost:11434/v1",
-        "qwen3:8b",
-    )
-
-
-def _live_legalbench_answer(row: dict[str, Any], *, model: str | None) -> str:
-    answer, _usage = _live_legalbench_answer_with_usage(row, model=model)
-    return answer
-
-
-def _live_legalbench_answer_with_usage(
-    row: dict[str, Any], *, model: str | None
-) -> tuple[str, dict[str, int]]:
-    """Live LegalBench call returning ``(answer, usage_metrics)``."""
-    try:
-        from openai import OpenAI
-    except Exception as exc:
-        raise RuntimeError(
-            "openai is not installed — a live legalbench run would silently "
-            "score the expected answer; install the eval extras or use --mock"
-        ) from exc
-    from mailroom_sandbox.job.usage_capture import usage_from_openai_response
-
-    base, fallback_model = _live_serve_target()
-    client = OpenAI(base_url=base, api_key=os.environ.get("VLLM_API_KEY") or "not-needed")
-    prompt = (
-        f"Answer Yes or No only. json required.\nQuestion: {row.get('question')}\n"
-        f"Passage: {row.get('doc_text') or row.get('text') or row.get('passage') or row.get('document_text')}\n"
-    )
-    resolved_model = model or os.environ.get("SANDBOX_MODEL") or fallback_model
-    resp = client.chat.completions.create(
-        model=resolved_model,
-        messages=[
-            {"role": "system", "content": "Return json {\"answer\": \"Yes\" or \"No\"}."},
-            {"role": "user", "content": prompt},
-        ],
-        response_format={"type": "json_object"},
-        max_tokens=32,
-        temperature=0,
-    )
-    usage = usage_from_openai_response(resp)
-    raw = resp.choices[0].message.content or "{}"
-    try:
-        answer = str(json.loads(raw).get("answer") or raw).strip()
-    except json.JSONDecodeError:
-        answer = raw.strip()
-    return answer, usage

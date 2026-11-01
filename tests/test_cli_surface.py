@@ -26,9 +26,12 @@ def _example(action):
     if action.choices:
         return str(next(iter(action.choices)))
     if action.type is not None:
-        # Required typed arguments currently accept 1; verify rather than silently
-        # producing a misleading dispatch test if a new constraint is added.
-        for candidate in ('1', '10', 'test'):
+        # Required typed arguments currently accept 1 or a known roster package;
+        # verify rather than silently producing a misleading dispatch test if a
+        # new constraint is added.
+        from mailroom_sandbox.subagents import list_packages
+
+        for candidate in ('1', '10', 'test', *list_packages()[:1]):
             try:
                 action.type(candidate)
                 return candidate
