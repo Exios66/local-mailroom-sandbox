@@ -357,7 +357,7 @@ Primary tasks: `specialist [TARGET]` (all five live-class specialists, or one) a
 
 **Subcommands:** `specialist`, `pipeline`.
 
-**Also accepted (not primary; hidden from help and menus):** 21 legacy subcommands, listed by `sandbox eval --all-tasks`.
+**Also accepted (not primary; hidden from help and menus):** 22 legacy subcommands, listed by `sandbox eval --all-tasks`.
 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
@@ -422,7 +422,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
-| `--task` | No | Choices: intake, pdf_transcriber, image_extractor, sorter, sorter_reviewer, contracts_specialist, merger_agreement_specialist, corporate_records_specialist, correspondence_specialist, insurance_claims_specialist, judge, arbiter, boss, compile_report, human_review, catalog, archive, extract, chained, pipeline, local_vs_api. |
+| `--task` | No | Choices: intake, pdf_transcriber, image_extractor, sorter, sorter_reviewer, contracts_specialist, merger_agreement_specialist, corporate_records_specialist, correspondence_specialist, insurance_claims_specialist, extraction_gate, judge, arbiter, boss, compile_report, human_review, catalog, archive, extract, chained, pipeline, local_vs_api. |
 | `--providers` | No |  |
 | `--models` | No |  |
 | `--prompts` | No |  |
@@ -1853,7 +1853,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `study` | Yes |  |
 | `--task` | No | Choices: specialists, pipeline, sorter. |
 | `--agent-route` | No | per-agent provider/model; NAME=@route.yaml includes endpoint/GPU/vLLM settings |
-| `--decision-reviewer` | No | freeze a decision-model reviewer (local:MODEL, api:openai/gpt-6-luna, jev:jev-1.13.0 or mock:mock); needs --decision-class |
+| `--decision-reviewer` | No | freeze a decision-model reviewer (decisions:openai/gpt-6-luna-decisions with the lineage frontrunner question set, jev:jev-1.13.0, local:MODEL or mock:mock); needs --decision-class |
 | `--decision-class` | No | class the decision reviewer handles, with its cutoff in [0, 1] (repeatable) |
 | `--specialist-tier` | No | specialists' model: base = the run's model, mid = Qwen3.5-35B-A3B, full = the judge's Qwen3.5-27B (config/models.yaml critical_tier) Choices: base, mid, full. |
 | `--design` | No | Choices: single, sand42. |

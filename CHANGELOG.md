@@ -2,7 +2,73 @@
 
 ## [Unreleased]
 
+- Vendor pins after merging `main`: llm-mailroom `d1e2811`, which is `v0.8.1` merged into llm-mailroom #135 (sorter V15), and llm-dojo-scoring by its published `v0.25.0` tag (SHA-verified `e35504db`).
+- CI lint: drop an unused counter in `scripts/export_sorter_handoff.py`; `scripts/refresh_api_prices.py` accepts only an `https://` catalog URL (bandit B310).
+- Spend guard: a fixed 3.00 USD reserve of the OpenRouter key's remaining limit is never spent. `require_key_headroom` and `scripts/estimate_spend.py` compare caps/estimates with `remaining - reserve`; `OPENROUTER_KEY_RESERVE_USD` can raise the floor, never lower it.
+
 ### Added
+
+- **Extraction-gate round 2: 690 new real documents, no repeats.** `scripts/extraction_gate.py expand` draws documents no finished specialist run has extracted, checked by id and by whitespace/case-folded text (the run refuses when it finds no history to exclude).
+  - insurance_claim +240, correspondence +240, corporate_record +160: each subclass drawn from its shorter half first.
+  - contract +40 and merger_agreement +10: drawn representatively at full length; contracts cover all 26 CUAD subtypes, mergers only labelled consideration subclasses (no `other`).
+  - Merger specialist input limit raised to 1,000,000 chars, so the longest (739,511 chars) is read in one call.
+- **Specialist-condensed prompt lineage** (`config/prompts/specialist_condensed_lineage.yaml`, `<agent>_condensed_v<N>.txt`). Each version is validated against the frozen prompt on the baseline documents with `scripts/compare_specialist_prompt.py`; those validation runs are never handed to the gate.
+  - insurance v3: a per-template field map for all six corpus templates (Medicare Part A/B/carrier notices, Part D pharmacy statements, auto decision letters, auto system claim extracts, property FNOL). Mean 0.770 → 0.899, better on 60/60 documents. v1 was superseded; v2 was adopted, then replaced by v3.
+  - correspondence v2: mean +0.002, −28% input tokens. v1 was rejected: it over-predicted `update`.
+  - corporate v1: mean 0.352 → 0.427.
+  - Contracts and mergers keep their frozen prompts.
+- **Extraction-gate question set 1.1.0.** Every document is read whole (limit 1,000,000 chars for every class); 1.0.0 cut 24 of the 220 baseline documents at 120k (merger 240k). The request timeout scales with document length.
+  - `calibrate` pools several gate runs (`--run` repeated, `--name`) and refuses overlapping documents or mixed question sets.
+  - Pooled 910-document calibration: `reports/extraction-gate/extraction-gate-luna-v1.1.0-pooled.calibration.json`. Its insurance extractions mix two prompts: the baseline round used the frozen specialist prompt and round 2 (240 documents) used `insurance_claims_specialist_condensed_v2`, the frontrunner when it ran; v3 came after.
+- `scripts/estimate_spend.py` sizes a pinned local prompt file from the file itself.
+- **Dojo: installed release first, vendored snapshot as fallback** (`mailroom_sandbox/dojo_source.py`).
+  - When a `llm-dojo-scoring` release is installed (`pip install -r requirements/dojo-release.txt`, the pinned GitHub release) and matches the snapshot's version and commit, it is the scoring source.
+  - The snapshot under `vendor/llm-dojo-scoring` takes over when the release is missing, off-pin or fails to import, so scoring keeps working through a broken install or outage.
+  - `SANDBOX_DOJO_SOURCE=auto|installed|vendored` picks the policy; `DOJO_SRC` still overrides. The run lock records the source as `versions.llm_dojo_scoring_source`.
+  - The release pin lives in `requirements/`, not `pyproject.toml`, so the base install stays offline (DMR-057).
+- **Full API price sheets (`config/api_prices.yaml`).** Qwen 3.7 Flash, GPT-6 Luna, Luna Decisions, DeepSeek V4 Flash and Qwen3.5-9B each carry their complete OpenRouter sheet:
+  - every long-prompt tier (Qwen 3.7 Flash: $0.03/$0.13 per 1M below 32k prompt tokens, $0.10/$0.40 from 32k, $0.20/$0.80 from 256k), input-cache read/write, context length and max completion tokens.
+  - `call_price` / `call_cost` price each call at its own tier; the built-in table is the fallback if the file is missing.
+  - `scripts/refresh_api_prices.py` rewrites the file from `GET /api/v1/models` (`--check` reports drift, `--add MODEL` adds one).
+  - The openrouter profile lists the callable models under `api_models`.
+- **Extraction-gate baseline results.** Five Qwen 3.7 Flash specialist runs (220 real dataset documents, all five classes, one call per document, no chunking) and the `openai/gpt-6-luna-decisions` gate over their handoffs; calibration in `reports/extraction-gate/extraction-gate-luna-v1.0.0-baseline.calibration.json`.
+- **Run ledger (`reports/run-ledger.md`).** Every paid run that passes the spend gate appends one row:
+  - columns: UTC time, the signer's initials, `start` or `resume`, run id, config, spec hash, rows, API cap and result;
+  - the result cell is filled when the run reaches a terminal state (`✓` done, `✗` failed). For a Modal run this happens when `sandbox run status` syncs it back;
+  - it is a Markdown table that `mailroom_sandbox.job.ledger.rows()` parses back;
+  - tests write to a temporary ledger, never the tracked one.
+- **Key-headroom spend gate.** A paid OpenRouter run refuses to start when its `job.api_cost_cap_usd` exceeds the key's remaining limit (`GET /api/v1/key`). The check fails closed when the limit cannot be read.
+- `scripts/estimate_spend.py` estimates the planned runs' token spend and checks the total against the key's live remaining limit. (Its accuracy against a measured run is unverified: no comparison is recorded.)
+- **Sorter-condensed lineage, the sorter mutation surface.**
+  - `config/prompts/sorter_condensed_v1.txt` is V15's class boundaries and subclass conventions, condensed.
+  - Its system prompt renders to 3,681 chars against V15's 25,074, about 5.3k fewer prompt tokens per call. Per-key meanings stay in the Dojo catalog in the user message.
+  - `sorter_condensed_lineage.yaml` lists the versions and the frontrunner. `tests/test_sorter_condensed_prompt.py` holds the 4,000-char budget and the V15 conventions.
+  - Validation run: `config/runs/sorter-condensed-v1-qwen-train-errors.yaml`, the same 1,003 documents as the V15 run.
+- **Extraction quality gate (`task: extraction_gate`).**
+  - `openai/gpt-6-luna-decisions` reads a document together with the specialist's real extraction of it, under question set `config/decisions/extraction_gate_v1.0.0.yaml`.
+  - It answers a verdict (`accept`, `retry_extraction` or `human_review`) plus one yes/no support question per key field, for all five classes.
+  - Contract and merger_agreement fields cover entity extraction and the native CUAD clauses / MAUD answers.
+  - `reviewer.handoff_run` names the finished specialist runs. Preflight refuses mock, unfinished or non-specialist runs.
+  - The gate's truth is the dojo score of the extraction it judged. `scripts/extraction_gate.py` builds the 220-document stratified train baseline and calibrates per class and per field (AUROC, accept cutoff at a target precision).
+  - Specs: `config/runs/extraction-gate-specialist-<class>-qwen.yaml` (qwen/qwen3.7-flash) and `config/runs/extraction-gate-luna-v1.0.0-baseline.yaml`.
+
+### Changed
+
+- Vendored llm-dojo-scoring 0.25.0, the release merge commit `e35504db` of Dojo PR #91, replacing the interim `db15b7c5`.
+
+- **SAND-085 — sorter V15 with the V14 subclass fixes, scored on verified targets.**
+  - The vendored sorter prompt V15 (llm-mailroom PR #135) now carries subclass conventions S1-S5 alongside its class boundaries. They cover:
+    - CMS carrier vs outpatient;
+    - Certificates of Designation as officer_certificate;
+    - charter amendments vs the charter;
+    - board-adopted bylaw amendments;
+    - the correspondence marker precedence;
+    - contract family over `other`.
+  - The sorter's subclass catalog is the Dojo sorter guide. The Dojo pin moves to `db15b7c`, which adds `sorter_guide`, stops scoring the unannotated merger `other`, and adds the `arbitrate-classification` node.
+  - `scripts/calibrate_reviewer.py` scores against `data/handoff/<name>/<split>.targets.jsonl` next to the lock's `handoff_run`, with `--targets` or `--labels` to override. It also reports reviewer subclass accuracy and records the truth it used.
+  - `scripts/compare_sorter_prompt.py` builds the V15 validation set and scores it: every V14 error plus 200 controls, 1,003 train documents.
+  - `config/runs/sorter-v15-qwen-train-errors.yaml` raises its API cap to $1.20, since the cap prices tokens at the profile's DeepSeek route (about $0.83).
+- **Fixed: decision review parked every document.** A decision backend behind a `**kwargs` wrapper (a Mock or a forwarding decorator) was passed `handoff=` and raised `TypeError`, so every document parked as `reviewer_unavailable`. The handoff now goes only to a backend that declares a `handoff` parameter (vendored llm-mailroom, PR #135). The routing matrix walks the new classification-arbiter edges, and the stale V14 CLI test and CLI reference are updated.
 
 - **SAND-092 — Smoke audit fixes.** `llm-mailroom` re-vendored at `16ddd08`: corporate, insurance and correspondence extractions now report confidence, an unsure extraction reaches the judge before a person, and the judge checks accuracy against the source. `run_limits.max_total_output_tokens` rises to 200000 per document. An aborted document is now recorded as failed and no longer fails the whole run, and tests can no longer rewrite the real repo's git config from a commit hook.
 - **SAND-085 — OpenRouter decision reviewer.** A new `api` decision backend (`--decision-reviewer api:openai/gpt-6-luna`, with `--decision-class CLASS=CUTOFF`) runs `sorter_reviewer` through OpenRouter on `agent_routes.sorter_reviewer`. Only pinned provider ids are accepted: `-latest`, `~`, `:floor` and `openrouter/*` ids are refused, because a tuned cutoff is tied to one model. The `local` backend runs the same agent on the run's own serving route. Decision classes reach their reviewer at any sorter confidence after the sorter's retries; agreement at the cutoff goes to `extract`, a sorter below its low band may be corrected at the cutoff, and an unsure reviewer or a disagreement with a medium or high sorter parks for human review. Cutoffs are provisional until issue #208. `config/runs/pipeline-luna-qwen-smoke.yaml` is a 7-document pipeline smoke with the reviewer on all five classes. `scripts/calibrate_reviewer.py --run <id>` picks each class's cutoff from a finished calibration run. `activate` defaults `MAILROOM_CHECKPOINTER=sqlite`, so parked reviews survive a restart. The vendored llm-mailroom pin moves to `45e7075` for the decision-reviewer routing fixes (SAND-090).

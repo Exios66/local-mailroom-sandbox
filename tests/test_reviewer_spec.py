@@ -7,6 +7,7 @@ import json
 import pytest
 from pydantic import ValidationError
 
+from mailroom_sandbox.decision_backends import SUPPORTED_DECISION_MODELS
 from mailroom_sandbox.job import preflight
 from mailroom_sandbox.job.spec import DatasetSpec, ReviewerSpec, RunSpec, spec_core
 from mailroom_sandbox.runtime import activate
@@ -19,6 +20,11 @@ PRE_REVIEWER_HASH = "0b474bf41250f04433674038acc55a3e03326be20863bbf0fc0f7450683
 def _reviewer(**overrides) -> dict:
     base = {"backend": "jev", "model": "jev-1.13.0", "classes": {"contract": 0.9}}
     base.update(overrides)
+    if base["backend"] == "api":
+        # A chat model as decision reviewer is an explicit opt-in (test_decisions_backend.py).
+        base.setdefault("allow_chat_model", True)
+    if base["backend"] == "decisions":
+        base.setdefault("questions", "reviewer_decisions_v3.1.0")
     return base
 
 
@@ -62,7 +68,8 @@ def test_core_freezes_backend_model_and_cutoffs():
     }
 
 
-@pytest.mark.parametrize(("backend", "model"), [("jev", "jev-1.13.0"), ("api", "openai/gpt-6-luna")])
+@pytest.mark.parametrize(("backend", "model"), [("jev", "jev-1.13.0"), ("api", "openai/gpt-6-luna"),
+                                              ("decisions", "openai/gpt-6-luna-decisions")])
 def test_third_party_backends_may_review_correspondence(backend, model):
     spec = _spec(reviewer=_reviewer(backend=backend, model=model, classes={"correspondence": 0.9}))
     assert spec.reviewer.classes == {"correspondence": 0.9}
@@ -378,6 +385,20 @@ def test_experiment_create_freezes_the_reviewer(create_experiment):
     }
 
 
+def test_experiment_create_freezes_the_luna_decisions_reviewer(create_experiment):
+    from mailroom_sandbox.job.spec import load_run_spec
+
+    code, root = create_experiment(
+        "--decision-reviewer", "decisions:openai/gpt-6-luna-decisions", "--decision-class", "contract=0.78",
+    )
+    assert code == 0
+    spec = load_run_spec(next((root / "runs").glob("*.yaml")))
+    assert spec.reviewer.model_dump() == {
+        "backend": "decisions", "model": "openai/gpt-6-luna-decisions", "classes": {"contract": 0.78},
+        "questions": "reviewer_decisions_v3.1.0",
+    }
+
+
 def test_experiment_create_without_flags_has_no_reviewer(create_experiment):
     from mailroom_sandbox.job.spec import load_run_spec
 
@@ -421,3 +442,56 @@ def test_jev_modal_job_rejected_before_key_check(monkeypatch, key, mock):
     assert len(errors) == 1
     assert ("mock run" if mock else "modal jobs") in errors[0]
     assert "TYPESAFE_API_KEY" not in errors[0]
+
+
+@pytest.mark.parametrize(("backend", "model"), [(b, m) for b, ms in SUPPORTED_DECISION_MODELS.items() for m in ms])
+def test_every_supported_decision_model_freezes(backend, model):
+    spec = _spec(reviewer=_reviewer(backend=backend, model=model, classes={"contract": 0.78, "correspondence": 0.64}))
+    core = spec_core(spec)["reviewer"]
+    assert core["backend"] == backend and core["model"] == model
+    if backend == "decisions":
+        assert core["questions"] == "reviewer_decisions_v3.1.0"
+
+
+def test_supported_list_names_jev_and_luna_decisions():
+    assert "jev-1.13.0" in SUPPORTED_DECISION_MODELS["jev"]
+    assert "openai/gpt-6-luna-decisions" in SUPPORTED_DECISION_MODELS["decisions"]
+
+
+def test_decisions_reviewer_hash_changes_with_question_set():
+    a = _spec(reviewer=_reviewer(backend="decisions", model="openai/gpt-6-luna-decisions", questions="reviewer_decisions_v2"))
+    b = _spec(reviewer=_reviewer(backend="decisions", model="openai/gpt-6-luna-decisions", questions="reviewer_decisions_v3.1.0"))
+    assert a.spec_hash() != b.spec_hash()
+
+
+def test_frontrunner_question_set_matches_the_lineage():
+    import yaml
+
+    from mailroom_sandbox.decision_backends import decisions_dir, frontrunner_question_set, load_question_set
+
+    lineage = yaml.safe_load((decisions_dir() / "LINEAGE.yaml").read_text())
+    stem = frontrunner_question_set()
+    assert stem == "reviewer_decisions_v3.1.0"
+    assert load_question_set(stem)["version"] == lineage["frontrunner"] == "3.1.0"
+    assert [v for v in lineage["versions"] if v["status"] == "frontrunner"] == [
+        v for v in lineage["versions"] if v["version"] == lineage["frontrunner"]]
+
+
+def test_a_paid_reviewer_route_on_a_local_engine_needs_a_reviewer_block():
+    """The sorter_reviewer's own openrouter route bills tokens even when the engine is local."""
+    local = _spec(task="sorter_reviewer")
+    assert not preflight._reviewer_route_bills_tokens(local)
+    paid = _spec(task="sorter_reviewer",
+                 agent_routes={"sorter_reviewer": {"provider": "openrouter", "model": "openai/gpt-6-luna"}})
+    assert preflight._reviewer_route_bills_tokens(paid)
+    paid.job = paid.job.model_copy(update={"mock": False})
+    assert any("needs a reviewer block" in e for e in preflight._engine_errors(paid))
+
+
+def test_a_live_extraction_gate_run_needs_a_decisions_reviewer():
+    """Without one, every row would raise in _live_extraction_gate."""
+    spec = _spec(task="extraction_gate")
+    spec.job = spec.job.model_copy(update={"mock": False})
+    assert any("live extraction_gate run needs a reviewer block" in e for e in preflight._engine_errors(spec))
+    spec.job = spec.job.model_copy(update={"mock": True})
+    assert not any("extraction_gate" in e for e in preflight._engine_errors(spec))

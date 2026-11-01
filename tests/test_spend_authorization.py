@@ -98,3 +98,65 @@ def test_paid_example_configs_carry_a_budget(name):
     assert spec.job.mock is False
     assert (spec.job.cost_cap_usd, spec.job.max_wall_seconds) == (1.0, 1800)
     spend.require_budget({"job": spec.job.model_dump()})
+
+
+def test_gated_start_appends_a_ledger_row(locked):
+    from mailroom_sandbox.job import ledger
+
+    store, config = locked
+    spend.authorize(store, initials='jb', ledger={'action': 'start', 'config': str(config)})
+    [row] = ledger.rows()
+    assert row['initials'] == 'JB' and row['action'] == 'start' and row['run_id'] == 'spend-test'
+    assert row['spec'] == store.spec_hash()[:12] and row['rows'] == '1' and row['result'] == ''
+    # Resume reuses the receipt and records a second row with the same signer.
+    spend.authorize(store, ledger={'action': 'resume'})
+    assert [r['action'] for r in ledger.rows()] == ['start', 'resume']
+
+
+def test_refused_gate_appends_nothing(locked):
+    from mailroom_sandbox.job import ledger
+
+    store, _ = locked
+    with pytest.raises(ServiceError):
+        spend.authorize(store, ledger={'action': 'start'})
+    assert ledger.rows() == []
+
+
+@pytest.mark.parametrize('remaining, ok', [(5.0, True), (4.0, False), (0.5, False), (None, True)])
+def test_key_headroom_gate(monkeypatch, remaining, ok):
+    lock = {'engine': {'kind': 'openrouter'}, 'job': {'mock': False, 'api_cost_cap_usd': 1.2}}
+    monkeypatch.delenv('OPENROUTER_KEY_RESERVE_USD', raising=False)  # the cases assume the default $3.00 reserve
+    monkeypatch.setenv('OPENROUTER_API_KEY', 'test-not-a-key')
+    monkeypatch.setattr(spend, 'key_headroom', lambda: {'limit': 12, 'limit_remaining': remaining, 'limit_reset': 'weekly'})
+    if ok:
+        spend.require_key_headroom(lock)
+    else:
+        with pytest.raises(ServiceError, match='remaining'):
+            spend.require_key_headroom(lock)
+
+
+def test_key_reserve_is_a_floor(monkeypatch):
+    monkeypatch.setenv('OPENROUTER_KEY_RESERVE_USD', '1.0')
+    assert spend.key_reserve_usd() == 3.0          # cannot be lowered
+    assert spend.spendable_usd(5.25) == pytest.approx(2.25)
+    assert spend.spendable_usd(2.0) == 0.0
+    monkeypatch.setenv('OPENROUTER_KEY_RESERVE_USD', '4.5')
+    assert spend.key_reserve_usd() == 4.5          # can be raised
+
+
+def test_key_headroom_fails_closed(monkeypatch):
+    lock = {'engine': {'kind': 'openrouter'}, 'job': {'mock': False, 'api_cost_cap_usd': 1.2}}
+    monkeypatch.setenv('OPENROUTER_API_KEY', 'test-not-a-key')
+
+    def boom():
+        raise OSError('offline')
+    monkeypatch.setattr(spend, 'key_headroom', boom)
+    with pytest.raises(ServiceError, match='could not read'):
+        spend.require_key_headroom(lock)
+
+
+def test_key_headroom_skips_mock_and_non_openrouter(monkeypatch):
+    monkeypatch.setenv('OPENROUTER_API_KEY', 'test-not-a-key')
+    monkeypatch.setattr(spend, 'key_headroom', lambda: pytest.fail('queried'))
+    spend.require_key_headroom({'engine': {'kind': 'openrouter'}, 'job': {'mock': True}})
+    spend.require_key_headroom({'engine': {'kind': 'modal-vllm'}, 'job': {'mock': False}})

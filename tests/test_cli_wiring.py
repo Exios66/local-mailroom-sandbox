@@ -208,7 +208,7 @@ def test_prompts_show_sorter_surfaces_version_key(capsys):
     args = _args(name="sorter", variant=None, offline=True)
     assert cli._cmd_prompts_show(args) == 0
     out = capsys.readouterr().out
-    assert "sorter_v14" in out  # the registry's pinned family-B key (DMR-056)
+    assert "sorter_v15" in out  # the registry's pinned family-B key (DMR-056; frozen V15)
 
 
 def test_prompts_show_variant_has_no_version_key(capsys):
