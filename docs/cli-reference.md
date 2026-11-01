@@ -357,7 +357,7 @@ Primary tasks: `specialist [TARGET]` (all five live-class specialists, or one) a
 
 **Subcommands:** `specialist`, `pipeline`.
 
-**Also accepted (not primary; hidden from help and menus):** 21 legacy subcommands, listed by `sandbox eval --all-tasks`.
+**Also accepted (not primary; hidden from help and menus):** 22 legacy subcommands, listed by `sandbox eval --all-tasks`.
 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
@@ -422,7 +422,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
-| `--task` | No | Choices: intake, pdf_transcriber, image_extractor, sorter, sorter_reviewer, contracts_specialist, merger_agreement_specialist, corporate_records_specialist, correspondence_specialist, insurance_claims_specialist, judge, arbiter, boss, compile_report, human_review, catalog, archive, extract, chained, pipeline, local_vs_api. |
+| `--task` | No | Choices: intake, pdf_transcriber, image_extractor, sorter, sorter_reviewer, contracts_specialist, merger_agreement_specialist, corporate_records_specialist, correspondence_specialist, insurance_claims_specialist, extraction_gate, judge, arbiter, boss, compile_report, human_review, catalog, archive, extract, chained, pipeline, local_vs_api. |
 | `--providers` | No |  |
 | `--models` | No |  |
 | `--prompts` | No |  |

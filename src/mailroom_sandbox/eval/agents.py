@@ -176,6 +176,38 @@ def _live_reviewer(row: dict[str, Any]) -> dict[str, Any]:
     return SorterReviewerAgent().review(_doc_text(row))
 
 
+def _gate_handoff(row: dict[str, Any]) -> dict[str, Any] | None:
+    reviewer = _locked_reviewer() or {}
+    return (reviewer.get("handoff") or {}).get(str(row.get("id")))
+
+
+def _live_extraction_gate(row: dict[str, Any]) -> dict[str, Any]:
+    """The Decisions-model extraction gate on the specialist's frozen extraction of this row."""
+    reviewer = _locked_reviewer()
+    if not reviewer or reviewer.get("backend") != "decisions" or not reviewer.get("question_set"):
+        raise RuntimeError("extraction_gate needs a locked decisions reviewer with a question set; re-run sandbox run preflight")
+    handoff = _gate_handoff(row)
+    if not handoff:
+        raise RuntimeError(f"no specialist extraction for document {row.get('id')!r} in reviewer.handoff_run")
+    from mailroom_sandbox.decision_backends import decide_extraction
+
+    return decide_extraction(_doc_text(row), handoff, model=reviewer["model"], qset=reviewer["question_set"])
+
+
+def _mock_extraction_gate(row: dict[str, Any]) -> dict[str, Any]:
+    return {"verdict": "accept", "accept_probability": 0.5, "verdict_probabilities": {"accept": 0.5},
+            "field_support": {}, "confidence": 0.5, "mock": True}
+
+
+def _score_extraction_gate(row: dict[str, Any], pred: dict[str, Any]) -> dict[str, Any]:
+    """The gate's answer next to the dojo score of the extraction it judged (the gate's truth)."""
+    handoff = _gate_handoff(row) or {}
+    truth = _score_extract(row, handoff.get("fields") or {}) if handoff.get("fields") else {}
+    return {"accept_probability": pred.get("accept_probability"), "verdict": pred.get("verdict"),
+            "extraction_score": truth.get("overall_extraction_score"),
+            "scoring_method": truth.get("scoring_method"), "doc_type": handoff.get("doc_type")}
+
+
 def chunk_window(max_input_chars: int, chunk_chars: int, overlap_chars: int) -> tuple[int, int]:
     """Window and overlap capped the way the pipeline caps them (``build_graph._run_chunked_extraction``):
     overlap ≤ budget / 8 and window ≤ budget − overlap, so no chunk is truncated inside ``extract()``."""
@@ -516,6 +548,18 @@ for _agent, _cls in SPECIALIST_CLASS.items():
             score_one=_score_extract,
         )
     )
+
+_register(
+    AgentSpec(
+        name="extraction_gate",
+        observation="extraction-gate",
+        dojo_profile="judge",
+        load_rows=lambda: [r for r in load_manifest() if parse_expected_fields(r)][:2],
+        mock_predict=_mock_extraction_gate,
+        live_predict=_live_extraction_gate,
+        score_one=_score_extraction_gate,
+    )
+)
 
 _register(
     AgentSpec(

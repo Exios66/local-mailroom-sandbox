@@ -1392,8 +1392,8 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
 _VENDOR_PINS: tuple[tuple[str, str, str, str | None], ...] = (
     ("llm-mailroom", "16ddd08a3f32b5f442891032d095a6bed744da41",
      "https://github.com/Exios66/llm-mailroom.git", "16ddd08a3f32b5f442891032d095a6bed744da41"),
-    ("llm-dojo-scoring", "db15b7c593a533bb07c388a5af74f70750769055",
-     "https://github.com/Exios66/llm-dojo-scoring.git", "db15b7c593a533bb07c388a5af74f70750769055"),
+    ("llm-dojo-scoring", "e35504db12f09aeda07ae116663c177acd8c0d6e",
+     "https://github.com/Exios66/llm-dojo-scoring.git", "e35504db12f09aeda07ae116663c177acd8c0d6e"),
 )
 
 
@@ -3300,7 +3300,8 @@ def _cmd_run_start(args) -> int:
     store.verify_generation()
     from mailroom_sandbox.job.spend import authorize
 
-    authorize(store, initials=getattr(args, "initials", None), probe=bool(getattr(args, "live", False)))
+    authorize(store, initials=getattr(args, "initials", None), probe=bool(getattr(args, "live", False)),
+              ledger={"action": "start", "config": config_path})
     if getattr(args, "live", False):
         probe = preflight.probe_engine(spec)
         if not probe.get("ok"):
@@ -3524,6 +3525,11 @@ def _cmd_run_status(args) -> int:
         if not _finalize_remote(store):
             return 1
     summary = store.summary()
+    if store.terminal():
+        # A Modal run's terminal checkpoint is synced back as a file, not written here.
+        from mailroom_sandbox.job import ledger
+
+        ledger.mark_result(run_id, store.spec_hash(), ok=store.state() == "done")
     payload = summary
     if remote_progress:
         payload["remote"] = remote_progress
@@ -3588,7 +3594,8 @@ def _cmd_run_resume(args) -> int:
         return 3
     from mailroom_sandbox.job.spend import authorize
 
-    authorize(store, initials=getattr(args, "initials", None))
+    authorize(store, initials=getattr(args, "initials", None),
+              ledger={"action": "resume", "config": getattr(args, "config", None)})
     if _job_mode(store) == "modal":
         from mailroom_sandbox.job import remote as job_remote
 

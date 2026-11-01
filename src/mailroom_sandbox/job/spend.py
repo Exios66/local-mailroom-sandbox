@@ -124,13 +124,78 @@ def require_budget(lock: dict) -> None:
         raise ServiceError("paid execution refused: " + "; ".join(errors))
 
 
+OPENROUTER_KEY_URL = "https://openrouter.ai/api/v1/key"
+
+
+def uses_openrouter(lock: dict) -> bool:
+    engine = lock.get("engine") or {}
+    reviewer = lock.get("reviewer") or {}
+    return (engine.get("kind") == "openrouter" or lock.get("profile") == "openrouter"
+            or reviewer.get("backend") == "decisions"
+            or any((r or {}).get("provider") == "openrouter" for r in (lock.get("agent_routes") or {}).values()))
+
+
+def key_headroom() -> dict[str, Any]:
+    """The OpenRouter key's own limit and what is left of it (no credential is returned)."""
+    import httpx
+
+    key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+    resp = httpx.get(OPENROUTER_KEY_URL, headers={"Authorization": f"Bearer {key}"}, timeout=20)
+    resp.raise_for_status()
+    data = resp.json().get("data") or {}
+    return {"limit": data.get("limit"), "limit_remaining": data.get("limit_remaining"),
+            "usage": data.get("usage"), "limit_reset": data.get("limit_reset")}
+
+
+def require_key_headroom(lock: dict) -> None:
+    """Refuse a paid OpenRouter run whose API cap does not fit in the key's remaining limit.
+
+    The OpenRouter limit is hard: a run that crosses it fails mid-way with every later call
+    refused. Checked at the spend gate, so it reflects the spend of every run before this one.
+    """
+    job = lock.get("job") or {}
+    if job.get("mock", True) or not uses_openrouter(lock) or not os.environ.get("OPENROUTER_API_KEY", "").strip():
+        return
+    cap = job.get("api_cost_cap_usd")
+    try:
+        head = key_headroom()
+    except Exception as exc:  # noqa: BLE001 - fail closed: an unknown headroom is not a fit
+        raise ServiceError(f"paid execution refused: could not read the OpenRouter key's remaining limit ({type(exc).__name__})") from exc
+    remaining = head.get("limit_remaining")
+    print(f"OpenRouter key: {remaining if remaining is not None else 'no limit'} USD remaining "
+          f"(limit {head.get('limit')}, reset {head.get('limit_reset')}); this run's API cap {cap} USD", file=sys.stderr)
+    if remaining is not None and isinstance(cap, (int, float)) and cap > float(remaining):
+        raise ServiceError(f"paid execution refused: job.api_cost_cap_usd {cap} exceeds the OpenRouter key's remaining "
+                           f"limit {float(remaining):.2f} USD; lower the cap (or the run) and re-preflight")
+
+
 def authorize(store: RunStore, *, initials: str | None = None, probe: bool = False,
-              extra: dict | None = None) -> dict | None:
-    """Verify a current receipt or display the complete review and require initials."""
+              extra: dict | None = None, ledger: dict | None = None) -> dict | None:
+    """Verify a current receipt or display the complete review and require initials.
+
+    ``ledger`` (``{"action": ..., "config": ...}``) appends a row to the run ledger
+    (:mod:`mailroom_sandbox.job.ledger`) once the gate passes, with the receipt's initials.
+    """
+    receipt = _authorize(store, initials=initials, probe=probe, extra=extra)
+    if receipt is not None and ledger is not None:
+        from mailroom_sandbox.job import ledger as run_ledger
+
+        lock = store.read_lock() or {}
+        try:
+            total = len(store.dataset_rows())
+        except (OSError, ValueError):
+            total = None
+        run_ledger.record_signed(lock, initials=receipt["initials"], action=ledger.get("action", "start"),
+                                 config=ledger.get("config"), rows_total=total)
+    return receipt
+
+
+def _authorize(store: RunStore, *, initials: str | None, probe: bool, extra: dict | None) -> dict | None:
     lock = store.verify_generation()
     if not paid(lock, probe=probe):
         return None
     require_budget(lock)
+    require_key_headroom(lock)
     review = review_settings(store)
     if extra:
         review["workflow"] = extra

@@ -147,9 +147,48 @@ def _reviewer_lock(spec: RunSpec) -> dict[str, Any]:
         block["questions_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
         block["question_set"] = load_question_set(spec.reviewer.questions)
     if spec.reviewer.handoff_run:
-        # Freeze the sorter's answers (by document id) so a resumed run sees the same handoff.
-        block["handoff"] = sorter_handoff_map(spec.reviewer.handoff_run)
+        # Freeze the handoff (by document id) so a resumed run sees the same answers: the
+        # sorter's on a reviewer calibration, the specialist's extraction on a gate run.
+        block["handoff"] = (extraction_handoff_map(spec.reviewer.handoff_run) if spec.task == "extraction_gate"
+                            else sorter_handoff_map(spec.reviewer.handoff_run))
     return block
+
+
+def extraction_handoff_map(run_id: str | list[str]) -> dict[str, dict[str, Any]]:
+    """``{doc_id: extraction handoff}`` from finished specialist runs (task: <class>_specialist).
+
+    Each item's prediction is the specialist's real extraction; the class is the run's
+    specialist class. A list merges several runs (one per class), later runs winning.
+    """
+    import json
+
+    from mailroom_sandbox.decision_backends import extraction_handoff
+    from mailroom_sandbox.eval.agents import SPECIALIST_CLASS
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.spec import run_dir
+
+    out: dict[str, dict[str, Any]] = {}
+    for rid in [run_id] if isinstance(run_id, str) else list(run_id):
+        store = RunStore(run_dir(str(rid)))
+        lock = store.read_lock() or {}
+        doc_type = SPECIALIST_CLASS.get(str(lock.get("task") or ""))
+        if not doc_type:
+            raise ValueError(f"handoff_run {rid!r} is not a specialist run (task {lock.get('task')!r})")
+        if (lock.get("job") or {}).get("mock", True):
+            raise ValueError(f"handoff_run {rid!r} is a mock run; the gate calibrates on real extractions only")
+        state = (store.read_checkpoint() or {}).get("state")
+        if state != "done":
+            raise ValueError(f"handoff_run {rid!r} is not a finished run (state {state!r})")
+        found = 0
+        for item in store.load_items():
+            pred = item.get("pred")
+            if item.get("ok") and isinstance(pred, dict) and pred and not pred.get("_parse_error"):
+                out[str(item.get("item_id"))] = extraction_handoff(doc_type, pred)
+                found += 1
+        if not found:
+            raise ValueError(f"handoff_run {rid!r} has no usable extractions")
+    json.dumps(out)
+    return out
 
 
 def _committed_handoff(path: str) -> dict[str, dict[str, Any]]:
@@ -225,9 +264,16 @@ def _decisions_reviewer_errors(spec: RunSpec) -> list[str]:
     run the engine model must be the reviewer model (the run's model label and price)."""
     from mailroom_sandbox.decision_backends import decision_questions, load_question_set
 
+    from mailroom_sandbox.decision_backends import EXTRACTION_GATE
+
     errs: list[str] = []
+    gate = spec.task == "extraction_gate"
     try:
-        decision_questions(load_question_set(spec.reviewer.questions or ""))
+        qset = load_question_set(spec.reviewer.questions or "")
+        if (qset.get("kind") == EXTRACTION_GATE) != gate:
+            raise ValueError("an extraction_gate run needs a kind: extraction_gate question set, and only it may use one")
+        if not gate:
+            decision_questions(qset)
     except Exception as exc:  # noqa: BLE001 - every shape error is a preflight error
         errs.append(f"decision reviewer questions: {exc}")
     if spec.job.mode == "modal":
@@ -236,11 +282,13 @@ def _decisions_reviewer_errors(spec: RunSpec) -> list[str]:
         errs.append("decision reviewer backend decisions needs OPENROUTER_API_KEY")
     if spec.reviewer.handoff_run:
         try:
-            sorter_handoff_map(spec.reviewer.handoff_run)
+            (extraction_handoff_map if gate else sorter_handoff_map)(spec.reviewer.handoff_run)
         except Exception as exc:  # noqa: BLE001
             errs.append(f"decision reviewer handoff_run: {exc}")
-    if spec.task == "sorter_reviewer" and spec.engine.model != spec.reviewer.model:
-        errs.append(f"sorter_reviewer calibration: engine.model {spec.engine.model!r} must equal reviewer.model "
+    elif gate:
+        errs.append("an extraction_gate run needs reviewer.handoff_run: the finished specialist runs it reviews")
+    if spec.task in ("sorter_reviewer", "extraction_gate") and spec.engine.model != spec.reviewer.model:
+        errs.append(f"{spec.task} calibration: engine.model {spec.engine.model!r} must equal reviewer.model "
                     f"{spec.reviewer.model!r}, so the run is labelled and priced as the model it calls")
     return errs
 

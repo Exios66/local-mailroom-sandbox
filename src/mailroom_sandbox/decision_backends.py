@@ -251,6 +251,8 @@ def load_question_set(stem: str) -> dict[str, Any]:
     if not path.is_file():
         raise ValueError(f"question set {stem!r} not found at {path}")
     qset = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    if qset.get("kind") == EXTRACTION_GATE:
+        return _checked_gate_set(stem, qset)
     doc_type = qset.get("doc_type") or {}
     if not isinstance(doc_type.get("criteria"), dict) or len(doc_type["criteria"]) < 2:
         raise ValueError(f"{stem}: doc_type needs instructions and at least two criteria")
@@ -268,6 +270,113 @@ def load_question_set(stem: str) -> dict[str, Any]:
             if not isinstance(markers, dict) or not markers or set(order) - set(markers):
                 raise ValueError(f"{stem}: subclass.{cls}.order must name only keys of its markers")
     return qset
+
+
+EXTRACTION_GATE = "extraction_gate"
+
+
+def _checked_gate_set(stem: str, qset: dict[str, Any]) -> dict[str, Any]:
+    verdict = qset.get("verdict") or {}
+    if not isinstance(verdict.get("criteria"), dict) or "accept" not in verdict["criteria"] or len(verdict["criteria"]) < 2:
+        raise ValueError(f"{stem}: an extraction gate needs a verdict with an accept option and at least one other")
+    if set(qset.get("human_verdicts") or []) - set(verdict["criteria"]):
+        raise ValueError(f"{stem}: human_verdicts must name verdict options")
+    fields = qset.get("fields") or {}
+    if not isinstance(fields, dict) or not fields or not all(isinstance(v, dict) and v for v in fields.values()):
+        raise ValueError(f"{stem}: fields must map each gated class to {{field: meaning}}")
+    if "{field}" not in str(qset.get("field_instructions") or ""):
+        raise ValueError(f"{stem}: field_instructions must contain {{field}}")
+    _checked_options("verdict", list(verdict["criteria"]))
+    return qset
+
+
+def gate_questions(qset: Mapping[str, Any], doc_type: str) -> dict[str, Any]:
+    """The gate request's questions: the verdict plus one yes/no per key field of ``doc_type``."""
+    questions: dict[str, Any] = {"verdict": {"type": "choice", "instructions": qset["verdict"]["instructions"],
+                                             "criteria": dict(qset["verdict"]["criteria"])}}
+    for field, meaning in ((qset.get("fields") or {}).get(doc_type) or {}).items():
+        questions[f"field__{field}"] = {"type": "noul",
+                                        "instructions": str(qset["field_instructions"]).format(field=field, meaning=meaning)}
+    return questions
+
+
+def extraction_handoff(doc_type: str, extraction: Mapping[str, Any] | None) -> dict[str, Any]:
+    """What the gate sees of a specialist's answer: the class it extracted for and the fields.
+
+    Underscore keys (parse diagnostics, raw text) are dropped; nothing of the scoring travels.
+    """
+    fields = {k: v for k, v in (extraction or {}).items() if not str(k).startswith("_")}
+    return {"doc_type": doc_type, "fields": fields} if extraction else {"doc_type": doc_type, "available": False}
+
+
+def _post_decision(body: Mapping[str, Any], *, timeout: float, attempts: int) -> dict[str, Any]:
+    import os
+    import time
+
+    import httpx
+
+    key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+    if not key:
+        raise RuntimeError("Decisions backend needs OPENROUTER_API_KEY")
+    last: Exception | None = None
+    for attempt in range(max(1, attempts)):
+        try:
+            resp = httpx.post(DECISIONS_URL, json=dict(body), timeout=timeout,
+                              headers={"Authorization": f"Bearer {key}", "X-Title": "local-mailroom-sandbox"})
+        except httpx.TransportError as exc:
+            last = exc
+        else:
+            if resp.status_code == 200:
+                return resp.json()
+            last = RuntimeError(f"Decisions API {resp.status_code}: {resp.text[:300]}")
+            if resp.status_code not in _TRANSIENT or "refused to answer" in resp.text:
+                raise last
+        time.sleep(2 ** attempt)
+    raise last or RuntimeError("Decisions API failed")
+
+
+def decide_extraction(doc_text: str, handoff: Mapping[str, Any], *, model: str, qset: Mapping[str, Any],
+                      timeout: float = 120.0, attempts: int = 3) -> dict[str, Any]:
+    """One extraction-gate request: ``{document, extraction_handoff}`` and the gate questions.
+
+    Returns the verdict, ``accept_probability`` (the gating score), the human-review
+    probability and one support probability per field.
+    """
+    if not is_decisions_model(model):
+        raise ValueError(f"{model!r} is not a Decisions-API model")
+    doc_type = str(handoff.get("doc_type") or "")
+    limit = int((qset.get("max_input_chars_by_class") or {}).get(doc_type) or qset.get("max_input_chars")
+                or DECISIONS_MAX_INPUT_CHARS)
+    text = (doc_text or "")[:limit]
+    body = {"model": model, "state": {"document": text if text.strip() else "(empty document)",
+                                      "extraction_handoff": dict(handoff)},
+            "questions": gate_questions(qset, doc_type)}
+    data = _post_decision(body, timeout=timeout, attempts=attempts)
+    usage = data.get("usage") or {}
+    _record_usage(model, usage, agent=EXTRACTION_GATE)
+    answers = data.get("answers") or {}
+    verdict = answers.get("verdict") or {}
+    probs = {k: float(v) for k, v in (verdict.get("probabilities") or {}).items()}
+    human = set(qset.get("human_verdicts") or [])
+    fields = {}
+    for key, answer in answers.items():
+        value = (answer or {}).get("noul") if key.startswith("field__") else None
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            fields[key.removeprefix("field__")] = float(value)
+    return {
+        "doc_type": doc_type,
+        "input_chars": len(text),
+        "truncated": len(doc_text or "") > limit,
+        "verdict": verdict.get("choice"),
+        "verdict_probabilities": probs,
+        "accept_probability": probs.get("accept"),
+        "human_review_probability": sum(v for k, v in probs.items() if k in human) if probs else None,
+        "field_support": fields,
+        "confidence": probs.get("accept"),
+        "served_model": data.get("model"),
+        "usage": {"input_tokens": usage.get("input_tokens"), "output_tokens": usage.get("output_tokens"),
+                  "cost": usage.get("cost")},
+    }
 
 
 def decision_questions(qset: Mapping[str, Any], doc_types: list[str] | None = None) -> dict[str, Any]:
@@ -362,7 +471,7 @@ def marker_subclass(block: Mapping[str, Any], answers: Mapping[str, Any], cls: s
     return default, (min((1.0 - p for p in probs.values()), default=None) if default else None), probs
 
 
-def _record_usage(model: str, usage: Mapping[str, Any]) -> None:
+def _record_usage(model: str, usage: Mapping[str, Any], *, agent: str = "sorter_reviewer") -> None:
     """Count the call in the run's usage accumulator, so job budgets and cost see it."""
     try:
         from pipeline.limits import record_usage
@@ -371,7 +480,7 @@ def _record_usage(model: str, usage: Mapping[str, Any]) -> None:
     # prompt_/completion_ keys: record_usage reads ``output_tokens or completion_tokens``, so a
     # Decisions call's output_tokens=0 under the output_ key would read as missing and drop the call.
     record_usage({"prompt_tokens": int(usage.get("input_tokens") or 0), "completion_tokens": int(usage.get("output_tokens") or 0)},
-                 model=model, agent="sorter_reviewer")
+                 model=model, agent=agent)
 
 
 def decide(doc_text: str, *, model: str, questions: Mapping[str, Any], timeout: float = 120.0,

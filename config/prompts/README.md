@@ -9,6 +9,14 @@ or the LangChain `PROMPT_VERSIONS` dict (Family B: sorter / contracts_specialist
 for a single experiment cell. Resolution: `src/mailroom_sandbox/prompt_registry.py`
 (`source: local` + `file: <stem>` → `config/prompts/<stem>.txt`).
 
+## Sorter-condensed lineage (`sorter_condensed_v*`) — the sorter mutation surface
+
+`sorter_condensed_v<N>.txt` is the token-budgeted sorter (rendered system prompt <= 4,000 chars,
+against ~25k for the frozen long-form V15). All further sorter improvements are new
+`sorter_condensed_v<N>` files; frontrunner, parents and validation runs are in
+[`sorter_condensed_lineage.yaml`](sorter_condensed_lineage.yaml). Run it with
+`prompt.agents.sorter: {source: local, file: sorter_condensed_v<N>}`.
+
 ## Specialist production pins (DMR-074) — vendor mirrors
 
 Byte-identical exports of vendored `llm-mailroom` code-defaults. **Not** a
