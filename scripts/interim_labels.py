@@ -22,6 +22,7 @@ import collections
 import json
 import os
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
@@ -80,9 +81,15 @@ def _gate_run(run_id: str) -> dict[str, Any]:
 
 def _replace(path: Path, text: str) -> None:
     """Write ``text`` to ``path`` atomically (a reader sees the old file or the new one)."""
-    tmp = path.with_name(f".{path.name}.tmp")
-    tmp.write_text(text, encoding="utf-8")
-    os.replace(tmp, path)
+    # A unique temp file per writer: concurrent builds or prunes never share a staged file.
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        os.replace(tmp, path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
 
 
 def _counts(root: Path, names: Iterable[str]) -> dict[str, dict[str, dict[str, int]]]:
@@ -92,7 +99,9 @@ def _counts(root: Path, names: Iterable[str]) -> dict[str, dict[str, dict[str, i
         for rec in il._jsonl(root / name):
             for field, lab in (rec.get("labels") or {}).items():
                 counts[str(rec.get("doc_class"))][field][lab.get("status")] += 1
-    return {cls: {f: dict(sorted(c.items())) for f, c in sorted(fs.items())} for cls, fs in sorted(counts.items())}
+    # str() keys the sort: a label with no status (reported by verify) must not break the counts.
+    return {cls: {f: dict(sorted(c.items(), key=lambda kv: str(kv[0]))) for f, c in sorted(fs.items())}
+            for cls, fs in sorted(counts.items())}
 
 
 def build(run_ids: list[str], root: Path) -> dict[str, Any]:
@@ -183,7 +192,8 @@ def _local_gate_runs() -> dict[str, str]:
 
 
 def check(root: Path, rows_path: Path | None, prune: bool) -> int:
-    problems = il.verify(root)
+    integrity = il.verify(root)
+    problems = list(integrity)
     man = il.load_manifest(root)
     listed = {s["gate_run"] for s in man.get("sources") or []}
     top = max((_version(s["question_set"]) for s in man.get("sources") or []), default=(0,))
@@ -195,7 +205,10 @@ def check(root: Path, rows_path: Path | None, prune: bool) -> int:
         gone = il.superseded(rows, il.load_overlay(root))
         for doc, field in gone:
             problems.append(f"{doc}.{field}: superseded by the Hub rows ({'text changed' if field == '*' else 'now labelled'})")
-        if prune and gone:
+        if prune and gone and integrity:
+            # Rewriting would re-hash files that already fail verification and hide the mismatch.
+            print("prune refused: the overlay fails its integrity check; rebuild with scripts/interim_labels.py build")
+        elif prune and gone:
             drop = collections.defaultdict(set)
             for doc, field in gone:
                 drop[doc].add(field)
