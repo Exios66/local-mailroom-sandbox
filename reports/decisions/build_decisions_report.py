@@ -1108,7 +1108,6 @@ def summary(N):
 
 def dashboard(N, figs):
     t = N["qwen_test"]
-    R = N["reviewers"]
     kp = [
         (f"{N['decisions_v3_0_0_pipeline_x']:.2f}-{N['decisions_v2_pipeline_x']:.2f}x", "agent + Decisions reviewer",
          f"vs {N['traditional_x']:.2f}x for agent + a measured Qwen reviewer: "
