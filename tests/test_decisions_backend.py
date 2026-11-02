@@ -383,3 +383,17 @@ def test_a_gate_set_that_does_not_format_fails_at_load():
         _checked_gate_set("t", {**qset, "field_instructions": "Is {field} supported? ({meanin})"})
     with pytest.raises(ValueError, match="verdict needs instructions"):
         _checked_gate_set("t", {**qset, "verdict": {"criteria": qset["verdict"]["criteria"]}})
+
+
+def test_api_reviewer_may_share_the_sorter_model_on_a_calibration_run_only():
+    """A sorter_reviewer run never calls the sorter, so a same-model chat reviewer is a valid comparison there;
+    on a pipeline the reviewer would only repeat the sorter's answer."""
+    from mailroom_sandbox.job.preflight import _api_reviewer_errors
+    from mailroom_sandbox.job.spec import RunSpec
+
+    reviewer = {"backend": "api", "model": "qwen/qwen3.7-flash", "allow_chat_model": True, "classes": {"contract": 0.9}}
+    common = {"engine": {"kind": "openrouter", "model": "qwen/qwen3.7-flash"}, "reviewer": reviewer,
+              "agent_routes": {"sorter_reviewer": {"provider": "openrouter", "model": "qwen/qwen3.7-flash"}}}
+    assert _api_reviewer_errors(RunSpec(task="sorter_reviewer", **common)) == []
+    errs = _api_reviewer_errors(RunSpec(task="pipeline", **common))
+    assert any("different model from the sorter" in e for e in errs)
