@@ -124,7 +124,9 @@ def _api_reviewer_errors(spec: RunSpec) -> list[str]:
     """The API reviewer must be a second model on an OpenRouter route with a token cap."""
     model = spec.reviewer.model
     errs = []
-    if model == _effective_model(spec, "sorter"):
+    # A sorter_reviewer calibration never runs the sorter (the engine model IS the reviewer), so the
+    # same-model guard applies to a pipeline, where the reviewer would only repeat the sorter's answer.
+    if spec.task != "sorter_reviewer" and model == _effective_model(spec, "sorter"):
         errs.append("decision reviewer backend api must use a different model from the sorter, or it only repeats its answer")
     if spec.job.mock:
         return errs
