@@ -7,6 +7,65 @@
     "decisions_v2": 1.143,
     "decisions_v3_0_0": 0.908
   },
+  "evidence_held_out_323": {
+    "class_accuracy": {
+      "decisions_v2": {
+        "ci95": [
+          0.9643,
+          0.9934
+        ],
+        "correct": 318,
+        "n": 323
+      },
+      "decisions_v3_0_0": {
+        "ci95": [
+          0.9643,
+          0.9934
+        ],
+        "correct": 318,
+        "n": 323
+      },
+      "qwen_agent": {
+        "ci95": [
+          0.9286,
+          0.974
+        ],
+        "correct": 309,
+        "n": 323
+      },
+      "qwen_reviewer": {
+        "ci95": [
+          0.9063,
+          0.9596
+        ],
+        "correct": 303,
+        "n": 323
+      }
+    },
+    "method": "two-sided Fisher exact test on counts; Wilson 95% intervals; unpaired (per-document pairing is not tracked)",
+    "p_wrong_qwen_agent_vs_decisions_v2": 0.0597,
+    "p_wrong_qwen_reviewer_vs_decisions_v2": 0.0034,
+    "p_wrong_qwen_reviewer_vs_qwen_agent": 0.3786,
+    "silent_errors": {
+      "decisions_v2": {
+        "ci95": [
+          0.0006,
+          0.0176
+        ],
+        "k": 1,
+        "n": 318
+      },
+      "p": 0.0194,
+      "qwen_reviewer": {
+        "ci95": [
+          0.0131,
+          0.0499
+        ],
+        "k": 8,
+        "n": 311
+      }
+    }
+  },
   "extra_usd_per_1000_docs": {
     "decisions_v2": 0.743,
     "decisions_v3_0_0": 0.59

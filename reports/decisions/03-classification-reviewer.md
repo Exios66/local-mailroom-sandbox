@@ -29,7 +29,7 @@ Hollow dots in the figure are train runs, where the prompt or question set was t
 not evidence of how the reviewer will do on new documents. **The honest numbers are the filled dots**: about 98.5% on
 held-out documents for the Decisions model, against 93.8% for the Qwen reviewer and 95.7% for the Qwen agent alone.
 
-The Qwen 3.7 Flash reviewer is the weakest held-out arm: 93.8% (303 of 323), below the Qwen agent it would review. Its 20 errors are
+The Qwen 3.7 Flash reviewer is the lowest held-out arm: 93.8% (303 of 323), not distinguishable from the Qwen agent's 95.7% (p = 0.38) and clearly below Decisions v2 (p = 0.003). Its 20 errors are
 12 correspondence documents called `unknown`, 7 corporate records called `contract` and 1 contract called a corporate record, and every one
 sits at confidence 0.90 or higher. [Cost and effectiveness](02-cost-and-effectiveness.md#the-measured-qwen-reviewer) sets this beside the cost.
 

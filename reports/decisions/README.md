@@ -11,7 +11,7 @@ follow the system setting). Read the reports in order, or start with the summary
 
 | # | Report | Answers |
 | --- | --- | --- |
-| 1 | [Executive summary](01-executive-summary.md) | The five findings, where the Decisions model wins and loses, decisions the data supports |
+| 1 | [Executive summary](01-executive-summary.md) | The five findings, where the Decisions model wins and loses, decisions the data supports, and **what is established and what is not** |
 | 2 | [Cost and effectiveness against a 1x Qwen call](02-cost-and-effectiveness.md) | What a Decisions review costs next to a **measured** Qwen reviewer; what it buys; when the saving disappears |
 | 3 | [Classification reviewer experiments](03-classification-reviewer.md) | Accuracy, confidence, cutoffs, the v1 to v3.0.0 question-set loop, routing to people |
 | 4 | [Extraction gate experiments](04-extraction-gate.md) | Whether the Decisions model can judge a specialist's extraction (it cannot yet) |
