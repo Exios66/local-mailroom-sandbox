@@ -196,3 +196,42 @@ def test_prune_rewrites_counts_and_still_fails_on_other_problems(tmp_path, monke
     hub2 = _row(jurisdiction="Delaware", gt_presence=json.dumps({"jurisdiction": "populated"}))
     rows.write_text(json.dumps(hub2) + "\n", encoding="utf-8")
     assert mod.check(root, rows, prune=True) == 1
+    # ...and the prune is refused, so the still-superseded label stays in place.
+    assert "jurisdiction" in json.loads((root / "corporate_record.jsonl").read_text())["labels"]
+
+
+def test_prune_never_rehashes_a_file_that_fails_integrity(tmp_path, monkeypatch):
+    root = tmp_path / "interim"
+    mod, hub = _overlay_two_labels(root)
+    monkeypatch.setattr(mod, "_local_gate_runs", lambda: {})
+    path = root / "corporate_record.jsonl"
+    rec = json.loads(path.read_text())
+    rec["labels"]["jurisdiction"]["value"] = "Nevada"  # a hand edit the manifest hash does not cover
+    path.write_text(json.dumps(rec, sort_keys=True) + "\n", encoding="utf-8")
+    sha_before = json.loads((root / "MANIFEST.json").read_text())["files"]["corporate_record.jsonl"]
+    rows = tmp_path / "rows.jsonl"
+    rows.write_text(json.dumps(hub) + "\n", encoding="utf-8")
+    assert mod.check(root, rows, prune=True) == 1
+    assert json.loads((root / "MANIFEST.json").read_text())["files"]["corporate_record.jsonl"] == sha_before
+    assert any("sha256 differs" in p for p in il.verify(root))
+
+
+def test_counts_tolerate_a_label_without_status(tmp_path):
+    mod, _ = _overlay_two_labels(tmp_path / "interim")
+    root = tmp_path / "interim"
+    rec = json.loads((root / "corporate_record.jsonl").read_text())
+    del rec["labels"]["jurisdiction"]["status"]
+    rec2 = {**rec, "doc_id": "D2"}
+    rec2["labels"] = {"jurisdiction": {"value": "Delaware", "status": "gap_fill", "use_as_truth": True}}
+    (root / "corporate_record.jsonl").write_text(json.dumps(rec) + "\n" + json.dumps(rec2) + "\n", encoding="utf-8")
+    counts = mod._counts(root, ["corporate_record.jsonl"])
+    assert counts["corporate_record"]["jurisdiction"] == {"gap_fill": 1, None: 1}
+
+
+def test_replace_leaves_no_staged_file(tmp_path):
+    mod, _ = _overlay_two_labels(tmp_path / "interim")
+    target = tmp_path / "out.json"
+    mod._replace(target, "one")
+    mod._replace(target, "two")
+    assert target.read_text() == "two"
+    assert [p.name for p in tmp_path.iterdir() if p.name != "interim"] == ["out.json"]
