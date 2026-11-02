@@ -123,6 +123,23 @@ def pctl(sorted_vals, q):
     return sorted_vals[min(len(sorted_vals) - 1, int(len(sorted_vals) * q))]
 
 
+def fisher_two_sided(a, b, c, d):
+    """Two-sided Fisher exact p for [[a, b], [c, d]] (stdlib, hypergeometric)."""
+    n = a + b + c + d
+    r1, c1 = a + b, a + c
+    prob = lambda x: math.comb(r1, x) * math.comb(n - r1, c1 - x) / math.comb(n, c1)
+    p0 = prob(a)
+    return sum(prob(x) for x in range(max(0, c1 - (n - r1)), min(r1, c1) + 1) if prob(x) <= p0 + 1e-12)
+
+
+def wilson(k, n, z=1.96):
+    p = k / n
+    d = 1 + z * z / n
+    c = p + z * z / (2 * n)
+    h = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))
+    return (c - h) / d, (c + h) / d
+
+
 def compute():
     N = {}
     # ---- Qwen agent (sorter) per-document tokens, tiered and flat cost ---------------------------
@@ -1074,6 +1091,17 @@ def summary(N):
                                             "decisions_v3_0_0": round(N["breakeven_v3_usd_per_review"], 5)},
         "extra_usd_per_1000_docs": {"decisions_v2": round(N["extra_v2_per_1000"], 3), "decisions_v3_0_0": round(N["extra_v3_per_1000"], 3)},
         "people_avoided_per_1000_vs_qwen_alone": {"decisions_v2": round(N["avoided_v2_per_1000"], 1), "decisions_v3_0_0": round(N["avoided_v3_per_1000"], 1)},
+        "evidence_held_out_323": {
+            "method": "two-sided Fisher exact test on counts; Wilson 95% intervals; unpaired (per-document pairing is not tracked)",
+            "class_accuracy": {k: {"correct": c, "n": n, "ci95": [round(x, 4) for x in wilson(c, n)]}
+                               for k, (c, n) in {"qwen_agent": (309, 323), "qwen_reviewer": (303, 323), "decisions_v2": (318, 323), "decisions_v3_0_0": (318, 323)}.items()},
+            "p_wrong_qwen_reviewer_vs_decisions_v2": round(fisher_two_sided(20, 303, 5, 318), 4),
+            "p_wrong_qwen_agent_vs_decisions_v2": round(fisher_two_sided(14, 309, 5, 318), 4),
+            "p_wrong_qwen_reviewer_vs_qwen_agent": round(fisher_two_sided(20, 303, 14, 309), 4),
+            "silent_errors": {"qwen_reviewer": {"k": 8, "n": 311, "ci95": [round(x, 4) for x in wilson(8, 311)]},
+                              "decisions_v2": {"k": 1, "n": 318, "ci95": [round(x, 4) for x in wilson(1, 318)]},
+                              "p": round(fisher_two_sided(8, 303, 1, 317), 4)},
+        },
         "recorded_inputs": [{"run": r["run"], "split": r["split"], "n": r["n"], "correct": r["correct"], "cost_usd": r["cost"], "source": r["src"]} for r in RUNS],
     }
 

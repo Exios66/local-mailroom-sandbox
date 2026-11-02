@@ -119,8 +119,8 @@ than the sorter's does not.**
 Where the Qwen reviewer is wrong: **12** correspondence documents it calls `unknown` (bare URLs, attachment stubs,
 one-line messages), **7** corporate records it calls `contract` (the same indenture and rights-instrument boundary that
 trips the Qwen agent), and **1** contract it calls a corporate record. Per class: insurance claims 114 of 114, mergers 17 of
-17, contracts 59 of 60, correspondence 73 of 85, corporate records 40 of 47. It scores below the sorter it would be
-reviewing (93.8% against 95.7%), which means a second Qwen call mostly repeats the first one's boundary errors.
+17, contracts 59 of 60, correspondence 73 of 85, corporate records 40 of 47. Its 93.8% is 1.9 points below the Qwen agent's 95.7%, a difference within sampling noise
+(Fisher exact p = 0.38), so a second Qwen call adds nothing measurable over the first, and its errors sit on the same boundaries.
 
 ### Silent errors and people
 

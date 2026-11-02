@@ -19,7 +19,7 @@ triples at 32k prompt tokens. Seventeen merger agreements, 5% of the test docume
 Decisions model reads at most 120,000 characters, so one call is capped near $0.0028. Price every Qwen call at the lowest tier
 and agent plus Decisions costs **42% to 64% more** than agent plus a Qwen reviewer. [Detail](02-cost-and-effectiveness.md#3-when-the-saving-disappears-and-when-it-never-appeared)
 
-**3. Qwen as a reviewer does not review.** On the same 323 documents it got **93.8%** of classes right (the Qwen agent alone:
+**3. A Qwen reviewer lets wrong answers through unflagged.** On the same 323 documents it got **93.8%** of classes right (the Qwen agent alone:
 95.7%; Decisions v2: **98.5%**), and **all 20 of its wrong answers carry confidence of 0.90 or higher**, so no cutoff catches
 them. About **25 wrong documents per 1,000** are routed with no person, against **3** for Decisions. For $0.093 more per 1,000
 documents (Decisions v2), 22 fewer wrong documents get through: **$0.0043 per wrong document avoided**.
@@ -67,5 +67,28 @@ to 0.72 specialist calls per document. [Detail](04-extraction-gate.md)
 5. **Test whether a better-prompted Qwen reviewer closes the gap.** The Qwen reviewer ran once, on the default prompt and without the
    sorter's answer. A prompt that states the corpus conventions targets the two boundaries behind 19 of its 20 errors
    (mailbox fragments as correspondence, corporate records against contracts). About $0.2 per variant.
+
+## What is established, and what is not
+
+These results are **classification-level measurements on the 323 held-out test documents**, scored against the corpus labels. They
+are real runs with tracked per-document data for the Qwen runs and tracked summaries for the Decisions runs. They are not yet a
+measurement of the reviewer **inside the running pipeline**.
+
+| Claim | Status | Basis |
+| --- | --- | --- |
+| Decisions v2 beats the Qwen reviewer on class accuracy | **Established** | 318 vs 303 of 323; 98.5% (CI 96.4-99.3) vs 93.8% (CI 90.6-96.0); Fisher exact p = 0.003 |
+| Decisions v2 lets fewer wrong documents through | **Established, small counts** | 1 of 318 vs 8 of 311 routed with no person; p = 0.019; the Decisions side is one document |
+| Qwen reviewer is worse than the Qwen agent | **Not shown** | 93.8% vs 95.7%, p = 0.38 |
+| Decisions v2 beats the Qwen agent alone | **Suggestive** | 98.5% vs 95.7%, p = 0.06 |
+| Agent + Decisions costs about the same as agent + Qwen reviewer | **Established** | measured on both sides; Qwen billed $0.2146 vs $0.2099 at the sheet; Decisions costs are rounded report figures |
+| Decisions' confidence supports cutoffs where Qwen's does not | **Supported on train, suggestive on test** | 12 of 12 v1 errors below 0.85 on the train draw (in-sample); only 5 test errors; Qwen's 20 of 20 are at 0.90+ |
+| Decisions v2 routes unattended correctly inside the live pipeline | **Not measured** | the pipeline smoke covered 10 documents (all correct, 1 parked); no run of the full test split through the graph |
+| Effect of the handoff | **Not isolated** | v2 (no handoff) and v3.0.0 (handoff) differ in question set too; the Qwen reviewer cannot take a handoff in the current code |
+| Cutoffs | **Provisional** | picked on a 735-document draw; the full-train run is not done |
+| Extraction gate | **Does not work** | pooled AUROC 0.41 over 910 documents |
+
+The Qwen reviewer ran once, on the default prompt. Part of its gap to Decisions may be the prompt, not the model. What the data
+does not yet contain, and what would turn this into an in-pipeline claim: the 323 test documents run through the full graph with the
+Decisions reviewer and with the Qwen reviewer, scoring end-to-end routing, parked documents and extraction outcomes.
 
 Method, source inconsistencies and limits of the comparison are in [05](05-method-and-data-quality.md).
