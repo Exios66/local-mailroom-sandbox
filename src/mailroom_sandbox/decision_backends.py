@@ -44,6 +44,7 @@ _PINNED_API = re.compile(r"^[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._-]*$")
 _GOAL = "Classify one document from its text."
 _DOC_TYPE_QUESTION = "Which document type is this text?"
 _DOC_SUBCLASS_QUESTION = "Which subclass of the document type best fits this text?"
+_DOCUMENT_FORM_QUESTION = "What form is this document in, as an input to extraction?"
 
 
 def _answer(
@@ -208,6 +209,10 @@ DECISIONS_DIR_NAME = "decisions"
 DECISIONS_MAX_INPUT_CHARS = 2_000_000
 _TRANSIENT = {408, 429, 500, 502, 503, 504, 524, 529}
 NOT_THIS_CLASS = "not_this_class"
+SUBCLASS_UNDETERMINED = "undetermined"
+# The class-level abstain thresholds a question set may set (4.0.0+). Each one is optional.
+ABSTAIN_KEYS = ("margin", "subclass_not_this_class_max", "unknown_max")
+SUBCLASS_POLICIES = ("park", "keep_sorter")
 
 
 def is_decisions_model(model: str | None) -> bool:
