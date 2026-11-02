@@ -140,6 +140,95 @@ def wilson(k, n, z=1.96):
     return (c - h) / d, (c + h) / d
 
 
+HALF = "reviewer-calibration-luna-decisions-v3.1.0-train-half"
+
+
+def half_train(N):
+    """Question set 3.1.0 with the sorter handoff on 1,491 train documents: accuracy, routing outcomes, cost."""
+    D = REPORTS / "reviewer-calibration"
+    meta = jload(D / f"{HALF}.run.json")
+    rows = rows_jsonl(D / f"{HALF}.items.jsonl")
+    cal = jload(D / f"{HALF}.json")
+    out = {"meta": meta, "rows": rows, "calibration": cal["classes"], "own_cutoffs": meta["cutoffs_own_crossfit"], "v2_cutoffs": meta["cutoffs_v2"]}
+
+    def acc_block(sel):
+        cls = [r for r in sel if r["use_for_class"]]
+        rc = [r for r in cls if r["reviewer_class"] == r["target_class"]]
+        sc = [r for r in cls if r["sorter_class"] == r["target_class"]]
+        rcs, scs = {r["id"] for r in rc}, {r["id"] for r in sc}
+        b, c = len(rcs - scs), len(scs - rcs)
+        sub = [r for r in sel if r["use_for_subclass"]]
+        rs = {r["id"] for r in sub if r["reviewer_subclass"] == r["target_subclass"]}
+        ss = {r["id"] for r in sub if r["sorter_subclass_correct"]}
+        b2, c2 = len(rs - ss), len(ss - rs)
+        per = {}
+        for k in CLASSES:
+            ci = [r for r in cls if r["target_class"] == k]
+            si = [r for r in sub if r["target_class"] == k]
+            if ci:
+                per[k] = dict(n=len(ci), class_reviewer=sum(r["id"] in rcs for r in ci), class_sorter=sum(r["id"] in scs for r in ci),
+                              sub_n=len(si), sub_reviewer=sum(r["id"] in rs for r in si), sub_sorter=sum(r["id"] in ss for r in si))
+        return dict(documents=len(sel), class_scored=len(cls), class_reviewer=len(rc), class_sorter=len(sc), class_fixed=b, class_broke=c,
+                    class_p=mcnemar_exact(b, c), sub_scored=len(sub), sub_reviewer=len(rs), sub_sorter=len(ss), sub_fixed=b2, sub_broke=c2,
+                    sub_p=mcnemar_exact(b2, c2), per_class=per)
+
+    out["all"] = acc_block(rows)
+    out["clean"] = acc_block([r for r in rows if not r["prior_reviewer_evidence"]])
+    out["prior_evidence_docs"] = sum(r["prior_reviewer_evidence"] for r in rows)
+
+    def decompose(flag, gated):
+        c = {"routed_correct_sorter_right": 0, "routed_correct_sorter_wrong": 0, "misrouted": 0, "parked_sorter_wrong": 0, "parked_sorter_right": 0}
+        for r in rows:
+            if not r["use_for_class"]:
+                continue
+            parked = r[flag] or (gated and r["reviewer_class"] != r["sorter_class"])
+            rc, sr = r["reviewer_class"] == r["target_class"], r["sorter_class"] == r["target_class"]
+            if parked:
+                c["parked_sorter_right" if sr else "parked_sorter_wrong"] += 1
+            elif rc:
+                c["routed_correct_sorter_right" if sr else "routed_correct_sorter_wrong"] += 1
+            else:
+                c["misrouted"] += 1
+        c["scored"] = sum(c.values())
+        c["routed_correctly"] = c["routed_correct_sorter_right"] + c["routed_correct_sorter_wrong"]
+        c["sent_unattended"] = c["routed_correctly"] + c["misrouted"]
+        c["parked"] = c["parked_sorter_right"] + c["parked_sorter_wrong"]
+        c["sorter_errors"] = c["routed_correct_sorter_wrong"] + c["parked_sorter_wrong"] + sum(
+            1 for r in rows if r["use_for_class"] and r["sorter_class"] != r["target_class"] and r["reviewer_class"] != r["target_class"]
+            and not (r[flag] or (gated and r["reviewer_class"] != r["sorter_class"])))
+        return c
+
+    out["routing"] = {"v2_pipeline_rule": decompose("parked_at_v2_cutoffs", True), "v2_reviewer_alone": decompose("parked_at_v2_cutoffs", False),
+                      "own_pipeline_rule": decompose("parked_at_own_cutoffs", True), "own_reviewer_alone": decompose("parked_at_own_cutoffs", False)}
+    out["sorter_alone_wrong"] = sum(1 for r in rows if r["use_for_class"] and r["sorter_class"] != r["target_class"])
+    out["sorter_confidence_ge_0_95"] = sum(r["sorter_confidence"] >= 0.95 for r in rows)
+    out["sorter_confidence_lt_0_90"] = sum(r["sorter_confidence"] < 0.90 for r in rows)
+    out["cost_usd"] = meta["cost_usd_from_usage"]
+    out["unit_usd_doc"] = meta["cost_usd_from_usage"] / meta["documents"]
+    out["x_vs_qwen_agent_train"] = out["unit_usd_doc"] / (N["qwen_train"]["tiered_usd"] / N["qwen_train"]["n"])
+    lat = sorted(r["latency_ms"] / 1000 for r in rows)
+    out["latency_s"] = {"p50": lat[len(lat) // 2], "p95": lat[int(len(lat) * 0.95)]}
+    need = {}
+    for r in rows:
+        if not r["use_for_class"]:
+            continue
+        k = ("class_wrong" if r["sorter_class"] != r["target_class"] else
+             "subclass_wrong" if r["use_for_subclass"] and not r["sorter_subclass_correct"] else "sorter_right")
+        need.setdefault(k, {})
+        need[k][r["verdict"]] = need[k].get(r["verdict"], 0) + 1
+    out["verdict_by_need"] = need
+    out["human_verdict_docs"] = sum(r["route_to_human"] for r in rows)
+    out["multiple_documents"] = sum(r["verdict"] == "multiple_documents" for r in rows)
+    return out
+
+
+def mcnemar_exact(b, c):
+    n = b + c
+    if n == 0:
+        return 1.0
+    return min(1.0, 2 * sum(math.comb(n, i) for i in range(0, min(b, c) + 1)) / 2 ** n)
+
+
 def compute():
     N = {}
     # ---- Qwen agent (sorter) per-document tokens, tiered and flat cost ---------------------------
@@ -245,6 +334,7 @@ def compute():
                       ("v1.1.0 pooled", "extraction-gate-luna-v1.1.0-pooled")):
         gate[key] = jload(REPORTS / f"extraction-gate/{name}.calibration.json")
     N["gate"] = gate
+    N["half"] = half_train(N)
     return N
 
 
@@ -252,9 +342,9 @@ def compute():
 # Chart kit: tokens, SVG helpers
 # --------------------------------------------------------------------------- #
 LIGHT = dict(surface="#fcfcfb", ink="#0b0b0b", ink2="#52514e", muted="#898781", grid="#e1e0d9", axis="#c3c2b7",
-             s1="#2a78d6", s2="#eb6834", s3="#1baf7a", oth="#b9b8b0")
+             s1="#2a78d6", s2="#eb6834", s3="#1baf7a", oth="#b9b8b0", crit="#d03b3b")
 DARK = dict(surface="#1a1a19", ink="#f0efec", ink2="#c3c2b7", muted="#898781", grid="#2c2c2a", axis="#383835",
-            s1="#3987e5", s2="#d95926", s3="#199e70", oth="#5f5e5a")
+            s1="#3987e5", s2="#d95926", s3="#199e70", oth="#5f5e5a", crit="#d03b3b")
 # Sequential blue: five bins. Light mode: light = low. Dark mode flips the anchor: dark = low.
 SEQ_LIGHT = ["#cde2fb", "#86b6ef", "#3987e5", "#1c5cab", "#0d366b"]
 SEQ_DARK = ["#0d366b", "#184f95", "#2a78d6", "#6da7ec", "#cde2fb"]
@@ -294,7 +384,7 @@ def theme_css():
         ".fn{fill:var(--muted);font-size:10.5px}"
         ".grid{stroke:var(--grid);stroke-width:1;fill:none}"
         ".axis{stroke:var(--axis);stroke-width:1;fill:none}"
-        ".s1{fill:var(--s1)}.s2{fill:var(--s2)}.s3{fill:var(--s3)}.oth{fill:var(--oth)}"
+        ".s1{fill:var(--s1)}.s2{fill:var(--s2)}.s3{fill:var(--s3)}.oth{fill:var(--oth)}.crit{fill:var(--crit)}"
         ".k1{stroke:var(--s1)}.k2{stroke:var(--s2)}.k3{stroke:var(--s3)}.ko{stroke:var(--oth)}"
         ".ring{stroke:var(--surface);stroke-width:2}"
         ".hollow{fill:var(--surface);stroke-width:2}"
@@ -974,8 +1064,67 @@ def fig_silent_errors(N):
     return f, y_bot + 38
 
 
+def fig_routing_outcomes(N):
+    """F16: what happens to each of the 1,488 scored train documents when the Decisions reviewer routes it."""
+    h = N["half"]
+    R = h["routing"]
+    f = Fig("f16", "The Decisions reviewer routes 92% to 96% of documents correctly with no person",
+            "Question set 3.1.0 with the sorter handoff, 1,488 scored train documents. 'Pipeline rule': any disagreement with the sorter "
+            "parks, as in the live pipeline (1,485 of 1,491 sorter answers are at 0.95 or higher). 'Reviewer alone': its answer decides.",
+            left=230, right=215,
+            legend=[("Routed correctly", "s3"), ("Parked: sorter wrong", "s1"), ("Parked: sorter right", "oth"), ("Misrouted", "crit")],
+            foot="Cutoffs: v2 were fixed before this run; 3.1.0 were cross-fitted on this same run, so treat them as optimistic.")
+    series = [("c", "s3"), ("pw", "s1"), ("pr", "oth"), ("m", "crit")]
+    spec = [("v2 cutoffs · pipeline rule", "v2_pipeline_rule"), ("v2 cutoffs · reviewer alone", "v2_reviewer_alone"),
+            ("3.1.0 cutoffs · pipeline rule", "own_pipeline_rule"), ("3.1.0 cutoffs · reviewer alone", "own_reviewer_alone")]
+    rows, tab = [], []
+    for lab, key in spec:
+        c = R[key]
+        sc = c["scored"]
+        vals = [c["routed_correctly"], c["parked_sorter_wrong"], c["parked_sorter_right"], c["misrouted"]]
+        names = ["Routed correctly with no person", "Parked and the sorter was wrong (error caught)", "Parked and the sorter was right (unnecessary)",
+                 "Misrouted: wrong class, no person"]
+        extra = f" ({c['routed_correct_sorter_right']} sorter right, {c['routed_correct_sorter_wrong']} sorter wrong and corrected)"
+        tips = [f"{lab}\n{names[j]}: {v:,} of {sc:,} ({v / sc * 100:.1f}%)" + (extra if j == 0 else "") for j, v in enumerate(vals)]
+        rows.append(dict(label=lab, vals=vals, tips=tips, total_label=f"{c['routed_correctly']:,} ok · {c['parked']} parked · {c['misrouted']} wrong"))
+        tab.append([lab, sc, c["routed_correctly"], f"{c['routed_correctly'] / sc * 100:.1f}", c["routed_correct_sorter_wrong"], c["misrouted"],
+                    c["parked"], c["parked_sorter_wrong"], c["parked_sorter_right"]])
+    bottom = hbars(f, rows, series, 1500, [0, 500, 1000, 1500], lambda t: f"{t:,}", None, pitch=36)
+    f.table = (["routing", "scored", "routed correctly", "routed correctly (%)", "of which sorter wrong, corrected", "misrouted",
+                "parked", "parked, sorter wrong", "parked, sorter right"], tab)
+    return f, bottom + 22
+
+
+def fig_sorter_vs_reviewer(N):
+    """F17: the sorter's accuracy against the reviewer's, per primary type and subclass."""
+    a = N["half"]["all"]
+    f = Fig("f17", "The reviewer lifts subclass accuracy from 72% to 84%, and primary type from 96% to 99%",
+            "Hollow = the saved Qwen sorter, filled = the Decisions reviewer (question set 3.1.0), both scored against the verified targets. "
+            "Train documents; 395 of 1,491 were in question-set tuning, see the report.",
+            left=250, right=60, legend=[("Qwen sorter", "s1"), ("Decisions reviewer", "s3")],
+            foot="Subclass: 1,463 scored documents; merger agreements 43 (the rest are unannotated 'other').")
+    rows, tab = [], []
+
+    def add(label, n, rv, sv, group):
+        pr, ps = rv / n * 100, sv / n * 100
+        rows.append(dict(label=label, line=(ps, pr), line_cls="ko",
+                         pts=[dict(v=ps, cls="s1", hollow=True, r=5, tip=f"{label}\nsorter: {sv:,} of {n:,} ({ps:.1f}%)"),
+                              dict(v=pr, cls="s3", r=5.5, tip=f"{label}\nreviewer: {rv:,} of {n:,} ({pr:.1f}%)\nchange {pr - ps:+.1f} points",
+                                   label=f"{pr:.0f}%", label_at=max(ps, pr))]))
+        tab.append([label, n, sv, f"{ps:.1f}", rv, f"{pr:.1f}", f"{pr - ps:+.1f}"])
+
+    add("Primary type · all", a["class_scored"], a["class_reviewer"], a["class_sorter"], "t")
+    add("Subclass · all", a["sub_scored"], a["sub_reviewer"], a["sub_sorter"], "t")
+    for k in CLASSES:
+        c = a["per_class"][k]
+        add(f"Subclass · {CLASS_LABEL[k]}", c["sub_n"], c["sub_reviewer"], c["sub_sorter"], k)
+    bottom = hdots(f, rows, 40, 105, [40, 60, 80, 100], lambda t: f"{t:g}%", pitch=30)
+    f.table = (["measure", "scored", "sorter correct", "sorter (%)", "reviewer correct", "reviewer (%)", "change (points)"], tab)
+    return f, bottom + 22
+
+
 FIGURES = [fig_cost_stack, fig_sensitivity, fig_qwen_by_class, fig_person_load, fig_latency, fig_accuracy, fig_wrong_conf,
-           fig_cutoffs, fig_dumbbell, fig_verdict, fig_human_by_class, fig_sorter_errors, fig_gate_accept, fig_gate_auroc, fig_silent_errors]
+           fig_cutoffs, fig_dumbbell, fig_verdict, fig_human_by_class, fig_sorter_errors, fig_gate_accept, fig_gate_auroc, fig_silent_errors, fig_routing_outcomes, fig_sorter_vs_reviewer]
 
 
 # --------------------------------------------------------------------------- #
@@ -1102,6 +1251,17 @@ def summary(N):
                               "decisions_v2": {"k": 1, "n": 318, "ci95": [round(x, 4) for x in wilson(1, 318)]},
                               "p": round(fisher_two_sided(8, 303, 1, 317), 4)},
         },
+        "half_train_v3_1_0": {
+            "run_id": HALF, "documents": N["half"]["meta"]["documents"], "answered": N["half"]["meta"]["answered"], "failures": N["half"]["meta"]["failures"],
+            "cost_usd": N["half"]["cost_usd"], "input_tokens": N["half"]["meta"]["input_tokens"], "latency_s": {k: round(v, 2) for k, v in N["half"]["latency_s"].items()},
+            "cost_vs_qwen_agent_unit_train": round(N["half"]["x_vs_qwen_agent_train"], 3),
+            "accuracy_all": {k: v for k, v in N["half"]["all"].items() if k != "per_class"},
+            "accuracy_clean_no_prior_reviewer_evidence": {k: v for k, v in N["half"]["clean"].items() if k != "per_class"},
+            "per_class_all": N["half"]["all"]["per_class"], "routing": N["half"]["routing"], "sorter_alone_wrong": N["half"]["sorter_alone_wrong"],
+            "prior_evidence_documents": N["half"]["prior_evidence_docs"], "verdict_by_need": N["half"]["verdict_by_need"],
+            "human_verdict_documents": N["half"]["human_verdict_docs"], "multiple_documents_verdicts": N["half"]["multiple_documents"],
+            "cutoffs_v2": N["half"]["v2_cutoffs"], "cutoffs_own_crossfit": N["half"]["own_cutoffs"],
+        },
         "recorded_inputs": [{"run": r["run"], "split": r["split"], "n": r["n"], "correct": r["correct"], "cost_usd": r["cost"], "source": r["src"]} for r in RUNS],
     }
 
@@ -1134,6 +1294,7 @@ def dashboard(N, figs):
     groups = [("Cost against the 1x Qwen agent call", ["f01", "f02", "f03", "f05"]),
               ("Effectiveness of the reviewer", ["f04", "f15", "f06", "f07", "f08"]),
               ("Question-set experiments", ["f09", "f10", "f11", "f12"]),
+              ("Question set 3.1.0 on half the train split", ["f16", "f17"]),
               ("Extraction gate", ["f13", "f14"])]
     byid = {f.fid: (f, h) for f, h in figs}
     for title, ids in groups:
