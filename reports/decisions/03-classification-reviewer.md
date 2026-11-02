@@ -212,7 +212,7 @@ and is the script's `routing_at_cutoffs` definition.
   0.48, insurance claim 0.64, merger agreement 0.94) were cross-fitted on this same run, which flatters them; merger agreement misses the 95% target on 68 documents.
 - **The sorter alone, if trusted, misroutes 61 of 1,488 (4.1%).** The reviewer handles 59 of those 61 (fixed or parked) at the v2 cutoffs, leaving **2 misrouted (0.15%)**.
 - **The price of that safety is parked documents**: 119 at the pipeline rule, of which 60 had a correct sorter answer. Reviewer-alone parks 88 (5.9%).
-- **The 3.1.0 cutoffs are looser and let more through**: 6 misrouted (2 of them sorter-right documents the reviewer broke) against 2 at the v2 cutoffs.
+- **The 3.1.0 cutoffs are looser and let more through**: 4 misrouted under the pipeline rule and 6 under reviewer-alone routing (2 of the 6 are sorter-right documents the reviewer broke), against 2 under either rule at the v2 cutoffs.
 - A person also gets any document with a human verdict: 47 documents carry one, of which 29 are `multiple_documents`, 18 of those on documents where the sorter was right. The forward fix
   in 3.1.0 did not remove the verdict; this run cannot say how many of the 29 are real forwards.
 

@@ -69,7 +69,7 @@ to 0.72 specialist calls per document. [Detail](04-extraction-gate.md)
 2. **Keep question set v2's routing; do not adopt v3.0.0.** v3.0.0 is 20% cheaper per call and parks 23 test documents for a
    person against 5. Its verdict question mostly answers "continue" whatever the class. The lineage's next step, to derive
    the verdict in code (4.0.0), is the right one.
-3. **Finish the 3.1.0 calibration before turning on cutoffs.** Half of the train split is done (1,491 documents, $1.06). The other half and the held-out check are not. Cutoffs moved by up to 0.30
+3. **Finish the 3.1.0 calibration before turning on cutoffs.** Half of the train split is done (1,491 documents, $1.06). The other half is not, and no held-out check exists: the 323-document test split informed 3.1.0, so a clean check needs documents unseen during question-set development. Cutoffs moved by up to 0.30
    between question sets, and the 3.1.0 cutoffs from this run (0.48 to 0.64, merger 0.94) are far below the v2 ones.
 4. **Do not wire the extraction gate into a pipeline.** Redesign it around the per-field questions, one of which
    (`contract.renewal_terms`, AUROC 0.89) shows a real signal.
