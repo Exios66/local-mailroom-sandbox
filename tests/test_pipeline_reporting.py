@@ -144,9 +144,9 @@ def test_low_confidence_park_is_attributed(tmp_path, monkeypatch):
         result = runners._run_pipeline_doc(row, mock=True)
     finally:
         bg.reset_compiled_graph()
-    # v0.8.1 removed the "sorter_low_confidence" cause token; a guardrail-clamped
-    # low-confidence park now carries no review cause.
-    assert result["review_causes"] is None
+    # llm-mailroom 90e374b compares the sorter against its class low band again,
+    # so a low-confidence park names its cause.
+    assert result["review_causes"] == ["sorter_low_confidence"]
 
 
 def test_parked_document_reports_the_cause_the_manifest_holds(tmp_path, monkeypatch):

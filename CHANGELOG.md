@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+- Vendor pins aligned with the workspace repos: llm-mailroom `main` `a7d7bf0` (#141: v0.8.1 + a0ed476 + #135 + #136 with review fixes), refreshed by `sandbox fetch-deps` (SHA-verified, adds `agents/extraction_gate.py`); llm-dojo-scoring stays on its published `v0.25.0` (`e35504db`), which llm-mailroom also pins. `vendor/README.md` no longer lists the stale `175e6711077f`.
+- `scripts/setup_t3.sh`: guided checkout setup (venv, editable install, `.env`, vendor import check, Modal/HF credential status, overlay check, optional git worktree, subagent stubs). `--dry-run` changes nothing; every step records its real outcome (ok / failed / skipped / planned) in `data/runtime/setup/evidence.jsonl` and a run card in `data/runtime/setup/card.json` (gitignored). `.env` is loaded without overriding exported variables; the script exits 1 when any step failed.
+### Added
+
+- **Pipeline extraction gate** (`extraction_gate:` in a `task: pipeline` run spec). It is advisory.
+  - Preflight freezes the question set into the lock.
+  - Activation registers `decision_backends.extraction_gate_backend` with llm-mailroom's `agents.extraction_gate` hook (llm-mailroom #136). An activation without the block clears it.
+  - The gate reads the **sorter's** `doc_subclass` from the pipeline handoff, with no fallback to the labelled subclass.
+  - Pipeline records carry `doc_subclass` and `extraction_gate`.
+  - Gate calls count against the run budget and the OpenRouter key reserve.
+  - The spec hash changes only for specs that set the block.
+
 - Vendor pins after merging `main`: llm-mailroom `d1e2811`, which is `v0.8.1` merged into llm-mailroom #135 (sorter V15), and llm-dojo-scoring by its published `v0.25.0` tag (SHA-verified `e35504db`).
 - CI lint: drop an unused counter in `scripts/export_sorter_handoff.py`; `scripts/refresh_api_prices.py` accepts only an `https://` catalog URL (bandit B310).
 - PR #226 review fixes:
