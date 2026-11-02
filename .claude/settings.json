@@ -29,9 +29,11 @@
       "Bash(git status:*)",
       "Bash(git diff:*)",
       "Bash(git log:*)",
-      "Bash(git branch:*)"
+      "Bash(git branch --show-current:*)",
+      "Bash(git branch --list:*)"
     ],
     "ask": [
+      "Bash(git push:*)",
       "Bash(python scripts/sync_vendor.py:*)",
       "Bash(sandbox fetch-deps:*)",
       "Bash(python scripts/sync_requirements.py:*)",
@@ -52,7 +54,9 @@
       "Bash(modal run:*)",
       "Bash(* --real*)",
       "Bash(git push --force:*)",
-      "Bash(git push -f:*)"
+      "Bash(git push -f:*)",
+      "Bash(git push * --force*)",
+      "Bash(git push * -f*)"
     ]
   },
   "hooks": {
