@@ -2,8 +2,9 @@
 
 ## How the numbers were made
 
-- **One paid run, then nothing else.** The first version of this report called no model. On 2026-11-02 one run,
-  `reviewer-validation-qwen-flash-test` (Qwen 3.7 Flash as reviewer, 323 test documents, OpenRouter, signed JB), replaced the
+- **Two paid runs, then nothing else.** The first version of this report called no model. On 2026-11-02 two runs were
+  made: the 3.1.0 half-train run (1,491 documents, $1.06 billed; below) and
+  `reviewer-validation-qwen-flash-test` (Qwen 3.7 Flash as reviewer, 323 test documents, OpenRouter, signed JB), which replaced the
   modelled 1x reviewer with a measurement: $0.2099 at the price sheet, $0.2146 billed. Every figure comes from files tracked in this
   repository, rebuilt by `python reports/decisions/build_decisions_report.py` (stdlib only). `--check` exits 1 if a
   figure, CSV, `summary.json` or the dashboard is stale.
@@ -12,7 +13,7 @@
 - **Taken from prose reports:** class and subclass accuracy and the run costs of the Decisions reviewer runs.
   Each sits in `RECORDED` / `RUNS` in the script with its source file. The recorded inputs are echoed under
   `recorded_inputs` in `data/summary.json`.
-- **Measured on 2026-11-02:** the 1x Qwen reviewer (`reports/reviewer-calibration/reviewer-validation-qwen-flash-test.json` and
+- **Measured on 2026-11-02:** the 3.1.0 half-train run (`reviewer-calibration-luna-decisions-v3.1.0-train-half.{json,routing.json,run.json,items.jsonl}`, per-document answers with the sorter's answer, targets and routing flags, no document text) and the 1x Qwen reviewer (`reports/reviewer-calibration/reviewer-validation-qwen-flash-test.json` and
   `.items.jsonl`, per-document tokens, answers and latency; no document text).
 - **Modelled:** nothing remains modelled.
 
@@ -41,6 +42,10 @@ These are source inconsistencies found while assembling the report. None changes
 | 7 | Routing counts | Per-class routing counts use the reviewer's class (59 / 48 / 83 / 114 / 17 plus `unknown`), not the true class (60 / 47 / 85 / 114 / 17). | Each table is labelled with its own basis. |
 | 8 | Qwen reviewer cost | The price-sheet figure ($0.2099) and the key-usage delta ($0.2146) differ by 2%. The delta assumes no other use of the key during the 75 s run. | Ratios use the sheet figure, so the reviewer and the agent are priced the same way. |
 | 9 | `preflight.py` | The same-model guard ("a reviewer on the sorter's model only repeats its answer") also fired on `task: sorter_reviewer` runs, where the sorter never runs and the engine model is the reviewer by rule. | Scoped to non-calibration runs in this change, with a test; pipeline runs keep the guard. |
+| 10 | Half-train run overlap | 368 of the 1,491 documents were in the 735-document draw question set v2 was written from, and 27 were used by a Decisions run to settle their verified targets, so those targets already contain this model's answers. | A clean subset (1,096 documents, no mergers) is scored beside the full sample. |
+| 11 | Subclass denominators | The calibration script scores subclass by the reviewer's predicted class (1,443 scored, 85.2%); the report scores by true class so the sorter is comparable (1,463 scored, 84.0%). | The report's figure is used throughout; the script's is in `reviewer-calibration-luna-decisions-v3.1.0-train-half.json`. |
+| 12 | Routing definitions | The script counts a document as routed unattended when the reviewer's answer clears its cutoff. The live pipeline also parks any disagreement with a medium or high sorter. 1,485 of 1,491 sorter answers are at 0.95 or higher, so the pipeline rule is the stricter, faithful one. | Both are shown; the pipeline rule leads. |
+| 13 | 3.1.0 cutoffs | Fitted by cross-fit on the same run they are applied to. | Labelled optimistic; the v2 cutoffs, fixed before the run, lead. |
 
 ## Limits of the cost comparison
 
@@ -60,7 +65,8 @@ These are source inconsistencies found while assembling the report. None changes
 | # | Measurement | Why | Rough cost |
 | --- | --- | --- | --- |
 | 1 | Qwen reviewer with a prompt that states the corpus conventions, and one that reads the sorter's handoff | Separates "Qwen" from "this prompt" in the 93.8% | about $0.2 each |
-| 2 | `reviewer-calibration-luna-decisions-v3.1.0-train`: the full 2,979-document train split with the sorter handoff | Settles whether the confidence advantage holds at scale; fixes the cutoffs | about $2.05 (cap $2.60) |
+| 2 | The other half of the train split with 3.1.0 and the handoff, then 3.1.0 with cutoffs frozen first on documents unseen during question-set development | Cutoffs that are not fitted on the data they are scored on; the full-split run is `reviewer-calibration-luna-decisions-v3.1.0-train`. The 323 test documents are **not** independent of 3.1.0 (their errors informed it), so a run there must be labelled non-independent | about $1.04, plus the held-out set |
+| 2b | A Qwen reviewer on the same 1,491 train documents | The Qwen comparison exists only on the test split | about $0.5 |
 | 3 | Validate sorter prompt V15 with `config/runs/sorter-v15-qwen-train-errors.yaml` | Lowers the 1x agent's error rate before the reviewer sees it | about $0.49 |
 | 4 | Question set 4.0.0: derive the verdict in code | Removes the 5x human-review penalty of 3.0.0 | none new |
 | 5 | A per-field extraction gate scored against field-level truth, with a Qwen-judge baseline | The gate's one signal is at field level; extraction has no 1x comparison yet | open |

@@ -26,12 +26,17 @@
 
 ### Added
 
-- **Decision-reviewer reports (`reports/decisions/`).** Five reports, 15 theme-aware SVG figures with CSV table twins, a self-contained dashboard and `build_decisions_report.py` (stdlib only; `--check` fails on stale outputs).
+- **Decision-reviewer reports (`reports/decisions/`).** Five reports, 17 theme-aware SVG figures with CSV table twins, a self-contained dashboard and `build_decisions_report.py` (stdlib only; `--check` fails on stale outputs).
   - Prices every reviewer arm against one Qwen 3.7 Flash call as 1x, per document, on the same 323 held-out test documents. Qwen is priced per call against the tiered OpenRouter sheet: $0.2513, where the handoff manifest's flat figure is $0.1298.
   - **Measured Qwen reviewer** (`config/runs/reviewer-validation-qwen-flash-test.yaml`, signed JB, 323 of 323 answered, $0.2099 at the sheet, $0.2146 billed): 0.84x of the agent call, 93.8% class accuracy, all 20 wrong answers at confidence 0.90 or higher, 8 wrong documents routed with no person (24.8 per 1,000 against 3.1 for Decisions). Results are tracked in `reports/reviewer-calibration/reviewer-validation-qwen-flash-test.{json,items.jsonl}` (no document text).
   - A Decisions review is 0.91x (v3.0.0) to 1.14x (v2) of a Qwen review, so agent plus Decisions is 1.76x to 1.95x against 1.84x for agent plus the Qwen reviewer: 4% cheaper to 7% dearer, and dearer at flat Qwen prices. The case for Decisions is accuracy and usable confidence, not cost.
   - Calibrated reviewers cut documents needing a person from 356 to 15 per 1,000 (Decisions v2); the extraction gate shows no ranking signal (pooled AUROC 0.41).
   - Source inconsistencies found on the way are listed in `reports/decisions/05-method-and-data-quality.md`; none was edited at the source.
+- **Question set 3.1.0 with the sorter handoff, measured on half the train split** (`config/runs/reviewer-calibration-luna-decisions-v3.1.0-train-half.yaml`, signed JB, 1,491 of 2,979 train documents drawn per class in proportion, seed 42, `openai/gpt-6-luna-decisions`).
+  - 1,491 of 1,491 answered, $1.0648 billed (10.65M input tokens), median 0.62 s. Every request carried the sorter's primary type, subclass and confidence.
+  - Against the verified targets: primary type 98.7% vs the sorter's 95.9% (45 fixed, 4 broken), subclass 84.0% vs 72.4% (266 fixed, 96 broken); 98.3% and 82.8% on the 1,096-document clean subset.
+  - Routing at the v2 cutoffs: 1,367 of 1,488 scored documents routed correctly with no person under the pipeline's rule (1,398 if the reviewer alone decides), 2 misrouted, 119 (88) parked. The sorter alone would misroute 61.
+  - Results are tracked in `reports/reviewer-calibration/reviewer-calibration-luna-decisions-v3.1.0-train-half.{json,routing.json,run.json,items.jsonl}` (no document text); `reports/decisions/` now has 17 figures.
 - **Preflight: the same-model reviewer guard no longer applies to `task: sorter_reviewer` runs.** The sorter never runs there and the engine model is the reviewer by rule, so a reviewer on the sorter's own model (Qwen reviewing for Qwen, with `allow_chat_model: true`) is a valid measurement there; pipeline runs keep the guard. Test: `test_api_reviewer_may_share_the_sorter_model_on_a_calibration_run_only`.
 - **Extraction-gate question set 1.3.0: per-template rules from a field-by-field GT vetting** (`docs/EXTRACTION_GATE_VETTING.md`).
   - `subclass_fields` replaces a class rule with the rule of the document's own template or record kind. The subclass comes from the handoff (`doc_subclass`, the sorter's) or, in calibration runs, the labelled subclass.

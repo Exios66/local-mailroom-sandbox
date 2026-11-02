@@ -58,6 +58,11 @@ What the table says:
 - **A Decisions call is a different request, not a cheaper read of the same one.** No output tokens, a probability for
   every option, and class, subclass and verdict in one call. What it returns is the subject of section 4.
 
+**Question set 3.1.0 measured on half the train split.** The Decisions reviewer with the sorter handoff cost **$1.0648 billed for 1,491 train documents**
+($0.000714 per document, 10.65M input tokens, median 0.62 s). On the train split the Qwen agent costs $0.000776 per document at the tiered price, so a 3.1.0 review is **0.92x** of an agent call.
+No Qwen reviewer was run on the train split, so the 0.84x Qwen figure above (test split) is not directly comparable. What that review bought is in
+[03](03-classification-reviewer.md#9-question-set-310-with-the-sorter-handoff-on-half-the-train-split): 91.9% to 94.0% of documents routed correctly with no person and 0.15% misrouted at the v2 cutoffs.
+
 ### Where a Qwen bill comes from
 
 ![Qwen agent cost by class](figures/f03-qwen-by-class.svg)
@@ -162,7 +167,7 @@ reviewer has no train calibration, and none was fitted on the test split. They s
 4. **The Decisions model's edge is in its confidence.** All 20 of the Qwen reviewer's wrong answers sit at 0.90 or higher
    (the Qwen agent: 122 of 127 at 0.95 or higher). Decisions' wrong answers are spread: 2 of 5 at 0.90 or higher on the test
    split, and none of its 12 question-set-v1 errors on the train draw above 0.84. Train is in-sample for the question set, so this is
-   supported on train and suggestive on test until the full-train run.
+   supported on train and suggestive on test; the 3.1.0 half-train run adds 2 of 20 wrong answers at 0.90 or higher (03, section 9).
 
    ![Wrong answers at high confidence](figures/f07-wrong-conf.svg)
 
