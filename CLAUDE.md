@@ -66,6 +66,12 @@ sandbox doctor                                              # offline status of 
 
 ## Coding subagents
 
-The roster and canonical prompts are in `.opencode/agents/` (`adversarial-reviewer`,
-`harness-doctor`, `eval-judge`, `trace-auditor`, …). They are not yet registered as
-Claude Code subagents; read the relevant file there when you want that persona.
+The roster and canonical prompts are in `.opencode/agents/`. Two are registered as Claude
+Code subagents in `.claude/agents/` as thin read-only wrappers that load the canonical
+prompt (no duplicated text to drift): `adversarial-reviewer` and `eval-judge`. For any
+other persona (`harness-doctor`, `trace-auditor`, …) read its file in `.opencode/agents/`.
+
+## Skills
+
+- `/vendor-sync` (`.claude/skills/vendor-sync/`) — the sanctioned way to refresh
+  `vendor/`. User-invoked only.
