@@ -134,3 +134,6 @@ data/provider_health.lock
 /data/warehouse
 reports/run-ledger.md.lock
 reports/run-ledger.md.tmp
+
+# Claude Code local overrides
+.claude/settings.local.json
