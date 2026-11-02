@@ -1389,12 +1389,12 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
 # workspace packages when available, after importing those reviewed revisions.
 # The fallback rejects moved refs before replacing any tracked vendor file.
 # llm-mailroom: v0.8.1 merged into #135 (sorter V15) until #135 lands in a release.
-# llm-dojo-scoring: the published v0.25.0 release.
+# llm-dojo-scoring: the v0.26.0 release (merge of llm-dojo-scoring#112).
 _VENDOR_PINS: tuple[tuple[str, str, str, str | None], ...] = (
     ("llm-mailroom", "a7d7bf0b1c1b2e93b0f185b49d83e1df61a5f7a1",
      "https://github.com/Exios66/llm-mailroom.git", "a7d7bf0b1c1b2e93b0f185b49d83e1df61a5f7a1"),
-    ("llm-dojo-scoring", "v0.25.0",
-     "https://github.com/Exios66/llm-dojo-scoring.git", "e35504db12f09aeda07ae116663c177acd8c0d6e"),
+    ("llm-dojo-scoring", "v0.26.0",
+     "https://github.com/Exios66/llm-dojo-scoring.git", "2fea5ea7cff79d9e4c8f3513dd4a179089a8e8ff"),
 )
 
 
