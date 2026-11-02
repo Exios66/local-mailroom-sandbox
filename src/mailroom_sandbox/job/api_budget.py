@@ -52,6 +52,11 @@ def api_models(lock: Mapping[str, Any]) -> list[str]:
     engine = lock.get("engine") or {}
     if engine.get("kind") in API_PROVIDERS and not assignments:
         models.add(str(engine.get("model") or ""))
+    # Reviewer model (e.g. openai/gpt-6-luna-decisions) bills tokens too.
+    reviewer = lock.get("reviewer") or {}
+    rev_model = reviewer.get("model")
+    if rev_model and str(reviewer.get("backend", "")) in ("decisions", "local", "api", "jev"):
+        models.add(str(rev_model))
     # The pipeline extraction gate bills the Decisions API whatever the engine is.
     gate = lock.get("extraction_gate") or {}
     if gate.get("model"):
