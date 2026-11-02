@@ -134,7 +134,7 @@ def scenarios():
         "extraction_exhausted": ({"classify": [sorted_as(HIGH)], "extract": [extracted(LOW, attempt=3)],
                                   "judge_verify": [judge("complete")]}, "review"),
         "extraction_verified": ({"classify": [sorted_as(HIGH)], "extract": [extracted(LOW, attempt=3)],
-                                 "judge_verify": [{**judge("complete"), "judge_source_verified": True}]}, "review"),
+                                 "judge_verify": [{**judge("complete"), "judge_source_verified": True}]}, "archived"),  # a0ed476: a full-source check clears it
         "extraction_empty": ({"classify": [sorted_as(HIGH)], "extract": [extracted(LOW, data={}, attempt=3)]}, "review"),
         "retry_extract_recovers": ({"classify": [sorted_as(HIGH)], "extract": [extracted(LOW)],
                                     "retry_extract": [extracted(attempt=2)]}, "archived"),
