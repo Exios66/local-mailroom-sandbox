@@ -13,7 +13,7 @@ Inputs
   data/handoff/sorter-qwen3.7-flash/*      per-document Qwen tokens, latency, confidence
   config/api_prices.yaml                   OpenRouter price sheet (Qwen tiers)
 Figures that restate numbers which only exist in the prose reports
-(reviewer-calibration-luna*.md, config/decisions/LINEAGE.yaml,
+(reviewer-calibration-luna-decisions.md, config/decisions/LINEAGE.yaml,
 sorter-qwen3.7-flash-audit.md) take them from ``RECORDED`` below, each with the
 file it comes from.
 
@@ -67,23 +67,12 @@ def qwen_call_usd(prompt_tokens: int, completion_tokens: int, tiered: bool = Tru
 # Numbers that exist only in prose reports. Every entry names its source.
 # --------------------------------------------------------------------------- #
 CAL = "reports/reviewer-calibration/reviewer-calibration-luna-decisions.md"
-PIL = "reports/reviewer-calibration/reviewer-calibration-luna.md"
 LIN = "config/decisions/LINEAGE.yaml"
 AUD = "reports/sorter-handoff/sorter-qwen3.7-flash-audit.md"
 
-# family: agent = Qwen agent call, chat = chat-model (Luna) LLM reviewer, dec = Decisions model
+# family: agent = Qwen agent call, qwen = Qwen LLM reviewer (measured separately), dec = Decisions model
 RUNS = [
-    # label, family, split, n, correct (None = only the percentage was reported), pct, wrong>=0.90 (wrong, n_wrong), cost_usd, source
-    dict(run="reviewer-calibration-luna", label="Chat reviewer, default prompt", family="chat", split="train", n=735, correct=709,
-         hi=(25, 26), cost=0.262, src=PIL),
-    dict(run="reviewer-calibration-luna-prompt-v1", label="Chat reviewer, decision_v1 prompt", family="chat", split="train", n=735, correct=733,
-         hi=(2, 2), cost=0.320, src=PIL),
-    dict(run="reviewer-validation-luna-default-test", label="Chat reviewer, default prompt", family="chat", split="test", n=317, correct=303,
-         hi=(14, 14), cost=0.097, src=PIL),
-    dict(run="reviewer-validation-luna-prompt-v1-test", label="Chat reviewer, decision_v1 prompt", family="chat", split="test", n=317, correct=311,
-         hi=(3, 6), cost=0.122, src=PIL),
-    dict(run="reviewer-validation-luna-v3-test", label="Chat reviewer, v3 prompt", family="chat", split="test", n=323, correct=None, pct=0.988,
-         hi=None, cost=None, src=CAL + " (held-out table)"),
+    # label, family, split, n, correct, wrong at confidence >= 0.90 (wrong, n_wrong), cost_usd, source
     dict(run="reviewer-calibration-luna-decisions", label="Decisions model, question set v1", family="dec", split="train", n=735, correct=723,
          hi=(0, 12), cost=0.71, src=CAL),
     dict(run="reviewer-calibration-luna-decisions-v2", label="Decisions model, question set v2", family="dec", split="train", n=735, correct=735,
@@ -113,8 +102,8 @@ SORTER_ERRORS = [
     ("all other patterns", 8),
 ]
 
-# Latency (seconds) at concurrency 16 on the 735-document train draw (CAL, PIL); Qwen sorter measured below.
-LATENCY_RECORDED = {"chat": (2.05, 2.83), "dec": (0.5, 0.9)}
+# Decisions latency (seconds) at concurrency 16 on the 735-document train draw (CAL); Qwen runs are measured below.
+LATENCY_RECORDED = {"dec": (0.5, 0.9)}
 
 
 # --------------------------------------------------------------------------- #
@@ -163,40 +152,49 @@ def compute():
         N[f"qwen_{split}"]["class_n"] = man[split]["documents"]
         N[f"qwen_{split}"]["human_review_rate"] = man[split]["routed_to_human_review_sorter_alone"]["routed_to_human_review_rate"]
 
+    # ---- the measured 1x LLM reviewer: Qwen 3.7 Flash on the sorter_reviewer route, same 323 test documents ----
+    qr = jload(REPORTS / "reviewer-calibration/reviewer-validation-qwen-flash-test.json")
+    qrows = rows_jsonl(REPORTS / "reviewer-calibration/reviewer-validation-qwen-flash-test.items.jsonl")
+    qr["tiered_usd"] = sum(qwen_call_usd(r["prompt_tokens"], r["completion_tokens"]) for r in qrows)
+    qr["flat_usd"] = sum(qwen_call_usd(r["prompt_tokens"], r["completion_tokens"], tiered=False) for r in qrows)
+    assert abs(qr["tiered_usd"] - qr["list_cost_usd_tiered"]) < 5e-4 and abs(qr["flat_usd"] - qr["list_cost_usd_flat"]) < 5e-4
+    N["qwen_reviewer"] = qr
+    N["qwen_reviewer_rows"] = qrows
+
     # ---- 1x unit and pipeline multiples on the 323-document held-out test split ---------------
     t = N["qwen_test"]
     unit = t["tiered_usd"] / t["n"]            # USD per document for one Qwen agent call
     unit_flat = t["flat_usd"] / t["n"]
     reviewers = {
-        "qwen_reviewer_modeled": dict(label="Qwen reviewer (modelled 1x)", usd_doc=unit, measured=False),
-        "luna_chat_decision_v1": dict(label="Chat reviewer (Luna), decision_v1 prompt", usd_doc=0.122 / 317, measured=True),
-        "luna_chat_default": dict(label="Chat reviewer (Luna), default prompt", usd_doc=0.097 / 317, measured=True),
+        "qwen_reviewer": dict(label="Qwen 3.7 Flash reviewer, default prompt", usd_doc=N["qwen_reviewer"]["tiered_usd"] / t["n"], measured=True),
         "decisions_v2": dict(label="Decisions model, question set v2", usd_doc=0.24 / 323, measured=True),
         "decisions_v3_0_0": dict(label="Decisions model, question set v3.0.0", usd_doc=0.1905 / 323, measured=True),
     }
     for k, v in reviewers.items():
         v["x_tiered"] = v["usd_doc"] / unit
-        # the modelled Qwen reviewer is by definition 1x under either price
-        v["x_flat"] = 1.0 if k == "qwen_reviewer_modeled" else v["usd_doc"] / unit_flat
+        # under the flat sensitivity a Qwen reviewer is priced from its own tokens at the lowest tier
+        v["x_flat"] = (N["qwen_reviewer"]["flat_usd"] / t["n"] if k == "qwen_reviewer" else v["usd_doc"]) / unit_flat
     N["unit_usd_doc"] = unit
     N["unit_flat_usd_doc"] = unit_flat
     N["reviewers"] = reviewers
-    trad = 1 + 1.0                              # Qwen agent + Qwen reviewer
-    N["traditional_x"] = trad
+    trad = 1 + reviewers["qwen_reviewer"]["x_tiered"]          # Qwen agent + measured Qwen reviewer
+    trad_flat = 1 + reviewers["qwen_reviewer"]["x_flat"]
+    N["traditional_x"], N["traditional_x_flat"] = trad, trad_flat
     for k in ("decisions_v2", "decisions_v3_0_0"):
         N[f"{k}_pipeline_x"] = 1 + reviewers[k]["x_tiered"]
         N[f"{k}_saving_vs_traditional"] = 1 - N[f"{k}_pipeline_x"] / trad
         N[f"{k}_pipeline_x_flat"] = 1 + reviewers[k]["x_flat"]
-        N[f"{k}_vs_traditional_flat"] = (1 + reviewers[k]["x_flat"]) / (1 + 1.0) - 1
+        N[f"{k}_saving_vs_traditional_flat"] = 1 - N[f"{k}_pipeline_x_flat"] / trad_flat
+        N[f"{k}_vs_qwen_reviewer"] = reviewers[k]["usd_doc"] / reviewers["qwen_reviewer"]["usd_doc"]
 
     # ---- human-review load (documents a person must touch per 1,000) ------------------------
     v2 = jload(REPORTS / "reviewer-calibration/reviewer-validation-luna-decisions-v2-test.routing.json")
     v3 = jload(REPORTS / "reviewer-calibration/reviewer-validation-luna-decisions-v3.0.0-test.routing.json")
     N["routing"] = {"v2": v2, "v3": v3}
+    qcov = N["qwen_reviewer"]["unattended_if_unknown_parks"]["0.9"]
     person = {
         "Qwen agent alone": t["human_review_rate"],
-        "Chat reviewer, default prompt (5 classes)": 1 - 0.792,
-        "Chat reviewer, decision_v1 prompt": 1 - 0.981,
+        "Qwen reviewer (default prompt)": qcov["parked_for_a_person"] / t["n"],
         "Decisions v2": v2["routed_to_human_review_rate"],
         "Decisions v3.0.0": v3["routed_to_human_review_rate"],
     }
@@ -214,9 +212,6 @@ def compute():
 
     # ---- calibration cutoffs ----------------------------------------------------------------
     cal_files = [
-        ("Chat\ndefault", "reviewer-calibration-luna"),
-        ("Chat\ndecision_v1", "reviewer-calibration-luna-prompt-v1"),
-        ("Chat\nv3, full train", "reviewer-calibration-luna-v3-train-all"),
         ("Decisions\nv1", "reviewer-calibration-luna-decisions"),
         ("Decisions\nv2", "reviewer-calibration-luna-decisions-v2"),
     ]
@@ -496,16 +491,15 @@ def fig_cost_stack(N):
     R = N["reviewers"]
     rows_spec = [
         ("Qwen agent alone", "no reviewer", None, None),
-        ("Agent + Qwen reviewer", "two Qwen calls · modelled", "qwen_reviewer_modeled", "s2"),
-        ("Agent + chat reviewer", "Luna chat · decision_v1 · measured", "luna_chat_decision_v1", "s2"),
+        ("Agent + Qwen reviewer", "Qwen 3.7 Flash · measured", "qwen_reviewer", "s2"),
         ("Agent + Decisions v2", "measured", "decisions_v2", "s3"),
         ("Agent + Decisions v3.0.0", "measured", "decisions_v3_0_0", "s3"),
     ]
-    f = Fig("f01", "One reviewer call costs about what one Qwen agent call costs",
+    f = Fig("f01", "A Decisions review costs about what a Qwen review costs",
             "Cost per document in multiples of one Qwen 3.7 Flash agent call (1x = $%.5f, tiered OpenRouter price). "
             "Same 323 held-out test documents." % N["unit_usd_doc"],
-            legend=[("Qwen agent call (1x)", "s1"), ("LLM reviewer call", "s2"), ("Decisions model call", "s3")],
-            left=210, right=70, foot="Qwen reviewer is modelled as a second 1x call; chat and Decisions costs are the recorded run costs.")
+            legend=[("Qwen agent call (1x)", "s1"), ("Qwen reviewer call", "s2"), ("Decisions model call", "s3")],
+            left=210, right=70, foot="Every reviewer cost is a recorded or measured run on the same 323 test documents.")
     rows, tab = [], []
     for lab, sub, key, cls in rows_spec:
         if key is None:
@@ -544,33 +538,37 @@ def fig_cost_stack(N):
             cx += w
         f.add(f'<text class="vl" x="{cx + 8:.1f}" y="{yc + 4:.1f}">{esc(r["total_label"])}</text>')
     f.add(f'<line class="axis" x1="{x0}" x2="{x0}" y1="{y_top - 4}" y2="{y_bot}"/>')
-    f.add(f'<text class="tk" x="{sx(2):.1f}" y="{y_top - 8}" text-anchor="middle">traditional 2x</text>')
+    f.add(f'<text class="tk" x="{sx(N["traditional_x"]):.1f}" y="{y_top - 8}" text-anchor="middle">agent + Qwen reviewer</text>')
+    f.add(f'<line class="axis" x1="{sx(N["traditional_x"]):.1f}" x2="{sx(N["traditional_x"]):.1f}" y1="{y_top - 4}" y2="{y_bot}"/>')
     f.table = (["pipeline", "basis", "agent (x)", "reviewer (x)", "total (x)", "USD per 1,000 docs"], tab)
     return f, y_bot + 40
 
 
 def fig_sensitivity(N):
-    """F02: the same Decisions calls priced against a flat vs a tiered Qwen agent call."""
+    """F02: pipelines priced with Qwen at its tiered sheet and at the flat lowest tier."""
     R = N["reviewers"]
-    f = Fig("f02", "The saving depends on how Qwen is priced",
-            "Total pipeline cost, agent + reviewer, as a multiple of one Qwen call. The Qwen price sheet charges "
-            "3.3x per token once a call's prompt reaches 32k tokens (24 of 323 test documents).",
-            legend=[("Tiered Qwen price (price sheet)", "s1"), ("Flat $0.03 / $0.13 (list price recorded in the handoff manifest)", "oth")],
-            left=190, right=70, foot="Traditional two-call pipeline is 2.00x by construction in both pricings.")
+    f = Fig("f02", "Against a measured Qwen reviewer, Decisions saves only on v3.0.0, and only at tiered prices",
+            "Total cost, agent + reviewer, in multiples of one Qwen agent call. The Qwen price sheet charges 3.3x per token "
+            "once a call's prompt reaches 32k tokens (24 of 323 agent calls, 23 of 323 reviewer calls).",
+            legend=[("Tiered Qwen price (price sheet)", "s1"), ("Flat $0.03 / $0.13 (lowest tier for every call)", "oth")],
+            left=210, right=70, foot="Decisions is billed at $0.10 per 1M input tokens with no output charge in both columns.")
     rows, tab = [], []
+    trad_t, trad_f = N["traditional_x"], N["traditional_x_flat"]
+    rows.append(dict(label="Agent + Qwen reviewer", vals=[trad_t, trad_f],
+                     tips=[f"Agent + Qwen reviewer (measured)\nTiered Qwen price: {trad_t:.2f}x",
+                           f"Agent + Qwen reviewer (measured)\nFlat Qwen price: {trad_f:.2f}x"]))
+    tab.append(["Agent + Qwen reviewer (measured)", f"{trad_t:.2f}", "base", f"{trad_f:.2f}", "base"])
     for key, lab in (("decisions_v3_0_0", "Agent + Decisions v3.0.0"), ("decisions_v2", "Agent + Decisions v2")):
         xt, xf = 1 + R[key]["x_tiered"], 1 + R[key]["x_flat"]
+        st_, sf = 1 - xt / trad_t, 1 - xf / trad_f
         rows.append(dict(label=lab, vals=[xt, xf],
-                         tips=[f"{lab}\nTiered Qwen price: {xt:.2f}x vs 2.00x traditional ({(1 - xt / 2) * 100:+.0f}% saving)",
-                               f"{lab}\nFlat Qwen price: {xf:.2f}x vs 2.00x traditional ({(1 - xf / 2) * 100:+.0f}% saving)"]))
-        tab.append([lab, f"{xt:.2f}", f"{(1 - xt / 2) * 100:.1f}", f"{xf:.2f}", f"{(1 - xf / 2) * 100:.1f}"])
+                         tips=[f"{lab}\nTiered Qwen price: {xt:.2f}x vs {trad_t:.2f}x ({st_ * 100:+.1f}% saving)",
+                               f"{lab}\nFlat Qwen price: {xf:.2f}x vs {trad_f:.2f}x ({sf * 100:+.1f}% saving)"]))
+        tab.append([lab, f"{xt:.2f}", f"{st_ * 100:+.1f}", f"{xf:.2f}", f"{sf * 100:+.1f}"])
     ser = [("tiered", "s1"), ("flat", "oth")]
     bottom = hbars(f, [dict(label=r["label"], vals=r["vals"], tips=r["tips"]) for r in rows], ser, 3.0, [0, 1, 2, 3],
                    lambda t: f"{t:g}x", lambda v: f"{v:.2f}x", stacked=False, thick=20)
-    x0, x1 = f.left, f.w - f.right
-    sx = xscale(0, 3.0, x0, x1)
-    f.add(f'<text class="tk" x="{sx(2):.1f}" y="{f.top - 8}" text-anchor="middle">traditional 2x</text>')
-    f.table = (["pipeline", "tiered total (x)", "tiered saving vs 2x (%)", "flat total (x)", "flat saving vs 2x (%)"], tab)
+    f.table = (["pipeline", "tiered total (x)", "tiered saving vs Qwen reviewer (%)", "flat total (x)", "flat saving vs Qwen reviewer (%)"], tab)
     return f, bottom + 22
 
 
@@ -600,13 +598,13 @@ def fig_qwen_by_class(N):
 def fig_person_load(N):
     """F04: documents needing a person per 1,000 - effectiveness of each reviewer arm."""
     P = N["person_per_1000"]
-    f = Fig("f04", "A calibrated reviewer cuts the people-needed load from 356 to under 20 per 1,000",
+    f = Fig("f04", "A reviewer cuts the people-needed load from 356 to under 75 per 1,000",
             "Documents a person must look at per 1,000, on the held-out test split. The Qwen agent's own confidence cannot "
             "separate its errors: 122 of its 127 train errors sit at 0.95 or higher.",
             left=250, right=60, legend=[("Decisions model", "s3"), ("Other arms", "oth")],
-            foot="Chat reviewer rows: held-out 317 documents with labels; Decisions and Qwen rows: all 323.")
-    order = [("Qwen agent alone", "oth"), ("Chat reviewer, default prompt (5 classes)", "oth"),
-             ("Decisions v3.0.0", "s3"), ("Chat reviewer, decision_v1 prompt", "oth"), ("Decisions v2", "s3")]
+            foot="All arms: the 323 held-out documents. Fewer is not better on its own: see f15 for wrong answers.")
+    order = [("Qwen agent alone", "oth"), ("Decisions v3.0.0", "s3"), ("Decisions v2", "s3"),
+             ("Qwen reviewer (default prompt)", "oth")]
     order.sort(key=lambda r: -P[r[0]])
     tab = []
     bars = []
@@ -635,14 +633,15 @@ def fig_person_load(N):
 def fig_latency(N):
     """F05: latency p50 / p95."""
     q = N["qwen_test"]
+    qr = N["qwen_reviewer"]["latency_s"]
     data = [("Qwen agent (323 test docs)", "s1", q["p50_s"], q["p95_s"]),
-            ("Chat reviewer (735 train docs)", "s2", *LATENCY_RECORDED["chat"]),
+            ("Qwen reviewer (323 test docs)", "s2", qr["p50"], qr["p95"]),
             ("Decisions model (735 train docs)", "s3", *LATENCY_RECORDED["dec"])]
     f = Fig("f05", "A Decisions call returns in about half a second",
             "Seconds per document at the 95th and 50th percentile. Load differs: the Qwen pass ran whole documents of up to "
-            "106k tokens; the chat and Decisions runs used concurrency 16.",
+            "106k tokens; the Decisions run used 735 train documents at concurrency 16.",
             left=230, right=60, legend=[("Median (p50)", "s1"), ("95th percentile (p95)", "oth")],
-            foot="Latency is operational colour, not a controlled benchmark; sources: handoff rows, reviewer-calibration-luna*.md.")
+            foot="Latency is operational colour, not a controlled benchmark; sources: the handoff and Qwen reviewer rows, reviewer-calibration-luna-decisions.md.")
     x0, x1 = f.left, f.w - f.right
     sx = xscale(0, 8, x0, x1)
     pitch, th = 48, 14
@@ -666,21 +665,24 @@ def fig_latency(N):
 
 def fig_accuracy(N):
     """F06: class accuracy per run, filled = held-out test, hollow = train (in-sample)."""
-    fam = {"chat": ("s2", "Chat reviewer (Luna)"), "dec": ("s3", "Decisions model")}
-    f = Fig("f06", "Class accuracy: ~98.5% on held-out documents, on both reviewer models",
+    fam = {"qwen": ("s2", "Qwen reviewer"), "dec": ("s3", "Decisions model")}
+    f = Fig("f06", "Class accuracy on held-out documents: Decisions 98.5%, Qwen reviewer 93.8%",
             "Share of documents given the right class. Filled dots are held-out test runs; hollow dots are train runs, "
-            "where the prompt or question set was tuned. The axis starts at 94%.",
-            left=270, right=70, legend=[("Qwen agent", "s1"), ("Chat reviewer (Luna)", "s2"), ("Decisions model", "s3")],
-            foot="The axis starts at 94% on purpose: compare dot positions, not lengths.")
+            "where the question set was tuned. The axis starts at 92%.",
+            left=270, right=70, legend=[("Qwen agent", "s1"), ("Qwen reviewer", "s2"), ("Decisions model", "s3")],
+            foot="The axis starts at 92% on purpose: compare dot positions, not lengths.")
     rows, tab = [], []
     q = N["qwen_test"]
     qt = N["qwen_train"]
     items = [("Qwen agent · train (2,979)", "s1", True, qt["class_correct"] / qt["class_n"], f"{qt['class_correct']:,} / {qt['class_n']:,}"),
              ("Qwen agent · test (323)", "s1", False, q["class_correct"] / q["class_n"], f"{q['class_correct']} / {q['class_n']}")]
-    for r in RUNS:
+    qr = N["qwen_reviewer"]
+    for r in RUNS + [dict(run=qr["run_id"], label="Qwen reviewer, default prompt", family="qwen", split="test", n=qr["documents"],
+                          correct=qr["class_correct"], hi=(qr["wrong_at_confidence_ge_0_90"], qr["wrong_answers"]), cost=qr["list_cost_usd_tiered"],
+                          src="reports/reviewer-calibration/reviewer-validation-qwen-flash-test.json")]:
         acc = r["correct"] / r["n"] if r["correct"] is not None else r["pct"]
         det = f"{r['correct']} / {r['n']}" if r["correct"] is not None else f"{r['pct'] * 100:.1f}% as reported, n={r['n']}"
-        items.append((f"{r['label'].replace('Chat reviewer, ', 'Chat · ').replace('Decisions model, question set ', 'Decisions · ')} · {r['split']} ({r['n']})",
+        items.append((f"{r['label'].replace('Decisions model, question set ', 'Decisions · ')} · {r['split']} ({r['n']})",
                       fam[r["family"]][0], r["split"] == "train", acc, det))
     # order: held-out first within family
     items.sort(key=lambda it: (0 if it[1] == "s1" else 1 if it[1] == "s2" else 2, it[2]))
@@ -688,24 +690,26 @@ def fig_accuracy(N):
         tip = f"{lab}\n{acc * 100:.1f}% class accuracy\n{det}\n{'train: tuned on these documents' if hollow else 'held-out test split'}"
         rows.append(dict(label=lab, pts=[dict(v=acc * 100, cls=cls, hollow=hollow, r=5.5, tip=tip, label=f"{acc * 100:.1f}%")]))
         tab.append([lab, "train" if hollow else "test", det, f"{acc * 100:.1f}"])
-    bottom = hdots(f, rows, 94, 100.5, [94, 96, 98, 100], lambda t: f"{t:g}%", pitch=27)
+    bottom = hdots(f, rows, 92, 100.5, [92, 94, 96, 98, 100], lambda t: f"{t:g}%", pitch=26)
     f.table = (["run", "split", "correct / n", "class accuracy (%)"], tab)
     return f, bottom + 22
 
 
 def fig_wrong_conf(N):
     """F07: share of wrong answers that sit at high confidence."""
-    f = Fig("f07", "Decisions errors sit lower in confidence than Qwen and default-prompt errors",
+    f = Fig("f07", "Decisions errors sit lower in confidence than Qwen errors",
             "Share of each run's wrong answers carrying confidence of 0.90 or higher - errors no cutoff can separate from right answers.",
-            left=290, right=90, legend=[("Qwen agent", "s1"), ("Chat reviewer (Luna)", "s2"), ("Decisions model", "s3")],
+            left=290, right=90, legend=[("Qwen agent", "s1"), ("Qwen reviewer", "s2"), ("Decisions model", "s3")],
             foot="Qwen agent row uses the 0.95 threshold (122 of 127 train errors); all others 0.90. Small n on some rows - see tooltips.")
     rows = [("Qwen agent · train", "s1", 122, 127, "0.95")]
-    for r in RUNS:
+    qr = N["qwen_reviewer"]
+    qrun = dict(label="Qwen reviewer, default prompt", family="qwen", split="test", hi=(qr["wrong_at_confidence_ge_0_90"], qr["wrong_answers"]))
+    for r in RUNS + [qrun]:
         if r["hi"] is None:
             continue
         hi, nw = r["hi"]
-        cls = "s2" if r["family"] == "chat" else "s3"
-        lab = r["label"].replace("Chat reviewer, ", "Chat · ").replace("Decisions model, question set ", "Decisions · ")
+        cls = "s2" if r["family"] == "qwen" else "s3"
+        lab = r["label"].replace("Decisions model, question set ", "Decisions · ")
         rows.append((f"{lab} · {r['split']}", cls, hi, nw, "0.90"))
     rows.sort(key=lambda r: -(r[2] / r[3]))
     x0, x1 = f.left, f.w - f.right
@@ -735,18 +739,18 @@ def fig_wrong_conf(N):
 
 
 def fig_cutoffs(N):
-    """F08: per-class cutoff, five calibrations."""
+    """F08: per-class cutoff, the two Decisions question sets."""
     cols = [c[0] for c in N["cutoffs"]]
     bins_edges = [0.5, 0.7, 0.85, 0.95]
 
     def b(v):
         return sum(v >= e for e in bins_edges)
 
-    f = Fig("f08", "Cutoffs move a lot between calibrations, so they need the full train split",
-            "Per-class confidence cutoff that reaches 95% held-out accuracy (five-fold cross-fit). With no wrong answers, the cutoff is just the lowest "
-            "confidence of a right answer, so small draws set it.",
-            left=140, right=20, w=760,
-            foot="Chat and Decisions cutoffs are not interchangeable: they come from different confidence scales.")
+    f = Fig("f08", "Decisions cutoffs moved by up to 0.30 between question sets, so they need the full train split",
+            "Per-class cutoff that reaches 95% held-out accuracy (five-fold cross-fit, 735-document train draw). With no wrong answers, "
+            "the cutoff is just the lowest probability of a right answer, so small draws set it.",
+            left=190, right=20, w=760,
+            foot="Cutoffs apply to the Decisions model's probabilities; a Qwen reviewer has none (its confidence is self-reported).")
     vals, texts, tips, bins = [], [], [], []
     tab = []
     for c in CLASSES:
@@ -760,7 +764,7 @@ def fig_cutoffs(N):
                       f"{x['documents']} documents · {'meets' if x['meets_target'] else 'misses'} the 95% target")
             row.append(f"{x['cutoff']:.2f}")
         vals.append(rv); texts.append(rt); tips.append(rp); bins.append(rb); tab.append(row)
-    bottom = heatmap(f, [CLASS_LABEL[c] for c in CLASSES], cols, vals, texts, tips, bins, cw=114, ch=38)
+    bottom = heatmap(f, [CLASS_LABEL[c] for c in CLASSES], cols, vals, texts, tips, bins, cw=170, ch=38)
     scale_legend(f, f.left + 40, bottom + 4, ("0.5", "1.0"))
     f.table = (["class"] + [c.replace("\n", " ") for c in cols], tab)
     return f, bottom + 54
@@ -918,8 +922,43 @@ def fig_gate_auroc(N):
     return f, bottom + 22
 
 
+def fig_silent_errors(N):
+    """F15: documents routed with no person and wrong, per 1,000 test documents."""
+    qr = N["qwen_reviewer"]
+    q9 = qr["unattended_if_unknown_parks"]["0.9"]
+    v2, v3 = N["routing"]["v2"], N["routing"]["v3"]
+    arms = [("Qwen reviewer, default prompt", "s2", q9["misrouted"], qr["documents"], "no calibration; any cutoff from 0.0 to 0.9"),
+            ("Decisions v2", "s3", v2["misrouted"], 323, f"v2 cutoffs, {v2['sent_on_unattended']} routed"),
+            ("Decisions v3.0.0", "s3", v3["misrouted"], 323, f"v2 cutoffs, {v3['sent_on_unattended']} routed")]
+    f = Fig("f15", "A Qwen reviewer lets about 25 wrong documents per 1,000 through; Decisions lets 3",
+            "Documents routed with no person that were wrong, per 1,000 held-out documents. All 20 wrong Qwen answers carry "
+            "confidence of 0.90 or higher, so no cutoff catches them.",
+            left=270, right=70, legend=[("Qwen reviewer", "s2"), ("Decisions model", "s3")],
+            foot="Misrouted = a decision-class answer that disagrees with the label. 'unknown' answers always park, so they are not counted.")
+    x0, x1 = f.left, f.w - f.right
+    sx = xscale(0, 30, x0, x1)
+    pitch, thick = 36, 18
+    y_top = f.top
+    y_bot = y_top + pitch * len(arms)
+    vgrid(f, sx, [0, 10, 20, 30], y_top - 4, y_bot, lambda t: f"{t:g}")
+    tab = []
+    for i, (lab, cls, n, tot, basis) in enumerate(arms):
+        v = n / tot * 1000
+        yc = y_top + i * pitch + pitch / 2
+        f.add(f'<text class="lb" x="{x0 - 10}" y="{yc + 1:.1f}" text-anchor="end">{esc(lab)}</text>')
+        f.add(f'<text class="tk" x="{x0 - 10}" y="{yc + 14:.1f}" text-anchor="end">{esc(basis)}</text>')
+        w = sx(v) - x0
+        f.add(mark(f"{lab}\n{n} of {tot} documents routed wrong with no person ({v:.1f} per 1,000)\n{basis}",
+                   rbar(x0, yc - thick / 2, w, thick, cls), hit=(x0, yc - pitch / 2 + 2, max(w, 24), pitch - 4)))
+        f.add(f'<text class="vl" x="{x0 + w + 8:.1f}" y="{yc + 4:.1f}">{v:.1f}</text>')
+        tab.append([lab, n, tot, f"{v:.1f}", basis])
+    f.add(f'<line class="axis" x1="{x0}" x2="{x0}" y1="{y_top - 4}" y2="{y_bot}"/>')
+    f.table = (["arm", "misrouted", "documents", "per 1,000", "basis"], tab)
+    return f, y_bot + 38
+
+
 FIGURES = [fig_cost_stack, fig_sensitivity, fig_qwen_by_class, fig_person_load, fig_latency, fig_accuracy, fig_wrong_conf,
-           fig_cutoffs, fig_dumbbell, fig_verdict, fig_human_by_class, fig_sorter_errors, fig_gate_accept, fig_gate_auroc]
+           fig_cutoffs, fig_dumbbell, fig_verdict, fig_human_by_class, fig_sorter_errors, fig_gate_accept, fig_gate_auroc, fig_silent_errors]
 
 
 # --------------------------------------------------------------------------- #
@@ -1015,12 +1054,20 @@ def summary(N):
         },
         "reviewer_cost_in_qwen_calls": {k: {"usd_per_document": round(v["usd_doc"], 6), "x_tiered": round(v["x_tiered"], 3),
                                             "x_flat": round(v["x_flat"], 3), "measured": v["measured"]} for k, v in R.items()},
-        "pipeline_x_tiered": {"traditional_qwen_agent_plus_qwen_reviewer": 2.0,
+        "pipeline_x_tiered": {"traditional_qwen_agent_plus_measured_qwen_reviewer": round(N["traditional_x"], 3),
                               "agent_plus_decisions_v2": round(N["decisions_v2_pipeline_x"], 3),
                               "agent_plus_decisions_v3_0_0": round(N["decisions_v3_0_0_pipeline_x"], 3)},
         "saving_vs_traditional_tiered": {"decisions_v2": round(N["decisions_v2_saving_vs_traditional"], 4),
                                          "decisions_v3_0_0": round(N["decisions_v3_0_0_saving_vs_traditional"], 4)},
-        "pipeline_x_flat": {"agent_plus_decisions_v2": round(N["decisions_v2_pipeline_x_flat"], 3),
+        "saving_vs_traditional_flat": {"decisions_v2": round(N["decisions_v2_saving_vs_traditional_flat"], 4),
+                                       "decisions_v3_0_0": round(N["decisions_v3_0_0_saving_vs_traditional_flat"], 4)},
+        "decisions_review_vs_qwen_review": {"decisions_v2": round(N["decisions_v2_vs_qwen_reviewer"], 3),
+                                            "decisions_v3_0_0": round(N["decisions_v3_0_0_vs_qwen_reviewer"], 3)},
+        "qwen_reviewer_measured": {k: N["qwen_reviewer"][k] for k in (
+            "run_id", "documents", "class_correct", "class_accuracy", "prompt_tokens", "completion_tokens", "list_cost_usd_tiered",
+            "list_cost_usd_flat", "openrouter_billed_usd", "wrong_answers", "wrong_at_confidence_ge_0_90")},
+        "pipeline_x_flat": {"traditional_qwen_agent_plus_measured_qwen_reviewer": round(N["traditional_x_flat"], 3),
+                            "agent_plus_decisions_v2": round(N["decisions_v2_pipeline_x_flat"], 3),
                             "agent_plus_decisions_v3_0_0": round(N["decisions_v3_0_0_pipeline_x_flat"], 3)},
         "people_needed_per_1000": {k: round(v, 1) for k, v in N["person_per_1000"].items()},
         "breakeven_usd_per_person_review": {"decisions_v2": round(N["breakeven_v2_usd_per_review"], 5),
@@ -1036,11 +1083,11 @@ def dashboard(N, figs):
     R = N["reviewers"]
     kp = [
         (f"{N['decisions_v3_0_0_pipeline_x']:.2f}-{N['decisions_v2_pipeline_x']:.2f}x", "agent + Decisions reviewer",
-         f"vs 2.00x for agent + a second Qwen call: {N['decisions_v2_saving_vs_traditional'] * 100:.0f}% to "
-         f"{N['decisions_v3_0_0_saving_vs_traditional'] * 100:.0f}% less at the tiered price"),
+         f"vs {N['traditional_x']:.2f}x for agent + a measured Qwen reviewer: "
+         f"{N['decisions_v3_0_0_saving_vs_traditional'] * 100:.0f}% cheaper to {-N['decisions_v2_saving_vs_traditional'] * 100:.0f}% dearer"),
         (f"{N['person_per_1000']['Decisions v2']:.0f} / 1,000", "documents needing a person",
          f"Decisions v2 vs {N['person_per_1000']['Qwen agent alone']:.0f} for the Qwen agent alone"),
-        ("98.5%", "class accuracy, held out", "318 of 323 test documents, 1 misrouted"),
+        ("98.5% vs 93.8%", "class accuracy, held out", "Decisions v2 (318 of 323) vs the Qwen reviewer (303 of 323)"),
         ("0.5 s", "median Decisions call", f"vs {t['p50_s']:.1f} s for the Qwen agent"),
     ]
     parts = [f"<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
@@ -1057,7 +1104,7 @@ def dashboard(N, figs):
     parts.append("</div>")
     parts.append("<div class='note'>Hover, or tab to, any mark for its numbers. Every chart has a table view below it.</div>")
     groups = [("Cost against the 1x Qwen agent call", ["f01", "f02", "f03", "f05"]),
-              ("Effectiveness of the reviewer", ["f04", "f06", "f07", "f08"]),
+              ("Effectiveness of the reviewer", ["f04", "f15", "f06", "f07", "f08"]),
               ("Question-set experiments", ["f09", "f10", "f11", "f12"]),
               ("Extraction gate", ["f13", "f14"])]
     byid = {f.fid: (f, h) for f, h in figs}

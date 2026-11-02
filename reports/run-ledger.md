@@ -30,3 +30,4 @@ Do not edit rows by hand. Parse with `mailroom_sandbox.job.ledger.rows()`.
 | 2026-11-01T09:47:34Z | JB | start | extraction-gate-luna-v1.2.0-rereview | config/runs/extraction-gate-luna-v1.2.0-rereview.yaml | 020ed35827a9 | 880 | 0.6 | ✓ |
 | 2026-11-01T18:20:07Z | JB | start | extraction-gate-luna-v1.2.0-r3 | config/runs/extraction-gate-luna-v1.2.0-r3.yaml | 07da15f0519a | 686 | 0.35 | ✓ |
 | 2026-11-01T18:27:18Z | JB | start | extraction-gate-luna-v1.3.0 | config/runs/extraction-gate-luna-v1.3.0.yaml | f6743d5a3496 | 1596 | 1.1 | ✓ |
+| 2026-11-02T01:12:59Z | JB | start | reviewer-validation-qwen-flash-test | config/runs/reviewer-validation-qwen-flash-test.yaml | 8b72aee96e7a | 323 | 0.6 | ✓ |

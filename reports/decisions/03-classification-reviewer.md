@@ -4,14 +4,13 @@ The Decisions-model reviewer checks the sorter's class and subclass for every do
 2026-11-01 under SAND-085 (issue #208). Sources: `reports/reviewer-calibration/`, `config/decisions/LINEAGE.yaml`,
 `reports/sorter-handoff/sorter-qwen3.7-flash-audit.md`.
 
-## 1. The model mix-up, and what it cost
+## 1. Scope
 
-Every reviewer run before the Decisions work used `openai/gpt-6-luna`, the plain chat model, through the `api` backend.
-The model writes its own confidence into JSON. The Decisions model (`openai/gpt-6-luna-decisions`, OpenRouter
-`POST /api/alpha/decisions`) returns a probability for every option and bills input tokens only. About **$2.50** went
-to chat-model runs. Their findings carried into the question sets; their cutoffs do not apply. Guards now in the code
-refuse a Decisions model on a chat backend, a chat model on the Decisions backend, and a paid reviewer run with no
-`reviewer:` block.
+Two models are compared: **Qwen 3.7 Flash** (the 1x agent and, since 2026-11-02, a measured 1x reviewer) and the **Decisions
+model** (`openai/gpt-6-luna-decisions`, OpenRouter `POST /api/alpha/decisions`), which returns a probability for every option and
+bills input tokens only. Earlier reviewer runs on a plain chat model were a configuration mistake: they are superseded in the
+repository, their cutoffs do not apply, and they are left out of this analysis. Guards now in the code refuse a Decisions model on a
+chat backend, a chat model on the Decisions backend without an explicit opt-in, and a paid reviewer run with no `reviewer:` block.
 
 ## 2. Class accuracy across runs
 
@@ -20,11 +19,7 @@ refuse a Decisions model on a chat backend, a chat model on the Decisions backen
 | Run | Split | n | Correct | Accuracy |
 | --- | --- | ---: | ---: | ---: |
 | Qwen agent (the sorter) | test | 323 | 309 | 95.7% |
-| Chat · default prompt | train | 735 | 709 | 96.5% |
-| Chat · default prompt | test | 317 | 303 | 95.6% |
-| Chat · `decision_v1` prompt | train (in-sample) | 735 | 733 | 99.7% |
-| Chat · `decision_v1` prompt | test | 317 | 311 | 98.1% |
-| Chat · v3 prompt | test | 323 | – | 98.8% (as reported) |
+| Qwen reviewer · default prompt (measured 2026-11-02) | test | 323 | 303 | 93.8% |
 | Decisions · question set v1 | train | 735 | 723 | 98.4% |
 | Decisions · question set v2 | train (in-sample) | 735 | 735 | 100.0% |
 | **Decisions · question set v2** | **test** | 323 | **318** | **98.5%** |
@@ -32,7 +27,11 @@ refuse a Decisions model on a chat backend, a chat model on the Decisions backen
 
 Hollow dots in the figure are train runs, where the prompt or question set was tuned on the same documents. They are
 not evidence of how the reviewer will do on new documents. **The honest numbers are the filled dots**: about 98.5% on
-held-out documents for both reviewer models, against 95.7% for the Qwen agent alone.
+held-out documents for the Decisions model, against 93.8% for the Qwen reviewer and 95.7% for the Qwen agent alone.
+
+The Qwen 3.7 Flash reviewer is the weakest held-out arm: 93.8% (303 of 323), below the Qwen agent it would review. Its 20 errors are
+12 correspondence documents called `unknown`, 7 corporate records called `contract` and 1 contract called a corporate record, and every one
+sits at confidence 0.90 or higher. [Cost and effectiveness](02-cost-and-effectiveness.md#the-measured-qwen-reviewer) sets this beside the cost.
 
 The single misroute in both held-out Decisions runs is a "LIMITED POWER OF ATTORNEY" labelled contract / Service. The
 reviewer says corporate_record / powers_of_attorney at 1.0, which reads as a label error, and the sorter audit moved the
@@ -48,40 +47,37 @@ A cutoff only helps if wrong answers sit below it.
 | Run | Wrong at confidence 0.90 or higher |
 | --- | --- |
 | Qwen agent, train (0.95 threshold) | 122 of 127 |
-| Chat default prompt, test | 14 of 14 |
-| Chat default prompt, train | 25 of 26 |
-| Chat `decision_v1`, test | 3 of 6 |
+| **Qwen reviewer, default prompt, test** | **20 of 20** |
 | Decisions v2, test | 2 of 5 |
 | Decisions v1, train | **0 of 12** (all at 0.52 to 0.84) |
 
-The chat model compresses its confidence: 549 of its 709 correct answers on train sit at 0.99. No cutoff separates its
-errors from its right answers; the only contract cutoff that reached 95% was 1.0, which kept 21% of contracts. The Decisions
-probabilities spread, and the v1 errors all fell below any sensible cutoff. On the small test split the two models look
-alike. The plain reading is that the Decisions advantage is *in the confidence*, shown on the train draw, and not yet
-confirmed on test.
+Qwen's confidence is its own, written into the answer: 203 of the Qwen reviewer's 303 right answers sit at 1.0, and all 20 wrong
+ones at 0.90 or higher, so no cutoff separates them. The Qwen agent is the same (122 of 127 errors at 0.95 or higher). The Decisions
+probabilities spread: on the test split 3 of 5 errors fall below 0.90, and on the train draw all 12 question-set-v1 errors sit at 0.84
+or lower. The train rows are in-sample for the question set, so the plain reading is that the Decisions advantage is *in the
+confidence*, supported on train and suggestive on test, and still to be confirmed on the full train split.
 
 ## 4. Cutoffs
 
-![Cutoffs by calibration](figures/f08-cutoffs.svg)
+![Cutoffs by question set](figures/f08-cutoffs.svg)
 
-Cutoffs come from five-fold cross-fit at a 95% held-out accuracy target with Wilson 95% intervals.
+Cutoffs come from five-fold cross-fit at a 95% held-out accuracy target with Wilson 95% intervals, on the 735-document train draw.
 
-| Class | Chat default | Chat `decision_v1` | Chat v3, full train | Decisions v1 | Decisions v2 |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| contract | 1.00 | 0.91 | 0.79 | 0.62 | 0.78 |
-| corporate record | 0.86 | 0.90 | 0.88 | 0.66 | 0.96 |
-| correspondence | 0.71 | 0.57 | 0.54 | 0.52 | 0.64 |
-| insurance claim | 0.61 | 0.90 | 0.78 | 0.41 | 0.70 |
-| merger agreement | 0.98 | 0.93 | 0.90 | 0.99 | 0.99 |
+| Class | Decisions v1 | Decisions v2 |
+| --- | ---: | ---: |
+| contract | 0.62 | 0.78 |
+| corporate record | 0.66 | 0.96 |
+| correspondence | 0.52 | 0.64 |
+| insurance claim | 0.41 | 0.70 |
+| merger agreement | 0.99 | 0.99 |
 
 Two things to take from it:
 
-- **Cutoffs are unstable.** Corporate record goes 0.66 to 0.96 between Decisions v1 and v2; insurance claim 0.41 to
-  0.70. With no wrong answers in a class, the cutoff is just the lowest confidence of a right answer, so a 150-document
-  draw sets it. Use the cutoffs from the full-train run before the pilot goes live. Issue #208 keeps them provisional.
-- **The 95% target was missed only twice**, both for the chat model with the default prompt: contract (88.2%, 20.6% of
-  documents accepted at the one cutoff that gets close) and corporate record (98.5% with a lower bound of 94.7%).
-  Decisions v1 missed correspondence (lower bound 91.8%) because of First Notice of Loss errors, fixed in v2.
+- **Cutoffs are unstable.** Corporate record goes 0.66 to 0.96 between question sets; insurance claim 0.41 to 0.70. With no
+  wrong answers in a class, the cutoff is just the lowest probability of a right answer, so a 150-document draw sets it. Use the
+  cutoffs from the full-train run before the pilot goes live. Issue #208 keeps them provisional.
+- **The 95% target was missed once.** Decisions v1 missed correspondence (96.1% held out, lower bound 91.8%) because of First
+  Notice of Loss errors, fixed in v2. Every class meets it on v2.
 
 ## 5. The v1 to v2 improvement loop
 

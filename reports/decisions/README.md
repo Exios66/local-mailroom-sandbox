@@ -12,7 +12,7 @@ follow the system setting). Read the reports in order, or start with the summary
 | # | Report | Answers |
 | --- | --- | --- |
 | 1 | [Executive summary](01-executive-summary.md) | The five findings, where the Decisions model wins and loses, decisions the data supports |
-| 2 | [Cost and effectiveness against a 1x Qwen call](02-cost-and-effectiveness.md) | What a Decisions review costs next to one more LLM call; what it buys; when the saving disappears |
+| 2 | [Cost and effectiveness against a 1x Qwen call](02-cost-and-effectiveness.md) | What a Decisions review costs next to a **measured** Qwen reviewer; what it buys; when the saving disappears |
 | 3 | [Classification reviewer experiments](03-classification-reviewer.md) | Accuracy, confidence, cutoffs, the v1 to v3.0.0 question-set loop, routing to people |
 | 4 | [Extraction gate experiments](04-extraction-gate.md) | Whether the Decisions model can judge a specialist's extraction (it cannot yet) |
 | 5 | [Method, data quality and next measurements](05-method-and-data-quality.md) | How numbers were made, source inconsistencies, limits, what to run next |
@@ -37,6 +37,7 @@ Each figure is a standalone SVG (theme-aware, hover text on every mark) with a C
 | [f12](figures/f12-sorter-errors.svg) | The Qwen sorter's class errors by pattern | 3 |
 | [f13](figures/f13-gate-accept.svg) | Extraction gate accept rate against real quality | 4 |
 | [f14](figures/f14-gate-auroc.svg) | Gate AUROC per class, pooled and per round | 4 |
+| [f15](figures/f15-silent-errors.svg) | Wrong documents routed with no person, per 1,000 | 2 |
 
 ## Layout
 
@@ -45,9 +46,9 @@ reports/decisions/
 ├── README.md                       this index
 ├── 01-executive-summary.md … 05-method-and-data-quality.md
 ├── decisions-dashboard.html        all figures, tooltips, table views (no network, no dependencies)
-├── figures/f01-… f14-*.svg
+├── figures/f01-… f15-*.svg
 ├── data/
-│   ├── f01-… f14-*.csv             the table view of each figure
+│   ├── f01-… f15-*.csv             the table view of each figure
 │   ├── summary.json                every derived number the reports quote
 │   └── palette-validation.txt      dataviz palette validator output (light and dark)
 └── build_decisions_report.py       builds figures, CSVs, summary and dashboard from tracked files
@@ -61,7 +62,7 @@ python reports/decisions/build_decisions_report.py --check   # exit 1 if any out
 ```
 
 The script is stdlib-only and reads: `reports/reviewer-calibration/*.json`, `reports/extraction-gate/*.calibration.json`,
-`data/handoff/sorter-qwen3.7-flash/*` (per-document Qwen tokens, latency, confidence) and the price sheet figures from
+`reports/reviewer-calibration/reviewer-validation-qwen-flash-test.*` (the measured Qwen reviewer), `data/handoff/sorter-qwen3.7-flash/*` (per-document Qwen agent tokens, latency, confidence) and the price sheet figures from
 `config/api_prices.yaml`. A few numbers exist only in prose reports; the script lists each with its source file. The report text
 quotes `data/summary.json`; if the inputs change, rebuild and re-read the prose.
 
