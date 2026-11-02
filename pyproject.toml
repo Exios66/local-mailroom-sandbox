@@ -100,7 +100,7 @@ deploy = [
     # Pinned SDK for deploy/modal_vllm.py (verified 2026-09-09; the app file
     # records the same version). Bump deliberately after reading the release
     # notes — 1.5.5 removed `Secret.from_local`.
-    "modal==1.6.2",
+    "modal==1.6.3",
 ]
 decision = [
     # Decision-model reviewer backend (src/mailroom_sandbox/decision_backends.py).
