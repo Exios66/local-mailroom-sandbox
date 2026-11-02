@@ -20,6 +20,7 @@ from mailroom_sandbox.overlay import UnknownNameError, load_profile
 from mailroom_sandbox.paths import repo_root, vendor_dir
 from mailroom_sandbox.runtime import activate, resolve_dojo_src, resolve_mailroom_src
 from mailroom_sandbox.services._exec import ServiceError
+from mailroom_sandbox.services._redact import redact_urls
 
 
 class CLIUsageError(ValueError):
@@ -199,7 +200,7 @@ def _InvalidRunIdError() -> type[BaseException]:  # noqa: N802 - used as an exce
 
 
 def _one_line(exc: BaseException) -> str:
-    return " ".join(str(exc).split())
+    return redact_urls(" ".join(str(exc).split()))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -1224,9 +1225,9 @@ def _agent_models(args: argparse.Namespace) -> dict[str, str]:
 
 def _print(obj: object) -> None:
     if isinstance(obj, (dict, list)):
-        print(json.dumps(obj, indent=2, default=str))
+        print(redact_urls(json.dumps(obj, indent=2, default=str)))
     else:
-        print(obj)
+        print(redact_urls(str(obj)))
 
 
 def _cmd_up(args: argparse.Namespace) -> int:
@@ -2511,6 +2512,7 @@ def _cmd_run_benchmark_check(args) -> int:
             suite_name,
             require_hermes=require_hermes,
             require_modernbert=False,
+            expected_modal_profile=modal_profile,
         )  # suite YAML carries its own Modal profile (sand032-sweep → exios66)
     else:
         spec = None
@@ -3268,6 +3270,12 @@ def _cmd_run_preflight(args) -> int:
     return 3 if report.get("status") in _REFUSAL_STATUSES else 1
 
 
+def _refuse_modal_max_items(args, mode: str) -> None:
+    """The Modal worker has no item cap, so accepting one would run the whole paid job."""
+    if mode == "modal" and getattr(args, "max_items", None) is not None:
+        raise CLIUsageError("--max-items is not applied by the Modal worker; lower dataset.limit in the run config")
+
+
 def _cmd_run_start(args) -> int:
     """Lock a run via preflight, then start it locally or on Modal."""
     from mailroom_sandbox.job import preflight
@@ -3280,6 +3288,7 @@ def _cmd_run_start(args) -> int:
         spec.job.mock = bool(args.mock)
     if getattr(args, "mode", None):
         spec.job.mode = args.mode
+    _refuse_modal_max_items(args, getattr(args, "mode", None) or spec.job.mode)
     report = preflight.preflight(
         spec,
         run_id=getattr(args, "run_id", None) or "",
@@ -3554,6 +3563,9 @@ def _cmd_run_resume(args) -> int:
     from mailroom_sandbox.job.checkpoint import RunStore
     from mailroom_sandbox.job.spec import run_dir
 
+    # Refused before anything else: a --config --force preflight could archive the generation.
+    if getattr(args, "live", False):
+        raise CLIUsageError("run resume has no --live probe; use `sandbox run preflight --live` first")
     run_id = _run_id_required(args)
     store = RunStore(run_dir(run_id))
     if not store.read_lock():
@@ -3594,9 +3606,17 @@ def _cmd_run_resume(args) -> int:
         or any(locked_prompts.get(name) != value for name, value in cli_prompts.items())
         or any((lock.get("agent_routes") or {}).get(name) != value for name, value in cli_routes.items())
     )
+    locked_job = lock.get("job") if isinstance(lock.get("job"), dict) else {}
+    drifted = (
+        drifted
+        or (getattr(args, "mock", None) and not locked_job.get("mock"))
+        or (getattr(args, "local", None) and locked_job.get("mock"))
+        or (getattr(args, "mode", None) and ("modal" if args.mode == "modal" else "local") != _job_mode(store))
+    )
     if drifted:
         _print({"run_id": run_id, "status": "drift_refused", "detail": "runtime overrides differ from the lock"})
         return 3
+    _refuse_modal_max_items(args, _job_mode(store))
     from mailroom_sandbox.job.spend import authorize
 
     authorize(store, initials=getattr(args, "initials", None),
