@@ -1,0 +1,6 @@
+arm,"documents needing a person per 1,000",share (%)
+Qwen agent alone,356.0,35.6
+"Chat reviewer, default prompt (5 classes)",208.0,20.8
+Decisions v3.0.0,71.2,7.1
+"Chat reviewer, decision_v1 prompt",19.0,1.9
+Decisions v2,15.5,1.5

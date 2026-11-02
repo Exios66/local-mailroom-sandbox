@@ -1,0 +1,187 @@
+{
+  "breakeven_usd_per_person_review": {
+    "decisions_v2": 0.00218,
+    "decisions_v3_0_0": 0.00207
+  },
+  "extra_usd_per_1000_docs": {
+    "decisions_v2": 0.743,
+    "decisions_v3_0_0": 0.59
+  },
+  "generated_by": "reports/decisions/build_decisions_report.py",
+  "people_avoided_per_1000_vs_qwen_alone": {
+    "decisions_v2": 340.6,
+    "decisions_v3_0_0": 284.8
+  },
+  "people_needed_per_1000": {
+    "Chat reviewer, decision_v1 prompt": 19.0,
+    "Chat reviewer, default prompt (5 classes)": 208.0,
+    "Decisions v2": 15.5,
+    "Decisions v3.0.0": 71.2,
+    "Qwen agent alone": 356.0
+  },
+  "pipeline_x_flat": {
+    "agent_plus_decisions_v2": 2.849,
+    "agent_plus_decisions_v3_0_0": 2.467
+  },
+  "pipeline_x_tiered": {
+    "agent_plus_decisions_v2": 1.955,
+    "agent_plus_decisions_v3_0_0": 1.758,
+    "traditional_qwen_agent_plus_qwen_reviewer": 2.0
+  },
+  "qwen_agent": {
+    "test": {
+      "class_correct": 309,
+      "docs_ge_32k": 24,
+      "documents": 323,
+      "flat_usd": 0.1298,
+      "human_review_rate": 0.356037,
+      "manifest_flat_usd": 0.1298,
+      "p50_s": 2.52,
+      "p95_s": 7.63,
+      "prompt_tokens": 4132455,
+      "tiered_usd": 0.2513
+    },
+    "test_cost_by_class_tiered_usd": {
+      "contract": 0.0464,
+      "corporate_record": 0.0298,
+      "correspondence": 0.0184,
+      "insurance_claim": 0.0244,
+      "merger_agreement": 0.1323
+    },
+    "train": {
+      "docs_ge_256k": 1,
+      "docs_ge_32k": 207,
+      "documents": 2979,
+      "flat_usd": 1.2007,
+      "manifest_flat_usd": 1.2007,
+      "prompt_tokens": 38237951,
+      "tiered_usd": 2.3119
+    },
+    "unit_usd_per_document_flat": 0.000402,
+    "unit_usd_per_document_tiered": 0.000778
+  },
+  "qwen_price_sheet_usd_per_1m": {
+    "<32k": [
+      0.03,
+      0.13
+    ],
+    ">=256k": [
+      0.2,
+      0.8
+    ],
+    ">=32k": [
+      0.1,
+      0.4
+    ]
+  },
+  "recorded_inputs": [
+    {
+      "correct": 709,
+      "cost_usd": 0.262,
+      "n": 735,
+      "run": "reviewer-calibration-luna",
+      "source": "reports/reviewer-calibration/reviewer-calibration-luna.md",
+      "split": "train"
+    },
+    {
+      "correct": 733,
+      "cost_usd": 0.32,
+      "n": 735,
+      "run": "reviewer-calibration-luna-prompt-v1",
+      "source": "reports/reviewer-calibration/reviewer-calibration-luna.md",
+      "split": "train"
+    },
+    {
+      "correct": 303,
+      "cost_usd": 0.097,
+      "n": 317,
+      "run": "reviewer-validation-luna-default-test",
+      "source": "reports/reviewer-calibration/reviewer-calibration-luna.md",
+      "split": "test"
+    },
+    {
+      "correct": 311,
+      "cost_usd": 0.122,
+      "n": 317,
+      "run": "reviewer-validation-luna-prompt-v1-test",
+      "source": "reports/reviewer-calibration/reviewer-calibration-luna.md",
+      "split": "test"
+    },
+    {
+      "correct": null,
+      "cost_usd": null,
+      "n": 323,
+      "run": "reviewer-validation-luna-v3-test",
+      "source": "reports/reviewer-calibration/reviewer-calibration-luna-decisions.md (held-out table)",
+      "split": "test"
+    },
+    {
+      "correct": 723,
+      "cost_usd": 0.71,
+      "n": 735,
+      "run": "reviewer-calibration-luna-decisions",
+      "source": "reports/reviewer-calibration/reviewer-calibration-luna-decisions.md",
+      "split": "train"
+    },
+    {
+      "correct": 735,
+      "cost_usd": 0.86,
+      "n": 735,
+      "run": "reviewer-calibration-luna-decisions-v2",
+      "source": "reports/reviewer-calibration/reviewer-calibration-luna-decisions.md",
+      "split": "train"
+    },
+    {
+      "correct": 318,
+      "cost_usd": 0.24,
+      "n": 323,
+      "run": "reviewer-validation-luna-decisions-v2-test",
+      "source": "reports/reviewer-calibration/reviewer-calibration-luna-decisions.md",
+      "split": "test"
+    },
+    {
+      "correct": 318,
+      "cost_usd": 0.1905,
+      "n": 323,
+      "run": "reviewer-validation-luna-decisions-v3.0.0-test",
+      "source": "config/decisions/LINEAGE.yaml",
+      "split": "test"
+    }
+  ],
+  "reviewer_cost_in_qwen_calls": {
+    "decisions_v2": {
+      "measured": true,
+      "usd_per_document": 0.000743,
+      "x_flat": 1.849,
+      "x_tiered": 0.955
+    },
+    "decisions_v3_0_0": {
+      "measured": true,
+      "usd_per_document": 0.00059,
+      "x_flat": 1.467,
+      "x_tiered": 0.758
+    },
+    "luna_chat_decision_v1": {
+      "measured": true,
+      "usd_per_document": 0.000385,
+      "x_flat": 0.958,
+      "x_tiered": 0.495
+    },
+    "luna_chat_default": {
+      "measured": true,
+      "usd_per_document": 0.000306,
+      "x_flat": 0.761,
+      "x_tiered": 0.393
+    },
+    "qwen_reviewer_modeled": {
+      "measured": false,
+      "usd_per_document": 0.000778,
+      "x_flat": 1.0,
+      "x_tiered": 1.0
+    }
+  },
+  "saving_vs_traditional_tiered": {
+    "decisions_v2": 0.0226,
+    "decisions_v3_0_0": 0.121
+  }
+}
