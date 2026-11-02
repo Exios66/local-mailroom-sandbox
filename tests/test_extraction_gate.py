@@ -342,3 +342,47 @@ def test_calibration_skips_truncated_input_by_default(monkeypatch):
     report = eg.calibrate(items, {}, {}, good=0.8, precision=0.9)
     assert report["skipped"] == {"truncated_input:merger_agreement": 1} and report["classes"] == {}
     assert eg.calibrate(items, {}, {}, good=0.8, precision=0.9, include_truncated=True)["classes"]["merger_agreement"]["n"] == 1
+
+
+def test_key_field_score_counts_an_unanswered_key_field_as_no_support():
+    """A missing or non-numeric answer to an asked field must not inflate the product."""
+    from mailroom_sandbox.decision_backends import key_field_score
+
+    assert key_field_score({"a": 0.9}) == 0.9
+    assert key_field_score({"a": 0.9}, ["a", "b"]) == 0.0
+    assert key_field_score({"a": 0.5, "b": 0.5}, ["a", "b"]) == 0.25
+    assert key_field_score({}, []) is None
+
+
+def test_decide_extraction_scores_every_asked_key_field(monkeypatch):
+    """The gate's key_field_score covers the fields it asked, not only the answers returned."""
+    def fake_post(body, *, timeout, attempts):
+        return {"answers": {"verdict": {"choice": "accept", "probabilities": {"accept": 0.9}},
+                            "field__parties": {"noul": 0.8}}}
+
+    monkeypatch.setattr(db, "_post_decision", fake_post)
+    out = db.decide_extraction("doc", {"doc_type": "merger_agreement", "fields": {"parties": []}},
+                               model="openai/gpt-6-luna-decisions", qset=db.load_question_set(STEM))
+    assert out["field_support"] == {"parties": 0.8}
+    assert out["key_field_score"] == 0.0  # the other asked merger fields went unanswered
+
+
+def test_calibration_skips_key_field_score_with_missing_support(monkeypatch):
+    """--key-set fields an older run never asked must not be dropped from the product."""
+    eg = _script("extraction_gate")
+    monkeypatch.setattr(eg, "_field_truth", lambda *a, **k: ({"a": True, "b": True}, None))
+    qset = {"fields": {"contract": {"a": "", "b": ""}}}
+    item = {"item_id": "d1", "ok": True, "pred": {"accept_probability": 0.9, "field_support": {"a": 0.9}},
+            "score": {"extraction_score": 0.9, "doc_type": "contract"}}
+    report = eg.calibrate([item], {"d1": {"id": "d1"}}, {}, good=0.8, precision=0.9, qset=qset)
+    assert report["skipped"] == {"key_support_missing:contract": 1}
+    assert "contract" not in report.get("keyfields", {})
+    item["pred"]["field_support"] = {"other": 0.9}  # fields answered, but none of the key fields
+    report = eg.calibrate([item], {"d1": {"id": "d1"}}, {}, good=0.8, precision=0.9, qset=qset)
+    assert report["skipped"] == {"key_support_missing:contract": 1}
+    item["pred"]["field_support"] = {}  # a set that asks no field: scored on the verdict
+    report = eg.calibrate([item], {"d1": {"id": "d1"}}, {}, good=0.8, precision=0.9, qset=qset)
+    assert report["keyfields"]["contract"]["n"] == 1 and not report["skipped"]
+    item["pred"]["field_support"] = {"a": 0.9, "b": 0.5}
+    report = eg.calibrate([item], {"d1": {"id": "d1"}}, {}, good=0.8, precision=0.9, qset=qset)
+    assert report["keyfields"]["contract"]["n"] == 1

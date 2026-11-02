@@ -39,7 +39,7 @@
   "task": "insurance_claims_specialist",
   "tokens_per_second": 9291.55,
   "total_tokens": 2367709,
-  "ttft_note": "TTFT never inferred (served locally; do not infer from e2e)",
+  "ttft_note": "TTFT never inferred (hosted API; do not infer from e2e)",
   "ttft_seconds": null,
   "wall_seconds": 254.824
 }

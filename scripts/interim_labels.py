@@ -20,10 +20,11 @@ from __future__ import annotations
 import argparse
 import collections
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -77,6 +78,23 @@ def _gate_run(run_id: str) -> dict[str, Any]:
             "dataset_sha256": (lock.get("dataset") or {}).get("sha256"), "docs": docs}
 
 
+def _replace(path: Path, text: str) -> None:
+    """Write ``text`` to ``path`` atomically (a reader sees the old file or the new one)."""
+    tmp = path.with_name(f".{path.name}.tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def _counts(root: Path, names: Iterable[str]) -> dict[str, dict[str, dict[str, int]]]:
+    """Per class, field and status: the label counts of the overlay files as written."""
+    counts: dict[str, dict[str, collections.Counter]] = collections.defaultdict(lambda: collections.defaultdict(collections.Counter))
+    for name in names:
+        for rec in il._jsonl(root / name):
+            for field, lab in (rec.get("labels") or {}).items():
+                counts[str(rec.get("doc_class"))][field][lab.get("status")] += 1
+    return {cls: {f: dict(sorted(c.items())) for f, c in sorted(fs.items())} for cls, fs in sorted(counts.items())}
+
+
 def build(run_ids: list[str], root: Path) -> dict[str, Any]:
     runs = [_gate_run(r) for r in run_ids]
     # Per document, the latest question set wins (then the later run in the list).
@@ -114,14 +132,16 @@ def build(run_ids: list[str], root: Path) -> dict[str, Any]:
                        "verdict": gate.get("verdict"), "accept_probability": gate.get("accept_probability")},
         })
     root.mkdir(parents=True, exist_ok=True)
-    for old in root.glob("*.jsonl"):
-        old.unlink()
     files = {}
     for cls, recs in sorted(by_class.items()):
         name = f"{cls}.jsonl"
         text = "".join(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n" for r in recs)
-        (root / name).write_text(text, encoding="utf-8")
+        _replace(root / name, text)
         files[name] = il._sha(text)
+    # Old class files are removed only once every replacement is in place (never a missing file).
+    for old in root.glob("*.jsonl"):
+        if old.name not in files:
+            old.unlink()
     manifest = {
         "schema": il.SCHEMA,
         "status": "interim: unpublished enhancements to the mailroom-dataset ground truth; a Hub label supersedes the overlay field by field",
@@ -139,7 +159,7 @@ def build(run_ids: list[str], root: Path) -> dict[str, Any]:
         "counts": {cls: {f: dict(sorted(c.items())) for f, c in sorted(fs.items())} for cls, fs in sorted(counts.items())},
         "files": files,
     }
-    (root / "MANIFEST.json").write_text(json.dumps(manifest, indent=2, sort_keys=False) + "\n", encoding="utf-8")
+    _replace(root / "MANIFEST.json", json.dumps(manifest, indent=2, sort_keys=False) + "\n")
     return manifest
 
 
@@ -189,12 +209,14 @@ def check(root: Path, rows_path: Path | None, prune: bool) -> int:
                     if rec["labels"]:
                         recs.append(rec)
                 text = "".join(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n" for r in recs)
-                (root / name).write_text(text, encoding="utf-8")
+                _replace(root / name, text)
                 man["files"][name] = il._sha(text)
+            man["counts"] = _counts(root, man["files"])
             man["pruned_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-            (root / "MANIFEST.json").write_text(json.dumps(man, indent=2) + "\n", encoding="utf-8")
+            _replace(root / "MANIFEST.json", json.dumps(man, indent=2) + "\n")
             print(f"pruned {len(gone)} superseded labels")
-            return 0
+            # The superseded labels are gone; integrity and staleness problems still fail the check.
+            problems = [p for p in problems if "superseded by the Hub rows" not in p]
     for p in problems:
         print(p)
     print("interim labels: OK" if not problems else f"interim labels: {len(problems)} problem(s)")

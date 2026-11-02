@@ -26,6 +26,6 @@ Stem `RUN-686-INSURANCE-BF16-1L4-C12`. Model `qwen/qwen3.7-flash`. TTFT is never
 | slot_utilization | — |
 | busy_slot_seconds | — |
 | ttft_seconds | — |
-| ttft_note | TTFT never inferred (served locally; do not infer from e2e) |
+| ttft_note | TTFT never inferred (hosted API; do not infer from e2e) |
 
 Machine-readable sibling: same stem with `.serving.json`.
