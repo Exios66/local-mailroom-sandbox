@@ -4,10 +4,42 @@
 
 - Vendor pins after merging `main`: llm-mailroom `d1e2811`, which is `v0.8.1` merged into llm-mailroom #135 (sorter V15), and llm-dojo-scoring by its published `v0.25.0` tag (SHA-verified `e35504db`).
 - CI lint: drop an unused counter in `scripts/export_sorter_handoff.py`; `scripts/refresh_api_prices.py` accepts only an `https://` catalog URL (bandit B310).
+- PR #226 review fixes:
+  - Interim labels: a null truth label is written as `gt_presence` `schema_documented_absence` (was `interim_absent`), so the Dojo's corporate scorer counts it as expected-empty instead of dropping it as unlabeled.
+  - `scripts/interim_labels.py check --prune` still exits 1 when integrity or stale-run problems remain, and rewrites the manifest `counts` from the pruned files. `build` and `--prune` replace each file atomically and remove old class files only after every replacement is written.
+  - `--prune` is refused while the overlay fails its integrity check (it would otherwise re-hash a hand-edited file and hide the mismatch); each atomic write stages to a unique temp file, and the counts tolerate a label with no status.
+  - `key_field_score` scores every key field the gate asked. A missing or non-numeric answer counts as support 0.0, so it can never raise the gating score. Calibration skips a document (`key_support_missing:<class>`) when some key fields have no support, for example `--key-set` fields an older run never asked.
+  - The serving report's TTFT note says "hosted API" for OpenRouter runs. It said "served locally" for every run.
 - Spend guard: a fixed 3.00 USD reserve of the OpenRouter key's remaining limit is never spent. `require_key_headroom` and `scripts/estimate_spend.py` compare caps/estimates with `remaining - reserve`; `OPENROUTER_KEY_RESERVE_USD` can raise the floor, never lower it.
 
 ### Added
 
+- **Extraction-gate question set 1.3.0: per-template rules from a field-by-field GT vetting** (`docs/EXTRACTION_GATE_VETTING.md`).
+  - `subclass_fields` replaces a class rule with the rule of the document's own template or record kind. The subclass comes from the handoff (`doc_subclass`, the sorter's) or, in calibration runs, the labelled subclass.
+  - Agreement with the dojo field truth: insurance claim_type 0.87 → 0.98, insurer 0.85 → 0.95, date_filed 0.57 → 0.80, corporate intent 0.76 → 0.90 (false accepts 47 → 0).
+  - Contracts: parties judged on legal names; CUAD clauses judged on precision only.
+  - `decide_extraction` emits `key_field_score`, the product of key-field supports, and calibration reports it. It is the gating score. Key-field AUROC: overall 0.764 against the verdict's 0.667; insurance 0.865, corporate 0.891, contract 0.844 on corrected truth. The verdict ignores the field rules and was unchanged from 1.2.0.
+  - `calibrate --corrected-truth` corrects the documented CUAD parties and effective-date defects from the Hub's own evidence, without consulting the gate.
+  - Runs:
+
+    | Run | Documents | Cost |
+    | --- | --- | ---: |
+    | `extraction-gate-luna-v1.3.0` | 1,596 | $0.87 |
+    | `extraction-gate-luna-v1.2.0-rereview` | 880 | $0.41 |
+    | `extraction-gate-luna-v1.2.0-r3` | 686 | $0.25 |
+
+    The insurance round-3 extraction (686 new documents, condensed v3 prompt) had an exact match of 0.896.
+- **Extraction-gate question set 1.2.0.** The verdict judges key fields only; class scopes are named, and ungrounded free-text fields are dropped.
+  - `calibrate` adds a key-field target (`keyfields`, `--key-set` to compare sets on one target).
+  - Insurance key-field AUROC 0.63 → 0.78.
+- **Interim GT labels** (`data/labels/interim/`, `mailroom_sandbox.interim_labels`, `scripts/interim_labels.py`). These are the unpublished enhancements expected in the next dataset revision:
+  - gap fills for the key fields the Hub leaves unlabelled: corporate, correspondence and merger (dojo #52/#94/#95);
+  - derived `cms_source_table` (dojo #93), and `record_type` / `communication_type` from the subclass;
+  - CUAD parties and effective-date corrections;
+  - `disputed` correspondence intents for human review, which are not truth.
+  - Every label carries its provenance and the hash of the document text it was read from.
+  - Opt-in per run (`dataset.interim_labels: true`), hashed into the spec and recorded in the lock.
+  - `build --add-run` keeps the labels current; `check` refuses stale or hand-edited files and prunes labels a Hub revision publishes.
 - **Extraction-gate round 2: 690 new real documents, no repeats.** `scripts/extraction_gate.py expand` draws documents no finished specialist run has extracted, checked by id and by whitespace/case-folded text (the run refuses when it finds no history to exclude).
   - insurance_claim +240, correspondence +240, corporate_record +160: each subclass drawn from its shorter half first.
   - contract +40 and merger_agreement +10: drawn representatively at full length; contracts cover all 26 CUAD subtypes, mergers only labelled consideration subclasses (no `other`).
