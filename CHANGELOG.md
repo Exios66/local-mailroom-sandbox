@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- `scripts/setup_t3.sh`: guided checkout setup (venv, editable install, `.env`, vendor import check, Modal/HF credential status, overlay check, optional git worktree, subagent stubs). `--dry-run` changes nothing; every step records its real outcome (ok / failed / skipped / planned) in `data/runtime/setup/evidence.jsonl` and a run card in `data/runtime/setup/card.json` (gitignored). `.env` is loaded without overriding exported variables; the script exits 1 when any step failed.
 ### Added
 
 - **Pipeline extraction gate** (`extraction_gate:` in a `task: pipeline` run spec). It is advisory.
