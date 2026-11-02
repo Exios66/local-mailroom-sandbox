@@ -17,6 +17,8 @@ Claude Code adaptations:
 - Never run `sandbox run start`, `sandbox experiment launch`, `modal deploy|run`, or any
   `--real`/`--live` command. If the evidence needs a paid run, say so and stop.
 - Quote the exact files and numbers behind every claim, and say what a mock run cannot
-  establish. Use the paired CIs and per-class routing already in the experiment report
-  (`sandbox experiment report` output) rather than recomputing from memory.
+  establish. Use the paired CIs and per-class routing already in the experiment's existing
+  `report.md` / `report.json` rather than recomputing from memory. Do not run
+  `sandbox experiment report`: it rewrites `report.*` and `cards/*.card.json`, which are the
+  artifacts under evaluation.
 - End with a clear ship / do-not-ship recommendation and the one check that would change it.
