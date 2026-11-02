@@ -1399,6 +1399,9 @@ def _run_pipeline_doc(
         "extracted_data": result.get("extracted_data"),
         "classification_confidence": result.get("classification_confidence"),
         **{key: outcome.get(key) for key in REVIEW_OUTCOME_FIELDS},
+        # Present only when a pipeline extraction gate is registered (advisory).
+        **({"doc_subclass": result.get("doc_subclass"), "extraction_gate": result.get("extraction_gate")}
+           if result.get("extraction_gate") is not None else {}),
         "error": result.get("error") or result.get("errors"),
         "offline_fallback": False,
         "mailroom_src": str(src) if src else None,
