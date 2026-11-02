@@ -1,5 +1,6 @@
 import dataclasses
 import functools
+import json
 import math
 import re
 import structlog
@@ -29,6 +30,7 @@ from graph.routing import (
     after_human_review,
     after_report,
     judge_gate,
+    judge_should_run,
 )
 from observability.tracing import pipeline_trace, traced_node, observation
 from schemas.manifest import DocumentManifest, PipelineStage
@@ -1079,6 +1081,10 @@ _UNREADABLE_STUB = re.compile(r"\s*\[Unreadable file:[^\]]*\]\s*")
 # abandoned threads, new backend calls are refused (the document parks).
 _MAX_ABANDONED_BACKEND_THREADS = 4
 _abandoned_backend_threads: list[threading.Thread] = []
+# The advisory extraction gate keeps its own list and cap, so stalled gate calls can never
+# make the decision backend refuse calls (and park documents as reviewer_unavailable).
+_MAX_ABANDONED_GATE_THREADS = 4
+_abandoned_gate_threads: list[threading.Thread] = []
 _abandoned_lock = threading.Lock()
 
 
@@ -1143,18 +1149,18 @@ def _decision_handoff(state: DocumentState) -> dict[str, Any]:
     }
 
 
-def _call_decision_backend(backend, doc_text, doc_types, catalogs, handoff=None):
-    """Call ``backend`` with a wall-clock bound.
+def _run_bounded(call, *, name: str = "decision-backend", abandoned: list[threading.Thread] | None = None,
+                 max_abandoned: int | None = None):
+    """Run ``call()`` with a wall-clock bound and return its value.
 
     The timeout is ``llm_call_timeout_seconds``, shortened to the time left on
     the run deadline. The call runs on a daemon thread so a stalled backend
     can neither block the worker nor keep the process alive; on expiry
     ``DecisionBackendTimeout`` is raised and the stray thread is tracked.
-    ``handoff`` (the sorter's answer and the review trigger) is passed as a
-    keyword only to a backend that accepts it; older backends are unchanged.
-    At ``_MAX_ABANDONED_BACKEND_THREADS`` live abandoned threads, new calls
+    At ``max_abandoned`` live abandoned threads in ``abandoned`` (default: the
+    decision backend's list and ``_MAX_ABANDONED_BACKEND_THREADS``), new calls
     are refused with ``DecisionBackendTimeout`` instead of starting another.
-    Backend exceptions propagate unchanged.
+    Exceptions raised by ``call`` propagate unchanged.
     """
     import contextvars
 
@@ -1166,38 +1172,107 @@ def _call_decision_backend(backend, doc_text, doc_types, catalogs, handoff=None)
         timeout = min(timeout, deadline - time.time())
     if timeout <= 0:
         raise DecisionBackendTimeout("no time left on the run deadline")
+    if abandoned is None:
+        abandoned = _abandoned_backend_threads
+    limit = _MAX_ABANDONED_BACKEND_THREADS if max_abandoned is None else max_abandoned
     with _abandoned_lock:
-        _abandoned_backend_threads[:] = [
-            t for t in _abandoned_backend_threads if t.is_alive()
-        ]
-        if len(_abandoned_backend_threads) >= _MAX_ABANDONED_BACKEND_THREADS:
-            raise DecisionBackendTimeout(
-                f"{len(_abandoned_backend_threads)} stalled backend calls still running"
-            )
+        abandoned[:] = [t for t in abandoned if t.is_alive()]
+        if len(abandoned) >= limit:
+            raise DecisionBackendTimeout(f"{len(abandoned)} stalled {name} calls still running")
 
     box: dict[str, Any] = {}
     ctx = contextvars.copy_context()
 
     def _target() -> None:
-        """Run the backend on this thread and hand its result or error back."""
+        """Run the call on this thread and hand its result or error back."""
         try:
-            if handoff is not None and _accepts_handoff(backend):
-                box["value"] = ctx.run(backend, doc_text, doc_types, catalogs, handoff=handoff)
-            else:
-                box["value"] = ctx.run(backend, doc_text, doc_types, catalogs)
+            box["value"] = ctx.run(call)
         except BaseException as exc:  # re-raised on the caller's thread
             box["error"] = exc
 
-    thread = threading.Thread(target=_target, name="decision-backend", daemon=True)
+    thread = threading.Thread(target=_target, name=name, daemon=True)
     thread.start()
     thread.join(timeout)
     if thread.is_alive():
         with _abandoned_lock:
-            _abandoned_backend_threads.append(thread)
-        raise DecisionBackendTimeout(f"decision backend exceeded {timeout:.0f}s")
+            abandoned.append(thread)
+        raise DecisionBackendTimeout(f"{name} exceeded {timeout:.0f}s")
     if "error" in box:
         raise box["error"]
     return box.get("value")
+
+
+def _call_decision_backend(backend, doc_text, doc_types, catalogs, handoff=None):
+    """Call ``backend`` under ``_run_bounded``.
+
+    ``handoff`` (the sorter's answer and the review trigger) is passed as a
+    keyword only to a backend that accepts it; older backends are unchanged.
+    """
+    if handoff is not None and _accepts_handoff(backend):
+        return _run_bounded(lambda: backend(doc_text, doc_types, catalogs, handoff=handoff))
+    return _run_bounded(lambda: backend(doc_text, doc_types, catalogs))
+
+
+def _review_extraction(state: DocumentState, doc_type: str, result: dict[str, Any]) -> dict[str, Any] | None:
+    """Ask the registered extraction gate about ``result``; ``None`` when no gate is registered.
+
+    The handoff carries the sorter's subclass (``doc_subclass``, else the contract
+    subtype), never a ground-truth label. The gate is advisory and fail-open: its
+    answer is recorded on state (and, from ``extract_node`` only, in the ``extracted``
+    audit entry; the retry path writes no audit entry), routing is unchanged, and a
+    timeout or error is recorded instead of failing extraction.
+    """
+    from agents.extraction_gate import extraction_gate_handoff, get_extraction_gate
+
+    gate = get_extraction_gate()
+    if gate is None:
+        return None
+    # The first non-blank of the sorter's subclass and the contract subtype.
+    subclass = next((v.strip() for v in (state.get("doc_subclass"), state.get("contract_subtype"))
+                     if isinstance(v, str) and v.strip()), None)
+    record: dict[str, Any] = {"doc_subclass": subclass}
+    if result.get("_parse_error"):
+        return {**record, "skipped": "parse_error"}
+    # Same emptiness rule as guard_extraction: only None / empty containers is no extraction.
+    from pipeline.guards import _has_substantive_content
+
+    if not _has_substantive_content(result):
+        return {**record, "skipped": "empty_extraction"}
+    handoff = extraction_gate_handoff(doc_type, result, record["doc_subclass"])
+    if record["doc_subclass"] is None:
+        logger.info("extraction_gate_no_subclass", doc_id=state.get("doc_id"), doc_type=doc_type)
+    doc_text = state.get("doc_text") or ""
+    try:
+        answer = _run_bounded(lambda: gate(doc_text, handoff), name="extraction-gate",
+                              abandoned=_abandoned_gate_threads, max_abandoned=_MAX_ABANDONED_GATE_THREADS)
+    except DecisionBackendTimeout as exc:
+        logger.warning("extraction_gate_timeout", doc_id=state.get("doc_id"), error=str(exc))
+        return {**record, "error": f"timeout: {exc}"}
+    except Exception as exc:  # noqa: BLE001 - advisory gate: fail open, record the error
+        logger.warning("extraction_gate_failed", doc_id=state.get("doc_id"), error=str(exc)[:300])
+        return {**record, "error": f"{type(exc).__name__}: {str(exc)[:200]}"}
+    if not isinstance(answer, Mapping):
+        return {**record, "error": f"malformed gate answer ({type(answer).__name__})"}
+    keep = ("verdict", "key_field_score", "accept_probability", "human_review_probability",
+            "field_support", "question_set", "model")
+    try:
+        fields = {k: answer[k] for k in keep if k in answer}
+        # The answer goes into state and the JSON ``extracted`` audit column: keep only
+        # JSON values (a set or an object would make the audit write drop the entry).
+        fields = json.loads(json.dumps(fields, allow_nan=False))
+    except Exception as exc:  # noqa: BLE001 - advisory gate: fail open, record the error
+        return {**record, "error": f"malformed gate answer ({type(exc).__name__})"}
+    return {**record, **fields}
+
+
+def _sorter_is_unsure(state: DocumentState) -> bool:
+    """True when the sorter ended below its class's low band (or gave no score)."""
+    confidence = state.get("classification_confidence")
+    if not _valid_unit_float(confidence):
+        return True
+    return float(confidence) < float(
+        get_confidence_thresholds(state.get("doc_type")).get("low", 0.70)
+    )
 
 
 def _decision_review_classify(state: DocumentState) -> dict[str, Any]:
@@ -1315,6 +1390,7 @@ def _decision_review_classify(state: DocumentState) -> dict[str, Any]:
         eligible=eligible,
         cutoffs=cutoffs,
         has_text=has_text,
+        sorter_unsure=_sorter_is_unsure(state),
     )
     cutoff_key = answer.doc_type if answer is not None else sorter_type
     cutoff = cutoffs.get(cutoff_key) if isinstance(cutoff_key, str) else None
@@ -1418,13 +1494,19 @@ def classification_arbiter_node(state: DocumentState) -> dict[str, Any]:
     if isinstance(doc_type, str):
         entry = get_reviewer_config()["by_class"].get(doc_type) or {}
         cutoff = entry.get("arbiter_cutoff", get_confidence_thresholds(doc_type).get("high", 0.95))
+        # A bad configured cutoff (not a number in [0, 1]) parks the document; it never aborts the run.
+        cutoff = float(cutoff) if _valid_unit_float(cutoff) else None
+    subclass = chosen.get("doc_subclass") if chosen else None
+    has_subclass = isinstance(subclass, str) and bool(subclass.strip())
     accepted = (
         chosen is not None
         and isinstance(doc_type, str)
         and is_extractable_doc_type(doc_type)
+        # A contract needs its subtype, as the classification guard requires.
+        and (doc_type != "contract" or has_subclass)
         and confidence is not None
         and cutoff is not None
-        and float(confidence) >= float(cutoff)
+        and float(confidence) >= cutoff
     )
     reasoning = str(result.get("reasoning") or "")[:400]
     updates: dict[str, Any] = {
@@ -1790,6 +1872,9 @@ def extract_node(state: DocumentState) -> dict[str, Any]:
         else state.get("escalation_reason"),
         "transient_error": False,
     }
+    gate = _review_extraction(state, doc_type, result)
+    if gate is not None:
+        result_dict["extraction_gate"] = gate
     # Per-agent memory (iterative improvement): record guardrail rejections and
     # extraction confidence so the specialist's retry calls learn from them.
     try:
@@ -1814,7 +1899,9 @@ def extract_node(state: DocumentState) -> dict[str, Any]:
         "extracted",
         actor=state.get("doc_type", "specialist"),
         detail={"attempts": attempts, "guardrail_issues": guard["issues"] or None,
-                "conflict_detected": bool(conflict_detected)},
+                "conflict_detected": bool(conflict_detected),
+                **({"extraction_gate": result_dict["extraction_gate"]}
+                   if "extraction_gate" in result_dict else {})},
     )
     return result_dict
 
@@ -1934,7 +2021,7 @@ def retry_extract_node(state: DocumentState) -> dict[str, Any]:
         attempts=attempts,
         conflict_detected=conflict_detected,
     )
-    return {
+    updates: dict[str, Any] = {
         "extracted_data": result,
         "extraction_confidence": confidence,
         "extraction_attempts": attempts,
@@ -1947,6 +2034,10 @@ def retry_extract_node(state: DocumentState) -> dict[str, Any]:
         else state.get("escalation_reason"),
         "transient_error": False,
     }
+    gate = _review_extraction(state, doc_type, result)
+    if gate is not None:
+        updates["extraction_gate"] = gate
+    return updates
 
 
 def _clean_fields_for_judge(extracted: dict | None) -> dict:
@@ -1968,10 +2059,10 @@ def judge_verify_node(state: DocumentState) -> dict[str, Any]:
     `partial`/`incomplete` go to the arbiter, hard failure escalates
     fail-safe). Gated by `_judge_gate` — most documents never see this call.
     """
-    from agents.judge import CompletenessJudge
+    from agents.judge import JUDGE_SOURCE_CHARS, CompletenessJudge
     from llm.retry import is_transient_error
 
-    if not judge_gate(state):
+    if not judge_should_run(state):
         logger.info(
             "judge_skipped",
             doc_id=state.get("doc_id"),
@@ -1987,6 +2078,13 @@ def judge_verify_node(state: DocumentState) -> dict[str, Any]:
         result = judge.judge_completeness(
             doc_type=doc_type, extracted=extracted, doc_text=doc_text
         )
+        # Completeness says nothing about accuracy: a complete verdict must also
+        # hold up against the source before it counts.
+        accuracy = None
+        if result.get("completeness_label") == "complete":
+            accuracy = judge.judge_extraction_correctness(
+                doc_type=doc_type, extracted=extracted, doc_text=doc_text
+            )
     except Exception as exc:
         if is_transient_error(exc):
             transient = state.get("transient_retries_judge_verify", 0) + 1
@@ -2013,6 +2111,16 @@ def judge_verify_node(state: DocumentState) -> dict[str, Any]:
     label = result.get("completeness_label", "incomplete")
     score = float(result.get("completeness", 0.0))
     findings = [str(result.get("reasoning", ""))] if result.get("reasoning") else []
+    source_verified = False
+    if accuracy is not None:
+        accuracy_label = accuracy.get("extraction_correctness_label")
+        score = min(score, float(accuracy.get("extraction_correctness", 0.0)))
+        if accuracy.get("reasoning"):
+            findings.append(str(accuracy["reasoning"]))
+        if accuracy_label != "accurate":
+            label = "partial" if accuracy_label == "partial" else "incomplete"
+        # A judge that saw only part of the document cannot vouch for all of it.
+        source_verified = label == "complete" and len(doc_text) <= JUDGE_SOURCE_CHARS
     logger.info(
         "judge_verified",
         doc_id=state.get("doc_id"),
@@ -2036,6 +2144,7 @@ def judge_verify_node(state: DocumentState) -> dict[str, Any]:
         "judge_verdict": label,
         "judge_score": score,
         "judge_findings": findings,
+        "judge_source_verified": source_verified,
         "judge_pass_count": int(state.get("judge_pass_count") or 0) + 1,
         "transient_error": False,
     }
@@ -2060,6 +2169,7 @@ def arbiter_node(state: DocumentState) -> dict[str, Any]:
             judge_verdict=str(state.get("judge_verdict") or ""),
             judge_findings=state.get("judge_findings") or [],
             judge_score=state.get("judge_score"),
+            doc_text=state.get("doc_text", ""),
         )
     except Exception as exc:
         if is_transient_error(exc):
@@ -2603,6 +2713,9 @@ def _lane_b_manifest_fields(state: Mapping[str, Any] | dict) -> dict[str, Any]:
     fields_to_fix = state.get("arbiter_fields_to_fix")
     findings = state.get("judge_findings")
     return {
+        "classification_arbiter_decision": state.get("classification_arbiter_decision"),
+        "classification_arbiter_confidence": state.get("classification_arbiter_confidence"),
+        "classification_arbiter_reasoning": state.get("classification_arbiter_reasoning"),
         "arbiter_decision": state.get("arbiter_decision"),
         "arbiter_reasoning": state.get("arbiter_reasoning"),
         "arbiter_handoff": state.get("arbiter_handoff"),
@@ -2949,7 +3062,9 @@ def _resolved_models(state: dict) -> str:
             _add("sorter_reviewer")
         if state.get("judge_verdict") and state.get("judge_verdict") != "skipped":
             _add("judge")
-        if state.get("arbiter_decision"):
+        if state.get("arbiter_decision") or state.get("classification_arbiter_decision") in (
+            "accept_sorter", "accept_reviewer",
+        ):
             _add("arbiter")
         if state.get("review_decision") in ("approved", "review") and (
             state.get("escalation_reason") or ""
@@ -3172,6 +3287,28 @@ def _existing_processing_doc_id(original_filename: str) -> str | None:
     return None
 
 
+def _abort_review_evidence(state: dict, doc_id: str | None) -> dict[str, Any]:
+    """Reviewer evidence for an aborted run: state, else the parked manifest.
+
+    An interrupt resume aborts with a minimal state, and the abort manifest
+    replaces the parked one, so its evidence is read before that happens.
+    """
+    from pipeline.bins import load_manifest
+    from pipeline.review_resolve import REVIEW_EVIDENCE_FIELDS
+
+    evidence = _review_evidence_fields(state, state.get("review_causes"))
+    parked = None
+    if doc_id and any(value is None for value in evidence.values()):
+        try:
+            parked = load_manifest(doc_id)
+        except Exception:
+            logger.exception("abort_review_evidence_load_failed", doc_id=doc_id)
+    return {
+        name: evidence[name] if evidence[name] is not None else getattr(parked, name, None)
+        for name in REVIEW_EVIDENCE_FIELDS
+    }
+
+
 def _finalize_aborted(initial_state: dict, reason: str, *, failure_class: str | None = None) -> dict:
     """Turn a run that hit a hard limit (or crashed) into a failed result.
 
@@ -3205,6 +3342,7 @@ def _finalize_aborted(initial_state: dict, reason: str, *, failure_class: str | 
         escalation_reason=f"run aborted: {reason}",
         trace_id=state.get("trace_id"),
         intake=state.get("intake_meta") or None,
+        **_abort_review_evidence(state, aborted_doc_id),
     )
     if aborted_doc_id:
         manifest_kwargs["doc_id"] = aborted_doc_id
@@ -3231,7 +3369,7 @@ def _finalize_aborted(initial_state: dict, reason: str, *, failure_class: str | 
     except Exception:
         logger.exception("abort_manifest_save_error", doc_id=manifest.doc_id)
     try:
-        _write_catalog_record(state)
+        _write_catalog_record(state, manifest)
     except Exception:
         logger.exception("abort_catalog_write_error", doc_id=manifest.doc_id)
     # A-1: a failed/aborted run is a compliance-record event (previously only
@@ -3260,10 +3398,11 @@ def _finalize_aborted(initial_state: dict, reason: str, *, failure_class: str | 
     return state
 
 
-def _write_catalog_record(state: dict):
+def _write_catalog_record(state: dict, manifest: DocumentManifest):
     """Persist a minimal catalog record (used for aborted runs that never
     reach the catalog_write node, so they show up in compare_runs)."""
     import asyncio
+    from pipeline.review_resolve import with_review_evidence
     from storage.catalog import write_document_record
 
     doc_record = {
@@ -3274,7 +3413,7 @@ def _write_catalog_record(state: dict):
         "stage": state.get("stage", "failed"),
         "classification_confidence": state.get("classification_confidence"),
         "extraction_confidence": state.get("extraction_confidence"),
-        "extracted_data": state.get("extracted_data"),
+        "extracted_data": with_review_evidence(state.get("extracted_data"), manifest),
         "escalation_reason": state.get("escalation_reason") or state.get("error_message"),
         "trace_id": state.get("trace_id"),
     }
@@ -3426,6 +3565,15 @@ def _emit_pipeline_result(root, result: dict, state: dict, judge_required: bool 
     ) as gen:
         if gen is not None:
             gen.update(output=output)
+
+
+def _discard_checkpoints(graph, thread_id: str) -> None:
+    """Drop a finished run's checkpoints: they hold the document text and only
+    a parked run can resume. Fail-soft; a leftover row costs disk, not a run."""
+    try:
+        graph.checkpointer.delete_thread(thread_id)
+    except Exception:
+        logger.warning("checkpoint_discard_failed", thread_id=thread_id, exc_info=True)
 
 
 def _execute_run(
@@ -3617,6 +3765,8 @@ def _execute_run(
             )
         if _result_is_interrupted(result):
             result = _paused_review_result(result, initial_state, thread_id, state_trace_id)
+        elif result.get("stage") in {PipelineStage.ARCHIVED.value, PipelineStage.FAILED.value}:
+            _discard_checkpoints(graph, thread_id)
         # Ensure the trace id survives into the final state (intake_node creates
         # the manifest with its own doc_id; the trace id must be attached even
         # when the graph never ran intake, e.g. aborted runs).
@@ -3930,6 +4080,9 @@ def resume_from_review(manifest, review_file: Path, notes: str = "") -> dict[str
         "judge_score": getattr(manifest, "judge_score", None),
         "judge_findings": list(getattr(manifest, "judge_findings", None) or []),
         "judge_pass_count": 0,
+        "classification_arbiter_decision": getattr(manifest, "classification_arbiter_decision", None),
+        "classification_arbiter_confidence": getattr(manifest, "classification_arbiter_confidence", None),
+        "classification_arbiter_reasoning": getattr(manifest, "classification_arbiter_reasoning", None),
         "arbiter_decision": getattr(manifest, "arbiter_decision", None),
         "arbiter_reasoning": getattr(manifest, "arbiter_reasoning", None),
         "arbiter_handoff": getattr(manifest, "arbiter_handoff", None),

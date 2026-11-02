@@ -24,7 +24,7 @@ types (``DecisionAnswer``) are imported lazily too, after
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Any, Iterable, Literal, Mapping, Optional
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Literal, Mapping, Optional
 
 if TYPE_CHECKING:  # family types are imported lazily: activate() must run first
     from agents.decision_backend import DecisionBackend
@@ -353,6 +353,43 @@ def extraction_handoff(doc_type: str, extraction: Mapping[str, Any] | None,
     if doc_subclass:
         out["doc_subclass"] = str(doc_subclass)
     return out
+
+
+def extraction_gate_backend(model: str, qset: Mapping[str, Any]) -> Callable[[str, Mapping[str, Any]], dict[str, Any]]:
+    """The pipeline gate registered with llm-mailroom (``agents.extraction_gate``).
+
+    It answers ``gate(doc_text, handoff)`` with ``decide_extraction``. The subclass is
+    the handoff's ``doc_subclass``, which is the **sorter's**, and there is no fallback to a
+    labelled subclass: with none, the gate uses the class rules (1.2.0 behaviour). Pipeline
+    gate numbers therefore include the sorter's subclass errors, unlike calibration runs.
+    """
+    if not is_decisions_model(model):
+        raise ValueError(f"{model!r} is not a Decisions-API model")
+    if qset.get("kind") != EXTRACTION_GATE:
+        raise ValueError("the pipeline extraction gate needs an extraction_gate question set")
+    version = str(qset.get("version") or "")
+
+    def gate(doc_text: str, handoff: Mapping[str, Any]) -> dict[str, Any]:
+        """Review one pipeline extraction."""
+        subclass = handoff.get("doc_subclass")
+        out = decide_extraction(doc_text, handoff, model=model, qset=qset,
+                                subclass=str(subclass) if subclass else None)
+        return {**out, "question_set": version, "model": model}
+
+    return gate
+
+
+def mock_extraction_gate_backend(model: str, qset: Mapping[str, Any]) -> Callable[[str, Mapping[str, Any]], dict[str, Any]]:
+    """An offline gate for mock pipeline runs: a fixed neutral answer, no network call, no usage."""
+    version = str((qset or {}).get("version") or "")
+
+    def gate(doc_text: str, handoff: Mapping[str, Any]) -> dict[str, Any]:
+        """Answer one extraction without calling the Decisions API."""
+        return {"doc_type": handoff.get("doc_type"), "verdict": "accept", "accept_probability": 0.5,
+                "human_review_probability": 0.0, "verdict_probabilities": {"accept": 0.5}, "field_support": {},
+                "question_set": version, "model": model, "mock": True}
+
+    return gate
 
 
 def _post_decision(body: Mapping[str, Any], *, timeout: float, attempts: int) -> dict[str, Any]:
