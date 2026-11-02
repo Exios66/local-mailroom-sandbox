@@ -132,6 +132,7 @@ def uses_openrouter(lock: dict) -> bool:
     reviewer = lock.get("reviewer") or {}
     return (engine.get("kind") == "openrouter" or lock.get("profile") == "openrouter"
             or reviewer.get("backend") == "decisions"
+            or bool(lock.get("extraction_gate"))  # the pipeline gate is a Decisions-API model
             or any((r or {}).get("provider") == "openrouter" for r in (lock.get("agent_routes") or {}).values()))
 
 

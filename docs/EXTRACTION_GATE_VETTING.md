@@ -52,7 +52,26 @@ The Decisions-model extraction gate (`openai/gpt-6-luna-decisions`) is to stand 
 
 The verdict question is answered on its own and does not apply the field rules. Its answers were byte-identical between 1.2.0 and 1.3.0, so its AUROC did not move. The field answers carry everything 1.3.0 fixed.
 
-**Pipeline requirement.** 1.3.0 picks template rules by subclass. Calibration used the labelled subclass, which amounts to an oracle sorter. In the pipeline, the handoff must carry the sorter's subclass (`extraction_handoff(doc_type, fields, doc_subclass=...)`). A wrong sorter subclass gives the gate the wrong template rule, so pipeline gate numbers sit below these by the sorter's subclass error rate. Without a subclass the gate falls back to the class rules, which are the 1.2.0 behaviour.
+**Pipeline requirement.** 1.3.0 picks template rules by subclass. Calibration used the labelled subclass, which amounts to an oracle sorter. In the pipeline, the handoff must carry the sorter's subclass. Expect three things:
+
+- A wrong sorter subclass gives the gate the wrong template rules.
+- Pipeline gate numbers therefore sit below these by the sorter's subclass error rate.
+- Without a subclass, the gate falls back to the class rules, which are the 1.2.0 behaviour.
+
+**Running the gate in the pipeline.** Add this block to a `task: pipeline` run spec:
+
+```yaml
+extraction_gate:
+  model: openai/gpt-6-luna-decisions
+  questions: extraction_gate_v1.3.0
+```
+
+- **Preflight** freezes the question set into the lock.
+- **Activation** registers the gate with llm-mailroom's `agents.extraction_gate` hook (llm-mailroom #136). The vendored llm-mailroom must include that hook, or activation refuses.
+- **Per extraction**, `extract_node` and `retry_extract_node` send `{doc_type, doc_subclass, fields}`, where `doc_subclass` is the sorter's subclass. The sandbox backend (`decision_backends.extraction_gate_backend`) passes that subclass and nothing else: unlike calibration runs, there is no fallback to `expected_subclass`.
+- **Records:** each pipeline record carries `doc_subclass` and `extraction_gate` (verdict, `key_field_score`, `field_support`, question set).
+- **Advisory:** routing does not read the gate yet. Measure in-pipeline `key_field_score` against the dojo before routing on the cutoffs below.
+- **Spend:** gate calls count against the run budget and the OpenRouter key reserve.
 
 ## Field-level agreement (gate yes/no vs dojo field truth)
 

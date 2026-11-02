@@ -52,6 +52,10 @@ def api_models(lock: Mapping[str, Any]) -> list[str]:
     engine = lock.get("engine") or {}
     if engine.get("kind") in API_PROVIDERS and not assignments:
         models.add(str(engine.get("model") or ""))
+    # The pipeline extraction gate bills the Decisions API whatever the engine is.
+    gate = lock.get("extraction_gate") or {}
+    if gate.get("model"):
+        models.add(str(gate["model"]))
     return sorted(model for model in models if model)
 
 
@@ -62,6 +66,8 @@ def spec_api_models(spec: Any) -> list[str]:
         "agent_models": dict(spec.agent_models),
         "agent_routes": {name: route.model_dump() for name, route in spec.agent_routes.items()},
     }
+    if getattr(spec, "extraction_gate", None) is not None:
+        shaped["extraction_gate"] = {"model": spec.extraction_gate.model}
     if spec.agent_routes or spec.agent_knobs or spec.agent_models:
         from mailroom_sandbox.agent_routes import describe
 
