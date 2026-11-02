@@ -2,8 +2,9 @@
 
 ## How the numbers were made
 
-- **One paid run, then nothing else.** The first version of this report called no model. On 2026-11-02 one run,
-  `reviewer-validation-qwen-flash-test` (Qwen 3.7 Flash as reviewer, 323 test documents, OpenRouter, signed JB), replaced the
+- **Two paid runs, then nothing else.** The first version of this report called no model. On 2026-11-02 two runs were
+  made: the 3.1.0 half-train run (1,491 documents, $1.06 billed; below) and
+  `reviewer-validation-qwen-flash-test` (Qwen 3.7 Flash as reviewer, 323 test documents, OpenRouter, signed JB), which replaced the
   modelled 1x reviewer with a measurement: $0.2099 at the price sheet, $0.2146 billed. Every figure comes from files tracked in this
   repository, rebuilt by `python reports/decisions/build_decisions_report.py` (stdlib only). `--check` exits 1 if a
   figure, CSV, `summary.json` or the dashboard is stale.
@@ -64,7 +65,7 @@ These are source inconsistencies found while assembling the report. None changes
 | # | Measurement | Why | Rough cost |
 | --- | --- | --- | --- |
 | 1 | Qwen reviewer with a prompt that states the corpus conventions, and one that reads the sorter's handoff | Separates "Qwen" from "this prompt" in the 93.8% | about $0.2 each |
-| 2 | The other half of the train split with 3.1.0 and the handoff, then 3.1.0 on the 323 test documents with cutoffs frozen first | Cutoffs that are not fitted on the data they are scored on; the full-split run is `reviewer-calibration-luna-decisions-v3.1.0-train` | about $1.04 and $0.25 |
+| 2 | The other half of the train split with 3.1.0 and the handoff, then 3.1.0 with cutoffs frozen first on documents unseen during question-set development | Cutoffs that are not fitted on the data they are scored on; the full-split run is `reviewer-calibration-luna-decisions-v3.1.0-train`. The 323 test documents are **not** independent of 3.1.0 (their errors informed it), so a run there must be labelled non-independent | about $1.04, plus the held-out set |
 | 2b | A Qwen reviewer on the same 1,491 train documents | The Qwen comparison exists only on the test split | about $0.5 |
 | 3 | Validate sorter prompt V15 with `config/runs/sorter-v15-qwen-train-errors.yaml` | Lowers the 1x agent's error rate before the reviewer sees it | about $0.49 |
 | 4 | Question set 4.0.0: derive the verdict in code | Removes the 5x human-review penalty of 3.0.0 | none new |
