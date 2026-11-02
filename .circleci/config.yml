@@ -1,7 +1,9 @@
 version: 2.1
 
 # Free-tier budget: two parallel small jobs, one workflow, pip cache.
-# Mirrors .github/workflows/ci.yml (tests) and adds lint gates.
+# This is the repo's only CI (there is no .github/workflows/ci.yml). To BLOCK
+# merges, mark the "ci/circleci: lint" and "ci/circleci: test" checks as
+# required in the GitHub branch protection rule for main.
 
 executors:
   py:
