@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Vendor pins aligned with the workspace repos: llm-mailroom `main` `a7d7bf0` (#141: v0.8.1 + a0ed476 + #135 + #136 with review fixes), refreshed by `sandbox fetch-deps` (SHA-verified, adds `agents/extraction_gate.py`); llm-dojo-scoring stays on its published `v0.25.0` (`e35504db`), which llm-mailroom also pins. `vendor/README.md` no longer lists the stale `175e6711077f`.
 - `scripts/setup_t3.sh`: guided checkout setup (venv, editable install, `.env`, vendor import check, Modal/HF credential status, overlay check, optional git worktree, subagent stubs). `--dry-run` changes nothing; every step records its real outcome (ok / failed / skipped / planned) in `data/runtime/setup/evidence.jsonl` and a run card in `data/runtime/setup/card.json` (gitignored). `.env` is loaded without overriding exported variables; the script exits 1 when any step failed.
 ### Added
 
