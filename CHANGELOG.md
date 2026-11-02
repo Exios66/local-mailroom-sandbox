@@ -8,6 +8,11 @@
 
 ### Added
 
+- **Decision-reviewer reports (`reports/decisions/`).** Five reports, 14 theme-aware SVG figures with CSV table twins, a self-contained dashboard and `build_decisions_report.py` (stdlib only; `--check` fails on stale outputs).
+  - Prices every reviewer arm against one Qwen 3.7 Flash call as 1x, per document, on the same 323 held-out test documents. Qwen is priced per call against the tiered OpenRouter sheet: $0.2513, where the handoff manifest's flat figure is $0.1298.
+  - A Decisions review is 0.76x to 0.95x of that call: agent plus Decisions is 1.76x to 1.95x against 2.00x for agent plus a second Qwen call (2% to 12% cheaper), and dearer at flat Qwen prices. The 1x Qwen reviewer is modelled, not measured.
+  - Calibrated reviewers cut documents needing a person from 356 to 15 per 1,000 (Decisions v2); the extraction gate shows no ranking signal (pooled AUROC 0.41).
+  - Source inconsistencies found on the way are listed in `reports/decisions/05-method-and-data-quality.md`; none was edited at the source.
 - **Extraction-gate round 2: 690 new real documents, no repeats.** `scripts/extraction_gate.py expand` draws documents no finished specialist run has extracted, checked by id and by whitespace/case-folded text (the run refuses when it finds no history to exclude).
   - insurance_claim +240, correspondence +240, corporate_record +160: each subclass drawn from its shorter half first.
   - contract +40 and merger_agreement +10: drawn representatively at full length; contracts cover all 26 CUAD subtypes, mergers only labelled consideration subclasses (no `other`).

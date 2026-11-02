@@ -1,0 +1,6 @@
+class,Chat default,Chat decision_v1,"Chat v3, full train",Decisions v1,Decisions v2
+contract,1.00,0.91,0.79,0.62,0.78
+corporate record,0.86,0.90,0.88,0.66,0.96
+correspondence,0.71,0.57,0.54,0.52,0.64
+insurance claim,0.61,0.90,0.78,0.41,0.70
+merger agreement,0.98,0.93,0.90,0.99,0.99
