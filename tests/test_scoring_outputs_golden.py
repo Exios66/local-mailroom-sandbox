@@ -139,7 +139,13 @@ def _dump(data: Any) -> str:
 
 
 @pytest.fixture
-def default_dojo_settings():
+def default_dojo_settings(monkeypatch):
+    """Score with the dojo defaults: no external config file, no cached settings.
+
+    ``LLM_DOJO_SCORING_CONFIG`` would otherwise be reloaded after the cache clear and could
+    change scores (or enable embeddings) on a developer machine.
+    """
+    monkeypatch.delenv("LLM_DOJO_SCORING_CONFIG", raising=False)
     clear_settings_cache()
     yield
     clear_settings_cache()
@@ -158,6 +164,7 @@ def test_scoring_outputs_match_goldens(tmp_path, default_dojo_settings):
         f"{cid}:{kind}"
         for cid in sorted(expected)
         for kind in KINDS
-        if actual[cid].get(kind) != expected[cid].get(kind)
+        # Canonical JSON, so a type change (True vs 1, 1 vs 1.0) is drift too.
+        if _dump(actual[cid].get(kind)) != _dump(expected[cid].get(kind))
     ]
     assert not bad, f"golden drift in {len(bad)} outputs, first: {bad[:10]}"
