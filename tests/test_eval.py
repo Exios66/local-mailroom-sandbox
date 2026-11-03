@@ -327,7 +327,7 @@ def test_dojo_pin_matches_current_vendored_snapshot():
         assert str(vendor.resolve()) in sys.path, "vendored dojo must be on sys.path"
         assert str(Path(dojo.__file__).resolve()).startswith(str(vendor.resolve()))
     elif choice.source == "installed":
-        assert choice.version == "0.25.0" and dojo_source._origin_mismatch() is None
+        assert choice.version == "0.26.0" and dojo_source._origin_mismatch() is None
         assert not str(Path(dojo.__file__).resolve()).startswith(str(vendor.resolve()))
     version = re.match(r"(\d+)\.(\d+)", dojo.__version__)
     assert version is not None
