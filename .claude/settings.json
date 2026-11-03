@@ -29,6 +29,7 @@
       "Bash(git status:*)",
       "Bash(git diff:*)",
       "Bash(git log:*)",
+      "Bash(git show:*)",
       "Bash(git branch --show-current:*)",
       "Bash(git branch --list:*)"
     ],
