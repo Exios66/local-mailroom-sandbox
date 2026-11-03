@@ -39,8 +39,9 @@ tag plus its commit; llm-mailroom pins a reviewed commit SHA (ref and sha are th
 It does not prompt by itself (Claude Code asks because the command is on the `ask` list).
 
 - **Monorepo** (`../../packages/<name>` exists): `fetch-deps` and
-  `python scripts/sync_vendor.py [<name>]` copy the workspace tree as-is and do **not**
-  compare it with the pin. First check out or import the pinned revision in
+  `python scripts/sync_vendor.py [<name>]` copy the workspace tree (minus the shared vendor
+  exclusions: top-level `tests/`/`test/`, `__pycache__`, `*.pyc`, `*.egg-info`,
+  `legalbench/reports`) and do **not** compare it with the pin. First check out or import the pinned revision in
   `../../packages/<name>` (`git -C ../../packages/<name> rev-parse HEAD` must equal the
   pin's `sha`) — otherwise the snapshot will not match the provenance you record in step 3.
   To refresh one package only, use `python scripts/sync_vendor.py <name>`.
@@ -76,8 +77,9 @@ commit), and `ruff check` prints `All checks passed!`.
 `test_vendor_drift.py` also compares against **sibling checkouts** (`../llm-dojo-scoring`,
 `../llm-mailroom/src`) when they exist. When the pinned commit exists in the sibling repo it
 compares against `git archive` of that commit, so the sibling's checked-out branch does not
-matter. Only when the pinned commit is missing there (fetch it) does it fall back to the
-working tree, and then a sibling on a different revision fails the test even though the
+matter. When `git archive` of the pinned commit fails for any reason (most often the
+commit is missing there — fetch it) it falls back to the working tree, and then a sibling
+on a different revision fails the test even though the
 vendor refresh is correct — say which sibling is stale rather than "fixing" vendor.
 
 ## 5. Commit
