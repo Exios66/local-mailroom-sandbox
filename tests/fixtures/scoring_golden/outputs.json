@@ -1,0 +1,7363 @@
+{
+ "contract__affiliate__exact__Affiliate_Agreements": {
+  "score_row": {
+   "doc_type": "contract",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 1.0,
+   "extraction_f2": 1.0,
+   "extraction_precision": 1.0,
+   "extraction_recall": 1.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "contract",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "parties": {
+      "f1": 1.0,
+      "field_name": "parties",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 1.0,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 1.0,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "contract__affiliate__exact__Affiliate_Agreements",
+    "metadata": {
+     "doc_type": "contract"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 1.0
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 1.0,
+    "extraction_f2": 1.0,
+    "extraction_precision": 1.0,
+    "extraction_recall": 1.0,
+    "overall_extraction_score": 1.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "contract__agency__partial__Agency_Agreements": {
+  "score_row": {
+   "doc_type": "contract",
+   "entity_list_f1": 0.5,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.7143,
+   "extraction_f2": 0.6579,
+   "extraction_precision": 0.8333,
+   "extraction_recall": 0.625,
+   "fields": {
+    "ambiguous_fields": [
+     "parties"
+    ],
+    "doc_class": "contract",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "parties": {
+      "f1": 0.5,
+      "field_name": "parties",
+      "matched": 1,
+      "partial_gt": true,
+      "precision": 0.5,
+      "recall": 0.5,
+      "unmatched_expected": 1,
+      "unmatched_predicted": 1
+     }
+    },
+    "overall_score": 0.7134,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.7134,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "contract__agency__partial__Agency_Agreements",
+    "metadata": {
+     "doc_type": "contract"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.7134
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 0.5,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.7143,
+    "extraction_f2": 0.6579,
+    "extraction_precision": 0.8333,
+    "extraction_recall": 0.625,
+    "overall_extraction_score": 0.7134,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "contract__co_branding__missing__Co_Branding": {
+  "score_row": {
+   "doc_type": "contract",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.6667,
+   "extraction_f2": 0.5556,
+   "extraction_precision": 1.0,
+   "extraction_recall": 0.5,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "contract",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "parties": {
+      "f1": 1.0,
+      "field_name": "parties",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 0.5,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.5,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "contract__co_branding__missing__Co_Branding",
+    "metadata": {
+     "doc_type": "contract"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.5
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.6667,
+    "extraction_f2": 0.5556,
+    "extraction_precision": 1.0,
+    "extraction_recall": 0.5,
+    "overall_extraction_score": 0.5,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "contract__collaboration__spurious__Collaboration": {
+  "score_row": {
+   "doc_type": "contract",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.8889,
+   "extraction_f2": 0.9524,
+   "extraction_precision": 0.8,
+   "extraction_recall": 1.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "contract",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "parties": {
+      "f1": 1.0,
+      "field_name": "parties",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 1.0,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 1.0,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "contract__collaboration__spurious__Collaboration",
+    "metadata": {
+     "doc_type": "contract"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 1.0
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.8889,
+    "extraction_f2": 0.9524,
+    "extraction_precision": 0.8,
+    "extraction_recall": 1.0,
+    "overall_extraction_score": 1.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "contract__consulting__mixed__Consulting_Agreements": {
+  "score_row": {
+   "doc_type": "contract",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.8235,
+   "extraction_f2": 0.8537,
+   "extraction_precision": 0.7778,
+   "extraction_recall": 0.875,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "contract",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "parties": {
+      "f1": 1.0,
+      "field_name": "parties",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 0.875,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.875,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "contract__consulting__mixed__Consulting_Agreements",
+    "metadata": {
+     "doc_type": "contract"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.875
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.8235,
+    "extraction_f2": 0.8537,
+    "extraction_precision": 0.7778,
+    "extraction_recall": 0.875,
+    "overall_extraction_score": 0.875,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "contract__development__exact__Development": {
+  "score_row": {
+   "doc_type": "contract",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 1.0,
+   "extraction_f2": 1.0,
+   "extraction_precision": 1.0,
+   "extraction_recall": 1.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "contract",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "parties": {
+      "f1": 1.0,
+      "field_name": "parties",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 1.0,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 1.0,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "contract__development__exact__Development",
+    "metadata": {
+     "doc_type": "contract"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 1.0
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 1.0,
+    "extraction_f2": 1.0,
+    "extraction_precision": 1.0,
+    "extraction_recall": 1.0,
+    "overall_extraction_score": 1.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "contract__distributor__partial__Distributor": {
+  "score_row": {
+   "doc_type": "contract",
+   "entity_list_f1": 0.5,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.7143,
+   "extraction_f2": 0.6579,
+   "extraction_precision": 0.8333,
+   "extraction_recall": 0.625,
+   "fields": {
+    "ambiguous_fields": [
+     "parties"
+    ],
+    "doc_class": "contract",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "parties": {
+      "f1": 0.5,
+      "field_name": "parties",
+      "matched": 1,
+      "partial_gt": true,
+      "precision": 0.5,
+      "recall": 0.5,
+      "unmatched_expected": 1,
+      "unmatched_predicted": 1
+     }
+    },
+    "overall_score": 0.7169,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.7169,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "contract__distributor__partial__Distributor",
+    "metadata": {
+     "doc_type": "contract"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.7169
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 0.5,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.7143,
+    "extraction_f2": 0.6579,
+    "extraction_precision": 0.8333,
+    "extraction_recall": 0.625,
+    "overall_extraction_score": 0.7169,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "contract__endorsement__missing__Endorsement": {
+  "score_row": {
+   "doc_type": "contract",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.6667,
+   "extraction_f2": 0.5556,
+   "extraction_precision": 1.0,
+   "extraction_recall": 0.5,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "contract",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "parties": {
+      "f1": 1.0,
+      "field_name": "parties",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 0.5,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.5,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "contract__endorsement__missing__Endorsement",
+    "metadata": {
+     "doc_type": "contract"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.5
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.6667,
+    "extraction_f2": 0.5556,
+    "extraction_precision": 1.0,
+    "extraction_recall": 0.5,
+    "overall_extraction_score": 0.5,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "contract__franchise__spurious__Franchise": {
+  "score_row": {
+   "doc_type": "contract",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.8889,
+   "extraction_f2": 0.9524,
+   "extraction_precision": 0.8,
+   "extraction_recall": 1.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "contract",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "parties": {
+      "f1": 1.0,
+      "field_name": "parties",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 1.0,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 1.0,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "contract__franchise__spurious__Franchise",
+    "metadata": {
+     "doc_type": "contract"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 1.0
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.8889,
+    "extraction_f2": 0.9524,
+    "extraction_precision": 0.8,
+    "extraction_recall": 1.0,
+    "overall_extraction_score": 1.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "contract__hosting__mixed__Hosting": {
+  "score_row": {
+   "doc_type": "contract",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.8235,
+   "extraction_f2": 0.8537,
+   "extraction_precision": 0.7778,
+   "extraction_recall": 0.875,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "contract",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "parties": {
+      "f1": 1.0,
+      "field_name": "parties",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 0.875,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.875,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "contract__hosting__mixed__Hosting",
+    "metadata": {
+     "doc_type": "contract"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.875
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.8235,
+    "extraction_f2": 0.8537,
+    "extraction_precision": 0.7778,
+    "extraction_recall": 0.875,
+    "overall_extraction_score": 0.875,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "contract__ip__exact__IP": {
+  "score_row": {
+   "doc_type": "contract",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 1.0,
+   "extraction_f2": 1.0,
+   "extraction_precision": 1.0,
+   "extraction_recall": 1.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "contract",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "parties": {
+      "f1": 1.0,
+      "field_name": "parties",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 1.0,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 1.0,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "contract__ip__exact__IP",
+    "metadata": {
+     "doc_type": "contract"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 1.0
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 1.0,
+    "extraction_f2": 1.0,
+    "extraction_precision": 1.0,
+    "extraction_recall": 1.0,
+    "overall_extraction_score": 1.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "contract__ip__no_ground_truth": {
+  "score_row": {
+   "doc_type": "contract",
+   "entity_list_f1": null,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.0,
+   "extraction_f2": 0.0,
+   "extraction_precision": 0.0,
+   "extraction_recall": 0.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "contract",
+    "entity_list_audit": {},
+    "entity_list_scores": {},
+    "overall_score": null,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": null,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "contract__ip__no_ground_truth",
+    "metadata": {
+     "doc_type": "contract"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": null
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.0,
+    "extraction_f2": 0.0,
+    "extraction_precision": 0.0,
+    "extraction_recall": 0.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "contract__joint_venture__missing__Joint_Venture___Filing": {
+  "score_row": {
+   "doc_type": "contract",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.6667,
+   "extraction_f2": 0.5556,
+   "extraction_precision": 1.0,
+   "extraction_recall": 0.5,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "contract",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "parties": {
+      "f1": 1.0,
+      "field_name": "parties",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 0.5,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.5,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "contract__joint_venture__missing__Joint_Venture___Filing",
+    "metadata": {
+     "doc_type": "contract"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.5
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.6667,
+    "extraction_f2": 0.5556,
+    "extraction_precision": 1.0,
+    "extraction_recall": 0.5,
+    "overall_extraction_score": 0.5,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "contract__joint_venture__partial__Joint_Venture": {
+  "score_row": {
+   "doc_type": "contract",
+   "entity_list_f1": 0.5,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.7143,
+   "extraction_f2": 0.6579,
+   "extraction_precision": 0.8333,
+   "extraction_recall": 0.625,
+   "fields": {
+    "ambiguous_fields": [
+     "parties"
+    ],
+    "doc_class": "contract",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "parties": {
+      "f1": 0.5,
+      "field_name": "parties",
+      "matched": 1,
+      "partial_gt": true,
+      "precision": 0.5,
+      "recall": 0.5,
+      "unmatched_expected": 1,
+      "unmatched_predicted": 1
+     }
+    },
+    "overall_score": 0.7292,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.7292,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "contract__joint_venture__partial__Joint_Venture",
+    "metadata": {
+     "doc_type": "contract"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.7292
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 0.5,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.7143,
+    "extraction_f2": 0.6579,
+    "extraction_precision": 0.8333,
+    "extraction_recall": 0.625,
+    "overall_extraction_score": 0.7292,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "contract__license__cuad_labels_none_predicted": {
+  "score_row": {
+   "cuad_effective_from_agreement": 0,
+   "cuad_fn": 3,
+   "cuad_fp": 0,
+   "cuad_out_of_universe": 0,
+   "cuad_presence_f1": 0.4,
+   "cuad_presence_precision": 1.0,
+   "cuad_presence_recall": 0.25,
+   "cuad_present": 4,
+   "cuad_tp": 1,
+   "cuad_universe": 6,
+   "cuad_value_checked": 1,
+   "cuad_value_correct": 1,
+   "doc_type": "contract",
+   "entity_list_f1": null,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.0,
+   "extraction_f2": 0.0,
+   "extraction_precision": 0.0,
+   "extraction_recall": 0.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "contract",
+    "entity_list_audit": {},
+    "entity_list_scores": {},
+    "overall_score": null,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.4,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite+cuad",
+   "suite_overall_extraction_score": null
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "contract__license__cuad_labels_none_predicted",
+    "metadata": {
+     "doc_type": "contract"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.4
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "cuad_effective_from_agreement": 0,
+    "cuad_fn": 3,
+    "cuad_fp": 0,
+    "cuad_out_of_universe": 0,
+    "cuad_presence_f1": 0.4,
+    "cuad_presence_precision": 1.0,
+    "cuad_presence_recall": 0.25,
+    "cuad_present": 4,
+    "cuad_tp": 1,
+    "cuad_universe": 6,
+    "cuad_value_checked": 1,
+    "cuad_value_correct": 1,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.0,
+    "extraction_f2": 0.0,
+    "extraction_precision": 0.0,
+    "extraction_recall": 0.0,
+    "overall_extraction_score": 0.4,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "contract__license__spurious__License_Agreements": {
+  "score_row": {
+   "doc_type": "contract",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.8889,
+   "extraction_f2": 0.9524,
+   "extraction_precision": 0.8,
+   "extraction_recall": 1.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "contract",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "parties": {
+      "f1": 1.0,
+      "field_name": "parties",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 1.0,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 1.0,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "contract__license__spurious__License_Agreements",
+    "metadata": {
+     "doc_type": "contract"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 1.0
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.8889,
+    "extraction_f2": 0.9524,
+    "extraction_precision": 0.8,
+    "extraction_recall": 1.0,
+    "overall_extraction_score": 1.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "contract__maintenance__mixed__Maintenance": {
+  "score_row": {
+   "doc_type": "contract",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.8235,
+   "extraction_f2": 0.8537,
+   "extraction_precision": 0.7778,
+   "extraction_recall": 0.875,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "contract",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "parties": {
+      "f1": 1.0,
+      "field_name": "parties",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 0.875,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.875,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "contract__maintenance__mixed__Maintenance",
+    "metadata": {
+     "doc_type": "contract"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.875
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.8235,
+    "extraction_f2": 0.8537,
+    "extraction_precision": 0.7778,
+    "extraction_recall": 0.875,
+    "overall_extraction_score": 0.875,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "contract__manufacturing__exact__Manufacturing": {
+  "score_row": {
+   "doc_type": "contract",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 1.0,
+   "extraction_f2": 1.0,
+   "extraction_precision": 1.0,
+   "extraction_recall": 1.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "contract",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "parties": {
+      "f1": 1.0,
+      "field_name": "parties",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 1.0,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 1.0,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "contract__manufacturing__exact__Manufacturing",
+    "metadata": {
+     "doc_type": "contract"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 1.0
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 1.0,
+    "extraction_f2": 1.0,
+    "extraction_precision": 1.0,
+    "extraction_recall": 1.0,
+    "overall_extraction_score": 1.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "contract__marketing__partial__Marketing": {
+  "score_row": {
+   "doc_type": "contract",
+   "entity_list_f1": 0.5,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.7143,
+   "extraction_f2": 0.6579,
+   "extraction_precision": 0.8333,
+   "extraction_recall": 0.625,
+   "fields": {
+    "ambiguous_fields": [
+     "parties"
+    ],
+    "doc_class": "contract",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "parties": {
+      "f1": 0.5,
+      "field_name": "parties",
+      "matched": 1,
+      "partial_gt": true,
+      "precision": 0.5,
+      "recall": 0.5,
+      "unmatched_expected": 1,
+      "unmatched_predicted": 1
+     }
+    },
+    "overall_score": 0.7344,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.7344,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "contract__marketing__partial__Marketing",
+    "metadata": {
+     "doc_type": "contract"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.7344
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 0.5,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.7143,
+    "extraction_f2": 0.6579,
+    "extraction_precision": 0.8333,
+    "extraction_recall": 0.625,
+    "overall_extraction_score": 0.7344,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "contract__marketing__predicted_json_string": {
+  "score_row": {
+   "error": "ValueError"
+  },
+  "scores_jsonl": {
+   "error": "ValueError"
+  },
+  "serving_record": {
+   "error": "ValueError"
+  }
+ },
+ "contract__non_compete_no_solicit__missing__Non_Compete_Non_Solicit": {
+  "score_row": {
+   "doc_type": "contract",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.6667,
+   "extraction_f2": 0.5556,
+   "extraction_precision": 1.0,
+   "extraction_recall": 0.5,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "contract",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "parties": {
+      "f1": 1.0,
+      "field_name": "parties",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 0.5,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.5,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "contract__non_compete_no_solicit__missing__Non_Compete_Non_Solicit",
+    "metadata": {
+     "doc_type": "contract"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.5
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.6667,
+    "extraction_f2": 0.5556,
+    "extraction_precision": 1.0,
+    "extraction_recall": 0.5,
+    "overall_extraction_score": 0.5,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "contract__outsourcing__spurious__Outsourcing": {
+  "score_row": {
+   "doc_type": "contract",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.8889,
+   "extraction_f2": 0.9524,
+   "extraction_precision": 0.8,
+   "extraction_recall": 1.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "contract",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "parties": {
+      "f1": 1.0,
+      "field_name": "parties",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 1.0,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 1.0,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "contract__outsourcing__spurious__Outsourcing",
+    "metadata": {
+     "doc_type": "contract"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 1.0
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.8889,
+    "extraction_f2": 0.9524,
+    "extraction_precision": 0.8,
+    "extraction_recall": 1.0,
+    "overall_extraction_score": 1.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "contract__promotion__mixed__Promotion": {
+  "score_row": {
+   "doc_type": "contract",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.8235,
+   "extraction_f2": 0.8537,
+   "extraction_precision": 0.7778,
+   "extraction_recall": 0.875,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "contract",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "parties": {
+      "f1": 1.0,
+      "field_name": "parties",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 0.875,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.875,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "contract__promotion__mixed__Promotion",
+    "metadata": {
+     "doc_type": "contract"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.875
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.8235,
+    "extraction_f2": 0.8537,
+    "extraction_precision": 0.7778,
+    "extraction_recall": 0.875,
+    "overall_extraction_score": 0.875,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "contract__reseller__exact__Reseller": {
+  "score_row": {
+   "doc_type": "contract",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 1.0,
+   "extraction_f2": 1.0,
+   "extraction_precision": 1.0,
+   "extraction_recall": 1.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "contract",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "parties": {
+      "f1": 1.0,
+      "field_name": "parties",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 1.0,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 1.0,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "contract__reseller__exact__Reseller",
+    "metadata": {
+     "doc_type": "contract"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 1.0
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 1.0,
+    "extraction_f2": 1.0,
+    "extraction_precision": 1.0,
+    "extraction_recall": 1.0,
+    "overall_extraction_score": 1.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "contract__reseller__parse_error_raw": {
+  "score_row": {
+   "doc_type": "contract",
+   "entity_list_f1": null,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.0,
+   "extraction_f2": 0.0,
+   "extraction_precision": 0.0,
+   "extraction_recall": 0.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "contract",
+    "entity_list_audit": {},
+    "entity_list_scores": {},
+    "overall_score": 0.0,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.0,
+   "parse_error": true,
+   "parse_failure_reason": "flagged_parse_error",
+   "prose_wrapper": false,
+   "schema_adherence": 0.0,
+   "schema_valid": false,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "contract__reseller__parse_error_raw",
+    "metadata": {
+     "doc_type": "contract"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.0
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.0,
+    "extraction_f2": 0.0,
+    "extraction_precision": 0.0,
+    "extraction_recall": 0.0,
+    "overall_extraction_score": 0.0,
+    "schema_adherence": 0.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "contract__service__cuad_labels_good": {
+  "score_row": {
+   "cuad_effective_from_agreement": 0,
+   "cuad_fn": 0,
+   "cuad_fp": 1,
+   "cuad_out_of_universe": 1,
+   "cuad_presence_f1": 0.8889,
+   "cuad_presence_precision": 0.8,
+   "cuad_presence_recall": 1.0,
+   "cuad_present": 4,
+   "cuad_tp": 4,
+   "cuad_universe": 6,
+   "cuad_value_checked": 3,
+   "cuad_value_correct": 3,
+   "doc_type": "contract",
+   "entity_list_f1": null,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.0,
+   "extraction_f2": 0.0,
+   "extraction_precision": 0.0,
+   "extraction_recall": 0.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "contract",
+    "entity_list_audit": {},
+    "entity_list_scores": {},
+    "overall_score": null,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.8889,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite+cuad",
+   "suite_overall_extraction_score": null
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "contract__service__cuad_labels_good",
+    "metadata": {
+     "doc_type": "contract"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.8889
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "cuad_effective_from_agreement": 0,
+    "cuad_fn": 0,
+    "cuad_fp": 1,
+    "cuad_out_of_universe": 1,
+    "cuad_presence_f1": 0.8889,
+    "cuad_presence_precision": 0.8,
+    "cuad_presence_recall": 1.0,
+    "cuad_present": 4,
+    "cuad_tp": 4,
+    "cuad_universe": 6,
+    "cuad_value_checked": 3,
+    "cuad_value_correct": 3,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.0,
+    "extraction_f2": 0.0,
+    "extraction_precision": 0.0,
+    "extraction_recall": 0.0,
+    "overall_extraction_score": 0.8889,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "contract__service__partial__Service": {
+  "score_row": {
+   "doc_type": "contract",
+   "entity_list_f1": 0.5,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.7143,
+   "extraction_f2": 0.6579,
+   "extraction_precision": 0.8333,
+   "extraction_recall": 0.625,
+   "fields": {
+    "ambiguous_fields": [
+     "parties"
+    ],
+    "doc_class": "contract",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "parties": {
+      "f1": 0.5,
+      "field_name": "parties",
+      "matched": 1,
+      "partial_gt": true,
+      "precision": 0.5,
+      "recall": 0.5,
+      "unmatched_expected": 1,
+      "unmatched_predicted": 1
+     }
+    },
+    "overall_score": 0.7125,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.7125,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "contract__service__partial__Service",
+    "metadata": {
+     "doc_type": "contract"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.7125
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 0.5,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.7143,
+    "extraction_f2": 0.6579,
+    "extraction_precision": 0.8333,
+    "extraction_recall": 0.625,
+    "overall_extraction_score": 0.7125,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "contract__service__prose_predicted": {
+  "score_row": {
+   "error": "ValueError"
+  },
+  "scores_jsonl": {
+   "error": "ValueError"
+  },
+  "serving_record": {
+   "error": "ValueError"
+  }
+ },
+ "contract__sponsorship__missing__Sponsorship": {
+  "score_row": {
+   "doc_type": "contract",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.6667,
+   "extraction_f2": 0.5556,
+   "extraction_precision": 1.0,
+   "extraction_recall": 0.5,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "contract",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "parties": {
+      "f1": 1.0,
+      "field_name": "parties",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 0.5,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.5,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "contract__sponsorship__missing__Sponsorship",
+    "metadata": {
+     "doc_type": "contract"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.5
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.6667,
+    "extraction_f2": 0.5556,
+    "extraction_precision": 1.0,
+    "extraction_recall": 0.5,
+    "overall_extraction_score": 0.5,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "contract__strategic_alliance__spurious__Strategic_Alliance": {
+  "score_row": {
+   "doc_type": "contract",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.8889,
+   "extraction_f2": 0.9524,
+   "extraction_precision": 0.8,
+   "extraction_recall": 1.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "contract",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "parties": {
+      "f1": 1.0,
+      "field_name": "parties",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 1.0,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 1.0,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "contract__strategic_alliance__spurious__Strategic_Alliance",
+    "metadata": {
+     "doc_type": "contract"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 1.0
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.8889,
+    "extraction_f2": 0.9524,
+    "extraction_precision": 0.8,
+    "extraction_recall": 1.0,
+    "overall_extraction_score": 1.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "contract__supply__cuad_labels_as_dict": {
+  "score_row": {
+   "cuad_effective_from_agreement": 0,
+   "cuad_fn": 3,
+   "cuad_fp": 1,
+   "cuad_out_of_universe": 0,
+   "cuad_presence_f1": 0.3333,
+   "cuad_presence_precision": 0.5,
+   "cuad_presence_recall": 0.25,
+   "cuad_present": 4,
+   "cuad_tp": 1,
+   "cuad_universe": 6,
+   "cuad_value_checked": 1,
+   "cuad_value_correct": 0,
+   "doc_type": "contract",
+   "entity_list_f1": null,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.0,
+   "extraction_f2": 0.0,
+   "extraction_precision": 0.0,
+   "extraction_recall": 0.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "contract",
+    "entity_list_audit": {},
+    "entity_list_scores": {},
+    "overall_score": null,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.3333,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite+cuad",
+   "suite_overall_extraction_score": null
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "contract__supply__cuad_labels_as_dict",
+    "metadata": {
+     "doc_type": "contract"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.3333
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "cuad_effective_from_agreement": 0,
+    "cuad_fn": 3,
+    "cuad_fp": 1,
+    "cuad_out_of_universe": 0,
+    "cuad_presence_f1": 0.3333,
+    "cuad_presence_precision": 0.5,
+    "cuad_presence_recall": 0.25,
+    "cuad_present": 4,
+    "cuad_tp": 1,
+    "cuad_universe": 6,
+    "cuad_value_checked": 1,
+    "cuad_value_correct": 0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.0,
+    "extraction_f2": 0.0,
+    "extraction_precision": 0.0,
+    "extraction_recall": 0.0,
+    "overall_extraction_score": 0.3333,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "contract__supply__mixed__Supply": {
+  "score_row": {
+   "doc_type": "contract",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.8235,
+   "extraction_f2": 0.8537,
+   "extraction_precision": 0.7778,
+   "extraction_recall": 0.875,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "contract",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "parties": {
+      "f1": 1.0,
+      "field_name": "parties",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 0.875,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.875,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "contract__supply__mixed__Supply",
+    "metadata": {
+     "doc_type": "contract"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.875
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.8235,
+    "extraction_f2": 0.8537,
+    "extraction_precision": 0.7778,
+    "extraction_recall": 0.875,
+    "overall_extraction_score": 0.875,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "contract__transportation__exact__Transportation": {
+  "score_row": {
+   "doc_type": "contract",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 1.0,
+   "extraction_f2": 1.0,
+   "extraction_precision": 1.0,
+   "extraction_recall": 1.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "contract",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "parties": {
+      "f1": 1.0,
+      "field_name": "parties",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 1.0,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 1.0,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "contract__transportation__exact__Transportation",
+    "metadata": {
+     "doc_type": "contract"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 1.0
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 1.0,
+    "extraction_f2": 1.0,
+    "extraction_precision": 1.0,
+    "extraction_recall": 1.0,
+    "overall_extraction_score": 1.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "corporate_record__articles_of_incorporation__partial": {
+  "score_row": {
+   "doc_type": "corporate_record",
+   "entity_list_f1": 0.6667,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.6667,
+   "extraction_f2": 0.614,
+   "extraction_precision": 0.7778,
+   "extraction_recall": 0.5833,
+   "fields": {
+    "ambiguous_fields": [
+     "incorporators",
+     "signatories"
+    ],
+    "doc_class": "corporate_record",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "incorporators": {
+      "f1": 0.5,
+      "field_name": "incorporators",
+      "matched": 1,
+      "partial_gt": false,
+      "precision": 0.5,
+      "recall": 0.5,
+      "unmatched_expected": 1,
+      "unmatched_predicted": 1
+     },
+     "keywords": {
+      "f1": 1.0,
+      "field_name": "keywords",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "signatories": {
+      "f1": 0.5,
+      "field_name": "signatories",
+      "matched": 1,
+      "partial_gt": false,
+      "precision": 0.5,
+      "recall": 0.5,
+      "unmatched_expected": 1,
+      "unmatched_predicted": 1
+     }
+    },
+    "overall_score": 0.6667,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.6667,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite",
+   "unlabeled_fields": []
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "corporate_record__articles_of_incorporation__partial",
+    "metadata": {
+     "doc_type": "corporate_record"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.6667
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 0.6667,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.6667,
+    "extraction_f2": 0.614,
+    "extraction_precision": 0.7778,
+    "extraction_recall": 0.5833,
+    "overall_extraction_score": 0.6667,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "corporate_record__board_resolution__spurious": {
+  "score_row": {
+   "doc_type": "corporate_record",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 1,
+   "extra_schema_keys": [
+    "certifying_officer"
+   ],
+   "extraction_f1": 1.0,
+   "extraction_f2": 1.0,
+   "extraction_precision": 1.0,
+   "extraction_recall": 1.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "corporate_record",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "keywords": {
+      "f1": 1.0,
+      "field_name": "keywords",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "resolutions": {
+      "f1": 1.0,
+      "field_name": "resolutions",
+      "matched": 2,
+      "partial_gt": false,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "signatories": {
+      "f1": 1.0,
+      "field_name": "signatories",
+      "matched": 2,
+      "partial_gt": false,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 1.0,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 1.0,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite",
+   "unlabeled_fields": [
+    "filing_number"
+   ]
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "corporate_record__board_resolution__spurious",
+    "metadata": {
+     "doc_type": "corporate_record"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 1.0
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 1,
+    "extraction_f1": 1.0,
+    "extraction_f2": 1.0,
+    "extraction_precision": 1.0,
+    "extraction_recall": 1.0,
+    "overall_extraction_score": 1.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "corporate_record__bylaws__exact": {
+  "score_row": {
+   "doc_type": "corporate_record",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 1.0,
+   "extraction_f2": 1.0,
+   "extraction_precision": 1.0,
+   "extraction_recall": 1.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "corporate_record",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "keywords": {
+      "f1": 1.0,
+      "field_name": "keywords",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "signatories": {
+      "f1": 1.0,
+      "field_name": "signatories",
+      "matched": 2,
+      "partial_gt": false,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 1.0,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 1.0,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite",
+   "unlabeled_fields": [
+    "filing_number"
+   ]
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "corporate_record__bylaws__exact",
+    "metadata": {
+     "doc_type": "corporate_record"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 1.0
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 1.0,
+    "extraction_f2": 1.0,
+    "extraction_precision": 1.0,
+    "extraction_recall": 1.0,
+    "overall_extraction_score": 1.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "corporate_record__bylaws__no_ground_truth": {
+  "score_row": {
+   "doc_type": "corporate_record",
+   "entity_list_f1": null,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.0,
+   "extraction_f2": 0.0,
+   "extraction_precision": 0.0,
+   "extraction_recall": 0.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "corporate_record",
+    "entity_list_audit": {},
+    "entity_list_scores": {},
+    "overall_score": null,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": null,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite",
+   "unlabeled_fields": [
+    "entity_name",
+    "record_type",
+    "effective_date",
+    "signatories",
+    "jurisdiction",
+    "filing_number",
+    "certifying_officer",
+    "last_amended_date"
+   ]
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "corporate_record__bylaws__no_ground_truth",
+    "metadata": {
+     "doc_type": "corporate_record"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": null
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.0,
+    "extraction_f2": 0.0,
+    "extraction_precision": 0.0,
+    "extraction_recall": 0.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "corporate_record__bylaws__predicted_json_string": {
+  "score_row": {
+   "error": "ValueError"
+  },
+  "scores_jsonl": {
+   "error": "ValueError"
+  },
+  "serving_record": {
+   "error": "ValueError"
+  }
+ },
+ "corporate_record__certificate_of_formation__missing": {
+  "score_row": {
+   "doc_type": "corporate_record",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.625,
+   "extraction_f2": 0.5102,
+   "extraction_precision": 1.0,
+   "extraction_recall": 0.4545,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "corporate_record",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "organizers": {
+      "f1": 1.0,
+      "field_name": "organizers",
+      "matched": 2,
+      "partial_gt": false,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "signatories": {
+      "f1": 1.0,
+      "field_name": "signatories",
+      "matched": 2,
+      "partial_gt": false,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 0.4545,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.4545,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite",
+   "unlabeled_fields": []
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "corporate_record__certificate_of_formation__missing",
+    "metadata": {
+     "doc_type": "corporate_record"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.4545
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.625,
+    "extraction_f2": 0.5102,
+    "extraction_precision": 1.0,
+    "extraction_recall": 0.4545,
+    "overall_extraction_score": 0.4545,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "corporate_record__charter_amendment__predicted_null": {
+  "score_row": {
+   "doc_type": "corporate_record",
+   "entity_list_f1": null,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.0,
+   "extraction_f2": 0.0,
+   "extraction_precision": 0.0,
+   "extraction_recall": 0.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "corporate_record",
+    "entity_list_audit": {},
+    "entity_list_scores": {},
+    "overall_score": 0.0,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.0,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite",
+   "unlabeled_fields": []
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "corporate_record__charter_amendment__predicted_null",
+    "metadata": {
+     "doc_type": "corporate_record"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.0
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.0,
+    "extraction_f2": 0.0,
+    "extraction_precision": 0.0,
+    "extraction_recall": 0.0,
+    "overall_extraction_score": 0.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "corporate_record__charter_amendment__spurious": {
+  "score_row": {
+   "doc_type": "corporate_record",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 1,
+   "extra_schema_keys": [
+    "certifying_officer"
+   ],
+   "extraction_f1": 1.0,
+   "extraction_f2": 1.0,
+   "extraction_precision": 1.0,
+   "extraction_recall": 1.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "corporate_record",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "amended_provisions": {
+      "f1": 1.0,
+      "field_name": "amended_provisions",
+      "matched": 2,
+      "partial_gt": false,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "keywords": {
+      "f1": 1.0,
+      "field_name": "keywords",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "signatories": {
+      "f1": 1.0,
+      "field_name": "signatories",
+      "matched": 2,
+      "partial_gt": false,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 1.0,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 1.0,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite",
+   "unlabeled_fields": []
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "corporate_record__charter_amendment__spurious",
+    "metadata": {
+     "doc_type": "corporate_record"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 1.0
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 1,
+    "extraction_f1": 1.0,
+    "extraction_f2": 1.0,
+    "extraction_precision": 1.0,
+    "extraction_recall": 1.0,
+    "overall_extraction_score": 1.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "corporate_record__indenture__missing": {
+  "score_row": {
+   "doc_type": "corporate_record",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.6315,
+   "extraction_f2": 0.5172,
+   "extraction_precision": 1.0,
+   "extraction_recall": 0.4615,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "corporate_record",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "guarantors": {
+      "f1": 1.0,
+      "field_name": "guarantors",
+      "matched": 2,
+      "partial_gt": false,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "keywords": {
+      "f1": 1.0,
+      "field_name": "keywords",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "signatories": {
+      "f1": 1.0,
+      "field_name": "signatories",
+      "matched": 2,
+      "partial_gt": false,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 0.4615,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.4615,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite",
+   "unlabeled_fields": [
+    "filing_number"
+   ]
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "corporate_record__indenture__missing",
+    "metadata": {
+     "doc_type": "corporate_record"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.4615
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.6315,
+    "extraction_f2": 0.5172,
+    "extraction_precision": 1.0,
+    "extraction_recall": 0.4615,
+    "overall_extraction_score": 0.4615,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "corporate_record__indenture__parse_error_raw": {
+  "score_row": {
+   "doc_type": "corporate_record",
+   "entity_list_f1": null,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.0,
+   "extraction_f2": 0.0,
+   "extraction_precision": 0.0,
+   "extraction_recall": 0.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "corporate_record",
+    "entity_list_audit": {},
+    "entity_list_scores": {},
+    "overall_score": 0.0,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.0,
+   "parse_error": true,
+   "parse_failure_reason": "flagged_parse_error",
+   "prose_wrapper": false,
+   "schema_adherence": 0.0,
+   "schema_valid": false,
+   "scoring_method": "suite",
+   "unlabeled_fields": [
+    "filing_number"
+   ]
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "corporate_record__indenture__parse_error_raw",
+    "metadata": {
+     "doc_type": "corporate_record"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.0
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.0,
+    "extraction_f2": 0.0,
+    "extraction_precision": 0.0,
+    "extraction_recall": 0.0,
+    "overall_extraction_score": 0.0,
+    "schema_adherence": 0.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "corporate_record__no_subclass__exact": {
+  "score_row": {
+   "doc_type": "corporate_record",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 2,
+   "extra_schema_keys": [
+    "certifying_officer",
+    "last_amended_date"
+   ],
+   "extraction_f1": 1.0,
+   "extraction_f2": 1.0,
+   "extraction_precision": 1.0,
+   "extraction_recall": 1.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "corporate_record",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "keywords": {
+      "f1": 1.0,
+      "field_name": "keywords",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "signatories": {
+      "f1": 1.0,
+      "field_name": "signatories",
+      "matched": 2,
+      "partial_gt": false,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 1.0,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 1.0,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite",
+   "unlabeled_fields": [
+    "filing_number"
+   ]
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "corporate_record__no_subclass__exact",
+    "metadata": {
+     "doc_type": "corporate_record"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 1.0
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 2,
+    "extraction_f1": 1.0,
+    "extraction_f2": 1.0,
+    "extraction_precision": 1.0,
+    "extraction_recall": 1.0,
+    "overall_extraction_score": 1.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "corporate_record__no_subclass__partial_with_text": {
+  "score_row": {
+   "doc_type": "corporate_record",
+   "entity_list_f1": 0.6667,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.4,
+   "extraction_f2": 0.2941,
+   "extraction_precision": 1.0,
+   "extraction_recall": 0.25,
+   "fields": {
+    "ambiguous_fields": [
+     "signatories"
+    ],
+    "doc_class": "corporate_record",
+    "entity_list_audit": {
+     "entity_name": {
+      "doc_verification": true,
+      "hallucinated": 0,
+      "hallucination_rate": 0.0,
+      "matched_gt": 1,
+      "n_predicted": 1,
+      "true_items": 1,
+      "verified_in_doc": 1,
+      "verified_precision": 1.0
+     },
+     "record_type": {
+      "doc_verification": true,
+      "hallucinated": 0,
+      "hallucination_rate": 0.0,
+      "matched_gt": 1,
+      "n_predicted": 1,
+      "true_items": 1,
+      "verified_in_doc": 1,
+      "verified_precision": 1.0
+     },
+     "signatories": {
+      "doc_verification": true,
+      "hallucinated": 0,
+      "hallucination_rate": 0.0,
+      "matched_gt": 1,
+      "n_predicted": 1,
+      "true_items": 1,
+      "verified_in_doc": 1,
+      "verified_precision": 1.0
+     }
+    },
+    "entity_list_scores": {
+     "signatories": {
+      "f1": 0.6666666666666666,
+      "field_name": "signatories",
+      "matched": 1,
+      "partial_gt": false,
+      "precision": 1.0,
+      "recall": 0.5,
+      "unmatched_expected": 1,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 0.3333,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.3333,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite",
+   "unlabeled_fields": [
+    "filing_number"
+   ]
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "corporate_record__no_subclass__partial_with_text",
+    "metadata": {
+     "doc_type": "corporate_record"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.3333
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 0.6667,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.4,
+    "extraction_f2": 0.2941,
+    "extraction_precision": 1.0,
+    "extraction_recall": 0.25,
+    "overall_extraction_score": 0.3333,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "corporate_record__officer_certificate__mixed": {
+  "score_row": {
+   "doc_type": "corporate_record",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.9091,
+   "extraction_f2": 0.862,
+   "extraction_precision": 1.0,
+   "extraction_recall": 0.8333,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "corporate_record",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "keywords": {
+      "f1": 1.0,
+      "field_name": "keywords",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "signatories": {
+      "f1": 1.0,
+      "field_name": "signatories",
+      "matched": 2,
+      "partial_gt": false,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 0.8509,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.8509,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite",
+   "unlabeled_fields": [
+    "filing_number"
+   ]
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "corporate_record__officer_certificate__mixed",
+    "metadata": {
+     "doc_type": "corporate_record"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.8509
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.9091,
+    "extraction_f2": 0.862,
+    "extraction_precision": 1.0,
+    "extraction_recall": 0.8333,
+    "overall_extraction_score": 0.8509,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "corporate_record__other__exact": {
+  "score_row": {
+   "doc_type": "corporate_record",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 1.0,
+   "extraction_f2": 1.0,
+   "extraction_precision": 1.0,
+   "extraction_recall": 1.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "corporate_record",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "keywords": {
+      "f1": 1.0,
+      "field_name": "keywords",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "signatories": {
+      "f1": 1.0,
+      "field_name": "signatories",
+      "matched": 2,
+      "partial_gt": false,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 1.0,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 1.0,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite",
+   "unlabeled_fields": []
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "corporate_record__other__exact",
+    "metadata": {
+     "doc_type": "corporate_record"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 1.0
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 1.0,
+    "extraction_f2": 1.0,
+    "extraction_precision": 1.0,
+    "extraction_recall": 1.0,
+    "overall_extraction_score": 1.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "corporate_record__other__predicted_list": {
+  "score_row": {
+   "error": "ValueError"
+  },
+  "scores_jsonl": {
+   "error": "ValueError"
+  },
+  "serving_record": {
+   "error": "ValueError"
+  }
+ },
+ "corporate_record__powers_of_attorney__mixed": {
+  "score_row": {
+   "doc_type": "corporate_record",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 1,
+   "extra_schema_keys": [
+    "certifying_officer"
+   ],
+   "extraction_f1": 0.9565,
+   "extraction_f2": 0.9322,
+   "extraction_precision": 1.0,
+   "extraction_recall": 0.9167,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "corporate_record",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "attorneys_in_fact": {
+      "f1": 1.0,
+      "field_name": "attorneys_in_fact",
+      "matched": 2,
+      "partial_gt": false,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "keywords": {
+      "f1": 1.0,
+      "field_name": "keywords",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "signatories": {
+      "f1": 1.0,
+      "field_name": "signatories",
+      "matched": 2,
+      "partial_gt": false,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 0.9167,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.9167,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite",
+   "unlabeled_fields": [
+    "filing_number"
+   ]
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "corporate_record__powers_of_attorney__mixed",
+    "metadata": {
+     "doc_type": "corporate_record"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.9167
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 1,
+    "extraction_f1": 0.9565,
+    "extraction_f2": 0.9322,
+    "extraction_precision": 1.0,
+    "extraction_recall": 0.9167,
+    "overall_extraction_score": 0.9167,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "corporate_record__rights_instrument__partial": {
+  "score_row": {
+   "doc_type": "corporate_record",
+   "entity_list_f1": 0.5,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.8,
+   "extraction_f2": 0.7812,
+   "extraction_precision": 0.8333,
+   "extraction_recall": 0.7692,
+   "fields": {
+    "ambiguous_fields": [
+     "keywords",
+     "signatories"
+    ],
+    "doc_class": "corporate_record",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "keywords": {
+      "f1": 0.5,
+      "field_name": "keywords",
+      "matched": 1,
+      "partial_gt": true,
+      "precision": 0.5,
+      "recall": 0.5,
+      "unmatched_expected": 1,
+      "unmatched_predicted": 1
+     },
+     "signatories": {
+      "f1": 0.5,
+      "field_name": "signatories",
+      "matched": 1,
+      "partial_gt": false,
+      "precision": 0.5,
+      "recall": 0.5,
+      "unmatched_expected": 1,
+      "unmatched_predicted": 1
+     }
+    },
+    "overall_score": 0.8462,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.8462,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite",
+   "unlabeled_fields": [
+    "filing_number"
+   ]
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "corporate_record__rights_instrument__partial",
+    "metadata": {
+     "doc_type": "corporate_record"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.8462
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 0.5,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.8,
+    "extraction_f2": 0.7812,
+    "extraction_precision": 0.8333,
+    "extraction_recall": 0.7692,
+    "overall_extraction_score": 0.8462,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "corporate_record__subsidiary_list__exact": {
+  "score_row": {
+   "doc_type": "corporate_record",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 1.0,
+   "extraction_f2": 1.0,
+   "extraction_precision": 1.0,
+   "extraction_recall": 1.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "corporate_record",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "keywords": {
+      "f1": 1.0,
+      "field_name": "keywords",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "subsidiaries": {
+      "f1": 1.0,
+      "field_name": "subsidiaries",
+      "matched": 2,
+      "partial_gt": false,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "subsidiary_jurisdictions": {
+      "f1": 1.0,
+      "field_name": "subsidiary_jurisdictions",
+      "matched": 2,
+      "partial_gt": false,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 1.0,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 1.0,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite",
+   "unlabeled_fields": [
+    "signatories",
+    "jurisdiction",
+    "filing_number"
+   ]
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "corporate_record__subsidiary_list__exact",
+    "metadata": {
+     "doc_type": "corporate_record"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 1.0
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 1.0,
+    "extraction_f2": 1.0,
+    "extraction_precision": 1.0,
+    "extraction_recall": 1.0,
+    "overall_extraction_score": 1.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "corporate_record__subsidiary_list__prose_predicted": {
+  "score_row": {
+   "error": "ValueError"
+  },
+  "scores_jsonl": {
+   "error": "ValueError"
+  },
+  "serving_record": {
+   "error": "ValueError"
+  }
+ },
+ "correspondence__attorney_demand__exact": {
+  "score_row": {
+   "doc_type": "correspondence",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 1.0,
+   "extraction_f2": 1.0,
+   "extraction_precision": 1.0,
+   "extraction_recall": 1.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "correspondence",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "action_items": {
+      "f1": 1.0,
+      "field_name": "action_items",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "additional_recipients": {
+      "f1": 1.0,
+      "field_name": "additional_recipients",
+      "matched": 1,
+      "partial_gt": false,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "keywords": {
+      "f1": 1.0,
+      "field_name": "keywords",
+      "matched": 3,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 1.0,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 1.0,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "correspondence__attorney_demand__exact",
+    "metadata": {
+     "doc_type": "correspondence"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 1.0
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 1.0,
+    "extraction_f2": 1.0,
+    "extraction_precision": 1.0,
+    "extraction_recall": 1.0,
+    "overall_extraction_score": 1.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "correspondence__demand__mixed": {
+  "score_row": {
+   "doc_type": "correspondence",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.9,
+   "extraction_f2": 0.8491,
+   "extraction_precision": 1.0,
+   "extraction_recall": 0.8182,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "correspondence",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "action_items": {
+      "f1": 1.0,
+      "field_name": "action_items",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "additional_recipients": {
+      "f1": 1.0,
+      "field_name": "additional_recipients",
+      "matched": 1,
+      "partial_gt": false,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "keywords": {
+      "f1": 1.0,
+      "field_name": "keywords",
+      "matched": 3,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 0.8182,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.8182,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 0.0,
+   "schema_valid": false,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "correspondence__demand__mixed",
+    "metadata": {
+     "doc_type": "correspondence"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.8182
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.9,
+    "extraction_f2": 0.8491,
+    "extraction_precision": 1.0,
+    "extraction_recall": 0.8182,
+    "overall_extraction_score": 0.8182,
+    "schema_adherence": 0.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "correspondence__demand__predicted_null": {
+  "score_row": {
+   "doc_type": "correspondence",
+   "entity_list_f1": null,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.0,
+   "extraction_f2": 0.0,
+   "extraction_precision": 0.0,
+   "extraction_recall": 0.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "correspondence",
+    "entity_list_audit": {},
+    "entity_list_scores": {},
+    "overall_score": 0.0,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.0,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "correspondence__demand__predicted_null",
+    "metadata": {
+     "doc_type": "correspondence"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.0
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.0,
+    "extraction_f2": 0.0,
+    "extraction_precision": 0.0,
+    "extraction_recall": 0.0,
+    "overall_extraction_score": 0.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "correspondence__email__exact": {
+  "score_row": {
+   "doc_type": "correspondence",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 1.0,
+   "extraction_f2": 1.0,
+   "extraction_precision": 1.0,
+   "extraction_recall": 1.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "correspondence",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "action_items": {
+      "f1": 1.0,
+      "field_name": "action_items",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "additional_recipients": {
+      "f1": 1.0,
+      "field_name": "additional_recipients",
+      "matched": 1,
+      "partial_gt": false,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "keywords": {
+      "f1": 1.0,
+      "field_name": "keywords",
+      "matched": 3,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 1.0,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 1.0,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "correspondence__email__exact",
+    "metadata": {
+     "doc_type": "correspondence"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 1.0
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 1.0,
+    "extraction_f2": 1.0,
+    "extraction_precision": 1.0,
+    "extraction_recall": 1.0,
+    "overall_extraction_score": 1.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "correspondence__email__topic_sentiment_gt_match": {
+  "score_row": {
+   "doc_type": "correspondence",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 2,
+   "extra_schema_keys": [
+    "content_topic",
+    "sentiment_label"
+   ],
+   "extraction_f1": 1.0,
+   "extraction_f2": 1.0,
+   "extraction_precision": 1.0,
+   "extraction_recall": 1.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "correspondence",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "action_items": {
+      "f1": 1.0,
+      "field_name": "action_items",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "additional_recipients": {
+      "f1": 1.0,
+      "field_name": "additional_recipients",
+      "matched": 1,
+      "partial_gt": false,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "keywords": {
+      "f1": 1.0,
+      "field_name": "keywords",
+      "matched": 3,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 1.0,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 1.0,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "correspondence__email__topic_sentiment_gt_match",
+    "metadata": {
+     "doc_type": "correspondence"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 1.0
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 2,
+    "extraction_f1": 1.0,
+    "extraction_f2": 1.0,
+    "extraction_precision": 1.0,
+    "extraction_recall": 1.0,
+    "overall_extraction_score": 1.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "correspondence__letter__missing": {
+  "score_row": {
+   "doc_type": "correspondence",
+   "entity_list_f1": null,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.5714,
+   "extraction_f2": 0.4545,
+   "extraction_precision": 1.0,
+   "extraction_recall": 0.4,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "correspondence",
+    "entity_list_audit": {},
+    "entity_list_scores": {},
+    "overall_score": 0.4,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.4,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "correspondence__letter__missing",
+    "metadata": {
+     "doc_type": "correspondence"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.4
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.5714,
+    "extraction_f2": 0.4545,
+    "extraction_precision": 1.0,
+    "extraction_recall": 0.4,
+    "overall_extraction_score": 0.4,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "correspondence__letter__topic_sentiment_gt_only": {
+  "score_row": {
+   "doc_type": "correspondence",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 1.0,
+   "extraction_f2": 1.0,
+   "extraction_precision": 1.0,
+   "extraction_recall": 1.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "correspondence",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "action_items": {
+      "f1": 1.0,
+      "field_name": "action_items",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "additional_recipients": {
+      "f1": 1.0,
+      "field_name": "additional_recipients",
+      "matched": 1,
+      "partial_gt": false,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "keywords": {
+      "f1": 1.0,
+      "field_name": "keywords",
+      "matched": 3,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 1.0,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 1.0,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "correspondence__letter__topic_sentiment_gt_only",
+    "metadata": {
+     "doc_type": "correspondence"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 1.0
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 1.0,
+    "extraction_f2": 1.0,
+    "extraction_precision": 1.0,
+    "extraction_recall": 1.0,
+    "overall_extraction_score": 1.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "correspondence__meeting_request__missing": {
+  "score_row": {
+   "doc_type": "correspondence",
+   "entity_list_f1": null,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.5714,
+   "extraction_f2": 0.4545,
+   "extraction_precision": 1.0,
+   "extraction_recall": 0.4,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "correspondence",
+    "entity_list_audit": {},
+    "entity_list_scores": {},
+    "overall_score": 0.4,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.4,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "correspondence__meeting_request__missing",
+    "metadata": {
+     "doc_type": "correspondence"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.4
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.5714,
+    "extraction_f2": 0.4545,
+    "extraction_precision": 1.0,
+    "extraction_recall": 0.4,
+    "overall_extraction_score": 0.4,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "correspondence__memo__partial": {
+  "score_row": {
+   "doc_type": "correspondence",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.8889,
+   "extraction_f2": 0.8333,
+   "extraction_precision": 1.0,
+   "extraction_recall": 0.8,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "correspondence",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "action_items": {
+      "f1": 1.0,
+      "field_name": "action_items",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "additional_recipients": {
+      "f1": 1.0,
+      "field_name": "additional_recipients",
+      "matched": 1,
+      "partial_gt": false,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "keywords": {
+      "f1": 1.0,
+      "field_name": "keywords",
+      "matched": 3,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 0.8355,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.8355,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "correspondence__memo__partial",
+    "metadata": {
+     "doc_type": "correspondence"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.8355
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.8889,
+    "extraction_f2": 0.8333,
+    "extraction_precision": 1.0,
+    "extraction_recall": 0.8,
+    "overall_extraction_score": 0.8355,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "correspondence__memo__topic_sentiment_gt_mismatch": {
+  "score_row": {
+   "doc_type": "correspondence",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 2,
+   "extra_schema_keys": [
+    "content_topic",
+    "sentiment_label"
+   ],
+   "extraction_f1": 1.0,
+   "extraction_f2": 1.0,
+   "extraction_precision": 1.0,
+   "extraction_recall": 1.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "correspondence",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "action_items": {
+      "f1": 1.0,
+      "field_name": "action_items",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "additional_recipients": {
+      "f1": 1.0,
+      "field_name": "additional_recipients",
+      "matched": 1,
+      "partial_gt": false,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "keywords": {
+      "f1": 1.0,
+      "field_name": "keywords",
+      "matched": 3,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 1.0,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 1.0,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "correspondence__memo__topic_sentiment_gt_mismatch",
+    "metadata": {
+     "doc_type": "correspondence"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 1.0
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 2,
+    "extraction_f1": 1.0,
+    "extraction_f2": 1.0,
+    "extraction_precision": 1.0,
+    "extraction_recall": 1.0,
+    "overall_extraction_score": 1.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "correspondence__notice__predicted_json_string": {
+  "score_row": {
+   "error": "ValueError"
+  },
+  "scores_jsonl": {
+   "error": "ValueError"
+  },
+  "serving_record": {
+   "error": "ValueError"
+  }
+ },
+ "correspondence__notice__spurious": {
+  "score_row": {
+   "doc_type": "correspondence",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 1.0,
+   "extraction_f2": 1.0,
+   "extraction_precision": 1.0,
+   "extraction_recall": 1.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "correspondence",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "action_items": {
+      "f1": 1.0,
+      "field_name": "action_items",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "additional_recipients": {
+      "f1": 1.0,
+      "field_name": "additional_recipients",
+      "matched": 1,
+      "partial_gt": false,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "keywords": {
+      "f1": 1.0,
+      "field_name": "keywords",
+      "matched": 3,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 1.0,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 1.0,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "correspondence__notice__spurious",
+    "metadata": {
+     "doc_type": "correspondence"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 1.0
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 1.0,
+    "extraction_f2": 1.0,
+    "extraction_precision": 1.0,
+    "extraction_recall": 1.0,
+    "overall_extraction_score": 1.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "correspondence__other__no_ground_truth": {
+  "score_row": {
+   "doc_type": "correspondence",
+   "entity_list_f1": null,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.0,
+   "extraction_f2": 0.0,
+   "extraction_precision": 0.0,
+   "extraction_recall": 0.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "correspondence",
+    "entity_list_audit": {},
+    "entity_list_scores": {},
+    "overall_score": null,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": null,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "correspondence__other__no_ground_truth",
+    "metadata": {
+     "doc_type": "correspondence"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": null
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.0,
+    "extraction_f2": 0.0,
+    "extraction_precision": 0.0,
+    "extraction_recall": 0.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "correspondence__other__spurious": {
+  "score_row": {
+   "doc_type": "correspondence",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 1.0,
+   "extraction_f2": 1.0,
+   "extraction_precision": 1.0,
+   "extraction_recall": 1.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "correspondence",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "action_items": {
+      "f1": 1.0,
+      "field_name": "action_items",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "additional_recipients": {
+      "f1": 1.0,
+      "field_name": "additional_recipients",
+      "matched": 1,
+      "partial_gt": false,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "keywords": {
+      "f1": 1.0,
+      "field_name": "keywords",
+      "matched": 3,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 1.0,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 1.0,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "correspondence__other__spurious",
+    "metadata": {
+     "doc_type": "correspondence"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 1.0
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 1.0,
+    "extraction_f2": 1.0,
+    "extraction_precision": 1.0,
+    "extraction_recall": 1.0,
+    "overall_extraction_score": 1.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "correspondence__press_release__partial": {
+  "score_row": {
+   "doc_type": "correspondence",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.8889,
+   "extraction_f2": 0.8333,
+   "extraction_precision": 1.0,
+   "extraction_recall": 0.8,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "correspondence",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "action_items": {
+      "f1": 1.0,
+      "field_name": "action_items",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "additional_recipients": {
+      "f1": 1.0,
+      "field_name": "additional_recipients",
+      "matched": 1,
+      "partial_gt": false,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "keywords": {
+      "f1": 1.0,
+      "field_name": "keywords",
+      "matched": 3,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 0.8598,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.8598,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "correspondence__press_release__partial",
+    "metadata": {
+     "doc_type": "correspondence"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.8598
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.8889,
+    "extraction_f2": 0.8333,
+    "extraction_precision": 1.0,
+    "extraction_recall": 0.8,
+    "overall_extraction_score": 0.8598,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "insurance_claim__auto__partial": {
+  "score_row": {
+   "doc_type": "insurance_claim",
+   "entity_list_f1": 0.5,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.7619,
+   "extraction_f2": 0.7018,
+   "extraction_precision": 0.8889,
+   "extraction_recall": 0.6667,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "insurance_claim",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "denial_reasons": {
+      "f1": 0.0,
+      "field_name": "denial_reasons",
+      "matched": 0,
+      "partial_gt": false,
+      "precision": 0.0,
+      "recall": 0.0,
+      "unmatched_expected": 1,
+      "unmatched_predicted": 1
+     },
+     "supporting_documents": {
+      "f1": 1.0,
+      "field_name": "supporting_documents",
+      "matched": 2,
+      "partial_gt": false,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 0.6953,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.6953,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 0.0,
+   "schema_valid": false,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "insurance_claim__auto__partial",
+    "metadata": {
+     "doc_type": "insurance_claim"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.6953
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 0.5,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.7619,
+    "extraction_f2": 0.7018,
+    "extraction_precision": 0.8889,
+    "extraction_recall": 0.6667,
+    "overall_extraction_score": 0.6953,
+    "schema_adherence": 0.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "insurance_claim__auto__predicted_list": {
+  "score_row": {
+   "error": "ValueError"
+  },
+  "scores_jsonl": {
+   "error": "ValueError"
+  },
+  "serving_record": {
+   "error": "ValueError"
+  }
+ },
+ "insurance_claim__carrier__cms_source_table_in_expected": {
+  "score_row": {
+   "doc_type": "insurance_claim",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 1.0,
+   "extraction_f2": 1.0,
+   "extraction_precision": 1.0,
+   "extraction_recall": 1.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "insurance_claim",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "supporting_documents": {
+      "f1": 1.0,
+      "field_name": "supporting_documents",
+      "matched": 2,
+      "partial_gt": false,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 1.0,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 1.0,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "insurance_claim__carrier__cms_source_table_in_expected",
+    "metadata": {
+     "doc_type": "insurance_claim"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 1.0
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 1.0,
+    "extraction_f2": 1.0,
+    "extraction_precision": 1.0,
+    "extraction_recall": 1.0,
+    "overall_extraction_score": 1.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "insurance_claim__carrier__partial__no_cms_source_table": {
+  "score_row": {
+   "doc_type": "insurance_claim",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.8571,
+   "extraction_f2": 0.7895,
+   "extraction_precision": 1.0,
+   "extraction_recall": 0.75,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "insurance_claim",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "supporting_documents": {
+      "f1": 1.0,
+      "field_name": "supporting_documents",
+      "matched": 2,
+      "partial_gt": false,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 0.7694,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.7694,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 0.0,
+   "schema_valid": false,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "insurance_claim__carrier__partial__no_cms_source_table",
+    "metadata": {
+     "doc_type": "insurance_claim"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.7694
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.8571,
+    "extraction_f2": 0.7895,
+    "extraction_precision": 1.0,
+    "extraction_recall": 0.75,
+    "overall_extraction_score": 0.7694,
+    "schema_adherence": 0.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "insurance_claim__inpatient__missing__no_cms_source_table": {
+  "score_row": {
+   "doc_type": "insurance_claim",
+   "entity_list_f1": null,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.5883,
+   "extraction_f2": 0.4717,
+   "extraction_precision": 1.0,
+   "extraction_recall": 0.4167,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "insurance_claim",
+    "entity_list_audit": {},
+    "entity_list_scores": {},
+    "overall_score": 0.4167,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.4167,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "insurance_claim__inpatient__missing__no_cms_source_table",
+    "metadata": {
+     "doc_type": "insurance_claim"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.4167
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.5883,
+    "extraction_f2": 0.4717,
+    "extraction_precision": 1.0,
+    "extraction_recall": 0.4167,
+    "overall_extraction_score": 0.4167,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "insurance_claim__outpatient__prose_predicted": {
+  "score_row": {
+   "error": "ValueError"
+  },
+  "scores_jsonl": {
+   "error": "ValueError"
+  },
+  "serving_record": {
+   "error": "ValueError"
+  }
+ },
+ "insurance_claim__outpatient__spurious__no_cms_source_table": {
+  "score_row": {
+   "doc_type": "insurance_claim",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.9231,
+   "extraction_f2": 0.9677,
+   "extraction_precision": 0.8571,
+   "extraction_recall": 1.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "insurance_claim",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "supporting_documents": {
+      "f1": 1.0,
+      "field_name": "supporting_documents",
+      "matched": 2,
+      "partial_gt": false,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 1.0,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 1.0,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "insurance_claim__outpatient__spurious__no_cms_source_table",
+    "metadata": {
+     "doc_type": "insurance_claim"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 1.0
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.9231,
+    "extraction_f2": 0.9677,
+    "extraction_precision": 0.8571,
+    "extraction_recall": 1.0,
+    "overall_extraction_score": 1.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "insurance_claim__pde__mixed__no_cms_source_table": {
+  "score_row": {
+   "doc_type": "insurance_claim",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.8333,
+   "extraction_f2": 0.8333,
+   "extraction_precision": 0.8333,
+   "extraction_recall": 0.8333,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "insurance_claim",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "supporting_documents": {
+      "f1": 1.0,
+      "field_name": "supporting_documents",
+      "matched": 2,
+      "partial_gt": false,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 0.9118,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.9118,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "insurance_claim__pde__mixed__no_cms_source_table",
+    "metadata": {
+     "doc_type": "insurance_claim"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.9118
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.8333,
+    "extraction_f2": 0.8333,
+    "extraction_precision": 0.8333,
+    "extraction_recall": 0.8333,
+    "overall_extraction_score": 0.9118,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "insurance_claim__pde__predicted_cms_table_only_pred": {
+  "score_row": {
+   "doc_type": "insurance_claim",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 1.0,
+   "extraction_f2": 1.0,
+   "extraction_precision": 1.0,
+   "extraction_recall": 1.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "insurance_claim",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "supporting_documents": {
+      "f1": 1.0,
+      "field_name": "supporting_documents",
+      "matched": 2,
+      "partial_gt": false,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 1.0,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 1.0,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "insurance_claim__pde__predicted_cms_table_only_pred",
+    "metadata": {
+     "doc_type": "insurance_claim"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 1.0
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 1.0,
+    "extraction_f2": 1.0,
+    "extraction_precision": 1.0,
+    "extraction_recall": 1.0,
+    "overall_extraction_score": 1.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "insurance_claim__property__exact": {
+  "score_row": {
+   "doc_type": "insurance_claim",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 1.0,
+   "extraction_f2": 1.0,
+   "extraction_precision": 1.0,
+   "extraction_recall": 1.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "insurance_claim",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "denial_reasons": {
+      "f1": 1.0,
+      "field_name": "denial_reasons",
+      "matched": 1,
+      "partial_gt": false,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "supporting_documents": {
+      "f1": 1.0,
+      "field_name": "supporting_documents",
+      "matched": 2,
+      "partial_gt": false,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 1.0,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 1.0,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "insurance_claim__property__exact",
+    "metadata": {
+     "doc_type": "insurance_claim"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 1.0
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 1.0,
+    "extraction_f2": 1.0,
+    "extraction_precision": 1.0,
+    "extraction_recall": 1.0,
+    "overall_extraction_score": 1.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "insurance_claim__property__no_ground_truth": {
+  "score_row": {
+   "doc_type": "insurance_claim",
+   "entity_list_f1": null,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.0,
+   "extraction_f2": 0.0,
+   "extraction_precision": 0.0,
+   "extraction_recall": 0.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "insurance_claim",
+    "entity_list_audit": {},
+    "entity_list_scores": {},
+    "overall_score": null,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": null,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "insurance_claim__property__no_ground_truth",
+    "metadata": {
+     "doc_type": "insurance_claim"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": null
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.0,
+    "extraction_f2": 0.0,
+    "extraction_precision": 0.0,
+    "extraction_recall": 0.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "merger_agreement__all_cash__exact": {
+  "score_row": {
+   "doc_type": "merger_agreement",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 1.0,
+   "extraction_f2": 1.0,
+   "extraction_precision": 1.0,
+   "extraction_recall": 1.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "merger_agreement",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "keywords": {
+      "f1": 1.0,
+      "field_name": "keywords",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "parties": {
+      "f1": 1.0,
+      "field_name": "parties",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 1.0,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 1.0,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "merger_agreement__all_cash__exact",
+    "metadata": {
+     "doc_type": "merger_agreement"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 1.0
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 1.0,
+    "extraction_f2": 1.0,
+    "extraction_precision": 1.0,
+    "extraction_recall": 1.0,
+    "overall_extraction_score": 1.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "merger_agreement__all_cash__maud_labels_partial": {
+  "score_row": {
+   "doc_type": "merger_agreement",
+   "entity_list_f1": null,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.0,
+   "extraction_f2": 0.0,
+   "extraction_precision": 0.0,
+   "extraction_recall": 0.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "merger_agreement",
+    "entity_list_audit": {},
+    "entity_list_scores": {},
+    "overall_score": null,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "maud_accuracy": 0.5,
+   "maud_answered": 2,
+   "maud_clean_accuracy": 1.0,
+   "maud_clean_correct": 1,
+   "maud_clean_questions": 1,
+   "maud_conflicts": 0,
+   "maud_correct": 2,
+   "maud_precision_answered": 1.0,
+   "maud_questions": 4,
+   "overall_extraction_score": 0.5,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite+maud",
+   "suite_overall_extraction_score": null
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "merger_agreement__all_cash__maud_labels_partial",
+    "metadata": {
+     "doc_type": "merger_agreement"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.5
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.0,
+    "extraction_f2": 0.0,
+    "extraction_precision": 0.0,
+    "extraction_recall": 0.0,
+    "maud_accuracy": 0.5,
+    "maud_answered": 2,
+    "maud_clean_accuracy": 1.0,
+    "maud_clean_correct": 1,
+    "maud_clean_questions": 1,
+    "maud_conflicts": 0,
+    "maud_correct": 2,
+    "maud_precision_answered": 1.0,
+    "maud_questions": 4,
+    "overall_extraction_score": 0.5,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "merger_agreement__all_cash__no_ground_truth": {
+  "score_row": {
+   "doc_type": "merger_agreement",
+   "entity_list_f1": null,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.0,
+   "extraction_f2": 0.0,
+   "extraction_precision": 0.0,
+   "extraction_recall": 0.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "merger_agreement",
+    "entity_list_audit": {},
+    "entity_list_scores": {},
+    "overall_score": null,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": null,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "merger_agreement__all_cash__no_ground_truth",
+    "metadata": {
+     "doc_type": "merger_agreement"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": null
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.0,
+    "extraction_f2": 0.0,
+    "extraction_precision": 0.0,
+    "extraction_recall": 0.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "merger_agreement__all_stock__maud_labels_colon_question": {
+  "score_row": {
+   "doc_type": "merger_agreement",
+   "entity_list_f1": null,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.0,
+   "extraction_f2": 0.0,
+   "extraction_precision": 0.0,
+   "extraction_recall": 0.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "merger_agreement",
+    "entity_list_audit": {},
+    "entity_list_scores": {},
+    "overall_score": null,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "maud_accuracy": 0.5,
+   "maud_answered": 3,
+   "maud_clean_accuracy": 1.0,
+   "maud_clean_correct": 1,
+   "maud_clean_questions": 1,
+   "maud_conflicts": 0,
+   "maud_correct": 2,
+   "maud_precision_answered": 0.6666666666666666,
+   "maud_questions": 4,
+   "overall_extraction_score": 0.5,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite+maud",
+   "suite_overall_extraction_score": null
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "merger_agreement__all_stock__maud_labels_colon_question",
+    "metadata": {
+     "doc_type": "merger_agreement"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.5
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.0,
+    "extraction_f2": 0.0,
+    "extraction_precision": 0.0,
+    "extraction_recall": 0.0,
+    "maud_accuracy": 0.5,
+    "maud_answered": 3,
+    "maud_clean_accuracy": 1.0,
+    "maud_clean_correct": 1,
+    "maud_clean_questions": 1,
+    "maud_conflicts": 0,
+    "maud_correct": 2,
+    "maud_precision_answered": 0.6666666666666666,
+    "maud_questions": 4,
+    "overall_extraction_score": 0.5,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "merger_agreement__all_stock__partial": {
+  "score_row": {
+   "doc_type": "merger_agreement",
+   "entity_list_f1": 0.5,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.625,
+   "extraction_f2": 0.5814,
+   "extraction_precision": 0.7143,
+   "extraction_recall": 0.5556,
+   "fields": {
+    "ambiguous_fields": [
+     "keywords",
+     "parties"
+    ],
+    "doc_class": "merger_agreement",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "keywords": {
+      "f1": 0.5,
+      "field_name": "keywords",
+      "matched": 1,
+      "partial_gt": true,
+      "precision": 0.5,
+      "recall": 0.5,
+      "unmatched_expected": 1,
+      "unmatched_predicted": 1
+     },
+     "parties": {
+      "f1": 0.5,
+      "field_name": "parties",
+      "matched": 1,
+      "partial_gt": true,
+      "precision": 0.5,
+      "recall": 0.5,
+      "unmatched_expected": 1,
+      "unmatched_predicted": 1
+     }
+    },
+    "overall_score": 0.6993,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.6993,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "merger_agreement__all_stock__partial",
+    "metadata": {
+     "doc_type": "merger_agreement"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.6993
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 0.5,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.625,
+    "extraction_f2": 0.5814,
+    "extraction_precision": 0.7143,
+    "extraction_recall": 0.5556,
+    "overall_extraction_score": 0.6993,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "merger_agreement__all_stock__predicted_null": {
+  "score_row": {
+   "doc_type": "merger_agreement",
+   "entity_list_f1": null,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.0,
+   "extraction_f2": 0.0,
+   "extraction_precision": 0.0,
+   "extraction_recall": 0.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "merger_agreement",
+    "entity_list_audit": {},
+    "entity_list_scores": {},
+    "overall_score": 0.0,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.0,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "merger_agreement__all_stock__predicted_null",
+    "metadata": {
+     "doc_type": "merger_agreement"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.0
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.0,
+    "extraction_f2": 0.0,
+    "extraction_precision": 0.0,
+    "extraction_recall": 0.0,
+    "overall_extraction_score": 0.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "merger_agreement__mixed_cash_stock__maud_object_clauses": {
+  "score_row": {
+   "doc_type": "merger_agreement",
+   "entity_list_f1": null,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.0,
+   "extraction_f2": 0.0,
+   "extraction_precision": 0.0,
+   "extraction_recall": 0.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "merger_agreement",
+    "entity_list_audit": {},
+    "entity_list_scores": {},
+    "overall_score": null,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "maud_accuracy": 0.25,
+   "maud_answered": 2,
+   "maud_clean_accuracy": 0.0,
+   "maud_clean_correct": 0,
+   "maud_clean_questions": 1,
+   "maud_conflicts": 0,
+   "maud_correct": 1,
+   "maud_precision_answered": 0.5,
+   "maud_questions": 4,
+   "overall_extraction_score": 0.25,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 0.0,
+   "schema_valid": false,
+   "scoring_method": "suite+maud",
+   "suite_overall_extraction_score": null
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "merger_agreement__mixed_cash_stock__maud_object_clauses",
+    "metadata": {
+     "doc_type": "merger_agreement"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.25
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.0,
+    "extraction_f2": 0.0,
+    "extraction_precision": 0.0,
+    "extraction_recall": 0.0,
+    "maud_accuracy": 0.25,
+    "maud_answered": 2,
+    "maud_clean_accuracy": 0.0,
+    "maud_clean_correct": 0,
+    "maud_clean_questions": 1,
+    "maud_conflicts": 0,
+    "maud_correct": 1,
+    "maud_precision_answered": 0.5,
+    "maud_questions": 4,
+    "overall_extraction_score": 0.25,
+    "schema_adherence": 0.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "merger_agreement__mixed_cash_stock__missing": {
+  "score_row": {
+   "doc_type": "merger_agreement",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.7143,
+   "extraction_f2": 0.6098,
+   "extraction_precision": 1.0,
+   "extraction_recall": 0.5556,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "merger_agreement",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "keywords": {
+      "f1": 1.0,
+      "field_name": "keywords",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "parties": {
+      "f1": 1.0,
+      "field_name": "parties",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 0.5556,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.5556,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "merger_agreement__mixed_cash_stock__missing",
+    "metadata": {
+     "doc_type": "merger_agreement"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.5556
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.7143,
+    "extraction_f2": 0.6098,
+    "extraction_precision": 1.0,
+    "extraction_recall": 0.5556,
+    "overall_extraction_score": 0.5556,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "merger_agreement__mixed_cash_stock_election__spurious": {
+  "score_row": {
+   "doc_type": "merger_agreement",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 1.0,
+   "extraction_f2": 1.0,
+   "extraction_precision": 1.0,
+   "extraction_recall": 1.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "merger_agreement",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "keywords": {
+      "f1": 1.0,
+      "field_name": "keywords",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "parties": {
+      "f1": 1.0,
+      "field_name": "parties",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 1.0,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 1.0,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "merger_agreement__mixed_cash_stock_election__spurious",
+    "metadata": {
+     "doc_type": "merger_agreement"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 1.0
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 1.0,
+    "extraction_f2": 1.0,
+    "extraction_precision": 1.0,
+    "extraction_recall": 1.0,
+    "overall_extraction_score": 1.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "merger_agreement__other__maud_labels_no_clause_keys": {
+  "score_row": {
+   "doc_type": "merger_agreement",
+   "entity_list_f1": null,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.0,
+   "extraction_f2": 0.0,
+   "extraction_precision": 0.0,
+   "extraction_recall": 0.0,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "merger_agreement",
+    "entity_list_audit": {},
+    "entity_list_scores": {},
+    "overall_score": null,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "maud_accuracy": 0.0,
+   "maud_answered": 0,
+   "maud_clean_accuracy": 0.0,
+   "maud_clean_correct": 0,
+   "maud_clean_questions": 1,
+   "maud_conflicts": 0,
+   "maud_correct": 0,
+   "maud_precision_answered": null,
+   "maud_questions": 4,
+   "overall_extraction_score": 0.0,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite+maud",
+   "suite_overall_extraction_score": null
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "merger_agreement__other__maud_labels_no_clause_keys",
+    "metadata": {
+     "doc_type": "merger_agreement"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.0
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.0,
+    "extraction_f2": 0.0,
+    "extraction_precision": 0.0,
+    "extraction_recall": 0.0,
+    "maud_accuracy": 0.0,
+    "maud_answered": 0,
+    "maud_clean_accuracy": 0.0,
+    "maud_clean_correct": 0,
+    "maud_clean_questions": 1,
+    "maud_conflicts": 0,
+    "maud_correct": 0,
+    "maud_questions": 4,
+    "overall_extraction_score": 0.0,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ },
+ "merger_agreement__other__mixed": {
+  "score_row": {
+   "doc_type": "merger_agreement",
+   "entity_list_f1": 1.0,
+   "extra_schema_key_count": 0,
+   "extra_schema_keys": [],
+   "extraction_f1": 0.9412,
+   "extraction_f2": 0.9091,
+   "extraction_precision": 1.0,
+   "extraction_recall": 0.8889,
+   "fields": {
+    "ambiguous_fields": [],
+    "doc_class": "merger_agreement",
+    "entity_list_audit": {},
+    "entity_list_scores": {
+     "keywords": {
+      "f1": 1.0,
+      "field_name": "keywords",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     },
+     "parties": {
+      "f1": 1.0,
+      "field_name": "parties",
+      "matched": 2,
+      "partial_gt": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "unmatched_expected": 0,
+      "unmatched_predicted": 0
+     }
+    },
+    "overall_score": 0.8889,
+    "trace": {
+     "calibration_error": null,
+     "confidence": null,
+     "confidence_gate": "missing",
+     "n_reasoning_entries": null,
+     "reasoning": null
+    }
+   },
+   "legacy_schema_keys": [],
+   "overall_extraction_score": 0.8889,
+   "parse_error": false,
+   "parse_failure_reason": null,
+   "prose_wrapper": false,
+   "schema_adherence": 1.0,
+   "schema_valid": true,
+   "scoring_method": "suite"
+  },
+  "scores_jsonl": [
+   {
+    "agent": "extraction",
+    "doc_id": "merger_agreement__other__mixed",
+    "metadata": {
+     "doc_type": "merger_agreement"
+    },
+    "metric": "overall_extraction_score",
+    "run_id": "golden-run",
+    "timestamp": 0.0,
+    "value": 0.8889
+   }
+  ],
+  "serving_record": {
+   "completion_tokens": 50,
+   "e2e_latency_seconds": 1.2,
+   "latency_ms": 1200,
+   "model": "golden-model",
+   "n": 1,
+   "prompt_tokens": 100,
+   "run_id": "golden-run",
+   "scores": {
+    "entity_list_f1": 1.0,
+    "extra_schema_key_count": 0,
+    "extraction_f1": 0.9412,
+    "extraction_f2": 0.9091,
+    "extraction_precision": 1.0,
+    "extraction_recall": 0.8889,
+    "overall_extraction_score": 0.8889,
+    "schema_adherence": 1.0
+   },
+   "serving_kind": "unknown",
+   "task": "extract",
+   "total_tokens": 150,
+   "usage": {
+    "completion_tokens": 50,
+    "prompt_tokens": 100
+   }
+  }
+ }
+}
