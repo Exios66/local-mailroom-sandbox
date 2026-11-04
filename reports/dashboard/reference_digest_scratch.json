@@ -1,0 +1,1372 @@
+{
+ "generated_utc": "2026-11-04T02:35:16.142249+00:00",
+ "graph_reference": {
+  "source": "vendor/llm-mailroom/src/graph/build_graph.py (workflow wiring, read 2026-11-03)",
+  "note": "extract is ONE node; five class specialists fan INSIDE it. transient self-loops on classify/retry_classify/review_classify/extract/retry_extract/judge_verify/arbiter/boss_escalation are not drawn. after_human_review maps routes {extract: extract, failed: END} — the 'failed' lane node below represents that abandon/END route; items with stage=failed from run-budget aborts are additionally attributed by aborts_by_last_node.",
+  "edges": [
+   [
+    "START",
+    "intake"
+   ],
+   [
+    "START",
+    "extract"
+   ],
+   [
+    "intake",
+    "classify"
+   ],
+   [
+    "classify",
+    "extract"
+   ],
+   [
+    "classify",
+    "retry_classify"
+   ],
+   [
+    "classify",
+    "review_classify"
+   ],
+   [
+    "classify",
+    "human_review"
+   ],
+   [
+    "retry_classify",
+    "review_classify"
+   ],
+   [
+    "retry_classify",
+    "extract"
+   ],
+   [
+    "retry_classify",
+    "human_review"
+   ],
+   [
+    "review_classify",
+    "extract"
+   ],
+   [
+    "review_classify",
+    "classification_arbiter"
+   ],
+   [
+    "review_classify",
+    "human_review"
+   ],
+   [
+    "classification_arbiter",
+    "extract"
+   ],
+   [
+    "classification_arbiter",
+    "human_review"
+   ],
+   [
+    "extract",
+    "compile_report"
+   ],
+   [
+    "extract",
+    "retry_extract"
+   ],
+   [
+    "extract",
+    "judge_verify"
+   ],
+   [
+    "extract",
+    "human_review"
+   ],
+   [
+    "extract",
+    "boss_escalation"
+   ],
+   [
+    "judge_verify",
+    "compile_report"
+   ],
+   [
+    "judge_verify",
+    "arbiter"
+   ],
+   [
+    "judge_verify",
+    "human_review"
+   ],
+   [
+    "arbiter",
+    "compile_report"
+   ],
+   [
+    "arbiter",
+    "retry_extract"
+   ],
+   [
+    "arbiter",
+    "human_review"
+   ],
+   [
+    "retry_extract",
+    "compile_report"
+   ],
+   [
+    "retry_extract",
+    "judge_verify"
+   ],
+   [
+    "retry_extract",
+    "human_review"
+   ],
+   [
+    "retry_extract",
+    "boss_escalation"
+   ],
+   [
+    "boss_escalation",
+    "compile_report"
+   ],
+   [
+    "boss_escalation",
+    "human_review"
+   ],
+   [
+    "human_review",
+    "extract"
+   ],
+   [
+    "human_review",
+    "failed"
+   ],
+   [
+    "compile_report",
+    "catalog_write"
+   ],
+   [
+    "compile_report",
+    "human_review"
+   ],
+   [
+    "catalog_write",
+    "archive"
+   ],
+   [
+    "archive",
+    "END"
+   ]
+  ],
+  "node_agents": {
+   "intake": "intake",
+   "classify": "sorter",
+   "retry_classify": "sorter",
+   "review_classify": "sorter_reviewer",
+   "classification_arbiter": "arbiter(class lane)",
+   "extract": "5 class specialists (fan inside node)",
+   "retry_extract": "same specialist",
+   "judge_verify": "judge",
+   "arbiter": "arbiter(extraction lane)",
+   "boss_escalation": "boss",
+   "compile_report": "(code)",
+   "catalog_write": "(code)",
+   "archive": "(code)",
+   "human_review": "(tray)",
+   "failed": "(abort terminal)"
+  }
+ },
+ "classes": [
+  "contract",
+  "corporate_record",
+  "correspondence",
+  "insurance_claim",
+  "merger_agreement"
+ ],
+ "runs": [
+  {
+   "name": "even100·a1",
+   "dir": "/home/gemooslin/sandbox-data/run-history/even100-attempt1-2026-11-02T2348",
+   "state": "running",
+   "cursor": 18,
+   "total": 500,
+   "spec_hash": "a1cae96a87e9c7f49d13a2f42754f49f0d1b185717ec738702876f60c847b0d9",
+   "engine": {
+    "kind": "vllm-remote",
+    "modal": null,
+    "model": "qwen3.5-9b",
+    "vllm": {
+     "cudagraph_capture_sizes": [],
+     "enable_prefix_caching": true,
+     "enable_thinking": null,
+     "enforce_eager": true,
+     "gpu_memory_utilization": 0.9,
+     "hf_overrides": null,
+     "kv_cache_dtype": "",
+     "limit_mm_per_prompt": null,
+     "max_inputs": 4,
+     "max_model_len": 65536,
+     "max_num_batched_tokens": null,
+     "max_num_seqs": 6,
+     "quantization": "",
+     "revision": ""
+    }
+   },
+   "profile": "lmstudio",
+   "prompt_default": "mailroom-default",
+   "items_attempted": 18,
+   "items_ok": 17,
+   "node_fires": {
+    "intake": 22,
+    "classify": 20,
+    "extract": 18,
+    "compile_report": 17,
+    "catalog_write": 17,
+    "archive": 17,
+    "judge_verify": 4,
+    "arbiter": 4,
+    "retry_extract": 2,
+    "retry_classify": 3,
+    "review_classify": 2
+   },
+   "node_ms_p50": {
+    "intake": 106234,
+    "classify": 77450,
+    "extract": 56098,
+    "compile_report": 25,
+    "catalog_write": 62,
+    "archive": 175,
+    "judge_verify": 97298,
+    "arbiter": 57240,
+    "retry_extract": 794024,
+    "retry_classify": 196616,
+    "review_classify": 32889
+   },
+   "node_agents": {
+    "classify": {
+     "sorter": 40
+    },
+    "extract": {
+     "corporate_records_specialist": 28,
+     "contracts_specialist": 8
+    },
+    "judge_verify": {
+     "judge": 8
+    },
+    "arbiter": {
+     "arbiter": 7
+    },
+    "retry_extract": {
+     "contracts_specialist": 4
+    },
+    "retry_classify": {
+     "sorter": 5
+    },
+    "review_classify": {
+     "sorter_reviewer": 4
+    }
+   },
+   "edge_fires": {
+    "intake>classify": 20,
+    "classify>extract": 16,
+    "extract>compile_report": 14,
+    "compile_report>catalog_write": 17,
+    "catalog_write>archive": 17,
+    "extract>judge_verify": 4,
+    "judge_verify>arbiter": 4,
+    "arbiter>retry_extract": 2,
+    "retry_extract>compile_report": 2,
+    "classify>retry_classify": 3,
+    "retry_classify>review_classify": 2,
+    "review_classify>extract": 2,
+    "arbiter>compile_report": 1
+   },
+   "aborts_by_last_node": {
+    "classify": 1
+   },
+   "per_class": {
+    "corporate_record": {
+     "nodes": {
+      "intake": 17,
+      "classify": 15,
+      "extract": 14,
+      "compile_report": 14,
+      "catalog_write": 14,
+      "archive": 14
+     },
+     "edges": {
+      "intake>classify": 15,
+      "classify>extract": 14,
+      "extract>compile_report": 14,
+      "compile_report>catalog_write": 14,
+      "catalog_write>archive": 14
+     },
+     "outcomes": {
+      "ship": 14,
+      "held": 0,
+      "failed": 1,
+      "open": 0,
+      "n": 15
+     }
+    },
+    "contract": {
+     "nodes": {
+      "intake": 5,
+      "classify": 5,
+      "extract": 4,
+      "judge_verify": 4,
+      "arbiter": 4,
+      "retry_extract": 2,
+      "compile_report": 3,
+      "catalog_write": 3,
+      "archive": 3,
+      "retry_classify": 3,
+      "review_classify": 2
+     },
+     "edges": {
+      "intake>classify": 5,
+      "classify>extract": 2,
+      "extract>judge_verify": 4,
+      "judge_verify>arbiter": 4,
+      "arbiter>retry_extract": 2,
+      "retry_extract>compile_report": 2,
+      "compile_report>catalog_write": 3,
+      "catalog_write>archive": 3,
+      "classify>retry_classify": 3,
+      "retry_classify>review_classify": 2,
+      "review_classify>extract": 2,
+      "arbiter>compile_report": 1
+     },
+     "outcomes": {
+      "ship": 3,
+      "held": 0,
+      "failed": 0,
+      "open": 0,
+      "n": 3
+     }
+    }
+   },
+   "outcomes": {
+    "corporate_record": {
+     "ship": 14,
+     "held": 0,
+     "failed": 1,
+     "open": 0,
+     "n": 15
+    },
+    "contract": {
+     "ship": 3,
+     "held": 0,
+     "failed": 0,
+     "open": 0,
+     "n": 3
+    }
+   },
+   "latency_s_p50": {
+    "corporate_record": 122.6,
+    "contract": 2344.4
+   },
+   "tokens": {
+    "prompt": 875263,
+    "completion": 62932,
+    "by_class": {
+     "corporate_record": 407835,
+     "contract": 530360
+    }
+   }
+  },
+  {
+   "name": "even100-shuf·a2",
+   "dir": "/home/gemooslin/sandbox-data/run-history/even100-shuf-attempt2-killed-by-costcap",
+   "state": "failed",
+   "cursor": 0,
+   "total": 0,
+   "spec_hash": "6a791d5744cb1d6b647f75d3864965cdbbaaed539884b11abb492f5edf8f20f2",
+   "engine": {
+    "kind": "vllm-remote",
+    "modal": null,
+    "model": "qwen3.5-9b",
+    "vllm": {
+     "cudagraph_capture_sizes": [],
+     "enable_prefix_caching": true,
+     "enable_thinking": null,
+     "enforce_eager": true,
+     "gpu_memory_utilization": 0.9,
+     "hf_overrides": null,
+     "kv_cache_dtype": "",
+     "limit_mm_per_prompt": null,
+     "max_inputs": 4,
+     "max_model_len": 65536,
+     "max_num_batched_tokens": null,
+     "max_num_seqs": 6,
+     "quantization": "",
+     "revision": ""
+    }
+   },
+   "profile": "lmstudio",
+   "prompt_default": null,
+   "items_attempted": 19,
+   "items_ok": 15,
+   "node_fires": {
+    "intake": 19,
+    "classify": 19,
+    "extract": 15,
+    "boss_escalation": 3,
+    "compile_report": 15,
+    "catalog_write": 15,
+    "archive": 15,
+    "retry_classify": 3,
+    "review_classify": 1,
+    "judge_verify": 4,
+    "arbiter": 3,
+    "human_review": 2,
+    "retry_extract": 1
+   },
+   "node_ms_p50": {
+    "intake": 292398,
+    "classify": 45414,
+    "extract": 79616,
+    "boss_escalation": 34721,
+    "compile_report": 23,
+    "catalog_write": 62,
+    "archive": 163,
+    "retry_classify": 208106,
+    "review_classify": 48805,
+    "judge_verify": 95449,
+    "arbiter": 54789,
+    "human_review": 1,
+    "retry_extract": 77749
+   },
+   "node_agents": {
+    "classify": {
+     "sorter": 38
+    },
+    "extract": {
+     "corporate_records_specialist": 10,
+     "contracts_specialist": 4,
+     "correspondence_specialist": 4,
+     "insurance_claims_specialist": 12
+    },
+    "boss_escalation": {
+     "boss": 6
+    },
+    "retry_classify": {
+     "sorter": 6
+    },
+    "review_classify": {
+     "sorter_reviewer": 2
+    },
+    "judge_verify": {
+     "judge": 8
+    },
+    "arbiter": {
+     "arbiter": 6
+    },
+    "retry_extract": {
+     "insurance_claims_specialist": 2
+    }
+   },
+   "edge_fires": {
+    "intake>classify": 19,
+    "classify>extract": 14,
+    "extract>boss_escalation": 3,
+    "boss_escalation>compile_report": 3,
+    "compile_report>catalog_write": 15,
+    "catalog_write>archive": 15,
+    "classify>retry_classify": 3,
+    "retry_classify>review_classify": 1,
+    "review_classify>extract": 1,
+    "extract>judge_verify": 4,
+    "judge_verify>arbiter": 3,
+    "arbiter>compile_report": 2,
+    "retry_classify>human_review": 2,
+    "extract>compile_report": 8,
+    "judge_verify>compile_report": 1,
+    "arbiter>retry_extract": 1,
+    "retry_extract>compile_report": 1
+   },
+   "aborts_by_last_node": {
+    "human_review": 2,
+    "classify": 2
+   },
+   "per_class": {
+    "?": {
+     "nodes": {
+      "intake": 19,
+      "classify": 19,
+      "extract": 15,
+      "boss_escalation": 3,
+      "compile_report": 15,
+      "catalog_write": 15,
+      "archive": 15,
+      "retry_classify": 3,
+      "review_classify": 1,
+      "judge_verify": 4,
+      "arbiter": 3,
+      "human_review": 2,
+      "retry_extract": 1
+     },
+     "edges": {
+      "intake>classify": 19,
+      "classify>extract": 14,
+      "extract>boss_escalation": 3,
+      "boss_escalation>compile_report": 3,
+      "compile_report>catalog_write": 15,
+      "catalog_write>archive": 15,
+      "classify>retry_classify": 3,
+      "retry_classify>review_classify": 1,
+      "review_classify>extract": 1,
+      "extract>judge_verify": 4,
+      "judge_verify>arbiter": 3,
+      "arbiter>compile_report": 2,
+      "retry_classify>human_review": 2,
+      "extract>compile_report": 8,
+      "judge_verify>compile_report": 1,
+      "arbiter>retry_extract": 1,
+      "retry_extract>compile_report": 1
+     },
+     "outcomes": {
+      "ship": 15,
+      "held": 0,
+      "failed": 4,
+      "open": 0,
+      "n": 19
+     }
+    }
+   },
+   "outcomes": {
+    "?": {
+     "ship": 15,
+     "held": 0,
+     "failed": 4,
+     "open": 0,
+     "n": 19
+    }
+   },
+   "latency_s_p50": {
+    "?": 463.6
+   },
+   "tokens": {
+    "prompt": 1928061,
+    "completion": 122850,
+    "by_class": {
+     "?": 2050911
+    }
+   }
+  },
+  {
+   "name": "even100-shuf1",
+   "dir": "/home/gemooslin/sandbox-data/runtime/runs/pipeline-lmstudio-even100-shuf",
+   "state": "failed",
+   "cursor": 0,
+   "total": 500,
+   "spec_hash": "6a791d5744cb1d6b647f75d3864965cdbbaaed539884b11abb492f5edf8f20f2",
+   "engine": {
+    "kind": "vllm-remote",
+    "modal": null,
+    "model": "qwen3.5-9b",
+    "vllm": {
+     "cudagraph_capture_sizes": [],
+     "enable_prefix_caching": true,
+     "enable_thinking": null,
+     "enforce_eager": true,
+     "gpu_memory_utilization": 0.9,
+     "hf_overrides": null,
+     "kv_cache_dtype": "",
+     "limit_mm_per_prompt": null,
+     "max_inputs": 4,
+     "max_model_len": 65536,
+     "max_num_batched_tokens": null,
+     "max_num_seqs": 6,
+     "quantization": "",
+     "revision": ""
+    }
+   },
+   "profile": "lmstudio",
+   "prompt_default": "mailroom-default",
+   "items_attempted": 19,
+   "items_ok": 15,
+   "node_fires": {
+    "intake": 19,
+    "classify": 19,
+    "extract": 15,
+    "boss_escalation": 3,
+    "compile_report": 15,
+    "catalog_write": 15,
+    "archive": 15,
+    "retry_classify": 3,
+    "review_classify": 1,
+    "judge_verify": 4,
+    "arbiter": 3,
+    "human_review": 2,
+    "retry_extract": 1
+   },
+   "node_ms_p50": {
+    "intake": 292398,
+    "classify": 45414,
+    "extract": 79616,
+    "boss_escalation": 34721,
+    "compile_report": 23,
+    "catalog_write": 62,
+    "archive": 163,
+    "retry_classify": 208106,
+    "review_classify": 48805,
+    "judge_verify": 95449,
+    "arbiter": 54789,
+    "human_review": 1,
+    "retry_extract": 77749
+   },
+   "node_agents": {
+    "classify": {
+     "sorter": 38
+    },
+    "extract": {
+     "corporate_records_specialist": 10,
+     "contracts_specialist": 4,
+     "correspondence_specialist": 4,
+     "insurance_claims_specialist": 12
+    },
+    "boss_escalation": {
+     "boss": 6
+    },
+    "retry_classify": {
+     "sorter": 6
+    },
+    "review_classify": {
+     "sorter_reviewer": 2
+    },
+    "judge_verify": {
+     "judge": 8
+    },
+    "arbiter": {
+     "arbiter": 6
+    },
+    "retry_extract": {
+     "insurance_claims_specialist": 2
+    }
+   },
+   "edge_fires": {
+    "intake>classify": 19,
+    "classify>extract": 14,
+    "extract>boss_escalation": 3,
+    "boss_escalation>compile_report": 3,
+    "compile_report>catalog_write": 15,
+    "catalog_write>archive": 15,
+    "classify>retry_classify": 3,
+    "retry_classify>review_classify": 1,
+    "review_classify>extract": 1,
+    "extract>judge_verify": 4,
+    "judge_verify>arbiter": 3,
+    "arbiter>compile_report": 2,
+    "retry_classify>human_review": 2,
+    "extract>compile_report": 8,
+    "judge_verify>compile_report": 1,
+    "arbiter>retry_extract": 1,
+    "retry_extract>compile_report": 1
+   },
+   "aborts_by_last_node": {
+    "human_review": 2,
+    "classify": 2
+   },
+   "per_class": {
+    "corporate_record": {
+     "nodes": {
+      "intake": 5,
+      "classify": 5,
+      "extract": 5,
+      "boss_escalation": 3,
+      "compile_report": 5,
+      "catalog_write": 5,
+      "archive": 5
+     },
+     "edges": {
+      "intake>classify": 5,
+      "classify>extract": 5,
+      "extract>boss_escalation": 3,
+      "boss_escalation>compile_report": 3,
+      "compile_report>catalog_write": 5,
+      "catalog_write>archive": 5,
+      "extract>compile_report": 2
+     },
+     "outcomes": {
+      "ship": 5,
+      "held": 0,
+      "failed": 0,
+      "open": 0,
+      "n": 5
+     }
+    },
+    "contract": {
+     "nodes": {
+      "intake": 2,
+      "classify": 2,
+      "retry_classify": 1,
+      "review_classify": 1,
+      "extract": 2,
+      "judge_verify": 2,
+      "arbiter": 2,
+      "compile_report": 2,
+      "catalog_write": 2,
+      "archive": 2
+     },
+     "edges": {
+      "intake>classify": 2,
+      "classify>retry_classify": 1,
+      "retry_classify>review_classify": 1,
+      "review_classify>extract": 1,
+      "extract>judge_verify": 2,
+      "judge_verify>arbiter": 2,
+      "arbiter>compile_report": 2,
+      "compile_report>catalog_write": 2,
+      "catalog_write>archive": 2,
+      "classify>extract": 1
+     },
+     "outcomes": {
+      "ship": 2,
+      "held": 0,
+      "failed": 0,
+      "open": 0,
+      "n": 2
+     }
+    },
+    "merger_agreement": {
+     "nodes": {
+      "intake": 4,
+      "classify": 4,
+      "retry_classify": 2,
+      "human_review": 2
+     },
+     "edges": {
+      "intake>classify": 4,
+      "classify>retry_classify": 2,
+      "retry_classify>human_review": 2
+     },
+     "outcomes": {
+      "ship": 0,
+      "held": 0,
+      "failed": 4,
+      "open": 0,
+      "n": 4
+     }
+    },
+    "correspondence": {
+     "nodes": {
+      "intake": 2,
+      "classify": 2,
+      "extract": 2,
+      "compile_report": 2,
+      "catalog_write": 2,
+      "archive": 2
+     },
+     "edges": {
+      "intake>classify": 2,
+      "classify>extract": 2,
+      "extract>compile_report": 2,
+      "compile_report>catalog_write": 2,
+      "catalog_write>archive": 2
+     },
+     "outcomes": {
+      "ship": 2,
+      "held": 0,
+      "failed": 0,
+      "open": 0,
+      "n": 2
+     }
+    },
+    "insurance_claim": {
+     "nodes": {
+      "intake": 6,
+      "classify": 6,
+      "extract": 6,
+      "judge_verify": 2,
+      "compile_report": 6,
+      "catalog_write": 6,
+      "archive": 6,
+      "arbiter": 1,
+      "retry_extract": 1
+     },
+     "edges": {
+      "intake>classify": 6,
+      "classify>extract": 6,
+      "extract>judge_verify": 2,
+      "judge_verify>compile_report": 1,
+      "compile_report>catalog_write": 6,
+      "catalog_write>archive": 6,
+      "extract>compile_report": 4,
+      "judge_verify>arbiter": 1,
+      "arbiter>retry_extract": 1,
+      "retry_extract>compile_report": 1
+     },
+     "outcomes": {
+      "ship": 6,
+      "held": 0,
+      "failed": 0,
+      "open": 0,
+      "n": 6
+     }
+    }
+   },
+   "outcomes": {
+    "corporate_record": {
+     "ship": 5,
+     "held": 0,
+     "failed": 0,
+     "open": 0,
+     "n": 5
+    },
+    "contract": {
+     "ship": 2,
+     "held": 0,
+     "failed": 0,
+     "open": 0,
+     "n": 2
+    },
+    "correspondence": {
+     "ship": 2,
+     "held": 0,
+     "failed": 0,
+     "open": 0,
+     "n": 2
+    },
+    "insurance_claim": {
+     "ship": 6,
+     "held": 0,
+     "failed": 0,
+     "open": 0,
+     "n": 6
+    },
+    "merger_agreement": {
+     "ship": 0,
+     "held": 0,
+     "failed": 4,
+     "open": 0,
+     "n": 4
+    }
+   },
+   "latency_s_p50": {
+    "corporate_record": 463.6,
+    "contract": 1494.3,
+    "correspondence": 100.3,
+    "insurance_claim": 113.0,
+    "merger_agreement": 3637.8
+   },
+   "tokens": {
+    "prompt": 1928061,
+    "completion": 122850,
+    "by_class": {
+     "corporate_record": 288438,
+     "contract": 230123,
+     "correspondence": 22906,
+     "insurance_claim": 96016,
+     "merger_agreement": 1413428
+    }
+   }
+  },
+  {
+   "name": "even100-shuf2",
+   "dir": "/home/gemooslin/sandbox-data/runtime/runs/pipeline-lmstudio-even100-shuf2",
+   "state": "running",
+   "cursor": 106,
+   "total": 500,
+   "spec_hash": "7bb192428f18b12cedf760e8b455f8939da63d4168452b54bbd8c0488a22c65b",
+   "engine": {
+    "kind": "vllm-remote",
+    "modal": null,
+    "model": "qwen3.5-9b",
+    "vllm": {
+     "cudagraph_capture_sizes": [],
+     "enable_prefix_caching": true,
+     "enable_thinking": null,
+     "enforce_eager": true,
+     "gpu_memory_utilization": 0.9,
+     "hf_overrides": null,
+     "kv_cache_dtype": "",
+     "limit_mm_per_prompt": null,
+     "max_inputs": 4,
+     "max_model_len": 65536,
+     "max_num_batched_tokens": null,
+     "max_num_seqs": 6,
+     "quantization": "",
+     "revision": ""
+    }
+   },
+   "profile": "lmstudio",
+   "prompt_default": "mailroom-default",
+   "items_attempted": 106,
+   "items_ok": 83,
+   "node_fires": {
+    "intake": 110,
+    "classify": 108,
+    "retry_classify": 17,
+    "human_review": 22,
+    "extract": 81,
+    "boss_escalation": 17,
+    "compile_report": 77,
+    "catalog_write": 77,
+    "archive": 77,
+    "review_classify": 16,
+    "judge_verify": 23,
+    "arbiter": 13,
+    "retry_extract": 12
+   },
+   "node_ms_p50": {
+    "intake": 424,
+    "classify": 57907,
+    "retry_classify": 140005,
+    "human_review": 2,
+    "extract": 70474,
+    "boss_escalation": 26317,
+    "compile_report": 25,
+    "catalog_write": 62,
+    "archive": 170,
+    "review_classify": 42729,
+    "judge_verify": 71790,
+    "arbiter": 59720,
+    "retry_extract": 461069
+   },
+   "node_agents": {
+    "classify": {
+     "sorter": 215
+    },
+    "retry_classify": {
+     "sorter": 33
+    },
+    "extract": {
+     "contracts_specialist": 34,
+     "corporate_records_specialist": 36,
+     "correspondence_specialist": 42,
+     "insurance_claims_specialist": 50
+    },
+    "boss_escalation": {
+     "boss": 34
+    },
+    "review_classify": {
+     "sorter_reviewer": 32
+    },
+    "judge_verify": {
+     "judge": 52
+    },
+    "arbiter": {
+     "arbiter": 30
+    },
+    "retry_extract": {
+     "contracts_specialist": 22,
+     "correspondence_specialist": 2,
+     "insurance_claims_specialist": 2
+    }
+   },
+   "edge_fires": {
+    "intake>classify": 108,
+    "classify>retry_classify": 17,
+    "retry_classify>human_review": 1,
+    "classify>extract": 69,
+    "extract>boss_escalation": 17,
+    "boss_escalation>compile_report": 16,
+    "compile_report>catalog_write": 77,
+    "catalog_write>archive": 77,
+    "retry_classify>review_classify": 15,
+    "review_classify>extract": 12,
+    "classify>human_review": 15,
+    "extract>compile_report": 39,
+    "review_classify>human_review": 4,
+    "extract>judge_verify": 23,
+    "judge_verify>compile_report": 9,
+    "judge_verify>arbiter": 15,
+    "arbiter>retry_extract": 11,
+    "retry_extract>judge_verify": 3,
+    "extract>retry_extract": 2,
+    "retry_extract>compile_report": 10,
+    "arbiter>compile_report": 3,
+    "classify>review_classify": 1,
+    "arbiter>human_review": 1,
+    "boss_escalation>human_review": 1
+   },
+   "aborts_by_last_node": {
+    "human_review": 16,
+    "classify": 5,
+    "judge_verify": 2
+   },
+   "per_class": {
+    "merger_agreement": {
+     "nodes": {
+      "intake": 21,
+      "classify": 19,
+      "retry_classify": 1,
+      "human_review": 15
+     },
+     "edges": {
+      "intake>classify": 19,
+      "classify>retry_classify": 1,
+      "retry_classify>human_review": 1,
+      "classify>human_review": 14
+     },
+     "outcomes": {
+      "ship": 0,
+      "held": 0,
+      "failed": 18,
+      "open": 0,
+      "n": 18
+     }
+    },
+    "contract": {
+     "nodes": {
+      "intake": 22,
+      "classify": 22,
+      "extract": 17,
+      "boss_escalation": 2,
+      "compile_report": 14,
+      "catalog_write": 14,
+      "archive": 14,
+      "retry_classify": 16,
+      "review_classify": 16,
+      "human_review": 5,
+      "judge_verify": 11,
+      "arbiter": 10,
+      "retry_extract": 10
+     },
+     "edges": {
+      "intake>classify": 22,
+      "classify>extract": 5,
+      "extract>boss_escalation": 2,
+      "boss_escalation>compile_report": 2,
+      "compile_report>catalog_write": 14,
+      "catalog_write>archive": 14,
+      "classify>retry_classify": 16,
+      "retry_classify>review_classify": 15,
+      "review_classify>extract": 12,
+      "extract>compile_report": 3,
+      "review_classify>human_review": 4,
+      "extract>judge_verify": 11,
+      "judge_verify>arbiter": 12,
+      "arbiter>retry_extract": 10,
+      "retry_extract>judge_verify": 3,
+      "extract>retry_extract": 1,
+      "retry_extract>compile_report": 8,
+      "arbiter>compile_report": 1,
+      "classify>review_classify": 1,
+      "arbiter>human_review": 1
+     },
+     "outcomes": {
+      "ship": 14,
+      "held": 5,
+      "failed": 2,
+      "open": 0,
+      "n": 21
+     }
+    },
+    "corporate_record": {
+     "nodes": {
+      "intake": 21,
+      "classify": 21,
+      "extract": 18,
+      "boss_escalation": 7,
+      "compile_report": 17,
+      "catalog_write": 17,
+      "archive": 17,
+      "human_review": 2
+     },
+     "edges": {
+      "intake>classify": 21,
+      "classify>extract": 18,
+      "extract>boss_escalation": 7,
+      "boss_escalation>compile_report": 6,
+      "compile_report>catalog_write": 17,
+      "catalog_write>archive": 17,
+      "extract>compile_report": 11,
+      "classify>human_review": 1,
+      "boss_escalation>human_review": 1
+     },
+     "outcomes": {
+      "ship": 17,
+      "held": 1,
+      "failed": 3,
+      "open": 0,
+      "n": 21
+     }
+    },
+    "correspondence": {
+     "nodes": {
+      "intake": 21,
+      "classify": 21,
+      "extract": 21,
+      "boss_escalation": 2,
+      "compile_report": 21,
+      "catalog_write": 21,
+      "archive": 21,
+      "judge_verify": 3,
+      "arbiter": 2,
+      "retry_extract": 1
+     },
+     "edges": {
+      "intake>classify": 21,
+      "classify>extract": 21,
+      "extract>boss_escalation": 2,
+      "boss_escalation>compile_report": 2,
+      "compile_report>catalog_write": 21,
+      "catalog_write>archive": 21,
+      "extract>compile_report": 16,
+      "extract>judge_verify": 3,
+      "judge_verify>arbiter": 2,
+      "arbiter>compile_report": 1,
+      "arbiter>retry_extract": 1,
+      "retry_extract>compile_report": 1,
+      "judge_verify>compile_report": 1
+     },
+     "outcomes": {
+      "ship": 21,
+      "held": 0,
+      "failed": 0,
+      "open": 0,
+      "n": 21
+     }
+    },
+    "insurance_claim": {
+     "nodes": {
+      "intake": 25,
+      "classify": 25,
+      "extract": 25,
+      "boss_escalation": 6,
+      "compile_report": 25,
+      "catalog_write": 25,
+      "archive": 25,
+      "judge_verify": 9,
+      "retry_extract": 1,
+      "arbiter": 1
+     },
+     "edges": {
+      "intake>classify": 25,
+      "classify>extract": 25,
+      "extract>boss_escalation": 6,
+      "boss_escalation>compile_report": 6,
+      "compile_report>catalog_write": 25,
+      "catalog_write>archive": 25,
+      "extract>judge_verify": 9,
+      "judge_verify>compile_report": 8,
+      "extract>compile_report": 9,
+      "extract>retry_extract": 1,
+      "retry_extract>compile_report": 1,
+      "judge_verify>arbiter": 1,
+      "arbiter>compile_report": 1
+     },
+     "outcomes": {
+      "ship": 25,
+      "held": 0,
+      "failed": 0,
+      "open": 0,
+      "n": 25
+     }
+    }
+   },
+   "outcomes": {
+    "corporate_record": {
+     "ship": 17,
+     "held": 1,
+     "failed": 3,
+     "open": 0,
+     "n": 21
+    },
+    "contract": {
+     "ship": 14,
+     "held": 5,
+     "failed": 2,
+     "open": 0,
+     "n": 21
+    },
+    "correspondence": {
+     "ship": 21,
+     "held": 0,
+     "failed": 0,
+     "open": 0,
+     "n": 21
+    },
+    "insurance_claim": {
+     "ship": 25,
+     "held": 0,
+     "failed": 0,
+     "open": 0,
+     "n": 25
+    },
+    "merger_agreement": {
+     "ship": 0,
+     "held": 0,
+     "failed": 18,
+     "open": 0,
+     "n": 18
+    }
+   },
+   "latency_s_p50": {
+    "corporate_record": 802.0,
+    "contract": 1397.2,
+    "correspondence": 99.8,
+    "insurance_claim": 145.0,
+    "merger_agreement": 3636.5
+   },
+   "tokens": {
+    "prompt": 8241610,
+    "completion": 626164,
+    "by_class": {
+     "corporate_record": 1513574,
+     "contract": 2621987,
+     "correspondence": 252488,
+     "insurance_claim": 393302,
+     "merger_agreement": 4086423
+    }
+   }
+  },
+  {
+   "name": "mergers-only",
+   "dir": "/home/gemooslin/sandbox-data/runtime/runs/pipeline-lmstudio-mergers-only",
+   "state": "running",
+   "cursor": 4,
+   "total": 500,
+   "spec_hash": "ea27dad736cbb6ea0edb2717d528601cde3d0513de665cf01fbcd230c8363e4c",
+   "engine": {
+    "kind": "vllm-remote",
+    "modal": null,
+    "model": "qwen3.5-9b",
+    "vllm": {
+     "cudagraph_capture_sizes": [],
+     "enable_prefix_caching": true,
+     "enable_thinking": null,
+     "enforce_eager": true,
+     "gpu_memory_utilization": 0.9,
+     "hf_overrides": null,
+     "kv_cache_dtype": "",
+     "limit_mm_per_prompt": null,
+     "max_inputs": 4,
+     "max_model_len": 65536,
+     "max_num_batched_tokens": null,
+     "max_num_seqs": 6,
+     "quantization": "",
+     "revision": ""
+    }
+   },
+   "profile": "lmstudio",
+   "prompt_default": "mailroom-default",
+   "items_attempted": 4,
+   "items_ok": 4,
+   "node_fires": {
+    "intake": 8,
+    "classify": 8,
+    "retry_classify": 8,
+    "review_classify": 7,
+    "extract": 7,
+    "judge_verify": 4,
+    "arbiter": 4,
+    "retry_extract": 5,
+    "compile_report": 4,
+    "catalog_write": 4,
+    "archive": 4
+   },
+   "node_ms_p50": {
+    "intake": 3294169,
+    "classify": 2116278,
+    "retry_classify": 2159282,
+    "review_classify": 91772,
+    "extract": 2193959,
+    "judge_verify": 124745,
+    "arbiter": 82790,
+    "retry_extract": 2588836,
+    "compile_report": 30,
+    "catalog_write": 66,
+    "archive": 329
+   },
+   "node_agents": {
+    "classify": {
+     "sorter": 16
+    },
+    "retry_classify": {
+     "sorter": 15
+    },
+    "review_classify": {
+     "sorter_reviewer": 14
+    },
+    "extract": {
+     "merger_agreement_specialist": 12
+    },
+    "judge_verify": {
+     "judge": 12
+    },
+    "arbiter": {
+     "arbiter": 8
+    },
+    "retry_extract": {
+     "merger_agreement_specialist": 9
+    }
+   },
+   "edge_fires": {
+    "intake>classify": 8,
+    "classify>retry_classify": 8,
+    "retry_classify>review_classify": 7,
+    "review_classify>extract": 7,
+    "extract>judge_verify": 4,
+    "judge_verify>arbiter": 4,
+    "arbiter>retry_extract": 4,
+    "retry_extract>judge_verify": 2,
+    "judge_verify>compile_report": 2,
+    "compile_report>catalog_write": 4,
+    "catalog_write>archive": 4,
+    "retry_extract>compile_report": 2,
+    "extract>retry_extract": 1
+   },
+   "aborts_by_last_node": {},
+   "per_class": {
+    "merger_agreement": {
+     "nodes": {
+      "intake": 8,
+      "classify": 8,
+      "retry_classify": 8,
+      "review_classify": 7,
+      "extract": 7,
+      "judge_verify": 4,
+      "arbiter": 4,
+      "retry_extract": 5,
+      "compile_report": 4,
+      "catalog_write": 4,
+      "archive": 4
+     },
+     "edges": {
+      "intake>classify": 8,
+      "classify>retry_classify": 8,
+      "retry_classify>review_classify": 7,
+      "review_classify>extract": 7,
+      "extract>judge_verify": 4,
+      "judge_verify>arbiter": 4,
+      "arbiter>retry_extract": 4,
+      "retry_extract>judge_verify": 2,
+      "judge_verify>compile_report": 2,
+      "compile_report>catalog_write": 4,
+      "catalog_write>archive": 4,
+      "retry_extract>compile_report": 2,
+      "extract>retry_extract": 1
+     },
+     "outcomes": {
+      "ship": 4,
+      "held": 0,
+      "failed": 0,
+      "open": 0,
+      "n": 4
+     }
+    }
+   },
+   "outcomes": {
+    "merger_agreement": {
+     "ship": 4,
+     "held": 0,
+     "failed": 0,
+     "open": 0,
+     "n": 4
+    }
+   },
+   "latency_s_p50": {
+    "merger_agreement": 13719.6
+   },
+   "tokens": {
+    "prompt": 4536160,
+    "completion": 212931,
+    "by_class": {
+     "merger_agreement": 4749091
+    }
+   }
+  }
+ ]
+}
