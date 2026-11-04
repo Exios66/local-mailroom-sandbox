@@ -1414,9 +1414,7 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
 _VENDOR_PINS: tuple[tuple[str, str, str, str | None], ...] = (
     ("llm-mailroom", "a7d7bf0b1c1b2e93b0f185b49d83e1df61a5f7a1",
      "https://github.com/Exios66/llm-mailroom.git", "a7d7bf0b1c1b2e93b0f185b49d83e1df61a5f7a1"),
-    # Release v0.27.2 (Dojo #121). Fetched by exact commit until the v0.27.2 tag is on
-    # GitHub; a missing named ref fails closed (DMR-111), so the ref must be resolvable.
-    ("llm-dojo-scoring", "1cd4aba76d82eea20c6e8dfcc0d760881bf84924",
+    ("llm-dojo-scoring", "v0.27.2",
      "https://github.com/Exios66/llm-dojo-scoring.git", "1cd4aba76d82eea20c6e8dfcc0d760881bf84924"),
 )
 
