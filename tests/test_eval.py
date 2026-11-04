@@ -306,8 +306,9 @@ def test_dojo_pin_matches_current_vendored_snapshot():
     from mailroom_sandbox import cli as cli_mod
 
     pins = {name: (ref, sha) for name, ref, _url, sha in cli_mod._VENDOR_PINS}
+    # Fetched by exact commit (the v0.27.2 release) until the tag is on GitHub.
     assert pins["llm-dojo-scoring"] == (
-        "v0.27.2",
+        "1cd4aba76d82eea20c6e8dfcc0d760881bf84924",
         "1cd4aba76d82eea20c6e8dfcc0d760881bf84924",
     ), "dojo must consume the v0.27.2 release"
     assert pins["llm-dojo-scoring"][1] in vendor_md
