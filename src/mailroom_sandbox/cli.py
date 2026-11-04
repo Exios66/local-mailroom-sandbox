@@ -2887,7 +2887,7 @@ def _serve_demo(args) -> int:
     return web_mod.serve_watch_web(
         resolve=demo.resolve,
         ledger=demo.ledger,
-        cap_usd=5.0,
+        cap_usd=getattr(args, "cap_usd", None) or 5.0,
         logs=False,
         interval=getattr(args, "interval", None) or 1.0,
         times_dir=demo.times_dir,

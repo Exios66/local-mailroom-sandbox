@@ -1002,14 +1002,15 @@ def watch(
     from mailroom_sandbox.watch_target import WaitingForRun
 
     serving_dir = serving_dir or (reports_dir() / "serving")
-    store, _app = resolve()
+    # Resolve once: a live resolver (newest run) may answer differently on a
+    # second call, and the log sink must belong to the run being shown.
+    store, app = resolve()
     _td, resolved_log = _watch_paths(
         store, times_dir=times_dir, sand032_root=sand032_root, log_path=log_path
     )
     sink = LogBuffer(resolved_log)
     stop = threading.Event()
     log_stop = threading.Event()
-    store, app = resolve()
     if not once:
         sys.stdout.write(pl.ALT_ENTER + pl.HIDE_CURSOR + pl.CLEAR_SCREEN)
     if logs and not once:
