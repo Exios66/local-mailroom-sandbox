@@ -423,6 +423,8 @@ def real_runs_cross_consistency_when_present():
         return
     if not bfd.discover_runs(base):
         return
+    if not bfd.DEFAULT_GRAPH.is_file():
+        return  # same guard as vendored_graph_parses_to_a_sane_topology: no graph, nothing to cross-check
     # No before/after snapshot here: a live run may be appending to its artifacts while the
     # builder reads them. The read-only contract is proven on the fixture by
     # builder_never_writes_into_the_data_base.
