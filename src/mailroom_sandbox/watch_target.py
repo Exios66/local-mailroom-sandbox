@@ -13,8 +13,11 @@ One positional TARGET replaces the old `--config` / `--follow` bookkeeping:
 * an experiment     -> ``experiment.yaml`` or its folder: follows the
                        campaign's current-run marker with the campaign panel.
 
-Every resolver is read-only apart from the experiment marker that
-``sandbox experiment watch`` already writes; none probes a provider.
+Resolvers never probe a provider. They may write the experiment marker that
+``sandbox experiment watch`` already writes; run discovery may create the runs
+root; and watching an explicit ``run_id`` from a run YAML before it starts
+creates its empty run directory (as ``RunStore`` always has). A bare run ID or
+run directory that does not exist is never created.
 """
 
 from __future__ import annotations
@@ -22,6 +25,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
+
+import yaml
 
 from mailroom_sandbox.job import spec as spec_mod
 from mailroom_sandbox.job.checkpoint import RunStore
@@ -247,7 +252,10 @@ def resolve_target(
             directory = path.resolve()
             return WatchTarget(lambda: store_and_app(directory, app), f"run {directory.name}", auto_campaign)
         if path.suffix in {".yaml", ".yml"}:
-            spec_mod.load_run_spec(path)  # fail fast on a malformed spec
+            try:
+                spec_mod.load_run_spec(path)  # fail fast on a malformed spec
+            except (TypeError, ValueError, OSError, yaml.YAMLError) as exc:  # pydantic errors are ValueErrors
+                raise ServiceError(f"{path}: not a valid run YAML: {exc}") from exc
             return WatchTarget(lambda: _spec_store(path, app), f"run spec {path}", auto_campaign)
         raise ServiceError(f"{target}: not a run YAML, experiment or run directory")
     try:

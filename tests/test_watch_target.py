@@ -181,8 +181,20 @@ def test_run_yaml_without_run_id_matches_a_real_mock_run(job_data_dir, tmp_path,
 def test_malformed_run_yaml_fails_fast(job_data_dir, tmp_path):
     bad = tmp_path / "bad.yaml"
     bad.write_text("just a string")
-    with pytest.raises(Exception):
+    with pytest.raises(ServiceError, match="not a valid run YAML"):
         wt.resolve_target(str(bad))
+    schema_bad = tmp_path / "schema.yaml"
+    schema_bad.write_text("schema: sandbox.run/v1\nrun_id: x\ntask: not-a-task\n")
+    with pytest.raises(ServiceError, match="not a valid run YAML"):
+        wt.resolve_target(str(schema_bad))
+
+
+def test_cli_reports_a_malformed_run_yaml_without_a_traceback(job_data_dir, tmp_path, capsys):
+    bad = tmp_path / "bad.yaml"
+    bad.write_text("just a string")
+    assert cli.main(["web", str(bad), "--no-browser"]) != 0
+    err = capsys.readouterr().err
+    assert "not a valid run YAML" in err and "Traceback" not in err
 
 
 def test_a_file_that_is_neither_yaml_nor_a_run_is_rejected(job_data_dir, tmp_path):
@@ -442,6 +454,23 @@ def test_web_refresh_loop_keeps_the_last_frame_on_a_transient_error(job_data_dir
     session.stop()
     state = session.snapshot()[1]
     assert state["error"] == "disk hiccup" and state["snapshot"]["run_id"] == "steady"
+
+
+def test_waiting_keeps_the_last_good_frame_and_clears_on_recovery(job_data_dir, tmp_path):
+    marker = tmp_path / "current"
+    marker.write_text("frame-a\n")
+    _run("frame-a")
+    session = _session(wt.resolve_target(None, follow=str(marker)), tmp_path)
+    assert session.refresh()["snapshot"]["run_id"] == "frame-a"
+    marker.write_text("frame-b\n")  # the campaign advanced to a run that has not started
+    with pytest.raises(wt.WaitingForRun):
+        session.refresh()
+    session.mark_waiting("run frame-b has not started yet")
+    state = session.snapshot()[1]
+    assert state["waiting"] and state["snapshot"]["run_id"] == "frame-a"  # last frame stays on screen
+    _run("frame-b")
+    state = session.refresh()
+    assert state["snapshot"]["run_id"] == "frame-b" and state["waiting"] is False and state["ok"]
 
 
 def test_serve_watch_web_starts_while_waiting(job_data_dir, tmp_path, monkeypatch, capsys):
