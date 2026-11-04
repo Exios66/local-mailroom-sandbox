@@ -13,7 +13,6 @@ from mailroom_sandbox.subagents.family import (
     normalize_package_id,
     package_roster_dest,
 )
-from mailroom_sandbox.subagents.roster import load_roster
 
 
 @dataclass

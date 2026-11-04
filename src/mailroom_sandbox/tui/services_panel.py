@@ -6,8 +6,8 @@ SERVICES_CSS = r"""
 .svc .s { white-space: nowrap; } .svc .s.ok::before { content: "● "; color: var(--teal); }
 .svc .s.warn::before { content: "● "; color: var(--gold); }
 .svc .s.fail { font-weight: 700; color: var(--gold); } .svc .s.fail::before { content: "✖ "; color: var(--gold); }
-.svc .s.skipped { color: var(--muted); } .svc .s.skipped::before { content: "○ "; }
-.svc .note { color: var(--muted); width: 100%; } .svc.stale { opacity: 0.6; }
+.svc .s.skipped { color: #b6c8d8; } .svc .s.skipped::before { content: "○ "; }
+.svc .note { color: #b6c8d8; width: 100%; } .svc.stale { border-style: dashed; }
 """
 
 SERVICES_JS = r"""

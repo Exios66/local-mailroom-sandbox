@@ -174,6 +174,7 @@ def test_dotenv_settings_reach_every_hf_child(fake_bin, monkeypatch, tmp_path, c
     import hashlib
 
     env_file = tmp_path / '.env'
+    monkeypatch.delenv("SANDBOX_SKIP_DOTENV")
     env_file.write_text('HF_TOKEN=dotenv-secret\nHF_HOME=/dotenv/cache\n')
     monkeypatch.setattr('mailroom_sandbox.runtime.dotenv_files', lambda: [env_file])
     fake_bin.add('hf')

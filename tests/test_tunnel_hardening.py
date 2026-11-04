@@ -99,8 +99,16 @@ def test_interrupt_during_startup_reaps_child(fake_bin, spec, monkeypatch, spawn
     fake_bin.add("ssh", sleep=30)
     monkeypatch.setattr(tunnel, "is_up", lambda port, **kw: False)
 
+    real_sleep = time.sleep
+    fired = []
+
     def interrupt(seconds):
-        raise KeyboardInterrupt
+        # Only the startup poll is interrupted: Popen.wait(timeout=) polls with
+        # time.sleep too, and the cleanup's reap must still be able to wait.
+        if not fired:
+            fired.append(seconds)
+            raise KeyboardInterrupt
+        real_sleep(seconds)
 
     monkeypatch.setattr(tunnel.time, "sleep", interrupt)
     with pytest.raises(KeyboardInterrupt):

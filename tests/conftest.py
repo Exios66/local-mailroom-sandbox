@@ -3,10 +3,18 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import pytest
 
 from mailroom_sandbox.paths import repo_root
+
+# Set before any test, so subprocesses inherit it too: a key in .env can bill real calls.
+os.environ["SANDBOX_SKIP_DOTENV"] = "1"
+os.environ.pop("OPENROUTER_API_KEY", None)
+# A commit hook exports these, and `git init` in a test would then rewrite the real repo's config.
+for _name in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR", "GIT_PREFIX"):
+    os.environ.pop(_name, None)
 
 
 @pytest.fixture(autouse=True)
@@ -14,6 +22,10 @@ def _sandbox_root(monkeypatch):
     monkeypatch.setenv("SANDBOX_ROOT", str(repo_root()))
     monkeypatch.setenv("OBSERVABILITY_PROVIDER", "none")
     monkeypatch.setenv("PHOENIX_TRACING", "disabled")
+    # Child interpreters must import this checkout, not whichever one the venv's
+    # editable install happens to point at (pytest's `pythonpath` is in-process only).
+    src = str(Path(__file__).resolve().parents[1] / "src")
+    monkeypatch.setenv("PYTHONPATH", os.pathsep.join(filter(None, [src, os.environ.get("PYTHONPATH")])))
 
 
 @pytest.fixture
@@ -51,6 +63,12 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         if "local_llm" in item.keywords:
             item.add_marker(skip)
+
+
+@pytest.fixture(autouse=True)
+def _isolated_run_ledger(tmp_path, monkeypatch):
+    """Signed test runs must not append to the tracked reports/run-ledger.md."""
+    monkeypatch.setenv("SANDBOX_RUN_LEDGER", str(tmp_path / "_ledger" / "run-ledger.md"))
 
 
 @pytest.fixture(autouse=True)

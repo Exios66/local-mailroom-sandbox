@@ -208,7 +208,7 @@ def test_prompts_show_sorter_surfaces_version_key(capsys):
     args = _args(name="sorter", variant=None, offline=True)
     assert cli._cmd_prompts_show(args) == 0
     out = capsys.readouterr().out
-    assert "sorter_v14" in out  # the registry's pinned family-B key (DMR-056)
+    assert "sorter_v15" in out  # the registry's pinned family-B key (DMR-056; frozen V15)
 
 
 def test_prompts_show_variant_has_no_version_key(capsys):
@@ -235,6 +235,17 @@ def test_matrix_rejects_family_names():
         prompts=["code-default"],
     )
     assert cells and cells[0]["provider"] == "vllm-local"
+
+
+@pytest.mark.parametrize(("provider", "model", "planned"), [
+    ("openrouter", "qwen/qwen3.5-9b", "qwen/qwen3.5-9b"),  # unmapped: kept, not the family default
+    ("modal-vllm", "Qwen/Qwen3.5-9B", "Qwen/Qwen3.5-9B"),
+    ("modal-vllm", "qwen/qwen3.7-flash", "Qwen/Qwen3.5-9B"),  # a champion row still maps per family
+    ("ollama", "qwen/qwen3.7-flash", "qwen3:8b"),
+])
+def test_matrix_plans_the_requested_model(provider, model, planned):
+    [cell] = plan_matrix(task="sorter", providers=[provider], models=[model], prompts=["sorter_v1"])
+    assert cell["model"] == planned
 
 
 # ── DMR-058: docker/ollama/ssh failures degrade cleanly, not as tracebacks ───
@@ -266,7 +277,6 @@ def test_pull_models_missing_ollama_degrades_cleanly(mocker, capsys):
 def test_up_detach_defaults_to_foreground():
     """hub#56: `sandbox up` runs in the FOREGROUND by default (the old
     action='store_true', default=True made -d a permanent no-op)."""
-    import argparse
 
     parser = cli.build_parser()
     args = parser.parse_args(["up"])

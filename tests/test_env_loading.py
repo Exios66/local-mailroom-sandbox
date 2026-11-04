@@ -15,6 +15,7 @@ def test_cli_loads_files_before_parser_and_custom_route_validation(monkeypatch, 
     config_file.write_text("CONFIG_ONLY=config\nSHARED=config\n")
     env = {"EXPORTED": "shell"}
     monkeypatch.setattr(os, "environ", env)
+    monkeypatch.delenv("SANDBOX_SKIP_DOTENV", raising=False)
     monkeypatch.setattr(runtime, "dotenv_files", lambda: [root_file, config_file])
     monkeypatch.setattr(agent_routes, "known_agents", lambda: {"sorter"})
     route = AgentRoute(provider="api", model="example", base_url="https://example.test/v1", api_key_env="CUSTOM_ROUTE_KEY")
@@ -31,6 +32,7 @@ def test_cli_loads_files_before_parser_and_custom_route_validation(monkeypatch, 
 
 def test_missing_env_files_are_optional(monkeypatch):
     monkeypatch.setattr(os, "environ", {})
+    monkeypatch.delenv("SANDBOX_SKIP_DOTENV", raising=False)
     monkeypatch.setattr(runtime, "dotenv_files", lambda: [])
     runtime.load_env_file()
     assert not os.environ
