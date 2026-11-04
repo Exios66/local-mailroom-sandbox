@@ -65,6 +65,7 @@ sibling checkouts). Durable eve doctor:
 ## Commands
 
 ```bash
+python3 -m venv .venv && source .venv/bin/activate   # `sandbox` is only on PATH while the venv is active
 pip install -e ".[dev]"
 # or: pip install -r requirements.txt   # → requirements/dev.txt (mirrors pyproject)
 # .venv/bin/sandbox puts its own venv's bin first on PATH, so its pinned `modal` is used even when the venv is not activated
