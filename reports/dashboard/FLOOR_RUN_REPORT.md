@@ -15,6 +15,8 @@ not hand-entered.
 
 - Corpus: HF `mailroom-dataset`, 100 docs × 5 classes drawn (500 docs,
   about 15.6% of the 3,211-doc pool), shuffled (seed 20261102) so intake order is class-blind.
+  HF dataset revision: unverified. Neither run recorded it; each run's `dataset_hash` in
+  `floor_digest.json` fingerprints its local `dataset.jsonl`, not an HF commit.
 - Engine: LM Studio `qwen3.5-9b` served OpenAI-compatible on localhost,
   concurrency 4, JSON mode off, thinking off. $0 local lane; the `cost_cap_usd`
   is GPU-seconds *pricing*, not spend — a known estimator pitfall on local lanes.
@@ -56,6 +58,6 @@ MAILROOM_BASE_DIR=/path/to/sandbox-data python reports/dashboard/build_floor_dig
 # open floor.template.html beside floor_digest.js (rebuild emits both)
 ```
 
-Contract: the module docstring of `build_floor_digest.py` (outputs and fields) and
+Contract: the module docstring of `build_floor_digest.py` (output files and exit codes) and
 `selftest_floor_digest.py` (the checks it must pass). Topology is parsed from
 `vendor/llm-mailroom/src/graph/build_graph.py` — no hand-drawn graph.
