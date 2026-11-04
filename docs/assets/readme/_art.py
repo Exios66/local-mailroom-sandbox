@@ -510,7 +510,7 @@ def terminal(title, lines, desc) -> str:
               f'role="img" aria-labelledby="t d" font-family="{MONO}">\n  <title id="t">{esc(title)}</title>\n'
               f'  <desc id="d">{esc(desc)}</desc>\n  <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">'
               '<stop offset="0" stop-color="#0d1117"/><stop offset="1" stop-color="#161b2e"/></linearGradient></defs>\n'
-              '  <style>@media (prefers-reduced-motion: reduce){.motion{display:none}}</style>\n'
+              '  <style>@media (prefers-reduced-motion: reduce){.motion{display:none}.typed{clip-path:none}}</style>\n'
               '  <rect id="cyc" width="1" height="1" fill="none"><animate id="loop" attributeName="x" from="0" to="0" '
               'dur="__CYCLE__s" begin="0s;loop.end"/></rect>\n'
               f'  <rect x="1" y="1" width="{width - 2}" height="{height - 2}" rx="16" fill="url(#bg)" stroke="#30363d" stroke-width="2"/>\n'
@@ -532,10 +532,10 @@ def terminal(title, lines, desc) -> str:
                      f'<animate attributeName="width" from="0" to="{num(w)}" dur="{dur}s" begin="loop.begin+{num(t)}s" '
                      'fill="freeze"/></rect></clipPath>')
         if kind == 'cmd':
-            parts.append(f'  <text x="32" y="{y}" font-size="{fs}" clip-path="url(#c{i})"><tspan fill="#7ee787">$ </tspan>'
+            parts.append(f'  <text class="typed" x="32" y="{y}" font-size="{fs}" clip-path="url(#c{i})"><tspan fill="#7ee787">$ </tspan>'
                          f'<tspan fill="#e6edf3">{esc(content)}</tspan></text>')
         else:
-            parts.append(f'  <text x="32" y="{y}" font-size="{fs}" clip-path="url(#c{i})" fill="#8b949e" '
+            parts.append(f'  <text class="typed" x="32" y="{y}" font-size="{fs}" clip-path="url(#c{i})" fill="#8b949e" '
                          f'font-style="italic">{esc(prefix + content)}</text>')
         shown = len(prefix + content) if kind == 'cmd' else len(content)  # SVG collapses a note's leading spaces
         start_x = home + (len(prefix) if kind == 'cmd' else shown) * glyph

@@ -226,6 +226,7 @@ class WatchWebSession:
         )
         state["services"] = read_services()
         state["page_build"] = page_build()
+        state["waiting"] = False
         state["ok"] = True
         with self._lock:
             self._version += 1
@@ -234,9 +235,11 @@ class WatchWebSession:
         return state
 
     def mark_waiting(self, message: str) -> None:
+        """Show the waiting banner; keep the last good frame if there is one (as the terminal does)."""
         with self._lock:
+            last = self._state if self._state.get("snapshot") else {}
             self._version += 1
-            self._state = {"ok": False, "waiting": True, "error": message, "ui_version": self._version,
+            self._state = {**last, "ok": False, "waiting": True, "error": message, "ui_version": self._version,
                            "page_build": page_build()}
 
     def snapshot(self) -> tuple[int, dict[str, Any]]:
