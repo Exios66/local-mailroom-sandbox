@@ -78,6 +78,14 @@ active. A run that belongs to a study under `config/experiments/` gets its campa
 attached automatically. A transient read error keeps the last good frame on screen
 with an error banner.
 
+**One page everywhere.** `sandbox dev`, `sandbox web`, `sandbox watch --web`,
+`sandbox experiment watch` and `scripts/mailroom-tui web|dev` all serve the same page
+from `tui/web.py` (`tests/test_watch_parity.py` pins this). The demo only swaps the
+data source, including a three-run demo campaign, so what you see in `sandbox dev` is
+what a real run shows. Each page carries a build fingerprint. A tab left open across a
+watcher restart on newer code reloads itself once, so no browser keeps an old page
+(no hard refresh needed).
+
 Default URL: **http://127.0.0.1:8765/** — live updates via **SSE** (`/api/stream`).
 Leave the server running in one terminal; **Ctrl+C** there stops the web UI only.
 

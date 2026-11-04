@@ -2897,6 +2897,7 @@ def _serve_demo(args) -> int:
         port=web_mod.DEFAULT_PORT if args.port is None else args.port,
         open_browser=False if args.no_browser else None,
         tick=demo.step,
+        campaign_path=demo.campaign_path,
     )
 
 
