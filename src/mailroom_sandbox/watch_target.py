@@ -101,12 +101,24 @@ def _spec_store(cfg: Path, app: str | None) -> tuple[RunStore, str]:
             return RunStore(directory), app or DEFAULT_APP
         return store_and_app(directory, app)
     # resolve_run_id() would mint a fresh timestamp on every frame; follow the
-    # newest run this spec auto-named instead.
+    # newest run this exact spec auto-named instead. The name only encodes task
+    # and model, so a candidate must also carry this spec's locked spec_hash.
     prefix = f"{spec_mod._slug(spec.task)}-{spec_mod._slug(spec.engine.model.split('/')[-1])}-"
-    newest = latest_run(prefix=prefix)
-    if newest is None:
-        raise WaitingForRun(f"{cfg} has no run_id and no run named {prefix}* has started yet")
-    return store_and_app(newest, app)
+    want = spec.spec_hash()
+    for directory in run_dirs(prefix=prefix):
+        if _locked_hash(directory) == want:
+            return store_and_app(directory, app)
+    raise WaitingForRun(f"{cfg} has no run_id and no run of this spec ({prefix}*, spec_hash {want[:12]}) has started yet")
+
+
+def _locked_hash(directory: Path) -> str | None:
+    try:
+        import json
+
+        lock = json.loads((directory / "spec.lock.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return lock.get("spec_hash") if isinstance(lock, dict) else None
 
 
 def _experiment_dirs() -> list[Path]:

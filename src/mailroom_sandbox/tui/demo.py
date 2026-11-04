@@ -113,6 +113,9 @@ class DemoRun:
             + "".join(f"  - {n}\n" for n in names), encoding="utf-8")
         baseline = RunStore(self.root / "runs" / CAMPAIGN_RUNS[0])
         baseline.write_checkpoint(state="done", cursor=self.n_docs, total=self.n_docs)
+        # Queued run: an empty local directory, so the campaign never falls back
+        # to a real run of the same ID under the global runs root.
+        RunStore(self.root / "runs" / CAMPAIGN_RUNS[2])
         return folder / "experiment.yaml"
 
     def _reset_run(self) -> None:

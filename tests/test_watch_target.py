@@ -19,10 +19,14 @@ from mailroom_sandbox.services._exec import ServiceError
 from mailroom_sandbox.tui import web as web_mod
 
 
-def _run(run_id: str, *, app: str | None = "sandbox-vllm-x", concurrency: int = 4, age: float = 0.0) -> RunStore:
+def _run(run_id: str, *, app: str | None = "sandbox-vllm-x", concurrency: int = 4, age: float = 0.0,
+         spec_hash: str | None = None) -> RunStore:
     store = RunStore(spec_mod.run_dir(run_id))
     engine = {"model": "Qwen/Qwen3-8B-AWQ", "modal": {"app": app, "gpu": "L4"} if app else None}
-    store.write_lock({"run_id": run_id, "task": "sorter", "engine": engine, "job": {"concurrency": concurrency}})
+    lock = {"run_id": run_id, "task": "sorter", "engine": engine, "job": {"concurrency": concurrency}}
+    if spec_hash:
+        lock["spec_hash"] = spec_hash
+    store.write_lock(lock)
     store.write_checkpoint(state="running", cursor=0, total=4, remote=None)
     if age:
         stamp = time.time() - age
@@ -137,14 +141,41 @@ def test_run_yaml_with_run_id_can_be_watched_before_it_starts(job_data_dir, tmp_
 
 def test_run_yaml_without_run_id_follows_its_newest_auto_named_run(job_data_dir, tmp_path):
     cfg = _spec(tmp_path / "auto.yaml", None, model="Qwen/Qwen3-8B")
+    want = spec_mod.load_run_spec(cfg).spec_hash()
     target = wt.resolve_target(str(cfg))
     with pytest.raises(wt.WaitingForRun, match="no run_id"):
         target.resolve()
-    _run("sorter-qwen3-8b-20260101T000000Z", age=50)
-    _run("sorter-qwen3-8b-20260102T000000Z")
-    _run("pipeline-qwen3-8b-20260103T000000Z")  # other task: never picked
+    _run("sorter-qwen3-8b-20260101T000000Z", age=90, spec_hash=want)
+    _run("sorter-qwen3-8b-20260102T000000Z", age=50, spec_hash=want)
+    _run("sorter-qwen3-8b-20260103T000000Z", spec_hash="0" * 64)  # same task+model, other settings
+    _run("sorter-qwen3-8b-20260104T000000Z")  # not locked yet: unknown spec, never picked
+    _run("pipeline-qwen3-8b-20260105T000000Z", spec_hash=want)  # other task prefix: never picked
     assert target.resolve()[0].run_id == "sorter-qwen3-8b-20260102T000000Z"
     assert target.resolve()[0].run_id == "sorter-qwen3-8b-20260102T000000Z"  # stable across frames
+
+
+def test_run_yaml_without_run_id_waits_when_only_other_specs_ran(job_data_dir, tmp_path):
+    cfg = _spec(tmp_path / "auto.yaml", None, model="Qwen/Qwen3-8B")
+    _run("sorter-qwen3-8b-20260103T000000Z", spec_hash="f" * 64)
+    with pytest.raises(wt.WaitingForRun, match="spec_hash"):
+        wt.resolve_target(str(cfg)).resolve()
+
+
+def test_run_yaml_without_run_id_matches_a_real_mock_run(job_data_dir, tmp_path, capsys):
+    cfg = tmp_path / "noid.yaml"
+    cfg.write_text("schema: sandbox.run/v1\ntask: pipeline\nprofile: ollama\n"
+                   "dataset: {provider: file, local_path: data/fixtures/hf/docclass_mini.jsonl, limit: 1, sample_seed: 1}\n"
+                   "engine: {kind: vllm-local, model: qwen3:8b, modal: null}\n"
+                   "job: {mode: endpoint, mock: true, concurrency: 5}\ntrace: {sink: none}\n")
+    other = tmp_path / "other.yaml"
+    other.write_text(cfg.read_text().replace("concurrency: 5", "concurrency: 6"))
+    assert cli.main(["run", "start", "--config", str(cfg), "--mock"]) == 0
+    first = wt.latest_run().name
+    time.sleep(1.1)  # auto-named run IDs carry a per-second UTC stamp
+    assert cli.main(["run", "start", "--config", str(other), "--mock"]) == 0
+    capsys.readouterr()
+    assert wt.latest_run().name != first  # the other spec ran last...
+    assert wt.resolve_target(str(cfg)).resolve()[0].run_id == first  # ...but cfg follows its own run
 
 
 def test_malformed_run_yaml_fails_fast(job_data_dir, tmp_path):
@@ -289,6 +320,32 @@ def test_watch_positional_target_reaches_the_terminal_watcher(job_data_dir, monk
     monkeypatch.setattr(watch_mod, "watch", lambda **kw: seen.update(kw) or 0)
     assert cli.main(["watch", "term-run", "--once"]) == 0
     assert seen["resolve"]()[0].run_id == "term-run" and seen["once"] is True
+
+
+def test_web_demo_honours_cap_usd(monkeypatch, served):
+    assert cli.main(["web", "--demo", "--cap-usd", "12.5", "--no-browser"]) == 0
+    assert served["cap_usd"] == 12.5
+
+
+def test_terminal_watch_resolves_the_live_target_once_at_startup(job_data_dir, tmp_path, monkeypatch):
+    from mailroom_sandbox import watch as watch_mod
+
+    first = _run("startup-a")
+    second = _run("startup-b")
+    answers = iter([(first, "app"), (second, "app"), (second, "app")])
+    calls = []
+
+    def resolve():
+        calls.append(1)
+        return next(answers)
+
+    monkeypatch.setattr(watch_mod, "start_log_streams", lambda *a, **k: None)
+    monkeypatch.setattr(watch_mod, "render_frame", lambda **kw: (_ for _ in ()).throw(KeyboardInterrupt()))
+    try:
+        watch_mod.watch(resolve=resolve, ledger=None, once=True, logs=False, serving_dir=tmp_path)
+    except KeyboardInterrupt:
+        pass
+    assert len(calls) == 2  # one startup resolve (was two) + the first frame
 
 
 def test_web_demo_routes_to_the_dev_server(monkeypatch):

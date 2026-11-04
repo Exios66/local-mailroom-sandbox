@@ -144,6 +144,7 @@ def test_dev_demo_fills_the_campaign_tab_through_the_real_reader(tmp_path):
     states = {r["run_id"]: r["state"] for r in campaign["runs"]}
     assert states["sand032-demo-baseline"] == "done" and states["sand032-demo-followup"] == "waiting"
     assert campaign["completed"] == 1 and campaign["total"] == 3
+    assert (tmp_path / "demo" / "runs" / "sand032-demo-followup").is_dir()  # never falls back to a real run
     for _ in range(4):
         campaign = session.refresh()["campaign"]
     live = next(r for r in campaign["runs"] if r["run_id"] == RUN_ID)
