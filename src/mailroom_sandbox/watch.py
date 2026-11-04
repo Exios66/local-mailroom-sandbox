@@ -994,11 +994,12 @@ def watch(
     log_path: Path | None = None,
     serving_dir: Path | None = None,
     bell: bool = True,
-    campaign_path: Path | None = None,
+    campaign_path: Path | Callable[[str], Path | None] | None = None,
 ) -> int:
     """Live Tray TUI. Redraws when a log line lands or the run store changes, and at
     least every ``interval`` seconds (clocks, spend), painting in place without clearing."""
     from mailroom_sandbox.paths import reports_dir
+    from mailroom_sandbox.watch_target import WaitingForRun
 
     serving_dir = serving_dir or (reports_dir() / "serving")
     store, _app = resolve()
@@ -1025,7 +1026,10 @@ def watch(
     interval = max(0.25, float(interval or 1.0))
     try:
         while True:
-            store, app = resolve()  # --follow: the current run can change between frames
+            try:
+                store, app = resolve()  # --follow: the current run can change between frames
+            except WaitingForRun:
+                pass  # the marker names a run that has not started: keep showing the last one
             if (store.dir, app) != log_identity:
                 log_stop.set()
                 log_stop = threading.Event()
@@ -1072,7 +1076,7 @@ def watch(
                 width=width,
                 blink=blink,
                 log_rows=rows,
-                campaign_path=campaign_path,
+                campaign_path=campaign_path(store.run_id) if callable(campaign_path) else campaign_path,
                 pipeline_totals=pipeline_totals,
             )
             frame = render_frame(
