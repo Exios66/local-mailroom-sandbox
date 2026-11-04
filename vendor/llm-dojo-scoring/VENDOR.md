@@ -2,7 +2,7 @@
 
 Authoritative source: https://github.com/Exios66/llm-dojo-scoring
 
-- Source ref: `1cd4aba76d82eea20c6e8dfcc0d760881bf84924` (release v0.27.2, fetched by commit)
+- Source ref: `v0.27.2` (tag)
 - Exact source commit: `1cd4aba76d82eea20c6e8dfcc0d760881bf84924`
 - Source package version: `0.27.2`
 - Snapshot layout: llm_dojo_scoring/ relocated under src/ with the same shared exclusions.
@@ -22,8 +22,7 @@ the review findings on the 0.27.1 snapshot (local-mailroom-sandbox#245): `score_
 never raises on deeply nested prediction text and parses brace-heavy text in linear time;
 any `Mapping` prediction is a dict payload for adherence; a prose-wrapped Python repr sets
 `prose_wrapper`; `rescore` reports `headline_score` for CUAD/MAUD rows. No field-map, tier 0
-or headline score changes. The pin fetches the release commit directly, because the `v0.27.2`
-tag was not yet on GitHub and a missing named ref fails closed.
+or headline score changes. The pin names the `v0.27.2` tag and verifies its SHA.
 
 It builds on 0.27.1, the commit `a82843e8` of Dojo PR #118 (tag `v0.27.1`).
 0.27.0 added tiered per-document-type scoring (`score_document`, new `score_archive_block`
