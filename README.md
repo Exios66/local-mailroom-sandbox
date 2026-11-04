@@ -83,12 +83,14 @@ serving, eval and scoring overlays on top.
 ## 🚀 Quickstart
 
 <div align="center">
-<img src="docs/assets/readme/terminal.svg" alt="Animated terminal: install, copy the env file, bring up Langfuse, deploy the Modal vLLM endpoint, check health, then run the pilot with the mock and with the live model" width="90%"/>
+<img src="docs/assets/readme/terminal.svg" alt="Animated terminal: create and activate a virtualenv, install, copy the env file, bring up Langfuse, deploy the Modal vLLM endpoint, check health, then run the pilot with the mock and with the live model" width="90%"/>
 </div>
 
 ```bash
+python3 -m venv .venv              # repo-local env; deps never touch the machine Python
+source .venv/bin/activate          # puts `sandbox` on PATH (re-run in every new shell)
 pip install -e ".[dev]"
-# .venv/bin/sandbox uses its own venv's modal even when the venv is not activated
+# without activating, call .venv/bin/sandbox directly; it uses its own venv's modal either way
 cp config/.env.example .env   # sandbox loads .env at startup; exported vars win
 # family code is already vendored under vendor/ (self-contained); fetch-deps
 # only refreshes the snapshots (workspace packages first; reviewed standalone

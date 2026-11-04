@@ -278,6 +278,7 @@ sandbox health                       # after the serve runbook: provider reachab
 
 | Symptom | Cause / fix |
 | --- | --- |
+| `command not found: sandbox` | the console script lives in `.venv/bin`: `source .venv/bin/activate` (each new shell), or call `.venv/bin/sandbox` |
 | `ModuleNotFoundError: numpy` on first `sandbox` call | stale editable install; `pip uninstall mailroom-sandbox` then `pip install -e ".[dev]"` |
 | `sandbox datasets pull` says `pip install -e "[hf]"` | base install is offline-first; Hub client lives in `[dev]`/`[hf]` |
 | `run … --job-mode modal` says `[deploy]` | Modal SDK is an opt-in extra → `pip install -e ".[deploy]"` + `modal token new` |
