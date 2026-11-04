@@ -1,5 +1,4 @@
 """Native and LangChain agents share explicit, isolated per-agent transports."""
-import json
 
 import pytest
 

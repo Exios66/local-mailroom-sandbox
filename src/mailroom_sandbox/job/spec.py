@@ -80,6 +80,10 @@ VALID_QUANTIZATIONS = {
 _RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 
 
+class InvalidRunIdError(ValueError):
+    """A run id that is not a safe directory name (an input error, not a bug)."""
+
+
 class PromptRef(BaseModel):
     """One agent's prompt resolution: local file-, Langfuse pin, or code default."""
 
@@ -131,6 +135,10 @@ class DatasetSpec(BaseModel):
     # column was computed on 45 of 50 documents for exactly this reason. Off by
     # default: synthetic fixtures and other studies draw deliberately unlabeled rows.
     require_task_gt: bool = False
+    # Merge the interim GT overlay (data/labels/interim, mailroom_sandbox.interim_labels) into the
+    # drawn rows' expected_fields: the labels the next dataset revision is expected to publish.
+    # Off by default; the lock records the overlay's sha256 so such scores never pass for Hub-GT ones.
+    interim_labels: bool = False
     columns: dict[str, str] | None = None
     expected_fields: list[str] | None = None
     local_path: str | None = None  # file:// or absolute path (offline)
@@ -208,7 +216,19 @@ class DatasetSpec(BaseModel):
         return Path(url)
 
     def request_core(self) -> dict[str, Any]:
-        """The reproducibility-relevant spec (never row counts/hashes)."""
+        """The reproducibility-relevant spec (never row counts/hashes).
+
+        ``interim_labels`` is hashed only when set (with the overlay's fingerprint, so a rebuilt
+        overlay is a new spec), so every pre-existing run YAML keeps its spec_hash.
+        """
+        core = self._request_core()
+        if self.interim_labels:
+            from mailroom_sandbox.interim_labels import overlay_fingerprint
+
+            core["interim_labels"] = overlay_fingerprint()
+        return core
+
+    def _request_core(self) -> dict[str, Any]:
         if self.is_local() and self.local_file():
             local = self.local_file()
             core = {"provider": "file"}
@@ -274,6 +294,9 @@ class VLLMSpec(BaseModel):
     #  "original_max_position_embeddings": 32768, "rope_theta": 1000000}}
     # (v0.29.0 reads Transformers-v5 `rope_parameters`; vLLM derives max len 65536).
     hf_overrides: dict[str, Any] | None = None
+    # SAND-077: per-modality item caps (`vllm serve --limit-mm-per-prompt`).
+    # {"image": 0, ...} keeps a multimodal checkpoint (Qwen3.5) text-only.
+    limit_mm_per_prompt: dict[str, int] | None = None
 
     @field_validator("kv_cache_dtype")
     @classmethod
@@ -338,6 +361,8 @@ class ModalSpec(BaseModel):
     max_containers: int = 1
     min_containers: int = 0  # scale-to-zero; mirror MODAL_VLLM_MIN_CONTAINERS
     prewarm: bool = True
+    # Deploy from the workspace's published sandbox-vllm:<image_tag> instead of building.
+    named_image: bool = False
 
     @field_validator("gpu")
     @classmethod
@@ -372,11 +397,42 @@ class ModalSpec(BaseModel):
         return v
 
 
+DEFAULT_ENGINE_MODEL = "Qwen/Qwen3.5-9B"  # SAND-077 app default (Modal+vLLM)
+
+# Serve flags a model needs when the spec leaves them unset. Mirrors the
+# config/models.yaml row and deploy/modal_vllm.py MODEL_SERVE_DEFAULTS (parity
+# tested): Qwen3.5 has no published FP8 checkpoint, so it serves online fp8,
+# text-only.
+MODEL_SERVE_DEFAULTS: dict[str, dict[str, Any]] = {
+    "Qwen/Qwen3.5-9B": {
+        "quantization": "fp8",
+        "limit_mm_per_prompt": {"image": 0, "video": 0, "audio": 0},
+    },
+    "Qwen/Qwen3.5-35B-A3B": {  # SAND-079 mid specialist tier
+        "quantization": "fp8",
+        "limit_mm_per_prompt": {"image": 0, "video": 0, "audio": 0},
+    },
+    "Qwen/Qwen3.5-27B": {  # SAND-078 judge tier
+        "quantization": "fp8",
+        "limit_mm_per_prompt": {"image": 0, "video": 0, "audio": 0},
+    },
+}
+
+
 class EngineSpec(BaseModel):
     kind: Literal["vllm-local", "vllm-remote", "modal-vllm", "openrouter"] = "modal-vllm"
-    model: str = "Qwen/Qwen3-8B"
+    model: str = DEFAULT_ENGINE_MODEL
     vllm: VLLMSpec = Field(default_factory=VLLMSpec)
     modal: ModalSpec | None = Field(default_factory=ModalSpec)
+
+    @model_validator(mode="after")
+    def _serve_defaults(self) -> "EngineSpec":
+        """Fill a model's required serve flags; an explicit value always wins."""
+        for key, value in MODEL_SERVE_DEFAULTS.get(self.model, {}).items():
+            unset = key not in self.vllm.model_fields_set if key == "quantization" else getattr(self.vllm, key) is None
+            if unset:
+                setattr(self.vllm, key, value.copy() if isinstance(value, dict) else value)
+        return self
 
 
 class AgentRoute(BaseModel):
@@ -421,7 +477,7 @@ def known_tasks() -> tuple[str, ...]:
     """
     base = (
         "sorter",
-        "legalbench",
+        "specialist",
         "pipeline",
         "extract",
         "chained",
@@ -432,7 +488,7 @@ def known_tasks() -> tuple[str, ...]:
     try:
         from mailroom_sandbox.eval.agents import SPECS
 
-        agents = tuple(n for n in SPECS if n not in ("sorter", "legalbench"))
+        agents = tuple(n for n in SPECS if n != "sorter")
     except Exception as exc:  # pragma: no cover — defensive for partial tooling imports
         _log.warning(
             "eval.agents.SPECS unavailable — agent-registered tasks are NOT in the "
@@ -470,6 +526,10 @@ class JobSpec(BaseModel):
     # runs; exceeding either cap fails the run loud (no silent overspend).
     cost_cap_usd: float | None = None
     max_wall_seconds: int | None = None
+    # SAND-089: token spend ceiling for agents on a token-billed API (OpenRouter).
+    # cost_cap_usd estimates GPU time only; a paid run that bills API tokens needs
+    # this too, and a known price for every API model (job/api_budget.py).
+    api_cost_cap_usd: float | None = None
 
     @field_validator("task")
     @classmethod
@@ -501,6 +561,14 @@ class JobSpec(BaseModel):
             raise ValueError("cost_cap_usd must be > 0 when set")
         return v
 
+    @field_validator("api_cost_cap_usd")
+    @classmethod
+    def _api_cost_cap(cls, v: float | None) -> float | None:
+        """Reject a NaN or non-positive API spend ceiling when one is set."""
+        if v is not None and (not math.isfinite(v) or v <= 0):
+            raise ValueError("api_cost_cap_usd must be > 0 when set")
+        return v
+
     @field_validator("max_wall_seconds")
     @classmethod
     def _max_wall(cls, v: int | None) -> int | None:
@@ -508,6 +576,84 @@ class JobSpec(BaseModel):
         if v is not None and v < 60:
             raise ValueError("max_wall_seconds must be >= 60 when set")
         return v
+
+
+class ReviewerSpec(BaseModel):
+    """Frozen decision-model reviewer: which backend, which pinned model, which classes at what cutoff."""
+    model_config = {"extra": "forbid"}
+    backend: Literal["jev", "local", "api", "decisions", "mock"]
+    model: str = Field(min_length=1)
+    # Per-class cutoffs. Empty only on a calibration run (task: sorter_reviewer), which
+    # routes nothing; preflight requires at least one class on a pipeline run.
+    classes: dict[str, float] = Field(default_factory=dict)
+    # backend decisions: the question-set stem, config/decisions/<stem>.yaml (locked by content).
+    questions: str | None = None
+    # A chat model as the decision reviewer must be chosen on purpose (see _decision_model_guard).
+    allow_chat_model: bool = False
+    # Calibration only (task: sorter_reviewer): a finished sorter run whose answers are the
+    # sorter handoff for each document. The pipeline passes the live handoff instead.
+    # A finished sorter run, a saved pass (data/handoff/<name>/<split>.jsonl), or several of
+    # these merged (later entries win on overlap).
+    handoff_run: str | list[str] | None = None
+
+    @field_validator("classes", mode="before")
+    @classmethod
+    def _cutoffs(cls, values: Any) -> Any:
+        if values is None:
+            return {}
+        if not isinstance(values, dict):
+            raise ValueError("reviewer classes must map class names to cutoffs")
+        for name, cutoff in values.items():
+            if isinstance(cutoff, bool) or not isinstance(cutoff, (int, float)) or not math.isfinite(cutoff) or not 0 <= cutoff <= 1:
+                raise ValueError(f"{name}: cutoff must be a finite number in [0, 1]")
+        return values
+
+    @model_validator(mode="after")
+    def _backend_pin(self) -> "ReviewerSpec":
+        # The pin check lives with the backends; building one does no network call.
+        from mailroom_sandbox.decision_backends import build_backend
+
+        build_backend(self.backend, self.model, questions=self.questions)
+        return self
+
+    def model_dump(self, **kwargs: Any) -> dict[str, Any]:  # type: ignore[override]
+        # Fields added for the Decisions backend are omitted at their defaults, so the
+        # spec hash of every reviewer block written before them is unchanged.
+        out = super().model_dump(**kwargs)
+        if out.get("questions") is None:
+            out.pop("questions", None)
+        if out.get("allow_chat_model") is False:
+            out.pop("allow_chat_model", None)
+        if out.get("handoff_run") is None:
+            out.pop("handoff_run", None)
+        return out
+
+    @model_validator(mode="after")
+    def _decision_model_guard(self) -> "ReviewerSpec":
+        # 2026-11-01: a whole calibration ran on the chat model openai/gpt-6-luna through the api
+        # backend when the intended reviewer was the Decisions model openai/gpt-6-luna-decisions.
+        # A Decisions model only works on backend decisions, and a chat model on api needs an
+        # explicit opt-in, so the two can no longer be swapped silently.
+        from mailroom_sandbox.decision_backends import is_decisions_model
+
+        if self.backend == "decisions" and not is_decisions_model(self.model):
+            raise ValueError(f"reviewer backend decisions needs a Decisions-API model (e.g. 'openai/gpt-6-luna-decisions'); "
+                             f"{self.model!r} is a chat model")
+        if self.backend == "decisions" and not self.questions:
+            raise ValueError("reviewer backend decisions needs questions: <stem> (config/decisions/<stem>.yaml)")
+        if self.backend == "decisions":
+            # A human verdict gates at confidence 0.0, parked only by a cutoff above 0.
+            zero = sorted(name for name, cutoff in self.classes.items() if cutoff <= 0)
+            if zero:
+                raise ValueError(f"reviewer backend decisions needs cutoffs above 0 ({', '.join(zero)}): "
+                                 "a human verdict gates at 0.0 and a cutoff of 0 would never park it")
+        if self.backend != "decisions" and is_decisions_model(self.model):
+            raise ValueError(f"{self.model!r} is a Decisions-API model; use reviewer backend decisions, not {self.backend!r}")
+        if self.backend == "api" and not self.allow_chat_model:
+            raise ValueError(f"reviewer backend api runs the chat model {self.model!r} as the decision reviewer; "
+                             "the decision reviewer is a Decisions-API model (backend decisions). "
+                             "Set allow_chat_model: true only to compare against a chat model on purpose")
+        return self
 
 
 class TraceSpec(BaseModel):
@@ -518,11 +664,34 @@ class TraceSpec(BaseModel):
     tags: list[str] = ["sandbox", "job"]
 
 
+class ExtractionGateSpec(BaseModel):
+    """The Decisions-model extraction gate in a pipeline run (advisory; llm-mailroom >= the gate hook).
+
+    The pipeline sends the sorter's subclass with every extraction; the gate's answers are
+    recorded per document (``extraction_gate``) and never change routing.
+    """
+    model_config = {"extra": "forbid"}
+    model: str = Field(min_length=1)
+    # The question-set stem, config/decisions/<stem>.yaml, of kind extraction_gate (locked by content).
+    questions: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _decisions_model(self) -> "ExtractionGateSpec":
+        from mailroom_sandbox.decision_backends import is_decisions_model
+
+        if not is_decisions_model(self.model):
+            raise ValueError(f"extraction_gate model {self.model!r} is not a Decisions-API model")
+        return self
+
+
 class RunSpec(BaseModel):
     schema_name: str = Field(default="sandbox.run/v1", alias="schema")
     run_id: str | None = None
     runbook_id: str | None = None
     task: str = "sorter"
+    # Level 2 of the primary tasks: one specialist (task: specialist) or one
+    # document class through the full graph (task: pipeline). None = all.
+    target: str | None = None
     profile: str = "modal-vllm"
     prompt: dict[str, Any] = Field(default_factory=dict)  # {default:..., agents:{name:...}}
     dataset: DatasetSpec = Field(default_factory=DatasetSpec)
@@ -533,6 +702,8 @@ class RunSpec(BaseModel):
     agent_models: dict[str, str] = Field(default_factory=dict)
     agent_knobs: dict[str, dict[str, Any]] = Field(default_factory=dict)
     agent_routes: dict[str, AgentRoute] = Field(default_factory=dict)
+    reviewer: ReviewerSpec | None = None
+    extraction_gate: ExtractionGateSpec | None = None
 
     model_config = {"populate_by_name": True}
 
@@ -558,6 +729,31 @@ class RunSpec(BaseModel):
     @classmethod
     def _task_known(cls, v: str) -> str:
         return _check_task(v)
+
+    @model_validator(mode="after")
+    def _gate_in_pipeline(self) -> "RunSpec":
+        if self.extraction_gate is not None and self.task != "pipeline":
+            raise ValueError(f"extraction_gate reviews pipeline extractions; task {self.task!r} runs none "
+                             "(calibrate the gate with task: extraction_gate and a reviewer block)")
+        return self
+
+    @model_validator(mode="after")
+    def _reviewer_classes(self) -> "RunSpec":
+        if self.reviewer is not None and not self.reviewer.classes and self.task not in ("sorter_reviewer", "extraction_gate"):
+            raise ValueError("reviewer classes must map at least one class to a cutoff "
+                             "(an empty map is only for a task: sorter_reviewer calibration run)")
+        return self
+
+    @model_validator(mode="after")
+    def _target(self) -> "RunSpec":
+        if self.target is None:
+            return self
+        from mailroom_sandbox.eval.primary import PRIMARY_TASKS, resolve_class
+
+        if self.task not in PRIMARY_TASKS:
+            raise ValueError(f"target only applies to task specialist or pipeline, not {self.task!r}")
+        self.target = resolve_class(self.target)
+        return self
 
     @model_validator(mode="after")
     def _prompt_map(self) -> "RunSpec":
@@ -622,7 +818,7 @@ def prompt_resolution_map(spec: RunSpec) -> dict[str, Any]:
 # SAND-032 knobs hash only when set, so pre-SAND-032 run YAMLs keep their
 # recorded spec_hash (locks, resume, and hashes cited in committed reports).
 _HASH_WHEN_SET = ("kv_cache_dtype", "enable_thinking", "cudagraph_capture_sizes",
-                  "max_num_batched_tokens", "max_inputs", "hf_overrides")
+                  "max_num_batched_tokens", "max_inputs", "hf_overrides", "limit_mm_per_prompt")
 
 
 def _vllm_core(vllm: VLLMSpec) -> dict[str, Any]:
@@ -639,20 +835,38 @@ def spec_core(spec: RunSpec) -> dict[str, Any]:
     return {
         **({"agent_models": dict(sorted(spec.agent_models.items()))} if spec.agent_models else {}),
         **({"agent_knobs": spec.agent_knobs} if spec.agent_knobs else {}),
-        **({"agent_routes": {name: route.model_dump() for name, route in spec.agent_routes.items()}} if spec.agent_routes else {}),
+        **({"agent_routes": {name: _route_core(route) for name, route in spec.agent_routes.items()}} if spec.agent_routes else {}),
+        **({"reviewer": spec.reviewer.model_dump()} if spec.reviewer else {}),
+        # Hashed only when set, so every pre-existing run YAML keeps its spec_hash.
+        **({"extraction_gate": spec.extraction_gate.model_dump()} if spec.extraction_gate else {}),
         "task": spec.task,
+        # Hashed only when set, so every pre-existing run YAML keeps its spec_hash.
+        **({"target": spec.target} if spec.target else {}),
         "profile": spec.profile,
         "engine": {
             "kind": spec.engine.kind,
             "model": spec.engine.model,
             "vllm": _vllm_core(spec.engine.vllm),
-            "modal": spec.engine.modal.model_dump() if spec.engine.modal else None,
+            "modal": _modal_core(spec.engine.modal),
         },
-        "job": spec.job.model_dump(),
+        # api_cost_cap_usd is hashed only when set, so pre-SAND-089 YAMLs keep their hash.
+        "job": {key: value for key, value in spec.job.model_dump().items()
+                if not (key == "api_cost_cap_usd" and value is None)},
         "trace": spec.trace.model_dump(),
         "prompt": prompt_resolution_map(spec),
         "dataset": spec.dataset.request_core(),
     }
+
+
+def _modal_core(modal: ModalSpec | None) -> dict[str, Any] | None:
+    """named_image is hashed only when set, so existing run YAMLs keep their hash."""
+    if modal is None:
+        return None
+    return {key: value for key, value in modal.model_dump().items() if key != "named_image" or value}
+
+
+def _route_core(route: Any) -> dict[str, Any]:
+    return {**route.model_dump(), "modal": _modal_core(route.modal)}
 
 
 def spec_hash(spec: RunSpec) -> str:
@@ -672,7 +886,7 @@ def _slug(value: str) -> str:
 def resolve_run_id(spec: RunSpec) -> str:
     if spec.run_id:
         if not _RUN_ID_RE.match(spec.run_id):
-            raise ValueError(f"run_id {spec.run_id!r} must match {_RUN_ID_RE.pattern}")
+            raise InvalidRunIdError(f"run_id {spec.run_id!r} must match {_RUN_ID_RE.pattern}")
         return spec.run_id
     return f"{_slug(spec.task)}-{_slug(spec.engine.model.split('/')[-1])}-{utc_stamp()}"
 
@@ -685,7 +899,7 @@ def runs_root() -> Path:
 
 def run_dir(run_id: str) -> Path:
     if not _RUN_ID_RE.match(run_id):
-        raise ValueError(f"run_id {run_id!r} must match {_RUN_ID_RE.pattern}")
+        raise InvalidRunIdError(f"run_id {run_id!r} must match {_RUN_ID_RE.pattern}")
     return runs_root() / run_id
 
 

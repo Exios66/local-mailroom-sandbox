@@ -22,6 +22,7 @@ import httpx
 from mailroom_sandbox.paths import repo_root
 from mailroom_sandbox.services._cli import format_command, print_json, print_plan, strip_separator, warn
 from mailroom_sandbox.services._exec import ServiceError, ToolFailed, stream_tool
+from mailroom_sandbox.services._redact import redact_urls
 from mailroom_sandbox.services.modal_cli import _matrix_env
 
 SERVE_HINT = (
@@ -101,13 +102,19 @@ def _local_host(argv: list[str]) -> list[str]:
 
 
 def _cmd_serve(args: argparse.Namespace) -> int:
+    # REMAINDER swallows a --dry-run placed after the extras; it must never start the server.
+    extras = strip_separator(args.rest)
+    dry_run = args.dry_run or "--dry-run" in extras
+    extras = [part for part in extras if part != "--dry-run"]
+    if any(part == "--host" or part.startswith("--host=") for part in extras):
+        raise ServiceError("a local serve binds 127.0.0.1; --host cannot be overridden")
     argv, overrides, _module = _serve_argv(args)
-    argv = _local_host(argv) + strip_separator(args.rest)
+    argv = _local_host(argv) + extras
     env = {**os.environ, **overrides}
     token = os.environ.get("MODAL_VLLM_API_TOKEN", "").strip()
     if token and not os.environ.get("VLLM_API_KEY"):
         env["VLLM_API_KEY"] = token
-    if args.dry_run:
+    if dry_run:
         print_plan(argv, overrides)
         print("dry-run: nothing started (a local serve needs an NVIDIA GPU and downloads the weights).")
         return 0
@@ -155,7 +162,7 @@ def _get(url: str, headers: dict[str, str]) -> dict[str, Any]:
 
 
 def _cmd_probe(args: argparse.Namespace) -> int:
-    from mailroom_sandbox.health import ProbeResult, _headers, probe_chat, probe_models
+    from mailroom_sandbox.health import ProbeResult, _headers, explain_modal_timeout, probe_chat, probe_models
     from mailroom_sandbox.overlay import resolve_served_vllm_model
     from mailroom_sandbox.providers import endpoints_for
 
@@ -164,6 +171,7 @@ def _cmd_probe(args: argparse.Namespace) -> int:
         warn("a request to a scale-to-zero Modal endpoint can cold-start a billed GPU container")
     headers = _headers(profile)
     models = probe_models(profile)
+    starting = explain_modal_timeout(profile, models)
     chat = (
         probe_chat(profile)
         if models.ok
@@ -175,8 +183,9 @@ def _cmd_probe(args: argparse.Namespace) -> int:
         )
     )
     root = _root(base_url)
-    health = _get(f"{root}/health", headers)
-    metrics = _get(f"{root}/metrics", headers)
+    skipped = {"ok": False, "detail": "skipped (endpoint still starting)"}
+    health = {**skipped, "url": f"{root}/health"} if starting else _get(f"{root}/health", headers)
+    metrics = {**skipped, "url": f"{root}/metrics"} if starting else _get(f"{root}/metrics", headers)
 
     expected = resolve_served_vllm_model() or str(profile.get("default_model") or "") or None
     served = models.models or []
@@ -197,9 +206,9 @@ def _cmd_probe(args: argparse.Namespace) -> int:
     if args.json:
         print_json(report)
     else:
-        print(f"endpoint: {base_url}")
+        print(f"endpoint: {redact_urls(base_url)}")
         for name, row in (("models", models.as_dict()), ("chat", chat.as_dict()), ("health", health), ("metrics", metrics)):
-            print(f"  {name:<8} {'ok  ' if row['ok'] else 'FAIL'} {row['detail']}")
+            print(f"  {name:<8} {'ok  ' if row['ok'] else 'FAIL'} {redact_urls(str(row['detail']))}")
         if served:
             print(f"  serving: {', '.join(served)}")
     if not served_ok:
@@ -208,9 +217,11 @@ def _cmd_probe(args: argparse.Namespace) -> int:
             "set VLLM_MODEL/MODAL_VLLM_MODEL to the served id (or redeploy that model)",
             file=sys.stderr,
         )
+    elif starting:
+        print(f"not ready: {models.detail}", file=sys.stderr)
     elif not ok:
         failing = models if not models.ok else chat
-        print(f"error: endpoint is not healthy — {failing.name}: {failing.detail}", file=sys.stderr)
+        print(f"error: endpoint is not healthy — {failing.name}: {redact_urls(str(failing.detail))}", file=sys.stderr)
     return 0 if ok else 1
 
 

@@ -14,8 +14,8 @@ import os
 import re
 import sys
 from dataclasses import asdict, dataclass
+from importlib.util import find_spec
 from pathlib import Path
-from typing import Any
 
 from mailroom_sandbox.services._cli import print_json, warn
 from mailroom_sandbox.services._exec import ServiceError, run_tool, strip_ansi
@@ -23,7 +23,7 @@ from mailroom_sandbox.services._redact import redact_urls
 
 SERVICES = (
     "modal", "modal-auth", "hf", "hf-auth", "docker", "ollama", "ssh", "git", "vllm",
-    "provider", "langfuse", "phoenix", "tunnel", "compose",
+    "provider", "openrouter", "langfuse", "phoenix", "tunnel", "compose",
 )
 _MARK = {"ok": "ok  ", "warn": "WARN", "fail": "FAIL", "skipped": "skip"}
 
@@ -60,6 +60,28 @@ def _binary(name: str, *, needed: bool, hint: str, version: list[str] | None = N
     return ServiceStatus(name, "ok", f"{name} {found}" if found else path)
 
 
+def _modal(profile_name: str, *, live: bool) -> ServiceStatus:
+    from mailroom_sandbox.services.modal_cli import INSTALL_HINT, PINNED_SDK, app_status, vllm_app
+
+    needed = profile_name == "modal-vllm"
+    row = _binary("modal", needed=needed, hint=INSTALL_HINT, version=["modal", "--version"], pin=PINNED_SDK)
+    if not live or "not installed" in row.detail:
+        return row
+    app = vllm_app()
+    try:
+        status = app_status(app)
+    except ServiceError as exc:
+        detail = f"{row.detail}; account check failed: {' '.join(str(exc).split())}"
+        return ServiceStatus("modal", "fail" if needed else "warn", detail, "modal token new  (or check MODAL_PROFILE)")
+    tasks = "" if not status["deployed"] else f", containers={'?' if status['tasks'] is None else status['tasks']}"
+    account = os.environ.get("MODAL_PROFILE") or "active profile"
+    detail = f"{row.detail}; {account}: {app} {status['state']}{tasks}"
+    if needed and not status["deployed"] and row.state != "fail":
+        # The modal-vllm profile has nothing to call until its app is deployed.
+        return ServiceStatus("modal", "fail", detail, "sandbox modal deploy")
+    return ServiceStatus("modal", row.state, detail, row.hint)
+
+
 def _modal_auth(profile_name: str) -> ServiceStatus:
     if os.environ.get("MODAL_TOKEN_ID") and os.environ.get("MODAL_TOKEN_SECRET"):
         return ServiceStatus("modal-auth", "ok", "token from MODAL_TOKEN_ID/MODAL_TOKEN_SECRET")
@@ -82,7 +104,7 @@ def _hf_auth() -> ServiceStatus:
 
 
 def _provider(profile: dict, *, live: bool) -> ServiceStatus:
-    from mailroom_sandbox.health import _effective_base_url, missing_modal_endpoint, probe_models
+    from mailroom_sandbox.health import _effective_base_url, explain_modal_timeout, missing_modal_endpoint, probe_models
     from mailroom_sandbox.providers import endpoints_for
 
     if missing_modal_endpoint(profile):
@@ -95,9 +117,31 @@ def _provider(profile: dict, *, live: bool) -> ServiceStatus:
         return ServiceStatus("provider", "ok", f"{base} (not probed; use --live)")
     result = probe_models(profile)
     if not result.ok:
-        return ServiceStatus("provider", "fail", f"{base}: {result.detail}", "sandbox modal status / sandbox health")
-    models = ", ".join(result.models or []) or "no models listed"
+        state = "warn" if explain_modal_timeout(profile, result) else "fail"
+        return ServiceStatus("provider", state, f"{base}: {result.detail}", "sandbox modal status / sandbox health")
+    listed = result.models or []
+    models = ", ".join(listed[:3]) + (f" … ({len(listed)} models)" if len(listed) > 3 else "") if listed else "no models listed"
     return ServiceStatus("provider", "ok", f"{base}: {models}")
+
+
+def _openrouter(profile: dict, *, live: bool) -> ServiceStatus:
+    """API credential for the ``openrouter`` profile and for hybrid ``--agent-route NAME=openrouter:MODEL`` runs."""
+    from mailroom_sandbox.health import _api_key, probe_openrouter_key
+
+    needed = str(profile.get("provider")) == "openrouter"
+    key_env = str(profile.get("api_key_env") or "OPENROUTER_API_KEY") if needed else "OPENROUTER_API_KEY"
+    hint = f"export {key_env}=… (or add it to .env); rotate throwaway keys after testing"
+    if not _api_key(key_env):
+        if needed:
+            return ServiceStatus("openrouter", "fail", f"{key_env} unset; the openrouter profile cannot call the API", hint)
+        return ServiceStatus("openrouter", "skipped", f"{key_env} unset (only needed for the openrouter profile or API agent routes)")
+    if not live:
+        return ServiceStatus("openrouter", "ok", f"{key_env} set (value hidden; not probed, use --live)")
+    base = (profile.get("base_url") if needed else None) or None
+    result = probe_openrouter_key(os.environ.get("OPENROUTER_BASE_URL") or base, key_env=key_env)
+    if result.ok:
+        return ServiceStatus("openrouter", "ok", result.detail)
+    return ServiceStatus("openrouter", "fail" if needed else "warn", result.detail, hint)
 
 
 def _sink(name: str, url: str | None, *, configured: bool, live: bool, default_hint: str) -> ServiceStatus:
@@ -118,7 +162,13 @@ def _langfuse(*, live: bool) -> ServiceStatus:
     if not host and not live:
         return ServiceStatus("langfuse", "skipped", "LANGFUSE_HOST unset (default http://localhost:3000 after `sandbox up`)")
     host = host or "http://localhost:3000"
-    return _sink("langfuse", f"{host.rstrip('/')}/api/public/health", configured=True, live=live, default_hint="")
+    row = _sink("langfuse", f"{host.rstrip('/')}/api/public/health", configured=True, live=live, default_hint="")
+    if os.environ.get("OBSERVABILITY_PROVIDER", "langfuse") == "langfuse" and not find_spec("langfuse"):
+        return ServiceStatus(
+            "langfuse", "warn", f"{row.detail}; langfuse SDK not installed, so runs record no traces",
+            'pip install -e ".[observability]"',
+        )
+    return row
 
 
 def _phoenix(*, live: bool) -> ServiceStatus:
@@ -166,12 +216,10 @@ def run_doctor(profile_name: str, *, live: bool = False, services: list[str] | N
     import shutil
 
     from mailroom_sandbox.overlay import load_profile
-    from mailroom_sandbox.services.modal_cli import INSTALL_HINT, PINNED_SDK
-
     profile = load_profile(profile_name)
     docker_present = bool(shutil.which("docker"))
     checks = {
-        "modal": lambda: _binary("modal", needed=profile_name == "modal-vllm", hint=INSTALL_HINT, version=["modal", "--version"], pin=PINNED_SDK),
+        "modal": lambda: _modal(profile_name, live=live),
         "modal-auth": lambda: _modal_auth(profile_name),
         "hf": lambda: _binary("hf", needed=True, hint="pip install -U huggingface_hub", version=["hf", "--version"]),
         "hf-auth": _hf_auth,
@@ -181,6 +229,7 @@ def run_doctor(profile_name: str, *, live: bool = False, services: list[str] | N
         "git": lambda: _binary("git", needed=True, hint="install git (`sandbox fetch-deps`)"),
         "vllm": lambda: _binary("vllm", needed=profile_name == "vllm-local", hint="pip install vllm on an NVIDIA host, or `sandbox modal deploy`"),
         "provider": lambda: _provider(profile, live=live),
+        "openrouter": lambda: _openrouter(profile, live=live),
         "langfuse": lambda: _langfuse(live=live),
         "phoenix": lambda: _phoenix(live=live),
         "tunnel": lambda: _tunnel(profile, live=live),
