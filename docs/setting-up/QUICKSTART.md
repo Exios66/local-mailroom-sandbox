@@ -220,7 +220,7 @@ Full guide: **[mailroom-themed-logging.md](../pretty-logging/mailroom-themed-log
 sandbox run start --config config/runs/my-run.yaml --job-mode endpoint
 
 # Pane B: themed browser watcher (http://127.0.0.1:8765/) + live `modal app logs -f` tail
-sandbox web                       # newest run; switches by itself when the next run starts
+sandbox web                       # newest run, switching by itself when the next starts (a published sand032/current marker wins)
 sandbox web my-run                # one run: run ID, config/runs/<name>, a run YAML path, or an experiment
 sandbox watch my-run              # same panels in the terminal
 
