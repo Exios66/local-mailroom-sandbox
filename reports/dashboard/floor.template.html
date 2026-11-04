@@ -48,12 +48,13 @@ h3{font-size:9px;letter-spacing:2px;color:#4d5c6e;margin:9px 0 6px}
 .state{display:flex;justify-content:space-between;padding:4px 6px;border:1px solid #1c2530;border-radius:4px;margin-bottom:3px;font-size:10px}
 .state .n{color:#5d6c80;margin-left:6px;font-size:9px}
 .note2{font-size:9px;color:#5d6c80;margin:5px 2px 8px;line-height:1.5}
+.run:focus-visible,.cls:focus-visible,.node:focus-visible,#zoomctl div:focus-visible{outline:2px solid #7fd0a2;outline-offset:1px}
 </style></head><body>
 <div class="app">
 <div class="ribbon"><span id="bigTitle"></span><b>PIPELINE FLOOR · DIGEST-DRIVEN v10</b> — topology: build_graph.py wiring · numbers: floor_digest.json · <em><span id="mode">ALL CLASSES</span></em><span class="z" id="gen"></span></div>
 <div class="rail"><h3 style="margin-top:0">RUNS</h3><div id="runs"></div><h3>CLASSES — click = isolate</h3><div id="cl"></div>
 <div style="font-size:8.5px;color:#4d5c6e;margin-top:8px;line-height:1.6">green outline = class route · dim = untouched<br>node = docs that fired it · chip = docs crossed that edge</div></div>
-<div id="viewport"><div id="hud">arrows/drag <b>pan</b> · wheel <b>zoom</b> · click node → <b>its in/out edges light</b> · click empty canvas → <b>clear</b> · click class → <b>isolate</b></div><div id="zoomctl"><div id="zin">+</div><div id="zout">−</div><div id="zfit" style="font-size:9px">fit</div></div><div id="world"><svg id="edges" width="2200" height="1400"><defs>
+<div id="viewport"><div id="hud">arrows/drag <b>pan</b> · wheel <b>zoom</b> · click node → <b>its in/out edges light</b> · click empty canvas → <b>clear</b> · click class → <b>isolate</b></div><div id="zoomctl"><div id="zin" tabindex="0" role="button" aria-label="zoom in">+</div><div id="zout" tabindex="0" role="button" aria-label="zoom out">−</div><div id="zfit" tabindex="0" role="button" aria-label="fit graph" style="font-size:9px">fit</div></div><div id="world"><svg id="edges" width="2200" height="1400"><defs>
 <marker id="arr" markerWidth="13" markerHeight="13" refX="11" refY="6.5" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L13,6.5 L0,13 z" fill="#7e93a8"/></marker>
 <marker id="arrHot" markerWidth="13" markerHeight="13" refX="11" refY="6.5" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L13,6.5 L0,13 z" fill="#7cc4ff"/></marker>
 <marker id="arrSel" markerWidth="15" markerHeight="15" refX="12" refY="7.5" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L15,7.5 L0,15 z" fill="#cdeaff"/></marker>
@@ -159,7 +160,7 @@ function render(){
   else if(CLASS){ ncls += (v>0)? " route":" dim"; }
   else { ncls += (v===0 && id!=="START" && id!=="END")? " dim":""; }   // base mode: a node with zero fires greys too
   mk(`<span class="tag ${!isllm?(id==="human_review"||id==="failed"?"tray":"code"):""}">${esc(GR.node_agents[id]||id)}</span><div class="nm">${esc(id)}</div><div class="v ${v===0?"zero":id==="human_review"?"warn":id==="failed"?"bad":""}">${v}</div><div class="s">p50 ${((r.node_ms_p50[id]||0)/1000).toFixed(1)}s</div>`, ncls)
-   .style.cssText=`left:${xy[0]}px;top:${xy[1]}px`;world.lastChild.dataset.k=id;
+   .style.cssText=`left:${xy[0]}px;top:${xy[1]}px`;world.lastChild.dataset.k=id;world.lastChild.tabIndex=0;world.lastChild.setAttribute("role","button");world.lastChild.setAttribute("aria-pressed",String(selNode===id));
  }
  function anc(a,b){const ac={x:a[0]+NB.w/2,y:a[1]+NB.h/2},bc={x:b[0]+NB.w/2,y:b[1]+NB.h/2};const dx=bc.x-ac.x,dy=bc.y-ac.y;
   const t=Math.min(Math.abs(dx)>1?(NB.w/2+15)/Math.abs(dx):1e9,Math.abs(dy)>1?(NB.h/2+13)/Math.abs(dy):1e9);
@@ -208,7 +209,7 @@ function render(){
 }
 /** Rebuild run and class menus and their selection handlers. */
 function menus(){
- document.getElementById("runs").innerHTML=D.runs.map((r,i)=>`<div class="run${i===runIdx?" sel":""}" data-i="${i}">${esc(r.name)}<small>${esc(r.state)} · ${r.items_attempted}/${r.total==null?"?":r.total} · ok ${r.items_ok}</small></div>`).join("");
+ document.getElementById("runs").innerHTML=D.runs.map((r,i)=>`<div class="run${i===runIdx?" sel":""}" data-i="${i}" tabindex="0" role="button" aria-pressed="${i===runIdx}">${esc(r.name)}<small>${esc(r.state)} · ${r.items_attempted}/${r.total==null?"?":r.total} · ok ${r.items_ok}</small></div>`).join("");
  document.querySelectorAll(".run").forEach(el=>el.onclick=()=>{runIdx=+el.dataset.i;CLASS=null;selNode=null;menus();render()});
  // no dataset.jsonl -> per_class is {}: show "?" (unknown), never a fake 0, and disable isolation.
  // per_class counts dataset-labeled items only; when a class also has unlabeled items (its run
@@ -220,7 +221,7 @@ function menus(){
   if(!known){agg[c]="?";why[c]="no dataset.jsonl for this run: per-class counts unknown"}
   else if(all>n){agg[c]="?";why[c]=`${all-n} of ${all} items have no dataset label: per-class counts incomplete`}
   else agg[c]=n}
- document.getElementById("cl").innerHTML=D.classes.map(c=>`<div class="cls${CLASS===c?" sel":""}${why[c]?" na":""}" data-c="${esc(c)}"${why[c]?` title="${esc(why[c])}"`:""}>${esc(c)}<b>${agg[c]}</b></div>`).join("");
+ document.getElementById("cl").innerHTML=D.classes.map(c=>`<div class="cls${CLASS===c?" sel":""}${why[c]?" na":""}" data-c="${esc(c)}" tabindex="0" role="button" aria-pressed="${CLASS===c}"${why[c]?` aria-disabled="true" title="${esc(why[c])}"`:""}>${esc(c)}<b>${agg[c]}</b></div>`).join("");
  document.querySelectorAll(".cls").forEach(el=>el.onclick=()=>{if(why[el.dataset.c])return;CLASS=CLASS===el.dataset.c?null:el.dataset.c;
   document.getElementById("mode").textContent=CLASS?"ISOLATED — counts & chips re-computed":"ALL CLASSES (run totals)";
   const bt=document.getElementById("bigTitle");bt.textContent=CLASS?CLASS.toUpperCase():"";bt.classList.toggle("on",!!CLASS);
@@ -228,6 +229,15 @@ function menus(){
 }
 window.onerror=(m)=>{document.getElementById("mode").textContent="JS ERROR: "+m};
 menus();render();
+// Keyboard: Enter/Space activates a run, class, node or zoom control like a click.
+// menus()/render() rebuild those elements, so focus moves to the rebuilt one.
+document.addEventListener("keydown",e=>{
+ if(e.key!=="Enter"&&e.key!==" ")return;
+ const t=e.target.closest&&e.target.closest(".run,.cls,.node,#zoomctl>div");if(!t)return;
+ e.preventDefault();
+ const sel=t.id?`#${t.id}`:t.classList.contains("run")?`.run[data-i="${t.dataset.i}"]`:
+  t.classList.contains("cls")?`.cls[data-c="${CSS.escape(t.dataset.c)}"]`:`.node[data-k="${CSS.escape(t.dataset.k)}"]`;
+ t.click();const n=document.querySelector(sel);if(n)n.focus()});
 vp.addEventListener("click",e=>{
  if(moved>4)return;
  const nd=e.target.closest(".node");
