@@ -6,6 +6,8 @@ Binds ``127.0.0.1`` by default — not a public dashboard (see operator docs).
 
 from __future__ import annotations
 
+import functools
+import hashlib
 import html as _html
 import json
 import os
@@ -223,6 +225,7 @@ class WatchWebSession:
             "\n".join(_header(rid, width=60, on=True, **hero_kw))
         )
         state["services"] = read_services()
+        state["page_build"] = page_build()
         state["ok"] = True
         with self._lock:
             self._version += 1
@@ -233,7 +236,8 @@ class WatchWebSession:
     def mark_waiting(self, message: str) -> None:
         with self._lock:
             self._version += 1
-            self._state = {"ok": False, "waiting": True, "error": message, "ui_version": self._version}
+            self._state = {"ok": False, "waiting": True, "error": message, "ui_version": self._version,
+                           "page_build": page_build()}
 
     def snapshot(self) -> tuple[int, dict[str, Any]]:
         with self._lock:
@@ -253,7 +257,8 @@ class WatchWebSession:
                         # Keep the last good frame on screen; only the error banner changes.
                         last = self._state if self._state.get("snapshot") else {}
                         self._version += 1
-                        self._state = {**last, "ok": False, "error": str(exc), "ui_version": self._version}
+                        self._state = {**last, "ok": False, "error": str(exc), "ui_version": self._version,
+                                       "page_build": page_build()}
             self._stop.wait(self.interval)
 
     def stop(self) -> None:
@@ -273,7 +278,17 @@ def _theme_css() -> tuple[str, str]:
     return tokens, roles + "\n" + states
 
 
+@functools.lru_cache(maxsize=1)
+def page_build() -> str:
+    """Fingerprint of the watcher page this process serves (sent with every state)."""
+    return hashlib.sha256(_html_page_template().encode("utf-8")).hexdigest()[:12]
+
+
 def _html_page() -> bytes:
+    return _html_page_template().replace("__PAGE_BUILD__", page_build()).encode("utf-8")
+
+
+def _html_page_template() -> str:
     tokens, roles = _theme_css()
     page = f"""<!DOCTYPE html>
 <html lang="en">
@@ -520,7 +535,7 @@ footer .keys {{ justify-content: center; }}
     </section>
   </div></div>
   <footer>
-    <div id="footer-line">Tray TUI · localhost-only · SSE + poll · hard-refresh after a watch restart</div>
+    <div id="footer-line">Tray TUI · localhost-only · SSE + poll · reloads itself after a watcher upgrade</div>
     <div class="keys" aria-label="Keyboard shortcuts"><span><kbd>1-4</kbd> workspace</span><span><kbd>←/→</kbd> tabs</span><span><kbd>/</kbd> filter logs</span><span><kbd>f</kbd> follow</span><span><kbd>w</kbd> wordmark</span><span><kbd>?</kbd> keys</span></div>
   </footer>
 </main>
@@ -538,6 +553,19 @@ footer .keys {{ justify-content: center; }}
   <form method="dialog"><button type="submit">Close</button></form>
 </dialog>
 <script>
+// Every watcher entry point (sandbox web, watch --web, dev, experiment watch) serves
+// this one page. A tab left open across a watcher restart on newer code reloads itself.
+const PAGE_BUILD = "__PAGE_BUILD__";
+function checkBuild(state) {{
+  const live = state && state.page_build;
+  if (!live || live === PAGE_BUILD) return false;
+  let tried = null;
+  try {{ tried = sessionStorage.getItem("mailroom-reload-for"); }} catch (e) {{}}
+  if (tried === live) return false;  // already reloaded once for this build: never loop
+  try {{ sessionStorage.setItem("mailroom-reload-for", live); }} catch (e) {{}}
+  location.reload();
+  return true;
+}}
 const LOG_CLASS = {{ error: "error", warn: "warn", throughput: "throughput", kv: "kv", ready: "ready", plain: "plain" }};  // = watch._LOG_ROLE keys
 
 function metric(k, v) {{
@@ -701,6 +729,7 @@ function setConnection(kind, text) {{
 {SERVICES_JS}
 {OPERATOR_JS}
 function render(state) {{
+  if (checkBuild(state)) return;
   operatorState = state || {{}};
   services(state && state.services);
   const banner = document.getElementById("error");
@@ -840,7 +869,7 @@ es.onerror = () => {{
 </script>
 </body>
 </html>"""  # nosec B608 - HTML page template, not SQL
-    return page.encode("utf-8")
+    return page
 
 
 def make_handler(session: WatchWebSession) -> type[BaseHTTPRequestHandler]:

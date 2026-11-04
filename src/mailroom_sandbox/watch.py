@@ -782,7 +782,7 @@ def compose_watch_state(
     from mailroom_sandbox.tui import tray_context as tc
 
     snap = run_snapshot(store)
-    campaign = tc.campaign_context(campaign_path, store.run_id) if campaign_path else None
+    campaign = tc.campaign_context(campaign_path, store.run_id, store.dir.parent) if campaign_path else None
     layout = tc.build_tray_layout(
         store, app=app, times_dir=times_dir, cap_usd=cap_usd, gate_usd=GATE_USD, width=width, campaign=campaign
     )
