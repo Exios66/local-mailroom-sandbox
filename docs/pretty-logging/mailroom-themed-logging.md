@@ -61,10 +61,22 @@ Stop the watch with **Ctrl+C** (restores the terminal; does not stop the eval).
 ### Browser watch (same machine)
 
 ```bash
+sandbox web                          # newest run under data/runtime/runs; switches live when a newer run starts
+sandbox web my-run                   # run ID, config/runs/<name>, run YAML path, or run directory
+sandbox web config/experiments/<study>   # an experiment: follows its current run + Campaign tab
+sandbox web --demo [--pipeline]      # synthetic run, no Modal, no spend (= sandbox dev)
+# long forms still work:
 sandbox watch --web --config config/runs/my-run.yaml
-# or
-scripts/mailroom-tui web --config config/runs/my-run.yaml
+scripts/mailroom-tui web my-run
 ```
+
+`sandbox web` is `sandbox watch --web`. With no runs yet it still starts and shows
+*waiting for a run*, then switches over when one appears. Every refresh re-reads the
+run's locked configuration (`spec.lock.json`), checkpoint and campaign
+(`experiment.yaml`), so the Configuration and Campaign tabs follow whatever run is
+active. A run that belongs to a study under `config/experiments/` gets its campaign
+attached automatically. A transient read error keeps the last good frame on screen
+with an error banner.
 
 Default URL: **http://127.0.0.1:8765/** — live updates via **SSE** (`/api/stream`).
 Leave the server running in one terminal; **Ctrl+C** there stops the web UI only.

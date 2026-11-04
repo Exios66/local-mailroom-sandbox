@@ -136,7 +136,7 @@ class WatchWebSession:
         interval: float,
         follow_logs: bool,
         tick: Callable[[LogBuffer], None] | None = None,
-        campaign_path: Path | None = None,
+        campaign_path: Path | Callable[[str], Path | None] | None = None,
     ) -> None:
         self.resolve = resolve
         self.campaign_path = campaign_path
@@ -208,7 +208,7 @@ class WatchWebSession:
             boot_mark=self._boot_mark,
             width=100,
             blink=int(time.time()) % 7 == 0,
-            campaign_path=self.campaign_path,
+            campaign_path=self.campaign_path(rid) if callable(self.campaign_path) else self.campaign_path,
             pipeline_totals=self._pipeline_totals,
         )
         layout = state.get("layout") or {}
@@ -230,6 +230,11 @@ class WatchWebSession:
             self._state = state
         return state
 
+    def mark_waiting(self, message: str) -> None:
+        with self._lock:
+            self._version += 1
+            self._state = {"ok": False, "waiting": True, "error": message, "ui_version": self._version}
+
     def snapshot(self) -> tuple[int, dict[str, Any]]:
         with self._lock:
             return self._version, dict(self._state)
@@ -239,9 +244,16 @@ class WatchWebSession:
             try:
                 self.refresh()
             except Exception as exc:  # noqa: BLE001 — surface to UI
-                with self._lock:
-                    self._state = {"ok": False, "error": str(exc)}
-                    self._version += 1
+                from mailroom_sandbox.watch_target import WaitingForRun
+
+                if isinstance(exc, WaitingForRun):
+                    self.mark_waiting(str(exc))
+                else:
+                    with self._lock:
+                        # Keep the last good frame on screen; only the error banner changes.
+                        last = self._state if self._state.get("snapshot") else {}
+                        self._version += 1
+                        self._state = {**last, "ok": False, "error": str(exc), "ui_version": self._version}
             self._stop.wait(self.interval)
 
     def stop(self) -> None:
@@ -371,8 +383,10 @@ header .route {{ color: var(--cyan); font-size: 11px; letter-spacing: 0.06em; }}
 .metric .v {{ color: var(--snow); text-align: right; overflow-wrap: anywhere; min-width: 0; }}
 .bar {{
   font-family: inherit; letter-spacing: 1px; color: var(--cyan);
-  margin: 6px 0; white-space: nowrap; overflow: hidden;
+  margin: 6px 0; white-space: nowrap; display: flex; gap: 2ch; align-items: baseline;
 }}
+.bar .track {{ flex: 1 1 auto; min-width: 0; overflow: hidden; }}
+.bar .n {{ flex: none; }}
 .replay.live .lane.now .trail {{ animation: lifecycle-pulse 2.2s ease-in-out infinite; }}
 @keyframes lifecycle-pulse {{ 50% {{ opacity: 0.45; }} }}
 .route-lines {{ white-space: pre-wrap; overflow-wrap: anywhere; color: #b6c8d8; font-size: 11px; line-height: 1.5; }}
@@ -413,7 +427,7 @@ header .route {{ color: var(--cyan); font-size: 11px; letter-spacing: 0.06em; }}
 .floor-totals {{ margin-top: 8px; color: var(--ink-2); overflow-wrap: anywhere; }}
 .floor .hop.running .node {{ animation: lifecycle-pulse 2.2s ease-in-out infinite; }}
 @media (prefers-reduced-motion: reduce) {{ .floor .hop.running .node, .replay.live .lane.now .trail, .blink .stage {{ animation: none; }} }}
-@media (max-width: 600px) {{ .view-nav kbd {{ display: none; }} }}
+@media (max-width: 600px) {{ .view-nav kbd {{ display: none; }} .view-nav {{ flex-wrap: wrap; overflow-x: visible; }} }}
 #hero {{ font-size: min(12px, calc((100vw - 84px) / 60)); }}
 #hero-compact {{ display: none; font-size: min(12px, calc((100vw - 84px) / 36)); }}
 @media (max-width: 800px) {{ #hero {{ display: none; }} #hero-compact {{ display: block; }} }}
@@ -422,6 +436,8 @@ header .route {{ color: var(--cyan); font-size: 11px; letter-spacing: 0.06em; }}
   white-space: pre; overflow-x: auto; color: var(--snow);
 }}
 .err-banner {{ background: var(--gold); color: #1a0505; padding: 10px; border-radius: 4px; margin-bottom: 12px; }}
+.err-banner.waiting {{ background: #0f2a36; color: var(--snow); border: 1px dashed var(--cyan); }}
+.err-banner.waiting::before {{ content: "◌ "; color: var(--cyan); }}
 .blink .stage {{ animation: pulse 1s ease-in-out infinite; }}
 @keyframes pulse {{ 50% {{ opacity: 0.55; }} }}
 footer {{ margin-top: 16px; font-size: 11px; color: #b6c8d8; text-align: center; }}
@@ -687,9 +703,11 @@ function setConnection(kind, text) {{
 function render(state) {{
   operatorState = state || {{}};
   services(state && state.services);
+  const banner = document.getElementById("error");
+  banner.classList.toggle("waiting", !!(state && state.waiting));
   if (!state || (state.ok === false && !state.snapshot)) {{
-    document.getElementById("error").hidden = false;
-    document.getElementById("error").textContent = (state && state.error) || "unknown error";
+    banner.hidden = false;
+    banner.textContent = (state && state.error) || "unknown error";
     return;
   }}
   if (state.ok === false) {{
@@ -719,7 +737,7 @@ function render(state) {{
   document.getElementById("campaign-content").innerHTML = campaign
     ? `<p>${{esc(campaign.study)}} · ${{esc(campaign.design)}} · ${{esc(campaign.completed)}}/${{esc(campaign.total)}} runs complete</p>` +
       campaign.runs.map(run => `<div class="campaign-run"><span>${{run.run_id === campaign.current ? "▶ " : ""}}${{esc(run.run_id)}}</span><span>${{esc(run.state)}} · ${{esc(run.done)}}/${{esc(run.total)}}</span></div>`).join("")
-    : "No campaign associated with this watcher. Use sandbox experiment watch --config &lt;experiment.yaml&gt;.";
+    : "No campaign associated with this run. Watch one with sandbox web &lt;experiment.yaml or study folder&gt;.";
   document.title = panels.window_title || "Tray TUI · THE MAILROOM · live watch";
   document.getElementById("brand-sub").hidden = false;
   document.getElementById("route-label").hidden = false;
@@ -765,7 +783,7 @@ function render(state) {{
     metric("run", s.run_id) +
     metric("specialist", s.task) +
     metric("capacity", `${{s.gpu === "—" ? "no GPU declared" : `×${{s.replicas}} ${{s.gpu}}`}} · ${{s.state}}`) +
-    `<div class="bar">${{esc(prog.bar)}}  ${{prog.done}}/${{prog.total}}</div>` +
+    `<div class="bar"><span class="track">${{esc(prog.bar)}}</span><span class="n">${{prog.done}}/${{prog.total}}</span></div>` +
     metric("sorted", `delivered ${{s.ok}} · returned ${{s.errors}}`) +
     metric("postmark", `p50 ${{s.p50_s ?? "—"}}s · p95 ${{s.p95_s ?? "—"}}s`) +
     metric("score", s.mean_score) +
@@ -782,7 +800,7 @@ function render(state) {{
     metric("ledger", "$" + Number(sp.spent_usd || 0).toFixed(4)) +
     metric("live run", "$" + Number(sp.live_usd || 0).toFixed(4)) +
     metric("total", `$${{Number(sp.total_usd || 0).toFixed(4)}} / $${{Number(sp.cap_usd || 0).toFixed(2)}}`) +
-    `<div class="bar">${{esc(sp.bar || "")}}  ${{pct}}</div>` +
+    `<div class="bar"><span class="track">${{esc(sp.bar || "")}}</span><span class="n">${{pct}}</span></div>` +
     (sp.gate_usd != null ? metric("gate", `$${{Number(sp.gate_usd).toFixed(2)}} configured estimate gate`) : "") +
     (sp.over_gate ? `<div class="metric"><span class="v" style="color:var(--gold)">⚠ OVER GATE</span></div>` : "");
   const foot = document.getElementById("footer-line");
@@ -898,7 +916,7 @@ def serve_watch_web(
     port: int = DEFAULT_PORT,
     open_browser: bool | None = None,
     tick: Callable[[LogBuffer], None] | None = None,
-    campaign_path: Path | None = None,
+    campaign_path: Path | Callable[[str], Path | None] | None = None,
 ) -> int:
     from mailroom_sandbox.paths import reports_dir
 
@@ -916,8 +934,13 @@ def serve_watch_web(
         tick=tick,
         campaign_path=campaign_path,
     )
+    from mailroom_sandbox.watch_target import WaitingForRun
+
     try:
-        session.refresh()
+        try:
+            session.refresh()
+        except WaitingForRun as exc:  # serve now; the refresh loop switches over once a run starts
+            session.mark_waiting(str(exc))
         handler = make_handler(session)
         httpd = ThreadingHTTPServer((host, port), handler)
     except BaseException:
