@@ -61,7 +61,7 @@ Stop the watch with **Ctrl+C** (restores the terminal; does not stop the eval).
 ### Browser watch (same machine)
 
 ```bash
-sandbox web                          # newest run under data/runtime/runs; switches live when a newer run starts
+sandbox web                          # SAND-032 current run if data/runtime/sand032/current exists, else the newest run (switches live)
 sandbox web my-run                   # run ID, config/runs/<name>, run YAML path, or run directory
 sandbox web config/experiments/<study>   # an experiment: follows its current run + Campaign tab
 sandbox web --demo [--pipeline]      # synthetic run, no Modal, no spend (= sandbox dev)
@@ -70,7 +70,9 @@ sandbox watch --web --config config/runs/my-run.yaml
 scripts/mailroom-tui web my-run
 ```
 
-`sandbox web` is `sandbox watch --web`. With no runs yet it still starts and shows
+`sandbox web` is `sandbox watch --web`. With no TARGET it follows the SAND-032 current
+run while `data/runtime/sand032/current` exists (as bare `sandbox watch` always has),
+otherwise the most recently active run. With no runs yet it still starts and shows
 *waiting for a run*, then switches over when one appears. Every refresh re-reads the
 run's locked configuration (`spec.lock.json`), checkpoint and campaign
 (`experiment.yaml`), so the Configuration and Campaign tabs follow whatever run is

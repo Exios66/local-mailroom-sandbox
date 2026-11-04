@@ -1108,7 +1108,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
-| `target` | No | what to watch: run ID, run YAML, run name (config/runs/<name>), experiment.yaml or its folder, or a run directory. Omit to follow the most recently active run (switches live when a new run starts) |
+| `target` | No | what to watch: run ID, run YAML, run name (config/runs/<name>), experiment.yaml or its folder, or a run directory. Omit to follow data/runtime/sand032/current when it exists, else the most recently active run (switches live when a new run starts) |
 | `--config` | No | run YAML to watch (same as passing it as TARGET) |
 | `--follow` | No | file holding the CURRENT run YAML path or run ID; re-read every frame |
 | `--app` | No | Modal serve app override (default: engine.modal.app; modal job mode also tails sandbox-job) |
@@ -1135,7 +1135,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
-| `target` | No | what to watch: run ID, run YAML, run name (config/runs/<name>), experiment.yaml or its folder, or a run directory. Omit to follow the most recently active run (switches live when a new run starts) |
+| `target` | No | what to watch: run ID, run YAML, run name (config/runs/<name>), experiment.yaml or its folder, or a run directory. Omit to follow data/runtime/sand032/current when it exists, else the most recently active run (switches live when a new run starts) |
 | `--port` | No | port (default 8765; 0 = ephemeral) |
 | `--host` | No | bind host (default 127.0.0.1) |
 | `--no-browser` | No | do not open a browser tab (also NO_BROWSER=1) |

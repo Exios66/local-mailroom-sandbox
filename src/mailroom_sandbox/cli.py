@@ -686,7 +686,7 @@ def build_parser() -> argparse.ArgumentParser:
         parents=[leaf],
     )
     _TARGET_HELP = ("what to watch: run ID, run YAML, run name (config/runs/<name>), experiment.yaml or its folder, "
-                    "or a run directory. Omit to follow the most recently active run (switches live when a new run starts)")
+                    "or a run directory. Omit to follow data/runtime/sand032/current when it exists, else the most recently active run (switches live when a new run starts)")
     watch_p.add_argument("target", nargs="?", default=None, help=_TARGET_HELP)
     watch_p.add_argument("--config", default=None, help="run YAML to watch (same as passing it as TARGET)")
     watch_p.add_argument(
