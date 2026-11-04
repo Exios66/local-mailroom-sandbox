@@ -2,9 +2,9 @@
 
 Authoritative source: https://github.com/Exios66/llm-dojo-scoring
 
-- Source ref: `v0.27.1` (tag)
-- Exact source commit: `a82843e808336e0078c7d5b27dcdb3ff8b698170`
-- Source package version: `0.27.1`
+- Source ref: `v0.27.2` (tag)
+- Exact source commit: `1cd4aba76d82eea20c6e8dfcc0d760881bf84924`
+- Source package version: `0.27.2`
 - Snapshot layout: llm_dojo_scoring/ relocated under src/ with the same shared exclusions.
 - Snapshot of the reviewed commit tree (`git archive`), 2026-11-04 UTC.
   File contents, paths and executable modes come from the reviewed commit.
@@ -17,13 +17,21 @@ the Digital-Mailroom workspace and these generated snapshots must match.
 Dojo owns scoring; llm-mailroom owns the pipeline. Production corporate v6
 and sandbox evaluation v7 remain separate intentional prompt catalogs.
 
-This adopts llm-dojo-scoring 0.27.1, the commit `a82843e8` of Dojo PR #118 (tag `v0.27.1`).
+This adopts llm-dojo-scoring 0.27.2, the squash merge `1cd4aba7` of Dojo PR #121. 0.27.2 fixes
+the review findings on the 0.27.1 snapshot (local-mailroom-sandbox#245): `score_document`
+never raises on deeply nested prediction text and parses brace-heavy text in linear time;
+any `Mapping` prediction is a dict payload for adherence; a prose-wrapped Python repr sets
+`prose_wrapper`; `rescore` reports `headline_score` for CUAD/MAUD rows. No field-map, tier 0
+or headline score changes. The pin names the `v0.27.2` tag and verifies its SHA; this refresh
+fetched the commit directly because the tag was not yet on GitHub.
+
+It builds on 0.27.1, the commit `a82843e8` of Dojo PR #118 (tag `v0.27.1`).
 0.27.0 added tiered per-document-type scoring (`score_document`, new `score_archive_block`
 keys for the llm-mailroom unified audit row); 0.27.1 makes `score_document` and
 `score_archive_block` never raise on bad field values, derives the CMS `cms_source_table`
 from `doc_subclass`, and guards the new block keys. Field-map scores are unchanged except
 CMS insurance rows scored with `doc_subclass` and no `expected_subclass`.
-It supersedes the v0.26.0 snapshot (`2fea5ea7`).
+It supersedes the v0.26.0 snapshot (`2fea5ea7`) and, here, the v0.27.1 snapshot (`a82843e8`).
 
 Previously: llm-dojo-scoring 0.26.0, the release merge commit `2fea5ea7` of Dojo PR #112
 (stack PR #104: reviewer-lane scoring and `dojo-rescore`, the CMS #93 mapping where
