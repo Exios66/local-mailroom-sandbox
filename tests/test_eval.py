@@ -307,11 +307,11 @@ def test_dojo_pin_matches_current_vendored_snapshot():
 
     pins = {name: (ref, sha) for name, ref, _url, sha in cli_mod._VENDOR_PINS}
     assert pins["llm-dojo-scoring"] == (
-        "v0.26.0",
-        "2fea5ea7cff79d9e4c8f3513dd4a179089a8e8ff",
-    ), "dojo must consume the v0.26.0 release"
+        "v0.27.1",
+        "a82843e808336e0078c7d5b27dcdb3ff8b698170",
+    ), "dojo must consume the v0.27.1 release"
     assert pins["llm-dojo-scoring"][1] in vendor_md
-    assert dojo.__version__ == "0.26.0"
+    assert dojo.__version__ == "0.27.1"
     # the new per-subclass machinery is actually IN the snapshot
     import llm_dojo_scoring.corporate_record_schema as crs
 
@@ -327,7 +327,7 @@ def test_dojo_pin_matches_current_vendored_snapshot():
         assert str(vendor.resolve()) in sys.path, "vendored dojo must be on sys.path"
         assert str(Path(dojo.__file__).resolve()).startswith(str(vendor.resolve()))
     elif choice.source == "installed":
-        assert choice.version == "0.26.0" and dojo_source._origin_mismatch() is None
+        assert choice.version == "0.27.1" and dojo_source._origin_mismatch() is None
         assert not str(Path(dojo.__file__).resolve()).startswith(str(vendor.resolve()))
     version = re.match(r"(\d+)\.(\d+)", dojo.__version__)
     assert version is not None
