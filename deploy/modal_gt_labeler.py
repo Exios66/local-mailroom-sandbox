@@ -34,6 +34,7 @@ from mailroom_sandbox.gt_labeler import (  # noqa: E402
 
 
 def _invoked_by_modal() -> bool:
+    """True when this file is being loaded by ``modal deploy``/``run``/``serve``."""
     joined = " ".join(sys.argv)
     return "modal_gt_labeler.py" in joined and any(
         token in sys.argv for token in ("deploy", "run", "serve")
@@ -41,6 +42,7 @@ def _invoked_by_modal() -> bool:
 
 
 def _export_lines() -> str:
+    """The posture as ``export KEY=value`` shell lines (``--export``)."""
     lines = [f"export {key}={value}" for key, value in POSTURE.items()]
     return "\n".join(lines) + "\n"
 

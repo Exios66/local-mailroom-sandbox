@@ -30,6 +30,7 @@ from mailroom_sandbox.job.spec import FAMILY_HF_DATA_REVISION, FAMILY_HF_REVISIO
 
 
 def _target(i: int, **over) -> dict:
+    """A minimal EX-10 CUAD label target, with ``over`` applied on top."""
     row = {
         "id": f"doc-{i:04d}",
         "filename": f"doc-{i:04d}.txt",
@@ -56,6 +57,7 @@ def test_benchmark_gate_accepts_the_data_parent_and_the_tag():
 
 
 def test_dataset_pin_is_hub_tag_v9_1():
+    """Labeling reads the Hub v9.1 tag at the family-pinned revisions."""
     assert DATASET_TAG == "v9.1"
     assert DATASET_REVISION == "bc9eab280044befb51e19dda3071d290a8677f42"
     assert DATASET_REVISION == FAMILY_HF_REVISION
@@ -63,6 +65,7 @@ def test_dataset_pin_is_hub_tag_v9_1():
 
 
 def test_posture_is_one_h100_of_qwen3_32b_fp8():
+    """The posture is one scale-to-zero H100 serving Qwen3-32B-FP8, 8 in flight, thinking off."""
     assert POSTURE["MODAL_VLLM_APP_NAME"] == APP_NAME == "sandbox-vllm-gt-labeler"
     assert APP_NAME.startswith("sandbox-vllm")
     assert POSTURE["MODAL_VLLM_MODEL"] == "Qwen/Qwen3-32B-FP8"
@@ -79,6 +82,7 @@ def test_posture_is_one_h100_of_qwen3_32b_fp8():
 
 
 def test_assert_posture_accepts_the_pin_and_refuses_drift():
+    """The pinned env passes; a smaller or retired model, another GPU or a second container is refused."""
     env = apply_posture_env({})
     assert_posture(env)
     drifted = dict(env)
@@ -100,11 +104,13 @@ def test_assert_posture_accepts_the_pin_and_refuses_drift():
 
 
 def test_forty_document_chunk_fits_the_cap():
+    """A full 40-document chunk projects within the per-chunk USD cap."""
     chunks = plan_chunks([_target(i) for i in range(CHUNK_DOC_CAP)])
     assert len(chunks) == 1 and chunks[0].projected_usd <= CHUNK_USD_CAP
 
 
 def test_full_corpus_is_not_one_chunk():
+    """The whole corpus splits into capped chunks and cannot be sent as one."""
     targets = [_target(i) for i in range(3302)]
     chunks = plan_chunks(targets)
     assert len(chunks) > 1
@@ -123,6 +129,7 @@ def test_full_corpus_is_not_one_chunk():
 
 
 def test_next_chunk_returns_only_the_first_unfinished_slice():
+    """next_chunk walks the queue 40 at a time, skipping finished ids, then returns None."""
     targets = [_target(i) for i in range(100)]
     first = next_chunk(targets)
     assert first is not None
@@ -141,6 +148,7 @@ def test_next_chunk_returns_only_the_first_unfinished_slice():
 
 
 def test_overflow_documents_consume_two_slots():
+    """A >32k document takes two slots and costs more than a short one."""
     short = project_usd(1)
     long = project_usd(2)
     assert long > short
@@ -149,6 +157,7 @@ def test_overflow_documents_consume_two_slots():
 
 
 def test_ex10_prompt_lists_cuad_categories_and_refuses_golden_rows():
+    """EX-10 prompts list the CUAD categories; golden CUAD and MAUD rows are refused."""
     messages = build_messages(_target(1))
     user = messages[1]["content"]
     system = messages[0]["content"]
@@ -170,6 +179,7 @@ def test_ex10_prompt_lists_cuad_categories_and_refuses_golden_rows():
 
 
 def test_correspondence_prompt_uses_the_closed_intent_list():
+    """Correspondence prompts carry the closed intent list and no CUAD categories."""
     messages = build_messages(
         _target(
             4,
@@ -188,6 +198,7 @@ def test_correspondence_prompt_uses_the_closed_intent_list():
 
 
 def test_validate_label_response_requires_every_requested_field():
+    """Each requested field is either filled or abstained, never both or neither."""
     requested = ["intent"]
     ok = {"fields": {"intent": "notice"}, "abstain": []}
     assert validate_label_response(requested, ok) == []
@@ -203,6 +214,7 @@ def test_validate_label_response_requires_every_requested_field():
 
 
 def test_cuad_response_must_cover_every_category():
+    """A CUAD response must key every category, even when most are empty."""
     from langchain_agents.cuad_maud import CUAD_CLAUSE_CATEGORIES
 
     payload = {
@@ -222,6 +234,7 @@ def test_cuad_response_must_cover_every_category():
 
 
 def test_verbatim_spans_snap_to_the_document_and_drop_paraphrases():
+    """Spans snap to the document's own characters; paraphrases and unknown categories are dropped."""
     from mailroom_sandbox.gt_labeler import (
         cuad_label_problems,
         label_evidence_for,
@@ -271,6 +284,7 @@ def test_verbatim_spans_snap_to_the_document_and_drop_paraphrases():
 
 
 def test_label_journal_keeps_accepted_and_the_better_partial():
+    """Folding a journal keeps an accepted record, else the partial with the most spans."""
     from mailroom_sandbox.gt_labeler import accepted_ids, fold_label_journal
 
     rows = [
@@ -286,6 +300,7 @@ def test_label_journal_keeps_accepted_and_the_better_partial():
 
 
 def test_response_round_trip():
+    """loads_response parses a JSON label reply."""
     from mailroom_sandbox.gt_labeler import loads_response
 
     raw = json.dumps({"fields": {"intent": "request"}, "abstain": []})
