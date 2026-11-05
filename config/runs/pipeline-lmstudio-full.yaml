@@ -1,0 +1,64 @@
+# Full 13-node mailroom pipeline over EVERY document in the pinned HF corpus
+# (`split: all`, preflight rows=3,211 — no test/train restriction), served
+# locally from LM Studio (qwen3.5-9b on :1234) — zero API spend, your GPU only.
+# This is an all-night wall-clock run by design: checkpointed per document,
+# resumable, so let it run and `run resume` if the box sleeps.
+#
+#   sandbox run preflight --config config/runs/pipeline-lmstudio-full.yaml
+#   sandbox run start --config config/runs/pipeline-lmstudio-full.yaml --initials GB --watch
+#   # multi-day by design: checkpointed per document, resumable after pause/failure:
+#   sandbox run resume --config config/runs/pipeline-lmstudio-full.yaml
+#
+# Prereqs on this lane (see wiki [[sandbox-local-gpu-lane]]):
+#   - LM Studio app running with qwen3.5-9b LOADED, thinking toggle OFF
+#     (thinking ON => max_tokens burn => guard clamp 0.5 => 100% review, fake failure).
+#   - .wslconfig mirrored networking so WSL reaches 127.0.0.1:1234.
+#   - .env: MAILROOM_JSON_MODE=off (LM Studio 1.1.7 rejects response_format json_object).
+#
+# Engine kind vllm-remote = "point at an OpenAI-compatible endpoint"; base_url
+# resolves from the lmstudio profile (http://localhost:1234/v1). model must be
+# the LM Studio loaded id, not the HF org path.
+# concurrency 4: llama.cpp server runs 4 slots; vLLM-style batching does not
+# apply, so more workers just queue. Cost caps are formal (local = $0 GPU-seconds)
+# but `run start` refuses an unbounded paid-mode spec.
+schema: sandbox.run/v1
+run_id: pipeline-lmstudio-full
+task: pipeline
+profile: lmstudio
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all                    # train + test; the whole corpus
+  revision: ed7576b676343e0b402ec5412cded301e629bdee   # pinned (FAMILY_HF_DATA_REVISION)
+  sample_seed: 42
+  # no require_task_gt: the brief is EVERY document through the pipeline,
+  # labelled or not; unlabelled rows run and ship, they just don't score.
+
+engine:
+  kind: vllm-remote
+  model: qwen3.5-9b
+  vllm:
+    max_model_len: 65536        # LM Studio 9B loaded context
+    max_inputs: 4               # match job.concurrency (preflight refuses 0)
+    enable_prefix_caching: true
+    enforce_eager: true
+  modal: null
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 4
+  cost_cap_usd: 1.00            # local GPU bills $0; finite cap only satisfies the spend gate
+  max_wall_seconds: 345600      # 4 days ceiling; 3,211 docs x 13 nodes on one 9B is an all-night run
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, pipeline, lmstudio, local-gpu, full-corpus]

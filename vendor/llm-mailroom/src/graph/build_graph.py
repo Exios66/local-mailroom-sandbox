@@ -501,10 +501,15 @@ def _specialist_input_budget(agent) -> int:
 
 
 def _instantiate_specialist(agent_fn, handoff_context):
-    """Construct a specialist; pipeline agents do not take handoff_context."""
+    """Construct a specialist; contracts/merger take handoff_context, the
+    BaseAgent-derived specialists do not."""
     try:
         return agent_fn(handoff_context=handoff_context)
     except TypeError:
+        # Resolves the live-pilot "BaseAgent.__init__() got an unexpected keyword
+        # argument 'handoff_context'": deliver the handoff as the instance attr
+        # that BaseAgent.extract_chunked reads (agents/base.py:276-277) and that
+        # _run_chunked_extraction forwards via the extract(handoff_context=) kwarg.
         agent = agent_fn()
         if handoff_context is not None:
             agent.handoff_context = handoff_context

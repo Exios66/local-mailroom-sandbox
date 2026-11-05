@@ -46,9 +46,16 @@ cost_models:
 # 120s default cannot hold an L4 generation at all — the pin belongs HERE
 # (overlay), not in the drift-guarded vendored file.
 run_limits:
-  llm_call_timeout_seconds: 600
+  # mergers-only: chunked merger calls on local qwen3.5-9b can exceed 10 min;
+  # 600s was aborting single LLM calls, not just whole docs.
+  llm_call_timeout_seconds: 1800
   # Per document. A 233k-character contract passed 22k at retry_classify, so 20000 aborted it.
   max_total_output_tokens: 200000
+  # shuf2 falsifier: every merger abort hit exactly the 3600s vendor default
+  # (20x RunDeadlineExceeded; 15 of them merger_agreement, 0 mergers shipped).
+  # Chunked merger extraction on local qwen3.5-9b needs more than 1h/doc; 4h
+  # bounds it so whole-doc wall time is measured, not censored.
+  deadline_seconds: 28800
 
 # Surgical knobs — overlay wins after profile rewrite. Omit `model` to keep
 # the mapped local tag from the active profile.

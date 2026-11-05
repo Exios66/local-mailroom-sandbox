@@ -1,0 +1,49 @@
+# 13-node mailroom pipeline over the SAME even-100 corpus as
+# pipeline-lmstudio-even100 (verified identical rows), but in TRUE SHUFFLED
+# intake order (seed 20261102) — any class can be the next document into the
+# mailroom. Dataset was drawn under the locked strata spec, shuffled in place,
+# and re-locked via provider: file; sha256 of the shuffled order is the lock.
+#   source draw: HF Lucius-Morningstar/mailroom-dataset ground_truth split=all
+#   @ ed7576b676343e0b402ec5412cded301e629bdee, seed 42, 100 per class
+#   shuffled file: /home/gemooslin/sandbox-data/datasets/pipeline-even100-shuffled2.jsonl
+#   NOTE: corpus.py select_rows() re-sorts every prepared set by (filename,id),
+#   so the shuffle order is ENCODED IN THE FILENAME (shuf-NNNN-- prefix). The
+#   canonical sort reproduces the seeded shuffle exactly; doc id/text/labels untouched.
+# Local GPU only: LM Studio qwen3.5-9b on :1234, thinking OFF, JSON_MODE off.
+# Attempt-1 history (18 docs, strata order) is frozen under
+#   ~/sandbox-data/run-history/even100-attempt1-2026-11-02T2348/.
+schema: sandbox.run/v1
+run_id: pipeline-lmstudio-even100-shuf2
+task: pipeline
+profile: lmstudio
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: file
+  local_path: /home/gemooslin/sandbox-data/datasets/pipeline-even100-shuffled2.jsonl
+
+engine:
+  kind: vllm-remote
+  model: qwen3.5-9b
+  vllm:
+    max_model_len: 65536
+    max_inputs: 4
+    enable_prefix_caching: true
+    enforce_eager: true
+  modal: null
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 4
+  cost_cap_usd: 150.00        # runner PRICES local GPU-seconds; a token cap here becomes a wall-clock deadline (attempt 1 died at ~85 min on $1)
+  max_wall_seconds: 691200      # 8-day ceiling; observed pace ~5-6 min/doc wall (chunked mergers are the long pole)
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, pipeline, lmstudio, local-gpu, even-100-per-class, shuffled-intake, v2]

@@ -10,7 +10,7 @@ defaults:
   ollama: qwen3:8b
   vllm: Qwen/Qwen3.5-9B
   llamacpp: qwen3-8b
-  lmstudio: qwen3-8b
+  lmstudio: qwen3.5-9b
   openrouter: qwen/qwen3.5-9b
   fallback_ollama: qwen3:7b
 
@@ -77,13 +77,13 @@ map:
     ollama: qwen3:8b
     vllm: Qwen/Qwen3.5-9B
     llamacpp: qwen3-8b
-    lmstudio: qwen3-8b
+    lmstudio: qwen3.5-9b
     openrouter: qwen/qwen3.5-9b
   qwen/qwen3.5-9b:
     ollama: qwen3:8b
     vllm: Qwen/Qwen3.5-9B
     llamacpp: qwen3-8b
-    lmstudio: qwen3-8b
+    lmstudio: qwen3.5-9b
     openrouter: qwen/qwen3.5-9b
   qwen/qwen3.5-35b-a3b:
     ollama: qwen3:14b

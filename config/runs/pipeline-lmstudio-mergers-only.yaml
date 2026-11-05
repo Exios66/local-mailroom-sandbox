@@ -1,0 +1,52 @@
+# Mergers-only lane: the SAME shuffled even-100 dataset as
+# pipeline-lmstudio-even100-shuf2 (provider: file, locked rows), filtered to
+# target: merger_agreement (100 rows) through the FULL 13-node pipeline.
+# Why: shuf2's watchdog showed 15/20 aborts were mergers, ALL of them at
+# exactly 3600s = the vendored run_limits.deadline_seconds default. The abort
+# censored both metrics we want (whole-doc wall time and accuracy). The
+# overlay now pins deadline_seconds higher; this run measures real merger
+# timing end-to-end on local qwen3.5-9b.
+#   source draw: HF Lucius-Morningstar/mailroom-dataset ground_truth split=all
+#   @ ed7576b676343e0b402ec5412cded301e629bdee, seed 42, 100 per class,
+#   shuffled order (seed 20261102) — identical rows to shuf2, class-filtered
+#   at start by rows_for_class(target).
+# Local GPU only: LM Studio qwen3.5-9b on :1234, thinking OFF.
+schema: sandbox.run/v1
+run_id: pipeline-lmstudio-mergers-only
+task: pipeline
+target: merger_agreement
+profile: lmstudio
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: file
+  local_path: /home/gemooslin/sandbox-data/datasets/pipeline-even100-shuffled2.jsonl
+
+engine:
+  kind: vllm-remote
+  model: qwen3.5-9b
+  vllm:
+    max_model_len: 65536
+    max_inputs: 4
+    enable_prefix_caching: true
+    enforce_eager: true
+  modal: null
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 4
+  cost_cap_usd: 150.00        # local GPU-seconds pricing; $0 lane in practice
+  max_wall_seconds: 1209600   # 14-day ceiling (worst case 8h/doc deadline x 100 docs / conc 4 ~ 200h)
+  # NOTE: the per-DOCUMENT wall cutoff is run_limits.deadline_seconds, now
+  # pinned in config/taxonomy.overlay.yaml (was the 3600s vendor default that
+  # aborted every shuf2 merger). Check it before quoting any >deadline time.
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, pipeline, lmstudio, local-gpu, merger-agreement-only, deadline-fix]

@@ -1,0 +1,69 @@
+# 13-node mailroom pipeline over an EVEN 500-document draw from the pinned
+# HF corpus: 100 per class, random within class (seed 42),
+# served locally from LM Studio (qwen3.5-9b on :1234) — zero API spend, your GPU only.
+# ~6-8h at the local-lane pace; checkpointed per document, resumable.
+# The sibling pipeline-lmstudio-full.yaml holds the whole 3,211-doc version.
+#
+#   sandbox run preflight --config config/runs/pipeline-lmstudio-even100.yaml
+#   sandbox run start --config config/runs/pipeline-lmstudio-even100.yaml --initials GB --watch
+#   sandbox run resume --config config/runs/pipeline-lmstudio-even100.yaml
+#
+# Prereqs on this lane (see wiki [[sandbox-local-gpu-lane]]):
+#   - LM Studio app running with qwen3.5-9b LOADED, thinking toggle OFF
+#     (thinking ON => max_tokens burn => guard clamp 0.5 => 100% review, fake failure).
+#   - .wslconfig mirrored networking so WSL reaches 127.0.0.1:1234.
+#   - .env: MAILROOM_JSON_MODE=off (LM Studio 1.1.7 rejects response_format json_object).
+#
+# Engine kind vllm-remote = "point at an OpenAI-compatible endpoint"; base_url
+# resolves from the lmstudio profile (http://localhost:1234/v1). model must be
+# the LM Studio loaded id, not the HF org path.
+# concurrency 4: llama.cpp server runs 4 slots; vLLM-style batching does not
+# apply, so more workers just queue. Cost caps are formal (local = $0 GPU-seconds)
+# but `run start` refuses an unbounded paid-mode spec.
+schema: sandbox.run/v1
+run_id: pipeline-lmstudio-even100
+task: pipeline
+profile: lmstudio
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all                    # draw from train+test combined
+  revision: ed7576b676343e0b402ec5412cded301e629bdee   # pinned (FAMILY_HF_DATA_REVISION)
+  strata:
+    buckets:                     # 100 per class, equal n for class-vs-class compares
+      - {doc_class: insurance_claim,   count: 100}   # of 1,100 available
+      - {doc_class: correspondence,     count: 100}   # of 1,000
+      - {doc_class: contract,           count: 100}   # of 509
+      - {doc_class: corporate_record,   count: 100}   # of 450
+      - {doc_class: merger_agreement,   count: 100}   # of 152 (all splits)
+  sample_seed: 42                # random within each class
+  # no require_task_gt: every drawn row is GT-labelled here anyway.
+
+engine:
+  kind: vllm-remote
+  model: qwen3.5-9b
+  vllm:
+    max_model_len: 65536        # LM Studio 9B loaded context
+    max_inputs: 4               # match job.concurrency (preflight refuses 0)
+    enable_prefix_caching: true
+    enforce_eager: true
+  modal: null
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 2
+  fail_fast: false
+  concurrency: 4
+  cost_cap_usd: 1.00            # local GPU bills $0; finite cap only satisfies the spend gate
+  max_wall_seconds: 43200       # 12h ceiling for 500 docs
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, pipeline, lmstudio, local-gpu, even-100-per-class]
