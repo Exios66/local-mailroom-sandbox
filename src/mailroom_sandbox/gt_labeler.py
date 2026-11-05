@@ -2,18 +2,26 @@
 
 The labeler fills unfinished fields only. Golden CUAD clause maps and golden
 MAUD clause maps are never requested. One invocation submits one chunk: at
-most ``CHUNK_DOC_CAP`` documents, and only when the projected 2×L4 bill for
+most ``CHUNK_DOC_CAP`` documents, and only when the projected GPU bill for
 that chunk is at most ``CHUNK_USD_CAP``. The corpus is not labeled in one job.
 
-Serving posture (happy medium, SAND-045):
+Serving posture (label-quality tier, SAND-045 revision):
 
-* ``Qwen/Qwen3-14B-AWQ`` — larger than the 8B cost-eval default, and the
-  largest Qwen3 checkpoint the model matrix boots on a 24 GB L4 at 32k.
-* Two L4 replicas (data parallel, ``max_containers=2``). Not tensor parallel.
-* ``max_num_seqs=8`` and ``max_inputs=8`` per replica so a chunk that keeps
-  16 requests in flight saturates both GPUs.
-* ``min_containers=0`` and a 120s scaledown so the GPUs do not stay warm
+* ``Qwen/Qwen3-32B-FP8`` — the published FP8 checkpoint of the dense 32B, the
+  strongest model in the ``config/models.yaml`` matrix that keeps the 32k
+  window on one GPU. The earlier ``Qwen/Qwen3-14B-AWQ`` posture is retired for
+  ground truth: its EX-10 CUAD journal failed basic re-verification on 126
+  spans downstream (Mailroom-Corpus-EDA v9.4), and the small-Qwen3 CUAD
+  presence F1 measured here (SAND-032/SAND-042) sits at 0.57–0.64.
+* One H100 (native FP8 W8A8; ~33 GB weights leaves room for 8 × 32k fp8 KV).
+  Not tensor parallel.
+* ``max_num_seqs=8`` and ``max_inputs=8`` so a chunk that keeps 8 requests in
+  flight saturates the GPU.
+* ``min_containers=0`` and a 120s scaledown so the GPU does not stay warm
   between chunks.
+
+A larger model is not a quality guarantee. Every journal is still scored
+against expert CUAD labels downstream before any of it is ingested.
 """
 
 from __future__ import annotations
@@ -39,19 +47,20 @@ DATASET_REPO = HF_DEFAULT_REPO
 APP_NAME = "sandbox-vllm-gt-labeler"
 
 # Env the Modal app must actually boot with. Overrides that disagree are
-# refused before deploy so a shell export cannot silently swap in 8B or an
-# 80 GB GPU.
+# refused before deploy so a shell export cannot silently swap in a smaller
+# model or a different GPU.
 POSTURE: dict[str, str] = {
     "MODAL_VLLM_APP_NAME": APP_NAME,
-    "MODAL_VLLM_MODEL": "Qwen/Qwen3-14B-AWQ",
-    "MODAL_VLLM_GPU": "L4",
-    "MODAL_VLLM_QUANTIZATION": "awq_marlin",
+    "MODAL_VLLM_MODEL": "Qwen/Qwen3-32B-FP8",
+    "MODAL_VLLM_GPU": "H100",
+    # empty: vLLM auto-detects the checkpoint's published FP8 config
+    "MODAL_VLLM_QUANTIZATION": "",
     "MODAL_VLLM_MAX_MODEL_LEN": "32768",
     "MODAL_VLLM_MAX_NUM_SEQS": "8",
     "MODAL_VLLM_GPU_MEMORY_UTILIZATION": "0.90",
     "MODAL_VLLM_ENABLE_PREFIX_CACHING": "1",
     "MODAL_VLLM_ENFORCE_EAGER": "0",
-    "MODAL_VLLM_MAX_CONTAINERS": "2",
+    "MODAL_VLLM_MAX_CONTAINERS": "1",
     "MODAL_VLLM_MIN_CONTAINERS": "0",
     "MODAL_VLLM_SCALEDOWN_SECONDS": "120",
     "MODAL_VLLM_ASYNC_SCHEDULING": "0",
@@ -61,13 +70,15 @@ POSTURE: dict[str, str] = {
     "MODAL_VLLM_MAX_INPUTS": "8",
 }
 
-L4_USD_PER_HOUR = 0.80
-REPLICAS = 2
+GPU_USD_PER_HOUR = 3.95  # H100, job.metrics GPU_USD_PER_HOUR
+REPLICAS = 1
 MAX_NUM_SEQS = 8
-# Cold boot is billed once per chunk (both replicas start together).
-COLD_BOOT_WALL_SECONDS = 300
+# Cold boot is billed once per chunk (32B weight load + graph capture).
+COLD_BOOT_WALL_SECONDS = 420
 SCALEDOWN_SECONDS = 120
-SECONDS_PER_SLOT = 45.0
+# Conservative per-document wall at 8 in flight: the 32B decodes slower per
+# sequence than the retired 14B-AWQ did on L4 (45 s).
+SECONDS_PER_SLOT = 70.0
 CHUNK_DOC_CAP = 40
 CHUNK_USD_CAP = 2.00
 CLIENT_IN_FLIGHT = REPLICAS * MAX_NUM_SEQS
@@ -131,7 +142,7 @@ def apply_posture_env(environ: dict[str, str] | None = None) -> dict[str, str]:
 
 
 def assert_posture(environ: Mapping[str, str] | None = None) -> None:
-    """Raise unless the effective env is exactly the 2×L4 14B-AWQ posture."""
+    """Raise unless the effective env is exactly the 1×H100 32B-FP8 posture."""
     import os
 
     env = environ if environ is not None else os.environ
@@ -143,7 +154,7 @@ def assert_posture(environ: Mapping[str, str] | None = None) -> None:
     gpu = str(env.get("MODAL_VLLM_GPU", ""))
     if ":" in gpu:
         problems.append(
-            f"MODAL_VLLM_GPU={gpu!r} is tensor-parallel; use two containers"
+            f"MODAL_VLLM_GPU={gpu!r} is tensor-parallel; the posture is one GPU per container"
         )
     tp = str(env.get("MODAL_VLLM_TP_SIZE", "") or "1").strip()
     if tp not in ("", "1"):
@@ -166,18 +177,18 @@ def project_usd(
     *,
     seconds_per_slot: float = SECONDS_PER_SLOT,
 ) -> float:
-    """Projected bill for one chunk on two L4s, including boot and scaledown.
+    """Projected bill for one chunk, including boot and scaledown.
 
-    Both replicas are billed for the wall clock. Work wall is the slot time
-    divided by the 16-way in-flight cap, because that is the concurrency the
-    client must hold to keep both GPUs busy.
+    Every replica is billed for the wall clock. Work wall is the slot time
+    divided by the in-flight cap, because that is the concurrency the client
+    must hold to keep the GPUs busy.
     """
     if n_slots < 0:
         raise LabelSpendError("n_slots must be >= 0")
     slots = max(n_slots, 0)
     work_wall = (slots * seconds_per_slot) / CLIENT_IN_FLIGHT if slots else 0.0
     wall = COLD_BOOT_WALL_SECONDS + work_wall + SCALEDOWN_SECONDS
-    return wall / 3600.0 * L4_USD_PER_HOUR * REPLICAS
+    return wall / 3600.0 * GPU_USD_PER_HOUR * REPLICAS
 
 
 @dataclass(frozen=True)

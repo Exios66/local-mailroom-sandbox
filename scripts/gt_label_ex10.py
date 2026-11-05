@@ -34,7 +34,7 @@ from mailroom_sandbox.gt_labeler import (  # noqa: E402
     CHUNK_USD_CAP,
     DATASET_REVISION,
     DATASET_TAG,
-    L4_USD_PER_HOUR,
+    GPU_USD_PER_HOUR,
     MAX_NUM_SEQS,
     POSTURE,
     accepted_ids,
@@ -338,7 +338,7 @@ def main() -> int:
         "--replicas",
         type=int,
         default=1,
-        help="L4s to keep busy. 1 saturates a single replica (8 sequences) and does not pull a second GPU",
+        help="GPUs to keep busy. The posture deploys one H100 (8 sequences); keep 1",
     )
     parser.add_argument(
         "--usd-cap",
@@ -381,7 +381,7 @@ def main() -> int:
     written = 0
     for _ in range(args.limit_chunks):
         elapsed = time.time() - started
-        spent = elapsed / 3600.0 * L4_USD_PER_HOUR * args.replicas
+        spent = elapsed / 3600.0 * GPU_USD_PER_HOUR * args.replicas
         if elapsed > _WALL_CAP_SECONDS or spent >= args.usd_cap:
             print(
                 f"stopping before the next chunk: est ${spent:.2f} "

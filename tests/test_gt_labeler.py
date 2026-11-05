@@ -62,16 +62,17 @@ def test_dataset_pin_is_hub_tag_v9_1():
     assert FAMILY_HF_DATA_REVISION == "ed7576b676343e0b402ec5412cded301e629bdee"
 
 
-def test_posture_is_two_l4s_of_qwen3_14b_awq():
+def test_posture_is_one_h100_of_qwen3_32b_fp8():
     assert POSTURE["MODAL_VLLM_APP_NAME"] == APP_NAME == "sandbox-vllm-gt-labeler"
     assert APP_NAME.startswith("sandbox-vllm")
-    assert POSTURE["MODAL_VLLM_MODEL"] == "Qwen/Qwen3-14B-AWQ"
-    assert POSTURE["MODAL_VLLM_GPU"] == "L4"
-    assert POSTURE["MODAL_VLLM_MAX_CONTAINERS"] == "2"
+    assert POSTURE["MODAL_VLLM_MODEL"] == "Qwen/Qwen3-32B-FP8"
+    assert POSTURE["MODAL_VLLM_GPU"] == "H100"
+    assert POSTURE["MODAL_VLLM_QUANTIZATION"] == ""  # checkpoint FP8, auto-detected
+    assert POSTURE["MODAL_VLLM_MAX_CONTAINERS"] == "1"
     assert POSTURE["MODAL_VLLM_MIN_CONTAINERS"] == "0"
     assert POSTURE["MODAL_VLLM_MAX_NUM_SEQS"] == "8"
     assert POSTURE["MODAL_VLLM_MAX_INPUTS"] == "8"
-    assert CLIENT_IN_FLIGHT == 16
+    assert CLIENT_IN_FLIGHT == 8
     assert "enable_thinking" in POSTURE["MODAL_VLLM_DEFAULT_CHAT_TEMPLATE_KWARGS"]
     assert '"enable_thinking": false' in POSTURE["MODAL_VLLM_DEFAULT_CHAT_TEMPLATE_KWARGS"]
     assert POSTURE["MODAL_VLLM_ASYNC_SCHEDULING"] == "0"
@@ -84,14 +85,23 @@ def test_assert_posture_accepts_the_pin_and_refuses_drift():
     drifted["MODAL_VLLM_MODEL"] = "Qwen/Qwen3-8B"
     with pytest.raises(LabelSpendError):
         assert_posture(drifted)
+    retired = dict(env)
+    retired["MODAL_VLLM_MODEL"] = "Qwen/Qwen3-14B-AWQ"
+    with pytest.raises(LabelSpendError):
+        assert_posture(retired)
     wide = dict(env)
     wide["MODAL_VLLM_GPU"] = "A100-80GB"
     with pytest.raises(LabelSpendError):
         assert_posture(wide)
-    one = dict(env)
-    one["MODAL_VLLM_MAX_CONTAINERS"] = "1"
+    two = dict(env)
+    two["MODAL_VLLM_MAX_CONTAINERS"] = "2"
     with pytest.raises(LabelSpendError):
-        assert_posture(one)
+        assert_posture(two)
+
+
+def test_forty_document_chunk_fits_the_cap():
+    chunks = plan_chunks([_target(i) for i in range(CHUNK_DOC_CAP)])
+    assert len(chunks) == 1 and chunks[0].projected_usd <= CHUNK_USD_CAP
 
 
 def test_full_corpus_is_not_one_chunk():
