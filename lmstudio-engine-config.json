@@ -1,0 +1,12 @@
+{
+  "engine": "llamacpp",
+  "config": {
+    "loader": {
+      "gpuOffload": 1,
+      "contextLength": 32768,
+      "template_kwargs": {
+        "enable_thinking": false
+      }
+    }
+  }
+}

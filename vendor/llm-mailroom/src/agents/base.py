@@ -1,4 +1,5 @@
 import json
+import os
 import structlog
 from abc import ABC, abstractmethod
 
@@ -220,9 +221,14 @@ class BaseAgent(ABC):
         # message below: the pilot showed Alibaba intermittently rejecting a
         # user-message-only variant with HTTP 400.
         system_prompt, user_message = self._structured_messages(user_message, json_schema, system_prompt)
+        # MAILROOM_JSON_MODE=off|0|false omits response_format: LM Studio 1.1.x
+        # 400s on json_object; prompt already embeds the schema + literal "json".
+        # Upstream proposal candidate, not a permanent vendor divergence.
+        # Read at call time; unset or any other value keeps json_object (default).
+        json_mode_off = os.environ.get("MAILROOM_JSON_MODE", "").strip().lower() in ("off", "0", "false")
         raw = self._call_llm(
             user_message,
-            response_format={"type": "json_object"},
+            response_format=None if json_mode_off else {"type": "json_object"},
             temperature=temperature,
             system_prompt=system_prompt,
             max_tokens=max_tokens,
