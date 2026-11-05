@@ -58,6 +58,7 @@ _WALL_CAP_SECONDS = 45 * 60
 
 
 def _load_queue(path: Path) -> list[dict]:
+    """Read the labeling queue JSONL into a list of row dicts."""
     rows = []
     for line in path.read_text(encoding="utf-8").splitlines():
         if line.strip():
@@ -66,6 +67,7 @@ def _load_queue(path: Path) -> list[dict]:
 
 
 def _read_config(parquet_dir: Path, cfg: str):
+    """Concatenate one parquet config's train and test files; an empty frame if none exist."""
     import pandas as pd
 
     frames = []
@@ -81,6 +83,9 @@ def _read_config(parquet_dir: Path, cfg: str):
 
 
 def _clean_cell(value: object) -> str:
+    """A parquet cell as a stripped string, with None/NaN/``nan``/``None``/``null`` as ``""``
+    and integral floats without a trailing ``.0``.
+    """
     if value is None:
         return ""
     if isinstance(value, float):
@@ -95,6 +100,13 @@ def _clean_cell(value: object) -> str:
 
 
 def _load_texts(parquet_dir: Path, filenames: set[str]) -> dict[str, dict]:
+    """Map each queued filename to its doc_text, token estimate, document_id and split.
+
+    Reads ``gt_fields`` from the ground_truth config and doc_text from the blind
+    config when present. Raises ``FileNotFoundError`` without a ground_truth
+    snapshot and ``RuntimeError`` when a queued filename has no text or an
+    empty one.
+    """
     ground = _read_config(parquet_dir, "ground_truth")
     blind = _read_config(parquet_dir, "default")
     if ground.empty or "gt_fields" not in ground.columns:
@@ -136,6 +148,7 @@ def _load_texts(parquet_dir: Path, filenames: set[str]) -> dict[str, dict]:
 
 
 def _read_journal(path: Path) -> list[dict]:
+    """Every record in the append-only journal, in write order; ``[]`` if it does not exist."""
     if not path.is_file():
         return []
     rows = []
@@ -192,12 +205,17 @@ def _write_checkpoint(path: Path, journal: Path, queue_ids: list[str]) -> None:
 
 
 def _save(out: Path, checkpoint: Path, queue_ids: list[str], record: dict) -> None:
+    """Append one finished record and refresh the checkpoint, under the write lock."""
     with _WRITE_LOCK:
         _append_journal(out, record)
         _write_checkpoint(checkpoint, out, queue_ids)
 
 
 def _post(url: str, api_key: str, body: dict) -> dict:
+    """POST ``body`` to ``<url>/chat/completions`` with the bearer key; return the JSON reply.
+
+    Raises ``ValueError`` for a non-http(s) URL; HTTP errors propagate.
+    """
     if not url.lower().startswith(("https://", "http://")):
         raise ValueError(f"base URL must be http(s), got {url!r}")
     data = json.dumps(body).encode("utf-8")
@@ -215,6 +233,13 @@ def _post(url: str, api_key: str, body: dict) -> dict:
 
 
 def _complete(url: str, api_key: str, messages: list[dict], schema: dict) -> str:
+    """One deterministic chat completion constrained to the CUAD span schema.
+
+    Temperature 0, thinking off, served model pinned to the posture. On an HTTP
+    400/422 (schema not accepted) it retries once with plain JSON mode. Other
+    HTTP errors become ``RuntimeError``, and so does a reply cut off at
+    ``max_tokens``. Returns the message content.
+    """
     body = {
         "model": POSTURE["MODAL_VLLM_MODEL"],
         "messages": messages,
@@ -245,6 +270,12 @@ def _complete(url: str, api_key: str, messages: list[dict], schema: dict) -> str
 
 
 def _annotate(target: dict, url: str, api_key: str, schema: dict) -> dict:
+    """Label one target and return its journal record.
+
+    Up to two attempts: spans are normalized to verbatim document slices, and if
+    the quality floor fails the model is told the problems and asked again. The
+    record is ``accepted`` only when the final attempt clears the floor.
+    """
     document = str(target.get("doc_text") or "")
     messages = build_cuad_messages(target)
     last_dropped: list[str] = []
@@ -296,6 +327,15 @@ def _annotate(target: dict, url: str, api_key: str, schema: dict) -> dict:
 
 
 def _prepare(queue: list[dict], texts: dict[str, dict]) -> list[dict]:
+    """Join queue rows with their texts into label targets.
+
+    Every target is shaped as a SEC EDGAR EX-10 ``cuad_clause_labels`` target
+    (``source_dataset = sec_edgar``), so the golden-field guard does not block
+    it. The calibration queue relies on this: its golden CUAD rows are labeled
+    into a separate journal that the EDA side scores and never ingests. A
+    target whose token estimate exceeds the window floor is marked ``>32k`` and
+    windowed.
+    """
     prepared = []
     for row in queue:
         name = row["filename"]
@@ -327,6 +367,12 @@ def _prepare(queue: list[dict], texts: dict[str, dict]) -> list[dict]:
 
 
 def main() -> int:
+    """Label one chunk (by default) of the queue and append the results to ``--out``.
+
+    Resumes from the journal, stops before a chunk once the estimated spend
+    reaches ``--usd-cap`` or the wall cap is hit, and returns 2 when
+    ``VLLM_BASE_URL``/``VLLM_API_KEY`` are missing or ``--replicas`` < 1.
+    """
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--queue", type=Path, required=True)
     parser.add_argument("--parquet", type=Path, required=True)
@@ -404,6 +450,9 @@ def main() -> int:
             targets = targets[:args.max_docs]
 
         def _safe(target: dict) -> dict:
+            """Run :func:`_annotate`, turning any exception into a rejected record so one
+            failure never sinks the chunk.
+            """
             try:
                 return _annotate(target, base, api_key, schema)
             except Exception as exc:

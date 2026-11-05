@@ -193,6 +193,11 @@ def project_usd(
 
 @dataclass(frozen=True)
 class LabelChunk:
+    """One labeling invocation's worth of work: at most ``CHUNK_DOC_CAP`` targets
+    whose projected GPU spend fits ``CHUNK_USD_CAP``. ``slots`` is the number of
+    concurrent-batch slots the targets occupy; ``index`` is the chunk's position
+    in the plan.
+    """
     index: int
     targets: tuple[Mapping[str, Any], ...]
     slots: int
@@ -200,9 +205,13 @@ class LabelChunk:
 
     @property
     def doc_count(self) -> int:
+        """Number of documents in this chunk."""
         return len(self.targets)
 
     def manifest(self) -> dict[str, Any]:
+        """JSON-ready description of the chunk and the posture it runs under
+        (caps, dataset pin, model, GPU, concurrency and the target filenames).
+        """
         return {
             "index": self.index,
             "doc_count": self.doc_count,
@@ -232,6 +241,7 @@ def plan_chunks(
     current_slots = 0
 
     def _close() -> None:
+        """Seal the targets gathered so far into a priced chunk and start a new one."""
         nonlocal current, current_slots
         if not current:
             return
@@ -296,6 +306,13 @@ def next_chunk(
 
 
 def _golden_fields(target: Mapping[str, Any]) -> frozenset[str]:
+    """Fields that already carry expert ground truth for this target's source.
+
+    MAUD merger rows block their MAUD fields; golden CUAD contracts block their
+    CUAD fields. SEC EDGAR EX-10 contracts (``source_dataset == "sec_edgar"``)
+    and other classes block nothing. :func:`assert_labelable` refuses to label a
+    blocked field.
+    """
     doc_class = str(target.get("doc_class") or target.get("expected") or "")
     source = str(target.get("source_corpus") or "")
     if doc_class == "merger_agreement":
@@ -324,6 +341,7 @@ def assert_labelable(target: Mapping[str, Any]) -> list[str]:
 
 
 def _intent_vocab(doc_class: str) -> tuple[str, ...]:
+    """The closed intent vocabulary for ``doc_class``, or ``()`` for a class without one."""
     return {
         "correspondence": CORRESPONDENCE_INTENTS,
         "corporate_record": CORPORATE_INTENTS,
@@ -333,6 +351,7 @@ def _intent_vocab(doc_class: str) -> tuple[str, ...]:
 
 
 def _field_instruction(doc_class: str, field: str) -> str:
+    """The prompt line telling the model how to fill ``field`` for ``doc_class``."""
     if field == "intent":
         vocab = _intent_vocab(doc_class)
         labels = ", ".join(vocab) if vocab else "(no vocabulary for this class)"
@@ -404,6 +423,13 @@ def _field_instruction(doc_class: str, field: str) -> str:
 
 
 def _document_block(text: str, band: str) -> str:
+    """Wrap the document text for the prompt.
+
+    A document in the ``>32k`` band or longer than 100,000 chars is sent as a
+    head and a tail excerpt of ``_WINDOW_CHARS`` each, and the model is told to
+    abstain when a value would sit only in the omitted middle. Otherwise the
+    whole text is sent.
+    """
     body = text or ""
     if band == ">32k" or len(body) > 100_000:
         head = body[:_WINDOW_CHARS]
@@ -676,6 +702,14 @@ def _slice_folded(
     indexes: list[int],
     wanted: str,
 ) -> tuple[int, str] | None:
+    """Locate ``wanted`` in the whitespace-folded document and map it back.
+
+    ``folded`` is ``document`` with whitespace runs collapsed, and ``indexes``
+    maps each folded character to its offset in ``document``. Returns
+    ``(start, slice)`` with the slice taken from the original document, or None
+    when the text is absent, shorter than 2 chars, or when the mapped slice is
+    over ``MAX_CUAD_SPAN_CHARS`` or implausibly longer than ``wanted``.
+    """
     wanted = wanted.strip()
     if len(wanted) < 2 or not indexes:
         return None
@@ -720,6 +754,12 @@ def locate_verbatim(document: str, text: str) -> tuple[int, str] | None:
 
 
 def _clause_items(payload: Mapping[str, Any]) -> list[tuple[str, str]]:
+    """Flatten a model response into ``(category, text)`` pairs.
+
+    Accepts the ``{"clauses": [{category, text}]}`` shape or the
+    ``{"fields": {"cuad_clause_labels": {category: [{text}]}}}`` shape; anything
+    malformed yields no items.
+    """
     clauses = payload.get("clauses")
     if isinstance(clauses, list):
         items: list[tuple[str, str]] = []
