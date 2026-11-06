@@ -34,7 +34,6 @@ from mailroom_sandbox.gt_labeler import (  # noqa: E402
     CHUNK_USD_CAP,
     DATASET_REVISION,
     DATASET_TAG,
-    GPU_USD_PER_HOUR,
     MAX_NUM_SEQS,
     POSTURE,
     accepted_ids,
@@ -42,6 +41,7 @@ from mailroom_sandbox.gt_labeler import (  # noqa: E402
     cuad_label_problems,
     cuad_span_schema,
     fold_label_journal,
+    gpu_rate_usd_per_hour,
     label_evidence_for,
     loads_response,
     next_chunk,
@@ -433,7 +433,7 @@ def main() -> int:
     written = 0
     for _ in range(args.limit_chunks):
         elapsed = time.time() - started
-        spent = elapsed / 3600.0 * GPU_USD_PER_HOUR * args.replicas
+        spent = elapsed / 3600.0 * gpu_rate_usd_per_hour() * args.replicas
         if elapsed > _WALL_CAP_SECONDS or spent >= args.usd_cap:
             print(
                 f"stopping before the next chunk: est ${spent:.2f} "

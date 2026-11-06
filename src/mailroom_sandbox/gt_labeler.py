@@ -32,6 +32,7 @@ from typing import Any, Mapping, Sequence
 
 from langchain_agents.cuad_maud import CUAD_CLAUSE_CATEGORIES
 
+from mailroom_sandbox.job.metrics import DEFAULT_GPU_USD_PER_HOUR, gpu_usd_per_hour
 from mailroom_sandbox.job.spec import (
     FAMILY_HF_DATA_REVISION,
     FAMILY_HF_REVISION,
@@ -70,7 +71,8 @@ POSTURE: dict[str, str] = {
     "MODAL_VLLM_MAX_INPUTS": "8",
 }
 
-GPU_USD_PER_HOUR = 3.95  # H100, job.metrics GPU_USD_PER_HOUR
+# H100 list rate from job.metrics; the floor for every projection.
+GPU_USD_PER_HOUR = DEFAULT_GPU_USD_PER_HOUR[POSTURE["MODAL_VLLM_GPU"]]
 REPLICAS = 1
 MAX_NUM_SEQS = 8
 # Cold boot is billed once per chunk (32B weight load + graph capture).
@@ -197,7 +199,17 @@ def project_usd(
     slots = max(n_slots, 0)
     work_wall = (slots * seconds_per_slot) / CLIENT_IN_FLIGHT if slots else 0.0
     wall = COLD_BOOT_WALL_SECONDS + work_wall + SCALEDOWN_SECONDS
-    return wall / 3600.0 * GPU_USD_PER_HOUR * REPLICAS
+    return wall / 3600.0 * gpu_rate_usd_per_hour() * REPLICAS
+
+
+def gpu_rate_usd_per_hour() -> float:
+    """The H100 $/hr used for projections.
+
+    Honors ``MODAL_GPU_USD_PER_HOUR`` / ``MODAL_GPU_USD_PER_SEC`` through
+    ``job.metrics.gpu_usd_per_hour``, but never drops below the H100 list rate,
+    so an override can raise a projection and never weaken the chunk cap.
+    """
+    return max(GPU_USD_PER_HOUR, gpu_usd_per_hour(POSTURE["MODAL_VLLM_GPU"]))
 
 
 @dataclass(frozen=True)
@@ -766,8 +778,9 @@ def _clause_items(payload: Mapping[str, Any]) -> list[tuple[str, str]]:
     """Flatten a model response into ``(category, text)`` pairs.
 
     Accepts the ``{"clauses": [{category, text}]}`` shape or the
-    ``{"fields": {"cuad_clause_labels": {category: [{text}]}}}`` shape; anything
-    malformed yields no items.
+    ``{"fields": {"cuad_clause_labels": {category: [{text}]}}}`` shape.
+    Malformed individual entries are skipped and the valid ones kept; a response
+    in neither shape yields no items.
     """
     clauses = payload.get("clauses")
     if isinstance(clauses, list):
