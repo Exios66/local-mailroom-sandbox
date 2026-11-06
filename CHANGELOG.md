@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Modal SDK pin `1.6.2` -> `1.6.3` (`[deploy]` extra, supersedes dependabot #236, which bumped only `pyproject.toml` and `requirements/` and left the pin tests red). The 1.6.3 wheel was source-diffed against 1.6.2: `exception.py`, `_functions.py`, `_utils/function_utils.py`, `cli/app.py` and `cli/run.py` are byte-identical, so the `FunctionCall.get(timeout=0)` reset guard in `job/remote.py` keeps its semantics, and `modal --version` prints the same format. New in 1.6.3 and unused here: OAuth JWT auth, the opt-in `2026.10` image builder (the workspace setting still selects the builder) and sandbox internals. `uv.lock` also moves `synchronicity` 0.12.6 -> 0.12.7 (modal's own requirement). `services/modal_cli.PINNED_SDK`, the deploy and setup docs, the Modal skill, `AGENTS.md` and the pin tests updated to match. The real-CLI contract smoke (`SANDBOX_SERVICE_SMOKE=1`) has not been run against 1.6.3.
 - Floor analytics under `reports/dashboard/`, moved here from the Digital-Mailroom hub (hub #224, DMR-116), where it was added directly under `packages/local-mailroom-sandbox/`. The sandbox owns these files, and the next hub import brings them back unchanged:
   - `build_floor_digest.py`: stdlib-only digest of every run dir, with graph topology parsed from `build_graph.py`. Missing artifacts degrade to `?`.
   - `floor.template.html`: class-isolation and node-selection viewer. A run without `dataset.jsonl`, or a class with unlabeled items, shows `?` and cannot be isolated.

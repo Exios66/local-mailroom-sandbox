@@ -23,7 +23,7 @@ from mailroom_sandbox.tui.services_snapshot import (
 )
 
 ROWS = [
-    {"name": "modal", "state": "ok", "detail": "modal 1.6.2", "hint": ""},
+    {"name": "modal", "state": "ok", "detail": "modal 1.6.3", "hint": ""},
     {"name": "provider", "state": "fail", "detail": "VLLM_BASE_URL unset", "hint": "sandbox modal deploy"},
     {"name": "phoenix", "state": "skipped", "detail": "optional sidecar", "hint": ""},
 ]

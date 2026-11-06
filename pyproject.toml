@@ -97,10 +97,11 @@ hf = [
     "pyarrow>=15.0",
 ]
 deploy = [
-    # Pinned SDK for deploy/modal_vllm.py (verified 2026-09-09; the app file
-    # records the same version). Bump deliberately after reading the release
-    # notes — 1.5.5 removed `Secret.from_local`.
-    "modal==1.6.2",
+    # Pinned SDK for deploy/modal_vllm.py (1.6.2 verified 2026-09-09; 1.6.3
+    # source-diffed 2026-11-06: exception/FunctionCall paths unchanged; the app
+    # file records the same version). Bump deliberately after reading the
+    # release notes — 1.5.5 removed `Secret.from_local`.
+    "modal==1.6.3",
 ]
 decision = [
     # Decision-model reviewer backend (src/mailroom_sandbox/decision_backends.py).

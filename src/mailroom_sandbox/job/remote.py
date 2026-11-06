@@ -252,7 +252,7 @@ def terminal_confirmed(store: RunStore) -> bool:
     """Prove a known single-input call has finished before resetting its files.
 
     Call graphs are best-effort diagnostics, not a destructive-reset guard.
-    In modal==1.6.2, get(timeout=0) returns a result or raises one of the
+    In modal==1.6.3 (same code as 1.6.2), get(timeout=0) returns a result or raises one of the
     result-path exceptions below only after the input finishes. A polling
     timeout, lookup/transport failure, or ambiguous exception proves nothing.
     """
@@ -271,7 +271,7 @@ def terminal_confirmed(store: RunStore) -> bool:
     try:
         call.get(timeout=0)
     except terminal_errors:
-        # 1.6.2: FunctionTimeoutError/RemoteError are emitted by result
+        # 1.6.3: FunctionTimeoutError/RemoteError are emitted by result
         # processing; OutputExpiredError means zero unfinished inputs.
         # Lookup errors are handled separately above, never as results.
         return True
