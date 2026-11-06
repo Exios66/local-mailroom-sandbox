@@ -14,7 +14,7 @@ import pytest
 from mailroom_sandbox import cli
 from mailroom_sandbox.tui.services_snapshot import read_services
 
-PIN = "modal client version: 1.6.2\n"
+PIN = "modal client version: 1.6.3\n"
 
 
 @pytest.fixture(autouse=True)
@@ -69,7 +69,7 @@ def test_modal_ok_at_the_pinned_sdk(fake_bin, capsys, monkeypatch):
     _tools(fake_bin)
     monkeypatch.setenv("VLLM_BASE_URL", "http://vllm.test/v1")
     _rc, rows = _doctor(capsys)
-    assert rows["modal"]["state"] == "ok" and "1.6.2" in rows["modal"]["detail"]
+    assert rows["modal"]["state"] == "ok" and "1.6.3" in rows["modal"]["detail"]
 
 
 def test_modal_missing_is_a_warning_with_the_install_hint(fake_bin, capsys, monkeypatch):
@@ -83,7 +83,7 @@ def test_modal_off_the_pin_is_a_warning(fake_bin, capsys, monkeypatch):
     fake_bin.add("modal", rules=[{"prefix": ["--version"], "stdout": "modal client version: 1.4.0\n"}])
     monkeypatch.setenv("VLLM_BASE_URL", "http://vllm.test/v1")
     _rc, rows = _doctor(capsys)
-    assert rows["modal"]["state"] == "warn" and "1.4.0" in rows["modal"]["detail"] and "1.6.2" in rows["modal"]["detail"]
+    assert rows["modal"]["state"] == "warn" and "1.4.0" in rows["modal"]["detail"] and "1.6.3" in rows["modal"]["detail"]
 
 
 def test_ollama_is_skipped_when_the_profile_does_not_use_it(fake_bin, capsys, monkeypatch):
@@ -253,7 +253,7 @@ def test_live_ok_endpoint(fake_bin, capsys, monkeypatch):
 def _modal_endpoint_times_out(fake_bin, monkeypatch, rows):
     monkeypatch.setenv("VLLM_BASE_URL", "https://ws--sandbox-vllm-serve.modal.run/v1")
     fake_bin.add("modal", rules=[
-        {"prefix": ["--version"], "stdout": "modal client version: 1.6.2\n"},
+        {"prefix": ["--version"], "stdout": "modal client version: 1.6.3\n"},
         {"prefix": ["app", "list"], "stdout": json.dumps(rows)},
     ])
 
@@ -310,7 +310,7 @@ def test_live_modal_row_reads_the_account_without_touching_the_endpoint(fake_bin
 def test_live_modal_row_fails_when_the_account_cannot_be_read(fake_bin, capsys, monkeypatch):
     monkeypatch.setenv("VLLM_BASE_URL", "https://ws--sandbox-vllm-serve.modal.run/v1")
     fake_bin.add("modal", rules=[
-        {"prefix": ["--version"], "stdout": "modal client version: 1.6.2\n"},
+        {"prefix": ["--version"], "stdout": "modal client version: 1.6.3\n"},
         {"prefix": ["app", "list"], "code": 1, "stderr": "token invalid"},
     ])
     rc, rows = _doctor(capsys, "--live", "--service", "modal")

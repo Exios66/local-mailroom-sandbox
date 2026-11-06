@@ -18,7 +18,7 @@ import pytest
 from mailroom_sandbox import cli
 
 DEPLOY_ARGV = ["deploy", "deploy/modal_vllm.py"]
-PIN = "modal client version: 1.6.2\n"
+PIN = "modal client version: 1.6.3\n"
 
 
 @pytest.fixture(autouse=True)
@@ -118,7 +118,7 @@ def test_an_sdk_version_other_than_the_pin_warns_but_still_runs(fake_bin, capsys
     _modal(fake_bin, rules=[{"prefix": ["--version"], "stdout": "modal client version: 1.5.0\n"}])
     assert cli.main(["modal", "deploy"]) == 0
     err = capsys.readouterr().err
-    assert "1.5.0" in err and "1.6.2" in err
+    assert "1.5.0" in err and "1.6.3" in err
     assert fake_bin.calls("modal")[-1] == DEPLOY_ARGV
 
 

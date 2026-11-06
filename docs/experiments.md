@@ -239,7 +239,7 @@ The selected trace
 sink must be configured too: Langfuse is the default; `none`, explicit `otlp`, and
 an optional Phoenix sidecar are available. Phoenix does not replace The-Mailroom's
 Langfuse sink. Live tracing needs `pip install -e ".[observability]"`; the Modal
-launcher requires the verified `modal==1.6.2` CLI.
+launcher requires the verified `modal==1.6.3` CLI.
 
 ```bash
 sandbox experiment review --config config/experiments/pipeline-hybrid/experiment.yaml

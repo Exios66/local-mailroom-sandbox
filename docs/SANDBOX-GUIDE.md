@@ -32,7 +32,7 @@ full verified command list, start with
 | Requirement | Version | Notes |
 | --- | --- | --- |
 | Python | 3.11+ | `pyproject.toml` `requires-python` |
-| Modal CLI | SDK 1.6.2 | **Default path**: GPU serving via `modal-vllm` (the `deploy` extra) |
+| Modal CLI | SDK 1.6.3 | **Default path**: GPU serving via `modal-vllm` (the `deploy` extra) |
 | Docker + Compose | latest | Langfuse tracing + the Jupyter image (optional providers) |
 | NVIDIA GPU (optional) | Any CUDA GPU | Only for the `vllm` compose profile / `vllm-local` |
 | Ollama (optional) | latest | Offline/CPU fallback (`--profile ollama`) |
@@ -59,7 +59,7 @@ cp config/.env.example .env          # edit as needed
 | `dev` | pytest, ruff, mypy |
 | `notebooks` | jupyter, ipykernel |
 | `hf` | huggingface_hub, pyarrow |
-| `deploy` | modal (SDK 1.6.2 pinned) |
+| `deploy` | modal (SDK 1.6.3 pinned) |
 | `pipeline` | llm-mailroom + llm-dojo-scoring |
 | `observability` | opentelemetry-sdk, opentelemetry-exporter-otlp-proto-http |
 
