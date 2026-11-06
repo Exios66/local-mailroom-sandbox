@@ -203,6 +203,7 @@ def test_root_readme_names_the_vendored_versions_and_commits():
 
     root = repo_root()
     readme = (root / "README.md").read_text(encoding="utf-8")
+    refresh_paragraph = readme.split("### Reviewed dependency refreshes", 1)[1].split("\n\n")[1]
     for name in ("llm-mailroom", "llm-dojo-scoring"):
         vendor_md = (root / "vendor" / name / "VENDOR.md").read_text(encoding="utf-8")
         commit = re.search(r"Exact source commit:\s*`([0-9a-f]{40})`", vendor_md).group(1)
@@ -212,5 +213,5 @@ def test_root_readme_names_the_vendored_versions_and_commits():
         assert badge and badge.groups() == (version, short), f"{name} badge is stale"
         row = next(line for line in readme.splitlines() if line.startswith(f"| `vendor/{name}/` |"))
         assert f"| {version} |" in row and f"`{short}`" in row, f"{name} versions-table row is stale"
-        assert f"`{short}`" in readme.split("### Reviewed dependency refreshes", 1)[1].split("\n\n")[1], (
+        assert version in refresh_paragraph and f"`{short}`" in refresh_paragraph, (
             f"{name} refresh paragraph is stale")
