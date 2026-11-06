@@ -142,7 +142,12 @@ def apply_posture_env(environ: dict[str, str] | None = None) -> dict[str, str]:
 
 
 def assert_posture(environ: Mapping[str, str] | None = None) -> None:
-    """Raise unless the effective env is exactly the 1×H100 32B-FP8 posture."""
+    """Check the 1×H100 32B-FP8 posture in ``environ`` or the process environment.
+
+    Raise ``LabelSpendError`` for mismatched posture values or tensor parallelism.
+    Posture values are compared after stripping whitespace; unrelated keys are
+    allowed and a missing or empty tensor-parallel size defaults to one.
+    """
     import os
 
     env = environ if environ is not None else os.environ
@@ -182,6 +187,10 @@ def project_usd(
     Every replica is billed for the wall clock. Work wall is the slot time
     divided by the in-flight cap, because that is the concurrency the client
     must hold to keep the GPUs busy.
+
+    ``n_slots`` is the total request slots, and ``seconds_per_slot`` is the
+    estimated work time per slot in seconds. Zero slots still include boot and
+    scaledown; negative slots raise ``LabelSpendError``. The result is in USD.
     """
     if n_slots < 0:
         raise LabelSpendError("n_slots must be >= 0")
