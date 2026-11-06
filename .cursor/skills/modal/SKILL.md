@@ -8,7 +8,7 @@ description: Deploy and cut over to Modal-hosted vLLM for local-mailroom-sandbox
 **When:** No suitable local GPU, user asks for Modal, or profile `modal-vllm`.  
 **Default serving path:** `sandbox runbook show serve` prints the full deploy → verify → teardown script. Use [ollama](../ollama/SKILL.md) (`--profile ollama`) for offline/CPU smoke. Local NVIDIA compose uses profile `vllm-local` + compose `vllm` (not Modal).
 
-Pinned: Modal SDK **1.6.2** (`[deploy]` extra) + vLLM **v0.29.0**
+Pinned: Modal SDK **1.6.3** (`[deploy]` extra) + vLLM **v0.29.0**
 (`vllm/vllm-openai:v0.29.0`, matching the local compose pin). Full workflow:
 [`deploy/README.md`](../../../deploy/README.md).
 
@@ -109,7 +109,7 @@ spec's `job:` block so the runner fills vLLM's continuous batching
 (`docs/jobs.md`). Keep async scheduling off when the run depends on
 structured outputs.
 
-## SDK gotchas (introduced by 1.5.5; the pin is now 1.6.2)
+## SDK gotchas (introduced by 1.5.5; the pin is now 1.6.3)
 
 - `Secret.from_local` was **removed** — use `from_dict` (skips missing keys,
   which keeps `HF_TOKEN`/`MODAL_VLLM_API_TOKEN` optional) or

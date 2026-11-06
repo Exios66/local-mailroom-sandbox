@@ -29,7 +29,7 @@ Optional extras, only when you need them:
 | `[pipeline]` | langchain stack (vendored mailroom's live paths) | live mailroom agent calls |
 | `[hf]` | `huggingface_hub`, `pyarrow` (also in `[dev]`) | `sandbox datasets pull`, `hf-pilot` |
 | `[observability]` | Langfuse SDK + OTEL | live tracing (`trace.sink: langfuse`) |
-| `[deploy]` | Modal SDK 1.6.2 (pinned) | `sandbox run --job-mode modal`, `deploy/modal_vllm.py` |
+| `[deploy]` | Modal SDK 1.6.3 (pinned) | `sandbox run --job-mode modal`, `deploy/modal_vllm.py` |
 | `[notebooks]` | Jupyter + pandas/matplotlib | `sandbox up --compose-profile jupyter` |
 
 The family code is **already vendored and tracked** (`vendor/llm-mailroom`
