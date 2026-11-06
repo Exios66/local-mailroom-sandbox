@@ -26,10 +26,12 @@ from mailroom_sandbox.gt_labeler import (
     project_usd,
     validate_label_response,
 )
+from mailroom_sandbox.gt_labeler import _clause_items
 from mailroom_sandbox.job.spec import FAMILY_HF_DATA_REVISION, FAMILY_HF_REVISION
 
 
 def _target(i: int, **over) -> dict:
+    """A minimal EX-10 CUAD label target, with ``over`` applied on top."""
     row = {
         "id": f"doc-{i:04d}",
         "filename": f"doc-{i:04d}.txt",
@@ -56,45 +58,86 @@ def test_benchmark_gate_accepts_the_data_parent_and_the_tag():
 
 
 def test_dataset_pin_is_hub_tag_v9_1():
+    """Labeling reads the Hub v9.1 tag at the family-pinned revisions."""
     assert DATASET_TAG == "v9.1"
     assert DATASET_REVISION == "bc9eab280044befb51e19dda3071d290a8677f42"
     assert DATASET_REVISION == FAMILY_HF_REVISION
     assert FAMILY_HF_DATA_REVISION == "ed7576b676343e0b402ec5412cded301e629bdee"
 
 
-def test_posture_is_two_l4s_of_qwen3_14b_awq():
+def test_posture_is_one_h100_of_qwen3_32b_fp8():
+    """The posture is one scale-to-zero H100 serving Qwen3-32B-FP8, 8 in flight, thinking off."""
     assert POSTURE["MODAL_VLLM_APP_NAME"] == APP_NAME == "sandbox-vllm-gt-labeler"
     assert APP_NAME.startswith("sandbox-vllm")
-    assert POSTURE["MODAL_VLLM_MODEL"] == "Qwen/Qwen3-14B-AWQ"
-    assert POSTURE["MODAL_VLLM_GPU"] == "L4"
-    assert POSTURE["MODAL_VLLM_MAX_CONTAINERS"] == "2"
+    assert POSTURE["MODAL_VLLM_MODEL"] == "Qwen/Qwen3-32B-FP8"
+    assert POSTURE["MODAL_VLLM_GPU"] == "H100"
+    assert POSTURE["MODAL_VLLM_QUANTIZATION"] == ""  # checkpoint FP8, auto-detected
+    assert POSTURE["MODAL_VLLM_MAX_CONTAINERS"] == "1"
     assert POSTURE["MODAL_VLLM_MIN_CONTAINERS"] == "0"
     assert POSTURE["MODAL_VLLM_MAX_NUM_SEQS"] == "8"
     assert POSTURE["MODAL_VLLM_MAX_INPUTS"] == "8"
-    assert CLIENT_IN_FLIGHT == 16
+    assert CLIENT_IN_FLIGHT == 8
     assert "enable_thinking" in POSTURE["MODAL_VLLM_DEFAULT_CHAT_TEMPLATE_KWARGS"]
     assert '"enable_thinking": false' in POSTURE["MODAL_VLLM_DEFAULT_CHAT_TEMPLATE_KWARGS"]
     assert POSTURE["MODAL_VLLM_ASYNC_SCHEDULING"] == "0"
 
 
 def test_assert_posture_accepts_the_pin_and_refuses_drift():
+    """The pinned env passes; a smaller or retired model, another GPU or a second container is refused."""
     env = apply_posture_env({})
     assert_posture(env)
     drifted = dict(env)
     drifted["MODAL_VLLM_MODEL"] = "Qwen/Qwen3-8B"
     with pytest.raises(LabelSpendError):
         assert_posture(drifted)
+    retired = dict(env)
+    retired["MODAL_VLLM_MODEL"] = "Qwen/Qwen3-14B-AWQ"
+    with pytest.raises(LabelSpendError):
+        assert_posture(retired)
     wide = dict(env)
     wide["MODAL_VLLM_GPU"] = "A100-80GB"
     with pytest.raises(LabelSpendError):
         assert_posture(wide)
-    one = dict(env)
-    one["MODAL_VLLM_MAX_CONTAINERS"] = "1"
+    two = dict(env)
+    two["MODAL_VLLM_MAX_CONTAINERS"] = "2"
     with pytest.raises(LabelSpendError):
-        assert_posture(one)
+        assert_posture(two)
+
+
+def test_forty_document_chunk_fits_the_cap(monkeypatch):
+    """A full 40-document chunk projects within the cap at the H100 rate."""
+    monkeypatch.delenv("MODAL_GPU_USD_PER_HOUR", raising=False)
+    monkeypatch.delenv("MODAL_GPU_USD_PER_SEC", raising=False)
+    chunks = plan_chunks([_target(i) for i in range(CHUNK_DOC_CAP)])
+    assert len(chunks) == 1 and chunks[0].projected_usd <= CHUNK_USD_CAP
+    # (420 s boot + 40 x 70 s / 8 in flight + 120 s scaledown) at $3.95/hr
+    assert chunks[0].projected_usd == pytest.approx(0.9765277778)
+
+
+def test_projection_honors_a_higher_gpu_rate_override(monkeypatch):
+    """A higher rate override raises the projection; a lower one cannot lower it."""
+    monkeypatch.delenv("MODAL_GPU_USD_PER_SEC", raising=False)
+    monkeypatch.delenv("MODAL_GPU_USD_PER_HOUR", raising=False)
+    base = project_usd(40)
+    monkeypatch.setenv("MODAL_GPU_USD_PER_HOUR", "7.90")
+    assert project_usd(40) == pytest.approx(base * 2)
+    monkeypatch.setenv("MODAL_GPU_USD_PER_HOUR", "0.10")
+    assert project_usd(40) == pytest.approx(base)
+    monkeypatch.delenv("MODAL_GPU_USD_PER_HOUR")
+    monkeypatch.setenv("MODAL_GPU_USD_PER_SEC", str(7.90 / 3600))
+    assert project_usd(40) == pytest.approx(base * 2)
+
+
+def test_clause_items_skips_malformed_entries_and_keeps_valid_ones():
+    """A bad entry is dropped without losing the valid entries beside it."""
+    payload = {"clauses": [{"category": "Governing Law", "text": "Delaware law"}, None, "x"]}
+    assert _clause_items(payload) == [("Governing Law", "Delaware law")]
+    assert _clause_items({"clauses": "nope"}) == []
+    assert _clause_items({"other": 1}) == []
 
 
 def test_full_corpus_is_not_one_chunk():
+    """The whole corpus splits into capped chunks and cannot be sent as one."""
     targets = [_target(i) for i in range(3302)]
     chunks = plan_chunks(targets)
     assert len(chunks) > 1
@@ -113,6 +156,7 @@ def test_full_corpus_is_not_one_chunk():
 
 
 def test_next_chunk_returns_only_the_first_unfinished_slice():
+    """next_chunk walks the queue 40 at a time, skipping finished ids, then returns None."""
     targets = [_target(i) for i in range(100)]
     first = next_chunk(targets)
     assert first is not None
@@ -131,6 +175,7 @@ def test_next_chunk_returns_only_the_first_unfinished_slice():
 
 
 def test_overflow_documents_consume_two_slots():
+    """A >32k document takes two slots and costs more than a short one."""
     short = project_usd(1)
     long = project_usd(2)
     assert long > short
@@ -139,6 +184,7 @@ def test_overflow_documents_consume_two_slots():
 
 
 def test_ex10_prompt_lists_cuad_categories_and_refuses_golden_rows():
+    """EX-10 prompts list the CUAD categories; golden CUAD and MAUD rows are refused."""
     messages = build_messages(_target(1))
     user = messages[1]["content"]
     system = messages[0]["content"]
@@ -160,6 +206,7 @@ def test_ex10_prompt_lists_cuad_categories_and_refuses_golden_rows():
 
 
 def test_correspondence_prompt_uses_the_closed_intent_list():
+    """Correspondence prompts carry the closed intent list and no CUAD categories."""
     messages = build_messages(
         _target(
             4,
@@ -178,6 +225,7 @@ def test_correspondence_prompt_uses_the_closed_intent_list():
 
 
 def test_validate_label_response_requires_every_requested_field():
+    """Each requested field is either filled or abstained, never both or neither."""
     requested = ["intent"]
     ok = {"fields": {"intent": "notice"}, "abstain": []}
     assert validate_label_response(requested, ok) == []
@@ -193,6 +241,7 @@ def test_validate_label_response_requires_every_requested_field():
 
 
 def test_cuad_response_must_cover_every_category():
+    """A CUAD response must key every category, even when most are empty."""
     from langchain_agents.cuad_maud import CUAD_CLAUSE_CATEGORIES
 
     payload = {
@@ -212,6 +261,7 @@ def test_cuad_response_must_cover_every_category():
 
 
 def test_verbatim_spans_snap_to_the_document_and_drop_paraphrases():
+    """Spans snap to the document's own characters; paraphrases and unknown categories are dropped."""
     from mailroom_sandbox.gt_labeler import (
         cuad_label_problems,
         label_evidence_for,
@@ -261,6 +311,7 @@ def test_verbatim_spans_snap_to_the_document_and_drop_paraphrases():
 
 
 def test_label_journal_keeps_accepted_and_the_better_partial():
+    """Folding a journal keeps an accepted record, else the partial with the most spans."""
     from mailroom_sandbox.gt_labeler import accepted_ids, fold_label_journal
 
     rows = [
@@ -276,6 +327,7 @@ def test_label_journal_keeps_accepted_and_the_better_partial():
 
 
 def test_response_round_trip():
+    """loads_response parses a JSON label reply."""
     from mailroom_sandbox.gt_labeler import loads_response
 
     raw = json.dumps({"fields": {"intent": "request"}, "abstain": []})
