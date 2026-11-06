@@ -149,7 +149,7 @@ completion check, never the local flock or a diagnostic call graph.
 
 `--force` is a generation reset. It refuses a running local checkpoint or a
 remote call whose completion cannot be proven, even if the local writer lock
-is free. For Modal SDK 1.6.2, a nonblocking `FunctionCall.get(timeout=0)` result,
+is free. For Modal SDK 1.6.3, a nonblocking `FunctionCall.get(timeout=0)` result,
 remote execution timeout, terminated-result error or expired output with no
 unfinished inputs permits reset. Pending polls, transport/lookup failures and
 ambiguous exceptions refuse reset. A terminal-looking checkpoint or call graph

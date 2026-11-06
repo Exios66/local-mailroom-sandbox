@@ -49,7 +49,7 @@ def test_modal_deploy_publishes_a_job_with_the_tool_output(fake_bin, monkeypatch
     fake_bin.add(
         "modal",
         stdout="building image\nready\n",
-        rules=[{"prefix": ["--version"], "stdout": "modal client version: 1.6.2\n"}],
+        rules=[{"prefix": ["--version"], "stdout": "modal client version: 1.6.3\n"}],
     )
     monkeypatch.setenv("MODAL_WORKSPACE", "ws")
     assert cli.main(["modal", "deploy"]) == 0
@@ -61,7 +61,7 @@ def test_a_failed_deploy_publishes_a_failed_job(fake_bin):
     fake_bin.add(
         "modal",
         rc=2,
-        rules=[{"prefix": ["--version"], "stdout": "modal client version: 1.6.2\n"}],
+        rules=[{"prefix": ["--version"], "stdout": "modal client version: 1.6.3\n"}],
     )
     assert cli.main(["modal", "deploy"]) == 1
     assert _job("modal-deploy")["state"] == "failed"
@@ -77,7 +77,7 @@ def test_prewarm_and_stop_publish_jobs(fake_bin):
     fake_bin.add(
         "modal",
         rules=[
-            {"prefix": ["--version"], "stdout": "modal client version: 1.6.2\n"},
+            {"prefix": ["--version"], "stdout": "modal client version: 1.6.3\n"},
             {"prefix": ["app", "list"], "stdout": "[]"},
         ],
     )
