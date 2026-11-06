@@ -20,7 +20,8 @@ pip install -r requirements/base.txt
 #   pip install -e ".[dev,pipeline,deploy]"
 ```
 **Exception: `dojo-release.txt`.** This file is not generated from `pyproject.toml`. It pins the
-installed Dojo release, the primary scoring source (`mailroom_sandbox.dojo_source`), and is kept out
+installed Dojo (the same commit as the vendored snapshot: a release, or a reviewed `main`
+commit between releases), the primary scoring source (`mailroom_sandbox.dojo_source`), and is kept out
 of `pyproject.toml` so the base install stays offline (DMR-057). Update it together with
 `_VENDOR_PINS` in `src/mailroom_sandbox/cli.py` on every Dojo vendor refresh.
 `tests/test_dojo_source.py` fails if its commit differs from the snapshot's pin.

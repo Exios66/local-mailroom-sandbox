@@ -2,11 +2,11 @@
 
 Authoritative source: https://github.com/Exios66/llm-dojo-scoring
 
-- Source ref: `1cd4aba76d82eea20c6e8dfcc0d760881bf84924` (release v0.27.2, fetched by commit)
-- Exact source commit: `1cd4aba76d82eea20c6e8dfcc0d760881bf84924`
-- Source package version: `0.27.2`
+- Source ref: `b3ec0fba68ff5479a61ada581859c3b43adf29ff` (`main` after Dojo #123; not yet a release)
+- Exact source commit: `b3ec0fba68ff5479a61ada581859c3b43adf29ff`
+- Source package version: `0.27.2` (plus the unreleased #122 and #123)
 - Snapshot layout: llm_dojo_scoring/ relocated under src/ with the same shared exclusions.
-- Snapshot of the reviewed commit tree (`git archive`), 2026-11-04 UTC.
+- Snapshot of the reviewed commit tree (`git archive`), 2026-11-06 UTC.
   File contents, paths and executable modes come from the reviewed commit.
 
 Changes originate in the authoritative standalone repository, are committed and
@@ -17,13 +17,19 @@ the Digital-Mailroom workspace and these generated snapshots must match.
 Dojo owns scoring; llm-mailroom owns the pipeline. Production corporate v6
 and sandbox evaluation v7 remain separate intentional prompt catalogs.
 
-This adopts llm-dojo-scoring 0.27.2, the squash merge `1cd4aba7` of Dojo PR #121. 0.27.2 fixes
+This adopts llm-dojo-scoring `main` at `b3ec0fba` (Dojo PR #123), on top of the 0.27.2 release.
+#123 fixes review findings on the 0.27.2 vendor bump (llm-mailroom#164): prose-wrapped JSON
+with many failing candidate objects parses in linear time (each candidate is decoded from
+its own balanced slice), and `rescore_record` picks an already-current record's headline by
+the same task routing a fresh rescore uses. #122 changes Dojo's release scripts only. The
+package version is still `0.27.2`; return the pin to a release tag once v0.27.3 is cut.
+
+Previously: llm-dojo-scoring 0.27.2, the squash merge `1cd4aba7` of Dojo PR #121. 0.27.2 fixes
 the review findings on the 0.27.1 snapshot (local-mailroom-sandbox#245): `score_document`
 never raises on deeply nested prediction text and parses brace-heavy text in linear time;
 any `Mapping` prediction is a dict payload for adherence; a prose-wrapped Python repr sets
 `prose_wrapper`; `rescore` reports `headline_score` for CUAD/MAUD rows. No field-map, tier 0
-or headline score changes. The pin fetches the release commit directly, because the `v0.27.2`
-tag was not yet on GitHub and a missing named ref fails closed.
+or headline score changes. The pin names the `v0.27.2` tag and verifies its SHA.
 
 It builds on 0.27.1, the commit `a82843e8` of Dojo PR #118 (tag `v0.27.1`).
 0.27.0 added tiered per-document-type scoring (`score_document`, new `score_archive_block`
