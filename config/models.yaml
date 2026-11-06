@@ -295,6 +295,15 @@ modal_models:
     notes: "DMR-056: use the PUBLISHED Qwen/Qwen3-32B-FP8 checkpoint
       (auto-detected; A100 = weight-only Marlin). AWQ ~19GB has no KV room on
       L4. A100-80GB+."
+  Qwen/Qwen3-32B-FP8:
+    gpu: H100
+    quantization: ""
+    max_model_len: 32768
+    tp_size: 1
+    notes: "Ground-truth labeler posture (SAND-045 revision, sandbox-vllm-gt-labeler).
+      Published FP8 checkpoint (auto-detected; no forced --quantization), native
+      W8A8 on Hopper. ~33GB weights leaves KV room for 8 x 32k fp8 sequences.
+      Open weights."
   Qwen/Qwen3-32B-AWQ:
     gpu: A100-80GB
     quantization: awq

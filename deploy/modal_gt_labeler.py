@@ -3,11 +3,11 @@
 ``modal deploy deploy/modal_gt_labeler.py`` publishes ``sandbox-vllm-gt-labeler``.
 The app scale-to-zeros (``min_containers=0``). It does not label the corpus
 by itself. Run one chunk at a time through ``mailroom_sandbox.gt_labeler``:
-at most 40 documents and a projected bill of $2 on two L4s.
+at most 40 documents and a projected bill of $2 on one H100.
 
-Posture: ``Qwen/Qwen3-14B-AWQ``, two L4 replicas, ``max_num_seqs=8`` and
-``max_inputs=8`` per replica (16 in flight), fp8 KV, prefix caching, thinking
-off, structured outputs (async scheduling off).
+Posture: ``Qwen/Qwen3-32B-FP8`` (published FP8 checkpoint), one H100,
+``max_num_seqs=8`` and ``max_inputs=8`` (8 in flight), fp8 KV, prefix caching,
+thinking off, structured outputs (async scheduling off).
 
 Stop the app when a chunk's queue drains::
 
@@ -34,6 +34,7 @@ from mailroom_sandbox.gt_labeler import (  # noqa: E402
 
 
 def _invoked_by_modal() -> bool:
+    """True when this file is being loaded by ``modal deploy``/``run``/``serve``."""
     joined = " ".join(sys.argv)
     return "modal_gt_labeler.py" in joined and any(
         token in sys.argv for token in ("deploy", "run", "serve")
@@ -41,6 +42,7 @@ def _invoked_by_modal() -> bool:
 
 
 def _export_lines() -> str:
+    """The posture as ``export KEY=value`` shell lines (``--export``)."""
     lines = [f"export {key}={value}" for key, value in POSTURE.items()]
     return "\n".join(lines) + "\n"
 
@@ -69,7 +71,7 @@ if __name__ == "__main__" and "--export" in sys.argv:
 elif __name__ == "__main__" and "--check" in sys.argv:
     apply_posture_env()
     assert_posture()
-    print(f"ok {APP_NAME} {POSTURE['MODAL_VLLM_MODEL']} x{POSTURE['MODAL_VLLM_MAX_CONTAINERS']} L4")
+    print(f"ok {APP_NAME} {POSTURE['MODAL_VLLM_MODEL']} x{POSTURE['MODAL_VLLM_MAX_CONTAINERS']} {POSTURE['MODAL_VLLM_GPU']}")
 elif _invoked_by_modal():
     _vllm = _hydrate()
     app = _vllm.app

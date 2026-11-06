@@ -2,18 +2,26 @@
 
 The labeler fills unfinished fields only. Golden CUAD clause maps and golden
 MAUD clause maps are never requested. One invocation submits one chunk: at
-most ``CHUNK_DOC_CAP`` documents, and only when the projected 2×L4 bill for
+most ``CHUNK_DOC_CAP`` documents, and only when the projected GPU bill for
 that chunk is at most ``CHUNK_USD_CAP``. The corpus is not labeled in one job.
 
-Serving posture (happy medium, SAND-045):
+Serving posture (label-quality tier, SAND-045 revision):
 
-* ``Qwen/Qwen3-14B-AWQ`` — larger than the 8B cost-eval default, and the
-  largest Qwen3 checkpoint the model matrix boots on a 24 GB L4 at 32k.
-* Two L4 replicas (data parallel, ``max_containers=2``). Not tensor parallel.
-* ``max_num_seqs=8`` and ``max_inputs=8`` per replica so a chunk that keeps
-  16 requests in flight saturates both GPUs.
-* ``min_containers=0`` and a 120s scaledown so the GPUs do not stay warm
+* ``Qwen/Qwen3-32B-FP8`` — the published FP8 checkpoint of the dense 32B, the
+  strongest model in the ``config/models.yaml`` matrix that keeps the 32k
+  window on one GPU. The earlier ``Qwen/Qwen3-14B-AWQ`` posture is retired for
+  ground truth: its EX-10 CUAD journal failed basic re-verification on 126
+  spans downstream (Mailroom-Corpus-EDA v9.4), and the small-Qwen3 CUAD
+  presence F1 measured here (SAND-032/SAND-042) sits at 0.57–0.64.
+* One H100 (native FP8 W8A8; ~33 GB weights leaves room for 8 × 32k fp8 KV).
+  Not tensor parallel.
+* ``max_num_seqs=8`` and ``max_inputs=8`` so a chunk that keeps 8 requests in
+  flight saturates the GPU.
+* ``min_containers=0`` and a 120s scaledown so the GPU does not stay warm
   between chunks.
+
+A larger model is not a quality guarantee. Every journal is still scored
+against expert CUAD labels downstream before any of it is ingested.
 """
 
 from __future__ import annotations
@@ -24,6 +32,7 @@ from typing import Any, Mapping, Sequence
 
 from langchain_agents.cuad_maud import CUAD_CLAUSE_CATEGORIES
 
+from mailroom_sandbox.job.metrics import DEFAULT_GPU_USD_PER_HOUR, gpu_usd_per_hour
 from mailroom_sandbox.job.spec import (
     FAMILY_HF_DATA_REVISION,
     FAMILY_HF_REVISION,
@@ -39,19 +48,20 @@ DATASET_REPO = HF_DEFAULT_REPO
 APP_NAME = "sandbox-vllm-gt-labeler"
 
 # Env the Modal app must actually boot with. Overrides that disagree are
-# refused before deploy so a shell export cannot silently swap in 8B or an
-# 80 GB GPU.
+# refused before deploy so a shell export cannot silently swap in a smaller
+# model or a different GPU.
 POSTURE: dict[str, str] = {
     "MODAL_VLLM_APP_NAME": APP_NAME,
-    "MODAL_VLLM_MODEL": "Qwen/Qwen3-14B-AWQ",
-    "MODAL_VLLM_GPU": "L4",
-    "MODAL_VLLM_QUANTIZATION": "awq_marlin",
+    "MODAL_VLLM_MODEL": "Qwen/Qwen3-32B-FP8",
+    "MODAL_VLLM_GPU": "H100",
+    # empty: vLLM auto-detects the checkpoint's published FP8 config
+    "MODAL_VLLM_QUANTIZATION": "",
     "MODAL_VLLM_MAX_MODEL_LEN": "32768",
     "MODAL_VLLM_MAX_NUM_SEQS": "8",
     "MODAL_VLLM_GPU_MEMORY_UTILIZATION": "0.90",
     "MODAL_VLLM_ENABLE_PREFIX_CACHING": "1",
     "MODAL_VLLM_ENFORCE_EAGER": "0",
-    "MODAL_VLLM_MAX_CONTAINERS": "2",
+    "MODAL_VLLM_MAX_CONTAINERS": "1",
     "MODAL_VLLM_MIN_CONTAINERS": "0",
     "MODAL_VLLM_SCALEDOWN_SECONDS": "120",
     "MODAL_VLLM_ASYNC_SCHEDULING": "0",
@@ -61,13 +71,16 @@ POSTURE: dict[str, str] = {
     "MODAL_VLLM_MAX_INPUTS": "8",
 }
 
-L4_USD_PER_HOUR = 0.80
-REPLICAS = 2
+# H100 list rate from job.metrics; the floor for every projection.
+GPU_USD_PER_HOUR = DEFAULT_GPU_USD_PER_HOUR[POSTURE["MODAL_VLLM_GPU"]]
+REPLICAS = 1
 MAX_NUM_SEQS = 8
-# Cold boot is billed once per chunk (both replicas start together).
-COLD_BOOT_WALL_SECONDS = 300
+# Cold boot is billed once per chunk (32B weight load + graph capture).
+COLD_BOOT_WALL_SECONDS = 420
 SCALEDOWN_SECONDS = 120
-SECONDS_PER_SLOT = 45.0
+# Conservative per-document wall at 8 in flight: the 32B decodes slower per
+# sequence than the retired 14B-AWQ did on L4 (45 s).
+SECONDS_PER_SLOT = 70.0
 CHUNK_DOC_CAP = 40
 CHUNK_USD_CAP = 2.00
 CLIENT_IN_FLIGHT = REPLICAS * MAX_NUM_SEQS
@@ -131,7 +144,12 @@ def apply_posture_env(environ: dict[str, str] | None = None) -> dict[str, str]:
 
 
 def assert_posture(environ: Mapping[str, str] | None = None) -> None:
-    """Raise unless the effective env is exactly the 2×L4 14B-AWQ posture."""
+    """Check the 1×H100 32B-FP8 posture in ``environ`` or the process environment.
+
+    Raise ``LabelSpendError`` for mismatched posture values or tensor parallelism.
+    Posture values are compared after stripping whitespace; unrelated keys are
+    allowed and a missing or empty tensor-parallel size defaults to one.
+    """
     import os
 
     env = environ if environ is not None else os.environ
@@ -143,7 +161,7 @@ def assert_posture(environ: Mapping[str, str] | None = None) -> None:
     gpu = str(env.get("MODAL_VLLM_GPU", ""))
     if ":" in gpu:
         problems.append(
-            f"MODAL_VLLM_GPU={gpu!r} is tensor-parallel; use two containers"
+            f"MODAL_VLLM_GPU={gpu!r} is tensor-parallel; the posture is one GPU per container"
         )
     tp = str(env.get("MODAL_VLLM_TP_SIZE", "") or "1").strip()
     if tp not in ("", "1"):
@@ -166,22 +184,41 @@ def project_usd(
     *,
     seconds_per_slot: float = SECONDS_PER_SLOT,
 ) -> float:
-    """Projected bill for one chunk on two L4s, including boot and scaledown.
+    """Projected bill for one chunk, including boot and scaledown.
 
-    Both replicas are billed for the wall clock. Work wall is the slot time
-    divided by the 16-way in-flight cap, because that is the concurrency the
-    client must hold to keep both GPUs busy.
+    Every replica is billed for the wall clock. Work wall is the slot time
+    divided by the in-flight cap, because that is the concurrency the client
+    must hold to keep the GPUs busy.
+
+    ``n_slots`` is the total request slots, and ``seconds_per_slot`` is the
+    estimated work time per slot in seconds. Zero slots still include boot and
+    scaledown; negative slots raise ``LabelSpendError``. The result is in USD.
     """
     if n_slots < 0:
         raise LabelSpendError("n_slots must be >= 0")
     slots = max(n_slots, 0)
     work_wall = (slots * seconds_per_slot) / CLIENT_IN_FLIGHT if slots else 0.0
     wall = COLD_BOOT_WALL_SECONDS + work_wall + SCALEDOWN_SECONDS
-    return wall / 3600.0 * L4_USD_PER_HOUR * REPLICAS
+    return wall / 3600.0 * gpu_rate_usd_per_hour() * REPLICAS
+
+
+def gpu_rate_usd_per_hour() -> float:
+    """The H100 $/hr used for projections.
+
+    Honors ``MODAL_GPU_USD_PER_HOUR`` / ``MODAL_GPU_USD_PER_SEC`` through
+    ``job.metrics.gpu_usd_per_hour``, but never drops below the H100 list rate,
+    so an override can raise a projection and never weaken the chunk cap.
+    """
+    return max(GPU_USD_PER_HOUR, gpu_usd_per_hour(POSTURE["MODAL_VLLM_GPU"]))
 
 
 @dataclass(frozen=True)
 class LabelChunk:
+    """One labeling invocation's worth of work: at most ``CHUNK_DOC_CAP`` targets
+    whose projected GPU spend fits ``CHUNK_USD_CAP``. ``slots`` is the number of
+    concurrent-batch slots the targets occupy; ``index`` is the chunk's position
+    in the plan.
+    """
     index: int
     targets: tuple[Mapping[str, Any], ...]
     slots: int
@@ -189,9 +226,13 @@ class LabelChunk:
 
     @property
     def doc_count(self) -> int:
+        """Number of documents in this chunk."""
         return len(self.targets)
 
     def manifest(self) -> dict[str, Any]:
+        """JSON-ready description of the chunk and the posture it runs under
+        (caps, dataset pin, model, GPU, concurrency and the target filenames).
+        """
         return {
             "index": self.index,
             "doc_count": self.doc_count,
@@ -221,6 +262,7 @@ def plan_chunks(
     current_slots = 0
 
     def _close() -> None:
+        """Seal the targets gathered so far into a priced chunk and start a new one."""
         nonlocal current, current_slots
         if not current:
             return
@@ -285,6 +327,13 @@ def next_chunk(
 
 
 def _golden_fields(target: Mapping[str, Any]) -> frozenset[str]:
+    """Fields that already carry expert ground truth for this target's source.
+
+    MAUD merger rows block their MAUD fields; golden CUAD contracts block their
+    CUAD fields. SEC EDGAR EX-10 contracts (``source_dataset == "sec_edgar"``)
+    and other classes block nothing. :func:`assert_labelable` refuses to label a
+    blocked field.
+    """
     doc_class = str(target.get("doc_class") or target.get("expected") or "")
     source = str(target.get("source_corpus") or "")
     if doc_class == "merger_agreement":
@@ -313,6 +362,7 @@ def assert_labelable(target: Mapping[str, Any]) -> list[str]:
 
 
 def _intent_vocab(doc_class: str) -> tuple[str, ...]:
+    """The closed intent vocabulary for ``doc_class``, or ``()`` for a class without one."""
     return {
         "correspondence": CORRESPONDENCE_INTENTS,
         "corporate_record": CORPORATE_INTENTS,
@@ -322,6 +372,7 @@ def _intent_vocab(doc_class: str) -> tuple[str, ...]:
 
 
 def _field_instruction(doc_class: str, field: str) -> str:
+    """The prompt line telling the model how to fill ``field`` for ``doc_class``."""
     if field == "intent":
         vocab = _intent_vocab(doc_class)
         labels = ", ".join(vocab) if vocab else "(no vocabulary for this class)"
@@ -393,6 +444,13 @@ def _field_instruction(doc_class: str, field: str) -> str:
 
 
 def _document_block(text: str, band: str) -> str:
+    """Wrap the document text for the prompt.
+
+    A document in the ``>32k`` band or longer than 100,000 chars is sent as a
+    head and a tail excerpt of ``_WINDOW_CHARS`` each, and the model is told to
+    abstain when a value would sit only in the omitted middle. Otherwise the
+    whole text is sent.
+    """
     body = text or ""
     if band == ">32k" or len(body) > 100_000:
         head = body[:_WINDOW_CHARS]
@@ -665,6 +723,14 @@ def _slice_folded(
     indexes: list[int],
     wanted: str,
 ) -> tuple[int, str] | None:
+    """Locate ``wanted`` in the whitespace-folded document and map it back.
+
+    ``folded`` is ``document`` with whitespace runs collapsed, and ``indexes``
+    maps each folded character to its offset in ``document``. Returns
+    ``(start, slice)`` with the slice taken from the original document, or None
+    when the text is absent, shorter than 2 chars, or when the mapped slice is
+    over ``MAX_CUAD_SPAN_CHARS`` or implausibly longer than ``wanted``.
+    """
     wanted = wanted.strip()
     if len(wanted) < 2 or not indexes:
         return None
@@ -709,6 +775,13 @@ def locate_verbatim(document: str, text: str) -> tuple[int, str] | None:
 
 
 def _clause_items(payload: Mapping[str, Any]) -> list[tuple[str, str]]:
+    """Flatten a model response into ``(category, text)`` pairs.
+
+    Accepts the ``{"clauses": [{category, text}]}`` shape or the
+    ``{"fields": {"cuad_clause_labels": {category: [{text}]}}}`` shape.
+    Malformed individual entries are skipped and the valid ones kept; a response
+    in neither shape yields no items.
+    """
     clauses = payload.get("clauses")
     if isinstance(clauses, list):
         items: list[tuple[str, str]] = []
