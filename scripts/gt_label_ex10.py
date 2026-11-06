@@ -369,9 +369,15 @@ def _prepare(queue: list[dict], texts: dict[str, dict]) -> list[dict]:
 def main() -> int:
     """Label one chunk (by default) of the queue and append the results to ``--out``.
 
-    Resumes from the journal, stops before a chunk once the estimated spend
-    reaches ``--usd-cap`` or the wall cap is hit, and returns 2 when
-    ``VLLM_BASE_URL``/``VLLM_API_KEY`` are missing or ``--replicas`` < 1.
+    Resumes using accepted journal records and refreshes a checkpoint beside
+    the journal. Estimated GPU spend and the 45-minute wall limit are checked
+    between chunks, so a running chunk can exceed either limit. Individual
+    annotation errors are saved as rejected records; input, planning, and
+    journal errors can propagate.
+
+    Returns 2 if the base URL (``--base-url`` or ``VLLM_BASE_URL``) or
+    ``VLLM_API_KEY`` is missing, or if ``--replicas`` is less than 1; otherwise
+    returns 0, including when records are rejected.
     """
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--queue", type=Path, required=True)
