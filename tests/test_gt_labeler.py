@@ -26,6 +26,7 @@ from mailroom_sandbox.gt_labeler import (
     project_usd,
     validate_label_response,
 )
+from mailroom_sandbox.gt_labeler import _clause_items
 from mailroom_sandbox.job.spec import FAMILY_HF_DATA_REVISION, FAMILY_HF_REVISION
 
 
@@ -103,10 +104,36 @@ def test_assert_posture_accepts_the_pin_and_refuses_drift():
         assert_posture(two)
 
 
-def test_forty_document_chunk_fits_the_cap():
-    """A full 40-document chunk projects within the per-chunk USD cap."""
+def test_forty_document_chunk_fits_the_cap(monkeypatch):
+    """A full 40-document chunk projects within the cap at the H100 rate."""
+    monkeypatch.delenv("MODAL_GPU_USD_PER_HOUR", raising=False)
+    monkeypatch.delenv("MODAL_GPU_USD_PER_SEC", raising=False)
     chunks = plan_chunks([_target(i) for i in range(CHUNK_DOC_CAP)])
     assert len(chunks) == 1 and chunks[0].projected_usd <= CHUNK_USD_CAP
+    # (420 s boot + 40 x 70 s / 8 in flight + 120 s scaledown) at $3.95/hr
+    assert chunks[0].projected_usd == pytest.approx(0.9765277778)
+
+
+def test_projection_honors_a_higher_gpu_rate_override(monkeypatch):
+    """A higher rate override raises the projection; a lower one cannot lower it."""
+    monkeypatch.delenv("MODAL_GPU_USD_PER_SEC", raising=False)
+    monkeypatch.delenv("MODAL_GPU_USD_PER_HOUR", raising=False)
+    base = project_usd(40)
+    monkeypatch.setenv("MODAL_GPU_USD_PER_HOUR", "7.90")
+    assert project_usd(40) == pytest.approx(base * 2)
+    monkeypatch.setenv("MODAL_GPU_USD_PER_HOUR", "0.10")
+    assert project_usd(40) == pytest.approx(base)
+    monkeypatch.delenv("MODAL_GPU_USD_PER_HOUR")
+    monkeypatch.setenv("MODAL_GPU_USD_PER_SEC", str(7.90 / 3600))
+    assert project_usd(40) == pytest.approx(base * 2)
+
+
+def test_clause_items_skips_malformed_entries_and_keeps_valid_ones():
+    """A bad entry is dropped without losing the valid entries beside it."""
+    payload = {"clauses": [{"category": "Governing Law", "text": "Delaware law"}, None, "x"]}
+    assert _clause_items(payload) == [("Governing Law", "Delaware law")]
+    assert _clause_items({"clauses": "nope"}) == []
+    assert _clause_items({"other": 1}) == []
 
 
 def test_full_corpus_is_not_one_chunk():
