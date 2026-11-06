@@ -1,4 +1,6 @@
 # Installed Dojo release: the PRIMARY scoring source (mailroom_sandbox.dojo_source).
+# It pins the same commit as the vendored snapshot: a release tag's commit, or, between
+# releases, a reviewed main commit (currently b3ec0fb, main after Dojo #123; version 0.27.2).
 #   pip install -r requirements/dojo-release.txt
 # The tracked snapshot under vendor/llm-dojo-scoring stays the fallback when this release is
 # missing, off-pin or fails to import. Kept out of pyproject.toml so the base install stays

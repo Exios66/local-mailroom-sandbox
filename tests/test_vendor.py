@@ -195,3 +195,22 @@ def test_offline_image_bundles_vendor_and_readmes_match_surface():
     assert "MAILROOM_ENV" not in profiles_readme
     assert "SANDBOX_PROFILE" in profiles_readme
     assert "ollama.yaml" in profiles_readme and "vllm-remote.yaml" in profiles_readme
+
+
+def test_root_readme_names_the_vendored_versions_and_commits():
+    """The README badges, versions table and refresh paragraph track each VENDOR.md."""
+    import re
+
+    root = repo_root()
+    readme = (root / "README.md").read_text(encoding="utf-8")
+    for name in ("llm-mailroom", "llm-dojo-scoring"):
+        vendor_md = (root / "vendor" / name / "VENDOR.md").read_text(encoding="utf-8")
+        commit = re.search(r"Exact source commit:\s*`([0-9a-f]{40})`", vendor_md).group(1)
+        version = re.search(r"Source package version:\s*`([^`]+)`", vendor_md).group(1)
+        short = commit[:7]
+        badge = re.search(rf"\[!\[\w+\]\([^)]*{name.replace('-', '--')}_([^_]+)_%40_([0-9a-f]+)-", readme)
+        assert badge and badge.groups() == (version, short), f"{name} badge is stale"
+        row = next(line for line in readme.splitlines() if line.startswith(f"| `vendor/{name}/` |"))
+        assert f"| {version} |" in row and f"`{short}`" in row, f"{name} versions-table row is stale"
+        assert f"`{short}`" in readme.split("### Reviewed dependency refreshes", 1)[1].split("\n\n")[1], (
+            f"{name} refresh paragraph is stale")
