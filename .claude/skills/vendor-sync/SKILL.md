@@ -30,8 +30,10 @@ git ls-remote https://github.com/Exios66/<llm-dojo-scoring|llm-mailroom>.git <re
 ```
 
 For a release tag, `ls-remote` prints the tag object and, for annotated tags, a `^{}` line
-with the commit; use the `^{}` commit. Edit `ref` and `sha` together. Dojo pins a release
+with the commit; use the `^{}` commit. Edit `ref` and `sha` together. Dojo normally pins a release
 tag plus its commit; llm-mailroom pins a reviewed commit SHA (ref and sha are then the same).
+To take merged fixes that are not released yet, either package may pin a reviewed `main`
+commit (ref and sha the same); say so in `VENDOR.md` and move back to a tag once one is cut.
 
 ## 2. Refresh
 
@@ -59,7 +61,9 @@ python scripts/sync_vendor.py <name>        # monorepo: one package, workspace m
 ## 3. Update provenance
 
 Make `vendor/README.md` (pin table) and `vendor/<name>/VENDOR.md` (source ref, exact
-commit, version, date) match the new pin. Open both and check — do not assume the
+commit, version, date) match the new pin. Update the root `README.md` too: the two badges,
+the vendored-versions table and the "Reviewed dependency refreshes" paragraph name each
+version and short commit (`tests/test_vendor.py` checks them against `VENDOR.md`). Open both and check — do not assume the
 refresh rewrote them.
 
 ## 4. Verify (show the output, do not summarize from memory)
