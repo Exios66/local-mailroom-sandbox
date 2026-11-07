@@ -32,12 +32,19 @@ PROMPTS = ROOT / "config" / "prompts"
 
 # Vendor mirrors only. Default sync writes these stems and no others.
 EXPORTS = (
-    ("contracts_specialist_v33", "contracts"),
     ("merger_agreement_specialist_production", "merger"),
     ("corporate_records_specialist_production", "corporate"),
     ("correspondence_specialist_production", "correspondence"),
     ("insurance_claims_specialist_production", "insurance"),
 )
+
+# Frozen lineage pins: the file keeps these exact bytes and sync never writes it.
+# contracts_specialist_v33 froze at the Dojo 0.27.2 render. Dojo 0.28 (schema v2)
+# re-renders its "Registered schema fields" line under the same version id, so the
+# vendor text is no longer v33. New contracts work goes to a new compact contracts lineage (planned; contracts stay outside specialist_condensed_lineage.yaml until it is built and validated).
+FROZEN: dict[str, str] = {
+    "contracts_specialist_v33": "6a5047ed39bef6d918b953eb602487a17d6a5ce3d39a483c97166a210c6d3efd",
+}
 
 # SAND-026 experiment pins. Default sync must not silently overwrite them
 # even if a future edit adds a simplified stem to EXPORTS.
@@ -114,6 +121,19 @@ def _refuse_experiment_write(stem: str, *, overwrite_experiment: bool) -> str | 
 
 
 def sync(*, check: bool = False, overwrite_experiment: bool = False) -> int:
+    """Write vendor prompt exports, or validate prompt pins without writing.
+
+    With ``check=True``, require exports to match vendor text, frozen files to
+    match their pinned hashes, and experiment files to exist and differ from
+    vendor text unless their hash is recorded in the lineage manifest.
+    Otherwise, write exports as UTF-8 text with a trailing newline;
+    ``overwrite_experiment=True`` also replaces the mapped experiment files.
+    Frozen files are checked only in check mode and are not export targets.
+
+    Return 1 for refused experiment writes or detected drift, otherwise 0.
+    Import, prompt lookup, and file I/O errors propagate; writes already made
+    are not rolled back on failure.
+    """
     texts = _load_texts()
     drifted: list[str] = []
     errors: list[str] = []
@@ -152,6 +172,19 @@ def sync(*, check: bool = False, overwrite_experiment: bool = False) -> int:
             else:
                 n = len(path.read_text(encoding="utf-8"))
                 print(f"ok experiment {experiment_stem} ({n} chars, diverges from {vendor_stem})")
+
+    if check:
+        for stem, pinned in FROZEN.items():
+            path = PROMPTS / f"{stem}.txt"
+            if not path.is_file():
+                drifted.append(f"missing frozen pin {path}")
+            elif hashlib.sha256(path.read_bytes()).hexdigest() != pinned:
+                drifted.append(
+                    f"frozen {stem} changed: file={hashlib.sha256(path.read_bytes()).hexdigest()[:12]} "
+                    f"pinned={pinned[:12]}"
+                )
+            else:
+                print(f"ok frozen {stem} sha256={pinned[:16]}…")
 
     for stem, _kind in EXPORTS:
         refusal = _refuse_experiment_write(stem, overwrite_experiment=overwrite_experiment)
@@ -198,11 +231,19 @@ def sync(*, check: bool = False, overwrite_experiment: bool = False) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Parse sync options and return the status from :func:`sync`.
+
+    ``argv=None`` reads process arguments. Argument parsing raises
+    ``SystemExit`` for help or invalid options; errors from ``sync`` propagate.
+    """
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
         "--check",
         action="store_true",
-        help="fail if vendor stems drift from vendor, or simplified stems are missing/identical",
+        help=(
+            "fail if vendor stems drift from vendor, a frozen stem (FROZEN) is missing or no "
+            "longer matches its pinned sha256, or simplified stems are missing/identical"
+        ),
     )
     ap.add_argument(
         "--overwrite-experiment",
