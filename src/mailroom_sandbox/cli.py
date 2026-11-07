@@ -1413,8 +1413,13 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
 # llm-dojo-scoring: main at #123 (v0.27.2 plus the linear prose-JSON candidate
 # scan and task-routed rescore headlines) until v0.27.3 is cut.
 _VENDOR_PINS: tuple[tuple[str, str, str, str | None], ...] = (
-    ("llm-mailroom", "v0.9.2",
-     "https://github.com/Exios66/llm-mailroom.git", "9e8f30b279e7626c056b03511f823105760f80d7"),
+    # llm-mailroom: the condensed sorter adopt flip (PR #179,
+    # claude/sorter-condensed-production@44cc881...d573919). The vendored
+    # tree consumes these bytes: SORTER_PROMPT_CONDENSED is production,
+    # sorter_v15 stays a frozen reference test-side. Repinned from the
+    # v0.9.2 tag (9e8f30b2).
+    ("llm-mailroom", "claude/sorter-condensed-production@d573919",
+     "https://github.com/Exios66/llm-mailroom.git", "d57391972ca3c0d86172763ca2c49579bd07433f"),
     ("llm-dojo-scoring", "b3ec0fba68ff5479a61ada581859c3b43adf29ff",
      "https://github.com/Exios66/llm-dojo-scoring.git", "b3ec0fba68ff5479a61ada581859c3b43adf29ff"),
 )

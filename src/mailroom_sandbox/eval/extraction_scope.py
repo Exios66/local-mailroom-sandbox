@@ -53,6 +53,19 @@ LIVE_SCHEMA_FIELDS: dict[str, frozenset[str]] = {
             "intent",
             "subject_matter",
             "keywords",
+            # llm-mailroom schema v2 (PR-flip pin d573919, standalone main since
+            # 9e8f30b): the merger agent now emits these, so the seam scores them.
+            "acquirer",
+            "merger_sub",
+            "target",
+            "legal_counsel",
+            "financial_advisors",
+            "exchange_ratio",
+            "per_share_cash_amount",
+            "signatories",
+            "outside_date",
+            "parent_termination_fee",
+            "target_termination_fee",
         }
     ),
     "corporate_record": frozenset(

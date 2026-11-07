@@ -2,6 +2,35 @@
 
 ## [Unreleased]
 
+- **Sorter default flip: the condensed lineage becomes the production sorter.** `sorter_condensed_v1`
+  (config/prompts/sorter_condensed_v1.txt, 3,681 chars rendered) beat long-form sorter V15 on the
+  vetted prime-sample promotion compare (275 documents, labels Hub ccd040f6, qwen/qwen3.7-flash,
+  runs `sorter-condensed-v1-qwen-train-prime-sample` + `sorter-v15-qwen-train-prime-sample`): class
+  fixed-broken 96 vs 80 (right-after 263 vs 255), subclass 135 vs 126 (228 vs 219), at 0.9x the cost
+  (about $0.30 vs $0.36 list; compare reports under `reports/sorter-handoff/`).
+  - The mutation research that got there: `sorter_condensed_v2` (literal marker phrases, rejected
+    35/61 vs 36/61 on the held-out marker set) and `sorter_condensed_v3` (notice-is-a-decision rule,
+    32/58 vs 31/58 on held-out set 2, within noise) and `sorter_condensed_v4` (restated notice rule
+    with wrapper exclusions, rejected 34/61 vs 36/61 on held-out set 1; the notice-rule family is
+    plateaued within noise on both sets and stops here).
+  - `sorter_condensed_v1` is now produced by both mailroom trees: llm-mailroom
+    `SORTER_PROMPT_CONDENSED`, the `sorter` alias, `SorterAgent` default and the bound pin
+    (llm-mailroom PR #179); the sandbox vendored snapshot consumes those bytes in the same
+    commit, refreshed to the new pinned snapshot and guarded by the vendor drift test.
+  - The sandbox registry pins it too: `FAMILY_B_KEYS["sorter"]` is `sorter_condensed_v1`
+    (was `sorter_v15`; freeze tests updated; V15 stays frozen as the reference).
+  - llm-mailroom pin `v0.9.2` (`9e8f30b2`) -> PR #179 head `d573919` (branch
+    `claude/sorter-condensed-production`: the prompt flip + its test-pin
+    follow-up); vendored snapshot refreshed with the same exclusions as
+    sync_vendor from the pin. The refresh carries the standalone schema-v2
+    work consumed since `9e8f30b2`: the merger agent now emits
+    schema-v2 fields (acquirer, merger_sub, target, legal_counsel,
+    financial_advisors, exchange_ratio, per_share_cash_amount, signatories,
+    outside_date, parent_termination_fee, target_termination_fee), so
+    `LIVE_SCHEMA_FIELDS["merger_agreement"]` and the merger extraction gate
+    cell score them, and `config/prompts/contracts_specialist_v33.txt` was
+    re-exported from the vendored text (doctrine v2 fields; sha
+    `aff71b8a`).
 - Prime sorter-prompt validation sample (`scripts/compare_sorter_prompt.py --prime --current-labels DIR --sample`):
   - **Prime filter.** It keeps only documents whose labels are the highest quality, checked against the published ground truth in `DIR` (v9.3, Hub `ccd040f6`). Each document must pass all of these:
     - the target agrees with the published class and subclass;
