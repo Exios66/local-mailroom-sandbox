@@ -347,10 +347,16 @@ The exact snapshot commits are in
 [`vendor/llm-mailroom/VENDOR.md`](vendor/llm-mailroom/VENDOR.md) and
 [`vendor/llm-dojo-scoring/VENDOR.md`](vendor/llm-dojo-scoring/VENDOR.md).
 
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:9ab2954d92c2540a9b8f7ecfa14714134e2ac31afdb48a246d3df2687412a892 -->
+
 | Vendored tree | Version | Source commit | What it includes |
 | --- | --- | --- | --- |
-| `vendor/llm-mailroom/` | 0.9.2 | `9e8f30b` (tag `v0.9.2`) | v0.9.2: everything in `65523a2` plus the API listener guard for token-protected routes (llm-mailroom #171, #172) |
+| `vendor/llm-mailroom/` | 0.9.2 | `9e8f30b` (tag `v0.9.2`) | v0.9.2: everything in `65523a2` plus the API listener guard for protected routes (llm-mailroom #171, #172). Without a token, protected routes require a loopback listener and no `Forwarded`, `X-Forwarded-For` or `X-Real-IP` header. The guard checks the listener address, not the remote client: a public proxy forwarding to loopback without those headers can allow tokenless access to protected routes. Operators must configure a token behind any proxy. Unprotected endpoints such as `/health` and API documentation may remain accessible without a token on non-loopback hosts |
 | `vendor/llm-dojo-scoring/` | 0.27.2 | `b3ec0fb` (`main` after Dojo #123) | v0.27.2 plus #123: linear-time parsing of prose-wrapped JSON, task-routed headlines for already-current rescored records |
+
+<!-- /coderabbit-ai-generated:v1 -->
 
 The llm-mailroom pin is a release tag. The Dojo pin is a reviewed `main` commit, and it moves
 back to a tag when Dojo v0.27.3 is cut.
