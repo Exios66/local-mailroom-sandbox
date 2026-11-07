@@ -33,4 +33,5 @@ greenlet>=3.0
 pypdf>=4.0
 pdfplumber>=0.11
 pillow>=10.0
+markdown-it-py>=3.0,<5
 pydantic-ai-slim[typesafe]==2.65.0
