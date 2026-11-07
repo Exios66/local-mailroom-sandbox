@@ -32,3 +32,12 @@ Do not edit rows by hand. Parse with `mailroom_sandbox.job.ledger.rows()`.
 | 2026-11-01T18:27:18Z | JB | start | extraction-gate-luna-v1.3.0 | config/runs/extraction-gate-luna-v1.3.0.yaml | f6743d5a3496 | 1596 | 1.1 | ✓ |
 | 2026-11-02T01:12:59Z | JB | start | reviewer-validation-qwen-flash-test | config/runs/reviewer-validation-qwen-flash-test.yaml | 8b72aee96e7a | 323 | 0.6 | ✓ |
 | 2026-11-02T01:52:32Z | JB | start | reviewer-calibration-luna-decisions-v3.1.0-train-half | config/runs/reviewer-calibration-luna-decisions-v3.1.0-train-half.yaml | e8c4238bca96 | 1491 | 1.5 | ✓ |
+| 2026-11-07T03:06:42Z | JJB | start | sorter-condensed-v1-qwen-train-prime-smoke | config/runs/sorter-condensed-v1-qwen-train-prime-smoke.yaml | 1ca5b12be687 | 10 | 0.1 | ✓ |
+| 2026-11-07T03:07:07Z | JJB | start | sorter-v15-qwen-train-prime-smoke | config/runs/sorter-v15-qwen-train-prime-smoke.yaml | 264a40111ce1 | 10 | 0.1 | ✓ |
+| 2026-11-07T03:13:51Z | JJB | start | sorter-condensed-v1-qwen-train-heldout-markers | config/runs/sorter-condensed-v1-qwen-train-heldout-markers.yaml | a3a0f85b9d3f | 61 | 0.05 | ✓ |
+| 2026-11-07T03:14:15Z | JJB | start | sorter-condensed-v2-qwen-train-heldout-markers | config/runs/sorter-condensed-v2-qwen-train-heldout-markers.yaml | 5e8c1176b66f | 61 | 0.05 | ✓ |
+| 2026-11-07T03:17:11Z | JJB | start | sorter-condensed-v1-qwen-train-heldout-markers-2 | config/runs/sorter-condensed-v1-qwen-train-heldout-markers-2.yaml | c57b20543538 | 58 | 0.05 | ✓ |
+| 2026-11-07T03:17:32Z | JJB | start | sorter-condensed-v3-qwen-train-heldout-markers-2 | config/runs/sorter-condensed-v3-qwen-train-heldout-markers-2.yaml | f31743908491 | 58 | 0.05 | ✓ |
+| 2026-11-07T03:27:48Z | JJB | start | sorter-condensed-v4-qwen-train-heldout-markers | config/runs/sorter-condensed-v4-qwen-train-heldout-markers.yaml | 98ebbc033b1d | 61 | 0.05 | ✓ |
+| 2026-11-07T03:29:55Z | JJB | start | sorter-v15-qwen-train-prime-sample | config/runs/sorter-v15-qwen-train-prime-sample.yaml | f3470da7b616 | 275 | 0.65 | ✓ |
+| 2026-11-07T03:29:55Z | JJB | start | sorter-condensed-v1-qwen-train-prime-sample | config/runs/sorter-condensed-v1-qwen-train-prime-sample.yaml | 2d645e24aa5e | 275 | 0.55 | ✓ |

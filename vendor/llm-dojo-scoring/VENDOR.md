@@ -2,12 +2,19 @@
 
 Authoritative source: https://github.com/Exios66/llm-dojo-scoring
 
-- Source ref: `b3ec0fba68ff5479a61ada581859c3b43adf29ff` (`main` after Dojo #123; not yet a release)
-- Exact source commit: `b3ec0fba68ff5479a61ada581859c3b43adf29ff`
-- Source package version: `0.27.2` (plus the unreleased #122 and #123)
+- Source ref: `v0.28.1` (release tag)
+- Exact source commit: `00a2a7f7b058a4ade06b027c2afbd8b03bea6a5f`
+- Source package version: `0.28.1`
 - Snapshot layout: llm_dojo_scoring/ relocated under src/ with the same shared exclusions.
-- Snapshot of the reviewed commit tree (`git archive`), 2026-11-06 UTC.
+- Snapshot of the reviewed commit tree (`git archive`), 2026-11-07 UTC.
   File contents, paths and executable modes come from the reviewed commit.
+
+Dojo release `v0.28.1`. v0.28.0 aligns with mailroom-dataset v10: corporate schema v2
+(new registered fields such as party roles, signatories, agreement and expiration dates,
+termination notice and dispute forum) and the v10 row schemas (`schemas/v10_rows.py`).
+v0.28.1 changes the sorter guide: a bylaw amendment is `bylaws`, never `board_resolution`
+(corpus rule C); v9.3 labels 8 such amendments `board_resolution`, so scoring against v9.3
+counts those 8 as wrong until v10 relabels them.
 
 Changes originate in the authoritative standalone repository, are committed and
 reviewed there, then consumed here. Never patch this snapshot or export hub
@@ -17,7 +24,7 @@ the Digital-Mailroom workspace and these generated snapshots must match.
 Dojo owns scoring; llm-mailroom owns the pipeline. Production corporate v6
 and sandbox evaluation v7 remain separate intentional prompt catalogs.
 
-This adopts llm-dojo-scoring `main` at `b3ec0fba` (Dojo PR #123), on top of the 0.27.2 release.
+Previous pin: llm-dojo-scoring `main` at `b3ec0fba` (Dojo PR #123), on top of the 0.27.2 release.
 #123 fixes review findings on the 0.27.2 vendor bump (llm-mailroom#164): prose-wrapped JSON
 with many failing candidate objects parses in linear time (each candidate is decoded from
 its own balanced slice), and `rescore_record` picks an already-current record's headline by

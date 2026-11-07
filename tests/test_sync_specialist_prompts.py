@@ -24,7 +24,7 @@ def test_experiment_stems_are_not_in_default_exports():
     export_stems = {stem for stem, _kind in sync.EXPORTS}
     assert export_stems.isdisjoint(sync.EXPERIMENT_STEMS)
     for vendor_stem, experiment_stem in sync.EXPERIMENT_FROM_VENDOR.items():
-        assert vendor_stem in export_stems
+        assert vendor_stem in export_stems | set(sync.FROZEN)
         assert experiment_stem in sync.EXPERIMENT_STEMS
         assert (ROOT / "config" / "prompts" / f"{experiment_stem}.txt").is_file()
         assert (ROOT / "config" / "prompts" / f"{vendor_stem}.txt").is_file()
@@ -102,3 +102,53 @@ def test_overwrite_experiment_is_opt_in(tmp_path, monkeypatch):
     assert sync.sync(check=False, overwrite_experiment=True) == 0
     for experiment_stem in mapping.values():
         assert (prompts / f"{experiment_stem}.txt").read_text(encoding="utf-8") == "NEW VENDOR\n"
+
+
+def test_v33_is_frozen_at_its_published_bytes_and_not_exported():
+    """v33 keeps its bytes; the vendor's re-rendered v33 (Dojo 0.28 schema v2) never lands."""
+    import hashlib
+
+    sync = _load_sync()
+    assert "contracts_specialist_v33" not in {stem for stem, _kind in sync.EXPORTS}
+    path = ROOT / "config" / "prompts" / "contracts_specialist_v33.txt"
+    assert hashlib.sha256(path.read_bytes()).hexdigest() == sync.FROZEN["contracts_specialist_v33"]
+    assert sync.FROZEN["contracts_specialist_v33"].startswith("6a5047ed39be")
+
+
+def _seed_frozen(tmp_path, monkeypatch, sync, body: str):
+    import hashlib
+
+    prompts = tmp_path / "prompts"
+    prompts.mkdir()
+    (prompts / "frozen_stem.txt").write_text(body, encoding="utf-8")
+    monkeypatch.setattr(sync, "PROMPTS", prompts)
+    monkeypatch.setattr(sync, "EXPORTS", ())
+    monkeypatch.setattr(sync, "EXPERIMENT_FROM_VENDOR", {})
+    monkeypatch.setattr(
+        sync, "FROZEN", {"frozen_stem": hashlib.sha256(body.encode("utf-8")).hexdigest()}
+    )
+    monkeypatch.setattr(sync, "_load_texts", lambda: {"frozen_stem": "RE-RENDERED VENDOR TEXT"})
+    return prompts / "frozen_stem.txt"
+
+
+def test_default_sync_never_writes_a_frozen_stem(tmp_path, monkeypatch):
+    sync = _load_sync()
+    path = _seed_frozen(tmp_path, monkeypatch, sync, "FROZEN TEXT\n")
+    assert sync.sync(check=False) == 0
+    assert sync.sync(check=False, overwrite_experiment=True) == 0
+    assert path.read_text(encoding="utf-8") == "FROZEN TEXT\n"
+
+
+def test_check_passes_a_frozen_stem_that_differs_from_vendor(tmp_path, monkeypatch):
+    sync = _load_sync()
+    _seed_frozen(tmp_path, monkeypatch, sync, "FROZEN TEXT\n")
+    assert sync.sync(check=True) == 0
+
+
+def test_check_fails_when_a_frozen_stem_changes(tmp_path, monkeypatch):
+    sync = _load_sync()
+    path = _seed_frozen(tmp_path, monkeypatch, sync, "FROZEN TEXT\n")
+    path.write_text("EDITED TEXT\n", encoding="utf-8")
+    assert sync.sync(check=True) == 1
+    path.unlink()
+    assert sync.sync(check=True) == 1

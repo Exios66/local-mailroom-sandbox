@@ -113,6 +113,7 @@ image = (
         "pypdf>=4.0",
         "pdfplumber>=0.11",
         "pillow>=10.0",
+        "markdown-it-py>=4.0,<5",
         "langfuse>=4.0,<5",
         "opentelemetry-sdk>=1.25",
         "opentelemetry-exporter-otlp-proto-http>=1.25",

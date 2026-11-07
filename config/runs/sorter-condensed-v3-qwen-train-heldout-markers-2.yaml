@@ -1,0 +1,44 @@
+# sorter_condensed_v3 on held-out marker set 2 (data/runtime/handoff/train-sorter-heldout-markers-2.jsonl, 58 documents,
+# sha256 244e631b...; selection in train-sorter-heldout-markers-2.selection.json): prime train correspondence targets
+# outside the 275-document prime sample, held-out set 1 and the 7 emails read while writing v3; seed 42. It tests
+# sorter_condensed_v3's notice rule both ways: 22 notice docs V14 called email, 3 email docs V14 called notice,
+# 17 right emails (7 with the word notice), 8 right notices, 2 right each of letter/memo/press_release/meeting_request.
+# Scored by matching doc_subclass against the target; v3 is kept only if it fixes more than it breaks.
+schema: sandbox.run/v1
+run_id: sorter-condensed-v3-qwen-train-heldout-markers-2
+task: isolated
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+  agents:
+    sorter: {source: local, file: sorter_condensed_v3}
+
+dataset:
+  provider: file
+  local_path: data/runtime/handoff/train-sorter-heldout-markers-2.jsonl
+  config: ground_truth
+  split: train
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.7-flash
+  modal: null
+
+agent_knobs:
+  sorter: {max_input_chars: 600000}
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 10
+  cost_cap_usd: 0.08
+  max_wall_seconds: 900
+  api_cost_cap_usd: 0.05
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, sorter-handoff, sorter-condensed-v3, heldout-markers-2]

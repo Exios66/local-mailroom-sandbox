@@ -1,7 +1,10 @@
 # SORTER-CONDENSED lineage: the token-budgeted sorter prompt. Every further sorter improvement is a
 # mutation here (sorter_condensed_v<N>.txt, a new file per version; never edit a frozen one).
 # The long-form SORTER_PROMPT_V15 (llm-mailroom langchain_agents.prompts, ~25k chars rendered) is
-# frozen as the production reference and is not mutated further.
+# frozen as a reference; the condensed lineage is mailroom production (prime-sample promotion
+# compare: class fixed-broken 96 vs 80, subclass 135 vs 126, run on v1). Production is now
+# sorter_condensed_v5 (v1 plus rule C: a bylaw amendment is bylaws) in both mailroom trees
+# (langchain_agents SORTER_PROMPT_CONDENSED) and the sandbox registry; v1 is superseded.
 #
 # Budget: the rendered system prompt stays <= 4,000 chars (about 1k tokens); the subclass catalog
 # (llm_dojo_scoring.sorter_guide, ~5.5k chars) travels in the user message for every version.
@@ -12,11 +15,35 @@
 lineage: sorter-condensed
 agent: sorter
 budget_chars: 4000
-frontrunner: sorter_condensed_v1
+frontrunner: sorter_condensed_v5
 versions:
   - version: sorter_condensed_v1
     file: sorter_condensed_v1.txt
     parent: SORTER_PROMPT_V15 (B1-B3, S1-S5 condensed; per-key meanings left to the catalog)
     rendered_chars: 3681
-    status: candidate   # pending sorter-condensed-v1-qwen-train-errors
-    validation_run: sorter-condensed-v1-qwen-train-errors
+    status: superseded   # by sorter_condensed_v5 (one corporate clause, user directive 2026-11-07). Was adopted on the prime-sample promotion compare (275 documents, draw in train-sorter-prime-sample.selection.json, v9.3 truth Hub ccd040f6): class fixed-broken 96 (108-12) vs V15 80 (100-20); subclass 135 (137-2) vs V15 126 (126-0); right-after 263/228 vs 255/219; reports/sorter-handoff/sorter-{condensed-v1,v15}-qwen-train-prime-sample.compare.json. Condensed renders 3,681 chars vs V15 ~25k; ~$0.30 vs ~$0.36 list per run
+    validation_run: sorter-condensed-v1-qwen-train-prime-sample
+  - version: sorter_condensed_v2
+    file: sorter_condensed_v2.txt
+    parent: "sorter_condensed_v1 (one change: a correspondence marker is its literal phrase, even in passing, never inferred from tone or purpose; notify/notified alone is not notice. Checked first on 61 held-out prime documents outside the sample)"
+    rendered_chars: 3866
+    status: rejected   # held-out marker check: 35/61 right vs v1 36/61 (fixed 2, broke 3); notice<-email 1/15 vs 0/15
+    validation_run: sorter-condensed-v2-qwen-train-heldout-markers (vs sorter-condensed-v1-qwen-train-heldout-markers)
+  - version: sorter_condensed_v3
+    file: sorter_condensed_v3.txt
+    parent: "sorter_condensed_v1 (one change: notice is any notice given, sent, received or required, even in passing, but not boilerplate such as \"subject to change without notice\"; the reasoning quotes the deciding marker. Designed on the sorter-condensed-v2 held-out set; checked on held-out set 2, unseen)"
+    rendered_chars: 3996
+    status: not_adopted   # held-out set 2: 32/58 right vs v1 31/58 (fixed 2, broke 1), within noise; notice<-email 1/22 vs 0/22; the reasoning quoted a marker in 2/58, so the instruction was not followed; 315 chars longer than v1
+    validation_run: sorter-condensed-v3-qwen-train-heldout-markers-2
+  - version: sorter_condensed_v4
+    file: sorter_condensed_v4.txt
+    parent: "sorter_condensed_v3 (one change: the notice rule is stated as a decision, not a form — an email that mentions or discusses a notice is notice, headers aside — and the only-email list is given the corpus wrapper cases the label keeps email: boilerplate, footers and disclaimers, notice-period schedule terms, a forward with only a notice subject; the \"quote the deciding marker\" instruction is dropped, since v3 followed it in 2/58. Designed on held-out set 2 evidence; checked on held-out set 1, unseen for v4)"
+    rendered_chars: 3995
+    status: not_adopted   # held-out set 1: 34/61 right vs v1 36/61; fixed 2 (both notice<-email, 2/15 vs v1 0/15), broke 4 — incl. the CAISO forward chain the corpus keeps email (its analogue on set 2, DOC-2a592, is also labeled email) and a rights_instrument class error off-topic to the mutation; the "an email discussing a notice is notice" clause overreaches the label convention. With v3's set-2 result the notice-rule family is plateaued within noise on both sets
+    validation_run: sorter-condensed-v4-qwen-train-heldout-markers
+  - version: sorter_condensed_v5
+    file: sorter_condensed_v5.txt
+    parent: "sorter_condensed_v1 (one change: a bylaw amendment is bylaws, never board_resolution; mailroom-dataset v10 corpus rule C. v2-v4 are skipped: none was adopted)"
+    rendered_chars: 3681
+    status: adopted   # user directive 2026-11-07 ("BYLAWS ARE BYLAWS"), not by a compare. Not validated: v1's prime-sample numbers do not carry over. The v9.3 truth files 8 board-adopted bylaw amendments under board_resolution, so scoring against v9.3 counts those as wrong until v10 relabels them. llm-mailroom #179 ships the same bytes as sorter_condensed_v5
+    validation_run: none
