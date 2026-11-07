@@ -116,7 +116,12 @@ def _patch_rules():
 
 
 def current_labels(directory: Path) -> dict[str, dict]:
-    """filename -> {class, subclass, source} from a published ``parquet/ground_truth`` directory."""
+    """Load filename -> {class, subclass, source} from ``parquet/ground_truth``.
+
+    Recognized contract subclasses are normalized. Later rows replace earlier ones
+    with the same filename. Raises SystemExit if no rows are found; parquet read
+    errors propagate.
+    """
     import pyarrow.parquet as pq
 
     keys = _patch_rules().CONTRACT_KEYS
@@ -137,7 +142,10 @@ REVIEWER_MIN_P = 0.9
 
 
 def _reviewer_verdict(t: dict) -> str | None:
-    """``agrees`` / ``disputes`` for a confident reviewer answer, else None."""
+    """Return ``agrees`` or ``disputes`` at p >= 0.9, otherwise None.
+
+    Agreement requires both the reviewer's class and subclass to match the target.
+    """
     r = t.get("reviewer_evidence") or {}
     if not r or (r.get("p") or 0) < REVIEWER_MIN_P:
         return None
@@ -147,7 +155,16 @@ def _reviewer_verdict(t: dict) -> str | None:
 
 def prime_targets(targets: dict[str, dict], current: dict[str, dict],
                   texts: dict[str, str]) -> tuple[dict[str, dict], dict[str, int]]:
-    """Targets whose labels are the highest quality, and the excluded count per reason."""
+    """Filter targets by label quality and return kept rows and exclusion counts.
+
+    ``current`` maps filenames to published labels; ``texts`` maps document IDs
+    to text used to check corporate titles. Labels must be scored, have an
+    accepted status, and match the published class and subclass. Contracts must
+    come from CUAD, class errors need confirmation, and confident reviewer
+    disputes are excluded. Corporate subclasses also need a matching title or
+    reviewer and no conflicting title. Each exclusion is counted under its first
+    applicable reason; missing corporate text supplies no title confirmation.
+    """
     rules = _patch_rules()
     kept, dropped = {}, collections.Counter()
     for doc_id, t in targets.items():
@@ -178,13 +195,19 @@ def prime_targets(targets: dict[str, dict], current: dict[str, dict],
 
 
 def stratum(target: dict) -> str:
+    """Return the target class and subclass as a slash-separated stratum."""
     return f"{target['target_doc_class']}/{target['target_subclass']}"
 
 
 def select_sample(targets: dict[str, dict], *, errors_per_stratum: int = SAMPLE_ERRORS_PER_STRATUM,
                   controls_per_stratum: int = SAMPLE_CONTROLS_PER_STRATUM, seed: int = 42) -> dict[str, str]:
-    """The controlled set: every class error, then per target stratum a seeded draw of subclass
-    errors and of right answers. Document id -> why it is in the set (pattern or ``control``)."""
+    """Select every class error and a seeded draw per target stratum.
+
+    Draw up to ``errors_per_stratum`` subclass errors and
+    ``controls_per_stratum`` scored targets without an error pattern. Return
+    document IDs mapped to their error pattern or ``control``. A negative draw
+    count raises ValueError when a stratum is sampled.
+    """
     chosen: dict[str, str] = {}
     errors: dict[str, list[str]] = collections.defaultdict(list)
     right: dict[str, list[str]] = collections.defaultdict(list)
@@ -206,6 +229,12 @@ def select_sample(targets: dict[str, dict], *, errors_per_stratum: int = SAMPLE_
 
 
 def _targets_for(args: argparse.Namespace, root: Path, texts: dict[str, str]) -> tuple[dict[str, dict], dict]:
+    """Load targets and, in prime mode, filter them and return quality metadata.
+
+    Prime mode requires current labels and raises SystemExit if they are absent
+    or contain no rows. The labels revision is ``unknown`` if its marker is absent.
+    Without prime mode the metadata is empty. File and parsing errors propagate.
+    """
     targets = _targets(root, args.name, args.split)
     if not args.prime:
         return targets, {}
@@ -225,6 +254,7 @@ def _targets_for(args: argparse.Namespace, root: Path, texts: dict[str, str]) ->
 
 
 def _chosen(args: argparse.Namespace, targets: dict[str, dict]) -> dict[str, str]:
+    """Select document IDs and reasons using the requested sampling mode."""
     if args.sample:
         return select_sample(targets, errors_per_stratum=args.sample_errors,
                              controls_per_stratum=args.sample_controls, seed=args.seed)
@@ -232,15 +262,22 @@ def _chosen(args: argparse.Namespace, targets: dict[str, dict]) -> dict[str, str
 
 
 def _dataset_path(root: Path, args: argparse.Namespace) -> Path:
+    """Return the handoff dataset path for the selected split and modes."""
     name = ("prime-" if args.prime else "") + ("sample" if args.sample else "errors")
     return root / "data" / "runtime" / "handoff" / f"{args.split}-sorter-{name}.jsonl"
 
 
 def _selection_path(dataset: Path) -> Path:
+    """Return the selection metadata path for a handoff dataset."""
     return dataset.with_suffix(".selection.json")
 
 
 def cmd_inputs(args: argparse.Namespace) -> int:
+    """Write selected dataset rows and selection metadata, then print a summary.
+
+    Returns 1 without writing if selected IDs are missing from the input sources;
+    returns 0 on success. Source, label, and output errors propagate.
+    """
     root = repo_root()
     rows: dict[str, dict] = {}
     sources = [root / "data" / "runtime" / "runs" / rid / "dataset.jsonl" for rid in args.dataset_run or ()]
@@ -314,6 +351,13 @@ def compare(targets: dict[str, dict], chosen: dict[str, str], answers: dict[str,
 
 
 def cmd_score(args: argparse.Namespace) -> int:
+    """Compare a run with the saved pass and write and print its results.
+
+    Prime or sample mode uses the saved selection and raises SystemExit if it is
+    missing. Returns 1 without writing if the run answered outside the selection,
+    or 0 on success. Unanswered selections are counted; file and parsing errors
+    propagate.
+    """
     root = repo_root()
     targets = _targets(root, args.name, args.split)
     if args.prime or args.sample:
@@ -350,6 +394,7 @@ def cmd_score(args: argparse.Namespace) -> int:
 
 
 def main() -> int:
+    """Parse the comparison options and run the inputs or score command."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--name", default=HANDOFF, help="saved sorter pass under data/handoff/")
     parser.add_argument("--split", default="train")
