@@ -594,13 +594,39 @@
         "corporate_record",
         "bylaws"
       ]
+    },
+    {
+      "filename": "0001213900-18-007356_fs12018a6ex3-1_arrestage.htm",
+      "id": "DOC-8b2aaa4b6ea655be",
+      "label": [
+        "corporate_record",
+        "articles_of_incorporation"
+      ],
+      "rule": "user",
+      "target": [
+        "corporate_record",
+        "bylaws"
+      ]
+    },
+    {
+      "filename": "0001193125-08-086776_dex396.htm",
+      "id": "DOC-cce54a03af3b1c4a",
+      "label": [
+        "corporate_record",
+        "board_resolution"
+      ],
+      "rule": "user",
+      "target": [
+        "corporate_record",
+        "bylaws"
+      ]
     }
   ],
   "disputes": [],
   "documents": 2979,
   "file": "train.targets.jsonl",
   "rules": "scripts/patch_sorter_handoff.py docstring",
-  "sha256": "ac538cc5e2fa8ca910d5a05ae43e5467da9786c66fe6645536be6323b6ada273",
+  "sha256": "8d38ac239515fe158e1fd6f6961de194b45e89a82e7bf858eae07a2e1ba96789",
   "sorter_class_correct": 2852,
   "sorter_class_errors_by_pattern": {
     "contract -> correspondence": 1,
@@ -610,12 +636,12 @@
   },
   "sorter_class_errors_label_confirmed": 121,
   "sorter_class_scored": 2974,
-  "sorter_subclass_correct": 2129,
+  "sorter_subclass_correct": 2131,
   "sorter_subclass_scored": 2925,
   "target_status": {
     "ambiguous": 5,
-    "corrected": 35,
-    "label": 2352,
+    "corrected": 37,
+    "label": 2350,
     "label_normalized": 538,
     "unannotated": 49
   }

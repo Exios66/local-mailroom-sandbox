@@ -26,6 +26,8 @@ why, and whether the sorter got it right. Rules, each recorded in ``target_evide
    alone decides; no reviewer vote is needed, because the reviewer's question sets up to 3.1.0
    still file bylaw amendments under board_resolution. A board_resolution (or other) label is
    ``corrected``; a bylaws label is confirmed. Rule 3 does not run on these rows.
+8. User decisions (``USER_DECISIONS``): documents the user corrected one by one after reading
+   them. Applied last, in both modes; status ``corrected``.
 
     python scripts/patch_sorter_handoff.py --name sorter-qwen3.7-flash --split train \
         --dataset-run sorter-handoff-qwen-train --dataset-run sorter-handoff-qwen-train-rest
@@ -87,6 +89,14 @@ RULE_C_LINES = 8
 BYLAW_AMENDMENT = re.compile(
     r"\bAMENDMENTS?( NO\.? ?\d+)? TO (THE )?([\w-]+ ){0,4}BY-? ?LAWS\b|\bBY-?LAWS? AMENDMENTS?\b")
 RULE_C_EVIDENCE = "rule C: the title names an amendment to the bylaws; a bylaw amendment is bylaws"
+#: Rule 8: per-document corrections the user decided: id -> (class, subclass, why).
+USER_DECISIONS = {
+    "DOC-cce54a03af3b1c4a": ("corporate_record", "bylaws",
+                             "full Amended and Restated Bylaws of SunGard Public Sector Inc., labelled board_resolution"),
+    "DOC-8b2aaa4b6ea655be": ("corporate_record", "bylaws",
+                             "full Bylaws of Arrestage International, Inc., labelled articles_of_incorporation"),
+}
+USER_DECISION_EVIDENCE = "user decision 2026-11-07"
 MAILDIR = re.compile(r"^[a-z]+-[a-z]+/[^/]+(/[^/]+)*/\d+\.?$")
 
 
@@ -160,8 +170,9 @@ def apply_rule_c(rows: list[dict], texts: dict[str, str]) -> tuple[list[dict], l
         raise SystemExit(f"patch_sorter_handoff: no text for {len(missing)} documents (first {missing[0]})")
     out, corrections = [], []
     for row in rows:
+        done = any(e.startswith(RULE_C_EVIDENCE) for e in row["target_evidence"])
         ruled = rule_c(row["label_doc_class"], row["label_subclass"], texts[row["id"]]) \
-            if row["target_status"] == "label" else None
+            if row["target_status"] == "label" and not done else None
         if ruled is None:
             out.append(row)
             continue
@@ -175,6 +186,27 @@ def apply_rule_c(rows: list[dict], texts: dict[str, str]) -> tuple[list[dict], l
             corrections.append({"id": row["id"], "filename": row["filename"],
                                 "label": [row["label_doc_class"], row["label_subclass"]],
                                 "target": [new["target_doc_class"], sub], "rule": "C"})
+        out.append(new)
+    return out, corrections
+
+
+def apply_user_decisions(rows: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Rule 8 on target rows: set each USER_DECISIONS document's target (idempotent)."""
+    out, corrections = [], []
+    for row in rows:
+        decided = USER_DECISIONS.get(row["id"])
+        if decided is None or (row["target_doc_class"], row["target_subclass"]) == decided[:2]:
+            out.append(row)
+            continue
+        cls, sub, why = decided
+        new = {**row, "target_doc_class": cls, "target_subclass": sub, "target_status": "corrected",
+               "target_evidence": [*row["target_evidence"], f"{USER_DECISION_EVIDENCE}: {why}"],
+               "use_for_class": True, "use_for_subclass": True}
+        new["sorter_class_correct"] = row["sorter_doc_type"] == cls
+        new["sorter_subclass_correct"] = new["sorter_class_correct"] and row["sorter_doc_subclass"] == sub
+        corrections.append({"id": row["id"], "filename": row["filename"],
+                            "label": [row["label_doc_class"], row["label_subclass"]], "target": [cls, sub],
+                            "rule": "user"})
         out.append(new)
     return out, corrections
 
@@ -212,6 +244,8 @@ def main() -> int:
             parser.error("--rule-c-only needs --corpus-cache")
         texts = {r["id"]: r.get("doc_text") or "" for r in _lines(Path(args.corpus_cache))}
         rows, added = apply_rule_c(_lines(folder / f"{args.split}.targets.jsonl"), texts)
+        rows, decided = apply_user_decisions(rows)
+        added += decided
         prior = json.loads((folder / f"{args.split}.corrections.json").read_text(encoding="utf-8"))
         return _write(folder, args.split, [json.dumps(r, ensure_ascii=False, sort_keys=True) for r in rows],
                       prior["corrections"] + added, prior["disputes"])
@@ -303,8 +337,10 @@ def main() -> int:
             "reviewer_evidence": rev,
         }
         status[state] += 1
-        out_rows.append(json.dumps(record, ensure_ascii=False, sort_keys=True))
-    return _write(folder, args.split, out_rows, corrections, disputes)
+        out_rows.append(record)
+    out_rows, decided = apply_user_decisions(out_rows)
+    return _write(folder, args.split, [json.dumps(r, ensure_ascii=False, sort_keys=True) for r in out_rows],
+                  corrections + decided, disputes)
 
 
 def _write(folder: Path, split: str, out_rows: list[str], corrections: list[dict], disputes: list[dict]) -> int:

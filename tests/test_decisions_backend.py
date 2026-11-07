@@ -336,7 +336,8 @@ def test_v3_1_asks_insurance_liability_and_workers_comp():
 def test_saved_sorter_targets_are_consistent():
     """The patched targets (scripts/patch_sorter_handoff.py) never change the sorter input and
     only correct a label on two sources, or by rule C (a title naming an amendment to the bylaws,
-    corrected to bylaws, the one deterministic rule that needs no reviewer)."""
+    corrected to bylaws, the one deterministic rule that needs no reviewer), or by a user decision
+    on a named document (patch_sorter_handoff.USER_DECISIONS)."""
     import json
 
     from mailroom_sandbox.paths import repo_root
@@ -353,7 +354,8 @@ def test_saved_sorter_targets_are_consistent():
             assert r["target_status"] in {"label", "label_normalized", "corrected", "unannotated", "ambiguous", "disputed"}
             if r["target_status"] == "corrected":
                 by_rule_c = any(e.startswith("rule C:") for e in r["target_evidence"])
-                assert by_rule_c or any("Decisions reviewer agrees" in e for e in r["target_evidence"])
+                by_user = any(e.startswith("user decision ") for e in r["target_evidence"])
+                assert by_rule_c or by_user or any("Decisions reviewer agrees" in e for e in r["target_evidence"])
                 if by_rule_c:
                     assert (r["target_doc_class"], r["target_subclass"]) == ("corporate_record", "bylaws")
             if r["target_status"] == "unannotated":
