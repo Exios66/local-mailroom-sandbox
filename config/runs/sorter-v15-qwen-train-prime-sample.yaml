@@ -24,7 +24,8 @@
 #   sandbox run start --config config/runs/sorter-v15-qwen-train-prime-sample.yaml --initials XX
 #   python scripts/compare_sorter_prompt.py --split train --prime --current-labels <dir> --sample score \
 #       --run sorter-condensed-v1-qwen-train-prime-sample   (then --run sorter-v15-qwen-train-prime-sample)
-# Adopt the condensed lineage when its fixed - broken (class and subclass) is at least V15's.
+# Adopt the condensed lineage when its fixed - broken (class and subclass) is at least V15's and its
+# no_answer is no higher (a failed call counts as neither broken nor still_wrong).
 #
 # Cost (scripts/estimate_spend.py, each call priced at its Qwen 3.7 Flash tier): 6.06M prompt +
 # 0.04M completion tokens, about $0.41 list; cap $0.65.
