@@ -357,7 +357,10 @@ def test_saved_sorter_targets_are_consistent():
                 by_user = any(e.startswith("user decision ") for e in r["target_evidence"])
                 assert by_rule_c or by_user or any("Decisions reviewer agrees" in e for e in r["target_evidence"])
                 if by_rule_c:
+                    assert r["label_doc_class"] == "corporate_record"
                     assert (r["target_doc_class"], r["target_subclass"]) == ("corporate_record", "bylaws")
+                if by_user:
+                    assert r["id"] in ("DOC-cce54a03af3b1c4a", "DOC-8b2aaa4b6ea655be")  # USER_DECISIONS
             if r["target_status"] == "unannotated":
                 assert r["target_doc_class"] == "merger_agreement" and r["target_subclass"] is None
                 assert r["use_for_class"] and not r["use_for_subclass"]

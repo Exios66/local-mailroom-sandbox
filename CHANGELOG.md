@@ -7,12 +7,13 @@
   title names an amendment to the bylaws targets `bylaws`, decided by the title alone. Rule 3 needs
   the Decisions reviewer to agree with the title, and the reviewer (question sets up to 3.1.0) still
   files bylaw amendments under board_resolution, so these rows could never move. On the train split
-  7 bylaw amendments move from board_resolution to bylaws (`corrected`) and 2 bylaws labels are
-  confirmed; the test split has none and is byte-identical. The rule matches exactly those 9 rows in
-  the 3,302-document corpus. `--rule-c-only --corpus-cache` applies the rule to the saved targets
+  8 bylaw amendments move from board_resolution to bylaws (`corrected`) and 2 bylaws labels are
+  confirmed; the test split has none and is byte-identical. The rule matches exactly those 10 rows in
+  the 3,302-document corpus ("amendment to" or "amendment of" the bylaws; a combined amendment of the
+  charter and the bylaws is not rule C). `--rule-c-only --corpus-cache` applies the rule to the saved targets
   from document text alone (the sorter and reviewer run outputs the full build reads are not needed).
   `compare_sorter_prompt.py --prime` keeps a rule-C target: the published v9.3 label and a reviewer
-  on the old convention are checked for class only. 3 of the 7 are in the saved prime draw.
+  on the old convention are checked for class only. 3 of the 8 are in the saved prime draw.
 - **Sorter answer key: user decisions** (rule 8, `USER_DECISIONS`): two full bylaws the user
   corrected on 2026-11-07, `DOC-cce54a03af3b1c4a` (SunGard Public Sector, labelled board_resolution)
   and `DOC-8b2aaa4b6ea655be` (Arrestage International, labelled articles_of_incorporation), target

@@ -86,8 +86,12 @@ TITLE_RULES = (
 #: Rule C: the first RULE_C_LINES heading lines (joined, markdown bold removed) name an amendment
 #: to the bylaws. Wider than the title rules: an exhibit cover can precede the title.
 RULE_C_LINES = 8
+#: A combined amendment of the charter and the bylaws is not rule C.
 BYLAW_AMENDMENT = re.compile(
-    r"\bAMENDMENTS?( NO\.? ?\d+)? TO (THE )?([\w-]+ ){0,4}BY-? ?LAWS\b|\bBY-?LAWS? AMENDMENTS?\b")
+    r"\bAMENDMENTS?( NO\.? ?\d+)? (TO|OF) (THE )?((?!INCORPORATION\b|ARTICLES\b|CHARTER\b|FORMATION\b)"
+    r"[\w.-]+ ){0,4}BY-? ?LAWS\b|\bBY-?LAWS? AMENDMENTS?\b")
+#: Rule 3's note for a title the reviewer overruled: a full build gives rule C instead.
+TITLE_KEPT_NOTE = re.compile(r"^title rule says \S+ but the reviewer agrees with the label; label kept$")
 RULE_C_EVIDENCE = "rule C: the title names an amendment to the bylaws; a bylaw amendment is bylaws"
 #: Rule 8: per-document corrections the user decided: id -> (class, subclass, why).
 USER_DECISIONS = {
@@ -160,10 +164,13 @@ def rule_c(label_cls: str, label_sub: str | None, text: str) -> tuple[str, str, 
 
 
 def apply_rule_c(rows: list[dict], texts: dict[str, str]) -> tuple[list[dict], list[dict]]:
-    """Rule C on saved targets: regrade the rows the full build would (status ``label``).
+    """Rule C on saved targets: regrade the rows whose saved status is ``label``.
 
     Needs only the document text, so it runs without the sorter and reviewer run outputs the
-    full build reads. Returns the rows (others unchanged) and the corrections it made.
+    full build reads. Returns the rows (others unchanged) and the corrections it made. A full
+    build runs rule C in place of rules 3-4, so it also regrades a bylaw amendment those rules
+    left ``disputed`` or ``ambiguous``; this pass leaves such rows to a full build, and drops
+    the rule 3 'label kept' note that rule C supersedes.
     """
     missing = [r["id"] for r in rows if r["id"] not in texts]
     if missing:
@@ -174,11 +181,14 @@ def apply_rule_c(rows: list[dict], texts: dict[str, str]) -> tuple[list[dict], l
         ruled = rule_c(row["label_doc_class"], row["label_subclass"], texts[row["id"]]) \
             if row["target_status"] == "label" and not done else None
         if ruled is None:
+            if done:
+                row = {**row, "target_evidence": [e for e in row["target_evidence"] if not TITLE_KEPT_NOTE.match(e)]}
             out.append(row)
             continue
         sub, state, evidence = ruled
         new = {**row, "target_subclass": sub, "target_status": state,
-               "target_evidence": [*row["target_evidence"], *evidence]}
+               "target_evidence": [*(e for e in row["target_evidence"] if not TITLE_KEPT_NOTE.match(e)),
+                                   *evidence]}
         if new["use_for_subclass"]:
             new["sorter_subclass_correct"] = (row["sorter_doc_type"] == new["target_doc_class"]
                                               and row["sorter_doc_subclass"] == sub)
@@ -258,7 +268,7 @@ def main() -> int:
             texts[row["id"]] = row
     reviewer = _reviewer_answers(root)
 
-    out_rows, status = [], collections.Counter()
+    out_rows = []
     disputes, corrections = [], []
     for row in saved:
         doc = texts[row["id"]]
@@ -336,7 +346,6 @@ def main() -> int:
             if usable and state != "unannotated" else None,
             "reviewer_evidence": rev,
         }
-        status[state] += 1
         out_rows.append(record)
     out_rows, decided = apply_user_decisions(out_rows)
     return _write(folder, args.split, [json.dumps(r, ensure_ascii=False, sort_keys=True) for r in out_rows],

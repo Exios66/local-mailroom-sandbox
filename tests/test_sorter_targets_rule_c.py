@@ -35,6 +35,9 @@ csp = _load("compare_sorter_prompt")
     "EX-3.1 2 v387920_ex3-1.htm EXHIBIT 3.1 \n**Exhibit 3.1**\n\nEXHIBIT A\n\n(to Unanimous Consent\n\n"
     "of the Board of Directors\n\ndated August 26, 2014)\n\nAmendment to Bylaws of Rancher Energy Corp.\n",
     "**EXHIBIT 3.2.3**\n**SECOND AMENDMENT TO BYLAWS**\n**OF**",
+    "EX-3.2 2 ex3-2.htm\n**CERTIFICATE OF AMENDMENT**\n**OF THE AMENDED AND RESTATED BYLAWS**\n**OF**\n**EXPION360 INC.**",
+    "AMENDMENT OF BYLAWS OF ACME CORP",
+    "AMENDMENT TO SECTION 2.3 OF THE BYLAWS OF ACME CORP",
 ])
 def test_a_title_naming_an_amendment_to_the_bylaws_is_rule_c(text):
     assert psh.bylaw_amendment_title(text)
@@ -46,6 +49,8 @@ def test_a_title_naming_an_amendment_to_the_bylaws_is_rule_c(text):
     "CERTIFICATE OF AMENDMENT OF THE CERTIFICATE OF INCORPORATION OF ACME CORP",
     "UNANIMOUS WRITTEN CONSENT OF THE BOARD OF DIRECTORS\nRESOLVED, that the Corporation's officers",
     "CERTIFICATE OF DESIGNATION\nof Series A Preferred Stock\nas amended",
+    "CERTIFICATE OF AMENDMENT TO CERTIFICATE OF INCORPORATION AND BYLAWS OF ACME CORP",
+    "AMENDMENT TO THE ARTICLES OF INCORPORATION AND BYLAWS OF ACME CORP",
 ])
 def test_other_titles_are_not_rule_c(text):
     assert not psh.bylaw_amendment_title(text)
@@ -114,7 +119,7 @@ def test_apply_rule_c_regrades_only_bylaw_amendments():
     assert by["amend"]["target_evidence"][-1].startswith(psh.RULE_C_EVIDENCE)
     assert by["consent"] == rows[1]
     assert by["done"]["target_status"] == "label" and psh.label_confirmed(by["done"]["target_evidence"])
-    assert by["disputed"] == rows[3]  # rule C runs only where the full build would (status label)
+    assert by["disputed"] == rows[3]  # --rule-c-only regrades status-label rows only
     assert [c["id"] for c in corrections] == ["amend"]
 
 
@@ -147,3 +152,19 @@ def test_apply_rule_c_is_idempotent():
     once, _ = psh.apply_rule_c(rows, texts)
     twice, corrections = psh.apply_rule_c(once, texts)
     assert twice == once and corrections == []
+
+
+def test_apply_rule_c_drops_the_superseded_title_rule_note():
+    """A full build gives rule C instead of rule 3; the saved 'label kept' note it replaces goes."""
+    row = _row("amend", "board_resolution", "bylaws")
+    row["target_evidence"] = ["title rule says bylaws but the reviewer agrees with the label; label kept"]
+    out, _ = psh.apply_rule_c([row], {"amend": "AMENDMENT TO BYLAWS OF X\n"})
+    assert [e.split(":")[0] for e in out[0]["target_evidence"]] == ["rule C"]
+
+
+def test_apply_rule_c_cleans_a_row_it_already_ruled():
+    row = {**_row("amend", "bylaws", "bylaws", status="corrected"),
+           "target_evidence": ["title rule says bylaws but the reviewer agrees with the label; label kept",
+                               f"{psh.RULE_C_EVIDENCE}: x"]}
+    out, corrections = psh.apply_rule_c([row], {"amend": "AMENDMENT TO BYLAWS OF X\n"})
+    assert out[0]["target_evidence"] == [f"{psh.RULE_C_EVIDENCE}: x"] and corrections == []
