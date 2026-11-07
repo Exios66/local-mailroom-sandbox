@@ -21,9 +21,22 @@ why, and whether the sorter got it right. Rules, each recorded in ``target_evide
 5. Sorter class errors whose label a deterministic corpus rule confirms are kept as
    ``label`` with that evidence: Enron maildir files are correspondence (all mailbox text is
    correspondence), indenture and registration/investor-rights titles are corporate_record.
+7. Rule C (mailroom-dataset v10 corpus rule C, user decision 2026-11-07): a corporate record
+   whose title names an amendment to the bylaws is bylaws, never board_resolution. The title
+   alone decides; no reviewer vote is needed, because the reviewer's question sets up to 3.1.0
+   still file bylaw amendments under board_resolution. A board_resolution (or other) label is
+   ``corrected``; a bylaws label is confirmed. Rule 3 does not run on these rows.
+8. User decisions (``USER_DECISIONS``): documents the user corrected one by one after reading
+   them. Applied last, in both modes; status ``corrected``.
 
     python scripts/patch_sorter_handoff.py --name sorter-qwen3.7-flash --split train \
         --dataset-run sorter-handoff-qwen-train --dataset-run sorter-handoff-qwen-train-rest
+
+``--rule-c-only`` applies rule 7 to the saved targets, using only the document text (from
+``--corpus-cache``), when the run outputs the full build reads are not on this machine:
+
+    python scripts/patch_sorter_handoff.py --name sorter-qwen3.7-flash --split train --rule-c-only \
+        --corpus-cache data/cache/Lucius-Morningstar__mailroom-dataset__bc9eab280044/ground_truth_all.jsonl
 """
 from __future__ import annotations
 
@@ -70,6 +83,24 @@ TITLE_RULES = (
      r"^(AMENDED AND RESTATED |RESTATED |SECOND AMENDED AND RESTATED )?(CERTIFICATE|ARTICLES) OF "
      r"(INCORPORATION|FORMATION|ORGANIZATION)"),
 )
+#: Rule C: the first RULE_C_LINES heading lines (joined, markdown bold removed) name an amendment
+#: to the bylaws. Wider than the title rules: an exhibit cover can precede the title.
+RULE_C_LINES = 8
+#: A combined amendment of the charter and the bylaws is not rule C.
+BYLAW_AMENDMENT = re.compile(
+    r"\bAMENDMENTS?( NO\.? ?\d+)? (TO|OF) (THE )?((?!INCORPORATION\b|ARTICLES\b|CHARTER\b|FORMATION\b)"
+    r"[\w.-]+ ){0,4}BY-? ?LAWS\b|\bBY-?LAWS? AMENDMENTS?\b")
+#: Rule 3's note for a title the reviewer overruled: a full build gives rule C instead.
+TITLE_KEPT_NOTE = re.compile(r"^title rule says \S+ but the reviewer agrees with the label; label kept$")
+RULE_C_EVIDENCE = "rule C: the title names an amendment to the bylaws; a bylaw amendment is bylaws"
+#: Rule 8: per-document corrections the user decided: id -> (class, subclass, why).
+USER_DECISIONS = {
+    "DOC-cce54a03af3b1c4a": ("corporate_record", "bylaws",
+                             "full Amended and Restated Bylaws of SunGard Public Sector Inc., labelled board_resolution"),
+    "DOC-8b2aaa4b6ea655be": ("corporate_record", "bylaws",
+                             "full Bylaws of Arrestage International, Inc., labelled articles_of_incorporation"),
+}
+USER_DECISION_EVIDENCE = "user decision 2026-11-07"
 MAILDIR = re.compile(r"^[a-z]+-[a-z]+/[^/]+(/[^/]+)*/\d+\.?$")
 
 
@@ -94,7 +125,7 @@ def _norm_contract(label: str | None) -> str | None:
     return CONTRACT_KEYS.get(key, key)
 
 
-def _heading(text: str) -> str:
+def _heading(text: str, lines: int = 4) -> str:
     """The first heading lines: exhibit stamps, links and filing wrappers removed."""
     text = re.sub(r"\[[^\]]*\]\([^)]*\)", " ", text[:3000])
     out = []
@@ -103,7 +134,7 @@ def _heading(text: str) -> str:
         if not line or re.match(r"^(EX-|EXHIBIT|EXH\b|<|\d+$|[\d.]+ +[\w.-]+\.HTM)", line) or len(line) < 4:
             continue
         out.append(line)
-        if len(out) == 4:
+        if len(out) == lines:
             break
     return "\n".join(out)
 
@@ -115,6 +146,79 @@ def _title_class(text: str) -> tuple[str, str] | None:
             if re.search(rule, line):
                 return cls, sub
     return None
+
+
+def bylaw_amendment_title(text: str) -> bool:
+    """Whether the document's heading names an amendment to the bylaws (rule C)."""
+    head = re.sub(r"[*_]+", " ", _heading(text, RULE_C_LINES))
+    return bool(BYLAW_AMENDMENT.search(re.sub(r"\s+", " ", head)))
+
+
+def rule_c(label_cls: str, label_sub: str | None, text: str) -> tuple[str, str, list[str]] | None:
+    """Rule C for one corporate record: ``(target subclass, status, evidence)``, or None."""
+    if label_cls != "corporate_record" or not bylaw_amendment_title(text):
+        return None
+    if label_sub == "bylaws":
+        return "bylaws", "label", [f"{RULE_C_EVIDENCE} (title line confirms bylaws)"]
+    return "bylaws", "corrected", [f"{RULE_C_EVIDENCE} (label {label_sub!r}; no reviewer vote needed)"]
+
+
+def apply_rule_c(rows: list[dict], texts: dict[str, str]) -> tuple[list[dict], list[dict]]:
+    """Rule C on saved targets: regrade the rows whose saved status is ``label``.
+
+    Needs only the document text, so it runs without the sorter and reviewer run outputs the
+    full build reads. Returns the rows (others unchanged) and the corrections it made. A full
+    build runs rule C in place of rules 3-4, so it also regrades a bylaw amendment those rules
+    left ``disputed`` or ``ambiguous``; this pass leaves such rows to a full build, and drops
+    the rule 3 'label kept' note that rule C supersedes.
+    """
+    missing = [r["id"] for r in rows if r["id"] not in texts]
+    if missing:
+        raise SystemExit(f"patch_sorter_handoff: no text for {len(missing)} documents (first {missing[0]})")
+    out, corrections = [], []
+    for row in rows:
+        done = any(e.startswith(RULE_C_EVIDENCE) for e in row["target_evidence"])
+        ruled = rule_c(row["label_doc_class"], row["label_subclass"], texts[row["id"]]) \
+            if row["target_status"] == "label" and not done else None
+        if ruled is None:
+            if done:
+                row = {**row, "target_evidence": [e for e in row["target_evidence"] if not TITLE_KEPT_NOTE.match(e)]}
+            out.append(row)
+            continue
+        sub, state, evidence = ruled
+        new = {**row, "target_subclass": sub, "target_status": state,
+               "target_evidence": [*(e for e in row["target_evidence"] if not TITLE_KEPT_NOTE.match(e)),
+                                   *evidence]}
+        if new["use_for_subclass"]:
+            new["sorter_subclass_correct"] = (row["sorter_doc_type"] == new["target_doc_class"]
+                                              and row["sorter_doc_subclass"] == sub)
+        if state == "corrected":
+            corrections.append({"id": row["id"], "filename": row["filename"],
+                                "label": [row["label_doc_class"], row["label_subclass"]],
+                                "target": [new["target_doc_class"], sub], "rule": "C"})
+        out.append(new)
+    return out, corrections
+
+
+def apply_user_decisions(rows: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Rule 8 on target rows: set each USER_DECISIONS document's target (idempotent)."""
+    out, corrections = [], []
+    for row in rows:
+        decided = USER_DECISIONS.get(row["id"])
+        if decided is None or (row["target_doc_class"], row["target_subclass"]) == decided[:2]:
+            out.append(row)
+            continue
+        cls, sub, why = decided
+        new = {**row, "target_doc_class": cls, "target_subclass": sub, "target_status": "corrected",
+               "target_evidence": [*row["target_evidence"], f"{USER_DECISION_EVIDENCE}: {why}"],
+               "use_for_class": True, "use_for_subclass": True}
+        new["sorter_class_correct"] = row["sorter_doc_type"] == cls
+        new["sorter_subclass_correct"] = new["sorter_class_correct"] and row["sorter_doc_subclass"] == sub
+        corrections.append({"id": row["id"], "filename": row["filename"],
+                            "label": [row["label_doc_class"], row["label_subclass"]], "target": [cls, sub],
+                            "rule": "user"})
+        out.append(new)
+    return out, corrections
 
 
 def _reviewer_answers(root: Path) -> dict[str, dict]:
@@ -138,11 +242,25 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--name", required=True)
     parser.add_argument("--split", required=True)
-    parser.add_argument("--dataset-run", action="append", required=True,
+    parser.add_argument("--dataset-run", action="append",
                         help="sorter run whose locked dataset.jsonl holds the document text")
+    parser.add_argument("--rule-c-only", action="store_true", help="apply rule 7 to the saved targets only")
+    parser.add_argument("--corpus-cache", help="pinned full-corpus JSONL, the text source for --rule-c-only")
     args = parser.parse_args()
     root = repo_root()
     folder = root / "data" / "handoff" / args.name
+    if args.rule_c_only:
+        if not args.corpus_cache:
+            parser.error("--rule-c-only needs --corpus-cache")
+        texts = {r["id"]: r.get("doc_text") or "" for r in _lines(Path(args.corpus_cache))}
+        rows, added = apply_rule_c(_lines(folder / f"{args.split}.targets.jsonl"), texts)
+        rows, decided = apply_user_decisions(rows)
+        added += decided
+        prior = json.loads((folder / f"{args.split}.corrections.json").read_text(encoding="utf-8"))
+        return _write(folder, args.split, [json.dumps(r, ensure_ascii=False, sort_keys=True) for r in rows],
+                      prior["corrections"] + added, prior["disputes"])
+    if not args.dataset_run:
+        parser.error("--dataset-run is required (or use --rule-c-only)")
     saved = _lines(folder / f"{args.split}.jsonl")
     texts: dict[str, dict] = {}
     for rid in args.dataset_run:
@@ -150,7 +268,7 @@ def main() -> int:
             texts[row["id"]] = row
     reviewer = _reviewer_answers(root)
 
-    out_rows, status = [], collections.Counter()
+    out_rows = []
     disputes, corrections = [], []
     for row in saved:
         doc = texts[row["id"]]
@@ -170,8 +288,15 @@ def main() -> int:
         title = _title_class(doc.get("doc_text") or "")
         rev = reviewer.get(row["id"])
         rev_sure = rev if rev and isinstance(rev.get("p"), (int, float)) and rev["p"] >= REVIEWER_MIN_P else None
+        # Rule 7 (rule C): the title alone decides a bylaw amendment; rule 3 does not run.
+        ruled = rule_c(label_cls, label_sub, doc.get("doc_text") or "") if state == "label" else None
+        if ruled is not None:
+            target_sub, state, evidence = ruled[0], ruled[1], evidence + ruled[2]
+            if state == "corrected":
+                corrections.append({"id": row["id"], "filename": row["filename"], "label": [label_cls, label_sub],
+                                    "target": [target_cls, target_sub], "rule": "C"})
         # Rule 3 / 4: label vs title vs reviewer (class and subclass).
-        if state in ("label", "label_normalized") and title is not None:
+        elif state in ("label", "label_normalized") and title is not None:
             title_against = title != (target_cls, target_sub)
             rev_pair = (rev_sure["doc_type"], rev_sure["doc_subclass"]) if rev_sure else None
             if title_against and rev_pair == title:
@@ -221,13 +346,19 @@ def main() -> int:
             if usable and state != "unannotated" else None,
             "reviewer_evidence": rev,
         }
-        status[state] += 1
-        out_rows.append(json.dumps(record, ensure_ascii=False, sort_keys=True))
+        out_rows.append(record)
+    out_rows, decided = apply_user_decisions(out_rows)
+    return _write(folder, args.split, [json.dumps(r, ensure_ascii=False, sort_keys=True) for r in out_rows],
+                  corrections + decided, disputes)
 
+
+def _write(folder: Path, split: str, out_rows: list[str], corrections: list[dict], disputes: list[dict]) -> int:
+    """Write the targets, the corrections summary and the manifest entry for one split."""
     text = "\n".join(out_rows) + "\n"
-    path = folder / f"{args.split}.targets.jsonl"
+    path = folder / f"{split}.targets.jsonl"
     path.write_text(text, encoding="utf-8")
     rows = [json.loads(line) for line in out_rows]
+    status = collections.Counter(r["target_status"] for r in rows)
     cls_rows = [r for r in rows if r["use_for_class"]]
     sub_rows = [r for r in rows if r["use_for_subclass"]]
     summary = {
@@ -246,9 +377,9 @@ def main() -> int:
     }
     manifest_path = folder / "manifest.json"
     manifest = json.loads(manifest_path.read_text())
-    manifest["splits"][args.split]["targets"] = {k: v for k, v in summary.items() if k not in ("corrections", "disputes")}
+    manifest["splits"][split]["targets"] = {k: v for k, v in summary.items() if k not in ("corrections", "disputes")}
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    (folder / f"{args.split}.corrections.json").write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n",
+    (folder / f"{split}.corrections.json").write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n",
                                                            encoding="utf-8")
     print(json.dumps({k: v for k, v in summary.items() if k not in ("corrections", "disputes")}, indent=2, sort_keys=True))
     print("corrections", len(corrections), "disputes", len(disputes))
