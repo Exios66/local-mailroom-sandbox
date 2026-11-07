@@ -158,7 +158,11 @@ def test_cli_watch_requires_config_or_follow(tmp_path, monkeypatch, capsys):
     from mailroom_sandbox import paths
     from mailroom_sandbox.cli import main
 
+    from mailroom_sandbox.job import spec as spec_mod
+
     monkeypatch.setattr(paths, "runtime_dir", lambda: tmp_path)  # no SAND-032 run in flight
+    # and no recorded runs: a checkout with real runs under data/runtime/runs must not satisfy it
+    monkeypatch.setattr(spec_mod, "runs_root", lambda: tmp_path / "runs")
     assert main(["watch", "--once", "--no-logs"]) == 2
 
 
