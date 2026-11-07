@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+- **Production sorter is `sorter_condensed_v5`: a bylaw amendment is bylaws, never
+  board_resolution** (mailroom-dataset v10 corpus rule C, user directive 2026-11-07). v5 is v1
+  with that one clause changed (config/prompts/sorter_condensed_v5.txt, 3,681 chars rendered);
+  v1 is marked superseded and keeps its bytes. v5 was adopted by directive, not by a compare, so
+  v1's prime-sample numbers below do not carry over. The v9.3 truth files 9 board-adopted bylaw
+  amendments under board_resolution, so scoring against v9.3 counts those as wrong until v10
+  relabels them. `FAMILY_B_KEYS["sorter"]` pins v5; llm-mailroom pin -> PR #179 head `af957b6`,
+  which ships the same bytes as `sorter_condensed_v5` (vendored from a `git archive` of that
+  commit with the sync_vendor exclusions; the vendor diff equals the upstream diff, 8 files).
+  Still to follow: the Dojo sorter guide (llm-dojo-scoring #130) and the reviewer decision
+  catalog, which still describe a board-adopted bylaw amendment as board_resolution.
+
 - **Sorter default flip: the condensed lineage becomes the production sorter.** `sorter_condensed_v1`
   (config/prompts/sorter_condensed_v1.txt, 3,681 chars rendered) beat long-form sorter V15 on the
   vetted prime-sample promotion compare (275 documents, labels Hub ccd040f6, qwen/qwen3.7-flash,

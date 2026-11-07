@@ -8,7 +8,7 @@
 <br/>
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](pyproject.toml)
-[![Pipeline](https://img.shields.io/badge/pipeline-llm--mailroom_0.9.2_%40_d573919-2563EB?style=for-the-badge)](vendor/llm-mailroom/VENDOR.md)
+[![Pipeline](https://img.shields.io/badge/pipeline-llm--mailroom_0.9.2_%40_af957b6-2563EB?style=for-the-badge)](vendor/llm-mailroom/VENDOR.md)
 [![Scoring](https://img.shields.io/badge/scoring-llm--dojo--scoring_0.27.2_%40_b3ec0fb-8B5CF6?style=for-the-badge)](vendor/llm-dojo-scoring/VENDOR.md)
 [![Tracing](https://img.shields.io/badge/tracing-Langfuse_v4-F5A623?style=for-the-badge)](docs/tracing.md)
 
@@ -353,7 +353,7 @@ The exact snapshot commits are in
 
 | Vendored tree | Version | Source commit | What it includes |
 | --- | --- | --- | --- |
-| `vendor/llm-mailroom/` | 0.9.2 | `d573919` (PR #179) | the condensed sorter production flip: `SORTER_PROMPT_CONDENSED` (the sandbox SORTER-CONDENSED lineage v1, 3,681 chars rendered) becomes the `sorter` alias, the `SorterAgent` default and the bound pin; `sorter_v15` and its guard clauses stay frozen as the reference. V15 beat on the prime-sample promotion compare (class fixed-broken 96 vs 80, subclass 135 vs 126). The snapshot also carries the standalone main revisions since `9e8f30b` (the API listener guard for protected routes) |
+| `vendor/llm-mailroom/` | 0.9.2 | `af957b6` (PR #179) | the condensed sorter production flip: `SORTER_PROMPT_CONDENSED` (the sandbox SORTER-CONDENSED lineage v5: v1 with a bylaw amendment filed under bylaws, 3,681 chars rendered) becomes the `sorter` alias, the `SorterAgent` default and the bound pin; `sorter_v15` and its guard clauses stay frozen as the reference. V15 beat on the prime-sample promotion compare (class fixed-broken 96 vs 80, subclass 135 vs 126). The snapshot also carries the standalone main revisions since `9e8f30b` (the API listener guard for protected routes) |
 | `vendor/llm-dojo-scoring/` | 0.27.2 | `b3ec0fb` (`main` after Dojo #123) | v0.27.2 plus #123: linear-time parsing of prose-wrapped JSON, task-routed headlines for already-current rescored records |
 
 <!-- /coderabbit-ai-generated:v1 -->
@@ -511,7 +511,7 @@ The sandbox drives the vendored family code through these open-source projects.
 
 ### Reviewed dependency refreshes (DMR-111)
 
-The tracked snapshots contain pipeline 0.9.2 (`d573919`) and Dojo 0.27.2 plus
+The tracked snapshots contain pipeline 0.9.2 (`af957b6`) and Dojo 0.27.2 plus
 Dojo #123 (`b3ec0fb`), from the exact commits in their `VENDOR.md` files. `sandbox fetch-deps` remains optional: it
 uses workspace packages when available and retrieves the reviewed immutable
 commit or frozen release tag in standalone checkouts. Ref movement, fetch,
