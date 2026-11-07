@@ -1,0 +1,45 @@
+# sorter_condensed_v4 on held-out marker set 1 (data/runtime/handoff/train-sorter-heldout-markers.jsonl, 61 documents,
+# sha256 1dc28eae...; selection in train-sorter-heldout-markers.selection.json): prime train correspondence targets
+# OUTSIDE the 275-document prime sample, seed 42. It tests sorter_condensed_v4's restated notice rule (an email
+# that mentions or discusses a notice is notice, headers aside; only the corpus wrapper cases stay email) against
+# the v1 frontrunner on the same unseen set: v4 was designed on held-out set 2 evidence (the v3 run), so set 1 is
+# not a design set. Scored by matching doc_subclass against the target; v4 is kept only if it matches or beats
+# the v1 frontrunner on the same documents.
+schema: sandbox.run/v1
+run_id: sorter-condensed-v4-qwen-train-heldout-markers
+task: isolated
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+  agents:
+    sorter: {source: local, file: sorter_condensed_v4}
+
+dataset:
+  provider: file
+  local_path: data/runtime/handoff/train-sorter-heldout-markers.jsonl
+  config: ground_truth
+  split: train
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.7-flash
+  modal: null
+
+agent_knobs:
+  sorter: {max_input_chars: 600000}
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 10
+  cost_cap_usd: 0.08
+  max_wall_seconds: 900
+  api_cost_cap_usd: 0.05
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, sorter-handoff, sorter-condensed-v4, heldout-markers]

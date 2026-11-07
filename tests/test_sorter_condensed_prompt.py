@@ -66,6 +66,26 @@ def test_output_contract(stem):
         assert re.search(rf'"{key}"', text), key
 
 
+def test_v5_is_v1_with_bylaw_amendments_under_bylaws():
+    """v5 changes one clause of v1: a bylaw amendment is bylaws (mailroom-dataset v10 rule C)."""
+    v1 = (prompts_dir() / "sorter_condensed_v1.txt").read_text(encoding="utf-8")
+    v5 = (prompts_dir() / "sorter_condensed_v5.txt").read_text(encoding="utf-8")
+    old, new = "a board-adopted bylaw amendment is board_resolution", "a bylaw amendment is bylaws, never board_resolution"
+    assert v1.count(old) == 1 and old not in v5
+    assert v5 == v1.replace(old, new)
+
+
+def test_frontrunner_is_the_adopted_production_version():
+    """The lineage frontrunner is the one adopted version, and the registry pins it."""
+    import yaml
+
+    from mailroom_sandbox.prompt_registry import FAMILY_B_KEYS
+
+    meta = yaml.safe_load((prompts_dir() / "sorter_condensed_lineage.yaml").read_text(encoding="utf-8"))
+    adopted = [v["version"] for v in meta["versions"] if v["status"].startswith("adopted")]
+    assert adopted == [meta["frontrunner"]] == [FAMILY_B_KEYS["sorter"]]
+
+
 def test_condensed_is_a_fraction_of_v15():
     """Condensed is a fraction of v15."""
     from langchain_agents.prompts import PROMPT_VERSIONS
