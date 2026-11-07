@@ -160,7 +160,7 @@ def test_score_requires_the_run_to_lock_rows_of_the_selected_sample(tmp_path, mo
     dataset.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
     sha = hashlib.sha256(dataset.read_bytes()).hexdigest()
     selection = csp._selection_path(dataset)
-    selection.write_text(json.dumps({"dataset_sha256": sha, "chosen": {"a": "control", "b": "control"}}),
+    selection.write_text(json.dumps({"dataset_sha256": sha, "name": "baseline", "chosen": {"a": "control", "b": "control"}}),
                          encoding="utf-8")
     run_dir = tmp_path / "data" / "runtime" / "runs" / args.run
     run_dir.mkdir(parents=True)
@@ -168,6 +168,8 @@ def test_score_requires_the_run_to_lock_rows_of_the_selected_sample(tmp_path, mo
     report = tmp_path / "reports" / "sorter-handoff" / "new.compare.json"
     monkeypatch.setattr(csp, "_run_answers", lambda *a: pytest.fail("answers read before the dataset check"))
 
+    with pytest.raises(SystemExit, match="drawn from --name baseline"):
+        csp.cmd_score(argparse.Namespace(**{**vars(args), "name": "other-pass"}))
     with pytest.raises(SystemExit, match="locked dataset missing"):
         csp.cmd_score(args)
     # The lock re-serializes rows (its own sha256 differs from the sample file's), so rows are compared parsed.

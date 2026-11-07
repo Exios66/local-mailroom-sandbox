@@ -232,7 +232,8 @@ def _targets_for(args: argparse.Namespace, root: Path, texts: dict[str, str]) ->
     """Load targets and, in prime mode, filter them and return quality metadata.
 
     Prime mode requires current labels and raises SystemExit if they are absent
-    or contain no rows. The labels revision is ``unknown`` if its marker is absent.
+    or contain no rows, or if the revision marker is absent or is not
+    ``PRIME_LABELS_REVISION``.
     Without prime mode the metadata is empty. File and parsing errors propagate.
     """
     targets = _targets(root, args.name, args.split)
@@ -296,7 +297,7 @@ def cmd_inputs(args: argparse.Namespace) -> int:
     text = "".join(json.dumps(rows[doc_id], ensure_ascii=False, sort_keys=True) + "\n" for doc_id in sorted(chosen))
     out.write_text(text, encoding="utf-8")
     sha = hashlib.sha256(text.encode()).hexdigest()
-    _selection_path(out).write_text(json.dumps({"dataset_sha256": sha, "chosen": chosen, **quality},
+    _selection_path(out).write_text(json.dumps({"dataset_sha256": sha, "name": args.name, "chosen": chosen, **quality},
                                                indent=2, sort_keys=True) + "\n", encoding="utf-8")
     why = collections.Counter("control" if p == "control" else p.split(" ", 1)[0] for p in chosen.values())
     chars = sum(len(rows[doc_id].get("doc_text") or "") for doc_id in chosen)
@@ -386,6 +387,10 @@ def cmd_score(args: argparse.Namespace) -> int:
         if not path.is_file():
             raise SystemExit(f"compare_sorter_prompt: {path} missing; run inputs with the same flags first")
         saved = json.loads(path.read_text(encoding="utf-8"))
+        # A selection saved before this field was recorded was drawn from the default pass.
+        if saved.get("name", HANDOFF) != args.name:
+            raise SystemExit(f"compare_sorter_prompt: {path} was drawn from --name {saved.get('name', HANDOFF)}, "
+                             f"not {args.name}")
         locked = _locked_sample_rows(root, args.run, _dataset_path(root, args), saved["dataset_sha256"])
         chosen = saved["chosen"]
         quality = ({k: v for k, v in saved.items() if k == "prime"}
