@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from urllib.parse import urlsplit, urlunsplit
 
-_URL = re.compile(r"https?://[^\s<>\"']+")
+_URL = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
 
 
 def redact_urls(text: str) -> str:

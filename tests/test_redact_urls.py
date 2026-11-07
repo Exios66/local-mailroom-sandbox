@@ -14,6 +14,13 @@ def test_query_values_are_redacted():
     assert redact_urls("https://vllm.example.test/v1?api_key=secret") == "https://vllm.example.test/v1?REDACTED"
 
 
+@pytest.mark.parametrize("scheme", ["HTTP", "HTTPS", "hTtPs"])
+def test_scheme_case_does_not_bypass_redaction(scheme):
+    out = redact_urls(f"{scheme}://user:pw@host/v1?token=secret")
+    assert "user" not in out and "pw" not in out and "secret" not in out
+    assert "host/v1?REDACTED" in out
+
+
 @pytest.mark.parametrize("value", [
     "https://user:p#ss@host/v1",
     "https://user:p?x@host/v1",
