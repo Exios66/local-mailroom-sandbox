@@ -7,7 +7,7 @@
 pytest>=8.0
 pytest-mock>=3.12
 pytest-cov>=5.0
-markdown-it-py>=3.0
+markdown-it-py>=4.0,<5
 huggingface_hub>=0.24
 pyarrow>=15.0
 modal==1.6.3
@@ -33,5 +33,4 @@ greenlet>=3.0
 pypdf>=4.0
 pdfplumber>=0.11
 pillow>=10.0
-markdown-it-py>=3.0,<5
 pydantic-ai-slim[typesafe]==2.65.0
