@@ -312,7 +312,7 @@ TAXONOMY = {
 }
 
 
-@pytest.mark.parametrize("stem", ["reviewer_decisions_v3.1.0"])
+@pytest.mark.parametrize("stem", ["reviewer_decisions_v3.1.0", "reviewer_decisions_v3.2.0"])
 @pytest.mark.parametrize("cls", sorted(TAXONOMY))
 def test_question_set_offers_every_taxonomy_subclass(stem, cls):
     block = db.load_question_set(stem)["subclass"][cls]
@@ -325,6 +325,21 @@ def test_taxonomy_table_matches_the_vendored_mailroom():
     assert set(TAXONOMY["insurance_claim"]) == set(inv.INSURANCE_CLAIM_TYPES)
     assert set(TAXONOMY["corporate_record"]) == set(inv.CORPORATE_RECORD_TYPES)
     assert set(TAXONOMY["correspondence"]) == set(inv.CORRESPONDENCE_TYPES)
+
+
+def test_v3_2_files_a_bylaw_amendment_under_bylaws():
+    """3.2.0 changes only the bylaws and board_resolution meanings: a bylaw amendment is bylaws,
+    never board_resolution (mailroom-dataset v10 corpus rule C)."""
+    old, new = db.load_question_set("reviewer_decisions_v3.1.0"), db.load_question_set("reviewer_decisions_v3.2.0")
+    crit = new["subclass"]["corporate_record"]["criteria"]
+    assert "amendment" in crit["bylaws"].lower() and "never board_resolution" in crit["bylaws"]
+    assert "bylaw" not in crit["board_resolution"].lower()
+    assert new["version"] == "3.2.0"
+    for key in ("bylaws", "board_resolution"):
+        old["subclass"]["corporate_record"]["criteria"].pop(key)
+        new["subclass"]["corporate_record"]["criteria"].pop(key)
+    old.pop("version"), new.pop("version")
+    assert old == new
 
 
 def test_v3_1_asks_insurance_liability_and_workers_comp():
