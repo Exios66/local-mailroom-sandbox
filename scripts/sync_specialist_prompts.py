@@ -121,6 +121,19 @@ def _refuse_experiment_write(stem: str, *, overwrite_experiment: bool) -> str | 
 
 
 def sync(*, check: bool = False, overwrite_experiment: bool = False) -> int:
+    """Write vendor prompt exports, or validate prompt pins without writing.
+
+    With ``check=True``, require exports to match vendor text, frozen files to
+    match their pinned hashes, and experiment files to exist and differ from
+    vendor text unless their hash is recorded in the lineage manifest.
+    Otherwise, write exports as UTF-8 text with a trailing newline;
+    ``overwrite_experiment=True`` also replaces the mapped experiment files.
+    Frozen files are checked only in check mode and are not export targets.
+
+    Return 1 for refused experiment writes or detected drift, otherwise 0.
+    Import, prompt lookup, and file I/O errors propagate; writes already made
+    are not rolled back on failure.
+    """
     texts = _load_texts()
     drifted: list[str] = []
     errors: list[str] = []
@@ -218,6 +231,11 @@ def sync(*, check: bool = False, overwrite_experiment: bool = False) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Parse sync options and return the status from :func:`sync`.
+
+    ``argv=None`` reads process arguments. Argument parsing raises
+    ``SystemExit`` for help or invalid options; errors from ``sync`` propagate.
+    """
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
         "--check",
