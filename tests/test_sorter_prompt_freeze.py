@@ -25,8 +25,8 @@ def test_production_is_the_condensed_lineage():
     from mailroom_sandbox.paths import prompts_dir
 
     production = prompts.PROMPT_VERSIONS["sorter"]
-    assert production is prompts.PROMPT_VERSIONS["sorter_condensed_v1"]
-    assert production == (prompts_dir() / "sorter_condensed_v1.txt").read_text(encoding="utf-8")
+    assert production is prompts.PROMPT_VERSIONS["sorter_condensed_v5"]
+    assert production == (prompts_dir() / "sorter_condensed_v5.txt").read_text(encoding="utf-8")
     assert _sha(production) not in BROKEN_SHA256
     assert len(production) * 4 < len(prompts.PROMPT_VERSIONS["sorter_v15"])
     for clause in (
@@ -36,8 +36,10 @@ def test_production_is_the_condensed_lineage():
         "officer_certificate, never rights_instrument",
         "FIRST form in catalog order",
         "conversion section",
+        "a bylaw amendment is bylaws, never board_resolution",
     ):
         assert clause in production, clause
+    assert "bylaw amendment is board_resolution" not in production
 
 
 def test_every_later_version_keeps_the_guards():
@@ -50,4 +52,4 @@ def test_every_later_version_keeps_the_guards():
 def test_sandbox_registry_pins_the_condensed_lineage():
     from mailroom_sandbox.prompt_registry import FAMILY_B_KEYS
 
-    assert FAMILY_B_KEYS["sorter"] == "sorter_condensed_v1"
+    assert FAMILY_B_KEYS["sorter"] == "sorter_condensed_v5"
