@@ -32,12 +32,19 @@ PROMPTS = ROOT / "config" / "prompts"
 
 # Vendor mirrors only. Default sync writes these stems and no others.
 EXPORTS = (
-    ("contracts_specialist_v33", "contracts"),
     ("merger_agreement_specialist_production", "merger"),
     ("corporate_records_specialist_production", "corporate"),
     ("correspondence_specialist_production", "correspondence"),
     ("insurance_claims_specialist_production", "insurance"),
 )
+
+# Frozen lineage pins: the file keeps these exact bytes and sync never writes it.
+# contracts_specialist_v33 froze at the Dojo 0.27.2 render. Dojo 0.28 (schema v2)
+# re-renders its "Registered schema fields" line under the same version id, so the
+# vendor text is no longer v33. New work goes to the condensed specialist lineage.
+FROZEN: dict[str, str] = {
+    "contracts_specialist_v33": "6a5047ed39bef6d918b953eb602487a17d6a5ce3d39a483c97166a210c6d3efd",
+}
 
 # SAND-026 experiment pins. Default sync must not silently overwrite them
 # even if a future edit adds a simplified stem to EXPORTS.
@@ -152,6 +159,19 @@ def sync(*, check: bool = False, overwrite_experiment: bool = False) -> int:
             else:
                 n = len(path.read_text(encoding="utf-8"))
                 print(f"ok experiment {experiment_stem} ({n} chars, diverges from {vendor_stem})")
+
+    if check:
+        for stem, pinned in FROZEN.items():
+            path = PROMPTS / f"{stem}.txt"
+            if not path.is_file():
+                drifted.append(f"missing frozen pin {path}")
+            elif hashlib.sha256(path.read_bytes()).hexdigest() != pinned:
+                drifted.append(
+                    f"frozen {stem} changed: file={hashlib.sha256(path.read_bytes()).hexdigest()[:12]} "
+                    f"pinned={pinned[:12]}"
+                )
+            else:
+                print(f"ok frozen {stem} sha256={pinned[:16]}…")
 
     for stem, _kind in EXPORTS:
         refusal = _refuse_experiment_write(stem, overwrite_experiment=overwrite_experiment)
