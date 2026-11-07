@@ -222,7 +222,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--check",
         action="store_true",
-        help="fail if vendor stems drift from vendor, or simplified stems are missing/identical",
+        help=(
+            "fail if vendor stems drift from vendor, a frozen stem (FROZEN) is missing or no "
+            "longer matches its pinned sha256, or simplified stems are missing/identical"
+        ),
     )
     ap.add_argument(
         "--overwrite-experiment",

@@ -2,8 +2,9 @@
 # mutation here (sorter_condensed_v<N>.txt, a new file per version; never edit a frozen one).
 # The long-form SORTER_PROMPT_V15 (llm-mailroom langchain_agents.prompts, ~25k chars rendered) is
 # frozen as a reference; the condensed lineage is mailroom production (prime-sample promotion
-# compare: class fixed-broken 96 vs 80, subclass 135 vs 126) and is pinned as sorter_condensed_v1
-# in both mailroom trees (langchain_agents SORTER_PROMPT_CONDENSED) and the sandbox registry.
+# compare: class fixed-broken 96 vs 80, subclass 135 vs 126, run on v1). Production is now
+# sorter_condensed_v5 (v1 plus rule C: a bylaw amendment is bylaws) in both mailroom trees
+# (langchain_agents SORTER_PROMPT_CONDENSED) and the sandbox registry; v1 is superseded.
 #
 # Budget: the rendered system prompt stays <= 4,000 chars (about 1k tokens); the subclass catalog
 # (llm_dojo_scoring.sorter_guide, ~5.5k chars) travels in the user message for every version.
@@ -44,5 +45,5 @@ versions:
     file: sorter_condensed_v5.txt
     parent: "sorter_condensed_v1 (one change: a bylaw amendment is bylaws, never board_resolution; mailroom-dataset v10 corpus rule C. v2-v4 are skipped: none was adopted)"
     rendered_chars: 3681
-    status: adopted   # user directive 2026-11-07 ("BYLAWS ARE BYLAWS"), not by a compare. Not validated: v1's prime-sample numbers do not carry over. The v9.3 truth files 9 board-adopted bylaw amendments under board_resolution, so scoring against v9.3 counts those as wrong until v10 relabels them. llm-mailroom #179 ships the same bytes as sorter_condensed_v5
+    status: adopted   # user directive 2026-11-07 ("BYLAWS ARE BYLAWS"), not by a compare. Not validated: v1's prime-sample numbers do not carry over. The v9.3 truth files 8 board-adopted bylaw amendments under board_resolution, so scoring against v9.3 counts those as wrong until v10 relabels them. llm-mailroom #179 ships the same bytes as sorter_condensed_v5
     validation_run: none

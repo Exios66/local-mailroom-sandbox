@@ -76,6 +76,9 @@ pipeline = [
     "pypdf>=4.0",
     "pdfplumber>=0.11",
     "pillow>=10.0",
+    # Vendored intake (agents/intake.py -> pipeline/text_cleaning.py) imports
+    # markdown_it at module load; same bound as llm-mailroom 19203ea.
+    "markdown-it-py>=3.0,<5",
 ]
 notebooks = [
     "jupyterlab>=4.2",

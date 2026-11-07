@@ -37,6 +37,8 @@ def test_pipeline_extra_declares_aiosqlite_and_pdf_stack():
         "pillow",
         "langchain-core",
         "langgraph",
+        # vendored agents/intake.py imports pipeline.text_cleaning -> markdown_it
+        "markdown-it-py",
     ):
         assert needle in block, f"pipeline extra missing {needle!r}"
 
@@ -55,6 +57,7 @@ def test_modal_job_image_lists_pipeline_deps():
         "langfuse",
         "greenlet",
         "pdfplumber",
+        "markdown-it-py",
     ):
         assert needle in app, f"modal_job uv_pip_install missing {needle!r}"
 

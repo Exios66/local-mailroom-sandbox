@@ -45,7 +45,10 @@
   The Dojo sorter guide now agrees (v0.28.1, vendored below); the reviewer decision catalog
   follows in reviewer decisions 3.2.0.
 
-- **Sorter default flip: the condensed lineage becomes the production sorter.** `sorter_condensed_v1`
+- **Sorter default flip: the condensed lineage becomes the production sorter.** (Superseded in
+  part by the v5 entry above: production and `FAMILY_B_KEYS["sorter"]` are now
+  `sorter_condensed_v5`, and the llm-mailroom pin is the merged main `19203ea`, which replaces the
+  PR #179 heads `d573919` and `af957b6` named here.) `sorter_condensed_v1`
   (config/prompts/sorter_condensed_v1.txt, 3,681 chars rendered) beat long-form sorter V15 on the
   vetted prime-sample promotion compare (275 documents, labels Hub ccd040f6, qwen/qwen3.7-flash,
   runs `sorter-condensed-v1-qwen-train-prime-sample` + `sorter-v15-qwen-train-prime-sample`): class

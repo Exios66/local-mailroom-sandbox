@@ -42,11 +42,17 @@ Contracts and merger agreements are outside this lineage and keep their frozen p
 Byte-identical exports of vendored `llm-mailroom` code-defaults. **Not** a
 floating Langfuse `production` label. Kept so historical reports and a vendor
 refresh stay reproducible. `python scripts/sync_specialist_prompts.py` writes
-**only** these stems.
+**only** these stems, except `contracts_specialist_v33`.
+
+**`contracts_specialist_v33` is frozen** (`FROZEN` in `scripts/sync_specialist_prompts.py`): the
+file keeps its published bytes (sha256 `6a5047ed…`), sync never writes it, and `--check` fails if
+it is missing or its sha256 changes. Dojo 0.28 (schema v2) re-renders v33's "Registered schema
+fields" line under the same version id, so the vendored text is no longer the v33 that was scored.
+New contracts work goes to the condensed specialist lineage.
 
 | Stem | Agent | Source of truth | Notes |
 | --- | --- | --- | --- |
-| `contracts_specialist_v33` | `contracts_specialist` | `langchain_agents.prompts.PROMPT_VERSIONS["contracts_specialist_v33"]` | Mailroom production pin (entity-extraction has experimental v34–v41; **not** promoted). ~32k chars; doctrine lists retired `key_obligations` / `termination_clauses` then a PARED footer that forbids them. |
+| `contracts_specialist_v33` | `contracts_specialist` | `langchain_agents.prompts.PROMPT_VERSIONS["contracts_specialist_v33"]` | Mailroom production pin (entity-extraction has experimental v34–v41; **not** promoted). ~32k chars; doctrine lists retired `key_obligations` / `termination_clauses` then a PARED footer that forbids them. **Frozen** at sha256 `6a5047ed…`, the Dojo 0.27.2 render; no longer a vendor mirror. |
 | `merger_agreement_specialist_production` | `merger_agreement_specialist` | `agents.merger_agreement_specialist.SYSTEM_PROMPT` | MAUD production (V0 + doctrine); **not** CUAD v33 |
 | `corporate_records_specialist_production` | `corporate_records_specialist` | `agents.corporate_records_specialist.SYSTEM_PROMPT` | Base + `llm.prompt_doctrine` (doctrine still lists retired `key_provisions`) |
 | `correspondence_specialist_production` | `correspondence_specialist` | `agents.correspondence_specialist.SYSTEM_PROMPT` | Base + doctrine (doctrine lists retired `key_points` / `referenced_communications`; V0 lists live `intent` / `subject_matter` / `keywords`) |
@@ -56,7 +62,7 @@ Refresh vendor mirrors after a vendor sync:
 
 ```bash
 python scripts/sync_specialist_prompts.py          # writes vendor stems only
-python scripts/sync_specialist_prompts.py --check  # vendor identity + simplified stems present
+python scripts/sync_specialist_prompts.py --check  # vendor identity, frozen sha256 pins, simplified stems present
 ```
 
 ## Specialist simplified pins (SAND-026 / issue #32) — experiment surface
