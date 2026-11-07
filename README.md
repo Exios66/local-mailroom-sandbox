@@ -8,7 +8,7 @@
 <br/>
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](pyproject.toml)
-[![Pipeline](https://img.shields.io/badge/pipeline-llm--mailroom_0.9.1_%40_65523a2-2563EB?style=for-the-badge)](vendor/llm-mailroom/VENDOR.md)
+[![Pipeline](https://img.shields.io/badge/pipeline-llm--mailroom_0.9.2_%40_9e8f30b-2563EB?style=for-the-badge)](vendor/llm-mailroom/VENDOR.md)
 [![Scoring](https://img.shields.io/badge/scoring-llm--dojo--scoring_0.27.2_%40_b3ec0fb-8B5CF6?style=for-the-badge)](vendor/llm-dojo-scoring/VENDOR.md)
 [![Tracing](https://img.shields.io/badge/tracing-Langfuse_v4-F5A623?style=for-the-badge)](docs/tracing.md)
 
@@ -349,7 +349,7 @@ The exact snapshot commits are in
 
 | Vendored tree | Version | Source commit | What it includes |
 | --- | --- | --- | --- |
-| `vendor/llm-mailroom/` | 0.9.1 | `65523a2` (`main` after llm-mailroom #165) | v0.9.1, the Dojo v0.27.2 pin (#164), the display-contract export (#165), Railway retired (#166) |
+| `vendor/llm-mailroom/` | 0.9.2 | `9e8f30b` (tag `v0.9.2`) | v0.9.2: everything in `65523a2` plus the API listener guard (tokenless requests served only on loopback; llm-mailroom #171, #172) |
 | `vendor/llm-dojo-scoring/` | 0.27.2 | `b3ec0fb` (`main` after Dojo #123) | v0.27.2 plus #123: linear-time parsing of prose-wrapped JSON, task-routed headlines for already-current rescored records |
 
 Both pins are reviewed `main` commits, not release tags. They move back to tags when the
@@ -499,7 +499,7 @@ The sandbox drives the vendored family code through these open-source projects.
 
 ### Reviewed dependency refreshes (DMR-111)
 
-The tracked snapshots contain pipeline 0.9.1 (`65523a2`) and Dojo 0.27.2 plus
+The tracked snapshots contain pipeline 0.9.2 (`9e8f30b`) and Dojo 0.27.2 plus
 Dojo #123 (`b3ec0fb`), from the exact commits in their `VENDOR.md` files. `sandbox fetch-deps` remains optional: it
 uses workspace packages when available and retrieves the reviewed immutable
 commit or frozen release tag in standalone checkouts. Ref movement, fetch,

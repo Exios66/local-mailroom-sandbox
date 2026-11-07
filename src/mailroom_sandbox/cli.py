@@ -1414,8 +1414,8 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
 # llm-dojo-scoring: main at #123 (v0.27.2 plus the linear prose-JSON candidate
 # scan and task-routed rescore headlines) until v0.27.3 is cut.
 _VENDOR_PINS: tuple[tuple[str, str, str, str | None], ...] = (
-    ("llm-mailroom", "65523a220954d05bdf9b3d6604eb2fe128342f58",
-     "https://github.com/Exios66/llm-mailroom.git", "65523a220954d05bdf9b3d6604eb2fe128342f58"),
+    ("llm-mailroom", "v0.9.2",
+     "https://github.com/Exios66/llm-mailroom.git", "9e8f30b279e7626c056b03511f823105760f80d7"),
     ("llm-dojo-scoring", "b3ec0fba68ff5479a61ada581859c3b43adf29ff",
      "https://github.com/Exios66/llm-dojo-scoring.git", "b3ec0fba68ff5479a61ada581859c3b43adf29ff"),
 )
