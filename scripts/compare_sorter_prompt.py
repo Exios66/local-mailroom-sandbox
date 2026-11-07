@@ -383,9 +383,11 @@ def cmd_score(args: argparse.Namespace) -> int:
     """Compare a run with the saved pass and write and print its results.
 
     Prime or sample mode uses the saved selection and raises SystemExit if it is
-    missing. Returns 1 without writing if the run answered outside the selection,
-    or 0 on success. Unanswered selections are counted; file and parsing errors
-    propagate.
+    missing or drawn from another ``--name``, if the sample file no longer matches
+    it, or if the run locked a row that is not that sample's row
+    (``_locked_sample_rows``). Returns 1 without writing if the run answered outside
+    the selection, or 0 on success. Unanswered selections are counted; file and
+    parsing errors propagate.
     """
     root = repo_root()
     targets = _targets(root, args.name, args.split)
