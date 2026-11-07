@@ -192,20 +192,33 @@ def test_runner_publishes_a_beacon_for_run_start(tmp_path, monkeypatch):
 
 
 def test_launcher_passes_beacon_and_board_through(tmp_path):
+    import os
     import subprocess
+    import sys
     from pathlib import Path
 
     repo = Path(__file__).resolve().parents[1]
+    env = {**os.environ, "SANDBOX_PY": sys.executable}
     r = subprocess.run(
         [str(repo / "scripts" / "mailroom-tui"), "beacon", "update", "--root", str(tmp_path),
          "--job", "sh", "--package", "scripts", "--done", "1", "--total", "2"],
-        capture_output=True, text=True, timeout=60,
+        capture_output=True, text=True, timeout=60, env=env,
     )
     assert r.returncode == 0, r.stderr
     assert bd.list_jobs(tmp_path)[0]["job_id"] == "sh"
     r = subprocess.run([str(repo / "scripts" / "mailroom-tui"), "board", "--tui", "--once", "--root", str(tmp_path)],
-                       capture_output=True, text=True, timeout=60)
+                       capture_output=True, text=True, timeout=60, env=env)
     assert r.returncode == 0 and "sh" in r.stdout
+
+
+def test_launcher_score_requires_a_run_id():
+    import subprocess
+    from pathlib import Path
+
+    launcher = Path(__file__).resolve().parents[1] / "scripts" / "mailroom-tui"
+    result = subprocess.run([str(launcher), "score"], capture_output=True, text=True, timeout=60)
+    assert result.returncode == 2
+    assert "score <run-id>" in result.stderr and "unbound variable" not in result.stderr
 
 
 def test_board_default_port_does_not_collide_with_watch_web(tmp_path, monkeypatch):
