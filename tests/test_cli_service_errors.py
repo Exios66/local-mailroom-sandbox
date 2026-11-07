@@ -58,6 +58,19 @@ def test_unexpected_errors_still_propagate(monkeypatch, exc):
         cli.main(["profiles"])
 
 
+@pytest.mark.parametrize("exc", [
+    subprocess.CalledProcessError(1, ["tool", "https://user:secret@example.test/v1?token=secret"],
+                                  stderr=b"failed https://user:secret@example.test/v1?token=secret\xff\n"),
+    subprocess.CalledProcessError(1, "tool https://user:secret@example.test/v1?token=secret"),
+    subprocess.TimeoutExpired(["tool", "https://user:secret@example.test/v1?token=secret"], 5),
+])
+def test_subprocess_diagnostics_redact_endpoint_credentials(monkeypatch, capsys, exc):
+    monkeypatch.setattr(cli, "_cmd_profiles", _raises(exc))
+    assert cli.main(["profiles"]) == 1
+    err = capsys.readouterr().err
+    assert "secret" not in err and "example.test" in err
+
+
 def test_tunnel_and_tool_errors_share_the_service_error_base():
     assert issubclass(TunnelError, ServiceError)
     assert issubclass(ToolMissing, ServiceError) and issubclass(ToolFailed, ServiceError)
