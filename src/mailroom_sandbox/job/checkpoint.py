@@ -449,12 +449,40 @@ class RunStore:
             fh.flush()
 
     def events(self) -> list[dict[str, Any]]:
+        """Parsed events; a torn tail (killed mid-write) is truncated once.
+
+        #268: the failed events.jsonl tail must not wedge every consumer of
+        the file — the resume's budget seed, the failed-usage capture, and the
+        serving report all read it — like the items.jsonl torn-tail repair.
+        Corruption before the tail still raises (not a torn write).
+        """
         if not self.events_path.is_file():
             return []
-        rows = []
-        for line in self.events_path.read_text(encoding="utf-8").splitlines():
-            if line.strip():
-                rows.append(json.loads(line))
+        data = self.events_path.read_bytes()
+        lines = data.split(b"\n")
+        rows: list[dict[str, Any]] = []
+        torn_line = len(lines)
+        for i, raw in enumerate(lines):
+            if not raw.strip():
+                continue
+            try:
+                rows.append(json.loads(raw.decode("utf-8")))
+            except (UnicodeDecodeError, ValueError):
+                torn_line = i
+                break
+        if torn_line != len(lines):
+            # A torn write cannot leave a parseable suffix after it: anything
+            # unparsed beyond the break is corruption, not a tail.
+            after = [raw for raw in lines[torn_line:] if raw.strip()]
+            if len(after) > 1:
+                raise ValueError(f"events.jsonl corrupt beyond the torn tail: {torn_line}")
+            restore = {"dropped_chars": sum(len(part) + 1 for part in lines[torn_line:]) - 1}
+            with open(self.events_path, "r+b") as fh:
+                fh.truncate(sum(len(part) + 1 for part in lines[:torn_line]))
+            self.append_event("events_truncated", "warn", detail=restore)
+            rows.append(
+                {"ts": utc_now(), "event": "events_truncated", "level": "warn", "detail": restore}
+            )
         return rows
 
     # ── pipeline nodes (SAND-076) ───────────────────────────────────────────

@@ -413,7 +413,10 @@ def run_isolated_eval(
     # SAND-018 cost accuracy: bill GPU-seconds over the whole warm interval
     # (cold boot + run wall), not just the per-call busy time — the reported
     # cost must match what Modal charges. Skipped for mock (no GPU spend).
-    if not mock:
+    # #266: a run that never sat on a GPU (openrouter routes, a live ollama
+    # isolated run) must not be billed a default class — record GPU cost only
+    # for a declared fleet or an explicit engine GPU from the caller.
+    if not mock and (gpu_fleet or gpu):
         from mailroom_sandbox.job.metrics import estimate_gpu_cost_usd
 
         billed_seconds = wall_seconds + (
@@ -423,7 +426,7 @@ def run_isolated_eval(
         gpu_cost = (
             _estimated_gpu_usd(billed_seconds, gpu=gpu, replicas=replicas, gpu_fleet=gpu_fleet)
             if gpu_fleet
-            else estimate_gpu_cost_usd(billed_seconds, gpu=gpu or "L4", replicas=replicas)
+            else estimate_gpu_cost_usd(billed_seconds, gpu=gpu, replicas=replicas)
         )
         record["replicas"] = max(1, int(replicas))
         if gpu_cost is not None:

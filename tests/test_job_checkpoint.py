@@ -54,6 +54,36 @@ def test_unparseable_fragment_truncated(store, tmp_path):
     assert any(e["event"] == "items_truncated" for e in events)
 
 
+def test_torn_events_tail_is_repaired_on_read(store):
+    """#268: a killed run must not wedge resume/budget-seed/report reads."""
+    store.append_event("start", task="sorter")
+    with open(store.events_path, "a", encoding="utf-8") as fh:
+        fh.write('{"ts": "x", ' + "event")  # torn write tail
+    rows = store.events()
+    assert [r["event"] for r in rows] == ["start", "events_truncated"]
+    assert rows[-1]["level"] == "warn" and rows[-1]["detail"]["dropped_chars"] == 17
+    # The file is parseable for the next consumer (budget seed / serving report).
+    assert [r["event"] for r in store.events()] == ["start", "events_truncated"]
+
+
+def test_events_corruption_beyond_the_tail_still_raises(store):
+    store.append_event("start", task="sorter")
+    with open(store.events_path, "a", encoding="utf-8") as fh:
+        fh.write("garbage\n")
+    store.append_event("item_done")
+    with open(store.events_path, "a", encoding="utf-8") as fh:
+        fh.write('{"ts": "x", ' + "event")  # torn
+    with pytest.raises(ValueError, match="corrupt beyond the torn tail"):
+        store.events()
+
+
+def test_events_unparseable_fragment_kept(store):
+    store.append_event("start")
+    with open(store.events_path, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps({"ts": "y", "event": "stop"}))  # no trailing newline
+    assert [r["event"] for r in store.events()] == ["start", "stop"]
+
+
 def test_resume_reconciles_cursor(store):
     store.write_lock({"spec_hash": "s1"})
     store.append_item({"index": 0, "item_id": "a", "ok": True})
