@@ -111,7 +111,7 @@
       "unmatched_predicted": 1
      }
     },
-    "overall_score": 0.7134,
+    "overall_score": 0.6875,
     "trace": {
      "calibration_error": null,
      "confidence": null,
@@ -121,7 +121,7 @@
     }
    },
    "legacy_schema_keys": [],
-   "overall_extraction_score": 0.7134,
+   "overall_extraction_score": 0.6875,
    "parse_error": false,
    "parse_failure_reason": null,
    "prose_wrapper": false,
@@ -139,7 +139,7 @@
     "metric": "overall_extraction_score",
     "run_id": "golden-run",
     "timestamp": 0.0,
-    "value": 0.7134
+    "value": 0.6875
    }
   ],
   "serving_record": {
@@ -157,7 +157,7 @@
     "extraction_f2": 0.6579,
     "extraction_precision": 0.8333,
     "extraction_recall": 0.625,
-    "overall_extraction_score": 0.7134,
+    "overall_extraction_score": 0.6875,
     "schema_adherence": 1.0
    },
    "serving_kind": "unknown",
@@ -259,9 +259,9 @@
    "entity_list_f1": 1.0,
    "extra_schema_key_count": 0,
    "extra_schema_keys": [],
-   "extraction_f1": 0.8889,
-   "extraction_f2": 0.9524,
-   "extraction_precision": 0.8,
+   "extraction_f1": 1.0,
+   "extraction_f2": 1.0,
+   "extraction_precision": 1.0,
    "extraction_recall": 1.0,
    "fields": {
     "ambiguous_fields": [],
@@ -321,9 +321,9 @@
    "scores": {
     "entity_list_f1": 1.0,
     "extra_schema_key_count": 0,
-    "extraction_f1": 0.8889,
-    "extraction_f2": 0.9524,
-    "extraction_precision": 0.8,
+    "extraction_f1": 1.0,
+    "extraction_f2": 1.0,
+    "extraction_precision": 1.0,
     "extraction_recall": 1.0,
     "overall_extraction_score": 1.0,
     "schema_adherence": 1.0
@@ -343,9 +343,9 @@
    "entity_list_f1": 1.0,
    "extra_schema_key_count": 0,
    "extra_schema_keys": [],
-   "extraction_f1": 0.8235,
-   "extraction_f2": 0.8537,
-   "extraction_precision": 0.7778,
+   "extraction_f1": 0.9333,
+   "extraction_f2": 0.8974,
+   "extraction_precision": 1.0,
    "extraction_recall": 0.875,
    "fields": {
     "ambiguous_fields": [],
@@ -405,9 +405,9 @@
    "scores": {
     "entity_list_f1": 1.0,
     "extra_schema_key_count": 0,
-    "extraction_f1": 0.8235,
-    "extraction_f2": 0.8537,
-    "extraction_precision": 0.7778,
+    "extraction_f1": 0.9333,
+    "extraction_f2": 0.8974,
+    "extraction_precision": 1.0,
     "extraction_recall": 0.875,
     "overall_extraction_score": 0.875,
     "schema_adherence": 1.0
@@ -533,7 +533,7 @@
       "unmatched_predicted": 1
      }
     },
-    "overall_score": 0.7169,
+    "overall_score": 0.6875,
     "trace": {
      "calibration_error": null,
      "confidence": null,
@@ -543,7 +543,7 @@
     }
    },
    "legacy_schema_keys": [],
-   "overall_extraction_score": 0.7169,
+   "overall_extraction_score": 0.6875,
    "parse_error": false,
    "parse_failure_reason": null,
    "prose_wrapper": false,
@@ -561,7 +561,7 @@
     "metric": "overall_extraction_score",
     "run_id": "golden-run",
     "timestamp": 0.0,
-    "value": 0.7169
+    "value": 0.6875
    }
   ],
   "serving_record": {
@@ -579,7 +579,7 @@
     "extraction_f2": 0.6579,
     "extraction_precision": 0.8333,
     "extraction_recall": 0.625,
-    "overall_extraction_score": 0.7169,
+    "overall_extraction_score": 0.6875,
     "schema_adherence": 1.0
    },
    "serving_kind": "unknown",
@@ -681,9 +681,9 @@
    "entity_list_f1": 1.0,
    "extra_schema_key_count": 0,
    "extra_schema_keys": [],
-   "extraction_f1": 0.8889,
-   "extraction_f2": 0.9524,
-   "extraction_precision": 0.8,
+   "extraction_f1": 1.0,
+   "extraction_f2": 1.0,
+   "extraction_precision": 1.0,
    "extraction_recall": 1.0,
    "fields": {
     "ambiguous_fields": [],
@@ -743,9 +743,9 @@
    "scores": {
     "entity_list_f1": 1.0,
     "extra_schema_key_count": 0,
-    "extraction_f1": 0.8889,
-    "extraction_f2": 0.9524,
-    "extraction_precision": 0.8,
+    "extraction_f1": 1.0,
+    "extraction_f2": 1.0,
+    "extraction_precision": 1.0,
     "extraction_recall": 1.0,
     "overall_extraction_score": 1.0,
     "schema_adherence": 1.0
@@ -765,9 +765,9 @@
    "entity_list_f1": 1.0,
    "extra_schema_key_count": 0,
    "extra_schema_keys": [],
-   "extraction_f1": 0.8235,
-   "extraction_f2": 0.8537,
-   "extraction_precision": 0.7778,
+   "extraction_f1": 0.9333,
+   "extraction_f2": 0.8974,
+   "extraction_precision": 1.0,
    "extraction_recall": 0.875,
    "fields": {
     "ambiguous_fields": [],
@@ -827,9 +827,9 @@
    "scores": {
     "entity_list_f1": 1.0,
     "extra_schema_key_count": 0,
-    "extraction_f1": 0.8235,
-    "extraction_f2": 0.8537,
-    "extraction_precision": 0.7778,
+    "extraction_f1": 0.9333,
+    "extraction_f2": 0.8974,
+    "extraction_precision": 1.0,
     "extraction_recall": 0.875,
     "overall_extraction_score": 0.875,
     "schema_adherence": 1.0
@@ -1110,7 +1110,7 @@
       "unmatched_predicted": 1
      }
     },
-    "overall_score": 0.7292,
+    "overall_score": 0.6875,
     "trace": {
      "calibration_error": null,
      "confidence": null,
@@ -1120,7 +1120,7 @@
     }
    },
    "legacy_schema_keys": [],
-   "overall_extraction_score": 0.7292,
+   "overall_extraction_score": 0.6875,
    "parse_error": false,
    "parse_failure_reason": null,
    "prose_wrapper": false,
@@ -1138,7 +1138,7 @@
     "metric": "overall_extraction_score",
     "run_id": "golden-run",
     "timestamp": 0.0,
-    "value": 0.7292
+    "value": 0.6875
    }
   ],
   "serving_record": {
@@ -1156,7 +1156,7 @@
     "extraction_f2": 0.6579,
     "extraction_precision": 0.8333,
     "extraction_recall": 0.625,
-    "overall_extraction_score": 0.7292,
+    "overall_extraction_score": 0.6875,
     "schema_adherence": 1.0
    },
    "serving_kind": "unknown",
@@ -1271,9 +1271,9 @@
    "entity_list_f1": 1.0,
    "extra_schema_key_count": 0,
    "extra_schema_keys": [],
-   "extraction_f1": 0.8889,
-   "extraction_f2": 0.9524,
-   "extraction_precision": 0.8,
+   "extraction_f1": 1.0,
+   "extraction_f2": 1.0,
+   "extraction_precision": 1.0,
    "extraction_recall": 1.0,
    "fields": {
     "ambiguous_fields": [],
@@ -1333,9 +1333,9 @@
    "scores": {
     "entity_list_f1": 1.0,
     "extra_schema_key_count": 0,
-    "extraction_f1": 0.8889,
-    "extraction_f2": 0.9524,
-    "extraction_precision": 0.8,
+    "extraction_f1": 1.0,
+    "extraction_f2": 1.0,
+    "extraction_precision": 1.0,
     "extraction_recall": 1.0,
     "overall_extraction_score": 1.0,
     "schema_adherence": 1.0
@@ -1355,9 +1355,9 @@
    "entity_list_f1": 1.0,
    "extra_schema_key_count": 0,
    "extra_schema_keys": [],
-   "extraction_f1": 0.8235,
-   "extraction_f2": 0.8537,
-   "extraction_precision": 0.7778,
+   "extraction_f1": 0.9333,
+   "extraction_f2": 0.8974,
+   "extraction_precision": 1.0,
    "extraction_recall": 0.875,
    "fields": {
     "ambiguous_fields": [],
@@ -1417,9 +1417,9 @@
    "scores": {
     "entity_list_f1": 1.0,
     "extra_schema_key_count": 0,
-    "extraction_f1": 0.8235,
-    "extraction_f2": 0.8537,
-    "extraction_precision": 0.7778,
+    "extraction_f1": 0.9333,
+    "extraction_f2": 0.8974,
+    "extraction_precision": 1.0,
     "extraction_recall": 0.875,
     "overall_extraction_score": 0.875,
     "schema_adherence": 1.0
@@ -1545,7 +1545,7 @@
       "unmatched_predicted": 1
      }
     },
-    "overall_score": 0.7344,
+    "overall_score": 0.6875,
     "trace": {
      "calibration_error": null,
      "confidence": null,
@@ -1555,7 +1555,7 @@
     }
    },
    "legacy_schema_keys": [],
-   "overall_extraction_score": 0.7344,
+   "overall_extraction_score": 0.6875,
    "parse_error": false,
    "parse_failure_reason": null,
    "prose_wrapper": false,
@@ -1573,7 +1573,7 @@
     "metric": "overall_extraction_score",
     "run_id": "golden-run",
     "timestamp": 0.0,
-    "value": 0.7344
+    "value": 0.6875
    }
   ],
   "serving_record": {
@@ -1591,7 +1591,7 @@
     "extraction_f2": 0.6579,
     "extraction_precision": 0.8333,
     "extraction_recall": 0.625,
-    "overall_extraction_score": 0.7344,
+    "overall_extraction_score": 0.6875,
     "schema_adherence": 1.0
    },
    "serving_kind": "unknown",
@@ -1704,9 +1704,9 @@
    "entity_list_f1": 1.0,
    "extra_schema_key_count": 0,
    "extra_schema_keys": [],
-   "extraction_f1": 0.8889,
-   "extraction_f2": 0.9524,
-   "extraction_precision": 0.8,
+   "extraction_f1": 1.0,
+   "extraction_f2": 1.0,
+   "extraction_precision": 1.0,
    "extraction_recall": 1.0,
    "fields": {
     "ambiguous_fields": [],
@@ -1766,9 +1766,9 @@
    "scores": {
     "entity_list_f1": 1.0,
     "extra_schema_key_count": 0,
-    "extraction_f1": 0.8889,
-    "extraction_f2": 0.9524,
-    "extraction_precision": 0.8,
+    "extraction_f1": 1.0,
+    "extraction_f2": 1.0,
+    "extraction_precision": 1.0,
     "extraction_recall": 1.0,
     "overall_extraction_score": 1.0,
     "schema_adherence": 1.0
@@ -1788,9 +1788,9 @@
    "entity_list_f1": 1.0,
    "extra_schema_key_count": 0,
    "extra_schema_keys": [],
-   "extraction_f1": 0.8235,
-   "extraction_f2": 0.8537,
-   "extraction_precision": 0.7778,
+   "extraction_f1": 0.9333,
+   "extraction_f2": 0.8974,
+   "extraction_precision": 1.0,
    "extraction_recall": 0.875,
    "fields": {
     "ambiguous_fields": [],
@@ -1850,9 +1850,9 @@
    "scores": {
     "entity_list_f1": 1.0,
     "extra_schema_key_count": 0,
-    "extraction_f1": 0.8235,
-    "extraction_f2": 0.8537,
-    "extraction_precision": 0.7778,
+    "extraction_f1": 0.9333,
+    "extraction_f2": 0.8974,
+    "extraction_precision": 1.0,
     "extraction_recall": 0.875,
     "overall_extraction_score": 0.875,
     "schema_adherence": 1.0
@@ -2147,7 +2147,7 @@
       "unmatched_predicted": 1
      }
     },
-    "overall_score": 0.7125,
+    "overall_score": 0.6875,
     "trace": {
      "calibration_error": null,
      "confidence": null,
@@ -2157,7 +2157,7 @@
     }
    },
    "legacy_schema_keys": [],
-   "overall_extraction_score": 0.7125,
+   "overall_extraction_score": 0.6875,
    "parse_error": false,
    "parse_failure_reason": null,
    "prose_wrapper": false,
@@ -2175,7 +2175,7 @@
     "metric": "overall_extraction_score",
     "run_id": "golden-run",
     "timestamp": 0.0,
-    "value": 0.7125
+    "value": 0.6875
    }
   ],
   "serving_record": {
@@ -2193,7 +2193,7 @@
     "extraction_f2": 0.6579,
     "extraction_precision": 0.8333,
     "extraction_recall": 0.625,
-    "overall_extraction_score": 0.7125,
+    "overall_extraction_score": 0.6875,
     "schema_adherence": 1.0
    },
    "serving_kind": "unknown",
@@ -2306,9 +2306,9 @@
    "entity_list_f1": 1.0,
    "extra_schema_key_count": 0,
    "extra_schema_keys": [],
-   "extraction_f1": 0.8889,
-   "extraction_f2": 0.9524,
-   "extraction_precision": 0.8,
+   "extraction_f1": 1.0,
+   "extraction_f2": 1.0,
+   "extraction_precision": 1.0,
    "extraction_recall": 1.0,
    "fields": {
     "ambiguous_fields": [],
@@ -2368,9 +2368,9 @@
    "scores": {
     "entity_list_f1": 1.0,
     "extra_schema_key_count": 0,
-    "extraction_f1": 0.8889,
-    "extraction_f2": 0.9524,
-    "extraction_precision": 0.8,
+    "extraction_f1": 1.0,
+    "extraction_f2": 1.0,
+    "extraction_precision": 1.0,
     "extraction_recall": 1.0,
     "overall_extraction_score": 1.0,
     "schema_adherence": 1.0
@@ -2487,9 +2487,9 @@
    "entity_list_f1": 1.0,
    "extra_schema_key_count": 0,
    "extra_schema_keys": [],
-   "extraction_f1": 0.8235,
-   "extraction_f2": 0.8537,
-   "extraction_precision": 0.7778,
+   "extraction_f1": 0.9333,
+   "extraction_f2": 0.8974,
+   "extraction_precision": 1.0,
    "extraction_recall": 0.875,
    "fields": {
     "ambiguous_fields": [],
@@ -2549,9 +2549,9 @@
    "scores": {
     "entity_list_f1": 1.0,
     "extra_schema_key_count": 0,
-    "extraction_f1": 0.8235,
-    "extraction_f2": 0.8537,
-    "extraction_precision": 0.7778,
+    "extraction_f1": 0.9333,
+    "extraction_f2": 0.8974,
+    "extraction_precision": 1.0,
     "extraction_recall": 0.875,
     "overall_extraction_score": 0.875,
     "schema_adherence": 1.0
@@ -5049,7 +5049,7 @@
       "unmatched_predicted": 0
      }
     },
-    "overall_score": 0.8355,
+    "overall_score": 0.8,
     "trace": {
      "calibration_error": null,
      "confidence": null,
@@ -5059,7 +5059,7 @@
     }
    },
    "legacy_schema_keys": [],
-   "overall_extraction_score": 0.8355,
+   "overall_extraction_score": 0.8,
    "parse_error": false,
    "parse_failure_reason": null,
    "prose_wrapper": false,
@@ -5077,7 +5077,7 @@
     "metric": "overall_extraction_score",
     "run_id": "golden-run",
     "timestamp": 0.0,
-    "value": 0.8355
+    "value": 0.8
    }
   ],
   "serving_record": {
@@ -5095,7 +5095,7 @@
     "extraction_f2": 0.8333,
     "extraction_precision": 1.0,
     "extraction_recall": 0.8,
-    "overall_extraction_score": 0.8355,
+    "overall_extraction_score": 0.8,
     "schema_adherence": 1.0
    },
    "serving_kind": "unknown",
@@ -5550,7 +5550,7 @@
       "unmatched_predicted": 0
      }
     },
-    "overall_score": 0.8598,
+    "overall_score": 0.8,
     "trace": {
      "calibration_error": null,
      "confidence": null,
@@ -5560,7 +5560,7 @@
     }
    },
    "legacy_schema_keys": [],
-   "overall_extraction_score": 0.8598,
+   "overall_extraction_score": 0.8,
    "parse_error": false,
    "parse_failure_reason": null,
    "prose_wrapper": false,
@@ -5578,7 +5578,7 @@
     "metric": "overall_extraction_score",
     "run_id": "golden-run",
     "timestamp": 0.0,
-    "value": 0.8598
+    "value": 0.8
    }
   ],
   "serving_record": {
@@ -5596,7 +5596,7 @@
     "extraction_f2": 0.8333,
     "extraction_precision": 1.0,
     "extraction_recall": 0.8,
-    "overall_extraction_score": 0.8598,
+    "overall_extraction_score": 0.8,
     "schema_adherence": 1.0
    },
    "serving_kind": "unknown",
@@ -5614,10 +5614,10 @@
    "entity_list_f1": 0.5,
    "extra_schema_key_count": 0,
    "extra_schema_keys": [],
-   "extraction_f1": 0.7619,
-   "extraction_f2": 0.7018,
-   "extraction_precision": 0.8889,
-   "extraction_recall": 0.6667,
+   "extraction_f1": 0.7,
+   "extraction_f2": 0.625,
+   "extraction_precision": 0.875,
+   "extraction_recall": 0.5833,
    "fields": {
     "ambiguous_fields": [],
     "doc_class": "insurance_claim",
@@ -5644,7 +5644,7 @@
       "unmatched_predicted": 0
      }
     },
-    "overall_score": 0.6953,
+    "overall_score": 0.612,
     "trace": {
      "calibration_error": null,
      "confidence": null,
@@ -5654,7 +5654,7 @@
     }
    },
    "legacy_schema_keys": [],
-   "overall_extraction_score": 0.6953,
+   "overall_extraction_score": 0.612,
    "parse_error": false,
    "parse_failure_reason": null,
    "prose_wrapper": false,
@@ -5672,7 +5672,7 @@
     "metric": "overall_extraction_score",
     "run_id": "golden-run",
     "timestamp": 0.0,
-    "value": 0.6953
+    "value": 0.612
    }
   ],
   "serving_record": {
@@ -5686,11 +5686,11 @@
    "scores": {
     "entity_list_f1": 0.5,
     "extra_schema_key_count": 0,
-    "extraction_f1": 0.7619,
-    "extraction_f2": 0.7018,
-    "extraction_precision": 0.8889,
-    "extraction_recall": 0.6667,
-    "overall_extraction_score": 0.6953,
+    "extraction_f1": 0.7,
+    "extraction_f2": 0.625,
+    "extraction_precision": 0.875,
+    "extraction_recall": 0.5833,
+    "overall_extraction_score": 0.612,
     "schema_adherence": 0.0
    },
    "serving_kind": "unknown",
@@ -5803,10 +5803,10 @@
    "entity_list_f1": 1.0,
    "extra_schema_key_count": 0,
    "extra_schema_keys": [],
-   "extraction_f1": 0.8571,
-   "extraction_f2": 0.7895,
+   "extraction_f1": 0.8,
+   "extraction_f2": 0.7143,
    "extraction_precision": 1.0,
-   "extraction_recall": 0.75,
+   "extraction_recall": 0.6667,
    "fields": {
     "ambiguous_fields": [],
     "doc_class": "insurance_claim",
@@ -5823,7 +5823,7 @@
       "unmatched_predicted": 0
      }
     },
-    "overall_score": 0.7694,
+    "overall_score": 0.6861,
     "trace": {
      "calibration_error": null,
      "confidence": null,
@@ -5833,7 +5833,7 @@
     }
    },
    "legacy_schema_keys": [],
-   "overall_extraction_score": 0.7694,
+   "overall_extraction_score": 0.6861,
    "parse_error": false,
    "parse_failure_reason": null,
    "prose_wrapper": false,
@@ -5851,7 +5851,7 @@
     "metric": "overall_extraction_score",
     "run_id": "golden-run",
     "timestamp": 0.0,
-    "value": 0.7694
+    "value": 0.6861
    }
   ],
   "serving_record": {
@@ -5865,11 +5865,11 @@
    "scores": {
     "entity_list_f1": 1.0,
     "extra_schema_key_count": 0,
-    "extraction_f1": 0.8571,
-    "extraction_f2": 0.7895,
+    "extraction_f1": 0.8,
+    "extraction_f2": 0.7143,
     "extraction_precision": 1.0,
-    "extraction_recall": 0.75,
-    "overall_extraction_score": 0.7694,
+    "extraction_recall": 0.6667,
+    "overall_extraction_score": 0.6861,
     "schema_adherence": 0.0
    },
    "serving_kind": "unknown",
@@ -6734,10 +6734,10 @@
    "entity_list_f1": 0.5,
    "extra_schema_key_count": 0,
    "extra_schema_keys": [],
-   "extraction_f1": 0.625,
-   "extraction_f2": 0.5814,
-   "extraction_precision": 0.7143,
-   "extraction_recall": 0.5556,
+   "extraction_f1": 0.5333,
+   "extraction_f2": 0.4762,
+   "extraction_precision": 0.6667,
+   "extraction_recall": 0.4444,
    "fields": {
     "ambiguous_fields": [
      "keywords",
@@ -6767,7 +6767,7 @@
       "unmatched_predicted": 1
      }
     },
-    "overall_score": 0.6993,
+    "overall_score": 0.5556,
     "trace": {
      "calibration_error": null,
      "confidence": null,
@@ -6777,7 +6777,7 @@
     }
    },
    "legacy_schema_keys": [],
-   "overall_extraction_score": 0.6993,
+   "overall_extraction_score": 0.5556,
    "parse_error": false,
    "parse_failure_reason": null,
    "prose_wrapper": false,
@@ -6795,7 +6795,7 @@
     "metric": "overall_extraction_score",
     "run_id": "golden-run",
     "timestamp": 0.0,
-    "value": 0.6993
+    "value": 0.5556
    }
   ],
   "serving_record": {
@@ -6809,11 +6809,11 @@
    "scores": {
     "entity_list_f1": 0.5,
     "extra_schema_key_count": 0,
-    "extraction_f1": 0.625,
-    "extraction_f2": 0.5814,
-    "extraction_precision": 0.7143,
-    "extraction_recall": 0.5556,
-    "overall_extraction_score": 0.6993,
+    "extraction_f1": 0.5333,
+    "extraction_f2": 0.4762,
+    "extraction_precision": 0.6667,
+    "extraction_recall": 0.4444,
+    "overall_extraction_score": 0.5556,
     "schema_adherence": 1.0
    },
    "serving_kind": "unknown",
@@ -7272,10 +7272,10 @@
    "entity_list_f1": 1.0,
    "extra_schema_key_count": 0,
    "extra_schema_keys": [],
-   "extraction_f1": 0.9412,
-   "extraction_f2": 0.9091,
+   "extraction_f1": 0.875,
+   "extraction_f2": 0.814,
    "extraction_precision": 1.0,
-   "extraction_recall": 0.8889,
+   "extraction_recall": 0.7778,
    "fields": {
     "ambiguous_fields": [],
     "doc_class": "merger_agreement",
@@ -7302,7 +7302,7 @@
       "unmatched_predicted": 0
      }
     },
-    "overall_score": 0.8889,
+    "overall_score": 0.7778,
     "trace": {
      "calibration_error": null,
      "confidence": null,
@@ -7312,7 +7312,7 @@
     }
    },
    "legacy_schema_keys": [],
-   "overall_extraction_score": 0.8889,
+   "overall_extraction_score": 0.7778,
    "parse_error": false,
    "parse_failure_reason": null,
    "prose_wrapper": false,
@@ -7330,7 +7330,7 @@
     "metric": "overall_extraction_score",
     "run_id": "golden-run",
     "timestamp": 0.0,
-    "value": 0.8889
+    "value": 0.7778
    }
   ],
   "serving_record": {
@@ -7344,11 +7344,11 @@
    "scores": {
     "entity_list_f1": 1.0,
     "extra_schema_key_count": 0,
-    "extraction_f1": 0.9412,
-    "extraction_f2": 0.9091,
+    "extraction_f1": 0.875,
+    "extraction_f2": 0.814,
     "extraction_precision": 1.0,
-    "extraction_recall": 0.8889,
-    "overall_extraction_score": 0.8889,
+    "extraction_recall": 0.7778,
+    "overall_extraction_score": 0.7778,
     "schema_adherence": 1.0
    },
    "serving_kind": "unknown",
