@@ -349,11 +349,17 @@ The exact snapshot commits are in
 
 | Vendored tree | Version | Source commit | What it includes |
 | --- | --- | --- | --- |
-| `vendor/llm-mailroom/` | 0.9.2 | `9e8f30b` (tag `v0.9.2`) | v0.9.2: everything in `65523a2` plus the API listener guard (tokenless requests served only on loopback; llm-mailroom #171, #172) |
+| `vendor/llm-mailroom/` | 0.9.2 | `9e8f30b` (tag `v0.9.2`) | v0.9.2: everything in `65523a2` plus the API listener guard for token-protected routes (llm-mailroom #171, #172) |
 | `vendor/llm-dojo-scoring/` | 0.27.2 | `b3ec0fb` (`main` after Dojo #123) | v0.27.2 plus #123: linear-time parsing of prose-wrapped JSON, task-routed headlines for already-current rescored records |
 
-Both pins are reviewed `main` commits, not release tags. They move back to tags when the
-next llm-mailroom release and Dojo v0.27.3 are cut.
+The llm-mailroom pin is a release tag. The Dojo pin is a reviewed `main` commit, and it moves
+back to a tag when Dojo v0.27.3 is cut.
+
+With no API token, the guard serves token-protected routes only on a loopback listener and
+answers 503 to requests carrying `Forwarded`, `X-Forwarded-For` or `X-Real-IP`. `/health` and
+the API docs have no token check and stay open. The guard reads the listener address, not the
+remote client, so a same-host proxy that adds none of those headers looks local: set a token
+behind any proxy.
 
 <a id="offline-docker--notebooks"></a>
 
