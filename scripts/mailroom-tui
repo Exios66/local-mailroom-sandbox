@@ -20,6 +20,10 @@ cd "$ROOT"
 run() { PYTHONPATH="$ROOT/src" "$PY" -c "import sys; from mailroom_sandbox.cli import main; sys.exit(main(sys.argv[1:]))" "$@"; }
 if [ "${1:-}" = "score" ]; then
   shift
+  if [ -z "${1:-}" ]; then
+    echo 'usage: scripts/mailroom-tui score <run-id>' >&2
+    exit 2
+  fi
   run scorecard --run "$1"
 elif [ "${1:-}" = "web" ]; then
   shift

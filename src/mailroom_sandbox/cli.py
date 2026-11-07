@@ -127,9 +127,11 @@ def main(argv: list[str] | None = None) -> int:
     except subprocess.CalledProcessError as exc:
         # Docker/ollama/ssh failures surface the tool's own message; don't
         # dump a Python traceback for a missing daemon/container (DMR-058).
-        print(f"command failed ({exc.returncode}): {' '.join(exc.cmd[:3])} …", file=sys.stderr)
+        cmd = exc.cmd if isinstance(exc.cmd, str) else " ".join(map(str, exc.cmd[:3]))
+        print(f"command failed ({exc.returncode}): {redact_urls(cmd)} …", file=sys.stderr)
         if exc.stderr:
-            print(exc.stderr.decode() if isinstance(exc.stderr, bytes) else exc.stderr, end="", file=sys.stderr)
+            stderr = exc.stderr.decode(errors="replace") if isinstance(exc.stderr, bytes) else exc.stderr
+            print(redact_urls(stderr), end="", file=sys.stderr)
         return 1
     except UnknownNameError as exc:
         print(f"error: {_one_line(exc)}", file=sys.stderr)
@@ -148,7 +150,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     except subprocess.TimeoutExpired as exc:
         cmd = " ".join(map(str, exc.cmd)) if isinstance(exc.cmd, (list, tuple)) else str(exc.cmd)
-        print(f"error: `{' '.join(cmd.split())}` timed out after {exc.timeout:g}s", file=sys.stderr)
+        print(f"error: `{redact_urls(' '.join(cmd.split()))}` timed out after {exc.timeout:g}s", file=sys.stderr)
         return 1
     except _InvalidRunIdError() as exc:
         print(f"error: {_one_line(exc)}", file=sys.stderr)
