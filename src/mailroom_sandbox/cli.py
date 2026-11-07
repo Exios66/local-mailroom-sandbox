@@ -3292,10 +3292,21 @@ def _cmd_run_preflight(args) -> int:
     return 3 if report.get("status") in _REFUSAL_STATUSES else 1
 
 
-def _refuse_modal_max_items(args, mode: str) -> None:
-    """The Modal worker has no item cap, so accepting one would run the whole paid job."""
-    if mode == "modal" and getattr(args, "max_items", None) is not None:
+def _refuse_modal_max_items(args, mode: str, task: str | None = None) -> None:
+    """Refuse an item cap nothing would apply, since accepting one would run the whole paid job.
+
+    The Modal worker has no item cap, and a whole-run task (everything but the per-item
+    ``sorter``) scores every locked row in one delegated call.
+    """
+    if getattr(args, "max_items", None) is None:
+        return
+    if mode == "modal":
         raise CLIUsageError("--max-items is not applied by the Modal worker; lower dataset.limit in the run config")
+    from mailroom_sandbox.job.runner import PER_ITEM_TASKS
+
+    if task and task not in PER_ITEM_TASKS:
+        raise CLIUsageError(f"--max-items is not applied by task {task!r}, which runs every locked row; "
+                            "lower dataset.limit or point the run config at a smaller dataset")
 
 
 def _cmd_run_start(args) -> int:
@@ -3310,7 +3321,7 @@ def _cmd_run_start(args) -> int:
         spec.job.mock = bool(args.mock)
     if getattr(args, "mode", None):
         spec.job.mode = args.mode
-    _refuse_modal_max_items(args, getattr(args, "mode", None) or spec.job.mode)
+    _refuse_modal_max_items(args, getattr(args, "mode", None) or spec.job.mode, spec.task)
     report = preflight.preflight(
         spec,
         run_id=getattr(args, "run_id", None) or "",
@@ -3638,7 +3649,7 @@ def _cmd_run_resume(args) -> int:
     if drifted:
         _print({"run_id": run_id, "status": "drift_refused", "detail": "runtime overrides differ from the lock"})
         return 3
-    _refuse_modal_max_items(args, _job_mode(store))
+    _refuse_modal_max_items(args, _job_mode(store), str(lock.get("task") or "sorter"))
     from mailroom_sandbox.job.spend import authorize
 
     authorize(store, initials=getattr(args, "initials", None),
