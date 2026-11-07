@@ -41,7 +41,7 @@ EXPORTS = (
 # Frozen lineage pins: the file keeps these exact bytes and sync never writes it.
 # contracts_specialist_v33 froze at the Dojo 0.27.2 render. Dojo 0.28 (schema v2)
 # re-renders its "Registered schema fields" line under the same version id, so the
-# vendor text is no longer v33. New work goes to the condensed specialist lineage.
+# vendor text is no longer v33. New contracts work goes to a new compact contracts lineage (planned; contracts stay outside specialist_condensed_lineage.yaml until it is built and validated).
 FROZEN: dict[str, str] = {
     "contracts_specialist_v33": "6a5047ed39bef6d918b953eb602487a17d6a5ce3d39a483c97166a210c6d3efd",
 }

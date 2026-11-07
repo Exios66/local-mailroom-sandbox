@@ -13,7 +13,7 @@
   (schema v2) re-renders v33's "Registered schema fields" line under the same version id, so the
   vendor text is no longer the v33 that was scored. The file keeps its bytes (sha256 `6a5047ed…`),
   sync never writes it, and `--check` fails if it changes or goes missing. New contracts work goes
-  to the condensed specialist lineage.
+  to a new compact contracts lineage (planned; contracts stay outside specialist_condensed_lineage.yaml until it is built and validated).
 
 - **Sorter answer key: rule C, a bylaw amendment is bylaws** (mailroom-dataset v10 corpus rule C,
   user decision 2026-11-07). `scripts/patch_sorter_handoff.py` gains rule 7: a corporate record whose
