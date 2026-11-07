@@ -522,5 +522,5 @@ def test_lock_gpu_fleet_openrouter_base_bills_no_phantom_gpu():
 
     no_routes = {"engine": {"kind": "openrouter", "model": "qwen/qwen3.5-9b",
                             "modal": {"gpu": "L4", "max_containers": 1}}}
-    assert lock_gpu_fleet(no_routes) == [("L4", 1)]
+    assert lock_gpu_fleet(no_routes) == []
     assert routed_gpu_fleet(no_routes) is None

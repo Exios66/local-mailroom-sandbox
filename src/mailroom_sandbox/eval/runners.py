@@ -415,7 +415,11 @@ def run_isolated_eval(
     # cost must match what Modal charges. Skipped for mock (no GPU spend).
     # #266: a run that never sat on a GPU (openrouter routes, a live ollama
     # isolated run) must not be billed a default class — record GPU cost only
-    # for a declared fleet or an explicit engine GPU from the caller.
+    # for a declared fleet, an explicit engine GPU from the caller, or a
+    # serving profile whose engine runs on GPUs (the `sandbox eval` CLI path
+    # passes neither: its modal-vllm/vllm endpoint claims the default L4 class).
+    if gpu is None and gpu_fleet is None and profile in ("modal-vllm", "vllm-local", "vllm-remote"):
+        gpu = "L4"
     if not mock and (gpu_fleet or gpu):
         from mailroom_sandbox.job.metrics import estimate_gpu_cost_usd
 
