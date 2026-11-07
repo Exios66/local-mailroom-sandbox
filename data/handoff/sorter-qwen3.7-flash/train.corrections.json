@@ -503,13 +503,104 @@
         "corporate_record",
         "bylaws"
       ]
+    },
+    {
+      "filename": "0001045399-05-000078_bylawamend.htm",
+      "id": "DOC-443542beadaf2839",
+      "label": [
+        "corporate_record",
+        "board_resolution"
+      ],
+      "rule": "C",
+      "target": [
+        "corporate_record",
+        "bylaws"
+      ]
+    },
+    {
+      "filename": "0001144204-14-052882_v387920_ex3-1.htm",
+      "id": "DOC-76f31813e8ca987f",
+      "label": [
+        "corporate_record",
+        "board_resolution"
+      ],
+      "rule": "C",
+      "target": [
+        "corporate_record",
+        "bylaws"
+      ]
+    },
+    {
+      "filename": "0001437749-17-011055_ex3-2.htm",
+      "id": "DOC-78f2456f571403a9",
+      "label": [
+        "corporate_record",
+        "board_resolution"
+      ],
+      "rule": "C",
+      "target": [
+        "corporate_record",
+        "bylaws"
+      ]
+    },
+    {
+      "filename": "0001193125-18-175457_d593566dex32.htm",
+      "id": "DOC-79d21db01a284b42",
+      "label": [
+        "corporate_record",
+        "board_resolution"
+      ],
+      "rule": "C",
+      "target": [
+        "corporate_record",
+        "bylaws"
+      ]
+    },
+    {
+      "filename": "0001010412-04-000468_ex3-1.txt",
+      "id": "DOC-b152fb9e1eedb88f",
+      "label": [
+        "corporate_record",
+        "board_resolution"
+      ],
+      "rule": "C",
+      "target": [
+        "corporate_record",
+        "bylaws"
+      ]
+    },
+    {
+      "filename": "0000950136-04-003316_file002.htm",
+      "id": "DOC-b201671b783495ef",
+      "label": [
+        "corporate_record",
+        "board_resolution"
+      ],
+      "rule": "C",
+      "target": [
+        "corporate_record",
+        "bylaws"
+      ]
+    },
+    {
+      "filename": "0001047334-07-000019_form8kexhibit32.htm",
+      "id": "DOC-f217dc5aa6f34cb2",
+      "label": [
+        "corporate_record",
+        "board_resolution"
+      ],
+      "rule": "C",
+      "target": [
+        "corporate_record",
+        "bylaws"
+      ]
     }
   ],
   "disputes": [],
   "documents": 2979,
   "file": "train.targets.jsonl",
   "rules": "scripts/patch_sorter_handoff.py docstring",
-  "sha256": "1221d23f2680c01e58865d6e36860c450218838d16d3a18cd32a921ccf86fc9a",
+  "sha256": "ac538cc5e2fa8ca910d5a05ae43e5467da9786c66fe6645536be6323b6ada273",
   "sorter_class_correct": 2852,
   "sorter_class_errors_by_pattern": {
     "contract -> correspondence": 1,
@@ -519,12 +610,12 @@
   },
   "sorter_class_errors_label_confirmed": 121,
   "sorter_class_scored": 2974,
-  "sorter_subclass_correct": 2122,
+  "sorter_subclass_correct": 2129,
   "sorter_subclass_scored": 2925,
   "target_status": {
     "ambiguous": 5,
-    "corrected": 28,
-    "label": 2359,
+    "corrected": 35,
+    "label": 2352,
     "label_normalized": 538,
     "unannotated": 49
   }
