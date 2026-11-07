@@ -171,6 +171,15 @@ def prime_targets(targets: dict[str, dict], current: dict[str, dict],
         now = current.get(t["filename"])
         title = rules._title_class(texts.get(doc_id) or "") if t.get("target_doc_class") == "corporate_record" else None
         review = _reviewer_verdict(t) if t.get("target_doc_class") else None
+        # Rule C targets: the title decides the subclass. The published v9.3 label and a reviewer
+        # on the old convention both say board_resolution, so only their class is checked.
+        rule_c = any(e.startswith(rules.RULE_C_EVIDENCE) for e in t.get("target_evidence") or [])
+        if rule_c and rules.bylaw_amendment_title(texts.get(doc_id) or ""):
+            title = ("corporate_record", "bylaws")
+            if review == "disputes" and (t.get("reviewer_evidence") or {}).get("doc_type") == t["target_doc_class"]:
+                review = None
+            if now is not None and now["class"] == t["target_doc_class"]:
+                now = {**now, "subclass": t["target_subclass"]}
         if t.get("target_status") not in PRIME_STATUSES:
             why = f"status {t.get('target_status')}"
         elif not (t.get("use_for_class") and t.get("use_for_subclass")):
