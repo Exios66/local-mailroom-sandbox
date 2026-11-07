@@ -6,6 +6,8 @@ import time
 from http.client import HTTPConnection
 from threading import Thread
 
+import pytest
+
 from mailroom_sandbox.tui import board as bd
 from mailroom_sandbox.tui.beacon import Beacon
 
@@ -211,12 +213,13 @@ def test_launcher_passes_beacon_and_board_through(tmp_path):
     assert r.returncode == 0 and "sh" in r.stdout
 
 
-def test_launcher_score_requires_a_run_id():
+@pytest.mark.parametrize("args", [[], [""]])
+def test_launcher_score_requires_a_run_id(args):
     import subprocess
     from pathlib import Path
 
     launcher = Path(__file__).resolve().parents[1] / "scripts" / "mailroom-tui"
-    result = subprocess.run([str(launcher), "score"], capture_output=True, text=True, timeout=60)
+    result = subprocess.run([str(launcher), "score", *args], capture_output=True, text=True, timeout=60)
     assert result.returncode == 2
     assert "score <run-id>" in result.stderr and "unbound variable" not in result.stderr
 
