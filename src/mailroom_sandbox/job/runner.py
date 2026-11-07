@@ -829,6 +829,9 @@ def _run_job(
         return {"state": "dry_run", "task": task, "n": len(rows), "cursor": 0, "total": len(rows)}
     if store.terminal():
         return store.summary()
+    if max_items is not None and task not in PER_ITEM_TASKS:
+        # A whole-run task scores every locked row in one call; an ignored cap bills them all.
+        raise ValueError(f"max_items is not applied by task {task!r}; lock a smaller dataset instead")
 
     # Whole-run tasks delegate to the existing public eval runner; the locked
     # dataset may legitimately be empty for serving-only tasks (local_vs_api),

@@ -152,7 +152,7 @@ def _assert_no_secret(capsys):
     return text
 
 
-def _locked_run(tmp_path, run_id, *, mock, mode='endpoint'):
+def _locked_run(tmp_path, run_id, *, mock, mode='endpoint', task='sorter'):
     """A really prepared run store; the runner and the Modal worker stay stubbed."""
     from mailroom_sandbox.job.preflight import preflight
     from mailroom_sandbox.job.spec import RunSpec
@@ -161,6 +161,7 @@ def _locked_run(tmp_path, run_id, *, mock, mode='endpoint'):
     source.write_text('{"id":"d0","doc_text":"hello"}\n', encoding='utf-8')
     spec = RunSpec(
         run_id=run_id,
+        task=task,
         dataset={'provider': 'file', 'local_path': str(source)},
         engine={'kind': 'vllm-local', 'modal': None},
         job={'mock': mock, 'mode': mode, 'cost_cap_usd': 1.0, 'max_wall_seconds': 60},
@@ -217,6 +218,28 @@ def test_run_start_refuses_a_cap_the_modal_worker_would_ignore(tmp_path, monkeyp
     assert cli.main(['run', 'start', '--config', str(config), '--max-items', '5']) == 2
     with pytest.raises(pytest.fail.Exception):
         cli.main(['run', 'start', '--config', str(config)])  # the cap was the only refusal
+
+
+def test_run_start_refuses_a_cap_a_whole_run_task_would_ignore(tmp_path, monkeypatch, job_data_dir):
+    import yaml
+
+    config = tmp_path / 'run.yaml'
+    config.write_text(yaml.safe_dump({
+        'run_id': 'isolated-cap', 'task': 'isolated',
+        'dataset': {'provider': 'file', 'local_path': str(tmp_path / 'x.jsonl')},
+        'engine': {'kind': 'openrouter', 'model': 'qwen/qwen3.7-flash', 'modal': None},
+        'job': {'mode': 'endpoint'}, 'trace': {'sink': 'none'},
+    }), encoding='utf-8')
+    monkeypatch.setattr('mailroom_sandbox.job.preflight.preflight', lambda *a, **k: pytest.fail('preflight ran'))
+    assert cli.main(['run', 'start', '--config', str(config), '--max-items', '5']) == 2
+    with pytest.raises(pytest.fail.Exception):
+        cli.main(['run', 'start', '--config', str(config)])  # the cap was the only refusal
+
+
+def test_run_resume_refuses_a_cap_a_whole_run_task_would_ignore(tmp_path, monkeypatch, job_data_dir):
+    _locked_run(tmp_path, 'resume-isolated-cap', mock=True, task='isolated')
+    _no_execution(monkeypatch)
+    assert cli.main(['run', 'resume', '--run-id', 'resume-isolated-cap', '--max-items', '1']) == 2
 
 
 @pytest.mark.parametrize(('flags', 'mock', 'mode', 'code'), [

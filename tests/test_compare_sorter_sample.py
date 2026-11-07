@@ -144,42 +144,47 @@ def test_prime_revision_is_required_before_loading_labels(tmp_path, monkeypatch)
     assert quality["prime"]["labels_revision"] == csp.PRIME_LABELS_REVISION
 
 
-def test_score_requires_same_locked_draw(tmp_path, monkeypatch):
+def test_score_requires_the_run_to_lock_rows_of_the_selected_sample(tmp_path, monkeypatch):
     import argparse
     import hashlib
     import json
     import pytest
 
     monkeypatch.setattr(csp, "repo_root", lambda: tmp_path)
-    targets = {"doc": _t("correspondence", "memo")}
+    targets = {"a": _t("correspondence", "memo"), "b": _t("correspondence", "memo")}
     monkeypatch.setattr(csp, "_targets", lambda *a: targets)
     args = argparse.Namespace(name="baseline", split="train", prime=True, sample=True, run="new")
     dataset = csp._dataset_path(tmp_path, args)
     dataset.parent.mkdir(parents=True)
-    sha = hashlib.sha256(b"draw one").hexdigest()
-    csp._selection_path(dataset).write_text(json.dumps({
-        "dataset_sha256": sha, "chosen": {"doc": "control"}}), encoding="utf-8")
+    rows = [{"id": "a", "doc_text": "one\u2028x"}, {"id": "b", "doc_text": "two"}]
+    dataset.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
+    sha = hashlib.sha256(dataset.read_bytes()).hexdigest()
+    selection = csp._selection_path(dataset)
+    selection.write_text(json.dumps({"dataset_sha256": sha, "chosen": {"a": "control", "b": "control"}}),
+                         encoding="utf-8")
     run_dir = tmp_path / "data" / "runtime" / "runs" / args.run
     run_dir.mkdir(parents=True)
-    lock = run_dir / "spec.lock.json"
+    locked = run_dir / "dataset.jsonl"
     report = tmp_path / "reports" / "sorter-handoff" / "new.compare.json"
+    monkeypatch.setattr(csp, "_run_answers", lambda *a: pytest.fail("answers read before the dataset check"))
 
-    def unexpected(*a):
-        pytest.fail("answers must not be read before validating the dataset lock")
-
-    monkeypatch.setattr(csp, "_run_answers", unexpected)
-    with pytest.raises(SystemExit, match="lock missing"):
+    with pytest.raises(SystemExit, match="locked dataset missing"):
         csp.cmd_score(args)
-    for locked_dataset in ({}, {"sha256": ""}, {"sha256": hashlib.sha256(b"draw two").hexdigest()}):
-        lock.write_text(json.dumps({"dataset": locked_dataset}), encoding="utf-8")
-        with pytest.raises(SystemExit, match="sha256 mismatch"):
+    # The lock re-serializes rows (its own sha256 differs from the sample file's), so rows are compared parsed.
+    for bad in ([{"id": "a", "doc_text": "one\u2028x changed"}], [{"id": "c", "doc_text": "three"}]):
+        locked.write_text("".join(json.dumps(r) + "\n" for r in bad), encoding="utf-8")
+        with pytest.raises(SystemExit, match="not rows of the selected sample"):
             csp.cmd_score(args)
-        assert not report.exists()
+    locked.write_text(json.dumps(rows[0]) + "\n", encoding="utf-8")  # a subset (a smoke) is fine
+    dataset.write_text(dataset.read_text(encoding="utf-8") + json.dumps({"id": "z"}) + "\n", encoding="utf-8")
+    with pytest.raises(SystemExit, match="changed since the selection"):
+        csp.cmd_score(args)
+    assert not report.exists()
 
-    lock.write_text(json.dumps({"dataset": {"sha256": sha}}), encoding="utf-8")
-    monkeypatch.setattr(csp, "_run_answers", lambda *a: {
-        "doc": {"doc_type": "correspondence", "doc_subclass": "memo"}})
+    dataset.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
+    monkeypatch.setattr(csp, "_run_answers", lambda *a: {"a": {"doc_type": "correspondence", "doc_subclass": "memo"}})
     assert csp.cmd_score(args) == 0
     result = json.loads(report.read_text(encoding="utf-8"))
     assert result["dataset_sha256"] == sha
-    assert result["totals"]["class_still_right"] == 1
+    assert result["locked_rows"] == 1
+    assert result["totals"]["class_still_right"] == 1 and result["totals"]["no_answer"] == 1
