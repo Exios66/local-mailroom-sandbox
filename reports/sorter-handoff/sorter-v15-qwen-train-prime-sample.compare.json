@@ -1,0 +1,226 @@
+{
+  "answered": 275,
+  "baseline": "data/handoff/sorter-qwen3.7-flash/train.targets.jsonl",
+  "by_pattern": {
+    "class corporate_record -> contract": {
+      "class_fixed": 87,
+      "subclass_fixed": 87
+    },
+    "class correspondence -> contract": {
+      "class_fixed": 1,
+      "class_still_wrong": 2,
+      "subclass_fixed": 1,
+      "subclass_still_wrong": 2
+    },
+    "class correspondence -> unknown": {
+      "class_fixed": 12,
+      "class_still_wrong": 18,
+      "subclass_fixed": 12,
+      "subclass_still_wrong": 18
+    },
+    "control": {
+      "class_still_right": 93,
+      "subclass_still_right": 93
+    },
+    "subclass contract/co_branding -> endorsement": {
+      "class_still_right": 1,
+      "subclass_still_wrong": 1
+    },
+    "subclass contract/collaboration -> development": {
+      "class_still_right": 1,
+      "subclass_fixed": 1
+    },
+    "subclass contract/development -> collaboration": {
+      "class_still_right": 1,
+      "subclass_still_wrong": 1
+    },
+    "subclass contract/development -> distributor": {
+      "class_still_right": 1,
+      "subclass_still_wrong": 1
+    },
+    "subclass contract/development -> license": {
+      "class_still_right": 1,
+      "subclass_still_wrong": 1
+    },
+    "subclass contract/distributor -> license": {
+      "class_still_right": 1,
+      "subclass_still_wrong": 1
+    },
+    "subclass contract/endorsement -> other": {
+      "class_still_right": 1,
+      "subclass_fixed": 1
+    },
+    "subclass contract/franchise -> non_compete_no_solicit": {
+      "class_still_right": 1,
+      "subclass_still_wrong": 1
+    },
+    "subclass contract/hosting -> license": {
+      "class_still_right": 2,
+      "subclass_fixed": 1,
+      "subclass_still_wrong": 1
+    },
+    "subclass contract/joint_venture -> other": {
+      "class_still_right": 1,
+      "subclass_fixed": 1
+    },
+    "subclass contract/license -> development": {
+      "class_still_right": 1,
+      "subclass_fixed": 1
+    },
+    "subclass contract/license -> other": {
+      "class_still_right": 1,
+      "subclass_still_wrong": 1
+    },
+    "subclass contract/maintenance -> license": {
+      "class_still_right": 1,
+      "subclass_fixed": 1
+    },
+    "subclass contract/maintenance -> other": {
+      "class_still_right": 2,
+      "subclass_fixed": 1,
+      "subclass_still_wrong": 1
+    },
+    "subclass contract/non_compete_no_solicit -> other": {
+      "class_still_right": 2,
+      "subclass_fixed": 2
+    },
+    "subclass contract/reseller -> distributor": {
+      "class_still_right": 1,
+      "subclass_fixed": 1
+    },
+    "subclass contract/reseller -> license": {
+      "class_still_right": 1,
+      "subclass_fixed": 1
+    },
+    "subclass contract/service -> distributor": {
+      "class_still_right": 1,
+      "subclass_still_wrong": 1
+    },
+    "subclass contract/service -> other": {
+      "class_still_right": 1,
+      "subclass_still_wrong": 1
+    },
+    "subclass contract/service -> sponsorship": {
+      "class_still_right": 1,
+      "subclass_still_wrong": 1
+    },
+    "subclass contract/sponsorship -> endorsement": {
+      "class_still_right": 1,
+      "subclass_still_wrong": 1
+    },
+    "subclass contract/sponsorship -> service": {
+      "class_still_right": 2,
+      "subclass_still_wrong": 2
+    },
+    "subclass contract/supply -> license": {
+      "class_still_right": 1,
+      "subclass_fixed": 1
+    },
+    "subclass corporate_record/board_resolution -> bylaws": {
+      "class_still_right": 3,
+      "subclass_fixed": 2,
+      "subclass_still_wrong": 1
+    },
+    "subclass corporate_record/charter_amendment -> articles_of_incorporation": {
+      "class_still_right": 1,
+      "subclass_still_wrong": 1
+    },
+    "subclass corporate_record/charter_amendment -> certificate_of_formation": {
+      "class_still_right": 2,
+      "subclass_fixed": 2
+    },
+    "subclass corporate_record/officer_certificate -> rights_instrument": {
+      "class_still_right": 3,
+      "subclass_fixed": 3
+    },
+    "subclass correspondence/demand -> email": {
+      "class_still_right": 2,
+      "subclass_still_wrong": 2
+    },
+    "subclass correspondence/demand -> memo": {
+      "class_still_right": 1,
+      "subclass_still_wrong": 1
+    },
+    "subclass correspondence/email -> letter": {
+      "class_still_right": 1,
+      "subclass_still_wrong": 1
+    },
+    "subclass correspondence/email -> meeting_request": {
+      "class_still_right": 1,
+      "subclass_still_wrong": 1
+    },
+    "subclass correspondence/email -> memo": {
+      "class_still_right": 1,
+      "subclass_fixed": 1
+    },
+    "subclass correspondence/letter -> email": {
+      "class_still_right": 3,
+      "subclass_fixed": 1,
+      "subclass_still_wrong": 2
+    },
+    "subclass correspondence/meeting_request -> email": {
+      "class_still_right": 3,
+      "subclass_still_wrong": 3
+    },
+    "subclass correspondence/memo -> email": {
+      "class_still_right": 3,
+      "subclass_still_wrong": 3
+    },
+    "subclass correspondence/notice -> email": {
+      "class_still_right": 2,
+      "subclass_still_wrong": 2
+    },
+    "subclass correspondence/notice -> other": {
+      "class_still_right": 1,
+      "subclass_still_wrong": 1
+    },
+    "subclass correspondence/press_release -> email": {
+      "class_still_right": 3,
+      "subclass_still_wrong": 3
+    },
+    "subclass insurance_claim/carrier -> outpatient": {
+      "class_still_right": 3,
+      "subclass_fixed": 3
+    },
+    "subclass merger_agreement/all_stock -> mixed_cash_stock_election": {
+      "class_still_right": 1,
+      "subclass_fixed": 1
+    },
+    "subclass merger_agreement/mixed_cash_stock -> mixed_cash_stock_election": {
+      "class_still_right": 1,
+      "subclass_fixed": 1
+    }
+  },
+  "dataset_sha256": "a5e7f7e8f91c3845537bef21299554c550f43d17108dd926eeed6bf8f74a4171",
+  "documents": 275,
+  "locked_rows": 275,
+  "prime": {
+    "excluded": {
+      "contract subclass from the EX-10 exhibit-title heuristic": 84,
+      "corporate subclass disputed by the title line": 8,
+      "corporate subclass unverified (no title rule or reviewer confirms it)": 102,
+      "status ambiguous": 5,
+      "status unannotated": 49,
+      "target disagrees with the published label": 22,
+      "the reviewer disputes the label": 67
+    },
+    "kept": 2642,
+    "labels_revision": "ccd040f6a1b6b414bdefd161cdc622b68f6dacf8",
+    "of": 2979
+  },
+  "run_id": "sorter-v15-qwen-train-prime-sample",
+  "totals": {
+    "class_fixed": 100,
+    "class_right_after": 255,
+    "class_right_before": 155,
+    "class_scored": 275,
+    "class_still_right": 155,
+    "class_still_wrong": 20,
+    "subclass_fixed": 126,
+    "subclass_right_after": 219,
+    "subclass_right_before": 93,
+    "subclass_scored": 275,
+    "subclass_still_right": 93,
+    "subclass_still_wrong": 56
+  }
+}

@@ -36,9 +36,17 @@ LIVE_SCHEMA_FIELDS: dict[str, frozenset[str]] = {
             "contract_value",
             "renewal_terms",
             "cuad_family",
-            "merger_consideration",
             "cuad_clauses",
-            "maud_clauses",
+            # Dojo 0.28 contract schema v2: merger_consideration and maud_clauses
+            # leave the contract map (they belong to merger_agreement).
+            "party_roles",
+            "signatories",
+            "agreement_date",
+            "expiration_date",
+            "termination_notice_period",
+            "dispute_forum",
+            "payment_terms",
+            "territory",
         }
     ),
     "merger_agreement": frozenset(
@@ -53,6 +61,19 @@ LIVE_SCHEMA_FIELDS: dict[str, frozenset[str]] = {
             "intent",
             "subject_matter",
             "keywords",
+            # llm-mailroom schema v2 (PR-flip pin d573919, standalone main since
+            # 9e8f30b): the merger agent now emits these, so the seam scores them.
+            "acquirer",
+            "merger_sub",
+            "target",
+            "legal_counsel",
+            "financial_advisors",
+            "exchange_ratio",
+            "per_share_cash_amount",
+            "signatories",
+            "outside_date",
+            "parent_termination_fee",
+            "target_termination_fee",
         }
     ),
     "corporate_record": frozenset(

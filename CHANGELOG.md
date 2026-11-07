@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+- **Vendor refresh: llm-mailroom `main` at #179 (`19203ea`) and Dojo `v0.28.1` (`00a2a7f`)**
+  (`_VENDOR_PINS`, `requirements/dojo-release.txt`, both `VENDOR.md` files, README badges and pin
+  table). The vendored sorter catalog now states rule C (a bylaw amendment is `bylaws`), so the
+  condensed sorter v5 is no longer shown the old board_resolution rule. llm-mailroom also brings the
+  condensed sorter v5 as its production sorter and a guard that refuses a managed sorter prompt
+  missing the condensed rules. The Dojo pin is a release tag again; the llm-mailroom pin is a
+  reviewed `main` commit until its next release.
+- **`contracts_specialist_v33` is frozen** (`scripts/sync_specialist_prompts.py` `FROZEN`). Dojo 0.28
+  (schema v2) re-renders v33's "Registered schema fields" line under the same version id, so the
+  vendor text is no longer the v33 that was scored. The file keeps its bytes (sha256 `6a5047ed…`),
+  sync never writes it, and `--check` fails if it changes or goes missing. New contracts work goes
+  to the condensed specialist lineage.
+
 - **Sorter answer key: rule C, a bylaw amendment is bylaws** (mailroom-dataset v10 corpus rule C,
   user decision 2026-11-07). `scripts/patch_sorter_handoff.py` gains rule 7: a corporate record whose
   title names an amendment to the bylaws targets `bylaws`, decided by the title alone. Rule 3 needs
@@ -19,6 +32,47 @@
   and `DOC-8b2aaa4b6ea655be` (Arrestage International, labelled articles_of_incorporation), target
   bylaws. `--rule-c-only` is now idempotent: a second pass changes nothing.
 
+
+- **Production sorter is `sorter_condensed_v5`: a bylaw amendment is bylaws, never
+  board_resolution** (mailroom-dataset v10 corpus rule C, user directive 2026-11-07). v5 is v1
+  with that one clause changed (config/prompts/sorter_condensed_v5.txt, 3,681 chars rendered);
+  v1 is marked superseded and keeps its bytes. v5 was adopted by directive, not by a compare, so
+  v1's prime-sample numbers below do not carry over. The v9.3 truth files 8 board-adopted bylaw
+  amendments under board_resolution, so scoring against v9.3 counts those as wrong until v10
+  relabels them. `FAMILY_B_KEYS["sorter"]` pins v5; llm-mailroom pin -> PR #179 head `af957b6`,
+  which ships the same bytes as `sorter_condensed_v5` (vendored from a `git archive` of that
+  commit with the sync_vendor exclusions; the vendor diff equals the upstream diff, 8 files).
+  The Dojo sorter guide now agrees (v0.28.1, vendored below); the reviewer decision catalog
+  follows in reviewer decisions 3.2.0.
+
+- **Sorter default flip: the condensed lineage becomes the production sorter.** `sorter_condensed_v1`
+  (config/prompts/sorter_condensed_v1.txt, 3,681 chars rendered) beat long-form sorter V15 on the
+  vetted prime-sample promotion compare (275 documents, labels Hub ccd040f6, qwen/qwen3.7-flash,
+  runs `sorter-condensed-v1-qwen-train-prime-sample` + `sorter-v15-qwen-train-prime-sample`): class
+  fixed-broken 96 vs 80 (right-after 263 vs 255), subclass 135 vs 126 (228 vs 219), at 0.9x the cost
+  (about $0.30 vs $0.36 list; compare reports under `reports/sorter-handoff/`).
+  - The mutation research that got there: `sorter_condensed_v2` (literal marker phrases, rejected
+    35/61 vs 36/61 on the held-out marker set) and `sorter_condensed_v3` (notice-is-a-decision rule,
+    32/58 vs 31/58 on held-out set 2, within noise) and `sorter_condensed_v4` (restated notice rule
+    with wrapper exclusions, rejected 34/61 vs 36/61 on held-out set 1; the notice-rule family is
+    plateaued within noise on both sets and stops here).
+  - `sorter_condensed_v1` is now produced by both mailroom trees: llm-mailroom
+    `SORTER_PROMPT_CONDENSED`, the `sorter` alias, `SorterAgent` default and the bound pin
+    (llm-mailroom PR #179); the sandbox vendored snapshot consumes those bytes in the same
+    commit, refreshed to the new pinned snapshot and guarded by the vendor drift test.
+  - The sandbox registry pins it too: `FAMILY_B_KEYS["sorter"]` is `sorter_condensed_v1`
+    (was `sorter_v15`; freeze tests updated; V15 stays frozen as the reference).
+  - llm-mailroom pin `v0.9.2` (`9e8f30b2`) -> PR #179 head `d573919` (branch
+    `claude/sorter-condensed-production`: the prompt flip + its test-pin
+    follow-up); vendored snapshot refreshed with the same exclusions as
+    sync_vendor from the pin. The refresh carries the standalone schema-v2
+    work consumed since `9e8f30b2`: the merger agent now emits
+    schema-v2 fields (acquirer, merger_sub, target, legal_counsel,
+    financial_advisors, exchange_ratio, per_share_cash_amount, signatories,
+    outside_date, parent_termination_fee, target_termination_fee), so
+    `LIVE_SCHEMA_FIELDS["merger_agreement"]` and the merger extraction gate
+    cell score them. `config/prompts/contracts_specialist_v33.txt` keeps its
+    published bytes (frozen; see the vendor refresh entry above).
 - Prime sorter-prompt validation sample (`scripts/compare_sorter_prompt.py --prime --current-labels DIR --sample`):
   - **Prime filter.** It keeps only documents whose labels are the highest quality, checked against the published ground truth in `DIR` (v9.3, Hub `ccd040f6`). Each document must pass all of these:
     - the target agrees with the published class and subclass;
