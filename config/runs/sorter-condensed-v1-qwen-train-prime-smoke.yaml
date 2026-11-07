@@ -1,0 +1,43 @@
+# Paid smoke for sorter-condensed-v1-qwen-train-prime-sample.yaml: the same spec on 10 rows of the prime sample (byte-identical rows,
+# data/runtime/handoff/train-sorter-prime-smoke.jsonl, sha256 25821912...): one per class, the B1/B2
+# boundary cases, the CMS carrier case, the 6-char mailbox stub and the three largest documents (>32k tier).
+# Score with the prime-sample flags; rows not in the smoke set count as no_answer.
+# task: isolated runs every locked row (run start refuses --max-items), so a smoke needs its own dataset.
+schema: sandbox.run/v1
+run_id: sorter-condensed-v1-qwen-train-prime-smoke
+task: isolated
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+  agents:
+    sorter: {source: local, file: sorter_condensed_v1}
+
+dataset:
+  provider: file
+  local_path: data/runtime/handoff/train-sorter-prime-smoke.jsonl
+  config: ground_truth
+  split: train
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.7-flash
+  modal: null
+
+agent_knobs:
+  sorter: {max_input_chars: 600000}
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 10
+  cost_cap_usd: 0.15
+  max_wall_seconds: 900
+  api_cost_cap_usd: 0.10
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, sorter-handoff, sorter-condensed-v1, prime-smoke]

@@ -919,3 +919,13 @@ def test_the_tokens_of_a_sorter_attempt_that_raised_are_counted_on_the_retried_i
     assert runner.run_job(store, mock=None)["state"] == "done"
     (item,) = store.load_items()
     assert (item["prompt_tokens"], item["completion_tokens"], item["llm_calls"]) == (200, 20, 2)
+
+
+def test_whole_run_task_refuses_an_item_cap_it_cannot_apply(tmp_path, monkeypatch):
+    # A whole-run task (isolated, specialist, ...) runs every locked row in one delegated call,
+    # so an accepted --max-items used to bill the whole dataset (a 6-item smoke ran all 275).
+    store = _prepped_store(tmp_path, rows=3)
+    monkeypatch.setattr(runner, "_run_whole_run", lambda *a, **k: pytest.fail("whole run dispatched"))
+    with pytest.raises(ValueError, match="max_items"):
+        runner._run_job(store, task="isolated", mock=True, max_items=1)
+    assert not store.load_items()

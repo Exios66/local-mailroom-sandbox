@@ -350,6 +350,27 @@ def compare(targets: dict[str, dict], chosen: dict[str, str], answers: dict[str,
             "totals": dict(totals), "by_pattern": {k: dict(v) for k, v in sorted(tally.items())}}
 
 
+def _locked_sample_rows(root: Path, run_id: str, dataset: Path, sha256: str) -> int:
+    """Check the run locked rows of the selected sample, and return how many.
+
+    The sample file must still hash to the selection's ``dataset_sha256``, and every row in the
+    run's locked ``dataset.jsonl`` must equal (parsed, since the lock re-serializes rows) the sample
+    row with its id. A subset, such as a smoke, passes; unanswered rows score as ``no_answer``.
+    """
+    if hashlib.sha256(dataset.read_bytes()).hexdigest() != sha256:
+        raise SystemExit(f"compare_sorter_prompt: {dataset} changed since the selection was saved")
+    locked_path = root / "data" / "runtime" / "runs" / run_id / "dataset.jsonl"
+    if not locked_path.is_file():
+        raise SystemExit(f"compare_sorter_prompt: run {run_id} locked dataset missing: {locked_path}")
+    sample = {str(row["id"]): row for row in _lines(dataset)}
+    locked = _lines(locked_path)
+    foreign = [str(row.get("id")) for row in locked if sample.get(str(row.get("id"))) != row]
+    if foreign:
+        raise SystemExit(f"compare_sorter_prompt: run {run_id} locked {len(foreign)} rows that are not rows "
+                         f"of the selected sample {dataset.name} (first: {foreign[0]})")
+    return len(locked)
+
+
 def cmd_score(args: argparse.Namespace) -> int:
     """Compare a run with the saved pass and write and print its results.
 
@@ -365,16 +386,10 @@ def cmd_score(args: argparse.Namespace) -> int:
         if not path.is_file():
             raise SystemExit(f"compare_sorter_prompt: {path} missing; run inputs with the same flags first")
         saved = json.loads(path.read_text(encoding="utf-8"))
-        lock_path = root / "data" / "runtime" / "runs" / args.run / "spec.lock.json"
-        if not lock_path.is_file():
-            raise SystemExit(f"compare_sorter_prompt: run dataset lock missing: {lock_path}")
-        lock = json.loads(lock_path.read_text(encoding="utf-8"))
-        run_sha = (lock.get("dataset") or {}).get("sha256")
-        if not run_sha or run_sha != saved["dataset_sha256"]:
-            raise SystemExit(f"compare_sorter_prompt: dataset sha256 mismatch for run {args.run}; "
-                             "saved selection does not match the run dataset lock")
+        locked = _locked_sample_rows(root, args.run, _dataset_path(root, args), saved["dataset_sha256"])
         chosen = saved["chosen"]
-        quality = {k: v for k, v in saved.items() if k == "prime"} | {"dataset_sha256": saved["dataset_sha256"]}
+        quality = ({k: v for k, v in saved.items() if k == "prime"}
+                   | {"dataset_sha256": saved["dataset_sha256"], "locked_rows": locked})
     else:
         chosen, quality = _chosen(args, targets), {}
     answers = _run_answers(root, args.run)
