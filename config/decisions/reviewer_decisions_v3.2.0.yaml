@@ -4,7 +4,7 @@
 # Changes from 3.1.0 (MINOR: same request shape and routing contract):
 # - A bylaw amendment is bylaws, never board_resolution, even when the board adopted it
 #   (mailroom-dataset v10 corpus rule C, user directive 2026-11-07). The bylaws and
-#   board_resolution meanings are the only change. The v9.3 truth files 9 board-adopted bylaw
+#   board_resolution meanings are the only change. The v9.3 truth files 8 board-adopted bylaw
 #   amendments under board_resolution, so scoring against v9.3 counts those as wrong until v10
 #   relabels them. Matches the sorter (sorter_condensed_v5) and the Dojo sorter guide
 #   (llm-dojo-scoring #130).
