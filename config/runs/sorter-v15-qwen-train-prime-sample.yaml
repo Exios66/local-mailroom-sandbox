@@ -1,0 +1,66 @@
+# Sorter prompt V15 (the production "sorter" pin) on the prime sample, the comparator for
+# sorter-condensed-v1-qwen-train-prime-sample.yaml.
+#
+# Prime sample (data/runtime/handoff/train-sorter-prime-sample.jsonl, 275 documents, sha256 a5e7f7e8...;
+# the draw is in train-sorter-prime-sample.selection.json and `score` grades exactly that draw):
+# only documents whose labels are the highest quality (compare_sorter_prompt.prime_targets), checked
+# against the published v9.3 ground truth (Hub ccd040f6). Of 2,979 train targets 2,642 qualify. Excluded:
+#   84 SEC EX-10 contracts (subclass from the exhibit-title heuristic; CUAD covers every contract subclass)
+#   102 corporate records whose subclass (an EDGAR exhibit heuristic) neither the title line nor the
+#       reviewer confirms, and 8 whose title line names another subclass
+#   67 documents a confident reviewer (p >= 0.9) disputes
+#   49 merger agreements with no MAUD consideration type, 22 targets that disagree with v9.3, 5 ambiguous
+# From those: every class error the saved V14 pass made (120, each label confirmed by a corpus rule or
+# the reviewer), then per class/subclass stratum a seeded draw of 3 subclass errors and 2 right answers
+# (62 + 93): 51 of 53 scored strata. corporate_record/other (2 documents) and
+# correspondence/attorney_demand (3) have no verified label left, so they are not tested here; their
+# labels need a person's check first.
+# Build (no model call):
+#   python scripts/compare_sorter_prompt.py --split train --prime --current-labels <v9.3 parquet/ground_truth> \
+#       --sample inputs --corpus-cache data/cache/Lucius-Morningstar__mailroom-dataset__bc9eab280044/ground_truth_all.jsonl
+# (<v9.3 parquet/ground_truth>: Mailroom-Corpus-EDA's data/parquet/ground_truth after run_all.py --phases P0.)
+# Run both prompts, then score each with the same flags against the saved V14 pass:
+#   sandbox run start --config config/runs/sorter-condensed-v1-qwen-train-prime-sample.yaml --initials XX
+#   sandbox run start --config config/runs/sorter-v15-qwen-train-prime-sample.yaml --initials XX
+#   python scripts/compare_sorter_prompt.py --split train --prime --current-labels <dir> --sample score \
+#       --run sorter-condensed-v1-qwen-train-prime-sample   (then --run sorter-v15-qwen-train-prime-sample)
+# Adopt the condensed lineage when its fixed - broken (class and subclass) is at least V15's.
+#
+# Cost (scripts/estimate_spend.py, each call priced at its Qwen 3.7 Flash tier): 6.06M prompt +
+# 0.04M completion tokens, about $0.41 list; cap $0.65.
+schema: sandbox.run/v1
+run_id: sorter-v15-qwen-train-prime-sample
+task: isolated
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: file
+  local_path: data/runtime/handoff/train-sorter-prime-sample.jsonl
+  config: ground_truth
+  split: train
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.7-flash
+  modal: null
+
+agent_knobs:
+  sorter: {max_input_chars: 600000}
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 24
+  cost_cap_usd: 0.90
+  max_wall_seconds: 5400
+  api_cost_cap_usd: 0.65
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, sorter-handoff, sorter-v15, prime-sample]

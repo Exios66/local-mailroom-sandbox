@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+- Prime sorter-prompt validation sample (`scripts/compare_sorter_prompt.py --prime --current-labels DIR --sample`):
+  - **Prime filter.** It keeps only documents whose labels are the highest quality, checked against the published ground truth in `DIR` (v9.3, Hub `ccd040f6`). Each document must pass all of these:
+    - the target agrees with the published class and subclass;
+    - its status is a label (as published, normalized, or corrected by two independent sources);
+    - class and subclass are both scored;
+    - a contract's subclass comes from CUAD rather than the EX-10 exhibit-title heuristic;
+    - a class error has its label confirmed by a corpus rule or the reviewer;
+    - a confident reviewer (p >= 0.9) does not dispute the label;
+    - a corporate record's subclass (an EDGAR exhibit heuristic) is confirmed by its title line or the reviewer, and neither names another subclass.
+  - **Result.** 2,642 of 2,979 train targets qualify. Excluded: 102 unverified and 8 title-disputed corporate subclasses, 84 EX-10 contracts, 67 reviewer disputes, 49 merger agreements with no MAUD consideration type, 22 targets that disagree with v9.3's corporate labels (the targets were built on v9.1), and 5 ambiguous.
+  - **Draw.** From those: every class error the saved V14 pass made (120), then per class/subclass stratum a seeded draw of 3 subclass errors and 2 right answers. That is 275 documents across 51 of 53 strata. `corporate_record/other` (2 documents) and `correspondence/attorney_demand` (3) have no verified label left and need a person's check.
+  - **Selection file.** `inputs` writes the draw to `<file>.selection.json`, and `score` grades exactly that draw (it refuses a run that answered documents outside it). `--corpus-cache` reads the text from the pinned corpus cache.
+  - **Run configs.** `sorter-condensed-v1-qwen-train-prime-sample` and `sorter-v15-qwen-train-prime-sample`, about $0.34 + $0.41 list (caps $0.55 / $0.65). They replace the full 1,003-document comparison (about $0.78 + $0.99) for deciding whether `sorter_condensed_v1` becomes the production sorter.
 - Modal SDK pin `1.6.2` -> `1.6.3` (`[deploy]` extra, supersedes dependabot #236, which bumped only `pyproject.toml` and `requirements/` and left the pin tests red). The 1.6.3 wheel was source-diffed against 1.6.2: `exception.py`, `_functions.py`, `_utils/function_utils.py`, `cli/app.py` and `cli/run.py` are byte-identical, so the `FunctionCall.get(timeout=0)` reset guard in `job/remote.py` keeps its semantics, and `modal --version` prints the same format. New in 1.6.3 and unused here: OAuth JWT auth, the opt-in `2026.10` image builder (the workspace setting still selects the builder) and sandbox internals. `uv.lock` also moves `synchronicity` 0.12.6 -> 0.12.7 (modal's own requirement). `services/modal_cli.PINNED_SDK`, the deploy and setup docs, the Modal skill, `AGENTS.md` and the pin tests updated to match. The real-CLI contract smoke (`SANDBOX_SERVICE_SMOKE=1`) has not been run against 1.6.3.
 - Floor analytics under `reports/dashboard/`, moved here from the Digital-Mailroom hub (hub #224, DMR-116), where it was added directly under `packages/local-mailroom-sandbox/`. The sandbox owns these files, and the next hub import brings them back unchanged:
   - `build_floor_digest.py`: stdlib-only digest of every run dir, with graph topology parsed from `build_graph.py`. Missing artifacts degrade to `?`.
