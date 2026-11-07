@@ -101,6 +101,7 @@ def select(targets: dict[str, dict], *, control_per_class: int = CONTROL_PER_CLA
 
 PRIME_STATUSES = ("label", "label_normalized", "corrected")
 CUAD_SOURCE = "theatticusproject/cuad"
+PRIME_LABELS_REVISION = "ccd040f6a1b6b414bdefd161cdc622b68f6dacf8"
 
 
 def _patch_rules():
@@ -211,9 +212,14 @@ def _targets_for(args: argparse.Namespace, root: Path, texts: dict[str, str]) ->
     if not args.current_labels:
         raise SystemExit("compare_sorter_prompt: --prime needs --current-labels")
     directory = Path(args.current_labels)
-    kept, dropped = prime_targets(targets, current_labels(directory), texts)
     marker = directory.parent.parent / ".hub_revision"  # written by Mailroom-Corpus-EDA's download
-    revision = marker.read_text(encoding="utf-8").strip() if marker.is_file() else "unknown"
+    if not marker.is_file():
+        raise SystemExit(f"compare_sorter_prompt: labels revision marker missing: {marker}")
+    revision = marker.read_text(encoding="utf-8").strip()
+    if revision != PRIME_LABELS_REVISION:
+        raise SystemExit(f"compare_sorter_prompt: labels revision mismatch: expected "
+                         f"{PRIME_LABELS_REVISION}, got {revision!r}")
+    kept, dropped = prime_targets(targets, current_labels(directory), texts)
     return kept, {"prime": {"kept": len(kept), "of": len(targets), "excluded": dropped,
                             "labels_revision": revision}}
 
@@ -315,6 +321,14 @@ def cmd_score(args: argparse.Namespace) -> int:
         if not path.is_file():
             raise SystemExit(f"compare_sorter_prompt: {path} missing; run inputs with the same flags first")
         saved = json.loads(path.read_text(encoding="utf-8"))
+        lock_path = root / "data" / "runtime" / "runs" / args.run / "spec.lock.json"
+        if not lock_path.is_file():
+            raise SystemExit(f"compare_sorter_prompt: run dataset lock missing: {lock_path}")
+        lock = json.loads(lock_path.read_text(encoding="utf-8"))
+        run_sha = (lock.get("dataset") or {}).get("sha256")
+        if not run_sha or run_sha != saved["dataset_sha256"]:
+            raise SystemExit(f"compare_sorter_prompt: dataset sha256 mismatch for run {args.run}; "
+                             "saved selection does not match the run dataset lock")
         chosen = saved["chosen"]
         quality = {k: v for k, v in saved.items() if k == "prime"} | {"dataset_sha256": saved["dataset_sha256"]}
     else:
