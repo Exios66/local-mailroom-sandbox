@@ -319,8 +319,13 @@ def _run_answers(root: Path, run_id: str) -> dict[str, dict]:
     return out
 
 
-def compare(targets: dict[str, dict], chosen: dict[str, str], answers: dict[str, dict]) -> dict:
-    """Class and subclass outcome of the new prompt against the saved pass, per V14 pattern."""
+def compare(targets: dict[str, dict], chosen: dict[str, str], answers: dict[str, dict],
+            attempted: frozenset[str] | set[str] = frozenset()) -> dict:
+    """Class and subclass outcome of the new prompt against the saved pass, per V14 pattern.
+
+    An unanswered document counts as ``no_answer``. If the run locked it (``attempted``), it also
+    scores as a wrong answer, so a failed call cannot avoid ``broken``.
+    """
     tally: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
     totals = collections.Counter()
     for doc_id, why in sorted(chosen.items()):
@@ -329,7 +334,9 @@ def compare(targets: dict[str, dict], chosen: dict[str, str], answers: dict[str,
         if new is None:
             tally[why]["no_answer"] += 1
             totals["no_answer"] += 1
-            continue
+            if doc_id not in attempted:
+                continue
+            new = {"doc_type": None, "doc_subclass": None}
         for level in ("class", "subclass"):
             if level == "class":
                 if not t.get("use_for_class"):
@@ -351,12 +358,12 @@ def compare(targets: dict[str, dict], chosen: dict[str, str], answers: dict[str,
             "totals": dict(totals), "by_pattern": {k: dict(v) for k, v in sorted(tally.items())}}
 
 
-def _locked_sample_rows(root: Path, run_id: str, dataset: Path, sha256: str) -> int:
-    """Check the run locked rows of the selected sample, and return how many.
+def _locked_sample_rows(root: Path, run_id: str, dataset: Path, sha256: str) -> set[str]:
+    """Check the run locked rows of the selected sample, and return their ids.
 
     The sample file must still hash to the selection's ``dataset_sha256``, and every row in the
     run's locked ``dataset.jsonl`` must equal (parsed, since the lock re-serializes rows) the sample
-    row with its id. A subset, such as a smoke, passes; unanswered rows score as ``no_answer``.
+    row with its id. A subset, such as a smoke, passes; rows outside it score only as ``no_answer``.
     """
     if hashlib.sha256(dataset.read_bytes()).hexdigest() != sha256:
         raise SystemExit(f"compare_sorter_prompt: {dataset} changed since the selection was saved")
@@ -369,7 +376,7 @@ def _locked_sample_rows(root: Path, run_id: str, dataset: Path, sha256: str) -> 
     if foreign:
         raise SystemExit(f"compare_sorter_prompt: run {run_id} locked {len(foreign)} rows that are not rows "
                          f"of the selected sample {dataset.name} (first: {foreign[0]})")
-    return len(locked)
+    return {str(row["id"]) for row in locked}
 
 
 def cmd_score(args: argparse.Namespace) -> int:
@@ -394,9 +401,9 @@ def cmd_score(args: argparse.Namespace) -> int:
         locked = _locked_sample_rows(root, args.run, _dataset_path(root, args), saved["dataset_sha256"])
         chosen = saved["chosen"]
         quality = ({k: v for k, v in saved.items() if k == "prime"}
-                   | {"dataset_sha256": saved["dataset_sha256"], "locked_rows": locked})
+                   | {"dataset_sha256": saved["dataset_sha256"], "locked_rows": len(locked)})
     else:
-        chosen, quality = _chosen(args, targets), {}
+        chosen, quality, locked = _chosen(args, targets), {}, set()
     answers = _run_answers(root, args.run)
     extra = sorted(set(answers) - set(chosen))
     if extra:
@@ -404,7 +411,7 @@ def cmd_score(args: argparse.Namespace) -> int:
               f"selection; check --sample and its counts match the inputs the run used")
         return 1
     result = {"run_id": args.run, "baseline": f"data/handoff/{args.name}/{args.split}.targets.jsonl", **quality,
-              **compare(targets, chosen, answers)}
+              **compare(targets, chosen, answers, locked)}
     out = root / "reports" / "sorter-handoff" / f"{args.run}.compare.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")

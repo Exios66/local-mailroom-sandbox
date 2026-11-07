@@ -190,3 +190,9 @@ def test_score_requires_the_run_to_lock_rows_of_the_selected_sample(tmp_path, mo
     assert result["dataset_sha256"] == sha
     assert result["locked_rows"] == 1
     assert result["totals"]["class_still_right"] == 1 and result["totals"]["no_answer"] == 1
+    assert "class_broken" not in result["totals"]  # "b" was outside the smoke's lock
+
+    locked.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    assert csp.cmd_score(args) == 0  # the run locked "b" and failed it: it broke a right answer
+    totals = json.loads(report.read_text(encoding="utf-8"))["totals"]
+    assert totals["class_broken"] == 1 and totals["subclass_broken"] == 1 and totals["no_answer"] == 1
