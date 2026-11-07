@@ -13,6 +13,10 @@
   from document text alone (the sorter and reviewer run outputs the full build reads are not needed).
   `compare_sorter_prompt.py --prime` keeps a rule-C target: the published v9.3 label and a reviewer
   on the old convention are checked for class only. 3 of the 7 are in the saved prime draw.
+- **Sorter answer key: user decisions** (rule 8, `USER_DECISIONS`): two full bylaws the user
+  corrected on 2026-11-07, `DOC-cce54a03af3b1c4a` (SunGard Public Sector, labelled board_resolution)
+  and `DOC-8b2aaa4b6ea655be` (Arrestage International, labelled articles_of_incorporation), target
+  bylaws. `--rule-c-only` is now idempotent: a second pass changes nothing.
 
 - Prime sorter-prompt validation sample (`scripts/compare_sorter_prompt.py --prime --current-labels DIR --sample`):
   - **Prime filter.** It keeps only documents whose labels are the highest quality, checked against the published ground truth in `DIR` (v9.3, Hub `ccd040f6`). Each document must pass all of these:

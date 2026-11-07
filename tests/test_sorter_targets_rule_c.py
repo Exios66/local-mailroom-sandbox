@@ -121,3 +121,29 @@ def test_apply_rule_c_regrades_only_bylaw_amendments():
 def test_apply_rule_c_needs_every_row_text():
     with pytest.raises(SystemExit):
         psh.apply_rule_c([_row("amend", "board_resolution", "bylaws")], {})
+
+
+def test_user_decisions_correct_named_documents_only():
+    """Corrections the user decided per document (2026-11-07): two full bylaws mislabelled."""
+    assert set(psh.USER_DECISIONS) == {"DOC-cce54a03af3b1c4a", "DOC-8b2aaa4b6ea655be"}
+    rows = [_row("DOC-cce54a03af3b1c4a", "board_resolution", "bylaws"),
+            {**_row("DOC-8b2aaa4b6ea655be", "articles_of_incorporation", "bylaws")},
+            _row("other", "board_resolution", "bylaws")]
+    out, corrections = psh.apply_user_decisions(rows)
+    by = {r["id"]: r for r in out}
+    for doc_id in psh.USER_DECISIONS:
+        assert (by[doc_id]["target_subclass"], by[doc_id]["target_status"]) == ("bylaws", "corrected")
+        assert by[doc_id]["sorter_subclass_correct"] is True
+        assert by[doc_id]["target_evidence"][-1].startswith(psh.USER_DECISION_EVIDENCE)
+    assert by["other"] == rows[2]
+    assert sorted(c["id"] for c in corrections) == sorted(psh.USER_DECISIONS)
+    again, more = psh.apply_user_decisions(out)
+    assert again == out and more == []  # idempotent
+
+
+def test_apply_rule_c_is_idempotent():
+    rows = [_row("amend", "board_resolution", "bylaws"), _row("done", "bylaws", "bylaws")]
+    texts = {"amend": "AMENDMENT TO BYLAWS OF X\n", "done": "FIRST AMENDMENT TO BYLAWS\n"}
+    once, _ = psh.apply_rule_c(rows, texts)
+    twice, corrections = psh.apply_rule_c(once, texts)
+    assert twice == once and corrections == []
