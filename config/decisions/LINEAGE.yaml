@@ -60,3 +60,13 @@ versions:
     open_for_4.0.0: >-
       Derive continue / correct subclass / reclassify in code from the doc_type and subclass
       answers against the handoff, and keep only the human edge cases as a model question.
+  - version: 3.2.0
+    file: reviewer_decisions_v3.2.0.yaml
+    parent: 3.1.0
+    status: candidate
+    summary: >-
+      A bylaw amendment is bylaws, never board_resolution (mailroom-dataset v10 corpus rule C);
+      the bylaws and board_resolution meanings are the only change from 3.1.0.
+    adoption: >-
+      Not the default until a calibration run supports it; 3.1.0's runs do not carry over.
+      3.1.0 stays frontrunner and the 3.1.0 run configs stay pinned to 3.1.0.
