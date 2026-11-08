@@ -26,11 +26,14 @@ sandbox health --profile vllm-local
 The compose service pins `vllm/vllm-openai:v0.29.0` — the same engine
 version as the Modal app — and sends the shared test-sandbox argv:
 `--host 0.0.0.0 --port 8000 --max-model-len 16384
---gpu-memory-utilization 0.90 --max-num-seqs 256
+--gpu-memory-utilization 0.90 --max-num-seqs 6
 --no-enable-log-requests` (DMR-056: 16384 is the boot-valid cap for
 L4-bf16 8B-class rows — v0.29.0 raises at boot rather than shrinking the KV
-pool; AWQ rows opt up to 32768). Compose substitution reads your shell env or
-`deploy/.env` (the compose project directory):
+pool; AWQ rows opt up to 32768). `VLLM_MAX_NUM_SEQS` raises the compose
+default — **scale-matrix cells don't use it**: they deploy through
+**Modal**, which reads `MODAL_VLLM_MAX_NUM_SEQS` (see `docs/scale-matrix.md`,
+`MODAL_VLLM_MAX_NUM_SEQS=256` at deploy). Compose substitution reads your
+shell env or `deploy/.env` (the compose project directory):
 
 | Env | Default | Notes |
 | --- | --- | --- |

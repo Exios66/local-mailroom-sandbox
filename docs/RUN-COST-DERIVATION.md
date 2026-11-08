@@ -1,6 +1,6 @@
 # Run Cost Derivation — how any Granite wave is priced from real data
 
-**Purpose.** Every spend figure in `governance/SAND-027-MISSION-PLAN.md` is derived here from
+**Purpose.** Every spend figure in `governance/scheming/SAND-027-MISSION-PLAN.md` is derived here from
 measured per-document records, not from an estimate. The method answers two questions:
 
 1. What does the **full contract split of the corpus** cost to run via API (Leg B)?
@@ -164,7 +164,7 @@ separately (§2b).
 
 ## 4 · Worked numbers — the contracts class (measured, 17 ok rows)
 
-Per-document statistics from `reports/RUN-20-CONTRACTS-AWQ-C8-REPORT.md`:
+Per-document statistics from `reports/SAND-32/contract/RUN-20-CONTRACTS-AWQ-C8-REPORT.md`:
 
 | Metric | mean | p50 | p95 | min | max |
 | --- | --- | --- | --- | --- | --- |

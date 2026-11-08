@@ -235,7 +235,7 @@ stems, except the `rca/` re-check runs, which pin the SAND-042 repaired stems ab
 | `scale-c1-4xl4-c16.yaml` | `scale-c1-4xl4-c16` | `sorter` | none (`code-default`) |
 | `scale-d1-awq-4xl4-c16.yaml` | `scale-d1-awq-4xl4-c16` | `sorter` | none (`code-default`) |
 
-Historical scorecards (`reports/RUN-20-CORRESPONDENCE-AWQ-C8-REPORT.md` and
+Historical scorecards (`reports/SAND-32/correspondence/RUN-20-CORRESPONDENCE-AWQ-C8-REPORT.md` and
 peers, fingerprint `285f423d3708`) recorded the **vendor production** stems
 in use at run time. Re-running the YAMLs above now uses simplified stems
 (new `spec_hash`). Do not rewrite those reports.
