@@ -42,8 +42,9 @@ def test_fleet_without_routes_is_the_base_engine_alone():
     lock = {"engine": {"modal": {"gpu": "L4", "max_containers": 2}}}
     assert metrics.lock_gpu_fleet(lock) == [("L4", 2)]
     assert metrics.lock_gpu_fleet({}) == [("L4", 1)]
-    # Unrouted non-Modal base: unchanged, the base entry stays.
-    assert metrics.lock_gpu_fleet({"engine": {"kind": "openrouter", **lock["engine"]}}) == [("L4", 2)]
+    # Unrouted openrouter base: the default "modal" block is a phantom (it
+    # never runs), so the fleet is empty (#266/#270 review round-trip).
+    assert metrics.lock_gpu_fleet({"engine": {"kind": "openrouter", **lock["engine"]}}) == []
     assert metrics.routed_gpu_fleet(lock) is None
 
 

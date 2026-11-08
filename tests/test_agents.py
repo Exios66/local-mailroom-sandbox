@@ -283,3 +283,33 @@ def test_isolated_eval_record_prices_the_whole_routed_fleet(tmp_path, monkeypatc
     rec = runners.run_isolated_eval("compile_report", mock=False, gpu="L4", replicas=2,
                                     gpu_fleet=[("L4", 2), ("L40S", 1)])["record"]
     assert rec["estimated_gpu_cost_usd"] == 5.0
+
+
+def test_isolated_record_bills_no_gpu_when_none_was_ran(tmp_path, monkeypatch):
+    """#266: a non-GPU isolated run (openrouter routes, live ollama) must not
+    invent GPU seconds at a default L4 price; a modal-vllm/vllm profile's
+    --local CLI eval still bills (its endpoint heap owns a warm GPU)."""
+    from mailroom_sandbox.job import metrics
+
+    _isolate_log(tmp_path, monkeypatch)
+    monkeypatch.setenv("MAILROOM_BASE_DIR", str(tmp_path))
+    calls: list[tuple] = []
+
+    def _forbidden(*args, **kwargs):
+        calls.append((args, kwargs))
+        return 0.0
+
+    monkeypatch.setattr(metrics, "estimate_gpu_cost_usd", _forbidden)
+    rec = runners.run_isolated_eval("compile_report", mock=False, profile="ollama")["record"]
+    assert "gpu_seconds" not in rec and "estimated_gpu_cost_usd" not in rec
+    assert rec.get("gpu_cost_per_document") is None and not calls
+    rec = runners.run_isolated_eval("compile_report", mock=False, profile="openrouter")["record"]
+    assert not calls
+    # The default `sandbox eval --local` path runs on the modal-vllm profile's
+    # warm endpoint — that run bills its GPU (the CLI passes neither gpu nor
+    # gpu_fleet; the profile decides).
+    rec = runners.run_isolated_eval("compile_report", mock=False, profile="modal-vllm")["record"]
+    assert rec["gpu_seconds"] > 0 and rec["estimated_gpu_cost_usd"] == 0.0
+    # An explicitly declared engine GPU still bills (the job/runner sweep path).
+    rec = runners.run_isolated_eval("compile_report", mock=False, gpu="L4", replicas=1)["record"]
+    assert rec["gpu_seconds"] > 0 and rec["estimated_gpu_cost_usd"] == 0.0

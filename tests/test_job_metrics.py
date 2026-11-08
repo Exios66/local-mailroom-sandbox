@@ -511,3 +511,16 @@ def test_serving_record_pinned_lock_drops_scaledown(tmp_path, monkeypatch):
     out = serving_record_from_store(store, wall_seconds=100, mock=False)
     assert out["replicas"] == 2
     assert out["run_span_seconds_lower_bound"] == 100.0
+
+
+def test_lock_gpu_fleet_openrouter_base_bills_no_phantom_gpu():
+    """#266: an unrouted openrouter base never RUNS a GPU, but the base entry
+    on `lock_gpu_fleet` is deliberate (the fixture at test_route_cost_cap.py
+    codifies it) — only the serving record must drop it, which the
+    run_isolated_eval gate now does (tests/test_agents.py)."""
+    from mailroom_sandbox.job.metrics import lock_gpu_fleet, routed_gpu_fleet
+
+    no_routes = {"engine": {"kind": "openrouter", "model": "qwen/qwen3.5-9b",
+                            "modal": {"gpu": "L4", "max_containers": 1}}}
+    assert lock_gpu_fleet(no_routes) == []
+    assert routed_gpu_fleet(no_routes) is None

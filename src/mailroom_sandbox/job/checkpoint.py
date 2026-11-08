@@ -444,17 +444,80 @@ class RunStore:
 
     # ── events ──────────────────────────────────────────────────────────────
     def append_event(self, event: str, level: str = "info", **detail: Any) -> None:
+        """Append one event; repair an unterminated tail first (callers own acquire()).
+
+        append_item's pre-append repair, mirrored: a parseable final record
+        keeps its newline; an unparseable fragment is dropped so two valid
+        JSON objects never share a line.
+        """
+        if self.events_path.is_file() and self.events_path.stat().st_size:
+            with self.events_path.open("rb") as tail:
+                tail.seek(-1, 2)
+                terminated = tail.read(1) == b"\n"
+            if not terminated:
+                with self.events_path.open("r+b") as fh:
+                    hint = {}
+                    data = fh.read()
+                    newline = data.rfind(b"\n")
+                    try:
+                        json.loads(data[newline + 1:].decode("utf-8"))
+                        fh.seek(0, 2)
+                        fh.write(b"\n")  # parseable record: just terminate it
+                    except (ValueError, UnicodeDecodeError):
+                        fh.truncate(newline + 1)  # torn fragment: drop it
+                        hint = {"dropped_chars": len(data) - (newline + 1)}
+                if hint:
+                    with open(self.events_path, "a", encoding="utf-8") as fh:
+                        fh.write(json.dumps(
+                            {"ts": utc_now(), "event": "events_truncated", "level": "warn",
+                             "detail": hint}) + "\n")
         with open(self.events_path, "a", encoding="utf-8") as fh:
             fh.write(json.dumps({"ts": utc_now(), "event": event, "level": level, "detail": detail or None}) + "\n")
             fh.flush()
 
     def events(self) -> list[dict[str, Any]]:
+        """Parsed events; a torn tail (killed mid-write) is truncated once.
+
+        #268: the failed events.jsonl tail must not wedge every consumer of
+        the file — the resume's budget seed, the failed-usage capture, and the
+        serving report all read it — like the items.jsonl torn-tail repair.
+        Corruption before the tail still raises (not a torn write).
+        """
         if not self.events_path.is_file():
             return []
-        rows = []
-        for line in self.events_path.read_text(encoding="utf-8").splitlines():
-            if line.strip():
-                rows.append(json.loads(line))
+        data = self.events_path.read_bytes()
+        lines = data.split(b"\n")
+        rows: list[dict[str, Any]] = []
+        torn_line = len(lines)
+        for i, raw in enumerate(lines):
+            if not raw.strip():
+                continue
+            try:
+                rows.append(json.loads(raw.decode("utf-8")))
+            except (UnicodeDecodeError, ValueError):
+                torn_line = i
+                break
+        if torn_line != len(lines):
+            # A torn write cannot leave a parseable suffix after it: anything
+            # unparsed beyond the break is corruption, not a tail.
+            after = [raw for raw in lines[torn_line:] if raw.strip()]
+            if len(after) > 1:
+                raise ValueError(f"events.jsonl corrupt beyond the torn tail: {torn_line}")
+            restore = {"dropped_chars": sum(len(part) + 1 for part in lines[torn_line:]) - 1}
+            try:
+                with self.acquire(blocking=False):
+                    # A writer holding the lock means the "torn tail" is its
+                    # mid-append record — truncating under it would eat that
+                    # event (including seeded API usage); leave it alone.
+                    with open(self.events_path, "r+b") as fh:
+                        fh.truncate(sum(len(part) + 1 for part in lines[:torn_line]))
+                    self.append_event("events_truncated", "warn", **restore)
+                    rows.append(
+                        {"ts": utc_now(), "event": "events_truncated", "level": "warn",
+                         "detail": restore}
+                    )
+            except BlockingIOError:
+                pass  # an active writer; the tail is mid-write
         return rows
 
     # ── pipeline nodes (SAND-076) ───────────────────────────────────────────
