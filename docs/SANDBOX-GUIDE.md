@@ -56,12 +56,13 @@ cp config/.env.example .env          # edit as needed
 
 | Extra | Packages |
 | --- | --- |
-| `dev` | pytest, ruff, mypy |
-| `notebooks` | jupyter, ipykernel |
+| `dev` | pytest, pytest-mock, pytest-cov, markdown-it-py, huggingface_hub, pyarrow (+ `[pipeline]`; the scoring vendored stack is in BASE deps) |
+| `notebooks` | jupyterlab, ipykernel |
 | `hf` | huggingface_hub, pyarrow |
 | `deploy` | modal (SDK 1.6.3 pinned) |
-| `pipeline` | llm-mailroom + llm-dojo-scoring |
-| `observability` | opentelemetry-sdk, opentelemetry-exporter-otlp-proto-http |
+| `pipeline` | langchain-core, langchain-openai, langgraph, fastapi, sqlalchemy/aiosqlite, pdf stack (the family code ships vendored, not as an extra) |
+| `observability` | langfuse, braintrust, opentelemetry-sdk, opentelemetry-exporter-otlp-proto-http |
+| `decision` | pydantic-ai-slim[typesafe] (Decisions-API reviewer backend) |
 
 ---
 
@@ -88,7 +89,8 @@ The sandbox reads `.env` from the repo root. Key groups:
 | `config/models.yaml` | OpenRouter→local model ID mapping |
 | `config/taxonomy.overlay.yaml` | Agent-level overrides (temperature, max_tokens) |
 | `config/components.yaml` | Agent enable/disable gates |
-| `config/taxonomy.yaml` | Full pipeline taxonomy (doc classes, agents, thresholds) |
+| `config/mailroom.taxonomy.base.yaml` | Full pipeline taxonomy source (doc classes, agents, thresholds) |
+| `data/runtime/taxonomy.yaml` | The runtime taxonomy copy (generated at activation; gitignored) |
 | `config/runs/*.yaml` | Job runner specs (`sandbox run`) |
 
 ### Switching profiles
@@ -160,7 +162,7 @@ reference — every command, subcommand, argument and parser-required marker —
 | `sandbox down` | Stop compose services |
 | `sandbox pull-models --profile ollama` | Pull required Ollama models (on the default `modal-vllm` it only prints the Modal prewarm command) |
 | `sandbox health` | Probe the active provider |
-| `sandbox doctor [--service modal] [--live] [--publish] [--json]` | Offline status of 14 tools/config surfaces; `--live` probes endpoints, `--publish` feeds the board strip |
+| `sandbox doctor [--service modal] [--live] [--publish] [--json]` | Offline status of 15 tools/config surfaces; `--live` probes endpoints, `--publish` feeds the board strip |
 | `sandbox fetch-deps` | Optional: refresh the TRACKED vendor snapshots (workspace mirror in the monorepo; reviewed refs in `_VENDOR_PINS` otherwise) |
 | `sandbox fetch-deps --visualizer` | Also clone The-Mailroom |
 
@@ -597,12 +599,8 @@ API (latency, tokens, throughput, cost), and runs dojo pairwise comparisons.
 
 ### Experiment log
 
-Reports land in `reports/experiment_log.jsonl` (append-only JSONL). Regenerate
-the markdown:
-
-```bash
-python scripts/reporting/render_experiment_log.py
-```
+Reports land in `reports/experiment_log.jsonl` (append-only JSONL); its
+markdown summary is regenerated on every append — no manual render step.
 
 ---
 
@@ -617,7 +615,7 @@ python scripts/reporting/render_experiment_log.py
 | `deploy import error on from_local` | Stale Modal SDK | SDK 1.5.5 removed it; this repo uses `from_dict` |
 | `sandbox health` shows `json_object_ok: false` | Engine lacks structured output | Use a vLLM/Ollama version that supports `response_format` |
 | Compose won't start | Port conflict | Check `docker compose ps` for conflicting services |
-| `git ls-files` race in `sync_packages.py` | Fixed in DMR-028 | `patch_push` now extracts committed blobs only |
+| `git ls-files` race in the hub's `sync_packages.py` | Fixed in DMR-028 | `patch_push` now extracts committed blobs only — fix lives in the Digital-Mailroom repo, not here |
 | Tunnel port already in use | Existing tunnel | `sandbox tunnel down` first, or check `data/runtime/tunnel-*.pid` |
 | CHTC job died without a clear error | Debug run | `SANDBOX_DEBUG=1` in the `.sub` environment → `set -x` trace + `results/run.log` + a diagnostics dump (versions, masked env, vLLM log tail, DMR-053) |
 

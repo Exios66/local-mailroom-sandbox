@@ -458,7 +458,7 @@ Every SAND-042 number ships with:
   `ground_truth`, `split: all`, `sample_seed: 42`, the per-class strata block, the run YAML path
   and the `spec_hash` recorded on the card.
 * **Run card** — `reports/SAND42/<condition>/<specialist>/<run_id>.card.md` + `.card.json`
-  (condition ∈ `1L4-c8`, `1L4-c16`, `2L4-c8`, `2L4-c16`).
+  (condition ∈ `1L4-c8`, `1L4-c16`, `2L4-c8`, `2L4-c16`, `2L4-c32`).
 * **Condition card** — `reports/SAND42/<condition>/SAND42-<SHAPE>-C<CONC>-SCORE-COST-CARD.md` + `.json`.
 * **Comparison** — `reports/SAND42/SAND42-CELL-COMPARISON.md` + `.json`.
 * **Noise floor** — `reports/SAND42/SAND42-NOISE-FLOOR.md`.
@@ -485,8 +485,11 @@ reports/SAND42/
 ├── 2L4-c8/
 │   ├── SAND42-2L4-C8-SCORE-COST-CARD.md + .json
 │   └── <specialist>/<run_id>.card.md + .card.json
-└── 2L4-c16/
-    ├── SAND42-2L4-C16-SCORE-COST-CARD.md + .json
+├── 2L4-c16/
+│   ├── SAND42-2L4-C16-SCORE-COST-CARD.md + .json
+│   └── <specialist>/<run_id>.card.md + .card.json
+└── 2L4-c32/
+    ├── SAND42-2L4-C32-SCORE-COST-CARD.md + .json
     └── <specialist>/<run_id>.card.md + .card.json
 ```
 
@@ -547,8 +550,8 @@ Specialist folders, in grid order: `correspondence`, `insurance_claims`, `corpor
 * `docs/BENCHMARK-PROGRAM.md` (SAND-043) — metric rules, corpus table, measured noise floor,
   scorecard schema, external references
 * `config/runbooks/catalog.yaml` — `sand42-1l4-c8`, `sand42-1l4-c16`, `sand42-2l4-c8`,
-  `sand42-2l4-c16`, `sand42-noise-floor`
-* `config/runs/sand42-*.yaml` — the 20 cell configs + the noise-floor leg
+  `sand42-2l4-c16`, `sand42-2l4-c32`, `sand42-noise-floor`
+* `config/runs/sand42-*.yaml` — the 25 cell configs + the two `check-5` probes + the noise-floor leg
 * `deploy/modal_vllm.py` — the in-container telemetry sampler
 * `src/mailroom_sandbox/job/container_telemetry.py`, `.../sand42_cards.py`,
   `.../specialist_posture.py`

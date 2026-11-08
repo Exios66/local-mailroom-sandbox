@@ -255,7 +255,7 @@ re-freezes land in eval-environment, not this repo.
 
 ### Any eval-environment prompt version (`--prompt-version`)
 
-The full catalog — all 40 versions (archived `_v0`, frozen `_v1`, 20 mutations) with
+The full catalog — all 43 versions (5 archived, 15 frozen `_v1`, 23 mutations) with
 memos, what changed between versions, diffs and the exact text — is in
 [`docs/prompts/`](prompts/README.md) (generated from the vendored dojo lineage by
 `python scripts/render_prompt_catalog.py`; `--check` fails when it drifts). Browse it
