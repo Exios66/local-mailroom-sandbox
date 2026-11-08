@@ -579,9 +579,16 @@ def _apply_prompt_overrides(store: RunStore) -> None:
 
 
 def _lock_gpu(store: RunStore) -> str | None:
-    """Modal GPU class from the lock's engine.modal block (e.g. ``L4``)."""
+    """Modal GPU class from the lock's engine.modal block (e.g. ``L4``).
+
+    #266: only a GPU engine actually bills one — every engine spec carries the
+    default ``ModalSpec(gpu="L4")`` block, so an engine that never touches a
+    GPU (``openrouter``) must not declare the default class.
+    """
     engine = (store.read_lock() or {}).get("engine") or {}
     if not isinstance(engine, dict):
+        return None
+    if engine.get("kind") not in ("modal-vllm", "vllm-local", "vllm-remote"):
         return None
     modal = engine.get("modal") or {}
     if isinstance(modal, dict) and modal.get("gpu"):
@@ -954,6 +961,7 @@ def _run_job(
         error: str | None,
         latency_ms: float,
         usage: dict[str, Any] | None = None,
+        in_flight: int = 0,
     ) -> bool:
         """Persist one result (always from the calling thread) and return ok.
 
@@ -1025,8 +1033,10 @@ def _run_job(
                     f"cost_cap_usd={cost_cap} exceeded "
                     f"(est_gpu_usd={est:.4f} at wall={wall_s:.1f}s) — aborting"
                 )
-            elif api_budget is not None and (reason := api_budget.exceeded()):
-                # SAND-089: token spend on API-billed agents.
+            elif api_budget is not None and (reason := api_budget.exceeded(in_flight=in_flight)):
+                # SAND-089: token spend on API-billed agents. #267: documents
+                # already started but not yet recorded count at the mean
+                # finished-document cost, like the other two guard paths.
                 cap_abort_type = "api_cost_cap"
                 cap_abort_reason = reason
         return ok
@@ -1135,7 +1145,7 @@ def _run_job(
                             0.0,
                             {},
                         )
-                    ok = _record(index, value, error, latency_ms, usage)
+                    ok = _record(index, value, error, latency_ms, usage, in_flight=len(futures))
                     if cap_abort_reason:
                         stopped = True
                     elif fail_fast and not ok:

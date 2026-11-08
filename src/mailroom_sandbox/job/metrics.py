@@ -298,8 +298,13 @@ def lock_gpu_fleet(lock: Mapping[str, Any]) -> list[tuple[str, int]]:
     """
     modal, on_modal = _lock_base(lock)
     routes = _routed_apps(lock)
+    kind = (lock["engine"].get("kind") or "modal-vllm") if isinstance(lock.get("engine"), Mapping) else "modal-vllm"
     base = [_billed_gpu(modal) if modal else ("L4", 1)]
     if routes and not on_modal:
+        base = []
+    elif kind == "openrouter" and not routes:
+        # #266: an unrouted openrouter base sits on no GPU — the default
+        # ``modal`` block is a phantom on both the record and the cost cap.
         base = []
     return base + routes
 

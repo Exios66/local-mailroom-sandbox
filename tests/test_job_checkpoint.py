@@ -54,6 +54,67 @@ def test_unparseable_fragment_truncated(store, tmp_path):
     assert any(e["event"] == "items_truncated" for e in events)
 
 
+def test_torn_events_tail_is_repaired_on_read(store):
+    """#268: a killed run must not wedge resume/budget-seed/report reads."""
+    store.append_event("start", task="sorter")
+    with open(store.events_path, "a", encoding="utf-8") as fh:
+        fh.write('{"ts": "x", ' + "event")  # torn write tail
+    rows = store.events()
+    assert [r["event"] for r in rows] == ["start", "events_truncated"]
+    assert rows[-1]["level"] == "warn" and rows[-1]["detail"]["dropped_chars"] == 17
+    # The file is parseable for the next consumer (budget seed / serving
+    # report), with the SAME single-nest detail shape the in-memory row carries.
+    rows = store.events()
+    assert [r["event"] for r in rows] == ["start", "events_truncated"]
+    assert rows[-1]["detail"]["dropped_chars"] == 17
+
+
+def test_events_fragment_kept_then_appended(store):
+    """#270 review: a parseable unterminated tail must not concatenate onto
+    the next append event (both records would then truncate on the next read)."""
+    store.append_event("start")
+    with open(store.events_path, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps({"ts": "y", "event": "stop"}))  # no trailing newline
+    assert [r["event"] for r in store.events()] == ["start", "stop"]
+    store.append_event("finish")
+    # Both original records survive, separated by the new event's newline.
+    assert [r["event"] for r in store.events()] == ["start", "stop", "finish"]
+
+
+def test_events_repair_defers_to_an_active_writer(store):
+    """#270 review: when a writer holds acquire(), the torn tail is its
+    mid-append record — the reader must not truncate the new event away."""
+    store.append_event("start")
+    with open(store.events_path, "a", encoding="utf-8") as fh:
+        fh.write('{"ts": "x", ' + "event")  # torn write tail
+    with store.acquire():  # simulate the writer's held lock
+        assert [r["event"] for r in store.events()] == ["start"]
+        # The file kept its (mid-write) tail: the writer still owns it.
+        assert store.events_path.read_bytes().endswith(b"event")
+    # The writer's mid-write record was unparseable, so the pre-append repair
+    # drops it, notes it, then appends (start → truncation notice → finishes).
+    store.append_event("finishes")
+    assert [r["event"] for r in store.events()] == ["start", "events_truncated", "finishes"]
+
+
+def test_events_corruption_beyond_the_tail_still_raises(store):
+    store.append_event("start", task="sorter")
+    with open(store.events_path, "a", encoding="utf-8") as fh:
+        fh.write("garbage\n")
+    store.append_event("item_done")
+    with open(store.events_path, "a", encoding="utf-8") as fh:
+        fh.write('{"ts": "x", ' + "event")  # torn
+    with pytest.raises(ValueError, match="corrupt beyond the torn tail"):
+        store.events()
+
+
+def test_events_unparseable_fragment_kept(store):
+    store.append_event("start")
+    with open(store.events_path, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps({"ts": "y", "event": "stop"}))  # no trailing newline
+    assert [r["event"] for r in store.events()] == ["start", "stop"]
+
+
 def test_resume_reconciles_cursor(store):
     store.write_lock({"spec_hash": "s1"})
     store.append_item({"index": 0, "item_id": "a", "ok": True})

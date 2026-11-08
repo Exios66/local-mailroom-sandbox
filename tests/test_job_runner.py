@@ -854,6 +854,50 @@ def test_per_item_run_aborts_once_api_token_spend_reaches_its_cap(tmp_path, monk
     assert len(store.load_items()) < 4
 
 
+def test_per_item_cap_projects_in_flight_documents(tmp_path, monkeypatch):
+    """#267: with one concurrency slot still running, its projected spend must
+    already trip the cap — not only once that document is recorded."""
+    import time
+
+    from mailroom_sandbox.eval import runners as eval_runners
+    from mailroom_sandbox.job.api_budget import ApiBudget
+
+    store = _prepped_store(tmp_path, rows=4, job={"mock": False, "max_retries": 0, "concurrency": 2})
+    monkeypatch.setattr(runner, "_api_budget", lambda _store: ApiBudget(0.20, 0.17, 0.25, ["qwen/qwen3.5-9b"]))
+
+    def slow_first_row(task, row, **_):
+        if row["doc_text"] == "t0":
+            time.sleep(0.4)  # the fast sibling records while this slot runs
+        return eval_runners._classify_mock(row), {"prompt_tokens": 600_000, "completion_tokens": 1}
+
+    monkeypatch.setattr(runner, "_predict_row", slow_first_row)
+    summary = runner.run_job(store, mock=None)
+    assert summary["state"] == "failed"
+    error = (store.read_checkpoint() or {})["last_error"]
+    assert error["type"] == "api_cost_cap" and "1 in flight" in error["message"]
+    # The cap tripped at the first completion (0.102 + 0.102 in flight ≥ 0.20),
+    # so the run stops SCHEDULING: only the initial wave's two documents are
+    # recorded (the slow in-flight one still finishes and persists). Without
+    # the projection, docs d2/d3 would be scheduled and recorded too.
+    assert len(store.load_items()) == 2
+
+
+def test_lock_gpu_only_declares_a_gpu_engine():
+    """#266: every spec carries the default ModalSpec(gpu="L4") block; an
+    engine that never touches a GPU must not declare it."""
+
+    class S:
+        def read_lock(self):
+            return {"engine": {"kind": "openrouter", "modal": {"gpu": "L4"}}}
+
+    class M:
+        def read_lock(self):
+            return {"engine": {"kind": "modal-vllm", "modal": {"gpu": "L4"}}}
+
+    assert runner._lock_gpu(S()) is None
+    assert runner._lock_gpu(M()) == "L4"
+
+
 def test_a_resumed_run_counts_the_tokens_of_a_pipeline_document_that_raised(tmp_path, monkeypatch):
     """SAND-089: the failed document has no item row, so its usage is kept as an event."""
     from mailroom_sandbox.eval import runners as eval_runners
