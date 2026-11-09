@@ -26,13 +26,33 @@
   document text) drive a scripted wall-clock timeline (~66 s) replayed one record at a time
   INTO the base as its own labeled run: staggered arrivals, many docs in flight for their
   recorded latencies (nodes run ~0.1–1.8 s while later docs proceed), three failed extracts,
-  two parked at human review and journeys re-entering via arbiter/retry — so one viewer
+  four parked open at human review (judge- and extract-triggered) and one classification
+  review resolved by the reviewer that re-enters extraction — so one viewer
   lists the base's historical runs AND the sample (selectable in the RUNS rail) and its
-  progress, class rail, routing, node counts, RUNNING pills with growing elapsed timers and
-  outcome buckets move like a live run without a local run store, network, key or GPU.
-  `--replay` forces the sample (resetting only that run dir) and a base with no runs falls
-  back to it; every panel figure is computed from the displayed run's digest and the run is
-  labeled as simulated.
+  progress, class rail, routing, node counts, RUNNING pills with growing elapsed timers,
+  outcome buckets and the Routed-to-human-review strip move like a live run without a local
+  run store, network, key or GPU. `--replay` forces the sample (resetting only that run
+  dir) and a base with no runs falls back to it; every panel figure is computed from the
+  displayed run's digest and the run is labeled as simulated.
+
+- **Floor review-accounting + post-hoc prompt identification** (`reports/dashboard/
+  build_floor_digest.py`, `floor.template.html`, `selftest_floor_digest.py`,
+  `data/fixtures/floor/replay/`). The digest keeps every run's `review_routed`
+  metric — documents routed to human review in total, split by the trigger stage
+  (classification / extraction / judgment / reporting) from item review causes or,
+  for replay/demo node traces, the node visited before `human_review` — and the
+  outcomes contract is explicit: a parked review document stays HELD ("Human-in-the-
+  loop"), FAILED remains technical runtime failures only. The viewer mirrors the
+  pipeline's stage-audit side channel (audit A-1) as dashed arrows from every
+  `_emit_stage_audit` call site parsed out of `build_graph.py` to an audit-log box —
+  a behavioral distinction carried by data, never hard-coded — with the
+  `human_review → audit log` arrow showing this run's routed count.
+  `prompt.lock.json` (written
+  for every served/run job since DMR-056; `checkpoint.py`) is surfaced per run as
+  resolved `prompts` (agent → stem) and shown in the viewer's prompt card for the
+  highlighted node only (each firing agent's stem, full list as the hover title), so
+  prompt versions are identifiable post hoc in any run or replay; the sample locks
+  its simulated stems on disk next to `spec.lock.json`. Digest selftest 29→33 checks.
 
 - **Named datasets: `config/datasets.yaml` + `${VAR}` dataset paths.** A run spec can name a
   dataset (`dataset: {name: pipeline-even100-shuffled2}`) instead of embedding a machine path;

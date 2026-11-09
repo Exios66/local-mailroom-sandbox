@@ -45,6 +45,7 @@ def extract_node(state):
 
 
 def human_review_node(state):
+    _emit_stage_audit(state, "routed_to_review")
     return interrupt({"why": "review"})
 
 
@@ -87,8 +88,9 @@ EXPECTED_EDGES = {
 }
 RUN_KEYS = {
     "name", "state", "cursor", "total", "items_attempted", "items_ok", "engine", "profile", "spec_hash",
-    "dataset_hash", "prompt_default", "tokens", "node_fires", "edge_fires", "node_agents", "node_ms_p50",
-    "aborts_by_last_node", "outcomes", "per_class", "inflight", "avg_doc_ms", "predicted", "routing",
+    "dataset_hash", "prompt_default", "prompts", "tokens", "node_fires", "edge_fires", "node_agents",
+    "node_ms_p50", "aborts_by_last_node", "outcomes", "per_class", "inflight", "avg_doc_ms", "predicted",
+    "routing", "review_routed",
 }
 
 
@@ -144,8 +146,10 @@ def make_fixture(root: Path) -> tuple[Path, Path]:
         "spec_hash": "spec-a", "profile": "prof-x", "engine": {"kind": "vllm-remote", "model": "model-x", "junk": 1},
         "dataset": {"sha256": "ds-hash-a"},
     }), encoding="utf-8")
-    (a / "prompt.lock.json").write_text(json.dumps({"default": {"source": "code-default", "name": "pdef"}}),
-                                        encoding="utf-8")
+    (a / "prompt.lock.json").write_text(json.dumps({
+        "default": {"source": "code-default", "name": "pdef"},
+        "agents": {"sorter": {"name": "sorter_local_v0", "source": "config/prompts"}},
+    }), encoding="utf-8")
 
     # run-b: archived attempt WITHOUT dataset.jsonl / spec.lock / prompt.lock
     b = base / "run-history" / "run-b"
@@ -209,6 +213,12 @@ def graph_node_boxes_and_agent_attribution():
     assert "END" not in na and "START" not in na
     assert na == {"intake": "intake", "classify": "sorter", "extract": bfd.SPECIALIST_LABEL,
                   "human_review": "(tray)", "archive": "(code)", "failed": "(abort terminal)"}, na
+
+
+@test
+def audit_events_parsed_from_emit_sites_not_hard_coded():
+    """Stage-audit arrows mirror _emit_stage_audit call sites (A-1), not invented edges."""
+    assert CTX["d"]["graph_reference"]["audit_events"] == {"human_review": "routed_to_review"}
 
 
 @test
@@ -336,7 +346,7 @@ def p50_and_tokens():
 def digest_schema_is_frozen():
     d = CTX["d"]
     assert set(d) == {"generated_utc", "classes", "graph_reference", "runs"}
-    assert set(d["graph_reference"]) == {"edges", "node_agents", "note"}
+    assert set(d["graph_reference"]) == {"edges", "node_agents", "audit_events", "note"}
     assert d["generated_utc"][:16].endswith(("0", "1", "2", "3", "4", "5", "6", "7", "8", "9"))
     for r in d["runs"]:
         assert set(r) == RUN_KEYS, set(r) ^ RUN_KEYS
@@ -399,6 +409,7 @@ def vendored_graph_parses_to_a_sane_topology():
     assert all(a != b for a, b in edges)
     nodes = set(g["node_agents"])
     assert all(n in nodes for e in edges for n in e if n not in ("START", "END")), "edge endpoint without a node box"
+    assert g["audit_events"].get("human_review") == "routed_to_review", "the review-to-audit mirror must stay"
 
 
 @test
@@ -515,7 +526,8 @@ def template_wires_live_mode_without_polling_on_file_protocol():
     html = TEMPLATE.read_text(encoding="utf-8")
     for needle in ("rnb", "inflight", "avg_doc_ms", "routing", "floor_digest.json?ts=", "location.protocol",
                    'run().state!=="running"', "updated ", "classView(", "if(!same)", 'r.state==="running"',
-                   "fitGraph()"):
+                   "fitGraph()", "outRev", "Routed to human review", "prompt.lock.json",
+                   "audit_events", "routed_to_review", "audit log"):
         assert needle in html, needle
     assert "http" in html[html.index("location.protocol") - 20:html.index("location.protocol") + 60]
     # a file:// page is a frozen snapshot: no timer may start before the http(s) guard
@@ -538,6 +550,41 @@ def routing_reads_the_job_runner_sorter_shape():
     assert rr["routing"] == {"contract": {"gt": 2, "pred": 1, "match": 1},
                              "letter": {"gt": 0, "pred": 1, "match": 0}}, rr["routing"]
     assert rr["predicted"] == {"contract": 1}, "an item with no prediction never counts toward gt"
+
+
+@test
+def prompts_surfaced_from_the_run_store_for_post_hoc_identification():
+    """prompt.lock.json agent stems land in the digest; absent locks stay empty, never boilerplate."""
+    assert CTX["runs"]["run-a"]["prompts"] == {"sorter": "sorter_local_v0"}
+    assert CTX["runs"]["run-b"]["prompts"] == {}
+    with tempfile.TemporaryDirectory() as t:
+        assert _live_run(Path(t), "run-legacy", [{"item_id": "l1", "ok": True, "stage": "archived"}],
+                         None)["prompts"] == {}
+
+
+@test
+def review_routed_counts_which_stage_submitted_the_document():
+    """Human-review routing is a kept metric split by trigger stage, and is never a failure bucket."""
+    assert CTX["runs"]["run-a"]["review_routed"] == {"total": 1, "by_stage": {"classification": 1}}
+    assert CTX["runs"]["run-b"]["review_routed"] == {"total": 0, "by_stage": {}}
+    _map = bfd._review_trigger
+    assert _map({"review_causes": ["sorter_low_confidence"]}, []) == "classification"
+    assert _map({"review_causes": ["hollow_extraction"]}, [{"node": "intake"}]) == "extraction"
+    assert _map({"review_causes": ["judge_partial", "class_miss"]}, [{"node": "extract"}]) == "judgment"
+    assert _map({"review_causes": ["reporting_incomplete"]}, []) == "reporting"
+    assert _map({}, [{"node": "rewrite"}, {"node": "human_review", "status": "running"}]) == "unknown"
+    assert _map({}, [{"node": "intake", "status": "done"}, {"node": "intake", "status": "running"},
+                     {"node": "intake", "status": "done"}, {"node": "classify", "status": "running"},
+                     {"node": "human_review"}]) == "classification"
+    assert _map({}, [{"node": "intake"}]) is None
+
+
+@test
+def review_stage_is_held_never_a_technical_failure():
+    """A parked document stays HELD whatever ok says; failed stays technical-only."""
+    assert bfd._stage_bucket("review", False) == "held" and bfd._stage_bucket("human_review", None) == "held"
+    assert bfd._stage_bucket("", False) == "failed"
+    assert bfd._stage_bucket("failed", True) == "failed"
 
 
 def main() -> int:

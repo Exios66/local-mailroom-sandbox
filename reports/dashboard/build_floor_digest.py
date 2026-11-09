@@ -48,6 +48,30 @@ SHIP_STAGES = {"archived", "archive", "ship", "shipped", "done"}
 HELD_STAGES = {"review", "human_review", "pending", "pending_review", "held"}
 FAIL_STAGES = {"failed", "fail", "error", "aborted"}
 
+# Review-trigger attribution. A parked document is NOT a failure: keep the routed count
+# per pipeline stage whose uncertainty sent it to human review. Item-level canonical
+# cause tokens (real run artifacts) win; ordered node visits (replay/demo artifacts)
+# fall back to the node the document was visiting on the way to human_review. Both
+# vocabularies come from the pipeline: cause tokens are vendor llm-mailroom's
+# pipeline.reconsideration, nodes are build_graph.py's registered node names.
+CAUSE_TRIGGER_STAGE = {
+    "class_miss": "classification", "subclass_miss": "classification",
+    "sorter_low_confidence": "classification", "reviewer_unavailable": "classification",
+    "reviewer_no_text": "classification", "reviewer_ineligible_label": "classification",
+    "reviewer_disagreement": "classification", "reviewer_low_confidence": "classification",
+    "extraction_miss": "extraction", "hollow_extraction": "extraction",
+    "schema_invalid": "extraction", "guardrail": "extraction", "parse_error": "extraction",
+    "judge_miss": "judgment", "judge_partial": "judgment", "needs_judge_review": "judgment",
+    "reporting_incomplete": "reporting",
+}
+NODE_TRIGGER_STAGE = {
+    "classify": "classification", "retry_classify": "classification",
+    "review_classify": "classification", "classification_arbiter": "classification",
+    "extract": "extraction", "retry_extract": "extraction",
+    "judge_verify": "judgment", "arbiter": "judgment", "boss_escalation": "judgment",
+    "compile_report": "reporting",
+}
+
 TRAY_LABEL = "(tray)"
 CODE_LABEL = "(code)"
 LANE_LABEL = "(abort terminal)"
@@ -60,7 +84,9 @@ GRAPH_NOTE = (
     "still count toward the node, never toward an edge. A route key that maps to END (e.g. "
     "human_review -> {'failed': END}) is drawn as a terminal lane node named after the key; "
     "a literal END target is the graph terminal and is not a node box. Run-budget aborts are "
-    "additionally attributed by aborts_by_last_node."
+    "additionally attributed by aborts_by_last_node. audit_events mirror _emit_stage_audit "
+    "call sites inside node handlers: side effects written to the hash-chained stage audit "
+    "log (A-1), drawn as dashed arrows that are not graph edges."
 )
 
 
@@ -218,7 +244,24 @@ def parse_graph(path: Path) -> dict:
 
     node_agents = {n: _attribute(funcs.get(h)) for n, h in registered.items()}
     node_agents.update({lane: LANE_LABEL for lane in lanes})
-    return {"edges": [list(e) for e in edges], "node_agents": node_agents, "note": GRAPH_NOTE}
+    # stage-audit emissions (audit A-1): an arrow per _emit_stage_audit call site inside
+    # a registered node's handler — side effects the compliance log records, not edges
+    audits: dict[str, str] = {}
+    for hname, fn in funcs.items():
+        for n in ast.walk(fn):
+            if (isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+                    and n.func.id == "_emit_stage_audit" and len(n.args) >= 2):
+                event = _sym(n.args[1])
+                if event and hname not in audits:
+                    audits[hname] = event
+    audit_events = {node: audit_events_event for node, handler in registered.items()
+                    if (audit_events_event := audits.get(handler))}
+    return {
+        "edges": [list(e) for e in edges],
+        "node_agents": node_agents,
+        "audit_events": dict(sorted(audit_events.items())),
+        "note": GRAPH_NOTE,
+    }
 
 
 # ── artifact readers (tolerant: missing / torn files degrade, never fabricate) ──
@@ -313,6 +356,28 @@ def _item_stage(item: dict):
     for holder in (item, item.get("pred"), item.get("prediction")):
         if isinstance(holder, dict) and holder.get("stage"):
             return holder["stage"]
+    return None
+
+
+def _review_trigger(item: dict, records: list[dict]) -> str | None:
+    """The pipeline stage whose uncertainty routed a document to human review, else None.
+
+    Item-level canonical review causes win; without them the ordered node visit
+    right before the first human_review record attributes the route. A routed
+    document with no mappable precedent records as "unknown"; None means the doc
+    was never routed (no causes, no human_review visit).
+    """
+    causes = item.get("review_causes")
+    if isinstance(causes, (list, tuple)):
+        for cause in (str(c) for c in causes):
+            if cause in CAUSE_TRIGGER_STAGE:
+                return CAUSE_TRIGGER_STAGE[cause]
+    for idx, rec in enumerate(records):
+        if rec.get("node") != "human_review":
+            continue
+        prev = next((r.get("node") for r in reversed(records[:idx])
+                     if r.get("node") not in (None, "human_review")), None)
+        return NODE_TRIGGER_STAGE.get(str(prev), "unknown")
     return None
 
 
@@ -506,6 +571,14 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]]) -> tuple[di
             recs = per_doc_records.get(item_id)
             aborts[recs[-1]["node"] if recs else "unknown"] += 1
 
+    # documents Routed to human review stay alive, never "failed": count them per
+    # triggering stage (causes then node-visit attribution; unknown is still routed)
+    routed: Counter = Counter()
+    for item_id, it in items:
+        trigger = _review_trigger(it, per_doc_records.get(item_id) or [])
+        if trigger is not None:
+            routed[trigger] += 1
+
     per_class: dict[str, dict] = {}
     if ds_present and ds_class:
         classes_seen = set(class_outcomes)
@@ -527,6 +600,7 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]]) -> tuple[di
 
     engine = lock.get("engine") if isinstance(lock.get("engine"), dict) else {}
     prompt_default = prompt_lock.get("default") if isinstance(prompt_lock.get("default"), dict) else {}
+    prompt_agents = prompt_lock.get("agents") if isinstance(prompt_lock.get("agents"), dict) else {}
     dataset_lock = lock.get("dataset") if isinstance(lock.get("dataset"), dict) else {}
     dataset_hash = dataset_lock.get("sha256")
     if not dataset_hash and ds_present:
@@ -553,6 +627,12 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]]) -> tuple[di
         "spec_hash": lock.get("spec_hash") or checkpoint.get("spec_hash"),
         "dataset_hash": dataset_hash,
         "prompt_default": prompt_default.get("name") or prompt_default.get("source"),
+        # post-hoc prompt identification: resolved prompt stem per agent from prompt.lock.json
+        "prompts": dict(sorted(
+            (str(agent), str(ref.get("name") or ref.get("source") or ""))
+            for agent, ref in prompt_agents.items() if isinstance(ref, dict)
+        )),
+        "review_routed": {"total": sum(routed.values()), "by_stage": dict(sorted(routed.items()))},
         "tokens": _tokens(nodes, [it for _, it in items]),
         "node_fires": {n: len(d) for n, d in sorted(node_docs.items())},
         "edge_fires": dict(sorted(edge_fires.items())),

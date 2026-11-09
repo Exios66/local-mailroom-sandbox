@@ -182,13 +182,9 @@ def test_replay_store_makes_the_run_visible_before_the_first_tick(tmp_path):
     assert (run / "items.jsonl").is_file() and (run / "items.jsonl").stat().st_size == 0
     assert (run / "nodes.jsonl").is_file() and (run / "nodes.jsonl").stat().st_size == 0
     assert (run / "dataset.jsonl").read_bytes() == (REPLAY_RUN / "dataset.jsonl").read_bytes()
-
-
-def test_replay_store_is_loud_when_the_fixture_is_missing(tmp_path, monkeypatch):
-    """A missing fixture raises instead of serving an empty run store."""
-    monkeypatch.setattr(floor_app, "replay_base", lambda: tmp_path / "missing")
-    with pytest.raises(FileNotFoundError):
-        floor_app.replay_store(tmp_path / "dest")
+    assert (run / "prompt.lock.json").is_file(), "the replay run locks prompt stems for post-hoc identification"
+    lock = json.loads((run / "prompt.lock.json").read_text(encoding="utf-8"))
+    assert lock["agents"]["sorter"] == {"name": "sorter_local_v0", "source": "replay-simulated"}
 
 
 def test_replay_store_resets_only_its_own_run_dir(store):
@@ -219,7 +215,10 @@ def test_replay_driver_replays_every_document_to_done(tmp_path):
     assert len(items) == 120 and len({item["item_id"] for item in items}) == 120
     failed = [item for item in items if not item["ok"]]
     assert len(failed) == 3 and all(item["pred"]["stage"] == "failed" for item in failed)
-    assert sum(1 for item in items if item["pred"]["stage"] == "review") == 2
+    held = [item for item in items if item["pred"]["stage"] == "review"]
+    assert len(held) == 4, "four docs park open at human review"
+    assert len({tuple(item.get("review_causes", [])) for item in held}) >= 3
+    assert all(item["ok"] for item in held), "a parked review document is not a technical failure"
     checkpoint = json.loads((run / "checkpoint.json").read_text(encoding="utf-8"))
     assert (checkpoint["state"], checkpoint["cursor"], checkpoint["total"]) == ("done", 120, 120)
     assert driver.pos == len(driver.events) and len(refreshes) >= driver.documents
@@ -275,12 +274,42 @@ def test_replay_digest_reports_five_classes_and_scripted_misses(tmp_path):
     assert set(run["outcomes"]) == {
         "contract", "merger_agreement", "corporate_record", "correspondence", "insurance_claim"}
     assert all(o["n"] == 24 for o in run["outcomes"].values()), "24 docs per class"
-    assert sum(o["ship"] for o in run["outcomes"].values()) == 115
-    assert sum(o["held"] for o in run["outcomes"].values()) == 2
-    assert sum(o["failed"] for o in run["outcomes"].values()) == 3
+    assert sum(o["ship"] for o in run["outcomes"].values()) == 113
+    assert sum(o["held"] for o in run["outcomes"].values()) == 4
+    assert sum(o["failed"] for o in run["outcomes"].values()) == 3, "failed stays technical-only"
     assert sum((v or {}).get("gt", 0) for v in run["routing"].values()) == 116, "four scripted docs carry no doc_type"
     assert run["predicted"]["insurance_claim"] == 2, "the two misrouted insurance docs"
+    assert run["review_routed"] == {"total": 5, "by_stage": {"classification": 1, "extraction": 2, "judgment": 2}}, \
+        "routed-to-review documents are their own kept metric, split by trigger stage"
+    assert run["prompts"]["sorter"] == "sorter_local_v0" and len(run["prompts"]) >= 7, \
+        "every replayed agent's prompt stem is identifiable post hoc"
+    assert "audit_events" in digest["graph_reference"], "the audit side-channel is always surfaced (even empty)"
     assert set(run["per_class"]) == set(run["outcomes"])
+
+
+def test_replay_digest_shows_a_corrected_classification_reentering_extraction(tmp_path):
+    """A human-approved classification review re-enters extraction with the reviewed evidence kept."""
+    base = floor_app.replay_store(tmp_path / "base")
+    driver = floor_app.ReplayDriver(base)
+    while driver.step():
+        pass
+    run = base / "runtime" / "runs" / floor_app.REPLAY_RUN_ID
+    per_doc: dict[str, list[dict]] = {}
+    for line in (run / "nodes.jsonl").read_text(encoding="utf-8").splitlines():
+        record = json.loads(line)
+        per_doc.setdefault(record["doc"], []).append(record)
+    doc, visits = next(iter(((d, r) for d, r in per_doc.items()
+                             if any(x["node"] == "human_review" and x["status"] == "done" for x in r))), (None, None))
+    assert doc is not None, "one scripted doc gets its classification review resolved by review"
+    seq = [x["node"] for x in visits if x["status"] == "running"]  # one visit per node, no running/done pairs
+    review, back = seq.index("human_review"), len(seq) - 1 - seq[::-1].index("extract")
+    assert seq[review - 1] == "classification_arbiter", "the review follows the classification arbiter"
+    assert back > review and seq[back - 1] == "human_review", "the corrected label re-enters extraction"
+    approved = next(x for x in visits if x["node"] == "human_review" and x["status"] == "done")
+    assert approved["decisions"] == [{"question": "review_decision", "type": "choice", "answer": "approved"}]
+    assert approved["agent"] is None and approved["model"] is None, "a human decided, not an LLM"
+    finals = {i["item_id"]: i for i in map(json.loads, (run / "items.jsonl").read_text(encoding="utf-8").splitlines())}
+    assert finals[doc]["pred"]["stage"] == "archived" and finals[doc]["ok"], "the resolved review completes its item"
 
 
 def test_replay_store_is_loud_when_the_fixture_is_missing(tmp_path, monkeypatch):
