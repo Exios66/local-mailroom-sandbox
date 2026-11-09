@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+- **Live floor: `sandbox floor` app + RUNNING pills** (`src/mailroom_sandbox/tui/floor_app.py`,
+  `reports/dashboard/build_floor_digest.py`, `reports/dashboard/floor.template.html`,
+  `tests/test_floor_app.py`). The digest now carries per-run `inflight` (open `running` records
+  from `nodes.jsonl`), `avg_doc_ms`, and a ground-truth-keyed `routing` block; the v10 viewer
+  gained a live mode — green RUNNING pill with ticking elapsed seconds on any node holding docs,
+  a ribbon progress bar (cursor/total · AVG), 3s digest poll with selection preserved, and
+  `?run=`/`?class=` deep links — active only over http(s) when a run's state is `running`
+  (file:// and idle runs stay exactly the static v10 page). `sandbox floor` rebuilds the digest
+  on a timer (mtime-sweep skip) and serves the viewer loopback-only on `:8769`; run-store base
+  via `--base`/`MAILROOM_BASE_DIR` so the WSL lane's `/home/gemooslin/sandbox-data` works from
+  any shell. Validated against a live 50-doc LM Studio pipeline run
+  (`config/runs/pipeline-lmstudio-even50-demo.yaml`). Node numbers keep the v10 contract:
+  docs that have *entered* a node (arrival fires it; the pill shows who is still inside).
+  Digest selftest 22→28 checks; floor app 16 tests.
+
 - **Vendor refresh: llm-mailroom `main` at #179 (`19203ea`) and Dojo `v0.28.1` (`00a2a7f`)**
   (`_VENDOR_PINS`, `requirements/dojo-release.txt`, both `VENDOR.md` files, README badges and pin
   table). The vendored sorter catalog now states rule C (a bylaw amendment is `bylaws`), so the

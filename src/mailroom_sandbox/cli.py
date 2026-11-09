@@ -779,6 +779,18 @@ def build_parser() -> argparse.ArgumentParser:
     board_p.add_argument("--demo", action="store_true", help="also run synthetic demo jobs (dev server; no Modal)")
     board_p.set_defaults(handler=_cmd_board)
 
+    floor_p = sub.add_parser(
+        "floor",
+        help="pipeline floor viewer as a resident app: live digest rebuild + loopback server (sandbox floor [RUN])",
+        parents=[leaf],
+    )
+    floor_p.add_argument("target", nargs="?", default=None, metavar="TARGET", help="run ID to preselect in the viewer (same as --run)")
+    floor_p.add_argument("--run", default=None, metavar="ID", help="run ID to preselect (opens floor.template.html?run=ID)")
+    floor_p.add_argument("--base", default=None, help="run-store base dir (default $MAILROOM_BASE_DIR, else the repo's ./data)")
+    floor_p.add_argument("--port", type=_port, default=None, help="port (default 8766; 0 = ephemeral); always bound to 127.0.0.1")
+    floor_p.add_argument("--interval", type=_positive_float, default=5.0, help="seconds between change checks; the digest is rebuilt only when a run artifact changed (default 5)")
+    floor_p.set_defaults(handler=_cmd_floor)
+
     beacon_p = sub.add_parser("beacon", help="publish a mailroom.beacon/v1 heartbeat (shell jobs)", parents=[leaf])
     beacon_sub = beacon_p.add_subparsers(dest="beacon_cmd", required=True)
     bu = beacon_sub.add_parser("update", help="create/update a job heartbeat", parents=[leaf])
@@ -2938,6 +2950,20 @@ def _run_board(args) -> int:
         stale_s=args.stale_s,
         interval=args.interval,
         demo=args.demo,
+    )
+
+
+def _cmd_floor(args) -> int:
+    """`sandbox floor [RUN]`: rebuild the floor digest in a thread and serve the viewer on loopback."""
+    from mailroom_sandbox.tui import floor_app
+
+    if args.target and args.run and args.target != args.run:
+        raise CLIUsageError("TARGET and --run name different runs; pass one")
+    return floor_app.serve_floor(
+        base=floor_app.resolve_base(args.base),
+        port=floor_app.DEFAULT_PORT if args.port is None else args.port,
+        interval=args.interval,
+        run=args.run or args.target,
     )
 
 
