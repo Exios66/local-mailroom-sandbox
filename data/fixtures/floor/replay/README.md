@@ -7,9 +7,9 @@ so `sandbox floor` can be viewed and debugged on a machine with no run store.
 
 `runtime/runs/replay-mailroom-sample/`
 
-- `dataset.jsonl` — 20 docs, 4 per live class, drawn from
+- `dataset.jsonl` — 120 docs, 24 per live class, drawn from
   `Lucius-Morningstar/mailroom-dataset` config `ground_truth` at revision
-  `bc9eab280044befb51e19dda3071d290a8677f42`: the first 4 train rows per class
+  `bc9eab280044befb51e19dda3071d290a8677f42`: the first 24 train rows per class
   sorted by `document_id`. Rows carry IDs, filenames, class/stage, source corpus
   and `content_sha256` only; no document text is vendored.
 - `replay.jsonl` — the scripted event trace (node starts/finishes, item results,
@@ -29,12 +29,16 @@ sandbox floor --replay --base <run-store>   # sample replayed INTO that base, ne
 sandbox floor                               # sample only when the base has no runs
 ```
 
-`--replay` resets just `runtime/runs/replay-mailroom-sample` inside the base and appends
-the trace one document per tick (0.8 s), so the run list, progress bar, class rail, routing,
-node counts and outcome buckets move while the base's historical runs stay untouched and
-selectable in the same RUNS rail. The sample run persists in the base afterwards (a finished
-recorded replay); an interrupted one reads like any killed run and resets on the next
-`--replay`. No network, API key, GPU or local run data is needed.
+`--replay` resets just `runtime/runs/replay-mailroom-sample` inside the base and plays the
+timeline in real time (~66 s): docs arrive staggered (a pilot-scale run) and stay in flight
+for their recorded latencies (nodes run for ~0.1–1.8 s while other docs proceed), with a few
+docs failing at extract, a couple parking open at human review, and some re-entering via
+arbiter/retry — so the run list, progress bar, class rail, routing, node counts, RUNNING
+pills with growing elapsed timers and outcome buckets move like a live run while the base's
+historical runs stay untouched and selectable in the same RUNS rail. The sample run persists
+in the base afterwards (a finished recorded replay); an interrupted one reads like any
+killed run and resets on the next `--replay`. No network, API key, GPU or local run data is
+needed.
 
 ## Refresh the sample
 

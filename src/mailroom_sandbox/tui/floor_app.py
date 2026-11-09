@@ -31,7 +31,6 @@ DEFAULT_INTERVAL_S = 5.0
 MIN_INTERVAL_S = 0.1
 PAGE = "floor.template.html"
 REPLAY_RUN_ID = "replay-mailroom-sample"
-REPLAY_TICK_S = 0.8  # one scripted document per tick; the digest refreshes after each
 REPLAY_DIR = ("data", "fixtures", "floor", "replay")
 # files in a run dir that change as a run progresses (a dir counts as a run once items.jsonl exists)
 RUN_ARTIFACTS = ("items.jsonl", "nodes.jsonl", "checkpoint.json", "spec.lock.json", "prompt.lock.json", "dataset.jsonl")
@@ -201,72 +200,102 @@ def replay_store(base: Path) -> Path:
     return Path(base)
 
 
-def _load_trace(path: Path) -> list[list[dict]]:
-    """Read ``replay.jsonl`` and group its events by tick (contiguous, ascending from 0).
+def _load_trace(path: Path) -> list[tuple[float, dict]]:
+    """Read ``replay.jsonl`` and return its records ordered by the ``at`` timeline.
 
-    Each line is an object with an integer ``tick`` and exactly one of ``node``,
-    ``item`` or ``checkpoint``. Malformed traces raise ValueError naming the line.
+    Each line is an object with a non-negative numeric ``at`` (simulated seconds) and
+    exactly one of ``node``, ``item`` or ``checkpoint``. Malformed traces raise
+    ValueError naming the line.
     """
-    by_tick: dict[int, list[dict]] = {}
+    events: list[tuple[float, dict]] = []
     with open(path, encoding="utf-8") as fh:
         for lineno, line in enumerate(fh, 1):
             try:
                 event = json.loads(line)
             except json.JSONDecodeError as exc:
                 raise ValueError(f"{path}:{lineno}: invalid JSON: {exc}") from exc
-            if not isinstance(event, dict) or not isinstance(event.get("tick"), int):
-                raise ValueError(f"{path}:{lineno}: expected an object with an integer tick")
+            at = event.get("at") if isinstance(event, dict) else None
+            if not isinstance(at, (int, float)) or isinstance(at, bool) or at < 0:
+                raise ValueError(f"{path}:{lineno}: expected a record with a non-negative numeric 'at'")
             if sum(kind in event for kind in ("node", "item", "checkpoint")) != 1:
                 raise ValueError(f"{path}:{lineno}: expected exactly one of node/item/checkpoint")
-            by_tick.setdefault(event["tick"], []).append(event)
-    if not by_tick or sorted(by_tick) != list(range(max(by_tick) + 1)):
-        raise ValueError(f"{path}: ticks must start at 0 and be contiguous")
-    return [by_tick[i] for i in range(len(by_tick))]
+            events.append((float(at), event))
+    if not events:
+        raise ValueError(f"{path}: empty timeline")
+    return sorted(events, key=lambda pair: pair[0])
 
 
 class ReplayDriver:
-    """Replay the bundled scripted run into a materialized base, one tick at a time."""
+    """Replay the bundled scripted run into a materialized base, one scheduled record at a time.
 
-    def __init__(self, base: Path, *, tick_s: float = REPLAY_TICK_S) -> None:
+    The trace is a wall-clock timeline in simulated seconds (`at`), played 1:1: docs
+    arrive staggered, nodes are in flight for their recorded ``ms`` while later docs
+    proceed, and held docs park open — the store therefore looks like a real live run.
+    """
+
+    def __init__(self, base: Path) -> None:
         """Load the trace from ``base``'s replay run and prepare its run store."""
         self.base = Path(base)
         self.run_dir = self.base / "runtime" / "runs" / REPLAY_RUN_ID
         self.store = RunStore(self.run_dir)
-        self.ticks = _load_trace(self.run_dir / "replay.jsonl")
-        self.tick_s = max(float(tick_s), 0.0)
-        self.tick = 0
+        self.events = _load_trace(self.run_dir / "replay.jsonl")
+        self.pos = 0
+        self._epoch: float | None = None  # wall clock at simulated t=0, set by the first record
 
     @property
     def documents(self) -> int:
         """Number of documents the trace replays (one scripted item each)."""
-        return sum(1 for events in self.ticks for event in events if "item" in event)
+        return sum(1 for _, event in self.events if "item" in event)
+
+    def _stamp(self, at: float) -> dict[str, Any]:
+        """Anchor the 0 point once, and return the record with its simulated epoch ``ts``."""
+        if self._epoch is None:
+            self._epoch = time.time() - at
+        return {"ts": self._epoch + at}
 
     def step(self, refresh: Callable[[], Any] | None = None) -> bool:
-        """Apply the next tick, call ``refresh`` if given, and return False at the end."""
-        if self.tick >= len(self.ticks):
+        """Apply the next scheduled record, call ``refresh`` if given, and return False at the end."""
+        if self.pos >= len(self.events):
             return False
-        now = time.time()
-        for event in self.ticks[self.tick]:
-            if "node" in event:
-                self.store.append_node({**event["node"], "ts": now})
-            elif "item" in event:
-                self.store.append_item(event["item"])
-            else:
-                checkpoint = event["checkpoint"]
-                self.store.write_checkpoint(
-                    state=checkpoint["state"], cursor=checkpoint["cursor"], total=checkpoint["total"]
-                )
-        self.tick += 1
-        if refresh is not None:
+        at, event = self.events[self.pos]
+        self.pos += 1
+        if "node" in event:
+            record = event["node"]
+            if record.get("status") == "running":
+                record.update(self._stamp(at))
+            self.store.append_node(record)
+        elif "item" in event:
+            self.store.append_item(event["item"])
+        else:
+            checkpoint = event["checkpoint"]
+            self.store.write_checkpoint(
+                state=checkpoint["state"], cursor=checkpoint["cursor"], total=checkpoint["total"]
+            )
+        if refresh is not None and ("node" not in event or event["node"].get("status") != "running"):
             refresh()
-        return self.tick < len(self.ticks)
+        return self.pos < len(self.events)
 
     def play(self, stop: threading.Event, refresh: Callable[[], Any] | None = None) -> None:
-        """Step through the trace until it ends or ``stop`` is set, waiting ``tick_s`` between ticks."""
+        """Play the timeline in real time until it ends or ``stop`` is set.
+
+        Falls behind never: the wait to the next record is `at - elapsed`; a digest
+        refresh happens per finished node/item/checkpoint record, at most ~2 per second
+        for the busy node phase (the builder only needs one sweep per wall second).
+        """
+        start = time.monotonic()
+        last_refresh = time.monotonic()
         while not stop.is_set():
-            if not self.step(refresh):
+            if self.pos >= len(self.events):
                 return
-            if stop.wait(self.tick_s):
+            at, _ = self.events[self.pos]
+            if stop.wait(max(0.0, at - (time.monotonic() - start))):
+                return
+            done_refresh = None
+            if refresh is not None:
+                now = time.monotonic()
+                if now - last_refresh >= 0.5:
+                    done_refresh, last_refresh = refresh, now
+            if not self.step(done_refresh):
                 return
 
 
@@ -338,7 +367,8 @@ def serve_floor(
         replay_worker.start()
     print(floor_url(httpd.server_address[1], run), flush=True)
     if driver is not None:
-        print(f"  replay: {driver.documents} simulated documents -> {base / 'runtime' / 'runs' / REPLAY_RUN_ID}"
+        print(f"  replay: {driver.documents} simulated documents over a {driver.events[-1][0]:.1f}s wall-clock"
+              f" timeline -> {base / 'runtime' / 'runs' / REPLAY_RUN_ID}"
               f" (reset on each --replay; history untouched) · not live results", flush=True)
     else:
         print(f"  run store: {base} · rebuild when it changes (checked every {max(interval, MIN_INTERVAL_S):g}s) · Ctrl+C to stop",
