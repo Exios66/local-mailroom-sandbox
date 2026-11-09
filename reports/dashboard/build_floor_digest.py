@@ -415,11 +415,14 @@ def _inflight(nodes: list[dict]) -> dict[str, list[dict]]:
 
     ``since`` is the first nonempty string or finite numeric timestamp in ``ts``,
     ``time``, ``started``, or ``started_at``, or None if none qualifies. Nodes
-    with no entry are absent. Each record must contain ``doc`` and ``node``.
+    with no entry are absent. Records missing ``doc``/``node`` are skipped.
     """
     latest: dict[tuple[str, str], dict] = {}
     for r in nodes:
-        latest[(str(r["doc"]), str(r["node"]))] = r  # a later done/error/complete replaces the running row
+        doc, node = r.get("doc"), r.get("node")
+        if doc is None or node is None:
+            continue  # torn/partial rows degrade, never crash a build
+        latest[(str(doc), str(node))] = r  # a later done/error/complete replaces the running row
     out: dict[str, list[dict]] = {}
     for (doc, node), r in latest.items():
         if r.get("status") != "running":

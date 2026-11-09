@@ -360,10 +360,11 @@ const fitGraph=()=>{z=Math.min(vp.clientWidth/W,vp.clientHeight/H)*0.99;tx=6;ty=
 document.getElementById("zfit").onclick=fitGraph;fitGraph();
 // ── LIVE refresh (http/https + selected run running only; file:// stays static, no timer at all) ──
 const upd=document.getElementById("upd");
-/** Show the local time of the latest successful digest refresh. */
-function stampUpdated(){const t=new Date();upd.textContent=" · updated "+pad2(t.getHours())+":"+pad2(t.getMinutes())+":"+pad2(t.getSeconds())}
+/** Show the local time of the latest successful digest refresh, plus a stale poll-miss counter. */
+function stampUpdated(){const t=new Date();upd.textContent=" · updated "+pad2(t.getHours())+":"+pad2(t.getMinutes())+":"+pad2(t.getSeconds())
+ +(stale>=3?" · STALE ("+stale+" poll misses)":"")}
 if(LIVE){
- let busy=false,wasLive=false;   // wasLive: the previous tick was polling a running run -> exactly one final fetch once it stops
+ let busy=false,wasLive=false,stale=0;   // wasLive: the previous tick was polling a running run -> exactly one final fetch once it stops
  setInterval(async()=>{
   const idle=run().state!=="running";
   if(busy||(idle&&!wasLive))return;
@@ -371,15 +372,15 @@ if(LIVE){
   busy=true;
   try{
    const res=await fetch("floor_digest.json?ts="+Date.now(),{cache:"no-store"});
-   if(!res.ok)return;
+   if(!res.ok){stale++;stampUpdated();return}
    const nd=await res.json();
-   if(!nd||!nd.runs||!nd.runs.length)return;
+   if(!nd||!nd.runs||!nd.runs.length){stale++;stampUpdated();return}   // a digest with no runs cannot be this store
    const same=JSON.stringify(nd)===JSON.stringify(D),name=run().name,i=nd.runs.findIndex(x=>x.name===name);
    D=nd;runIdx=i>=0?i:Math.min(runIdx,nd.runs.length-1);
    if(CLASS&&!D.classes.includes(CLASS))CLASS=null;
-   setGen();stampUpdated();
+   stale=0;setGen();stampUpdated();
    if(!same){menus();render()}   // unchanged digest: keep the DOM (and keyboard focus) intact
-  }catch(e){/* transient fetch/parse failure: keep the last good view */}
+  }catch(e){stale++;stampUpdated();/* transient fetch/parse failure: keep the last good view */}
   finally{busy=false}
  },3000);
 }
