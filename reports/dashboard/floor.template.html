@@ -50,9 +50,20 @@ h3{font-size:9px;letter-spacing:2px;color:#4d5c6e;margin:9px 0 6px}
 .note2{font-size:9px;color:#5d6c80;margin:5px 2px 8px;line-height:1.5}
 .run:focus-visible,.cls:focus-visible,.node:focus-visible,#zoomctl div:focus-visible{outline:2px solid #7fd0a2;outline-offset:1px}
 .node.dim:focus-visible{opacity:1}
+.rnb{position:absolute;top:-11px;left:50%;transform:translateX(-50%);background:#05130c;border:1.5px solid #41d98f;color:#41d98f;border-radius:10px;font-size:8.5px;font-weight:bold;letter-spacing:1px;padding:2px 9px;white-space:nowrap;box-shadow:0 0 10px #41d98f50;animation:pulse 1.6s infinite;pointer-events:none}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
+.rnb .el{color:#9fc6e8;font-weight:normal;margin-left:5px;letter-spacing:0}
+.rnb .ct{color:#41d98f;font-weight:normal;margin-left:3px;letter-spacing:0}
+.prog{display:none;align-items:center;gap:8px;margin-left:auto}
+.prog.on{display:flex}
+.pbar{width:150px;height:8px;background:#131c27;border:1px solid #2e4256;border-radius:4px;overflow:hidden;flex:none}
+.pbar i{display:block;height:100%;background:linear-gradient(90deg,#41d98f,#7fd0a2)}
+.pct{color:#41d98f;font-size:10px;letter-spacing:.5px}
+.prog+.z{margin-left:0}
+.cls b .m{color:#4d5c6e;font-weight:normal;font-size:9px;margin-left:4px}
 </style></head><body>
 <div class="app">
-<div class="ribbon"><span id="bigTitle"></span><b>PIPELINE FLOOR · DIGEST-DRIVEN v10</b> — topology: build_graph.py wiring · numbers: floor_digest.json · <em><span id="mode">ALL CLASSES</span></em><span class="z" id="gen"></span></div>
+<div class="ribbon"><span id="bigTitle"></span><b>PIPELINE FLOOR · DIGEST-DRIVEN v10</b> — topology: build_graph.py wiring · numbers: floor_digest.json · <em><span id="mode">ALL CLASSES</span></em><span class="prog" id="prog"><span class="pbar"><i id="pfill"></i></span><span class="pct" id="ptxt"></span></span><span class="z"><span id="gen"></span><span id="upd"></span></span></div>
 <div class="rail"><h3 style="margin-top:0">RUNS</h3><div id="runs"></div><h3>CLASSES — click = isolate</h3><div id="cl"></div>
 <div style="font-size:8.5px;color:#4d5c6e;margin-top:8px;line-height:1.6">green outline = class route · dim = untouched<br>node = docs that fired it · chip = docs crossed that edge</div></div>
 <div id="viewport"><div id="hud">arrows/drag <b>pan</b> · wheel <b>zoom</b> · click node → <b>its in/out edges light</b> · click empty canvas → <b>clear</b> · click class → <b>isolate</b></div><div id="zoomctl"><div id="zin" tabindex="0" role="button" aria-label="zoom in">+</div><div id="zout" tabindex="0" role="button" aria-label="zoom out">−</div><div id="zfit" tabindex="0" role="button" aria-label="fit graph" style="font-size:9px">fit</div></div><div id="world"><svg id="edges" width="2200" height="1400"><defs>
@@ -68,10 +79,14 @@ h3{font-size:9px;letter-spacing:2px;color:#4d5c6e;margin:9px 0 6px}
 </div>
 <script src="floor_digest.js"></script>
 <script>
-const D=window.DIGEST;
+let D=window.DIGEST;
 if(!D||!D.runs||!D.runs.length){document.body.textContent="floor_digest.js missing or empty - run: python reports/dashboard/build_floor_digest.py";throw new Error("no digest")}
-document.getElementById("gen").textContent="generated "+D.generated_utc.slice(0,16)+"Z";
-document.getElementById("kGen").textContent=D.generated_utc.slice(0,16)+"Z";
+/** Show the digest's generated time (ribbon and right rail); called at load and after each live refresh. */
+function setGen(){
+ document.getElementById("gen").textContent="generated "+D.generated_utc.slice(0,16)+"Z";
+ document.getElementById("kGen").textContent=D.generated_utc.slice(0,16)+"Z";
+}
+setGen();
 const POS={START:[20,430],intake:[200,430],classify:[450,430],retry_classify:[450,140],review_classify:[730,140],classification_arbiter:[1010,140],
  extract:[730,430],judge_verify:[730,980],arbiter:[1010,980],retry_extract:[450,980],boss_escalation:[1290,980],
  compile_report:[1010,430],catalog_write:[1290,430],archive:[1560,430],human_review:[1560,720],failed:[1830,720],END:[1830,430]};
@@ -82,6 +97,9 @@ const NB={w:186,h:62};
 const W=2200,H=1400, world=document.getElementById("world"), svg=document.getElementById("edges"), vp=document.getElementById("viewport");
 // default run: the last one still running, else the last run in the digest
 let runIdx=(()=>{let i=-1;D.runs.forEach((r,k)=>{if(r.state==="running")i=k});return i>=0?i:D.runs.length-1})(), CLASS=null, selNode=null, moved=0;
+{const q=new URLSearchParams(location.search),ri=D.runs.findIndex(r=>r.name===q.get("run")),c=q.get("class");   // one-time deep-select: ?run=<id>&class=<name>
+ if(ri>=0)runIdx=ri;
+ if(c&&D.classes.includes(c)){CLASS=c;document.getElementById("mode").textContent="ISOLATED — counts & chips re-computed";const bt=document.getElementById("bigTitle");bt.textContent=c.toUpperCase();bt.classList.add("on")}}
 function run(){return D.runs[runIdx]}
 /** Return the selected run or class count; failed uses outcome or abort totals. */
 function nodeVal(id){
@@ -129,6 +147,37 @@ function midFor(a,b,p1,p2,boxes){
  for(const c of cands)if(clear(c,p1,p2,skip,boxes))return c;
  return cands[0]}
 const BOX=Object.fromEntries(Object.entries(POS).map(([k,xy])=>[k,[xy[0],xy[1]]]));
+// ── LIVE mode helpers ───────────────────────────────────────────────────────────
+/** Docs in flight on a node for the selected run (older digests carry no inflight: none). */
+function inflightList(id){const f=run().inflight;return (f&&f[id])||[]}
+const seenAt={};   // "run|node" -> client ms when first seen in flight (drives ~Ns when the digest has no timestamp)
+/** since (epoch seconds, epoch ms, or ISO string) -> epoch ms, else null. */
+function sinceMs(v){
+ if(typeof v==="number"&&isFinite(v))return v>1e11?v:v*1000;
+ if(typeof v==="string"){const t=Date.parse(v);return isNaN(t)?null:t}
+ return null}
+/** Stamp first-seen for newly in-flight nodes of the selected run; forget nodes no longer in flight. */
+function pruneSeen(){
+ const r=run(),f=r.inflight||{},pre=r.name+"|";
+ for(const k of Object.keys(seenAt))if(k.startsWith(pre)&&!(f[k.slice(pre.length)]||[]).length)delete seenAt[k];
+ for(const n of Object.keys(f))if(f[n].length&&!(pre+n in seenAt))seenAt[pre+n]=Date.now()}
+const pad2=n=>String(n).padStart(2,"0");
+/** Fill a RUNNING pill: oldest doc's elapsed (mm:ss from since, else ~Ns from first seen) plus a count suffix. */
+function paintPill(b,id){
+ const list=inflightList(id),now=Date.now(),known=list.map(e=>sinceMs(e.since)).filter(t=>t!=null);
+ let el;
+ if(known.length){const s=Math.max(0,Math.floor((now-Math.min(...known))/1000));el=pad2(Math.floor(s/60))+":"+pad2(s%60)}
+ else{const s=Math.max(0,Math.floor((now-(seenAt[run().name+"|"+id]||now))/1000));el="~"+s+"s"}
+ b.innerHTML=`RUNNING<span class="el">${el}</span>`+(list.length>1?`<span class="ct">·${list.length}</span>`:"");
+ b.title=list.length+" in flight: "+list.map(e=>e.doc).join(", ")}
+/** Ribbon bar: cursor / total docs, pct, and AVG min/doc; 100% when the run is complete; hidden with no total. */
+function paintProgress(){
+ const r=run(),el=document.getElementById("prog");
+ if(!(typeof r.total==="number"&&r.total>0)){el.classList.remove("on");return}
+ const done=r.state==="complete",cur=done?r.total:Math.min(r.cursor||0,r.total),pct=cur/r.total*100;
+ document.getElementById("pfill").style.width=pct+"%";
+ document.getElementById("ptxt").textContent=cur+" / "+r.total+" docs · "+(done?"100":pct.toFixed(1))+"%"+(typeof r.avg_doc_ms==="number"?" · AVG "+(r.avg_doc_ms/60000).toFixed(1)+" min/doc":"");
+ el.classList.add("on")}
 /** Redraw graph traffic and detail panels for the current run, class, and node selection. */
 function render(){
  world.querySelectorAll(".node,.chip").forEach(e=>e.remove());
@@ -162,7 +211,11 @@ function render(){
   else { ncls += (v===0 && id!=="START" && id!=="END")? " dim":""; }   // base mode: a node with zero fires greys too
   mk(`<span class="tag ${!isllm?(id==="human_review"||id==="failed"?"tray":"code"):""}">${esc(GR.node_agents[id]||id)}</span><div class="nm">${esc(id)}</div><div class="v ${v===0?"zero":id==="human_review"?"warn":id==="failed"?"bad":""}">${v}</div><div class="s">p50 ${((r.node_ms_p50[id]||0)/1000).toFixed(1)}s</div>`, ncls)
    .style.cssText=`left:${xy[0]}px;top:${xy[1]}px`;world.lastChild.dataset.k=id;world.lastChild.tabIndex=0;world.lastChild.setAttribute("role","button");world.lastChild.setAttribute("aria-pressed",String(selNode===id));
+  // LIVE: RUNNING pill on the top edge of a visible node with docs in flight (run-level count)
+  if(!/\bdim\b/.test(ncls)&&inflightList(id).length){const b=document.createElement("span");b.className="rnb";world.lastChild.appendChild(b);paintPill(b,id)}
  }
+ pruneSeen();
+ paintProgress();
  function anc(a,b){const ac={x:a[0]+NB.w/2,y:a[1]+NB.h/2},bc={x:b[0]+NB.w/2,y:b[1]+NB.h/2};const dx=bc.x-ac.x,dy=bc.y-ac.y;
   const t=Math.min(Math.abs(dx)>1?(NB.w/2+15)/Math.abs(dx):1e9,Math.abs(dy)>1?(NB.h/2+13)/Math.abs(dy):1e9);
   return {x:ac.x+dx*Math.min(t,1),y:ac.y+dy*Math.min(t,1)}}
@@ -208,6 +261,10 @@ function render(){
  document.getElementById("selExtra").textContent=!sel?"":
   (D.graph_reference.node_agents[sel]||"")+" · "+nodeVal(sel)+" docs fired this node"+(CLASS?" (class)":" (run)")+(Object.keys(agN).length?" · agents observed: "+Object.entries(agN).map(([a,c])=>a+" "+c).join(" · "):"");
 }
+/** Dim routing-match suffix for a class row (recorded doc_type == ground truth); empty without routing data. */
+function routeSuffix(r,c,na){
+ const x=!na&&r.routing&&r.routing[c];
+ return x&&x.gt>0?`<span class="m" title="routing: ${x.match}/${x.gt} predicted as this class">·${Math.round(x.match/x.gt*100)}%</span>`:""}
 /** Rebuild run and class menus and their selection handlers. */
 function menus(){
  document.getElementById("runs").innerHTML=D.runs.map((r,i)=>`<div class="run${i===runIdx?" sel":""}" data-i="${i}" tabindex="0" role="button" aria-pressed="${i===runIdx}">${esc(r.name)}<small>${esc(r.state)} · ${r.items_attempted}/${r.total==null?"?":r.total} · ok ${r.items_ok}</small></div>`).join("");
@@ -222,7 +279,7 @@ function menus(){
   if(!known){agg[c]="?";why[c]="no dataset.jsonl for this run: per-class counts unknown"}
   else if(all>n){agg[c]="?";why[c]=`${all-n} of ${all} items have no dataset label: per-class counts incomplete`}
   else agg[c]=n}
- document.getElementById("cl").innerHTML=D.classes.map(c=>`<div class="cls${CLASS===c?" sel":""}${why[c]?" na":""}" data-c="${esc(c)}" tabindex="0" role="button" aria-pressed="${CLASS===c}"${why[c]?` aria-disabled="true" title="${esc(why[c])}"`:""}>${esc(c)}<b>${agg[c]}</b></div>`).join("");
+ document.getElementById("cl").innerHTML=D.classes.map(c=>`<div class="cls${CLASS===c?" sel":""}${why[c]?" na":""}" data-c="${esc(c)}" tabindex="0" role="button" aria-pressed="${CLASS===c}"${why[c]?` aria-disabled="true" title="${esc(why[c])}"`:""}>${esc(c)}<b>${agg[c]}${routeSuffix(rr,c,why[c])}</b></div>`).join("");
  document.querySelectorAll(".cls").forEach(el=>el.onclick=()=>{if(why[el.dataset.c])return;CLASS=CLASS===el.dataset.c?null:el.dataset.c;
   document.getElementById("mode").textContent=CLASS?"ISOLATED — counts & chips re-computed":"ALL CLASSES (run totals)";
   const bt=document.getElementById("bigTitle");bt.textContent=CLASS?CLASS.toUpperCase():"";bt.classList.toggle("on",!!CLASS);
@@ -260,5 +317,28 @@ addEventListener("mousemove",ev=>{if(!drag)return;const dx=ev.clientX-drag.x,dy=
 addEventListener("mouseup",()=>{drag=null;setTimeout(()=>moved=0,0)});
 addEventListener("blur",()=>{drag=null;moved=0});
 document.getElementById("zin").onclick=()=>zoom(z*1.25);document.getElementById("zout").onclick=()=>zoom(z/1.25);
+// ── LIVE refresh (http/https + selected run running only; file:// stays static, no timer at all) ──
+const upd=document.getElementById("upd");
+function stampUpdated(){const t=new Date();upd.textContent=" · updated "+pad2(t.getHours())+":"+pad2(t.getMinutes())+":"+pad2(t.getSeconds())}
+if(/^https?:$/.test(location.protocol)){
+ let busy=false;
+ setInterval(async()=>{
+  if(busy||run().state!=="running")return;
+  busy=true;
+  try{
+   const res=await fetch("floor_digest.json?ts="+Date.now(),{cache:"no-store"});
+   if(!res.ok)return;
+   const nd=await res.json();
+   if(!nd||!nd.runs||!nd.runs.length)return;
+   const name=run().name,i=nd.runs.findIndex(x=>x.name===name);
+   D=nd;runIdx=i>=0?i:Math.min(runIdx,nd.runs.length-1);
+   if(CLASS&&!D.classes.includes(CLASS))CLASS=null;
+   setGen();stampUpdated();menus();render();
+  }catch(e){/* transient fetch/parse failure: keep the last good view */}
+  finally{busy=false}
+ },3000);
+}
+// elapsed counters tick client-side every second from the last digest (no re-fetch for the seconds)
+setInterval(()=>{document.querySelectorAll(".rnb").forEach(b=>{const n=b.parentNode&&b.parentNode.dataset.k;if(n&&inflightList(n).length)paintPill(b,n)})},1000);
 document.getElementById("zfit").onclick=()=>{z=Math.min(vp.clientWidth/W,vp.clientHeight/H)*0.99;tx=6;ty=6;apply()};
 </script></body></html>

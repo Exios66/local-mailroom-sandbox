@@ -88,7 +88,7 @@ EXPECTED_EDGES = {
 RUN_KEYS = {
     "name", "state", "cursor", "total", "items_attempted", "items_ok", "engine", "profile", "spec_hash",
     "dataset_hash", "prompt_default", "tokens", "node_fires", "edge_fires", "node_agents", "node_ms_p50",
-    "aborts_by_last_node", "outcomes", "per_class",
+    "aborts_by_last_node", "outcomes", "per_class", "inflight", "avg_doc_ms", "predicted", "routing",
 }
 
 
@@ -126,9 +126,9 @@ def make_fixture(root: Path) -> tuple[Path, Path]:
         {"id": "d3", "expected_doc_class": "letter"}, {"id": "d4", "expected_doc_class": "letter"},
     ])
     _jsonl(a / "items.jsonl", [
-        {"item_id": "d1", "ok": True, "pred": {"stage": "archived", "doc_type": "contract"}},
-        {"item_id": "d2", "ok": True, "pred": {"stage": "review"}},
-        {"item_id": "d3", "ok": False, "pred": {"stage": "failed"}, "error": "boom"},
+        {"item_id": "d1", "ok": True, "pred": {"stage": "archived", "doc_type": "contract"}, "latency_ms": 1000},
+        {"item_id": "d2", "ok": True, "pred": {"stage": "review"}, "latency_ms": 3000},
+        {"item_id": "d3", "ok": False, "pred": {"stage": "failed", "doc_type": "contract"}, "error": "boom"},
         {"item_id": "d4", "ok": True, "pred": {"stage": "weird_unknown_stage"}},
     ])
     tok = {"classify": {"prompt_tokens": 100, "completion_tokens": 10}}
@@ -436,6 +436,86 @@ def real_runs_cross_consistency_when_present():
     for run in d["runs"]:
         assert sum(o["n"] for o in run["outcomes"].values()) == run["items_attempted"], run["name"]
         assert set(run["edge_fires"]) <= edges, (run["name"], set(run["edge_fires"]) - edges)
+
+
+def _live_run(t: Path, name: str, items, nodes, checkpoint=None) -> dict:
+    """Build a one-run throwaway base and return that run's digest object."""
+    run = t / "data" / "runtime" / "runs" / name
+    _jsonl(run / "items.jsonl", items)
+    if nodes is not None:
+        _jsonl(run / "nodes.jsonl", nodes)
+    if checkpoint is not None:
+        (run / "checkpoint.json").write_text(json.dumps(checkpoint), encoding="utf-8")
+    r = run_cli(t / "data", t / "out", CTX["graph"])
+    assert r.returncode == 0, r.stderr
+    return json.loads((t / "out" / "floor_digest.json").read_text(encoding="utf-8"))["runs"][0]
+
+
+@test
+def inflight_lists_unclosed_running_and_omits_closed():
+    with tempfile.TemporaryDirectory() as t:
+        nodes = [
+            {"doc": "x", "node": "classify", "status": "running", "ts": 1000.5},   # never closed -> in flight
+            {"doc": "y", "node": "classify", "status": "running", "ts": 900.0},
+            {"doc": "y", "node": "classify", "status": "done", "ts": 905.0},       # closed later -> not in flight
+            {"doc": "y", "node": "extract", "status": "running", "started_at": "2026-01-01T00:00:00Z"},
+            '{"doc": "torn", "node"',
+            {"doc": "z", "node": "intake", "status": "running"},                    # no timestamp -> since null
+            {"doc": "w", "node": "intake", "status": "running", "ts": 10},
+            {"doc": "w", "node": "intake", "status": "error", "ts": 11},            # error also closes
+        ]
+        rr = _live_run(Path(t), "run-live", [], nodes)
+    assert rr["inflight"] == {
+        "classify": [{"doc": "x", "since": 1000.5}],
+        "extract": [{"doc": "y", "since": "2026-01-01T00:00:00Z"}],
+        "intake": [{"doc": "z", "since": None}],
+    }, rr["inflight"]
+
+
+@test
+def inflight_is_an_empty_object_without_nodes_jsonl():
+    with tempfile.TemporaryDirectory() as t:
+        rr = _live_run(Path(t), "run-legacy", [{"item_id": "l1", "ok": True, "stage": "archived"}], None)
+    assert rr["inflight"] == {}, "legacy run (no nodes.jsonl) must emit {}, not omit the key"
+    assert CTX["runs"]["run-b"]["inflight"] == {} and CTX["runs"]["run-a"]["inflight"] == {}
+
+
+@test
+def avg_doc_ms_is_null_safe_and_computed():
+    assert CTX["runs"]["run-a"]["avg_doc_ms"] == 2000, CTX["runs"]["run-a"]["avg_doc_ms"]  # mean(1000, 3000)
+    assert CTX["runs"]["run-b"]["avg_doc_ms"] is None, "no latency_ms rows -> null"
+    assert bfd._avg_doc_ms([]) is None
+    assert bfd._avg_doc_ms([{"latency_ms": float("nan")}, {"latency_ms": True}, {}]) is None
+    assert bfd._avg_doc_ms([{"latency_ms": 1}, {"latency_ms": 2}]) == 1.5
+    with tempfile.TemporaryDirectory() as t:
+        assert _live_run(Path(t), "run-empty", [], None)["avg_doc_ms"] is None
+
+
+@test
+def state_cursor_total_surfaced_for_the_live_run():
+    a = CTX["runs"]["run-a"]
+    assert (a["state"], a["cursor"], a["total"]) == ("running", 4, 4)
+    assert [r["name"] for r in CTX["d"]["runs"] if r["state"] == "running"] == ["run-a"]
+
+
+@test
+def routing_counts_only_when_expected_and_predicted_both_present():
+    a, b = CTX["runs"]["run-a"], CTX["runs"]["run-b"]
+    # d1 contract->contract matches; d3 letter->contract misses; d2/d4 carry no doc_type -> excluded
+    assert a["routing"] == {"contract": {"gt": 1, "pred": 2, "match": 1}, "letter": {"gt": 1, "pred": 0, "match": 0}}, a["routing"]
+    assert a["predicted"] == {"contract": 0, "letter": 1}, a["predicted"]
+    assert b["routing"] == {} and b["predicted"] == {}, "no expected class -> nothing counted"
+    assert set(a["per_class"]) == {"contract", "letter"}, "classes stay ground-truth keyed"
+    assert a["per_class"]["contract"]["outcomes"] == a["outcomes"]["contract"]
+
+
+@test
+def template_wires_live_mode_without_polling_on_file_protocol():
+    html = TEMPLATE.read_text(encoding="utf-8")
+    for needle in ("rnb", "inflight", "avg_doc_ms", "routing", "floor_digest.json?ts=", "location.protocol",
+                   'run().state!=="running"', "updated "):
+        assert needle in html, needle
+    assert "http" in html[html.index("location.protocol") - 20:html.index("location.protocol") + 60]
 
 
 def main() -> int:

@@ -339,6 +339,61 @@ def _tokens(nodes: list[dict], items: list[dict]) -> dict:
     return {"prompt": prompt, "completion": completion}
 
 
+def _inflight(nodes: list[dict]) -> dict[str, list[dict]]:
+    """Docs currently mid-node: the latest record (file order) for a doc+node is ``running``.
+
+    ``since`` is that running record's own timestamp (``ts``/``time``/``started``/
+    ``started_at``), or None when the record carries none. Nodes with no entry are absent.
+    """
+    latest: dict[tuple[str, str], dict] = {}
+    for r in nodes:
+        latest[(str(r["doc"]), str(r["node"]))] = r  # a later done/error/complete replaces the running row
+    out: dict[str, list[dict]] = {}
+    for (doc, node), r in latest.items():
+        if r.get("status") != "running":
+            continue
+        since = None
+        for key in ("ts", "time", "started", "started_at"):
+            v = r.get(key)
+            if isinstance(v, str) and v:
+                since = v
+            elif _num(v) is not None:
+                since = _num(v)
+            if since is not None:
+                break
+        out.setdefault(node, []).append({"doc": doc, "since": since})
+    return dict(sorted(out.items()))
+
+
+def _avg_doc_ms(items: list[dict]):
+    """Mean wall ms per completed doc over items' ``latency_ms``; None when there are none."""
+    ms = [v for v in (_num(it.get("latency_ms")) for it in items) if v is not None]
+    return _int_if_whole(sum(ms) / len(ms)) if ms else None
+
+
+def _pred_class(item: dict) -> str | None:
+    """The doc_type the run recorded for an item (pred / prediction / item level), if any."""
+    for holder in (item.get("pred"), item.get("prediction"), item):
+        if isinstance(holder, dict) and holder.get("doc_type"):
+            return str(holder["doc_type"])
+    return None
+
+
+def _routing(items: list[tuple[str, dict]], ds_class: dict[str, str]) -> dict[str, dict]:
+    """Per-class routing agreement; only items with BOTH an expected and a predicted class count."""
+    routing: dict[str, dict] = {}
+    for item_id, it in items:
+        exp = ds_class.get(item_id) or str(it.get("expected_doc_class") or it.get("expected") or "")
+        pred = _pred_class(it)
+        if not exp or not pred:
+            continue
+        routing.setdefault(exp, {"gt": 0, "pred": 0, "match": 0})["gt"] += 1
+        routing.setdefault(pred, {"gt": 0, "pred": 0, "match": 0})["pred"] += 1
+        if exp == pred:
+            routing[exp]["match"] += 1
+    return dict(sorted(routing.items()))
+
+
 def build_run(name: str, path: Path, edge_set: set[tuple[str, str]]) -> tuple[dict, set[str]]:
     """Summarize a run's artifacts and return the summary and observed classes.
 
@@ -463,6 +518,7 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]]) -> tuple[di
         total = cp_total if cp_ok else len(ds_rows)
 
     cursor = checkpoint.get("cursor")
+    routing = _routing(items, ds_class)
     run = {
         "name": name,
         "state": checkpoint.get("state") or "unknown",
@@ -484,6 +540,11 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]]) -> tuple[di
         "aborts_by_last_node": dict(sorted(aborts.items())),
         "outcomes": dict(sorted(outcomes.items())),
         "per_class": per_class,
+        "inflight": _inflight(nodes),
+        "avg_doc_ms": _avg_doc_ms([it for _, it in items]),
+        # per ground-truth class: items whose recorded doc_type differs from it (routing misses)
+        "predicted": {c: v["gt"] - v["match"] for c, v in routing.items() if v["gt"]},
+        "routing": routing,
     }
     classes = {c for c in outcomes if c != "?"} | set(ds_class.values())
     return run, classes
@@ -549,6 +610,19 @@ def write_outputs(digest: dict, out: Path) -> tuple[Path, Path]:
     return json_path, js_path
 
 
+def build(base: Path, out: Path, graph_path: Path | None = None) -> tuple[dict, Path, Path]:
+    """Build the digest from ``base`` and write floor_digest.json/.js into ``out``.
+
+    The programmatic twin of ``main`` (used by ``sandbox floor``): ``graph_path`` defaults
+    to ``$FLOOR_DIGEST_GRAPH`` then the vendored build_graph.py. Returns
+    ``(digest, json_path, js_path)``; raises DigestError exactly as ``main`` would report it.
+    """
+    graph = Path(graph_path or os.environ.get("FLOOR_DIGEST_GRAPH") or DEFAULT_GRAPH)
+    digest = build_digest(Path(base), graph)
+    json_path, js_path = write_outputs(digest, Path(out))
+    return digest, json_path, js_path
+
+
 def summary_lines(digest: dict) -> list[str]:
     """Return one line per run with its three most frequently fired nodes."""
     lines = []
@@ -572,11 +646,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--out", help="output dir (default: this script's directory)")
     ap.add_argument("--print-summary", action="store_true", help="print one line per run")
     args = ap.parse_args(argv)
-    graph_path = Path(os.environ.get("FLOOR_DIGEST_GRAPH") or DEFAULT_GRAPH)
     out = Path(args.out) if args.out else HERE
     try:
-        digest = build_digest(resolve_base(args.base), graph_path)
-        json_path, js_path = write_outputs(digest, out)
+        digest, json_path, js_path = build(resolve_base(args.base), out)
     except DigestError as exc:
         print(f"build_floor_digest: error: {exc}", file=sys.stderr)
         return exc.code
