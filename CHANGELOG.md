@@ -21,14 +21,18 @@
   Digest selftest 22→29 checks; floor app + replay tests.
 
 - **Floor replay: pinned sample + `sandbox floor --replay`** (`data/fixtures/floor/replay/`,
-  `src/mailroom_sandbox/tui/floor_app.py`, `tests/test_floor_app.py`). 20 public
-  `mailroom-dataset` docs (4 per live class at the pinned revision; IDs/metadata only, no
-  document text) drive a scripted trace of nodes/items/checkpoints, replayed one document
-  per 0.8 s tick INTO the base as its own labeled run — so one viewer lists the base's
-  historical runs AND the sample, selectable in the RUNS rail, and its progress, class rail,
-  routing, node counts and outcome buckets move without a local run store, network, key or
-  GPU. `--replay` forces the sample (resetting only that run dir) and a base with no runs
-  falls back to it; the run is labeled as simulated and its numbers are not results.
+  `src/mailroom_sandbox/tui/floor_app.py`, `tests/test_floor_app.py`). 120 public
+  `mailroom-dataset` docs (24 per live class at the pinned revision; IDs/metadata only, no
+  document text) drive a scripted wall-clock timeline (~66 s) replayed one record at a time
+  INTO the base as its own labeled run: staggered arrivals, many docs in flight for their
+  recorded latencies (nodes run ~0.1–1.8 s while later docs proceed), three failed extracts,
+  two parked at human review and journeys re-entering via arbiter/retry — so one viewer
+  lists the base's historical runs AND the sample (selectable in the RUNS rail) and its
+  progress, class rail, routing, node counts, RUNNING pills with growing elapsed timers and
+  outcome buckets move like a live run without a local run store, network, key or GPU.
+  `--replay` forces the sample (resetting only that run dir) and a base with no runs falls
+  back to it; every panel figure is computed from the displayed run's digest and the run is
+  labeled as simulated.
 
 - **Named datasets: `config/datasets.yaml` + `${VAR}` dataset paths.** A run spec can name a
   dataset (`dataset: {name: pipeline-even100-shuffled2}`) instead of embedding a machine path;

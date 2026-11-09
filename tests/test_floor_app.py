@@ -6,6 +6,7 @@ Offline: no LLM and no run launch. The one socket test binds an ephemeral loopba
 import hashlib
 import json
 import threading
+import time
 from http.client import HTTPConnection
 from pathlib import Path
 
@@ -150,10 +151,12 @@ def test_replay_fixture_is_a_pinned_sample_with_a_complete_trace():
 
     dataset_text = (REPLAY_RUN / "dataset.jsonl").read_text(encoding="utf-8")
     dataset = [json.loads(line) for line in dataset_text.splitlines()]
-    assert len(dataset) == 20
+    assert len(dataset) == 120
     assert {row["expected_doc_class"] for row in dataset} == {
         "contract", "merger_agreement", "corporate_record", "correspondence", "insurance_claim"}
-    assert len({row["id"] for row in dataset}) == 20
+    for cls in {"contract", "merger_agreement", "corporate_record", "correspondence", "insurance_claim"}:
+        assert sum(1 for row in dataset if row["expected_doc_class"] == cls) == 24, cls
+    assert len({row["id"] for row in dataset}) == 120
     assert all("doc_text" not in row for row in dataset), "the fixture carries IDs/metadata, not document text"
     assert "/home/" not in dataset_text and "C:\\Users\\" not in dataset_text
 
@@ -166,8 +169,10 @@ def test_replay_fixture_is_a_pinned_sample_with_a_complete_trace():
     ids = {row["id"] for row in dataset}
     assert {event["item"]["item_id"] for event in events if "item" in event} == ids
     assert all(event["node"]["doc"] in ids for event in events if "node" in event)
+    assert all(isinstance(event["at"], (int, float)) for event in events)
+    assert [event["at"] for event in events] == sorted(event["at"] for event in events), "chronological timeline"
     final = [event["checkpoint"] for event in events if "checkpoint" in event][-1]
-    assert final == {"state": "done", "cursor": 20, "total": 20}
+    assert final == {"state": "done", "cursor": 120, "total": 120}
 
 
 def test_replay_store_makes_the_run_visible_before_the_first_tick(tmp_path):
@@ -202,23 +207,58 @@ def test_replay_store_resets_only_its_own_run_dir(store):
 
 
 def test_replay_driver_replays_every_document_to_done(tmp_path):
-    """The driver writes all 20 scripted items/nodes, refreshes per tick and ends done."""
+    """The driver writes all 120 scripted items/nodes, refreshes items, and ends done."""
     base = floor_app.replay_store(tmp_path / "base")
     driver = floor_app.ReplayDriver(base)
-    assert driver.documents == 20
+    assert driver.documents == 120
     refreshes = []
     while driver.step(lambda: refreshes.append(1)):
         pass
     run = base / "runtime" / "runs" / floor_app.REPLAY_RUN_ID
     items = [json.loads(line) for line in (run / "items.jsonl").read_text(encoding="utf-8").splitlines()]
-    assert len(items) == 20 and len({item["item_id"] for item in items}) == 20
+    assert len(items) == 120 and len({item["item_id"] for item in items}) == 120
     failed = [item for item in items if not item["ok"]]
-    assert len(failed) == 1 and failed[0]["pred"]["stage"] == "failed"
-    assert sum(1 for item in items if item["pred"]["stage"] == "review") == 1
+    assert len(failed) == 3 and all(item["pred"]["stage"] == "failed" for item in failed)
+    assert sum(1 for item in items if item["pred"]["stage"] == "review") == 2
     checkpoint = json.loads((run / "checkpoint.json").read_text(encoding="utf-8"))
-    assert (checkpoint["state"], checkpoint["cursor"], checkpoint["total"]) == ("done", 20, 20)
-    assert len(refreshes) == driver.tick == len(driver.ticks)
-    assert driver.step() is False, "an exhausted trace is a no-op"
+    assert (checkpoint["state"], checkpoint["cursor"], checkpoint["total"]) == ("done", 120, 120)
+    assert driver.pos == len(driver.events) and len(refreshes) >= driver.documents
+    assert driver.step() is False, "an exhausted timeline is a no-op"
+
+
+def _open_nodes(run_dir: Path) -> set[tuple[str, str]]:
+    """(doc, node) pairs whose latest record is still ``running``."""
+    latest: dict[tuple[str, str], dict] = {}
+    for line in (run_dir / "nodes.jsonl").read_text(encoding="utf-8").splitlines():
+        record = json.loads(line)
+        latest[(record["doc"], record["node"])] = record
+    return {key for key, record in latest.items() if record["status"] == "running"}
+
+
+def test_replay_runs_concurrent_docs_and_parks_the_held_one(tmp_path):
+    """Mid-replay several docs are in flight and the held doc is still open at the end."""
+    base = floor_app.replay_store(tmp_path / "base")
+    run = base / "runtime" / "runs" / floor_app.REPLAY_RUN_ID
+    driver = floor_app.ReplayDriver(base)
+    seen = 0
+    while driver.step():
+        if driver.pos == len(driver.events) // 2:
+            seen = len(_open_nodes(run))
+    assert seen >= 2, "docs run concurrently mid-replay (real run dynamics), like live pills"
+    assert (run / "checkpoint.json" and json.loads((run / "checkpoint.json").read_text(encoding="utf-8")))["state"] == "done"
+    held = [pair for pair in _open_nodes(run) if pair[1] == "human_review"]
+    assert held, "the parked doc stays open like a live run's held document"
+
+
+def test_replay_running_records_carry_real_elapsed_timestamps(tmp_path):
+    """A node record's ``ts`` is its scheduled wall-clock moment (drives pill elapsed)."""
+    base = floor_app.replay_store(tmp_path / "base")
+    driver = floor_app.ReplayDriver(base)
+    while driver.step() and not (base / "runtime" / "runs" / floor_app.REPLAY_RUN_ID / "nodes.jsonl").stat().st_size:
+        pass
+    recorded = json.loads((base / "runtime" / "runs" / floor_app.REPLAY_RUN_ID / "nodes.jsonl")
+                          .read_text(encoding="utf-8").splitlines()[0])
+    assert isinstance(recorded["ts"], float) and recorded["ts"] <= time.time() + 60
 
 
 def test_replay_digest_reports_five_classes_and_scripted_misses(tmp_path):
@@ -231,13 +271,15 @@ def test_replay_digest_reports_five_classes_and_scripted_misses(tmp_path):
     graph.write_text(STUB_GRAPH, encoding="utf-8")
     digest, _, _ = floor_app.build(base, tmp_path / "out", graph)
     run = digest["runs"][0]
-    assert (run["state"], run["items_attempted"], run["total"]) == ("done", 20, 20)
+    assert (run["state"], run["items_attempted"], run["total"]) == ("done", 120, 120)
     assert set(run["outcomes"]) == {
         "contract", "merger_agreement", "corporate_record", "correspondence", "insurance_claim"}
-    assert run["outcomes"]["contract"] == {"ship": 3, "held": 1, "failed": 0, "open": 0, "n": 4}
-    assert run["outcomes"]["corporate_record"] == {"ship": 3, "held": 0, "failed": 1, "open": 0, "n": 4}
-    assert run["routing"]["correspondence"]["pred"] == 5, "four own docs plus the scripted miss"
-    assert run["predicted"]["insurance_claim"] == 1
+    assert all(o["n"] == 24 for o in run["outcomes"].values()), "24 docs per class"
+    assert sum(o["ship"] for o in run["outcomes"].values()) == 115
+    assert sum(o["held"] for o in run["outcomes"].values()) == 2
+    assert sum(o["failed"] for o in run["outcomes"].values()) == 3
+    assert sum((v or {}).get("gt", 0) for v in run["routing"].values()) == 116, "four scripted docs carry no doc_type"
+    assert run["predicted"]["insurance_claim"] == 2, "the two misrouted insurance docs"
     assert set(run["per_class"]) == set(run["outcomes"])
 
 
@@ -249,13 +291,14 @@ def test_replay_store_is_loud_when_the_fixture_is_missing(tmp_path, monkeypatch)
 
 
 @pytest.mark.parametrize(("body", "message"), [
-    ('{"tick": 0, "node": {}}\nnot json\n', "invalid JSON"),
-    ('{"tick": "x", "node": {}}\n', "integer tick"),
-    ('{"tick": 0}\n', "exactly one"),
-    ('{"tick": 1, "checkpoint": {"state": "done", "cursor": 0, "total": 0}}\n', "contiguous"),
+    ('{"at": 0, "node": {}}\nnot json\n', "invalid JSON"),
+    ('{"at": "x", "node": {}}\n', "numeric 'at'"),
+    ('{"at": -1, "node": {}}\n', "non-negative numeric 'at'"),
+    ('{"at": 0}\n', "exactly one"),
+    ('{"checkpoint": {"state": "done", "cursor": 0, "total": 0}}\n', "numeric 'at'"),
 ])
 def test_replay_trace_shape_errors_are_loud(tmp_path, body, message):
-    """Malformed replay traces fail at load with a message naming the problem."""
+    """Malformed replay timelines fail at load with a message naming the problem."""
     path = tmp_path / "replay.jsonl"
     path.write_text(body, encoding="utf-8")
     with pytest.raises(ValueError, match=message):
@@ -265,12 +308,12 @@ def test_replay_trace_shape_errors_are_loud(tmp_path, body, message):
 def test_replay_play_stops_promptly(tmp_path):
     """The replay thread exits when the stop event is set."""
     base = floor_app.replay_store(tmp_path / "base")
-    driver = floor_app.ReplayDriver(base, tick_s=0.01)
+    driver = floor_app.ReplayDriver(base)
     stop = threading.Event()
     thread = threading.Thread(target=driver.play, args=(stop,))
     thread.start()
     stop.set()
-    thread.join(timeout=3)
+    thread.join(timeout=5)
     assert not thread.is_alive()
 
 
