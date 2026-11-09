@@ -1,16 +1,18 @@
 # 50-doc DEMO slice of the even-100 shuffled corpus for the LIVE floor viewer
-# (floor.template.html RUNNING pills + 3s digest poll). Same constraints as
-# pipeline-lmstudio-even100-shuf2: profile lmstudio, engine qwen3.5-9b on :1234,
-# concurrency 4, JSON_MODE off, thinking/reasoning OFF in the LM Studio GUI,
-# cost_cap/max_wall unchanged. Dataset = the same locked shuffled file;
-# limit 50 takes the first 50 rows in canonical (shuf-NNNN) order, so intake
-# stays class-blind — the demo sees a real shuffle, not a stratum block.
+# (floor.template.html RUNNING pills + 3s digest poll). Same constraints as the
+# even-100 shuffled run: profile lmstudio, engine qwen3.5-9b on :1234,
+# concurrency 4, JSON_MODE off, thinking/reasoning OFF in the LM Studio GUI.
+# The dataset is a REGISTRY KEY (config/datasets.yaml), resolved under
+# ${MAILROOM_BASE_DIR}, so no machine path lives in this file. limit 50 takes
+# the first 50 rows in the file's canonical (shuffled) order, so intake stays
+# class-blind — a real shuffle, not a stratum block.
 #
 #   sandbox run preflight --config config/runs/pipeline-lmstudio-even50-demo.yaml
 #   sandbox run start --config config/runs/pipeline-lmstudio-even50-demo.yaml --initials GM --watch
 #
 # Prereqs: LM Studio running with qwen3.5-9b LOADED, reasoning/thinking OFF in
-# the GUI; .wslconfig mirrored networking; .env MAILROOM_JSON_MODE=off.
+# the GUI; .wslconfig mirrored networking; .env MAILROOM_JSON_MODE=off and
+# MAILROOM_BASE_DIR set to the directory that holds datasets/.
 schema: sandbox.run/v1
 run_id: pipeline-lmstudio-even50-demo
 task: pipeline
@@ -20,8 +22,7 @@ prompt:
   default: {source: code-default}
 
 dataset:
-  provider: file
-  local_path: /home/gemooslin/sandbox-data/datasets/pipeline-even100-shuffled2.jsonl
+  name: pipeline-even100-shuffled2
   limit: 50
 
 engine:

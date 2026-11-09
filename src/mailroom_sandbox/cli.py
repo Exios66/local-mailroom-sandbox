@@ -789,6 +789,9 @@ def build_parser() -> argparse.ArgumentParser:
     floor_p.add_argument("target", nargs="?", default=None, metavar="TARGET", help="run ID to preselect in the viewer (same as --run)")
     floor_p.add_argument("--run", default=None, metavar="ID", help="run ID to preselect (opens floor.template.html?run=ID)")
     floor_p.add_argument("--base", default=None, help="run-store base dir (default $MAILROOM_BASE_DIR, else the repo's ./data)")
+    floor_p.add_argument("--replay", action="store_true",
+                         help="replay the bundled pinned sample into the base (runs selectable in the RUNS rail); "
+                              "only the replay run dir resets each time")
     floor_p.add_argument("--port", type=_port, default=None, help=f"port (default {_FLOOR_PORT}; 0 = ephemeral); always bound to 127.0.0.1")
     floor_p.add_argument("--interval", type=_positive_float, default=5.0, help="seconds between change checks; the digest is rebuilt only when a run artifact changed (default 5)")
     floor_p.set_defaults(handler=_cmd_floor)
@@ -2969,6 +2972,7 @@ def _cmd_floor(args) -> int:
         port=floor_app.DEFAULT_PORT if args.port is None else args.port,
         interval=args.interval,
         run=args.run or args.target,
+        replay=args.replay,
     )
 
 

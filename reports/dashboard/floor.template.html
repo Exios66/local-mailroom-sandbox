@@ -6,6 +6,7 @@ body{font-family:Consolas,"Cascadia Mono",monospace;background:#05070a;color:#b8
 .app{display:grid;grid-template-columns:222px 1fr 312px;grid-template-rows:30px 1fr;height:100vh}
 .ribbon{grid-column:1/4;background:#0d141d;border-bottom:1px solid #1c2530;display:flex;align-items:center;gap:12px;padding:0 12px;font-size:9.5px;letter-spacing:1px;color:#5d6c80;white-space:nowrap;overflow:hidden}
 .ribbon b{color:#7fd0a2}
+.ribbon .desc{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
 #bigTitle{font-size:20px;font-weight:bold;letter-spacing:3px;color:#7fd0a2;text-shadow:0 0 12px #7fd0a260;padding:0 14px;display:none}
 #bigTitle.on{display:inline-block}.ribbon em{color:#e8b93f;font-style:normal}.ribbon .z{margin-left:auto;color:#9fc6e8}
 .rail{background:#0a0e13;border-right:1px solid #1c2530;padding:11px;overflow:auto}
@@ -63,7 +64,7 @@ h3{font-size:9px;letter-spacing:2px;color:#4d5c6e;margin:9px 0 6px}
 .cls b .m{color:#4d5c6e;font-weight:normal;font-size:9px;margin-left:4px}
 </style></head><body>
 <div class="app">
-<div class="ribbon"><span id="bigTitle"></span><b>PIPELINE FLOOR · DIGEST-DRIVEN v10</b> — topology: build_graph.py wiring · numbers: floor_digest.json · <em><span id="mode">ALL CLASSES</span></em><span class="prog" id="prog"><span class="pbar"><i id="pfill"></i></span><span class="pct" id="ptxt"></span></span><span class="z"><span id="gen"></span><span id="upd"></span></span></div>
+<div class="ribbon"><span id="bigTitle"></span><b>PIPELINE FLOOR · DIGEST-DRIVEN v10</b><span class="desc"> — topology: build_graph.py wiring · numbers: floor_digest.json · </span><em><span id="mode">ALL CLASSES</span></em><span class="prog" id="prog"><span class="pbar"><i id="pfill"></i></span><span class="pct" id="ptxt"></span></span><span class="z"><span id="gen"></span><span id="upd"></span></span></div>
 <div class="rail"><h3 style="margin-top:0">RUNS</h3><div id="runs"></div><h3>CLASSES — click = isolate</h3><div id="cl"></div>
 <div style="font-size:8.5px;color:#4d5c6e;margin-top:8px;line-height:1.6">green outline = class route · dim = untouched<br>node = docs that fired it · chip = docs crossed that edge</div></div>
 <div id="viewport"><div id="hud">arrows/drag <b>pan</b> · wheel <b>zoom</b> · click node → <b>its in/out edges light</b> · click empty canvas → <b>clear</b> · click class → <b>isolate</b></div><div id="zoomctl"><div id="zin" tabindex="0" role="button" aria-label="zoom in">+</div><div id="zout" tabindex="0" role="button" aria-label="zoom out">−</div><div id="zfit" tabindex="0" role="button" aria-label="fit graph" style="font-size:9px">fit</div></div><div id="world"><svg id="edges" width="2200" height="1400"><defs>
@@ -155,6 +156,8 @@ function midFor(a,b,p1,p2,boxes){
  return cands[0]}
 const BOX=Object.fromEntries(Object.entries(POS).map(([k,xy])=>[k,[xy[0],xy[1]]]));
 // ── LIVE mode helpers ───────────────────────────────────────────────────────────
+/** Live only over http(s): a file:// page is a frozen snapshot (no pills, no clocks, no timers). */
+const LIVE=/^https?:$/.test(location.protocol);
 /** Docs in flight on a node for the selected run (older digests carry no inflight: none). */
 function inflightList(id){const f=run().inflight;return (f&&f[id])||[]}
 const seenAt={};   // "run|node" -> client ms when first seen in flight (drives ~Ns when the digest has no timestamp)
@@ -180,7 +183,7 @@ function paintPill(b,id){
 /** Ribbon bar: cursor / total docs, pct, and AVG min/doc; 100% when the run is complete; hidden with no total. */
 function paintProgress(){
  const r=run(),el=document.getElementById("prog");
- if(!(typeof r.total==="number"&&r.total>0)){el.classList.remove("on");return}
+ if(!(typeof r.total==="number"&&r.total>0)){el.classList.remove("on");document.getElementById("pfill").style.width="0";document.getElementById("ptxt").textContent="";return}
  const done=r.state==="complete",cur=done?r.total:Math.min(r.cursor||0,r.total),pct=cur/r.total*100;
  document.getElementById("pfill").style.width=pct+"%";
  document.getElementById("ptxt").textContent=cur+" / "+r.total+" docs · "+(done?"100":pct.toFixed(1))+"%"+(typeof r.avg_doc_ms==="number"?" · AVG "+(r.avg_doc_ms/60000).toFixed(1)+" min/doc":"");
@@ -218,10 +221,11 @@ function render(){
   else { ncls += (v===0 && id!=="START" && id!=="END")? " dim":""; }   // base mode: a node with zero fires greys too
   mk(`<span class="tag ${!isllm?(id==="human_review"||id==="failed"?"tray":"code"):""}">${esc(GR.node_agents[id]||id)}</span><div class="nm">${esc(id)}</div><div class="v ${v===0?"zero":id==="human_review"?"warn":id==="failed"?"bad":""}">${v}</div><div class="s">p50 ${((r.node_ms_p50[id]||0)/1000).toFixed(1)}s</div>`, ncls)
    .style.cssText=`left:${xy[0]}px;top:${xy[1]}px`;world.lastChild.dataset.k=id;world.lastChild.tabIndex=0;world.lastChild.setAttribute("role","button");world.lastChild.setAttribute("aria-pressed",String(selNode===id));
-  // LIVE: RUNNING pill on the top edge of a visible node with docs in flight (run-level count)
-  if(!/\bdim\b/.test(ncls)&&inflightList(id).length){const b=document.createElement("span");b.className="rnb";world.lastChild.appendChild(b);paintPill(b,id)}
+  // LIVE: RUNNING pill on the top edge of a visible node with docs in flight (run-level count).
+  // Only for a running run: a finished run's leftover open record must not tick forever.
+  if(LIVE&&r.state==="running"&&!/\bdim\b/.test(ncls)&&inflightList(id).length){const b=document.createElement("span");b.className="rnb";world.lastChild.appendChild(b);paintPill(b,id)}
  }
- pruneSeen();
+ if(LIVE)pruneSeen();
  paintProgress();
  function anc(a,b){const ac={x:a[0]+NB.w/2,y:a[1]+NB.h/2},bc={x:b[0]+NB.w/2,y:b[1]+NB.h/2};const dx=bc.x-ac.x,dy=bc.y-ac.y;
   const t=Math.min(Math.abs(dx)>1?(NB.w/2+15)/Math.abs(dx):1e9,Math.abs(dy)>1?(NB.h/2+13)/Math.abs(dy):1e9);
@@ -320,11 +324,14 @@ addEventListener("mousemove",ev=>{if(!drag)return;const dx=ev.clientX-drag.x,dy=
 addEventListener("mouseup",()=>{drag=null;setTimeout(()=>moved=0,0)});
 addEventListener("blur",()=>{drag=null;moved=0});
 document.getElementById("zin").onclick=()=>zoom(z*1.25);document.getElementById("zout").onclick=()=>zoom(z/1.25);
+// fit-to-viewport at load, too: every node's figures are in frame from the first paint
+const fitGraph=()=>{z=Math.min(vp.clientWidth/W,vp.clientHeight/H)*0.99;tx=6;ty=6;apply()};
+document.getElementById("zfit").onclick=fitGraph;fitGraph();
 // ── LIVE refresh (http/https + selected run running only; file:// stays static, no timer at all) ──
 const upd=document.getElementById("upd");
 /** Show the local time of the latest successful digest refresh. */
 function stampUpdated(){const t=new Date();upd.textContent=" · updated "+pad2(t.getHours())+":"+pad2(t.getMinutes())+":"+pad2(t.getSeconds())}
-if(/^https?:$/.test(location.protocol)){
+if(LIVE){
  let busy=false,wasLive=false;   // wasLive: the previous tick was polling a running run -> exactly one final fetch once it stops
  setInterval(async()=>{
   const idle=run().state!=="running";
@@ -336,15 +343,16 @@ if(/^https?:$/.test(location.protocol)){
    if(!res.ok)return;
    const nd=await res.json();
    if(!nd||!nd.runs||!nd.runs.length)return;
-   const name=run().name,i=nd.runs.findIndex(x=>x.name===name);
+   const same=JSON.stringify(nd)===JSON.stringify(D),name=run().name,i=nd.runs.findIndex(x=>x.name===name);
    D=nd;runIdx=i>=0?i:Math.min(runIdx,nd.runs.length-1);
    if(CLASS&&!D.classes.includes(CLASS))CLASS=null;
-   setGen();stampUpdated();menus();render();
+   setGen();stampUpdated();
+   if(!same){menus();render()}   // unchanged digest: keep the DOM (and keyboard focus) intact
   }catch(e){/* transient fetch/parse failure: keep the last good view */}
   finally{busy=false}
  },3000);
 }
 // elapsed counters tick client-side every second from the last digest (no re-fetch for the seconds)
-setInterval(()=>{document.querySelectorAll(".rnb").forEach(b=>{const n=b.parentNode&&b.parentNode.dataset.k;if(n&&inflightList(n).length)paintPill(b,n)})},1000);
+if(LIVE)setInterval(()=>{document.querySelectorAll(".rnb").forEach(b=>{const n=b.parentNode&&b.parentNode.dataset.k;if(n&&inflightList(n).length)paintPill(b,n)})},1000);
 document.getElementById("zfit").onclick=()=>{z=Math.min(vp.clientWidth/W,vp.clientHeight/H)*0.99;tx=6;ty=6;apply()};
 </script></body></html>

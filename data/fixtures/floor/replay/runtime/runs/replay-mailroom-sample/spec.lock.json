@@ -1,0 +1,24 @@
+{
+  "run_id": "replay-mailroom-sample",
+  "spec_hash": "replay-3971bc3677e8",
+  "profile": "replay \u00b7 simulated",
+  "task": "pipeline",
+  "engine": {
+    "kind": "replay",
+    "model": "simulated"
+  },
+  "dataset": {
+    "name": "floor-replay-sample",
+    "sha256": "3971bc3677e82333abbb6be19403d2ba80bff97ef966aa0e78263ccfaf30e874",
+    "rows": 20,
+    "repo": "Lucius-Morningstar/mailroom-dataset",
+    "config": "ground_truth",
+    "split": "train",
+    "revision": "bc9eab280044befb51e19dda3071d290a8677f42",
+    "pull": {
+      "source": "family-corpus",
+      "command": "2 train + 2 test per live class, sorted by document_id",
+      "note": "IDs/classes/metadata only; no document text is vendored. All behavior is simulated."
+    }
+  }
+}

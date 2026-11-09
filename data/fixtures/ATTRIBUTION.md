@@ -32,3 +32,10 @@ not live measurements; GPU/KV fields are local-only.
 ModernBERT accuracy/latency/cost pair for `sandbox eval sorter_vs_modernbert
 --mock` / `sandbox metrics compare --sorter-vs-modernbert`. Not live
 measurements; ModernBERT `$/doc` uses the mailroom-ml ONNX-CPU floor.
+
+`floor/replay/runtime/runs/replay-mailroom-sample/dataset.jsonl` copies public
+**IDs/classes/metadata** (no document text) from
+`Lucius-Morningstar/mailroom-dataset` at the pinned revision; the sibling
+`replay.jsonl` behavior is **synthetic**, scripted for `sandbox floor --replay`
+interface debugging — not a model run and its numbers are not results. See
+`floor/replay/README.md`.

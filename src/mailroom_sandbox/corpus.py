@@ -669,8 +669,15 @@ def prepare_subset(spec: DatasetSpec, dest_file) -> dict[str, Any]:
     if local_file is not None:
         if not local_file.is_file():
             raise FileNotFoundError(f"dataset file not found: {local_file}")
+        source_sha = hashlib.sha256(local_file.read_bytes()).hexdigest()
+        if spec.source_sha256 and source_sha != spec.source_sha256:
+            raise ValueError(
+                f"dataset {spec.name or local_file.name!r}: sha256 {source_sha[:12]} does not match the "
+                f"registered pin {spec.source_sha256[:12]} — the file is not the registered pull"
+            )
         rows = _read_jsonl(local_file)
-        source_meta = {"source": "local", "revision": "offline"}
+        # identity for replication: the name, the source bytes, and how it was pulled
+        source_meta = {"source": "local", "revision": "offline", "sha256": source_sha}
     else:
         rows = load_hf_rows(spec)
         resolved = str(rows[0].get("source_revision") or "") if rows else ""
@@ -682,6 +689,10 @@ def prepare_subset(spec: DatasetSpec, dest_file) -> dict[str, Any]:
             "revision": spec.revision or FAMILY_HF_REVISION,
             "revision_resolved": resolved or None,
         }
+    if spec.name:
+        source_meta["name"] = spec.name
+    if spec.pull:
+        source_meta["pull"] = spec.pull
 
     rows = normalize_rows(rows)
     rows = filter_rows(rows, spec)

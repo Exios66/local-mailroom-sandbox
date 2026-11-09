@@ -141,7 +141,36 @@ class DatasetSpec(BaseModel):
     interim_labels: bool = False
     columns: dict[str, str] | None = None
     expected_fields: list[str] | None = None
-    local_path: str | None = None  # file:// or absolute path (offline)
+    local_path: str | None = None  # file:// or a path, ${VAR} expanded (offline)
+    # Named dataset (config/datasets.yaml). The entry supplies provider/repo/local_path;
+    # explicit fields here win. name/source_sha256/pull are provenance: they are
+    # recorded in the run lock but not hashed (the resolved file's sha256 is).
+    name: str | None = None
+    source_sha256: str | None = None  # registry pin, verified when the dataset is prepared
+    pull: dict[str, Any] | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _named_dataset(cls, data: Any) -> Any:
+        """Resolve ``name:`` from the registry and expand ``${VAR}`` in ``local_path``."""
+        from mailroom_sandbox import dataset_registry
+
+        if not isinstance(data, dict):
+            return data
+        data = dataset_registry.resolve(data)
+        local = data.get("local_path")
+        if isinstance(local, str):
+            where = f"dataset {(data.get('name') or 'local_path')!r}"
+            data = {**data, "local_path": dataset_registry.expand_env(local, where=where)}
+        return data
+
+    @field_validator("source_sha256")
+    @classmethod
+    def _sha256_shape(cls, v: str | None) -> str | None:
+        """Reject a pin that can never match a sha256 (wrong length or characters)."""
+        if v is not None and not re.fullmatch(r"[0-9a-f]{64}", v):
+            raise ValueError("dataset.source_sha256 must be 64 lowercase hex characters")
+        return v
 
     @field_validator("limit")
     @classmethod
@@ -213,7 +242,7 @@ class DatasetSpec(BaseModel):
         url = self.local_path
         if url.startswith("file://"):
             url = url[len("file://") :]
-        return Path(url)
+        return Path(url).expanduser()
 
     def request_core(self) -> dict[str, Any]:
         """The reproducibility-relevant spec (never row counts/hashes).
@@ -231,11 +260,9 @@ class DatasetSpec(BaseModel):
     def _request_core(self) -> dict[str, Any]:
         if self.is_local() and self.local_file():
             local = self.local_file()
-            core = {"provider": "file"}
-            try:
-                core["relative"] = str(local.resolve().relative_to(Path.cwd().resolve()))
-            except ValueError:
-                core["absolute"] = str(local.resolve())
+            # Portable identity: the file NAME + source bytes, never the checkout
+            # path — the same dataset hashes the same in any clone (DMR-116).
+            core: dict[str, Any] = {"provider": "file", "file": local.name}
             if local.is_file():
                 import hashlib
 
