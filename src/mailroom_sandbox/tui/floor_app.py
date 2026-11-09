@@ -187,6 +187,9 @@ def serve_floor(
     except builder.DigestError as exc:
         print(f"sandbox floor: error: {exc}", file=sys.stderr, flush=True)
         return exc.code
+    except Exception as exc:  # noqa: BLE001 — OSError on an odd --base, or any builder surprise: clean message, no traceback
+        print(f"sandbox floor: error: {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
+        return 1
     httpd = make_server(out, port)
     stop = threading.Event()
     worker = threading.Thread(target=refresher.run, args=(stop, interval), name="floor-digest", daemon=True)

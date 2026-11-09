@@ -54,6 +54,7 @@ def test_floor_is_registered_with_documented_flags(capsys):
     for flag in ("--base", "--port", "--interval", "--run"):
         assert flag in out, flag
     assert "floor" in cli.build_parser().format_help()
+    assert f"default {floor_app.DEFAULT_PORT};" in " ".join(out.split()), "--port help must derive from DEFAULT_PORT"
 
 
 def test_floor_flag_parsing_and_validation():
@@ -207,6 +208,22 @@ def test_serve_floor_fails_fast_without_binding_when_first_build_fails(tmp_path,
     assert rc != 0 and "sandbox floor: error:" in capsys.readouterr().err
 
 
+@pytest.mark.parametrize("exc", [ValueError("boom: bad path"), OSError("no such store")])
+def test_first_build_surprise_is_a_clean_exit_not_a_traceback(tmp_path, monkeypatch, capsys, exc):
+    def explode(base, out, graph=None):
+        raise exc
+
+    monkeypatch.setattr(floor_app, "build", explode)
+    monkeypatch.setattr(floor_app, "make_server", lambda *a, **k: pytest.fail("must not bind"))
+    base = tmp_path / "data" / "runtime" / "runs" / "r1"
+    base.mkdir(parents=True)
+    (base / "items.jsonl").write_text("{}\n", encoding="utf-8")  # a non-empty sweep so refresh() reaches build()
+    rc = floor_app.serve_floor(base=tmp_path / "data", out=tmp_path / "out")  # no exception escapes
+    err = capsys.readouterr().err
+    assert rc == 1
+    assert err.startswith("sandbox floor:") and str(exc) in err and "Traceback" not in err
+
+
 def test_server_binds_loopback_and_serves_the_page_uncached(tmp_path):
     (tmp_path / "floor.template.html").write_text("<html>floor</html>", encoding="utf-8")
     httpd = floor_app.make_server(tmp_path, 0)
@@ -231,3 +248,22 @@ def test_server_binds_loopback_and_serves_the_page_uncached(tmp_path):
 def test_template_reads_run_and_class_query_params():
     html = (Path(floor_app.dashboard_dir()) / "floor.template.html").read_text(encoding="utf-8")
     assert 'URLSearchParams(location.search)' in html and 'q.get("run")' in html and 'q.get("class")' in html
+
+
+def _template():
+    return (Path(floor_app.dashboard_dir()) / "floor.template.html").read_text(encoding="utf-8")
+
+
+def test_template_class_deep_link_uses_the_rails_per_run_guard():
+    html = _template()
+    assert "function classView(" in html
+    assert "classView(rr,c)" in html, "the class rail must use the shared helper"
+    deep = html[html.index('c=q.get("class")'):html.index("function run()")]
+    assert "hasClasses(dr)" in deep and "dr.per_class[c]" in deep and "!classView(dr,c).why" in deep
+
+
+def test_template_does_one_final_fetch_when_the_run_leaves_running():
+    html = _template()
+    live = html[html.index("// ── LIVE refresh"):]
+    assert "wasLive" in live and "(idle&&!wasLive)" in live and "wasLive=!idle" in live
+    assert live.count('fetch("floor_digest.json?ts="') == 1, "the existing fetch helper is reused, not duplicated"
