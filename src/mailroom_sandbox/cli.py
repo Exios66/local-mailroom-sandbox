@@ -2954,7 +2954,10 @@ def _run_board(args) -> int:
 
 
 def _cmd_floor(args) -> int:
-    """`sandbox floor [RUN]`: rebuild the floor digest in a thread and serve the viewer on loopback."""
+    """Serve the floor viewer, preselecting TARGET or --run.
+
+    Raise CLIUsageError if both identify different runs; return the server's exit code.
+    """
     from mailroom_sandbox.tui import floor_app
 
     if args.target and args.run and args.target != args.run:
