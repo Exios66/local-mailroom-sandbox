@@ -527,7 +527,7 @@ def template_wires_live_mode_without_polling_on_file_protocol():
     for needle in ("rnb", "inflight", "avg_doc_ms", "routing", "floor_digest.json?ts=", "location.protocol",
                    'run().state!=="running"', "updated ", "classView(", "if(!same)", 'r.state==="running"',
                    "fitGraph()", "outRev", "Routed to human review", "prompt.lock.json",
-                   "audit_events", "routed_to_review", "audit log"):
+                   "audit_events", "routed_to_review", "audit log", "STALE", "poll misses"):
         assert needle in html, needle
     assert "http" in html[html.index("location.protocol") - 20:html.index("location.protocol") + 60]
     # a file:// page is a frozen snapshot: no timer may start before the http(s) guard
