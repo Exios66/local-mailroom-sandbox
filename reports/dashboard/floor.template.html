@@ -99,7 +99,8 @@ const W=2200,H=1400, world=document.getElementById("world"), svg=document.getEle
 let runIdx=(()=>{let i=-1;D.runs.forEach((r,k)=>{if(r.state==="running")i=k});return i>=0?i:D.runs.length-1})(), CLASS=null, selNode=null, moved=0;
 {const q=new URLSearchParams(location.search),ri=D.runs.findIndex(r=>r.name===q.get("run")),c=q.get("class");   // one-time deep-select: ?run=<id>&class=<name>
  if(ri>=0)runIdx=ri;
- if(c&&D.classes.includes(c)){CLASS=c;document.getElementById("mode").textContent="ISOLATED — counts & chips re-computed";const bt=document.getElementById("bigTitle");bt.textContent=c.toUpperCase();bt.classList.add("on")}}
+ const dr=D.runs[runIdx];   // honor ?class= only when THIS run can isolate it (same rule as the class rail's "?" state)
+ if(c&&D.classes.includes(c)&&hasClasses(dr)&&dr.per_class[c]&&!classView(dr,c).why){CLASS=c;document.getElementById("mode").textContent="ISOLATED — counts & chips re-computed";const bt=document.getElementById("bigTitle");bt.textContent=c.toUpperCase();bt.classList.add("on")}}
 function run(){return D.runs[runIdx]}
 /** Return the selected run or class count; failed uses outcome or abort totals. */
 function nodeVal(id){
@@ -122,6 +123,12 @@ function endCount(){return endSources().reduce((t,n)=>t+nodeVal(n),0)}
 const esc=s=>String(s).replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
 /** True when the run has per-class data (dataset.jsonl was present); otherwise class counts are unknown. */
 function hasClasses(r){return !!r.per_class&&Object.keys(r.per_class).length>0}
+/** Class-rail count and, when per-class isolation is unavailable for this run, the reason ("" = isolatable). */
+function classView(r,c){
+ const n=((r.per_class[c]||{}).outcomes||{}).n||0,all=((r.outcomes||{})[c]||{}).n||0;
+ if(!hasClasses(r))return {agg:"?",why:"no dataset.jsonl for this run: per-class counts unknown"};
+ if(all>n)return {agg:"?",why:`${all-n} of ${all} items have no dataset label: per-class counts incomplete`};
+ return {agg:n,why:""}}
  function mk(html,c){const d=document.createElement("div");if(c)d.className=c;d.innerHTML=html;world.appendChild(d);return d}
 const NONLLM=["(code)","(tray)","(abort terminal)"];
 function isLLM(id){const a=D.graph_reference.node_agents[id];return !!a&&!NONLLM.includes(a)}
@@ -273,12 +280,8 @@ function menus(){
  // per_class counts dataset-labeled items only; when a class also has unlabeled items (its run
  // total is larger), its per-class view is partial: show "?" and disable isolation for it too.
  // A class with no items in the run keeps its real 0 and stays selectable.
- const rr=run(),known=hasClasses(rr),agg={},why={};
- for(const c of D.classes){
-  const n=((rr.per_class[c]||{}).outcomes||{}).n||0,all=((rr.outcomes||{})[c]||{}).n||0;
-  if(!known){agg[c]="?";why[c]="no dataset.jsonl for this run: per-class counts unknown"}
-  else if(all>n){agg[c]="?";why[c]=`${all-n} of ${all} items have no dataset label: per-class counts incomplete`}
-  else agg[c]=n}
+ const rr=run(),agg={},why={};
+ for(const c of D.classes){const v=classView(rr,c);agg[c]=v.agg;if(v.why)why[c]=v.why}
  document.getElementById("cl").innerHTML=D.classes.map(c=>`<div class="cls${CLASS===c?" sel":""}${why[c]?" na":""}" data-c="${esc(c)}" tabindex="0" role="button" aria-pressed="${CLASS===c}"${why[c]?` aria-disabled="true" title="${esc(why[c])}"`:""}>${esc(c)}<b>${agg[c]}${routeSuffix(rr,c,why[c])}</b></div>`).join("");
  document.querySelectorAll(".cls").forEach(el=>el.onclick=()=>{if(why[el.dataset.c])return;CLASS=CLASS===el.dataset.c?null:el.dataset.c;
   document.getElementById("mode").textContent=CLASS?"ISOLATED — counts & chips re-computed":"ALL CLASSES (run totals)";
@@ -322,9 +325,11 @@ const upd=document.getElementById("upd");
 /** Show the local time of the latest successful digest refresh. */
 function stampUpdated(){const t=new Date();upd.textContent=" · updated "+pad2(t.getHours())+":"+pad2(t.getMinutes())+":"+pad2(t.getSeconds())}
 if(/^https?:$/.test(location.protocol)){
- let busy=false;
+ let busy=false,wasLive=false;   // wasLive: the previous tick was polling a running run -> exactly one final fetch once it stops
  setInterval(async()=>{
-  if(busy||run().state!=="running")return;
+  const idle=run().state!=="running";
+  if(busy||(idle&&!wasLive))return;
+  wasLive=!idle;
   busy=true;
   try{
    const res=await fetch("floor_digest.json?ts="+Date.now(),{cache:"no-store"});
