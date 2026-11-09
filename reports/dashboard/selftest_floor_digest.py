@@ -511,11 +511,33 @@ def routing_counts_only_when_expected_and_predicted_both_present():
 
 @test
 def template_wires_live_mode_without_polling_on_file_protocol():
+    """The viewer gates pills, clocks and both timers on http(s); routing/class helpers exist."""
     html = TEMPLATE.read_text(encoding="utf-8")
     for needle in ("rnb", "inflight", "avg_doc_ms", "routing", "floor_digest.json?ts=", "location.protocol",
-                   'run().state!=="running"', "updated "):
+                   'run().state!=="running"', "updated ", "classView(", "if(!same)", 'r.state==="running"',
+                   "fitGraph()"):
         assert needle in html, needle
     assert "http" in html[html.index("location.protocol") - 20:html.index("location.protocol") + 60]
+    # a file:// page is a frozen snapshot: no timer may start before the http(s) guard
+    before, live = html.split("const LIVE=", 1)
+    assert "setInterval" not in before, "timers must not start on file://"
+    assert live.count("setInterval") == 2, "the poll and the 1s elapsed ticker both live behind LIVE"
+
+
+@test
+def routing_reads_the_job_runner_sorter_shape():
+    """`task: sorter` rows (top-level expected/predicted) feed routing like pipeline rows."""
+    # pipeline rows carry `pred.doc_type`; sorter rows carry the class as strings
+    with tempfile.TemporaryDirectory() as t:
+        rows = [
+            {"item_id": "s1", "expected": "contract", "predicted": "contract", "ok": True, "latency_ms": 10},
+            {"item_id": "s2", "expected": "contract", "predicted": "letter", "ok": True, "latency_ms": 10},
+            {"item_id": "s3", "expected": "letter", "predicted": "", "ok": False, "latency_ms": 10},
+        ]
+        rr = _live_run(Path(t), "run-sorter", rows, None)
+    assert rr["routing"] == {"contract": {"gt": 2, "pred": 1, "match": 1},
+                             "letter": {"gt": 0, "pred": 1, "match": 0}}, rr["routing"]
+    assert rr["predicted"] == {"contract": 1}, "an item with no prediction never counts toward gt"
 
 
 def main() -> int:

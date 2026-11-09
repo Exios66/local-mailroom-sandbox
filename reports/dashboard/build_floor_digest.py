@@ -65,7 +65,10 @@ GRAPH_NOTE = (
 
 
 class DigestError(Exception):
+    """A builder failure with the process exit code the CLI returns."""
+
     def __init__(self, message: str, code: int = 1):
+        """Carry the message and exit code to ``main``."""
         super().__init__(message)
         self.code = code
 
@@ -167,12 +170,14 @@ def parse_graph(path: Path) -> dict:
     lanes: list[str] = []
 
     def add(a: str | None, b: str | None) -> None:
+        """Record one non-self edge once; unknown/empty endpoints are ignored."""
         if not a or not b or a == b:  # transient self-loops are not drawn
             return
         if (a, b) not in edges:
             edges.append((a, b))
 
     def known_source(s: str | None) -> bool:
+        """True when an edge may start at START or a registered node."""
         return s == "START" or s in registered
 
     for c in calls:
@@ -312,6 +317,7 @@ def _item_stage(item: dict):
 
 
 def _empty_outcome() -> dict:
+    """A zeroed outcome bucket (ship/held/failed/open/n)."""
     return {"ship": 0, "held": 0, "failed": 0, "open": 0, "n": 0}
 
 
@@ -377,11 +383,16 @@ def _avg_doc_ms(items: list[dict]):
 
 
 def _pred_class(item: dict) -> str | None:
-    """The doc_type the run recorded for an item (pred / prediction / item level), if any."""
+    """The doc_type the run recorded for an item, if any.
+
+    Pipeline rows carry it in ``pred``; job-runner sorter rows store the class as the
+    top-level ``predicted`` string (``expected`` alongside), so read that too.
+    """
     for holder in (item.get("pred"), item.get("prediction"), item):
         if isinstance(holder, dict) and holder.get("doc_type"):
             return str(holder["doc_type"])
-    return None
+    predicted = item.get("predicted")
+    return predicted if isinstance(predicted, str) and predicted else None
 
 
 def _routing(items: list[tuple[str, dict]], ds_class: dict[str, str]) -> dict[str, dict]:
@@ -466,6 +477,7 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]]) -> tuple[di
         edge_fires.update(doc_edges(doc))
 
     def last_stage_from_nodes(doc: str):
+        """The last stage any node recorded for a doc, or None."""
         for r in reversed(per_doc_records.get(doc, [])):
             if r.get("stage"):
                 return r["stage"]

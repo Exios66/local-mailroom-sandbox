@@ -8,14 +8,37 @@
   from `nodes.jsonl`), `avg_doc_ms`, and a ground-truth-keyed `routing` block; the v10 viewer
   gained a live mode — green RUNNING pill with ticking elapsed seconds on any node holding docs,
   a ribbon progress bar (cursor/total · AVG), 3s digest poll with selection preserved, and
-  `?run=`/`?class=` deep links — active only over http(s) when a run's state is `running`
-  (file:// and idle runs stay exactly the static v10 page). `sandbox floor` rebuilds the digest
+  `?run=`/`?class=` deep links — pills, elapsed clocks and polling run only over http(s) while a
+  run's state is `running` (`file://` stays a frozen snapshot with no timers; the progress bar
+  and routing suffix are static digest facts). Every panel figure is computed from the displayed
+  run's digest and repainted when that digest changes; the graph auto-fits at load so all node
+  figures are in frame from the first paint. `sandbox floor` rebuilds the digest
   on a timer (mtime-sweep skip) and serves the viewer loopback-only on `:8769`; run-store base
   via `--base`/`MAILROOM_BASE_DIR` so the WSL lane's `/home/gemooslin/sandbox-data` works from
   any shell. Validated against a live 50-doc LM Studio pipeline run
   (`config/runs/pipeline-lmstudio-even50-demo.yaml`). Node numbers keep the v10 contract:
   docs that have *entered* a node (arrival fires it; the pill shows who is still inside).
-  Digest selftest 22→28 checks; floor app 16 tests.
+  Digest selftest 22→29 checks; floor app + replay tests.
+
+- **Floor replay: pinned sample + `sandbox floor --replay`** (`data/fixtures/floor/replay/`,
+  `src/mailroom_sandbox/tui/floor_app.py`, `tests/test_floor_app.py`). 20 public
+  `mailroom-dataset` docs (4 per live class at the pinned revision; IDs/metadata only, no
+  document text) drive a scripted trace of nodes/items/checkpoints, replayed one document
+  per 0.8 s tick INTO the base as its own labeled run — so one viewer lists the base's
+  historical runs AND the sample, selectable in the RUNS rail, and its progress, class rail,
+  routing, node counts and outcome buckets move without a local run store, network, key or
+  GPU. `--replay` forces the sample (resetting only that run dir) and a base with no runs
+  falls back to it; the run is labeled as simulated and its numbers are not results.
+
+- **Named datasets: `config/datasets.yaml` + `${VAR}` dataset paths.** A run spec can name a
+  dataset (`dataset: {name: pipeline-even100-shuffled2}`) instead of embedding a machine path;
+  the registry supplies the provider fields or a local path, expands `${VAR}`/`${VAR:-default}`
+  from the environment (the CLI loads `.env` first), and may pin `sha256`. Preflight verifies the
+  pin and every lock records the source sha plus the entry's `pull` block, so a result names the
+  pull it came from. `$SANDBOX_DATASETS_REGISTRY` selects another registry file. Local-file
+  `spec_hash` now keys on the file name + source bytes instead of the checkout path, so the same
+  dataset hashes the same in any clone; `config/runs/pipeline-lmstudio-even50-demo.yaml` uses the
+  registry (no user path), and a guard test refuses machine paths in committed run specs.
 
 - **Vendor refresh: llm-mailroom `main` at #179 (`19203ea`) and Dojo `v0.28.1` (`00a2a7f`)**
   (`_VENDOR_PINS`, `requirements/dojo-release.txt`, both `VENDOR.md` files, README badges and pin

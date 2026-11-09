@@ -63,6 +63,12 @@ dataset:                    # full mailroom-dataset OR a subset
       - {doc_class: merger_agreement, count: 40}
   limit: 200
   sample_seed: 42
+  # OR name a registry entry (config/datasets.yaml) instead of the fields above:
+  #   dataset: {name: pipeline-even100-shuffled2, limit: 50}
+  # A file entry's local_path expands ${VAR} / ${VAR:-default} from the environment
+  # (the CLI loads .env first); an optional sha256 pins the exact file and preflight
+  # refuses a different one. Every lock records the source sha + the entry's `pull`.
+  # $SANDBOX_DATASETS_REGISTRY selects a different registry file.
 
 engine:
   kind: modal-vllm            # modal-vllm | vllm-local | vllm-remote
