@@ -117,6 +117,7 @@ sandbox web [TARGET]                  # = watch --web: themed browser watcher (h
 sandbox web --demo                    # = sandbox dev: same themed UI on a synthetic looping run (no Modal/spend)
 scripts/mailroom-tui dev|web|score <run>   # launcher; .claude/launch.json → mailroom-watch-dev / -live
 sandbox board [--tui] [--demo] [--interval SECS] [--probe-interval SECS]  # persistent job board: every mailroom.beacon/v1 job (~/.mailroom/jobs), browser :8767 or terminal; refresh floor 0.1 s
+sandbox floor [TARGET|--run ID] [--base DIR] [--port PORT] [--interval SECS]  # live pipeline floor app: rebuilds reports/dashboard/floor_digest.json every --interval (default 5s, skips when run artifacts are unchanged) and serves the viewer at http://127.0.0.1:8769/floor.template.html; a state=running run gets RUNNING pills + live counters (8765/8766/8767/8768 are web/watch-live/board/board-demo)
 sandbox beacon update --job ID --package P --done N --total M   # shell jobs publish to the board
 # long Python jobs: `with Beacon(job_id, package=...) as b: b.update(done=i, total=n)` (mailroom_sandbox/tui/beacon.py — vendorable single file)
 # keep the board up across reboots: deploy/launchd/com.mailroom.board.plist (install steps in the file)
