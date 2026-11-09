@@ -72,7 +72,7 @@ h3{font-size:9px;letter-spacing:2px;color:#4d5c6e;margin:9px 0 6px}
 <marker id="arrHot" markerWidth="13" markerHeight="13" refX="11" refY="6.5" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L13,6.5 L0,13 z" fill="#7cc4ff"/></marker>
 <marker id="arrSel" markerWidth="15" markerHeight="15" refX="12" refY="7.5" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L15,7.5 L0,15 z" fill="#cdeaff"/></marker>
 <marker id="arrDim" markerWidth="13" markerHeight="13" refX="11" refY="6.5" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L13,6.5 L0,13 z" fill="#4a5a6e" opacity=".45"/></marker></defs></svg></div></div>
-<div class="railR"><h3 style="margin-top:0" id="outHead"></h3><div id="outRows"></div><div class="note2" id="outNote"></div>
+<div class="railR"><h3 style="margin-top:0" id="outHead"></h3><div id="outRows"></div><div class="note2" id="outRev"></div><div class="note2" id="outNote"></div>
 <h3>Node — <span id="selName">(click a node)</span></h3>
 <div class="kv"><span>agent</span><b id="kA">—</b><span>agents seen</span><b id="kAgt">—</b><span>model</span><b id="kM">—</b><span>prompt</span><b id="kP">—</b><span>fire p50</span><b id="kMs">—</b><span>docs fired</span><b id="kF">—</b><span>aborts here</span><b id="kAb">—</b></div>
 <div class="note2" id="selExtra" style="color:#8fa3b8"></div>
@@ -253,18 +253,49 @@ function render(){
   
   if(selHit)c.classList.add("chipSel");
  }
+ // Stage-audit mirror: _emit_stage_audit call sites (parsed from build_graph.py) are side
+ // effects on the hash-chained compliance log — dashed arrows to the audit-log box, NOT
+ // graph edges; the review arrow carries this run's routed count.
+ const AUD=D.graph_reference.audit_events||{},AP=[1560,1120];
+ if(Object.keys(AUD).length){
+  const ab=mk(`<span class="tag code">audit A-1</span><div class="nm">audit log</div><div class="s">${esc(Object.entries(AUD).map(([n,e])=>n+" → "+e).join(" · "))}</div>`,"node dim");
+  ab.style.cssText=`left:${AP[0]}px;top:${AP[1]}px`;
+  ab.title="hash-chained stage audit (audit A-1); side effects mirrored from _emit_stage_audit sites in build_graph.py";
+  for(const [n,event] of Object.entries(AUD)){
+   if(!POS[n])continue;
+   const p1=anc(POS[n],AP),p2={x:AP[0]+NB.w/2,y:AP[1]-8};
+   const mx=(p1.x+p2.x)/2,my=(p1.y+p2.y)/2+18;
+   const ln=document.createElementNS("http://www.w3.org/2000/svg","path");
+   ln.setAttribute("d",`M ${p1.x} ${p1.y} Q ${mx} ${my} ${p2.x} ${p2.y}`);
+   ln.setAttribute("fill","none");ln.setAttribute("class","edge dim");
+   ln.setAttribute("marker-end","url(#arrDim)");ln.setAttribute("stroke-dasharray","5 4");
+   svg.appendChild(ln);
+   const dot=n==="human_review"
+     ?(r.review_routed||{total:0}).total+" routed_to_review"
+     :event;
+   const c=mk(esc(dot),"chip");c.style.left=(p1.x+2*mx+p2.x)/4+"px";c.style.top=(p1.y+2*my+p2.y)/4+"px";
+  }
+ }
  const rows=document.getElementById("outRows"),head=document.getElementById("outHead");
  head.textContent="Outcomes — "+r.name+(CLASS?" · "+CLASS:"");
  const oc=CLASS?((r.per_class[CLASS]||{}).outcomes||{}):(Object.values(r.outcomes).reduce((a,v)=>{a.ship+=v.ship||0;a.held+=v.held||0;a.failed+=v.failed||0;a.open+=v.open||0;a.n+=v.n||0;return a},{ship:0,held:0,failed:0,open:0,n:0}));
  rows.innerHTML=["ship|#7fd0a2|Fully archived","held|#e8b93f|Human-in-the-loop","failed|#e8543f|Failed","open|#5d6c80|Open mid-graph"]
   .map(x=>x.split("|")).map(([k,c,l])=>`<div class="state"><span><b style="color:${c}">●</b> ${l}</span><span>${Math.round((oc[k]||0)/Math.max(oc.n||1,1)*100)}%<span class="n">${oc[k]||0}/${oc.n||0}</span></span></div>`).join("");
  document.getElementById("outNote").textContent="attempted "+r.items_attempted+" · ok "+r.items_ok+" · state "+r.state+" · cursor "+r.cursor+"/"+(r.total==null?"?":r.total)+(CLASS?" · class n "+(((r.per_class[CLASS]||{}).outcomes||{}).n||0):"");
+ // human review routed here ≠ failed: every parked document stays accounted for per trigger stage
+ const rv=r.review_routed||{total:0,by_stage:{}},rn=Object.entries(rv.by_stage||{});
+ document.getElementById("outRev").textContent="Routed to human review: "+rv.total+(rn.length?" ("+rn.map(([s,c])=>s+" "+c).join(" · ")+")":" — none in this run");
  const sel=selNode||"",agN=sel?(r.node_agents[sel]||{}):{};
  document.getElementById("selName").textContent=sel?sel+(CLASS?" · "+CLASS:""):"(click a node)";
  document.getElementById("kA").textContent=sel?(D.graph_reference.node_agents[sel]||"—"):"—";
  document.getElementById("kAgt").textContent=Object.keys(agN).length?JSON.stringify(agN):"—";
  document.getElementById("kM").textContent=sel&&isLLM(sel)?r.engine.model+" · "+r.profile:(sel?"— (deterministic code)":"—");
- document.getElementById("kP").textContent=sel?(r.prompt_default||"—")+" · spec "+(r.spec_hash||"").slice(0,8):"—";
+ // prompt versions per highlighted node only: the resonated stem of each agent that fired it
+ const pa=r.prompts||{};
+ const pSel=[...new Set(Object.keys(agN).map(a=>pa[a]).filter(Boolean))];
+ document.getElementById("kP").textContent=sel?
+   (pSel.length?pSel.join(" · "):(r.prompt_default||"—"))+" · spec "+(r.spec_hash||"").slice(0,8):"—";
+ document.getElementById("kP").title=pSel.length?"prompt.lock.json: "+pSel.join(" · "):"";
  document.getElementById("kMs").textContent=sel?((r.node_ms_p50[sel]||0)/1000).toFixed(1)+" s":"—";
  document.getElementById("kF").textContent=sel?nodeVal(sel)+(CLASS?" (class)":" (run)"):"—";
  document.getElementById("kAb").textContent=sel?(r.aborts_by_last_node[sel]||0):"—";

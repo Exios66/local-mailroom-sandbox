@@ -255,7 +255,7 @@
 {"at": 10.81, "node": {"doc": "DOC-02365d1fb3cbb211", "node": "extract", "status": "running", "agent": "contracts_specialist", "model": "simulated", "step": 3}}
 {"at": 10.92, "node": {"doc": "DOC-01633b99e74dc9f2", "node": "judge_verify", "status": "done", "agent": "judge", "model": "simulated", "ms": 715, "step": 4, "prompt_tokens": 2200, "completion_tokens": 120, "decisions": [{"question": "extraction_verdict", "type": "score", "answer": "pass", "expected": 0.88}]}}
 {"at": 10.92, "node": {"doc": "DOC-01633b99e74dc9f2", "node": "human_review", "status": "running", "agent": null, "model": null, "step": 5, "stage": "review"}}
-{"at": 10.94, "item": {"item_id": "DOC-01633b99e74dc9f2", "ok": true, "latency_ms": 2875, "prompt_tokens": 6600, "completion_tokens": 588, "pred": {"stage": "review", "doc_type": "contract"}, "score": {"overall_extraction_score": 0.55, "schema_valid": true, "parse_error": false}}}
+{"at": 10.94, "item": {"item_id": "DOC-01633b99e74dc9f2", "ok": true, "latency_ms": 2875, "prompt_tokens": 6600, "completion_tokens": 588, "pred": {"stage": "review", "doc_type": "contract"}, "score": {"overall_extraction_score": 0.55, "schema_valid": true, "parse_error": false}, "review_causes": ["judge_partial"]}}
 {"at": 10.96, "checkpoint": {"state": "running", "cursor": 13, "total": 120}}
 {"at": 10.96, "node": {"doc": "DOC-0534799ed39ca0db", "node": "intake", "status": "done", "agent": null, "model": null, "ms": 207, "step": 1}}
 {"at": 10.96, "node": {"doc": "DOC-0534799ed39ca0db", "node": "classify", "status": "running", "agent": "sorter", "model": "simulated", "step": 2}}
@@ -470,9 +470,11 @@
 {"at": 17.59, "node": {"doc": "DOC-0150c35f7731c194", "node": "intake", "status": "done", "agent": null, "model": null, "ms": 188, "step": 1}}
 {"at": 17.59, "node": {"doc": "DOC-0150c35f7731c194", "node": "classify", "status": "running", "agent": "sorter", "model": "simulated", "step": 2}}
 {"at": 17.6, "node": {"doc": "DOC-030e70e9a17a085b", "node": "extract", "status": "done", "agent": "contracts_specialist", "model": "simulated", "ms": 1630, "step": 3, "prompt_tokens": 3200, "completion_tokens": 450}}
-{"at": 17.6, "node": {"doc": "DOC-030e70e9a17a085b", "node": "judge_verify", "status": "running", "agent": "judge", "model": "simulated", "step": 4}}
+{"at": 17.6, "node": {"doc": "DOC-030e70e9a17a085b", "node": "human_review", "status": "running", "agent": null, "model": null, "step": 4, "stage": "review"}}
 {"at": 17.62, "node": {"doc": "DOC-00ccdcb0154a8629", "node": "judge_verify", "status": "done", "agent": "judge", "model": "simulated", "ms": 713, "step": 4, "prompt_tokens": 2200, "completion_tokens": 120, "decisions": [{"question": "extraction_verdict", "type": "score", "answer": "pass", "expected": 0.8}]}}
 {"at": 17.62, "node": {"doc": "DOC-00ccdcb0154a8629", "node": "compile_report", "status": "running", "agent": null, "model": null, "step": 5}}
+{"at": 17.62, "item": {"item_id": "DOC-030e70e9a17a085b", "ok": true, "latency_ms": 2204, "prompt_tokens": 4400, "completion_tokens": 468, "pred": {"stage": "review", "doc_type": "contract"}, "score": {"overall_extraction_score": 0.35, "schema_valid": true, "parse_error": false}, "review_causes": ["hollow_extraction"]}}
+{"at": 17.64, "checkpoint": {"state": "running", "cursor": 27, "total": 120}}
 {"at": 17.71, "node": {"doc": "DOC-00ccdcb0154a8629", "node": "compile_report", "status": "done", "agent": null, "model": null, "ms": 93, "step": 5}}
 {"at": 17.71, "node": {"doc": "DOC-00ccdcb0154a8629", "node": "catalog_write", "status": "running", "agent": null, "model": null, "step": 6}}
 {"at": 17.74, "node": {"doc": "DOC-02f9b46e54b0ee5a", "node": "judge_verify", "status": "done", "agent": "judge", "model": "simulated", "ms": 919, "step": 4, "prompt_tokens": 2200, "completion_tokens": 120, "decisions": [{"question": "extraction_verdict", "type": "score", "answer": "pass", "expected": 0.84}]}}
@@ -482,9 +484,9 @@
 {"at": 17.78, "node": {"doc": "DOC-0a29136832720e65", "node": "archive", "status": "done", "agent": null, "model": null, "ms": 232, "step": 7, "stage": "archived"}}
 {"at": 17.8, "item": {"item_id": "DOC-0a29136832720e65", "ok": true, "latency_ms": 4381, "prompt_tokens": 6600, "completion_tokens": 588, "pred": {"stage": "archived", "doc_type": "merger_agreement"}, "score": {"overall_extraction_score": 0.59, "schema_valid": true, "parse_error": false}}}
 {"at": 17.81, "node": {"doc": "DOC-00ccdcb0154a8629", "node": "archive", "status": "done", "agent": null, "model": null, "ms": 43, "step": 7, "stage": "archived"}}
-{"at": 17.82, "checkpoint": {"state": "running", "cursor": 27, "total": 120}}
+{"at": 17.82, "checkpoint": {"state": "running", "cursor": 28, "total": 120}}
 {"at": 17.83, "item": {"item_id": "DOC-00ccdcb0154a8629", "ok": true, "latency_ms": 3058, "prompt_tokens": 6600, "completion_tokens": 588, "pred": {"stage": "archived", "doc_type": "insurance_claim"}, "score": {"overall_extraction_score": 0.71, "schema_valid": true, "parse_error": false}}}
-{"at": 17.85, "checkpoint": {"state": "running", "cursor": 28, "total": 120}}
+{"at": 17.85, "checkpoint": {"state": "running", "cursor": 29, "total": 120}}
 {"at": 17.86, "node": {"doc": "DOC-03991074ff24d26a", "node": "judge_verify", "status": "done", "agent": "judge", "model": "simulated", "ms": 936, "step": 4, "prompt_tokens": 2200, "completion_tokens": 120, "decisions": [{"question": "extraction_verdict", "type": "score", "answer": "pass", "expected": 0.82}]}}
 {"at": 17.86, "node": {"doc": "DOC-03991074ff24d26a", "node": "compile_report", "status": "running", "agent": null, "model": null, "step": 5}}
 {"at": 18.04, "node": {"doc": "DOC-02f9b46e54b0ee5a", "node": "compile_report", "status": "done", "agent": null, "model": null, "ms": 299, "step": 5}}
@@ -503,22 +505,13 @@
 {"at": 18.3, "node": {"doc": "DOC-0a733ab86f2390ae", "node": "judge_verify", "status": "running", "agent": "judge", "model": "simulated", "step": 4}}
 {"at": 18.32, "node": {"doc": "DOC-0e26285e96267ad0", "node": "intake", "status": "done", "agent": null, "model": null, "ms": 222, "step": 1}}
 {"at": 18.32, "node": {"doc": "DOC-0e26285e96267ad0", "node": "classify", "status": "running", "agent": "sorter", "model": "simulated", "step": 2}}
-{"at": 18.33, "node": {"doc": "DOC-030e70e9a17a085b", "node": "judge_verify", "status": "done", "agent": "judge", "model": "simulated", "ms": 730, "step": 4, "prompt_tokens": 2200, "completion_tokens": 120, "decisions": [{"question": "extraction_verdict", "type": "score", "answer": "pass", "expected": 0.88}]}}
-{"at": 18.33, "node": {"doc": "DOC-030e70e9a17a085b", "node": "compile_report", "status": "running", "agent": null, "model": null, "step": 5}}
 {"at": 18.4, "node": {"doc": "DOC-033adce2fbdff0ec", "node": "extract", "status": "done", "agent": "corporate_records_specialist", "model": "simulated", "ms": 1664, "step": 3, "prompt_tokens": 3200, "completion_tokens": 450}}
 {"at": 18.41, "node": {"doc": "DOC-033adce2fbdff0ec", "node": "judge_verify", "status": "running", "agent": "judge", "model": "simulated", "step": 4}}
-{"at": 18.44, "node": {"doc": "DOC-030e70e9a17a085b", "node": "compile_report", "status": "done", "agent": null, "model": null, "ms": 110, "step": 5}}
 {"at": 18.45, "node": {"doc": "DOC-03991074ff24d26a", "node": "catalog_write", "status": "done", "agent": null, "model": null, "ms": 276, "step": 6}}
 {"at": 18.45, "node": {"doc": "DOC-03991074ff24d26a", "node": "archive", "status": "running", "agent": null, "model": null, "step": 7}}
-{"at": 18.45, "node": {"doc": "DOC-030e70e9a17a085b", "node": "catalog_write", "status": "running", "agent": null, "model": null, "step": 6}}
-{"at": 18.52, "node": {"doc": "DOC-030e70e9a17a085b", "node": "catalog_write", "status": "done", "agent": null, "model": null, "ms": 70, "step": 6}}
-{"at": 18.52, "node": {"doc": "DOC-030e70e9a17a085b", "node": "archive", "status": "running", "agent": null, "model": null, "step": 7}}
 {"at": 18.55, "node": {"doc": "DOC-02f9b46e54b0ee5a", "node": "archive", "status": "done", "agent": null, "model": null, "ms": 249, "step": 7, "stage": "archived"}}
 {"at": 18.57, "item": {"item_id": "DOC-02f9b46e54b0ee5a", "ok": true, "latency_ms": 4500, "prompt_tokens": 6600, "completion_tokens": 588, "pred": {"stage": "archived", "doc_type": "corporate_record"}, "score": {"overall_extraction_score": 0.63, "schema_valid": true, "parse_error": false}}}
-{"at": 18.58, "node": {"doc": "DOC-030e70e9a17a085b", "node": "archive", "status": "done", "agent": null, "model": null, "ms": 60, "step": 7, "stage": "archived"}}
-{"at": 18.59, "checkpoint": {"state": "running", "cursor": 29, "total": 120}}
-{"at": 18.6, "item": {"item_id": "DOC-030e70e9a17a085b", "ok": true, "latency_ms": 3177, "prompt_tokens": 6600, "completion_tokens": 588, "pred": {"stage": "archived", "doc_type": "contract"}, "score": {"overall_extraction_score": 0.35, "schema_valid": true, "parse_error": false}}}
-{"at": 18.62, "checkpoint": {"state": "running", "cursor": 30, "total": 120}}
+{"at": 18.59, "checkpoint": {"state": "running", "cursor": 30, "total": 120}}
 {"at": 18.72, "node": {"doc": "DOC-03991074ff24d26a", "node": "archive", "status": "done", "agent": null, "model": null, "ms": 266, "step": 7, "stage": "archived"}}
 {"at": 18.74, "item": {"item_id": "DOC-03991074ff24d26a", "ok": true, "latency_ms": 4619, "prompt_tokens": 6600, "completion_tokens": 588, "pred": {"stage": "archived", "doc_type": "correspondence"}, "score": {"overall_extraction_score": 0.67, "schema_valid": true, "parse_error": false}}}
 {"at": 18.75, "node": {"doc": "DOC-043551f0a705e5ca", "node": "intake", "status": "running", "agent": null, "model": null, "step": 1}}
@@ -1241,7 +1234,7 @@
 {"at": 41.19, "node": {"doc": "DOC-08829e0f817f1211", "node": "judge_verify", "status": "running", "agent": "judge", "model": "simulated", "step": 4}}
 {"at": 41.28, "node": {"doc": "DOC-1b6fdbae340c96f7", "node": "judge_verify", "status": "done", "agent": "judge", "model": "simulated", "ms": 792, "step": 4, "prompt_tokens": 2200, "completion_tokens": 120, "decisions": [{"question": "extraction_verdict", "type": "score", "answer": "pass", "expected": 0.86}]}}
 {"at": 41.28, "node": {"doc": "DOC-1b6fdbae340c96f7", "node": "human_review", "status": "running", "agent": null, "model": null, "step": 5, "stage": "review"}}
-{"at": 41.3, "item": {"item_id": "DOC-1b6fdbae340c96f7", "ok": true, "latency_ms": 3183, "prompt_tokens": 6600, "completion_tokens": 588, "pred": {"stage": "review", "doc_type": "merger_agreement"}, "score": {"overall_extraction_score": 0.59, "schema_valid": true, "parse_error": false}}}
+{"at": 41.3, "item": {"item_id": "DOC-1b6fdbae340c96f7", "ok": true, "latency_ms": 3183, "prompt_tokens": 6600, "completion_tokens": 588, "pred": {"stage": "review", "doc_type": "merger_agreement"}, "score": {"overall_extraction_score": 0.59, "schema_valid": true, "parse_error": false}, "review_causes": ["judge_miss"]}}
 {"at": 41.32, "node": {"doc": "DOC-0728dd122a97ae33", "node": "compile_report", "status": "done", "agent": null, "model": null, "ms": 155, "step": 5}}
 {"at": 41.32, "node": {"doc": "DOC-0728dd122a97ae33", "node": "catalog_write", "status": "running", "agent": null, "model": null, "step": 6}}
 {"at": 41.32, "checkpoint": {"state": "running", "cursor": 76, "total": 120}}
@@ -1334,7 +1327,7 @@
 {"at": 44.27, "node": {"doc": "DOC-1cd38a83b224335d", "node": "judge_verify", "status": "done", "agent": "judge", "model": "simulated", "ms": 877, "step": 4, "prompt_tokens": 2200, "completion_tokens": 120, "decisions": [{"question": "extraction_verdict", "type": "score", "answer": "pass", "expected": 0.86}]}}
 {"at": 44.27, "node": {"doc": "DOC-1cd38a83b224335d", "node": "compile_report", "status": "running", "agent": null, "model": null, "step": 5}}
 {"at": 44.39, "node": {"doc": "DOC-07bcf4c71de616ac", "node": "classification_arbiter", "status": "done", "agent": "sorter_reviewer", "model": "simulated", "ms": 605, "step": 4, "prompt_tokens": 900, "completion_tokens": 24}}
-{"at": 44.39, "node": {"doc": "DOC-07bcf4c71de616ac", "node": "extract", "status": "running", "agent": "contracts_specialist", "model": "simulated", "step": 5}}
+{"at": 44.39, "node": {"doc": "DOC-07bcf4c71de616ac", "node": "human_review", "status": "running", "agent": null, "model": null, "step": 5, "stage": "review"}}
 {"at": 44.53, "node": {"doc": "DOC-1cd38a83b224335d", "node": "compile_report", "status": "done", "agent": null, "model": null, "ms": 257, "step": 5}}
 {"at": 44.53, "node": {"doc": "DOC-1cd38a83b224335d", "node": "catalog_write", "status": "running", "agent": null, "model": null, "step": 6}}
 {"at": 44.64, "node": {"doc": "DOC-0a262afc80c73247", "node": "classify", "status": "done", "agent": "sorter", "model": "simulated", "ms": 459, "step": 2, "prompt_tokens": 1200, "completion_tokens": 18, "decisions": [{"question": "doc_type", "type": "choice", "answer": "corporate_record", "p": 0.9}]}}
@@ -1375,8 +1368,6 @@
 {"at": 45.83, "node": {"doc": "DOC-044c7730a7c6d2b4", "node": "compile_report", "status": "running", "agent": null, "model": null, "step": 5}}
 {"at": 46.0, "node": {"doc": "DOC-05fa5359adf9ef34", "node": "compile_report", "status": "done", "agent": null, "model": null, "ms": 291, "step": 5}}
 {"at": 46.0, "node": {"doc": "DOC-05fa5359adf9ef34", "node": "catalog_write", "status": "running", "agent": null, "model": null, "step": 6}}
-{"at": 46.0, "node": {"doc": "DOC-07bcf4c71de616ac", "node": "extract", "status": "done", "agent": "contracts_specialist", "model": "simulated", "ms": 1605, "step": 5, "prompt_tokens": 3200, "completion_tokens": 450}}
-{"at": 46.0, "node": {"doc": "DOC-07bcf4c71de616ac", "node": "judge_verify", "status": "running", "agent": "judge", "model": "simulated", "step": 6}}
 {"at": 46.05, "node": {"doc": "DOC-1e016055aa435e71", "node": "intake", "status": "running", "agent": null, "model": null, "step": 1}}
 {"at": 46.09, "node": {"doc": "DOC-07c728dfedd7ef69", "node": "classify", "status": "done", "agent": "sorter", "model": "simulated", "ms": 510, "step": 2, "prompt_tokens": 1200, "completion_tokens": 18, "decisions": [{"question": "doc_type", "type": "choice", "answer": "contract", "p": 0.91}]}}
 {"at": 46.09, "node": {"doc": "DOC-07c728dfedd7ef69", "node": "extract", "status": "running", "agent": "contracts_specialist", "model": "simulated", "step": 3}}
@@ -1410,20 +1401,11 @@
 {"at": 46.66, "node": {"doc": "DOC-044c7730a7c6d2b4", "node": "archive", "status": "done", "agent": null, "model": null, "ms": 258, "step": 7, "stage": "archived"}}
 {"at": 46.68, "item": {"item_id": "DOC-044c7730a7c6d2b4", "ok": true, "latency_ms": 4563, "prompt_tokens": 6600, "completion_tokens": 588, "pred": {"stage": "archived", "doc_type": "insurance_claim"}, "score": {"overall_extraction_score": 0.51, "schema_valid": true, "parse_error": false}}}
 {"at": 46.7, "checkpoint": {"state": "running", "cursor": 86, "total": 120}}
-{"at": 46.7, "node": {"doc": "DOC-07bcf4c71de616ac", "node": "judge_verify", "status": "done", "agent": "judge", "model": "simulated", "ms": 705, "step": 6, "prompt_tokens": 2200, "completion_tokens": 120, "decisions": [{"question": "extraction_verdict", "type": "score", "answer": "pass", "expected": 0.88}]}}
-{"at": 46.71, "node": {"doc": "DOC-07bcf4c71de616ac", "node": "compile_report", "status": "running", "agent": null, "model": null, "step": 7}}
 {"at": 46.75, "node": {"doc": "DOC-061621fd1b117493", "node": "intake", "status": "running", "agent": null, "model": null, "step": 1}}
 {"at": 46.77, "node": {"doc": "DOC-1e016055aa435e71", "node": "classify", "status": "done", "agent": "sorter", "model": "simulated", "ms": 527, "step": 2, "prompt_tokens": 1200, "completion_tokens": 18, "decisions": [{"question": "doc_type", "type": "choice", "answer": "merger_agreement", "p": 0.9}]}}
 {"at": 46.78, "node": {"doc": "DOC-1e016055aa435e71", "node": "extract", "status": "running", "agent": "merger_agreement_specialist", "model": "simulated", "step": 3}}
-{"at": 46.79, "node": {"doc": "DOC-07bcf4c71de616ac", "node": "compile_report", "status": "done", "agent": null, "model": null, "ms": 85, "step": 7}}
-{"at": 46.79, "node": {"doc": "DOC-07bcf4c71de616ac", "node": "catalog_write", "status": "running", "agent": null, "model": null, "step": 8}}
-{"at": 46.84, "node": {"doc": "DOC-07bcf4c71de616ac", "node": "catalog_write", "status": "done", "agent": null, "model": null, "ms": 45, "step": 8}}
-{"at": 46.84, "node": {"doc": "DOC-07bcf4c71de616ac", "node": "archive", "status": "running", "agent": null, "model": null, "step": 9}}
 {"at": 46.86, "node": {"doc": "DOC-0a8eb16fff7e67ca", "node": "classify", "status": "done", "agent": "sorter", "model": "simulated", "ms": 544, "step": 2, "prompt_tokens": 1200, "completion_tokens": 18, "decisions": [{"question": "doc_type", "type": "choice", "answer": "corporate_record", "p": 0.93}]}}
 {"at": 46.86, "node": {"doc": "DOC-0a8eb16fff7e67ca", "node": "extract", "status": "running", "agent": "corporate_records_specialist", "model": "simulated", "step": 3}}
-{"at": 46.87, "node": {"doc": "DOC-07bcf4c71de616ac", "node": "archive", "status": "done", "agent": null, "model": null, "ms": 35, "step": 9, "stage": "archived"}}
-{"at": 46.89, "item": {"item_id": "DOC-07bcf4c71de616ac", "ok": true, "latency_ms": 4124, "prompt_tokens": 8900, "completion_tokens": 632, "pred": {"stage": "archived", "doc_type": "contract"}, "score": {"overall_extraction_score": 0.55, "schema_valid": true, "parse_error": false}}}
-{"at": 46.91, "checkpoint": {"state": "running", "cursor": 87, "total": 120}}
 {"at": 46.98, "node": {"doc": "DOC-061621fd1b117493", "node": "intake", "status": "done", "agent": null, "model": null, "ms": 231, "step": 1}}
 {"at": 46.98, "node": {"doc": "DOC-061621fd1b117493", "node": "classify", "status": "running", "agent": "sorter", "model": "simulated", "step": 2}}
 {"at": 47.02, "node": {"doc": "DOC-0a262afc80c73247", "node": "judge_verify", "status": "done", "agent": "judge", "model": "simulated", "ms": 739, "step": 4, "prompt_tokens": 2200, "completion_tokens": 120, "decisions": [{"question": "extraction_verdict", "type": "score", "answer": "pass", "expected": 0.84}]}}
@@ -1440,13 +1422,13 @@
 {"at": 47.27, "node": {"doc": "DOC-05fe11fb4b646af3", "node": "catalog_write", "status": "running", "agent": null, "model": null, "step": 6}}
 {"at": 47.29, "node": {"doc": "DOC-0a262afc80c73247", "node": "archive", "status": "done", "agent": null, "model": null, "ms": 69, "step": 7, "stage": "archived"}}
 {"at": 47.31, "item": {"item_id": "DOC-0a262afc80c73247", "ok": true, "latency_ms": 3240, "prompt_tokens": 6600, "completion_tokens": 588, "pred": {"stage": "archived", "doc_type": "corporate_record"}, "score": {"overall_extraction_score": 0.63, "schema_valid": true, "parse_error": false}}}
-{"at": 47.33, "checkpoint": {"state": "running", "cursor": 88, "total": 120}}
+{"at": 47.33, "checkpoint": {"state": "running", "cursor": 87, "total": 120}}
 {"at": 47.37, "node": {"doc": "DOC-05fe11fb4b646af3", "node": "catalog_write", "status": "done", "agent": null, "model": null, "ms": 96, "step": 6}}
 {"at": 47.37, "node": {"doc": "DOC-05fe11fb4b646af3", "node": "archive", "status": "running", "agent": null, "model": null, "step": 7}}
 {"at": 47.4, "node": {"doc": "DOC-04753f2a0016dd3b", "node": "intake", "status": "running", "agent": null, "model": null, "step": 1}}
 {"at": 47.46, "node": {"doc": "DOC-05fe11fb4b646af3", "node": "archive", "status": "done", "agent": null, "model": null, "ms": 86, "step": 7, "stage": "archived"}}
 {"at": 47.48, "item": {"item_id": "DOC-05fe11fb4b646af3", "ok": true, "latency_ms": 3359, "prompt_tokens": 6600, "completion_tokens": 588, "pred": {"stage": "archived", "doc_type": "correspondence"}, "score": {"overall_extraction_score": 0.67, "schema_valid": true, "parse_error": false}}}
-{"at": 47.5, "checkpoint": {"state": "running", "cursor": 89, "total": 120}}
+{"at": 47.5, "checkpoint": {"state": "running", "cursor": 88, "total": 120}}
 {"at": 47.54, "node": {"doc": "DOC-061621fd1b117493", "node": "classify", "status": "done", "agent": "sorter", "model": "simulated", "ms": 561, "step": 2, "prompt_tokens": 1200, "completion_tokens": 18, "decisions": [{"question": "doc_type", "type": "choice", "answer": "correspondence", "p": 0.92}]}}
 {"at": 47.54, "node": {"doc": "DOC-061621fd1b117493", "node": "extract", "status": "running", "agent": "correspondence_specialist", "model": "simulated", "step": 3}}
 {"at": 47.65, "node": {"doc": "DOC-04753f2a0016dd3b", "node": "intake", "status": "done", "agent": null, "model": null, "ms": 248, "step": 1}}
@@ -1482,7 +1464,7 @@
 {"at": 49.0, "node": {"doc": "DOC-07c728dfedd7ef69", "node": "archive", "status": "done", "agent": null, "model": null, "ms": 120, "step": 7, "stage": "archived"}}
 {"at": 49.0, "node": {"doc": "DOC-23f224263f6974c5", "node": "extract", "status": "running", "agent": "merger_agreement_specialist", "model": "simulated", "step": 3}}
 {"at": 49.02, "item": {"item_id": "DOC-07c728dfedd7ef69", "ok": true, "latency_ms": 3597, "prompt_tokens": 6600, "completion_tokens": 588, "pred": {"stage": "archived", "doc_type": "contract"}, "score": {"overall_extraction_score": 0.35, "schema_valid": true, "parse_error": false}}}
-{"at": 49.04, "checkpoint": {"state": "running", "cursor": 90, "total": 120}}
+{"at": 49.04, "checkpoint": {"state": "running", "cursor": 89, "total": 120}}
 {"at": 49.05, "node": {"doc": "DOC-0c08bbb73a7c5edd", "node": "intake", "status": "done", "agent": null, "model": null, "ms": 299, "step": 1}}
 {"at": 49.05, "node": {"doc": "DOC-0c08bbb73a7c5edd", "node": "classify", "status": "running", "agent": "sorter", "model": "simulated", "step": 2}}
 {"at": 49.28, "node": {"doc": "DOC-061621fd1b117493", "node": "extract", "status": "done", "agent": "correspondence_specialist", "model": "simulated", "ms": 1741, "step": 3, "prompt_tokens": 3200, "completion_tokens": 450}}
@@ -1506,10 +1488,10 @@
 {"at": 49.78, "node": {"doc": "DOC-0a8eb16fff7e67ca", "node": "catalog_write", "status": "done", "agent": null, "model": null, "ms": 164, "step": 6}}
 {"at": 49.78, "node": {"doc": "DOC-0a8eb16fff7e67ca", "node": "archive", "status": "running", "agent": null, "model": null, "step": 7}}
 {"at": 49.79, "item": {"item_id": "DOC-1e016055aa435e71", "ok": true, "latency_ms": 3716, "prompt_tokens": 6600, "completion_tokens": 588, "pred": {"stage": "archived", "doc_type": "merger_agreement"}, "score": {"overall_extraction_score": 0.39, "schema_valid": true, "parse_error": false}}}
-{"at": 49.81, "checkpoint": {"state": "running", "cursor": 91, "total": 120}}
+{"at": 49.81, "checkpoint": {"state": "running", "cursor": 90, "total": 120}}
 {"at": 49.93, "node": {"doc": "DOC-0a8eb16fff7e67ca", "node": "archive", "status": "done", "agent": null, "model": null, "ms": 154, "step": 7, "stage": "archived"}}
 {"at": 49.95, "item": {"item_id": "DOC-0a8eb16fff7e67ca", "ok": true, "latency_ms": 3835, "prompt_tokens": 6600, "completion_tokens": 588, "pred": {"stage": "archived", "doc_type": "corporate_record"}, "score": {"overall_extraction_score": 0.43, "schema_valid": true, "parse_error": false}}}
-{"at": 49.97, "checkpoint": {"state": "running", "cursor": 92, "total": 120}}
+{"at": 49.97, "checkpoint": {"state": "running", "cursor": 91, "total": 120}}
 {"at": 49.99, "node": {"doc": "DOC-04753f2a0016dd3b", "node": "extract", "status": "done", "agent": "insurance_claims_specialist", "model": "simulated", "ms": 1758, "step": 3, "prompt_tokens": 3200, "completion_tokens": 450}}
 {"at": 49.99, "node": {"doc": "DOC-04753f2a0016dd3b", "node": "judge_verify", "status": "running", "agent": "judge", "model": "simulated", "step": 4}}
 {"at": 50.05, "node": {"doc": "DOC-04914854710dd441", "node": "intake", "status": "running", "agent": null, "model": null, "step": 1}}
@@ -1536,7 +1518,7 @@
 {"at": 50.69, "node": {"doc": "DOC-07c7ae50f4122cbb", "node": "judge_verify", "status": "running", "agent": "judge", "model": "simulated", "step": 4}}
 {"at": 50.7, "node": {"doc": "DOC-061621fd1b117493", "node": "archive", "status": "done", "agent": null, "model": null, "ms": 171, "step": 7, "stage": "archived"}}
 {"at": 50.72, "item": {"item_id": "DOC-061621fd1b117493", "ok": true, "latency_ms": 3954, "prompt_tokens": 6600, "completion_tokens": 588, "pred": {"stage": "archived", "doc_type": "correspondence"}, "score": {"overall_extraction_score": 0.47, "schema_valid": true, "parse_error": false}}}
-{"at": 50.74, "checkpoint": {"state": "running", "cursor": 93, "total": 120}}
+{"at": 50.74, "checkpoint": {"state": "running", "cursor": 92, "total": 120}}
 {"at": 50.75, "node": {"doc": "DOC-26933c93d649fa3f", "node": "intake", "status": "running", "agent": null, "model": null, "step": 1}}
 {"at": 50.79, "node": {"doc": "DOC-23f224263f6974c5", "node": "extract", "status": "done", "agent": "merger_agreement_specialist", "model": "simulated", "ms": 1792, "step": 3, "prompt_tokens": 3200, "completion_tokens": 450}}
 {"at": 50.79, "node": {"doc": "DOC-23f224263f6974c5", "node": "judge_verify", "status": "running", "agent": "judge", "model": "simulated", "step": 4}}
@@ -1556,7 +1538,7 @@
 {"at": 51.27, "item": {"item_id": "DOC-0450b29d4434c4e9", "ok": true, "latency_ms": 6500, "prompt_tokens": 12700, "completion_tokens": 1148, "pred": {"stage": "archived", "doc_type": "insurance_claim"}, "score": {"overall_extraction_score": 0.71, "schema_valid": true, "parse_error": false}}}
 {"at": 51.28, "node": {"doc": "DOC-04753f2a0016dd3b", "node": "catalog_write", "status": "done", "agent": null, "model": null, "ms": 198, "step": 6}}
 {"at": 51.28, "node": {"doc": "DOC-04753f2a0016dd3b", "node": "archive", "status": "running", "agent": null, "model": null, "step": 7}}
-{"at": 51.29, "checkpoint": {"state": "running", "cursor": 94, "total": 120}}
+{"at": 51.29, "checkpoint": {"state": "running", "cursor": 93, "total": 120}}
 {"at": 51.34, "node": {"doc": "DOC-26933c93d649fa3f", "node": "classify", "status": "done", "agent": "sorter", "model": "simulated", "ms": 457, "step": 2, "prompt_tokens": 1200, "completion_tokens": 18, "decisions": [{"question": "doc_type", "type": "choice", "answer": "merger_agreement", "p": 0.92}]}}
 {"at": 51.34, "node": {"doc": "DOC-26933c93d649fa3f", "node": "extract", "status": "running", "agent": "merger_agreement_specialist", "model": "simulated", "step": 3}}
 {"at": 51.4, "node": {"doc": "DOC-0c7cda9021fbd910", "node": "intake", "status": "running", "agent": null, "model": null, "step": 1}}
@@ -1564,7 +1546,7 @@
 {"at": 51.49, "item": {"item_id": "DOC-04753f2a0016dd3b", "ok": true, "latency_ms": 4073, "prompt_tokens": 6600, "completion_tokens": 588, "pred": {"stage": "archived", "doc_type": "insurance_claim"}, "score": {"overall_extraction_score": 0.51, "schema_valid": true, "parse_error": false}}}
 {"at": 51.49, "node": {"doc": "DOC-0c08bbb73a7c5edd", "node": "extract", "status": "done", "agent": "corporate_records_specialist", "model": "simulated", "ms": 1809, "step": 3, "prompt_tokens": 3200, "completion_tokens": 450}}
 {"at": 51.49, "node": {"doc": "DOC-0c08bbb73a7c5edd", "node": "judge_verify", "status": "running", "agent": "judge", "model": "simulated", "step": 4}}
-{"at": 51.51, "checkpoint": {"state": "running", "cursor": 95, "total": 120}}
+{"at": 51.51, "checkpoint": {"state": "running", "cursor": 94, "total": 120}}
 {"at": 51.54, "node": {"doc": "DOC-0c7cda9021fbd910", "node": "intake", "status": "done", "agent": null, "model": null, "ms": 144, "step": 1}}
 {"at": 51.54, "node": {"doc": "DOC-0c7cda9021fbd910", "node": "classify", "status": "running", "agent": "sorter", "model": "simulated", "step": 2}}
 {"at": 51.56, "node": {"doc": "DOC-07c7ae50f4122cbb", "node": "judge_verify", "status": "done", "agent": "judge", "model": "simulated", "ms": 875, "step": 4, "prompt_tokens": 2200, "completion_tokens": 120, "decisions": [{"question": "extraction_verdict", "type": "score", "answer": "pass", "expected": 0.88}]}}
@@ -1593,14 +1575,16 @@
 {"at": 52.26, "item": {"item_id": "DOC-07c7ae50f4122cbb", "ok": true, "latency_ms": 4192, "prompt_tokens": 6600, "completion_tokens": 588, "pred": {"stage": "archived", "doc_type": "contract"}, "score": {"overall_extraction_score": 0.55, "schema_valid": true, "parse_error": false}}}
 {"at": 52.27, "node": {"doc": "DOC-0814b0a4ba33effe", "node": "extract", "status": "done", "agent": "contracts_specialist", "model": "simulated", "ms": 1620, "step": 3, "prompt_tokens": 3200, "completion_tokens": 450}}
 {"at": 52.27, "node": {"doc": "DOC-0814b0a4ba33effe", "node": "judge_verify", "status": "running", "agent": "judge", "model": "simulated", "step": 4}}
-{"at": 52.28, "checkpoint": {"state": "running", "cursor": 96, "total": 120}}
+{"at": 52.28, "checkpoint": {"state": "running", "cursor": 95, "total": 120}}
 {"at": 52.28, "node": {"doc": "DOC-04b2290377b80295", "node": "intake", "status": "done", "agent": null, "model": null, "ms": 178, "step": 1}}
 {"at": 52.28, "node": {"doc": "DOC-04b2290377b80295", "node": "classify", "status": "running", "agent": "sorter", "model": "simulated", "step": 2}}
 {"at": 52.4, "node": {"doc": "DOC-0c08bbb73a7c5edd", "node": "judge_verify", "status": "done", "agent": "judge", "model": "simulated", "ms": 909, "step": 4, "prompt_tokens": 2200, "completion_tokens": 120, "decisions": [{"question": "extraction_verdict", "type": "score", "answer": "pass", "expected": 0.84}]}}
 {"at": 52.4, "node": {"doc": "DOC-0c08bbb73a7c5edd", "node": "compile_report", "status": "running", "agent": null, "model": null, "step": 5}}
 {"at": 52.41, "node": {"doc": "DOC-23f224263f6974c5", "node": "archive", "status": "done", "agent": null, "model": null, "ms": 222, "step": 7, "stage": "archived"}}
 {"at": 52.43, "item": {"item_id": "DOC-23f224263f6974c5", "ok": true, "latency_ms": 4311, "prompt_tokens": 6600, "completion_tokens": 588, "pred": {"stage": "archived", "doc_type": "merger_agreement"}, "score": {"overall_extraction_score": 0.59, "schema_valid": true, "parse_error": false}}}
-{"at": 52.45, "checkpoint": {"state": "running", "cursor": 97, "total": 120}}
+{"at": 52.45, "checkpoint": {"state": "running", "cursor": 96, "total": 120}}
+{"at": 52.6, "node": {"doc": "DOC-07bcf4c71de616ac", "node": "human_review", "status": "done", "agent": null, "model": null, "ms": 8205, "step": 5, "decisions": [{"question": "review_decision", "type": "choice", "answer": "approved"}]}}
+{"at": 52.6, "node": {"doc": "DOC-07bcf4c71de616ac", "node": "extract", "status": "running", "agent": "contracts_specialist", "model": "simulated", "step": 6}}
 {"at": 52.69, "node": {"doc": "DOC-0c08bbb73a7c5edd", "node": "compile_report", "status": "done", "agent": null, "model": null, "ms": 289, "step": 5}}
 {"at": 52.69, "node": {"doc": "DOC-0c08bbb73a7c5edd", "node": "catalog_write", "status": "running", "agent": null, "model": null, "step": 6}}
 {"at": 52.7, "node": {"doc": "DOC-065e1dae8e5c5b86", "node": "classify", "status": "done", "agent": "sorter", "model": "simulated", "ms": 491, "step": 2, "prompt_tokens": 1200, "completion_tokens": 18, "decisions": [{"question": "doc_type", "type": "choice", "answer": "correspondence", "p": 0.9}]}}
@@ -1617,11 +1601,13 @@
 {"at": 52.96, "node": {"doc": "DOC-04914854710dd441", "node": "compile_report", "status": "done", "agent": null, "model": null, "ms": 83, "step": 5}}
 {"at": 52.96, "node": {"doc": "DOC-04914854710dd441", "node": "catalog_write", "status": "running", "agent": null, "model": null, "step": 6}}
 {"at": 52.97, "node": {"doc": "DOC-26933c93d649fa3f", "node": "extract", "status": "done", "agent": "merger_agreement_specialist", "model": "simulated", "ms": 1637, "step": 3, "prompt_tokens": 3200, "completion_tokens": 450}}
-{"at": 52.97, "node": {"doc": "DOC-26933c93d649fa3f", "node": "judge_verify", "status": "running", "agent": "judge", "model": "simulated", "step": 4}}
+{"at": 52.97, "node": {"doc": "DOC-26933c93d649fa3f", "node": "human_review", "status": "running", "agent": null, "model": null, "step": 4, "stage": "review"}}
 {"at": 52.99, "node": {"doc": "DOC-0814b0a4ba33effe", "node": "judge_verify", "status": "done", "agent": "judge", "model": "simulated", "ms": 720, "step": 4, "prompt_tokens": 2200, "completion_tokens": 120, "decisions": [{"question": "extraction_verdict", "type": "score", "answer": "pass", "expected": 0.88}]}}
 {"at": 52.99, "node": {"doc": "DOC-0814b0a4ba33effe", "node": "compile_report", "status": "running", "agent": null, "model": null, "step": 5}}
+{"at": 52.99, "item": {"item_id": "DOC-26933c93d649fa3f", "ok": true, "latency_ms": 2225, "prompt_tokens": 4400, "completion_tokens": 468, "pred": {"stage": "review", "doc_type": "merger_agreement"}, "score": {"overall_extraction_score": 0.39, "schema_valid": true, "parse_error": false}, "review_causes": ["hollow_extraction"]}}
 {"at": 53.0, "node": {"doc": "DOC-04914854710dd441", "node": "catalog_write", "status": "done", "agent": null, "model": null, "ms": 43, "step": 6}}
 {"at": 53.0, "node": {"doc": "DOC-04914854710dd441", "node": "archive", "status": "running", "agent": null, "model": null, "step": 7}}
+{"at": 53.01, "checkpoint": {"state": "running", "cursor": 97, "total": 120}}
 {"at": 53.04, "node": {"doc": "DOC-04914854710dd441", "node": "archive", "status": "done", "agent": null, "model": null, "ms": 33, "step": 7, "stage": "archived"}}
 {"at": 53.06, "item": {"item_id": "DOC-04914854710dd441", "ok": true, "latency_ms": 2988, "prompt_tokens": 6600, "completion_tokens": 588, "pred": {"stage": "archived", "doc_type": "corporate_record"}, "score": {"overall_extraction_score": 0.71, "schema_valid": true, "parse_error": false}}}
 {"at": 53.08, "checkpoint": {"state": "running", "cursor": 98, "total": 120}}
@@ -1648,22 +1634,15 @@
 {"at": 53.67, "node": {"doc": "DOC-0c7cda9021fbd910", "node": "judge_verify", "status": "running", "agent": "judge", "model": "simulated", "step": 4}}
 {"at": 53.69, "node": {"doc": "DOC-063b70c879a9541f", "node": "catalog_write", "status": "done", "agent": null, "model": null, "ms": 266, "step": 6}}
 {"at": 53.69, "node": {"doc": "DOC-063b70c879a9541f", "node": "archive", "status": "running", "agent": null, "model": null, "step": 7}}
-{"at": 53.71, "node": {"doc": "DOC-26933c93d649fa3f", "node": "judge_verify", "status": "done", "agent": "judge", "model": "simulated", "ms": 737, "step": 4, "prompt_tokens": 2200, "completion_tokens": 120, "decisions": [{"question": "extraction_verdict", "type": "score", "answer": "pass", "expected": 0.86}]}}
-{"at": 53.71, "node": {"doc": "DOC-26933c93d649fa3f", "node": "compile_report", "status": "running", "agent": null, "model": null, "step": 5}}
-{"at": 53.83, "node": {"doc": "DOC-26933c93d649fa3f", "node": "compile_report", "status": "done", "agent": null, "model": null, "ms": 117, "step": 5}}
-{"at": 53.83, "node": {"doc": "DOC-26933c93d649fa3f", "node": "catalog_write", "status": "running", "agent": null, "model": null, "step": 6}}
-{"at": 53.91, "node": {"doc": "DOC-26933c93d649fa3f", "node": "catalog_write", "status": "done", "agent": null, "model": null, "ms": 77, "step": 6}}
-{"at": 53.91, "node": {"doc": "DOC-26933c93d649fa3f", "node": "archive", "status": "running", "agent": null, "model": null, "step": 7}}
 {"at": 53.95, "node": {"doc": "DOC-063b70c879a9541f", "node": "archive", "status": "done", "agent": null, "model": null, "ms": 256, "step": 7, "stage": "archived"}}
 {"at": 53.97, "item": {"item_id": "DOC-063b70c879a9541f", "ok": true, "latency_ms": 4549, "prompt_tokens": 6600, "completion_tokens": 588, "pred": {"stage": "archived", "doc_type": "correspondence"}, "score": {"overall_extraction_score": 0.67, "schema_valid": true, "parse_error": false}}}
-{"at": 53.97, "node": {"doc": "DOC-26933c93d649fa3f", "node": "archive", "status": "done", "agent": null, "model": null, "ms": 67, "step": 7, "stage": "archived"}}
 {"at": 53.99, "checkpoint": {"state": "running", "cursor": 101, "total": 120}}
-{"at": 54.0, "item": {"item_id": "DOC-26933c93d649fa3f", "ok": true, "latency_ms": 3226, "prompt_tokens": 6600, "completion_tokens": 588, "pred": {"stage": "archived", "doc_type": "merger_agreement"}, "score": {"overall_extraction_score": 0.39, "schema_valid": true, "parse_error": false}}}
-{"at": 54.02, "checkpoint": {"state": "running", "cursor": 102, "total": 120}}
 {"at": 54.05, "node": {"doc": "DOC-0d28ca4c116b9f53", "node": "intake", "status": "running", "agent": null, "model": null, "step": 1}}
 {"at": 54.1, "node": {"doc": "DOC-068687bc623fbe16", "node": "intake", "status": "running", "agent": null, "model": null, "step": 1}}
 {"at": 54.16, "node": {"doc": "DOC-28c929398660c25e", "node": "classify", "status": "done", "agent": "sorter", "model": "simulated", "ms": 542, "step": 2, "prompt_tokens": 1200, "completion_tokens": 18, "decisions": [{"question": "doc_type", "type": "choice", "answer": "merger_agreement", "p": 0.91}]}}
 {"at": 54.16, "node": {"doc": "DOC-28c929398660c25e", "node": "extract", "status": "running", "agent": "merger_agreement_specialist", "model": "simulated", "step": 3}}
+{"at": 54.2, "node": {"doc": "DOC-07bcf4c71de616ac", "node": "extract", "status": "done", "agent": "contracts_specialist", "model": "simulated", "ms": 1605, "step": 6, "prompt_tokens": 3200, "completion_tokens": 450}}
+{"at": 54.21, "node": {"doc": "DOC-07bcf4c71de616ac", "node": "judge_verify", "status": "running", "agent": "judge", "model": "simulated", "step": 7}}
 {"at": 54.28, "node": {"doc": "DOC-0d28ca4c116b9f53", "node": "intake", "status": "done", "agent": null, "model": null, "ms": 229, "step": 1}}
 {"at": 54.28, "node": {"doc": "DOC-0d28ca4c116b9f53", "node": "classify", "status": "running", "agent": "sorter", "model": "simulated", "step": 2}}
 {"at": 54.35, "node": {"doc": "DOC-068687bc623fbe16", "node": "intake", "status": "done", "agent": null, "model": null, "ms": 246, "step": 1}}
@@ -1681,13 +1660,22 @@
 {"at": 54.74, "node": {"doc": "DOC-0c7cda9021fbd910", "node": "archive", "status": "done", "agent": null, "model": null, "ms": 84, "step": 7, "stage": "archived"}}
 {"at": 54.75, "node": {"doc": "DOC-04b6e357ea979927", "node": "intake", "status": "running", "agent": null, "model": null, "step": 1}}
 {"at": 54.76, "item": {"item_id": "DOC-0c7cda9021fbd910", "ok": true, "latency_ms": 3345, "prompt_tokens": 6600, "completion_tokens": 588, "pred": {"stage": "archived", "doc_type": "corporate_record"}, "score": {"overall_extraction_score": 0.43, "schema_valid": true, "parse_error": false}}}
-{"at": 54.78, "checkpoint": {"state": "running", "cursor": 103, "total": 120}}
+{"at": 54.78, "checkpoint": {"state": "running", "cursor": 102, "total": 120}}
 {"at": 54.84, "node": {"doc": "DOC-0d28ca4c116b9f53", "node": "classify", "status": "done", "agent": "sorter", "model": "simulated", "ms": 559, "step": 2, "prompt_tokens": 1200, "completion_tokens": 18, "decisions": [{"question": "doc_type", "type": "choice", "answer": "corporate_record", "p": 0.9}]}}
 {"at": 54.84, "node": {"doc": "DOC-0d28ca4c116b9f53", "node": "extract", "status": "running", "agent": "corporate_records_specialist", "model": "simulated", "step": 3}}
+{"at": 54.91, "node": {"doc": "DOC-07bcf4c71de616ac", "node": "judge_verify", "status": "done", "agent": "judge", "model": "simulated", "ms": 705, "step": 7, "prompt_tokens": 2200, "completion_tokens": 120, "decisions": [{"question": "extraction_verdict", "type": "score", "answer": "pass", "expected": 0.88}]}}
+{"at": 54.91, "node": {"doc": "DOC-07bcf4c71de616ac", "node": "compile_report", "status": "running", "agent": null, "model": null, "step": 8}}
 {"at": 54.92, "node": {"doc": "DOC-068687bc623fbe16", "node": "classify", "status": "done", "agent": "sorter", "model": "simulated", "ms": 576, "step": 2, "prompt_tokens": 1200, "completion_tokens": 18, "decisions": [{"question": "doc_type", "type": "choice", "answer": "correspondence", "p": 0.93}]}}
 {"at": 54.92, "node": {"doc": "DOC-068687bc623fbe16", "node": "extract", "status": "running", "agent": "correspondence_specialist", "model": "simulated", "step": 3}}
+{"at": 55.0, "node": {"doc": "DOC-07bcf4c71de616ac", "node": "compile_report", "status": "done", "agent": null, "model": null, "ms": 85, "step": 8}}
+{"at": 55.0, "node": {"doc": "DOC-07bcf4c71de616ac", "node": "catalog_write", "status": "running", "agent": null, "model": null, "step": 9}}
 {"at": 55.01, "node": {"doc": "DOC-04b6e357ea979927", "node": "intake", "status": "done", "agent": null, "model": null, "ms": 263, "step": 1}}
 {"at": 55.01, "node": {"doc": "DOC-04b6e357ea979927", "node": "classify", "status": "running", "agent": "sorter", "model": "simulated", "step": 2}}
+{"at": 55.04, "node": {"doc": "DOC-07bcf4c71de616ac", "node": "catalog_write", "status": "done", "agent": null, "model": null, "ms": 45, "step": 9}}
+{"at": 55.04, "node": {"doc": "DOC-07bcf4c71de616ac", "node": "archive", "status": "running", "agent": null, "model": null, "step": 10}}
+{"at": 55.08, "node": {"doc": "DOC-07bcf4c71de616ac", "node": "archive", "status": "done", "agent": null, "model": null, "ms": 35, "step": 10, "stage": "archived"}}
+{"at": 55.1, "item": {"item_id": "DOC-07bcf4c71de616ac", "ok": true, "latency_ms": 12330, "prompt_tokens": 8900, "completion_tokens": 632, "pred": {"stage": "archived", "doc_type": "contract"}, "score": {"overall_extraction_score": 0.55, "schema_valid": true, "parse_error": false}}}
+{"at": 55.12, "checkpoint": {"state": "running", "cursor": 103, "total": 120}}
 {"at": 55.15, "node": {"doc": "DOC-065e1dae8e5c5b86", "node": "judge_verify", "status": "done", "agent": "judge", "model": "simulated", "ms": 771, "step": 4, "prompt_tokens": 2200, "completion_tokens": 120, "decisions": [{"question": "extraction_verdict", "type": "score", "answer": "pass", "expected": 0.82}]}}
 {"at": 55.15, "node": {"doc": "DOC-065e1dae8e5c5b86", "node": "compile_report", "status": "running", "agent": null, "model": null, "step": 5}}
 {"at": 55.18, "node": {"doc": "DOC-09131073e9c8a19f", "node": "extract", "status": "done", "agent": "contracts_specialist", "model": "simulated", "ms": 1705, "step": 3, "prompt_tokens": 3200, "completion_tokens": 450}}

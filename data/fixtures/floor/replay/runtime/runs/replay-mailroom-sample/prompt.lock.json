@@ -1,0 +1,44 @@
+{
+  "note": "simulated replay lock: prompt stems are the sandbox's own config/prompts defaults, locked here only so runs remain identifiable post hoc; no LLM ran.",
+  "default": {
+    "source": "code-default"
+  },
+  "agents": {
+    "sorter": {
+      "name": "sorter_local_v0",
+      "source": "replay-simulated"
+    },
+    "sorter_reviewer": {
+      "name": "sorter_reviewer_local_v0",
+      "source": "replay-simulated"
+    },
+    "judge": {
+      "name": "judge_local_v0",
+      "source": "replay-simulated"
+    },
+    "extract": {
+      "name": "extract_local_v0",
+      "source": "replay-simulated"
+    },
+    "contracts_specialist": {
+      "name": "contracts_specialist_v33_simplified",
+      "source": "replay-simulated"
+    },
+    "merger_agreement_specialist": {
+      "name": "merger_agreement_specialist_simplified",
+      "source": "replay-simulated"
+    },
+    "corporate_records_specialist": {
+      "name": "corporate_records_specialist_simplified",
+      "source": "replay-simulated"
+    },
+    "correspondence_specialist": {
+      "name": "correspondence_specialist_simplified",
+      "source": "replay-simulated"
+    },
+    "insurance_claims_specialist": {
+      "name": "insurance_claims_specialist_simplified",
+      "source": "replay-simulated"
+    }
+  }
+}
