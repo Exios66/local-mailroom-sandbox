@@ -162,7 +162,7 @@ function pruneSeen(){
  for(const k of Object.keys(seenAt))if(k.startsWith(pre)&&!(f[k.slice(pre.length)]||[]).length)delete seenAt[k];
  for(const n of Object.keys(f))if(f[n].length&&!(pre+n in seenAt))seenAt[pre+n]=Date.now()}
 const pad2=n=>String(n).padStart(2,"0");
-/** Fill a RUNNING pill: oldest doc's elapsed (mm:ss from since, else ~Ns from first seen) plus a count suffix. */
+/** Fill a RUNNING pill with mm:ss from the oldest known timestamp, or ~Ns from first seen, and a count suffix. */
 function paintPill(b,id){
  const list=inflightList(id),now=Date.now(),known=list.map(e=>sinceMs(e.since)).filter(t=>t!=null);
  let el;
@@ -261,7 +261,7 @@ function render(){
  document.getElementById("selExtra").textContent=!sel?"":
   (D.graph_reference.node_agents[sel]||"")+" · "+nodeVal(sel)+" docs fired this node"+(CLASS?" (class)":" (run)")+(Object.keys(agN).length?" · agents observed: "+Object.entries(agN).map(([a,c])=>a+" "+c).join(" · "):"");
 }
-/** Dim routing-match suffix for a class row (recorded doc_type == ground truth); empty without routing data. */
+/** Return the routing-match suffix (predicted equals expected), or empty when the class is unavailable or has no expected count. */
 function routeSuffix(r,c,na){
  const x=!na&&r.routing&&r.routing[c];
  return x&&x.gt>0?`<span class="m" title="routing: ${x.match}/${x.gt} predicted as this class">·${Math.round(x.match/x.gt*100)}%</span>`:""}
@@ -319,6 +319,7 @@ addEventListener("blur",()=>{drag=null;moved=0});
 document.getElementById("zin").onclick=()=>zoom(z*1.25);document.getElementById("zout").onclick=()=>zoom(z/1.25);
 // ── LIVE refresh (http/https + selected run running only; file:// stays static, no timer at all) ──
 const upd=document.getElementById("upd");
+/** Show the local time of the latest successful digest refresh. */
 function stampUpdated(){const t=new Date();upd.textContent=" · updated "+pad2(t.getHours())+":"+pad2(t.getMinutes())+":"+pad2(t.getSeconds())}
 if(/^https?:$/.test(location.protocol)){
  let busy=false;

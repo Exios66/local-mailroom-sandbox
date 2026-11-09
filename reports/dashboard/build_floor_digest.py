@@ -342,8 +342,9 @@ def _tokens(nodes: list[dict], items: list[dict]) -> dict:
 def _inflight(nodes: list[dict]) -> dict[str, list[dict]]:
     """Docs currently mid-node: the latest record (file order) for a doc+node is ``running``.
 
-    ``since`` is that running record's own timestamp (``ts``/``time``/``started``/
-    ``started_at``), or None when the record carries none. Nodes with no entry are absent.
+    ``since`` is the first nonempty string or finite numeric timestamp in ``ts``,
+    ``time``, ``started``, or ``started_at``, or None if none qualifies. Nodes
+    with no entry are absent. Each record must contain ``doc`` and ``node``.
     """
     latest: dict[tuple[str, str], dict] = {}
     for r in nodes:
@@ -366,7 +367,11 @@ def _inflight(nodes: list[dict]) -> dict[str, list[dict]]:
 
 
 def _avg_doc_ms(items: list[dict]):
-    """Mean wall ms per completed doc over items' ``latency_ms``; None when there are none."""
+    """Mean finite ``latency_ms`` values in milliseconds, rounded to one decimal.
+
+    Return None when no item has a finite numeric latency. Item status is not checked;
+    an overflow while computing or rounding the mean propagates.
+    """
     ms = [v for v in (_num(it.get("latency_ms")) for it in items) if v is not None]
     return _int_if_whole(sum(ms) / len(ms)) if ms else None
 
@@ -380,7 +385,11 @@ def _pred_class(item: dict) -> str | None:
 
 
 def _routing(items: list[tuple[str, dict]], ds_class: dict[str, str]) -> dict[str, dict]:
-    """Per-class routing agreement; only items with BOTH an expected and a predicted class count."""
+    """Count expected, predicted, and matching classes for items with both labels.
+
+    Nonempty dataset labels take precedence over item-level expected labels. Each class
+    maps to ``gt``, ``pred``, and ``match`` counts, including predicted-only classes.
+    """
     routing: dict[str, dict] = {}
     for item_id, it in items:
         exp = ds_class.get(item_id) or str(it.get("expected_doc_class") or it.get("expected") or "")
@@ -399,7 +408,8 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]]) -> tuple[di
 
     The last item record for an ID wins. Node counts are distinct documents;
     edge counts are traversals limited to edge_set. Per-class traffic requires
-    dataset class labels, and node duration medians are in milliseconds. Missing
+    dataset class labels, and node duration medians are in milliseconds. The summary
+    also includes in-flight documents, mean item latency and routing counts. Missing
     or invalid artifact data uses the reader fallbacks; errors reading dataset
     bytes for an absent hash propagate.
     """
@@ -615,7 +625,9 @@ def build(base: Path, out: Path, graph_path: Path | None = None) -> tuple[dict, 
 
     The programmatic twin of ``main`` (used by ``sandbox floor``): ``graph_path`` defaults
     to ``$FLOOR_DIGEST_GRAPH`` then the vendored build_graph.py. Returns
-    ``(digest, json_path, js_path)``; raises DigestError exactly as ``main`` would report it.
+    ``(digest, json_path, js_path)``. Graph read, syntax or topology errors, no runs,
+    and output filesystem errors raise DigestError; decoding, traversal, aggregation
+    and serialization errors may also propagate. The two output files are replaced separately.
     """
     graph = Path(graph_path or os.environ.get("FLOOR_DIGEST_GRAPH") or DEFAULT_GRAPH)
     digest = build_digest(Path(base), graph)

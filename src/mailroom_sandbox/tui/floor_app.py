@@ -31,11 +31,15 @@ RUN_ARTIFACTS = ("items.jsonl", "nodes.jsonl", "checkpoint.json", "spec.lock.jso
 
 
 def dashboard_dir() -> Path:
+    """Return the dashboard directory under the resolved repository root."""
     return repo_root() / "reports" / "dashboard"
 
 
 def load_builder() -> ModuleType:
-    """Import ``reports/dashboard/build_floor_digest.py`` (a script, not a package) once."""
+    """Load and cache the dashboard builder script.
+
+    Raise FileNotFoundError if the script is missing and not cached; import errors propagate.
+    """
     cached = sys.modules.get("build_floor_digest")
     if cached is not None:
         return cached
@@ -51,7 +55,11 @@ def load_builder() -> ModuleType:
 
 
 def build(base: Path, out: Path, graph_path: Path | None = None) -> tuple[dict, Path, Path]:
-    """Rebuild the digest from ``base`` into ``out``; returns ``(digest, json_path, js_path)``."""
+    """Rebuild the digest from ``base`` into ``out`` and return it with both output paths.
+
+    ``graph_path`` overrides the builder's environment and default graph selection.
+    Builder loading and digest errors propagate.
+    """
     return load_builder().build(base, out, graph_path)
 
 
@@ -59,7 +67,8 @@ def scan_signature(base: Path) -> tuple:
     """Cheap change detector: (path, mtime_ns, size) of every run artifact plus the run dirs themselves.
 
     No file is opened. A new or removed run dir changes the tuple through its parent listing,
-    and a growing nodes/items file changes it through mtime and size.
+    and a growing nodes/items file changes it through mtime and size. Unreadable parent
+    directories and artifacts that cannot be statted are omitted.
     """
     sig: list[tuple[str, int, int]] = []
     for parent in (base / "run-history", base / "runtime" / "runs"):
@@ -82,6 +91,7 @@ class DigestRefresher:
     """Rebuild the digest into ``out`` whenever ``scan_signature`` changes; otherwise do nothing."""
 
     def __init__(self, base: Path, out: Path, *, graph_path: Path | None = None) -> None:
+        """Configure the run store, output directory, and optional graph override."""
         self.base, self.out, self.graph_path = Path(base), Path(out), graph_path
         self._sig: tuple | None = None
         self.builds = 0
@@ -90,8 +100,9 @@ class DigestRefresher:
     def refresh(self) -> bool:
         """Rebuild if anything changed since the last good build; True when a build ran and succeeded.
 
-        A failed build keeps the old signature (so the next tick retries) and records
-        ``last_error``; the error is raised only for the very first build, which the caller treats as fatal.
+        A build exception before the first success propagates. After a successful build,
+        failures keep the old signature, record ``last_error``, and return False so the
+        next refresh retries. An unchanged signature also returns False.
         """
         sig = scan_signature(self.base)
         if sig == self._sig:
@@ -107,7 +118,11 @@ class DigestRefresher:
         return True
 
     def run(self, stop: threading.Event, interval: float) -> None:
-        """Thread body: refresh every ``interval`` seconds until ``stop`` is set."""
+        """Refresh until ``stop`` is set, waiting ``interval`` seconds between checks.
+
+        The wait is at least 0.1 seconds. A build exception before the first success
+        propagates from ``refresh``.
+        """
         last_reported = None
         while not stop.wait(max(interval, MIN_INTERVAL_S)):
             self.refresh()
@@ -120,15 +135,20 @@ class _FloorHandler(SimpleHTTPRequestHandler):
     """Static handler for the dashboard dir: quiet, and never cached (the digest changes under it)."""
 
     def log_message(self, fmt: str, *args: Any) -> None:
+        """Suppress HTTP request logging."""
         return
 
     def end_headers(self) -> None:
+        """Send a no-store cache directive before completing the response headers."""
         self.send_header("Cache-Control", "no-store")
         super().end_headers()
 
 
 def make_server(directory: Path, port: int = DEFAULT_PORT) -> ThreadingHTTPServer:
-    """A loopback server for ``directory`` (port 0 = ephemeral); bound, not yet serving."""
+    """Bind a loopback server for ``directory`` (port 0 = ephemeral), without serving yet.
+
+    Socket binding errors propagate.
+    """
     return ThreadingHTTPServer((DEFAULT_HOST, port), partial(_FloorHandler, directory=str(directory)))
 
 
@@ -153,9 +173,11 @@ def serve_floor(
 ) -> int:
     """Build the digest, serve the dashboard on loopback, and rebuild in the background until interrupted.
 
-    ``out`` is the served and written directory (default ``reports/dashboard``). The first build
-    is synchronous so the page never loads a stale digest; if it fails the app exits with the
-    builder's exit code instead of serving old data. Returns 0 after Ctrl+C.
+    ``out`` is the served and written directory (default ``reports/dashboard``); ``run``
+    identifies a run to preselect via the printed URL. ``port=0`` chooses an ephemeral port, and checks
+    run at least 0.1 seconds apart. The first build is synchronous: a DigestError returns
+    its code before the server binds; other build or bind errors propagate. Later build
+    exceptions are recorded and retried. Returns 0 after Ctrl+C.
     """
     builder = load_builder()
     out = Path(out) if out is not None else dashboard_dir()
