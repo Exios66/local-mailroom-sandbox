@@ -1,9 +1,15 @@
 version: 2.1
 
-# Free-tier budget: two parallel small jobs, one workflow, pip cache.
-# This is the repo's only CI (there is no .github/workflows/ci.yml). To BLOCK
-# merges, mark the "ci/circleci: lint" and "ci/circleci: test" checks as
-# required in the GitHub branch protection rule for main.
+# One workflow: small lint job, medium test job, cached downloads.
+# The test job needs medium's two allocated CPUs for its two pytest workers;
+# small has one CPU and hosted job 609 showed no parallel speedup there.
+# Both lanes restore caches before setup; the test job parallelizes the
+# network-free suite with two pytest-xdist workers
+# and keeps coverage scoped to src/mailroom_sandbox (pyproject
+# [tool.coverage.run]). This is the repo's only CI (there is no
+# .github/workflows/ci.yml). To BLOCK merges, mark the "ci/circleci: lint"
+# and "ci/circleci: test" checks as required in the GitHub branch protection
+# rule for main.
 
 executors:
   py:
@@ -16,11 +22,23 @@ jobs:
     executor: py
     steps:
       - checkout
+      - restore_cache:
+          keys:
+            # static key: bump by hand when the tool set changes (ruff/yamllint/bandit are
+            # unpinned so bump this key deliberately when updating the tool set)
+            - pip-lint-v1
       - run:
-          name: Install lint tools
-          command: |
-            pip install --quiet ruff yamllint bandit
-            sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+          name: Install lint tools (cached)
+          command: pip install --quiet ruff yamllint bandit
+      - save_cache:
+          key: pip-lint-v1
+          paths:
+            - ~/.cache/pip
+      # shellcheck needs apt; keep it last so the cheap pip steps above never queue
+      # behind the apt index refresh.
+      - run:
+          name: Install shellcheck (apt, not cached)
+          command: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
       - run:
           name: ruff (correctness gate, config in pyproject.toml)
           command: ruff check src tests scripts deploy reports
@@ -33,27 +51,43 @@ jobs:
       - run:
           name: shellcheck (warning level, config in .shellcheckrc)
           command: git ls-files '*.sh' | grep -v '^vendor/' | xargs shellcheck -S warning
+      - restore_cache:
+          keys:
+            - npm-v1
       - run:
           name: markdownlint (GFM, config in .markdownlint-cli2.yaml)
+          # npm reuses downloaded packages; npx may still consult the registry.
           command: npx --yes markdownlint-cli2@0.18.1
+      - save_cache:
+          key: npm-v1
+          paths:
+            - ~/.npm
 
   test:
     executor: py
+    resource_class: medium
     steps:
       - checkout
       - restore_cache:
           keys:
             - pip-v1-{{ checksum "pyproject.toml" }}
       - run:
-          name: Install (dev + pipeline surface for vendored imports)
+          name: Install (dev surface incl. pytest-xdist for two workers)
           command: pip install -e ".[dev]"
       - save_cache:
           key: pip-v1-{{ checksum "pyproject.toml" }}
           paths:
             - ~/.cache/pip
       - run:
-          name: Pytest (network-free)
-          command: pytest -v -m "not local_llm" --junitxml=test-results/junit.xml --cov --cov-report=term --cov-report=xml:coverage/coverage.xml
+          name: Pytest (network-free, parallel on the executor's CPUs)
+          # -q + -n 2 matches medium's 2 vCPU / 4GB allocation. small is 1 vCPU / 2GB;
+          # two workers there did not improve hosted runtime. An `auto` count may read
+          # host CPUs inside Docker and exhaust memory before imports finish.
+          # junitxml stays identical in shape (xdist merges it), and
+          # pytest-cov merges coverage. loadfile keeps process-local scenario unions
+          # (test_pipeline_routing_matrix.WALKED) together and ordered on one worker.
+          # Set SANDBOX_XDIST to override without editing CI.
+          command: pytest -q -n "${SANDBOX_XDIST:-2}" --dist loadfile -m "not local_llm" --junitxml=test-results/junit.xml --cov --cov-report=xml:coverage/coverage.xml --durations=20
       - run:
           name: Reports hub committed snapshot
           command: python reports/dashboard/build_hub.py --check
