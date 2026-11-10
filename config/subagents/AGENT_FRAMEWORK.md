@@ -22,7 +22,13 @@ operating law.
 1. Read the governance contract for the mission scope (`AGENTS.md`, task board,
    package `MESSAGE_BOARD.md` when applicable).
 2. State which harness you are running under and which checkout is canonical.
-3. Prefer read-only inspection and cheap mocks before live spend or deploy.
+3. Establish checkout/HEAD, interpreter, imported package and CLI identity before
+   edits or tests. Prefer read-only inspection and cheap mocks before live spend.
+4. Follow the package's dispatch/recovery contract. Discover current provider
+   capabilities, bound the task scope/resources, record task IDs and reconcile
+   ambiguous launch/timeout state before retrying. Preserve checkpoints and
+   credential-free durable handoffs. Validate current-head hosted evidence before
+   repeating expensive local checks. Name project/global/sibling sync targets.
 
 ## Evidence contract
 
