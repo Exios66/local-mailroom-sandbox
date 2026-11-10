@@ -341,8 +341,10 @@ Procedure:
 
 ## Phase 4 — Verify (the ladder to a release-grade version)
 
-1. `python -m pytest tests/ -q` — network-free suite green before spending
-   money.
+1. Inspect passing current-head hosted CI for the full network-free suite and
+   coverage gate before spending money. Locally, run only the smallest relevant
+   regressions on one worker without coverage; do not repeat full suites or
+   CPU-heavy benchmarks.
 2. `--dry-run` on the eval runner — confirm dataset, prompt versions,
    experiment name. Extraction A/Bs: confirm `--chunked` is on (the runner
    warns when it is not).

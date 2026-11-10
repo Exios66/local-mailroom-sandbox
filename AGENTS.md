@@ -31,6 +31,27 @@ after those sources have been imported. Preserve live corporate v6 and sandbox
 evaluation v7 independently. The historical sandbox v0.2.0 release exists;
 current development version and immutable vendor pins are separate facts.
 
+## Instruction validation (routine)
+
+At task start and every resumed session, read the applicable `AGENTS.md`,
+`CLAUDE.md`, scoped rules and selected skills. Validate the factual instructions
+relevant to the work against the current checkout and authoritative sources;
+do not assume an instruction file is current because it is committed.
+
+Repeat this check at milestones and completion of long-running experiments,
+after feature/configuration/dependency/vendor updates, after changing branches
+or rebasing a stack, and before a PR handoff or merge. Check versions, release
+claims, pins, references, commands, defaults and experiment status. Distinguish
+historical evidence, declared dependencies, installed versions and published
+releases. Preserve immutable experiment locks and explicit pins.
+
+Correct stale instructions and their related entry points in the same scoped
+change or a linked documentation follow-up. Record what was checked, its source
+revision/date and any unresolved facts in the PR or experiment handoff. Factual
+validation does not override instruction priority or authorize live spend,
+dependency upgrades or destructive actions. Follow the
+[instruction maintenance procedure](docs/agent-instruction-maintenance.md).
+
 ## Skills (tool selection)
 
 Committed under `.cursor/skills/`. **Read `sandbox-tool-router` first** for any
@@ -224,6 +245,12 @@ one worker by default. Full-suite runs, coverage sweeps, large mock campaigns
 and serial/parallel benchmarks belong in CI; do not repeat them locally just
 to duplicate a hosted check. For a CI failure, inspect its logs and artifacts
 first, then run a bounded local reproduction only when needed.
+
+CircleCI currently runs lint and the full pytest/coverage lane, plus reports-hub
+snapshot and requirements checks. There are no dedicated full-corpus campaign
+or serial/parallel benchmark jobs. When such verification is needed, arrange a
+separately scoped hosted job, preserving live/spend gates; report it as pending
+or unverified until evidence exists. Passing ordinary CI does not certify it.
 
 The complete CI suite and coverage gate remain required before merging. Verify
 checks against the current PR head SHA, inspect failures, and wait for pending

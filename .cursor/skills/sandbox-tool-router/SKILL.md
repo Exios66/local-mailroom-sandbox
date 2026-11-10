@@ -7,6 +7,12 @@ description: Choose the correct local-mailroom-sandbox tool for serving, tracing
 
 Read this skill **first** when the task touches providers, tracing, datasets, Docker, or deploys. Then open exactly one specialty skill below. Do not invent a second tracing backend or cloud LLM path when the default already fits.
 
+Apply the [routine instruction validation](../../../AGENTS.md#instruction-validation-routine)
+at task start/resume, after long experiments or feature/configuration updates,
+and before handoff or merge. Verify this router's and the selected skill's
+versions, pins, references and defaults against current evidence; correct stale
+guidance without silently upgrading dependencies or changing experiment locks.
+
 ## Decision table
 
 | Job | Use | Skill | Do **not** use |
@@ -20,7 +26,7 @@ Read this skill **first** when the task touches providers, tracing, datasets, Do
 | Offline fixture prep / cached subset draw | `sandbox datasets prepare` / `sandbox datasets sample` | [huggingface](../huggingface/SKILL.md) | Hub network in CI; treating fixture prep as a Hub pull |
 | Named dataset / file pin / subset provenance | `config/datasets.yaml` + `sandbox run preflight` | [huggingface](../huggingface/SKILL.md) | Machine paths in committed run specs; guessing a sample from its name |
 | Floor viewer / offline replay | `sandbox floor [TARGET]` / `sandbox floor --replay` | [huggingface](../huggingface/SKILL.md) for sample provenance | Model calls for a UI demo; quoting simulated results as measurements |
-| Code verification / CI runtime evidence | Local lint/config checks and focused regressions; CircleCI for the full suite, coverage and CPU-heavy campaigns | [AGENTS.md tests](../../../AGENTS.md#tests) | Repeated full local suites or local parallel/coverage benchmarks; weakening merge gates |
+| Code verification / CI runtime evidence | Local lint/config checks and focused regressions; CircleCI for the full suite/coverage; separately scoped hosted jobs for needed campaigns/benchmarks | [AGENTS.md tests](../../../AGENTS.md#tests) | Repeated full local suites or local parallel/coverage benchmarks; assuming campaign/benchmark jobs already exist; weakening merge gates |
 | Decision-reviewer calibration (paid OpenRouter `sorter_reviewer` runs) | `reviewer: {backend: decisions, model: openai/gpt-6-luna-decisions, questions: <stem>}` + `sandbox run preflight` → `sandbox run start --initials XX` → `scripts/calibrate_reviewer.py --run <id>` | `config/decisions/*.yaml`, `reports/reviewer-calibration/` | The chat model `openai/gpt-6-luna` as the reviewer; hand-picked cutoffs; `-latest` / `~` model ids |
 | Sandbox-isolated tasks / governance | Local **`SAND-*`** board (`governance/TASKS.md`) | (this router + `governance/PREFIX.md`) | Family **`DMR-*`** MESSAGE_BOARD (cross-repo only) |
 
