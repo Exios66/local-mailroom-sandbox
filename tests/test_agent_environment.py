@@ -102,3 +102,81 @@ def test_resource_hook_catches_expensive_direct_commands(guard, command):
 ])
 def test_resource_hook_preserves_focused_checks(guard, command):
     assert guard.violation(command) is None
+
+
+@pytest.mark.parametrize('action', ['preflight', 'dispatch-check', 'checkpoint'])
+def test_offline_console_bootstrap_never_reads_fixture_dotenv(tmp_path, action):
+    """Fresh-process coverage includes package __init__ and parser defaults."""
+    import os
+    import sys
+    (tmp_path / '.env').write_text('DUMMY_TEST_VALUE=1\n')
+    (tmp_path / 'vendor').symlink_to(Path(__file__).resolve().parents[1] / 'vendor', target_is_directory=True)
+    script = '''
+import os, sys, dotenv
+reads=[]
+dotenv.dotenv_values=lambda path,*a,**kw: reads.append(str(path)) or {}
+sys.argv=['sandbox','--profile','ollama','subagents',sys.argv[1]]
+import mailroom_sandbox
+from mailroom_sandbox.cli import build_parser, main
+build_parser()
+if sys.argv[-1]=='preflight':
+    main(['subagents','preflight','--root',os.environ['SANDBOX_ROOT'], '--json'])
+assert not reads, 'offline bootstrap requested dotenv parsing'
+assert 'DUMMY_TEST_VALUE' not in os.environ, 'offline bootstrap loaded dotenv into the environment'
+'''
+    env = {k: v for k, v in os.environ.items()
+           if k not in {'SANDBOX_SKIP_DOTENV', 'SANDBOX_DOJO_SOURCE', 'DOJO_SRC', 'DUMMY_TEST_VALUE'}}
+    env['SANDBOX_ROOT'] = str(tmp_path)
+    env['PYTHONPATH'] = str(Path(__file__).resolve().parents[1] / 'src')
+    result = subprocess.run([sys.executable, '-c', script, action], env=env,
+                            capture_output=True, text=True, timeout=15)
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize(('argv', 'expected'), [
+    (['subagents', 'preflight'], True),
+    (['subagents', 'dispatch-check'], True),
+    (['--profile', 'ollama', 'subagents', '--model=x', 'checkpoint'], True),
+    (['--prompt', 'subagents', 'profiles'], False),
+    (['--model=subagents', 'profiles'], False),
+    (['subagents', 'sync'], False),
+])
+def test_offline_bootstrap_routing_preserves_shared_option_values(argv, expected):
+    from mailroom_sandbox.paths import offline_agent_invocation
+    assert offline_agent_invocation(argv) is expected
+
+
+def test_programmatic_offline_cli_suppresses_parser_defaults_only(tmp_path, monkeypatch, capsys):
+    """A host that already imported the package gets no additional dotenv reads."""
+    from mailroom_sandbox import paths
+    (tmp_path / '.env').write_text('SANDBOX_PROFILE=ollama\nDUMMY_TEST_VALUE=1\n')
+    monkeypatch.delenv('DUMMY_TEST_VALUE', raising=False)
+    monkeypatch.delenv('SANDBOX_SKIP_DOTENV')
+    monkeypatch.setattr(paths, 'repo_root', lambda: tmp_path)
+    assert paths.dotenv_files()  # normal calls still discover the fixture
+    def refuse(*a, **k):
+        pytest.fail('offline parser read dotenv')
+    monkeypatch.setattr('dotenv.dotenv_values', refuse)
+    assert cli.main(['subagents', 'preflight', '--root', str(tmp_path), '--json']) == 1
+    capsys.readouterr()
+    assert 'DUMMY_TEST_VALUE' not in __import__('os').environ
+    assert paths.dotenv_files()  # suppression context did not leak
+
+
+def test_offline_bootstrap_definitions_match_parser():
+    """Fail if parser changes leave the early no-dotenv scanner incomplete."""
+    import argparse
+    from mailroom_sandbox.paths import OFFLINE_AGENT_COMMANDS, OFFLINE_SHARED_VALUE_OPTIONS
+    parser = cli.build_parser()
+    value_options = {option for action in parser._actions if action.nargs != 0
+                     for option in action.option_strings}
+    assert value_options == OFFLINE_SHARED_VALUE_OPTIONS
+    def offline_paths(node, path=()):
+        """Collect every parser path declaring offline inspection semantics."""
+        found = {path} if node.get_default('offline_inspection') else set()
+        for action in node._actions:
+            if isinstance(action, argparse._SubParsersAction):
+                for name, child in action.choices.items():
+                    found.update(offline_paths(child, (*path, name)))
+        return found
+    assert offline_paths(parser) == {('subagents', name) for name in OFFLINE_AGENT_COMMANDS}
