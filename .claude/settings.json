@@ -1,15 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(pytest:*)",
-      "Bash(python -m pytest:*)",
-      "Bash(python3 -m pytest:*)",
-      "Bash(.venv/bin/python -m pytest:*)",
       "Bash(ruff check:*)",
       "Bash(python scripts/sync_requirements.py --check:*)",
       "Bash(python3 scripts/sync_requirements.py --check:*)",
       "Bash(python reports/dashboard/build_hub.py --check:*)",
-      "Bash(python scripts/smoke_campaign.py:*)",
       "Bash(sandbox profiles:*)",
       "Bash(sandbox agents list:*)",
       "Bash(sandbox doctor:*)",
@@ -70,6 +65,15 @@
           {
             "type": "command",
             "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_paths.py\""
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_resources.py\""
           }
         ]
       }
