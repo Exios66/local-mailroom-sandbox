@@ -38,6 +38,10 @@ and then the selected specialty skill. The `corpus-curator` prompt belongs to
 path refer to that package, not this checkout. Sandbox dataset work follows the
 [Hugging Face skill](../../.cursor/skills/huggingface/SKILL.md), `corpus.py` and run locks.
 
-After editing an OpenCode prompt, run `sandbox subagents sync --harness all`.
+After editing a canonical OpenCode prompt, preview project-only synchronization
+with `--harness opencode --dry-run` and `--harness cursor --dry-run`, then run those
+explicit targets and inspect the diff. `--harness all` also writes global profiles;
+use it only for an intended machine-wide refresh. Follow the
+[dispatch and recovery contract](../../docs/agent-dispatch.md).
 
 Durable eve agent (machine-wide doctor UI/tools): `~/Downloads/agent-harness-doctor`.
