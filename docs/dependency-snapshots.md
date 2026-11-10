@@ -83,13 +83,23 @@ selected tree, while fetching a new entry leaves the old selection intact.
 ## Run locks and remote execution
 
 New `spec.lock.json` files record `dependency_sources` for **both** components:
-source layer, package version, exact commit, and tree/artifact digests for caches.
-Explicit development trees record a digest of their Python source bytes.
+source layer, package version, exact commit, and a digest of the selected source
+files. Cached releases additionally record their verified artifact digest.
+Installed, vendored and explicit development sources hash their runtime files,
+resources, relative names and executable modes; edits, additions and deletions
+invalidate the lock even when version/commit metadata is unchanged. Installed
+fingerprints cover only the component's own package roots (including newly added
+files), not unrelated distributions in site-packages. Missing ownership metadata
+or unreadable/missing source fails closed. Absolute paths and generated
+`__pycache__` files are excluded so an identical worker copy keeps its identity.
 `sandbox run status` includes this frozen provenance. Preflight reuse and job
 execution refuse a changed source or damaged cache before executing work. Restore
 the original selection in a new process to resume; a deliberate `--force`
 preflight creates a new generation through the existing archive/re-lock workflow.
-Historical locks without the new field remain readable.
+Historical locks without the new field remain readable. Locks made by earlier
+development builds that contain `dependency_sources` but omit mutable-source
+digests refuse reuse; explicitly archive/re-lock a new generation to adopt the
+stronger identity rather than editing the old lock.
 
 Local endpoint jobs can use selected snapshots with the existing serving routes,
 including an external Modal vLLM endpoint. For `job.mode: modal`, deploy the job

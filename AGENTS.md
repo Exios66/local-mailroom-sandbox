@@ -74,7 +74,10 @@ pins. Read [the snapshot guide](docs/dependency-snapshots.md) before selecting a
 cache via `SANDBOX_DOJO_SNAPSHOT` / `SANDBOX_PIPELINE_SNAPSHOT`. Fetching a release
 is separate from selecting it: restart the process after selection, preserve
 `dependency_sources` in run locks, and restore the original source on drift.
-Never substitute latest stable for an experiment's frozen commit. For remote
+Never substitute latest stable for an experiment's frozen commit. Version and
+commit metadata alone do not prove unchanged source: preserve and recheck the
+runtime-tree digests for installed, vendored and explicit source layers as well
+as verified caches. For remote
 Modal jobs, bundle the same selected snapshots when deploying the job worker;
 require matching provenance before accepting its results.
 
