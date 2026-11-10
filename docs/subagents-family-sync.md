@@ -18,6 +18,13 @@ coding subagent, its **home package**, and which packages **materialize** it.
 | `llm-mailroom` | `packages/llm-mailroom` | `config/subagents/family-roster.yaml` |
 | `eval-environment` | eval runner repo | `config/subagents/family-roster.yaml` |
 
+## Scope before synchronization
+
+Follow the [dispatch contract](agent-dispatch.md). Preview targets with `--dry-run`.
+For a project-only refresh, run `--harness opencode` and `--harness cursor`
+separately. `--harness all` includes global profiles, and `propagate` also changes
+mapped sibling checkouts. Use these broader operations only when intended.
+
 ## Workflow
 
 ### One command (recommended)
