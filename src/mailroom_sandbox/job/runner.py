@@ -791,6 +791,9 @@ def run_job(
         from mailroom_sandbox.runtime import activate, locked_runtime
 
         lock = store.read_lock() or {}
+        from mailroom_sandbox.dependency_sources import verify_locked
+
+        verify_locked(lock)
         with locked_runtime(lock, store.read_prompt_lock() or {}), locked_pipeline_provider(lock):
             activate()
             summary = _run_job(store, task=task, model=model, profile=profile, mock=mock, dry_run=False,
