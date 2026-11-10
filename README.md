@@ -262,6 +262,16 @@ sandbox board [--tui]           # persistent job board for every mailroom.beacon
 sandbox web --demo [--pipeline] # themed watch UI on a synthetic run (no Modal, no spend; = sandbox dev)
 ```
 
+Named datasets live in [`config/datasets.yaml`](config/datasets.yaml). Run
+preflight records the exact prepared subset hash and, for local inputs, its
+source-file hash; registry names and pull notes are provenance. Read
+[dataset identity](docs/jobs.md#dataset-identity) before reproducing a draw.
+The [Hugging Face guidance](.cursor/skills/huggingface/SKILL.md) distinguishes
+raw downloads, normalized corpus cache, fixture prep and locked run subsets.
+For floor UI work, `sandbox floor --replay --base <scratch-data-dir>` creates
+a persistent simulated sample run on `127.0.0.1:8769`; its results are not
+model measurements. A foreign or symlinked replay directory is refused.
+
 `SANDBOX_DEBUG=1` traces CHTC/Modal scripts (DMR-053). The complete generated
 reference — every command, subcommand and argument — is
 [`docs/cli-reference.md`](docs/cli-reference.md) (regenerate with

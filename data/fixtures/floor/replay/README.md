@@ -52,6 +52,13 @@ untouched and selectable in the same RUNS rail. The sample run persists in the b
 afterwards (a finished recorded replay); an interrupted one reads like any killed run and
 resets on the next `--replay`. No network, API key, GPU or local run data is needed.
 
+For disposable UI checks, pass a scratch data directory as `--base`. Reset is
+allowed only for an existing replay-owned run or an empty directory. Foreign
+files, invalid locks and symlinked replay directories are refused; preserve
+them and choose another base instead of deleting them to bypass the check.
+The viewer binds `127.0.0.1:8769`; this fixture contains metadata and scripted
+results, not document text for a model evaluation.
+
 ## Refresh the sample
 
 Re-draw the same rule from the pinned corpus (after `sandbox datasets pull`), then

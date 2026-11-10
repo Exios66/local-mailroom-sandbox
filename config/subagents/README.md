@@ -23,6 +23,13 @@ Monorepo workflow: [`docs/subagents-family-sync.md`](../../docs/subagents-family
 
 Shared agent operating law: [`AGENT_FRAMEWORK.md`](AGENT_FRAMEWORK.md).
 
+Use the current package's tool guidance before applying a family prompt's
+commands. In this sandbox, read the [tool router](../../.cursor/skills/sandbox-tool-router/SKILL.md)
+and then the selected specialty skill. The `corpus-curator` prompt belongs to
+`eval-environment`; its `evals.cases` probes and `.opencode/skills/mailroom-corpus`
+path refer to that package, not this checkout. Sandbox dataset work follows the
+[Hugging Face skill](../../.cursor/skills/huggingface/SKILL.md), `corpus.py` and run locks.
+
 After editing an OpenCode prompt, run `sandbox subagents sync --harness all`.
 
 Durable eve agent (machine-wide doctor UI/tools): `~/Downloads/agent-harness-doctor`.
