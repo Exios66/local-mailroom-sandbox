@@ -15,18 +15,25 @@ This subproject is **intentionally self-contained**: it keeps its own
 `config/runs/`, its own `reports/`, and its own CLI rather than folding into the
 sandbox namespaces. Three reasons, in short:
 
-- **It is the only surface that spends real money.** These specs set
+- **It has its own API comparison workflow.** These specs set
   `cost_cap_usd: null` (a Modal GPU-wall cap would be wrong for an API run) and
-  are driven by `run_api_evals.py`, not by `sandbox run`.
+  use `run_api_evals.py` for task registration, token-cost comparison and reports.
+  They share `sandbox.run/v1`, `load_run_spec`, preflight and the job runner
+  with `sandbox run`; the separate CLI supplies the harness's reporting workflow.
+  Schema validity alone does not establish live readiness: shared preflight
+  still requires the current API budget ceilings and model pricing (see
+  [job budget guidance](../docs/jobs.md)).
 - **It is not packaged.** `api-evals/` sits outside `src/`, so it is absent from
   the installed wheel — and `deploy/Dockerfile` never copies it, so the
   OpenRouter harness never lands in the offline image.
 - **It mirrors the org repo.** The split keeps this tree readable next to
   `LLM-Mailroom-Services/eval-environment`.
 
-So: `api-*` run ids + `profile: openrouter` → this CLI. Everything else →
-`config/runs/` via the `sandbox` CLI. The full comparison table, and the paths
-that are frozen by a test, are in [`../docs/setting-up/LAYOUT.md`](../docs/setting-up/LAYOUT.md).
+Use this CLI for its registered `api-*` comparisons. Main sandbox pipeline,
+specialist, reviewer and hybrid runs use `config/runs/` and `sandbox run`,
+including paid OpenRouter routes with their own API caps. The full comparison
+table and path contract are in
+[`../docs/setting-up/LAYOUT.md`](../docs/setting-up/LAYOUT.md).
 
 ## What runs
 

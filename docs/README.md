@@ -15,6 +15,10 @@ Documentation for the local-mailroom-sandbox package, covering:
 - Configuration guide
 - Testing procedures
 - **[Mailroom themed logging & live watch](pretty-logging/mailroom-themed-logging.md)** — `sandbox watch` / `--web`, Modal dispatch log tail, SAND-032 operator paths
+- **[Pipeline floor viewer](floor.md)** — live run history, offline replay, digest semantics and troubleshooting
+- **[Named datasets](datasets/named-datasets.md)** — registry fields, environment paths, source/subset identity and migration
+- **[Job lifecycle](jobs.md)** — preflight, immutable generations, execution and resume
+- **[CI verification](../.circleci/README.md)** — required checks, artifacts, cache/worker configuration and runtime comparison
 
 ## Related Files
 

@@ -14,14 +14,15 @@ its own layout, and `api-evals/` deliberately mirrors its *structure* (see
 | Path | Purpose | Owner / stability |
 | :--- | :--- | :--- |
 | `src/mailroom_sandbox/` | The installed package (`pyproject.toml` `[tool.setuptools.packages.find] where = ["src"]`) | **Frozen path.** Editable-installed; `sandbox` entry point lives here. |
-| `tests/` | Network-free suite; 4 `local_llm` tests need `SANDBOX_LOCAL_LLM=1` | **Frozen path.** |
+| `tests/` | Network-free suite; opt-in `local_llm` tests need `SANDBOX_LOCAL_LLM=1` | **Frozen path.** Full-suite/coverage execution belongs in hosted CI. |
 | `vendor/` | Byte-identical tracked snapshots of the family code | **Frozen tree.** See [Frozen surfaces](#frozen-surfaces-dont-move-these). |
-| `config/` | Serving profiles, run specs, runbook catalog, prompts, model catalog, subagent roster | **Frozen paths.** See [Frozen surfaces](#frozen-surfaces-dont-move-these). |
+| `config/` | Serving profiles, run specs, named-dataset registry, runbook catalog, prompts, model catalog, subagent roster | **Frozen paths.** See [Frozen surfaces](#frozen-surfaces-dont-move-these). |
+| `.circleci/` | Hosted checks, caches, explicit pytest worker scheduling; [CI guide](../../.circleci/README.md) | CI configuration and operator documentation. |
 | `deploy/` | Dockerfile, compose profiles, Modal vLLM + Modal job worker, htcondor, conda | **Frozen path** — `deploy/modal_vllm.py`, `deploy/teardown_vllm.sh` etc. are cited by runbooks, docs, and the board. |
 | `docs/` | Guides (`setting-up/` onboarding, `pretty-logging/` Tray TUI watch, runbooks, modal) | **Frozen path** (add freely; keep the nested trees). |
 | `scripts/` | Repo tooling (`sync_vendor.py` and friends) | **Frozen path.** |
 | `governance/` | `SAND-*` board + prefix cheat-sheet + archives | **Governed surface** — asserted by `tests/test_governance_sand.py`. |
-| `reports/` | Offline experiment log (`experiment_log.jsonl` / `.md`) + hand-written run reports; `reports/dashboard/` builds the source-verified reports hub (`build_hub.py`) | Sandbox-local; **not** a sister-repo mirror (the hub pins sibling-repo figures in `external_snapshot.json`). |
+| `reports/` | Offline experiment log (`experiment_log.jsonl` / `.md`) + hand-written run reports; `reports/dashboard/` builds the source-verified reports hub (`build_hub.py`) and the [pipeline floor](../floor.md) (`build_floor_digest.py`, `floor.template.html`) | Sandbox-local; **not** a sister-repo mirror (the hub pins sibling-repo figures in `external_snapshot.json`). |
 | `data/` | `fixtures/` tracked; `cache/`, `runtime/`, `memory/`, `*.db` gitignored runtime state | Layout is stable by design. |
 | `notebooks/` | Offline env setup + data prep + mock smoke | **Frozen path.** |
 | `api-evals/` | Self-contained OpenRouter API cost harness (own config tree + own CLI) | See [Two config trees](#two-config-trees). |
@@ -35,27 +36,38 @@ separate; the split is architecture, not accident.
 | | Main sandbox | `api-evals/` |
 | :--- | :--- | :--- |
 | Run specs | `config/runs/*.yaml` (+ `config/runs/suites/`) | `api-evals/config/runs/api-*.yaml` |
-| Engine kinds | `vllm-local`, `vllm-remote`, `modal-vllm` | `openrouter` only |
-| Cost model | `cost_cap_usd` — a Modal **GPU-wall** estimate | `cost_cap_usd: null` by design; real cost = tokens × live OpenRouter list price |
+| Engine kinds | `vllm-local`, `vllm-remote`, `modal-vllm`, `openrouter`; hybrid per-agent routes | `openrouter` only |
+| Cost model | `cost_cap_usd` for GPU-wall estimates; separate `api_cost_cap_usd` for API token spend | `cost_cap_usd: null` by design; real cost = tokens × live OpenRouter list price |
 | CLI | `sandbox run …` (`pyproject.toml` console script) | `python api-evals/run_api_evals.py …` |
 | Outputs | `reports/` | `api-evals/reports/<stamp>-<model>/` |
-| Packaged in the wheel | yes (`where = ["src"]`) | **no** — repo-local only |
+| Packaged in the wheel | Python package under `src/`; run/config trees remain checkout assets | **no** — repo-local harness |
 | Shipped in the offline image | yes (`COPY config ./config`) | **no** — `deploy/Dockerfile` never copies `api-evals/` |
 
-**Which do I use?** If the run spends real OpenRouter money, it is an
-`api-evals/` task (`api-*` run ids, `profile: openrouter`, run it through
-`run_api_evals.py`). Everything else is a `config/runs/` spec driven by the
-`sandbox` CLI.
+**Which do I use?** Sandbox pipeline, specialist, reviewer and hybrid runs use
+`config/runs/` and the `sandbox` CLI, including paid OpenRouter routes with
+their [API budget gates](../jobs.md). Use `api-evals/` for its separate API
+task harness (`api-*` run ids and `run_api_evals.py`). Both trees declare
+`schema: sandbox.run/v1` and use the same
+[`load_run_spec`](../../src/mailroom_sandbox/job/spec.py). The API harness
+also calls the shared preflight and job runner in
+[`invoke.py`](../../api-evals/api_evals/invoke.py). The separation concerns
+task registration, report paths and the operator workflow, rather than an
+incompatible schema. Inspect model, dataset and current budget settings
+before moving a spec between workflows.
 
 **Why the three reasons above matter:**
 
 1. **Spend surface.** `api-evals/config/runs/*.yaml` sets `cost_cap_usd: null`
-   — the Modal GPU-wall cap would be wrong for an API run. Keeping these specs
-   out of `config/runs/` keeps an uncapped real-spend spec out of the namespace
-   whose cost tooling assumes Modal.
+   — it is not a cap on API token spend. These historical specs still pass
+   through shared preflight: paid API execution needs `api_cost_cap_usd`,
+   `max_wall_seconds` and model pricing under the current
+   [budget rules](../jobs.md). A schema-valid YAML or a null GPU cap does not
+   prove that live execution is ready.
 2. **Distribution.** `api-evals/` is not in the installed package and not in the
-   offline image, so the OpenRouter harness (and its `OPENROUTER_API_KEY`
-   surface) never ships to a wheel or a container.
+   offline image. Its task registry, CLI and reporting helpers remain
+   checkout-only. The installed sandbox itself supports OpenRouter and reads
+   `OPENROUTER_API_KEY`; the separate harness directory does not define that
+   provider's availability.
 3. **Fidelity.** `api-evals/` mirrors the org `eval-environment` structure
    (task registry + case loader + live invoker + scoring + report) so the two
    repos read alike. Its path assumptions are explicit and deliberate in

@@ -1,4 +1,12 @@
-# Dataset cards
+# Datasets
+
+For sandbox operations, start with the [named-dataset reference](named-datasets.md):
+registry schema, pinned pulls versus offline sampling, path configuration,
+source/subset hashes and migration of existing run locks. The
+[job guide](../jobs.md#dataset-identity) explains immutable prepared subsets.
+For UI-only sample data, see the [floor replay](../floor.md#bundled-replay-and-ownership).
+
+## Dataset card draft
 
 `mailroom-dataset.card.md` is the proposed Hub README for
 [`Lucius-Morningstar/mailroom-dataset`](https://huggingface.co/datasets/Lucius-Morningstar/mailroom-dataset).
