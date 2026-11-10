@@ -37,6 +37,10 @@ dev = [
     "pytest>=8.0",
     "pytest-mock>=3.12",
     "pytest-cov>=5.0",
+    # CI wall time: the test job runs the network-free suite with `-n auto`
+    # (2-way on CircleCI small). Locally `pytest -n auto` needs this extra only
+    # when replicating the parallel CI shape; sequential runs are unchanged.
+    "pytest-xdist>=3.6",
     # reports/dashboard/pages_site.py renders the mailroom-issues Pages site (SAND-036).
     "markdown-it-py>=4.0,<5",
     # `sandbox datasets pull` / `hf-pilot` / corpus work (DMR-058): the
