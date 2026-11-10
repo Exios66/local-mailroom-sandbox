@@ -103,9 +103,17 @@ stronger identity rather than editing the old lock.
 
 Local endpoint jobs can use selected snapshots with the existing serving routes,
 including an external Modal vLLM endpoint. For `job.mode: modal`, deploy the job
-worker with the same snapshot variables: `deploy/modal_job.py` bundles only the
-selected verified entries and fixes their container lock paths. It never fetches
-latest inside the worker or uploads the rest of the local cache. A stale worker
+worker with the same snapshot variables. `deploy/modal_job.py` bundles selected
+verified cache entries and fixes their container lock paths. If bootstrap chose a
+matching installed release instead, it also bundles that distribution's own
+runtime roots and `.dist-info` metadata, preserving the installed source layer
+and any explicitly selected snapshot target. It never fetches latest inside the
+worker or uploads unrelated distributions or the rest of the local cache.
+`SANDBOX_INSTALLED_DOJO_ROOT` and `SANDBOX_INSTALLED_PIPELINE_ROOT` are reserved
+image settings emitted by the bundler; package bootstrap adds these metadata/import
+roots before choosing sources. They are not dotenv settings or a replacement for
+operator-facing source selection. Metadata containing URL credentials is refused
+before export. A stale worker
 image refuses a mismatched run instead of silently using different code. An
 explicit development tree or installed source must likewise match the worker's
 source identity; the default worker image remains vendor-based. Deployment and
