@@ -6,7 +6,8 @@
   `sandbox deps fetch` verifies released Dojo artifacts and immutable pipeline
   commit archives into an atomic offline cache. Explicit source locks preserve
   reviewed defaults; new run locks/status record both sources and refuse drift.
-  Selected caches can be bundled into Modal worker images. Vendor trees and
+  Selected caches and matching installed distributions (including their metadata)
+  are bundled into Modal worker images without changing the selected source layer. Vendor trees and
   dependency pins remain unchanged. Mutable installed/vendor/source trees are
   fingerprinted by runtime file bytes, relative paths and executable modes so
   unchanged version/commit metadata cannot hide edited code. See [the guide](docs/dependency-snapshots.md).

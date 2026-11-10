@@ -10,6 +10,18 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
+
+# Worker images carry only explicitly bundled installed distributions here.
+# Add their import/metadata roots before either family resolver runs. These
+# image-only settings are not discovered from dotenv or fetched over a network.
+for _component in ("PIPELINE", "DOJO"):
+    _installed = os.environ.get(f"SANDBOX_INSTALLED_{_component}_ROOT")
+    if _installed:
+        _root = Path(_installed).resolve()
+        if not _root.is_dir():
+            raise ModuleNotFoundError(f"Bundled {_component.lower()} installation is missing")
+        sys.path.insert(0, str(_root))
 
 from mailroom_sandbox import dojo_source as _dojo_source  # noqa: E402
 

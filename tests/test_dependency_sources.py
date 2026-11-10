@@ -237,7 +237,21 @@ def mutable_source(request, isolated, tmp_path):
     root = tmp_path / "selected"
     package = "llm_dojo_scoring" if component == "dojo" else "pipeline"
     (root / package).mkdir(parents=True)
-    (root / package / "__init__.py").write_text("")
+    (root / package / "__init__.py").write_text(
+        '__version__ = "0.28.1"\n' if component == "dojo" else ""
+    )
+    if component == "pipeline":
+        for name in (
+            "pipeline/config.py",
+            "graph/build_graph.py",
+            "graph/__init__.py",
+            "agents/__init__.py",
+            "llm/__init__.py",
+            "legalbench/__init__.py",
+        ):
+            path = root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("")
     code = root / package / "logic.py"
     code.write_text("VALUE = 1\n")
     (root / package / "schema.json").write_text('{"version": 1}\n')
@@ -245,12 +259,11 @@ def mutable_source(request, isolated, tmp_path):
     state = {"root": root, "component": component, "layer": layer, "code": code, "package": package}
     real_distribution = __import__("importlib.metadata", fromlist=["distribution"]).distribution
     dist = types.SimpleNamespace(
-        files=[
-            Path(package) / "logic.py",
-            Path(package) / "__init__.py",
-            Path("__pycache__/entry.cpython-311.pyc"),
-        ]
+        files=[p.relative_to(root) for p in root.rglob("*") if p.is_file()]
+        + [Path("__pycache__/entry.cpython-311.pyc")],
+        locate_file=lambda path: state["root"] / path,
     )
+    state["distribution"] = dist
     (root / "__pycache__").mkdir()
     (root / "__pycache__/entry.cpython-311.pyc").write_bytes(b"generated")
     isolated.setattr(
@@ -382,3 +395,97 @@ def test_mutable_source_links_fail_closed(mutable_source, tmp_path):
     code.symlink_to(outside)
     with pytest.raises(s.SnapshotError, match="Symlink"):
         deps.describe()
+
+
+@pytest.mark.parametrize(
+    "mutable_source", [("dojo", "installed"), ("pipeline", "installed")], indirect=True
+)
+def test_worker_preserves_installed_source_with_explicit_snapshot(
+    mutable_source, release_api, isolated, tmp_path
+):
+    """A fresh worker must reproduce installed provenance even with an off-pin lock."""
+    import json
+    import os
+    import shutil
+    import subprocess
+    import sys
+
+    component = mutable_source["component"]
+    root = mutable_source["root"]
+    if component == "pipeline":
+        release_api.update(component="pipeline", tag="v0.9.3", assets=False, data=archive())
+    item = s.fetch(component, version=release_api["tag"])
+    isolated.setenv(f"SANDBOX_{component.upper()}_SNAPSHOT", item["lock_path"])
+    module = dojo_source if component == "dojo" else pipeline_source
+    isolated.setattr(
+        module, "_CHOICE", replace(module.current(), version=item["version"], commit=item["commit"])
+    )
+    distribution_name = "llm-dojo-scoring" if component == "dojo" else "mailroom"
+    info = root / f"{distribution_name.replace('-', '_')}-{item['version']}.dist-info"
+    info.mkdir()
+    (info / "METADATA").write_text(
+        f"Metadata-Version: 2.1\nName: {distribution_name}\nVersion: {item['version']}\n"
+    )
+    (info / "direct_url.json").write_text(
+        json.dumps(
+            {
+                "url": f"https://github.com/Exios66/{s.COMPONENTS[component]}.git",
+                "vcs_info": {"vcs": "git", "commit_id": item["commit"]},
+            }
+        )
+    )
+    distribution = mutable_source["distribution"]
+    distribution.files.extend([p.relative_to(root) for p in info.iterdir()])
+    distribution.files.append(Path(info.name) / "RECORD")
+    (info / "RECORD").write_text("".join(f"{name},,\n" for name in distribution.files))
+    frozen = deps.describe()
+    worker = tmp_path / "worker"
+    worker.mkdir()
+    (worker / "vendor").symlink_to(
+        Path(__file__).resolve().parents[1] / "vendor", target_is_directory=True
+    )
+
+    class Image:
+        """Copy only adapter-selected files into an offline simulated image root."""
+
+        def __init__(self):
+            self.settings = {}
+
+        def add_local_dir(self, source, *, remote_path, **kwargs):
+            shutil.copytree(
+                source,
+                remote_path,
+                dirs_exist_ok=True,
+                ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+            )
+            return self
+
+        def add_local_file(self, source, *, remote_path, **kwargs):
+            Path(remote_path).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, remote_path)
+            return self
+
+        def env(self, settings):
+            self.settings.update(settings)
+            return self
+
+    image = deps.bundle_job_snapshots(Image(), remote_root=str(worker))
+    assert f"SANDBOX_INSTALLED_{component.upper()}_ROOT" in image.settings
+    assert f"SANDBOX_{component.upper()}_SNAPSHOT" in image.settings
+    assert not (
+        worker / "data/cache/installed-sources" / component / "unrelated_library.py"
+    ).exists()
+    environment = {
+        **os.environ,
+        **image.settings,
+        "SANDBOX_ROOT": str(worker),
+        "SANDBOX_SKIP_DOTENV": "1",
+        "PYTHONPATH": str(Path(__file__).resolve().parents[1] / "src"),
+        "LOCKED_DEPENDENCIES": json.dumps({"dependency_sources": frozen}),
+    }
+    script = "import os,json; import mailroom_sandbox; from mailroom_sandbox.dependency_sources import describe,verify_locked; verify_locked(json.loads(os.environ['LOCKED_DEPENDENCIES'])); print(json.dumps(describe()))"
+    result = subprocess.run(
+        [sys.executable, "-c", script], env=environment, capture_output=True, text=True, timeout=30
+    )
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)[component]["source"] == "installed"

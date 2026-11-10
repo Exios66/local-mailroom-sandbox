@@ -78,8 +78,8 @@ Never substitute latest stable for an experiment's frozen commit. Version and
 commit metadata alone do not prove unchanged source: preserve and recheck the
 runtime-tree digests for installed, vendored and explicit source layers as well
 as verified caches. For remote
-Modal jobs, bundle the same selected snapshots when deploying the job worker;
-require matching provenance before accepting its results.
+Modal jobs, bundle the same selected snapshots and installed family sources
+(with distribution metadata) when deploying the job worker; require matching provenance before accepting its results.
 
 Treat `sandbox fetch-deps` and `scripts/sync_vendor.py` as maintenance: stop all
 sandbox processes using the checkout before refreshing tracked vendor trees,

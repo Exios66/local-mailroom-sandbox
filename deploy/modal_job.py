@@ -131,8 +131,9 @@ image = (
 runs_volume = modal.Volume.from_name(RUNS_VOLUME_NAME, create_if_missing=True)
 hf_cache = modal.Volume.from_name(HF_VOLUME_NAME, create_if_missing=True)
 
-# Freeze selected release caches into the worker image; a deployed worker never
-# fetches 'latest'. Default deployments still carry only the tracked vendor trees.
+# Bundle selected release caches and installed family distributions with their
+# metadata; worker bootstrap preserves the locked source layer and never fetches
+# latest. Default deployments still carry only the tracked vendor trees.
 from mailroom_sandbox.dependency_sources import bundle_job_snapshots
 
 image = bundle_job_snapshots(image, remote_root=SANDBOX_ROOT)
