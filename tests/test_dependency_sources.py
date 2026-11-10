@@ -216,3 +216,169 @@ def test_cache_validation_import_is_readonly(release_api, isolated):
         dojo_source, "_import_ok", lambda: pytest.fail("verify_import=False imported the cache")
     )
     assert dojo_source.choose(verify_import=False).source == "cached"
+
+
+MUTABLE_SOURCES = [
+    (component, layer)
+    for component in ("dojo", "pipeline")
+    for layer in ("vendored", "installed", "env")
+]
+
+
+@pytest.fixture
+def mutable_source(request, isolated, tmp_path):
+    """Select a small mutable family tree without editing real vendor/install files."""
+    import sys
+    import types
+
+    component, layer = request.param
+    if component == "dojo" and layer == "installed":
+        __import__("llm_dojo_scoring")
+    root = tmp_path / "selected"
+    package = "llm_dojo_scoring" if component == "dojo" else "pipeline"
+    (root / package).mkdir(parents=True)
+    (root / package / "__init__.py").write_text("")
+    code = root / package / "logic.py"
+    code.write_text("VALUE = 1\n")
+    (root / package / "schema.json").write_text('{"version": 1}\n')
+    module = dojo_source if component == "dojo" else pipeline_source
+    state = {"root": root, "component": component, "layer": layer, "code": code, "package": package}
+    real_distribution = __import__("importlib.metadata", fromlist=["distribution"]).distribution
+    dist = types.SimpleNamespace(
+        files=[
+            Path(package) / "logic.py",
+            Path(package) / "__init__.py",
+            Path("__pycache__/entry.cpython-311.pyc"),
+        ]
+    )
+    (root / "__pycache__").mkdir()
+    (root / "__pycache__/entry.cpython-311.pyc").write_bytes(b"generated")
+    isolated.setattr(
+        "importlib.metadata.distribution",
+        lambda name: (
+            dist
+            if name == ("llm-dojo-scoring" if component == "dojo" else "mailroom")
+            else real_distribution(name)
+        ),
+    )
+
+    def select(path):
+        """Relocate the selected root while preserving its version and commit."""
+        state["root"] = path
+        if component == "dojo" and layer == "installed":
+            isolated.setattr(dojo_source, "_installed_package_dirs", lambda: [path / package])
+            isolated.setattr(
+                sys.modules["llm_dojo_scoring"], "__file__", str(path / package / "__init__.py")
+            )
+        isolated.setattr(
+            module,
+            "_CHOICE",
+            replace(
+                module.current(),
+                source=layer,
+                path=None if component == "dojo" and layer == "installed" else str(path),
+                version=s.PINS[component]["version"],
+                commit=s.PINS[component]["commit"],
+                tree_sha256=None,
+            ),
+        )
+
+    state["select"] = select
+    select(root)
+    return state
+
+
+@pytest.mark.parametrize("mutation", ["edit", "add", "delete", "resource", "mode"])
+@pytest.mark.parametrize("mutable_source", MUTABLE_SOURCES, indirect=True)
+def test_mutable_source_changes_refuse_same_metadata_lock(mutable_source, mutation):
+    """File changes must invalidate every mutable layer with fixed version/commit."""
+    root, package, code = (mutable_source[key] for key in ("root", "package", "code"))
+    frozen = {"dependency_sources": deps.describe()}
+    deps.verify_locked(frozen)
+    if mutation == "edit":
+        code.write_text("VALUE = 2\n")
+    elif mutation == "add":
+        (root / package / "new_module.py").write_text("VALUE = 3\n")
+    elif mutation == "delete":
+        code.unlink()
+    elif mutation == "resource":
+        (root / package / "schema.json").write_text('{"version": 2}\n')
+    else:
+        code.chmod(code.stat().st_mode ^ 0o100)
+    with pytest.raises(s.SnapshotError, match="source drift"):
+        deps.verify_locked(frozen)
+
+
+@pytest.mark.parametrize("mutable_source", MUTABLE_SOURCES, indirect=True)
+def test_mutable_source_digest_is_portable_and_ignores_bytecode(mutable_source, tmp_path):
+    """Worker relocation and generated import caches must preserve source identity."""
+    import shutil
+
+    root, package = mutable_source["root"], mutable_source["package"]
+    frozen = {"dependency_sources": deps.describe()}
+    assert frozen["dependency_sources"][mutable_source["component"]]["tree_sha256"]
+    destination = tmp_path / "worker"
+    shutil.copytree(root, destination)
+    cache = destination / package / "__pycache__"
+    cache.mkdir()
+    (cache / "logic.cpython-311.pyc").write_bytes(b"generated")
+    mutable_source["select"](destination)
+    deps.verify_locked(frozen)
+    if mutable_source["layer"] == "installed":
+        # Other distributions in the same site-packages must not be fingerprinted.
+        (destination / "unrelated_library.py").write_text("irrelevant\n")
+        deps.verify_locked(frozen)
+
+
+@pytest.mark.parametrize("mutable_source", MUTABLE_SOURCES, indirect=True)
+def test_mutable_bytes_are_checked_by_preflight_and_execution(
+    mutable_source, tmp_path, job_data_dir, monkeypatch
+):
+    """Both public entry points reject edited source without rewriting the run lock."""
+    from test_job_preflight import _run_spec
+    from mailroom_sandbox.job import preflight, runner
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.spec import run_dir
+
+    spec = _run_spec(tmp_path, run_id="mutable-source-entrypoints")
+    assert preflight.preflight(spec, offline=True)["status"] == "prepared"
+    store = RunStore(run_dir(spec.run_id))
+    before = store.lock_path.read_bytes()
+    mutable_source["code"].write_text("VALUE = 99\n")
+    assert preflight.preflight(spec, offline=True)["status"] == "drift_refused"
+    monkeypatch.setattr(runner, "_beacon_hook", lambda *a, **kw: (None, lambda *a, **kw: None))
+    monkeypatch.setattr(
+        "mailroom_sandbox.runtime.activate", lambda *a, **kw: pytest.fail("drift reached execution")
+    )
+    with store.acquire():
+        with pytest.raises(s.SnapshotError, match="source drift"):
+            runner.run_job(store)
+    assert store.lock_path.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    "mutable_source", [("dojo", "installed"), ("pipeline", "installed")], indirect=True
+)
+def test_mutable_fingerprint_requires_source_ownership(mutable_source, isolated):
+    """Missing installed metadata/source must fail closed instead of using a null hash."""
+    if mutable_source["component"] == "pipeline":
+        isolated.setattr(
+            "importlib.metadata.distribution",
+            lambda *a: type("Distribution", (), {"files": None})(),
+        )
+    else:
+        isolated.setattr(dojo_source, "_installed_package_dirs", lambda: [])
+    with pytest.raises(s.SnapshotError, match="manifest|source root"):
+        deps.describe()
+
+
+@pytest.mark.parametrize("mutable_source", MUTABLE_SOURCES, indirect=True)
+def test_mutable_source_links_fail_closed(mutable_source, tmp_path):
+    """A mutable source cannot hide changed code behind an escaping file link."""
+    outside = tmp_path / "outside.py"
+    outside.write_text("VALUE = 1\n")
+    code = mutable_source["code"]
+    code.unlink()
+    code.symlink_to(outside)
+    with pytest.raises(s.SnapshotError, match="Symlink"):
+        deps.describe()

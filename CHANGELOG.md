@@ -7,7 +7,9 @@
   commit archives into an atomic offline cache. Explicit source locks preserve
   reviewed defaults; new run locks/status record both sources and refuse drift.
   Selected caches can be bundled into Modal worker images. Vendor trees and
-  dependency pins remain unchanged. See [the guide](docs/dependency-snapshots.md).
+  dependency pins remain unchanged. Mutable installed/vendor/source trees are
+  fingerprinted by runtime file bytes, relative paths and executable modes so
+  unchanged version/commit metadata cannot hide edited code. See [the guide](docs/dependency-snapshots.md).
 
 - **Floor viewer isolation and offline assets** (2026-11-09). Resident viewers
   now build and serve private temporary digests, so separate bases/ports in
