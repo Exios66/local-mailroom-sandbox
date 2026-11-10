@@ -1881,17 +1881,18 @@ def _cmd_subagents_doctor(args: argparse.Namespace) -> int:
     )
 
     root = Path(args.root).expanduser().resolve() if args.root else None
-    if args.include_global and args.no_global:
+    include_global = bool(getattr(args, "include_global", False))
+    if include_global and args.no_global:
         raise CLIUsageError("Choose --include-global or --no-global")
-    if args.apply_framework or args.refresh_framework:
+    if args.apply_framework or getattr(args, "refresh_framework", False):
         roster_written = apply_framework_to_agents(
             root=root,
             package=getattr(args, "package", None),
             dry_run=bool(args.dry_run),
-            targets=("opencode", "opencode-global") if args.include_global else ("opencode",),
-            refresh=bool(args.refresh_framework),
+            targets=("opencode", "opencode-global") if include_global else ("opencode",),
+            refresh=bool(getattr(args, "refresh_framework", False)),
         )
-        global_written = apply_framework_to_global_profiles(dry_run=bool(args.dry_run)) if args.include_global else []
+        global_written = apply_framework_to_global_profiles(dry_run=bool(args.dry_run)) if include_global else []
         payload = {
             "apply_framework": True,
             "dry_run": bool(args.dry_run),
@@ -1928,7 +1929,8 @@ def _cmd_subagents_doctor(args: argparse.Namespace) -> int:
 
 
 def _cmd_subagents_sync(args: argparse.Namespace) -> int:
-    if args.check and args.dry_run:
+    check = bool(getattr(args, "check", False))
+    if check and args.dry_run:
         raise CLIUsageError("Choose --check or --dry-run, not both")
     from mailroom_sandbox.subagents import sync_harness
 
@@ -1938,14 +1940,14 @@ def _cmd_subagents_sync(args: argparse.Namespace) -> int:
         root=root,
         package=getattr(args, "package", None),
         dry_run=bool(args.dry_run),
-        check=bool(args.check),
+        check=check,
     )
     if isinstance(result, list):
         _print(
             {
                 "harness": args.harness,
                 "dry_run": bool(args.dry_run),
-                "check": bool(args.check),
+                "check": check,
                 "results": [
                     {
                         "harness": r.harness,
@@ -1961,13 +1963,13 @@ def _cmd_subagents_sync(args: argparse.Namespace) -> int:
             {
                 "harness": result.harness,
                 "dry_run": bool(args.dry_run),
-                "check": bool(args.check),
+                "check": check,
                 "written": [str(p) for p in result.written],
                 "skipped": result.skipped,
             }
         )
     blocks = result if isinstance(result, list) else [result]
-    return 1 if args.check and any(r.written for r in blocks) else 0
+    return 1 if check and any(r.written for r in blocks) else 0
 
 
 def _cmd_subagents_materialize(args: argparse.Namespace) -> int:
@@ -2007,7 +2009,7 @@ def _cmd_subagents_propagate(args: argparse.Namespace) -> int:
         monorepo_root=mono,
         packages=getattr(args, "packages", None),
         dry_run=bool(args.dry_run),
-        include_global=bool(args.include_global),
+        include_global=bool(getattr(args, "include_global", False)),
     )
     payload = {
         "source_root": str(result.source_root),
