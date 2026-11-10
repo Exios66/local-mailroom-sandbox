@@ -64,7 +64,8 @@ statement: explain the problem in your own words.
 
 Use the PR template: `Summary`, `Changes`, `Validation`, `Risks / follow-ups`.
 The same rule applies when editing an existing PR description or opening an
-issue from a conversation.
+issue from a conversation. If an integration adds a `User description` wrapper
+after creation, edit the body to remove it before requesting review.
 
 ## Skills (tool selection)
 
