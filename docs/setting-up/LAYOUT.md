@@ -40,24 +40,34 @@ separate; the split is architecture, not accident.
 | Cost model | `cost_cap_usd` for GPU-wall estimates; separate `api_cost_cap_usd` for API token spend | `cost_cap_usd: null` by design; real cost = tokens × live OpenRouter list price |
 | CLI | `sandbox run …` (`pyproject.toml` console script) | `python api-evals/run_api_evals.py …` |
 | Outputs | `reports/` | `api-evals/reports/<stamp>-<model>/` |
-| Packaged in the wheel | yes (`where = ["src"]`) | **no** — repo-local only |
+| Packaged in the wheel | Python package under `src/`; run/config trees remain checkout assets | **no** — repo-local harness |
 | Shipped in the offline image | yes (`COPY config ./config`) | **no** — `deploy/Dockerfile` never copies `api-evals/` |
 
 **Which do I use?** Sandbox pipeline, specialist, reviewer and hybrid runs use
 `config/runs/` and the `sandbox` CLI, including paid OpenRouter routes with
 their [API budget gates](../jobs.md). Use `api-evals/` for its separate API
-task harness (`api-*` run ids and `run_api_evals.py`); its specs are not
-interchangeable with `sandbox.run/v1`.
+task harness (`api-*` run ids and `run_api_evals.py`). Both trees declare
+`schema: sandbox.run/v1` and use the same
+[`load_run_spec`](../../src/mailroom_sandbox/job/spec.py). The API harness
+also calls the shared preflight and job runner in
+[`invoke.py`](../../api-evals/api_evals/invoke.py). The separation concerns
+task registration, report paths and the operator workflow, rather than an
+incompatible schema. Inspect model, dataset and current budget settings
+before moving a spec between workflows.
 
 **Why the three reasons above matter:**
 
 1. **Spend surface.** `api-evals/config/runs/*.yaml` sets `cost_cap_usd: null`
-   — the Modal GPU-wall cap would be wrong for an API run. Keeping these specs
-   out of `config/runs/` keeps that harness's budget assumptions separate from
-   the sandbox's independent GPU and API caps.
+   — it is not a cap on API token spend. These historical specs still pass
+   through shared preflight: paid API execution needs `api_cost_cap_usd`,
+   `max_wall_seconds` and model pricing under the current
+   [budget rules](../jobs.md). A schema-valid YAML or a null GPU cap does not
+   prove that live execution is ready.
 2. **Distribution.** `api-evals/` is not in the installed package and not in the
-   offline image, so the OpenRouter harness (and its `OPENROUTER_API_KEY`
-   surface) never ships to a wheel or a container.
+   offline image. Its task registry, CLI and reporting helpers remain
+   checkout-only. The installed sandbox itself supports OpenRouter and reads
+   `OPENROUTER_API_KEY`; the separate harness directory does not define that
+   provider's availability.
 3. **Fidelity.** `api-evals/` mirrors the org `eval-environment` structure
    (task registry + case loader + live invoker + scoring + report) so the two
    repos read alike. Its path assumptions are explicit and deliberate in
