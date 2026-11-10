@@ -71,6 +71,22 @@ def test_handoff_clean_rejects_credential_uris_and_cycles():
         dispatch.clean(loop)
 
 
+@pytest.mark.parametrize("uri", ["s3://bucket/object?token=private", "gs://bucket/key#private"])
+def test_non_http_signed_uris_cannot_leak_into_handoffs(uri):
+    with pytest.raises(ValueError, match="Credential-bearing"):
+        dispatch.clean({"evidence": [uri]})
+
+
+@pytest.mark.parametrize("provider,model", [("absent", "model-one"), ("provider-one", "absent")])
+def test_failed_dispatch_readiness_is_explicitly_unverified(snapshot, provider, model):
+    result = dispatch.readiness(snapshot, provider, model)
+    assert not result["ok"] and result["workflow_verified"] is False
+
+
+def test_invalid_dispatch_readiness_is_explicitly_unverified():
+    assert dispatch.readiness({}, "provider", "model")["workflow_verified"] is False
+
+
 def save(contract, task="task-1", state="running", **kwargs):
     return dispatch.checkpoint(contract, task, state, "Inspect hosted CI", evidence=[
         "https://user:password@ci.example/job/1?signature=private#secret"], blockers=[], review_ids=["thread-1"], **kwargs)

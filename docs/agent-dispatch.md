@@ -24,9 +24,10 @@ configuration keys and credential presence, never secret values.
 Before delegating, discover the current harness's provider/model catalog and
 check the selected provider **instance**, authentication and worktree support.
 A listed model or installed binary alone does not establish dispatch readiness.
-Use connected purpose-built tools first. In T3, use app-owned delegation for
-isolated worktrees or cross-provider work; native same-provider delegation is
-appropriate only when it supports the chosen model and isolation. Use the
+Use connected purpose-built tools first. Under T3 Code (the app-owned
+orchestrator), use app-owned delegation for isolated worktrees or
+cross-provider work; native same-provider delegation is appropriate only when
+it supports the chosen model and isolation. Use the
 Hermes ACP bridge only for an explicitly requested Hermes workflow after
 checking its local skill and handshake. Never infer one harness's availability
 from another harness's similarly named provider.

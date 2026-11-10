@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import PurePath
 import shlex
 import sys
@@ -59,19 +60,36 @@ def _pytest_arguments(tail: list[str]) -> tuple[list[str], list[str]]:
 def violation(command: str) -> str | None:
     """Return a resource-policy violation for a recognizable expensive command."""
     try:
-        tokens = shlex.split(command)
+        lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|")
+        lexer.whitespace_split = True
+        tokens = list(lexer)
     except ValueError:
         return None
-    for i, token in enumerate(tokens):
-        if PurePath(token).name == "smoke_campaign.py":
-            return "Large mock campaigns require a separately scoped hosted job."
-        if PurePath(token).name not in {"pytest", "py.test"}:
+    segments: list[list[str]] = [[]]
+    for token in tokens:
+        if token in {";", "&&", "||", "|", "&"}:
+            segments.append([])
+        else:
+            segments[-1].append(token)
+    for argv in segments:
+        while argv and (re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", argv[0])
+                        or argv[0] in {"env", "command", "exec", "nohup"}):
+            argv = argv[1:]
+        if not argv:
             continue
-        tail = tokens[i + 1:]
-        for j, arg in enumerate(tail):
-            if arg in {";", "&&", "||", "|"}:
-                tail = tail[:j]
-                break
+        name, tail = PurePath(argv[0]).name, argv[1:]
+        if re.fullmatch(r"python(?:\d+(?:\.\d+)*)?", name):
+            if "-m" in tail and "-c" not in tail:
+                module = tail.index("-m")
+                if module + 1 >= len(tail):
+                    continue
+                name, tail = tail[module + 1], tail[module + 2:]
+            elif tail and PurePath(tail[0]).name == "smoke_campaign.py":
+                name = "smoke_campaign.py"
+        if name in {"smoke_campaign.py", "scripts.smoke_campaign"}:
+            return "Large mock campaigns require a separately scoped hosted job."
+        if name not in {"pytest", "py.test"}:
+            continue
         options, selected = _pytest_arguments(tail)
         if any(arg == "--cov" or arg.startswith("--cov=") for arg in options):
             return "Coverage sweeps belong in hosted CI."

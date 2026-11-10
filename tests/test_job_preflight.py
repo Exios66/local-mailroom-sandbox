@@ -36,6 +36,42 @@ def _run_spec(tmp_path, *, rows=2, limit=2, run_id="pf-1") -> RunSpec:
     )
 
 
+def test_source_changed_after_preparation_cannot_rewrite_lock_identity(tmp_path, job_data_dir, monkeypatch):
+    from mailroom_sandbox.job.checkpoint import RunStore
+    spec = _run_spec(tmp_path)
+    original_hash = spec.spec_hash()
+    original = preflight.prepare_subset
+    def changing_source(dataset, destination):
+        result = original(dataset, destination)
+        dataset.local_file().write_text(dataset.local_file().read_text().replace('t0', 'different text'))
+        return result
+    monkeypatch.setattr(preflight, "prepare_subset", changing_source)
+    report = preflight.preflight(spec, offline=True)
+    assert report["status"] == "prepared", report
+    lock = RunStore(run_dir(spec.run_id)).read_lock()
+    assert lock["spec_hash"] == report["spec_hash"] == original_hash
+    assert lock["spec_core"]["dataset"]["sha256"] == lock["dataset"]["metadata"]["sha256"]
+    assert spec.spec_hash() != original_hash
+    assert preflight.preflight(spec, offline=True)["status"] == "drift_refused"
+
+
+def test_legacy_filter_identity_is_not_assumed_unfiltered(tmp_path, job_data_dir):
+    """Pre-filter hashes cannot certify whether the old subset was filtered."""
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.spec import spec_hash
+    spec = _run_spec(tmp_path)
+    assert preflight.preflight(spec, offline=True)["status"] == "prepared"
+    store = RunStore(run_dir(spec.run_id))
+    lock = store.read_lock()
+    lock["dataset"].pop("selection", None)
+    lock["spec_core"]["dataset"].pop("require_task_gt", None)
+    lock["spec_hash"] = spec_hash(spec)
+    store.lock_path.write_text(json.dumps(lock))
+    before = store.lock_path.read_bytes()
+    assert preflight.preflight(spec, offline=True)["status"] == "drift_refused"
+    assert store.lock_path.read_bytes() == before
+
+
 @pytest.mark.parametrize(("concurrency", "max_inputs", "mock", "ok"),
                          [(6, 0, False, False), (1, 0, False, True), (6, 6, False, True), (6, 0, True, True)])
 def test_preflight_refuses_concurrency_modal_would_serialize(tmp_path, job_data_dir, concurrency, max_inputs, mock, ok):

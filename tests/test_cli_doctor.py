@@ -17,6 +17,26 @@ from mailroom_sandbox.tui.services_snapshot import read_services
 PIN = "modal client version: 1.6.3\n"
 
 
+@pytest.mark.parametrize("version", ["unrecognized", "modal client version: 0.1.0"])
+def test_binary_warning_preserves_installation_evidence(monkeypatch, version):
+    from mailroom_sandbox.services import doctor
+    monkeypatch.setattr("shutil.which", lambda name: "/fake/bin/" + name)
+    monkeypatch.setattr(doctor, "_version", lambda argv: None if version == "unrecognized" else "0.1.0")
+    row = doctor._binary("modal", needed=True, hint="install", version=["modal", "--version"], pin="1.6.3")
+    assert row.state == "warn" and row.readiness == "installed"
+
+
+@pytest.mark.parametrize("live,evidence", [(False, "configured"), (True, "reachable")])
+def test_missing_langfuse_sdk_preserves_endpoint_evidence(monkeypatch, live, evidence):
+    from mailroom_sandbox.services import doctor
+    monkeypatch.setenv("LANGFUSE_HOST", "http://trace.test")
+    monkeypatch.setenv("OBSERVABILITY_PROVIDER", "langfuse")
+    monkeypatch.setattr(doctor, "find_spec", lambda name: None)
+    monkeypatch.setattr(doctor, "_sink", lambda *a, **k: doctor.ServiceStatus("langfuse", "ok", "fixture", readiness=evidence))
+    row = doctor._langfuse(live=live)
+    assert row.state == "warn" and row.readiness == evidence
+
+
 @pytest.fixture(autouse=True)
 def _env(monkeypatch, tmp_path):
     monkeypatch.setattr("mailroom_sandbox.paths.dotenv_files", lambda: [])
