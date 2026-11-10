@@ -254,15 +254,16 @@ def _load_trace(path: Path) -> list[tuple[float, dict]]:
 
 
 class ReplayDriver:
-    """Replay the bundled scripted run into a materialized base, one scheduled record at a time.
+    """Replay a selected run into a materialized base, one scheduled record at a time.
 
-    The trace is a wall-clock timeline in simulated seconds (`at`), played 1:1: docs
-    arrive staggered, nodes are in flight for their recorded ``ms`` while later docs
-    proceed, and held docs park open — the store therefore looks like a real live run.
+    The trace is a timeline in simulated seconds (`at`), scaled by ``speed``:
+    docs arrive staggered, nodes are in flight for their recorded ``ms`` while
+    later docs proceed, and held docs park open — the store therefore looks like
+    a real live run. ``run_id`` selects the bundled sample or a recorded replay.
     """
 
     def __init__(self, base: Path, *, run_id: str = REPLAY_RUN_ID, speed: float = 1.0) -> None:
-        """Load a replay run and prepare its store; ``speed`` scales the timeline."""
+        """Load a replay run and prepare its store; ``speed`` scales the schedule."""
         if speed <= 0:
             raise ValueError("replay speed must be positive")
         self.base = Path(base)
@@ -272,18 +273,11 @@ class ReplayDriver:
         self.store = RunStore(self.run_dir)
         self.events = _load_trace(self.run_dir / "replay.jsonl")
         self.pos = 0
-        self._epoch: float | None = None  # wall clock at simulated t=0, set by the first record
 
     @property
     def documents(self) -> int:
         """Number of documents the trace replays (one scripted item each)."""
         return sum(1 for _, event in self.events if "item" in event)
-
-    def _stamp(self, at: float) -> dict[str, Any]:
-        """Anchor the 0 point once, and return the record with its simulated epoch ``ts``."""
-        if self._epoch is None:
-            self._epoch = time.time() - at
-        return {"ts": self._epoch + at}
 
     def step(self, refresh: Callable[[], Any] | None = None) -> bool:
         """Apply the next scheduled record, call ``refresh`` if given, and return False at the end."""
@@ -293,9 +287,9 @@ class ReplayDriver:
         self.pos += 1
         if "node" in event:
             record = dict(event["node"])
-            # Every replayed node is stamped in this playback, including the
-            # finish row; source epochs must not leak into the viewer.
-            record["ts"] = self._stamp(at)["ts"]
+            # Wall clock at emission, not simulated event time: a 10x replay
+            # must not stamp nodes minutes in the future.
+            record["ts"] = time.time()
             self.store.append_node(record)
         elif "item" in event:
             self.store.append_item(event["item"])
@@ -309,11 +303,12 @@ class ReplayDriver:
         return self.pos < len(self.events)
 
     def play(self, stop: threading.Event, refresh: Callable[[], Any] | None = None) -> None:
-        """Play the timeline in real time until it ends or ``stop`` is set.
+        """Play the timeline until it ends or ``stop`` is set.
 
-        Falls behind never: the wait to the next record is `at - elapsed`; a digest
-        refresh happens per finished node/item/checkpoint record, at most ~2 per second
-        for the busy node phase (the builder only needs one sweep per wall second).
+        The next target is ``at / speed`` wall seconds after the first record; the
+        wait is that target minus elapsed wall time, never negative. A digest
+        refresh happens per finished node/item/checkpoint record, at most ~2 per
+        second for the busy node phase (one sweep per wall second is enough).
         """
         start = time.monotonic()
         last_refresh = time.monotonic()
@@ -321,7 +316,7 @@ class ReplayDriver:
             if self.pos >= len(self.events):
                 return
             at, _ = self.events[self.pos]
-            if stop.wait(max(0.0, at - (time.monotonic() - start)) / self.speed):
+            if stop.wait(max(0.0, at / self.speed - (time.monotonic() - start))):
                 return
             done_refresh = None
             if refresh is not None:
@@ -362,6 +357,8 @@ def serve_floor(
     run at least 0.1 seconds apart. With ``replay`` (or when the base has no runs and no run is
     named), the bundled pinned sample is replayed INTO the base as an app-owned run alongside the
     base's historical runs — both are selectable in the viewer; only that labeled run dir is reset.
+    ``replay_run`` instead imports a recorded run from any provider; ``replay_speed``
+    scales the schedule (default 1x for the bundled sample, 10x for a recorded run).
     The first build is synchronous: a DigestError returns its code before the server binds, a build
     surprise or a port that cannot be bound returns 1 with one line. Later build exceptions
     are recorded and retried. Returns 0 after Ctrl+C.
@@ -435,6 +432,8 @@ def _serve_floor(
     print(floor_url(httpd.server_address[1], run), flush=True)
     if driver is not None:
         if recorded_meta is not None:
+            for warning in recorded_meta.get("warnings") or []:
+                print(f"sandbox floor: recorded replay warning: {warning}", file=sys.stderr, flush=True)
             engine = recorded_meta.get("engine_kind") or "recorded"
             model = recorded_meta.get("engine_model")
             label = f"{engine}/{model}" if model else engine
