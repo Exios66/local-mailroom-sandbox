@@ -60,6 +60,7 @@ provider, tracing, dataset, or deploy task, then open exactly one specialty skil
 | Skill | Appropriate for |
 | --- | --- |
 | `sandbox-tool-router` | Choosing among the stacks below |
+| `docs-audit-tool-router` | Full README/docs staleness sweeps: links, paths, CLI/defaults, pins, versions, counts and generated artifacts |
 | `modal` | **Default** serving: Modal vLLM (`modal-vllm`, `sandbox runbook show serve`) |
 | `ollama` | Offline/CPU fallback (`--profile ollama`); not the default |
 | `langfuse` | Default tracing + The-Mailroom (Langfuse 3 / SDK v4) |

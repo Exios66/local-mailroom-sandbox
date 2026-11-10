@@ -63,6 +63,18 @@ def test_all_ok_returns_zero(monkeypatch, workspace):
     assert rc == 0
 
 
+def test_empty_workspace_package_never_wipes_tracked_snapshot(monkeypatch, tmp_path):
+    vendor = tmp_path / "vendor"
+    existing = vendor / "alpha" / "src" / "keep.py"
+    existing.parent.mkdir(parents=True)
+    existing.write_text("reviewed bytes\n")
+    monkeypatch.setattr(cli, "vendor_dir", lambda: vendor)
+    empty = tmp_path / "workspace" / "alpha" / "src"
+    empty.mkdir(parents=True)
+    assert cli._refresh_vendor_from_workspace("alpha", empty) == 1
+    assert existing.read_text() == "reviewed bytes\n"
+
+
 def test_visualizer_clone_runs_even_after_vendor_failure(monkeypatch, tmp_path):
     monkeypatch.setattr(cli, "_VENDOR_PINS", _PINS[:1])
     monkeypatch.setattr(cli, "_monorepo_workspace_pkg", lambda name: Path("/ws"))

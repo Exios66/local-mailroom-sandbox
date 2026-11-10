@@ -46,6 +46,7 @@ sandbox up | down | health | pull-models | fetch-deps | cutover
        | profiles | tunnel plan|up|status|down
        | run preflight|start|status|resume|cancel|list
        | prompts list|show
+       | subagents list|show|sync|doctor|preflight|dispatch-check|checkpoint
 ```
 
 Shared flags (accepted before or after subcommands — see §2):
@@ -286,4 +287,4 @@ sandbox health                       # after the serve runbook: provider reachab
 | `sandbox tunnel up --profile X` cannot connect | Check the SSH host, port, and credentials for profile `X` (see §2) |
 | `run status --config …` demands `--run-id` | fixed (DMR-058): `--config` resolves the run_id; still passes an explicit `--run-id` to override |
 | `sandbox up` prints a Python traceback | fixed (DMR-058): compose/ollama/ssh failures are one-line errors, exit 1 |
-| `fetch-deps` wiped part of `vendor/` | fixed (DMR-058): layout-aware + validates before touching the tracked tree |
+| `fetch-deps` wiped part of `vendor/` | fixed (DMR-058): layout-aware + validates before touching the tracked tree; an empty or misdetected workspace package now also refuses the refresh |

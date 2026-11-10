@@ -5,6 +5,7 @@ Committed Cursor skills for **local-mailroom-sandbox**. Agents should discover t
 | Skill | Use for |
 | --- | --- |
 | [sandbox-tool-router](sandbox-tool-router/SKILL.md) | **Start here** — pick the right tool |
+| [docs-audit-tool-router](docs-audit-tool-router/SKILL.md) | Full docs/README staleness sweep — links, paths, CLI/defaults, pins, versions, generated artifacts |
 | [ollama](ollama/SKILL.md) | Offline/CPU fallback LLM (`--profile ollama`) |
 | [modal](modal/SKILL.md) | **Default** serving: Modal vLLM |
 | [langfuse](langfuse/SKILL.md) | Default tracing / The-Mailroom |

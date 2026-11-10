@@ -1533,6 +1533,13 @@ def _refresh_vendor_from_workspace(name: str, ws_root: Path) -> int:
         dst = dest_root / rel
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(path, dst)
+    if not wanted:
+        print(
+            f"!! workspace package for {name} resolved to {ws_root} but contains no "
+            "mirrorable files — tracked vendor tree left untouched",
+            file=sys.stderr,
+        )
+        return 1
     removed = 0
     if dest_root.is_dir():
         for path in sorted(dest_root.rglob("*"), key=lambda p: len(p.parts), reverse=True):
@@ -1637,6 +1644,12 @@ def _refresh_vendor(name: str, pin: str, url: str, sha: str | None = None) -> in
                         if _vendor_rel_excluded((Path(directory) / entry).relative_to(package_src))]
 
             shutil.copytree(package_src, staged_package, ignore=ignore)
+            if not any(path.is_file() for path in staged_package.rglob("*")):
+                print(
+                    f"!! {name}@{pin} produced no mirrorable files — tracked snapshot left untouched",
+                    file=sys.stderr,
+                )
+                return 1
             dest = vendor_dir() / name / "src"
             dest.parent.mkdir(parents=True, exist_ok=True)
             had_dest = dest.exists()

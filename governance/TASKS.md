@@ -14,13 +14,12 @@ open `DMR-*` cards here.
 <!-- coderabbit-ai-generated-section:v1:0dfa4a29d5bbd485910d79fa324b57ed49826439a7a50407d1ba4a48b51476cb -->
 
 Reconciled against the [issue tracker](https://github.com/Exios66/local-mailroom-sandbox/issues)
-on 2026-11-07 (issue triage: closed SAND-021/023/091 with evidence, opened
-SAND-101/102): this board has 121 card rows (86 primary cards) and its highest
-primary ID is `SAND-102` (#263). The tracker has 21 open issues, 17 with a
-`SAND-*` ID in the title; its highest such ID is `SAND-102` (#263), and all
-title IDs have
-rows here. **This board is the numbering authority:** allocate the next ID
-here first, then open the issue.
+on 2026-11-10 (issue triage: closed #241/#251 as stale/not planned with evidence;
+SAND-103 added for the agent dispatch stack): this board has 121 card rows
+(87 primary cards) and its highest primary ID is `SAND-103`. The tracker has 20
+open issues, 17 with a `SAND-*` ID in the title; its highest such ID is
+`SAND-102` (#263), and all title IDs have rows here. **This board is the
+numbering authority:** allocate the next ID here first, then open the issue.
 
 <!-- /coderabbit-ai-generated:v1 -->
 
