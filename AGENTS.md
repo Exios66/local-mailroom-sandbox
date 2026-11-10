@@ -52,6 +52,20 @@ validation does not override instruction priority or authorize live spend,
 dependency upgrades or destructive actions. Follow the
 [instruction maintenance procedure](docs/agent-instruction-maintenance.md).
 
+## PR and issue write-ups
+
+Write an **executive summary**, not a transcript. State the change, its rationale,
+the evidence and the remaining risks in neutral technical language. Paraphrase
+the requester's intent; never paste their prompt, direct quotes, names, handles,
+credentials or other identifying details into a PR body, issue, review reply,
+commit message or handoff record. Do not use a `User description` section or
+label a requirement as a quotation. `User description` is not a problem
+statement: explain the problem in your own words.
+
+Use the PR template: `Summary`, `Changes`, `Validation`, `Risks / follow-ups`.
+The same rule applies when editing an existing PR description or opening an
+issue from a conversation.
+
 ## Skills (tool selection)
 
 Committed under `.cursor/skills/`. **Read `sandbox-tool-router` first** for any

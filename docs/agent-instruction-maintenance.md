@@ -74,7 +74,9 @@ specialist agent to route a layout, board or harness correction.
 5. In the existing PR description, experiment report or handoff, record the
    checked scope, checkout/source revision, external check date when applicable,
    corrections and unresolved facts. Do not claim a complete audit when only a
-   scoped check was performed.
+   scoped check was performed. Write an executive summary in neutral terms;
+   never paste the requester's prompt, direct quotes, names, handles or
+   credentials, and do not use a `User description` section.
 
 A compact handoff entry can read:
 
