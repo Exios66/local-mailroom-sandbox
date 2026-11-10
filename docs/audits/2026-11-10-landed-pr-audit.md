@@ -115,3 +115,16 @@ explicitly selected on PYTHONPATH. The separate root checkout remains on an
 older feature branch; its editable environment points there. That checkout was
 not switched or reset. Operators should verify checkout/import identity before
 using the new commands from a different environment.
+
+## Review clarification: vendor refresh requires quiescence
+
+CodeAnt's review of `13ba9f9` identified that the promotion helper's two
+renames briefly leave the destination absent. Staging and rollback protect
+reviewed bytes from copy/install failures; they do not synchronize running
+imports or prevent a process from mixing old and new modules. Vendor refresh
+is a maintenance operation: stop every sandbox process using that checkout
+before `sandbox fetch-deps` or `scripts/sync_vendor.py`, complete and review
+the refresh, then restart the processes. This concurrency limitation is
+explicit in the helper; an atomic directory swap alone would still permit
+mixed-revision imports. The parser-default nit in that same review is
+covered by `b3478a7`, which calls `build_parser()` for every offline action.
