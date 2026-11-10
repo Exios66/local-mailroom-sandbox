@@ -89,6 +89,17 @@ unless explicitly opted in.
   pattern in related callers and tests. Keep separately requested protocol/docs
   changes in their own follow-up PR, with the reviewed PR as its base when stacked.
 
+## Environment, dispatch and recovery
+
+Follow [the agent dispatch contract](docs/agent-dispatch.md) before edits,
+verification and delegation. Establish the checkout/HEAD and actual interpreter,
+package import and CLI locations. Discover live provider-instance capabilities;
+record task IDs and reconcile ambiguous launches before retrying. Classify
+failures, bound retries and preserve checkpoints. Validate hosted evidence
+against the current head instead of repeating expensive local work. Preview
+sync targets; project, global and sibling changes are separate scopes. Keep a
+credential-free durable handoff with evidence, blockers and the next action.
+
 ## Coding subagents (Cursor + OpenCode)
 
 Family-wide roster under `config/subagents/family-roster.yaml` with canonical

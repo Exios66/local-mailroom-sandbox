@@ -17,7 +17,11 @@ Claude Code adaptations:
 - Honor `CLAUDE.md` "Spend and safety": never run `sandbox run start`,
   `sandbox experiment launch`, `modal deploy|run`, or anything with `--real`/`--live`.
   If a claim can only be checked by spending money, say it is **unverified**.
-- A "tests pass" claim is verified only by re-running the exact command and quoting the
-  result. Mock-only success cannot support a live-serving claim.
+- Verify a "tests pass" claim against its exact commit, command, workload, result,
+  coverage and hosted artifacts. Accept matching current-head CI evidence without
+  repeating an expensive suite locally. Reproduce only the smallest useful failure,
+  on one worker without coverage. Mock-only success cannot support a live-serving claim.
+- Follow `docs/agent-dispatch.md` for environment identity, failure classification,
+  retry limits and credential-free handoffs.
 - Finish with a short verdict: what you verified, what you could not, and any claim that
   was false or unsupported.

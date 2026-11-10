@@ -78,6 +78,14 @@ sandbox doctor                                              # offline status of 
 - Experiment log is `reports/experiment_log.jsonl` (sandbox-local). Reports under
   `reports/` are large; search narrowly instead of grepping the whole tree.
 
+## Environment and dispatch
+
+Follow [the shared dispatch/recovery contract](docs/agent-dispatch.md). Check the
+actual checkout and import paths, discover current provider-instance readiness,
+record task IDs and reconcile timeouts before retrying. Preserve credential-free
+durable handoffs. Use explicit project-only synchronization targets unless global
+or sibling updates are intended.
+
 ## Coding subagents
 
 The roster and canonical prompts are in `.opencode/agents/`. Two are registered as Claude

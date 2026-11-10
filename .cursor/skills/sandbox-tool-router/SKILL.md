@@ -13,6 +13,11 @@ and before handoff or merge. Verify this router's and the selected skill's
 versions, pins, references and defaults against current evidence; correct stale
 guidance without silently upgrading dependencies or changing experiment locks.
 
+For environment checks, coding-agent dispatch, recovery and synchronization,
+follow [the shared contract](../../../docs/agent-dispatch.md). Discover the current
+harness's capabilities before choosing a dispatch path; machine topology examples
+must be checked locally. Suppress quota-only review notifications.
+
 ## Decision table
 
 | Job | Use | Skill | Do **not** use |
