@@ -101,6 +101,8 @@ def test_resource_hook_catches_expensive_direct_commands(guard, command):
     "pytest -k 'not slow' tests/test_one.py",
     "ruff check src tests", "python scripts/check_cli_surface.py --check",
     "git grep pytest", "rg pytest src", "echo pytest", "git grep smoke_campaign.py",
+    "pytest tests/test_one.py 2>&1", "pytest tests/test_one.py > /tmp/out.txt 2>&1",
+    "command -v pytest",
 ])
 def test_resource_hook_preserves_focused_checks(guard, command):
     assert guard.violation(command) is None

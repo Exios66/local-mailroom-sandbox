@@ -837,6 +837,66 @@ def test_recorded_replay_rejects_empty_and_symlinked_sources(tmp_path):
         floor_replay.prepare_recorded_replay(tmp_path / "base", source)
 
 
+def test_recorded_replay_requires_terminal_checkpoint_evidence(tmp_path):
+    from mailroom_sandbox.tui import floor_replay
+
+    source = _recorded_run(tmp_path)
+    (source / "checkpoint.json").unlink()
+    recorded = floor_replay.prepare_recorded_replay(tmp_path / "base", source, speed=100)
+    assert recorded.meta["incomplete"] is True
+    assert recorded.meta["source_state"] == "missing"
+    assert recorded.events[-1][1]["checkpoint"]["state"] == "paused"
+
+    paused = _recorded_run(tmp_path / "paused")
+    (paused / "checkpoint.json").write_text(json.dumps({"state": "paused", "cursor": 2, "total": 2}))
+    row = floor_replay.prepare_recorded_replay(tmp_path / "paused-base", paused, speed=100)
+    assert row.meta["incomplete"] is True
+    assert row.events[-1][1]["checkpoint"]["state"] == "paused"
+
+
+def test_replay_speed_scales_the_scheduled_wall_clock(tmp_path, monkeypatch):
+    source = _recorded_run(tmp_path)
+    recorded = floor_app_prepare(tmp_path / "base", source)
+    driver = floor_app.ReplayDriver(tmp_path / "base", run_id=recorded.run_id, speed=10)
+    driver.events = [
+        (0.0, {"checkpoint": {"state": "running", "cursor": 0, "total": 1}}),
+        (10.0, {"checkpoint": {"state": "running", "cursor": 0, "total": 1}}),
+        (20.0, {"checkpoint": {"state": "done", "cursor": 1, "total": 1}}),
+    ]
+    driver.pos = 0
+
+    class Stop:
+        def __init__(self):
+            self.clock = [100.0]
+            self.waits = []
+        def is_set(self):
+            return False
+        def wait(self, seconds):
+            self.waits.append(round(seconds, 3))
+            self.clock[0] += seconds
+            return False
+
+    stop = Stop()
+    monkeypatch.setattr(floor_app.time, "monotonic", lambda: stop.clock[0])
+    driver.play(stop)
+    assert stop.waits[:3] == [0.0, 1.0, 1.0]
+
+
+def test_recorded_replay_refuses_a_symlinked_source_directory(tmp_path):
+    from mailroom_sandbox.tui import floor_replay
+
+    source = _recorded_run(tmp_path)
+    link = tmp_path / "linked-source"
+    link.symlink_to(source, target_is_directory=True)
+    with pytest.raises(ValueError, match="source is a symlink"):
+        floor_replay.prepare_recorded_replay(tmp_path / "base", link)
+
+
+def floor_app_prepare(base, source):
+    from mailroom_sandbox.tui import floor_replay
+    return floor_replay.prepare_recorded_replay(base, source, speed=10)
+
+
 def test_recorded_replay_cli_and_html_provenance(tmp_path):
     args = cli.build_parser().parse_args(["floor", "--replay-run", "run-1", "--replay-speed", "25"])
     assert (args.replay_run, args.replay_speed, args.replay) == ("run-1", 25.0, False)
@@ -862,3 +922,15 @@ def test_recorded_replay_digest_preserves_provider_and_marks_replay(tmp_path):
     assert run["engine"]["kind"] == "openrouter"
     assert run["replay"]["mode"] == "recorded"
     assert run["replay"]["engine_kind"] == "openrouter"
+
+
+def test_resolve_source_bare_id_prefers_the_base_store(tmp_path, monkeypatch):
+    from mailroom_sandbox.tui import floor_replay
+
+    base = tmp_path / "base"
+    run = base / "runtime" / "runs" / "same-name"
+    run.mkdir(parents=True)
+    cwd = tmp_path / "cwd"
+    (cwd / "same-name").mkdir(parents=True)
+    monkeypatch.chdir(cwd)
+    assert floor_replay.resolve_source(base, "same-name") == run.absolute()

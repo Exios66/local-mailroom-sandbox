@@ -21,9 +21,11 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
 import re
 import shutil
+import stat
 import uuid
 from typing import Any
 
@@ -49,9 +51,26 @@ def _slug(value: str) -> str:
     return _SAFE.sub("-", str(value)).strip("-")[:48] or "run"
 
 
+def _read_bytes(path: Path) -> bytes:
+    """Open one artifact without following symlinks and re-check its type/size."""
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode):
+            raise ValueError(f"recorded replay artifact is not a regular file: {path}")
+        if info.st_size > MAX_FILE_BYTES:
+            raise ValueError(f"recorded replay artifact exceeds 100 MB: {path}")
+        with os.fdopen(fd, "rb", closefd=True) as fh:
+            fd = -1
+            return fh.read()
+    finally:
+        if fd >= 0:
+            os.close(fd)
+
+
 def _read_json(path: Path) -> dict[str, Any]:
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data = json.loads(_read_bytes(path).decode("utf-8"))
     except (OSError, ValueError):
         return {}
     return data if isinstance(data, dict) else {}
@@ -62,24 +81,24 @@ def _read_jsonl(path: Path, *, limit: int = MAX_ROWS) -> tuple[list[dict[str, An
     rows: list[dict[str, Any]] = []
     skipped = 0
     try:
-        with open(path, encoding="utf-8", errors="replace") as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                if len(rows) >= limit:
-                    raise ValueError(f"{path}: more than {limit} records")
-                try:
-                    row = json.loads(line)
-                except ValueError:
-                    skipped += 1
-                    continue
-                if not isinstance(row, dict):
-                    skipped += 1
-                    continue
-                rows.append(row)
+        text = _read_bytes(path).decode("utf-8", errors="replace")
     except OSError:
         return [], skipped
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if len(rows) >= limit:
+            raise ValueError(f"{path}: more than {limit} records")
+        try:
+            row = json.loads(line)
+        except ValueError:
+            skipped += 1
+            continue
+        if not isinstance(row, dict):
+            skipped += 1
+            continue
+        rows.append(row)
     return rows, skipped
 
 
@@ -145,13 +164,15 @@ def _validate_source(source: Path) -> dict[str, Path]:
     total = 0
     for name in names:
         path = source / name
-        if not path.exists():
+        try:
+            info = os.lstat(path)
+        except FileNotFoundError:
             continue
-        if path.is_symlink():
+        if stat.S_ISLNK(info.st_mode):
             raise ValueError(f"recorded replay artifact is a symlink: {path}")
-        if not path.is_file():
+        if not stat.S_ISREG(info.st_mode):
             raise ValueError(f"recorded replay artifact is not a file: {path}")
-        size = path.stat().st_size
+        size = info.st_size
         if size > MAX_FILE_BYTES:
             raise ValueError(f"recorded replay artifact exceeds 100 MB: {path}")
         total += size
@@ -163,17 +184,24 @@ def _validate_source(source: Path) -> dict[str, Path]:
     return found
 
 
-def build_timeline(source: Path) -> tuple[list[tuple[float, dict[str, Any]]], dict[str, Any]]:
+def build_timeline(
+    source: Path,
+    *,
+    lock: dict[str, Any] | None = None,
+) -> tuple[list[tuple[float, dict[str, Any]]], dict[str, Any]]:
     """Convert a run directory into ``(at, replay-event)`` records.
 
     Node starts/finishes are paired by ``(doc, node, step)`` and placed on the
     source wall clock when available. Items without a timestamp follow the last
     completed node for their document, or the running cursor. A run with no
     usable timestamps gets a document-order timeline labelled synthetic.
+    Completeness comes only from an explicit terminal checkpoint state; a
+    missing, paused or prepared checkpoint stays nonterminal.
     """
     source = Path(source)
     _validate_source(source)
-    lock = _read_json(source / "spec.lock.json")
+    if lock is None:
+        lock = _read_json(source / "spec.lock.json")
     checkpoint = _read_json(source / "checkpoint.json")
     nodes, node_skips = _read_jsonl(source / "nodes.jsonl")
     items, item_skips = _read_jsonl(source / "items.jsonl")
@@ -243,14 +271,21 @@ def build_timeline(source: Path) -> tuple[list[tuple[float, dict[str, Any]]], di
         *item_at.values(),
     ]
     end_at = cursor + 0.5
-    state = checkpoint.get("state")
+    source_state = checkpoint.get("state")
+    complete = source_state in {"done", "failed"}
+    if source_state == "cancelled":
+        final_state = "failed"
+    elif source_state in {"prepared", "running", "paused"}:
+        final_state = source_state
+    elif complete:
+        final_state = source_state
+    else:
+        final_state = "paused"
     cursor_value = checkpoint.get("cursor")
     final_cursor = cursor_value if isinstance(cursor_value, int) and not isinstance(cursor_value, bool) else len(item_at)
     final_total = total if total else len(item_at)
-    if state not in {"done", "failed", "cancelled", "running"}:
-        state = "done" if final_cursor >= final_total else "running"
     rows.append((end_at, sequence + 1,
-                 {"checkpoint": {"state": state, "cursor": final_cursor, "total": final_total}}))
+                 {"checkpoint": {"state": final_state, "cursor": final_cursor, "total": final_total}}))
     rows.sort(key=lambda row: (row[0], row[1]))
     duration = rows[-1][0]
     if duration > MAX_TIMELINE_S:
@@ -265,7 +300,8 @@ def build_timeline(source: Path) -> tuple[list[tuple[float, dict[str, Any]]], di
         "item_records": len(item_at),
         "duration_s": round(duration, 3),
         "synthetic_timing": synthetic,
-        "incomplete": state == "running",
+        "incomplete": not complete,
+        "source_state": source_state or "missing",
         "warnings": warnings,
     }
     return [(round(at, 4), event) for at, _, event in rows], meta
@@ -274,7 +310,7 @@ def build_timeline(source: Path) -> tuple[list[tuple[float, dict[str, Any]]], di
 def is_replay_run(run: Path) -> bool:
     """True when ``run`` is the bundled app-owned sample that may be reset."""
     try:
-        lock = json.loads((Path(run) / "spec.lock.json").read_text(encoding="utf-8"))
+        lock = json.loads(_read_bytes(Path(run) / "spec.lock.json").decode("utf-8"))
     except FileNotFoundError:
         return Path(run).is_dir() and not any(Path(run).iterdir())
     except (OSError, ValueError):
@@ -289,14 +325,22 @@ def is_replay_run(run: Path) -> bool:
 
 
 def resolve_source(base: Path, value: str) -> Path:
-    """Resolve an explicit path, or a run id under the base's live/history stores."""
+    """Resolve an explicit path, or a run id under the base's live/history stores.
+
+    Paths are normalized without following symlinks so ``_validate_source`` can
+    refuse a linked source directory. Bare ids consult the base stores only, so
+    a same-named working-directory entry cannot shadow them.
+    """
     candidate = Path(value).expanduser()
-    if candidate.exists():
-        return candidate.resolve()
-    for parent in (Path(base) / "runtime" / "runs", Path(base) / "run-history"):
-        run = parent / value
-        if run.is_dir():
-            return run.resolve()
+    explicit = candidate.is_absolute() or "/" in value or "\\" in value or value.startswith(".")
+    if explicit:
+        if candidate.exists():
+            return Path(os.path.abspath(candidate))
+    else:
+        for parent in (Path(base) / "runtime" / "runs", Path(base) / "run-history"):
+            run = parent / value
+            if run.is_dir():
+                return Path(os.path.abspath(run))
     raise FileNotFoundError(f"recorded replay source not found: {value}")
 
 
@@ -317,8 +361,8 @@ def prepare_recorded_replay(
     if not math.isfinite(speed) or speed <= 0:
         raise ValueError("replay speed must be a finite positive number")
     source = resolve_source(Path(base), str(value))
-    events, meta = build_timeline(source)
     lock = _read_json(source / "spec.lock.json")
+    events, meta = build_timeline(source, lock=lock)
     source_id = _source_run_id(source, lock)
     digest = hashlib.sha256(str(source).encode("utf-8")).hexdigest()[:8]
     run_id = run_id or f"replay-recorded-{_slug(source_id)[:36]}-{digest}"
@@ -337,9 +381,10 @@ def prepare_recorded_replay(
         target = runs / candidate
         suffix += 1
     run_id = target.name
-    staging = runs / f".{run_id}.{uuid.uuid4().hex[:8]}"
+    staging_parent = runs.parent / f".replay-staging-{uuid.uuid4().hex[:8]}"
+    staging = staging_parent / "run"
     try:
-        staging.mkdir()
+        staging.mkdir(parents=True)
         (staging / "items.jsonl").touch()
         (staging / "nodes.jsonl").touch()
         with open(staging / "replay.jsonl", "w", encoding="utf-8") as fh:
@@ -365,10 +410,12 @@ def prepare_recorded_replay(
         )
         for name in ("prompt.lock.json", "dataset.jsonl"):
             source_file = source / name
-            if source_file.is_file() and not source_file.is_symlink():
-                shutil.copy2(source_file, staging / name)
+            try:
+                payload = _read_bytes(source_file)
+            except FileNotFoundError:
+                continue
+            (staging / name).write_bytes(payload)
         staging.rename(target)
     finally:
-        if staging.exists():
-            shutil.rmtree(staging, ignore_errors=True)
+        shutil.rmtree(staging_parent, ignore_errors=True)
     return RecordedReplay(run_id, target, events, meta)
