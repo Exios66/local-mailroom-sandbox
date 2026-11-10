@@ -8,12 +8,12 @@ operating law.
 
 - **Canonical OpenCode prompt**: edit `.opencode/agents/<roster_id>.md` in the
   agent's `home_package` checkout, then sync:
-  - Repo: `sandbox subagents sync --harness all --root <checkout>`
+  - Repo: `sandbox subagents sync --harness project --root <checkout>`
   - Global OpenCode config: `sandbox subagents sync --harness opencode-global --root <checkout>`
   - Cursor stub: written to `.cursor/agents/<roster_id>.md` by the same sync.
 - **Do not fork** long-lived copies in `~/.config/opencode/agents/` without
   syncing back to the home package — the doctor treats unsynced globals as drift.
-- **Profiles in scope**: Cursor (` .cursor/agents`), OpenCode project
+- **Profiles in scope**: Cursor (`.cursor/agents`), OpenCode project
   (`.opencode/agents`), OpenCode global (`~/.config/opencode/agents`),
   Claude Code / Codex (project rules + subagents when present).
 

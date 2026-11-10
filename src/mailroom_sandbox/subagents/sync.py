@@ -65,7 +65,7 @@ def render_cursor_agent(entry: SubagentEntry, root: Path | None = None) -> str:
     harness_note = (
         f"> **Harness note:** Canonical OpenCode prompt lives at "
         f"`.opencode/agents/{entry.id}.md`. Edit there, then run "
-        f"`sandbox subagents sync --harness all`.\n\n"
+        f"`sandbox subagents sync --harness project --root .`.\n\n"
     )
     return f"---\n{yaml_block}\n---\n\n{harness_note}{doc.body}"
 
@@ -86,6 +86,7 @@ def _sync_one_harness(
     base: Path,
     package: str | None,
     dry_run: bool,
+    check: bool = False,
 ) -> SyncResult:
     cfg = harness_config(harness, base)
     if harness == "opencode-global":
@@ -95,7 +96,8 @@ def _sync_one_harness(
     written: list[Path] = []
     skipped: list[str] = []
 
-    agents_dir.mkdir(parents=True, exist_ok=True)
+    if not dry_run and not check:
+        agents_dir.mkdir(parents=True, exist_ok=True)
     for entry in load_roster(base, package):
         if harness not in entry.harnesses:
             skipped.append(entry.id)
@@ -115,6 +117,10 @@ def _sync_one_harness(
                 dest = entry.opencode_path(base)
         else:
             raise ValueError(harness)
+        if check:
+            if not dest.is_file() or dest.read_text(encoding="utf-8") != content:
+                written.append(dest)
+            continue
         if dry_run:
             written.append(dest)
             continue
@@ -129,14 +135,14 @@ def sync_harness(
     root: Path | None = None,
     package: str | None = None,
     dry_run: bool = False,
+    check: bool = False,
 ) -> SyncResult | list[SyncResult]:
     base = root or repo_root()
-    if harness == "all":
-        return [
-            _sync_one_harness("opencode", base=base, package=package, dry_run=dry_run),
-            _sync_one_harness("cursor", base=base, package=package, dry_run=dry_run),
-            _sync_one_harness("opencode-global", base=base, package=package, dry_run=dry_run),
-        ]
+    if dry_run and check:
+        raise ValueError("Choose --dry-run or --check, not both")
+    if harness in ("project", "all"):
+        targets = ("opencode", "cursor") + (("opencode-global",) if harness == "all" else ())
+        return [_sync_one_harness(h, base=base, package=package, dry_run=dry_run, check=check) for h in targets]
     if harness not in ("cursor", "opencode", "opencode-global"):
         raise KeyError(f"unknown harness {harness!r}")
-    return _sync_one_harness(harness, base=base, package=package, dry_run=dry_run)
+    return _sync_one_harness(harness, base=base, package=package, dry_run=dry_run, check=check)

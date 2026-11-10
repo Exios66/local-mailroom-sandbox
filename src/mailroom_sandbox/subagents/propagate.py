@@ -92,6 +92,7 @@ def propagate_family_checkouts(
     packages: list[str] | None = None,
     dry_run: bool = False,
     skip_missing: bool = True,
+    include_global: bool = False,
 ) -> PropagateResult:
     """Run materialize + sync for each mapped family checkout."""
     src = (source_root or repo_root()).resolve()
@@ -125,7 +126,7 @@ def propagate_family_checkouts(
 
         try:
             materialize_package(package_id, dest_root=dest, source_root=src, dry_run=dry_run)
-            sync_out = sync_harness("all", root=dest, package=package_id, dry_run=dry_run)
+            sync_out = sync_harness("all" if include_global else "project", root=dest, package=package_id, dry_run=dry_run)
             written = 0
             skipped: list[str] = []
             if isinstance(sync_out, list):

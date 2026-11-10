@@ -9,7 +9,7 @@ when you materialize the **`digital-mailroom`** hub:
 ```bash
 # from local-mailroom-sandbox (standalone or monorepo package)
 sandbox subagents materialize --package digital-mailroom --root /path/to/Digital-Mailroom
-sandbox subagents sync --harness all --package digital-mailroom --root /path/to/Digital-Mailroom
+sandbox subagents sync --harness project --package digital-mailroom --root /path/to/Digital-Mailroom
 ```
 
 Or use **`sandbox subagents propagate`** with `DIGITAL_MAILROOM_ROOT` set.
