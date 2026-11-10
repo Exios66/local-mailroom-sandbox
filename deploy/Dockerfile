@@ -37,6 +37,7 @@ COPY config ./config
 COPY data/fixtures ./data/fixtures
 COPY notebooks ./notebooks
 COPY deploy/README.md ./deploy/README.md
+COPY reports/dashboard/build_floor_digest.py reports/dashboard/floor.template.html ./reports/dashboard/
 # hub#55: the vendored family ships in the image — without vendor/ the
 # sandbox __init__ hard-deps would silently degrade and `--local` evals
 # would raise "mailroom pipeline is not importable" in a read-only image
