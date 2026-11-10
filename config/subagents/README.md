@@ -11,12 +11,14 @@ Commands:
 sandbox subagents packages
 sandbox subagents list [--package llm-mailroom]
 sandbox subagents show harness-doctor
-sandbox subagents sync --harness all
+sandbox subagents sync --harness project [--check]
 sandbox subagents sync --harness opencode-global
 sandbox subagents doctor
 sandbox subagents doctor --apply-framework
+sandbox subagents dispatch-check --contract <file> --capabilities <snapshot>
+sandbox subagents checkpoint --contract <file> --task-id <id> --state <state> --next-action <text>
 sandbox subagents materialize --package digital-mailroom --root /path/to/Digital-Mailroom
-sandbox subagents propagate
+sandbox subagents propagate [--include-global]
 ```
 
 Monorepo workflow: [`docs/subagents-family-sync.md`](../../docs/subagents-family-sync.md).
@@ -39,9 +41,9 @@ path refer to that package, not this checkout. Sandbox dataset work follows the
 [Hugging Face skill](../../.cursor/skills/huggingface/SKILL.md), `corpus.py` and run locks.
 
 After editing a canonical OpenCode prompt, preview project-only synchronization
-with `--harness opencode --dry-run` and `--harness cursor --dry-run`, then run those
-explicit targets and inspect the diff. `--harness all` also writes global profiles;
-use it only for an intended machine-wide refresh. Follow the
+with `--harness project --dry-run`, verify it with `--check`, then run it and
+inspect the diff. `--harness all` also writes global profiles; use it only for an
+intended machine-wide refresh. Follow the
 [dispatch and recovery contract](../../docs/agent-dispatch.md).
 
 Durable eve agent (machine-wide doctor UI/tools): `~/Downloads/agent-harness-doctor`.

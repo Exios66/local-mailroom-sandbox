@@ -61,6 +61,17 @@ def test_git_timeout_is_a_finding(checkout, monkeypatch):
     assert not environment.environment_report(checkout)["ok"]
 
 
+def test_git_reads_ignore_inherited_repository_selectors(checkout, tmp_path, monkeypatch):
+    other = tmp_path / "other"
+    subprocess.run(["git", "init", "-q", str(other)], check=True)
+    monkeypatch.setenv("GIT_DIR", str(other / ".git"))
+    monkeypatch.setenv("GIT_WORK_TREE", str(other))
+    monkeypatch.setenv("GIT_INDEX_FILE", str(other / ".git/index"))
+    assert Path(environment.git_value(checkout, "rev-parse", "--show-toplevel")).resolve() == checkout.resolve()
+    report = environment.environment_report(checkout)
+    assert report["ok"] and report["checkout"]["git_root"] == str(checkout)
+
+
 @pytest.fixture
 def guard():
     path = Path(__file__).resolve().parents[1] / ".claude/hooks/guard_resources.py"
@@ -74,6 +85,8 @@ def guard():
     "pytest", "pytest tests/test_one.py tests", "python -m pytest tests -q", "pytest tests/test_one.py --cov",
     "pytest tests/test_one.py -n auto", "pytest tests/test_one.py -n2",
     "pytest tests/test_one.py --numprocesses=4", "python scripts/smoke_campaign.py",
+    "pytest --ignore=unused.py", "pytest --ignore tests/test_skip.py",
+    "pytest --deselect tests/test_skip.py", "pytest --pyargs package",
 ])
 def test_resource_hook_catches_expensive_direct_commands(guard, command):
     assert guard.violation(command)
@@ -81,6 +94,8 @@ def test_resource_hook_catches_expensive_direct_commands(guard, command):
 
 @pytest.mark.parametrize("command", [
     "pytest -q tests/test_one.py -n 0 --no-cov", "python -m pytest tests/test_one.py::test_x -n1",
+    "pytest --ignore tests/test_skip.py tests/test_one.py",
+    "pytest -k 'not slow' tests/test_one.py",
     "ruff check src tests", "python scripts/check_cli_surface.py --check",
 ])
 def test_resource_hook_preserves_focused_checks(guard, command):

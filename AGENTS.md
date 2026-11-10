@@ -104,7 +104,7 @@ credential-free durable handoff with evidence, blockers and the next action.
 
 Family-wide roster under `config/subagents/family-roster.yaml` with canonical
 prompts in `.opencode/agents/`. Harness adapters sync OpenCode frontmatter and
-Cursor stubs (`sandbox subagents sync --harness all`). Materialize into sibling checkouts on **Digital-Mailroom** with
+Cursor stubs (`sandbox subagents sync --harness project`). Materialize into sibling checkouts on **Digital-Mailroom** with
 `sandbox subagents propagate` or `materialize --package <id> --root <path>`
 ([`docs/subagents-family-sync.md`](docs/subagents-family-sync.md)).
 Meta agents: **`harness-doctor`** and **`adversarial-reviewer`**. See
@@ -152,8 +152,9 @@ sandbox run preflight|start|status|resume|cancel|list --config config/runs/<name
 sandbox runbook list|show <id>|check|write   # operator runbooks (catalog → docs/runbooks/)
 sandbox prompts list|show <agent>     # all pipeline agent prompts (local + Langfuse)
 sandbox subagents list|show <id>      # coding subagent roster (GEPA, traces, meta)
-sandbox subagents sync --harness all  # OpenCode frontmatter + .cursor/agents/ stubs
-sandbox subagents propagate              # materialize + sync all mapped family checkouts
+sandbox subagents sync --harness project [--check]  # project OpenCode + Cursor; --check writes nothing
+sandbox subagents dispatch-check|checkpoint  # offline dispatch contract; durable credential-free handoff
+sandbox subagents propagate [--include-global]  # mapped sibling checkouts; project-scoped by default
 sandbox subagents materialize --package digital-mailroom --root <path>  # monorepo hub export
 sandbox metrics compare --runs local,modal,api   # serving metrics comparison
 sandbox modal deploy|prewarm|status|logs|stop|url|raw|publish-image   # guarded Modal CLI passthrough (--dry-run on deploy/prewarm/stop/logs/publish-image; stop is idempotent + verified)

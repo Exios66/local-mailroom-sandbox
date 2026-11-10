@@ -1,6 +1,6 @@
 # Family-wide coding subagent roster (canonical manifest).
 # Materialize per package: sandbox subagents materialize --package <id> --root <path>
-# Sync harness outputs: sandbox subagents sync --harness all [--package ...]
+# Sync harness outputs: sandbox subagents sync --harness project [--package ...]
 
 version: 1
 

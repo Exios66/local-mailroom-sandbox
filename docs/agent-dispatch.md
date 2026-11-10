@@ -79,18 +79,27 @@ do not prove a workflow succeeded.
 
 ## Synchronization scope
 
-Preview synchronization and name its targets. For project-only changes use
-`--harness opencode` and `--harness cursor` explicitly. `--harness all` currently
+Preview synchronization and name its targets. `--harness project` (the default)
+writes OpenCode project profiles and Cursor stubs only. `--harness all` also
 includes machine-global profiles: use it only when those targets are intended.
-Sibling checkout propagation is a separate operation. Edit canonical prompts
-in their home package, regenerate adapters, and inspect the diff. Check rendered
-content and shared framework content, not merely the presence of a heading.
+Sibling checkout propagation is a separate operation and is project-scoped by
+default; `--include-global` opts into global profiles there too. Preview with
+`--dry-run`; `--check` verifies rendered content without writing and exits 1 when
+a file differs. Edit canonical prompts in their home package, regenerate adapters,
+and inspect the diff. Check rendered content and shared framework content, not
+merely the presence of a heading.
 See [family synchronization](subagents-family-sync.md).
 
 ## Durable handoff
 
 Keep a structured task record under the checkout's gitignored `data/runtime/`
 (or a deliberately selected durable operator directory), not only `/tmp`.
+Every coding task needs a record, including read-only delegation: a read-only
+delegate cannot write it, so the dispatching agent writes and updates the record
+on its behalf. Claude agents, whose path hook blocks `data/runtime/`, must use an
+allowed durable operator directory (for example
+`~/mailroom-agent-tasks/<request-id>.json`) and pass it with
+`sandbox subagents checkpoint --record <path>`; see [`CLAUDE.md`](../CLAUDE.md).
 Include a schema version, task/request IDs, contract, checkout/base/head SHAs,
 provider/model, state, PR/base relationships, CI evidence, unresolved review IDs,
 blockers and the next action. Preserve completed attempts when retrying.
@@ -111,6 +120,22 @@ references without loading dotenv, contacting services, creating beacons or
 repairing files. Omit `--expected-sha` for an intentionally older branch. Dirty
 files are a warning, never an instruction to discard them. Exit 1 indicates an
 unverified root, unexpected HEAD, foreign package import or invalid hook target.
+
+`sandbox subagents dispatch-check --contract <file> --capabilities <snapshot>`
+validates a bounded `mailroom.dispatch/v1` contract against an exported
+`mailroom.capabilities/v1` snapshot no more than five minutes old and against the
+actual checkout identity. It never launches work, probes a provider or loads
+dotenv. `workflow_verified` stays false: catalog availability is not a health
+check.
+
+`sandbox subagents checkpoint --contract <file> --task-id <id> --state <state>
+--next-action <text>` appends a credential-free event to
+`data/runtime/agent-tasks/<request_id>.json` (override with `--record`) under a
+nonblocking lock. It preserves attempt history and refuses a changed contract, a
+foreign record or a symlinked path; `--new-attempt` is only valid after the prior
+attempt is terminal. URL userinfo, query strings and fragments are stripped from
+evidence, and secret-shaped fields are rejected. An active record still requires
+reconciliation with the orchestrator before a retry.
 
 `sandbox doctor --json` retains its existing health severity and adds a
 `readiness` field per service: `unverified`, `installed`, `configured`,

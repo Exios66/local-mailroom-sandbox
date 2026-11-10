@@ -20,10 +20,12 @@ coding subagent, its **home package**, and which packages **materialize** it.
 
 ## Scope before synchronization
 
-Follow the [dispatch contract](agent-dispatch.md). Preview targets with `--dry-run`.
-For a project-only refresh, run `--harness opencode` and `--harness cursor`
-separately. `--harness all` includes global profiles, and `propagate` also changes
-mapped sibling checkouts. Use these broader operations only when intended.
+Follow the [dispatch contract](agent-dispatch.md). Preview targets with `--dry-run`;
+`--check` verifies rendered content without writing. The default `--harness project`
+(equivalently `opencode` + `cursor`) writes project files only. `--harness all`
+includes machine-global profiles. `propagate` changes mapped sibling checkouts and
+is project-scoped by default; `--include-global` opts into global profiles. Use
+these broader operations only when intended.
 
 ## Workflow
 
@@ -40,7 +42,7 @@ Standalone **eval-environment** (sibling repo, not in `checkout-map.yaml`):
 
 ```bash
 sandbox subagents materialize --package eval-environment --root ../eval-environment
-sandbox subagents sync --harness all --package eval-environment --root ../eval-environment
+sandbox subagents sync --harness project --package eval-environment --root ../eval-environment
 ```
 
 This runs **materialize + sync** for every entry in
@@ -60,7 +62,7 @@ python3 packages/local-mailroom-sandbox/scripts/monorepo/after_packages_sync.py
 
 ```bash
 sandbox subagents materialize --package llm-mailroom --root ../Digital-Mailroom/packages/llm-mailroom
-sandbox subagents sync --harness all --package llm-mailroom --root ../Digital-Mailroom/packages/llm-mailroom
+sandbox subagents sync --harness project --package llm-mailroom --root ../Digital-Mailroom/packages/llm-mailroom
 ```
 
 After editing prompts in `.opencode/agents/`, re-run **`propagate`** or sync for
@@ -74,7 +76,8 @@ the affected packages (`sandbox subagents list --package llm-mailroom`).
 | **Cursor** | `.cursor/agents/<id>.md` | Generates `name` + `description` stubs pointing at the OpenCode canonical prompt |
 | **OpenCode global** | `~/.config/opencode/agents/<id>.md` | Same frontmatter merge for machine-wide profiles (`--harness opencode-global`) |
 
-Default CLI sync target is **`--harness all`** (includes global).
+Default CLI sync target is **`--harness project`** (OpenCode + Cursor only).
+`--harness all` explicitly includes global profiles.
 
 Health: `sandbox subagents doctor` and optional `--also-root <checkout>`.
 Framework v2: [`config/subagents/AGENT_FRAMEWORK.md`](../config/subagents/AGENT_FRAMEWORK.md).
