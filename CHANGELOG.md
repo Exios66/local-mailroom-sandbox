@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+- **Floor viewer isolation and offline assets** (2026-11-09). Resident viewers
+  now build and serve private temporary digests, so separate bases/ports in
+  one checkout cannot show each other's runs. Static snapshot generation stays
+  explicit. The offline image includes the floor builder and HTML template;
+  missing-builder startup errors are reported cleanly. Focused regressions
+  cover two concurrent HTTP viewers, cleanup and relocated image assets.
+
 - **Floor, dataset and CI operator references** (2026-11-09). Add complete
   floor options/live-refresh/replay guidance, named-dataset schema and lock
   migration, and CI scheduling/cache/artifact/runtime verification guidance.

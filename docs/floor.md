@@ -1,8 +1,9 @@
 # Pipeline floor viewer
 
 `sandbox floor` rebuilds a digest from run artifacts and serves the pipeline
-viewer at `http://127.0.0.1:8769/floor.template.html`. Run it from an editable
-repository checkout: the builder and HTML assets live in `reports/dashboard/`.
+viewer at `http://127.0.0.1:8769/floor.template.html`. The builder and HTML
+assets live in `reports/dashboard/`, supplied by the repository checkout and
+the offline Docker image. A wheel-only install needs those assets too.
 It requires no model server, API key or tracing service.
 
 ```bash
@@ -30,9 +31,14 @@ A run is discoverable when its directory contains `items.jsonl` under either
 store location. The refresher checks modification times and sizes of
 `items.jsonl`, `nodes.jsonl`, `checkpoint.json`, `spec.lock.json`,
 `prompt.lock.json` and `dataset.jsonl`, plus the run directories. It skips a
-rebuild when that signature is unchanged. It writes derived
-`reports/dashboard/floor_digest.json` and `floor_digest.js`; it does not rewrite
-historical run inputs. Replay mode also writes its own sample run.
+rebuild when that signature is unchanged. Each resident viewer writes
+`floor_digest.json` and `floor_digest.js` in its own temporary directory and
+serves those at the root digest URLs alongside the dashboard assets. Viewers
+using different bases or ports cannot overwrite one another's digests, and
+the temporary files are removed on exit. Shared dashboard snapshots and
+historical run inputs are unchanged. Replay mode also writes its own persistent
+sample run inside the selected base; viewers sharing that base still see the
+same run artifacts.
 
 Port 8769 is separate from web/watch (8765/8766) and board/demo (8767/8768).
 See the [watch guide](pretty-logging/mailroom-themed-logging.md) for document
@@ -110,7 +116,9 @@ python reports/dashboard/build_floor_digest.py --base /path/to/mailroom-data --p
 ```
 
 The builder writes JSON and JS using separate atomic replacements. Custom
-output does not copy the HTML viewer. `FLOOR_DIGEST_GRAPH` overrides the
+output does not copy the HTML viewer. Unlike the resident app, this one-shot
+command leaves its digest files at `--out` (default `reports/dashboard/`) for
+later static viewing. `FLOOR_DIGEST_GRAPH` overrides the
 builder's graph source; use the vendored source for normal runs. Restart a
 resident viewer after changing graph or builder code because those files are
 not part of the run-artifact sweep.
@@ -121,7 +129,7 @@ not part of the run-artifact sweep.
 | No changes in a completed view | Reload; browser polling follows a selected running run. Check artifact timestamps and `generated_utc`. |
 | Port already in use | Choose another `--port`, or use `--port 0`. |
 | Sample reset refused | Use a fresh scratch base; preserve the conflicting directory for inspection. |
-| Missing builder or viewer | Use the repository checkout with `reports/dashboard/` present. |
+| Missing builder or viewer | Use the repository checkout or a rebuilt offline image with `reports/dashboard/` present. |
 
 The standalone builder returns 2 for no runs, 3 for an invalid graph and 4
 for output-write failure. `sandbox floor` propagates builder diagnostic exit
