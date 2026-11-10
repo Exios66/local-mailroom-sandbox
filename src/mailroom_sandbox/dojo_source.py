@@ -1,22 +1,10 @@
-"""Where ``llm_dojo_scoring`` is imported from: the installed release first, the vendored snapshot as backup.
+"""Offline Dojo source policy: explicit source, matching install/cache, vendor.
 
-The sandbox carries a tracked Dojo snapshot under ``vendor/llm-dojo-scoring`` (DMR-057), so
-a fresh checkout scores offline. When a released ``llm-dojo-scoring`` distribution is
-installed in the environment (``pip install -r requirements/dojo-release.txt``, the pinned
-GitHub release), it is the primary source and the snapshot is only the fallback: if the release
-is missing, is a different version or commit than the snapshot pins, or fails to import,
-the snapshot is used instead, so scoring never goes down with the install.
-
-``SANDBOX_DOJO_SOURCE`` picks the policy:
-
-* ``auto`` (default): installed when it matches the pin and imports; vendored otherwise.
-* ``installed``: installed whenever it imports, even off-pin; vendored only if it is absent.
-* ``vendored``: always the snapshot (the pre-0.25 behaviour).
-
-``DOJO_SRC`` (a source tree) overrides all three. Both are read from the environment, then
-from the sandbox ``.env`` files: :func:`choose` runs once, from the package ``__init__``,
-before the CLI loads ``.env`` and before anything imports the Dojo. :func:`current` reports
-the choice (the run lock records it under ``versions.llm_dojo_scoring_source``).
+``SANDBOX_DOJO_SOURCE`` keeps its existing auto/installed/vendored policies.
+``DOJO_SRC`` wins; ``SANDBOX_DOJO_SNAPSHOT`` explicitly selects a verified
+release-cache lock. Fetching alone never upgrades the reviewed pin. Settings
+are read before family imports, without loading dotenv values into os.environ.
+See docs/dependency-snapshots.md for frozen run provenance and recovery.
 """
 
 from __future__ import annotations
@@ -47,6 +35,7 @@ class DojoSource:
     commit: str | None
     mode: str
     reason: str
+    tree_sha256: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -59,10 +48,14 @@ def pinned() -> dict[str, str | None]:
     """Version and commit the vendored snapshot pins (read from files; nothing imported)."""
     src = vendored_dojo_src()
     if src is None:
-        return {"version": None, "commit": None}
+        from mailroom_sandbox.snapshots import PINS
+
+        return dict(PINS["dojo"])
     init = (src / PACKAGE / "__init__.py").read_text(encoding="utf-8")
     version = re.search(r'^__version__\s*=\s*["\']([^"\']+)', init, re.M)
-    commit = None
+    from mailroom_sandbox.snapshots import PINS
+
+    commit = PINS["dojo"]["commit"] if version and version.group(1) == PINS["dojo"]["version"] else None
     vendor_md = src.parent / "VENDOR.md"
     if vendor_md.is_file():
         found = re.search(r"Exact source commit:\s*`([0-9a-f]{40})`", vendor_md.read_text(encoding="utf-8"))
@@ -81,7 +74,7 @@ def installed() -> dict[str, str | None] | None:
     if raw:
         try:
             commit = (json.loads(raw).get("vcs_info") or {}).get("commit_id")
-        except ValueError:
+        except (ValueError, TypeError, AttributeError):
             commit = None
     return {"version": dist.version, "commit": commit}
 
@@ -146,7 +139,9 @@ def _purge() -> None:
 
 def _import_ok() -> str | None:
     """Import the Dojo from the current sys.path; the error text, or None when it imported."""
+    previous = sys.dont_write_bytecode
     try:
+        sys.dont_write_bytecode = True  # source inspection must not mutate its cache
         if importlib.util.find_spec(PACKAGE) is None:
             return "not importable"
         importlib.import_module(PACKAGE)
@@ -154,6 +149,8 @@ def _import_ok() -> str | None:
     except Exception as exc:  # noqa: BLE001 - any failure means fall back
         _purge()
         return f"{type(exc).__name__}: {exc}"
+    finally:
+        sys.dont_write_bytecode = previous
 
 
 def _prepend(path: Path) -> str:
@@ -164,11 +161,29 @@ def _prepend(path: Path) -> str:
     return resolved
 
 
-def _vendored(mode: str, reason: str) -> DojoSource:
+def _vendored(mode: str, reason: str, *, verify_import: bool = True) -> DojoSource:
     src = vendored_dojo_src()
+    from mailroom_sandbox.snapshots import selected
+
+    snapshot, why = selected("dojo") if mode != "vendored" else (None, "cache disabled")
+    if snapshot:
+        _prepend(Path(snapshot["path"]))
+        _purge()
+        error = _import_ok() if verify_import else None
+        if error is None and verify_import:
+            module = sys.modules.get(PACKAGE)
+            origin = getattr(module, "__file__", None)
+            if origin and Path(origin).resolve().parent != Path(snapshot["path"]) / PACKAGE:
+                error = "cached import is shadowed"
+        if error is None:
+            return DojoSource("cached", str(Path(snapshot["path"]).resolve()), snapshot["version"], snapshot["commit"], mode,
+                              reason + "; " + why, snapshot["tree_sha256"])
+        _purge()
+        why += f"; cached import rejected ({error})"
+    reason += "; " + why
     pin = pinned()
     if src is None:
-        return DojoSource("none", None, None, None, mode, reason + "; no vendored snapshot either")
+        return DojoSource("none", None, None, None, mode, "DOJO_SRC unset/invalid; " + reason + "; no vendored snapshot either")
     return DojoSource("vendored", _prepend(src), pin["version"], pin["commit"], mode, reason)
 
 
@@ -176,6 +191,9 @@ def choose(*, mode: str | None = None, verify_import: bool = True) -> DojoSource
     """Pick the Dojo source, put it on ``sys.path``, and remember the choice."""
     global _CHOICE
     mode = (mode or _setting("SANDBOX_DOJO_SOURCE") or "auto").strip().lower()
+    def fallback(reason: str) -> DojoSource:
+        return _vendored(mode, reason, verify_import=verify_import)
+
     if mode not in MODES:
         mode = "auto"
     env = _setting("DOJO_SRC")
@@ -183,23 +201,26 @@ def choose(*, mode: str | None = None, verify_import: bool = True) -> DojoSource
         _CHOICE = DojoSource("env", _prepend(Path(env)), None, None, mode, "DOJO_SRC")
         return _CHOICE
     if mode == "vendored":
-        _CHOICE = _vendored(mode, "SANDBOX_DOJO_SOURCE=vendored")
+        _CHOICE = fallback("SANDBOX_DOJO_SOURCE=vendored")
         return _CHOICE
-    have, pin = installed(), pinned()
+    from mailroom_sandbox.snapshots import selected
+
+    snapshot, _ = selected("dojo")
+    have, pin = installed(), snapshot or pinned()
     if have is None:
-        _CHOICE = _vendored(mode, f"{DIST} is not installed")
+        _CHOICE = fallback(f"{DIST} is not installed")
         return _CHOICE
     if mode == "auto":
         if pin["version"] and have["version"] != pin["version"]:
-            _CHOICE = _vendored(mode, f"installed {have['version']} != pinned {pin['version']}")
+            _CHOICE = fallback(f"installed {have['version']} != pinned {pin['version']}")
             return _CHOICE
         if pin["commit"] and not have["commit"]:
             # A non-git install of the same version cannot be checked against the pin.
-            _CHOICE = _vendored(mode, f"installed {have['version']} has no recorded commit to match pinned "
+            _CHOICE = fallback(f"installed {have['version']} has no recorded commit to match pinned "
                                       f"{pin['commit'][:12]}")
             return _CHOICE
         if pin["commit"] and have["commit"] != pin["commit"]:
-            _CHOICE = _vendored(mode, f"installed commit {have['commit'][:12]} != pinned {pin['commit'][:12]}")
+            _CHOICE = fallback(f"installed commit {have['commit'][:12]} != pinned {pin['commit'][:12]}")
             return _CHOICE
     # The vendored root must not shadow the release we are about to verify.
     src = vendored_dojo_src()
@@ -215,7 +236,7 @@ def choose(*, mode: str | None = None, verify_import: bool = True) -> DojoSource
         if error is not None:
             _purge()
     if error is not None:
-        _CHOICE = _vendored(mode, f"installed release failed to import ({error})")
+        _CHOICE = fallback(f"installed release failed to import ({error})")
         return _CHOICE
     _CHOICE = DojoSource("installed", None, have["version"], have["commit"], mode,
                          "installed release matches the pin" if mode == "auto" else "SANDBOX_DOJO_SOURCE=installed")
@@ -229,4 +250,6 @@ def current() -> DojoSource | None:
 def import_root() -> Path | None:
     """The source tree to prepend for the chosen Dojo (None when the installed release is used)."""
     choice = _CHOICE or choose()
+    if choice.source == "none":
+        raise ModuleNotFoundError("Dojo source unavailable: " + choice.reason)
     return Path(choice.path) if choice.path else None

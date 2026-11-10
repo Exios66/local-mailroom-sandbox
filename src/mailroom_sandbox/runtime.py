@@ -106,21 +106,12 @@ def _prepend_sys_path(path: Path) -> None:
 
 
 def resolve_mailroom_src() -> Path | None:
-    env = os.environ.get("MAILROOM_SRC")
-    candidates = []
-    if env:
-        candidates.append(Path(env))
-    candidates.extend(
-        [
-            vendor_dir() / "llm-mailroom",
-            repo_root().parent / "llm-mailroom",
-        ]
-    )
-    for cand in candidates:
-        src = cand / "src" if (cand / "src" / "pipeline").is_dir() else cand
-        if (src / "pipeline" / "config.py").is_file():
-            return src
-    return None
+    from mailroom_sandbox import pipeline_source
+
+    choice = pipeline_source.current() or pipeline_source.choose()
+    if choice.source == "none":
+        raise ModuleNotFoundError("Pipeline source unavailable: " + choice.reason)
+    return Path(choice.path) if choice.path else None
 
 
 def dojo_uses_installed_release() -> bool:
@@ -131,27 +122,10 @@ def dojo_uses_installed_release() -> bool:
 
 
 def resolve_dojo_src() -> Path | None:
-    """llm-dojo-scoring source tree to prepend, or None when the installed release is in use.
+    """Use the bootstrapped selection; do not reconstruct a different import path."""
+    from mailroom_sandbox import dojo_source
 
-    ``mailroom_sandbox.dojo_source`` picks the installed release first and the vendored
-    snapshot (DMR-057) as the fallback; a sibling checkout is the last resort.
-    """
-    if dojo_uses_installed_release():
-        return None
-    env = os.environ.get("DOJO_SRC")
-    candidates = []
-    if env:
-        candidates.append(Path(env))
-    candidates.extend(
-        [
-            vendor_dir() / "llm-dojo-scoring" / "src",
-            repo_root().parent / "llm-dojo-scoring" / "src",
-        ]
-    )
-    for cand in candidates:
-        if (cand / "llm_dojo_scoring" / "__init__.py").is_file():
-            return cand
-    return None
+    return dojo_source.import_root()
 
 
 def apply_profile_env(profile: dict, *, base_url_override: str | None = None) -> None:

@@ -67,6 +67,25 @@ The same rule applies when editing an existing PR description or opening an
 issue from a conversation. If an integration adds a `User description` wrapper
 after creation, edit the body to remove it before requesting review.
 
+## Dependency source selection
+
+`sandbox deps fetch` caches stable releases without rewriting vendor snapshots or
+pins. Read [the snapshot guide](docs/dependency-snapshots.md) before selecting a
+cache via `SANDBOX_DOJO_SNAPSHOT` / `SANDBOX_PIPELINE_SNAPSHOT`. Fetching a release
+is separate from selecting it: restart the process after selection, preserve
+`dependency_sources` in run locks, and restore the original source on drift.
+Never substitute latest stable for an experiment's frozen commit. Version and
+commit metadata alone do not prove unchanged source: preserve and recheck the
+runtime-tree digests for installed, vendored and explicit source layers as well
+as verified caches. For remote
+Modal jobs, bundle the same selected snapshots and installed family sources
+(with distribution metadata) when deploying the job worker; require matching provenance before accepting its results.
+
+Treat `sandbox fetch-deps` and `scripts/sync_vendor.py` as maintenance: stop all
+sandbox processes using the checkout before refreshing tracked vendor trees,
+review the completed diff, then restart. Staging/rollback protect bytes from
+failure; they do not synchronize live imports or prevent mixed revisions.
+
 ## Skills (tool selection)
 
 Committed under `.cursor/skills/`. **Read `sandbox-tool-router` first** for any

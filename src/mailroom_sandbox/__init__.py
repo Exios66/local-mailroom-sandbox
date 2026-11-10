@@ -1,34 +1,35 @@
-"""Local LLM mailroom sandbox.
+"""Offline-first experiment harness with frozen family source selection.
 
-Self-contained posture (DMR-057): the family code the sandbox imports at
-runtime (``pipeline.*``/``graph.*``/``agents.*``/``llm.*``/``legalbench.*``
-from llm-mailroom, ``llm_dojo_scoring.*`` from llm-dojo-scoring) ships as
-tracked snapshots under ``vendor/``. This package's ``__init__`` puts those
-trees on ``sys.path`` BEFORE anything else imports them, so a fresh checkout
-works offline with no pip git pins and no ``sandbox fetch-deps`` step.
-
-The Dojo is resolved installed-release-first: a ``llm-dojo-scoring`` release
-installed in the environment (``requirements/dojo-release.txt``) that matches the
-vendored pin is used, and the vendored snapshot is the fallback when it is
-missing, off-pin or fails to import (``mailroom_sandbox.dojo_source``).
+Reviewed vendor snapshots make a fresh checkout self-contained. Bootstrap
+selects explicit sources, matching installed releases or verified release
+caches before falling back to those tracked trees, without network access.
+Source selection stays fixed for the process; new runs record its provenance.
 """
 
 from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 
-from mailroom_sandbox.paths import vendored_mailroom_src
-
-_vendored = vendored_mailroom_src()
-if _vendored is not None:
-    _resolved = str(_vendored.resolve())
-    if _resolved not in sys.path:
-        sys.path.insert(0, _resolved)
+# Worker images carry only explicitly bundled installed distributions here.
+# Add their import/metadata roots before either family resolver runs. These
+# image-only settings are not discovered from dotenv or fetched over a network.
+for _component in ("PIPELINE", "DOJO"):
+    _installed = os.environ.get(f"SANDBOX_INSTALLED_{_component}_ROOT")
+    if _installed:
+        _root = Path(_installed).resolve()
+        if not _root.is_dir():
+            raise ModuleNotFoundError(f"Bundled {_component.lower()} installation is missing")
+        sys.path.insert(0, str(_root))
 
 from mailroom_sandbox import dojo_source as _dojo_source  # noqa: E402
 
 _dojo_source.choose()
+
+from mailroom_sandbox import pipeline_source as _pipeline_source  # noqa: E402
+
+_pipeline_source.choose()
 
 
 def prefer_own_venv_tools() -> None:

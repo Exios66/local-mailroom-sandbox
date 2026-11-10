@@ -27,6 +27,7 @@ must be checked locally. Suppress quota-only review notifications.
 | Default tracing + The-Mailroom | Langfuse 3 / SDK v4 | [langfuse](../langfuse/SKILL.md) | Phoenix as the only sink if The-Mailroom is required |
 | Optional OTEL / Arize UI sidecar | Apache Phoenix compose profile | [apache-phoenix](../apache-phoenix/SKILL.md) | Phoenix as The-Mailroom input |
 | Hosted eval / experiment logs (opt-in) | Braintrust | [braintrust](../braintrust/SKILL.md) | Braintrust as the default offline sink |
+| Stable family code snapshots | `sandbox deps fetch --check` / `--component dojo --version TAG`; explicit snapshot lock selection before process startup | [snapshot guide](../../../docs/dependency-snapshots.md) | HF weight downloads for Python code; floating latest inside a frozen run; editing vendor files |
 | Hub datasets / model cards / HF cache | Hugging Face Hub + `sandbox datasets pull` / `sandbox hf …` | [huggingface](../huggingface/SKILL.md) | Live Hub pulls in default pytest |
 | Offline fixture prep / cached subset draw | `sandbox datasets prepare` / `sandbox datasets sample` | [huggingface](../huggingface/SKILL.md) | Hub network in CI; treating fixture prep as a Hub pull |
 | Named dataset / file pin / subset provenance | `config/datasets.yaml` + `sandbox run preflight` | [huggingface](../huggingface/SKILL.md) | Machine paths in committed run specs; guessing a sample from its name |

@@ -21,6 +21,17 @@ PR and issue descriptions use an executive summary, never a transcript: no
 direct quotes from the requester, names, handles or credentials, and no
 `User description` section. Paraphrase the intent and use the PR template.
 
+## Dependency source selection
+
+`sandbox deps fetch` caches stable releases without rewriting vendor snapshots or
+pins. Read [the snapshot guide](docs/dependency-snapshots.md) before selecting a
+cache via `SANDBOX_DOJO_SNAPSHOT` / `SANDBOX_PIPELINE_SNAPSHOT`. Fetching a release
+is separate from selecting it: restart the process after selection, preserve
+`dependency_sources` in run locks, and restore the original source on drift.
+Never substitute latest stable for an experiment's frozen commit. For remote
+Modal jobs, bundle the same selected snapshots when deploying the job worker;
+require matching provenance before accepting its results.
+
 ## Setup and checks (all network-free)
 
 ```bash
