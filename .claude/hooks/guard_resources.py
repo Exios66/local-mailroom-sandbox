@@ -15,7 +15,8 @@ import sys
 # Options whose next token is a value, never a test selection. Without this,
 # `pytest --ignore=unused.py` looks like a selected test file and slips through.
 _LONG_VALUE_OPTIONS = frozenset({
-    "--ignore", "--ignore-glob", "--deselect", "--confcutdir", "--rootdir",
+    "--ignore", "--ignore-glob", "--doctest-glob", "--doctest-report",
+    "--deselect", "--confcutdir", "--rootdir",
     "--basetemp", "--maxfail", "--tb", "--capture", "--durations",
     "--durations-min", "--junitxml", "--junit-xml", "--result-log",
     "--log-level", "--log-format", "--log-date-format", "--log-file",

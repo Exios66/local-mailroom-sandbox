@@ -86,6 +86,7 @@ def guard():
     "pytest tests/test_one.py -n auto", "pytest tests/test_one.py -n2",
     "pytest tests/test_one.py --numprocesses=4", "python scripts/smoke_campaign.py",
     "pytest --ignore=unused.py", "pytest --ignore tests/test_skip.py",
+    "pytest --doctest-glob tests/test_one.py",
     "pytest --deselect tests/test_skip.py", "pytest --pyargs package",
 ])
 def test_resource_hook_catches_expensive_direct_commands(guard, command):
@@ -95,6 +96,7 @@ def test_resource_hook_catches_expensive_direct_commands(guard, command):
 @pytest.mark.parametrize("command", [
     "pytest -q tests/test_one.py -n 0 --no-cov", "python -m pytest tests/test_one.py::test_x -n1",
     "pytest --ignore tests/test_skip.py tests/test_one.py",
+    "pytest --doctest-glob tests/test_one.py tests/test_one.py",
     "pytest -k 'not slow' tests/test_one.py",
     "ruff check src tests", "python scripts/check_cli_surface.py --check",
 ])

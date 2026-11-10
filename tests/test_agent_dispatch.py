@@ -61,6 +61,8 @@ def test_catalog_checks_instance_availability_model_age_and_cross_provider(snaps
 def test_handoff_clean_rejects_credential_uris_and_cycles():
     with pytest.raises(ValueError, match="Credential-bearing"):
         dispatch.clean({"evidence": ["postgres://user:password@db.example/app"]})
+    with pytest.raises(ValueError, match="Credential"):
+        dispatch.clean({"known_findings": [{"api_key": "private"}]})
     assert dispatch.clean("ssh://git@github.com/org/repo") == "ssh://git@github.com/org/repo"
     loop: dict = {}
     loop["self"] = loop
@@ -89,6 +91,31 @@ def test_handoff_preserves_history_redacts_urls_and_rejects_ambiguous_relaunch(c
     assert path.stat().st_mode & 0o777 == 0o600
 
 
+def test_handoff_refuses_tampered_contract_and_oversized_events(contract):
+    path = save(contract)
+    doc = json.loads(path.read_text())
+    doc["contract"]["objective"] = "Tampered"
+    path.write_text(json.dumps(doc))
+    with pytest.raises(ValueError, match="foreign or changed"):
+        save(contract)
+    doc["contract"]["objective"] = contract["objective"]
+    path.write_text(json.dumps(doc))
+    with pytest.raises(ValueError, match="exceeds 64 KB"):
+        dispatch.checkpoint(contract, "task-1", "running", "Inspect hosted CI",
+                            evidence=["x" * 70_000], blockers=[], review_ids=[])
+
+
+def test_explicit_record_allows_symlinked_parent(contract, tmp_path):
+    real = tmp_path / "real"
+    real.mkdir()
+    link = tmp_path / "link"
+    link.symlink_to(real, target_is_directory=True)
+    path = dispatch.checkpoint(contract, "task-1", "running", "Inspect hosted CI",
+                               evidence=[], blockers=[], review_ids=[],
+                               record=link / "handoff.json")
+    assert path.is_file() and path.parent == link
+
+
 def test_handoff_refuses_foreign_records_symlinks_and_changed_contract(contract, tmp_path):
     path = save(contract)
     changed = {**contract, "objective": "Different scope"}
@@ -98,7 +125,7 @@ def test_handoff_refuses_foreign_records_symlinks_and_changed_contract(contract,
     outside.write_text("leave me")
     linked = tmp_path / "linked.json"
     linked.symlink_to(outside)
-    with pytest.raises(ValueError, match="symlinks"):
+    with pytest.raises(ValueError, match="symlink"):
         save(contract, record=linked)
     assert outside.read_text() == "leave me"
     assert path.exists()

@@ -412,8 +412,8 @@ def apply_framework_to_agents(
     return written
 
 
-def apply_framework_to_global_profiles(*, dry_run: bool = False) -> list[Path]:
-    """Append framework v2 to global OpenCode agents not on the family roster."""
+def apply_framework_to_global_profiles(*, dry_run: bool = False, refresh: bool = False) -> list[Path]:
+    """Append or refresh framework v2 in global OpenCode agents outside the roster."""
     global_dir = Path.home() / ".config" / "opencode" / "agents"
     base = repo_root()
     excerpt = _framework_excerpt(base)
@@ -431,9 +431,11 @@ def apply_framework_to_global_profiles(*, dry_run: bool = False) -> list[Path]:
             continue
         text = path.read_text(encoding="utf-8")
         doc = parse_opencode_markdown(text)
-        if _agent_has_framework(doc.body):
+        has_framework = _agent_has_framework(doc.body)
+        if has_framework and not refresh:
             continue
-        new_body = doc.body.rstrip() + "\n\n" + excerpt
+        prefix = doc.body.split(_FRAMEWORK_MARKER, 1)[0] if refresh else doc.body
+        new_body = prefix.rstrip() + "\n\n" + excerpt
         front = doc.frontmatter
         yaml_block = yaml.safe_dump(front, sort_keys=False, allow_unicode=True, width=1000).strip()
         new_text = f"---\n{yaml_block}\n---\n\n{new_body}"

@@ -363,7 +363,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sa_sync.add_argument("--dry-run", action="store_true")
     sa_sync.add_argument("--check", action="store_true", help="read-only drift check; exit 1 if rendered files differ")
-    sa_sync.set_defaults(handler=_cmd_subagents_sync, offline_inspection=True)
+    sa_sync.set_defaults(handler=_cmd_subagents_sync)
     sa_doc = subagents_sub.add_parser(
         "doctor",
         help="Audit harness health (OpenCode global, roster sync, framework v2)",
@@ -1892,7 +1892,9 @@ def _cmd_subagents_doctor(args: argparse.Namespace) -> int:
             targets=("opencode", "opencode-global") if include_global else ("opencode",),
             refresh=bool(getattr(args, "refresh_framework", False)),
         )
-        global_written = apply_framework_to_global_profiles(dry_run=bool(args.dry_run)) if include_global else []
+        global_written = apply_framework_to_global_profiles(
+            dry_run=bool(args.dry_run), refresh=bool(getattr(args, "refresh_framework", False)),
+        ) if include_global else []
         payload = {
             "apply_framework": True,
             "dry_run": bool(args.dry_run),

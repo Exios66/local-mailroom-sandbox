@@ -24,7 +24,14 @@ _ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 _SHA = re.compile(r"[0-9a-f]{40}\Z")
 _TERMINAL = {"done", "failed", "cancelled"}
 _STATES = {"running", "blocked", *_TERMINAL}
-_FORBIDDEN = {"token", "password", "secret", "cookie", "authorization", "output_url"}
+_FORBIDDEN = {
+    "token", "password", "secret", "cookie", "authorization", "output_url",
+    "api_key", "apikey", "access_token", "accesstoken", "refresh_token",
+    "refreshtoken", "client_secret", "clientsecret", "private_key", "privatekey",
+    "bearer", "credentials", "password_hash", "passwordhash",
+}
+_MAX_EVENT_BYTES = 64_000
+_MAX_RECORD_BYTES = 1_000_000
 _URI = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://\S+")
 
 
@@ -157,6 +164,18 @@ def readiness(snapshot: dict, provider_id: str, model: str, *, now: datetime | N
         return {"ok": False, "code": "capabilities.invalid_or_stale"}
 
 
+def _fsync_dir(path: Path) -> None:
+    """Make a rename durable; a directory fd failure must not hide the write."""
+    try:
+        fd = os.open(path, os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
 def checkpoint(contract: dict, task_id: str, state: str, next_action: str, *,
                evidence: list[str], blockers: list[str], review_ids: list[str],
                record: Path | None = None, new_attempt: bool = False) -> Path:
@@ -165,11 +184,18 @@ def checkpoint(contract: dict, task_id: str, state: str, next_action: str, *,
 
     if not _ID.fullmatch(task_id) or state not in _STATES or not next_action.strip():
         raise ValueError("Expected safe task ID, known state and nonempty next action")
-    root = Path(contract["checkout"]["root"])
-    path = (record or root / "data/runtime/agent-tasks" / f"{contract['request_id']}.json").absolute()
-    # Refuse existing symlink components rather than following another task's paths.
-    if any(p.is_symlink() for p in [path, *path.parents]):
-        raise ValueError("Checkpoint paths must not traverse symlinks")
+    root = Path(contract["checkout"]["root"]).resolve()
+    if record is None:
+        path = root / "data/runtime/agent-tasks" / f"{contract['request_id']}.json"
+        probe = root
+        for part in path.relative_to(root).parts:
+            probe = probe / part
+            if probe.is_symlink():
+                raise ValueError("Checkpoint paths must not traverse symlinks")
+    else:
+        path = Path(record).expanduser().absolute()
+        if path.is_symlink():
+            raise ValueError("Checkpoint record must not be a symlink")
     path.parent.mkdir(parents=True, exist_ok=True)
     lock = path.with_suffix(path.suffix + ".lock")
     fd = os.open(lock, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
@@ -181,8 +207,14 @@ def checkpoint(contract: dict, task_id: str, state: str, next_action: str, *,
         digest = hashlib.sha256(json.dumps(contract, sort_keys=True).encode()).hexdigest()
         if path.exists():
             doc = read_document(path)
+            stored_contract = doc.get("contract")
+            if not isinstance(stored_contract, dict):
+                raise ValueError("Record is missing its embedded contract")
+            stored_digest = hashlib.sha256(
+                json.dumps(stored_contract, sort_keys=True).encode()
+            ).hexdigest()
             if (doc.get("schema") != "mailroom.handoff/v1" or doc.get("request_id") != contract["request_id"]
-                    or doc.get("contract_sha256") != digest):
+                    or doc.get("contract_sha256") != stored_digest or stored_digest != digest):
                 raise ValueError("Refusing to overwrite a foreign or changed-contract record")
             attempts = doc.get("attempts")
             if not isinstance(attempts, list) or not attempts or any(not isinstance(a, dict) for a in attempts):
@@ -205,6 +237,8 @@ def checkpoint(contract: dict, task_id: str, state: str, next_action: str, *,
         event = clean({"at": datetime.now(timezone.utc).isoformat(), "state": state,
                        "head_sha": git_value(root, "rev-parse", "HEAD"), "next_action": next_action,
                        "evidence": evidence, "blockers": blockers, "unresolved_review_ids": review_ids})
+        if len(json.dumps(event, allow_nan=False).encode()) > _MAX_EVENT_BYTES:
+            raise ValueError("Checkpoint event exceeds 64 KB; attach artifacts instead")
         attempt = doc["attempts"][-1]
         if not isinstance(attempt.get("history"), list):
             raise ValueError("Invalid existing history")
@@ -212,6 +246,8 @@ def checkpoint(contract: dict, task_id: str, state: str, next_action: str, *,
         attempt["state"] = state
         # Revalidate stored content and redact again; never retain raw capability dumps.
         serialized = json.dumps(clean(doc), indent=2, allow_nan=False) + "\n"
+        if len(serialized.encode()) > _MAX_RECORD_BYTES:
+            raise ValueError("Handoff record would exceed 1 MB; archive it and start a new record")
         temp_fd, temp_path = tempfile.mkstemp(prefix=".handoff-", dir=path.parent)
         try:
             with os.fdopen(temp_fd, "w") as out:
@@ -219,6 +255,7 @@ def checkpoint(contract: dict, task_id: str, state: str, next_action: str, *,
                 out.flush()
                 os.fsync(out.fileno())
             os.replace(temp_path, path)
+            _fsync_dir(path.parent)
         finally:
             Path(temp_path).unlink(missing_ok=True)
         return path

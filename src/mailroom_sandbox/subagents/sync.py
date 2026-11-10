@@ -65,7 +65,7 @@ def render_cursor_agent(entry: SubagentEntry, root: Path | None = None) -> str:
     harness_note = (
         f"> **Harness note:** Canonical OpenCode prompt lives at "
         f"`.opencode/agents/{entry.id}.md`. Edit there, then run "
-        f"`sandbox subagents sync --harness project`.\n\n"
+        f"`sandbox subagents sync --harness project --root .`.\n\n"
     )
     return f"---\n{yaml_block}\n---\n\n{harness_note}{doc.body}"
 
