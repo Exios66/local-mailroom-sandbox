@@ -11,6 +11,8 @@ sandbox floor                                      # history, or bundled replay 
 sandbox floor my-run --base /path/to/mailroom-data  # preselect a run in that store
 sandbox floor --run my-run --interval 2 --port 8769
 sandbox floor --replay --base /tmp/mailroom-floor-demo
+sandbox floor --replay-run data/runtime/runs/my-run   # recorded run from any provider
+sandbox floor --replay-run my-run --base data --replay-speed 20
 ```
 
 Open the printed URL yourself; Ctrl-C stops the server and replay worker.
@@ -26,6 +28,8 @@ keep access local when the run data contains sensitive metadata.
 | `--port PORT` | Default 8769; 0 requests an available port, reported in the printed URL. |
 | `--interval SECONDS` | Digest rebuild check interval, default 5 seconds. Must be finite and positive; values below 0.1 are clamped to 0.1 seconds. |
 | `--replay` | Create/reset the owned sample run inside the chosen base and play its simulated trace alongside history. |
+| `--replay-run PATH_OR_RUN` | Materialize a recorded run from any provider as an app-owned replay and play its node/item timeline. A bare run id is resolved under the base's live or history store. |
+| `--replay-speed N` | Timeline multiplier. Default 1x for `--replay`, 10x for `--replay-run`; use a higher value for long recorded runs. |
 
 A run is discoverable when its directory contains `items.jsonl` under either
 store location. The refresher checks modification times and sizes of
@@ -84,6 +88,42 @@ must not leave figures from a previous selection visible. Missing dataset
 labels are unknown, rather than measured routing failures. The graph is read
 from the vendored `build_graph.py` using AST parsing; viewing it does not run
 the pipeline.
+
+## Recorded replay from any provider
+
+`--replay-run` replays a real completed run; it does not care whether the run
+was served by Modal vLLM, OpenRouter, Ollama, LM Studio, a remote host or a
+local vLLM process. The source is read-only and needs only the run artifacts:
+
+| Artifact | Use |
+| --- | --- |
+| `items.jsonl` | Document outcomes and classes. Required unless `nodes.jsonl` exists. |
+| `nodes.jsonl` | Node starts/finishes, durations and per-document routes. Required for the live timeline. |
+| `checkpoint.json` | Terminal state/cursor/total shown by the viewer. |
+| `spec.lock.json` | Provider/model/profile provenance; the original `engine` block is preserved verbatim. |
+| `dataset.jsonl`, `prompt.lock.json` | Optional labels and prompt identities. |
+
+The importer builds a timeline from source timestamps. If a run has no usable
+timestamps it falls back to document order and labels the replay **synthetic
+timing**; a source that never reached a terminal state is labelled incomplete.
+The replay is written under
+`<base>/runtime/runs/replay-recorded-<source>-<hash>` with empty
+`items.jsonl`/`nodes.jsonl` and its own `replay.jsonl`; the driver appends the
+recorded events in real time. The viewer shows the original provider/model and
+a `recorded replay (...)` note in the run outcome line, so replayed evidence is
+never mistaken for a live result. Other history stays selectable and untouched.
+
+Ownership and hardening: a symlinked source or artifact is refused, artifacts
+over 100 MB each or 250 MB total are refused, malformed JSONL rows are skipped
+with a warning, a timeline over seven days is refused, and an existing foreign
+run with the same replay id is never replaced. A bare id resolves to the base's
+live or history store. Use `--replay-speed` to compress a long run; the default
+is 10x for recorded runs and 1x for the bundled sample.
+
+```bash
+sandbox floor --replay-run data/runtime/runs/pipeline-modal-1
+sandbox floor --replay-run /tmp/exported-run --base /tmp/floor-base --replay-speed 50
+```
 
 ## Bundled replay and ownership
 

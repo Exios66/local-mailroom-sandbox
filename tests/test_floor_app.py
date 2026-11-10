@@ -52,11 +52,12 @@ def test_floor_is_registered_with_documented_flags(capsys):
     args = cli.build_parser().parse_args(["floor"])
     assert args.handler is cli._cmd_floor
     assert (args.target, args.run, args.base, args.port, args.interval, args.replay) == (None, None, None, None, 5.0, False)
+    assert args.replay_run is None and args.replay_speed is None
     with pytest.raises(SystemExit) as exc:
         cli.build_parser().parse_args(["floor", "--help"])
     assert exc.value.code == 0
     out = capsys.readouterr().out
-    for flag in ("--base", "--port", "--interval", "--run", "--replay"):
+    for flag in ("--base", "--port", "--interval", "--run", "--replay", "--replay-run", "--replay-speed"):
         assert flag in out, flag
     assert "floor" in cli.build_parser().format_help()
     assert f"default {floor_app.DEFAULT_PORT};" in " ".join(out.split()), "--port help must derive from DEFAULT_PORT"
@@ -87,10 +88,13 @@ def test_dispatch_passes_defaults_and_run_to_serve_floor(monkeypatch, tmp_path):
     monkeypatch.setattr(floor_app, "serve_floor", lambda **kw: seen.append(kw) or 0)
     monkeypatch.delenv("MAILROOM_BASE_DIR", raising=False)
     assert cli.main(["floor", "--base", str(tmp_path), "run-a"]) == 0
-    assert seen[-1] == {"base": tmp_path, "port": 8769, "interval": 5.0, "run": "run-a", "replay": False}
+    assert seen[-1] == {"base": tmp_path, "port": 8769, "interval": 5.0, "run": "run-a", "replay": False,
+                        "replay_run": None, "replay_speed": None}
     assert cli.main(["floor", "--run", "run-b", "--port", "0", "--interval", "2", "--replay"]) == 0
     assert (seen[-1]["port"], seen[-1]["interval"], seen[-1]["run"], seen[-1]["replay"]) == (0, 2.0, "run-b", True)
     assert seen[-1]["base"] == floor_app.resolve_base(None)
+    assert cli.main(["floor", "--replay-run", "recorded-id", "--replay-speed", "25", "--port", "0"]) == 0
+    assert (seen[-1]["replay_run"], seen[-1]["replay_speed"], seen[-1]["replay"]) == ("recorded-id", 25.0, False)
 
 
 def test_target_and_run_must_agree(monkeypatch, capsys):
@@ -729,3 +733,134 @@ def test_template_does_one_final_fetch_when_the_run_leaves_running():
     live = html[html.index("// ── LIVE refresh"):]
     assert "wasLive" in live and "(idle&&!wasLive)" in live and "wasLive=!idle" in live
     assert live.count('fetch("floor_digest.json?ts="') == 1, "the existing fetch helper is reused, not duplicated"
+    fetch_at = live.index('fetch("floor_digest.json?ts="')
+    assert live.index("wasLive=!idle") > fetch_at, "mark idle only after a successful final fetch so a failed one retries"
+
+
+# ── recorded replay from any provider ───────────────────────────────────────────
+
+def _recorded_run(tmp_path, *, engine_kind="vllm-remote", with_nodes=True, timestamps=True):
+    run = tmp_path / "source" / "recorded-run"
+    run.mkdir(parents=True)
+    stamp = "2026-01-01T00:00:0{}"
+    items = [
+        {"item_id": "d1", "ok": True, "stage": "archived", **( {"ts": stamp.format(1)} if timestamps else {})},
+        {"item_id": "d2", "ok": False, "stage": "failed", **( {"ts": stamp.format(2)} if timestamps else {})},
+    ]
+    (run / "items.jsonl").write_text("".join(json.dumps(row) + "\n" for row in items), encoding="utf-8")
+    if with_nodes:
+        events = []
+        for index, doc in enumerate(("d1", "d2"), 1):
+            base = stamp.format(index)
+            events.append({"doc": doc, "node": "intake", "status": "running", "step": 1,
+                           **({"ts": base} if timestamps else {})})
+            events.append({"doc": doc, "node": "intake", "status": "done", "step": 1, "ms": 200,
+                           **({"ts": stamp.format(index + 2)} if timestamps else {})})
+        (run / "nodes.jsonl").write_text("".join(json.dumps(row) + "\n" for row in events), encoding="utf-8")
+    (run / "checkpoint.json").write_text(json.dumps({"state": "done", "cursor": 2, "total": 2}))
+    (run / "spec.lock.json").write_text(json.dumps({
+        "schema_version": 1, "run_id": "recorded-run", "spec_hash": "abc",
+        "engine": {"kind": engine_kind, "model": "model-x"},
+        "profile": "modal-vllm",
+    }))
+    return run
+
+
+@pytest.mark.parametrize("engine_kind", ["modal-vllm", "openrouter", "vllm-remote", "ollama"])
+def test_recorded_replay_is_provider_agnostic(tmp_path, engine_kind):
+    from mailroom_sandbox.tui import floor_replay
+
+    source = _recorded_run(tmp_path, engine_kind=engine_kind)
+    recorded = floor_replay.prepare_recorded_replay(tmp_path / "base", source, speed=100)
+    target = recorded.path
+    lock = json.loads((target / "spec.lock.json").read_text(encoding="utf-8"))
+    assert lock["engine"]["kind"] == engine_kind
+    assert lock["engine"]["model"] == "model-x"
+    assert lock["replay"]["mode"] == "recorded"
+    assert lock["replay"]["engine_kind"] == engine_kind
+    assert recorded.meta["source_run_id"] == "recorded-run"
+    assert (target / "items.jsonl").stat().st_size == 0
+    assert (target / "nodes.jsonl").stat().st_size == 0
+    assert recorded.events[0][1]["checkpoint"]["state"] == "running"
+    assert recorded.events[-1][1]["checkpoint"]["state"] == "done"
+
+    driver = floor_app.ReplayDriver(tmp_path / "base", run_id=recorded.run_id, speed=100)
+    while driver.step():
+        pass
+    assert driver.documents == 2
+    assert len(driver.store.load_items()) == 2
+    assert len(driver.store.nodes()) == 4
+
+
+def test_recorded_replay_items_only_uses_synthetic_timing(tmp_path):
+    from mailroom_sandbox.tui import floor_replay
+
+    source = _recorded_run(tmp_path, with_nodes=False, timestamps=False)
+    recorded = floor_replay.prepare_recorded_replay(tmp_path / "base", source, speed=100)
+    assert recorded.meta["synthetic_timing"] is True
+    assert recorded.meta["item_records"] == 2
+    driver = floor_app.ReplayDriver(tmp_path / "base", run_id=recorded.run_id, speed=100)
+    while driver.step():
+        pass
+    assert len(driver.store.load_items()) == 2
+    assert driver.store.state() == "done"
+
+
+def test_recorded_replay_resolves_run_ids_and_refuses_foreign_collisions(tmp_path):
+    from mailroom_sandbox.tui import floor_replay
+
+    base = tmp_path / "base"
+    source = _recorded_run(tmp_path)
+    first = floor_replay.prepare_recorded_replay(base, source, speed=100)
+    assert floor_replay.resolve_source(base, first.run_id) == first.path.resolve()
+    # Replace the app-owned lock with a real run and prove a second replay refuses it.
+    lock = json.loads((first.path / "spec.lock.json").read_text(encoding="utf-8"))
+    lock.pop("replay", None)
+    lock["engine"] = {"kind": "vllm-remote", "model": "real"}
+    (first.path / "spec.lock.json").write_text(json.dumps(lock), encoding="utf-8")
+    with pytest.raises(FileExistsError, match="foreign run"):
+        floor_replay.prepare_recorded_replay(base, source, speed=100)
+
+
+def test_recorded_replay_rejects_empty_and_symlinked_sources(tmp_path):
+    from mailroom_sandbox.tui import floor_replay
+
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    with pytest.raises(ValueError, match="neither"):
+        floor_replay.prepare_recorded_replay(tmp_path / "base", empty)
+
+    source = _recorded_run(tmp_path)
+    outside = tmp_path / "outside.jsonl"
+    outside.write_text('{"item_id": "d1"}\n')
+    (source / "items.jsonl").unlink()
+    (source / "items.jsonl").symlink_to(outside)
+    with pytest.raises(ValueError, match="symlink"):
+        floor_replay.prepare_recorded_replay(tmp_path / "base", source)
+
+
+def test_recorded_replay_cli_and_html_provenance(tmp_path):
+    args = cli.build_parser().parse_args(["floor", "--replay-run", "run-1", "--replay-speed", "25"])
+    assert (args.replay_run, args.replay_speed, args.replay) == ("run-1", 25.0, False)
+    with pytest.raises(SystemExit) as exc:
+        cli.build_parser().parse_args(["floor", "--replay", "--replay-run", "run-1"])
+    assert exc.value.code == 2
+    html = _template()
+    assert "recorded replay" in html
+
+
+def test_recorded_replay_digest_preserves_provider_and_marks_replay(tmp_path):
+    from mailroom_sandbox.tui import floor_replay
+
+    source = _recorded_run(tmp_path, engine_kind="openrouter")
+    recorded = floor_replay.prepare_recorded_replay(tmp_path / "base", source, speed=100)
+    driver = floor_app.ReplayDriver(tmp_path / "base", run_id=recorded.run_id, speed=100)
+    while driver.step():
+        pass
+    graph = tmp_path / "build_graph.py"
+    graph.write_text(STUB_GRAPH, encoding="utf-8")
+    digest, _, _ = floor_app.build(tmp_path / "base", tmp_path / "out", graph)
+    run = next(row for row in digest["runs"] if row["name"] == recorded.run_id)
+    assert run["engine"]["kind"] == "openrouter"
+    assert run["replay"]["mode"] == "recorded"
+    assert run["replay"]["engine_kind"] == "openrouter"

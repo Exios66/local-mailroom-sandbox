@@ -818,9 +818,15 @@ def build_parser() -> argparse.ArgumentParser:
     floor_p.add_argument("target", nargs="?", default=None, metavar="TARGET", help="run ID to preselect in the viewer (same as --run)")
     floor_p.add_argument("--run", default=None, metavar="ID", help="run ID to preselect (opens floor.template.html?run=ID)")
     floor_p.add_argument("--base", default=None, help="run-store base dir (default $MAILROOM_BASE_DIR, else the repo's ./data)")
-    floor_p.add_argument("--replay", action="store_true",
-                         help="replay the bundled pinned sample into the base (runs selectable in the RUNS rail); "
-                              "only the replay run dir resets each time")
+    replay_group = floor_p.add_mutually_exclusive_group()
+    replay_group.add_argument("--replay", action="store_true",
+                              help="replay the bundled pinned sample into the base (runs selectable in the RUNS rail); "
+                                   "only the replay run dir resets each time")
+    replay_group.add_argument("--replay-run", metavar="PATH_OR_RUN", default=None,
+                              help="replay a recorded run directory (or a run id in the base) from any provider; "
+                                   "copies it under an app-owned replay id and plays its items/nodes timeline")
+    floor_p.add_argument("--replay-speed", type=_positive_float, default=None,
+                         help="timeline speed for --replay/--replay-run (default: 1x bundled, 10x recorded)")
     floor_p.add_argument("--port", type=_port, default=None, help=f"port (default {_FLOOR_PORT}; 0 = ephemeral); always bound to 127.0.0.1")
     floor_p.add_argument("--interval", type=_positive_float, default=5.0, help="seconds between change checks; the digest is rebuilt only when a run artifact changed (default 5)")
     floor_p.set_defaults(handler=_cmd_floor)
@@ -3040,6 +3046,8 @@ def _cmd_floor(args) -> int:
         interval=args.interval,
         run=args.run or args.target,
         replay=args.replay,
+        replay_run=args.replay_run,
+        replay_speed=args.replay_speed,
     )
 
 

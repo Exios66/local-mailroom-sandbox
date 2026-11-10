@@ -7,7 +7,7 @@ Cross-family work stays on the Digital-Mailroom hub board
 (`governance/TASKS.md` at the monorepo root) as **`DMR-*`**. This file is the **only** sandbox-local task board — do not
 open `DMR-*` cards here.
 
-**Next ID: `SAND-106`**
+**Next ID: `SAND-107`**
 
 <!-- coderabbit-ai-generated:v1 -->
 
@@ -17,8 +17,9 @@ Reconciled against the [issue tracker](https://github.com/Exios66/local-mailroom
 on 2026-11-10 (issue triage: closed #241/#251 as stale/not planned with evidence;
 SAND-103 added for the agent dispatch stack; opened #285 for stable snapshot
 fetching): this board had 122 card rows (88 primary cards) with highest
-primary ID `SAND-104` at triage. The post-merge audit adds SAND-105;
-current board counts are 124 card rows (89 primary cards). The tracker has 21 open issues, 17 with a `SAND-*`
+primary ID `SAND-104` at triage. The post-merge audit adds SAND-105; the
+post-landing follow-up adds SAND-106; current board counts are 124 card rows
+(90 primary cards). The tracker has 21 open issues, 17 with a `SAND-*`
 ID in the title; its highest such ID is
 `SAND-102` (#263), and all title IDs have rows here. **This board is the
 numbering authority:** allocate the next ID here first, then open the issue.
@@ -33,6 +34,7 @@ Lanes: `todo` → `in_progress` → `needs_attention` → `review` → `done`.
 
 | ID | Title | Owner | Status | Notes |
 | --- | --- | --- | --- | --- |
+| SAND-106 | Post-landing review fixes and provider-agnostic floor replay | Codex 2026-11-10 | **review** | Closes top-level findings from #281/#283/#286 and the PR #274 floor follow-up: final-refresh retry, readiness evidence, non-HTTP signed-URI redaction, frozen dataset-lock identity, `nodes.jsonl` Modal transfer, doctor missing-agent guard, and resource-hook parsing. Adds `sandbox floor --replay-run PATH_OR_RUN` (plus `--replay-speed`) to replay recorded runs from Modal vLLM, OpenRouter, Ollama or any provider through one timeline normalizer, preserving provider provenance, refusing symlinks/oversized/foreign sources and labelling synthetic or incomplete timelines. Full suite 3,084 passed / 27 skipped; coverage 86.16%. |
 | SAND-105 | Post-merge landing audit and bootstrap/workspace refresh fixes | Codex 2026-11-10 | **review** | Audits #274–#287 and proposal #285. Reproduced early dotenv reads in offline agent bootstrap and partial workspace-copy writes; adds scoped regression-backed fixes. Current main CI evidence corrected; [audit report](../docs/audits/2026-11-10-landed-pr-audit.md). Hosted verification required for the follow-up head. |
 | SAND-103 | Agent environment, dispatch, recovery and durable handoff tooling | Codex 2026-11-10 | **done** | Requested follow-up to PRs #274–#280. Seven steps: execution identity, dispatch contracts, failure recovery, hosted evidence/local budgets, readiness levels, scoped synchronization/drift, durable handoffs. Landed as #281 → #282 → #283 → #286 (`c4ba6fe`, `117a9bf`, `4645e46`, `73113a7`); hosted main `0ca393e` / CircleCI #700: 2,946 passed / 28 skipped, coverage 86.21% (floor 84). Earlier 2,948/27 counts were reported without this hosted commit/result pairing; see the [landing audit](../docs/audits/2026-11-10-landed-pr-audit.md). |
 | SAND-104 | Fetch stable Dojo and pipeline snapshots on demand, with layered fallback | Codex | **review** | Issue #285; stacked implementation follows #288. Add a verified release-snapshot cache for the Dojo and pipeline: resolve a released tag, verify the release manifest/SHA256SUMS, extract atomically, then resolve explicit env → installed release → cached stable snapshot → vendored snapshot → diagnostic. Keep `vendor/` as the final offline fallback; never auto-update pins or run locks. Dojo v0.28.1 already publishes wheel/sdist/manifest/SHA256SUMS; llm-mailroom releases need assets or a tag-archive fallback. Related: SAND-103, #221, llm-mailroom#225. |
