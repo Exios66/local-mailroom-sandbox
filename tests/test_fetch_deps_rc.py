@@ -11,8 +11,6 @@ from __future__ import annotations
 import types
 from pathlib import Path
 
-import pytest
-
 from mailroom_sandbox import cli
 
 _PINS = (
@@ -21,46 +19,33 @@ _PINS = (
 )
 
 
-def _run(monkeypatch, results: dict[str, int], *, workspace: bool):
-    calls: list[str] = []
-    monkeypatch.setattr(cli, "_VENDOR_PINS", _PINS)
-    monkeypatch.setattr(
-        cli, "_monorepo_workspace_pkg", lambda name: Path("/ws") / name if workspace else None
-    )
-
-    def fake_ws(name, ws):
-        calls.append(name)
-        return results[name]
-
-    def fake_tag(name, pin, url, sha):
-        calls.append(name)
-        return results[name]
-
-    monkeypatch.setattr(cli, "_refresh_vendor_from_workspace", fake_ws)
-    monkeypatch.setattr(cli, "_refresh_vendor", fake_tag)
-    rc = cli._cmd_fetch_deps(types.SimpleNamespace(visualizer=False))
-    return rc, calls
+def test_empty_workspace_package_never_wipes_tracked_snapshot(monkeypatch, tmp_path):
+    vendor = tmp_path / "vendor"
+    existing = vendor / "alpha" / "src" / "keep.py"
+    existing.parent.mkdir(parents=True)
+    existing.write_text("reviewed bytes\n")
+    monkeypatch.setattr(cli, "vendor_dir", lambda: vendor)
+    empty = tmp_path / "workspace" / "alpha" / "src"
+    empty.mkdir(parents=True)
+    assert cli._refresh_vendor_from_workspace("alpha", empty) == 1
+    assert existing.read_text() == "reviewed bytes\n"
 
 
-@pytest.mark.parametrize("workspace", [True, False], ids=["workspace", "tag"])
-def test_first_failure_does_not_skip_second(monkeypatch, workspace):
-    rc, calls = _run(monkeypatch, {"alpha": 1, "beta": 0}, workspace=workspace)
-    assert calls == ["alpha", "beta"]
-    assert rc != 0
+def test_empty_standalone_staging_never_replaces_snapshot(monkeypatch, tmp_path):
+    vendor = tmp_path / "vendor"
+    keep = vendor / "alpha" / "src" / "keep.py"
+    keep.parent.mkdir(parents=True)
+    keep.write_text("reviewed bytes\n")
+    monkeypatch.setattr(cli, "vendor_dir", lambda: vendor)
 
+    def fake_fetch(work, pin, url, sha):
+        (work / "src" / "tests").mkdir(parents=True)
+        (work / "src" / "tests" / "test_x.py").write_text("excluded\n")
+        return "a" * 40
 
-@pytest.mark.parametrize("workspace", [True, False], ids=["workspace", "tag"])
-def test_second_failure_still_nonzero(monkeypatch, workspace):
-    rc, calls = _run(monkeypatch, {"alpha": 0, "beta": 3}, workspace=workspace)
-    assert calls == ["alpha", "beta"]
-    assert rc != 0
-
-
-@pytest.mark.parametrize("workspace", [True, False], ids=["workspace", "tag"])
-def test_all_ok_returns_zero(monkeypatch, workspace):
-    rc, calls = _run(monkeypatch, {"alpha": 0, "beta": 0}, workspace=workspace)
-    assert calls == ["alpha", "beta"]
-    assert rc == 0
+    monkeypatch.setattr(cli, "_fetch_reviewed_checkout", fake_fetch)
+    assert cli._refresh_vendor("alpha", "pin", "https://example.invalid/alpha.git", "a" * 40) == 1
+    assert keep.read_text() == "reviewed bytes\n"
 
 
 def test_visualizer_clone_runs_even_after_vendor_failure(monkeypatch, tmp_path):

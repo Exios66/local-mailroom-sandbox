@@ -14,7 +14,12 @@ and before handoff or merge. Correct stale guidance and record unresolved facts;
 see the [maintenance procedure](docs/agent-instruction-maintenance.md).
 For any provider, tracing,
 dataset or deploy task, read `.cursor/skills/sandbox-tool-router/SKILL.md` first,
-then exactly one specialty skill in `.cursor/skills/`.
+then exactly one specialty skill in `.cursor/skills/`. For a full docs/README
+staleness sweep, follow `.cursor/skills/docs-audit-tool-router/SKILL.md`.
+
+PR and issue descriptions use an executive summary, never a transcript: no
+direct quotes from the requester, names, handles or credentials, and no
+`User description` section. Paraphrase the intent and use the PR template.
 
 ## Setup and checks (all network-free)
 
@@ -30,7 +35,7 @@ sandbox doctor                                              # offline status of 
 
 - `[dev]` already pulls the `[pipeline]` extra (langchain/langgraph/sqlalchemy) —
   the default suite imports the vendored graph, so a bare base install is not enough.
-- Coverage floor is `fail_under = 77`: **never lower it to land a change.**
+- Coverage floor is `fail_under = 84`: **never lower it to land a change.**
 - Full-suite, coverage, campaign and runtime benchmarking checks belong in hosted
   CI. Use focused single-worker checks without coverage locally; require passing
   current-head hosted gates before merging. CircleCI currently runs lint, pytest,

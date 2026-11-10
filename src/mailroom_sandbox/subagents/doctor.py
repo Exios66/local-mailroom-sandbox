@@ -338,7 +338,7 @@ def _run_doctor_one(
 
         if include_cursor:
             cursor_path = entry.cursor_path(base)
-            if cursor_path.is_file():
+            if cursor_path.is_file() and canonical.is_file():
                 text = cursor_path.read_text(encoding="utf-8")
                 from mailroom_sandbox.subagents.sync import render_cursor_agent
 

@@ -252,6 +252,7 @@ sandbox watch [TARGET]          # same in the terminal; TARGET = run ID | run YA
 sandbox floor [RUN] [--base DIR] [--replay]   # live pipeline floor + offline replay on :8769 (docs/floor.md)
 sandbox run start --config <run.yaml> --job-mode modal --watch   # Modal worker
 sandbox prompts list | show <agent> [--variant X]
+sandbox subagents list|show|sync --harness project [--check]|doctor|preflight|dispatch-check|checkpoint
 sandbox prompts list-versions [--role R] | show <key> [--diff <other-key> | --memo]   # every eval-environment prompt version
 sandbox eval sorter --prompt-version sorter_v4        # run any version: docs/prompts/
 sandbox metrics compare --runs local,modal,api | --log

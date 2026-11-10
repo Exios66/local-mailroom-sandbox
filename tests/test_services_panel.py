@@ -128,7 +128,7 @@ def test_run_board_tui_once_includes_the_services_box(tmp_path, capsys):
 @pytest.fixture
 def server(tmp_path):
     httpd = bd.make_board_server("127.0.0.1", 0, root=tmp_path, interval=0.1)
-    thread = Thread(target=httpd.serve_forever, daemon=True)
+    thread = Thread(target=lambda: httpd.serve_forever(poll_interval=0.01), daemon=True)
     thread.start()
     yield httpd.server_address[1]
     httpd.board_stop.set()
