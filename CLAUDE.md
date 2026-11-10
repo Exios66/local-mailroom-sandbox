@@ -5,8 +5,14 @@ evals and calibration against a **vendored** copy of `llm-mailroom` and
 `llm-dojo-scoring`, with Modal/vLLM as the default serving path and Langfuse as the
 default trace sink. It does **not** reimplement the pipeline. Python 3.11+.
 
-`AGENTS.md` (~19 KB) is the full command reference and is **not** auto-loaded; open
-it for the long command matrix and run-config semantics. For any provider, tracing,
+Open [`AGENTS.md`](AGENTS.md) at task start; it is the full command reference and
+is **not** auto-loaded. Follow its
+[routine instruction validation](AGENTS.md#instruction-validation-routine):
+validate relevant facts in this file, `AGENTS.md`, scoped rules and skills against
+current evidence, including after long experiments, feature/configuration updates
+and before handoff or merge. Correct stale guidance and record unresolved facts;
+see the [maintenance procedure](docs/agent-instruction-maintenance.md).
+For any provider, tracing,
 dataset or deploy task, read `.cursor/skills/sandbox-tool-router/SKILL.md` first,
 then exactly one specialty skill in `.cursor/skills/`.
 
@@ -14,7 +20,7 @@ then exactly one specialty skill in `.cursor/skills/`.
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
-.venv/bin/python -m pytest -q -m "not local_llm"           # what CI runs
+.venv/bin/python -m pytest -q tests/test_job_spec.py -n 0 --no-cov  # focused local check
 ruff check src tests scripts deploy reports                 # correctness gate, config in pyproject
 python scripts/sync_requirements.py --check                 # requirements/*.txt mirror pyproject
 python reports/dashboard/build_hub.py --check               # committed reports-hub snapshot
@@ -25,6 +31,12 @@ sandbox doctor                                              # offline status of 
 - `[dev]` already pulls the `[pipeline]` extra (langchain/langgraph/sqlalchemy) —
   the default suite imports the vendored graph, so a bare base install is not enough.
 - Coverage floor is `fail_under = 77`: **never lower it to land a change.**
+- Full-suite, coverage, campaign and runtime benchmarking checks belong in hosted
+  CI. Use focused single-worker checks without coverage locally; require passing
+  current-head hosted gates before merging. CircleCI currently runs lint, pytest,
+  coverage, reports-snapshot and requirements checks; it has no dedicated campaign
+  or runtime-benchmark jobs. If those are needed, arrange scoped hosted verification
+  and keep the result unverified until it runs. See [CI guidance](.circleci/README.md).
 - Live-LLM tests need `SANDBOX_LOCAL_LLM=1`; real Modal/HF contract checks need
   `SANDBOX_SERVICE_SMOKE=1`. Leave both unset.
 

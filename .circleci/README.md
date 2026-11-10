@@ -14,6 +14,12 @@ configuration comments alone do not enable branch protection.
 | `lint` | Ruff on source/tests/scripts/deploy/reports; Bandit medium-and-higher severity; YAMLlint; ShellCheck warning level; Markdownlint. Repository config files define rule exclusions. |
 | `test` | Complete network-free pytest suite excluding `local_llm`, merged coverage, committed reports-hub snapshot, and generated requirements mirrors. |
 
+These are the configured jobs. There is no dedicated full-corpus campaign or
+serial/parallel runtime-benchmark job; passing `lint` and `test` does not establish
+those results. If a task requires one, arrange a separately scoped hosted job
+and record its revision, workload and results. Until it runs, label that check
+pending or unverified. Preserve live-call and spend gates for any campaign.
+
 The test command uses two pytest-xdist workers with `--dist loadfile` and
 retains JUnit at `test-results/junit.xml`, coverage XML at
 `coverage/coverage.xml`, and the slowest 20 test durations in the job log.
