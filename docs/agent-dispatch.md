@@ -102,3 +102,25 @@ Store credential-free artifact references. Remove URL userinfo, signed query
 parameters and fragments; never persist raw capability/configuration dumps,
 tokens, cookies or complete authenticated CI responses. Persistent reports
 should distinguish measured, simulated, pending and unverified results.
+
+## Execution identity command
+
+`sandbox subagents preflight --root <checkout> --expected-sha <full-sha> --json`
+checks the actual interpreter/import location, Git identity and project hook
+references without loading dotenv, contacting services, creating beacons or
+repairing files. Omit `--expected-sha` for an intentionally older branch. Dirty
+files are a warning, never an instruction to discard them. Exit 1 indicates an
+unverified root, unexpected HEAD, foreign package import or invalid hook target.
+
+`sandbox doctor --json` retains its existing health severity and adds a
+`readiness` field per service: `unverified`, `installed`, `configured`,
+`authenticated` or `reachable`. These describe the evidence actually collected;
+none certifies successful workflow execution. Offline credential checks establish
+configuration only. Existing live probes and spend controls are unchanged.
+
+The Claude Bash resource hook catches direct full-suite/coverage/multi-worker
+pytest and smoke-campaign commands. It is an aid, not a shell sandbox, and does
+not inspect dynamically constructed shell/Python programs. Broad pytest/campaign
+permission grants have been removed. Other harnesses must follow the same local
+resource policy. `SANDBOX_ALLOW_EXPENSIVE_TESTS=1` is an operator-only exception
+for expressly authorized local work; agents must never set it to bypass a refusal.

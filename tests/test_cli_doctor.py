@@ -62,7 +62,7 @@ def test_json_rows_have_the_documented_fields(fake_bin, capsys, monkeypatch):
     _tools(fake_bin)
     monkeypatch.setenv("VLLM_BASE_URL", "http://vllm.test/v1")
     _rc, rows = _doctor(capsys)
-    assert set(rows["modal"]) == {"name", "state", "detail", "hint"}
+    assert set(rows["modal"]) == {"name", "state", "detail", "hint", "readiness"}
 
 
 def test_modal_ok_at_the_pinned_sdk(fake_bin, capsys, monkeypatch):
@@ -440,3 +440,17 @@ def test_the_suite_never_loads_a_developers_env_file(monkeypatch, tmp_path):
     monkeypatch.delenv("SANDBOX_ENV_LEAK", raising=False)
     runtime.load_env_file()
     assert "SANDBOX_ENV_LEAK" not in os.environ
+
+
+def test_readiness_distinguishes_credentials_endpoint_and_auth(fake_bin, capsys, monkeypatch):
+    _tools(fake_bin)
+    monkeypatch.setenv("VLLM_BASE_URL", "http://vllm.test/v1")
+    monkeypatch.setenv("HF_TOKEN", "secret-not-output")
+    _, rows = _doctor(capsys)
+    assert rows["modal"]["readiness"] == "installed"
+    assert rows["hf-auth"]["readiness"] == "configured"
+    assert rows["provider"]["readiness"] == "configured"
+    monkeypatch.setattr("mailroom_sandbox.health.httpx.get", lambda *a, **k: httpx.Response(200, json={"data": []}))
+    _, rows = _doctor(capsys, "--live", "--service", "provider")
+    assert rows["provider"]["readiness"] == "reachable"
+    assert "secret-not-output" not in json.dumps(rows)
