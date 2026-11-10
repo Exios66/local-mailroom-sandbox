@@ -255,6 +255,10 @@ class DatasetSpec(BaseModel):
         unaffected.
         """
         core = self._request_core()
+        # This filter changes the drawn rows for local and Hub datasets alike.
+        # Omit the default so existing unfiltered specs retain their hashes.
+        if self.require_task_gt:
+            core["require_task_gt"] = True
         if self.interim_labels:
             from mailroom_sandbox.interim_labels import overlay_fingerprint
 
