@@ -249,6 +249,7 @@ sandbox experiment create NAME --task pipeline --decision-reviewer decisions:ope
 sandbox run preflight|start|status|resume|cancel|list --config config/runs/<name>.yaml
 sandbox web [TARGET]            # themed browser watcher; no TARGET = the SAND-032 current run if published, else the newest run, switching live (= watch --web)
 sandbox watch [TARGET]          # same in the terminal; TARGET = run ID | run YAML | run name | experiment.yaml (see docs/pretty-logging/mailroom-themed-logging.md)
+sandbox floor [RUN] [--base DIR] [--replay]   # live pipeline floor + offline replay on :8769 (docs/floor.md)
 sandbox run start --config <run.yaml> --job-mode modal --watch   # Modal worker
 sandbox prompts list | show <agent> [--variant X]
 sandbox prompts list-versions [--role R] | show <key> [--diff <other-key> | --memo]   # every eval-environment prompt version
@@ -271,6 +272,9 @@ raw downloads, normalized corpus cache, fixture prep and locked run subsets.
 For floor UI work, `sandbox floor --replay --base <scratch-data-dir>` creates
 a persistent simulated sample run on `127.0.0.1:8769`; its results are not
 model measurements. A foreign or symlinked replay directory is refused.
+See the [floor operator guide](docs/floor.md) for refresh behavior, figures,
+options and troubleshooting, and the [named-dataset reference](docs/datasets/named-datasets.md)
+for registry fields and migration.
 
 `SANDBOX_DEBUG=1` traces CHTC/Modal scripts (DMR-053). The complete generated
 reference — every command, subcommand and argument — is
@@ -288,6 +292,9 @@ reference — every command, subcommand and argument — is
 | [Quickstart](docs/setting-up/QUICKSTART.md) | **Start here** — install, full CLI reference, canonical workflows |
 | [Providers](docs/setting-up/providers.md) | Ollama, vLLM, Modal, llama.cpp, LM Studio, OpenRouter |
 | [Evals](docs/evals.md) | Runners, matrix, scoring, experiment log |
+| [Pipeline floor](docs/floor.md) | Live history, simulated replay, digest figures and troubleshooting |
+| [Named datasets](docs/datasets/named-datasets.md) | Registry schema, paths, selection, hashes and lock migration |
+| [CI verification](.circleci/README.md) | Worker scheduling, caches, gates, artifacts and hosted runtime evidence |
 | [Tracing](docs/tracing.md) | Langfuse v4 data model, tags, The-Mailroom |
 | [Docker offline](docs/setting-up/docker-offline.md) | Dockerfile, Compose `jupyter` profile, prep notebooks |
 | [Sister repos](docs/setting-up/sister-repos.md) | Family map |

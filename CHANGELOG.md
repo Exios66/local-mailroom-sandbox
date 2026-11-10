@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+- **Floor, dataset and CI operator references** (2026-11-09). Add complete
+  floor options/live-refresh/replay guidance, named-dataset schema and lock
+  migration, and CI scheduling/cache/artifact/runtime verification guidance.
+  Link the guides from the README, docs index and configuration docs; correct
+  stale environment-template and API-run ownership instructions. Expensive
+  verification stays on hosted CI. This follow-up changes documentation only.
+
 - **Task-GT filter participates in dataset identity** (2026-11-09). A true
   `dataset.require_task_gt` now changes the spec hash for both local and Hub
   datasets. Toggling it refuses resume instead of silently reusing the old

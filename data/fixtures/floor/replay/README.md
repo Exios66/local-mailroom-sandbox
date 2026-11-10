@@ -61,6 +61,9 @@ results, not document text for a model evaluation.
 
 ## Refresh the sample
 
+See the [floor operator guide](../../../../docs/floor.md) for all CLI options,
+live refresh, digest semantics and troubleshooting.
+
 Re-draw the same rule from the pinned corpus (after `sandbox datasets pull`), then
 update `dataset.jsonl`, its sha256 in `spec.lock.json` and the trace. The guard
 test (`tests/test_floor_app.py::test_replay_fixture_is_a_pinned_sample_with_a_complete_trace`)
