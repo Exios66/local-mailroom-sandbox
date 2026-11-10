@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+- **Verified stable dependency snapshots** (2026-11-10, SAND-104 / #285).
+  `sandbox deps fetch` verifies released Dojo artifacts and immutable pipeline
+  commit archives into an atomic offline cache. Explicit source locks preserve
+  reviewed defaults; new run locks/status record both sources and refuse drift.
+  Selected caches can be bundled into Modal worker images. Vendor trees and
+  dependency pins remain unchanged. See [the guide](docs/dependency-snapshots.md).
+
 - **Floor viewer isolation and offline assets** (2026-11-09). Resident viewers
   now build and serve private temporary digests, so separate bases/ports in
   one checkout cannot show each other's runs. Static snapshot generation stays

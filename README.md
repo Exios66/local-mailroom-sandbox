@@ -46,6 +46,8 @@
 
 <a id="what-is-this"></a>
 
+Verified release caching and source selection: [stable dependency snapshots](docs/dependency-snapshots.md).
+
 ## 🧪 What is this?
 
 A local-first experiment sandbox for the LLM-Mailroom pipeline. It runs the
@@ -97,6 +99,7 @@ cp config/.env.example .env   # sandbox loads .env at startup; exported vars win
 # commit/release refs frozen to SHAs otherwise, requiring network). Moved refs are rejected
 # before tracked vendor files are replaced:
 # sandbox fetch-deps               # optional: refresh tracked snapshots (may require network)
+# sandbox deps fetch --component dojo --version v0.28.1  # optional verified release cache
 sandbox up -d                      # Langfuse (the Modal endpoint is deployed, not composed)
 sandbox runbook show serve         # DEFAULT: prewarm → deploy → point → verify → teardown
 sandbox health                     # probes the deployed modal-vllm endpoint

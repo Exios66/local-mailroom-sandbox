@@ -496,3 +496,11 @@ A missing or damaged artifact refuses execution. An eligible explicit force rese
 archives the old generation; API result reuse requires successful evidence from
 the current generation and task. Complete old-format evidence retains a narrow
 compatibility path; unproven historical records cannot silently become current.
+
+## Dependency provenance
+
+New run locks freeze both family source choices in `dependency_sources`. Status
+reports those original choices; preflight reuse and execution refuse dependency
+drift. Select release caches before process startup and bundle the same snapshots
+into remote job images. See [stable dependency snapshots](dependency-snapshots.md)
+for selection, verification and recovery. Older locks remain readable.
