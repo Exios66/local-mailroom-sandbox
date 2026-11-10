@@ -172,6 +172,7 @@ def test_offline_bootstrap_definitions_match_parser():
                      for option in action.option_strings}
     assert value_options == OFFLINE_SHARED_VALUE_OPTIONS
     def offline_paths(node, path=()):
+        """Collect every parser path declaring offline inspection semantics."""
         found = {path} if node.get_default('offline_inspection') else set()
         for action in node._actions:
             if isinstance(action, argparse._SubParsersAction):

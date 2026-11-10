@@ -239,6 +239,7 @@ def test_visualizer_existing_checkout_survives_remote_failure(source, vendor):
 
 @pytest.mark.parametrize("rollback_fails", [False, True])
 def test_install_rename_failure_preserves_original_snapshot(monkeypatch, source, vendor, capsys, rollback_fails):
+    """Keep reviewed bytes recoverable when installation or rollback renames fail."""
     reviewed = commit(source, {"src/pipeline.py": "reviewed\n"})
     tree = seed_vendor(vendor)
     before = fingerprint(tree)
@@ -246,6 +247,7 @@ def test_install_rename_failure_preserves_original_snapshot(monkeypatch, source,
     attempts = []
 
     def rename(path, target):
+        """Fail promotion and optionally restoration while recording their order."""
         if Path(target) == tree / "src":
             restoring = (path / "preserved.py").is_file()
             attempts.append("restore" if restoring else "install")
@@ -286,6 +288,7 @@ def test_workspace_copy_failure_keeps_all_reviewed_bytes(source, vendor, monkeyp
     before = fingerprint(tree)
     original = shutil.copy2
     def fail_second(src, dest, *a, **kw):
+        """Interrupt staging after one copied file to expose partial live writes."""
         if Path(src).name == 'b.py':
             raise OSError('simulated workspace copy failure')
         return original(src, dest, *a, **kw)
