@@ -174,3 +174,13 @@ changing vendor pins or rewriting run locks. Pipeline archive digests remain
 locally computed when releases publish no checksums; owner-published artifacts
 remain upstream work. The remote adapter was tested with fresh offline worker
 simulations; actual Modal deployment and paid serving were not exercised.
+
+Documentation closeout [test job 728](https://circleci.com/gh/Exios66/local-mailroom-sandbox/728)
+later exposed an intermittent collection defect in the landed snapshot tests:
+gzip timestamps appeared in automatically generated case IDs, so xdist workers
+could collect different names. The suite aborted before execution; its 18.59%
+partial coverage does not supersede the completed results above. Prerequisite
+PR #291 adds stable IDs and a fresh-process collection regression under two
+different clocks/hash seeds. That regression failed before the fix; 95 focused
+snapshot/source checks pass afterward. The two-worker hosted suite and 84%
+coverage gate remain unchanged and must pass on the updated follow-up heads.
