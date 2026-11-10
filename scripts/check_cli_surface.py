@@ -46,7 +46,7 @@ def risk(path):
         return 'Varies by subcommand'
     if path[0] in {'modal', 'vllm', 'hf', 'up', 'down', 'health', 'pull-models', 'fetch-deps', 'tunnel', 'pipeline', 'review', 'tui'}:
         return 'May invoke services, network, deployment, or local processes'
-    if path[0] in {'experiment', 'run', 'watch', 'dev', 'board'}:
+    if path[0] in {'experiment', 'run', 'watch', 'dev', 'board', 'floor'}:
         return 'May write files, run jobs, serve a UI, or contact services'
     if path[0] in {'datasets', 'traces', 'beacon', 'subagents'}:
         return 'May write files or contact services'

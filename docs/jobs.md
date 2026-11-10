@@ -63,6 +63,15 @@ dataset:                    # full mailroom-dataset OR a subset
       - {doc_class: merger_agreement, count: 40}
   limit: 200
   sample_seed: 42
+  # OR name a registry entry (config/datasets.yaml) instead of the fields above:
+  #   dataset: {name: pipeline-even100-shuffled2, limit: 50}
+  # A file entry's local_path expands ${VAR} / ${VAR:-default} from the environment
+  # (the CLI loads .env first; an unset MAILROOM_BASE_DIR resolves via the CLI's own
+  # data directory); an optional sha256 pins the exact file and preflight refuses a
+  # different one. The lock records the source sha always, the entry's `pull` only
+  # when the entry sets one, and `name` only for named datasets; a sha-pin mismatch
+  # is raised by prepare_subset and surfaces as a failed preflight `dataset` check.
+  # $SANDBOX_DATASETS_REGISTRY selects a different registry file.
 
 engine:
   kind: modal-vllm            # modal-vllm | vllm-local | vllm-remote

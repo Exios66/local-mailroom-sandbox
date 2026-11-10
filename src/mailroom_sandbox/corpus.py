@@ -10,6 +10,7 @@ per-stratum sub-seeded draws, union, global re-sort, then ``limit``.
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import logging
 import random
@@ -128,6 +129,16 @@ def _read_jsonl(path) -> list[dict[str, Any]]:
         for line in fh:
             if line.strip():
                 rows.append(json.loads(line))
+    return rows
+
+
+def _read_jsonl_text(blob: bytes) -> list[dict[str, Any]]:
+    """The same JSONL reader for bytes already in hand (U+2028/U+2029-safe)."""
+    rows = []
+    reader = io.TextIOWrapper(io.BytesIO(blob), encoding="utf-8")
+    for line in reader:
+        if line.strip():
+            rows.append(json.loads(line))
     return rows
 
 
@@ -669,8 +680,18 @@ def prepare_subset(spec: DatasetSpec, dest_file) -> dict[str, Any]:
     if local_file is not None:
         if not local_file.is_file():
             raise FileNotFoundError(f"dataset file not found: {local_file}")
-        rows = _read_jsonl(local_file)
-        source_meta = {"source": "local", "revision": "offline"}
+        # hash exactly the bytes that become the rows: one read, no window where the
+        # pin could attest to different bytes than the ones parsed
+        blob = local_file.read_bytes()
+        source_sha = hashlib.sha256(blob).hexdigest()
+        if spec.source_sha256 and source_sha != spec.source_sha256:
+            raise ValueError(
+                f"dataset {spec.name or local_file.name!r}: sha256 {source_sha[:12]} does not match the "
+                f"registered pin {spec.source_sha256[:12]} — the file is not the registered pull"
+            )
+        rows = _read_jsonl_text(blob)
+        # identity for replication: the name, the source bytes, and how it was pulled
+        source_meta = {"source": "local", "revision": "offline", "sha256": source_sha}
     else:
         rows = load_hf_rows(spec)
         resolved = str(rows[0].get("source_revision") or "") if rows else ""
@@ -682,6 +703,10 @@ def prepare_subset(spec: DatasetSpec, dest_file) -> dict[str, Any]:
             "revision": spec.revision or FAMILY_HF_REVISION,
             "revision_resolved": resolved or None,
         }
+    if spec.name:
+        source_meta["name"] = spec.name
+    if spec.pull:
+        source_meta["pull"] = spec.pull
 
     rows = normalize_rows(rows)
     rows = filter_rows(rows, spec)

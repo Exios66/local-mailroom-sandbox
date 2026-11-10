@@ -61,6 +61,27 @@ def test_ci_workflow_runs_network_free_pytest():
     assert "test" in config["workflows"]["ci"]["jobs"]
 
 
+def test_cli_parser_builds_without_importing_floor_app(monkeypatch):
+    """`sandbox <cmd>` on native Windows must not trip the floor app's unix-only imports.
+
+    floor_app reaches job.checkpoint -> fcntl; the floor parser gets its port from
+    ports.py, so building ANY parser would only import floor_app through a floor run.
+    """
+    import sys
+
+    import mailroom_sandbox
+    from mailroom_sandbox import cli
+
+    # Keep the interpreter's real module mapping and clear the package attribute
+    # too: ``from mailroom_sandbox import tui`` must not reuse a cached package.
+    for name in list(sys.modules):
+        if name == "mailroom_sandbox.tui" or name.startswith("mailroom_sandbox.tui."):
+            monkeypatch.delitem(sys.modules, name)
+    monkeypatch.delattr(mailroom_sandbox, "tui", raising=False)
+    cli.build_parser()
+    assert "mailroom_sandbox.tui.floor_app" not in sys.modules
+
+
 def test_reduced_profile_reporter_retired_in_components():
     from mailroom_sandbox.components import is_enabled
 

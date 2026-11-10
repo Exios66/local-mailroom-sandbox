@@ -2,6 +2,68 @@
 
 ## [Unreleased]
 
+- **Live floor: `sandbox floor` app + RUNNING pills** (`src/mailroom_sandbox/tui/floor_app.py`,
+  `reports/dashboard/build_floor_digest.py`, `reports/dashboard/floor.template.html`,
+  `tests/test_floor_app.py`). The digest now carries per-run `inflight` (open `running` records
+  from `nodes.jsonl`), `avg_doc_ms`, and a ground-truth-keyed `routing` block; the v10 viewer
+  gained a live mode — green RUNNING pill with ticking elapsed seconds on any node holding docs,
+  a ribbon progress bar (cursor/total · AVG), 3s digest poll with selection preserved, and
+  `?run=`/`?class=` deep links — pills, elapsed clocks and polling run only over http(s) while a
+  run's state is `running` (`file://` stays a frozen snapshot with no timers; the progress bar
+  and routing suffix are static digest facts). Every panel figure is computed from the displayed
+  run's digest and repainted when that digest changes; the graph auto-fits at load so all node
+  figures are in frame from the first paint. `sandbox floor` rebuilds the digest
+  on a timer (mtime-sweep skip) and serves the viewer loopback-only on `:8769`; run-store base
+  via `--base`/`MAILROOM_BASE_DIR` so the WSL lane's `/home/gemooslin/sandbox-data` works from
+  any shell. Validated against a live 50-doc LM Studio pipeline run
+  (`config/runs/pipeline-lmstudio-even50-demo.yaml`). Node numbers keep the v10 contract:
+  docs that have *entered* a node (arrival fires it; the pill shows who is still inside).
+  Digest selftest 22→29 checks; floor app + replay tests.
+
+- **Floor replay: pinned sample + `sandbox floor --replay`** (`data/fixtures/floor/replay/`,
+  `src/mailroom_sandbox/tui/floor_app.py`, `tests/test_floor_app.py`). 120 public
+  `mailroom-dataset` docs (24 per live class at the pinned revision; IDs/metadata only, no
+  document text) drive a scripted wall-clock timeline (~66 s) replayed one record at a time
+  INTO the base as its own labeled run: staggered arrivals, many docs in flight for their
+  recorded latencies (nodes run ~0.1–1.8 s while later docs proceed), three failed extracts,
+  four parked open at human review (judge- and extract-triggered) and one classification
+  review resolved by the reviewer that re-enters extraction — so one viewer
+  lists the base's historical runs AND the sample (selectable in the RUNS rail) and its
+  progress, class rail, routing, node counts, RUNNING pills with growing elapsed timers,
+  outcome buckets and the Routed-to-human-review strip move like a live run without a local
+  run store, network, key or GPU. `--replay` forces the sample (resetting only that run
+  dir) and a base with no runs falls back to it; every panel figure is computed from the
+  displayed run's digest and the run is labeled as simulated.
+
+- **Floor review-accounting + post-hoc prompt identification** (`reports/dashboard/
+  build_floor_digest.py`, `floor.template.html`, `selftest_floor_digest.py`,
+  `data/fixtures/floor/replay/`). The digest keeps every run's `review_routed`
+  metric — documents routed to human review in total, split by the trigger stage
+  (classification / extraction / judgment / reporting) from item review causes or,
+  for replay/demo node traces, the node visited before `human_review` — and the
+  outcomes contract is explicit: a parked review document stays HELD ("Human-in-the-
+  loop"), FAILED remains technical runtime failures only. The viewer mirrors the
+  pipeline's stage-audit side channel (audit A-1) as dashed arrows from every
+  `_emit_stage_audit` call site parsed out of `build_graph.py` to an audit-log box —
+  a behavioral distinction carried by data, never hard-coded — with the
+  `human_review → audit log` arrow showing this run's routed count.
+  `prompt.lock.json` (written
+  for every served/run job since DMR-056; `checkpoint.py`) is surfaced per run as
+  resolved `prompts` (agent → stem) and shown in the viewer's prompt card for the
+  highlighted node only (each firing agent's stem, full list as the hover title), so
+  prompt versions are identifiable post hoc in any run or replay; the sample locks
+  its simulated stems on disk next to `spec.lock.json`. Digest selftest 29→33 checks.
+
+- **Named datasets: `config/datasets.yaml` + `${VAR}` dataset paths.** A run spec can name a
+  dataset (`dataset: {name: pipeline-even100-shuffled2}`) instead of embedding a machine path;
+  the registry supplies the provider fields or a local path, expands `${VAR}`/`${VAR:-default}`
+  from the environment (the CLI loads `.env` first), and may pin `sha256`. Preflight verifies the
+  pin and every lock records the source sha plus the entry's `pull` block, so a result names the
+  pull it came from. `$SANDBOX_DATASETS_REGISTRY` selects another registry file. Local-file
+  `spec_hash` now keys on the file name + source bytes instead of the checkout path, so the same
+  dataset hashes the same in any clone; `config/runs/pipeline-lmstudio-even50-demo.yaml` uses the
+  registry (no user path), and a guard test refuses machine paths in committed run specs.
+
 - **Vendor refresh: llm-mailroom `main` at #179 (`19203ea`) and Dojo `v0.28.1` (`00a2a7f`)**
   (`_VENDOR_PINS`, `requirements/dojo-release.txt`, both `VENDOR.md` files, README badges and pin
   table). The vendored sorter catalog now states rule C (a bylaw amendment is `bylaws`), so the

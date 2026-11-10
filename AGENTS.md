@@ -117,13 +117,14 @@ sandbox web [TARGET]                  # = watch --web: themed browser watcher (h
 sandbox web --demo                    # = sandbox dev: same themed UI on a synthetic looping run (no Modal/spend)
 scripts/mailroom-tui dev|web|score <run>   # launcher; .claude/launch.json → mailroom-watch-dev / -live
 sandbox board [--tui] [--demo] [--interval SECS] [--probe-interval SECS]  # persistent job board: every mailroom.beacon/v1 job (~/.mailroom/jobs), browser :8767 or terminal; refresh floor 0.1 s
+sandbox floor [TARGET|--run ID] [--base DIR] [--port PORT] [--interval SECS] [--replay]  # live pipeline floor app: rebuilds reports/dashboard/floor_digest.json every --interval (default 5s, skips when run artifacts are unchanged) and serves the viewer at http://127.0.0.1:8769/floor.template.html; a state=running run gets RUNNING pills + live counters (8765/8766/8767/8768 are web/watch-live/board/board-demo). --replay (also the no-runs default) plays the committed 120-doc pinned sample on a ~66s wall-clock timeline as its own labeled run INSIDE the base — staggered arrivals, recorded node latencies, concurrent in-flight docs, failed extracts, parked human-review docs and a reviewer-resolved classification that re-enters extraction; the digest keeps each run's review_routed count split by trigger stage, review documents stay HELD (failed = technical only), per-run prompts come from prompt.lock.json (highlighted-node only), and dashed audit-log arrows mirror the _emit_stage_audit sites parsed from build_graph.py (the review arrow carries the routed count); history and the sample are both selectable in the RUNS rail and only the sample dir resets each --replay
 sandbox beacon update --job ID --package P --done N --total M   # shell jobs publish to the board
 # long Python jobs: `with Beacon(job_id, package=...) as b: b.update(done=i, total=n)` (mailroom_sandbox/tui/beacon.py — vendorable single file)
 # keep the board up across reboots: deploy/launchd/com.mailroom.board.plist (install steps in the file)
 # SANDBOX_DEBUG=1 → set -x + results/run.log diagnostics (CHTC/Modal, DMR-053)
 ```
 
-- Config: `config/profiles/*.yaml` + `config/taxonomy.overlay.yaml` + `config/components.yaml` + `config/models.yaml` + `config/runbooks/catalog.yaml`.
+- Config: `config/profiles/*.yaml` + `config/taxonomy.overlay.yaml` + `config/components.yaml` + `config/models.yaml` + `config/datasets.yaml` (named datasets) + `config/runbooks/catalog.yaml`.
 - Remote serving (Modal / SSH-tunneled vLLM / CHTC / conda): `docs/setting-up/remote-serving.md` + `deploy/htcondor/` + `deploy/conda/`. Modal deploy workflow (SDK pinned `modal==1.6.3`; pre-warm → deploy → verify → teardown, cost guards, troubleshooting) lives in `deploy/README.md`. CLI rule: `--profile`, `--model`, `--prompt` and `--agent-model` work before OR after the subcommand on every command (a flag after the subcommand wins; `SANDBOX_PROFILE` is the default).
 - Runtime taxonomy is written to `data/runtime/taxonomy.yaml` (gitignored).
 - Prepared fixtures: `data/runtime/prepared/` via notebooks or `sandbox datasets prepare`.
