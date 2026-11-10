@@ -82,8 +82,14 @@ def environment_report(root: Path, expected_sha: str | None = None) -> dict:
     git_root = git_value(root, "rev-parse", "--show-toplevel")
     head = git_value(root, "rev-parse", "HEAD")
     status = git_value(root, "status", "--porcelain", "--untracked-files=normal")
+    branch = git_value(root, "symbolic-ref", "--short", "HEAD")
+    final_head = git_value(root, "rev-parse", "HEAD")
+    final_branch = git_value(root, "symbolic-ref", "--short", "HEAD")
     package = Path(mailroom_sandbox.__file__).resolve()
     findings = hook_findings(root)
+    if final_head != head or final_branch != branch:
+        findings.append({"code": "checkout.changed", "severity": "fail",
+                         "message": "Checkout identity changed during inspection; retry after it is stable"})
     if not git_root or Path(git_root).resolve() != root or head is None or status is None:
         findings.append({"code": "checkout.unverified", "severity": "fail",
                          "message": "Requested root is not a verified Git checkout root"})
@@ -100,7 +106,7 @@ def environment_report(root: Path, expected_sha: str | None = None) -> dict:
         "schema": "mailroom.environment/v1",
         "ok": not any(f["severity"] == "fail" for f in findings),
         "checkout": {"root": str(root), "git_root": git_root, "head": head,
-                     "branch": git_value(root, "symbolic-ref", "--short", "HEAD"),
+                     "branch": branch,
                      "dirty": bool(status) if status is not None else None},
         "python": {"executable": sys.executable, "prefix": sys.prefix,
                    "base_prefix": sys.base_prefix, "package": str(package)},

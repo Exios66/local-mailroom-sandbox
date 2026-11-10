@@ -55,9 +55,9 @@ def _binary(name: str, *, needed: bool, hint: str, version: list[str] | None = N
         return ServiceStatus(name, state, "not installed" + ("" if needed else " (not needed by this profile)"), hint)
     found = _version(version) if version else None
     if version and not found:
-        return ServiceStatus(name, "warn", f"could not determine {name} version", hint)
+        return ServiceStatus(name, "warn", f"could not determine {name} version", hint, readiness="installed")
     if pin and found and found != pin:
-        return ServiceStatus(name, "warn", f"{name} {found}, sandbox verified against {pin}", hint)
+        return ServiceStatus(name, "warn", f"{name} {found}, sandbox verified against {pin}", hint, readiness="installed")
     return ServiceStatus(name, "ok", f"{name} {found}" if found else path, readiness="installed")
 
 
@@ -167,7 +167,7 @@ def _langfuse(*, live: bool) -> ServiceStatus:
     if os.environ.get("OBSERVABILITY_PROVIDER", "langfuse") == "langfuse" and not find_spec("langfuse"):
         return ServiceStatus(
             "langfuse", "warn", f"{row.detail}; langfuse SDK not installed, so runs record no traces",
-            'pip install -e ".[observability]"',
+            'pip install -e ".[observability]"', readiness=row.readiness,
         )
     return row
 

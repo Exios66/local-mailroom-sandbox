@@ -199,7 +199,7 @@ def fire(store: RunStore, *, payload: dict | None = None) -> dict[str, Any]:
                 upload = Path(tmp) / store.run_id
                 upload.mkdir()
                 for name in ("spec.lock.json", "prompt.lock.json", "dataset.jsonl", "checkpoint.json",
-                             "items.jsonl", "events.jsonl", "cold_boot.json", "experiment_log.jsonl"):
+                             "items.jsonl", "nodes.jsonl", "events.jsonl", "cold_boot.json", "experiment_log.jsonl"):
                     source = store.dir / name
                     if source.is_file():
                         shutil.copy2(source, upload / name)
@@ -362,7 +362,7 @@ def pull_run_dir(store: RunStore) -> tuple[int, str]:
             if staged.state() not in {"done", "failed"}:
                 raise RuntimeError("fetched remote generation is not terminal")
             # Parse every transferable JSON/JSONL before touching local files.
-            for name in ("items.jsonl", "events.jsonl", "experiment_log.jsonl"):
+            for name in ("items.jsonl", "nodes.jsonl", "events.jsonl", "experiment_log.jsonl"):
                 path = source / name
                 if path.is_file():
                     for line in path.read_text(encoding="utf-8").splitlines():
@@ -380,7 +380,7 @@ def pull_run_dir(store: RunStore) -> tuple[int, str]:
                 checkpoint = json.loads((source / "checkpoint.json").read_text(encoding="utf-8"))
                 checkpoint["remote"] = (store.read_checkpoint() or {}).get("remote")
                 (source / "checkpoint.json").write_text(json.dumps(checkpoint), encoding="utf-8")
-                for name in ("items.jsonl", "events.jsonl", "cold_boot.json", "experiment_log.jsonl", "checkpoint.json"):
+                for name in ("items.jsonl", "nodes.jsonl", "events.jsonl", "cold_boot.json", "experiment_log.jsonl", "checkpoint.json"):
                     item = source / name
                     if item.is_file():
                         # Replace each file from a local staging file; checkpoint last.

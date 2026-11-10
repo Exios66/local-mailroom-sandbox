@@ -88,6 +88,7 @@ def guard():
     "pytest --ignore=unused.py", "pytest --ignore tests/test_skip.py",
     "pytest --doctest-glob tests/test_one.py",
     "pytest --deselect tests/test_skip.py", "pytest --pyargs package",
+    "python -m scripts.smoke_campaign", "env python3 -m scripts.smoke_campaign",
 ])
 def test_resource_hook_catches_expensive_direct_commands(guard, command):
     assert guard.violation(command)
@@ -99,9 +100,25 @@ def test_resource_hook_catches_expensive_direct_commands(guard, command):
     "pytest --doctest-glob tests/test_one.py tests/test_one.py",
     "pytest -k 'not slow' tests/test_one.py",
     "ruff check src tests", "python scripts/check_cli_surface.py --check",
+    "git grep pytest", "rg pytest src", "echo pytest", "git grep smoke_campaign.py",
 ])
 def test_resource_hook_preserves_focused_checks(guard, command):
     assert guard.violation(command) is None
+
+
+def test_preflight_refuses_identity_changed_during_reads(checkout, monkeypatch):
+    """A checkout switch between Git reads cannot yield a verified fingerprint."""
+    original = environment.git_value
+    reads = []
+    def changed(root, *args):
+        if args == ("rev-parse", "HEAD"):
+            reads.append(args)
+            return "a" * 40 if len(reads) == 1 else "b" * 40
+        return original(root, *args)
+    monkeypatch.setattr(environment, "git_value", changed)
+    report = environment.environment_report(checkout)
+    assert not report["ok"]
+    assert "checkout.changed" in {f["code"] for f in report["findings"]}
 
 
 @pytest.mark.parametrize('action', ['preflight', 'dispatch-check', 'checkpoint'])
