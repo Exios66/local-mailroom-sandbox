@@ -7,7 +7,7 @@ Cross-family work stays on the Digital-Mailroom hub board
 (`governance/TASKS.md` at the monorepo root) as **`DMR-*`**. This file is the **only** sandbox-local task board — do not
 open `DMR-*` cards here.
 
-**Next ID: `SAND-104`**
+**Next ID: `SAND-105`**
 
 <!-- coderabbit-ai-generated:v1 -->
 
@@ -16,8 +16,8 @@ open `DMR-*` cards here.
 Reconciled against the [issue tracker](https://github.com/Exios66/local-mailroom-sandbox/issues)
 on 2026-11-10 (issue triage: closed #241/#251 as stale/not planned with evidence;
 SAND-103 added for the agent dispatch stack; opened #285 for stable snapshot
-fetching): this board has 121 card rows (87 primary cards) and its highest
-primary ID is `SAND-103`. The tracker has 21 open issues, 17 with a `SAND-*`
+fetching): this board has 122 card rows (88 primary cards) and its highest
+primary ID is `SAND-104`. The tracker has 21 open issues, 17 with a `SAND-*`
 ID in the title; its highest such ID is
 `SAND-102` (#263), and all title IDs have rows here. **This board is the
 numbering authority:** allocate the next ID here first, then open the issue.
@@ -33,6 +33,7 @@ Lanes: `todo` → `in_progress` → `needs_attention` → `review` → `done`.
 | ID | Title | Owner | Status | Notes |
 | --- | --- | --- | --- | --- |
 | SAND-103 | Agent environment, dispatch, recovery and durable handoff tooling | Codex 2026-11-10 | **in_progress** | User-requested follow-up to PRs #274–#280. Seven steps: execution identity, dispatch contracts, failure recovery, hosted evidence/local budgets, readiness levels, scoped synchronization/drift, durable handoffs. Implemented as a reviewed PR stack; full verification stays hosted. |
+| SAND-104 | Fetch stable Dojo and pipeline snapshots on demand, with layered fallback | unassigned | **todo** | Issue #285. Add a verified release-snapshot cache for the Dojo and pipeline: resolve a released tag, verify the release manifest/SHA256SUMS, extract atomically, then resolve explicit env → installed release → cached stable snapshot → vendored snapshot → diagnostic. Keep `vendor/` as the final offline fallback; never auto-update pins or run locks. Dojo v0.28.1 already publishes wheel/sdist/manifest/SHA256SUMS; llm-mailroom releases need assets or a tag-archive fallback. Related: SAND-103, #221, llm-mailroom#225. |
 | SAND-102 | First spend-gated load check of the unverified Qwen serving rows (35B-A3B L4:2 TP=2, 27B L40S, 9B VRAM peak) | Exios66 | **todo** | Issue #263. Boot each never-verified `modal_models` row once: `/health`, boot VRAM peak, KV headroom, then validate the provisional `max_model_len: 16384` (v0.29.0 boot-raise lesson); write actuals back into `config/models.yaml` row notes + `docs/scale-matrix.md`. Rows were onboarded and the 9B champion served live (open, no VRAM reading); see SAND-021. Related: SAND-101, SAND-023, SAND-098. |
 | SAND-101 | Ship causal_conv1d + FLA kernels in the modal-vllm image for Qwen3.5 | Exios66 | **todo** | Issue #262. The `models.yaml` Qwen3.5 section header records the requirement; without them vLLM **silently** falls back to slower PyTorch ops. Pin the wheels in the image build, verify the native-kernel serve log line, surface a loud warning on fallback (or refuse), and record the decode/VRAM delta in `docs/scale-matrix.md`. Related: SAND-097 (critical-tier opens this same gap), SAND-098. |
 | SAND-100 | Compare ModernBERT intake vs decision-model reviewer vs LLM-only reviewer in the full pipeline | Exios66 | **todo** | Issue #219. Four-arm pipeline comparison (A: no reviewer; B: `reviewer:` block + calibrated cutoffs; C: `MAILROOM_BERT_INTAKE=1` + ModernBERT prior; D optional). Unblocked 2026-11-07: the calibration gate (#208, SAND-091) closed with the v2 Decisions-API cutoffs and `agents/bert_intake.py` is in the vendored pipeline; still needs the `mailroom-ml`/`ML_MODEL_DIR` bundle and a `sandbox experiment create` cost design. Arm-B baseline in the issue text names the superseded chat-model prompt — use the shipped Decisions reviewer instead. Related: SAND-085, SAND-091. |

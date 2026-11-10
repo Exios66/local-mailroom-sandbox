@@ -71,9 +71,14 @@ def _refresh(name: str, dest: Path, source: Path) -> int:
     # Stage first: an empty or failed copy must never wipe the tracked snapshot.
     staging = dest.with_name(dest.name + ".sync-new")
     backup = dest.with_name(dest.name + ".sync-old")
-    for path in (staging, backup):
-        if path.exists():
-            shutil.rmtree(path)
+    if staging.exists():
+        shutil.rmtree(staging)
+    if backup.exists():
+        if dest.exists():
+            shutil.rmtree(backup)
+        else:
+            # A prior promotion stopped after moving dest aside; recover it first.
+            backup.rename(dest)
     staging.mkdir(parents=True)
     copied = 0
     try:
