@@ -806,20 +806,18 @@ def test_recorded_replay_items_only_uses_synthetic_timing(tmp_path):
     assert driver.store.state() == "done"
 
 
-def test_recorded_replay_resolves_run_ids_and_refuses_foreign_collisions(tmp_path):
+def test_recorded_replay_never_replaces_an_existing_run(tmp_path):
     from mailroom_sandbox.tui import floor_replay
 
     base = tmp_path / "base"
     source = _recorded_run(tmp_path)
     first = floor_replay.prepare_recorded_replay(base, source, speed=100)
     assert floor_replay.resolve_source(base, first.run_id) == first.path.resolve()
-    # Replace the app-owned lock with a real run and prove a second replay refuses it.
-    lock = json.loads((first.path / "spec.lock.json").read_text(encoding="utf-8"))
-    lock.pop("replay", None)
-    lock["engine"] = {"kind": "vllm-remote", "model": "real"}
-    (first.path / "spec.lock.json").write_text(json.dumps(lock), encoding="utf-8")
-    with pytest.raises(FileExistsError, match="foreign run"):
-        floor_replay.prepare_recorded_replay(base, source, speed=100)
+    before = (first.path / "spec.lock.json").read_bytes()
+    second = floor_replay.prepare_recorded_replay(base, source, speed=100)
+    assert second.run_id != first.run_id
+    assert second.path.is_dir()
+    assert (first.path / "spec.lock.json").read_bytes() == before
 
 
 def test_recorded_replay_rejects_empty_and_symlinked_sources(tmp_path):

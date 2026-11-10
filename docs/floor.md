@@ -115,9 +115,9 @@ never mistaken for a live result. Other history stays selectable and untouched.
 
 Ownership and hardening: a symlinked source or artifact is refused, artifacts
 over 100 MB each or 250 MB total are refused, malformed JSONL rows are skipped
-with a warning, a timeline over seven days is refused, and an existing foreign
-run with the same replay id is never replaced. A bare id resolves to the base's
-live or history store. Use `--replay-speed` to compress a long run; the default
+with a warning, a timeline over seven days is refused, and an existing run is
+never replaced: a new suffixed replay id is allocated instead. A bare id
+resolves to the base's live or history store. Use `--replay-speed` to compress a long run; the default
 is 10x for recorded runs and 1x for the bundled sample.
 
 ```bash

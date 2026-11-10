@@ -72,9 +72,44 @@ def violation(command: str) -> str | None:
         else:
             segments[-1].append(token)
     for argv in segments:
-        while argv and (re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", argv[0])
-                        or argv[0] in {"env", "command", "exec", "nohup"}):
-            argv = argv[1:]
+        while argv:
+            if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", argv[0]):
+                argv = argv[1:]
+                continue
+            if argv[0] == "env":
+                argv = argv[1:]
+                while argv:
+                    token = argv[0]
+                    if token in {"-S", "--split-string"}:
+                        text = argv[1] if len(argv) > 1 else ""
+                        try:
+                            argv = shlex.split(text) + argv[2:]
+                        except ValueError:
+                            argv = []
+                        break
+                    if token.startswith("--split-string="):
+                        try:
+                            argv = shlex.split(token.split("=", 1)[1]) + argv[1:]
+                        except ValueError:
+                            argv = []
+                        break
+                    if token in {"-u", "--unset", "-C", "--chdir"}:
+                        argv = argv[2:]
+                        continue
+                    if token.startswith(("--unset=", "--chdir=")):
+                        argv = argv[1:]
+                        continue
+                    if token.startswith("-") or re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", token):
+                        argv = argv[1:]
+                        continue
+                    break
+                continue
+            if argv[0] in {"command", "exec", "nohup"}:
+                argv = argv[1:]
+                while argv and argv[0].startswith("-"):
+                    argv = argv[1:]
+                continue
+            break
         if not argv:
             continue
         name, tail = PurePath(argv[0]).name, argv[1:]

@@ -106,6 +106,22 @@ def test_resource_hook_preserves_focused_checks(guard, command):
     assert guard.violation(command) is None
 
 
+def test_preflight_refuses_identity_changed_during_hook_inspection(checkout, monkeypatch):
+    original = environment.git_value
+    state = {"head": "a" * 40}
+    def changed(root, *args):
+        if args == ("rev-parse", "HEAD"):
+            return state["head"]
+        return original(root, *args)
+    def hooks(root):
+        state["head"] = "b" * 40
+        return []
+    monkeypatch.setattr(environment, "git_value", changed)
+    monkeypatch.setattr(environment, "hook_findings", hooks)
+    report = environment.environment_report(checkout)
+    assert "checkout.changed" in {f["code"] for f in report["findings"]}
+
+
 def test_preflight_refuses_identity_changed_during_reads(checkout, monkeypatch):
     """A checkout switch between Git reads cannot yield a verified fingerprint."""
     original = environment.git_value
