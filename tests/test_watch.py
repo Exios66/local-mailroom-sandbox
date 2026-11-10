@@ -146,6 +146,10 @@ def test_cli_watch_follow_file_tracks_current_config(tmp_path, monkeypatch, caps
     from mailroom_sandbox.job import spec as spec_mod
     from mailroom_sandbox.paths import config_dir
 
+    # The lifecycle panel may clip its trailing stage tag on an 80-column CI
+    # terminal. This test exercises target following at a fixed display size.
+    monkeypatch.setenv("COLUMNS", "120")
+    monkeypatch.setenv("LINES", "40")
     monkeypatch.setattr(spec_mod, "runs_root", lambda: tmp_path)
     follow = tmp_path / "current"
     follow.write_text(str(config_dir() / "runs" / "sand032" / "sand032-s3-merger50.yaml") + "\n")
