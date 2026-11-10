@@ -49,6 +49,11 @@ them with their revision/run and superseding reference rather than replacing
 them with an unrelated latest value. A newer upstream release does not authorize
 an upgrade, pin change, vendor refresh, paid run or rewrite of a locked experiment.
 
+For a full-repository docs sweep, follow the
+[docs audit tool router](../.cursor/skills/docs-audit-tool-router/SKILL.md). It
+names the mechanical checks, the owning source for each claim family and the
+specialist agent to route a layout, board or harness correction.
+
 ## Correct and carry the evidence forward
 
 1. Identify the stale claim and its canonical source. Search related instruction

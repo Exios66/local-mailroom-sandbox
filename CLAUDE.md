@@ -14,7 +14,8 @@ and before handoff or merge. Correct stale guidance and record unresolved facts;
 see the [maintenance procedure](docs/agent-instruction-maintenance.md).
 For any provider, tracing,
 dataset or deploy task, read `.cursor/skills/sandbox-tool-router/SKILL.md` first,
-then exactly one specialty skill in `.cursor/skills/`.
+then exactly one specialty skill in `.cursor/skills/`. For a full docs/README
+staleness sweep, follow `.cursor/skills/docs-audit-tool-router/SKILL.md`.
 
 ## Setup and checks (all network-free)
 
