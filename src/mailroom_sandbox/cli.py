@@ -1513,7 +1513,13 @@ def _vendor_rel_excluded(rel: Path) -> bool:
 
 
 def _install_vendor_tree(staged: Path, dest: Path, refresh_root: Path, name: str) -> bool:
-    """Promote a complete staged tree, retaining recovery bytes if rollback fails."""
+    """Promote a staged tree during a quiescent maintenance window.
+
+    The two renames leave a brief gap at dest; running imports are not
+    synchronized. All sandbox processes using these trees must be stopped.
+    Recovery bytes survive a failed rollback; this is failure safety, not
+    an atomic source switch for live readers.
+    """
     import shutil
     import tempfile
 
