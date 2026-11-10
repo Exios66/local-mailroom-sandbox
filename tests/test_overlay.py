@@ -105,13 +105,12 @@ def test_agent_model_surgical_override():
 
 
 def test_parse_agent_models_rejects_bare_name():
+    import pytest
+
     from mailroom_sandbox.overlay import parse_agent_models
 
-    try:
+    with pytest.raises(ValueError):
         parse_agent_models(["sorter"])
-    except ValueError:
-        return
-    raise AssertionError("expected ValueError")
 
 
 def test_serving_family():

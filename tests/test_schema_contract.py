@@ -39,7 +39,9 @@ def test_money_parse_values():
     model = EXTRACTION_SCHEMAS["insurance_claim"]
     assert model.model_validate({"claimed_amount": "$18,530.00"}).claimed_amount == 18530.0
     assert model.model_validate({"claimed_amount": 0}).claimed_amount == 0.0
-    with pytest.raises(Exception):
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
         model.model_validate({"claimed_amount": "about ten grand"})
 
 

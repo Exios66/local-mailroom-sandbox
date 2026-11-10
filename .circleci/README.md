@@ -25,7 +25,7 @@ retains JUnit at `test-results/junit.xml`, coverage XML at
 `coverage/coverage.xml`, and the slowest 20 test durations in the job log.
 CircleCI ingests the JUnit results and stores the coverage directory as an
 artifact. Coverage is scoped to `src/mailroom_sandbox` by `pyproject.toml`;
-the configured 77% failure threshold remains in force.
+the configured 84% failure threshold remains in force.
 
 `loadfile` keeps each test file on one worker. In particular,
 `tests/test_pipeline_routing_matrix.py` accumulates a process-local `WALKED`
