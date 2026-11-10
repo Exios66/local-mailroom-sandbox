@@ -81,7 +81,8 @@ def _framework_excerpt(root: Path) -> str:
     lines = raw.splitlines()
     if lines and lines[0].startswith("#"):
         lines = lines[1:]
-    return _FRAMEWORK_MARKER + "\n\n" + "\n".join(lines).strip() + "\n"
+    nested = "\n".join("#" + line if line.startswith("## ") else line for line in lines)
+    return _FRAMEWORK_MARKER + "\n\n" + nested.strip() + "\n"
 
 
 def _agent_has_framework(body: str) -> bool:
@@ -269,7 +270,7 @@ def _run_doctor_one(
     node = shutil.which("node")
     if node:
         try:
-            ver = subprocess.check_output([node, "--version"], text=True).strip()
+            ver = subprocess.check_output([node, "--version"], text=True, timeout=5).strip()
             major = int(ver.lstrip("v").split(".")[0])
             if major < 24:
                 findings.append(
@@ -280,7 +281,7 @@ def _run_doctor_one(
                         hint="brew install node@24 && export PATH=/opt/homebrew/opt/node@24/bin:$PATH",
                     )
                 )
-        except (subprocess.CalledProcessError, ValueError):
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError, ValueError):
             pass
 
     if not (base / "config" / "subagents" / "family-roster.yaml").is_file() and not (
@@ -300,6 +301,17 @@ def _run_doctor_one(
     for entry in roster:
         canonical = entry.opencode_path(base)
         findings.extend(audit_agent_file(canonical, expect_roster_id=entry.id))
+        if canonical.is_file() and (base / "config/subagents/AGENT_FRAMEWORK.md").is_file():
+            body = parse_opencode_markdown(canonical.read_text(encoding="utf-8")).body
+            if _FRAMEWORK_MARKER in body:
+                actual = body[body.index(_FRAMEWORK_MARKER):].strip()
+                if actual != _framework_excerpt(base).strip():
+                    findings.append(Finding(
+                        code="agent.framework_drift", severity="warn",
+                        message=f"Shared framework content differs for {entry.id}", path=str(canonical),
+                        hint="Refresh canonical framework and run project sync; preserve agent-specific text",
+                    ))
+
 
         project_copy = base / ".opencode" / "agents" / f"{entry.id}.md"
         drift = _compare_canonical(entry, project_copy, canonical)
@@ -328,6 +340,14 @@ def _run_doctor_one(
             cursor_path = entry.cursor_path(base)
             if cursor_path.is_file():
                 text = cursor_path.read_text(encoding="utf-8")
+                from mailroom_sandbox.subagents.sync import render_cursor_agent
+
+                if text != render_cursor_agent(entry, base):
+                    findings.append(Finding(
+                        code="cursor.content_drift", severity="warn",
+                        message=f"Cursor content differs from canonical rendering for {entry.id}",
+                        path=str(cursor_path), hint="sandbox subagents sync --harness cursor",
+                    ))
                 if "Harness note:" not in text:
                     findings.append(
                         Finding(
@@ -355,8 +375,9 @@ def apply_framework_to_agents(
     *,
     root: Path | None = None,
     package: str | None = None,
-    targets: tuple[str, ...] = ("opencode", "opencode-global"),
+    targets: tuple[str, ...] = ("opencode",),
     dry_run: bool = False,
+    refresh: bool = False,
 ) -> list[Path]:
     base = root or repo_root()
     pkg = package or _package_for_checkout(base)
@@ -378,9 +399,10 @@ def apply_framework_to_agents(
                 continue
             text = path.read_text(encoding="utf-8")
             doc = parse_opencode_markdown(text)
-            if _agent_has_framework(doc.body):
+            if _agent_has_framework(doc.body) and not refresh:
                 continue
-            new_body = doc.body.rstrip() + "\n\n" + excerpt
+            prefix = doc.body.split(_FRAMEWORK_MARKER, 1)[0] if refresh else doc.body
+            new_body = prefix.rstrip() + "\n\n" + excerpt
             front = doc.frontmatter
             yaml_block = yaml.safe_dump(front, sort_keys=False, allow_unicode=True, width=1000).strip()
             new_text = f"---\n{yaml_block}\n---\n\n{new_body}"
@@ -390,8 +412,8 @@ def apply_framework_to_agents(
     return written
 
 
-def apply_framework_to_global_profiles(*, dry_run: bool = False) -> list[Path]:
-    """Append framework v2 to global OpenCode agents not on the family roster."""
+def apply_framework_to_global_profiles(*, dry_run: bool = False, refresh: bool = False) -> list[Path]:
+    """Append or refresh framework v2 in global OpenCode agents outside the roster."""
     global_dir = Path.home() / ".config" / "opencode" / "agents"
     base = repo_root()
     excerpt = _framework_excerpt(base)
@@ -409,9 +431,11 @@ def apply_framework_to_global_profiles(*, dry_run: bool = False) -> list[Path]:
             continue
         text = path.read_text(encoding="utf-8")
         doc = parse_opencode_markdown(text)
-        if _agent_has_framework(doc.body):
+        has_framework = _agent_has_framework(doc.body)
+        if has_framework and not refresh:
             continue
-        new_body = doc.body.rstrip() + "\n\n" + excerpt
+        prefix = doc.body.split(_FRAMEWORK_MARKER, 1)[0] if refresh else doc.body
+        new_body = prefix.rstrip() + "\n\n" + excerpt
         front = doc.frontmatter
         yaml_block = yaml.safe_dump(front, sort_keys=False, allow_unicode=True, width=1000).strip()
         new_text = f"---\n{yaml_block}\n---\n\n{new_body}"

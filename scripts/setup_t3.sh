@@ -167,13 +167,13 @@ fi
 echo "=== Setup: subagent harness stubs ==="
 # In a dry run the CLI itself plans the writes (`--dry-run`) instead of being skipped.
 if [[ $DRY_RUN -eq 1 && -x .venv/bin/sandbox ]]; then
-  if .venv/bin/sandbox subagents sync --harness all --dry-run; then
-    record subagents planned "sandbox subagents sync --harness all --dry-run"
+  if .venv/bin/sandbox subagents sync --harness project --dry-run; then
+    record subagents planned "sandbox subagents sync --harness project --dry-run"
   else
-    record subagents failed "sandbox subagents sync --harness all --dry-run"
+    record subagents failed "sandbox subagents sync --harness project --dry-run"
   fi
 else
-  step subagents "sandbox subagents sync --harness all" "$REPO_ROOT/.venv/bin/sandbox" subagents sync --harness all || true
+  step subagents "sandbox subagents sync --harness project" "$REPO_ROOT/.venv/bin/sandbox" subagents sync --harness project || true
 fi
 
 echo "=== Setup: card ==="

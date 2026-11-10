@@ -322,6 +322,9 @@ def build_parser() -> argparse.ArgumentParser:
     from mailroom_sandbox.subagents.environment import register as register_agent_preflight
 
     register_agent_preflight(subagents_sub, leaf)
+    from mailroom_sandbox.subagents.dispatch import register as register_agent_dispatch
+
+    register_agent_dispatch(subagents_sub, leaf)
     sa_list = subagents_sub.add_parser("list", parents=[leaf], help="list coding subagents for a family package")
     sa_list.add_argument("--json", action="store_true")
     sa_list.add_argument(
@@ -342,9 +345,9 @@ def build_parser() -> argparse.ArgumentParser:
     sa_sync = subagents_sub.add_parser("sync", parents=[leaf], help="write OpenCode frontmatter and Cursor agent stubs")
     sa_sync.add_argument(
         "--harness",
-        default="all",
-        choices=("cursor", "opencode", "opencode-global", "all"),
-        help="Harness adapter(s); default syncs OpenCode + Cursor + ~/.config/opencode/agents",
+        default="project",
+        choices=("cursor", "opencode", "opencode-global", "project", "all"),
+        help="Default project writes OpenCode + Cursor only; all explicitly includes global profiles",
     )
     sa_sync.add_argument(
         "--package",
@@ -359,6 +362,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Checkout root to write into (default: this repo)",
     )
     sa_sync.add_argument("--dry-run", action="store_true")
+    sa_sync.add_argument("--check", action="store_true", help="read-only drift check; exit 1 if rendered files differ")
     sa_sync.set_defaults(handler=_cmd_subagents_sync)
     sa_doc = subagents_sub.add_parser(
         "doctor",
@@ -388,8 +392,10 @@ def build_parser() -> argparse.ArgumentParser:
     sa_doc.add_argument(
         "--apply-framework",
         action="store_true",
-        help="Append Agent framework (v2) to roster + global profile agents missing it",
+        help="Append shared framework to project agents missing it",
     )
+    sa_doc.add_argument("--refresh-framework", action="store_true", help="replace the managed framework tail; preserves the agent body above its marker")
+    sa_doc.add_argument("--include-global", action="store_true", help="also repair global profiles when applying/refreshing framework")
     sa_doc.add_argument("--dry-run", action="store_true")
     sa_doc.set_defaults(handler=_cmd_subagents_doctor)
     sa_mat = subagents_sub.add_parser(
@@ -430,6 +436,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sa_prop.add_argument("--package", action="append", dest="packages", type=known_package, default=None)
     sa_prop.add_argument("--dry-run", action="store_true")
+    sa_prop.add_argument("--include-global", action="store_true", help="explicitly also update machine-global profiles")
     sa_prop.add_argument("--json", action="store_true")
     sa_prop.set_defaults(handler=_cmd_subagents_propagate)
     subagents_p.set_defaults(handler=_cmd_subagents_list)
@@ -1874,13 +1881,20 @@ def _cmd_subagents_doctor(args: argparse.Namespace) -> int:
     )
 
     root = Path(args.root).expanduser().resolve() if args.root else None
-    if args.apply_framework:
+    include_global = bool(getattr(args, "include_global", False))
+    if include_global and args.no_global:
+        raise CLIUsageError("Choose --include-global or --no-global")
+    if args.apply_framework or getattr(args, "refresh_framework", False):
         roster_written = apply_framework_to_agents(
             root=root,
             package=getattr(args, "package", None),
             dry_run=bool(args.dry_run),
+            targets=("opencode", "opencode-global") if include_global else ("opencode",),
+            refresh=bool(getattr(args, "refresh_framework", False)),
         )
-        global_written = apply_framework_to_global_profiles(dry_run=bool(args.dry_run))
+        global_written = apply_framework_to_global_profiles(
+            dry_run=bool(args.dry_run), refresh=bool(getattr(args, "refresh_framework", False)),
+        ) if include_global else []
         payload = {
             "apply_framework": True,
             "dry_run": bool(args.dry_run),
@@ -1917,6 +1931,9 @@ def _cmd_subagents_doctor(args: argparse.Namespace) -> int:
 
 
 def _cmd_subagents_sync(args: argparse.Namespace) -> int:
+    check = bool(getattr(args, "check", False))
+    if check and args.dry_run:
+        raise CLIUsageError("Choose --check or --dry-run, not both")
     from mailroom_sandbox.subagents import sync_harness
 
     root = Path(args.root).expanduser().resolve() if args.root else None
@@ -1925,12 +1942,14 @@ def _cmd_subagents_sync(args: argparse.Namespace) -> int:
         root=root,
         package=getattr(args, "package", None),
         dry_run=bool(args.dry_run),
+        check=check,
     )
     if isinstance(result, list):
         _print(
             {
                 "harness": args.harness,
                 "dry_run": bool(args.dry_run),
+                "check": check,
                 "results": [
                     {
                         "harness": r.harness,
@@ -1946,11 +1965,13 @@ def _cmd_subagents_sync(args: argparse.Namespace) -> int:
             {
                 "harness": result.harness,
                 "dry_run": bool(args.dry_run),
+                "check": check,
                 "written": [str(p) for p in result.written],
                 "skipped": result.skipped,
             }
         )
-    return 0
+    blocks = result if isinstance(result, list) else [result]
+    return 1 if check and any(r.written for r in blocks) else 0
 
 
 def _cmd_subagents_materialize(args: argparse.Namespace) -> int:
@@ -1990,6 +2011,7 @@ def _cmd_subagents_propagate(args: argparse.Namespace) -> int:
         monorepo_root=mono,
         packages=getattr(args, "packages", None),
         dry_run=bool(args.dry_run),
+        include_global=bool(getattr(args, "include_global", False)),
     )
     payload = {
         "source_root": str(result.source_root),

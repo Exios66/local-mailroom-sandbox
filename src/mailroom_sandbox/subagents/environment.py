@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -15,13 +16,32 @@ import mailroom_sandbox
 
 from mailroom_sandbox.paths import repo_root
 
+# `git -C` still honors inherited repository/config selectors. Scrub them so a
+# caller cannot redirect these reads to a different checkout or object store.
+_GIT_LOCATION_ENV = frozenset({
+    "GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_NAMESPACE",
+    "GIT_CEILING_DIRECTORIES", "GIT_DISCOVERY_ACROSS_FILESYSTEM", "GIT_PREFIX",
+    "GIT_IMPLICIT_WORK_TREE", "GIT_QUARANTINE_PATH", "GIT_SHALLOW_FILE",
+    "GIT_CONFIG", "GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM", "GIT_CONFIG_NOSYSTEM",
+    "GIT_CONFIG_COUNT", "GIT_CONFIG_PARAMETERS", "GIT_REPLACE_REF_BASE",
+    "GIT_NO_REPLACE_OBJECTS", "GIT_GRAFT_FILE",
+})
+
+
+def _git_env() -> dict[str, str]:
+    """Environment for identity reads: no repository redirection, no prompts."""
+    env = {k: v for k, v in os.environ.items() if k not in _GIT_LOCATION_ENV}
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    return env
+
 
 def git_value(root: Path, *args: str) -> str | None:
     """Run a bounded local Git read; never include stderr or remote URLs."""
     try:
         result = subprocess.run(
             ["git", "--no-optional-locks", "-C", str(root), *args],
-            capture_output=True, text=True, timeout=5, check=False,
+            capture_output=True, text=True, timeout=5, check=False, env=_git_env(),
         )
     except (OSError, subprocess.TimeoutExpired):
         return None
