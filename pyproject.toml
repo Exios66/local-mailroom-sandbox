@@ -37,6 +37,9 @@ dev = [
     "pytest>=8.0",
     "pytest-mock>=3.12",
     "pytest-cov>=5.0",
+    # CI uses two xdist workers with --dist loadfile on CircleCI medium.
+    # Keep focused local regressions single-worker; full/coverage runs belong in CI.
+    "pytest-xdist>=3.6",
     # reports/dashboard/pages_site.py renders the mailroom-issues Pages site (SAND-036).
     "markdown-it-py>=4.0,<5",
     # `sandbox datasets pull` / `hf-pilot` / corpus work (DMR-058): the
