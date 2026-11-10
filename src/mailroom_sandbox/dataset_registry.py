@@ -103,7 +103,7 @@ def load(path: Path | None = None) -> dict[str, dict[str, Any]]:
     import yaml
 
     try:
-        raw = yaml.load(path.read_text(encoding="utf-8"), Loader=_strict_loader(yaml)) or {}
+        raw = yaml.load(path.read_text(encoding="utf-8"), Loader=_strict_loader(yaml)) or {}  # nosec B506 -- the loader is our strict SafeLoader subclass: no arbitrary constructors
     except OSError as exc:
         raise ValueError(f"dataset registry not readable: {path}: {exc}") from exc
     except yaml.YAMLError as exc:
