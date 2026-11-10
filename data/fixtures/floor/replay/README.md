@@ -39,6 +39,7 @@ and metadata are copied here.
 ```bash
 sandbox floor --replay --base <run-store>   # sample replayed INTO that base, next to its runs
 sandbox floor                               # sample only when the base has no runs
+sandbox floor --replay-run <recorded-run>   # a real Modal/OpenRouter/Ollama/… run, provider-agnostic
 ```
 
 `--replay` resets just `runtime/runs/replay-mailroom-sample` inside the base and plays the

@@ -25,6 +25,8 @@ from urllib.parse import quote
 
 from mailroom_sandbox.job.checkpoint import RunStore
 from mailroom_sandbox.paths import data_dir, repo_root
+from mailroom_sandbox.tui.floor_replay import is_replay_run as _is_replay_run
+from mailroom_sandbox.tui.floor_replay import prepare_recorded_replay
 # viewer port + its claim note live in ports.py so parser help never imports this
 from mailroom_sandbox.ports import DEFAULT_VIEWER_PORT as DEFAULT_PORT
 
@@ -226,23 +228,6 @@ def replay_store(base: Path) -> Path:
     return Path(base)
 
 
-def _is_replay_run(run: Path) -> bool:
-    """True when ``run`` is app-owned replay content a fresh start may replace.
-
-    A spec.lock.json naming ``engine.kind == "replay"`` marks a replay attempt;
-    an empty directory may also be used. Any nonempty directory without a valid
-    replay lock counts as foreign, including unrecognized operator files.
-    """
-    try:
-        lock = json.loads((run / "spec.lock.json").read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        return run.is_dir() and not any(run.iterdir())
-    except (OSError, ValueError):
-        return False
-    engine = lock.get("engine") if isinstance(lock, dict) else None
-    return isinstance(engine, dict) and engine.get("kind") == "replay"
-
-
 def _load_trace(path: Path) -> list[tuple[float, dict]]:
     """Read ``replay.jsonl`` and return its records ordered by the ``at`` timeline.
 
@@ -276,10 +261,14 @@ class ReplayDriver:
     proceed, and held docs park open — the store therefore looks like a real live run.
     """
 
-    def __init__(self, base: Path) -> None:
-        """Load the trace from ``base``'s replay run and prepare its run store."""
+    def __init__(self, base: Path, *, run_id: str = REPLAY_RUN_ID, speed: float = 1.0) -> None:
+        """Load a replay run and prepare its store; ``speed`` scales the timeline."""
+        if speed <= 0:
+            raise ValueError("replay speed must be positive")
         self.base = Path(base)
-        self.run_dir = self.base / "runtime" / "runs" / REPLAY_RUN_ID
+        self.run_id = run_id
+        self.speed = float(speed)
+        self.run_dir = self.base / "runtime" / "runs" / run_id
         self.store = RunStore(self.run_dir)
         self.events = _load_trace(self.run_dir / "replay.jsonl")
         self.pos = 0
@@ -303,9 +292,10 @@ class ReplayDriver:
         at, event = self.events[self.pos]
         self.pos += 1
         if "node" in event:
-            record = event["node"]
-            if record.get("status") == "running":
-                record.update(self._stamp(at))
+            record = dict(event["node"])
+            # Every replayed node is stamped in this playback, including the
+            # finish row; source epochs must not leak into the viewer.
+            record["ts"] = self._stamp(at)["ts"]
             self.store.append_node(record)
         elif "item" in event:
             self.store.append_item(event["item"])
@@ -331,7 +321,7 @@ class ReplayDriver:
             if self.pos >= len(self.events):
                 return
             at, _ = self.events[self.pos]
-            if stop.wait(max(0.0, at - (time.monotonic() - start))):
+            if stop.wait(max(0.0, at - (time.monotonic() - start)) / self.speed):
                 return
             done_refresh = None
             if refresh is not None:
@@ -361,6 +351,8 @@ def serve_floor(
     run: str | None = None,
     out: Path | None = None,
     replay: bool = False,
+    replay_run: str | None = None,
+    replay_speed: float | None = None,
 ) -> int:
     """Build the digest, serve the dashboard on loopback, and rebuild in the background until interrupted.
 
@@ -376,12 +368,14 @@ def serve_floor(
     """
     with TemporaryDirectory(prefix="mailroom-floor-") as digest_dir:
         return _serve_floor(base=base, port=port, interval=interval, run=run, out=out,
-                            replay=replay, digest_dir=Path(digest_dir))
+                            replay=replay, replay_run=replay_run, replay_speed=replay_speed,
+                            digest_dir=Path(digest_dir))
 
 
 def _serve_floor(
     *, base: Path, port: int, interval: float, run: str | None, out: Path | None,
-    replay: bool, digest_dir: Path,
+    replay: bool, digest_dir: Path, replay_run: str | None = None,
+    replay_speed: float | None = None,
 ) -> int:
     """Run one viewer using its caller-owned private digest directory."""
     try:
@@ -391,13 +385,28 @@ def _serve_floor(
         return 1
     out = Path(out) if out is not None else dashboard_dir()
     driver: ReplayDriver | None = None
-    if not replay and run is None and replay_base().is_dir() and not has_runs(base):
+    recorded_meta: dict[str, Any] | None = None
+    if replay_run is not None and replay:
+        print("sandbox floor: choose --replay or --replay-run, not both", file=sys.stderr, flush=True)
+        return 2
+    if replay_run is not None:
+        speed = 10.0 if replay_speed is None else replay_speed
+        try:
+            recorded = prepare_recorded_replay(base, replay_run, speed=speed)
+            driver = ReplayDriver(base, run_id=recorded.run_id, speed=speed)
+            recorded_meta = {**recorded.meta, "path": str(recorded.path)}
+        except Exception as exc:  # noqa: BLE001 — bad source/path: one line, no traceback
+            print(f"sandbox floor: recorded replay unavailable: {type(exc).__name__}: {exc}",
+                  file=sys.stderr, flush=True)
+            return 1
+        run = run or recorded.run_id
+    elif not replay and run is None and replay_base().is_dir() and not has_runs(base):
         print(f"sandbox floor: no runs under {base}; replaying the bundled sample", file=sys.stderr, flush=True)
         replay = True
-    if replay:
+    if replay and driver is None:
         try:
             base = replay_store(base)
-            driver = ReplayDriver(base)
+            driver = ReplayDriver(base, speed=1.0 if replay_speed is None else replay_speed)
         except Exception as exc:  # noqa: BLE001 — missing fixture or copy error: one line, no traceback
             print(f"sandbox floor: replay unavailable: {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
             return 1
@@ -425,9 +434,19 @@ def _serve_floor(
         replay_worker.start()
     print(floor_url(httpd.server_address[1], run), flush=True)
     if driver is not None:
-        print(f"  replay: {driver.documents} simulated documents over a {driver.events[-1][0]:.1f}s wall-clock"
-              f" timeline -> {base / 'runtime' / 'runs' / REPLAY_RUN_ID}"
-              f" (reset on each --replay; history untouched) · not live results", flush=True)
+        if recorded_meta is not None:
+            engine = recorded_meta.get("engine_kind") or "recorded"
+            model = recorded_meta.get("engine_model")
+            label = f"{engine}/{model}" if model else engine
+            extra = " · synthetic timing" if recorded_meta.get("synthetic_timing") else ""
+            incomplete = " · source run was not terminal" if recorded_meta.get("incomplete") else ""
+            print(f"  recorded replay: {label} · {driver.documents} documents over a "
+                  f"{recorded_meta.get('duration_s', driver.events[-1][0]):.1f}s timeline at {driver.speed:g}x"
+                  f" -> {recorded_meta['path']}{extra}{incomplete} · not live results", flush=True)
+        else:
+            print(f"  replay: {driver.documents} simulated documents over a {driver.events[-1][0]:.1f}s wall-clock"
+                  f" timeline -> {base / 'runtime' / 'runs' / REPLAY_RUN_ID}"
+                  f" (reset on each --replay; history untouched) · not live results", flush=True)
     else:
         print(f"  run store: {base} · rebuild when it changes (checked every {max(interval, MIN_INTERVAL_S):g}s) · Ctrl+C to stop",
               flush=True)

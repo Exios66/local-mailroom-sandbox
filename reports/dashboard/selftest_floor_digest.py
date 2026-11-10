@@ -90,7 +90,7 @@ RUN_KEYS = {
     "name", "state", "cursor", "total", "items_attempted", "items_ok", "engine", "profile", "spec_hash",
     "dataset_hash", "prompt_default", "prompts", "tokens", "node_fires", "edge_fires", "node_agents",
     "node_ms_p50", "aborts_by_last_node", "outcomes", "per_class", "inflight", "avg_doc_ms", "predicted",
-    "routing", "review_routed",
+    "routing", "review_routed", "replay",
 }
 
 
@@ -354,6 +354,7 @@ def digest_schema_is_frozen():
     for r in d["runs"]:
         assert set(r) == RUN_KEYS, set(r) ^ RUN_KEYS
         assert set(r["tokens"]) == {"prompt", "completion"} and set(r["engine"]) == {"kind", "model"}
+        assert r["replay"] is None
     assert [r["name"] for r in d["runs"]] == ["run-b", "run-a"], "history first, then live"
 
 
