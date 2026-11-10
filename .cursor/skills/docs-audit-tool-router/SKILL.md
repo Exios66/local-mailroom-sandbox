@@ -18,17 +18,17 @@ a release/service fact you did not check.
 
 | Claim or job | Check / tool | Owning source or specialist |
 | --- | --- | --- |
-| Relative links, moved paths, generated runbook links | `pytest -q tests/test_doc_paths.py -n 0 --no-cov` | The target file on disk; `archivist-file-organizer` for a layout move |
+| Relative links, moved paths, generated runbook links | `pytest -q tests/test_doc_paths.py -n 0 --no-cov`; check hidden/excluded files and anchor fragments separately (the test skips both) | The target file on disk; `archivist-file-organizer` for a layout move |
 | CLI command, flag, default or subcommand | `python scripts/check_cli_surface.py --check`; spot-check `sandbox <cmd> --help` | `src/mailroom_sandbox/cli.py` and the parser/handler, never the reference alone |
 | `docs/cli-reference.md` is stale | `python scripts/check_cli_surface.py` (regenerates) | Generated file — never hand-edit |
 | Requirements drift | `python scripts/sync_requirements.py --check` | `pyproject.toml`, then regenerate `requirements/*.txt` |
 | Reports hub page/data/snapshot | `python reports/dashboard/build_hub.py --check` | `reports/dashboard/`; regenerate, never hand-edit |
-| Runbook catalog and generated runbooks | `sandbox runbook check`; `sandbox runbook list` | `config/runbooks/catalog.yaml`; `sandbox runbook write` regenerates |
+| Runbook catalog and generated runbooks | `sandbox runbook check`; `sandbox runbook list` | Edit `config/runbooks/catalog.yaml`; `sandbox runbook write` regenerates `docs/runbooks/*.md` |
 | Agent roster, framework tail, Cursor stub | `sandbox subagents doctor --no-global`; `sandbox subagents sync --harness project --check` | `.opencode/agents/<id>.md`, `config/subagents/*`; `harness-doctor` |
 | Package version, dependency pin, Python floor | `pyproject.toml`, generated requirements, lockfile, installed version | Owning package; report declared vs installed separately |
 | Release/tag claim | `git tag --list`, `gh release view <tag>`, `CHANGELOG.md` heading | The owning repository's release, not a changelog heading alone |
 | Vendor snapshot or `_VENDOR_PINS` | `vendor/<pkg>/VENDOR.md`, `_VENDOR_PINS` in `src/mailroom_sandbox/cli.py`, `pytest -q tests/test_vendor_drift.py -n 0 --no-cov` | Owning upstream repo; refresh with `python scripts/sync_vendor.py` or `sandbox fetch-deps`, commit the diff |
-| `fetch-deps` behavior | Run `sandbox fetch-deps`; then `git status --short vendor` must be clean at current pins | `_cmd_fetch_deps` / `_refresh_vendor*`; report the exact pins refreshed |
+| `fetch-deps` behavior | Run `sandbox fetch-deps`; check exit status, the printed source revision and the resulting `git diff --stat vendor` separately (workspace mirroring may legitimately change it; a failed pinned refresh can leave it clean) | `_cmd_fetch_deps` / `_refresh_vendor*`; report the exact pins and path used |
 | Dataset revision or row count | `config/datasets.yaml`, `spec.lock.json`, prepared `dataset.jsonl`, run report | Preserve the run's pinned revision; never infer from Hub HEAD |
 | Model name, context window or price | `config/models.yaml`, `config/api_prices.yaml`, OpenRouter/AWS owner page with check date | `config/models.yaml` owner; do not copy a price without a date |
 | Experiment status or metric | Run ID, `report.json`/`report.md`, experiment log, current-head CI | `eval-judge`; distinguish planned, running, simulated, completed, superseded |
@@ -80,8 +80,9 @@ a release/service fact you did not check.
    not evidence for that behavior. Check command defaults against the parser,
    counts against the actual tree, and pins against `VENDOR.md`/`_VENDOR_PINS`.
 5. **Update the owning file.** Patch the canonical source, not a generated copy:
-   - `docs/cli-reference.md`, `requirements/*.txt`, runbook catalogs and the
-     reports hub are generated.
+   - `docs/cli-reference.md`, `requirements/*.txt`, generated
+     `docs/runbooks/*.md` and the reports hub are generated. The editable
+     runbook source is `config/runbooks/catalog.yaml`.
    - Agent prompts live in `.opencode/agents/`; sync project adapters with
      `sandbox subagents sync --harness project`.
    - Layout moves belong to `archivist-file-organizer`; board/README structure
@@ -90,8 +91,10 @@ a release/service fact you did not check.
      newer unrelated value.
 6. **Regenerate and re-run.** Re-run step 2 after edits. For a vendor refresh,
    run `sandbox fetch-deps` (or `python scripts/sync_vendor.py` from a monorepo
-   root), inspect `git diff --stat vendor`, and run the drift guard. For a
-   dependency change, regenerate requirements and run the lock/import smoke.
+   root), record its exit status and printed source/pin, inspect the resulting
+   `git diff --stat vendor`, and run the drift guard. A clean diff alone is not
+   proof of success when a workspace mirror was expected. For a dependency
+   change, regenerate requirements and run the lock/import smoke.
 7. **Record the audit boundary.** In the PR or handoff write: files inspected,
    commands run, checkout/ref, external check date, corrections, and anything
    still unverified. A green link check does not prove a model price or release
@@ -117,7 +120,8 @@ before closing it:
 ## Boundaries
 
 - Do not hand-edit `vendor/**`, `requirements/*.txt`, `uv.lock`, `.env`,
-  `data/runtime/**` or generated catalogs.
+  `data/runtime/**` or generated runbook Markdown; edit the catalog and
+  regenerate.
 - Do not run the full suite or campaign locally to prove a docs claim; use the
   current-head hosted result and cite the commit.
 - Do not silently upgrade dependencies, change a pin, or rewrite an experiment

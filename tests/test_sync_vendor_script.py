@@ -58,6 +58,18 @@ def test_success_replaces_tree_and_removes_stale_files(sync_vendor, tmp_path):
     assert not dest.with_name("src.sync-old").exists()
 
 
+def test_interrupted_promotion_restores_backup_before_refresh(sync_vendor, tmp_path):
+    dest = tmp_path / "vendor" / "pkg" / "src"
+    backup = dest.with_name("src.sync-old")
+    backup.mkdir(parents=True)
+    (backup / "keep.py").write_text("reviewed bytes\n")
+    source = tmp_path / "workspace" / "pkg" / "src"
+    source.mkdir(parents=True)
+    assert sync_vendor._refresh("pkg", dest, source) == 1
+    assert (dest / "keep.py").read_text() == "reviewed bytes\n"
+    assert not backup.exists()
+
+
 def test_failed_copy_leaves_snapshot_and_no_staging(sync_vendor, tmp_path, monkeypatch):
     dest = _dest(tmp_path)
     source = tmp_path / "workspace" / "pkg" / "src"

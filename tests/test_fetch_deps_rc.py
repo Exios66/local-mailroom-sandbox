@@ -75,6 +75,23 @@ def test_empty_workspace_package_never_wipes_tracked_snapshot(monkeypatch, tmp_p
     assert existing.read_text() == "reviewed bytes\n"
 
 
+def test_empty_standalone_staging_never_replaces_snapshot(monkeypatch, tmp_path):
+    vendor = tmp_path / "vendor"
+    keep = vendor / "alpha" / "src" / "keep.py"
+    keep.parent.mkdir(parents=True)
+    keep.write_text("reviewed bytes\n")
+    monkeypatch.setattr(cli, "vendor_dir", lambda: vendor)
+
+    def fake_fetch(work, pin, url, sha):
+        (work / "src" / "tests").mkdir(parents=True)
+        (work / "src" / "tests" / "test_x.py").write_text("excluded\n")
+        return "a" * 40
+
+    monkeypatch.setattr(cli, "_fetch_reviewed_checkout", fake_fetch)
+    assert cli._refresh_vendor("alpha", "pin", "https://example.invalid/alpha.git", "a" * 40) == 1
+    assert keep.read_text() == "reviewed bytes\n"
+
+
 def test_visualizer_clone_runs_even_after_vendor_failure(monkeypatch, tmp_path):
     monkeypatch.setattr(cli, "_VENDOR_PINS", _PINS[:1])
     monkeypatch.setattr(cli, "_monorepo_workspace_pkg", lambda name: Path("/ws"))
