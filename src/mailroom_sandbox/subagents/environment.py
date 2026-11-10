@@ -83,10 +83,12 @@ def environment_report(root: Path, expected_sha: str | None = None) -> dict:
     head = git_value(root, "rev-parse", "HEAD")
     status = git_value(root, "status", "--porcelain", "--untracked-files=normal")
     branch = git_value(root, "symbolic-ref", "--short", "HEAD")
-    final_head = git_value(root, "rev-parse", "HEAD")
-    final_branch = git_value(root, "symbolic-ref", "--short", "HEAD")
     package = Path(mailroom_sandbox.__file__).resolve()
     findings = hook_findings(root)
+    # Re-read after hook inspection too: a checkout switch during that work
+    # must not leave a verified fingerprint for the old HEAD/branch.
+    final_head = git_value(root, "rev-parse", "HEAD")
+    final_branch = git_value(root, "symbolic-ref", "--short", "HEAD")
     if final_head != head or final_branch != branch:
         findings.append({"code": "checkout.changed", "severity": "fail",
                          "message": "Checkout identity changed during inspection; retry after it is stable"})

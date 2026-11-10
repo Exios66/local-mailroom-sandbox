@@ -33,7 +33,6 @@ MAX_ROWS = 200_000
 MAX_TIMELINE_S = 7 * 24 * 3600
 _SAFE = re.compile(r"[^A-Za-z0-9._-]+")
 _RUN_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
-_REPLAY_MODES = {"recorded", "bundled", "replay"}
 
 
 @dataclass(frozen=True)
@@ -273,7 +272,7 @@ def build_timeline(source: Path) -> tuple[list[tuple[float, dict[str, Any]]], di
 
 
 def is_replay_run(run: Path) -> bool:
-    """True when ``run`` is app-owned replay content that may be safely reset."""
+    """True when ``run`` is the bundled app-owned sample that may be reset."""
     try:
         lock = json.loads((Path(run) / "spec.lock.json").read_text(encoding="utf-8"))
     except FileNotFoundError:
@@ -283,7 +282,7 @@ def is_replay_run(run: Path) -> bool:
     if not isinstance(lock, dict):
         return False
     replay = lock.get("replay")
-    if isinstance(replay, dict) and replay.get("mode") in _REPLAY_MODES:
+    if isinstance(replay, dict) and replay.get("mode") == "bundled":
         return True
     engine = lock.get("engine")
     return isinstance(engine, dict) and engine.get("kind") == "replay"
@@ -311,9 +310,9 @@ def prepare_recorded_replay(
     """Materialize a provider-agnostic recorded replay under ``base``.
 
     The source is read-only. The destination is app-owned and labelled with a
-    ``replay.mode: recorded`` block; an existing foreign run with the same id is
-    never overwritten. ``speed`` is persisted for provenance and used by the
-    caller's driver.
+    ``replay.mode: recorded`` block. An existing run is never overwritten: a
+    suffixed id is allocated instead. ``speed`` is persisted for provenance and
+    used by the caller's driver.
     """
     if not math.isfinite(speed) or speed <= 0:
         raise ValueError("replay speed must be a finite positive number")
@@ -327,11 +326,17 @@ def prepare_recorded_replay(
         raise ValueError("recorded replay run id must contain only letters, digits, dot, dash or underscore")
     runs = Path(base) / "runtime" / "runs"
     runs.mkdir(parents=True, exist_ok=True)
+    # Never delete or replace an existing run. Allocate a suffixed app-owned id
+    # instead; the source remains read-only and history is append-only.
     target = runs / run_id
-    if target.exists() or target.is_symlink():
-        if target.is_symlink() or not is_replay_run(target):
-            raise FileExistsError(f"recorded replay refuses to replace foreign run {target}")
-        shutil.rmtree(target)
+    suffix = 2
+    while target.exists() or target.is_symlink():
+        candidate = f"{run_id}-{suffix}"
+        if not _RUN_ID.fullmatch(candidate):
+            raise ValueError("recorded replay run id is too long")
+        target = runs / candidate
+        suffix += 1
+    run_id = target.name
     staging = runs / f".{run_id}.{uuid.uuid4().hex[:8]}"
     try:
         staging.mkdir()
