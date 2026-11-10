@@ -7,7 +7,7 @@ Cross-family work stays on the Digital-Mailroom hub board
 (`governance/TASKS.md` at the monorepo root) as **`DMR-*`**. This file is the **only** sandbox-local task board — do not
 open `DMR-*` cards here.
 
-**Next ID: `SAND-105`**
+**Next ID: `SAND-106`**
 
 <!-- coderabbit-ai-generated:v1 -->
 
@@ -16,8 +16,9 @@ open `DMR-*` cards here.
 Reconciled against the [issue tracker](https://github.com/Exios66/local-mailroom-sandbox/issues)
 on 2026-11-10 (issue triage: closed #241/#251 as stale/not planned with evidence;
 SAND-103 added for the agent dispatch stack; opened #285 for stable snapshot
-fetching): this board has 122 card rows (88 primary cards) and its highest
-primary ID is `SAND-104`. The tracker has 21 open issues, 17 with a `SAND-*`
+fetching): this board had 122 card rows (88 primary cards) with highest
+primary ID `SAND-104` at triage. The post-merge audit adds SAND-105;
+current board counts are 124 card rows (89 primary cards). The tracker has 21 open issues, 17 with a `SAND-*`
 ID in the title; its highest such ID is
 `SAND-102` (#263), and all title IDs have rows here. **This board is the
 numbering authority:** allocate the next ID here first, then open the issue.
@@ -32,7 +33,8 @@ Lanes: `todo` → `in_progress` → `needs_attention` → `review` → `done`.
 
 | ID | Title | Owner | Status | Notes |
 | --- | --- | --- | --- | --- |
-| SAND-103 | Agent environment, dispatch, recovery and durable handoff tooling | Codex 2026-11-10 | **done** | Requested follow-up to PRs #274–#280. Seven steps: execution identity, dispatch contracts, failure recovery, hosted evidence/local budgets, readiness levels, scoped synchronization/drift, durable handoffs. Landed as #281 → #282 → #283 → #286 (`c4ba6fe`, `117a9bf`, `4645e46`, `73113a7`); full suite 2,948 passed / 27 skipped, coverage 86.21% (floor 84). |
+| SAND-105 | Post-merge landing audit and bootstrap/workspace refresh fixes | Codex 2026-11-10 | **review** | Audits #274–#287 and proposal #285. Reproduced early dotenv reads in offline agent bootstrap and partial workspace-copy writes; adds scoped regression-backed fixes. Current main CI evidence corrected; [audit report](../docs/audits/2026-11-10-landed-pr-audit.md). Hosted verification required for the follow-up head. |
+| SAND-103 | Agent environment, dispatch, recovery and durable handoff tooling | Codex 2026-11-10 | **done** | Requested follow-up to PRs #274–#280. Seven steps: execution identity, dispatch contracts, failure recovery, hosted evidence/local budgets, readiness levels, scoped synchronization/drift, durable handoffs. Landed as #281 → #282 → #283 → #286 (`c4ba6fe`, `117a9bf`, `4645e46`, `73113a7`); hosted main `0ca393e` / CircleCI #700: 2,946 passed / 28 skipped, coverage 86.21% (floor 84). Earlier 2,948/27 counts were reported without this hosted commit/result pairing; see the [landing audit](../docs/audits/2026-11-10-landed-pr-audit.md). |
 | SAND-104 | Fetch stable Dojo and pipeline snapshots on demand, with layered fallback | unassigned | **todo** | Issue #285. Add a verified release-snapshot cache for the Dojo and pipeline: resolve a released tag, verify the release manifest/SHA256SUMS, extract atomically, then resolve explicit env → installed release → cached stable snapshot → vendored snapshot → diagnostic. Keep `vendor/` as the final offline fallback; never auto-update pins or run locks. Dojo v0.28.1 already publishes wheel/sdist/manifest/SHA256SUMS; llm-mailroom releases need assets or a tag-archive fallback. Related: SAND-103, #221, llm-mailroom#225. |
 | SAND-102 | First spend-gated load check of the unverified Qwen serving rows (35B-A3B L4:2 TP=2, 27B L40S, 9B VRAM peak) | Exios66 | **todo** | Issue #263. Boot each never-verified `modal_models` row once: `/health`, boot VRAM peak, KV headroom, then validate the provisional `max_model_len: 16384` (v0.29.0 boot-raise lesson); write actuals back into `config/models.yaml` row notes + `docs/scale-matrix.md`. Rows were onboarded and the 9B champion served live (open, no VRAM reading); see SAND-021. Related: SAND-101, SAND-023, SAND-098. |
 | SAND-101 | Ship causal_conv1d + FLA kernels in the modal-vllm image for Qwen3.5 | Exios66 | **todo** | Issue #262. The `models.yaml` Qwen3.5 section header records the requirement; without them vLLM **silently** falls back to slower PyTorch ops. Pin the wheels in the image build, verify the native-kernel serve log line, surface a loud warning on fallback (or refuse), and record the decode/VRAM delta in `docs/scale-matrix.md`. Related: SAND-097 (critical-tier opens this same gap), SAND-098. |

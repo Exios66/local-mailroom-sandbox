@@ -117,9 +117,13 @@ def main(argv: list[str] | None = None) -> int:
     # importing credentials from .env. Keep existing dotenv-first defaults for
     # all other commands; only preparse the subagent command family.
     raw = list(sys.argv[1:] if argv is None else argv)
-    candidate = build_parser().parse_args(raw) if "subagents" in raw else None
+    from mailroom_sandbox.paths import without_dotenv
+
+    with without_dotenv():
+        candidate = build_parser().parse_args(raw) if "subagents" in raw else None
     if candidate is not None and getattr(candidate, "offline_inspection", False):
-        parser = build_parser()
+        with without_dotenv():
+            parser = build_parser()
         args = candidate
     else:
         load_env_file()
@@ -1505,56 +1509,81 @@ def _vendor_rel_excluded(rel: Path) -> bool:
     return False
 
 
-def _refresh_vendor_from_workspace(name: str, ws_root: Path) -> int:
-    """Mirror the monorepo workspace package onto ``vendor/<name>`` (DMR-070).
-
-    Deletion-carrying exact mirror: after a run the vendored tree is an exact
-    image of the workspace package (minus the shared exclusions), so a
-    subsequent drift-guard run (tests/test_vendor_drift.py) passes. VENDOR.md
-    lives OUTSIDE the mirrored ``src`` root and is never touched.
-    """
+def _install_vendor_tree(staged: Path, dest: Path, refresh_root: Path, name: str) -> bool:
+    """Promote a complete staged tree, retaining recovery bytes if rollback fails."""
     import shutil
+    import tempfile
+
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    recovery = None
+    if dest.exists():
+        recovery = Path(tempfile.mkdtemp(prefix=f"{name}-recovery-", dir=refresh_root))
+        backup = recovery / "src"
+        dest.rename(backup)
+    try:
+        staged.rename(dest)
+    except OSError as install_error:
+        if recovery is not None:
+            try:
+                backup.rename(dest)
+            except OSError as restore_error:
+                print(
+                    f"!! install failed ({install_error}); rollback failed "
+                    f"({restore_error}). Original snapshot preserved at {backup}",
+                    file=sys.stderr,
+                )
+                return False
+            recovery.rmdir()
+        raise
+    if recovery is not None:
+        shutil.rmtree(recovery)
+    return True
+
+
+def _refresh_vendor_from_workspace(name: str, ws_root: Path) -> int:
+    """Stage an exact workspace mirror before replacing any tracked vendor bytes."""
+    import shutil
+    import tempfile
 
     dest_root = vendor_dir() / name / "src"
     if ws_root.name != "src":
-        # llm-dojo-scoring layout: the package dir relocates under src/
-        # (mirrors the standalone path's DMR-058 normalization).
         dest_root = dest_root / ws_root.name
-    dest_root.parent.mkdir(parents=True, exist_ok=True)
-
-    wanted: set[str] = set()
-    for path in sorted(ws_root.rglob("*")):
-        if not path.is_file():
-            continue
-        rel = path.relative_to(ws_root)
-        if _vendor_rel_excluded(rel):
-            continue
-        wanted.add(str(rel))
-        dst = dest_root / rel
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(path, dst)
-    if not wanted:
+    refresh_root = vendor_dir() / ".refresh"
+    try:
+        refresh_root.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix=f"{name}-workspace-", dir=refresh_root) as tmp:
+            staged = Path(tmp) / "src"
+            staged.mkdir()
+            wanted: set[str] = set()
+            for path in sorted(ws_root.rglob("*")):
+                if not path.is_file():
+                    continue
+                rel = path.relative_to(ws_root)
+                if _vendor_rel_excluded(rel):
+                    continue
+                target = staged / rel
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(path, target)
+                wanted.add(str(rel))
+            if not wanted:
+                print(
+                    f"!! workspace package for {name} resolved to {ws_root} but contains no "
+                    "mirrorable files — tracked vendor tree left untouched",
+                    file=sys.stderr,
+                )
+                return 1
+            removed = sum(1 for p in dest_root.rglob("*")
+                          if p.is_file() and str(p.relative_to(dest_root)) not in wanted)
+            if not _install_vendor_tree(staged, dest_root, refresh_root, name):
+                return 1
         print(
-            f"!! workspace package for {name} resolved to {ws_root} but contains no "
-            "mirrorable files — tracked vendor tree left untouched",
-            file=sys.stderr,
+            f"== mirrored vendor/{name} from the monorepo workspace "
+            f"({ws_root}) — {len(wanted)} file(s), {removed} deleted; commit the diff"
         )
+        return 0
+    except OSError as exc:
+        print(f"!! workspace refresh {name} failed: {exc}", file=sys.stderr)
         return 1
-    removed = 0
-    if dest_root.is_dir():
-        for path in sorted(dest_root.rglob("*"), key=lambda p: len(p.parts), reverse=True):
-            rel = path.relative_to(dest_root)
-            if path.is_file():
-                if str(rel) not in wanted:
-                    path.unlink()
-                    removed += 1
-            elif path.is_dir() and not any(path.iterdir()):
-                path.rmdir()
-    print(
-        f"== mirrored vendor/{name} from the monorepo workspace "
-        f"({ws_root}) — {len(wanted)} file(s), {removed} deleted; commit the diff"
-    )
-    return 0
 
 
 def _package_src_dir(clone_root: Path) -> Path | None:
@@ -1651,32 +1680,8 @@ def _refresh_vendor(name: str, pin: str, url: str, sha: str | None = None) -> in
                 )
                 return 1
             dest = vendor_dir() / name / "src"
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            had_dest = dest.exists()
-            recovery = None
-            if had_dest:
-                # Keep recovery bytes OUTSIDE the auto-cleaned checkout. A
-                # failed install and failed rollback must never delete them.
-                recovery = Path(tempfile.mkdtemp(prefix=f"{name}-recovery-", dir=refresh_root))
-                backup = recovery / "src"
-                dest.rename(backup)
-            try:
-                staged.rename(dest)
-            except OSError as install_error:
-                if recovery is not None:
-                    try:
-                        backup.rename(dest)
-                    except OSError as restore_error:
-                        print(
-                            f"!! install failed ({install_error}); rollback failed "
-                            f"({restore_error}). Original snapshot preserved at {backup}",
-                            file=sys.stderr,
-                        )
-                        return 1
-                    recovery.rmdir()
-                raise
-            if recovery is not None:
-                shutil.rmtree(recovery)
+            if not _install_vendor_tree(staged, dest, refresh_root, name):
+                return 1
         print(f"== refreshed vendor/{name} @ {pin} (commit {head[:12]}) — commit the diff")
         return 0
     except OSError as exc:
