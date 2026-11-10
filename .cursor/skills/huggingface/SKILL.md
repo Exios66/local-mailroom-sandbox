@@ -15,9 +15,12 @@ Hub administration may also use the installed `hf-cli` skill; it does not
 replace the sandbox's selection and lock contracts. Default tests use fixtures
 and mocks, with no Hub or model calls.
 
-Keep full corpus/mock-campaign checks and coverage sweeps in CI. Locally, use
-small fixture regressions and static checks; inspect hosted failures before
-attempting a bounded reproduction. The complete CI gates still apply before merge.
+Keep full corpus/mock-campaign checks and coverage sweeps off the local machine.
+CircleCI runs the full pytest/coverage suite but has no dedicated corpus-campaign
+job. Arrange a separately scoped hosted job when a campaign is needed; until it
+runs, report its result as unverified. Locally, use small fixture regressions
+and static checks; inspect hosted failures before a bounded reproduction. The
+complete CI gates still apply before merge; live-call and spend gates also apply.
 
 ## Choose the data operation
 

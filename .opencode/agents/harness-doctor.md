@@ -60,7 +60,9 @@ Shared non-negotiables live in `config/subagents/AGENT_FRAMEWORK.md` (v2).
 1. **Reproduce minimally** — `sandbox subagents doctor`, focused single-worker
    tests without coverage, `sandbox … --mock`, read-only inspection before live
    spend. Full-suite, coverage and benchmark checks belong in hosted CI; inspect
-   current-head results instead of rerunning them locally.
+   current-head results instead of rerunning them locally. CircleCI has no
+   dedicated runtime-benchmark job: arrange scoped hosted verification when
+   needed, and keep that result unverified until it runs.
 2. **Follow the failure outward** — symptom → harness surface → roster entry →
    canonical prompt → deployed copy (project vs global vs Cursor).
 3. **Classify the bug**:

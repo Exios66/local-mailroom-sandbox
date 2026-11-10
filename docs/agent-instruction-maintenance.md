@@ -62,7 +62,10 @@ an upgrade, pin change, vendor refresh, paid run or rewrite of a locked experime
 4. Verify changed links, examples and Markdown with cheap local checks. Use
    focused, single-worker tests without coverage if behavior needs verification;
    leave full suites, coverage, campaigns and benchmarks to hosted CI under the
-   [test policy](../AGENTS.md#tests).
+   [test policy](../AGENTS.md#tests). Check which jobs actually exist: current
+   CircleCI has no dedicated campaign or runtime-benchmark job. Arrange scoped
+   hosted verification when needed, preserving live/spend gates, and record
+   absent results as pending or unverified.
 5. In the existing PR description, experiment report or handoff, record the
    checked scope, checkout/source revision, external check date when applicable,
    corrections and unresolved facts. Do not claim a complete audit when only a

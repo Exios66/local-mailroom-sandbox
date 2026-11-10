@@ -33,7 +33,10 @@ sandbox doctor                                              # offline status of 
 - Coverage floor is `fail_under = 77`: **never lower it to land a change.**
 - Full-suite, coverage, campaign and runtime benchmarking checks belong in hosted
   CI. Use focused single-worker checks without coverage locally; require passing
-  current-head hosted gates before merging. See [CI guidance](.circleci/README.md).
+  current-head hosted gates before merging. CircleCI currently runs lint, pytest,
+  coverage, reports-snapshot and requirements checks; it has no dedicated campaign
+  or runtime-benchmark jobs. If those are needed, arrange scoped hosted verification
+  and keep the result unverified until it runs. See [CI guidance](.circleci/README.md).
 - Live-LLM tests need `SANDBOX_LOCAL_LLM=1`; real Modal/HF contract checks need
   `SANDBOX_SERVICE_SMOKE=1`. Leave both unset.
 

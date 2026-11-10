@@ -246,6 +246,12 @@ and serial/parallel benchmarks belong in CI; do not repeat them locally just
 to duplicate a hosted check. For a CI failure, inspect its logs and artifacts
 first, then run a bounded local reproduction only when needed.
 
+CircleCI currently runs lint and the full pytest/coverage lane, plus reports-hub
+snapshot and requirements checks. There are no dedicated full-corpus campaign
+or serial/parallel benchmark jobs. When such verification is needed, arrange a
+separately scoped hosted job, preserving live/spend gates; report it as pending
+or unverified until evidence exists. Passing ordinary CI does not certify it.
+
 The complete CI suite and coverage gate remain required before merging. Verify
 checks against the current PR head SHA, inspect failures, and wait for pending
 required checks. Offloading changes where expensive checks run, not which
