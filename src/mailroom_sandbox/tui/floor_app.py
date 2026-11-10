@@ -1,9 +1,9 @@
 """`sandbox floor` — the pipeline-floor viewer as one resident app.
 
-A background thread keeps ``floor_digest.json`` / ``floor_digest.js`` current by calling
-``reports/dashboard/build_floor_digest.py`` in-process (read-only against the run store),
-and a loopback ``http.server`` serves ``reports/dashboard/`` so ``floor.template.html``
-can poll the digest. The thread rebuilds only when a run artifact's stat changed, so an
+A background thread keeps private ``floor_digest.json`` / ``floor_digest.js`` files current
+by calling ``reports/dashboard/build_floor_digest.py`` in-process (read-only against the run store).
+A loopback ``http.server`` serves dashboard assets and that instance's private digest.
+The thread rebuilds only when a run artifact's stat changed, so an
 idle floor costs one cheap stat sweep per interval.
 """
 
@@ -18,6 +18,7 @@ import time
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import ModuleType
 from typing import Any, Callable
 from urllib.parse import quote
@@ -148,6 +149,19 @@ class DigestRefresher:
 class _FloorHandler(SimpleHTTPRequestHandler):
     """Static handler for the dashboard dir: quiet, and never cached (the digest changes under it)."""
 
+    def __init__(self, *args: Any, digest_directory: Path | None = None, **kwargs: Any) -> None:
+        """Serve dashboard assets with optional process-private digest files."""
+        self.digest_directory = digest_directory
+        super().__init__(*args, **kwargs)
+
+    def translate_path(self, path: str) -> str:
+        """Resolve the two root digest URLs in this server's private directory."""
+        resolved = Path(super().translate_path(path))
+        if (self.digest_directory is not None and resolved.parent == Path(self.directory)
+                and resolved.name in {"floor_digest.json", "floor_digest.js"}):
+            return str(self.digest_directory / resolved.name)
+        return str(resolved)
+
     def log_message(self, fmt: str, *args: Any) -> None:
         """Suppress HTTP request logging."""
         return
@@ -158,12 +172,15 @@ class _FloorHandler(SimpleHTTPRequestHandler):
         super().end_headers()
 
 
-def make_server(directory: Path, port: int = DEFAULT_PORT) -> ThreadingHTTPServer:
+def make_server(directory: Path, port: int = DEFAULT_PORT, *, digest_dir: Path | None = None) -> ThreadingHTTPServer:
     """Bind a loopback server for ``directory`` (port 0 = ephemeral), without serving yet.
 
     Socket binding errors propagate.
     """
-    return ThreadingHTTPServer((DEFAULT_HOST, port), partial(_FloorHandler, directory=str(directory)))
+    return ThreadingHTTPServer(
+        (DEFAULT_HOST, port),
+        partial(_FloorHandler, directory=str(directory.resolve()), digest_directory=digest_dir),
+    )
 
 
 def floor_url(port: int, run: str | None = None) -> str:
@@ -347,7 +364,8 @@ def serve_floor(
 ) -> int:
     """Build the digest, serve the dashboard on loopback, and rebuild in the background until interrupted.
 
-    ``out`` is the served and written directory (default ``reports/dashboard``); ``run``
+    ``out`` is the dashboard asset directory (default ``reports/dashboard``); digests
+    are built in temporary storage private to this call and removed on exit. ``run``
     identifies a run to preselect via the printed URL. ``port=0`` chooses an ephemeral port, and checks
     run at least 0.1 seconds apart. With ``replay`` (or when the base has no runs and no run is
     named), the bundled pinned sample is replayed INTO the base as an app-owned run alongside the
@@ -356,7 +374,21 @@ def serve_floor(
     surprise or a port that cannot be bound returns 1 with one line. Later build exceptions
     are recorded and retried. Returns 0 after Ctrl+C.
     """
-    builder = load_builder()
+    with TemporaryDirectory(prefix="mailroom-floor-") as digest_dir:
+        return _serve_floor(base=base, port=port, interval=interval, run=run, out=out,
+                            replay=replay, digest_dir=Path(digest_dir))
+
+
+def _serve_floor(
+    *, base: Path, port: int, interval: float, run: str | None, out: Path | None,
+    replay: bool, digest_dir: Path,
+) -> int:
+    """Run one viewer using its caller-owned private digest directory."""
+    try:
+        builder = load_builder()
+    except (OSError, ImportError) as exc:
+        print(f"sandbox floor: error: {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
+        return 1
     out = Path(out) if out is not None else dashboard_dir()
     driver: ReplayDriver | None = None
     if not replay and run is None and replay_base().is_dir() and not has_runs(base):
@@ -370,7 +402,7 @@ def serve_floor(
             print(f"sandbox floor: replay unavailable: {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
             return 1
         run = run or REPLAY_RUN_ID
-    refresher = DigestRefresher(base, out)
+    refresher = DigestRefresher(base, digest_dir)
     try:
         refresher.refresh()
     except builder.DigestError as exc:
@@ -380,7 +412,7 @@ def serve_floor(
         print(f"sandbox floor: error: {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
         return 1
     try:
-        httpd = make_server(out, port)
+        httpd = make_server(out, port, digest_dir=digest_dir)
     except OSError as exc:  # port already in use / not bindable
         print(f"sandbox floor: cannot listen on {DEFAULT_HOST}:{port}: {exc}", file=sys.stderr, flush=True)
         return 1
