@@ -17,6 +17,10 @@ dataset or deploy task, read `.cursor/skills/sandbox-tool-router/SKILL.md` first
 then exactly one specialty skill in `.cursor/skills/`. For a full docs/README
 staleness sweep, follow `.cursor/skills/docs-audit-tool-router/SKILL.md`.
 
+PR and issue descriptions use an executive summary, never a transcript: no
+direct quotes from the requester, names, handles or credentials, and no
+`User description` section. Paraphrase the intent and use the PR template.
+
 ## Setup and checks (all network-free)
 
 ```bash
