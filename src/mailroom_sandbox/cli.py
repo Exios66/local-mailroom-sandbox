@@ -108,6 +108,12 @@ def _activation_knobs(spec):
     return knobs
 
 def main(argv: list[str] | None = None) -> int:
+    """Dispatch a command and translate expected operator failures to exit codes.
+
+    Offline agent inspection suppresses dotenv discovery through parser setup;
+    other commands load normal environment defaults before their final parse.
+    Only a console invocation adjusts PATH to prefer its own virtualenv tools.
+    """
     from mailroom_sandbox import prefer_own_venv_tools
     from mailroom_sandbox.runtime import load_env_file
 
