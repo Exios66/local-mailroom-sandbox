@@ -128,3 +128,22 @@ the refresh, then restart the processes. This concurrency limitation is
 explicit in the helper; an atomic directory swap alone would still permit
 mixed-revision imports. The parser-default nit in that same review is
 covered by `b3478a7`, which calls `build_parser()` for every offline action.
+
+## Follow-up CI: prompt override isolation
+
+[Test job 712](https://circleci.com/gh/Exios66/local-mailroom-sandbox/712), on
+follow-up head `303e0ee`, exposed three order-dependent prompt-freeze failures
+(2,956 other tests passed, 28 skipped; coverage passed at 86.24%). Generation
+tests left their sentinel text in the process-wide pipeline prompt table. The
+shared fixture cleared active selection but did not restore patched prompt
+tables and imported lookup bindings. This was a test isolation defect, not a
+change to the committed frozen prompts.
+
+Running one generation test followed by the four freeze checks reproduced
+three failures in 2.66 seconds. The shared fixture now deactivates runtime
+overrides as well as clearing selection at both test boundaries. An ordered
+selection covering generation, prompt versions, injection, registry, freeze and
+condensed prompts passes: **221 passed / 2 skipped** in 20.56 seconds, one worker
+without coverage. Frozen source hashes and assertions are unchanged. Full
+current-head CI remains required; rerunning the previous failing revision alone
+would not repair the leak.
