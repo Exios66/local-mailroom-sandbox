@@ -29,6 +29,8 @@
 > [`../api-evals/config/runs/`](../api-evals/config/runs/)
 > and run through `python api-evals/run_api_evals.py` from the repository root.
 > Main sandbox API runs use their own API token budget; see [jobs](../docs/jobs.md).
+> Both run-spec trees use `sandbox.run/v1` and the shared loader/preflight;
+> choose the entry point for its registration and reporting workflow.
 > See
 > [`../docs/setting-up/LAYOUT.md`](../docs/setting-up/LAYOUT.md).
 
