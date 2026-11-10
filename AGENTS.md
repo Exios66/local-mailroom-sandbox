@@ -58,7 +58,7 @@ unless explicitly opted in.
   For local inputs, `dataset.metadata.sha256` identifies the source bytes;
   `metadata.name` and `metadata.pull` are present only when supplied. A registry
   name or source hash alone does not identify a selected subset. Record limits,
-  strata, seed and locked row IDs; selection uses canonical sorting, not just
+  strata, seed, `require_task_gt` and locked row IDs; selection uses canonical sorting, not just
   file line order. See [dataset identity](docs/jobs.md#dataset-identity).
 - A floor replay is a labeled, persistent, simulated run inside its `--base`.
   Use a scratch base for demos. Never cite its scores/tokens/latencies as model
@@ -222,3 +222,9 @@ Import-isolation tests must modify the existing `sys.modules` mapping in place
 and clear cached parent-package attributes when needed. Replacing the mapping
 can miss imports or fail inside CPython. For an import guard, also run a
 negative control that deliberately imports the prohibited module.
+
+CI uses two xdist workers with `--dist loadfile`, keeping process-local routing
+scenario coverage on one worker. Preserve the full network-free suite and the
+77% merged coverage gate. Compare completed job and pytest-step durations with
+the same coverage settings before claiming a speedup; a faster no-coverage
+local run or a failed CI job does not prove the required checks got faster.

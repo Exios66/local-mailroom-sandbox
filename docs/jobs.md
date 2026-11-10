@@ -146,11 +146,18 @@ and `revision: offline`; the lock's top-level revision fields are not proof
 that a local file came from that Hub revision.
 
 Local-file `spec_hash` uses the filename and source-byte SHA-256 when the file
-exists, plus selection settings. The registry name, declared SHA pin and pull
+exists, plus `limit`, `sample_seed`, `strata` and `exclude_expected`.
+`require_task_gt: true` is also hashed for both local and Hub datasets, because
+it filters out rows with no task ground truth before selection. Its false
+default is omitted, preserving unfiltered hashes. A filter change must refuse
+resume with `drift_refused`; relocking preserves the previous generation.
+The registry name, declared SHA pin and pull
 recipe are not hashed. Same-named identical files hash alike across checkout
 paths. Missing files still hash without source bytes; this does not mean they
-can pass preflight. Older path-based local-file locks drift under this scheme;
-Hub-dataset hashes are unchanged. Inspect drift before choosing `--force`,
+can pass preflight. Older path-based local-file locks drift under this scheme.
+Filename portability alone does not change Hub-dataset hashes; the task-GT
+filter fix changes hashes for previously filtered specs of either provider.
+Inspect drift before choosing `--force`,
 which archives an eligible generation and creates a replacement lock.
 
 `sandbox hf download` populates raw Hub snapshots. `sandbox datasets pull`

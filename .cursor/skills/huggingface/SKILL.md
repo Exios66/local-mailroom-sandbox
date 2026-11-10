@@ -92,12 +92,19 @@ preflight locks the prepared rows in the run store:
 | `dataset` revision/config/split and `spec_core.dataset` | Requested source and selection settings; inspect metadata to distinguish local from Hub provenance |
 
 For local specs, `spec_hash` uses the **filename** (`local.name`) and source
-SHA-256 when the file exists, plus selection settings. Registry `name`, `pull`
+SHA-256 when the file exists, plus `limit`, `sample_seed`, `strata` and
+`exclude_expected`. `require_task_gt: true` is hashed for local and Hub specs:
+it drops rows without task ground truth before the draw. The false default
+stays absent so unfiltered hashes remain stable. Toggle it only with a new run
+or an inspected relock; preflight must refuse to reuse the old subset.
+Registry `name`, `pull`
 and the declared SHA pin are provenance, not hashed identity. The same-named
 file with the same bytes hashes alike across directories. A missing file can
 still produce a spec hash without source bytes; that is not a successful
 preflight or proof of a sample. Existing local-file locks from the older
-path-based scheme drift under this scheme; Hub hashes are unaffected. Do not
+path-based scheme drift under this scheme. Filename portability alone leaves
+Hub hashes unchanged; the task-GT filter fix also changes previously filtered
+spec hashes for either provider. Do not
 use `--force` just to silence drift: it archives an eligible generation and
 creates a replacement. Preserve historical artifacts and inspect the cause.
 
