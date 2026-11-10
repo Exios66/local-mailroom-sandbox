@@ -1,9 +1,10 @@
 version: 2.1
 
-# Free-tier budget: two parallel small jobs, one workflow, pip cache.
-# Wall-time shape: both lanes restore caches first, so repeat pushes spend
-# seconds, not minutes, on tool/network setup; the test job parallelizes the
-# network-free suite with two pytest-xdist workers on this small executor
+# One workflow: small lint job, medium test job, cached downloads.
+# The test job needs medium's two allocated CPUs for its two pytest workers;
+# small has one CPU and hosted job 609 showed no parallel speedup there.
+# Both lanes restore caches before setup; the test job parallelizes the
+# network-free suite with two pytest-xdist workers
 # and keeps coverage scoped to src/mailroom_sandbox (pyproject
 # [tool.coverage.run]). This is the repo's only CI (there is no
 # .github/workflows/ci.yml). To BLOCK merges, mark the "ci/circleci: lint"
@@ -64,6 +65,7 @@ jobs:
 
   test:
     executor: py
+    resource_class: medium
     steps:
       - checkout
       - restore_cache:
@@ -78,10 +80,10 @@ jobs:
             - ~/.cache/pip
       - run:
           name: Pytest (network-free, parallel on the executor's CPUs)
-          # -q + -n 2: this small executor is 2 vCPU / 2GB; an `auto` count reads the
-          # host CPUs inside Docker and can spawn dozens of workers that die at import
-          # before responding (the manager then waits forever), so the default is the
-          # measured shape. junitxml stays identical in shape (xdist merges it), and
+          # -q + -n 2 matches medium's 2 vCPU / 4GB allocation. small is 1 vCPU / 2GB;
+          # two workers there did not improve hosted runtime. An `auto` count may read
+          # host CPUs inside Docker and exhaust memory before imports finish.
+          # junitxml stays identical in shape (xdist merges it), and
           # pytest-cov merges coverage. loadfile keeps process-local scenario unions
           # (test_pipeline_routing_matrix.WALKED) together and ordered on one worker.
           # Set SANDBOX_XDIST to override without editing CI.
