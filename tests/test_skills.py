@@ -8,6 +8,7 @@ from mailroom_sandbox.paths import repo_root
 
 REQUIRED = (
     "sandbox-tool-router",
+    "docs-audit-tool-router",
     "langfuse",
     "braintrust",
     "apache-phoenix",

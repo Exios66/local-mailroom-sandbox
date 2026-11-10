@@ -68,22 +68,52 @@ def _refresh(name: str, dest: Path, source: Path) -> int:
     if not source.is_dir():
         print(f"error: workspace source missing: {source}", file=sys.stderr)
         return 1
-    # Wipe + re-copy so deleted files are removed from the snapshot.
-    if dest.is_dir():
-        shutil.rmtree(dest)
-    dest.parent.mkdir(parents=True, exist_ok=True)
+    # Stage first: an empty or failed copy must never wipe the tracked snapshot.
+    staging = dest.with_name(dest.name + ".sync-new")
+    backup = dest.with_name(dest.name + ".sync-old")
+    if staging.exists():
+        shutil.rmtree(staging)
+    if backup.exists():
+        if dest.exists():
+            shutil.rmtree(backup)
+        else:
+            # A prior promotion stopped after moving dest aside; recover it first.
+            backup.rename(dest)
+    staging.mkdir(parents=True)
     copied = 0
-    for path in source.rglob("*"):
-        rel = path.relative_to(source)
-        if _excluded(rel):
-            continue
-        target = dest / rel
-        if path.is_dir():
-            target.mkdir(parents=True, exist_ok=True)
-            continue
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(path, target)
-        copied += 1
+    try:
+        for path in source.rglob("*"):
+            rel = path.relative_to(source)
+            if _excluded(rel):
+                continue
+            target = staging / rel
+            if path.is_dir():
+                target.mkdir(parents=True, exist_ok=True)
+                continue
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, target)
+            copied += 1
+        if copied == 0:
+            print(
+                f"error: workspace source for {name} has no mirrorable files: {source}; "
+                "tracked snapshot left untouched",
+                file=sys.stderr,
+            )
+            return 1
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if dest.exists():
+            dest.rename(backup)
+        try:
+            staging.rename(dest)
+        except OSError:
+            if backup.exists():
+                backup.rename(dest)
+            raise
+        if backup.exists():
+            shutil.rmtree(backup)
+    finally:
+        if staging.exists():
+            shutil.rmtree(staging)
     print(f"refreshed {name}: {copied} files -> {dest.relative_to(REPO)}")
     return 0
 

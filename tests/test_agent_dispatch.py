@@ -1,6 +1,7 @@
 """Dispatch evidence and durable handoffs never launch remote tasks."""
 from datetime import datetime, timedelta, timezone
 import json
+from pathlib import Path
 
 import pytest
 import yaml
@@ -159,3 +160,136 @@ def test_dispatch_check_cli_reads_exported_evidence_only(contract, snapshot, tmp
     assert cli.main(["subagents", "dispatch-check", "--contract", str(path), "--capabilities", str(cap)]) == 0
     report = json.loads(capsys.readouterr().out)
     assert not report["readiness"]["workflow_verified"]
+
+
+def test_read_document_bounds_and_shapes(tmp_path):
+    big = tmp_path / "big.json"
+    big.write_text("x" * 1_000_001)
+    with pytest.raises(ValueError, match="1 MB"):
+        dispatch.read_document(big)
+    malformed = tmp_path / "bad.yaml"
+    malformed.write_text("[unterminated")
+    with pytest.raises(ValueError, match="Invalid JSON/YAML"):
+        dispatch.read_document(malformed)
+    sequence = tmp_path / "list.yaml"
+    sequence.write_text("- one\n- two\n")
+    with pytest.raises(ValueError, match="mapping"):
+        dispatch.read_document(sequence)
+
+
+@pytest.mark.parametrize("change", [
+    {"schema": "wrong"},
+    {"extra": 1},
+    {"request_id": "bad id"},
+    {"objective": ""},
+    {"checkout": {"root": "relative", "branch": "b", "start_sha": "a" * 40, "pr_base": "main"}},
+    {"checkout": {"root": "/tmp", "branch": "b", "start_sha": "short", "pr_base": "main"}},
+    {"checkout": {"root": "/tmp", "branch": "b", "start_sha": "a" * 40}},
+    {"checkout": ["not", "a", "mapping"]},
+    {"read_only": "yes"},
+    {"read_only": False, "write_scope": []},
+    {"read_only": True, "write_scope": ["src"]},
+    {"read_only": False, "write_scope": ["."]},
+    {"read_only": False, "write_scope": ["../outside"]},
+    {"instructions": []},
+    {"instructions": [1]},
+    {"acceptance": "not-a-list"},
+    {"resources": {"local_workers": 2, "max_wall_seconds": 10, "spend_authorized": False}},
+    {"resources": {"local_workers": 1, "max_wall_seconds": 0, "spend_authorized": False}},
+    {"resources": {"local_workers": 1, "max_wall_seconds": 10, "spend_authorized": "yes"}},
+    {"resources": {}},
+])
+def test_contract_rejects_bounded_field_violations(contract, tmp_path, change):
+    path = tmp_path / "contract.yaml"
+    path.write_text(yaml.safe_dump({**contract, **change}))
+    with pytest.raises(ValueError):
+        dispatch.contract_document(path)
+
+
+def test_credential_uri_detection():
+    assert dispatch._credential_uri("postgres://user:password@db.example/app") is True
+    assert dispatch._credential_uri("ssh://git@github.com/org/repo") is False
+    assert dispatch._credential_uri("https://user:password@example.test") is False
+    assert dispatch._credential_uri("plain text") is False
+
+
+def test_checkpoint_rejects_invalid_identity_and_default_symlink(contract, tmp_path):
+    with pytest.raises(ValueError, match="safe task ID"):
+        dispatch.checkpoint(contract, "bad id", "running", "next", evidence=[], blockers=[], review_ids=[])
+    with pytest.raises(ValueError, match="known state"):
+        dispatch.checkpoint(contract, "task-1", "bogus", "next", evidence=[], blockers=[], review_ids=[])
+    with pytest.raises(ValueError, match="nonempty next action"):
+        dispatch.checkpoint(contract, "task-1", "running", "  ", evidence=[], blockers=[], review_ids=[])
+
+    default = Path(contract["checkout"]["root"]) / "data/runtime/agent-tasks/review-1.json"
+    default.parent.mkdir(parents=True)
+    outside = tmp_path / "outside.json"
+    outside.write_text("leave me")
+    default.symlink_to(outside)
+    with pytest.raises(ValueError, match="traverse symlinks"):
+        save(contract)
+    assert outside.read_text() == "leave me"
+
+
+def test_checkpoint_rejects_malformed_existing_records(contract, tmp_path):
+    record = tmp_path / "handoff.json"
+    record.write_text(json.dumps({
+        "schema": "mailroom.handoff/v1", "request_id": "review-1",
+        "contract_sha256": "0" * 64, "attempts": [{"task_id": "task-1", "history": []}],
+    }))
+    with pytest.raises(ValueError, match="embedded contract"):
+        save(contract, record=record)
+
+    digest = __import__("hashlib").sha256(json.dumps(contract, sort_keys=True).encode()).hexdigest()
+    record.write_text(json.dumps({
+        "schema": "mailroom.handoff/v1", "request_id": "review-1",
+        "contract_sha256": digest, "contract": contract, "attempts": [],
+    }))
+    with pytest.raises(ValueError, match="attempt history"):
+        save(contract, record=record)
+
+    record.write_text(json.dumps({
+        "schema": "mailroom.handoff/v1", "request_id": "review-1",
+        "contract_sha256": digest, "contract": contract,
+        "attempts": [{"task_id": "task-1", "history": "bad", "state": "running"}],
+    }))
+    with pytest.raises(ValueError, match="Invalid existing history"):
+        save(contract, record=record)
+
+
+def test_new_attempt_rules_and_cli_commands(contract, snapshot, tmp_path, monkeypatch, capsys):
+    with pytest.raises(ValueError, match="requires an existing completed record"):
+        save(contract, task="task-1", new_attempt=True, record=tmp_path / "new.json")
+    record = tmp_path / "handoff.json"
+    save(contract, record=record)
+    save(contract, task="task-1", state="done", record=record)
+    save(contract, task="task-2", new_attempt=True, record=record)
+    save(contract, task="task-2", state="done", record=record)
+    with pytest.raises(ValueError, match="Cannot reuse"):
+        save(contract, task="task-1", new_attempt=True, record=record)
+
+    from argparse import Namespace
+
+    contract_path = tmp_path / "contract.yaml"
+    contract_path.write_text(yaml.safe_dump(contract))
+    cap = tmp_path / "capabilities.json"
+    cap.write_text(json.dumps(snapshot))
+    monkeypatch.setattr(dispatch, "environment_report", lambda *a: {
+        "ok": True, "checkout": {"branch": "other"}, "findings": []
+    })
+    args = Namespace(subagents_cmd="dispatch-check", contract=str(contract_path), capabilities=str(cap))
+    assert dispatch.command(args) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is False and payload["environment"]["findings"]
+
+    checkpoint_args = Namespace(
+        subagents_cmd="checkpoint", contract=str(contract_path), task_id="task-9",
+        state="running", next_action="Inspect hosted CI", evidence=[], blocker=[], review_id=[],
+        record=str(tmp_path / "cli.json"), new_attempt=False,
+    )
+    assert dispatch.command(checkpoint_args) == 0
+    assert json.loads(capsys.readouterr().out)["record"].endswith("cli.json")
+
+
+def test_fsync_dir_tolerates_missing_directory(tmp_path):
+    dispatch._fsync_dir(tmp_path / "missing")

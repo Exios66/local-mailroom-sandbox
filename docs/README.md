@@ -16,6 +16,7 @@ Documentation for the local-mailroom-sandbox package, covering:
 - Testing procedures
 - **[Agent environment and dispatch](agent-dispatch.md)** — execution identity, delegation contracts, recovery, evidence and durable handoffs
 - **[Agent instruction maintenance](agent-instruction-maintenance.md)** — routine validation of instructions, versions, releases, references and experiment status
+- **[Docs audit tool router](../.cursor/skills/docs-audit-tool-router/SKILL.md)** — full staleness sweep: mechanical checks, owning sources and specialist agents
 - **[Mailroom themed logging & live watch](pretty-logging/mailroom-themed-logging.md)** — `sandbox watch` / `--web`, Modal dispatch log tail, SAND-032 operator paths
 - **[Pipeline floor viewer](floor.md)** — live run history, offline replay, digest semantics and troubleshooting
 - **[Named datasets](datasets/named-datasets.md)** — registry fields, environment paths, source/subset identity and migration

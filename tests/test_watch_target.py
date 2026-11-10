@@ -161,7 +161,10 @@ def test_run_yaml_without_run_id_waits_when_only_other_specs_ran(job_data_dir, t
         wt.resolve_target(str(cfg)).resolve()
 
 
-def test_run_yaml_without_run_id_matches_a_real_mock_run(job_data_dir, tmp_path, capsys):
+def test_run_yaml_without_run_id_matches_a_real_mock_run(job_data_dir, tmp_path, capsys, monkeypatch):
+    import mailroom_sandbox.job.spec as spec_mod
+    stamps = iter(["2026-01-01T000000", "2026-01-01T000001"])
+    monkeypatch.setattr(spec_mod, "utc_stamp", lambda: next(stamps))
     cfg = tmp_path / "noid.yaml"
     cfg.write_text("schema: sandbox.run/v1\ntask: pipeline\nprofile: ollama\n"
                    "dataset: {provider: file, local_path: data/fixtures/hf/docclass_mini.jsonl, limit: 1, sample_seed: 1}\n"
@@ -171,7 +174,6 @@ def test_run_yaml_without_run_id_matches_a_real_mock_run(job_data_dir, tmp_path,
     other.write_text(cfg.read_text().replace("concurrency: 5", "concurrency: 6"))
     assert cli.main(["run", "start", "--config", str(cfg), "--mock"]) == 0
     first = wt.latest_run().name
-    time.sleep(1.1)  # auto-named run IDs carry a per-second UTC stamp
     assert cli.main(["run", "start", "--config", str(other), "--mock"]) == 0
     capsys.readouterr()
     assert wt.latest_run().name != first  # the other spec ran last...

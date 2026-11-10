@@ -165,6 +165,8 @@ reference — every command, subcommand, argument and parser-required marker —
 | `sandbox doctor [--service modal] [--live] [--publish] [--json]` | Offline status of 15 tools/config surfaces; `--live` probes endpoints, `--publish` feeds the board strip |
 | `sandbox fetch-deps` | Optional: refresh the TRACKED vendor snapshots (workspace mirror in the monorepo; reviewed refs in `_VENDOR_PINS` otherwise) |
 | `sandbox fetch-deps --visualizer` | Also clone The-Mailroom |
+| `sandbox subagents sync --harness project` | Project OpenCode profiles + Cursor stubs; `--check` verifies without writing |
+| `sandbox subagents preflight\|dispatch-check\|checkpoint` | Read-only checkout identity, offline dispatch contract, durable handoff record |
 
 ### Service commands
 

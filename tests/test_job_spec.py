@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 from mailroom_sandbox.job.spec import (
     DatasetSpec,
+    InvalidRunIdError,
     PromptRef,
     RunSpec,
     VLLMSpec,
@@ -132,7 +133,7 @@ def test_prompt_ref_invariants():
 
 
 def test_run_id_regex_enforced():
-    with pytest.raises(Exception):
+    with pytest.raises(InvalidRunIdError):
         resolve_run_id(RunSpec(run_id="bad id with spaces"))
 
 
