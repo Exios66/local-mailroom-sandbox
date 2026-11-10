@@ -265,3 +265,30 @@ def test_install_rename_failure_preserves_original_snapshot(monkeypatch, source,
     else:
         assert fingerprint(tree) == before
         assert recoveries == []
+
+
+@pytest.mark.parametrize(("component", "source_leaf"), [("llm-mailroom", "src"), ("llm-dojo-scoring", "llm_dojo_scoring")])
+def test_workspace_copy_failure_keeps_all_reviewed_bytes(source, vendor, monkeypatch, component, source_leaf):
+    """The preferred workspace path needs the same transaction as Git refreshes."""
+    import shutil
+    tree = vendor / component
+    dest = tree / 'src'
+    if source_leaf != 'src':
+        dest = dest / source_leaf
+    dest.mkdir(parents=True)
+    (tree / 'VENDOR.md').write_text('reviewed metadata\n')
+    (dest / 'a.py').write_text('reviewed a\n')
+    (dest / 'b.py').write_text('reviewed b\n')
+    package = source / source_leaf
+    package.mkdir()
+    (package / 'a.py').write_text('new a\n')
+    (package / 'b.py').write_text('new b\n')
+    before = fingerprint(tree)
+    original = shutil.copy2
+    def fail_second(src, dest, *a, **kw):
+        if Path(src).name == 'b.py':
+            raise OSError('simulated workspace copy failure')
+        return original(src, dest, *a, **kw)
+    monkeypatch.setattr(shutil, 'copy2', fail_second)
+    assert cli._refresh_vendor_from_workspace(component, package) == 1
+    assert fingerprint(tree) == before
