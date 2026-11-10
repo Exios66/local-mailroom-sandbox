@@ -112,7 +112,8 @@ spec hashes for either provider. Do not
 use `--force` just to silence drift: it archives an eligible generation and
 creates a replacement. Preserve historical artifacts and inspect the cause.
 
-See [jobs](../../../docs/jobs.md) and
+See the [registry reference](../../../docs/datasets/named-datasets.md),
+[jobs](../../../docs/jobs.md) and
 [registry tests](../../../tests/test_dataset_registry.py) for the lock contract.
 
 ## Cache, authentication and weights
@@ -157,7 +158,8 @@ base for disposable UI work. Keep review outcomes HELD, with technical errors
 counted as FAILED. Refresh checks must cover missing/incomplete class labels
 and selection reset as well as live-to-idle polling.
 
-See [sample provenance](../../../data/fixtures/floor/replay/README.md) and
+See the [floor operator guide](../../../docs/floor.md),
+[sample provenance](../../../data/fixtures/floor/replay/README.md) and
 [floor tests](../../../tests/test_floor_app.py). Do not vendor full CUAD PDFs
 or rewrite the scripted sample into measured output. Synthetic HF mini
 fixtures are not Hub documents. For fixture attribution, see

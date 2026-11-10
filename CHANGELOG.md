@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+- **Floor viewer isolation and offline assets** (2026-11-09). Resident viewers
+  now build and serve private temporary digests, so separate bases/ports in
+  one checkout cannot show each other's runs. Static snapshot generation stays
+  explicit. The offline image includes the floor builder and HTML template;
+  missing-builder startup errors are reported cleanly. Focused regressions
+  cover two concurrent HTTP viewers, cleanup and relocated image assets.
+
+- **Floor, dataset and CI operator references** (2026-11-09). Add complete
+  floor options/live-refresh/replay guidance, named-dataset schema and lock
+  migration, and CI scheduling/cache/artifact/runtime verification guidance.
+  Link the guides from the README, docs index and configuration docs; correct
+  stale environment-template and API-run ownership instructions. Expensive
+  verification stays on hosted CI. This follow-up changes documentation only.
+
 - **Task-GT filter participates in dataset identity** (2026-11-09). A true
   `dataset.require_task_gt` now changes the spec hash for both local and Hub
   datasets. Toggling it refuses resume instead of silently reusing the old
