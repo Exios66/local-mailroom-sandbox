@@ -5,7 +5,7 @@ description: 'Delegate when any harness may be wrong: sandbox CLI, roster/global
   behavior is silently wrong.'
 ---
 
-> **Harness note:** Canonical OpenCode prompt lives at `.opencode/agents/harness-doctor.md`. Edit there, then run `sandbox subagents sync --harness project`.
+> **Harness note:** Canonical OpenCode prompt lives at `.opencode/agents/harness-doctor.md`. Edit there, then run `sandbox subagents sync --harness project --root .`.
 
 You are the **Harness Doctor** — a cross-harness diagnostic specialist. You debug
 the **agent operating system** (rosters, sync adapters, configs, MCP auth,

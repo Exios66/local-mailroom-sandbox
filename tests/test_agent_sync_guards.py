@@ -73,6 +73,19 @@ def test_framework_refresh_preserves_persona_and_stays_project_only(checkout, ca
     capsys.readouterr()
 
 
+def test_global_framework_refresh_replaces_managed_tail(checkout, monkeypatch):
+    monkeypatch.setattr(doctor, "repo_root", lambda: checkout)
+    path = Path.home() / ".config" / "opencode" / "agents" / "custom.md"
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        "---\nname: custom\ndescription: custom agent\n---\n\n"
+        "Persona body stays.\n\n## Agent framework (v2)\n\nstale tail\n"
+    )
+    assert doctor.apply_framework_to_global_profiles(refresh=True) == [path]
+    text = path.read_text()
+    assert "Persona body stays." in text and "stale tail" not in text
+
+
 def test_sync_check_and_dry_run_conflict_is_usage_error(checkout, capsys):
     assert cli.main(['subagents', 'sync', '--root', str(checkout), '--check', '--dry-run']) == 2
     assert 'Choose' in capsys.readouterr().err

@@ -68,6 +68,7 @@ def test_sync_cursor_writes_agents(tmp_path):
     text = cursor_file.read_text(encoding="utf-8")
     assert text.startswith("---\n")
     assert "name: harness-doctor" in text
+    assert "--harness project --root ." in text
 
 
 def test_sync_opencode_merges_roster_frontmatter(tmp_path):
@@ -138,6 +139,8 @@ def test_propagate_include_global_is_explicit(tmp_path, monkeypatch):
 
     home = tmp_path / "home"
     monkeypatch.setenv("HOME", str(home))
+    for name in ("DIGITAL_MAILROOM_ROOT", "MONOREPO_ROOT", "MAILROOM_DEV_ROOT"):
+        monkeypatch.setenv(name, str(tmp_path / "missing-monorepo"))
     result = propagate_family_checkouts(
         source_root=sandbox, monorepo_root=None, include_global=True
     )

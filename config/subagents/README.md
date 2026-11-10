@@ -15,6 +15,7 @@ sandbox subagents sync --harness project [--check]
 sandbox subagents sync --harness opencode-global
 sandbox subagents doctor
 sandbox subagents doctor --apply-framework
+sandbox subagents doctor --refresh-framework [--include-global]
 sandbox subagents dispatch-check --contract <file> --capabilities <snapshot>
 sandbox subagents checkpoint --contract <file> --task-id <id> --state <state> --next-action <text>
 sandbox subagents materialize --package digital-mailroom --root /path/to/Digital-Mailroom
