@@ -128,6 +128,44 @@ trace:
   tags: [sandbox, job]
 ```
 
+## Dataset identity
+
+A registry key is an alias for source and selection fields, not a content hash.
+Preflight writes the exact normalized subset to the run's `dataset.jsonl` and
+records its SHA-256, row count and actual class/subclass distribution at
+`spec.lock.json` → `dataset.sha256`, `rows` and `strata_actual`. Those rows are
+the evidence for which documents executed. A `limit` applies after filtering
+and canonical sorting; shuffling source lines alone does not define the draw.
+
+For local inputs, `dataset.metadata.sha256` is the hash of the original source
+bytes read and parsed by preparation, which can differ from the prepared
+subset's hash. `dataset.metadata.name` and `.pull` are recorded only when
+supplied. For Hub inputs, inspect the requested and resolved revision alongside
+repo/config/split. A local input's metadata identifies it as `source: local`
+and `revision: offline`; the lock's top-level revision fields are not proof
+that a local file came from that Hub revision.
+
+Local-file `spec_hash` uses the filename and source-byte SHA-256 when the file
+exists, plus `limit`, `sample_seed`, `strata` and `exclude_expected`.
+`require_task_gt: true` is also hashed for both local and Hub datasets, because
+it filters out rows with no task ground truth before selection. Its false
+default is omitted, preserving unfiltered hashes. A filter change must refuse
+resume with `drift_refused`; relocking preserves the previous generation.
+The registry name, declared SHA pin and pull
+recipe are not hashed. Same-named identical files hash alike across checkout
+paths. Missing files still hash without source bytes; this does not mean they
+can pass preflight. Older path-based local-file locks drift under this scheme.
+Filename portability alone does not change Hub-dataset hashes; the task-GT
+filter fix changes hashes for previously filtered specs of either provider.
+Inspect drift before choosing `--force`,
+which archives an eligible generation and creates a replacement lock.
+
+`sandbox hf download` populates raw Hub snapshots. `sandbox datasets pull`
+materializes the normalized corpus JSONL used by the default offline sampler.
+`sandbox datasets prepare` cleans fixtures, while run preflight locks a
+specific run's subset. These are separate operations. See the
+[Hugging Face skill](../.cursor/skills/huggingface/SKILL.md) for pins and cache paths.
+
 ## CLI
 
 ```bash

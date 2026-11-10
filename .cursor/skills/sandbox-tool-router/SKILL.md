@@ -17,7 +17,10 @@ Read this skill **first** when the task touches providers, tracing, datasets, Do
 | Optional OTEL / Arize UI sidecar | Apache Phoenix compose profile | [apache-phoenix](../apache-phoenix/SKILL.md) | Phoenix as The-Mailroom input |
 | Hosted eval / experiment logs (opt-in) | Braintrust | [braintrust](../braintrust/SKILL.md) | Braintrust as the default offline sink |
 | Hub datasets / model cards / HF cache | Hugging Face Hub + `sandbox datasets pull` / `sandbox hf …` | [huggingface](../huggingface/SKILL.md) | Live Hub pulls in default pytest |
-| Offline fixture prep | `sandbox datasets prepare` + notebooks | (prep helpers; no cloud) | Hub network in CI |
+| Offline fixture prep / cached subset draw | `sandbox datasets prepare` / `sandbox datasets sample` | [huggingface](../huggingface/SKILL.md) | Hub network in CI; treating fixture prep as a Hub pull |
+| Named dataset / file pin / subset provenance | `config/datasets.yaml` + `sandbox run preflight` | [huggingface](../huggingface/SKILL.md) | Machine paths in committed run specs; guessing a sample from its name |
+| Floor viewer / offline replay | `sandbox floor [TARGET]` / `sandbox floor --replay` | [huggingface](../huggingface/SKILL.md) for sample provenance | Model calls for a UI demo; quoting simulated results as measurements |
+| Code verification / CI runtime evidence | Local lint/config checks and focused regressions; CircleCI for the full suite, coverage and CPU-heavy campaigns | [AGENTS.md tests](../../../AGENTS.md#tests) | Repeated full local suites or local parallel/coverage benchmarks; weakening merge gates |
 | Decision-reviewer calibration (paid OpenRouter `sorter_reviewer` runs) | `reviewer: {backend: decisions, model: openai/gpt-6-luna-decisions, questions: <stem>}` + `sandbox run preflight` → `sandbox run start --initials XX` → `scripts/calibrate_reviewer.py --run <id>` | `config/decisions/*.yaml`, `reports/reviewer-calibration/` | The chat model `openai/gpt-6-luna` as the reviewer; hand-picked cutoffs; `-latest` / `~` model ids |
 | Sandbox-isolated tasks / governance | Local **`SAND-*`** board (`governance/TASKS.md`) | (this router + `governance/PREFIX.md`) | Family **`DMR-*`** MESSAGE_BOARD (cross-repo only) |
 
@@ -45,8 +48,32 @@ Sandbox evals implement the Langfuse v4 `document-pipeline` contract in `mailroo
 
 Always `mailroom_sandbox.runtime.activate(profile)` before importing mailroom graph/agents. Rewrite models via overlay / `--agent-model`; do not hardcode OpenRouter ids into Ollama.
 
+## Dataset and floor protocol
+
+- Read the pins in `src/mailroom_sandbox/job/spec.py` and the selected run lock.
+  `FAMILY_HF_REVISION` is the default pull, not a claim about Hub HEAD or every
+  experiment. Preserve a run's explicit revision; do not silently update it.
+- A registry name resolves fields; it is provenance, not a content identifier.
+  Verify the prepared `dataset.jsonl` against `spec.lock.json`'s `dataset.sha256`.
+  For local sources, `dataset.metadata.sha256` identifies the source bytes;
+  `metadata.name` and `metadata.pull` exist only when supplied. See
+  [Hugging Face guidance](../huggingface/SKILL.md#dataset-identity-and-run-locks).
+- A `limit` selects after normalization, filtering and canonical sorting. A
+  shuffle of input lines alone does not define execution order. Inspect locked
+  row IDs and selection settings before claiming which documents were used.
+- `sandbox floor` serves the digest on `127.0.0.1:8769`. With no runs and no
+  selected target it starts the bundled replay; `--replay` requests that sample
+  alongside history. Use a scratch `--base` for disposable demos. Replay writes
+  a labeled run into that base and uses simulated results, never inference.
+  A foreign or symlinked replay directory is refused; do not delete it to bypass
+  the ownership check. See [sample provenance](../../../data/fixtures/floor/replay/README.md).
+
 ## Gotchas
 
+- **Keep CPU-heavy verification in CI.** Use one worker and no coverage for
+  narrow local reproductions. Inspect hosted logs, JUnit, coverage and timing
+  artifacts instead of rerunning the full suite locally. Merge only after the
+  required checks pass on the current head; see [test policy](../../../AGENTS.md#tests).
 - **The decision reviewer is a Decisions-API model, not a chat model.** `openai/gpt-6-luna-decisions` is served at `POST https://openrouter.ai/api/alpha/decisions` (no chat route): it takes `state` plus typed `questions` and returns a probability for every option, with no output tokens. `openai/gpt-6-luna` is the plain chat model. On 2026-11-01 a whole calibration ran on the chat model by mistake (about $2.50). Preflight now refuses a paid `sorter_reviewer` run without a `reviewer:` block, and `backend: api` (chat) needs `allow_chat_model: true`. Before a paid reviewer run, confirm the model id in the lock ends in `-decisions`.
 - **Spend initials belong to the operator.** `sandbox run start` on a paid run needs `--initials` (2–6 capital letters). An agent asks for them and never signs on its own.
 - **Price check before a paid OpenRouter run.** The cost comes from `SANDBOX_MODEL_PRICES` (`src/mailroom_sandbox/job/metrics.py`) and the live model endpoints list (`https://openrouter.ai/api/v1/models/<id>/endpoints`; Decisions models are missing from the plain `/models` list). Luna Decisions bills input only ($0.10/M); the document is billed once per request however many questions it carries.
@@ -66,6 +93,8 @@ Always `mailroom_sandbox.runtime.activate(profile)` before importing mailroom gr
 | Providers | `docs/setting-up/providers.md` |
 | Offline Docker + notebooks | `docs/setting-up/docker-offline.md` |
 | Project skills (this tree) | `.cursor/skills/*/SKILL.md` |
+| Dataset registry / run locks | `config/datasets.yaml` / `docs/jobs.md` |
+| Floor sample / verification | `data/fixtures/floor/replay/README.md` / `tests/test_floor_app.py` |
 
 ## Quick commands
 

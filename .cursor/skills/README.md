@@ -10,7 +10,12 @@ Committed Cursor skills for **local-mailroom-sandbox**. Agents should discover t
 | [langfuse](langfuse/SKILL.md) | Default tracing / The-Mailroom |
 | [apache-phoenix](apache-phoenix/SKILL.md) | Optional Phoenix sidecar |
 | [braintrust](braintrust/SKILL.md) | Opt-in hosted Braintrust |
-| [huggingface](huggingface/SKILL.md) | Hub pulls / weights (offline-first) |
+| [huggingface](huggingface/SKILL.md) | Pinned Hub pulls / weights, offline draws, named datasets and floor sample provenance |
+
+For datasets and floor demos, start with the router, then the Hugging Face
+skill. It distinguishes raw Hub cache, normalized corpus JSONL, prepared
+fixtures and the exact subset locked for a run. A registry key or replay
+sample is not evidence of a measured model result.
 
 Coding **subagents** (GEPA prompt engineer, trace analyst, harness doctor,
 adversarial reviewer): roster in [`config/subagents/`](../../config/subagents/),

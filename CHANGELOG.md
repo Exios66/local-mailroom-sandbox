@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+- **Task-GT filter participates in dataset identity** (2026-11-09). A true
+  `dataset.require_task_gt` now changes the spec hash for both local and Hub
+  datasets. Toggling it refuses resume instead of silently reusing the old
+  subset; an explicit relock archives the prior generation. The false default
+  preserves unfiltered hashes. Regression checks cover both filter directions.
+
+- **PR #274 follow-up: agent dataset and floor guidance** (2026-11-09). The tool
+  router and Hugging Face skill distinguish raw Hub downloads, normalized corpus
+  JSONL, fixture preparation and locked run subsets. Document canonical selection,
+  conditional provenance, filename-based hash migration, replay ownership and
+  simulated results; clarify package-specific subagent commands and import-guard
+  verification. This documentation layer changes no executable behavior.
+
 - **Live floor: `sandbox floor` app + RUNNING pills** (`src/mailroom_sandbox/tui/floor_app.py`,
   `reports/dashboard/build_floor_digest.py`, `reports/dashboard/floor.template.html`,
   `tests/test_floor_app.py`). The digest now carries per-run `inflight` (open `running` records
@@ -58,10 +71,12 @@
   dataset (`dataset: {name: pipeline-even100-shuffled2}`) instead of embedding a machine path;
   the registry supplies the provider fields or a local path, expands `${VAR}`/`${VAR:-default}`
   from the environment (the CLI loads `.env` first), and may pin `sha256`. Preflight verifies the
-  pin and every lock records the source sha plus the entry's `pull` block, so a result names the
-  pull it came from. `$SANDBOX_DATASETS_REGISTRY` selects another registry file. Local-file
-  `spec_hash` now keys on the file name + source bytes instead of the checkout path, so the same
-  dataset hashes the same in any clone; `config/runs/pipeline-lmstudio-even50-demo.yaml` uses the
+  pin; locks record the prepared subset sha and local source sha, with `name` / `pull` metadata
+  only when supplied. `$SANDBOX_DATASETS_REGISTRY` selects another registry file. Local-file
+  `spec_hash` now keys on the file name + source bytes instead of the checkout path, so an
+  identical same-named dataset hashes the same in any clone. Older local-file spec hashes change under
+  this scheme (inspect drift before relocking); Hub hashes are unaffected.
+  `config/runs/pipeline-lmstudio-even50-demo.yaml` uses the
   registry (no user path), and a guard test refuses machine paths in committed run specs.
 
 - **Vendor refresh: llm-mailroom `main` at #179 (`19203ea`) and Dojo `v0.28.1` (`00a2a7f`)**
