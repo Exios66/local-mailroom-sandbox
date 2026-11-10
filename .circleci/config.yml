@@ -75,10 +75,12 @@ jobs:
             - ~/.cache/pip
       - run:
           name: Pytest (network-free, parallel on the executor's CPUs)
-          # -q + -n auto: junitxml stays identical in shape (xdist merges it), and
-          # coverage merging is handled by pytest-cov. `-n auto` equals 2 on this
-          # small executor; set SANDBOX_XDIST to override without editing CI.
-          command: pytest -q -n "${SANDBOX_XDIST:-auto}" -m "not local_llm" --junitxml=test-results/junit.xml --cov --cov-report=xml:coverage/coverage.xml
+          # -q + -n 2: this small executor is 2 vCPU / 2GB; an `auto` count reads the
+          # host CPUs inside Docker and can spawn dozens of workers that die at import
+          # before responding (the manager then waits forever), so the default is the
+          # measured shape. junitxml stays identical in shape (xdist merges it), and
+          # pytest-cov merges coverage. Set SANDBOX_XDIST to override without editing CI.
+          command: pytest -q -n "${SANDBOX_XDIST:-2}" -m "not local_llm" --junitxml=test-results/junit.xml --cov --cov-report=xml:coverage/coverage.xml
       - run:
           name: Reports hub committed snapshot
           command: python reports/dashboard/build_hub.py --check
