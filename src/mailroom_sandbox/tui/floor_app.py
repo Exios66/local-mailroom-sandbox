@@ -192,14 +192,15 @@ def replay_store(base: Path) -> Path:
     A missing fixture raises FileNotFoundError; copy and filesystem errors propagate.
     """
     run = Path(base) / "runtime" / "runs" / REPLAY_RUN_ID
-    if run.exists() and not _is_replay_run(run):
+    if run.is_symlink() or (run.exists() and not _is_replay_run(run)):
         # --replay owns ONLY these fixture-driven runs: never a real run the
         # operator launched under a coincidental id
         raise FileExistsError(
             f"floor --replay refuses to reset {run}: its spec.lock.json is not the replay "
             "fixture. Move or rename that run, then retry."
         )
-    shutil.rmtree(run, ignore_errors=True)  # reset the app-owned replay run; history stays
+    if run.exists():
+        shutil.rmtree(run)  # reset the app-owned replay run; history stays
     shutil.copytree(replay_base() / "runtime", Path(base) / "runtime", dirs_exist_ok=True)
     if not (run / "dataset.jsonl").is_file():
         raise FileNotFoundError(f"floor replay dataset missing: {run / 'dataset.jsonl'}")
@@ -211,15 +212,17 @@ def replay_store(base: Path) -> Path:
 def _is_replay_run(run: Path) -> bool:
     """True when ``run`` is app-owned replay content a fresh start may replace.
 
-    A spec.lock.json naming ``engine.kind == "replay"`` (or the absence of any
-    lock while the dir carries no real artifacts) marks a replay attempt; real
-    run stores record a non-replay engine there. Missing/non-parseable locks
-    next to run artifacts count as foreign (refuse rather than guess).
+    A spec.lock.json naming ``engine.kind == "replay"`` marks a replay attempt;
+    an empty directory may also be used. Any nonempty directory without a valid
+    replay lock counts as foreign, including unrecognized operator files.
     """
     try:
-        engine = json.loads((run / "spec.lock.json").read_text(encoding="utf-8")).get("engine")
+        lock = json.loads((run / "spec.lock.json").read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return run.is_dir() and not any(run.iterdir())
     except (OSError, ValueError):
-        return not any((run / name).exists() for name in RUN_ARTIFACTS)
+        return False
+    engine = lock.get("engine") if isinstance(lock, dict) else None
     return isinstance(engine, dict) and engine.get("kind") == "replay"
 
 

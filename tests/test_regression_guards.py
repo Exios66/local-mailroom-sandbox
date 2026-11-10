@@ -69,10 +69,15 @@ def test_cli_parser_builds_without_importing_floor_app(monkeypatch):
     """
     import sys
 
+    import mailroom_sandbox
     from mailroom_sandbox import cli
 
-    monkeypatch.setattr(sys, "modules", {k: v for k, v in sys.modules.items()
-                                         if not k.startswith("mailroom_sandbox.tui")})
+    # Keep the interpreter's real module mapping and clear the package attribute
+    # too: ``from mailroom_sandbox import tui`` must not reuse a cached package.
+    for name in list(sys.modules):
+        if name == "mailroom_sandbox.tui" or name.startswith("mailroom_sandbox.tui."):
+            monkeypatch.delitem(sys.modules, name)
+    monkeypatch.delattr(mailroom_sandbox, "tui", raising=False)
     cli.build_parser()
     assert "mailroom_sandbox.tui.floor_app" not in sys.modules
 
