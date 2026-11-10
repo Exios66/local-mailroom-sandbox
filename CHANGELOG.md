@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+- **Task-GT filter participates in dataset identity** (2026-11-09). A true
+  `dataset.require_task_gt` now changes the spec hash for both local and Hub
+  datasets. Toggling it refuses resume instead of silently reusing the old
+  subset; an explicit relock archives the prior generation. The false default
+  preserves unfiltered hashes. Regression checks cover both filter directions.
+
 - **PR #274 follow-up: agent dataset and floor guidance** (2026-11-09). The tool
   router and Hugging Face skill distinguish raw Hub downloads, normalized corpus
   JSONL, fixture preparation and locked run subsets. Document canonical selection,
