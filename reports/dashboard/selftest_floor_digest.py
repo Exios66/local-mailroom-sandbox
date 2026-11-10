@@ -45,6 +45,7 @@ def extract_node(state):
 
 
 def human_review_node(state):
+    _emit_stage_audit(state, "routed_to_review")
     return interrupt({"why": "review"})
 
 
@@ -87,8 +88,9 @@ EXPECTED_EDGES = {
 }
 RUN_KEYS = {
     "name", "state", "cursor", "total", "items_attempted", "items_ok", "engine", "profile", "spec_hash",
-    "dataset_hash", "prompt_default", "tokens", "node_fires", "edge_fires", "node_agents", "node_ms_p50",
-    "aborts_by_last_node", "outcomes", "per_class",
+    "dataset_hash", "prompt_default", "prompts", "tokens", "node_fires", "edge_fires", "node_agents",
+    "node_ms_p50", "aborts_by_last_node", "outcomes", "per_class", "inflight", "avg_doc_ms", "predicted",
+    "routing", "review_routed",
 }
 
 
@@ -126,9 +128,9 @@ def make_fixture(root: Path) -> tuple[Path, Path]:
         {"id": "d3", "expected_doc_class": "letter"}, {"id": "d4", "expected_doc_class": "letter"},
     ])
     _jsonl(a / "items.jsonl", [
-        {"item_id": "d1", "ok": True, "pred": {"stage": "archived", "doc_type": "contract"}},
-        {"item_id": "d2", "ok": True, "pred": {"stage": "review"}},
-        {"item_id": "d3", "ok": False, "pred": {"stage": "failed"}, "error": "boom"},
+        {"item_id": "d1", "ok": True, "pred": {"stage": "archived", "doc_type": "contract"}, "latency_ms": 1000},
+        {"item_id": "d2", "ok": True, "pred": {"stage": "review"}, "latency_ms": 3000},
+        {"item_id": "d3", "ok": False, "pred": {"stage": "failed", "doc_type": "contract"}, "error": "boom"},
         {"item_id": "d4", "ok": True, "pred": {"stage": "weird_unknown_stage"}},
     ])
     tok = {"classify": {"prompt_tokens": 100, "completion_tokens": 10}}
@@ -144,8 +146,13 @@ def make_fixture(root: Path) -> tuple[Path, Path]:
         "spec_hash": "spec-a", "profile": "prof-x", "engine": {"kind": "vllm-remote", "model": "model-x", "junk": 1},
         "dataset": {"sha256": "ds-hash-a"},
     }), encoding="utf-8")
-    (a / "prompt.lock.json").write_text(json.dumps({"default": {"source": "code-default", "name": "pdef"}}),
-                                        encoding="utf-8")
+    (a / "prompt.lock.json").write_text(json.dumps({
+        "default": {"source": "code-default", "name": "pdef"},
+        "agents": {
+            "sorter": {"key": "sorter_v13", "sha256": "a" * 64},
+            "judge": {"file": "judge_local_v0.txt", "source": "config/prompts"},
+        },
+    }), encoding="utf-8")
 
     # run-b: archived attempt WITHOUT dataset.jsonl / spec.lock / prompt.lock
     b = base / "run-history" / "run-b"
@@ -209,6 +216,12 @@ def graph_node_boxes_and_agent_attribution():
     assert "END" not in na and "START" not in na
     assert na == {"intake": "intake", "classify": "sorter", "extract": bfd.SPECIALIST_LABEL,
                   "human_review": "(tray)", "archive": "(code)", "failed": "(abort terminal)"}, na
+
+
+@test
+def audit_events_parsed_from_emit_sites_not_hard_coded():
+    """Stage-audit arrows mirror _emit_stage_audit call sites (A-1), not invented edges."""
+    assert CTX["d"]["graph_reference"]["audit_events"] == {"human_review": "routed_to_review"}
 
 
 @test
@@ -336,7 +349,7 @@ def p50_and_tokens():
 def digest_schema_is_frozen():
     d = CTX["d"]
     assert set(d) == {"generated_utc", "classes", "graph_reference", "runs"}
-    assert set(d["graph_reference"]) == {"edges", "node_agents", "note"}
+    assert set(d["graph_reference"]) == {"edges", "node_agents", "audit_events", "note"}
     assert d["generated_utc"][:16].endswith(("0", "1", "2", "3", "4", "5", "6", "7", "8", "9"))
     for r in d["runs"]:
         assert set(r) == RUN_KEYS, set(r) ^ RUN_KEYS
@@ -399,6 +412,7 @@ def vendored_graph_parses_to_a_sane_topology():
     assert all(a != b for a, b in edges)
     nodes = set(g["node_agents"])
     assert all(n in nodes for e in edges for n in e if n not in ("START", "END")), "edge endpoint without a node box"
+    assert g["audit_events"].get("human_review") == "routed_to_review", "the review-to-audit mirror must stay"
 
 
 @test
@@ -436,6 +450,151 @@ def real_runs_cross_consistency_when_present():
     for run in d["runs"]:
         assert sum(o["n"] for o in run["outcomes"].values()) == run["items_attempted"], run["name"]
         assert set(run["edge_fires"]) <= edges, (run["name"], set(run["edge_fires"]) - edges)
+
+
+def _live_run(t: Path, name: str, items, nodes, checkpoint=None) -> dict:
+    """Build a one-run throwaway base and return that run's digest object."""
+    run = t / "data" / "runtime" / "runs" / name
+    _jsonl(run / "items.jsonl", items)
+    if nodes is not None:
+        _jsonl(run / "nodes.jsonl", nodes)
+    if checkpoint is not None:
+        (run / "checkpoint.json").write_text(json.dumps(checkpoint), encoding="utf-8")
+    r = run_cli(t / "data", t / "out", CTX["graph"])
+    assert r.returncode == 0, r.stderr
+    return json.loads((t / "out" / "floor_digest.json").read_text(encoding="utf-8"))["runs"][0]
+
+
+@test
+def inflight_lists_unclosed_running_and_omits_closed():
+    with tempfile.TemporaryDirectory() as t:
+        nodes = [
+            {"doc": "x", "node": "classify", "status": "running", "ts": 1000.5},   # never closed -> in flight
+            {"doc": "y", "node": "classify", "status": "running", "ts": 900.0},
+            {"doc": "y", "node": "classify", "status": "done", "ts": 905.0},       # closed later -> not in flight
+            {"doc": "y", "node": "extract", "status": "running", "started_at": "2026-01-01T00:00:00Z"},
+            '{"doc": "torn", "node"',
+            {"doc": "z", "node": "intake", "status": "running"},                    # no timestamp -> since null
+            {"doc": "w", "node": "intake", "status": "running", "ts": 10},
+            {"doc": "w", "node": "intake", "status": "error", "ts": 11},            # error also closes
+        ]
+        rr = _live_run(Path(t), "run-live", [], nodes)
+    assert rr["inflight"] == {
+        "classify": [{"doc": "x", "since": 1000.5}],
+        "extract": [{"doc": "y", "since": "2026-01-01T00:00:00Z"}],
+        "intake": [{"doc": "z", "since": None}],
+    }, rr["inflight"]
+
+
+@test
+def inflight_is_an_empty_object_without_nodes_jsonl():
+    with tempfile.TemporaryDirectory() as t:
+        rr = _live_run(Path(t), "run-legacy", [{"item_id": "l1", "ok": True, "stage": "archived"}], None)
+    assert rr["inflight"] == {}, "legacy run (no nodes.jsonl) must emit {}, not omit the key"
+    assert CTX["runs"]["run-b"]["inflight"] == {} and CTX["runs"]["run-a"]["inflight"] == {}
+
+
+@test
+def avg_doc_ms_is_null_safe_and_computed():
+    assert CTX["runs"]["run-a"]["avg_doc_ms"] == 2000, CTX["runs"]["run-a"]["avg_doc_ms"]  # mean(1000, 3000)
+    assert CTX["runs"]["run-b"]["avg_doc_ms"] is None, "no latency_ms rows -> null"
+    assert bfd._avg_doc_ms([]) is None
+    assert bfd._avg_doc_ms([{"latency_ms": float("nan")}, {"latency_ms": True}, {}]) is None
+    assert bfd._avg_doc_ms([{"latency_ms": 1}, {"latency_ms": 2}]) == 1.5
+    with tempfile.TemporaryDirectory() as t:
+        assert _live_run(Path(t), "run-empty", [], None)["avg_doc_ms"] is None
+
+
+@test
+def state_cursor_total_surfaced_for_the_live_run():
+    a = CTX["runs"]["run-a"]
+    assert (a["state"], a["cursor"], a["total"]) == ("running", 4, 4)
+    assert [r["name"] for r in CTX["d"]["runs"] if r["state"] == "running"] == ["run-a"]
+
+
+@test
+def routing_counts_only_when_expected_and_predicted_both_present():
+    a, b = CTX["runs"]["run-a"], CTX["runs"]["run-b"]
+    # d1 contract->contract matches; d3 letter->contract misses; d2/d4 carry no doc_type -> excluded
+    assert a["routing"] == {"contract": {"gt": 1, "pred": 2, "match": 1}, "letter": {"gt": 1, "pred": 0, "match": 0}}, a["routing"]
+    assert a["predicted"] == {"contract": 0, "letter": 1}, a["predicted"]
+    assert b["routing"] == {} and b["predicted"] == {}, "no expected class -> nothing counted"
+    assert set(a["per_class"]) == {"contract", "letter"}, "classes stay ground-truth keyed"
+    assert a["per_class"]["contract"]["outcomes"] == a["outcomes"]["contract"]
+
+
+@test
+def template_wires_live_mode_without_polling_on_file_protocol():
+    """The viewer gates pills, clocks and both timers on http(s); routing/class helpers exist."""
+    html = TEMPLATE.read_text(encoding="utf-8")
+    for needle in ("rnb", "inflight", "avg_doc_ms", "routing", "floor_digest.json?ts=", "location.protocol",
+                   'run().state!=="running"', "updated ", "classView(", "if(!same)", 'r.state==="running"',
+                   "fitGraph()", "outRev", "Routed to human review", "prompt.lock.json",
+                   "audit_events", "routed_to_review", "audit log", "STALE", "poll misses"):
+        assert needle in html, needle
+    assert "http" in html[html.index("location.protocol") - 20:html.index("location.protocol") + 60]
+    # a file:// page is a frozen snapshot: no timer may start before the http(s) guard
+    before, live = html.split("const LIVE=", 1)
+    assert "setInterval" not in before, "timers must not start on file://"
+    assert live.count("setInterval") == 2, "the poll and the 1s elapsed ticker both live behind LIVE"
+
+
+@test
+def routing_reads_the_job_runner_sorter_shape():
+    """`task: sorter` rows (top-level expected/predicted) feed routing like pipeline rows."""
+    # pipeline rows carry `pred.doc_type`; sorter rows carry the class as strings
+    with tempfile.TemporaryDirectory() as t:
+        rows = [
+            {"item_id": "s1", "expected": "contract", "predicted": "contract", "ok": True, "latency_ms": 10},
+            {"item_id": "s2", "expected": "contract", "predicted": "letter", "ok": True, "latency_ms": 10},
+            {"item_id": "s3", "expected": "letter", "predicted": "", "ok": False, "latency_ms": 10},
+        ]
+        rr = _live_run(Path(t), "run-sorter", rows, None)
+    assert rr["routing"] == {"contract": {"gt": 2, "pred": 1, "match": 1},
+                             "letter": {"gt": 0, "pred": 1, "match": 0}}, rr["routing"]
+    assert rr["predicted"] == {"contract": 1}, "an item with no prediction never counts toward gt"
+
+
+@test
+def prompts_surfaced_from_the_run_store_for_post_hoc_identification():
+    """prompt.lock.json identifiers land in the digest; absent locks stay empty, never boilerplate.
+
+    The label prefers the most discriminating field the lock kept: the eval-environment
+    lineage key, then the local file stem, then name/source fallbacks.
+    """
+    assert CTX["runs"]["run-a"]["prompts"] == {"sorter": "sorter_v13", "judge": "judge_local_v0.txt"}
+    assert CTX["runs"]["run-b"]["prompts"] == {}
+    with tempfile.TemporaryDirectory() as t:
+        assert _live_run(Path(t), "run-legacy", [{"item_id": "l1", "ok": True, "stage": "archived"}],
+                         None)["prompts"] == {}
+
+
+@test
+def review_routed_counts_which_stage_submitted_the_document():
+    """Human-review routing is a kept metric split by trigger stage, and is never a failure bucket."""
+    assert CTX["runs"]["run-a"]["review_routed"] == {"total": 1, "by_stage": {"classification": 1}}
+    assert CTX["runs"]["run-b"]["review_routed"] == {"total": 0, "by_stage": {}}
+    _map = bfd._review_trigger
+    assert _map({"review_causes": ["sorter_low_confidence"]}, []) == "classification"
+    assert _map({"review_causes": ["hollow_extraction"]}, [{"node": "intake"}]) == "extraction"
+    assert _map({"review_causes": ["judge_partial", "class_miss"]}, [{"node": "extract"}]) == "judgment"
+    assert _map({"review_causes": ["reporting_incomplete"]}, []) == "reporting"
+    assert _map({}, [{"node": "rewrite"}, {"node": "human_review", "status": "running"}]) == "unknown"
+    assert _map({}, [{"node": "intake", "status": "done"}, {"node": "intake", "status": "running"},
+                     {"node": "intake", "status": "done"}, {"node": "classify", "status": "running"},
+                     {"node": "human_review"}]) == "classification"
+    assert _map({"pred": {"stage": "review", "review_causes": ["class_miss"]}}, []) == "classification", \
+        "job-runner rows pool causes under pred"
+    assert _map({"prediction": {"review_causes": ["judge_miss"]}}, [{"node": "classify"}]) == "judgment"
+    assert _map({}, [{"node": "intake"}]) is None
+
+
+@test
+def review_stage_is_held_never_a_technical_failure():
+    """A parked document stays HELD whatever ok says; failed stays technical-only."""
+    assert bfd._stage_bucket("review", False) == "held" and bfd._stage_bucket("human_review", None) == "held"
+    assert bfd._stage_bucket("", False) == "failed"
+    assert bfd._stage_bucket("failed", True) == "failed"
 
 
 def main() -> int:

@@ -48,6 +48,30 @@ SHIP_STAGES = {"archived", "archive", "ship", "shipped", "done"}
 HELD_STAGES = {"review", "human_review", "pending", "pending_review", "held"}
 FAIL_STAGES = {"failed", "fail", "error", "aborted"}
 
+# Review-trigger attribution. A parked document is NOT a failure: keep the routed count
+# per pipeline stage whose uncertainty sent it to human review. Item-level canonical
+# cause tokens (real run artifacts) win; ordered node visits (replay/demo artifacts)
+# fall back to the node the document was visiting on the way to human_review. Both
+# vocabularies come from the pipeline: cause tokens are vendor llm-mailroom's
+# pipeline.reconsideration, nodes are build_graph.py's registered node names.
+CAUSE_TRIGGER_STAGE = {
+    "class_miss": "classification", "subclass_miss": "classification",
+    "sorter_low_confidence": "classification", "reviewer_unavailable": "classification",
+    "reviewer_no_text": "classification", "reviewer_ineligible_label": "classification",
+    "reviewer_disagreement": "classification", "reviewer_low_confidence": "classification",
+    "extraction_miss": "extraction", "hollow_extraction": "extraction",
+    "schema_invalid": "extraction", "guardrail": "extraction", "parse_error": "extraction",
+    "judge_miss": "judgment", "judge_partial": "judgment", "needs_judge_review": "judgment",
+    "reporting_incomplete": "reporting",
+}
+NODE_TRIGGER_STAGE = {
+    "classify": "classification", "retry_classify": "classification",
+    "review_classify": "classification", "classification_arbiter": "classification",
+    "extract": "extraction", "retry_extract": "extraction",
+    "judge_verify": "judgment", "arbiter": "judgment", "boss_escalation": "judgment",
+    "compile_report": "reporting",
+}
+
 TRAY_LABEL = "(tray)"
 CODE_LABEL = "(code)"
 LANE_LABEL = "(abort terminal)"
@@ -60,12 +84,17 @@ GRAPH_NOTE = (
     "still count toward the node, never toward an edge. A route key that maps to END (e.g. "
     "human_review -> {'failed': END}) is drawn as a terminal lane node named after the key; "
     "a literal END target is the graph terminal and is not a node box. Run-budget aborts are "
-    "additionally attributed by aborts_by_last_node."
+    "additionally attributed by aborts_by_last_node. audit_events mirror _emit_stage_audit "
+    "call sites inside node handlers: side effects written to the hash-chained stage audit "
+    "log (A-1), drawn as dashed arrows that are not graph edges."
 )
 
 
 class DigestError(Exception):
+    """A builder failure with the process exit code the CLI returns."""
+
     def __init__(self, message: str, code: int = 1):
+        """Carry the message and exit code to ``main``."""
         super().__init__(message)
         self.code = code
 
@@ -167,12 +196,14 @@ def parse_graph(path: Path) -> dict:
     lanes: list[str] = []
 
     def add(a: str | None, b: str | None) -> None:
+        """Record one non-self edge once; unknown/empty endpoints are ignored."""
         if not a or not b or a == b:  # transient self-loops are not drawn
             return
         if (a, b) not in edges:
             edges.append((a, b))
 
     def known_source(s: str | None) -> bool:
+        """True when an edge may start at START or a registered node."""
         return s == "START" or s in registered
 
     for c in calls:
@@ -213,7 +244,24 @@ def parse_graph(path: Path) -> dict:
 
     node_agents = {n: _attribute(funcs.get(h)) for n, h in registered.items()}
     node_agents.update({lane: LANE_LABEL for lane in lanes})
-    return {"edges": [list(e) for e in edges], "node_agents": node_agents, "note": GRAPH_NOTE}
+    # stage-audit emissions (audit A-1): an arrow per _emit_stage_audit call site inside
+    # a registered node's handler — side effects the compliance log records, not edges
+    audits: dict[str, str] = {}
+    for hname, fn in funcs.items():
+        for n in ast.walk(fn):
+            if (isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+                    and n.func.id == "_emit_stage_audit" and len(n.args) >= 2):
+                event = _sym(n.args[1])
+                if event and hname not in audits:
+                    audits[hname] = event
+    audit_events = {node: audit_events_event for node, handler in registered.items()
+                    if (audit_events_event := audits.get(handler))}
+    return {
+        "edges": [list(e) for e in edges],
+        "node_agents": node_agents,
+        "audit_events": dict(sorted(audit_events.items())),
+        "note": GRAPH_NOTE,
+    }
 
 
 # ── artifact readers (tolerant: missing / torn files degrade, never fabricate) ──
@@ -311,7 +359,35 @@ def _item_stage(item: dict):
     return None
 
 
+def _review_trigger(item: dict, records: list[dict]) -> str | None:
+    """The pipeline stage whose uncertainty routed a document to human review, else None.
+
+    Item-level canonical review causes win — read from the item root and its
+    ``pred`` / ``prediction`` blocks, since job-runner rows pool them there;
+    without any causes the ordered node visit right before the first
+    human_review record attributes the route. A routed document with no
+    mappable precedent records as "unknown"; None means the doc was never
+    routed (no causes, no human_review visit).
+    """
+    for holder in (item, item.get("pred"), item.get("prediction")):
+        if not isinstance(holder, dict):
+            continue
+        causes = holder.get("review_causes")
+        if isinstance(causes, (list, tuple)):
+            for cause in (str(c) for c in causes):
+                if cause in CAUSE_TRIGGER_STAGE:
+                    return CAUSE_TRIGGER_STAGE[cause]
+    for idx, rec in enumerate(records):
+        if rec.get("node") != "human_review":
+            continue
+        prev = next((r.get("node") for r in reversed(records[:idx])
+                     if r.get("node") not in (None, "human_review")), None)
+        return NODE_TRIGGER_STAGE.get(str(prev), "unknown")
+    return None
+
+
 def _empty_outcome() -> dict:
+    """A zeroed outcome bucket (ship/held/failed/open/n)."""
     return {"ship": 0, "held": 0, "failed": 0, "open": 0, "n": 0}
 
 
@@ -339,12 +415,85 @@ def _tokens(nodes: list[dict], items: list[dict]) -> dict:
     return {"prompt": prompt, "completion": completion}
 
 
+def _inflight(nodes: list[dict]) -> dict[str, list[dict]]:
+    """Docs currently mid-node: the latest record (file order) for a doc+node is ``running``.
+
+    ``since`` is the first nonempty string or finite numeric timestamp in ``ts``,
+    ``time``, ``started``, or ``started_at``, or None if none qualifies. Nodes
+    with no entry are absent. Records missing ``doc``/``node`` are skipped.
+    """
+    latest: dict[tuple[str, str], dict] = {}
+    for r in nodes:
+        doc, node = r.get("doc"), r.get("node")
+        if doc is None or node is None:
+            continue  # torn/partial rows degrade, never crash a build
+        latest[(str(doc), str(node))] = r  # a later done/error/complete replaces the running row
+    out: dict[str, list[dict]] = {}
+    for (doc, node), r in latest.items():
+        if r.get("status") != "running":
+            continue
+        since = None
+        for key in ("ts", "time", "started", "started_at"):
+            v = r.get(key)
+            if isinstance(v, str) and v:
+                since = v
+            elif _num(v) is not None:
+                since = _num(v)
+            if since is not None:
+                break
+        out.setdefault(node, []).append({"doc": doc, "since": since})
+    return dict(sorted(out.items()))
+
+
+def _avg_doc_ms(items: list[dict]):
+    """Mean finite ``latency_ms`` values in milliseconds, rounded to one decimal.
+
+    Return None when no item has a finite numeric latency. Item status is not checked;
+    an overflow while computing or rounding the mean propagates.
+    """
+    ms = [v for v in (_num(it.get("latency_ms")) for it in items) if v is not None]
+    return _int_if_whole(sum(ms) / len(ms)) if ms else None
+
+
+def _pred_class(item: dict) -> str | None:
+    """The doc_type the run recorded for an item, if any.
+
+    Pipeline rows carry it in ``pred``; job-runner sorter rows store the class as the
+    top-level ``predicted`` string (``expected`` alongside), so read that too.
+    """
+    for holder in (item.get("pred"), item.get("prediction"), item):
+        if isinstance(holder, dict) and holder.get("doc_type"):
+            return str(holder["doc_type"])
+    predicted = item.get("predicted")
+    return predicted if isinstance(predicted, str) and predicted else None
+
+
+def _routing(items: list[tuple[str, dict]], ds_class: dict[str, str]) -> dict[str, dict]:
+    """Count expected, predicted, and matching classes for items with both labels.
+
+    Nonempty dataset labels take precedence over item-level expected labels. Each class
+    maps to ``gt``, ``pred``, and ``match`` counts, including predicted-only classes.
+    """
+    routing: dict[str, dict] = {}
+    for item_id, it in items:
+        exp = ds_class.get(item_id) or str(it.get("expected_doc_class") or it.get("expected") or "")
+        pred = _pred_class(it)
+        if not exp or not pred:
+            continue
+        routing.setdefault(exp, {"gt": 0, "pred": 0, "match": 0})["gt"] += 1
+        routing.setdefault(pred, {"gt": 0, "pred": 0, "match": 0})["pred"] += 1
+        if exp == pred:
+            routing[exp]["match"] += 1
+    return dict(sorted(routing.items()))
+
+
 def build_run(name: str, path: Path, edge_set: set[tuple[str, str]]) -> tuple[dict, set[str]]:
     """Summarize a run's artifacts and return the summary and observed classes.
 
     The last item record for an ID wins. Node counts are distinct documents;
     edge counts are traversals limited to edge_set. Per-class traffic requires
-    dataset class labels, and node duration medians are in milliseconds. Missing
+    dataset class labels, and node duration medians are in milliseconds. The summary
+    also includes in-flight documents, mean item latency and routing counts. Missing
     or invalid artifact data uses the reader fallbacks; errors reading dataset
     bytes for an absent hash propagate.
     """
@@ -401,6 +550,7 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]]) -> tuple[di
         edge_fires.update(doc_edges(doc))
 
     def last_stage_from_nodes(doc: str):
+        """The last stage any node recorded for a doc, or None."""
         for r in reversed(per_doc_records.get(doc, [])):
             if r.get("stage"):
                 return r["stage"]
@@ -429,6 +579,14 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]]) -> tuple[di
             recs = per_doc_records.get(item_id)
             aborts[recs[-1]["node"] if recs else "unknown"] += 1
 
+    # documents Routed to human review stay alive, never "failed": count them per
+    # triggering stage (causes then node-visit attribution; unknown is still routed)
+    routed: Counter = Counter()
+    for item_id, it in items:
+        trigger = _review_trigger(it, per_doc_records.get(item_id) or [])
+        if trigger is not None:
+            routed[trigger] += 1
+
     per_class: dict[str, dict] = {}
     if ds_present and ds_class:
         classes_seen = set(class_outcomes)
@@ -450,6 +608,7 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]]) -> tuple[di
 
     engine = lock.get("engine") if isinstance(lock.get("engine"), dict) else {}
     prompt_default = prompt_lock.get("default") if isinstance(prompt_lock.get("default"), dict) else {}
+    prompt_agents = prompt_lock.get("agents") if isinstance(prompt_lock.get("agents"), dict) else {}
     dataset_lock = lock.get("dataset") if isinstance(lock.get("dataset"), dict) else {}
     dataset_hash = dataset_lock.get("sha256")
     if not dataset_hash and ds_present:
@@ -463,6 +622,7 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]]) -> tuple[di
         total = cp_total if cp_ok else len(ds_rows)
 
     cursor = checkpoint.get("cursor")
+    routing = _routing(items, ds_class)
     run = {
         "name": name,
         "state": checkpoint.get("state") or "unknown",
@@ -475,6 +635,16 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]]) -> tuple[di
         "spec_hash": lock.get("spec_hash") or checkpoint.get("spec_hash"),
         "dataset_hash": dataset_hash,
         "prompt_default": prompt_default.get("name") or prompt_default.get("source"),
+        # post-hoc prompt identification: the label is the most discriminating
+        # resolved identifier the lock kept — the eval-environment lineage key
+        # for dojo prompts, the local file stem, then name/source fallbacks
+        "prompts": dict(sorted(
+            (str(agent), str(
+                ref.get("key") or ref.get("file") or ref.get("name") or ref.get("source") or ""
+            ))
+            for agent, ref in prompt_agents.items() if isinstance(ref, dict)
+        )),
+        "review_routed": {"total": sum(routed.values()), "by_stage": dict(sorted(routed.items()))},
         "tokens": _tokens(nodes, [it for _, it in items]),
         "node_fires": {n: len(d) for n, d in sorted(node_docs.items())},
         "edge_fires": dict(sorted(edge_fires.items())),
@@ -484,6 +654,11 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]]) -> tuple[di
         "aborts_by_last_node": dict(sorted(aborts.items())),
         "outcomes": dict(sorted(outcomes.items())),
         "per_class": per_class,
+        "inflight": _inflight(nodes),
+        "avg_doc_ms": _avg_doc_ms([it for _, it in items]),
+        # per ground-truth class: items whose recorded doc_type differs from it (routing misses)
+        "predicted": {c: v["gt"] - v["match"] for c, v in routing.items() if v["gt"]},
+        "routing": routing,
     }
     classes = {c for c in outcomes if c != "?"} | set(ds_class.values())
     return run, classes
@@ -549,6 +724,21 @@ def write_outputs(digest: dict, out: Path) -> tuple[Path, Path]:
     return json_path, js_path
 
 
+def build(base: Path, out: Path, graph_path: Path | None = None) -> tuple[dict, Path, Path]:
+    """Build the digest from ``base`` and write floor_digest.json/.js into ``out``.
+
+    The programmatic twin of ``main`` (used by ``sandbox floor``): ``graph_path`` defaults
+    to ``$FLOOR_DIGEST_GRAPH`` then the vendored build_graph.py. Returns
+    ``(digest, json_path, js_path)``. Graph read, syntax or topology errors, no runs,
+    and output filesystem errors raise DigestError; decoding, traversal, aggregation
+    and serialization errors may also propagate. The two output files are replaced separately.
+    """
+    graph = Path(graph_path or os.environ.get("FLOOR_DIGEST_GRAPH") or DEFAULT_GRAPH)
+    digest = build_digest(Path(base), graph)
+    json_path, js_path = write_outputs(digest, Path(out))
+    return digest, json_path, js_path
+
+
 def summary_lines(digest: dict) -> list[str]:
     """Return one line per run with its three most frequently fired nodes."""
     lines = []
@@ -572,11 +762,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--out", help="output dir (default: this script's directory)")
     ap.add_argument("--print-summary", action="store_true", help="print one line per run")
     args = ap.parse_args(argv)
-    graph_path = Path(os.environ.get("FLOOR_DIGEST_GRAPH") or DEFAULT_GRAPH)
     out = Path(args.out) if args.out else HERE
     try:
-        digest = build_digest(resolve_base(args.base), graph_path)
-        json_path, js_path = write_outputs(digest, out)
+        digest, json_path, js_path = build(resolve_base(args.base), out)
     except DigestError as exc:
         print(f"build_floor_digest: error: {exc}", file=sys.stderr)
         return exc.code

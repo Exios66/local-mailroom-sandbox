@@ -1,0 +1,39 @@
+# Named datasets — the one place a run spec points at.
+#
+# A run spec uses `dataset: {name: <key>}`; the entry below supplies the provider
+# fields, a local path, an optional sha256 pin and the pull provenance. Paths
+# expand ${VAR} / ${VAR:-default} from the environment (the CLI loads .env first),
+# so no checkout hard-codes a home directory. The run lock records the resolved
+# file's sha256 and the entry's `pull` block, so a result names its pull.
+#
+#   sandbox datasets pull                          # pinned full corpus -> data/cache/
+#   sandbox datasets sample --per-class 20 --out data/datasets/ground_truth_all_perclass20.jsonl
+#
+# $SANDBOX_DATASETS_REGISTRY points at a different registry (another lane's file).
+datasets:
+  # The pinned family corpus the draws come from (revision = FAMILY_HF_REVISION).
+  family-corpus:
+    provider: huggingface
+    repo: Lucius-Morningstar/mailroom-dataset
+    config: ground_truth
+    split: all
+    revision: bc9eab280044befb51e19dda3071d290a8677f42
+
+  # 100-row demo corpus used by config/runs/pipeline-lmstudio-even50-demo.yaml.
+  # Historical WSL lane: the file lives at
+  # /home/gemooslin/sandbox-data/datasets/pipeline-even100-shuffled2.jsonl and that
+  # lane keeps MAILROOM_BASE_DIR=/home/gemooslin/sandbox-data, so it stays in place
+  # (historical records are not rewritten). Future runs resolve only the template
+  # below, under whatever MAILROOM_BASE_DIR the lane sets.
+  pipeline-even100-shuffled2:
+    provider: file
+    local_path: ${MAILROOM_BASE_DIR:-./data}/datasets/pipeline-even100-shuffled2.jsonl
+    pull:
+      source: family-corpus
+      command: "sandbox datasets sample --per-class 20 --out data/datasets/ground_truth_all_perclass20.jsonl"
+      note: >-
+        20 per class x 5 live classes (100 rows) drawn from family-corpus, then
+        shuffled once with seed 2; the 50-doc demo takes the first 50 shuffled rows
+        (class-blind intake). The sandbox draws deterministically; the seeded
+        shuffle was applied once outside the CLI. Pin sha256 after re-creating the
+        file to freeze it.
