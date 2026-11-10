@@ -44,10 +44,29 @@ provider, tracing, dataset, or deploy task, then open exactly one specialty skil
 | `langfuse` | Default tracing + The-Mailroom (Langfuse 3 / SDK v4) |
 | `apache-phoenix` | Optional Arize Phoenix OTEL sidecar only |
 | `braintrust` | Opt-in hosted Braintrust (never default offline) |
-| `huggingface` | Hub pulls / weights; offline fixtures first |
+| `huggingface` | Pinned Hub pulls / weights, offline draws, named datasets, subset identity and floor replay provenance |
 
 Do not use Phoenix or Braintrust as the The-Mailroom sink. Do not use OpenRouter
 unless explicitly opted in.
+
+## Dataset and review evidence
+
+- Follow the router and Hugging Face skill for local/named datasets as well as
+  Hub pulls. Read `FAMILY_HF_REVISION` in `src/mailroom_sandbox/job/spec.py` and each run's lock;
+  preserve explicit experiment pins instead of substituting Hub HEAD.
+- `spec.lock.json`'s `dataset.sha256` identifies the prepared `dataset.jsonl`.
+  For local inputs, `dataset.metadata.sha256` identifies the source bytes;
+  `metadata.name` and `metadata.pull` are present only when supplied. A registry
+  name or source hash alone does not identify a selected subset. Record limits,
+  strata, seed, `require_task_gt` and locked row IDs; selection uses canonical sorting, not just
+  file line order. See [dataset identity](docs/jobs.md#dataset-identity).
+- A floor replay is a labeled, persistent, simulated run inside its `--base`.
+  Use a scratch base for demos. Never cite its scores/tokens/latencies as model
+  evidence or remove foreign files to bypass a replay ownership refusal.
+- For PR review work, read full thread replies and current code before deciding
+  what remains. Verify fixes before resolving threads; audit the same failure
+  pattern in related callers and tests. Keep separately requested protocol/docs
+  changes in their own follow-up PR, with the reviewed PR as its base when stacked.
 
 ## Coding subagents (Cursor + OpenCode)
 
@@ -88,7 +107,7 @@ sandbox eval pipeline [--class C] --mock  # primary: full connected graph, every
 sandbox eval --all-tasks            # other tasks (sorter, judge, …) still run; hidden from menus
 sandbox eval local_vs_api --mock    # Ollama vs OpenRouter serving (no API key)
 sandbox matrix --providers ollama --models qwen3:8b --prompts sorter_local_v0 --mock --dry-run
-pytest -v                           # network-free; live LLM tests need SANDBOX_LOCAL_LLM=1
+pytest -q tests/test_job_spec.py     # example focused local check; full suite + coverage run in CI
 sandbox datasets pull               # LIVE pinned FULL Hub pull (train+test, 3302 rows) → data/cache/
 sandbox datasets sample --per-class 40  # offline 40/class draw from that cache (20/40/100…)
 sandbox datasets prepare            # offline JSONL under data/runtime/prepared/
@@ -198,3 +217,27 @@ for source links and registered communication types.
 ## Tests
 
 No real LLM calls in the default suite. `@pytest.mark.local_llm` is skipped unless `SANDBOX_LOCAL_LLM=1`. `tests/conftest.py` sets `SANDBOX_SKIP_DOTENV=1` before any test, so a developer's `.env` (real keys) never loads into the suite. `runtime._load_dotenv` honours the variable, so set it only for tests.
+
+Use the local machine for review, diffs, lint, syntax/config validation and the
+smallest relevant regression tests. Run those tests without coverage and with
+one worker by default. Full-suite runs, coverage sweeps, large mock campaigns
+and serial/parallel benchmarks belong in CI; do not repeat them locally just
+to duplicate a hosted check. For a CI failure, inspect its logs and artifacts
+first, then run a bounded local reproduction only when needed.
+
+The complete CI suite and coverage gate remain required before merging. Verify
+checks against the current PR head SHA, inspect failures, and wait for pending
+required checks. Offloading changes where expensive checks run, not which
+checks must pass. Prefer completed hosted job/step timings for performance
+comparisons and label any earlier local measurements as local evidence.
+
+Import-isolation tests must modify the existing `sys.modules` mapping in place
+and clear cached parent-package attributes when needed. Replacing the mapping
+can miss imports or fail inside CPython. For an import guard, also run a
+negative control that deliberately imports the prohibited module.
+
+CI uses two xdist workers with `--dist loadfile`, keeping process-local routing
+scenario coverage on one worker. Preserve the full network-free suite and the
+77% merged coverage gate. Compare completed job and pytest-step durations with
+the same coverage settings before claiming a speedup; a faster no-coverage
+local run or a failed CI job does not prove the required checks got faster.
