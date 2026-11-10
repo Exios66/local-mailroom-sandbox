@@ -1,9 +1,14 @@
 version: 2.1
 
 # Free-tier budget: two parallel small jobs, one workflow, pip cache.
-# This is the repo's only CI (there is no .github/workflows/ci.yml). To BLOCK
-# merges, mark the "ci/circleci: lint" and "ci/circleci: test" checks as
-# required in the GitHub branch protection rule for main.
+# Wall-time shape: both lanes restore caches first, so repeat pushes spend
+# seconds, not minutes, on tool/network setup; the test job parallelizes the
+# network-free suite with pytest-xdist (`-n auto` = 2-way on this small
+# executor) and keeps coverage scoped to src/mailroom_sandbox (pyproject
+# [tool.coverage.run]). This is the repo's only CI (there is no
+# .github/workflows/ci.yml). To BLOCK merges, mark the "ci/circleci: lint"
+# and "ci/circleci: test" checks as required in the GitHub branch protection
+# rule for main.
 
 executors:
   py:
@@ -16,11 +21,19 @@ jobs:
     executor: py
     steps:
       - checkout
+      - restore_cache:
+          keys:
+            # static key: bump by hand when the tool set changes (ruff/yamllint/bandit are
+            # unpinned so a cache-bump is also the mostly likely way to pick up new tools)
+            - pip-lint-v1
       - run:
-          name: Install lint tools
-          command: |
-            pip install --quiet ruff yamllint bandit
-            sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+          name: Install lint tools (cached)
+          command: pip install --quiet ruff yamllint bandit
+      # shellcheck needs apt; keep it last so the cheap pip steps above never queue
+      # behind the apt index refresh.
+      - run:
+          name: Install shellcheck (apt, not cached)
+          command: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
       - run:
           name: ruff (correctness gate, config in pyproject.toml)
           command: ruff check src tests scripts deploy reports
@@ -33,9 +46,18 @@ jobs:
       - run:
           name: shellcheck (warning level, config in .shellcheckrc)
           command: git ls-files '*.sh' | grep -v '^vendor/' | xargs shellcheck -S warning
+      - restore_cache:
+          keys:
+            - npm-v1
       - run:
           name: markdownlint (GFM, config in .markdownlint-cli2.yaml)
+          # npx resolves the pinned CLI from ~/.npm when the cache exists, so this
+          # step is network-free on repeat pushes.
           command: npx --yes markdownlint-cli2@0.18.1
+      - save_cache:
+          key: npm-v1
+          paths:
+            - ~/.npm
 
   test:
     executor: py
@@ -45,15 +67,18 @@ jobs:
           keys:
             - pip-v1-{{ checksum "pyproject.toml" }}
       - run:
-          name: Install (dev + pipeline surface for vendored imports)
+          name: Install (dev surface incl. pytest-xdist for `-n auto`)
           command: pip install -e ".[dev]"
       - save_cache:
           key: pip-v1-{{ checksum "pyproject.toml" }}
           paths:
             - ~/.cache/pip
       - run:
-          name: Pytest (network-free)
-          command: pytest -v -m "not local_llm" --junitxml=test-results/junit.xml --cov --cov-report=term --cov-report=xml:coverage/coverage.xml
+          name: Pytest (network-free, parallel on the executor's CPUs)
+          # -q + -n auto: junitxml stays identical in shape (xdist merges it), and
+          # coverage merging is handled by pytest-cov. `-n auto` equals 2 on this
+          # small executor; set SANDBOX_XDIST to override without editing CI.
+          command: pytest -q -n "${SANDBOX_XDIST:-auto}" -m "not local_llm" --junitxml=test-results/junit.xml --cov --cov-report=xml:coverage/coverage.xml
       - run:
           name: Reports hub committed snapshot
           command: python reports/dashboard/build_hub.py --check
