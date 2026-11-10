@@ -78,6 +78,11 @@ Never substitute latest stable for an experiment's frozen commit. For remote
 Modal jobs, bundle the same selected snapshots when deploying the job worker;
 require matching provenance before accepting its results.
 
+Treat `sandbox fetch-deps` and `scripts/sync_vendor.py` as maintenance: stop all
+sandbox processes using the checkout before refreshing tracked vendor trees,
+review the completed diff, then restart. Staging/rollback protect bytes from
+failure; they do not synchronize live imports or prevent mixed revisions.
+
 ## Skills (tool selection)
 
 Committed under `.cursor/skills/`. **Read `sandbox-tool-router` first** for any

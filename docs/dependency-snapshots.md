@@ -74,6 +74,11 @@ The cache defaults deliberately match the reviewed `PINS` in
 Tests keep their commit identities aligned with `_VENDOR_PINS`. Fetching never
 rewrites these pins, `vendor/`, dependencies, or existing run locks. A reviewed
 vendor refresh still uses `sandbox fetch-deps` or `scripts/sync_vendor.py`.
+Stop all sandbox processes using that checkout first, complete and review the
+refresh, then restart. Vendor replacement has a brief destination gap and can
+otherwise mix old/new imports; staging and rollback protect failure recovery,
+not concurrent readers. Immutable cache entries avoid replacing an existing
+selected tree, while fetching a new entry leaves the old selection intact.
 
 ## Run locks and remote execution
 

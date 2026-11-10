@@ -98,6 +98,7 @@ cp config/.env.example .env   # sandbox loads .env at startup; exported vars win
 # only refreshes the snapshots (workspace packages first; reviewed standalone
 # commit/release refs frozen to SHAs otherwise, requiring network). Moved refs are rejected
 # before tracked vendor files are replaced:
+# Stop every sandbox process using this checkout before refreshing vendor trees.
 # sandbox fetch-deps               # optional: refresh tracked snapshots (may require network)
 # sandbox deps fetch --component dojo --version v0.28.1  # optional verified release cache
 sandbox up -d                      # Langfuse (the Modal endpoint is deployed, not composed)
