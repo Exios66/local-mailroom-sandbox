@@ -69,6 +69,44 @@ def test_preflight_locks_runbook_identity_without_hashing_it(tmp_path):
     assert lock["spec_hash"] == expected_hash
 
 
+@pytest.mark.parametrize("initial_filter", [False, True])
+def test_task_gt_filter_drift_refuses_to_reuse_the_old_subset(tmp_path, job_data_dir, initial_filter):
+    """Changing the task-GT filter cannot silently resume with the previous rows."""
+    from pathlib import Path
+
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    source = tmp_path / "contracts.jsonl"
+    source.write_text("".join(json.dumps(row) + "\n" for row in [
+        {"id": "a", "filename": "a.txt", "expected_doc_class": "contract", "doc_text": "empty GT"},
+        {"id": "b", "filename": "b.txt", "expected_doc_class": "contract", "doc_text": "labeled",
+         "expected_fields": {"cuad_clause_labels": {"Parties": ["Acme"]}}},
+    ]), encoding="utf-8")
+    spec = RunSpec(
+        run_id="task-gt-filter", task="sorter",
+        dataset=DatasetSpec(local_path=str(source), require_task_gt=initial_filter),
+        engine={"kind": "vllm-local", "modal": None}, trace={"sink": "none"},
+    )
+    assert preflight.preflight(spec, offline=True)["status"] == "prepared"
+    store = RunStore(run_dir(spec.run_id))
+    old_lock = store.lock_path.read_bytes()
+    old_subset = store.dataset_path.read_bytes()
+    assert [r["id"] for r in store.dataset_rows()] == (["b"] if initial_filter else ["a", "b"])
+
+    spec.dataset.require_task_gt = not initial_filter
+    assert preflight.preflight(spec, offline=True)["status"] == "drift_refused"
+    assert store.lock_path.read_bytes() == old_lock
+    assert store.dataset_path.read_bytes() == old_subset
+
+    report = preflight.preflight(spec, offline=True, force=True)
+    assert report["status"] == "prepared", report
+    assert [r["id"] for r in store.dataset_rows()] == (["a", "b"] if initial_filter else ["b"])
+    assert store.read_lock()["spec_hash"] == spec.spec_hash()
+    archived = Path(report["archived"])
+    assert (archived / "spec.lock.json").read_bytes() == old_lock
+    assert (archived / "dataset.jsonl").read_bytes() == old_subset
+
+
 def test_preflight_unknown_runbook_id_fails_without_fallback(tmp_path, job_data_dir):
     """An explicit unknown runbook_id fails preflight instead of falling through."""
     spec = _run_spec(tmp_path, run_id="sand40-unknown-runbook")
