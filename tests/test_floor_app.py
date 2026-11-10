@@ -5,7 +5,6 @@ Offline: no LLM and no run launch. The one socket test binds an ephemeral loopba
 
 import hashlib
 import json
-import shutil
 import threading
 import time
 from http.client import HTTPConnection
@@ -201,25 +200,39 @@ def test_replay_store_resets_only_its_own_replay_runs(store):
     assert (base / "runtime" / "runs" / "run-1" / "items.jsonl").read_bytes() == history
 
 
-def test_replay_store_refuses_to_destroy_a_foreign_run(tmp_path):
+@pytest.mark.parametrize("lock,artifact", [
+    (json.dumps({"engine": {"kind": "vllm-remote", "model": "local"}}), "items.jsonl"),
+    (None, "items.jsonl"),
+    (None, "operator-notes.txt"),
+    ("not JSON", "items.jsonl"),
+    ("[]", "items.jsonl"),
+])
+def test_replay_store_refuses_to_destroy_a_foreign_run(tmp_path, lock, artifact):
     """A real run parked under the replay id is never deleted: --replay refuses loudly."""
     base = tmp_path
-    for kind, lock, artifacts in (
-        ("real engine", json.dumps({"engine": {"kind": "vllm-remote", "model": "local"}}), True),
-        ("no lock, real artifacts", None, True),
-    ):
-        run = base / "runtime" / "runs" / floor_app.REPLAY_RUN_ID
-        if run.exists():
-            shutil.rmtree(run)
-        run.mkdir(parents=True)
-        if lock:
-            (run / "spec.lock.json").write_text(lock, encoding="utf-8")
-        if artifacts:
-            (run / "items.jsonl").write_text('{"item_id": "real", "ok": true}\n', encoding="utf-8")
-        with pytest.raises(FileExistsError, match="refuses to reset"):
-            floor_app.replay_store(base)
-        assert (run / "items.jsonl").read_bytes().startswith(b'{"item_id": "real"')
-        assert not (base / "runtime" / "runs" / floor_app.REPLAY_RUN_ID / "dataset.jsonl").exists()
+    run = base / "runtime" / "runs" / floor_app.REPLAY_RUN_ID
+    run.mkdir(parents=True)
+    if lock is not None:
+        (run / "spec.lock.json").write_text(lock, encoding="utf-8")
+    (run / artifact).write_text('{"item_id": "real", "ok": true}\n', encoding="utf-8")
+    before = {p.name: p.read_bytes() for p in run.iterdir()}
+    with pytest.raises(FileExistsError, match="refuses to reset"):
+        floor_app.replay_store(base)
+    assert {p.name: p.read_bytes() for p in run.iterdir()} == before
+
+
+def test_replay_store_refuses_symlinks_even_to_a_replay_run(tmp_path):
+    """A linked replay directory must not let copytree overwrite another store."""
+    other = floor_app.replay_store(tmp_path / "other")
+    target = other / "runtime" / "runs" / floor_app.REPLAY_RUN_ID
+    (target / "items.jsonl").write_text("preserve me\n", encoding="utf-8")
+    run = tmp_path / "base" / "runtime" / "runs" / floor_app.REPLAY_RUN_ID
+    run.parent.mkdir(parents=True)
+    run.symlink_to(target, target_is_directory=True)
+    with pytest.raises(FileExistsError, match="refuses to reset"):
+        floor_app.replay_store(tmp_path / "base")
+    assert run.is_symlink()
+    assert (target / "items.jsonl").read_text(encoding="utf-8") == "preserve me\n"
 
 
 def test_replay_driver_replays_every_document_to_done(tmp_path):

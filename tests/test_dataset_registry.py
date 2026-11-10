@@ -232,6 +232,44 @@ def test_local_spec_hash_keys_on_name_and_bytes_not_the_path(tmp_path):
     assert a.spec_hash() != c.spec_hash()
 
 
+def test_named_subset_preflight_locks_source_and_selected_rows(registry, tmp_path, job_data_dir):
+    """The run identifies its source pull and the exact subset it actually executes."""
+    from mailroom_sandbox.job import preflight
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.spec import run_dir
+
+    source = tmp_path / "sets" / "demo.jsonl"
+    _write_jsonl(source, list(reversed(_rows(5))))
+    source_sha = hashlib.sha256(source.read_bytes()).hexdigest()
+    subset_hashes = []
+    for limit in (2, 3):
+        spec = RunSpec(
+            run_id=f"named-subset-{limit}",
+            task="sorter",
+            engine={"kind": "vllm-local", "modal": None},
+            dataset=DatasetSpec(name="demo", limit=limit),
+            trace={"sink": "none"},
+        )
+        report = preflight.preflight(spec, offline=True)
+        assert report["status"] == "prepared", report
+        store = RunStore(run_dir(spec.run_id))
+        lock = store.read_lock()
+        dataset = lock["dataset"]
+        assert dataset["repo"] == "demo.jsonl"
+        assert dataset["limit"] == dataset["rows"] == limit
+        assert dataset["metadata"] == {
+            "source": "local", "revision": "offline", "sha256": source_sha,
+            "name": "demo", "pull": {"source": "family-corpus", "note": "unit test"},
+        }
+        assert dataset["sha256"] == hashlib.sha256(store.dataset_path.read_bytes()).hexdigest()
+        assert [r["id"] for r in store.dataset_rows()] == [f"d{i}" for i in range(limit)]
+        assert lock["spec_core"]["dataset"]["file"] == source.name
+        assert lock["spec_core"]["dataset"]["sha256"] == source_sha
+        assert "name" not in lock["spec_core"]["dataset"]
+        subset_hashes.append(dataset["sha256"])
+    assert subset_hashes[0] != subset_hashes[1]
+
+
 def test_demo_run_spec_names_a_registry_dataset(monkeypatch):
     """The shipped demo spec names a registry dataset and carries no machine path."""
     from mailroom_sandbox.job.spec import spec_hash

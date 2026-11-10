@@ -126,8 +126,8 @@ const esc=s=>String(s).replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;
 function hasClasses(r){return !!r.per_class&&Object.keys(r.per_class).length>0}
 /** Class-rail count and, when per-class isolation is unavailable for this run, the reason ("" = isolatable). */
 function classView(r,c){
- const n=((r.per_class[c]||{}).outcomes||{}).n||0,all=((r.outcomes||{})[c]||{}).n||0;
  if(!hasClasses(r))return {agg:"?",why:"no dataset.jsonl for this run: per-class counts unknown"};
+ const n=((r.per_class[c]||{}).outcomes||{}).n||0,all=((r.outcomes||{})[c]||{}).n||0;
  if(all>n)return {agg:"?",why:`${all-n} of ${all} items have no dataset label: per-class counts incomplete`};
  return {agg:n,why:""}}
  function mk(html,c){const d=document.createElement("div");if(c)d.className=c;d.innerHTML=html;world.appendChild(d);return d}
@@ -316,11 +316,12 @@ function menus(){
  // total is larger), its per-class view is partial: show "?" and disable isolation for it too.
  // A class with no items in the run keeps its real 0 and stays selectable.
  const rr=run(),agg={},why={};
+ if(CLASS&&(!D.classes.includes(CLASS)||classView(rr,CLASS).why))CLASS=null;
+ document.getElementById("mode").textContent=CLASS?"ISOLATED — counts & chips re-computed":"ALL CLASSES (run totals)";
+ const bt=document.getElementById("bigTitle");bt.textContent=CLASS?CLASS.toUpperCase():"";bt.classList.toggle("on",!!CLASS);
  for(const c of D.classes){const v=classView(rr,c);agg[c]=v.agg;if(v.why)why[c]=v.why}
  document.getElementById("cl").innerHTML=D.classes.map(c=>`<div class="cls${CLASS===c?" sel":""}${why[c]?" na":""}" data-c="${esc(c)}" tabindex="0" role="button" aria-pressed="${CLASS===c}"${why[c]?` aria-disabled="true" title="${esc(why[c])}"`:""}>${esc(c)}<b>${agg[c]}${routeSuffix(rr,c,why[c])}</b></div>`).join("");
  document.querySelectorAll(".cls").forEach(el=>el.onclick=()=>{if(why[el.dataset.c])return;CLASS=CLASS===el.dataset.c?null:el.dataset.c;
-  document.getElementById("mode").textContent=CLASS?"ISOLATED — counts & chips re-computed":"ALL CLASSES (run totals)";
-  const bt=document.getElementById("bigTitle");bt.textContent=CLASS?CLASS.toUpperCase():"";bt.classList.toggle("on",!!CLASS);
   menus();render()});
 }
 window.onerror=(m)=>{document.getElementById("mode").textContent="JS ERROR: "+m};
