@@ -5,6 +5,8 @@ Offline: no LLM and no run launch. The one socket test binds an ephemeral loopba
 
 import hashlib
 import json
+import shutil
+import sys
 import threading
 import time
 from http.client import HTTPConnection
@@ -565,6 +567,140 @@ def test_server_binds_loopback_and_serves_the_page_uncached(tmp_path):
         httpd.shutdown()
         httpd.server_close()
         t.join(timeout=3)
+
+
+def test_servers_keep_digest_json_and_js_isolated_with_shared_assets(store, tmp_path):
+    """Refreshing one base cannot change another server's initial or polled digest."""
+    base, graph, run = store
+    other = tmp_path / "other" / "runtime" / "runs" / "run-2"
+    other.mkdir(parents=True)
+    shutil.copyfile(run / "items.jsonl", other / "items.jsonl")
+    assets = tmp_path / "assets"
+    assets.mkdir()
+    (assets / "floor.template.html").write_text("<html>shared assets</html>")
+    (assets / "floor_digest.json").write_text('{"wrong":"shared"}')
+    (assets / "floor_digest.js").write_text('window.DIGEST={"wrong":"shared"};')
+    refreshers = [floor_app.DigestRefresher(b, tmp_path / f"digest-{i}", graph_path=graph)
+                  for i, b in enumerate((base, tmp_path / "other"))]
+    servers, threads = [], []
+    try:
+        for refresher in refreshers:
+            assert refresher.refresh()
+            server = floor_app.make_server(assets, 0, digest_dir=refresher.out)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            servers.append(server)
+            threads.append(thread)
+            thread.start()
+        (other / "checkpoint.json").write_text(json.dumps({"state": "complete", "cursor": 1, "total": 1}))
+        assert refreshers[1].refresh() and not refreshers[0].refresh()
+        for server, name in zip(servers, ("run-1", "run-2")):
+            conn = HTTPConnection(*server.server_address, timeout=5)
+            try:
+                for url in ("/floor_digest.json?ts=1", "/floor_digest.js?ts=2"):
+                    conn.request("GET", url)
+                    response = conn.getresponse()
+                    body = response.read().decode()
+                    assert response.status == 200 and response.getheader("Cache-Control") == "no-store"
+                    if ".js?" in url:
+                        body = body.removeprefix("window.DIGEST=").removesuffix(";\n")
+                    assert [r["name"] for r in json.loads(body)["runs"]] == [name]
+                conn.request("GET", "/floor.template.html")
+                assert conn.getresponse().read() == b"<html>shared assets</html>"
+            finally:
+                conn.close()
+        assert json.loads((assets / "floor_digest.json").read_text()) == {"wrong": "shared"}
+    finally:
+        for server in servers:
+            server.shutdown()
+            server.server_close()
+        for thread in threads:
+            thread.join(timeout=3)
+
+
+@pytest.mark.parametrize("bind_fails", [False, True])
+def test_serve_floor_uses_private_digest_storage_and_cleans_it_up(store, tmp_path, monkeypatch, bind_fails):
+    """Success and bind failure remove temporary digests without touching shared output."""
+    base, graph, _ = store
+    monkeypatch.setenv("FLOOR_DIGEST_GRAPH", str(graph))
+    assets = tmp_path / "assets"
+    assets.mkdir()
+    (assets / "floor_digest.json").write_text("shared snapshot")
+    seen = []
+
+    class Server:
+        """Stop the resident app immediately after startup."""
+        server_address = ("127.0.0.1", 12345)
+
+        def serve_forever(self):
+            """Simulate a normal operator interrupt."""
+            raise KeyboardInterrupt
+
+        def shutdown(self):
+            """No socket was opened."""
+
+        def server_close(self):
+            """No socket was opened."""
+
+    def bind(directory, port, *, digest_dir):
+        """Inspect startup output while it exists, optionally failing the bind."""
+        assert directory == assets and digest_dir != assets
+        assert json.loads((digest_dir / "floor_digest.json").read_text())["runs"][0]["name"] == "run-1"
+        assert (digest_dir / "floor_digest.js").is_file()
+        seen.append(digest_dir)
+        if bind_fails:
+            raise OSError("port busy")
+        return Server()
+
+    monkeypatch.setattr(floor_app, "make_server", bind)
+    for _ in range(2):
+        assert floor_app.serve_floor(base=base, out=assets, interval=3600) == int(bind_fails)
+        assert not seen[-1].exists()
+    assert seen[0] != seen[1]
+    assert (assets / "floor_digest.json").read_text() == "shared snapshot"
+
+
+def test_offline_image_copies_floor_assets_and_starts_without_checkout_mount(tmp_path, monkeypatch):
+    """The image's declared assets suffice for an offline sample's initial digest."""
+    root = Path(__file__).resolve().parents[1]
+    dockerfile = (root / "deploy" / "Dockerfile").read_text()
+    sources = ["reports/dashboard/build_floor_digest.py", "reports/dashboard/floor.template.html"]
+    assert f"COPY {' '.join(sources)} ./reports/dashboard/" in dockerfile
+    image = tmp_path / "image"
+    for source in sources + ["vendor/llm-mailroom/src/graph/build_graph.py"]:
+        dest = image / source
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(root / source, dest)
+    shutil.copytree(root / "data" / "fixtures" / "floor", image / "data" / "fixtures" / "floor")
+    monkeypatch.setenv("SANDBOX_ROOT", str(image))
+    monkeypatch.delenv("FLOOR_DIGEST_GRAPH", raising=False)
+    # Force builder loading from the relocated image tree, not a cached checkout module.
+    monkeypatch.setitem(sys.modules, "build_floor_digest", None)
+    seen = []
+
+    def bind(directory, port, *, digest_dir):
+        """Verify the image template and generated replay digest before refusing the socket."""
+        assert directory == image / "reports" / "dashboard"
+        assert (directory / "floor.template.html").is_file()
+        digest = json.loads((digest_dir / "floor_digest.json").read_text())
+        seen.extend(r["name"] for r in digest["runs"])
+        raise OSError("stop before serving")
+
+    monkeypatch.setattr(floor_app, "make_server", bind)
+    assert floor_app.serve_floor(base=image / "data", replay=True, port=0) == 1
+    assert seen == [floor_app.REPLAY_RUN_ID]
+
+
+def test_missing_builder_is_reported_without_a_traceback(tmp_path, monkeypatch, capsys):
+    """An incomplete install fails cleanly before binding or replay mutation."""
+    def missing():
+        """Simulate an absent dashboard builder."""
+        raise FileNotFoundError("digest builder missing")
+
+    monkeypatch.setattr(floor_app, "load_builder", missing)
+    assert floor_app.serve_floor(base=tmp_path, replay=True) == 1
+    err = capsys.readouterr().err
+    assert "digest builder missing" in err and "Traceback" not in err
+    assert not (tmp_path / "runtime").exists()
 
 
 def test_template_reads_run_and_class_query_params():
