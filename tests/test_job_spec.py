@@ -45,6 +45,20 @@ def test_spec_hash_ignores_run_id_and_artifacts():
     assert a.spec_hash() == b.spec_hash()
 
 
+@pytest.mark.parametrize("dataset", [
+    {"local_path": "file:///tmp/x.jsonl"},
+    {"provider": "huggingface", "revision": "a" * 40},
+])
+def test_task_gt_filter_changes_hash_for_local_and_hub_datasets(dataset):
+    plain = _spec(dataset=DatasetSpec(**dataset))
+    explicit_default = _spec(dataset=DatasetSpec(**dataset, require_task_gt=False))
+    filtered = _spec(dataset=DatasetSpec(**dataset, require_task_gt=True))
+    assert plain.spec_hash() == explicit_default.spec_hash()
+    assert "require_task_gt" not in plain.dataset.request_core()
+    assert filtered.dataset.request_core()["require_task_gt"] is True
+    assert filtered.spec_hash() != plain.spec_hash()
+
+
 def test_spec_core_is_behavioral_and_json_serializable():
     core = spec_core(_spec())
     assert "run_id" not in json.dumps(json.loads(json.dumps(core)))
