@@ -4,7 +4,8 @@
 # fields, a local path, an optional sha256 pin and the pull provenance. Paths
 # expand ${VAR} / ${VAR:-default} from the environment (the CLI loads .env first),
 # so no checkout hard-codes a home directory. The run lock records the resolved
-# file's sha256 and the entry's `pull` block, so a result names its pull.
+# prepared subset's sha256; for local sources metadata.sha256 identifies source
+# bytes. metadata.name / metadata.pull are recorded only when supplied.
 #
 #   sandbox datasets pull                          # pinned full corpus -> data/cache/
 #   sandbox datasets sample --per-class 20 --out data/datasets/ground_truth_all_perclass20.jsonl
@@ -33,7 +34,8 @@ datasets:
       command: "sandbox datasets sample --per-class 20 --out data/datasets/ground_truth_all_perclass20.jsonl"
       note: >-
         20 per class x 5 live classes (100 rows) drawn from family-corpus, then
-        shuffled once with seed 2; the 50-doc demo takes the first 50 shuffled rows
-        (class-blind intake). The sandbox draws deterministically; the seeded
-        shuffle was applied once outside the CLI. Pin sha256 after re-creating the
-        file to freeze it.
+        shuffled once with seed 2 outside the CLI (historical recipe, not verified
+        by this registry entry). The 50-doc demo applies limit 50 after canonical
+        sorting, not source line order. Inspect locked IDs to identify that draw;
+        a line shuffle alone does not preserve shuffled intake. No source sha256
+        pin is committed here; verify the recreated file before pinning it.

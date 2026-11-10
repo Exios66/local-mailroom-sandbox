@@ -10,8 +10,9 @@ The entry supplies the provider fields (a pinned Hub pull or a local JSONL file)
 ``local_path`` expands ``${VAR}`` / ``${VAR:-default}`` from the environment — the
 CLI loads ``.env`` before parsing a spec — so no checkout hard-codes a home
 directory. An optional ``sha256`` pins the exact file: preparing the dataset
-refuses a different one, and every run lock records the source sha and the
-entry's ``pull`` block, so a result names the pull it came from.
+refuses a different one. A run lock records the prepared subset's sha256 and,
+for local inputs, the source SHA in ``dataset.metadata.sha256``. Registry
+``name`` and ``pull`` are recorded in metadata only when supplied.
 
 ``$SANDBOX_DATASETS_REGISTRY`` overrides the registry path (a lane- or
 experiment-specific registry), defaulting to ``<repo>/config/datasets.yaml``.
@@ -43,7 +44,7 @@ def registry_path() -> Path:
 
 
 def expand_env(value: str, *, where: str) -> str:
-    """Expand ``${VAR}`` / ``${VAR:-default}}``; unset (or empty) without a default raises.
+    """Expand ``${VAR}`` / ``${VAR:-default}``; unset (or empty) without a default raises.
 
     Exception: an unset ``MAILROOM_BASE_DIR`` resolves through
     :func:`mailroom_sandbox.paths.data_dir` (which reads the same variable), so a

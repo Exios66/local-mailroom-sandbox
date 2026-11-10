@@ -4,8 +4,9 @@
 # concurrency 4, JSON_MODE off, thinking/reasoning OFF in the LM Studio GUI.
 # The dataset is a REGISTRY KEY (config/datasets.yaml), resolved under
 # ${MAILROOM_BASE_DIR}, so no machine path lives in this file. limit 50 takes
-# the first 50 rows in the file's canonical (shuffled) order, so intake stays
-# class-blind — a real shuffle, not a stratum block.
+# the first 50 rows after canonical sorting; a shuffle of source lines alone
+# does not define intake order. Inspect the prepared dataset.jsonl and its
+# spec.lock.json subset/source hashes to identify the exact executed sample.
 #
 #   sandbox run preflight --config config/runs/pipeline-lmstudio-even50-demo.yaml
 #   sandbox run start --config config/runs/pipeline-lmstudio-even50-demo.yaml --initials GM --watch
