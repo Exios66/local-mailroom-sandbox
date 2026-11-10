@@ -241,3 +241,7 @@ scenario coverage on one worker. Preserve the full network-free suite and the
 77% merged coverage gate. Compare completed job and pytest-step durations with
 the same coverage settings before claiming a speedup; a faster no-coverage
 local run or a failed CI job does not prove the required checks got faster.
+
+Operator references: [floor viewer](docs/floor.md),
+[named datasets and migration](docs/datasets/named-datasets.md), and
+[CI configuration and evidence](.circleci/README.md).

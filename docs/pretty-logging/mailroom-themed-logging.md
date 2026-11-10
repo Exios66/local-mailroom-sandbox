@@ -25,6 +25,8 @@ TUI when you need vLLM dispatch logs.
 | Poll a **Modal job worker** (`--job-mode modal`) | `sandbox run start` / `status … --watch` | no — Tray TUI tails `sandbox-job` worker + serve app (`modal app logs -f` each) | stderr progress lines |
 | Post-run quality + serving summary | `sandbox scorecard --run <id>` | — | one-shot terminal |
 | Every beacon job in the family (not one run YAML) | `sandbox board` | optional per job | browser `:8767` or `--tui` |
+| Pipeline graph, node arrivals, human-review routing and run/class history | `sandbox floor [RUN]` | no | browser `:8769`; [operator guide](../floor.md) |
+| Offline pipeline-floor demonstration with simulated results | `sandbox floor --replay --base <scratch-dir>` | no | browser `:8769`; persists a labeled sample run |
 
 **Rule of thumb:** for attended L4 ladder / warm-flow / multi-hour endpoint runs, open
 **watch in a second terminal** (or `--web`) before starting `scripts/sand032/*` or

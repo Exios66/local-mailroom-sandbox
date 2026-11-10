@@ -1,4 +1,5 @@
 # Named datasets — the one place a run spec points at.
+# Schema, examples and lock migration: docs/datasets/named-datasets.md.
 #
 # A run spec uses `dataset: {name: <key>}`; the entry below supplies the provider
 # fields, a local path, an optional sha256 pin and the pull provenance. Paths

@@ -130,6 +130,9 @@ trace:
 
 ## Dataset identity
 
+See the [named-dataset reference](datasets/named-datasets.md) for registry
+fields, examples, path/cache rules and the LM Studio demo's prerequisites.
+
 A registry key is an alias for source and selection fields, not a content hash.
 Preflight writes the exact normalized subset to the run's `dataset.jsonl` and
 records its SHA-256, row count and actual class/subclass distribution at
@@ -465,7 +468,10 @@ item spans travel over OTEL (job spans only).
 
 ## Tests
 
-The job surface is covered by network-free suites:
+The job surface is covered by network-free suites. The commands below are a
+test map: choose a focused file for local investigation, with one worker and
+no coverage. Full-suite and coverage verification belong to hosted CI; see
+[CI gates and resource policy](../.circleci/README.md).
 
 ```
 uv run pytest tests/test_job_spec.py

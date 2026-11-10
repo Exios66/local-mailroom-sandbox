@@ -93,8 +93,9 @@ Always `mailroom_sandbox.runtime.activate(profile)` before importing mailroom gr
 | Providers | `docs/setting-up/providers.md` |
 | Offline Docker + notebooks | `docs/setting-up/docker-offline.md` |
 | Project skills (this tree) | `.cursor/skills/*/SKILL.md` |
-| Dataset registry / run locks | `config/datasets.yaml` / `docs/jobs.md` |
-| Floor sample / verification | `data/fixtures/floor/replay/README.md` / `tests/test_floor_app.py` |
+| Dataset registry / run locks | `config/datasets.yaml` / `docs/datasets/named-datasets.md` / `docs/jobs.md` |
+| Floor operation / sample / verification | `docs/floor.md` / `data/fixtures/floor/replay/README.md` / `tests/test_floor_app.py` |
+| CI scheduling / caches / runtime evidence | `.circleci/README.md` |
 
 ## Quick commands
 
