@@ -20,6 +20,7 @@ Read this skill **first** when the task touches providers, tracing, datasets, Do
 | Offline fixture prep / cached subset draw | `sandbox datasets prepare` / `sandbox datasets sample` | [huggingface](../huggingface/SKILL.md) | Hub network in CI; treating fixture prep as a Hub pull |
 | Named dataset / file pin / subset provenance | `config/datasets.yaml` + `sandbox run preflight` | [huggingface](../huggingface/SKILL.md) | Machine paths in committed run specs; guessing a sample from its name |
 | Floor viewer / offline replay | `sandbox floor [TARGET]` / `sandbox floor --replay` | [huggingface](../huggingface/SKILL.md) for sample provenance | Model calls for a UI demo; quoting simulated results as measurements |
+| Code verification / CI runtime evidence | Local lint/config checks and focused regressions; CircleCI for the full suite, coverage and CPU-heavy campaigns | [AGENTS.md tests](../../../AGENTS.md#tests) | Repeated full local suites or local parallel/coverage benchmarks; weakening merge gates |
 | Decision-reviewer calibration (paid OpenRouter `sorter_reviewer` runs) | `reviewer: {backend: decisions, model: openai/gpt-6-luna-decisions, questions: <stem>}` + `sandbox run preflight` → `sandbox run start --initials XX` → `scripts/calibrate_reviewer.py --run <id>` | `config/decisions/*.yaml`, `reports/reviewer-calibration/` | The chat model `openai/gpt-6-luna` as the reviewer; hand-picked cutoffs; `-latest` / `~` model ids |
 | Sandbox-isolated tasks / governance | Local **`SAND-*`** board (`governance/TASKS.md`) | (this router + `governance/PREFIX.md`) | Family **`DMR-*`** MESSAGE_BOARD (cross-repo only) |
 
@@ -69,6 +70,10 @@ Always `mailroom_sandbox.runtime.activate(profile)` before importing mailroom gr
 
 ## Gotchas
 
+- **Keep CPU-heavy verification in CI.** Use one worker and no coverage for
+  narrow local reproductions. Inspect hosted logs, JUnit, coverage and timing
+  artifacts instead of rerunning the full suite locally. Merge only after the
+  required checks pass on the current head; see [test policy](../../../AGENTS.md#tests).
 - **The decision reviewer is a Decisions-API model, not a chat model.** `openai/gpt-6-luna-decisions` is served at `POST https://openrouter.ai/api/alpha/decisions` (no chat route): it takes `state` plus typed `questions` and returns a probability for every option, with no output tokens. `openai/gpt-6-luna` is the plain chat model. On 2026-11-01 a whole calibration ran on the chat model by mistake (about $2.50). Preflight now refuses a paid `sorter_reviewer` run without a `reviewer:` block, and `backend: api` (chat) needs `allow_chat_model: true`. Before a paid reviewer run, confirm the model id in the lock ends in `-decisions`.
 - **Spend initials belong to the operator.** `sandbox run start` on a paid run needs `--initials` (2–6 capital letters). An agent asks for them and never signs on its own.
 - **Price check before a paid OpenRouter run.** The cost comes from `SANDBOX_MODEL_PRICES` (`src/mailroom_sandbox/job/metrics.py`) and the live model endpoints list (`https://openrouter.ai/api/v1/models/<id>/endpoints`; Decisions models are missing from the plain `/models` list). Luna Decisions bills input only ($0.10/M); the document is billed once per request however many questions it carries.

@@ -15,6 +15,10 @@ Hub administration may also use the installed `hf-cli` skill; it does not
 replace the sandbox's selection and lock contracts. Default tests use fixtures
 and mocks, with no Hub or model calls.
 
+Keep full corpus/mock-campaign checks and coverage sweeps in CI. Locally, use
+small fixture regressions and static checks; inspect hosted failures before
+attempting a bounded reproduction. The complete CI gates still apply before merge.
+
 ## Choose the data operation
 
 | Need | Command or asset | Dataset network |

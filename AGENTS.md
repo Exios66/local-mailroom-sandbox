@@ -107,7 +107,7 @@ sandbox eval pipeline [--class C] --mock  # primary: full connected graph, every
 sandbox eval --all-tasks            # other tasks (sorter, judge, …) still run; hidden from menus
 sandbox eval local_vs_api --mock    # Ollama vs OpenRouter serving (no API key)
 sandbox matrix --providers ollama --models qwen3:8b --prompts sorter_local_v0 --mock --dry-run
-pytest -v                           # network-free; live LLM tests need SANDBOX_LOCAL_LLM=1
+pytest -q tests/test_job_spec.py     # example focused local check; full suite + coverage run in CI
 sandbox datasets pull               # LIVE pinned FULL Hub pull (train+test, 3302 rows) → data/cache/
 sandbox datasets sample --per-class 40  # offline 40/class draw from that cache (20/40/100…)
 sandbox datasets prepare            # offline JSONL under data/runtime/prepared/
@@ -217,6 +217,19 @@ for source links and registered communication types.
 ## Tests
 
 No real LLM calls in the default suite. `@pytest.mark.local_llm` is skipped unless `SANDBOX_LOCAL_LLM=1`. `tests/conftest.py` sets `SANDBOX_SKIP_DOTENV=1` before any test, so a developer's `.env` (real keys) never loads into the suite. `runtime._load_dotenv` honours the variable, so set it only for tests.
+
+Use the local machine for review, diffs, lint, syntax/config validation and the
+smallest relevant regression tests. Run those tests without coverage and with
+one worker by default. Full-suite runs, coverage sweeps, large mock campaigns
+and serial/parallel benchmarks belong in CI; do not repeat them locally just
+to duplicate a hosted check. For a CI failure, inspect its logs and artifacts
+first, then run a bounded local reproduction only when needed.
+
+The complete CI suite and coverage gate remain required before merging. Verify
+checks against the current PR head SHA, inspect failures, and wait for pending
+required checks. Offloading changes where expensive checks run, not which
+checks must pass. Prefer completed hosted job/step timings for performance
+comparisons and label any earlier local measurements as local evidence.
 
 Import-isolation tests must modify the existing `sys.modules` mapping in place
 and clear cached parent-package attributes when needed. Replacing the mapping
