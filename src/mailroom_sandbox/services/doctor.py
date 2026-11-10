@@ -34,6 +34,7 @@ class ServiceStatus:
     state: str  # ok | warn | fail | skipped
     detail: str
     hint: str = ""
+    readiness: str = "unverified"  # installed | configured | authenticated | reachable; never workflow proof
 
     def as_dict(self) -> dict[str, str]:
         return asdict(self)
@@ -57,7 +58,7 @@ def _binary(name: str, *, needed: bool, hint: str, version: list[str] | None = N
         return ServiceStatus(name, "warn", f"could not determine {name} version", hint)
     if pin and found and found != pin:
         return ServiceStatus(name, "warn", f"{name} {found}, sandbox verified against {pin}", hint)
-    return ServiceStatus(name, "ok", f"{name} {found}" if found else path)
+    return ServiceStatus(name, "ok", f"{name} {found}" if found else path, readiness="installed")
 
 
 def _modal(profile_name: str, *, live: bool) -> ServiceStatus:
@@ -79,25 +80,25 @@ def _modal(profile_name: str, *, live: bool) -> ServiceStatus:
     if needed and not status["deployed"] and row.state != "fail":
         # The modal-vllm profile has nothing to call until its app is deployed.
         return ServiceStatus("modal", "fail", detail, "sandbox modal deploy")
-    return ServiceStatus("modal", row.state, detail, row.hint)
+    return ServiceStatus("modal", row.state, detail, row.hint, readiness="authenticated")
 
 
 def _modal_auth(profile_name: str) -> ServiceStatus:
     if os.environ.get("MODAL_TOKEN_ID") and os.environ.get("MODAL_TOKEN_SECRET"):
-        return ServiceStatus("modal-auth", "ok", "token from MODAL_TOKEN_ID/MODAL_TOKEN_SECRET")
+        return ServiceStatus("modal-auth", "ok", "token from MODAL_TOKEN_ID/MODAL_TOKEN_SECRET (not authenticated)", readiness="configured")
     config = Path(os.environ.get("MODAL_CONFIG_PATH") or Path.home() / ".modal.toml").expanduser()
     if config.is_file():
-        return ServiceStatus("modal-auth", "ok", f"config file {config}")
+        return ServiceStatus("modal-auth", "ok", f"config file {config} (not authenticated)", readiness="configured")
     state = "warn" if profile_name == "modal-vllm" else "skipped"
     return ServiceStatus("modal-auth", state, "no Modal token found", "modal token new")
 
 
 def _hf_auth() -> ServiceStatus:
     if os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN"):
-        return ServiceStatus("hf-auth", "ok", "token from the environment")
+        return ServiceStatus("hf-auth", "ok", "token from the environment (not authenticated)", readiness="configured")
     home = Path(os.environ.get("HF_HOME") or Path.home() / ".cache" / "huggingface")
     if (home / "token").is_file():
-        return ServiceStatus("hf-auth", "ok", f"token file {home / 'token'}")
+        return ServiceStatus("hf-auth", "ok", f"token file {home / 'token'} (not authenticated)", readiness="configured")
     return ServiceStatus(
         "hf-auth", "warn", "no token (the public sandbox dataset works anonymously)", "hf auth login  (or export HF_TOKEN) for gated repos"
     )
@@ -114,14 +115,14 @@ def _provider(profile: dict, *, live: bool) -> ServiceStatus:
         )
     base = endpoints_for(profile, base_url_override=_effective_base_url(profile)).base_url
     if not live:
-        return ServiceStatus("provider", "ok", f"{base} (not probed; use --live)")
+        return ServiceStatus("provider", "ok", f"{base} (not probed; use --live)", readiness="configured")
     result = probe_models(profile)
     if not result.ok:
         state = "warn" if explain_modal_timeout(profile, result) else "fail"
         return ServiceStatus("provider", state, f"{base}: {result.detail}", "sandbox modal status / sandbox health")
     listed = result.models or []
     models = ", ".join(listed[:3]) + (f" … ({len(listed)} models)" if len(listed) > 3 else "") if listed else "no models listed"
-    return ServiceStatus("provider", "ok", f"{base}: {models}")
+    return ServiceStatus("provider", "ok", f"{base}: {models}", readiness="reachable")
 
 
 def _openrouter(profile: dict, *, live: bool) -> ServiceStatus:
@@ -136,11 +137,11 @@ def _openrouter(profile: dict, *, live: bool) -> ServiceStatus:
             return ServiceStatus("openrouter", "fail", f"{key_env} unset; the openrouter profile cannot call the API", hint)
         return ServiceStatus("openrouter", "skipped", f"{key_env} unset (only needed for the openrouter profile or API agent routes)")
     if not live:
-        return ServiceStatus("openrouter", "ok", f"{key_env} set (value hidden; not probed, use --live)")
+        return ServiceStatus("openrouter", "ok", f"{key_env} set (value hidden; not probed, use --live)", readiness="configured")
     base = (profile.get("base_url") if needed else None) or None
     result = probe_openrouter_key(os.environ.get("OPENROUTER_BASE_URL") or base, key_env=key_env)
     if result.ok:
-        return ServiceStatus("openrouter", "ok", result.detail)
+        return ServiceStatus("openrouter", "ok", result.detail, readiness="authenticated")
     return ServiceStatus("openrouter", "fail" if needed else "warn", result.detail, hint)
 
 
@@ -150,10 +151,10 @@ def _sink(name: str, url: str | None, *, configured: bool, live: bool, default_h
     if not configured:
         return ServiceStatus(name, "skipped", f"not configured ({default_hint})")
     if not live:
-        return ServiceStatus(name, "ok", f"{url} (not probed; use --live)")
+        return ServiceStatus(name, "ok", f"{url} (not probed; use --live)", readiness="configured")
     result = probe_models({"name": name, "base_url": url, "health": {"models_url": url}}, expect_json=False)
     if result.ok:
-        return ServiceStatus(name, "ok", f"{url} reachable")
+        return ServiceStatus(name, "ok", f"{url} reachable", readiness="reachable")
     return ServiceStatus(name, "warn", f"{url}: {result.detail}", "optional; never gates `sandbox health`")
 
 
@@ -276,7 +277,7 @@ def _run_doctor_command(args: argparse.Namespace) -> int:
         return 1 if failed else 0
     print(f"sandbox doctor · profile {args.profile} · {'live probes' if args.live else 'offline (no network)'}")
     for row in rows:
-        print(f"  {_MARK[row.state]}  {row.name:<11} {row.detail}")
+        print(f"  {_MARK[row.state]}  {row.name:<11} [{row.readiness}] {row.detail}")
         if row.state in ("warn", "fail") and row.hint:
             print(f"        -> {row.hint}")
     print("next: " + ("fix the FAIL rows above, then re-run" if failed else "`sandbox doctor --live` to probe the endpoints, `--publish` to show this on `sandbox board`"))

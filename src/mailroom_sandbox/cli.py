@@ -113,9 +113,18 @@ def main(argv: list[str] | None = None) -> int:
 
     if argv is None:  # the console script's own process; an importing host keeps its PATH
         prefer_own_venv_tools()
-    load_env_file()
-    parser = build_parser()
-    args = parser.parse_args(argv)
+    # Offline agent diagnostics must inspect the supplied environment, without
+    # importing credentials from .env. Keep existing dotenv-first defaults for
+    # all other commands; only preparse the subagent command family.
+    raw = list(sys.argv[1:] if argv is None else argv)
+    candidate = build_parser().parse_args(raw) if "subagents" in raw else None
+    if candidate is not None and getattr(candidate, "offline_inspection", False):
+        parser = build_parser()
+        args = candidate
+    else:
+        load_env_file()
+        parser = build_parser()
+        args = parser.parse_args(argv)
     if not hasattr(args, "handler"):
         parser.print_help()
         return 0
@@ -310,6 +319,9 @@ def build_parser() -> argparse.ArgumentParser:
         parents=[leaf],
     )
     subagents_sub = subagents_p.add_subparsers(dest="subagents_cmd")
+    from mailroom_sandbox.subagents.environment import register as register_agent_preflight
+
+    register_agent_preflight(subagents_sub, leaf)
     sa_list = subagents_sub.add_parser("list", parents=[leaf], help="list coding subagents for a family package")
     sa_list.add_argument("--json", action="store_true")
     sa_list.add_argument(
