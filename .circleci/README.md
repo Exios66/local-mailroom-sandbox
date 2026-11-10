@@ -66,10 +66,24 @@ check) and coverage artifact to ensure a shorter run still performs the work.
 
 Pre-change passing hosted reference runs for the PR 274 stack were test job
 602 (988.576 seconds total; 935.179 seconds pytest) and job 604 (1022.392
-seconds total; 958.421 seconds pytest). They are baselines, not proof of the
-new configuration's hosted gain. Compare completed current-head runs before
-reporting a percentage reduction. Local timing measurements cannot establish
-the hosted improvement.
+seconds total; 958.421 seconds pytest). Their floor-feature test surface
+differs from the CI prerequisite's, so use the matched-workload comparison
+below for the allocation correction. Local timings cannot establish the
+hosted improvement.
+
+The completed #275 allocation comparison used the same 2,798 test-result
+identities (2,770 passed, 28 skipped), including aggregate routing coverage,
+with 81.80% coverage in both runs:
+
+| Hosted test job | Allocation | Pytest step | Total job |
+| --- | --- | --- | --- |
+| [609](https://circleci.com/gh/Exios66/local-mailroom-sandbox/609), `06ae5d5` | small, two workers | 1032.962 s | 1103.057 s |
+| [620](https://circleci.com/gh/Exios66/local-mailroom-sandbox/620), `9c9f81b` | medium, two workers | 503.073 s | 577.869 s |
+
+That is a 51.3% pytest-step and 47.6% total-job reduction for these hosted
+runs. It demonstrates wall-time improvement, not reduced credit consumption
+or a guarantee for every push. Recheck the current feature stack's gates;
+this prerequisite comparison does not certify later code changes.
 
 ## Local verification policy
 
