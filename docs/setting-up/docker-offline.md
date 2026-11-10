@@ -7,7 +7,9 @@ This repo ships **two** Docker surfaces:
 | [`deploy/docker-compose.yml`](../../deploy/docker-compose.yml) | Sidecar stack: Langfuse 3, Ollama, optional Phoenix / vLLM / llama.cpp, and **Jupyter Lab** |
 | [`deploy/Dockerfile`](../../deploy/Dockerfile) | Offline sandbox image (`mailroom-sandbox:offline`) with the Python harness + notebooks |
 
-There is no second mailroom pipeline inside the image — only the sandbox overlay, fixtures, and Jupyter.
+The image imports the tracked vendored family pipeline; it does not implement
+a second pipeline. It includes the sandbox harness, fixtures, notebooks and
+Jupyter, plus the floor builder and template under `reports/dashboard/`.
 
 ## Quick start (Jupyter + Ollama + Langfuse)
 
@@ -83,6 +85,22 @@ sandbox down --compose-profile jupyter
 ```
 
 The Jupyter service defaults to the `ollama` profile (`SANDBOX_PROFILE` in `deploy/docker-compose.yml`); export `SANDBOX_PROFILE` in the shell that runs `sandbox up` to change it. Inside the Jupyter container, provider URLs point at compose DNS names (`http://ollama:11434/v1`, `http://langfuse-web:3000`). On the host, keep using `localhost` URLs from `config/.env.example`.
+
+## Pipeline floor assets
+
+The standalone image copies `reports/dashboard/build_floor_digest.py` and
+`floor.template.html`, the replay fixture, and the vendored graph source, so
+`sandbox floor --replay` can build its initial digest without a checkout mount.
+Resident digest files use per-process temporary storage and are removed on
+exit; the replay run stays in `/workspace/data/runtime/runs/`. A bind mount
+over `/workspace` replaces the image tree, so it must contain the same assets.
+
+The viewer binds loopback inside its own network namespace. Publishing a
+Docker port alone does not expose that container-loopback listener to a host
+browser. For normal host browsing, run `sandbox floor` from the host checkout;
+keep the loopback binding. See the [floor guide](../floor.md) for options,
+snapshot generation and replay provenance. The image's default entry point
+remains Jupyter Lab.
 
 ## Offline data prep without Docker
 
