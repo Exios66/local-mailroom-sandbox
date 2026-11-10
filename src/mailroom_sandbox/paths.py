@@ -9,6 +9,9 @@ from contextvars import ContextVar
 from pathlib import Path
 
 
+OFFLINE_SHARED_VALUE_OPTIONS = frozenset({"--profile", "--model", "--prompt", "--agent-model"})
+OFFLINE_AGENT_COMMANDS = frozenset({"preflight", "dispatch-check", "checkpoint"})
+
 _DOTENV_DISABLED: ContextVar[bool] = ContextVar("mailroom_dotenv_disabled", default=False)
 
 
@@ -18,7 +21,7 @@ def offline_agent_invocation(argv: list[str]) -> bool:
     Consume shared option values so a prompt/model named ``subagents`` does
     not accidentally disable normal configuration loading.
     """
-    shared = {"--profile", "--model", "--prompt", "--agent-model"}
+    shared = OFFLINE_SHARED_VALUE_OPTIONS
     words = []
     index = 0
     while index < len(argv) and len(words) < 2:
@@ -29,9 +32,7 @@ def offline_agent_invocation(argv: list[str]) -> bool:
         if token.split("=", 1)[0] not in shared and not token.startswith("-"):
             words.append(token)
         index += 1
-    return len(words) == 2 and words[0] == "subagents" and words[1] in {
-        "preflight", "dispatch-check", "checkpoint",
-    }
+    return len(words) == 2 and words[0] == "subagents" and words[1] in OFFLINE_AGENT_COMMANDS
 
 
 @contextmanager
