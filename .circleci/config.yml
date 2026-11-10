@@ -3,8 +3,8 @@ version: 2.1
 # Free-tier budget: two parallel small jobs, one workflow, pip cache.
 # Wall-time shape: both lanes restore caches first, so repeat pushes spend
 # seconds, not minutes, on tool/network setup; the test job parallelizes the
-# network-free suite with pytest-xdist (`-n auto` = 2-way on this small
-# executor) and keeps coverage scoped to src/mailroom_sandbox (pyproject
+# network-free suite with two pytest-xdist workers on this small executor
+# and keeps coverage scoped to src/mailroom_sandbox (pyproject
 # [tool.coverage.run]). This is the repo's only CI (there is no
 # .github/workflows/ci.yml). To BLOCK merges, mark the "ci/circleci: lint"
 # and "ci/circleci: test" checks as required in the GitHub branch protection
@@ -24,11 +24,15 @@ jobs:
       - restore_cache:
           keys:
             # static key: bump by hand when the tool set changes (ruff/yamllint/bandit are
-            # unpinned so a cache-bump is also the mostly likely way to pick up new tools)
+            # unpinned so bump this key deliberately when updating the tool set)
             - pip-lint-v1
       - run:
           name: Install lint tools (cached)
           command: pip install --quiet ruff yamllint bandit
+      - save_cache:
+          key: pip-lint-v1
+          paths:
+            - ~/.cache/pip
       # shellcheck needs apt; keep it last so the cheap pip steps above never queue
       # behind the apt index refresh.
       - run:
@@ -51,8 +55,7 @@ jobs:
             - npm-v1
       - run:
           name: markdownlint (GFM, config in .markdownlint-cli2.yaml)
-          # npx resolves the pinned CLI from ~/.npm when the cache exists, so this
-          # step is network-free on repeat pushes.
+          # npm reuses downloaded packages; npx may still consult the registry.
           command: npx --yes markdownlint-cli2@0.18.1
       - save_cache:
           key: npm-v1
@@ -67,7 +70,7 @@ jobs:
           keys:
             - pip-v1-{{ checksum "pyproject.toml" }}
       - run:
-          name: Install (dev surface incl. pytest-xdist for `-n auto`)
+          name: Install (dev surface incl. pytest-xdist for two workers)
           command: pip install -e ".[dev]"
       - save_cache:
           key: pip-v1-{{ checksum "pyproject.toml" }}
@@ -79,8 +82,10 @@ jobs:
           # host CPUs inside Docker and can spawn dozens of workers that die at import
           # before responding (the manager then waits forever), so the default is the
           # measured shape. junitxml stays identical in shape (xdist merges it), and
-          # pytest-cov merges coverage. Set SANDBOX_XDIST to override without editing CI.
-          command: pytest -q -n "${SANDBOX_XDIST:-2}" -m "not local_llm" --junitxml=test-results/junit.xml --cov --cov-report=xml:coverage/coverage.xml
+          # pytest-cov merges coverage. loadfile keeps process-local scenario unions
+          # (test_pipeline_routing_matrix.WALKED) together and ordered on one worker.
+          # Set SANDBOX_XDIST to override without editing CI.
+          command: pytest -q -n "${SANDBOX_XDIST:-2}" --dist loadfile -m "not local_llm" --junitxml=test-results/junit.xml --cov --cov-report=xml:coverage/coverage.xml --durations=20
       - run:
           name: Reports hub committed snapshot
           command: python reports/dashboard/build_hub.py --check
