@@ -7,6 +7,12 @@ description: Choose the correct local-mailroom-sandbox tool for serving, tracing
 
 Read this skill **first** when the task touches providers, tracing, datasets, Docker, or deploys. Then open exactly one specialty skill below. Do not invent a second tracing backend or cloud LLM path when the default already fits.
 
+Apply the [routine instruction validation](../../../AGENTS.md#instruction-validation-routine)
+at task start/resume, after long experiments or feature/configuration updates,
+and before handoff or merge. Verify this router's and the selected skill's
+versions, pins, references and defaults against current evidence; correct stale
+guidance without silently upgrading dependencies or changing experiment locks.
+
 ## Decision table
 
 | Job | Use | Skill | Do **not** use |

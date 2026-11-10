@@ -31,6 +31,27 @@ after those sources have been imported. Preserve live corporate v6 and sandbox
 evaluation v7 independently. The historical sandbox v0.2.0 release exists;
 current development version and immutable vendor pins are separate facts.
 
+## Instruction validation (routine)
+
+At task start and every resumed session, read the applicable `AGENTS.md`,
+`CLAUDE.md`, scoped rules and selected skills. Validate the factual instructions
+relevant to the work against the current checkout and authoritative sources;
+do not assume an instruction file is current because it is committed.
+
+Repeat this check at milestones and completion of long-running experiments,
+after feature/configuration/dependency/vendor updates, after changing branches
+or rebasing a stack, and before a PR handoff or merge. Check versions, release
+claims, pins, references, commands, defaults and experiment status. Distinguish
+historical evidence, declared dependencies, installed versions and published
+releases. Preserve immutable experiment locks and explicit pins.
+
+Correct stale instructions and their related entry points in the same scoped
+change or a linked documentation follow-up. Record what was checked, its source
+revision/date and any unresolved facts in the PR or experiment handoff. Factual
+validation does not override instruction priority or authorize live spend,
+dependency upgrades or destructive actions. Follow the
+[instruction maintenance procedure](docs/agent-instruction-maintenance.md).
+
 ## Skills (tool selection)
 
 Committed under `.cursor/skills/`. **Read `sandbox-tool-router` first** for any
