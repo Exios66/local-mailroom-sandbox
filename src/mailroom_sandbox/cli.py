@@ -779,7 +779,7 @@ def build_parser() -> argparse.ArgumentParser:
     board_p.add_argument("--demo", action="store_true", help="also run synthetic demo jobs (dev server; no Modal)")
     board_p.set_defaults(handler=_cmd_board)
 
-    from mailroom_sandbox.tui.floor_app import DEFAULT_PORT as _FLOOR_PORT
+    from mailroom_sandbox.ports import DEFAULT_VIEWER_PORT as _FLOOR_PORT
 
     floor_p = sub.add_parser(
         "floor",

@@ -86,6 +86,64 @@ def test_unknown_name_and_unknown_key_are_loud(registry):
         dataset_registry.load(bad)
 
 
+def test_registry_rejects_duplicate_keys_and_unique_files_load(tmp_path):
+    """A duplicated dataset name is an error, not a silent overwrite of the earlier entry.
+
+    A repeated key used to keep only the last value in yaml.safe_load — losing a pinned
+    entry (name or its sha256 pin) with no error. Unique-key registries still parse.
+    """
+    path = tmp_path / "datasets.yaml"
+    path.write_text(
+        "datasets:\n"
+        "  dup:\n    provider: file\n    local_path: /tmp/one.jsonl\n"
+        "  dup:\n    provider: file\n    local_path: /tmp/two.jsonl\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="duplicate registry key 'dup'"):
+        dataset_registry.load(path)
+
+    pinned = tmp_path / "dup-name.yaml"
+    pinned.write_text(
+        "datasets:\n"
+        "  pinned:\n    provider: file\n    local_path: /tmp/p.jsonl\n    sha256: " + "b" * 64 + "\n"
+        "  pinned:\n    provider: file\n    local_path: /tmp/q.jsonl\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="duplicate registry key 'pinned'"):
+        dataset_registry.load(pinned)
+
+    ok = tmp_path / "unique.yaml"
+    ok.write_text(
+        "datasets:\n"
+        "  one:\n    provider: file\n    local_path: /tmp/one.jsonl\n"
+        "    sha256: " + "a" * 64 + "\n"
+        "  two:\n    provider: file\n    local_path: /tmp/two.jsonl\n",
+        encoding="utf-8",
+    )
+    loaded = dataset_registry.load(ok)
+    assert set(loaded) == {"one", "two"} and loaded["one"]["source_sha256"] == "a" * 64
+
+
+def test_named_expansion_happens_exactly_once(tmp_path, monkeypatch):
+    """The spec validator is the single expansion point: a named entry is not re-expanded.
+
+    Regressions show as a second pass raising/rewriting a `${...}` that survived the first.
+    """
+    registry_file = tmp_path / "datasets.yaml"
+    registry_file.write_text(
+        "datasets:\n"
+        "  nested:\n    provider: file\n    local_path: ${BASE:-/tmp/x}/${X}/f.jsonl\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SANDBOX_DATASETS_REGISTRY", str(registry_file))
+    monkeypatch.delenv("BASE", raising=False)
+    monkeypatch.setenv("X", "A${UNSET_NO_DEFAULT}B")
+    monkeypatch.delenv("UNSET_NO_DEFAULT", raising=False)
+    monkeypatch.delenv("MAILROOM_BASE_DIR", raising=False)
+    spec = DatasetSpec(name="nested")
+    assert spec.local_path == f"/tmp/x/A${{UNSET_NO_DEFAULT}}B/f.jsonl", spec.local_path
+
+
 @pytest.mark.parametrize(("body", "message"), [
     ("- not a mapping", "must be a mapping with a 'datasets' key"),
     ("datasets: [", "is not valid YAML"),
@@ -177,6 +235,7 @@ def test_local_spec_hash_keys_on_name_and_bytes_not_the_path(tmp_path):
 def test_demo_run_spec_names_a_registry_dataset(monkeypatch):
     """The shipped demo spec names a registry dataset and carries no machine path."""
     from mailroom_sandbox.job.spec import spec_hash
+    from mailroom_sandbox.paths import data_dir
 
     monkeypatch.delenv("MAILROOM_BASE_DIR", raising=False)
     monkeypatch.delenv("SANDBOX_DATASETS_REGISTRY", raising=False)
@@ -184,8 +243,9 @@ def test_demo_run_spec_names_a_registry_dataset(monkeypatch):
     spec = load_run_spec(path)
     assert spec.dataset.name == "pipeline-even100-shuffled2"
     assert "/home/" not in path.read_text(encoding="utf-8"), "no machine path may live in a run spec"
-    assert not Path(spec.dataset.local_path).is_absolute()
-    assert spec.dataset.local_path.endswith("datasets/pipeline-even100-shuffled2.jsonl")
+    # an unset MAILROOM_BASE_DIR resolves through the CLI's own data directory
+    # (paths.data_dir), not the loader's current working directory
+    assert spec.dataset.local_path == str(data_dir() / "datasets" / "pipeline-even100-shuffled2.jsonl")
     assert len(spec_hash(spec)) == 64, "a missing dataset file must still hash (name only)"
 
     monkeypatch.setenv("MAILROOM_BASE_DIR", str(config_dir().parent / "data"))

@@ -43,13 +43,23 @@ def registry_path() -> Path:
 
 
 def expand_env(value: str, *, where: str) -> str:
-    """Expand ``${VAR}`` / ``${VAR:-default}``; an unset (or empty) variable without a default raises."""
+    """Expand ``${VAR}`` / ``${VAR:-default}}``; unset (or empty) without a default raises.
+
+    Exception: an unset ``MAILROOM_BASE_DIR`` resolves through
+    :func:`mailroom_sandbox.paths.data_dir` (which reads the same variable), so a
+    registry fallback like ``${MAILROOM_BASE_DIR:-...}`` matches the CLI's data
+    directory instead of the caller's working directory.
+    """
     def sub(match: re.Match[str]) -> str:
         """Replace one ``${VAR}`` reference with its value or default."""
         var, default = match.group(1), match.group(2)
         got = os.environ.get(var)
         if got:
             return got
+        if var == "MAILROOM_BASE_DIR" and not got:
+            from mailroom_sandbox.paths import data_dir
+
+            return str(data_dir())
         if default is not None:
             return default
         raise ValueError(
@@ -60,13 +70,40 @@ def expand_env(value: str, *, where: str) -> str:
     return _ENV.sub(sub, value)
 
 
+def _strict_loader(yaml):
+    """A SafeLoader whose mappings reject duplicate keys (a silently lost sha256 pin is a real break).
+
+    Keys may repeat neither across dataset names nor inside one entry; both surface
+    as ``yaml.constructor.ConstructorError`` — recall the load() wrapper translating it
+    to a ValueError naming the registry file. No YAML merge keys (``<<``) are supported.
+    """
+
+    class StrictLoader(yaml.SafeLoader):
+        """``yaml.SafeLoader`` with duplicate-key rejection at every mapping depth."""
+
+    def construct_mapping(loader: yaml.Loader, node: yaml.Node, deep: bool = False):
+        """Build one mapping; a duplicated key becomes a loud ConstructorError."""
+        mapping: dict = {}
+        for key_node, value_node in node.value:
+            key = loader.construct_object(key_node, deep=deep)
+            if key in mapping:
+                raise yaml.constructor.ConstructorError(
+                    None, None, f"duplicate registry key {key!r}", key_node.start_mark
+                )
+            mapping[key] = loader.construct_object(value_node, deep=deep)
+        return mapping
+
+    StrictLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, construct_mapping)
+    return StrictLoader
+
+
 def load(path: Path | None = None) -> dict[str, dict[str, Any]]:
     """Parse and validate the registry; any problem raises ValueError naming the file."""
     path = Path(path) if path is not None else registry_path()
     import yaml
 
     try:
-        raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        raw = yaml.load(path.read_text(encoding="utf-8"), Loader=_strict_loader(yaml)) or {}
     except OSError as exc:
         raise ValueError(f"dataset registry not readable: {path}: {exc}") from exc
     except yaml.YAMLError as exc:
@@ -101,8 +138,8 @@ def _clean(name: str, body: Any, path: Path) -> dict[str, Any]:
         local = entry["local_path"]
         if not isinstance(local, str) or not local:
             raise ValueError(f"dataset registry {path}: dataset {name!r} local_path must be a non-empty string")
-        # ${VAR} stays a template here; resolve() expands only the entry in use, so a
-        # lane missing another entry's variables can still use its own dataset.
+        # ${VAR} stays a template here and expands at spec load (exactly once),
+        # so a lane missing another entry's variables can still use its own dataset.
     if entry.get("pull") is not None and not isinstance(entry["pull"], dict):
         raise ValueError(f"dataset registry {path}: dataset {name!r} pull must be a mapping")
     return entry
@@ -122,8 +159,9 @@ def resolve(data: dict[str, Any]) -> dict[str, Any]:
             f"(known: {sorted(entries) or 'none'})"
         ) from None
     merged = {"name": str(name), **entry, **{k: v for k, v in data.items() if k != "name"}}
-    if isinstance(merged.get("local_path"), str):
-        merged["local_path"] = expand_env(merged["local_path"], where=f"dataset {name!r} local_path")
+    # NO expansion here: DatasetSpec's validator expands local_path exactly once,
+    # for named and explicit specs alike (a second pass re-expanded any literal
+    # ${...} that survived the first one).
     return merged
 
 

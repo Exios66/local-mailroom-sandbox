@@ -245,10 +245,14 @@ class DatasetSpec(BaseModel):
         return Path(url).expanduser()
 
     def request_core(self) -> dict[str, Any]:
-        """The reproducibility-relevant spec (never row counts/hashes).
+        """The reproducibility-relevant spec (never row counts/attempt results).
 
         ``interim_labels`` is hashed only when set (with the overlay's fingerprint, so a rebuilt
-        overlay is a new spec), so every pre-existing run YAML keeps its spec_hash.
+        overlay is a new spec); a local dataset's identity is its registry ``name`` plus the
+        file bytes (1946a32), so a FILE-dataset YAML keeps its spec_hash only when it embeds
+        its own bytes — first load after that change yields a new hash for a file spec that
+        predates it (resume then refuses until --force relocks); Hub-dataset YAMLs are
+        unaffected. This docstring mirrors _request_core's construction.
         """
         core = self._request_core()
         if self.interim_labels:
