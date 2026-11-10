@@ -6,6 +6,28 @@ import pytest
 from mailroom_sandbox import cli
 
 
+@pytest.mark.parametrize(("results", "expected"), [
+    ({"first": 0, "second": 0}, 0),
+    ({"first": 0, "second": 3}, 3),
+])
+@pytest.mark.parametrize("workspace", [True, False])
+def test_all_sources_attempted_and_return_code_aggregated(monkeypatch, tmp_path, workspace, results, expected):
+    pins = (("first", "main", "https://invalid/first", "a" * 40),
+            ("second", "main", "https://invalid/second", "b" * 40))
+    monkeypatch.setattr(cli, "_VENDOR_PINS", pins)
+    monkeypatch.setattr(cli, "_monorepo_workspace_pkg", lambda name: tmp_path if workspace else None)
+    calls = []
+
+    def refresh(name, *args):
+        calls.append(name)
+        return results[name]
+
+    monkeypatch.setattr(cli, "_refresh_vendor_from_workspace", refresh)
+    monkeypatch.setattr(cli, "_refresh_vendor", refresh)
+    assert cli._cmd_fetch_deps(Namespace(visualizer=False)) == expected
+    assert calls == ["first", "second"]
+
+
 @pytest.mark.parametrize("workspace", [True, False])
 def test_all_sources_attempted_after_first_failure(monkeypatch, tmp_path, workspace):
     pins = (("first", "main", "https://invalid/first", "a" * 40),

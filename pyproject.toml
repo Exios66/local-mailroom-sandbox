@@ -140,6 +140,7 @@ mailroom_sandbox = ["py.typed"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+addopts = ["--strict-markers"]
 markers = [
     "service_smoke: opt-in real Modal/HF CLI contract checks (SANDBOX_SERVICE_SMOKE=1)",
     "local_llm: live test against a local OpenAI-compatible server (skipped unless SANDBOX_LOCAL_LLM=1)",
@@ -169,8 +170,9 @@ source = ["src/mailroom_sandbox"]
 branch = false
 
 [tool.coverage.report]
-# Measured 79% on CircleCI (2026-10-30); floor leaves ~2 points of headroom.
-# Ratchet it up as coverage improves; never lower it to land a change.
-fail_under = 77
+# Measured 86.2% with the full suite (2026-11-10); the floor leaves ~2 points
+# of headroom. Ratchet it up as coverage improves; never lower it to land a
+# change.
+fail_under = 84
 show_missing = false
 skip_empty = true

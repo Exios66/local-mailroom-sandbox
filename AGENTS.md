@@ -293,7 +293,7 @@ negative control that deliberately imports the prohibited module.
 
 CI uses two xdist workers with `--dist loadfile`, keeping process-local routing
 scenario coverage on one worker. Preserve the full network-free suite and the
-77% merged coverage gate. Compare completed job and pytest-step durations with
+84% merged coverage gate. Compare completed job and pytest-step durations with
 the same coverage settings before claiming a speedup; a faster no-coverage
 local run or a failed CI job does not prove the required checks got faster.
 

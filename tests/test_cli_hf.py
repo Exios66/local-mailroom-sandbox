@@ -112,6 +112,7 @@ def test_download_dry_run_prints_the_command_and_runs_nothing(fake_bin, capsys):
 
 def test_download_dry_run_needs_no_hf_binary(fake_bin):
     assert cli.main(["hf", "download", "--dry-run"]) == 0
+    assert fake_bin.calls() == []
 
 
 @pytest.mark.parametrize("stderr", ["401 Client Error: Unauthorized", "Cannot access gated repo"])

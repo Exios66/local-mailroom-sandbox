@@ -73,6 +73,17 @@ def test_framework_refresh_preserves_persona_and_stays_project_only(checkout, ca
     capsys.readouterr()
 
 
+def test_doctor_reports_missing_roster_and_agent_without_crashing(checkout, tmp_path):
+    missing_roster = doctor.run_doctor(root=tmp_path, include_global=False, include_cursor=False)
+    assert "family.roster_missing" in {f.code for f in missing_roster.findings}
+    assert all(f.severity == "fail" for f in missing_roster.findings if f.code == "family.roster_missing")
+
+    entry = load_roster(checkout)[0]
+    entry.opencode_path(checkout).unlink()
+    report = doctor.run_doctor(root=checkout, include_global=False)
+    assert "agent.missing" in {f.code for f in report.findings}
+
+
 def test_global_framework_refresh_replaces_managed_tail(checkout, monkeypatch):
     monkeypatch.setattr(doctor, "repo_root", lambda: checkout)
     path = Path.home() / ".config" / "opencode" / "agents" / "custom.md"

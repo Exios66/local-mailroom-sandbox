@@ -25,7 +25,7 @@ def http_fixture():
   def do_POST(self):
    calls.append(self.path);self.rfile.read(int(self.headers.get('Content-Length') or 0));self.send_response(200);self.end_headers();self.wfile.write(b'{}')
  server=ThreadingHTTPServer(('127.0.0.1',0),Handler)
- thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+ thread=threading.Thread(target=lambda: server.serve_forever(poll_interval=0.01),daemon=True);thread.start()
  yield f'http://127.0.0.1:{server.server_port}',calls
  server.shutdown();server.server_close();thread.join(timeout=3)
 
@@ -69,10 +69,9 @@ def test_legacy_reuse_refuses_foreign_record_task(tmp_path,source_root,sdk,monke
  assert run_task(path,prices=(1.,2.))['resumed'] is True
  record['task']='unrelated-agent';record['scores']={'accuracy':-99}
  experiment_log.jsonl_path().write_text(json.dumps(record)+'\n')
- try:result=run_task(path,prices=(1.,2.))
- except RuntimeError:return
- print('LEGACY_TASK',json.dumps({'task':result['record']['task'],'lock_task':lock['task'],'scores':result['scores'],'resumed':result['resumed']}))
- pytest.fail('foreign-task legacy record reused')
+ with pytest.raises(RuntimeError) as exc:
+  run_task(path,prices=(1.,2.))
+ assert 'no matching terminal record' in str(exc.value)
 
 @pytest.mark.parametrize('task',['isolated','extract','chained','pipeline'])
 def test_whole_task_alias_has_reusable_task_identity(tmp_path,source_root,monkeypatch,task):

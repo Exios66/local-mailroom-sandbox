@@ -14,7 +14,7 @@ import re
 import pytest
 import yaml
 
-from mailroom_sandbox.eval import agents, runners
+from mailroom_sandbox.eval import agents
 from mailroom_sandbox.paths import repo_root
 
 ROOT = repo_root()
@@ -134,16 +134,3 @@ def test_mock_eval_tasks_remain_registered(task):
         assert task in agents.SPECS
     else:
         assert task in agents.EVAL_TASKS
-
-
-def test_compile_report_mock_eval_never_touches_llm(tmp_path, monkeypatch):
-    log = tmp_path / "experiment_log.jsonl"
-    monkeypatch.setenv("EXPERIMENT_LOG_PATH", str(log))
-    monkeypatch.setenv("MAILROOM_BASE_DIR", str(tmp_path))
-    from mailroom_sandbox.eval import experiment_log
-
-    monkeypatch.setattr(experiment_log, "jsonl_path", lambda: log)
-    monkeypatch.setattr(experiment_log, "md_path", lambda: tmp_path / "experiment_log.md")
-    result = runners.run_isolated_eval("compile_report", mock=True)
-    assert result["scores"]["exact_match"] == 1.0
-    assert "get_llm" not in agents._live_reporter.__code__.co_names

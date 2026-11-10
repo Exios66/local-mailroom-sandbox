@@ -70,6 +70,23 @@ def test_interrupted_promotion_restores_backup_before_refresh(sync_vendor, tmp_p
     assert not backup.exists()
 
 
+def test_main_continues_after_a_failed_source(sync_vendor, tmp_path, monkeypatch, capsys):
+    source = tmp_path / "second-source"
+    source.mkdir()
+    (source / "scorer.py").write_text("SOURCE_SENTINEL = 42\n")
+    (source / "tests").mkdir()
+    (source / "tests/ignored.py").write_text("ignored = True\n")
+    monkeypatch.setattr(sync_vendor, "_SNAPSHOTS", [
+        ("first", tmp_path / "vendor/first", tmp_path / "missing"),
+        ("second", tmp_path / "vendor/second", source),
+    ])
+    monkeypatch.setattr("sys.argv", ["sync_vendor.py"])
+    assert sync_vendor.main() == 1
+    assert "error:" in capsys.readouterr().err
+    assert (tmp_path / "vendor/second/scorer.py").read_text() == "SOURCE_SENTINEL = 42\n"
+    assert not (tmp_path / "vendor/second/tests").exists()
+
+
 def test_failed_copy_leaves_snapshot_and_no_staging(sync_vendor, tmp_path, monkeypatch):
     dest = _dest(tmp_path)
     source = tmp_path / "workspace" / "pkg" / "src"

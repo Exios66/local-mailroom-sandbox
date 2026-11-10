@@ -35,7 +35,7 @@ sandbox doctor                                              # offline status of 
 
 - `[dev]` already pulls the `[pipeline]` extra (langchain/langgraph/sqlalchemy) —
   the default suite imports the vendored graph, so a bare base install is not enough.
-- Coverage floor is `fail_under = 77`: **never lower it to land a change.**
+- Coverage floor is `fail_under = 84`: **never lower it to land a change.**
 - Full-suite, coverage, campaign and runtime benchmarking checks belong in hosted
   CI. Use focused single-worker checks without coverage locally; require passing
   current-head hosted gates before merging. CircleCI currently runs lint, pytest,

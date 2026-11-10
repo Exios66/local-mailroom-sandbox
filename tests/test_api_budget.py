@@ -45,7 +45,7 @@ def test_a_paid_api_run_needs_its_own_ceiling():
 
 
 def test_an_api_only_run_is_bounded_by_the_api_ceiling_not_the_gpu_cap():
-    spend.require_budget(_lock())  # no cost_cap_usd: nothing warms a GPU
+    assert spend.require_budget(_lock()) is None  # no cost_cap_usd: nothing warms a GPU
 
 
 def test_a_gpu_run_still_needs_the_gpu_cap():
