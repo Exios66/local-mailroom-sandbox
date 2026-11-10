@@ -79,11 +79,14 @@ def _isolated_beacon_dir(tmp_path, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _no_leaked_prompt_selection():
-    """The active eval-environment prompt selection is process-wide; never leak it across tests."""
+    """Restore both prompt selection and patched pipeline bindings between tests."""
     from mailroom_sandbox import prompt_versions
+    from mailroom_sandbox.prompt_registry import deactivate_runtime_overrides
 
+    deactivate_runtime_overrides()
     prompt_versions.clear_active_selection()
     yield
+    deactivate_runtime_overrides()
     prompt_versions.clear_active_selection()
 
 
