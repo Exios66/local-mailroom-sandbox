@@ -23,7 +23,7 @@ its own layout, and `api-evals/` deliberately mirrors its *structure* (see
 | `scripts/` | Repo tooling (`sync_vendor.py` and friends) | **Frozen path.** |
 | `governance/` | `SAND-*` board + prefix cheat-sheet + archives | **Governed surface** — asserted by `tests/test_governance_sand.py`. |
 | `reports/` | Offline experiment log (`experiment_log.jsonl` / `.md`) + hand-written run reports; `reports/dashboard/` builds the source-verified reports hub (`build_hub.py`) and the [pipeline floor](../floor.md) (`build_floor_digest.py`, `floor.template.html`) | Sandbox-local; **not** a sister-repo mirror (the hub pins sibling-repo figures in `external_snapshot.json`). |
-| `data/` | `fixtures/` tracked; `cache/`, `runtime/`, `memory/`, `*.db` gitignored runtime state | Layout is stable by design. |
+| `data/` | `fixtures/` tracked; `cache/` (including [verified dependency snapshots](../dependency-snapshots.md)), `runtime/`, `memory/`, `*.db` gitignored runtime state | Layout is stable by design. |
 | `notebooks/` | Offline env setup + data prep + mock smoke | **Frozen path.** |
 | `api-evals/` | Self-contained OpenRouter API cost harness (own config tree + own CLI) | See [Two config trees](#two-config-trees). |
 | `.cursor/skills/`, `.opencode/agents/` | Agent skill + subagent surfaces | **Frozen** — see [Frozen surfaces](#frozen-surfaces-dont-move-these). |

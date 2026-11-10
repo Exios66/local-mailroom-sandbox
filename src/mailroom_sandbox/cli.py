@@ -1073,6 +1073,9 @@ def build_parser() -> argparse.ArgumentParser:
     from mailroom_sandbox.services import doctor, hf_cli, modal_cli, vllm_cli
     from mailroom_sandbox import experiments
 
+    from mailroom_sandbox import snapshots
+
+    snapshots.register(sub, leaf)
     doctor.register(sub, leaf)
     modal_cli.register(sub, leaf)
     vllm_cli.register(sub, leaf)
@@ -3667,6 +3670,7 @@ def _cmd_run_status(args) -> int:
 
         ledger.close_run(store)
     payload = summary
+    payload["dependency_sources"] = (store.read_lock() or {}).get("dependency_sources", {})
     if remote_progress:
         payload["remote"] = remote_progress
     _print(payload)

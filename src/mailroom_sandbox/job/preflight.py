@@ -774,7 +774,13 @@ def _preflight(
         report["checks"].append({"name": "report_group", "ok": False, "detail": str(exc)})
         return report
 
+    from mailroom_sandbox.dependency_sources import describe, verify_locked
+
     if existing and not force:
+        try:
+            verify_locked(existing)
+        except ValueError as exc:
+            return {"status": "drift_refused", "run_id": run_id, "detail": str(exc)}
         drifted = existing.get("spec_hash") != spec.spec_hash()
         if not drifted and existing.get("prompt_text_sha") and existing.get("prompt_text_sha") != prompt_text_sha:
             drifted = True
@@ -981,6 +987,7 @@ def _preflight(
         "dataset": _dataset_lock(prov, spec),
         "otel": {"sink": spec.trace.sink, "environment": spec.trace.environment},
         "versions": _versions(),
+        "dependency_sources": describe(),
         "git": git_snapshot(),
         "spec_core": spec_core(spec),
     }
