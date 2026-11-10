@@ -23,6 +23,14 @@ Monorepo workflow: [`docs/subagents-family-sync.md`](../../docs/subagents-family
 
 Shared agent operating law: [`AGENT_FRAMEWORK.md`](AGENT_FRAMEWORK.md).
 
+Every agent must follow the package's
+[routine instruction validation](../../AGENTS.md#instruction-validation-routine)
+and [maintenance procedure](../../docs/agent-instruction-maintenance.md).
+At startup/resume and after long experiments or feature/configuration updates,
+verify relevant facts in `AGENTS.md`, `CLAUDE.md`, scoped rules, canonical prompts
+and skills. Recheck before handoff or merge; report stale or unverified guidance
+with source evidence instead of passing it to the next agent as current fact.
+
 Use the current package's tool guidance before applying a family prompt's
 commands. In this sandbox, read the [tool router](../../.cursor/skills/sandbox-tool-router/SKILL.md)
 and then the selected specialty skill. The `corpus-curator` prompt belongs to
