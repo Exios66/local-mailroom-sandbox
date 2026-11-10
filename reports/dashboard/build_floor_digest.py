@@ -362,16 +362,21 @@ def _item_stage(item: dict):
 def _review_trigger(item: dict, records: list[dict]) -> str | None:
     """The pipeline stage whose uncertainty routed a document to human review, else None.
 
-    Item-level canonical review causes win; without them the ordered node visit
-    right before the first human_review record attributes the route. A routed
-    document with no mappable precedent records as "unknown"; None means the doc
-    was never routed (no causes, no human_review visit).
+    Item-level canonical review causes win — read from the item root and its
+    ``pred`` / ``prediction`` blocks, since job-runner rows pool them there;
+    without any causes the ordered node visit right before the first
+    human_review record attributes the route. A routed document with no
+    mappable precedent records as "unknown"; None means the doc was never
+    routed (no causes, no human_review visit).
     """
-    causes = item.get("review_causes")
-    if isinstance(causes, (list, tuple)):
-        for cause in (str(c) for c in causes):
-            if cause in CAUSE_TRIGGER_STAGE:
-                return CAUSE_TRIGGER_STAGE[cause]
+    for holder in (item, item.get("pred"), item.get("prediction")):
+        if not isinstance(holder, dict):
+            continue
+        causes = holder.get("review_causes")
+        if isinstance(causes, (list, tuple)):
+            for cause in (str(c) for c in causes):
+                if cause in CAUSE_TRIGGER_STAGE:
+                    return CAUSE_TRIGGER_STAGE[cause]
     for idx, rec in enumerate(records):
         if rec.get("node") != "human_review":
             continue
@@ -630,9 +635,13 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]]) -> tuple[di
         "spec_hash": lock.get("spec_hash") or checkpoint.get("spec_hash"),
         "dataset_hash": dataset_hash,
         "prompt_default": prompt_default.get("name") or prompt_default.get("source"),
-        # post-hoc prompt identification: resolved prompt stem per agent from prompt.lock.json
+        # post-hoc prompt identification: the label is the most discriminating
+        # resolved identifier the lock kept — the eval-environment lineage key
+        # for dojo prompts, the local file stem, then name/source fallbacks
         "prompts": dict(sorted(
-            (str(agent), str(ref.get("name") or ref.get("source") or ""))
+            (str(agent), str(
+                ref.get("key") or ref.get("file") or ref.get("name") or ref.get("source") or ""
+            ))
             for agent, ref in prompt_agents.items() if isinstance(ref, dict)
         )),
         "review_routed": {"total": sum(routed.values()), "by_stage": dict(sorted(routed.items()))},

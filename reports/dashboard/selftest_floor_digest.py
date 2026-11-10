@@ -148,7 +148,10 @@ def make_fixture(root: Path) -> tuple[Path, Path]:
     }), encoding="utf-8")
     (a / "prompt.lock.json").write_text(json.dumps({
         "default": {"source": "code-default", "name": "pdef"},
-        "agents": {"sorter": {"name": "sorter_local_v0", "source": "config/prompts"}},
+        "agents": {
+            "sorter": {"key": "sorter_v13", "sha256": "a" * 64},
+            "judge": {"file": "judge_local_v0.txt", "source": "config/prompts"},
+        },
     }), encoding="utf-8")
 
     # run-b: archived attempt WITHOUT dataset.jsonl / spec.lock / prompt.lock
@@ -554,8 +557,12 @@ def routing_reads_the_job_runner_sorter_shape():
 
 @test
 def prompts_surfaced_from_the_run_store_for_post_hoc_identification():
-    """prompt.lock.json agent stems land in the digest; absent locks stay empty, never boilerplate."""
-    assert CTX["runs"]["run-a"]["prompts"] == {"sorter": "sorter_local_v0"}
+    """prompt.lock.json identifiers land in the digest; absent locks stay empty, never boilerplate.
+
+    The label prefers the most discriminating field the lock kept: the eval-environment
+    lineage key, then the local file stem, then name/source fallbacks.
+    """
+    assert CTX["runs"]["run-a"]["prompts"] == {"sorter": "sorter_v13", "judge": "judge_local_v0.txt"}
     assert CTX["runs"]["run-b"]["prompts"] == {}
     with tempfile.TemporaryDirectory() as t:
         assert _live_run(Path(t), "run-legacy", [{"item_id": "l1", "ok": True, "stage": "archived"}],
@@ -576,6 +583,9 @@ def review_routed_counts_which_stage_submitted_the_document():
     assert _map({}, [{"node": "intake", "status": "done"}, {"node": "intake", "status": "running"},
                      {"node": "intake", "status": "done"}, {"node": "classify", "status": "running"},
                      {"node": "human_review"}]) == "classification"
+    assert _map({"pred": {"stage": "review", "review_causes": ["class_miss"]}}, []) == "classification", \
+        "job-runner rows pool causes under pred"
+    assert _map({"prediction": {"review_causes": ["judge_miss"]}}, [{"node": "classify"}]) == "judgment"
     assert _map({}, [{"node": "intake"}]) is None
 
 

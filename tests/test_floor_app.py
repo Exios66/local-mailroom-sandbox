@@ -5,6 +5,7 @@ Offline: no LLM and no run launch. The one socket test binds an ephemeral loopba
 
 import hashlib
 import json
+import shutil
 import threading
 import time
 from http.client import HTTPConnection
@@ -187,7 +188,7 @@ def test_replay_store_makes_the_run_visible_before_the_first_tick(tmp_path):
     assert lock["agents"]["sorter"] == {"name": "sorter_local_v0", "source": "replay-simulated"}
 
 
-def test_replay_store_resets_only_its_own_run_dir(store):
+def test_replay_store_resets_only_its_own_replay_runs(store):
     """History is untouched; each call replaces just the labeled replay run."""
     base, _, _ = store
     floor_app.replay_store(base)
@@ -195,11 +196,30 @@ def test_replay_store_resets_only_its_own_run_dir(store):
     history = (base / "runtime" / "runs" / "run-1" / "items.jsonl").read_bytes()
     assert not (base / "runtime" / "runs" / "README.md").exists(), "the fixture README must not leak into the store"
     (run / "items.jsonl").write_text("garbage\n", encoding="utf-8")
-    (run / "notes.txt").write_text("stray artifact\n", encoding="utf-8")
-    floor_app.replay_store(base)
+    floor_app.replay_store(base)  # a replay-owned dir (engine replay lock) resets cleanly
     assert (run / "items.jsonl").stat().st_size == 0, "the replay run resets on each call"
-    assert not (run / "notes.txt").exists(), "stray artifacts do not survive a reset"
     assert (base / "runtime" / "runs" / "run-1" / "items.jsonl").read_bytes() == history
+
+
+def test_replay_store_refuses_to_destroy_a_foreign_run(tmp_path):
+    """A real run parked under the replay id is never deleted: --replay refuses loudly."""
+    base = tmp_path
+    for kind, lock, artifacts in (
+        ("real engine", json.dumps({"engine": {"kind": "vllm-remote", "model": "local"}}), True),
+        ("no lock, real artifacts", None, True),
+    ):
+        run = base / "runtime" / "runs" / floor_app.REPLAY_RUN_ID
+        if run.exists():
+            shutil.rmtree(run)
+        run.mkdir(parents=True)
+        if lock:
+            (run / "spec.lock.json").write_text(lock, encoding="utf-8")
+        if artifacts:
+            (run / "items.jsonl").write_text('{"item_id": "real", "ok": true}\n', encoding="utf-8")
+        with pytest.raises(FileExistsError, match="refuses to reset"):
+            floor_app.replay_store(base)
+        assert (run / "items.jsonl").read_bytes().startswith(b'{"item_id": "real"')
+        assert not (base / "runtime" / "runs" / floor_app.REPLAY_RUN_ID / "dataset.jsonl").exists()
 
 
 def test_replay_driver_replays_every_document_to_done(tmp_path):

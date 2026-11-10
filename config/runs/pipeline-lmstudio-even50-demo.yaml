@@ -41,10 +41,15 @@ job:
   max_retries: 2
   fail_fast: false
   concurrency: 4
-  cost_cap_usd: 150.00        # same cap as the 500 run; local GPU bills $0 (estimator artifact)
-  max_wall_seconds: 691200    # same ceiling; ~5-6 min/doc pace → 50 docs ≈ 4-5 h wall at conc 4
+  cost_cap_usd: 150.00        # local GPU bills $0 (estimator artifact); the no-API-model gate wants a finite cap
+  max_wall_seconds: 10800     # 50 docs @ 5-6 min/doc, concurrency 4 -> ~1.5 h; 3 h is the demo ceiling
 
 trace:
   sink: none
   environment: pilot
   tags: [sandbox, job, pipeline, lmstudio, local-gpu, even-100-per-class, shuffled-intake, demo-50, live-floor]
+
+# The ceilings are the DEMO's, not the 500-doc run's: at 5-6 min/doc and
+# concurrency 4 the 50 rows finish in roughly 1.5 h, so 3 h is a generous
+# ceiling and the cost cap stays a number (a local LM Studio lane bills $0;
+# the gate needs a finite cap because the spec has no API model).

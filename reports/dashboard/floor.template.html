@@ -359,12 +359,12 @@ document.getElementById("zin").onclick=()=>zoom(z*1.25);document.getElementById(
 const fitGraph=()=>{z=Math.min(vp.clientWidth/W,vp.clientHeight/H)*0.99;tx=6;ty=6;apply()};
 document.getElementById("zfit").onclick=fitGraph;fitGraph();
 // ── LIVE refresh (http/https + selected run running only; file:// stays static, no timer at all) ──
+let busy=false,wasLive=false,stale=0;   // module-scope: stampUpdated() reads stale (it is not inside if(LIVE))
 const upd=document.getElementById("upd");
 /** Show the local time of the latest successful digest refresh, plus a stale poll-miss counter. */
 function stampUpdated(){const t=new Date();upd.textContent=" · updated "+pad2(t.getHours())+":"+pad2(t.getMinutes())+":"+pad2(t.getSeconds())
  +(stale>=3?" · STALE ("+stale+" poll misses)":"")}
 if(LIVE){
- let busy=false,wasLive=false,stale=0;   // wasLive: the previous tick was polling a running run -> exactly one final fetch once it stops
  setInterval(async()=>{
   const idle=run().state!=="running";
   if(busy||(idle&&!wasLive))return;

@@ -24,9 +24,10 @@ from urllib.parse import quote
 
 from mailroom_sandbox.job.checkpoint import RunStore
 from mailroom_sandbox.paths import data_dir, repo_root
+# viewer port + its claim note live in ports.py so parser help never imports this
+from mailroom_sandbox.ports import DEFAULT_VIEWER_PORT as DEFAULT_PORT
 
 DEFAULT_HOST = "127.0.0.1"  # loopback only, like web/board
-DEFAULT_PORT = 8769  # 8765 web, 8766 watch-live, 8767 board, 8768 board-demo — all claimed
 DEFAULT_INTERVAL_S = 5.0
 MIN_INTERVAL_S = 0.1
 PAGE = "floor.template.html"
@@ -191,6 +192,13 @@ def replay_store(base: Path) -> Path:
     A missing fixture raises FileNotFoundError; copy and filesystem errors propagate.
     """
     run = Path(base) / "runtime" / "runs" / REPLAY_RUN_ID
+    if run.exists() and not _is_replay_run(run):
+        # --replay owns ONLY these fixture-driven runs: never a real run the
+        # operator launched under a coincidental id
+        raise FileExistsError(
+            f"floor --replay refuses to reset {run}: its spec.lock.json is not the replay "
+            "fixture. Move or rename that run, then retry."
+        )
     shutil.rmtree(run, ignore_errors=True)  # reset the app-owned replay run; history stays
     shutil.copytree(replay_base() / "runtime", Path(base) / "runtime", dirs_exist_ok=True)
     if not (run / "dataset.jsonl").is_file():
@@ -198,6 +206,21 @@ def replay_store(base: Path) -> Path:
     for name in ("items.jsonl", "nodes.jsonl"):
         (run / name).touch(exist_ok=True)
     return Path(base)
+
+
+def _is_replay_run(run: Path) -> bool:
+    """True when ``run`` is app-owned replay content a fresh start may replace.
+
+    A spec.lock.json naming ``engine.kind == "replay"`` (or the absence of any
+    lock while the dir carries no real artifacts) marks a replay attempt; real
+    run stores record a non-replay engine there. Missing/non-parseable locks
+    next to run artifacts count as foreign (refuse rather than guess).
+    """
+    try:
+        engine = json.loads((run / "spec.lock.json").read_text(encoding="utf-8")).get("engine")
+    except (OSError, ValueError):
+        return not any((run / name).exists() for name in RUN_ARTIFACTS)
+    return isinstance(engine, dict) and engine.get("kind") == "replay"
 
 
 def _load_trace(path: Path) -> list[tuple[float, dict]]:
