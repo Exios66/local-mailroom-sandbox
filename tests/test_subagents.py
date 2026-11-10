@@ -110,10 +110,39 @@ def test_propagate_local_checkout_only(tmp_path, monkeypatch):
     from mailroom_sandbox.subagents.propagate import propagate_family_checkouts
 
     monkeypatch.setenv("MAILROOM_DEV_ROOT", str(tmp_path / "missing-monorepo"))
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
     result = propagate_family_checkouts(source_root=sandbox, monorepo_root=None)
     assert len(result.packages) == 1
     assert result.packages[0].package == "local-mailroom-sandbox"
     assert result.packages[0].error is None
+    assert not (tmp_path / "home" / ".config").exists()
+
+
+def test_propagate_include_global_is_explicit(tmp_path, monkeypatch):
+    sandbox = tmp_path / "sandbox"
+    sandbox.mkdir()
+    for rel in (
+        "config/subagents/family-roster.yaml",
+        "config/subagents/checkout-map.yaml",
+        "config/subagents/roster.yaml",
+    ):
+        path = sandbox / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(repo_root() / rel, path)
+    for entry in load_roster():
+        dest = sandbox / ".opencode" / "agents"
+        dest.mkdir(parents=True, exist_ok=True)
+        shutil.copy(entry.opencode_path(), dest / f"{entry.id}.md")
+
+    from mailroom_sandbox.subagents.propagate import propagate_family_checkouts
+
+    home = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home))
+    result = propagate_family_checkouts(
+        source_root=sandbox, monorepo_root=None, include_global=True
+    )
+    assert result.packages[0].error is None
+    assert (home / ".config" / "opencode" / "agents" / "harness-doctor.md").is_file()
 
 
 def test_propagate_monorepo_layout(tmp_path):
