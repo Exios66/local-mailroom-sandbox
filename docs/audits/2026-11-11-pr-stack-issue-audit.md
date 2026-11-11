@@ -99,3 +99,8 @@ still-wrong answers from fixed answers. This follow-up corrects them to
 policy. Production v5's changed bylaw rule does not inherit v1's measured
 train-split results. Old commit messages cannot be rewritten as part of an
 evidence correction.
+
+The historical rounded list-cost figures ($0.30 / $0.36) imply about **0.83×**,
+not 0.9×. The earlier estimates ($0.34 / $0.41) also round to 0.83×. The
+changelog ratio is corrected; these rounded amounts do not establish an exact
+billed-spend ratio.
