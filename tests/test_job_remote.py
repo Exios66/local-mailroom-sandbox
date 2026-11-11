@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 import logging
 import shutil
+import json
 
 import pytest
 
@@ -103,6 +104,50 @@ def test_pull_run_dir_copies_files(tmp_path, source_root, modal_fs, sdk):
     assert remote.pull_run_dir(store)==(0,'')
     assert [item['index'] for item in store.load_items()]==[0]
     assert store.state()=='done'
+
+
+def test_node_trace_survives_remote_upload_and_terminal_pull(tmp_path, source_root, modal_fs):
+    """Node history is part of the generation on both sides of a Modal transfer."""
+    store = prepared(tmp_path, source_root)
+    first = {"doc": "d0", "node": "intake", "status": "running", "ts": 1.0}
+    store.append_node(first)
+    remote.fire(store)
+    target = modal_fs.volume / modal_fs.spawned[-1]["run_path"]
+    assert (target / "nodes.jsonl").read_bytes() == store.nodes_path.read_bytes()
+    last = {"doc": "d0", "node": "intake", "status": "done", "ts": 2.0, "ms": 1000}
+    (target / "nodes.jsonl").write_text(json.dumps(first) + "\n" + json.dumps(last) + "\n")
+    from mailroom_sandbox.job.checkpoint import RunStore
+    RunStore(target).write_checkpoint(state="done", cursor=0, total=1)
+    assert remote.pull_run_dir(store) == (0, "")
+    assert store.nodes() == [first, last]
+
+
+def test_torn_remote_node_trace_does_not_block_valid_results(tmp_path, source_root, modal_fs):
+    store = prepared(tmp_path, source_root)
+    remote.fire(store)
+    target = modal_fs.volume / modal_fs.spawned[-1]["run_path"]
+    from mailroom_sandbox.job.checkpoint import RunStore
+    RunStore(target).write_checkpoint(state="done", cursor=0, total=1)
+    (target / "nodes.jsonl").write_text('{"doc": "d0", "node": "intake"}\n["not an object"]\n{"torn":')
+    original = (target / "nodes.jsonl").read_bytes()
+    rc, detail = remote.pull_run_dir(store)
+    assert (rc, detail) == (0, "")
+    assert store.state() == "done"
+    assert list(store.iter_nodes()) == [{"doc": "d0", "node": "intake"}]
+    assert (target / "nodes.jsonl").read_bytes() == original
+
+
+def test_corrupt_remote_results_still_preserve_local_generation(tmp_path, source_root, modal_fs):
+    store = prepared(tmp_path, source_root)
+    remote.fire(store)
+    target = modal_fs.volume / modal_fs.spawned[-1]["run_path"]
+    from mailroom_sandbox.job.checkpoint import RunStore
+    RunStore(target).write_checkpoint(state="done", cursor=0, total=1)
+    (target / "items.jsonl").write_text('{"torn":')
+    before = store.checkpoint_path.read_bytes()
+    rc, detail = remote.pull_run_dir(store)
+    assert rc == 1 and "validation failed" in detail
+    assert store.checkpoint_path.read_bytes() == before
 
 
 def test_pull_run_dir_refuses_busy_store_then_retries(tmp_path, source_root, modal_fs, sdk):

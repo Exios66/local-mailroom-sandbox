@@ -52,11 +52,12 @@ def test_floor_is_registered_with_documented_flags(capsys):
     args = cli.build_parser().parse_args(["floor"])
     assert args.handler is cli._cmd_floor
     assert (args.target, args.run, args.base, args.port, args.interval, args.replay) == (None, None, None, None, 5.0, False)
+    assert args.replay_run is None and args.replay_speed is None
     with pytest.raises(SystemExit) as exc:
         cli.build_parser().parse_args(["floor", "--help"])
     assert exc.value.code == 0
     out = capsys.readouterr().out
-    for flag in ("--base", "--port", "--interval", "--run", "--replay"):
+    for flag in ("--base", "--port", "--interval", "--run", "--replay", "--replay-run", "--replay-speed"):
         assert flag in out, flag
     assert "floor" in cli.build_parser().format_help()
     assert f"default {floor_app.DEFAULT_PORT};" in " ".join(out.split()), "--port help must derive from DEFAULT_PORT"
@@ -87,10 +88,13 @@ def test_dispatch_passes_defaults_and_run_to_serve_floor(monkeypatch, tmp_path):
     monkeypatch.setattr(floor_app, "serve_floor", lambda **kw: seen.append(kw) or 0)
     monkeypatch.delenv("MAILROOM_BASE_DIR", raising=False)
     assert cli.main(["floor", "--base", str(tmp_path), "run-a"]) == 0
-    assert seen[-1] == {"base": tmp_path, "port": 8769, "interval": 5.0, "run": "run-a", "replay": False}
+    assert seen[-1] == {"base": tmp_path, "port": 8769, "interval": 5.0, "run": "run-a", "replay": False,
+                        "replay_run": None, "replay_speed": None}
     assert cli.main(["floor", "--run", "run-b", "--port", "0", "--interval", "2", "--replay"]) == 0
     assert (seen[-1]["port"], seen[-1]["interval"], seen[-1]["run"], seen[-1]["replay"]) == (0, 2.0, "run-b", True)
     assert seen[-1]["base"] == floor_app.resolve_base(None)
+    assert cli.main(["floor", "--replay-run", "recorded-id", "--replay-speed", "25", "--port", "0"]) == 0
+    assert (seen[-1]["replay_run"], seen[-1]["replay_speed"], seen[-1]["replay"]) == ("recorded-id", 25.0, False)
 
 
 def test_target_and_run_must_agree(monkeypatch, capsys):
@@ -204,6 +208,8 @@ def test_replay_store_resets_only_its_own_replay_runs(store):
 
 @pytest.mark.parametrize("lock,artifact", [
     (json.dumps({"engine": {"kind": "vllm-remote", "model": "local"}}), "items.jsonl"),
+    (json.dumps({"engine": {"kind": "replay", "model": "other experiment"}}), "items.jsonl"),
+    (json.dumps({"engine": {"kind": "replay"}, "replay": {"mode": "recorded"}}), "items.jsonl"),
     (None, "items.jsonl"),
     (None, "operator-notes.txt"),
     ("not JSON", "items.jsonl"),
@@ -729,3 +735,301 @@ def test_template_does_one_final_fetch_when_the_run_leaves_running():
     live = html[html.index("// ── LIVE refresh"):]
     assert "wasLive" in live and "(idle&&!wasLive)" in live and "wasLive=!idle" in live
     assert live.count('fetch("floor_digest.json?ts="') == 1, "the existing fetch helper is reused, not duplicated"
+    fetch_at = live.index('fetch("floor_digest.json?ts="')
+    assert live.index("wasLive=!idle") > fetch_at, "mark idle only after a successful final fetch so a failed one retries"
+
+
+# ── recorded replay from any provider ───────────────────────────────────────────
+
+def _recorded_run(tmp_path, *, engine_kind="vllm-remote", with_nodes=True, timestamps=True):
+    run = tmp_path / "source" / "recorded-run"
+    run.mkdir(parents=True)
+    stamp = "2026-01-01T00:00:0{}"
+    items = [
+        {"item_id": "d1", "ok": True, "stage": "archived", **( {"ts": stamp.format(1)} if timestamps else {})},
+        {"item_id": "d2", "ok": False, "stage": "failed", **( {"ts": stamp.format(2)} if timestamps else {})},
+    ]
+    (run / "items.jsonl").write_text("".join(json.dumps(row) + "\n" for row in items), encoding="utf-8")
+    if with_nodes:
+        events = []
+        for index, doc in enumerate(("d1", "d2"), 1):
+            base = stamp.format(index)
+            events.append({"doc": doc, "node": "intake", "status": "running", "step": 1,
+                           **({"ts": base} if timestamps else {})})
+            events.append({"doc": doc, "node": "intake", "status": "done", "step": 1, "ms": 200,
+                           **({"ts": stamp.format(index + 2)} if timestamps else {})})
+        (run / "nodes.jsonl").write_text("".join(json.dumps(row) + "\n" for row in events), encoding="utf-8")
+    (run / "checkpoint.json").write_text(json.dumps({"state": "done", "cursor": 2, "total": 2}))
+    (run / "spec.lock.json").write_text(json.dumps({
+        "schema_version": 1, "run_id": "recorded-run", "spec_hash": "abc",
+        "engine": {"kind": engine_kind, "model": "model-x"},
+        "profile": "modal-vllm",
+    }))
+    return run
+
+
+@pytest.mark.parametrize("engine_kind", ["modal-vllm", "openrouter", "vllm-remote", "ollama"])
+def test_recorded_replay_is_provider_agnostic(tmp_path, engine_kind):
+    from mailroom_sandbox.tui import floor_replay
+
+    source = _recorded_run(tmp_path, engine_kind=engine_kind)
+    recorded = floor_replay.prepare_recorded_replay(tmp_path / "base", source, speed=100)
+    target = recorded.path
+    lock = json.loads((target / "spec.lock.json").read_text(encoding="utf-8"))
+    assert lock["engine"]["kind"] == engine_kind
+    assert lock["engine"]["model"] == "model-x"
+    assert lock["replay"]["mode"] == "recorded"
+    assert lock["replay"]["engine_kind"] == engine_kind
+    assert recorded.meta["source_run_id"] == "recorded-run"
+    assert (target / "items.jsonl").stat().st_size == 0
+    assert (target / "nodes.jsonl").stat().st_size == 0
+    assert recorded.events[0][1]["checkpoint"]["state"] == "running"
+    assert recorded.events[-1][1]["checkpoint"]["state"] == "done"
+
+    driver = floor_app.ReplayDriver(tmp_path / "base", run_id=recorded.run_id, speed=100)
+    while driver.step():
+        pass
+    assert driver.documents == 2
+    assert len(driver.store.load_items()) == 2
+    assert len(driver.store.nodes()) == 4
+
+
+def test_recorded_replay_items_only_uses_synthetic_timing(tmp_path):
+    from mailroom_sandbox.tui import floor_replay
+
+    source = _recorded_run(tmp_path, with_nodes=False, timestamps=False)
+    recorded = floor_replay.prepare_recorded_replay(tmp_path / "base", source, speed=100)
+    assert recorded.meta["synthetic_timing"] is True
+    assert recorded.meta["item_records"] == 2
+    driver = floor_app.ReplayDriver(tmp_path / "base", run_id=recorded.run_id, speed=100)
+    while driver.step():
+        pass
+    assert len(driver.store.load_items()) == 2
+    assert driver.store.state() == "done"
+
+
+def test_recorded_replay_never_replaces_an_existing_run(tmp_path):
+    from mailroom_sandbox.tui import floor_replay
+
+    base = tmp_path / "base"
+    source = _recorded_run(tmp_path)
+    first = floor_replay.prepare_recorded_replay(base, source, speed=100)
+    assert floor_replay.resolve_source(base, first.run_id) == first.path.resolve()
+    before = (first.path / "spec.lock.json").read_bytes()
+    second = floor_replay.prepare_recorded_replay(base, source, speed=100)
+    assert second.run_id != first.run_id
+    assert second.path.is_dir()
+    assert (first.path / "spec.lock.json").read_bytes() == before
+
+
+def test_recorded_replay_rejects_empty_and_symlinked_sources(tmp_path):
+    from mailroom_sandbox.tui import floor_replay
+
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    with pytest.raises(ValueError, match="neither"):
+        floor_replay.prepare_recorded_replay(tmp_path / "base", empty)
+
+    source = _recorded_run(tmp_path)
+    outside = tmp_path / "outside.jsonl"
+    outside.write_text('{"item_id": "d1"}\n')
+    (source / "items.jsonl").unlink()
+    (source / "items.jsonl").symlink_to(outside)
+    with pytest.raises(ValueError, match="symlink"):
+        floor_replay.prepare_recorded_replay(tmp_path / "base", source)
+
+
+def test_recorded_replay_requires_terminal_checkpoint_evidence(tmp_path):
+    from mailroom_sandbox.tui import floor_replay
+
+    source = _recorded_run(tmp_path)
+    (source / "checkpoint.json").unlink()
+    recorded = floor_replay.prepare_recorded_replay(tmp_path / "base", source, speed=100)
+    assert recorded.meta["incomplete"] is True
+    assert recorded.meta["source_state"] == "missing"
+    assert recorded.events[-1][1]["checkpoint"]["state"] == "paused"
+
+    paused = _recorded_run(tmp_path / "paused")
+    (paused / "checkpoint.json").write_text(json.dumps({"state": "paused", "cursor": 2, "total": 2}))
+    row = floor_replay.prepare_recorded_replay(tmp_path / "paused-base", paused, speed=100)
+    assert row.meta["incomplete"] is True
+    assert row.events[-1][1]["checkpoint"]["state"] == "paused"
+
+
+def test_replay_speed_scales_the_scheduled_wall_clock(tmp_path, monkeypatch):
+    source = _recorded_run(tmp_path)
+    recorded = floor_app_prepare(tmp_path / "base", source)
+    driver = floor_app.ReplayDriver(tmp_path / "base", run_id=recorded.run_id, speed=10)
+    driver.events = [
+        (0.0, {"checkpoint": {"state": "running", "cursor": 0, "total": 1}}),
+        (10.0, {"checkpoint": {"state": "running", "cursor": 0, "total": 1}}),
+        (20.0, {"checkpoint": {"state": "done", "cursor": 1, "total": 1}}),
+    ]
+    driver.pos = 0
+
+    class Stop:
+        def __init__(self):
+            self.clock = [100.0]
+            self.waits = []
+        def is_set(self):
+            return False
+        def wait(self, seconds):
+            self.waits.append(round(seconds, 3))
+            self.clock[0] += seconds
+            return False
+
+    stop = Stop()
+    monkeypatch.setattr(floor_app.time, "monotonic", lambda: stop.clock[0])
+    driver.play(stop)
+    assert stop.waits[:3] == [0.0, 1.0, 1.0]
+
+
+def test_recorded_replay_refuses_a_symlinked_source_directory(tmp_path):
+    from mailroom_sandbox.tui import floor_replay
+
+    source = _recorded_run(tmp_path)
+    link = tmp_path / "linked-source"
+    link.symlink_to(source, target_is_directory=True)
+    with pytest.raises(ValueError, match="source is a symlink"):
+        floor_replay.prepare_recorded_replay(tmp_path / "base", link)
+
+
+def floor_app_prepare(base, source):
+    from mailroom_sandbox.tui import floor_replay
+    return floor_replay.prepare_recorded_replay(base, source, speed=10)
+
+
+def test_recorded_replay_cli_and_html_provenance(tmp_path):
+    args = cli.build_parser().parse_args(["floor", "--replay-run", "run-1", "--replay-speed", "25"])
+    assert (args.replay_run, args.replay_speed, args.replay) == ("run-1", 25.0, False)
+    with pytest.raises(SystemExit) as exc:
+        cli.build_parser().parse_args(["floor", "--replay", "--replay-run", "run-1"])
+    assert exc.value.code == 2
+
+
+def test_recorded_replay_digest_preserves_provider_and_marks_replay(tmp_path):
+    from mailroom_sandbox.tui import floor_replay
+
+    source = _recorded_run(tmp_path, engine_kind="openrouter")
+    recorded = floor_replay.prepare_recorded_replay(tmp_path / "base", source, speed=100)
+    driver = floor_app.ReplayDriver(tmp_path / "base", run_id=recorded.run_id, speed=100)
+    while driver.step():
+        pass
+    graph = tmp_path / "build_graph.py"
+    graph.write_text(STUB_GRAPH, encoding="utf-8")
+    digest, _, _ = floor_app.build(tmp_path / "base", tmp_path / "out", graph)
+    run = next(row for row in digest["runs"] if row["name"] == recorded.run_id)
+    assert run["engine"]["kind"] == "openrouter"
+    assert run["replay"]["mode"] == "recorded"
+    assert run["replay"]["engine_kind"] == "openrouter"
+
+
+def test_resolve_source_bare_id_prefers_the_base_store(tmp_path, monkeypatch):
+    from mailroom_sandbox.tui import floor_replay
+
+    base = tmp_path / "base"
+    run = base / "runtime" / "runs" / "same-name"
+    run.mkdir(parents=True)
+    cwd = tmp_path / "cwd"
+    (cwd / "same-name").mkdir(parents=True)
+    monkeypatch.chdir(cwd)
+    assert floor_replay.resolve_source(base, "same-name") == run.absolute()
+
+
+def test_floor_speed_requires_explicit_replay(monkeypatch, capsys):
+    """The same speed-only command must fail regardless of stored runs."""
+    monkeypatch.setattr(floor_app, "serve_floor", lambda **kw: pytest.fail("must not serve"))
+    assert cli.main(["floor", "--replay-speed", "5"]) == 2
+    assert "requires --replay" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("command", ["status", "resume", "cancel"])
+@pytest.mark.parametrize("marker", [{"replay": {"mode": "recorded"}}, {"engine": {"kind": "replay"}}])
+def test_run_commands_refuse_replays_before_remote_access(tmp_path, monkeypatch, command, marker):
+    """Even inherited remote call IDs cannot make a viewing copy executable."""
+    from mailroom_sandbox.job import spec, remote
+    from mailroom_sandbox.job.checkpoint import RunStore
+    run = tmp_path / "view-only"
+    run.mkdir()
+    (run / "spec.lock.json").write_text(json.dumps({"run_id": "view-only", "spec_hash": "abc", **marker}))
+    (run / "checkpoint.json").write_text(json.dumps({"remote": {"call_id": "real-call"}, "state": "running"}))
+    monkeypatch.setattr(spec, "run_dir", lambda run_id: run)
+    monkeypatch.setattr(remote, "_modal", lambda: pytest.fail("must not contact Modal"))
+    assert cli.main(["run", command, "--run", "view-only"]) != 0
+    with pytest.raises(RuntimeError, match="replay"):
+        RunStore(run).verify_generation()
+
+
+@pytest.mark.parametrize("force", [False, True])
+@pytest.mark.parametrize("dry_run", [False, True])
+def test_preflight_refuses_replay_before_artifact_changes(tmp_path, monkeypatch, force, dry_run):
+    """Neither a forced re-lock nor dry-run can promote a replay to a job."""
+    from mailroom_sandbox.job import spec, preflight
+    run = tmp_path / "replay-job"
+    run.mkdir()
+    lock = run / "spec.lock.json"
+    lock.write_text(json.dumps({"replay": {"mode": "recorded"}}))
+    before = lock.read_bytes()
+    monkeypatch.setattr(preflight, "run_dir", lambda run_id: run)
+    monkeypatch.setattr(preflight, "prompt_lock_block", lambda *a, **kw: pytest.fail("must refuse first"))
+    report = preflight.preflight(spec.RunSpec(run_id="replay-job"), force=force, dry_run=dry_run, offline=True)
+    assert report["status"] == "failed"
+    assert "replay" in report["checks"][0]["detail"]
+    assert lock.read_bytes() == before
+
+
+def test_serve_recorded_replay_defaults_and_warnings(tmp_path, monkeypatch, capsys):
+    """Exercise server startup, default speed, selected URL and source warnings."""
+    source = _recorded_run(tmp_path, with_nodes=False, timestamps=False)
+    (source / "checkpoint.json").unlink()
+    with (source / "items.jsonl").open("a") as stream:
+        stream.write("{torn\n")
+    graph = tmp_path / "graph.py"
+    graph.write_text(STUB_GRAPH)
+    monkeypatch.setenv("FLOOR_DIGEST_GRAPH", str(graph))
+    seen = []
+    original = floor_app.ReplayDriver
+    def driver(*args, **kwargs):
+        seen.append(kwargs)
+        return original(*args, **kwargs)
+    monkeypatch.setattr(floor_app, "ReplayDriver", driver)
+    class Server:
+        server_address = ("127.0.0.1", 12345)
+        def serve_forever(self):
+            raise KeyboardInterrupt
+        def shutdown(self):
+            pass
+        def server_close(self):
+            pass
+    def bind(directory, port, **kwargs):
+        assert port == 0
+        return Server()
+    monkeypatch.setattr(floor_app, "make_server", bind)
+    assert floor_app.serve_floor(base=tmp_path / "base", out=tmp_path / "out", replay_run=str(source), port=0) == 0
+    assert seen[0]["speed"] == 10.0
+    out, err = capsys.readouterr()
+    assert floor_app.floor_url(12345, seen[0]["run_id"]) in out
+    assert "recorded replay warning:" in err
+    assert "synthetic timing" in out and "source run was not terminal" in out
+
+
+def test_serve_recorded_replay_refusals_do_not_bind(tmp_path, monkeypatch, capsys):
+    """Bad source and conflicting modes return clean errors before serving."""
+    monkeypatch.setattr(floor_app, "make_server", lambda *a, **kw: pytest.fail("must not bind"))
+    assert floor_app.serve_floor(base=tmp_path, replay_run="missing", port=0) == 1
+    assert "recorded replay unavailable" in capsys.readouterr().err
+    assert floor_app.serve_floor(base=tmp_path, replay=True, replay_run="missing", port=0) == 2
+    assert "choose --replay" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("operation", ["fire", "is_alive", "terminal_confirmed", "read_progress", "pull_run_dir", "cancel", "ensure_running"])
+def test_remote_api_refuses_viewing_copy_before_sdk(tmp_path, monkeypatch, operation):
+    """Direct remote callers cannot bypass the CLI's view-only boundary."""
+    from mailroom_sandbox.job import remote
+    from mailroom_sandbox.job.checkpoint import RunStore
+    run = tmp_path / "replay-job"
+    run.mkdir()
+    (run / "spec.lock.json").write_text(json.dumps({"replay": {"mode": "recorded"}}))
+    monkeypatch.setattr(remote, "_modal", lambda: pytest.fail("must not contact Modal"))
+    with pytest.raises(RuntimeError, match="replay"):
+        getattr(remote, operation)(RunStore(run))

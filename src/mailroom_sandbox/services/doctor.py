@@ -47,6 +47,12 @@ def _version(argv: list[str]) -> str | None:
 
 
 def _binary(name: str, *, needed: bool, hint: str, version: list[str] | None = None, pin: str | None = None) -> ServiceStatus:
+    """Report binary presence and optional version evidence for the profile.
+
+    An unknown or mismatched version warns while retaining installed readiness.
+    Version command launch errors and timeouts propagate; a nonzero exit alone
+    does not raise.
+    """
     import shutil
 
     path = shutil.which(name)
@@ -55,9 +61,9 @@ def _binary(name: str, *, needed: bool, hint: str, version: list[str] | None = N
         return ServiceStatus(name, state, "not installed" + ("" if needed else " (not needed by this profile)"), hint)
     found = _version(version) if version else None
     if version and not found:
-        return ServiceStatus(name, "warn", f"could not determine {name} version", hint)
+        return ServiceStatus(name, "warn", f"could not determine {name} version", hint, readiness="installed")
     if pin and found and found != pin:
-        return ServiceStatus(name, "warn", f"{name} {found}, sandbox verified against {pin}", hint)
+        return ServiceStatus(name, "warn", f"{name} {found}, sandbox verified against {pin}", hint, readiness="installed")
     return ServiceStatus(name, "ok", f"{name} {found}" if found else path, readiness="installed")
 
 
@@ -73,13 +79,14 @@ def _modal(profile_name: str, *, live: bool) -> ServiceStatus:
         status = app_status(app)
     except ServiceError as exc:
         detail = f"{row.detail}; account check failed: {' '.join(str(exc).split())}"
-        return ServiceStatus("modal", "fail" if needed else "warn", detail, "modal token new  (or check MODAL_PROFILE)")
+        return ServiceStatus("modal", "fail" if needed else "warn", detail, "modal token new  (or check MODAL_PROFILE)",
+                             readiness=row.readiness)
     tasks = "" if not status["deployed"] else f", containers={'?' if status['tasks'] is None else status['tasks']}"
     account = os.environ.get("MODAL_PROFILE") or "active profile"
     detail = f"{row.detail}; {account}: {app} {status['state']}{tasks}"
     if needed and not status["deployed"] and row.state != "fail":
         # The modal-vllm profile has nothing to call until its app is deployed.
-        return ServiceStatus("modal", "fail", detail, "sandbox modal deploy")
+        return ServiceStatus("modal", "fail", detail, "sandbox modal deploy", readiness="authenticated")
     return ServiceStatus("modal", row.state, detail, row.hint, readiness="authenticated")
 
 
@@ -159,6 +166,11 @@ def _sink(name: str, url: str | None, *, configured: bool, live: bool, default_h
 
 
 def _langfuse(*, live: bool) -> ServiceStatus:
+    """Report Langfuse endpoint readiness and warn if its tracing SDK is missing.
+
+    ``live`` probes the endpoint; otherwise a configured host is not probed.
+    The SDK warning retains the endpoint readiness evidence.
+    """
     host = os.environ.get("LANGFUSE_HOST") or os.environ.get("LANGFUSE_BASE_URL")
     if not host and not live:
         return ServiceStatus("langfuse", "skipped", "LANGFUSE_HOST unset (default http://localhost:3000 after `sandbox up`)")
@@ -167,7 +179,7 @@ def _langfuse(*, live: bool) -> ServiceStatus:
     if os.environ.get("OBSERVABILITY_PROVIDER", "langfuse") == "langfuse" and not find_spec("langfuse"):
         return ServiceStatus(
             "langfuse", "warn", f"{row.detail}; langfuse SDK not installed, so runs record no traces",
-            'pip install -e ".[observability]"',
+            'pip install -e ".[observability]"', readiness=row.readiness,
         )
     return row
 

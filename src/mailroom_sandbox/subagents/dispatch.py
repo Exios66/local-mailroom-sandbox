@@ -36,12 +36,13 @@ _URI = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://\S+")
 
 
 def _credential_uri(text: str) -> bool:
-    """True when a non-HTTP URI still carries its own password."""
+    """Detect non-HTTP URIs with passwords, queries, fragments, or parse errors."""
     for match in _URI.finditer(text):
         if match.group().lower().startswith(("http://", "https://")):
             continue
         try:
-            if urlsplit(match.group()).password:
+            parts = urlsplit(match.group())
+            if parts.password or parts.query or parts.fragment:
                 return True
         except ValueError:
             return True
@@ -138,7 +139,12 @@ def contract_document(path: Path) -> dict:
 
 
 def readiness(snapshot: dict, provider_id: str, model: str, *, now: datetime | None = None) -> dict:
-    """Check an instance/model in a recent exported T3 capability snapshot."""
+    """Check an instance/model in an exported T3 capability snapshot.
+
+    The snapshot must be at most 300 seconds old and not future-dated relative
+    to ``now``. Invalid or stale input returns a failure code. Every result has
+    ``workflow_verified: False``; catalog availability does not verify a workflow.
+    """
     try:
         captured = datetime.fromisoformat(snapshot["captured_at"].replace("Z", "+00:00"))
         if captured.tzinfo is None:
@@ -152,16 +158,16 @@ def readiness(snapshot: dict, provider_id: str, model: str, *, now: datetime | N
             raise ValueError
         provider = matches[0]
         if provider.get("canRunChildTask") is not True or provider.get("constraints"):
-            return {"ok": False, "code": "provider.unavailable"}
+            return {"ok": False, "code": "provider.unavailable", "workflow_verified": False}
         parent = snapshot["catalog"].get("inheritedProviderInstanceId")
         if parent and parent != provider_id and provider.get("canRunCrossProviderChildTask") is not True:
-            return {"ok": False, "code": "provider.cross_dispatch_unavailable"}
+            return {"ok": False, "code": "provider.cross_dispatch_unavailable", "workflow_verified": False}
         if model not in [m["id"] for m in provider["models"]]:
-            return {"ok": False, "code": "model.unavailable"}
+            return {"ok": False, "code": "model.unavailable", "workflow_verified": False}
         return {"ok": True, "code": "catalog.dispatch_available", "age_seconds": age,
                 "workflow_verified": False}
     except (KeyError, TypeError, ValueError, AttributeError):
-        return {"ok": False, "code": "capabilities.invalid_or_stale"}
+        return {"ok": False, "code": "capabilities.invalid_or_stale", "workflow_verified": False}
 
 
 def _fsync_dir(path: Path) -> None:

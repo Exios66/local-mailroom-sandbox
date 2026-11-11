@@ -199,7 +199,7 @@ def fire(store: RunStore, *, payload: dict | None = None) -> dict[str, Any]:
                 upload = Path(tmp) / store.run_id
                 upload.mkdir()
                 for name in ("spec.lock.json", "prompt.lock.json", "dataset.jsonl", "checkpoint.json",
-                             "items.jsonl", "events.jsonl", "cold_boot.json", "experiment_log.jsonl"):
+                             "items.jsonl", "nodes.jsonl", "events.jsonl", "cold_boot.json", "experiment_log.jsonl"):
                     source = store.dir / name
                     if source.is_file():
                         shutil.copy2(source, upload / name)
@@ -230,6 +230,7 @@ def fire(store: RunStore, *, payload: dict | None = None) -> dict[str, Any]:
 
 
 def is_alive(store: RunStore) -> bool:
+    store.refuse_replay()
     remote = (store.read_checkpoint() or {}).get("remote")
     call_id = remote.get("call_id") if isinstance(remote, dict) else None
     if not call_id:
@@ -256,6 +257,7 @@ def terminal_confirmed(store: RunStore) -> bool:
     result-path exceptions below only after the input finishes. A polling
     timeout, lookup/transport failure, or ambiguous exception proves nothing.
     """
+    store.refuse_replay()
     remote = (store.read_checkpoint() or {}).get("remote")
     call_id = remote.get("call_id") if isinstance(remote, dict) else None
     if not call_id:
@@ -288,6 +290,7 @@ def read_progress(store: RunStore) -> dict | None:
     and a matching remote lock. Remote lookup and validation errors are caught;
     the fallback checkpoint may be stale or absent.
     """
+    store.refuse_replay()
     try:
         modal = _modal()
         state_dict = modal.Dict.from_name(STATE_DICT, create_if_missing=True)
@@ -368,6 +371,31 @@ def pull_run_dir(store: RunStore) -> tuple[int, str]:
                     for line in path.read_text(encoding="utf-8").splitlines():
                         if line.strip() and not isinstance(json.loads(line), dict):
                             raise RuntimeError(f"invalid remote {name} record")
+            # Node traces are diagnostic and use the same torn-row tolerance
+            # as RunStore.iter_nodes. Repair only this staging copy; immutable
+            # generation identity and result/lifecycle files remain strict.
+            # Invalid UTF-8 is decoded as U+FFFD, matching iter_nodes. A valid
+            # JSON row can retain that replacement text in the repaired copy
+            # when another row is skipped; original remote bytes are untouched.
+            nodes = source / "nodes.jsonl"
+            if nodes.is_file():
+                cleaned = []
+                skipped = 0
+                for line in nodes.read_text(encoding="utf-8", errors="replace").splitlines():
+                    if not line.strip():
+                        continue
+                    try:
+                        row = json.loads(line)
+                    except ValueError:
+                        skipped += 1
+                        continue
+                    if not isinstance(row, dict):
+                        skipped += 1
+                        continue
+                    cleaned.append(json.dumps(row, ensure_ascii=False) + "\n")
+                if skipped:
+                    logger.warning("Skipped %d malformed diagnostic node records during remote pull", skipped)
+                    nodes.write_text("".join(cleaned), encoding="utf-8")
             cold_boot = source / "cold_boot.json"
             if cold_boot.is_file():
                 json.loads(cold_boot.read_text(encoding="utf-8"))
@@ -380,7 +408,7 @@ def pull_run_dir(store: RunStore) -> tuple[int, str]:
                 checkpoint = json.loads((source / "checkpoint.json").read_text(encoding="utf-8"))
                 checkpoint["remote"] = (store.read_checkpoint() or {}).get("remote")
                 (source / "checkpoint.json").write_text(json.dumps(checkpoint), encoding="utf-8")
-                for name in ("items.jsonl", "events.jsonl", "cold_boot.json", "experiment_log.jsonl", "checkpoint.json"):
+                for name in ("items.jsonl", "nodes.jsonl", "events.jsonl", "cold_boot.json", "experiment_log.jsonl", "checkpoint.json"):
                     item = source / name
                     if item.is_file():
                         # Replace each file from a local staging file; checkpoint last.
@@ -400,6 +428,7 @@ def cancel(store: RunStore, *, terminate: bool = False) -> None:
     a missing call ID or mismatched generation/path; SDK and store errors
     propagate. This does not mark the local checkpoint terminal.
     """
+    store.refuse_replay()
     remote = (store.read_checkpoint() or {}).get("remote")
     call_id = remote.get("call_id") if isinstance(remote, dict) else None
     if not call_id:
@@ -419,6 +448,7 @@ def ensure_running(store: RunStore) -> dict:
     a malformed dispatch timestamp, an active cooldown, or unconfirmed
     completion; remote dispatch and store errors propagate.
     """
+    store.refuse_replay()
     cp = store.read_checkpoint() or {}
     remote = cp.get("remote")
     if isinstance(remote, dict) and remote.get("call_id"):

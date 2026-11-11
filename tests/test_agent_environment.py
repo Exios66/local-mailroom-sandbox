@@ -88,6 +88,7 @@ def guard():
     "pytest --ignore=unused.py", "pytest --ignore tests/test_skip.py",
     "pytest --doctest-glob tests/test_one.py",
     "pytest --deselect tests/test_skip.py", "pytest --pyargs package",
+    "python -m scripts.smoke_campaign", "env python3 -m scripts.smoke_campaign",
 ])
 def test_resource_hook_catches_expensive_direct_commands(guard, command):
     assert guard.violation(command)
@@ -99,9 +100,43 @@ def test_resource_hook_catches_expensive_direct_commands(guard, command):
     "pytest --doctest-glob tests/test_one.py tests/test_one.py",
     "pytest -k 'not slow' tests/test_one.py",
     "ruff check src tests", "python scripts/check_cli_surface.py --check",
+    "git grep pytest", "rg pytest src", "echo pytest", "git grep smoke_campaign.py",
+    "pytest tests/test_one.py 2>&1", "pytest tests/test_one.py > /tmp/out.txt 2>&1",
+    "command -v pytest",
 ])
 def test_resource_hook_preserves_focused_checks(guard, command):
     assert guard.violation(command) is None
+
+
+def test_preflight_refuses_identity_changed_during_hook_inspection(checkout, monkeypatch):
+    original = environment.git_value
+    state = {"head": "a" * 40}
+    def changed(root, *args):
+        if args == ("rev-parse", "HEAD"):
+            return state["head"]
+        return original(root, *args)
+    def hooks(root):
+        state["head"] = "b" * 40
+        return []
+    monkeypatch.setattr(environment, "git_value", changed)
+    monkeypatch.setattr(environment, "hook_findings", hooks)
+    report = environment.environment_report(checkout)
+    assert "checkout.changed" in {f["code"] for f in report["findings"]}
+
+
+def test_preflight_refuses_identity_changed_during_reads(checkout, monkeypatch):
+    """A checkout switch between Git reads cannot yield a verified fingerprint."""
+    original = environment.git_value
+    reads = []
+    def changed(root, *args):
+        if args == ("rev-parse", "HEAD"):
+            reads.append(args)
+            return "a" * 40 if len(reads) == 1 else "b" * 40
+        return original(root, *args)
+    monkeypatch.setattr(environment, "git_value", changed)
+    report = environment.environment_report(checkout)
+    assert not report["ok"]
+    assert "checkout.changed" in {f["code"] for f in report["findings"]}
 
 
 @pytest.mark.parametrize('action', ['preflight', 'dispatch-check', 'checkpoint'])
@@ -180,3 +215,30 @@ def test_offline_bootstrap_definitions_match_parser():
                     found.update(offline_paths(child, (*path, name)))
         return found
     assert offline_paths(parser) == {('subagents', name) for name in OFFLINE_AGENT_COMMANDS}
+
+
+@pytest.mark.parametrize("command", [
+    "echo $(pytest tests)", "if pytest tests; then echo ok; fi",
+    "while pytest tests; do break; done", "until pytest tests; do break; done",
+    "bash -lc 'pytest tests'", "sh -ec 'python scripts/smoke_campaign.py'",
+    "python -W error -m pytest tests", "python -X dev -m pytest tests",
+    "pytest tests \\\n -q", "python scripts/smoke_campaign.py \\\n --help",
+    "echo ok\npytest tests", "py\\\ntest tests",
+    "python -- scripts/smoke_campaign.py", "python -mpytest tests",
+])
+def test_resource_hook_shell_forms_refuse_expensive_commands(guard, command):
+    """Common wrappers and line continuations must retain resource policy."""
+    assert guard.violation(command)
+
+
+@pytest.mark.parametrize("command", [
+    "(pytest tests/test_one.py)", "pytest tests/test_one.py 2>/dev/null",
+    "pytest tests/test_one.py 2>>log.txt", "bash -lc 'pytest tests/test_one.py'",
+    "python -W error -X dev -m pytest tests/test_one.py",
+    "git commit -m 'notes\npytest tests\nexample only'",
+    "cat <<'EOF'\npytest tests\nEOF",
+    "python -c 'print(123)'", "bash script.sh -lc 'pytest tests'",
+])
+def test_resource_hook_shell_forms_preserve_focused_or_literal_content(guard, command):
+    """Quoted data and bounded focused commands are not full-suite execution."""
+    assert guard.violation(command) is None

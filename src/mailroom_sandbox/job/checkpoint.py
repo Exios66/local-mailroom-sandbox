@@ -166,6 +166,17 @@ class RunStore:
     def read_lock(self) -> dict[str, Any] | None:
         return _read_json(self.lock_path, strict=True)
 
+    def refuse_replay(self) -> None:
+        """Reject viewing copies before execution, re-locking or remote access.
+
+        Provider metadata remains intact for display; it never authorizes a
+        replay to act on its source job. Legacy bundled samples use the replay
+        engine marker instead of a replay block.
+        """
+        lock = self.read_lock() or {}
+        if "replay" in lock or (lock.get("engine") or {}).get("kind") == "replay":
+            raise RuntimeError("replay runs are view-only; use sandbox floor to replay recorded artifacts")
+
     def verify_generation(self) -> dict[str, Any]:
         """Return the lock after validating its frozen artifacts and checkpoint.
 
@@ -174,6 +185,7 @@ class RunStore:
         errors propagate. Frozen prompt text is checked without resolving current
         local stems. Legacy locks need no checkpoint generation ID.
         """
+        self.refuse_replay()
         lock = self.read_lock()
         if not isinstance(lock, dict) or not lock.get("spec_hash") or lock.get("run_id") != self.run_id:
             raise RuntimeError("locked generation has no valid run/spec lock")

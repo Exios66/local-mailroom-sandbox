@@ -30,6 +30,7 @@ from mailroom_sandbox.job.checkpoint import RunStore
 from mailroom_sandbox.job.otel import resolve_sink
 from mailroom_sandbox.job.spec import (
     RunSpec,
+    core_hash,
     engine_base_url,
     resolve_run_id,
     run_dir,
@@ -608,6 +609,7 @@ def _prompt_summary(block: dict[str, Any]) -> str:
 
 
 def _dataset_lock(prov: dict[str, Any], spec: RunSpec) -> dict[str, Any]:
+    """Combine requested dataset selection with prepared dataset provenance."""
     return {
         "repo": (spec.dataset.local_file().name if spec.dataset.local_file() else spec.dataset.repo),
         "config": spec.dataset.config,
@@ -618,6 +620,7 @@ def _dataset_lock(prov: dict[str, Any], spec: RunSpec) -> dict[str, Any]:
         "revision_resolved": prov.get("revision_resolved"),
         "limit": spec.dataset.limit,
         "sample_seed": spec.dataset.sample_seed,
+        "selection": {"require_task_gt": spec.dataset.require_task_gt},
         "strata": spec.dataset.strata,
         # DMR-066: actual drawn (doc_class::subclass) distribution — the lock
         # now proves the requested strata were really drawn (no silent
@@ -731,7 +734,9 @@ def _preflight(
     ``foreign_store_refused`` in the report's status. ``dry_run`` checks only
     existing lock readability, without validating domains or writing artifacts.
     ``force`` archives an eligible existing generation before preparing its
-    replacement. Caught prompt, dataset, and tracing errors become failed
+    replacement. A legacy lock that cannot prove task-GT selection is refused.
+    New local dataset identity uses the prepared source hash when available.
+    Caught prompt, dataset, and tracing errors become failed
     reports; uncaught configuration and file-access errors propagate.
     """
     run_id = run_id or resolve_run_id(spec)
@@ -739,6 +744,7 @@ def _preflight(
 
     try:
         existing = store.read_lock()
+        store.refuse_replay()
     except RuntimeError as exc:
         # hub#41: a corrupt spec.lock.json is a LOUD preflight failure —
         # never a silent run with spec_hash: null.
@@ -781,7 +787,19 @@ def _preflight(
             verify_locked(existing)
         except ValueError as exc:
             return {"status": "drift_refused", "run_id": run_id, "detail": str(exc)}
-        drifted = existing.get("spec_hash") != spec.spec_hash()
+        selection = (existing.get("dataset") or {}).get("selection") or {}
+        locked_filter = selection.get("require_task_gt")
+        if type(locked_filter) is not bool:
+            # Post-filter locks that explicitly hashed True remain unambiguous.
+            # Older omitted flags can mean either filtered or unfiltered: fail
+            # closed instead of treating the old hash as proof of False.
+            recorded = ((existing.get("spec_core") or {}).get("dataset") or {}).get("require_task_gt")
+            locked_filter = True if recorded is True else None
+        if locked_filter is None:
+            return {"status": "drift_refused", "run_id": run_id,
+                    "detail": "Legacy lock does not prove task-GT selection; preserve it and use --force to archive/re-lock explicitly"}
+        drifted = (existing.get("spec_hash") != spec.spec_hash()
+                   or locked_filter != spec.dataset.require_task_gt)
         if not drifted and existing.get("prompt_text_sha") and existing.get("prompt_text_sha") != prompt_text_sha:
             drifted = True
         # Keys absent on pre-catalog locks: resume. Present keys still drift.
@@ -964,6 +982,12 @@ def _preflight(
     )
 
     # Commit point: prompt lock then spec lock then prepared checkpoint.
+    # prepare_subset hashes the exact immutable byte buffer it normalized. Use
+    # that provenance for every new identity, even if the source path changed
+    # after preparation or while engine checks were running.
+    source_sha = (prov.get("metadata") or {}).get("sha256") if spec.dataset.is_local() else None
+    frozen_core = spec_core(spec, source_sha256=source_sha)
+    frozen_hash = core_hash(frozen_core)
     store.write_prompt_lock(prompt_block)
     lock = {
         "schema_version": 1,
@@ -971,7 +995,7 @@ def _preflight(
         "run_id": run_id,
         "created_at": checkpoint.utc_now(),
         "generation_id": uuid.uuid4().hex,
-        "spec_hash": spec.spec_hash(),
+        "spec_hash": frozen_hash,
         "prompt_text_sha": prompt_text_sha,
         "task": spec.task,
         **({"target": spec.target} if spec.target else {}),
@@ -989,7 +1013,7 @@ def _preflight(
         "versions": _versions(),
         "dependency_sources": describe(),
         "git": git_snapshot(),
-        "spec_core": spec_core(spec),
+        "spec_core": frozen_core,
     }
     # Freeze the resolved per-agent generation knobs (max_tokens / max_input_chars /
     # chunk_chars / temperature). Without this the card can only read the LIVE posture
@@ -1021,6 +1045,6 @@ def _preflight(
 
         total = len(rows_for_class(store.dataset_rows(), spec.target))
     store.write_checkpoint(state="prepared", cursor=0, total=total, remote=None)
-    store.append_event("preflight_ok", "info", spec_hash=spec.spec_hash())
-    report.update({"status": "prepared", "spec_hash": spec.spec_hash(), "lock_path": str(store.lock_path)})
+    store.append_event("preflight_ok", "info", spec_hash=frozen_hash)
+    report.update({"status": "prepared", "spec_hash": frozen_hash, "lock_path": str(store.lock_path)})
     return report

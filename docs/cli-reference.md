@@ -1256,6 +1256,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--run` | No | run ID to preselect (opens floor.template.html?run=ID) |
 | `--base` | No | run-store base dir (default $MAILROOM_BASE_DIR, else the repo's ./data) |
 | `--replay` | No | replay the bundled pinned sample into the base (runs selectable in the RUNS rail); only the replay run dir resets each time |
+| `--replay-run` | No | replay a recorded run directory (or a run id in the base) from any provider; copies it under an app-owned replay id and plays its items/nodes timeline |
+| `--replay-speed` | No | timeline speed for --replay/--replay-run (default: 1x bundled, 10x recorded) |
 | `--port` | No | port (default 8769; 0 = ephemeral); always bound to 127.0.0.1 |
 | `--interval` | No | seconds between change checks; the digest is rebuilt only when a run artifact changed (default 5) |
 
