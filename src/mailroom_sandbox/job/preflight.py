@@ -744,6 +744,7 @@ def _preflight(
 
     try:
         existing = store.read_lock()
+        store.refuse_replay()
     except RuntimeError as exc:
         # hub#41: a corrupt spec.lock.json is a LOUD preflight failure —
         # never a silent run with spec_hash: null.

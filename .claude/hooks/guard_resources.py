@@ -57,8 +57,8 @@ def _pytest_arguments(tail: list[str]) -> tuple[list[str], list[str]]:
     return options, positional
 
 
-_SEPARATORS = {";", "&&", "||", "|", "&"}
-_SHELL_KEYWORDS = {"then", "do", "else", "!", "{", "}", "(", ")"}
+_SEPARATORS = {";", "&&", "||", "|", "&", "(", ")", "\n"}
+_SHELL_KEYWORDS = {"if", "elif", "while", "until", "then", "do", "else", "!", "{", "}"}
 _SHELLS = {"bash", "sh", "zsh", "dash"}
 
 
@@ -80,7 +80,7 @@ def _strip_redirections(tokens: list[str]) -> list[str]:
             if index < len(tokens) and tokens[index] not in _SEPARATORS:
                 index += 1
             continue
-        if token.startswith((">", "<")) and len(token) > 1:
+        if re.match(r"\d*[<>]", token) and len(token) > 1:
             index += 1
             continue
         clean.append(token)
@@ -191,9 +191,14 @@ def _argv_reason(argv: list[str], depth: int) -> str | None:
     if not argv:
         return None
     name, tail = PurePath(argv[0]).name, argv[1:]
-    if name in _SHELLS and "-c" in tail and depth < 4:
-        command = tail[tail.index("-c") + 1] if tail.index("-c") + 1 < len(tail) else ""
-        return _violation(command, depth + 1)
+    if name in _SHELLS and depth < 4:
+        for index, token in enumerate(tail):
+            # Only inspect option words before the script/command operand.
+            if token == "--" or not token.startswith("-"):
+                break
+            if re.fullmatch(r"-[a-zA-Z]+", token) and "c" in token[1:]:
+                command = tail[index + 1] if index + 1 < len(tail) else ""
+                return _violation(command, depth + 1)
     if re.fullmatch(r"python(?:\d+(?:\.\d+)*)?", name):
         index = 0
         while index < len(tail):
@@ -203,6 +208,19 @@ def _argv_reason(argv: list[str], depth: int) -> str | None:
                     return None
                 name, tail = tail[index + 1], tail[index + 2:]
                 break
+            if token == "-c":
+                return None  # Inline Python and dynamic programs are outside scope.
+            if token == "--":
+                if index + 1 >= len(tail):
+                    return None
+                name, tail = PurePath(tail[index + 1]).name, tail[index + 2:]
+                break
+            if token.startswith("-m") and len(token) > 2:
+                name, tail = token[2:], tail[index + 1:]
+                break
+            if token in {"-W", "-X", "-Q"}:
+                index += 2
+                continue
             if token.startswith("-"):
                 index += 1
                 continue
@@ -217,26 +235,62 @@ def _argv_reason(argv: list[str], depth: int) -> str | None:
     return None
 
 
+def _without_literal_heredocs(command: str) -> str:
+    """Omit quoted here-document bodies, which shells never execute/expand.
+
+    Recognize simple word delimiters only. Unquoted here-documents can execute
+    substitutions and remain visible to the command scanner.
+    """
+    result: list[str] = []
+    pending: list[tuple[str, bool]] = []
+    for line in command.splitlines(keepends=True):
+        if pending:
+            delimiter, tabs = pending[0]
+            candidate = line.rstrip("\r\n")
+            if tabs:
+                candidate = candidate.lstrip("\t")
+            if candidate == delimiter:
+                pending.pop(0)
+            result.append("\n")
+            continue
+        result.append(line)
+        # Tokenize the header before matching so quoted strings containing
+        # heredoc-like prose do not hide later commands.
+        lexer = shlex.shlex(line, posix=False, punctuation_chars="<")
+        lexer.whitespace_split = True
+        try:
+            words = list(lexer)
+        except ValueError:
+            continue
+        for index, word in enumerate(words[:-1]):
+            if word != "<<":
+                continue
+            target = words[index + 1]
+            tabs = target.startswith("-")
+            target = target[1:] if tabs else target
+            if re.fullmatch(r"(['\"])[A-Za-z_][A-Za-z0-9_]*\1", target):
+                pending.append((target[1:-1], tabs))
+    return "".join(result)
+
+
 def _violation(command: str, depth: int = 0) -> str | None:
     """Return the first recognized violation in a shell list, or None.
 
     Malformed shell quoting returns None; ``depth`` tracks nested inspection.
     """
-    if "\n" in command:
-        for line in command.splitlines():
-            reason = _violation(line, depth + 1)
-            if reason:
-                return reason
-        return None
+    # Shell continuation removes the pair, even within a command word.
+    command = command.replace("\\\n", "")
+    command = _without_literal_heredocs(command)
     try:
-        lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|()")
+        lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|()\n")
+        lexer.whitespace = " \t\r"
         lexer.whitespace_split = True
         tokens = _strip_redirections(list(lexer))
     except ValueError:
         return None
     segments: list[list[str]] = [[]]
     for token in tokens:
-        if token in _SEPARATORS:
+        if token in _SEPARATORS or (token and all(c in ";&|()\n" for c in token)):
             segments.append([])
         else:
             segments[-1].append(token)

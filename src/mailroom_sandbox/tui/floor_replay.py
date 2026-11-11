@@ -338,8 +338,10 @@ def build_timeline(
 def is_replay_run(run: Path) -> bool:
     """Return whether a run can be reset as bundled replay content.
 
-    An empty directory, a bundled replay lock, or a legacy replay engine
-    qualifies. Invalid or unreadable locks return False.
+    An empty directory or a lock with ``replay.mode == "bundled"`` qualifies.
+    Without a replay block, the dataset SHA, run ID, spec hash and engine must
+    exactly match the committed legacy sample. Other replay modes (including
+    recorded imports), invalid locks and unreadable locks return False.
     """
     try:
         lock = json.loads(_read_bytes(Path(run) / "spec.lock.json").decode("utf-8"))

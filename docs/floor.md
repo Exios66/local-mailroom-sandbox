@@ -91,7 +91,7 @@ the pipeline.
 
 ## Recorded replay from any provider
 
-`--replay-run` replays a real completed run; it does not care whether the run
+`--replay-run` replays a recorded run; it does not care whether the run
 was served by Modal vLLM, OpenRouter, Ollama, LM Studio, a remote host or a
 local vLLM process. The source is read-only and needs only the run artifacts:
 
@@ -182,3 +182,7 @@ replay assets or binding the server port. Ctrl-C exits normally.
 
 For changes to this feature, use focused fixture tests locally and inspect
 the full hosted gates described in [CI guidance](../.circleci/README.md).
+
+Replay runs are view-only: run preflight/start/resume/status/cancel refuse them,
+including forced re-locks. Use `sandbox floor` to inspect or replay these copies;
+provider metadata describes the source and cannot dispatch its job.

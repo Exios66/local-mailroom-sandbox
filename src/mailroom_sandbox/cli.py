@@ -3040,6 +3040,8 @@ def _cmd_floor(args) -> int:
 
     if args.target and args.run and args.target != args.run:
         raise CLIUsageError("TARGET and --run name different runs; pass one")
+    if args.replay_speed is not None and not (args.replay or args.replay_run):
+        raise CLIUsageError("--replay-speed requires --replay or --replay-run")
     return floor_app.serve_floor(
         base=floor_app.resolve_base(args.base),
         port=floor_app.DEFAULT_PORT if args.port is None else args.port,
@@ -3673,6 +3675,10 @@ def _cmd_run_status(args) -> int:
 
     run_id = _run_id_required(args)
     store = RunStore(run_dir(run_id))
+    try:
+        store.refuse_replay()
+    except RuntimeError as exc:
+        raise CLIUsageError(str(exc)) from exc
     if not store.read_lock():
         _print({"run_id": run_id, "error": "no locked run found"})
         return 1
@@ -3714,6 +3720,10 @@ def _cmd_run_resume(args) -> int:
         raise CLIUsageError("run resume has no --live probe; use `sandbox run preflight --live` first")
     run_id = _run_id_required(args)
     store = RunStore(run_dir(run_id))
+    try:
+        store.refuse_replay()
+    except RuntimeError as exc:
+        raise CLIUsageError(str(exc)) from exc
     if not store.read_lock():
         _print({"run_id": run_id, "error": "no locked run to resume"})
         return 1
@@ -3801,6 +3811,10 @@ def _cmd_run_cancel(args) -> int:
 
     run_id = _run_id_required(args)
     store = RunStore(run_dir(run_id))
+    try:
+        store.refuse_replay()
+    except RuntimeError as exc:
+        raise CLIUsageError(str(exc)) from exc
     cp = store.read_checkpoint() or {}
     if isinstance(cp.get("remote"), dict) and cp["remote"].get("call_id"):
         remote_cancel(store)
