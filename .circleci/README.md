@@ -33,6 +33,17 @@ union and then checks aggregate graph-edge coverage. Splitting its scenarios
 between workers invalidates that assertion. Preserve file scheduling unless
 the test contract itself is deliberately redesigned.
 
+Every worker independently collects the entire suite before scheduling, even
+with `loadfile`. Keep parametrized case order and IDs deterministic: sort
+unordered inputs, and give generated archives or other clock/random-dependent
+bytes explicit descriptive `pytest.param(..., id="...")` labels. A collection
+mismatch aborts before the tests run; the resulting partial coverage is not a
+completed-suite measurement. Fix the unstable collection instead of reducing
+workers or weakening coverage. `test_collection_ids_are_independent_of_archive_clock`
+checks snapshot collection in two fresh, sequential single-worker interpreters
+with different archive clocks and hash seeds; this reproduces the failure
+without an expensive local suite or concurrent workers.
+
 The default is `SANDBOX_XDIST=2`, matching the test job's two allocated CPUs
 and 4 GB RAM. CircleCI's Docker `small` allocation is one CPU and 2 GB;
 two workers on that allocation did not speed up hosted job 609 (1032.962

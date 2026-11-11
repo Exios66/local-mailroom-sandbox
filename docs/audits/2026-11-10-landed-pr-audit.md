@@ -147,3 +147,40 @@ condensed prompts passes: **221 passed / 2 skipped** in 20.56 seconds, one worke
 without coverage. Frozen source hashes and assertions are unchanged. Full
 current-head CI remains required; rerunning the previous failing revision alone
 would not repair the leak.
+
+## Final landing: audit fixes and issue #285
+
+The earlier proposal assessment describes audited main `0ca393e`, before the
+implementation. On 2026-11-10, both follow-ups landed in order:
+
+| Work | Final tested head | Hosted evidence | Main merge |
+| --- | --- | --- | --- |
+| Audit/bootstrap/vendor fixes, #288 | `5d167e4861cc5c46063d2b1ce4f1fb009ede433a` | [Test 720](https://circleci.com/gh/Exios66/local-mailroom-sandbox/720): 2,959 passed / 28 skipped, 86.23% coverage, 542.12 s pytest; [lint 721](https://circleci.com/gh/Exios66/local-mailroom-sandbox/721) passed | `1e398dee7e8d81ae533672e767f864ed481b3ba0` |
+| Stable dependency snapshots, #289 | `b9637bb3b2fa25bf2daa8cd0d1eebf148eb2ab9a` | [Test 723](https://circleci.com/gh/Exios66/local-mailroom-sandbox/723): 3,053 passed / 28 skipped, 86.25% coverage, 626.22 s pytest; [lint 722](https://circleci.com/gh/Exios66/local-mailroom-sandbox/722) passed | `cf1074039babd037245e486a0bbb21350f335fcd` |
+
+Both lint/security gates passed and all inline review threads are resolved.
+The unchanged coverage floor is 84%. Main `cf10740` contains both merges and
+its tree is byte-identical to tested feature head `b9637bb`; issue #285 closed
+automatically. The different test surfaces above are not a controlled runtime
+comparison. The historical matched CI allocation evidence remains the basis
+for the earlier speedup claim.
+
+The feature now supplies `sandbox deps fetch`, verified offline caches,
+explicit source selection, dependency tree fingerprints in new run locks and
+matching cache/installed-source bundles for remote workers. The guide is
+[dependency snapshots](../dependency-snapshots.md). Source fingerprinting fixes
+and installed-worker export address the earlier review findings without
+changing vendor pins or rewriting run locks. Pipeline archive digests remain
+locally computed when releases publish no checksums; owner-published artifacts
+remain upstream work. The remote adapter was tested with fresh offline worker
+simulations; actual Modal deployment and paid serving were not exercised.
+
+Documentation closeout [test job 728](https://circleci.com/gh/Exios66/local-mailroom-sandbox/728)
+later exposed an intermittent collection defect in the landed snapshot tests:
+gzip timestamps appeared in automatically generated case IDs, so xdist workers
+could collect different names. The suite aborted before execution; its 18.59%
+partial coverage does not supersede the completed results above. Prerequisite
+PR #291 adds stable IDs and a fresh-process collection regression under two
+different clocks/hash seeds. That regression failed before the fix; 95 focused
+snapshot/source checks pass afterward. The two-worker hosted suite and 84%
+coverage gate remain unchanged and must pass on the updated follow-up heads.
