@@ -2,7 +2,7 @@
 # mutation here (sorter_condensed_v<N>.txt, a new file per version; never edit a frozen one).
 # The long-form SORTER_PROMPT_V15 (llm-mailroom langchain_agents.prompts, ~25k chars rendered) is
 # frozen as a reference; the condensed lineage is mailroom production (prime-sample promotion
-# compare: class fixed-broken 96 vs 80, subclass 135 vs 126, run on v1). Production is now
+# compare: class fixed-broken 108 vs 100, subclass 135 vs 126, run on v1). Production is now
 # sorter_condensed_v5 (v1 plus rule C: a bylaw amendment is bylaws) in both mailroom trees
 # (langchain_agents SORTER_PROMPT_CONDENSED) and the sandbox registry; v1 is superseded.
 #
@@ -21,7 +21,7 @@ versions:
     file: sorter_condensed_v1.txt
     parent: SORTER_PROMPT_V15 (B1-B3, S1-S5 condensed; per-key meanings left to the catalog)
     rendered_chars: 3681
-    status: superseded   # by sorter_condensed_v5 (one corporate clause, user directive 2026-11-07). Was adopted on the prime-sample promotion compare (275 documents, draw in train-sorter-prime-sample.selection.json, v9.3 truth Hub ccd040f6): class fixed-broken 96 (108-12) vs V15 80 (100-20); subclass 135 (137-2) vs V15 126 (126-0); right-after 263/228 vs 255/219; reports/sorter-handoff/sorter-{condensed-v1,v15}-qwen-train-prime-sample.compare.json. Condensed renders 3,681 chars vs V15 ~25k; ~$0.30 vs ~$0.36 list per run
+    status: superseded   # by sorter_condensed_v5 (one corporate clause, user directive 2026-11-07). Was adopted on the prime-sample promotion compare (275 documents, draw in train-sorter-prime-sample.selection.json, v9.3 truth Hub ccd040f6): class fixed-broken 108 (108-0) vs V15 100 (100-0); subclass 135 (137-2) vs V15 126 (126-0); right-after 263/228 vs 255/219; reports/sorter-handoff/sorter-{condensed-v1,v15}-qwen-train-prime-sample.compare.json. Condensed renders 3,681 chars vs V15 ~25k; ~$0.30 vs ~$0.36 list per run
     validation_run: sorter-condensed-v1-qwen-train-prime-sample
   - version: sorter_condensed_v2
     file: sorter_condensed_v2.txt
