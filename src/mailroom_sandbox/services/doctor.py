@@ -47,6 +47,12 @@ def _version(argv: list[str]) -> str | None:
 
 
 def _binary(name: str, *, needed: bool, hint: str, version: list[str] | None = None, pin: str | None = None) -> ServiceStatus:
+    """Report binary presence and optional version evidence for the profile.
+
+    An unknown or mismatched version warns while retaining installed readiness.
+    Version command launch errors and timeouts propagate; a nonzero exit alone
+    does not raise.
+    """
     import shutil
 
     path = shutil.which(name)
@@ -159,6 +165,11 @@ def _sink(name: str, url: str | None, *, configured: bool, live: bool, default_h
 
 
 def _langfuse(*, live: bool) -> ServiceStatus:
+    """Report Langfuse endpoint readiness and warn if its tracing SDK is missing.
+
+    ``live`` probes the endpoint; otherwise a configured host is not probed.
+    The SDK warning retains the endpoint readiness evidence.
+    """
     host = os.environ.get("LANGFUSE_HOST") or os.environ.get("LANGFUSE_BASE_URL")
     if not host and not live:
         return ServiceStatus("langfuse", "skipped", "LANGFUSE_HOST unset (default http://localhost:3000 after `sandbox up`)")
