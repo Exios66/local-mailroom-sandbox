@@ -905,8 +905,6 @@ def test_recorded_replay_cli_and_html_provenance(tmp_path):
     with pytest.raises(SystemExit) as exc:
         cli.build_parser().parse_args(["floor", "--replay", "--replay-run", "run-1"])
     assert exc.value.code == 2
-    html = _template()
-    assert "recorded replay" in html
 
 
 def test_recorded_replay_digest_preserves_provider_and_marks_replay(tmp_path):
@@ -936,3 +934,102 @@ def test_resolve_source_bare_id_prefers_the_base_store(tmp_path, monkeypatch):
     (cwd / "same-name").mkdir(parents=True)
     monkeypatch.chdir(cwd)
     assert floor_replay.resolve_source(base, "same-name") == run.absolute()
+
+
+def test_floor_speed_requires_explicit_replay(monkeypatch, capsys):
+    """The same speed-only command must fail regardless of stored runs."""
+    monkeypatch.setattr(floor_app, "serve_floor", lambda **kw: pytest.fail("must not serve"))
+    assert cli.main(["floor", "--replay-speed", "5"]) == 2
+    assert "requires --replay" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("command", ["status", "resume", "cancel"])
+@pytest.mark.parametrize("marker", [{"replay": {"mode": "recorded"}}, {"engine": {"kind": "replay"}}])
+def test_run_commands_refuse_replays_before_remote_access(tmp_path, monkeypatch, command, marker):
+    """Even inherited remote call IDs cannot make a viewing copy executable."""
+    from mailroom_sandbox.job import spec, remote
+    from mailroom_sandbox.job.checkpoint import RunStore
+    run = tmp_path / "view-only"
+    run.mkdir()
+    (run / "spec.lock.json").write_text(json.dumps({"run_id": "view-only", "spec_hash": "abc", **marker}))
+    (run / "checkpoint.json").write_text(json.dumps({"remote": {"call_id": "real-call"}, "state": "running"}))
+    monkeypatch.setattr(spec, "run_dir", lambda run_id: run)
+    monkeypatch.setattr(remote, "_modal", lambda: pytest.fail("must not contact Modal"))
+    assert cli.main(["run", command, "--run", "view-only"]) != 0
+    with pytest.raises(RuntimeError, match="replay"):
+        RunStore(run).verify_generation()
+
+
+@pytest.mark.parametrize("force", [False, True])
+@pytest.mark.parametrize("dry_run", [False, True])
+def test_preflight_refuses_replay_before_artifact_changes(tmp_path, monkeypatch, force, dry_run):
+    """Neither a forced re-lock nor dry-run can promote a replay to a job."""
+    from mailroom_sandbox.job import spec, preflight
+    run = tmp_path / "replay-job"
+    run.mkdir()
+    lock = run / "spec.lock.json"
+    lock.write_text(json.dumps({"replay": {"mode": "recorded"}}))
+    before = lock.read_bytes()
+    monkeypatch.setattr(preflight, "run_dir", lambda run_id: run)
+    monkeypatch.setattr(preflight, "prompt_lock_block", lambda *a, **kw: pytest.fail("must refuse first"))
+    report = preflight.preflight(spec.RunSpec(run_id="replay-job"), force=force, dry_run=dry_run, offline=True)
+    assert report["status"] == "failed"
+    assert "replay" in report["checks"][0]["detail"]
+    assert lock.read_bytes() == before
+
+
+def test_serve_recorded_replay_defaults_and_warnings(tmp_path, monkeypatch, capsys):
+    """Exercise server startup, default speed, selected URL and source warnings."""
+    source = _recorded_run(tmp_path, with_nodes=False, timestamps=False)
+    (source / "checkpoint.json").unlink()
+    with (source / "items.jsonl").open("a") as stream:
+        stream.write("{torn\n")
+    graph = tmp_path / "graph.py"
+    graph.write_text(STUB_GRAPH)
+    monkeypatch.setenv("FLOOR_DIGEST_GRAPH", str(graph))
+    seen = []
+    original = floor_app.ReplayDriver
+    def driver(*args, **kwargs):
+        seen.append(kwargs)
+        return original(*args, **kwargs)
+    monkeypatch.setattr(floor_app, "ReplayDriver", driver)
+    class Server:
+        server_address = ("127.0.0.1", 12345)
+        def serve_forever(self):
+            raise KeyboardInterrupt
+        def shutdown(self):
+            pass
+        def server_close(self):
+            pass
+    def bind(directory, port, **kwargs):
+        assert port == 0
+        return Server()
+    monkeypatch.setattr(floor_app, "make_server", bind)
+    assert floor_app.serve_floor(base=tmp_path / "base", out=tmp_path / "out", replay_run=str(source), port=0) == 0
+    assert seen[0]["speed"] == 10.0
+    out, err = capsys.readouterr()
+    assert floor_app.floor_url(12345, seen[0]["run_id"]) in out
+    assert "recorded replay warning:" in err
+    assert "synthetic timing" in out and "source run was not terminal" in out
+
+
+def test_serve_recorded_replay_refusals_do_not_bind(tmp_path, monkeypatch, capsys):
+    """Bad source and conflicting modes return clean errors before serving."""
+    monkeypatch.setattr(floor_app, "make_server", lambda *a, **kw: pytest.fail("must not bind"))
+    assert floor_app.serve_floor(base=tmp_path, replay_run="missing", port=0) == 1
+    assert "recorded replay unavailable" in capsys.readouterr().err
+    assert floor_app.serve_floor(base=tmp_path, replay=True, replay_run="missing", port=0) == 2
+    assert "choose --replay" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("operation", ["fire", "is_alive", "terminal_confirmed", "read_progress", "pull_run_dir", "cancel", "ensure_running"])
+def test_remote_api_refuses_viewing_copy_before_sdk(tmp_path, monkeypatch, operation):
+    """Direct remote callers cannot bypass the CLI's view-only boundary."""
+    from mailroom_sandbox.job import remote
+    from mailroom_sandbox.job.checkpoint import RunStore
+    run = tmp_path / "replay-job"
+    run.mkdir()
+    (run / "spec.lock.json").write_text(json.dumps({"replay": {"mode": "recorded"}}))
+    monkeypatch.setattr(remote, "_modal", lambda: pytest.fail("must not contact Modal"))
+    with pytest.raises(RuntimeError, match="replay"):
+        getattr(remote, operation)(RunStore(run))

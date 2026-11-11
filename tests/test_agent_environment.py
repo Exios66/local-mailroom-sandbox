@@ -215,3 +215,30 @@ def test_offline_bootstrap_definitions_match_parser():
                     found.update(offline_paths(child, (*path, name)))
         return found
     assert offline_paths(parser) == {('subagents', name) for name in OFFLINE_AGENT_COMMANDS}
+
+
+@pytest.mark.parametrize("command", [
+    "echo $(pytest tests)", "if pytest tests; then echo ok; fi",
+    "while pytest tests; do break; done", "until pytest tests; do break; done",
+    "bash -lc 'pytest tests'", "sh -ec 'python scripts/smoke_campaign.py'",
+    "python -W error -m pytest tests", "python -X dev -m pytest tests",
+    "pytest tests \\\n -q", "python scripts/smoke_campaign.py \\\n --help",
+    "echo ok\npytest tests", "py\\\ntest tests",
+    "python -- scripts/smoke_campaign.py", "python -mpytest tests",
+])
+def test_resource_hook_shell_forms_refuse_expensive_commands(guard, command):
+    """Common wrappers and line continuations must retain resource policy."""
+    assert guard.violation(command)
+
+
+@pytest.mark.parametrize("command", [
+    "(pytest tests/test_one.py)", "pytest tests/test_one.py 2>/dev/null",
+    "pytest tests/test_one.py 2>>log.txt", "bash -lc 'pytest tests/test_one.py'",
+    "python -W error -X dev -m pytest tests/test_one.py",
+    "git commit -m 'notes\npytest tests\nexample only'",
+    "cat <<'EOF'\npytest tests\nEOF",
+    "python -c 'print(123)'", "bash script.sh -lc 'pytest tests'",
+])
+def test_resource_hook_shell_forms_preserve_focused_or_literal_content(guard, command):
+    """Quoted data and bounded focused commands are not full-suite execution."""
+    assert guard.violation(command) is None
