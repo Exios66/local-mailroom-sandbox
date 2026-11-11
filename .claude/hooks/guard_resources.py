@@ -100,6 +100,7 @@ def _skip_options(argv: list[str], value_options: set[str]) -> list[str]:
 
 
 def _pytest_reason(tail: list[str]) -> str | None:
+    """Return a policy reason for coverage, worker count, or test selection, if any."""
     options, selected = _pytest_arguments(tail)
     if any(arg == "--cov" or arg.startswith("--cov=") for arg in options):
         return "Coverage sweeps belong in hosted CI."
@@ -121,6 +122,11 @@ def _pytest_reason(tail: list[str]) -> str | None:
 
 
 def _argv_reason(argv: list[str], depth: int) -> str | None:
+    """Check recognized commands and wrappers; return a violation reason or None.
+
+    ``depth`` limits recursive inspection of shell ``-c`` commands. Unparseable
+    split strings and unrecognized commands return None.
+    """
     while argv:
         if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", argv[0]) or argv[0] in _SHELL_KEYWORDS:
             argv = argv[1:]
@@ -212,6 +218,10 @@ def _argv_reason(argv: list[str], depth: int) -> str | None:
 
 
 def _violation(command: str, depth: int = 0) -> str | None:
+    """Return the first recognized violation in a shell list, or None.
+
+    Malformed shell quoting returns None; ``depth`` tracks nested inspection.
+    """
     if "\n" in command:
         for line in command.splitlines():
             reason = _violation(line, depth + 1)

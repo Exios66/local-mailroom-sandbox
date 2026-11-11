@@ -36,7 +36,7 @@ _URI = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://\S+")
 
 
 def _credential_uri(text: str) -> bool:
-    """Reject non-HTTP passwords and potentially signed queries/fragments."""
+    """Detect non-HTTP URIs with passwords, queries, fragments, or parse errors."""
     for match in _URI.finditer(text):
         if match.group().lower().startswith(("http://", "https://")):
             continue
@@ -139,7 +139,12 @@ def contract_document(path: Path) -> dict:
 
 
 def readiness(snapshot: dict, provider_id: str, model: str, *, now: datetime | None = None) -> dict:
-    """Check an instance/model in a recent exported T3 capability snapshot."""
+    """Check an instance/model in an exported T3 capability snapshot.
+
+    The snapshot must be at most 300 seconds old and not future-dated relative
+    to ``now``. Invalid or stale input returns a failure code. Every result has
+    ``workflow_verified: False``; catalog availability does not verify a workflow.
+    """
     try:
         captured = datetime.fromisoformat(snapshot["captured_at"].replace("Z", "+00:00"))
         if captured.tzinfo is None:
