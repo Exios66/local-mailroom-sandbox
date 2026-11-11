@@ -607,6 +607,7 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]]) -> tuple[di
             }
 
     engine = lock.get("engine") if isinstance(lock.get("engine"), dict) else {}
+    replay_meta = lock.get("replay") if isinstance(lock.get("replay"), dict) else {}
     prompt_default = prompt_lock.get("default") if isinstance(prompt_lock.get("default"), dict) else {}
     prompt_agents = prompt_lock.get("agents") if isinstance(prompt_lock.get("agents"), dict) else {}
     dataset_lock = lock.get("dataset") if isinstance(lock.get("dataset"), dict) else {}
@@ -632,6 +633,10 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]]) -> tuple[di
         "items_ok": ok_count,
         "engine": {"kind": engine.get("kind"), "model": engine.get("model")},
         "profile": lock.get("profile"),
+        "replay": ({key: replay_meta.get(key) for key in
+                    ("mode", "source_run_id", "engine_kind", "engine_model",
+                     "synthetic_timing", "duration_s", "speed", "incomplete")}
+                   if replay_meta else None),
         "spec_hash": lock.get("spec_hash") or checkpoint.get("spec_hash"),
         "dataset_hash": dataset_hash,
         "prompt_default": prompt_default.get("name") or prompt_default.get("source"),

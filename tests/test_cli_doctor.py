@@ -17,6 +17,26 @@ from mailroom_sandbox.tui.services_snapshot import read_services
 PIN = "modal client version: 1.6.3\n"
 
 
+@pytest.mark.parametrize("version", ["unrecognized", "modal client version: 0.1.0"])
+def test_binary_warning_preserves_installation_evidence(monkeypatch, version):
+    from mailroom_sandbox.services import doctor
+    monkeypatch.setattr("shutil.which", lambda name: "/fake/bin/" + name)
+    monkeypatch.setattr(doctor, "_version", lambda argv: None if version == "unrecognized" else "0.1.0")
+    row = doctor._binary("modal", needed=True, hint="install", version=["modal", "--version"], pin="1.6.3")
+    assert row.state == "warn" and row.readiness == "installed"
+
+
+@pytest.mark.parametrize("live,evidence", [(False, "configured"), (True, "reachable")])
+def test_missing_langfuse_sdk_preserves_endpoint_evidence(monkeypatch, live, evidence):
+    from mailroom_sandbox.services import doctor
+    monkeypatch.setenv("LANGFUSE_HOST", "http://trace.test")
+    monkeypatch.setenv("OBSERVABILITY_PROVIDER", "langfuse")
+    monkeypatch.setattr(doctor, "find_spec", lambda name: None)
+    monkeypatch.setattr(doctor, "_sink", lambda *a, **k: doctor.ServiceStatus("langfuse", "ok", "fixture", readiness=evidence))
+    row = doctor._langfuse(live=live)
+    assert row.state == "warn" and row.readiness == evidence
+
+
 @pytest.fixture(autouse=True)
 def _env(monkeypatch, tmp_path):
     monkeypatch.setattr("mailroom_sandbox.paths.dotenv_files", lambda: [])
@@ -315,6 +335,15 @@ def test_live_modal_row_fails_when_the_account_cannot_be_read(fake_bin, capsys, 
     ])
     rc, rows = _doctor(capsys, "--live", "--service", "modal")
     assert rc == 1 and rows["modal"]["state"] == "fail" and "account check failed" in rows["modal"]["detail"]
+    assert rows["modal"]["readiness"] == "installed"
+
+
+def test_missing_modal_app_preserves_successful_account_evidence(monkeypatch):
+    from mailroom_sandbox.services import doctor
+    monkeypatch.setattr(doctor, "_binary", lambda *a, **k: doctor.ServiceStatus("modal", "ok", "installed", readiness="installed"))
+    monkeypatch.setattr("mailroom_sandbox.services.modal_cli.app_status", lambda app: {"deployed": False, "state": "stopped"})
+    row = doctor._modal("modal-vllm", live=True)
+    assert row.state == "fail" and row.readiness == "authenticated"
 
 
 def test_langfuse_warns_when_the_sdk_is_missing(fake_bin, capsys, monkeypatch):

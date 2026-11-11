@@ -90,9 +90,14 @@ a release/service fact you did not check.
    - Keep historical results dated and labelled; do not replace them with a
      newer unrelated value.
 6. **Regenerate and re-run.** Re-run step 2 after edits. For a vendor refresh,
-   run `sandbox fetch-deps` (or `python scripts/sync_vendor.py` from a monorepo
-   root), record its exit status and printed source/pin, inspect the resulting
-   `git diff --stat vendor`, and run the drift guard. A clean diff alone is not
+   run `sandbox fetch-deps` for a standalone checkout. Alternatively, run
+   `python scripts/sync_vendor.py` from the sandbox package root only when
+   its monorepo source packages exist under `REPO.parent.parent/packages/`.
+   Record the exit status. For workspace sync, separately record the resolved
+   source paths, their owning checkout revision (`git -C <workspace> rev-parse HEAD`)
+   and dirty state (`git -C <workspace> status --short`); the script prints only
+   destinations and file counts, not source pins. Inspect `git diff --stat vendor`
+   and run the drift guard. A clean diff alone is not
    proof of success when a workspace mirror was expected. For a dependency
    change, regenerate requirements and run the lock/import smoke.
 7. **Record the audit boundary.** In the PR or handoff write: files inspected,

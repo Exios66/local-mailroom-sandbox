@@ -281,7 +281,7 @@ function render(){
  const oc=CLASS?((r.per_class[CLASS]||{}).outcomes||{}):(Object.values(r.outcomes).reduce((a,v)=>{a.ship+=v.ship||0;a.held+=v.held||0;a.failed+=v.failed||0;a.open+=v.open||0;a.n+=v.n||0;return a},{ship:0,held:0,failed:0,open:0,n:0}));
  rows.innerHTML=["ship|#7fd0a2|Fully archived","held|#e8b93f|Human-in-the-loop","failed|#e8543f|Failed","open|#5d6c80|Open mid-graph"]
   .map(x=>x.split("|")).map(([k,c,l])=>`<div class="state"><span><b style="color:${c}">●</b> ${l}</span><span>${Math.round((oc[k]||0)/Math.max(oc.n||1,1)*100)}%<span class="n">${oc[k]||0}/${oc.n||0}</span></span></div>`).join("");
- document.getElementById("outNote").textContent="attempted "+r.items_attempted+" · ok "+r.items_ok+" · state "+r.state+" · cursor "+r.cursor+"/"+(r.total==null?"?":r.total)+(CLASS?" · class n "+(((r.per_class[CLASS]||{}).outcomes||{}).n||0):"");
+ document.getElementById("outNote").textContent="attempted "+r.items_attempted+" · ok "+r.items_ok+" · state "+r.state+" · cursor "+r.cursor+"/"+(r.total==null?"?":r.total)+(CLASS?" · class n "+(((r.per_class[CLASS]||{}).outcomes||{}).n||0):"")+(r.replay&&r.replay.mode==="recorded"?" · recorded replay ("+(r.replay.engine_kind||"provider")+")"+(r.replay.synthetic_timing?" · synthetic timing":"")+(r.replay.incomplete?" · source run was not terminal":""):"");
  // human review routed here ≠ failed: every parked document stays accounted for per trigger stage
  const rv=r.review_routed||{total:0,by_stage:{}},rn=Object.entries(rv.by_stage||{});
  document.getElementById("outRev").textContent="Routed to human review: "+rv.total+(rn.length?" ("+rn.map(([s,c])=>s+" "+c).join(" · ")+")":" — none in this run");
@@ -369,7 +369,6 @@ if(LIVE){
  setInterval(async()=>{
   const idle=run().state!=="running";
   if(busy||(idle&&!wasLive))return;
-  wasLive=!idle;
   busy=true;
   try{
    const res=await fetch("floor_digest.json?ts="+Date.now(),{cache:"no-store"});
@@ -379,7 +378,7 @@ if(LIVE){
    const same=JSON.stringify(nd)===JSON.stringify(D),name=run().name,i=nd.runs.findIndex(x=>x.name===name);
    D=nd;runIdx=i>=0?i:Math.min(runIdx,nd.runs.length-1);
    if(CLASS&&!D.classes.includes(CLASS))CLASS=null;
-   stale=0;setGen();stampUpdated();
+   stale=0;wasLive=!idle;setGen();stampUpdated();
    if(!same){menus();render()}   // unchanged digest: keep the DOM (and keyboard focus) intact
   }catch(e){stale++;stampUpdated();/* transient fetch/parse failure: keep the last good view */}
   finally{busy=false}

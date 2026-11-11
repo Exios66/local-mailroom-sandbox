@@ -254,6 +254,7 @@ sandbox run preflight|start|status|resume|cancel|list --config config/runs/<name
 sandbox web [TARGET]            # themed browser watcher; no TARGET = the SAND-032 current run if published, else the newest run, switching live (= watch --web)
 sandbox watch [TARGET]          # same in the terminal; TARGET = run ID | run YAML | run name | experiment.yaml (see docs/pretty-logging/mailroom-themed-logging.md)
 sandbox floor [RUN] [--base DIR] [--replay]   # live pipeline floor + offline replay on :8769 (docs/floor.md)
+sandbox floor --replay-run <run-dir|id>      # replay a recorded Modal/OpenRouter/Ollama run, any provider
 sandbox run start --config <run.yaml> --job-mode modal --watch   # Modal worker
 sandbox prompts list | show <agent> [--variant X]
 sandbox subagents list|show|sync --harness project [--check]|doctor|preflight|dispatch-check|checkpoint

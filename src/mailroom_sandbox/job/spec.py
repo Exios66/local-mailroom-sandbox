@@ -244,17 +244,18 @@ class DatasetSpec(BaseModel):
             url = url[len("file://") :]
         return Path(url).expanduser()
 
-    def request_core(self) -> dict[str, Any]:
+    def request_core(self, *, source_sha256: str | None = None) -> dict[str, Any]:
         """The reproducibility-relevant spec (never row counts/attempt results).
 
         ``interim_labels`` is hashed only when set (with the overlay's fingerprint, so a rebuilt
         overlay is a new spec). A local dataset's identity uses ``local.name`` (the file
-        name), plus the file-byte sha256 only when ``local.is_file()``. The registry
+        name), plus ``source_sha256`` when supplied, otherwise the file-byte sha256
+        when ``local.is_file()``. File read errors propagate. The registry
         ``name`` is not hashed. Existing file-dataset specs receive a new spec_hash under
         this scheme, so resume refuses until --force relocks. Hub-dataset hashes are
         unaffected.
         """
-        core = self._request_core()
+        core = self._request_core(source_sha256=source_sha256)
         # This filter changes the drawn rows for local and Hub datasets alike.
         # Omit the default so existing unfiltered specs retain their hashes.
         if self.require_task_gt:
@@ -265,13 +266,20 @@ class DatasetSpec(BaseModel):
             core["interim_labels"] = overlay_fingerprint()
         return core
 
-    def _request_core(self) -> dict[str, Any]:
+    def _request_core(self, *, source_sha256: str | None = None) -> dict[str, Any]:
+        """Return the local or Hub dataset identity before optional filters.
+
+        For a local file, ``source_sha256`` overrides hashing the current bytes.
+        File read errors propagate when the hash is computed here.
+        """
         if self.is_local() and self.local_file():
             local = self.local_file()
             # Portable identity: the file NAME + source bytes, never the checkout
             # path — the same dataset hashes the same in any clone (DMR-116).
             core: dict[str, Any] = {"provider": "file", "file": local.name}
-            if local.is_file():
+            if source_sha256 is not None:
+                core["sha256"] = source_sha256
+            elif local.is_file():
                 import hashlib
 
                 core["sha256"] = hashlib.sha256(local.read_bytes()).hexdigest()
@@ -865,8 +873,12 @@ def _vllm_core(vllm: VLLMSpec) -> dict[str, Any]:
     return core
 
 
-def spec_core(spec: RunSpec) -> dict[str, Any]:
-    """The behavioral core the spec_hash covers (excludes run_id/timestamps)."""
+def spec_core(spec: RunSpec, *, source_sha256: str | None = None) -> dict[str, Any]:
+    """Return the behavioral core covered by spec_hash, excluding run_id/timestamps.
+
+    ``source_sha256`` supplies the local dataset hash instead of rereading it.
+    Errors resolving prompts or reading local dataset bytes propagate.
+    """
     return {
         **({"agent_models": dict(sorted(spec.agent_models.items()))} if spec.agent_models else {}),
         **({"agent_knobs": spec.agent_knobs} if spec.agent_knobs else {}),
@@ -889,7 +901,7 @@ def spec_core(spec: RunSpec) -> dict[str, Any]:
                 if not (key == "api_cost_cap_usd" and value is None)},
         "trace": spec.trace.model_dump(),
         "prompt": prompt_resolution_map(spec),
-        "dataset": spec.dataset.request_core(),
+        "dataset": spec.dataset.request_core(source_sha256=source_sha256),
     }
 
 
@@ -905,7 +917,12 @@ def _route_core(route: Any) -> dict[str, Any]:
 
 
 def spec_hash(spec: RunSpec) -> str:
-    core = spec_core(spec)
+    """Hash the behavioral core, resolving its current local inputs."""
+    return core_hash(spec_core(spec))
+
+
+def core_hash(core: dict[str, Any]) -> str:
+    """Hash an already frozen behavioral core without rereading local inputs."""
     blob = json.dumps(core, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
