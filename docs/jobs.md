@@ -320,7 +320,10 @@ for mock runs and Modal jobs.
   Stamped runs reject unstamped/stale terminal caches. Old-format worker
   progress needs a matching legacy lock and a heartbeat after lock creation.
 - Terminal pulls validate the fetched lock, dataset, prompt, checkpoint and
-  transferable JSON/JSONL in staging before changing local artifacts. Local
+  transferable JSON/JSONL in staging before changing local artifacts. Malformed
+  diagnostic `nodes.jsonl` rows are skipped with a warning in the staging copy,
+  matching `RunStore.iter_nodes`; corrupt results, lifecycle records or generation
+  identity still refuse the pull. The remote source remains unchanged. Local
   immutable files and writer/control lock inodes stay intact. Finalization
   imports only matching run/spec/generation/task records; a refused pull makes
   status/watch fail instead of reporting completion.

@@ -73,13 +73,14 @@ def _modal(profile_name: str, *, live: bool) -> ServiceStatus:
         status = app_status(app)
     except ServiceError as exc:
         detail = f"{row.detail}; account check failed: {' '.join(str(exc).split())}"
-        return ServiceStatus("modal", "fail" if needed else "warn", detail, "modal token new  (or check MODAL_PROFILE)")
+        return ServiceStatus("modal", "fail" if needed else "warn", detail, "modal token new  (or check MODAL_PROFILE)",
+                             readiness=row.readiness)
     tasks = "" if not status["deployed"] else f", containers={'?' if status['tasks'] is None else status['tasks']}"
     account = os.environ.get("MODAL_PROFILE") or "active profile"
     detail = f"{row.detail}; {account}: {app} {status['state']}{tasks}"
     if needed and not status["deployed"] and row.state != "fail":
         # The modal-vllm profile has nothing to call until its app is deployed.
-        return ServiceStatus("modal", "fail", detail, "sandbox modal deploy")
+        return ServiceStatus("modal", "fail", detail, "sandbox modal deploy", readiness="authenticated")
     return ServiceStatus("modal", row.state, detail, row.hint, readiness="authenticated")
 
 

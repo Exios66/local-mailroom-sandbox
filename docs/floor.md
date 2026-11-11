@@ -120,6 +120,10 @@ never replaced: a new suffixed replay id is allocated instead. A bare id
 resolves to the base's live or history store. Use `--replay-speed` to compress a long run; the default
 is 10x for recorded runs and 1x for the bundled sample.
 
+Bundled resets require a bundled-mode ownership marker or the exact identity
+of the committed legacy sample. An arbitrary `engine.kind: replay` lock,
+including a recorded replay, never authorizes deleting a run.
+
 ```bash
 sandbox floor --replay-run data/runtime/runs/pipeline-modal-1
 sandbox floor --replay-run /tmp/exported-run --base /tmp/floor-base --replay-speed 50
