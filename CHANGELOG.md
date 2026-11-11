@@ -153,8 +153,11 @@
   (config/prompts/sorter_condensed_v1.txt, 3,681 chars rendered) beat long-form sorter V15 on the
   vetted prime-sample promotion compare (275 documents, labels Hub ccd040f6, qwen/qwen3.7-flash,
   runs `sorter-condensed-v1-qwen-train-prime-sample` + `sorter-v15-qwen-train-prime-sample`): class
-  fixed-broken 96 vs 80 (right-after 263 vs 255), subclass 135 vs 126 (228 vs 219), at 0.9x the cost
-  (about $0.30 vs $0.36 list; compare reports under `reports/sorter-handoff/`).
+  fixed-broken 108 vs 100 (right-after 263 vs 255), subclass 135 vs 126 (228 vs 219), at about 0.83x the listed cost
+  (rounded figures of $0.30 vs $0.36 list; compare reports under `reports/sorter-handoff/`).
+  - Evidence correction (2026-11-11, issue #259): the former 96 vs 80 figures
+    incorrectly subtracted still-wrong answers. Neither run broke a class answer;
+    the committed compare reports record 108 vs 100 fixed and zero broken.
   - The mutation research that got there: `sorter_condensed_v2` (literal marker phrases, rejected
     35/61 vs 36/61 on the held-out marker set) and `sorter_condensed_v3` (notice-is-a-decision rule,
     32/58 vs 31/58 on held-out set 2, within noise) and `sorter_condensed_v4` (restated notice rule
