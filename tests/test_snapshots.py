@@ -204,16 +204,41 @@ def test_pipeline_peels_annotated_tag_and_uses_commit_archive(release_api):
 @pytest.mark.parametrize(
     "data,error",
     [
-        (archive({"../escape": "x"}), "Unsafe"),
-        (archive({"root/link": ""}, link=True), "links"),
-        (archive({}), "Empty"),
-        (b"truncated", "Invalid archive"),
+        pytest.param(archive({"../escape": "x"}), "Unsafe", id="path-traversal"),
+        pytest.param(archive({"root/link": ""}, link=True), "links", id="symlink"),
+        pytest.param(archive({}), "Empty", id="empty"),
+        pytest.param(b"truncated", "Invalid archive", id="invalid-archive"),
     ],
 )
 def test_tar_rejects_unsafe_members(tmp_path, data, error):
     with pytest.raises(s.SnapshotError, match=error):
         s._extract(data, tmp_path, wheel=False)
     assert not (tmp_path.parent / "escape").exists()
+
+
+def test_collection_ids_are_independent_of_archive_clock(monkeypatch):
+    """Each xdist worker must collect identical IDs despite archive timestamps."""
+    module = Path(__file__).resolve()
+    node_lists = []
+    for clock in (1700000000, 1700000002):
+        monkeypatch.setenv("PYTHONHASHSEED", str(clock))
+        code = f"""
+import gzip, time, types, zipfile, pytest
+clock = types.SimpleNamespace(time=lambda: {clock}, localtime=lambda *args: time.localtime({clock}))
+gzip.time = zipfile.time = clock
+raise SystemExit(pytest.main(['--collect-only', '-q', {str(module)!r}, '-n', '0', '--no-cov']))
+"""
+        result = subprocess.run(
+            [sys.executable, "-c", code], capture_output=True, text=True, timeout=20,
+            cwd=module.parents[1],
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        node_lists.append([
+            line for line in result.stdout.splitlines()
+            if line.startswith("tests/test_snapshots.py::")
+        ])
+    assert node_lists[0], "collection output contained no snapshot tests"
+    assert node_lists[0] == node_lists[1]
 
 
 def test_zip_rejects_links_and_duplicates(tmp_path):
