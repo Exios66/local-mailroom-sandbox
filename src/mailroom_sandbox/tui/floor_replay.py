@@ -318,10 +318,18 @@ def is_replay_run(run: Path) -> bool:
     if not isinstance(lock, dict):
         return False
     replay = lock.get("replay")
-    if isinstance(replay, dict) and replay.get("mode") == "bundled":
-        return True
-    engine = lock.get("engine")
-    return isinstance(engine, dict) and engine.get("kind") == "replay"
+    if replay is not None:
+        return isinstance(replay, dict) and replay.get("mode") == "bundled"
+    # Older bundled samples predate the mode marker. Their full source
+    # identity, rather than engine.kind alone, establishes reset ownership.
+    from mailroom_sandbox.paths import repo_root
+
+    fixture = _read_json(repo_root() / "data/fixtures/floor/replay/runtime/runs/replay-mailroom-sample/spec.lock.json")
+    expected_sha = (fixture.get("dataset") or {}).get("sha256")
+    dataset = lock.get("dataset")
+    return bool(expected_sha and isinstance(dataset, dict)
+                and dataset.get("sha256") == expected_sha
+                and all(lock.get(key) == fixture.get(key) for key in ("run_id", "spec_hash", "engine")))
 
 
 def resolve_source(base: Path, value: str) -> Path:

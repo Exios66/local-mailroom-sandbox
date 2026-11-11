@@ -208,6 +208,8 @@ def test_replay_store_resets_only_its_own_replay_runs(store):
 
 @pytest.mark.parametrize("lock,artifact", [
     (json.dumps({"engine": {"kind": "vllm-remote", "model": "local"}}), "items.jsonl"),
+    (json.dumps({"engine": {"kind": "replay", "model": "other experiment"}}), "items.jsonl"),
+    (json.dumps({"engine": {"kind": "replay"}, "replay": {"mode": "recorded"}}), "items.jsonl"),
     (None, "items.jsonl"),
     (None, "operator-notes.txt"),
     ("not JSON", "items.jsonl"),

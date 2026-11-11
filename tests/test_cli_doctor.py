@@ -335,6 +335,15 @@ def test_live_modal_row_fails_when_the_account_cannot_be_read(fake_bin, capsys, 
     ])
     rc, rows = _doctor(capsys, "--live", "--service", "modal")
     assert rc == 1 and rows["modal"]["state"] == "fail" and "account check failed" in rows["modal"]["detail"]
+    assert rows["modal"]["readiness"] == "installed"
+
+
+def test_missing_modal_app_preserves_successful_account_evidence(monkeypatch):
+    from mailroom_sandbox.services import doctor
+    monkeypatch.setattr(doctor, "_binary", lambda *a, **k: doctor.ServiceStatus("modal", "ok", "installed", readiness="installed"))
+    monkeypatch.setattr("mailroom_sandbox.services.modal_cli.app_status", lambda app: {"deployed": False, "state": "stopped"})
+    row = doctor._modal("modal-vllm", live=True)
+    assert row.state == "fail" and row.readiness == "authenticated"
 
 
 def test_langfuse_warns_when_the_sdk_is_missing(fake_bin, capsys, monkeypatch):

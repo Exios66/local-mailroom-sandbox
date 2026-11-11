@@ -362,12 +362,34 @@ def pull_run_dir(store: RunStore) -> tuple[int, str]:
             if staged.state() not in {"done", "failed"}:
                 raise RuntimeError("fetched remote generation is not terminal")
             # Parse every transferable JSON/JSONL before touching local files.
-            for name in ("items.jsonl", "nodes.jsonl", "events.jsonl", "experiment_log.jsonl"):
+            for name in ("items.jsonl", "events.jsonl", "experiment_log.jsonl"):
                 path = source / name
                 if path.is_file():
                     for line in path.read_text(encoding="utf-8").splitlines():
                         if line.strip() and not isinstance(json.loads(line), dict):
                             raise RuntimeError(f"invalid remote {name} record")
+            # Node traces are diagnostic and use the same torn-row tolerance
+            # as RunStore.iter_nodes. Repair only this staging copy; immutable
+            # generation identity and result/lifecycle files remain strict.
+            nodes = source / "nodes.jsonl"
+            if nodes.is_file():
+                cleaned = []
+                skipped = 0
+                for line in nodes.read_text(encoding="utf-8", errors="replace").splitlines():
+                    if not line.strip():
+                        continue
+                    try:
+                        row = json.loads(line)
+                    except ValueError:
+                        skipped += 1
+                        continue
+                    if not isinstance(row, dict):
+                        skipped += 1
+                        continue
+                    cleaned.append(json.dumps(row, ensure_ascii=False) + "\n")
+                if skipped:
+                    logger.warning("Skipped %d malformed diagnostic node records during remote pull", skipped)
+                    nodes.write_text("".join(cleaned), encoding="utf-8")
             cold_boot = source / "cold_boot.json"
             if cold_boot.is_file():
                 json.loads(cold_boot.read_text(encoding="utf-8"))
