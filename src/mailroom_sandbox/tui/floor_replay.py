@@ -48,11 +48,16 @@ class RecordedReplay:
 
 
 def _slug(value: str) -> str:
+    """Make a run-id fragment of at most 48 characters, defaulting to ``run``."""
     return _SAFE.sub("-", str(value)).strip("-")[:48] or "run"
 
 
 def _read_bytes(path: Path) -> bytes:
-    """Open one artifact without following symlinks and re-check its type/size."""
+    """Read a regular artifact without following its final symlink.
+
+    Raise ValueError for a nonregular file or a file over 100 MiB; open and
+    read errors propagate as OSError.
+    """
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
     try:
         info = os.fstat(fd)
@@ -69,6 +74,7 @@ def _read_bytes(path: Path) -> bytes:
 
 
 def _read_json(path: Path) -> dict[str, Any]:
+    """Read an object artifact, returning an empty dict on read or parse failure."""
     try:
         data = json.loads(_read_bytes(path).decode("utf-8"))
     except (OSError, ValueError):
@@ -77,7 +83,11 @@ def _read_json(path: Path) -> dict[str, Any]:
 
 
 def _read_jsonl(path: Path, *, limit: int = MAX_ROWS) -> tuple[list[dict[str, Any]], int]:
-    """Read object rows from a bounded JSONL file; skip malformed/torn rows."""
+    """Return object rows and the count of malformed or non-object rows skipped.
+
+    Unreadable files return empty rows; size and row-limit violations raise
+    ValueError. ``limit`` bounds the number of accepted rows.
+    """
     rows: list[dict[str, Any]] = []
     skipped = 0
     try:
@@ -103,7 +113,12 @@ def _read_jsonl(path: Path, *, limit: int = MAX_ROWS) -> tuple[list[dict[str, An
 
 
 def _parse_time(value: Any) -> float | None:
-    """Epoch seconds from a number, numeric string, or ISO-8601 timestamp."""
+    """Convert a numeric or ISO-8601 timestamp to epoch seconds.
+
+    Numeric values above 100 billion are treated as milliseconds; naive ISO
+    timestamps are interpreted as UTC. Unrecognized values return None;
+    numeric conversion and timestamp range errors can propagate.
+    """
     if value is None or isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):
@@ -133,6 +148,7 @@ def _parse_time(value: Any) -> float | None:
 
 
 def _engine_label(lock: dict[str, Any]) -> tuple[str | None, str | None]:
+    """Return the lock's engine kind and model as strings when present."""
     engine = lock.get("engine") if isinstance(lock.get("engine"), dict) else {}
     kind = engine.get("kind")
     model = engine.get("model")
@@ -140,6 +156,7 @@ def _engine_label(lock: dict[str, Any]) -> tuple[str | None, str | None]:
 
 
 def _source_run_id(source: Path, lock: dict[str, Any]) -> str:
+    """Use the lock's run ID, falling back to the source directory name."""
     value = lock.get("run_id") or source.name
     return str(value or "recorded")
 
@@ -154,6 +171,12 @@ def _event_copy(record: dict[str, Any]) -> dict[str, Any]:
 
 
 def _validate_source(source: Path) -> dict[str, Path]:
+    """Return available replay artifacts after checking the source and size limits.
+
+    Raise ValueError for a symlinked source or artifact, a nonregular artifact,
+    size violations, or missing both node and item files. Other filesystem
+    errors propagate.
+    """
     if source.is_symlink():
         raise ValueError(f"recorded replay source is a symlink: {source}")
     if not source.is_dir():
@@ -189,14 +212,19 @@ def build_timeline(
     *,
     lock: dict[str, Any] | None = None,
 ) -> tuple[list[tuple[float, dict[str, Any]]], dict[str, Any]]:
-    """Convert a run directory into ``(at, replay-event)`` records.
+    """Return a replay timeline and metadata for a recorded run directory.
 
+    Each ``(at, replay-event)`` time is in simulated seconds. ``lock`` can
+    supply already-read provenance; otherwise the source lock is read.
     Node starts/finishes are paired by ``(doc, node, step)`` and placed on the
     source wall clock when available. Items without a timestamp follow the last
     completed node for their document, or the running cursor. A run with no
     usable timestamps gets a document-order timeline labelled synthetic.
-    Completeness comes only from an explicit terminal checkpoint state; a
-    missing, paused or prepared checkpoint stays nonterminal.
+    Only ``done`` and ``failed`` checkpoints count as complete. Malformed
+    JSONL rows are skipped and reported in metadata; unreadable JSON artifacts
+    fall back to empty objects. Raise ValueError for invalid sources, no usable
+    records, size or row limits, or a timeline longer than seven days. Other
+    parsing and filesystem errors can propagate.
     """
     source = Path(source)
     _validate_source(source)
@@ -308,7 +336,11 @@ def build_timeline(
 
 
 def is_replay_run(run: Path) -> bool:
-    """True when ``run`` is the bundled app-owned sample that may be reset."""
+    """Return whether a run can be reset as bundled replay content.
+
+    An empty directory, a bundled replay lock, or a legacy replay engine
+    qualifies. Invalid or unreadable locks return False.
+    """
     try:
         lock = json.loads(_read_bytes(Path(run) / "spec.lock.json").decode("utf-8"))
     except FileNotFoundError:
@@ -337,7 +369,8 @@ def resolve_source(base: Path, value: str) -> Path:
 
     Paths are normalized without following symlinks so ``_validate_source`` can
     refuse a linked source directory. Bare ids consult the base stores only, so
-    a same-named working-directory entry cannot shadow them.
+    a same-named working-directory entry cannot shadow them. Raise
+    FileNotFoundError when no candidate is found.
     """
     candidate = Path(value).expanduser()
     explicit = candidate.is_absolute() or "/" in value or "\\" in value or value.startswith(".")
@@ -364,7 +397,9 @@ def prepare_recorded_replay(
     The source is read-only. The destination is app-owned and labelled with a
     ``replay.mode: recorded`` block. An existing run is never overwritten: a
     suffixed id is allocated instead. ``speed`` is persisted for provenance and
-    used by the caller's driver.
+    used by the caller's driver; it must be finite and positive. Return the
+    new run's path, ID, events, and metadata. Invalid speed, run ID, or source
+    raises ValueError; missing sources and filesystem errors propagate.
     """
     if not math.isfinite(speed) or speed <= 0:
         raise ValueError("replay speed must be a finite positive number")

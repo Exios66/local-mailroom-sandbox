@@ -249,7 +249,8 @@ class DatasetSpec(BaseModel):
 
         ``interim_labels`` is hashed only when set (with the overlay's fingerprint, so a rebuilt
         overlay is a new spec). A local dataset's identity uses ``local.name`` (the file
-        name), plus the file-byte sha256 only when ``local.is_file()``. The registry
+        name), plus ``source_sha256`` when supplied, otherwise the file-byte sha256
+        when ``local.is_file()``. File read errors propagate. The registry
         ``name`` is not hashed. Existing file-dataset specs receive a new spec_hash under
         this scheme, so resume refuses until --force relocks. Hub-dataset hashes are
         unaffected.
@@ -266,6 +267,11 @@ class DatasetSpec(BaseModel):
         return core
 
     def _request_core(self, *, source_sha256: str | None = None) -> dict[str, Any]:
+        """Return the local or Hub dataset identity before optional filters.
+
+        For a local file, ``source_sha256`` overrides hashing the current bytes.
+        File read errors propagate when the hash is computed here.
+        """
         if self.is_local() and self.local_file():
             local = self.local_file()
             # Portable identity: the file NAME + source bytes, never the checkout
@@ -868,7 +874,11 @@ def _vllm_core(vllm: VLLMSpec) -> dict[str, Any]:
 
 
 def spec_core(spec: RunSpec, *, source_sha256: str | None = None) -> dict[str, Any]:
-    """The behavioral core the spec_hash covers (excludes run_id/timestamps)."""
+    """Return the behavioral core covered by spec_hash, excluding run_id/timestamps.
+
+    ``source_sha256`` supplies the local dataset hash instead of rereading it.
+    Errors resolving prompts or reading local dataset bytes propagate.
+    """
     return {
         **({"agent_models": dict(sorted(spec.agent_models.items()))} if spec.agent_models else {}),
         **({"agent_knobs": spec.agent_knobs} if spec.agent_knobs else {}),
@@ -907,6 +917,7 @@ def _route_core(route: Any) -> dict[str, Any]:
 
 
 def spec_hash(spec: RunSpec) -> str:
+    """Hash the behavioral core, resolving its current local inputs."""
     return core_hash(spec_core(spec))
 
 

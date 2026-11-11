@@ -609,6 +609,7 @@ def _prompt_summary(block: dict[str, Any]) -> str:
 
 
 def _dataset_lock(prov: dict[str, Any], spec: RunSpec) -> dict[str, Any]:
+    """Combine requested dataset selection with prepared dataset provenance."""
     return {
         "repo": (spec.dataset.local_file().name if spec.dataset.local_file() else spec.dataset.repo),
         "config": spec.dataset.config,
@@ -733,7 +734,9 @@ def _preflight(
     ``foreign_store_refused`` in the report's status. ``dry_run`` checks only
     existing lock readability, without validating domains or writing artifacts.
     ``force`` archives an eligible existing generation before preparing its
-    replacement. Caught prompt, dataset, and tracing errors become failed
+    replacement. A legacy lock that cannot prove task-GT selection is refused.
+    New local dataset identity uses the prepared source hash when available.
+    Caught prompt, dataset, and tracing errors become failed
     reports; uncaught configuration and file-access errors propagate.
     """
     run_id = run_id or resolve_run_id(spec)

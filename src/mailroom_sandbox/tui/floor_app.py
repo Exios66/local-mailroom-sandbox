@@ -263,7 +263,10 @@ class ReplayDriver:
     """
 
     def __init__(self, base: Path, *, run_id: str = REPLAY_RUN_ID, speed: float = 1.0) -> None:
-        """Load a replay run and prepare its store; ``speed`` scales the schedule."""
+        """Load a replay run and prepare its store; ``speed`` scales the schedule.
+
+        Nonpositive speed or a malformed trace raises ValueError; file errors propagate.
+        """
         if speed <= 0:
             raise ValueError("replay speed must be positive")
         self.base = Path(base)
@@ -280,7 +283,11 @@ class ReplayDriver:
         return sum(1 for _, event in self.events if "item" in event)
 
     def step(self, refresh: Callable[[], Any] | None = None) -> bool:
-        """Apply the next scheduled record, call ``refresh`` if given, and return False at the end."""
+        """Apply the next record and return whether more records remain.
+
+        Call ``refresh`` after an item, checkpoint, or non-running node, if given.
+        Store and callback errors propagate.
+        """
         if self.pos >= len(self.events):
             return False
         at, event = self.events[self.pos]
@@ -305,10 +312,10 @@ class ReplayDriver:
     def play(self, stop: threading.Event, refresh: Callable[[], Any] | None = None) -> None:
         """Play the timeline until it ends or ``stop`` is set.
 
-        The next target is ``at / speed`` wall seconds after the first record; the
-        wait is that target minus elapsed wall time, never negative. A digest
-        refresh happens per finished node/item/checkpoint record, at most ~2 per
-        second for the busy node phase (one sweep per wall second is enough).
+        Each target is ``at / speed`` wall seconds after playback starts. A
+        supplied refresh callback is eligible at most once per 0.5 seconds and
+        is called only for item, checkpoint, or non-running node records. Store
+        and callback errors propagate.
         """
         start = time.monotonic()
         last_refresh = time.monotonic()
@@ -359,6 +366,7 @@ def serve_floor(
     base's historical runs — both are selectable in the viewer; only that labeled run dir is reset.
     ``replay_run`` instead imports a recorded run from any provider; ``replay_speed``
     scales the schedule (default 1x for the bundled sample, 10x for a recorded run).
+    Selecting both replay modes returns 2; replay preparation failures return 1.
     The first build is synchronous: a DigestError returns its code before the server binds, a build
     surprise or a port that cannot be bound returns 1 with one line. Later build exceptions
     are recorded and retried. Returns 0 after Ctrl+C.
