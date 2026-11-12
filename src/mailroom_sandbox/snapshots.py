@@ -24,7 +24,7 @@ from mailroom_sandbox.paths import repo_root
 COMPONENTS = {"dojo": "llm-dojo-scoring", "pipeline": "llm-mailroom"}
 # Independent of vendor availability. Deliberately reviewed alongside _VENDOR_PINS.
 PINS = {
-    "dojo": {"version": "0.28.1", "commit": "00a2a7f7b058a4ade06b027c2afbd8b03bea6a5f"},
+    "dojo": {"version": "0.28.1", "commit": "402317e7aa7b91b09ce0ebd2b7b769c9e0d88025"},
     "pipeline": {"version": "0.9.1", "commit": "19203eac07f67c215f50af2fd498560ce195adae"},
 }
 MAX_DOWNLOAD = 64 * 1024 * 1024
