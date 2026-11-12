@@ -26,6 +26,32 @@ DIST = "llm-dojo-scoring"
 PACKAGE = "llm_dojo_scoring"
 MODES = ("auto", "installed", "vendored")
 
+# Root names the sandbox imports as ``from llm_dojo_scoring import X`` (or reads as ``_dojo.X``).
+# A Dojo with a lazy package root (PEP 562, ``_LAZY``) imports the defining module only on first
+# access, so ``import llm_dojo_scoring`` alone cannot show that these resolve; ``_import_ok``
+# resolves each one so a release with a broken backing module falls back to the vendored snapshot.
+# ``tests/test_dojo_source.py`` checks that this covers every root import under src/, scripts/,
+# deploy/, api-evals/ and tests/.
+REQUIRED_ROOT_NAMES = (
+    "Emitter",
+    "LocalManifestSink",
+    "ScoreRecord",
+    "accuracy",
+    "aggregate_sandbox_scores",
+    "bootstrap_ci",
+    "classify_serving_kind",
+    "emit_serving_scorecard",
+    "exact_match",
+    "get_suite",
+    "headline_metrics",
+    "score_extraction",
+    "score_sandbox_cuad",
+    "score_sandbox_maud",
+    "score_serving_run",
+    "score_task",
+    "suite_for_doc_type",
+)
+
 
 @dataclass(frozen=True)
 class DojoSource:
@@ -144,7 +170,13 @@ def _import_ok() -> str | None:
         sys.dont_write_bytecode = True  # source inspection must not mutate its cache
         if importlib.util.find_spec(PACKAGE) is None:
             return "not importable"
-        importlib.import_module(PACKAGE)
+        module = importlib.import_module(PACKAGE)
+        lazy = getattr(module, "_LAZY", None)
+        if isinstance(lazy, dict):
+            # Lazy root: import does not touch the backing modules, so resolve what we need now.
+            for name in REQUIRED_ROOT_NAMES:
+                if name in lazy:
+                    getattr(module, name)
         return None
     except Exception as exc:  # noqa: BLE001 - any failure means fall back
         _purge()

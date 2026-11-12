@@ -132,3 +132,69 @@ def test_policy_is_read_from_dotenv(isolated, tmp_path):
     assert dojo_source.choose().source == "vendored"
     isolated.setenv("SANDBOX_DOJO_SOURCE", "auto")  # the real environment wins over .env
     assert dojo_source.choose().source == "installed"
+
+
+def _fake_lazy_release(root: Path, *, broken: str | None) -> None:
+    """A fake installed Dojo with a PEP 562 root; ``broken`` names the root name whose module raises."""
+    pkg = root / "llm_dojo_scoring"
+    pkg.mkdir(parents=True)
+    names = {name: f"mod_{name}" for name in dojo_source.REQUIRED_ROOT_NAMES}
+    (pkg / "__init__.py").write_text(
+        "import importlib\n"
+        f"_LAZY = {{n: (m, n) for n, m in {names!r}.items()}}\n"
+        "def __getattr__(name):\n"
+        "    if name in _LAZY:\n"
+        "        module, attr = _LAZY[name]\n"
+        "        return getattr(importlib.import_module(f'{__name__}.{module}'), attr)\n"
+        "    raise AttributeError(name)\n",
+        encoding="utf-8",
+    )
+    for name, module in names.items():
+        body = "raise ImportError('backing module is broken')\n" if name == broken else f"{name} = object()\n"
+        (pkg / f"{module}.py").write_text(body, encoding="utf-8")
+
+
+def test_lazy_release_with_broken_required_export_falls_back(isolated, tmp_path):
+    """Importing a lazy root succeeds even when a module behind a needed name is broken; choose() must still reject it."""
+    _fake_lazy_release(tmp_path, broken="score_extraction")
+    isolated.syspath_prepend(str(tmp_path))
+    isolated.setattr(dojo_source, "installed", lambda: {"version": PIN["version"], "commit": PIN["commit"]})
+    isolated.setattr(dojo_source, "_origin_mismatch", lambda: None)
+    choice = dojo_source.choose()
+    assert choice.source == "vendored"
+    assert "failed to import" in choice.reason and "backing module is broken" in choice.reason
+
+
+def test_lazy_release_with_all_required_exports_is_accepted(isolated, tmp_path):
+    """The same fake release with every backing module intact is kept as the installed Dojo."""
+    _fake_lazy_release(tmp_path, broken=None)
+    isolated.syspath_prepend(str(tmp_path))
+    isolated.setattr(dojo_source, "installed", lambda: {"version": PIN["version"], "commit": PIN["commit"]})
+    isolated.setattr(dojo_source, "_origin_mismatch", lambda: None)
+    assert dojo_source.choose().source == "installed"
+
+
+def test_required_root_names_cover_every_root_import():
+    """REQUIRED_ROOT_NAMES lists every name the sandbox takes from the llm_dojo_scoring package root."""
+    import ast
+
+    root = repo_root()
+    found: set[str] = set()
+    for folder in ("src", "scripts", "deploy", "api-evals", "tests"):
+        for path in (root / folder).rglob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom) and node.level == 0 and node.module == dojo_source.PACKAGE:
+                    found.update(alias.name for alias in node.names)
+                if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "_dojo":
+                    found.add(node.attr)
+    found.discard("*")
+    assert found, "scan found no root imports"
+    assert found <= set(dojo_source.REQUIRED_ROOT_NAMES), sorted(found - set(dojo_source.REQUIRED_ROOT_NAMES))
+
+
+def test_required_root_names_resolve_in_the_vendored_snapshot():
+    """Every required name is a lazy export of the vendored Dojo, so the list cannot drift from it."""
+    text = (vendored_dojo_src() / "llm_dojo_scoring" / "__init__.py").read_text(encoding="utf-8")
+    missing = [n for n in dojo_source.REQUIRED_ROOT_NAMES if f"'{n}':" not in text and f'"{n}":' not in text]
+    assert not missing, missing
