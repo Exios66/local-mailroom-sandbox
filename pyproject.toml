@@ -15,11 +15,14 @@ dependencies = [
     "structlog>=24.0",
     "pydantic>=2.0",
     "openai>=1.30",
-    # Vendored runtime surface (DMR-057/058): the TRACKED llm-dojo-scoring
-    # snapshot imports numpy/pandas/matplotlib/openpyxl eagerly (error_analysis,
-    # visualize, export) and the sandbox CLI imports llm_dojo_scoring at
-    # startup — a clean `pip install .` must land them or `sandbox` dies on
-    # ModuleNotFoundError. Keep in BASE deps, not [dev].
+    # Vendored runtime surface (DMR-057/058): the sandbox CLI imports llm_dojo_scoring
+    # at startup, so a clean `pip install .` must land the Dojo's core dependencies
+    # or `sandbox` dies on ModuleNotFoundError. The Dojo still declares numpy, pandas,
+    # matplotlib and openpyxl as core. Of those, only numpy is still imported (lazily,
+    # by scoring/field_scoring.py); pandas, matplotlib and openpyxl are no longer
+    # imported by any Dojo module (its export/visualize/error_analysis modules were
+    # removed). Sandbox code such as job/sand42_figures.py still imports matplotlib.
+    # Keep in BASE deps, not [dev].
     "numpy>=1.26",
     "pandas>=2.0",
     "matplotlib>=3.8",
