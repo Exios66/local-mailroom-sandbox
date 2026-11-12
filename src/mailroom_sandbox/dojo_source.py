@@ -30,7 +30,7 @@ MODES = ("auto", "installed", "vendored")
 # A Dojo with a lazy package root (PEP 562, ``_LAZY``) imports the defining module only on first
 # access, so ``import llm_dojo_scoring`` alone cannot show that these resolve; ``_import_ok``
 # resolves each one so a release with a broken backing module, or without one of these names,
-# falls back to the vendored snapshot.
+# falls back (to the selected release cache, checked the same way, then to the vendored snapshot).
 # ``tests/test_dojo_source.py`` checks that this covers every root import under src/, scripts/,
 # deploy/, api-evals/ and tests/.
 REQUIRED_ROOT_NAMES = (

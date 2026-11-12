@@ -5,7 +5,8 @@
 - **Dojo source selection checks lazy exports.** The trimmed Dojo root is lazy (PEP 562), so importing it no
   longer proves its scorers import. `dojo_source._import_ok` now resolves every name in the new
   `REQUIRED_ROOT_NAMES` (the root names the sandbox imports) when the installed Dojo has a lazy root; a broken
-  backing module or a missing name falls back to the vendored snapshot. Eager releases are unaffected.
+  backing module or a missing name falls back to the selected release cache when one is set (checked the same
+  way), then to the vendored snapshot. Eager releases are unaffected.
 - **Vendor refresh: Dojo pre-merge commit `4681148` (trimmed stack, version still 0.28.1); llm-mailroom unchanged at `19203ea`.**
   Staged on purpose ahead of the Dojo PRs, so this departs from the vendor-sync precondition that the
   change is merged in the owning repo; re-pin to the merge commit or the next release tag once they land.
