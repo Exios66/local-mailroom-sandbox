@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- **Vendor refresh: Dojo pre-merge commit `402317e` (trimmed stack, version still 0.28.1); llm-mailroom unchanged at `19203ea`.**
+- **Vendor refresh: Dojo pre-merge commit `4681148` (trimmed stack, version still 0.28.1); llm-mailroom unchanged at `19203ea`.**
   Staged on purpose ahead of the Dojo PRs, so this departs from the vendor-sync precondition that the
   change is merged in the owning repo; re-pin to the merge commit or the next release tag once they land.
   Refreshed with `sandbox fetch-deps` (SHA-verified; only `vendor/llm-dojo-scoring` changed).

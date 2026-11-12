@@ -2,14 +2,14 @@
 
 Authoritative source: https://github.com/Exios66/llm-dojo-scoring
 
-- Source ref: `402317e7aa7b91b09ce0ebd2b7b769c9e0d88025` (pre-merge commit, branch `claude/vibrant-sagan-fltg8i-cuad-category-counts`)
-- Exact source commit: `402317e7aa7b91b09ce0ebd2b7b769c9e0d88025`
+- Source ref: `46811485ce516392b3f72d3269ed9e43b7ca9ed8` (pre-merge commit, branch `claude/vibrant-sagan-fltg8i-cuad-category-counts`)
+- Exact source commit: `46811485ce516392b3f72d3269ed9e43b7ca9ed8`
 - Source package version: `0.28.1`
 - Snapshot layout: llm_dojo_scoring/ relocated under src/ with the same shared exclusions.
 - Snapshot of the reviewed commit tree (`git archive`), 2026-11-12 UTC.
   File contents, paths and executable modes come from the reviewed commit.
 
-Pin note: this snapshot is the pre-merge commit `402317e` at the top of the trimmed Dojo stack
+Pin note: this snapshot is the pre-merge commit `4681148` at the top of the trimmed Dojo stack
 (production slim-down, `doc_classes` registry, CUAD category counts, score fixes). The package version is
 still `0.28.1`. It is staged ahead of the Dojo PRs on purpose; re-pin to the merge commit or the next
 release tag once they land. Previous pin: release `v0.28.1` (`00a2a7f7b058`).

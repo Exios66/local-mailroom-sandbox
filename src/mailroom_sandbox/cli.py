@@ -1468,14 +1468,14 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
 # The fallback rejects moved refs before replacing any tracked vendor file.
 # llm-mailroom: main at the #179 merge (condensed sorter v5 in production, Dojo 0.28.1)
 # until the next llm-mailroom release tag is cut.
-# llm-dojo-scoring: reviewed pre-merge commit 402317e (version still 0.28.1) at the top of the
+# llm-dojo-scoring: reviewed pre-merge commit 4681148 (version still 0.28.1) at the top of the
 # trimmed Dojo stack (production slim-down #66, doc_classes registry, CUAD category counts); staged
 # on purpose, re-pin to the merge commit or the next release tag once the Dojo PRs land.
 _VENDOR_PINS: tuple[tuple[str, str, str, str | None], ...] = (
     ("llm-mailroom", "19203eac07f67c215f50af2fd498560ce195adae",
      "https://github.com/Exios66/llm-mailroom.git", "19203eac07f67c215f50af2fd498560ce195adae"),
-    ("llm-dojo-scoring", "402317e7aa7b91b09ce0ebd2b7b769c9e0d88025",
-     "https://github.com/Exios66/llm-dojo-scoring.git", "402317e7aa7b91b09ce0ebd2b7b769c9e0d88025"),
+    ("llm-dojo-scoring", "46811485ce516392b3f72d3269ed9e43b7ca9ed8",
+     "https://github.com/Exios66/llm-dojo-scoring.git", "46811485ce516392b3f72d3269ed9e43b7ca9ed8"),
 )
 
 
