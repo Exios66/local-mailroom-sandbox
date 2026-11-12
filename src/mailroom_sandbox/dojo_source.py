@@ -29,7 +29,8 @@ MODES = ("auto", "installed", "vendored")
 # Root names the sandbox imports as ``from llm_dojo_scoring import X`` (or reads as ``_dojo.X``).
 # A Dojo with a lazy package root (PEP 562, ``_LAZY``) imports the defining module only on first
 # access, so ``import llm_dojo_scoring`` alone cannot show that these resolve; ``_import_ok``
-# resolves each one so a release with a broken backing module falls back to the vendored snapshot.
+# resolves each one so a release with a broken backing module, or without one of these names,
+# falls back to the vendored snapshot.
 # ``tests/test_dojo_source.py`` checks that this covers every root import under src/, scripts/,
 # deploy/, api-evals/ and tests/.
 REQUIRED_ROOT_NAMES = (
@@ -174,9 +175,9 @@ def _import_ok() -> str | None:
         lazy = getattr(module, "_LAZY", None)
         if isinstance(lazy, dict):
             # Lazy root: import does not touch the backing modules, so resolve what we need now.
+            # A name the release no longer exports raises AttributeError here, which also falls back.
             for name in REQUIRED_ROOT_NAMES:
-                if name in lazy:
-                    getattr(module, name)
+                getattr(module, name)
         return None
     except Exception as exc:  # noqa: BLE001 - any failure means fall back
         _purge()
