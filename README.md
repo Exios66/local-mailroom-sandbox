@@ -9,7 +9,7 @@
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](pyproject.toml)
 [![Pipeline](https://img.shields.io/badge/pipeline-llm--mailroom_0.9.1_%40_19203ea-2563EB?style=for-the-badge)](vendor/llm-mailroom/VENDOR.md)
-[![Scoring](https://img.shields.io/badge/scoring-llm--dojo--scoring_0.28.1_%40_00a2a7f-8B5CF6?style=for-the-badge)](vendor/llm-dojo-scoring/VENDOR.md)
+[![Scoring](https://img.shields.io/badge/scoring-llm--dojo--scoring_0.28.1_%40_402317e-8B5CF6?style=for-the-badge)](vendor/llm-dojo-scoring/VENDOR.md)
 [![Tracing](https://img.shields.io/badge/tracing-Langfuse_v4-F5A623?style=for-the-badge)](docs/tracing.md)
 
 [![Hub](https://img.shields.io/badge/🏛️_hub-Digital--Mailroom-000?style=flat-square)](https://github.com/LLM-Mailroom-Services/Digital-Mailroom)
@@ -377,7 +377,7 @@ The exact snapshot commits are in
 | Vendored tree | Version | Source commit | What it includes |
 | --- | --- | --- | --- |
 | `vendor/llm-mailroom/` | 0.9.1 | `19203ea` (`main` after llm-mailroom #179) | v0.9.2 plus #173 (Dojo 0.28.0 pin), #177 (wheel imports, chunking), #178 (tokenless guard checks proto and host headers), #180 (pipeline handoff contracts, intake text cleaning), #181 (cascading CI tests) and #179 (the condensed sorter v5 as the production sorter, Dojo 0.28.1, a guard that refuses a managed sorter prompt missing the condensed rules) |
-| `vendor/llm-dojo-scoring/` | 0.28.1 | `00a2a7f` (tag `v0.28.1`) | v0.28.0 (mailroom-dataset v10 alignment: corporate schema v2, v10 row schemas) plus v0.28.1: the sorter guide files a bylaw amendment under `bylaws`, never `board_resolution` |
+| `vendor/llm-dojo-scoring/` | 0.28.1 | `402317e` (pre-merge commit of the trimmed Dojo stack, version still 0.28.1) | v0.28.1 plus the unreleased Dojo stack: production slim-down (13 modules removed: the `dojo-analyze`/`dojo-export`/`dojo-rescore`/`dojo-sync` CLIs, `analysis.{export,io,report,interpret,visualize,error_analysis,grid}`, the Langfuse/Phoenix sync modules, `scoring.rescore`, `sandbox_agent_scoring`, `sandbox_composite`), a lazy package root, the `doc_classes` registry, the extraction status re-pinned to dataset v9.3, and score fixes (money strings with currency words, unstated `cms_source_table`, clock-free date scoring). Re-pin to the merge commit or the next release tag once the Dojo PRs land |
 
 <!-- /coderabbit-ai-generated:v1 -->
 
@@ -535,7 +535,7 @@ The sandbox drives the vendored family code through these open-source projects.
 ### Reviewed dependency refreshes (DMR-111)
 
 The tracked snapshots contain pipeline 0.9.1 (`main` after llm-mailroom #179, `19203ea`) and
-Dojo 0.28.1 (`00a2a7f`), from the exact commits in their `VENDOR.md` files. `sandbox fetch-deps` remains optional: it
+Dojo 0.28.1 (`402317e`, a pre-merge commit), from the exact commits in their `VENDOR.md` files. `sandbox fetch-deps` remains optional: it
 uses workspace packages when available and retrieves the reviewed immutable
 commit or frozen release tag in standalone checkouts. Ref movement, fetch,
 layout and copy failures leave the previous snapshot intact. If installation

@@ -2,12 +2,17 @@
 
 Authoritative source: https://github.com/Exios66/llm-dojo-scoring
 
-- Source ref: `v0.28.1` (release tag)
-- Exact source commit: `00a2a7f7b058a4ade06b027c2afbd8b03bea6a5f`
+- Source ref: `402317e7aa7b91b09ce0ebd2b7b769c9e0d88025` (pre-merge commit, branch `claude/vibrant-sagan-fltg8i-cuad-category-counts`)
+- Exact source commit: `402317e7aa7b91b09ce0ebd2b7b769c9e0d88025`
 - Source package version: `0.28.1`
 - Snapshot layout: llm_dojo_scoring/ relocated under src/ with the same shared exclusions.
-- Snapshot of the reviewed commit tree (`git archive`), 2026-11-07 UTC.
+- Snapshot of the reviewed commit tree (`git archive`), 2026-11-12 UTC.
   File contents, paths and executable modes come from the reviewed commit.
+
+Pin note: this snapshot is the pre-merge commit `402317e` at the top of the trimmed Dojo stack
+(production slim-down, `doc_classes` registry, CUAD category counts, score fixes). The package version is
+still `0.28.1`. It is staged ahead of the Dojo PRs on purpose; re-pin to the merge commit or the next
+release tag once they land. Previous pin: release `v0.28.1` (`00a2a7f7b058`).
 
 Dojo release `v0.28.1`. v0.28.0 aligns with mailroom-dataset v10: corporate schema v2
 (new registered fields such as party roles, signatories, agreement and expiration dates,
