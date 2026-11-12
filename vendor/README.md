@@ -7,7 +7,7 @@ the sandbox prepends these trees to `sys.path` on import.**
 | Tree | Pin | Content |
 | --- | --- | --- |
 | `llm-mailroom/` | `af957b670810` (PR #179: the condensed sorter production flip, sorter_condensed_v5) | `src/` (minus tests) — `pipeline.*`, `graph.*`, `agents.*`, `llm.*`, `legalbench.*`, `observability.*`, `langchain_agents.*`, `scripts.*` |
-| `llm-dojo-scoring/` | `402317e7aa7b` (pre-merge commit of the trimmed Dojo stack, version 0.28.1; re-pin to the merge commit or the next tag once the Dojo PRs land) | `src/llm_dojo_scoring/` — scoring engine (`serving`, `experiment`, `extraction_metrics`, incl. the per-subclass `corporate_record_schema`) |
+| `llm-dojo-scoring/` | `46811485ce51` (pre-merge commit of the trimmed Dojo stack, version 0.28.1; re-pin to the merge commit or the next tag once the Dojo PRs land) | `src/llm_dojo_scoring/` — scoring engine (`serving`, `experiment`, `extraction_metrics`, incl. the per-subclass `corporate_record_schema`) |
 
 Provenance + refresh details live in each tree's `VENDOR.md`. `sandbox fetch-deps`
 re-snapshots both trees from their pinned refs (network, optional). The

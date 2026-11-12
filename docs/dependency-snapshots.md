@@ -20,7 +20,7 @@ sandbox deps fetch --component dojo --check --version v0.28.1
 Normal fetching resolves a stable, published GitHub release, never `main`.
 
 > **Staged pre-merge Dojo pin.** The vendored Dojo snapshot and `PINS["dojo"]` currently
-> point at commit `402317e` (the unmerged production slim-down stack), not at the
+> point at commit `4681148` (the unmerged production slim-down stack), not at the
 > `v0.28.1` tag. A `--version v0.28.1` fetch therefore resolves to `00a2a7f` and is not
 > selected as a pin-matching cache; the vendored snapshot stays the scoring source until
 > the pin moves to the Dojo merge commit or next release tag.
