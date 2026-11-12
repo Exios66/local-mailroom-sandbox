@@ -134,11 +134,12 @@ def test_policy_is_read_from_dotenv(isolated, tmp_path):
     assert dojo_source.choose().source == "installed"
 
 
-def _fake_lazy_release(root: Path, *, broken: str | None) -> None:
-    """A fake installed Dojo with a PEP 562 root; ``broken`` names the root name whose module raises."""
+def _fake_lazy_release(root: Path, *, broken: str | None, missing: str | None = None) -> None:
+    """A fake installed Dojo with a PEP 562 root; ``broken`` names the root name whose module raises,
+    ``missing`` a required name the release no longer exports at all."""
     pkg = root / "llm_dojo_scoring"
     pkg.mkdir(parents=True)
-    names = {name: f"mod_{name}" for name in dojo_source.REQUIRED_ROOT_NAMES}
+    names = {name: f"mod_{name}" for name in dojo_source.REQUIRED_ROOT_NAMES if name != missing}
     (pkg / "__init__.py").write_text(
         "import importlib\n"
         f"_LAZY = {{n: (m, n) for n, m in {names!r}.items()}}\n"
@@ -163,6 +164,17 @@ def test_lazy_release_with_broken_required_export_falls_back(isolated, tmp_path)
     choice = dojo_source.choose()
     assert choice.source == "vendored"
     assert "failed to import" in choice.reason and "backing module is broken" in choice.reason
+
+
+def test_lazy_release_missing_a_required_name_falls_back(isolated, tmp_path):
+    """A lazy release that dropped a name the sandbox imports is rejected, not accepted and broken at use time."""
+    _fake_lazy_release(tmp_path, broken=None, missing="score_extraction")
+    isolated.syspath_prepend(str(tmp_path))
+    isolated.setattr(dojo_source, "installed", lambda: {"version": PIN["version"], "commit": PIN["commit"]})
+    isolated.setattr(dojo_source, "_origin_mismatch", lambda: None)
+    choice = dojo_source.choose()
+    assert choice.source == "vendored"
+    assert "score_extraction" in choice.reason
 
 
 def test_lazy_release_with_all_required_exports_is_accepted(isolated, tmp_path):
