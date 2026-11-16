@@ -22,7 +22,7 @@ import gzip
 import json
 import zlib
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 _ARCHIVE_PREFIX = "SANDBOX-sandbox_pipeline_"
 
@@ -91,13 +91,23 @@ def _node_docs(run_dir: Path) -> set[str]:
     return {str(n.get("doc")) for n in _stream_jsonl(path, open) if isinstance(n, dict) and n.get("doc")}
 
 
-def _has_archive(path: Path) -> bool:
-    return path.is_dir() and any(child.is_dir() for child in path.iterdir())
+def _has_archive(path: Path, doc_class: str | None) -> bool:
+    """An archive dir holding the ``<class>`` subdirectory (any subdirectory when the class is unknown)."""
+    if not path.is_dir():
+        return False
+    if doc_class:
+        return (path / doc_class).is_dir()
+    return any(child.is_dir() for child in path.iterdir())
 
 
-def audit_trail(run_dir: Path, doc_ids: list[str], archived: set[str], *,
+def audit_trail(run_dir: Path, doc_ids: list[str], archived: set[str] | Mapping[str, str | None], *,
                 traces_dir: Path, archive_dir: Path) -> dict[str, Any]:
-    """Link every document of a run to its trace id, node log and (when archived) archive directory."""
+    """Link every document of a run to its trace id, ``job.item`` span, node log and archive directory.
+
+    ``archived`` names the archived documents; as a mapping it gives each one's archived class, and its
+    archive must then hold that ``<class>`` subdirectory.
+    """
+    classes = dict(archived) if isinstance(archived, Mapping) else {}
     run_dir = Path(run_dir)
     run_id = _run_id(run_dir)
     spans_path = Path(traces_dir) / f"{run_id}.spans.jsonl.gz"
@@ -114,8 +124,9 @@ def audit_trail(run_dir: Path, doc_ids: list[str], archived: set[str], *,
     archives: dict[str, str | None] = {}
     for doc_id in doc_ids:
         path = archive_path_for(run_id, doc_id, archive_dir)
-        archives[doc_id] = str(path) if _has_archive(path) else None
-    missing_spans = [d for d in doc_ids if d not in traces] if mirror else []
+        archives[doc_id] = str(path) if _has_archive(path, classes.get(doc_id)) else None
+    # A document is linked only through its own job.item span (a node span alone is not enough).
+    missing_spans = [d for d in doc_ids if d not in traces or d not in spans] if mirror else []
     missing_nodes = [d for d in doc_ids if d not in with_nodes]
     missing_archive = [d for d in doc_ids if d in archived and archives[d] is None]
     where = f"data/traces/{run_id}.spans.jsonl.gz"

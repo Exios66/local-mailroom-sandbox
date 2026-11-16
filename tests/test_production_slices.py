@@ -46,13 +46,14 @@ def _cache_path() -> Path | None:
     return path if path.is_file() else None
 
 
-def _draw(name: str, tmp_path: Path) -> list[dict]:
+def _draw(name: str, tmp_path: Path, exclude_file: Path | None = None) -> list[dict]:
     cache = _cache_path()
     if cache is None:
         pytest.skip("cached ground_truth_all.jsonl not present (set SANDBOX_DATASET_CACHE)")
-    ds = _load(name).dataset.model_copy(
-        update={"provider": "file", "local_path": str(cache), "interim_labels": False}
-    )
+    update = {"provider": "file", "local_path": str(cache), "interim_labels": False}
+    if exclude_file is not None:
+        update["exclude_ids_file"] = str(exclude_file)
+    ds = _load(name).dataset.model_copy(update=update)
     dest = tmp_path / f"{name}.jsonl"
     prepare_subset(ds, dest)
     with dest.open(encoding="utf-8") as fh:  # not splitlines(): doc_text may hold U+2028
@@ -74,6 +75,7 @@ def test_slices_validate_and_share_settings():
         assert spec.dataset.repo == r3.dataset.repo and spec.dataset.config == "ground_truth"
         assert spec.dataset.sample_seed == 3302
         assert spec.dataset.exclude_ids_file == "config/production/excluded-ids.txt"
+        assert spec.dataset.draw == "ranked"
         assert spec.prompt == r3.prompt
         assert spec.confidence == r3.confidence
         assert spec.reviewer == r3.reviewer
@@ -122,3 +124,14 @@ def test_modal_twins_differ_only_in_mode_and_id():
             doc.pop("run_id")
             doc["job"].pop("mode")
         assert base == twin
+
+
+def test_slices_survive_an_exclusion_list_update(tmp_path):
+    """Adding tuning ids that a slice did not draw leaves that slice and the nesting intact (review C1)."""
+    before = {size: {r["id"] for r in _draw(f"slice-{size}", tmp_path)} for size in SIZES}
+    full = {r["id"] for r in _draw("slice-full", tmp_path)}
+    new_tuning = sorted(full - before["0500"])[:60]
+    grown = tmp_path / "excluded-grown.txt"
+    grown.write_text(EXCLUDED.read_text(encoding="utf-8") + "\n".join(new_tuning) + "\n", encoding="utf-8")
+    after = {size: {r["id"] for r in _draw(f"slice-{size}", tmp_path, grown)} for size in SIZES}
+    assert after == before

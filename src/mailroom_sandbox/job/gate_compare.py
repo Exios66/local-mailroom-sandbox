@@ -10,6 +10,10 @@ documents (diagnostic: has the run's behaviour on the old documents moved). ``ne
 documents" is then not a fresh sample on top of the old one. The verdict is the new-documents gate
 verdict plus the reasons ``"slices do not nest"`` and ``"no new documents"``.
 
+``rerun(prev_dir, next_dir, bars)`` is the fix loop's paired check on the SAME slice: both runs gated on
+the same documents, failing when the re-run's wrong-archive rate, review rate, crashes or ``judge_error``
+rose. ``sandbox run gate --prev-run-id`` picks it when the two runs drew the same documents.
+
 ``threshold_evidence(run_dir, bars)`` replays, per gated class and pooled, the threshold-only decision
 "an archived document with ``extraction_confidence < t`` would have gone to the judge". It never calls
 a judge, so ``wrong_archives_caught_upper_bound`` assumes the judge rejects every wrong archive it
@@ -37,6 +41,11 @@ def _ids(run_dir: Path) -> list[str]:
     return [str(row.get("id")) for row in _jsonl(Path(run_dir) / "dataset.jsonl")]
 
 
+def same_documents(prev_dir: Path, next_dir: Path) -> bool:
+    """Whether two runs drew exactly the same documents (a re-run, not a step-up)."""
+    return set(_ids(Path(prev_dir))) == set(_ids(Path(next_dir)))
+
+
 def step_up(prev_dir: Path, next_dir: Path, bars: Bars, *, traces_dir: Path | None = None,
             archive_dir: Path | None = None, audit: bool = True) -> dict[str, Any]:
     """The step-up from ``prev_dir`` to ``next_dir``: gate on the new documents, paired report on the shared ones."""
@@ -54,6 +63,32 @@ def step_up(prev_dir: Path, next_dir: Path, bars: Bars, *, traces_dir: Path | No
         reasons.append("slices do not nest")
     return {"prev": prev_dir.name, "next": next_dir.name, "new_docs": new_docs, "nested": nested,
             "new_docs_gate": new_gate, "shared_paired": paired_report(prev_dir, next_dir),
+            "verdict": {"pass": not reasons, "reasons": reasons}}
+
+
+def rerun(prev_dir: Path, next_dir: Path, bars: Bars, *, traces_dir: Path | None = None,
+          archive_dir: Path | None = None, audit: bool = True) -> dict[str, Any]:
+    """A fix re-run of the same slice: paired on the same documents, kept only when it is not worse.
+
+    Both runs are gated on the shared documents. The re-run fails when it drew different documents,
+    or when its pooled wrong-archive rate, review rate, crash count or ``judge_error`` count is above
+    the earlier run's. The re-run's own gate verdict is separate and still applies.
+    """
+    prev_dir, next_dir = Path(prev_dir), Path(next_dir)
+    in_prev, in_next = set(_ids(prev_dir)), set(_ids(next_dir))
+    shared = sorted(in_prev & in_next)
+    kwargs = {"traces_dir": traces_dir, "archive_dir": archive_dir, "audit": audit, "only_ids": shared}
+    before = gate.gate_report(prev_dir, bars, **{**kwargs, "audit": False})["pooled"]
+    after = gate.gate_report(next_dir, bars, **kwargs)["pooled"]
+    reasons = [] if in_prev == in_next else ["re-run drew different documents"]
+    for key in ("wrong_archive_rate", "review_rate", "crashes", "judge_errors"):
+        old, new = before.get(key), after.get(key)
+        if isinstance(old, (int, float)) and isinstance(new, (int, float)) and new > old:
+            shown = f"{old:.3f} -> {new:.3f}" if isinstance(old, float) or isinstance(new, float) else f"{old} -> {new}"
+            reasons.append(f"{key} rose {shown}")
+    return {"prev": prev_dir.name, "next": next_dir.name, "same_documents": in_prev == in_next,
+            "shared_docs": len(shared), "prev_pooled": before, "next_pooled": after,
+            "shared_paired": paired_report(prev_dir, next_dir),
             "verdict": {"pass": not reasons, "reasons": reasons}}
 
 

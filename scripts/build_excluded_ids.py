@@ -16,10 +16,19 @@ Repeated ``--run`` values are collapsed (first occurrence wins).
 
 Regeneration and ``--check`` are LOCAL ONLY: the run datasets live in the
 gitignored ``data/runtime/runs`` directories of the sibling checkouts, so CI
-cannot run either. The committed list is regenerated with (``<sandbox
-checkout>`` and ``<rejudge-knob checkout>`` are the local checkout roots)::
+cannot run either. Two lists are committed (``<sandbox checkout>``, ``<rejudge-knob checkout>`` and
+``<slice-gate checkout>`` are the local checkout roots).
 
-    python3 scripts/build_excluded_ids.py --runs-dir <sandbox checkout>/data/runtime/runs --runs-dir <rejudge-knob checkout>/data/runtime/runs --run pipeline-qwen-flash-25 --run pipeline-qwen-flash-25-fit --run pipeline-qwen-flash-25-fit-r2 --run pipeline-qwen-flash-25-fit-r3 --run pipeline-qwen-flash-25-e1-contract-control --run pipeline-qwen-flash-25-e1-contract-chunk --run pipeline-qwen-flash-25-e2-corporate-control --run pipeline-qwen-flash-25-e2-corporate-judge --run pipeline-qwen-flash-25-e2-corporate-rejudge --run pipeline-qwen-flash-25-e3-mix-control --run pipeline-qwen-flash-25-e3-chunk-judge-all --out config/production/excluded-ids.txt
+``excluded-ids-ladder.txt`` is frozen. It holds the 11 ladder runs, and the correspondence v3 A/B
+arms exclude it, so their own draw never changes::
+
+    python3 scripts/build_excluded_ids.py --runs-dir <sandbox checkout>/data/runtime/runs --runs-dir <rejudge-knob checkout>/data/runtime/runs --runs-dir <slice-gate checkout>/data/runtime/runs --run pipeline-qwen-flash-25 --run pipeline-qwen-flash-25-fit --run pipeline-qwen-flash-25-fit-r2 --run pipeline-qwen-flash-25-fit-r3 --run pipeline-qwen-flash-25-e1-contract-control --run pipeline-qwen-flash-25-e1-contract-chunk --run pipeline-qwen-flash-25-e2-corporate-control --run pipeline-qwen-flash-25-e2-corporate-judge --run pipeline-qwen-flash-25-e2-corporate-rejudge --run pipeline-qwen-flash-25-e3-mix-control --run pipeline-qwen-flash-25-e3-chunk-judge-all --out config/production/excluded-ids-ladder.txt
+
+``excluded-ids.txt`` is the production slices' list. It holds the ladder runs plus every later tuning
+run, currently the v3 A/B, whose two arms share one draw. Append each new tuning run here before the
+next slice launches::
+
+    python3 scripts/build_excluded_ids.py --runs-dir <sandbox checkout>/data/runtime/runs --runs-dir <rejudge-knob checkout>/data/runtime/runs --runs-dir <slice-gate checkout>/data/runtime/runs --run pipeline-qwen-flash-25 --run pipeline-qwen-flash-25-fit --run pipeline-qwen-flash-25-fit-r2 --run pipeline-qwen-flash-25-fit-r3 --run pipeline-qwen-flash-25-e1-contract-control --run pipeline-qwen-flash-25-e1-contract-chunk --run pipeline-qwen-flash-25-e2-corporate-control --run pipeline-qwen-flash-25-e2-corporate-judge --run pipeline-qwen-flash-25-e2-corporate-rejudge --run pipeline-qwen-flash-25-e3-mix-control --run pipeline-qwen-flash-25-e3-chunk-judge-all --run specialist-condensed-v3-correspondence-qwen-v2arm --out config/production/excluded-ids.txt
 
 Append ``--check`` to the same command to verify the committed file.
 """

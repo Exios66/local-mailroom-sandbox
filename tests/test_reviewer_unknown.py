@@ -42,3 +42,27 @@ def test_reviewer_unknown_on_a_real_email_stays_a_classification_cause():
 def test_mechanism_still_beats_near_empty():
     d = review("ok", review_causes=["judge_error"])
     assert gate_causes.primary_cause(d, gate.doc_status(d, Bars())) == "mechanism:judge_error"
+
+
+def _archived(doc_text, doc_type="correspondence"):
+    row = {"id": "d2", "expected_doc_class": "correspondence", "doc_text": doc_text,
+           "expected_fields": json.dumps({"communication_type": "memo", "sender": "Ben Rogers"})}
+    body = {"stage": "archived", "doc_type": doc_type, "review_causes": [],
+            "extracted_data": {"communication_type": "email", "sender": "Someone Else"}}
+    item = {"item_id": "d2", "ok": True, "error": None, "prompt_tokens": 1, "completion_tokens": 1, "pred": body}
+    return {"row": row, "item": item, "nodes": []}
+
+
+def test_a_near_empty_wrong_archive_stays_a_pipeline_cause():
+    """A confidently wrong archive is a pipeline fault even on a short input (review I2)."""
+    d = _archived("Here is the revised BPA document")
+    status = gate.doc_status(d, Bars())
+    assert status["outcome"] == "wrong_archive"
+    assert gate_causes.primary_cause(d, status).startswith("extraction:")
+
+
+def test_a_near_empty_wrong_class_archive_stays_wrong_class():
+    d = _archived("Here is the revised BPA document", doc_type="contract")
+    status = gate.doc_status(d, Bars())
+    assert status["outcome"] == "wrong_archive"
+    assert gate_causes.primary_cause(d, status) == "classification:wrong_class"

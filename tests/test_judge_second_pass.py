@@ -76,4 +76,6 @@ def test_null_choices_response_is_a_transient_provider_error():
 
     with pytest.raises(Exception) as caught:
         _judge(create).judge_completeness(doc_type="contract", extracted={"document_name": "x"}, doc_text="text")
+    # Pin the failure to the reported bug: the null-choices TypeError, classed as transient once fixed.
+    assert isinstance(caught.value, TypeError) or "choices" in str(caught.value).lower()
     assert is_transient_error(caught.value)

@@ -104,6 +104,16 @@ def test_gate_cli_step_up_failure_fails_the_run(data):
     assert (run / "gate.md").read_text().startswith("FAIL")
 
 
+def test_gate_cli_same_slice_rerun_is_a_paired_check(data):
+    """Re-running the fixed slice and pairing it with the earlier run passes when not worse (review I1)."""
+    _run(data, "first", _ok("a", "b", "c"))
+    run = _run(data, "rerun", _ok("a", "b", "c"))
+    assert cli.main(["run", "gate", "--run-id", "rerun", "--prev-run-id", "first"]) == 0
+    report = json.loads((run / "gate.json").read_text())
+    assert "step_up" not in report and report["rerun"]["same_documents"] is True
+    assert "Re-run" in (run / "gate.md").read_text()
+
+
 def test_gate_cli_missing_run(data, capsys):
     assert cli.main(["run", "gate", "--run-id", "nope"]) == 1
     out = json.loads(capsys.readouterr().out)
@@ -145,3 +155,31 @@ def test_gate_cli_custom_bars(data, tmp_path):
     bars.write_text("wrong_archive_max: 0.5\n")
     assert cli.main(["run", "gate", "--run-id", "slice-k", "--bars", str(bars)]) == 0
     assert (run / "gate.json").is_file()
+
+
+def test_gate_cli_preflight_only_run_is_an_error_not_a_fail(data, capsys):
+    """A run that was preflighted but never started has no items: exit 1, not 100 crashes (review M2)."""
+    run = _run(data, "preflighted", _ok("a", "b"))
+    (run / "items.jsonl").unlink()
+    assert cli.main(["run", "gate", "--run-id", "preflighted"]) == 1
+    out = json.loads(capsys.readouterr().out)
+    assert out["status"] == "failed" and "never started" in out["detail"]
+    assert not (run / "gate.json").exists()
+
+
+def test_gate_cli_bad_bars_file_is_a_failed_status(data, tmp_path, capsys):
+    _run(data, "slice-bars", _ok("a"))
+    bad = tmp_path / "bars.yaml"
+    bad.write_text("quality: 0.9\nnot_a_bar: 1\n")
+    assert cli.main(["run", "gate", "--run-id", "slice-bars", "--bars", str(bad)]) == 1
+    out = json.loads(capsys.readouterr().out)
+    assert out["status"] == "failed" and "gate error" in out["detail"]
+
+
+def test_gate_cli_scorer_failure_is_a_failed_status(data, monkeypatch, capsys):
+    _run(data, "slice-score", _ok("a"))
+    def boom(row, pred):
+        raise RuntimeError("scorer exploded")
+    monkeypatch.setattr(gate, "_score", boom)
+    assert cli.main(["run", "gate", "--run-id", "slice-score"]) == 1
+    assert "scorer exploded" in json.loads(capsys.readouterr().out)["detail"]

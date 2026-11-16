@@ -892,7 +892,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--allow-non-hermes` | No | benchmark-check: skip Hermes profile requirement |
 | `--mock` | No |  |
 | `--local` | No |  |
-| `--prev-run-id` | No | previous (nested) slice run: adds the step-up verdict on the new documents only |
+| `--prev-run-id` | No | earlier run: the same documents get the paired re-run check (not worse), a nested smaller slice the step-up verdict on the new documents only |
 | `--bars` | No | bars YAML (default config/production/bars.yaml) |
 | `--thresholds` | No | add the offline judge-threshold evidence table (an upper bound) |
 

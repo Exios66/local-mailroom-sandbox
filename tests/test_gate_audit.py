@@ -218,6 +218,7 @@ def test_doc_statuses_carry_the_span_pointer(tmp_path):
     run = _checkout(tmp_path, DOCS, spans={"DOC-a"})
     docs = {d["id"]: d for d in gate.gate_report(run, Bars())["docs"]}
     assert docs["DOC-a"]["span_id"] == "item-trace0" and docs["DOC-b"]["span_id"] is None
+    assert docs["DOC-a"]["trace_id"] == "trace0" and docs["DOC-a"]["archive"].endswith(f"{RUN_ID}-DOC-a")
 
 
 def test_unaudited_report_has_no_span_pointer(tmp_path):
@@ -243,3 +244,25 @@ def test_corrupt_span_mirror_is_one_failing_reason(tmp_path):
     (tmp_path / "data" / "traces" / f"{RUN_ID}.spans.jsonl.gz").write_bytes(b"not a gzip file at all")
     reasons = gate.gate_report(run, Bars())["verdict"]["reasons"]
     assert f"span mirror unreadable at data/traces/{RUN_ID}.spans.jsonl.gz: BadGzipFile" in reasons
+
+
+def test_a_document_without_its_job_item_span_fails(tmp_path):
+    """Node spans alone do not link a document: its own ``job.item`` span is required (review I4)."""
+    run = _checkout(tmp_path, DOCS, spans="none")
+    (tmp_path / "data" / "traces").mkdir()
+    with gzip.open(tmp_path / "data" / "traces" / f"{RUN_ID}.spans.jsonl.gz", "wt") as fh:
+        fh.write(json.dumps(_span("DOC-a", "trace0", "job.item")) + "\n")
+        fh.write(json.dumps(_span("DOC-b", "trace1")) + "\n")  # node span only
+    audit = _audit(run, ["DOC-a", "DOC-b"], ["DOC-a", "DOC-b"])
+    assert audit["missing_spans"] == ["DOC-b"] and audit["ok"] is False
+    report = gate.gate_report(run, Bars())
+    assert "missing spans: 1" in report["verdict"]["reasons"]
+
+
+def test_archive_under_another_class_does_not_count(tmp_path):
+    """The archive must sit under the class the document was archived as (review M3)."""
+    run = _checkout(tmp_path, DOCS, archives={"DOC-a"})
+    (tmp_path / "data" / "archive" / f"SANDBOX-sandbox_pipeline_{RUN_ID}-DOC-b" / "contract").mkdir(parents=True)
+    report = gate.gate_report(run, Bars())
+    assert report["audit"]["missing_archive"] == ["DOC-b"]
+    assert "missing archive: 1" in report["verdict"]["reasons"]
