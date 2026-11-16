@@ -1,8 +1,10 @@
-# Routing/recall ladder step E1 (one variable vs r2): restore chunked contract extraction. r2 read each contract in one
-# whole-document call and lost CUAD recall (FN 18 -> 28). The judge/arbiter keep the full fitted window.
-# Success: contract quality >= 0.83 (baseline) with prompt tokens below baseline 774k.
-# Base: pipeline-qwen-flash-25-fit-r2 (same 25 documents, models, reviewer, caps).
-# Compare: sandbox run routing --run-id pipeline-qwen-flash-25-e1-contract-chunk; per-class numbers vs r2 (see docs/audits ladder).
+# Ladder E1 treatment. Contract recall: whole-document (control) vs 15,750-char chunked extraction (treatment).
+# Sample: 20 CUAD contracts, 2 from each of the 10 largest subtypes; about 3/4 of the pool is longer
+# than one chunk, so most documents exercise chunking. Tuning seed 1115.
+# Success: treatment CUAD quality >= control + 0.05 paired, missed clauses down, no false-positive blowup.
+# Model (held fixed across the ladder, so the only variable is the marked line): qwen/qwen3.7-flash on
+# OpenRouter for every agent node; decision reviewer openai/gpt-6-luna-decisions with the v2 cutoffs.
+# Plan: docs/audits/2026-11-15-contract-recall-routing-ladder.md. Base: pipeline-qwen-flash-25-fit-r2.
 schema: sandbox.run/v1
 run_id: pipeline-qwen-flash-25-e1-contract-chunk
 task: pipeline
@@ -19,13 +21,21 @@ dataset:
   revision: bc9eab280044befb51e19dda3071d290a8677f42
   strata:
     buckets:
-      - {doc_class: contract, count: 5}
-      - {doc_class: merger_agreement, count: 5}
-      - {doc_class: corporate_record, count: 5}
-      - {doc_class: correspondence, count: 5}
-      - {doc_class: insurance_claim, count: 5}
-  limit: 25
-  sample_seed: 42
+      - doc_class: contract
+        count: 20
+        sub_buckets:
+          - {subclass: "Supply", count: 2}
+          - {subclass: "License_Agreements", count: 2}
+          - {subclass: "Consulting Agreements", count: 2}
+          - {subclass: "IP", count: 2}
+          - {subclass: "Service", count: 2}
+          - {subclass: "Maintenance", count: 2}
+          - {subclass: "Distributor", count: 2}
+          - {subclass: "Strategic Alliance", count: 2}
+          - {subclass: "Sponsorship", count: 2}
+          - {subclass: "Development", count: 2}
+  limit: 20
+  sample_seed: 1115
   require_task_gt: true   # every document can be scored
 
 engine:
@@ -40,7 +50,7 @@ agent_routes:
 agent_knobs:
   sorter: {max_input_chars: 600000}
   intake: {max_input_chars: 600000}
-  contracts_specialist: {max_input_chars: 18000}   # E1: baseline contract window -> ~3 chunks
+  contracts_specialist: {max_input_chars: 18000}   # TREATMENT: 15,750-char windows, judge keeps full coverage
 
 confidence:
   by_class:
@@ -67,10 +77,10 @@ job:
   concurrency: 10
   cost_cap_usd: 0.50
   max_wall_seconds: 7200
-  api_cost_cap_usd: 1.25   # 2.5x the 10-doc smoke ceiling; priced at the dearest model tier
+  api_cost_cap_usd: 0.60   # ~2x the r2-derived estimate for this sample, dearest-tier pricing
 
 trace:
   sink: none          # no Docker: spans still mirror to data/traces/<run_id>.spans.jsonl.gz;
                       # compact afterwards with `sandbox traces pack` (zstd Parquet zip)
   environment: pilot
-  tags: [sandbox, pipeline, openrouter, qwen3.7-flash, decision-reviewer, n25, context-fit, routing-calibration, ladder-e1]
+  tags: [sandbox, pipeline, openrouter, qwen3.7-flash, decision-reviewer, n25, context-fit, routing-calibration, ladder-e1-contract-chunk]
