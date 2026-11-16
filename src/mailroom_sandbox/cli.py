@@ -1167,6 +1167,16 @@ def _run_parser(sub, shared):
     routing_p.add_argument("--quality-target", type=float, default=0.7,
                            help="score a skipped-judge document must reach (judge_band_high suggestions)")
     routing_p.set_defaults(handler=_cmd_run_routing)
+    gate_p = run_sub.add_parser(
+        "gate", parents=[common],
+        help="production slice gate of a finished run: bars verdict, cause buckets, audit trail; writes gate.json/gate.md (offline)",
+    )
+    gate_p.add_argument("--prev-run-id", default=None,
+                        help="previous (nested) slice run: adds the step-up verdict on the new documents only")
+    gate_p.add_argument("--bars", default=None, help="bars YAML (default config/production/bars.yaml)")
+    gate_p.add_argument("--thresholds", action="store_true",
+                        help="add the offline judge-threshold evidence table (an upper bound)")
+    gate_p.set_defaults(handler=_cmd_run_gate)
     resume = run_sub.add_parser("resume", parents=[common], help="continue an interrupted run from its checkpoint")
     resume.set_defaults(handler=_cmd_run_resume)
     cancel = run_sub.add_parser("cancel", parents=[common], help="request cancellation of a running job")
@@ -3681,6 +3691,45 @@ def _cmd_run_routing(args) -> int:
         return 1
     _print(audit(root, target=float(args.quality_target)))
     return 0
+
+
+def _cmd_run_gate(args) -> int:
+    """Gate a finished run against the production bars; write ``gate.json`` and ``gate.md`` in its run dir.
+
+    Offline: no inference, no spend. Exit 0 on PASS, 2 on FAIL, 1 when the run (or ``--prev-run-id``)
+    has no dataset to gate. With ``--prev-run-id`` the step-up verdict (new documents only) is folded
+    into the verdict, so a failing step-up fails the command.
+    """
+    from mailroom_sandbox.job import gate, gate_compare
+    from mailroom_sandbox.job.gate_render import render_markdown
+    from mailroom_sandbox.job.spec import run_dir
+
+    root = run_dir(_run_id_required(args))
+    prev_id = getattr(args, "prev_run_id", None)
+    prev = run_dir(prev_id) if prev_id else None
+    for label, path in (("run", root), ("previous run", prev)):
+        if path is not None and not (path / "dataset.jsonl").is_file():
+            _print({"status": "failed", "detail": f"no dataset.jsonl under {path} ({label})"})
+            return 1
+    bars = gate.load_bars(Path(args.bars) if getattr(args, "bars", None) else None)
+    report = gate.gate_report(root, bars)
+    if prev is not None:
+        step = gate_compare.step_up(prev, root, bars)
+        report["step_up"] = step
+        report["verdict"]["reasons"] += [f"step-up: {r}" for r in step["verdict"]["reasons"]
+                                         if r not in report["verdict"]["reasons"]]
+        report["verdict"]["pass"] = not report["verdict"]["reasons"]
+    if getattr(args, "thresholds", False):
+        report["thresholds"] = gate_compare.threshold_evidence(root, bars)
+    (root / "gate.json").write_text(json.dumps(report, indent=2, default=str) + "\n", encoding="utf-8")
+    markdown = render_markdown(report)
+    (root / "gate.md").write_text(markdown, encoding="utf-8")
+    if getattr(args, "json", False):
+        _print(report)
+    else:
+        print(markdown.splitlines()[0])
+        print(f"wrote {root / 'gate.json'} and {root / 'gate.md'}")
+    return 0 if report["verdict"]["pass"] else 2
 
 
 def _cmd_run_status(args) -> int:
