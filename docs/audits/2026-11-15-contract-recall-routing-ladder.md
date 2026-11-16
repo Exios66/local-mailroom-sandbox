@@ -43,6 +43,7 @@ ladder variable.
 |---|---|---|---|---|
 | E1 | `pipeline-qwen-flash-25-e1-contract-control` → `-e1-contract-chunk` | **20 contracts**, 2 from each of the 10 largest CUAD subtypes (Supply, License, Consulting, IP, Service, Maintenance, Distributor, Strategic Alliance, Sponsorship, Development); seed 1115. At 15,750 chars, 12/20 split into 2–13 chunks and 8 fit one window. | `contracts_specialist.max_input_chars: 18000`; judge/arbiter keep full coverage | paired contract quality ≥ control + 0.05; fewer missed clauses; false positives no more than +2 |
 | E2 | `-e2-corporate-control` → `-e2-corporate-judge` | **18 corporate records**, 2 from each of the 9 labelled subtypes (charter amendment, articles, officer certificate, indenture, subsidiary list, rights instrument, board resolution, bylaws, powers of attorney); seed 1115 | `corporate_record.judge_band_high: 1.01` (judge every extraction) | paired quality > control; judge rejects most extractions scoring < 0.5 |
+| E2r | `-e2-corporate-control` → `-e2-corporate-rejudge` | the E2 draw (same 18 ids; the control arm is shared with E2) | `corporate_record.judge_rejudge_retry: true` (llm-mailroom #241, opt-in; control states `false`) | fires on at least one retry; paired quality no worse than control; added judge calls counted |
 | E3 | `-e3-mix-control` → `-e3-chunk-judge-all` | **45 held-out documents**: 10 each of contract, corporate, correspondence, insurance and 5 mergers (untouched by the changes; 5 limits cost); seed 2026. No overlap with E1/E2 and 1 shared with r2. | E1 + E2 + `contract.judge_band_high: 1.01` (retries re-judged) | no class more than 0.03 below control; contract and corporate improve |
 
 Why these sizes: the r2 class samples (n = 5) cannot show a 0.05–0.07 change. A paired
@@ -54,7 +55,18 @@ Estimated API spend, from r2 per-document costs: E1 about $0.15 control + $0.30 
 E2 about $0.05 + $0.10; E3 about $0.70 per arm. Each config's `api_cost_cap_usd` is about 2× its
 estimate (E1 0.60, E2 0.40, E3 1.75).
 
-Run order: E1 and E2 are independent (different classes) and can run in either order.
+**E2r, the `judge_rejudge_retry` on/off pair.** The switch re-judges a retry whose earlier
+attempt was judged, whatever confidence the retry reports. It is paired with the control and
+not with `-e2-corporate-judge`, because there it cannot change routing: an extraction reaches
+the report only at confidence ≥ `low`, and with `judge_band_high: 1.01` every such extraction
+is already judged. On the control band (corporate `judge_band_high` 0.94), only a first pass
+between `low` (0.86) and 0.94 is judged, and r2's corporate first passes all reported ≥ 0.95,
+so the switch may fire rarely or never. A zero-fire result is itself the answer for this
+class; contracts, where #241 was observed, are the next place to test it. The run setting
+accepts only an unquoted `true`/`false`, because the vendored router reads it by truthiness.
+
+Run order: E1 and E2 are independent (different classes) and can run in either order. E2r
+reuses E2's control arm, so it costs one more arm (about $0.05).
 Run E3 only after both, and drop from it any treatment that lost its own step. Launch
 (human-only, paid), control first:
 
@@ -97,6 +109,7 @@ the first two with run-scoped thresholds.
 | r2 | pipeline-qwen-flash-25-fit-r2 | 0.76 | 0.44 | 0.13 | 0.77 | 0.24 | 2.72M | ≤0.49 |
 | E1 control / treatment | pipeline-qwen-flash-25-e1-contract-control / -chunk | 0.774 / 0.803 | n/a | n/a | n/a | n/a | 2.16M / 3.84M | ≈0.10 / ≈0.19 |
 | E2 control / treatment | — | n/a | | n/a | n/a | n/a | | |
+| E2r rejudge | — | n/a | | n/a | n/a | n/a | | |
 | E3 control / treatment | — | | | | | | | |
 
 ### E1 result (2026-11-16): recall up, precision down; not adopted as is

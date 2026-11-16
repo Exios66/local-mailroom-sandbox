@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+- **`judge_rejudge_retry` run setting** (#300): a run's `confidence` block (top level or
+  `by_class`) can switch llm-mailroom #241's opt-in re-judge of retried extractions. Only an
+  unquoted `true`/`false` is accepted, because the vendored router reads the value by
+  truthiness and a quoted `"false"` would turn it on. `sandbox run routing` reports the value.
+  New ladder arm `pipeline-qwen-flash-25-e2-corporate-rejudge` pairs with the E2 control;
+  the E2 control and judge arms now state `judge_rejudge_retry: false`, the vendored default.
 - **Vendor refresh** (2026-11-16): llm-mailroom `98c89b8` → `abb1ccf` (`v0.30.0` branch after
   llm-mailroom #252, package 0.9.3) and llm-dojo-scoring `542a1c3` → `13adc8e` (`v0.30.0` branch
   after llm-dojo-scoring #163, package 0.30.0), the upstream fixes for tracking issue #300.

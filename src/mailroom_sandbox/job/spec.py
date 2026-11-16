@@ -730,10 +730,13 @@ class ExtractionGateSpec(BaseModel):
 # Routing thresholds a run may override (vendored graph/routing.py reads them per class).
 _THRESHOLD_UNIT = ("high", "low", "judge_band_high")
 _THRESHOLD_COUNT = ("retry_max", "arbiter_retry_max", "judge_max_passes")
+# Switches. The vendored router reads them by truthiness, so the YAML string "false"
+# would turn one on: only real booleans are accepted.
+_THRESHOLD_FLAG = ("judge_rejudge_retry",)
 
 
 def _check_thresholds(where: str, block: dict[str, Any]) -> None:
-    unknown = set(block) - set(_THRESHOLD_UNIT) - set(_THRESHOLD_COUNT)
+    unknown = set(block) - set(_THRESHOLD_UNIT) - set(_THRESHOLD_COUNT) - set(_THRESHOLD_FLAG)
     if unknown:
         raise ValueError(f"{where}: unsupported thresholds {sorted(unknown)}")
     for key in _THRESHOLD_UNIT:
@@ -746,6 +749,9 @@ def _check_thresholds(where: str, block: dict[str, Any]) -> None:
     for key in _THRESHOLD_COUNT:
         if key in block and (isinstance(block[key], bool) or not isinstance(block[key], int) or block[key] < 0):
             raise ValueError(f"{where}.{key} must be a non-negative integer")
+    for key in _THRESHOLD_FLAG:
+        if key in block and not isinstance(block[key], bool):
+            raise ValueError(f"{where}.{key} must be true or false (unquoted)")
     if "low" in block and "high" in block and block["low"] > block["high"]:
         raise ValueError(f"{where}: low must not exceed high")
 
