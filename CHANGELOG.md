@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+- **Modal job host runs OpenRouter slices** (#308).
+  - `deploy/modal_job.py` ships `OPENROUTER_API_KEY` in the deploy Secret, never the image, when
+    the deploying shell has it. `run_job` drops it for a locked run that never calls OpenRouter
+    (`deploy_env.lock_uses_openrouter`) and restores it for a later OpenRouter input in the same
+    warm container. A run that does call OpenRouter fails before its first document if the worker
+    has no key.
+  - Preflight no longer refuses the `decisions` reviewer in modal mode; the `api` and `jev` guards
+    stay. A locked run's profile already sets `DEFAULT_PROVIDER` on the worker, so the image's
+    `vllm` default applies only before activation.
+  - The slice twins preflight offline with only the missing key as an error. Tests cover the
+    twins, the key scoping and a worker round trip.
+
 - **Frozen confidence includes the component routing overlay** (follow-up to #303). Preflight
   froze `effective_confidence` from the vendored taxonomy and the taxonomy overlay only, while a
   locked activation replaces the runtime block with it. The `config/components.yaml` routing

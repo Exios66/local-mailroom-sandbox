@@ -173,7 +173,8 @@ These would make the work a failure even if every gate passed:
   their strata counts, `run_id` and the caps.
 - **Modal job-host twins:** slices 0100, 0250 and 0500 each have a twin that changes only
   `run_id` and `job.mode: modal` (the full slice has none). The engine stays OpenRouter. They
-  are for the G5 job-host parity check and cannot launch until #308 lands.
+  are for the G5 job-host parity check. Since #308 the worker carries the OpenRouter key in
+  its deploy Secret and accepts the `decisions` reviewer.
 
 ### 2. Gate report (`sandbox run gate`)
 

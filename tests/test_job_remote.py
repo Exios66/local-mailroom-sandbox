@@ -29,7 +29,8 @@ def test_fire_persists_call_id(tmp_path, source_root, modal_fs):
 
 
 def test_is_alive_reflects_input_state(tmp_path, source_root, modal_fs):
-    store = prepared(tmp_path, source_root); remote.fire(store)
+    store = prepared(tmp_path, source_root)
+    remote.fire(store)
     assert remote.is_alive(store) is True
     modal_fs.calls['fc-0'] = 'SUCCESS'
     assert remote.is_alive(store) is False
@@ -186,3 +187,34 @@ def test_modal_job_refuses_done_while_mailroom_writers_run(tmp_path, source_root
     values=list(modal_fs.state.values())
     assert len(values)==1 and values[0]['state']=='failed'
     assert 'relations-scan' in values[0]['error']
+
+
+def test_modal_worker_drops_the_openrouter_key_for_a_run_without_openrouter(tmp_path, source_root, modal_fs, sdk, monkeypatch):
+    """#308: the deploy Secret reaches every input; a run that never calls OpenRouter loses it."""
+    import os
+
+    from mailroom_sandbox.job.deploy_env import lock_uses_openrouter
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "deploy-secret-value")
+    store = prepared(tmp_path, source_root)
+    remote.fire(store)
+    assert not lock_uses_openrouter(store.read_lock())
+    modal_fs.worker(modal_fs.spawned[-1])
+    assert "OPENROUTER_API_KEY" not in os.environ
+    values = list(modal_fs.state.values())
+    assert len(values) == 1 and values[0]["state"] == "done"
+
+
+def test_a_worker_without_the_key_publishes_an_openrouter_run_as_failed(tmp_path, source_root, modal_fs, sdk, monkeypatch):
+    """#314 review: the missing-key error is a terminal ``failed`` state, not a stalled checkpoint."""
+    from mailroom_sandbox.job import deploy_env
+
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.setattr(deploy_env, "_SECRET_OPENROUTER_KEY", {})
+    monkeypatch.setattr(deploy_env, "lock_uses_openrouter", lambda lock: True)
+    store = prepared(tmp_path, source_root)
+    remote.fire(store)
+    modal_fs.worker(modal_fs.spawned[-1])
+    values = list(modal_fs.state.values())
+    assert len(values) == 1 and values[0]["state"] == "failed"
+    assert "has no OPENROUTER_API_KEY" in values[0]["error"]
