@@ -452,11 +452,21 @@ def _run_whole_run(
         record.setdefault("run_id", store.run_id)
     items = store.load_items()
     ok_items = [item for item in items if item.get("ok")]
-    if items and all((item.get("score") or {}).get("parse_error") for item in ok_items):
-        # Live-or-loud: nothing usable came back, whether the rows errored or
-        # every answer was unparseable. The same doctrine as the per-item path.
+    engine_errors = [_engine_error(item) for item in ok_items]
+    if items and all((item.get("score") or {}).get("parse_error") or err
+                     for item, err in zip(ok_items, engine_errors)):
+        # Live-or-loud: nothing usable came back, whether the rows errored, every
+        # answer was unparseable, or the pipeline failed soft on every document
+        # (a missing key routes each one to review as ok). Same doctrine as the
+        # per-item path.
         failed = next((item for item in items if not item.get("ok")), items[0])
-        message = str(failed.get("error") or "every document's answer failed to parse")
+        engine_error = next((err for err in engine_errors if err), None)
+        if failed.get("error"):
+            message = str(failed["error"])
+        elif engine_error:
+            message = f"every document hit an engine error, e.g. {engine_error}"
+        else:
+            message = "every document's answer failed to parse"
         last_error = {"type": "item", "message": message[:512], "at": utc_now(),
                       "item_id": failed.get("item_id"), "retryable": False}
         store.write_checkpoint(state="failed", cursor=processed, total=processed, remote=None, last_error=last_error)
@@ -717,6 +727,32 @@ class _WholeRunSpans:
                 "node.ms": n.get("ms"),
                 "decisions": json.dumps(n.get("decisions")) if n.get("decisions") else None,
             })
+
+
+#: Pipeline ``error_message`` prefixes for an agent call that raised (vendored
+#: ``graph/build_graph.py``). Text-extraction failures are document problems and
+#: route to review as designed, so they are not listed.
+_ENGINE_ERROR_PREFIXES = ("classification error:", "re-classification error:", "transient provider error:")
+#: The matching ``escalation_reason`` prefixes, for items without ``error_message``.
+_ENGINE_ESCALATION_PREFIXES = ("classification failed (", "re-classification failed (")
+
+
+def _engine_error(item: dict[str, Any]) -> str | None:
+    """The engine exception a pipeline document failed soft on, or None.
+
+    The graph converts an agent exception into a review-routed result, so the
+    item is ``ok``. A run where every document did this never reached a model.
+    """
+    pred = item.get("pred")
+    if not isinstance(pred, dict):
+        return None
+    message = pred.get("error_message")
+    if isinstance(message, str) and message.startswith(_ENGINE_ERROR_PREFIXES):
+        return message[:300]
+    reason = pred.get("escalation_reason")
+    if isinstance(reason, str) and reason.startswith(_ENGINE_ESCALATION_PREFIXES):
+        return reason.split(";", 1)[0][:300]
+    return None
 
 
 def _persist_isolated_items(

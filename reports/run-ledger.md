@@ -44,3 +44,7 @@ Do not edit rows by hand. Parse with `mailroom_sandbox.job.ledger.rows()`.
 | 2026-11-16T00:15:16Z | JJB | start | pipeline-qwen-flash-25 | config/runs/pipeline-qwen-flash-25.yaml | 02b02353c834 | 25 | 1.25 | ✓ |
 | 2026-11-16T02:30:16Z | JJB | start | pipeline-qwen-flash-25-fit | config/runs/pipeline-qwen-flash-25-fit.yaml | a5182b187921 | 25 | 1.25 | ✓ |
 | 2026-11-16T02:38:28Z | JJB | start | pipeline-qwen-flash-25-fit-r2 | config/runs/pipeline-qwen-flash-25-fit-r2.yaml | a5182b187921 | 25 | 1.25 | ✓ |
+| 2026-11-16T03:39:15Z | JJB | start | pipeline-qwen-flash-25-e1-contract-control | config/runs/pipeline-qwen-flash-25-e1-contract-control.yaml | 71a3bf385a1c | 20 | 0.6 | ✓ |
+| 2026-11-16T03:39:35Z | JJB | start | pipeline-qwen-flash-25-e1-contract-chunk | config/runs/pipeline-qwen-flash-25-e1-contract-chunk.yaml | deeded0da47c | 20 | 0.6 | ✓ |
+| 2026-11-16T03:45:19Z | JJB | start | pipeline-qwen-flash-25-e1-contract-control | config/runs/pipeline-qwen-flash-25-e1-contract-control.yaml | 71a3bf385a1c | 20 | 0.6 | ✓ |
+| 2026-11-16T03:48:37Z | JJB | start | pipeline-qwen-flash-25-e1-contract-chunk | config/runs/pipeline-qwen-flash-25-e1-contract-chunk.yaml | deeded0da47c | 20 | 0.6 | ✓ |
