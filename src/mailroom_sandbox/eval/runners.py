@@ -6,7 +6,7 @@ import logging
 import os
 from contextlib import ExitStack
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 from unittest.mock import patch
 
 from mailroom_sandbox.datasets import (
@@ -37,6 +37,20 @@ except Exception as exc:  # pragma: no cover
     )
     ScoreRecord = None  # type: ignore
 
+
+
+def sandbox_matter_id(row: Mapping[str, Any], run_id: str | None) -> str:
+    """Catalog matter for one sandbox row, scoped to its run.
+
+    The catalog (``mailroom.db``) outlives runs, and the graph's conflict check
+    compares an extraction with every *archived* record of the same matter. A
+    row-only id made a rerun of the same dataset compare each document with the
+    previous run's copy of itself, so most documents took a Boss ruling instead
+    of the judge (pipeline-qwen-flash-25-fit: 14/25). Scoping to the run keeps
+    one run's archive out of another's routing.
+    """
+    scope = str(run_id or "adhoc")
+    return f"SANDBOX-{scope}-{row.get('id')}"
 
 def _estimated_gpu_usd(
     wall: float, *, gpu: str | None, replicas: int, gpu_fleet: list[tuple[str, int]] | None
@@ -233,7 +247,7 @@ def run_isolated_eval(
             with tracing.document_pipeline_trace(
                 seed=seed,
                 session_id=session,
-                input={"filename": row.get("filename") or row.get("id"), "matter_id": f"SANDBOX-{row.get('id')}"},
+                input={"filename": row.get("filename") or row.get("id"), "matter_id": sandbox_matter_id(row, experiment_name)},
                 metadata={"pipeline": "mailroom", "source": "sandbox-fixtures", "run_id": experiment_name, "attempt": 1},
                 tags=tracing.default_tags("source-fixtures", f"agent-{task}"),
             ):
@@ -1363,7 +1377,7 @@ def _run_pipeline_doc(
         with tracing.document_pipeline_trace(
             seed=str(row.get("id") or name),
             session_id=session_id or tracing.session_id_for("pipeline"),
-            input={"filename": name, "matter_id": f"SANDBOX-{row.get('id')}", **public_gt},
+            input={"filename": name, "matter_id": sandbox_matter_id(row, run_id or experiment_name), **public_gt},
             metadata={"pipeline": "mailroom", "source": "sandbox-fixtures", "run_id": experiment_name, "attempt": 1},
             tags=tracing.default_tags("source-fixtures"),
         ):
@@ -1375,7 +1389,7 @@ def _run_pipeline_doc(
     inbox = inbox_dir()
     inbox.mkdir(parents=True, exist_ok=True)
     queued = _materialize_row(row, inbox)
-    matter_id = f"SANDBOX-{row.get('id')}"
+    matter_id = sandbox_matter_id(row, run_id or experiment_name)
     # Mailroom strips expected_fields before the trace; keep it for in-graph scoring.
     gt = {**public_gt, "expected_doc_class": str(row.get("expected_doc_class") or "")}
     fields = parse_expected_fields(row)
