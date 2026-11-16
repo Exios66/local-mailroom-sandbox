@@ -8,8 +8,8 @@
 <br/>
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](pyproject.toml)
-[![Pipeline](https://img.shields.io/badge/pipeline-llm--mailroom_0.9.3_%40_98c89b8-2563EB?style=for-the-badge)](vendor/llm-mailroom/VENDOR.md)
-[![Scoring](https://img.shields.io/badge/scoring-llm--dojo--scoring_0.30.0_%40_542a1c3-8B5CF6?style=for-the-badge)](vendor/llm-dojo-scoring/VENDOR.md)
+[![Pipeline](https://img.shields.io/badge/pipeline-llm--mailroom_0.9.3_%40_abb1ccf-2563EB?style=for-the-badge)](vendor/llm-mailroom/VENDOR.md)
+[![Scoring](https://img.shields.io/badge/scoring-llm--dojo--scoring_0.30.0_%40_13adc8e-8B5CF6?style=for-the-badge)](vendor/llm-dojo-scoring/VENDOR.md)
 [![Tracing](https://img.shields.io/badge/tracing-Langfuse_v4-F5A623?style=for-the-badge)](docs/tracing.md)
 
 [![Hub](https://img.shields.io/badge/🏛️_hub-Digital--Mailroom-000?style=flat-square)](https://github.com/LLM-Mailroom-Services/Digital-Mailroom)
@@ -376,13 +376,13 @@ The exact snapshot commits are in
 
 | Vendored tree | Version | Source commit | What it includes |
 | --- | --- | --- | --- |
-| `vendor/llm-mailroom/` | 0.9.3 | `98c89b8` (`v0.30.0` branch after llm-mailroom #237; pre-release) | `main` `5bcfe44` plus #230/#237 (Dojo 0.30.0 re-pin, content-pinned frozen v1 prompts), #231 (grounded runs score dataset labels only, corporate `record_type` gold), #234 (unified audit storage) and #236 (audit workbench, fail-closed verification) |
-| `vendor/llm-dojo-scoring/` | 0.30.0 | `542a1c3` (`v0.30.0` branch after llm-dojo-scoring #158; untagged) | 0.30.0: production slim-down (analysis/export/grid/visualize, `dojo-*` CLIs, sync integrations and `rescore` removed), one document-class registry, decision-lane scorecards; score changes for merger MAUD, field-micro, money and insurance `carrier` |
+| `vendor/llm-mailroom/` | 0.9.3 | `abb1ccf` (`v0.30.0` branch after llm-mailroom #252; pre-release) | `main` `5bcfe44` plus #230/#237 (Dojo 0.30.0 re-pin, content-pinned frozen v1 prompts), #231 (grounded runs score dataset labels only, corporate `record_type` gold), #234 (unified audit storage), #236 (audit workbench, fail-closed verification) and #252 (fixes #241–#251: opt-in `judge_rejudge_retry`, judge metadata keys dropped, budget-safe `sliding_windows`, `chunk_failed` parking, safe sweep resume) |
+| `vendor/llm-dojo-scoring/` | 0.30.0 | `13adc8e` (`v0.30.0` branch after llm-dojo-scoring #163; untagged) | 0.30.0: production slim-down (analysis/export/grid/visualize, `dojo-*` CLIs, sync integrations and `rescore` removed), one document-class registry, decision-lane scorecards; score changes for merger MAUD, field-micro, money and insurance `carrier`; #163 fixes month-first dates, retired-class archive scoring, Wilson rounding, decision-lane gold, MAUD calibration and off-vocabulary considerations |
 
 <!-- /coderabbit-ai-generated:v1 -->
 
-The Dojo pin is a release tag. The llm-mailroom pin is a reviewed `main` commit, and it moves
-back to a tag when the next llm-mailroom release is cut.
+Both pins are reviewed, untagged commits on each repository's `v0.30.0` release branch
+(llm-mailroom `abb1ccf`, Dojo `13adc8e`). Each moves back to a release tag once one is cut.
 
 With no API token, the guard serves token-protected routes only on a loopback listener and
 answers 503 to requests carrying `Forwarded`, `X-Forwarded-For` or `X-Real-IP`. `/health` and
@@ -534,8 +534,8 @@ The sandbox drives the vendored family code through these open-source projects.
 
 ### Reviewed dependency refreshes (DMR-111)
 
-The tracked snapshots contain pipeline 0.9.3 (the `v0.30.0` branch after llm-mailroom #237, `98c89b8`) and
-Dojo 0.30.0 (the `v0.30.0` branch after llm-dojo-scoring #158, `542a1c3`), from the exact commits in their `VENDOR.md` files. `sandbox fetch-deps` remains optional: it
+The tracked snapshots contain pipeline 0.9.3 (the `v0.30.0` branch after llm-mailroom #252, `abb1ccf`) and
+Dojo 0.30.0 (the `v0.30.0` branch after llm-dojo-scoring #163, `13adc8e`), from the exact commits in their `VENDOR.md` files. `sandbox fetch-deps` remains optional: it
 uses workspace packages when available and retrieves the reviewed immutable
 commit or frozen release tag in standalone checkouts. Ref movement, fetch,
 layout and copy failures leave the previous snapshot intact. If installation

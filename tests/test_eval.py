@@ -307,9 +307,9 @@ def test_dojo_pin_matches_current_vendored_snapshot():
 
     pins = {name: (ref, sha) for name, ref, _url, sha in cli_mod._VENDOR_PINS}
     assert pins["llm-dojo-scoring"] == (
-        "542a1c3e61cdb29a0e31b4ae1a2c2d8d42aff8e2",
-        "542a1c3e61cdb29a0e31b4ae1a2c2d8d42aff8e2",
-    ), "dojo must consume the v0.30.0 branch at 542a1c3 (slimmed engine; package version 0.30.0)"
+        "13adc8ec722f0d635466062b6dda181958d4d5f8",
+        "13adc8ec722f0d635466062b6dda181958d4d5f8",
+    ), "dojo must consume the v0.30.0 branch at 13adc8e (after #163; package version 0.30.0)"
     assert pins["llm-dojo-scoring"][1] in vendor_md
     # The snapshot's own version, read from its tree: DOJO_SRC may put a different
     # checkout first on sys.path, and that override is supported (source "env").

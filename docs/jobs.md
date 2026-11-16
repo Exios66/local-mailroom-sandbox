@@ -127,9 +127,13 @@ confidence:                 # optional run-scoped routing thresholds, merged ove
                             # confidence scales differ by model. Evidence comes
                             # from `sandbox run routing`.
   arbiter_retry_max: 1      # global keys: high, low, judge_band_high (<= 1.01),
-  judge_max_passes: 2       #   retry_max, arbiter_retry_max, judge_max_passes
+  judge_max_passes: 2       #   retry_max, arbiter_retry_max, judge_max_passes,
+                            #   judge_rejudge_retry (true/false only)
+  judge_rejudge_retry: false  # llm-mailroom #241, ships false: true re-judges a retry
+                            # whose earlier attempt was judged, while judge passes remain
   by_class:
     contract: {high: 0.95}  # live doc classes only; unknown classes fail preflight
+    corporate_record: {judge_rejudge_retry: true}   # per-class override (E2 treatment arm)
 
 trace:
   sink: langfuse            # langfuse | phoenix | otlp | none
