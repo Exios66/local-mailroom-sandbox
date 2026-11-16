@@ -95,11 +95,12 @@ def load_yaml(path: Path) -> dict:
         raise FileNotFoundError(f"Missing YAML: {path}")
     raw = path.read_bytes()
     key = hashlib.blake2b(raw, digest_size=20).digest()
-    if key not in _YAML_CACHE:
+    data = _YAML_CACHE.get(key)
+    if data is None:  # one lookup: a concurrent clear() can't KeyError here
+        data = yaml.safe_load(raw.decode("utf-8")) or {}
         if len(_YAML_CACHE) >= _YAML_CACHE_MAX:
             _YAML_CACHE.clear()
-        _YAML_CACHE[key] = yaml.safe_load(raw.decode("utf-8")) or {}
-    data = _YAML_CACHE[key]
+        _YAML_CACHE[key] = data
     if not isinstance(data, dict):
         raise ValueError(f"Expected mapping in {path}")
     return deepcopy(data)

@@ -137,3 +137,6 @@ reports/run-ledger.md.tmp
 
 # Claude Code local overrides
 .claude/settings.local.json
+
+# CircleCI venv cache key input (written by the venv command)
+.ci-python-version

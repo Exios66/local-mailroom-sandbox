@@ -69,7 +69,7 @@ finish. Changing worker count does not change test selection or waive gates.
 | Cache key | Contents and invalidation |
 | --- | --- |
 | `pip-lint-v2` | Lint lane's `~/.cache/pip`, restored and saved. Bump manually when changing the lint tool set. Ruff/YAMLlint/Bandit/`shellcheck-py` installs are unpinned. |
-| `venv-v1-{{ arch }}-{{ checksum "pyproject.toml" }}` | The installed dev virtualenv at `~/venv`, shared by `test` and `coverage`. A hit skips `pip install` entirely; a dependency change in `pyproject.toml` builds a new one. The editable install is a plain `.pth` to this checkout's `src/`, so new modules need no reinstall. |
+| `venv-v1-{{ arch }}-{{ checksum ".ci-python-version" }}-{{ checksum "pyproject.toml" }}` | The installed dev virtualenv at `~/venv`, shared by `test` and `coverage`, keyed on the exact interpreter version (the image tag floats) and `pyproject.toml`. A hit skips `pip install` entirely (a venv that cannot import the package is rebuilt); a dependency change in `pyproject.toml` builds a new one. The editable install is a plain `.pth` to this checkout's `src/`, so new modules need no reinstall. |
 | `npm-v1` | `~/.npm` for Markdownlint CLI2 0.18.1; bump for a deliberate tool/cache refresh. |
 
 The lint lane caches downloads and still installs its tools; ShellCheck comes
