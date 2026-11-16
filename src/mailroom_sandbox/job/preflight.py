@@ -1087,6 +1087,11 @@ def _preflight(
     # claims the run was configured with — and the contracts whole-document change is
     # exactly such an edit.
     lock["agent_knobs"] = deepcopy(run_knobs)
+    # Freeze the resolved confidence block (vendored taxonomy, overlay, then the run's own
+    # overrides) so the routing audit reports the thresholds this run used; a later overlay
+    # edit must not rewrite a finished run's settings.
+    from mailroom_sandbox.job.routing_audit import effective_thresholds
+    lock["effective_confidence"] = effective_thresholds(spec.confidence)
     # Freeze the resolved table for model-only runs too: otherwise runtime.activate()
     # rebuilds the remaining agents from the live profile/taxonomy, so a later
     # judge_model edit silently changes a resumed run without changing its lock.

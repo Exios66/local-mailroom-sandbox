@@ -55,7 +55,14 @@ def without_fields(row: Mapping[str, Any], drop: Iterable[str]) -> dict[str, Any
 
 
 def load_arm(run_dir: Path) -> dict[str, dict[str, Any]]:
-    """``{doc_id: {"row", "item", "nodes"}}`` for one run directory."""
+    """``{doc_id: {"row", "item", "nodes"}}`` for one run directory.
+
+    ``dataset.jsonl`` and ``items.jsonl`` are required: a misspelled run id raises
+    ``FileNotFoundError`` instead of yielding an empty report. ``nodes.jsonl`` is optional telemetry.
+    """
+    for required in ("dataset.jsonl", "items.jsonl"):
+        if not (run_dir / required).is_file():
+            raise FileNotFoundError(f"{run_dir}: missing {required}")
     rows = {str(r.get("id")): r for r in _jsonl(run_dir / "dataset.jsonl")}
     items = {str(r.get("item_id")): r for r in _jsonl(run_dir / "items.jsonl")}
     nodes: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -106,14 +113,19 @@ def paired_report(control_dir: Path, treatment_dir: Path,
                   templated: Mapping[str, tuple[str, ...]] = TEMPLATED_FIELDS) -> dict[str, Any]:
     """Per-class paired summary over the documents both arms finished."""
     control, treatment = load_arm(control_dir), load_arm(treatment_dir)
-    shared = sorted(set(control) & set(treatment))
+    common = sorted(set(control) & set(treatment))
+    # A document whose locked labels differ between the arms (for example interim labels in one
+    # arm only) would show the label change as a pipeline difference, so it is not paired.
+    label_mismatch = [d for d in common if _fields(control[d]["row"]) != _fields(treatment[d]["row"])]
+    shared = [d for d in common if d not in set(label_mismatch)]
     by_class: dict[str, list[str]] = defaultdict(list)
     for doc in shared:
         by_class[str(control[doc]["row"].get("expected_doc_class"))].append(doc)
     out: dict[str, Any] = {"control": control_dir.name, "treatment": treatment_dir.name,
                            "shared_docs": len(shared),
                            "only_control": sorted(set(control) - set(treatment)),
-                           "only_treatment": sorted(set(treatment) - set(control)), "classes": {}}
+                           "only_treatment": sorted(set(treatment) - set(control)),
+                           "label_mismatch": label_mismatch, "classes": {}}
     for cls, docs in sorted(by_class.items()):
         drop = templated.get(cls, ())
         lanes: dict[str, dict[str, list[float]]] = {"all_fields": {"c": [], "t": []}}
@@ -172,4 +184,6 @@ def render_markdown(report: Mapping[str, Any]) -> str:
         lines.append(f"\n{cls} judge verdicts: control {s['control_verdicts'] or {}}, treatment {s['treatment_verdicts'] or {}}")
     if report["only_control"] or report["only_treatment"]:
         lines.append(f"\nUnpaired: control only {report['only_control']}, treatment only {report['only_treatment']}")
+    if report.get("label_mismatch"):
+        lines.append(f"\nExcluded, labels differ between the arms: {report['label_mismatch']}")
     return "\n".join(lines)
