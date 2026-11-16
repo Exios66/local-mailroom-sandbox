@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from mailroom_sandbox.overlay import (
     build_merged_taxonomy,
     deep_merge,
@@ -239,3 +241,22 @@ def test_patched_config_path_does_not_become_the_next_base(tmp_path):
         assert "Qwen/Qwen3-8B-AWQ" not in mapping.values()
     finally:
         cfg.CONFIG_PATH = original
+
+
+def test_load_yaml_cache_returns_isolated_copies_and_reparses_edits(tmp_path):
+    from mailroom_sandbox import overlay
+
+    path = tmp_path / "t.yaml"
+    path.write_text("a: {b: 1}\n", encoding="utf-8")
+    first = overlay.load_yaml(path)
+    first["a"]["b"] = 99
+    assert overlay.load_yaml(path) == {"a": {"b": 1}}  # mutation never leaks into the cache
+
+    path.write_text("a: {b: 2}\n", encoding="utf-8")
+    assert overlay.load_yaml(path) == {"a": {"b": 2}}  # keyed on content, so edits re-parse
+
+    path.write_text("- 1\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="Expected mapping"):
+        overlay.load_yaml(path)
+    with pytest.raises(FileNotFoundError):
+        overlay.load_yaml(tmp_path / "missing.yaml")
