@@ -4,4 +4,4 @@
 
 -r base.txt
 
-pydantic-ai-slim[typesafe]==2.66.0
+pydantic-ai-slim[typesafe]==2.68.0
