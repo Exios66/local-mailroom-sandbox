@@ -8,8 +8,8 @@
 <br/>
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](pyproject.toml)
-[![Pipeline](https://img.shields.io/badge/pipeline-llm--mailroom_0.9.3_%40_5bcfe44-2563EB?style=for-the-badge)](vendor/llm-mailroom/VENDOR.md)
-[![Scoring](https://img.shields.io/badge/scoring-llm--dojo--scoring_0.28.1_%40_f95c318-8B5CF6?style=for-the-badge)](vendor/llm-dojo-scoring/VENDOR.md)
+[![Pipeline](https://img.shields.io/badge/pipeline-llm--mailroom_0.9.3_%40_98c89b8-2563EB?style=for-the-badge)](vendor/llm-mailroom/VENDOR.md)
+[![Scoring](https://img.shields.io/badge/scoring-llm--dojo--scoring_0.30.0_%40_542a1c3-8B5CF6?style=for-the-badge)](vendor/llm-dojo-scoring/VENDOR.md)
 [![Tracing](https://img.shields.io/badge/tracing-Langfuse_v4-F5A623?style=for-the-badge)](docs/tracing.md)
 
 [![Hub](https://img.shields.io/badge/🏛️_hub-Digital--Mailroom-000?style=flat-square)](https://github.com/LLM-Mailroom-Services/Digital-Mailroom)
@@ -376,8 +376,8 @@ The exact snapshot commits are in
 
 | Vendored tree | Version | Source commit | What it includes |
 | --- | --- | --- | --- |
-| `vendor/llm-mailroom/` | 0.9.3 | `5bcfe44` (`main` after llm-mailroom #223) | v0.9.3 plus #208/#210-#214 (pipeline diagnostics workbench), #215 (live manifest smoke), #202 (audit fixes #191-#201), #224 (Dojo f95c318 pin) and #223 (tiered test plans); chunk-loss routing and MIN merged chunk confidence |
-| `vendor/llm-dojo-scoring/` | 0.28.1 | `f95c318` (tag `v0.29.0`) | v0.29.0: date scoring hardening (yearless cap, unverified-year and weekday rules, two-digit year pivot); the tag keeps package version 0.28.1 |
+| `vendor/llm-mailroom/` | 0.9.3 | `98c89b8` (`v0.30.0` branch after llm-mailroom #237; pre-release) | `main` `5bcfe44` plus #230/#237 (Dojo 0.30.0 re-pin, content-pinned frozen v1 prompts), #231 (grounded runs score dataset labels only, corporate `record_type` gold), #234 (unified audit storage) and #236 (audit workbench, fail-closed verification) |
+| `vendor/llm-dojo-scoring/` | 0.30.0 | `542a1c3` (`v0.30.0` branch after llm-dojo-scoring #158; untagged) | 0.30.0: production slim-down (analysis/export/grid/visualize, `dojo-*` CLIs, sync integrations and `rescore` removed), one document-class registry, decision-lane scorecards; score changes for merger MAUD, field-micro, money and insurance `carrier` |
 
 <!-- /coderabbit-ai-generated:v1 -->
 
@@ -534,8 +534,8 @@ The sandbox drives the vendored family code through these open-source projects.
 
 ### Reviewed dependency refreshes (DMR-111)
 
-The tracked snapshots contain pipeline 0.9.3 (`main` after llm-mailroom #223, `5bcfe44`) and
-Dojo 0.28.1 at tag v0.29.0 (`f95c318`), from the exact commits in their `VENDOR.md` files. `sandbox fetch-deps` remains optional: it
+The tracked snapshots contain pipeline 0.9.3 (the `v0.30.0` branch after llm-mailroom #237, `98c89b8`) and
+Dojo 0.30.0 (the `v0.30.0` branch after llm-dojo-scoring #158, `542a1c3`), from the exact commits in their `VENDOR.md` files. `sandbox fetch-deps` remains optional: it
 uses workspace packages when available and retrieves the reviewed immutable
 commit or frozen release tag in standalone checkouts. Ref movement, fetch,
 layout and copy failures leave the previous snapshot intact. If installation

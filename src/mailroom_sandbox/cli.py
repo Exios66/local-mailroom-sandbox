@@ -1477,10 +1477,10 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
 # chunk confidence, Dojo f95c318) until the next llm-mailroom release tag is cut.
 # llm-dojo-scoring: release tag v0.29.0 (f95c318: date scoring hardening).
 _VENDOR_PINS: tuple[tuple[str, str, str, str | None], ...] = (
-    ("llm-mailroom", "5bcfe44584e468d8fc9d5d30e28abd5cc52cadfc",
-     "https://github.com/Exios66/llm-mailroom.git", "5bcfe44584e468d8fc9d5d30e28abd5cc52cadfc"),
-    ("llm-dojo-scoring", "v0.29.0",
-     "https://github.com/Exios66/llm-dojo-scoring.git", "f95c3188a1a634a9a2354afd5351edd8dd152a89"),
+    ("llm-mailroom", "98c89b80aa8f1d7e7ce4663087735486c970ef14",
+     "https://github.com/Exios66/llm-mailroom.git", "98c89b80aa8f1d7e7ce4663087735486c970ef14"),
+    ("llm-dojo-scoring", "542a1c3e61cdb29a0e31b4ae1a2c2d8d42aff8e2",
+     "https://github.com/Exios66/llm-dojo-scoring.git", "542a1c3e61cdb29a0e31b4ae1a2c2d8d42aff8e2"),
 )
 
 
