@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+- **Faster CI** (2026-11-16): the `test` job now runs on 4 parallel containers, with test files
+  split by recorded timings and two `--dist loadfile` xdist workers each. A new `coverage` job
+  combines every container's data and enforces the unchanged 84% floor on the total. The dev
+  virtualenv is cached on `pyproject.toml`, and lint installs ShellCheck from `shellcheck-py`
+  instead of apt. `overlay.load_yaml` caches parsed YAML by content digest (callers get a deep
+  copy), and `agent_routes.describe()` resolves the known agents once; together they cut the
+  local suite from about 340 s to about 100 s. Branch protection should add
+  `ci/circleci: coverage` as a required check.
+
 - **`judge_rejudge_retry` run knob** (2026-11-16): a run spec's `confidence` block (global or
   `by_class`) now accepts llm-mailroom #241's `judge_rejudge_retry`, so E2 can run its on and
   off arms without editing the overlay. Only `true`/`false` are accepted: upstream reads the

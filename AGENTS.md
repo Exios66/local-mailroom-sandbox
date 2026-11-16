@@ -294,8 +294,8 @@ and serial/parallel benchmarks belong in CI; do not repeat them locally just
 to duplicate a hosted check. For a CI failure, inspect its logs and artifacts
 first, then run a bounded local reproduction only when needed.
 
-CircleCI currently runs lint and the full pytest/coverage lane, plus reports-hub
-snapshot and requirements checks. There are no dedicated full-corpus campaign
+CircleCI currently runs lint, the full pytest suite (4 parallel containers) and a
+combined coverage gate, plus reports-hub snapshot and requirements checks. There are no dedicated full-corpus campaign
 or serial/parallel benchmark jobs. When such verification is needed, arrange a
 separately scoped hosted job, preserving live/spend gates; report it as pending
 or unverified until evidence exists. Passing ordinary CI does not certify it.
@@ -311,9 +311,11 @@ and clear cached parent-package attributes when needed. Replacing the mapping
 can miss imports or fail inside CPython. For an import guard, also run a
 negative control that deliberately imports the prohibited module.
 
-CI uses two xdist workers with `--dist loadfile`, keeping process-local routing
-scenario coverage on one worker. Preserve the full network-free suite and the
-84% merged coverage gate. Compare completed job and pytest-step durations with
+CI splits test files across 4 parallel `test` containers by recorded timings;
+each runs two xdist workers with `--dist loadfile`, keeping process-local routing
+scenario coverage on one worker. The `coverage` job combines every container's
+data and enforces the 84% floor. Preserve the full network-free suite and the
+84% combined coverage gate. Compare completed job and pytest-step durations with
 the same coverage settings before claiming a speedup; a faster no-coverage
 local run or a failed CI job does not prove the required checks got faster.
 
