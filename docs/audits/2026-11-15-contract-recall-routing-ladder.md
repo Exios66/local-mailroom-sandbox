@@ -44,7 +44,7 @@ ladder variable.
 | E1 | `pipeline-qwen-flash-25-e1-contract-control` → `-e1-contract-chunk` | **20 contracts**, 2 from each of the 10 largest CUAD subtypes (Supply, License, Consulting, IP, Service, Maintenance, Distributor, Strategic Alliance, Sponsorship, Development); seed 1115. At 15,750 chars, 12/20 split into 2–13 chunks and 8 fit one window. | `contracts_specialist.max_input_chars: 18000`; judge/arbiter keep full coverage | paired contract quality ≥ control + 0.05; fewer missed clauses; false positives no more than +2 |
 | E2 | `-e2-corporate-control` → `-e2-corporate-judge` | **18 corporate records**, 2 from each of the 9 labelled subtypes (charter amendment, articles, officer certificate, indenture, subsidiary list, rights instrument, board resolution, bylaws, powers of attorney); seed 1115 | `corporate_record.judge_band_high: 1.01` (judge every extraction) | paired quality > control; judge rejects most extractions scoring < 0.5 |
 | E2r | `-e2-corporate-control` → `-e2-corporate-rejudge` | the E2 draw (same 18 ids; the control arm is shared with E2) | `corporate_record.judge_rejudge_retry: true` (llm-mailroom #241, opt-in; control states `false`) | fires on at least one retry; paired quality no worse than control; added judge calls counted |
-| E3 | `-e3-mix-control` → `-e3-chunk-judge-all` | **45 held-out documents**: 10 each of contract, corporate, correspondence, insurance and 5 mergers (untouched by the changes; 5 limits cost); seed 2026. No overlap with E1/E2 and 1 shared with r2. | E1 + E2 + `contract.judge_band_high: 1.01` (retries re-judged) | no class more than 0.03 below control; contract and corporate improve |
+| E3 | `-e3-mix-control` → `-e3-chunk-judge-all` | **45 held-out documents**: 10 each of contract, corporate, correspondence, insurance and 5 mergers (untouched by the changes; 5 limits cost); seed 2026. Checked against each run's locked `dataset.jsonl`: 0 shared with E1 or E2, 1 shared with r2 and 1 with r3. | E1 + E2 + `contract.judge_band_high: 1.01` (retries re-judged) | no class more than 0.03 below control; contract and corporate improve |
 
 Why these sizes: the r2 class samples (n = 5) cannot show a 0.05–0.07 change. A paired
 n of 18–20 over distinct subtypes can, at a few cents per arm. E1 and E2 tune on seed
@@ -236,8 +236,9 @@ on the lane without the templated `keywords` / `subject_matter`:
 ### E3 result (2026-11-16): control arm only, a held-out check of the r3 settings
 
 The E3 treatment did not run: under the ladder rule, the E1 and E2 treatments both drop out.
-The control arm uses the r3 settings on 45 held-out documents, 10 per class plus 5 mergers. It
-is not paired with r3 (different documents), so read it as a held-out estimate:
+The control arm uses the r3 settings on 45 held-out documents, 10 per class plus 5 mergers.
+Its locked `dataset.jsonl` shares 0 documents with E1 or E2 and 1 with r3. It is not paired with
+r3, so each score below is a separate observation, not a paired difference:
 
 | Class | r3 (n = 5) | E3 control (n = 10) | Review | Judge calls / retries | Tokens per doc |
 |---|---|---|---|---|---|
@@ -247,9 +248,12 @@ is not paired with r3 (different documents), so read it as a held-out estimate:
 | insurance | 0.857 | 0.892 | 0 | 1 / 1 | 13k |
 | merger (MAUD) | 0.101 | 0.106 | 0 | 3 / 3 | 410k |
 
-- **The r3 correspondence drop does not hold.** At n = 10 correspondence scores 0.34, above r2's
-  0.24, so the condensed v2 prompt stays. Contract, corporate and insurance hold or improve, and
-  no document was misclassified under blind routing.
+- **Correspondence:** E3 control scores 0.34 at n = 10, against r3's 0.13 at n = 5 and r2's 0.24.
+  The runs differ in documents, and r2 also in settings and labels, so this does not show that the
+  r3 drop was noise or that the condensed prompt caused no regression. The prompt decision rests
+  on paired prompt A/Bs on the same documents (`scripts/compare_specialist_prompt.py`; see
+  `config/prompts/specialist_condensed_lineage.yaml`). No document was misclassified under blind
+  routing.
 - **Mergers are the weak, costly class:** MAUD 0.10, at about 410k tokens per document, most of
   the run's tokens.
 - **Two failures repeat in both r3 and E3:**
