@@ -1473,14 +1473,14 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
 # Reviewed standalone refs frozen to exact source SHAs. Mirror monorepo
 # workspace packages when available, after importing those reviewed revisions.
 # The fallback rejects moved refs before replacing any tracked vendor file.
-# llm-mailroom: main at the #179 merge (condensed sorter v5 in production, Dojo 0.28.1)
-# until the next llm-mailroom release tag is cut.
-# llm-dojo-scoring: release tag v0.28.1 (rule C: a bylaw amendment is bylaws).
+# llm-mailroom: main at the #223 merge (after v0.9.3: chunk-loss routing, MIN merged
+# chunk confidence, Dojo f95c318) until the next llm-mailroom release tag is cut.
+# llm-dojo-scoring: release tag v0.29.0 (f95c318: date scoring hardening).
 _VENDOR_PINS: tuple[tuple[str, str, str, str | None], ...] = (
-    ("llm-mailroom", "19203eac07f67c215f50af2fd498560ce195adae",
-     "https://github.com/Exios66/llm-mailroom.git", "19203eac07f67c215f50af2fd498560ce195adae"),
-    ("llm-dojo-scoring", "v0.28.1",
-     "https://github.com/Exios66/llm-dojo-scoring.git", "00a2a7f7b058a4ade06b027c2afbd8b03bea6a5f"),
+    ("llm-mailroom", "5bcfe44584e468d8fc9d5d30e28abd5cc52cadfc",
+     "https://github.com/Exios66/llm-mailroom.git", "5bcfe44584e468d8fc9d5d30e28abd5cc52cadfc"),
+    ("llm-dojo-scoring", "v0.29.0",
+     "https://github.com/Exios66/llm-dojo-scoring.git", "f95c3188a1a634a9a2354afd5351edd8dd152a89"),
 )
 
 
