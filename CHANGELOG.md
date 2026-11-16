@@ -34,6 +34,16 @@
   judge arm (`judge_band_high: 1.01`) every archivable extraction is already judged, so the
   switch cannot change that arm's routing. The E2 control and judge arms state `false`, and
   `sandbox run routing` reports the value.
+
+- **Faster CI** (2026-11-16): the `test` job now runs on 4 parallel containers, with test files
+  split by recorded timings and two `--dist loadfile` xdist workers each. A new `coverage` job
+  combines every container's data and enforces the unchanged 84% floor on the total. The dev
+  virtualenv is cached on `pyproject.toml`, and lint installs ShellCheck from `shellcheck-py`
+  instead of apt. `overlay.load_yaml` caches parsed YAML by content digest (callers get a deep
+  copy), and `agent_routes.describe()` resolves the known agents once; together they cut the
+  local suite from about 340 s to about 100 s. Branch protection should add
+  `ci/circleci: coverage` as a required check.
+
 - **`judge_rejudge_retry` run knob** (2026-11-16): a run spec's `confidence` block (global or
   `by_class`) now accepts llm-mailroom #241's `judge_rejudge_retry`, so E2 can run its on and
   off arms without editing the overlay. Only `true`/`false` are accepted: upstream reads the
@@ -243,7 +253,6 @@
   corrected on 2026-11-07, `DOC-cce54a03af3b1c4a` (SunGard Public Sector, labelled board_resolution)
   and `DOC-8b2aaa4b6ea655be` (Arrestage International, labelled articles_of_incorporation), target
   bylaws. `--rule-c-only` is now idempotent: a second pass changes nothing.
-
 
 - **Production sorter is `sorter_condensed_v5`: a bylaw amendment is bylaws, never
   board_resolution** (mailroom-dataset v10 corpus rule C, user directive 2026-11-07). v5 is v1

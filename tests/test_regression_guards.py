@@ -61,6 +61,41 @@ def test_ci_workflow_runs_network_free_pytest():
     assert "test" in config["workflows"]["ci"]["jobs"]
 
 
+def test_ci_parallel_test_shards_feed_a_combined_coverage_gate():
+    """A split test job only measures part of the suite per container, so the
+    84% floor must be enforced on the combined data, after every shard ran."""
+    config = yaml.safe_load(CI_CONFIG.read_text(encoding="utf-8"))
+    test_job = config["jobs"]["test"]
+    shards = test_job.get("parallelism", 1)
+    test_cmds = "\n".join(
+        step["run"]["command"] for step in test_job["steps"]
+        if isinstance(step, dict) and isinstance(step.get("run"), dict)
+    )
+    assert "--dist loadfile" in test_cmds  # WALKED union stays on one worker
+    if shards == 1:
+        return
+    assert "circleci tests split" in test_cmds
+    assert "--cov-fail-under=0" in test_cmds  # per-shard partials must not gate
+    assert any(
+        isinstance(step, dict) and "coverage-data" in str(step.get("persist_to_workspace", ""))
+        for step in test_job["steps"]
+    )
+    cov_cmds = "\n".join(
+        step["run"]["command"] for step in config["jobs"]["coverage"]["steps"]
+        if isinstance(step, dict) and isinstance(step.get("run"), dict)
+    )
+    assert "coverage combine" in cov_cmds
+    assert "coverage report" in cov_cmds and "--fail-under" not in cov_cmds  # pyproject's floor
+    assert f"-eq {shards}" in cov_cmds  # every shard's data file is present
+    workflow = {
+        (next(iter(j)) if isinstance(j, dict) else j): (j[next(iter(j))] if isinstance(j, dict) else {})
+        for j in config["workflows"]["ci"]["jobs"]
+    }
+    assert "test" in workflow["coverage"].get("requires", [])
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    assert "fail_under = 84" in pyproject
+
+
 def test_cli_parser_builds_without_importing_floor_app(monkeypatch):
     """`sandbox <cmd>` on native Windows must not trip the floor app's unix-only imports.
 

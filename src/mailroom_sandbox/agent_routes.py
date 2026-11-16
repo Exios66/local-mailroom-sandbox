@@ -84,8 +84,9 @@ def describe(spec) -> dict[str, dict[str, str]]:
                                       agent_models=spec.agent_models, agent_knobs=spec.agent_knobs,
                                       agent_routes=spec.agent_routes)
     assignments = {}
+    known = known_agents()
     for name, agent in (taxonomy.get("agents") or {}).items():
-        if name not in known_agents():
+        if name not in known:
             continue
         route = spec.agent_routes.get(name)
         assignments[name] = {
