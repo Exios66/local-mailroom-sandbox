@@ -25,6 +25,10 @@
     on the new documents. `--thresholds` adds the judge-threshold replay, which is an upper bound.
   - A run that never started, a bad bars file or a scorer failure exits 1 with a JSON `failed`
     status, never a FAIL verdict.
+  - `gate.md` has a per-document table. `--thresholds` also projects the wrong-archive and review
+    rates for each candidate threshold, plus a worst-case review rate.
+  - New bar `min_scorable_per_class: 20`: from the 500-document slice onward, a gated class with fewer
+    scorable archives fails the slice (corporate records, llm-dojo-scoring #164).
   - `config/runs/production/slice-{0100,0250,0500,full}.yaml` use r3's settings with seed 3302 and
     nested draws. Their Modal job-host twins are blocked by #308.
   - `correspondence_specialist_condensed_v3` is a candidate (#306) with paired A/B configs. A strict

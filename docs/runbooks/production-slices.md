@@ -47,6 +47,7 @@ The bars live in [`config/production/bars.yaml`](../../config/production/bars.ya
 - **Contracts and mergers:** scored on CUAD and MAUD units.
 - **Unscorable:** a document with fewer than 2 labelled fields. A gated pool that has archives but none scorable fails the slice. If more than 25% of the pool is unscorable, the gate only warns.
 - **Per-class bars:** these apply from the 500-document slice onward. Below that they are diagnostic only.
+- **Scorable minimum:** from the 500-document slice onward, a gated class with fewer than 20 scorable archives (`min_scorable_per_class`) fails the slice, because its per-class rates would not be evidence. Corporate records are the class at risk: slice 500 holds 26 scorable corporate documents at most.
 - **Wilson bounds:** `gate.md` prints the Wilson 95% upper bound next to each rate, for information. The pass rule uses the point estimate.
 
 ## The loop, for slice N
@@ -85,7 +86,7 @@ The bars live in [`config/production/bars.yaml`](../../config/production/bars.ya
    - `trace_id`: the run's trace id.
    - `span_id`: its own `job.item` span in `data/traces/<run_id>.spans.jsonl.gz`. A node span alone does not count.
 
-   A missing or unreadable link fails the gate.
+   A missing or unreadable link fails the gate. `gate.md` lists every document in its **Documents** table, with class, outcome, score, labelled units, cause, archive link and span id.
 5. **Fix the largest fixable bucket.** See "Where a fix lands" below. Record each fix on #306.
 6. **Re-run the same slice and compare.** Give the re-run a new `run_id`, then gate it with the earlier run as its pair:
    ```bash
@@ -97,7 +98,12 @@ The bars live in [`config/production/bars.yaml`](../../config/production/bars.ya
    sandbox run gate --run-id production-slice-0250 --prev-run-id production-slice-0100
    ```
 
-**Thresholds.** `--thresholds` replays higher judge thresholds. The replay is an upper bound: it shows how many wrong archives a higher threshold could catch and how many correct archives it would disturb. A threshold change is adopted only on new documents, and only when it holds the wrong-archive bar.
+**Thresholds.** `--thresholds` replays higher judge thresholds. For each candidate threshold, per class and pooled, it shows:
+- the documents a higher threshold would send to the judge;
+- the wrong archives it could catch and the correct archives it would disturb;
+- the projected wrong-archive and review rates, next to the current ones. These assume every caught wrong archive goes to review. A worst-case review rate also assumes the judge rejects every other judged document.
+
+It is an upper bound. A threshold change is adopted only on new documents, and only when it holds the wrong-archive bar.
 
 ## Where a fix lands
 

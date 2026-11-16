@@ -95,10 +95,12 @@ def test_threshold_evidence_counts(tmp_path):
                                {"id": "b", "confidence": 0.95}, {"id": "c", "confidence": 1.0}])
     out = gate_compare.threshold_evidence(run, Bars())
     assert out["label"] == "upper bound: assumes the judge rejects every caught wrong archive"
+    keys = ("extra_judged", "wrong_archives_caught_upper_bound", "correct_archives_disturbed")
     at = out["pooled"]["thresholds"][0.96]
-    assert at == {"extra_judged": 2, "wrong_archives_caught_upper_bound": 1, "correct_archives_disturbed": 1}
-    assert out["pooled"]["thresholds"][0.90] == {"extra_judged": 0, "wrong_archives_caught_upper_bound": 0,
-                                                 "correct_archives_disturbed": 0}
+    assert {k: at[k] for k in keys} == {"extra_judged": 2, "wrong_archives_caught_upper_bound": 1,
+                                        "correct_archives_disturbed": 1}
+    low = out["pooled"]["thresholds"][0.90]
+    assert {k: low[k] for k in keys} == dict.fromkeys(keys, 0)
     assert out["pooled"]["thresholds"][1.01]["extra_judged"] == 3  # 1.01 sends every archive to the judge
     assert out["classes"]["corporate_record"]["thresholds"][0.96] == at
     assert out["pooled"]["no_confidence"] == 0 and out["pooled"]["archived"] == 3
@@ -142,3 +144,20 @@ def test_rerun_on_different_documents_fails(tmp_path):
     out = gate_compare.rerun(prev, nxt, Bars(), audit=False)
     assert out["same_documents"] is False
     assert "re-run drew different documents" in out["verdict"]["reasons"]
+
+
+def test_threshold_evidence_projects_rates(tmp_path):
+    """Per candidate threshold, the gate's rates if every caught wrong archive went to review (review I7)."""
+    run = _run(tmp_path, "r", [{"id": "a", "confidence": 0.95, "score": 0.5},  # wrong, caught at t > 0.95
+                               {"id": "b", "confidence": 0.99, "score": 0.5},  # wrong, caught only at 1.01
+                               {"id": "c", "confidence": 0.95},                # correct, disturbed at t > 0.95
+                               {"id": "d", "confidence": 1.0},
+                               {"id": "e", "stage": "review"}])
+    pooled = gate_compare.threshold_evidence(run, Bars())["pooled"]
+    assert pooled["baseline"] == {"n": 5, "review_rate": 0.2, "wrong_archive_rate": 0.5}
+    at = pooled["thresholds"][0.96]
+    assert at["wrong_archive_rate"] == 1 / 3          # 1 wrong left of 3 scorable archives left
+    assert at["review_rate"] == 2 / 5                 # the review + the caught wrong archive
+    assert at["review_rate_if_disturbed_rejected"] == 3 / 5  # plus the disturbed correct archive
+    top = pooled["thresholds"][1.01]
+    assert top["wrong_archive_rate"] == 0.0 and top["review_rate"] == 3 / 5

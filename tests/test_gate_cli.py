@@ -183,3 +183,16 @@ def test_gate_cli_scorer_failure_is_a_failed_status(data, monkeypatch, capsys):
     monkeypatch.setattr(gate, "_score", boom)
     assert cli.main(["run", "gate", "--run-id", "slice-score"]) == 1
     assert "scorer exploded" in json.loads(capsys.readouterr().out)["detail"]
+
+
+def test_gate_md_has_a_per_document_table(data):
+    """Every document gets a row: outcome, score, cause and its links (review I7)."""
+    run = _run(data, "slice-docs", _ok("a") + [{"id": "w", "score": 0.5}, {"id": "r", "stage": "review"}])
+    cli.main(["run", "gate", "--run-id", "slice-docs"])
+    md = (run / "gate.md").read_text()
+    assert "## Documents" in md
+    section = md.split("## Documents", 1)[1]
+    for doc_id in ("a", "w", "r"):
+        assert f"| {doc_id} |" in section
+    assert "correct_archive" in section and "wrong_archive" in section and "review" in section
+    assert "`s-w`" in section and "data/archive/SANDBOX-sandbox_pipeline_slice-docs-a" in section

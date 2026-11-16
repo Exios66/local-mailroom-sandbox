@@ -21,7 +21,9 @@ sees (``LABEL``). ``extra_judged`` counts every archived document under ``t`` (u
 included, they cost a judge call too); the other two count the gate's ``wrong_archive`` and
 ``correct_archive`` outcomes. An archived document without a numeric ``extraction_confidence`` cannot be
 placed against any ``t``: it is counted under ``no_confidence`` (total and by outcome), never dropped
-silently and never in the threshold counts.
+silently and never in the threshold counts. Each threshold row also projects the gate's pooled
+``wrong_archive_rate`` and ``review_rate`` (and the worst-case ``review_rate_if_disturbed_rejected``) under
+the same upper-bound assumption, next to each block's ``baseline`` rates.
 """
 from __future__ import annotations
 
@@ -97,26 +99,51 @@ def _confidence(item: dict[str, Any] | None) -> float | None:
     return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
 
 
-def _block(archived: list[tuple[float | None, str]], grid: tuple[float, ...]) -> dict[str, Any]:
-    """Threshold counts of one pool of archived documents, as ``(confidence, outcome)``."""
+def _block(archived: list[tuple[float | None, str]], grid: tuple[float, ...],
+           counts: dict[str, int] | None = None) -> dict[str, Any]:
+    """Threshold counts of one pool of archived documents, as ``(confidence, outcome)``.
+
+    With the pool's gate ``counts`` it also projects the gate's rates per threshold, under the replay's
+    upper-bound assumption: every caught wrong archive goes to review and leaves the scorable archives.
+    ``review_rate`` assumes the judge passes everything else it sees; ``review_rate_if_disturbed_rejected``
+    assumes it rejects every judged document (the worst case for review).
+    """
     scored = [(conf, outcome) for conf, outcome in archived if conf is not None]
     absent = Counter(outcome for conf, outcome in archived if conf is None)
-    thresholds = {t: {"extra_judged": sum(conf < t for conf, _ in scored),
-                      "wrong_archives_caught_upper_bound": sum(conf < t and o == "wrong_archive" for conf, o in scored),
-                      "correct_archives_disturbed": sum(conf < t and o == "correct_archive" for conf, o in scored)}
-                  for t in grid}
-    return {"archived": len(archived), "no_confidence": sum(absent.values()),
-            "no_confidence_by_outcome": dict(absent), "thresholds": thresholds}
+    thresholds: dict[float, dict[str, Any]] = {}
+    for t in grid:
+        row = {"extra_judged": sum(conf < t for conf, _ in scored),
+               "wrong_archives_caught_upper_bound": sum(conf < t and o == "wrong_archive" for conf, o in scored),
+               "correct_archives_disturbed": sum(conf < t and o == "correct_archive" for conf, o in scored)}
+        if counts is not None:
+            caught, n = row["wrong_archives_caught_upper_bound"], counts["n"]
+            scorable = counts["wrong"] + counts["correct"] - caught
+            row["wrong_archive_rate"] = (counts["wrong"] - caught) / scorable if scorable else None
+            row["review_rate"] = (counts["review"] + caught) / n if n else None
+            row["review_rate_if_disturbed_rejected"] = (counts["review"] + row["extra_judged"]) / n if n else None
+        thresholds[t] = row
+    out: dict[str, Any] = {"archived": len(archived), "no_confidence": sum(absent.values()),
+                           "no_confidence_by_outcome": dict(absent), "thresholds": thresholds}
+    if counts is not None:
+        scorable = counts["wrong"] + counts["correct"]
+        out["baseline"] = {"n": counts["n"], "review_rate": counts["review"] / counts["n"] if counts["n"] else None,
+                           "wrong_archive_rate": counts["wrong"] / scorable if scorable else None}
+    return out
 
 
 def threshold_evidence(run_dir: Path, bars: Bars, *, grid: tuple[float, ...] = DEFAULT_GRID) -> dict[str, Any]:
     """Per gated class and pooled: what a confidence threshold ``t`` would have sent to the judge."""
     by_class: dict[str, list[tuple[float | None, str]]] = defaultdict(list)
+    statuses: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for doc in gate._load(Path(run_dir)):
         status = gate._status(doc, bars)
-        if status["class"] in bars.gated and status["stage"] == "archived":
+        if status["class"] not in bars.gated:
+            continue
+        statuses[status["class"]].append(status)
+        if status["stage"] == "archived":
             by_class[status["class"]].append((_confidence(doc["item"]), status["outcome"]))
     pooled = [entry for entries in by_class.values() for entry in entries]
+    every = [s for group in statuses.values() for s in group]
     return {"run_id": Path(run_dir).name, "label": LABEL, "grid": list(grid),
-            "classes": {cls: _block(entries, grid) for cls, entries in sorted(by_class.items())},
-            "pooled": _block(pooled, grid)}
+            "classes": {cls: _block(entries, grid, gate._counts(statuses[cls])) for cls, entries in sorted(by_class.items())},
+            "pooled": _block(pooled, grid, gate._counts(every))}

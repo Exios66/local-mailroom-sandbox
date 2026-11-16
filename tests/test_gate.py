@@ -257,7 +257,7 @@ def test_per_class_blind_class_fails_once_per_class_bars_apply(tmp_path):
     run = _run(tmp_path, docs)
     pooled_only = gate.gate_report(run, Bars())
     assert pooled_only["verdict"]["pass"] is True  # pooled has scorable archives; per-class bars are diagnostic
-    per_class = gate.gate_report(run, Bars(per_class_from_n=10))
+    per_class = gate.gate_report(run, Bars(per_class_from_n=10, min_scorable_per_class=0))
     assert per_class["verdict"]["pass"] is False
     assert "class contract no scorable archives" in per_class["verdict"]["reasons"]
     assert not any(r.startswith("class correspondence") for r in per_class["verdict"]["reasons"])
@@ -300,3 +300,20 @@ def test_load_bars_defaults_to_the_committed_config(tmp_path):
     custom.write_text("qualty: 0.8\n")
     with pytest.raises(ValueError, match="qualty"):
         gate.load_bars(custom)
+
+
+def test_per_class_minimum_of_scorable_archives(tmp_path):
+    """From the per-class slice size, a gated class with too few scorable archives fails (corporate, dojo#164)."""
+    docs = (_docs(30) + _docs(25, "correspondence")
+            + [{"id": f"c{i}", "cls": "corporate_record"} for i in range(5)])
+    run = _run(tmp_path, docs)
+    above = gate.gate_report(run, Bars(per_class_from_n=50, min_scorable_per_class=20))
+    reasons = above["verdict"]["reasons"]
+    assert "class corporate_record has 5 scorable archives < 20" in reasons
+    assert not any(r.startswith("class contract has") or r.startswith("class correspondence has") for r in reasons)
+    below = gate.gate_report(run, Bars(per_class_from_n=500, min_scorable_per_class=20))
+    assert not any("scorable archives <" in r for r in below["verdict"]["reasons"] + below["verdict"]["warnings"])
+
+
+def test_committed_bars_set_the_scorable_minimum():
+    assert gate.load_bars().min_scorable_per_class == 20
