@@ -14,11 +14,26 @@ the row without the templated fields):
 The slice passes when, pooled over the gated classes, the wrong-archive rate (wrong archives
 over scorable archives) and the review rate (reviews over documents) are within the bars and
 there are no crashes and no ``judge_error``. Point rates come with Wilson 95% upper bounds.
-Per-class bars bite only from ``per_class_from_n`` documents; below that they are diagnostic.
+Per-class bars bite only from ``per_class_from_n`` documents (counted over the whole slice, every
+class); below that they are diagnostic.
+
+Rates and what they divide: ``review_rate`` is reviews over all documents of the pool;
+``wrong_archive_rate`` is wrong archives over scorable archives; ``correct_archive_rate`` (per class,
+reporting only) is correct archives over all documents. Crashes and ``judge_error`` count slice-wide,
+``merger_agreement`` included: they are harness faults, not quality. Rates use the gated classes only.
+
+Contracts and mergers are scored by the Dojo on their label field alone (CUAD category spans,
+MAUD question answers), so their labelled count is the number of categories or questions in that
+field, and only when at least one carries gold; see ``labelled_count``.
+
+The gate never passes blind: gated archives with none scorable fail ("no scorable archives", also
+per gated class once per-class bars apply). A share of unscorable gated archives above
+``_UNSCORABLE_WARN`` adds a ``verdict["warnings"]`` entry; warnings never change ``pass``.
 Design: ``docs/superpowers/specs/2026-11-16-production-slice-gate-design.md``.
 """
 from __future__ import annotations
 
+import json
 import math
 from collections import defaultdict
 from dataclasses import asdict, dataclass, fields
@@ -43,6 +58,10 @@ DEFAULT_BARS_PATH = "production/bars.yaml"
 # and the evidence columns, which Dojo drops rather than scores (``peel_non_extraction_fields``).
 _NOT_LABELS = frozenset({"gt_presence", "label_evidence", "topic_evidence", "sentiment_evidence"})
 _Z95 = 1.96
+_UNSCORABLE_WARN = 0.25
+# Classes the Dojo scores on one label field (a dict of category or question to gold) instead of
+# per-field values; that field is not in the live extraction schema, so field scoping drops it.
+_UNIT_FIELD = {"contract": "cuad_clause_labels", "merger_agreement": "maud_clause_labels"}
 
 
 @dataclass(frozen=True)
@@ -77,8 +96,34 @@ def _blank(value: Any) -> bool:
     return False
 
 
+def _has_gold(value: Any) -> bool:
+    """A category's gold: a non-empty span list, or for MAUD a mapping with some non-blank part."""
+    if isinstance(value, Mapping):
+        return any(not _blank(v) for v in value.values())
+    return not _blank(value)
+
+
+def _unit_labels(value: Any) -> dict[str, Any]:
+    """The label dict of a CUAD/MAUD field, parsing the JSON string E3 rows store; ``{}`` if unusable."""
+    if isinstance(value, str):
+        try:
+            value = json.loads(value) if value.strip() else {}
+        except json.JSONDecodeError:
+            return {}
+    return dict(value) if isinstance(value, Mapping) else {}
+
+
 def labelled_count(row: Mapping[str, Any], doc_class: str) -> int:
-    """Non-empty expected values left after class scoping and dropping the templated fields."""
+    """Labelled units of a row: what the Dojo scores it on, after dropping the templated fields.
+
+    Contracts (``cuad_clause_labels``) and mergers (``maud_clause_labels``) are scored on that one
+    field: the count is its number of categories (the scored universe) when at least one carries
+    gold, else 0. Other classes count non-empty expected values after class scoping.
+    """
+    unit_field = _UNIT_FIELD.get(doc_class)
+    if unit_field:
+        labels = _unit_labels(_fields(row).get(unit_field))
+        return len(labels) if any(_has_gold(v) for v in labels.values()) else 0
     _, expected = scope_extraction_pair(doc_class, {}, _fields(row))
     drop = TEMPLATED_FIELDS.get(doc_class, ())
     return sum(1 for key, value in expected.items()
@@ -152,7 +197,7 @@ def _class_rates(c: Mapping[str, int]) -> dict[str, Any]:
     return {"n": c["n"], "review_rate": _rate(c["review"], c["n"]),
             "wrong_archive_rate": _rate(c["wrong"], scorable),
             "correct_archive_rate": _rate(c["correct"], c["n"]),
-            "unscorable": c["unscorable"], "tokens_per_doc": c["tokens"] / c["n"] if c["n"] else None}
+            "scorable": scorable, "unscorable": c["unscorable"], "tokens_per_doc": c["tokens"] / c["n"] if c["n"] else None}
 
 
 def _breaches(label: str, review: float | None, wrong: float | None, bars: Bars) -> list[str]:
@@ -162,6 +207,19 @@ def _breaches(label: str, review: float | None, wrong: float | None, bars: Bars)
     if review is not None and review > bars.review_max:
         reasons.append(f"{label}review_rate {review:.3f} > {bars.review_max:g}")
     return reasons
+
+
+def _blindness(label: str, c: Mapping[str, int]) -> tuple[list[str], list[str]]:
+    """(failing reasons, warnings) for one pool: no scorable archive at all, or too many unscorable."""
+    scorable = c["wrong"] + c["correct"]
+    archives = scorable + c["unscorable"]
+    reasons = [f"{label}no scorable archives"] if archives and not scorable else []
+    share = c["unscorable"] / archives if archives else 0.0
+    warnings = []
+    if share > _UNSCORABLE_WARN:
+        warnings.append(f"{label}unscorable share {share:.3f} of gated archives exceeds {_UNSCORABLE_WARN:g} "
+                        f"({c['unscorable']}/{archives})")
+    return reasons, warnings
 
 
 def gate_report(run_dir: Path, bars: Bars) -> dict[str, Any]:
@@ -181,14 +239,23 @@ def gate_report(run_dir: Path, bars: Bars) -> dict[str, Any]:
     review_rate, wrong_rate = _rate(pooled["review"], pooled["n"]), _rate(pooled["wrong"], scorable)
 
     reasons: list[str] = []
+    warnings: list[str] = []
     if not pooled_docs:
         reasons.append("no gated documents")
     else:
         reasons += _breaches("", review_rate, wrong_rate, bars)
-        if len(statuses) >= bars.per_class_from_n:
-            for cls, block in classes.items():
-                if block["gated"]:
-                    reasons += _breaches(f"class {cls} ", block["review_rate"], block["wrong_archive_rate"], bars)
+        blind, warn = _blindness("", pooled)
+        reasons, warnings = reasons + blind, warnings + warn
+        per_class = len(statuses) >= bars.per_class_from_n
+        for cls, docs in sorted(by_class.items()):
+            if cls not in bars.gated:
+                continue
+            block = classes[cls]
+            if per_class:
+                reasons += _breaches(f"class {cls} ", block["review_rate"], block["wrong_archive_rate"], bars)
+            blind, warn = _blindness(f"class {cls} ", _counts(docs))
+            reasons += blind if per_class else []
+            warnings += warn
     if crashes:
         reasons.append(f"{crashes} crashed document(s) (run error or missing item)")
     if judge_errors:
@@ -199,7 +266,8 @@ def gate_report(run_dir: Path, bars: Bars) -> dict[str, Any]:
         "pooled": {"review_rate": review_rate, "wrong_archive_rate": wrong_rate,
                    "review_upper95": _wilson_upper(pooled["review"], pooled["n"]),
                    "wrong_archive_upper95": _wilson_upper(pooled["wrong"], scorable),
+                   "scorable": scorable, "unscorable": pooled["unscorable"],
                    "crashes": crashes, "judge_errors": judge_errors},
-        "verdict": {"pass": not reasons, "reasons": reasons},
+        "verdict": {"pass": not reasons, "reasons": reasons, "warnings": warnings},
         "docs": statuses,
     }
