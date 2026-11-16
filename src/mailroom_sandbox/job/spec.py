@@ -139,6 +139,15 @@ class DatasetSpec(BaseModel):
     # drawn rows' expected_fields: the labels the next dataset revision is expected to publish.
     # Off by default; the lock records the overlay's sha256 so such scores never pass for Hub-GT ones.
     interim_labels: bool = False
+    # Repo-relative path to a text file of document ids (one per line; blank lines and `#`
+    # comments ignored) dropped BEFORE the draw, so a slice never re-draws a tuning document.
+    # The file's sha256 is hashed into the spec; a missing file is a preflight error.
+    exclude_ids_file: str | None = None
+    # Seeded draw order. ``shuffle`` (default, every existing config) permutes each bucket, so
+    # excluding one more document reshuffles it. ``ranked`` orders each bucket by a per-document
+    # sha256, so excluding documents keeps the rest in order: same-slice re-runs and nested
+    # slices survive an exclusion-list update. Hashed only when ``ranked``.
+    draw: Literal["shuffle", "ranked"] = "shuffle"
     columns: dict[str, str] | None = None
     expected_fields: list[str] | None = None
     local_path: str | None = None  # file:// or a path, ${VAR} expanded (offline)
@@ -244,7 +253,26 @@ class DatasetSpec(BaseModel):
             url = url[len("file://") :]
         return Path(url).expanduser()
 
-    def request_core(self, *, source_sha256: str | None = None) -> dict[str, Any]:
+    def exclude_ids_path(self) -> Path | None:
+        """``exclude_ids_file`` resolved against the repo root (absolute paths kept), or None."""
+        if not self.exclude_ids_file:
+            return None
+        from mailroom_sandbox.paths import repo_root
+
+        path = Path(self.exclude_ids_file).expanduser()
+        return path if path.is_absolute() else repo_root() / path
+
+    def exclude_ids_bytes(self) -> bytes | None:
+        """The exclusion file's bytes, or None when unset. A set but missing file raises ValueError."""
+        path = self.exclude_ids_path()
+        if path is None:
+            return None
+        if not path.is_file():
+            raise ValueError(f"dataset.exclude_ids_file not found: {path}")
+        return path.read_bytes()
+
+    def request_core(self, *, source_sha256: str | None = None,
+                     exclude_ids_sha256: str | None = None) -> dict[str, Any]:
         """The reproducibility-relevant spec (never row counts/attempt results).
 
         ``interim_labels`` is hashed only when set (with the overlay's fingerprint, so a rebuilt
@@ -253,13 +281,23 @@ class DatasetSpec(BaseModel):
         when ``local.is_file()``. File read errors propagate. The registry
         ``name`` is not hashed. Existing file-dataset specs receive a new spec_hash under
         this scheme, so resume refuses until --force relocks. Hub-dataset hashes are
-        unaffected.
+        unaffected. ``exclude_ids_sha256`` likewise supplies the exclusion hash that
+        ``prepare_subset`` recorded, instead of rereading the file.
         """
         core = self._request_core(source_sha256=source_sha256)
         # This filter changes the drawn rows for local and Hub datasets alike.
         # Omit the default so existing unfiltered specs retain their hashes.
         if self.require_task_gt:
             core["require_task_gt"] = True
+        if self.draw != "shuffle":
+            core["draw"] = self.draw
+        # Hashed by content (never the path) and only when set, so existing specs keep their hash.
+        if self.exclude_ids_file and exclude_ids_sha256 is not None:
+            core["exclude_ids_sha256"] = exclude_ids_sha256
+        else:
+            excluded = self.exclude_ids_bytes()
+            if excluded is not None:
+                core["exclude_ids_sha256"] = hashlib.sha256(excluded).hexdigest()
         if self.interim_labels:
             from mailroom_sandbox.interim_labels import overlay_fingerprint
 
@@ -935,10 +973,12 @@ def _vllm_core(vllm: VLLMSpec) -> dict[str, Any]:
     return core
 
 
-def spec_core(spec: RunSpec, *, source_sha256: str | None = None) -> dict[str, Any]:
+def spec_core(spec: RunSpec, *, source_sha256: str | None = None,
+              exclude_ids_sha256: str | None = None) -> dict[str, Any]:
     """Return the behavioral core covered by spec_hash, excluding run_id/timestamps.
 
-    ``source_sha256`` supplies the local dataset hash instead of rereading it.
+    ``source_sha256`` supplies the local dataset hash instead of rereading it, and
+    ``exclude_ids_sha256`` the exclusion-file hash the prepared draw used.
     Errors resolving prompts or reading local dataset bytes propagate.
     """
     return {
@@ -966,7 +1006,8 @@ def spec_core(spec: RunSpec, *, source_sha256: str | None = None) -> dict[str, A
                 and not (key == "blind_routing" and value is False)},
         "trace": spec.trace.model_dump(),
         "prompt": prompt_resolution_map(spec),
-        "dataset": spec.dataset.request_core(source_sha256=source_sha256),
+        "dataset": spec.dataset.request_core(source_sha256=source_sha256,
+                                             exclude_ids_sha256=exclude_ids_sha256),
     }
 
 

@@ -94,6 +94,13 @@ def _ci(diffs: list[float]) -> tuple[float, float, float] | None:
     return mean, mean - half, mean + half
 
 
+def _finite_bounds(ci: tuple[float, float, float] | None) -> list[float | None] | None:
+    """``[low, high]`` of a CI, with an undefined bound (fewer than two pairs) as ``None``, never NaN."""
+    if not ci:
+        return None
+    return [b if math.isfinite(b) else None for b in (ci[1], ci[2])]
+
+
 def _doc_stats(doc: Mapping[str, Any]) -> dict[str, Any]:
     item, seq = doc["item"], doc["nodes"]
     score = item.get("score") or {}
@@ -152,7 +159,7 @@ def paired_report(control_dir: Path, treatment_dir: Path,
                 "scored": len(pairs),
                 "control": statistics.fmean(c for c, _ in pairs) if pairs else None,
                 "treatment": statistics.fmean(t for _, t in pairs) if pairs else None,
-                "diff": ci[0] if ci else None, "ci95": [ci[1], ci[2]] if ci else None,
+                "diff": ci[0] if ci else None, "ci95": _finite_bounds(ci),
             }
         summary["control_counts"], summary["treatment_counts"] = dict(arms["c"]), dict(arms["t"])
         summary["control_verdicts"], summary["treatment_verdicts"] = dict(verdicts["c"]), dict(verdicts["t"])

@@ -172,6 +172,10 @@ exists, plus `limit`, `sample_seed`, `strata` and `exclude_expected`.
 it filters out rows with no task ground truth before selection. Its false
 default is omitted, preserving unfiltered hashes. A filter change must refuse
 resume with `drift_refused`; relocking preserves the previous generation.
+`dataset.exclude_ids_file` (repo-relative text file, one document `id` per line, `#`
+comments and blank lines ignored) drops those rows before any draw, so nested slices
+stay nested. Its content sha256 is hashed as `exclude_ids_sha256` only when set; a set
+but missing file fails preflight, and the `dataset` check reports `excluded=<matched>/<listed>`.
 The registry name, declared SHA pin and pull
 recipe are not hashed. Same-named identical files hash alike across checkout
 paths. Missing files still hash without source bytes; this does not mean they
@@ -197,6 +201,7 @@ sandbox run resume     --config <run.yaml> --run-id <id> [--force]
 sandbox run cancel     --run-id <id>
 sandbox run list
 sandbox run routing    --run-id <id> [--quality-target 0.7]   # offline routing audit
+sandbox run gate       --run-id <id> [--prev-run-id <id>] [--bars <yaml>] [--thresholds] [--json]  # offline slice gate; writes gate.json/gate.md; exit 0 pass, 2 fail, 1 error
 
 sandbox prompts list                       # every pipeline agent prompt (local + Langfuse)
 sandbox prompts show <agent> [--variant X]
@@ -205,6 +210,8 @@ sandbox metrics compare --log
 ```
 
 Exit codes: `0` done · `1` failed · `2` paused · `3` drift/busy/foreign-store refusal.
+
+`sandbox run gate` has its own exit codes: `0` pass, `2` a FAIL verdict, and `1` with a JSON `failed` status when the gate cannot judge the run (the run is missing or never started, the bars file is invalid, or the scorer fails). The slice loop it gates (preflight → start → gate → fix → re-run → step up) is in [`docs/runbooks/production-slices.md`](runbooks/production-slices.md).
 
 **Routing audit.** `sandbox run routing` reads a finished store and reports, per
 class:

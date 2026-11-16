@@ -208,6 +208,31 @@ DECISIONS_DIR_NAME = "decisions"
 # inside Luna Decisions' 1.05M-token context. The cap only guards against a runaway input.
 DECISIONS_MAX_INPUT_CHARS = 2_000_000
 _TRANSIENT = {408, 429, 500, 502, 503, 504, 524, 529}
+
+# A card-shaped number: four groups of four digits with a space or hyphen between groups
+# (plus up to three trailing digits). OpenRouter's Decisions endpoint refuses a document
+# holding one (403 "content filter: [CREDIT_CARD]"), even a synthetic IBAN tail, and the
+# refusal leaves the reviewer with no answer. The digits carry no classification or
+# field-support signal, so they are masked before any request. Unbroken digit runs
+# (EDGAR accession numbers, claim notice ids) passed the filter and are extracted fields, so
+# they are kept.
+_CARD_SHAPED = re.compile(r"(?<![\w-])\d{4}(?:[ -]\d{4}){3}(?:[ -]?\d{1,3})?(?![\w-])")
+
+
+def mask_card_numbers(text: str) -> str:
+    """Replace every digit of each card-shaped number with ``#``; separators and other text stay."""
+    return _CARD_SHAPED.sub(lambda m: re.sub(r"\d", "#", m.group()), text)
+
+
+def _mask_card_values(value: Any) -> Any:
+    """``mask_card_numbers`` on every string inside a JSON-like value (keys stay unchanged)."""
+    if isinstance(value, str):
+        return mask_card_numbers(value)
+    if isinstance(value, Mapping):
+        return {k: _mask_card_values(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_mask_card_values(v) for v in value]
+    return value
 NOT_THIS_CLASS = "not_this_class"
 SUBCLASS_UNDETERMINED = "undetermined"
 # The class-level abstain thresholds a question set may set (4.0.0+). Each one is optional.
@@ -441,9 +466,10 @@ def decide_extraction(doc_text: str, handoff: Mapping[str, Any], *, model: str, 
     doc_type = str(handoff.get("doc_type") or "")
     limit = int((qset.get("max_input_chars_by_class") or {}).get(doc_type) or qset.get("max_input_chars")
                 or DECISIONS_MAX_INPUT_CHARS)
-    text = (doc_text or "")[:limit]
+    text = mask_card_numbers((doc_text or "")[:limit])
     body = {"model": model, "state": {"document": text if text.strip() else "(empty document)",
-                                      "extraction_handoff": dict(handoff)},
+                                      # Extracted values (an IBAN field) trip the same filter.
+                                      "extraction_handoff": _mask_card_values(dict(handoff))},
             "questions": (questions := gate_questions(qset, doc_type, subclass or handoff.get("doc_subclass")))}
     # A whole long document (up to ~250k tokens) takes longer to read than the 120 s default allows.
     data = _post_decision(body, timeout=max(timeout, 60.0 + len(text) / 4_000), attempts=attempts)
@@ -596,6 +622,7 @@ def decide(doc_text: str, *, model: str, questions: Mapping[str, Any], timeout: 
     text = doc_text or ""
     if len(text) > max_input_chars:
         text = text[:max_input_chars]
+    text = mask_card_numbers(text)
     document = text if text.strip() else "(empty document)"
     state: Any = document
     if (qset or {}).get("handoff"):
