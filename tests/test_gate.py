@@ -317,3 +317,28 @@ def test_per_class_minimum_of_scorable_archives(tmp_path):
 
 def test_committed_bars_set_the_scorable_minimum():
     assert gate.load_bars().min_scorable_per_class == 20
+
+
+def test_an_absent_gated_class_fails_the_scorable_minimum(tmp_path):
+    """A 500-document slice with no corporate records must not pass the per-class minimum (#311 review)."""
+    docs = _docs(30) + _docs(25, "correspondence") + _docs(25, "insurance_claim")
+    reasons = gate.gate_report(_run(tmp_path, docs), Bars(per_class_from_n=50, min_scorable_per_class=20))["verdict"]["reasons"]
+    assert "class corporate_record has 0 scorable archives < 20" in reasons
+    assert not any(r.startswith(("class contract has", "class insurance_claim has")) for r in reasons)
+
+
+def test_a_scorable_archive_the_scorer_cannot_score_fails_the_gate(tmp_path, monkeypatch):
+    """Enough labels but no score is a scorer failure, not an unscorable archive (#311 review)."""
+    docs = _docs(9) + [{"id": "lost", "cls": "contract", "score": None}]
+    report = gate.gate_report(_run(tmp_path, docs), Bars())
+    lost = next(d for d in report["docs"] if d["id"] == "lost")
+    assert lost["outcome"] == "unscorable_archive" and lost["scorer_failed"] is True
+    assert "1 archive(s) with enough labels that the scorer could not score" in report["verdict"]["reasons"]
+
+
+def test_load_bars_rejects_a_duplicate_key(tmp_path):
+    """A repeated bar would silently take the later, possibly looser, value (#311 review)."""
+    custom = tmp_path / "b.yaml"
+    custom.write_text("quality: 0.9\nquality: 0.5\n")
+    with pytest.raises(ValueError, match="duplicate bar key 'quality'"):
+        gate.load_bars(custom)

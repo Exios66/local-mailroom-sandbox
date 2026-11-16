@@ -8,7 +8,8 @@ report keeps the real paths.
 """
 from __future__ import annotations
 
-from pathlib import PurePath
+import os
+from pathlib import Path, PurePath
 from typing import Any, Mapping
 
 from mailroom_sandbox.job.pair_report import render_markdown as render_paired
@@ -31,6 +32,13 @@ def _rel(path: str | None) -> str | None:
         if parts[i] == "data" and parts[i + 1] in ("archive", "traces", "runtime"):
             return "/".join(parts[i:])
     return PurePath(path).name
+
+
+def _link(path: str | None, out_dir: Path | None) -> str | None:
+    """A link target for ``path`` that resolves from ``out_dir`` (where gate.md is written), else ``_rel``."""
+    if path and out_dir is not None and PurePath(path).is_absolute():
+        return Path(os.path.relpath(path, out_dir)).as_posix()
+    return _rel(path)
 
 
 def _class_table(report: Mapping[str, Any]) -> list[str]:
@@ -68,14 +76,14 @@ def _audit_lines(report: Mapping[str, Any]) -> list[str]:
             f"archives {len(audit['missing_archive'])}."]
 
 
-def _bucket_table(report: Mapping[str, Any]) -> list[str]:
+def _bucket_table(report: Mapping[str, Any], out_dir: Path | None = None) -> list[str]:
     buckets = report["buckets"]
     if not buckets:
         return ["No review, wrong-archive or crashed documents."]
     lines = ["| Cause | Count | Document (archive) | Span |", "|---|---|---|---|"]
     for cause, bucket in buckets.items():
         for i, doc in enumerate(bucket["docs"]):
-            archive = _rel(doc.get("archive"))
+            archive = _link(doc.get("archive"), out_dir)
             link = f"[{doc['id']}]({archive})" if archive else f"{doc['id']} (no archive)"
             span = f"`{doc['span_id']}`" if doc.get("span_id") else "—"
             lines.append(f"| {cause if i == 0 else ''} | {bucket['count'] if i == 0 else ''} | {link} | {span} |")
@@ -130,7 +138,7 @@ def _thresholds_lines(ev: Mapping[str, Any]) -> list[str]:
     return lines
 
 
-def _document_table(report: Mapping[str, Any]) -> list[str]:
+def _document_table(report: Mapping[str, Any], out_dir: Path | None = None) -> list[str]:
     """One row per document: class, outcome, score, labelled units, cause and its audit links."""
     docs = report["docs"]
     if not docs:
@@ -138,7 +146,7 @@ def _document_table(report: Mapping[str, Any]) -> list[str]:
     lines = ["| Document | Class | Outcome | Score | Labelled | Cause | Archive | Span |",
              "|---|---|---|---|---|---|---|---|"]
     for doc in docs:
-        archive = _rel(doc.get("archive"))
+        archive = _link(doc.get("archive"), out_dir)
         link = f"[archive]({archive})" if archive else "—"
         span = f"`{doc['span_id']}`" if doc.get("span_id") else "—"
         lines.append(f"| {doc['id']} | {doc['class']} | {doc['outcome']} | {_pct(doc.get('score'))} "
@@ -146,8 +154,11 @@ def _document_table(report: Mapping[str, Any]) -> list[str]:
     return lines
 
 
-def render_markdown(report: Mapping[str, Any]) -> str:
-    """The gate report as Markdown: verdict first, then classes, pooled line, audit, buckets, optional sections."""
+def render_markdown(report: Mapping[str, Any], out_dir: Path | None = None) -> str:
+    """The gate report as Markdown: verdict first, then classes, pooled line, audit, buckets, optional sections.
+
+    ``out_dir`` is where the Markdown is written; archive links are made relative to it.
+    """
     verdict = report["verdict"]
     lines = [_verdict_line(verdict), "", f"# Slice gate: `{report['run_id']}` ({report['n']} documents)", ""]
     if verdict.get("warnings"):
@@ -158,8 +169,8 @@ def render_markdown(report: Mapping[str, Any]) -> str:
               f"{bars['review_max']:g}; per-class bars apply from n={bars['per_class_from_n']} "
               f"(this slice: {report['n']}).", "",
               "## Audit", "", *_audit_lines(report), "",
-              "## Buckets", "", *_bucket_table(report)]
-    lines += ["", "## Documents", "", *_document_table(report)]
+              "## Buckets", "", *_bucket_table(report, out_dir)]
+    lines += ["", "## Documents", "", *_document_table(report, out_dir)]
     if report.get("step_up"):
         lines += ["", *_step_up_lines(report["step_up"])]
     if report.get("rerun"):

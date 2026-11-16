@@ -222,6 +222,17 @@ _CARD_SHAPED = re.compile(r"(?<![\w-])\d{4}(?:[ -]\d{4}){3}(?:[ -]?\d{1,3})?(?![
 def mask_card_numbers(text: str) -> str:
     """Replace every digit of each card-shaped number with ``#``; separators and other text stay."""
     return _CARD_SHAPED.sub(lambda m: re.sub(r"\d", "#", m.group()), text)
+
+
+def _mask_card_values(value: Any) -> Any:
+    """``mask_card_numbers`` on every string inside a JSON-like value (keys stay unchanged)."""
+    if isinstance(value, str):
+        return mask_card_numbers(value)
+    if isinstance(value, Mapping):
+        return {k: _mask_card_values(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_mask_card_values(v) for v in value]
+    return value
 NOT_THIS_CLASS = "not_this_class"
 SUBCLASS_UNDETERMINED = "undetermined"
 # The class-level abstain thresholds a question set may set (4.0.0+). Each one is optional.
@@ -457,7 +468,8 @@ def decide_extraction(doc_text: str, handoff: Mapping[str, Any], *, model: str, 
                 or DECISIONS_MAX_INPUT_CHARS)
     text = mask_card_numbers((doc_text or "")[:limit])
     body = {"model": model, "state": {"document": text if text.strip() else "(empty document)",
-                                      "extraction_handoff": dict(handoff)},
+                                      # Extracted values (an IBAN field) trip the same filter.
+                                      "extraction_handoff": _mask_card_values(dict(handoff))},
             "questions": (questions := gate_questions(qset, doc_type, subclass or handoff.get("doc_subclass")))}
     # A whole long document (up to ~250k tokens) takes longer to read than the 120 s default allows.
     data = _post_decision(body, timeout=max(timeout, 60.0 + len(text) / 4_000), attempts=attempts)

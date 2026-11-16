@@ -271,7 +271,8 @@ class DatasetSpec(BaseModel):
             raise ValueError(f"dataset.exclude_ids_file not found: {path}")
         return path.read_bytes()
 
-    def request_core(self, *, source_sha256: str | None = None) -> dict[str, Any]:
+    def request_core(self, *, source_sha256: str | None = None,
+                     exclude_ids_sha256: str | None = None) -> dict[str, Any]:
         """The reproducibility-relevant spec (never row counts/attempt results).
 
         ``interim_labels`` is hashed only when set (with the overlay's fingerprint, so a rebuilt
@@ -280,7 +281,8 @@ class DatasetSpec(BaseModel):
         when ``local.is_file()``. File read errors propagate. The registry
         ``name`` is not hashed. Existing file-dataset specs receive a new spec_hash under
         this scheme, so resume refuses until --force relocks. Hub-dataset hashes are
-        unaffected.
+        unaffected. ``exclude_ids_sha256`` likewise supplies the exclusion hash that
+        ``prepare_subset`` recorded, instead of rereading the file.
         """
         core = self._request_core(source_sha256=source_sha256)
         # This filter changes the drawn rows for local and Hub datasets alike.
@@ -290,9 +292,12 @@ class DatasetSpec(BaseModel):
         if self.draw != "shuffle":
             core["draw"] = self.draw
         # Hashed by content (never the path) and only when set, so existing specs keep their hash.
-        excluded = self.exclude_ids_bytes()
-        if excluded is not None:
-            core["exclude_ids_sha256"] = hashlib.sha256(excluded).hexdigest()
+        if self.exclude_ids_file and exclude_ids_sha256 is not None:
+            core["exclude_ids_sha256"] = exclude_ids_sha256
+        else:
+            excluded = self.exclude_ids_bytes()
+            if excluded is not None:
+                core["exclude_ids_sha256"] = hashlib.sha256(excluded).hexdigest()
         if self.interim_labels:
             from mailroom_sandbox.interim_labels import overlay_fingerprint
 
@@ -968,10 +973,12 @@ def _vllm_core(vllm: VLLMSpec) -> dict[str, Any]:
     return core
 
 
-def spec_core(spec: RunSpec, *, source_sha256: str | None = None) -> dict[str, Any]:
+def spec_core(spec: RunSpec, *, source_sha256: str | None = None,
+              exclude_ids_sha256: str | None = None) -> dict[str, Any]:
     """Return the behavioral core covered by spec_hash, excluding run_id/timestamps.
 
-    ``source_sha256`` supplies the local dataset hash instead of rereading it.
+    ``source_sha256`` supplies the local dataset hash instead of rereading it, and
+    ``exclude_ids_sha256`` the exclusion-file hash the prepared draw used.
     Errors resolving prompts or reading local dataset bytes propagate.
     """
     return {
@@ -999,7 +1006,8 @@ def spec_core(spec: RunSpec, *, source_sha256: str | None = None) -> dict[str, A
                 and not (key == "blind_routing" and value is False)},
         "trace": spec.trace.model_dump(),
         "prompt": prompt_resolution_map(spec),
-        "dataset": spec.dataset.request_core(source_sha256=source_sha256),
+        "dataset": spec.dataset.request_core(source_sha256=source_sha256,
+                                             exclude_ids_sha256=exclude_ids_sha256),
     }
 
 

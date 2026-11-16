@@ -338,6 +338,9 @@ pytest, the vendored Dojo suite (`mailroom_sandbox.eval.scoring`).
 
 ### Task 7: `sandbox run gate` CLI, artifacts and ledger line
 
+> **As built:** the ledger row was dropped. `sandbox run gate` writes only `gate.json` and
+> `gate.md` into the run directory, and `ledger.py` is unchanged.
+
 **Files:**
 - Modify: `src/mailroom_sandbox/cli.py` (a `gate` subparser next to `routing`, near line 1163, and
   a `_cmd_run_gate` handler next to `_cmd_run_routing`, near line 3673)
