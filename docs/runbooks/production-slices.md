@@ -29,7 +29,7 @@ The slices use `dataset.draw: ranked`. Each class bucket is ordered by a per-doc
 | `slice-0500.yaml` | 500 | 91 / 68 / 151 / 167 / 23 | 10 | 14,400 |
 | `slice-full.yaml` | 3,064 (every remaining row) | 475 / 417 / 945 / 1,085 / 142 | 70 | 86,400 |
 
-Each of 100, 250 and 500 has a `*-modal-host.yaml` twin. A twin differs only in `run_id` and `job.mode: modal`. **The twins cannot launch yet** (#308): the Modal worker refuses the `decisions` reviewer and carries no OpenRouter key.
+Each of 100, 250 and 500 has a `*-modal-host.yaml` twin. A twin differs only in `run_id` and `job.mode: modal`: the Modal `sandbox-job` worker runs the job, and every model call still goes to OpenRouter. The worker gets `OPENROUTER_API_KEY` from its deploy Secret, so deploy it from a shell that has the key set (see "Modal job-host parity" below). A run that never calls OpenRouter has the key removed on the worker.
 
 ## Bars
 
@@ -150,8 +150,15 @@ A tuning run that itself excludes the production list would exclude its own docu
   - The pooled unscorable share stays under the 25% warning, so read the per-class unscorable count in `gate.md` before trusting a corporate pass.
   - Correspondence carries ground truth on only 3 of its 11 fields (Exios66/llm-dojo-scoring#94), but enough to score every slice document.
 
-## Modal job-host parity (after #308)
+## Modal job-host parity
 
+0. **Deploy the job worker once per code or vendor change** (a human step; it creates the `sandbox-runs` volume on first deploy). Select the Modal profile first, and load the key into the same shell. The key travels in the deploy Secret, never the image:
+   ```bash
+   export MODAL_PROFILE=<profile> PYTHONPATH="$PWD/src"
+   set -a; . <path-to-openrouter.env>; set +a
+   cd deploy && modal deploy modal_job.py
+   ```
+   A twin whose worker lacks the key fails before its first document with "this run calls OpenRouter but the worker has no OPENROUTER_API_KEY".
 1. Run the `*-modal-host.yaml` twin of a slice that already passed locally.
 2. Require the same `dependency_sources` in both run locks. Bundle the same selected snapshots when deploying the job worker, and reject results whose provenance differs.
 3. Gate the twin. The verdict must match, and every per-class rate must fall within the local run's paired confidence interval.

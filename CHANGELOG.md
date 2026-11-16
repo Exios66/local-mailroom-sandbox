@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+- **Modal job host runs OpenRouter slices** (#308).
+  - `deploy/modal_job.py` ships `OPENROUTER_API_KEY` in the deploy Secret, never the image, when
+    the deploying shell has it. `run_job` drops it for a locked run that never calls OpenRouter
+    (`deploy_env.lock_uses_openrouter`). A run that does call OpenRouter fails before its first
+    document if the worker has no key.
+  - Preflight no longer refuses the `decisions` reviewer in modal mode; the `api` and `jev` guards
+    stay. A locked run's profile already sets `DEFAULT_PROVIDER` on the worker, so the image's
+    `vllm` default applies only before activation.
+  - The slice twins preflight offline with only the missing key as an error. Tests cover the
+    twins, the key scoping and a worker round trip.
+
 - **Production slice gate** (#305). Production runs are nested slices of the HF mailroom dataset,
   and each slice must pass a gate before the next one runs. The slices exclude the recorded
   pipeline tuning runs; sorter accuracy and the earlier specialist A/B documents remain in-sample

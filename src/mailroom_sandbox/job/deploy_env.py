@@ -161,3 +161,36 @@ def settle_mailroom_writers(timeout: float = 60.0) -> list[str]:
             return [t.name for t in pending]
         for thread in pending:
             thread.join(max(0.0, deadline - time.monotonic()))
+
+
+# Reviewer backends that call OpenRouter (the Decisions endpoint, or an OpenRouter chat model).
+_OPENROUTER_REVIEWERS = frozenset({"decisions", "api"})
+
+
+def lock_uses_openrouter(lock: Mapping) -> bool:
+    """True when a locked, non-mock run calls OpenRouter anywhere (#308).
+
+    That is an OpenRouter engine or profile, any OpenRouter agent route, a Decisions or API
+    reviewer, or an extraction gate (always a Decisions model). A mock run calls nothing.
+    """
+    if (lock.get("job") or {}).get("mock"):
+        return False
+    if (lock.get("engine") or {}).get("kind") == "openrouter" or lock.get("profile") == "openrouter":
+        return True
+    if any((route or {}).get("provider") == "openrouter" for route in (lock.get("agent_routes") or {}).values()):
+        return True
+    if (lock.get("reviewer") or {}).get("backend") in _OPENROUTER_REVIEWERS:
+        return True
+    return bool(lock.get("extraction_gate"))
+
+
+def scope_openrouter_key(lock: Mapping, environ: dict) -> bool:
+    """Keep ``OPENROUTER_API_KEY`` in ``environ`` only for a lock that calls OpenRouter.
+
+    The Modal job worker receives the key through its deploy Secret for every input. A run
+    that never calls OpenRouter must not hold it, so it is dropped for those. Returns whether
+    the key is present afterwards.
+    """
+    if not lock_uses_openrouter(lock):
+        environ.pop("OPENROUTER_API_KEY", None)
+    return bool(str(environ.get("OPENROUTER_API_KEY") or "").strip())

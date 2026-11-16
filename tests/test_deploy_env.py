@@ -133,3 +133,44 @@ def test_spec_env_renders_dedicated_app_name():
     spec = _spec()
     spec.engine.modal.app = "sandbox-vllm-sand032"
     assert spec_env(spec)["MODAL_VLLM_APP_NAME"] == "sandbox-vllm-sand032"
+
+
+def test_lock_uses_openrouter_names_every_openrouter_caller():
+    from mailroom_sandbox.job.deploy_env import lock_uses_openrouter
+
+    assert lock_uses_openrouter({"engine": {"kind": "openrouter"}})
+    assert lock_uses_openrouter({"profile": "openrouter", "engine": {"kind": "vllm-modal"}})
+    assert lock_uses_openrouter({"engine": {"kind": "vllm-modal"},
+                                 "agent_routes": {"judge": {"provider": "openrouter", "model": "m"}}})
+    assert lock_uses_openrouter({"engine": {"kind": "vllm-modal"}, "reviewer": {"backend": "decisions"}})
+    assert lock_uses_openrouter({"engine": {"kind": "vllm-modal"}, "extraction_gate": {"model": "m"}})
+    assert not lock_uses_openrouter({"engine": {"kind": "vllm-modal"}, "reviewer": {"backend": "jev"}})
+    assert not lock_uses_openrouter({"engine": {"kind": "openrouter"}, "job": {"mock": True}})
+
+
+def test_scope_openrouter_key_drops_it_for_runs_that_never_call_openrouter():
+    from mailroom_sandbox.job.deploy_env import scope_openrouter_key
+
+    env = {"OPENROUTER_API_KEY": "k", "OTHER": "x"}
+    assert scope_openrouter_key({"engine": {"kind": "vllm-modal"}}, env) is False
+    assert env == {"OTHER": "x"}
+    env = {"OPENROUTER_API_KEY": "k"}
+    assert scope_openrouter_key({"engine": {"kind": "openrouter"}}, env) is True and env["OPENROUTER_API_KEY"] == "k"
+    assert scope_openrouter_key({"engine": {"kind": "openrouter"}}, {}) is False
+
+
+def test_modal_job_ships_the_openrouter_key_only_through_the_deploy_secret():
+    """The key is a deploy-Secret key (read from the deploying shell), never an image env value."""
+    import ast
+    from pathlib import Path
+
+    source = (Path(__file__).resolve().parents[1] / "deploy" / "modal_job.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    keys = next(ast.literal_eval(n.value) for n in ast.walk(tree)
+                if isinstance(n, ast.Assign) and any(getattr(t, "id", "") == "_DEPLOY_ENV_KEYS" for t in n.targets))
+    image_env = [ast.literal_eval(k) for n in ast.walk(tree)
+                 if isinstance(n, ast.Call) and getattr(n.func, "attr", "") == "env"
+                 for arg in n.args if isinstance(arg, ast.Dict) for k in arg.keys]
+    assert "OPENROUTER_API_KEY" in keys
+    assert image_env and "OPENROUTER_API_KEY" not in image_env
+    assert "scope_openrouter_key(lock, os.environ)" in source
