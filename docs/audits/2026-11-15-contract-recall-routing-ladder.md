@@ -141,8 +141,9 @@ sandbox run start --config config/runs/pipeline-qwen-flash-25-fit-r3.yaml --init
 |---|---|---|---|---|---|---|---|---|
 | r2 | pipeline-qwen-flash-25-fit-r2 | 0.76 | 0.44 | 0.13 | 0.77 | 0.24 | 2.72M | ≤0.49 |
 | E1 control / treatment | pipeline-qwen-flash-25-e1-contract-control / -chunk | 0.774 / 0.803 | n/a | n/a | n/a | n/a | 2.16M / 3.84M | ≈0.10 / ≈0.19 |
-| E2 control / treatment | — | n/a | | n/a | n/a | n/a | | |
-| E2r rejudge | — | n/a | | n/a | n/a | n/a | | |
+| r3 (blind routing, interim labels, condensed prompts) | pipeline-qwen-flash-25-fit-r3 | 0.771 | 0.654 (0.939 without templated) | 0.101 | 0.857 | 0.132 | 3.14M | — |
+| E2 control / treatment | pipeline-qwen-flash-25-e2-corporate-control / -judge | n/a | 0.593 / 0.579 (0.862 / 0.807 without templated) | n/a | n/a | n/a | 0.70M / 1.38M | — |
+| E2r rejudge | pipeline-qwen-flash-25-e2-corporate-rejudge | n/a | 0.584 (0.807 without templated) | n/a | n/a | n/a | 0.70M | — |
 | E3 control / treatment | — | | | | | | | |
 
 ### E1 result (2026-11-16): recall up, precision down; not adopted as is
@@ -192,3 +193,43 @@ Findings:
 Next steps: the chunk-size sweep (25k, 32k) with a clause-precision check on the merge,
 run as repeated arms or at temperature 0 so that it measures more than noise. Keep the
 whole-document read until a size beats control on both the missed and the false bar.
+
+### r3 result (2026-11-16): the new baseline
+
+r3 is r2's draw on the #302 pins with blind routing, interim labels and the adopted condensed
+specialist prompts. Its differences from r2 mix all three changes, and each run is scored against
+its own labels, so they are not effect sizes. Most of the corporate rise (0.44 → 0.65) comes from
+the interim labels. With n = 5 per class, only insurance (+0.10, CI +0.02 to +0.19) excludes zero.
+Watch two things in E3, which has 10 correspondence documents:
+- correspondence fell (0.24 → 0.13);
+- contracts escalated more under blind routing: 0 → 2 sent to review, 4 → 9 judge calls, and one
+  `judge_error`.
+
+### E2 result (2026-11-16): judging every corporate extraction adds cost, not quality; not adopted
+
+`python scripts/ladder_pair_report.py <control> <treatment>` on the shared 18 records. Quality is
+on the lane without the templated `keywords` / `subject_matter`:
+
+| Pair | Quality (control → treatment) | Diff (95% CI) | Review | Judge calls | Retries | Prompt tokens |
+|---|---|---|---|---|---|---|
+| E2: control → judge (`judge_band_high: 1.01`) | 0.862 → 0.807 | −0.056 (−0.17 to +0.06) | 0 → 6 | 0 → 32 | 1 → 16 | 0.71M → 1.39M |
+| E2r: control → rejudge (`judge_rejudge_retry: true`) | 0.862 → 0.807 | −0.056 (−0.17 to +0.06) | 0 → 0 | 0 → 0 | 1 → 2 | 0.71M → 0.71M |
+
+- **The rejudge arm is a noise control.** The switch never fired: every control-band extraction
+  reported confidence ≥ 0.95, so no attempt was judged before a retry. Routing therefore matched
+  the control. Its −0.056 comes from a single record whose first-pass `intent` flipped
+  `investor_rights` → `other`, the same record and the same flip as in the judge arm.
+- **So the judge arm's −0.056 is sampling noise.** The judge changed no document's score.
+- **The judge does not catch bad extractions.** It marked both records scoring below 0.5
+  `complete`. Its 20 `partial` verdicts sent 6 records to review; on the labelled fields, 5 of them
+  score 1.00 and one 0.55. Some of its fix requests are wrong, for example moving an indenture's
+  jurisdiction from the issuer's state of formation (Delaware) to its governing law (New York).
+- **Caveat:** labels cover `intent` (heuristic) and up to six interim fields, so complaints about
+  unlabelled fields are not scored.
+- **Bar:** E2 needed paired quality above control and a judge that rejects most extractions
+  scoring below 0.5. It met neither, at about 2× the tokens and with 6 records sent to review.
+- **E2r:** the #241 switch cannot be tested on corporate records at the default band. Contracts
+  are the next place to test it.
+- **E3:** under the ladder rule, both the E1 treatment (contract chunking) and the E2 treatment
+  (judge every corporate extraction) drop out of E3.
+
