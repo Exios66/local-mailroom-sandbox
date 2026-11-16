@@ -144,7 +144,7 @@ sandbox run start --config config/runs/pipeline-qwen-flash-25-fit-r3.yaml --init
 | r3 (blind routing, interim labels, condensed prompts) | pipeline-qwen-flash-25-fit-r3 | 0.771 | 0.654 (0.939 without templated) | 0.101 | 0.857 | 0.132 | 3.14M | — |
 | E2 control / treatment | pipeline-qwen-flash-25-e2-corporate-control / -judge | n/a | 0.593 / 0.579 (0.862 / 0.807 without templated) | n/a | n/a | n/a | 0.70M / 1.38M | — |
 | E2r rejudge | pipeline-qwen-flash-25-e2-corporate-rejudge | n/a | 0.584 (0.807 without templated) | n/a | n/a | n/a | 0.70M | — |
-| E3 control (treatment not run) | pipeline-qwen-flash-25-e3-mix-control | 0.768 | 0.555 (0.939 without templated) | 0.106 | 0.892 | 0.338 (0.410 without templated) | 45 docs, about 4.6M | — |
+| E3 control (treatment not run) | pipeline-qwen-flash-25-e3-mix-control | 0.768 | 0.555 (0.939 without templated) | 0.106 | 0.892 | 0.338 (0.410 without templated) | 3.42M (45 docs) | — |
 
 ### E1 result (2026-11-16): recall up, precision down; not adopted as is
 
