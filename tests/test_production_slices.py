@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PROD = ROOT / "config" / "runs" / "production"
 R3 = ROOT / "config" / "runs" / "pipeline-qwen-flash-25-fit-r3.yaml"
 EXCLUDED = ROOT / "config" / "production" / "excluded-ids.txt"
+LINEAGE = ROOT / "config" / "prompts" / "specialist_condensed_lineage.yaml"
 
 SIZES = ("0100", "0250", "0500")
 SLICES = [f"slice-{s}" for s in SIZES] + ["slice-full"]
@@ -62,6 +63,7 @@ def _draw(name: str, tmp_path: Path, exclude_file: Path | None = None) -> list[d
 
 def test_slices_validate_and_share_settings():
     r3 = load_run_spec(R3)
+    frontrunners = {a: row["frontrunner"] for a, row in yaml.safe_load(LINEAGE.read_text())["agents"].items()}
     for name in SLICES + TWINS:
         spec = _load(name)
         size = name.split("-")[1]
@@ -76,7 +78,13 @@ def test_slices_validate_and_share_settings():
         assert spec.dataset.sample_seed == 3302
         assert spec.dataset.exclude_ids_file == "config/production/excluded-ids.txt"
         assert spec.dataset.draw == "ranked"
-        assert spec.prompt == r3.prompt
+        # r3's prompts, with every condensed specialist at its adopted lineage frontrunner
+        # (correspondence moved to v3 after its paired A/B, #306).
+        assert spec.prompt["default"] == r3.prompt["default"]
+        assert set(spec.prompt["agents"]) == set(r3.prompt["agents"])
+        for agent, entry in spec.prompt["agents"].items():
+            assert entry == {**r3.prompt["agents"][agent], "file": frontrunners.get(agent, entry["file"])}, agent
+            assert entry["file"] == frontrunners.get(agent, r3.prompt["agents"][agent]["file"]), agent
         assert spec.confidence == r3.confidence
         assert spec.reviewer == r3.reviewer
         assert spec.agent_routes == r3.agent_routes
