@@ -142,6 +142,8 @@ def _fake_lazy_release(root: Path, *, broken: str | None, missing: str | None = 
     names = {name: f"mod_{name}" for name in dojo_source.REQUIRED_ROOT_NAMES if name != missing}
     (pkg / "__init__.py").write_text(
         "import importlib\n"
+        # Real releases define the version eagerly; tooling may read it during import.
+        f"__version__ = {PIN['version']!r}\n"
         f"_LAZY = {{n: (m, n) for n, m in {names!r}.items()}}\n"
         "def __getattr__(name):\n"
         "    if name in _LAZY:\n"
