@@ -1,18 +1,19 @@
 # CI checks and runtime verification
 
-[`config.yml`](config.yml) runs one workflow with independent `lint` and `test`
-jobs on `cimg/python:3.11-node`: lint uses `small` and test uses `medium`.
-This repository's CI
-configuration is CircleCI. GitHub branch protection must require
-`ci/circleci: lint` and `ci/circleci: test` to enforce both gates on `main`;
-configuration comments alone do not enable branch protection.
+[`config.yml`](config.yml) runs one workflow on `cimg/python:3.11-node`: `lint`
+(`small`), `test` (`medium`, 4 parallel containers) and `coverage` (`small`,
+runs after `test`). This repository's CI configuration is CircleCI. GitHub
+branch protection must require `ci/circleci: lint`, `ci/circleci: test` and
+`ci/circleci: coverage` to enforce every gate on `main`; configuration
+comments alone do not enable branch protection.
 
 ## Gates and artifacts
 
 | Job | Checks |
 | --- | --- |
 | `lint` | Ruff on source/tests/scripts/deploy/reports; Bandit medium-and-higher severity; YAMLlint; ShellCheck warning level; Markdownlint. Repository config files define rule exclusions. |
-| `test` | Complete network-free pytest suite excluding `local_llm`, merged coverage, committed reports-hub snapshot, and generated requirements mirrors. |
+| `test` | Complete network-free pytest suite excluding `local_llm`, split by file across 4 containers (`parallelism: 4`) using recorded timings. Each container writes its own coverage data file. |
+| `coverage` | Combines the 4 coverage data files (fails unless all 4 are present), enforces `fail_under = 84` from `pyproject.toml` on the combined total, writes coverage XML, then checks the committed reports-hub snapshot and generated requirements mirrors. |
 
 These are the configured jobs. There is no dedicated full-corpus campaign or
 serial/parallel runtime-benchmark job; passing `lint` and `test` does not establish
@@ -20,14 +21,20 @@ those results. If a task requires one, arrange a separately scoped hosted job
 and record its revision, workload and results. Until it runs, label that check
 pending or unverified. Preserve live-call and spend gates for any campaign.
 
-The test command uses two pytest-xdist workers with `--dist loadfile` and
-retains JUnit at `test-results/junit.xml`, coverage XML at
-`coverage/coverage.xml`, and the slowest 20 test durations in the job log.
-CircleCI ingests the JUnit results and stores the coverage directory as an
-artifact. Coverage is scoped to `src/mailroom_sandbox` by `pyproject.toml`;
-the configured 84% failure threshold remains in force.
+`circleci tests split --split-by=timings` gives each container a share of
+the test files (by file name until timing data exists). Each container runs its
+share with two pytest-xdist workers and `--dist loadfile`, writes JUnit to
+`test-results/junit-<index>.xml` (`junit_family=legacy`, which carries the
+`file` attribute the timing split needs) and the slowest 10 durations to the
+job log. A single container covers only part of the code, so each passes
+`--cov-fail-under=0`; the `coverage` job enforces the real 84% floor on the
+combined data and stores `coverage/coverage.xml` as an artifact. Coverage is
+scoped to `src/mailroom_sandbox` by `pyproject.toml`.
+`tests/test_regression_guards.py::test_ci_parallel_test_shards_feed_a_combined_coverage_gate`
+fails if the shards stop feeding a combined, floor-enforcing coverage job.
 
-`loadfile` keeps each test file on one worker. In particular,
+`loadfile` keeps each test file on one worker, and the timing split never
+divides a file between containers. In particular,
 `tests/test_pipeline_routing_matrix.py` accumulates a process-local `WALKED`
 union and then checks aggregate graph-edge coverage. Splitting its scenarios
 between workers invalidates that assertion. Preserve file scheduling unless
@@ -61,13 +68,13 @@ finish. Changing worker count does not change test selection or waive gates.
 
 | Cache key | Contents and invalidation |
 | --- | --- |
-| `pip-lint-v1` | Lint lane's `~/.cache/pip`, restored and saved. Bump manually when changing the lint tool set. Ruff/YAMLlint/Bandit installs are unpinned. |
-| `pip-v1-{{ checksum "pyproject.toml" }}` | Test lane's pip download cache; changes to the project dependency definition generate a new key. |
+| `pip-lint-v2` | Lint lane's `~/.cache/pip`, restored and saved. Bump manually when changing the lint tool set. Ruff/YAMLlint/Bandit/`shellcheck-py` installs are unpinned. |
+| `venv-v1-{{ arch }}-{{ checksum "pyproject.toml" }}` | The installed dev virtualenv at `~/venv`, shared by `test` and `coverage`. A hit skips `pip install` entirely; a dependency change in `pyproject.toml` builds a new one. The editable install is a plain `.pth` to this checkout's `src/`, so new modules need no reinstall. |
 | `npm-v1` | `~/.npm` for Markdownlint CLI2 0.18.1; bump for a deliberate tool/cache refresh. |
 
-Caches retain downloaded packages, not a preinstalled environment. Each job
-still installs its tools. `npx` may consult the registry, and ShellCheck's apt
-installation is uncached. A cache hit does not make setup network-free; the
+The lint lane caches downloads and still installs its tools; ShellCheck comes
+from the `shellcheck-py` wheel, so there is no `apt-get update`. `npx` may
+consult the registry. A cache hit does not make setup network-free; the
 pytest workload itself is network-free. `pytest-xdist` is part of the dev
 extra and its generated requirements mirrors. Change dependencies in
 `pyproject.toml` and regenerate with `scripts/sync_requirements.py`.

@@ -1,21 +1,54 @@
 version: 2.1
 
-# One workflow: small lint job, medium test job, cached downloads.
-# The test job needs medium's two allocated CPUs for its two pytest workers;
-# small has one CPU and hosted job 609 showed no parallel speedup there.
-# Both lanes restore caches before setup; the test job parallelizes the
-# network-free suite with two pytest-xdist workers
-# and keeps coverage scoped to src/mailroom_sandbox (pyproject
-# [tool.coverage.run]). This is the repo's only CI (there is no
-# .github/workflows/ci.yml). To BLOCK merges, mark the "ci/circleci: lint"
-# and "ci/circleci: test" checks as required in the GitHub branch protection
-# rule for main.
+# One workflow: lint, a 4-way parallel test job, and a coverage gate.
+#
+# Where the time went before (hosted runs, about 10-11 minutes per PR): the
+# whole suite ran on one medium container (pytest step about 560s) after a
+# fresh `pip install` (about 50s). Now:
+#   - the installed virtualenv is cached, keyed on pyproject.toml, so a cache
+#     hit skips the install;
+#   - the test job runs on 4 parallel containers. CircleCI splits test files
+#     by their recorded timings (file-name split on the first run), and each
+#     container runs two pytest-xdist workers with --dist loadfile, so
+#     process-local unions such as test_pipeline_routing_matrix.WALKED stay
+#     on one worker;
+#   - each container writes its own coverage data file; the `coverage` job
+#     combines them and enforces fail_under from pyproject.toml (84, unchanged).
+#     The per-container --cov-fail-under=0 only stops a partial file from
+#     failing on its own; the real floor is checked on the combined data.
+# This is the repo's only CI (there is no .github/workflows/ci.yml). To BLOCK
+# merges, mark "ci/circleci: lint", "ci/circleci: test" and
+# "ci/circleci: coverage" as required in the branch protection rule for main.
 
 executors:
   py:
     docker:
       - image: cimg/python:3.11-node
     resource_class: small
+
+commands:
+  venv:
+    description: Restore or build the dev virtualenv (cached on pyproject.toml).
+    steps:
+      - restore_cache:
+          keys:
+            - venv-v1-{{ arch }}-{{ checksum "pyproject.toml" }}
+      - run:
+          name: Install dev surface into ~/venv (skipped on a cache hit)
+          command: |
+            if [ ! -x ~/venv/bin/python ]; then
+              python -m venv ~/venv
+              ~/venv/bin/pip install --quiet --upgrade pip
+              ~/venv/bin/pip install --quiet -e ".[dev]"
+            fi
+            # The editable install is a plain .pth pointing at this checkout's
+            # src/ (same path on every container), so new modules need no
+            # reinstall; only dependency changes do, and they change the key.
+            echo 'export PATH="$HOME/venv/bin:$PATH"' >> "$BASH_ENV"
+      - save_cache:
+          key: venv-v1-{{ arch }}-{{ checksum "pyproject.toml" }}
+          paths:
+            - ~/venv
 
 jobs:
   lint:
@@ -24,21 +57,15 @@ jobs:
       - checkout
       - restore_cache:
           keys:
-            # static key: bump by hand when the tool set changes (ruff/yamllint/bandit are
-            # unpinned so bump this key deliberately when updating the tool set)
-            - pip-lint-v1
+            # static key: bump by hand when the tool set changes
+            - pip-lint-v2
       - run:
-          name: Install lint tools (cached)
-          command: pip install --quiet ruff yamllint bandit
+          name: Install lint tools (cached; shellcheck-py ships the shellcheck binary, no apt)
+          command: pip install --quiet ruff yamllint bandit shellcheck-py
       - save_cache:
-          key: pip-lint-v1
+          key: pip-lint-v2
           paths:
             - ~/.cache/pip
-      # shellcheck needs apt; keep it last so the cheap pip steps above never queue
-      # behind the apt index refresh.
-      - run:
-          name: Install shellcheck (apt, not cached)
-          command: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
       - run:
           name: ruff (correctness gate, config in pyproject.toml)
           command: ruff check src tests scripts deploy reports
@@ -66,36 +93,53 @@ jobs:
   test:
     executor: py
     resource_class: medium
+    parallelism: 4
     steps:
       - checkout
-      - restore_cache:
-          keys:
-            - pip-v1-{{ checksum "pyproject.toml" }}
+      - venv
       - run:
-          name: Install (dev surface incl. pytest-xdist for two workers)
-          command: pip install -e ".[dev]"
-      - save_cache:
-          key: pip-v1-{{ checksum "pyproject.toml" }}
+          name: Pytest (network-free; this container's share of the test files)
+          # -n 2 matches medium's 2 vCPU / 4GB. junit_family=legacy writes the
+          # `file` attribute CircleCI needs to split by timings. Set
+          # SANDBOX_XDIST to override the worker count without editing CI.
+          command: |
+            mkdir -p test-results coverage-data
+            circleci tests glob "tests/test_*.py" \
+              | circleci tests split --split-by=timings > /tmp/test-files.txt
+            echo "Files on container ${CIRCLE_NODE_INDEX}: $(wc -l < /tmp/test-files.txt)"
+            COVERAGE_FILE="coverage-data/.coverage.${CIRCLE_NODE_INDEX}" \
+              pytest -q -n "${SANDBOX_XDIST:-2}" --dist loadfile -m "not local_llm" \
+                -o junit_family=legacy --junitxml="test-results/junit-${CIRCLE_NODE_INDEX}.xml" \
+                --cov --cov-report= --cov-fail-under=0 --durations=10 \
+                $(cat /tmp/test-files.txt)
+      - store_test_results:
+          path: test-results
+      - persist_to_workspace:
+          root: .
           paths:
-            - ~/.cache/pip
+            - coverage-data
+
+  coverage:
+    executor: py
+    steps:
+      - checkout
+      - venv
+      - attach_workspace:
+          at: .
       - run:
-          name: Pytest (network-free, parallel on the executor's CPUs)
-          # -q + -n 2 matches medium's 2 vCPU / 4GB allocation. small is 1 vCPU / 2GB;
-          # two workers there did not improve hosted runtime. An `auto` count may read
-          # host CPUs inside Docker and exhaust memory before imports finish.
-          # junitxml stays identical in shape (xdist merges it), and
-          # pytest-cov merges coverage. loadfile keeps process-local scenario unions
-          # (test_pipeline_routing_matrix.WALKED) together and ordered on one worker.
-          # Set SANDBOX_XDIST to override without editing CI.
-          command: pytest -q -n "${SANDBOX_XDIST:-2}" --dist loadfile -m "not local_llm" --junitxml=test-results/junit.xml --cov --cov-report=xml:coverage/coverage.xml --durations=20
+          name: Combine coverage from every test container and enforce fail_under
+          command: |
+            ls -A coverage-data/
+            test "$(ls -A coverage-data | grep -c '^\.coverage\.')" -eq 4
+            coverage combine coverage-data/
+            coverage report
+            coverage xml -o coverage/coverage.xml
       - run:
           name: Reports hub committed snapshot
           command: python reports/dashboard/build_hub.py --check
       - run:
           name: Requirements mirror pyproject
           command: python scripts/sync_requirements.py --check
-      - store_test_results:
-          path: test-results
       - store_artifacts:
           path: coverage
 
@@ -104,3 +148,6 @@ workflows:
     jobs:
       - lint
       - test
+      - coverage:
+          requires:
+            - test
