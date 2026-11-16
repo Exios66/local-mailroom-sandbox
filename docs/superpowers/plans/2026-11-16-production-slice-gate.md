@@ -43,7 +43,7 @@ pytest, the vendored Dojo suite (`mailroom_sandbox.eval.scoring`).
   `sandbox run start`.
 - **Local checks:** explicit test files, `-n 0 --no-cov`, with `env -u CLAUDECODE PYTHONPATH=$PWD/src`;
   lint with `uvx ruff check src tests scripts deploy reports`. Coverage floor 84 (hosted CI).
-- **Worktree:** `/Users/luciusjmorningstar/Downloads/mailroom-slice-gate`, branch `feat/slice-gate`
+- **Worktree:** a `git worktree` of this repo (`mailroom-slice-gate` beside the main checkout), branch `feat/slice-gate`
   (stacked on #303). Verify the branch before each commit, and push only with an explicit
   refspec.
 

@@ -5,8 +5,9 @@ Offline and deterministic. ``primary_cause`` reads the document (dataset row, la
 precedence:
 
 1. ``mechanism``: ``judge_error``, ``crashed``, ``transient``;
-1b. ``input:near_empty``: the document text is under ``NEAR_EMPTY_CHARS`` characters (an Enron cover note
-   whose attachment was stripped, for example), so no reviewer or specialist can do better than abstain;
+1b. ``input:near_empty``, reviews only: the document text is under ``NEAR_EMPTY_CHARS`` characters (an
+   Enron cover note whose attachment was stripped, for example), so no reviewer can do better than
+   abstain. A wrong archive of such a document keeps its classification or extraction cause;
 2. ``classification``: ``wrong_class`` (the archived or reviewed class is not the expected one),
    ``reviewer_unknown``, ``reviewer_disagreement``, ``arbiter_escalated``;
 3. ``judge``: ``partial_exhausted`` (partial verdict, retries spent), ``judge_rejected``;
@@ -226,8 +227,11 @@ def primary_cause(doc: Mapping[str, Any], status: Mapping[str, Any]) -> str:
         if token in have or (token == "judge_error" and status.get("judge_error")):
             return f"mechanism:{kind}"
     doc_class = str(status.get("class") or row.get("expected_doc_class"))
+    # A review of a near-empty input is an input finding: there is nothing to classify. A wrong ARCHIVE of
+    # one is not: the pipeline was confidently wrong, so it keeps its classification/extraction cause.
     # Only a row that carries its text is judged (dataset rows always do); a row without the key says nothing.
-    if "doc_text" in row and len(str(row.get("doc_text") or "").strip()) < NEAR_EMPTY_CHARS:
+    if (outcome == "review" and "doc_text" in row
+            and len(str(row.get("doc_text") or "").strip()) < NEAR_EMPTY_CHARS):
         return "input:near_empty"
     if is_wrong_class(doc_class, pred) or have & _WRONG_CLASS_TOKENS:
         return "classification:wrong_class"

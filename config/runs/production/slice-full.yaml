@@ -1,4 +1,4 @@
-# Production slice gate, every eligible documents (every eligible document (no strata, no limit)).
+# Production slice gate, full slice: every eligible document (no strata, no limit).
 # Spec: docs/superpowers/specs/2026-11-16-production-slice-gate-design.md
 #
 # Bars (sandbox run gate; config/production/bars.yaml):
@@ -46,6 +46,7 @@ dataset:
   require_task_gt: true     # every document can be scored
   interim_labels: true      # gap-fill labels for unlabelled fields (data/labels/interim; Dojo #164)
   exclude_ids_file: config/production/excluded-ids.txt   # tuning documents, dropped before the draw
+  draw: ranked   # exclusion-stable order: adding tuning ids keeps the rest of every slice
 
 engine:
   kind: openrouter

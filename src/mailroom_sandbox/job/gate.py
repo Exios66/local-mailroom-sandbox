@@ -176,6 +176,8 @@ def _status(doc: Mapping[str, Any], bars: Bars) -> dict[str, Any]:
     out["tokens"] = int(item.get("prompt_tokens") or 0) + int(item.get("completion_tokens") or 0)
     out["judge_error"] = "judge_error" in (pred.get("review_causes") or [])
     out["stage"] = "review" if pred.get("stage") == "review" else "archived"
+    if out["stage"] == "archived":
+        out["archived_class"] = str(pred.get("doc_type") or "").strip().lower() or None
     out["scorable"] = out["labelled"] >= bars.min_labelled
     if out["stage"] == "review":
         out["outcome"] = "review"
@@ -284,8 +286,8 @@ def _audit(run_dir: Path, statuses: list[dict[str, Any]], traces_dir: Path | Non
                   "pass traces_dir and archive_dir")
         return {"trace_ids": {}, "span_ids": {}, "archives": {}, "missing_spans": [], "missing_nodes": [], "missing_archive": [],
                 "span_mirror": False, "reasons": [reason], "ok": False}
-    return audit_trail(run_dir, [s["id"] for s in statuses], {s["id"] for s in statuses if s["stage"] == "archived"},
-                       traces_dir=traces_dir, archive_dir=archive_dir)
+    archived = {s["id"]: s.get("archived_class") for s in statuses if s["stage"] == "archived"}
+    return audit_trail(run_dir, [s["id"] for s in statuses], archived, traces_dir=traces_dir, archive_dir=archive_dir)
 
 
 def gate_report(run_dir: Path, bars: Bars, *, traces_dir: Path | None = None, archive_dir: Path | None = None,
@@ -304,6 +306,8 @@ def gate_report(run_dir: Path, bars: Bars, *, traces_dir: Path | None = None, ar
     trail = _audit(run_dir, statuses, traces_dir, archive_dir) if audit else None
     for status in statuses if trail else []:
         status["span_id"] = trail["span_ids"].get(status["id"])
+        status["trace_id"] = trail["trace_ids"].get(status["id"])
+        status["archive"] = trail["archives"].get(status["id"])
     by_class: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for status in statuses:
         by_class[status["class"]].append(status)

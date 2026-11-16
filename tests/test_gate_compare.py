@@ -114,3 +114,31 @@ def test_threshold_evidence_counts_missing_confidence_separately(tmp_path):
     assert pooled["no_confidence_by_outcome"] == {"wrong_archive": 1, "correct_archive": 1}
     assert pooled["thresholds"][0.96]["extra_judged"] == 1  # the 2 unconfident docs are not in the counts
     assert "merger_agreement" not in out["classes"]  # reported never, gated only
+
+
+def test_rerun_on_the_same_slice_passes_when_not_worse(tmp_path):
+    """A fix re-run on the same documents is a paired comparison, not a step-up (review I1)."""
+    prev = _run(tmp_path, "prev", [{"id": "a", "score": 0.5}, {"id": "b"}])
+    nxt = _run(tmp_path, "next", _ids("a", "b"))
+    out = gate_compare.rerun(prev, nxt, Bars(), audit=False)
+    assert out["same_documents"] is True
+    assert out["prev_pooled"]["wrong_archive_rate"] == 0.5
+    assert out["next_pooled"]["wrong_archive_rate"] == 0.0
+    assert out["verdict"] == {"pass": True, "reasons": []}
+
+
+def test_rerun_fails_when_wrong_archives_or_reviews_rise(tmp_path):
+    prev = _run(tmp_path, "prev", _ids("a", "b", "c"))
+    nxt = _run(tmp_path, "next", [{"id": "a", "score": 0.5}, {"id": "b", "stage": "review"}, {"id": "c"}])
+    out = gate_compare.rerun(prev, nxt, Bars(), audit=False)
+    assert out["verdict"]["pass"] is False
+    assert any(r.startswith("wrong_archive_rate rose") for r in out["verdict"]["reasons"])
+    assert any(r.startswith("review_rate rose") for r in out["verdict"]["reasons"])
+
+
+def test_rerun_on_different_documents_fails(tmp_path):
+    prev = _run(tmp_path, "prev", _ids("a", "b"))
+    nxt = _run(tmp_path, "next", _ids("a", "c"))
+    out = gate_compare.rerun(prev, nxt, Bars(), audit=False)
+    assert out["same_documents"] is False
+    assert "re-run drew different documents" in out["verdict"]["reasons"]

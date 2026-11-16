@@ -1,7 +1,7 @@
 """Markdown rendering of a production slice gate report (``gate.md``); pure, no I/O.
 
 ``render_markdown(report)`` takes the dict ``gate.gate_report`` returns, optionally with a ``step_up``
-block (``gate_compare.step_up``) and a ``thresholds`` block (``gate_compare.threshold_evidence``) added
+block (``gate_compare.step_up``) or a ``rerun`` block (``gate_compare.rerun``) and a ``thresholds`` block (``gate_compare.threshold_evidence``) added
 by the CLI. The first line is the verdict: ``PASS`` or ``FAIL — <reasons>``. Archive links are rendered
 relative to the checkout root (``data/archive/...``), so no home path reaches the Markdown; the JSON
 report keeps the real paths.
@@ -82,6 +82,21 @@ def _bucket_table(report: Mapping[str, Any]) -> list[str]:
     return lines
 
 
+def _rerun_lines(rerun: Mapping[str, Any]) -> list[str]:
+    before, after = rerun["prev_pooled"], rerun["next_pooled"]
+    lines = ["## Re-run (paired, same slice)", "",
+             f"`{rerun['prev']}` → `{rerun['next']}`: {rerun['shared_docs']} shared documents"
+             f"{'' if rerun['same_documents'] else ' (the runs drew DIFFERENT documents)'}. Kept only when not worse.", "",
+             f"Re-run verdict: {_verdict_line(rerun['verdict'])}", "",
+             "| Pooled (gated) | earlier | re-run |", "|---|---|---|"]
+    for key in ("wrong_archive_rate", "review_rate", "crashes", "judge_errors"):
+        old, new = before.get(key), after.get(key)
+        fmt = _pct if key.endswith("_rate") else str
+        lines.append(f"| {key} | {fmt(old)} | {fmt(new)} |")
+    lines += ["", render_paired(rerun["shared_paired"])]
+    return lines
+
+
 def _step_up_lines(step: Mapping[str, Any]) -> list[str]:
     new = step["new_docs_gate"]
     lines = ["## Step-up", "",
@@ -122,6 +137,8 @@ def render_markdown(report: Mapping[str, Any]) -> str:
               "## Buckets", "", *_bucket_table(report)]
     if report.get("step_up"):
         lines += ["", *_step_up_lines(report["step_up"])]
+    if report.get("rerun"):
+        lines += ["", *_rerun_lines(report["rerun"])]
     if report.get("thresholds"):
         lines += ["", *_thresholds_lines(report["thresholds"])]
     return "\n".join(lines) + "\n"

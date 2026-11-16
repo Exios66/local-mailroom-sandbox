@@ -143,6 +143,11 @@ class DatasetSpec(BaseModel):
     # comments ignored) dropped BEFORE the draw, so a slice never re-draws a tuning document.
     # The file's sha256 is hashed into the spec; a missing file is a preflight error.
     exclude_ids_file: str | None = None
+    # Seeded draw order. ``shuffle`` (default, every existing config) permutes each bucket, so
+    # excluding one more document reshuffles it. ``ranked`` orders each bucket by a per-document
+    # sha256, so excluding documents keeps the rest in order: same-slice re-runs and nested
+    # slices survive an exclusion-list update. Hashed only when ``ranked``.
+    draw: Literal["shuffle", "ranked"] = "shuffle"
     columns: dict[str, str] | None = None
     expected_fields: list[str] | None = None
     local_path: str | None = None  # file:// or a path, ${VAR} expanded (offline)
@@ -282,6 +287,8 @@ class DatasetSpec(BaseModel):
         # Omit the default so existing unfiltered specs retain their hashes.
         if self.require_task_gt:
             core["require_task_gt"] = True
+        if self.draw != "shuffle":
+            core["draw"] = self.draw
         # Hashed by content (never the path) and only when set, so existing specs keep their hash.
         excluded = self.exclude_ids_bytes()
         if excluded is not None:

@@ -3,7 +3,9 @@
 # the SAME 40 held-out correspondence documents (seed 1116, tuning documents excluded): v2 = reference,
 # v3 = candidate. Compare: python scripts/compare_specialist_prompt.py \
 #   --reference specialist-condensed-v3-correspondence-qwen-v2arm --candidate specialist-condensed-v3-correspondence-qwen-v3arm
-# VALIDATION ONLY: both arms' documents join config/production/excluded-ids.txt afterwards.
+# VALIDATION ONLY: these 40 documents are already in config/production/excluded-ids.txt (run v2arm),
+# so no production slice draws them. The arms exclude the frozen pre-A/B list (excluded-ids-ladder.txt,
+# the 11 ladder runs) so their own draw never changes.
 schema: sandbox.run/v1
 run_id: specialist-condensed-v3-correspondence-qwen-v2arm
 task: correspondence_specialist
@@ -27,7 +29,7 @@ dataset:
   sample_seed: 1116
   require_task_gt: true
   interim_labels: true
-  exclude_ids_file: config/production/excluded-ids.txt
+  exclude_ids_file: config/production/excluded-ids-ladder.txt
 
 engine:
   kind: openrouter

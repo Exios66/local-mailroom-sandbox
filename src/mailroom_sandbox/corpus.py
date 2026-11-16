@@ -516,11 +516,21 @@ def _bucket_candidates(
 
 
 def _seeded_prefix(
-    candidates: list[dict[str, Any]], count: int, *, seed: int
+    candidates: list[dict[str, Any]], count: int, *, seed: int, draw: str = "shuffle"
 ) -> list[dict[str, Any]]:
-    """Deterministic prefix of a seeded shuffle (nested draws: k ⊂ m when k < m)."""
+    """Deterministic prefix of a seeded order (nested draws: k ⊂ m when k < m).
+
+    ``shuffle`` permutes the whole list, so the order depends on every candidate. ``ranked``
+    sorts by ``sha256(seed:filename:id)``, so dropping candidates keeps the others' order.
+    """
     if count >= len(candidates):
         return list(candidates)
+    if draw == "ranked":
+        def rank(row: dict[str, Any]) -> str:
+            filename, doc_id = _stable_key(row)
+            return hashlib.sha256(f"{seed}:{filename}:{doc_id}".encode()).hexdigest()
+
+        return sorted(candidates, key=rank)[:count]
     rng = random.Random(seed)
     ordered = list(candidates)
     rng.shuffle(ordered)
@@ -533,6 +543,7 @@ def _draw_buckets(
     *,
     field: str,
     sample_seed: int | None,
+    draw: str = "shuffle",
 ) -> list[dict[str, Any]]:
     """Per-stratum sub-seeded draws; union; stable-key preserved.
 
@@ -587,7 +598,7 @@ def _draw_buckets(
                     if sample_seed is None:
                         raise ValueError("sample_seed required for stratified draws")
                     sub_seed = int(hashlib.sha256(f"{sample_seed}:{bucket_key}".encode()).hexdigest()[:16], 16)
-                    picked = _seeded_prefix(sub_candidates, c, seed=sub_seed)
+                    picked = _seeded_prefix(sub_candidates, c, seed=sub_seed, draw=draw)
                 else:
                     picked = sub_candidates
                 drawn.extend(picked)
@@ -611,7 +622,7 @@ def _draw_buckets(
                     raise ValueError("sample_seed required for stratified draws")
                 bucket_key = f"{field}::{value}"
                 sub_seed = int(hashlib.sha256(f"{sample_seed}:{bucket_key}".encode()).hexdigest()[:16], 16)
-                drawn = _seeded_prefix(candidates, count, seed=sub_seed)
+                drawn = _seeded_prefix(candidates, count, seed=sub_seed, draw=draw)
             else:
                 drawn = candidates
             keep.update(_stable_key(r) for r in drawn)
@@ -655,6 +666,7 @@ def select_rows(
     limit: int | None,
     require_task_gt: bool = False,
     exclude_ids: set[str] | None = None,
+    draw: str = "shuffle",
 ) -> list[dict[str, Any]]:
     """Deterministic selection: canonical sort, per-stratum sub-seed draws, union, limit.
 
@@ -671,7 +683,7 @@ def select_rows(
     rows = sorted(rows, key=_stable_key)
     strata = strata or {}
     if "buckets" in strata:
-        chosen = _draw_buckets(rows, strata["buckets"], field="expected_doc_class", sample_seed=sample_seed)
+        chosen = _draw_buckets(rows, strata["buckets"], field="expected_doc_class", sample_seed=sample_seed, draw=draw)
     elif "values" in strata:
         field = strata_field(strata)
         counts = strata.get("counts") or [None] * len(strata["values"])
@@ -681,7 +693,7 @@ def select_rows(
             {"value": v, "count": c}
             for v, c in zip(strata["values"], counts)
         ]
-        chosen = _draw_buckets(rows, buckets, field=field, sample_seed=sample_seed)
+        chosen = _draw_buckets(rows, buckets, field=field, sample_seed=sample_seed, draw=draw)
     else:
         chosen = rows
     if limit is not None:
@@ -756,6 +768,7 @@ def prepare_subset(spec: DatasetSpec, dest_file) -> dict[str, Any]:
         limit=spec.limit,
         require_task_gt=bool(getattr(spec, "require_task_gt", False)),
         exclude_ids=exclude_ids,
+        draw=getattr(spec, "draw", "shuffle"),
     )
     # …and refuse a draw/limit that dropped a requested stratum AFTER it.
     strata_draw_guard(chosen, spec.strata)

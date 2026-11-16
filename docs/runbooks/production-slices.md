@@ -18,12 +18,16 @@ All slices share r3's settings:
 
 The draws are nested, so a smaller slice is a subset of the next. Every document listed in `config/production/excluded-ids.txt` (via `dataset.exclude_ids_file`) is dropped before the draw.
 
+The list holds 147 documents: the 107 from the 11 ladder runs and the 40 of the correspondence v3 A/B.
+
+The slices use `dataset.draw: ranked`. Each class bucket is ordered by a per-document hash rather than shuffled, so adding ids to the list keeps the rest of every slice in place. Only the documents that were removed are replaced, and the slices stay nested. The default `shuffle` draw would reshuffle the whole bucket.
+
 | Config (`config/runs/production/`) | Documents | contract / corporate / correspondence / insurance / merger | `api_cost_cap_usd` | `max_wall_seconds` |
 |---|---|---|---|---|
 | `slice-0100.yaml` | 100 | 18 / 14 / 30 / 33 / 5 | 2 | 7,200 |
 | `slice-0250.yaml` | 250 | 45 / 34 / 76 / 83 / 12 | 5 | 10,800 |
 | `slice-0500.yaml` | 500 | 91 / 68 / 151 / 167 / 23 | 10 | 14,400 |
-| `slice-full.yaml` | 3,104 (every remaining row) | 475 / 417 / 985 / 1,085 / 142 | 70 | 86,400 |
+| `slice-full.yaml` | 3,064 (every remaining row) | 475 / 417 / 945 / 1,085 / 142 | 70 | 86,400 |
 
 Each of 100, 250 and 500 has a `*-modal-host.yaml` twin. A twin differs only in `run_id` and `job.mode: modal`. **The twins cannot launch yet** (#308): the Modal worker refuses the `decisions` reviewer and carries no OpenRouter key.
 
@@ -34,8 +38,8 @@ The bars live in [`config/production/bars.yaml`](../../config/production/bars.ya
 | Bar | Value | Scope |
 |---|---|---|
 | Correct archive | Dojo score ≥ 0.90 on the labelled fields, without the templated corporate/correspondence `keywords` and `subject_matter` (Exios66/llm-dojo-scoring#164) | per document |
-| Wrong-archive rate | ≤ 2% of archived (Wilson upper bound) | per slice, pooled over the gated classes |
-| Review rate | ≤ 5% of documents (Wilson upper bound) | per slice, pooled over the gated classes |
+| Wrong-archive rate | ≤ 2% of scorable archives (point estimate) | per slice, pooled over the gated classes |
+| Review rate | ≤ 5% of documents (point estimate) | per slice, pooled over the gated classes |
 | Crashes | 0 run errors and 0 `judge_error` | per slice, mergers included |
 
 - **Gated classes:** contract, corporate_record, correspondence and insurance_claim.
@@ -43,6 +47,7 @@ The bars live in [`config/production/bars.yaml`](../../config/production/bars.ya
 - **Contracts and mergers:** scored on CUAD and MAUD units.
 - **Unscorable:** a document with fewer than 2 labelled fields. A gated pool that has archives but none scorable fails the slice. If more than 25% of the pool is unscorable, the gate only warns.
 - **Per-class bars:** these apply from the 500-document slice onward. Below that they are diagnostic only.
+- **Wilson bounds:** `gate.md` prints the Wilson 95% upper bound next to each rate, for information. The pass rule uses the point estimate.
 
 ## The loop, for slice N
 
@@ -54,7 +59,7 @@ The bars live in [`config/production/bars.yaml`](../../config/production/bars.ya
    ```bash
    sandbox run start --config config/runs/production/slice-0100.yaml --initials <XX>
    ```
-3. **Gate.** This step is offline and read-only. It writes `gate.json` and `gate.md` into the run directory and exits `0` on pass, `2` on fail and `1` when the run is missing:
+3. **Gate.** This step is offline and writes only `gate.json` and `gate.md` into the run directory. It exits `0` on pass and `2` on fail. It exits `1`, with a JSON `failed` status, when the run is missing or never started (no `items.jsonl`), or when the gate itself errors (a bad bars file or a scorer failure):
    ```bash
    sandbox run gate --run-id production-slice-0100 --thresholds
    ```
@@ -62,17 +67,23 @@ The bars live in [`config/production/bars.yaml`](../../config/production/bars.ya
 
    | Order | Cause family | Causes |
    |---|---|---|
-   | 1 | mechanism | `judge_error`, `crashed`, `transient`, `scorer_error`, `unmapped:<raw>` |
-   | 2 | input | `input:near_empty` (document text under 200 characters) |
+   | 1 | mechanism | `judge_error`, `crashed`, `transient` |
+   | 2 | input | `input:near_empty` (reviews only: document text under 200 characters) |
    | 3 | classification | `wrong_class`, `reviewer_unknown`, `reviewer_disagreement`, `arbiter_escalated` |
    | 4 | judge | `partial_exhausted`, `judge_rejected` |
    | 5 | label | `label_suspect` |
    | 6 | extraction | `missing_field`, `out_of_enum`, `date_format`, `wrong_value`, `cuad_missed`, `cuad_false`, `maud_wrong` |
 
-   Every document row links to three things:
-   - its archive directory, `data/archive/SANDBOX-sandbox_pipeline_<run_id>-<doc_id>/`;
-   - the run's trace id;
-   - its own `job.item` span id in `data/traces/<run_id>.spans.jsonl.gz`.
+   Two mechanism buckets sit outside this order:
+   - `mechanism:scorer_error`: a Dojo failure while typing the extraction miss.
+   - `mechanism:unmapped:<raw>`: a review none of whose causes maps. It comes last.
+
+   A wrong archive of a near-empty document keeps its classification or extraction cause, because the pipeline was confidently wrong about it.
+
+   Every document row in `gate.json` links to three things:
+   - `archive`: its archive directory, `data/archive/SANDBOX-sandbox_pipeline_<run_id>-<doc_id>/`. An archived document must have the `<class>` subdirectory of the class it was archived as.
+   - `trace_id`: the run's trace id.
+   - `span_id`: its own `job.item` span in `data/traces/<run_id>.spans.jsonl.gz`. A node span alone does not count.
 
    A missing or unreadable link fails the gate.
 5. **Fix the largest fixable bucket.** See "Where a fix lands" below. Record each fix on #306.
@@ -80,7 +91,7 @@ The bars live in [`config/production/bars.yaml`](../../config/production/bars.ya
    ```bash
    sandbox run gate --run-id <rerun> --prev-run-id <earlier>
    ```
-   A fix is kept only if the wrong-archive rate does not rise and the review rate holds.
+   When both runs drew the same documents, the gate runs a paired **re-run** check: both runs are gated on those documents. The fix is kept only if the re-run's pooled wrong-archive rate, review rate, crash count and `judge_error` count are all no higher than the earlier run's. Its reasons are prefixed `re-run: `. The re-run's own gate verdict still applies.
 7. **Step up when the slice passes.** Launch the next slice, then gate it against the slice it contains. The step-up verdict judges only the new documents, and every step-up reason is prefixed `step-up: `:
    ```bash
    sandbox run gate --run-id production-slice-0250 --prev-run-id production-slice-0100
@@ -97,17 +108,31 @@ The bars live in [`config/production/bars.yaml`](../../config/production/bars.ya
 | Scoring, ground truth, templated labels | **Upstream** in llm-dojo-scoring. |
 | Corpus content (stripped attachments, near-empty rows) | **Upstream** in Mailroom-Corpus-EDA. |
 
-After a tuning run, add its documents to the held-out list. Add the run to `scripts/build_excluded_ids.py`, then regenerate `config/production/excluded-ids.txt`. A document used to tune must never be gated.
+A document used to tune must never be gated. When you add a tuning run:
+1. Add it to the regenerate command in `scripts/build_excluded_ids.py`, then regenerate `config/production/excluded-ids.txt`.
+2. Do this **before** the next slice launches. With the ranked draw, the slices that have not run yet keep every document except the newly excluded ones.
+3. Never exclude documents from a slice that has already been gated. That would break its nesting with the next slice.
+
+A tuning run that itself excludes the production list would exclude its own documents once they are added. So the correspondence A/B arms exclude the frozen ladder list, `config/production/excluded-ids-ladder.txt`.
 
 ## Known limits
 
-- **Sorter accuracy is in-sample.** The sorter prompt lineage was developed on the sorter handoff's train split (2,979 of 3,302 documents). Excluding that split would leave too few documents for the 500 and full slices, so only extraction and routing quality are held out.
+- **Sorter accuracy is in-sample.** The sorter prompt lineage was developed on the sorter handoff's train split (2,979 of 3,302 documents). Excluding that split would leave too few documents for the 500 and full slices.
+- **The specialist prompts are not fully held out either.** The adopted condensed specialist prompts (corporate v1, correspondence v2, insurance v3) were validated on `gate-train` handoff draws. Those draws' document ids were not recorded, because the compare reports keep only counts. So those documents cannot be excluded, and some may appear in slices.
+  - Fully held out: the pipeline-level tuning (the 11 ladder runs) and the correspondence v3 A/B.
+  - Partly in-sample: extraction quality on any document a specialist A/B used.
 - **Insurance `claim_type`:** the vendored schema description still teaches the CMS table tokens and overrides the prompt (Exios66/llm-mailroom#174 §2). Expect `extraction:out_of_enum` until a re-vendor lands.
 - **`judge_error` from null `choices`:** OpenRouter sometimes returns a 200 response with `choices: null` when an upstream provider fails. The vendored judge then raises a non-transient `TypeError`, and the document parks instead of retrying (Exios66/llm-mailroom#260).
   - The repro is `tests/test_judge_second_pass.py`, a strict xfail. Remove the xfail when the fix is vendored.
   - Until then a slice can fail on one such document. Re-run the slice.
-- **Near-empty documents:** some Enron cover notes lost their attachment, leaving only 32 to 56 characters of text. The reviewer says `unknown` on them, and the gate buckets them as `input:near_empty`, not as a reviewer fault (Exios66/Mailroom-Corpus-EDA#63). Preflight's `context_plan` warns about them by id.
-- **Unscorable correspondence:** only 3 of the 11 correspondence fields carry ground truth (Exios66/llm-dojo-scoring#94), so many correspondence documents are unscorable.
+- **Near-empty documents:** some Enron cover notes lost their attachment, leaving only 32 to 56 characters of text (Exios66/Mailroom-Corpus-EDA#63).
+  - The reviewer says `unknown` on them, and the gate buckets that review as `input:near_empty`, not as a reviewer fault.
+  - They still count against the 5% review budget. With the 147-id list, slice 100 has none, slice 250 has 3, slice 500 has 10 and the full slice has 104.
+  - Preflight's `context_plan` warns about them by id.
+- **Corporate records are mostly unscorable.** Many corporate rows carry fewer than 2 labelled fields once the templated `keywords` and `subject_matter` are dropped (Exios66/llm-dojo-scoring#164).
+  - Slice 100: 8 of 14 corporate documents are unscorable, against 0 in the other classes. Slice 500: 42 of 68.
+  - The pooled unscorable share stays under the 25% warning, so read the per-class unscorable count in `gate.md` before trusting a corporate pass.
+  - Correspondence carries ground truth on only 3 of its 11 fields (Exios66/llm-dojo-scoring#94), but enough to score every slice document.
 
 ## Modal job-host parity (after #308)
 
