@@ -253,3 +253,36 @@ def test_replace_leaves_no_staged_file(tmp_path):
     mod._replace(target, "two")
     assert target.read_text() == "two"
     assert [p.name for p in tmp_path.iterdir() if p.name != "interim"] == ["out.json"]
+
+
+def test_rederive_rolls_back_when_the_manifest_write_fails(tmp_path, monkeypatch):
+    """A failed manifest write must leave the overlay as it was, so a retry can still run (#303 review)."""
+    root = tmp_path / "interim"
+    mod, _ = _overlay_two_labels(root)
+    # A stale derived label, so rederive has a real change to write.
+    path = root / "corporate_record.jsonl"
+    rec = json.loads(path.read_text())
+    rec["doc_subclass"] = "bylaws"
+    rec["labels"]["record_type"] = {"value": "stale", "status": "derived", "use_as_truth": True}
+    text = json.dumps(rec, sort_keys=True) + "\n"
+    path.write_text(text, encoding="utf-8")
+    man = json.loads((root / "MANIFEST.json").read_text())
+    man["files"]["corporate_record.jsonl"] = il._sha(text)
+    (root / "MANIFEST.json").write_text(json.dumps(man), encoding="utf-8")
+    before = {p.name: p.read_bytes() for p in root.iterdir()}
+    real = mod._replace
+
+    def failing(path, text):
+        if path.name == "MANIFEST.json":
+            raise OSError("disk full")
+        real(path, text)
+
+    monkeypatch.setattr(mod, "_replace", failing)
+    with pytest.raises(OSError, match="disk full"):
+        mod.rederive(root)
+    assert {p.name: p.read_bytes() for p in root.iterdir()} == before
+    assert il.verify(root) == []
+    monkeypatch.setattr(mod, "_replace", real)
+    assert mod.rederive(root) == 0
+    assert json.loads(path.read_text())["labels"]["record_type"]["value"] == "bylaws"
+    assert il.verify(root) == []

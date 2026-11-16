@@ -202,6 +202,7 @@ def rederive(root: Path) -> int:
         return 1
     man = il.load_manifest(root)
     changed = 0
+    texts: dict[str, str] = {}
     for name in list(man.get("files") or {}):
         recs = il._jsonl(root / name)
         for rec in recs:
@@ -212,13 +213,22 @@ def rederive(root: Path) -> int:
                 if label.get("value") != value:
                     label["value"] = value
                     changed += 1
-        text = "".join(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n" for r in recs)
-        _replace(root / name, text)
-        man["files"][name] = il._sha(text)
-    man["counts"] = _counts(root, man["files"])
-    if changed:
-        man["rederived_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    _replace(root / "MANIFEST.json", json.dumps(man, indent=2) + "\n")
+        texts[name] = "".join(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n" for r in recs)
+        man["files"][name] = il._sha(texts[name])
+    # Keep the previous generation in memory: if any write fails (the manifest last), every
+    # file is restored, so the overlay still passes its integrity check and a retry can run.
+    previous = {name: (root / name).read_bytes() for name in [*texts, "MANIFEST.json"]}
+    try:
+        for name, text in texts.items():
+            _replace(root / name, text)
+        man["counts"] = _counts(root, man["files"])
+        if changed:
+            man["rederived_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        _replace(root / "MANIFEST.json", json.dumps(man, indent=2) + "\n")
+    except BaseException:
+        for name, data in previous.items():
+            (root / name).write_bytes(data)
+        raise
     print(f"rederived {changed} labels")
     return 0
 

@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+- **Paired report, routing audit and label tooling hardening** (#303 review).
+  - `job/pair_report.py` refuses a run directory without `dataset.jsonl` or `items.jsonl`, so a
+    misspelled run id fails instead of printing an empty report. Documents whose locked labels
+    differ between the arms are listed under `label_mismatch` and are not paired.
+  - Preflight freezes the resolved confidence block as `effective_confidence` in the run lock. The
+    routing audit reads it (`thresholds_source: locked`). For older runs it reports
+    `judge_rejudge_retry` as unknown unless the run set it, instead of today's default.
+  - `scripts/interim_labels.py rederive` restores every file if a write fails, so the overlay
+    still passes its integrity check and the command can be retried.
+  - The ladder audit states the E3 overlap it checked (0 documents shared with E1 or E2, 1 with
+    r2 and 1 with r3). It no longer reads the unpaired E3 correspondence score as evidence about
+    the prompt. The E3 treatment config is marked as an obsolete plan.
+
 - **Blind routing, interim-label fix and paired report for E2/E3** (#300).
   - `job.blind_routing: true` (pipeline runs only) keeps the dataset labels out of the graph's
     `ground_truth` state, so the class-miss gate and the coverage-floor retry cannot use them

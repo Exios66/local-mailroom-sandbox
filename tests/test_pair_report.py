@@ -70,3 +70,32 @@ def test_classes_without_templated_labels_get_one_lane(tmp_path, monkeypatch):
     b = _arm(tmp_path, "t", [("d1", "contract", exp, exp, "archived", [])])
     contract = pair_report.paired_report(a, b)["classes"]["contract"]
     assert "without_templated" not in contract and contract["all_fields"]["diff"] == 0.0
+
+
+def test_a_missing_run_artifact_is_an_error(tmp_path):
+    """A misspelled run id must not produce an empty, successful report."""
+    real = _arm(tmp_path, "c", [("d1", "contract", {"title": "x"}, {"title": "x"}, "archived", [])])
+    with pytest.raises(FileNotFoundError, match="no-such-run: missing dataset.jsonl"):
+        pair_report.paired_report(real, tmp_path / "no-such-run")
+    (tmp_path / "half").mkdir()
+    (tmp_path / "half" / "items.jsonl").write_text("")
+    with pytest.raises(FileNotFoundError, match="dataset.jsonl"):
+        pair_report.load_arm(tmp_path / "half")
+
+
+def test_nodes_log_stays_optional(tmp_path):
+    run = _arm(tmp_path, "c", [("d1", "contract", {"title": "x"}, {"title": "x"}, "archived", [])])
+    (run / "nodes.jsonl").unlink()
+    assert pair_report.load_arm(run)["d1"]["nodes"] == []
+
+
+def test_documents_whose_labels_differ_are_excluded_not_paired(tmp_path, monkeypatch):
+    monkeypatch.setattr(pair_report, "_score", lambda row, pred: float(len(pair_report._fields(row))))
+    a = _arm(tmp_path, "c", [("same", "contract", {"title": "x"}, {}, "archived", []),
+                             ("moved", "contract", {"title": "x"}, {}, "archived", [])])
+    b = _arm(tmp_path, "t", [("same", "contract", {"title": "x"}, {}, "archived", []),
+                             ("moved", "contract", {"title": "x", "parties": "y"}, {}, "archived", [])])
+    report = pair_report.paired_report(a, b)
+    assert report["label_mismatch"] == ["moved"]
+    assert report["shared_docs"] == 1 and report["classes"]["contract"]["n"] == 1
+    assert report["classes"]["contract"]["all_fields"]["diff"] == 0.0

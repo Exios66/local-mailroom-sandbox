@@ -237,3 +237,40 @@ def test_matter_ids_are_scoped_to_the_run():
     first, rerun = sandbox_matter_id(row, "pipeline-qwen-flash-25"), sandbox_matter_id(row, "pipeline-qwen-flash-25-fit")
     assert first != rerun and first.endswith(row["id"]) and rerun.startswith("SANDBOX-pipeline-qwen-flash-25-fit-")
     assert sandbox_matter_id(row, None) == "SANDBOX-adhoc-DOC-a52b3ad21666d339"
+
+
+def _audit_store(tmp_path, lock):
+    import json as _json
+
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "spec.lock.json").write_text(_json.dumps(lock))
+    (run / "dataset.jsonl").write_text(_json.dumps({"id": "d1", "expected_doc_class": "corporate_record",
+                                                    "expected_fields": "{}"}) + "\n")
+    (run / "items.jsonl").write_text(_json.dumps({"item_id": "d1", "pred": {"stage": "archived"}}) + "\n")
+    (run / "nodes.jsonl").write_text("")
+    return run
+
+
+def test_routing_audit_reads_the_frozen_thresholds_of_a_run(tmp_path):
+    from mailroom_sandbox.job import routing_audit
+
+    frozen = {"high": 0.5, "judge_rejudge_retry": True}
+    report = routing_audit.audit(_audit_store(tmp_path, {"run_id": "r", "effective_confidence": frozen}))
+    corp = report["classes"]["corporate_record"]["thresholds"]
+    assert corp["high"] == 0.5 and corp["judge_rejudge_retry"] is True
+    assert report["thresholds_source"] == "locked"
+
+
+def test_routing_audit_does_not_backfill_an_unlocked_rejudge_setting(tmp_path):
+    """An older run did not freeze its thresholds: today's default is not its setting."""
+    from mailroom_sandbox.job import routing_audit
+
+    report = routing_audit.audit(_audit_store(tmp_path, {"run_id": "r"}))
+    assert report["classes"]["corporate_record"]["thresholds"]["judge_rejudge_retry"] is None
+    assert report["thresholds_source"] == "current_config"
+    (tmp_path / "explicit").mkdir()
+    explicit = routing_audit.audit(_audit_store(tmp_path / "explicit",
+                                                {"run_id": "r", "confidence": {"judge_rejudge_retry": False}}))
+    assert explicit["classes"]["corporate_record"]["thresholds"]["judge_rejudge_retry"] is False
+
