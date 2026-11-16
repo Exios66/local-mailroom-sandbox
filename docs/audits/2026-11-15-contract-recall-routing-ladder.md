@@ -101,7 +101,8 @@ longer compare like-for-like with new runs.
   Run it before any further ladder step.
 - `pipeline-qwen-flash-25-e2-corporate-rejudge` (E2b): the E2 judge treatment plus
   `corporate_record.judge_rejudge_retry: true`, so a retry extraction is judged again
-  (llm-mailroom #241 fix, now a run knob). Its control is `-e2-corporate-judge`.
+  (llm-mailroom #241 fix, now a run knob). Its control is `-e2-corporate-judge`, which
+  has not run yet: run the E2 pair on these pins first, then E2b.
 
 Human launch (paid), r3 first:
 
