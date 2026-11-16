@@ -29,18 +29,20 @@ def _sandbox_root(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def _worker_runtime_taxonomy(monkeypatch, tmp_path_factory):
+def _worker_runtime_taxonomy(monkeypatch):
     """Under xdist, give each worker its own runtime taxonomy file.
 
     ``runtime.activate`` rewrites ``data/runtime/taxonomy.yaml`` and points the vendored config
-    at it, so two workers sharing a container would read each other's profile.
+    at it, so two workers sharing a container would read each other's profile. The worker's
+    file stays under ``data/runtime/`` (gitignored), since callers report it relative to the root.
     """
     worker = os.environ.get("PYTEST_XDIST_WORKER")
     if not worker:
         return
     from mailroom_sandbox import overlay
+    from mailroom_sandbox.paths import runtime_dir
 
-    own = tmp_path_factory.getbasetemp() / f"runtime-{worker}"
+    own = runtime_dir() / f"xdist-{worker}"
     own.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(overlay, "runtime_dir", lambda: own)
 

@@ -351,7 +351,10 @@ def activate(
         agent_routes = deepcopy(lock.get("agent_routes") or {})
         reviewer = deepcopy(lock.get("reviewer"))
         extraction_gate = deepcopy(lock.get("extraction_gate"))
-        confidence = deepcopy(lock.get("confidence"))
+        # The block preflight froze (vendored + overlay + run), when present: an overlay edited
+        # after preflight must not change a locked run's routing, and the routing audit reports
+        # this same block. Older locks only carry the run's own overrides.
+        confidence = deepcopy(lock.get("effective_confidence") or lock.get("confidence"))
         # A mock run patches the LLM clients, not the Decisions gate: it gets an offline stub.
         gate_mock = bool((lock.get("job") or {}).get("mock"))
         prompt_variant = None  # the locked TEXT, not today's local stem
