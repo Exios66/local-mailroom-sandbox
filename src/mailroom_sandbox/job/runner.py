@@ -246,9 +246,10 @@ def _run_whole_run(
     startup_total = len(locked_rows or [])
     if target and task == "specialist" and locked_rows:
         startup_total = len(primary.rows_for_class(locked_rows, target))
+    prior_items = store.load_items()
     store.write_checkpoint(state="running", cursor=0, total=startup_total, remote=None)
     # The watchers time the SORTING stage from the latest start/resume.
-    store.append_event("resume" if store.load_items() else "start", task=task)
+    store.append_event("resume" if prior_items else "start", task=task)
 
     def _progress(done: int, total: int, ok: int, errors: int) -> None:
         store.write_checkpoint(state="running", cursor=done, total=total, remote=None)
@@ -264,9 +265,11 @@ def _run_whole_run(
     # job.item span (and the pipeline's finished graph nodes as job.node children)
     # then, under the caller's job.run span. A no-op without a tracer.
     spans = _WholeRunSpans(tracer, current_context(tracer), task=task)
+    # Item ids already in items.jsonl, read once; row callbacks run on the main thread.
+    persisted: set[Any] = {i.get("item_id") for i in prior_items}
 
     def _row_sink(entry: dict[str, Any]) -> None:
-        if _persist_isolated_items(store, [entry]):
+        if _persist_isolated_items(store, [entry], seen=persisted):
             spans.item(entry)
 
     def _node_sink(record: dict[str, Any]) -> None:
@@ -390,22 +393,27 @@ def _run_whole_run(
     except Exception as exc:  # noqa: BLE001
         # Documents that raised have no item row, so record their spans here.
         spans.flush_unfinished(f"{type(exc).__name__}: {str(exc)[:512]}")
+        # Keep the documents already saved visible: the cursor is the persisted item
+        # count, not 0/0 (resume_cursor() would otherwise report a drift on resume).
+        saved = len(persisted)
+        saved_ok = sum(bool(i.get("ok")) for i in store.load_items()) if saved else 0
         store.write_checkpoint(
             state="failed",
-            cursor=0,
-            total=0,
+            cursor=saved,
+            total=max(startup_total, saved),
             last_error={"type": "whole-run", "message": f"{type(exc).__name__}: {str(exc)[:512]}", "at": utc_now(), "retryable": False},
         )
-        store.append_event("failed", "error", cursor=0, last_error=str(exc)[:512])
+        store.append_event("failed", "error", cursor=saved, last_error=str(exc)[:512])
         # SAND-089: a document that raised has no item row (a resume re-runs it), but its
         # billed tokens must still count against the API ceiling of a resumed run.
         if failed_usage := getattr(exc, "sandbox_failed_usage", None):
             from mailroom_sandbox.job.api_budget import FAILED_USAGE_EVENT
 
             store.append_event(FAILED_USAGE_EVENT, "warning", **failed_usage)
-        return {"state": "failed", "task": task, "error": str(exc)[:512], "ok": 0, "errors": 1}
+        return {"state": "failed", "task": task, "error": str(exc)[:512], "cursor": saved,
+                "total": max(startup_total, saved), "ok": saved_ok, "errors": saved - saved_ok + 1}
 
-    _persist_isolated_items(store, result.get("rows") if isinstance(result, dict) else None)
+    _persist_isolated_items(store, result.get("rows") if isinstance(result, dict) else None, seen=persisted)
     scores = result.get("scores") or {}
     # The delegated runner reports how many rows it actually processed; fall
     # back to the locked dataset length when the runner has no n.
@@ -707,12 +715,20 @@ class _WholeRunSpans:
             })
 
 
-def _persist_isolated_items(store: RunStore, rows: list[dict[str, Any]] | None) -> int:
+def _persist_isolated_items(
+    store: RunStore, rows: list[dict[str, Any]] | None, *, seen: set[Any] | None = None
+) -> int:
     """SAND-032: isolated specialist runs wrote no items.jsonl — per-doc rows
-    are the evidence the reports and offline BT rows are built from."""
+    are the evidence the reports and offline BT rows are built from.
+
+    ``seen`` is the caller's running set of persisted item ids (updated in
+    place), so a per-document callback does not reload the growing file each
+    time. Without it the file is read once for this call.
+    """
     if not rows:
         return 0
-    seen = {i.get("item_id") for i in store.load_items()}
+    if seen is None:
+        seen = {i.get("item_id") for i in store.load_items()}
     written = 0
     for row in rows:
         item_id = row.get("id")
