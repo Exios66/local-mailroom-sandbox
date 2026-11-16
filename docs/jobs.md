@@ -423,7 +423,9 @@ The worker runs the same checkout code on a CPU container against the
 Modal-hosted `sandbox-vllm` endpoint (the GPU is the serve app), or against
 OpenRouter for an `engine.kind: openrouter` run (#308). For that, deploy the
 worker with `OPENROUTER_API_KEY` exported: it travels in the deploy Secret, and
-the worker removes it from any run that never calls OpenRouter. The `decisions`
+the worker removes it from any run that never calls OpenRouter. Preflight and
+`sandbox run start` also need the key in the launching shell for an OpenRouter engine or a
+non-mock `decisions` reviewer, even when a different shell deployed the worker. The `decisions`
 reviewer is supported in modal mode; the `api` and `jev` reviewers are not. It emits
 OTEL job/item spans to the locked sink. In-container vLLM (GPU job) is a
 documented follow-up.

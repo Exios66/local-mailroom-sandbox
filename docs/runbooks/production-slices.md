@@ -156,9 +156,9 @@ A tuning run that itself excludes the production list would exclude its own docu
    ```bash
    export MODAL_PROFILE=<profile> PYTHONPATH="$PWD/src"
    set -a; . <path-to-openrouter.env>; set +a
-   cd deploy && modal deploy modal_job.py
+   (cd deploy && modal deploy modal_job.py)
    ```
-   A twin whose worker lacks the key fails before its first document with "this run calls OpenRouter but the worker has no OPENROUTER_API_KEY".
+   The subshell leaves you at the repository root for step 1. Keep the key loaded there too: preflight and `sandbox run start` check it in the launching shell. A twin whose worker lacks the key fails before its first document with "this run calls OpenRouter but the worker has no OPENROUTER_API_KEY".
 1. Run the `*-modal-host.yaml` twin of a slice that already passed locally.
 2. Require the same `dependency_sources` in both run locks. Bundle the same selected snapshots when deploying the job worker, and reject results whose provenance differs.
 3. Gate the twin. The verdict must match, and every per-class rate must fall within the local run's paired confidence interval.
