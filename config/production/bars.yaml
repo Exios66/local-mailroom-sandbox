@@ -5,10 +5,13 @@
 # per_class_from_n documents (counted over the whole slice, every class); below that they are
 # diagnostic. Crashes and judge_error count slice-wide, merger_agreement included: they are harness
 # faults, not quality. Rates use the gated classes only. A gated pool with archives but none
-# scorable fails ("no scorable archives"); an unscorable share above 25% only warns.
+# scorable fails ("no scorable archives"); an unscorable share above 25% only warns. From
+# per_class_from_n, a gated class with fewer than min_scorable_per_class scorable archives fails: its
+# per-class rates would not be evidence (corporate records are mostly unscorable, llm-dojo-scoring#164).
 quality: 0.90
 wrong_archive_max: 0.02
 review_max: 0.05
 gated: [contract, corporate_record, correspondence, insurance_claim]
 min_labelled: 2
 per_class_from_n: 500
+min_scorable_per_class: 20

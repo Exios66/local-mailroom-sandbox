@@ -84,6 +84,9 @@ class Bars:
     gated: tuple[str, ...] = ("contract", "corporate_record", "correspondence", "insurance_claim")
     min_labelled: int = 2
     per_class_from_n: int = 500
+    # From per_class_from_n, a gated class needs this many scorable archives, or its per-class rates
+    # are not evidence (corporate records are mostly unscorable: llm-dojo-scoring#164).
+    min_scorable_per_class: int = 20
 
 
 def load_bars(path: Path | None = None) -> Bars:
@@ -338,6 +341,9 @@ def gate_report(run_dir: Path, bars: Bars, *, traces_dir: Path | None = None, ar
             blind, warn = _blindness(f"class {cls} ", _counts(docs))
             reasons += blind if per_class else []
             warnings += warn
+            scorable_k = block["scorable"]
+            if per_class and scorable_k and scorable_k < bars.min_scorable_per_class:
+                reasons.append(f"class {cls} has {scorable_k} scorable archives < {bars.min_scorable_per_class}")
     if crashes:
         reasons.append(f"{crashes} crashed document(s) (run error or missing item)")
     if judge_errors:

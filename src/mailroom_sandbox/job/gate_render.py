@@ -111,14 +111,38 @@ def _step_up_lines(step: Mapping[str, Any]) -> list[str]:
 
 def _thresholds_lines(ev: Mapping[str, Any]) -> list[str]:
     lines = ["## Threshold evidence", "",
-             f"Replay of \"archived with extraction_confidence < t goes to the judge\" (offline; {ev['label']}).", "",
-             "| Scope | Archived | No confidence | t | Extra judged | Wrong archives caught (upper bound) | Correct archives disturbed |",
-             "|---|---|---|---|---|---|---|"]
+             f"Replay of \"archived with extraction_confidence < t goes to the judge\" (offline; {ev['label']}). "
+             "Projected rates assume every caught wrong archive goes to review; the worst-case review rate "
+             "assumes the judge also rejects every other judged document.", "",
+             "| Scope | Archived | No confidence | t | Extra judged | Wrong caught (upper bound) | Correct disturbed "
+             "| Wrong-archive rate | Review rate | Review rate (worst) |",
+             "|---|---|---|---|---|---|---|---|---|---|"]
     for scope, block in (("pooled", ev["pooled"]), *ev["classes"].items()):
+        base = block.get("baseline")
+        if base:
+            lines.append(f"| {scope} | {block['archived']} | {block['no_confidence']} | now | — | — | — "
+                         f"| {_pct(base['wrong_archive_rate'])} | {_pct(base['review_rate'])} | — |")
         for i, (t, row) in enumerate(block["thresholds"].items()):
-            lead = f"| {scope} | {block['archived']} | {block['no_confidence']} " if i == 0 else "| | | "
+            lead = f"| {scope} | {block['archived']} | {block['no_confidence']} " if i == 0 and not base else "| | | "
             lines.append(f"{lead}| {float(t):.2f} | {row['extra_judged']} | {row['wrong_archives_caught_upper_bound']} | "
-                         f"{row['correct_archives_disturbed']} |")
+                         f"{row['correct_archives_disturbed']} | {_pct(row.get('wrong_archive_rate'))} "
+                         f"| {_pct(row.get('review_rate'))} | {_pct(row.get('review_rate_if_disturbed_rejected'))} |")
+    return lines
+
+
+def _document_table(report: Mapping[str, Any]) -> list[str]:
+    """One row per document: class, outcome, score, labelled units, cause and its audit links."""
+    docs = report["docs"]
+    if not docs:
+        return ["No documents."]
+    lines = ["| Document | Class | Outcome | Score | Labelled | Cause | Archive | Span |",
+             "|---|---|---|---|---|---|---|---|"]
+    for doc in docs:
+        archive = _rel(doc.get("archive"))
+        link = f"[archive]({archive})" if archive else "—"
+        span = f"`{doc['span_id']}`" if doc.get("span_id") else "—"
+        lines.append(f"| {doc['id']} | {doc['class']} | {doc['outcome']} | {_pct(doc.get('score'))} "
+                     f"| {doc.get('labelled', '—')} | {doc.get('cause') or '—'} | {link} | {span} |")
     return lines
 
 
@@ -135,6 +159,7 @@ def render_markdown(report: Mapping[str, Any]) -> str:
               f"(this slice: {report['n']}).", "",
               "## Audit", "", *_audit_lines(report), "",
               "## Buckets", "", *_bucket_table(report)]
+    lines += ["", "## Documents", "", *_document_table(report)]
     if report.get("step_up"):
         lines += ["", *_step_up_lines(report["step_up"])]
     if report.get("rerun"):
