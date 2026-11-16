@@ -51,6 +51,13 @@ def fake_score(monkeypatch):
     monkeypatch.setattr(gate, "_score", lambda row, pred: pred.get("_score"))
 
 
+@pytest.fixture(autouse=True)
+def no_audit(monkeypatch):
+    """Run dirs here are loose and carry no trail; the audit has its own tests (``tests/test_gate_audit.py``)."""
+    real = gate.gate_report
+    monkeypatch.setattr(gate, "gate_report", lambda run_dir, bars, **kw: real(run_dir, bars, **{"audit": False, **kw}))
+
+
 # --- the brief's cases -------------------------------------------------------------------------
 
 
@@ -102,7 +109,7 @@ def test_label_suspect_needs_heuristic_label_and_verbatim_text():
     assert gate_causes.label_suspect(other_field["row"], other_field["item"]["pred"], "entity_name") is False
 
 
-def test_buckets_sorted_with_audit_links(tmp_path, fake_score):
+def test_buckets_sorted_with_unlinked_audit_fields_when_audit_is_off(tmp_path, fake_score):
     run = tmp_path / "slice"
     run.mkdir()
     docs = [

@@ -33,6 +33,14 @@ field, and only when at least one carries gold; see ``labelled_count``.
 The gate never passes blind: gated archives with none scorable fail ("no scorable archives", also
 per gated class once per-class bars apply). A share of unscorable gated archives above
 ``_UNSCORABLE_WARN`` adds a ``verdict["warnings"]`` entry; warnings never change ``pass``.
+
+The audit trail is a hard requirement (``job/gate_audit.py``): every document needs spans in the
+local span mirror and a node log, and every archived document its archive directory. Each failure
+kind is a failing verdict reason and the report's ``audit`` block lists the documents; ``buckets``
+entries carry the document's real ``archive`` path and ``trace_id`` (``None`` when it has none).
+``gate_report`` finds the traces and archive from the run dir's checkout (``<root>/data/...``);
+a run dir outside that layout fails with "audit trail not located" unless ``traces_dir`` and
+``archive_dir`` are passed, or ``audit=False`` (no audit block, unlinked buckets).
 Design: ``docs/superpowers/specs/2026-11-16-production-slice-gate-design.md``.
 """
 from __future__ import annotations
@@ -247,22 +255,47 @@ def _blindness(label: str, c: Mapping[str, int]) -> tuple[list[str], list[str]]:
     return reasons, warnings
 
 
-def _buckets(statuses: list[dict[str, Any]]) -> dict[str, Any]:
+def _buckets(statuses: list[dict[str, Any]], audit: Mapping[str, Any] | None = None) -> dict[str, Any]:
     """Documents grouped by primary cause, biggest bucket first; ``archive``/``trace_id`` are audit links."""
+    archives = (audit or {}).get("archives") or {}
+    traces = (audit or {}).get("trace_ids") or {}
     grouped: dict[str, list[str]] = defaultdict(list)
     for status in statuses:
         if "cause" in status:
             grouped[status["cause"]].append(status["id"])
     order = sorted(grouped, key=lambda cause: (-len(grouped[cause]), cause))
     return {cause: {"count": len(grouped[cause]),
-                    "docs": [{"id": doc_id, "archive": None, "trace_id": None} for doc_id in grouped[cause]]}
+                    "docs": [{"id": doc_id, "archive": archives.get(doc_id), "trace_id": traces.get(doc_id)}
+                             for doc_id in grouped[cause]]}
             for cause in order}
 
 
-def gate_report(run_dir: Path, bars: Bars) -> dict[str, Any]:
-    """Per-document outcomes, per-class and pooled rates, and the pass/fail verdict for one run."""
+def _audit(run_dir: Path, statuses: list[dict[str, Any]], traces_dir: Path | None,
+           archive_dir: Path | None) -> dict[str, Any]:
+    from mailroom_sandbox.job.gate_audit import audit_trail, default_dirs
+
+    located = default_dirs(run_dir) if traces_dir is None or archive_dir is None else None
+    traces_dir = Path(traces_dir) if traces_dir is not None else (located[0] if located else None)
+    archive_dir = Path(archive_dir) if archive_dir is not None else (located[1] if located else None)
+    if traces_dir is None or archive_dir is None:
+        reason = ("audit trail not located: the run dir is not <root>/data/runtime/runs/<run_id>; "
+                  "pass traces_dir and archive_dir")
+        return {"trace_ids": {}, "archives": {}, "missing_spans": [], "missing_nodes": [], "missing_archive": [],
+                "span_mirror": False, "reasons": [reason], "ok": False}
+    return audit_trail(run_dir, [s["id"] for s in statuses], {s["id"] for s in statuses if s["stage"] == "archived"},
+                       traces_dir=traces_dir, archive_dir=archive_dir)
+
+
+def gate_report(run_dir: Path, bars: Bars, *, traces_dir: Path | None = None, archive_dir: Path | None = None,
+                audit: bool = True) -> dict[str, Any]:
+    """Per-document outcomes, per-class and pooled rates, the audit trail and the verdict for one run.
+
+    ``traces_dir`` and ``archive_dir`` default to ``<root>/data/traces`` and ``<root>/data/archive`` of the
+    checkout holding ``run_dir``; ``audit=False`` skips the audit trail (the report has ``audit: None``).
+    """
     run_dir = Path(run_dir)
     statuses = [doc_status(doc, bars) for doc in _load(run_dir)]
+    trail = _audit(run_dir, statuses, traces_dir, archive_dir) if audit else None
     by_class: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for status in statuses:
         by_class[status["class"]].append(status)
@@ -297,6 +330,7 @@ def gate_report(run_dir: Path, bars: Bars) -> dict[str, Any]:
         reasons.append(f"{crashes} crashed document(s) (run error or missing item)")
     if judge_errors:
         reasons.append(f"{judge_errors} judge_error document(s)")
+    reasons += trail["reasons"] if trail else []
     return {
         "run_id": run_dir.name, "n": len(statuses), "bars": {**asdict(bars), "gated": list(bars.gated)},
         "classes": classes,
@@ -306,6 +340,7 @@ def gate_report(run_dir: Path, bars: Bars) -> dict[str, Any]:
                    "scorable": scorable, "unscorable": pooled["unscorable"],
                    "crashes": crashes, "judge_errors": judge_errors},
         "verdict": {"pass": not reasons, "reasons": reasons, "warnings": warnings},
-        "buckets": _buckets(statuses),
+        "audit": trail,
+        "buckets": _buckets(statuses, trail),
         "docs": statuses,
     }
