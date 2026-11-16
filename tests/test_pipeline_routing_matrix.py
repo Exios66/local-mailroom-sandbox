@@ -251,6 +251,43 @@ def test_stateless_resume_enters_at_extract_after_the_checkpoint_is_gone(graph, 
     record(visited)
 
 
+FIXED = {"entity_name": "Cedar Sample Ltd", "record_type": "board_minutes", "confidence": 0.99}
+HUMAN_FIELDS = {"decision": "approved", "resolution": "correct", "extracted_data": FIXED}
+
+
+def _parked(graph, monkeypatch, tmp_path):
+    return walk(graph, monkeypatch, tmp_path, {
+        "classify": [sorted_as(HIGH)], "extract": [extracted(LOW, attempt=3), extracted()],
+        "judge_verify": [{"judge_verdict": "complete", "judge_pass_count": 1, "transient_error": False}]})
+
+
+def test_reviewer_fields_resume_straight_to_the_report(graph, monkeypatch, tmp_path):
+    """llm-mailroom #202: approved/corrected fields skip the models (human_review -> compile_report)."""
+    from langgraph.types import Command
+
+    result, visited = _parked(graph, monkeypatch, tmp_path)
+    config = {"configurable": {"thread_id": result["checkpoint_thread_id"]}}
+    outcome = graph.get_compiled_graph().invoke(Command(resume=dict(HUMAN_FIELDS)), config)
+    record(visited)
+    assert visited[-4:] == ["human_review", "compile_report", "catalog_write", "archive"], visited
+    assert outcome["stage"] == "archived"
+
+
+def test_stateless_reviewer_fields_enter_at_the_report(graph, monkeypatch, tmp_path):
+    from pipeline.bins import load_manifest, review_file_path
+
+    result, visited = _parked(graph, monkeypatch, tmp_path)
+    manifest = load_manifest(result["doc_id"])
+    monkeypatch.setenv("MAILROOM_CHECKPOINTER", "memory")
+    graph.reset_compiled_graph()  # a restart without the durable checkpoint
+    visited.clear()
+    outcome = graph.resume_from_review(manifest, review_file_path(manifest), resolution=dict(HUMAN_FIELDS))
+    assert visited[0] == "compile_report", visited
+    assert outcome["stage"] == "archived"
+    WALKED.add(("__start__", "compile_report"))
+    record(visited)
+
+
 def test_every_graph_edge_was_walked(graph):
     """Must run last: the union of the scenarios above covers the compiled graph."""
     if not WALKED:

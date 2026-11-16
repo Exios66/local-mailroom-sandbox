@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+- **Vendor refresh** (2026-11-16): llm-mailroom `19203ea` → `5bcfe44` (`main` after #223,
+  package 0.9.3) and llm-dojo-scoring v0.28.1 → v0.29.0 (`f95c318`). Routing changes that
+  move experiments: chunked extractions merge confidence as the MIN across windows and a
+  lost window blocks archiving; parks after a spent confidence budget also name
+  `retries_exhausted`; reviewer-applied fields resume straight to `compile_report`
+  (two new graph edges, now walked by the routing matrix). Dojo v0.29.0 hardens date
+  scoring, so date-field scores can move against earlier runs. The sandbox's runtime
+  overrides (context fit, judge/arbiter source windows, run-scoped thresholds) still
+  bind: the vendored symbols they patch are unchanged.
+
 - **Routing calibration** (2026-11-16). Escalations now have measurable value
   and run-scoped, locked thresholds:
   - Pipeline runs record each extraction pass's self-reported

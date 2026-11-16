@@ -2,12 +2,20 @@
 
 Authoritative source: https://github.com/Exios66/llm-dojo-scoring
 
-- Source ref: `v0.28.1` (release tag)
-- Exact source commit: `00a2a7f7b058a4ade06b027c2afbd8b03bea6a5f`
-- Source package version: `0.28.1`
+- Source ref: `v0.29.0` (release tag)
+- Exact source commit: `f95c3188a1a634a9a2354afd5351edd8dd152a89`
+- Source package version: `0.28.1` in `pyproject.toml` (the v0.29.0 tag did not bump it; the
+  release is identified by the tag and commit)
 - Snapshot layout: llm_dojo_scoring/ relocated under src/ with the same shared exclusions.
-- Snapshot of the reviewed commit tree (`git archive`), 2026-11-07 UTC.
+- Snapshot of the reviewed commit tree (`git archive`), 2026-11-16 UTC.
   File contents, paths and executable modes come from the reviewed commit.
+
+Dojo release `v0.29.0` (llm-dojo-scoring #135): date scoring hardening. Yearless labels cap a
+dated prediction at 0.67, an unverified year never pairs as a list or audit date match,
+two-digit years use a fixed pivot, weekday names never supply a day, and a date fragment earns
+no name credit. Date-field scores can move against v0.28.1 runs; compare like with like.
+
+Previous pin: `v0.28.1` (`00a2a7f7b058a4ade06b027c2afbd8b03bea6a5f`).
 
 Dojo release `v0.28.1`. v0.28.0 aligns with mailroom-dataset v10: corporate schema v2
 (new registered fields such as party roles, signatories, agreement and expiration dates,
