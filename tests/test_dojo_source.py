@@ -134,21 +134,40 @@ def test_policy_is_read_from_dotenv(isolated, tmp_path):
     assert dojo_source.choose().source == "installed"
 
 
+def _vendored_dojo_all() -> list[str]:
+    """The vendored Dojo's ``__all__``, read without importing it."""
+    import ast
+
+    tree = ast.parse((vendored_dojo_src() / "llm_dojo_scoring" / "__init__.py").read_text(encoding="utf-8"))
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and any(getattr(t, "id", None) == "__all__" for t in node.targets):
+            return list(ast.literal_eval(node.value))
+    return []
+
+
 def _fake_lazy_release(root: Path, *, broken: str | None, missing: str | None = None) -> None:
     """A fake installed Dojo with a PEP 562 root; ``broken`` names the root name whose module raises,
     ``missing`` a required name the release no longer exports at all."""
     pkg = root / "llm_dojo_scoring"
     pkg.mkdir(parents=True)
     names = {name: f"mod_{name}" for name in dojo_source.REQUIRED_ROOT_NAMES if name != missing}
+    # Mirror the real snapshot's public surface: hosted CI tooling walks the real ``__all__``
+    # against whatever module is imported, so a fake that lacks those names fails for the
+    # wrong reason. Names outside REQUIRED_ROOT_NAMES resolve to inert stubs.
+    extra = sorted(set(_vendored_dojo_all()) - set(names) - {missing, "__version__"})
     (pkg / "__init__.py").write_text(
         "import importlib\n"
         # Real releases define the version eagerly; tooling may read it during import.
         f"__version__ = {PIN['version']!r}\n"
         f"_LAZY = {{n: (m, n) for n, m in {names!r}.items()}}\n"
+        f"_STUBS = frozenset({extra!r})\n"
+        f"__all__ = ['__version__', *_LAZY, *_STUBS]\n"
         "def __getattr__(name):\n"
         "    if name in _LAZY:\n"
         "        module, attr = _LAZY[name]\n"
         "        return getattr(importlib.import_module(f'{__name__}.{module}'), attr)\n"
+        "    if name in _STUBS:\n"
+        "        return object()\n"
         "    raise AttributeError(name)\n",
         encoding="utf-8",
     )
