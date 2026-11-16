@@ -50,7 +50,7 @@ import math
 from collections import defaultdict
 from dataclasses import asdict, dataclass, fields
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Collection, Mapping
 
 import yaml
 
@@ -289,14 +289,18 @@ def _audit(run_dir: Path, statuses: list[dict[str, Any]], traces_dir: Path | Non
 
 
 def gate_report(run_dir: Path, bars: Bars, *, traces_dir: Path | None = None, archive_dir: Path | None = None,
-                audit: bool = True) -> dict[str, Any]:
+                audit: bool = True, only_ids: Collection[str] | None = None) -> dict[str, Any]:
     """Per-document outcomes, per-class and pooled rates, the audit trail and the verdict for one run.
 
     ``traces_dir`` and ``archive_dir`` default to ``<root>/data/traces`` and ``<root>/data/archive`` of the
     checkout holding ``run_dir``; ``audit=False`` skips the audit trail (the report has ``audit: None``).
+    ``only_ids`` restricts everything (rates, buckets, audit, ``n``, the per-class bar threshold) to those
+    documents; ``None`` is the whole run.
     """
     run_dir = Path(run_dir)
-    statuses = [doc_status(doc, bars) for doc in _load(run_dir)]
+    keep = None if only_ids is None else {str(i) for i in only_ids}
+    docs = [doc for doc in _load(run_dir) if keep is None or str(doc["row"].get("id")) in keep]
+    statuses = [doc_status(doc, bars) for doc in docs]
     trail = _audit(run_dir, statuses, traces_dir, archive_dir) if audit else None
     for status in statuses if trail else []:
         status["span_id"] = trail["span_ids"].get(status["id"])
