@@ -100,6 +100,17 @@ def test_run_knobs_still_win_after_fitting():
     assert source_windows.windows_for(tax)["judge"] == 200000
 
 
+def test_run_max_tokens_is_reserved_by_the_fit():
+    base = build_merged_taxonomy(load_profile("openrouter"), model_override="qwen/qwen3.7-flash")
+    wide = build_merged_taxonomy(load_profile("openrouter"), model_override="qwen/qwen3.7-flash",
+                                 agent_knobs={"judge": {"max_tokens": 65536}})
+    cfg = {**context_fit.DEFAULTS, **(base.get("context_fit") or {})}
+    context = base["context_fit"]["applied"]["judge"]["context_length"]
+    assert wide["agents"]["judge"]["max_tokens"] == 65536
+    assert wide["agents"]["judge"]["max_input_chars"] == context_fit.fit_chars(context, 65536, cfg)
+    assert wide["agents"]["judge"]["max_input_chars"] < base["agents"]["judge"]["max_input_chars"]
+
+
 # --- judge/arbiter source windows (vendored literals) ----------------------------------
 
 @pytest.fixture

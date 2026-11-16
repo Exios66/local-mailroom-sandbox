@@ -295,7 +295,9 @@ def build_merged_taxonomy(
     # The overlay budgets fit a 16k-token L4 window; agents on a long-context API
     # route get budgets sized to their model's real context, so whole documents
     # go in one call instead of 16k-shaped chunks. Local/Modal routes are left
-    # alone. Run knobs below still win.
+    # alone. Run knobs below still win. A run ``max_tokens`` goes in first so the
+    # fit reserves that output allowance instead of the overlay's.
+    merged = apply_agent_overrides(merged, agent_knobs, keys=("max_tokens",))
     merged = apply_context_fit(merged, agent_routes=_fit_routes(agent_routes, agent_models))
     # SAND-019: run-scoped generation-budget knobs (e.g. a 32768-window AWQ run
     # that needs more decode tokens than the bf16-safe 16384 overlay allows) win

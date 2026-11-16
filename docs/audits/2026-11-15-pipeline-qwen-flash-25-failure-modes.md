@@ -5,7 +5,9 @@
 class, Hub revision `bc9eab28`. **Status:** done, 25/25 rows, 0 runtime errors,
 0 failed nodes. 18 archived, 7 parked for review.
 **Evidence:** `data/runtime/runs/pipeline-qwen-flash-25/` (`items.jsonl`,
-`nodes.jsonl`, `dataset.jsonl`). The offline reproduction is
+`nodes.jsonl`, `dataset.jsonl`), read on 2026-11-15 on the author's machine.
+`data/runtime/` is gitignored, so the run results here are not verifiable from a
+checkout; the configuration-derived figures are. The offline reproduction is
 `sandbox run preflight --config config/runs/pipeline-qwen-flash-25.yaml --offline`
 → `context_plan`.
 
@@ -30,9 +32,10 @@ Four causes compound:
    `config/taxonomy.overlay.yaml` sizes `merger_agreement_specialist.max_input_chars`
    at 36,008 for the L4 16k-token window. The run's `agent_knobs` widened only
    sorter and intake. The graph therefore cut each merger into about 14 windows
-   (`min(90000, 36008 − 4501) = 31,507` chars) per pass, three passes per
-   document. That is roughly 40 specialist calls, each with its own prompt
-   overhead. The per-chunk merge produced 9 MAUD answer conflicts.
+   (`min(90000, 36008 − 4501) = 31,507` chars) per pass. The four
+   documents that went through the arbiter loop had three passes each, roughly
+   40 specialist calls per document, each with its own prompt overhead;
+   DOC-1e016055 skipped the judge and had one pass (~14 calls). The per-chunk merge produced 9 MAUD answer conflicts.
 2. **The judge and arbiter see only the start of the document (upstream).**
    `agents/judge.py` truncates the source to `JUDGE_SOURCE_CHARS = 16000`, and
    `agents/arbiter.py` to `SOURCE_CHARS = 16000`. That is 4–6% of a merger
@@ -42,10 +45,11 @@ Four causes compound:
    improve the answers. Two retries cost 270–380 s per document and did not
    lift MAUD accuracy above the judge-skipped document's 0/16 baseline. The
    overlay's `judge.max_input_chars: 80000` has no effect on this window.
-3. **The final gate trusts self-reported confidence (upstream).**
-   `after_retry_extraction_gated` sends an extraction to `compile_report` when
+3. **The final gate trusts self-reported confidence (upstream).** As vendored
+   at llm-mailroom `19203eac`, `after_retry_extraction_gated`
+   (`vendor/llm-mailroom/src/graph/routing.py:416`) sends an extraction to `compile_report` when
    its self-reported confidence is at least `judge_band_high` (0.97 for
-   mergers). After the last arbiter-ordered retry, the specialist reported at
+   mergers, `vendor/llm-mailroom/src/config/taxonomy.yaml:249`). After the last arbiter-ordered retry, the specialist reported at
    least 0.97, so the result archived without a final judge pass. On
    DOC-1e016055 the first extraction already reported at least 0.97 and skipped
    the judge entirely.
@@ -76,9 +80,13 @@ occurred (`events.jsonl`: preflight_ok → spend_authorized → start → done).
   follow the routed model's real context window.
 - **Preflight `context_plan`** (`src/mailroom_sandbox/job/context_plan.py`). It
   reports §1.1, §1.2, F1, F2 and F4 before any spend, using the taxonomy the run
-  would activate. It is advisory and never fails preflight. For this config it
-  prints the 14-window merger fan-out, the judge coverage per class (merger 4%,
-  contract 41%, corporate 44%), the no-effect judge knob, and the 56-character row.
+  would activate. It is advisory and never fails preflight. Without context fit (the
+  posture the run executed under) it estimates the 14-window merger fan-out, the
+  judge coverage per class (merger 4%, contract 41%, corporate 44%), the
+  no-effect judge knob, and the 56-character row. With context fit on, it prints
+  the "after" column in §4. These are estimates from document lengths and
+  budgets; the parked results and CUAD scores in F1 are observed run outcomes the
+  plan does not report.
 
 ## 4. Context fit: chunk only when the model cannot take the document
 
@@ -89,7 +97,8 @@ to match, and `mailroom_sandbox.source_windows` widens the vendored
 judge/arbiter excerpts at activation. Modal, vLLM, Ollama and LM Studio routes
 keep the 16k posture, and the windows are restored on their activation.
 
-For this run's config, the plan now reads:
+For this run's config, the plan's estimates (before = the executed posture,
+after = the current default):
 
 | Class | Windows per pass (before → after) | Judge coverage of longest doc |
 |---|---|---|
@@ -99,8 +108,10 @@ For this run's config, the plan now reads:
 
 The near-empty-row warning remains. **Not yet measured:** whether MAUD accuracy
 and the contract `judge_partial` rate improve needs a paid rerun. The judge
-and arbiter now read whole documents, so merger input tokens per judge/arbiter
-call grow about 26× (16k → ~420k characters). Single-pass extraction drops the
+and arbiter now read whole documents, so the source text per merger judge/arbiter
+call grows about 26× (16k → ~420k characters). That is a source-character
+estimate; the per-call token increase depends on token density and the rest of
+the prompt and is unmeasured until a rerun. Single-pass extraction drops the
 chunk overlap and per-chunk prompt overhead. Fewer arbiter-ordered retries
 should offset part of the judge growth. Re-check `job.api_cost_cap_usd`
 before scaling up. Set `context_fit.enabled: false` in the overlay, or use run

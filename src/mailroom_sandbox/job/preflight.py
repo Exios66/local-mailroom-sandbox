@@ -569,7 +569,7 @@ def record_cold_boot(store: RunStore, probe: Mapping[str, Any], *, run_id: str |
 
 
 def _extracts(spec: RunSpec) -> bool:
-    return spec.task == "pipeline" or spec.task.endswith("_specialist")
+    return spec.task in ("pipeline", "specialist") or spec.task.endswith("_specialist")
 
 
 def _record_context_plan(report: dict[str, Any], spec: RunSpec, store: RunStore) -> None:
@@ -579,7 +579,13 @@ def _record_context_plan(report: dict[str, Any], spec: RunSpec, store: RunStore)
     from mailroom_sandbox.job.context_plan import plan_for_spec
 
     try:
-        cp = plan_for_spec(spec, store.dataset_rows())
+        rows = store.dataset_rows()
+        if spec.target:  # plan only what the runner will execute
+            from mailroom_sandbox.eval.primary import rows_for_class
+
+            rows = rows_for_class(rows, spec.target)
+        knobs = (store.read_lock() or {}).get("agent_knobs") if store.lock_path.exists() else None
+        cp = plan_for_spec(spec, rows, knobs=knobs)
     except Exception as exc:  # noqa: BLE001 — advisory only
         _log.debug("context plan skipped", exc_info=exc)
         report["checks"].append({"name": "context_plan", "ok": True, "detail": f"skipped: {exc}"})
@@ -899,6 +905,7 @@ def _preflight(
                 report["checks"].append({"name": "generation", "ok": False, "detail": str(exc)})
                 return report
             report.update({"spec_hash": existing["spec_hash"], "lock_path": str(store.lock_path)})
+            _record_context_plan(report, spec, store)  # same report shape as a fresh preparation
             return report
 
     # write_lock refuses to overwrite in place, so a forced re-lock archives

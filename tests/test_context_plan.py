@@ -118,3 +118,61 @@ def test_preflight_skips_the_plan_for_sorter_runs(tmp_path, monkeypatch):
     report = preflight.preflight(_pipeline_spec(tmp_path, monkeypatch, task="sorter"), offline=True)
     assert report["status"] == "prepared", report
     assert "context_plan" not in report
+
+
+def test_chunk_count_keeps_paragraphs_intact():
+    text = "\n\n".join("y" * 20_000 for _ in range(5))
+    assert context_plan.chunk_count(text, 31_507) == 5  # len/window would say 4
+    assert context_plan.chunk_count("x" * 418_669, 31_507) == 14
+    assert context_plan.chunk_count("short", 31_507) == 1
+    tax = json.loads(json.dumps(TAXONOMY))
+    tax["agents"]["merger_agreement_specialist"]["max_input_chars"] = 36008
+    rows = [{"id": "p", "expected_doc_class": "merger_agreement", "doc_text": text}]
+    cp = context_plan.plan(tax, rows, windows=WINDOWS)
+    assert cp["classes"]["merger_agreement"]["max_chunks_per_pass"] == 5
+    assert any("~5 chunks per extraction pass" in w for w in cp["warnings"])
+
+
+def test_arbiter_window_is_checked_on_its_own():
+    rows = [{"id": "m", "expected_doc_class": "merger_agreement", "doc_text": "x" * 400_000}]
+    cp = context_plan.plan(TAXONOMY, rows, windows={"judge": 500_000, "arbiter": 16_000})
+    entry = cp["classes"]["merger_agreement"]
+    assert entry["judge_coverage_min"] == 1.0 and entry["arbiter_coverage_min"] == pytest.approx(0.04)
+    text = "\n".join(cp["warnings"])
+    assert "exceed the arbiter source window" in text and "exceed the judge source window" not in text
+
+
+def test_isolated_specialist_plan_follows_the_chunk_knob():
+    rows = [{"id": "m", "expected_doc_class": "merger_agreement", "doc_text": "x" * 100_000}]
+    single = context_plan.plan(TAXONOMY, rows, windows=WINDOWS, task="specialist")
+    entry = single["classes"]["merger_agreement"]
+    assert entry["chunked"] is False and entry["max_chunks_per_pass"] == 1 and "judge_coverage_min" not in entry
+    assert any("no chunk_chars knob (single pass)" in w for w in single["warnings"])
+    assert not any("judge" in w for w in single["warnings"])
+    knobs = {"merger_agreement_specialist": {"chunk_chars": 30_000, "overlap_chars": 2_000}}
+    chunked = context_plan.plan(TAXONOMY, rows, windows=WINDOWS, task="specialist", knobs=knobs)
+    entry = chunked["classes"]["merger_agreement"]
+    assert entry["chunked"] is True and entry["chunk_chars"] == 30_000 and entry["max_chunks_per_pass"] == 4
+
+
+def test_plan_uses_the_target_rows_and_runs_on_an_existing_generation(tmp_path, monkeypatch):
+    monkeypatch.setenv("MAILROOM_BASE_DIR", str(tmp_path))
+    path = tmp_path / "t.jsonl"
+    with open(path, "w", encoding="utf-8") as fh:
+        for i, cls in enumerate(("contract", "merger_agreement")):
+            fh.write(json.dumps({"id": f"t{i}", "filename": f"t{i}.txt", "doc_text": "word " * 5_000,
+                                 "expected_doc_class": cls, "expected": cls}) + "\n")
+    spec = RunSpec(run_id="run-cp-target", task="pipeline", target="contract",
+                   dataset=DatasetSpec(local_path=f"file://{path}", limit=2),
+                   engine={"kind": "vllm-local", "modal": None}, trace={"sink": "none"}, job={"mock": True})
+    first = preflight.preflight(spec, offline=True)
+    assert first["status"] == "prepared", first
+    assert set(first["context_plan"]["classes"]) == {"contract"}
+    again = preflight.preflight(spec, offline=True)
+    assert again["context_plan"]["classes"] == first["context_plan"]["classes"]
+
+
+def test_preflight_plans_whole_run_specialist_tasks(tmp_path, monkeypatch):
+    report = preflight.preflight(_pipeline_spec(tmp_path, monkeypatch, task="specialist"), offline=True)
+    assert report["status"] == "prepared", report
+    assert report["context_plan"]["task"] == "specialist"
