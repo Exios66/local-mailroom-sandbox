@@ -741,26 +741,27 @@ _THRESHOLD_COUNT = ("retry_max", "arbiter_retry_max", "judge_max_passes")
 _THRESHOLD_FLAG = ("judge_rejudge_retry",)
 
 
+def _threshold_error(key: str, v: Any) -> str | None:
+    """Why one threshold value is invalid, or ``None`` when it is valid."""
+    if key in _THRESHOLD_FLAG:
+        return None if isinstance(v, bool) else "must be true or false (unquoted)"
+    number = isinstance(v, (int, float)) and not isinstance(v, bool)
+    if key in _THRESHOLD_COUNT:
+        return None if number and isinstance(v, int) and v >= 0 else "must be a non-negative integer"
+    # judge_band_high may sit just above 1.0 to judge every in-band extraction.
+    top = 1.01 if key == "judge_band_high" else 1.0
+    ok = number and math.isfinite(v) and 0 <= v <= top
+    return None if ok else f"must be a number in [0, {top}]"
+
+
 def _check_thresholds(where: str, block: dict[str, Any]) -> None:
     unknown = set(block) - set(_THRESHOLD_UNIT) - set(_THRESHOLD_COUNT) - set(_THRESHOLD_FLAG)
     if unknown:
         raise ValueError(f"{where}: unsupported thresholds {sorted(unknown)}")
-    for key in _THRESHOLD_FLAG:
-        if key in block and not isinstance(block[key], bool):
-            raise ValueError(f"{where}.{key} must be true or false")
-    for key in _THRESHOLD_UNIT:
-        if key in block:
-            v = block[key]
-            # judge_band_high may sit just above 1.0 to judge every in-band extraction.
-            top = 1.01 if key == "judge_band_high" else 1.0
-            if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or not 0 <= v <= top:
-                raise ValueError(f"{where}.{key} must be a number in [0, {top}]")
-    for key in _THRESHOLD_COUNT:
-        if key in block and (isinstance(block[key], bool) or not isinstance(block[key], int) or block[key] < 0):
-            raise ValueError(f"{where}.{key} must be a non-negative integer")
-    for key in _THRESHOLD_FLAG:
-        if key in block and not isinstance(block[key], bool):
-            raise ValueError(f"{where}.{key} must be true or false (unquoted)")
+    for key in (*_THRESHOLD_FLAG, *_THRESHOLD_UNIT, *_THRESHOLD_COUNT):
+        error = _threshold_error(key, block[key]) if key in block else None
+        if error:
+            raise ValueError(f"{where}.{key} {error}")
     if "low" in block and "high" in block and block["low"] > block["high"]:
         raise ValueError(f"{where}: low must not exceed high")
 
