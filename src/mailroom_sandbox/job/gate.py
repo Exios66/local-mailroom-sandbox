@@ -106,7 +106,7 @@ def load_bars(path: Path | None = None) -> Bars:
     """Bars from ``path`` (default ``config/production/bars.yaml``); unknown or repeated keys are an error."""
     path = Path(path) if path else config_dir() / DEFAULT_BARS_PATH
     try:
-        raw = yaml.load(path.read_text(encoding="utf-8"), Loader=_UniqueKeyLoader) or {}  # noqa: S506 — SafeLoader subclass
+        raw = yaml.load(path.read_text(encoding="utf-8"), Loader=_UniqueKeyLoader) or {}  # noqa: S506  # nosec B506 — SafeLoader subclass
     except ValueError as exc:
         raise ValueError(f"{path}: {exc}") from None
     known = {f.name for f in fields(Bars)}
