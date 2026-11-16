@@ -133,7 +133,8 @@ def test_buckets_sorted_with_unlinked_audit_fields_when_audit_is_off(tmp_path, f
     assert [b["count"] for b in buckets.values()] == [3, 2]
     assert [d["id"] for d in buckets["classification:arbiter_escalated"]["docs"]] == ["b", "c", "d"]
     for bucket in buckets.values():
-        assert all(set(d) == {"id", "archive", "trace_id"} and d["archive"] is None and d["trace_id"] is None
+        assert all(set(d) == {"id", "archive", "trace_id", "span_id"} and d["archive"] is None
+                   and d["trace_id"] is None and d["span_id"] is None
                    for d in bucket["docs"])
     report = gate.gate_report(run, Bars())
     assert {d["id"]: d["cause"] for d in report["docs"] if "cause" in d}["a"] == "mechanism:judge_error"
