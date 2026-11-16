@@ -388,6 +388,9 @@ def _engine_errors(spec: RunSpec) -> list[str]:
         # sorter_reviewer chat agent runs, which is how chat Luna was calibrated by mistake.
         errs.append("a paid sorter_reviewer run needs a reviewer block: backend decisions with a Decisions-API model "
                     "(e.g. openai/gpt-6-luna-decisions) and questions, or backend api with allow_chat_model: true")
+    if spec.engine.kind == "openrouter" and not spec.job.mock and not os.environ.get("OPENROUTER_API_KEY", "").strip():
+        # Without this, a keyless run fails soft on every document (review, ok) and spends nothing.
+        errs.append("engine kind openrouter needs OPENROUTER_API_KEY set in this shell")
     vllm = spec.engine.vllm
     if vllm.max_model_len < 1:
         errs.append("max_model_len must be >= 1")
@@ -920,6 +923,14 @@ def _preflight(
                 report["status"] = "failed"
                 report["checks"].append({"name": "generation", "ok": False, "detail": str(exc)})
                 return report
+            # Credentials live in the shell, not the lock: a lock prepared where
+            # the key was set must not let `run start` proceed where it is not.
+            eng_errors = _engine_errors(spec)
+            if eng_errors:
+                report["status"] = "failed"
+                report["checks"].append({"name": "engine_spec", "ok": False, "detail": "; ".join(eng_errors)})
+                return report
+            report["checks"].append({"name": "engine_spec", "ok": True, "detail": _engine_summary(spec)})
             report.update({"spec_hash": existing["spec_hash"], "lock_path": str(store.lock_path)})
             frozen = (store.read_lock() or {}).get("agent_knobs") or {}
             _record_context_plan(report, spec, store, frozen)  # same report shape as a fresh preparation
