@@ -734,8 +734,10 @@ class ExtractionGateSpec(BaseModel):
 # Routing thresholds a run may override (vendored graph/routing.py reads them per class).
 _THRESHOLD_UNIT = ("high", "low", "judge_band_high")
 _THRESHOLD_COUNT = ("retry_max", "arbiter_retry_max", "judge_max_passes")
-# Switches. The vendored router reads them by truthiness, so the YAML string "false"
-# would turn one on: only real booleans are accepted.
+# Routing flags. judge_rejudge_retry (llm-mailroom #241, ships false): a retry whose
+# earlier attempt was judged goes back to judge_verify while judge passes remain.
+# Upstream reads it by truthiness, so only a real boolean is accepted here: a quoted
+# "false" would otherwise switch it on.
 _THRESHOLD_FLAG = ("judge_rejudge_retry",)
 
 
@@ -743,6 +745,9 @@ def _check_thresholds(where: str, block: dict[str, Any]) -> None:
     unknown = set(block) - set(_THRESHOLD_UNIT) - set(_THRESHOLD_COUNT) - set(_THRESHOLD_FLAG)
     if unknown:
         raise ValueError(f"{where}: unsupported thresholds {sorted(unknown)}")
+    for key in _THRESHOLD_FLAG:
+        if key in block and not isinstance(block[key], bool):
+            raise ValueError(f"{where}.{key} must be true or false")
     for key in _THRESHOLD_UNIT:
         if key in block:
             v = block[key]
