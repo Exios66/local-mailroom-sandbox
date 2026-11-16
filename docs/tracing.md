@@ -70,6 +70,28 @@ Inspect traces in the Langfuse UI. Durable scores also live in
 `data/traces/<run_id>.spans.jsonl.gz` (gitignored) **whatever the locked sink is**, including `sink: none`,
 so a run is never left without traces. `SANDBOX_TRACE_LOCAL=0` turns the mirror off.
 
+### Whole-run tasks (`pipeline`, `specialist`, single-agent tasks)
+
+These tasks run every locked row in one delegated call, so a document's span is
+written **when that document finishes**, not when it starts. A document that is
+still running therefore has no `job.item` span yet. That is in-flight work, not
+missing telemetry; check `checkpoint.json` or `nodes.jsonl` for it. Each `job.item`
+uses the window the evaluator measured around the document's own execution, so
+the wait before the main thread scores and saves it is not counted. Its
+attributes are `item_id`, `task`, `job.ok`, `job.error`, `job.latency_ms`,
+`gen_ai.usage.input_tokens` / `output_tokens`, `job.llm_calls`,
+`mailroom.doc_type`, `mailroom.stage`, `mailroom.review_causes`,
+`job.node_count` and `score.class_correct` / `score.stage_correct` /
+`score.overall_extraction_score` / `score.extraction_f1`, each written only when
+the run reports it.
+
+For `pipeline`, each finished graph node becomes a `job.node` child of its
+document's `job.item`. A node's attributes are `item_id`, `node`, `node.status`,
+`agent`, `model`, `stage`, `step`, `node.ms` and `decisions`. A node that ended
+in error has an `ERROR` span status. If a document raises and aborts the run, it
+has no item row; its reported nodes are still written under a failed `job.item`
+(`job.ok=false`, `ERROR` status) that ends at its last reported node.
+
 To browse spans live, start Phoenix (`sandbox up --compose-profile phoenix --detach`) and lock new runs with
 `trace: {sink: phoenix, otlp: true}`; the mirror still writes when Phoenix is down.
 
