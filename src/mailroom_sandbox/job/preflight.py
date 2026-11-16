@@ -342,6 +342,11 @@ def _engine_errors(spec: RunSpec) -> list[str]:
         unknown = (set(spec.agent_models) | set(spec.agent_knobs)) - known_agents()
         if unknown:
             errs.append(f"unknown or retired agents: {sorted(unknown)}")
+    if spec.confidence.get("by_class"):
+        from mailroom_sandbox.overlay import live_doc_classes
+        unknown = set(spec.confidence["by_class"]) - set(live_doc_classes())
+        if unknown:
+            errs.append(f"confidence.by_class: unknown or retired doc classes {sorted(unknown)}")
     if spec.agent_routes:
         from mailroom_sandbox.agent_routes import validate
         from mailroom_sandbox.services._exec import ServiceError
@@ -1053,6 +1058,7 @@ def _preflight(
         **({"agent_routes": {name: route.model_dump() for name, route in spec.agent_routes.items()}} if spec.agent_routes else {}),
         **({"reviewer": _reviewer_lock(spec)} if spec.reviewer else {}),
         **({"extraction_gate": _extraction_gate_lock(spec)} if spec.extraction_gate else {}),
+        **({"confidence": spec.confidence} if spec.confidence else {}),
         "prompt": prompt_block,
         "engine": spec.engine.model_dump(),
         "job": spec.job.model_dump(),

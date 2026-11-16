@@ -1160,6 +1160,13 @@ def _run_parser(sub, shared):
     start.set_defaults(handler=_cmd_run_start)
     status = run_sub.add_parser("status", parents=[common], help="progress, errors and spend for a run")
     status.set_defaults(handler=_cmd_run_status)
+    routing_p = run_sub.add_parser(
+        "routing", parents=[common],
+        help="routing audit of a finished run: escalation fire rates, retry yield, escalation cost, threshold evidence",
+    )
+    routing_p.add_argument("--quality-target", type=float, default=0.7,
+                           help="score a skipped-judge document must reach (judge_band_high suggestions)")
+    routing_p.set_defaults(handler=_cmd_run_routing)
     resume = run_sub.add_parser("resume", parents=[common], help="continue an interrupted run from its checkpoint")
     resume.set_defaults(handler=_cmd_run_resume)
     cancel = run_sub.add_parser("cancel", parents=[common], help="request cancellation of a running job")
@@ -3660,6 +3667,19 @@ def _watch_remote(store, args) -> int:
             )
             return 1
         time.sleep(3.0)
+
+
+def _cmd_run_routing(args) -> int:
+    """Print the offline routing audit for a run store (no inference, no spend)."""
+    from mailroom_sandbox.job.routing_audit import audit
+    from mailroom_sandbox.job.spec import run_dir
+
+    root = run_dir(_run_id_required(args))
+    if not (root / "nodes.jsonl").is_file():
+        _print({"status": "failed", "detail": f"no nodes.jsonl under {root}"})
+        return 1
+    _print(audit(root, target=float(args.quality_target)))
+    return 0
 
 
 def _cmd_run_status(args) -> int:

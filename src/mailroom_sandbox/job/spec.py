@@ -727,6 +727,29 @@ class ExtractionGateSpec(BaseModel):
         return self
 
 
+# Routing thresholds a run may override (vendored graph/routing.py reads them per class).
+_THRESHOLD_UNIT = ("high", "low", "judge_band_high")
+_THRESHOLD_COUNT = ("retry_max", "arbiter_retry_max", "judge_max_passes")
+
+
+def _check_thresholds(where: str, block: dict[str, Any]) -> None:
+    unknown = set(block) - set(_THRESHOLD_UNIT) - set(_THRESHOLD_COUNT)
+    if unknown:
+        raise ValueError(f"{where}: unsupported thresholds {sorted(unknown)}")
+    for key in _THRESHOLD_UNIT:
+        if key in block:
+            v = block[key]
+            # judge_band_high may sit just above 1.0 to judge every in-band extraction.
+            top = 1.01 if key == "judge_band_high" else 1.0
+            if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or not 0 <= v <= top:
+                raise ValueError(f"{where}.{key} must be a number in [0, {top}]")
+    for key in _THRESHOLD_COUNT:
+        if key in block and (isinstance(block[key], bool) or not isinstance(block[key], int) or block[key] < 0):
+            raise ValueError(f"{where}.{key} must be a non-negative integer")
+    if "low" in block and "high" in block and block["low"] > block["high"]:
+        raise ValueError(f"{where}: low must not exceed high")
+
+
 class RunSpec(BaseModel):
     schema_name: str = Field(default="sandbox.run/v1", alias="schema")
     run_id: str | None = None
@@ -747,8 +770,25 @@ class RunSpec(BaseModel):
     agent_routes: dict[str, AgentRoute] = Field(default_factory=dict)
     reviewer: ReviewerSpec | None = None
     extraction_gate: ExtractionGateSpec | None = None
+    # Run-scoped routing thresholds (the taxonomy `confidence` block), merged over the
+    # vendored + overlay values. Thresholds are calibrated per model: a self-reported
+    # confidence scale differs between Qwen on OpenRouter and a Modal-served 9B.
+    confidence: dict[str, Any] = Field(default_factory=dict)
 
     model_config = {"populate_by_name": True}
+
+    @field_validator("confidence")
+    @classmethod
+    def _confidence(cls, value: dict[str, Any]) -> dict[str, Any]:
+        _check_thresholds("confidence", {k: v for k, v in value.items() if k != "by_class"})
+        by_class = value.get("by_class", {})
+        if not isinstance(by_class, dict):
+            raise ValueError("confidence.by_class must map doc classes to thresholds")
+        for name, block in by_class.items():
+            if not isinstance(block, dict):
+                raise ValueError(f"confidence.by_class.{name} must be a mapping")
+            _check_thresholds(f"confidence.by_class.{name}", block)
+        return value
 
     @field_validator("agent_knobs")
     @classmethod
@@ -886,6 +926,8 @@ def spec_core(spec: RunSpec, *, source_sha256: str | None = None) -> dict[str, A
         **({"reviewer": spec.reviewer.model_dump()} if spec.reviewer else {}),
         # Hashed only when set, so every pre-existing run YAML keeps its spec_hash.
         **({"extraction_gate": spec.extraction_gate.model_dump()} if spec.extraction_gate else {}),
+        # Hashed only when set, so every pre-existing run YAML keeps its spec_hash.
+        **({"confidence": spec.confidence} if spec.confidence else {}),
         "task": spec.task,
         # Hashed only when set, so every pre-existing run YAML keeps its spec_hash.
         **({"target": spec.target} if spec.target else {}),

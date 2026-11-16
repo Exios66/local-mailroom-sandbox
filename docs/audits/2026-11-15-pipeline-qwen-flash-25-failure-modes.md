@@ -122,6 +122,74 @@ should offset part of the judge growth. Re-check `job.api_cost_cap_usd`
 before scaling up. Set `context_fit.enabled: false` in the overlay, or use run
 `agent_knobs`, to keep the old posture.
 
+## 4a. Routing: is each escalation worth its cost?
+
+`sandbox run routing --run-id pipeline-qwen-flash-25` (offline) shows the
+escalation path barely discriminates:
+
+| Class | Judge calls passed | Retries that improved the verdict | `retry_classify` that changed the answer | Mean quality, judged / not judged |
+|---|---|---|---|---|
+| contract | 0/14 | 1/9 | 0/5 | 0.83 / — |
+| merger_agreement | 0/8 | 0/4 | — | 0.11 / 0.00 |
+| correspondence | 0/4 | 0/2 | — | 0.26 / 0.23 |
+| insurance_claim | 1/4 | 0/2 | — | 0.77 / 0.77 |
+| corporate_record | never judged | — | 0/5 | — / 0.39 |
+
+What this means for cost:
+
+- **The judge almost never passes, so the arbiter loop is nearly unconditional.**
+  Even short correspondence that the judge saw in full passed 0/4. The judge's
+  strictness is not only a truncation effect.
+- **Retries rarely pay.** 1 of 17 re-judged retries improved a verdict.
+- **The gate skipped the worst class.** Corporate records (quality 0.39)
+  self-reported ≥ `judge_band_high` and archived unchecked, while contracts
+  (0.83) were all judged.
+- **`retry_classify` is dead weight on this model.** Qwen's sorter tops out at
+  0.95, below `high` (0.98 contract, 0.96 corporate), so every document of
+  those classes retries and gets the same answer.
+
+**Price of the loop, not of the window.** These are input upper bounds from the
+preflight `context_plan`, for the longest merger at full coverage on Qwen 3.7
+Flash tiers:
+
+| Path | Input cost |
+|---|---|
+| Clean pass (judge skipped) | $0.018 |
+| Extraction plus one judge pass | $0.036 |
+| Worst-case loop at today's budgets (3 extractions, 3 judge, 3 arbiter calls) | $0.164 |
+| Worst-case loop with `arbiter_retry_max: 1` | $0.109 |
+
+For contracts the full-coverage judge costs about the same as the truncated
+one ($0.011 vs $0.015 for the five). Wider windows only pay off if the
+judge's verdict then separates good extractions from bad ones, so fewer
+documents loop.
+
+**Calibration procedure:**
+
+1. Run the next batch with the defaults. Extraction confidence is now
+   recorded per pass.
+2. Run `sandbox run routing --run-id <id>`.
+3. Set the run's locked `confidence` block from its evidence:
+   - `high` at or below the sorter's observed ceiling where `retry_classify`
+     never changes the answer and the reviewer lane stays on;
+   - `arbiter_retry_max` / `judge_max_passes` down where retries show no yield;
+   - `judge_band_high` from the suggestion (needs ≥ 5 scored documents per
+     class with recorded confidence).
+4. Re-audit the next run, and keep a threshold only if the audit's quality
+   split holds.
+5. If the judge still passes under ~10% of full-coverage calls, fix the judge
+   prompt and contract upstream before paying for more passes.
+
+A starting point supported by this run, to confirm at higher volume:
+
+```yaml
+confidence:
+  by_class:
+    contract: {high: 0.95}
+    corporate_record: {high: 0.95}
+    merger_agreement: {arbiter_retry_max: 1, judge_max_passes: 2}
+```
+
 ## 5. Upstream handoff (llm-mailroom v0.30 / v0.31)
 
 1. Make the judge and arbiter source windows configurable (the sandbox

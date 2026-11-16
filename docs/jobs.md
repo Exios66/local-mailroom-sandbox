@@ -121,6 +121,16 @@ reviewer:                   # optional decision reviewer (SAND-085); see docs/ex
   model: openai/gpt-6-luna  # pinned: jev-X.Y.Z, the in-house model, or an OpenRouter id
   classes: {contract: 0.90, correspondence: 0.90}   # class -> cutoff in [0, 1]
 
+confidence:                 # optional run-scoped routing thresholds, merged over the
+                            # vendored + overlay `confidence` block. Locked; hashed
+                            # only when set. Calibrate per model: self-reported
+                            # confidence scales differ by model. Evidence comes
+                            # from `sandbox run routing`.
+  arbiter_retry_max: 1      # global keys: high, low, judge_band_high (<= 1.01),
+  judge_max_passes: 2       #   retry_max, arbiter_retry_max, judge_max_passes
+  by_class:
+    contract: {high: 0.95}  # live doc classes only; unknown classes fail preflight
+
 trace:
   sink: langfuse            # langfuse | phoenix | otlp | none
   otlp: true
@@ -178,6 +188,7 @@ sandbox run status     --run-id <id> [--watch] [--json]
 sandbox run resume     --config <run.yaml> --run-id <id> [--force]
 sandbox run cancel     --run-id <id>
 sandbox run list
+sandbox run routing    --run-id <id> [--quality-target 0.7]   # offline routing audit
 
 sandbox prompts list                       # every pipeline agent prompt (local + Langfuse)
 sandbox prompts show <agent> [--variant X]
@@ -186,6 +197,23 @@ sandbox metrics compare --log
 ```
 
 Exit codes: `0` done · `1` failed · `2` paused · `3` drift/busy/foreign-store refusal.
+
+**Routing audit.** `sandbox run routing` reads a finished store and reports, per
+class:
+
+- how often each escalation fired: `retry_classify`, judge, arbiter, re-extraction, review;
+- **yield**: whether a retry ever changed the class answer or improved the judge verdict;
+- **discrimination**: the scored quality of judged vs unjudged and parked vs archived documents;
+- judge/arbiter input cost at the vendored 16k window and at full coverage.
+
+It lists findings, such as a judge that never passes, retries with no yield, a
+`high` above the sorter's confidence ceiling, or low-quality classes that skipped
+the judge. It also suggests a `judge_band_high` from the recorded
+`extraction_confidence` once five or more scored documents carry one. These are
+evidence, not settings. Apply them through the run's locked `confidence` block,
+then confirm with the next run's audit. Preflight's `context_plan` prices the
+longest document of each class three ways: a clean pass, one judged pass, and
+the worst-case loop the thresholds allow.
 
 A matching repeated preflight validates the committed dataset hash, prompt lock,
 checkpoint and spec identity and leaves all generation artifacts byte-identical,

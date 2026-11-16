@@ -1417,6 +1417,8 @@ def _run_pipeline_doc(
         "stage": result.get("stage"),
         "extracted_data": result.get("extracted_data"),
         "classification_confidence": result.get("classification_confidence"),
+        # The judge gate's input: routing calibration needs it beside the score.
+        "extraction_confidence": result.get("extraction_confidence"),
         **{key: outcome.get(key) for key in REVIEW_OUTCOME_FIELDS},
         # Present only when a pipeline extraction gate is registered (advisory).
         **({"doc_subclass": result.get("doc_subclass"), "extraction_gate": result.get("extraction_gate")}
