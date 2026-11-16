@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- **Vendor refresh** (2026-11-16): llm-mailroom `5bcfe44` → `98c89b8` (`v0.30.0` branch,
+  package 0.9.3) and llm-dojo-scoring v0.29.0 → `542a1c3` (`v0.30.0` branch, package
+  0.30.0). Dojo 0.30.0 drops the unused analysis, CLI, Langfuse/Phoenix sync, sandbox
+  composite and rescore modules (no sandbox importer used them) and moves some scores, so
+  the scoring goldens were regenerated. `snapshots.PINS` moves with `_VENDOR_PINS`.
 - **Vendor refresh** (2026-11-16): llm-mailroom `19203ea` → `5bcfe44` (`main` after #223,
   package 0.9.3) and llm-dojo-scoring v0.28.1 → v0.29.0 (`f95c318`). Routing changes that
   move experiments: chunked extractions merge confidence as the MIN across windows and a
