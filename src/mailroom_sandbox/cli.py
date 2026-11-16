@@ -1473,9 +1473,10 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
 # Reviewed standalone refs frozen to exact source SHAs. Mirror monorepo
 # workspace packages when available, after importing those reviewed revisions.
 # The fallback rejects moved refs before replacing any tracked vendor file.
-# llm-mailroom: main at the #223 merge (after v0.9.3: chunk-loss routing, MIN merged
-# chunk confidence, Dojo f95c318) until the next llm-mailroom release tag is cut.
-# llm-dojo-scoring: release tag v0.29.0 (f95c318: date scoring hardening).
+# llm-mailroom: the v0.30.0 branch at 98c89b8 (pre-release; package 0.9.3) until
+# the next llm-mailroom release tag is cut.
+# llm-dojo-scoring: the v0.30.0 branch at 542a1c3 (slimmed scoring engine; package
+# 0.30.0). Neither has a release tag yet, so each ref is its exact commit.
 _VENDOR_PINS: tuple[tuple[str, str, str, str | None], ...] = (
     ("llm-mailroom", "98c89b80aa8f1d7e7ce4663087735486c970ef14",
      "https://github.com/Exios66/llm-mailroom.git", "98c89b80aa8f1d7e7ce4663087735486c970ef14"),
