@@ -18,6 +18,9 @@ Review causes are the pipeline's ``review_causes`` tokens (``vendor/llm-mailroom
 ``pipeline/reconsideration.py``). Tokens this module does not map are never bucketed by guess:
 a review none of whose causes maps lands in ``mechanism:unmapped:<first raw cause>`` (``none`` when
 the item carries no cause at all), so a new pipeline cause shows up as its own bucket.
+
+A Dojo scorer failure while typing an extraction miss is never folded into an extraction type: it
+raises ``ScorerError`` internally and the document lands in ``mechanism:scorer_error``.
 """
 from __future__ import annotations
 
@@ -39,6 +42,10 @@ _REVIEWER_DOUBT = frozenset({"reviewer_ineligible_label", "reviewer_low_confiden
 _WRONG_CLASS_TOKENS = frozenset({"class_miss"})
 _JUDGE_REJECTED = frozenset({"judge_partial", "judge_miss", "judge_incomplete"})
 _EXTRACTION = frozenset({"extraction_miss", "low_extraction_confidence", "hollow_extraction"})
+
+
+class ScorerError(RuntimeError):
+    """The Dojo scorer failed (raised, or returned no field scores) while typing an extraction miss."""
 
 
 def _pred(doc: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -105,15 +112,20 @@ def _field_scores(row: Mapping[str, Any], pred: Mapping[str, Any]) -> dict[str, 
         suite = suite_for_doc_type(doc_class)
         result = (suite.score(expected, predicted, doc_text=row.get("doc_text"), detailed=True, **kwargs)
                   if detailed else suite.score(expected, predicted, doc_text=row.get("doc_text")))
-    except Exception:  # noqa: BLE001 - a diagnostic label must not break the report; falls back to wrong_value
-        return {}
+    except Exception as exc:  # noqa: BLE001 - surfaced as mechanism:scorer_error, never as an extraction type
+        raise ScorerError(f"{doc_class}: {type(exc).__name__}: {exc}") from exc
     nested = result.get("extraction") if isinstance(result, dict) else result
-    scores = getattr(nested, "field_scores", None) or {}
+    scores = getattr(nested, "field_scores", None)
+    if not scores:
+        raise ScorerError(f"{doc_class}: the scorer returned no field scores for labelled fields")
     return {k: float(v) for k, v in scores.items() if k in expected and isinstance(v, (int, float))}
 
 
 def lowest_field(row: Mapping[str, Any], pred: Mapping[str, Any]) -> tuple[str | None, float | None]:
-    """The lowest-scoring labelled field of a per-field class and its score; ties go to the field name."""
+    """The lowest-scoring labelled field of a per-field class and its score; ties go to the field name.
+
+    ``(None, None)`` when no labelled field is compared; raises ``ScorerError`` when the scorer fails.
+    """
     scores = _field_scores(row, pred)
     if not scores:
         return None, None
@@ -127,7 +139,7 @@ def extraction_miss(row: Mapping[str, Any], pred: Mapping[str, Any]) -> str:
     Per-field classes use the lowest-scoring labelled field. Contracts and mergers are scored on one
     label field, so there is no lowest field: a contract is ``cuad_missed`` when the gold CUAD
     categories it missed are at least as many as the categories it predicted without gold, else
-    ``cuad_false``; a merger is ``maud_wrong``.
+    ``cuad_false``; a merger is ``maud_wrong``. Raises ``ScorerError`` when the Dojo scorer fails.
     """
     doc_class = str(row.get("expected_doc_class"))
     if doc_class == "merger_agreement":
@@ -137,7 +149,10 @@ def extraction_miss(row: Mapping[str, Any], pred: Mapping[str, Any]) -> str:
 
         labels = _unit_labels(_fields(row).get(_UNIT_FIELD["contract"]))
         predicted, _ = scope_extraction_pair(doc_class, pred.get("extracted_data") or {}, {})
-        scored = score_cuad(predicted, labels)
+        try:
+            scored = score_cuad(predicted, labels)
+        except Exception as exc:  # noqa: BLE001 - surfaced as mechanism:scorer_error
+            raise ScorerError(f"contract: {type(exc).__name__}: {exc}") from exc
         return "cuad_missed" if (scored.get("cuad_fn") or 0) >= (scored.get("cuad_fp") or 0) else "cuad_false"
     field, _ = lowest_field(row, pred)
     if field is None:
@@ -152,8 +167,8 @@ def extraction_miss(row: Mapping[str, Any], pred: Mapping[str, Any]) -> str:
 
     try:
         kind = (getattr(suite_for_doc_type(doc_class), "field_types", None) or {}).get(field)
-    except Exception:  # noqa: BLE001
-        kind = None
+    except Exception as exc:  # noqa: BLE001 - surfaced as mechanism:scorer_error
+        raise ScorerError(f"{doc_class}: {type(exc).__name__}: {exc}") from exc
     if kind == "date" and not _is_iso_date(value):
         return "date_format"
     return "wrong_value"
@@ -167,16 +182,23 @@ def label_suspect(row: Mapping[str, Any], pred: Mapping[str, Any], field: str | 
     """The lowest field's label is heuristic and the document text states the predicted value.
 
     Only ``intent`` carries a label source (``intent_source == "heuristic"``). Contracts and mergers
-    are scored on CUAD/MAUD labels, never on that intent, so they never qualify.
+    are scored on CUAD/MAUD labels, never on that intent, so they never qualify. The predicted value
+    must be in the intent vocabulary, must not be ``other`` (a catch-all, too common to be evidence),
+    and must appear in the text as whole words (underscores read as spaces).
     """
     if field != "intent" or str(row.get("expected_doc_class")) in _UNIT_FIELD:
         return False
     if _fields(row).get("intent_source") != "heuristic":
         return False
     value = (pred.get("extracted_data") or {}).get("intent")
-    if value is None or _blank(value) or not isinstance(value, str):
+    if value is None or _blank(value) or not isinstance(value, str) or _words(value) == "other":
         return False
-    return _words(value) in _words(row.get("doc_text") or "")
+    doc_class = str(row.get("expected_doc_class"))
+    vocabulary = _vocabulary(doc_class, "intent")
+    if vocabulary is None or not _in_vocabulary(doc_class, "intent", value, vocabulary):
+        return False
+    pattern = r"\b" + r"[\s_]+".join(re.escape(word) for word in _words(value).split(" ")) + r"\b"
+    return re.search(pattern, str(row.get("doc_text") or ""), flags=re.IGNORECASE) is not None
 
 
 def _error_text(doc: Mapping[str, Any]) -> str:
@@ -214,8 +236,11 @@ def primary_cause(doc: Mapping[str, Any], status: Mapping[str, Any]) -> str:
     if have & _JUDGE_REJECTED:
         return "judge:judge_rejected"
     if outcome == "wrong_archive" or have & _EXTRACTION:
-        field, _ = lowest_field(row, pred)
-        if label_suspect(row, pred, field):
-            return "label_suspect"
-        return f"extraction:{extraction_miss(row, pred)}"
+        try:
+            field = None if doc_class in _UNIT_FIELD else lowest_field(row, pred)[0]
+            if label_suspect(row, pred, field):
+                return "label_suspect"
+            return f"extraction:{extraction_miss(row, pred)}"
+        except ScorerError:
+            return "mechanism:scorer_error"
     return f"mechanism:unmapped:{causes[0] if causes else 'none'}"

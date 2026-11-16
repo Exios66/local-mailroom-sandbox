@@ -293,3 +293,68 @@ def test_contract_wrong_archive_cause_and_never_label_suspect(fake_score):
 def test_extraction_miss_without_any_labelled_field_falls_back_to_wrong_value():
     d = doc("insurance_claim", {"claim_number": "", "policy_number": None}, pred={"extracted_data": {}})
     assert gate_causes.extraction_miss(d["row"], d["item"]["pred"]) == "wrong_value"
+
+
+# --- scorer failures and label_suspect hardening (review fix round 1) ---------------------------
+
+
+def test_scorer_exception_is_its_own_cause_not_wrong_value(monkeypatch):
+    import mailroom_sandbox.eval.scoring as scoring
+
+    def boom(doc_class):
+        raise RuntimeError("dojo api changed")
+
+    monkeypatch.setattr(scoring, "suite_for_doc_type", boom)
+    d = doc(pred={"extracted_data": {"entity_name": "Zenith", "record_type": "other", "intent": "investor_rights"}})
+    with pytest.raises(gate_causes.ScorerError):
+        gate_causes.extraction_miss(d["row"], d["item"]["pred"])
+    status = {"outcome": "wrong_archive", "class": "corporate_record", "judge_error": False}
+    assert gate_causes.primary_cause(d, status) == "mechanism:scorer_error"
+
+
+def test_scorer_without_field_scores_is_a_scorer_error(monkeypatch):
+    import mailroom_sandbox.eval.scoring as scoring
+
+    class Hollow:
+        field_types: dict = {}
+
+        def score(self, *args, **kwargs):
+            return {"extraction": object()}
+
+    monkeypatch.setattr(scoring, "suite_for_doc_type", lambda doc_class: Hollow())
+    d = doc(pred={"extracted_data": {"entity_name": "Zenith", "record_type": "other", "intent": "governance_rules"}})
+    status = {"outcome": "wrong_archive", "class": "corporate_record", "judge_error": False}
+    assert gate_causes.primary_cause(d, status) == "mechanism:scorer_error"
+
+
+def test_label_suspect_never_fires_for_other_or_partial_words():
+    expected = {**CORP, "intent": "governance_rules"}
+    other = doc(expected=expected, doc_text="Another mother of all bylaws.",
+                pred={"extracted_data": {"intent": "other"}})
+    assert gate_causes.label_suspect(other["row"], other["item"]["pred"], "intent") is False
+    partial = doc(expected=expected, doc_text="The investor rightsholders agreed.",
+                  pred={"extracted_data": {"intent": "investor_rights"}})
+    assert gate_causes.label_suspect(partial["row"], partial["item"]["pred"], "intent") is False
+    off_vocab = doc(expected=expected, doc_text="It covers made up things.",
+                    pred={"extracted_data": {"intent": "made_up"}})
+    assert gate_causes.label_suspect(off_vocab["row"], off_vocab["item"]["pred"], "intent") is False
+    underscored = doc(expected=expected, doc_text="Grants investor_rights to holders.",
+                      pred={"extracted_data": {"intent": "investor_rights"}})
+    assert gate_causes.label_suspect(underscored["row"], underscored["item"]["pred"], "intent") is True
+
+
+def test_every_non_passing_outcome_has_exactly_one_cause(fake_score):
+    statuses = [
+        gate.doc_status(doc("contract", cuad(), pred={"_score": 0.95}), Bars()),            # correct
+        gate.doc_status(doc("contract", cuad(2), pred={"_score": 0.40}), Bars()),           # wrong
+        gate.doc_status(doc("contract", cuad(0), pred={"_score": 0.95}), Bars()),           # unscorable
+        gate.doc_status(review(["judge_partial", "retries_exhausted"]), Bars()),            # review
+        gate.doc_status(doc(item=False), Bars()),                                           # crashed
+    ]
+    outcomes = [s["outcome"] for s in statuses]
+    assert outcomes == ["correct_archive", "wrong_archive", "unscorable_archive", "review", "crashed"]
+    for s in statuses:
+        if s["outcome"] in ("review", "wrong_archive", "crashed"):
+            assert isinstance(s["cause"], str) and s["cause"]
+        else:
+            assert "cause" not in s

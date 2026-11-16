@@ -149,6 +149,7 @@ def _rate(k: int, n: int) -> float | None:
 
 def is_wrong_class(expected_class: str, pred: Mapping[str, Any]) -> bool:
     """Whether the prediction names a class other than the expected one (never when it names none)."""
+    # Exact comparison after lowercasing, with no alias map: a future class alias must be added here.
     got = str(pred.get("doc_type") or "").strip().lower()
     return bool(got) and got != str(expected_class).strip().lower()
 
