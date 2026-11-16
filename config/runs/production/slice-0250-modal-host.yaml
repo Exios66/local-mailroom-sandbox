@@ -20,8 +20,8 @@
 # api_cost_cap_usd 5: about 2x E3's measured 76k prompt tokens per document.
 #
 # Modal job-host twin: identical to the endpoint config except run_id and job.mode: modal.
-# The engine is still OpenRouter (no GPU). Preflight refuses the decisions reviewer for
-# modal jobs, so this twin cannot be launched until that guard changes.
+# The engine is still OpenRouter (no GPU). Deploy sandbox-job with OPENROUTER_API_KEY
+# loaded first (docs/runbooks/production-slices.md, Modal job-host parity, step 0).
 #
 # Launch (a human supplies the initials; never launch from an agent):
 #   sandbox run preflight --config config/runs/production/slice-0250-modal-host.yaml

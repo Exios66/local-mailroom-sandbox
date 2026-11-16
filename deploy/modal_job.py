@@ -241,10 +241,7 @@ def run_job(payload: dict) -> dict:
     os.environ.update(durable_mailroom_env(store.dir))
     from mailroom_sandbox.job.deploy_env import lock_uses_openrouter
 
-    if not scope_openrouter_key(lock, os.environ) and lock_uses_openrouter(lock):
-        # Fail before any document runs, not on the first OpenRouter call.
-        raise RuntimeError("this run calls OpenRouter but the worker has no OPENROUTER_API_KEY; "
-                           "redeploy sandbox-job from a shell that has it set")
+    has_openrouter_key = scope_openrouter_key(lock, os.environ)
     identity = generation_fields(lock)
     if expected is not None and any(payload.get(k) != v for k, v in identity.items()):
         raise RuntimeError("worker generation differs from dispatch expectation")
@@ -300,6 +297,11 @@ def run_job(payload: dict) -> dict:
 
     payload_mock = payload.get("mock")
     try:
+        if not has_openrouter_key and lock_uses_openrouter(lock):
+            # Fail before any document runs, and inside this block so the run is published
+            # as failed with this error instead of stalling at its local running checkpoint.
+            raise RuntimeError("this run calls OpenRouter but the worker has no OPENROUTER_API_KEY; "
+                               "redeploy sandbox-job from a shell that has it set")
         # Local filesystem protection only. Modal Volume flock does not
         # serialize containers; independent same-generation dispatch remains
         # an operator-serialized baseline limitation (see docs/jobs.md).
