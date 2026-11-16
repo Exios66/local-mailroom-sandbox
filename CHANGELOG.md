@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+- **Preflight context plan** (2026-11-15). `pipeline` and specialist preflights
+  now attach an advisory `context_plan`. It covers chunk windows per extraction
+  pass under the run's effective budgets, judge/arbiter source coverage per
+  class, a note when `agents.judge.max_input_chars` has no effect, and
+  near-empty rows. It never fails preflight. It comes from the
+  `pipeline-qwen-flash-25` audit: there, 16k-window budgets split ~400k-character
+  merger agreements into 14 windows per pass, and the judge saw 4% of them. See
+  [the audit](docs/audits/2026-11-15-pipeline-qwen-flash-25-failure-modes.md).
+
 - **Per-document spans for whole-run jobs; floor graph in narrow windows**
   (2026-11-16, #297). `pipeline`, `specialist` and single-agent job tasks now
   mirror a `job.item` span per finished document, timed by the document's own

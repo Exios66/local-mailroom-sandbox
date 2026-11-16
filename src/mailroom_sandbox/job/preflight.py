@@ -12,6 +12,7 @@ and CI-safe.
 from __future__ import annotations
 
 import ipaddress
+import logging
 import os
 import time
 import uuid
@@ -38,6 +39,9 @@ from mailroom_sandbox.job.spec import (
 )
 from mailroom_sandbox.prompt_registry import prompt_lock_block
 from mailroom_sandbox.prompt_versions import PromptSelectionError, selection_from_lock
+
+
+_log = logging.getLogger(__name__)
 
 
 def _versions() -> dict[str, Any]:
@@ -564,6 +568,28 @@ def record_cold_boot(store: RunStore, probe: Mapping[str, Any], *, run_id: str |
     return measurement
 
 
+def _extracts(spec: RunSpec) -> bool:
+    return spec.task == "pipeline" or spec.task.endswith("_specialist")
+
+
+def _record_context_plan(report: dict[str, Any], spec: RunSpec, store: RunStore) -> None:
+    """Attach the informational context plan; it never fails preflight."""
+    if not _extracts(spec):
+        return
+    from mailroom_sandbox.job.context_plan import plan_for_spec
+
+    try:
+        cp = plan_for_spec(spec, store.dataset_rows())
+    except Exception as exc:  # noqa: BLE001 — advisory only
+        _log.debug("context plan skipped", exc_info=exc)
+        report["checks"].append({"name": "context_plan", "ok": True, "detail": f"skipped: {exc}"})
+        return
+    report["context_plan"] = cp
+    warnings = cp["warnings"]
+    detail = f"{len(warnings)} warning(s): " + " | ".join(warnings) if warnings else "budgets fit every document"
+    report["checks"].append({"name": "context_plan", "ok": True, "detail": detail})
+
+
 def _modal_check(spec: RunSpec) -> bool:
     modal = spec.engine.modal
     if modal is None:
@@ -913,6 +939,8 @@ def _preflight(
             report["checks"].append({"name": "target", "ok": False, "detail": str(exc)})
             return report
         report["checks"].append({"name": "target", "ok": True, "detail": f"{spec.target}: {narrowed} row(s)"})
+
+    _record_context_plan(report, spec, store)
 
     # 3) engine spec validators (pydantic ranges + repo guards)
     eng_errors = _engine_errors(spec)
