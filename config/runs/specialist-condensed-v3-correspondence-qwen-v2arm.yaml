@@ -1,0 +1,50 @@
+# Specialist-condensed lineage, validation of correspondence_specialist_condensed_v3 (one change: the
+# communication_type is the content, not the email wrapper; slice-gate fix loop #306). Paired arms on
+# the SAME 40 held-out correspondence documents (seed 1116, tuning documents excluded): v2 = reference,
+# v3 = candidate. Compare: python scripts/compare_specialist_prompt.py \
+#   --reference specialist-condensed-v3-correspondence-qwen-v2arm --candidate specialist-condensed-v3-correspondence-qwen-v3arm
+# VALIDATION ONLY: both arms' documents join config/production/excluded-ids.txt afterwards.
+schema: sandbox.run/v1
+run_id: specialist-condensed-v3-correspondence-qwen-v2arm
+task: correspondence_specialist
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+  agents:
+    correspondence_specialist: {source: local, file: correspondence_specialist_condensed_v2}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  revision: bc9eab280044befb51e19dda3071d290a8677f42
+  strata:
+    buckets:
+      - {doc_class: correspondence, count: 40}
+  limit: 40
+  sample_seed: 1116
+  require_task_gt: true
+  interim_labels: true
+  exclude_ids_file: config/production/excluded-ids.txt
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.7-flash
+  modal: null
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 12
+  cost_cap_usd: 1.00
+  max_wall_seconds: 3600
+  api_cost_cap_usd: 0.10
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, specialist-condensed-v3, ab-validation, correspondence, slice-gate-fix-loop]
