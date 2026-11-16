@@ -260,3 +260,25 @@ def test_load_yaml_cache_returns_isolated_copies_and_reparses_edits(tmp_path):
         overlay.load_yaml(path)
     with pytest.raises(FileNotFoundError):
         overlay.load_yaml(tmp_path / "missing.yaml")
+
+
+def test_write_runtime_taxonomy_replaces_the_file_atomically(tmp_path, monkeypatch):
+    """The file is swapped in whole (os.replace), so no reader sees a partial write; no temp is left."""
+    import os
+
+    from mailroom_sandbox import overlay
+
+    dest = tmp_path / "taxonomy.yaml"
+    dest.write_text("old: 1\n", encoding="utf-8")
+    replaced = []
+    real_replace = os.replace
+
+    def spy(src, dst):
+        assert dest.read_text(encoding="utf-8") == "old: 1\n"  # untouched until the swap
+        replaced.append((src, dst))
+        real_replace(src, dst)
+
+    monkeypatch.setattr(overlay.os, "replace", spy)
+    assert overlay.write_runtime_taxonomy({"new": 2}, dest) == dest
+    assert overlay.load_yaml(dest) == {"new": 2}
+    assert len(replaced) == 1 and list(tmp_path.iterdir()) == [dest]

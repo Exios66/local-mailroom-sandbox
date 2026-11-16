@@ -237,3 +237,100 @@ def test_matter_ids_are_scoped_to_the_run():
     first, rerun = sandbox_matter_id(row, "pipeline-qwen-flash-25"), sandbox_matter_id(row, "pipeline-qwen-flash-25-fit")
     assert first != rerun and first.endswith(row["id"]) and rerun.startswith("SANDBOX-pipeline-qwen-flash-25-fit-")
     assert sandbox_matter_id(row, None) == "SANDBOX-adhoc-DOC-a52b3ad21666d339"
+
+
+def _audit_store(tmp_path, lock):
+    import json as _json
+
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "spec.lock.json").write_text(_json.dumps(lock))
+    (run / "dataset.jsonl").write_text(_json.dumps({"id": "d1", "expected_doc_class": "corporate_record",
+                                                    "expected_fields": "{}"}) + "\n")
+    (run / "items.jsonl").write_text(_json.dumps({"item_id": "d1", "pred": {"stage": "archived"}}) + "\n")
+    (run / "nodes.jsonl").write_text("")
+    return run
+
+
+def test_routing_audit_reads_the_frozen_thresholds_of_a_run(tmp_path):
+    from mailroom_sandbox.job import routing_audit
+
+    frozen = {"high": 0.5, "judge_rejudge_retry": True}
+    report = routing_audit.audit(_audit_store(tmp_path, {"run_id": "r", "effective_confidence": frozen}))
+    corp = report["classes"]["corporate_record"]["thresholds"]
+    assert corp["high"] == 0.5 and corp["judge_rejudge_retry"] is True
+    assert report["thresholds_source"] == "locked"
+
+
+def test_routing_audit_does_not_backfill_an_unlocked_rejudge_setting(tmp_path):
+    """An older run did not freeze its thresholds: today's default is not its setting."""
+    from mailroom_sandbox.job import routing_audit
+
+    report = routing_audit.audit(_audit_store(tmp_path, {"run_id": "r"}))
+    assert report["classes"]["corporate_record"]["thresholds"]["judge_rejudge_retry"] is None
+    assert report["thresholds_source"] == "current_config"
+    (tmp_path / "explicit").mkdir()
+    explicit = routing_audit.audit(_audit_store(tmp_path / "explicit",
+                                                {"run_id": "r", "confidence": {"judge_rejudge_retry": False}}))
+    assert explicit["classes"]["corporate_record"]["thresholds"]["judge_rejudge_retry"] is False
+
+
+
+def test_a_locked_run_routes_on_its_frozen_block_even_after_the_overlay_moves(monkeypatch):
+    """Routing and the audit read the same frozen `effective_confidence` (#303 review).
+
+    The frozen contract `high` is 0.91 while today's vendored+overlay value is 0.98: the
+    locked activation must route on 0.91, not on the current files.
+    """
+    pytest.importorskip("pipeline.config")
+    from pipeline.config import get_confidence_thresholds
+
+    from mailroom_sandbox import runtime
+    from mailroom_sandbox.job.routing_audit import effective_thresholds
+
+    monkeypatch.setenv("VLLM_BASE_URL", "https://example.invalid/v1")
+    current = effective_thresholds()
+    assert current["by_class"]["contract"]["high"] == 0.98
+    frozen = json.loads(json.dumps(current))
+    frozen["by_class"]["contract"]["high"] = 0.91
+    lock = {"profile": "modal-vllm", "job": {}, "confidence": {}, "effective_confidence": frozen}
+    try:
+        with runtime.locked_runtime(lock, {}):
+            runtime.activate("modal-vllm", load_env_file=False)
+        assert get_confidence_thresholds("contract")["high"] == 0.91
+        assert lock["effective_confidence"]["by_class"]["contract"]["high"] == 0.91  # what the audit reads
+    finally:
+        runtime.activate("modal-vllm", load_env_file=False)
+    assert get_confidence_thresholds("contract")["high"] == 0.98
+
+
+def test_a_locked_run_ignores_a_class_key_an_overlay_added_after_preflight(monkeypatch):
+    """The frozen block replaces the live one, so a key absent from it cannot leak in (#303 review)."""
+    pytest.importorskip("pipeline.config")
+    from pipeline.config import get_confidence_thresholds
+
+    from mailroom_sandbox import runtime
+    from mailroom_sandbox.job.routing_audit import effective_thresholds, thresholds_for
+
+    monkeypatch.setenv("VLLM_BASE_URL", "https://example.invalid/v1")
+    frozen = json.loads(json.dumps(effective_thresholds()))
+    assert "judge_rejudge_retry" not in (frozen["by_class"].get("contract") or {})
+    real_build = runtime.build_merged_taxonomy
+
+    def overlay_added_a_class_key(*args, **kwargs):  # the overlay edited after preflight
+        tax = real_build(*args, **kwargs)
+        tax["confidence"]["by_class"]["contract"]["judge_rejudge_retry"] = True
+        return tax
+
+    monkeypatch.setattr(runtime, "build_merged_taxonomy", overlay_added_a_class_key)
+    lock = {"profile": "modal-vllm", "job": {}, "confidence": {}, "effective_confidence": frozen}
+    try:
+        with runtime.locked_runtime(lock, {}):
+            runtime.activate("modal-vllm", load_env_file=False)
+        routed = get_confidence_thresholds("contract")
+        audited = thresholds_for(lock["effective_confidence"], "contract")
+        assert routed.get("judge_rejudge_retry") == audited.get("judge_rejudge_retry")
+        assert routed.get("judge_rejudge_retry") is not True
+    finally:
+        monkeypatch.setattr(runtime, "build_merged_taxonomy", real_build)
+        runtime.activate("modal-vllm", load_env_file=False)

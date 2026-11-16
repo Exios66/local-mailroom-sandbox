@@ -42,6 +42,7 @@ class Activation:
 
 _ACTIVE: Activation | None = None
 _ACTIVE_REVIEWER: dict[str, Any] | None = None
+_ACTIVE_BLIND_ROUTING = False
 _LOCKED_RUNTIME: ContextVar[dict[str, Any] | None] = ContextVar("sandbox_locked_runtime", default=None)
 
 
@@ -75,6 +76,14 @@ def active() -> Activation | None:
 def active_reviewer() -> dict[str, Any] | None:
     """The reviewer block of the last activation (a locked run's includes its frozen question set)."""
     return _ACTIVE_REVIEWER
+
+
+def blind_routing_active() -> bool:
+    """True when the last activation came from a locked run with ``job.blind_routing``.
+
+    Such a run keeps the dataset labels out of the graph's ``ground_truth`` state.
+    """
+    return _ACTIVE_BLIND_ROUTING
 
 
 def agent_knobs_for(agent: str) -> dict[str, Any]:
@@ -333,6 +342,7 @@ def activate(
     global _ACTIVE
     policy = _LOCKED_RUNTIME.get()
     gate_mock = False
+    frozen_confidence = None
     if policy is not None:
         lock = policy["lock"]
         profile_name = lock.get("profile") or default_profile()
@@ -342,7 +352,11 @@ def activate(
         agent_routes = deepcopy(lock.get("agent_routes") or {})
         reviewer = deepcopy(lock.get("reviewer"))
         extraction_gate = deepcopy(lock.get("extraction_gate"))
-        confidence = deepcopy(lock.get("confidence"))
+        # The block preflight froze (vendored + overlay + run), when present: an overlay edited
+        # after preflight must not change a locked run's routing, and the routing audit reports
+        # this same block. Older locks only carry the run's own overrides.
+        frozen_confidence = deepcopy(lock.get("effective_confidence"))
+        confidence = deepcopy(frozen_confidence or lock.get("confidence"))
         # A mock run patches the LLM clients, not the Decisions gate: it gets an offline stub.
         gate_mock = bool((lock.get("job") or {}).get("mock"))
         prompt_variant = None  # the locked TEXT, not today's local stem
@@ -400,6 +414,10 @@ def activate(
         # Run-scoped routing thresholds (locked); they win over vendored + overlay values.
         extra_overlay={"confidence": deepcopy(confidence)} if confidence else None,
     )
+    if frozen_confidence:
+        # Replace, not merge: a key a later overlay added (a class-level judge_rejudge_retry)
+        # must not reach a run whose frozen block never had it.
+        taxonomy["confidence"] = deepcopy(frozen_confidence)
     from mailroom_sandbox.agent_routes import install as install_agent_routes
 
     install_agent_routes(agent_routes or {}, taxonomy, agent_models=effective_agent_models)
@@ -485,6 +503,9 @@ def activate(
         agent_models=dict(agent_models or {}),
         agent_knobs=dict(agent_knobs or {}),
     )
+    global _ACTIVE_BLIND_ROUTING
+    # Process-wide like the reviewer: agent-task workers do not inherit the lock's ContextVar.
+    _ACTIVE_BLIND_ROUTING = bool(((policy or {}).get("lock") or {}).get("job", {}).get("blind_routing"))
     _ACTIVE = activation
     runtime_dir()  # ensure exists
     return activation

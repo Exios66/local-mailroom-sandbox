@@ -573,6 +573,10 @@ class JobSpec(BaseModel):
     # cost_cap_usd estimates GPU time only; a paid run that bills API tokens needs
     # this too, and a known price for every API model (job/api_budget.py).
     api_cost_cap_usd: float | None = None
+    # Pipeline runs: keep the dataset labels (expected class and fields) out of the graph's
+    # state, so routing cannot read them (llm-mailroom #207: the class-miss gate and the
+    # coverage-floor retry are oracles). Scoring still uses the full locked row.
+    blind_routing: bool = False
 
     @field_validator("task")
     @classmethod
@@ -737,23 +741,27 @@ _THRESHOLD_COUNT = ("retry_max", "arbiter_retry_max", "judge_max_passes")
 _THRESHOLD_FLAG = ("judge_rejudge_retry",)
 
 
+def _threshold_error(key: str, v: Any) -> str | None:
+    """Why one threshold value is invalid, or ``None`` when it is valid."""
+    if key in _THRESHOLD_FLAG:
+        return None if isinstance(v, bool) else "must be true or false (unquoted)"
+    number = isinstance(v, (int, float)) and not isinstance(v, bool)
+    if key in _THRESHOLD_COUNT:
+        return None if number and isinstance(v, int) and v >= 0 else "must be a non-negative integer"
+    # judge_band_high may sit just above 1.0 to judge every in-band extraction.
+    top = 1.01 if key == "judge_band_high" else 1.0
+    ok = number and math.isfinite(v) and 0 <= v <= top
+    return None if ok else f"must be a number in [0, {top}]"
+
+
 def _check_thresholds(where: str, block: dict[str, Any]) -> None:
     unknown = set(block) - set(_THRESHOLD_UNIT) - set(_THRESHOLD_COUNT) - set(_THRESHOLD_FLAG)
     if unknown:
         raise ValueError(f"{where}: unsupported thresholds {sorted(unknown)}")
-    for key in _THRESHOLD_FLAG:
-        if key in block and not isinstance(block[key], bool):
-            raise ValueError(f"{where}.{key} must be true or false")
-    for key in _THRESHOLD_UNIT:
-        if key in block:
-            v = block[key]
-            # judge_band_high may sit just above 1.0 to judge every in-band extraction.
-            top = 1.01 if key == "judge_band_high" else 1.0
-            if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or not 0 <= v <= top:
-                raise ValueError(f"{where}.{key} must be a number in [0, {top}]")
-    for key in _THRESHOLD_COUNT:
-        if key in block and (isinstance(block[key], bool) or not isinstance(block[key], int) or block[key] < 0):
-            raise ValueError(f"{where}.{key} must be a non-negative integer")
+    for key in (*_THRESHOLD_FLAG, *_THRESHOLD_UNIT, *_THRESHOLD_COUNT):
+        error = _threshold_error(key, block[key]) if key in block else None
+        if error:
+            raise ValueError(f"{where}.{key} {error}")
     if "low" in block and "high" in block and block["low"] > block["high"]:
         raise ValueError(f"{where}: low must not exceed high")
 
@@ -826,6 +834,12 @@ class RunSpec(BaseModel):
         if self.extraction_gate is not None and self.task != "pipeline":
             raise ValueError(f"extraction_gate reviews pipeline extractions; task {self.task!r} runs none "
                              "(calibrate the gate with task: extraction_gate and a reviewer block)")
+        return self
+
+    @model_validator(mode="after")
+    def _blind_in_pipeline(self) -> "RunSpec":
+        if self.job.blind_routing and self.task != "pipeline":
+            raise ValueError(f"job.blind_routing hides labels from pipeline routing; task {self.task!r} runs no graph routing")
         return self
 
     @model_validator(mode="after")
@@ -946,9 +960,10 @@ def spec_core(spec: RunSpec, *, source_sha256: str | None = None) -> dict[str, A
             "vllm": _vllm_core(spec.engine.vllm),
             "modal": _modal_core(spec.engine.modal),
         },
-        # api_cost_cap_usd is hashed only when set, so pre-SAND-089 YAMLs keep their hash.
+        # api_cost_cap_usd and blind_routing are hashed only when set, so older YAMLs keep their hash.
         "job": {key: value for key, value in spec.job.model_dump().items()
-                if not (key == "api_cost_cap_usd" and value is None)},
+                if not (key == "api_cost_cap_usd" and value is None)
+                and not (key == "blind_routing" and value is False)},
         "trace": spec.trace.model_dump(),
         "prompt": prompt_resolution_map(spec),
         "dataset": spec.dataset.request_core(source_sha256=source_sha256),

@@ -3,6 +3,10 @@
 # it is the new like-for-like baseline for the ladder: Dojo #163 moves date, MAUD, decision-lane
 # and Wilson-bound scores, and llm-mailroom #252 changes chunk windows and the judge's field list.
 # judge_rejudge_retry stays at its vendored default (false).
+# It also carries the settings every E2/E3 arm shares, so those arms compare with it: blind
+# routing, interim labels and the adopted condensed specialist prompts
+# (docs/audits/2026-11-16-pre-e2-architecture-review.md). Those settings change absolute scores,
+# so r3 does not compare like-for-like with r2.
 #
 # (r2 header follows.)
 # Clean repeat of pipeline-qwen-flash-25-fit. That run shared catalog matter ids with
@@ -32,7 +36,11 @@ task: pipeline
 profile: openrouter
 
 prompt:
-  default: {source: code-default}
+  default: {source: code-default}   # sorter: vendored sorter_condensed_v5 (the adopted frontrunner)
+  agents:   # adopted condensed frontrunners (config/prompts/specialist_condensed_lineage.yaml)
+    corporate_records_specialist: {source: local, file: corporate_records_specialist_condensed_v1}
+    correspondence_specialist: {source: local, file: correspondence_specialist_condensed_v2}
+    insurance_claims_specialist: {source: local, file: insurance_claims_specialist_condensed_v3}
 
 dataset:
   provider: huggingface
@@ -50,6 +58,7 @@ dataset:
   limit: 25
   sample_seed: 42
   require_task_gt: true   # every document can be scored
+  interim_labels: true    # gap-fill labels for unlabelled fields (data/labels/interim; Dojo #164)
 
 engine:
   kind: openrouter
@@ -90,6 +99,7 @@ job:
   cost_cap_usd: 0.50
   max_wall_seconds: 7200
   api_cost_cap_usd: 1.25   # 2.5x the 10-doc smoke ceiling; priced at the dearest model tier
+  blind_routing: true     # no dataset labels in the graph's state (llm-mailroom #207)
 
 trace:
   sink: none          # no Docker: spans still mirror to data/traces/<run_id>.spans.jsonl.gz;

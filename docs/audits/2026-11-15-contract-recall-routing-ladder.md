@@ -43,7 +43,8 @@ ladder variable.
 |---|---|---|---|---|
 | E1 | `pipeline-qwen-flash-25-e1-contract-control` → `-e1-contract-chunk` | **20 contracts**, 2 from each of the 10 largest CUAD subtypes (Supply, License, Consulting, IP, Service, Maintenance, Distributor, Strategic Alliance, Sponsorship, Development); seed 1115. At 15,750 chars, 12/20 split into 2–13 chunks and 8 fit one window. | `contracts_specialist.max_input_chars: 18000`; judge/arbiter keep full coverage | paired contract quality ≥ control + 0.05; fewer missed clauses; false positives no more than +2 |
 | E2 | `-e2-corporate-control` → `-e2-corporate-judge` | **18 corporate records**, 2 from each of the 9 labelled subtypes (charter amendment, articles, officer certificate, indenture, subsidiary list, rights instrument, board resolution, bylaws, powers of attorney); seed 1115 | `corporate_record.judge_band_high: 1.01` (judge every extraction) | paired quality > control; judge rejects most extractions scoring < 0.5 |
-| E3 | `-e3-mix-control` → `-e3-chunk-judge-all` | **45 held-out documents**: 10 each of contract, corporate, correspondence, insurance and 5 mergers (untouched by the changes; 5 limits cost); seed 2026. No overlap with E1/E2 and 1 shared with r2. | E1 + E2 + `contract.judge_band_high: 1.01` (retries re-judged) | no class more than 0.03 below control; contract and corporate improve |
+| E2r | `-e2-corporate-control` → `-e2-corporate-rejudge` | the E2 draw (same 18 ids; the control arm is shared with E2) | `corporate_record.judge_rejudge_retry: true` (llm-mailroom #241, opt-in; control states `false`) | fires on at least one retry; paired quality no worse than control; added judge calls counted |
+| E3 | `-e3-mix-control` → `-e3-chunk-judge-all` | **45 held-out documents**: 10 each of contract, corporate, correspondence, insurance and 5 mergers (untouched by the changes; 5 limits cost); seed 2026. Checked against each run's locked `dataset.jsonl` ([ids and intersections](2026-11-15-ladder-run-ids.json)): 0 shared with E1 or E2, 1 shared with r2 and 1 with r3. | E1 + E2 + `contract.judge_band_high: 1.01` (retries re-judged) | no class more than 0.03 below control; contract and corporate improve |
 
 Why these sizes: the r2 class samples (n = 5) cannot show a 0.05–0.07 change. A paired
 n of 18–20 over distinct subtypes can, at a few cents per arm. E1 and E2 tune on seed
@@ -54,7 +55,29 @@ Estimated API spend, from r2 per-document costs: E1 about $0.15 control + $0.30 
 E2 about $0.05 + $0.10; E3 about $0.70 per arm. Each config's `api_cost_cap_usd` is about 2× its
 estimate (E1 0.60, E2 0.40, E3 1.75).
 
-Run order: E1 and E2 are independent (different classes) and can run in either order.
+**Settings common to every E2/E3 arm (not treatments).** These follow the pre-E2 review
+(`docs/audits/2026-11-16-pre-e2-architecture-review.md`):
+- `job.blind_routing: true`: no labels in the graph's state;
+- `dataset.interim_labels: true`: gap-fill labels, with corporate `record_type` re-derived to the
+  enum;
+- the adopted condensed prompts for the corporate, correspondence and insurance specialists.
+
+Evaluate each pair with `python scripts/ladder_pair_report.py <control> <treatment>`. For corporate
+records and correspondence it prints quality on all fields and without the templated
+`keywords` / `subject_matter`. Read the second lane for corporate records.
+
+**E2r, the `judge_rejudge_retry` on/off pair.** The switch re-judges a retry whose earlier
+attempt was judged, whatever confidence the retry reports. It is paired with the control and
+not with `-e2-corporate-judge`, because there it cannot change routing: an extraction reaches
+the report only at confidence ≥ `low`, and with `judge_band_high: 1.01` every such extraction
+is already judged. On the control band (corporate `judge_band_high` 0.94), only a first pass
+between `low` (0.86) and 0.94 is judged, and r2's corporate first passes all reported ≥ 0.95,
+so the switch may fire rarely or never. A zero-fire result is itself the answer for this
+class; contracts, where #241 was observed, are the next place to test it. The run setting
+accepts only an unquoted `true`/`false`, because the vendored router reads it by truthiness.
+
+Run order: E1 and E2 are independent (different classes) and can run in either order. E2r
+reuses E2's control arm, so it costs one more arm (about $0.05).
 Run E3 only after both, and drop from it any treatment that lost its own step. Launch
 (human-only, paid), control first:
 
@@ -90,19 +113,20 @@ the first two with run-scoped thresholds.
 - Re-run r2 on the PR #299 vendor snapshot (llm-mailroom `5bcfe44`, Dojo v0.29.0) to
   isolate the upstream change before stacking ladder steps on it.
 
-## Rebaseline on the 2026-11-16 pins (r3) and E2b
+## Rebaseline on the 2026-11-16 pins (r3) and E2r
 
 The vendor refresh to llm-mailroom `abb1ccf` and Dojo `13adc8e` changes date, MAUD,
 decision-lane and Wilson-bound scores. r2 and E1 were scored on the old pins, so they no
 longer compare like-for-like with new runs.
 
 - `pipeline-qwen-flash-25-fit-r3`: r2's exact document draw, caps and model on the new
-  pins. It is the new baseline for every later step; compare new runs with r3, not r2.
-  Run it before any further ladder step.
-- `pipeline-qwen-flash-25-e2-corporate-rejudge` (E2b): the E2 judge treatment plus
-  `corporate_record.judge_rejudge_retry: true`, so a retry extraction is judged again
-  (llm-mailroom #241 fix, now a run knob). Its control is `-e2-corporate-judge`, which
-  has not run yet: run the E2 pair on these pins first, then E2b.
+  pins, plus the settings every E2/E3 arm shares: blind routing, interim labels and the adopted
+  condensed specialist prompts. It is the new baseline for every later step; compare new runs
+  with r3, not r2. Run it before any further ladder step.
+- `pipeline-qwen-flash-25-e2-corporate-rejudge` (E2r): the E2 control plus
+  `corporate_record.judge_rejudge_retry: true`, paired with the control (see E2r above). On the
+  judge arm the switch cannot change routing, so a judge-plus-rejudge arm would repeat the
+  judge arm.
 
 Human launch (paid), r3 first:
 
@@ -117,8 +141,10 @@ sandbox run start --config config/runs/pipeline-qwen-flash-25-fit-r3.yaml --init
 |---|---|---|---|---|---|---|---|---|
 | r2 | pipeline-qwen-flash-25-fit-r2 | 0.76 | 0.44 | 0.13 | 0.77 | 0.24 | 2.72M | ≤0.49 |
 | E1 control / treatment | pipeline-qwen-flash-25-e1-contract-control / -chunk | 0.774 / 0.803 | n/a | n/a | n/a | n/a | 2.16M / 3.84M | ≈0.10 / ≈0.19 |
-| E2 control / treatment | — | n/a | | n/a | n/a | n/a | | |
-| E3 control / treatment | — | | | | | | | |
+| r3 (blind routing, interim labels, condensed prompts) | pipeline-qwen-flash-25-fit-r3 | 0.771 | 0.654 (0.939 without templated) | 0.101 | 0.857 | 0.132 | 3.14M | — |
+| E2 control / treatment | pipeline-qwen-flash-25-e2-corporate-control / -judge | n/a | 0.593 / 0.579 (0.862 / 0.807 without templated) | n/a | n/a | n/a | 0.70M / 1.38M | — |
+| E2r rejudge | pipeline-qwen-flash-25-e2-corporate-rejudge | n/a | 0.584 (0.807 without templated) | n/a | n/a | n/a | 0.70M | — |
+| E3 control (treatment not run) | pipeline-qwen-flash-25-e3-mix-control | 0.768 | 0.555 (0.939 without templated) | 0.106 | 0.892 | 0.338 (0.410 without templated) | 3.42M (45 docs) | — |
 
 ### E1 result (2026-11-16): recall up, precision down; not adopted as is
 
@@ -167,3 +193,71 @@ Findings:
 Next steps: the chunk-size sweep (25k, 32k) with a clause-precision check on the merge,
 run as repeated arms or at temperature 0 so that it measures more than noise. Keep the
 whole-document read until a size beats control on both the missed and the false bar.
+
+### r3 result (2026-11-16): the new baseline
+
+r3 is r2's draw on the #302 pins with blind routing, interim labels and the adopted condensed
+specialist prompts. Its differences from r2 mix all three changes, and each run is scored against
+its own labels, so they are not effect sizes. Most of the corporate rise (0.44 → 0.65) comes from
+the interim labels. With n = 5 per class, only insurance (+0.10, CI +0.02 to +0.19) excludes zero.
+Watch two things in E3, which has 10 correspondence documents:
+- correspondence fell (0.24 → 0.13);
+- contracts escalated more under blind routing: 0 → 2 sent to review, 4 → 9 judge calls, and one
+  `judge_error`.
+
+### E2 result (2026-11-16): judging every corporate extraction adds cost, not quality; not adopted
+
+`python scripts/ladder_pair_report.py <control> <treatment>` on the shared 18 records. Quality is
+on the lane without the templated `keywords` / `subject_matter`:
+
+| Pair | Quality (control → treatment) | Diff (95% CI) | Review | Judge calls | Retries | Prompt tokens |
+|---|---|---|---|---|---|---|
+| E2: control → judge (`judge_band_high: 1.01`) | 0.862 → 0.807 | −0.056 (−0.17 to +0.06) | 0 → 6 | 0 → 32 | 1 → 16 | 0.71M → 1.39M |
+| E2r: control → rejudge (`judge_rejudge_retry: true`) | 0.862 → 0.807 | −0.056 (−0.17 to +0.06) | 0 → 0 | 0 → 0 | 1 → 2 | 0.71M → 0.71M |
+
+- **The rejudge arm is a noise control.** The switch never fired: every control-band extraction
+  reported confidence ≥ 0.95, so no attempt was judged before a retry. Routing therefore matched
+  the control. Its −0.056 comes from a single record whose first-pass `intent` flipped
+  `investor_rights` → `other`, the same record and the same flip as in the judge arm.
+- **So the judge arm's −0.056 is sampling noise.** The judge changed no document's score.
+- **The judge does not catch bad extractions.** It marked both records scoring below 0.5
+  `complete`. Its 20 `partial` verdicts sent 6 records to review; on the labelled fields, 5 of them
+  score 1.00 and one 0.55. Some of its fix requests are wrong, for example moving an indenture's
+  jurisdiction from the issuer's state of formation (Delaware) to its governing law (New York).
+- **Caveat:** labels cover `intent` (heuristic) and up to six interim fields, so complaints about
+  unlabelled fields are not scored.
+- **Bar:** E2 needed paired quality above control and a judge that rejects most extractions
+  scoring below 0.5. It met neither, at about 2× the tokens and with 6 records sent to review.
+- **E2r:** the #241 switch cannot be tested on corporate records at the default band. Contracts
+  are the next place to test it.
+- **E3:** under the ladder rule, both the E1 treatment (contract chunking) and the E2 treatment
+  (judge every corporate extraction) drop out of E3.
+
+### E3 result (2026-11-16): control arm only, a held-out check of the r3 settings
+
+The E3 treatment did not run: under the ladder rule, the E1 and E2 treatments both drop out.
+The control arm uses the r3 settings on 45 held-out documents, 10 per class plus 5 mergers.
+Its locked `dataset.jsonl` shares 0 documents with E1 or E2 and 1 with r3. It is not paired with
+r3, so each score below is a separate observation, not a paired difference:
+
+| Class | r3 (n = 5) | E3 control (n = 10) | Review | Judge calls / retries | Tokens per doc |
+|---|---|---|---|---|---|
+| contract | 0.771 | 0.768 | 1 | 11 / 7 | 89k |
+| corporate (without templated) | 0.939 | 0.939 | 0 | 0 / 1 | 31k |
+| correspondence (all / without templated) | 0.132 / 0.200 | 0.338 / 0.410 | 1 | 4 / 2 | 12k |
+| insurance | 0.857 | 0.892 | 0 | 1 / 1 | 13k |
+| merger (MAUD) | 0.101 | 0.106 | 0 | 3 / 3 | 410k |
+
+- **Correspondence:** E3 control scores 0.34 at n = 10, against r3's 0.13 at n = 5 and r2's 0.24.
+  The runs differ in documents, and r2 also in settings and labels, so this does not show that the
+  r3 drop was noise or that the condensed prompt caused no regression. The prompt decision rests
+  on paired prompt A/Bs on the same documents (`scripts/compare_specialist_prompt.py`; see
+  `config/prompts/specialist_condensed_lineage.yaml`). No document was misclassified under blind
+  routing.
+- **Mergers are the weak, costly class:** MAUD 0.10, at about 410k tokens per document, most of
+  the run's tokens.
+- **Two failures repeat in both r3 and E3:**
+  - a contract's second judge pass (after a retry) raises a `TypeError`, recorded as
+    `judge_error`, and the document parks;
+  - the decision reviewer returns `unknown` for one correspondence email, which parks it as an
+    ineligible label.

@@ -2,6 +2,39 @@
 
 ## [Unreleased]
 
+- **Paired report, routing audit and label tooling hardening** (#303 review).
+  - `job/pair_report.py` refuses a run directory without `dataset.jsonl` or `items.jsonl`, so a
+    misspelled run id fails instead of printing an empty report. Documents whose locked labels
+    differ between the arms are listed under `label_mismatch` and are not paired.
+  - Preflight freezes the resolved confidence block as `effective_confidence` in the run lock. The
+    routing audit reads it (`thresholds_source: locked`). For older runs it reports
+    `judge_rejudge_retry` as unknown unless the run set it, instead of today's default.
+  - `scripts/interim_labels.py rederive` restores every file if a write fails, so the overlay
+    still passes its integrity check and the command can be retried.
+  - The ladder audit states the E3 overlap it checked (0 documents shared with E1 or E2, 1 with
+    r2 and 1 with r3). It no longer reads the unpaired E3 correspondence score as evidence about
+    the prompt. The E3 treatment config is marked as an obsolete plan.
+
+- **Blind routing, interim-label fix and paired report for E2/E3** (#300).
+  - `job.blind_routing: true` (pipeline runs only) keeps the dataset labels out of the graph's
+    `ground_truth` state, so the class-miss gate and the coverage-floor retry cannot use them
+    (llm-mailroom #207). Scoring still uses the full locked row. The value is hashed only when set.
+  - Interim-label fix: the derived corporate `record_type` is now the Dojo's 5-token enum, not
+    the raw subclass. 109 committed labels such as `indenture` or `charter_amendment` would have
+    scored a correct `other` or `articles_of_incorporation` as wrong.
+    `scripts/interim_labels.py rederive` rewrote them; the other label files are byte-identical.
+  - `scripts/ladder_pair_report.py` (`job/pair_report.py`) re-scores a finished pair offline, on
+    all fields and without the templated corporate/correspondence `keywords` / `subject_matter`
+    (llm-dojo-scoring #164, #94).
+  - Every E2/E3 arm now sets blind routing, `dataset.interim_labels: true` and the adopted
+    condensed specialist prompts (corporate v1, correspondence v2, insurance v3). The sorter's
+    vendored default is already the adopted `sorter_condensed_v5`.
+- **E2 rejudge arm re-paired** (#300): `pipeline-qwen-flash-25-e2-corporate-rejudge` is now the
+  E2 control plus `corporate_record.judge_rejudge_retry: true`, paired with the control. On the
+  judge arm (`judge_band_high: 1.01`) every archivable extraction is already judged, so the
+  switch cannot change that arm's routing. The E2 control and judge arms state `false`, and
+  `sandbox run routing` reports the value.
+
 - **Faster CI** (2026-11-16): the `test` job now runs on 4 parallel containers, with test files
   split by recorded timings and two `--dist loadfile` xdist workers each. A new `coverage` job
   combines every container's data and enforces the unchanged 84% floor on the total. The dev
@@ -220,7 +253,6 @@
   corrected on 2026-11-07, `DOC-cce54a03af3b1c4a` (SunGard Public Sector, labelled board_resolution)
   and `DOC-8b2aaa4b6ea655be` (Arrestage International, labelled articles_of_incorporation), target
   bylaws. `--rule-c-only` is now idempotent: a second pass changes nothing.
-
 
 - **Production sorter is `sorter_condensed_v5`: a bylaw amendment is bylaws, never
   board_resolution** (mailroom-dataset v10 corpus rule C, user directive 2026-11-07). v5 is v1
