@@ -2,20 +2,33 @@
 
 Authoritative source: https://github.com/Exios66/llm-dojo-scoring
 
-- Source ref: `v0.29.0` (release tag)
-- Exact source commit: `f95c3188a1a634a9a2354afd5351edd8dd152a89`
-- Source package version: `0.28.1` in `pyproject.toml` (the v0.29.0 tag did not bump it; the
-  release is identified by the tag and commit)
+- Source ref: `542a1c3e61cdb29a0e31b4ae1a2c2d8d42aff8e2` (head of the `v0.30.0` release branch after llm-dojo-scoring #158; pre-release, not yet on `main` or tagged)
+- Exact source commit: `542a1c3e61cdb29a0e31b4ae1a2c2d8d42aff8e2`
+- Source package version: `0.30.0` in `pyproject.toml` (cut in `d53326e`; no `v0.30.0` tag yet)
 - Snapshot layout: llm_dojo_scoring/ relocated under src/ with the same shared exclusions.
-- Snapshot of the reviewed commit tree (`git archive`), 2026-11-16 UTC.
+- Snapshot of the reviewed commit tree (`git archive`), 2026-11-15 UTC.
   File contents, paths and executable modes come from the reviewed commit.
 
-Dojo release `v0.29.0` (llm-dojo-scoring #135): date scoring hardening. Yearless labels cap a
+Dojo `v0.30.0` branch head, a fast-forward of `main` `f95c318` (110 commits): the 0.30.0 cut
+(`93eedd8`, the pin llm-mailroom v0.30.0 declares) plus #158 (review-tray correction rate, MAUD
+ambiguous-question precision, money ledger). **Production slim-down:** the analysis, export,
+grid, visualization and sync surfaces are removed (`analysis/{error_analysis,export,grid,
+interpret,io,report,visualize}`, `cli.py` and the `dojo-*` CLIs, `integrations/{langfuse,
+phoenix}_sync`, `pipeline/sandbox_{agent_scoring,composite}`, `scoring/rescore`); no sandbox code
+imported them. Added: one document-class registry (`schemas/doc_classes.py`), decision-lane
+scorecards, the `ml/` contract, and prompt/schema alignment with contracts and merger production
+v2 prompts (the pipeline still serves frozen v1). **Score changes** against v0.29.0: merger MAUD
+gold and ambiguous-question precision, field-micro on Hub rows and `pending_annotation` fields,
+money strings with K/M/B suffixes, and the insurance `carrier` field. Compare runs scored on
+different Dojo pins only after rescoring; each ladder pair runs on one pin.
+
+Previous pin: `v0.29.0` (`f95c3188a1a634a9a2354afd5351edd8dd152a89`, package version 0.28.1),
+llm-dojo-scoring #135: date scoring hardening. Yearless labels cap a
 dated prediction at 0.67, an unverified year never pairs as a list or audit date match,
 two-digit years use a fixed pivot, weekday names never supply a day, and a date fragment earns
 no name credit. Date-field scores can move against v0.28.1 runs; compare like with like.
 
-Previous pin: `v0.28.1` (`00a2a7f7b058a4ade06b027c2afbd8b03bea6a5f`).
+Before that: `v0.28.1` (`00a2a7f7b058a4ade06b027c2afbd8b03bea6a5f`).
 
 Dojo release `v0.28.1`. v0.28.0 aligns with mailroom-dataset v10: corporate schema v2
 (new registered fields such as party roles, signatories, agreement and expiration dates,
