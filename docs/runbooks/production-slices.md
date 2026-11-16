@@ -60,6 +60,7 @@ The bars live in [`config/production/bars.yaml`](../../config/production/bars.ya
    ```bash
    sandbox run start --config config/runs/production/slice-0100.yaml --initials <XX>
    ```
+   From a git worktree whose `.venv` links to the main checkout, set `PYTHONPATH=$PWD/src`. Without it, `.venv/bin/sandbox` runs the main checkout's code and vendored trees (#312). After launch, check that `dependency_sources` in the run's `spec.lock.json` matches the worktree.
 3. **Gate.** This step is offline and writes only `gate.json` and `gate.md` into the run directory. It exits `0` on pass and `2` on fail. It exits `1`, with a JSON `failed` status, when the run is missing or never started (no `items.jsonl`), or when the gate itself errors (a bad bars file or a scorer failure):
    ```bash
    sandbox run gate --run-id production-slice-0100 --thresholds
@@ -130,7 +131,12 @@ A tuning run that itself excludes the production list would exclude its own docu
 - **Insurance `claim_type`:** the vendored schema description still teaches the CMS table tokens and overrides the prompt (Exios66/llm-mailroom#174 §2). Expect `extraction:out_of_enum` until a re-vendor lands.
 - **`judge_error` from null `choices`:** OpenRouter sometimes returns a 200 response with `choices: null` when an upstream provider fails. The vendored judge then raises a non-transient `TypeError`, and the document parks instead of retrying (Exios66/llm-mailroom#260).
   - The repro is `tests/test_judge_second_pass.py`, a strict xfail. Remove the xfail when the fix is vendored.
-  - Until then a slice can fail on one such document. Re-run the slice.
+  - Until then a slice can fail on one such document. Re-run the slice. The fix is merged upstream (Exios66/llm-mailroom#261) and lands here with the next re-vendor.
+  - Slice 100 hit it on 1 contract, then on 2 other contracts in its re-run, so expect it on long contracts.
+- **Card-shaped numbers:** OpenRouter's Decisions endpoint refuses a document holding a 4-4-4-4 digit group (`403 content filter: [CREDIT_CARD]`). That includes the synthetic property-claim IBANs, which appear in 200 insurance claims.
+  - The sandbox's Decisions backend masks that shape (`mask_card_numbers`) before every reviewer and extraction-gate request.
+  - Unbroken digit runs, such as EDGAR accession numbers and notice ids, are kept.
+  - The vendored reviewer records any other non-transient backend error as no answer (Exios66/llm-mailroom#268).
 - **Near-empty documents:** some Enron cover notes lost their attachment, leaving only 32 to 56 characters of text (Exios66/Mailroom-Corpus-EDA#63).
   - The reviewer says `unknown` on them, and the gate buckets that review as `input:near_empty`, not as a reviewer fault.
   - They still count against the 5% review budget. With the 147-id list, slice 100 has none, slice 250 has 3, slice 500 has 10 and the full slice has 104.
