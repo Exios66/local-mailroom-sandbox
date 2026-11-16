@@ -274,3 +274,31 @@ def test_routing_audit_does_not_backfill_an_unlocked_rejudge_setting(tmp_path):
                                                 {"run_id": "r", "confidence": {"judge_rejudge_retry": False}}))
     assert explicit["classes"]["corporate_record"]["thresholds"]["judge_rejudge_retry"] is False
 
+
+
+def test_a_locked_run_routes_on_its_frozen_block_even_after_the_overlay_moves(monkeypatch):
+    """Routing and the audit read the same frozen `effective_confidence` (#303 review).
+
+    The frozen contract `high` is 0.91 while today's vendored+overlay value is 0.98: the
+    locked activation must route on 0.91, not on the current files.
+    """
+    pytest.importorskip("pipeline.config")
+    from pipeline.config import get_confidence_thresholds
+
+    from mailroom_sandbox import runtime
+    from mailroom_sandbox.job.routing_audit import effective_thresholds
+
+    monkeypatch.setenv("VLLM_BASE_URL", "https://example.invalid/v1")
+    current = effective_thresholds()
+    assert current["by_class"]["contract"]["high"] == 0.98
+    frozen = json.loads(json.dumps(current))
+    frozen["by_class"]["contract"]["high"] = 0.91
+    lock = {"profile": "modal-vllm", "job": {}, "confidence": {}, "effective_confidence": frozen}
+    try:
+        with runtime.locked_runtime(lock, {}):
+            runtime.activate("modal-vllm", load_env_file=False)
+        assert get_confidence_thresholds("contract")["high"] == 0.91
+        assert lock["effective_confidence"]["by_class"]["contract"]["high"] == 0.91  # what the audit reads
+    finally:
+        runtime.activate("modal-vllm", load_env_file=False)
+    assert get_confidence_thresholds("contract")["high"] == 0.98
