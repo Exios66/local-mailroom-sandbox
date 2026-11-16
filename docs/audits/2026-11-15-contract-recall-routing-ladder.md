@@ -90,6 +90,27 @@ the first two with run-scoped thresholds.
 - Re-run r2 on the PR #299 vendor snapshot (llm-mailroom `5bcfe44`, Dojo v0.29.0) to
   isolate the upstream change before stacking ladder steps on it.
 
+## Rebaseline on the 2026-11-16 pins (r3) and E2b
+
+The vendor refresh to llm-mailroom `abb1ccf` and Dojo `13adc8e` changes date, MAUD,
+decision-lane and Wilson-bound scores. r2 and E1 were scored on the old pins, so they no
+longer compare like-for-like with new runs.
+
+- `pipeline-qwen-flash-25-fit-r3`: r2's exact document draw, caps and model on the new
+  pins. It is the new baseline for every later step; compare new runs with r3, not r2.
+  Run it before any further ladder step.
+- `pipeline-qwen-flash-25-e2-corporate-rejudge` (E2b): the E2 judge treatment plus
+  `corporate_record.judge_rejudge_retry: true`, so a retry extraction is judged again
+  (llm-mailroom #241 fix, now a run knob). Its control is `-e2-corporate-judge`, which
+  has not run yet: run the E2 pair on these pins first, then E2b.
+
+Human launch (paid), r3 first:
+
+```bash
+sandbox run preflight --config config/runs/pipeline-qwen-flash-25-fit-r3.yaml
+sandbox run start --config config/runs/pipeline-qwen-flash-25-fit-r3.yaml --initials <XX>
+```
+
 ## Results
 
 | Step | Run id | contract | corporate | merger MAUD | insurance | correspondence | prompt tokens | est. USD |

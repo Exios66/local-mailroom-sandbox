@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+- **`judge_rejudge_retry` run knob** (2026-11-16): a run spec's `confidence` block (global or
+  `by_class`) now accepts llm-mailroom #241's `judge_rejudge_retry`, so E2 can run its on and
+  off arms without editing the overlay. Only `true`/`false` are accepted: upstream reads the
+  key by truthiness, so a quoted `"false"` would have switched it on. The vendored default
+  stays `false`; the knob is part of the run's locked, hashed identity.
+- **Vendor refresh** (2026-11-16): llm-mailroom `98c89b8` → `abb1ccf` (`v0.30.0` branch after
+  llm-mailroom #252, package 0.9.3) and llm-dojo-scoring `542a1c3` → `13adc8e` (`v0.30.0` branch
+  after llm-dojo-scoring #163, package 0.30.0), the upstream fixes for tracking issue #300.
+  Pipeline: an opt-in re-judge of retried extractions (`judge_rejudge_retry`, default `false`,
+  so default routing is unchanged), judge field lists without metadata keys, budget-safe
+  `sliding_windows`, `chunk_failed` parking on a total chunk failure and safer sweep resume.
+  Dojo: month-first dates, retired-class archive scoring (`KeyError`), outward Wilson
+  rounding, decision-lane gold, MAUD `calibration_error` and off-vocabulary considerations.
+  Date fields, MAUD question micro-accuracy, `decision.*` and Wilson display bounds can move,
+  so runs scored on `542a1c3` (including r2 and E1) are not directly comparable. The sandbox
+  scoring goldens are unchanged. `snapshots.PINS` and `requirements/dojo-release.txt` move
+  with `_VENDOR_PINS`.
 - **Vendor refresh** (2026-11-16): llm-mailroom `5bcfe44` → `98c89b8` (`v0.30.0` branch,
   package 0.9.3) and llm-dojo-scoring v0.29.0 → `542a1c3` (`v0.30.0` branch, package
   0.30.0). Dojo 0.30.0 drops the unused analysis, CLI, Langfuse/Phoenix sync, sandbox
