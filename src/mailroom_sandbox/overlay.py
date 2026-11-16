@@ -8,6 +8,7 @@ provider/model for the active profile, writes the result under
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 from copy import deepcopy
@@ -80,14 +81,29 @@ def deep_merge(base: Any, overlay: Any) -> Any:
     return out
 
 
+# Parsed YAML keyed by the file's content digest. Preflight, budget advice and
+# route description re-read the same taxonomy and model files hundreds of times
+# per command; parsing dominated their runtime. Keying on content (not mtime)
+# means an edited file is always re-parsed; callers get a deep copy, so
+# mutating the result never leaks into the cache.
+_YAML_CACHE: dict[bytes, Any] = {}
+_YAML_CACHE_MAX = 256
+
+
 def load_yaml(path: Path) -> dict:
     if not path.is_file():
         raise FileNotFoundError(f"Missing YAML: {path}")
-    with path.open(encoding="utf-8") as fh:
-        data = yaml.safe_load(fh) or {}
+    raw = path.read_bytes()
+    key = hashlib.blake2b(raw, digest_size=20).digest()
+    data = _YAML_CACHE.get(key)
+    if data is None:  # one lookup: a concurrent clear() can't KeyError here
+        data = yaml.safe_load(raw.decode("utf-8")) or {}
+        if len(_YAML_CACHE) >= _YAML_CACHE_MAX:
+            _YAML_CACHE.clear()
+        _YAML_CACHE[key] = data
     if not isinstance(data, dict):
         raise ValueError(f"Expected mapping in {path}")
-    return data
+    return deepcopy(data)
 
 
 def load_model_map() -> dict:
