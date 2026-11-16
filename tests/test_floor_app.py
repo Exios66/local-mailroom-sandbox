@@ -729,6 +729,23 @@ def test_template_class_deep_link_uses_the_rails_per_run_guard():
     assert "hasClasses(dr)" in deep and "dr.per_class[c]" in deep and "!classView(dr,c).why" in deep
 
 
+def test_template_keeps_the_graph_visible_in_a_narrow_window():
+    """A narrow window must not squeeze the graph column to 0 px or freeze the fit at zoom 0."""
+    html = _template()
+    css = html[:html.index("</style>")]
+    narrow = css[css.index("@media (max-width:"):]
+    assert ".app{" in narrow and "grid-template-columns:minmax(0,1fr)" in narrow
+    # Same specificity as the base rules, so it must come last or .ribbon{grid-column:1/4} rebuilds 3 columns.
+    assert "\n.ribbon{" in css and css.index("\n.ribbon{") < css.index("@media (max-width:")
+    assert ".ribbon{grid-column:1}" in narrow
+    assert "#viewport{" in narrow and "order:" in narrow, "the graph comes first when the rails stack"
+    fit = html[html.index("const fitGraph="):]
+    fit = fit[:fit.index("};") + 2]
+    assert "!vp.clientWidth||!vp.clientHeight" in fit, "a zero-size viewport must not set zoom 0"
+    assert "ResizeObserver" in html and "fitGraph()" in html[html.index("ResizeObserver"):]
+    assert html.count('getElementById("zfit").onclick=') == 1, "one fit handler, the guarded one"
+
+
 def test_template_does_one_final_fetch_when_the_run_leaves_running():
     """One final fetch happens when a live run goes idle."""
     html = _template()

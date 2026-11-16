@@ -9,6 +9,7 @@ existing public eval runner at whole-run granularity.
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 from typing import Any
@@ -21,7 +22,7 @@ from mailroom_sandbox.eval.prompt_provenance import (
     resolve_logged_prompt_version,
     stamp_prompt_provenance,
 )
-from mailroom_sandbox.job.otel import current_context, job_span
+from mailroom_sandbox.job.otel import current_context, job_span, record_span
 from mailroom_sandbox.job.usage_capture import (
     merge_item_metrics,
     usage_from_pipeline,
@@ -168,6 +169,7 @@ def _run_whole_run(
     model: str | None,
     profile: str | None,
     on_event: Any = None,
+    tracer: Any = None,
 ) -> dict[str, Any]:
     """Delegate a whole-run task to the existing public eval runner.
 
@@ -258,6 +260,19 @@ def _run_whole_run(
             except Exception as exc:  # noqa: BLE001
                 _log.warning("on_event callback raised — --watch may stop updating: %s", exc)
 
+    # Whole-run tasks learn a document's timing only when it finishes: record its
+    # job.item span (and the pipeline's finished graph nodes as job.node children)
+    # then, under the caller's job.run span. A no-op without a tracer.
+    spans = _WholeRunSpans(tracer, current_context(tracer), task=task)
+
+    def _row_sink(entry: dict[str, Any]) -> None:
+        if _persist_isolated_items(store, [entry]):
+            spans.item(entry)
+
+    def _node_sink(record: dict[str, Any]) -> None:
+        store.append_node(record)
+        spans.node(record)
+
     def _isolated(agent: str, rows: list[dict[str, Any]] | None, progress: Any = None, **extra: Any) -> dict[str, Any]:
         return eval_runners.run_isolated_eval(
             agent,
@@ -271,7 +286,7 @@ def _run_whole_run(
             replicas=replicas,
             gpu_fleet=gpu_fleet,
             progress_cb=progress or _progress,
-            row_cb=lambda entry: _persist_isolated_items(store, [entry]),
+            row_cb=_row_sink,
             score_metadata=score_metadata,
             **{**kwargs, **extra},
         )
@@ -318,8 +333,8 @@ def _run_whole_run(
         elif task == "pipeline":
             result = eval_runners.run_pipeline_eval(
                 connected=True, rows=locked_rows,
-                row_cb=lambda entry: _persist_isolated_items(store, [entry]),
-                progress_cb=_progress, node_cb=store.append_node, max_wall_seconds=max_wall,
+                row_cb=_row_sink,
+                progress_cb=_progress, node_cb=_node_sink, max_wall_seconds=max_wall,
                 cost_cap_usd=cost_cap, api_budget=api_budget, gpu=gpu, replicas=replicas,
                 gpu_fleet=gpu_fleet, concurrency=concurrency, **kwargs)
         elif task == "extract":
@@ -347,7 +362,7 @@ def _run_whole_run(
                 replicas=replicas,
                 gpu_fleet=gpu_fleet,
                 progress_cb=_progress,
-                row_cb=lambda entry: _persist_isolated_items(store, [entry]),
+                row_cb=_row_sink,
                 score_metadata=score_metadata,
                 **kwargs,
             )
@@ -366,7 +381,7 @@ def _run_whole_run(
                 replicas=replicas,
                 gpu_fleet=gpu_fleet,
                 progress_cb=_progress,
-                row_cb=lambda entry: _persist_isolated_items(store, [entry]),
+                row_cb=_row_sink,
                 score_metadata=score_metadata,
                 **kwargs,
             )
@@ -594,6 +609,82 @@ def _lock_gpu(store: RunStore) -> str | None:
     if isinstance(modal, dict) and modal.get("gpu"):
         return str(modal["gpu"]).split(":")[0]
     return None
+
+
+class _WholeRunSpans:
+    """After-the-fact ``job.item`` / ``job.node`` spans for whole-run tasks.
+
+    ``node`` may be called from pipeline worker threads; ``item`` runs on the
+    main thread once a document is persisted. Finished nodes are buffered per
+    document and emitted as children of that document's item span.
+    """
+
+    def __init__(self, tracer: Any, parent: Any, *, task: str) -> None:
+        import threading
+
+        self.tracer, self.parent, self.task = tracer, parent, task
+        self._lock = threading.Lock()
+        self._nodes: dict[str, list[dict[str, Any]]] = {}
+
+    def node(self, record: dict[str, Any]) -> None:
+        if self.tracer is None or record.get("status") != "done":
+            return
+        with self._lock:
+            self._nodes.setdefault(str(record.get("doc")), []).append(record)
+
+    def item(self, entry: dict[str, Any]) -> None:
+        if self.tracer is None:
+            return
+        try:
+            self._emit(entry)
+        except Exception as exc:  # noqa: BLE001 — tracing never fails a paid run
+            _log.warning("whole-run span emit failed for %s: %s", entry.get("id"), exc)
+
+    def _emit(self, entry: dict[str, Any]) -> None:
+        item_id = str(entry.get("id"))
+        end_ns = time.time_ns()
+        latency_ms = float(entry.get("latency_ms") or 0.0)
+        with self._lock:
+            nodes = self._nodes.pop(item_id, [])
+        starts = [int((float(n["ts"]) - float(n.get("ms") or 0) / 1000.0) * 1e9) for n in nodes if n.get("ts")]
+        start_ns = end_ns - int(latency_ms * 1e6)
+        if starts:
+            start_ns = min(start_ns, *starts)
+        pred = entry.get("pred") if isinstance(entry.get("pred"), dict) else {}
+        score = entry.get("score") if isinstance(entry.get("score"), dict) else {}
+        error = entry.get("error")
+        attrs: dict[str, Any] = {
+            "item_id": item_id,
+            "task": self.task,
+            "job.ok": not error and not score.get("parse_error"),
+            "job.error": str(error)[:512] if error else None,
+            "job.latency_ms": latency_ms,
+            "gen_ai.usage.input_tokens": entry.get("prompt_tokens"),
+            "gen_ai.usage.output_tokens": entry.get("completion_tokens"),
+            "job.llm_calls": entry.get("llm_calls"),
+            "mailroom.doc_type": pred.get("doc_type"),
+            "mailroom.stage": pred.get("stage"),
+            "mailroom.review_causes": ",".join(map(str, pred.get("review_causes") or [])) or None,
+            "job.node_count": len(nodes) or None,
+        }
+        for key in ("class_correct", "stage_correct", "overall_extraction_score", "extraction_f1"):
+            if isinstance(score.get(key), (int, float)) and not isinstance(score.get(key), bool):
+                attrs[f"score.{key}"] = score[key]
+        ctx = record_span(self.tracer, "job.item", parent=self.parent, start_ns=start_ns, end_ns=end_ns,
+                          attrs=attrs)
+        for n in nodes:
+            n_end = int(float(n["ts"]) * 1e9)
+            n_start = n_end - int(float(n.get("ms") or 0) * 1e6)
+            record_span(self.tracer, "job.node", parent=ctx, start_ns=n_start, end_ns=n_end, attrs={
+                "item_id": item_id,
+                "node": n.get("node"),
+                "agent": n.get("agent"),
+                "model": n.get("model"),
+                "stage": n.get("stage"),
+                "step": n.get("step"),
+                "node.ms": n.get("ms"),
+                "decisions": json.dumps(n.get("decisions")) if n.get("decisions") else None,
+            })
 
 
 def _persist_isolated_items(store: RunStore, rows: list[dict[str, Any]] | None) -> int:
@@ -852,7 +943,8 @@ def _run_job(
 
         if task not in known_tasks():
             raise ValueError(f"task {task!r} is not runnable; have {sorted(known_tasks())}")
-        return _run_whole_run(store, task, mock=mock, model=model, profile=profile, on_event=on_event)
+        return _run_whole_run(store, task, mock=mock, model=model, profile=profile, on_event=on_event,
+                              tracer=tracer)
 
     if not rows:
         store.write_checkpoint(state="done", cursor=0, total=0, remote=None)

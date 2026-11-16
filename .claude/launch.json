@@ -47,6 +47,16 @@
         "/tmp/mailroom-board-demo"
       ],
       "port": 8768
+    },
+    {
+      "name": "mailroom-floor",
+      "runtimeExecutable": ".venv/bin/sandbox",
+      "runtimeArgs": [
+        "floor",
+        "--port",
+        "8769"
+      ],
+      "port": 8769
     }
   ]
 }

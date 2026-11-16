@@ -41,3 +41,4 @@ Do not edit rows by hand. Parse with `mailroom_sandbox.job.ledger.rows()`.
 | 2026-11-07T03:27:48Z | JJB | start | sorter-condensed-v4-qwen-train-heldout-markers | config/runs/sorter-condensed-v4-qwen-train-heldout-markers.yaml | 98ebbc033b1d | 61 | 0.05 | ✓ |
 | 2026-11-07T03:29:55Z | JJB | start | sorter-v15-qwen-train-prime-sample | config/runs/sorter-v15-qwen-train-prime-sample.yaml | f3470da7b616 | 275 | 0.65 | ✓ |
 | 2026-11-07T03:29:55Z | JJB | start | sorter-condensed-v1-qwen-train-prime-sample | config/runs/sorter-condensed-v1-qwen-train-prime-sample.yaml | 2d645e24aa5e | 275 | 0.55 | ✓ |
+| 2026-11-16T00:15:16Z | JJB | start | pipeline-qwen-flash-25 | config/runs/pipeline-qwen-flash-25.yaml | 02b02353c834 | 25 | 1.25 | ✓ |

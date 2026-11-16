@@ -60,6 +60,48 @@ def test_local_mirror_nests_item_spans_under_run(tmp_path):
     assert roots[0]["resource"]["sandbox.run_id"] == store.run_id
 
 
+def test_whole_run_pipeline_mirrors_item_and_node_spans(tmp_path):
+    """A whole-run task (pipeline) gets one job.item per document plus job.node children."""
+    path = tmp_path / "p.jsonl"
+    with open(path, "w", encoding="utf-8") as fh:
+        for i in range(2):
+            fh.write(json.dumps({"id": f"p{i}", "filename": f"p{i}.txt", "doc_text": f"agreement {i}",
+                                 "expected_doc_class": "contract", "expected": "contract"}) + "\n")
+    spec = RunSpec(
+        run_id="run-pipe-spans",
+        task="pipeline",
+        dataset=DatasetSpec(local_path=f"file://{path}", limit=2),
+        engine={"kind": "vllm-local", "modal": None},
+        trace={"sink": "none"},
+        job={"mock": True},
+    )
+    report = preflight.preflight(spec, offline=True)
+    assert report["status"] == "prepared", report
+    store = RunStore(run_dir(report["run_id"]))
+    mirror = tmp_path / "traces" / f"{store.run_id}.spans.jsonl.gz"
+    tracer = otel.configure_tracing(otel.resolve_sink(sink="none", run_id=store.run_id), local_path=mirror)
+    with otel.job_span(tracer, "job.run", run_id=store.run_id):
+        summary = runner.run_job(store, mock=None, tracer=tracer)
+    otel.flush_tracer(tracer)
+    assert summary["state"] == "done", summary
+
+    spans = trace_pack.read_spans(mirror)
+    root = next(s for s in spans if s["name"] == "job.run")
+    items = [s for s in spans if s["name"] == "job.item"]
+    assert sorted(s["attributes"]["item_id"] for s in items) == ["p0", "p1"]
+    assert {s["parent_span_id"] for s in items} == {root["span_id"]}
+    assert all(s["end_time_unix_nano"] > s["start_time_unix_nano"] for s in items)
+    nodes = [s for s in spans if s["name"] == "job.node"]
+    finished = [n for n in store.nodes() if n.get("status") == "done"]
+    assert nodes, "pipeline documents report graph nodes; each finished node becomes a span"
+    assert len(nodes) == len(finished)
+    assert {n["attributes"]["node"] for n in nodes} == {n["node"] for n in finished}
+    item_ids = {s["span_id"]: s["attributes"]["item_id"] for s in items}
+    assert all(n["parent_span_id"] in item_ids for n in nodes)
+    assert all(n["attributes"]["item_id"] == item_ids[n["parent_span_id"]] for n in nodes)
+    assert {s["trace_id"] for s in spans} == {root["trace_id"]}
+
+
 def test_endpoint_tracer_mirrors_even_with_sink_none(tmp_path):
     from mailroom_sandbox import cli
 
