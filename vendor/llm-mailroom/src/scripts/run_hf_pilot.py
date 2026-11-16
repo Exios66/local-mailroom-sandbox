@@ -4,7 +4,7 @@
 Default corpus is ``Lucius-Morningstar/mailroom-dataset`` schema **v9** (the
 targeted full 3,302-doc surface; v9 = §84 hardened ground_truth on top of
 the frozen v8 base — HUB-028 insurance LOB expansion + full GT conformance,
-hardened at `eafe1ab4`, GT-closure at `46a4d3c2`, active pin Hub tag `v9.1` / `ed7576b6`).
+hardened at `eafe1ab4`, GT-closure at `46a4d3c2`, active pin Hub tag `v9.3` / `ccd040f6`).
 Class × subtype
 examples come from
 ``docclass-pilot``. Any other pipeline-ready Lucius-Morningstar dataset
@@ -92,6 +92,9 @@ from pipeline.hf_corpora import (  # noqa: E402
 
 DATASET_ID = FULL_CORPUS_ID
 DATASET_REVISION = FULL_CORPUS_REVISION
+
+# Score with the calibrated taxonomy, not dojo defaults (#192).
+import observability.scoring_wiring  # noqa: F401,E402
 # §45 evaluation-trace identity (HUB-022): rides on every pilot trace so any
 # experiment is reproducible from dataset revision + taxonomy surface.
 DATASET_IDENTITY = {
@@ -186,6 +189,9 @@ def parse_hf_row(row: dict, labels: dict[str, dict] | None = None) -> dict | Non
         "maud_clauses": flatten_maud_clause_labels(maud_raw),
         "chars": len(str(text)),
     }
+    expected_stage = str(gt.get("expected_stage") or row.get("expected_stage") or "").strip()
+    if expected_stage:
+        sample["expected_stage"] = expected_stage
     for key in INSURANCE_GT_KEYS:
         raw = gt.get(key)
         if raw in (None, ""):
@@ -595,6 +601,19 @@ def expected_fields_meta(sample: dict) -> dict:
     return meta
 
 
+def labelled_fields(expected_fields: dict | None, sources: dict | None) -> dict:
+    """The dataset-labelled subset of *expected_fields*: the gold for scoring.
+
+    Post-hoc regex fills (source ``"posthoc"``) are kept on the row for routing
+    coverage but are not ground truth. Without a *sources* map every field counts.
+    """
+    from observability.extraction_gt import labelled_expected_fields
+
+    return labelled_expected_fields(
+        {"expected_fields": expected_fields or {}, "expected_fields_sources": sources}
+    )
+
+
 def score_row_extraction(extracted: dict | None, expected_fields: dict | None, doc_class: str) -> dict | None:
     """Deterministic field score via the dedicated specialist suite."""
     if not expected_fields or not extracted:
@@ -719,6 +738,7 @@ def enrich_sample_row(row: dict) -> dict:
             extracted=extracted if isinstance(extracted, dict) else {},
         )
     expected_fields = out.get("expected_fields")
+    sources = out.get("expected_fields_sources")
     if not isinstance(expected_fields, dict) or not expected_fields:
         payload = {
             "expected_hf_class": out.get("expected"),
@@ -733,12 +753,13 @@ def enrich_sample_row(row: dict) -> dict:
         }
         expected_fields = expected_fields_for_sample(payload)
         meta = expected_fields_meta(payload)
+        sources = meta.get("sources")
         out["extraction_gt_n_fields"] = meta.get("n_fields")
         out["extraction_gt_n_posthoc"] = meta.get("n_posthoc")
         out["specialist"] = meta.get("specialist")
     scored = score_row_extraction(
         extracted if isinstance(extracted, dict) else {},
-        expected_fields,
+        labelled_fields(expected_fields, sources if isinstance(sources, dict) else None),
         str(out.get("expected") or out.get("expected_doc_class") or ""),
     )
     if scored:
@@ -1195,6 +1216,35 @@ def _paginate_viewer(*, split: str, max_scan: int, config: str) -> list[dict]:
     return rows
 
 
+def _plain(value):
+    """numpy / NaN cell -> the plain python value ``datasets`` would yield."""
+    if hasattr(value, "tolist"):
+        return value.tolist()
+    if isinstance(value, float) and value != value:
+        return None
+    return value
+
+
+def _fallback_rows(*, split: str, max_scan: int, config: str) -> list[dict]:
+    """Rows when ``datasets.load_dataset`` is unavailable or failed.
+
+    A pinned corpus is loaded through the revision-enforcing loader
+    (``pipeline.hf_corpus_loader.load_config_frame``): it raises when the pin
+    cannot be enforced rather than reading Dataset Viewer rows, which always
+    serve the CURRENT revision while the report records the pin. Only an
+    unpinned corpus (``revision: None``, already warned about) uses the Viewer.
+    """
+    corpus = active_corpus()
+    if not corpus.get("revision"):
+        return _paginate_viewer(split=split, max_scan=max_scan, config=config)
+    from pipeline.hf_corpus_loader import load_config_frame
+
+    frame, _ = load_config_frame(
+        corpus["id"], config, split=split, revision=corpus["revision"], max_rows=_scan_cap(max_scan)
+    )
+    return [{k: _plain(v) for k, v in rec.items()} for rec in frame.to_dict("records")]
+
+
 def load_ground_truth_labels(*, split: str, max_scan: int) -> dict[str, dict]:
     """Map filename → {expected, expected_subclass} from config=ground_truth.
 
@@ -1216,7 +1266,7 @@ def load_ground_truth_labels(*, split: str, max_scan: int) -> dict[str, dict]:
         ds = load_dataset(corpus["id"], gt_config, **kwargs)
         raw_rows = _take_rows(ds, max_scan)
     except Exception:
-        raw_rows = _paginate_viewer(split=split, max_scan=max_scan, config=gt_config)
+        raw_rows = _fallback_rows(split=split, max_scan=max_scan, config=gt_config)
     for row in raw_rows:
         filename = str(row.get("filename") or "").strip()
         expected = str(row.get("expected") or "").strip()
@@ -1229,6 +1279,7 @@ def load_ground_truth_labels(*, split: str, max_scan: int) -> dict[str, dict]:
             "maud_clause_labels": row.get("maud_clause_labels"),
             "content_topic": row.get("content_topic"),
             "sentiment_label": row.get("sentiment_label"),
+            "expected_stage": str(row.get("expected_stage") or "").strip(),
         }
         for key in (*INSURANCE_GT_KEYS, *CORPORATE_GT_KEYS, *CORRESPONDENCE_GT_KEYS):
             if row.get(key) not in (None, ""):
@@ -1257,7 +1308,7 @@ def load_hf_rows(*, split: str, max_scan: int) -> list[dict]:
         ds = load_dataset(corpus["id"], **kwargs)
         default_rows = _take_rows(ds, max_scan)
     except Exception:
-        default_rows = _paginate_viewer(split=split, max_scan=max_scan, config="default")
+        default_rows = _fallback_rows(split=split, max_scan=max_scan, config="default")
     for row in default_rows:
         item = parse_hf_row(adapt_hub_row(row, corpus), labels)
         if item:
@@ -1476,6 +1527,9 @@ def _run_one(sample: dict, *, mock_mode: bool, session_id: str, run_id: str, mat
     }
     if sample.get("expected_subclass"):
         ground_truth["expected_subclass"] = sample["expected_subclass"]
+    if sample.get("expected_stage"):
+        # Routing gold: lets the run emit ``stage_correct``.
+        ground_truth["expected_stage"] = sample["expected_stage"]
     expected_fields = expected_fields_for_sample(sample)
     gt_meta = expected_fields_meta(sample)
     if expected_fields:
@@ -1521,7 +1575,9 @@ def _run_one(sample: dict, *, mock_mode: bool, session_id: str, run_id: str, mat
         hf_class, sample.get("expected_subclass") or "",
         predicted_subtype=subtype, extracted=extracted,
     )
-    extraction = score_row_extraction(extracted, expected_fields, hf_class)
+    extraction = score_row_extraction(
+        extracted, labelled_fields(expected_fields, gt_meta.get("sources")), hf_class
+    )
     row = {
         "trace_id": result.get("trace_id"),
         "doc_id": result.get("doc_id"),
@@ -1545,6 +1601,7 @@ def _run_one(sample: dict, *, mock_mode: bool, session_id: str, run_id: str, mat
         "subclass_ok": subclass,
         "specialist": gt_meta.get("specialist"),
         "expected_fields": expected_fields,
+        "expected_fields_sources": gt_meta.get("sources") or {},
         "extraction_gt_n_fields": gt_meta.get("n_fields"),
         "extraction_gt_n_posthoc": gt_meta.get("n_posthoc"),
         "extraction_gt_coverage": gt_meta.get("coverage"),

@@ -41,6 +41,21 @@ cost_models:
     input_per_million: 0.0
     output_per_million: 0.0
 
+# Context fit (sandbox): the agents.* budgets below are sized for a 16k-token L4
+# window. On a long-context API route (providers), the listed agents instead get
+# (context_length - max_tokens - reserve_tokens) * chars_per_token, using the
+# model's context_length in config/api_prices.yaml. The chunk cap rises with
+# them, so a document is chunked only when it exceeds the model's real window.
+# The judge/arbiter source excerpts follow the fitted judge/arbiter budgets
+# (mailroom_sandbox.source_windows). Modal/vLLM/Ollama routes are unchanged.
+# Run agent_knobs still win.
+context_fit:
+  enabled: true
+  chars_per_token: 2.4
+  reserve_tokens: 8000
+  providers: [openrouter]
+  agents: [specialists, judge, arbiter]
+
 # DMR-072: run-level limits — 900s was too high for idle; 600s holds L4
 # saturation bursts (queue + decode under concurrency 4–5). The vendored
 # 120s default cannot hold an L4 generation at all — the pin belongs HERE

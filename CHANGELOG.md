@@ -2,6 +2,56 @@
 
 ## [Unreleased]
 
+- **Vendor refresh** (2026-11-16): llm-mailroom `5bcfe44` → `98c89b8` (`v0.30.0` branch,
+  package 0.9.3) and llm-dojo-scoring v0.29.0 → `542a1c3` (`v0.30.0` branch, package
+  0.30.0). Dojo 0.30.0 drops the unused analysis, CLI, Langfuse/Phoenix sync, sandbox
+  composite and rescore modules (no sandbox importer used them) and moves some scores, so
+  the scoring goldens were regenerated. `snapshots.PINS` moves with `_VENDOR_PINS`.
+- **Vendor refresh** (2026-11-16): llm-mailroom `19203ea` → `5bcfe44` (`main` after #223,
+  package 0.9.3) and llm-dojo-scoring v0.28.1 → v0.29.0 (`f95c318`). Routing changes that
+  move experiments: chunked extractions merge confidence as the MIN across windows and a
+  lost window blocks archiving; parks after a spent confidence budget also name
+  `retries_exhausted`; reviewer-applied fields resume straight to `compile_report`
+  (two new graph edges, now walked by the routing matrix). Dojo v0.29.0 hardens date
+  scoring, so date-field scores can move against earlier runs. The sandbox's runtime
+  overrides (context fit, judge/arbiter source windows, run-scoped thresholds) still
+  bind: the vendored symbols they patch are unchanged.
+
+- **Routing calibration** (2026-11-16). Escalations now have measurable value
+  and run-scoped, locked thresholds:
+  - Pipeline runs record each extraction pass's self-reported
+    `extraction_confidence`, which is what the judge gate routes on.
+  - `sandbox run routing --run-id <id>` audits a finished run offline: fire
+    rates, retry yield, judged vs unjudged quality, escalation input cost, and
+    threshold suggestions.
+  - Runs accept a `confidence` block (global and per-class thresholds and
+    retry budgets). It is validated, locked, hashed only when set, and applied
+    over the vendored and overlay values.
+  - Preflight's `context_plan` prices each class's clean, judged and worst-case
+    loop from API tiers. Token-billed routes only; Modal GPU-hour serving is
+    not priced per call.
+
+- **Context-fit budgets for long-context API routes** (2026-11-15). Specialists,
+  `judge` and `arbiter` routed through OpenRouter now get an input budget sized
+  to their model's `context_length` (`config/api_prices.yaml`) instead of the
+  16k-token L4 posture. The chunk cap and the vendored judge/arbiter source
+  windows follow that budget. With `qwen/qwen3.7-flash`, a 418k-character merger
+  agreement is extracted in one call per pass, and the judge and arbiter read
+  all of it. The classification arbiter no longer sends documents over 16k
+  characters to a person unread. Modal, vLLM, Ollama and LM Studio routes are
+  unchanged. Source windows are restored on every other activation. Configure
+  under `context_fit` in `config/taxonomy.overlay.yaml`; run `agent_knobs` still
+  win.
+
+- **Preflight context plan** (2026-11-15). `pipeline` and specialist preflights
+  now attach an advisory `context_plan`. It covers chunk windows per extraction
+  pass under the run's effective budgets, judge/arbiter source coverage per
+  class, a note when `agents.judge.max_input_chars` has no effect, and
+  near-empty rows. It never fails preflight. It comes from the
+  `pipeline-qwen-flash-25` audit: there, 16k-window budgets split ~400k-character
+  merger agreements into 14 windows per pass, and the judge saw 4% of them. See
+  [the audit](docs/audits/2026-11-15-pipeline-qwen-flash-25-failure-modes.md).
+
 - **Per-document spans for whole-run jobs; floor graph in narrow windows**
   (2026-11-16, #297). `pipeline`, `specialist` and single-agent job tasks now
   mirror a `job.item` span per finished document, timed by the document's own

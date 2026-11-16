@@ -6,8 +6,8 @@ the sandbox prepends these trees to `sys.path` on import.**
 
 | Tree | Pin | Content |
 | --- | --- | --- |
-| `llm-mailroom/` | `af957b670810` (PR #179: the condensed sorter production flip, sorter_condensed_v5) | `src/` (minus tests) — `pipeline.*`, `graph.*`, `agents.*`, `llm.*`, `legalbench.*`, `observability.*`, `langchain_agents.*`, `scripts.*` |
-| `llm-dojo-scoring/` | `b3ec0fba68ff` (reviewed `main` commit, after Dojo #123: the v0.27.2 release plus linear-time prose-JSON candidate parsing and task-routed rescore headlines; not yet tagged) | `src/llm_dojo_scoring/` — scoring engine (`serving`, `experiment`, `extraction_metrics`, incl. the per-subclass `corporate_record_schema`) |
+| `llm-mailroom/` | `98c89b80aa8f` (`v0.30.0` branch head after llm-mailroom #237: version 0.9.3 plus unified audit storage, the audit workbench, grounded-run scoring fixes and content-pinned frozen v1 prompts; pre-release) | `src/` (minus tests) — `pipeline.*`, `graph.*`, `agents.*`, `llm.*`, `legalbench.*`, `observability.*`, `langchain_agents.*`, `scripts.*` |
+| `llm-dojo-scoring/` | `542a1c3e61cd` (`v0.30.0` branch head after llm-dojo-scoring #158: version 0.30.0, production slim-down; pre-release) | `src/llm_dojo_scoring/` — scoring engine (`serving`, `experiment`, `extraction_metrics`, incl. the per-subclass `corporate_record_schema`) |
 
 Provenance + refresh details live in each tree's `VENDOR.md`. `sandbox fetch-deps`
 re-snapshots both trees from their pinned refs (network, optional). The

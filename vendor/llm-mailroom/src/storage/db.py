@@ -1,10 +1,13 @@
 import asyncio
 import os
+import random
 import threading
+import time
 from weakref import WeakKeyDictionary
 import structlog
 from pathlib import Path
 from sqlalchemy import text
+from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.pool import NullPool
@@ -41,6 +44,15 @@ def _engine_kwargs(url: str) -> dict:
     return kwargs
 
 
+def _sqlite_busy_timeout_ms() -> int:
+    """How long a SQLite writer waits on a lock (``SQLITE_BUSY_TIMEOUT_MS``)."""
+    try:
+        value = int(os.environ.get("SQLITE_BUSY_TIMEOUT_MS", "") or 5000)
+    except ValueError:
+        return 5000
+    return value if value >= 0 else 5000
+
+
 def _apply_sqlite_pragmas(dbapi_conn, _connection_record=None) -> None:
     """WAL + busy_timeout + FK enforcement on every SQLite connection
     (audit A-15/A-5). Previously ``journal_mode=delete`` with no busy timeout
@@ -50,8 +62,11 @@ def _apply_sqlite_pragmas(dbapi_conn, _connection_record=None) -> None:
     of failing; foreign_keys=ON enforces the audit FK (A-5)."""
     try:
         cur = dbapi_conn.cursor()
+        # busy_timeout FIRST: the WAL switch itself needs a lock, and under
+        # many concurrent writers it failed instantly ("database is locked")
+        # on a connection that had not yet armed the timeout.
+        cur.execute(f"PRAGMA busy_timeout={_sqlite_busy_timeout_ms()}")
         cur.execute("PRAGMA journal_mode=WAL")
-        cur.execute("PRAGMA busy_timeout=5000")
         cur.execute("PRAGMA foreign_keys=ON")
         cur.close()
     except Exception:
@@ -131,6 +146,70 @@ async def acquire_write_lock(session: AsyncSession, key: str) -> None:
         )
 
 
+async def begin_read_snapshot(session: AsyncSession) -> None:
+    """Start ONE read-only snapshot before the caller's first SELECT.
+
+    SQLite's legacy transaction mode does not necessarily emit a physical
+    ``BEGIN`` for a plain SELECT, so consecutive statements could observe
+    different commits (a reader can then see an addendum's attempt hashes
+    without its sub-rows, or a half-migrated table set). ``BEGIN DEFERRED``
+    pins one WAL read snapshot and deliberately does NOT take the write lock
+    (never ``BEGIN IMMEDIATE``). Postgres gets an equivalent repeatable-read,
+    read-only transaction.
+
+    Must be the first statement of the session's transaction.
+    """
+    dialect = session.get_bind().dialect.name
+    if dialect == "sqlite":
+        await session.execute(text("BEGIN DEFERRED"))
+    elif dialect == "postgresql":
+        await session.execute(
+            text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+        )
+    else:  # pragma: no cover - the pipeline only ships sqlite and postgres
+        await session.execute(text("SET TRANSACTION READ ONLY"))
+
+
+def _is_transient_lock_error(exc: BaseException) -> bool:
+    """SQLite "database is locked" / "table is locked" (SQLITE_BUSY/LOCKED)."""
+    from sqlalchemy.exc import OperationalError
+
+    if not isinstance(exc, OperationalError):
+        return False
+    message = str(getattr(exc, "orig", exc)).lower()
+    return "database is locked" in message or "database table is locked" in message
+
+
+async def run_write_with_retry(op, *, attempts: int = 6, base_delay: float = 0.05, max_delay: float = 1.0):
+    """Run ``await op()`` (one self-contained write transaction), retrying
+    transient SQLite lock errors with jittered exponential backoff.
+
+    ``busy_timeout`` covers most contention, but a read-then-write upgrade in
+    WAL mode (or a very busy writer queue) can still surface ``database is
+    locked``; before this retry the catalog dropped those writes silently.
+    ``op`` must open its own session so each attempt starts a fresh
+    transaction. Any other error, and the last lock error, propagates.
+
+    Worst case a single call waits ``attempts`` x ``busy_timeout`` (default
+    5 s each) plus the backoff, so about 30 s with the defaults. A sync caller
+    that bounds the wait (``build_graph._run_coro``) must allow for that.
+    ``attempts`` below 1 is a programming error: the loop would never run and
+    the write would be silently skipped.
+    """
+    if attempts < 1:
+        raise ValueError(f"attempts must be >= 1, got {attempts}")
+    for attempt in range(1, attempts + 1):
+        try:
+            return await op()
+        except Exception as exc:
+            if attempt >= attempts or not _is_transient_lock_error(exc):
+                raise
+            delay = min(max_delay, base_delay * (2 ** (attempt - 1)))
+            delay *= 0.5 + random.random()  # jitter: de-synchronize contenders
+            logger.warning("sqlite_write_retry", attempt=attempt, sleep_s=round(delay, 3))
+            await asyncio.sleep(delay)
+
+
 class Base(DeclarativeBase):
     pass
 
@@ -158,6 +237,16 @@ def ensure_schema() -> bool:
     The idempotency cache is keyed by the resolved DB URL so a change of
     MAILROOM_BASE_DIR (e.g. per-test temp dirs) creates the schema in the
     right database.
+
+    After the tables exist it runs the one-time legacy audit migration
+    (``storage.audit_migrate``) ONLY when ``MAILROOM_AUDIT_MIGRATE=1`` is set.
+    The migration is opt-in on SQLite and Postgres alike: without the knob
+    ``ensure_schema`` leaves the current per-event ``audit_log`` and its writer
+    untouched and logs ``audit_migration_pending``. A migration that cannot run
+    or aborts is logged and never fails the schema.
+
+    Return ``True`` on success or a cache hit, even if the audit migration is
+    pending or failed. Return ``False`` for caught schema-creation errors.
     """
     with _schema_lock:
         global _schema_checked_url
@@ -166,24 +255,8 @@ def ensure_schema() -> bool:
             return True
         _ensure_models_imported()
         try:
-            if url.startswith("sqlite"):
-                from sqlalchemy import create_engine, event
-
-                # Sync sqlite driver (stdlib) — no event loop involvement, so this
-                # is safe to call from graph nodes, watcher threads, or the API.
-                sync_url = url.replace("+aiosqlite", "")
-                sync_engine = create_engine(sync_url)
-                event.listen(sync_engine, "connect", _apply_sqlite_pragmas)
-                try:
-                    Base.metadata.create_all(sync_engine)  # checkfirst=True by default
-                    _migrate_sqlite_columns(sync_engine)
-                finally:
-                    sync_engine.dispose()
-            else:
-                # Postgres: async driver. ensure_schema() is mostly called from
-                # inside a running loop (API handlers, audit writes), where
-                # asyncio.run() raises — so run the create on a private loop.
-                _run_on_private_loop(lambda: _create_schema_async(url))
+            _create_schema(url)
+            _migrate_audit_on_start()
             _schema_checked_url = url
             logger.info("schema_ready", url=url)
             return True
@@ -192,15 +265,105 @@ def ensure_schema() -> bool:
             return False
 
 
+def _create_schema(url: str) -> None:
+    """create_all (plus SQLite column adds) for ``url``; caller holds ``_schema_lock``.
+
+    ``checkfirst`` is not atomic across processes: two workers starting
+    together can both see a missing table and one CREATE then fails with
+    "already exists". Retry a few times so the loser adopts the winner's DDL
+    instead of failing readiness (the independent-process startup regression
+    pins this).
+    """
+    if url.startswith("sqlite"):
+        from sqlalchemy import create_engine, event
+
+        # Sync sqlite driver (stdlib) — no event loop involvement, so this
+        # is safe to call from graph nodes, watcher threads, or the API.
+        sync_url = url.replace("+aiosqlite", "")
+        sync_engine = create_engine(sync_url)
+        event.listen(sync_engine, "connect", _apply_sqlite_pragmas)
+        try:
+            _create_all_with_retry(sync_engine)
+            _run_with_create_retry(lambda: _migrate_sqlite_columns(sync_engine))
+        finally:
+            sync_engine.dispose()
+    else:
+        # Postgres: async driver. ensure_schema() is mostly called from
+        # inside a running loop (API handlers, audit writes), where
+        # asyncio.run() raises — so run the create on a private loop.
+        _run_on_private_loop(lambda: _create_schema_async(url))
+
+
+_SCHEMA_CREATE_ATTEMPTS = 3
+
+
+def _already_exists(exc: BaseException) -> bool:
+    message = str(exc).lower()
+    return "already exists" in message or "duplicate table" in message or "duplicate column" in message
+
+
+def _create_all_with_retry(engine) -> None:
+    for attempt in range(_SCHEMA_CREATE_ATTEMPTS):
+        try:
+            Base.metadata.create_all(engine)  # checkfirst=True by default
+            return
+        except (OperationalError, ProgrammingError) as exc:
+            if not _already_exists(exc) or attempt == _SCHEMA_CREATE_ATTEMPTS - 1:
+                raise
+            time.sleep(0.05 * (attempt + 1))
+
+
+def _run_with_create_retry(action) -> None:
+    for attempt in range(_SCHEMA_CREATE_ATTEMPTS):
+        try:
+            action()
+            return
+        except (OperationalError, ProgrammingError) as exc:
+            if not _already_exists(exc) or attempt == _SCHEMA_CREATE_ATTEMPTS - 1:
+                raise
+            time.sleep(0.05 * (attempt + 1))
+
+
+def ensure_tables() -> None:
+    """Create missing tables and add missing SQLite columns under ``_schema_lock``.
+
+    Used by the audit migration CLI and tests without running the legacy
+    audit migration. Schema-creation errors propagate to the caller.
+    """
+    with _schema_lock:
+        _ensure_models_imported()
+        _create_schema(_resolve_url())
+
+
+def _migrate_audit_on_start() -> None:
+    """Run the opt-in legacy audit migration; log, never raise, on failure."""
+    try:
+        from storage.audit_migrate import migrate_at_startup
+
+        _run_on_private_loop(migrate_at_startup)
+    except Exception:
+        logger.exception("audit_migration_failed")
+
+
 async def _create_schema_async(url: str) -> None:
     """create_all on a throwaway engine (NullPool) so no pooled connection
-    stays bound to the private loop that ran it."""
-    engine = create_async_engine(url, echo=False, poolclass=NullPool)
-    try:
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-    finally:
-        await engine.dispose()
+    stays bound to the private loop that ran it.
+
+    Concurrent workers can race ``checkfirst``; retry "already exists" so the
+    loser adopts the winner's DDL instead of failing startup.
+    """
+    for attempt in range(_SCHEMA_CREATE_ATTEMPTS):
+        engine = create_async_engine(url, echo=False, poolclass=NullPool)
+        try:
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            return
+        except (OperationalError, ProgrammingError) as exc:
+            if not _already_exists(exc) or attempt == _SCHEMA_CREATE_ATTEMPTS - 1:
+                raise
+            await asyncio.sleep(0.05 * (attempt + 1))
+        finally:
+            await engine.dispose()
 
 
 def _run_on_private_loop(coro_fn) -> None:

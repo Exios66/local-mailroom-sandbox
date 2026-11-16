@@ -300,6 +300,7 @@ def activate(
     agent_routes: dict | None = None,
     reviewer: Any = None,
     extraction_gate: Any = None,
+    confidence: dict | None = None,
 ) -> Activation:
     """Load overlay, write runtime taxonomy, patch mailroom, set env.
 
@@ -341,6 +342,7 @@ def activate(
         agent_routes = deepcopy(lock.get("agent_routes") or {})
         reviewer = deepcopy(lock.get("reviewer"))
         extraction_gate = deepcopy(lock.get("extraction_gate"))
+        confidence = deepcopy(lock.get("confidence"))
         # A mock run patches the LLM clients, not the Decisions gate: it gets an offline stub.
         gate_mock = bool((lock.get("job") or {}).get("mock"))
         prompt_variant = None  # the locked TEXT, not today's local stem
@@ -394,6 +396,9 @@ def activate(
         model_override=model,
         agent_models=effective_agent_models,
         agent_knobs=agent_knobs,
+        agent_routes=agent_routes,
+        # Run-scoped routing thresholds (locked); they win over vendored + overlay values.
+        extra_overlay={"confidence": deepcopy(confidence)} if confidence else None,
     )
     from mailroom_sandbox.agent_routes import install as install_agent_routes
 
@@ -420,6 +425,16 @@ def activate(
         apply_llm_timeout(limits.get("llm_call_timeout_seconds"))
     except Exception as exc:  # noqa: BLE001 — never block activation
         _log.warning("llm timeout override failed — 120s vendor default stands: %s", exc)
+
+    # The vendored judge/arbiter read a fixed 16k-char source excerpt (drift-
+    # guarded literals). Long-context routes widen them to the context-fitted
+    # budget; every other activation restores the vendored values.
+    try:
+        from mailroom_sandbox.source_windows import apply_source_windows, windows_for
+
+        apply_source_windows(windows_for(taxonomy))
+    except Exception as exc:  # noqa: BLE001 — never block activation
+        _log.warning("source-window override failed — vendored 16k excerpts stand: %s", exc)
 
     # SAND-038: the vendored LangChain agents default api_key to
     # OPENROUTER_API_KEY ahead of the resolved provider's key (drift-guarded),
