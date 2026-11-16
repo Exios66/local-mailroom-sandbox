@@ -388,6 +388,9 @@ def _engine_errors(spec: RunSpec) -> list[str]:
         # sorter_reviewer chat agent runs, which is how chat Luna was calibrated by mistake.
         errs.append("a paid sorter_reviewer run needs a reviewer block: backend decisions with a Decisions-API model "
                     "(e.g. openai/gpt-6-luna-decisions) and questions, or backend api with allow_chat_model: true")
+    if spec.engine.kind == "openrouter" and not spec.job.mock and not os.environ.get("OPENROUTER_API_KEY", "").strip():
+        # Without this, a keyless run fails soft on every document (review, ok) and spends nothing.
+        errs.append("engine kind openrouter needs OPENROUTER_API_KEY set in this shell")
     vllm = spec.engine.vllm
     if vllm.max_model_len < 1:
         errs.append("max_model_len must be >= 1")
