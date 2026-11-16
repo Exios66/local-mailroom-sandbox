@@ -1438,6 +1438,8 @@ def _run_pipeline_doc(
         **({"doc_subclass": result.get("doc_subclass"), "extraction_gate": result.get("extraction_gate")}
            if result.get("extraction_gate") is not None else {}),
         "error": result.get("error") or result.get("errors"),
+        # The agent exception the graph failed soft on (the run-level engine guard reads it).
+        "error_message": result.get("error_message"),
         "offline_fallback": False,
         "mailroom_src": str(src) if src else None,
     }

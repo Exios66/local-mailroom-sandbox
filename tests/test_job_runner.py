@@ -216,6 +216,48 @@ def test_pipeline_run_whose_every_extraction_fails_to_parse_fails(tmp_path, monk
     assert "failed to parse" in summary["last_error"]["message"]
 
 
+def _pipeline_run_with(preds, tmp_path, monkeypatch):
+    store = _prepped_store(tmp_path, rows=len(preds), job={"mock": True, "concurrency": 1})
+    lock = store.read_lock()
+    store.lock_path.write_text(json.dumps({**lock, "task": "pipeline", "profile": "ollama"}))
+    by_id = dict(zip((row["id"] for row in store.dataset_rows()), preds))
+    monkeypatch.setattr(runner.eval_runners, "_run_pipeline_doc", lambda row, **_: {
+        "id": row["id"], "doc_type": "unknown", "stage": "review", "extracted_data": None,
+        "error": None, **by_id[row["id"]]})
+    return store, runner._run_whole_run(store, "pipeline", mock=True, model=None, profile="ollama")
+
+
+_KEYLESS = {"error_message": "classification error: OpenRouter API key not set",
+            "escalation_reason": "classification failed (ValueError) — routing to human review"}
+
+
+@pytest.mark.parametrize("pred", [
+    _KEYLESS,
+    {"escalation_reason": _KEYLESS["escalation_reason"]},  # lock written before error_message was kept
+    {"error_message": "transient provider error: 503 Service Unavailable"},
+], ids=["error-message", "escalation-only", "transient"])
+def test_pipeline_run_where_every_document_hit_an_engine_error_fails(pred, tmp_path, monkeypatch):
+    """A keyless run fails soft per document (review, ok=True), so the run must still fail."""
+    store, summary = _pipeline_run_with([pred, pred], tmp_path, monkeypatch)
+    assert all(item["ok"] for item in store.load_items())
+    assert summary["state"] == store.read_checkpoint()["state"] == "failed"
+    assert "every document hit an engine error" in summary["last_error"]["message"]
+    assert not any(e["event"] == "done" for e in store.events())
+
+
+def test_pipeline_run_with_one_engine_error_stays_done(tmp_path, monkeypatch):
+    healthy = {"doc_type": "contract", "stage": "archived", "extracted_data": {"parties": ["A"]}}
+    store, summary = _pipeline_run_with([_KEYLESS, healthy], tmp_path, monkeypatch)
+    assert summary["state"] == store.read_checkpoint()["state"] == "done"
+
+
+def test_pipeline_run_with_unreadable_text_is_not_an_engine_error(tmp_path, monkeypatch):
+    """Text-extraction failures are document problems; they route to review as designed."""
+    unreadable = {"error_message": "Could not extract text from .pdf file"}
+    store, summary = _pipeline_run_with([unreadable, unreadable], tmp_path, monkeypatch)
+    assert summary["state"] == "done"
+
+
 def test_run_job_all_items_failed_writes_failed_not_done(tmp_path, monkeypatch):
     """hub#39: a run where EVERY item errored must write state=failed with a
     last_error, exit 1 (CLI maps state != done), and never append a 'done'
