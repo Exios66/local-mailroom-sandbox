@@ -61,6 +61,11 @@ _DEPLOY_ENV_KEYS = (
     "HF_TOKEN",
     "VLLM_BASE_URL",
     "VLLM_API_KEY",
+    # #308: OpenRouter-engine runs, OpenRouter judge routes and the Decisions reviewer or
+    # extraction gate call OpenRouter from the worker. Shipped in the deploy Secret (never
+    # the image) when the deploying shell has it; run_job drops it for runs that do not
+    # call OpenRouter (deploy_env.scope_openrouter_key).
+    "OPENROUTER_API_KEY",
     "SANDBOX_DEBUG",  # DMR-056: must reach the container or --debug claims are false
 )
 # NOTE (DMR-056): DEFAULT_PROVIDER deliberately NOT in _DEPLOY_ENV_KEYS — the
@@ -121,8 +126,10 @@ image = (
     .env(
         {
             "SANDBOX_ROOT": SANDBOX_ROOT,
-            # This worker serves vLLM only; keep the direct live-call target
-            # (LegalBench) on the vLLM family even when the deploy env is bare.
+            # The default before a run activates: keep the direct live-call target
+            # (LegalBench) on the vLLM family even when the deploy env is bare. A locked
+            # run's profile always wins, since activation sets DEFAULT_PROVIDER from it
+            # (an OpenRouter-engine slice runs on the openrouter profile, #308).
             "DEFAULT_PROVIDER": "vllm",
         }
     )
@@ -207,7 +214,7 @@ def run_job(payload: dict) -> dict:
     import traceback
 
     from mailroom_sandbox.job.checkpoint import RunStore
-    from mailroom_sandbox.job.deploy_env import durable_mailroom_env, settle_mailroom_writers
+    from mailroom_sandbox.job.deploy_env import durable_mailroom_env, scope_openrouter_key, settle_mailroom_writers
     from mailroom_sandbox.job.remote import generation_fields
     from mailroom_sandbox.job.otel import configure_tracing, flush_tracer, resolve_sink
     from mailroom_sandbox.job.runner import run_job as run_local_job
@@ -232,6 +239,12 @@ def run_job(payload: dict) -> dict:
     store = RunStore(Path(RUNS_MOUNT) / run_path)
     lock = store.verify_generation()
     os.environ.update(durable_mailroom_env(store.dir))
+    from mailroom_sandbox.job.deploy_env import lock_uses_openrouter
+
+    if not scope_openrouter_key(lock, os.environ) and lock_uses_openrouter(lock):
+        # Fail before any document runs, not on the first OpenRouter call.
+        raise RuntimeError("this run calls OpenRouter but the worker has no OPENROUTER_API_KEY; "
+                           "redeploy sandbox-job from a shell that has it set")
     identity = generation_fields(lock)
     if expected is not None and any(payload.get(k) != v for k, v in identity.items()):
         raise RuntimeError("worker generation differs from dispatch expectation")

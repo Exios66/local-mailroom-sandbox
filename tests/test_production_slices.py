@@ -143,3 +143,18 @@ def test_slices_survive_an_exclusion_list_update(tmp_path):
     grown.write_text(EXCLUDED.read_text(encoding="utf-8") + "\n".join(new_tuning) + "\n", encoding="utf-8")
     after = {size: {r["id"] for r in _draw(f"slice-{size}", tmp_path, grown)} for size in SIZES}
     assert after == before
+
+
+@pytest.mark.parametrize("name", TWINS)
+def test_modal_host_twin_preflights_except_for_credentials(name, monkeypatch):
+    """#308: a twin's only engine errors offline are the missing OpenRouter key."""
+    from mailroom_sandbox.job import preflight
+
+    spec = _load(name)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    errors = preflight._engine_errors(spec)
+    assert errors and all("OPENROUTER_API_KEY" in e for e in errors), errors
+    assert not any("not supported for modal jobs" in e for e in errors)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    assert preflight._engine_errors(spec) == []
+    assert preflight._modal_check(spec)
