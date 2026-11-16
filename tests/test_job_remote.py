@@ -29,7 +29,8 @@ def test_fire_persists_call_id(tmp_path, source_root, modal_fs):
 
 
 def test_is_alive_reflects_input_state(tmp_path, source_root, modal_fs):
-    store = prepared(tmp_path, source_root); remote.fire(store)
+    store = prepared(tmp_path, source_root)
+    remote.fire(store)
     assert remote.is_alive(store) is True
     modal_fs.calls['fc-0'] = 'SUCCESS'
     assert remote.is_alive(store) is False
