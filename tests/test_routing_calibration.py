@@ -334,3 +334,63 @@ def test_a_locked_run_ignores_a_class_key_an_overlay_added_after_preflight(monke
     finally:
         monkeypatch.setattr(runtime, "build_merged_taxonomy", real_build)
         runtime.activate("modal-vllm", load_env_file=False)
+
+
+def test_frozen_block_matches_unlocked_routing_including_the_component_overlay(monkeypatch):
+    """The frozen block carries every layer (components.yaml routing included): a locked run
+    routes exactly as an unlocked activation does, and the audit reads the same values."""
+    pytest.importorskip("pipeline.config")
+    from pipeline.config import get_confidence_thresholds
+
+    from mailroom_sandbox import runtime
+    from mailroom_sandbox.components import load_components, routing_overlay
+    from mailroom_sandbox.job.routing_audit import effective_thresholds, thresholds_for
+
+    monkeypatch.setenv("VLLM_BASE_URL", "https://example.invalid/v1")
+    component = routing_overlay(load_components()).get("confidence") or {}
+    frozen = effective_thresholds()
+    for key, value in component.items():
+        if key != "by_class":
+            assert frozen[key] == value  # the component layer is in the frozen block
+    classes = ("contract", "corporate_record", "correspondence", "insurance_claim", "merger_agreement")
+    runtime.activate("modal-vllm", load_env_file=False)
+    unlocked = {cls: get_confidence_thresholds(cls) for cls in classes}
+    lock = {"profile": "modal-vllm", "job": {}, "confidence": {}, "effective_confidence": frozen}
+    try:
+        with runtime.locked_runtime(lock, {}):
+            runtime.activate("modal-vllm", load_env_file=False)
+        for cls in classes:
+            routed = get_confidence_thresholds(cls)
+            assert routed == unlocked[cls], cls
+            audited = thresholds_for(frozen, cls)
+            assert {k: routed.get(k) for k in audited} == audited, cls
+    finally:
+        runtime.activate("modal-vllm", load_env_file=False)
+
+
+def test_a_component_change_after_preflight_does_not_move_a_locked_run(monkeypatch):
+    pytest.importorskip("pipeline.config")
+    from pipeline.config import get_confidence_thresholds
+
+    from mailroom_sandbox import components, runtime
+    from mailroom_sandbox.job.routing_audit import effective_thresholds, thresholds_for
+
+    monkeypatch.setenv("VLLM_BASE_URL", "https://example.invalid/v1")
+    frozen = effective_thresholds()
+    real = components.load_components
+
+    def moved():
+        cfg = json.loads(json.dumps(real()))
+        cfg.setdefault("routing", {}).setdefault("confidence", {})["low"] = 0.42
+        return cfg
+
+    monkeypatch.setattr(components, "load_components", moved)
+    lock = {"profile": "modal-vllm", "job": {}, "confidence": {}, "effective_confidence": frozen}
+    try:
+        with runtime.locked_runtime(lock, {}):
+            runtime.activate("modal-vllm", load_env_file=False)
+        for cls in ("contract", "corporate_record", "correspondence", "insurance_claim", "merger_agreement"):
+            assert get_confidence_thresholds(cls)["low"] == thresholds_for(frozen, cls)["low"] != 0.42, cls
+    finally:
+        monkeypatch.setattr(components, "load_components", real)
+        runtime.activate("modal-vllm", load_env_file=False)
