@@ -142,6 +142,7 @@ The two regressions are false "no" answers on correct values. They cost re-extra
 - After every gate run: `python scripts/interim_labels.py build --add-run <gate-run>`. The latest question set wins per document.
 - `python scripts/interim_labels.py check` refuses a hand-edited or stale overlay, meaning a newer local gate run that has not been folded in.
 - `check --rows <hub rows> [--prune]` drops the labels a new Hub revision publishes.
+- `python scripts/interim_labels.py rederive` recomputes the derived subclass labels in place after a mapping change, with no gate run. A corporate `record_type` is the Dojo's 5-token enum (`record_type_for_subclass`: `indenture` → `other`), never the raw subclass.
 - `tests/test_interim_labels.py` keeps the committed files consistent.
 
 ## 1.4.0 candidates (not yet run)

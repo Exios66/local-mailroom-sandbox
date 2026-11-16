@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from mailroom_sandbox import interim_labels as il
 from mailroom_sandbox.job.spec import DatasetSpec
 
@@ -25,9 +27,25 @@ def test_committed_overlay_is_consistent():
                 assert field in il.GAP_FIELDS[cls], (rec["doc_id"], field)
                 assert lab["support"] >= (il.NULL_SUPPORT_MIN if lab["value"] is None else il.SUPPORT_MIN)
             if lab["status"] == "derived":
-                assert lab["value"] == rec["doc_subclass"]
+                want = (il.derived_value(cls, rec["doc_subclass"]) if field == il.SUBCLASS_FIELDS.get(cls)
+                        else rec["doc_subclass"])
+                assert lab["value"] == want, (rec["doc_id"], field)
             if lab["status"] == "correction":
                 assert cls == "contract" and lab["basis"] in ("cuad_party_spans", "cuad_agreement_date")
+
+
+def test_derived_record_type_is_the_dojo_enum_token_not_the_subclass():
+    pytest.importorskip("llm_dojo_scoring.schemas.corporate_record_schema")
+    from llm_dojo_scoring.schemas.corporate_record_schema import RECORD_TYPES
+
+    # The specialist emits the 5-token enum, so a raw subclass label would score a correct "other" wrong.
+    assert il.derived_value("corporate_record", "indenture") == "other"
+    assert il.derived_value("corporate_record", "charter_amendment") == "articles_of_incorporation"
+    assert il.derived_value("corporate_record", "bylaws") == "bylaws"
+    assert il.derived_value("correspondence", "attorney_demand") == "attorney_demand"  # already the vocabulary
+    committed = [r["labels"]["record_type"]["value"] for r in il._jsonl(il.overlay_dir() / "corporate_record.jsonl")
+                 if "record_type" in r["labels"]]
+    assert committed and set(committed) <= set(RECORD_TYPES)
 
 
 def test_gap_fill_needs_support_grounding_and_no_hub_label():

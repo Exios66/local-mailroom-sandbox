@@ -131,3 +131,25 @@ order.
 3. File upstream: retry priming (3), best attempt (4) and the merge precision filter (5). Fold the
    class-agnostic coverage floor (6) into #207. Extend Dojo #94/#52 for corporate templated GT.
 4. Rerun r2 on the #302 pins with the same switches, then E2 (control, judge, rejudge) and E3.
+
+## Status (2026-11-16)
+
+| Finding | Action |
+|---|---|
+| 1 Corporate GT | Every E2/E3 arm sets `dataset.interim_labels: true`. `scripts/ladder_pair_report.py` reports quality on all fields and without the templated fields. Filed as Exios66/llm-dojo-scoring#164. **Overlay fix found on the way:** the derived corporate `record_type` was the raw subclass (`indenture`, `charter_amendment`, …), outside the Dojo's 5-token enum. That scored a correct `other` as wrong for 109 labels. They are re-derived with `record_type_for_subclass` (`scripts/interim_labels.py rederive`). |
+| 2 Oracle routing | `job.blind_routing: true` on every E2/E3 arm (no labels in the graph's state). Commented on Exios66/llm-mailroom#207. |
+| 3 Retry priming | Filed as Exios66/llm-mailroom#253. |
+| 4 Last attempt wins | Filed as Exios66/llm-mailroom#254. |
+| 5 Chunk merge | Filed as Exios66/llm-mailroom#255. |
+| 6 Class-agnostic coverage floor | Folded into #207 (comment). Blind routing removes it from E2/E3. |
+
+**Prompts.** The arms keep `code-default` for the sorter, which is already the adopted
+`sorter_condensed_v5`, and for the contracts, merger, judge, arbiter and intake agents, which
+have no adopted condensed successor. They pin the adopted condensed frontrunners for three
+specialists: corporate v1, correspondence v2 and insurance v3
+(`config/prompts/specialist_condensed_lineage.yaml`). Their vocabularies match Dojo `13adc8e`
+and the dataset labels: corporate `record_type` / `intent` equal `SUBCLASS_SCHEMAS`, and every
+correspondence and insurance intent label is covered. `gen_maud_v2_prompt.py --check` passes.
+
+**Baseline.** These settings change absolute scores. The new like-for-like baseline is an r2
+rerun on the #302 pins with the same three settings; E1 and the old r2 are not comparable.

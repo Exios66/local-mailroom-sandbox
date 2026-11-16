@@ -55,6 +55,17 @@ Estimated API spend, from r2 per-document costs: E1 about $0.15 control + $0.30 
 E2 about $0.05 + $0.10; E3 about $0.70 per arm. Each config's `api_cost_cap_usd` is about 2× its
 estimate (E1 0.60, E2 0.40, E3 1.75).
 
+**Settings common to every E2/E3 arm (not treatments).** These follow the pre-E2 review
+(`docs/audits/2026-11-16-pre-e2-architecture-review.md`):
+- `job.blind_routing: true`: no labels in the graph's state;
+- `dataset.interim_labels: true`: gap-fill labels, with corporate `record_type` re-derived to the
+  enum;
+- the adopted condensed prompts for the corporate, correspondence and insurance specialists.
+
+Evaluate each pair with `python scripts/ladder_pair_report.py <control> <treatment>`. For corporate
+records and correspondence it prints quality on all fields and without the templated
+`keywords` / `subject_matter`. Read the second lane for corporate records.
+
 **E2r, the `judge_rejudge_retry` on/off pair.** The switch re-judges a retry whose earlier
 attempt was judged, whatever confidence the retry reports. It is paired with the control and
 not with `-e2-corporate-judge`, because there it cannot change routing: an extraction reaches

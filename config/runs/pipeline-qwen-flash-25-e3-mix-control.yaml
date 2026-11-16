@@ -5,6 +5,8 @@
 # Success: no class below control by more than 0.03; contract and corporate improve.
 # Model (held fixed across the ladder, so the only variable is the marked line): qwen/qwen3.7-flash on
 # OpenRouter for every agent node; decision reviewer openai/gpt-6-luna-decisions with the v2 cutoffs.
+# Every E2/E3 arm (not a treatment): blind routing, interim labels and the adopted condensed
+# specialist prompts (docs/audits/2026-11-16-pre-e2-architecture-review.md).
 # Plan: docs/audits/2026-11-15-contract-recall-routing-ladder.md. Base: pipeline-qwen-flash-25-fit-r2.
 schema: sandbox.run/v1
 run_id: pipeline-qwen-flash-25-e3-mix-control
@@ -12,7 +14,11 @@ task: pipeline
 profile: openrouter
 
 prompt:
-  default: {source: code-default}
+  default: {source: code-default}   # sorter: vendored sorter_condensed_v5 (the adopted frontrunner)
+  agents:   # adopted condensed frontrunners (config/prompts/specialist_condensed_lineage.yaml)
+    corporate_records_specialist: {source: local, file: corporate_records_specialist_condensed_v1}
+    correspondence_specialist: {source: local, file: correspondence_specialist_condensed_v2}
+    insurance_claims_specialist: {source: local, file: insurance_claims_specialist_condensed_v3}
 
 dataset:
   provider: huggingface
@@ -30,6 +36,7 @@ dataset:
   limit: 45
   sample_seed: 2026
   require_task_gt: true   # every document can be scored
+  interim_labels: true    # gap-fill labels for unlabelled fields (data/labels/interim; Dojo #164)
 
 engine:
   kind: openrouter
@@ -70,6 +77,7 @@ job:
   cost_cap_usd: 0.50
   max_wall_seconds: 7200
   api_cost_cap_usd: 1.75   # ~2x the r2-derived estimate for this sample, dearest-tier pricing
+  blind_routing: true     # no dataset labels in the graph's state (llm-mailroom #207)
 
 trace:
   sink: none          # no Docker: spans still mirror to data/traces/<run_id>.spans.jsonl.gz;

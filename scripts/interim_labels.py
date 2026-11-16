@@ -191,6 +191,38 @@ def _local_gate_runs() -> dict[str, str]:
     return out
 
 
+def rederive(root: Path) -> int:
+    """Recompute every ``derived`` subclass label (``il.derived_value``) in place; no gate run needed.
+
+    The other labels and their bases are unchanged. File hashes and counts are rewritten.
+    """
+    integrity = il.verify(root)
+    if integrity:
+        print("rederive refused: the overlay fails its integrity check; rebuild with scripts/interim_labels.py build")
+        return 1
+    man = il.load_manifest(root)
+    changed = 0
+    for name in list(man.get("files") or {}):
+        recs = il._jsonl(root / name)
+        for rec in recs:
+            field = il.SUBCLASS_FIELDS.get(rec.get("doc_class") or "")
+            label = rec["labels"].get(field) if field else None
+            if label and label.get("status") == "derived" and rec.get("doc_subclass"):
+                value = il.derived_value(rec["doc_class"], rec["doc_subclass"])
+                if label.get("value") != value:
+                    label["value"] = value
+                    changed += 1
+        text = "".join(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n" for r in recs)
+        _replace(root / name, text)
+        man["files"][name] = il._sha(text)
+    man["counts"] = _counts(root, man["files"])
+    if changed:
+        man["rederived_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    _replace(root / "MANIFEST.json", json.dumps(man, indent=2) + "\n")
+    print(f"rederived {changed} labels")
+    return 0
+
+
 def check(root: Path, rows_path: Path | None, prune: bool) -> int:
     integrity = il.verify(root)
     problems = list(integrity)
@@ -246,8 +278,11 @@ def main(argv: list[str] | None = None) -> int:
     c = sub.add_parser("check", help="integrity, staleness and Hub supersession")
     c.add_argument("--rows", type=Path, help="Hub rows (JSONL) to test for superseded labels")
     c.add_argument("--prune", action="store_true", help="drop superseded labels and rewrite the manifest")
+    sub.add_parser("rederive", help="recompute the derived subclass labels with the current mapping")
     args = ap.parse_args(argv)
     root = args.root or il.overlay_dir()
+    if args.cmd == "rederive":
+        return rederive(root)
     if args.cmd == "build":
         runs = args.run or [s["gate_run"] for s in il.load_manifest(root).get("sources") or []]
         runs += [r for r in args.add_run if r not in runs]

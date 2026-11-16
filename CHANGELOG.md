@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+- **Blind routing, interim-label fix and paired report for E2/E3** (#300).
+  - `job.blind_routing: true` (pipeline runs only) keeps the dataset labels out of the graph's
+    `ground_truth` state, so the class-miss gate and the coverage-floor retry cannot use them
+    (llm-mailroom #207). Scoring still uses the full locked row. The value is hashed only when set.
+  - Interim-label fix: the derived corporate `record_type` is now the Dojo's 5-token enum, not
+    the raw subclass. 109 committed labels such as `indenture` or `charter_amendment` would have
+    scored a correct `other` or `articles_of_incorporation` as wrong.
+    `scripts/interim_labels.py rederive` rewrote them; the other label files are byte-identical.
+  - `scripts/ladder_pair_report.py` (`job/pair_report.py`) re-scores a finished pair offline, on
+    all fields and without the templated corporate/correspondence `keywords` / `subject_matter`
+    (llm-dojo-scoring #164, #94).
+  - Every E2/E3 arm now sets blind routing, `dataset.interim_labels: true` and the adopted
+    condensed specialist prompts (corporate v1, correspondence v2, insurance v3). The sorter's
+    vendored default is already the adopted `sorter_condensed_v5`.
 - **`judge_rejudge_retry` run setting** (#300): a run's `confidence` block (top level or
   `by_class`) can switch llm-mailroom #241's opt-in re-judge of retried extractions. Only an
   unquoted `true`/`false` is accepted, because the vendored router reads the value by

@@ -42,6 +42,7 @@ class Activation:
 
 _ACTIVE: Activation | None = None
 _ACTIVE_REVIEWER: dict[str, Any] | None = None
+_ACTIVE_BLIND_ROUTING = False
 _LOCKED_RUNTIME: ContextVar[dict[str, Any] | None] = ContextVar("sandbox_locked_runtime", default=None)
 
 
@@ -75,6 +76,14 @@ def active() -> Activation | None:
 def active_reviewer() -> dict[str, Any] | None:
     """The reviewer block of the last activation (a locked run's includes its frozen question set)."""
     return _ACTIVE_REVIEWER
+
+
+def blind_routing_active() -> bool:
+    """True when the last activation came from a locked run with ``job.blind_routing``.
+
+    Such a run keeps the dataset labels out of the graph's ``ground_truth`` state.
+    """
+    return _ACTIVE_BLIND_ROUTING
 
 
 def agent_knobs_for(agent: str) -> dict[str, Any]:
@@ -485,6 +494,9 @@ def activate(
         agent_models=dict(agent_models or {}),
         agent_knobs=dict(agent_knobs or {}),
     )
+    global _ACTIVE_BLIND_ROUTING
+    # Process-wide like the reviewer: agent-task workers do not inherit the lock's ContextVar.
+    _ACTIVE_BLIND_ROUTING = bool(((policy or {}).get("lock") or {}).get("job", {}).get("blind_routing"))
     _ACTIVE = activation
     runtime_dir()  # ensure exists
     return activation
