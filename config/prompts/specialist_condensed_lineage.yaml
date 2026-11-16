@@ -51,6 +51,11 @@ agents:
         reference_run: extraction-gate-specialist-correspondence-qwen
         validation_run: specialist-condensed-v2-correspondence-qwen-ab
         status: adopted   # mean +0.002 (0.327 -> 0.328), intent 32 -> 33 exact, 0 parse errors, -28% input tokens
+      - version: correspondence_specialist_condensed_v3
+        parent: "correspondence_specialist_condensed_v2 (one change: communication_type is the content, not the email wrapper; slice-gate fix loop #306)"
+        reference_run: specialist-condensed-v3-correspondence-qwen-v2arm
+        validation_run: specialist-condensed-v3-correspondence-qwen-v3arm
+        status: candidate   # paired A/B on 40 held-out correspondence documents (seed 1116); E3: 5 of 6 gold-typed documents labelled email
   corporate_records_specialist:
     frontrunner: corporate_records_specialist_condensed_v1
     versions:
