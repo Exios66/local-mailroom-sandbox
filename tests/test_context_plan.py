@@ -218,3 +218,24 @@ def test_plan_and_lock_resolve_knobs_from_the_same_run_id(tmp_path, monkeypatch)
     assert report["context_plan"]["classes"]["merger_agreement"]["input_budget"] == 98_000
     lock = RunStore(run_dir("cli-id")).read_lock()
     assert lock["agent_knobs"]["merger_agreement_specialist"]["max_input_chars"] == 98_000
+
+
+def test_plan_and_lock_share_one_knob_snapshot(tmp_path, monkeypatch):
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.spec import run_dir
+
+    calls = []
+    real = preflight._run_knobs
+
+    def once(spec, run_id):
+        calls.append(run_id)
+        return real(spec, run_id)
+
+    monkeypatch.setattr(preflight, "_run_knobs", once)
+    monkeypatch.setenv("SANDBOX_AGENT_KNOBS", json.dumps({"merger_agreement_specialist": {"max_input_chars": 98_000}}))
+    report = preflight.preflight(_pipeline_spec(tmp_path, monkeypatch, task="merger_agreement_specialist"), offline=True)
+    assert report["status"] == "prepared", report
+    assert len(calls) == 1
+    lock = RunStore(run_dir(report["run_id"])).read_lock()
+    assert report["context_plan"]["classes"]["merger_agreement"]["input_budget"] \
+        == lock["agent_knobs"]["merger_agreement_specialist"]["max_input_chars"] == 98_000

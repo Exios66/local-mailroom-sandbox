@@ -12,6 +12,7 @@ and CI-safe.
 from __future__ import annotations
 
 import ipaddress
+from copy import deepcopy
 import logging
 import os
 import time
@@ -580,8 +581,11 @@ def _run_knobs(spec: RunSpec, run_id: str | None) -> dict[str, Any]:
     return resolve_agent_knobs(spec.agent_knobs or agent_knobs_for_run(run_id))
 
 
-def _record_context_plan(report: dict[str, Any], spec: RunSpec, store: RunStore, run_id: str | None) -> None:
-    """Attach the informational context plan; it never fails preflight."""
+def _record_context_plan(report: dict[str, Any], spec: RunSpec, store: RunStore, knobs: dict[str, Any]) -> None:
+    """Attach the informational context plan; it never fails preflight.
+
+    ``knobs`` is the exact snapshot the lock holds (or will be written with).
+    """
     if not _extracts(spec):
         return
     from mailroom_sandbox.job.context_plan import plan_for_spec
@@ -592,10 +596,6 @@ def _record_context_plan(report: dict[str, Any], spec: RunSpec, store: RunStore,
             from mailroom_sandbox.eval.primary import rows_for_class
 
             rows = rows_for_class(rows, spec.target)
-        if store.lock_path.exists():  # existing generation: what it froze
-            knobs = (store.read_lock() or {}).get("agent_knobs") or {}
-        else:
-            knobs = _run_knobs(spec, run_id)
         cp = plan_for_spec(spec, rows, knobs=knobs)
     except Exception as exc:  # noqa: BLE001 — advisory only
         _log.debug("context plan skipped", exc_info=exc)
@@ -916,7 +916,8 @@ def _preflight(
                 report["checks"].append({"name": "generation", "ok": False, "detail": str(exc)})
                 return report
             report.update({"spec_hash": existing["spec_hash"], "lock_path": str(store.lock_path)})
-            _record_context_plan(report, spec, store, run_id)  # same report shape as a fresh preparation
+            frozen = (store.read_lock() or {}).get("agent_knobs") or {}
+            _record_context_plan(report, spec, store, frozen)  # same report shape as a fresh preparation
             return report
 
     # write_lock refuses to overwrite in place, so a forced re-lock archives
@@ -958,7 +959,9 @@ def _preflight(
             return report
         report["checks"].append({"name": "target", "ok": True, "detail": f"{spec.target}: {narrowed} row(s)"})
 
-    _record_context_plan(report, spec, store, run_id)
+    # One knob resolution, shared by the plan and the lock written below.
+    run_knobs = _run_knobs(spec, run_id)
+    _record_context_plan(report, spec, store, run_knobs)
 
     # 3) engine spec validators (pydantic ranges + repo guards)
     eng_errors = _engine_errors(spec)
@@ -1066,7 +1069,7 @@ def _preflight(
     # table, so editing a posture later silently rewrites what every historical card
     # claims the run was configured with — and the contracts whole-document change is
     # exactly such an edit.
-    lock["agent_knobs"] = _run_knobs(spec, run_id)
+    lock["agent_knobs"] = deepcopy(run_knobs)
     # Freeze the resolved table for model-only runs too: otherwise runtime.activate()
     # rebuilds the remaining agents from the live profile/taxonomy, so a later
     # judge_model edit silently changes a resumed run without changing its lock.
