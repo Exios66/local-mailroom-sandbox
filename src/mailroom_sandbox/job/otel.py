@@ -308,8 +308,8 @@ def record_span(
             continue
         try:
             span.set_attribute(key, value if isinstance(value, (bool, int, float, str)) else str(value))
-        except Exception:
-            pass
+        except Exception as exc:  # an unusable attribute must not drop the span
+            _log.debug("span %s: attribute %s not recorded: %s", name, key, exc)
     span.end(end_time=max(int(end_ns), int(start_ns)))
     return oteltrace.set_span_in_context(span, parent)
 
