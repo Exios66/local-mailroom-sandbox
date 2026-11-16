@@ -920,6 +920,14 @@ def _preflight(
                 report["status"] = "failed"
                 report["checks"].append({"name": "generation", "ok": False, "detail": str(exc)})
                 return report
+            # Credentials live in the shell, not the lock: a lock prepared where
+            # the key was set must not let `run start` proceed where it is not.
+            eng_errors = _engine_errors(spec)
+            if eng_errors:
+                report["status"] = "failed"
+                report["checks"].append({"name": "engine_spec", "ok": False, "detail": "; ".join(eng_errors)})
+                return report
+            report["checks"].append({"name": "engine_spec", "ok": True, "detail": _engine_summary(spec)})
             report.update({"spec_hash": existing["spec_hash"], "lock_path": str(store.lock_path)})
             frozen = (store.read_lock() or {}).get("agent_knobs") or {}
             _record_context_plan(report, spec, store, frozen)  # same report shape as a fresh preparation
