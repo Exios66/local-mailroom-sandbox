@@ -176,3 +176,13 @@ def test_preflight_plans_whole_run_specialist_tasks(tmp_path, monkeypatch):
     report = preflight.preflight(_pipeline_spec(tmp_path, monkeypatch, task="specialist"), offline=True)
     assert report["status"] == "prepared", report
     assert report["context_plan"]["task"] == "specialist"
+
+
+def test_isolated_specialist_zero_overlap_falls_back_like_the_evaluator():
+    from mailroom_sandbox.eval.agents import chunk_window
+
+    rows = [{"id": "m", "expected_doc_class": "merger_agreement", "doc_text": "x" * 100_000}]
+    knobs = {"merger_agreement_specialist": {"chunk_chars": 90_000, "overlap_chars": 0}}
+    entry = context_plan.plan(TAXONOMY, rows, windows=WINDOWS, task="specialist", knobs=knobs)["classes"]["merger_agreement"]
+    window, _ = chunk_window(36008, 90_000, 8_000)  # _live_specialist: `overlap_chars or 8_000`
+    assert entry["chunk_chars"] == window == 31_507 and entry["max_chunks_per_pass"] == 4

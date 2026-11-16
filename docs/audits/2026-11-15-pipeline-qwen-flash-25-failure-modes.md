@@ -47,10 +47,15 @@ Four causes compound:
    overlay's `judge.max_input_chars: 80000` has no effect on this window.
 3. **The final gate trusts self-reported confidence (upstream).** As vendored
    at llm-mailroom `19203eac`, `after_retry_extraction_gated`
-   (`vendor/llm-mailroom/src/graph/routing.py:416`) sends an extraction to `compile_report` when
-   its self-reported confidence is at least `judge_band_high` (0.97 for
-   mergers, `vendor/llm-mailroom/src/config/taxonomy.yaml:249`). After the last arbiter-ordered retry, the specialist reported at
-   least 0.97, so the result archived without a final judge pass. On
+   (`vendor/llm-mailroom/src/graph/routing.py:416`) sends an extraction that
+   `after_retry_extraction` already routed to `compile_report` (no conflicts,
+   valid schema, not hollow, enough coverage; `routing.py:259-343`) to the judge
+   only when its self-reported confidence is below `judge_band_high` (0.97 for
+   mergers, `vendor/llm-mailroom/src/config/taxonomy.yaml:249`). Confidence alone
+   does not archive a document, but among extractions that pass those checks it
+   decides whether the judge runs. After the last arbiter-ordered retry, the
+   specialist reported at least 0.97, so the result archived without a final
+   judge pass. On
    DOC-1e016055 the first extraction already reported at least 0.97 and skipped
    the judge entirely.
 4. **Merger ground truth is MAUD-only (scoring, known).** `expected_fields`

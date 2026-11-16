@@ -171,7 +171,10 @@ def plan(
                 knob_hint, window_cap = f"agent_knobs.{specialist}.max_input_chars", cap
             else:
                 chunked = bool(knob.get("chunk_chars"))
-                chunk_chars, _ = window_plan(budget, knob) if chunked else (budget, 0)
+                # _live_specialist falls back to 8,000 overlap on a missing *or zero* knob.
+                spec_chunking = {"chunk_chars": knob.get("chunk_chars"),
+                                 "overlap_chars": knob.get("overlap_chars") or _DEFAULT_OVERLAP_CHARS}
+                chunk_chars, _ = window_plan(budget, spec_chunking) if chunked else (budget, 0)
                 knob_hint = f"agent_knobs.{specialist}.max_input_chars or chunk_chars"
                 window_cap = int(knob["chunk_chars"]) if chunked else budget
             per_pass = max(chunk_count(t, chunk_chars) for _, t in texts[cls]) if chunked else 1
