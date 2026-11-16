@@ -115,7 +115,7 @@ decision = [
     # Exact pin: a tuned confidence cutoff is tied to one model version, and the
     # `typesafe:` model names and `provider_details["confidence"]` come from this
     # release's source. Imported lazily, so the offline install never needs it.
-    "pydantic-ai-slim[typesafe]==2.65.0",
+    "pydantic-ai-slim[typesafe]==2.66.0",
 ]
 # DMR-057: the family eval stack (llm-mailroom + llm-dojo-scoring) is
 # vendored under vendor/ and wired onto sys.path at import — the old
