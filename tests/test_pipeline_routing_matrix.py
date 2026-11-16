@@ -271,6 +271,7 @@ def test_reviewer_fields_resume_straight_to_the_report(graph, monkeypatch, tmp_p
     record(visited)
     assert visited[-4:] == ["human_review", "compile_report", "catalog_write", "archive"], visited
     assert outcome["stage"] == "archived"
+    assert outcome["extracted_data"]["record_type"] == FIXED["record_type"]  # the correction, not DATA
 
 
 def test_stateless_reviewer_fields_enter_at_the_report(graph, monkeypatch, tmp_path):
@@ -284,6 +285,7 @@ def test_stateless_reviewer_fields_enter_at_the_report(graph, monkeypatch, tmp_p
     outcome = graph.resume_from_review(manifest, review_file_path(manifest), resolution=dict(HUMAN_FIELDS))
     assert visited[0] == "compile_report", visited
     assert outcome["stage"] == "archived"
+    assert outcome["extracted_data"]["record_type"] == FIXED["record_type"]  # the correction, not DATA
     WALKED.add(("__start__", "compile_report"))
     record(visited)
 
