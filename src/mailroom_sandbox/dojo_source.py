@@ -26,6 +26,47 @@ DIST = "llm-dojo-scoring"
 PACKAGE = "llm_dojo_scoring"
 MODES = ("auto", "installed", "vendored")
 
+# Root names imported as ``from llm_dojo_scoring import X`` (or read as ``_dojo.X``) by the
+# sandbox and by the vendored llm-mailroom, which uses the same selected Dojo. A Dojo with a
+# lazy package root (PEP 562, ``_LAZY``; Dojo 0.30.0) imports the defining module only on first
+# access, so ``import llm_dojo_scoring`` alone cannot show that these resolve; ``_import_ok``
+# resolves each one so a release with a broken backing module, or without one of these names,
+# falls back (to the selected release cache, checked the same way, then to the vendored snapshot).
+# ``tests/test_dojo_source.py`` checks that this covers every root import under src/, scripts/,
+# deploy/, api-evals/, tests/ and vendor/llm-mailroom/src/.
+REQUIRED_ROOT_NAMES = (
+    "accuracy",
+    "aggregate_sandbox_scores",
+    "bootstrap_ci",
+    "classify_serving_kind",
+    "configure",
+    "configure_from_taxonomy",
+    "diagnostics",  # a lazy submodule alias (_SUBMODULES), resolved the same way
+    "embed_texts",
+    "emit_serving_scorecard",
+    "Emitter",
+    "EntityListScore",
+    "exact_match",
+    "ExtractionScoreResult",
+    "get_ambiguous_band",
+    "get_field_types",
+    "get_suite",
+    "headline_metrics",
+    "is_entity_list",
+    "load_registry",
+    "LocalManifestSink",
+    "normalize_text",
+    "score_category_presence",
+    "score_extraction",
+    "score_sandbox_cuad",
+    "score_sandbox_maud",
+    "score_serving_run",
+    "score_task",
+    "ScoreRecord",
+    "suite_for_doc_type",
+    "warm_embedding_model",
+)
+
 
 @dataclass(frozen=True)
 class DojoSource:
@@ -144,7 +185,13 @@ def _import_ok() -> str | None:
         sys.dont_write_bytecode = True  # source inspection must not mutate its cache
         if importlib.util.find_spec(PACKAGE) is None:
             return "not importable"
-        importlib.import_module(PACKAGE)
+        module = importlib.import_module(PACKAGE)
+        lazy = getattr(module, "_LAZY", None)
+        if isinstance(lazy, dict):
+            # Lazy root: import does not touch the backing modules, so resolve what we need now.
+            # A name the release no longer exports raises AttributeError here, which also falls back.
+            for name in REQUIRED_ROOT_NAMES:
+                getattr(module, name)
         return None
     except Exception as exc:  # noqa: BLE001 - any failure means fall back
         _purge()
