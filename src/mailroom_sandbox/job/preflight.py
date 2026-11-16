@@ -318,8 +318,8 @@ def _decisions_reviewer_errors(spec: RunSpec) -> list[str]:
             decision_questions(qset)
     except Exception as exc:  # noqa: BLE001 - every shape error is a preflight error
         errs.append(f"decision reviewer questions: {exc}")
-    if spec.job.mode == "modal":
-        errs.append("decision reviewer backend decisions is not supported for modal jobs (use job.mode endpoint)")
+    # Modal job mode is supported (#308): the question set travels in the lock, and the worker
+    # receives OPENROUTER_API_KEY through its deploy Secret.
     if not spec.job.mock and not os.environ.get("OPENROUTER_API_KEY", "").strip():
         errs.append("decision reviewer backend decisions needs OPENROUTER_API_KEY")
     if spec.reviewer.handoff_run:

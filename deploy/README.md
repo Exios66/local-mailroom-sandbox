@@ -402,6 +402,9 @@ vLLM **serve** app while showing spend and checkpoints — operator guide:
 
 Deploy-time env (export before `modal deploy`): `LANGFUSE_*`,
 `OTEL_EXPORTER_OTLP_ENDPOINT`, `VLLM_BASE_URL`, `VLLM_API_KEY`, `HF_TOKEN`,
+`OPENROUTER_API_KEY` (OpenRouter-engine jobs, OpenRouter judge routes and the
+Decisions reviewer or extraction gate; the worker drops it for runs that never
+call OpenRouter, #308),
 `SANDBOX_DEBUG` (DMR-056: it now travels through the deploy Secret — export
 it BEFORE `modal deploy` or the worker never sees it). See `docs/jobs.md`.
 
