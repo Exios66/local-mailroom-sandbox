@@ -264,6 +264,16 @@ locked prompts/models/knobs rather than later ambient generation settings.
    deterministic subsetting (sorted by filename/id, per-stratum sub-seed
    draws, union, re-sort, `limit`). `file://` paths short-circuit all Hub
    calls. Idempotent: same spec → byte-identical `dataset.jsonl`.
+   `pipeline` and `*_specialist` runs also get an advisory **context_plan**
+   (`report["context_plan"]`). It never fails preflight. It runs on the
+   taxonomy the run would activate (overlay plus run `agent_knobs`) and reports
+   three things. First, specialist chunk windows per extraction pass. Second, how
+   much of each class's longest document the judge and arbiter see: the vendored
+   `JUDGE_SOURCE_CHARS` / `SOURCE_CHARS`, which `agents.judge.max_input_chars`
+   does not change. Third, rows under 200 characters. Overlay specialist budgets
+   are sized for a 16k-token L4 window. On a long-context API engine, widen
+   `agent_knobs.<specialist>.max_input_chars` when it warns about fan-out. See
+   [the Qwen-25 failure-mode audit](audits/2026-11-15-pipeline-qwen-flash-25-failure-modes.md).
 3. **engine** — vLLM field/range guards (DMR-022 flags, v0.29.0 rules) +
    optional live `/v1/models` probe (`data[0].id == spec.model`) with `--live`.
    `run start --job-mode modal` probes the engine before firing (DMR-048).
