@@ -201,6 +201,7 @@ sandbox run resume     --config <run.yaml> --run-id <id> [--force]
 sandbox run cancel     --run-id <id>
 sandbox run list
 sandbox run routing    --run-id <id> [--quality-target 0.7]   # offline routing audit
+sandbox run gate       --run-id <id> [--prev-run-id <id>] [--bars <yaml>] [--thresholds] [--json]  # offline slice gate; writes gate.json/gate.md; exit 0 pass, 2 fail, 1 missing run
 
 sandbox prompts list                       # every pipeline agent prompt (local + Langfuse)
 sandbox prompts show <agent> [--variant X]
