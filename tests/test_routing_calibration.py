@@ -40,6 +40,16 @@ def test_confidence_block_validates_keys_ranges_and_order():
             _spec(confidence=bad)
 
 
+def test_judge_rejudge_retry_accepts_only_real_booleans():
+    # The vendored router reads the switch by truthiness: a quoted "false" would turn it on.
+    on = _spec(confidence={"by_class": {"corporate_record": {"judge_rejudge_retry": True}}})
+    assert on.confidence["by_class"]["corporate_record"]["judge_rejudge_retry"] is True
+    assert _spec(confidence={"judge_rejudge_retry": False}).confidence["judge_rejudge_retry"] is False
+    for bad in ("false", "true", 0, 1, None):
+        with pytest.raises(ValidationError, match="judge_rejudge_retry must be true or false"):
+            _spec(confidence={"by_class": {"corporate_record": {"judge_rejudge_retry": bad}}})
+
+
 def test_confidence_is_hashed_only_when_set():
     plain = _spec()
     assert "confidence" not in spec_core(plain, source_sha256="0" * 64)
@@ -88,6 +98,28 @@ def test_activation_applies_run_thresholds_over_vendor_and_overlay(monkeypatch):
     finally:
         runtime.activate("modal-vllm", load_env_file=False)
     assert get_confidence_thresholds("contract")["high"] == 0.98
+
+
+def test_activation_switches_retry_rejudge_per_class(monkeypatch):
+    pytest.importorskip("graph.routing")
+    from graph.routing import retry_rejudge_due
+
+    from mailroom_sandbox import runtime
+
+    # A confident retry whose first attempt was judged, with passes left (#241).
+    state = {"doc_type": "corporate_record", "doc_id": "d1", "extraction_confidence": 1.0,
+             "extraction_attempts": 2, "judge_pass_count": 1, "extracted_data": {"record_type": "bylaws"}}
+    monkeypatch.setenv("VLLM_BASE_URL", "https://example.invalid/v1")
+    monkeypatch.delenv("MAILROOM_JUDGE_VERIFY", raising=False)
+    assert retry_rejudge_due(state) is False  # vendored default is off
+    runtime.activate("modal-vllm", load_env_file=False,
+                     confidence={"by_class": {"corporate_record": {"judge_rejudge_retry": True}}})
+    try:
+        assert retry_rejudge_due(state) is True
+        assert retry_rejudge_due({**state, "doc_type": "contract"}) is False  # untouched class
+    finally:
+        runtime.activate("modal-vllm", load_env_file=False)
+    assert retry_rejudge_due(state) is False
 
 
 # --- post-run audit -------------------------------------------------------------------

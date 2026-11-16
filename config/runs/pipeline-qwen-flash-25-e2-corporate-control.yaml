@@ -52,7 +52,7 @@ agent_knobs:
 confidence:
   by_class:
     contract: {high: 0.95}
-    corporate_record: {high: 0.95}
+    corporate_record: {high: 0.95, judge_rejudge_retry: false}   # vendored default, explicit so a vendor flip cannot change the arm
     merger_agreement: {arbiter_retry_max: 1, judge_max_passes: 2}
 
 reviewer:
