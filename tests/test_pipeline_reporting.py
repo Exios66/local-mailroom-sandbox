@@ -145,8 +145,9 @@ def test_low_confidence_park_is_attributed(tmp_path, monkeypatch):
     finally:
         bg.reset_compiled_graph()
     # llm-mailroom 90e374b compares the sorter against its class low band again,
-    # so a low-confidence park names its cause.
-    assert result["review_causes"] == ["sorter_low_confidence"]
+    # so a low-confidence park names its cause; since #202 a park after the
+    # confidence retry budget also names retries_exhausted.
+    assert result["review_causes"] == ["sorter_low_confidence", "retries_exhausted"]
 
 
 def test_parked_document_reports_the_cause_the_manifest_holds(tmp_path, monkeypatch):
@@ -167,7 +168,7 @@ def test_parked_document_reports_the_cause_the_manifest_holds(tmp_path, monkeypa
     finally:
         bg.reset_compiled_graph()
     assert result["stage"] == "review"
-    assert result["review_causes"] == ["extraction_miss"]
+    assert result["review_causes"] == ["extraction_miss", "retries_exhausted"]
 
 
 def test_a_failed_document_counts_against_quality_and_pairing():

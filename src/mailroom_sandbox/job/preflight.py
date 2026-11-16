@@ -12,6 +12,8 @@ and CI-safe.
 from __future__ import annotations
 
 import ipaddress
+from copy import deepcopy
+import logging
 import os
 import time
 import uuid
@@ -38,6 +40,9 @@ from mailroom_sandbox.job.spec import (
 )
 from mailroom_sandbox.prompt_registry import prompt_lock_block
 from mailroom_sandbox.prompt_versions import PromptSelectionError, selection_from_lock
+
+
+_log = logging.getLogger(__name__)
 
 
 def _versions() -> dict[str, Any]:
@@ -337,6 +342,11 @@ def _engine_errors(spec: RunSpec) -> list[str]:
         unknown = (set(spec.agent_models) | set(spec.agent_knobs)) - known_agents()
         if unknown:
             errs.append(f"unknown or retired agents: {sorted(unknown)}")
+    if spec.confidence.get("by_class"):
+        from mailroom_sandbox.overlay import live_doc_classes
+        unknown = set(spec.confidence["by_class"]) - set(live_doc_classes())
+        if unknown:
+            errs.append(f"confidence.by_class: unknown or retired doc classes {sorted(unknown)}")
     if spec.agent_routes:
         from mailroom_sandbox.agent_routes import validate
         from mailroom_sandbox.services._exec import ServiceError
@@ -562,6 +572,44 @@ def record_cold_boot(store: RunStore, probe: Mapping[str, Any], *, run_id: str |
     store.write_cold_boot(measurement)
     store.append_event("cold_boot", "info", **measurement)
     return measurement
+
+
+def _extracts(spec: RunSpec) -> bool:
+    return spec.task in ("pipeline", "specialist") or spec.task.endswith("_specialist")
+
+
+def _run_knobs(spec: RunSpec, run_id: str | None) -> dict[str, Any]:
+    """The run ``agent_knobs`` snapshot: one resolution shared by the plan and the lock."""
+    from mailroom_sandbox.job.specialist_posture import agent_knobs_for_run
+    from mailroom_sandbox.runtime import resolve_agent_knobs
+
+    return resolve_agent_knobs(spec.agent_knobs or agent_knobs_for_run(run_id))
+
+
+def _record_context_plan(report: dict[str, Any], spec: RunSpec, store: RunStore, knobs: dict[str, Any]) -> None:
+    """Attach the informational context plan; it never fails preflight.
+
+    ``knobs`` is the exact snapshot the lock holds (or will be written with).
+    """
+    if not _extracts(spec):
+        return
+    from mailroom_sandbox.job.context_plan import plan_for_spec
+
+    try:
+        rows = store.dataset_rows()
+        if spec.target:  # plan only what the runner will execute
+            from mailroom_sandbox.eval.primary import rows_for_class
+
+            rows = rows_for_class(rows, spec.target)
+        cp = plan_for_spec(spec, rows, knobs=knobs)
+    except Exception as exc:  # noqa: BLE001 — advisory only
+        _log.debug("context plan skipped", exc_info=exc)
+        report["checks"].append({"name": "context_plan", "ok": True, "detail": f"skipped: {exc}"})
+        return
+    report["context_plan"] = cp
+    warnings = cp["warnings"]
+    detail = f"{len(warnings)} warning(s): " + " | ".join(warnings) if warnings else "budgets fit every document"
+    report["checks"].append({"name": "context_plan", "ok": True, "detail": detail})
 
 
 def _modal_check(spec: RunSpec) -> bool:
@@ -873,6 +921,8 @@ def _preflight(
                 report["checks"].append({"name": "generation", "ok": False, "detail": str(exc)})
                 return report
             report.update({"spec_hash": existing["spec_hash"], "lock_path": str(store.lock_path)})
+            frozen = (store.read_lock() or {}).get("agent_knobs") or {}
+            _record_context_plan(report, spec, store, frozen)  # same report shape as a fresh preparation
             return report
 
     # write_lock refuses to overwrite in place, so a forced re-lock archives
@@ -913,6 +963,10 @@ def _preflight(
             report["checks"].append({"name": "target", "ok": False, "detail": str(exc)})
             return report
         report["checks"].append({"name": "target", "ok": True, "detail": f"{spec.target}: {narrowed} row(s)"})
+
+    # One knob resolution, shared by the plan and the lock written below.
+    run_knobs = _run_knobs(spec, run_id)
+    _record_context_plan(report, spec, store, run_knobs)
 
     # 3) engine spec validators (pydantic ranges + repo guards)
     eng_errors = _engine_errors(spec)
@@ -1004,6 +1058,7 @@ def _preflight(
         **({"agent_routes": {name: route.model_dump() for name, route in spec.agent_routes.items()}} if spec.agent_routes else {}),
         **({"reviewer": _reviewer_lock(spec)} if spec.reviewer else {}),
         **({"extraction_gate": _extraction_gate_lock(spec)} if spec.extraction_gate else {}),
+        **({"confidence": spec.confidence} if spec.confidence else {}),
         "prompt": prompt_block,
         "engine": spec.engine.model_dump(),
         "job": spec.job.model_dump(),
@@ -1020,10 +1075,7 @@ def _preflight(
     # table, so editing a posture later silently rewrites what every historical card
     # claims the run was configured with — and the contracts whole-document change is
     # exactly such an edit.
-    from mailroom_sandbox.job.specialist_posture import agent_knobs_for_run
-    from mailroom_sandbox.runtime import resolve_agent_knobs
-
-    lock["agent_knobs"] = resolve_agent_knobs(spec.agent_knobs or agent_knobs_for_run(run_id))
+    lock["agent_knobs"] = deepcopy(run_knobs)
     # Freeze the resolved table for model-only runs too: otherwise runtime.activate()
     # rebuilds the remaining agents from the live profile/taxonomy, so a later
     # judge_model edit silently changes a resumed run without changing its lock.

@@ -121,6 +121,16 @@ reviewer:                   # optional decision reviewer (SAND-085); see docs/ex
   model: openai/gpt-6-luna  # pinned: jev-X.Y.Z, the in-house model, or an OpenRouter id
   classes: {contract: 0.90, correspondence: 0.90}   # class -> cutoff in [0, 1]
 
+confidence:                 # optional run-scoped routing thresholds, merged over the
+                            # vendored + overlay `confidence` block. Locked; hashed
+                            # only when set. Calibrate per model: self-reported
+                            # confidence scales differ by model. Evidence comes
+                            # from `sandbox run routing`.
+  arbiter_retry_max: 1      # global keys: high, low, judge_band_high (<= 1.01),
+  judge_max_passes: 2       #   retry_max, arbiter_retry_max, judge_max_passes
+  by_class:
+    contract: {high: 0.95}  # live doc classes only; unknown classes fail preflight
+
 trace:
   sink: langfuse            # langfuse | phoenix | otlp | none
   otlp: true
@@ -178,6 +188,7 @@ sandbox run status     --run-id <id> [--watch] [--json]
 sandbox run resume     --config <run.yaml> --run-id <id> [--force]
 sandbox run cancel     --run-id <id>
 sandbox run list
+sandbox run routing    --run-id <id> [--quality-target 0.7]   # offline routing audit
 
 sandbox prompts list                       # every pipeline agent prompt (local + Langfuse)
 sandbox prompts show <agent> [--variant X]
@@ -186,6 +197,23 @@ sandbox metrics compare --log
 ```
 
 Exit codes: `0` done · `1` failed · `2` paused · `3` drift/busy/foreign-store refusal.
+
+**Routing audit.** `sandbox run routing` reads a finished store and reports, per
+class:
+
+- how often each escalation fired: `retry_classify`, judge, arbiter, re-extraction, review;
+- **yield**: whether a retry ever changed the class answer or improved the judge verdict;
+- **discrimination**: the scored quality of judged vs unjudged and parked vs archived documents;
+- judge/arbiter input cost at the vendored 16k window and at full coverage.
+
+It lists findings, such as a judge that never passes, retries with no yield, a
+`high` above the sorter's confidence ceiling, or low-quality classes that skipped
+the judge. It also suggests a `judge_band_high` from the recorded
+`extraction_confidence` once five or more scored documents carry one. These are
+evidence, not settings. Apply them through the run's locked `confidence` block,
+then confirm with the next run's audit. Preflight's `context_plan` prices the
+longest document of each class three ways: a clean pass, one judged pass, and
+the worst-case loop the thresholds allow.
 
 A matching repeated preflight validates the committed dataset hash, prompt lock,
 checkpoint and spec identity and leaves all generation artifacts byte-identical,
@@ -264,6 +292,32 @@ locked prompts/models/knobs rather than later ambient generation settings.
    deterministic subsetting (sorted by filename/id, per-stratum sub-seed
    draws, union, re-sort, `limit`). `file://` paths short-circuit all Hub
    calls. Idempotent: same spec → byte-identical `dataset.jsonl`.
+   `pipeline`, `specialist` and `*_specialist` runs also get an advisory
+   **context_plan** (`report["context_plan"]`), including on a repeat preflight
+   of an existing generation. It never fails preflight. It runs on the taxonomy
+   the run would activate (overlay plus the same run `agent_knobs` snapshot the
+   lock freezes) over the rows the runner executes (`target` applied), and
+   reports three things. First, specialist chunk windows per extraction pass,
+   counted with the vendored paragraph-aware splitter; an isolated specialist
+   run chunks only when it has a `chunk_chars` knob, otherwise it is one
+   truncated pass. Second, for `pipeline` runs, how much of each class's longest
+   document the judge and the arbiter each see on their own windows: the
+   vendored `JUDGE_SOURCE_CHARS` / `SOURCE_CHARS`. Without context fit,
+   `agents.judge.max_input_chars` does not change them. On a context-fitted
+   route each agent's window becomes the larger of its own final budget (run
+   knobs included) and the vendored value: a run override can raise a window
+   but never lower it below the vendored 16k, and the judge and arbiter
+   budgets apply independently. Third, rows under
+   200 characters. Overlay specialist budgets
+   are sized for a 16k-token L4 window. **Context fit** (`context_fit` in
+   `config/taxonomy.overlay.yaml`) resizes specialists, `judge` and `arbiter`
+   on an `openrouter` route to the model's `context_length` from
+   `config/api_prices.yaml`. It also raises the chunk cap and the judge/arbiter
+   source windows, so a document is chunked only when it exceeds the model's
+   real window. Modal, vLLM, Ollama and LM Studio routes keep the 16k posture.
+   The plan reports what was fitted under `context_fit`, and run `agent_knobs`
+   still win. See
+   [the Qwen-25 failure-mode audit](audits/2026-11-15-pipeline-qwen-flash-25-failure-modes.md).
 3. **engine** — vLLM field/range guards (DMR-022 flags, v0.29.0 rules) +
    optional live `/v1/models` probe (`data[0].id == spec.model`) with `--live`.
    `run start --job-mode modal` probes the engine before firing (DMR-048).

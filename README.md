@@ -8,8 +8,8 @@
 <br/>
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](pyproject.toml)
-[![Pipeline](https://img.shields.io/badge/pipeline-llm--mailroom_0.9.1_%40_19203ea-2563EB?style=for-the-badge)](vendor/llm-mailroom/VENDOR.md)
-[![Scoring](https://img.shields.io/badge/scoring-llm--dojo--scoring_0.28.1_%40_00a2a7f-8B5CF6?style=for-the-badge)](vendor/llm-dojo-scoring/VENDOR.md)
+[![Pipeline](https://img.shields.io/badge/pipeline-llm--mailroom_0.9.3_%40_98c89b8-2563EB?style=for-the-badge)](vendor/llm-mailroom/VENDOR.md)
+[![Scoring](https://img.shields.io/badge/scoring-llm--dojo--scoring_0.30.0_%40_542a1c3-8B5CF6?style=for-the-badge)](vendor/llm-dojo-scoring/VENDOR.md)
 [![Tracing](https://img.shields.io/badge/tracing-Langfuse_v4-F5A623?style=for-the-badge)](docs/tracing.md)
 
 [![Hub](https://img.shields.io/badge/🏛️_hub-Digital--Mailroom-000?style=flat-square)](https://github.com/LLM-Mailroom-Services/Digital-Mailroom)
@@ -100,7 +100,7 @@ cp config/.env.example .env   # sandbox loads .env at startup; exported vars win
 # before tracked vendor files are replaced:
 # Stop every sandbox process using this checkout before refreshing vendor trees.
 # sandbox fetch-deps               # optional: refresh tracked snapshots (may require network)
-# sandbox deps fetch --component dojo --version v0.28.1  # optional verified release cache
+# sandbox deps fetch --component dojo --version v0.29.0  # optional verified release cache
 sandbox up -d                      # Langfuse (the Modal endpoint is deployed, not composed)
 sandbox runbook show serve         # DEFAULT: prewarm → deploy → point → verify → teardown
 sandbox health                     # probes the deployed modal-vllm endpoint
@@ -376,8 +376,8 @@ The exact snapshot commits are in
 
 | Vendored tree | Version | Source commit | What it includes |
 | --- | --- | --- | --- |
-| `vendor/llm-mailroom/` | 0.9.1 | `19203ea` (`main` after llm-mailroom #179) | v0.9.2 plus #173 (Dojo 0.28.0 pin), #177 (wheel imports, chunking), #178 (tokenless guard checks proto and host headers), #180 (pipeline handoff contracts, intake text cleaning), #181 (cascading CI tests) and #179 (the condensed sorter v5 as the production sorter, Dojo 0.28.1, a guard that refuses a managed sorter prompt missing the condensed rules) |
-| `vendor/llm-dojo-scoring/` | 0.28.1 | `00a2a7f` (tag `v0.28.1`) | v0.28.0 (mailroom-dataset v10 alignment: corporate schema v2, v10 row schemas) plus v0.28.1: the sorter guide files a bylaw amendment under `bylaws`, never `board_resolution` |
+| `vendor/llm-mailroom/` | 0.9.3 | `98c89b8` (`v0.30.0` branch after llm-mailroom #237; pre-release) | `main` `5bcfe44` plus #230/#237 (Dojo 0.30.0 re-pin, content-pinned frozen v1 prompts), #231 (grounded runs score dataset labels only, corporate `record_type` gold), #234 (unified audit storage) and #236 (audit workbench, fail-closed verification) |
+| `vendor/llm-dojo-scoring/` | 0.30.0 | `542a1c3` (`v0.30.0` branch after llm-dojo-scoring #158; untagged) | 0.30.0: production slim-down (analysis/export/grid/visualize, `dojo-*` CLIs, sync integrations and `rescore` removed), one document-class registry, decision-lane scorecards; score changes for merger MAUD, field-micro, money and insurance `carrier` |
 
 <!-- /coderabbit-ai-generated:v1 -->
 
@@ -534,8 +534,8 @@ The sandbox drives the vendored family code through these open-source projects.
 
 ### Reviewed dependency refreshes (DMR-111)
 
-The tracked snapshots contain pipeline 0.9.1 (`main` after llm-mailroom #179, `19203ea`) and
-Dojo 0.28.1 (`00a2a7f`), from the exact commits in their `VENDOR.md` files. `sandbox fetch-deps` remains optional: it
+The tracked snapshots contain pipeline 0.9.3 (the `v0.30.0` branch after llm-mailroom #237, `98c89b8`) and
+Dojo 0.30.0 (the `v0.30.0` branch after llm-dojo-scoring #158, `542a1c3`), from the exact commits in their `VENDOR.md` files. `sandbox fetch-deps` remains optional: it
 uses workspace packages when available and retrieves the reviewed immutable
 commit or frozen release tag in standalone checkouts. Ref movement, fetch,
 layout and copy failures leave the previous snapshot intact. If installation
