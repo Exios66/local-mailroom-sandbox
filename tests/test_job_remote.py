@@ -196,7 +196,8 @@ def test_modal_worker_drops_the_openrouter_key_for_a_run_without_openrouter(tmp_
     from mailroom_sandbox.job.deploy_env import lock_uses_openrouter
 
     monkeypatch.setenv("OPENROUTER_API_KEY", "deploy-secret-value")
-    store = prepared(tmp_path, source_root); remote.fire(store)
+    store = prepared(tmp_path, source_root)
+    remote.fire(store)
     assert not lock_uses_openrouter(store.read_lock())
     modal_fs.worker(modal_fs.spawned[-1])
     assert "OPENROUTER_API_KEY" not in os.environ
