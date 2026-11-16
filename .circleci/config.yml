@@ -30,13 +30,19 @@ commands:
   venv:
     description: Restore or build the dev virtualenv (cached on pyproject.toml).
     steps:
+      - run:
+          # The image tag floats; key the venv on the exact interpreter too, so a
+          # patch bump never restores a venv with stale interpreter links.
+          name: Record interpreter version for the venv cache key
+          command: python --version > .ci-python-version
       - restore_cache:
           keys:
-            - venv-v1-{{ arch }}-{{ checksum "pyproject.toml" }}
+            - venv-v1-{{ arch }}-{{ checksum ".ci-python-version" }}-{{ checksum "pyproject.toml" }}
       - run:
           name: Install dev surface into ~/venv (skipped on a cache hit)
           command: |
-            if [ ! -x ~/venv/bin/python ]; then
+            if ! ~/venv/bin/python -c "import mailroom_sandbox" 2>/dev/null; then
+              rm -rf ~/venv
               python -m venv ~/venv
               ~/venv/bin/pip install --quiet --upgrade pip
               ~/venv/bin/pip install --quiet -e ".[dev]"
@@ -46,7 +52,7 @@ commands:
             # reinstall; only dependency changes do, and they change the key.
             echo 'export PATH="$HOME/venv/bin:$PATH"' >> "$BASH_ENV"
       - save_cache:
-          key: venv-v1-{{ arch }}-{{ checksum "pyproject.toml" }}
+          key: venv-v1-{{ arch }}-{{ checksum ".ci-python-version" }}-{{ checksum "pyproject.toml" }}
           paths:
             - ~/venv
 
@@ -106,6 +112,8 @@ jobs:
             mkdir -p test-results coverage-data
             circleci tests glob "tests/test_*.py" \
               | circleci tests split --split-by=timings > /tmp/test-files.txt
+            # An empty share would make pytest fall back to the whole suite.
+            test -s /tmp/test-files.txt
             echo "Files on container ${CIRCLE_NODE_INDEX}: $(wc -l < /tmp/test-files.txt)"
             COVERAGE_FILE="coverage-data/.coverage.${CIRCLE_NODE_INDEX}" \
               pytest -q -n "${SANDBOX_XDIST:-2}" --dist loadfile -m "not local_llm" \
