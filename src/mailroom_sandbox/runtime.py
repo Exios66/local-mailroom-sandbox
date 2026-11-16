@@ -342,6 +342,7 @@ def activate(
     global _ACTIVE
     policy = _LOCKED_RUNTIME.get()
     gate_mock = False
+    frozen_confidence = None
     if policy is not None:
         lock = policy["lock"]
         profile_name = lock.get("profile") or default_profile()
@@ -354,7 +355,8 @@ def activate(
         # The block preflight froze (vendored + overlay + run), when present: an overlay edited
         # after preflight must not change a locked run's routing, and the routing audit reports
         # this same block. Older locks only carry the run's own overrides.
-        confidence = deepcopy(lock.get("effective_confidence") or lock.get("confidence"))
+        frozen_confidence = deepcopy(lock.get("effective_confidence"))
+        confidence = deepcopy(frozen_confidence or lock.get("confidence"))
         # A mock run patches the LLM clients, not the Decisions gate: it gets an offline stub.
         gate_mock = bool((lock.get("job") or {}).get("mock"))
         prompt_variant = None  # the locked TEXT, not today's local stem
@@ -412,6 +414,10 @@ def activate(
         # Run-scoped routing thresholds (locked); they win over vendored + overlay values.
         extra_overlay={"confidence": deepcopy(confidence)} if confidence else None,
     )
+    if frozen_confidence:
+        # Replace, not merge: a key a later overlay added (a class-level judge_rejudge_retry)
+        # must not reach a run whose frozen block never had it.
+        taxonomy["confidence"] = deepcopy(frozen_confidence)
     from mailroom_sandbox.agent_routes import install as install_agent_routes
 
     install_agent_routes(agent_routes or {}, taxonomy, agent_models=effective_agent_models)
