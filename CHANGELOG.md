@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- **`judge_rejudge_retry` run knob** (2026-11-16): a run spec's `confidence` block (global or
+  `by_class`) now accepts llm-mailroom #241's `judge_rejudge_retry`, so E2 can run its on and
+  off arms without editing the overlay. Only `true`/`false` are accepted: upstream reads the
+  key by truthiness, so a quoted `"false"` would have switched it on. The vendored default
+  stays `false`; the knob is part of the run's locked, hashed identity.
 - **Vendor refresh** (2026-11-16): llm-mailroom `98c89b8` → `abb1ccf` (`v0.30.0` branch after
   llm-mailroom #252, package 0.9.3) and llm-dojo-scoring `542a1c3` → `13adc8e` (`v0.30.0` branch
   after llm-dojo-scoring #163, package 0.30.0), the upstream fixes for tracking issue #300.
