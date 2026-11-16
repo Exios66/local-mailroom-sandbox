@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+- **Routing calibration** (2026-11-16). Escalations now have measurable value
+  and run-scoped, locked thresholds:
+  - Pipeline runs record each extraction pass's self-reported
+    `extraction_confidence`, which is what the judge gate routes on.
+  - `sandbox run routing --run-id <id>` audits a finished run offline: fire
+    rates, retry yield, judged vs unjudged quality, escalation input cost, and
+    threshold suggestions.
+  - Runs accept a `confidence` block (global and per-class thresholds and
+    retry budgets). It is validated, locked, hashed only when set, and applied
+    over the vendored and overlay values.
+  - Preflight's `context_plan` prices each class's clean, judged and worst-case
+    loop from API tiers. Token-billed routes only; Modal GPU-hour serving is
+    not priced per call.
+
 - **Context-fit budgets for long-context API routes** (2026-11-15). Specialists,
   `judge` and `arbiter` routed through OpenRouter now get an input budget sized
   to their model's `context_length` (`config/api_prices.yaml`) instead of the

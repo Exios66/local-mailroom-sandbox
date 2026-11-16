@@ -32,6 +32,8 @@ DEFAULT_MIN_CHARS = 200
 _DEFAULT_CHUNK_CHARS = 90_000
 _DEFAULT_OVERLAP_CHARS = 8_000
 _DEFAULT_BUDGET = 90_000
+_CHARS_PER_TOKEN = 2.4
+_PROMPT_OVERHEAD_TOKENS = 8000
 
 # Vendored constants the plan reads from source; importing the agents would pull
 # the pipeline's LLM client stack into an offline preflight.
@@ -131,8 +133,11 @@ def plan(
     min_chars: int = DEFAULT_MIN_CHARS,
     task: str = "pipeline",
     knobs: Mapping[str, Any] | None = None,
+    models: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Per-class chunk and source-coverage plan for ``rows`` under ``taxonomy``.
+    """Per-class chunk, source-coverage and input-cost plan for ``rows`` under ``taxonomy``.
+
+    ``models`` overrides an agent's taxonomy model for pricing (agent routes).
 
     ``task="pipeline"`` follows the graph: chunking per ``taxonomy["chunking"]``
     and judge/arbiter source windows. Any other task is an isolated specialist
@@ -183,6 +188,10 @@ def plan(
             entry.update(specialist=specialist, input_budget=budget, chunked=chunked,
                          chunk_chars=chunk_chars if chunked else None, max_chunks_per_pass=per_pass,
                          max_chunks_doc=fan_doc)
+            if pipeline:
+                entry["input_cost_usd"] = _cost_envelope(
+                    taxonomy, cls, specialist, longest, per_pass, window_plan(budget, chunking),
+                    windows.get("judge"), windows.get("arbiter"), models or {})
             if not chunked and longest > budget:
                 why = "chunking is disabled" if pipeline else "no chunk_chars knob (single pass)"
                 warnings.append(f"{cls}: {why} and {specialist} max_input_chars={budget} "
@@ -219,6 +228,61 @@ def plan(
     }
 
 
+# Providers billed per token; GPU-hour serving (Modal/vLLM) has no per-call price.
+_TOKEN_BILLED = {"openrouter", "api"}
+
+
+def _model(taxonomy: Mapping[str, Any], agent: str, models: Mapping[str, Any]) -> str | None:
+    """The token-priced model behind ``agent``; None for GPU-hour or local serving."""
+    cfg = (taxonomy.get("agents") or {}).get(agent) or {}
+    override = models.get(agent)
+    provider, model = cfg.get("provider"), cfg.get("model")
+    if isinstance(override, Mapping):
+        provider, model = override.get("provider") or provider, override.get("model") or model
+    elif override:
+        model = override
+    return str(model) if model and str(provider or "") in _TOKEN_BILLED else None
+
+
+def _calls_cost(model: str | None, calls: int, chars: int) -> float | None:
+    from mailroom_sandbox.job.metrics import call_cost
+
+    if calls <= 0:
+        return 0.0
+    tokens = chars / _CHARS_PER_TOKEN + _PROMPT_OVERHEAD_TOKENS
+    return call_cost(model, calls * tokens, 0, calls=calls)
+
+
+def _cost_envelope(taxonomy: Mapping[str, Any], cls: str, specialist: str, longest: int, per_pass: int,
+                   window: tuple[int, int], judge_w: int | None, arbiter_w: int | None,
+                   models: Mapping[str, Any]) -> dict[str, Any] | None:
+    """Input cost of the class's longest document: clean path vs the full escalation loop.
+
+    ``clean`` is one extraction pass with the judge skipped. ``judged`` adds one
+    passing judge call. ``worst`` is every pass the thresholds allow:
+    ``1 + arbiter_retry_max`` extractions, ``judge_max_passes`` judge calls and up
+    to ``arbiter_retry_max + 1`` arbiter calls. Prompt sizes use 2.4 chars/token
+    plus 8k tokens of prompt, so these are upper bounds. Tiered API prices apply
+    per call. None when an agent is not token-billed (Modal/vLLM GPU-hour serving)
+    or its model has no API price.
+    """
+    conf = taxonomy.get("confidence") or {}
+    th = {**{k: v for k, v in conf.items() if k != "by_class"}, **((conf.get("by_class") or {}).get(cls) or {})}
+    retries = int(th.get("arbiter_retry_max", 2))
+    judge_passes = int(th.get("judge_max_passes", 1 + retries))
+    chunk_chars, overlap = window
+    chunk_in = min(longest, chunk_chars + (overlap if per_pass > 1 else 0))
+    extract = _calls_cost(_model(taxonomy, specialist, models), per_pass, chunk_in)
+    judge = _calls_cost(_model(taxonomy, "judge", models), 1, min(longest, judge_w or longest))
+    arbiter = _calls_cost(_model(taxonomy, "arbiter", models), 1, min(longest, arbiter_w or longest))
+    if None in (extract, judge, arbiter):
+        return None
+    worst = (1 + retries) * extract + judge_passes * judge + min(judge_passes, retries + 1) * arbiter
+    return {"clean": round(extract, 5), "judged": round(extract + judge, 5), "worst": round(worst, 5),
+            "worst_calls": {"extract_passes": 1 + retries, "judge": judge_passes,
+                            "arbiter": min(judge_passes, retries + 1)}}
+
+
 def plan_for_spec(spec: Any, rows: Iterable[Mapping[str, Any]], **kwargs: Any) -> dict[str, Any]:
     """The plan under the taxonomy this run would activate (overlay + run ``agent_knobs``).
 
@@ -236,7 +300,14 @@ def plan_for_spec(spec: Any, rows: Iterable[Mapping[str, Any]], **kwargs: Any) -
         agent_models=spec.agent_models,
         agent_knobs=knobs,
         agent_routes=spec.agent_routes,
+        extra_overlay={"confidence": spec.confidence} if getattr(spec, "confidence", None) else None,
     )
+    if "models" not in kwargs:
+        models: dict[str, Any] = {name: {"provider": route.provider, "model": route.model}
+                                  for name, route in (spec.agent_routes or {}).items()}
+        for name, model in (spec.agent_models or {}).items():
+            models[name] = {**models.get(name, {}), "model": model}
+        kwargs["models"] = models
     if "windows" not in kwargs:
         kwargs["windows"] = effective_windows(taxonomy)
     kwargs.setdefault("task", "pipeline" if spec.task == "pipeline" else "specialist")

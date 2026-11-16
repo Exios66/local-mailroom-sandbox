@@ -98,11 +98,23 @@ def normalize_decision(raw: Any) -> dict[str, Any] | None:
     }
 
 
+def _extraction_confidence(node: str, out: dict[str, Any]) -> dict[str, Any] | None:
+    """The self-reported confidence the judge gate routes on (calibration evidence)."""
+    if node not in ("extract", "retry_extract") or _prob(out.get("extraction_confidence")) is None:
+        return None
+    return normalize_decision({"question": "extraction_confidence", "type": "score",
+                               "answer": None, "p": out["extraction_confidence"]})
+
+
 def decisions_for(node: str, out: dict[str, Any]) -> list[dict[str, Any]]:
     """Normalized decisions a node's state update records."""
     native = out.get("decisions")
     if isinstance(native, list):
-        return [d for d in (normalize_decision(r) for r in native[:MAX_DECISIONS]) if d]
+        found = [d for d in (normalize_decision(r) for r in native[:MAX_DECISIONS]) if d]
+        gate = _extraction_confidence(node, out)
+        if gate and not any(d["question"] == "extraction_confidence" for d in found):
+            found.append(gate)
+        return found
     raw: dict[str, Any] | None = None
     if node in ("classify", "retry_classify") and out.get("doc_type"):
         raw = {"question": "doc_type", "type": "choice", "answer": out["doc_type"],
@@ -115,6 +127,9 @@ def decisions_for(node: str, out: dict[str, Any]) -> list[dict[str, Any]]:
                "expected": out.get("judge_score")}
     elif node == "arbiter" and out.get("arbiter_decision"):
         raw = {"question": "arbiter_route", "type": "choice", "answer": out["arbiter_decision"]}
+    elif node in ("extract", "retry_extract"):
+        gate = _extraction_confidence(node, out)
+        return [gate] if gate else []
     elif node == "boss_escalation" and out.get("review_decision"):
         raw = {"question": "conflict_ruling", "type": "choice", "answer": out["review_decision"]}
     decision = normalize_decision(raw)

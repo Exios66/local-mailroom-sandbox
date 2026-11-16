@@ -300,6 +300,7 @@ def activate(
     agent_routes: dict | None = None,
     reviewer: Any = None,
     extraction_gate: Any = None,
+    confidence: dict | None = None,
 ) -> Activation:
     """Load overlay, write runtime taxonomy, patch mailroom, set env.
 
@@ -341,6 +342,7 @@ def activate(
         agent_routes = deepcopy(lock.get("agent_routes") or {})
         reviewer = deepcopy(lock.get("reviewer"))
         extraction_gate = deepcopy(lock.get("extraction_gate"))
+        confidence = deepcopy(lock.get("confidence"))
         # A mock run patches the LLM clients, not the Decisions gate: it gets an offline stub.
         gate_mock = bool((lock.get("job") or {}).get("mock"))
         prompt_variant = None  # the locked TEXT, not today's local stem
@@ -395,6 +397,8 @@ def activate(
         agent_models=effective_agent_models,
         agent_knobs=agent_knobs,
         agent_routes=agent_routes,
+        # Run-scoped routing thresholds (locked); they win over vendored + overlay values.
+        extra_overlay={"confidence": deepcopy(confidence)} if confidence else None,
     )
     from mailroom_sandbox.agent_routes import install as install_agent_routes
 
