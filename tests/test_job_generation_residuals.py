@@ -384,3 +384,12 @@ def test_whole_run_global_record_is_stamped_before_append(tmp_path, source_root,
     assert global_record["run_state"] == "done"
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     assert run_task(path, prices=(1.0, 2.0))["record"] == global_record
+
+
+def test_preflight_freezes_the_effective_confidence_block(tmp_path, source_root, monkeypatch, sdk):
+    """The routing audit reads the thresholds a run used, not today's taxonomy (#303 review)."""
+    spec, _, store, _ = spec_file(tmp_path, source_root)
+    monkeypatch.delenv("SANDBOX_AGENT_KNOBS", raising=False)
+    assert preflight.preflight(spec, offline=True)["status"] == "prepared"
+    frozen = store.read_lock()["effective_confidence"]
+    assert isinstance(frozen, dict) and "high" in frozen
