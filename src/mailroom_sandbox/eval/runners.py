@@ -1044,13 +1044,17 @@ def run_pipeline_eval(
         if api_budget is not None:
             api_budget.check("pipeline API spend cap reached before next document: ", in_flight=in_flight)
 
-    def _process(row: dict[str, Any]) -> tuple[dict[str, Any], dict[str, int], float]:
-        """Run one document: (result, its token usage, latency ms). Safe on a worker thread.
+    def _process(row: dict[str, Any]) -> tuple[dict[str, Any], dict[str, int], float, tuple[int, int]]:
+        """Run one document: (result, token usage, latency ms, (start, end) epoch ns). Safe on a worker thread.
+
+        The epoch window is taken around the document's own execution, so a span built from it
+        does not include the wait before the main thread scores and reports the document.
 
         Usage is per thread (``pipeline.limits`` keeps a ContextVar that ``reset_usage`` replaces)
         and node tracking is per thread (a ContextVar tracker), so documents never share either.
         """
         before = time.monotonic()
+        started_ns = time.time_ns()
         with ExitStack() as nodes:
             if node_cb is not None:
                 # SAND-076: report each graph node as it starts and ends.
@@ -1078,7 +1082,8 @@ def run_pipeline_eval(
                     except (AttributeError, TypeError):
                         pass
                 raise
-        return result, usage_capture.usage_from_pipeline(), (time.monotonic() - before) * 1000
+        latency_ms = (time.monotonic() - before) * 1000
+        return result, usage_capture.usage_from_pipeline(), latency_ms, (started_ns, time.time_ns())
 
     def _count_failed(exc: BaseException) -> None:
         """Count a failed document's billed calls against the API budget (main thread)."""
@@ -1089,7 +1094,8 @@ def run_pipeline_eval(
     by_index: dict[int, dict[str, Any]] = {}
     scored_by_index: dict[int, dict[str, Any] | None] = {}
 
-    def _record(index: int, result: dict[str, Any], doc_usage: dict[str, int], latency_ms: float) -> None:
+    def _record(index: int, result: dict[str, Any], doc_usage: dict[str, int], latency_ms: float,
+                window: tuple[int, int] | None = None) -> None:
         """Account, score and report one finished document (main thread only)."""
         row = rows[index]
         if api_budget is not None:
@@ -1110,8 +1116,9 @@ def run_pipeline_eval(
                           if isinstance(v, (int, float)) and not isinstance(v, bool)})
             # Keep the parse facts: whole-run jobs fail when every answer is unparseable.
             score.update({k: scored[k] for k in ("parse_error", "schema_valid") if k in (scored or {})})
+            timing = {"started_at_ns": window[0], "finished_at_ns": window[1]} if window else {}
             row_cb({"id": row.get("id"), "pred": result, "error": result.get("error"), "score": score,
-                    "latency_ms": latency_ms, **doc_usage})
+                    "latency_ms": latency_ms, **timing, **doc_usage})
         if progress_cb:
             errors = sum(bool(item.get("error")) for item in by_index.values())
             progress_cb(len(by_index), len(rows), len(by_index) - errors, errors)

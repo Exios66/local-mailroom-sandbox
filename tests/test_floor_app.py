@@ -742,7 +742,15 @@ def test_template_keeps_the_graph_visible_in_a_narrow_window():
     fit = html[html.index("const fitGraph="):]
     fit = fit[:fit.index("};") + 2]
     assert "!vp.clientWidth||!vp.clientHeight" in fit, "a zero-size viewport must not set zoom 0"
-    assert "ResizeObserver" in html and "fitGraph()" in html[html.index("ResizeObserver"):]
+    observer = html[html.index("new ResizeObserver"):]
+    observer = observer[:observer.index(".observe(vp)")]
+    # A resize refits until the user zooms or pans (then their view is kept); a fit clears that flag.
+    assert "!fitOk||!userView" in observer and "fitGraph()" in observer
+    assert "userView=false" in fit
+    zoom_fn = html[html.index("function zoom("):]
+    assert "userView=true" in zoom_fn[:zoom_fn.index("}") + 1]
+    pan = html[html.index('addEventListener("mousemove"'):]
+    assert "userView=true" in pan[:pan.index("});")]
     assert html.count('getElementById("zfit").onclick=') == 1, "one fit handler, the guarded one"
 
 
