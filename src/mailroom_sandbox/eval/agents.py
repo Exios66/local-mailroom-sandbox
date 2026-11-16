@@ -220,7 +220,30 @@ def chunk_window(max_input_chars: int, chunk_chars: int, overlap_chars: int) -> 
     return min(int(chunk_chars), max(1_000, budget - overlap)), overlap
 
 
+def pipeline_specialist_state(agent: str) -> dict[str, Any]:
+    """The graph state the extract node builds its handoff from, for an isolated specialist.
+
+    Only the agent's document class: the specialist harness claims no sorter subclass, no
+    confidence and no document id (so no relations block), as the condensed lineage requires.
+    """
+    return {"doc_type": SPECIALIST_CLASS[agent]}
+
+
 def _live_specialist(agent: str, row: dict[str, Any]) -> dict[str, Any]:
+    from mailroom_sandbox.runtime import pipeline_handoff_active
+
+    if not pipeline_handoff_active():
+        return _extract_live(agent, row, None)
+    # job.pipeline_handoff: the vendored extract node's own handoff and post-extraction
+    # normalization (graph.build_graph), so the A/B sees the doc_inventories note the
+    # pipeline's specialist sees, not just the system prompt.
+    from graph.build_graph import _build_handoff_context, _enrich_contract_result  # type: ignore
+
+    state = pipeline_specialist_state(agent)
+    return _enrich_contract_result(_extract_live(agent, row, _build_handoff_context(state)), state)
+
+
+def _extract_live(agent: str, row: dict[str, Any], handoff_context: str | None) -> dict[str, Any]:
     module_name, cls_name = LIVE_CLASS_MAP[agent]
     import importlib
 
@@ -236,7 +259,10 @@ def _live_specialist(agent: str, row: dict[str, Any]) -> dict[str, Any]:
     if knobs.get("chunk_chars") and hasattr(specialist, "extract_chunked"):
         budget = int(knobs.get("max_input_chars") or getattr(specialist, "_max_input_chars", 90_000))
         window, overlap = chunk_window(budget, int(knobs["chunk_chars"]), int(knobs.get("overlap_chars") or 8_000))
-        return specialist.extract_chunked(_doc_text(row), chunk_chars=window, overlap_chars=overlap)
+        return specialist.extract_chunked(_doc_text(row), chunk_chars=window, overlap_chars=overlap,
+                                          **({"handoff_context": handoff_context} if handoff_context else {}))
+    if handoff_context:
+        return specialist.extract(_doc_text(row), handoff_context=handoff_context)
     return specialist.extract(_doc_text(row))
 
 

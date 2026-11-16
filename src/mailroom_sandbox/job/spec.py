@@ -580,6 +580,13 @@ def known_tasks() -> tuple[str, ...]:
     return base + agents
 
 
+#: Tasks that run one isolated specialist (``job.pipeline_handoff`` applies only to these):
+#: the level-1/2 ``specialist`` task and each agent's own task (eval.agents.SPECIALIST_CLASS).
+SPECIALIST_TASKS = frozenset({"specialist", "contracts_specialist", "merger_agreement_specialist",
+                              "corporate_records_specialist", "correspondence_specialist",
+                              "insurance_claims_specialist"})
+
+
 def _check_task(value: str) -> str:
     tasks = known_tasks()
     if value not in tasks:
@@ -615,6 +622,10 @@ class JobSpec(BaseModel):
     # state, so routing cannot read them (llm-mailroom #207: the class-miss gate and the
     # coverage-floor retry are oracles). Scoring still uses the full locked row.
     blind_routing: bool = False
+    # Specialist runs: send each document the extract node's handoff (the sorter-class line and
+    # the vendored doc_inventories note, no subclass) and apply the node's post-extraction
+    # inventory normalization, so an isolated A/B sees what the pipeline's specialist sees.
+    pipeline_handoff: bool = False
 
     @field_validator("task")
     @classmethod
@@ -881,6 +892,13 @@ class RunSpec(BaseModel):
         return self
 
     @model_validator(mode="after")
+    def _handoff_in_specialist(self) -> "RunSpec":
+        if self.job.pipeline_handoff and self.task not in SPECIALIST_TASKS:
+            raise ValueError(f"job.pipeline_handoff reproduces the extract node's handoff for an isolated specialist; "
+                             f"task {self.task!r} is not a specialist run")
+        return self
+
+    @model_validator(mode="after")
     def _reviewer_classes(self) -> "RunSpec":
         if self.reviewer is not None and not self.reviewer.classes and self.task not in ("sorter_reviewer", "extraction_gate"):
             raise ValueError("reviewer classes must map at least one class to a cutoff "
@@ -1000,10 +1018,11 @@ def spec_core(spec: RunSpec, *, source_sha256: str | None = None,
             "vllm": _vllm_core(spec.engine.vllm),
             "modal": _modal_core(spec.engine.modal),
         },
-        # api_cost_cap_usd and blind_routing are hashed only when set, so older YAMLs keep their hash.
+        # api_cost_cap_usd, blind_routing and pipeline_handoff are hashed only when set, so older
+        # YAMLs keep their hash.
         "job": {key: value for key, value in spec.job.model_dump().items()
                 if not (key == "api_cost_cap_usd" and value is None)
-                and not (key == "blind_routing" and value is False)},
+                and not (key in ("blind_routing", "pipeline_handoff") and value is False)},
         "trace": spec.trace.model_dump(),
         "prompt": prompt_resolution_map(spec),
         "dataset": spec.dataset.request_core(source_sha256=source_sha256,

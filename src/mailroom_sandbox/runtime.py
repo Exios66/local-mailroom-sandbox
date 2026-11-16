@@ -43,6 +43,7 @@ class Activation:
 _ACTIVE: Activation | None = None
 _ACTIVE_REVIEWER: dict[str, Any] | None = None
 _ACTIVE_BLIND_ROUTING = False
+_ACTIVE_PIPELINE_HANDOFF = False
 _LOCKED_RUNTIME: ContextVar[dict[str, Any] | None] = ContextVar("sandbox_locked_runtime", default=None)
 
 
@@ -84,6 +85,11 @@ def blind_routing_active() -> bool:
     Such a run keeps the dataset labels out of the graph's ``ground_truth`` state.
     """
     return _ACTIVE_BLIND_ROUTING
+
+
+def pipeline_handoff_active() -> bool:
+    """True when the last activation came from a locked specialist run with ``job.pipeline_handoff``."""
+    return _ACTIVE_PIPELINE_HANDOFF
 
 
 def agent_knobs_for(agent: str) -> dict[str, Any]:
@@ -503,9 +509,11 @@ def activate(
         agent_models=dict(agent_models or {}),
         agent_knobs=dict(agent_knobs or {}),
     )
-    global _ACTIVE_BLIND_ROUTING
+    global _ACTIVE_BLIND_ROUTING, _ACTIVE_PIPELINE_HANDOFF
     # Process-wide like the reviewer: agent-task workers do not inherit the lock's ContextVar.
-    _ACTIVE_BLIND_ROUTING = bool(((policy or {}).get("lock") or {}).get("job", {}).get("blind_routing"))
+    locked_job = ((policy or {}).get("lock") or {}).get("job", {})
+    _ACTIVE_BLIND_ROUTING = bool(locked_job.get("blind_routing"))
+    _ACTIVE_PIPELINE_HANDOFF = bool(locked_job.get("pipeline_handoff"))
     _ACTIVE = activation
     runtime_dir()  # ensure exists
     return activation
