@@ -54,3 +54,4 @@ Do not edit rows by hand. Parse with `mailroom_sandbox.job.ledger.rows()`.
 | 2026-11-16T06:49:46Z | JJB | start | pipeline-qwen-flash-25-e2-corporate-judge | config/runs/pipeline-qwen-flash-25-e2-corporate-judge.yaml | dee6a8dea965 | 18 | 0.4 |   |
 | 2026-11-16T06:50:01Z | JJB | start | pipeline-qwen-flash-25-e2-corporate-rejudge | config/runs/pipeline-qwen-flash-25-e2-corporate-rejudge.yaml | 66add8583f25 | 18 | 0.4 | ✓ |
 | 2026-11-16T06:52:31Z | JJB | start | pipeline-qwen-flash-25-e2-corporate-rejudge | config/runs/pipeline-qwen-flash-25-e2-corporate-rejudge.yaml | 66add8583f25 | 18 | 0.4 |   |
+| 2026-11-16T06:53:48Z | JJB | start | pipeline-qwen-flash-25-e3-mix-control | config/runs/pipeline-qwen-flash-25-e3-mix-control.yaml | 55b260a68d0d | 45 | 1.75 | ✓ |

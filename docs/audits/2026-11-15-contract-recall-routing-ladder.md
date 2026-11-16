@@ -144,7 +144,7 @@ sandbox run start --config config/runs/pipeline-qwen-flash-25-fit-r3.yaml --init
 | r3 (blind routing, interim labels, condensed prompts) | pipeline-qwen-flash-25-fit-r3 | 0.771 | 0.654 (0.939 without templated) | 0.101 | 0.857 | 0.132 | 3.14M | — |
 | E2 control / treatment | pipeline-qwen-flash-25-e2-corporate-control / -judge | n/a | 0.593 / 0.579 (0.862 / 0.807 without templated) | n/a | n/a | n/a | 0.70M / 1.38M | — |
 | E2r rejudge | pipeline-qwen-flash-25-e2-corporate-rejudge | n/a | 0.584 (0.807 without templated) | n/a | n/a | n/a | 0.70M | — |
-| E3 control / treatment | — | | | | | | | |
+| E3 control (treatment not run) | pipeline-qwen-flash-25-e3-mix-control | 0.768 | 0.555 (0.939 without templated) | 0.106 | 0.892 | 0.338 (0.410 without templated) | 45 docs, about 4.6M | — |
 
 ### E1 result (2026-11-16): recall up, precision down; not adopted as is
 
@@ -232,4 +232,29 @@ on the lane without the templated `keywords` / `subject_matter`:
   are the next place to test it.
 - **E3:** under the ladder rule, both the E1 treatment (contract chunking) and the E2 treatment
   (judge every corporate extraction) drop out of E3.
+
+### E3 result (2026-11-16): control arm only, a held-out check of the r3 settings
+
+The E3 treatment did not run: under the ladder rule, the E1 and E2 treatments both drop out.
+The control arm uses the r3 settings on 45 held-out documents, 10 per class plus 5 mergers. It
+is not paired with r3 (different documents), so read it as a held-out estimate:
+
+| Class | r3 (n = 5) | E3 control (n = 10) | Review | Judge calls / retries | Tokens per doc |
+|---|---|---|---|---|---|
+| contract | 0.771 | 0.768 | 1 | 11 / 7 | 89k |
+| corporate (without templated) | 0.939 | 0.939 | 0 | 0 / 1 | 31k |
+| correspondence (all / without templated) | 0.132 / 0.200 | 0.338 / 0.410 | 1 | 4 / 2 | 12k |
+| insurance | 0.857 | 0.892 | 0 | 1 / 1 | 13k |
+| merger (MAUD) | 0.101 | 0.106 | 0 | 3 / 3 | 410k |
+
+- **The r3 correspondence drop does not hold.** At n = 10 correspondence scores 0.34, above r2's
+  0.24, so the condensed v2 prompt stays. Contract, corporate and insurance hold or improve, and
+  no document was misclassified under blind routing.
+- **Mergers are the weak, costly class:** MAUD 0.10, at about 410k tokens per document, most of
+  the run's tokens.
+- **Two failures repeat in both r3 and E3:**
+  - a contract's second judge pass (after a retry) raises a `TypeError`, recorded as
+    `judge_error`, and the document parks;
+  - the decision reviewer returns `unknown` for one correspondence email, which parks it as an
+    ineligible label.
 
