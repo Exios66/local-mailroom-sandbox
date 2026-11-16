@@ -736,3 +736,20 @@ def test_preflight_refuses_langfuse_sink_without_the_sdk(tmp_path, job_data_dir,
     assert report["status"] == "failed"
     check = next(c for c in report["checks"] if c["name"] == "trace_sink")
     assert check["ok"] is False and "observability" in check["detail"]
+
+
+def test_existing_lock_still_runs_engine_checks(tmp_path, job_data_dir, monkeypatch):
+    """A locked run re-checks the engine (credentials) before reuse.
+
+    ``run start`` re-runs preflight against the existing lock. Before this check,
+    a lock prepared in a shell that had OPENROUTER_API_KEY reported ``prepared``
+    in a shell without it, and every document then failed classification with
+    a ValueError while the run still finished as ``done``.
+    """
+    spec = _run_spec(tmp_path)
+    assert preflight.preflight(spec, offline=True, live=False)["status"] == "prepared"
+    monkeypatch.setattr(preflight, "_engine_errors", lambda _spec: ["judge: set OPENROUTER_API_KEY"])
+    report = preflight.preflight(spec, offline=True, live=False)
+    assert report["status"] == "failed"
+    check = next(c for c in report["checks"] if c["name"] == "engine_spec")
+    assert check["ok"] is False and "OPENROUTER_API_KEY" in check["detail"]
