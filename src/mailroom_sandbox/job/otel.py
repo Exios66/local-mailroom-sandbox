@@ -288,13 +288,14 @@ def record_span(
     start_ns: int,
     end_ns: int,
     attrs: dict[str, Any] | None = None,
+    error: str | None = None,
 ) -> Any:
     """Emit an already-finished span with explicit times; return a Context for its children.
 
     Whole-run tasks learn a document's timing only after it finishes, so their
     ``job.item`` / ``job.node`` spans are recorded after the fact. ``None`` without
     a tracer (network-free no-op). Attributes keep their scalar type; others are
-    stringified, and ``None`` values are dropped.
+    stringified, and ``None`` values are dropped. ``error`` marks the span ERROR.
     """
     if tracer is None:
         return None
@@ -310,6 +311,10 @@ def record_span(
             span.set_attribute(key, value if isinstance(value, (bool, int, float, str)) else str(value))
         except Exception as exc:  # an unusable attribute must not drop the span
             _log.debug("span %s: attribute %s not recorded: %s", name, key, exc)
+    if error:
+        from opentelemetry.trace import Status, StatusCode
+
+        span.set_status(Status(StatusCode.ERROR, str(error)[:512]))
     span.end(end_time=max(int(end_ns), int(start_ns)))
     return oteltrace.set_span_in_context(span, parent)
 

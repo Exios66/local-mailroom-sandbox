@@ -388,6 +388,8 @@ def _run_whole_run(
         else:
             raise ValueError(f"task {task!r} is not runnable")
     except Exception as exc:  # noqa: BLE001
+        # Documents that raised have no item row, so record their spans here.
+        spans.flush_unfinished(f"{type(exc).__name__}: {str(exc)[:512]}")
         store.write_checkpoint(
             state="failed",
             cursor=0,
@@ -615,8 +617,9 @@ class _WholeRunSpans:
     """After-the-fact ``job.item`` / ``job.node`` spans for whole-run tasks.
 
     ``node`` may be called from pipeline worker threads; ``item`` runs on the
-    main thread once a document is persisted. Finished nodes are buffered per
-    document and emitted as children of that document's item span.
+    main thread once a document is persisted. Finished and failed nodes are
+    buffered per document and emitted as children of that document's item span.
+    ``flush_unfinished`` closes documents that raised (they have no item row).
     """
 
     def __init__(self, tracer: Any, parent: Any, *, task: str) -> None:
@@ -627,7 +630,7 @@ class _WholeRunSpans:
         self._nodes: dict[str, list[dict[str, Any]]] = {}
 
     def node(self, record: dict[str, Any]) -> None:
-        if self.tracer is None or record.get("status") != "done":
+        if self.tracer is None or record.get("status") not in {"done", "error"}:
             return
         with self._lock:
             self._nodes.setdefault(str(record.get("doc")), []).append(record)
@@ -640,13 +643,27 @@ class _WholeRunSpans:
         except Exception as exc:  # noqa: BLE001 — tracing never fails a paid run
             _log.warning("whole-run span emit failed for %s: %s", entry.get("id"), exc)
 
-    def _emit(self, entry: dict[str, Any]) -> None:
+    def flush_unfinished(self, error: str) -> None:
+        """Emit a failed job.item for every document that reported nodes but never finished."""
+        if self.tracer is None:
+            return
+        with self._lock:
+            pending = list(self._nodes)
+        for doc in pending:
+            try:
+                self._emit({"id": doc, "error": error}, finished=False)
+            except Exception as exc:  # noqa: BLE001 — tracing never fails a paid run
+                _log.warning("whole-run span emit failed for %s: %s", doc, exc)
+
+    def _emit(self, entry: dict[str, Any], *, finished: bool = True) -> None:
         item_id = str(entry.get("id"))
-        end_ns = time.time_ns()
         latency_ms = float(entry.get("latency_ms") or 0.0)
         with self._lock:
             nodes = self._nodes.pop(item_id, [])
-        starts = [int((float(n["ts"]) - float(n.get("ms") or 0) / 1000.0) * 1e9) for n in nodes if n.get("ts")]
+        timed = [n for n in nodes if n.get("ts")]
+        starts = [int((float(n["ts"]) - float(n.get("ms") or 0) / 1000.0) * 1e9) for n in timed]
+        # A finished document ends now; one that raised ends at its last reported node.
+        end_ns = time.time_ns() if finished or not timed else max(int(float(n["ts"]) * 1e9) for n in timed)
         start_ns = end_ns - int(latency_ms * 1e6)
         if starts:
             start_ns = min(start_ns, *starts)
@@ -671,13 +688,16 @@ class _WholeRunSpans:
             if isinstance(score.get(key), (int, float)) and not isinstance(score.get(key), bool):
                 attrs[f"score.{key}"] = score[key]
         ctx = record_span(self.tracer, "job.item", parent=self.parent, start_ns=start_ns, end_ns=end_ns,
-                          attrs=attrs)
+                          attrs=attrs, error=attrs["job.error"] if not attrs["job.ok"] else None)
         for n in nodes:
             n_end = int(float(n["ts"]) * 1e9)
             n_start = n_end - int(float(n.get("ms") or 0) * 1e6)
-            record_span(self.tracer, "job.node", parent=ctx, start_ns=n_start, end_ns=n_end, attrs={
+            failed = n.get("status") == "error"
+            record_span(self.tracer, "job.node", parent=ctx, start_ns=n_start, end_ns=n_end,
+                        error=f"node {n.get('node')} failed" if failed else None, attrs={
                 "item_id": item_id,
                 "node": n.get("node"),
+                "node.status": n.get("status"),
                 "agent": n.get("agent"),
                 "model": n.get("model"),
                 "stage": n.get("stage"),
