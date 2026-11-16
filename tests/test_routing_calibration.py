@@ -182,3 +182,16 @@ def test_unpriced_models_have_no_cost_envelope():
            "agents": {"contracts_specialist": agent, "judge": agent, "arbiter": agent}}
     rows = [{"id": "c", "expected_doc_class": "contract", "doc_text": "x" * 10_000}]
     assert plan(tax, rows, windows={"judge": 16000, "arbiter": 16000})["classes"]["contract"]["input_cost_usd"] is None
+
+
+# --- run isolation ------------------------------------------------------------------
+
+
+def test_matter_ids_are_scoped_to_the_run():
+    """A rerun must not see the previous run's archive as the same matter (Boss conflict)."""
+    from mailroom_sandbox.eval.runners import sandbox_matter_id
+
+    row = {"id": "DOC-a52b3ad21666d339"}
+    first, rerun = sandbox_matter_id(row, "pipeline-qwen-flash-25"), sandbox_matter_id(row, "pipeline-qwen-flash-25-fit")
+    assert first != rerun and first.endswith(row["id"]) and rerun.startswith("SANDBOX-pipeline-qwen-flash-25-fit-")
+    assert sandbox_matter_id(row, None) == "SANDBOX-adhoc-DOC-a52b3ad21666d339"
