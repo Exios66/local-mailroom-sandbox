@@ -102,6 +102,39 @@ def test_whole_run_pipeline_mirrors_item_and_node_spans(tmp_path):
     assert {s["trace_id"] for s in spans} == {root["trace_id"]}
 
 
+def _span_recorder(tmp_path):
+    mirror = tmp_path / "traces" / "r-spans.spans.jsonl.gz"
+    tracer = otel.configure_tracing(otel.resolve_sink(sink="none", run_id="r-spans"), local_path=mirror)
+    return tracer, mirror, runner._WholeRunSpans(tracer, None, task="pipeline")
+
+
+def test_whole_run_spans_keep_failed_nodes_as_error_spans(tmp_path):
+    tracer, mirror, spans = _span_recorder(tmp_path)
+    spans.node({"doc": "d1", "node": "intake", "status": "done", "ts": 100.0, "ms": 50})
+    spans.node({"doc": "d1", "node": "extract", "status": "error", "ts": 101.0, "ms": 200})
+    spans.node({"doc": "d1", "node": "extract", "status": "running", "ts": 100.8})
+    spans.item({"id": "d1", "latency_ms": 1500, "pred": {"stage": "failed"}, "error": "pipeline failed"})
+    otel.flush_tracer(tracer)
+    nodes = {s["attributes"]["node"]: s for s in trace_pack.read_spans(mirror) if s["name"] == "job.node"}
+    assert set(nodes) == {"intake", "extract"}
+    assert nodes["extract"]["status_code"] == "ERROR" and nodes["intake"]["status_code"] != "ERROR"
+
+
+def test_whole_run_spans_flush_documents_that_raised(tmp_path):
+    """A document that raised has no item row; its buffered nodes still become a failed job.item."""
+    tracer, mirror, spans = _span_recorder(tmp_path)
+    spans.node({"doc": "d2", "node": "intake", "status": "done", "ts": 200.0, "ms": 40})
+    spans.node({"doc": "d2", "node": "classify", "status": "error", "ts": 201.0, "ms": 900})
+    spans.flush_unfinished("RuntimeError: boom")
+    otel.flush_tracer(tracer)
+    got = trace_pack.read_spans(mirror)
+    item = next(s for s in got if s["name"] == "job.item")
+    assert item["attributes"]["item_id"] == "d2" and item["attributes"]["job.ok"] is False
+    assert item["attributes"]["job.error"] == "RuntimeError: boom" and item["status_code"] == "ERROR"
+    assert item["end_time_unix_nano"] == int(201.0 * 1e9)
+    assert len([s for s in got if s["name"] == "job.node"]) == 2
+
+
 def test_endpoint_tracer_mirrors_even_with_sink_none(tmp_path):
     from mailroom_sandbox import cli
 
