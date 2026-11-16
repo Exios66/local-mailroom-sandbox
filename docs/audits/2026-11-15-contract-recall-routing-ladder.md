@@ -95,6 +95,51 @@ the first two with run-scoped thresholds.
 | Step | Run id | contract | corporate | merger MAUD | insurance | correspondence | prompt tokens | est. USD |
 |---|---|---|---|---|---|---|---|---|
 | r2 | pipeline-qwen-flash-25-fit-r2 | 0.76 | 0.44 | 0.13 | 0.77 | 0.24 | 2.72M | ≤0.49 |
-| E1 control / treatment | — | | n/a | n/a | n/a | n/a | | |
+| E1 control / treatment | pipeline-qwen-flash-25-e1-contract-control / -chunk | 0.774 / 0.803 | n/a | n/a | n/a | n/a | 2.16M / 3.84M | ≈0.10 / ≈0.19 |
 | E2 control / treatment | — | n/a | | n/a | n/a | n/a | | |
 | E3 control / treatment | — | | | | | | | |
+
+### E1 result (2026-11-16): recall up, precision down; not adopted as is
+
+Both arms ran on the v0.30.0 snapshot (llm-mailroom `98c89b8`, Dojo `542a1c3`), so neither
+is comparable to r2 (Dojo 0.30.0 changes scores). The 20 document ids were identical in both
+arms. Cost is the key's billed total ($0.290 for both arms), split by token share.
+
+| Measure | Control | Chunk (18k) | Bar | Met |
+|---|---|---|---|---|
+| Mean contract quality | 0.774 | 0.803 | ≥ control + 0.05 | **no** (+0.029; 95% CI −0.009 to +0.065) |
+| CUAD missed clauses | 75 | 47 | fewer | **yes** (−28) |
+| CUAD false clauses | 27 | 47 | ≤ +2 | **no** (+20) |
+| Routed to review | 5 | 12 | — | — |
+| Judge verdicts complete / partial / incomplete | 1 / 27 / 4 | 3 / 40 / 3 | — | — |
+| Tokens (prompt + completion) | 2.27M | 4.14M | — | 1.82× |
+| p50 latency per document | 63 s | 85 s | — | — |
+| Parse errors / total chunk failures | 0 / 0 | 0 / 0 | — | 1 of 13 windows failed on one document |
+
+Split by whether chunking actually applied:
+
+| Subset | n | Paired quality diff (95% CI) | Missed | False | Review |
+|---|---|---|---|---|---|
+| Chunked (2–13 windows) | 12 | **+0.048** (+0.007 to +0.091) | 58 → 34 | 15 → 32 | 2 → 8 |
+| Single window (identical input in both arms) | 8 | +0.001 (−0.064 to +0.052), sd 0.092 | 17 → 13 | 12 → 15 | 3 → 4 |
+
+Findings:
+
+1. **Chunking restores recall.** On the chunked contracts, missed clauses fall from 58 to 34
+   and quality rises by about 0.05. This confirms root cause 1: one whole-document call
+   misses clauses that per-window reads find.
+2. **The merge adds false clauses.** False clauses double on chunked contracts (15 → 32). The
+   cross-window merge keeps clause claims from every window without a precision filter. That
+   cost, plus 1.8× tokens and 2.4× review routing, keeps the treatment from passing.
+3. **Noise floor.** The 8 single-window contracts received the same input in both arms, yet
+   their per-document quality moved by a standard deviation of 0.09 (−0.19 to +0.07). At
+   temperature 0.1, run-to-run variance is about the size of the effects this ladder looks
+   for. With 20 documents, a paired mean below about ±0.04 cannot be told from noise. Before
+   scaling up: fix sampling (temperature 0 and a provider seed where supported), or repeat
+   each arm and pool, and size samples against this variance.
+4. **Judge.** It passed 3 of 46 calls (control 1 of 32). The arbiter loop then fires almost
+   unconditionally (Exios66/llm-mailroom#242); it is the main token sink in both arms.
+
+Next steps: the chunk-size sweep (25k, 32k) with a clause-precision check on the merge,
+run as repeated arms or at temperature 0 so that it measures more than noise. Keep the
+whole-document read until a size beats control on both the missed and the false bar.
