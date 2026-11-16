@@ -152,7 +152,7 @@ def test_worker_bundles_only_selected_entry_without_download(release_api, isolat
 def test_pin_identity_survives_worker_without_vendor_metadata(isolated, tmp_path):
     root = tmp_path / "src/llm_dojo_scoring"
     root.mkdir(parents=True)
-    (root / "__init__.py").write_text('__version__ = "0.28.1"')
+    (root / "__init__.py").write_text(f'__version__ = "{s.PINS["dojo"]["version"]}"')
     isolated.setattr(dojo_source, "vendored_dojo_src", lambda: root.parent)
     assert dojo_source.pinned() == s.PINS["dojo"]
 
@@ -238,7 +238,7 @@ def mutable_source(request, isolated, tmp_path):
     package = "llm_dojo_scoring" if component == "dojo" else "pipeline"
     (root / package).mkdir(parents=True)
     (root / package / "__init__.py").write_text(
-        '__version__ = "0.28.1"\n' if component == "dojo" else ""
+        f'__version__ = "{s.PINS["dojo"]["version"]}"\n' if component == "dojo" else ""
     )
     if component == "pipeline":
         for name in (
