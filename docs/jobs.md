@@ -115,6 +115,10 @@ job:
                             # cost_cap_usd when they warm a Modal GPU and
                             # api_cost_cap_usd when they bill API tokens. `experiment
                             # create` fills unset ceilings from a recommendation.
+  blind_routing: false      # task: pipeline only. true keeps the dataset labels
+                            # (expected class and fields) out of the graph's state,
+                            # so routing cannot read them (llm-mailroom #207); scoring
+                            # still uses the full locked row. Hashed only when true
 
 reviewer:                   # optional decision reviewer (SAND-085); see docs/experiments.md
   backend: api              # jev | local | api | mock

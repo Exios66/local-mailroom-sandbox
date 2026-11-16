@@ -216,6 +216,21 @@ def contract_correction(field: str, value: Any, exp: Mapping[str, Any]) -> str |
     return None
 
 
+def derived_value(cls: str, subclass: str) -> str:
+    """The ``SUBCLASS_FIELDS`` label a row's own subclass implies.
+
+    Correspondence subclasses are the ``communication_type`` vocabulary itself. Corporate
+    subclasses are not the ``record_type`` vocabulary: the Dojo maps the ten subclasses onto a
+    5-token enum (``indenture`` / ``board_resolution`` / ... -> ``other``, ``charter_amendment``
+    -> ``articles_of_incorporation``), and the specialist is told to emit that enum.
+    """
+    if cls == "corporate_record":
+        from llm_dojo_scoring.schemas.corporate_record_schema import record_type_for_subclass
+
+        return record_type_for_subclass(subclass)
+    return subclass
+
+
 def labels_for(row: Mapping[str, Any], fields: Mapping[str, Any], gate: Mapping[str, Any],
                truth: Mapping[str, bool]) -> dict[str, dict[str, Any]]:
     """The overlay labels of one document.
@@ -236,7 +251,8 @@ def labels_for(row: Mapping[str, Any], fields: Mapping[str, Any], gate: Mapping[
     if cls == "insurance_claim" and sub in CMS_TABLES:
         out["cms_source_table"] = {"value": sub, "status": "derived", "basis": "cms_subclass", "hub_value": None}
     if cls in SUBCLASS_FIELDS and sub and not hub_has(exp, SUBCLASS_FIELDS[cls]):
-        out[SUBCLASS_FIELDS[cls]] = {"value": sub, "status": "derived", "basis": "hub_subclass", "hub_value": None}
+        out[SUBCLASS_FIELDS[cls]] = {"value": derived_value(cls, sub), "status": "derived", "basis": "hub_subclass",
+                                     "hub_value": None}
     for field, s in sorted(support.items()):
         if field in out:  # derived from the row: the extraction never overrides it
             continue
