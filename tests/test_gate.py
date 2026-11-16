@@ -58,6 +58,13 @@ def fake_score(monkeypatch):
     monkeypatch.setattr(gate, "_score", lambda row, pred: pred.get("_score"))
 
 
+@pytest.fixture(autouse=True)
+def no_audit(monkeypatch):
+    """These tests are about outcomes, not the audit trail (``tests/test_gate_audit.py``): their run dirs are loose."""
+    real = gate.gate_report
+    monkeypatch.setattr(gate, "gate_report", lambda run_dir, bars, **kw: real(run_dir, bars, **{"audit": False, **kw}))
+
+
 def _docs(n, cls="contract", **kw):
     return [{"id": f"{cls}-{i}", "cls": cls, **kw} for i in range(n)]
 
