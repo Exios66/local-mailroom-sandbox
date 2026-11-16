@@ -421,3 +421,64 @@ def test_api_reviewer_may_share_the_sorter_model_on_a_calibration_run_only():
     assert _api_reviewer_errors(RunSpec(task="sorter_reviewer", **common)) == []
     errs = _api_reviewer_errors(RunSpec(task="pipeline", **common))
     assert any("different model from the sorter" in e for e in errs)
+
+
+# --- card-shaped digit runs (#305 slice 100) ------------------------------------------------
+# OpenRouter's Decisions endpoint refuses a request whose document holds a card-shaped number
+# (403 "Request blocked by content filter: [CREDIT_CARD]"). Synthetic property-claim IBANs
+# ("IBAN: VLT00 8812 3456 7890 1234") tripped it on 7 of 8 documents; the refusal parked or
+# blinded the reviewer. Such numbers carry no classification signal, so they are masked first.
+
+@pytest.mark.parametrize("raw, masked", [
+    ("IBAN: VLT00 8812 3456 7890 1234 end", "IBAN: VLT00 #### #### #### #### end"),
+    ("card 4111-1111-1111-1111.", "card ####-####-####-####."),
+    ("tail 8812 3456 7890 1234 567", "tail #### #### #### #### ###"),
+])
+def test_card_shaped_numbers_are_masked(raw, masked):
+    assert db.mask_card_numbers(raw) == masked
+
+
+@pytest.mark.parametrize("text", [
+    "Date of Loss 2026-04-06, Date of Report 2026-04-07",
+    "Claim 268371333 policy PZ-PBI-6586132718 invoice 44928173",
+    "phone +1 555 123 4567, total $984.00",
+    "ref 12345678901234567890123",  # longer than any card number
+    "https://www.sec.gov/Archives/edgar/data/1528467/000152846712000004/x.htm",  # accession number
+    "Notice ID: 4111111111111111",  # an unbroken run passed the filter and may be an extracted field
+])
+def test_other_numbers_are_kept(text):
+    assert db.mask_card_numbers(text) == text
+
+
+def test_decide_masks_card_numbers_before_posting(monkeypatch):
+    sent = {}
+
+    def post(url, json, timeout, headers):
+        sent.update(json)
+        return _v3_response()
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test")
+    monkeypatch.setattr("httpx.post", post)
+    monkeypatch.setattr(db, "_record_usage", lambda model, usage: None)
+    qset = db.load_question_set("reviewer_decisions_v3.0.0")
+    db.decide("IBAN: VLT00 8812 3456 7890 1234", model=DECISIONS, questions=db.decision_questions(qset),
+              qset=qset, handoff=None, max_input_chars=1000)
+    assert sent["state"]["document"] == "IBAN: VLT00 #### #### #### ####"
+
+
+def test_decide_extraction_masks_card_numbers_before_posting(monkeypatch):
+    sent = {}
+
+    def fake_post(body, *, timeout, attempts):
+        sent.update(body)
+        return {"answers": {}, "usage": {}}
+
+    monkeypatch.setattr(db, "_post_decision", fake_post)
+    monkeypatch.setattr(db, "_record_usage", lambda model, usage: None)
+    monkeypatch.setattr(db, "gate_questions", lambda qset, doc_type, subclass: {})
+    try:
+        db.decide_extraction("IBAN: VLT00 8812 3456 7890 1234", {"doc_type": "insurance_claim"},
+                             model=DECISIONS, qset={"version": "t"})
+    except Exception:  # noqa: BLE001 — only the posted body matters here
+        pass
+    assert sent["state"]["document"] == "IBAN: VLT00 #### #### #### ####"

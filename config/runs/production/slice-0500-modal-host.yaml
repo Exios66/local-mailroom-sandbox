@@ -37,7 +37,7 @@ prompt:
   default: {source: code-default}   # sorter: vendored sorter_condensed_v5 (the adopted frontrunner)
   agents:   # adopted condensed frontrunners (config/prompts/specialist_condensed_lineage.yaml)
     corporate_records_specialist: {source: local, file: corporate_records_specialist_condensed_v1}
-    correspondence_specialist: {source: local, file: correspondence_specialist_condensed_v2}
+    correspondence_specialist: {source: local, file: correspondence_specialist_condensed_v3}
     insurance_claims_specialist: {source: local, file: insurance_claims_specialist_condensed_v3}
 
 dataset:
