@@ -5,11 +5,15 @@ outcome, using the same scoring as ``job/pair_report.py`` (Dojo ``overall_extrac
 the row without the templated fields):
 
 - ``correct_archive``: archived and scored at or above the quality bar;
-- ``wrong_archive``: archived and scored below it;
+- ``wrong_archive``: archived and scored below it, or archived under another class than the expected one
+  (a wrong-class archive is wrong whatever the extraction scores, and counts as scorable);
 - ``review``: routed to review (counts toward the review rate, never the wrong-archive rate);
 - ``unscorable_archive``: archived but with fewer than ``min_labelled`` labelled fields, so no
   score is trusted (left out of the wrong-archive rate);
 - ``crashed``: no item at all, or an item with an error (a run error, which fails the slice).
+
+Every ``review``, ``wrong_archive`` and ``crashed`` status also carries one ``cause`` (see
+``job/gate_causes.py``) and the report groups them in ``buckets``.
 
 The slice passes when, pooled over the gated classes, the wrong-archive rate (wrong archives
 over scorable archives) and the review rate (reviews over documents) are within the bars and
@@ -143,8 +147,13 @@ def _rate(k: int, n: int) -> float | None:
     return k / n if n else None
 
 
-def doc_status(doc: Mapping[str, Any], bars: Bars) -> dict[str, Any]:
-    """The outcome of one document: ``doc`` is ``{"row", "item", "nodes"}`` with ``item`` None if missing."""
+def is_wrong_class(expected_class: str, pred: Mapping[str, Any]) -> bool:
+    """Whether the prediction names a class other than the expected one (never when it names none)."""
+    got = str(pred.get("doc_type") or "").strip().lower()
+    return bool(got) and got != str(expected_class).strip().lower()
+
+
+def _status(doc: Mapping[str, Any], bars: Bars) -> dict[str, Any]:
     row, item = doc["row"], doc.get("item")
     doc_class = str(row.get("expected_doc_class"))
     out: dict[str, Any] = {"id": str(row.get("id")), "class": doc_class, "stage": "crashed", "score": None,
@@ -165,10 +174,25 @@ def doc_status(doc: Mapping[str, Any], bars: Bars) -> dict[str, Any]:
     if out["scorable"]:
         out["score"] = _score(without_fields(row, TEMPLATED_FIELDS.get(doc_class, ())), pred)
         out["scorable"] = out["score"] is not None
-    if not out["scorable"]:
+    if is_wrong_class(doc_class, pred):
+        out["scorable"], out["outcome"] = True, "wrong_archive"
+    elif not out["scorable"]:
         out["outcome"] = "unscorable_archive"
     else:
         out["outcome"] = "correct_archive" if out["score"] >= bars.quality else "wrong_archive"
+    return out
+
+
+def doc_status(doc: Mapping[str, Any], bars: Bars) -> dict[str, Any]:
+    """The outcome of one document: ``doc`` is ``{"row", "item", "nodes"}`` with ``item`` None if missing.
+
+    A review, a wrong archive or a crash also gets its primary ``cause``.
+    """
+    from mailroom_sandbox.job.gate_causes import primary_cause
+
+    out = _status(doc, bars)
+    if out["outcome"] in ("review", "wrong_archive", "crashed"):
+        out["cause"] = primary_cause(doc, out)
     return out
 
 
@@ -222,6 +246,18 @@ def _blindness(label: str, c: Mapping[str, int]) -> tuple[list[str], list[str]]:
     return reasons, warnings
 
 
+def _buckets(statuses: list[dict[str, Any]]) -> dict[str, Any]:
+    """Documents grouped by primary cause, biggest bucket first; ``archive``/``trace_id`` are audit links."""
+    grouped: dict[str, list[str]] = defaultdict(list)
+    for status in statuses:
+        if "cause" in status:
+            grouped[status["cause"]].append(status["id"])
+    order = sorted(grouped, key=lambda cause: (-len(grouped[cause]), cause))
+    return {cause: {"count": len(grouped[cause]),
+                    "docs": [{"id": doc_id, "archive": None, "trace_id": None} for doc_id in grouped[cause]]}
+            for cause in order}
+
+
 def gate_report(run_dir: Path, bars: Bars) -> dict[str, Any]:
     """Per-document outcomes, per-class and pooled rates, and the pass/fail verdict for one run."""
     run_dir = Path(run_dir)
@@ -269,5 +305,6 @@ def gate_report(run_dir: Path, bars: Bars) -> dict[str, Any]:
                    "scorable": scorable, "unscorable": pooled["unscorable"],
                    "crashes": crashes, "judge_errors": judge_errors},
         "verdict": {"pass": not reasons, "reasons": reasons, "warnings": warnings},
+        "buckets": _buckets(statuses),
         "docs": statuses,
     }
