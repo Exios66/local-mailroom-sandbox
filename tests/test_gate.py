@@ -9,10 +9,26 @@ import pytest
 from mailroom_sandbox.job import gate
 from mailroom_sandbox.job.gate import Bars
 
-TWO = {"document_name": "Master Agreement", "parties": ["A", "B"]}
-LABELS = {  # two real labels per class, so a document is scorable
-    "contract": TWO,
-    "merger_agreement": TWO,
+CATEGORIES = ("Agreement Date", "Anti-Assignment", "Governing Law", "Parties", "Document Name")
+
+
+def cuad(gold=2):
+    """A CUAD-only contract label set as real E3 rows carry it: every category, gold spans on ``gold`` of them."""
+    spans = {c: ([{"start": 3, "text": c.lower()}] if i < gold else []) for i, c in enumerate(CATEGORIES)}
+    return {"cuad_clause_labels": spans, "label_evidence": "CUAD-annotated clauses: ...",
+            "clause_count": str(len(CATEGORIES)), "gt_presence": {"parties": "not_applicable"}}
+
+
+def maud(gold=2):
+    """MAUD question to answer labels, as merger rows carry them (an empty answer is no gold)."""
+    return {"maud_clause_labels": {f"Q{i}": ({"answer": "yes", "category": "x"} if i < gold else {})
+                                   for i in range(4)},
+            "label_evidence": "MAUD ...", "maud_label_count": "4"}
+
+
+LABELS = {  # a scorable label set per class
+    "contract": cuad(),
+    "merger_agreement": maud(),
     "corporate_record": {"entity_name": "Acme Corp", "record_type": "bylaws"},
     "correspondence": {"sender": "A. Smith", "recipient": "B. Jones"},
     "insurance_claim": {"claim_number": "C-1", "policy_number": "P-9"},
@@ -47,7 +63,7 @@ def _docs(n, cls="contract", **kw):
 
 
 def test_outcomes_follow_score_and_stage(tmp_path):
-    one = {"document_name": "Only One"}
+    one = cuad(gold=0)  # every CUAD category empty: nothing to score
     run = _run(tmp_path, [
         {"id": "ok", "cls": "contract", "score": 0.95},
         {"id": "bad", "cls": "contract", "score": 0.6},
@@ -73,7 +89,7 @@ def test_pooled_rates_and_pass(tmp_path):
     assert report["n"] == 40 and report["run_id"] == "slice"
     assert report["pooled"]["review_rate"] == pytest.approx(0.025)
     assert report["pooled"]["wrong_archive_rate"] == 0
-    assert report["verdict"] == {"pass": True, "reasons": []}
+    assert report["verdict"] == {"pass": True, "reasons": [], "warnings": []}
     assert report["bars"]["quality"] == 0.90 and report["bars"]["gated"][0] == "contract"
     cls = report["classes"]["contract"]
     assert cls["n"] == 40 and cls["gated"] is True and cls["tokens_per_doc"] == 15
@@ -147,7 +163,7 @@ def test_duplicate_items_keep_latest(tmp_path):
     run = tmp_path / "dup"
     run.mkdir()
     (run / "dataset.jsonl").write_text(json.dumps(
-        {"id": "d1", "expected_doc_class": "contract", "expected_fields": json.dumps(TWO)}) + "\n")
+        {"id": "d1", "expected_doc_class": "contract", "expected_fields": json.dumps(cuad())}) + "\n")
     first = {"item_id": "d1", "ok": True, "error": None, "pred": {"stage": "review", "_score": None}}
     last = {"item_id": "d1", "ok": True, "error": None, "pred": {"stage": "archived", "_score": 0.97}}
     (run / "items.jsonl").write_text(json.dumps(first) + "\n" + json.dumps(last) + "\n")
@@ -167,7 +183,7 @@ def test_no_gated_documents_fails(tmp_path):
     report = gate.gate_report(_run(tmp_path, _docs(5, "merger_agreement")), Bars())
     assert report["pooled"]["review_rate"] is None and report["pooled"]["wrong_archive_rate"] is None
     assert report["pooled"]["review_upper95"] is None
-    assert report["verdict"] == {"pass": False, "reasons": ["no gated documents"]}
+    assert report["verdict"] == {"pass": False, "reasons": ["no gated documents"], "warnings": []}
 
 
 def test_labelled_count_scopes_and_drops_templated():
@@ -180,7 +196,91 @@ def test_labelled_count_scopes_and_drops_templated():
     assert gate.labelled_count(claim, "insurance_claim") == 1
     assert gate.labelled_count({"expected_fields": ""}, "contract") == 0
     evidence = {"expected_fields": json.dumps({"document_name": "x", "label_evidence": "CUAD-annotated clauses: ..."})}
-    assert gate.labelled_count(evidence, "contract") == 1  # evidence columns are not scored, so not labels
+    assert gate.labelled_count(evidence, "contract") == 0  # the Dojo scores contracts on CUAD only
+
+
+def test_contract_scored_on_cuad_units():
+    row = {"expected_fields": json.dumps(cuad(gold=2))}
+    assert gate.labelled_count(row, "contract") == len(CATEGORIES)  # the scored universe, not the gold count
+    as_text = {"expected_fields": json.dumps({**cuad(gold=1), "cuad_clause_labels": json.dumps(cuad(1)["cuad_clause_labels"])})}
+    assert gate.labelled_count(as_text, "contract") == len(CATEGORIES)  # E3 stores the labels as a JSON string
+    assert gate.labelled_count({"expected_fields": cuad(gold=1)}, "contract") == len(CATEGORIES)  # dict expected_fields
+    assert gate.labelled_count({"expected_fields": json.dumps(cuad(gold=0))}, "contract") == 0
+    assert gate.labelled_count({"expected_fields": json.dumps({**cuad(), "cuad_clause_labels": {}})}, "contract") == 0
+    assert gate.labelled_count({"expected_fields": json.dumps({**cuad(), "cuad_clause_labels": "{}"})}, "contract") == 0
+    assert gate.labelled_count({"expected_fields": json.dumps({**cuad(), "cuad_clause_labels": "not json"})}, "contract") == 0
+
+
+def test_merger_scored_on_maud_units():
+    assert gate.labelled_count({"expected_fields": json.dumps(maud(gold=2))}, "merger_agreement") == 4
+    assert gate.labelled_count({"expected_fields": json.dumps(maud(gold=0))}, "merger_agreement") == 0
+    text = {"expected_fields": json.dumps({"maud_clause_labels": json.dumps(maud(1)["maud_clause_labels"])})}
+    assert gate.labelled_count(text, "merger_agreement") == 4
+    assert gate.labelled_count({"expected_fields": json.dumps({"document_name": "x", "parties": ["A"]})},
+                               "merger_agreement") == 0
+
+
+def test_cuad_contract_is_scorable_only_with_gold_spans(tmp_path):
+    run = _run(tmp_path, [
+        {"id": "gold", "cls": "contract", "expected": cuad(gold=3), "score": 0.95},
+        {"id": "empty", "cls": "contract", "expected": cuad(gold=0), "score": 0.95},
+    ])
+    out = {d["id"]: d for d in gate.gate_report(run, Bars())["docs"]}
+    assert out["gold"]["outcome"] == "correct_archive" and out["gold"]["labelled"] == len(CATEGORIES)
+    assert out["empty"]["outcome"] == "unscorable_archive" and out["empty"]["labelled"] == 0
+
+
+def test_all_unscorable_archives_never_pass_blind(tmp_path):
+    docs = [{"id": f"u{i}", "cls": "contract", "expected": cuad(gold=0)} for i in range(10)]
+    report = gate.gate_report(_run(tmp_path, docs), Bars())
+    assert report["pooled"]["wrong_archive_rate"] is None
+    assert report["pooled"]["scorable"] == 0 and report["pooled"]["unscorable"] == 10
+    assert report["verdict"]["pass"] is False
+    assert "no scorable archives" in report["verdict"]["reasons"]
+
+
+def test_review_only_slice_is_not_blind(tmp_path):
+    docs = [{"id": f"r{i}", "cls": "contract", "stage": "review"} for i in range(2)]
+    reasons = gate.gate_report(_run(tmp_path, docs), Bars())["verdict"]["reasons"]
+    assert "no scorable archives" not in reasons  # no archives at all: the review bar speaks
+
+
+def test_per_class_blind_class_fails_once_per_class_bars_apply(tmp_path):
+    docs = [{"id": f"u{i}", "cls": "contract", "expected": cuad(gold=0)} for i in range(4)] + _docs(6, "correspondence")
+    run = _run(tmp_path, docs)
+    pooled_only = gate.gate_report(run, Bars())
+    assert pooled_only["verdict"]["pass"] is True  # pooled has scorable archives; per-class bars are diagnostic
+    per_class = gate.gate_report(run, Bars(per_class_from_n=10))
+    assert per_class["verdict"]["pass"] is False
+    assert "class contract no scorable archives" in per_class["verdict"]["reasons"]
+    assert not any(r.startswith("class correspondence") for r in per_class["verdict"]["reasons"])
+    assert not any(r.startswith("class merger") for r in per_class["verdict"]["reasons"])
+
+
+def test_scorable_counts_and_unscorable_warnings(tmp_path):
+    # 3 of 10 gated archives unscorable (0.3 > 0.25); the contract class is 3 of 4 unscorable.
+    docs = ([{"id": f"u{i}", "cls": "contract", "expected": cuad(gold=0)} for i in range(3)]
+            + _docs(1) + _docs(6, "correspondence"))
+    report = gate.gate_report(_run(tmp_path, docs), Bars())
+    assert report["pooled"]["scorable"] == 7 and report["pooled"]["unscorable"] == 3
+    assert report["classes"]["contract"]["scorable"] == 1 and report["classes"]["contract"]["unscorable"] == 3
+    assert report["verdict"]["pass"] is True  # warnings never fail the slice
+    warnings = report["verdict"]["warnings"]
+    assert any(w.startswith("unscorable share 0.300") for w in warnings)
+    assert any(w.startswith("class contract unscorable share 0.750") for w in warnings)
+    assert not any(w.startswith("class correspondence") for w in warnings)
+
+
+def test_no_warning_at_or_below_the_unscorable_share(tmp_path):
+    docs = [{"id": "u", "cls": "contract", "expected": cuad(gold=0)}] + _docs(3)  # 1 of 4 = 0.25, pooled and per class
+    assert gate.gate_report(_run(tmp_path, docs), Bars())["verdict"]["warnings"] == []
+
+
+def test_merger_unscorable_does_not_warn_or_gate(tmp_path):
+    docs = _docs(8) + [{"id": f"m{i}", "cls": "merger_agreement", "expected": maud(0)} for i in range(5)]
+    report = gate.gate_report(_run(tmp_path, docs), Bars())
+    assert report["verdict"] == {"pass": True, "reasons": [], "warnings": []}
+    assert report["classes"]["merger_agreement"]["unscorable"] == 5
 
 
 def test_load_bars_defaults_to_the_committed_config(tmp_path):

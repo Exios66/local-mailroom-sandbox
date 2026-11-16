@@ -2,7 +2,10 @@
 # Pass rule, pooled over the gated classes: wrong-archive rate <= wrong_archive_max, review rate
 # <= review_max, 0 run errors, 0 judge_error. A correct archive scores >= quality on the labelled
 # fields. merger_agreement is reported but never gated. Per-class bars apply only from a slice of
-# per_class_from_n documents; below that they are diagnostic.
+# per_class_from_n documents (counted over the whole slice, every class); below that they are
+# diagnostic. Crashes and judge_error count slice-wide, merger_agreement included: they are harness
+# faults, not quality. Rates use the gated classes only. A gated pool with archives but none
+# scorable fails ("no scorable archives"); an unscorable share above 25% only warns.
 quality: 0.90
 wrong_archive_max: 0.02
 review_max: 0.05
