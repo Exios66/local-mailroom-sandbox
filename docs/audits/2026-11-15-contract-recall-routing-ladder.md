@@ -27,34 +27,65 @@ Observed mechanisms (from `items.jsonl` / `nodes.jsonl` of both runs):
 
 ## Ladder
 
-All configs copy r2 exactly (dataset pin, seed 42, models, reviewer, caps) and differ only
-in the lines marked `# E…`. Offline preflight passes except the API-key check, which needs
-the OpenRouter key loaded into the shell.
+Each step is a **paired** control/treatment pair: both arms draw the same documents (same
+strata and seed, verified identical ids at preflight) and differ only in the line marked
+`TREATMENT`. Everything else copies r2: dataset pin `bc9eab28`, `require_task_gt`, caps,
+reviewer. Offline preflight passes for all six configs except the API-key check, which
+clears once the OpenRouter key is loaded in the shell.
 
-| Step | Config | Change | Success bar |
-|---|---|---|---|
-| E1 | `config/runs/pipeline-qwen-flash-25-e1-contract-chunk.yaml` | `contracts_specialist.max_input_chars: 18000` → 15,750-char windows, ≤3 chunks; judge/arbiter keep full coverage (plan: `judge_coverage_min 1.0`) | contract ≥ 0.83 with prompt tokens < 774k |
-| E2 | `config/runs/pipeline-qwen-flash-25-e2-corporate-judge.yaml` | `corporate_record.judge_band_high: 1.01` (judge every corporate extraction) | corporate > 0.44; judge verdicts separate the low scorers |
-| E3 | `config/runs/pipeline-qwen-flash-25-e3-chunk-judge-all.yaml` | E1 + E2 + `contract.judge_band_high: 1.01` (retries get re-judged) | no class below r2; contract ≥ E1 |
+**Model (fixed for the whole ladder):** `qwen/qwen3.7-flash` on OpenRouter for every agent
+node (sorter, intake, specialists, judge, boss, arbiter). The decision reviewer is
+`openai/gpt-6-luna-decisions` with the v2 cutoffs. Changing the model is a separate
+experiment run after the ladder (for example, a transfer check on the Modal-served 9B), never a
+ladder variable.
 
-Run order: E1 and E2 are independent (they touch different classes) and can run in
-either order; E3 only after both. Launch (human-only, paid):
+| Step | Configs (control → treatment) | Documents and mix | Change | Success bar |
+|---|---|---|---|---|
+| E1 | `pipeline-qwen-flash-25-e1-contract-control` → `-e1-contract-chunk` | **20 contracts**, 2 from each of the 10 largest CUAD subtypes (Supply, License, Consulting, IP, Service, Maintenance, Distributor, Strategic Alliance, Sponsorship, Development); seed 1115. At 15,750 chars, 12/20 split into 2–13 chunks and 8 fit one window. | `contracts_specialist.max_input_chars: 18000`; judge/arbiter keep full coverage | paired contract quality ≥ control + 0.05; fewer missed clauses; false positives no more than +2 |
+| E2 | `-e2-corporate-control` → `-e2-corporate-judge` | **18 corporate records**, 2 from each of the 9 labelled subtypes (charter amendment, articles, officer certificate, indenture, subsidiary list, rights instrument, board resolution, bylaws, powers of attorney); seed 1115 | `corporate_record.judge_band_high: 1.01` (judge every extraction) | paired quality > control; judge rejects most extractions scoring < 0.5 |
+| E3 | `-e3-mix-control` → `-e3-chunk-judge-all` | **45 held-out documents**: 10 each of contract, corporate, correspondence, insurance and 5 mergers (untouched by the changes; 5 limits cost); seed 2026. No overlap with E1/E2 and 1 shared with r2. | E1 + E2 + `contract.judge_band_high: 1.01` (retries re-judged) | no class more than 0.03 below control; contract and corporate improve |
+
+Why these sizes: the r2 class samples (n = 5) cannot show a 0.05–0.07 change. A paired
+n of 18–20 over distinct subtypes can, at a few cents per arm. E1 and E2 tune on seed
+1115. E3 confirms on seed 2026, which the tuning never saw, so a change that only fits
+the tuning draw is caught there.
+
+Estimated API spend, from r2 per-document costs: E1 about $0.15 control + $0.30 treatment;
+E2 about $0.05 + $0.10; E3 about $0.70 per arm. Each config's `api_cost_cap_usd` is about 2× its
+estimate (E1 0.60, E2 0.40, E3 1.75).
+
+Run order: E1 and E2 are independent (different classes) and can run in either order.
+Run E3 only after both, and drop from it any treatment that lost its own step. Launch
+(human-only, paid), control first:
 
 ```bash
-sandbox run preflight --config config/runs/<step>.yaml
-sandbox run start --config config/runs/<step>.yaml --initials <XX>
+sandbox run preflight --config config/runs/<config>.yaml
+sandbox run start --config config/runs/<config>.yaml --initials <XX>
 ```
 
-Evaluate each step with `sandbox run routing --run-id <run_id>` and the per-class summary
-(quality, CUAD FN/FP for contracts, judge verdict counts, prompt tokens, p50 latency,
-estimated cost). Record the result in `reports/experiment_log.jsonl` and in the table
-below before starting the next step.
+Evaluate each pair with `sandbox run routing --run-id <run_id>` and a per-class paired
+summary: quality, CUAD missed/false clauses for contracts, judge verdicts against score,
+prompt tokens, p50 latency, estimated cost. Record the result in
+`reports/experiment_log.jsonl` and in the table below before starting the next step.
+
+## Upstream fixes (llm-mailroom)
+
+These need changing in `llm-mailroom` and then a vendor refresh. The ladder works around
+the first two with run-scoped thresholds.
+
+- Exios66/llm-mailroom#241: a confident retry extraction archives without a re-judge
+  (E3's `contract.judge_band_high: 1.01` is the sandbox workaround).
+- Exios66/llm-mailroom#242: completeness judge verdicts rarely pass and don't track score.
+- Exios66/llm-mailroom#243: `sliding_windows` can exceed the budget by the overlap.
+- Exios66/llm-mailroom#244: policy-replay cutoff evidence includes chunk-loss attempts.
+- Exios66/llm-mailroom#245: synthetic records allow an unbounded `test_fraction` and leave
+  observations untyped.
+- Exios66/llm-mailroom#246: a blank `content_sha256` passes manifest validation, then aborts the fetch.
 
 ## Next candidates (after E1–E3)
 
-- Chunk-size sweep for contracts (12k / 18k / 25k) once E1 shows the direction.
-- Judge leniency: 0/4 contract, 0/4 correspondence and 0/3 merger judge calls passed in r2.
-  The judge prompt is upstream (`llm-mailroom`); change it there, then refresh `vendor/`.
+- Chunk-size sweep for contracts (12k / 18k / 25k), on the E1 documents, once E1 shows the direction.
+- Judge calibration (#242), then re-run E2 to see whether the judge separates scores.
 - Merger MAUD (0.13) needs its own investigation; chunking is not expected to fix it.
 - Re-run r2 on the PR #299 vendor snapshot (llm-mailroom `5bcfe44`, Dojo v0.29.0) to
   isolate the upstream change before stacking ladder steps on it.
@@ -64,6 +95,6 @@ below before starting the next step.
 | Step | Run id | contract | corporate | merger MAUD | insurance | correspondence | prompt tokens | est. USD |
 |---|---|---|---|---|---|---|---|---|
 | r2 | pipeline-qwen-flash-25-fit-r2 | 0.76 | 0.44 | 0.13 | 0.77 | 0.24 | 2.72M | ≤0.49 |
-| E1 | — | | | | | | | |
-| E2 | — | | | | | | | |
-| E3 | — | | | | | | | |
+| E1 control / treatment | — | | n/a | n/a | n/a | n/a | | |
+| E2 control / treatment | — | n/a | | n/a | n/a | n/a | | |
+| E3 control / treatment | — | | | | | | | |

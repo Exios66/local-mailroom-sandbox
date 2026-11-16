@@ -1,8 +1,9 @@
-# Routing/recall ladder step E2 (one variable vs r2): send every corporate_record extraction to the judge. Self-reported
-# confidence was 0.95-1.0 against a 0.94 band, so none was judged while quality was 0.44 (one 0.16 at conf 1.0).
-# Success: corporate quality > 0.44 and judge verdicts that separate the bad extractions.
-# Base: pipeline-qwen-flash-25-fit-r2 (same 25 documents, models, reviewer, caps).
-# Compare: sandbox run routing --run-id pipeline-qwen-flash-25-e2-corporate-judge; per-class numbers vs r2 (see docs/audits ladder).
+# Ladder E2 treatment. Corporate judge reach: default band (control) vs judge every extraction (treatment).
+# Sample: 18 corporate records, 2 from each of the 9 labelled subtypes. Tuning seed 1115.
+# Success: treatment quality > control paired, and judge verdicts separate scores < 0.5 from the rest.
+# Model (held fixed across the ladder, so the only variable is the marked line): qwen/qwen3.7-flash on
+# OpenRouter for every agent node; decision reviewer openai/gpt-6-luna-decisions with the v2 cutoffs.
+# Plan: docs/audits/2026-11-15-contract-recall-routing-ladder.md. Base: pipeline-qwen-flash-25-fit-r2.
 schema: sandbox.run/v1
 run_id: pipeline-qwen-flash-25-e2-corporate-judge
 task: pipeline
@@ -19,13 +20,20 @@ dataset:
   revision: bc9eab280044befb51e19dda3071d290a8677f42
   strata:
     buckets:
-      - {doc_class: contract, count: 5}
-      - {doc_class: merger_agreement, count: 5}
-      - {doc_class: corporate_record, count: 5}
-      - {doc_class: correspondence, count: 5}
-      - {doc_class: insurance_claim, count: 5}
-  limit: 25
-  sample_seed: 42
+      - doc_class: corporate_record
+        count: 18
+        sub_buckets:
+          - {subclass: "charter_amendment", count: 2}
+          - {subclass: "articles_of_incorporation", count: 2}
+          - {subclass: "officer_certificate", count: 2}
+          - {subclass: "indenture", count: 2}
+          - {subclass: "subsidiary_list", count: 2}
+          - {subclass: "rights_instrument", count: 2}
+          - {subclass: "board_resolution", count: 2}
+          - {subclass: "bylaws", count: 2}
+          - {subclass: "powers_of_attorney", count: 2}
+  limit: 18
+  sample_seed: 1115
   require_task_gt: true   # every document can be scored
 
 engine:
@@ -44,7 +52,7 @@ agent_knobs:
 confidence:
   by_class:
     contract: {high: 0.95}
-    corporate_record: {high: 0.95, judge_band_high: 1.01}   # E2: judge every corporate extraction
+    corporate_record: {high: 0.95, judge_band_high: 1.01}   # TREATMENT: judge every corporate extraction
     merger_agreement: {arbiter_retry_max: 1, judge_max_passes: 2}
 
 reviewer:
@@ -66,10 +74,10 @@ job:
   concurrency: 10
   cost_cap_usd: 0.50
   max_wall_seconds: 7200
-  api_cost_cap_usd: 1.25   # 2.5x the 10-doc smoke ceiling; priced at the dearest model tier
+  api_cost_cap_usd: 0.40   # ~2x the r2-derived estimate for this sample, dearest-tier pricing
 
 trace:
   sink: none          # no Docker: spans still mirror to data/traces/<run_id>.spans.jsonl.gz;
                       # compact afterwards with `sandbox traces pack` (zstd Parquet zip)
   environment: pilot
-  tags: [sandbox, pipeline, openrouter, qwen3.7-flash, decision-reviewer, n25, context-fit, routing-calibration, ladder-e2]
+  tags: [sandbox, pipeline, openrouter, qwen3.7-flash, decision-reviewer, n25, context-fit, routing-calibration, ladder-e2-corporate-judge]
