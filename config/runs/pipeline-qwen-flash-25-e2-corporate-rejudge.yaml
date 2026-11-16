@@ -1,10 +1,15 @@
-# Ladder E2b treatment. Re-judge a retried corporate extraction (llm-mailroom #241, judge_rejudge_retry).
-# Control: pipeline-qwen-flash-25-e2-corporate-judge (the E2 treatment); the only change is the marked
-# judge_rejudge_retry line. Same 18 documents and seed. Run after E2, on the same vendor pin.
+# Ladder E2 rejudge arm (pairs with -e2-corporate-control, the off arm). Default judge band; a retry
+# whose first attempt was judged is judged again whatever confidence it reports (llm-mailroom #241,
+# opt-in `judge_rejudge_retry`). Not paired with -e2-corporate-judge: with judge_band_high 1.01 every
+# archivable extraction is already judged, so the switch cannot change that arm's routing.
 # Sample: 18 corporate records, 2 from each of the 9 labelled subtypes. Tuning seed 1115.
-# Success: treatment quality > control paired, and judge verdicts separate scores < 0.5 from the rest.
+# Success: the switch fires on at least one retry (nodes.jsonl: a judge_verify after a retry_extract that
+# reported confidence >= 0.94), paired quality is no worse than control, and the added judge calls are counted. Few corporate first passes land in the band
+# (r2: all reported 0.95 or more), so a zero-fire result is itself the finding.
 # Model (held fixed across the ladder, so the only variable is the marked line): qwen/qwen3.7-flash on
 # OpenRouter for every agent node; decision reviewer openai/gpt-6-luna-decisions with the v2 cutoffs.
+# Every E2/E3 arm (not a treatment): blind routing, interim labels and the adopted condensed
+# specialist prompts (docs/audits/2026-11-16-pre-e2-architecture-review.md).
 # Plan: docs/audits/2026-11-15-contract-recall-routing-ladder.md. Base: pipeline-qwen-flash-25-fit-r2.
 schema: sandbox.run/v1
 run_id: pipeline-qwen-flash-25-e2-corporate-rejudge
@@ -12,7 +17,11 @@ task: pipeline
 profile: openrouter
 
 prompt:
-  default: {source: code-default}
+  default: {source: code-default}   # sorter: vendored sorter_condensed_v5 (the adopted frontrunner)
+  agents:   # adopted condensed frontrunners (config/prompts/specialist_condensed_lineage.yaml)
+    corporate_records_specialist: {source: local, file: corporate_records_specialist_condensed_v1}
+    correspondence_specialist: {source: local, file: correspondence_specialist_condensed_v2}
+    insurance_claims_specialist: {source: local, file: insurance_claims_specialist_condensed_v3}
 
 dataset:
   provider: huggingface
@@ -37,6 +46,7 @@ dataset:
   limit: 18
   sample_seed: 1115
   require_task_gt: true   # every document can be scored
+  interim_labels: true    # gap-fill labels for unlabelled fields (data/labels/interim; Dojo #164)
 
 engine:
   kind: openrouter
@@ -54,8 +64,7 @@ agent_knobs:
 confidence:
   by_class:
     contract: {high: 0.95}
-    corporate_record: {high: 0.95, judge_band_high: 1.01,   # E2 treatment, held fixed
-                       judge_rejudge_retry: true}             # E2b TREATMENT: re-judge a judged-then-retried extraction
+    corporate_record: {high: 0.95, judge_rejudge_retry: true}   # TREATMENT: re-judge a retry after a judged attempt
     merger_agreement: {arbiter_retry_max: 1, judge_max_passes: 2}
 
 reviewer:
@@ -78,9 +87,10 @@ job:
   cost_cap_usd: 0.50
   max_wall_seconds: 7200
   api_cost_cap_usd: 0.40   # ~2x the r2-derived estimate for this sample, dearest-tier pricing
+  blind_routing: true     # no dataset labels in the graph's state (llm-mailroom #207)
 
 trace:
   sink: none          # no Docker: spans still mirror to data/traces/<run_id>.spans.jsonl.gz;
                       # compact afterwards with `sandbox traces pack` (zstd Parquet zip)
   environment: pilot
-  tags: [sandbox, pipeline, openrouter, qwen3.7-flash, decision-reviewer, n25, context-fit, routing-calibration, ladder-e2b-corporate-rejudge]
+  tags: [sandbox, pipeline, openrouter, qwen3.7-flash, decision-reviewer, n25, context-fit, routing-calibration, ladder-e2-corporate-rejudge]

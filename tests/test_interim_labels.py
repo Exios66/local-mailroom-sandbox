@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from mailroom_sandbox import interim_labels as il
 from mailroom_sandbox.job.spec import DatasetSpec
 
@@ -25,9 +27,25 @@ def test_committed_overlay_is_consistent():
                 assert field in il.GAP_FIELDS[cls], (rec["doc_id"], field)
                 assert lab["support"] >= (il.NULL_SUPPORT_MIN if lab["value"] is None else il.SUPPORT_MIN)
             if lab["status"] == "derived":
-                assert lab["value"] == rec["doc_subclass"]
+                want = (il.derived_value(cls, rec["doc_subclass"]) if field == il.SUBCLASS_FIELDS.get(cls)
+                        else rec["doc_subclass"])
+                assert lab["value"] == want, (rec["doc_id"], field)
             if lab["status"] == "correction":
                 assert cls == "contract" and lab["basis"] in ("cuad_party_spans", "cuad_agreement_date")
+
+
+def test_derived_record_type_is_the_dojo_enum_token_not_the_subclass():
+    pytest.importorskip("llm_dojo_scoring.schemas.corporate_record_schema")
+    from llm_dojo_scoring.schemas.corporate_record_schema import RECORD_TYPES
+
+    # The specialist emits the 5-token enum, so a raw subclass label would score a correct "other" wrong.
+    assert il.derived_value("corporate_record", "indenture") == "other"
+    assert il.derived_value("corporate_record", "charter_amendment") == "articles_of_incorporation"
+    assert il.derived_value("corporate_record", "bylaws") == "bylaws"
+    assert il.derived_value("correspondence", "attorney_demand") == "attorney_demand"  # already the vocabulary
+    committed = [r["labels"]["record_type"]["value"] for r in il._jsonl(il.overlay_dir() / "corporate_record.jsonl")
+                 if "record_type" in r["labels"]]
+    assert committed and set(committed) <= set(RECORD_TYPES)
 
 
 def test_gap_fill_needs_support_grounding_and_no_hub_label():
@@ -235,3 +253,36 @@ def test_replace_leaves_no_staged_file(tmp_path):
     mod._replace(target, "two")
     assert target.read_text() == "two"
     assert [p.name for p in tmp_path.iterdir() if p.name != "interim"] == ["out.json"]
+
+
+def test_rederive_rolls_back_when_the_manifest_write_fails(tmp_path, monkeypatch):
+    """A failed manifest write must leave the overlay as it was, so a retry can still run (#303 review)."""
+    root = tmp_path / "interim"
+    mod, _ = _overlay_two_labels(root)
+    # A stale derived label, so rederive has a real change to write.
+    path = root / "corporate_record.jsonl"
+    rec = json.loads(path.read_text())
+    rec["doc_subclass"] = "bylaws"
+    rec["labels"]["record_type"] = {"value": "stale", "status": "derived", "use_as_truth": True}
+    text = json.dumps(rec, sort_keys=True) + "\n"
+    path.write_text(text, encoding="utf-8")
+    man = json.loads((root / "MANIFEST.json").read_text())
+    man["files"]["corporate_record.jsonl"] = il._sha(text)
+    (root / "MANIFEST.json").write_text(json.dumps(man), encoding="utf-8")
+    before = {p.name: p.read_bytes() for p in root.iterdir()}
+    real = mod._replace
+
+    def failing(path, text):
+        if path.name == "MANIFEST.json":
+            raise OSError("disk full")
+        real(path, text)
+
+    monkeypatch.setattr(mod, "_replace", failing)
+    with pytest.raises(OSError, match="disk full"):
+        mod.rederive(root)
+    assert {p.name: p.read_bytes() for p in root.iterdir()} == before
+    assert il.verify(root) == []
+    monkeypatch.setattr(mod, "_replace", real)
+    assert mod.rederive(root) == 0
+    assert json.loads(path.read_text())["labels"]["record_type"]["value"] == "bylaws"
+    assert il.verify(root) == []

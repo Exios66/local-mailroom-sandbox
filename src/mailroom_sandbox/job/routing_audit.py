@@ -54,6 +54,16 @@ def effective_thresholds(lock_confidence: Mapping[str, Any] | None = None) -> di
     return deep_merge(block, dict(lock_confidence or {}))
 
 
+def _unknown_unless_explicit(block: Mapping[str, Any], explicit: Mapping[str, Any], key: str) -> dict[str, Any]:
+    """``block`` with ``key`` set to ``None`` (unknown) wherever the run did not set it itself."""
+    out = {k: v for k, v in block.items() if k != "by_class"}
+    out[key] = explicit.get(key)
+    by_explicit = explicit.get("by_class") or {}
+    out["by_class"] = {cls: {**dict(vals), key: (by_explicit.get(cls) or {}).get(key, explicit.get(key))}
+                       for cls, vals in (block.get("by_class") or {}).items()}
+    return out
+
+
 def thresholds_for(block: Mapping[str, Any], doc_class: str) -> dict[str, Any]:
     base = {k: v for k, v in block.items() if k != "by_class"}
     return {**base, **((block.get("by_class") or {}).get(doc_class) or {})}
@@ -158,7 +168,8 @@ def _class_report(cls: str, docs: list[dict[str, Any]], thresholds: Mapping[str,
     q = lambda group: _mean([d["quality"] for d in group if d["quality"] is not None])  # noqa: E731
     report: dict[str, Any] = {
         "docs": len(docs),
-        "thresholds": {k: thresholds.get(k) for k in ("high", "low", "judge_band_high", "arbiter_retry_max", "judge_max_passes")},
+        "thresholds": {k: thresholds.get(k) for k in ("high", "low", "judge_band_high", "arbiter_retry_max",
+                                                     "judge_max_passes", "judge_rejudge_retry")},
         "fires": {k: nodes.get(k, 0) for k in ("retry_classify", "judge_verify", "arbiter", "retry_extract")},
         "judged_docs": len(judged),
         "review_docs": sum(1 for d in docs if d["stage"] == "review"),
@@ -213,7 +224,13 @@ def audit(run_dir: Path | str, *, target: float = DEFAULT_TARGET) -> dict[str, A
     rows = {str(r.get("id")): r for r in _jsonl(root / "dataset.jsonl")}
     items = {str(i.get("item_id")): i for i in _jsonl(root / "items.jsonl")}
     docs = _doc_records(_jsonl(root / "nodes.jsonl"), items, rows)
-    block = effective_thresholds(lock.get("confidence"))
+    if isinstance(lock.get("effective_confidence"), Mapping):
+        block, source = dict(lock["effective_confidence"]), "locked"
+    else:
+        # An older run froze only its explicit overrides. Fill the numeric thresholds from the
+        # current config, but never report today's default as the run's rejudge setting.
+        block, source = effective_thresholds(lock.get("confidence")), "current_config"
+        block = _unknown_unless_explicit(block, lock.get("confidence") or {}, "judge_rejudge_retry")
     assignments = lock.get("agent_assignments") or {}
     model = ((assignments.get("judge") or {}).get("model")
              or ((lock.get("agent_routes") or {}).get("judge") or {}).get("model")
@@ -231,5 +248,6 @@ def audit(run_dir: Path | str, *, target: float = DEFAULT_TARGET) -> dict[str, A
     if docs and len(docs) < 50:
         notes.append(f"{len(docs)} documents: treat fire rates and suggestions as directional, not calibrated")
     return {"run_id": lock.get("run_id") or root.name, "target_quality": target, "judge_model": model,
+            "thresholds_source": source,
             "docs": len(docs), "classes": classes,
             "findings": [f for c in classes.values() for f in c["findings"]], "notes": notes}

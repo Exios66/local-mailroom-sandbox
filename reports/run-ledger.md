@@ -48,3 +48,10 @@ Do not edit rows by hand. Parse with `mailroom_sandbox.job.ledger.rows()`.
 | 2026-11-16T03:39:35Z | JJB | start | pipeline-qwen-flash-25-e1-contract-chunk | config/runs/pipeline-qwen-flash-25-e1-contract-chunk.yaml | deeded0da47c | 20 | 0.6 | ✓ |
 | 2026-11-16T03:45:19Z | JJB | start | pipeline-qwen-flash-25-e1-contract-control | config/runs/pipeline-qwen-flash-25-e1-contract-control.yaml | 71a3bf385a1c | 20 | 0.6 | ✓ |
 | 2026-11-16T03:48:37Z | JJB | start | pipeline-qwen-flash-25-e1-contract-chunk | config/runs/pipeline-qwen-flash-25-e1-contract-chunk.yaml | deeded0da47c | 20 | 0.6 | ✓ |
+| 2026-11-16T06:41:44Z | JJB | start | pipeline-qwen-flash-25-fit-r3 | config/runs/pipeline-qwen-flash-25-fit-r3.yaml | c7bc24b5799d | 25 | 1.25 | ✓ |
+| 2026-11-16T06:44:56Z | JJB | start | pipeline-qwen-flash-25-e2-corporate-control | config/runs/pipeline-qwen-flash-25-e2-corporate-control.yaml | 567d4aa61aff | 18 | 0.4 | ✓ |
+| 2026-11-16T06:47:57Z | JJB | start | pipeline-qwen-flash-25-e2-corporate-judge | config/runs/pipeline-qwen-flash-25-e2-corporate-judge.yaml | dee6a8dea965 | 18 | 0.4 | ✓ |
+| 2026-11-16T06:49:46Z | JJB | start | pipeline-qwen-flash-25-e2-corporate-judge | config/runs/pipeline-qwen-flash-25-e2-corporate-judge.yaml | dee6a8dea965 | 18 | 0.4 |   |
+| 2026-11-16T06:50:01Z | JJB | start | pipeline-qwen-flash-25-e2-corporate-rejudge | config/runs/pipeline-qwen-flash-25-e2-corporate-rejudge.yaml | 66add8583f25 | 18 | 0.4 | ✓ |
+| 2026-11-16T06:52:31Z | JJB | start | pipeline-qwen-flash-25-e2-corporate-rejudge | config/runs/pipeline-qwen-flash-25-e2-corporate-rejudge.yaml | 66add8583f25 | 18 | 0.4 |   |
+| 2026-11-16T06:53:48Z | JJB | start | pipeline-qwen-flash-25-e3-mix-control | config/runs/pipeline-qwen-flash-25-e3-mix-control.yaml | 55b260a68d0d | 45 | 1.75 | ✓ |

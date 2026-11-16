@@ -1,0 +1,606 @@
+{
+ "note": "Locked document ids of the ladder runs (each run's dataset.jsonl in its gitignored run store) and their pairwise intersections. dataset_sha256 is the sha256 of that dataset.jsonl.",
+ "runs": {
+  "r2": {
+   "run_id": "pipeline-qwen-flash-25-fit-r2",
+   "dataset_sha256": "5fd2f73c85f202d92fcccd52656502ffa3a446258d154fe2e0c8b02531862c61",
+   "rows": 25,
+   "ids": [
+    "DOC-01f1577c446c646d",
+    "DOC-03529267ee75444d",
+    "DOC-16dfd03aed14e557",
+    "DOC-1e016055aa435e71",
+    "DOC-21460a9f6d7e6348",
+    "DOC-2cde0c6d0c70b02b",
+    "DOC-36df577431fb1032",
+    "DOC-4348717727f6d6b4",
+    "DOC-47d391f2646c0506",
+    "DOC-4fd4cf5db3cfdb47",
+    "DOC-52f9a5be69429299",
+    "DOC-576c9233159914e3",
+    "DOC-5fa0ba13cf68b593",
+    "DOC-5fc24327995cd03d",
+    "DOC-690cb07fef21747b",
+    "DOC-7037a114701d153a",
+    "DOC-732b812b7d9d9653",
+    "DOC-95e58a424a0fe496",
+    "DOC-9cd96711a8928ec5",
+    "DOC-a0be2aba09a3f580",
+    "DOC-a52b3ad21666d339",
+    "DOC-bda69bc956881bab",
+    "DOC-c4074ed5b08f097e",
+    "DOC-d554890e66786170",
+    "DOC-f4e726a7f2c25494"
+   ]
+  },
+  "r3": {
+   "run_id": "pipeline-qwen-flash-25-fit-r3",
+   "dataset_sha256": "7f537746a0c566c0cc0e4129cd575b94774e7308ad9fe2c1978f3785e2cbc697",
+   "rows": 25,
+   "ids": [
+    "DOC-01f1577c446c646d",
+    "DOC-03529267ee75444d",
+    "DOC-16dfd03aed14e557",
+    "DOC-1e016055aa435e71",
+    "DOC-21460a9f6d7e6348",
+    "DOC-2cde0c6d0c70b02b",
+    "DOC-36df577431fb1032",
+    "DOC-4348717727f6d6b4",
+    "DOC-47d391f2646c0506",
+    "DOC-4fd4cf5db3cfdb47",
+    "DOC-52f9a5be69429299",
+    "DOC-576c9233159914e3",
+    "DOC-5fa0ba13cf68b593",
+    "DOC-5fc24327995cd03d",
+    "DOC-690cb07fef21747b",
+    "DOC-7037a114701d153a",
+    "DOC-732b812b7d9d9653",
+    "DOC-95e58a424a0fe496",
+    "DOC-9cd96711a8928ec5",
+    "DOC-a0be2aba09a3f580",
+    "DOC-a52b3ad21666d339",
+    "DOC-bda69bc956881bab",
+    "DOC-c4074ed5b08f097e",
+    "DOC-d554890e66786170",
+    "DOC-f4e726a7f2c25494"
+   ]
+  },
+  "E1": {
+   "run_id": "pipeline-qwen-flash-25-e1-contract-control",
+   "dataset_sha256": "dddfe20b2d2c1ec24043ed986f7b94b32e272b9f2df3cadc6a1d98a3eb2fae21",
+   "rows": 20,
+   "ids": [
+    "DOC-120b94844585736f",
+    "DOC-2ca896ed90170095",
+    "DOC-3e27db1a6e14eb55",
+    "DOC-3f4003eb02433292",
+    "DOC-58223fe211a062f1",
+    "DOC-60da1ef4e48233f5",
+    "DOC-6892c5964a5fcf58",
+    "DOC-6a9af1597909fd82",
+    "DOC-6e7df9951378b82c",
+    "DOC-856c5522e1fc02f7",
+    "DOC-90bc5afa854b5f5e",
+    "DOC-93e9bb030e2b282d",
+    "DOC-a13e6a03e5f40cfe",
+    "DOC-a84f43f1a8b5ba5d",
+    "DOC-a9caf51fdd9ead34",
+    "DOC-ade03c57c5f78e21",
+    "DOC-d500e66c59a36220",
+    "DOC-e51deacc3ced2d71",
+    "DOC-eaa14fe106140524",
+    "DOC-eada0fa830aad602"
+   ]
+  },
+  "E1-chunk": {
+   "run_id": "pipeline-qwen-flash-25-e1-contract-chunk",
+   "dataset_sha256": "dddfe20b2d2c1ec24043ed986f7b94b32e272b9f2df3cadc6a1d98a3eb2fae21",
+   "rows": 20,
+   "ids": [
+    "DOC-120b94844585736f",
+    "DOC-2ca896ed90170095",
+    "DOC-3e27db1a6e14eb55",
+    "DOC-3f4003eb02433292",
+    "DOC-58223fe211a062f1",
+    "DOC-60da1ef4e48233f5",
+    "DOC-6892c5964a5fcf58",
+    "DOC-6a9af1597909fd82",
+    "DOC-6e7df9951378b82c",
+    "DOC-856c5522e1fc02f7",
+    "DOC-90bc5afa854b5f5e",
+    "DOC-93e9bb030e2b282d",
+    "DOC-a13e6a03e5f40cfe",
+    "DOC-a84f43f1a8b5ba5d",
+    "DOC-a9caf51fdd9ead34",
+    "DOC-ade03c57c5f78e21",
+    "DOC-d500e66c59a36220",
+    "DOC-e51deacc3ced2d71",
+    "DOC-eaa14fe106140524",
+    "DOC-eada0fa830aad602"
+   ]
+  },
+  "E2": {
+   "run_id": "pipeline-qwen-flash-25-e2-corporate-control",
+   "dataset_sha256": "81c9cef969e2282b9993697e421217868f489e244f4c18e8ff9103a3dd6208ae",
+   "rows": 18,
+   "ids": [
+    "DOC-08829e0f817f1211",
+    "DOC-2aa6196b22606d9c",
+    "DOC-41b53ea487b84955",
+    "DOC-565a3f2fcfc0e5e7",
+    "DOC-71cf2ff8c71b30bf",
+    "DOC-7ffe745a67032ac5",
+    "DOC-8141c160f2a4e857",
+    "DOC-874e9964d8a3835e",
+    "DOC-a3bfd04e2912c3c9",
+    "DOC-a8770598bcaad7a7",
+    "DOC-ba0a00b00ba2ed62",
+    "DOC-cb828c5701c751f3",
+    "DOC-ceb3f2b773c75bcd",
+    "DOC-d015968793450753",
+    "DOC-e569482a1ec86379",
+    "DOC-ee6e285fe78f71d5",
+    "DOC-f217dc5aa6f34cb2",
+    "DOC-feab935f7db4b9cf"
+   ]
+  },
+  "E2-judge": {
+   "run_id": "pipeline-qwen-flash-25-e2-corporate-judge",
+   "dataset_sha256": "81c9cef969e2282b9993697e421217868f489e244f4c18e8ff9103a3dd6208ae",
+   "rows": 18,
+   "ids": [
+    "DOC-08829e0f817f1211",
+    "DOC-2aa6196b22606d9c",
+    "DOC-41b53ea487b84955",
+    "DOC-565a3f2fcfc0e5e7",
+    "DOC-71cf2ff8c71b30bf",
+    "DOC-7ffe745a67032ac5",
+    "DOC-8141c160f2a4e857",
+    "DOC-874e9964d8a3835e",
+    "DOC-a3bfd04e2912c3c9",
+    "DOC-a8770598bcaad7a7",
+    "DOC-ba0a00b00ba2ed62",
+    "DOC-cb828c5701c751f3",
+    "DOC-ceb3f2b773c75bcd",
+    "DOC-d015968793450753",
+    "DOC-e569482a1ec86379",
+    "DOC-ee6e285fe78f71d5",
+    "DOC-f217dc5aa6f34cb2",
+    "DOC-feab935f7db4b9cf"
+   ]
+  },
+  "E2-rejudge": {
+   "run_id": "pipeline-qwen-flash-25-e2-corporate-rejudge",
+   "dataset_sha256": "a07b31dc4bddd92bb91e3517082ef3b28ac72c4f3b7277e9a011f7f369ba93d4",
+   "rows": 18,
+   "ids": [
+    "DOC-08829e0f817f1211",
+    "DOC-2aa6196b22606d9c",
+    "DOC-41b53ea487b84955",
+    "DOC-565a3f2fcfc0e5e7",
+    "DOC-71cf2ff8c71b30bf",
+    "DOC-7ffe745a67032ac5",
+    "DOC-8141c160f2a4e857",
+    "DOC-874e9964d8a3835e",
+    "DOC-a3bfd04e2912c3c9",
+    "DOC-a8770598bcaad7a7",
+    "DOC-ba0a00b00ba2ed62",
+    "DOC-cb828c5701c751f3",
+    "DOC-ceb3f2b773c75bcd",
+    "DOC-d015968793450753",
+    "DOC-e569482a1ec86379",
+    "DOC-ee6e285fe78f71d5",
+    "DOC-f217dc5aa6f34cb2",
+    "DOC-feab935f7db4b9cf"
+   ]
+  },
+  "E3": {
+   "run_id": "pipeline-qwen-flash-25-e3-mix-control",
+   "dataset_sha256": "3be224d3bff898dea59ac535c8338b559bdf4cd5a34b2ad6fcea4b98e5877d59",
+   "rows": 45,
+   "ids": [
+    "DOC-000b010d6bbd9322",
+    "DOC-076807b2c574e2c1",
+    "DOC-09b9360652af1d24",
+    "DOC-0dff6ed84fa373d4",
+    "DOC-150cf17e2eb76071",
+    "DOC-176c4e6d9116624d",
+    "DOC-1cd38a83b224335d",
+    "DOC-2e96c6a2e3cdd4c0",
+    "DOC-2fbe8b3db2901e16",
+    "DOC-31c068618dba65f3",
+    "DOC-38756affd90a385b",
+    "DOC-3d7992cfa538714f",
+    "DOC-3e9b00fd9e50b5ff",
+    "DOC-43bd9b75dd0186ab",
+    "DOC-4796e821d313ab2a",
+    "DOC-49642fa25902b91e",
+    "DOC-4be26020b0470e43",
+    "DOC-4cef84f62a46eb50",
+    "DOC-57c73d00e7a5d959",
+    "DOC-5f8ef95caa2fd349",
+    "DOC-6781857ed0b1ced0",
+    "DOC-680704693a37b610",
+    "DOC-6f0ecc8c3bf810cd",
+    "DOC-7916bd2d7c53a559",
+    "DOC-808eba37f3063c4d",
+    "DOC-8663fca594565055",
+    "DOC-95e58a424a0fe496",
+    "DOC-9d34581755c603a3",
+    "DOC-a3770931c2fe68b0",
+    "DOC-a5312c24c93eca96",
+    "DOC-b232221cad8721c8",
+    "DOC-b3ad98e5530dfeaf",
+    "DOC-ba3217c0524a9577",
+    "DOC-bfff7510c78d4d98",
+    "DOC-c18eb4d2d5528b4e",
+    "DOC-c80ef83120793a69",
+    "DOC-d2a911f10ffae873",
+    "DOC-d319cdaa85c4386b",
+    "DOC-d8ea589ddbe0d1fd",
+    "DOC-e3af62d905e5bc55",
+    "DOC-ee8b5416b97e95b5",
+    "DOC-f165fb37bbf03968",
+    "DOC-f450213658054245",
+    "DOC-fc3ff24ee5a908e9",
+    "DOC-fc40ed65438c1519"
+   ]
+  },
+  "E3-treatment": {
+   "run_id": "pipeline-qwen-flash-25-e3-chunk-judge-all",
+   "dataset_sha256": "3be224d3bff898dea59ac535c8338b559bdf4cd5a34b2ad6fcea4b98e5877d59",
+   "rows": 45,
+   "ids": [
+    "DOC-000b010d6bbd9322",
+    "DOC-076807b2c574e2c1",
+    "DOC-09b9360652af1d24",
+    "DOC-0dff6ed84fa373d4",
+    "DOC-150cf17e2eb76071",
+    "DOC-176c4e6d9116624d",
+    "DOC-1cd38a83b224335d",
+    "DOC-2e96c6a2e3cdd4c0",
+    "DOC-2fbe8b3db2901e16",
+    "DOC-31c068618dba65f3",
+    "DOC-38756affd90a385b",
+    "DOC-3d7992cfa538714f",
+    "DOC-3e9b00fd9e50b5ff",
+    "DOC-43bd9b75dd0186ab",
+    "DOC-4796e821d313ab2a",
+    "DOC-49642fa25902b91e",
+    "DOC-4be26020b0470e43",
+    "DOC-4cef84f62a46eb50",
+    "DOC-57c73d00e7a5d959",
+    "DOC-5f8ef95caa2fd349",
+    "DOC-6781857ed0b1ced0",
+    "DOC-680704693a37b610",
+    "DOC-6f0ecc8c3bf810cd",
+    "DOC-7916bd2d7c53a559",
+    "DOC-808eba37f3063c4d",
+    "DOC-8663fca594565055",
+    "DOC-95e58a424a0fe496",
+    "DOC-9d34581755c603a3",
+    "DOC-a3770931c2fe68b0",
+    "DOC-a5312c24c93eca96",
+    "DOC-b232221cad8721c8",
+    "DOC-b3ad98e5530dfeaf",
+    "DOC-ba3217c0524a9577",
+    "DOC-bfff7510c78d4d98",
+    "DOC-c18eb4d2d5528b4e",
+    "DOC-c80ef83120793a69",
+    "DOC-d2a911f10ffae873",
+    "DOC-d319cdaa85c4386b",
+    "DOC-d8ea589ddbe0d1fd",
+    "DOC-e3af62d905e5bc55",
+    "DOC-ee8b5416b97e95b5",
+    "DOC-f165fb37bbf03968",
+    "DOC-f450213658054245",
+    "DOC-fc3ff24ee5a908e9",
+    "DOC-fc40ed65438c1519"
+   ]
+  }
+ },
+ "intersections": {
+  "r2&r3": {
+   "count": 25,
+   "ids": [
+    "DOC-01f1577c446c646d",
+    "DOC-03529267ee75444d",
+    "DOC-16dfd03aed14e557",
+    "DOC-1e016055aa435e71",
+    "DOC-21460a9f6d7e6348",
+    "DOC-2cde0c6d0c70b02b",
+    "DOC-36df577431fb1032",
+    "DOC-4348717727f6d6b4",
+    "DOC-47d391f2646c0506",
+    "DOC-4fd4cf5db3cfdb47",
+    "DOC-52f9a5be69429299",
+    "DOC-576c9233159914e3",
+    "DOC-5fa0ba13cf68b593",
+    "DOC-5fc24327995cd03d",
+    "DOC-690cb07fef21747b",
+    "DOC-7037a114701d153a",
+    "DOC-732b812b7d9d9653",
+    "DOC-95e58a424a0fe496",
+    "DOC-9cd96711a8928ec5",
+    "DOC-a0be2aba09a3f580",
+    "DOC-a52b3ad21666d339",
+    "DOC-bda69bc956881bab",
+    "DOC-c4074ed5b08f097e",
+    "DOC-d554890e66786170",
+    "DOC-f4e726a7f2c25494"
+   ]
+  },
+  "r2&E1": {
+   "count": 0,
+   "ids": []
+  },
+  "r2&E1-chunk": {
+   "count": 0,
+   "ids": []
+  },
+  "r2&E2": {
+   "count": 0,
+   "ids": []
+  },
+  "r2&E2-judge": {
+   "count": 0,
+   "ids": []
+  },
+  "r2&E2-rejudge": {
+   "count": 0,
+   "ids": []
+  },
+  "r2&E3": {
+   "count": 1,
+   "ids": [
+    "DOC-95e58a424a0fe496"
+   ]
+  },
+  "r2&E3-treatment": {
+   "count": 1,
+   "ids": [
+    "DOC-95e58a424a0fe496"
+   ]
+  },
+  "r3&E1": {
+   "count": 0,
+   "ids": []
+  },
+  "r3&E1-chunk": {
+   "count": 0,
+   "ids": []
+  },
+  "r3&E2": {
+   "count": 0,
+   "ids": []
+  },
+  "r3&E2-judge": {
+   "count": 0,
+   "ids": []
+  },
+  "r3&E2-rejudge": {
+   "count": 0,
+   "ids": []
+  },
+  "r3&E3": {
+   "count": 1,
+   "ids": [
+    "DOC-95e58a424a0fe496"
+   ]
+  },
+  "r3&E3-treatment": {
+   "count": 1,
+   "ids": [
+    "DOC-95e58a424a0fe496"
+   ]
+  },
+  "E1&E1-chunk": {
+   "count": 20,
+   "ids": [
+    "DOC-120b94844585736f",
+    "DOC-2ca896ed90170095",
+    "DOC-3e27db1a6e14eb55",
+    "DOC-3f4003eb02433292",
+    "DOC-58223fe211a062f1",
+    "DOC-60da1ef4e48233f5",
+    "DOC-6892c5964a5fcf58",
+    "DOC-6a9af1597909fd82",
+    "DOC-6e7df9951378b82c",
+    "DOC-856c5522e1fc02f7",
+    "DOC-90bc5afa854b5f5e",
+    "DOC-93e9bb030e2b282d",
+    "DOC-a13e6a03e5f40cfe",
+    "DOC-a84f43f1a8b5ba5d",
+    "DOC-a9caf51fdd9ead34",
+    "DOC-ade03c57c5f78e21",
+    "DOC-d500e66c59a36220",
+    "DOC-e51deacc3ced2d71",
+    "DOC-eaa14fe106140524",
+    "DOC-eada0fa830aad602"
+   ]
+  },
+  "E1&E2": {
+   "count": 0,
+   "ids": []
+  },
+  "E1&E2-judge": {
+   "count": 0,
+   "ids": []
+  },
+  "E1&E2-rejudge": {
+   "count": 0,
+   "ids": []
+  },
+  "E1&E3": {
+   "count": 0,
+   "ids": []
+  },
+  "E1&E3-treatment": {
+   "count": 0,
+   "ids": []
+  },
+  "E1-chunk&E2": {
+   "count": 0,
+   "ids": []
+  },
+  "E1-chunk&E2-judge": {
+   "count": 0,
+   "ids": []
+  },
+  "E1-chunk&E2-rejudge": {
+   "count": 0,
+   "ids": []
+  },
+  "E1-chunk&E3": {
+   "count": 0,
+   "ids": []
+  },
+  "E1-chunk&E3-treatment": {
+   "count": 0,
+   "ids": []
+  },
+  "E2&E2-judge": {
+   "count": 18,
+   "ids": [
+    "DOC-08829e0f817f1211",
+    "DOC-2aa6196b22606d9c",
+    "DOC-41b53ea487b84955",
+    "DOC-565a3f2fcfc0e5e7",
+    "DOC-71cf2ff8c71b30bf",
+    "DOC-7ffe745a67032ac5",
+    "DOC-8141c160f2a4e857",
+    "DOC-874e9964d8a3835e",
+    "DOC-a3bfd04e2912c3c9",
+    "DOC-a8770598bcaad7a7",
+    "DOC-ba0a00b00ba2ed62",
+    "DOC-cb828c5701c751f3",
+    "DOC-ceb3f2b773c75bcd",
+    "DOC-d015968793450753",
+    "DOC-e569482a1ec86379",
+    "DOC-ee6e285fe78f71d5",
+    "DOC-f217dc5aa6f34cb2",
+    "DOC-feab935f7db4b9cf"
+   ]
+  },
+  "E2&E2-rejudge": {
+   "count": 18,
+   "ids": [
+    "DOC-08829e0f817f1211",
+    "DOC-2aa6196b22606d9c",
+    "DOC-41b53ea487b84955",
+    "DOC-565a3f2fcfc0e5e7",
+    "DOC-71cf2ff8c71b30bf",
+    "DOC-7ffe745a67032ac5",
+    "DOC-8141c160f2a4e857",
+    "DOC-874e9964d8a3835e",
+    "DOC-a3bfd04e2912c3c9",
+    "DOC-a8770598bcaad7a7",
+    "DOC-ba0a00b00ba2ed62",
+    "DOC-cb828c5701c751f3",
+    "DOC-ceb3f2b773c75bcd",
+    "DOC-d015968793450753",
+    "DOC-e569482a1ec86379",
+    "DOC-ee6e285fe78f71d5",
+    "DOC-f217dc5aa6f34cb2",
+    "DOC-feab935f7db4b9cf"
+   ]
+  },
+  "E2&E3": {
+   "count": 0,
+   "ids": []
+  },
+  "E2&E3-treatment": {
+   "count": 0,
+   "ids": []
+  },
+  "E2-judge&E2-rejudge": {
+   "count": 18,
+   "ids": [
+    "DOC-08829e0f817f1211",
+    "DOC-2aa6196b22606d9c",
+    "DOC-41b53ea487b84955",
+    "DOC-565a3f2fcfc0e5e7",
+    "DOC-71cf2ff8c71b30bf",
+    "DOC-7ffe745a67032ac5",
+    "DOC-8141c160f2a4e857",
+    "DOC-874e9964d8a3835e",
+    "DOC-a3bfd04e2912c3c9",
+    "DOC-a8770598bcaad7a7",
+    "DOC-ba0a00b00ba2ed62",
+    "DOC-cb828c5701c751f3",
+    "DOC-ceb3f2b773c75bcd",
+    "DOC-d015968793450753",
+    "DOC-e569482a1ec86379",
+    "DOC-ee6e285fe78f71d5",
+    "DOC-f217dc5aa6f34cb2",
+    "DOC-feab935f7db4b9cf"
+   ]
+  },
+  "E2-judge&E3": {
+   "count": 0,
+   "ids": []
+  },
+  "E2-judge&E3-treatment": {
+   "count": 0,
+   "ids": []
+  },
+  "E2-rejudge&E3": {
+   "count": 0,
+   "ids": []
+  },
+  "E2-rejudge&E3-treatment": {
+   "count": 0,
+   "ids": []
+  },
+  "E3&E3-treatment": {
+   "count": 45,
+   "ids": [
+    "DOC-000b010d6bbd9322",
+    "DOC-076807b2c574e2c1",
+    "DOC-09b9360652af1d24",
+    "DOC-0dff6ed84fa373d4",
+    "DOC-150cf17e2eb76071",
+    "DOC-176c4e6d9116624d",
+    "DOC-1cd38a83b224335d",
+    "DOC-2e96c6a2e3cdd4c0",
+    "DOC-2fbe8b3db2901e16",
+    "DOC-31c068618dba65f3",
+    "DOC-38756affd90a385b",
+    "DOC-3d7992cfa538714f",
+    "DOC-3e9b00fd9e50b5ff",
+    "DOC-43bd9b75dd0186ab",
+    "DOC-4796e821d313ab2a",
+    "DOC-49642fa25902b91e",
+    "DOC-4be26020b0470e43",
+    "DOC-4cef84f62a46eb50",
+    "DOC-57c73d00e7a5d959",
+    "DOC-5f8ef95caa2fd349",
+    "DOC-6781857ed0b1ced0",
+    "DOC-680704693a37b610",
+    "DOC-6f0ecc8c3bf810cd",
+    "DOC-7916bd2d7c53a559",
+    "DOC-808eba37f3063c4d",
+    "DOC-8663fca594565055",
+    "DOC-95e58a424a0fe496",
+    "DOC-9d34581755c603a3",
+    "DOC-a3770931c2fe68b0",
+    "DOC-a5312c24c93eca96",
+    "DOC-b232221cad8721c8",
+    "DOC-b3ad98e5530dfeaf",
+    "DOC-ba3217c0524a9577",
+    "DOC-bfff7510c78d4d98",
+    "DOC-c18eb4d2d5528b4e",
+    "DOC-c80ef83120793a69",
+    "DOC-d2a911f10ffae873",
+    "DOC-d319cdaa85c4386b",
+    "DOC-d8ea589ddbe0d1fd",
+    "DOC-e3af62d905e5bc55",
+    "DOC-ee8b5416b97e95b5",
+    "DOC-f165fb37bbf03968",
+    "DOC-f450213658054245",
+    "DOC-fc3ff24ee5a908e9",
+    "DOC-fc40ed65438c1519"
+   ]
+  }
+ }
+}

@@ -1399,9 +1399,13 @@ def _run_pipeline_doc(
     def _mock_get_llm(agent_name: str):
         return fake_client(expect), "mock-model"
 
+    from mailroom_sandbox.runtime import blind_routing_active
+
     kwargs = {
         "source": "sandbox-fixtures",
-        "ground_truth": gt,
+        # job.blind_routing: no labels in the graph's state, as in production (llm-mailroom
+        # #207). The caller scores the result against the full row either way.
+        "ground_truth": None if blind_routing_active() else gt,
         "session_id": session_id or matter_id,
         "run_id": run_id or experiment_name,
     }

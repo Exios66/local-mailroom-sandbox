@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+import threading
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping
@@ -329,10 +330,18 @@ def build_merged_taxonomy(
 
 
 def write_runtime_taxonomy(taxonomy: dict, dest: Path | None = None) -> Path:
+    """Write the runtime taxonomy atomically: a reader sees the old file or the new one, never a
+    torn write. Two processes truncating and writing the same path in place left NUL-filled
+    holes that another process then failed to parse."""
     dest = dest or (runtime_dir() / "taxonomy.yaml")
     dest.parent.mkdir(parents=True, exist_ok=True)
-    with dest.open("w", encoding="utf-8") as fh:
-        yaml.safe_dump(taxonomy, fh, default_flow_style=False, sort_keys=False, allow_unicode=True)
+    tmp = dest.with_name(f".{dest.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+    try:
+        with tmp.open("w", encoding="utf-8") as fh:
+            yaml.safe_dump(taxonomy, fh, default_flow_style=False, sort_keys=False, allow_unicode=True)
+        os.replace(tmp, dest)
+    finally:
+        tmp.unlink(missing_ok=True)
     return dest
 
 
