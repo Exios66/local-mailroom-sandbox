@@ -148,15 +148,34 @@ def test_lock_uses_openrouter_names_every_openrouter_caller():
     assert not lock_uses_openrouter({"engine": {"kind": "openrouter"}, "job": {"mock": True}})
 
 
-def test_scope_openrouter_key_drops_it_for_runs_that_never_call_openrouter():
+def test_scope_openrouter_key_drops_it_for_runs_that_never_call_openrouter(monkeypatch):
+    from mailroom_sandbox.job import deploy_env
     from mailroom_sandbox.job.deploy_env import scope_openrouter_key
+
+    monkeypatch.setattr(deploy_env, "_SECRET_OPENROUTER_KEY", {})
 
     env = {"OPENROUTER_API_KEY": "k", "OTHER": "x"}
     assert scope_openrouter_key({"engine": {"kind": "vllm-modal"}}, env) is False
     assert env == {"OTHER": "x"}
     env = {"OPENROUTER_API_KEY": "k"}
     assert scope_openrouter_key({"engine": {"kind": "openrouter"}}, env) is True and env["OPENROUTER_API_KEY"] == "k"
+    monkeypatch.setattr(deploy_env, "_SECRET_OPENROUTER_KEY", {})
     assert scope_openrouter_key({"engine": {"kind": "openrouter"}}, {}) is False
+
+
+def test_a_warm_worker_restores_the_key_for_an_openrouter_run_after_a_run_without_it(monkeypatch):
+    """Modal reuses one process for many inputs; dropping the key once must not lose it."""
+    from mailroom_sandbox.job import deploy_env
+    from mailroom_sandbox.job.deploy_env import scope_openrouter_key
+
+    monkeypatch.setattr(deploy_env, "_SECRET_OPENROUTER_KEY", {})
+    env = {"OPENROUTER_API_KEY": "k"}
+    assert scope_openrouter_key({"engine": {"kind": "vllm-modal"}}, env) is False
+    assert "OPENROUTER_API_KEY" not in env
+    assert scope_openrouter_key({"engine": {"kind": "openrouter"}}, env) is True
+    assert env["OPENROUTER_API_KEY"] == "k"
+    assert scope_openrouter_key({"engine": {"kind": "vllm-modal"}}, env) is False
+    assert "OPENROUTER_API_KEY" not in env
 
 
 def test_modal_job_ships_the_openrouter_key_only_through_the_deploy_secret():
