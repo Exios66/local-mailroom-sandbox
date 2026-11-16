@@ -218,6 +218,9 @@ def run_isolated_eval(
     def _run_one(index: int, row: dict[str, Any]) -> dict[str, Any]:
         seed = str(row.get("id") or row.get("filename") or task)
         started = time.perf_counter()
+        # Epoch window around this row's own execution, so a job.item span built from it
+        # excludes the wait before the main thread records the row.
+        started_ns = time.time_ns()
         error: str | None = None
         pred: dict[str, Any] = {}
         scored: dict[str, Any] = {}
@@ -254,6 +257,8 @@ def run_isolated_eval(
             "score": scored,
             "offline_fallback": fell_back,
             "error": error,
+            "started_at_ns": started_ns,
+            "finished_at_ns": time.time_ns(),
         }
         entry.update(
             merge_item_metrics(

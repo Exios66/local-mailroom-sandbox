@@ -172,3 +172,52 @@ def test_pipeline_eval_reports_each_documents_execution_window(monkeypatch):
     assert isinstance(entry["started_at_ns"], int) and isinstance(entry["finished_at_ns"], int)
     assert entry["finished_at_ns"] >= entry["started_at_ns"]
     assert abs((entry["finished_at_ns"] - entry["started_at_ns"]) / 1e6 - entry["latency_ms"]) < 50
+
+
+def test_isolated_eval_reports_each_rows_execution_window(tmp_path):
+    """Specialist / single-agent rows carry the same execution window as pipeline documents."""
+    from mailroom_sandbox.eval import runners as eval_runners
+
+    seen = []
+    eval_runners.run_isolated_eval(
+        "sorter", mock=True, dry_run=False, experiment_name="t-iso-window",
+        rows=[{"id": "s1", "filename": "s1.txt", "doc_text": "agreement", "expected": "contract",
+               "expected_doc_class": "contract"}],
+        row_cb=seen.append,
+    )
+    (entry,) = seen
+    assert isinstance(entry["started_at_ns"], int) and entry["finished_at_ns"] >= entry["started_at_ns"]
+
+
+def test_isolated_rows_consumed_late_keep_their_execution_window(tmp_path, monkeypatch):
+    """A row recorded after a delay still spans only its execution (CodeRabbit follow-up)."""
+    from mailroom_sandbox.eval import runners as eval_runners
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    store = RunStore(tmp_path / "iso")
+    store.write_lock({"task": "sorter", "profile": "ollama", "prompt": {},
+                      "engine": {"kind": "vllm-local", "model": "m"}, "job": {"mock": True, "concurrency": 1}})
+    with open(store.dataset_path, "w", encoding="utf-8") as fh:
+        fh.write(json.dumps({"id": "s2", "filename": "s2.txt", "doc_text": "t", "expected": "contract",
+                             "expected_doc_class": "contract"}) + "\n")
+    real = eval_runners.run_isolated_eval
+
+    def delayed(agent, *, row_cb=None, **kw):
+        held = []
+        out = real(agent, row_cb=held.append, **kw)
+        windows.extend((e["started_at_ns"], e["finished_at_ns"]) for e in held)
+        import time as _t
+        _t.sleep(0.3)  # the main thread is busy before it records the row
+        for e in held:
+            row_cb(e)
+        return out
+
+    windows: list[tuple[int, int]] = []
+    monkeypatch.setattr(eval_runners, "run_isolated_eval", delayed)
+    mirror = tmp_path / "traces" / "iso.spans.jsonl.gz"
+    tracer = otel.configure_tracing(otel.resolve_sink(sink="none", run_id="iso"), local_path=mirror)
+    with otel.job_span(tracer, "job.run", run_id="iso"):
+        runner._run_whole_run(store, "isolated", mock=True, model=None, profile="ollama", tracer=tracer)
+    otel.flush_tracer(tracer)
+    item = next(s for s in trace_pack.read_spans(mirror) if s["name"] == "job.item")
+    assert (item["start_time_unix_nano"], item["end_time_unix_nano"]) == windows[0]
