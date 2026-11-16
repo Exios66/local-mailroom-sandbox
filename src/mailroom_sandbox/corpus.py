@@ -15,6 +15,7 @@ import json
 import logging
 import random
 import re
+from pathlib import Path
 from typing import Any
 
 from mailroom_sandbox.job.spec import (
@@ -116,6 +117,23 @@ def sha256_text(text: str) -> str:
 
 def _stable_key(row: dict[str, Any]) -> tuple[str, str]:
     return (str(row.get("filename") or ""), str(row.get("id") or ""))
+
+
+def read_id_list(path: Path) -> list[str]:
+    """Document ids from a text file: one per line, ``#`` comments and blank lines ignored."""
+    ids: list[str] = []
+    for line in Path(path).read_text(encoding="utf-8").splitlines():
+        token = line.split("#", 1)[0].strip()
+        if token:
+            ids.append(token)
+    return ids
+
+
+def _drop_excluded(rows: list[dict[str, Any]], exclude_ids: set[str] | None) -> list[dict[str, Any]]:
+    """Rows whose ``id`` is not excluded (all rows when there is nothing to exclude)."""
+    if not exclude_ids:
+        return rows
+    return [r for r in rows if str(r.get("id") or "") not in exclude_ids]
 
 
 def _read_jsonl(path) -> list[dict[str, Any]]:
@@ -636,8 +654,14 @@ def select_rows(
     sample_seed: int | None,
     limit: int | None,
     require_task_gt: bool = False,
+    exclude_ids: set[str] | None = None,
 ) -> list[dict[str, Any]]:
-    """Deterministic selection: canonical sort, per-stratum sub-seed draws, union, limit."""
+    """Deterministic selection: canonical sort, per-stratum sub-seed draws, union, limit.
+
+    Rows whose ``id`` is in ``exclude_ids`` are dropped before any draw, so the draw
+    behaves exactly as if they were not in the corpus (and nested draws stay nested).
+    """
+    rows = _drop_excluded(rows, exclude_ids)
     # Opt-in (``dataset.require_task_gt``): a document whose class's task-native metric has
     # no ground truth can never be scored, so including it costs a GPU pass and deflates
     # the paired n without adding information. The strata guard below still hard-fails if a
@@ -709,6 +733,16 @@ def prepare_subset(spec: DatasetSpec, dest_file) -> dict[str, Any]:
         source_meta["pull"] = spec.pull
 
     rows = normalize_rows(rows)
+    exclude_ids: set[str] | None = None
+    excluded_meta: dict[str, int] | None = None
+    if spec.exclude_ids_file:
+        spec.exclude_ids_bytes()  # a missing file raises the same ValueError as spec_core
+        listed = set(read_id_list(spec.exclude_ids_path()))
+        present = {str(r.get("id") or "") for r in rows}
+        exclude_ids = listed
+        excluded_meta = {"listed": len(listed), "matched": len(listed & present)}
+        # Before the strata guard, so it judges what the draw can really use.
+        rows = _drop_excluded(rows, exclude_ids)
     rows = filter_rows(rows, spec)
     # DMR-066: refuse silent strata collapse BEFORE the draw…
     strata_guard(rows, spec.strata)
@@ -721,6 +755,7 @@ def prepare_subset(spec: DatasetSpec, dest_file) -> dict[str, Any]:
         sample_seed=spec.sample_seed,
         limit=spec.limit,
         require_task_gt=bool(getattr(spec, "require_task_gt", False)),
+        exclude_ids=exclude_ids,
     )
     # …and refuse a draw/limit that dropped a requested stratum AFTER it.
     strata_draw_guard(chosen, spec.strata)
@@ -751,6 +786,7 @@ def prepare_subset(spec: DatasetSpec, dest_file) -> dict[str, Any]:
         "metadata": source_meta,
         "revision_requested": spec.revision or FAMILY_HF_REVISION,
         "revision_resolved": source_meta.get("revision_resolved"),
+        **({"excluded": excluded_meta} if excluded_meta is not None else {}),
     }
 
 

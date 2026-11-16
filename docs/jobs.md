@@ -172,6 +172,10 @@ exists, plus `limit`, `sample_seed`, `strata` and `exclude_expected`.
 it filters out rows with no task ground truth before selection. Its false
 default is omitted, preserving unfiltered hashes. A filter change must refuse
 resume with `drift_refused`; relocking preserves the previous generation.
+`dataset.exclude_ids_file` (repo-relative text file, one document `id` per line, `#`
+comments and blank lines ignored) drops those rows before any draw, so nested slices
+stay nested. Its content sha256 is hashed as `exclude_ids_sha256` only when set; a set
+but missing file fails preflight, and the `dataset` check reports `excluded=<matched>/<listed>`.
 The registry name, declared SHA pin and pull
 recipe are not hashed. Same-named identical files hash alike across checkout
 paths. Missing files still hash without source bytes; this does not mean they
