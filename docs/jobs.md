@@ -211,6 +211,8 @@ sandbox metrics compare --log
 
 Exit codes: `0` done · `1` failed · `2` paused · `3` drift/busy/foreign-store refusal.
 
+`sandbox run gate` has its own exit codes (`0` pass, `2` fail, `1` missing run). The slice loop it gates (preflight → start → gate → fix → re-run → step up) is in [`docs/runbooks/production-slices.md`](runbooks/production-slices.md).
+
 **Routing audit.** `sandbox run routing` reads a finished store and reports, per
 class:
 
