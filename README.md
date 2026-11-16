@@ -381,8 +381,8 @@ The exact snapshot commits are in
 
 <!-- /coderabbit-ai-generated:v1 -->
 
-The Dojo pin is a release tag. The llm-mailroom pin is a reviewed `main` commit, and it moves
-back to a tag when the next llm-mailroom release is cut.
+Both pins are reviewed, untagged commits on each repository's `v0.30.0` release branch
+(llm-mailroom `abb1ccf`, Dojo `13adc8e`). Each moves back to a release tag once one is cut.
 
 With no API token, the guard serves token-protected routes only on a loopback listener and
 answers 503 to requests carrying `Forwarded`, `X-Forwarded-For` or `X-Real-IP`. `/health` and

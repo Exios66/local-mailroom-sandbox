@@ -40,6 +40,48 @@ def test_confidence_block_validates_keys_ranges_and_order():
             _spec(confidence=bad)
 
 
+def test_judge_rejudge_retry_is_a_strict_boolean_run_knob():
+    on = _spec(confidence={"judge_rejudge_retry": True, "by_class": {"corporate_record": {"judge_rejudge_retry": False}}})
+    assert on.confidence["judge_rejudge_retry"] is True
+    assert on.confidence["by_class"]["corporate_record"]["judge_rejudge_retry"] is False
+    for bad in ("false", "true", 1, 0, None):
+        with pytest.raises(ValidationError, match="judge_rejudge_retry must be true or false"):
+            _spec(confidence={"judge_rejudge_retry": bad})
+        with pytest.raises(ValidationError, match="judge_rejudge_retry must be true or false"):
+            _spec(confidence={"by_class": {"contract": {"judge_rejudge_retry": bad}}})
+    # The knob is part of the run's identity: the on and off arms never share a lock.
+    off = _spec(confidence={"judge_rejudge_retry": False})
+    assert core_hash(spec_core(on, source_sha256="0" * 64)) != core_hash(spec_core(off, source_sha256="0" * 64))
+
+
+def test_activation_applies_judge_rejudge_retry_and_routing_reads_it(monkeypatch):
+    pytest.importorskip("pipeline.config")
+    from graph import routing
+    from pipeline.config import get_confidence_thresholds
+
+    from mailroom_sandbox import runtime
+
+    monkeypatch.setenv("VLLM_BASE_URL", "https://example.invalid/v1")
+    monkeypatch.delenv("MAILROOM_JUDGE_VERIFY", raising=False)
+    # A judged first attempt, retried: the case #241 re-judges when the knob is on.
+    state = {"doc_type": "corporate_record", "extraction_attempts": 2, "judge_pass_count": 1,
+             "extracted_data": {"entity_name": "Cedar Sample Ltd"}}
+    runtime.activate("modal-vllm", load_env_file=False)
+    assert get_confidence_thresholds("corporate_record").get("judge_rejudge_retry", False) is False
+    assert routing.retry_rejudge_due(state) is False  # ships off
+    runtime.activate("modal-vllm", load_env_file=False,
+                     confidence={"by_class": {"corporate_record": {"judge_rejudge_retry": True}}})
+    try:
+        assert get_confidence_thresholds("corporate_record")["judge_rejudge_retry"] is True
+        assert get_confidence_thresholds("contract").get("judge_rejudge_retry", False) is False
+        flag_on = routing.retry_rejudge_due(state)
+        other_class = routing.retry_rejudge_due({**state, "doc_type": "contract"})
+    finally:
+        runtime.activate("modal-vllm", load_env_file=False)
+    assert flag_on is True and other_class is False
+    assert routing.retry_rejudge_due(state) is False  # restored on the next activation
+
+
 def test_confidence_is_hashed_only_when_set():
     plain = _spec()
     assert "confidence" not in spec_core(plain, source_sha256="0" * 64)
