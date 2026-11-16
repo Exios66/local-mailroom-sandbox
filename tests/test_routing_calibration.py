@@ -302,3 +302,35 @@ def test_a_locked_run_routes_on_its_frozen_block_even_after_the_overlay_moves(mo
     finally:
         runtime.activate("modal-vllm", load_env_file=False)
     assert get_confidence_thresholds("contract")["high"] == 0.98
+
+
+def test_a_locked_run_ignores_a_class_key_an_overlay_added_after_preflight(monkeypatch):
+    """The frozen block replaces the live one, so a key absent from it cannot leak in (#303 review)."""
+    pytest.importorskip("pipeline.config")
+    from pipeline.config import get_confidence_thresholds
+
+    from mailroom_sandbox import runtime
+    from mailroom_sandbox.job.routing_audit import effective_thresholds, thresholds_for
+
+    monkeypatch.setenv("VLLM_BASE_URL", "https://example.invalid/v1")
+    frozen = json.loads(json.dumps(effective_thresholds()))
+    assert "judge_rejudge_retry" not in (frozen["by_class"].get("contract") or {})
+    real_build = runtime.build_merged_taxonomy
+
+    def overlay_added_a_class_key(*args, **kwargs):  # the overlay edited after preflight
+        tax = real_build(*args, **kwargs)
+        tax["confidence"]["by_class"]["contract"]["judge_rejudge_retry"] = True
+        return tax
+
+    monkeypatch.setattr(runtime, "build_merged_taxonomy", overlay_added_a_class_key)
+    lock = {"profile": "modal-vllm", "job": {}, "confidence": {}, "effective_confidence": frozen}
+    try:
+        with runtime.locked_runtime(lock, {}):
+            runtime.activate("modal-vllm", load_env_file=False)
+        routed = get_confidence_thresholds("contract")
+        audited = thresholds_for(lock["effective_confidence"], "contract")
+        assert routed.get("judge_rejudge_retry") == audited.get("judge_rejudge_retry")
+        assert routed.get("judge_rejudge_retry") is not True
+    finally:
+        monkeypatch.setattr(runtime, "build_merged_taxonomy", real_build)
+        runtime.activate("modal-vllm", load_env_file=False)
