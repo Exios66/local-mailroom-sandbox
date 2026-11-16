@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+- **Frozen confidence includes the component routing overlay** (follow-up to #303). Preflight
+  froze `effective_confidence` from the vendored taxonomy and the taxonomy overlay only, while a
+  locked activation replaces the runtime block with it. The `config/components.yaml` routing
+  layer (global `high` 0.95, `low` 0.7, `retry_max` 1, `conflict_threshold` 0.3) was therefore
+  dropped from locked runs. `effective_thresholds` now merges it in the same order as
+  `build_merged_taxonomy`. A test asserts that a locked run routes exactly like an unlocked one.
+  No run had been locked with the incomplete block.
+
 - **Production slice gate** (#305). Production runs are nested slices of the HF mailroom dataset,
   and each slice must pass a gate before the next one runs. The slices exclude the recorded
   pipeline tuning runs; sorter accuracy and the earlier specialist A/B documents remain in-sample
