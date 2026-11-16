@@ -45,12 +45,19 @@ def _jsonl(path: Path) -> list[dict[str, Any]]:
 
 
 def effective_thresholds(lock_confidence: Mapping[str, Any] | None = None) -> dict[str, Any]:
-    """The run's ``confidence`` block: vendored, then overlay, then the run lock."""
+    """The run's ``confidence`` block, merged in the order ``build_merged_taxonomy`` uses:
+    vendored, taxonomy overlay, the ``config/components.yaml`` routing overlay, then the run lock.
+
+    Preflight freezes this block and a locked activation replaces the runtime block with it, so
+    a layer missing here would silently change a locked run's routing.
+    """
+    from mailroom_sandbox.components import load_components, routing_overlay
     from mailroom_sandbox.overlay import deep_merge, load_yaml, mailroom_taxonomy_path
     from mailroom_sandbox.paths import config_dir
 
     block = deep_merge(load_yaml(mailroom_taxonomy_path()).get("confidence") or {},
                        load_yaml(config_dir() / "taxonomy.overlay.yaml").get("confidence") or {})
+    block = deep_merge(block, routing_overlay(load_components()).get("confidence") or {})
     return deep_merge(block, dict(lock_confidence or {}))
 
 
