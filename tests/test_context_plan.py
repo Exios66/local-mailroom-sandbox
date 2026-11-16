@@ -186,3 +186,35 @@ def test_isolated_specialist_zero_overlap_falls_back_like_the_evaluator():
     entry = context_plan.plan(TAXONOMY, rows, windows=WINDOWS, task="specialist", knobs=knobs)["classes"]["merger_agreement"]
     window, _ = chunk_window(36008, 90_000, 8_000)  # _live_specialist: `overlap_chars or 8_000`
     assert entry["chunk_chars"] == window == 31_507 and entry["max_chunks_per_pass"] == 4
+
+
+def test_fan_out_warning_names_the_document_with_the_most_chunks():
+    tax = json.loads(json.dumps(TAXONOMY))
+    rows = [{"id": "long", "expected_doc_class": "merger_agreement", "doc_text": "x" * 150_000},
+            {"id": "paras", "expected_doc_class": "merger_agreement",
+             "doc_text": "\n\n".join("y" * 16_000 for _ in range(8))}]
+    entry = context_plan.plan(tax, rows, windows=WINDOWS)["classes"]["merger_agreement"]
+    assert entry["longest_doc"] == "long" and entry["max_chunks_doc"] == "paras"
+    assert entry["max_chunks_per_pass"] == 8
+    cp = context_plan.plan(tax, rows, windows=WINDOWS)
+    assert any("document paras (128014 chars) splits into ~8 chunks" in w for w in cp["warnings"])
+
+
+def test_plan_and_lock_resolve_knobs_from_the_same_run_id(tmp_path, monkeypatch):
+    from mailroom_sandbox.job import specialist_posture
+    from mailroom_sandbox.job.checkpoint import RunStore
+    from mailroom_sandbox.job.spec import run_dir
+
+    seen = []
+
+    def posture(run_id):
+        seen.append(run_id)
+        return {"merger_agreement_specialist": {"max_input_chars": 98_000}} if run_id == "cli-id" else None
+
+    monkeypatch.setattr(specialist_posture, "agent_knobs_for_run", posture)
+    report = preflight.preflight(_pipeline_spec(tmp_path, monkeypatch), run_id="cli-id", offline=True)
+    assert report["status"] == "prepared", report
+    assert set(seen) == {"cli-id"}
+    assert report["context_plan"]["classes"]["merger_agreement"]["input_budget"] == 98_000
+    lock = RunStore(run_dir("cli-id")).read_lock()
+    assert lock["agent_knobs"]["merger_agreement_specialist"]["max_input_chars"] == 98_000

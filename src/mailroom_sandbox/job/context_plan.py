@@ -177,16 +177,19 @@ def plan(
                 chunk_chars, _ = window_plan(budget, spec_chunking) if chunked else (budget, 0)
                 knob_hint = f"agent_knobs.{specialist}.max_input_chars or chunk_chars"
                 window_cap = int(knob["chunk_chars"]) if chunked else budget
-            per_pass = max(chunk_count(t, chunk_chars) for _, t in texts[cls]) if chunked else 1
+            # A shorter document of large paragraphs can need more windows than the longest.
+            counts = [(chunk_count(t, chunk_chars), d, len(t)) for d, t in texts[cls]] if chunked else [(1, longest_id, longest)]
+            per_pass, fan_doc, fan_chars = max(counts, key=lambda c: (c[0], c[2]))
             entry.update(specialist=specialist, input_budget=budget, chunked=chunked,
-                         chunk_chars=chunk_chars if chunked else None, max_chunks_per_pass=per_pass)
+                         chunk_chars=chunk_chars if chunked else None, max_chunks_per_pass=per_pass,
+                         max_chunks_doc=fan_doc)
             if not chunked and longest > budget:
                 why = "chunking is disabled" if pipeline else "no chunk_chars knob (single pass)"
                 warnings.append(f"{cls}: {why} and {specialist} max_input_chars={budget} "
                                 f"truncates the longest document ({longest} chars)")
             elif per_pass > max_chunks and chunk_chars < window_cap:  # at the cap, a wider budget changes nothing
                 warnings.append(
-                    f"{cls}: longest document ({longest} chars) splits into ~{per_pass} chunks per "
+                    f"{cls}: document {fan_doc} ({fan_chars} chars) splits into ~{per_pass} chunks per "
                     f"extraction pass at {specialist} max_input_chars={budget}; on a long-context engine "
                     f"widen {knob_hint} (the window caps at chunk_chars={window_cap})"
                 )
