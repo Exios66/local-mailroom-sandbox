@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+- **Context-fit budgets for long-context API routes** (2026-11-15). Specialists,
+  `judge` and `arbiter` routed through OpenRouter now get an input budget sized
+  to their model's `context_length` (`config/api_prices.yaml`) instead of the
+  16k-token L4 posture. The chunk cap and the vendored judge/arbiter source
+  windows follow that budget. With `qwen/qwen3.7-flash`, a 418k-character merger
+  agreement is extracted in one call per pass, and the judge and arbiter read
+  all of it. The classification arbiter no longer sends documents over 16k
+  characters to a person unread. Modal, vLLM, Ollama and LM Studio routes are
+  unchanged. Source windows are restored on every other activation. Configure
+  under `context_fit` in `config/taxonomy.overlay.yaml`; run `agent_knobs` still
+  win.
+
 - **Preflight context plan** (2026-11-15). `pipeline` and specialist preflights
   now attach an advisory `context_plan`. It covers chunk windows per extraction
   pass under the run's effective budgets, judge/arbiter source coverage per

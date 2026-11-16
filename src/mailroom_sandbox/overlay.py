@@ -12,7 +12,7 @@ import logging
 import os
 from copy import deepcopy
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 import yaml
 
@@ -260,6 +260,17 @@ def rewrite_agents(taxonomy: dict, profile: dict, *, model_override: str | None 
     return out
 
 
+def _fit_routes(agent_routes: Mapping[str, Any] | None, agent_models: Mapping[str, str] | None) -> dict[str, dict]:
+    """Each routed/overridden agent's final provider + model, for context fitting."""
+    out: dict[str, dict] = {}
+    for name, route in (agent_routes or {}).items():
+        get = route.get if isinstance(route, Mapping) else (lambda k, _r=route: getattr(_r, k, None))
+        out[name] = {"provider": get("provider"), "model": get("model")}
+    for name, model in (agent_models or {}).items():
+        out.setdefault(name, {})["model"] = model
+    return out
+
+
 def build_merged_taxonomy(
     profile: dict,
     *,
@@ -267,8 +278,10 @@ def build_merged_taxonomy(
     extra_overlay: dict | None = None,
     agent_models: dict[str, str] | None = None,
     agent_knobs: dict | None = None,
+    agent_routes: Mapping[str, Any] | None = None,
 ) -> dict:
     from mailroom_sandbox.components import load_components, routing_overlay
+    from mailroom_sandbox.context_fit import apply_context_fit
 
     base = load_yaml(mailroom_taxonomy_path())
     overlay = load_yaml(config_dir() / "taxonomy.overlay.yaml")
@@ -279,6 +292,11 @@ def build_merged_taxonomy(
     merged = rewrite_agents(merged, profile, model_override=model_override)
     # Overlay agent knobs (temp / tokens / optional model) win after rewrite.
     merged = apply_agent_overrides(merged, overlay.get("agents") or {})
+    # The overlay budgets fit a 16k-token L4 window; agents on a long-context API
+    # route get budgets sized to their model's real context, so whole documents
+    # go in one call instead of 16k-shaped chunks. Local/Modal routes are left
+    # alone. Run knobs below still win.
+    merged = apply_context_fit(merged, agent_routes=_fit_routes(agent_routes, agent_models))
     # SAND-019: run-scoped generation-budget knobs (e.g. a 32768-window AWQ run
     # that needs more decode tokens than the bf16-safe 16384 overlay allows) win
     # last, after the profile's global overlay. Keeps the default overlay
