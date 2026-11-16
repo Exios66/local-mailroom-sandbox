@@ -184,13 +184,27 @@ def lock_uses_openrouter(lock: Mapping) -> bool:
     return bool(lock.get("extraction_gate"))
 
 
+# The deploy Secret's key, kept out of the environment between inputs. A warm Modal
+# container reuses one process (and one ``os.environ``) for many inputs, so dropping the
+# key for one run must not lose it for the next run that needs it.
+_SECRET_OPENROUTER_KEY: dict[str, str] = {}
+
+
 def scope_openrouter_key(lock: Mapping, environ: dict) -> bool:
     """Keep ``OPENROUTER_API_KEY`` in ``environ`` only for a lock that calls OpenRouter.
 
     The Modal job worker receives the key through its deploy Secret for every input. A run
-    that never calls OpenRouter must not hold it, so it is dropped for those. Returns whether
-    the key is present afterwards.
+    that never calls OpenRouter must not hold it, so it is dropped for those and restored
+    for a later input in the same container that does call OpenRouter. Returns whether the
+    key is present afterwards.
     """
+    key = str(environ.get("OPENROUTER_API_KEY") or "").strip()
+    if key:
+        _SECRET_OPENROUTER_KEY["value"] = key
     if not lock_uses_openrouter(lock):
         environ.pop("OPENROUTER_API_KEY", None)
-    return bool(str(environ.get("OPENROUTER_API_KEY") or "").strip())
+        return False
+    stashed = _SECRET_OPENROUTER_KEY.get("value")
+    if stashed:
+        environ["OPENROUTER_API_KEY"] = stashed
+    return bool(stashed)
