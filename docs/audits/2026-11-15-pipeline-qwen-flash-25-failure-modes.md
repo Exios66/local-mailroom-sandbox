@@ -72,34 +72,44 @@ occurred (`events.jsonl`: preflight_ok → spend_authorized → start → done).
 
 ## 3. What changed here (sandbox)
 
+- **Context fit + source windows** (§4): chunking and judge/arbiter excerpts
+  follow the routed model's real context window.
 - **Preflight `context_plan`** (`src/mailroom_sandbox/job/context_plan.py`). It
   reports §1.1, §1.2, F1, F2 and F4 before any spend, using the taxonomy the run
   would activate. It is advisory and never fails preflight. For this config it
   prints the 14-window merger fan-out, the judge coverage per class (merger 4%,
   contract 41%, corporate 44%), the no-effect judge knob, and the 56-character row.
 
-## 4. Recommended for next week's long-context runs (config, no code)
+## 4. Context fit: chunk only when the model cannot take the document
 
-Add to each OpenRouter or long-context run's `agent_knobs`. Engine context
-permitting, the window caps at `chunking.chunk_chars = 90000`.
+`mailroom_sandbox.context_fit` resizes specialists, `judge` and `arbiter` routed
+through OpenRouter to their model's `context_length` (`config/api_prices.yaml`):
+`(context_length - max_tokens - 8000) * 2.4` characters. It raises the chunk cap
+to match, and `mailroom_sandbox.source_windows` widens the vendored
+judge/arbiter excerpts at activation. Modal, vLLM, Ollama and LM Studio routes
+keep the 16k posture, and the windows are restored on their activation.
 
-```yaml
-agent_knobs:
-  sorter: {max_input_chars: 600000}
-  intake: {max_input_chars: 600000}
-  merger_agreement_specialist: {max_input_chars: 98000}   # 14 → 5 windows per pass
-  contracts_specialist: {max_input_chars: 60000}          # 3 → 1 window
-  corporate_records_specialist: {max_input_chars: 60000}  # 2 → 1 window
-```
+For this run's config, the plan now reads:
 
-This has not been measured. It cuts call count and overlap tokens, but the
-effect on MAUD accuracy needs a paid rerun. Run the preflight plan before
-`run start` and confirm the fan-out warnings clear. Expect the judge-window
-warnings to stay until the upstream fix below lands.
+| Class | Windows per pass (before → after) | Judge coverage of longest doc |
+|---|---|---|
+| merger_agreement | 14 → 1 | 4% → 100% |
+| contract | 3 → 1 | 41% → 100% |
+| corporate_record | 2 → 1 | 44% → 100% |
+
+The near-empty-row warning remains. **Not yet measured:** whether MAUD accuracy
+and the contract `judge_partial` rate improve needs a paid rerun. The judge
+and arbiter now read whole documents, so merger input tokens per judge/arbiter
+call grow about 26× (16k → ~420k characters). Single-pass extraction drops the
+chunk overlap and per-chunk prompt overhead. Fewer arbiter-ordered retries
+should offset part of the judge growth. Re-check `job.api_cost_cap_usd`
+before scaling up. Set `context_fit.enabled: false` in the overlay, or use run
+`agent_knobs`, to keep the old posture.
 
 ## 5. Upstream handoff (llm-mailroom v0.30 / v0.31)
 
-1. Make the judge and arbiter source windows configurable. Honour
+1. Make the judge and arbiter source windows configurable (the sandbox
+   override in `source_windows.py` is a stopgap until then). Honour
    `agents.judge.max_input_chars` and give the arbiter an equivalent. Better
    still, judge per chunk or against the retrieved spans that the extraction
    cites. Do not let the arbiter order a re-extraction from an excerpt that

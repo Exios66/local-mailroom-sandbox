@@ -152,7 +152,14 @@ def plan(
     if tiny:
         shown = ", ".join(tiny[:5]) + (" …" if len(tiny) > 5 else "")
         warnings.append(f"{len(tiny)} document(s) under {min_chars} chars of text: {shown}")
-    return {"source_windows": windows, "classes": classes, "tiny_docs": tiny, "warnings": warnings}
+    fit = taxonomy.get("context_fit") or {}
+    return {
+        "source_windows": windows,
+        "context_fit": {"applied": fit.get("applied") or {}, "chunk_chars": fit.get("chunk_chars")},
+        "classes": classes,
+        "tiny_docs": tiny,
+        "warnings": warnings,
+    }
 
 
 def plan_for_spec(spec: Any, rows: Iterable[Mapping[str, Any]], **kwargs: Any) -> dict[str, Any]:
@@ -164,5 +171,18 @@ def plan_for_spec(spec: Any, rows: Iterable[Mapping[str, Any]], **kwargs: Any) -
         model_override=spec.engine.model,
         agent_models=spec.agent_models,
         agent_knobs=spec.agent_knobs,
+        agent_routes=spec.agent_routes,
     )
+    if "windows" not in kwargs:
+        kwargs["windows"] = effective_windows(taxonomy)
     return plan(taxonomy, rows, **kwargs)
+
+
+def effective_windows(taxonomy: Mapping[str, Any], vendored: Mapping[str, int | None] | None = None) -> dict[str, int | None]:
+    """Judge/arbiter windows this run would use: vendored, raised by context-fit."""
+    from mailroom_sandbox.source_windows import windows_for
+
+    out = dict(source_windows() if vendored is None else vendored)
+    for agent, widened in windows_for(taxonomy).items():
+        out[agent] = max(int(out.get(agent) or 0), widened)
+    return out

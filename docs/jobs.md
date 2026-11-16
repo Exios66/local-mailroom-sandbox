@@ -271,8 +271,14 @@ locked prompts/models/knobs rather than later ambient generation settings.
    much of each class's longest document the judge and arbiter see: the vendored
    `JUDGE_SOURCE_CHARS` / `SOURCE_CHARS`, which `agents.judge.max_input_chars`
    does not change. Third, rows under 200 characters. Overlay specialist budgets
-   are sized for a 16k-token L4 window. On a long-context API engine, widen
-   `agent_knobs.<specialist>.max_input_chars` when it warns about fan-out. See
+   are sized for a 16k-token L4 window. **Context fit** (`context_fit` in
+   `config/taxonomy.overlay.yaml`) resizes specialists, `judge` and `arbiter`
+   on an `openrouter` route to the model's `context_length` from
+   `config/api_prices.yaml`. It also raises the chunk cap and the judge/arbiter
+   source windows, so a document is chunked only when it exceeds the model's
+   real window. Modal, vLLM, Ollama and LM Studio routes keep the 16k posture.
+   The plan reports what was fitted under `context_fit`, and run `agent_knobs`
+   still win. See
    [the Qwen-25 failure-mode audit](audits/2026-11-15-pipeline-qwen-flash-25-failure-modes.md).
 3. **engine** — vLLM field/range guards (DMR-022 flags, v0.29.0 rules) +
    optional live `/v1/models` probe (`data[0].id == spec.model`) with `--live`.

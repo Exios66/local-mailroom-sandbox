@@ -81,7 +81,8 @@ def describe(spec) -> dict[str, dict[str, str]]:
     """Resolve the full agent model/provider table without creating any clients."""
     from mailroom_sandbox.overlay import build_merged_taxonomy, load_profile
     taxonomy = build_merged_taxonomy(load_profile(spec.profile), model_override=spec.engine.model,
-                                      agent_models=spec.agent_models, agent_knobs=spec.agent_knobs)
+                                      agent_models=spec.agent_models, agent_knobs=spec.agent_knobs,
+                                      agent_routes=spec.agent_routes)
     assignments = {}
     for name, agent in (taxonomy.get("agents") or {}).items():
         if name not in known_agents():
