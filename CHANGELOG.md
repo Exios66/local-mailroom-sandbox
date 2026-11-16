@@ -16,12 +16,16 @@
   - Every E2/E3 arm now sets blind routing, `dataset.interim_labels: true` and the adopted
     condensed specialist prompts (corporate v1, correspondence v2, insurance v3). The sorter's
     vendored default is already the adopted `sorter_condensed_v5`.
-- **`judge_rejudge_retry` run setting** (#300): a run's `confidence` block (top level or
-  `by_class`) can switch llm-mailroom #241's opt-in re-judge of retried extractions. Only an
-  unquoted `true`/`false` is accepted, because the vendored router reads the value by
-  truthiness and a quoted `"false"` would turn it on. `sandbox run routing` reports the value.
-  New ladder arm `pipeline-qwen-flash-25-e2-corporate-rejudge` pairs with the E2 control;
-  the E2 control and judge arms now state `judge_rejudge_retry: false`, the vendored default.
+- **E2 rejudge arm re-paired** (#300): `pipeline-qwen-flash-25-e2-corporate-rejudge` is now the
+  E2 control plus `corporate_record.judge_rejudge_retry: true`, paired with the control. On the
+  judge arm (`judge_band_high: 1.01`) every archivable extraction is already judged, so the
+  switch cannot change that arm's routing. The E2 control and judge arms state `false`, and
+  `sandbox run routing` reports the value.
+- **`judge_rejudge_retry` run knob** (2026-11-16): a run spec's `confidence` block (global or
+  `by_class`) now accepts llm-mailroom #241's `judge_rejudge_retry`, so E2 can run its on and
+  off arms without editing the overlay. Only `true`/`false` are accepted: upstream reads the
+  key by truthiness, so a quoted `"false"` would have switched it on. The vendored default
+  stays `false`; the knob is part of the run's locked, hashed identity.
 - **Vendor refresh** (2026-11-16): llm-mailroom `98c89b8` → `abb1ccf` (`v0.30.0` branch after
   llm-mailroom #252, package 0.9.3) and llm-dojo-scoring `542a1c3` → `13adc8e` (`v0.30.0` branch
   after llm-dojo-scoring #163, package 0.30.0), the upstream fixes for tracking issue #300.
