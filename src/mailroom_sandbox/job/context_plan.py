@@ -10,9 +10,11 @@ Offline and model-free. It shows the run's input-budget risks before any spend:
   ``agent_knobs``. In pipeline-qwen-flash-25, each ~400k-character merger
   agreement split into ~14 windows per pass, three passes per document.
 * **Judge and arbiter source coverage.** ``agents/judge.py`` (``JUDGE_SOURCE_CHARS``)
-  and ``agents/arbiter.py`` (``SOURCE_CHARS``) send only the start of the document.
-  They ignore ``agents.judge.max_input_chars``. On longer documents they flag
-  correct facts from later pages as fabrications and order re-extractions.
+  and ``agents/arbiter.py`` (``SOURCE_CHARS``) each send only the start of the
+  document, on their own window. Without context fit they ignore
+  ``agents.judge.max_input_chars``; on a fitted route the sandbox raises them to
+  the fitted budget. On longer documents they flag correct facts from later pages
+  as fabrications and order re-extractions.
 * **Degenerate inputs.** Near-empty rows (a 56-character "correspondence"
   document) can only end in review or a meaningless score.
 
@@ -20,7 +22,6 @@ The plan is informational: preflight records it and never fails on it.
 """
 from __future__ import annotations
 
-import math
 import re
 from collections import defaultdict
 from pathlib import Path
@@ -68,6 +69,28 @@ def window_plan(budget: int, chunking: Mapping[str, Any] | None) -> tuple[int, i
     return min(chunk_chars, max(1_000, budget - overlap)), overlap
 
 
+def chunk_count(text: str, chunk_chars: int) -> int:
+    """How many windows ``SpecialistAgent._split_chunks`` cuts ``text`` into.
+
+    Paragraphs (``\\n\\n``) stay intact and an oversized paragraph is hard-split,
+    so a document of large paragraphs can need more windows than ``len / chunk``.
+    The overlap tail is prepended to later windows and does not change the count.
+    """
+    if len(text) <= chunk_chars:
+        return 1
+    count, current_len = 0, 0
+    for para in (p for p in text.split("\n\n") if p.strip()):
+        size = len(para)
+        while size > chunk_chars:
+            count += 1
+            size -= chunk_chars
+        if current_len and current_len + size + 2 > chunk_chars:
+            count += 1
+            current_len = 0
+        current_len += size + 2
+    return count + (1 if current_len else 0)
+
+
 def _specialists(taxonomy: Mapping[str, Any]) -> dict[str, str]:
     return {
         str(c["key"]): str(c["specialist"])
@@ -84,6 +107,21 @@ def _budget(taxonomy: Mapping[str, Any], agent: str) -> int:
         return _DEFAULT_BUDGET
 
 
+def _coverage(cls: str, agent: str, window: int | None, docs: list[tuple[str, int]], longest: int,
+              entry: dict[str, Any], warnings: list[str]) -> None:
+    """Record one agent's source coverage; each agent truncates on its own window."""
+    if not window:
+        return
+    entry[f"{agent}_coverage_min"] = round(min(1.0, window / longest), 4) if longest else 1.0
+    over = [d for d, n in docs if n > window]
+    if over:
+        warnings.append(
+            f"{cls}: {len(over)}/{len(docs)} document(s) exceed the {agent} source window "
+            f"({window} chars); the longest is {100 * window / longest:.0f}% visible, so "
+            f"{agent} findings about later content are unverifiable"
+        )
+
+
 def plan(
     taxonomy: Mapping[str, Any],
     rows: Iterable[Mapping[str, Any]],
@@ -91,70 +129,83 @@ def plan(
     windows: Mapping[str, int | None] | None = None,
     max_chunks: int = DEFAULT_MAX_CHUNKS,
     min_chars: int = DEFAULT_MIN_CHARS,
+    task: str = "pipeline",
+    knobs: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Per-class chunk and source-coverage plan for ``rows`` under ``taxonomy``."""
+    """Per-class chunk and source-coverage plan for ``rows`` under ``taxonomy``.
+
+    ``task="pipeline"`` follows the graph: chunking per ``taxonomy["chunking"]``
+    and judge/arbiter source windows. Any other task is an isolated specialist
+    eval (``eval/agents.py:_live_specialist``): one ``extract`` call truncated at
+    the budget unless the run gives that specialist a ``chunk_chars`` knob, and no
+    judge or arbiter call.
+    """
     windows = dict(source_windows() if windows is None else windows)
+    pipeline = task == "pipeline"
     chunking = taxonomy.get("chunking") or {}
-    chunked = bool(chunking.get("enabled", True))
     cap = int(chunking.get("chunk_chars", _DEFAULT_CHUNK_CHARS))
     specialists = _specialists(taxonomy)
-    lengths: dict[str, list[tuple[str, int]]] = defaultdict(list)
+    knobs = knobs or {}
+    texts: dict[str, list[tuple[str, str]]] = defaultdict(list)
     tiny: list[str] = []
     for row in rows:
         text = str(row.get("doc_text") or "")
         doc_id = str(row.get("id") or row.get("item_id") or "?")
-        lengths[str(row.get("expected_doc_class") or "unknown")].append((doc_id, len(text)))
+        texts[str(row.get("expected_doc_class") or "unknown")].append((doc_id, text))
         if len(text.strip()) < min_chars:
             tiny.append(doc_id)
 
-    judge_w, arbiter_w = windows.get("judge"), windows.get("arbiter")
     classes: dict[str, Any] = {}
     warnings: list[str] = []
-    for cls in sorted(lengths):
-        docs = lengths[cls]
+    for cls in sorted(texts):
+        docs = [(d, len(t)) for d, t in texts[cls]]
         longest_id, longest = max(docs, key=lambda d: d[1])
         entry: dict[str, Any] = {"docs": len(docs), "max_chars": longest, "longest_doc": longest_id}
         specialist = specialists.get(cls)
         if specialist:
             budget = _budget(taxonomy, specialist)
-            chunk_chars, _ = window_plan(budget, chunking)
-            per_pass = math.ceil(longest / chunk_chars) if chunked and longest > chunk_chars else 1
-            entry.update(specialist=specialist, input_budget=budget, chunk_chars=chunk_chars,
-                         max_chunks_per_pass=per_pass)
+            knob = knobs.get(specialist) or {}
+            if pipeline:
+                chunked = bool(chunking.get("enabled", True))
+                chunk_chars, _ = window_plan(budget, chunking)
+                knob_hint, window_cap = f"agent_knobs.{specialist}.max_input_chars", cap
+            else:
+                chunked = bool(knob.get("chunk_chars"))
+                chunk_chars, _ = window_plan(budget, knob) if chunked else (budget, 0)
+                knob_hint = f"agent_knobs.{specialist}.max_input_chars or chunk_chars"
+                window_cap = int(knob["chunk_chars"]) if chunked else budget
+            per_pass = max(chunk_count(t, chunk_chars) for _, t in texts[cls]) if chunked else 1
+            entry.update(specialist=specialist, input_budget=budget, chunked=chunked,
+                         chunk_chars=chunk_chars if chunked else None, max_chunks_per_pass=per_pass)
             if not chunked and longest > budget:
-                warnings.append(f"{cls}: chunking is disabled and {specialist} max_input_chars={budget} "
+                why = "chunking is disabled" if pipeline else "no chunk_chars knob (single pass)"
+                warnings.append(f"{cls}: {why} and {specialist} max_input_chars={budget} "
                                 f"truncates the longest document ({longest} chars)")
-            elif per_pass > max_chunks and chunk_chars < cap:  # at the cap, a wider budget changes nothing
+            elif per_pass > max_chunks and chunk_chars < window_cap:  # at the cap, a wider budget changes nothing
                 warnings.append(
                     f"{cls}: longest document ({longest} chars) splits into ~{per_pass} chunks per "
                     f"extraction pass at {specialist} max_input_chars={budget}; on a long-context engine "
-                    f"widen agent_knobs.{specialist}.max_input_chars (the window caps at "
-                    f"chunking.chunk_chars={cap})"
+                    f"widen {knob_hint} (the window caps at chunk_chars={window_cap})"
                 )
-        if judge_w:
-            entry["judge_coverage_min"] = round(min(1.0, judge_w / longest), 4) if longest else 1.0
-        over = [d for d, n in docs if judge_w and n > judge_w]
-        if over:
-            pct = 100 * judge_w / longest
-            warnings.append(
-                f"{cls}: {len(over)}/{len(docs)} document(s) exceed the judge source window "
-                f"({judge_w} chars; arbiter {arbiter_w}); the longest is {pct:.0f}% visible, so "
-                "judge/arbiter findings about later content are unverifiable"
-            )
+        if pipeline:
+            _coverage(cls, "judge", windows.get("judge"), docs, longest, entry, warnings)
+            _coverage(cls, "arbiter", windows.get("arbiter"), docs, longest, entry, warnings)
         classes[cls] = entry
 
+    judge_w = windows.get("judge")
     configured = _budget(taxonomy, "judge") if "judge" in (taxonomy.get("agents") or {}) else None
-    if judge_w and configured and configured > judge_w:
+    if pipeline and judge_w and configured and configured > judge_w:
         warnings.append(
             f"agents.judge.max_input_chars={configured} has no effect: the vendored judge sends at most "
-            f"JUDGE_SOURCE_CHARS={judge_w} chars of source (upstream fix)"
+            f"JUDGE_SOURCE_CHARS={judge_w} chars of source (context fit widens it only on a fitted route)"
         )
     if tiny:
         shown = ", ".join(tiny[:5]) + (" …" if len(tiny) > 5 else "")
         warnings.append(f"{len(tiny)} document(s) under {min_chars} chars of text: {shown}")
     fit = taxonomy.get("context_fit") or {}
     return {
-        "source_windows": windows,
+        "task": task,
+        "source_windows": windows if pipeline else {},
         "context_fit": {"applied": fit.get("applied") or {}, "chunk_chars": fit.get("chunk_chars")},
         "classes": classes,
         "tiny_docs": tiny,
@@ -163,19 +214,35 @@ def plan(
 
 
 def plan_for_spec(spec: Any, rows: Iterable[Mapping[str, Any]], **kwargs: Any) -> dict[str, Any]:
-    """The plan under the taxonomy this run would activate (overlay + run ``agent_knobs``)."""
+    """The plan under the taxonomy this run would activate (overlay + run ``agent_knobs``).
+
+    ``knobs`` should be the snapshot preflight locks (``resolve_agent_knobs`` with the
+    posture and ``SANDBOX_AGENT_KNOBS`` fallbacks); it defaults to resolving the same way.
+    """
     from mailroom_sandbox.overlay import build_merged_taxonomy, load_profile
 
+    knobs = kwargs.pop("knobs", None)
+    if knobs is None:
+        knobs = effective_knobs(spec)
     taxonomy = build_merged_taxonomy(
         load_profile(spec.profile),
         model_override=spec.engine.model,
         agent_models=spec.agent_models,
-        agent_knobs=spec.agent_knobs,
+        agent_knobs=knobs,
         agent_routes=spec.agent_routes,
     )
     if "windows" not in kwargs:
         kwargs["windows"] = effective_windows(taxonomy)
-    return plan(taxonomy, rows, **kwargs)
+    kwargs.setdefault("task", "pipeline" if spec.task == "pipeline" else "specialist")
+    return plan(taxonomy, rows, knobs=knobs, **kwargs)
+
+
+def effective_knobs(spec: Any) -> dict[str, Any]:
+    """The run ``agent_knobs`` preflight writes into the lock."""
+    from mailroom_sandbox.job.specialist_posture import agent_knobs_for_run
+    from mailroom_sandbox.runtime import resolve_agent_knobs
+
+    return resolve_agent_knobs(spec.agent_knobs or agent_knobs_for_run(spec.run_id))
 
 
 def effective_windows(taxonomy: Mapping[str, Any], vendored: Mapping[str, int | None] | None = None) -> dict[str, int | None]:

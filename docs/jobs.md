@@ -264,13 +264,20 @@ locked prompts/models/knobs rather than later ambient generation settings.
    deterministic subsetting (sorted by filename/id, per-stratum sub-seed
    draws, union, re-sort, `limit`). `file://` paths short-circuit all Hub
    calls. Idempotent: same spec → byte-identical `dataset.jsonl`.
-   `pipeline` and `*_specialist` runs also get an advisory **context_plan**
-   (`report["context_plan"]`). It never fails preflight. It runs on the
-   taxonomy the run would activate (overlay plus run `agent_knobs`) and reports
-   three things. First, specialist chunk windows per extraction pass. Second, how
-   much of each class's longest document the judge and arbiter see: the vendored
-   `JUDGE_SOURCE_CHARS` / `SOURCE_CHARS`, which `agents.judge.max_input_chars`
-   does not change. Third, rows under 200 characters. Overlay specialist budgets
+   `pipeline`, `specialist` and `*_specialist` runs also get an advisory
+   **context_plan** (`report["context_plan"]`), including on a repeat preflight
+   of an existing generation. It never fails preflight. It runs on the taxonomy
+   the run would activate (overlay plus the same run `agent_knobs` snapshot the
+   lock freezes) over the rows the runner executes (`target` applied), and
+   reports three things. First, specialist chunk windows per extraction pass,
+   counted with the vendored paragraph-aware splitter; an isolated specialist
+   run chunks only when it has a `chunk_chars` knob, otherwise it is one
+   truncated pass. Second, for `pipeline` runs, how much of each class's longest
+   document the judge and the arbiter each see on their own windows: the
+   vendored `JUDGE_SOURCE_CHARS` / `SOURCE_CHARS`. Without context fit,
+   `agents.judge.max_input_chars` does not change them; on a context-fitted
+   route the final budget (run knobs included) raises them. Third, rows under
+   200 characters. Overlay specialist budgets
    are sized for a 16k-token L4 window. **Context fit** (`context_fit` in
    `config/taxonomy.overlay.yaml`) resizes specialists, `judge` and `arbiter`
    on an `openrouter` route to the model's `context_length` from
