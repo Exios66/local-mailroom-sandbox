@@ -15,6 +15,7 @@ import json
 import logging
 import random
 import re
+from pathlib import Path
 from typing import Any
 
 from mailroom_sandbox.job.spec import (
@@ -116,6 +117,28 @@ def sha256_text(text: str) -> str:
 
 def _stable_key(row: dict[str, Any]) -> tuple[str, str]:
     return (str(row.get("filename") or ""), str(row.get("id") or ""))
+
+
+def read_id_list(path: Path) -> list[str]:
+    """Document ids from a text file: one per line, ``#`` comments and blank lines ignored."""
+    return parse_id_list(Path(path).read_text(encoding="utf-8"))
+
+
+def parse_id_list(text: str) -> list[str]:
+    """``read_id_list`` on text already read (one id per line, ``#`` comments ignored)."""
+    ids: list[str] = []
+    for line in text.splitlines():
+        token = line.split("#", 1)[0].strip()
+        if token:
+            ids.append(token)
+    return ids
+
+
+def _drop_excluded(rows: list[dict[str, Any]], exclude_ids: set[str] | None) -> list[dict[str, Any]]:
+    """Rows whose ``id`` is not excluded (all rows when there is nothing to exclude)."""
+    if not exclude_ids:
+        return rows
+    return [r for r in rows if str(r.get("id") or "") not in exclude_ids]
 
 
 def _read_jsonl(path) -> list[dict[str, Any]]:
@@ -498,11 +521,21 @@ def _bucket_candidates(
 
 
 def _seeded_prefix(
-    candidates: list[dict[str, Any]], count: int, *, seed: int
+    candidates: list[dict[str, Any]], count: int, *, seed: int, draw: str = "shuffle"
 ) -> list[dict[str, Any]]:
-    """Deterministic prefix of a seeded shuffle (nested draws: k ⊂ m when k < m)."""
+    """Deterministic prefix of a seeded order (nested draws: k ⊂ m when k < m).
+
+    ``shuffle`` permutes the whole list, so the order depends on every candidate. ``ranked``
+    sorts by ``sha256(seed:filename:id)``, so dropping candidates keeps the others' order.
+    """
     if count >= len(candidates):
         return list(candidates)
+    if draw == "ranked":
+        def rank(row: dict[str, Any]) -> str:
+            filename, doc_id = _stable_key(row)
+            return hashlib.sha256(f"{seed}:{filename}:{doc_id}".encode()).hexdigest()
+
+        return sorted(candidates, key=rank)[:count]
     rng = random.Random(seed)
     ordered = list(candidates)
     rng.shuffle(ordered)
@@ -515,6 +548,7 @@ def _draw_buckets(
     *,
     field: str,
     sample_seed: int | None,
+    draw: str = "shuffle",
 ) -> list[dict[str, Any]]:
     """Per-stratum sub-seeded draws; union; stable-key preserved.
 
@@ -569,7 +603,7 @@ def _draw_buckets(
                     if sample_seed is None:
                         raise ValueError("sample_seed required for stratified draws")
                     sub_seed = int(hashlib.sha256(f"{sample_seed}:{bucket_key}".encode()).hexdigest()[:16], 16)
-                    picked = _seeded_prefix(sub_candidates, c, seed=sub_seed)
+                    picked = _seeded_prefix(sub_candidates, c, seed=sub_seed, draw=draw)
                 else:
                     picked = sub_candidates
                 drawn.extend(picked)
@@ -593,7 +627,7 @@ def _draw_buckets(
                     raise ValueError("sample_seed required for stratified draws")
                 bucket_key = f"{field}::{value}"
                 sub_seed = int(hashlib.sha256(f"{sample_seed}:{bucket_key}".encode()).hexdigest()[:16], 16)
-                drawn = _seeded_prefix(candidates, count, seed=sub_seed)
+                drawn = _seeded_prefix(candidates, count, seed=sub_seed, draw=draw)
             else:
                 drawn = candidates
             keep.update(_stable_key(r) for r in drawn)
@@ -636,8 +670,15 @@ def select_rows(
     sample_seed: int | None,
     limit: int | None,
     require_task_gt: bool = False,
+    exclude_ids: set[str] | None = None,
+    draw: str = "shuffle",
 ) -> list[dict[str, Any]]:
-    """Deterministic selection: canonical sort, per-stratum sub-seed draws, union, limit."""
+    """Deterministic selection: canonical sort, per-stratum sub-seed draws, union, limit.
+
+    Rows whose ``id`` is in ``exclude_ids`` are dropped before any draw, so the draw
+    behaves exactly as if they were not in the corpus (and nested draws stay nested).
+    """
+    rows = _drop_excluded(rows, exclude_ids)
     # Opt-in (``dataset.require_task_gt``): a document whose class's task-native metric has
     # no ground truth can never be scored, so including it costs a GPU pass and deflates
     # the paired n without adding information. The strata guard below still hard-fails if a
@@ -647,7 +688,7 @@ def select_rows(
     rows = sorted(rows, key=_stable_key)
     strata = strata or {}
     if "buckets" in strata:
-        chosen = _draw_buckets(rows, strata["buckets"], field="expected_doc_class", sample_seed=sample_seed)
+        chosen = _draw_buckets(rows, strata["buckets"], field="expected_doc_class", sample_seed=sample_seed, draw=draw)
     elif "values" in strata:
         field = strata_field(strata)
         counts = strata.get("counts") or [None] * len(strata["values"])
@@ -657,7 +698,7 @@ def select_rows(
             {"value": v, "count": c}
             for v, c in zip(strata["values"], counts)
         ]
-        chosen = _draw_buckets(rows, buckets, field=field, sample_seed=sample_seed)
+        chosen = _draw_buckets(rows, buckets, field=field, sample_seed=sample_seed, draw=draw)
     else:
         chosen = rows
     if limit is not None:
@@ -709,6 +750,20 @@ def prepare_subset(spec: DatasetSpec, dest_file) -> dict[str, Any]:
         source_meta["pull"] = spec.pull
 
     rows = normalize_rows(rows)
+    exclude_ids: set[str] | None = None
+    excluded_meta: dict[str, Any] | None = None
+    if spec.exclude_ids_file:
+        # One read: the ids the draw drops and the hash the lock records come from the same
+        # bytes, so an edit to the file while preflight runs cannot split them (a missing
+        # file raises the same ValueError as spec_core).
+        excluded_bytes = spec.exclude_ids_bytes() or b""
+        listed = set(parse_id_list(excluded_bytes.decode("utf-8")))
+        present = {str(r.get("id") or "") for r in rows}
+        exclude_ids = listed
+        excluded_meta = {"listed": len(listed), "matched": len(listed & present),
+                         "sha256": hashlib.sha256(excluded_bytes).hexdigest()}
+        # Before the strata guard, so it judges what the draw can really use.
+        rows = _drop_excluded(rows, exclude_ids)
     rows = filter_rows(rows, spec)
     # DMR-066: refuse silent strata collapse BEFORE the draw…
     strata_guard(rows, spec.strata)
@@ -721,6 +776,8 @@ def prepare_subset(spec: DatasetSpec, dest_file) -> dict[str, Any]:
         sample_seed=spec.sample_seed,
         limit=spec.limit,
         require_task_gt=bool(getattr(spec, "require_task_gt", False)),
+        exclude_ids=exclude_ids,
+        draw=getattr(spec, "draw", "shuffle"),
     )
     # …and refuse a draw/limit that dropped a requested stratum AFTER it.
     strata_draw_guard(chosen, spec.strata)
@@ -751,6 +808,7 @@ def prepare_subset(spec: DatasetSpec, dest_file) -> dict[str, Any]:
         "metadata": source_meta,
         "revision_requested": spec.revision or FAMILY_HF_REVISION,
         "revision_resolved": source_meta.get("revision_resolved"),
+        **({"excluded": excluded_meta} if excluded_meta is not None else {}),
     }
 
 

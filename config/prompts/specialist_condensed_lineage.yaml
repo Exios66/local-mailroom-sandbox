@@ -39,7 +39,7 @@ agents:
         validation_run: specialist-condensed-v3-insurance-claim-qwen-ab
         status: adopted   # mean +0.130 (0.770 -> 0.899), 60/60 docs better, 0 parse errors, -15% input tokens; every subclass up (property 0.69 -> 0.89)
   correspondence_specialist:
-    frontrunner: correspondence_specialist_condensed_v2
+    frontrunner: correspondence_specialist_condensed_v3
     versions:
       - version: correspondence_specialist_condensed_v1
         parent: correspondence_specialist_simplified (frozen v7)
@@ -50,7 +50,14 @@ agents:
         parent: correspondence_specialist_condensed_v1 (notice / update / press_communication boundaries)
         reference_run: extraction-gate-specialist-correspondence-qwen
         validation_run: specialist-condensed-v2-correspondence-qwen-ab
-        status: adopted   # mean +0.002 (0.327 -> 0.328), intent 32 -> 33 exact, 0 parse errors, -28% input tokens
+        status: superseded   # by v3; was adopted: mean +0.002 (0.327 -> 0.328), intent 32 -> 33 exact, 0 parse errors, -28% input tokens
+      - version: correspondence_specialist_condensed_v3
+        parent: "correspondence_specialist_condensed_v2 (one change: communication_type is the content, not the email wrapper; slice-gate fix loop #306)"
+        # The first v2-arm run (specialist-condensed-v3-correspondence-qwen-v2arm) ran another
+        # checkout's code, ignored exclude_ids_file and drew other documents; it is void (#312).
+        reference_run: specialist-condensed-v3-correspondence-qwen-v2arm-r2
+        validation_run: specialist-condensed-v3-correspondence-qwen-v3arm
+        status: adopted   # paired A/B, 40 held-out documents: mean +0.015 (0.332 -> 0.346), 8 wins / 29 ties / 3 losses, communication_type 2 -> 3 of 10 exact, intent 23 -> 24 of 40, 0 parse errors, +4% input tokens
   corporate_records_specialist:
     frontrunner: corporate_records_specialist_condensed_v1
     versions:
