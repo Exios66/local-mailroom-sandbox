@@ -62,6 +62,8 @@ h3{font-size:9px;letter-spacing:2px;color:#4d5c6e;margin:9px 0 6px}
 .pct{color:#41d98f;font-size:10px;letter-spacing:.5px}
 .prog+.z{margin-left:0}
 .cls b .m{color:#4d5c6e;font-weight:normal;font-size:9px;margin-left:4px}
+/* narrow window (e.g. an IDE side pane): stack graph above the rails instead of squeezing it to 0px — last in the sheet so it wins over .ribbon and the rails */
+@media (max-width:900px){html,body{overflow:auto}.app{grid-template-columns:minmax(0,1fr);grid-template-rows:30px 70vh auto auto;height:auto}.ribbon{grid-column:1}#viewport{order:1}.rail{order:2;border-right:0;border-top:1px solid #1c2530}.railR{order:3;border-left:0;border-top:1px solid #1c2530}}
 </style></head><body>
 <div class="app">
 <div class="ribbon"><span id="bigTitle"></span><b>PIPELINE FLOOR · DIGEST-DRIVEN v10</b><span class="desc"> — topology: build_graph.py wiring · numbers: floor_digest.json · </span><em><span id="mode">ALL CLASSES</span></em><span class="prog" id="prog"><span class="pbar"><i id="pfill"></i></span><span class="pct" id="ptxt"></span></span><span class="z"><span id="gen"></span><span id="upd"></span></span></div>
@@ -345,20 +347,24 @@ vp.addEventListener("click",e=>{
 let tx=10,ty=40,z=.55,drag=null; // placeholder-anchor
 function apply(){world.style.transform=`translate(${tx}px,${ty}px) scale(${z})`}
 /** Clamp the scale to 0.2–2.5, keeping the viewport point (cx, cy) fixed. */
-function zoom(nz,cx,cy){nz=Math.max(.2,Math.min(2.5,nz));cx=cx??vp.clientWidth/2;cy=cy??vp.clientHeight/2;const wx=(cx-tx)/z,wy=(cy-ty)/z;tx=cx-wx*nz;ty=cy-wy*nz;z=nz;apply()}
+function zoom(nz,cx,cy){nz=Math.max(.2,Math.min(2.5,nz));cx=cx??vp.clientWidth/2;cy=cy??vp.clientHeight/2;const wx=(cx-tx)/z,wy=(cy-ty)/z;tx=cx-wx*nz;ty=cy-wy*nz;z=nz;userView=true;apply()}
 apply();
-addEventListener("keydown",e=>{const st=150;if(e.key=="ArrowLeft")tx+=st;if(e.key=="ArrowRight")tx-=st;if(e.key=="ArrowUp")ty+=st;if(e.key=="ArrowDown")ty-=st;
+addEventListener("keydown",e=>{const st=150;if(e.key.startsWith("Arrow"))userView=true;if(e.key=="ArrowLeft")tx+=st;if(e.key=="ArrowRight")tx-=st;if(e.key=="ArrowUp")ty+=st;if(e.key=="ArrowDown")ty-=st;
  if(e.key=="+")zoom(z*1.25);if(e.key=="-"||e.key=="_")zoom(z/1.25);
  if(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","+","-","_"].includes(e.key)){e.preventDefault();apply()}});
 vp.addEventListener("wheel",e=>{e.preventDefault();const r=vp.getBoundingClientRect();zoom(z*(e.deltaY<0?1.12:.89),e.clientX-r.left,e.clientY-r.top)},{passive:false});
 vp.addEventListener("mousedown",e=>{drag={x:e.clientX,y:e.clientY,tx,ty};moved=0});
-addEventListener("mousemove",ev=>{if(!drag)return;const dx=ev.clientX-drag.x,dy=ev.clientY-drag.y;moved=Math.max(moved,Math.abs(dx)+Math.abs(dy));if(moved>4){tx=drag.tx+dx;ty=drag.ty+dy;apply()}});
+addEventListener("mousemove",ev=>{if(!drag)return;const dx=ev.clientX-drag.x,dy=ev.clientY-drag.y;moved=Math.max(moved,Math.abs(dx)+Math.abs(dy));if(moved>4){tx=drag.tx+dx;ty=drag.ty+dy;userView=true;apply()}});
 addEventListener("mouseup",()=>{drag=null;setTimeout(()=>moved=0,0)});
 addEventListener("blur",()=>{drag=null;moved=0});
 document.getElementById("zin").onclick=()=>zoom(z*1.25);document.getElementById("zout").onclick=()=>zoom(z/1.25);
 // fit-to-viewport at load, too: every node's figures are in frame from the first paint
-const fitGraph=()=>{z=Math.min(vp.clientWidth/W,vp.clientHeight/H)*0.99;tx=6;ty=6;apply()};
+// a zero-size viewport (hidden or collapsed pane) would set zoom 0 and keep the graph invisible: skip it and refit once there is room.
+// userView: the user zoomed or panned since the last fit, so a viewport resize keeps their view instead of refitting.
+let fitOk=false,userView=false;
+const fitGraph=()=>{if(!vp.clientWidth||!vp.clientHeight)return;z=Math.min(vp.clientWidth/W,vp.clientHeight/H)*0.99;tx=6;ty=6;apply();fitOk=true;userView=false};
 document.getElementById("zfit").onclick=fitGraph;fitGraph();
+if(window.ResizeObserver)new ResizeObserver(()=>{if(!fitOk||!userView)fitGraph()}).observe(vp);
 // ── LIVE refresh (http/https + selected run running only; file:// stays static, no timer at all) ──
 let busy=false,wasLive=false,stale=0;   // module-scope: stampUpdated() reads stale (it is not inside if(LIVE))
 const upd=document.getElementById("upd");
@@ -386,5 +392,4 @@ if(LIVE){
 }
 // elapsed counters tick client-side every second from the last digest (no re-fetch for the seconds)
 if(LIVE)setInterval(()=>{document.querySelectorAll(".rnb").forEach(b=>{const n=b.parentNode&&b.parentNode.dataset.k;if(n&&inflightList(n).length)paintPill(b,n)})},1000);
-document.getElementById("zfit").onclick=()=>{z=Math.min(vp.clientWidth/W,vp.clientHeight/H)*0.99;tx=6;ty=6;apply()};
 </script></body></html>

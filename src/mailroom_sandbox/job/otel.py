@@ -280,6 +280,45 @@ def current_context(tracer: Any) -> Any:
         return None
 
 
+def record_span(
+    tracer: Any,
+    name: str,
+    *,
+    parent: Any = None,
+    start_ns: int,
+    end_ns: int,
+    attrs: dict[str, Any] | None = None,
+    error: str | None = None,
+) -> Any:
+    """Emit an already-finished span with explicit times; return a Context for its children.
+
+    Whole-run tasks learn a document's timing only after it finishes, so their
+    ``job.item`` / ``job.node`` spans are recorded after the fact. ``None`` without
+    a tracer (network-free no-op). Attributes keep their scalar type; others are
+    stringified, and ``None`` values are dropped. ``error`` marks the span ERROR.
+    """
+    if tracer is None:
+        return None
+    try:
+        from opentelemetry import trace as oteltrace
+    except Exception:
+        return None
+    span = tracer.start_span(name, context=parent, start_time=int(start_ns))
+    for key, value in (attrs or {}).items():
+        if value is None:
+            continue
+        try:
+            span.set_attribute(key, value if isinstance(value, (bool, int, float, str)) else str(value))
+        except Exception as exc:  # an unusable attribute must not drop the span
+            _log.debug("span %s: attribute %s not recorded: %s", name, key, exc)
+    if error:
+        from opentelemetry.trace import Status, StatusCode
+
+        span.set_status(Status(StatusCode.ERROR, str(error)[:512]))
+    span.end(end_time=max(int(end_ns), int(start_ns)))
+    return oteltrace.set_span_in_context(span, parent)
+
+
 @contextmanager
 def job_span(tracer: Any, name: str, *, parent: Any = None, **attrs: str) -> Iterator[Any]:
     """A span named verb-first with string attributes (network-free no-op).

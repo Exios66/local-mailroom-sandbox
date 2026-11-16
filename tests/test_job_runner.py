@@ -973,3 +973,72 @@ def test_whole_run_task_refuses_an_item_cap_it_cannot_apply(tmp_path, monkeypatc
     with pytest.raises(ValueError, match="max_items"):
         runner._run_job(store, task="isolated", mock=True, max_items=1)
     assert not store.load_items()
+
+
+def _pipeline_lock(store, rows):
+    store.write_lock({"task": "pipeline", "profile": "ollama", "prompt": {},
+                      "engine": {"kind": "vllm-local", "model": "m"}, "job": {"mock": True, "concurrency": 1}})
+    with open(store.dataset_path, "w", encoding="utf-8") as fh:
+        for i in range(rows):
+            fh.write(json.dumps({"id": f"d{i}", "doc_text": "t", "expected_doc_class": "contract"}) + "\n")
+
+
+def _fake_pipeline(rows, *, raise_after=None):
+    def run_pipeline_eval(*, row_cb=None, progress_cb=None, **_):
+        for i in range(rows):
+            if raise_after is not None and i == raise_after:
+                raise RuntimeError("evaluator blew up")
+            row_cb({"id": f"d{i}", "pred": {"stage": "archived"}, "score": {}, "latency_ms": 1.0})
+            progress_cb(i + 1, rows, i + 1, 0)
+        return {"rows": [], "scores": {"n": rows}, "n": rows}
+    return run_pipeline_eval
+
+
+def test_whole_run_item_persistence_does_not_rescan_items_per_document(tmp_path, monkeypatch):
+    """CodeAnt: each row_cb reloaded items.jsonl, so N documents rescanned a growing file N times."""
+    from mailroom_sandbox.eval import runners as eval_runners
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    loads = {}
+    for rows in (2, 8):
+        store = RunStore(tmp_path / f"r{rows}")
+        _pipeline_lock(store, rows)
+        monkeypatch.setattr(eval_runners, "run_pipeline_eval", _fake_pipeline(rows))
+        real, count = store.load_items, {"n": 0}
+
+        def counted(_real=real, _count=count):
+            _count["n"] += 1
+            return _real()
+
+        monkeypatch.setattr(store, "load_items", counted)
+        assert runner._run_whole_run(store, "pipeline", mock=True, model=None, profile="ollama")["state"] == "done"
+        assert len(real()) == rows
+        loads[rows] = count["n"]
+    assert loads[2] == loads[8], f"items.jsonl reads grew with document count: {loads}"
+
+
+def test_persist_isolated_items_uses_the_callers_seen_set(tmp_path, monkeypatch):
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    store = RunStore(tmp_path / "r")
+    monkeypatch.setattr(store, "load_items", lambda: pytest.fail("reloaded items.jsonl"))
+    seen = {"a"}
+    assert runner._persist_isolated_items(store, [{"id": "a"}, {"id": "b"}], seen=seen) == 1
+    assert seen == {"a", "b"}
+
+
+def test_a_failed_whole_run_checkpoint_keeps_the_documents_already_saved(tmp_path, monkeypatch):
+    """CodeAnt: the failure handler reset the checkpoint to 0/0 after rows were persisted."""
+    from mailroom_sandbox.eval import runners as eval_runners
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    store = RunStore(tmp_path / "r")
+    _pipeline_lock(store, 5)
+    monkeypatch.setattr(eval_runners, "run_pipeline_eval", _fake_pipeline(5, raise_after=3))
+    out = runner._run_whole_run(store, "pipeline", mock=True, model=None, profile="ollama")
+    assert out["state"] == "failed" and "evaluator blew up" in out["error"]
+    cp = store.read_checkpoint()
+    assert (cp["state"], cp["cursor"], cp["total"]) == ("failed", 3, 5)
+    assert (out["cursor"], out["total"], out["ok"]) == (3, 5, 3)
+    failed = [e for e in store.events() if e.get("event") == "failed"]
+    assert failed and (failed[-1].get("detail") or {}).get("cursor") == 3
