@@ -23,7 +23,9 @@ def maud(gold=2):
 
 CORP = {"entity_name": "Acme Corp", "record_type": "other", "intent": "governance_rules",
         "intent_source": "heuristic"}
-DOC_TEXT = "Bylaws of Acme Corp. These bylaws set out the investor rights of the holders."
+DOC_TEXT = ("Bylaws of Acme Corp. These bylaws set out the investor rights of the holders. "
+            "Article I covers the board, its meetings, quorum and officers; Article II covers the annual "
+            "meeting and the record date; Article III covers amendment by the board.")  # >= NEAR_EMPTY_CHARS
 
 
 def doc(cls="corporate_record", expected=None, pred=None, doc_text=DOC_TEXT, item=True, **item_kw):
