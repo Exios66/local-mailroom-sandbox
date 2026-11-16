@@ -114,7 +114,7 @@ arms. Cost is the key's billed total ($0.290 for both arms), split by token shar
 | Judge verdicts complete / partial / incomplete | 1 / 27 / 4 | 3 / 40 / 3 | — | — |
 | Tokens (prompt + completion) | 2.27M | 4.14M | — | 1.82× |
 | p50 latency per document | 63 s | 85 s | — | — |
-| Parse errors / total chunk failures | 0 / 0 | 0 / 0 | — | 1 of 13 windows failed on one document |
+| Parse errors / documents that lost every window | 0 / 0 | 0 / 0 | — | partial loss only: one document lost 1 of its 13 windows |
 
 Split by whether chunking actually applied:
 
@@ -134,7 +134,10 @@ Findings:
 3. **Noise floor.** The 8 single-window contracts received the same input in both arms, yet
    their per-document quality moved by a standard deviation of 0.09 (−0.19 to +0.07). At
    temperature 0.1, run-to-run variance is about the size of the effects this ladder looks
-   for. With 20 documents, a paired mean below about ±0.04 cannot be told from noise. Before
+   for. If the treatment's paired differences have about the same per-document sd (0.09),
+   a 20-document paired mean has a standard error near 0.09/√20 ≈ 0.02, so a mean within
+   about ±0.04 (two standard errors) cannot be told from noise. Eight pairs give only a rough
+   sd, so treat this as an order-of-magnitude bound, not a fixed threshold. Before
    scaling up: fix sampling (temperature 0 and a provider seed where supported), or repeat
    each arm and pool, and size samples against this variance.
 4. **Judge.** It passed 3 of 46 calls (control 1 of 32). The arbiter loop then fires almost

@@ -753,3 +753,19 @@ def test_existing_lock_still_runs_engine_checks(tmp_path, job_data_dir, monkeypa
     assert report["status"] == "failed"
     check = next(c for c in report["checks"] if c["name"] == "engine_spec")
     assert check["ok"] is False and "OPENROUTER_API_KEY" in check["detail"]
+
+
+@pytest.mark.parametrize("mock, key, expect_error", [
+    (False, "", True), (False, "sk-test", False), (True, "", False),
+], ids=["live-keyless", "live-keyed", "mock"])
+def test_openrouter_engine_needs_the_key_without_routes(mock, key, expect_error, tmp_path, monkeypatch):
+    """A bare openrouter engine (no agent routes, no reviewer) still needs its key."""
+    spec = _run_spec(tmp_path)
+    spec = spec.model_copy(update={
+        "engine": spec.engine.model_copy(update={"kind": "openrouter", "modal": None}),
+        "job": spec.job.model_copy(update={"mock": mock}),
+        "agent_routes": {}, "reviewer": None,
+    })
+    monkeypatch.setenv("OPENROUTER_API_KEY", key)
+    errors = preflight._engine_errors(spec)
+    assert any("OPENROUTER_API_KEY" in e for e in errors) is expect_error
