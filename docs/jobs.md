@@ -275,8 +275,11 @@ locked prompts/models/knobs rather than later ambient generation settings.
    truncated pass. Second, for `pipeline` runs, how much of each class's longest
    document the judge and the arbiter each see on their own windows: the
    vendored `JUDGE_SOURCE_CHARS` / `SOURCE_CHARS`. Without context fit,
-   `agents.judge.max_input_chars` does not change them; on a context-fitted
-   route the final budget (run knobs included) raises them. Third, rows under
+   `agents.judge.max_input_chars` does not change them. On a context-fitted
+   route each agent's window becomes the larger of its own final budget (run
+   knobs included) and the vendored value: a run override can raise a window
+   but never lower it below the vendored 16k, and the judge and arbiter
+   budgets apply independently. Third, rows under
    200 characters. Overlay specialist budgets
    are sized for a 16k-token L4 window. **Context fit** (`context_fit` in
    `config/taxonomy.overlay.yaml`) resizes specialists, `judge` and `arbiter`
