@@ -347,23 +347,24 @@ vp.addEventListener("click",e=>{
 let tx=10,ty=40,z=.55,drag=null; // placeholder-anchor
 function apply(){world.style.transform=`translate(${tx}px,${ty}px) scale(${z})`}
 /** Clamp the scale to 0.2–2.5, keeping the viewport point (cx, cy) fixed. */
-function zoom(nz,cx,cy){nz=Math.max(.2,Math.min(2.5,nz));cx=cx??vp.clientWidth/2;cy=cy??vp.clientHeight/2;const wx=(cx-tx)/z,wy=(cy-ty)/z;tx=cx-wx*nz;ty=cy-wy*nz;z=nz;apply()}
+function zoom(nz,cx,cy){nz=Math.max(.2,Math.min(2.5,nz));cx=cx??vp.clientWidth/2;cy=cy??vp.clientHeight/2;const wx=(cx-tx)/z,wy=(cy-ty)/z;tx=cx-wx*nz;ty=cy-wy*nz;z=nz;userView=true;apply()}
 apply();
-addEventListener("keydown",e=>{const st=150;if(e.key=="ArrowLeft")tx+=st;if(e.key=="ArrowRight")tx-=st;if(e.key=="ArrowUp")ty+=st;if(e.key=="ArrowDown")ty-=st;
+addEventListener("keydown",e=>{const st=150;if(e.key.startsWith("Arrow"))userView=true;if(e.key=="ArrowLeft")tx+=st;if(e.key=="ArrowRight")tx-=st;if(e.key=="ArrowUp")ty+=st;if(e.key=="ArrowDown")ty-=st;
  if(e.key=="+")zoom(z*1.25);if(e.key=="-"||e.key=="_")zoom(z/1.25);
  if(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","+","-","_"].includes(e.key)){e.preventDefault();apply()}});
 vp.addEventListener("wheel",e=>{e.preventDefault();const r=vp.getBoundingClientRect();zoom(z*(e.deltaY<0?1.12:.89),e.clientX-r.left,e.clientY-r.top)},{passive:false});
 vp.addEventListener("mousedown",e=>{drag={x:e.clientX,y:e.clientY,tx,ty};moved=0});
-addEventListener("mousemove",ev=>{if(!drag)return;const dx=ev.clientX-drag.x,dy=ev.clientY-drag.y;moved=Math.max(moved,Math.abs(dx)+Math.abs(dy));if(moved>4){tx=drag.tx+dx;ty=drag.ty+dy;apply()}});
+addEventListener("mousemove",ev=>{if(!drag)return;const dx=ev.clientX-drag.x,dy=ev.clientY-drag.y;moved=Math.max(moved,Math.abs(dx)+Math.abs(dy));if(moved>4){tx=drag.tx+dx;ty=drag.ty+dy;userView=true;apply()}});
 addEventListener("mouseup",()=>{drag=null;setTimeout(()=>moved=0,0)});
 addEventListener("blur",()=>{drag=null;moved=0});
 document.getElementById("zin").onclick=()=>zoom(z*1.25);document.getElementById("zout").onclick=()=>zoom(z/1.25);
 // fit-to-viewport at load, too: every node's figures are in frame from the first paint
-// a zero-size viewport (hidden or collapsed pane) would set zoom 0 and keep the graph invisible: skip it and refit once there is room
-let fitOk=false;
-const fitGraph=()=>{if(!vp.clientWidth||!vp.clientHeight)return;z=Math.min(vp.clientWidth/W,vp.clientHeight/H)*0.99;tx=6;ty=6;apply();fitOk=true};
+// a zero-size viewport (hidden or collapsed pane) would set zoom 0 and keep the graph invisible: skip it and refit once there is room.
+// userView: the user zoomed or panned since the last fit, so a viewport resize keeps their view instead of refitting.
+let fitOk=false,userView=false;
+const fitGraph=()=>{if(!vp.clientWidth||!vp.clientHeight)return;z=Math.min(vp.clientWidth/W,vp.clientHeight/H)*0.99;tx=6;ty=6;apply();fitOk=true;userView=false};
 document.getElementById("zfit").onclick=fitGraph;fitGraph();
-if(window.ResizeObserver)new ResizeObserver(()=>{if(!fitOk)fitGraph()}).observe(vp);
+if(window.ResizeObserver)new ResizeObserver(()=>{if(!fitOk||!userView)fitGraph()}).observe(vp);
 // ── LIVE refresh (http/https + selected run running only; file:// stays static, no timer at all) ──
 let busy=false,wasLive=false,stale=0;   // module-scope: stampUpdated() reads stale (it is not inside if(LIVE))
 const upd=document.getElementById("upd");

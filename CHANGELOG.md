@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+- **Per-document spans for whole-run jobs; floor graph in narrow windows**
+  (2026-11-16, #297). `pipeline`, `specialist` and single-agent job tasks now
+  mirror a `job.item` span per finished document, timed by the document's own
+  execution window. `pipeline` documents also get a `job.node` child per
+  finished or failed graph node. Documents that raise are recorded as failed
+  items. Before this, their span mirror held only `job.run`. Whole-run jobs read
+  `items.jsonl` once per run, not once per document, and a failed whole-run
+  checkpoint keeps its saved item count and total instead of resetting to 0/0.
+  The floor viewer stacks its side rails under the graph below 900 px. It now
+  refits on resize until the user zooms or pans, and it no longer fixes zoom at 0
+  when the graph area starts at zero size. See [tracing](docs/tracing.md).
+
 - **Verified stable dependency snapshots** (2026-11-10, SAND-104 / #285).
   `sandbox deps fetch` verifies released Dojo artifacts and immutable pipeline
   commit archives into an atomic offline cache. Explicit source locks preserve

@@ -670,11 +670,15 @@ class _WholeRunSpans:
             nodes = self._nodes.pop(item_id, [])
         timed = [n for n in nodes if n.get("ts")]
         starts = [int((float(n["ts"]) - float(n.get("ms") or 0) / 1000.0) * 1e9) for n in timed]
-        # A finished document ends now; one that raised ends at its last reported node.
-        end_ns = time.time_ns() if finished or not timed else max(int(float(n["ts"]) * 1e9) for n in timed)
-        start_ns = end_ns - int(latency_ms * 1e6)
-        if starts:
-            start_ns = min(start_ns, *starts)
+        if isinstance(entry.get("finished_at_ns"), int) and isinstance(entry.get("started_at_ns"), int):
+            # The evaluator's own execution window: excludes the wait before main-thread scoring.
+            start_ns, end_ns = entry["started_at_ns"], entry["finished_at_ns"]
+        else:
+            # No window reported: a finished document ends now; one that raised ends at its last node.
+            end_ns = time.time_ns() if finished or not timed else max(int(float(n["ts"]) * 1e9) for n in timed)
+            start_ns = end_ns - int(latency_ms * 1e6)
+            if starts:
+                start_ns = min(start_ns, *starts)
         pred = entry.get("pred") if isinstance(entry.get("pred"), dict) else {}
         score = entry.get("score") if isinstance(entry.get("score"), dict) else {}
         error = entry.get("error")

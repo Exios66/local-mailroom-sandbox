@@ -145,3 +145,30 @@ def test_endpoint_tracer_mirrors_even_with_sink_none(tmp_path):
         pass
     otel.flush_tracer(tracer)
     assert len(trace_pack.read_spans(tracer.sandbox_local_path)) == 1
+
+
+def test_whole_run_item_span_uses_the_execution_window_not_emission_time(tmp_path):
+    """A document reported late (main thread busy) keeps its measured execution interval."""
+    tracer, mirror, spans = _span_recorder(tmp_path)
+    started, finished = 1_000_000_000_000, 1_001_000_000_000  # a 1 s document, emitted much later
+    spans.node({"doc": "d3", "node": "intake", "status": "done", "ts": 1000.5, "ms": 400})
+    spans.item({"id": "d3", "latency_ms": 1000.0, "started_at_ns": started, "finished_at_ns": finished})
+    otel.flush_tracer(tracer)
+    item = next(s for s in trace_pack.read_spans(mirror) if s["name"] == "job.item")
+    assert (item["start_time_unix_nano"], item["end_time_unix_nano"]) == (started, finished)
+
+
+def test_pipeline_eval_reports_each_documents_execution_window(monkeypatch):
+    """The evaluator hands row_cb the epoch window it measured around the document."""
+    from mailroom_sandbox.eval import runners as eval_runners
+
+    seen = []
+    eval_runners.run_pipeline_eval(
+        mock=True, connected=True, dry_run=False, experiment_name="t-window",
+        rows=[{"id": "w1", "filename": "w1.txt", "doc_text": "agreement", "expected_doc_class": "contract"}],
+        row_cb=seen.append,
+    )
+    (entry,) = seen
+    assert isinstance(entry["started_at_ns"], int) and isinstance(entry["finished_at_ns"], int)
+    assert entry["finished_at_ns"] >= entry["started_at_ns"]
+    assert abs((entry["finished_at_ns"] - entry["started_at_ns"]) / 1e6 - entry["latency_ms"]) < 50
