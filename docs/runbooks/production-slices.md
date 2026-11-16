@@ -43,7 +43,7 @@ The bars live in [`config/production/bars.yaml`](../../config/production/bars.ya
 | Crashes | 0 run errors and 0 `judge_error` | per slice, mergers included |
 
 - **Gated classes:** contract, corporate_record, correspondence and insurance_claim.
-- **Mergers:** run and reported, but they never fail a slice.
+- **Mergers:** outside the quality, wrong-archive and review-rate bars, so their scores never fail a slice. A merger crash or `judge_error` still fails it, like any other.
 - **Contracts and mergers:** scored on CUAD and MAUD units.
 - **Unscorable:** a document with fewer than 2 labelled fields. A gated pool that has archives but none scorable fails the slice. If more than 25% of the pool is unscorable, the gate only warns.
 - **Per-class bars:** these apply from the 500-document slice onward. Below that they are diagnostic only.
@@ -52,7 +52,11 @@ The bars live in [`config/production/bars.yaml`](../../config/production/bars.ya
 
 ## The loop, for slice N
 
-1. **Preflight** (offline, no spend). Every check must be `ok` except `engine_spec` when no key is loaded:
+0. **From a git worktree, set the environment first.** A worktree's `.venv` links to the main checkout, so without this every command below, preflight included, runs the main checkout's code and vendored trees (#312):
+   ```bash
+   export PYTHONPATH="$PWD/src"
+   ```
+1. **Preflight** (no spend). Every check must be `ok` except `engine_spec` when no key is loaded. It makes network probes (the engine and a Hub dataset); add `--offline` to skip them, at the cost of leaving those checks unverified:
    ```bash
    sandbox run preflight --config config/runs/production/slice-0100.yaml
    ```
@@ -60,7 +64,7 @@ The bars live in [`config/production/bars.yaml`](../../config/production/bars.ya
    ```bash
    sandbox run start --config config/runs/production/slice-0100.yaml --initials <XX>
    ```
-   From a git worktree whose `.venv` links to the main checkout, set `PYTHONPATH=$PWD/src`. Without it, `.venv/bin/sandbox` runs the main checkout's code and vendored trees (#312). After launch, check that `dependency_sources` in the run's `spec.lock.json` matches the worktree.
+   After launch, check that `dependency_sources` in the run's `spec.lock.json` matches the checkout you launched from.
 3. **Gate.** This step is offline and writes only `gate.json` and `gate.md` into the run directory. It exits `0` on pass and `2` on fail. It exits `1`, with a JSON `failed` status, when the run is missing or never started (no `items.jsonl`), or when the gate itself errors (a bad bars file or a scorer failure):
    ```bash
    sandbox run gate --run-id production-slice-0100 --thresholds
@@ -94,7 +98,7 @@ The bars live in [`config/production/bars.yaml`](../../config/production/bars.ya
    sandbox run gate --run-id <rerun> --prev-run-id <earlier>
    ```
    When both runs drew the same documents, the gate runs a paired **re-run** check: both runs are gated on those documents. The fix is kept only if the re-run's pooled wrong-archive rate, review rate, crash count and `judge_error` count are all no higher than the earlier run's. Its reasons are prefixed `re-run: `. The re-run's own gate verdict still applies.
-7. **Step up when the slice passes.** Launch the next slice, then gate it against the slice it contains. The step-up verdict judges only the new documents, and every step-up reason is prefixed `step-up: `:
+7. **Step up when the slice passes.** Launch the next slice, then gate it against the slice it contains. The command gates the whole new run first, as in step 3. It then adds the step-up check, which judges only the new documents, and prefixes its reasons `step-up: `. Either check can fail the verdict, so a step-up whose new documents pass can still FAIL on the whole run:
    ```bash
    sandbox run gate --run-id production-slice-0250 --prev-run-id production-slice-0100
    ```
@@ -115,7 +119,7 @@ It is an upper bound. A threshold change is adopted only on new documents, and o
 | Scoring, ground truth, templated labels | **Upstream** in llm-dojo-scoring. |
 | Corpus content (stripped attachments, near-empty rows) | **Upstream** in Mailroom-Corpus-EDA. |
 
-A document used to tune must never be gated. When you add a tuning run:
+A document used by a separate tuning run must never be gated. The fix loop is the one exception: a re-run (step 6) confirms a fix on slice N's own documents, so those documents are tuned on, and because slices nest they stay in every later slice. That is why a step-up's held-out evidence is its new-document check (step 7); the whole-run numbers of slice N+1 are partly in-sample. When you add a tuning run:
 1. Add it to the regenerate command in `scripts/build_excluded_ids.py`, then regenerate `config/production/excluded-ids.txt`.
 2. Do this **before** the next slice launches. With the ranked draw, the slices that have not run yet keep every document except the newly excluded ones.
 3. Never exclude documents from a slice that has already been gated. That would break its nesting with the next slice.
@@ -134,7 +138,7 @@ A tuning run that itself excludes the production list would exclude its own docu
   - Until then a slice can fail on one such document. Re-run the slice. The fix is merged upstream (Exios66/llm-mailroom#261) and lands here with the next re-vendor.
   - Slice 100 hit it on 1 contract, then on 2 other contracts in its re-run, so expect it on long contracts.
 - **Card-shaped numbers:** OpenRouter's Decisions endpoint refuses a document holding a 4-4-4-4 digit group (`403 content filter: [CREDIT_CARD]`). That includes the synthetic property-claim IBANs, which appear in 200 insurance claims.
-  - The sandbox's Decisions backend masks that shape (`mask_card_numbers`) before every reviewer and extraction-gate request.
+  - The sandbox's Decisions backend masks that shape (`mask_card_numbers`) in the document text of every reviewer and extraction-gate request, and in every string of the extraction-gate handoff (an extracted IBAN field). The sorter handoff carries only class names and is sent unchanged.
   - Unbroken digit runs, such as EDGAR accession numbers and notice ids, are kept.
   - The vendored reviewer records any other non-transient backend error as no answer (Exios66/llm-mailroom#268).
 - **Near-empty documents:** some Enron cover notes lost their attachment, leaving only 32 to 56 characters of text (Exios66/Mailroom-Corpus-EDA#63).

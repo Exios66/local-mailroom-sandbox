@@ -473,12 +473,17 @@ def test_decide_extraction_masks_card_numbers_before_posting(monkeypatch):
         sent.update(body)
         return {"answers": {}, "usage": {}}
 
+    recorded = []
     monkeypatch.setattr(db, "_post_decision", fake_post)
-    monkeypatch.setattr(db, "_record_usage", lambda model, usage: None)
+    monkeypatch.setattr(db, "_record_usage", lambda model, usage, agent=None: recorded.append(agent))
     monkeypatch.setattr(db, "gate_questions", lambda qset, doc_type, subclass: {})
-    try:
-        db.decide_extraction("IBAN: VLT00 8812 3456 7890 1234", {"doc_type": "insurance_claim"},
-                             model=DECISIONS, qset={"version": "t"})
-    except Exception:  # noqa: BLE001 — only the posted body matters here
-        pass
+    handoff = {"doc_type": "insurance_claim",
+               "fields": {"iban": "VLT00 8812 3456 7890 1234", "claim_id": "CLM-2026-000123"},
+               "notes": ["paid to 8812-3456-7890-1234"]}
+    db.decide_extraction("IBAN: VLT00 8812 3456 7890 1234", handoff, model=DECISIONS, qset={"version": "t"})
     assert sent["state"]["document"] == "IBAN: VLT00 #### #### #### ####"
+    sent_handoff = sent["state"]["extraction_handoff"]
+    assert sent_handoff["fields"] == {"iban": "VLT00 #### #### #### ####", "claim_id": "CLM-2026-000123"}
+    assert sent_handoff["notes"] == ["paid to ####-####-####-####"]
+    assert handoff["fields"]["iban"] == "VLT00 8812 3456 7890 1234"  # the caller's handoff is untouched
+    assert recorded == [db.EXTRACTION_GATE]

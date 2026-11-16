@@ -82,7 +82,7 @@ def test_gate_cli_fail_buckets_link_archive_and_span(data):
     run = _run(data, "slice-c", _ok("a", "b") + [{"id": "w", "score": 0.5}])
     assert cli.main(["run", "gate", "--run-id", "slice-c"]) == 2
     md = (run / "gate.md").read_text()
-    assert "data/archive/SANDBOX-sandbox_pipeline_slice-c-w" in md
+    assert "](../../../archive/SANDBOX-sandbox_pipeline_slice-c-w)" in md
     assert "s-w" in md
 
 
@@ -195,4 +195,14 @@ def test_gate_md_has_a_per_document_table(data):
     for doc_id in ("a", "w", "r"):
         assert f"| {doc_id} |" in section
     assert "correct_archive" in section and "wrong_archive" in section and "review" in section
-    assert "`s-w`" in section and "data/archive/SANDBOX-sandbox_pipeline_slice-docs-a" in section
+    assert "`s-w`" in section and "](../../../archive/SANDBOX-sandbox_pipeline_slice-docs-a)" in section
+
+
+def test_gate_md_archive_links_resolve_from_the_run_dir(data):
+    """gate.md lives in data/runtime/runs/<id>/, so its archive links must climb to data/archive (#311 review)."""
+    run = _run(data, "slice-links", _ok("a"))
+    cli.main(["run", "gate", "--run-id", "slice-links"])
+    md = (run / "gate.md").read_text()
+    target = "../../../archive/SANDBOX-sandbox_pipeline_slice-links-a"
+    assert f"[archive]({target})" in md
+    assert (run / target).resolve().is_dir()

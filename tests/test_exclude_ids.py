@@ -126,7 +126,8 @@ def test_prepare_subset_never_draws_excluded_ids(tmp_path):
     prov = prepare_subset(spec.dataset, tmp_path / "out.jsonl")
     drawn = {json.loads(line)["id"] for line in (tmp_path / "out.jsonl").read_text().splitlines()}
     assert prov["rows"] == 20 and drawn.isdisjoint(EXCLUDED)
-    assert prov["excluded"] == {"listed": 5, "matched": 5}
+    assert {k: prov["excluded"][k] for k in ("listed", "matched")} == {"listed": 5, "matched": 5}
+    assert prov["excluded"]["sha256"] == __import__("hashlib").sha256(ids.read_bytes()).hexdigest()
 
 
 def test_unknown_excluded_ids_are_ignored_and_counted(tmp_path, job_data_dir):
@@ -162,3 +163,29 @@ def test_missing_exclude_file_fails_preflight(tmp_path, job_data_dir):
     assert report["status"] == "failed"
     dataset_check = next(c for c in report["checks"] if c["name"] == "dataset")
     assert not dataset_check["ok"] and "exclude_ids_file" in dataset_check["detail"]
+
+
+def test_lock_hashes_the_exclusion_bytes_the_draw_used(tmp_path, job_data_dir, monkeypatch):
+    """An edit to the exclusion file after preparation cannot reach the lock: one snapshot feeds both."""
+    import hashlib
+
+    from mailroom_sandbox.job import checkpoint, preflight
+
+    ids = tmp_path / "ids.txt"
+    original = "contract-00\n"
+    ids.write_text(original, encoding="utf-8")
+    spec = _spec(tmp_path, ids, strata=_buckets(10), sample_seed=7)
+    real_prepare = preflight.prepare_subset
+
+    def prepare_then_edit(dataset, dest):
+        prov = real_prepare(dataset, dest)
+        ids.write_text(original + "contract-01\n", encoding="utf-8")  # edited mid-preflight
+        return prov
+
+    monkeypatch.setattr(preflight, "prepare_subset", prepare_then_edit)
+    report = preflight.preflight(spec, offline=True)
+    assert report["status"] == "prepared", report
+    lock = json.loads(checkpoint.RunStore(preflight.run_dir(spec.run_id)).lock_path.read_text(encoding="utf-8"))
+    frozen = lock["spec_core"]["dataset"]["exclude_ids_sha256"]
+    assert frozen == hashlib.sha256(original.encode()).hexdigest()
+    assert frozen != spec_core(spec)["dataset"]["exclude_ids_sha256"]  # the file on disk moved on

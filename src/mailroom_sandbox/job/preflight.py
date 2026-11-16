@@ -1056,7 +1056,9 @@ def _preflight(
     # that provenance for every new identity, even if the source path changed
     # after preparation or while engine checks were running.
     source_sha = (prov.get("metadata") or {}).get("sha256") if spec.dataset.is_local() else None
-    frozen_core = spec_core(spec, source_sha256=source_sha)
+    # The exclusion hash is the one of the bytes the draw used, for the same reason.
+    exclude_sha = (prov.get("excluded") or {}).get("sha256")
+    frozen_core = spec_core(spec, source_sha256=source_sha, exclude_ids_sha256=exclude_sha)
     frozen_hash = core_hash(frozen_core)
     store.write_prompt_lock(prompt_block)
     lock = {

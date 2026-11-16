@@ -89,10 +89,26 @@ class Bars:
     min_scorable_per_class: int = 20
 
 
+class _UniqueKeyLoader(yaml.SafeLoader):
+    """A safe loader that refuses a repeated mapping key (the bars are the pass/fail policy)."""
+
+    def construct_mapping(self, node, deep=False):  # type: ignore[override]
+        seen: set[Any] = set()
+        for key_node, _ in node.value:
+            key = self.construct_object(key_node, deep=deep)
+            if key in seen:
+                raise ValueError(f"duplicate bar key {key!r} at line {key_node.start_mark.line + 1}")
+            seen.add(key)
+        return super().construct_mapping(node, deep=deep)
+
+
 def load_bars(path: Path | None = None) -> Bars:
-    """Bars from ``path`` (default ``config/production/bars.yaml``); unknown keys are an error."""
+    """Bars from ``path`` (default ``config/production/bars.yaml``); unknown or repeated keys are an error."""
     path = Path(path) if path else config_dir() / DEFAULT_BARS_PATH
-    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    try:
+        raw = yaml.load(path.read_text(encoding="utf-8"), Loader=_UniqueKeyLoader) or {}  # noqa: S506 — SafeLoader subclass
+    except ValueError as exc:
+        raise ValueError(f"{path}: {exc}") from None
     known = {f.name for f in fields(Bars)}
     unknown = sorted(set(raw) - known)
     if unknown:
@@ -185,8 +201,12 @@ def _status(doc: Mapping[str, Any], bars: Bars) -> dict[str, Any]:
     if out["stage"] == "review":
         out["outcome"] = "review"
         return out
+    out["scorer_failed"] = False
     if out["scorable"]:
         out["score"] = _score(without_fields(row, TEMPLATED_FIELDS.get(doc_class, ())), pred)
+        # Enough labels but no score: the scorer failed. The archive cannot count either way, so
+        # it is unscorable here and fails the gate below rather than shrinking the denominator.
+        out["scorer_failed"] = out["score"] is None
         out["scorable"] = out["score"] is not None
     if is_wrong_class(doc_class, pred):
         out["scorable"], out["outcome"] = True, "wrong_archive"
@@ -211,8 +231,12 @@ def doc_status(doc: Mapping[str, Any], bars: Bars) -> dict[str, Any]:
 
 
 def _load(run_dir: Path) -> list[dict[str, Any]]:
-    """Every dataset row of the run with its latest item (None when the run never wrote one)."""
-    arm = load_arm(run_dir)
+    """Every dataset row of the run with its latest item (None when the run never wrote one).
+
+    A run without ``items.jsonl`` loads with every document crashed; the CLI refuses such a run
+    before gating it, but the report itself fails closed rather than raising.
+    """
+    arm = load_arm(run_dir) if (run_dir / "items.jsonl").is_file() else {}
     docs = []
     for row in _jsonl(run_dir / "dataset.jsonl"):
         doc_id = str(row.get("id"))
@@ -341,9 +365,15 @@ def gate_report(run_dir: Path, bars: Bars, *, traces_dir: Path | None = None, ar
             blind, warn = _blindness(f"class {cls} ", _counts(docs))
             reasons += blind if per_class else []
             warnings += warn
-            scorable_k = block["scorable"]
-            if per_class and scorable_k and scorable_k < bars.min_scorable_per_class:
+        # Every configured gated class needs the minimum, including one the slice holds no document of.
+        for cls in bars.gated if per_class else ():
+            scorable_k = (classes.get(cls) or {}).get("scorable", 0)
+            # A present class with archives but none scorable is already failed by _blindness above.
+            if scorable_k < bars.min_scorable_per_class and (scorable_k or cls not in by_class):
                 reasons.append(f"class {cls} has {scorable_k} scorable archives < {bars.min_scorable_per_class}")
+        failed = sum(1 for s in pooled_docs if s["outcome"] == "unscorable_archive" and s.get("scorer_failed"))
+        if failed:
+            reasons.append(f"{failed} archive(s) with enough labels that the scorer could not score")
     if crashes:
         reasons.append(f"{crashes} crashed document(s) (run error or missing item)")
     if judge_errors:

@@ -24,7 +24,7 @@ def _run(root, name, docs):
         for d in docs:
             cls = d.get("cls", "corporate_record")
             ds.write(json.dumps({"id": d["id"], "expected_doc_class": cls,
-                                 "expected_fields": json.dumps(LABELS)}) + "\n")
+                                 "expected_fields": json.dumps(d.get("labels", LABELS))}) + "\n")
             pred = {"stage": d.get("stage", "archived"), "doc_type": cls, "_score": d.get("score", 0.95),
                     "review_causes": []}
             if not d.get("no_confidence"):
@@ -161,3 +161,21 @@ def test_threshold_evidence_projects_rates(tmp_path):
     assert at["review_rate_if_disturbed_rejected"] == 3 / 5  # plus the disturbed correct archive
     top = pooled["thresholds"][1.01]
     assert top["wrong_archive_rate"] == 0.0 and top["review_rate"] == 3 / 5
+
+
+def test_rerun_with_different_labels_on_the_same_documents_fails(tmp_path):
+    """Same ids, different gold (interim labels in one run only): not a like-for-like re-run (#311 review)."""
+    prev = _run(tmp_path, "prev", _ids("a", "b"))
+    nxt = _run(tmp_path, "next", [{"id": "a"}, {"id": "b", "labels": {**LABELS, "jurisdiction": "Nevada"}}])
+    out = gate_compare.rerun(prev, nxt, Bars(), audit=False)
+    assert out["label_mismatch"] == ["b"]
+    assert "re-run labels differ on 1 document(s): b" in out["verdict"]["reasons"]
+    assert gate_compare.same_documents(prev, nxt) is True  # still routed as a re-run, which then fails
+
+
+def test_paired_ci_bounds_are_json_safe(tmp_path):
+    """One scored pair gives no interval: null, not NaN, so gate.json stays strict JSON (#311 review)."""
+    prev = _run(tmp_path, "prev", _ids("a"))
+    nxt = _run(tmp_path, "next", _ids("a"))
+    out = gate_compare.rerun(prev, nxt, Bars(), audit=False)
+    json.dumps(out, allow_nan=False)

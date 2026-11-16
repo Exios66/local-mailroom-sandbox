@@ -83,14 +83,19 @@ def rerun(prev_dir: Path, next_dir: Path, bars: Bars, *, traces_dir: Path | None
     before = gate.gate_report(prev_dir, bars, **{**kwargs, "audit": False})["pooled"]
     after = gate.gate_report(next_dir, bars, **kwargs)["pooled"]
     reasons = [] if in_prev == in_next else ["re-run drew different documents"]
+    paired = paired_report(prev_dir, next_dir)
+    mismatch = list(paired.get("label_mismatch") or [])
+    if mismatch:
+        # Same ids, different gold: the rates below would compare the label change, not the fix.
+        reasons.append(f"re-run labels differ on {len(mismatch)} document(s): {', '.join(mismatch[:10])}")
     for key in ("wrong_archive_rate", "review_rate", "crashes", "judge_errors"):
         old, new = before.get(key), after.get(key)
         if isinstance(old, (int, float)) and isinstance(new, (int, float)) and new > old:
             shown = f"{old:.3f} -> {new:.3f}" if isinstance(old, float) or isinstance(new, float) else f"{old} -> {new}"
             reasons.append(f"{key} rose {shown}")
     return {"prev": prev_dir.name, "next": next_dir.name, "same_documents": in_prev == in_next,
-            "shared_docs": len(shared), "prev_pooled": before, "next_pooled": after,
-            "shared_paired": paired_report(prev_dir, next_dir),
+            "shared_docs": len(shared), "label_mismatch": mismatch, "prev_pooled": before, "next_pooled": after,
+            "shared_paired": paired,
             "verdict": {"pass": not reasons, "reasons": reasons}}
 
 

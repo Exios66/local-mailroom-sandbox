@@ -121,8 +121,13 @@ def _stable_key(row: dict[str, Any]) -> tuple[str, str]:
 
 def read_id_list(path: Path) -> list[str]:
     """Document ids from a text file: one per line, ``#`` comments and blank lines ignored."""
+    return parse_id_list(Path(path).read_text(encoding="utf-8"))
+
+
+def parse_id_list(text: str) -> list[str]:
+    """``read_id_list`` on text already read (one id per line, ``#`` comments ignored)."""
     ids: list[str] = []
-    for line in Path(path).read_text(encoding="utf-8").splitlines():
+    for line in text.splitlines():
         token = line.split("#", 1)[0].strip()
         if token:
             ids.append(token)
@@ -746,13 +751,17 @@ def prepare_subset(spec: DatasetSpec, dest_file) -> dict[str, Any]:
 
     rows = normalize_rows(rows)
     exclude_ids: set[str] | None = None
-    excluded_meta: dict[str, int] | None = None
+    excluded_meta: dict[str, Any] | None = None
     if spec.exclude_ids_file:
-        spec.exclude_ids_bytes()  # a missing file raises the same ValueError as spec_core
-        listed = set(read_id_list(spec.exclude_ids_path()))
+        # One read: the ids the draw drops and the hash the lock records come from the same
+        # bytes, so an edit to the file while preflight runs cannot split them (a missing
+        # file raises the same ValueError as spec_core).
+        excluded_bytes = spec.exclude_ids_bytes() or b""
+        listed = set(parse_id_list(excluded_bytes.decode("utf-8")))
         present = {str(r.get("id") or "") for r in rows}
         exclude_ids = listed
-        excluded_meta = {"listed": len(listed), "matched": len(listed & present)}
+        excluded_meta = {"listed": len(listed), "matched": len(listed & present),
+                         "sha256": hashlib.sha256(excluded_bytes).hexdigest()}
         # Before the strata guard, so it judges what the draw can really use.
         rows = _drop_excluded(rows, exclude_ids)
     rows = filter_rows(rows, spec)

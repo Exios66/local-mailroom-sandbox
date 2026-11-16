@@ -67,8 +67,9 @@ A wrong archive is worse than a review, because nobody looks at it. "Fewer revie
 | Crashes | 0 run errors, 0 `judge_error` | per slice |
 
 - **Gated classes:** contract, corporate_record, correspondence and insurance_claim.
-  **merger_agreement is excluded** until its MAUD extraction works. It is still run and
-  reported, but it never fails a slice.
+  **merger_agreement is excluded from the quality and rate bars** until its MAUD extraction
+  works. It is still run and reported. A merger crash or `judge_error` still fails the slice,
+  because the crash bar counts every class.
 - **Labelled fields:** the scored Dojo fields that have a real label. That means the Hub label
   plus `dataset.interim_labels`, without the templated fields (`TEMPLATED_FIELDS`, corporate and
   correspondence `keywords` / `subject_matter`).
@@ -123,11 +124,13 @@ These would make the work a failure even if every gate passed:
 - **Slice nesting:** each slice must be a superset of the previous one (same seed, nested
   draws), so results compare document by document. If the current stratified sampler does not
   nest when its counts grow, the slice configs must make it nest.
-- **Held out:** the slices exclude every document already used for tuning: r2/r3, E1, E2, E3,
-  and the sorter and specialist prompt-tuning draws where those are recorded. Fixes and
-  thresholds are tuned on slice N, so a step-up's verdict is read on the **new** documents only
-  (slice N+1 minus slice N). The gate reports that as its own section, alongside the
-  whole-slice numbers. *(My call after the builder check.)*
+- **Held out, with two known exceptions:** the slices exclude every document of the recorded
+  pipeline tuning runs (r2/r3, E1, E2, E3 and the correspondence v3 A/B). They do not exclude the
+  sorter's training split, so sorter accuracy is in-sample, nor the documents of the earlier
+  specialist prompt A/Bs, whose ids were not recorded. Fixes and thresholds are tuned on slice
+  N, so the step-up check is read on the **new** documents only (slice N+1 minus slice N). The
+  command first gates the whole new run, then adds the step-up reasons, so either can fail it.
+  *(My call after the builder check.)*
 - **Decision reviewer:** unchanged from r3 (`openai/gpt-6-luna-decisions` with the v2 cutoffs).
   "Qwen3.7 Flash on every agent" means every pipeline agent, not the reviewer.
 - **Audit trail:**
@@ -168,8 +171,9 @@ These would make the work a failure even if every gate passed:
 - **Class mix:** proportional to the dataset at the pin. Mergers stay in the mix.
 - **Locks:** every slice is locked and hashed as usual. The configs differ only in `limit`,
   their strata counts, `run_id` and the caps.
-- **Modal job-host twins:** each slice has a twin that changes only `job.mode: modal`. The
-  engine stays OpenRouter. It is used for the G5 job-host parity check.
+- **Modal job-host twins:** slices 0100, 0250 and 0500 each have a twin that changes only
+  `run_id` and `job.mode: modal` (the full slice has none). The engine stays OpenRouter. They
+  are for the G5 job-host parity check and cannot launch until #308 lands.
 
 ### 2. Gate report (`sandbox run gate`)
 
@@ -183,8 +187,8 @@ These would make the work a failure even if every gate passed:
   - the overall gated rates, and a PASS or FAIL with the bar that failed;
   - the cause-bucket table (section 3);
   - per-document rows with: class, stage, score, cause, archive path and trace id.
-- **Written artifacts:** `gate.json` and `gate.md` in the run directory. A run-ledger line
-  links them.
+- **Written artifacts:** `gate.json` and `gate.md` in the run directory. The gate writes no
+  run-ledger line; find a verdict by its run directory.
 - **Two-run form:** with a second run id, the gate also prints the paired difference on shared
   documents, reusing `pair_report`.
 
@@ -261,7 +265,7 @@ decided from the stage-2 slice-100 buckets, not in advance.
 - The objective: minimise human review while archiving only professional-grade extractions,
   fully auditable through traces and the hash archive.
 - The bars: 0.90 quality, at most 2% wrong archives and at most 5% review per slice. Mergers
-  are kept out of the bars for now.
+  are kept out of the quality and rate bars for now; their crashes still count.
 - Approach A.
 - CLI-launched slices of the Hugging Face dataset, growing towards the whole dataset; local
   OpenRouter, Modal, or a VM with the Docker image.

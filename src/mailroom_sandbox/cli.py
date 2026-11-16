@@ -3723,7 +3723,7 @@ def _cmd_run_gate(args) -> int:
         _print({"status": "failed", "detail": f"gate error: {type(exc).__name__}: {exc}"})
         return 1
     (root / "gate.json").write_text(json.dumps(report, indent=2, default=str) + "\n", encoding="utf-8")
-    markdown = render_markdown(report)
+    markdown = render_markdown(report, out_dir=root.resolve())
     (root / "gate.md").write_text(markdown, encoding="utf-8")
     if getattr(args, "json", False):
         _print(report)
