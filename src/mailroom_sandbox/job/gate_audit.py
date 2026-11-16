@@ -10,15 +10,17 @@ Offline and read-only. A finished run leaves three records and the gate requires
 - the hash archive ``data/archive/SANDBOX-sandbox_pipeline_<run_id>-<doc_id>/<class>/``, written for
   archived documents only (a review or a crash has no archive directory).
 
-``audit_trail`` returns ``trace_ids`` and ``archives`` (``None`` where a document has none), the
+``audit_trail`` returns ``trace_ids`` (the run's trace id; a run has one trace) and ``span_ids`` (the
+document's own ``job.item`` span, the per-document pointer) and ``archives`` (``None`` where a document has none), the
 ``missing_spans`` / ``missing_nodes`` / ``missing_archive`` document ids, ``reasons`` (failing verdict
 reasons, one line per kind) and ``ok``. A missing span mirror is one reason, not one per document.
-The mirror is streamed line by line, never loaded whole.
+An unreadable mirror (truncated or corrupt gz) is one reason too, naming the exception. The mirror is streamed line by line, never loaded whole.
 """
 from __future__ import annotations
 
 import gzip
 import json
+import zlib
 from pathlib import Path
 from typing import Any
 
@@ -61,18 +63,25 @@ def _stream_jsonl(path: Path, opener: Any):
                     continue
 
 
-def _trace_ids(spans_path: Path, wanted: set[str]) -> dict[str, str]:
-    """``{doc_id: trace_id}`` for the wanted documents, streaming the span mirror."""
-    found: dict[str, str] = {}
+def _scan_spans(spans_path: Path, wanted: set[str]) -> tuple[dict[str, str], dict[str, str]]:
+    """``({doc_id: trace_id}, {doc_id: span_id})`` for the wanted documents, streaming the span mirror.
+
+    The trace id is the first seen on any of the document's spans (one per run in practice); the span id is
+    that of the document's ``job.item`` span, the last one when there are several.
+    """
+    traces: dict[str, str] = {}
+    spans: dict[str, str] = {}
     for span in _stream_jsonl(spans_path, gzip.open):
-        attrs = span.get("attributes") if isinstance(span, dict) else None
-        doc_id = str((attrs or {}).get("item_id") or "")
-        trace_id = span.get("trace_id") if isinstance(span, dict) else None
-        if doc_id in wanted and trace_id and doc_id not in found:
-            found[doc_id] = str(trace_id)
-            if len(found) == len(wanted):
-                break
-    return found
+        if not isinstance(span, dict):
+            continue
+        doc_id = str((span.get("attributes") or {}).get("item_id") or "")
+        if doc_id not in wanted:
+            continue
+        if span.get("trace_id") and doc_id not in traces:
+            traces[doc_id] = str(span["trace_id"])
+        if span.get("name") == "job.item" and span.get("span_id"):
+            spans[doc_id] = str(span["span_id"])
+    return traces, spans
 
 
 def _node_docs(run_dir: Path) -> set[str]:
@@ -93,7 +102,14 @@ def audit_trail(run_dir: Path, doc_ids: list[str], archived: set[str], *,
     run_id = _run_id(run_dir)
     spans_path = Path(traces_dir) / f"{run_id}.spans.jsonl.gz"
     mirror = spans_path.is_file()
-    traces = _trace_ids(spans_path, set(doc_ids)) if mirror else {}
+    traces: dict[str, str] = {}
+    spans: dict[str, str] = {}
+    unreadable = ""
+    if mirror:
+        try:
+            traces, spans = _scan_spans(spans_path, set(doc_ids))
+        except (EOFError, OSError, zlib.error) as exc:  # truncated or corrupt gz (BadGzipFile is an OSError)
+            traces, spans, mirror, unreadable = {}, {}, False, type(exc).__name__
     with_nodes = _node_docs(run_dir)
     archives: dict[str, str | None] = {}
     for doc_id in doc_ids:
@@ -102,10 +118,13 @@ def audit_trail(run_dir: Path, doc_ids: list[str], archived: set[str], *,
     missing_spans = [d for d in doc_ids if d not in traces] if mirror else []
     missing_nodes = [d for d in doc_ids if d not in with_nodes]
     missing_archive = [d for d in doc_ids if d in archived and archives[d] is None]
-    reasons = [] if mirror else [f"no span mirror at data/traces/{run_id}.spans.jsonl.gz"]
+    where = f"data/traces/{run_id}.spans.jsonl.gz"
+    reasons = [] if mirror else [f"span mirror unreadable at {where}: {unreadable}" if unreadable
+                                 else f"no span mirror at {where}"]
     for label, missing in (("spans", missing_spans), ("nodes", missing_nodes), ("archive", missing_archive)):
         if missing:
             reasons.append(f"missing {label}: {len(missing)}")
-    return {"trace_ids": {d: traces.get(d) for d in doc_ids}, "archives": archives,
+    return {"trace_ids": {d: traces.get(d) for d in doc_ids}, "span_ids": {d: spans.get(d) for d in doc_ids},
+            "archives": archives,
             "missing_spans": missing_spans, "missing_nodes": missing_nodes, "missing_archive": missing_archive,
             "span_mirror": mirror, "reasons": reasons, "ok": not reasons}

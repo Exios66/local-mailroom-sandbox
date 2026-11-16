@@ -14,7 +14,7 @@ RUN_ID = "slice-run"
 
 
 def _span(item_id, trace_id, name="job.node"):
-    return {"trace_id": trace_id, "span_id": "s" + trace_id, "name": name, "attributes": {"item_id": item_id}}
+    return {"trace_id": trace_id, "span_id": ("item-" if name == "job.item" else "node-") + trace_id, "name": name, "attributes": {"item_id": item_id}}
 
 
 def _checkout(root: Path, docs, *, spans="all", nodes="all", archives="all"):
@@ -70,6 +70,7 @@ def test_links_each_document_to_trace_and_archive(tmp_path):
     audit = _audit(run, ["DOC-a", "DOC-b"], ["DOC-a", "DOC-b"])
     assert audit["ok"] is True
     assert audit["trace_ids"] == {"DOC-a": "trace0", "DOC-b": "trace1"}
+    assert audit["span_ids"] == {"DOC-a": "item-trace0", "DOC-b": "item-trace1"}
     data = tmp_path / "data"
     assert audit["archives"] == {d: str(gate_audit.archive_path_for(RUN_ID, d, data / "archive"))
                                  for d in ("DOC-a", "DOC-b")}
@@ -159,8 +160,8 @@ def test_bucket_entries_carry_real_archive_and_trace_id(tmp_path):
     run = _checkout(tmp_path, docs, spans={"DOC-r"})
     report = gate.gate_report(run, Bars())
     entries = {d["id"]: d for d in report["buckets"]["mechanism:judge_error"]["docs"]}
-    assert entries["DOC-r"] == {"id": "DOC-r", "archive": None, "trace_id": "trace1"}
-    assert entries["DOC-s"]["trace_id"] is None  # no spans: reported, not invented
+    assert entries["DOC-r"] == {"id": "DOC-r", "archive": None, "trace_id": "trace1", "span_id": "item-trace1"}
+    assert entries["DOC-s"]["trace_id"] is None and entries["DOC-s"]["span_id"] is None  # reported, not invented
 
 
 def test_bucket_entries_link_the_archive_of_a_wrong_archive(tmp_path, monkeypatch):
@@ -170,7 +171,8 @@ def test_bucket_entries_link_the_archive_of_a_wrong_archive(tmp_path, monkeypatc
     [(cause, bucket)] = entry.items()
     assert cause.startswith("extraction:") or cause.startswith("mechanism:")
     expected = gate_audit.archive_path_for(RUN_ID, "DOC-a", tmp_path / "data" / "archive")
-    assert bucket["docs"] == [{"id": "DOC-a", "archive": str(expected), "trace_id": "trace0"}]
+    assert bucket["docs"] == [{"id": "DOC-a", "archive": str(expected), "trace_id": "trace0",
+                                "span_id": "item-trace0"}]
 
 
 def test_spans_are_streamed_not_loaded_whole(tmp_path, monkeypatch):
@@ -199,3 +201,45 @@ def test_spans_are_streamed_not_loaded_whole(tmp_path, monkeypatch):
     monkeypatch.setattr(gate_audit.gzip, "open", lambda *a, **k: Spy(real(*a, **k)))
     assert _audit(run, ["DOC-a", "DOC-b"], ["DOC-a", "DOC-b"])["ok"] is True
     assert reads == []  # only iterated line by line
+
+
+def test_span_id_is_the_last_job_item_span_of_the_document(tmp_path):
+    run = _checkout(tmp_path, DOCS)
+    with gzip.open(tmp_path / "data" / "traces" / f"{RUN_ID}.spans.jsonl.gz", "at") as fh:
+        again = _span("DOC-a", "trace0", "job.item")
+        again["span_id"] = "item-retry"
+        fh.write(json.dumps(again) + "\n")
+        fh.write(json.dumps(_span("DOC-a", "trace0")) + "\n")  # a later node span is not the item span
+    audit = _audit(run, ["DOC-a", "DOC-b"], ["DOC-a", "DOC-b"])
+    assert audit["span_ids"] == {"DOC-a": "item-retry", "DOC-b": "item-trace1"}
+
+
+def test_doc_statuses_carry_the_span_pointer(tmp_path):
+    run = _checkout(tmp_path, DOCS, spans={"DOC-a"})
+    docs = {d["id"]: d for d in gate.gate_report(run, Bars())["docs"]}
+    assert docs["DOC-a"]["span_id"] == "item-trace0" and docs["DOC-b"]["span_id"] is None
+
+
+def test_unaudited_report_has_no_span_pointer(tmp_path):
+    run = _checkout(tmp_path, DOCS)
+    assert all("span_id" not in d for d in gate.gate_report(run, Bars(), audit=False)["docs"])
+
+
+def test_truncated_span_mirror_is_one_failing_reason(tmp_path):
+    run = _checkout(tmp_path, DOCS)
+    path = tmp_path / "data" / "traces" / f"{RUN_ID}.spans.jsonl.gz"
+    raw = path.read_bytes()
+    path.write_bytes(raw[: len(raw) // 2])  # a run killed mid-write: no gzip trailer
+    report = gate.gate_report(run, Bars())
+    reasons = [r for r in report["verdict"]["reasons"] if "span mirror" in r]
+    assert reasons == [f"span mirror unreadable at data/traces/{RUN_ID}.spans.jsonl.gz: EOFError"]
+    assert not [r for r in report["verdict"]["reasons"] if r.startswith("missing spans")]
+    assert report["audit"]["ok"] is False and report["verdict"]["pass"] is False
+    assert report["audit"]["trace_ids"] == {"DOC-a": None, "DOC-b": None}
+
+
+def test_corrupt_span_mirror_is_one_failing_reason(tmp_path):
+    run = _checkout(tmp_path, DOCS)
+    (tmp_path / "data" / "traces" / f"{RUN_ID}.spans.jsonl.gz").write_bytes(b"not a gzip file at all")
+    reasons = gate.gate_report(run, Bars())["verdict"]["reasons"]
+    assert f"span mirror unreadable at data/traces/{RUN_ID}.spans.jsonl.gz: BadGzipFile" in reasons
