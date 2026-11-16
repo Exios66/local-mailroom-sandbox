@@ -953,6 +953,11 @@ def _preflight(
                 "detail": (
                     f"rows={prov['rows']} sha256={prov['sha256'][:12]} "
                     f"revision={prov.get('revision_requested')}"
+                    + (
+                        f" excluded={prov['excluded']['matched']}/{prov['excluded']['listed']}"
+                        if prov.get("excluded")
+                        else ""
+                    )
                 ),
             }
         )

@@ -139,6 +139,10 @@ class DatasetSpec(BaseModel):
     # drawn rows' expected_fields: the labels the next dataset revision is expected to publish.
     # Off by default; the lock records the overlay's sha256 so such scores never pass for Hub-GT ones.
     interim_labels: bool = False
+    # Repo-relative path to a text file of document ids (one per line; blank lines and `#`
+    # comments ignored) dropped BEFORE the draw, so a slice never re-draws a tuning document.
+    # The file's sha256 is hashed into the spec; a missing file is a preflight error.
+    exclude_ids_file: str | None = None
     columns: dict[str, str] | None = None
     expected_fields: list[str] | None = None
     local_path: str | None = None  # file:// or a path, ${VAR} expanded (offline)
@@ -244,6 +248,24 @@ class DatasetSpec(BaseModel):
             url = url[len("file://") :]
         return Path(url).expanduser()
 
+    def exclude_ids_path(self) -> Path | None:
+        """``exclude_ids_file`` resolved against the repo root (absolute paths kept), or None."""
+        if not self.exclude_ids_file:
+            return None
+        from mailroom_sandbox.paths import repo_root
+
+        path = Path(self.exclude_ids_file).expanduser()
+        return path if path.is_absolute() else repo_root() / path
+
+    def exclude_ids_bytes(self) -> bytes | None:
+        """The exclusion file's bytes, or None when unset. A set but missing file raises ValueError."""
+        path = self.exclude_ids_path()
+        if path is None:
+            return None
+        if not path.is_file():
+            raise ValueError(f"dataset.exclude_ids_file not found: {path}")
+        return path.read_bytes()
+
     def request_core(self, *, source_sha256: str | None = None) -> dict[str, Any]:
         """The reproducibility-relevant spec (never row counts/attempt results).
 
@@ -260,6 +282,10 @@ class DatasetSpec(BaseModel):
         # Omit the default so existing unfiltered specs retain their hashes.
         if self.require_task_gt:
             core["require_task_gt"] = True
+        # Hashed by content (never the path) and only when set, so existing specs keep their hash.
+        excluded = self.exclude_ids_bytes()
+        if excluded is not None:
+            core["exclude_ids_sha256"] = hashlib.sha256(excluded).hexdigest()
         if self.interim_labels:
             from mailroom_sandbox.interim_labels import overlay_fingerprint
 
