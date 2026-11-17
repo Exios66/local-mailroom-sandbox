@@ -55,7 +55,7 @@ def transient(node):
     return {"transient_error": True, f"transient_retries_{node}": 1, "error_message": "provider blip"}
 
 
-def walk(bg, monkeypatch, tmp_path, script, *, ground_truth=None):
+def walk(bg, monkeypatch, tmp_path, script, *, ground_truth=None, oracle=True):
     """Run one document under ``script`` ({node: [updates]}); return (result, nodes visited)."""
     from pipeline.bins import inbox_dir
 
@@ -80,7 +80,12 @@ def walk(bg, monkeypatch, tmp_path, script, *, ground_truth=None):
     inbox_dir().mkdir(parents=True, exist_ok=True)
     source = inbox_dir() / "exhibit.txt"
     source.write_text("Cedar Sample Ltd board minutes: the directors adopt the annual budget.")
-    result = bg.run_pipeline(source, "ROUTING-MATRIX", ground_truth=ground_truth)
+    from pipeline.config import oracle_routing_override
+
+    # The GT-aware arms run only with oracle routing on (llm-mailroom #264); the sandbox turns it
+    # on for a run that passes labels (eval.runners), so a scenario with ground truth does too.
+    with oracle_routing_override(ground_truth is not None and oracle):
+        result = bg.run_pipeline(source, "ROUTING-MATRIX", ground_truth=ground_truth)
     return result, visited
 
 
@@ -199,6 +204,16 @@ def test_ground_truth_class_miss_reaches_the_reviewer_at_full_confidence(graph, 
     record(visited)
     assert visited == ["intake", "classify", "review_classify", "human_review"]
     assert result["stage"] == "review"
+
+
+def test_without_oracle_routing_a_ground_truth_class_miss_is_not_routed_on(graph, monkeypatch, tmp_path):
+    """llm-mailroom #264: with oracle routing off, routing ignores the label it is passed."""
+    result, visited = walk(graph, monkeypatch, tmp_path, {
+        "classify": [sorted_as(HIGH)], "extract": [extracted()],
+    }, ground_truth={"expected_doc_class": "contract"}, oracle=False)
+    record(visited)
+    assert "review_classify" not in visited
+    assert visited[:3] == ["intake", "classify", "extract"]
 
 
 def test_failed_report_is_withheld_from_the_catalog(graph, monkeypatch, tmp_path):

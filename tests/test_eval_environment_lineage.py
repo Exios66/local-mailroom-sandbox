@@ -268,6 +268,17 @@ CORRECTED = {
 }
 
 
+# Dojo production_prompts texts that moved on after the eval-environment freeze.
+# The frozen stem keeps its locked bytes; the Dojo text is pinned here so a further
+# move is noticed. Dojo #165/#166 (llm-mailroom #269, vendored at Dojo v0.30.1) type
+# correspondence communication_type by content, not carrier.
+MOVED_SINCE_FREEZE = {
+    "correspondence_specialist": (
+        "e3bc920d5a99c951ace99e4a726a8cbd85a135ebf0fb81408ec8654c774b4000"
+    ),
+}
+
+
 @pytest.mark.parametrize("agent", sorted(CORRECTED))
 def test_corrected_stem_is_the_dojo_production_prompts_text(agent):
     import hashlib
@@ -277,11 +288,24 @@ def test_corrected_stem_is_the_dojo_production_prompts_text(agent):
 
     *_, stem, sha, _old_sha, _old_chars = CORRECTED[agent]
     text = get_prompt(agent, "production_prompts").text  # loader strips the provenance comment
-    body = text if text.endswith("\n") else text + "\n"
+    body = (text if text.endswith("\n") else text + "\n").encode("utf-8")
     on_disk = (prompts_dir() / f"{stem}.txt").read_bytes()
-    assert on_disk == body.encode("utf-8")  # same body, no provenance comment
     assert not on_disk.lstrip().startswith(b"<!--")
-    assert hashlib.sha256(on_disk).hexdigest() == sha
+    assert hashlib.sha256(on_disk).hexdigest() == sha  # the frozen stem never moves
+    if agent in MOVED_SINCE_FREEZE:
+        assert hashlib.sha256(body).hexdigest() == MOVED_SINCE_FREEZE[agent]
+        assert on_disk != body
+    else:
+        assert on_disk == body  # same body, no provenance comment
+
+
+def test_moved_dojo_text_is_the_vendored_pipeline_production_mirror():
+    import hashlib
+
+    from mailroom_sandbox.paths import prompts_dir
+
+    mirror = (prompts_dir() / "correspondence_specialist_production.txt").read_bytes()
+    assert hashlib.sha256(mirror).hexdigest() == MOVED_SINCE_FREEZE["correspondence_specialist"]
 
 
 @pytest.mark.parametrize("agent", sorted(CORRECTED))

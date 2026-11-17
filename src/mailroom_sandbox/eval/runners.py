@@ -1399,18 +1399,26 @@ def _run_pipeline_doc(
     def _mock_get_llm(agent_name: str):
         return fake_client(expect), "mock-model"
 
+    from pipeline.config import oracle_routing_override  # type: ignore
+
     from mailroom_sandbox.runtime import blind_routing_active
 
+    blind = blind_routing_active()
     kwargs = {
         "source": "sandbox-fixtures",
         # job.blind_routing: no labels in the graph's state, as in production (llm-mailroom
         # #207). The caller scores the result against the full row either way.
-        "ground_truth": None if blind_routing_active() else gt,
+        "ground_truth": None if blind else gt,
         "session_id": session_id or matter_id,
         "run_id": run_id or experiment_name,
     }
-    if mock:
-        with ExitStack() as stack:
+    with ExitStack() as stack:
+        # Since llm-mailroom #264 (vendored at 63f6841) routing ignores ground_truth unless oracle
+        # routing is on. A run without job.blind_routing keeps its historic meaning, routing on the
+        # labels it is given, so locked configs reproduce; a blind run forces it off, whatever
+        # MAILROOM_ORACLE_ROUTING says.
+        stack.enter_context(oracle_routing_override(not blind))
+        if mock:
             stack.enter_context(
                 patch("llm.client.get_llm", side_effect=_mock_get_llm)
             )
@@ -1419,8 +1427,6 @@ def _run_pipeline_doc(
             )
             for lc_patch in _langchain_mock_patches(expect):
                 stack.enter_context(lc_patch)
-            result = run_pipeline(queued, matter_id, **kwargs)
-    else:
         result = run_pipeline(queued, matter_id, **kwargs)
     # A parked run returns the state from before the review interrupt; the manifest holds the outcome.
     outcome = dict(result)

@@ -133,15 +133,14 @@ A tuning run that itself excludes the production list would exclude its own docu
 - **The specialist prompts are not fully held out either.** The adopted condensed specialist prompts (corporate v1, correspondence v2, insurance v3) were validated on `gate-train` handoff draws. Those draws' document ids were not recorded, because the compare reports keep only counts. So those documents cannot be excluded, and some may appear in slices.
   - Fully held out: the pipeline-level tuning (the 11 ladder runs) and the correspondence v3 A/B.
   - Partly in-sample: extraction quality on any document a specialist A/B used.
-- **Insurance `claim_type`:** the vendored schema description still teaches the CMS table tokens and overrides the prompt (Exios66/llm-mailroom#174 §2). Expect `extraction:out_of_enum` until a re-vendor lands.
-- **`judge_error` from null `choices`:** OpenRouter sometimes returns a 200 response with `choices: null` when an upstream provider fails. The vendored judge then raises a non-transient `TypeError`, and the document parks instead of retrying (Exios66/llm-mailroom#260).
-  - The repro is `tests/test_judge_second_pass.py`, a strict xfail. Remove the xfail when the fix is vendored.
-  - Until then a slice can fail on one such document. Re-run the slice. The fix is merged upstream (Exios66/llm-mailroom#261) and lands here with the next re-vendor.
-  - Slice 100 hit it on 1 contract, then on 2 other contracts in its re-run, so expect it on long contracts.
+- **Insurance `claim_type`:** the vendored schema description and extract-node handoff still teach the CMS table tokens and override the prompt. The upstream fix is Exios66/llm-mailroom#174 §2, in PR Exios66/llm-mailroom#280, which is not vendored yet. Expect `extraction:out_of_enum` on CMS rows until a re-vendor brings it in.
+- **`judge_error` from null `choices` (fixed):** OpenRouter sometimes returns a 200 response with `choices: null` when an upstream provider fails. Before llm-mailroom `63f6841`, the judge raised a non-transient `TypeError` on it, and the document parked instead of retrying (Exios66/llm-mailroom#260).
+  - It is classed as transient since Exios66/llm-mailroom#261, which is vendored at `63f6841`. `tests/test_judge_second_pass.py` pins the fix.
+  - Slices 100 and 100 r2 hit it on long contracts. Runs locked on an earlier pin still can.
 - **Card-shaped numbers:** OpenRouter's Decisions endpoint refuses a document holding a 4-4-4-4 digit group (`403 content filter: [CREDIT_CARD]`). That includes the synthetic property-claim IBANs, which appear in 200 insurance claims.
   - The sandbox's Decisions backend masks that shape (`mask_card_numbers`) in the document text of every reviewer and extraction-gate request, and in every string of the extraction-gate handoff (an extracted IBAN field). The sorter handoff carries only class names and is sent unchanged.
   - Unbroken digit runs, such as EDGAR accession numbers and notice ids, are kept.
-  - The vendored reviewer records any other non-transient backend error as no answer (Exios66/llm-mailroom#268).
+  - Since llm-mailroom `63f6841` (Exios66/llm-mailroom#271), the vendored reviewer records any other non-transient backend error as an error. Earlier pins recorded it as no answer (Exios66/llm-mailroom#268).
 - **Near-empty documents:** some Enron cover notes lost their attachment, leaving only 32 to 56 characters of text (Exios66/Mailroom-Corpus-EDA#63).
   - The reviewer says `unknown` on them, and the gate buckets that review as `input:near_empty`, not as a reviewer fault.
   - They still count against the 5% review budget. With the 147-id list, slice 100 has none, slice 250 has 3, slice 500 has 10 and the full slice has 104.

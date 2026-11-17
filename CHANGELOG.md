@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+- **Vendor refresh: llm-mailroom `abb1ccf` → `63f6841`, Dojo `13adc8e` → `116da0b` (tag `v0.30.1`).** These are the release-branch heads after llm-mailroom #271 and llm-dojo-scoring #169. llm-mailroom `63f6841` declares Dojo `116da0b`.
+  - Fixes the production slices hit:
+    - A 200 response with `choices: null` is a transient error, not a `judge_error` (llm-mailroom #261, #260).
+    - A decision-reviewer backend error is recorded as an error (#268).
+    - Correspondence `communication_type` is typed by content, not carrier (#269, Dojo #166).
+    - A typed decision with no gold for its class counts as `no_gold` (Dojo #168).
+  - Routing ignores `ground_truth` unless oracle routing is on (#207). The sandbox already sets `blind_routing`. Retry keep-best (#254) and the chunk-merge evidence policy (#255) are opt-in and stay off.
+  - `tests/test_judge_second_pass.py` drops its strict #260 xfail, which would now fail CI.
+  - `config/prompts/correspondence_specialist_production.txt` is re-synced to the content-typed vendor text (`e3bc920d`). The frozen eval-environment stem `correspondence_specialist_v7` (`correspondence_specialist_simplified`, `2b0b81ff`) keeps its bytes; `tests/test_eval_environment_lineage.py` now pins that Dojo's `production_prompts` text moved past it. Production slices use `correspondence_specialist_condensed_v3` and are unaffected.
+  - **Score changes:** Dojo `decision.*` lane scores can move on unchanged records. Extraction field scores do not change. Pipeline behaviour changes for correspondence typing, retries and judge errors, so runs locked on the old pins are not directly comparable.
+  - Not included: insurance `claim_type` (llm-mailroom #280, #174 §2) and CUAD dates (Dojo #173, #167). Both are open upstream.
+- **A run without `job.blind_routing` still routes on its labels.** llm-mailroom #264 ignores `ground_truth` unless oracle routing is on. Without a fix, every non-blind sandbox config would have quietly become blind. `eval.runners` now runs each pipeline document under `oracle_routing_override(not blind)`, so locked configs reproduce. A blind run forces oracle routing off whatever `MAILROOM_ORACLE_ROUTING` says. `tests/test_pipeline_routing_matrix.py` walks the ground-truth arms with oracle routing on, and pins that they are skipped with it off.
 - **The gate counts only fields the Dojo scores** (#306).
   - `labelled_count` now keeps only keys in the Dojo extraction schema (`field_names(doc_class)`), falling back to the old count for an unregistered class. Corpus annotations (`content_topic`, `sentiment_label`, `sentiment_score`) are no longer counted as labels.
   - Effect: 23 correspondence rows that are scored on `intent` alone are now unscorable. Re-gated, slice 100 r2 is 40/55 = 0.727 wrong archives, not 48/78 = 0.615.
