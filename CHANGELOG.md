@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- **Label review verdicts for every gold and disputed interim label.** `data/labels/review/verdicts.jsonl` records one verdict per label for 8,286 labels: 6,340 verified, 196 corrected, 1,666 correspondence fields filled from the original email headers (CMU Enron maildir) where the document text omits them, and 84 left for a human. The 84 are grouped into policy questions in `policy_questions.json`. The rebuilt `cuad_clauses` for four disputed contracts follow the Hub's CUAD expert spans. Nothing reads the folder by default; see its `README.md`.
 - **Production runs score against Claude near-gold labels where the Hub has none.** `dataset.near_gold_labels: true` (on in every `config/runs/production/` slice) merges `data/labels/gold-overlay/` into the drawn rows after the interim overlay. A Hub label or an interim truth label always wins. The labels stay marked `near_gold`: each row lists the fields it took, and the lock records the overlay's sha256. On the pinned corpus this fills 4,256 correspondence fields on 780 documents. See `docs/EXTRACTION_GATE_VETTING.md`.
 - **Vendor refresh: llm-mailroom `f83e398` → `8cebcd8` (`main`); Dojo stays at `025400f`.** `8cebcd8` is llm-mailroom `main` after #287 squashed the v0.30.0 release line into it; its tree is byte-identical to `v0.30.0` at `815c169`. It still declares Dojo `025400f`, so the Dojo snapshot is unchanged.
   - #283: insurance `cms_source_table` comes from the Hub subclass, and CMS claims carry `supporting_documents` references, Part D NDC included.
