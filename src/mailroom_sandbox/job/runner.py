@@ -267,9 +267,12 @@ def _run_whole_run(
     spans = _WholeRunSpans(tracer, current_context(tracer), task=task)
     # Item ids already in items.jsonl, read once; row callbacks run on the main thread.
     persisted: set[Any] = {i.get("item_id") for i in prior_items}
+    # A whole-run delegate re-runs every locked row on resume, so a document the earlier attempt already
+    # persisted is billed again. Its second bill has no item row; it is kept as an event (once per attempt).
+    rebilled: set[Any] = set(persisted)
 
     def _row_sink(entry: dict[str, Any]) -> None:
-        if _persist_isolated_items(store, [entry], seen=persisted):
+        if _persist_isolated_items(store, [entry], seen=persisted, rebilled=rebilled):
             spans.item(entry)
 
     def _node_sink(record: dict[str, Any]) -> None:
@@ -413,7 +416,8 @@ def _run_whole_run(
         return {"state": "failed", "task": task, "error": str(exc)[:512], "cursor": saved,
                 "total": max(startup_total, saved), "ok": saved_ok, "errors": saved - saved_ok + 1}
 
-    _persist_isolated_items(store, result.get("rows") if isinstance(result, dict) else None, seen=persisted)
+    _persist_isolated_items(store, result.get("rows") if isinstance(result, dict) else None, seen=persisted,
+                            rebilled=rebilled)
     scores = result.get("scores") or {}
     # The delegated runner reports how many rows it actually processed; fall
     # back to the locked dataset length when the runner has no n.
@@ -520,8 +524,8 @@ def _cost_cap_usd(store: RunStore) -> float | None:
 def _api_budget(store: RunStore):
     """SAND-089: the run's API token budget, seeded with tokens already spent.
 
-    That is every persisted item plus every document that raised after a paid call
-    (recorded as a ``FAILED_USAGE_EVENT``; it has no item row).
+    That is every persisted item plus every paid call without an item row: a document that raised
+    (``FAILED_USAGE_EVENT``) and a document a resume billed again (``RERUN_USAGE_EVENT``).
     """
     from mailroom_sandbox.job.api_budget import budget_for, usage_records
 
@@ -756,7 +760,8 @@ def _engine_error(item: dict[str, Any]) -> str | None:
 
 
 def _persist_isolated_items(
-    store: RunStore, rows: list[dict[str, Any]] | None, *, seen: set[Any] | None = None
+    store: RunStore, rows: list[dict[str, Any]] | None, *, seen: set[Any] | None = None,
+    rebilled: set[Any] | None = None,
 ) -> int:
     """SAND-032: isolated specialist runs wrote no items.jsonl — per-doc rows
     are the evidence the reports and offline BT rows are built from.
@@ -764,6 +769,11 @@ def _persist_isolated_items(
     ``seen`` is the caller's running set of persisted item ids (updated in
     place), so a per-document callback does not reload the growing file each
     time. Without it the file is read once for this call.
+
+    ``rebilled`` holds the ids persisted by an earlier attempt that this attempt may bill again (a resume
+    re-runs every locked row). A repeat of one with token usage is not written as an item (the first row stays
+    the evidence) but is kept as a ``RERUN_USAGE_EVENT``, so a later resume's API budget still counts it. Each id
+    is recorded once per attempt.
     """
     if not rows:
         return 0
@@ -773,6 +783,13 @@ def _persist_isolated_items(
     for row in rows:
         item_id = row.get("id")
         if item_id in seen:
+            if rebilled is not None and item_id in rebilled:
+                rebilled.discard(item_id)
+                usage = {k: row[k] for k in ("prompt_tokens", "completion_tokens", "llm_calls") if row.get(k)}
+                if usage:
+                    from mailroom_sandbox.job.api_budget import RERUN_USAGE_EVENT
+
+                    store.append_event(RERUN_USAGE_EVENT, "info", item_id=item_id, **usage)
             continue
         store.append_item(
             {
