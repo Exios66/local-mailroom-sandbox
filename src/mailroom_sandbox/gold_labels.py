@@ -19,20 +19,27 @@ document::
 2. an empty value carries an ``absent`` reason (the Dojo's documented absence), except a
    field whose contract empty value is not empty (correspondence ``urgency`` is ``routine``);
 3. a closed-label value is in the Dojo scored vocabulary (``scored_enums``), never mapped;
-4. every evidence quote is a verbatim slice of the document (whitespace-insensitive) and is
-   recorded as ``{start, end, text}``;
-5. the value is supported by its evidence, by field type (dates in a written form of the ISO
-   date, money digits, name tokens, free-text token coverage);
+4. every evidence quote is a verbatim slice of the document (whitespace-insensitive), at most
+   :data:`MAX_QUOTE_CHARS` long, and is recorded as ``{start, end, text}``;
+5. the value is supported by its evidence, by field type (dates: a written form of the ISO date
+   with digit boundaries, or the month name with the day beside it and the year; money: the
+   exact figure appears in the evidence; party roles: the role word appears too; name tokens;
+   free-text token coverage; a closed label other than its default needs a quote of at least
+   :data:`MIN_LABEL_QUOTE_TOKENS` tokens);
 6. the whole payload (the class's contract-empty payload with the labels applied) validates
    against the pipeline's own pydantic model in ``schemas.documents.EXTRACTION_SCHEMAS``.
 
 Fields that pass become catalog labels with status ``candidate``. :func:`reconcile` compares a
 label pass with an independent check pass: agreeing values become ``near_gold`` (the owner's
-name for labels Opus reviewed or two independent passes agree on);
-disagreements are ``disputed`` and need a review decision (:func:`apply_review`). No status here
+name for labels Opus reviewed or two independent passes agree on). "Independent" means two
+separate agent passes that did not see each other's output; the same model family may write
+both. ``scripts/gold_labels.py build`` enforces what it can: no file serves as both passes, the
+submissions' roles are ``label`` and ``check``, and no document appears twice in one pass;
+disagreements are ``disputed`` and need a review decision (:func:`apply_review`, which keeps the
+label it corrects under ``review.original``). No status here
 sets ``use_as_truth``: the refined-GT master copy lives in ``Exios66/Mailroom-Corpus-EDA``
 (its issue #65), and an agent's label becomes gold there only with a reviewer's initials.
-:func:`overlay_records` exports the catalog as candidates in the overlay shape EDA's
+:func:`overlay_records` exports the ``near_gold`` labels in the overlay shape EDA's
 ``labeling/interim.py`` reads. Anything that fails a gate, plus each submission's ``supplementary``
 block, goes to the supplementary store, which no scorer reads.
 
@@ -44,10 +51,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import sys
 from dataclasses import dataclass, field
 from datetime import date
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
@@ -63,6 +72,11 @@ TRUTH_STATUSES: tuple[str, ...] = ()
 #: (Mailroom-Corpus-EDA #63); its labels are tagged ``near_empty``.
 NEAR_EMPTY_CHARS = 200
 OVERLAY_SCHEMA = "mailroom-interim-labels/v1"
+#: An evidence quote is the smallest span that shows the value; a whole-document quote supports
+#: anything, so the gate refuses quotes longer than this.
+MAX_QUOTE_CHARS = 400
+#: A closed label other than its contract default needs a quote of at least this many tokens.
+MIN_LABEL_QUOTE_TOKENS = 3
 
 #: Unlabelled scored fields to label, per class, in priority order. Tier 1 is mission-critical:
 #: who sent what to whom and when, how urgent it is, money demanded, who signed and when it
@@ -181,11 +195,22 @@ def locate(quote: str, doc_text: str, *, _cache: dict[int, tuple[str, str, list[
     if not q:
         return None
     collapsed, idx = _collapse(doc_text)
-    for hay, needle in ((collapsed, q), (collapsed.casefold(), q.casefold())):
-        pos = hay.find(needle)
-        if pos >= 0:
-            start, end = idx[pos], idx[pos + len(needle) - 1] + 1
-            return {"start": start, "end": end, "text": doc_text[start:end]}
+    pos = collapsed.find(q)
+    if pos >= 0:
+        start, end = idx[pos], idx[pos + len(q) - 1] + 1
+        return {"start": start, "end": end, "text": doc_text[start:end]}
+    # Case-insensitive pass. casefold() can change a character's length ("ß" -> "ss",
+    # "İ" -> "i̇"), so every folded character maps back to the collapsed character it came from.
+    folded, back = [], []
+    for i, ch in enumerate(collapsed):
+        piece = ch.casefold()
+        folded.append(piece)
+        back.extend([i] * len(piece))
+    hay, needle = "".join(folded), q.casefold()
+    pos = hay.find(needle)
+    if pos >= 0 and needle:
+        start, end = idx[back[pos]], idx[back[pos + len(needle) - 1]] + 1
+        return {"start": start, "end": end, "text": doc_text[start:end]}
     return None
 
 
@@ -208,28 +233,75 @@ def _date_forms(value: str) -> set[str]:
     } | ({f"{d:%d}/{d:%m}/{d.year}", f"{day}/{d.month}/{d.year}"} if day > 12 else set())
 
 
+def _bounded(form: str, text: str) -> bool:
+    """Whether ``form`` occurs in ``text`` with no digit (or, for slash forms, slash) beside it."""
+    extra = "/" if "/" in form else ""
+    pattern = rf"(?<![0-9{extra}]){re.escape(form)}(?![0-9{extra}])"
+    return re.search(pattern, text) is not None
+
+
+def _spelled_date_supported(d: date, ev: str) -> bool:
+    """The month name with the day beside it ("May 14", "May 14th", "14 May", "14th day of May")
+    and the year somewhere in the quote. Never a bare day token far from the month."""
+    if not re.search(rf"(?<![0-9]){d.year}(?![0-9])", ev):
+        return False
+    names = {d.strftime("%B").casefold(), d.strftime("%b").casefold()}
+    if d.month == 9:
+        names.add("sept")
+    mon = r"(?:" + "|".join(sorted((re.escape(n) for n in names), key=len, reverse=True)) + r")\.?"
+    day = rf"0?{d.day}(?:st|nd|rd|th)?(?![0-9]|:[0-9])"
+    return bool(re.search(rf"(?<![a-z]){mon}\s*,?\s*{day}", ev)
+                or re.search(rf"(?<![0-9]){day}\s+(?:day\s+)?(?:of\s+)?{mon}(?![a-z])", ev))
+
+
 def _date_supported(value: str, evidence: str) -> bool:
     ev = _WS.sub(" ", evidence.casefold())
-    if any(f.casefold() in ev for f in _date_forms(value)):
+    if any(_bounded(f.casefold(), ev) for f in _date_forms(value)):
         return True
-    # Spelled-out or split forms ("the 1st day of June, 2004"): the year, the month name or
-    # number and the day all appear.
     try:
         d = date.fromisoformat(value[:10])
     except ValueError:
         return False
-    toks = set(_tokens(evidence))
-    month_ok = d.strftime("%B").casefold() in toks or d.strftime("%b").casefold() in toks
-    day_forms = {str(d.day), f"{d.day:02d}", f"{d.day}st", f"{d.day}nd", f"{d.day}rd", f"{d.day}th"}
-    return str(d.year) in toks and month_ok and bool(day_forms & toks)
+    return _spelled_date_supported(d, ev)
+
+
+_FIGURE = re.compile(r"(?<![\d,])(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d+))?(?!\d)(\s*(?:million|billion|thousand)\b)?"
+                     r"(?!\s*%)", re.I)
+_SCALE = {"thousand": Decimal(10) ** 3, "million": Decimal(10) ** 6, "billion": Decimal(10) ** 9}
+_NOT_PLAIN_NUMBER = re.compile(r"\d_\d|\d[eE][+-]?\d")
+
+
+def _figures(text: str) -> set[Decimal]:
+    """Every numeric figure written in ``text`` ($, thousands commas, decimals, "2.5 million"),
+    exactly. A figure followed by a scale word counts only as its scaled amount."""
+    out = set()
+    for m in _FIGURE.finditer(text):
+        try:
+            num = Decimal(m.group(1).replace(",", "") + (f".{m.group(2)}" if m.group(2) else ""))
+        except InvalidOperation:  # pragma: no cover - the pattern only admits digits
+            continue
+        scale = (m.group(3) or "").strip().casefold()
+        out.add(num * _SCALE[scale] if scale else num)
+    return out
 
 
 def _money_supported(value: float, evidence: str) -> bool:
-    digits = re.sub(r"[^\d.]", "", evidence)
-    plain = f"{value:.2f}".rstrip("0").rstrip(".")
-    candidates = {plain, f"{value:.2f}", str(int(value)) if float(value).is_integer() else plain}
-    flat = re.sub(r"[,\s$]", "", evidence)
-    return any(c and c in flat for c in candidates) or plain in digits
+    """A finite amount equals, exactly, a figure written in the evidence."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        return False
+    return Decimal(repr(float(value))) in _figures(evidence)
+
+
+def _money_text_supported(value: str, evidence: str) -> bool:
+    """A currency phrase kept as text: it appears in the evidence as written (whitespace
+    normalised, not inside a longer figure) and holds a finite figure the evidence also states."""
+    phrase = _WS.sub(" ", value).strip()
+    if not phrase or _NOT_PLAIN_NUMBER.search(phrase):
+        return False
+    ev = _WS.sub(" ", evidence)
+    if not re.search(rf"(?<![\d,.]){re.escape(phrase.casefold())}(?![\d]|[,.]\d)", ev.casefold()):
+        return False
+    return bool(_figures(phrase) & _figures(ev))
 
 
 def _token_coverage(value: str, evidence: str) -> float:
@@ -300,12 +372,11 @@ def _normalize(value: Any, ftype: str) -> Any:
     if isinstance(value, list):
         value = [_WS.sub(" ", str(v)).strip() for v in value if str(v).strip()]
     if ftype == "money" and isinstance(value, str):
-        text = value.replace("USD", "").replace("$", "").replace(",", "").strip()
-        try:
+        text = re.sub(r"\s+", "", value.replace("USD", "").replace("$", "").replace(",", ""))
+        # Only a plain decimal is a number: float() would also take "1_000", "1e3", "nan" and "inf".
+        if re.fullmatch(r"\d+(?:\.\d+)?", text):
             value = float(text)
-        except ValueError:
-            pass
-    if ftype == "money" and isinstance(value, int):
+    if ftype == "money" and isinstance(value, int) and not isinstance(value, bool):
         value = float(value)
     return value
 
@@ -317,7 +388,14 @@ def _party_roles() -> tuple[str, ...]:
     return tuple(CONTRACT_PARTY_ROLES)
 
 
-def _field_rule(name: str, value: Any) -> str | None:
+def _role_in_evidence(role: str, evidence: str) -> bool:
+    """The role word (plural or defined-term form, any case) is written in the evidence."""
+    words = [re.escape(w) for w in re.split(r"[_\s-]+", role.strip().casefold()) if w]
+    pattern = r"(?<![a-z0-9])" + r"[\s_-]+".join(words) + r"s?(?![a-z0-9])"
+    return re.search(pattern, evidence.casefold()) is not None
+
+
+def _field_rule(name: str, value: Any, evidence: str = "") -> str | None:
     """Per-field rules the pipeline prompts state beyond the field type."""
     if name == "action_items" and isinstance(value, list) and len(value) > 3:
         return "action_items holds at most 3 items"
@@ -327,6 +405,9 @@ def _field_rule(name: str, value: Any) -> str | None:
             party, sep, role = str(item).rpartition(":")
             if not sep or not party.strip() or role.strip() not in roles:
                 return f"party_roles item {item!r} is not '<party>: <role>' with a known role"
+            # "other" is the honest fallback and has no word of its own to quote.
+            if role.strip() != "other" and not _role_in_evidence(role, evidence):
+                return f"party_roles item {item!r}: role {role.strip()!r} is not stated in the evidence"
     return None
 
 
@@ -342,6 +423,9 @@ def _check_field(name: str, entry: Mapping[str, Any], doc_text: str, ftype: str,
     quotes = entry.get("evidence") or []
     if isinstance(quotes, str):
         quotes = [quotes]
+    if not isinstance(quotes, list):
+        res.reason = "evidence is not a list of quotes"
+        return res
 
     if vocab is not None and not _is_empty(value):
         res.checks["in_vocabulary"] = value in vocab
@@ -376,6 +460,10 @@ def _check_field(name: str, entry: Mapping[str, Any], doc_text: str, ftype: str,
 
     spans = []
     for q in quotes:
+        if len(_WS.sub(" ", str(q)).strip()) > MAX_QUOTE_CHARS:
+            res.reason = f"evidence quote too long (over {MAX_QUOTE_CHARS} characters)"
+            res.checks["evidence_verbatim"] = False
+            return res
         span = locate(str(q), doc_text)
         if span is None:
             res.reason = f"evidence not found verbatim: {str(q)[:80]!r}"
@@ -396,13 +484,22 @@ def _check_field(name: str, entry: Mapping[str, Any], doc_text: str, ftype: str,
             res.reason = f"invalid date: {value!r}"
             return res
         supported = _date_supported(value, ev_text)
+    elif ftype == "money" and money_as_text:
+        # The pipeline field is a currency phrase (contract_value: str), kept as written.
+        supported = _money_text_supported(str(raw_value), ev_text)
     elif ftype == "money":
-        if not isinstance(value, float):
-            res.reason = f"money not numeric: {value!r}"
+        if not isinstance(value, float) or not math.isfinite(value):
+            res.reason = f"money not a finite number: {value!r}"
             return res
         supported = _money_supported(value, ev_text)
     elif ftype == "label":
-        supported = True  # vocabulary already checked; the quote is the basis
+        # Vocabulary already checked. A label other than its contract default must rest on a
+        # real sentence fragment, not on a single keyword.
+        supported = value == empty_value or any(len(_tokens(sp["text"])) >= MIN_LABEL_QUOTE_TOKENS for sp in spans)
+        if not supported:
+            res.checks["value_supported"] = False
+            res.reason = f"closed label needs an evidence quote of at least {MIN_LABEL_QUOTE_TOKENS} tokens"
+            return res
     elif ftype.startswith("entity_list"):
         if not isinstance(value, list):
             res.reason = "list field needs a list"
@@ -417,12 +514,11 @@ def _check_field(name: str, entry: Mapping[str, Any], doc_text: str, ftype: str,
     if not supported:
         res.reason = "value not supported by its evidence"
         return res
-    rule = _field_rule(name, value)
+    rule = _field_rule(name, value, ev_text)
     if rule:
         res.reason = rule
         return res
     if ftype == "money" and money_as_text:
-        # The pipeline field is a currency phrase (contract_value: str); keep it as written.
         res.value = _WS.sub(" ", str(raw_value)).strip()
     res.presence = "populated"
     res.ok = True
@@ -434,7 +530,13 @@ def validate_submission(sub: Mapping[str, Any], doc_text: str, doc_class: str) -
     types, vocab, empty_payload, empty_value, model = _schema_bits(doc_class)
     result = SubmissionResult(doc_id=str(sub.get("doc_id")), doc_class=doc_class)
     allowed = set(target_fields(doc_class))
-    for name, entry in (sub.get("fields") or {}).items():
+    fields = sub.get("fields")
+    if fields is None:
+        fields = {}
+    if not isinstance(fields, Mapping):
+        result.payload_error = f"fields is not an object (got {type(fields).__name__})"
+        return result
+    for name, entry in fields.items():
         if name not in allowed:
             result.fields[name] = FieldResult(field=name, ok=False, reason="not a target field",
                                               evidence=[], checks={})
@@ -596,10 +698,13 @@ def reconcile(doc: Mapping[str, Any], doc_text: str, label: SubmissionResult, ch
 def apply_review(record: dict[str, Any], decision: Mapping[str, Any]) -> dict[str, Any]:
     """Settle a disputed (or candidate) record with a reviewer's decision.
 
-    ``decision``: ``{"verdict": "accept"|"reject"|"correct", "reviewer": {...},
+    ``decision``: ``{"verdict": "accept"|"reject"|"correct", "reviewer": {...} (required),
     "value"?: corrected, "evidence"?: [spans], "note"?: str}``. A correction must already have
-    passed :func:`validate_submission` (the caller re-validates it).
+    passed :func:`validate_submission` (the caller re-validates it). A correction keeps the
+    label it replaced under ``review.original``.
     """
+    if not decision.get("reviewer"):
+        raise ValueError("a review decision needs a reviewer")
     out = dict(record)
     verdict = decision["verdict"]
     if verdict == "accept":
@@ -607,6 +712,7 @@ def apply_review(record: dict[str, Any], decision: Mapping[str, Any]) -> dict[st
     elif verdict == "reject":
         out["status"] = "rejected"
     elif verdict == "correct":
+        original = {k: record.get(k) for k in ("value", "evidence", "presence", "absent_reason", "labeler")}
         out["status"] = "near_gold"
         out["value"] = decision["value"]
         if decision.get("evidence") is not None:
@@ -618,6 +724,8 @@ def apply_review(record: dict[str, Any], decision: Mapping[str, Any]) -> dict[st
         raise ValueError(f"unknown verdict {verdict!r}")
     out["use_as_truth"] = out["status"] in TRUTH_STATUSES
     out["review"] = {k: v for k, v in decision.items() if k not in ("value", "evidence", "absent_reason")}
+    if verdict == "correct":
+        out["review"]["original"] = original
     return out
 
 
@@ -640,22 +748,34 @@ def write_jsonl(path: Path, records: Iterable[Mapping[str, Any]]) -> str:
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.is_file():
         return []
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    # Split on "\n" only: str.splitlines() also breaks on U+2028, U+2029 and U+0085, which
+    # write_jsonl (ensure_ascii=False) leaves unescaped inside a record.
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").split("\n") if line.strip()]
+
+
+_SUPPLEMENTARY_KINDS = ("gate_reject", "review_rejected", "notes")
 
 
 def verify_catalog(directory: Path) -> list[str]:
-    """Integrity problems in a catalog directory (empty list = consistent)."""
+    """Integrity problems in a catalog directory (empty list = consistent).
+
+    Works for the gold catalog (``mailroom-gold-labels/v1``) and for the supplementary store
+    (``mailroom-gold-supplementary/v1``); the manifest says which one it is.
+    """
     problems = []
     manifest_path = directory / "MANIFEST.json"
     if not manifest_path.is_file():
         return [f"{manifest_path}: missing"]
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    if manifest.get("schema") != SCHEMA:
-        problems.append(f"schema is {manifest.get('schema')!r}, expected {SCHEMA!r}")
+    schema = manifest.get("schema")
+    supplementary = schema == SUPPLEMENTARY_SCHEMA
+    if schema not in (SCHEMA, SUPPLEMENTARY_SCHEMA):
+        problems.append(f"schema is {schema!r}, expected {SCHEMA!r} or {SUPPLEMENTARY_SCHEMA!r}")
     listed = manifest.get("files", {})
     on_disk = {p.name for p in directory.glob("*.jsonl")}
     for name in sorted(on_disk - set(listed)):
         problems.append(f"{name}: not in MANIFEST")
+    seen_ids: dict[str, str] = {}
     for name, sha in listed.items():
         path = directory / name
         if not path.is_file():
@@ -665,6 +785,18 @@ def verify_catalog(directory: Path) -> list[str]:
             problems.append(f"{name}: sha256 does not match MANIFEST")
         for rec in read_jsonl(path):
             where = f"{rec.get('doc_id')}.{rec.get('field')}"
+            if supplementary:
+                if rec.get("kind") not in _SUPPLEMENTARY_KINDS:
+                    problems.append(f"{where}: unknown supplementary kind {rec.get('kind')!r}")
+                if rec.get("use_as_truth"):
+                    problems.append(f"{where}: supplementary row claims use_as_truth")
+                continue
+            label_id = rec.get("label_id")
+            if label_id is not None:
+                if label_id in seen_ids:
+                    problems.append(f"{where}: duplicate label_id {label_id} (also {seen_ids[label_id]})")
+                else:
+                    seen_ids[label_id] = where
             if rec.get("status") not in STATUSES:
                 problems.append(f"{where}: unknown status {rec.get('status')!r}")
             if rec.get("use_as_truth") != (rec.get("status") in TRUTH_STATUSES):
@@ -677,19 +809,19 @@ def verify_catalog(directory: Path) -> list[str]:
 def overlay_records(records: Iterable[Mapping[str, Any]], *, gate_run: str) -> list[dict[str, Any]]:
     """Catalog records as EDA overlay records (``mailroom-interim-labels/v1``), one per document.
 
-    Only ``near_gold`` and single-pass ``candidate`` labels are exported, as ``gap_fill``
-    (the Hub leaves these fields unlabelled); ``disputed`` and ``rejected`` stay here. EDA
-    shows them beside its models' answers and a reviewer may pick one with their initials;
-    ``use_as_truth`` is always false. ``basis`` says how the label was settled.
+    Only ``near_gold`` labels are exported, as ``gap_fill`` (the Hub leaves these fields
+    unlabelled): EDA's loader keeps every record whose status is ``gap_fill`` and drops
+    ``basis``, so a single-pass ``candidate`` exported here would be indistinguishable there.
+    ``candidate``, ``disputed`` and ``rejected`` stay in this catalog. EDA shows the labels
+    beside its models' answers and a reviewer may pick one with their initials;
+    ``use_as_truth`` is always false. ``basis`` says how the label was settled, for humans.
     """
     docs: dict[str, dict[str, Any]] = {}
     for rec in records:
-        if rec.get("status") not in ("near_gold", "candidate"):
+        if rec.get("status") != "near_gold":
             continue
         review = rec.get("review") or {}
-        if rec["status"] == "candidate":
-            basis = "candidate:single_pass"
-        elif review:
+        if review:
             basis = f"near_gold:opus_reviewed_{review.get('verdict')}"
         else:
             basis = "near_gold:two_pass_agree"

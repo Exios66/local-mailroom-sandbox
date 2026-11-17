@@ -1,7 +1,10 @@
 """Gold-label gate, agreement and catalog (``mailroom_sandbox.gold_labels``)."""
 from __future__ import annotations
 
+import importlib.util
 import json
+import sys
+from pathlib import Path
 
 import pytest
 
@@ -199,7 +202,7 @@ def test_free_text_lists_agree_on_paraphrase_but_not_on_count():
     assert not gl.values_agree(["Call the bank"], ["Sign the lease"], "entity_list")
 
 
-def test_overlay_exports_near_gold_and_candidates_never_truth():
+def test_overlay_exports_only_near_gold_never_truth():
     base = {"doc_class": "correspondence", "subclass": "email", "content_sha256": "ab" * 32,
             "presence": "populated", "evidence": [], "labeler": {"model": "s"}}
     recs = [
@@ -209,14 +212,15 @@ def test_overlay_exports_near_gold_and_candidates_never_truth():
         {**base, "doc_id": "D1", "field": "urgency", "value": "routine", "status": "candidate"},
         {**base, "doc_id": "D2", "field": "recipient", "value": "X", "status": "disputed"},
         {**base, "doc_id": "D3", "field": "recipient", "value": "Y", "status": "rejected"},
+        {**base, "doc_id": "D4", "field": "recipient", "value": "Z", "status": "candidate"},
     ]
     out = gl.overlay_records(recs, gate_run="gold-labels-x")
-    assert [o["doc_id"] for o in out] == ["D1"]
+    assert [o["doc_id"] for o in out] == ["D1"]  # D4 holds a single-pass candidate only
     labels = out[0]["labels"]
+    assert set(labels) == {"recipient", "sender"}
     assert out[0]["doc_sha256"] == "ab" * 8 and out[0]["source"]["gate_run"] == "gold-labels-x"
     assert labels["recipient"]["basis"] == "near_gold:two_pass_agree"
     assert labels["sender"]["basis"] == "near_gold:opus_reviewed_correct"
-    assert labels["urgency"]["basis"] == "candidate:single_pass"
     assert all(v["status"] == "gap_fill" and v["use_as_truth"] is False for v in labels.values())
 
 
@@ -241,3 +245,278 @@ def test_day_first_numeric_dates_only_when_unambiguous():
     assert gl._date_supported("2001-03-27", "Sent: 27/03/2001 18:38")
     assert not gl._date_supported("2000-11-02", "Sent: 02/11/2000 12:38")
     assert gl._date_supported("2000-02-11", "Sent: 02/11/2000 12:38")
+
+
+# --------------------------------------------------------------------------- adversarial-review fixes
+
+
+def _money(value, evidence, doc="Pay: " , name="demand_amount", cls="correspondence"):
+    text = f"{doc}{evidence}"
+    res = gl.validate_submission(sub({name: {"value": value, "evidence": [evidence]}}), text, cls)
+    return res.fields[name]
+
+
+@pytest.mark.parametrize("value, evidence", [
+    (21844.0, "$218,440.00"),          # a substring of the digits
+    (4.0, "$218,440.00"),
+    (0, "Date: May 3, 2001"),          # no figure zero
+    (float("nan"), "$18,530.00"),
+    (float("inf"), "$18,530.00"),
+    ("NaN", "$18,530.00"),
+    ("1_000", "$1,000"),
+    ("1e3", "$1,000"),
+    (2.5, "$2.5 million"),             # a scaled figure is only its scaled amount
+])
+def test_money_needs_an_exactly_equal_figure_in_the_evidence(value, evidence):
+    fr = _money(value, evidence)
+    assert not fr.ok, fr
+
+
+@pytest.mark.parametrize("value, evidence", [
+    (218440.0, "$218,440.00"), (218440, "USD 218,440"), (18530.5, "$18,530.50"), (0, "pay $0 now"),
+    (2500000, "$2.5 million"), ("$18,530.00", "remit $18,530.00 today"),
+])
+def test_money_accepts_the_exact_figure(value, evidence):
+    fr = _money(value, evidence)
+    assert fr.ok, fr.reason
+
+
+def test_contract_value_text_must_appear_in_the_evidence_with_its_figure():
+    def one(value, evidence):
+        return gl.validate_submission(sub({"contract_value": {"value": value, "evidence": [evidence]}}),
+                                      CONTRACT, "contract").fields["contract_value"]
+    assert one("$250,000", "a fee of $250,000").ok
+    assert not one("$25,000", "a fee of $250,000").ok          # inside a longer figure
+    assert not one("$250", "a fee of $250,000").ok
+    assert not one("$250,000.50", "a fee of $250,000").ok
+    assert not one("$1_000", "a fee of $250,000").ok
+    assert not one("1e3", "a fee of $250,000").ok
+    assert not one("a fee of", "a fee of $250,000").ok          # no figure at all
+
+
+@pytest.mark.parametrize("value, evidence", [
+    ("2001-05-14", "Date: May 3, 2001 14:02"),     # the day token 14 is the time of day
+    ("2001-01-05", "Sent 11/5/2001"),              # numeric form inside a longer one
+    ("2001-05-06", "Sent 15/6/01"),
+    ("2001-05-14", "May 2001, page 14"),           # day not beside the month
+    ("2001-05-14", "14 June 2001 and May 2001"),
+    ("2001-05-14", "May 14"),                      # no year
+])
+def test_dates_need_digit_boundaries_and_the_day_beside_the_month(value, evidence):
+    assert not gl._date_supported(value, evidence)
+
+
+@pytest.mark.parametrize("value, evidence", [
+    ("2001-05-14", "May 14th, 2001"), ("2001-05-14", "the 14th day of May, 2001"),
+    ("2001-05-14", "14 May 2001"), ("2001-05-14", "Date: May 14 at 10, 2001"),
+    ("2001-05-14", "2001-05-14T09:02"), ("2001-01-05", "Sent 1/5/2001"),
+])
+def test_dates_accept_written_forms(value, evidence):
+    assert gl._date_supported(value, evidence)
+
+
+def test_party_roles_need_the_role_word_in_the_evidence():
+    def roles(value, evidence):
+        doc = CONTRACT + "\nAlpha Inc., the Suppliers\nAlpha Inc. is a supply house\n"
+        return gl.validate_submission(sub({"party_roles": {"value": value, "evidence": [evidence]}}),
+                                      doc, "contract").fields["party_roles"]
+    assert not roles(["Alpha Inc.: licensee"], "Alpha Inc.").ok
+    assert roles(["Alpha Inc.: supplier"], 'Alpha Inc. ("Supplier")').ok
+    assert roles(["Alpha Inc.: supplier"], "Alpha Inc., the Suppliers").ok
+    assert not roles(["Alpha Inc.: supplier"], "Alpha Inc. is a supply house").ok
+    assert roles(["Alpha Inc.: other"], "Alpha Inc.").ok
+
+
+def test_evidence_quote_is_capped_at_400_characters():
+    long_text = "To: John Doe " + "word " * 120 + "\nSincerely"
+    quote = long_text[:401]
+    res = gl.validate_submission(sub({"recipient": {"value": "John Doe", "evidence": [quote]}}),
+                                 long_text, "correspondence")
+    assert "evidence quote too long" in res.fields["recipient"].reason
+    short = gl.validate_submission(sub({"recipient": {"value": "John Doe", "evidence": [long_text[:400]]}}),
+                                   long_text, "correspondence")
+    assert short.fields["recipient"].ok
+
+
+def test_non_default_closed_label_needs_a_three_token_quote():
+    def urgency(value, quote, **extra):
+        return gl.validate_submission(sub({"urgency": {"value": value, "evidence": [quote], **extra}}),
+                                      EMAIL, "correspondence").fields["urgency"]
+    assert not urgency("urgent", "remit").ok
+    assert "3 tokens" in urgency("urgent", "remit").reason
+    assert urgency("urgent", "Please remit $18,530.00").ok
+    assert urgency("routine", "remit").ok  # the default needs no wording of its own
+
+
+def test_locate_keeps_exact_spans_where_casefold_changes_length():
+    text = "İstanbul is big. Straße"
+    for quote, expected in (("STRASSE", "Straße"), ("İSTANBUL IS", "İstanbul is"), ("straße", "Straße")):
+        span = gl.locate(quote, text)
+        assert span is not None, quote
+        assert text[span["start"]:span["end"]] == span["text"]
+        if expected:
+            assert span["text"] == expected
+    assert gl.locate("big. strasse", text)["text"] == "big. Straße"
+    assert gl.locate("not there ß", text) is None
+
+
+def test_read_jsonl_splits_on_newline_only(tmp_path):
+    rec = {"doc_id": "D", "value": "line\u2028sep\u2029para\u0085next"}
+    gl.write_jsonl(tmp_path / "x.jsonl", [rec, {"doc_id": "E"}])
+    assert gl.read_jsonl(tmp_path / "x.jsonl") == [rec, {"doc_id": "E"}]
+
+
+def test_fields_that_are_not_an_object_fail_cleanly():
+    for bad in ([], ["sender"], "sender", 3):
+        res = gl.validate_submission({"doc_id": "D", "fields": bad}, EMAIL, "correspondence")
+        assert not res.payload_valid and "fields is not an object" in res.payload_error
+        assert res.fields == {}
+
+
+def test_review_correction_keeps_the_original_label_and_needs_a_reviewer():
+    rec = {"doc_id": "D", "field": "sender", "value": "Jane", "status": "disputed", "use_as_truth": False,
+           "presence": "populated", "evidence": [{"start": 0, "end": 4, "text": "Jane"}], "absent_reason": None,
+           "labeler": {"model": "sonnet"}}
+    out = gl.apply_review(rec, {"verdict": "correct", "value": "Jane Roe", "evidence": [], "presence": "populated",
+                                "reviewer": {"model": "opus"}})
+    assert out["review"]["original"] == {
+        "value": "Jane", "evidence": [{"start": 0, "end": 4, "text": "Jane"}], "presence": "populated",
+        "absent_reason": None, "labeler": {"model": "sonnet"}}
+    assert out["value"] == "Jane Roe"
+    assert "original" not in gl.apply_review(rec, {"verdict": "accept", "reviewer": {"model": "opus"}})["review"]
+    with pytest.raises(ValueError, match="reviewer"):
+        gl.apply_review(rec, {"verdict": "accept"})
+
+
+def test_verify_catalog_flags_duplicate_label_ids_and_reads_the_supplementary_store(tmp_path):
+    rec = {"doc_id": "D", "field": "recipient", "status": "near_gold", "use_as_truth": False,
+           "presence": "populated", "evidence": [{"start": 0, "end": 1, "text": "x"}], "label_id": "abc"}
+    gold = tmp_path / "gold"
+    sha = gl.write_jsonl(gold / "c.jsonl", [rec, {**rec, "field": "sender"}])
+    (gold / "MANIFEST.json").write_text(json.dumps({"schema": gl.SCHEMA, "files": {"c.jsonl": sha}}))
+    assert any("duplicate label_id abc" in p for p in gl.verify_catalog(gold))
+
+    supp = tmp_path / "supp"
+    sha = gl.write_jsonl(supp / "c.jsonl", [{"kind": "gate_reject", "doc_id": "D", "field": "x", "reason": "r"},
+                                            {"kind": "notes", "doc_id": "D"}])
+    (supp / "MANIFEST.json").write_text(json.dumps({"schema": gl.SUPPLEMENTARY_SCHEMA, "files": {"c.jsonl": sha}}))
+    assert gl.verify_catalog(supp) == []
+    sha = gl.write_jsonl(supp / "c.jsonl", [{"kind": "mystery", "doc_id": "D"}])
+    (supp / "MANIFEST.json").write_text(json.dumps({"schema": gl.SUPPLEMENTARY_SCHEMA, "files": {"c.jsonl": sha}}))
+    assert any("unknown supplementary kind" in p for p in gl.verify_catalog(supp))
+
+
+# --------------------------------------------------------------------------- scripts/gold_labels.py build
+
+SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "gold_labels.py"
+
+
+@pytest.fixture()
+def cli(tmp_path, monkeypatch):
+    spec = importlib.util.spec_from_file_location("gold_labels_cli", SCRIPT)
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["gold_labels_cli"] = mod
+    spec.loader.exec_module(mod)
+    rows = [{"document_id": f"DOC-{i}", "filename": f"f{i}.txt", "expected": "correspondence",
+             "expected_subclass": "email", "content_sha256": f"{i}" * 8} for i in (1, 2)]
+    texts = {"f1.txt": EMAIL, "f2.txt": EMAIL}
+    monkeypatch.setattr(mod, "_load_corpus", lambda _corpus: (rows, texts))
+    monkeypatch.setattr(mod, "_schema_binding", lambda revision: {"dataset_revision": revision})
+    monkeypatch.setattr(gl, "gold_dir", lambda root=None: tmp_path / "gold")
+    monkeypatch.setattr(gl, "supplementary_dir", lambda root=None: tmp_path / "supp")
+
+    def write(name, subs):
+        path = tmp_path / name
+        gl.write_jsonl(path, subs)
+        return str(path)
+
+    def build(*argv):
+        return mod.main(["build", "--corpus", "ignored", "--revision", "r", *argv])
+
+    return mod, write, build, tmp_path
+
+
+def _s(doc, role, fields):
+    return {"doc_id": doc, "labeler": {"model": "test", "role": role}, "fields": fields}
+
+
+RECIPIENT = {"recipient": {"value": "John Doe", "evidence": ["To: John Doe"]}}
+SENDER = {"sender": {"value": "Jane Roe", "evidence": ["From: Jane Roe"]}}
+
+
+def test_build_refuses_a_file_used_as_both_passes(cli, capsys):
+    _, write, build, _ = cli
+    both = write("both.jsonl", [_s("DOC-1", "label", RECIPIENT)])
+    assert build("--label", both, "--check", both) == 1
+    assert "both --label and --check" in capsys.readouterr().err
+
+
+def test_build_refuses_wrong_roles_and_duplicate_documents(cli, capsys):
+    _, write, build, _ = cli
+    lab = write("lab.jsonl", [_s("DOC-1", "label", RECIPIENT)])
+    chk_wrong = write("chk.jsonl", [_s("DOC-1", "label", RECIPIENT)])
+    assert build("--label", lab, "--check", chk_wrong) == 1
+    assert "role is 'label', a --check submission needs 'check'" in capsys.readouterr().err
+    lab_wrong = write("lab2.jsonl", [_s("DOC-1", "check", RECIPIENT)])
+    assert build("--label", lab_wrong) == 1
+    assert "a --label submission needs 'label'" in capsys.readouterr().err
+    dup_a, dup_b = write("a.jsonl", [_s("DOC-1", "label", RECIPIENT)]), write("b.jsonl", [_s("DOC-1", "label", RECIPIENT)])
+    assert build("--label", dup_a, dup_b) == 1
+    assert "appears twice in the --label files" in capsys.readouterr().err
+    chk_a, chk_b = write("ca.jsonl", [_s("DOC-1", "check", RECIPIENT)]), write("cb.jsonl", [_s("DOC-1", "check", RECIPIENT)])
+    assert build("--label", lab, "--check", chk_a, chk_b) == 1
+    assert "appears twice in the --check files" in capsys.readouterr().err
+    ov_a, ov_b = write("oa.jsonl", [_s("DOC-1", "label", RECIPIENT)]), write("ob.jsonl", [_s("DOC-1", "label", RECIPIENT)])
+    assert build("--label", lab, "--override", ov_a, ov_b) == 1
+    assert "appears twice in the --override files" in capsys.readouterr().err
+
+
+def test_build_two_independent_passes_agree_to_near_gold(cli):
+    _, write, build, tmp = cli
+    lab = write("lab.jsonl", [_s("DOC-1", "label", RECIPIENT)])
+    chk = write("chk.jsonl", [_s("DOC-1", "check", RECIPIENT)])
+    assert build("--label", lab, "--check", chk) == 0
+    recs = gl.read_jsonl(tmp / "gold" / "correspondence.jsonl")
+    assert [r["status"] for r in recs] == ["near_gold"]
+    assert gl.verify_catalog(tmp / "gold") == [] and gl.verify_catalog(tmp / "supp") == []
+
+
+def test_override_replaces_only_when_the_override_passes_the_gate(cli):
+    _, write, build, tmp = cli
+    lab = write("lab.jsonl", [_s("DOC-1", "label", {**RECIPIENT, **SENDER})])
+    bad = {"recipient": {"value": "Somebody Else", "evidence": ["To: John Doe"]},
+           "sender": {"value": "Jane Roe, VP Finance, Acme Corp", "evidence": ["Jane Roe\nVP Finance, Acme Corp"]}}
+    ov = write("ov.jsonl", [{**_s("DOC-1", "label", bad), "labeler": {"model": "relabel", "role": "label"}}])
+    assert build("--label", lab, "--override", ov) == 0
+    by_field = {r["field"]: r for r in gl.read_jsonl(tmp / "gold" / "correspondence.jsonl")}
+    assert by_field["recipient"]["value"] == "John Doe"                       # failing override: old label stays
+    assert by_field["recipient"]["labeler"]["model"] == "test"
+    assert by_field["sender"]["value"] == "Jane Roe, VP Finance, Acme Corp"  # passing override replaces
+    assert by_field["sender"]["labeler"]["model"] == "relabel"
+    supp = gl.read_jsonl(tmp / "supp" / "correspondence.jsonl")
+    assert any(r["kind"] == "gate_reject" and r["field"] == "recipient" for r in supp)
+
+
+def test_build_refuses_unmatched_and_reviewerless_review_decisions(cli, capsys):
+    _, write, build, tmp = cli
+    lab = write("lab.jsonl", [_s("DOC-1", "label", RECIPIENT)])
+    orphan = write("rv.jsonl", [{"doc_id": "DOC-9", "field": "recipient", "verdict": "accept",
+                                 "reviewer": {"model": "opus"}}])
+    assert build("--label", lab, "--review", orphan) == 1
+    err = capsys.readouterr().err
+    assert "match no catalog record" in err and "DOC-9.recipient" in err
+    anon = write("rv2.jsonl", [{"doc_id": "DOC-1", "field": "recipient", "verdict": "accept"}])
+    assert build("--label", lab, "--review", anon) == 1
+    assert "has no reviewer" in capsys.readouterr().err
+    ok = write("rv3.jsonl", [{"doc_id": "DOC-1", "field": "recipient", "verdict": "accept",
+                              "reviewer": {"model": "opus"}}])
+    assert build("--label", lab, "--review", ok) == 0
+    assert gl.read_jsonl(tmp / "gold" / "correspondence.jsonl")[0]["status"] == "near_gold"
+
+
+def test_check_accepts_the_supplementary_directory(cli, capsys):
+    mod, write, build, tmp = cli
+    lab = write("lab.jsonl", [_s("DOC-1", "label", {"recipient": {"value": "Nobody", "evidence": ["To: John Doe"]}})])
+    assert build("--label", lab) == 0
+    assert mod.main(["check", "--dir", str(tmp / "supp")]) == 0
+    assert capsys.readouterr().out.strip().endswith("ok")
