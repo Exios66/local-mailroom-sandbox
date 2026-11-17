@@ -14,7 +14,8 @@ notebooks or scripts can import it directly:
 - :func:`run_api_eval` drives documents through a running API and scores what comes
   back with the selected Dojo, through the same scorers as ``sandbox eval pipeline``
   (:func:`mailroom_sandbox.eval.scoring.score_classification` and the per-row
-  extraction scorer), so an API run and an in-process run are comparable.
+  extraction scorer). Classification is comparable with an in-process run; extraction is
+  scored on archived documents only (see :func:`run_api_eval`).
 
 The client only uploads and reads. Model calls happen inside the API process, which
 holds its own provider settings and spend; this module cannot see or cap that spend, so
@@ -23,6 +24,7 @@ holds its own provider settings and spend; this module cannot see or cap that sp
 
 from __future__ import annotations
 
+import re
 import tempfile
 import time
 import uuid
@@ -42,10 +44,19 @@ UPLOAD_TIMEOUT = 120.0
 DEFAULT_POLL_SECONDS = 2.0
 DEFAULT_DOC_TIMEOUT = 600.0
 DEFAULT_MATTER_ID = "SANDBOX-API-EVAL"
+MIN_POLL_SECONDS = 0.2
+# The API's /upload is rate limited (MAILROOM_UPLOAD_RATE per 60 s window, audit L-18).
+RATE_LIMIT_BACKOFF_SECONDS = 30.0
+RATE_LIMIT_RETRIES = 4
+_DOC_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 class FamilyAPIError(ServiceError):
     """The mailroom API was unreachable, refused a request, or answered off-contract."""
+
+    def __init__(self, message: str, *, status_code: int | None = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
 
 
 def _default_transport() -> httpx.BaseTransport | None:
@@ -101,11 +112,12 @@ class MailroomAPI:
             return None
         if resp.status_code == 401:
             hint = "check MAILROOM_API_TOKEN" if self._token else "set MAILROOM_API_TOKEN"
-            raise FamilyAPIError(f"the API rejected {method} {path} (HTTP 401): {hint}")
+            raise FamilyAPIError(f"the API rejected {method} {path} (HTTP 401): {hint}", status_code=401)
         if resp.status_code >= 400:
             detail = review_cli._detail(resp, self._token)
             raise FamilyAPIError(review_cli._scrub(
-                f"HTTP {resp.status_code} from {self.base_url} for {method} {path}: {detail}", self._token))
+                f"HTTP {resp.status_code} from {self.base_url} for {method} {path}: {detail}", self._token),
+                status_code=resp.status_code)
         try:
             return resp.json()
         except ValueError:
@@ -142,16 +154,23 @@ class MailroomAPI:
         return doc
 
     def status(self, doc_id: str) -> dict[str, Any]:
-        return self._request("GET", f"/status/{doc_id}")
+        return self._request("GET", f"/status/{_doc_id(doc_id)}")
 
     def queue(self) -> dict[str, Any]:
         return self._request("GET", "/queue")
 
     def audit(self, doc_id: str) -> dict[str, Any]:
-        return self._request("GET", f"/audit/{doc_id}")
+        return self._request("GET", f"/audit/{_doc_id(doc_id)}")
 
     def ops_status(self) -> dict[str, Any]:
         return self._request("GET", "/ops/status")
+
+
+def _doc_id(doc_id: str) -> str:
+    """The API's own doc_id rule; refuse anything else before it reaches a URL path."""
+    if not _DOC_ID_RE.match(doc_id or ""):
+        raise ValueError("doc_id must match [A-Za-z0-9_-]")
+    return doc_id
 
 
 # --------------------------------------------------------------------------- status
@@ -212,6 +231,25 @@ def plan_api_eval(rows: Sequence[Mapping[str, Any]], *, base_url: str) -> dict[s
     }
 
 
+def _normalized_row(row: Mapping[str, Any]) -> dict[str, Any]:
+    """A copy whose expected class sits under ``expected_doc_class`` (the scorers index it)."""
+    out = dict(row)
+    out["expected_doc_class"] = _expected_class(row)
+    return out
+
+
+def _upload_with_backoff(api: MailroomAPI, path: Path, *, matter_id: str, filename: str,
+                         sleep: Callable[[float], None]) -> dict[str, Any]:
+    for attempt in range(RATE_LIMIT_RETRIES + 1):
+        try:
+            return api.upload(path, matter_id=matter_id, filename=filename)
+        except FamilyAPIError as exc:
+            if exc.status_code != 429 or attempt == RATE_LIMIT_RETRIES:
+                raise
+            sleep(RATE_LIMIT_BACKOFF_SECONDS)
+    raise AssertionError("unreachable")  # pragma: no cover
+
+
 def run_api_eval(
     rows: Sequence[Mapping[str, Any]],
     api: MailroomAPI,
@@ -229,52 +267,84 @@ def run_api_eval(
     the same file name is never mistaken for this run's result (the API looks up by
     inbox name, and Langfuse trace ids are deterministic per file name).
 
-    Classification is scored over documents that reached a terminal stage. Documents
-    that did not finish within ``doc_timeout`` (measured from the last upload) are
-    listed under ``incomplete`` and are not scored; ``ok`` is False when any exist.
+    What is scored, and how it differs from ``sandbox eval pipeline``:
+
+    - classification covers every document that reached a terminal stage; a ``failed``
+      document with no class counts as ``unknown`` (wrong), never as skipped;
+    - stage correctness (``score_stage``) covers terminal documents whose row names an
+      ``expected_stage``;
+    - extraction covers ``archived`` documents only (a parked or failed document has no
+      final extraction to read back), so its mean is over archived documents, unlike the
+      in-process run, which scores every row with field ground truth.
+
+    Documents still unfinished ``doc_timeout`` seconds after the last upload are listed
+    under ``incomplete`` and are not scored. ``ok`` is False when any document is
+    incomplete or failed, or when the API errored mid-run; then ``error`` says why and
+    the report still lists every document that was accepted, so nothing uploaded is lost.
+    An upload refused with HTTP 429 (the API's upload rate limit) is retried after a
+    back-off.
     """
     from mailroom_sandbox.eval import scoring
     from mailroom_sandbox.eval.runners import _materialize_row, _score_pipeline_extraction
 
+    poll_seconds = max(float(poll_seconds), MIN_POLL_SECONDS)
+    doc_timeout = max(float(doc_timeout), 0.0)
     tag = run_tag or f"apieval-{uuid.uuid4().hex[:8]}"
     started = clock()
     health = api.health()
+    error: str | None = None
     pending: dict[str, dict[str, Any]] = {}
     per_doc: list[dict[str, Any]] = []
     with tempfile.TemporaryDirectory(prefix="sandbox-api-eval-") as tmp:
-        for row in rows:
-            local = _materialize_row(dict(row), Path(tmp))
-            accepted = api.upload(local, matter_id=matter_id, filename=f"{tag}-{local.name}")
+        for raw in rows:
+            row = _normalized_row(raw)
+            local = _materialize_row(row, Path(tmp))
+            try:
+                accepted = _upload_with_backoff(api, local, matter_id=matter_id,
+                                                filename=f"{tag}-{local.name}", sleep=sleep)
+            except FamilyAPIError as exc:
+                error = f"upload of {local.name} failed; later rows were not sent: {exc}"
+                break
             entry = {"id": row.get("id"), "file": accepted["file"], "upload_id": accepted.get("upload_id"),
-                     "expected_doc_class": _expected_class(row), "row": row}
+                     "expected_doc_class": row["expected_doc_class"], "row": row}
             pending[accepted["file"]] = entry
             per_doc.append(entry)
 
     deadline = clock() + doc_timeout
-    while pending:
+    lookup_failed = False
+    while pending and not lookup_failed:
         for name in list(pending):
-            doc = api.lookup(filename=name)
+            if clock() >= deadline:
+                break
+            try:
+                doc = api.lookup(filename=name)
+            except FamilyAPIError as exc:
+                lookup_error = f"lookup failed while waiting for results: {exc}"
+                error = f"{error}; {lookup_error}" if error else lookup_error
+                lookup_failed = True
+                break
             if doc and str(doc.get("stage") or "").lower() in TERMINAL_STAGES:
                 pending.pop(name)["document"] = doc
-        if not pending or clock() >= deadline:
+        if not pending or lookup_failed or clock() >= deadline:
             break
         sleep(poll_seconds)
 
     expected: list[str] = []
     predicted: list[str] = []
+    stage_expected: list[str] = []
+    stage_actual: list[str] = []
     extraction: list[dict[str, Any]] = []
     stages: dict[str, int] = {}
     results: list[dict[str, Any]] = []
     for entry in per_doc:
         row = entry.pop("row")
-        doc = entry.get("document")
+        doc = entry.pop("document", None)
         if doc is None:
             entry["stage"] = None
             results.append(entry)
             continue
         stage = str(doc.get("stage") or "").lower()
         stages[stage] = stages.get(stage, 0) + 1
-        entry.pop("document")
         entry.update({
             "doc_id": doc.get("doc_id"),
             "stage": stage,
@@ -286,14 +356,18 @@ def run_api_eval(
         })
         expected.append(entry["expected_doc_class"])
         predicted.append(str(doc.get("doc_type") or "unknown"))
+        if row.get("expected_stage"):
+            stage_expected.append(str(row["expected_stage"]).lower())
+            stage_actual.append(stage)
         if stage == "archived":
-            score = _score_pipeline_extraction(dict(row), {"extracted_data": doc.get("extracted_data")})
+            score = _score_pipeline_extraction(row, {"extracted_data": doc.get("extracted_data")})
             if score is not None:
                 entry["extraction"] = score
                 extraction.append(score)
         results.append(entry)
 
     incomplete = [r["file"] for r in results if r.get("stage") is None]
+    failed = [r["file"] for r in results if r.get("stage") == "failed"]
     overall = [s["overall_extraction_score"] for s in extraction
                if isinstance(s.get("overall_extraction_score"), (int, float))]
     return {
@@ -302,14 +376,18 @@ def run_api_eval(
         "api_url": api.base_url,
         "api_health": health.get("status"),
         "family": family_status(),
+        "n_rows": len(rows),
         "n": len(per_doc),
         "completed": len(per_doc) - len(incomplete),
         "incomplete": incomplete,
+        "failed": failed,
         "stages": stages,
         "classification": scoring.score_classification(expected, predicted) if expected else None,
-        "extraction": {"n": len(extraction),
+        "stage": scoring.score_stage(stage_expected, stage_actual) if stage_expected else None,
+        "extraction": {"n": len(extraction), "scope": "archived documents with field ground truth",
                        "overall_extraction_score": scoring.mean_or_zero(overall) if overall else None},
         "documents": results,
+        "error": error,
         "wall_seconds": round(clock() - started, 3),
-        "ok": not incomplete,
+        "ok": error is None and not incomplete and not failed and len(per_doc) == len(rows),
     }
