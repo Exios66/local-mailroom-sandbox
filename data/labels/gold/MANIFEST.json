@@ -1,0 +1,421 @@
+{
+  "binding": {
+    "dataset": "Lucius-Morningstar/mailroom-dataset",
+    "dataset_revision": "ccd040f6a1b6b414bdefd161cdc622b68f6dacf8",
+    "dojo_commit": "025400f3d703531c5e1a76093e4b803ccc6fb576",
+    "dojo_version": "0.30.1",
+    "extraction_schemas_sha256": "12dfaf68a2181bfce2b232c09ebd421fdb013300842717cb6d8b9895440aa68c",
+    "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
+  },
+  "builder": "scripts/gold_labels.py build",
+  "built_at": "2026-11-17T21:59:03Z",
+  "counts": {
+    "contract": {
+      "agreement_date": {
+        "candidate": 114,
+        "disputed": 2,
+        "near_gold": 103
+      },
+      "contract_value": {
+        "candidate": 117,
+        "disputed": 2,
+        "near_gold": 108
+      },
+      "dispute_forum": {
+        "candidate": 117,
+        "disputed": 4,
+        "near_gold": 106
+      },
+      "expiration_date": {
+        "candidate": 117,
+        "disputed": 2,
+        "near_gold": 107
+      },
+      "party_roles": {
+        "candidate": 72,
+        "disputed": 21,
+        "near_gold": 89
+      },
+      "payment_terms": {
+        "candidate": 115,
+        "disputed": 34,
+        "near_gold": 76
+      },
+      "signatories": {
+        "candidate": 117,
+        "disputed": 2,
+        "near_gold": 108
+      },
+      "termination_notice_period": {
+        "candidate": 117,
+        "disputed": 14,
+        "near_gold": 96
+      },
+      "territory": {
+        "candidate": 117,
+        "disputed": 3,
+        "near_gold": 107
+      }
+    },
+    "corporate_record": {
+      "effective_date": {
+        "candidate": 365,
+        "near_gold": 60
+      },
+      "entity_name": {
+        "candidate": 36,
+        "near_gold": 2
+      },
+      "jurisdiction": {
+        "candidate": 349,
+        "near_gold": 23
+      },
+      "signatories": {
+        "candidate": 349,
+        "near_gold": 23
+      }
+    },
+    "correspondence": {
+      "action_items": {
+        "candidate": 269,
+        "disputed": 42,
+        "near_gold": 688
+      },
+      "additional_recipients": {
+        "candidate": 318,
+        "disputed": 4,
+        "near_gold": 676
+      },
+      "communication_date": {
+        "candidate": 265,
+        "disputed": 4,
+        "near_gold": 730
+      },
+      "demand_amount": {
+        "candidate": 366,
+        "near_gold": 634
+      },
+      "recipient": {
+        "candidate": 265,
+        "disputed": 17,
+        "near_gold": 718
+      },
+      "sender": {
+        "candidate": 260,
+        "disputed": 7,
+        "near_gold": 731
+      },
+      "urgency": {
+        "candidate": 331,
+        "disputed": 11,
+        "near_gold": 658
+      }
+    }
+  },
+  "files": {
+    "contract.jsonl": "1d87bad9706b34a54114f6d11e5a48275a69d559ef30027e6feaf9fb6aafd316",
+    "corporate_record.jsonl": "22f7def5c4d343389c23b87e0f1238a274778e0d602689d7793e22cca9086434",
+    "correspondence.jsonl": "230410cd4f0b6a5d9d957866f5cb8750fd3fa891fa6bfa9d5ad02edf8790b31b"
+  },
+  "schema": "mailroom-gold-labels/v1",
+  "sources": {
+    "check": [
+      "check-contract-000.jsonl",
+      "check-contract-001.jsonl",
+      "check-contract-011.jsonl",
+      "check-contract-031.jsonl",
+      "check-contract-032.jsonl",
+      "check-contract-033.jsonl",
+      "check-contract-034.jsonl",
+      "check-contract-100.jsonl",
+      "check-contract-101.jsonl",
+      "check-contract-102.jsonl",
+      "check-corporate_record-000.jsonl",
+      "check-corporate_record-015.jsonl",
+      "check-corporate_record-016.jsonl",
+      "check-corporate_record-040.jsonl",
+      "check-corporate_record-041.jsonl",
+      "check-corporate_record-042.jsonl",
+      "check-corporate_record-077.jsonl",
+      "check-corporate_record-078.jsonl",
+      "check-corporate_record-079.jsonl",
+      "check-corporate_record-080.jsonl",
+      "check-corporate_record-081.jsonl",
+      "check-corporate_record-082.jsonl",
+      "check-correspondence-000.jsonl",
+      "check-correspondence-001.jsonl",
+      "check-correspondence-002.jsonl",
+      "check-correspondence-003.jsonl",
+      "check-correspondence-004.jsonl",
+      "check-correspondence-005.jsonl",
+      "check-correspondence-006.jsonl",
+      "check-correspondence-007.jsonl",
+      "check-correspondence-009.jsonl",
+      "check-correspondence-010.jsonl",
+      "check-correspondence-011.jsonl",
+      "check-correspondence-013.jsonl",
+      "check-correspondence-020.jsonl",
+      "check-correspondence-021.jsonl",
+      "check-correspondence-030.jsonl",
+      "check-correspondence-031.jsonl",
+      "check-correspondence-038.jsonl",
+      "check-correspondence-039.jsonl",
+      "check-correspondence-040.jsonl"
+    ],
+    "label": [
+      "label-contract-000.jsonl",
+      "label-contract-001.jsonl",
+      "label-contract-002.jsonl",
+      "label-contract-003.jsonl",
+      "label-contract-004.jsonl",
+      "label-contract-005.jsonl",
+      "label-contract-006.jsonl",
+      "label-contract-007.jsonl",
+      "label-contract-008.jsonl",
+      "label-contract-009.jsonl",
+      "label-contract-010.jsonl",
+      "label-contract-011.jsonl",
+      "label-contract-012.jsonl",
+      "label-contract-013.jsonl",
+      "label-contract-014.jsonl",
+      "label-contract-015.jsonl",
+      "label-contract-016.jsonl",
+      "label-contract-017.jsonl",
+      "label-contract-018.jsonl",
+      "label-contract-019.jsonl",
+      "label-contract-020.jsonl",
+      "label-contract-021.jsonl",
+      "label-contract-022.jsonl",
+      "label-contract-023.jsonl",
+      "label-contract-024.jsonl",
+      "label-contract-025.jsonl",
+      "label-contract-026.jsonl",
+      "label-contract-027.jsonl",
+      "label-contract-028.jsonl",
+      "label-contract-029.jsonl",
+      "label-contract-030.jsonl",
+      "label-contract-031.jsonl",
+      "label-contract-032.jsonl",
+      "label-contract-033.jsonl",
+      "label-contract-034.jsonl",
+      "label-contract-035.jsonl",
+      "label-contract-036.jsonl",
+      "label-contract-100.jsonl",
+      "label-contract-101.jsonl",
+      "label-contract-102.jsonl",
+      "label-contract-103.jsonl",
+      "label-corporate_record-000.jsonl",
+      "label-corporate_record-001.jsonl",
+      "label-corporate_record-002.jsonl",
+      "label-corporate_record-003.jsonl",
+      "label-corporate_record-004.jsonl",
+      "label-corporate_record-005.jsonl",
+      "label-corporate_record-006.jsonl",
+      "label-corporate_record-007.jsonl",
+      "label-corporate_record-008.jsonl",
+      "label-corporate_record-009.jsonl",
+      "label-corporate_record-010.jsonl",
+      "label-corporate_record-011.jsonl",
+      "label-corporate_record-012.jsonl",
+      "label-corporate_record-013.jsonl",
+      "label-corporate_record-014.jsonl",
+      "label-corporate_record-015.jsonl",
+      "label-corporate_record-016.jsonl",
+      "label-corporate_record-017.jsonl",
+      "label-corporate_record-018.jsonl",
+      "label-corporate_record-019.jsonl",
+      "label-corporate_record-020.jsonl",
+      "label-corporate_record-021.jsonl",
+      "label-corporate_record-022.jsonl",
+      "label-corporate_record-023.jsonl",
+      "label-corporate_record-024.jsonl",
+      "label-corporate_record-025.jsonl",
+      "label-corporate_record-026.jsonl",
+      "label-corporate_record-027.jsonl",
+      "label-corporate_record-028.jsonl",
+      "label-corporate_record-029.jsonl",
+      "label-corporate_record-030.jsonl",
+      "label-corporate_record-031.jsonl",
+      "label-corporate_record-032.jsonl",
+      "label-corporate_record-033.jsonl",
+      "label-corporate_record-034.jsonl",
+      "label-corporate_record-035.jsonl",
+      "label-corporate_record-036.jsonl",
+      "label-corporate_record-037.jsonl",
+      "label-corporate_record-038.jsonl",
+      "label-corporate_record-039.jsonl",
+      "label-corporate_record-040.jsonl",
+      "label-corporate_record-041.jsonl",
+      "label-corporate_record-042.jsonl",
+      "label-corporate_record-043.jsonl",
+      "label-corporate_record-044.jsonl",
+      "label-corporate_record-045.jsonl",
+      "label-corporate_record-046.jsonl",
+      "label-corporate_record-047.jsonl",
+      "label-corporate_record-048.jsonl",
+      "label-corporate_record-049.jsonl",
+      "label-corporate_record-050.jsonl",
+      "label-corporate_record-051.jsonl",
+      "label-corporate_record-052.jsonl",
+      "label-corporate_record-053.jsonl",
+      "label-corporate_record-054.jsonl",
+      "label-corporate_record-055.jsonl",
+      "label-corporate_record-056.jsonl",
+      "label-corporate_record-057.jsonl",
+      "label-corporate_record-058.jsonl",
+      "label-corporate_record-059.jsonl",
+      "label-corporate_record-060.jsonl",
+      "label-corporate_record-061.jsonl",
+      "label-corporate_record-062.jsonl",
+      "label-corporate_record-063.jsonl",
+      "label-corporate_record-064.jsonl",
+      "label-corporate_record-065.jsonl",
+      "label-corporate_record-066.jsonl",
+      "label-corporate_record-067.jsonl",
+      "label-corporate_record-068.jsonl",
+      "label-corporate_record-069.jsonl",
+      "label-corporate_record-070.jsonl",
+      "label-corporate_record-071.jsonl",
+      "label-corporate_record-072.jsonl",
+      "label-corporate_record-073.jsonl",
+      "label-corporate_record-074.jsonl",
+      "label-corporate_record-075.jsonl",
+      "label-corporate_record-076.jsonl",
+      "label-corporate_record-077.jsonl",
+      "label-corporate_record-078.jsonl",
+      "label-corporate_record-079.jsonl",
+      "label-corporate_record-080.jsonl",
+      "label-corporate_record-081.jsonl",
+      "label-corporate_record-082.jsonl",
+      "label-corporate_record-083.jsonl",
+      "label-corporate_record-084.jsonl",
+      "label-corporate_record-085.jsonl",
+      "label-corporate_record-086.jsonl",
+      "label-corporate_record-087.jsonl",
+      "label-corporate_record-088.jsonl",
+      "label-corporate_record-089.jsonl",
+      "label-corporate_record-090.jsonl",
+      "label-corporate_record-091.jsonl",
+      "label-corporate_record-092.jsonl",
+      "label-corporate_record-093.jsonl",
+      "label-corporate_record-094.jsonl",
+      "label-corporate_record-095.jsonl",
+      "label-corporate_record-096.jsonl",
+      "label-corporate_record-097.jsonl",
+      "label-corporate_record-098.jsonl",
+      "label-corporate_record-099.jsonl",
+      "label-corporate_record-100.jsonl",
+      "label-corporate_record-101.jsonl",
+      "label-corporate_record-102.jsonl",
+      "label-corporate_record-103.jsonl",
+      "label-corporate_record-104.jsonl",
+      "label-corporate_record-105.jsonl",
+      "label-corporate_record-106.jsonl",
+      "label-corporate_record-107.jsonl",
+      "label-corporate_record-108.jsonl",
+      "label-corporate_record-109.jsonl",
+      "label-corporate_record-110.jsonl",
+      "label-corporate_record-111.jsonl",
+      "label-corporate_record-112.jsonl",
+      "label-correspondence-000.jsonl",
+      "label-correspondence-001.jsonl",
+      "label-correspondence-002.jsonl",
+      "label-correspondence-003.jsonl",
+      "label-correspondence-004.jsonl",
+      "label-correspondence-005.jsonl",
+      "label-correspondence-006.jsonl",
+      "label-correspondence-007.jsonl",
+      "label-correspondence-008.jsonl",
+      "label-correspondence-009.jsonl",
+      "label-correspondence-010.jsonl",
+      "label-correspondence-011.jsonl",
+      "label-correspondence-012.jsonl",
+      "label-correspondence-013.jsonl",
+      "label-correspondence-014.jsonl",
+      "label-correspondence-015.jsonl",
+      "label-correspondence-016.jsonl",
+      "label-correspondence-017.jsonl",
+      "label-correspondence-018.jsonl",
+      "label-correspondence-019.jsonl",
+      "label-correspondence-020.jsonl",
+      "label-correspondence-021.jsonl",
+      "label-correspondence-022.jsonl",
+      "label-correspondence-023.jsonl",
+      "label-correspondence-024.jsonl",
+      "label-correspondence-025.jsonl",
+      "label-correspondence-026.jsonl",
+      "label-correspondence-027.jsonl",
+      "label-correspondence-028.jsonl",
+      "label-correspondence-029.jsonl",
+      "label-correspondence-030.jsonl",
+      "label-correspondence-031.jsonl",
+      "label-correspondence-032.jsonl",
+      "label-correspondence-033.jsonl",
+      "label-correspondence-034.jsonl",
+      "label-correspondence-035.jsonl",
+      "label-correspondence-036.jsonl",
+      "label-correspondence-037.jsonl",
+      "label-correspondence-038.jsonl",
+      "label-correspondence-039.jsonl",
+      "label-correspondence-040.jsonl",
+      "label-correspondence-041.jsonl",
+      "label-correspondence-042.jsonl",
+      "label-correspondence-043.jsonl"
+    ],
+    "override": [
+      "fwd-label-correspondence-000.jsonl",
+      "fwd-label-correspondence-001.jsonl",
+      "fwd-label-correspondence-002.jsonl"
+    ],
+    "review": [
+      "review-audit-1.jsonl",
+      "review-corp-1.jsonl",
+      "review-corr-000-001.jsonl",
+      "review-corr-002-003.jsonl",
+      "review-corr-checks-2.jsonl",
+      "review-fwd.jsonl",
+      "review-promo-actions.jsonl",
+      "review-promo-urgency.jsonl"
+    ]
+  },
+  "target_fields": {
+    "contract": {
+      "tier1": [
+        "agreement_date",
+        "expiration_date",
+        "signatories",
+        "party_roles",
+        "termination_notice_period",
+        "contract_value"
+      ],
+      "tier2": [
+        "dispute_forum",
+        "payment_terms",
+        "territory"
+      ]
+    },
+    "corporate_record": {
+      "tier1": [
+        "effective_date",
+        "signatories",
+        "jurisdiction",
+        "entity_name"
+      ],
+      "tier2": []
+    },
+    "correspondence": {
+      "tier1": [
+        "sender",
+        "recipient",
+        "communication_date",
+        "urgency",
+        "demand_amount",
+        "action_items"
+      ],
+      "tier2": [
+        "additional_recipients"
+      ]
+    }
+  },
+  "truth_statuses": []
+}

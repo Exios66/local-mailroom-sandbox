@@ -706,6 +706,20 @@ def select_rows(
     return sorted(chosen, key=_stable_key)
 
 
+def _apply_near_gold_overlay(chosen: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Fill unlabelled fields from the near-gold overlay; return the rows and their provenance."""
+    from mailroom_sandbox import gold_labels as gl
+
+    # Records, fingerprint and checks come from one in-memory read of the overlay.
+    overlay, overlay_sha, problems = gl.near_gold_snapshot()
+    if problems:
+        raise ValueError(f"near-gold label overlay is inconsistent: {problems[0]}")
+    rows = [gl.apply_near_gold(r, overlay, overlay_sha=overlay_sha) for r in chosen]
+    labelled = [r for r in rows if r.get("near_gold_labels")]
+    return rows, {"overlay_sha256": overlay_sha, "status": "near_gold", "rows_with_labels": len(labelled),
+                  "fields_applied": sum(len(r["near_gold_labels"]["fields"]) for r in labelled)}
+
+
 def prepare_subset(spec: DatasetSpec, dest_file) -> dict[str, Any]:
     """Materialize the locked subset to ``dest_file``; returns provenance.
 
@@ -793,6 +807,9 @@ def prepare_subset(spec: DatasetSpec, dest_file) -> dict[str, Any]:
             "overlay_sha256": overlay_sha,
             "rows_with_labels": sum(1 for r in chosen if r.get("interim_labels")),
             "fields_applied": sum(len(r["interim_labels"]["fields"]) for r in chosen if r.get("interim_labels"))}}
+    if getattr(spec, "near_gold_labels", False):
+        chosen, meta = _apply_near_gold_overlay(chosen)
+        source_meta = {**source_meta, "near_gold_labels": meta}
 
     payload = "".join(_cache_line(r) for r in chosen)
     dest.write_text(payload, encoding="utf-8")
