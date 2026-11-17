@@ -1084,3 +1084,22 @@ def test_a_failed_whole_run_checkpoint_keeps_the_documents_already_saved(tmp_pat
     assert (out["cursor"], out["total"], out["ok"]) == (3, 5, 3)
     failed = [e for e in store.events() if e.get("event") == "failed"]
     assert failed and (failed[-1].get("detail") or {}).get("cursor") == 3
+
+
+def test_a_pipeline_item_carries_usage_by_agent_from_the_real_capture_path_to_items_jsonl(tmp_path, job_data_dir):
+    """eval/runners captures the vendored accumulator's per-agent split; the runner's row sink persists it (autoresearch's role cost split)."""
+    from mailroom_sandbox.eval import runners as eval_runners
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    store = RunStore(tmp_path / "run")
+    rows = eval_runners.load_manifest()[:1]
+    out = eval_runners.run_pipeline_eval(mock=True, rows=rows, row_cb=lambda entry: runner._persist_isolated_items(store, [entry]))
+    assert out["n"] == 1
+    (item,) = store.load_items()
+    by_agent = item["usage_by_agent"]                       # not dropped between usage_capture, the evaluator and the sink
+    assert {"sorter"} <= set(by_agent) and any(a.endswith("_specialist") for a in by_agent)
+    for slot in by_agent.values():
+        assert slot["calls"] >= 1 and slot["prompt_tokens"] > 0 and isinstance(slot["models"], list)
+    # the split is the same accumulator the totals come from
+    assert sum(s["prompt_tokens"] for s in by_agent.values()) == item["prompt_tokens"] > 0
+    assert sum(s["completion_tokens"] for s in by_agent.values()) == item["completion_tokens"]

@@ -30,7 +30,9 @@ def render_report(loop: "Loop", state: "State") -> str:
              f"- estimated spend: {status['spent_usd']:.4f} of {study.budget.study_usd:g} USD "
              f"(round cap {study.budget.round_api_cap_usd:g} USD)",
              f"- consecutive reverts: {status['consecutive_reverts']} (stop at {study.max_consecutive_reverts})",
-             f"- holdout: {'run' if status['holdout'] else 'not run'}", "",
+             f"- holdout: {'run' if status['holdout'] else 'not run'}"
+             + (f"; STALE: it confirmed `{status['holdout_champion']}`, the champion is now `{status['champion']}`"
+                if status["holdout_stale"] else ""), "",
              "Cost is an estimate from recorded tokens priced per model (`config/api_prices.yaml`), not the provider's bill.", ""]
 
     lines += ["## Ledger", "", "| # | round | lever | decision | delta (CI) | utility | USD/doc | cost USD | USD per +0.01 | reasons |",
@@ -82,7 +84,13 @@ def render_report(loop: "Loop", state: "State") -> str:
     hold = next((r for r in rows if r.get("decision") == "holdout"), None)
     if hold:
         m = hold.get("metrics") or {}
-        lines += ["", "## Holdout", "", f"- run `{hold['run_id']}`: {m.get('n')} documents, disjoint from the {hold.get('dev_ids')} dev documents",
+        lines += ["", "## Holdout", ""]
+        if status["holdout_stale"]:
+            lines += [f"**STALE.** This holdout confirmed champion `{hold.get('champion_run_id')}`; a later keep made "
+                      f"`{status['champion']}` the champion, so these numbers do not describe it. A second holdout is refused "
+                      "(the draw is spent): read this one as the earlier champion's confirmation.", ""]
+        lines += [f"- champion confirmed: `{hold.get('champion_run_id')}`",
+                  f"- run `{hold['run_id']}`: {m.get('n')} documents, disjoint from the {hold.get('dev_ids')} dev documents",
                   f"- mean utility {_f(m.get('mean_utility'))}, outcomes {m.get('outcomes')}, cost {_f(hold.get('cost_usd'), '.4f')} USD"]
 
     baseline = next((r for r in rows if r.get("decision") == "baseline"), None)

@@ -53,7 +53,10 @@ exists**; a failed replicate stops the study (the next call re-runs it). The rep
 5. **Keep or revert** (`autoresearch/keep.py`), then append a row to `ledger.jsonl`.
 
 It stops on the study budget, the key's remaining limit, an exhausted catalog, or 3 consecutive reverts
-(an error counts as a revert; a skip, an `aborted_cap` round and a warning count as neither). A key with no spend limit
+(a lever's error counts as a revert; a skip, an `aborted_cap` round and a warning count as neither, and the
+baseline, replicate and holdout rows, errors included, are not lever rounds: they are ignored, and the count never
+reaches back past the baseline or replicate row). A lever whose round **errored** is proposed once more (at most 2 attempts
+in all); a second error settles it without a verdict. A key with no spend limit
 (`limit_remaining` null) cannot bound anything: the loop writes a `warning` row to the ledger (shown in `status` and
 `report.md`) and continues under the study budget alone.
 
@@ -85,11 +88,13 @@ State is under `reports/autoresearch/<study>/` (override with `state_dir`):
 | file | content |
 |:---|:---|
 | `ledger.jsonl` | append-only, one row per round and per skipped lever: lever, run id and directory, spec sha256, metrics, delta and CI, decision (`baseline`, `replicate`, `keep`, `revert`, `error`, `aborted_cap`, `skipped`, `holdout`, `warning`) and reasons, cost, round cap, estimate (both figures), `patch_before`, `usd_per_utility_point`, dependency sources, pipeline source |
-| `champion.yaml` | the current champion's run spec |
-| `specs/`, `scores/` | every candidate spec, and the per-document utility and cost of every run |
+| `champion.yaml` | a convenience copy of the current champion's run spec, written before its ledger row and never read back |
+| `specs/`, `scores/` | every candidate spec (`<run_id>.yaml`), and the per-document utility and cost of every run. The champion is loaded from `specs/<champion run_id>.yaml` and checked against the ledger row's `spec_sha256`; a missing or edited spec is a clear error |
 | `weakness.md`, `report.md`, `holdout.md` | the views; the report ends with the production-parity section |
 
-The loop resumes from the ledger: re-run the same command after a stop, a crash or a changed budget.
+The loop resumes from the ledger: re-run the same command after a stop, a crash or a changed budget. The ledger row is
+the commit point: `champion.yaml` is written just before it, and the champion's spec is read from `specs/`, so a crash
+between the two files leaves a consistent state. `status` says so plainly when nothing has run yet (`message`).
 
 ## The study file (`schema: sandbox.autoresearch/v1`)
 
@@ -109,7 +114,7 @@ lever against the base before any spend (invalid patched spec, a patch that chan
 | reviewer | Decisions-API models only, from `config/decision_models.yaml` (Luna with question sets v2, v3.1.0, v3.2.0, v4.0.0; `typesafe/jev-1.14`, `jev-1.13`, `liquid/d1.2`, `perplexity/pplx-decider-v1.2`, `upstage/solar-decide`, `google/gemini-decision-1`). The champion's reviewer is the chat reviewer. |
 | workers | `deepseek/deepseek-v4.1-flash-1017` for the sorter and each specialist; specialist prompts; one narrower merger window |
 | routing | judge every in-band extraction per class, `judge_rejudge_retry`, `judge_max_passes` (each carries `estimate_safety: 2.0`) |
-| supervisor | tiers 1 to 3 of stronger models routed to judge, arbiter and boss (`classification_arbiter` is a node of the `arbiter` agent) |
+| supervisor | tiers 1 to 3 of stronger models routed to judge, arbiter and boss (`classification_arbiter` is a node of the `arbiter` agent); each carries `estimate_safety: 1.5` for a reasoning or verbose model |
 | diagnostic | the Luna extraction gate v1.3.0 (advisory, never changes routing) |
 | pipeline source | `repair-283` |
 
@@ -130,8 +135,11 @@ is not a Decisions-API model (`decision_backends.is_decisions_model`). The basel
 
 ### Ordering: `tier`, `group`, `requires`
 
-Tier 2 supervisors open when a tier-1 lever was kept, or every tier-1 lever was decided (reverted, or `aborted_cap`) and
-each revert had a positive mean delta. Tier 3 opens when a tier-2 lever was kept and the remaining study budget is at
+Tier 2 supervisors open when a tier-1 lever was kept, or when **every** tier-1 lever is *decided* and **at least one** was
+reverted with a positive mean delta. Decided means: a revert with a positive mean delta, `aborted_cap` (no verdict), `skipped`
+(over the round cap, a no-op), or an `error` on its second attempt (decided without a verdict). A revert with a negative mean
+keeps the tier closed; so does a lever not run yet or one that errored only once (it is retried). `aborted_cap` and skips
+alone never open a dearer tier: the ladder needs one positive direction to spend more. Tier 3 opens when a tier-2 lever was kept and the remaining study budget is at
 least 3 round caps. After a supervisor wins, the `placements:` block derives `<winner>@<roles>` cost levers (the winner on
 fewer roles), judged on cost. A derived patch is absolute and comes from the winner's own ledger row, never from the
 champion's current state: the roles it keeps are set to the winner's own routes, the roles it restores to what the champion
@@ -157,7 +165,9 @@ charged at the supervisor's price. Before each round the loop estimates two figu
 (ledger `estimate`): `usd`, each agent's tokens at its own model, and `runtime_bound_usd`, the `ApiBudget`'s view
 (`price_bound(spec_api_models(spec))` over the champion's total prompt and completion tokens; a decisions reviewer or gate adds
 its input tokens). **The cap decision uses the runtime bound.** `estimate_safety` (study) times a lever's own
-`estimate_safety` scales both figures; the levers that add calls carry 2.0.
+`estimate_safety` scales both figures; the levers that add calls carry 2.0, the supervisors 1.5. The model set the bound
+prices is the one the run's lock will carry (`api_budget.api_models`): engine, agent models and routes, the reviewer model
+(backends `decisions`, `local`, `api`, `jev`) and the extraction gate model.
 
 The lever's cap is the study's `round_api_cap_usd`, unless it carries `round_cap_usd` (an explicit override) or
 `round_cap_auto: true` (every supervisor lever, and the placements derived from one): the runtime-bound estimate x 1.2,
@@ -170,7 +180,10 @@ default (1.5 / 3 / 4 USD for tier 1 / 2 / 3). The cap is stamped on the run and 
 - `aborted_cap` when the run's own cap aborted it (checkpoint `last_error.type == api_cost_cap`): no verdict, not a revert,
   charged its **full cap** in `cost_usd`, never retried, and it counts as decided for the tier ladder.
 
-An error, or any round that wrote no dataset rows, is charged its full round cap too, since what it spent is unknown.
+A failed round without scored documents is charged its full round cap only when its run directory shows that model calls
+started (an `items.jsonl` row, or a checkpoint of `running`, `paused`, `failed` or `done`): what it spent is then unknown. A
+preflight or config failure (no run directory, or a `prepared` checkpoint) never reached a model and costs 0; a failed round with scored
+documents is charged its recorded cost.
 
 ## Pipeline source lever
 
@@ -200,7 +213,8 @@ they are the opt-in `repair-283` lever (above), proposed only with `AUTORESEARCH
 3302, same strata) with `config/production/excluded-ids.txt` plus every dev document id excluded
 (`holdout-excluded-ids.txt`), so it is the next ranked block. The loop locks the draw first (`sandbox run
 preflight`, no model call) and asserts there is no overlap before spending, and again after the run. A second
-holdout is refused: it confirms, it does not tune. Add the dev ids to `config/production/excluded-ids.txt` before
+holdout is refused: it confirms, it does not tune. The holdout row records the champion it confirmed (`champion_run_id`); if a
+later keep changes the champion, `status` (`holdout_stale: true`) and `report.md` flag the holdout as **stale**: it describes the earlier champion. Add the dev ids to `config/production/excluded-ids.txt` before
 the next production slice if they should not be re-drawn.
 
 ## Secrets

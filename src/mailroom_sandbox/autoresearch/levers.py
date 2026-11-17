@@ -15,8 +15,8 @@ Optional fields:
   mapping of conditions that must all hold. Conditions, over the ledger so far:
 
   ``kept: {group, tier}``                a lever of that group/tier was kept
-  ``all_reverted_positive: {group, tier}``  every tried lever of that group/tier was reverted, at least one was
-                                          tried and each had a positive mean delta
+  ``all_reverted_positive: {group, tier}``  every lever of that group/tier is decided and at least one was
+                                          reverted with a positive mean delta (see ``requirement_met``)
   ``kept_lever: <id>``                   that lever was kept
   ``budget_multiple: N``                 the remaining study budget is at least N round caps
 
@@ -245,6 +245,28 @@ def env_ready(lever: Lever, env: Mapping[str, str] | None = None) -> bool:
 
 # ---- ordering ---------------------------------------------------------------------------------
 
+#: A lever whose round errored is proposed again once: at most this many attempts in all.
+MAX_ATTEMPTS = 2
+
+
+def error_attempts(rows: Sequence[Mapping[str, Any]]) -> dict[str, int]:
+    """How many ``error`` rows each lever has (a retryable lever has fewer than ``MAX_ATTEMPTS``)."""
+    out: dict[str, int] = {}
+    for row in rows:
+        if row.get("decision") == "error":
+            out[str(row.get("lever"))] = out.get(str(row.get("lever")), 0) + 1
+    return out
+
+
+def settled(rows: Sequence[Mapping[str, Any]]) -> set[str]:
+    """Lever ids the proposer must not offer again: a verdict, an abort, a skip, or a second error.
+
+    A single ``error`` row leaves the lever open: it is re-proposed once (``MAX_ATTEMPTS`` attempts in all).
+    """
+    done = {str(r.get("lever")) for r in rows if r.get("decision") in ("keep", "revert", "aborted_cap", "skipped")}
+    return done | {lever for lever, n in error_attempts(rows).items() if n >= MAX_ATTEMPTS}
+
+
 def _tried(rows: Sequence[Mapping[str, Any]]) -> dict[str, Mapping[str, Any]]:
     """The latest decided ledger row per lever id (skips, warnings, the baseline and the replicate excluded)."""
     out: dict[str, Mapping[str, Any]] = {}
@@ -270,18 +292,35 @@ def requirement_met(lever: Lever, catalog: Sequence[Lever], rows: Sequence[Mappi
         if name == "kept_lever":
             return tried.get(str(arg), {}).get("decision") == "keep"
         if name == "all_reverted_positive":
-            # Every lever of the tier must have been decided: reverted, or aborted by its API cap (an aborted
-            # run has no verdict and does not block the ladder). A skipped one, over the round cap or a no-op,
-            # cannot be run and does not block it either; an error is not a decision. Every revert needs a
-            # positive mean delta; an aborted round carries none.
+            # The tier opens only when every lever of it is DECIDED and at least one was reverted with a positive
+            # mean delta (the direction is right, the model is too weak). Decided means: a revert with a positive
+            # mean; ``aborted_cap`` (no verdict); ``skipped`` (cannot run: over the round cap, a no-op); or an
+            # ``error`` on its second attempt (decided without a verdict). A revert with a negative mean keeps the
+            # tier closed, and so does a lever not yet run, a kept one (the ``kept`` alternative covers that) or one
+            # that errored once (it is retried). Aborts and skips alone never open a dearer tier.
             skipped = {str(r.get("lever")) for r in rows if r.get("decision") == "skipped"}
-            members = [item for item in in_group(arg["group"], arg.get("tier")) if item.id not in skipped or item.id in tried]
-            if not members or any(item.id not in tried for item in members):
+            attempts = error_attempts(rows)
+            members = in_group(arg["group"], arg.get("tier"))
+            if not members:
                 return False
-            done = [tried[item.id] for item in members]
-            if any(row.get("decision") not in ("revert", "aborted_cap") for row in done):
-                return False
-            return all((row.get("delta") or {}).get("mean", 0.0) > 0 for row in done if row.get("decision") == "revert")
+            positive = False
+            for item in members:
+                found = tried.get(item.id)
+                decision = found.get("decision") if found else None
+                if decision in (None, "error") and item.id in skipped:
+                    continue
+                if decision is None:
+                    return False
+                if decision == "error":
+                    if attempts.get(item.id, 0) >= MAX_ATTEMPTS:
+                        continue
+                    return False
+                if decision == "aborted_cap":
+                    continue
+                if decision != "revert" or not (found.get("delta") or {}).get("mean", 0.0) > 0:
+                    return False
+                positive = True
+            return positive
         if name == "budget_multiple":
             if budget_remaining_usd is None or not round_cap_usd:
                 return False
@@ -337,7 +376,8 @@ def derive_placements(catalog: Catalog, base_spec: Mapping[str, Any], rows: Sequ
                     description=f"{winner.id} on {'+'.join(subset)} only; {', '.join(restore)} back to the routing before {winner.id}",
                     patch=patch, group=f"{placement.group}-placement", tier=1,
                     requires=[{"kept_lever": winner.id}],
-                    round_cap_usd=winner.round_cap_usd, round_cap_auto=winner.round_cap_auto))
+                    round_cap_usd=winner.round_cap_usd, round_cap_auto=winner.round_cap_auto,
+                    estimate_safety=winner.estimate_safety))
     return out
 
 

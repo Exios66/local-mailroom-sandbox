@@ -208,3 +208,31 @@ def test_round_cap_for_uses_the_override_the_derived_cap_or_the_study_cap():
     assert est.round_cap_for(mk(round_cap_usd=2.0), e, base_cap=1.0, max_cap=4.0) == 2.0
     assert est.round_cap_for(mk(round_cap_usd=7.0), e, base_cap=1.0, max_cap=4.0) == 4.0
     assert est.round_cap_for(mk(round_cap_auto=True, tier=2, group="g"), e, base_cap=1.0, max_cap=4.0) == 3.0
+
+
+def test_the_runtime_bound_prices_the_reviewer_and_gate_models_like_the_run_lock_does():
+    from mailroom_sandbox.job import api_budget
+
+    cheap = "qwen/qwen3.5-9b"                       # (0.17, 0.25) per 1M tokens: cheaper on input than the reviewer
+    plain = {"engine": {"kind": "openrouter", "model": cheap}, "job": {"mock": False}}
+    dear_reviewer = {**plain, "reviewer": {"backend": "decisions", "model": "cloudflare/clef",
+                                           "questions": "reviewer_decisions_v2", "classes": {"contract": 0.5}}}
+    assert est._api_models(plain) == [cheap]
+    models = est._api_models(dear_reviewer)
+    assert models == ["cloudflare/clef", cheap]
+    lock_shaped = {"engine": plain["engine"], "reviewer": dear_reviewer["reviewer"]}
+    assert models == api_budget.api_models(lock_shaped)           # what the run's own ApiBudget will price
+    for backend in ("local", "api", "jev"):                       # the other lock backends count too; mock does not
+        assert "cloudflare/clef" in est._api_models({**plain, "reviewer": {**dear_reviewer["reviewer"], "backend": backend}}), backend
+    assert est._api_models({**plain, "reviewer": {**dear_reviewer["reviewer"], "backend": "mock"}}) == [cheap]
+    gated = {**plain, "extraction_gate": {"model": "cloudflare/clef", "questions": "extraction_gate_v1.3.0"}}
+    assert est._api_models(gated) == ["cloudflare/clef", cheap]
+
+    champ = run_with({"sorter": usage(1_000_000, 0, cheap)})
+    base_bound = est.estimate_round_cost(champ, plain, plain).runtime_bound_usd
+    out = est.estimate_round_cost(champ, plain, dear_reviewer)
+    assert out.runtime_bound_detail["models"] == ["cloudflare/clef", cheap]
+    price_in, _ = api_budget.price_bound(models)
+    assert price_in == 0.192 > 0.17                                # the reviewer is the dearest input price
+    assert out.runtime_bound_usd > base_bound
+    assert out.runtime_bound_usd == pytest.approx((out.runtime_bound_detail["prompt_tokens"] * price_in) / 1e6, rel=0.01)
