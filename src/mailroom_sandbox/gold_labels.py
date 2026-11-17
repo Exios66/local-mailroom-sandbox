@@ -261,7 +261,8 @@ def _spelled_date_supported(d: date, ev: str) -> bool:
     if d.month == 9:
         names.add("sept")
     mon = r"(?:" + "|".join(sorted((re.escape(n) for n in names), key=len, reverse=True)) + r")\.?"
-    day = rf"0?{d.day}(?:st|nd|rd|th)?(?![0-9]|:[0-9])"
+    # EDGAR text often splits the ordinal from the day ("27 th day of March"): allow one space.
+    day = rf"0?{d.day}(?:\s?(?:st|nd|rd|th)(?![a-z]))?(?![0-9]|:[0-9])"
     year = rf"(?<![0-9]){d.year}(?![0-9])"
     month_first = rf"(?<![a-z]){mon}(?![a-z])\s*,?\s*{day}\s*,?\s*{year}"
     day_first = rf"(?<![0-9]){day}\s+(?:day\s+)?(?:of\s+)?{mon}(?![a-z])\s*,?\s*{year}"
