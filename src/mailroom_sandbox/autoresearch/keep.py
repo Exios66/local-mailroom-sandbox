@@ -4,7 +4,9 @@ A quality lever is kept only when all of these hold:
 
 1. the paired utility gain is real: the bootstrap interval's lower bound is above
    ``max(0, noise_floor)``;
-2. no guarded class loses more than ``max_class_drop`` (0.05) of mean utility;
+2. no guarded class loses more than ``max(max_class_drop, class_noise[cls])`` of mean utility, where
+   ``class_noise`` is that class's own run-to-run swing in the replicate baseline (a drop no larger than
+   re-running the champion produces is noise, not a regression);
 3. the wrong-archive count is not higher than the champion's;
 4. cost per document is at most ``cost_ratio`` (1.25) times the champion's, unless the gain is at
    least ``cost_win`` (0.05) mean utility.
@@ -18,7 +20,7 @@ The result is ``(keep, reasons)``: every failed rule when reverted, the evidence
 from __future__ import annotations
 
 import math
-from typing import Iterable
+from typing import Iterable, Mapping
 
 from mailroom_sandbox.autoresearch.scoring import PairedDelta, RunScores
 
@@ -28,6 +30,7 @@ _REL_EPS = 1e-9
 
 def decide_keep(champ: RunScores, cand: RunScores, delta: PairedDelta, *, goal: str = "quality",
                 noise_floor: float = 0.0, guard_classes: Iterable[str] | None = None, max_class_drop: float = 0.05,
+                class_noise: Mapping[str, float] | None = None,
                 cost_ratio: float = 1.25, cost_win: float = 0.05, tolerance: float = 0.02,
                 saving_ratio: float = 0.9) -> tuple[bool, list[str]]:
     failed: list[str] = []
@@ -46,9 +49,14 @@ def decide_keep(champ: RunScores, cand: RunScores, delta: PairedDelta, *, goal: 
         check(delta.ci_low > floor, f"gain is real: CI low {delta.ci_low:+.3f} > {floor:g}",
               f"gain is not established: CI low {delta.ci_low:+.3f} <= {floor:g} (mean {delta.mean:+.3f})")
     guarded = set(guard_classes) if guard_classes else set(delta.by_class)
-    drops = {cls: d["mean"] for cls, d in delta.by_class.items() if cls in guarded and d["mean"] < -max_class_drop}
-    check(not drops, f"no guarded class drops more than {max_class_drop:g}",
-          "class drop: " + ", ".join(f"{c} {v:+.3f}" for c, v in sorted(drops.items())) + f" (limit -{max_class_drop:g})")
+    noise = {cls: max(0.0, float(v)) for cls, v in (class_noise or {}).items() if math.isfinite(float(v))}
+
+    def limit(cls: str) -> float:
+        return max(max_class_drop, noise.get(cls, 0.0))
+
+    drops = {cls: d["mean"] for cls, d in delta.by_class.items() if cls in guarded and d["mean"] < -limit(cls)}
+    check(not drops, f"no guarded class drops more than max({max_class_drop:g}, its replicate swing)",
+          "class drop: " + ", ".join(f"{c} {v:+.3f} (limit -{limit(c):.3f})" for c, v in sorted(drops.items())))
     check(cand.wrong_archives <= champ.wrong_archives,
           f"wrong archives {cand.wrong_archives} <= champion {champ.wrong_archives}",
           f"wrong archives rose: {cand.wrong_archives} > champion {champ.wrong_archives}")

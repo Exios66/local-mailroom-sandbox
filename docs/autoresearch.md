@@ -76,7 +76,7 @@ cliff the mean utility does not model: read `ledger.jsonl` and `sandbox run gate
 
 ### Keep rule
 
-All of: the CI low is above `max(0, effective noise floor)` (the replicate's, see above); no gated class drops more than 0.05; the wrong-archive
+All of: the CI low is above `max(0, effective noise floor)` (the replicate's, see above); no gated class drops more than the larger of 0.05 and that class's own swing between the two baseline runs (a drop no bigger than re-running the champion is noise); the wrong-archive
 count is not higher; cost per document is at most 1.25x the champion's unless the mean gain is at least 0.05.
 A `goal: cost` lever (the derived per-role placements) is kept when it is not worse (CI low above -0.02) and
 costs at most 0.9x. The configured `noise_floor` is a minimum: the measured one raises it, never lowers it.

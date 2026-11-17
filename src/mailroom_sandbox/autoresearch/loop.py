@@ -622,6 +622,12 @@ class Loop:
         measured = float((rep.get("noise") or {}).get("measured_floor") or 0.0)
         return max(float(self.study.noise_floor), measured)
 
+    def class_noise(self, state: State) -> dict[str, float]:
+        """Each class's run-to-run swing: the absolute mean paired delta per class between the two baseline runs."""
+        rep = state.replicate or {}
+        by_class = (rep.get("delta") or {}).get("by_class") or {}
+        return {cls: abs(float(d.get("mean") or 0.0)) for cls, d in by_class.items()}
+
     def _guard(self, state: State, cap: float | None = None, run_id: str | None = None) -> str | None:
         """A stop reason when a round capped at ``cap`` (default: the study's round cap) cannot start.
 
@@ -1028,6 +1034,7 @@ class Loop:
             delta = scoring.paired_delta(champ.utilities(), scores.utilities(), champ.classes(),
                                          n_boot=boot.n_boot, seed=boot.seed, ci=boot.ci)
             kept, reasons = keep.decide_keep(champ, scores, delta, goal=lever.goal, noise_floor=floor,
+                                             class_noise=self.class_noise(state),
                                              guard_classes=self.study.guard_classes, tolerance=self.study.cost_goal_tolerance)
             if kept:
                 self._save_champion(spec)   # before the row: the ledger is the commit point, this file only a copy
