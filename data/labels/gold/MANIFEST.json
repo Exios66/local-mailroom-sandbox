@@ -8,7 +8,7 @@
     "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
   },
   "builder": "scripts/gold_labels.py build",
-  "built_at": "2026-11-17T21:28:05Z",
+  "built_at": "2026-11-17T21:51:14Z",
   "counts": {
     "contract": {
       "agreement_date": {
@@ -33,8 +33,8 @@
       },
       "party_roles": {
         "candidate": 72,
-        "disputed": 19,
-        "near_gold": 91
+        "disputed": 21,
+        "near_gold": 89
       },
       "payment_terms": {
         "candidate": 115,
@@ -113,7 +113,7 @@
     }
   },
   "files": {
-    "contract.jsonl": "3e1796da46c8e5a7f304061fade025dfc5be622b909f35847fa620240a57f441",
+    "contract.jsonl": "1d87bad9706b34a54114f6d11e5a48275a69d559ef30027e6feaf9fb6aafd316",
     "corporate_record.jsonl": "22f7def5c4d343389c23b87e0f1238a274778e0d602689d7793e22cca9086434",
     "correspondence.jsonl": "230410cd4f0b6a5d9d957866f5cb8750fd3fa891fa6bfa9d5ad02edf8790b31b"
   },

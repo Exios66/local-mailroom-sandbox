@@ -97,3 +97,16 @@ def test_prepare_subset_applies_near_gold_only_when_asked(tmp_path, monkeypatch)
     monkeypatch.setattr(gl, "verify_overlay", lambda root=None: ["c.jsonl: sha256 differs"])
     with pytest.raises(ValueError, match="near-gold label overlay is inconsistent"):
         prepare_subset(DatasetSpec(local_path=str(src), near_gold_labels=True), tmp_path / "bad.jsonl")
+
+
+def test_prepare_subset_refuses_an_overlay_that_changes_while_read(tmp_path, monkeypatch):
+    from mailroom_sandbox.corpus import prepare_subset
+
+    src = tmp_path / "rows.jsonl"
+    src.write_text(json.dumps(_row()) + "\n", encoding="utf-8")
+    shas = iter(["a" * 64, "b" * 64])  # an export lands between the two reads
+    monkeypatch.setattr(gl, "verify_overlay", lambda root=None: [])
+    monkeypatch.setattr(gl, "load_near_gold", lambda root=None: {"D1": _rec(recipient=_lab("John Doe"))})
+    monkeypatch.setattr(gl, "near_gold_fingerprint", lambda root=None: next(shas))
+    with pytest.raises(ValueError, match="changed while it was read"):
+        prepare_subset(DatasetSpec(local_path=str(src), near_gold_labels=True), tmp_path / "x.jsonl")

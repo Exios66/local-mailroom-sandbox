@@ -1,6 +1,7 @@
 """Gold-label gate, agreement and catalog (``mailroom_sandbox.gold_labels``)."""
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import sys
@@ -425,7 +426,8 @@ def cli(tmp_path, monkeypatch):
     sys.modules["gold_labels_cli"] = mod
     spec.loader.exec_module(mod)
     rows = [{"document_id": f"DOC-{i}", "filename": f"f{i}.txt", "expected": "correspondence",
-             "expected_subclass": "email", "content_sha256": f"{i}" * 8} for i in (1, 2)]
+             "expected_subclass": "email", "content_sha256": hashlib.sha256(EMAIL.encode()).hexdigest()}
+            for i in (1, 2)]
     texts = {"f1.txt": EMAIL, "f2.txt": EMAIL}
     monkeypatch.setattr(mod, "_load_corpus", lambda _corpus: (rows, texts))
     monkeypatch.setattr(mod, "_schema_binding", lambda revision: {"dataset_revision": revision})
@@ -868,3 +870,43 @@ def test_an_accept_on_a_relabelled_field_must_name_the_current_value(cli, capsys
                                  "value": "Jane Roe, VP Finance, Acme Corp"}])
     assert build("--label", lab, "--override", ov, "--review", named) == 0
     assert gl.read_jsonl(tmp / "gold" / "correspondence.jsonl")[0]["status"] == "near_gold"
+
+
+def test_a_date_must_sit_whole_in_one_quote():
+    text = "Sent May 14, 2019. Archived December 31, 2020."
+    res = gl.validate_submission(sub({"communication_date": {"value": "2020-05-14",
+                                                             "evidence": ["May 14", "2020"]}}), text, "correspondence")
+    assert not res.fields["communication_date"].ok
+    res = gl.validate_submission(sub({"communication_date": {"value": "2019-05-14",
+                                                             "evidence": ["May 14, 2019"]}}), text, "correspondence")
+    assert res.fields["communication_date"].ok
+
+
+def test_party_roles_agree_only_when_each_party_has_the_same_role():
+    ft = "entity_list:free_text"
+    a = ["Alpha Inc.: supplier", "Beta LLC: customer"]
+    assert not gl.values_agree(a, ["Alpha Inc.: customer", "Beta LLC: supplier"], ft)
+    assert gl.values_agree(a, ["Beta LLC: customer", "Alpha Inc: supplier"], ft)
+    assert gl.values_agree(["PRIMEEVERGY CORPORATION: other"], ["PRIMEEVERG CORPORATION: other"], ft)
+    assert not gl.values_agree(a, ["Alpha Inc.: supplier"], ft)
+
+
+def test_build_refuses_missing_input_files_and_keeps_the_catalog(cli, capsys):
+    _, write, build, tmp = cli
+    lab = write("lab.jsonl", [_s("DOC-1", "label", RECIPIENT)])
+    assert build("--label", lab) == 0
+    before = (tmp / "gold" / "correspondence.jsonl").read_text()
+    assert build("--label", str(tmp / "missing.jsonl")) == 1
+    assert "input files not found" in capsys.readouterr().err
+    assert build("--label", lab, "--review", str(tmp / "nope.jsonl")) == 1
+    assert (tmp / "gold" / "correspondence.jsonl").read_text() == before
+
+
+def test_build_refuses_text_that_does_not_match_its_content_hash(cli, monkeypatch):
+    mod, write, build, _ = cli
+    rows = [{"document_id": "DOC-1", "filename": "f1.txt", "expected": "correspondence",
+             "expected_subclass": "email", "content_sha256": "0" * 64}]
+    monkeypatch.setattr(mod, "_load_corpus", lambda _corpus: (rows, {"f1.txt": EMAIL}))
+    lab = write("lab.jsonl", [_s("DOC-1", "label", RECIPIENT)])
+    with pytest.raises(SystemExit, match="does not match its content_sha256"):
+        build("--label", lab)
