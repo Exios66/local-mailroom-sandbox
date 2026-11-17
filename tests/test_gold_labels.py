@@ -894,6 +894,11 @@ def test_party_roles_agree_only_when_each_party_has_the_same_role():
                                ["Alpha Inc: customer", "Alpha Inc Services: supplier"], ft)
     assert gl.values_agree(["Alpha Inc: supplier", "Alpha Inc Services: customer"],
                            ["Alpha Inc Services: customer", "Alpha Inc: supplier"], ft)
+    # Ambiguous name pairings (a tie) never agree, in either list order.
+    left = ["Alpha Inc: supplier", "Alpha Inc Services: customer"]
+    right = ["Alpha Inc Services LLC: supplier", "Alpha: customer"]
+    assert not gl.values_agree(left, right, ft)
+    assert not gl.values_agree(left, right[::-1], ft)
 
 
 def test_build_refuses_missing_input_files_and_keeps_the_catalog(cli, capsys):
