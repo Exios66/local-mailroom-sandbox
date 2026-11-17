@@ -179,6 +179,8 @@ def test_the_bound_scales_with_safety_adds_decisions_input_and_is_zero_for_a_moc
     assert with_gate.runtime_bound_detail["prompt_tokens"] > est.estimate_round_cost(champ, base, base).runtime_bound_detail["prompt_tokens"]
     mock = {**cand, "job": {**cand["job"], "mock": True}}
     assert est.estimate_round_cost(champ, base, mock).runtime_bound_usd == 0.0
+    quoted = {**cand, "job": {**cand["job"], "mock": "false"}}                  # a quoted "false" is a paid run, not a mock
+    assert est.estimate_round_cost(champ, base, quoted).runtime_bound_usd == pytest.approx(one.runtime_bound_usd)
 
 
 def test_an_unpriced_candidate_model_makes_the_bound_infinite_too():
