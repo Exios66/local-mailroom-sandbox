@@ -562,10 +562,11 @@ def reviewer_request_tokens(max_input_chars: int) -> int:
 def context_errors(spec: Mapping[str, Any]) -> list[str]:
     """Reviewer (and gate) requests that cannot fit the Decisions model's context.
 
-    The input cap of a reviewer is its question set's ``max_input_chars``: the spec has no per-run
-    override, so a model with a small window needs a question set that caps lower.
+    The input cap of a reviewer is its question set's ``max_input_chars`` (``DECISIONS_MAX_INPUT_CHARS`` when the
+    set omits it, as at execution): the spec has no per-run override, so a model with a small window needs a
+    question set that caps lower.
     """
-    from mailroom_sandbox.decision_backends import decision_model, load_question_set
+    from mailroom_sandbox.decision_backends import DECISIONS_MAX_INPUT_CHARS, decision_model, load_question_set
 
     errors: list[str] = []
     for block, label in ((spec.get("reviewer") or {}, "reviewer"), (spec.get("extraction_gate") or {}, "extraction_gate")):
@@ -574,7 +575,12 @@ def context_errors(spec: Mapping[str, Any]) -> list[str]:
         if not row or not stem or (label == "reviewer" and block.get("backend") != "decisions"):
             continue
         try:
-            chars = int(load_question_set(str(stem)).get("max_input_chars") or 0)
+            qset = load_question_set(str(stem))
+            # The cap execution applies: the set's own, else DECISIONS_MAX_INPUT_CHARS (never 0). The gate
+            # may cap a class higher (``max_input_chars_by_class``), so its worst case is the largest of them.
+            chars = int(qset.get("max_input_chars") or DECISIONS_MAX_INPUT_CHARS)
+            if label == "extraction_gate":
+                chars = max([chars, *(int(v) for v in (qset.get("max_input_chars_by_class") or {}).values() if v)])
         except Exception as exc:  # noqa: BLE001 - reported, not raised: the catalog check lists every problem
             errors.append(f"{label} question set {stem!r}: {exc}")
             continue
