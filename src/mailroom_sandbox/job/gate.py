@@ -76,6 +76,22 @@ _UNSCORABLE_WARN = 0.25
 _UNIT_FIELD = {"contract": "cuad_clause_labels", "merger_agreement": "maud_clause_labels"}
 
 
+def scored_fields(doc_class: str) -> frozenset[str] | None:
+    """The fields the Dojo scores for ``doc_class`` (its extraction schema), or None if unregistered.
+
+    Corpus annotations such as ``content_topic``, ``sentiment_label`` and ``sentiment_score`` ride
+    on the rows but are not in the schema, so the Dojo never scores them. Counting them as labels
+    made a correspondence row scored on ``intent`` alone look like a four-label row.
+    """
+    import mailroom_sandbox.eval.scoring  # noqa: F401 - puts the selected Dojo on the path
+    from llm_dojo_scoring.schemas.doc_classes import field_names
+
+    try:
+        return frozenset(field_names(doc_class))
+    except KeyError:
+        return None
+
+
 @dataclass(frozen=True)
 class Bars:
     quality: float = 0.90
@@ -157,8 +173,10 @@ def labelled_count(row: Mapping[str, Any], doc_class: str) -> int:
         return len(labels) if any(_has_gold(v) for v in labels.values()) else 0
     _, expected = scope_extraction_pair(doc_class, {}, _fields(row))
     drop = TEMPLATED_FIELDS.get(doc_class, ())
+    scored = scored_fields(doc_class)
     return sum(1 for key, value in expected.items()
-               if key not in drop and key not in _NOT_LABELS and not _blank(value))
+               if key not in drop and key not in _NOT_LABELS and not _blank(value)
+               and (scored is None or key in scored))
 
 
 def _wilson_upper(k: int, n: int) -> float | None:
