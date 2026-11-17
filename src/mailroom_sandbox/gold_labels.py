@@ -734,14 +734,17 @@ def _party_match(a: frozenset[str], b: frozenset[str]) -> float:
 
 def _role_maps_agree(a: list, b: list) -> bool:
     """Same parties with the same role each. Parties are paired by name alone, best match
-    first, and only then are their roles compared, so overlapping names cannot swap roles."""
+    first, and only then are their roles compared, so overlapping names cannot swap roles.
+    A pairing that ties with another open pairing for the same party is ambiguous, and an
+    ambiguous pairing never agrees (list order must not decide it)."""
     if len(a) != len(b):
         return False
-    pairs = sorted(((_party_match(na, nb), i, j) for i, (na, _) in enumerate(a) for j, (nb, _) in enumerate(b)),
-                   reverse=True)
+    score = {(i, j): _party_match(na, nb) for i, (na, _) in enumerate(a) for j, (nb, _) in enumerate(b)}
     left, right, matched = set(range(len(a))), set(range(len(b))), {}
-    for score, i, j in pairs:
-        if score > 0 and i in left and j in right:
+    for (i, j), s in sorted(score.items(), key=lambda kv: kv[1], reverse=True):
+        if s > 0 and i in left and j in right:
+            if any(score[i, k] == s for k in right - {j}) or any(score[k, j] == s for k in left - {i}):
+                return False
             matched[i] = j
             left.discard(i)
             right.discard(j)
