@@ -33,6 +33,9 @@ from mailroom_sandbox.ports import DEFAULT_VIEWER_PORT as DEFAULT_PORT
 DEFAULT_HOST = "127.0.0.1"  # loopback only, like web/board
 DEFAULT_INTERVAL_S = 5.0
 MIN_INTERVAL_S = 0.1
+# A run whose checkpoint says running is rebuilt at least this often even when no artifact
+# changed, so the builder's idle-time "stalled" verdict can flip (a dead run writes nothing).
+STALL_RECHECK_S = 60.0
 PAGE = "floor.template.html"
 REPLAY_RUN_ID = "replay-mailroom-sample"
 REPLAY_DIR = ("data", "fixtures", "floor", "replay")
@@ -107,6 +110,8 @@ class DigestRefresher:
         self._lock = threading.Lock()  # the replay thread and the sweep thread may refresh concurrently
         self.builds = 0
         self.last_error: str | None = None
+        self._live_runs = False  # the last digest had a run whose checkpoint says running
+        self._built_at = 0.0
 
     def refresh(self) -> bool:
         """Rebuild if anything changed since the last good build; True when a build ran and succeeded.
@@ -122,16 +127,20 @@ class DigestRefresher:
     def _refresh(self) -> bool:
         """One refresh under ``_lock``; see :meth:`refresh` for semantics."""
         sig = scan_signature(self.base)
-        if sig == self._sig:
+        recheck = self._live_runs and time.monotonic() - self._built_at >= STALL_RECHECK_S
+        if sig == self._sig and not recheck:
             return False
         try:
-            build(self.base, self.out, self.graph_path)
+            result = build(self.base, self.out, self.graph_path)
         except Exception as exc:  # noqa: BLE001 — a transient read/replace failure must not kill the loop
             if self._sig is None and self.builds == 0:
                 raise
             self.last_error = f"{type(exc).__name__}: {exc}"
             return False
         self._sig, self.builds, self.last_error = sig, self.builds + 1, None
+        self._built_at = time.monotonic()
+        digest = result[0] if isinstance(result, tuple) and result and isinstance(result[0], dict) else {}
+        self._live_runs = any(r.get("checkpoint_state") == "running" for r in digest.get("runs") or [])
         return True
 
     def run(self, stop: threading.Event, interval: float) -> None:

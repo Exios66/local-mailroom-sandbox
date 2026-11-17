@@ -1,6 +1,7 @@
 """Gold-label gate, agreement and catalog (``mailroom_sandbox.gold_labels``)."""
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import sys
@@ -425,7 +426,8 @@ def cli(tmp_path, monkeypatch):
     sys.modules["gold_labels_cli"] = mod
     spec.loader.exec_module(mod)
     rows = [{"document_id": f"DOC-{i}", "filename": f"f{i}.txt", "expected": "correspondence",
-             "expected_subclass": "email", "content_sha256": f"{i}" * 8} for i in (1, 2)]
+             "expected_subclass": "email", "content_sha256": hashlib.sha256(EMAIL.encode()).hexdigest()}
+            for i in (1, 2)]
     texts = {"f1.txt": EMAIL, "f2.txt": EMAIL}
     monkeypatch.setattr(mod, "_load_corpus", lambda _corpus: (rows, texts))
     monkeypatch.setattr(mod, "_schema_binding", lambda revision: {"dataset_revision": revision})
@@ -830,3 +832,91 @@ def test_contractions_count_as_negation_on_both_sides():
     b = ["If you didn't get the invitation or can't attend, please let me know"]
     assert gl.values_agree(a, b, "entity_list")
     assert not gl.values_agree(["Pay the invoice"], ["Don't pay the invoice"], "entity_list")
+
+
+# --------------------------------------------------------------------------- bot-review fixes (PR #323)
+
+
+def test_a_malformed_comma_group_is_not_a_figure():
+    assert not _money(12.0, "$12,34").ok
+    assert _money(12340.0, "$12,340").ok
+
+
+def test_numbers_of_a_written_date_are_not_money_by_a_payment_word_alone():
+    for value in (2020.0, 14.0):
+        assert not _money(value, "Please pay by May 14, 2020").ok, value
+    assert not _money(2020.0, "Payment due 5/14/2020").ok
+    assert _money(500.0, "Please pay 500 by May 14, 2020").ok
+    assert _money(2020.0, "Please pay $2,020 by May 14, 2020").ok
+
+
+def test_unambiguous_day_first_hyphen_dates():
+    assert gl._date_supported("2001-03-27", "Date: 27-03-2001")
+    assert not gl._date_supported("2001-11-02", "Date: 02-11-2001")
+
+
+def test_an_accept_on_a_relabelled_field_must_name_the_current_value(cli, capsys):
+    _, write, build, tmp = cli
+    lab = write("lab.jsonl", [_s("DOC-1", "label", SENDER)])
+    new = {"sender": {"value": "Jane Roe, VP Finance, Acme Corp", "evidence": ["Jane Roe\nVP Finance, Acme Corp"]}}
+    ov = write("ov.jsonl", [{**_s("DOC-1", "label", new), "labeler": {"model": "relabel", "role": "label"}}])
+    stale = write("rv.jsonl", [{"doc_id": "DOC-1", "field": "sender", "verdict": "accept", "reviewer": OPUS}])
+    assert build("--label", lab, "--override", ov, "--review", stale) == 1
+    assert "does not name the current value" in capsys.readouterr().err
+    old = write("rv2.jsonl", [{"doc_id": "DOC-1", "field": "sender", "verdict": "accept", "reviewer": OPUS,
+                               "value": "Jane Roe"}])
+    assert build("--label", lab, "--override", ov, "--review", old) == 1
+    named = write("rv3.jsonl", [{"doc_id": "DOC-1", "field": "sender", "verdict": "accept", "reviewer": OPUS,
+                                 "value": "Jane Roe, VP Finance, Acme Corp"}])
+    assert build("--label", lab, "--override", ov, "--review", named) == 0
+    assert gl.read_jsonl(tmp / "gold" / "correspondence.jsonl")[0]["status"] == "near_gold"
+
+
+def test_a_date_must_sit_whole_in_one_quote():
+    text = "Sent May 14, 2019. Archived December 31, 2020."
+    res = gl.validate_submission(sub({"communication_date": {"value": "2020-05-14",
+                                                             "evidence": ["May 14", "2020"]}}), text, "correspondence")
+    assert not res.fields["communication_date"].ok
+    res = gl.validate_submission(sub({"communication_date": {"value": "2019-05-14",
+                                                             "evidence": ["May 14, 2019"]}}), text, "correspondence")
+    assert res.fields["communication_date"].ok
+
+
+def test_party_roles_agree_only_when_each_party_has_the_same_role():
+    ft = "entity_list:free_text"
+    a = ["Alpha Inc.: supplier", "Beta LLC: customer"]
+    assert not gl.values_agree(a, ["Alpha Inc.: customer", "Beta LLC: supplier"], ft)
+    assert gl.values_agree(a, ["Beta LLC: customer", "Alpha Inc: supplier"], ft)
+    assert gl.values_agree(["PRIMEEVERGY CORPORATION: other"], ["PRIMEEVERG CORPORATION: other"], ft)
+    assert not gl.values_agree(a, ["Alpha Inc.: supplier"], ft)
+    # Overlapping names pair by name first, so their roles cannot swap.
+    assert not gl.values_agree(["Alpha Inc: supplier", "Alpha Inc Services: customer"],
+                               ["Alpha Inc: customer", "Alpha Inc Services: supplier"], ft)
+    assert gl.values_agree(["Alpha Inc: supplier", "Alpha Inc Services: customer"],
+                           ["Alpha Inc Services: customer", "Alpha Inc: supplier"], ft)
+    # Ambiguous name pairings (a tie) never agree, in either list order.
+    left = ["Alpha Inc: supplier", "Alpha Inc Services: customer"]
+    right = ["Alpha Inc Services LLC: supplier", "Alpha: customer"]
+    assert not gl.values_agree(left, right, ft)
+    assert not gl.values_agree(left, right[::-1], ft)
+
+
+def test_build_refuses_missing_input_files_and_keeps_the_catalog(cli, capsys):
+    _, write, build, tmp = cli
+    lab = write("lab.jsonl", [_s("DOC-1", "label", RECIPIENT)])
+    assert build("--label", lab) == 0
+    before = (tmp / "gold" / "correspondence.jsonl").read_text()
+    assert build("--label", str(tmp / "missing.jsonl")) == 1
+    assert "input files not found" in capsys.readouterr().err
+    assert build("--label", lab, "--review", str(tmp / "nope.jsonl")) == 1
+    assert (tmp / "gold" / "correspondence.jsonl").read_text() == before
+
+
+def test_build_refuses_text_that_does_not_match_its_content_hash(cli, monkeypatch):
+    mod, write, build, _ = cli
+    rows = [{"document_id": "DOC-1", "filename": "f1.txt", "expected": "correspondence",
+             "expected_subclass": "email", "content_sha256": "0" * 64}]
+    monkeypatch.setattr(mod, "_load_corpus", lambda _corpus: (rows, {"f1.txt": EMAIL}))
+    lab = write("lab.jsonl", [_s("DOC-1", "label", RECIPIENT)])
+    with pytest.raises(SystemExit, match="does not match its content_sha256"):
+        build("--label", lab)
