@@ -784,6 +784,7 @@ def _persist_isolated_items(
                 "latency_ms": row.get("latency_ms"),
                 "prompt_tokens": row.get("prompt_tokens"),
                 "completion_tokens": row.get("completion_tokens"),
+                **({"usage_by_agent": row["usage_by_agent"]} if row.get("usage_by_agent") else {}),
                 "ts": utc_now(),
             }
         )

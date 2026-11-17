@@ -139,6 +139,23 @@ def api_price_sheets() -> dict[str, list[dict[str, float]]]:
     return {**API_PRICE_SHEETS, **_FILE_SHEETS}
 
 
+def _decision_sheet(model: str) -> list[dict[str, float]] | None:
+    """A one-tier sheet for a pinned Decisions-API model (``config/decision_models.yaml``).
+
+    Exact id or canonical slug only, so a new model never inherits a longer-named sibling's price
+    through the prefix match below. The Decisions API bills input tokens only.
+    """
+    try:
+        from mailroom_sandbox.decision_backends import decision_model
+
+        row = decision_model(model)
+    except Exception:  # noqa: BLE001 - pricing falls back to the other tables
+        return None
+    if not row or row.get("prompt") is None:
+        return None
+    return [{"min_prompt_tokens": 0, "prompt": float(row["prompt"]), "completion": 0.0}]
+
+
 def price_sheet(model: str | None) -> list[dict[str, float]] | None:
     """The tiered sheet for ``model`` (exact id, then a dated/suffixed id by prefix)."""
     if not model:
@@ -146,6 +163,8 @@ def price_sheet(model: str | None) -> list[dict[str, float]] | None:
     base = str(model).split(":", 1)[0]
     sheets = api_price_sheets()
     sheet = sheets.get(base)
+    if sheet is None:
+        sheet = _decision_sheet(str(model))
     if sheet is None:
         # Longest matching prefix, so "openai/gpt-6-luna-decisions-2026…" is not priced as gpt-6-luna.
         sheet = next((sheets[k] for k in sorted(sheets, key=len, reverse=True) if base.startswith(k)), None)

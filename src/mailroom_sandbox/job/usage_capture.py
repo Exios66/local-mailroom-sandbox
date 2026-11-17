@@ -85,6 +85,28 @@ def usage_from_openai_response(resp: Any) -> dict[str, int]:
     return out
 
 
+def usage_by_agent_from_pipeline() -> dict[str, dict[str, Any]]:
+    """The current thread's usage split by agent, ``{agent: {calls, prompt_tokens, completion_tokens, models}}``.
+
+    The vendored accumulator already keeps this split (``usage_summary()["by_agent"]``);
+    ``usage_from_pipeline`` collapses it to totals. Persisted per item as ``usage_by_agent`` so a
+    run's cost can be split by role (autoresearch). Empty when unavailable.
+    """
+    try:
+        from pipeline.limits import usage_summary
+
+        by_agent = (usage_summary() or {}).get("by_agent") or {}
+    except Exception:  # noqa: BLE001 - soft, like usage_from_pipeline
+        return {}
+    out: dict[str, dict[str, Any]] = {}
+    for agent, slot in by_agent.items():
+        out[str(agent)] = {"calls": int(slot.get("calls") or 0),
+                           "prompt_tokens": int(slot.get("prompt_tokens") or 0),
+                           "completion_tokens": int(slot.get("completion_tokens") or 0),
+                           "models": [str(m) for m in slot.get("models") or []]}
+    return out
+
+
 def merge_item_metrics(
     *,
     latency_ms: float | None = None,

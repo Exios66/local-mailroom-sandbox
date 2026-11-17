@@ -10,6 +10,17 @@ api_models:
   - qwen/qwen3.5-9b
   - qwen/qwen3.7-flash
   - deepseek/deepseek-v4-flash
+  - deepseek/deepseek-v4.1-flash-1017
+  - qwen/qwen3.7-plus
+  - minimax/minimax-m3
+  - z-ai/glm-5.3-flashx-legal
+  - deepseek/deepseek-v4-pro
+  - mistralai/mistral-large-4-0
+  - google/gemini-3.8-flash
+  - qwen/qwen4-max
+  - anthropic/claude-sonnet-5.5
+  - openai/gpt-6.1-sol
+  - google/gemini-4-carbon
   - openai/gpt-6-luna
   - openai/gpt-6-luna-decisions
 base_url: https://openrouter.ai/api/v1
