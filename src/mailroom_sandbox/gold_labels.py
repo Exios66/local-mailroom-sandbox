@@ -437,6 +437,119 @@ def _field_rule(name: str, value: Any, evidence: str = "") -> str | None:
     return None
 
 
+def _entry_quotes(entry: Mapping[str, Any]) -> list | None:
+    """The entry's evidence as a list of quotes (None = not a list or a string)."""
+    quotes = entry.get("evidence") or []
+    if isinstance(quotes, str):
+        quotes = [quotes]
+    return quotes if isinstance(quotes, list) else None
+
+
+def _finish_empty(res: FieldResult, entry: Mapping[str, Any], ftype: str, empty_value: Any) -> FieldResult:
+    """An empty value is valid only at the contract's empty value, with a stated absent reason."""
+    if not _is_empty(empty_value):
+        res.reason = f"empty value not allowed; contract empty value is {empty_value!r}"
+        return res
+    reason = (entry.get("absent") or "").strip() if isinstance(entry.get("absent"), str) else ""
+    if not reason:
+        res.reason = "empty value without an absent reason"
+        return res
+    res.value = [] if ftype.startswith("entity_list") else None
+    res.presence = "schema_documented_absence"
+    res.absent_reason = reason
+    res.ok = True
+    return res
+
+
+def _finish_unquoted(res: FieldResult, entry: Mapping[str, Any], value: Any,
+                     vocab: tuple[str, ...] | None, empty_value: Any) -> FieldResult:
+    """A value without evidence quotes: only a closed label at its contract default may stand."""
+    # A label at its contract default (urgency: routine) may rest on the absence of any
+    # time pressure; it still needs a stated basis.
+    if vocab is not None and value == empty_value and (entry.get("absent") or entry.get("basis")):
+        res.presence = "populated"
+        res.absent_reason = entry.get("absent") or entry.get("basis")
+        res.ok = True
+        return res
+    res.reason = "no evidence quote"
+    return res
+
+
+def _locate_quotes(res: FieldResult, quotes: list, ftype: str, doc_text: str) -> list | None:
+    """Locate every quote verbatim in the document (None = one failed; ``res`` says why)."""
+    spans = []
+    cap = MAX_LIST_QUOTE_CHARS if ftype.startswith("entity_list") else MAX_QUOTE_CHARS
+    for q in quotes:
+        if len(_WS.sub(" ", str(q)).strip()) > cap:
+            res.reason = f"evidence quote too long (over {cap} characters)"
+            res.checks["evidence_verbatim"] = False
+            return None
+        span = locate(str(q), doc_text)
+        if span is None:
+            res.reason = f"evidence not found verbatim: {str(q)[:80]!r}"
+            res.checks["evidence_verbatim"] = False
+            return None
+        spans.append(span)
+    return spans
+
+
+def _date_value_supported(res: FieldResult, value: Any, ev_text: str) -> bool | None:
+    if not isinstance(value, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+        res.reason = f"date not ISO YYYY-MM-DD: {value!r}"
+        return None
+    try:
+        date.fromisoformat(value)
+    except ValueError:
+        res.reason = f"invalid date: {value!r}"
+        return None
+    return _date_supported(value, ev_text)
+
+
+def _money_value_supported(res: FieldResult, value: Any, spans: list) -> bool | None:
+    if not isinstance(value, float) or not math.isfinite(value):
+        res.reason = f"money not a finite number: {value!r}"
+        return None
+    return any(_money_supported(value, sp["text"]) for sp in spans)
+
+
+def _label_value_supported(res: FieldResult, value: Any, empty_value: Any, spans: list) -> bool | None:
+    # Vocabulary already checked. A label other than its contract default must rest on a
+    # real sentence fragment, not on a single keyword.
+    supported = value == empty_value or any(len(_tokens(sp["text"])) >= MIN_LABEL_QUOTE_TOKENS for sp in spans)
+    if not supported:
+        res.checks["value_supported"] = False
+        res.reason = f"closed label needs an evidence quote of at least {MIN_LABEL_QUOTE_TOKENS} tokens"
+        return None
+    return supported
+
+
+def _list_value_supported(res: FieldResult, value: Any, ftype: str, ev_text: str) -> bool | None:
+    if not isinstance(value, list):
+        res.reason = "list field needs a list"
+        return None
+    need = 0.6 if "free_text" in ftype or ftype == "entity_list" else 0.8
+    return all(_token_coverage(v, ev_text) >= need for v in value)
+
+
+def _value_supported(res: FieldResult, value: Any, raw_value: Any, ftype: str, spans: list,
+                     ev_text: str, empty_value: Any, money_as_text: bool) -> bool | None:
+    """Whether the located evidence supports the value (None = a type rule failed; ``res`` says why)."""
+    if ftype == "date":
+        return _date_value_supported(res, value, ev_text)
+    if ftype == "money" and money_as_text:
+        # The pipeline field is a currency phrase (contract_value: str), kept as written.
+        return any(_money_text_supported(str(raw_value), sp["text"]) for sp in spans)
+    if ftype == "money":
+        return _money_value_supported(res, value, spans)
+    if ftype == "label":
+        return _label_value_supported(res, value, empty_value, spans)
+    if ftype.startswith("entity_list"):
+        return _list_value_supported(res, value, ftype, ev_text)
+    if ftype == "free_text":
+        return _token_coverage(str(value), ev_text) >= 0.6
+    return _token_coverage(str(value), ev_text) >= 0.8  # name, id
+
+
 def _check_field(name: str, entry: Mapping[str, Any], doc_text: str, ftype: str,
                  vocab: tuple[str, ...] | None, empty_value: Any, *, money_as_text: bool = False) -> FieldResult:
     res = FieldResult(field=name, ok=False, evidence=[], checks={})
@@ -446,10 +559,8 @@ def _check_field(name: str, entry: Mapping[str, Any], doc_text: str, ftype: str,
     raw_value = entry.get("value")
     value = _normalize(raw_value, ftype)
     res.value = value
-    quotes = entry.get("evidence") or []
-    if isinstance(quotes, str):
-        quotes = [quotes]
-    if not isinstance(quotes, list):
+    quotes = _entry_quotes(entry)
+    if quotes is None:
         res.reason = "evidence is not a list of quotes"
         return res
 
@@ -460,83 +571,20 @@ def _check_field(name: str, entry: Mapping[str, Any], doc_text: str, ftype: str,
             return res
 
     if _is_empty(value):
-        if not _is_empty(empty_value):
-            res.reason = f"empty value not allowed; contract empty value is {empty_value!r}"
-            return res
-        reason = (entry.get("absent") or "").strip() if isinstance(entry.get("absent"), str) else ""
-        if not reason:
-            res.reason = "empty value without an absent reason"
-            return res
-        res.value = [] if ftype.startswith("entity_list") else None
-        res.presence = "schema_documented_absence"
-        res.absent_reason = reason
-        res.ok = True
-        return res
-
+        return _finish_empty(res, entry, ftype, empty_value)
     if not quotes:
-        # A label at its contract default (urgency: routine) may rest on the absence of any
-        # time pressure; it still needs a stated basis.
-        if vocab is not None and value == empty_value and (entry.get("absent") or entry.get("basis")):
-            res.presence = "populated"
-            res.absent_reason = entry.get("absent") or entry.get("basis")
-            res.ok = True
-            return res
-        res.reason = "no evidence quote"
-        return res
+        return _finish_unquoted(res, entry, value, vocab, empty_value)
 
-    spans = []
-    cap = MAX_LIST_QUOTE_CHARS if ftype.startswith("entity_list") else MAX_QUOTE_CHARS
-    for q in quotes:
-        if len(_WS.sub(" ", str(q)).strip()) > cap:
-            res.reason = f"evidence quote too long (over {cap} characters)"
-            res.checks["evidence_verbatim"] = False
-            return res
-        span = locate(str(q), doc_text)
-        if span is None:
-            res.reason = f"evidence not found verbatim: {str(q)[:80]!r}"
-            res.checks["evidence_verbatim"] = False
-            return res
-        spans.append(span)
+    spans = _locate_quotes(res, quotes, ftype, doc_text)
+    if spans is None:
+        return res
     res.checks["evidence_verbatim"] = True
     res.evidence = spans
     ev_text = " ".join(s["text"] for s in spans)
 
-    if ftype == "date":
-        if not isinstance(value, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
-            res.reason = f"date not ISO YYYY-MM-DD: {value!r}"
-            return res
-        try:
-            date.fromisoformat(value)
-        except ValueError:
-            res.reason = f"invalid date: {value!r}"
-            return res
-        supported = _date_supported(value, ev_text)
-    elif ftype == "money" and money_as_text:
-        # The pipeline field is a currency phrase (contract_value: str), kept as written.
-        supported = any(_money_text_supported(str(raw_value), sp["text"]) for sp in spans)
-    elif ftype == "money":
-        if not isinstance(value, float) or not math.isfinite(value):
-            res.reason = f"money not a finite number: {value!r}"
-            return res
-        supported = any(_money_supported(value, sp["text"]) for sp in spans)
-    elif ftype == "label":
-        # Vocabulary already checked. A label other than its contract default must rest on a
-        # real sentence fragment, not on a single keyword.
-        supported = value == empty_value or any(len(_tokens(sp["text"])) >= MIN_LABEL_QUOTE_TOKENS for sp in spans)
-        if not supported:
-            res.checks["value_supported"] = False
-            res.reason = f"closed label needs an evidence quote of at least {MIN_LABEL_QUOTE_TOKENS} tokens"
-            return res
-    elif ftype.startswith("entity_list"):
-        if not isinstance(value, list):
-            res.reason = "list field needs a list"
-            return res
-        need = 0.6 if "free_text" in ftype or ftype == "entity_list" else 0.8
-        supported = all(_token_coverage(v, ev_text) >= need for v in value)
-    elif ftype == "free_text":
-        supported = _token_coverage(str(value), ev_text) >= 0.6
-    else:  # name, id
-        supported = _token_coverage(str(value), ev_text) >= 0.8
+    supported = _value_supported(res, value, raw_value, ftype, spans, ev_text, empty_value, money_as_text)
+    if supported is None:
+        return res
     res.checks["value_supported"] = supported
     if not supported:
         res.reason = "value not supported by its evidence"
@@ -845,6 +893,53 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
 _SUPPLEMENTARY_KINDS = ("gate_reject", "review_rejected", "notes")
 
 
+def _verify_supplementary_row(rec: Mapping[str, Any], where: str) -> list[str]:
+    problems = []
+    if rec.get("kind") not in _SUPPLEMENTARY_KINDS:
+        problems.append(f"{where}: unknown supplementary kind {rec.get('kind')!r}")
+    if rec.get("use_as_truth"):
+        problems.append(f"{where}: supplementary row claims use_as_truth")
+    return problems
+
+
+def _verify_gold_row(rec: Mapping[str, Any], where: str, seen_ids: dict[str, str]) -> list[str]:
+    problems = []
+    label_id = rec.get("label_id")
+    if label_id is not None:
+        if label_id in seen_ids:
+            problems.append(f"{where}: duplicate label_id {label_id} (also {seen_ids[label_id]})")
+        else:
+            seen_ids[label_id] = where
+    if rec.get("status") not in STATUSES:
+        problems.append(f"{where}: unknown status {rec.get('status')!r}")
+    if rec.get("use_as_truth") != (rec.get("status") in TRUTH_STATUSES):
+        problems.append(f"{where}: use_as_truth does not follow status")
+    if rec.get("presence") == "populated" and not rec.get("evidence") and not rec.get("absent_reason"):
+        problems.append(f"{where}: populated without evidence")
+    if rec.get("status") == "near_gold":
+        why = _near_gold_problem(rec)
+        if why:
+            problems.append(f"{where}: near_gold {why}")
+    return problems
+
+
+def _verify_manifest_file(directory: Path, name: str, sha: str, supplementary: bool,
+                          seen_ids: dict[str, str]) -> list[str]:
+    path = directory / name
+    if not path.is_file():
+        return [f"{name}: listed but missing"]
+    problems = []
+    if _sha(path.read_text(encoding="utf-8")) != sha:
+        problems.append(f"{name}: sha256 does not match MANIFEST")
+    for rec in read_jsonl(path):
+        where = f"{rec.get('doc_id')}.{rec.get('field')}"
+        if supplementary:
+            problems += _verify_supplementary_row(rec, where)
+        else:
+            problems += _verify_gold_row(rec, where, seen_ids)
+    return problems
+
+
 def verify_catalog(directory: Path) -> list[str]:
     """Integrity problems in a catalog directory (empty list = consistent).
 
@@ -866,36 +961,7 @@ def verify_catalog(directory: Path) -> list[str]:
         problems.append(f"{name}: not in MANIFEST")
     seen_ids: dict[str, str] = {}
     for name, sha in listed.items():
-        path = directory / name
-        if not path.is_file():
-            problems.append(f"{name}: listed but missing")
-            continue
-        if _sha(path.read_text(encoding="utf-8")) != sha:
-            problems.append(f"{name}: sha256 does not match MANIFEST")
-        for rec in read_jsonl(path):
-            where = f"{rec.get('doc_id')}.{rec.get('field')}"
-            if supplementary:
-                if rec.get("kind") not in _SUPPLEMENTARY_KINDS:
-                    problems.append(f"{where}: unknown supplementary kind {rec.get('kind')!r}")
-                if rec.get("use_as_truth"):
-                    problems.append(f"{where}: supplementary row claims use_as_truth")
-                continue
-            label_id = rec.get("label_id")
-            if label_id is not None:
-                if label_id in seen_ids:
-                    problems.append(f"{where}: duplicate label_id {label_id} (also {seen_ids[label_id]})")
-                else:
-                    seen_ids[label_id] = where
-            if rec.get("status") not in STATUSES:
-                problems.append(f"{where}: unknown status {rec.get('status')!r}")
-            if rec.get("use_as_truth") != (rec.get("status") in TRUTH_STATUSES):
-                problems.append(f"{where}: use_as_truth does not follow status")
-            if rec.get("presence") == "populated" and not rec.get("evidence") and not rec.get("absent_reason"):
-                problems.append(f"{where}: populated without evidence")
-            if rec.get("status") == "near_gold":
-                why = _near_gold_problem(rec)
-                if why:
-                    problems.append(f"{where}: near_gold {why}")
+        problems += _verify_manifest_file(directory, name, sha, supplementary, seen_ids)
     return problems
 
 
