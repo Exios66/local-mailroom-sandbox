@@ -216,6 +216,11 @@ sandbox metrics compare --log
 
 Exit codes: `0` done · `1` failed · `2` paused · `3` drift/busy/foreign-store refusal.
 
+Two preflight guards keep a run's lock honest about what ran (SAND-104, #312):
+
+- **Unknown keys fail.** Every run-spec section rejects keys it does not know, so a typo, or an older checkout that predates a key such as `dataset.exclude_ids_file`, fails validation instead of silently drawing a different slice.
+- **The `checkout` check.** It fails when the imported `mailroom_sandbox` code lives in a different git checkout from the one the run is launched from. That happens in a worktree whose `.venv` links to the main checkout. Fix it with `export PYTHONPATH="$PWD/src"`, or set `SANDBOX_ALLOW_FOREIGN_CHECKOUT=1` to accept it deliberately. A cwd outside any git checkout passes. The lock records the code's checkout as `package: {path, commit}`, next to the cwd's `git` snapshot.
+
 `sandbox run gate` has its own exit codes: `0` pass, `2` a FAIL verdict, and `1` with a JSON `failed` status when the gate cannot judge the run (the run is missing or never started, the bars file is invalid, or the scorer fails). The slice loop it gates (preflight → start → gate → fix → re-run → step up) is in [`docs/runbooks/production-slices.md`](runbooks/production-slices.md).
 
 **Routing audit.** `sandbox run routing` reads a finished store and reports, per

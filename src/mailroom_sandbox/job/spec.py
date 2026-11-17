@@ -87,6 +87,8 @@ class InvalidRunIdError(ValueError):
 class PromptRef(BaseModel):
     """One agent's prompt resolution: local file-, Langfuse pin, or code default."""
 
+    model_config = {"extra": "forbid"}
+
     source: Literal["local", "langfuse", "code-default"] = "code-default"
     file: str | None = None  # config/prompts/<file>.txt stem
     name: str | None = None  # Langfuse managed name (default: mailroom-<agent>)
@@ -113,6 +115,8 @@ class PromptRef(BaseModel):
 
 class DatasetSpec(BaseModel):
     """HF dataset (full corpus or subset) or a local JSONL file."""
+
+    model_config = {"extra": "forbid"}
 
     provider: Literal["huggingface", "file"] = "huggingface"
     repo: str = HF_DEFAULT_REPO
@@ -356,6 +360,8 @@ class VLLMSpec(BaseModel):
     export matching ``MODAL_VLLM_MAX_NUM_SEQS`` at deploy time.
     """
 
+    model_config = {"extra": "forbid"}
+
     max_model_len: int = 16384
     gpu_memory_utilization: float = 0.90
     max_num_seqs: int = 6
@@ -432,6 +438,8 @@ class ModalSpec(BaseModel):
     ``gpu=L4:2`` + tensor parallel for 8B-class models that fit on one L4.
     """
 
+    model_config = {"extra": "forbid"}
+
     app: str = "sandbox-vllm"
     gpu: str = "L4"
     image_tag: str = "v0.29.0"
@@ -501,6 +509,7 @@ MODEL_SERVE_DEFAULTS: dict[str, dict[str, Any]] = {
 
 
 class EngineSpec(BaseModel):
+    model_config = {"extra": "forbid"}
     kind: Literal["vllm-local", "vllm-remote", "modal-vllm", "openrouter"] = "modal-vllm"
     model: str = DEFAULT_ENGINE_MODEL
     vllm: VLLMSpec = Field(default_factory=VLLMSpec)
@@ -595,6 +604,7 @@ def _check_task(value: str) -> str:
 
 
 class JobSpec(BaseModel):
+    model_config = {"extra": "forbid"}
     mode: Literal["endpoint", "modal"] = "endpoint"
     task: str = "sorter"
     mock: bool = True
@@ -753,6 +763,7 @@ class ReviewerSpec(BaseModel):
 
 
 class TraceSpec(BaseModel):
+    model_config = {"extra": "forbid"}
     sink: Literal["langfuse", "phoenix", "otlp", "none"] = "langfuse"
     otlp: bool = True
     endpoint: str | None = None
@@ -840,7 +851,7 @@ class RunSpec(BaseModel):
     # confidence scale differs between Qwen on OpenRouter and a Modal-served 9B.
     confidence: dict[str, Any] = Field(default_factory=dict)
 
-    model_config = {"populate_by_name": True}
+    model_config = {"populate_by_name": True, "extra": "forbid"}
 
     @field_validator("confidence")
     @classmethod
