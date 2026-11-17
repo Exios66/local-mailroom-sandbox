@@ -237,3 +237,41 @@ def test_seam_keys_track_the_vendored_engine_and_the_merger_agent():
     assert merger == agent - {"reasoning", "confidence"}
     # And the dojo's CUAD leftovers must not creep back into the merger score.
     assert not merger & {"term_length", "cuad_family", "cuad_clauses", "contract_value", "renewal_terms"}
+
+
+# Fields the vendored schema declares that the sandbox deliberately leaves out of a class.
+_DELIBERATELY_UNSCORED = {
+    # Dojo 0.28 contract schema v2: these belong to merger_agreement.
+    "contract": {"merger_consideration", "maud_clauses"},
+    # llm-mailroom #283 emits it, but the Dojo insurance suite (025400f) has no class-level
+    # field type for it, and the seam must equal the engine (test above). The Dojo scores it
+    # only through its CMS subtype schema. Scoring it here waits on the Dojo.
+    "insurance_claim": {"cms_source_table"},
+}
+
+
+def test_live_schema_fields_track_the_vendored_extraction_schemas():
+    """A vendor refresh that adds a field (e.g. llm-mailroom #283 cms_source_table) must not be silently unscored."""
+    import importlib
+
+    import sys
+
+    from mailroom_sandbox.paths import vendored_mailroom_src
+
+    src = str(vendored_mailroom_src())
+    if src not in sys.path:
+        sys.path.insert(0, src)
+    schemas = importlib.import_module("schemas.documents").EXTRACTION_SCHEMAS
+    for doc_class, live in LIVE_SCHEMA_FIELDS.items():
+        declared = set(schemas[doc_class].model_fields) - {"reasoning", "confidence"}
+        assert declared - _DELIBERATELY_UNSCORED.get(doc_class, set()) == set(live), doc_class
+
+
+
+def test_cms_source_table_stays_out_until_the_dojo_suite_scores_it():
+    from llm_dojo_scoring import suite_for_doc_type
+
+    assert "cms_source_table" not in set(suite_for_doc_type("insurance_claim").field_types or {})
+    pred, exp = scope_extraction_pair("insurance_claim", {"claim_type": "health", "cms_source_table": "pde"},
+                                      {"claim_type": "health", "cms_source_table": "pde"})
+    assert pred == exp == {"claim_type": "health"}

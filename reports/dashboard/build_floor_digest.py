@@ -3,7 +3,8 @@
 
 Reads (never writes) run directories under ``$BASE/runtime/runs/*`` (live) and
 ``$BASE/run-history/*`` (archived attempts), plus the vendored LangGraph wiring in
-``vendor/llm-mailroom/src/graph/build_graph.py``, and emits:
+``vendor/llm-mailroom/src/graph/build_graph.py`` (with the edge table in ``route_spec.py``
+beside it when ``build_graph()`` calls ``wire_edges``, llm-mailroom #286), and emits:
 
 * ``floor_digest.json`` — the frozen digest contract consumed by ``floor.template.html``
 * ``floor_digest.js``   — ``window.DIGEST=<same json>;`` twin for file:// viewing
@@ -78,7 +79,8 @@ LANE_LABEL = "(abort terminal)"
 SPECIALIST_LABEL = "specialists (fan inside node)"
 
 GRAPH_NOTE = (
-    "Parsed from build_graph.py (read-only): add_edge pairs plus add_conditional_edges route "
+    "Parsed from build_graph.py and, when it calls wire_edges, route_spec.py (read-only): add_edge "
+    "pairs plus add_conditional_edges / RouteSpec route "
     "maps whose values name registered nodes; START entry routes are included. Transient "
     "self-loops (edges where source==target) are EXCLUDED from the drawn set; their fires "
     "still count toward the node, never toward an edge. A route key that maps to END (e.g. "
@@ -171,7 +173,8 @@ def _route_spec_edges(path: Path) -> tuple[list[tuple[str | None, list[tuple[str
     ``graph/route_spec.py``: ``ROUTE_SPECS`` holds ``RouteSpec(node, router, destinations)``
     (``destinations`` a dict literal or ``_same("a", "b")``, which maps each name to
     itself) and ``PLAIN_EDGES`` a tuple of ``(source, target)`` pairs. Returns None when
-    the file is absent or declares neither table.
+    the file is absent or declares neither table, and raises DigestError for a table
+    or ``RouteSpec`` entry it cannot read literally, so a partial topology never ships.
     """
     spec_path = Path(path).with_name("route_spec.py")
     if not spec_path.is_file():
@@ -187,20 +190,30 @@ def _route_spec_edges(path: Path) -> tuple[list[tuple[str | None, list[tuple[str
             tables[target.id] = n.value
     if not tables:
         return None
+    def unreadable(what: str) -> DigestError:
+        return DigestError(f"{spec_path}: cannot read {what} literally; update build_floor_digest._route_spec_edges",
+                           EXIT_GRAPH)
+
+    for name, value in tables.items():
+        if not isinstance(value, (ast.Tuple, ast.List)):
+            raise unreadable(name)
     conditional: list[tuple[str | None, list[tuple[str | None, str | None]]]] = []
     for call in getattr(tables.get("ROUTE_SPECS"), "elts", []):
         if not (isinstance(call, ast.Call) and _call_name(call) == "RouteSpec" and len(call.args) >= 3):
-            continue
+            raise unreadable("a ROUTE_SPECS entry")
         dest = call.args[2]
         if isinstance(dest, ast.Dict):
             pairs = [(_sym(k), _sym(v)) for k, v in zip(dest.keys, dest.values)]
         elif isinstance(dest, ast.Call) and _call_name(dest) == "_same":
             pairs = [(_sym(a), _sym(a)) for a in dest.args]
         else:
-            continue
+            raise unreadable("a RouteSpec destination map")
         conditional.append((_sym(call.args[0]), pairs))
-    plain = [(_sym(t.elts[0]), _sym(t.elts[1])) for t in getattr(tables.get("PLAIN_EDGES"), "elts", [])
-             if isinstance(t, ast.Tuple) and len(t.elts) == 2]
+    plain: list[tuple[str | None, str | None]] = []
+    for t in getattr(tables.get("PLAIN_EDGES"), "elts", []):
+        if not (isinstance(t, ast.Tuple) and len(t.elts) == 2):
+            raise unreadable("a PLAIN_EDGES entry")
+        plain.append((_sym(t.elts[0]), _sym(t.elts[1])))
     return conditional, plain
 
 
@@ -275,10 +288,13 @@ def parse_graph(path: Path) -> dict:
             if isinstance(mapping, ast.Dict):
                 conditional(_sym(c.args[0]), [(_sym(k), _sym(v)) for k, v in zip(mapping.keys, mapping.values)])
 
-    if not edges and registered:
+    if any(isinstance(n, ast.Call) and _call_name(n) == "wire_edges" for n in ast.walk(tree)):
         # llm-mailroom #286: build_graph() registers the nodes, route_spec.py declares the edges.
         declared = _route_spec_edges(path)
-        if declared is not None:
+        if declared is None:
+            raise DigestError(f"{path}: wire_edges() is called but no readable route_spec.py sits beside it",
+                              EXIT_GRAPH)
+        else:
             for src, pairs in declared[0]:
                 conditional(src, pairs)
             for a, b in declared[1]:

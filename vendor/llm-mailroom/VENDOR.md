@@ -24,8 +24,7 @@ llm-mailroom `main` at the #287 merge (`8cebcd8`), the first `main` commit with 
 - **#282, #288, #290, #292:** CI, test isolation and review fixes.
 
 Previous pin: `f83e3987cf9842ebf1e3f8778e0bb6e1d869c135`, the `v0.30.0` branch head at the llm-mailroom #281 merge.
-It declares Dojo `025400f`. Against `63f6841`: It declares Dojo `025400f`
-(package 0.30.1, the llm-dojo-scoring #173 merge), the commit vendored here. Against `63f6841`:
+It declares Dojo `025400f` (package 0.30.1, the llm-dojo-scoring #173 merge). Against `63f6841`:
 
 - **#280 (#174 §2):** the insurance `claim_type` is the product line. The structured-output
   description (`CLAIM_TYPE_DESCRIPTION`) now asks for one of `auto`, `property`, `liability`,
