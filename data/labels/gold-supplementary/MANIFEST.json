@@ -8,7 +8,7 @@
     "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
   },
   "builder": "scripts/gold_labels.py build",
-  "built_at": "2026-11-17T21:13:56Z",
+  "built_at": "2026-11-17T21:23:54Z",
   "counts": {
     "contract": {
       "-": {
@@ -56,7 +56,7 @@
   "files": {
     "contract.jsonl": "e806499c8395815e0a7d4c612116770c3b4f3dee8594b8e946854d4d8d29bc0e",
     "corporate_record.jsonl": "e72a8a0451e0490db2d561dfe3af33e71c9f0fe5816196be43845f4ceed4cae4",
-    "correspondence.jsonl": "c168d076c37cb22811eb3b5eea4ec78bf8af32df032c763518f908254566e5a2"
+    "correspondence.jsonl": "64f472cc3fff363fa13ca858bf85de094a9281d92ccb43c8358d12691ea877b7"
   },
   "note": "Supplementary labeler output. Never ground truth; no scorer reads it.",
   "schema": "mailroom-gold-supplementary/v1",
