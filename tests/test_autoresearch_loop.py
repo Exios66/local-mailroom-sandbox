@@ -1399,6 +1399,70 @@ def test_the_key_spend_guard_compares_with_the_first_reading_across_processes(tm
     assert again.run(1)[1] != "key_spend"                               # 50 - 48 + 1 <= 5
 
 
+def _key_start_file(loop):
+    return json.loads((loop.dir / "key_start.json").read_text())
+
+
+def test_a_different_key_rebaselines_the_key_start_instead_of_inheriting_the_old_balance(tmp_path):
+    """A fresh checkout with another key loaded the committed key_start.json: 50 - 10 + 1 > 5 stopped the study as key_spend."""
+    first, fake, _ = make(tmp_path, {"levers": [reviewer_lever("a"), reviewer_lever("b", cutoff=0.2)]}, mock=False,
+                          key_remaining=lambda: 50.0, key_identity=lambda: "key-a")
+    first.run(1)
+    assert _key_start_file(first)["key_identity"] == "key-a"
+    shown = []
+    other = lp.Loop(first.study, fake, state_dir=first.dir, out=shown.append, key_remaining=lambda: 10.0, key_identity=lambda: "key-b")
+    assert other.run(1)[1] != "key_spend"
+    data = _key_start_file(other)
+    assert data["key_remaining_at_start"] == 10.0 and data["key_identity"] == "key-b"
+    assert any("different key" in line for line in shown)
+    warnings = [r for r in other.ledger.rows() if r["decision"] == "warning" and r["lever"] == "key_baseline"]
+    assert len(warnings) == 1 and "different key" in warnings[0]["reasons"][0]
+
+
+def test_the_same_key_keeps_its_first_reading_even_when_it_is_named(tmp_path):
+    first, fake, _ = make(tmp_path, {"levers": [reviewer_lever("a"), reviewer_lever("b", cutoff=0.2)]}, mock=False,
+                          key_remaining=lambda: 50.0, key_identity=lambda: "key-a")
+    first.run(1)
+    again = lp.Loop(first.study, fake, state_dir=first.dir, out=lambda s: None, key_remaining=lambda: 44.5, key_identity=lambda: "key-a")
+    assert again.run(1)[1] == "key_spend" and _key_start_file(again)["key_remaining_at_start"] == 50.0
+
+
+def test_a_key_with_more_left_than_the_recorded_start_is_a_new_baseline(tmp_path):
+    """An unnamed (older) key_start.json cannot say whose it is, but a key cannot have gained balance by being spent."""
+    first, fake, _ = make(tmp_path, {"levers": [reviewer_lever("a"), reviewer_lever("b", cutoff=0.2)]}, mock=False,
+                          key_remaining=lambda: 20.0)
+    first.run(1)
+    assert "key_identity" not in _key_start_file(first)
+    shown = []
+    other = lp.Loop(first.study, fake, state_dir=first.dir, out=shown.append, key_remaining=lambda: 30.0)
+    other.run(1)
+    assert _key_start_file(other)["key_remaining_at_start"] == 30.0 and any("more left" in line for line in shown)
+
+
+def test_a_key_start_file_without_an_identity_adopts_the_current_key_and_says_so(tmp_path):
+    first, fake, _ = make(tmp_path, {"levers": [reviewer_lever("a"), reviewer_lever("b", cutoff=0.2)]}, mock=False,
+                          key_remaining=lambda: 50.0)
+    first.run(1)
+    shown = []
+    named = lp.Loop(first.study, fake, state_dir=first.dir, out=shown.append, key_remaining=lambda: 49.0, key_identity=lambda: "key-a")
+    named.run(1)
+    data = _key_start_file(named)
+    assert data["key_remaining_at_start"] == 50.0 and data["key_identity"] == "key-a" and any("no key identity" in line for line in shown)
+
+
+def test_the_key_identity_is_a_digest_of_the_keys_label_and_never_the_key(monkeypatch):
+    from mailroom_sandbox.job import spend
+
+    monkeypatch.setattr(spend, "key_headroom", lambda: {"label": "ci-key", "limit_remaining": 5.0})
+    identity = lp.openrouter_key_identity()
+    assert identity and identity != "ci-key" and KEY not in identity and len(identity) == 16
+    assert lp.openrouter_key_identity() == identity
+    monkeypatch.setattr(spend, "key_headroom", lambda: {"label": None})
+    assert lp.openrouter_key_identity() is None
+    monkeypatch.setattr(spend, "key_headroom", lambda: (_ for _ in ()).throw(RuntimeError("down")))
+    assert lp.openrouter_key_identity() is None                       # an unreadable identity never stops a round on its own
+
+
 @pytest.mark.parametrize("reading", [float("nan"), float("inf"), "x"])
 def test_a_non_finite_key_reading_fails_closed(tmp_path, reading):
     loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("a")]}, mock=False, key_remaining=lambda: reading)

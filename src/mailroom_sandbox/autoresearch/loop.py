@@ -286,6 +286,26 @@ def openrouter_key_remaining() -> float | None:
     return None if remaining is None else float(remaining)
 
 
+def openrouter_key_identity() -> str | None:
+    """A non-secret identity of the OpenRouter key: a digest prefix of the ``label`` ``GET /api/v1/key`` returns.
+
+    Never the key, nor a hash of it: the label is the name the key carries in the OpenRouter account (OpenRouter may
+    show a default label as a masked form of the key, which is why only a 16-hex digest of it is kept). ``None`` when
+    the label is absent or unreadable: an unknown identity never stops a round on its own.
+    """
+    import hashlib
+
+    from mailroom_sandbox.job.spend import key_headroom
+
+    try:
+        label = key_headroom().get("label")
+    except Exception:  # noqa: BLE001 - identity is advisory; the remaining-limit read is the one that fails closed
+        return None
+    if not isinstance(label, str) or not label.strip():
+        return None
+    return hashlib.sha256(label.strip().encode("utf-8")).hexdigest()[:16]
+
+
 # ---- the ledger ----------------------------------------------------------------------------------------
 
 class Ledger:
@@ -502,7 +522,7 @@ class StepResult:
 
 class Loop:
     def __init__(self, study: Study, executor: Executor | None, *, key_remaining: Callable[[], float | None] | None = None,
-                 env: Mapping[str, str] | None = None, state_dir: Path | None = None, out: Callable[[str], Any] = print,
+                 key_identity: Callable[[], str | None] | None = None, env: Mapping[str, str] | None = None, state_dir: Path | None = None, out: Callable[[str], Any] = print,
                  git_head: Callable[[Path], str | None] | None = None, clock: Callable[[], datetime] | None = None):
         self.study = study
         self.executor = executor
@@ -511,6 +531,10 @@ class Loop:
         self.ledger = Ledger(self.dir / "ledger.jsonl")
         self.out = out
         self._key_remaining = key_remaining
+        # With the real key reader the identity is read once per process; an injected reader without one has none.
+        self._key_identity = key_identity if key_identity is not None else (openrouter_key_identity if key_remaining is None else None)
+        self._identity_read = False
+        self._identity: str | None = None
         self._git_head = git_head or _git_head
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._catalog: lv.Catalog | None = None
@@ -659,7 +683,7 @@ class Loop:
             return "key_unreadable"
         if not math.isfinite(remaining):
             return "key_unreadable"
-        start = self._key_start(remaining)
+        start = self._key_start(remaining, state)
         self._key_info = {"key_remaining_before": remaining, "key_remaining_at_start": start}
         if not (remaining - cap >= budget.min_key_remaining_usd):
             return "key_low"
@@ -705,21 +729,66 @@ class Loop:
             fh.flush()
             os.fsync(fh.fileno())
 
-    def _key_start(self, remaining: float) -> float:
-        """The study's first ``limit_remaining`` reading: persisted once (``key_start.json``), then read back."""
+    def _current_key_identity(self) -> str | None:
+        if not self._identity_read:
+            self._identity_read = True
+            try:
+                self._identity = self._key_identity() if self._key_identity is not None else None
+            except Exception:  # noqa: BLE001 - advisory: an unreadable identity is an unknown one
+                self._identity = None
+        return self._identity
+
+    def _key_start(self, remaining: float, state: State) -> float:
+        """The study's first ``limit_remaining`` reading: persisted once (``key_start.json``), then read back.
+
+        The file also names the key it was read from (``key_identity``, a digest of the key's label; never the key). A
+        study carried to another checkout or key must not inherit the old key's balance, or ``key_spend`` would judge
+        the new key against a number that was never its own: the reading is taken again, with a warning, when the file
+        names another key or when the key has more left than the recorded start (a key cannot gain balance by being
+        spent: another key, a top-up or a limit reset). A file without an identity adopts the current key as its owner.
+        """
         path = self.dir / "key_start.json"
+        identity = self._current_key_identity()
+        stamp = self._clock().strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        def write(value: float, recorded_at: str = stamp, **extra: Any) -> None:
+            _atomic_write(path, json.dumps({"key_remaining_at_start": value, "recorded_at": recorded_at,
+                                            **({"key_identity": identity} if identity else {}), **extra}))
+
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
             value = float(data["key_remaining_at_start"])
             if not math.isfinite(value):
                 raise ValueError("not finite")
-            return value
+            stored = data.get("key_identity")
+            if not isinstance(stored, (str, type(None))):
+                raise ValueError("bad identity")
         except FileNotFoundError:
-            _atomic_write(path, json.dumps({"key_remaining_at_start": remaining, "recorded_at": self._clock().strftime("%Y-%m-%dT%H:%M:%SZ")}))
+            write(remaining)
             return remaining
         except (OSError, ValueError, KeyError, TypeError):
             raise AutoresearchError(f"{path}: unreadable; it holds the key's first reading of this study (the bill-grounded "
                                     "spend guard). Fix it or move it aside to start the study's key accounting again") from None
+        if identity and stored and identity != stored:
+            why = f"key_start.json was read from a different key (its balance then: {value:g} USD)"
+        elif remaining > value + 1e-9:
+            why = (f"the key has more left now ({remaining:g} USD) than key_start.json recorded at the study's start "
+                   f"({value:g} USD): another key, a top-up or a limit reset")
+        else:
+            if identity and not stored:
+                self._warn_key_baseline(state, "key_start.json has no key identity (it predates it): the current key is adopted "
+                                               "as its owner. If this is not the study's original key, move the file aside")
+                write(value, str(data.get("recorded_at") or stamp))
+            return value
+        self._warn_key_baseline(state, f"{why}; the study's key accounting starts again from {remaining:g} USD "
+                                       "(the ledger still bounds the study's own spend)")
+        write(remaining, replaced_start=value)
+        return remaining
+
+    def _warn_key_baseline(self, state: State, message: str) -> None:
+        self.out(f"warning: {message}")
+        self._row(state, round=None, lever="key_baseline", run_id=None, decision="warning", reasons=[message],
+                  cost_usd=0.0, goal="quality")
 
     def _warn_unlimited_key(self, state: State) -> None:
         """A key with no spend limit cannot bound the study: say so (ledger once, console once per process)."""
