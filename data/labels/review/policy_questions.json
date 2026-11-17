@@ -1,0 +1,46 @@
+{
+ "group": {
+  "q": "Is a named group in the salutation the recipient?",
+  "why": "The guide counts a named group addressee ('Dear GISB Members') as the recipient and a generic salutation as empty. These salutations sit on the line: decide whether each one names a defined group."
+ },
+ "bulk": {
+  "q": "Do optional asks in bulk mail count?",
+  "why": "Bulk and promotional mail has no action items and routine urgency under the guide. These are association, exchange or event mailings whose asks (RSVP, enroll, file a claim within 10 days) apply only to readers who opt in."
+ },
+ "soft": {
+  "q": "Is this wording a task for the reader?",
+  "why": "Each label lists a sentence that might not be a request: a soft question, a suggestion, a pointer to read, or a cancellation."
+ },
+ "urgency": {
+  "q": "Time-sensitive or routine?",
+  "why": "Each has a date or 'ASAP' nearby, but it is unclear whether it puts pressure on the reader."
+ },
+ "fwd": {
+  "q": "Do a forwarder's 'Please handle' and the quoted asks merge?",
+  "why": "The top note asks the reader to act on the forwarded mail, so the quoted asks may be the real tasks."
+ },
+ "other": {
+  "q": "Other",
+  "why": ""
+ },
+ "compiled": {
+  "q": "Compiled filings: which record do the labels describe?",
+  "why": "These files bundle several records (articles plus later amendments, several powers of attorney, several issuers). The label describes the first record; the note names what the later ones add. Keep the first record, or take the suggestion."
+ },
+ "printed": {
+  "q": "Do printed names without /s/ or a filled signature line count as signatories?",
+  "why": "The guide says 'as printed in the execution block'. In these copies some names are typed under blank signature lines, marked '*' as previously filed, or named only in the opening paragraph. Keep the printed names, or take the stricter reading."
+ },
+ "datekind": {
+  "q": "'Effective upon filing' with no filing date, or only an as-of date: date or null?",
+  "why": "No effective, adoption or filing date is stated. The label uses the signing or as-of reporting date; null is the strict reading."
+ },
+ "intent": {
+  "q": "Which intent fits?",
+  "why": "The Hub heuristic and the extraction gate disagree, and both readings fit the message. Pick the primary purpose."
+ },
+ "renewal": {
+  "q": "Does a renewal only by mutual agreement count as renewal_terms?",
+  "why": "Each contract says it 'may be renewed' or 'extended' only if both parties agree. CUAD's Renewal Term marks none of them (CUAD tags automatic renewals). Keep the gate value, or set null."
+ }
+}
