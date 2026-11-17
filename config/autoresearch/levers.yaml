@@ -5,6 +5,13 @@
 # row the lever answers (sorter, reviewer, intake, judge, arbiter, boss or a *_specialist); the loop tries levers
 # attached to the champion's worst node first, then lower `tier` first, then catalog order.
 #
+# ROUND CAPS: a round runs under job.api_cost_cap_usd = the study's round cap, except a lever with `round_cap_usd` (explicit)
+# or `round_cap_auto: true` (every supervisor lever and the placements derived from one). The runtime ApiBudget prices
+# EVERY token of a run at the dearest API model in it, so a supervisor round costs far more than its per-agent estimate:
+# the auto cap is the runtime-bound estimate x 1.2, rounded up to $0.25, within [round cap, budget.max_round_cap_usd]
+# (1.5 / 3 / 4 USD for tier 1 / 2 / 3 until the champion has a token measurement). `estimate_safety` scales the pre-run
+# estimate of a lever that adds model calls.
+#
 # Order of the groups below is the tie-break order inside a node. Levers that need something the machine may not
 # have (`requires_env`) are never proposed without it.
 #
@@ -220,65 +227,49 @@ levers:
   patch:
     prompt.agents.corporate_records_specialist: {source: local, file: corporate_records_specialist_subclass_v2}
 
-  # ---- specialist input windows (agent_knobs.<agent>.max_input_chars; taxonomy defaults: contracts/merger 100000, corporate/insurance 60000, correspondence 40000) ----
-- id: merger-agreement-window-200k
+  # ---- specialist input window: a NARROWER window (the baseline is already whole-document) ----
+  # After context_fit the baseline's specialists on the 1M-context qwen/qwen3.7-flash read the whole document (up to
+  # ~2.37M chars) in one window, so there is no wider window to try. The only window lever left is a narrower one, which
+  # chunks long documents into sliding windows. E1 found chunking HURT contracts; this tests whether it helps mergers.
+- id: merger-agreement-window-400k
   node: merger_agreement_specialist
   classes: [merger_agreement]
-  description: merger_agreement_specialist input window 200000 chars (longer documents run in fewer sliding windows).
-  patch: {agent_knobs.merger_agreement_specialist.max_input_chars: 200000}
-
-- id: contracts-window-200k
-  node: contracts_specialist
-  classes: [contract]
-  description: contracts_specialist input window 200000 chars (longer documents run in fewer sliding windows).
-  patch: {agent_knobs.contracts_specialist.max_input_chars: 200000}
-
-- id: correspondence-window-80k
-  node: correspondence_specialist
-  classes: [correspondence]
-  description: correspondence_specialist input window 80000 chars (longer documents run in fewer sliding windows).
-  patch: {agent_knobs.correspondence_specialist.max_input_chars: 80000}
-
-- id: corporate-records-window-120k
-  node: corporate_records_specialist
-  classes: [corporate_record]
-  description: corporate_records_specialist input window 120000 chars (longer documents run in fewer sliding windows).
-  patch: {agent_knobs.corporate_records_specialist.max_input_chars: 120000}
-
-- id: insurance-claims-window-120k
-  node: insurance_claims_specialist
-  classes: [insurance_claim]
-  description: insurance_claims_specialist input window 120000 chars (longer documents run in fewer sliding windows).
-  patch: {agent_knobs.insurance_claims_specialist.max_input_chars: 120000}
+  description: 'Narrower window: tests whether chunking long mergers helps (merger_agreement_specialist max_input_chars 400000; the whole-document baseline is the control, and E1 found chunking hurt contracts).'
+  patch: {agent_knobs.merger_agreement_specialist.max_input_chars: 400000}
 
   # ---- routing: judge every in-band extraction, more judge passes ----
 - id: judge-all-correspondence
   node: judge
   classes: [correspondence]
+  estimate_safety: 2.0   # adds judge calls: the estimate is scaled up
   description: Judge every in-band correspondence extraction (judge_band_high 1.01; the production default is the taxonomy's).
   patch: {confidence.by_class.correspondence.judge_band_high: 1.01}
 
 - id: judge-all-insurance-claim
   node: judge
   classes: [insurance_claim]
+  estimate_safety: 2.0   # adds judge calls: the estimate is scaled up
   description: Judge every in-band insurance_claim extraction (judge_band_high 1.01; the production default is the taxonomy's).
   patch: {confidence.by_class.insurance_claim.judge_band_high: 1.01}
 
 - id: judge-all-corporate-record
   node: judge
   classes: [corporate_record]
+  estimate_safety: 2.0   # adds judge calls: the estimate is scaled up
   description: Judge every in-band corporate_record extraction (judge_band_high 1.01; the production default is the taxonomy's).
   patch: {confidence.by_class.corporate_record.judge_band_high: 1.01}
 
 - id: judge-rejudge-retry
   node: judge
   classes: all
+  estimate_safety: 2.0   # adds judge calls: the estimate is scaled up
   description: A retry whose earlier attempt was judged goes back to the judge while passes remain (confidence.judge_rejudge_retry).
   patch: {confidence.judge_rejudge_retry: true}
 
 - id: judge-max-passes-2
   node: judge
   classes: all
+  estimate_safety: 2.0   # adds judge calls: the estimate is scaled up
   description: 'Cap judge passes at 2 for every class (production: taxonomy default 3).'
   patch: {confidence.judge_max_passes: 2}
 
@@ -293,6 +284,7 @@ levers:
   classes: all
   tier: 1
   group: supervisor
+  round_cap_auto: true
   requires: []
   description: openai/gpt-6-luna as judge, arbiter and boss (supervisor tier 1).
   patch:
@@ -305,6 +297,7 @@ levers:
   classes: all
   tier: 1
   group: supervisor
+  round_cap_auto: true
   requires: []
   description: qwen/qwen3.7-plus as judge, arbiter and boss (supervisor tier 1).
   patch:
@@ -317,6 +310,7 @@ levers:
   classes: all
   tier: 1
   group: supervisor
+  round_cap_auto: true
   requires: []
   description: minimax/minimax-m3 as judge, arbiter and boss (supervisor tier 1).
   patch:
@@ -329,6 +323,7 @@ levers:
   classes: all
   tier: 1
   group: supervisor
+  round_cap_auto: true
   requires: []
   description: z-ai/glm-5.3-flashx-legal as judge, arbiter and boss (supervisor tier 1).
   patch:
@@ -341,6 +336,7 @@ levers:
   classes: all
   tier: 2
   group: supervisor
+  round_cap_auto: true
   requires:
   - kept: {group: supervisor, tier: 1}
   - all_reverted_positive: {group: supervisor, tier: 1}
@@ -355,6 +351,7 @@ levers:
   classes: all
   tier: 2
   group: supervisor
+  round_cap_auto: true
   requires:
   - kept: {group: supervisor, tier: 1}
   - all_reverted_positive: {group: supervisor, tier: 1}
@@ -369,6 +366,7 @@ levers:
   classes: all
   tier: 2
   group: supervisor
+  round_cap_auto: true
   requires:
   - kept: {group: supervisor, tier: 1}
   - all_reverted_positive: {group: supervisor, tier: 1}
@@ -383,6 +381,7 @@ levers:
   classes: all
   tier: 2
   group: supervisor
+  round_cap_auto: true
   requires:
   - kept: {group: supervisor, tier: 1}
   - all_reverted_positive: {group: supervisor, tier: 1}
@@ -397,6 +396,7 @@ levers:
   classes: all
   tier: 3
   group: supervisor
+  round_cap_auto: true
   requires:
   - kept: {group: supervisor, tier: 2}
     budget_multiple: 3
@@ -411,6 +411,7 @@ levers:
   classes: all
   tier: 3
   group: supervisor
+  round_cap_auto: true
   requires:
   - kept: {group: supervisor, tier: 2}
     budget_multiple: 3
@@ -425,6 +426,7 @@ levers:
   classes: all
   tier: 3
   group: supervisor
+  round_cap_auto: true
   requires:
   - kept: {group: supervisor, tier: 2}
     budget_multiple: 3

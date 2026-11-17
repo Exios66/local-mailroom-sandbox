@@ -21,6 +21,12 @@ Optional fields:
   ``budget_multiple: N``                 the remaining study budget is at least N round caps
 
 - ``goal``: ``quality`` (default) or ``cost``. A cost lever is kept when it is not worse and is cheaper.
+- ``round_cap_usd``: an explicit ``job.api_cost_cap_usd`` for this lever's round (clamped to the study's
+  ``max_round_cap_usd``). ``round_cap_auto: true`` derives it instead: the runtime-bound estimate x 1.2 rounded up
+  to $0.25 (never below the study's round cap, never above ``max_round_cap_usd``), or a per-tier default
+  (1.5 / 3 / 4 USD) while the champion has no token measurement. Supervisor levers use ``round_cap_auto``.
+- ``estimate_safety``: a factor on the pre-run cost estimate for a lever that adds model calls (multiplied
+  with the study's ``estimate_safety``).
 - ``pipeline_source``: ``{env, commit}``, a lever that runs the round with another pipeline source
   tree (``MAILROOM_SRC`` is set for that run's process only, to the path in the environment
   variable ``env``). The tree's git ``HEAD`` must equal ``commit`` when given. The run lock records
@@ -28,7 +34,11 @@ Optional fields:
   so ``patch`` may be empty; ``requires_env`` defaults to ``env``.
 
 ``placements`` derive cost levers from a kept lever: for every kept lever of ``group``, one lever
-per subset of roles that keep the winner, the other roles restored to the base spec's routing.
+per subset of roles that keep the winner. The derived patch is absolute and comes from the winner's own
+ledger row, never from the champion's current state: roles it keeps are set to the WINNER's own patch values,
+roles it restores are set to the values the champion had just before the winner was kept (``patch_before``
+in the row; the base spec's value for a row without it). A winner that a later kept lever of the same group
+has superseded on the placement's role paths derives nothing.
 """
 from __future__ import annotations
 
@@ -74,6 +84,9 @@ class Lever(BaseModel):
     group: str | None = None
     requires: list[dict[str, Any]] = Field(default_factory=list)
     goal: str = "quality"
+    round_cap_usd: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    round_cap_auto: bool = False
+    estimate_safety: float | None = Field(default=None, gt=0, allow_inf_nan=False)
 
     @field_validator("classes")
     @classmethod
@@ -119,6 +132,8 @@ class Lever(BaseModel):
             raise ValueError("a lever needs a patch or a pipeline_source")
         if self.pipeline_source is not None and self.requires_env is None:
             self.requires_env = self.pipeline_source.env
+        if self.round_cap_usd is not None and self.round_cap_auto:
+            raise ValueError("a lever sets round_cap_usd or round_cap_auto, not both")
         return self
 
     @property
@@ -231,10 +246,10 @@ def env_ready(lever: Lever, env: Mapping[str, str] | None = None) -> bool:
 # ---- ordering ---------------------------------------------------------------------------------
 
 def _tried(rows: Sequence[Mapping[str, Any]]) -> dict[str, Mapping[str, Any]]:
-    """The latest decided ledger row per lever id (skips and the baseline excluded)."""
+    """The latest decided ledger row per lever id (skips, warnings, the baseline and the replicate excluded)."""
     out: dict[str, Mapping[str, Any]] = {}
     for row in rows:
-        if row.get("decision") in ("keep", "revert", "error"):
+        if row.get("decision") in ("keep", "revert", "error", "aborted_cap"):
             out[str(row.get("lever"))] = row
     return out
 
@@ -255,16 +270,18 @@ def requirement_met(lever: Lever, catalog: Sequence[Lever], rows: Sequence[Mappi
         if name == "kept_lever":
             return tried.get(str(arg), {}).get("decision") == "keep"
         if name == "all_reverted_positive":
-            # Every lever of the tier must have been decided (a skipped one, over the round cap or a no-op,
-            # cannot be run and does not block the ladder); an error is not a revert.
+            # Every lever of the tier must have been decided: reverted, or aborted by its API cap (an aborted
+            # run has no verdict and does not block the ladder). A skipped one, over the round cap or a no-op,
+            # cannot be run and does not block it either; an error is not a decision. Every revert needs a
+            # positive mean delta; an aborted round carries none.
             skipped = {str(r.get("lever")) for r in rows if r.get("decision") == "skipped"}
             members = [item for item in in_group(arg["group"], arg.get("tier")) if item.id not in skipped or item.id in tried]
             if not members or any(item.id not in tried for item in members):
                 return False
             done = [tried[item.id] for item in members]
-            if any(row.get("decision") != "revert" for row in done):
+            if any(row.get("decision") not in ("revert", "aborted_cap") for row in done):
                 return False
-            return all((row.get("delta") or {}).get("mean", 0.0) > 0 for row in done)
+            return all((row.get("delta") or {}).get("mean", 0.0) > 0 for row in done if row.get("decision") == "revert")
         if name == "budget_multiple":
             if budget_remaining_usd is None or not round_cap_usd:
                 return False
@@ -277,31 +294,55 @@ def requirement_met(lever: Lever, catalog: Sequence[Lever], rows: Sequence[Mappi
 def derive_placements(catalog: Catalog, base_spec: Mapping[str, Any], rows: Sequence[Mapping[str, Any]]) -> list[Lever]:
     """Cost levers for every kept lever of a placement group: the winner on a subset of its roles.
 
-    A role left out of the subset goes back to the BASE spec's value at the role's path (deleted when
-    the base had none). The derived lever requires its winner to be kept, so it can only appear
-    after the winner is the champion.
+    The patch is absolute, derived from the winner's own patch and its ledger row, never from the
+    champion's current state (which later keeps and kept placements have moved):
+
+    - a role in the subset is set to the WINNER's own value at the role's path;
+    - a role left out is set to the value the champion had just before the winner was kept
+      (``patch_before`` of the winner's row), else the BASE spec's value; deleted when there was none.
+
+    The winner must be kept and not superseded: a later kept lever of the same group that patches any of
+    the placement's role paths replaces the winner's routes, so its placements would put the old winner
+    back. The derived lever requires its winner to be kept.
     """
-    tried = _tried(rows)
+    positions: dict[str, tuple[int, Mapping[str, Any]]] = {}
+    for pos, row in enumerate(rows):
+        if row.get("decision") in ("keep", "revert", "error", "aborted_cap"):
+            positions[str(row.get("lever"))] = (pos, row)
+    kept = {lever_id: found for lever_id, found in positions.items() if found[1].get("decision") == "keep"}
     out: list[Lever] = []
     for placement in catalog.placements:
+        paths = {role: placement.path.format(role=role) for role in placement.roles}
         for winner in catalog.levers:
-            if winner.group != placement.group or tried.get(winner.id, {}).get("decision") != "keep":
+            if winner.group != placement.group or winner.id not in kept:
                 continue
+            pos, win_row = kept[winner.id]
+            superseded = any(other.id != winner.id and other.group == placement.group and other.id in kept
+                             and kept[other.id][0] > pos and set(other.patch) & set(paths.values())
+                             for other in catalog.levers)
+            if superseded:
+                continue
+            before = win_row.get("patch_before") if isinstance(win_row.get("patch_before"), Mapping) else {}
             for subset in placement.keep_on:
                 restore = [role for role in placement.roles if role not in subset]
                 patch: dict[str, Any] = {}
+                for role in subset:
+                    if paths[role] in winner.patch:
+                        patch[paths[role]] = copy.deepcopy(winner.patch[paths[role]])
                 for role in restore:
-                    path = placement.path.format(role=role)
-                    patch[path] = _lookup(base_spec, path)
+                    path = paths[role]
+                    patch[path] = copy.deepcopy(before[path]) if path in before else lookup(base_spec, path)
                 out.append(Lever(
                     id=f"{winner.id}@{'+'.join(subset)}", node=list(placement.roles), classes="all", goal="cost",
-                    description=f"{winner.id} on {'+'.join(subset)} only; {', '.join(restore)} back to the base routing",
+                    description=f"{winner.id} on {'+'.join(subset)} only; {', '.join(restore)} back to the routing before {winner.id}",
                     patch=patch, group=f"{placement.group}-placement", tier=1,
-                    requires=[{"kept_lever": winner.id}]))
+                    requires=[{"kept_lever": winner.id}],
+                    round_cap_usd=winner.round_cap_usd, round_cap_auto=winner.round_cap_auto))
     return out
 
 
-def _lookup(spec: Mapping[str, Any], path: str) -> Any:
+def lookup(spec: Mapping[str, Any], path: str) -> Any:
+    """A deep copy of the value at a dotted ``path`` of ``spec`` (None when any step is missing)."""
     node: Any = spec
     for key in path.split("."):
         if not isinstance(node, Mapping) or key not in node:
@@ -318,9 +359,12 @@ def all_levers(catalog: Catalog, base_spec: Mapping[str, Any], rows: Sequence[Ma
 def validate_catalog(catalog: Catalog, base_spec: Mapping[str, Any]) -> list[str]:
     """Every problem of ``catalog`` against ``base_spec``: invalid patched specs, dead patches, unknown requires.
 
-    Empty when the catalog is sound. Does not touch the network or any environment variable.
+    A paid (non-mock) study also refuses a base or patched spec whose reviewer is not a Decisions-API model on
+    the ``decisions`` backend (``reviewer_errors``). Empty when the catalog is sound. Does not touch the
+    network or any environment variable.
     """
     problems: list[str] = []
+    problems.extend(f"base spec: {msg}" for msg in reviewer_errors(base_spec))
     ids = {lever.id for lever in catalog.levers}
     groups = {(lever.group, lever.tier) for lever in catalog.levers}
     for lever in catalog.levers:
@@ -332,6 +376,7 @@ def validate_catalog(catalog: Catalog, base_spec: Mapping[str, Any]) -> list[str
         if patched == dict(base_spec) and lever.pipeline_source is None:
             problems.append(f"lever {lever.id}: the patch changes nothing in the base spec")
         problems.extend(f"lever {lever.id}: {msg}" for msg in context_errors(patched))
+        problems.extend(f"lever {lever.id}: {msg}" for msg in reviewer_errors(patched))
         for alternative in lever.requires:
             for name, arg in alternative.items():
                 if name == "kept_lever" and arg not in ids:
@@ -339,6 +384,34 @@ def validate_catalog(catalog: Catalog, base_spec: Mapping[str, Any]) -> list[str
                 if name in ("kept", "all_reverted_positive") and (arg.get("group"), arg.get("tier")) not in groups:
                     problems.append(f"lever {lever.id}: requires {name} of an empty group/tier {arg!r}")
     return problems
+
+
+# ---- the reviewer is a Decisions-API model, or the chat reviewer the baseline omits ---------------------
+
+def reviewer_errors(spec: Mapping[str, Any]) -> list[str]:
+    """Why a paid study may not run ``spec``'s reviewer (empty for a mock study or an absent block).
+
+    The baseline has no ``reviewer`` block, so the taxonomy's chat ``sorter_reviewer`` runs, and that stays
+    allowed. A reviewer block that is present must be the OpenRouter Decisions API: backend ``decisions``, a
+    pinned model of ``config/decision_models.yaml``, and no ``allow_chat_model`` escape hatch. The ``jev``,
+    ``local``, ``api`` and ``mock`` backends are refused.
+    """
+    from mailroom_sandbox.decision_backends import is_decisions_model
+
+    if bool((spec.get("job") or {}).get("mock", True)):
+        return []
+    block = spec.get("reviewer")
+    if not block:
+        return []
+    errors: list[str] = []
+    if block.get("backend") != "decisions":
+        errors.append(f"reviewer backend {block.get('backend')!r} is refused in a paid study: "
+                      "decision models run only on the OpenRouter Decisions endpoint (backend decisions)")
+    if block.get("allow_chat_model"):
+        errors.append("reviewer allow_chat_model is refused in a paid study: the reviewer is a Decisions-API model")
+    if not is_decisions_model(block.get("model")):
+        errors.append(f"reviewer model {block.get('model')!r} is not a Decisions-API model of config/decision_models.yaml")
+    return errors
 
 
 # ---- reviewer input vs the model's context -------------------------------------------------------

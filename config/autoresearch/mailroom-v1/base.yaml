@@ -1,5 +1,6 @@
 # Autoresearch champion for the mailroom-v1 study: the production slice-gate configuration with a
-# smaller draw, the CHAT reviewer, and temperature-0 sampling.
+# smaller draw and the CHAT reviewer, at the production sampling temperatures (production comparability wins over
+# determinism; run-to-run noise is measured by the replicate baseline instead).
 #
 # Derived from config/runs/production/slice-0100.yaml. Every setting below is inherited from that
 # file unchanged, so a lever's effect is measured against what production runs (the report's
@@ -31,6 +32,10 @@
 #   quality bars                   config/production/bars.yaml                  read by `sandbox run gate`, not by the spec
 #   pipeline and Dojo sources      vendor/llm-mailroom, vendor/llm-dojo-scoring the vendored snapshots (VENDOR.md commits)
 #
+# Pipeline source: the vendored snapshot (vendor/llm-mailroom, the v0.30.0 branch tip f83e398, the same commit
+# production slice-0100 runs). The unmerged llm-mailroom #283 repairs are NOT in the baseline: they are the opt-in
+# `repair-283` lever (levers.yaml; needs AUTORESEARCH_PR283_SRC).
+#
 # Differences from slice-0100.yaml (the only ones; the report lists them again, computed):
 #   dataset.strata        5 documents per class (25) instead of 18/14/30/33/5 (100). The ranked draw nests, so
 #                         the first 5 per class are a subset of the production slice's order.
@@ -39,7 +44,9 @@
 #                         `reviewer: {backend: local}` cannot express that on OpenRouter (preflight refuses it: it
 #                         needs a model other than the sorter's, an agent_routes.sorter_reviewer entry and an
 #                         in-house route). Candidate reviewers are Decisions-API models only (levers.yaml, group reviewer).
-#   agent_knobs           temperature 0 for every sampling agent, so a paired difference is the lever, not sampling noise.
+#   (sampling)            no temperature override anywhere: every agent samples at its production temperature, so the
+#                         baseline is comparable with a production slice. The study re-runs this spec once (the
+#                         replicate) and keeps a lever only above the measured noise floor.
 #   job.max_wall_seconds,
 #   job.api_cost_cap_usd  set per round from the study file (budget.round_wall_seconds, budget.round_api_cap_usd).
 #   job.mock              false (a paid study), set by the study's base run.
@@ -86,17 +93,8 @@ agent_routes:
   boss: {provider: openrouter, model: qwen/qwen3.7-flash}
 
 agent_knobs:
-  sorter: {max_input_chars: 600000, temperature: 0}
-  intake: {max_input_chars: 600000, temperature: 0}
-  contracts_specialist: {temperature: 0}
-  merger_agreement_specialist: {temperature: 0}
-  corporate_records_specialist: {temperature: 0}
-  correspondence_specialist: {temperature: 0}
-  insurance_claims_specialist: {temperature: 0}
-  sorter_reviewer: {temperature: 0}
-  judge: {temperature: 0}
-  arbiter: {temperature: 0}
-  boss: {temperature: 0}
+  sorter: {max_input_chars: 600000}
+  intake: {max_input_chars: 600000}
 
 confidence:
   by_class:

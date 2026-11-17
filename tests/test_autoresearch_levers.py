@@ -135,8 +135,10 @@ def test_placements_derive_only_after_the_winner_is_kept_and_restore_the_base_ro
     assert set(derived) == {"sup-x@judge", "sup-x@boss"}
     only_judge = derived["sup-x@judge"]
     assert only_judge.goal == "cost"
-    assert only_judge.patch == {"agent_routes.boss": None}                 # boss had no base route: deleted
-    assert derived["sup-x@boss"].patch == {"agent_routes.judge": {"provider": "openrouter", "model": "base"}}
+    # absolute: the winner's own route on the role it keeps, the base route (here none: deleted) on the one it restores
+    assert only_judge.patch == {"agent_routes.judge": {"provider": "openrouter", "model": "m"}, "agent_routes.boss": None}
+    assert derived["sup-x@boss"].patch == {"agent_routes.boss": {"provider": "openrouter", "model": "m"},
+                                           "agent_routes.judge": {"provider": "openrouter", "model": "base"}}
     assert only_judge.requires == [{"kept_lever": "sup-x"}]
 
 
@@ -234,3 +236,173 @@ def test_a_skipped_tier_one_lever_does_not_block_the_ladder():
     t2 = next(item for item in cat.levers if item.id == "t2")
     rows = [row("t11", "revert", 0.02), {"lever": "t12", "decision": "skipped"}]
     assert lv.requirement_met(t2, cat.levers, rows)
+
+
+# ---- placements stay correct after later keeps and after a later tier supersedes the winner -------------------
+
+ROLES = ["judge", "arbiter", "boss"]
+
+
+def route(model):
+    return {"provider": "openrouter", "model": model}
+
+
+def sup(lever_id, model, tier=1, **kw):
+    return lever(id=lever_id, node=ROLES, group="sup", tier=tier, patch={f"agent_routes.{r}": route(model) for r in ROLES}, **kw)
+
+
+def placement_catalog(*levers):
+    return lv.Catalog(levers=list(levers), placements=[lv.Placement(
+        group="sup", roles=ROLES, keep_on=[["judge"], ["arbiter"], ["boss"], ["judge", "arbiter"]])])
+
+
+def kept(lever_id, **before):
+    return {"lever": lever_id, "decision": "keep", "delta": {"mean": 0.1}, "patch_before": before}
+
+
+def champion_after(spec, *levers):
+    for item in levers:
+        spec = lv.apply_patch(spec, item.patch)
+    return spec
+
+
+def models(spec):
+    return {r: (spec.get("agent_routes", {}).get(r) or {}).get("model") for r in ROLES}
+
+
+def test_placement_patches_are_absolute_so_they_survive_a_kept_placement():
+    """Winner kept, then placement A kept, then placement B: B must still put the winner on ITS roles."""
+    cat = placement_catalog(sup("w", "strong"))
+    base = {"agent_routes": {"judge": route("base"), "boss": route("base")}}
+    rows = [kept("w", **{"agent_routes.judge": route("base"), "agent_routes.arbiter": None, "agent_routes.boss": route("base")})]
+    champ = champion_after(base, cat.levers[0])
+    assert models(champ) == {"judge": "strong", "arbiter": "strong", "boss": "strong"}
+    derived = {item.id: item for item in lv.derive_placements(cat, base, rows)}
+    a = derived["w@judge"]
+    champ_a = lv.apply_patch(champ, a.patch)
+    assert models(champ_a) == {"judge": "strong", "arbiter": None, "boss": "base"}          # arbiter had no route before w
+    rows.append({"lever": a.id, "decision": "keep", "delta": {"mean": 0.0}})
+    # the derivation reads the winner's row, not the champion: the same placements come back unchanged
+    again = {item.id: item for item in lv.derive_placements(cat, base, rows)}
+    assert {k: v.patch for k, v in again.items()} == {k: v.patch for k, v in derived.items()}
+    champ_b = lv.apply_patch(champ_a, again["w@arbiter"].patch)
+    assert models(champ_b) == {"judge": "base", "arbiter": "strong", "boss": "base"}        # judge went back, arbiter is the winner
+    champ_c = lv.apply_patch(champ_b, again["w@judge+arbiter"].patch)
+    assert models(champ_c) == {"judge": "strong", "arbiter": "strong", "boss": "base"}
+
+
+def test_a_later_tier_supersedes_the_winner_and_restores_to_the_tier_before_it():
+    t1, t2 = sup("w1", "tier1-model"), sup("w2", "tier2-model", tier=2, requires=[{"kept_lever": "w1"}])
+    cat = placement_catalog(t1, t2)
+    base = {"agent_routes": {"judge": route("base"), "boss": route("base")}}
+    before_w1 = {"agent_routes.judge": route("base"), "agent_routes.arbiter": None, "agent_routes.boss": route("base")}
+    rows = [kept("w1", **before_w1)]
+    assert {i.id for i in lv.derive_placements(cat, base, rows)} == {f"w1@{s}" for s in ("judge", "arbiter", "boss", "judge+arbiter")}
+    before_w2 = {f"agent_routes.{r}": route("tier1-model") for r in ROLES}               # the champion after w1
+    rows.append(kept("w2", **before_w2))
+    derived = {item.id: item for item in lv.derive_placements(cat, base, rows)}
+    assert not any(i.startswith("w1@") for i in derived)                                   # w1 is superseded: it would put tier 1 back
+    assert set(derived) == {f"w2@{s}" for s in ("judge", "arbiter", "boss", "judge+arbiter")}
+    champ = champion_after(champion_after(base, t1), t2)
+    only_boss = lv.apply_patch(champ, derived["w2@boss"].patch)
+    assert models(only_boss) == {"judge": "tier1-model", "arbiter": "tier1-model", "boss": "tier2-model"}   # restored to w1, not base
+
+
+def test_a_reverted_later_tier_does_not_supersede_the_winner():
+    t1, t2 = sup("w1", "tier1-model"), sup("w2", "tier2-model", tier=2)
+    cat = placement_catalog(t1, t2)
+    rows = [kept("w1"), {"lever": "w2", "decision": "revert", "delta": {"mean": 0.0}}]
+    assert any(i.id.startswith("w1@") for i in lv.derive_placements(cat, {}, rows))
+
+
+def test_a_row_without_patch_before_falls_back_to_the_base_spec():
+    cat = placement_catalog(sup("w", "strong"))
+    base = {"agent_routes": {"boss": route("base")}}
+    derived = {i.id: i for i in lv.derive_placements(cat, base, [{"lever": "w", "decision": "keep", "delta": {"mean": 0.1}}])}
+    assert derived["w@judge"].patch["agent_routes.boss"] == route("base") and derived["w@judge"].patch["agent_routes.arbiter"] is None
+
+
+def test_placements_inherit_the_winners_round_cap_policy():
+    cat = placement_catalog(sup("w", "strong", round_cap_auto=True))
+    assert all(i.round_cap_auto for i in lv.derive_placements(cat, {}, [kept("w")]))
+
+
+# ---- aborted_cap counts as decided, never as a revert ---------------------------------------------------------
+
+def test_an_aborted_cap_tier_one_lever_does_not_block_tier_two():
+    cat = _ladder()
+    t2 = next(item for item in cat.levers if item.id == "t2")
+    met = lambda rows: lv.requirement_met(t2, cat.levers, rows)  # noqa: E731
+    assert met([row("t11", "revert", 0.02), {"lever": "t12", "decision": "aborted_cap"}])        # decided = revert or aborted_cap
+    assert not met([row("t11", "revert", -0.02), {"lever": "t12", "decision": "aborted_cap"}])   # a revert still needs a positive mean
+    assert not met([row("t11", "revert", 0.02)])                                                  # t12 undecided
+
+
+# ---- the reviewer is a Decisions-API model or the omitted chat reviewer ---------------------------------------------
+
+PAID = {**BASE, "job": {"mode": "endpoint", "mock": False, "max_wall_seconds": 600, "api_cost_cap_usd": 1}}
+PAID.pop("reviewer")
+DECISIONS = {"backend": "decisions", "model": "openai/gpt-6-luna-decisions", "questions": "reviewer_decisions_v2",
+             "classes": {"contract": 0.78}}
+
+
+def test_the_chat_reviewer_baseline_and_a_decisions_reviewer_are_allowed_in_a_paid_study():
+    assert lv.reviewer_errors(PAID) == []                                       # no reviewer block: the chat sorter_reviewer
+    assert lv.reviewer_errors({**PAID, "reviewer": DECISIONS}) == []
+
+
+@pytest.mark.parametrize("block, needle", [
+    ({"backend": "api", "model": "openai/gpt-4o", "allow_chat_model": True, "classes": {"contract": 0.5}}, "allow_chat_model"),
+    ({"backend": "jev", "model": "jev-1.13.0", "classes": {"contract": 0.5}}, "backend 'jev'"),
+    ({"backend": "local", "model": "Qwen/Qwen3-8B", "classes": {"contract": 0.5}}, "backend 'local'"),
+    ({"backend": "mock", "model": "mock", "classes": {"contract": 0.5}}, "backend 'mock'"),
+    ({**DECISIONS, "model": "typesafe/jev-router"}, "not a Decisions-API model"),
+])
+def test_a_paid_study_refuses_a_non_decisions_reviewer(block, needle):
+    errors = lv.reviewer_errors({**PAID, "reviewer": block})
+    assert any(needle in e for e in errors), errors
+    # the same spec in a mock study is untouched
+    assert lv.reviewer_errors({**PAID, "job": {**PAID["job"], "mock": True}, "reviewer": block}) == []
+
+
+@pytest.mark.parametrize("block", [
+    {"backend": "api", "model": "openai/gpt-4o", "allow_chat_model": True, "classes": {"contract": 0.5}},
+    {"backend": "jev", "model": "jev-1.13.0", "classes": {"contract": 0.5}},
+    {"backend": "local", "model": "Qwen/Qwen3-8B", "classes": {"contract": 0.5}},
+])
+def test_validate_catalog_refuses_such_a_reviewer_lever_on_a_paid_base(block):
+    bad = lever(id="bad-rev", patch={"reviewer": block})
+    problems = lv.validate_catalog(lv.Catalog(levers=[bad]), PAID)
+    assert any("bad-rev" in p for p in problems), problems
+
+
+def test_validate_catalog_refuses_a_paid_base_with_a_non_decisions_reviewer():
+    base = {**PAID, "reviewer": {"backend": "mock", "model": "mock", "classes": {"contract": 0.5}}}
+    ok = lever(id="ok", patch={"reviewer": DECISIONS})
+    assert any(p.startswith("base spec:") for p in lv.validate_catalog(lv.Catalog(levers=[ok]), base))
+    assert lv.validate_catalog(lv.Catalog(levers=[ok]), PAID) == []
+
+
+def test_a_lever_may_not_set_both_round_cap_fields():
+    with pytest.raises(ValueError, match="not both"):
+        lever(patch={"reviewer.classes.contract": 0.4}, round_cap_usd=2.0, round_cap_auto=True)
+
+
+# ---- the production catalog after the window rework --------------------------------------------------------------
+
+def test_the_five_window_levers_that_lowered_the_baseline_window_are_gone():
+    cat = lv.load_levers(ROOT / "config/autoresearch/levers.yaml")
+    windows = {i.id: i for i in cat.levers if any("max_input_chars" in p for p in i.patch)}
+    assert set(windows) == {"merger-agreement-window-400k"}
+    only = windows["merger-agreement-window-400k"]
+    assert only.patch == {"agent_knobs.merger_agreement_specialist.max_input_chars": 400000}
+    assert "Narrower window" in only.description and "chunking long mergers" in only.description
+
+
+def test_every_supervisor_lever_derives_its_round_cap_and_call_adding_levers_scale_the_estimate():
+    cat = lv.load_levers(ROOT / "config/autoresearch/levers.yaml")
+    assert all(i.round_cap_auto for i in cat.levers if i.group == "supervisor")
+    scaled = {i.id for i in cat.levers if i.estimate_safety}
+    assert scaled == {"judge-all-correspondence", "judge-all-insurance-claim", "judge-all-corporate-record",
+                      "judge-rejudge-retry", "judge-max-passes-2"}
+    assert all(cat_i.estimate_safety == 2.0 for cat_i in cat.levers if cat_i.id in scaled)

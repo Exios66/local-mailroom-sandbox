@@ -226,21 +226,26 @@ def agent_cost(agent_slot: Mapping[str, Any], fallback_model: str | None) -> tup
     """USD of one agent's usage slot and the model it was priced at.
 
     Priced at the model the slot recorded; several models (a retry on another route) take the dearest.
-    A model with no price falls back to ``fallback_model``; ``(None, model)`` when nothing is priced.
+    ``fallback_model`` (the run's engine model) prices only a slot that recorded NO model; the ``mock`` model
+    is free. A recorded model with no price is never swapped for the engine's price: ``(None, model)`` when none of the recorded models
+    is priced (see ``unpriced_models`` for the recorded models that are not).
     """
     from mailroom_sandbox.job.metrics import call_cost
 
     prompt, completion = agent_slot.get("prompt_tokens") or 0, agent_slot.get("completion_tokens") or 0
     calls = max(1, int(agent_slot.get("calls") or 1))
     models = [str(m) for m in agent_slot.get("models") or [] if m] or ([fallback_model] if fallback_model else [])
-    priced = [(c, m) for m in models if (c := call_cost(m, prompt, completion, calls=calls)) is not None]
-    if not priced and fallback_model and fallback_model not in models:
-        cost = call_cost(fallback_model, prompt, completion, calls=calls)
-        if cost is not None:
-            return cost, fallback_model
+    priced = [(0.0 if m == "mock" else c, m) for m in models if (c := call_cost(m, prompt, completion, calls=calls)) is not None or m == "mock"]
     if not priced:
         return None, models[0] if models else None
     return max(priced)
+
+
+def unpriced_models(agent_slot: Mapping[str, Any]) -> list[str]:
+    """The models an agent's slot RECORDED that have no price (they are reported, never repriced)."""
+    from mailroom_sandbox.job.metrics import call_cost
+
+    return sorted(str(m) for m in agent_slot.get("models") or [] if m and m != "mock" and call_cost(str(m), 1, 1) is None)
 
 
 def _crash_nodes(run_dir: Path) -> dict[str, str]:
@@ -284,6 +289,7 @@ def score_run(run_dir: Path | str, weights: UtilityWeights | None = None, *, bar
         if usage:
             split = True
             for agent, slot in usage.items():
+                unpriced.update(unpriced_models(slot))
                 usd, model = agent_cost(slot, price_model)
                 if usd is None:
                     unpriced.add(str(model))

@@ -159,3 +159,40 @@ def test_usage_by_agent_is_read_from_the_pipeline_accumulator(monkeypatch):
         "sorter": {"calls": 1, "prompt_tokens": 7, "completion_tokens": 0, "models": []}}
     fake.usage_summary = lambda: (_ for _ in ()).throw(RuntimeError("no accumulator"))
     assert usage_capture.usage_by_agent_from_pipeline() == {}
+
+
+# ---- an unpriced recorded model is reported, never repriced at the engine model --------------------------------
+
+def test_agent_cost_prices_a_recorded_model_and_the_engine_only_for_a_slot_with_no_model():
+    slot = {"calls": 1, "prompt_tokens": 1_000_000, "completion_tokens": 0, "models": ["qwen/qwen3.7-flash"]}
+    usd, model = sc.agent_cost(slot, "anthropic/claude-sonnet-5.5")
+    assert model == "qwen/qwen3.7-flash" and usd == pytest.approx(0.2)           # its own model, not the fallback
+    usd, model = sc.agent_cost({**slot, "models": []}, "qwen/qwen3.7-flash")      # no recorded model: the engine model
+    assert model == "qwen/qwen3.7-flash" and usd == pytest.approx(0.2)
+    assert sc.agent_cost({**slot, "models": ["mock"]}, "qwen/qwen3.7-flash") == (0.0, "mock")
+
+
+def test_agent_cost_leaves_an_unpriced_recorded_model_unpriced_even_with_a_priced_engine_model():
+    slot = {"calls": 1, "prompt_tokens": 1000, "completion_tokens": 100, "models": ["nobody/unpriced-model-9"]}
+    assert sc.agent_cost(slot, "qwen/qwen3.7-flash") == (None, "nobody/unpriced-model-9")     # was: priced at the engine model
+    assert sc.unpriced_models(slot) == ["nobody/unpriced-model-9"]
+    mixed = {**slot, "models": ["qwen/qwen3.7-flash", "nobody/unpriced-model-9"]}
+    assert sc.unpriced_models(mixed) == ["nobody/unpriced-model-9"] and sc.agent_cost(mixed, None)[1] == "qwen/qwen3.7-flash"
+    assert sc.unpriced_models({"models": ["mock", "qwen/qwen3.7-flash"]}) == []
+
+
+def test_score_run_lists_the_unpriced_recorded_model_and_charges_nothing_for_it(tmp_path, monkeypatch):
+    import json
+
+    from mailroom_sandbox.job import gate
+
+    report = {"docs": [{"id": "a", "class": "contract", "outcome": "correct_archive", "score": 1.0, "tokens": 5}]}
+    monkeypatch.setattr(gate, "gate_report", lambda *a, **k: report)
+    monkeypatch.setattr(gate, "load_bars", lambda *a, **k: None)
+    (tmp_path / "items.jsonl").write_text(json.dumps({"item_id": "a", "usage_by_agent": {
+        "judge": {"calls": 1, "prompt_tokens": 1000, "completion_tokens": 100, "models": ["nobody/unpriced-model-9"]},
+        "sorter": {"calls": 1, "prompt_tokens": 1_000_000, "completion_tokens": 0, "models": ["qwen/qwen3.7-flash"]}}}) + "\n")
+    (tmp_path / "dataset.jsonl").write_text(json.dumps({"id": "a"}) + "\n")
+    scores = sc.score_run(tmp_path, price_model="qwen/qwen3.7-flash")
+    assert scores.unpriced == ["nobody/unpriced-model-9"]
+    assert scores.docs[0].cost_by_role == {"worker": pytest.approx(0.2)}          # no oversight cost invented from the engine price

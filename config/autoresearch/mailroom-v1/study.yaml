@@ -2,8 +2,10 @@
 #   sandbox autoresearch plan   --study config/autoresearch/mailroom-v1/study.yaml
 #   sandbox autoresearch run    --study config/autoresearch/mailroom-v1/study.yaml --initials <XX> --max-rounds 3
 #   sandbox autoresearch holdout --study config/autoresearch/mailroom-v1/study.yaml --initials <XX>
-# Spend: round_api_cap_usd becomes every candidate run's job.api_cost_cap_usd; study_usd bounds the sum of the
-# ledger's estimated costs; min_key_remaining_usd is the OpenRouter key headroom the loop leaves untouched.
+# Spend: round_api_cap_usd becomes every candidate run's job.api_cost_cap_usd (a supervisor lever derives a larger
+# cap, up to max_round_cap_usd, from the runtime ApiBudget bound); study_usd bounds the sum of the ledger's costs (a
+# round aborted by its cap, or one with no dataset rows, is charged its full cap); min_key_remaining_usd is the
+# OpenRouter key headroom the loop leaves untouched.
 schema: sandbox.autoresearch/v1
 study: mailroom-v1
 base_run: base.yaml
@@ -13,7 +15,10 @@ budget:
   round_api_cap_usd: 1.0
   round_wall_seconds: 3600
   min_key_remaining_usd: 3.0
-noise_floor: 0.0          # raise it to the measured run-to-run noise of one spec once that is known
+  max_round_cap_usd: 4.0    # ceiling for a supervisor lever's derived round cap
+# The loop re-runs the baseline once (round "replicate") and uses max(this, |mean paired delta|, CI half-width) of the
+# two baseline runs as the effective noise floor. No lever is kept before the replicate exists.
+noise_floor: 0.0
 max_consecutive_reverts: 3
 utility:                  # per document: correct archive = its extraction score
   review: -0.25

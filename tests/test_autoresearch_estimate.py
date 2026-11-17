@@ -97,11 +97,12 @@ def test_production_base_differs_from_slice_0100_only_where_documented():
     root = repo_root() / "config"
     base = yaml.safe_load((root / "autoresearch/mailroom-v1/base.yaml").read_text())
     differs = {p for p, *_ in parity.compare(base, parity.load_production())["differs"]}
-    allowed_prefix = ("agent_knobs.", "reviewer.", "dataset.strata", "job.api_cost_cap_usd", "job.max_wall_seconds",
-                      "run_id", "trace.tags")
+    allowed_prefix = ("reviewer.", "dataset.strata", "job.api_cost_cap_usd", "job.max_wall_seconds", "run_id", "trace.tags")
     stray = {p for p in differs if not p.startswith(allowed_prefix)}
     assert not stray, f"undocumented differences from production-slice-0100: {sorted(stray)}"
-    assert all(p.endswith("temperature") or p.endswith("max_input_chars") for p in differs if p.startswith("agent_knobs."))
+    # production comparability wins over determinism: no agent_knobs difference, in particular no temperature override
+    assert not [p for p in differs if p.startswith("agent_knobs.")]
+    assert "temperature" not in yaml.safe_dump(base) and base["agent_knobs"] == parity.load_production()["agent_knobs"]
     assert "reviewer" not in base                       # the chat reviewer baseline: no decisions block
     inherited = dict(parity.compare(base, parity.load_production())["inherited"])
     for key in ("dataset.revision", "dataset.sample_seed", "dataset.draw", "dataset.exclude_ids_file", "dataset.interim_labels",
@@ -116,3 +117,94 @@ def test_the_report_section_lists_commits_and_differences():
     assert "vendored llm-mailroom" in md and "vendored llm-dojo-scoring" in md and "baseline run lock, pipeline" in md
     assert "### Differs from `config/runs/production/slice-0100.yaml`" in md and "`reviewer.backend`" in md
     assert "### Inherited unchanged" in md
+
+
+# ---- the runtime bound: what the run's own ApiBudget will count --------------------------------------------------------
+
+def _base_and_lever(lever_id="sup-claude-sonnet-5.5"):
+    from mailroom_sandbox.autoresearch import levers as lv
+
+    base = yaml.safe_load((repo_root() / "config/autoresearch/mailroom-v1/base.yaml").read_text())
+    item = next(i for i in lv.load_levers(repo_root() / "config/autoresearch/levers.yaml").levers if i.id == lever_id)
+    return base, item, lv.apply_lever(base, item)
+
+
+def _champion(n=25):
+    per_doc = {"sorter": usage(40_000, 500), "contracts_specialist": usage(60_000, 2_000), "judge": usage(8_000, 600),
+               "boss": usage(4_000, 300)}
+    docs = [sc.DocScore(id=f"d{i}", doc_class="contract", outcome="correct_archive", utility=1.0, usage_by_agent=per_doc, tokens=114_000)
+            for i in range(n)]
+    return sc.RunScores(run_id="r", run_dir="/x", docs=docs, split_available=True, price_model="qwen/qwen3.7-flash")
+
+
+def test_the_runtime_bound_prices_every_token_at_the_dearest_api_model_of_the_candidate():
+    from mailroom_sandbox.job import api_budget
+
+    base, _, cand = _base_and_lever()
+    champ = _champion()
+    plain, dear = est.estimate_round_cost(champ, base, base), est.estimate_round_cost(champ, base, cand)
+    prompt = sum(s["prompt_tokens"] for s in champ.agent_usage().values())
+    completion = sum(s["completion_tokens"] for s in champ.agent_usage().values())
+    price_in, price_out = api_budget.price_bound(["anthropic/claude-sonnet-5.5", "qwen/qwen3.7-flash"])
+    assert dear.runtime_bound_usd == pytest.approx((prompt * price_in + completion * price_out) / 1e6, abs=1e-3)
+    assert dear.runtime_bound_detail["models"] == ["anthropic/claude-sonnet-5.5", "qwen/qwen3.7-flash"]
+    # both figures are reported; the per-agent one prices only the oversight tokens dearly, the bound prices the workers' too
+    assert dear.runtime_bound_usd > 2 * dear.usd and dear.cap_usd == dear.runtime_bound_usd
+    assert plain.runtime_bound_usd == pytest.approx(plain.usd, rel=0.02)         # one model: the two views agree
+    assert dear.to_dict()["runtime_bound_usd"] == round(dear.runtime_bound_usd, 4) and dear.to_dict()["usd"] == round(dear.usd, 4)
+
+
+def test_the_runtime_bound_is_at_least_what_the_api_budget_counts_for_the_same_tokens():
+    from mailroom_sandbox.autoresearch import levers as lv
+    from mailroom_sandbox.job import api_budget
+
+    base, _, cand = _base_and_lever()
+    champ = _champion()
+    models = api_budget.spec_api_models(lv.validate_spec(cand))
+    budget = api_budget.ApiBudget(10.0, *api_budget.price_bound(models), models)
+    for doc in champ.docs:
+        usage_all = {"prompt_tokens": sum(s["prompt_tokens"] for s in doc.usage_by_agent.values()),
+                     "completion_tokens": sum(s["completion_tokens"] for s in doc.usage_by_agent.values()), "llm_calls": 4}
+        budget.add_usage(usage_all)
+    assert est.estimate_round_cost(champ, base, cand).runtime_bound_usd >= budget.spent_usd - 1e-9
+
+
+def test_the_bound_scales_with_safety_adds_decisions_input_and_is_zero_for_a_mock_run():
+    base, _, cand = _base_and_lever()
+    champ = _champion()
+    one, two = est.estimate_round_cost(champ, base, cand), est.estimate_round_cost(champ, base, cand, safety=2.0)
+    assert two.runtime_bound_usd == pytest.approx(2 * one.runtime_bound_usd) and two.usd == pytest.approx(2 * one.usd)
+    gate = {**base, "extraction_gate": {"model": "openai/gpt-6-luna-decisions", "questions": "extraction_gate_v1.3.0"}}
+    with_gate = est.estimate_round_cost(champ, base, gate)
+    assert with_gate.runtime_bound_detail["prompt_tokens"] > est.estimate_round_cost(champ, base, base).runtime_bound_detail["prompt_tokens"]
+    mock = {**cand, "job": {**cand["job"], "mock": True}}
+    assert est.estimate_round_cost(champ, base, mock).runtime_bound_usd == 0.0
+
+
+def test_an_unpriced_candidate_model_makes_the_bound_infinite_too():
+    out = est.estimate_round_cost(run_with({"judge": usage(1000)}), SPEC, sup("nobody/unpriced-model-9"))
+    assert math.isinf(out.runtime_bound_usd) and math.isinf(out.cap_usd) and out.to_dict()["runtime_bound_usd"] is None
+
+
+@pytest.mark.parametrize("bound, tier, measured, expected", [
+    (2.3, 2, True, 3.0),         # 2.76 -> 3.00
+    (0.5, 1, True, 1.0),         # 0.6 -> 0.75, never below the study's round cap
+    (1.0, 1, True, 1.25),        # 1.2 -> 1.25
+    (1.04, 1, True, 1.25),       # 1.248 -> 1.25
+    (9.0, 3, True, 4.0),         # clamped to max_round_cap_usd
+    (0.0, 1, False, 1.5), (0.0, 2, False, 3.0), (0.0, 3, False, 4.0), (0.0, None, False, 1.5),   # no champion measurement: tier default
+])
+def test_auto_round_cap(bound, tier, measured, expected):
+    got = est.auto_round_cap(est.Estimate(usd=0.0, basis="t", runtime_bound_usd=bound, measured=measured), base_cap=1.0, max_cap=4.0, tier=tier)
+    assert got == expected
+
+
+def test_round_cap_for_uses_the_override_the_derived_cap_or_the_study_cap():
+    from mailroom_sandbox.autoresearch import levers as lv
+
+    e = est.Estimate(usd=0.1, basis="t", runtime_bound_usd=2.3)
+    mk = lambda **kw: lv.Lever(id="x", node="judge", description="d", patch={"confidence.judge_max_passes": 2}, **kw)  # noqa: E731
+    assert est.round_cap_for(mk(), e, base_cap=1.0, max_cap=4.0) == 1.0
+    assert est.round_cap_for(mk(round_cap_usd=2.0), e, base_cap=1.0, max_cap=4.0) == 2.0
+    assert est.round_cap_for(mk(round_cap_usd=7.0), e, base_cap=1.0, max_cap=4.0) == 4.0
+    assert est.round_cap_for(mk(round_cap_auto=True, tier=2, group="g"), e, base_cap=1.0, max_cap=4.0) == 3.0
