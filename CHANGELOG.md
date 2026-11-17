@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+- **Vendor refresh: llm-mailroom `f83e398` → `8cebcd8` (`main`); Dojo stays at `025400f`.** `8cebcd8` is llm-mailroom `main` after #287 squashed the v0.30.0 release line into it; its tree is byte-identical to `v0.30.0` at `815c169`. It still declares Dojo `025400f`, so the Dojo snapshot is unchanged.
+  - #283: insurance `cms_source_table` comes from the Hub subclass, and CMS claims carry `supporting_documents` references, Part D NDC included.
+  - #284: an opt-in, pinned interim ground-truth overlay. It is off unless a run enables it.
+  - #286 and #289/#291: routing as data and pluggable decision points. Decision points are empty by default, so routing is unchanged.
+  - **Score changes:** insurance extraction on CMS rows. Rescore stored runs before comparing them with runs on `f83e398`.
+  - The floor digest (`reports/dashboard/build_floor_digest.py`) reads the edge topology from `graph/route_spec.py`, where #286 moved it; the derived graph is identical to `f83e398`'s (40 edges).
+
 - **`sandbox api`: one client for the mailroom API and the selected Dojo.**
   - `sandbox api status` shows the pinned and selected mailroom and Dojo (source, version, commit) and the API's `/health`. `--offline` skips the API probe.
   - `sandbox api eval` uploads fixture documents (`--class`, `--sample`) to a running API, waits until each reaches `archived`, `review` or `failed`, and scores them with the same Dojo scorers as `sandbox eval pipeline`: classification and stage over every finished document (a `failed` one counts as wrong), extraction over archived documents only. It works on the local `sandbox pipeline api` or on a deployment named by `MAILROOM_API_URL` (token from `MAILROOM_API_TOKEN`, never printed). It only plans unless `--submit` is given, because the API process runs its own models and this client cannot cap that spend. Each upload is renamed with a run tag, so an earlier run's same-named document is never read back. Documents that do not finish are listed as `incomplete` and not scored. Incomplete or `failed` documents, or an API error mid-run, make the command exit 1; the report still lists every accepted upload. An upload refused by the API's rate limit (HTTP 429) is retried after a back-off.

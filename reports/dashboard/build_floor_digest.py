@@ -163,6 +163,47 @@ def _attribute(func: ast.AST | None) -> str:
     return CODE_LABEL
 
 
+def _route_spec_edges(path: Path) -> tuple[list[tuple[str | None, list[tuple[str | None, str | None]]]],
+                                             list[tuple[str | None, str | None]]] | None:
+    """Conditional and plain edges declared in a sibling ``route_spec.py``.
+
+    llm-mailroom #286 moved the edge topology out of ``build_graph()`` into
+    ``graph/route_spec.py``: ``ROUTE_SPECS`` holds ``RouteSpec(node, router, destinations)``
+    (``destinations`` a dict literal or ``_same("a", "b")``, which maps each name to
+    itself) and ``PLAIN_EDGES`` a tuple of ``(source, target)`` pairs. Returns None when
+    the file is absent or declares neither table.
+    """
+    spec_path = Path(path).with_name("route_spec.py")
+    if not spec_path.is_file():
+        return None
+    try:
+        tree = ast.parse(spec_path.read_text(encoding="utf-8"))
+    except (OSError, SyntaxError) as exc:
+        raise DigestError(f"cannot parse {spec_path}: {exc}", EXIT_GRAPH) from exc
+    tables: dict[str, ast.AST] = {}
+    for n in tree.body:
+        target = n.target if isinstance(n, ast.AnnAssign) else (n.targets[0] if isinstance(n, ast.Assign) else None)
+        if isinstance(target, ast.Name) and target.id in ("ROUTE_SPECS", "PLAIN_EDGES") and n.value is not None:
+            tables[target.id] = n.value
+    if not tables:
+        return None
+    conditional: list[tuple[str | None, list[tuple[str | None, str | None]]]] = []
+    for call in getattr(tables.get("ROUTE_SPECS"), "elts", []):
+        if not (isinstance(call, ast.Call) and _call_name(call) == "RouteSpec" and len(call.args) >= 3):
+            continue
+        dest = call.args[2]
+        if isinstance(dest, ast.Dict):
+            pairs = [(_sym(k), _sym(v)) for k, v in zip(dest.keys, dest.values)]
+        elif isinstance(dest, ast.Call) and _call_name(dest) == "_same":
+            pairs = [(_sym(a), _sym(a)) for a in dest.args]
+        else:
+            continue
+        conditional.append((_sym(call.args[0]), pairs))
+    plain = [(_sym(t.elts[0]), _sym(t.elts[1])) for t in getattr(tables.get("PLAIN_EDGES"), "elts", [])
+             if isinstance(t, ast.Tuple) and len(t.elts) == 2]
+    return conditional, plain
+
+
 def parse_graph(path: Path) -> dict:
     """Derive graph edges and node labels from a Python graph definition.
 
@@ -206,29 +247,42 @@ def parse_graph(path: Path) -> dict:
         """True when an edge may start at START or a registered node."""
         return s == "START" or s in registered
 
+    def plain(a: str | None, b: str | None) -> None:
+        if known_source(a) and (b == "END" or b in registered):
+            add(a, b)
+
+    def conditional(src: str | None, pairs: list[tuple[str | None, str | None]]) -> None:
+        if not known_source(src):
+            return
+        for key, val in pairs:
+            if val in registered:
+                add(src, val)
+            elif val == "END":
+                if key and key not in registered and key not in ("END", "START"):
+                    if key not in lanes:
+                        lanes.append(key)
+                    add(src, key)
+                else:
+                    add(src, "END")
+
     for c in calls:
         kind = c.func.attr
         if kind == "add_edge" and len(c.args) >= 2:
-            a, b = _sym(c.args[0]), _sym(c.args[1])
-            if known_source(a) and (b == "END" or b in registered):
-                add(a, b)
+            plain(_sym(c.args[0]), _sym(c.args[1]))
         elif kind == "add_conditional_edges" and c.args:
-            src = _sym(c.args[0])
             mapping = c.args[2] if len(c.args) > 2 else next(
                 (k.value for k in c.keywords if k.arg == "path_map"), None)
-            if not known_source(src) or not isinstance(mapping, ast.Dict):
-                continue
-            for k, v in zip(mapping.keys, mapping.values):
-                key, val = _sym(k), _sym(v)
-                if val in registered:
-                    add(src, val)
-                elif val == "END":
-                    if key and key not in registered and key not in ("END", "START"):
-                        if key not in lanes:
-                            lanes.append(key)
-                        add(src, key)
-                    else:
-                        add(src, "END")
+            if isinstance(mapping, ast.Dict):
+                conditional(_sym(c.args[0]), [(_sym(k), _sym(v)) for k, v in zip(mapping.keys, mapping.values)])
+
+    if not edges and registered:
+        # llm-mailroom #286: build_graph() registers the nodes, route_spec.py declares the edges.
+        declared = _route_spec_edges(path)
+        if declared is not None:
+            for src, pairs in declared[0]:
+                conditional(src, pairs)
+            for a, b in declared[1]:
+                plain(a, b)
 
     if not registered or not edges:
         raise DigestError(
