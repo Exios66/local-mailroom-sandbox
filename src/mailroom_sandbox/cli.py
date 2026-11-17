@@ -2619,7 +2619,10 @@ def _cmd_api_eval(args: argparse.Namespace) -> int:
     if args.poll is not None:
         kwargs["poll_seconds"] = args.poll
     if args.mock:
-        with family_api.offline_mock_api(rows) as api:
+        import contextlib
+
+        # The in-process API and pipeline log to stdout; keep stdout for the JSON report.
+        with contextlib.redirect_stdout(sys.stderr), family_api.offline_mock_api(rows) as api:
             report = family_api.run_api_eval(rows, api, **kwargs)
         report["mode"] = "mock"
     else:
