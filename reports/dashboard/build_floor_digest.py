@@ -3,7 +3,8 @@
 
 Reads (never writes) run directories under ``$BASE/runtime/runs/*`` (live) and
 ``$BASE/run-history/*`` (archived attempts), plus the vendored LangGraph wiring in
-``vendor/llm-mailroom/src/graph/build_graph.py``, and emits:
+``vendor/llm-mailroom/src/graph/build_graph.py`` (with the edge table in ``route_spec.py``
+beside it when ``build_graph()`` calls ``wire_edges``, llm-mailroom #286), and emits:
 
 * ``floor_digest.json`` — the frozen digest contract consumed by ``floor.template.html``
 * ``floor_digest.js``   — ``window.DIGEST=<same json>;`` twin for file:// viewing
@@ -78,7 +79,8 @@ LANE_LABEL = "(abort terminal)"
 SPECIALIST_LABEL = "specialists (fan inside node)"
 
 GRAPH_NOTE = (
-    "Parsed from build_graph.py (read-only): add_edge pairs plus add_conditional_edges route "
+    "Parsed from build_graph.py and, when it calls wire_edges, route_spec.py (read-only): add_edge "
+    "pairs plus add_conditional_edges / RouteSpec route "
     "maps whose values name registered nodes; START entry routes are included. Transient "
     "self-loops (edges where source==target) are EXCLUDED from the drawn set; their fires "
     "still count toward the node, never toward an edge. A route key that maps to END (e.g. "
@@ -163,6 +165,58 @@ def _attribute(func: ast.AST | None) -> str:
     return CODE_LABEL
 
 
+def _route_spec_edges(path: Path) -> tuple[list[tuple[str | None, list[tuple[str | None, str | None]]]],
+                                             list[tuple[str | None, str | None]]] | None:
+    """Conditional and plain edges declared in a sibling ``route_spec.py``.
+
+    llm-mailroom #286 moved the edge topology out of ``build_graph()`` into
+    ``graph/route_spec.py``: ``ROUTE_SPECS`` holds ``RouteSpec(node, router, destinations)``
+    (``destinations`` a dict literal or ``_same("a", "b")``, which maps each name to
+    itself) and ``PLAIN_EDGES`` a tuple of ``(source, target)`` pairs. Returns None when
+    the file is absent or declares neither table, and raises DigestError for a table
+    or ``RouteSpec`` entry it cannot read literally, so a partial topology never ships.
+    """
+    spec_path = Path(path).with_name("route_spec.py")
+    if not spec_path.is_file():
+        return None
+    try:
+        tree = ast.parse(spec_path.read_text(encoding="utf-8"))
+    except (OSError, SyntaxError) as exc:
+        raise DigestError(f"cannot parse {spec_path}: {exc}", EXIT_GRAPH) from exc
+    tables: dict[str, ast.AST] = {}
+    for n in tree.body:
+        target = n.target if isinstance(n, ast.AnnAssign) else (n.targets[0] if isinstance(n, ast.Assign) else None)
+        if isinstance(target, ast.Name) and target.id in ("ROUTE_SPECS", "PLAIN_EDGES") and n.value is not None:
+            tables[target.id] = n.value
+    if not tables:
+        return None
+    def unreadable(what: str) -> DigestError:
+        return DigestError(f"{spec_path}: cannot read {what} literally; update build_floor_digest._route_spec_edges",
+                           EXIT_GRAPH)
+
+    for name, value in tables.items():
+        if not isinstance(value, (ast.Tuple, ast.List)):
+            raise unreadable(name)
+    conditional: list[tuple[str | None, list[tuple[str | None, str | None]]]] = []
+    for call in getattr(tables.get("ROUTE_SPECS"), "elts", []):
+        if not (isinstance(call, ast.Call) and _call_name(call) == "RouteSpec" and len(call.args) >= 3):
+            raise unreadable("a ROUTE_SPECS entry")
+        dest = call.args[2]
+        if isinstance(dest, ast.Dict):
+            pairs = [(_sym(k), _sym(v)) for k, v in zip(dest.keys, dest.values)]
+        elif isinstance(dest, ast.Call) and _call_name(dest) == "_same":
+            pairs = [(_sym(a), _sym(a)) for a in dest.args]
+        else:
+            raise unreadable("a RouteSpec destination map")
+        conditional.append((_sym(call.args[0]), pairs))
+    plain: list[tuple[str | None, str | None]] = []
+    for t in getattr(tables.get("PLAIN_EDGES"), "elts", []):
+        if not (isinstance(t, ast.Tuple) and len(t.elts) == 2):
+            raise unreadable("a PLAIN_EDGES entry")
+        plain.append((_sym(t.elts[0]), _sym(t.elts[1])))
+    return conditional, plain
+
+
 def parse_graph(path: Path) -> dict:
     """Derive graph edges and node labels from a Python graph definition.
 
@@ -206,29 +260,45 @@ def parse_graph(path: Path) -> dict:
         """True when an edge may start at START or a registered node."""
         return s == "START" or s in registered
 
+    def plain(a: str | None, b: str | None) -> None:
+        if known_source(a) and (b == "END" or b in registered):
+            add(a, b)
+
+    def conditional(src: str | None, pairs: list[tuple[str | None, str | None]]) -> None:
+        if not known_source(src):
+            return
+        for key, val in pairs:
+            if val in registered:
+                add(src, val)
+            elif val == "END":
+                if key and key not in registered and key not in ("END", "START"):
+                    if key not in lanes:
+                        lanes.append(key)
+                    add(src, key)
+                else:
+                    add(src, "END")
+
     for c in calls:
         kind = c.func.attr
         if kind == "add_edge" and len(c.args) >= 2:
-            a, b = _sym(c.args[0]), _sym(c.args[1])
-            if known_source(a) and (b == "END" or b in registered):
-                add(a, b)
+            plain(_sym(c.args[0]), _sym(c.args[1]))
         elif kind == "add_conditional_edges" and c.args:
-            src = _sym(c.args[0])
             mapping = c.args[2] if len(c.args) > 2 else next(
                 (k.value for k in c.keywords if k.arg == "path_map"), None)
-            if not known_source(src) or not isinstance(mapping, ast.Dict):
-                continue
-            for k, v in zip(mapping.keys, mapping.values):
-                key, val = _sym(k), _sym(v)
-                if val in registered:
-                    add(src, val)
-                elif val == "END":
-                    if key and key not in registered and key not in ("END", "START"):
-                        if key not in lanes:
-                            lanes.append(key)
-                        add(src, key)
-                    else:
-                        add(src, "END")
+            if isinstance(mapping, ast.Dict):
+                conditional(_sym(c.args[0]), [(_sym(k), _sym(v)) for k, v in zip(mapping.keys, mapping.values)])
+
+    if any(isinstance(n, ast.Call) and _call_name(n) == "wire_edges" for n in ast.walk(tree)):
+        # llm-mailroom #286: build_graph() registers the nodes, route_spec.py declares the edges.
+        declared = _route_spec_edges(path)
+        if declared is None:
+            raise DigestError(f"{path}: wire_edges() is called but no readable route_spec.py sits beside it",
+                              EXIT_GRAPH)
+        else:
+            for src, pairs in declared[0]:
+                conditional(src, pairs)
+            for a, b in declared[1]:
+                plain(a, b)
 
     if not registered or not edges:
         raise DigestError(
