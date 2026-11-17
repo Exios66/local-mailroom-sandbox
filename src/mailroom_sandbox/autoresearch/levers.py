@@ -54,8 +54,22 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 SCHEMA = "sandbox.autoresearch.levers/v1"
 # A study compares candidates on one frozen draw: a lever may not move the draw, the run id or the
 # mock switch (those belong to the study, which sets them per round).
-FORBIDDEN_ROOTS = frozenset({"dataset", "run_id", "schema", "task", "target"})
+FORBIDDEN_ROOTS = frozenset({"dataset", "run_id", "schema", "task", "target", "trace"})
 FORBIDDEN_PATHS = frozenset({"job.mock", "job.mode", "job.max_wall_seconds", "job.api_cost_cap_usd"})
+
+
+def forbidden_patch_path(path: str) -> bool:
+    """Whether a lever may not patch ``path``: a forbidden root (the draw, ``trace``), a forbidden path, a path ABOVE one
+    (``job`` replaces the whole block, caps included) or one BELOW one (``job.mock.x``)."""
+    parts = path.split(".")
+    if parts[0] in FORBIDDEN_ROOTS:
+        return True
+    for entry in FORBIDDEN_PATHS:
+        forbidden = entry.split(".")
+        n = min(len(parts), len(forbidden))
+        if parts[:n] == forbidden[:n]:
+            return True
+    return False
 CONDITIONS = frozenset({"kept", "all_reverted_positive", "kept_lever", "budget_multiple"})
 
 
@@ -86,7 +100,7 @@ class Lever(BaseModel):
     goal: str = "quality"
     round_cap_usd: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     round_cap_auto: bool = False
-    estimate_safety: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    estimate_safety: float | None = Field(default=None, ge=0.5, le=10, allow_inf_nan=False)
 
     @field_validator("classes")
     @classmethod
@@ -111,7 +125,7 @@ class Lever(BaseModel):
             parts = path.split(".")
             if not path or any(not p for p in parts):
                 raise ValueError(f"patch path {path!r} is not a dotted path")
-            if parts[0] in FORBIDDEN_ROOTS or path in FORBIDDEN_PATHS:
+            if forbidden_patch_path(path):
                 raise ValueError(f"patch path {path!r} is set by the study, not by a lever")
         return value
 

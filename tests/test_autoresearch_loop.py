@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any, Callable
 
@@ -146,11 +149,11 @@ def make(tmp_path, levers, *, mock=True, study_over=None, script=None, cost=0.01
 
 def decisions(loop):
     """(lever, decision) per ledger row, without the replicate baseline that follows the baseline (see its own tests)."""
-    return [(r["lever"], r["decision"]) for r in loop.ledger.rows() if r["decision"] != "replicate"]
+    return [(r["lever"], r["decision"]) for r in loop.ledger.rows() if r["decision"] not in ("replicate", "pending")]
 
 
 def verdicts(loop):
-    return [r["decision"] for r in loop.ledger.rows() if r["decision"] != "replicate"]
+    return [r["decision"] for r in loop.ledger.rows() if r["decision"] not in ("replicate", "pending")]
 
 
 def row_of(loop, lever):
@@ -158,7 +161,7 @@ def row_of(loop, lever):
 
 
 def levers_in(loop):
-    return [r["lever"] for r in loop.ledger.rows() if r["decision"] != "replicate"]
+    return [r["lever"] for r in loop.ledger.rows() if r["decision"] not in ("replicate", "pending")]
 
 
 @pytest.fixture
@@ -1222,3 +1225,435 @@ def test_a_holdout_is_stale_once_a_later_keep_changes_the_champion(tmp_path):
     assert "STALE" in report and "`ar-t1-r01-a`" in report and "`ar-t1-r02-b`" in report
     with pytest.raises(lp.AutoresearchError, match="once already"):                  # still never re-run
         loop.holdout()
+
+
+# ---- the ledger counts what was billed (api_spend, _charge) -----------------------------------------------------------------
+
+# 0.2 / 0.8 USD per 1M input / output tokens (config/api_prices.yaml)
+LOCK = {"job": {"mock": False, "api_cost_cap_usd": 1.0}, "engine": {"kind": "openrouter", "model": "qwen/qwen3.7-flash"}}
+
+
+def billed_run(tmp_path, *, items=(), failed=(), lock=LOCK, name="billed"):
+    rd = tmp_path / name
+    rd.mkdir(exist_ok=True)
+    if lock is not None:
+        (rd / "spec.lock.json").write_text(json.dumps(lock))
+    (rd / "items.jsonl").write_text("".join(json.dumps(i) + "\n" for i in items) + '{"item_id": "torn", "prompt_tok')
+    event = {"ts": "t", "event": "api_usage_of_failed_document", "level": "warning"}
+    (rd / "events.jsonl").write_text(json.dumps({"event": "started"}) + "\n"
+                                     + "".join(json.dumps({**event, "detail": f}) + "\n" for f in failed))
+    return rd
+
+
+def test_api_spend_prices_items_and_failed_document_usage_at_the_runtime_bound(tmp_path):
+    rd = billed_run(tmp_path, items=[{"item_id": "a", "prompt_tokens": 1_000_000, "completion_tokens": 0, "llm_calls": 3}],
+                    failed=[{"item_id": "b", "prompt_tokens": 500_000, "completion_tokens": 1_000_000}])
+    # item a: 1M input tokens (the retried attempts are already inside its totals) = 0.2; failed b: 0.1 + 0.8; the torn tail is skipped
+    assert lp.api_spend(rd) == pytest.approx(0.2 + 0.1 + 0.8)
+
+
+def test_api_spend_is_none_when_the_run_cannot_be_priced(tmp_path):
+    items = [{"item_id": "a", "prompt_tokens": 1_000_000, "completion_tokens": 0}]
+    assert lp.api_spend(None) is None and lp.api_spend(tmp_path / "gone") is None
+    assert lp.api_spend(billed_run(tmp_path, items=items, lock=None, name="nolock")) is None
+    assert lp.api_spend(billed_run(tmp_path, items=items, lock={**LOCK, "job": {"mock": True}}, name="mock")) is None
+    unpriced = {**LOCK, "engine": {"kind": "openrouter", "model": "nobody/unpriced-model"}}
+    assert lp.api_spend(billed_run(tmp_path, items=items, lock=unpriced, name="unpriced")) is None
+
+
+def test_charge_is_the_larger_of_the_scored_cost_and_the_runs_own_api_budget(tmp_path):
+    rd = billed_run(tmp_path, items=[{"item_id": "a", "prompt_tokens": 1_000_000, "completion_tokens": 0}],
+                    failed=[{"item_id": "b", "prompt_tokens": 500_000, "completion_tokens": 1_000_000}])   # 0.2 + 0.9 = 1.1 billed
+    low = RunScores(run_id="r", run_dir=str(rd), docs=[d("a", "contract", cost_usd=0.05)])
+    high = RunScores(run_id="r", run_dir=str(rd), docs=[d("a", "contract", cost_usd=1.7)])
+    assert lp._charge(low, 2.5, False, rd) == pytest.approx(1.1)       # scores under-count (no retries, no failed documents)
+    assert lp._charge(high, 2.5, False, rd) == pytest.approx(1.7)      # the larger figure wins either way
+    assert lp._charge(low, 0.5, True, rd) == pytest.approx(1.1)        # a cap abort is the cap, or the bill when that is larger
+    assert lp._charge(low, 2.5, True, rd) == pytest.approx(2.5)
+    assert lp._charge(None, 0.4, False, rd) == pytest.approx(1.1)      # no scored document: the bill beats the cap too
+    nan = RunScores(run_id="r", run_dir=str(rd), docs=[d("a", "contract", cost_usd=float("nan"))])
+    assert lp._charge(nan, 2.5, False, rd) == 2.5                      # a non-finite figure is charged at the cap
+
+
+def test_every_ledger_row_is_charged_the_bill_not_the_scored_estimate(tmp_path, monkeypatch):
+    monkeypatch.setattr(lp, "api_spend", lambda run_dir: 0.5 if run_dir is not None else None)
+    loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("a")]}, cost=0.01)            # scored: 6 x 0.01 = 0.06 per run
+    loop.run(1)
+    costs = {r["lever"]: r["cost_usd"] for r in loop.ledger.rows()}
+    assert costs == {"baseline": 0.5, "replicate": 0.5, "a": 0.5} and loop.state().spent == pytest.approx(1.5)
+    fake.holdout_ids = ["h1"]
+    fake.script = lambda spec, lever: [d("h1", "contract")]
+    assert loop.holdout()["cost_usd"] == 0.5
+
+
+# ---- the key's own bill guards the study ----------------------------------------------------------------------------------------
+
+def key_seq(*values):
+    """A fake key reader: the next value on each call, the last one thereafter."""
+    queue, last = list(values), [None]
+
+    def read():
+        if queue:
+            last[0] = queue.pop(0)
+        return last[0]
+    return read
+
+
+def test_each_paid_round_records_the_key_reading_it_started_from_and_the_first_one_is_persisted(tmp_path):
+    loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("a")]}, mock=False, key_remaining=key_seq(50.0, 49.9, 49.5))
+    loop.run(1)
+    final = [r for r in loop.ledger.rows() if r["decision"] != "pending"]
+    assert [(r["lever"], r["key_remaining_before"], r["key_remaining_at_start"]) for r in final] == [
+        ("baseline", 50.0, 50.0), ("replicate", 49.9, 50.0), ("a", 49.5, 50.0)]
+    assert json.loads((loop.dir / "key_start.json").read_text())["key_remaining_at_start"] == 50.0
+
+
+def test_the_key_spend_guard_stops_when_the_bill_outruns_the_ledger(tmp_path):
+    # the ledger says 0.06 spent (study 5 USD, cap 1); the key says 6 USD went: 50 - 44 + 1 > 5
+    loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("a")]}, mock=False, key_remaining=key_seq(50.0, 44.0))
+    _, stop = loop.run(1)
+    assert stop == "key_spend" and fake.runs == ["ar-t1-r00-baseline"]
+    assert loop.state().spent == pytest.approx(0.06)                    # the ledger alone would have gone on
+
+
+def test_the_key_spend_guard_compares_with_the_first_reading_across_processes(tmp_path):
+    first, fake, _ = make(tmp_path, {"levers": [reviewer_lever("a"), reviewer_lever("b", cutoff=0.2)]}, mock=False,
+                          key_remaining=lambda: 50.0)
+    first.run(1)
+    fresh = lp.Loop(first.study, fake, state_dir=first.dir, out=lambda s: None, key_remaining=lambda: 44.5)   # a later process
+    assert fresh.run(1)[1] == "key_spend"                               # 50 - 44.5 + 1 > 5; its own first reading would pass
+    again = lp.Loop(first.study, fake, state_dir=first.dir, out=lambda s: None, key_remaining=lambda: 48.0)
+    assert again.run(1)[1] != "key_spend"                               # 50 - 48 + 1 <= 5
+
+
+@pytest.mark.parametrize("reading", [float("nan"), float("inf"), "x"])
+def test_a_non_finite_key_reading_fails_closed(tmp_path, reading):
+    loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("a")]}, mock=False, key_remaining=lambda: reading)
+    assert loop.run(1)[1] == "key_unreadable" and fake.runs == []
+
+
+def test_a_corrupt_key_start_file_stops_the_study_with_a_clear_error(tmp_path):
+    loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("a")]}, mock=False, key_remaining=lambda: 50.0)
+    loop.dir.mkdir(parents=True)
+    (loop.dir / "key_start.json").write_text("{not json")
+    with pytest.raises(lp.AutoresearchError, match="key_start.json: unreadable"):
+        loop.step()
+    assert fake.runs == []
+
+
+# ---- scrubbing before truncating ------------------------------------------------------------------------------------------------
+
+def _no_window(secret: str, text: str, size: int = 8) -> bool:
+    return not any(secret[i:i + size] in text for i in range(len(secret) - size + 1))
+
+
+@pytest.mark.parametrize("cut", range(1, len(KEY)))
+def test_a_key_straddling_the_tail_cut_never_reaches_the_message(tmp_path, job_data_dir, cut):
+    # the last 1500 characters start `cut` characters into the key
+    stderr = "z" * 50 + KEY + "q" * (1500 - (len(KEY) - cut))
+    ex = lp.CliExecutor(initials="QZ", runner=lambda argv, **k: _Done(1, "", stderr))
+    with pytest.raises(lp.ExecutionError) as err:
+        ex.execute(_spec_file(tmp_path, mock=False))
+    assert KEY not in str(err.value) and _no_window(KEY, str(err.value))
+
+
+def test_another_openrouter_key_and_a_straddling_bearer_token_are_redacted_too(tmp_path, job_data_dir, monkeypatch):
+    other, token = "sk-or-v1-ffffeeeeddddccccbbbbaaaa9999", "tok_abcdefghijklmnop1234"
+    monkeypatch.delenv("OPENROUTER_API_KEY")                                 # not the env key: only the pattern can catch it
+    for secret in (other, "Bearer " + token):
+        for cut in range(1, len(secret)):
+            stderr = "z" * 40 + secret + "q" * (1500 - (len(secret) - cut))
+            ex = lp.CliExecutor(initials="QZ", runner=lambda argv, **k: _Done(1, stderr, ""))
+            with pytest.raises(lp.ExecutionError) as err:
+                ex.execute(_spec_file(tmp_path, mock=False))
+            text = str(err.value)
+            assert other not in text and token not in text and _no_window(other, text) and _no_window(token, text)
+
+
+def test_scrub_head_and_tail_scrub_the_whole_text_before_slicing():
+    env = {"OPENROUTER_API_KEY": KEY}
+    text = "a" * 10 + KEY + "b" * 10
+    for cut in range(1, len(KEY)):
+        assert _no_window(KEY, lp.scrub_head(text, 10 + cut, env)) and _no_window(KEY, lp.scrub_tail(text, 10 + len(KEY) - cut, env))
+    assert lp.scrub("x sk-or-v1-abc_DEF-123 y bearer   tok", {}) == "x [redacted] y Bearer [redacted]"
+
+
+# ---- the inter-process lock and atomic writes ----------------------------------------------------------------------------------
+
+def test_a_second_loop_on_the_same_state_dir_is_refused_while_the_lock_is_held(tmp_path):
+    loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("a")]})
+    other = lp.Loop(loop.study, fake, state_dir=loop.dir, out=lambda s: None)
+    with loop._exclusive():
+        for call in (other.step, lambda: other.run(1), other.holdout):
+            with pytest.raises(lp.AutoresearchError, match="another autoresearch process holds") as err:
+                call()
+            assert str(loop.dir) in str(err.value)
+        assert fake.runs == []
+    assert other.step().executed and fake.runs                        # released on exit
+
+
+def test_a_second_process_is_refused_while_another_process_holds_the_lock(tmp_path):
+    loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("a")]})
+    loop.dir.mkdir(parents=True)
+    code = "import fcntl, sys; fh = open(sys.argv[1], 'a+'); fcntl.flock(fh, fcntl.LOCK_EX); print('locked', flush=True); sys.stdin.readline()"
+    proc = subprocess.Popen([sys.executable, "-c", code, str(loop.dir / ".lock")], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+    try:
+        assert proc.stdout.readline().strip() == "locked"
+        with pytest.raises(lp.AutoresearchError, match="another autoresearch process holds"):
+            loop.step()
+        assert fake.runs == []
+    finally:
+        proc.stdin.write("\n")
+        proc.stdin.close()
+        proc.wait(timeout=20)
+    assert loop.step().executed                                       # the other process exited: the lock is free
+
+
+def test_the_lock_is_released_when_a_step_fails_and_run_reenters_it(tmp_path):
+    loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("a")]}, script=lambda s, l: lp.ExecutionError("down", s["run_id"]))
+    other = lp.Loop(loop.study, fake, state_dir=loop.dir, out=lambda s: None)
+    with pytest.raises(lp.AutoresearchError, match="baseline failed"):
+        loop.run(1)                                                    # run -> step -> raise
+    with other._exclusive():                                           # free again
+        pass
+    assert loop._lock_depth == 0
+
+
+def test_spec_files_and_champion_yaml_are_written_through_a_temp_file_and_replace(tmp_path, monkeypatch):
+    replaced, real = [], os.replace
+    monkeypatch.setattr(os, "replace", lambda a, b: (replaced.append(Path(b).name), real(a, b))[1])
+    loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("fix")]},
+                         script=lambda spec, lever: with_utils(baseline_docs(), r1=1.0, r2=1.0) if lever == "fix" else baseline_docs())
+    loop.run(1)
+    assert {"ar-t1-r00-baseline.yaml", "ar-t1-r01-fix.yaml", "champion.yaml", "ar-t1-r00-baseline.json", "report.md"} <= set(replaced)
+    assert not [p for p in loop.dir.rglob("*") if p.name.endswith(".tmp")]
+
+
+def test_a_failed_atomic_write_keeps_the_old_file_and_leaves_no_temp(tmp_path, monkeypatch):
+    target = tmp_path / "champion.yaml"
+    target.write_text("old")
+
+    def boom(a, b):
+        raise OSError("disk")
+    monkeypatch.setattr(os, "replace", boom)
+    with pytest.raises(OSError):
+        lp._atomic_write(target, "new")
+    assert target.read_text() == "old" and not list(tmp_path.glob(".*"))
+
+
+# ---- pending rows reserve the cap before a paid child runs ---------------------------------------------------------------
+
+def test_spent_usd_counts_a_pending_row_at_its_cap_until_a_later_final_row_with_its_run_id():
+    pending = {"seq": 1, "decision": "pending", "run_id": "r1", "cost_usd": 0.0, "reserved_usd": 2.0}
+    other = {"seq": 2, "decision": "revert", "run_id": "r0", "cost_usd": 0.5}
+    assert lp.spent_usd([pending, other]) == pytest.approx(2.5)
+    final = {"seq": 3, "decision": "error", "run_id": "r1", "cost_usd": 0.7}
+    assert lp.spent_usd([pending, other, final]) == pytest.approx(1.2)               # superseded: only the final row counts
+    retry = {"seq": 4, "decision": "pending", "run_id": "r1", "cost_usd": 0.0, "reserved_usd": 1.0}
+    assert lp.spent_usd([pending, other, final, retry]) == pytest.approx(2.2)         # a pending AFTER that final row is a new run
+    assert lp.spent_usd([pending, other], release="r1") == pytest.approx(0.5)
+    assert [r["seq"] for r in lp.dangling_reservations([pending, other, final, retry])] == [4]
+
+
+def test_a_paid_run_reserves_its_cap_before_it_executes(tmp_path):
+    seen: list[list[str]] = []
+    holder: dict[str, Any] = {}
+
+    def script(spec, lever):
+        rows = holder["loop"].ledger.rows()
+        seen.append([f"{r['decision']}:{r.get('run_id')}:{r.get('reserved_usd')}" for r in rows])
+        return baseline_docs()
+    loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("a")]}, mock=False, script=script, key_remaining=lambda: 50.0)
+    holder["loop"] = loop
+    loop.run(1)
+    assert seen[0] == ["pending:ar-t1-r00-baseline:1.0"]                  # on disk before the first model call
+    assert seen[2][-1] == "pending:ar-t1-r01-a:1.0"
+    pend = next(r for r in loop.ledger.rows() if r["decision"] == "pending")
+    assert pend["cost_usd"] == 0.0 and pend["round_cap_usd"] == 1.0 and pend["key_remaining_before"] == 50.0
+    assert lp.dangling_reservations(loop.ledger.rows()) == []             # every reservation was superseded
+    assert loop.state().spent == pytest.approx(0.18)                      # not 0.18 + 3 caps
+
+
+def test_a_mock_study_writes_no_pending_rows(tmp_path):
+    loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("a")]})
+    loop.run(1)
+    assert not [r for r in loop.ledger.rows() if r["decision"] == "pending"]
+
+
+def test_a_crashed_baseline_keeps_its_reservation_and_the_resume_of_the_run_id_resolves_it(tmp_path):
+    over = {"budget": {"study_usd": 1.5, "round_api_cap_usd": 1, "round_wall_seconds": 600, "min_key_remaining_usd": 3}}
+    crashing = {"on": True}
+
+    def script(spec, lever):
+        if crashing["on"]:
+            raise RuntimeError("killed")
+        return baseline_docs()
+    loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("a")]}, mock=False, study_over=over, script=script, key_remaining=lambda: 50.0)
+    with pytest.raises(RuntimeError, match="killed"):
+        loop.step()
+    assert [(r["decision"], r["run_id"]) for r in loop.ledger.rows()] == [("pending", "ar-t1-r00-baseline")]
+    assert loop.state().spent == 1.0                                       # the dangling reservation counts at its cap
+    crashing["on"] = False
+    resumed = lp.Loop(loop.study, fake, state_dir=loop.dir, out=lambda s: None, key_remaining=lambda: 50.0)
+    resumed.step()                                                         # 1.0 reserved + 1.0 cap > 1.5, but it IS that run
+    rows = resumed.ledger.rows()
+    assert [r["decision"] for r in rows][:2] == ["pending", "baseline"] and rows[1]["run_id"] == "ar-t1-r00-baseline"
+    assert sum(r["decision"] == "pending" and r["run_id"] == "ar-t1-r00-baseline" for r in rows) == 1   # not reserved twice
+    assert lp.dangling_reservations(rows) == [] and resumed.state().spent < 1.0
+
+
+def test_a_crashed_candidate_resumes_under_the_same_run_id_and_a_different_run_cannot_spend_its_reservation(tmp_path):
+    over = {"budget": {"study_usd": 2.0, "round_api_cap_usd": 1, "round_wall_seconds": 600, "min_key_remaining_usd": 3}}
+
+    def script(spec, lever):
+        if lever == "a":
+            raise RuntimeError("killed")
+        return baseline_docs()
+    loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("a")]}, mock=False, study_over=over, script=script,
+                         key_remaining=lambda: 50.0)
+    with pytest.raises(RuntimeError, match="killed"):
+        loop.step()
+    assert [r["decision"] for r in loop.ledger.rows()] == ["pending", "baseline", "pending", "replicate", "pending"]
+    assert loop.ledger.rows()[-1]["run_id"] == "ar-t1-r01-a" and loop.state().spent == pytest.approx(1.12)
+    # a catalog without lever a: lever b is a DIFFERENT run, and 1.12 + its 1.0 cap > ... (study 2.0 leaves 0.88)
+    (tmp_path / "levers.yaml").write_text(yaml.safe_dump({"schema": "sandbox.autoresearch.levers/v1", "levers": [reviewer_lever("b", cutoff=0.2)]}))
+    other = lp.Loop(lp.Study.load(tmp_path / "study.yaml"), fake, state_dir=loop.dir, out=lambda s: None, key_remaining=lambda: 50.0)
+    assert other.step().stop == "study_budget" and "ar-t1-r01-b" not in fake.runs
+    # the same lever resumes under the same run id and releases its own reservation
+    (tmp_path / "levers.yaml").write_text(yaml.safe_dump({"schema": "sandbox.autoresearch.levers/v1", "levers": [reviewer_lever("a")]}))
+    fake.script = lambda spec, lever: baseline_docs()
+    resumed = lp.Loop(lp.Study.load(tmp_path / "study.yaml"), fake, state_dir=loop.dir, out=lambda s: None, key_remaining=lambda: 50.0)
+    resumed.step()
+    rows = resumed.ledger.rows()
+    assert [r["run_id"] for r in rows if r["decision"] == "pending"].count("ar-t1-r01-a") == 1
+    assert rows[-1]["decision"] == "revert" and rows[-1]["run_id"] == "ar-t1-r01-a" and lp.dangling_reservations(rows) == []
+
+
+# ---- the ledger sum fails closed ---------------------------------------------------------------------------------------------
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf"), "oops"])
+def test_spent_usd_rejects_a_non_finite_or_non_numeric_cost(bad):
+    with pytest.raises(lp.LedgerCorruptError, match="ledger row 2"):
+        lp.spent_usd([{"seq": 1, "cost_usd": 0.1}, {"seq": 2, "lever": "a", "cost_usd": bad}])
+    with pytest.raises(lp.LedgerCorruptError):
+        lp.spent_usd([{"seq": 1, "decision": "pending", "run_id": "r", "reserved_usd": bad}])
+    assert issubclass(lp.LedgerCorruptError, lp.AutoresearchError)
+
+
+def test_spent_usd_clamps_each_row_to_zero_so_a_negative_cost_cannot_buy_budget():
+    assert lp.spent_usd([{"cost_usd": 1.0}, {"cost_usd": -50.0}, {"cost_usd": None}, {}]) == 1.0
+
+
+def test_the_budget_comparison_fails_closed_on_nan():
+    assert lp._fits(4.0, 1.0, 5.0) and not lp._fits(4.5, 1.0, 5.0)
+    assert not lp._fits(float("nan"), 1.0, 5.0) and not lp._fits(0.0, float("nan"), 5.0) and not lp._fits(0.0, 1.0, float("nan"))
+
+
+def test_the_guard_stops_on_a_nan_spend(tmp_path, monkeypatch):
+    loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("a")]})
+    monkeypatch.setattr(lp.State, "spent_for", lambda self, run_id=None: float("nan"))
+    assert loop._guard(loop.state()) == "study_budget"
+
+
+@pytest.mark.parametrize("cost", ["NaN", "Infinity", "-Infinity"])
+def test_a_ledger_with_a_non_finite_cost_stops_the_loop_with_a_clear_error(tmp_path, cost):
+    loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("a")]})
+    loop.dir.mkdir(parents=True)
+    (loop.dir / "ledger.jsonl").write_text('{"seq": 1, "lever": "baseline", "decision": "error", "cost_usd": %s}\n' % cost)
+    with pytest.raises(lp.LedgerCorruptError, match="not a finite number"):
+        loop.step()
+    with pytest.raises(lp.LedgerCorruptError):
+        loop.status()
+    assert fake.runs == []
+
+
+# ---- the study file ----------------------------------------------------------------------------------------------------------
+
+def _study_with(tmp_path, **changes):
+    make(tmp_path, {"levers": [reviewer_lever("a")]})
+    path = tmp_path / "study.yaml"
+    data = yaml.safe_load(path.read_text())
+    data.update(changes)
+    path.write_text(yaml.safe_dump(data))
+    return path
+
+
+@pytest.mark.parametrize("field,value", [("noise_floor", -0.1), ("noise_floor", float("nan")), ("noise_floor", float("inf")),
+                                         ("estimate_safety", 0.49), ("estimate_safety", 10.5), ("estimate_safety", float("nan")),
+                                         ("estimate_safety", float("inf")), ("estimate_safety", 0)])
+def test_the_noise_floor_and_estimate_safety_are_bounded(tmp_path, field, value):
+    with pytest.raises(lp.AutoresearchError, match=field):
+        lp.Study.load(_study_with(tmp_path, **{field: value}))
+
+
+@pytest.mark.parametrize("field,value", [("noise_floor", 0.0), ("noise_floor", 0.05), ("estimate_safety", 0.5), ("estimate_safety", 10)])
+def test_in_range_noise_floor_and_estimate_safety_load(tmp_path, field, value):
+    assert getattr(lp.Study.load(_study_with(tmp_path, **{field: value})), field) == value
+
+
+def test_a_holdout_dataset_typo_fails_at_load(tmp_path):
+    with pytest.raises(lp.AutoresearchError, match=r"unknown dataset field\(s\) \['sample_sed'\]"):
+        lp.Study.load(_study_with(tmp_path, holdout_dataset={"sample_sed": 7}))
+    with pytest.raises(lp.AutoresearchError, match="generated by the holdout"):
+        lp.Study.load(_study_with(tmp_path, holdout_dataset={"exclude_ids_file": "x.txt"}))
+    ok = lp.Study.load(_study_with(tmp_path, holdout_dataset={"sample_seed": 7, "limit": 4}))
+    assert ok.holdout_dataset == {"sample_seed": 7, "limit": 4}
+
+
+def test_draw_size_reads_quotas_then_limit():
+    assert lp.draw_size({"strata": {"buckets": [{"doc_class": "a", "count": 2}, {"doc_class": "b", "count": 3}]}}) == 5
+    assert lp.draw_size({"strata": {"buckets": [{"doc_class": "a", "sub_buckets": [{"count": 2}, {"count": 1}]}]}}) == 3
+    assert lp.draw_size({"strata": {"values": ["x", "y"], "counts": [4, 1]}}) == 5
+    assert lp.draw_size({"strata": {"buckets": [{"doc_class": "a", "count": 9}]}, "limit": 4}) == 4      # the limit applies after the strata
+    assert lp.draw_size({"limit": 7}) == 7
+    assert lp.draw_size({"strata": {"buckets": [{"doc_class": "a"}]}}) is None                              # no quota: takes every candidate
+    assert lp.draw_size({"strata": {"expected": ["contract"]}}) is None and lp.draw_size({}) is None
+
+
+def _holdout_after_dev(tmp_path, dataset):
+    loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("a")]}, study_over={"holdout_dataset": dataset})
+    loop.run(1)
+    fake.holdout_ids = ["h1", "h2"]
+    fake.script = lambda spec, lever: [d("h1", "contract"), d("h2", "correspondence")]
+    return loop, fake
+
+
+def test_a_holdout_larger_than_twice_the_dev_draw_is_refused_before_any_spend(tmp_path):
+    big = {"strata": {"buckets": [{"doc_class": "contract", "count": 13}]}, "limit": None}      # dev draw is 6 documents
+    loop, fake = _holdout_after_dev(tmp_path, big)
+    runs, rows = len(fake.runs), len(loop.ledger.rows())
+    with pytest.raises(lp.AutoresearchError, match=r"draws 13 documents, more than twice the 6-document dev draw \(12 at most\)"):
+        loop.holdout()
+    assert len(fake.runs) == runs and len(loop.ledger.rows()) == rows and "ar-t1-holdout" not in fake.specs
+
+
+def test_a_holdout_of_exactly_twice_the_dev_draw_runs(tmp_path):
+    loop, fake = _holdout_after_dev(tmp_path, {"strata": {"buckets": [{"doc_class": "contract", "count": 12}]}, "limit": None})
+    assert loop.holdout()["decision"] == "holdout"
+
+
+def test_a_holdout_that_does_not_say_how_many_documents_it_draws_is_refused(tmp_path):
+    loop, fake = _holdout_after_dev(tmp_path, {"limit": None})
+    with pytest.raises(lp.AutoresearchError, match="does not say how many documents it draws"):
+        loop.holdout()
+    assert "ar-t1-holdout" not in fake.specs
+
+
+def test_study_mock_is_the_validated_runspec_value_not_raw_yaml_truthiness(tmp_path):
+    make(tmp_path, {"levers": [reviewer_lever("a")]}, mock=False)
+    base = yaml.safe_load((tmp_path / "base.yaml").read_text())
+    base["job"]["mock"] = "false"                  # a string: truthy as raw YAML, False as the validated field
+    (tmp_path / "base.yaml").write_text(yaml.safe_dump(base))
+    study = lp.Study.load(tmp_path / "study.yaml")
+    assert bool(study.base_spec()["job"]["mock"]) is True and study.mock is False
+
+
+def test_the_cli_executor_refuses_a_paid_spec_whose_mock_flag_is_a_string(tmp_path):
+    calls = []
+    ex = lp.CliExecutor(runner=lambda *a, **k: calls.append(a) or _Done())
+    path = tmp_path / "s.yaml"
+    path.write_text(yaml.safe_dump({"run_id": "ar-x-r01-y", "job": {"mock": "false", "max_wall_seconds": 100}}))
+    for method in (ex.execute, ex.prepare):
+        with pytest.raises(lp.AutoresearchError, match="--initials XX"):
+            method(path)
+    assert calls == []

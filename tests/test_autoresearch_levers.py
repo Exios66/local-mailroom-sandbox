@@ -55,10 +55,28 @@ def test_lever_validation_failure_names_the_bad_path():
         lv.apply_lever(BASE, unknown)
 
 
-@pytest.mark.parametrize("path", ["dataset.limit", "run_id", "task", "job.mock", "job.api_cost_cap_usd", "job.max_wall_seconds", "job.mode"])
+@pytest.mark.parametrize("path", ["dataset.limit", "run_id", "task", "job.mock", "job.api_cost_cap_usd", "job.max_wall_seconds", "job.mode",
+                                  "job", "trace", "trace.tags", "trace.sink", "job.mock.x", "job.api_cost_cap_usd.x"])
 def test_levers_cannot_touch_what_the_study_owns(path):
+    # ``job`` (a prefix of the forbidden job.* paths) would replace the caps wholesale; ``trace`` carries the study's tags
     with pytest.raises(ValueError, match="set by the study"):
         lever(patch={path: 1})
+
+
+@pytest.mark.parametrize("path", ["job.max_retries", "job.concurrency", "reviewer.classes.contract", "confidence.judge_max_passes"])
+def test_levers_may_still_patch_the_rest_of_the_job_block(path):
+    assert lever(patch={path: 1}).patch == {path: 1}
+
+
+@pytest.mark.parametrize("value", [0.0, 0.49, 10.01, float("nan"), float("inf"), -1.0])
+def test_a_levers_estimate_safety_is_finite_and_between_half_and_ten(value):
+    with pytest.raises(ValueError):
+        lever(patch={"reviewer.classes.contract": 0.4}, estimate_safety=value)
+
+
+@pytest.mark.parametrize("value", [0.5, 1.0, 2.0, 10.0])
+def test_a_levers_estimate_safety_in_range_is_accepted(value):
+    assert lever(patch={"reviewer.classes.contract": 0.4}, estimate_safety=value).estimate_safety == value
 
 
 def test_lever_needs_a_patch_or_a_pipeline_source_and_a_group_for_a_tier():
