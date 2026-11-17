@@ -6,7 +6,8 @@
   - #283: insurance `cms_source_table` comes from the Hub subclass, and CMS claims carry `supporting_documents` references, Part D NDC included.
   - #284: an opt-in, pinned interim ground-truth overlay. It is off unless a run enables it.
   - #286 and #289/#291: routing as data and pluggable decision points. Decision points are empty by default, so routing is unchanged.
-  - **Score changes:** insurance extraction on CMS rows. Rescore stored runs before comparing them with runs on `f83e398`.
+  - **Score changes:** insurance extraction on CMS rows (`claim_type`, `supporting_documents`). Rescore stored runs before comparing them with runs on `f83e398`.
+  - Not scored yet: `cms_source_table`. The pipeline now emits it, but the Dojo insurance suite (`025400f`) has no class-level field type for it, and the sandbox's extraction scope stays equal to the Dojo engine. `tests/test_extraction_scope.py` records this and checks the scope against the vendored schemas, so the next field a refresh adds cannot go unscored silently.
   - The floor digest (`reports/dashboard/build_floor_digest.py`) reads the edge topology from `graph/route_spec.py`, where #286 moved it; the derived graph is identical to `f83e398`'s (40 edges).
 
 - **`sandbox api`: one client for the mailroom API and the selected Dojo.**

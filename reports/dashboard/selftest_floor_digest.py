@@ -435,6 +435,16 @@ def route_spec_topology_is_read_beside_build_graph():
         g = bfd.parse_graph(Path(t, "build_graph.py"))
     assert {tuple(e) for e in g["edges"]} == {("START", "a"), ("a", "b"), ("a", "failed"), ("b", "END")}, g["edges"]
     assert "failed" in g["node_agents"]
+    with tempfile.TemporaryDirectory() as t:
+        Path(t, "build_graph.py").write_text(
+            "def build_graph(workflow):\n    workflow.add_node('a', f)\n    wire_edges(workflow)\n", encoding="utf-8")
+        Path(t, "route_spec.py").write_text("ROUTE_SPECS = BASE + (RouteSpec('a', r, _same('a')),)\n", encoding="utf-8")
+        try:
+            bfd.parse_graph(Path(t, "build_graph.py"))
+        except bfd.DigestError as exc:
+            assert "cannot read ROUTE_SPECS" in str(exc)
+        else:
+            raise AssertionError("a non-literal ROUTE_SPECS must not yield a partial graph")
 
 
 @test
