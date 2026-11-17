@@ -44,6 +44,7 @@ dataset:
   sample_seed: 3302          # one seed for every slice, so the draws nest
   require_task_gt: true     # every document can be scored
   interim_labels: true      # gap-fill labels for unlabelled fields (data/labels/interim; Dojo #164)
+  near_gold_labels: true  # fill fields still unlabelled with Claude near-gold labels (data/labels/gold-overlay; status near_gold)
   exclude_ids_file: config/production/excluded-ids.txt   # tuning documents, dropped before the draw
   draw: ranked   # exclusion-stable order: adding tuning ids keeps the rest of every slice
 

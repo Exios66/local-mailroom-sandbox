@@ -143,6 +143,11 @@ class DatasetSpec(BaseModel):
     # drawn rows' expected_fields: the labels the next dataset revision is expected to publish.
     # Off by default; the lock records the overlay's sha256 so such scores never pass for Hub-GT ones.
     interim_labels: bool = False
+    # Fill fields that neither the Hub nor the interim overlay labels with the Claude near-gold
+    # labels (data/labels/gold-overlay, mailroom_sandbox.gold_labels): two agreeing passes or an
+    # Opus review, still near_gold (not gold) until EDA releases them. Off by default; the lock
+    # records the overlay's sha256 and each row names the fields it filled.
+    near_gold_labels: bool = False
     # Repo-relative path to a text file of document ids (one per line; blank lines and `#`
     # comments ignored) dropped BEFORE the draw, so a slice never re-draws a tuning document.
     # The file's sha256 is hashed into the spec; a missing file is a preflight error.
@@ -279,7 +284,7 @@ class DatasetSpec(BaseModel):
                      exclude_ids_sha256: str | None = None) -> dict[str, Any]:
         """The reproducibility-relevant spec (never row counts/attempt results).
 
-        ``interim_labels`` is hashed only when set (with the overlay's fingerprint, so a rebuilt
+        ``interim_labels`` and ``near_gold_labels`` are hashed only when set (with the overlay's fingerprint, so a rebuilt
         overlay is a new spec). A local dataset's identity uses ``local.name`` (the file
         name), plus ``source_sha256`` when supplied, otherwise the file-byte sha256
         when ``local.is_file()``. File read errors propagate. The registry
@@ -306,6 +311,10 @@ class DatasetSpec(BaseModel):
             from mailroom_sandbox.interim_labels import overlay_fingerprint
 
             core["interim_labels"] = overlay_fingerprint()
+        if self.near_gold_labels:
+            from mailroom_sandbox.gold_labels import near_gold_fingerprint
+
+            core["near_gold_labels"] = near_gold_fingerprint()
         return core
 
     def _request_core(self, *, source_sha256: str | None = None) -> dict[str, Any]:
