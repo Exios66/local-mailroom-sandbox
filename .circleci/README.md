@@ -1,10 +1,11 @@
 # CI checks and runtime verification
 
 [`config.yml`](config.yml) runs one workflow on `cimg/python:3.11-node`: `lint`
-(`small`), `test` (`medium`, 4 parallel containers) and `coverage` (`small`,
-runs after `test`). This repository's CI configuration is CircleCI. GitHub
-branch protection must require `ci/circleci: lint`, `ci/circleci: test` and
-`ci/circleci: coverage` to enforce every gate on `main`; configuration
+(`small`), `test` (`medium`, 4 parallel containers), `coverage` (`small`,
+runs after `test`) and `no-session-links` (`small`; fails on claude.ai links,
+Claude-Session trailers or Claude Code footers in commits or the PR description). This repository's CI configuration is CircleCI. GitHub
+branch protection must require `ci/circleci: lint`, `ci/circleci: test`,
+`ci/circleci: coverage` and `ci/circleci: no-session-links` to enforce every gate on `main`; configuration
 comments alone do not enable branch protection.
 
 ## Gates and artifacts

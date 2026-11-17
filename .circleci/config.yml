@@ -1,6 +1,7 @@
 version: 2.1
 
-# One workflow: lint, a 4-way parallel test job, and a coverage gate.
+# One workflow: lint, a 4-way parallel test job, a coverage gate, and the
+# no-session-links guard (.circleci/check_no_session_links.sh).
 #
 # Where the time went before (hosted runs, about 10-11 minutes per PR): the
 # whole suite ran on one medium container (pytest step about 560s) after a
@@ -18,7 +19,7 @@ version: 2.1
 #     failing on its own; the real floor is checked on the combined data.
 # This is the repo's only CI (there is no .github/workflows/ci.yml). To BLOCK
 # merges, mark "ci/circleci: lint", "ci/circleci: test" and
-# "ci/circleci: coverage" as required in the branch protection rule for main.
+# "ci/circleci: coverage" and "ci/circleci: no-session-links" as required in the branch protection rule for main.
 
 executors:
   py:
