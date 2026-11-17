@@ -1,0 +1,43 @@
+# The 40 documents the insurance v4 A/B arms drew (specialist-condensed-v4-insurance-claim-qwen-*,
+# identical across the three arms), read from their locked dataset.jsonl. CI has no Hub access, so
+# tests/test_pipeline_handoff.py checks the exclusion lists against this frozen copy.
+DOC-02131f0a34a5efbf
+DOC-044c7730a7c6d2b4
+DOC-0529d077859a855f
+DOC-075358d607227f5c
+DOC-088891820e04afa4
+DOC-091d14ace418e67e
+DOC-138f782939ff750b
+DOC-148262ed932f85b9
+DOC-17abdc452037b6eb
+DOC-1848f6fc7305bc6e
+DOC-1988d05e7817529e
+DOC-23a08834fca017ca
+DOC-2435c398b95844bc
+DOC-2bfddbfac392d872
+DOC-34b3ecf10e85eccb
+DOC-4047dfcd2ac7e239
+DOC-406d6369ba54693f
+DOC-475f6f1e28064ba4
+DOC-5a812b2db623046c
+DOC-61ccb4f2b5a9424a
+DOC-62c7029a063e677c
+DOC-6d23cffc38904d1d
+DOC-7abef9f9a45bd3e7
+DOC-7c7980f4a169672b
+DOC-804fbeed2ab25ae8
+DOC-82f41d85e31893ef
+DOC-8bb9c14eb11704f2
+DOC-976c546e2a9f3645
+DOC-998fdce14c10a67f
+DOC-a16914fb09e9e656
+DOC-b38b3855406599a7
+DOC-b67fa82e4340dcec
+DOC-bd6d5bb9f2521b71
+DOC-bf518ec27ab190de
+DOC-bfce03618f594882
+DOC-d3c3e632e148db72
+DOC-d49b07daea0135df
+DOC-d5d6261d51f109c5
+DOC-e576df0a2c694fb3
+DOC-e7efa5895c8f175e
