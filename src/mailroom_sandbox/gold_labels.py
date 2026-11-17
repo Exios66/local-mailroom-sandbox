@@ -609,10 +609,17 @@ def _canon(value: Any) -> Any:
 
 #: A negation in one reading of a free-text value and not in the other flips its meaning.
 _NEGATIONS = frozenset({"not", "no", "never", "without"})
+#: Stems of n't contractions; tokenising splits "didn't" into "didn" + "t".
+_CONTRACTION_STEMS = frozenset({"didn", "doesn", "don", "isn", "aren", "wasn", "weren", "haven", "hasn",
+                                "hadn", "won", "wouldn", "can", "couldn", "shouldn", "mustn"})
 
 
 def _negated(canon: str) -> bool:
-    return not _NEGATIONS.isdisjoint(canon.split())
+    """Whether a canonical value negates: "not", "no", "never", "without", "cannot" or an n't contraction."""
+    words = canon.split()
+    if not _NEGATIONS.isdisjoint(words) or "cannot" in words:
+        return True
+    return any(w == "t" and i and words[i - 1] in _CONTRACTION_STEMS for i, w in enumerate(words))
 
 
 def _token_f1(x: str, y: str) -> float:

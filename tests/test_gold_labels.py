@@ -821,3 +821,10 @@ def test_jsonl_is_ascii_so_line_separators_cannot_split_a_record(tmp_path):
     raw = (tmp_path / "x.jsonl").read_text(encoding="utf-8")
     assert raw.isascii() and len(raw.splitlines()) == 1
     assert gl.read_jsonl(tmp_path / "x.jsonl") == [rec]
+
+
+def test_contractions_count_as_negation_on_both_sides():
+    a = ["Tell the sender if you did not get the invitation or cannot attend"]
+    b = ["If you didn't get the invitation or can't attend, please let me know"]
+    assert gl.values_agree(a, b, "entity_list")
+    assert not gl.values_agree(["Pay the invoice"], ["Don't pay the invoice"], "entity_list")
