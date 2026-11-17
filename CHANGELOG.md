@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- **`--profile` has help text.** The shared flag documents itself in `sandbox --help` and `docs/cli-reference.md` (provider profile name; default from `SANDBOX_PROFILE`, then `.env`, then the providers default).
 - **A resumed whole-run job counts the documents it billed again against `job.api_cost_cap_usd`.** A resume re-runs every locked row; a document the earlier attempt had persisted was billed a second time but never recorded again, so the next resume's budget seed missed that bill. It is now kept as an `api_usage_of_rerun_document` event (the item row stays the evidence) and `usage_records` counts it.
 - **`sandbox autoresearch`: a config-only greedy search over run-spec levers, with a held-out confirmation run.** `plan|step|run|status|holdout --study PATH` (`docs/autoresearch.md`). It changes no pipeline code and drives the existing locked-run lifecycle (spec, preflight, start, gate).
   - Each round diagnoses the champion into a weakness table (lost utility charged to node x class), applies the first untried lever attached to the worst node (champion plus ONE patch, validated as a `RunSpec`), runs it on the same frozen draw, scores per-document utility, and keeps or reverts on a paired stratified bootstrap. An append-only `ledger.jsonl` under `reports/autoresearch/<study>/` makes it resumable. It stops on budget, exhausted levers, or 3 consecutive reverts.

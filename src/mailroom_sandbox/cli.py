@@ -256,7 +256,12 @@ def build_parser() -> argparse.ArgumentParser:
         a flag placed after the subcommand still wins."""
         none = None if root else argparse.SUPPRESS
         flags = argparse.ArgumentParser(add_help=False)
-        flags.add_argument("--profile", type=nonempty, default=default_profile() if root else argparse.SUPPRESS)
+        flags.add_argument(
+            "--profile",
+            type=nonempty,
+            default=default_profile() if root else argparse.SUPPRESS,
+            help="Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default)",
+        )
         flags.add_argument("--model", type=nonempty, default=none, help="Override every agent's model tag")
         flags.add_argument("--prompt", type=nonempty, default=none, help="Local prompt variant stem (e.g. sorter_local_v0)")
         flags.add_argument(
