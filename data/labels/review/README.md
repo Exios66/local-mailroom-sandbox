@@ -7,6 +7,7 @@ verdict. Only the labels that need a policy decision are left for a human.
 
 Nothing reads these files by default. They are a record of the review and the
 input for applying it to `data/labels/gold/` and `data/labels/interim/`.
+`decisions.jsonl` is that input for the gold catalogs.
 
 ## Files
 
@@ -17,6 +18,9 @@ input for applying it to `data/labels/gold/` and `data/labels/interim/`.
 | `human_reviews.jsonl` | The owner's own decisions from the review desk, one line per label. These are final: see below. |
 | `interim_audit.jsonl` | One verdict per interim truth label (2,682 labels), with the recommended fix. |
 | `INTERIM_AUDIT.md` | The interim truth audit: results by stratum, the classes with no gold catalog, and the integration steps. |
+| `decisions.jsonl` | The review as `scripts/gold_labels.py build --review` lines for the correspondence and corporate-record catalogs: 3,069 `accept` (each names the current value) and 177 `correct` (each passes the gate). See below. |
+| `decisions_held.jsonl` | The 10 reviewed labels that could not become a decision, each with the reason. |
+| `VALIDATION.md` | The validation of the truth labels that production runs score against, before and after the decisions, with the open owner decisions. |
 
 ## Verdicts
 
@@ -83,3 +87,27 @@ the `decision` (`keep`, `use_suggestion`, `correct` or `unsure`), the resulting
     `Category: first span`.
   - The three `renewal_terms` labels describe renewal by mutual agreement only.
     CUAD marks none of them, so they wait for a policy decision.
+
+## Applying the review to the gold catalogs
+
+`decisions.jsonl` turns the verdicts on the correspondence and corporate-record catalogs into
+review decisions for the gold build:
+
+- A verified label, or a label equal to the owner's value, that is not yet `near_gold` gets
+  `accept`, with the current value.
+- A corrected label gets `correct`, with verbatim quotes, or an absent reason, that pass the
+  gate on the Hub text.
+- A header fill keeps its text-only label; the original-header value stays out until the owner
+  decides the header policy.
+- A label corrected from the original header of a reply typed above quoted mail follows the
+  guide's reply rule (signature, salutation, the reply's own "Forwarded by" stamp, else empty)
+  instead of the review's `text_only_value`, which kept the quoted message's people for 59 of
+  them.
+- `needs_human` labels and interim-only labels get no decision.
+
+To apply it, rebuild the catalogs with the original label, check and review passes listed in
+`data/labels/gold/MANIFEST.json`, plus `--review data/labels/review/decisions.jsonl`, then
+re-export the overlay. `tests/test_label_review_decisions.py` checks, without the Hub, that
+every decision matches an unreviewed catalog record, names the current value, keeps the
+owner's decisions, and leaves valid `near_gold` records. `VALIDATION.md` gives the effect on
+production truth.
