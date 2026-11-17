@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+- **A run lock names the code that ran** (#312).
+  - Every run-spec section (`dataset`, `job`, `engine`, `trace`, the prompt refs and the top level)
+    now rejects unknown keys. An older checkout silently ignored `dataset.exclude_ids_file` and drew
+    a different 40 documents for the correspondence v2 reference arm.
+  - Preflight's new `checkout` check fails when the imported `mailroom_sandbox` lives in another
+    git checkout than the cwd's, the case of a worktree sharing the main checkout's venv
+    (override: `SANDBOX_ALLOW_FOREIGN_CHECKOUT=1`). It runs on every preflight, including the one
+    `run start` makes, and the lock records the code's checkout as `package: {path, commit}`.
 - **Specialist A/Bs can see the pipeline's handoff** (#306).
   - `job.pipeline_handoff: true` (specialist tasks only; hashed only when set) sends each document the
     vendored extract node's handoff, built by `graph.build_graph._build_handoff_context` with the
