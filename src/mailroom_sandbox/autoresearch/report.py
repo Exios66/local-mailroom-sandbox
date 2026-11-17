@@ -52,7 +52,8 @@ def render_report(loop: "Loop", state: "State") -> str:
                   f"between the two runs: |mean| {_f(n.get('abs_mean_delta'), '.4f')}, CI half-width {_f(n.get('ci_half_width'), '.4f')}; "
                   f"configured floor {_f(n.get('configured_floor'), '.4f')}. Effective floor {_f(n.get('effective_floor'), '.4f')}: a quality "
                   f"lever is kept only when its paired CI low is above it. A `goal: cost` lever (a derived placement) is kept instead "
-                  f"when its CI low is above -{study.cost_goal_tolerance:g} (not worse) and it saves enough cost. One repeat of the champion cost "
+                  f"when its CI low is above -{study.cost_goal_tolerance:g} (not worse) and it saves enough cost. Both kinds must also pass "
+                  f"the per-class drop and wrong-archive guards. One repeat of the champion cost "
                   f"{_f(n.get('measured_round_cost_usd'), '.4f')} USD (the measured cost of a round)."]
     if status["warnings"]:
         lines += ["", "## Warnings", "", *[f"- {w}" for w in status["warnings"]]]
