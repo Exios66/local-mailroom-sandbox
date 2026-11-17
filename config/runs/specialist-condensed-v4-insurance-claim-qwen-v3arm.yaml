@@ -1,0 +1,60 @@
+# Specialist-condensed lineage, validation of insurance_claims_specialist_condensed_v4 (claim_type is the
+# printed line of business, never a CMS table token; Part D lists its NDC in supporting_documents).
+# Three arms on the SAME 40 held-out insurance_claim documents (ranked draw, seed 1116):
+#   v3arm-plain  v3, no extract-node handoff (what every earlier specialist A/B measured)
+#   v3arm        v3 with job.pipeline_handoff (reference: what the pipeline's specialist sees)
+#   v4arm        v4 with job.pipeline_handoff (candidate)
+# Compare: python scripts/compare_specialist_prompt.py \
+#   --reference specialist-condensed-v4-insurance-claim-qwen-v3arm --candidate specialist-condensed-v4-insurance-claim-qwen-v4arm
+# v3arm-plain against v3arm measures how much the vendored doc_inventories note moves extraction.
+# The arms exclude excluded-ids-insurance-v4-ab.txt (tuning documents plus the slice-500 draw), so
+# no production slice ever contains their documents. Append the arms to excluded-ids.txt after they run.
+#
+#   sandbox run preflight --config config/runs/specialist-condensed-v4-insurance-claim-qwen-v3arm.yaml
+#   sandbox run start --config config/runs/specialist-condensed-v4-insurance-claim-qwen-v3arm.yaml --initials XX
+schema: sandbox.run/v1
+run_id: specialist-condensed-v4-insurance-claim-qwen-v3arm
+task: insurance_claims_specialist
+profile: openrouter
+
+prompt:
+  default: {source: code-default}
+  agents:
+    insurance_claims_specialist: {source: local, file: insurance_claims_specialist_condensed_v3}
+
+dataset:
+  provider: huggingface
+  repo: Lucius-Morningstar/mailroom-dataset
+  config: ground_truth
+  split: all
+  revision: bc9eab280044befb51e19dda3071d290a8677f42
+  strata:
+    buckets:
+      - {doc_class: insurance_claim, count: 40}
+  limit: 40
+  sample_seed: 1116
+  require_task_gt: true
+  interim_labels: true
+  exclude_ids_file: config/production/excluded-ids-insurance-v4-ab.txt
+  draw: ranked
+
+engine:
+  kind: openrouter
+  model: qwen/qwen3.7-flash
+  modal: null
+
+job:
+  mode: endpoint
+  mock: false
+  max_retries: 1
+  fail_fast: false
+  concurrency: 12
+  cost_cap_usd: 1.00
+  max_wall_seconds: 3600
+  api_cost_cap_usd: 0.10
+  pipeline_handoff: true
+
+trace:
+  sink: none
+  environment: pilot
+  tags: [sandbox, job, specialist-condensed-v4, ab-validation, insurance-claim, slice-gate-fix-loop]

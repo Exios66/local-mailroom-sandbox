@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+- **Specialist A/Bs can see the pipeline's handoff** (#306).
+  - `job.pipeline_handoff: true` (specialist tasks only; hashed only when set) sends each document the
+    vendored extract node's handoff, built by `graph.build_graph._build_handoff_context` with the
+    class alone (no subclass, confidence or document id), and applies the node's inventory
+    normalization (`_enrich_contract_result`). Earlier specialist A/Bs ran without that note.
+    In production slice 100 r2 the note overrode the prompt: all 18 CMS rows got a CMS table
+    token for `claim_type`, and it tells correspondence that "Enron-style inbox text is email"
+    (llm-mailroom #174).
+  - `insurance_claims_specialist_condensed_v4` (candidate): `claim_type` is the printed line of
+    business, never a CMS table token, and a Part D statement lists its NDC in `supporting_documents`.
+    Three arms share one 40-document draw (v3 without the handoff, v3 with it, v4 with it):
+    `config/runs/specialist-condensed-v4-insurance-claim-qwen-{v3arm-plain,v3arm,v4arm}.yaml`.
+  - `config/production/excluded-ids-insurance-v4-ab.txt` is the tuning list plus the slice-500 draw,
+    so the arms never draw a production-slice document.
 - **Modal job host runs OpenRouter slices** (#308).
   - `deploy/modal_job.py` ships `OPENROUTER_API_KEY` in the deploy Secret, never the image, when
     the deploying shell has it. `run_job` drops it for a locked run that never calls OpenRouter
