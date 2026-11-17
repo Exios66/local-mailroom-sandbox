@@ -1,0 +1,3306 @@
+{
+ "schema": "sandbox.autoresearch.scores/v1",
+ "run_id": "ar-mailroom-v2-replicate",
+ "run_dir": "/home/user/local-mailroom-sandbox/data/runtime/runs/ar-mailroom-v2-replicate",
+ "price_model": "qwen/qwen3.7-flash",
+ "split_available": true,
+ "unpriced": [],
+ "docs": [
+  {
+   "id": "DOC-8eaee50db91715f6",
+   "doc_class": "corporate_record",
+   "outcome": "unscorable_archive",
+   "utility": 0.0,
+   "cause": "",
+   "archived_class": "corporate_record",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 5119,
+   "tokens": 7481,
+   "cost_usd": 0.00025543,
+   "cost_by_role": {
+    "worker": 0.00025543
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 4458,
+     "completion_tokens": 109,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "corporate_records_specialist": {
+     "calls": 1,
+     "prompt_tokens": 2713,
+     "completion_tokens": 201,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-215008500e5faf64",
+   "doc_class": "corporate_record",
+   "outcome": "correct_archive",
+   "utility": 1.0,
+   "cause": "",
+   "archived_class": "corporate_record",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 11935,
+   "tokens": 18312,
+   "cost_usd": 0.0006325599999999999,
+   "cost_by_role": {
+    "worker": 0.0006325599999999999
+   },
+   "usage_by_agent": {
+    "intake": {
+     "calls": 1,
+     "prompt_tokens": 4688,
+     "completion_tokens": 469,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 7319,
+     "completion_tokens": 99,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "corporate_records_specialist": {
+     "calls": 1,
+     "prompt_tokens": 5473,
+     "completion_tokens": 264,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-cf5cfdf8b85b917e",
+   "doc_class": "corporate_record",
+   "outcome": "unscorable_archive",
+   "utility": 0.0,
+   "cause": "",
+   "archived_class": "corporate_record",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 301026,
+   "tokens": 199982,
+   "cost_usd": 0.0204767,
+   "cost_by_role": {
+    "worker": 0.0204767
+   },
+   "usage_by_agent": {
+    "intake": {
+     "calls": 1,
+     "prompt_tokens": 64989,
+     "completion_tokens": 1262,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 67629,
+     "completion_tokens": 89,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "corporate_records_specialist": {
+     "calls": 1,
+     "prompt_tokens": 65769,
+     "completion_tokens": 244,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-c448870cc58a65ef",
+   "doc_class": "corporate_record",
+   "outcome": "unscorable_archive",
+   "utility": 0.0,
+   "cause": "",
+   "archived_class": "corporate_record",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 23685,
+   "tokens": 15013,
+   "cost_usd": 0.00048089,
+   "cost_by_role": {
+    "worker": 0.00048089
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 8226,
+     "completion_tokens": 113,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "corporate_records_specialist": {
+     "calls": 1,
+     "prompt_tokens": 6482,
+     "completion_tokens": 192,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-0a262afc80c73247",
+   "doc_class": "corporate_record",
+   "outcome": "correct_archive",
+   "utility": 1.0,
+   "cause": "",
+   "archived_class": "corporate_record",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 4754,
+   "tokens": 18761,
+   "cost_usd": 0.0006775300000000001,
+   "cost_by_role": {
+    "worker": 0.0003676500000000001,
+    "oversight": 0.00030988
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 4408,
+     "completion_tokens": 97,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "corporate_records_specialist": {
+     "calls": 2,
+     "prompt_tokens": 5728,
+     "completion_tokens": 392,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "judge": {
+     "calls": 2,
+     "prompt_tokens": 4835,
+     "completion_tokens": 372,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "arbiter": {
+     "calls": 1,
+     "prompt_tokens": 2643,
+     "completion_tokens": 286,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-24e43ba24aba5657",
+   "doc_class": "corporate_record",
+   "outcome": "correct_archive",
+   "utility": 1.0,
+   "cause": "",
+   "archived_class": "corporate_record",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 89704,
+   "tokens": 43362,
+   "cost_usd": 0.0013307599999999998,
+   "cost_by_role": {
+    "worker": 0.0013307599999999998
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 22405,
+     "completion_tokens": 98,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "corporate_records_specialist": {
+     "calls": 1,
+     "prompt_tokens": 20658,
+     "completion_tokens": 201,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-fc9f56d999bd7566",
+   "doc_class": "corporate_record",
+   "outcome": "wrong_archive",
+   "utility": -1.0,
+   "cause": "extraction:missing_field",
+   "archived_class": "corporate_record",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 1708,
+   "tokens": 6184,
+   "cost_usd": 0.00022042,
+   "cost_by_role": {
+    "worker": 0.00022042
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 3790,
+     "completion_tokens": 119,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "corporate_records_specialist": {
+     "calls": 1,
+     "prompt_tokens": 2045,
+     "completion_tokens": 230,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-9bdcc670eb06437b",
+   "doc_class": "corporate_record",
+   "outcome": "unscorable_archive",
+   "utility": 0.0,
+   "cause": "",
+   "archived_class": "corporate_record",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 1351,
+   "tokens": 5945,
+   "cost_usd": 0.00020274999999999997,
+   "cost_by_role": {
+    "worker": 0.00020274999999999997
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 3723,
+     "completion_tokens": 95,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "corporate_records_specialist": {
+     "calls": 1,
+     "prompt_tokens": 1978,
+     "completion_tokens": 149,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-a2be49cc07e80dd8",
+   "doc_class": "corporate_record",
+   "outcome": "unscorable_archive",
+   "utility": 0.0,
+   "cause": "",
+   "archived_class": "corporate_record",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 473,
+   "tokens": 5567,
+   "cost_usd": 0.00019621,
+   "cost_by_role": {
+    "worker": 0.00019621
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 3510,
+     "completion_tokens": 97,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "corporate_records_specialist": {
+     "calls": 1,
+     "prompt_tokens": 1765,
+     "completion_tokens": 195,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-15b2776e13be1937",
+   "doc_class": "corporate_record",
+   "outcome": "unscorable_archive",
+   "utility": 0.0,
+   "cause": "",
+   "archived_class": "corporate_record",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 5401,
+   "tokens": 7735,
+   "cost_usd": 0.00026585,
+   "cost_by_role": {
+    "worker": 0.00026585
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 4571,
+     "completion_tokens": 118,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "corporate_records_specialist": {
+     "calls": 1,
+     "prompt_tokens": 2826,
+     "completion_tokens": 220,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-0c08bbb73a7c5edd",
+   "doc_class": "corporate_record",
+   "outcome": "review",
+   "utility": -0.25,
+   "cause": "judge:partial_exhausted",
+   "archived_class": null,
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 3856,
+   "tokens": 19030,
+   "cost_usd": 0.0008646000000000001,
+   "cost_by_role": {
+    "worker": 0.00035009,
+    "oversight": 0.0005145100000000001
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 4259,
+     "completion_tokens": 118,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "corporate_records_specialist": {
+     "calls": 2,
+     "prompt_tokens": 5153,
+     "completion_tokens": 403,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "judge": {
+     "calls": 1,
+     "prompt_tokens": 2395,
+     "completion_tokens": 2194,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "arbiter": {
+     "calls": 1,
+     "prompt_tokens": 4286,
+     "completion_tokens": 222,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-971bbacf86cd7a94",
+   "doc_class": "corporate_record",
+   "outcome": "correct_archive",
+   "utility": 1.0,
+   "cause": "",
+   "archived_class": "corporate_record",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 7634,
+   "tokens": 9076,
+   "cost_usd": 0.00030358,
+   "cost_by_role": {
+    "worker": 0.00030358
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 5255,
+     "completion_tokens": 100,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "corporate_records_specialist": {
+     "calls": 1,
+     "prompt_tokens": 3508,
+     "completion_tokens": 213,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-79d21db01a284b42",
+   "doc_class": "corporate_record",
+   "outcome": "wrong_archive",
+   "utility": -1.0,
+   "cause": "extraction:wrong_value",
+   "archived_class": "corporate_record",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 1183,
+   "tokens": 5952,
+   "cost_usd": 0.00020906,
+   "cost_by_role": {
+    "worker": 0.00020906
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 3697,
+     "completion_tokens": 102,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "corporate_records_specialist": {
+     "calls": 1,
+     "prompt_tokens": 1950,
+     "completion_tokens": 203,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-30ce0f05432fc57f",
+   "doc_class": "corporate_record",
+   "outcome": "unscorable_archive",
+   "utility": 0.0,
+   "cause": "",
+   "archived_class": "corporate_record",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 2395,
+   "tokens": 6403,
+   "cost_usd": 0.00022219,
+   "cost_by_role": {
+    "worker": 0.00022219
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 3924,
+     "completion_tokens": 95,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "corporate_records_specialist": {
+     "calls": 1,
+     "prompt_tokens": 2178,
+     "completion_tokens": 206,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-463c024005c85137",
+   "doc_class": "corporate_record",
+   "outcome": "unscorable_archive",
+   "utility": 0.0,
+   "cause": "",
+   "archived_class": "corporate_record",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 21566,
+   "tokens": 13807,
+   "cost_usd": 0.00044611,
+   "cost_by_role": {
+    "worker": 0.00044611
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 7616,
+     "completion_tokens": 115,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "corporate_records_specialist": {
+     "calls": 1,
+     "prompt_tokens": 5872,
+     "completion_tokens": 204,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-f84af6312d06a526",
+   "doc_class": "contract",
+   "outcome": "correct_archive",
+   "utility": 0.9091,
+   "cause": "",
+   "archived_class": "contract",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 16870,
+   "tokens": 35759,
+   "cost_usd": 0.0013545699999999998,
+   "cost_by_role": {
+    "worker": 0.0005947099999999999,
+    "oversight": 0.00075986
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 7064,
+     "completion_tokens": 94,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "contracts_specialist": {
+     "calls": 1,
+     "prompt_tokens": 8357,
+     "completion_tokens": 922,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "judge": {
+     "calls": 2,
+     "prompt_tokens": 10722,
+     "completion_tokens": 1632,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "arbiter": {
+     "calls": 1,
+     "prompt_tokens": 6798,
+     "completion_tokens": 170,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-e63259fddf5b43a5",
+   "doc_class": "contract",
+   "outcome": "wrong_archive",
+   "utility": -1.0,
+   "cause": "extraction:cuad_missed",
+   "archived_class": "contract",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 56539,
+   "tokens": 92320,
+   "cost_usd": 0.0030615,
+   "cost_by_role": {
+    "worker": 0.00164993,
+    "oversight": 0.00141157
+   },
+   "usage_by_agent": {
+    "intake": {
+     "calls": 1,
+     "prompt_tokens": 13060,
+     "completion_tokens": 886,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 15682,
+     "completion_tokens": 106,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "contracts_specialist": {
+     "calls": 1,
+     "prompt_tokens": 16887,
+     "completion_tokens": 1170,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "judge": {
+     "calls": 2,
+     "prompt_tokens": 29772,
+     "completion_tokens": 532,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "arbiter": {
+     "calls": 1,
+     "prompt_tokens": 14000,
+     "completion_tokens": 225,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-39aa396025b48de0",
+   "doc_class": "contract",
+   "outcome": "review",
+   "utility": -0.25,
+   "cause": "judge:partial_exhausted",
+   "archived_class": null,
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 81926,
+   "tokens": 250468,
+   "cost_usd": 0.008499139999999999,
+   "cost_by_role": {
+    "worker": 0.00340211,
+    "oversight": 0.00509703
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 20358,
+     "completion_tokens": 94,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "contracts_specialist": {
+     "calls": 3,
+     "prompt_tokens": 65763,
+     "completion_tokens": 6202,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "judge": {
+     "calls": 6,
+     "prompt_tokens": 114330,
+     "completion_tokens": 3103,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "arbiter": {
+     "calls": 2,
+     "prompt_tokens": 40166,
+     "completion_tokens": 452,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-a41ac47e80ec56c9",
+   "doc_class": "contract",
+   "outcome": "review",
+   "utility": -0.25,
+   "cause": "judge:partial_exhausted",
+   "archived_class": null,
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 76425,
+   "tokens": 245928,
+   "cost_usd": 0.008215440000000001,
+   "cost_by_role": {
+    "worker": 0.00367961,
+    "oversight": 0.00453583
+   },
+   "usage_by_agent": {
+    "intake": {
+     "calls": 1,
+     "prompt_tokens": 16490,
+     "completion_tokens": 1254,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 19113,
+     "completion_tokens": 102,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "contracts_specialist": {
+     "calls": 3,
+     "prompt_tokens": 61757,
+     "completion_tokens": 4481,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "judge": {
+     "calls": 6,
+     "prompt_tokens": 104814,
+     "completion_tokens": 1888,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "arbiter": {
+     "calls": 2,
+     "prompt_tokens": 35378,
+     "completion_tokens": 651,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-a3ec1a93f53ef59f",
+   "doc_class": "contract",
+   "outcome": "wrong_archive",
+   "utility": -1.0,
+   "cause": "extraction:cuad_missed",
+   "archived_class": "contract",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 70625,
+   "tokens": 113467,
+   "cost_usd": 0.00380851,
+   "cost_by_role": {
+    "worker": 0.00214459,
+    "oversight": 0.0016639200000000002
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 18473,
+     "completion_tokens": 93,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "contracts_specialist": {
+     "calls": 2,
+     "prompt_tokens": 39983,
+     "completion_tokens": 2914,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "judge": {
+     "calls": 2,
+     "prompt_tokens": 33618,
+     "completion_tokens": 715,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "arbiter": {
+     "calls": 1,
+     "prompt_tokens": 17348,
+     "completion_tokens": 323,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-5750e41138d4168c",
+   "doc_class": "contract",
+   "outcome": "wrong_archive",
+   "utility": -1.0,
+   "cause": "extraction:cuad_missed",
+   "archived_class": "contract",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 73860,
+   "tokens": 152900,
+   "cost_usd": 0.0050986,
+   "cost_by_role": {
+    "worker": 0.00231334,
+    "oversight": 0.0027852600000000003
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 18963,
+     "completion_tokens": 108,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "contracts_specialist": {
+     "calls": 2,
+     "prompt_tokens": 40932,
+     "completion_tokens": 3865,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "judge": {
+     "calls": 4,
+     "prompt_tokens": 70002,
+     "completion_tokens": 798,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "arbiter": {
+     "calls": 1,
+     "prompt_tokens": 17887,
+     "completion_tokens": 345,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-b90a72cd70752da5",
+   "doc_class": "contract",
+   "outcome": "wrong_archive",
+   "utility": -1.0,
+   "cause": "extraction:cuad_missed",
+   "archived_class": "contract",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 19913,
+   "tokens": 67218,
+   "cost_usd": 0.00251204,
+   "cost_by_role": {
+    "worker": 0.00109648,
+    "oversight": 0.0014155600000000002
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 7525,
+     "completion_tokens": 101,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "contracts_specialist": {
+     "calls": 2,
+     "prompt_tokens": 18074,
+     "completion_tokens": 2426,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "judge": {
+     "calls": 4,
+     "prompt_tokens": 23454,
+     "completion_tokens": 1815,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "arbiter": {
+     "calls": 2,
+     "prompt_tokens": 13210,
+     "completion_tokens": 613,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-1e0e6ca042300b31",
+   "doc_class": "contract",
+   "outcome": "wrong_archive",
+   "utility": -1.0,
+   "cause": "extraction:cuad_missed",
+   "archived_class": "contract",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 163199,
+   "tokens": 221209,
+   "cost_usd": 0.0234334,
+   "cost_by_role": {
+    "worker": 0.0120922,
+    "oversight": 0.011341200000000001
+   },
+   "usage_by_agent": {
+    "intake": {
+     "calls": 1,
+     "prompt_tokens": 34386,
+     "completion_tokens": 1217,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 37002,
+     "completion_tokens": 97,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "contracts_specialist": {
+     "calls": 1,
+     "prompt_tokens": 38214,
+     "completion_tokens": 1516,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "judge": {
+     "calls": 2,
+     "prompt_tokens": 70700,
+     "completion_tokens": 1359,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "arbiter": {
+     "calls": 1,
+     "prompt_tokens": 36532,
+     "completion_tokens": 186,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-3f2675ac6da6893c",
+   "doc_class": "contract",
+   "outcome": "review",
+   "utility": -0.25,
+   "cause": "judge:partial_exhausted",
+   "archived_class": null,
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 17627,
+   "tokens": 79250,
+   "cost_usd": 0.0029216999999999997,
+   "cost_by_role": {
+    "worker": 0.00141104,
+    "oversight": 0.0015106599999999998
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 6826,
+     "completion_tokens": 111,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "contracts_specialist": {
+     "calls": 3,
+     "prompt_tokens": 25198,
+     "completion_tokens": 3353,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "judge": {
+     "calls": 6,
+     "prompt_tokens": 30844,
+     "completion_tokens": 1335,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "arbiter": {
+     "calls": 2,
+     "prompt_tokens": 10940,
+     "completion_tokens": 643,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-1809ac5b1b2a26c2",
+   "doc_class": "contract",
+   "outcome": "review",
+   "utility": -0.25,
+   "cause": "judge:partial_exhausted",
+   "archived_class": null,
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 21955,
+   "tokens": 103283,
+   "cost_usd": 0.00387769,
+   "cost_by_role": {
+    "worker": 0.0020204900000000002,
+    "oversight": 0.0018571999999999998
+   },
+   "usage_by_agent": {
+    "intake": {
+     "calls": 1,
+     "prompt_tokens": 5522,
+     "completion_tokens": 1761,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 8145,
+     "completion_tokens": 95,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "contracts_specialist": {
+     "calls": 3,
+     "prompt_tokens": 28870,
+     "completion_tokens": 3870,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "judge": {
+     "calls": 6,
+     "prompt_tokens": 39082,
+     "completion_tokens": 1556,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "arbiter": {
+     "calls": 2,
+     "prompt_tokens": 13872,
+     "completion_tokens": 510,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-245be46fde113498",
+   "doc_class": "contract",
+   "outcome": "correct_archive",
+   "utility": 1.0,
+   "cause": "",
+   "archived_class": "contract",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 972,
+   "tokens": 19164,
+   "cost_usd": 0.00073202,
+   "cost_by_role": {
+    "worker": 0.00058877,
+    "oversight": 0.00014325
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 3713,
+     "completion_tokens": 113,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "contracts_specialist": {
+     "calls": 2,
+     "prompt_tokens": 10184,
+     "completion_tokens": 1209,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "judge": {
+     "calls": 2,
+     "prompt_tokens": 3696,
+     "completion_tokens": 249,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-c81b05f04e333acb",
+   "doc_class": "contract",
+   "outcome": "wrong_archive",
+   "utility": -1.0,
+   "cause": "extraction:cuad_missed",
+   "archived_class": "contract",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 34461,
+   "tokens": 65480,
+   "cost_usd": 0.0023422,
+   "cost_by_role": {
+    "worker": 0.0012931800000000001,
+    "oversight": 0.00104902
+   },
+   "usage_by_agent": {
+    "intake": {
+     "calls": 1,
+     "prompt_tokens": 8643,
+     "completion_tokens": 1191,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 11246,
+     "completion_tokens": 96,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "contracts_specialist": {
+     "calls": 1,
+     "prompt_tokens": 12453,
+     "completion_tokens": 1197,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "judge": {
+     "calls": 2,
+     "prompt_tokens": 18982,
+     "completion_tokens": 1046,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "arbiter": {
+     "calls": 1,
+     "prompt_tokens": 10378,
+     "completion_tokens": 248,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-0c455ee16fac294a",
+   "doc_class": "contract",
+   "outcome": "review",
+   "utility": -0.25,
+   "cause": "judge:partial_exhausted",
+   "archived_class": null,
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 5171,
+   "tokens": 53088,
+   "cost_usd": 0.00211874,
+   "cost_by_role": {
+    "worker": 0.00110269,
+    "oversight": 0.00101605
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 4652,
+     "completion_tokens": 98,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "contracts_specialist": {
+     "calls": 3,
+     "prompt_tokens": 18671,
+     "completion_tokens": 3002,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "judge": {
+     "calls": 6,
+     "prompt_tokens": 17936,
+     "completion_tokens": 1539,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "arbiter": {
+     "calls": 2,
+     "prompt_tokens": 6568,
+     "completion_tokens": 622,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-84f09002a69dc376",
+   "doc_class": "contract",
+   "outcome": "wrong_archive",
+   "utility": -1.0,
+   "cause": "extraction:cuad_missed",
+   "archived_class": "contract",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 70898,
+   "tokens": 73424,
+   "cost_usd": 0.0025778199999999998,
+   "cost_by_role": {
+    "worker": 0.00135466,
+    "oversight": 0.00122316
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 17821,
+     "completion_tokens": 103,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "contracts_specialist": {
+     "calls": 1,
+     "prompt_tokens": 19114,
+     "completion_tokens": 1794,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "judge": {
+     "calls": 2,
+     "prompt_tokens": 32738,
+     "completion_tokens": 1854,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-4b57f485708ab60b",
+   "doc_class": "contract",
+   "outcome": "wrong_archive",
+   "utility": -1.0,
+   "cause": "extraction:cuad_missed",
+   "archived_class": "contract",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 17710,
+   "tokens": 28133,
+   "cost_usd": 0.00100379,
+   "cost_by_role": {
+    "worker": 0.00061789,
+    "oversight": 0.0003859
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 7120,
+     "completion_tokens": 115,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "contracts_specialist": {
+     "calls": 1,
+     "prompt_tokens": 8415,
+     "completion_tokens": 1053,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "judge": {
+     "calls": 2,
+     "prompt_tokens": 11000,
+     "completion_tokens": 430,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-cd755bab855e8361",
+   "doc_class": "correspondence",
+   "outcome": "unscorable_archive",
+   "utility": 0.0,
+   "cause": "",
+   "archived_class": "correspondence",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 2515,
+   "tokens": 7010,
+   "cost_usd": 0.00024,
+   "cost_by_role": {
+    "worker": 0.00024
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 4129,
+     "completion_tokens": 94,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "correspondence_specialist": {
+     "calls": 1,
+     "prompt_tokens": 2584,
+     "completion_tokens": 203,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-6d87651c320d7e5a",
+   "doc_class": "insurance_claim",
+   "outcome": "correct_archive",
+   "utility": 0.9698,
+   "cause": "",
+   "archived_class": "insurance_claim",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 866,
+   "tokens": 6611,
+   "cost_usd": 0.00024452999999999996,
+   "cost_by_role": {
+    "worker": 0.00024452999999999996
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 3580,
+     "completion_tokens": 88,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "insurance_claims_specialist": {
+     "calls": 1,
+     "prompt_tokens": 2569,
+     "completion_tokens": 374,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-158001401843971c",
+   "doc_class": "insurance_claim",
+   "outcome": "correct_archive",
+   "utility": 0.9643,
+   "cause": "",
+   "archived_class": "insurance_claim",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 863,
+   "tokens": 6619,
+   "cost_usd": 0.00024597,
+   "cost_by_role": {
+    "worker": 0.00024597
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 3578,
+     "completion_tokens": 89,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "insurance_claims_specialist": {
+     "calls": 1,
+     "prompt_tokens": 2567,
+     "completion_tokens": 385,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-0260d4ddb646863c",
+   "doc_class": "insurance_claim",
+   "outcome": "correct_archive",
+   "utility": 0.9476,
+   "cause": "",
+   "archived_class": "insurance_claim",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 861,
+   "tokens": 6660,
+   "cost_usd": 0.00025089999999999997,
+   "cost_by_role": {
+    "worker": 0.00025089999999999997
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 3580,
+     "completion_tokens": 92,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "insurance_claims_specialist": {
+     "calls": 1,
+     "prompt_tokens": 2569,
+     "completion_tokens": 419,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-4f9add23e401581a",
+   "doc_class": "insurance_claim",
+   "outcome": "correct_archive",
+   "utility": 0.9698,
+   "cause": "",
+   "archived_class": "insurance_claim",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 860,
+   "tokens": 6603,
+   "cost_usd": 0.00024429,
+   "cost_by_role": {
+    "worker": 0.00024429
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 3576,
+     "completion_tokens": 88,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "insurance_claims_specialist": {
+     "calls": 1,
+     "prompt_tokens": 2565,
+     "completion_tokens": 374,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-3b89c9e0ddb55e8f",
+   "doc_class": "insurance_claim",
+   "outcome": "correct_archive",
+   "utility": 0.9158,
+   "cause": "",
+   "archived_class": "insurance_claim",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 1135,
+   "tokens": 6963,
+   "cost_usd": 0.00026568999999999996,
+   "cost_by_role": {
+    "worker": 0.00026568999999999996
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 3703,
+     "completion_tokens": 110,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "insurance_claims_specialist": {
+     "calls": 1,
+     "prompt_tokens": 2692,
+     "completion_tokens": 458,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-fd237f18d20ea165",
+   "doc_class": "insurance_claim",
+   "outcome": "correct_archive",
+   "utility": 0.9166,
+   "cause": "",
+   "archived_class": "insurance_claim",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 1133,
+   "tokens": 6988,
+   "cost_usd": 0.00026614,
+   "cost_by_role": {
+    "worker": 0.00026614
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 3717,
+     "completion_tokens": 110,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "insurance_claims_specialist": {
+     "calls": 1,
+     "prompt_tokens": 2706,
+     "completion_tokens": 455,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-9420b777a4b0784c",
+   "doc_class": "merger_agreement",
+   "outcome": "wrong_archive",
+   "utility": -1.0,
+   "cause": "extraction:maud_wrong",
+   "archived_class": "merger_agreement",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 375476,
+   "tokens": 241683,
+   "cost_usd": 0.024936899999999998,
+   "cost_by_role": {
+    "worker": 0.024936899999999998
+   },
+   "usage_by_agent": {
+    "intake": {
+     "calls": 1,
+     "prompt_tokens": 77740,
+     "completion_tokens": 849,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 80419,
+     "completion_tokens": 116,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "merger_agreement_specialist": {
+     "calls": 1,
+     "prompt_tokens": 80962,
+     "completion_tokens": 1597,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-d03deea0b0431ed2",
+   "doc_class": "merger_agreement",
+   "outcome": "wrong_archive",
+   "utility": -1.0,
+   "cause": "extraction:maud_wrong",
+   "archived_class": "merger_agreement",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 494300,
+   "tokens": 309338,
+   "cost_usd": 0.03179420000000001,
+   "cost_by_role": {
+    "worker": 0.03179420000000001
+   },
+   "usage_by_agent": {
+    "intake": {
+     "calls": 1,
+     "prompt_tokens": 100191,
+     "completion_tokens": 920,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 102866,
+     "completion_tokens": 120,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "merger_agreement_specialist": {
+     "calls": 1,
+     "prompt_tokens": 103413,
+     "completion_tokens": 1828,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-4cab0ae6bfeaa370",
+   "doc_class": "merger_agreement",
+   "outcome": "wrong_archive",
+   "utility": -1.0,
+   "cause": "extraction:maud_wrong",
+   "archived_class": "merger_agreement",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 387592,
+   "tokens": 488137,
+   "cost_usd": 0.050338600000000004,
+   "cost_by_role": {
+    "worker": 0.025303,
+    "oversight": 0.025035600000000005
+   },
+   "usage_by_agent": {
+    "intake": {
+     "calls": 1,
+     "prompt_tokens": 78685,
+     "completion_tokens": 854,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 81358,
+     "completion_tokens": 152,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "merger_agreement_specialist": {
+     "calls": 1,
+     "prompt_tokens": 81907,
+     "completion_tokens": 1764,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "judge": {
+     "calls": 2,
+     "prompt_tokens": 159392,
+     "completion_tokens": 2131,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "arbiter": {
+     "calls": 1,
+     "prompt_tokens": 81712,
+     "completion_tokens": 182,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-d7a7c1ffbf5b6cbb",
+   "doc_class": "merger_agreement",
+   "outcome": "wrong_archive",
+   "utility": -1.0,
+   "cause": "extraction:maud_wrong",
+   "archived_class": "merger_agreement",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 360658,
+   "tokens": 525934,
+   "cost_usd": 0.0540562,
+   "cost_by_role": {
+    "worker": 0.0315193,
+    "oversight": 0.022536900000000002
+   },
+   "usage_by_agent": {
+    "intake": {
+     "calls": 1,
+     "prompt_tokens": 72580,
+     "completion_tokens": 973,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 75251,
+     "completion_tokens": 108,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "merger_agreement_specialist": {
+     "calls": 2,
+     "prompt_tokens": 152006,
+     "completion_tokens": 2758,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "judge": {
+     "calls": 2,
+     "prompt_tokens": 147034,
+     "completion_tokens": 799,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "arbiter": {
+     "calls": 1,
+     "prompt_tokens": 74187,
+     "completion_tokens": 238,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-b20190359d4a2eca",
+   "doc_class": "merger_agreement",
+   "outcome": "wrong_archive",
+   "utility": -1.0,
+   "cause": "extraction:maud_wrong",
+   "archived_class": "merger_agreement",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 330685,
+   "tokens": 494035,
+   "cost_usd": 0.051438700000000004,
+   "cost_by_role": {
+    "worker": 0.030037600000000005,
+    "oversight": 0.0214011
+   },
+   "usage_by_agent": {
+    "intake": {
+     "calls": 1,
+     "prompt_tokens": 67631,
+     "completion_tokens": 1094,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 70312,
+     "completion_tokens": 121,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "merger_agreement_specialist": {
+     "calls": 2,
+     "prompt_tokens": 142097,
+     "completion_tokens": 3869,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "judge": {
+     "calls": 2,
+     "prompt_tokens": 137238,
+     "completion_tokens": 1465,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "arbiter": {
+     "calls": 1,
+     "prompt_tokens": 69973,
+     "completion_tokens": 235,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-8a0bdfe3d16c33b2",
+   "doc_class": "merger_agreement",
+   "outcome": "wrong_archive",
+   "utility": -1.0,
+   "cause": "extraction:maud_wrong",
+   "archived_class": "merger_agreement",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 374403,
+   "tokens": 245094,
+   "cost_usd": 0.025206,
+   "cost_by_role": {
+    "worker": 0.025206
+   },
+   "usage_by_agent": {
+    "intake": {
+     "calls": 1,
+     "prompt_tokens": 78963,
+     "completion_tokens": 931,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 81624,
+     "completion_tokens": 104,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "merger_agreement_specialist": {
+     "calls": 1,
+     "prompt_tokens": 82185,
+     "completion_tokens": 1287,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-1252fb5690e17c7b",
+   "doc_class": "merger_agreement",
+   "outcome": "wrong_archive",
+   "utility": -1.0,
+   "cause": "extraction:maud_wrong",
+   "archived_class": "merger_agreement",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 261968,
+   "tokens": 396457,
+   "cost_usd": 0.041262400000000005,
+   "cost_by_role": {
+    "worker": 0.024275900000000003,
+    "oversight": 0.0169865
+   },
+   "usage_by_agent": {
+    "intake": {
+     "calls": 1,
+     "prompt_tokens": 53995,
+     "completion_tokens": 961,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 56659,
+     "completion_tokens": 109,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "merger_agreement_specialist": {
+     "calls": 2,
+     "prompt_tokens": 114837,
+     "completion_tokens": 3247,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "judge": {
+     "calls": 2,
+     "prompt_tokens": 110046,
+     "completion_tokens": 624,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "arbiter": {
+     "calls": 1,
+     "prompt_tokens": 55531,
+     "completion_tokens": 448,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-2f9cf3ce009aaaf0",
+   "doc_class": "merger_agreement",
+   "outcome": "wrong_archive",
+   "utility": -1.0,
+   "cause": "extraction:maud_wrong",
+   "archived_class": "merger_agreement",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 400420,
+   "tokens": 256316,
+   "cost_usd": 0.026894600000000005,
+   "cost_by_role": {
+    "worker": 0.026894600000000005
+   },
+   "usage_by_agent": {
+    "intake": {
+     "calls": 1,
+     "prompt_tokens": 82068,
+     "completion_tokens": 1923,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 84747,
+     "completion_tokens": 113,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "merger_agreement_specialist": {
+     "calls": 1,
+     "prompt_tokens": 85291,
+     "completion_tokens": 2174,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-37bc3c44ae2c4ef6",
+   "doc_class": "merger_agreement",
+   "outcome": "review",
+   "utility": -0.25,
+   "cause": "judge:partial_exhausted",
+   "archived_class": null,
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 333750,
+   "tokens": 510537,
+   "cost_usd": 0.0521664,
+   "cost_by_role": {
+    "worker": 0.031014700000000003,
+    "oversight": 0.0211517
+   },
+   "usage_by_agent": {
+    "intake": {
+     "calls": 1,
+     "prompt_tokens": 68638,
+     "completion_tokens": 899,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 71302,
+     "completion_tokens": 121,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "merger_agreement_specialist": {
+     "calls": 2,
+     "prompt_tokens": 157719,
+     "completion_tokens": 2102,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "judge": {
+     "calls": 2,
+     "prompt_tokens": 139312,
+     "completion_tokens": 311,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "arbiter": {
+     "calls": 1,
+     "prompt_tokens": 69857,
+     "completion_tokens": 276,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-f099c5c73d56631e",
+   "doc_class": "merger_agreement",
+   "outcome": "wrong_archive",
+   "utility": -1.0,
+   "cause": "extraction:maud_wrong",
+   "archived_class": "merger_agreement",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 436607,
+   "tokens": 455419,
+   "cost_usd": 0.0465646,
+   "cost_by_role": {
+    "worker": 0.0284342,
+    "oversight": 0.018130399999999998
+   },
+   "usage_by_agent": {
+    "intake": {
+     "calls": 1,
+     "prompt_tokens": 88796,
+     "completion_tokens": 1116,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 91487,
+     "completion_tokens": 121,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "merger_agreement_specialist": {
+     "calls": 1,
+     "prompt_tokens": 92019,
+     "completion_tokens": 1773,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "judge": {
+     "calls": 2,
+     "prompt_tokens": 179708,
+     "completion_tokens": 399,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-bc00568bd19c899e",
+   "doc_class": "merger_agreement",
+   "outcome": "wrong_archive",
+   "utility": -1.0,
+   "cause": "extraction:maud_wrong",
+   "archived_class": "merger_agreement",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 318323,
+   "tokens": 340234,
+   "cost_usd": 0.035061100000000005,
+   "cost_by_role": {
+    "worker": 0.021532700000000002,
+    "oversight": 0.013528400000000001
+   },
+   "usage_by_agent": {
+    "intake": {
+     "calls": 1,
+     "prompt_tokens": 65744,
+     "completion_tokens": 988,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 68416,
+     "completion_tokens": 123,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "merger_agreement_specialist": {
+     "calls": 1,
+     "prompt_tokens": 68967,
+     "completion_tokens": 1939,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "judge": {
+     "calls": 2,
+     "prompt_tokens": 133648,
+     "completion_tokens": 409,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-ac48214468deb8dd",
+   "doc_class": "merger_agreement",
+   "outcome": "wrong_archive",
+   "utility": -1.0,
+   "cause": "extraction:maud_wrong",
+   "archived_class": "merger_agreement",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 277489,
+   "tokens": 179612,
+   "cost_usd": 0.0187628,
+   "cost_by_role": {
+    "worker": 0.0187628
+   },
+   "usage_by_agent": {
+    "intake": {
+     "calls": 1,
+     "prompt_tokens": 57007,
+     "completion_tokens": 976,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 59703,
+     "completion_tokens": 118,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "merger_agreement_specialist": {
+     "calls": 1,
+     "prompt_tokens": 60230,
+     "completion_tokens": 1578,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-5d30efc302f3c431",
+   "doc_class": "merger_agreement",
+   "outcome": "wrong_archive",
+   "utility": -1.0,
+   "cause": "extraction:maud_wrong",
+   "archived_class": "merger_agreement",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 501198,
+   "tokens": 720080,
+   "cost_usd": 0.07343150000000001,
+   "cost_by_role": {
+    "worker": 0.0426199,
+    "oversight": 0.0308116
+   },
+   "usage_by_agent": {
+    "intake": {
+     "calls": 1,
+     "prompt_tokens": 100346,
+     "completion_tokens": 822,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 103030,
+     "completion_tokens": 120,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "merger_agreement_specialist": {
+     "calls": 2,
+     "prompt_tokens": 207603,
+     "completion_tokens": 2863,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "judge": {
+     "calls": 2,
+     "prompt_tokens": 202560,
+     "completion_tokens": 648,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "arbiter": {
+     "calls": 1,
+     "prompt_tokens": 101796,
+     "completion_tokens": 292,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-f449b47c7269f288",
+   "doc_class": "merger_agreement",
+   "outcome": "wrong_archive",
+   "utility": -1.0,
+   "cause": "extraction:maud_wrong",
+   "archived_class": "merger_agreement",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 361792,
+   "tokens": 229250,
+   "cost_usd": 0.023635700000000003,
+   "cost_by_role": {
+    "worker": 0.023635700000000003
+   },
+   "usage_by_agent": {
+    "intake": {
+     "calls": 1,
+     "prompt_tokens": 73663,
+     "completion_tokens": 796,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 76332,
+     "completion_tokens": 109,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "merger_agreement_specialist": {
+     "calls": 1,
+     "prompt_tokens": 76886,
+     "completion_tokens": 1464,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-681bc6115b882191",
+   "doc_class": "merger_agreement",
+   "outcome": "wrong_archive",
+   "utility": -1.0,
+   "cause": "extraction:maud_wrong",
+   "archived_class": "merger_agreement",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 456659,
+   "tokens": 289568,
+   "cost_usd": 0.0299372,
+   "cost_by_role": {
+    "worker": 0.0299372
+   },
+   "usage_by_agent": {
+    "intake": {
+     "calls": 1,
+     "prompt_tokens": 93461,
+     "completion_tokens": 1118,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 96151,
+     "completion_tokens": 140,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "merger_agreement_specialist": {
+     "calls": 1,
+     "prompt_tokens": 96688,
+     "completion_tokens": 2010,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-ed8721660c7317e7",
+   "doc_class": "correspondence",
+   "outcome": "unscorable_archive",
+   "utility": 0.0,
+   "cause": "",
+   "archived_class": "correspondence",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 1678,
+   "tokens": 6410,
+   "cost_usd": 0.000224,
+   "cost_by_role": {
+    "worker": 0.000224
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 3819,
+     "completion_tokens": 102,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "correspondence_specialist": {
+     "calls": 1,
+     "prompt_tokens": 2274,
+     "completion_tokens": 215,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-a4a29801ed53a8b1",
+   "doc_class": "correspondence",
+   "outcome": "wrong_archive",
+   "utility": -1.0,
+   "cause": "extraction:wrong_value",
+   "archived_class": "correspondence",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 730,
+   "tokens": 11964,
+   "cost_usd": 0.00043601999999999996,
+   "cost_by_role": {
+    "worker": 0.00030254999999999995,
+    "oversight": 0.00013346999999999998
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 3571,
+     "completion_tokens": 109,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "correspondence_specialist": {
+     "calls": 2,
+     "prompt_tokens": 4330,
+     "completion_tokens": 395,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "judge": {
+     "calls": 1,
+     "prompt_tokens": 1718,
+     "completion_tokens": 109,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "arbiter": {
+     "calls": 1,
+     "prompt_tokens": 1574,
+     "completion_tokens": 158,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-39f0bf8b666ffa71",
+   "doc_class": "correspondence",
+   "outcome": "unscorable_archive",
+   "utility": 0.0,
+   "cause": "",
+   "archived_class": "correspondence",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 2053,
+   "tokens": 6573,
+   "cost_usd": 0.00022378999999999997,
+   "cost_by_role": {
+    "worker": 0.00022378999999999997
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 3926,
+     "completion_tokens": 90,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "correspondence_specialist": {
+     "calls": 1,
+     "prompt_tokens": 2381,
+     "completion_tokens": 176,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-f999ead0083ac704",
+   "doc_class": "correspondence",
+   "outcome": "unscorable_archive",
+   "utility": 0.0,
+   "cause": "",
+   "archived_class": "correspondence",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 3363,
+   "tokens": 7211,
+   "cost_usd": 0.00026013,
+   "cost_by_role": {
+    "worker": 0.00026013
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 4159,
+     "completion_tokens": 88,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "correspondence_specialist": {
+     "calls": 1,
+     "prompt_tokens": 2614,
+     "completion_tokens": 350,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-ba72bbffee783647",
+   "doc_class": "correspondence",
+   "outcome": "unscorable_archive",
+   "utility": 0.0,
+   "cause": "",
+   "archived_class": "correspondence",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 810,
+   "tokens": 5963,
+   "cost_usd": 0.00020868999999999998,
+   "cost_by_role": {
+    "worker": 0.00020868999999999998
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 3605,
+     "completion_tokens": 98,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "correspondence_specialist": {
+     "calls": 1,
+     "prompt_tokens": 2060,
+     "completion_tokens": 200,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-9f4c3612ad607009",
+   "doc_class": "insurance_claim",
+   "outcome": "correct_archive",
+   "utility": 0.9399,
+   "cause": "",
+   "archived_class": "insurance_claim",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 1439,
+   "tokens": 7307,
+   "cost_usd": 0.00028381,
+   "cost_by_role": {
+    "worker": 0.00028381
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 3836,
+     "completion_tokens": 104,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "insurance_claims_specialist": {
+     "calls": 1,
+     "prompt_tokens": 2825,
+     "completion_tokens": 542,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-81e5b40f36d6b2d8",
+   "doc_class": "insurance_claim",
+   "outcome": "wrong_archive",
+   "utility": -1.0,
+   "cause": "extraction:missing_field",
+   "archived_class": "insurance_claim",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 649,
+   "tokens": 6572,
+   "cost_usd": 0.00024346,
+   "cost_by_role": {
+    "worker": 0.00024346
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 3560,
+     "completion_tokens": 91,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "insurance_claims_specialist": {
+     "calls": 1,
+     "prompt_tokens": 2549,
+     "completion_tokens": 372,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-d17434cee675cf41",
+   "doc_class": "correspondence",
+   "outcome": "unscorable_archive",
+   "utility": 0.0,
+   "cause": "",
+   "archived_class": "correspondence",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 21403,
+   "tokens": 15067,
+   "cost_usd": 0.00048781,
+   "cost_by_role": {
+    "worker": 0.00048781
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 8126,
+     "completion_tokens": 122,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "correspondence_specialist": {
+     "calls": 1,
+     "prompt_tokens": 6583,
+     "completion_tokens": 236,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-a72abd693adcfd0d",
+   "doc_class": "correspondence",
+   "outcome": "wrong_archive",
+   "utility": -1.0,
+   "cause": "extraction:wrong_value",
+   "archived_class": "correspondence",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 976,
+   "tokens": 6221,
+   "cost_usd": 0.00022383,
+   "cost_by_role": {
+    "worker": 0.00022383
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 3697,
+     "completion_tokens": 103,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "correspondence_specialist": {
+     "calls": 1,
+     "prompt_tokens": 2152,
+     "completion_tokens": 269,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-6ec0477193eb71c2",
+   "doc_class": "correspondence",
+   "outcome": "unscorable_archive",
+   "utility": 0.0,
+   "cause": "",
+   "archived_class": "correspondence",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 1493,
+   "tokens": 6466,
+   "cost_usd": 0.00023228000000000002,
+   "cost_by_role": {
+    "worker": 0.00023228000000000002
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 3814,
+     "completion_tokens": 99,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "correspondence_specialist": {
+     "calls": 1,
+     "prompt_tokens": 2269,
+     "completion_tokens": 284,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-92a3e4e342ff13cb",
+   "doc_class": "correspondence",
+   "outcome": "unscorable_archive",
+   "utility": 0.0,
+   "cause": "",
+   "archived_class": "correspondence",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 1282,
+   "tokens": 6058,
+   "cost_usd": 0.00020993999999999999,
+   "cost_by_role": {
+    "worker": 0.00020993999999999999
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 3660,
+     "completion_tokens": 95,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "correspondence_specialist": {
+     "calls": 1,
+     "prompt_tokens": 2116,
+     "completion_tokens": 187,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-c50f8e9afff8e739",
+   "doc_class": "insurance_claim",
+   "outcome": "wrong_archive",
+   "utility": -1.0,
+   "cause": "extraction:wrong_value",
+   "archived_class": "insurance_claim",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 1258,
+   "tokens": 6837,
+   "cost_usd": 0.00025271,
+   "cost_by_role": {
+    "worker": 0.00025271
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 3686,
+     "completion_tokens": 90,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "insurance_claims_specialist": {
+     "calls": 1,
+     "prompt_tokens": 2675,
+     "completion_tokens": 386,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-b569dd1136c9192e",
+   "doc_class": "insurance_claim",
+   "outcome": "wrong_archive",
+   "utility": -1.0,
+   "cause": "extraction:missing_field",
+   "archived_class": "insurance_claim",
+   "reviewer_doc_type": "insurance_claim",
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 997,
+   "tokens": 13350,
+   "cost_usd": 0.0004749,
+   "cost_by_role": {
+    "worker": 0.0003792,
+    "reviewer": 9.57e-05
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 2,
+     "prompt_tokens": 7300,
+     "completion_tokens": 214,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "sorter_reviewer": {
+     "calls": 1,
+     "prompt_tokens": 2683,
+     "completion_tokens": 117,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "insurance_claims_specialist": {
+     "calls": 1,
+     "prompt_tokens": 2623,
+     "completion_tokens": 413,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-bbb397133e16676b",
+   "doc_class": "insurance_claim",
+   "outcome": "wrong_archive",
+   "utility": -1.0,
+   "cause": "extraction:missing_field",
+   "archived_class": "insurance_claim",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 947,
+   "tokens": 6750,
+   "cost_usd": 0.000254,
+   "cost_by_role": {
+    "worker": 0.000254
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 3623,
+     "completion_tokens": 104,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "insurance_claims_specialist": {
+     "calls": 1,
+     "prompt_tokens": 2612,
+     "completion_tokens": 411,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-c6a26508c3f50677",
+   "doc_class": "insurance_claim",
+   "outcome": "wrong_archive",
+   "utility": -1.0,
+   "cause": "extraction:missing_field",
+   "archived_class": "insurance_claim",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 898,
+   "tokens": 6752,
+   "cost_usd": 0.00025606,
+   "cost_by_role": {
+    "worker": 0.00025606
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 3614,
+     "completion_tokens": 108,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "insurance_claims_specialist": {
+     "calls": 1,
+     "prompt_tokens": 2603,
+     "completion_tokens": 427,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-c8e04fcb7e8e5589",
+   "doc_class": "insurance_claim",
+   "outcome": "correct_archive",
+   "utility": 0.9177,
+   "cause": "",
+   "archived_class": "insurance_claim",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 9404,
+   "tokens": 47044,
+   "cost_usd": 0.0019226199999999999,
+   "cost_by_role": {
+    "worker": 0.00113048,
+    "oversight": 0.00079214
+   },
+   "usage_by_agent": {
+    "intake": {
+     "calls": 1,
+     "prompt_tokens": 2927,
+     "completion_tokens": 2048,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 5505,
+     "completion_tokens": 119,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "insurance_claims_specialist": {
+     "calls": 3,
+     "prompt_tokens": 14149,
+     "completion_tokens": 1318,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "judge": {
+     "calls": 3,
+     "prompt_tokens": 11388,
+     "completion_tokens": 763,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "arbiter": {
+     "calls": 2,
+     "prompt_tokens": 7962,
+     "completion_tokens": 865,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-72ef2b99af10225c",
+   "doc_class": "insurance_claim",
+   "outcome": "review",
+   "utility": -0.25,
+   "cause": "judge:partial_exhausted",
+   "archived_class": null,
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 10018,
+   "tokens": 53210,
+   "cost_usd": 0.0020280000000000003,
+   "cost_by_role": {
+    "worker": 0.0007953400000000001,
+    "oversight": 0.00123266
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 5583,
+     "completion_tokens": 103,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "insurance_claims_specialist": {
+     "calls": 3,
+     "prompt_tokens": 14554,
+     "completion_tokens": 1368,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "judge": {
+     "calls": 5,
+     "prompt_tokens": 19487,
+     "completion_tokens": 2382,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "arbiter": {
+     "calls": 2,
+     "prompt_tokens": 9269,
+     "completion_tokens": 464,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-6c5c029463c1cdbe",
+   "doc_class": "insurance_claim",
+   "outcome": "wrong_archive",
+   "utility": -1.0,
+   "cause": "extraction:wrong_value",
+   "archived_class": "insurance_claim",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 7897,
+   "tokens": 14171,
+   "cost_usd": 0.00060613,
+   "cost_by_role": {
+    "worker": 0.00060613
+   },
+   "usage_by_agent": {
+    "intake": {
+     "calls": 1,
+     "prompt_tokens": 2726,
+     "completion_tokens": 1251,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 5370,
+     "completion_tokens": 87,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "insurance_claims_specialist": {
+     "calls": 1,
+     "prompt_tokens": 4265,
+     "completion_tokens": 472,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-b7c74eb61837f4ac",
+   "doc_class": "correspondence",
+   "outcome": "wrong_archive",
+   "utility": -1.0,
+   "cause": "extraction:wrong_value",
+   "archived_class": "correspondence",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 870,
+   "tokens": 5989,
+   "cost_usd": 0.00020967,
+   "cost_by_role": {
+    "worker": 0.00020967
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 3617,
+     "completion_tokens": 94,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "correspondence_specialist": {
+     "calls": 1,
+     "prompt_tokens": 2072,
+     "completion_tokens": 206,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-a0d2177d94df8da4",
+   "doc_class": "correspondence",
+   "outcome": "unscorable_archive",
+   "utility": 0.0,
+   "cause": "",
+   "archived_class": "correspondence",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 344,
+   "tokens": 5804,
+   "cost_usd": 0.00020522,
+   "cost_by_role": {
+    "worker": 0.00020522
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 3519,
+     "completion_tokens": 109,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "correspondence_specialist": {
+     "calls": 1,
+     "prompt_tokens": 1974,
+     "completion_tokens": 202,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-9452c7f44e281782",
+   "doc_class": "correspondence",
+   "outcome": "wrong_archive",
+   "utility": -1.0,
+   "cause": "extraction:wrong_value",
+   "archived_class": "correspondence",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 1402,
+   "tokens": 13341,
+   "cost_usd": 0.0004975299999999999,
+   "cost_by_role": {
+    "worker": 0.00033057,
+    "oversight": 0.00016696
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 3763,
+     "completion_tokens": 117,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "correspondence_specialist": {
+     "calls": 2,
+     "prompt_tokens": 4812,
+     "completion_tokens": 447,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "judge": {
+     "calls": 1,
+     "prompt_tokens": 1923,
+     "completion_tokens": 194,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "arbiter": {
+     "calls": 1,
+     "prompt_tokens": 1870,
+     "completion_tokens": 215,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-fd9a9cf088cc6c66",
+   "doc_class": "correspondence",
+   "outcome": "unscorable_archive",
+   "utility": 0.0,
+   "cause": "",
+   "archived_class": "correspondence",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 1112,
+   "tokens": 6112,
+   "cost_usd": 0.00021626,
+   "cost_by_role": {
+    "worker": 0.00021626
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 3664,
+     "completion_tokens": 107,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "correspondence_specialist": {
+     "calls": 1,
+     "prompt_tokens": 2119,
+     "completion_tokens": 222,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  },
+  {
+   "id": "DOC-c37b0d5ab87d21f2",
+   "doc_class": "correspondence",
+   "outcome": "unscorable_archive",
+   "utility": 0.0,
+   "cause": "",
+   "archived_class": "correspondence",
+   "reviewer_doc_type": null,
+   "judge_error": false,
+   "crash_node": null,
+   "doc_chars": 328,
+   "tokens": 11930,
+   "cost_usd": 0.0006672,
+   "cost_by_role": {
+    "worker": 0.00020615,
+    "oversight": 0.00046105
+   },
+   "usage_by_agent": {
+    "sorter": {
+     "calls": 1,
+     "prompt_tokens": 3573,
+     "completion_tokens": 97,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "correspondence_specialist": {
+     "calls": 1,
+     "prompt_tokens": 2029,
+     "completion_tokens": 196,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "judge": {
+     "calls": 1,
+     "prompt_tokens": 1728,
+     "completion_tokens": 2629,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    },
+    "arbiter": {
+     "calls": 1,
+     "prompt_tokens": 1507,
+     "completion_tokens": 171,
+     "models": [
+      "qwen/qwen3.7-flash"
+     ]
+    }
+   }
+  }
+ ]
+}

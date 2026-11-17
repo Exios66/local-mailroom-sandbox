@@ -62,4 +62,9 @@ Do not edit rows by hand. Parse with `mailroom_sandbox.job.ledger.rows()`.
 | 2026-11-17T16:13:04Z | JJB | start | ar-mailroom-v2-r00-baseline | reports/autoresearch/mailroom-v2/specs/ar-mailroom-v2-r00-baseline.yaml | e0399c1b03f4 | 75 | 3.0 | ✓ |
 | 2026-11-17T16:19:31Z | JJB | start | ar-mailroom-v2-replicate | reports/autoresearch/mailroom-v2/specs/ar-mailroom-v2-replicate.yaml | 41f48bce2b08 | 75 | 3.0 | ✓ |
 | 2026-11-17T16:25:19Z | JJB | start | ar-mailroom-v2-r01-merger-agreement-deepseek-v4.1-flash | reports/autoresearch/mailroom-v2/specs/ar-mailroom-v2-r01-merger-agreement-deepseek-v4.1-flash.yaml | ccbe5d4685fc | 75 | 3.0 | ✓ |
-| 2026-11-17T16:31:40Z | JJB | start | ar-mailroom-v2-r02-merger-prompt-maud-v2 | reports/autoresearch/mailroom-v2/specs/ar-mailroom-v2-r02-merger-prompt-maud-v2.yaml | 52ce0f9d885b | 75 | 3.0 |   |
+| 2026-11-17T16:31:40Z | JJB | start | ar-mailroom-v2-r02-merger-prompt-maud-v2 | reports/autoresearch/mailroom-v2/specs/ar-mailroom-v2-r02-merger-prompt-maud-v2.yaml | 52ce0f9d885b | 75 | 3.0 | ✓ |
+| 2026-11-17T16:38:28Z | JJB | start | ar-mailroom-v2-r03-merger-agreement-window-400k | reports/autoresearch/mailroom-v2/specs/ar-mailroom-v2-r03-merger-agreement-window-400k.yaml | dd4b4258162c | 75 | 3.0 | ✓ |
+| 2026-11-17T16:44:57Z | JJB | start | ar-mailroom-v2-r04-insurance-claims-deepseek-v4.1-flash | reports/autoresearch/mailroom-v2/specs/ar-mailroom-v2-r04-insurance-claims-deepseek-v4.1-flash.yaml | 3306f8677302 | 75 | 3.0 | ✓ |
+| 2026-11-17T16:48:47Z | JJB | start | ar-mailroom-v2-r05-ins-prompt-v5 | reports/autoresearch/mailroom-v2/specs/ar-mailroom-v2-r05-ins-prompt-v5.yaml | 529e8bd70549 | 75 | 3.0 | ✓ |
+| 2026-11-17T16:52:26Z | JJB | start | ar-mailroom-v2-r06-ins-prompt-v4 | reports/autoresearch/mailroom-v2/specs/ar-mailroom-v2-r06-ins-prompt-v4.yaml | eae22df4913b | 75 | 3.0 | ✓ |
+| 2026-11-17T16:54:03Z | JJB | start | ar-mailroom-v2-r07-extraction-gate-v1.3.0 | reports/autoresearch/mailroom-v2/specs/ar-mailroom-v2-r07-extraction-gate-v1.3.0.yaml | 3626a56387a3 | 75 | 3.0 | ✗ |

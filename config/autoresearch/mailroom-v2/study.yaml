@@ -21,7 +21,7 @@ budget:
 # The loop re-runs the baseline once (round "replicate") and uses max(this, |mean paired delta|, CI half-width) of the
 # two baseline runs as the effective noise floor. No lever is kept before the replicate exists.
 noise_floor: 0.0
-max_consecutive_reverts: 3
+max_consecutive_reverts: 7   # raised from 3 after round 3 (2026-11-17) to test the judge-routing levers added from the v1 failure analysis
 utility:                  # per document: correct archive = its extraction score
   review: -0.25
   wrong_archive: -1.0
