@@ -24,6 +24,7 @@ holds its own provider settings and spend; this module cannot see or cap that sp
 
 from __future__ import annotations
 
+import math
 import re
 import tempfile
 import time
@@ -80,7 +81,9 @@ class MailroomAPI:
         *,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
-        self.base_url = (base_url or review_cli.api_url()).rstrip("/")
+        # An explicit URL gets the same check as MAILROOM_API_URL: no embedded credentials,
+        # query or fragment, so nothing secret can reach an error message or a report.
+        self.base_url = review_cli.check_api_url(base_url) if base_url else review_cli.api_url()
         self._token = token if token is not None else review_cli._token()
         self._transport = transport if transport is not None else _default_transport()
 
@@ -288,8 +291,12 @@ def run_api_eval(
     from mailroom_sandbox.eval import scoring
     from mailroom_sandbox.eval.runners import _materialize_row, _score_pipeline_extraction
 
-    poll_seconds = max(float(poll_seconds), MIN_POLL_SECONDS)
-    doc_timeout = max(float(doc_timeout), 0.0)
+    poll_seconds, doc_timeout = float(poll_seconds), float(doc_timeout)
+    if not (math.isfinite(poll_seconds) and math.isfinite(doc_timeout)):
+        # NaN slips past max() and every deadline comparison; inf would sleep forever.
+        raise ValueError("poll_seconds and doc_timeout must be finite numbers")
+    poll_seconds = max(poll_seconds, MIN_POLL_SECONDS)
+    doc_timeout = max(doc_timeout, 0.0)
     tag = run_tag or f"apieval-{uuid.uuid4().hex[:8]}"
     started = clock()
     health = api.health()

@@ -2600,10 +2600,10 @@ def _cmd_api_eval(args: argparse.Namespace) -> int:
         rows = rows[: args.sample]
     if not rows:
         raise CLIUsageError("no fixture rows match the selection")
-    if args.poll is not None and args.poll <= 0:
-        raise CLIUsageError("--poll must be positive")
-    if args.timeout is not None and args.timeout < 0:
-        raise CLIUsageError("--timeout must not be negative")
+    if args.poll is not None and not (math.isfinite(args.poll) and args.poll > 0):
+        raise CLIUsageError("--poll must be a positive number")
+    if args.timeout is not None and not (math.isfinite(args.timeout) and args.timeout >= 0):
+        raise CLIUsageError("--timeout must be a finite number, zero or more")
     if args.mock and args.submit:
         raise CLIUsageError("--mock and --submit are exclusive: --mock never reaches a server")
     if not args.mock and not args.submit:
