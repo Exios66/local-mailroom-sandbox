@@ -2646,7 +2646,7 @@ def _cmd_api_eval(args: argparse.Namespace) -> int:
         try:
             run_dir = api_floor.record_floor_run(report, rows, base=floor_base,
                                                  run_id=args.floor_run or str(report["run_tag"]), audit=api.audit)
-        except (OSError, ValueError) as exc:  # the eval result still prints; only the floor copy is missing
+        except Exception as exc:  # noqa: BLE001 — the eval result still prints; only the floor copy is missing
             report["floor_run_error"] = f"{type(exc).__name__}: {exc}"
             print(f"floor run not recorded: {exc}", file=sys.stderr)
             return

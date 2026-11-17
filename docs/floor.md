@@ -87,8 +87,12 @@ A run whose checkpoint still says `running` but whose `items.jsonl`,
 `nodes.jsonl` and `checkpoint.json` have not changed for 15 minutes is shown
 as **stalled ⚠** (a killed process never rewrites its checkpoint). The digest
 keeps the original value as `checkpoint_state`, the idle time as `stalled_s`
-and `last_activity_utc`; a stalled run is not polled, gets no RUNNING pills and
-is not chosen as the default run. `FLOOR_STALL_SECONDS` changes the threshold.
+and `last_activity_utc`; a stalled run gets no RUNNING pills and is not chosen
+as the default run, but the browser keeps polling it so a resumed run comes
+back. While any checkpoint says `running`, the resident app rebuilds the digest
+at least every 60 seconds even with no artifact change, so a run that dies
+while the viewer is open turns stalled. `FLOOR_STALL_SECONDS` changes the
+threshold.
 
 Class views use the run's `per_class` data. A missing or incomplete class label
 must not leave figures from a previous selection visible. Missing dataset
@@ -103,7 +107,7 @@ selected run and the isolated class.
 
 | Tab | What it shows |
 | --- | --- |
-| SCORES vs GT | Classification accuracy over documents that have both a ground-truth and a predicted class; mean Dojo `overall_extraction_score`; the near-gold fields used; outcome totals. A per-class table (recall, precision, extraction mean, near-gold documents, archived/review/failed/open; click a row to isolate the class), the label-tier table and a confusion matrix (rows ground truth, columns predicted). |
+| SCORES vs GT | Classification accuracy over documents with a ground-truth class that finished (a finished document with no predicted class counts as a miss, shown as `unknown` in the confusion matrix; an open one is not counted yet); the mean Dojo `overall_extraction_score` over all label tiers, with the Hub-GT-only mean beside it; the near-gold fields used; outcome totals. A per-class table (recall, precision, extraction mean, near-gold documents, archived/review/failed/open; click a row to isolate the class), the label-tier table and a confusion matrix (rows ground truth, columns predicted). |
 | DOCUMENTS | One row per document: GT and predicted class (✗ on a miss), outcome, extraction score, label tier, review trigger, latency and node path. Filter by outcome, by misclassified-or-failed, or by id. Click a row to light only that document's path on the graph and show its details in the right rail. |
 | NODES | Per node: documents in, p50, aborts, where those documents ended up (archived/review/failed/open) and how many were classified right. Click a row to select the node. |
 
@@ -111,7 +115,9 @@ selected run and the isolated class.
 then the near-gold overlay (`interim_labels` / `near_gold_labels` on the run's
 `dataset.jsonl` rows). A document is counted under the lowest tier that filled
 any of its fields, so an extraction score that used a near-gold label is shown
-as `near_gold`, never as a Hub-GT score. `class only` means the row labels the
+as `near_gold`, never as a Hub-GT score. Rows from the repository's own
+fixture manifest (`dataset: sandbox-fixtures`, used by `sandbox api eval`) are
+hand-written test labels and show as `fixture`, not `hub`. `class only` means the row labels the
 class but no fields; `no GT row` means the run has no dataset row for it.
 
 The digest keeps at most 5,000 document rows per run (`docs_truncated` counts

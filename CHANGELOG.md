@@ -3,9 +3,9 @@
 ## [Unreleased]
 
 - **Floor viewer: repaired, and built for analysis.**
-  - Repairs: the graph now fits its drawn boxes instead of a fixed 2200×1400 canvas, so node figures are readable at load; a run whose checkpoint says `running` but whose artifacts have been idle for 15 minutes (`FLOOR_STALL_SECONDS`) is shown as `stalled`, is no longer polled or chosen as the default run, and gets no RUNNING pills.
+  - Repairs: the graph now fits its drawn boxes instead of a fixed 2200×1400 canvas, so node figures are readable at load; a run whose checkpoint says `running` but whose artifacts have been idle for 15 minutes (`FLOOR_STALL_SECONDS`) is shown as `stalled`, is not chosen as the default run and gets no RUNNING pills. The resident app rebuilds at least every 60 seconds while a checkpoint says running, so a run that dies while the viewer is open turns stalled, and one that resumes comes back.
   - New analysis panel under the graph: SCORES vs GT (classification accuracy, per-class recall/precision, Dojo extraction mean, a confusion matrix, label tiers), DOCUMENTS (one row per document with its node path; click one to trace it on the graph) and NODES (where the documents through each node ended up).
-  - Ground truth is split by label tier with Hub > interim > near_gold precedence: a document whose GT used any near-gold field is reported as `near_gold`, never as Hub GT.
+  - Ground truth is split by label tier with Hub > interim > near_gold precedence: a document whose GT used any near-gold field is reported as `near_gold`, never as Hub GT, and the headline extraction mean shows the Hub-only mean beside the all-tier one. Fixture-manifest labels show as `fixture`. A finished document with no predicted class counts as a classification miss.
   - `sandbox api eval --floor-run [ID] [--base DIR]` records the eval as a floor run (node paths from each document's stage audit), so `sandbox api eval --mock` gives a no-spend run to inspect.
   - The digest gains `docs`, `scores`, `node_outcomes`, `checkpoint_state`, `stalled_s` and `last_activity_utc` per run; the viewer still opens older digests.
 

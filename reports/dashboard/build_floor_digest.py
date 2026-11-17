@@ -568,8 +568,14 @@ DOC_ROW_CAP = 5000
 # ``$FLOOR_STALL_SECONDS`` overrides it.
 STALL_AFTER_S = 900.0
 # Label tiers in precedence order (Hub > interim > near_gold): the tier a document's
-# extraction score rests on is the LOWEST tier that filled any of its fields.
-LABEL_TIERS = ("hub", "interim", "near_gold")
+# extraction score rests on is the LOWEST tier that filled any of its fields. Rows from the
+# repo's own fixture manifest (``dataset: sandbox-fixtures``) are hand-written test labels,
+# not Hub ground truth, and get their own ``fixture`` tier.
+LABEL_TIERS = ("hub", "fixture", "interim", "near_gold")
+FIXTURE_DATASETS = {"sandbox-fixtures"}
+# A document with a GT class but no predicted class counts as a miss under this label
+# once it reached a terminal outcome (an open document is still undecided).
+UNKNOWN_CLASS = "unknown"
 
 
 def _score_value(item: dict) -> float | None:
@@ -609,7 +615,8 @@ def _label_provenance(row: dict | None) -> dict:
     interim, near = _overlay_fields(row, "interim_labels"), _overlay_fields(row, "near_gold_labels")
     filled = set(interim) | set(near)
     hub = [k for k in _expected_fields(row) if k != "gt_presence" and k not in filled]
-    tier = "near_gold" if near else "interim" if interim else "hub" if hub else "none"
+    base_tier = "fixture" if str(row.get("dataset") or "") in FIXTURE_DATASETS else "hub"
+    tier = "near_gold" if near else "interim" if interim else base_tier if hub else "none"
     return {"tier": tier, "hub": len(hub), "interim": interim, "near_gold": near}
 
 
@@ -621,16 +628,18 @@ def _mean(values: list[float]) -> float | None:
 def _scores(docs: list[dict]) -> dict:
     """Run scores against ground truth from the per-document rows.
 
-    Classification counts documents with both a GT class and a predicted class
-    (precision/recall per class, a confusion matrix ``gt -> pred -> n``). Extraction
+    Classification counts documents with a GT class that reached a terminal outcome; one
+    with no predicted class is a miss recorded as ``unknown`` (precision/recall per class, a
+    confusion matrix ``gt -> pred -> n``). Extraction
     means use documents with a numeric ``overall_extraction_score``, split by the label
     tier the GT came from, so near-gold-backed numbers are never read as Hub-GT ones.
     """
-    labelled = [d for d in docs if d["gt"] and d["pred"]]
+    labelled = [{**d, "pred": d["pred"] or UNKNOWN_CLASS} for d in docs if _classifiable(d)]
     confusion: dict[str, Counter] = {}
     for d in labelled:
         confusion.setdefault(d["gt"], Counter())[d["pred"]] += 1
-    classes = sorted({d["gt"] for d in docs if d["gt"]} | {d["pred"] for d in labelled})
+    classes = sorted({d["gt"] for d in docs if d["gt"]}
+                     | {d["pred"] for d in labelled if d["pred"] != UNKNOWN_CLASS})
     per_class: dict[str, dict] = {}
     for c in classes:
         gt_n = sum(1 for d in labelled if d["gt"] == c)
@@ -661,16 +670,24 @@ def _scores(docs: list[dict]) -> dict:
         t["extraction_mean"] = _mean(t.pop("_ext"))
     correct = sum(1 for d in labelled if d["gt"] == d["pred"])
     ext_all = [d["score"] for d in docs if d["score"] is not None]
+    hub_only = [d["score"] for d in docs if d["score"] is not None and d["labels"]["tier"] == "hub"]
     return {
         "classification": {"n": len(labelled), "correct": correct,
                            "accuracy": round(correct / len(labelled), 4) if labelled else None},
-        "extraction": {"n": len(ext_all), "mean": _mean(ext_all)},
+        "extraction": {"n": len(ext_all), "mean": _mean(ext_all),
+                       "hub_n": len(hub_only), "hub_mean": _mean(hub_only)},
         "per_class": per_class,
         "confusion": {g: dict(sorted(c.items())) for g, c in sorted(confusion.items())},
         "label_tiers": {k: by_tier[k] for k in (*LABEL_TIERS, "none") if k in by_tier},
         "near_gold_fields": sum(len(d["labels"]["near_gold"]) for d in docs),
         "interim_fields": sum(len(d["labels"]["interim"]) for d in docs),
     }
+
+
+def _classifiable(d: dict) -> bool:
+    """True when a document counts for classification: a GT class and a terminal outcome,
+    or a predicted class even while open."""
+    return bool(d["gt"]) and (d["pred"] is not None or d["outcome"] != "open")
 
 
 def _node_outcomes(docs: list[dict]) -> dict[str, dict]:
@@ -682,7 +699,7 @@ def _node_outcomes(docs: list[dict]) -> dict[str, dict]:
                                       "class_n": 0, "class_ok": 0})
             o[d["outcome"]] += 1
             o["n"] += 1
-            if d["gt"] and d["pred"]:
+            if _classifiable(d):
                 o["class_n"] += 1
                 o["class_ok"] += int(d["gt"] == d["pred"])
     return dict(sorted(out.items()))
@@ -750,7 +767,7 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]]) -> tuple[di
     for row in ds_rows:
         key = row.get("id") or row.get("filename")
         if key is not None:
-            ds_by_id.setdefault(str(key), row)
+            ds_by_id[str(key)] = row  # last row wins, like ds_class below
         if key is not None and row.get("expected_doc_class"):
             ds_class[str(key)] = str(row["expected_doc_class"])
 

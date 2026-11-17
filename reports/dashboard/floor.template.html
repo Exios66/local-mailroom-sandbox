@@ -81,7 +81,7 @@ table.t tr.click{cursor:pointer}table.t tr.click:hover td{background:#0f1822}
 table.t tr.sel td{background:#123024}
 .bad{color:#e8543f}.warn{color:#e8b93f}.ok{color:#7fd0a2}.mut{color:#4d5c6e}
 .badge{display:inline-block;font-size:8.5px;padding:0 5px;border-radius:7px;border:1px solid #2e4256;color:#9fc6e8}
-.badge.near_gold{border-color:#e8b93f;color:#e8b93f}.badge.interim{border-color:#c39ae8;color:#c39ae8}.badge.hub{border-color:#41d98f;color:#7fd0a2}
+.badge.near_gold{border-color:#e8b93f;color:#e8b93f}.badge.fixture{border-color:#5d6c80;color:#9fb0c2}.badge.interim{border-color:#c39ae8;color:#c39ae8}.badge.hub{border-color:#41d98f;color:#7fd0a2}
 .cm td.cell{text-align:center;min-width:34px}
 .filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:6px;font-size:10px;color:#7e8ca0}
 .filters select,.filters input{font:inherit;font-size:10px;background:#0d141d;color:#b8c6d4;border:1px solid #2e4256;border-radius:3px;padding:2px 4px}
@@ -371,7 +371,7 @@ function runDocs(){const r=run();const d=r.docs||[];return CLASS?d.filter(x=>x.g
 /** The picked document's node path (self-loops collapsed by the builder), or null. */
 function selDocPath(){if(!selDoc)return null;const d=(run().docs||[]).find(x=>x.id===selDoc);return d?(d.path||[]):null}
 function tierBadge(l){if(!l||!l.tier)return '<span class="mut">no GT row</span>';
- const t=l.tier,tip=t==="near_gold"?"near_gold fields: "+l.near_gold.join(", "):t==="interim"?"interim fields: "+l.interim.join(", "):t==="hub"?l.hub+" Hub field(s)":"class label only";
+ const t=l.tier,tip=t==="near_gold"?"near_gold fields: "+l.near_gold.join(", "):t==="interim"?"interim fields: "+l.interim.join(", "):t==="hub"?l.hub+" Hub field(s)":t==="fixture"?l.hub+" hand-written fixture field(s), not Hub GT":"class label only";
  return `<span class="badge ${esc(t)}" title="${esc(tip)}">${esc(t==="none"?"class only":t)}</span>`}
 function pathHtml(p){return p&&p.length?p.map(n=>"<b>"+esc(n)+"</b>").join(" → "):'<span class="mut">no node trace</span>'}
 /** Right-rail line: where the documents that visited a node ended up. */
@@ -398,13 +398,13 @@ function scoresPane(){
  const pcSel=CLASS&&(sc.per_class||{})[CLASS];   // isolated class: the KPIs describe that class, not the run
  const cl=pcSel?{accuracy:pcSel.recall,correct:pcSel.correct,n:pcSel.gt_n}:sc.classification,ex=pcSel?{mean:pcSel.extraction_mean,n:pcSel.extraction_n}:sc.extraction,tiers=sc.label_tiers||{};
  const pcAll=sc.per_class||{},pcKeys=Object.keys(pcAll).filter(c=>!CLASS||c===CLASS);
- const tierRows=["hub","interim","near_gold","none"].filter(t=>tiers[t]).map(t=>`<tr><td>${tierBadge({tier:t,near_gold:[],interim:[],hub:0})}</td><td class="num">${tiers[t].docs}</td><td class="num">${tiers[t].scored}</td><td class="num">${num3(tiers[t].extraction_mean)}</td></tr>`).join("");
- let h=`<div class="kpis"><div class="kpi"><div class="l">CLASSIFICATION vs GT${pcSel?" · "+esc(CLASS)+" recall":""}</div><div class="v">${pctS(cl.accuracy)}</div><div class="s">${cl.correct}/${cl.n} docs with both labels</div></div>
-<div class="kpi"><div class="l">EXTRACTION (mean overall)${pcSel?" · "+esc(CLASS):""}</div><div class="v">${num3(ex.mean)}</div><div class="s">${ex.n} scored doc(s)</div></div>
+ const tierRows=["hub","fixture","interim","near_gold","none"].filter(t=>tiers[t]).map(t=>`<tr><td>${tierBadge({tier:t,near_gold:[],interim:[],hub:0})}</td><td class="num">${tiers[t].docs}</td><td class="num">${tiers[t].scored}</td><td class="num">${num3(tiers[t].extraction_mean)}</td></tr>`).join("");
+ let h=`<div class="kpis"><div class="kpi"><div class="l">CLASSIFICATION vs GT${pcSel?" · "+esc(CLASS)+" recall":""}</div><div class="v">${pctS(cl.accuracy)}</div><div class="s">${cl.correct}/${cl.n} finished docs with a GT class (no class = miss)</div></div>
+<div class="kpi"><div class="l">EXTRACTION, ALL LABEL TIERS${pcSel?" · "+esc(CLASS):""}</div><div class="v">${num3(ex.mean)}</div><div class="s">${ex.n} scored doc(s)${!pcSel&&sc.extraction.hub_n!=null?" · Hub GT only "+num3(sc.extraction.hub_mean)+" ("+sc.extraction.hub_n+")":""}</div></div>
 <div class="kpi"><div class="l">NEAR-GOLD FIELDS USED (run)</div><div class="v ${sc.near_gold_fields?"warn":""}" style="${sc.near_gold_fields?"color:#e8b93f":""}">${sc.near_gold_fields}</div><div class="s">${(tiers.near_gold||{}).docs||0} doc(s) · interim fields ${sc.interim_fields}</div></div>
 <div class="kpi"><div class="l">OUTCOME (run)</div><div class="v" style="font-size:13px">${["ship","held","failed","open"].map(k=>`<span class="${OUTC[k][0]}">${Object.values(r.outcomes||{}).reduce((t,v)=>t+(v[k]||0),0)} ${OUTC[k][1]}</span>`).join(" · ")}</div></div></div>`;
  h+=`<p class="secnote">Ground-truth precedence is Hub &gt; interim &gt; near_gold. A document is listed under the lowest tier that filled any of its fields, so a score that leaned on a near-gold label never reads as a Hub-GT score.${r.engine&&r.engine.kind==="mock"||r.engine&&String(r.engine.kind||"").includes("mock")?" <span class='warn'>Mock run: the fake LLM answers from ground truth, so these numbers check wiring, not model quality.</span>":""}${r.replay?" <span class='warn'>Replay: scripted numbers, not results.</span>":""}${String((r.engine||{}).kind||"").startsWith("api-eval")?" API eval: node paths come from each document's stage audit, so nodes that write no audit entry (compile_report, catalog_write, …) are missing from them.":""}</p>`;
- h+=`<h4>PER CLASS${CLASS?" · "+esc(CLASS):""} — click a row to isolate</h4><table class="t"><tr><th>class</th><th class="num">docs</th><th class="num">recall</th><th class="num">precision</th><th class="num">extraction</th><th class="num">scored</th><th class="num">near-gold docs</th><th class="num">archived</th><th class="num">review</th><th class="num">failed</th><th class="num">open</th></tr>`+
+ h+=`<h4>PER CLASS${CLASS?" · "+esc(CLASS):""} — click a row to isolate</h4><table class="t"><tr><th>class</th><th class="num">docs</th><th class="num">recall</th><th class="num">precision</th><th class="num">extraction (all tiers)</th><th class="num">scored</th><th class="num">near-gold docs</th><th class="num">archived</th><th class="num">review</th><th class="num">failed</th><th class="num">open</th></tr>`+
   pcKeys.map(c=>{const x=pcAll[c],sel=CLASS===c;return `<tr class="click${sel?" sel":""}" tabindex="0" data-cls="${esc(c)}"><td>${esc(c)}</td><td class="num">${x.n}</td><td class="num ${x.recall!=null&&x.recall<1?"warn":""}">${pctS(x.recall)}</td><td class="num">${pctS(x.precision)}</td><td class="num">${num3(x.extraction_mean)}</td><td class="num">${x.extraction_n}</td><td class="num ${x.near_gold_docs?"warn":""}">${x.near_gold_docs}</td>`+["ship","held","failed","open"].map(k=>`<td class="num ${x.outcomes[k]&&k!=="ship"?OUTC[k][0]:""}">${x.outcomes[k]}</td>`).join("")+"</tr>"}).join("")+"</table>";
  h+=`<div style="display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start"><div><h4>LABEL TIER (GT source)</h4><table class="t"><tr><th>tier</th><th class="num">docs</th><th class="num">scored</th><th class="num">extraction</th></tr>${tierRows||'<tr><td colspan="4" class="mut">no dataset rows</td></tr>'}</table></div>`;
  const cm=sc.confusion||{},gts=Object.keys(cm),preds=[...new Set(gts.concat(...gts.map(g=>Object.keys(cm[g]))))].sort();
@@ -506,7 +506,7 @@ function stampUpdated(){const t=new Date();upd.textContent=" · updated "+pad2(t
  +(stale>=3?" · STALE ("+stale+" poll misses)":"")}
 if(LIVE){
  setInterval(async()=>{
-  const idle=run().state!=="running";
+  const idle=run().state!=="running"&&run().checkpoint_state!=="running";   // a stalled run is still polled: it may resume
   if(busy||(idle&&!wasLive))return;
   busy=true;
   try{
