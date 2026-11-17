@@ -8,8 +8,25 @@
     "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
   },
   "builder": "scripts/gold_labels.py build",
-  "built_at": "2026-11-17T16:51:37Z",
+  "built_at": "2026-11-17T21:13:56Z",
   "counts": {
+    "contract": {
+      "-": {
+        "notes": 227
+      },
+      "agreement_date": {
+        "gate_reject": 13
+      },
+      "expiration_date": {
+        "gate_reject": 2
+      },
+      "party_roles": {
+        "gate_reject": 58
+      },
+      "payment_terms": {
+        "gate_reject": 2
+      }
+    },
     "corporate_record": {
       "-": {
         "notes": 420
@@ -37,6 +54,7 @@
     }
   },
   "files": {
+    "contract.jsonl": "e806499c8395815e0a7d4c612116770c3b4f3dee8594b8e946854d4d8d29bc0e",
     "corporate_record.jsonl": "e72a8a0451e0490db2d561dfe3af33e71c9f0fe5816196be43845f4ceed4cae4",
     "correspondence.jsonl": "c168d076c37cb22811eb3b5eea4ec78bf8af32df032c763518f908254566e5a2"
   },
@@ -44,6 +62,16 @@
   "schema": "mailroom-gold-supplementary/v1",
   "sources": {
     "check": [
+      "check-contract-000.jsonl",
+      "check-contract-001.jsonl",
+      "check-contract-011.jsonl",
+      "check-contract-031.jsonl",
+      "check-contract-032.jsonl",
+      "check-contract-033.jsonl",
+      "check-contract-034.jsonl",
+      "check-contract-100.jsonl",
+      "check-contract-101.jsonl",
+      "check-contract-102.jsonl",
       "check-corporate_record-000.jsonl",
       "check-corporate_record-015.jsonl",
       "check-corporate_record-016.jsonl",
@@ -77,6 +105,47 @@
       "check-correspondence-040.jsonl"
     ],
     "label": [
+      "label-contract-000.jsonl",
+      "label-contract-001.jsonl",
+      "label-contract-002.jsonl",
+      "label-contract-003.jsonl",
+      "label-contract-004.jsonl",
+      "label-contract-005.jsonl",
+      "label-contract-006.jsonl",
+      "label-contract-007.jsonl",
+      "label-contract-008.jsonl",
+      "label-contract-009.jsonl",
+      "label-contract-010.jsonl",
+      "label-contract-011.jsonl",
+      "label-contract-012.jsonl",
+      "label-contract-013.jsonl",
+      "label-contract-014.jsonl",
+      "label-contract-015.jsonl",
+      "label-contract-016.jsonl",
+      "label-contract-017.jsonl",
+      "label-contract-018.jsonl",
+      "label-contract-019.jsonl",
+      "label-contract-020.jsonl",
+      "label-contract-021.jsonl",
+      "label-contract-022.jsonl",
+      "label-contract-023.jsonl",
+      "label-contract-024.jsonl",
+      "label-contract-025.jsonl",
+      "label-contract-026.jsonl",
+      "label-contract-027.jsonl",
+      "label-contract-028.jsonl",
+      "label-contract-029.jsonl",
+      "label-contract-030.jsonl",
+      "label-contract-031.jsonl",
+      "label-contract-032.jsonl",
+      "label-contract-033.jsonl",
+      "label-contract-034.jsonl",
+      "label-contract-035.jsonl",
+      "label-contract-036.jsonl",
+      "label-contract-100.jsonl",
+      "label-contract-101.jsonl",
+      "label-contract-102.jsonl",
+      "label-contract-103.jsonl",
       "label-corporate_record-000.jsonl",
       "label-corporate_record-001.jsonl",
       "label-corporate_record-002.jsonl",

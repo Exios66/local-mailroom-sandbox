@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- **Production runs score against Claude near-gold labels where the Hub has none.** `dataset.near_gold_labels: true` (on in every `config/runs/production/` slice) merges `data/labels/gold-overlay/` into the drawn rows after the interim overlay. A Hub label or an interim truth label always wins. The labels stay marked `near_gold`: each row lists the fields it took, and the lock records the overlay's sha256. On the pinned corpus this fills 4,256 correspondence fields on 780 documents. See `docs/EXTRACTION_GATE_VETTING.md`.
+- **Production runs score against Claude near-gold labels where the Hub has none.** `dataset.near_gold_labels: true` (on in every `config/runs/production/` slice) merges `data/labels/gold-overlay/` into the drawn rows after the interim overlay. A Hub label or an interim truth label always wins. The labels stay marked `near_gold`: each row lists the fields it took, and the lock records the overlay's sha256. On the pinned corpus this fills 4,256 correspondence fields on 780 documents, 902 contract fields on 110 documents and 75 corporate-record fields on 38 documents. See `docs/EXTRACTION_GATE_VETTING.md`.
 - **Vendor refresh: llm-mailroom `f83e398` → `8cebcd8` (`main`); Dojo stays at `025400f`.** `8cebcd8` is llm-mailroom `main` after #287 squashed the v0.30.0 release line into it; its tree is byte-identical to `v0.30.0` at `815c169`. It still declares Dojo `025400f`, so the Dojo snapshot is unchanged.
   - #283: insurance `cms_source_table` comes from the Hub subclass, and CMS claims carry `supporting_documents` references, Part D NDC included.
   - #284: an opt-in, pinned interim ground-truth overlay. It is off unless a run enables it.
