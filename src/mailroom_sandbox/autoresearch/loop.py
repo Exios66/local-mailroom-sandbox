@@ -718,8 +718,8 @@ class Loop:
     def _claim_run(self, run_id: str) -> None:
         """Record that this study is about to create ``run_id``'s directory, so an interrupted retry may reuse it.
 
-        Written before ``prepare`` (which creates the directory with no ledger row yet). Mock studies reserve nothing in
-        the ledger, so the claim is a file of its own and is not spend accounting.
+        Written before ``prepare`` (which creates the directory with no ledger row yet), and before a mock run, which
+        reserves no ``pending`` row. The claim is a file of its own and is not spend accounting.
         """
         if run_id in self._claimed_runs():
             return
@@ -865,6 +865,8 @@ class Loop:
         """
         spec_path, _ = self._write_spec(spec, run_id)
         self._reserve(state, run_id, cap, lever_id, round_no, goal)
+        if self.study.mock:
+            self._claim_run(run_id)  # a mock run reserves no pending row: a stop mid-run must stay retryable
         error: str | None = None
         run_dir: Path | None = None
         try:
@@ -1384,13 +1386,14 @@ def api_spend(run_dir: Path | None) -> float | None:
 
     The budget keeps no counter of its own: on resume the runner rebuilds it from the run directory (``runner._api_budget``),
     so this does the same read: every ``items.jsonl`` row (whose token totals already include the attempts the runner
-    retried) plus every ``api_usage_of_failed_document`` event of ``events.jsonl`` (a document that raised after a paid
-    call has no item row), priced at the lock's runtime bound (``api_budget.price_bound``: the dearest API model's input
-    and output price). A mock run, a run without a lock, or one with an unpriced API model gives None.
+    retried) plus every ``api_usage_of_failed_document`` and ``api_usage_of_rerun_document`` event of ``events.jsonl``
+    (a document that raised after a paid call has no item row; a resume re-ran a persisted document and billed it
+    again), priced at the lock's runtime bound (``api_budget.price_bound``: the dearest API model's input and output
+    price). A mock run, a run without a lock, or one with an unpriced API model gives None.
     """
     if run_dir is None:
         return None
-    from mailroom_sandbox.job.api_budget import FAILED_USAGE_EVENT, spend_estimate
+    from mailroom_sandbox.job.api_budget import FAILED_USAGE_EVENT, RERUN_USAGE_EVENT, spend_estimate
 
     run_dir = Path(run_dir)
     try:
@@ -1399,7 +1402,7 @@ def api_spend(run_dir: Path | None) -> float | None:
         return None
     if not isinstance(lock, dict) or (lock.get("job") or {}).get("mock", False):
         return None
-    failed = [e.get("detail") for e in _jsonl_dicts(run_dir / "events.jsonl") if e.get("event") == FAILED_USAGE_EVENT]
+    failed = [e.get("detail") for e in _jsonl_dicts(run_dir / "events.jsonl") if e.get("event") in (FAILED_USAGE_EVENT, RERUN_USAGE_EVENT)]
     records = [*_jsonl_dicts(run_dir / "items.jsonl"), *[d for d in failed if isinstance(d, dict)]]
     try:
         estimate_ = spend_estimate(lock, records)

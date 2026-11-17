@@ -641,6 +641,26 @@ def test_a_holdout_interrupted_after_prepare_can_be_retried(tmp_path, runs_in_tm
     assert again.holdout()["decision"] == "holdout"
 
 
+def test_a_mock_round_interrupted_after_its_directory_exists_can_be_retried(tmp_path, runs_in_tmp):
+    """A mock round writes no pending row, so a stop after the run directory exists left it unowned and the retry was
+    refused as stale. The round claims its run id first, like the holdout."""
+    loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("a")]})
+    real_execute = fake.execute
+
+    def dies_after_writing_the_directory(spec_path, *, env=None):
+        (runs_in_tmp / yaml.safe_load(Path(spec_path).read_text())["run_id"]).mkdir(parents=True)
+        raise KeyboardInterrupt("stopped mid-run")
+
+    fake.execute = dies_after_writing_the_directory
+    with pytest.raises(KeyboardInterrupt):
+        loop.run(1)
+    assert any(runs_in_tmp.iterdir()) and not loop.ledger.rows()
+    fake.execute = real_execute
+    again = lp.Loop(loop.study, fake, state_dir=loop.dir, out=lambda s: None)       # a new process over the same state directory
+    again.run(1)
+    assert any(r["decision"] == "baseline" for r in again.ledger.rows())
+
+
 def test_an_unrelated_directory_still_blocks_the_holdout(tmp_path, runs_in_tmp):
     loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("a")]})
     loop.run(1)
@@ -1323,6 +1343,15 @@ def test_api_spend_prices_items_and_failed_document_usage_at_the_runtime_bound(t
                     failed=[{"item_id": "b", "prompt_tokens": 500_000, "completion_tokens": 1_000_000}])
     # item a: 1M input tokens (the retried attempts are already inside its totals) = 0.2; failed b: 0.1 + 0.8; the torn tail is skipped
     assert lp.api_spend(rd) == pytest.approx(0.2 + 0.1 + 0.8)
+
+
+def test_api_spend_counts_the_usage_a_resume_billed_again(tmp_path):
+    rd = billed_run(tmp_path, items=[{"item_id": "a", "prompt_tokens": 1_000_000, "completion_tokens": 0}])
+    rerun = {"ts": "t", "event": "api_usage_of_rerun_document", "level": "info",
+             "detail": {"item_id": "a", "prompt_tokens": 1_000_000, "completion_tokens": 0}}
+    with (rd / "events.jsonl").open("a") as fh:
+        fh.write(json.dumps(rerun) + "\n")
+    assert lp.api_spend(rd) == pytest.approx(0.2 + 0.2)          # the item row plus the earlier attempt a resume re-ran
 
 
 def test_api_spend_is_none_when_the_run_cannot_be_priced(tmp_path):
