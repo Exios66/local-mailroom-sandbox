@@ -8,7 +8,7 @@
     "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
   },
   "builder": "scripts/gold_labels.py build",
-  "built_at": "2026-11-17T21:51:14Z",
+  "built_at": "2026-11-17T21:59:03Z",
   "counts": {
     "contract": {
       "-": {

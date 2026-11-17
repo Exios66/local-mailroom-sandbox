@@ -1,7 +1,7 @@
 {
   "builder": "scripts/gold_labels.py overlay",
-  "built_at": "2026-11-17T21:51:15Z",
-  "catalog_manifest_sha256": "0663d1a0a70a3466f2c44e56ec4f5afc7adcfae3580a83bbb43e002dba13d05e",
+  "built_at": "2026-11-17T21:59:04Z",
+  "catalog_manifest_sha256": "c12c62cfca6f898d4b0f794634603df9aa55e4fd4cab99020bcb47cd6e4b6759",
   "counts": {
     "contract": {
       "near_gold:two_pass_agree": 900
@@ -18,11 +18,11 @@
     }
   },
   "files": {
-    "contract.jsonl": "19cbb4c19c33e2f21c4b74660cc7f83bcc796720738b88fe58e5427159e35b52",
-    "corporate_record.jsonl": "e27f114e46cb9515aa5a237de10fb46e26ecce896cf37e5c8566c334f6f457d6",
-    "correspondence.jsonl": "7976f21a05dddc611ed8a613bc94e80e0cae5a9be6cc8554d3b8f41fb190da2d"
+    "contract.jsonl": "618b1b1f6170a82a5836b370e045a7c485c66c0477333ff20fc3497cb04c18d8",
+    "corporate_record.jsonl": "49abbf7973f4f8c333fc023a88c163783324afd5f77027cf3179c49bae46a3c2",
+    "correspondence.jsonl": "c72bb3b0e14c8e8c0dbc78f6a0c86a045897c26b1840250e781b0dfc9f1879b0"
   },
-  "gate_run": "gold-labels-0663d1a0a70a",
+  "gate_run": "gold-labels-c12c62cfca6f",
   "rules": {
     "exported_statuses": [
       "near_gold"

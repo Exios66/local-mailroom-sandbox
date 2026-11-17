@@ -889,6 +889,11 @@ def test_party_roles_agree_only_when_each_party_has_the_same_role():
     assert gl.values_agree(a, ["Beta LLC: customer", "Alpha Inc: supplier"], ft)
     assert gl.values_agree(["PRIMEEVERGY CORPORATION: other"], ["PRIMEEVERG CORPORATION: other"], ft)
     assert not gl.values_agree(a, ["Alpha Inc.: supplier"], ft)
+    # Overlapping names pair by name first, so their roles cannot swap.
+    assert not gl.values_agree(["Alpha Inc: supplier", "Alpha Inc Services: customer"],
+                               ["Alpha Inc: customer", "Alpha Inc Services: supplier"], ft)
+    assert gl.values_agree(["Alpha Inc: supplier", "Alpha Inc Services: customer"],
+                           ["Alpha Inc Services: customer", "Alpha Inc: supplier"], ft)
 
 
 def test_build_refuses_missing_input_files_and_keeps_the_catalog(cli, capsys):
