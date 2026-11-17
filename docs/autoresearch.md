@@ -117,6 +117,9 @@ Before each paid round the loop checks, in order, and stops with the first that 
 3. `key_spend`: the bill itself. The first reading of the study is kept in `key_start.json`; the loop stops when
    `key_remaining_at_start - remaining_now + cap > study_usd`. The ledger is an estimate from recorded tokens; the key's drop is what OpenRouter billed.
 
+Checks 2 and 3 need a key with a spend limit. For a key with no limit (`limit_remaining` is null) the loop skips both and warns, so only
+`study_budget` (the ledger) bounds spend: give the study's key a limit.
+
 What a run costs in the ledger is `max(its scored cost, its own ApiBudget spend)`. The `ApiBudget` keeps no counter of its own; the runner rebuilds
 it from the run directory, and so does the loop (`autoresearch.loop.api_spend`): every `items.jsonl` row (whose token totals include the attempts the
 runner retried) plus every `api_usage_of_failed_document` event (a document that raised after a paid call has no item row), priced at the lock's
