@@ -278,7 +278,8 @@ def test_eval_submit_writes_the_report_and_exits_nonzero_when_unfinished(monkeyp
     assert rc == 1
 
 
-@pytest.mark.parametrize("flags", [["--poll", "0"], ["--poll", "-1"], ["--timeout", "-5"]])
+@pytest.mark.parametrize("flags", [["--poll", "0"], ["--poll", "-1"], ["--timeout", "-5"],
+                                   ["--poll", "nan"], ["--poll", "inf"], ["--timeout", "nan"], ["--timeout", "inf"]])
 def test_eval_rejects_bad_poll_and_timeout(flags, capsys):
     assert cli.main(["api", "eval", "--submit", *flags]) == 2
     assert "must" in capsys.readouterr().err
@@ -364,3 +365,19 @@ def test_cli_eval_mock_writes_a_report_without_a_server(tmp_path, monkeypatch, c
     assert rc == 0, report
     assert report["mode"] == "mock" and report["ok"] and report["completed"] == 1
     assert report["classification"]["accuracy"] == pytest.approx(1.0)
+
+
+@pytest.mark.parametrize("kw", [{"poll_seconds": float("nan")}, {"doc_timeout": float("nan")},
+                                {"doc_timeout": float("inf")}])
+def test_run_api_eval_refuses_non_finite_timing_before_uploading(kw, rows):
+    fake = FakeMailroom(rows)
+    api = family_api.MailroomAPI("http://mailroom.test", TOKEN, transport=httpx.MockTransport(fake))
+    with pytest.raises(ValueError, match="finite"):
+        family_api.run_api_eval(rows, api, **kw)
+    assert fake.requests == []
+
+
+@pytest.mark.parametrize("url", ["http://user:pw@mailroom.test", "https://mailroom.test/?k=v", "ftp://mailroom.test"])
+def test_an_explicit_base_url_gets_the_same_check_as_the_env_var(url):
+    with pytest.raises(Exception, match="without credentials"):
+        family_api.MailroomAPI(url, TOKEN)

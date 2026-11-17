@@ -41,7 +41,13 @@ def _usage(message: str) -> Exception:
 
 
 def api_url() -> str:
-    url = (os.environ.get("MAILROOM_API_URL") or "").strip() or DEFAULT_API_URL
+    url = check_api_url((os.environ.get("MAILROOM_API_URL") or "").strip() or DEFAULT_API_URL)
+    _warn_plain_http_token(url, _token())
+    return url
+
+
+def check_api_url(url: str) -> str:
+    """Return ``url`` without a trailing slash, or raise when it is not a plain HTTP(S) API base."""
     try:
         parts = urlsplit(url)
         valid = (
@@ -54,7 +60,6 @@ def api_url() -> str:
         valid = False
     if not valid:
         raise _usage("MAILROOM_API_URL must be an HTTP(S) URL without credentials, query, or fragment")
-    _warn_plain_http_token(url, _token())
     return url.rstrip("/")
 
 
