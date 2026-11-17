@@ -385,13 +385,17 @@ def test_the_chat_reviewer_baseline_and_a_decisions_reviewer_are_allowed_in_a_pa
     ({"backend": "jev", "model": "jev-1.13.0", "classes": {"contract": 0.5}}, "backend 'jev'"),
     ({"backend": "local", "model": "Qwen/Qwen3-8B", "classes": {"contract": 0.5}}, "backend 'local'"),
     ({"backend": "mock", "model": "mock", "classes": {"contract": 0.5}}, "backend 'mock'"),
-    ({**DECISIONS, "model": "typesafe/jev-router"}, "not a Decisions-API model"),
 ])
 def test_a_paid_study_refuses_a_non_decisions_reviewer(block, needle):
     errors = lv.reviewer_errors({**PAID, "reviewer": block})
     assert any(needle in e for e in errors), errors
     # the same spec in a mock study is untouched
     assert lv.reviewer_errors({**PAID, "job": {**PAID["job"], "mock": True}, "reviewer": block}) == []
+
+
+def test_a_decisions_reviewer_that_is_not_a_catalog_model_is_refused_with_the_spec_error():
+    errors = lv.reviewer_errors({**PAID, "reviewer": {**DECISIONS, "model": "typesafe/jev-router"}})
+    assert any("Decisions-API model" in e for e in errors), errors      # the validated spec itself refuses it
 
 
 @pytest.mark.parametrize("block", [
@@ -482,3 +486,88 @@ def test_an_error_is_retryable_once_then_decided_without_a_verdict():
     assert not met([err("t11"), err("t11"), err("t12"), err("t12")])           # no positive revert at all: closed
     assert lv.settled([err("t12"), {"lever": "t12", "decision": "skipped"}]) == {"t12"}
     assert met([row("t11", "revert", 0.02), err("t12"), {"lever": "t12", "decision": "skipped"}])
+
+
+# ---- review: condition shapes, group matching, placements, variants, validated mock ---------------------------
+
+@pytest.mark.parametrize("requires", [
+    [{"kept": {"grp": "g"}}], [{"kept": "g"}], [{"kept": {"group": "g", "tier": "1"}}], [{"kept": {"group": "g", "tier": True}}],
+    [{"all_reverted_positive": {"tier": 1}}], [{"all_reverted_positive": ["g"]}],
+    [{"kept_lever": 3}], [{"kept_lever": ""}],
+    [{"budget_multiple": "abc"}], [{"budget_multiple": True}], [{"budget_multiple": 0}], [{"budget_multiple": float("nan")}],
+])
+def test_a_requires_condition_of_the_wrong_shape_fails_at_load(requires):
+    with pytest.raises(ValueError, match="requires condition"):
+        lever(patch={"reviewer.classes.contract": 0.4}, requires=requires)
+
+
+@pytest.mark.parametrize("requires", [
+    [{"kept": {"group": "g"}}], [{"kept": {"group": "g", "tier": 2}, "budget_multiple": 2.5}],
+    [{"all_reverted_positive": {"group": "g", "tier": 1}}], [{"kept_lever": "other"}], [{"budget_multiple": 3}],
+])
+def test_a_well_shaped_requires_condition_loads(requires):
+    assert lever(patch={"reviewer.classes.contract": 0.4}, requires=requires).requires == requires
+
+
+def test_a_requires_group_without_a_tier_matches_any_tier_of_that_group():
+    tiered = lever(id="t", patch={"reviewer.classes.contract": 0.4}, group="g", tier=2)
+    needs_any = lever(id="n", patch={"reviewer.classes.contract": 0.3}, requires=[{"kept": {"group": "g"}}])
+    needs_t1 = lever(id="m", patch={"reviewer.classes.contract": 0.2}, requires=[{"kept": {"group": "g", "tier": 1}}])
+    problems = lv.validate_catalog(lv.Catalog(levers=[tiered, needs_any, needs_t1]), BASE)
+    assert not any("lever n:" in p for p in problems), problems            # no tier: any tier of g
+    assert any("lever m:" in p and "empty group/tier" in p for p in problems)   # an exact tier that nothing has
+
+
+def _placement_cat(path="agent_routes.{role}", group="sup", keep_on=None, patch=None):
+    winner = lever(id="w", node=["judge", "boss"], group=group if group else None, patch=patch or {
+        "agent_routes.judge": {"provider": "openrouter", "model": "m"}, "agent_routes.boss": {"provider": "openrouter", "model": "m"}})
+    place = lv.Placement(group="sup", roles=["judge", "boss"], keep_on=keep_on or [["judge"]], path=path)
+    return lv.Catalog(levers=[winner], placements=[place])
+
+
+def test_a_sound_placement_passes_the_catalog_check():
+    assert lv.validate_catalog(_placement_cat(), BASE) == []
+
+
+def test_a_placement_path_with_a_stray_brace_is_a_catalog_problem_not_a_late_keyerror():
+    problems = lv.validate_catalog(_placement_cat(path="agent_routes.{rol}"), BASE)
+    assert any("placement 0" in p and "does not derive a valid lever" in p for p in problems), problems
+
+
+def test_a_placement_under_a_forbidden_root_is_a_catalog_problem():
+    problems = lv.validate_catalog(_placement_cat(path="trace.{role}"), BASE)
+    assert any("placement 0" in p and "set by the study" in p for p in problems), problems
+
+
+def test_a_placement_whose_group_matches_no_lever_is_a_catalog_problem():
+    cat = _placement_cat(group="other")
+    assert any("no lever has this group" in p for p in lv.validate_catalog(cat, BASE))
+
+
+def test_a_derived_placement_that_is_not_a_valid_run_spec_is_a_catalog_problem():
+    bad = {"agent_routes.judge": {"provider": "openrouter", "model": "m"}, "agent_routes.boss": {"provider": "no-such-provider", "model": "m"}}
+    problems = lv.validate_catalog(_placement_cat(patch=bad, keep_on=[["boss"]]), BASE)
+    assert any(p.startswith("placement 0") for p in problems), problems
+
+
+def test_a_quoted_false_mock_is_a_paid_spec_for_the_reviewer_guard():
+    block = {"backend": "api", "model": "openai/gpt-4o", "allow_chat_model": True, "classes": {"contract": 0.5}}
+    quoted = {**PAID, "job": {**PAID["job"], "mock": "false"}, "reviewer": block}
+    errors = lv.reviewer_errors(quoted)
+    assert any("allow_chat_model" in e for e in errors), errors            # raw truthiness would have skipped every check
+    assert lv.reviewer_errors({**quoted, "job": {**quoted["job"], "mock": "true"}}) == []
+
+
+def test_an_invalid_spec_is_returned_as_a_problem_not_skipped():
+    assert lv.reviewer_errors({**PAID, "task": "no-such-task"})
+
+
+def test_the_context_check_resolves_a_variant_reviewer_to_its_base_window(monkeypatch):
+    from mailroom_sandbox import decision_backends as db
+
+    monkeypatch.setattr(db, "decision_model", lambda m: {"context_length": 1000} if m == "vendor/dec" else None)
+    monkeypatch.setattr(db, "load_question_set", lambda stem: {"max_input_chars": 100_000})
+    block = {"model": "vendor/dec:nitro", "questions": "q", "backend": "decisions"}
+    assert any("over its 1,000-token context" in e for e in lv.context_errors({"reviewer": block}))
+    assert any("over its 1,000-token context" in e for e in lv.context_errors({"reviewer": {**block, "model": "vendor/dec"}}))
+    assert lv.context_errors({"reviewer": {**block, "model": "vendor/other:nitro"}}) == []

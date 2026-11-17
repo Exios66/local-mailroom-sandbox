@@ -19,6 +19,12 @@ def _loop(args, *, need_executor: bool):
 
     from mailroom_sandbox.autoresearch.loop import AutoresearchError
 
+    ignored = [flag for flag, value in (("--model", getattr(args, "model", None)), ("--prompt", getattr(args, "prompt", None)),
+                                        ("--agent-model", getattr(args, "agent_models", None))) if value]
+    if ignored:
+        # The study's frozen run spec sets every model and prompt; a shared override would be accepted and not take effect.
+        raise AutoresearchError(f"autoresearch does not apply {', '.join(ignored)}: the study's base run spec sets the "
+                                "models and prompts (edit its `agent_models` / `agent_routes`, or add a lever)")
     study = Study.load(args.study)
     initials = getattr(args, "initials", None)
     if need_executor and not study.mock and not (initials or "").strip():
@@ -108,7 +114,7 @@ def register(sub, leaf) -> None:
         return p
 
     p = add("plan", _plan, "show the champion's weakness table and the next lever; runs nothing")
-    p.add_argument("--json", action="store_true")
+    p.add_argument("--json", action="store_true", help="print the plan as JSON (without the weakness table text) instead of text")
     add("step", _step, "run the baseline if missing, then one candidate round", initials=True)
     p = add("run", _run, "run candidate rounds until budget, levers or consecutive reverts stop it", initials=True)
     p.add_argument("--max-rounds", type=_positive_int, default=3, metavar="N", help="candidate rounds to run in this call (default 3)")

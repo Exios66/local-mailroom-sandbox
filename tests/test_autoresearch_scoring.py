@@ -161,6 +161,25 @@ def test_usage_by_agent_is_read_from_the_pipeline_accumulator(monkeypatch):
     assert usage_capture.usage_by_agent_from_pipeline() == {}
 
 
+@pytest.mark.parametrize("by_agent", [
+    {"judge": {"calls": "many", "prompt_tokens": 3}},        # a non-numeric count
+    {"judge": "not-a-slot"},                                 # a slot that is not a mapping
+    {"judge": {"calls": 1, "models": 7}},                    # models that cannot be iterated
+])
+def test_a_malformed_usage_slot_is_soft_and_logged_not_raised(monkeypatch, caplog, by_agent):
+    import sys
+    import types
+
+    from mailroom_sandbox.job import usage_capture
+
+    fake = types.ModuleType("pipeline.limits")
+    fake.usage_summary = lambda: {"by_agent": by_agent}
+    monkeypatch.setitem(sys.modules, "pipeline.limits", fake)
+    with caplog.at_level("WARNING", logger="mailroom_sandbox.job.usage_capture"):
+        assert usage_capture.usage_by_agent_from_pipeline() == {}      # a billed document is never failed by telemetry
+    assert any("per-agent usage capture failed" in r.getMessage() for r in caplog.records)
+
+
 # ---- an unpriced recorded model is reported, never repriced at the engine model --------------------------------
 
 def test_agent_cost_prices_a_recorded_model_and_the_engine_only_for_a_slot_with_no_model():

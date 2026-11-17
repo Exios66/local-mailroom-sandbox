@@ -667,6 +667,22 @@ class Loop:
             return "key_spend"
         return None
 
+    def _refuse_stale_run_dir(self, state: State, run_id: str) -> None:
+        """Refuse a run id whose run directory exists while the ledger has no row for it.
+
+        Run ids repeat across restarts (study, round and lever only), and run directories live under the global runs
+        root. A fresh state directory over an old run directory would resume that run and score its stored results as
+        new measurements (and charge the round cap for calls never made). Run ids the ledger already records, a
+        ``pending`` row included, still resume.
+        """
+        from mailroom_sandbox.job.spec import run_dir as _run_dir
+
+        existing = _run_dir(run_id)
+        if existing.exists() and not any(r.get("run_id") == run_id for r in state.rows):
+            raise AutoresearchError(
+                f"run directory {existing} already exists but the ledger has no row for {run_id}: refusing to reuse "
+                "its stored results as new measurements. Move that directory aside, or give the study a new name")
+
     def _key_start(self, remaining: float) -> float:
         """The study's first ``limit_remaining`` reading: persisted once (``key_start.json``), then read back."""
         path = self.dir / "key_start.json"
@@ -803,6 +819,7 @@ class Loop:
         if any(r.get("decision") == "baseline" for r in state.rows):
             return None
         run_id = run_id_for(self.study.study, 0, "baseline")
+        self._refuse_stale_run_dir(state, run_id)
         stop = self._guard(state, run_id=run_id)
         if stop:
             return stop
@@ -839,6 +856,7 @@ class Loop:
         if state.champ_row.get("decision") != "baseline":
             raise AutoresearchError("the replicate must run against the baseline, before any lever is kept")
         run_id = run_id_for(self.study.study, "replicate", "")
+        self._refuse_stale_run_dir(state, run_id)
         stop = self._guard(state, run_id=run_id)
         if stop:
             return stop
@@ -1002,6 +1020,7 @@ class Loop:
         cap = plan.cap
         round_no = self._next_round(state)
         run_id = run_id_for(self.study.study, round_no, lever.id)
+        self._refuse_stale_run_dir(state, run_id)
         spec = self._stamp(lv.apply_lever(state.champ_spec, lever), run_id=run_id, lever_id=lever.id, cap=cap)
         env, source = self._source_for(lever, state)
         _, sha = self._write_spec(spec, run_id)
@@ -1125,6 +1144,7 @@ class Loop:
             raise AutoresearchError(f"holdout refused: the champion's runtime bound {est.cap_usd:.3f} USD exceeds the "
                                     f"largest round cap {cap:g} USD (budget.max_round_cap_usd)")
         run_id = run_id_for(self.study.study, "holdout", "")
+        self._refuse_stale_run_dir(state, run_id)
         dev_ids = {d.id for d in state.champ_scores.docs}
         self._check_holdout_size(state.champ_spec, len(dev_ids))
         stop = self._guard(state, cap, run_id=run_id)

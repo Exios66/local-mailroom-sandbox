@@ -102,3 +102,19 @@ def test_cost_goal_accepts_a_cheaper_equal_candidate_and_rejects_a_worse_or_dear
     assert not ok and any("no saving" in r for r in why)
     ok, why = decide(champ=scores(cost=0.0), cand=cheap, d=delta(mean=0.0, low=-0.01, high=0.01), goal="cost")
     assert not ok and any("recorded no priced usage" in r for r in why)
+
+
+def test_an_unpriced_candidate_is_reverted_where_a_cost_rule_applies():
+    cheap = scores(cost=0.001)
+    cheap.unpriced = ["vendor/unlisted"]                                   # score_run charged that slot nothing
+    ok, why = decide(cand=cheap, d=delta(mean=0.0, low=-0.01, high=0.01), goal="cost")
+    assert not ok and any("understated" in r and "vendor/unlisted" in r for r in why)
+    ok, why = decide(cand=cheap)                                           # quality goal, champion has a priced cost
+    assert not ok and any("understated" in r for r in why)
+
+
+def test_an_unpriced_candidate_is_not_judged_when_no_cost_rule_applies():
+    cand = scores(cost=0.0)
+    cand.unpriced = ["vendor/unlisted"]
+    ok, why = decide(champ=scores(cost=0.0), cand=cand)                    # quality goal, champion recorded no priced usage
+    assert ok and any("cost rule not applied" in r for r in why)

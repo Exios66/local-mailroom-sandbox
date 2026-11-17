@@ -107,3 +107,20 @@ def test_decision_models_price_from_the_catalog_input_only(model, prompt):
 def test_unknown_decision_sibling_is_not_priced_by_prefix():
     # liquid/d1 and liquid/d1.2 are catalog ids; a future liquid/d1.9 must stay unpriced.
     assert metrics.price_sheet("liquid/d1.9") is None
+
+
+def test_a_variant_of_a_decisions_model_never_falls_to_a_chat_models_prefix_price(monkeypatch):
+    from mailroom_sandbox import decision_backends as db
+
+    chat = [{"min_prompt_tokens": 0, "prompt": 9.0, "completion": 9.0}]
+    monkeypatch.setattr(metrics, "api_price_sheets", lambda: {"vendor/chat": chat})
+    monkeypatch.setattr(db, "decision_catalog", lambda: {"vendor/chat-decider": {"prompt": 0.3}})
+    assert metrics.price_sheet("vendor/chat-decider") == [{"min_prompt_tokens": 0, "prompt": 0.3, "completion": 0.0}]
+    assert metrics.price_sheet("vendor/chat-decider:nitro") is None      # not the chat model's 9.0 USD, and not guessed
+    assert metrics.price_sheet("vendor/chat-other:nitro") == chat        # an ordinary chat id keeps its prefix rule
+
+
+@pytest.mark.parametrize("model", ["typesafe/jev-1.14:nitro", "perplexity/pplx-decider-v1.2:floor"])
+def test_a_shipped_decisions_variant_has_no_price_so_a_paid_run_refuses_it(model):
+    assert metrics.price_sheet(model) is None
+    assert metrics.price_sheet(model.split(":")[0])                      # while its pinned base is priced
