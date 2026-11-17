@@ -14,6 +14,10 @@
   - **Score changes:** Dojo `decision.*` lane scores can move on unchanged records. Extraction field scores do not change. Pipeline behaviour changes for correspondence typing, retries and judge errors, so runs locked on the old pins are not directly comparable.
   - Not included: insurance `claim_type` (llm-mailroom #280, #174 §2) and CUAD dates (Dojo #173, #167). Both are open upstream.
 - **A run without `job.blind_routing` still routes on its labels.** llm-mailroom #264 ignores `ground_truth` unless oracle routing is on. Without a fix, every non-blind sandbox config would have quietly become blind. `eval.runners` now runs each pipeline document under `oracle_routing_override(not blind)`, so locked configs reproduce. A blind run forces oracle routing off whatever `MAILROOM_ORACLE_ROUTING` says. `tests/test_pipeline_routing_matrix.py` walks the ground-truth arms with oracle routing on, and pins that they are skipped with it off.
+- **The gate counts only fields the Dojo scores** (#306).
+  - `labelled_count` now keeps only keys in the Dojo extraction schema (`field_names(doc_class)`), falling back to the old count for an unregistered class. Corpus annotations (`content_topic`, `sentiment_label`, `sentiment_score`) are no longer counted as labels.
+  - Effect: 23 correspondence rows that are scored on `intent` alone are now unscorable. Re-gated, slice 100 r2 is 40/55 = 0.727 wrong archives, not 48/78 = 0.615.
+  - `config/runs/production/judge-audit-0026.yaml` is a diagnostic arm that judges every corporate, correspondence and insurance extraction on 26 documents that pair with r2 (llm-mailroom #278). A human launches it.
 - **A run lock names the code that ran** (#312).
   - Every run-spec section (`dataset`, `job`, `engine`, `trace`, the prompt refs and the top level)
     now rejects unknown keys. An older checkout silently ignored `dataset.exclude_ids_file` and drew
