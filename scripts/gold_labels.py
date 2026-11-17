@@ -17,7 +17,8 @@ agent sessions that read the batch files and write submission JSONL.
     # twice in one pass, a check whose fields are byte-identical to the label's, or two files
     # with the same batch and the same content) and every review decision must match a catalog
     # record. A review line is {"doc_id", "field", "verdict", "reviewer": {"model", "role"}, ...}:
-    #   accept        the label stands (near_gold)
+    #   accept        the label stands (near_gold); on a field an --override replaced it must
+    #                 also give "value" equal to the current label (a stale accept is refused)
     #   reject        the label is dropped to the supplementary store
     #   correct       "entry": {"value", "evidence"} replaces the label; it must pass the gate
     #   accept_check  adopt the check pass's own entry (value and quotes) for this field; no
@@ -131,8 +132,12 @@ def _validate_all(corpus: Path, paths: list[str]) -> list[tuple[dict, dict, gl.S
                 print(f"unknown doc_id {sub.get('doc_id')!r} in {path}", file=sys.stderr)
                 continue
             text = texts[row["filename"]]
+            measured = hashlib.sha256(text.encode("utf-8")).hexdigest()
+            if row.get("content_sha256") and row["content_sha256"] != measured:
+                raise SystemExit(f"{sub.get('doc_id')}: corpus text does not match its content_sha256; "
+                                 "refusing to label a document whose text is not the published one")
             doc = {"doc_id": row["document_id"], "filename": row["filename"], "doc_class": row["expected"],
-                   "subclass": row.get("expected_subclass"), "content_sha256": row.get("content_sha256")}
+                   "subclass": row.get("expected_subclass"), "content_sha256": measured}
             out.append((doc, sub, gl.validate_submission(sub, text, row["expected"]), text))
     return out
 
@@ -306,8 +311,16 @@ def _merge_overrides(corpus: Path, args: argparse.Namespace, labels: list) -> li
     return labels + [(d, {**sub, "relabel": True}, r, t) for d, sub, r, t in overrides]
 
 
-def _resolve_decision(rec: dict, decision: dict, chk: Any, doc: dict, text: str) -> dict:
+def _resolve_decision(rec: dict, decision: dict, chk: Any, doc: dict, text: str, *,
+                      relabel: bool = False) -> dict:
     """Turn a review line into the fields ``gl.apply_review`` takes (raises _BuildError)."""
+    if decision["verdict"] == "accept" and (relabel or "value" in decision):
+        # An accept is keyed by doc and field only: on a relabelled field (or whenever the line
+        # names a value) it must name the value it reviewed, so a stale accept of the replaced
+        # label never promotes the new one.
+        if "value" not in decision or decision["value"] != rec.get("value"):
+            raise _BuildError(f"accept for {rec['doc_id']}.{rec['field']} does not name the current "
+                              f"value {rec.get('value')!r}; re-review it")
     if decision["verdict"] == "accept_check":
         # The reviewer adopts the check pass's answer, quotes and all; the record
         # keeps the verdict and names the check labeler as the value's source.
@@ -342,7 +355,8 @@ def _build_rows(labels: list, checks: dict, reviews: dict[tuple[str, str], dict]
             decision = reviews.get((rec["doc_id"], rec["field"]))
             if decision is not None:
                 applied.add((rec["doc_id"], rec["field"]))
-                rec = gl.apply_review(rec, _resolve_decision(rec, decision, chk, doc, text))
+                rec = gl.apply_review(rec, _resolve_decision(rec, decision, chk, doc, text,
+                                                                relabel=bool(sub.get("relabel"))))
             if rec["status"] == "rejected":
                 supplementary[doc["doc_class"]].append({"kind": "review_rejected", **rec})
             else:
@@ -404,6 +418,11 @@ def _write_catalog_dir(directory: Path, data: dict[str, list[dict]], schema: str
 
 def cmd_build(args: argparse.Namespace) -> int:
     corpus = Path(args.corpus)
+    missing = [p for p in [*args.label, *(args.check or []), *(args.review or []), *(args.override or [])]
+               if not Path(p).is_file()]
+    if missing:
+        print("build refused: input files not found:\n  " + "\n  ".join(missing), file=sys.stderr)
+        return 1
     problems = _pass_problems(args)
     reviews = _load_reviews(args.review or [], problems)
     if problems:

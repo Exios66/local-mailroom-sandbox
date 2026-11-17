@@ -8,8 +8,55 @@
     "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
   },
   "builder": "scripts/gold_labels.py build",
-  "built_at": "2026-11-17T16:51:37Z",
+  "built_at": "2026-11-17T21:59:03Z",
   "counts": {
+    "contract": {
+      "agreement_date": {
+        "candidate": 114,
+        "disputed": 2,
+        "near_gold": 103
+      },
+      "contract_value": {
+        "candidate": 117,
+        "disputed": 2,
+        "near_gold": 108
+      },
+      "dispute_forum": {
+        "candidate": 117,
+        "disputed": 4,
+        "near_gold": 106
+      },
+      "expiration_date": {
+        "candidate": 117,
+        "disputed": 2,
+        "near_gold": 107
+      },
+      "party_roles": {
+        "candidate": 72,
+        "disputed": 21,
+        "near_gold": 89
+      },
+      "payment_terms": {
+        "candidate": 115,
+        "disputed": 34,
+        "near_gold": 76
+      },
+      "signatories": {
+        "candidate": 117,
+        "disputed": 2,
+        "near_gold": 108
+      },
+      "termination_notice_period": {
+        "candidate": 117,
+        "disputed": 14,
+        "near_gold": 96
+      },
+      "territory": {
+        "candidate": 117,
+        "disputed": 3,
+        "near_gold": 107
+      }
+    },
     "corporate_record": {
       "effective_date": {
         "candidate": 365,
@@ -66,12 +113,23 @@
     }
   },
   "files": {
+    "contract.jsonl": "1d87bad9706b34a54114f6d11e5a48275a69d559ef30027e6feaf9fb6aafd316",
     "corporate_record.jsonl": "22f7def5c4d343389c23b87e0f1238a274778e0d602689d7793e22cca9086434",
     "correspondence.jsonl": "230410cd4f0b6a5d9d957866f5cb8750fd3fa891fa6bfa9d5ad02edf8790b31b"
   },
   "schema": "mailroom-gold-labels/v1",
   "sources": {
     "check": [
+      "check-contract-000.jsonl",
+      "check-contract-001.jsonl",
+      "check-contract-011.jsonl",
+      "check-contract-031.jsonl",
+      "check-contract-032.jsonl",
+      "check-contract-033.jsonl",
+      "check-contract-034.jsonl",
+      "check-contract-100.jsonl",
+      "check-contract-101.jsonl",
+      "check-contract-102.jsonl",
       "check-corporate_record-000.jsonl",
       "check-corporate_record-015.jsonl",
       "check-corporate_record-016.jsonl",
@@ -105,6 +163,47 @@
       "check-correspondence-040.jsonl"
     ],
     "label": [
+      "label-contract-000.jsonl",
+      "label-contract-001.jsonl",
+      "label-contract-002.jsonl",
+      "label-contract-003.jsonl",
+      "label-contract-004.jsonl",
+      "label-contract-005.jsonl",
+      "label-contract-006.jsonl",
+      "label-contract-007.jsonl",
+      "label-contract-008.jsonl",
+      "label-contract-009.jsonl",
+      "label-contract-010.jsonl",
+      "label-contract-011.jsonl",
+      "label-contract-012.jsonl",
+      "label-contract-013.jsonl",
+      "label-contract-014.jsonl",
+      "label-contract-015.jsonl",
+      "label-contract-016.jsonl",
+      "label-contract-017.jsonl",
+      "label-contract-018.jsonl",
+      "label-contract-019.jsonl",
+      "label-contract-020.jsonl",
+      "label-contract-021.jsonl",
+      "label-contract-022.jsonl",
+      "label-contract-023.jsonl",
+      "label-contract-024.jsonl",
+      "label-contract-025.jsonl",
+      "label-contract-026.jsonl",
+      "label-contract-027.jsonl",
+      "label-contract-028.jsonl",
+      "label-contract-029.jsonl",
+      "label-contract-030.jsonl",
+      "label-contract-031.jsonl",
+      "label-contract-032.jsonl",
+      "label-contract-033.jsonl",
+      "label-contract-034.jsonl",
+      "label-contract-035.jsonl",
+      "label-contract-036.jsonl",
+      "label-contract-100.jsonl",
+      "label-contract-101.jsonl",
+      "label-contract-102.jsonl",
+      "label-contract-103.jsonl",
       "label-corporate_record-000.jsonl",
       "label-corporate_record-001.jsonl",
       "label-corporate_record-002.jsonl",

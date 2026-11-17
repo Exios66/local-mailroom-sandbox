@@ -105,7 +105,7 @@ The reviewer needs a non-empty `model` and `role`; a missing verdict, a `correct
 
 | Verdict | Effect |
 |---|---|
-| `accept` | the label stands and becomes `near_gold` |
+| `accept` | the label stands and becomes `near_gold`. On a field an `--override` relabel replaced, the line must also give `value`, equal to the current label (`{"doc_id": "DOC-…", "field": "sender", "verdict": "accept", "value": "Jane Roe", "reviewer": {…}}`); a stale accept stops the build |
 | `reject` | the label is dropped to the supplementary store |
 | `correct` | `entry` (`value` and `evidence`, as in a submission) replaces the label; it must pass the gate. `value_source` is `review_correction` by the reviewer |
 | `accept_check` | adopt the check pass's own entry for this field, quotes and all (write no `entry`; the build takes it from the check submission and gates it). `value_source` is `check_pass` by the check labeler; the verdict stays `accept_check` and the overlay basis is `near_gold:opus_reviewed_accept_check` |

@@ -83,11 +83,66 @@ retry; a failed initial build prevents startup.
 | Dashed audit arrows | Stage-audit side effects parsed from `_emit_stage_audit` call sites in the vendored graph, rather than workflow edges. The review arrow carries the routed count. |
 | Prompt card | Per-run stems from `prompt.lock.json` for the highlighted node's agents, with code-default fallback when unavailable. Deterministic nodes do not imply an LLM call. |
 
+A run whose checkpoint still says `running` but whose `items.jsonl`,
+`nodes.jsonl` and `checkpoint.json` have not changed for 15 minutes is shown
+as **stalled ⚠** (a killed process never rewrites its checkpoint). The digest
+keeps the original value as `checkpoint_state`, the idle time as `stalled_s`
+and `last_activity_utc`; a stalled run gets no RUNNING pills and is not chosen
+as the default run, but the browser keeps polling it so a resumed run comes
+back. While any checkpoint says `running`, the resident app rebuilds the digest
+at least every 60 seconds even with no artifact change, so a run that dies
+while the viewer is open turns stalled. `FLOOR_STALL_SECONDS` changes the
+threshold.
+
 Class views use the run's `per_class` data. A missing or incomplete class label
 must not leave figures from a previous selection visible. Missing dataset
 labels are unknown, rather than measured routing failures. The graph is read
 from the vendored `build_graph.py` using AST parsing; viewing it does not run
 the pipeline.
+
+## Analysis panel: scores, documents and nodes
+
+The panel under the graph (hide or show it with its toggle) follows the
+selected run and the isolated class.
+
+| Tab | What it shows |
+| --- | --- |
+| SCORES vs GT | Classification accuracy over documents with a ground-truth class that finished (a finished document with no predicted class counts as a miss, shown as `unknown` in the confusion matrix; an open one is not counted yet); the mean Dojo `overall_extraction_score` over all label tiers, with the Hub-GT-only mean beside it; the near-gold fields used; outcome totals. A per-class table (recall, precision, extraction mean, near-gold documents, archived/review/failed/open; click a row to isolate the class), the label-tier table and a confusion matrix (rows ground truth, columns predicted). |
+| DOCUMENTS | One row per document: GT and predicted class (✗ on a miss), outcome, extraction score, label tier, review trigger, latency and node path. Filter by outcome, by misclassified-or-failed, or by id. Click a row to light only that document's path on the graph and show its details in the right rail. |
+| NODES | Per node: documents in, p50, aborts, where those documents ended up (archived/review/failed/open) and how many were classified right. Click a row to select the node. |
+
+**Label tiers.** Ground truth comes from the Hub, then the interim overlay,
+then the near-gold overlay (`interim_labels` / `near_gold_labels` on the run's
+`dataset.jsonl` rows). A document is counted under the lowest tier that filled
+any of its fields, so an extraction score that used a near-gold label is shown
+as `near_gold`, never as a Hub-GT score. Rows from the repository's own
+fixture manifest (`dataset: sandbox-fixtures`, used by `sandbox api eval`) are
+hand-written test labels and show as `fixture`, not `hub`. `class only` means the row labels the
+class but no fields; `no GT row` means the run has no dataset row for it.
+
+The digest keeps at most 5,000 document rows per run (`docs_truncated` counts
+the rest); scores and node tables still cover every document. Mock and replay
+runs carry a note: their numbers check wiring or the interface, not model
+quality.
+
+## API eval results on the floor
+
+`sandbox api eval` can record its result as a floor run:
+
+```bash
+sandbox api eval --mock --floor-run api-mock --base /tmp/floor-base   # no server, no spend
+sandbox floor api-mock --base /tmp/floor-base
+```
+
+`--floor-run [ID]` (default id: the eval's run tag) writes
+`<base>/runtime/runs/<ID>/` with `items.jsonl`, `dataset.jsonl` (fixture rows
+without document text), `checkpoint.json`, `spec.lock.json`
+(`engine.kind: api-eval-mock` or `api-eval`) and `nodes.jsonl`. The API has no
+per-node trace, so each document's path is rebuilt from its stage audit
+(`GET /audit/{doc_id}`): nodes that write no audit entry, such as
+`compile_report` and `catalog_write`, are missing from those paths. An
+existing run id is refused before anything is uploaded. `--base` defaults to
+`MAILROOM_BASE_DIR`, then the repository's `data/`.
 
 ## Recorded replay from any provider
 

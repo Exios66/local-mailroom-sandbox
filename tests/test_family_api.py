@@ -488,3 +488,36 @@ def test_mock_refuses_an_upload_that_is_not_the_next_row(monkeypatch):
     with httpx.Client(transport=transport, base_url="http://127.0.0.1") as client:
         with pytest.raises(family_api.FamilyAPIError, match="not the next fixture row"):
             client.post("/upload", files={"file": ("x", b"x")})
+
+
+def test_eval_floor_run_records_a_run_the_floor_can_open(monkeypatch, tmp_path, capsys):
+    """--floor-run writes a run store the floor digest reads: classes, outcome, Dojo score per doc."""
+    monkeypatch.setenv("MAILROOM_API_URL", "http://mailroom.test")
+    monkeypatch.setenv("MAILROOM_API_TOKEN", TOKEN)
+    fake = FakeMailroom(load_manifest(), wrong={"sample_msa.txt"})
+    monkeypatch.setattr(family_api, "_default_transport", lambda: httpx.MockTransport(fake))
+    rc = cli.main(["api", "eval", "--class", "contract", "--submit", "--poll", "0.2",
+                   "--floor-run", "fr", "--base", str(tmp_path)])
+    assert rc == 0
+    run = tmp_path / "runtime" / "runs" / "fr"
+    assert json.loads(capsys.readouterr().out)["floor_run"] == str(run)
+    from mailroom_sandbox.tui import floor_app
+
+    digest, _, _ = floor_app.build(tmp_path, tmp_path / "out")
+    r = next(x for x in digest["runs"] if x["name"] == "fr")
+    assert r["state"] == "complete" and r["items_attempted"] == 2
+    docs = {d["id"]: d for d in r["docs"]}
+    assert docs["contract_msa"]["pred"] == "correspondence" and docs["contract_msa"]["gt"] == "contract"
+    assert r["scores"]["classification"] == {"n": 2, "correct": 1, "accuracy": 0.5}
+    assert all(d["labels"]["tier"] == "fixture" for d in docs.values()), "fixture labels are not Hub GT"
+    assert "doc_text" not in (run / "dataset.jsonl").read_text()
+    # the same id again is refused before anything is uploaded
+    sent = len(fake.uploads)
+    assert cli.main(["api", "eval", "--class", "contract", "--submit", "--floor-run", "fr",
+                     "--base", str(tmp_path)]) == 2
+    assert len(fake.uploads) == sent and "already exists" in capsys.readouterr().err
+
+
+def test_eval_base_needs_floor_run(capsys):
+    assert cli.main(["api", "eval", "--base", "x"]) == 2
+    assert "--floor-run" in capsys.readouterr().err

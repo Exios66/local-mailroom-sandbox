@@ -932,7 +932,7 @@
 {"check": {"alternatives": {}, "notes": ""}, "doc_id": "DOC-db203ac15614f83e", "kind": "notes", "label": {}}
 {"doc_id": "DOC-db2e2a5067346f6f", "kind": "notes", "label": {"alternatives": {"top_note": "Dan reply 'I have no interest for ETS', salutation Greg, no header", "urgency": "time-sensitive is defensible because of 'soon'"}, "confidence": {}, "notes": ""}}
 {"check": {"alternatives": {}, "notes": ""}, "doc_id": "DOC-dc389fd1cdc9f431", "kind": "notes", "label": {"alternatives": {}, "notes": ""}}
-{"doc_id": "DOC-dc599894c6127e6a", "kind": "notes", "label": {"alternatives": {"forwarder": "Jim, undated note 'Password = jinglebells' with no header"}, "confidence": {}, "notes": ""}}
+{"doc_id": "DOC-dc599894c6127e6a", "kind": "notes", "label": {"alternatives": {"forwarder": "Jim, undated note containing a password (redacted) with no header"}, "confidence": {}, "notes": ""}}
 {"check": {"alternatives": {"recipient": "null if subscriber salutation is treated as generic"}, "notes": ""}, "doc_id": "DOC-dcb984a30205f166", "kind": "notes", "label": {"alternatives": {}, "notes": ""}}
 {"check": {"alternatives": {"sender": "Lance (top note, no header block)"}, "confidence": {}, "notes": ""}, "doc_id": "DOC-dcc90f592cb36c19", "kind": "notes", "label": {"alternatives": {"sender": "Lance (Cunningham), top note without header"}, "confidence": {}, "notes": ""}}
 {"check": {"alternatives": {}, "notes": ""}, "doc_id": "DOC-dccfbda296b25a45", "kind": "notes", "label": {"alternatives": {}, "notes": ""}}

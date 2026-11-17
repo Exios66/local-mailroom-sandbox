@@ -55,6 +55,28 @@ def test_source_changed_after_preparation_cannot_rewrite_lock_identity(tmp_path,
     assert preflight.preflight(spec, offline=True)["status"] == "drift_refused"
 
 
+def test_near_gold_export_after_preparation_cannot_relabel_lock(tmp_path, job_data_dir, monkeypatch):
+    """The lock names the near-gold overlay the prepared rows used, not one exported later."""
+    from mailroom_sandbox import gold_labels as gl
+    from mailroom_sandbox.job.checkpoint import RunStore
+    spec = _run_spec(tmp_path, run_id="pf-near-gold")
+    spec.dataset.near_gold_labels = True
+    monkeypatch.setattr(gl, "near_gold_snapshot", lambda root=None: ({}, "a" * 64, []))
+    original = preflight.prepare_subset
+
+    def export_lands(dataset, destination):
+        result = original(dataset, destination)
+        monkeypatch.setattr(gl, "near_gold_fingerprint", lambda root=None: "b" * 64)
+        return result
+    monkeypatch.setattr(preflight, "prepare_subset", export_lands)
+    report = preflight.preflight(spec, offline=True)
+    assert report["status"] == "prepared", report
+    lock = RunStore(run_dir(spec.run_id)).read_lock()
+    assert lock["dataset"]["metadata"]["near_gold_labels"]["overlay_sha256"] == "a" * 64
+    assert lock["spec_core"]["dataset"]["near_gold_labels"] == "a" * 64
+    assert preflight.preflight(spec, offline=True)["status"] == "drift_refused"
+
+
 def test_legacy_filter_identity_is_not_assumed_unfiltered(tmp_path, job_data_dir):
     """Pre-filter hashes cannot certify whether the old subset was filtered."""
     from mailroom_sandbox.job.checkpoint import RunStore
