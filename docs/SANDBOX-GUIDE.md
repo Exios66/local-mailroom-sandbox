@@ -206,6 +206,7 @@ flags through `sandbox modal raw -- <args>`, `sandbox hf raw -- <args>`, or
 | `sandbox review list\|show\|resolve` | Human review of parked documents |
 | `sandbox api status [--offline]` | Pinned vs selected mailroom and Dojo, plus the running API's `/health` |
 | `sandbox api eval [--class C] [--sample N] [--submit]` | Upload fixtures to a running or deployed mailroom API and score the results with the Dojo (plans unless `--submit`) |
+| `sandbox api eval --mock [--class C] [--sample N]` | The same loop against the vendored API app in process, with the mock LLM and a temporary data dir: an offline wiring check, no spend |
 
 ### Prompt & metric commands
 

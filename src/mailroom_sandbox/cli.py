@@ -732,6 +732,9 @@ def build_parser() -> argparse.ArgumentParser:
     fe.add_argument("--out", default=None, help="also write the JSON report to this path")
     fe.add_argument("--submit", action="store_true",
                     help="upload for real; the API process runs its models and spends with its own settings")
+    fe.add_argument("--mock", action="store_true",
+                    help="run the vendored API in process with the mock LLM and a temporary data dir "
+                         "(no server, no network, no spend); checks the wiring, not model quality")
     fe.set_defaults(handler=_cmd_api_eval)
     fam.set_defaults(handler=_cmd_api_help)
 
@@ -2601,9 +2604,10 @@ def _cmd_api_eval(args: argparse.Namespace) -> int:
         raise CLIUsageError("--poll must be positive")
     if args.timeout is not None and args.timeout < 0:
         raise CLIUsageError("--timeout must not be negative")
-    api = family_api.MailroomAPI()
-    if not args.submit:
-        _print(family_api.plan_api_eval(rows, base_url=api.base_url))
+    if args.mock and args.submit:
+        raise CLIUsageError("--mock and --submit are exclusive: --mock never reaches a server")
+    if not args.mock and not args.submit:
+        _print(family_api.plan_api_eval(rows, base_url=family_api.MailroomAPI().base_url))
         return 0
     kwargs: dict[str, object] = {}
     if args.matter_id:
@@ -2612,7 +2616,12 @@ def _cmd_api_eval(args: argparse.Namespace) -> int:
         kwargs["doc_timeout"] = args.timeout
     if args.poll is not None:
         kwargs["poll_seconds"] = args.poll
-    report = family_api.run_api_eval(rows, api, **kwargs)
+    if args.mock:
+        with family_api.offline_mock_api(rows) as api:
+            report = family_api.run_api_eval(rows, api, **kwargs)
+        report["mode"] = "mock"
+    else:
+        report = family_api.run_api_eval(rows, family_api.MailroomAPI(), **kwargs)
     if args.out:
         out = Path(args.out)
         out.parent.mkdir(parents=True, exist_ok=True)
