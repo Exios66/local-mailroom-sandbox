@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- **A Decisions `:variant` id is unpriced through `call_price` and `token_price_ceiling` too.** `price_sheet` already refused it, but both then reached `token_price`'s dojo and prefix fallbacks and priced it at a chat model's rate. An explicit price-sheet row of its base id, or an exact row for the variant, still prices it.
 - **`--profile` has help text.** The shared flag documents itself in `sandbox --help` and `docs/cli-reference.md` (provider profile name; default from `SANDBOX_PROFILE`, then `.env`, then the providers default).
 - **A resumed whole-run job counts the documents it billed again against `job.api_cost_cap_usd`.** A resume re-runs every locked row; a document the earlier attempt had persisted was billed a second time but never recorded again, so the next resume's budget seed missed that bill. It is now kept as an `api_usage_of_rerun_document` event (the item row stays the evidence) and `usage_records` counts it.
 - **`sandbox autoresearch`: a config-only greedy search over run-spec levers, with a held-out confirmation run.** `plan|step|run|status|holdout --study PATH` (`docs/autoresearch.md`). It changes no pipeline code and drives the existing locked-run lifecycle (spec, preflight, start, gate).

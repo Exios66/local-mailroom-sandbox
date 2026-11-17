@@ -442,7 +442,8 @@ def token_price(model: str) -> tuple[float, float] | None:
     """USD per 1M (input, output) tokens for ``model``, in ``_estimate_cost``'s order.
 
     The global override wins, then the checked price sheet (its base tier, ``min_prompt_tokens``
-    0), then the dojo table, then the sandbox table (exact id, then prefix). None when no price
+    0), then the dojo table, then the sandbox table (exact id, then prefix). A ``:variant`` of a pinned
+    Decisions-API model skips the dojo table and the prefix match (``price_sheet`` refused it). None when no price
     is known. For an upper bound over every prompt size use ``token_price_ceiling``.
     """
     override = _token_price_override()
@@ -454,6 +455,10 @@ def token_price(model: str) -> tuple[float, float] | None:
     if sheet is not None:
         # The checked sheet wins over the dojo table (whose deepseek-v4-flash price is stale).
         return float(sheet[0]["prompt"]), float(sheet[0]["completion"])
+    if _is_decision_variant(str(model), str(model).split(":", 1)[0]):
+        # price_sheet refused it: no other table's prefix match may price it at a chat model's rate either.
+        # Only an exact row for the variant itself stands.
+        return SANDBOX_MODEL_PRICES.get(model)
     try:
         dojo = price_for(model)
     except Exception:  # noqa: BLE001 — same soft fallback as _estimate_cost
