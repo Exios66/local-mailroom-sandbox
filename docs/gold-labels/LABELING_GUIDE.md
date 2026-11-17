@@ -14,7 +14,8 @@ label.
 3. **Quote your evidence verbatim.** Every non-empty value carries one or more `evidence`
    quotes copied character for character from the document (whitespace may differ). Keep each
    quote short: the smallest span that shows the value, such as one header line or one sentence.
-   The gate rejects a quote it cannot find in the document.
+   The gate rejects a quote it cannot find in the document, and a quote longer than 400
+   characters ("evidence quote too long"): a whole-document quote would support anything.
 4. **Closed labels use the listed tokens only.** Never invent a new token or map one to `other`
    unless `other` is the honest answer.
 5. **When unsure, say so.** If two readings are defensible, label the better one and describe
@@ -41,12 +42,41 @@ Write one JSON object per document, one per line (JSONL):
   say why in `supplementary.notes`.
 - `value`: the label. Dates are `YYYY-MM-DD`. Money is a number unless the field is a currency
   phrase (contract `contract_value`). Lists are JSON arrays of strings.
-- `evidence`: a list of verbatim quotes. Required for every non-empty value, except a closed
-  label at its default (correspondence `urgency: routine`), which needs a `basis` sentence instead.
+- `evidence`: a list of verbatim quotes, each at most 400 characters. Required for every
+  non-empty value, except a closed label at its default (correspondence `urgency: routine`),
+  which needs a `basis` sentence instead. A closed label that is **not** its default (`urgency`
+  other than `routine`) needs at least one quote of three or more words that states the
+  pressure, not a single keyword.
 - `absent`: required when the value is `null` or `[]`. Say in a few words why ("no addressee:
   press release", "no send date stated").
 - `supplementary` (optional, free-form): alternatives, notes, per-field confidence, anything
   else useful later. It is stored apart and never used as ground truth.
+
+## What the gate checks in a value
+
+- **Dates** must be `YYYY-MM-DD` and appear in the quote as a whole date: numeric forms stand
+  alone (no digit beside them, so `1/5/2001` is not inside `11/5/2001`), and a spelled date
+  needs the day next to the month name ("May 14", "14 May", "14th day of May") with the year in
+  the quote. A time of day or another date in the quote does not support the label.
+- **Money** is matched on the exact figure: `$218,440.00`, `218,440`, `USD 218,440` and
+  `$2.5 million` support 218440 or 2500000, never a part of the digits. `0` needs a written 0.
+  Never use `1_000`, `1e3`, `NaN` or `Infinity`. A currency-phrase field (`contract_value`) must
+  repeat the phrase as written in the quote ("$250,000").
+- **`party_roles`**: every `"<party>: <role>"` item needs its role word in the quote too
+  ("Supplier", "Licensee", plural or defined-term forms are fine); `other` is the only role
+  without a word to quote.
+
+## Independent passes
+
+A label becomes `near_gold` when a second, independent agent pass agrees, or when Opus reviews
+it. Independent means the check labeler works from the document alone and never sees the label
+pass; the same model family may write both. `build` refuses to run when a file is given as both
+`--label` and `--check`, when a submission's `labeler.role` is not `label` (label and override
+files) or `check` (check files), or when one document appears twice among the label files,
+the check files or the override files. Review decisions need a `reviewer`, and each one must
+match a catalog record. A relabel (`--override`) field replaces the earlier label only when it
+passes the gate; if it fails, the earlier label stays and the reject goes to the supplementary
+store.
 
 ## Correspondence fields
 

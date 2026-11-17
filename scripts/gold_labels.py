@@ -12,10 +12,12 @@ agent sessions that read the batch files and write submission JSONL.
         --doc-class correspondence --size 25 --out data/runtime/gold/batches
     # gate one or more submission files and print a report
     python scripts/gold_labels.py validate --corpus … --submissions data/runtime/gold/sub/*.jsonl
-    # build the catalog from label passes, check passes and review decisions
+    # build the catalog from label passes, check passes and review decisions; the two passes
+    # must be independent (build refuses a file in both roles, a wrong labeler role, or a
+    # document twice in one pass) and every review decision must match a catalog record
     python scripts/gold_labels.py build --corpus … --revision … --label L.jsonl… --check C.jsonl… \
-        [--review R.jsonl…]
-    # integrity of the committed catalog
+        [--review R.jsonl…] [--override O.jsonl…]
+    # integrity of the catalog (or of data/labels/gold-supplementary via --dir)
     python scripts/gold_labels.py check
 """
 from __future__ import annotations
@@ -174,24 +176,60 @@ def _schema_binding(revision: str) -> dict[str, Any]:
     }
 
 
+def _pass_problems(args: argparse.Namespace) -> list[str]:
+    """Why these inputs cannot make independent passes (empty = fine).
+
+    ``near_gold`` from agreement means two independent agent passes; a file in both roles, a
+    submission that says it is the other pass, or one document twice in a pass would let a
+    single reading agree with itself. (The same model family may write both passes.)
+    """
+    problems = []
+    label_files, check_files = list(args.label), list(args.check or [])
+    override_files = list(args.override or [])
+    both = {str(Path(p).resolve()) for p in label_files} & {str(Path(p).resolve()) for p in check_files}
+    problems += [f"{p}: given to both --label and --check" for p in sorted(both)]
+    for kind, role, files in (("label", "label", label_files), ("check", "check", check_files),
+                              ("override", "label", override_files)):
+        seen: dict[str, str] = {}
+        for path in files:
+            for sub in gl.read_jsonl(Path(path)):
+                doc_id = sub.get("doc_id")
+                labeler = sub.get("labeler")
+                got = labeler.get("role") if isinstance(labeler, dict) else None
+                if got != role:
+                    problems.append(f"{path}: {doc_id}: labeler role is {got!r}, a --{kind} submission needs {role!r}")
+                if doc_id in seen:
+                    problems.append(f"{path}: {doc_id} appears twice in the --{kind} files (also in {seen[doc_id]})")
+                seen[doc_id] = path
+    return problems
+
+
 def cmd_build(args: argparse.Namespace) -> int:
     corpus = Path(args.corpus)
+    problems = _pass_problems(args)
+    reviews: dict[tuple[str, str], dict] = {}
+    for path in args.review or []:
+        for r in gl.read_jsonl(Path(path)):
+            if not r.get("reviewer"):
+                problems.append(f"{path}: review of {r.get('doc_id')}.{r.get('field')} has no reviewer")
+            reviews[(r["doc_id"], r["field"])] = r
+    if problems:
+        print("build refused:\n  " + "\n  ".join(problems), file=sys.stderr)
+        return 1
     labels = _validate_all(corpus, args.label)
     # A relabel pass (--override) replaces the named fields of earlier label passes, for
     # example after a guide rule changed. Its fields are catalogued with its own labeler and
-    # are not reconciled against an earlier check pass.
+    # are not reconciled against an earlier check pass. Only a field that passes the gate
+    # replaces the earlier label; a failing one leaves it in place (its reject is kept).
     overrides = _validate_all(corpus, args.override or [])
-    replaced = {(d["doc_id"], f) for d, sub, _, _ in overrides for f in (sub.get("fields") or {})}
+    replaced = {(d["doc_id"], f) for d, _, res, _ in overrides for f, fr in res.fields.items() if fr.ok}
     for doc, sub, res, _ in labels:
         for name in [f for f in res.fields if (doc["doc_id"], f) in replaced]:
             del res.fields[name]
     labels = labels + [(d, {**sub, "relabel": True}, r, t) for d, sub, r, t in overrides]
     checks = {(d["doc_id"]): (sub, res) for d, sub, res, _ in _validate_all(corpus, args.check or [])}
-    reviews: dict[tuple[str, str], dict] = {}
-    for path in args.review or []:
-        for r in gl.read_jsonl(Path(path)):
-            reviews[(r["doc_id"], r["field"])] = r
     binding = _schema_binding(args.revision)
+    applied: set[tuple[str, str]] = set()
 
     catalog: dict[str, list[dict]] = collections.defaultdict(list)
     supplementary: dict[str, list[dict]] = collections.defaultdict(list)
@@ -202,6 +240,7 @@ def cmd_build(args: argparse.Namespace) -> int:
         for rec in records:
             decision = reviews.get((rec["doc_id"], rec["field"]))
             if decision is not None:
+                applied.add((rec["doc_id"], rec["field"]))
                 if decision["verdict"] == "correct":
                     fixed = gl.validate_submission(
                         {"doc_id": doc["doc_id"], "fields": {rec["field"]: decision["entry"]}}, text,
@@ -226,6 +265,12 @@ def cmd_build(args: argparse.Namespace) -> int:
             extra["check"] = chk[0].get("supplementary")
         if any(v for v in extra.values()):
             supplementary[doc["doc_class"]].append({"kind": "notes", "doc_id": doc["doc_id"], **extra})
+
+    orphans = sorted(set(reviews) - applied)
+    if orphans:
+        print("build refused: review decisions match no catalog record:\n  "
+              + "\n  ".join(f"{d}.{f}" for d, f in orphans), file=sys.stderr)
+        return 1
 
     gold, supp = gl.gold_dir(), gl.supplementary_dir()
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -330,7 +375,7 @@ def cmd_overlay(args: argparse.Namespace) -> int:
         "builder": "scripts/gold_labels.py overlay",
         "gate_run": gate_run,
         "catalog_manifest_sha256": gl.manifest_sha(gold),
-        "rules": {"truth_statuses": [], "exported_statuses": ["near_gold", "candidate"],
+        "rules": {"truth_statuses": [], "exported_statuses": ["near_gold"],
                   "near_empty_chars": gl.NEAR_EMPTY_CHARS},
         "counts": counts,
         "files": files,
@@ -389,7 +434,7 @@ def main(argv: list[str] | None = None) -> int:
     ds.set_defaults(fn=cmd_disputes)
 
     c = sub.add_parser("check")
-    c.add_argument("--dir")
+    c.add_argument("--dir", help="catalog directory: data/labels/gold (default) or gold-supplementary")
     c.set_defaults(fn=cmd_check)
 
     ov = sub.add_parser("overlay", help="export near-gold candidates in EDA's overlay shape")
