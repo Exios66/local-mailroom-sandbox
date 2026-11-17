@@ -1,19 +1,19 @@
 {
   "builder": "scripts/gold_labels.py overlay",
-  "built_at": "2026-11-17T08:54:04Z",
-  "catalog_manifest_sha256": "3e10bdef3030e4848d5bae584e4bc01aa8f3b85f1a86372b816b93dd141fc8c1",
+  "built_at": "2026-11-17T09:17:04Z",
+  "catalog_manifest_sha256": "4c29ae90d47ac12add5663cd85129bfc9e75674200ccd4ecf8e216dea95242fd",
   "counts": {
     "correspondence": {
       "near_gold:opus_reviewed_accept": 79,
       "near_gold:opus_reviewed_accept_check": 23,
-      "near_gold:opus_reviewed_correct": 32,
+      "near_gold:opus_reviewed_correct": 50,
       "near_gold:two_pass_agree": 2251
     }
   },
   "files": {
-    "correspondence.jsonl": "fd0b58a15a717d5db4a7764520ce8f340adda77eec94800c6a1d2da121501e03"
+    "correspondence.jsonl": "711daaac3c42d600aa83709334ae1a1b2a786a863356efdb3e3af968492d73d1"
   },
-  "gate_run": "gold-labels-3e10bdef3030",
+  "gate_run": "gold-labels-4c29ae90d47a",
   "rules": {
     "exported_statuses": [
       "near_gold"

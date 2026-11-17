@@ -8,7 +8,7 @@
     "mailroom_commit": "f83e3987cf9842ebf1e3f8778e0bb6e1d869c135"
   },
   "builder": "scripts/gold_labels.py build",
-  "built_at": "2026-11-17T08:54:03Z",
+  "built_at": "2026-11-17T09:16:59Z",
   "counts": {
     "correspondence": {
       "-": {
@@ -107,7 +107,8 @@
       "review-corr-000-001.jsonl",
       "review-corr-002-003.jsonl",
       "review-corr-checks-2.jsonl",
-      "review-fwd.jsonl"
+      "review-fwd.jsonl",
+      "review-promo-actions.jsonl"
     ]
   },
   "target_fields": {
