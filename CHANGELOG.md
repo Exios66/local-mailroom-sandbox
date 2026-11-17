@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- **An interrupted autoresearch holdout can be retried.** `prepare()` creates the holdout's run directory before the pending ledger row exists, so a stop in between made the retry refuse its own directory as stale (mock holdouts too). The study now claims the run id in `claimed-runs.txt` of its state directory before `prepare()`; a directory nobody claimed is still refused.
 - **`sandbox autoresearch` works inside `sandbox tui`.** The shell prepended its session defaults (`--profile`, and `--model`/`--prompt`/`--agent-model` when set) to every command, and the autoresearch override refusal read them as typed, so every command was refused. `cli.main(argv, injected=...)` parses the defaults first but keeps them out of `args.raw_argv`; a flag typed at the prompt is still refused.
 - **The autoresearch context check sizes an omitted `max_input_chars` like execution does.** A question set without one was checked as 0 characters, so a small-window Decisions model passed the catalog check; the check now uses `DECISIONS_MAX_INPUT_CHARS` (explicit smaller caps stand; the extraction gate also counts its largest `max_input_chars_by_class` value).
 - **A Decisions `:variant` id is unpriced through `call_price` and `token_price_ceiling` too.** `price_sheet` already refused it, but both then reached `token_price`'s dojo and prefix fallbacks and priced it at a chat model's rate. An explicit price-sheet row of its base id, or an exact row for the variant, still prices it.
