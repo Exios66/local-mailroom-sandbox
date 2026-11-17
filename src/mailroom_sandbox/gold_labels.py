@@ -1092,3 +1092,86 @@ def cuad_date_submission(row: Mapping[str, Any]) -> dict[str, Any] | None:
             "labeler": {"model": "deterministic", "role": "derived",
                         "basis": "cuad_clause_labels span (human CUAD annotation)"},
             "fields": fields}
+
+
+# --------------------------------------------------------------------------- near-gold scoring overlay
+
+def gold_overlay_dir(root: Path | None = None) -> Path:
+    return (root or repo_root()) / "data" / "labels" / "gold-overlay"
+
+
+def verify_overlay(root: Path | None = None) -> list[str]:
+    """Integrity problems of the exported near-gold overlay (empty list: consistent)."""
+    root = root or gold_overlay_dir()
+    path = root / "MANIFEST.json"
+    if not path.exists():
+        return [f"{path}: missing (build it with scripts/gold_labels.py overlay)"]
+    man = json.loads(path.read_text(encoding="utf-8"))
+    if man.get("schema") != OVERLAY_SCHEMA:
+        return [f"MANIFEST.json schema {man.get('schema')!r} is not {OVERLAY_SCHEMA!r}"]
+    problems: list[str] = []
+    for name, sha in (man.get("files") or {}).items():
+        f = root / name
+        if not f.exists():
+            problems.append(f"{name}: listed in the manifest but missing")
+        elif hashlib.sha256(f.read_bytes()).hexdigest() != sha:
+            problems.append(f"{name}: sha256 differs from the manifest (rebuild with scripts/gold_labels.py overlay)")
+            continue
+        else:
+            for rec in read_jsonl(f):
+                for fld, lab in (rec.get("labels") or {}).items():
+                    if not str(lab.get("basis") or "").startswith("near_gold:") or lab.get("use_as_truth"):
+                        problems.append(f"{rec.get('doc_id')}.{fld}: not a near_gold label")
+    extra = sorted(p.name for p in root.glob("*.jsonl") if p.name not in (man.get("files") or {}))
+    problems += [f"{name}: not in the manifest" for name in extra]
+    return problems
+
+
+def load_near_gold(root: Path | None = None) -> dict[str, dict[str, Any]]:
+    """``{doc_id: overlay record}`` over every file the near-gold overlay manifest lists."""
+    root = root or gold_overlay_dir()
+    man = json.loads((root / "MANIFEST.json").read_text(encoding="utf-8"))
+    return {rec["doc_id"]: rec for name in sorted(man.get("files") or {}) for rec in read_jsonl(root / name)}
+
+
+def near_gold_fingerprint(root: Path | None = None) -> str:
+    """sha256 of the near-gold overlay's MANIFEST.json (which pins every file): what a lock records."""
+    path = (root or gold_overlay_dir()) / "MANIFEST.json"
+    return hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else ""
+
+
+def apply_near_gold(row: Mapping[str, Any], overlay: Mapping[str, Mapping[str, Any]], *,
+                    overlay_sha: str) -> dict[str, Any]:
+    """The row with near-gold labels filling fields that nothing else labels.
+
+    Precedence is Hub GT, then the interim overlay's truth labels (applied before this), then
+    near-gold: a field the row already labels (a value, or a presence code such as
+    ``schema_documented_absence``; :func:`hub_labels`) is left alone. A document whose text no longer matches the label's
+    ``doc_sha256`` is untouched. ``near_gold_labels`` on the returned row names every field that
+    came from here, so a score that used them is never read as a Hub-GT score.
+    """
+    from mailroom_sandbox import interim_labels as il
+
+    out = dict(row)
+    rec = overlay.get(str(row.get("id")))
+    if not rec or rec.get("doc_sha256") != il.doc_sha(row.get("doc_text")):
+        return out
+    exp = il._expected(row)
+    pres = il._presence(exp)
+    applied = []
+    for fld, lab in sorted((rec.get("labels") or {}).items()):
+        if not str(lab.get("basis") or "").startswith("near_gold:"):
+            continue
+        if hub_labels(fld, exp):  # Hub GT, or an interim label merged before this
+            continue
+        value = lab.get("value")
+        exp[fld] = value
+        pres[fld] = "schema_documented_absence" if value in (None, [], "") else "populated"
+        applied.append(fld)
+    if not applied:
+        return out
+    exp["gt_presence"] = json.dumps(pres, sort_keys=True)
+    out["expected_fields"] = (json.dumps(exp, ensure_ascii=False, sort_keys=True)
+                              if isinstance(row.get("expected_fields"), str) else exp)
+    out["near_gold_labels"] = {"fields": applied, "overlay_sha256": overlay_sha, "status": "near_gold"}
+    return out

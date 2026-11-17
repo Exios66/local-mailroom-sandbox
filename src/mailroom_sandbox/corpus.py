@@ -793,6 +793,18 @@ def prepare_subset(spec: DatasetSpec, dest_file) -> dict[str, Any]:
             "overlay_sha256": overlay_sha,
             "rows_with_labels": sum(1 for r in chosen if r.get("interim_labels")),
             "fields_applied": sum(len(r["interim_labels"]["fields"]) for r in chosen if r.get("interim_labels"))}}
+    if getattr(spec, "near_gold_labels", False):
+        from mailroom_sandbox import gold_labels as gl
+
+        problems = gl.verify_overlay()
+        if problems:
+            raise ValueError(f"near-gold label overlay is inconsistent: {problems[0]}")
+        overlay, overlay_sha = gl.load_near_gold(), gl.near_gold_fingerprint()
+        chosen = [gl.apply_near_gold(r, overlay, overlay_sha=overlay_sha) for r in chosen]
+        source_meta = {**source_meta, "near_gold_labels": {
+            "overlay_sha256": overlay_sha, "status": "near_gold",
+            "rows_with_labels": sum(1 for r in chosen if r.get("near_gold_labels")),
+            "fields_applied": sum(len(r["near_gold_labels"]["fields"]) for r in chosen if r.get("near_gold_labels"))}}
 
     payload = "".join(_cache_line(r) for r in chosen)
     dest.write_text(payload, encoding="utf-8")

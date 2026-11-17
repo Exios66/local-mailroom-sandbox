@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- **Production runs score against Claude near-gold labels where the Hub has none.** `dataset.near_gold_labels: true` (on in every `config/runs/production/` slice) merges `data/labels/gold-overlay/` into the drawn rows after the interim overlay. A Hub label or an interim truth label always wins. The labels stay marked `near_gold`: each row lists the fields it took, and the lock records the overlay's sha256. On the pinned corpus this fills 2,158 correspondence fields on 368 documents. See `docs/EXTRACTION_GATE_VETTING.md`.
 - **Insurance v4 is adopted and folded into a v5 candidate; the judge audit leaves routing alone.**
   - The v4 A/B (40 documents): mean 0.874 → 0.880 and Part D NDC 0/5 → 5/5. `claim_type` did not move: the pipeline's structured-output schema still asks for CMS table tokens, which only llm-mailroom #280 changes.
   - `insurance_claims_specialist_condensed_v5` is v4 plus #280's line-of-business vocabulary. Its A/B arms, `specialist-condensed-v5-insurance-claim-qwen-{v4arm,v5arm}`, run on the v4 A/B's documents after #280 is vendored. The slices stay on v3 until v5 passes.
