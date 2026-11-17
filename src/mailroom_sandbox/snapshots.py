@@ -25,7 +25,7 @@ COMPONENTS = {"dojo": "llm-dojo-scoring", "pipeline": "llm-mailroom"}
 # Independent of vendor availability. Deliberately reviewed alongside _VENDOR_PINS.
 PINS = {
     "dojo": {"version": "0.30.1", "commit": "025400f3d703531c5e1a76093e4b803ccc6fb576"},
-    "pipeline": {"version": "0.9.3", "commit": "f83e3987cf9842ebf1e3f8778e0bb6e1d869c135"},
+    "pipeline": {"version": "0.9.3", "commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"},
 }
 MAX_DOWNLOAD = 64 * 1024 * 1024
 MAX_EXPANDED = 256 * 1024 * 1024

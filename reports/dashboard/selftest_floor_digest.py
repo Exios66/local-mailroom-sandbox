@@ -417,6 +417,27 @@ def vendored_graph_parses_to_a_sane_topology():
 
 
 @test
+def route_spec_topology_is_read_beside_build_graph():
+    # llm-mailroom #286: build_graph() only registers nodes; route_spec.py declares the edges.
+    with tempfile.TemporaryDirectory() as t:
+        Path(t, "build_graph.py").write_text(
+            "def a_node(s): return s\n"
+            "def build_graph(workflow):\n"
+            "    workflow.add_node('a', a_node)\n"
+            "    workflow.add_node('b', a_node)\n"
+            "    wire_edges(workflow)\n", encoding="utf-8")
+        Path(t, "route_spec.py").write_text(
+            "ROUTE_SPECS: tuple = (\n"
+            "    RouteSpec(START, entry, _same('a')),\n"
+            "    RouteSpec('a', after_a, {'b': 'b', 'a': 'a', 'failed': END}),\n"
+            ")\n"
+            "PLAIN_EDGES: tuple = (('b', END),)\n", encoding="utf-8")
+        g = bfd.parse_graph(Path(t, "build_graph.py"))
+    assert {tuple(e) for e in g["edges"]} == {("START", "a"), ("a", "b"), ("a", "failed"), ("b", "END")}, g["edges"]
+    assert "failed" in g["node_agents"]
+
+
+@test
 def template_and_builder_have_no_hard_coded_runs_or_fallbacks():
     html = TEMPLATE.read_text(encoding="utf-8")
     src = BUILDER.read_text(encoding="utf-8")

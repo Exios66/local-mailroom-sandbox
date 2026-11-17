@@ -1509,13 +1509,13 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
 # Reviewed standalone refs frozen to exact source SHAs. Mirror monorepo
 # workspace packages when available, after importing those reviewed revisions.
 # The fallback rejects moved refs before replacing any tracked vendor file.
-# llm-mailroom: the v0.30.0 branch at f83e398 (after llm-mailroom #280 and #281; pre-release; package 0.9.3)
+# llm-mailroom: main at 8cebcd8 (llm-mailroom #287, the v0.30.0 release line squashed into main; package 0.9.3)
 # until the next llm-mailroom release tag is cut; untagged, so its ref is its exact commit.
 # llm-dojo-scoring: the v0.30.0 branch at 025400f (after llm-dojo-scoring #173 and #174; package 0.30.1;
-# untagged, so its ref is its exact commit), the Dojo commit llm-mailroom f83e398 declares.
+# untagged, so its ref is its exact commit), the Dojo commit llm-mailroom 8cebcd8 declares.
 _VENDOR_PINS: tuple[tuple[str, str, str, str | None], ...] = (
-    ("llm-mailroom", "f83e3987cf9842ebf1e3f8778e0bb6e1d869c135",
-     "https://github.com/Exios66/llm-mailroom.git", "f83e3987cf9842ebf1e3f8778e0bb6e1d869c135"),
+    ("llm-mailroom", "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+     "https://github.com/Exios66/llm-mailroom.git", "8cebcd86521755a8b77502f7c1e22609ef19ae21"),
     ("llm-dojo-scoring", "025400f3d703531c5e1a76093e4b803ccc6fb576",
      "https://github.com/Exios66/llm-dojo-scoring.git", "025400f3d703531c5e1a76093e4b803ccc6fb576"),
 )
