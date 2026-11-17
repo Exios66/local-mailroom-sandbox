@@ -8,7 +8,7 @@
     "mailroom_commit": "f83e3987cf9842ebf1e3f8778e0bb6e1d869c135"
   },
   "builder": "scripts/gold_labels.py build",
-  "built_at": "2026-11-17T09:16:59Z",
+  "built_at": "2026-11-17T16:13:34Z",
   "counts": {
     "correspondence": {
       "action_items": {
@@ -36,13 +36,13 @@
         "near_gold": 339
       },
       "urgency": {
-        "candidate": 653,
-        "near_gold": 347
+        "candidate": 636,
+        "near_gold": 364
       }
     }
   },
   "files": {
-    "correspondence.jsonl": "b969154bf322978e8866016e815dd9eb722d3e16995b2ba099560aad98688ea4"
+    "correspondence.jsonl": "14292ab6d3182eb4cb8ccdaac928d19bad282491cefd9d9e8e2d24137e468a8c"
   },
   "schema": "mailroom-gold-labels/v1",
   "sources": {
@@ -117,7 +117,8 @@
       "review-corr-002-003.jsonl",
       "review-corr-checks-2.jsonl",
       "review-fwd.jsonl",
-      "review-promo-actions.jsonl"
+      "review-promo-actions.jsonl",
+      "review-promo-urgency.jsonl"
     ]
   },
   "target_fields": {
