@@ -182,7 +182,9 @@ def _runtime_bound(champ: RunScores, usage: Mapping[str, Any], cand_spec: Mappin
     """The ApiBudget's USD for the champion's tokens on the candidate's run: all of them at the dearest API model."""
     from mailroom_sandbox.job import api_budget
 
-    if (cand_spec.get("job") or {}).get("mock"):
+    from mailroom_sandbox.autoresearch.levers import validate_spec
+
+    if validate_spec(cand_spec, where="candidate spec").job.mock:   # the validated value: a quoted "false" is a paid run
         return 0.0, {"models": [], "note": "mock run: no API budget"}
     models = _api_models(cand_spec)
     if usage:
