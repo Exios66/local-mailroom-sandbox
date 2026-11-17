@@ -137,7 +137,7 @@ The two regressions are false "no" answers on correct values. They cost re-extra
 | contract | 0.82 (before corrections) |
 | correspondence | 0.66 (intent only: noisy labels) |
 
-**Use.** Off by default. With `dataset.interim_labels: true`, a run merges the truth labels into its locked rows; the Hub's own labels always win. The run's spec hash and lock carry the overlay fingerprint, so the scores are never mixed with Hub-GT scores (dojo #97).
+**Use.** Off by default. With `dataset.interim_labels: true`, a run merges the truth labels into its locked rows; a Hub label wins over a gap fill, and only a `correction` replaces the Hub value it names. The run's spec hash and lock carry the overlay fingerprint, so the scores are never mixed with Hub-GT scores (dojo #97).
 
 **Keeping them current.**
 
