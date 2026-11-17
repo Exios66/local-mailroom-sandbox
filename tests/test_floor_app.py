@@ -672,7 +672,11 @@ def test_offline_image_copies_floor_assets_and_starts_without_checkout_mount(tmp
     sources = ["reports/dashboard/build_floor_digest.py", "reports/dashboard/floor.template.html"]
     assert f"COPY {' '.join(sources)} ./reports/dashboard/" in dockerfile
     image = tmp_path / "image"
-    for source in sources + ["vendor/llm-mailroom/src/graph/build_graph.py"]:
+    # The image copies all of vendor/; the digest reads build_graph.py and, since llm-mailroom #286,
+    # the edge topology declared beside it in route_spec.py.
+    graph_sources = ["vendor/llm-mailroom/src/graph/build_graph.py", "vendor/llm-mailroom/src/graph/route_spec.py"]
+    assert "COPY vendor ./vendor" in dockerfile
+    for source in sources + graph_sources:
         dest = image / source
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(root / source, dest)
@@ -1058,3 +1062,33 @@ def test_remote_api_refuses_viewing_copy_before_sdk(tmp_path, monkeypatch, opera
     monkeypatch.setattr(remote, "_modal", lambda: pytest.fail("must not contact Modal"))
     with pytest.raises(RuntimeError, match="replay"):
         getattr(remote, operation)(RunStore(run))
+
+
+def test_template_fits_the_drawn_graph_not_the_fixed_canvas():
+    """The load fit scales to the boxes' bounding box (the old fixed-canvas fit made node text unreadable)."""
+    html = _template()
+    fit = html[html.index("const fitGraph="):]
+    fit = fit[:fit.index("\n")]
+    assert "contentBox()" in fit and "vp.clientWidth/W" not in fit
+
+
+def test_template_has_the_analysis_tabs_and_stalled_state():
+    """Scores, documents and nodes tabs exist, and a stalled run is labelled rather than shown as running."""
+    html = _template()
+    for tab in ('data-t="scores"', 'data-t="docs"', 'data-t="nodes"'):
+        assert tab in html
+    assert 'r.state==="stalled"' in html and "near_gold" in html
+
+
+def test_refresher_rechecks_a_running_run_even_when_nothing_changed(tmp_path, monkeypatch):
+    """A run that dies writes nothing; the refresher still rebuilds it periodically so it can read 'stalled'."""
+    run = tmp_path / "runtime" / "runs" / "r"
+    run.mkdir(parents=True)
+    (run / "items.jsonl").write_text('{"item_id": "a", "ok": true}\n', encoding="utf-8")
+    (run / "checkpoint.json").write_text('{"state": "running"}', encoding="utf-8")
+    ref = floor_app.DigestRefresher(tmp_path, tmp_path / "out")
+    assert ref.refresh() is True and ref.refresh() is False
+    monkeypatch.setattr(floor_app, "STALL_RECHECK_S", 0.0)
+    assert ref.refresh() is True, "a running checkpoint is rebuilt without an artifact change"
+    (run / "checkpoint.json").write_text('{"state": "complete"}', encoding="utf-8")
+    assert ref.refresh() is True and ref.refresh() is False, "a finished store goes quiet again"

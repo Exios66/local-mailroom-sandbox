@@ -721,6 +721,40 @@ def build_parser() -> argparse.ArgumentParser:
     rr.set_defaults(handler=_cmd_review_resolve)
     rev.set_defaults(handler=_cmd_review_help)
 
+    fam = sub.add_parser(
+        "api",
+        help="Client for a running mailroom API plus the selected Dojo: status, and API-driven evals "
+             "(start the API with `sandbox pipeline api`, or set MAILROOM_API_URL for a deployment)",
+        parents=[leaf],
+    )
+    fam_sub = fam.add_subparsers(dest="api_cmd")
+    fs = fam_sub.add_parser("status", parents=[leaf],
+                            help="pinned vs selected mailroom and Dojo, and the API's /health (read-only)")
+    fs.add_argument("--offline", action="store_true", help="skip the API probe; report the family sources only")
+    fs.set_defaults(handler=_cmd_api_status)
+    fe = fam_sub.add_parser("eval", parents=[leaf],
+                            help="upload fixture documents to the API, wait for results, score them with the Dojo "
+                                 "(plans only unless --submit)")
+    fe.add_argument("--sample", type=int, default=None, help="first N fixture rows (after --class)")
+    fe.add_argument("--class", dest="doc_class", default=None, help="only rows whose expected class is this")
+    fe.add_argument("--matter-id", default=None, help="matter id the uploads are filed under")
+    fe.add_argument("--timeout", type=float, default=None,
+                    help="seconds to wait for the documents after the last upload (default 600)")
+    fe.add_argument("--poll", type=float, default=None, help="seconds between lookups (default 2)")
+    fe.add_argument("--out", default=None, help="also write the JSON report to this path")
+    fe.add_argument("--submit", action="store_true",
+                    help="upload for real; the API process runs its models and spends with its own settings")
+    fe.add_argument("--mock", action="store_true",
+                    help="run the vendored API in process with the mock LLM and a temporary data dir "
+                         "(no server, no network, no spend); checks the wiring, not model quality")
+    fe.add_argument("--floor-run", nargs="?", const="", default=None, metavar="ID",
+                    help="also record the result as a run `sandbox floor` can open (default id: the run tag); "
+                         "node paths come from each document's stage audit")
+    fe.add_argument("--base", default=None,
+                    help="run-store base for --floor-run (default $MAILROOM_BASE_DIR, else the repo's ./data)")
+    fe.set_defaults(handler=_cmd_api_eval)
+    fam.set_defaults(handler=_cmd_api_help)
+
     _run_parser(sub, leaf)
 
     watch_p = sub.add_parser(
@@ -1498,13 +1532,13 @@ def _cmd_fetch_deps(args: argparse.Namespace) -> int:
 # Reviewed standalone refs frozen to exact source SHAs. Mirror monorepo
 # workspace packages when available, after importing those reviewed revisions.
 # The fallback rejects moved refs before replacing any tracked vendor file.
-# llm-mailroom: the v0.30.0 branch at f83e398 (after llm-mailroom #280 and #281; pre-release; package 0.9.3)
+# llm-mailroom: main at 8cebcd8 (llm-mailroom #287, the v0.30.0 release line squashed into main; package 0.9.3)
 # until the next llm-mailroom release tag is cut; untagged, so its ref is its exact commit.
 # llm-dojo-scoring: the v0.30.0 branch at 025400f (after llm-dojo-scoring #173 and #174; package 0.30.1;
-# untagged, so its ref is its exact commit), the Dojo commit llm-mailroom f83e398 declares.
+# untagged, so its ref is its exact commit), the Dojo commit llm-mailroom 8cebcd8 declares.
 _VENDOR_PINS: tuple[tuple[str, str, str, str | None], ...] = (
-    ("llm-mailroom", "f83e3987cf9842ebf1e3f8778e0bb6e1d869c135",
-     "https://github.com/Exios66/llm-mailroom.git", "f83e3987cf9842ebf1e3f8778e0bb6e1d869c135"),
+    ("llm-mailroom", "8cebcd86521755a8b77502f7c1e22609ef19ae21",
+     "https://github.com/Exios66/llm-mailroom.git", "8cebcd86521755a8b77502f7c1e22609ef19ae21"),
     ("llm-dojo-scoring", "025400f3d703531c5e1a76093e4b803ccc6fb576",
      "https://github.com/Exios66/llm-dojo-scoring.git", "025400f3d703531c5e1a76093e4b803ccc6fb576"),
 )
@@ -2559,6 +2593,103 @@ def _cmd_review_resolve(args: argparse.Namespace) -> int:
     from mailroom_sandbox.review_cli import cmd_resolve
 
     return cmd_resolve(args)
+
+
+def _cmd_api_help(args: argparse.Namespace) -> int:
+    print("Use: sandbox api status [--offline] | eval [--sample N] [--class C] [--submit]")
+    return 0
+
+
+def _cmd_api_status(args: argparse.Namespace) -> int:
+    from mailroom_sandbox.family_api import MailroomAPI, family_status
+
+    _print(family_status(None if args.offline else MailroomAPI()))
+    return 0
+
+
+def _cmd_api_eval(args: argparse.Namespace) -> int:
+    from mailroom_sandbox import family_api
+    from mailroom_sandbox.datasets import load_manifest
+
+    rows = load_manifest()
+    if args.doc_class:
+        rows = [r for r in rows if (r.get("expected_doc_class") or r.get("doc_type")) == args.doc_class]
+    if args.sample is not None:
+        if args.sample <= 0:
+            raise CLIUsageError("--sample must be positive")
+        rows = rows[: args.sample]
+    if not rows:
+        raise CLIUsageError("no fixture rows match the selection")
+    if args.poll is not None and not (math.isfinite(args.poll) and args.poll > 0):
+        raise CLIUsageError("--poll must be a positive number")
+    if args.timeout is not None and not (math.isfinite(args.timeout) and args.timeout >= 0):
+        raise CLIUsageError("--timeout must be a finite number, zero or more")
+    if args.mock and args.submit:
+        raise CLIUsageError("--mock and --submit are exclusive: --mock never reaches a server")
+    floor_base = None
+    if args.floor_run is not None:
+        if not (args.mock or args.submit):
+            raise CLIUsageError("--floor-run records a result: add --mock or --submit")
+        from mailroom_sandbox.tui import floor_app
+
+        floor_base = floor_app.resolve_base(args.base)  # resolved before --mock swaps the environment
+        if args.floor_run and (set(args.floor_run) & {"/", "\\"} or args.floor_run in (".", "..")):
+            raise CLIUsageError(f"--floor-run {args.floor_run!r} is not a plain run id")
+        if args.floor_run and (floor_base / "runtime" / "runs" / args.floor_run).exists():
+            raise CLIUsageError(f"floor run {args.floor_run!r} already exists under {floor_base}")
+    elif args.base is not None:
+        raise CLIUsageError("--base only applies with --floor-run")
+
+    if not args.mock and not args.submit:
+        plan = family_api.plan_api_eval(rows, base_url=family_api.MailroomAPI().base_url)
+        _write_json_out(args.out, plan)
+        _print(plan)
+        return 0
+    kwargs: dict[str, object] = {}
+    if args.matter_id:
+        kwargs["matter_id"] = args.matter_id
+    if args.timeout is not None:
+        kwargs["doc_timeout"] = args.timeout
+    if args.poll is not None:
+        kwargs["poll_seconds"] = args.poll
+
+    def _record(api: family_api.MailroomAPI) -> None:
+        if floor_base is None:
+            return
+        from mailroom_sandbox import api_floor
+
+        try:
+            run_dir = api_floor.record_floor_run(report, rows, base=floor_base,
+                                                 run_id=args.floor_run or str(report["run_tag"]), audit=api.audit)
+        except Exception as exc:  # noqa: BLE001 — the eval result still prints; only the floor copy is missing
+            report["floor_run_error"] = f"{type(exc).__name__}: {exc}"
+            print(f"floor run not recorded: {exc}", file=sys.stderr)
+            return
+        report["floor_run"] = str(run_dir)
+        print(f"floor run -> {run_dir}  (open: sandbox floor {run_dir.name} --base {floor_base})", file=sys.stderr)
+
+    if args.mock:
+        import contextlib
+
+        # The in-process API and pipeline log to stdout; keep stdout for the JSON report.
+        with contextlib.redirect_stdout(sys.stderr), family_api.offline_mock_api(rows) as api:
+            report = family_api.run_api_eval(rows, api, **kwargs)
+            report["mode"] = "mock"
+            _record(api)
+    else:
+        api = family_api.MailroomAPI()
+        report = family_api.run_api_eval(rows, api, **kwargs)
+        _record(api)
+    _write_json_out(args.out, report)
+    _print(report)
+    return 0 if report["ok"] else 1
+
+
+def _write_json_out(path: str | None, payload: object) -> None:
+    if path:
+        out = Path(path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(payload, indent=2, default=str) + "\n", encoding="utf-8")
 
 
 def _tunnel_spec(args: argparse.Namespace):

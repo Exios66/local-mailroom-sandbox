@@ -97,7 +97,9 @@ def test_production_base_differs_from_slice_0100_only_where_documented():
     root = repo_root() / "config"
     base = yaml.safe_load((root / "autoresearch/mailroom-v1/base.yaml").read_text())
     differs = {p for p, *_ in parity.compare(base, parity.load_production())["differs"]}
-    allowed_prefix = ("reviewer.", "dataset.strata", "job.api_cost_cap_usd", "job.max_wall_seconds", "run_id", "trace.tags")
+    # dataset.near_gold_labels: production adopted near-gold labels after the v1/v2 studies ran;
+    # their frozen bases keep the labels they were scored with.
+    allowed_prefix = ("reviewer.", "dataset.strata", "dataset.near_gold_labels", "job.api_cost_cap_usd", "job.max_wall_seconds", "run_id", "trace.tags")
     stray = {p for p in differs if not p.startswith(allowed_prefix)}
     assert not stray, f"undocumented differences from production-slice-0100: {sorted(stray)}"
     # production comparability wins over determinism: no agent_knobs difference, in particular no temperature override
