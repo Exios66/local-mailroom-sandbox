@@ -53,7 +53,7 @@ The bars live in [`config/production/bars.yaml`](../../config/production/bars.ya
 
 ## The loop, for slice N
 
-0. **From a git worktree, set the environment first.** A worktree's `.venv` links to the main checkout, so without this every command below, preflight included, runs the main checkout's code and vendored trees (#312):
+0. **From a git worktree, set the environment first.** A worktree's `.venv` links to the main checkout, so without this every command below would run the main checkout's code and vendored trees. Preflight's `checkout` check now fails in that case (#312):
    ```bash
    export PYTHONPATH="$PWD/src"
    ```

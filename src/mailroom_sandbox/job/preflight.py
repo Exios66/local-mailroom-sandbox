@@ -651,6 +651,57 @@ def _takeover_foreign_store() -> bool:
     }
 
 
+def _git(path: Path, *args: str) -> str | None:
+    """One ``git -C path`` answer, or None when git or the checkout is unavailable."""
+    import subprocess
+
+    try:
+        out = subprocess.run(["git", "-C", str(path), *args], capture_output=True, text=True,
+                             timeout=10, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return (out.stdout.strip() or None) if out.returncode == 0 else None
+
+
+def package_checkout() -> dict[str, str | None]:
+    """The checkout the imported ``mailroom_sandbox`` package lives in (SAND-104, #312).
+
+    A worktree whose ``.venv`` links to another checkout's venv imports that
+    checkout's code. ``git_snapshot()`` reads the cwd, so it cannot show this.
+    ``SANDBOX_ROOT`` is deliberately ignored: this is where the code came from.
+    """
+    import mailroom_sandbox
+
+    here = Path(mailroom_sandbox.__file__).resolve().parent
+    root = next((p for p in here.parents if (p / "pyproject.toml").is_file() and (p / "src").is_dir()), here)
+    return {"path": str(root), "commit": _git(root, "rev-parse", "HEAD")}
+
+
+def _cwd_checkout() -> Path | None:
+    """The git checkout the run is launched from, or None outside one."""
+    top = _git(Path.cwd(), "rev-parse", "--show-toplevel")
+    return Path(top).resolve() if top else None
+
+
+def _allow_foreign_checkout() -> bool:
+    return os.environ.get("SANDBOX_ALLOW_FOREIGN_CHECKOUT", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _checkout_check(package: Mapping[str, Any]) -> dict[str, Any]:
+    """Fail when the launch checkout and the imported code's checkout differ."""
+    cwd = _cwd_checkout()
+    code = Path(str(package["path"])).resolve()
+    if cwd is None:
+        return {"name": "checkout", "ok": True, "detail": f"code from {code} (cwd is not a git checkout)"}
+    if cwd == code:
+        return {"name": "checkout", "ok": True, "detail": f"code from {code}"}
+    detail = (f"code is imported from {code}, but the run is launched from {cwd}; the lock's git "
+              f"commit would name the wrong code. From a worktree, export PYTHONPATH=\"$PWD/src\"")
+    if _allow_foreign_checkout():
+        return {"name": "checkout", "ok": True, "detail": f"{detail} (accepted: SANDBOX_ALLOW_FOREIGN_CHECKOUT)"}
+    return {"name": "checkout", "ok": False, "detail": detail}
+
+
 def _prompt_summary(block: dict[str, Any]) -> str:
     agents = block.get("agents") or {}
     bits = [f"default={block.get('default', {}).get('source')}"]
@@ -829,6 +880,14 @@ def _preflight(
     except ValueError as exc:
         report["status"] = "failed"
         report["checks"].append({"name": "report_group", "ok": False, "detail": str(exc)})
+        return report
+
+    # SAND-104 (#312): the code must come from the checkout the run is launched from,
+    # both for a new lock and for a start that reuses one.
+    package = package_checkout()
+    report["checks"].append(_checkout_check(package))
+    if not report["checks"][-1]["ok"]:
+        report["status"] = "failed"
         return report
 
     from mailroom_sandbox.dependency_sources import describe, verify_locked
@@ -1086,6 +1145,7 @@ def _preflight(
         "versions": _versions(),
         "dependency_sources": describe(),
         "git": git_snapshot(),
+        "package": dict(package),
         "spec_core": frozen_core,
     }
     # Freeze the resolved per-agent generation knobs (max_tokens / max_input_chars /
