@@ -8,7 +8,7 @@ catalogs and the disputed interim labels.
 
 ## Result
 
-The interim truth set does **not** need a full human review. 96.4% of its
+The interim truth set does **not** need a full human review. 95.4% of its
 labels are verified, grounded in the text, or differ only in spelling. The
 errors cluster in two places, and both have a mechanical fix:
 
