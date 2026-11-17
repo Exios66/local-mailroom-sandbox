@@ -28,7 +28,8 @@ import re
 import tempfile
 import time
 import uuid
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -391,3 +392,129 @@ def run_api_eval(
         "wall_seconds": round(clock() - started, 3),
         "ok": error is None and not incomplete and not failed and len(per_doc) == len(rows),
     }
+
+
+# --------------------------------------------------------------------------- offline mock API
+
+
+class _DrainingTransport(httpx.BaseTransport):
+    """Forward to the in-process API; after each accepted upload, run that document through
+    the vendored pipeline under the sandbox's mock LLM, the way the API's watcher would.
+
+    The mock LLM answers from the row's ground truth (as in ``sandbox eval pipeline --mock``),
+    so an offline run proves the wiring: client -> real API -> real graph -> catalog ->
+    ``/lookup`` -> Dojo scoring. It says nothing about model quality.
+    """
+
+    def __init__(self, inner: httpx.BaseTransport, rows: Sequence[Mapping[str, Any]]) -> None:
+        from mailroom_sandbox.eval.runners import _doc_source_name
+
+        self._inner = inner
+        self._rows = [(_doc_source_name(dict(r)), dict(r)) for r in rows]
+        self.processed: list[dict[str, Any]] = []
+
+    def _row_for(self, inbox_name: str) -> dict[str, Any] | None:
+        # Uploads are named ``<run-tag>-<name>``; the API may add ``-<n>`` before the suffix.
+        best = None
+        for name, row in self._rows:
+            stem, suffix = Path(name).stem, Path(name).suffix
+            if re.search(rf"-{re.escape(stem)}(-\d+)?{re.escape(suffix)}$", inbox_name):
+                if best is None or len(name) > len(best[0]):
+                    best = (name, row)
+        return best[1] if best else None
+
+    def handle_request(self, request: httpx.Request) -> httpx.Response:
+        raw = self._inner.handle_request(request)
+        # Re-wrap: the test client's stream type is not the one httpx.Client accepts.
+        response = httpx.Response(raw.status_code, headers=raw.headers, content=raw.read(), request=request)
+        if request.method == "POST" and request.url.path == "/upload" and response.status_code == 202:
+            body = response.json()
+            row = self._row_for(str(body.get("file") or ""))
+            if row is None:
+                raise FamilyAPIError(f"mock API: no fixture row matches upload {body.get('file')!r}")
+            self.processed.append(_mock_process(body["file"], body.get("matter_id") or DEFAULT_MATTER_ID, row))
+        return response
+
+    def close(self) -> None:
+        self._inner.close()
+
+
+def _mock_process(inbox_name: str, matter_id: str, row: dict[str, Any]) -> dict[str, Any]:
+    from contextlib import ExitStack
+    from unittest.mock import patch
+
+    from graph.build_graph import run_pipeline  # type: ignore
+    from pipeline.bins import inbox_dir, read_inbox_meta  # type: ignore
+    from pipeline.config import oracle_routing_override  # type: ignore
+
+    from mailroom_sandbox.eval.runners import _expect_from_row, _langchain_mock_patches
+    from mailroom_sandbox.mock_llm import fake_client
+
+    expect = _expect_from_row(row)
+    path = inbox_dir() / inbox_name
+
+    def _mock_get_llm(agent_name: str):
+        return fake_client(expect), "mock-model"
+
+    with ExitStack() as stack:
+        # Production-like: no labels in the graph's state, no oracle routing.
+        stack.enter_context(oracle_routing_override(False))
+        stack.enter_context(patch("llm.client.get_llm", side_effect=_mock_get_llm))
+        stack.enter_context(patch("agents.base.get_llm", side_effect=_mock_get_llm))
+        for lc_patch in _langchain_mock_patches(expect):
+            stack.enter_context(lc_patch)
+        result = run_pipeline(path, matter_id, source="sandbox-api-eval-mock",
+                              intake_meta=read_inbox_meta(path) or None)
+    return {"file": inbox_name, "stage": result.get("stage"), "doc_type": result.get("doc_type")}
+
+
+@contextmanager
+def offline_mock_api(rows: Sequence[Mapping[str, Any]], *, base_dir: str | Path | None = None) -> Iterator[MailroomAPI]:
+    """A :class:`MailroomAPI` bound to the vendored API app, in process, with no network and no spend.
+
+    The vendored ``api.main`` app runs under Starlette's test client with its embedded watcher
+    off; :class:`_DrainingTransport` processes each upload synchronously under the mock LLM.
+    The API's bins and catalog (``MAILROOM_BASE_DIR``) go to ``base_dir``, or to a fresh
+    temporary directory that is removed afterwards, so a mock run never touches real bins.
+    Traces, if a Langfuse key is configured, are tagged with the ``mock`` environment.
+    Every environment variable it sets is restored on exit. Needs the ``observability``
+    extra (the API imports Langfuse).
+    """
+    import os
+    import secrets
+
+    from mailroom_sandbox.runtime import activate
+
+    keys = ("MAILROOM_BASE_DIR", "MAILROOM_EMBED_WATCHER", "SANDBOX_RUN_MODE", "OBSERVABILITY_ENVIRONMENT",
+            "MAILROOM_API_TOKEN", "MAILROOM_API_TOKENS")
+    previous = {k: os.environ.get(k) for k in keys}
+    scratch = None if base_dir is not None else tempfile.TemporaryDirectory(prefix="sandbox-api-mock-")
+    # The API serves a non-loopback client (the test client) only with a token: mint a throwaway one.
+    token = secrets.token_urlsafe(24)
+    os.environ["MAILROOM_BASE_DIR"] = str(base_dir if base_dir is not None else scratch.name)  # type: ignore[union-attr]
+    os.environ["MAILROOM_EMBED_WATCHER"] = "0"
+    os.environ["SANDBOX_RUN_MODE"] = "mock"
+    os.environ["MAILROOM_API_TOKEN"] = token
+    os.environ.pop("MAILROOM_API_TOKENS", None)
+    try:
+        activate(None)
+        try:
+            from starlette.testclient import TestClient
+
+            from api.main import app  # type: ignore
+        except ImportError as exc:
+            raise FamilyAPIError(
+                f"the offline mock API needs the vendored API's dependencies ({exc.name}): "
+                "pip install -e '.[pipeline,observability]'"
+            ) from None
+        with TestClient(app, base_url="http://mailroom.mock") as client:
+            transport = _DrainingTransport(client._transport, rows)
+            yield MailroomAPI("http://mailroom.mock", token, transport=transport)
+    finally:
+        for key, value in previous.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        if scratch is not None:
+            scratch.cleanup()

@@ -766,6 +766,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--poll` | No | seconds between lookups (default 2) |
 | `--out` | No | also write the JSON report to this path |
 | `--submit` | No | upload for real; the API process runs its models and spends with its own settings |
+| `--mock` | No | run the vendored API in process with the mock LLM and a temporary data dir (no server, no network, no spend); checks the wiring, not model quality |
 
 ### `sandbox run`
 

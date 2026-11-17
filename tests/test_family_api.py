@@ -313,3 +313,54 @@ def test_vendored_api_still_serves_what_the_client_reads():
     stages = (src / "schemas" / "manifest.py").read_text(encoding="utf-8")
     for stage in family_api.TERMINAL_STAGES:
         assert f'"{stage}"' in stages, stage
+
+
+def test_mock_and_submit_are_exclusive(capsys):
+    assert cli.main(["api", "eval", "--mock", "--submit"]) == 2
+
+
+def _needs_the_vendored_api():
+    # The vendored API imports Langfuse and FastAPI (the `observability` extra), which the
+    # CI `[dev]` install does not carry: there these end-to-end tests skip.
+    for module in ("langfuse", "fastapi", "starlette.testclient"):
+        pytest.importorskip(module)
+
+
+def test_offline_mock_api_runs_the_real_api_and_pipeline_end_to_end(tmp_path, monkeypatch):
+    """Upload through the vendored FastAPI app, run the vendored graph (mock LLM), score with the Dojo."""
+    _needs_the_vendored_api()
+    import os
+
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    before = {k: os.environ.get(k) for k in ("MAILROOM_BASE_DIR", "MAILROOM_API_TOKEN", "SANDBOX_RUN_MODE")}
+    picked = [r for r in load_manifest() if r["filename"] in {"sample_msa.txt", "sample_claim.txt", "sample_bylaws.txt"}]
+    assert len(picked) == 3
+    with family_api.offline_mock_api(picked, base_dir=tmp_path) as api:
+        assert api.health()["status"] in {"ok", "degraded"}
+        report = family_api.run_api_eval(picked, api, poll_seconds=0.2, doc_timeout=60)
+    assert report["error"] is None and report["ok"], report
+    assert report["completed"] == 3 and not report["incomplete"]
+    assert set(report["stages"]) <= family_api.TERMINAL_STAGES
+    # The mock LLM answers each row's expected class, so routing through the real API is exact.
+    assert report["classification"]["accuracy"] == pytest.approx(1.0)
+    by_file = {d["file"].split("-", 2)[-1]: d for d in report["documents"]}
+    assert by_file["sample_msa.txt"]["stage"] == "archived"
+    assert report["extraction"]["n"] >= 1
+    # The documents went through the API's own bins and catalog under base_dir.
+    assert any(tmp_path.rglob("*.db"))
+    # Everything the context manager set is put back.
+    assert {k: os.environ.get(k) for k in before} == before
+
+
+def test_cli_eval_mock_writes_a_report_without_a_server(tmp_path, monkeypatch, capsys):
+    _needs_the_vendored_api()
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    # A dead URL proves --mock never reaches a server.
+    monkeypatch.setenv("MAILROOM_API_URL", "http://127.0.0.1:9")
+    out = tmp_path / "report.json"
+    rc = cli.main(["api", "eval", "--mock", "--class", "contract", "--sample", "1", "--poll", "0.2",
+                   "--timeout", "60", "--out", str(out)])
+    report = json.loads(out.read_text())
+    assert rc == 0, report
+    assert report["mode"] == "mock" and report["ok"] and report["completed"] == 1
+    assert report["classification"]["accuracy"] == pytest.approx(1.0)
