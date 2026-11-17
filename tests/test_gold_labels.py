@@ -23,6 +23,9 @@ VP Finance, Acme Corp
 """
 
 
+OPUS = {"model": "opus", "role": "reviewer"}
+
+
 def sub(fields, doc_id="DOC-1"):
     return {"doc_id": doc_id, "labeler": {"model": "test", "role": "label"}, "fields": fields}
 
@@ -146,9 +149,9 @@ def test_reconcile_and_review():
     assert by_field["communication_date"]["status"] == "disputed"
     assert not by_field["communication_date"]["use_as_truth"]
     assert rejects == []
-    settled = gl.apply_review(by_field["communication_date"], {"verdict": "accept", "reviewer": {"model": "opus"}})
+    settled = gl.apply_review(by_field["communication_date"], {"verdict": "accept", "reviewer": OPUS})
     assert settled["status"] == "near_gold" and not settled["use_as_truth"]
-    dropped = gl.apply_review(by_field["recipient"], {"verdict": "reject", "reviewer": {"model": "opus"}})
+    dropped = gl.apply_review(by_field["recipient"], {"verdict": "reject", "reviewer": OPUS})
     assert dropped["status"] == "rejected" and not dropped["use_as_truth"]
 
 
@@ -184,7 +187,8 @@ def test_cuad_dates_need_exactly_one_calendar_date():
 
 def test_catalog_round_trip_and_tamper_detection(tmp_path):
     rec = {"doc_id": "D", "field": "recipient", "status": "near_gold", "use_as_truth": False,
-           "presence": "populated", "evidence": [{"start": 0, "end": 1, "text": "x"}]}
+           "presence": "populated", "evidence": [{"start": 0, "end": 1, "text": "x"}],
+           "check": {"agrees": True, "gate_ok": True}}
     sha = gl.write_jsonl(tmp_path / "correspondence.jsonl", [rec])
     (tmp_path / "MANIFEST.json").write_text(json.dumps({"schema": gl.SCHEMA, "files": {"correspondence.jsonl": sha}}))
     assert gl.verify_catalog(tmp_path) == []
@@ -236,7 +240,7 @@ def test_review_correction_keeps_the_basis_of_a_default_label():
     rec = {"doc_id": "D", "field": "urgency", "value": "urgent", "status": "disputed", "use_as_truth": False,
            "presence": "populated", "evidence": [{"start": 0, "end": 1, "text": "x"}], "absent_reason": None}
     out = gl.apply_review(rec, {"verdict": "correct", "value": "routine", "evidence": [], "presence": "populated",
-                                "absent_reason": "standing weekly invitation", "reviewer": {"model": "opus"}})
+                                "absent_reason": "standing weekly invitation", "reviewer": OPUS})
     assert out["absent_reason"] == "standing weekly invitation" and out["evidence"] == []
     assert "absent_reason" not in out["review"]
 
@@ -301,6 +305,7 @@ def test_contract_value_text_must_appear_in_the_evidence_with_its_figure():
     ("2001-05-14", "May 2001, page 14"),           # day not beside the month
     ("2001-05-14", "14 June 2001 and May 2001"),
     ("2001-05-14", "May 14"),                      # no year
+    ("2001-05-14", "Date: May 14 at 10, 2001"),    # a time of day between the day and the year
 ])
 def test_dates_need_digit_boundaries_and_the_day_beside_the_month(value, evidence):
     assert not gl._date_supported(value, evidence)
@@ -308,7 +313,7 @@ def test_dates_need_digit_boundaries_and_the_day_beside_the_month(value, evidenc
 
 @pytest.mark.parametrize("value, evidence", [
     ("2001-05-14", "May 14th, 2001"), ("2001-05-14", "the 14th day of May, 2001"),
-    ("2001-05-14", "14 May 2001"), ("2001-05-14", "Date: May 14 at 10, 2001"),
+    ("2001-05-14", "14 May 2001"), ("2001-05-14", "May 14th 2001"),
     ("2001-05-14", "2001-05-14T09:02"), ("2001-01-05", "Sent 1/5/2001"),
 ])
 def test_dates_accept_written_forms(value, evidence):
@@ -378,12 +383,12 @@ def test_review_correction_keeps_the_original_label_and_needs_a_reviewer():
            "presence": "populated", "evidence": [{"start": 0, "end": 4, "text": "Jane"}], "absent_reason": None,
            "labeler": {"model": "sonnet"}}
     out = gl.apply_review(rec, {"verdict": "correct", "value": "Jane Roe", "evidence": [], "presence": "populated",
-                                "reviewer": {"model": "opus"}})
+                                "reviewer": OPUS})
     assert out["review"]["original"] == {
         "value": "Jane", "evidence": [{"start": 0, "end": 4, "text": "Jane"}], "presence": "populated",
         "absent_reason": None, "labeler": {"model": "sonnet"}}
     assert out["value"] == "Jane Roe"
-    assert "original" not in gl.apply_review(rec, {"verdict": "accept", "reviewer": {"model": "opus"}})["review"]
+    assert "original" not in gl.apply_review(rec, {"verdict": "accept", "reviewer": OPUS})["review"]
     with pytest.raises(ValueError, match="reviewer"):
         gl.apply_review(rec, {"verdict": "accept"})
 
@@ -441,6 +446,7 @@ def _s(doc, role, fields):
 
 
 RECIPIENT = {"recipient": {"value": "John Doe", "evidence": ["To: John Doe"]}}
+RECIPIENT2 = {"recipient": {"value": "John Doe", "evidence": ["To: John Doe\nSubject"]}}  # same label, own quote
 SENDER = {"sender": {"value": "Jane Roe", "evidence": ["From: Jane Roe"]}}
 
 
@@ -474,7 +480,7 @@ def test_build_refuses_wrong_roles_and_duplicate_documents(cli, capsys):
 def test_build_two_independent_passes_agree_to_near_gold(cli):
     _, write, build, tmp = cli
     lab = write("lab.jsonl", [_s("DOC-1", "label", RECIPIENT)])
-    chk = write("chk.jsonl", [_s("DOC-1", "check", RECIPIENT)])
+    chk = write("chk.jsonl", [_s("DOC-1", "check", RECIPIENT2)])
     assert build("--label", lab, "--check", chk) == 0
     recs = gl.read_jsonl(tmp / "gold" / "correspondence.jsonl")
     assert [r["status"] for r in recs] == ["near_gold"]
@@ -501,7 +507,7 @@ def test_build_refuses_unmatched_and_reviewerless_review_decisions(cli, capsys):
     _, write, build, tmp = cli
     lab = write("lab.jsonl", [_s("DOC-1", "label", RECIPIENT)])
     orphan = write("rv.jsonl", [{"doc_id": "DOC-9", "field": "recipient", "verdict": "accept",
-                                 "reviewer": {"model": "opus"}}])
+                                 "reviewer": OPUS}])
     assert build("--label", lab, "--review", orphan) == 1
     err = capsys.readouterr().err
     assert "match no catalog record" in err and "DOC-9.recipient" in err
@@ -509,7 +515,7 @@ def test_build_refuses_unmatched_and_reviewerless_review_decisions(cli, capsys):
     assert build("--label", lab, "--review", anon) == 1
     assert "has no reviewer" in capsys.readouterr().err
     ok = write("rv3.jsonl", [{"doc_id": "DOC-1", "field": "recipient", "verdict": "accept",
-                              "reviewer": {"model": "opus"}}])
+                              "reviewer": OPUS}])
     assert build("--label", lab, "--review", ok) == 0
     assert gl.read_jsonl(tmp / "gold" / "correspondence.jsonl")[0]["status"] == "near_gold"
 
@@ -533,3 +539,285 @@ def test_list_fields_may_quote_a_long_cc_block_but_names_may_not():
     bad = gl.validate_submission(sub({"sender": {"value": "Person1 Surname1", "evidence": [block]}}),
                                  text, "correspondence")
     assert "too long" in bad.fields["sender"].reason
+
+
+# --------------------------------------------------------------------------- second adversarial review
+
+
+def test_year_must_belong_to_the_same_date_expression_as_the_day_and_month():
+    two_dates = "Agreement made May 14, 2019. Term ends December 31, 2020."
+    assert not gl._date_supported("2020-05-14", two_dates)
+    assert gl._date_supported("2019-05-14", two_dates)
+    assert gl._date_supported("2020-12-31", two_dates)
+    assert not gl._date_supported("2020-05-14", "May 14, 2019 and 14 June 2020")
+    assert not gl._date_supported("2020-05-14", "On 14 May 2019 or by 2020")
+    for text in ("May 14, 2020", "14 May 2020", "the 14th day of May, 2020", "May 14th 2020",
+                 "Sent: Monday, May 14, 2020 9:02 AM", "14th of May 2020"):
+        assert gl._date_supported("2020-05-14", text), text
+
+
+def _near_gold(**extra):
+    rec = {"doc_id": "D", "field": "recipient", "status": "near_gold", "use_as_truth": False,
+           "presence": "populated", "evidence": [{"start": 0, "end": 1, "text": "x"}]}
+    return {**rec, **extra}
+
+
+def _problems(tmp_path, *recs):
+    sha = gl.write_jsonl(tmp_path / "c.jsonl", [{**r, "label_id": f"id{i}"} for i, r in enumerate(recs)])
+    (tmp_path / "MANIFEST.json").write_text(json.dumps({"schema": gl.SCHEMA, "files": {"c.jsonl": sha}}))
+    return gl.verify_catalog(tmp_path)
+
+
+def test_verify_catalog_enforces_the_near_gold_invariant(tmp_path):
+    good = [
+        _near_gold(check={"agrees": True, "gate_ok": True}),
+        _near_gold(review={"verdict": "accept", "reviewer": OPUS}),
+        _near_gold(review={"verdict": "correct", "reviewer": OPUS},
+                   value_source={"kind": "review_correction", "labeler": OPUS}),
+        _near_gold(review={"verdict": "accept_check", "reviewer": OPUS},
+                   value_source={"kind": "check_pass", "labeler": {"model": "m", "role": "check"}}),
+    ]
+    assert _problems(tmp_path, *good) == []
+    bad = [
+        _near_gold(),                                                                  # nothing settles it
+        _near_gold(check={"agrees": True, "gate_ok": False}),
+        _near_gold(check={"agrees": False, "gate_ok": True}),
+        _near_gold(review={"verdict": "accept", "reviewer": {"model": "opus"}}),       # no role
+        _near_gold(review={"verdict": "accept", "reviewer": {"role": "reviewer"}}),    # no model
+        _near_gold(review={"verdict": "accept", "reviewer": "opus"}),
+        _near_gold(review={"verdict": "reject", "reviewer": OPUS}),
+        _near_gold(review={"verdict": "correct", "reviewer": OPUS}),                   # no value_source
+        _near_gold(presence="populated", evidence=[], check={"agrees": True, "gate_ok": True}),
+    ]
+    for rec in bad:
+        found = _problems(tmp_path, rec)
+        assert found, rec
+    assert any("near_gold" in p for p in _problems(tmp_path, bad[0]))
+    assert any("populated without evidence" in p for p in _problems(tmp_path, bad[-1]))
+
+
+def _built(cli, label_fields, check_fields, reviews=None, extra=()):
+    _, write, build, tmp = cli
+    lab = write("lab.jsonl", [_s("DOC-1", "label", label_fields)])
+    chk = write("chk.jsonl", [{**_s("DOC-1", "check", check_fields), "labeler": {"model": "chk-model", "role": "check"}}])
+    args = ["--label", lab, "--check", chk, *extra]
+    if reviews is not None:
+        args += ["--review", write("rv.jsonl", reviews)]
+    return build(*args)
+
+
+DISPUTE_CHECK = {"recipient": {"value": "Jane Roe", "evidence": ["From: Jane Roe"]}}
+
+
+def test_overlay_refuses_a_failing_catalog_and_a_foreign_out_dir(cli, capsys):
+    mod, write, build, tmp = cli
+    assert _built(cli, RECIPIENT, RECIPIENT2) == 0
+    gold = tmp / "gold"
+    # a near_gold record with nothing behind it fails verify, and so does the overlay
+    path = gold / "correspondence.jsonl"
+    rec = gl.read_jsonl(path)[0]
+    sha = gl.write_jsonl(path, [{**rec, "check": {"agrees": False, "gate_ok": True}}])
+    manifest = json.loads((gold / "MANIFEST.json").read_text())
+    manifest["files"]["correspondence.jsonl"] = sha
+    (gold / "MANIFEST.json").write_text(json.dumps(manifest))
+    capsys.readouterr()
+    assert mod.main(["overlay", "--out", str(tmp / "ov")]) == 1
+    assert "near_gold" in capsys.readouterr().err
+    assert not (tmp / "ov").exists()
+
+    assert _built(cli, RECIPIENT, RECIPIENT2) == 0
+    for out in (gold, tmp / "supp", tmp / "supp" / ".." / "gold"):
+        before = sorted(p.name for p in Path(out).iterdir())
+        assert mod.main(["overlay", "--out", str(out)]) == 1, out
+        assert sorted(p.name for p in Path(out).iterdir()) == before
+        assert "overlay refused" in capsys.readouterr().err
+    other = tmp / "other"
+    other.mkdir()
+    (other / "MANIFEST.json").write_text(json.dumps({"schema": "something/else"}))
+    (other / "keep.jsonl").write_text("{}\n")
+    assert mod.main(["overlay", "--out", str(other)]) == 1
+    assert (other / "keep.jsonl").exists() and "not 'mailroom-interim-labels/v1'" in capsys.readouterr().err
+    loose = tmp / "loose"
+    loose.mkdir()
+    (loose / "keep.jsonl").write_text("{}\n")
+    assert mod.main(["overlay", "--out", str(loose)]) == 1
+    assert (loose / "keep.jsonl").exists()
+    assert mod.main(["overlay", "--dir", str(tmp / "supp"), "--out", str(tmp / "ov2")]) == 1
+    # a fresh directory, and an earlier overlay, are fine
+    assert mod.main(["overlay", "--out", str(tmp / "ov")]) == 0
+    assert mod.main(["overlay", "--out", str(tmp / "ov")]) == 0
+    assert json.loads((tmp / "ov" / "MANIFEST.json").read_text())["schema"] == gl.OVERLAY_SCHEMA
+
+
+def test_build_refuses_a_check_that_copies_the_label(cli, capsys):
+    _, write, build, tmp = cli
+    lab = write("lab.jsonl", [_s("DOC-1", "label", {**RECIPIENT, **SENDER})])
+    # the same fields, written in another key order: still byte-identical once sorted
+    same = {**SENDER, **RECIPIENT}
+    chk = write("chk.jsonl", [_s("DOC-1", "check", same)])
+    assert build("--label", lab, "--check", chk) == 1
+    assert "identical" in capsys.readouterr().err
+    own = write("own.jsonl", [_s("DOC-1", "check", {**RECIPIENT2, **SENDER})])
+    assert build("--label", lab, "--check", own) == 0
+
+
+def test_build_refuses_one_batch_out_of_identical_file_content(cli, capsys):
+    _, write, build, tmp = cli
+    batch = {"model": "m", "batch": "correspondence-000"}
+    lab = write("lab.jsonl", [{**_s("DOC-1", "label", RECIPIENT), "labeler": {**batch, "role": "label"}}])
+    # a check whose fields differ is fine when the batch differs ...
+    other = write("c1.jsonl", [{**_s("DOC-1", "check", RECIPIENT2), "labeler": {**batch, "role": "check", "batch": "x"}}])
+    assert build("--label", lab, "--check", other) == 0
+    # ... and when the batch is shared but the files are different
+    shared = write("c2.jsonl", [{**_s("DOC-1", "check", RECIPIENT2), "labeler": {**batch, "role": "check"}}])
+    assert build("--label", lab, "--check", shared) == 0
+    # the same batch out of a copy of the label file is refused (the role check fires too, so
+    # exercise the guard directly)
+    import shutil
+    copy = tmp / "copy.jsonl"
+    shutil.copy(lab, copy)
+    problems = sys.modules["gold_labels_cli"]._independence_problems([lab], [str(copy)])
+    assert any("same content" in p for p in problems), problems
+
+
+def test_money_needs_the_quote_to_show_a_figure_as_money():
+    def money(value, evidence):
+        return gl.validate_submission(sub({"demand_amount": {"value": value, "evidence": [evidence]}}),
+                                      evidence, "correspondence").fields["demand_amount"].ok
+    assert not money(2020, "Dated May 14, 2020")
+    assert not money(14, "Dated May 14, 2020")
+    assert not money(2001, "Meeting on 5/14/2001 at 2001 Ross Avenue")
+    for value, quote in ((14, "$14"), (14, "USD 14"), (14, "14 dollars"), (14, "US$14"), (14, "£14"),
+                         (14, "14 USD"), (1200, "Please pay 1,200 by Friday"), (1200, "balance of 1,200"),
+                         (1200, "the total is 1,200"), (14, "fee 14"), (14, "owes 14")):
+        assert money(value, quote), quote
+    # the word must sit in the same quote as the figure
+    res = gl.validate_submission(sub({"demand_amount": {"value": 1200, "evidence": ["Please pay", "due 1,200"]}}),
+                                 "Please pay\n\ndue 1,200", "correspondence")
+    assert not res.fields["demand_amount"].ok
+    contract = gl.validate_submission(sub({"contract_value": {"value": "250,000", "evidence": ["Dated 250,000"]}}),
+                                      "Dated 250,000", "contract")
+    assert not contract.fields["contract_value"].ok
+
+
+def test_values_agree_treats_a_one_sided_negation_as_disagreement():
+    assert not gl.values_agree(["Contact the sender if you can attend"], ["Contact the sender if you cannot attend or do not"],
+                               "entity_list")
+    assert not gl.values_agree(["Please do not forward this"], ["Please forward this"], "entity_list")
+    assert not gl.values_agree(["Notify us if payment is made without notice"], ["Notify us if payment is made with notice"],
+                               "entity_list:free_text")
+    assert gl.values_agree(["Please do not forward this"], ["Do not forward this please"], "entity_list")
+    assert not gl.values_agree("pay within 30 days, no extensions", "pay within 30 days, extensions allowed", "free_text")
+    assert not gl.values_agree("never assign this agreement", "assign this agreement", "free_text")
+    assert gl.values_agree("no extensions, pay within 30 days", "pay within 30 days, no extensions", "free_text")
+    # the name rules are unchanged
+    assert gl.values_agree("Jane Roe", "Jane Roe, VP Finance", "name")
+    assert gl.values_agree(["No Name Corp"], ["No Name Corp, Inc"], "entity_list:name")
+
+
+def test_reviewer_must_name_a_model_and_a_role(cli, capsys):
+    _, write, build, tmp = cli
+    for reviewer in ({"model": "opus"}, {"role": "reviewer"}, {"model": "", "role": "r"}, "opus", ["opus"]):
+        review = {"doc_id": "DOC-1", "field": "recipient", "verdict": "accept", "reviewer": reviewer}
+        assert _built(cli, RECIPIENT, RECIPIENT2, [review]) == 1, reviewer
+        assert "reviewer" in capsys.readouterr().err
+    with pytest.raises(ValueError, match="reviewer"):
+        gl.apply_review({"status": "disputed"}, {"verdict": "accept", "reviewer": {"model": "opus"}})
+
+
+def test_correct_and_accept_check_record_who_produced_the_value(cli):
+    _, write, build, tmp = cli
+    entry = {"value": "Jane Roe", "evidence": ["From: Jane Roe"]}
+    reviews = [{"doc_id": "DOC-1", "field": "recipient", "verdict": "correct", "reviewer": OPUS, "entry": entry}]
+    assert _built(cli, RECIPIENT, DISPUTE_CHECK, reviews) == 0
+    rec = gl.read_jsonl(tmp / "gold" / "correspondence.jsonl")[0]
+    assert rec["review"]["verdict"] == "correct" and rec["value"] == "Jane Roe"
+    assert rec["value_source"] == {"kind": "review_correction", "labeler": OPUS}
+    assert rec["review"]["original"]["value"] == "John Doe"
+    assert gl.verify_catalog(tmp / "gold") == []
+
+    reviews = [{"doc_id": "DOC-1", "field": "recipient", "verdict": "accept_check", "reviewer": OPUS}]
+    assert _built(cli, RECIPIENT, DISPUTE_CHECK, reviews) == 0
+    rec = gl.read_jsonl(tmp / "gold" / "correspondence.jsonl")[0]
+    assert rec["review"]["verdict"] == "accept_check"           # not rewritten into "correct"
+    assert rec["value"] == "Jane Roe"
+    assert rec["value_source"] == {"kind": "check_pass", "labeler": {"model": "chk-model", "role": "check"}}
+    assert rec["review"]["original"]["value"] == "John Doe"
+    assert "check_labeler" not in rec["review"]
+    assert gl.verify_catalog(tmp / "gold") == []
+    over = gl.overlay_records([rec], gate_run="g")
+    assert over[0]["labels"]["recipient"]["basis"] == "near_gold:opus_reviewed_accept_check"
+
+    reviews = [{"doc_id": "DOC-1", "field": "recipient", "verdict": "accept", "reviewer": OPUS}]
+    assert _built(cli, RECIPIENT, DISPUTE_CHECK, reviews) == 0
+    assert "value_source" not in gl.read_jsonl(tmp / "gold" / "correspondence.jsonl")[0]
+
+
+def test_overlay_carries_labeler_and_near_empty_per_label():
+    base = {"doc_class": "correspondence", "doc_id": "D", "content_sha256": "ab" * 32, "presence": "populated",
+            "evidence": [], "status": "near_gold"}
+    first = {"model": "a", "role": "label"}
+    other = {"model": "b", "role": "label"}
+    out = gl.overlay_records([
+        {**base, "field": "recipient", "value": "X", "labeler": first, "near_empty": False},
+        {**base, "field": "sender", "value": "Y", "labeler": other, "near_empty": True,
+         "review": {"verdict": "correct"}, "value_source": {"kind": "review_correction", "labeler": OPUS}},
+    ], gate_run="g")
+    labels = out[0]["labels"]
+    assert labels["recipient"]["labeler"] == first and labels["recipient"]["near_empty"] is False
+    assert labels["sender"]["labeler"] == other and labels["sender"]["near_empty"] is True
+    assert labels["sender"]["value_source"]["kind"] == "review_correction"
+    assert out[0]["source"]["labeler"] == first and out[0]["source"]["near_empty"] is False   # first, for EDA
+
+
+@pytest.mark.parametrize("review, message", [
+    ({"field": "recipient", "reviewer": OPUS}, "has no verdict"),
+    ({"field": "recipient", "reviewer": OPUS, "verdict": "maybe"}, "unknown verdict"),
+    ({"field": "recipient", "reviewer": OPUS, "verdict": "correct"}, "needs an entry"),
+])
+def test_malformed_review_lines_exit_1_with_a_message(cli, capsys, review, message):
+    _, write, build, _ = cli
+    lab = write("lab.jsonl", [_s("DOC-1", "label", RECIPIENT)])
+    rv = write("rv.jsonl", [{"doc_id": "DOC-1", **review}])
+    assert build("--label", lab, "--review", rv) == 1
+    assert message in capsys.readouterr().err
+
+
+def test_duplicate_review_keys_exit_1(cli, capsys):
+    _, write, build, _ = cli
+    lab = write("lab.jsonl", [_s("DOC-1", "label", RECIPIENT)])
+    one = {"doc_id": "DOC-1", "field": "recipient", "verdict": "accept", "reviewer": OPUS}
+    rv = write("rv.jsonl", [one, {**one, "verdict": "reject"}])
+    assert build("--label", lab, "--review", rv) == 1
+    assert "duplicate review for DOC-1.recipient" in capsys.readouterr().err
+    assert build("--label", lab, "--review", rv, write("rv2.jsonl", [one])) == 1
+    assert "duplicate review" in capsys.readouterr().err
+
+
+def test_a_class_without_an_extraction_schema_is_a_clean_reject():
+    res = gl.validate_submission(sub({"recipient": {"value": "John Doe", "evidence": ["To: John Doe"]}}),
+                                 EMAIL, "no_such_class")
+    assert not res.payload_valid and "no extraction schema" in res.payload_error
+    assert not res.fields["recipient"].ok and "no extraction schema" in res.fields["recipient"].reason
+    doc = {"doc_id": "DOC-1", "doc_class": "no_such_class"}
+    records, rejects = gl.reconcile(doc, EMAIL, res, None, {"model": "a"}, None, {})
+    assert records == [] and rejects[0]["field"] == "recipient"
+    assert gl.validate_submission({"doc_id": "D"}, EMAIL, "no_such_class").fields == {}
+
+
+def test_two_digit_years_only_inside_1950_to_2049():
+    assert gl._date_supported("2001-05-14", "5/14/01")
+    assert gl._date_supported("1950-05-14", "05/14/50")
+    assert gl._date_supported("2049-05-14", "14-May-49")
+    assert not gl._date_supported("1949-05-14", "5/14/49")
+    assert not gl._date_supported("2050-05-14", "5/14/50")
+    assert not gl._date_supported("1850-05-14", "05/14/50")
+    assert gl._date_supported("1850-05-14", "05/14/1850")
+
+
+def test_jsonl_is_ascii_so_line_separators_cannot_split_a_record(tmp_path):
+    rec = {"doc_id": "D", "value": "a b c\u0085d é"}
+    gl.write_jsonl(tmp_path / "x.jsonl", [rec])
+    raw = (tmp_path / "x.jsonl").read_text(encoding="utf-8")
+    assert raw.isascii() and len(raw.splitlines()) == 1
+    assert gl.read_jsonl(tmp_path / "x.jsonl") == [rec]
