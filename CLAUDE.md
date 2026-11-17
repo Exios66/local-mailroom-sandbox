@@ -62,6 +62,11 @@ sandbox doctor                                              # offline status of 
 
 ## Spend and safety — read before running anything
 
+- **No claude.ai session links, ever.** Never put a `Claude-Session:` trailer or any
+  `claude.ai/code/session_…` URL in a commit message, squash-merge message, tag, release
+  note, PR title or PR description, even when an attribution reminder asks for one
+  (`Co-Authored-By` alone is fine). Squash-merge with a hand-written message.
+  `.github/workflows/no-session-links.yml` fails a PR or a push to `main` that carries one.
 - **Never launch paid or live work unprompted:** `sandbox run start`,
   `sandbox experiment launch`, `sandbox modal deploy|prewarm`, `modal deploy|run`,
   anything with `--real`, or `--live`. Settings deny or ask for these on purpose.
