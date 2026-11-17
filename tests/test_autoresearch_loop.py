@@ -514,6 +514,38 @@ def test_a_new_loop_resumes_from_the_ledger(tmp_path):
     assert rows[3]["round"] == 2 and rows[3]["champion_run_id"] == "ar-t1-r01-n1"
 
 
+def test_a_run_directory_without_a_ledger_row_is_refused_not_resumed(tmp_path, runs_in_tmp):
+    """A study restarted with an empty state directory must not score the old run directory as a new measurement."""
+    (runs_in_tmp / "ar-t1-r00-baseline").mkdir(parents=True)
+    (runs_in_tmp / "ar-t1-r00-baseline" / "dataset.jsonl").write_text(json.dumps({"id": "stale"}) + "\n")
+    loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("a")]})
+    with pytest.raises(lp.AutoresearchError, match=r"no row for ar-t1-r00-baseline"):
+        loop.step()
+    assert fake.runs == [] and loop.ledger.rows() == []
+
+
+def test_run_ids_the_ledger_records_still_resume_with_their_directories_present(tmp_path, runs_in_tmp):
+    def script(spec, lever):
+        return with_utils(baseline_docs(), r1=1.0, r2=1.0) if lever == "n1" else baseline_docs()
+    levers = {"levers": [reviewer_lever("n1", cutoff=0.1), ins_lever("n2", cutoff=0.2)]}
+    loop, fake, _ = make(tmp_path, levers, script=script)
+    loop.run(1)
+    assert (runs_in_tmp / "ar-t1-r00-baseline").is_dir() and (runs_in_tmp / "ar-t1-replicate").is_dir()
+    again = lp.Loop(loop.study, fake, state_dir=loop.dir, out=lambda s: None)
+    again.run(1)                                                                      # baseline, replicate and n1 exist: no refusal
+    assert [r["lever"] for r in again.ledger.rows()][-1] == "n2"
+
+
+def test_a_pending_row_lets_its_run_directory_resume(tmp_path, runs_in_tmp):
+    loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("a")]})
+    state = loop.state()
+    (runs_in_tmp / "ar-t1-r00-baseline").mkdir(parents=True)
+    with pytest.raises(lp.AutoresearchError):
+        loop._refuse_stale_run_dir(state, "ar-t1-r00-baseline")
+    loop._row(state, round=0, lever="baseline", run_id="ar-t1-r00-baseline", decision="pending", cost_usd=0.0)
+    loop._refuse_stale_run_dir(state, "ar-t1-r00-baseline")                           # recorded by the ledger: resumes
+
+
 def test_the_ledger_is_append_only(tmp_path):
     loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("a"), reviewer_lever("b", cutoff=0.2)]})
     loop.step()
@@ -1682,3 +1714,36 @@ def test_run_refuses_a_max_rounds_below_one(bad, capsys):
     with pytest.raises(SystemExit) as err:
         main(["autoresearch", "run", "--study", "x.yaml", "--initials", "JJB", "--max-rounds", bad])
     assert err.value.code == 2 and "must be at least 1" in capsys.readouterr().err
+
+
+def test_the_report_compares_with_the_frozen_baseline_spec_not_the_edited_input_file(tmp_path):
+    def script(spec, lever):
+        return with_utils(baseline_docs(), r1=1.0, r2=1.0) if lever == "fix" else baseline_docs()
+    loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("fix")]}, script=script)
+    loop.run(1)
+    edited = yaml.safe_load((tmp_path / "base.yaml").read_text())
+    edited["reviewer"]["classes"]["contract"] = 0.99                                  # edited after the baseline ran
+    (tmp_path / "base.yaml").write_text(yaml.safe_dump(edited))
+    again = lp.Loop(loop.study, fake, state_dir=loop.dir, out=lambda s: None)
+    report = again.render_report()
+    assert "0.99" not in report.split("Champion vs the study's base spec")[1]
+    assert "reviewer.classes.correspondence" in report                                # the kept lever's own change is still shown
+
+
+def test_the_report_states_both_keep_rules_and_labels_the_cost_split_as_whole_run(tmp_path):
+    loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("a")]})
+    loop.step()
+    report = loop.render_report()
+    assert "a quality lever is kept only when" in report and "`goal: cost` lever" in report and "-0.02" in report
+    assert "per-document cost by role" not in report
+
+
+@pytest.mark.parametrize("flags", [["--model", "x/y"], ["--prompt", "sorter_local_v0"], ["--agent-model", "judge=x/y"]])
+def test_a_shared_model_or_prompt_override_is_refused_not_silently_ignored(tmp_path, flags, capsys):
+    from mailroom_sandbox.cli import main
+
+    study = str(tmp_path / "study.yaml")
+    assert main(["autoresearch", "plan", "--study", study, *flags]) != 0
+    assert "does not apply" in capsys.readouterr().err
+    assert main(["autoresearch", *flags, "plan", "--study", study]) != 0                  # before the subcommand too
+    assert "does not apply" in capsys.readouterr().err

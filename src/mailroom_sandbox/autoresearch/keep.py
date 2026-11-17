@@ -15,6 +15,9 @@ A cost lever (``goal: cost``, the derived placements) trades the first rule for 
 and a saving: the interval's lower bound must be above ``-tolerance`` (0.02 by default) and the cost
 per document at most ``saving_ratio`` (0.9) times the champion's; rules 2 and 3 apply as they are.
 
+Where a cost rule applies (always for a cost lever, and for a quality lever whose champion has a priced cost), a
+candidate that recorded a model with no price is reverted: its cost is understated, so the rule cannot be judged.
+
 The result is ``(keep, reasons)``: every failed rule when reverted, the evidence for each rule when kept.
 """
 from __future__ import annotations
@@ -61,6 +64,10 @@ def decide_keep(champ: RunScores, cand: RunScores, delta: PairedDelta, *, goal: 
           f"wrong archives {cand.wrong_archives} <= champion {champ.wrong_archives}",
           f"wrong archives rose: {cand.wrong_archives} > champion {champ.wrong_archives}")
     champ_cost, cand_cost = champ.cost_per_doc, cand.cost_per_doc
+    if cand.unpriced and (goal == "cost" or champ_cost > 0):
+        # score_run charges an unpriced slot nothing, so the candidate's cost is understated and a saving or a
+        # cost limit could pass on it. The rule is not applied, and the round cannot be kept, without a price.
+        failed.append(f"candidate cost is understated: no price for model(s) {', '.join(sorted(map(str, cand.unpriced)))}")
     if goal == "cost":
         if champ_cost > 0:
             check(cand_cost <= saving_ratio * champ_cost * (1 + _REL_EPS),

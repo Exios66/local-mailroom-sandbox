@@ -50,8 +50,9 @@ def render_report(loop: "Loop", state: "State") -> str:
         lines += ["", "## Noise floor (replicate baseline)", "",
                   f"The baseline's identical spec was run twice on the same draw ({n.get('n')} documents). Paired difference "
                   f"between the two runs: |mean| {_f(n.get('abs_mean_delta'), '.4f')}, CI half-width {_f(n.get('ci_half_width'), '.4f')}; "
-                  f"configured floor {_f(n.get('configured_floor'), '.4f')}. Effective floor {_f(n.get('effective_floor'), '.4f')}: a lever "
-                  f"is kept only when its paired CI low is above it. One repeat of the champion cost "
+                  f"configured floor {_f(n.get('configured_floor'), '.4f')}. Effective floor {_f(n.get('effective_floor'), '.4f')}: a quality "
+                  f"lever is kept only when its paired CI low is above it. A `goal: cost` lever (a derived placement) is kept instead "
+                  f"when its CI low is above -{study.cost_goal_tolerance:g} (not worse) and it saves enough cost. One repeat of the champion cost "
                   f"{_f(n.get('measured_round_cost_usd'), '.4f')} USD (the measured cost of a round)."]
     if status["warnings"]:
         lines += ["", "## Warnings", "", *[f"- {w}" for w in status["warnings"]]]
@@ -70,7 +71,7 @@ def render_report(loop: "Loop", state: "State") -> str:
     champ = (state.champ_row or {}).get("metrics") or {}
     lines += ["", "## Champion cost split", ""]
     if champ.get("cost_split") == "by_agent":
-        lines += [f"- per-document cost by role (USD, whole run): {champ.get('cost_by_role')}",
+        lines += [f"- cost by role (USD, summed over the whole run, not per document): {champ.get('cost_by_role')}",
                   f"- oversight cost share (oversight / worker): {_f(champ.get('oversight_cost_share'), '.2f')}"]
     else:
         lines.append("Per-agent usage was not recorded for this run (totals only), so the worker / oversight / reviewer "
@@ -96,7 +97,9 @@ def render_report(loop: "Loop", state: "State") -> str:
     baseline = next((r for r in rows if r.get("decision") == "baseline"), None)
     if state.champ_spec:
         try:
-            lines += ["", parity.render_parity_md(loop.base, state.champ_spec,
+            # The frozen baseline spec (hash-checked), not the input file, which an operator may have edited since.
+            base_spec = loop._champion_spec(baseline) if baseline else loop.base
+            lines += ["", parity.render_parity_md(base_spec, state.champ_spec,
                                                    dependency_sources=(baseline or {}).get("dependency_sources")).rstrip()]
         except Exception as exc:  # noqa: BLE001 - the parity section must not stop a ledger write
             lines += ["", "## Production parity", "", f"Unavailable: {type(exc).__name__}"]

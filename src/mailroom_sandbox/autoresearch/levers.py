@@ -43,6 +43,7 @@ has superseded on the placement's role paths derives nothing.
 from __future__ import annotations
 
 import copy
+import math
 import os
 import re
 from pathlib import Path
@@ -82,6 +83,29 @@ class PipelineSource(BaseModel):
 
     env: str = Field(pattern=r"^[A-Z_][A-Z0-9_]*$")
     commit: str | None = Field(default=None, pattern=r"^[0-9a-f]{40}$")
+
+
+def _condition_problem(name: str, arg: Any) -> str | None:
+    """Why ``arg`` is the wrong shape for the ``requires`` condition ``name`` (None when it is fine).
+
+    ``requirement_met`` reads ``arg["group"]``, ``arg.get("tier")``, ``str(arg)`` and ``float(arg)``, so a wrong
+    shape would fail mid-study, after paid rounds, instead of when the catalog loads.
+    """
+    if name in ("kept", "all_reverted_positive"):
+        if not isinstance(arg, Mapping) or set(arg) - {"group", "tier"}:
+            return "must be a mapping with a 'group' and an optional 'tier'"
+        if not isinstance(arg.get("group"), str) or not arg["group"]:
+            return "needs a non-empty string 'group'"
+        tier = arg.get("tier")
+        if tier is not None and (isinstance(tier, bool) or not isinstance(tier, int)):
+            return "'tier' must be an integer"
+        return None
+    if name == "kept_lever":
+        return None if isinstance(arg, str) and arg else "must be a lever id (a non-empty string)"
+    if name == "budget_multiple":
+        if isinstance(arg, bool) or not isinstance(arg, (int, float)) or not math.isfinite(arg) or arg <= 0:
+            return "must be a positive number"
+    return None
 
 
 class Lever(BaseModel):
@@ -136,6 +160,10 @@ class Lever(BaseModel):
             unknown = set(alternative) - CONDITIONS
             if not alternative or unknown:
                 raise ValueError(f"requires alternative {alternative!r}: conditions are {sorted(CONDITIONS)}")
+            for name, arg in alternative.items():
+                problem = _condition_problem(name, arg)
+                if problem:
+                    raise ValueError(f"requires condition {name}: {problem} (got {arg!r})")
         return value
 
     @model_validator(mode="after")
@@ -416,7 +444,8 @@ def all_levers(catalog: Catalog, base_spec: Mapping[str, Any], rows: Sequence[Ma
 
 
 def validate_catalog(catalog: Catalog, base_spec: Mapping[str, Any]) -> list[str]:
-    """Every problem of ``catalog`` against ``base_spec``: invalid patched specs, dead patches, unknown requires.
+    """Every problem of ``catalog`` against ``base_spec``: invalid patched specs, dead patches, unknown requires,
+    and every placement expanded for each winner and subset (``_placement_problems``).
 
     A paid (non-mock) study also refuses a base or patched spec whose reviewer is not a Decisions-API model on
     the ``decisions`` backend (``reviewer_errors``). Empty when the catalog is sound. Does not touch the
@@ -440,8 +469,49 @@ def validate_catalog(catalog: Catalog, base_spec: Mapping[str, Any]) -> list[str
             for name, arg in alternative.items():
                 if name == "kept_lever" and arg not in ids:
                     problems.append(f"lever {lever.id}: requires unknown lever {arg!r}")
-                if name in ("kept", "all_reverted_positive") and (arg.get("group"), arg.get("tier")) not in groups:
+                if name in ("kept", "all_reverted_positive") and not _group_exists(groups, arg):
                     problems.append(f"lever {lever.id}: requires {name} of an empty group/tier {arg!r}")
+    problems.extend(_placement_problems(catalog, base_spec))
+    return problems
+
+
+def _group_exists(groups: set[tuple[str | None, int | None]], arg: Mapping[str, Any]) -> bool:
+    """Whether a ``requires`` group/tier names a lever, matched like ``requirement_met`` (no ``tier``: any tier)."""
+    group, tier = arg.get("group"), arg.get("tier")
+    return any(g == group and (tier is None or t == tier) for g, t in groups)
+
+
+def _placement_problems(catalog: Catalog, base_spec: Mapping[str, Any]) -> list[str]:
+    """Every placement, expanded as ``derive_placements`` expands it once a winner is kept.
+
+    Each placement is derived for every winner of its group (as if kept, with no ``patch_before``) and every
+    ``keep_on`` subset, then each derived lever gets the checks a catalog lever gets. A malformed ``path`` template, a
+    path under a forbidden root, a patch that is not a valid run spec, a reviewer the paid-study guard refuses, a
+    context the model cannot hold and a ``group`` that matches no lever are reported here, not after paid rounds.
+    """
+    problems: list[str] = []
+    for index, placement in enumerate(catalog.placements):
+        where = f"placement {index} (group {placement.group!r})"
+        winners = [lever for lever in catalog.levers if lever.group == placement.group]
+        if not winners:
+            problems.append(f"{where}: no lever has this group, so it never derives anything")
+            continue
+        for winner in winners:
+            try:
+                derived = derive_placements(
+                    Catalog(levers=[winner], placements=[placement]), base_spec,
+                    [{"lever": winner.id, "decision": "keep"}])
+            except (KeyError, IndexError, ValueError) as exc:
+                problems.append(f"{where}: path {placement.path!r} does not derive a valid lever ({type(exc).__name__}: {exc})")
+                break
+            for lever in derived:
+                try:
+                    patched = apply_lever(base_spec, lever)
+                except LeverError as exc:
+                    problems.append(f"{where}: derived {exc}")
+                    continue
+                problems.extend(f"{where}: derived lever {lever.id}: {msg}" for msg in context_errors(patched))
+                problems.extend(f"{where}: derived lever {lever.id}: {msg}" for msg in reviewer_errors(patched))
     return problems
 
 
@@ -457,7 +527,11 @@ def reviewer_errors(spec: Mapping[str, Any]) -> list[str]:
     """
     from mailroom_sandbox.decision_backends import is_decisions_model
 
-    if bool((spec.get("job") or {}).get("mock", True)):
+    try:
+        mock = bool(validate_spec(spec, where="run spec").job.mock)   # the validated value, as the study reads it
+    except LeverError as exc:
+        return [str(exc)]
+    if mock:
         return []
     block = spec.get("reviewer")
     if not block:
@@ -496,7 +570,7 @@ def context_errors(spec: Mapping[str, Any]) -> list[str]:
     errors: list[str] = []
     for block, label in ((spec.get("reviewer") or {}, "reviewer"), (spec.get("extraction_gate") or {}, "extraction_gate")):
         model, stem = block.get("model"), block.get("questions")
-        row = decision_model(model)
+        row = decision_model(model) or (decision_model(str(model).split(":", 1)[0]) if model else None)   # a :variant has its base's window
         if not row or not stem or (label == "reviewer" and block.get("backend") != "decisions"):
             continue
         try:

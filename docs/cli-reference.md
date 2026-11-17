@@ -2173,7 +2173,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
 | `--study` | Yes | study file (schema sandbox.autoresearch/v1) |
-| `--json` | No |  |
+| `--json` | No | print the plan as JSON (without the weakness table text) instead of text |
 
 ### `sandbox autoresearch step`
 

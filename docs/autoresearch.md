@@ -49,10 +49,11 @@ exists**; a failed replicate stops the study (the next call re-runs it). The rep
    run that drew different documents). The study sets `job.api_cost_cap_usd` (the round's own cap, see below) and
    `job.max_wall_seconds`, and adds the tags `autoresearch`, the study name and `lever:<id>`. Run id: `ar-<study>-r<NN>-<lever id>`.
 4. **Score.** Per-document utility and the paired difference with a stratified percentile bootstrap
-   (`paired_delta(champ, cand, by_class, n_boot=2000, seed=0, ci=0.90)`, pure Python, deterministic).
+   (`paired_delta(champ, cand, by_class, n_boot=..., seed=..., ci=...)`, pure Python, deterministic). The defaults are `n_boot=2000`, `seed=0`,
+   `ci=0.90`; the study file's `bootstrap` block overrides them (the shipped `mock-smoke` study uses `n_boot: 500`).
 5. **Keep or revert** (`autoresearch/keep.py`), then append a row to `ledger.jsonl`.
 
-It stops on the study budget, the key's remaining limit, an exhausted catalog, or 3 consecutive reverts
+It stops on the study budget, the key's remaining limit, an exhausted catalog, or `max_consecutive_reverts` consecutive reverts (default 3)
 (a lever's error counts as a revert; a skip, an `aborted_cap` round and a warning count as neither, and the
 baseline, replicate and holdout rows, errors included, are not lever rounds: they are ignored, and the count never
 reaches back past the baseline or replicate row). A lever whose round **errored** is proposed once more (at most 2 attempts
@@ -79,7 +80,8 @@ cliff the mean utility does not model: read `ledger.jsonl` and `sandbox run gate
 All of: the CI low is above `max(0, effective noise floor)` (the replicate's, see above); no gated class drops more than the larger of 0.05 and that class's own swing between the two baseline runs (a drop no bigger than re-running the champion is noise); the wrong-archive
 count is not higher; cost per document is at most 1.25x the champion's unless the mean gain is at least 0.05.
 A `goal: cost` lever (the derived per-role placements) is kept when it is not worse (CI low above -0.02) and
-costs at most 0.9x. The configured `noise_floor` is a minimum: the measured one raises it, never lowers it.
+costs at most 0.9x. The `-0.02` is the default of the study's `cost_goal_tolerance` (the CI low must be above `-cost_goal_tolerance`;
+with `0.10` a cost lever passes with a CI low of `-0.08`). Where a cost rule applies, a candidate that recorded a model with no price is reverted (its cost is understated). The configured `noise_floor` is a minimum: the measured one raises it, never lowers it.
 
 ## Files
 
@@ -94,7 +96,11 @@ State is under `reports/autoresearch/<study>/` (override with `state_dir`):
 | `specs/`, `scores/` | every candidate spec (`<run_id>.yaml`), and the per-document utility and cost of every run. The champion is loaded from `specs/<champion run_id>.yaml` and checked against the ledger row's `spec_sha256`; a missing or edited spec is a clear error |
 | `weakness.md`, `report.md`, `holdout.md` | the views; the report ends with the production-parity section |
 
-The loop resumes from the ledger: re-run the same command after a stop, a crash or a changed budget. The ledger row is
+The loop resumes from the ledger: re-run the same command after a stop, a crash or a changed budget. One exception: a crash or power
+loss in the middle of a ledger append can leave a torn last line, which the loop rejects (`unreadable ledger row`) rather than guess at. Look at
+the end of `ledger.jsonl`; if only its final line is cut off, that row was never committed, so remove just that line by hand and re-run. A torn
+`pending` row loses its reservation, so for a paid study check the key's usage first (the `key_spend` guard counts what the key was billed).
+A run directory that exists without a ledger row (a study restarted with an empty state directory) is refused, never resumed: move it aside. The ledger row is
 the commit point: `champion.yaml` is written just before it, and the champion's spec is read from `specs/`, so a crash
 between the two files leaves a consistent state. Spec files, `champion.yaml`, scores, the views and `key_start.json` are written through a
 temp file and `os.replace`, so a crash never leaves a torn one. `status` says so plainly when nothing has run yet (`message`).

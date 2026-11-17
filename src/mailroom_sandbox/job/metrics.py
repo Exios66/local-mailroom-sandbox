@@ -156,8 +156,25 @@ def _decision_sheet(model: str) -> list[dict[str, float]] | None:
     return [{"min_prompt_tokens": 0, "prompt": float(row["prompt"]), "completion": 0.0}]
 
 
+def _is_decision_variant(model: str, base: str) -> bool:
+    """A ``:variant`` id of a pinned Decisions-API model (``typesafe/jev-1.14:nitro``)."""
+    if ":" not in model:
+        return False
+    try:
+        from mailroom_sandbox.decision_backends import decision_model
+
+        return decision_model(base) is not None
+    except Exception:  # noqa: BLE001 - pricing falls back to the other tables
+        return False
+
+
 def price_sheet(model: str | None) -> list[dict[str, float]] | None:
-    """The tiered sheet for ``model`` (exact id, then a dated/suffixed id by prefix)."""
+    """The tiered sheet for ``model`` (exact id, then a dated/suffixed id by prefix).
+
+    A ``:variant`` of a pinned Decisions-API model is priced only from an explicit sheet of its base id (an
+    ``api_prices.yaml`` row), never by the prefix match below: a chat model that shares the prefix would bill it at
+    chat rates. With no such row it has no price, so the paid-run budget check refuses it.
+    """
     if not model:
         return None
     base = str(model).split(":", 1)[0]
@@ -165,7 +182,7 @@ def price_sheet(model: str | None) -> list[dict[str, float]] | None:
     sheet = sheets.get(base)
     if sheet is None:
         sheet = _decision_sheet(str(model))
-    if sheet is None:
+    if sheet is None and not _is_decision_variant(str(model), base):
         # Longest matching prefix, so "openai/gpt-6-luna-decisions-2026…" is not priced as gpt-6-luna.
         sheet = next((sheets[k] for k in sorted(sheets, key=len, reverse=True) if base.startswith(k)), None)
     return sheet
