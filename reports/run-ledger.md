@@ -55,3 +55,7 @@ Do not edit rows by hand. Parse with `mailroom_sandbox.job.ledger.rows()`.
 | 2026-11-16T06:50:01Z | JJB | start | pipeline-qwen-flash-25-e2-corporate-rejudge | config/runs/pipeline-qwen-flash-25-e2-corporate-rejudge.yaml | 66add8583f25 | 18 | 0.4 | ✓ |
 | 2026-11-16T06:52:31Z | JJB | start | pipeline-qwen-flash-25-e2-corporate-rejudge | config/runs/pipeline-qwen-flash-25-e2-corporate-rejudge.yaml | 66add8583f25 | 18 | 0.4 |   |
 | 2026-11-16T06:53:48Z | JJB | start | pipeline-qwen-flash-25-e3-mix-control | config/runs/pipeline-qwen-flash-25-e3-mix-control.yaml | 55b260a68d0d | 45 | 1.75 | ✓ |
+| 2026-11-17T08:44:43Z | JJB | start | ar-mailroom-v1-r00-baseline | reports/autoresearch/mailroom-v1/specs/ar-mailroom-v1-r00-baseline.yaml | e33ad5c85fbd | 25 | 1.0 | ✓ |
+| 2026-11-17T08:48:06Z | JJB | start | ar-mailroom-v1-replicate | reports/autoresearch/mailroom-v1/specs/ar-mailroom-v1-replicate.yaml | 48cd02fcedaf | 25 | 1.0 | ✓ |
+| 2026-11-17T08:51:16Z | JJB | start | ar-mailroom-v1-r01-merger-agreement-deepseek-v4.1-flash | reports/autoresearch/mailroom-v1/specs/ar-mailroom-v1-r01-merger-agreement-deepseek-v4.1-flash.yaml | 731afcc51eef | 25 | 1.0 | ✓ |
+| 2026-11-17T08:54:06Z | JJB | start | ar-mailroom-v1-r02-merger-prompt-maud-v2 | reports/autoresearch/mailroom-v1/specs/ar-mailroom-v1-r02-merger-prompt-maud-v2.yaml | 7f4e57bc108d | 25 | 1.0 | ✓ |
