@@ -1738,7 +1738,8 @@ def test_the_report_states_both_keep_rules_and_labels_the_cost_split_as_whole_ru
     assert "per-document cost by role" not in report
 
 
-@pytest.mark.parametrize("flags", [["--model", "x/y"], ["--prompt", "sorter_local_v0"], ["--agent-model", "judge=x/y"]])
+@pytest.mark.parametrize("flags", [["--model", "x/y"], ["--prompt", "sorter_local_v0"], ["--agent-model", "judge=x/y"],
+                                   ["--profile", "zz-not-the-default"]])
 def test_a_shared_model_or_prompt_override_is_refused_not_silently_ignored(tmp_path, flags, capsys):
     from mailroom_sandbox.cli import main
 

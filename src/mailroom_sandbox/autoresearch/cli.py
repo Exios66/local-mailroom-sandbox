@@ -19,12 +19,17 @@ def _loop(args, *, need_executor: bool):
 
     from mailroom_sandbox.autoresearch.loop import AutoresearchError
 
+    from mailroom_sandbox.providers import default_profile
+
+    # `--profile` always has a value (the default); only a profile other than the default is an override.
+    profile = getattr(args, "profile", None)
+    profile = profile if profile and profile != default_profile() else None
     ignored = [flag for flag, value in (("--model", getattr(args, "model", None)), ("--prompt", getattr(args, "prompt", None)),
-                                        ("--agent-model", getattr(args, "agent_models", None))) if value]
+                                        ("--agent-model", getattr(args, "agent_models", None)), ("--profile", profile)) if value]
     if ignored:
         # The study's frozen run spec sets every model and prompt; a shared override would be accepted and not take effect.
         raise AutoresearchError(f"autoresearch does not apply {', '.join(ignored)}: the study's base run spec sets the "
-                                "models and prompts (edit its `agent_models` / `agent_routes`, or add a lever)")
+                                "provider, models and prompts (edit its `agent_models` / `agent_routes`, or add a lever)")
     study = Study.load(args.study)
     initials = getattr(args, "initials", None)
     if need_executor and not study.mock and not (initials or "").strip():

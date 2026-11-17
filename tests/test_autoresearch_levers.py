@@ -534,6 +534,12 @@ def test_a_placement_path_with_a_stray_brace_is_a_catalog_problem_not_a_late_key
     assert any("placement 0" in p and "does not derive a valid lever" in p for p in problems), problems
 
 
+@pytest.mark.parametrize("path", ["agent_routes.{role.missing}", "agent_routes.{0}", "agent_routes.{role!x}"])
+def test_any_placement_format_error_is_a_catalog_problem_not_a_crash(path):
+    problems = lv.validate_catalog(_placement_cat(path=path), BASE)
+    assert any("placement 0" in p and "does not derive a valid lever" in p for p in problems), problems
+
+
 def test_a_placement_under_a_forbidden_root_is_a_catalog_problem():
     problems = lv.validate_catalog(_placement_cat(path="trace.{role}"), BASE)
     assert any("placement 0" in p and "set by the study" in p for p in problems), problems
