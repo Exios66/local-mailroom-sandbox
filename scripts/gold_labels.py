@@ -253,48 +253,85 @@ def _independence_problems(label_files: list[str], check_files: list[str]) -> li
     return problems
 
 
-def cmd_build(args: argparse.Namespace) -> int:
-    corpus = Path(args.corpus)
-    problems = _pass_problems(args)
+class _BuildError(Exception):
+    """A build step that stops the run; the message goes to stderr, exit code 1."""
+
+
+def _review_line_problems(where: str, r: dict) -> list[str]:
+    """Why one review line is unusable (reviewer, then verdict)."""
+    problems = []
+    why = gl.reviewer_problem(r.get("reviewer"))
+    if why:
+        problems.append(f"{where} {why}" if why == "has no reviewer" else f"{where}: {why}")
+    verdict = r.get("verdict")
+    if verdict is None:
+        problems.append(f"{where} has no verdict")
+    elif verdict not in gl.REVIEW_VERDICTS:
+        problems.append(f"{where}: unknown verdict {verdict!r}")
+    elif verdict == "correct" and not isinstance(r.get("entry"), dict):
+        problems.append(f"{where}: verdict 'correct' needs an entry")
+    return problems
+
+
+def _load_reviews(paths: list[str], problems: list[str]) -> dict[tuple[str, str], dict]:
+    """Read the review files into {(doc_id, field): decision}; append what is wrong to ``problems``."""
     reviews: dict[tuple[str, str], dict] = {}
-    for path in args.review or []:
+    for path in paths:
         for n, r in enumerate(gl.read_jsonl(Path(path)), start=1):
             if not isinstance(r, dict) or not isinstance(r.get("doc_id"), str) or not isinstance(r.get("field"), str):
                 problems.append(f"{path}: line {n}: a review needs a doc_id and a field")
                 continue
             where = f"{path}: review of {r['doc_id']}.{r['field']}"
-            why = gl.reviewer_problem(r.get("reviewer"))
-            if why:
-                problems.append(f"{where} {why}" if why == "has no reviewer" else f"{where}: {why}")
-            verdict = r.get("verdict")
-            if verdict is None:
-                problems.append(f"{where} has no verdict")
-            elif verdict not in gl.REVIEW_VERDICTS:
-                problems.append(f"{where}: unknown verdict {verdict!r}")
-            elif verdict == "correct" and not isinstance(r.get("entry"), dict):
-                problems.append(f"{where}: verdict 'correct' needs an entry")
+            problems += _review_line_problems(where, r)
             key = (r["doc_id"], r["field"])
             if key in reviews:
                 problems.append(f"{where}: duplicate review for {r['doc_id']}.{r['field']} (in {path})")
             reviews[key] = r
-    if problems:
-        print("build refused:\n  " + "\n  ".join(problems), file=sys.stderr)
-        return 1
-    labels = _validate_all(corpus, args.label)
-    # A relabel pass (--override) replaces the named fields of earlier label passes, for
-    # example after a guide rule changed. Its fields are catalogued with its own labeler and
-    # are not reconciled against an earlier check pass. Only a field that passes the gate
-    # replaces the earlier label; a failing one leaves it in place (its reject is kept).
+    return reviews
+
+
+def _merge_overrides(corpus: Path, args: argparse.Namespace, labels: list) -> list:
+    """Apply the relabel pass (--override) to the label passes.
+
+    A relabel pass replaces the named fields of earlier label passes, for example after a guide
+    rule changed. Its fields are catalogued with its own labeler and are not reconciled against
+    an earlier check pass. Only a field that passes the gate replaces the earlier label; a
+    failing one leaves it in place (its reject is kept).
+    """
     overrides = _validate_all(corpus, args.override or [])
     replaced = {(d["doc_id"], f) for d, _, res, _ in overrides for f, fr in res.fields.items() if fr.ok}
     for doc, sub, res, _ in labels:
         for name in [f for f in res.fields if (doc["doc_id"], f) in replaced]:
             del res.fields[name]
-    labels = labels + [(d, {**sub, "relabel": True}, r, t) for d, sub, r, t in overrides]
-    checks = {(d["doc_id"]): (sub, res) for d, sub, res, _ in _validate_all(corpus, args.check or [])}
-    binding = _schema_binding(args.revision)
-    applied: set[tuple[str, str]] = set()
+    return labels + [(d, {**sub, "relabel": True}, r, t) for d, sub, r, t in overrides]
 
+
+def _resolve_decision(rec: dict, decision: dict, chk: Any, doc: dict, text: str) -> dict:
+    """Turn a review line into the fields ``gl.apply_review`` takes (raises _BuildError)."""
+    if decision["verdict"] == "accept_check":
+        # The reviewer adopts the check pass's answer, quotes and all; the record
+        # keeps the verdict and names the check labeler as the value's source.
+        entry = ((chk[0].get("fields") or {}).get(rec["field"]) if chk else None)
+        if entry is None:
+            raise _BuildError(f"accept_check for {rec['doc_id']}.{rec['field']}: no check answer")
+        decision = {**decision, "entry": entry, "check_labeler": chk[0].get("labeler")}
+    if decision["verdict"] in ("correct", "accept_check"):
+        fixed = gl.validate_submission(
+            {"doc_id": doc["doc_id"], "fields": {rec["field"]: decision["entry"]}}, text,
+            doc["doc_class"])
+        fr = fixed.fields[rec["field"]]
+        if not fr.ok:
+            raise _BuildError(f"review correction for {rec['doc_id']}.{rec['field']} fails the gate: "
+                              f"{fr.reason}")
+        decision = {**decision, "value": fr.value, "evidence": fr.evidence,
+                    "presence": fr.presence, "absent_reason": fr.absent_reason}
+    return {k: v for k, v in decision.items() if k not in ("doc_id", "field", "entry")}
+
+
+def _build_rows(labels: list, checks: dict, reviews: dict[tuple[str, str], dict], binding: dict[str, Any]
+                ) -> tuple[dict[str, list[dict]], dict[str, list[dict]]]:
+    """Reconcile every label with its check pass and review into catalog and supplementary rows."""
+    applied: set[tuple[str, str]] = set()
     catalog: dict[str, list[dict]] = collections.defaultdict(list)
     supplementary: dict[str, list[dict]] = collections.defaultdict(list)
     for doc, sub, res, text in labels:
@@ -305,28 +342,7 @@ def cmd_build(args: argparse.Namespace) -> int:
             decision = reviews.get((rec["doc_id"], rec["field"]))
             if decision is not None:
                 applied.add((rec["doc_id"], rec["field"]))
-                if decision["verdict"] == "accept_check":
-                    # The reviewer adopts the check pass's answer, quotes and all; the record
-                    # keeps the verdict and names the check labeler as the value's source.
-                    entry = ((chk[0].get("fields") or {}).get(rec["field"]) if chk else None)
-                    if entry is None:
-                        print(f"accept_check for {rec['doc_id']}.{rec['field']}: no check answer",
-                              file=sys.stderr)
-                        return 1
-                    decision = {**decision, "entry": entry, "check_labeler": chk[0].get("labeler")}
-                if decision["verdict"] in ("correct", "accept_check"):
-                    fixed = gl.validate_submission(
-                        {"doc_id": doc["doc_id"], "fields": {rec["field"]: decision["entry"]}}, text,
-                        doc["doc_class"])
-                    fr = fixed.fields[rec["field"]]
-                    if not fr.ok:
-                        print(f"review correction for {rec['doc_id']}.{rec['field']} fails the gate: "
-                              f"{fr.reason}", file=sys.stderr)
-                        return 1
-                    decision = {**decision, "value": fr.value, "evidence": fr.evidence,
-                                "presence": fr.presence, "absent_reason": fr.absent_reason}
-                decision = {k: v for k, v in decision.items() if k not in ("doc_id", "field", "entry")}
-                rec = gl.apply_review(rec, decision)
+                rec = gl.apply_review(rec, _resolve_decision(rec, decision, chk, doc, text))
             if rec["status"] == "rejected":
                 supplementary[doc["doc_class"]].append({"kind": "review_rejected", **rec})
             else:
@@ -341,44 +357,71 @@ def cmd_build(args: argparse.Namespace) -> int:
 
     orphans = sorted(set(reviews) - applied)
     if orphans:
-        print("build refused: review decisions match no catalog record:\n  "
-              + "\n  ".join(f"{d}.{f}" for d, f in orphans), file=sys.stderr)
+        raise _BuildError("build refused: review decisions match no catalog record:\n  "
+                          + "\n  ".join(f"{d}.{f}" for d, f in orphans))
+    return catalog, supplementary
+
+
+def _class_counts(data: dict[str, list[dict]]) -> dict[str, Any]:
+    counts: dict[str, Any] = {}
+    for cls, recs in data.items():
+        c: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
+        for r in recs:
+            c[r.get("field", "-")][r.get("status") or r.get("kind")] += 1
+        counts[cls] = {f: dict(v) for f, v in sorted(c.items())}
+    return counts
+
+
+def _write_catalog_dir(directory: Path, data: dict[str, list[dict]], schema: str, now: str,
+                       binding: dict[str, Any], args: argparse.Namespace) -> None:
+    """Replace one catalog directory's jsonl files and MANIFEST."""
+    directory.mkdir(parents=True, exist_ok=True)
+    for stale in directory.glob("*.jsonl"):
+        stale.unlink()
+    files = {}
+    for cls, recs in sorted(data.items()):
+        recs.sort(key=lambda r: (r.get("doc_id", ""), r.get("field", ""), r.get("kind", "")))
+        files[f"{cls}.jsonl"] = gl.write_jsonl(directory / f"{cls}.jsonl", recs)
+    manifest = {
+        "schema": schema,
+        "built_at": now,
+        "builder": "scripts/gold_labels.py build",
+        "binding": binding,
+        "target_fields": gl.TARGET_FIELDS,
+        "truth_statuses": list(gl.TRUTH_STATUSES) if schema == gl.SCHEMA else [],
+        "sources": {"label": sorted(Path(p).name for p in args.label),
+                    "check": sorted(Path(p).name for p in args.check or []),
+                    "review": sorted(Path(p).name for p in args.review or []),
+                    "override": sorted(Path(p).name for p in args.override or [])},
+        "counts": _class_counts(data),
+        "files": files,
+    }
+    if schema == gl.SUPPLEMENTARY_SCHEMA:
+        manifest["note"] = "Supplementary labeler output. Never ground truth; no scorer reads it."
+    (directory / "MANIFEST.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+                                             encoding="utf-8")
+
+
+def cmd_build(args: argparse.Namespace) -> int:
+    corpus = Path(args.corpus)
+    problems = _pass_problems(args)
+    reviews = _load_reviews(args.review or [], problems)
+    if problems:
+        print("build refused:\n  " + "\n  ".join(problems), file=sys.stderr)
+        return 1
+    labels = _merge_overrides(corpus, args, _validate_all(corpus, args.label))
+    checks = {(d["doc_id"]): (sub, res) for d, sub, res, _ in _validate_all(corpus, args.check or [])}
+    binding = _schema_binding(args.revision)
+    try:
+        catalog, supplementary = _build_rows(labels, checks, reviews, binding)
+    except _BuildError as exc:
+        print(exc, file=sys.stderr)
         return 1
 
     gold, supp = gl.gold_dir(), gl.supplementary_dir()
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     for directory, data, schema in ((gold, catalog, gl.SCHEMA), (supp, supplementary, gl.SUPPLEMENTARY_SCHEMA)):
-        directory.mkdir(parents=True, exist_ok=True)
-        for stale in directory.glob("*.jsonl"):
-            stale.unlink()
-        files = {}
-        for cls, recs in sorted(data.items()):
-            recs.sort(key=lambda r: (r.get("doc_id", ""), r.get("field", ""), r.get("kind", "")))
-            files[f"{cls}.jsonl"] = gl.write_jsonl(directory / f"{cls}.jsonl", recs)
-        counts: dict[str, Any] = {}
-        for cls, recs in data.items():
-            c: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
-            for r in recs:
-                c[r.get("field", "-")][r.get("status") or r.get("kind")] += 1
-            counts[cls] = {f: dict(v) for f, v in sorted(c.items())}
-        manifest = {
-            "schema": schema,
-            "built_at": now,
-            "builder": "scripts/gold_labels.py build",
-            "binding": binding,
-            "target_fields": gl.TARGET_FIELDS,
-            "truth_statuses": list(gl.TRUTH_STATUSES) if schema == gl.SCHEMA else [],
-            "sources": {"label": sorted(Path(p).name for p in args.label),
-                        "check": sorted(Path(p).name for p in args.check or []),
-                        "review": sorted(Path(p).name for p in args.review or []),
-                        "override": sorted(Path(p).name for p in args.override or [])},
-            "counts": counts,
-            "files": files,
-        }
-        if schema == gl.SUPPLEMENTARY_SCHEMA:
-            manifest["note"] = "Supplementary labeler output. Never ground truth; no scorer reads it."
-        (directory / "MANIFEST.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n",
-                                                 encoding="utf-8")
+        _write_catalog_dir(directory, data, schema, now, binding, args)
     print(f"catalog: {sum(len(v) for v in catalog.values())} labels; "
           f"supplementary: {sum(len(v) for v in supplementary.values())} rows")
     print(f"MANIFEST sha256 {gl.manifest_sha(gold)}")
