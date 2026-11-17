@@ -830,3 +830,41 @@ def test_contractions_count_as_negation_on_both_sides():
     b = ["If you didn't get the invitation or can't attend, please let me know"]
     assert gl.values_agree(a, b, "entity_list")
     assert not gl.values_agree(["Pay the invoice"], ["Don't pay the invoice"], "entity_list")
+
+
+# --------------------------------------------------------------------------- bot-review fixes (PR #323)
+
+
+def test_a_malformed_comma_group_is_not_a_figure():
+    assert not _money(12.0, "$12,34").ok
+    assert _money(12340.0, "$12,340").ok
+
+
+def test_numbers_of_a_written_date_are_not_money_by_a_payment_word_alone():
+    for value in (2020.0, 14.0):
+        assert not _money(value, "Please pay by May 14, 2020").ok, value
+    assert not _money(2020.0, "Payment due 5/14/2020").ok
+    assert _money(500.0, "Please pay 500 by May 14, 2020").ok
+    assert _money(2020.0, "Please pay $2,020 by May 14, 2020").ok
+
+
+def test_unambiguous_day_first_hyphen_dates():
+    assert gl._date_supported("2001-03-27", "Date: 27-03-2001")
+    assert not gl._date_supported("2001-11-02", "Date: 02-11-2001")
+
+
+def test_an_accept_on_a_relabelled_field_must_name_the_current_value(cli, capsys):
+    _, write, build, tmp = cli
+    lab = write("lab.jsonl", [_s("DOC-1", "label", SENDER)])
+    new = {"sender": {"value": "Jane Roe, VP Finance, Acme Corp", "evidence": ["Jane Roe\nVP Finance, Acme Corp"]}}
+    ov = write("ov.jsonl", [{**_s("DOC-1", "label", new), "labeler": {"model": "relabel", "role": "label"}}])
+    stale = write("rv.jsonl", [{"doc_id": "DOC-1", "field": "sender", "verdict": "accept", "reviewer": OPUS}])
+    assert build("--label", lab, "--override", ov, "--review", stale) == 1
+    assert "does not name the current value" in capsys.readouterr().err
+    old = write("rv2.jsonl", [{"doc_id": "DOC-1", "field": "sender", "verdict": "accept", "reviewer": OPUS,
+                               "value": "Jane Roe"}])
+    assert build("--label", lab, "--override", ov, "--review", old) == 1
+    named = write("rv3.jsonl", [{"doc_id": "DOC-1", "field": "sender", "verdict": "accept", "reviewer": OPUS,
+                                 "value": "Jane Roe, VP Finance, Acme Corp"}])
+    assert build("--label", lab, "--override", ov, "--review", named) == 0
+    assert gl.read_jsonl(tmp / "gold" / "correspondence.jsonl")[0]["status"] == "near_gold"
