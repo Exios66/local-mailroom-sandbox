@@ -53,6 +53,7 @@ Files: ``data/labels/gold/`` (``<class>.jsonl`` + ``MANIFEST.json``, schema
 """
 from __future__ import annotations
 
+import difflib
 import hashlib
 import json
 import math
@@ -241,7 +242,7 @@ def _date_forms(value: str) -> set[str]:
     if 1950 <= d.year <= 2049:
         forms |= short_year
     if day > 12:
-        forms |= {f"{d:%d}/{d:%m}/{d.year}", f"{day}/{d.month}/{d.year}"}
+        forms |= {f"{d:%d}/{d:%m}/{d.year}", f"{day}/{d.month}/{d.year}", f"{d:%d}-{d:%m}-{d.year}"}
     return forms
 
 
@@ -280,8 +281,14 @@ def _date_supported(value: str, evidence: str) -> bool:
     return _spelled_date_supported(d, ev)
 
 
-_FIGURE = re.compile(r"(?<![\d,])(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d+))?(?!\d)(\s*(?:million|billion|thousand)\b)?"
+_FIGURE = re.compile(r"(?<![\d,])(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d+))?(?![\d]|,\d)(\s*(?:million|billion|thousand)\b)?"
                      r"(?!\s*%)", re.I)
+#: A written date ("May 14, 2020", "14 May 2020", "5/14/2020", "2020-05-14"): its numbers are never
+#: money by a payment word alone ("Please pay by May 14, 2020" shows no amount of 2020 or 14).
+_DATE_SPAN = re.compile(
+    r"\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4}\b"
+    r"|\b\d{1,2}(?:st|nd|rd|th)?\s+(?:day\s+of\s+)?(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?,?\s+\d{4}\b"
+    r"|\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b|\b\d{4}-\d{2}-\d{2}\b", re.I)
 _SCALE = {"thousand": Decimal(10) ** 3, "million": Decimal(10) ** 6, "billion": Decimal(10) ** 9}
 _NOT_PLAIN_NUMBER = re.compile(r"\d_\d|\d[eE][+-]?\d")
 #: A figure is shown as money by a currency marker beside it, or by a word of payment in the quote.
@@ -299,9 +306,12 @@ def _figures(text: str, *, as_money: bool = False) -> set[Decimal]:
     fee, price, owe, balance, total) anywhere in the text. "Dated May 14, 2020" shows none."""
     out = set()
     worded = as_money and _MONEY_WORDS.search(text) is not None
+    dates = [d.span() for d in _DATE_SPAN.finditer(text)] if as_money else []
     for m in _FIGURE.finditer(text):
-        if as_money and not (worded or _CURRENCY_BEFORE.search(text[:m.start()])
-                             or _CURRENCY_AFTER.search(text[m.end():])):
+        marked = as_money and (_CURRENCY_BEFORE.search(text[:m.start()])
+                               or _CURRENCY_AFTER.search(text[m.end():]))
+        in_date = any(a <= m.start() and m.end() <= b for a, b in dates)
+        if as_money and not (marked or (worded and not in_date)):
             continue
         try:
             num = Decimal(m.group(1).replace(",", "") + (f".{m.group(2)}" if m.group(2) else ""))
@@ -494,7 +504,7 @@ def _locate_quotes(res: FieldResult, quotes: list, ftype: str, doc_text: str) ->
     return spans
 
 
-def _date_value_supported(res: FieldResult, value: Any, ev_text: str) -> bool | None:
+def _date_value_supported(res: FieldResult, value: Any, spans: list) -> bool | None:
     if not isinstance(value, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
         res.reason = f"date not ISO YYYY-MM-DD: {value!r}"
         return None
@@ -503,7 +513,7 @@ def _date_value_supported(res: FieldResult, value: Any, ev_text: str) -> bool | 
     except ValueError:
         res.reason = f"invalid date: {value!r}"
         return None
-    return _date_supported(value, ev_text)
+    return any(_date_supported(value, sp["text"]) for sp in spans)
 
 
 def _money_value_supported(res: FieldResult, value: Any, spans: list) -> bool | None:
@@ -536,7 +546,8 @@ def _value_supported(res: FieldResult, value: Any, raw_value: Any, ftype: str, s
                      ev_text: str, empty_value: Any, money_as_text: bool) -> bool | None:
     """Whether the located evidence supports the value (None = a type rule failed; ``res`` says why)."""
     if ftype == "date":
-        return _date_value_supported(res, value, ev_text)
+        # One quote must hold the whole date: "May 14" and "2020" from two quotes never make one.
+        return _date_value_supported(res, value, spans)
     if ftype == "money" and money_as_text:
         # The pipeline field is a currency phrase (contract_value: str), kept as written.
         return any(_money_text_supported(str(raw_value), sp["text"]) for sp in spans)
@@ -695,6 +706,51 @@ def _lists_match(a: list[str], b: list[str], threshold: float = 0.5) -> bool:
     return len(used_a) == len(a)
 
 
+_ROLE_ITEM = re.compile(r"^(.+?):\s*([A-Za-z][A-Za-z _-]*)$")
+
+
+def _role_map(value: Any) -> list[tuple[frozenset[str], str]] | None:
+    """``[(party tokens, role)]`` when every item reads "Party: role", else None."""
+    if not isinstance(value, list) or not value:
+        return None
+    out = []
+    for item in value:
+        m = _ROLE_ITEM.match(str(item).strip())
+        if not m:
+            return None
+        out.append((frozenset(_tokens(m.group(1))), " ".join(_tokens(m.group(2)))))
+    return out
+
+
+def _party_match(a: frozenset[str], b: frozenset[str]) -> float:
+    """How surely two names are one party: 2 same words, 1 one adds words, the typo ratio, or 0."""
+    if a == b:
+        return 2.0
+    if a <= b or b <= a:
+        return 1.0
+    ratio = difflib.SequenceMatcher(None, " ".join(sorted(a)), " ".join(sorted(b))).ratio()
+    return ratio if ratio >= 0.9 else 0.0
+
+
+def _role_maps_agree(a: list, b: list) -> bool:
+    """Same parties with the same role each. Parties are paired by name alone, best match
+    first, and only then are their roles compared, so overlapping names cannot swap roles.
+    A pairing that ties with another open pairing for the same party is ambiguous, and an
+    ambiguous pairing never agrees (list order must not decide it)."""
+    if len(a) != len(b):
+        return False
+    score = {(i, j): _party_match(na, nb) for i, (na, _) in enumerate(a) for j, (nb, _) in enumerate(b)}
+    left, right, matched = set(range(len(a))), set(range(len(b))), {}
+    for (i, j), s in sorted(score.items(), key=lambda kv: kv[1], reverse=True):
+        if s > 0 and i in left and j in right:
+            if any(score[i, k] == s for k in right - {j}) or any(score[k, j] == s for k in left - {i}):
+                return False
+            matched[i] = j
+            left.discard(i)
+            right.discard(j)
+    return not left and all(a[i][1] == b[j][1] for i, j in matched.items())
+
+
 def values_agree(a: Any, b: Any, ftype: str) -> bool:
     """Whether two labels for one field say the same thing (type-aware, order-free lists)."""
     if _is_empty(a) or _is_empty(b):
@@ -703,6 +759,10 @@ def values_agree(a: Any, b: Any, ftype: str) -> bool:
         ca, cb = _canon(a), _canon(b)
         if ca == cb:
             return True
+        ra, rb = _role_map(a), _role_map(b)
+        if ra is not None and rb is not None:
+            # "Party: role" lists (contract party_roles) agree only when each party has the same role.
+            return _role_maps_agree(ra, rb)
         if ftype in ("entity_list", "entity_list:free_text"):
             return _lists_match(ca, cb)
         # same set of people/parties when one side adds a title or middle initial
@@ -1073,6 +1133,8 @@ def cuad_date_submission(row: Mapping[str, Any]) -> dict[str, Any] | None:
 
     A field is filled only when its CUAD span states exactly one full calendar date
     (an expiration written as a term, "five years after…", is left to the labelers).
+    Its labeler role is ``derived``: it is a human-annotation reference to compare label
+    passes against, not a ``build --label`` submission (build accepts only ``label`` passes).
     """
     if row.get("expected") != "contract":
         return None
@@ -1101,38 +1163,54 @@ def gold_overlay_dir(root: Path | None = None) -> Path:
     return (root or repo_root()) / "data" / "labels" / "gold-overlay"
 
 
-def verify_overlay(root: Path | None = None) -> list[str]:
-    """Integrity problems of the exported near-gold overlay (empty list: consistent)."""
+def near_gold_snapshot(root: Path | None = None) -> tuple[dict[str, dict[str, Any]], str, list[str]]:
+    """``(records by doc_id, fingerprint, problems)`` of the near-gold overlay, from one read.
+
+    The manifest and every file it lists are read once into memory; the fingerprint, the
+    integrity checks and the records all come from those same bytes, so an export that lands
+    while this runs can never pair records with another snapshot's fingerprint.
+    """
     root = root or gold_overlay_dir()
     path = root / "MANIFEST.json"
     if not path.exists():
-        return [f"{path}: missing (build it with scripts/gold_labels.py overlay)"]
-    man = json.loads(path.read_text(encoding="utf-8"))
+        return {}, "", [f"{path}: missing (build it with scripts/gold_labels.py overlay)"]
+    man_bytes = path.read_bytes()
+    fingerprint = hashlib.sha256(man_bytes).hexdigest()
+    man = json.loads(man_bytes.decode("utf-8"))
     if man.get("schema") != OVERLAY_SCHEMA:
-        return [f"MANIFEST.json schema {man.get('schema')!r} is not {OVERLAY_SCHEMA!r}"]
+        return {}, fingerprint, [f"MANIFEST.json schema {man.get('schema')!r} is not {OVERLAY_SCHEMA!r}"]
+    listed = man.get("files") or {}
     problems: list[str] = []
-    for name, sha in (man.get("files") or {}).items():
+    records: dict[str, dict[str, Any]] = {}
+    for name in sorted(listed):
         f = root / name
-        if not f.exists():
+        data = f.read_bytes() if f.is_file() else None
+        if data is None:
             problems.append(f"{name}: listed in the manifest but missing")
-        elif hashlib.sha256(f.read_bytes()).hexdigest() != sha:
+            continue
+        if hashlib.sha256(data).hexdigest() != listed[name]:
             problems.append(f"{name}: sha256 differs from the manifest (rebuild with scripts/gold_labels.py overlay)")
             continue
-        else:
-            for rec in read_jsonl(f):
-                for fld, lab in (rec.get("labels") or {}).items():
-                    if not str(lab.get("basis") or "").startswith("near_gold:") or lab.get("use_as_truth"):
-                        problems.append(f"{rec.get('doc_id')}.{fld}: not a near_gold label")
-    extra = sorted(p.name for p in root.glob("*.jsonl") if p.name not in (man.get("files") or {}))
-    problems += [f"{name}: not in the manifest" for name in extra]
-    return problems
+        for line in data.decode("utf-8").split("\n"):
+            if not line.strip():
+                continue
+            rec = json.loads(line)
+            for fld, lab in (rec.get("labels") or {}).items():
+                if not str(lab.get("basis") or "").startswith("near_gold:") or lab.get("use_as_truth"):
+                    problems.append(f"{rec.get('doc_id')}.{fld}: not a near_gold label")
+            records[rec["doc_id"]] = rec
+    problems += [f"{p.name}: not in the manifest" for p in sorted(root.glob("*.jsonl")) if p.name not in listed]
+    return records, fingerprint, problems
+
+
+def verify_overlay(root: Path | None = None) -> list[str]:
+    """Integrity problems of the exported near-gold overlay (empty list: consistent)."""
+    return near_gold_snapshot(root)[2]
 
 
 def load_near_gold(root: Path | None = None) -> dict[str, dict[str, Any]]:
     """``{doc_id: overlay record}`` over every file the near-gold overlay manifest lists."""
-    root = root or gold_overlay_dir()
-    man = json.loads((root / "MANIFEST.json").read_text(encoding="utf-8"))
-    return {rec["doc_id"]: rec for name in sorted(man.get("files") or {}) for rec in read_jsonl(root / name)}
+    return near_gold_snapshot(root)[0]
 
 
 def near_gold_fingerprint(root: Path | None = None) -> str:
