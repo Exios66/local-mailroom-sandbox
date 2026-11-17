@@ -22,6 +22,9 @@ from typing import Iterable
 
 from mailroom_sandbox.autoresearch.scoring import PairedDelta, RunScores
 
+# Cost ratios compare sums of floats; allow rounding error so "exactly 1.25x" behaves the same on every Python.
+_REL_EPS = 1e-9
+
 
 def decide_keep(champ: RunScores, cand: RunScores, delta: PairedDelta, *, goal: str = "quality",
                 noise_floor: float = 0.0, guard_classes: Iterable[str] | None = None, max_class_drop: float = 0.05,
@@ -52,13 +55,13 @@ def decide_keep(champ: RunScores, cand: RunScores, delta: PairedDelta, *, goal: 
     champ_cost, cand_cost = champ.cost_per_doc, cand.cost_per_doc
     if goal == "cost":
         if champ_cost > 0:
-            check(cand_cost <= saving_ratio * champ_cost,
+            check(cand_cost <= saving_ratio * champ_cost * (1 + _REL_EPS),
                   f"saves cost: {cand_cost:.5f} <= {saving_ratio:g} x {champ_cost:.5f} USD/doc",
                   f"no saving: {cand_cost:.5f} > {saving_ratio:g} x {champ_cost:.5f} USD/doc")
         else:
             failed.append("cost saving cannot be shown: the champion's run recorded no priced usage")
     elif champ_cost > 0:
-        over = cand_cost > cost_ratio * champ_cost
+        over = cand_cost > cost_ratio * champ_cost * (1 + _REL_EPS)
         check(not over or delta.mean >= cost_win,
               f"cost {cand_cost:.5f} USD/doc within {cost_ratio:g} x {champ_cost:.5f}" if not over
               else f"cost {cand_cost:.5f} USD/doc over {cost_ratio:g} x champion, paid for by gain {delta.mean:+.3f} >= {cost_win:g}",
