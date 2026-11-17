@@ -709,6 +709,32 @@ def build_parser() -> argparse.ArgumentParser:
     rr.set_defaults(handler=_cmd_review_resolve)
     rev.set_defaults(handler=_cmd_review_help)
 
+    fam = sub.add_parser(
+        "api",
+        help="Client for a running mailroom API plus the selected Dojo: status, and API-driven evals "
+             "(start the API with `sandbox pipeline api`, or set MAILROOM_API_URL for a deployment)",
+        parents=[leaf],
+    )
+    fam_sub = fam.add_subparsers(dest="api_cmd")
+    fs = fam_sub.add_parser("status", parents=[leaf],
+                            help="pinned vs selected mailroom and Dojo, and the API's /health (read-only)")
+    fs.add_argument("--offline", action="store_true", help="skip the API probe; report the family sources only")
+    fs.set_defaults(handler=_cmd_api_status)
+    fe = fam_sub.add_parser("eval", parents=[leaf],
+                            help="upload fixture documents to the API, wait for results, score them with the Dojo "
+                                 "(plans only unless --submit)")
+    fe.add_argument("--sample", type=int, default=None, help="first N fixture rows (after --class)")
+    fe.add_argument("--class", dest="doc_class", default=None, help="only rows whose expected class is this")
+    fe.add_argument("--matter-id", default=None, help="matter id the uploads are filed under")
+    fe.add_argument("--timeout", type=float, default=None,
+                    help="seconds to wait for the documents after the last upload (default 600)")
+    fe.add_argument("--poll", type=float, default=None, help="seconds between lookups (default 2)")
+    fe.add_argument("--out", default=None, help="also write the JSON report to this path")
+    fe.add_argument("--submit", action="store_true",
+                    help="upload for real; the API process runs its models and spends with its own settings")
+    fe.set_defaults(handler=_cmd_api_eval)
+    fam.set_defaults(handler=_cmd_api_help)
+
     _run_parser(sub, leaf)
 
     watch_p = sub.add_parser(
@@ -2544,6 +2570,51 @@ def _cmd_review_resolve(args: argparse.Namespace) -> int:
     from mailroom_sandbox.review_cli import cmd_resolve
 
     return cmd_resolve(args)
+
+
+def _cmd_api_help(args: argparse.Namespace) -> int:
+    print("Use: sandbox api status [--offline] | eval [--sample N] [--class C] [--submit]")
+    return 0
+
+
+def _cmd_api_status(args: argparse.Namespace) -> int:
+    from mailroom_sandbox.family_api import MailroomAPI, family_status
+
+    _print(family_status(None if args.offline else MailroomAPI()))
+    return 0
+
+
+def _cmd_api_eval(args: argparse.Namespace) -> int:
+    from mailroom_sandbox import family_api
+    from mailroom_sandbox.datasets import load_manifest
+
+    rows = load_manifest()
+    if args.doc_class:
+        rows = [r for r in rows if (r.get("expected_doc_class") or r.get("doc_type")) == args.doc_class]
+    if args.sample is not None:
+        if args.sample <= 0:
+            raise CLIUsageError("--sample must be positive")
+        rows = rows[: args.sample]
+    if not rows:
+        raise CLIUsageError("no fixture rows match the selection")
+    api = family_api.MailroomAPI()
+    if not args.submit:
+        _print(family_api.plan_api_eval(rows, base_url=api.base_url))
+        return 0
+    kwargs: dict[str, object] = {}
+    if args.matter_id:
+        kwargs["matter_id"] = args.matter_id
+    if args.timeout is not None:
+        kwargs["doc_timeout"] = args.timeout
+    if args.poll is not None:
+        kwargs["poll_seconds"] = args.poll
+    report = family_api.run_api_eval(rows, api, **kwargs)
+    if args.out:
+        out = Path(args.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(report, indent=2, default=str) + "\n", encoding="utf-8")
+    _print(report)
+    return 0 if report["ok"] else 1
 
 
 def _tunnel_spec(args: argparse.Namespace):

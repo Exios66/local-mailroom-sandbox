@@ -194,6 +194,8 @@ sandbox subagents dispatch-check|checkpoint  # offline dispatch contract; durabl
 sandbox subagents propagate [--include-global]  # mapped sibling checkouts; project-scoped by default
 sandbox subagents materialize --package digital-mailroom --root <path>  # monorepo hub export
 sandbox metrics compare --runs local,modal,api   # serving metrics comparison
+sandbox api status [--offline]        # pinned vs selected mailroom + Dojo, and the mailroom API's /health (MAILROOM_API_URL, default 127.0.0.1:8000)
+sandbox api eval [--class C] [--sample N] [--submit] [--out PATH]   # upload fixtures to a running/deployed API, score results with the Dojo; plans unless --submit (the API's models spend)
 sandbox modal deploy|prewarm|status|logs|stop|url|raw|publish-image   # guarded Modal CLI passthrough (--dry-run on deploy/prewarm/stop/logs/publish-image; stop is idempotent + verified)
 sandbox modal publish-image [--tag TAG]   # publish the vLLM image to the active workspace; `sandbox modal deploy --named-image` then reuses it
 sandbox modal status                  # lists sandbox-vllm, sandbox-job and every other sandbox-* app that is not stopped (not sandbox-image-builds); containers shown for deployed apps
