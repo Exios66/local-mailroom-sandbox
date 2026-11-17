@@ -14,8 +14,8 @@ label.
 3. **Quote your evidence verbatim.** Every non-empty value carries one or more `evidence`
    quotes copied character for character from the document (whitespace may differ). Keep each
    quote short: the smallest span that shows the value, such as one header line or one sentence.
-   The gate rejects a quote it cannot find in the document, and a quote longer than 400 (1,500 for list fields such as a long cc block)
-   characters ("evidence quote too long"): a whole-document quote would support anything.
+   The gate rejects a quote it cannot find in the document, and a quote longer than 400
+   characters, or 1,500 for a list field such as a long cc block ("evidence quote too long"): a whole-document quote would support anything.
 4. **Closed labels use the listed tokens only.** Never invent a new token or map one to `other`
    unless `other` is the honest answer.
 5. **When unsure, say so.** If two readings are defensible, label the better one and describe
