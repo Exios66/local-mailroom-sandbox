@@ -120,6 +120,25 @@ def test_a_variant_of_a_decisions_model_never_falls_to_a_chat_models_prefix_pric
     assert metrics.price_sheet("vendor/chat-other:nitro") == chat        # an ordinary chat id keeps its prefix rule
 
 
+def test_a_decisions_variant_is_refused_by_every_public_price_function_not_just_price_sheet(monkeypatch):
+    """price_sheet refused the variant, but call_price / token_price_ceiling then reached token_price's
+    prefix fallback and priced it at a chat model's rate."""
+    from mailroom_sandbox import decision_backends as db
+
+    monkeypatch.setattr(metrics, "api_price_sheets", lambda: {})
+    monkeypatch.setattr(metrics, "SANDBOX_MODEL_PRICES", {"vendor/chat": (9.0, 9.0)})
+    monkeypatch.setattr(db, "decision_catalog", lambda: {"vendor/chat-decider": {"prompt": 0.3}})
+    variant = "vendor/chat-decider:nitro"
+    assert metrics.token_price(variant) is None
+    assert metrics.token_price_ceiling(variant) is None
+    assert metrics.call_price(variant, 1000) is None
+    assert metrics.call_cost(variant, 1000, 10) is None
+    assert metrics.token_price("vendor/chat-other:nitro") == (9.0, 9.0)       # chat variants keep their prefix price
+    assert metrics.token_price_ceiling("vendor/chat-decider") == pytest.approx((0.3, 0.0))   # the pinned base is priced
+    monkeypatch.setattr(metrics, "SANDBOX_MODEL_PRICES", {"vendor/chat": (9.0, 9.0), variant: (0.5, 0.0)})
+    assert metrics.token_price_ceiling(variant) == (0.5, 0.0)                 # an explicit row for the variant stands
+
+
 @pytest.mark.parametrize("model", ["typesafe/jev-1.14:nitro", "perplexity/pplx-decider-v1.2:floor"])
 def test_a_shipped_decisions_variant_has_no_price_so_a_paid_run_refuses_it(model):
     assert metrics.price_sheet(model) is None
