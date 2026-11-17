@@ -1062,3 +1062,19 @@ def test_remote_api_refuses_viewing_copy_before_sdk(tmp_path, monkeypatch, opera
     monkeypatch.setattr(remote, "_modal", lambda: pytest.fail("must not contact Modal"))
     with pytest.raises(RuntimeError, match="replay"):
         getattr(remote, operation)(RunStore(run))
+
+
+def test_template_fits_the_drawn_graph_not_the_fixed_canvas():
+    """The load fit scales to the boxes' bounding box (the old fixed-canvas fit made node text unreadable)."""
+    html = _template()
+    fit = html[html.index("const fitGraph="):]
+    fit = fit[:fit.index("\n")]
+    assert "contentBox()" in fit and "vp.clientWidth/W" not in fit
+
+
+def test_template_has_the_analysis_tabs_and_stalled_state():
+    """Scores, documents and nodes tabs exist, and a stalled run is labelled rather than shown as running."""
+    html = _template()
+    for tab in ('data-t="scores"', 'data-t="docs"', 'data-t="nodes"'):
+        assert tab in html
+    assert 'r.state==="stalled"' in html and "near_gold" in html
