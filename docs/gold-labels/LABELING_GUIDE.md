@@ -1,0 +1,107 @@
+# Gold-label labeling guide
+
+This guide is for the agents that write gold labels for `scripts/gold_labels.py`. It is the
+labeler's whole brief. Anything this guide does not cover goes in `supplementary`, never in a
+label.
+
+## Ground rules
+
+1. **The pipeline's schema comes first.** Each field means exactly what the pipeline's extraction
+   schema and specialist prompt say it means (the definitions below are copied from them).
+   A label that would not validate against `schemas.documents.EXTRACTION_SCHEMAS` is useless.
+2. **Only label from the text.** Never use the filename, general knowledge or a guess. If the
+   document does not state it, the label is the empty value plus an `absent` reason.
+3. **Quote your evidence verbatim.** Every non-empty value carries one or more `evidence`
+   quotes copied character for character from the document (whitespace may differ). Keep each
+   quote short: the smallest span that shows the value, such as one header line or one sentence.
+   The gate rejects a quote it cannot find in the document.
+4. **Closed labels use the listed tokens only.** Never invent a new token or map one to `other`
+   unless `other` is the honest answer.
+5. **When unsure, say so.** If two readings are defensible, label the better one and describe
+   the other in `supplementary.alternatives`. Never pad a field to look complete.
+
+## Submission format
+
+Write one JSON object per document, one per line (JSONL):
+
+```json
+{"doc_id": "DOC-…",
+ "labeler": {"model": "<your model>", "role": "label", "batch": "correspondence-020"},
+ "fields": {
+   "sender": {"value": "Jane Roe, VP Finance, Acme Corp", "evidence": ["From: Jane Roe"]},
+   "communication_date": {"value": "2001-05-14", "evidence": ["Sent: Monday, May 14, 2001 9:02 AM"]},
+   "demand_amount": {"value": null, "absent": "no amount is demanded"},
+   "urgency": {"value": "routine", "basis": "informational message, no deadline or pressure"}
+ },
+ "supplementary": {"alternatives": {}, "notes": "", "confidence": {"sender": 0.95}}}
+```
+
+- Include every field listed for the document in the batch file, and no other field. The one
+  exception is a field you could not decide after reading the whole document: leave it out and
+  say why in `supplementary.notes`.
+- `value`: the label. Dates are `YYYY-MM-DD`. Money is a number unless the field is a currency
+  phrase (contract `contract_value`). Lists are JSON arrays of strings.
+- `evidence`: a list of verbatim quotes. Required for every non-empty value, except a closed
+  label at its default (correspondence `urgency: routine`), which needs a `basis` sentence instead.
+- `absent`: required when the value is `null` or `[]`. Say in a few words why ("no addressee:
+  press release", "no send date stated").
+- `supplementary` (optional, free-form): alternatives, notes, per-field confidence, anything
+  else useful later. It is stored apart and never used as ground truth.
+
+## Correspondence fields
+
+Source: the pipeline's correspondence specialist prompt (`llm/frozen_v1/correspondence_specialist.txt`).
+
+| Field | Type | Definition |
+|---|---|---|
+| `sender` | name | Who sent it: full name, title and entity as written. Press or wire: the issuing company or media-contact line. Null only when no sender is named. |
+| `recipient` | name | The named addressee. Press releases and wire articles with no named addressee: null. When several people are in "To", put the first one here and the rest in `additional_recipients`. |
+| `additional_recipients` | list | Further To, cc'd or copied parties as written. None: `[]`. |
+| `communication_date` | date | The date the communication was **sent**, not a deadline, meeting date or invoice date. Null if no send date is stated. |
+| `demand_amount` | money | Exact dollars the sender demands the recipient pay (218440.00 for "$218,440.00"). 0 is a stated amount. Null when no amount is demanded **of the recipient**: an amount that is only reported (an invoice total in an internal follow-up, money owed by someone else, an amount the sender will sue a third party for) is not a demand. Never compute or convert. |
+| `action_items` | list | At most 3 concrete actions the recipient is asked to take, with deadlines if stated. None: `[]`. |
+| `urgency` | label | `routine`, `time-sensitive`, `urgent` or `critical`. Never null. Neutral or unspecified is `routine`. `time-sensitive`: a near deadline or a dated request. `urgent`: stated urgency ("ASAP", "immediately", "urgent"). `critical`: legal, financial or safety consequences stated as imminent. |
+
+Emails often carry forwarded or quoted messages. Take `sender`, `recipient`,
+`additional_recipients` and `communication_date` from the **first message in the document that
+has its own header** (a `From:` / `To:` / `Sent:` or `Date:` block, or a "Forwarded by … on
+<date>" line). A short note above a forward with no header of its own does not count: fall
+through to the first header below it. A signature alone ("Thanks, Jim") is not a header, but
+when the document has no header at all, the signature's name is the sender. `action_items` and
+`urgency` still describe what the document as a whole asks of its reader. Record any other
+message's sender or date in `supplementary.alternatives`.
+
+## Corporate record fields
+
+Source: the pipeline's corporate records specialist prompt and the Dojo corporate schema.
+
+| Field | Type | Definition |
+|---|---|---|
+| `entity_name` | name | The corporation or entity the record is about, full legal name as written. |
+| `effective_date` | date | The date the record takes effect, or its adoption or filing date when no effective date is stated. |
+| `signatories` | list of names | People who sign the record (officers, directors, incorporators, grantors), as printed in the execution block. `[]` when there is no execution block. |
+| `jurisdiction` | name | The state or country under whose law the entity is organised (for example "Delaware"). |
+
+## Contract fields
+
+Source: the Dojo contract schema (`cuad_schema.CONTRACT_EXTRACTION_FIELDS`), which defines the
+pipeline's `ContractExtraction` v2 fields.
+
+| Field | Type | Definition |
+|---|---|---|
+| `agreement_date` | date | The "dated as of" or signature date. |
+| `expiration_date` | date | End of the initial term when the text states it as a date; else null. |
+| `signatories` | list of names | Persons who sign the contract, as printed. |
+| `party_roles` | list | One `"<party>: <role>"` line per party. Role is one of `licensor`, `licensee`, `supplier`, `customer`, `distributor`, `reseller`, `franchisor`, `franchisee`, `service_provider`, `client`, `sponsor`, `agent`, `principal`, `partner`, `lender`, `borrower`, `other`. |
+| `termination_notice_period` | free text | Notice needed to terminate the contract or to stop a renewal, as stated. |
+| `contract_value` | money (text) | Monetary consideration as a plain currency phrase ("$2,000,000"). $0 is a stated amount. Never computed. |
+| `dispute_forum` | name | Courts or arbitral seat for disputes, kept separate from governing law. |
+| `payment_terms` | free text | How and when the consideration is paid, as stated. |
+| `territory` | free text | The stated territory of the grant, distribution or service. |
+
+## Long documents
+
+Read the whole document before you decide that something is absent. For a long file, read it in
+parts or search it for the field's usual anchors (execution blocks, "IN WITNESS WHEREOF",
+"dated as of", "State of", "Sent:", "Date:"). An `absent` label on a document you did not fully
+read is worse than no label.
