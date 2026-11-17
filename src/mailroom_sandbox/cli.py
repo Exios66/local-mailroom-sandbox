@@ -2607,7 +2607,9 @@ def _cmd_api_eval(args: argparse.Namespace) -> int:
     if args.mock and args.submit:
         raise CLIUsageError("--mock and --submit are exclusive: --mock never reaches a server")
     if not args.mock and not args.submit:
-        _print(family_api.plan_api_eval(rows, base_url=family_api.MailroomAPI().base_url))
+        plan = family_api.plan_api_eval(rows, base_url=family_api.MailroomAPI().base_url)
+        _write_json_out(args.out, plan)
+        _print(plan)
         return 0
     kwargs: dict[str, object] = {}
     if args.matter_id:
@@ -2622,12 +2624,16 @@ def _cmd_api_eval(args: argparse.Namespace) -> int:
         report["mode"] = "mock"
     else:
         report = family_api.run_api_eval(rows, family_api.MailroomAPI(), **kwargs)
-    if args.out:
-        out = Path(args.out)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(json.dumps(report, indent=2, default=str) + "\n", encoding="utf-8")
+    _write_json_out(args.out, report)
     _print(report)
     return 0 if report["ok"] else 1
+
+
+def _write_json_out(path: str | None, payload: object) -> None:
+    if path:
+        out = Path(path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(payload, indent=2, default=str) + "\n", encoding="utf-8")
 
 
 def _tunnel_spec(args: argparse.Namespace):

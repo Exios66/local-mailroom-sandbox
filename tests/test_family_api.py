@@ -161,6 +161,23 @@ def test_a_refused_upload_keeps_the_documents_already_accepted(rows):
     report = family_api.run_api_eval(rows, api, sleep=_no_sleep)
     assert report["ok"] is False and "Unsupported file type" in report["error"]
     assert report["n_rows"] == 3 and report["n"] == 1 and report["completed"] == 1
+    assert report["unconfirmed_upload"] is None  # a 4xx refusal stored nothing
+
+
+def test_an_unanswered_upload_is_named_as_unconfirmed(rows):
+    fake = FakeMailroom(rows)
+    real = fake.__call__
+
+    def time_out_second_upload(request):
+        if request.url.path == "/upload" and len(fake.by_name) == 1:
+            raise httpx.ReadTimeout("slow", request=request)
+        return real(request)
+
+    api = family_api.MailroomAPI("http://mailroom.test", TOKEN, transport=httpx.MockTransport(time_out_second_upload))
+    report = family_api.run_api_eval(rows, api, sleep=_no_sleep, run_tag="t1")
+    assert report["ok"] is False and "did not answer" in report["error"]
+    assert report["unconfirmed_upload"] == f"t1-{rows[1]['filename']}"
+    assert report["completed"] == 1
 
 
 def test_a_lookup_error_while_polling_returns_a_partial_report(rows):
@@ -257,6 +274,13 @@ def test_eval_without_submit_only_plans(monkeypatch, capsys):
     out = json.loads(capsys.readouterr().out)
     assert out["submit"] is False and out["n"] == 2
     assert calls == []  # nothing was sent
+
+
+def test_eval_plan_honours_out(monkeypatch, tmp_path, capsys):
+    monkeypatch.setenv("MAILROOM_API_URL", "http://mailroom.test")
+    out = tmp_path / "plan.json"
+    assert cli.main(["api", "eval", "--sample", "1", "--out", str(out)]) == 0
+    assert json.loads(out.read_text())["submit"] is False
 
 
 def test_eval_submit_writes_the_report_and_exits_nonzero_when_unfinished(monkeypatch, tmp_path, capsys, rows):
