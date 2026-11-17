@@ -29,7 +29,7 @@ Write one JSON object per document, one per line (JSONL):
 {"doc_id": "DOC-…",
  "labeler": {"model": "<your model>", "role": "label", "batch": "correspondence-020"},
  "fields": {
-   "sender": {"value": "Jane Roe, VP Finance, Acme Corp", "evidence": ["From: Jane Roe"]},
+   "sender": {"value": "Jane Roe, VP Finance, Acme Corp", "evidence": ["From: Jane Roe, VP Finance, Acme Corp"]},
    "communication_date": {"value": "2001-05-14", "evidence": ["Sent: Monday, May 14, 2001 9:02 AM"]},
    "demand_amount": {"value": null, "absent": "no amount is demanded"},
    "urgency": {"value": "routine", "basis": "informational message, no deadline or pressure"}
@@ -90,8 +90,16 @@ store.
 
 ## Review decisions
 
-Opus settles a disputed (or single-pass) field with one line in a review file:
-`{"doc_id", "field", "verdict", "reviewer": {"model": "...", "role": "..."}, "note"?, "entry"?}`.
+Opus settles a disputed (or single-pass) field with one JSON object per line in a review file (wrapped here for reading):
+
+```json
+{"doc_id": "DOC-…", "field": "urgency", "verdict": "correct",
+ "reviewer": {"model": "claude-opus", "role": "review"},
+ "note": "optional reason",
+ "entry": {"value": "routine", "basis": "informational message"}}
+```
+
+`note` is optional; `entry` is required for `correct` and not used otherwise.
 The reviewer needs a non-empty `model` and `role`; a missing verdict, a `correct` without an
 `entry`, an unknown verdict or two decisions for one field stop the build.
 
