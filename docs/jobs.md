@@ -119,6 +119,11 @@ job:
                             # (expected class and fields) out of the graph's state,
                             # so routing cannot read them (llm-mailroom #207); scoring
                             # still uses the full locked row. Hashed only when true
+  pipeline_handoff: false   # specialist tasks only. true sends each document the extract
+                            # node's handoff (sorter-class line + the vendored
+                            # doc_inventories note, no subclass) and applies the node's
+                            # inventory normalization, so an isolated A/B sees what the
+                            # pipeline's specialist sees (llm-mailroom #174). Hashed only when true
 
 reviewer:                   # optional decision reviewer (SAND-085); see docs/experiments.md
   backend: api              # jev | local | api | mock

@@ -38,6 +38,14 @@ agents:
         reference_run: extraction-gate-specialist-insurance-claim-qwen
         validation_run: specialist-condensed-v3-insurance-claim-qwen-ab
         status: adopted   # mean +0.130 (0.770 -> 0.899), 60/60 docs better, 0 parse errors, -15% input tokens; every subclass up (property 0.69 -> 0.89)
+      - version: insurance_claims_specialist_condensed_v4
+        parent: "insurance_claims_specialist_condensed_v3 (claim_type is the printed line of business, never a CMS table token even when a handoff note lists one; Part D lists its NDC in supporting_documents; slice-gate fix loop #306)"
+        # The pipeline's extract node appends the vendored doc_inventories note, which tells the
+        # model to put CMS tables in claim_type (llm-mailroom #174); every earlier A/B ran without it.
+        # Both arms therefore run with job.pipeline_handoff, plus a v3 arm without it.
+        reference_run: specialist-condensed-v4-insurance-claim-qwen-v3arm
+        validation_run: specialist-condensed-v4-insurance-claim-qwen-v4arm
+        status: candidate   # not run yet
   correspondence_specialist:
     frontrunner: correspondence_specialist_condensed_v3
     versions:
