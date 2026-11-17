@@ -19,11 +19,7 @@ def _loop(args, *, need_executor: bool):
 
     from mailroom_sandbox.autoresearch.loop import AutoresearchError
 
-    from mailroom_sandbox.providers import default_profile
-
-    # `--profile` always has a value (the default); only a profile other than the default is an override.
-    profile = getattr(args, "profile", None)
-    profile = profile if profile and profile != default_profile() else None
+    profile = _profile_given(args)
     ignored = [flag for flag, value in (("--model", getattr(args, "model", None)), ("--prompt", getattr(args, "prompt", None)),
                                         ("--agent-model", getattr(args, "agent_models", None)), ("--profile", profile)) if value]
     if ignored:
@@ -37,6 +33,17 @@ def _loop(args, *, need_executor: bool):
         raise AutoresearchError(f"study {study.study!r} is a paid run: pass --initials XX (2-6 letters, yours; never defaulted)")
     executor = CliExecutor(initials=initials) if need_executor else None
     return Loop(study, executor)
+
+
+def _profile_given(args) -> bool:
+    """Whether ``--profile`` was typed: argparse always fills in its default, so read the raw arguments."""
+    raw = getattr(args, "raw_argv", None)
+    if raw is None:   # called without `main` (no raw arguments): only a non-default value shows an override
+        from mailroom_sandbox.providers import default_profile
+
+        return bool(getattr(args, "profile", None)) and args.profile != default_profile()
+    # Any unambiguous abbreviation argparse accepts (`--prof`, `--profile=x`) counts too.
+    return any(len(tok.split("=", 1)[0]) > len("--pro") and "--profile".startswith(tok.split("=", 1)[0]) for tok in raw)
 
 
 def _guarded(fn):

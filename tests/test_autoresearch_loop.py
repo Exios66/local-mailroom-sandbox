@@ -1739,10 +1739,12 @@ def test_the_report_states_both_keep_rules_and_labels_the_cost_split_as_whole_ru
 
 
 @pytest.mark.parametrize("flags", [["--model", "x/y"], ["--prompt", "sorter_local_v0"], ["--agent-model", "judge=x/y"],
-                                   ["--profile", "zz-not-the-default"]])
+                                   ["--profile", "zz-not-the-default"], ["--profile", "DEFAULT"], ["--prof=DEFAULT"]])
 def test_a_shared_model_or_prompt_override_is_refused_not_silently_ignored(tmp_path, flags, capsys):
     from mailroom_sandbox.cli import main
+    from mailroom_sandbox.providers import default_profile
 
+    flags = [f.replace("DEFAULT", default_profile()) for f in flags]                  # an explicit default is refused too
     study = str(tmp_path / "study.yaml")
     assert main(["autoresearch", "plan", "--study", study, *flags]) != 0
     assert "does not apply" in capsys.readouterr().err

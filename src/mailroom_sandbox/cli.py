@@ -135,6 +135,7 @@ def main(argv: list[str] | None = None) -> int:
         load_env_file()
         parser = build_parser()
         args = parser.parse_args(argv)
+    args.raw_argv = tuple(raw)   # lets a handler tell an explicit flag from its argparse default
     if not hasattr(args, "handler"):
         parser.print_help()
         return 0
