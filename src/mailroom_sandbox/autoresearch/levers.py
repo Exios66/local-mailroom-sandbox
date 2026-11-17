@@ -344,6 +344,11 @@ def requirement_met(lever: Lever, catalog: Sequence[Lever], rows: Sequence[Mappi
     return any(all(holds(name, arg) for name, arg in alternative.items()) for alternative in lever.requires)
 
 
+def _paths_overlap(a: str, b: str) -> bool:
+    """Whether two dotted patch paths touch the same value: equal, or one is a parent of the other."""
+    return a == b or a.startswith(b + ".") or b.startswith(a + ".")
+
+
 def derive_placements(catalog: Catalog, base_spec: Mapping[str, Any], rows: Sequence[Mapping[str, Any]]) -> list[Lever]:
     """Cost levers for every kept lever of a placement group: the winner on a subset of its roles.
 
@@ -371,7 +376,7 @@ def derive_placements(catalog: Catalog, base_spec: Mapping[str, Any], rows: Sequ
                 continue
             pos, win_row = kept[winner.id]
             superseded = any(other.id != winner.id and other.group == placement.group and other.id in kept
-                             and kept[other.id][0] > pos and set(other.patch) & set(paths.values())
+                             and kept[other.id][0] > pos and any(_paths_overlap(p, q) for p in other.patch for q in paths.values())
                              for other in catalog.levers)
             if superseded:
                 continue

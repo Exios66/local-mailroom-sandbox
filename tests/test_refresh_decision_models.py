@@ -18,7 +18,7 @@ def _entry(model_id, prompt="0.000000042", **extra):
 
 
 def test_build_converts_prices_and_drops_aliases():
-    doc = rdm.build([_entry("typesafe/jev-1.14"), _entry("~typesafe/jev-latest"), _entry("x/y-latest")], today="2026-11-17")
+    doc = rdm.build([_entry("typesafe/jev-1.14"), _entry("~typesafe/jev-latest"), _entry("x/y-latest"), _entry("x/y-latest:free"), _entry("~x/z:floor")], today="2026-11-17")
     assert doc["checked"] == "2026-11-17"
     assert list(doc["models"]) == ["typesafe/jev-1.14"]
     assert doc["models"]["typesafe/jev-1.14"] == {

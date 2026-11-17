@@ -1664,3 +1664,21 @@ def test_the_cli_executor_refuses_a_paid_spec_whose_mock_flag_is_a_string(tmp_pa
         with pytest.raises(lp.AutoresearchError, match="--initials XX"):
             method(path)
     assert calls == []
+
+
+def test_a_relative_state_dir_is_resolved_against_the_study_file_like_every_other_path():
+    from mailroom_sandbox.paths import repo_root
+
+    path = repo_root() / "config/autoresearch/mock-smoke/study.yaml"
+    study = lp.Study.load(path).model_copy(update={"state_dir": "my-state"})
+    assert study.state_path == (path.parent / "my-state").resolve()
+    assert lp.Study.load(path).model_copy(update={"state_dir": "/abs/state"}).state_path == Path("/abs/state")
+
+
+@pytest.mark.parametrize("bad", ["0", "-2"])
+def test_run_refuses_a_max_rounds_below_one(bad, capsys):
+    from mailroom_sandbox.cli import main
+
+    with pytest.raises(SystemExit) as err:
+        main(["autoresearch", "run", "--study", "x.yaml", "--initials", "JJB", "--max-rounds", bad])
+    assert err.value.code == 2 and "must be at least 1" in capsys.readouterr().err

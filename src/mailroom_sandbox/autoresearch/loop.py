@@ -162,8 +162,7 @@ class Study(BaseModel):
     @property
     def state_path(self) -> Path:
         if self.state_dir:
-            path = Path(self.state_dir).expanduser()
-            return path if path.is_absolute() else repo_root() / path
+            return self._resolve(self.state_dir)       # relative to the study file, like every other path here
         return repo_root() / "reports" / "autoresearch" / self.study
 
     def base_spec(self) -> dict[str, Any]:

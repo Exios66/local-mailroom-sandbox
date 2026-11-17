@@ -1,9 +1,17 @@
 """``sandbox autoresearch plan|step|run|status|holdout``."""
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from typing import Any
+
+
+def _positive_int(value: str) -> int:
+    n = int(value)
+    if n < 1:
+        raise argparse.ArgumentTypeError(f"must be at least 1, got {n}")
+    return n
 
 
 def _loop(args, *, need_executor: bool):
@@ -103,7 +111,7 @@ def register(sub, leaf) -> None:
     p.add_argument("--json", action="store_true")
     add("step", _step, "run the baseline if missing, then one candidate round", initials=True)
     p = add("run", _run, "run candidate rounds until budget, levers or consecutive reverts stop it", initials=True)
-    p.add_argument("--max-rounds", type=int, default=3, metavar="N", help="candidate rounds to run in this call (default 3)")
+    p.add_argument("--max-rounds", type=_positive_int, default=3, metavar="N", help="candidate rounds to run in this call (default 3)")
     add("status", _status, "ledger summary: kept, reverted, spend, champion")
     add("holdout", _holdout, "confirm the champion once on a draw disjoint from the dev draw", initials=True)
     group.set_defaults(handler=lambda args: group.print_help() or 0)

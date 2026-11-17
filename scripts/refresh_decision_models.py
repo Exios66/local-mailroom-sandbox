@@ -38,7 +38,8 @@ HEADER = (
 
 def is_alias(model_id: str) -> bool:
     """A moving alias (``~org/model``, ``...-latest``): never pinned, never in the catalog."""
-    return model_id.startswith("~") or model_id.endswith("-latest")
+    base = model_id.split(":", 1)[0]          # a ``:variant`` of an alias is still an alias
+    return base.startswith("~") or base.endswith("-latest")
 
 
 def _per_million(value: Any) -> float:

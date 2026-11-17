@@ -326,6 +326,17 @@ def test_a_later_tier_supersedes_the_winner_and_restores_to_the_tier_before_it()
     assert models(only_boss) == {"judge": "tier1-model", "arbiter": "tier1-model", "boss": "tier2-model"}   # restored to w1, not base
 
 
+def test_a_later_lever_patching_a_child_or_parent_path_also_supersedes_the_winner():
+    t1 = sup("w1", "tier1-model")
+    child = lever(id="w2", node=["judge"], group="sup", tier=2, patch={"agent_routes.judge.model": "tier2-model"})
+    parent = lever(id="w3", node=["judge"], group="sup", tier=2, patch={"agent_routes": {"judge": route("tier3-model")}})
+    for later in (child, parent):
+        rows = [kept("w1"), kept(later.id)]
+        assert not any(i.id.startswith("w1@") for i in lv.derive_placements(placement_catalog(t1, later), {}, rows))
+    assert lv._paths_overlap("agent_routes.judge", "agent_routes.judge.model")
+    assert not lv._paths_overlap("agent_routes.judge", "agent_routes.judge_v2")
+
+
 def test_a_reverted_later_tier_does_not_supersede_the_winner():
     t1, t2 = sup("w1", "tier1-model"), sup("w2", "tier2-model", tier=2)
     cat = placement_catalog(t1, t2)
