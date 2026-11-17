@@ -18,10 +18,13 @@ TOKEN = "s3cr3t-token-value"
 class FakeMailroom:
     """Answers like the mailroom API: uploads land, then each document finishes after ``ticks`` lookups."""
 
-    def __init__(self, rows, *, ticks=1, wrong=(), never=(), stage="archived", oracle=True):
-        self.by_name = {}
+    def __init__(self, rows, *, ticks=1, wrong=(), never=(), stage="archived", oracle=True, upload_status=()):
+        self.by_name: dict[str, str] = {}  # inbox name -> original fixture name
+        self.matters: list[str] = []
         self.rows = {r["filename"]: r for r in rows}
         self.ticks, self.wrong, self.never, self.stage, self.oracle = ticks, set(wrong), set(never), stage, oracle
+        self.upload_status = list(upload_status)  # statuses returned before uploads succeed
+        self.lookup_status: int | None = None
         self.requests: list[httpx.Request] = []
         self.lookups: dict[str, int] = {}
 
@@ -31,23 +34,34 @@ class FakeMailroom:
         if path == "/health":
             return httpx.Response(200, json={"status": "ok", "service": "mailroom", "checks": {"watcher": "ok"}})
         if path == "/upload" and request.method == "POST":
-            m = re.search(rb'filename="([^"]+)"', request.content)
-            name = m.group(1).decode()
-            self.by_name[name] = len(self.by_name)
+            if self.upload_status:
+                return httpx.Response(self.upload_status.pop(0), json={"detail": "Too many uploads"})
+            sent = re.search(rb'name="file"; filename="([^"]+)"', request.content).group(1).decode()
+            self.matters.append(re.search(rb'name="matter_id"\r\n\r\n([^\r]*)', request.content).group(1).decode())
+            original = next(f for f in self.rows if sent.endswith("-" + f))
+            name, n = sent, 0
+            while name in self.by_name:  # the API de-duplicates inbox names like this
+                n += 1
+                name = f"{sent.rsplit('.', 1)[0]}-{n}.{sent.rsplit('.', 1)[1]}"
+            self.by_name[name] = original
             return httpx.Response(202, json={"status": "accepted", "file": name, "upload_id": f"u{len(self.by_name)}"})
         if path == "/lookup":
+            if self.lookup_status:
+                return httpx.Response(self.lookup_status, json={"detail": "bad gateway"})
             name = request.url.params["filename"]
             seen = self.lookups[name] = self.lookups.get(name, 0) + 1
             if name not in self.by_name:
                 return httpx.Response(404, json={"detail": "Document not found"})
-            original = name.split("-", 2)[-1]
+            original = self.by_name[name]
             row = self.rows[original]
+            doc_id = f"d{list(self.by_name).index(name)}"
             if original in self.never or seen < self.ticks:
-                return httpx.Response(200, json={"document": {"doc_id": f"d{self.by_name[name]}", "stage": "processing"}})
-            doc_type = "correspondence" if original in self.wrong else row["expected_doc_class"]
+                return httpx.Response(200, json={"document": {"doc_id": doc_id, "stage": "processing"}})
+            failed = self.stage == "failed"
+            doc_type = None if failed else ("correspondence" if original in self.wrong else row["expected_doc_class"])
             fields = json.loads(row["expected_fields"]) if (self.oracle and row.get("expected_fields")) else {}
             return httpx.Response(200, json={"document": {
-                "doc_id": f"d{self.by_name[name]}", "original_filename": name, "stage": self.stage,
+                "doc_id": doc_id, "original_filename": name, "stage": self.stage,
                 "doc_type": doc_type, "classification_confidence": 0.97, "extracted_data": fields,
                 "trace_id": "t", "escalation_reason": None,
             }})
@@ -84,7 +98,9 @@ def test_eval_scores_api_results_with_the_dojo(rows):
     # every upload is renamed with the run tag, so an older same-named document is never read back
     assert all(d["file"].startswith("t1-") for d in report["documents"])
     assert all(r.headers["authorization"] == f"Bearer {TOKEN}" for r in fake.requests)
-    assert b"SANDBOX-API-EVAL" in fake.uploads[0].content
+    assert fake.matters == ["SANDBOX-API-EVAL"] * 3
+    want = [r["expected_stage"] for r in rows]
+    assert report["stage"]["stage_correct"] == pytest.approx(want.count("archived") / 3, abs=1e-3)
 
 
 def test_eval_counts_a_misclassification(rows):
@@ -110,7 +126,82 @@ def test_parked_documents_are_classified_but_not_extraction_scored(rows):
     report = family_api.run_api_eval(rows, _api(fake), sleep=_no_sleep)
     assert report["stages"] == {"review": 3}
     assert report["classification"]["n"] == 3
-    assert report["extraction"] == {"n": 0, "overall_extraction_score": None}
+    assert report["extraction"]["n"] == 0 and report["extraction"]["overall_extraction_score"] is None
+    want = [r["expected_stage"] for r in rows]
+    assert report["stage"]["stage_correct"] == pytest.approx(want.count("review") / 3, abs=1e-3)
+    assert report["ok"] is True  # parked is a pipeline outcome, not a run failure
+
+
+def test_failed_documents_count_as_wrong_and_fail_the_run(rows):
+    fake = FakeMailroom(rows, stage="failed")
+    report = family_api.run_api_eval(rows, _api(fake), sleep=_no_sleep)
+    assert report["ok"] is False and len(report["failed"]) == 3
+    assert report["classification"]["n"] == 3 and report["classification"]["accuracy"] == 0.0
+    assert all(d["doc_type"] is None for d in report["documents"])
+
+
+def test_rate_limited_upload_is_retried_after_a_backoff(rows):
+    fake = FakeMailroom(rows, upload_status=[429, 429])
+    slept = []
+    report = family_api.run_api_eval(rows, _api(fake), sleep=slept.append)
+    assert report["ok"] is True and report["n"] == 3
+    assert slept[:2] == [family_api.RATE_LIMIT_BACKOFF_SECONDS] * 2
+
+
+def test_a_refused_upload_keeps_the_documents_already_accepted(rows):
+    fake = FakeMailroom(rows)
+    real = fake.__call__
+
+    def refuse_second_upload(request):
+        if request.url.path == "/upload" and len(fake.by_name) == 1:
+            return httpx.Response(400, json={"detail": "Unsupported file type"})
+        return real(request)
+
+    api = family_api.MailroomAPI("http://mailroom.test", TOKEN, transport=httpx.MockTransport(refuse_second_upload))
+    report = family_api.run_api_eval(rows, api, sleep=_no_sleep)
+    assert report["ok"] is False and "Unsupported file type" in report["error"]
+    assert report["n_rows"] == 3 and report["n"] == 1 and report["completed"] == 1
+
+
+def test_a_lookup_error_while_polling_returns_a_partial_report(rows):
+    fake = FakeMailroom(rows)
+    fake.lookup_status = 502
+    report = family_api.run_api_eval(rows, _api(fake), sleep=_no_sleep)
+    assert report["ok"] is False and "HTTP 502" in report["error"]
+    assert report["n"] == 3 and len(report["incomplete"]) == 3
+    assert {d["upload_id"] for d in report["documents"]} == {"u1", "u2", "u3"}
+
+
+def test_same_named_rows_are_tracked_separately(rows):
+    twice = [rows[0], dict(rows[0], id="again")]
+    fake = FakeMailroom(rows)
+    report = family_api.run_api_eval(twice, _api(fake), run_tag="dup", sleep=_no_sleep)
+    files = [d["file"] for d in report["documents"]]
+    assert len(set(files)) == 2 and report["completed"] == 2
+
+
+def test_rows_with_only_doc_type_are_scored(rows):
+    legacy = [{k: v for k, v in r.items() if k != "expected_doc_class"} | {"doc_type": r["expected_doc_class"]}
+              for r in rows]
+    fake = FakeMailroom(rows)
+    report = family_api.run_api_eval(legacy, _api(fake), sleep=_no_sleep)
+    assert report["classification"]["accuracy"] == 1.0 and report["extraction"]["n"] == 3
+
+
+def test_zero_poll_interval_is_clamped(rows):
+    fake = FakeMailroom(rows, never={rows[0]["filename"]})
+    slept = []
+    ticks = iter(range(10_000))
+    family_api.run_api_eval(rows, _api(fake), poll_seconds=0, doc_timeout=100, sleep=slept.append,
+                            clock=lambda: float(next(ticks)))
+    assert slept and min(slept) >= family_api.MIN_POLL_SECONDS
+
+
+def test_doc_ids_are_validated_before_they_reach_a_path():
+    fake = FakeMailroom([])
+    with pytest.raises(ValueError):
+        _api(fake).audit("../ops/sweep")
+    assert fake.requests == []
 
 
 def test_errors_never_print_the_token(rows):
@@ -168,13 +259,13 @@ def test_eval_without_submit_only_plans(monkeypatch, capsys):
     assert calls == []  # nothing was sent
 
 
-def test_eval_submit_writes_the_report_and_exits_nonzero_on_incomplete(monkeypatch, tmp_path, capsys, rows):
+def test_eval_submit_writes_the_report_and_exits_nonzero_when_unfinished(monkeypatch, tmp_path, capsys, rows):
     monkeypatch.setenv("MAILROOM_API_URL", "http://mailroom.test")
     monkeypatch.setenv("MAILROOM_API_TOKEN", TOKEN)
     fake = FakeMailroom(load_manifest())
     monkeypatch.setattr(family_api, "_default_transport", lambda: httpx.MockTransport(fake))
     out_path = tmp_path / "report.json"
-    rc = cli.main(["api", "eval", "--class", "contract", "--sample", "1", "--submit", "--poll", "0",
+    rc = cli.main(["api", "eval", "--class", "contract", "--sample", "1", "--submit", "--poll", "0.2",
                    "--out", str(out_path)])
     assert rc == 0
     report = json.loads(out_path.read_text())
@@ -182,9 +273,15 @@ def test_eval_submit_writes_the_report_and_exits_nonzero_on_incomplete(monkeypat
     assert TOKEN not in capsys.readouterr().out
 
     fake.never = {r["filename"] for r in load_manifest()}
-    rc = cli.main(["api", "eval", "--class", "contract", "--sample", "1", "--submit", "--poll", "0",
+    rc = cli.main(["api", "eval", "--class", "contract", "--sample", "1", "--submit", "--poll", "0.2",
                    "--timeout", "0"])
     assert rc == 1
+
+
+@pytest.mark.parametrize("flags", [["--poll", "0"], ["--poll", "-1"], ["--timeout", "-5"]])
+def test_eval_rejects_bad_poll_and_timeout(flags, capsys):
+    assert cli.main(["api", "eval", "--submit", *flags]) == 2
+    assert "must" in capsys.readouterr().err
 
 
 def test_eval_rejects_an_empty_selection(capsys):

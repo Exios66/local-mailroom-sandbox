@@ -2597,6 +2597,10 @@ def _cmd_api_eval(args: argparse.Namespace) -> int:
         rows = rows[: args.sample]
     if not rows:
         raise CLIUsageError("no fixture rows match the selection")
+    if args.poll is not None and args.poll <= 0:
+        raise CLIUsageError("--poll must be positive")
+    if args.timeout is not None and args.timeout < 0:
+        raise CLIUsageError("--timeout must not be negative")
     api = family_api.MailroomAPI()
     if not args.submit:
         _print(family_api.plan_api_eval(rows, base_url=api.base_url))
