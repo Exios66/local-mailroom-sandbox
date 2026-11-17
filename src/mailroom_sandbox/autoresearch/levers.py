@@ -501,7 +501,7 @@ def _placement_problems(catalog: Catalog, base_spec: Mapping[str, Any]) -> list[
                 derived = derive_placements(
                     Catalog(levers=[winner], placements=[placement]), base_spec,
                     [{"lever": winner.id, "decision": "keep"}])
-            except (KeyError, IndexError, ValueError) as exc:
+            except (KeyError, IndexError, ValueError, AttributeError, TypeError) as exc:
                 problems.append(f"{where}: path {placement.path!r} does not derive a valid lever ({type(exc).__name__}: {exc})")
                 break
             for lever in derived:

@@ -99,7 +99,9 @@ State is under `reports/autoresearch/<study>/` (override with `state_dir`):
 The loop resumes from the ledger: re-run the same command after a stop, a crash or a changed budget. One exception: a crash or power
 loss in the middle of a ledger append can leave a torn last line, which the loop rejects (`unreadable ledger row`) rather than guess at. Look at
 the end of `ledger.jsonl`; if only its final line is cut off, that row was never committed, so remove just that line by hand and re-run. A torn
-`pending` row loses its reservation, so for a paid study check the key's usage first (the `key_spend` guard counts what the key was billed).
+`pending` row loses its reservation, so for a paid study check the key's usage first: the `key_spend` guard counts what a capped key was billed,
+but it is skipped for a key with no limit (the loop warns), so with such a key add the lost round's spend to your own tally against `budget.study_usd`.
+This manual repair is not covered by a test.
 A run directory that exists without a ledger row (a study restarted with an empty state directory) is refused, never resumed: move it aside. The ledger row is
 the commit point: `champion.yaml` is written just before it, and the champion's spec is read from `specs/`, so a crash
 between the two files leaves a consistent state. Spec files, `champion.yaml`, scores, the views and `key_start.json` are written through a
