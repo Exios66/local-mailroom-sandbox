@@ -6,14 +6,19 @@ Status of the fixes:
 
 | Fix | Where | State |
 |---|---|---|
-| Gate counts only fields the Dojo scores | #318 | Open |
-| Re-vendor: null-`choices` judge fix, reviewer error recording, correspondence typed by content | #319 | Open |
+| Gate counts only fields the Dojo scores | #318 | Merged (`787d61e`) |
+| Re-vendor: null-`choices` judge fix, reviewer error recording, correspondence typed by content | #319 | Merged |
 | Insurance `claim_type` is the product line (#174 §2) | Exios66/llm-mailroom#280 | Open upstream |
 | CUAD dates count toward recall only (#167) | Exios66/llm-dojo-scoring#173 | Open upstream |
 
 ## Now: on the current pins, about $1.05 in total
 
-Run both from one checkout of #318 (`fix/gate-scored-fields`). That checkout has the judge-audit config, the corrected gate and the insurance A/B arms. Run them **before #319 merges**, so they share r2's pins and pair cleanly with it.
+Run both from a checkout of `787d61e`, the #318 merge on `main` and the last commit before #319. It has the judge-audit config, the corrected gate and the insurance A/B arms on r2's pins, so both runs pair cleanly with r2. The `mailroom-readiness-handoff` worktree (branch `fix/gate-scored-fields`) holds the same code. Do not update it before these runs. A `main` checkout after #319 runs on the new pins and does not pair with r2.
+
+```bash
+git worktree add ../mailroom-q1q2 787d61e   # or reuse the mailroom-readiness-handoff worktree
+cd ../mailroom-q1q2 && ln -s ../local-mailroom-sandbox/.venv .venv
+```
 
 ```bash
 export PYTHONPATH="$PWD/src"   # also load OPENROUTER_API_KEY from your own secret store; never paste it into a file
@@ -47,7 +52,7 @@ for a in v3arm-plain v3arm v4arm; do .venv/bin/sandbox run start --config config
 
 ## Free: after merges
 
-### Q3. Merge #318 and #319, then re-score r2
+### Q3. Re-score r2 on the merged code
 
 - **Cost:** none.
 - **Steps:**

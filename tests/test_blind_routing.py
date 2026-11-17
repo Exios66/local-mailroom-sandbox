@@ -46,18 +46,24 @@ def test_the_graph_gets_labels_only_when_routing_is_not_blind(monkeypatch, tmp_p
     monkeypatch.setenv("MAILROOM_BASE_DIR", str(tmp_path))
     seen = {}
 
+    from pipeline.config import oracle_routing_enabled
+
     def fake_run_pipeline(path, matter_id, **kwargs):
-        seen.update(kwargs)
+        seen.update(kwargs, oracle=oracle_routing_enabled())
         return {"doc_type": "contract", "stage": "archived", "extracted_data": {"title": "x"}}
 
     monkeypatch.setattr(build_graph, "run_pipeline", fake_run_pipeline)
     monkeypatch.setattr(runtime, "blind_routing_active", lambda: blind)
+    # A blind run forces oracle routing off even when the environment asks for it (llm-mailroom #264).
+    monkeypatch.setenv("MAILROOM_ORACLE_ROUTING", "1" if blind else "0")
     row = {"id": "b0", "filename": "b0.txt", "doc_text": "agreement " * 20, "expected_doc_class": "contract",
            "expected_fields": {"title": "x"}}
     out = runners._run_pipeline_doc(row, mock=True)
     assert out["doc_type"] == "contract"
     if blind:
         assert seen["ground_truth"] is None
+        assert seen["oracle"] is False
     else:
         assert seen["ground_truth"]["expected_doc_class"] == "contract"
         assert seen["ground_truth"]["expected_fields"] == {"title": "x"}
+        assert seen["oracle"] is True  # routing may read the labels it is given, as before #264

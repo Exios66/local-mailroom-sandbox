@@ -13,8 +13,8 @@ In this page, **measured** means read from a stored run, **counterfactual** mean
 | Item | State |
 |---|---|
 | `main` | `b28a7a9` (merge of #315) |
-| Vendor pins | llm-mailroom `abb1ccf`, Dojo `13adc8e` |
-| Re-vendor target | llm-mailroom `v0.30.0` at `63f6841`, Dojo `116da0b`. `63f6841` contains all of llm-mailroom `main` at `10c1d93` (7 commits ahead, 0 behind). |
+| Vendor pins | llm-mailroom `63f6841`, Dojo `116da0b` (`v0.30.1`) |
+| Next re-vendor | After Exios66/llm-mailroom#280 (insurance `claim_type`, #174 §2) and Exios66/llm-dojo-scoring#173 (CUAD dates, #167) merge |
 | Latest slice | `production-slice-0100-r2`: **failed** the gate (measured) |
 | Modal job host | Code merged in #314. The worker is not deployed. |
 
@@ -33,12 +33,12 @@ The wrong archives fall into three buckets: `out_of_enum` 18, `wrong_value` 18 a
 
 | Cause | Fixed? | Where |
 |---|---|---|
-| Insurance `claim_type` gets CMS table tokens: the schema description and the extract-node handoff teach them | **No.** Unchanged at `63f6841`. | Exios66/llm-mailroom#174 §2. It was deferred until after E2; E2 is done, and scheduling was requested on the issue. |
+| Insurance `claim_type` gets CMS table tokens: the schema description and the extract-node handoff teach them | **PR open** | Exios66/llm-mailroom#280 (#174 §2), against `v0.30.0`. Not vendored yet. |
 | Insurance Part D `supporting_documents` left empty | Sandbox prompt candidate only | The insurance condensed v4 prompt (#315). Its A/B is pending. |
-| Correspondence `communication_type` set to `email` for any inbox item | Yes, upstream | Exios66/llm-mailroom#271 and #273, Exios66/llm-dojo-scoring#166. These arrive with the re-vendor. |
-| `judge_error` from a 200 response with `choices: null` | Yes, upstream | Exios66/llm-mailroom#261. Arrives with the re-vendor. |
-| Decision-reviewer backend error recorded as no answer | Yes, upstream | Exios66/llm-mailroom#268, via #271. Arrives with the re-vendor. |
-| CUAD Agreement Date never scored | No | Exios66/llm-dojo-scoring#167 (scorer gap) |
+| Correspondence `communication_type` set to `email` for any inbox item | **Yes**, vendored | Exios66/llm-mailroom#271 and #273, Exios66/llm-dojo-scoring#166, at `63f6841` / `116da0b` |
+| `judge_error` from a 200 response with `choices: null` | **Yes**, vendored | Exios66/llm-mailroom#261, at `63f6841` |
+| Decision-reviewer backend error recorded as no answer | **Yes**, vendored | Exios66/llm-mailroom#268, via #271, at `63f6841` |
+| CUAD Agreement Date never scored | **PR open** | Exios66/llm-dojo-scoring#173 (#167): recall-only, so an unlabelled date is never a false positive. Not vendored yet. |
 | Correspondence `intent` label ceiling | No | Exios66/llm-dojo-scoring#171. Of the 12 misses, 4 are extraction errors, 4 have questionable labels and 4 are ambiguous. |
 | Contract CUAD recall | No | A compact contracts lineage is proposed as its own task |
 
@@ -77,7 +77,7 @@ Every step from 1 on spends money or is reserved for the owner, so a human start
    sandbox run gate --run-id judge-audit-0026 --prev-run-id production-slice-0100-r2
    ```
    If the judge rejects most of r2's wrong archives, widen the judge band for those classes. If it passes them, judge routing cannot fix the gate, and the work moves to extraction and labels.
-1. **Insurance v4 A/B** (OpenRouter, $0.10 cap per arm, 40 shared insurance documents). The arms are disjoint from slice 500 and from the tuning list. Run this from a checkout of `main` with `OPENROUTER_API_KEY` set:
+1. **Insurance v4 A/B** (OpenRouter, $0.10 cap per arm, 40 shared insurance documents). The arms are disjoint from slice 500 and from the tuning list. Run this and step 0 from a checkout of `787d61e`, the #318 merge on r2's pins (see the queue), with `OPENROUTER_API_KEY` set:
    ```bash
    export PYTHONPATH="$PWD/src"
    for a in v3arm-plain v3arm v4arm; do sandbox run preflight --config config/runs/specialist-condensed-v4-insurance-claim-qwen-$a.yaml; done
@@ -89,16 +89,13 @@ Every step from 1 on spends money or is reserved for the owner, so a human start
    - Add the arm ids to `config/production/excluded-ids.txt` with `scripts/build_excluded_ids.py`.
 
    The `v3arm-plain` vs `v3arm` pair measures what the pipeline handoff itself costs. The A/B stays valid before or after the re-vendor, because the handoff code and the insurance note are byte-identical at `63f6841`.
-2. **Re-vendor** with `/vendor-sync` (owner only) to llm-mailroom `63f6841` and Dojo `116da0b`. In the same PR:
-   - Remove the strict `xfail` in `tests/test_judge_second_pass.py`. The #260 fix makes it pass, and a strict xfail then fails CI.
-   - Update "Known causes" in [`production-slices.md`](production-slices.md). The `judge_error`, correspondence-type and reviewer-error entries become fixed.
-   - Keep `dependency_sources` in the run locks.
-3. **Slice 100 r3:** preflight, start (human initials), then `sandbox run gate --run-id production-slice-0100 --thresholds`. Expect `out_of_enum` on insurance until #174 §2 lands.
+2. **Re-vendor to llm-mailroom `63f6841` and Dojo `116da0b`:** done in this re-vendor PR, with the #260 xfail removed. Runs locked on the old pins keep their `dependency_sources`. Do not compare them with new runs without re-scoring.
+3. **Slice 100 r3:** waits for step 5's second re-vendor and the step 0 and step 1 decisions. Run it as `production-slice-0100-r3` and gate it against r2 (queue Q4). Run before #174 §2 lands, it pays to see the known insurance `out_of_enum` failure.
 4. **Modal job-host parity** (#308):
    - Deploy `sandbox-job` on the `exios66` profile, from a shell that has the key loaded (runbook, "Modal job-host parity").
    - Then run the `slice-0100-modal-host.yaml` twin of a slice that passed locally.
-5. **After #174 §2 merges upstream:**
-   - Re-vendor again.
+5. **After Exios66/llm-mailroom#280 and Exios66/llm-dojo-scoring#173 merge:**
+   - Re-vendor again. llm-mailroom also needs to re-pin its Dojo dependency to the #173 merge.
    - Re-score the stored insurance runs (Exios66/llm-mailroom#183).
    - Re-run slice 100, then step up to 250 and 500 as each one passes.
 

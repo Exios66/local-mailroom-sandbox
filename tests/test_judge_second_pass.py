@@ -5,7 +5,7 @@ r3 ``DOC-47d391f2646c0506`` and E3 ``DOC-2fbe8b3db2901e16`` parked as ``judge_er
 the judge with a stub LLM runs cleanly (first test), so the judge input is not the cause. A 200
 response whose ``choices`` is null, the shape OpenRouter returns when an upstream provider fails,
 reproduces the exact ``TypeError``, and it is not classed as transient, so the node parks the
-document instead of retrying (second test, strict xfail until the upstream fix is vendored).
+document instead of retrying (second test; fixed upstream by llm-mailroom #261, vendored at 63f6841).
 """
 from __future__ import annotations
 
@@ -65,9 +65,8 @@ def test_second_pass_judge_accepts_retried_contract_extraction():
         "extraction_correctness_label"] == "accurate"
 
 
-@pytest.mark.xfail(strict=True, reason="Exios66/llm-mailroom#260: a 200 response with null choices raises a "
-                   "non-transient TypeError, so judge_verify_node parks the document as judge_error")
 def test_null_choices_response_is_a_transient_provider_error():
+    """Exios66/llm-mailroom#260, fixed by #261 (vendored at 63f6841): a 200 with null choices is transient."""
     from llm.retry import is_transient_error  # type: ignore
 
     def create(**kwargs):
