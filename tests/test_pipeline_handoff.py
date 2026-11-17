@@ -96,8 +96,12 @@ def test_the_insurance_v4_arms_share_one_draw_that_avoids_every_production_slice
     tuning = _ids(root / "config/production/excluded-ids.txt")
     # The arm list is frozen; excluded-ids.txt has since gained the A/B's own 40 documents, which the
     # arm list cannot hold (the arms drew them). Everything else in it was frozen into the arm list.
-    ab_draw = tuning - arm_list
-    assert len(ab_draw) == 40
+    ab_draw = _ids(root / "tests/fixtures/insurance_v4_ab_ids.txt")
+    assert len(ab_draw) == 40 and not ab_draw & arm_list  # the arms could not draw their own exclusions
+    # Exactly the A/B's documents are missing from the arm list: a tuning id swapped out for an A/B id
+    # (same counts) would show up here.
+    assert tuning - arm_list == ab_draw
+    assert ab_draw <= tuning  # the A/B joined the held-out list
     assert len(arm_list) == len(tuning - ab_draw) + 500  # a slice never draws a tuning document
 
 
