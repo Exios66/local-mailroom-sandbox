@@ -55,7 +55,7 @@ Source: the pipeline's correspondence specialist prompt (`llm/frozen_v1/correspo
 | Field | Type | Definition |
 |---|---|---|
 | `sender` | name | Who sent it: full name, title and entity as written. Press or wire: the issuing company or media-contact line. Null only when no sender is named. |
-| `recipient` | name | The named addressee. Press releases and wire articles with no named addressee: null. When several people are in "To", put the first one here and the rest in `additional_recipients`. |
+| `recipient` | name | The named addressee: the first `To:` entry as printed (a person, a distribution list or a group such as "All Enron Houston"), else a salutation that names a person or a defined group ("Dear GISB Members", "Houston Attendees:"). A generic salutation ("Dear Friends", "Gentlemen", "All", "To Our Readers") is not a named addressee: null. Press releases and wire articles with no named addressee: null. When several people are in "To", put the first one here and the rest in `additional_recipients`. |
 | `additional_recipients` | list | Further To, cc'd or copied parties as written. None: `[]`. |
 | `communication_date` | date | The date the communication was **sent**, not a deadline, meeting date or invoice date. Null if no send date is stated. |
 | `demand_amount` | money | Exact dollars the sender demands the recipient pay (218440.00 for "$218,440.00"). 0 is a stated amount. Null when no amount is demanded **of the recipient**: an amount that is only reported (an invoice total in an internal follow-up, money owed by someone else, an amount the sender will sue a third party for) is not a demand. Never compute or convert. |
@@ -64,11 +64,19 @@ Source: the pipeline's correspondence specialist prompt (`llm/frozen_v1/correspo
 
 Emails often carry forwarded or quoted messages. Take `sender`, `recipient`,
 `additional_recipients` and `communication_date` from the **first message in the document that
-has its own header** (a `From:` / `To:` / `Sent:` or `Date:` block, or a "Forwarded by … on
-<date>" line). A short note above a forward with no header of its own does not count: fall
-through to the first header below it. A signature alone ("Thanks, Jim") is not a header, but
+has its own header** (a `From:` / `To:` / `Sent:` or `Date:` block, or a sender name and date
+line followed by `To:`, as Lotus Notes prints it). A "Forwarded by … on <date>" line is **not** a
+header: it names who forwarded the mail, not who wrote it, so take the forwarded message's own
+sender, addressees and date (record the forwarder in `supplementary.alternatives`). A short note
+above a forward with no header of its own does not count either: fall through to the first header
+below it. A signature alone ("Thanks, Jim") is not a header, but
 when the document has no header at all, the signature's name is the sender. `action_items` and
-`urgency` still describe what the document as a whole asks of its reader. Record any other
+`urgency` still describe what the document as a whole asks of its reader. A bare pointer ("please see
+the attached notice", "check it out") is not an action item; a direct question or request put to
+the reader is. A calendar entry's sender is its chairperson or organiser, and its "Date:" is the
+event date, not a send date. A meeting reminder or a standing invitation is `routine`; it is
+`time-sensitive` when it asks the reader to do or confirm something today, tomorrow or by a
+stated near date. Record any other
 message's sender or date in `supplementary.alternatives`.
 
 ## Corporate record fields
@@ -101,7 +109,11 @@ pipeline's `ContractExtraction` v2 fields.
 
 ## Long documents
 
-Read the whole document before you decide that something is absent. For a long file, read it in
-parts or search it for the field's usual anchors (execution blocks, "IN WITNESS WHEREOF",
-"dated as of", "State of", "Sent:", "Date:"). An `absent` label on a document you did not fully
-read is worse than no label.
+Short documents (under about 40,000 characters) are read in full. For a longer one, read the
+first 15,000 and the last 15,000 characters in full, then search the rest (Grep on the file)
+for each missing field's anchors: execution blocks ("IN WITNESS WHEREOF", "By:", "/s/",
+"Name:"), dates ("dated as of", "effective", "as of the", "day of"), organisation ("organized
+under", "incorporated under", "a Delaware", "State of"), and for contracts "terminate", "notice",
+"term", "territory", "fee", "payment", "arbitration", "courts of". Read the passages around each
+hit. Declare a field absent only when the full read or this search finds nothing, and say in the
+`absent` reason which it was ("not found in full read" or "not found by search").

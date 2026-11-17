@@ -27,9 +27,13 @@ document::
    against the pipeline's own pydantic model in ``schemas.documents.EXTRACTION_SCHEMAS``.
 
 Fields that pass become catalog labels with status ``candidate``. :func:`reconcile` compares a
-label pass with an independent check pass: agreeing values become ``accepted``; disagreements
-are ``disputed`` and need a review decision (:func:`apply_review`). Only ``accepted`` labels
-have ``use_as_truth``. Anything that fails a gate, plus each submission's ``supplementary``
+label pass with an independent check pass: agreeing values become ``near_gold`` (the owner's
+name for labels Opus reviewed or two independent passes agree on);
+disagreements are ``disputed`` and need a review decision (:func:`apply_review`). No status here
+sets ``use_as_truth``: the refined-GT master copy lives in ``Exios66/Mailroom-Corpus-EDA``
+(its issue #65), and an agent's label becomes gold there only with a reviewer's initials.
+:func:`overlay_records` exports the catalog as candidates in the overlay shape EDA's
+``labeling/interim.py`` reads. Anything that fails a gate, plus each submission's ``supplementary``
 block, goes to the supplementary store, which no scorer reads.
 
 Files: ``data/labels/gold/`` (``<class>.jsonl`` + ``MANIFEST.json``, schema
@@ -51,8 +55,14 @@ from mailroom_sandbox.paths import repo_root, vendored_dojo_src, vendored_mailro
 
 SCHEMA = "mailroom-gold-labels/v1"
 SUPPLEMENTARY_SCHEMA = "mailroom-gold-supplementary/v1"
-STATUSES = ("candidate", "accepted", "disputed", "rejected")
-TRUTH_STATUSES = ("accepted",)
+STATUSES = ("candidate", "near_gold", "disputed", "rejected")
+#: Empty on purpose: ``near_gold`` (Opus-reviewed, or two independent passes agree) is the tier
+#: just below gold; a label becomes gold in EDA's master copy with a reviewer's initials.
+TRUTH_STATUSES: tuple[str, ...] = ()
+#: Below this many characters of text a correspondence row is a near-empty cover note
+#: (Mailroom-Corpus-EDA #63); its labels are tagged ``near_empty``.
+NEAR_EMPTY_CHARS = 200
+OVERLAY_SCHEMA = "mailroom-interim-labels/v1"
 
 #: Unlabelled scored fields to label, per class, in priority order. Tier 1 is mission-critical:
 #: who sent what to whom and when, how urgent it is, money demanded, who signed and when it
@@ -187,6 +197,7 @@ def _date_forms(value: str) -> set[str]:
     m, s = d.strftime("%B"), d.strftime("%b")
     day = d.day
     suf = "th" if 11 <= day <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
+    # Day-first numeric dates count only when they cannot be read month-first (day > 12).
     return {
         f"{d:%Y-%m-%d}", f"{d.month}/{day}/{d.year}", f"{d:%m/%d/%Y}", f"{d.month}/{day}/{d:%y}",
         f"{d:%m/%d/%y}", f"{m} {day}, {d.year}", f"{m} {day} {d.year}", f"{day} {m} {d.year}",
@@ -194,7 +205,7 @@ def _date_forms(value: str) -> set[str]:
         f"{m} {day}{suf}, {d.year}", f"{day}{suf} day of {m}, {d.year}", f"{day}{suf} day of {m} {d.year}",
         f"{day}{suf} of {m}, {d.year}", f"{day}-{s}-{d.year}", f"{day}-{s}-{d:%y}", f"{d:%d}-{s}-{d:%y}",
         f"{d.year}.{d:%m}.{d:%d}", f"{d.year}/{d:%m}/{d:%d}",
-    }
+    } | ({f"{d:%d}/{d:%m}/{d.year}", f"{day}/{d.month}/{d.year}"} if day > 12 else set())
 
 
 def _date_supported(value: str, evidence: str) -> bool:
@@ -537,6 +548,7 @@ def label_record(doc: Mapping[str, Any], fr: FieldResult, labeler: Mapping[str, 
         "absent_reason": fr.absent_reason,
         "status": status,
         "use_as_truth": status in TRUTH_STATUSES,
+        "near_empty": len(doc_text.strip()) < NEAR_EMPTY_CHARS,
         "labeler": dict(labeler),
         "checks": dict(fr.checks or {}),
         "schema": dict(schema_binding),
@@ -552,7 +564,7 @@ def reconcile(doc: Mapping[str, Any], doc_text: str, label: SubmissionResult, ch
     """Catalog records and supplementary rejects for one document.
 
     A field passes when the label pass passed the gate. With a check pass: both passed and
-    agree → ``accepted``; they disagree, or only one passed → ``disputed`` (the check's value
+    agree → ``near_gold``; they disagree, or only one passed → ``disputed`` (the check's value
     is kept for review). Without a check pass → ``candidate``.
     """
     types = _schema_bits(doc["doc_class"])[0]
@@ -571,7 +583,7 @@ def reconcile(doc: Mapping[str, Any], doc_text: str, label: SubmissionResult, ch
                 "gate_ok": bool(cr and cr.ok), "reason": None if cr is None else cr.reason}
         agree = bool(cr and cr.ok and values_agree(fr.value, cr.value, str(types[name])))
         info["agrees"] = agree
-        records.append(label_record(doc, fr, labeler, status="accepted" if agree else "disputed",
+        records.append(label_record(doc, fr, labeler, status="near_gold" if agree else "disputed",
                                     schema_binding=schema_binding, doc_text=doc_text, check=info))
     if check is not None:
         for name, cr in check.fields.items():
@@ -591,20 +603,21 @@ def apply_review(record: dict[str, Any], decision: Mapping[str, Any]) -> dict[st
     out = dict(record)
     verdict = decision["verdict"]
     if verdict == "accept":
-        out["status"] = "accepted"
+        out["status"] = "near_gold"
     elif verdict == "reject":
         out["status"] = "rejected"
     elif verdict == "correct":
-        out["status"] = "accepted"
+        out["status"] = "near_gold"
         out["value"] = decision["value"]
         if decision.get("evidence") is not None:
             out["evidence"] = decision["evidence"]
         if decision.get("presence"):
             out["presence"] = decision["presence"]
+        out["absent_reason"] = decision.get("absent_reason")
     else:
         raise ValueError(f"unknown verdict {verdict!r}")
     out["use_as_truth"] = out["status"] in TRUTH_STATUSES
-    out["review"] = {k: v for k, v in decision.items() if k not in ("value", "evidence")}
+    out["review"] = {k: v for k, v in decision.items() if k not in ("value", "evidence", "absent_reason")}
     return out
 
 
@@ -659,6 +672,38 @@ def verify_catalog(directory: Path) -> list[str]:
             if rec.get("presence") == "populated" and not rec.get("evidence") and not rec.get("absent_reason"):
                 problems.append(f"{where}: populated without evidence")
     return problems
+
+
+def overlay_records(records: Iterable[Mapping[str, Any]], *, gate_run: str) -> list[dict[str, Any]]:
+    """Catalog records as EDA overlay records (``mailroom-interim-labels/v1``), one per document.
+
+    Only ``near_gold`` and single-pass ``candidate`` labels are exported, as ``gap_fill``
+    (the Hub leaves these fields unlabelled); ``disputed`` and ``rejected`` stay here. EDA
+    shows them beside its models' answers and a reviewer may pick one with their initials;
+    ``use_as_truth`` is always false. ``basis`` says how the label was settled.
+    """
+    docs: dict[str, dict[str, Any]] = {}
+    for rec in records:
+        if rec.get("status") not in ("near_gold", "candidate"):
+            continue
+        review = rec.get("review") or {}
+        if rec["status"] == "candidate":
+            basis = "candidate:single_pass"
+        elif review:
+            basis = f"near_gold:opus_reviewed_{review.get('verdict')}"
+        else:
+            basis = "near_gold:two_pass_agree"
+        out = docs.setdefault(rec["doc_id"], {
+            "doc_class": rec["doc_class"], "doc_id": rec["doc_id"],
+            "doc_sha256": (rec.get("content_sha256") or rec.get("doc_sha") or "")[:16],
+            "doc_subclass": rec.get("subclass"), "labels": {},
+            "source": {"gate_run": gate_run, "catalog": SCHEMA, "labeler": rec.get("labeler"),
+                       "near_empty": bool(rec.get("near_empty"))}})
+        out["labels"][rec["field"]] = {
+            "value": rec.get("value"), "status": "gap_fill", "basis": basis, "hub_value": None,
+            "use_as_truth": False, "presence": rec.get("presence"), "evidence": rec.get("evidence"),
+            "absent_reason": rec.get("absent_reason"), "label_id": rec.get("label_id")}
+    return [docs[k] for k in sorted(docs)]
 
 
 def manifest_sha(directory: Path) -> str:
