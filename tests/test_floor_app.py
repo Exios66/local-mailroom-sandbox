@@ -672,7 +672,11 @@ def test_offline_image_copies_floor_assets_and_starts_without_checkout_mount(tmp
     sources = ["reports/dashboard/build_floor_digest.py", "reports/dashboard/floor.template.html"]
     assert f"COPY {' '.join(sources)} ./reports/dashboard/" in dockerfile
     image = tmp_path / "image"
-    for source in sources + ["vendor/llm-mailroom/src/graph/build_graph.py"]:
+    # The image copies all of vendor/; the digest reads build_graph.py and, since llm-mailroom #286,
+    # the edge topology declared beside it in route_spec.py.
+    graph_sources = ["vendor/llm-mailroom/src/graph/build_graph.py", "vendor/llm-mailroom/src/graph/route_spec.py"]
+    assert "COPY vendor ./vendor" in dockerfile
+    for source in sources + graph_sources:
         dest = image / source
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(root / source, dest)

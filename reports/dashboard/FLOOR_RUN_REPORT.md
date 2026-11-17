@@ -60,4 +60,4 @@ MAILROOM_BASE_DIR=/path/to/sandbox-data python reports/dashboard/build_floor_dig
 
 Contract: the module docstring of `build_floor_digest.py` (output files and exit codes) and
 `selftest_floor_digest.py` (the checks it must pass). Topology is parsed from
-`vendor/llm-mailroom/src/graph/build_graph.py` — no hand-drawn graph.
+`vendor/llm-mailroom/src/graph/build_graph.py` and the edge table in `route_spec.py` beside it — no hand-drawn graph.
