@@ -521,3 +521,95 @@ def test_eval_floor_run_records_a_run_the_floor_can_open(monkeypatch, tmp_path, 
 def test_eval_base_needs_floor_run(capsys):
     assert cli.main(["api", "eval", "--base", "x"]) == 2
     assert "--floor-run" in capsys.readouterr().err
+
+
+# --- --dataset-config: corpus rows instead of the bundled fixtures --------------------------
+
+
+def _corpus_file(tmp_path, *, tamper: bool = False):
+    import hashlib
+
+    rows = []
+    for i, (cls, text) in enumerate([("contract", "MASTER SERVICES AGREEMENT between A and B."),
+                                     ("correspondence", "Dear Pat, please send the report. Regards, Lee")]):
+        sha = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        rows.append({"id": f"DOC-{i}", "filename": f"doc{i}.txt", "doc_text": text, "expected": cls,
+                     "gt_fields": json.dumps({"title": f"t{i}"}),
+                     "content_sha256": ("0" * 64) if (tamper and i == 1) else sha})
+    data = tmp_path / "corpus.jsonl"
+    data.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    spec = tmp_path / "run.yaml"
+    spec.write_text(f"name: smoke\ndataset:\n  provider: file\n  local_path: {data}\n", encoding="utf-8")
+    return spec
+
+
+def test_eval_dataset_config_plans_over_corpus_rows_with_provenance(monkeypatch, tmp_path, capsys):
+    monkeypatch.setenv("MAILROOM_API_URL", "http://mailroom.test")
+    spec = _corpus_file(tmp_path)
+    assert cli.main(["api", "eval", "--dataset-config", str(spec)]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["submit"] is False and out["n"] == 2
+    assert out["classes"] == ["contract", "correspondence"]
+    assert out["dataset"]["rows"] == 2 and len(out["dataset"]["sha256"]) == 64
+    assert out["dataset"]["metadata"]["source"] == "local"
+
+
+def test_eval_dataset_config_submits_corpus_rows_and_reports_the_dataset(monkeypatch, tmp_path, capsys):
+    monkeypatch.setenv("MAILROOM_API_URL", "http://mailroom.test")
+    seen = {}
+
+    def fake_run(rows, api, **kwargs):
+        seen["rows"] = list(rows)
+        return {"ok": True, "n": len(rows)}
+
+    monkeypatch.setattr(family_api, "run_api_eval", fake_run)
+    spec = _corpus_file(tmp_path)
+    assert cli.main(["api", "eval", "--dataset-config", str(spec), "--class", "contract", "--submit"]) == 0
+    report = json.loads(capsys.readouterr().out)
+    assert [r["id"] for r in seen["rows"]] == ["DOC-0"]
+    assert seen["rows"][0]["doc_text"].startswith("MASTER SERVICES")
+    assert seen["rows"][0]["expected_fields"] == {"title": "t0"}  # the Hub's gt_fields column, decoded
+    assert report["dataset"]["rows"] == 2
+
+
+def test_eval_dataset_config_refuses_a_content_hash_mismatch(tmp_path, capsys):
+    spec = _corpus_file(tmp_path, tamper=True)
+    assert cli.main(["api", "eval", "--dataset-config", str(spec)]) == 2
+    assert "content_sha256 mismatch on DOC-1" in capsys.readouterr().err
+
+
+def test_eval_dataset_config_applies_the_near_gold_overlay_when_asked(monkeypatch, tmp_path, capsys):
+    monkeypatch.setenv("MAILROOM_API_URL", "http://mailroom.test")
+    spec = _corpus_file(tmp_path)
+    spec.write_text(spec.read_text() + "  near_gold_labels: true\n", encoding="utf-8")
+    assert cli.main(["api", "eval", "--dataset-config", str(spec)]) == 0
+    meta = json.loads(capsys.readouterr().out)["dataset"]["metadata"]["near_gold_labels"]
+    assert meta["status"] == "near_gold" and len(meta["overlay_sha256"]) == 64
+
+
+@pytest.mark.parametrize("body,needle", [("", "no dataset mapping"), ("dataset: [1, 2]\n", "no dataset mapping"),
+                                         ("dataset:\n  provider: nope\n", "--dataset-config")])
+def test_eval_dataset_config_rejects_bad_files(tmp_path, capsys, body, needle):
+    bad = tmp_path / "bad.yaml"
+    bad.write_text(body, encoding="utf-8")
+    assert cli.main(["api", "eval", "--dataset-config", str(bad)]) == 2
+    assert needle in capsys.readouterr().err
+
+
+def test_eval_dataset_config_missing_file_is_a_usage_error(tmp_path, capsys):
+    assert cli.main(["api", "eval", "--dataset-config", str(tmp_path / "nope.yaml")]) == 2
+    assert "is not a file" in capsys.readouterr().err
+
+
+def test_inline_text_rows_upload_with_an_accepted_suffix(tmp_path):
+    """Corpus rows named ``*.htm`` were refused by /upload (HTTP 400) and stopped the eval."""
+    html = tmp_path / "filing.htm"
+    html.write_text("plain extracted text", encoding="utf-8")
+    ready = family_api._upload_ready(html, {"doc_text": "plain extracted text"})
+    assert ready.name == "filing.htm.txt" and ready.read_text(encoding="utf-8") == "plain extracted text"
+    kept = tmp_path / "note.md"
+    kept.write_text("x", encoding="utf-8")
+    assert family_api._upload_ready(kept, {"doc_text": "x"}) == kept
+    pdf = tmp_path / "scan.pdf"
+    pdf.write_bytes(b"%PDF")
+    assert family_api._upload_ready(pdf, {}) == pdf  # fixture files keep their own type
