@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- **Insurance v4 is adopted and folded into a v5 candidate; the judge audit leaves routing alone.**
+  - The v4 A/B (40 documents): mean 0.874 → 0.880 and Part D NDC 0/5 → 5/5. `claim_type` did not move: the pipeline's structured-output schema still asks for CMS table tokens, which only llm-mailroom #280 changes.
+  - `insurance_claims_specialist_condensed_v5` is v4 plus #280's line-of-business vocabulary. Its A/B arms, `specialist-condensed-v5-insurance-claim-qwen-{v4arm,v5arm}`, run on the v4 A/B's documents after #280 is vendored. The slices stay on v3 until v5 passes.
+  - `config/production/excluded-ids.txt` adds the v4 A/B's 40 documents. Its header now names the correspondence reference arm that was actually drawn (`v2arm-r2`); the ids are unchanged. The slices' `ranked` draw keeps every slice as it was.
+  - Judge audit (26 documents paired with slice 100 r2): judging every corporate, correspondence and insurance extraction caught 1 of 6 wrong archives, sent 5 other archives to review and cost up to 3× the tokens. `judge_band_high` stays as it is.
 - **Vendor refresh: llm-mailroom `abb1ccf` → `63f6841`, Dojo `13adc8e` → `116da0b` (tag `v0.30.1`).** These are the release-branch heads after llm-mailroom #271 and llm-dojo-scoring #169. llm-mailroom `63f6841` declares Dojo `116da0b`.
   - Fixes the production slices hit:
     - A 200 response with `choices: null` is a transient error, not a `judge_error` (llm-mailroom #261, #260).

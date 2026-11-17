@@ -21,7 +21,7 @@ budget_chars_by_agent:
 max_mean_drop: 0.02
 agents:
   insurance_claims_specialist:
-    frontrunner: insurance_claims_specialist_condensed_v3
+    frontrunner: insurance_claims_specialist_condensed_v3   # deployed; moves to v5 once its A/B passes (v4 is folded into v5, not deployed)
     versions:
       - version: insurance_claims_specialist_condensed_v1
         parent: insurance_claims_specialist_simplified (frozen v1) + simplified_v2 layout cues
@@ -45,7 +45,18 @@ agents:
         # Both arms therefore run with job.pipeline_handoff, plus a v3 arm without it.
         reference_run: specialist-condensed-v4-insurance-claim-qwen-v3arm
         validation_run: specialist-condensed-v4-insurance-claim-qwen-v4arm
-        status: candidate   # not run yet
+        status: adopted   # mean +0.0055 (0.874 -> 0.880), 22 wins 6 ties 12 losses, worst doc -0.079, 0 parse errors; Part D NDC 0/5 -> 5/5; not deployed: folded into v5
+        # claim_type did not move: 20 of 21 CMS rows kept a table token in every arm, v3arm-plain included.
+        # The structured-output schema the pipeline appends describes claim_type with CMS table tokens
+        # (vendored doc_inventories.CLAIM_TYPE_DESCRIPTION) and outweighs the prompt. Only llm-mailroom #280 fixes it.
+        # The handoff note helps: v3arm-plain 0.856 vs v3arm 0.874.
+      - version: insurance_claims_specialist_condensed_v5
+        parent: "insurance_claims_specialist_condensed_v4 fused with llm-mailroom #280 (#174 section 2): claim_type is exactly one line of business (auto, property, liability, health, life, workers_comp, other), never a CMS table name, whatever the schema or a handoff note lists"
+        # Run both arms only after the re-vendor that brings in #280, so the schema, handoff and
+        # enrichment agree with the prompt. Same 40 documents as the v4 A/B.
+        reference_run: specialist-condensed-v5-insurance-claim-qwen-v4arm
+        validation_run: specialist-condensed-v5-insurance-claim-qwen-v5arm
+        status: candidate   # waits for llm-mailroom #280 to merge and be vendored
   correspondence_specialist:
     frontrunner: correspondence_specialist_condensed_v3
     versions:
