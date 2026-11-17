@@ -120,13 +120,13 @@ class RunScores:
 
     @property
     def mean_utility(self) -> float:
-        return sum(d.utility for d in self.docs) / self.n if self.n else 0.0
+        return math.fsum(d.utility for d in self.docs) / self.n if self.n else 0.0
 
     def mean_by_class(self) -> dict[str, float]:
         groups: dict[str, list[float]] = {}
         for d in self.docs:
             groups.setdefault(d.doc_class, []).append(d.utility)
-        return {cls: sum(v) / len(v) for cls, v in sorted(groups.items())}
+        return {cls: math.fsum(v) / len(v) for cls, v in sorted(groups.items())}
 
     def count(self, outcome: str) -> int:
         return sum(1 for d in self.docs if d.outcome == outcome)
@@ -137,7 +137,7 @@ class RunScores:
 
     @property
     def cost_usd(self) -> float:
-        return sum(d.cost_usd for d in self.docs)
+        return math.fsum(d.cost_usd for d in self.docs)
 
     @property
     def cost_per_doc(self) -> float:
@@ -308,7 +308,7 @@ def score_run(run_dir: Path | str, weights: UtilityWeights | None = None, *, bar
             reviewer_doc_type=(str(pred.get("reviewer_doc_type")).strip().lower() if pred.get("reviewer_doc_type") else None),
             judge_error=bool(status.get("judge_error")), crash_node=crash.get(doc_id) if status["outcome"] == "crashed" else None,
             doc_chars=len(str(row.get("doc_text") or row.get("text") or "")), tokens=int(status.get("tokens") or 0),
-            cost_usd=sum(by_role.values()), cost_by_role=by_role, usage_by_agent=dict(usage)))
+            cost_usd=math.fsum(by_role.values()), cost_by_role=by_role, usage_by_agent=dict(usage)))
     return RunScores(run_id=run_dir.name, run_dir=str(run_dir), docs=docs, price_model=price_model,
                      split_available=split, unpriced=sorted(unpriced))
 
@@ -361,7 +361,7 @@ def paired_delta(champ: Mapping[str, float], cand: Mapping[str, float], by_class
     n = len(ids)
     if not n:
         return PairedDelta(0, math.nan, math.nan, math.nan, ci, n_boot, seed, {})
-    mean = sum(sum(v) for v in strata.values()) / n
+    mean = math.fsum(x for v in strata.values() for x in v) / n
     rng = random.Random(seed)
     groups = [v for _, v in sorted(strata.items())]
     boots = []
@@ -369,12 +369,12 @@ def paired_delta(champ: Mapping[str, float], cand: Mapping[str, float], by_class
         total = 0.0
         for diffs in groups:
             k = len(diffs)
-            total += sum(diffs[rng.randrange(k)] for _ in range(k))
+            total += math.fsum(diffs[rng.randrange(k)] for _ in range(k))
         boots.append(total / n)
     boots.sort()
     alpha = (1.0 - ci) / 2.0
     return PairedDelta(n, mean, _quantile(boots, alpha), _quantile(boots, 1.0 - alpha), ci, n_boot, seed,
-                       {cls: {"n": float(len(v)), "mean": sum(v) / len(v)} for cls, v in sorted(strata.items())})
+                       {cls: {"n": float(len(v)), "mean": math.fsum(v) / len(v)} for cls, v in sorted(strata.items())})
 
 
 def usd_per_utility_point(champ: RunScores, cand: RunScores, delta_mean: float, *, point: float = 0.01) -> float | None:
