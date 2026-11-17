@@ -303,6 +303,7 @@ def run_api_eval(
     error: str | None = None
     pending: dict[str, dict[str, Any]] = {}
     per_doc: list[dict[str, Any]] = []
+    unconfirmed: str | None = None
     with tempfile.TemporaryDirectory(prefix="sandbox-api-eval-") as tmp:
         for raw in rows:
             row = _normalized_row(raw)
@@ -312,6 +313,10 @@ def run_api_eval(
                                                 filename=f"{tag}-{local.name}", sleep=sleep)
             except FamilyAPIError as exc:
                 error = f"upload of {local.name} failed; later rows were not sent: {exc}"
+                if exc.status_code is None or exc.status_code >= 500:
+                    # No answer (timeout, dropped connection) or a server error: the API may still
+                    # have stored the file, so name it rather than lose track of it.
+                    unconfirmed = f"{tag}-{local.name}"
                 break
             entry = {"id": row.get("id"), "file": accepted["file"], "upload_id": accepted.get("upload_id"),
                      "expected_doc_class": row["expected_doc_class"], "row": row}
@@ -396,6 +401,7 @@ def run_api_eval(
                        "overall_extraction_score": scoring.mean_or_zero(overall) if overall else None},
         "documents": results,
         "error": error,
+        "unconfirmed_upload": unconfirmed,
         "wall_seconds": round(clock() - started, 3),
         "ok": error is None and not incomplete and not failed and len(per_doc) == len(rows),
     }
