@@ -206,6 +206,21 @@ def test_labelled_count_scopes_and_drops_templated():
     assert gate.labelled_count(evidence, "contract") == 0  # the Dojo scores contracts on CUAD only
 
 
+def test_corpus_annotations_the_dojo_never_scores_are_not_labels(tmp_path):
+    """A correspondence row whose only scored field is intent is unscorable, not a 4-label row."""
+    annotated = {"intent": "update", "content_topic": "general_business", "sentiment_label": "neutral",
+                 "sentiment_score": "0.0476", "keywords": ["email"], "subject_matter": "Correspondence concerning x"}
+    row = {"expected_doc_class": "correspondence", "expected_fields": json.dumps(annotated)}
+    assert gate.labelled_count(row, "correspondence") == 1
+    with_sender = {**annotated, "sender": "A. Smith"}
+    assert gate.labelled_count({"expected_fields": json.dumps(with_sender)}, "correspondence") == 2
+    claim = {**LABELS["insurance_claim"], "content_topic": "auto", "sentiment_label": "negative"}
+    assert gate.labelled_count({"expected_fields": json.dumps(claim)}, "insurance_claim") == 2
+    (doc,) = gate.gate_report(_run(tmp_path, [{"id": "c0", "cls": "correspondence", "expected": annotated}]),
+                              Bars())["docs"]
+    assert doc["outcome"] == "unscorable_archive" and doc["labelled"] == 1
+
+
 def test_contract_scored_on_cuad_units():
     row = {"expected_fields": json.dumps(cuad(gold=2))}
     assert gate.labelled_count(row, "contract") == len(CATEGORIES)  # the scored universe, not the gold count
