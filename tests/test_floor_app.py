@@ -1078,3 +1078,17 @@ def test_template_has_the_analysis_tabs_and_stalled_state():
     for tab in ('data-t="scores"', 'data-t="docs"', 'data-t="nodes"'):
         assert tab in html
     assert 'r.state==="stalled"' in html and "near_gold" in html
+
+
+def test_refresher_rechecks_a_running_run_even_when_nothing_changed(tmp_path, monkeypatch):
+    """A run that dies writes nothing; the refresher still rebuilds it periodically so it can read 'stalled'."""
+    run = tmp_path / "runtime" / "runs" / "r"
+    run.mkdir(parents=True)
+    (run / "items.jsonl").write_text('{"item_id": "a", "ok": true}\n', encoding="utf-8")
+    (run / "checkpoint.json").write_text('{"state": "running"}', encoding="utf-8")
+    ref = floor_app.DigestRefresher(tmp_path, tmp_path / "out")
+    assert ref.refresh() is True and ref.refresh() is False
+    monkeypatch.setattr(floor_app, "STALL_RECHECK_S", 0.0)
+    assert ref.refresh() is True, "a running checkpoint is rebuilt without an artifact change"
+    (run / "checkpoint.json").write_text('{"state": "complete"}', encoding="utf-8")
+    assert ref.refresh() is True and ref.refresh() is False, "a finished store goes quiet again"

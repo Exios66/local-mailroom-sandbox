@@ -15,6 +15,9 @@ review/arbiter hops without an entry) are absent from those paths, and the run's
 from __future__ import annotations
 
 import json
+import os
+import shutil
+import uuid
 from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime
 from pathlib import Path
@@ -93,7 +96,6 @@ def record_floor_run(
     run_dir = Path(base) / "runtime" / "runs" / run_id
     if run_dir.exists():
         raise FileExistsError(f"floor run already exists: {run_dir}")
-    run_dir.mkdir(parents=True)
 
     by_id = {str(r.get("id")): r for r in rows}
     items: list[dict[str, Any]] = []
@@ -140,6 +142,18 @@ def record_floor_run(
                          "mode": mode, "error": report.get("error")},
         }, indent=1),
     }
-    for name, text in files.items():
-        (run_dir / name).write_text(text, encoding="utf-8")
+    # Write beside runs/ and rename into place, so a failed write never leaves a half run that
+    # the floor lists and a retry with the same id refuses.
+    staging = Path(base) / "runtime" / f".floor-run-{uuid.uuid4().hex[:12]}"
+    staging.mkdir(parents=True)
+    try:
+        for name, text in files.items():
+            (staging / name).write_text(text, encoding="utf-8")
+        run_dir.parent.mkdir(parents=True, exist_ok=True)
+        if run_dir.exists():
+            raise FileExistsError(f"floor run already exists: {run_dir}")
+        os.rename(staging, run_dir)
+    except BaseException:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
     return run_dir

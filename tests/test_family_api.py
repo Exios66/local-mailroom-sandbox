@@ -509,7 +509,7 @@ def test_eval_floor_run_records_a_run_the_floor_can_open(monkeypatch, tmp_path, 
     docs = {d["id"]: d for d in r["docs"]}
     assert docs["contract_msa"]["pred"] == "correspondence" and docs["contract_msa"]["gt"] == "contract"
     assert r["scores"]["classification"] == {"n": 2, "correct": 1, "accuracy": 0.5}
-    assert all(d["labels"]["tier"] == "hub" for d in docs.values())
+    assert all(d["labels"]["tier"] == "fixture" for d in docs.values()), "fixture labels are not Hub GT"
     assert "doc_text" not in (run / "dataset.jsonl").read_text()
     # the same id again is refused before anything is uploaded
     sent = len(fake.uploads)

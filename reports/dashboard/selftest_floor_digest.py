@@ -650,14 +650,16 @@ def per_document_rows_carry_path_classes_outcome_and_note():
 def scores_against_ground_truth_and_node_outcomes():
     """Classification accuracy counts docs with both labels; the confusion matrix keeps the misses."""
     sc = CTX["runs"]["run-a"]["scores"]
-    assert sc["classification"] == {"n": 2, "correct": 1, "accuracy": 0.5}, sc["classification"]
-    assert sc["confusion"] == {"contract": {"contract": 1}, "letter": {"contract": 1}}
+    # d2 (held, no class) is a miss recorded as unknown; d4 is still open with no class: not counted
+    assert sc["classification"] == {"n": 3, "correct": 1, "accuracy": 0.3333}, sc["classification"]
+    assert sc["confusion"] == {"contract": {"contract": 1, "unknown": 1}, "letter": {"contract": 1}}
     pc = sc["per_class"]
-    assert pc["contract"]["precision"] == 0.5 and pc["contract"]["recall"] == 1.0
+    assert pc["contract"]["precision"] == 0.5 and pc["contract"]["recall"] == 0.5
     assert pc["letter"]["recall"] == 0.0 and pc["letter"]["precision"] is None
     assert pc["contract"]["outcomes"] == {"ship": 1, "held": 1, "failed": 0, "open": 0}
     no = CTX["runs"]["run-a"]["node_outcomes"]
-    assert no["classify"]["n"] == 4 and no["classify"]["failed"] == 1 and no["classify"]["class_ok"] == 1
+    assert no["classify"]["n"] == 4 and no["classify"]["failed"] == 1
+    assert (no["classify"]["class_ok"], no["classify"]["class_n"]) == (1, 3)
     assert no["archive"] == {"ship": 1, "held": 0, "failed": 0, "open": 0, "n": 1, "class_n": 1, "class_ok": 1}
 
 
@@ -689,7 +691,9 @@ def label_tiers_follow_hub_interim_near_gold_precedence():
     assert tiers == {"hub": {"docs": 1, "scored": 1, "extraction_mean": 0.8},
                      "near_gold": {"docs": 1, "scored": 1, "extraction_mean": 0.4}}, tiers
     assert r["scores"]["near_gold_fields"] == 1 and r["scores"]["per_class"]["letter"]["near_gold_docs"] == 1
-    assert r["scores"]["extraction"] == {"n": 2, "mean": 0.6}
+    assert r["scores"]["extraction"] == {"n": 2, "mean": 0.6, "hub_n": 1, "hub_mean": 0.8}, \
+        "the headline keeps a Hub-only mean beside the all-tier one"
+    assert lp({"dataset": "sandbox-fixtures", "expected_fields": {"a": 1}})["tier"] == "fixture"
 
 
 @test

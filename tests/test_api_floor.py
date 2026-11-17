@@ -69,6 +69,25 @@ def test_record_refuses_existing_or_unsafe_ids(tmp_path):
     assert json.loads((tmp_path / "runtime/runs/r1/checkpoint.json").read_text())["state"] == "failed"
     with pytest.raises(FileExistsError):
         api_floor.record_floor_run(_report(), ROWS, base=tmp_path, run_id="r1")
+    assert not [p for p in (tmp_path / "runtime").iterdir() if p.name.startswith(".floor-run-")], "no staging left"
     for bad in ("", "..", "a/b", "a\\b"):
         with pytest.raises(ValueError):
             api_floor.record_floor_run(_report(), ROWS, base=tmp_path, run_id=bad)
+
+
+def test_a_failed_write_leaves_no_half_run(tmp_path, monkeypatch):
+    """A write failure removes the staging dir, so the floor lists nothing and a retry can reuse the id."""
+    real = api_floor.Path.write_text
+
+    def flaky(self, text, *a, **k):
+        if self.name == "checkpoint.json":
+            raise OSError("disk full")
+        return real(self, text, *a, **k)
+
+    monkeypatch.setattr(api_floor.Path, "write_text", flaky)
+    with pytest.raises(OSError):
+        api_floor.record_floor_run(_report(), ROWS, base=tmp_path, run_id="r1")
+    monkeypatch.undo()
+    assert not (tmp_path / "runtime" / "runs" / "r1").exists()
+    assert [p.name for p in (tmp_path / "runtime").iterdir()] == []
+    assert api_floor.record_floor_run(_report(), ROWS, base=tmp_path, run_id="r1").is_dir()
