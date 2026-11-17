@@ -241,7 +241,7 @@ def _date_forms(value: str) -> set[str]:
     if 1950 <= d.year <= 2049:
         forms |= short_year
     if day > 12:
-        forms |= {f"{d:%d}/{d:%m}/{d.year}", f"{day}/{d.month}/{d.year}"}
+        forms |= {f"{d:%d}/{d:%m}/{d.year}", f"{day}/{d.month}/{d.year}", f"{d:%d}-{d:%m}-{d.year}"}
     return forms
 
 
@@ -280,8 +280,14 @@ def _date_supported(value: str, evidence: str) -> bool:
     return _spelled_date_supported(d, ev)
 
 
-_FIGURE = re.compile(r"(?<![\d,])(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d+))?(?!\d)(\s*(?:million|billion|thousand)\b)?"
+_FIGURE = re.compile(r"(?<![\d,])(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d+))?(?![\d]|,\d)(\s*(?:million|billion|thousand)\b)?"
                      r"(?!\s*%)", re.I)
+#: A written date ("May 14, 2020", "14 May 2020", "5/14/2020", "2020-05-14"): its numbers are never
+#: money by a payment word alone ("Please pay by May 14, 2020" shows no amount of 2020 or 14).
+_DATE_SPAN = re.compile(
+    r"\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4}\b"
+    r"|\b\d{1,2}(?:st|nd|rd|th)?\s+(?:day\s+of\s+)?(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?,?\s+\d{4}\b"
+    r"|\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b|\b\d{4}-\d{2}-\d{2}\b", re.I)
 _SCALE = {"thousand": Decimal(10) ** 3, "million": Decimal(10) ** 6, "billion": Decimal(10) ** 9}
 _NOT_PLAIN_NUMBER = re.compile(r"\d_\d|\d[eE][+-]?\d")
 #: A figure is shown as money by a currency marker beside it, or by a word of payment in the quote.
@@ -299,9 +305,12 @@ def _figures(text: str, *, as_money: bool = False) -> set[Decimal]:
     fee, price, owe, balance, total) anywhere in the text. "Dated May 14, 2020" shows none."""
     out = set()
     worded = as_money and _MONEY_WORDS.search(text) is not None
+    dates = [d.span() for d in _DATE_SPAN.finditer(text)] if as_money else []
     for m in _FIGURE.finditer(text):
-        if as_money and not (worded or _CURRENCY_BEFORE.search(text[:m.start()])
-                             or _CURRENCY_AFTER.search(text[m.end():])):
+        marked = as_money and (_CURRENCY_BEFORE.search(text[:m.start()])
+                               or _CURRENCY_AFTER.search(text[m.end():]))
+        in_date = any(a <= m.start() and m.end() <= b for a, b in dates)
+        if as_money and not (marked or (worded and not in_date)):
             continue
         try:
             num = Decimal(m.group(1).replace(",", "") + (f".{m.group(2)}" if m.group(2) else ""))
@@ -1073,6 +1082,8 @@ def cuad_date_submission(row: Mapping[str, Any]) -> dict[str, Any] | None:
 
     A field is filled only when its CUAD span states exactly one full calendar date
     (an expiration written as a term, "five years after…", is left to the labelers).
+    Its labeler role is ``derived``: it is a human-annotation reference to compare label
+    passes against, not a ``build --label`` submission (build accepts only ``label`` passes).
     """
     if row.get("expected") != "contract":
         return None
