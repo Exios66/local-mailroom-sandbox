@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- **The gate counts only fields the Dojo scores** (#306).
+  - `labelled_count` now keeps only keys in the Dojo extraction schema (`field_names(doc_class)`), falling back to the old count for an unregistered class. Corpus annotations (`content_topic`, `sentiment_label`, `sentiment_score`) are no longer counted as labels.
+  - Effect: 23 correspondence rows that are scored on `intent` alone are now unscorable. Re-gated, slice 100 r2 is 40/55 = 0.727 wrong archives, not 48/78 = 0.615.
+  - `config/runs/production/judge-audit-0026.yaml` is a diagnostic arm that judges every corporate, correspondence and insurance extraction on 26 documents that pair with r2 (llm-mailroom #278). A human launches it.
 - **A run lock names the code that ran** (#312).
   - Every run-spec section (`dataset`, `job`, `engine`, `trace`, the prompt refs and the top level)
     now rejects unknown keys. An older checkout silently ignored `dataset.exclude_ids_file` and drew
