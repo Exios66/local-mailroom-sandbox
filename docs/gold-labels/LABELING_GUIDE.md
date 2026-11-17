@@ -128,14 +128,22 @@ Source: the pipeline's correspondence specialist prompt (`llm/frozen_v1/correspo
 | `action_items` | list | At most 3 concrete actions the recipient is asked to take, with deadlines if stated. None: `[]`. |
 | `urgency` | label | `routine`, `time-sensitive`, `urgent` or `critical`. Never null. Neutral or unspecified is `routine`. `time-sensitive`: a near deadline or a dated request. `urgent`: stated urgency ("ASAP", "immediately", "urgent"). `critical`: legal, financial or safety consequences stated as imminent. |
 
-Emails often carry forwarded or quoted messages. Take `sender`, `recipient`,
-`additional_recipients` and `communication_date` from the **first message in the document that
-has its own header** (a `From:` / `To:` / `Sent:` or `Date:` block, or a sender name and date
-line followed by `To:`, as Lotus Notes prints it). A "Forwarded by … on <date>" line is **not** a
-header: it names who forwarded the mail, not who wrote it, so take the forwarded message's own
-sender, addressees and date (record the forwarder in `supplementary.alternatives`). A short note
-above a forward with no header of its own does not count either: fall through to the first header
-below it. A signature alone ("Thanks, Jim") is not a header, but
+Emails often carry forwarded or quoted messages, and the corpus strips each document's own
+header, so the message the document *is* often has no header. Take `sender`, `recipient`,
+`additional_recipients` and `communication_date` from the **top message**:
+
+- **A reply typed above quoted mail** (a substantive note with no header of its own, above the
+  first header): its author (the signature) is the sender and its salutation is the recipient.
+  `additional_recipients` is `[]` and `communication_date` is null unless the reply itself
+  states them. The quoted message's people and date go in `supplementary.alternatives`.
+- **An unsigned top note directly above a "Forwarded by X on <date>" stamp**: X is the sender
+  and the stamp's date is the send date.
+- **A bare forward** (no note, or only "FYI" / "see below"): fall through to the first message
+  that has its own header (a `From:` / `To:` / `Sent:` or `Date:` block, or a sender name and
+  date line followed by `To:`, as Lotus Notes prints it). A "Forwarded by … on <date>" line
+  alone is not that header; record the forwarder in `supplementary.alternatives`.
+
+A signature alone ("Thanks, Jim") is not a header, but
 when the document has no header at all, the signature's name is the sender. `action_items` and
 `urgency` still describe what the document as a whole asks of its reader. A bare pointer ("please see
 the attached notice", "check it out") is not an action item; a direct question or request put to

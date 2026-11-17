@@ -8,11 +8,11 @@
     "mailroom_commit": "f83e3987cf9842ebf1e3f8778e0bb6e1d869c135"
   },
   "builder": "scripts/gold_labels.py build",
-  "built_at": "2026-11-17T16:13:34Z",
+  "built_at": "2026-11-17T16:46:53Z",
   "counts": {
     "correspondence": {
       "-": {
-        "notes": 984
+        "notes": 1080
       },
       "action_items": {
         "rejected": 1
@@ -21,7 +21,7 @@
         "gate_reject": 3
       },
       "communication_date": {
-        "gate_reject": 2
+        "gate_reject": 3
       },
       "sender": {
         "rejected": 2
@@ -32,7 +32,7 @@
     }
   },
   "files": {
-    "correspondence.jsonl": "ce1f9df24adeaed8c363eb15e350f83fd5b39a10b156f2c9917ae6073126b722"
+    "correspondence.jsonl": "34095131e720e8624030e3aecdb4dd853808ec2dd2abc790fd6f521665848b88"
   },
   "note": "Supplementary labeler output. Never ground truth; no scorer reads it.",
   "schema": "mailroom-gold-supplementary/v1",
@@ -42,8 +42,14 @@
       "check-correspondence-001.jsonl",
       "check-correspondence-002.jsonl",
       "check-correspondence-003.jsonl",
+      "check-correspondence-004.jsonl",
+      "check-correspondence-005.jsonl",
+      "check-correspondence-006.jsonl",
+      "check-correspondence-007.jsonl",
+      "check-correspondence-009.jsonl",
       "check-correspondence-010.jsonl",
       "check-correspondence-011.jsonl",
+      "check-correspondence-013.jsonl",
       "check-correspondence-020.jsonl",
       "check-correspondence-021.jsonl",
       "check-correspondence-030.jsonl",
@@ -104,6 +110,7 @@
       "fwd-label-correspondence-002.jsonl"
     ],
     "review": [
+      "review-audit-1.jsonl",
       "review-corr-000-001.jsonl",
       "review-corr-002-003.jsonl",
       "review-corr-checks-2.jsonl",
