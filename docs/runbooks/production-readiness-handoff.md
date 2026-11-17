@@ -22,8 +22,10 @@ In this page, **measured** means read from a stored run, **counterfactual** mean
 
 | Bar | Value | Required |
 |---|---|---|
-| Wrong-archive rate | 0.615 | ≤ 0.02 |
-| Review rate | 0.095 | ≤ 0.05 |
+| Wrong-archive rate | 0.727 (40/55 scorable) | ≤ 0.02 |
+| Review rate | 0.095 (9/95) | ≤ 0.05 |
+
+These rates use the corrected label count. A label now counts only if it is a field the Dojo scores. Earlier gate reports counted corpus annotations as labels (`content_topic`, `sentiment_label`, `sentiment_score`), but the Dojo never scores those. That made 23 correspondence rows that are scored on `intent` alone look scorable, and those rows gave 0.615 (48/78). Under the corrected count, 23 of 30 correspondence rows and 8 of 14 corporate rows are unscorable, and the gate warns about both.
 
 The wrong archives fall into three buckets: `out_of_enum` 18, `wrong_value` 18 and `cuad_missed` 9.
 
@@ -40,12 +42,39 @@ The wrong archives fall into three buckets: `out_of_enum` 18, `wrong_value` 18 a
 | Correspondence `intent` label ceiling | No | Exios66/llm-dojo-scoring#171. Of the 12 misses, 4 are extraction errors, 4 have questionable labels and 4 are ambiguous. |
 | Contract CUAD recall | No | A compact contracts lineage is proposed as its own task |
 
-**Insurance counterfactual on r2:** wrong archives fall from 22/30 to 10/30 once `claim_type` carries the product line, and to 6/30 once Part D supporting documents are filled. The pooled rate falls from 0.615 to 0.462, then to 0.410. This alone does not pass the gate. Contracts and correspondence still need the fixes above.
+**Layered counterfactual on r2** (corrected count; each layer adds to the ones above; the review rate stays 9/95 throughout):
+
+| Layer | Wrong archives | Contract | Corporate | Correspondence | Insurance |
+|---|---|---|---|---|---|
+| As run | 40/55 = 0.727 | 10/12 | 2/6 | 6/7 | 22/30 |
+| + `claim_type` = product line (#174 §2) | 28/55 = 0.509 | | | | 10/30 |
+| + Part D NDC (insurance v4) | 24/55 = 0.436 | | | | 6/30 |
+| + `communication_type` by content (#271) | 22/55 = 0.400 | | | 4/7 | |
+| + CUAD dates as Dojo #167 proposes | 23/55 = 0.418 | 11/12 | | | |
+| Upper bound: every `intent` correct | 20/55 = 0.364 | | | 1/7 | |
+
+The CUAD-date layer makes the result worse. The fold penalises a correct date wherever the gold has no date category, as noted on Exios66/llm-dojo-scoring#167. Dropping heuristic `intent` labels makes no difference under the corrected count, so no label allowance was added to the bars.
+
+None of these layers comes near the 0.02 bar. What remains:
+- 11 contracts on CUAD recall (0.67 to 0.83)
+- 6 insurance claims just under the bar (0.82 to 0.90) on `supporting_documents`, `damages_description` and `subject_matter`
+- 3 or 4 correspondence documents
+- 2 corporate records
+
+In r2, every contract went through the judge, but 34 of the 36 corporate, correspondence and insurance wrong archives reported confidence ≥ 0.95 and skipped it (Exios66/llm-mailroom#278).
 
 ## Next actions
 
 Every step from 1 on spends money or is reserved for the owner, so a human starts it.
 
+0. **Judge audit** (OpenRouter, $0.75 cap, 26 documents that pair with r2). This tests whether the judge catches the wrong archives the router never sends it. The offline preflight passes except for the key check.
+   ```bash
+   export PYTHONPATH="$PWD/src"
+   sandbox run preflight --config config/runs/production/judge-audit-0026.yaml
+   sandbox run start --config config/runs/production/judge-audit-0026.yaml --initials <XX>
+   sandbox run gate --run-id judge-audit-0026 --prev-run-id production-slice-0100-r2
+   ```
+   If the judge rejects most of r2's wrong archives, widen the judge band for those classes. If it passes them, judge routing cannot fix the gate, and the work moves to extraction and labels.
 1. **Insurance v4 A/B** (OpenRouter, $0.10 cap per arm, 40 shared insurance documents). The arms are disjoint from slice 500 and from the tuning list. Run this from a checkout of `main` with `OPENROUTER_API_KEY` set:
    ```bash
    export PYTHONPATH="$PWD/src"
