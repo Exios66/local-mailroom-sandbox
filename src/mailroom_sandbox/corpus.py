@@ -710,14 +710,10 @@ def _apply_near_gold_overlay(chosen: list[dict[str, Any]]) -> tuple[list[dict[st
     """Fill unlabelled fields from the near-gold overlay; return the rows and their provenance."""
     from mailroom_sandbox import gold_labels as gl
 
-    overlay_sha = gl.near_gold_fingerprint()
-    problems = gl.verify_overlay()
+    # Records, fingerprint and checks come from one in-memory read of the overlay.
+    overlay, overlay_sha, problems = gl.near_gold_snapshot()
     if problems:
         raise ValueError(f"near-gold label overlay is inconsistent: {problems[0]}")
-    overlay = gl.load_near_gold()
-    # Verify, load and fingerprint must see one snapshot: refuse if an export ran in between.
-    if gl.near_gold_fingerprint() != overlay_sha or gl.verify_overlay():
-        raise ValueError("near-gold label overlay changed while it was read; run again")
     rows = [gl.apply_near_gold(r, overlay, overlay_sha=overlay_sha) for r in chosen]
     labelled = [r for r in rows if r.get("near_gold_labels")]
     return rows, {"overlay_sha256": overlay_sha, "status": "near_gold", "rows_with_labels": len(labelled),
