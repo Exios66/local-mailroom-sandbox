@@ -1154,38 +1154,54 @@ def gold_overlay_dir(root: Path | None = None) -> Path:
     return (root or repo_root()) / "data" / "labels" / "gold-overlay"
 
 
-def verify_overlay(root: Path | None = None) -> list[str]:
-    """Integrity problems of the exported near-gold overlay (empty list: consistent)."""
+def near_gold_snapshot(root: Path | None = None) -> tuple[dict[str, dict[str, Any]], str, list[str]]:
+    """``(records by doc_id, fingerprint, problems)`` of the near-gold overlay, from one read.
+
+    The manifest and every file it lists are read once into memory; the fingerprint, the
+    integrity checks and the records all come from those same bytes, so an export that lands
+    while this runs can never pair records with another snapshot's fingerprint.
+    """
     root = root or gold_overlay_dir()
     path = root / "MANIFEST.json"
     if not path.exists():
-        return [f"{path}: missing (build it with scripts/gold_labels.py overlay)"]
-    man = json.loads(path.read_text(encoding="utf-8"))
+        return {}, "", [f"{path}: missing (build it with scripts/gold_labels.py overlay)"]
+    man_bytes = path.read_bytes()
+    fingerprint = hashlib.sha256(man_bytes).hexdigest()
+    man = json.loads(man_bytes.decode("utf-8"))
     if man.get("schema") != OVERLAY_SCHEMA:
-        return [f"MANIFEST.json schema {man.get('schema')!r} is not {OVERLAY_SCHEMA!r}"]
+        return {}, fingerprint, [f"MANIFEST.json schema {man.get('schema')!r} is not {OVERLAY_SCHEMA!r}"]
+    listed = man.get("files") or {}
     problems: list[str] = []
-    for name, sha in (man.get("files") or {}).items():
+    records: dict[str, dict[str, Any]] = {}
+    for name in sorted(listed):
         f = root / name
-        if not f.exists():
+        data = f.read_bytes() if f.is_file() else None
+        if data is None:
             problems.append(f"{name}: listed in the manifest but missing")
-        elif hashlib.sha256(f.read_bytes()).hexdigest() != sha:
+            continue
+        if hashlib.sha256(data).hexdigest() != listed[name]:
             problems.append(f"{name}: sha256 differs from the manifest (rebuild with scripts/gold_labels.py overlay)")
             continue
-        else:
-            for rec in read_jsonl(f):
-                for fld, lab in (rec.get("labels") or {}).items():
-                    if not str(lab.get("basis") or "").startswith("near_gold:") or lab.get("use_as_truth"):
-                        problems.append(f"{rec.get('doc_id')}.{fld}: not a near_gold label")
-    extra = sorted(p.name for p in root.glob("*.jsonl") if p.name not in (man.get("files") or {}))
-    problems += [f"{name}: not in the manifest" for name in extra]
-    return problems
+        for line in data.decode("utf-8").split("\n"):
+            if not line.strip():
+                continue
+            rec = json.loads(line)
+            for fld, lab in (rec.get("labels") or {}).items():
+                if not str(lab.get("basis") or "").startswith("near_gold:") or lab.get("use_as_truth"):
+                    problems.append(f"{rec.get('doc_id')}.{fld}: not a near_gold label")
+            records[rec["doc_id"]] = rec
+    problems += [f"{p.name}: not in the manifest" for p in sorted(root.glob("*.jsonl")) if p.name not in listed]
+    return records, fingerprint, problems
+
+
+def verify_overlay(root: Path | None = None) -> list[str]:
+    """Integrity problems of the exported near-gold overlay (empty list: consistent)."""
+    return near_gold_snapshot(root)[2]
 
 
 def load_near_gold(root: Path | None = None) -> dict[str, dict[str, Any]]:
     """``{doc_id: overlay record}`` over every file the near-gold overlay manifest lists."""
-    root = root or gold_overlay_dir()
-    man = json.loads((root / "MANIFEST.json").read_text(encoding="utf-8"))
-    return {rec["doc_id"]: rec for name in sorted(man.get("files") or {}) for rec in read_jsonl(root / name)}
+    return near_gold_snapshot(root)[0]
 
 
 def near_gold_fingerprint(root: Path | None = None) -> str:

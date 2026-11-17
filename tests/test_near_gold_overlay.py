@@ -1,7 +1,9 @@
 """Near-gold scoring overlay: the committed export stays consistent and fills only unlabelled fields."""
 from __future__ import annotations
 
+import hashlib
 import json
+from pathlib import Path
 
 import pytest
 
@@ -83,9 +85,8 @@ def test_prepare_subset_applies_near_gold_only_when_asked(tmp_path, monkeypatch)
     row = _row()
     src = tmp_path / "rows.jsonl"
     src.write_text(json.dumps(row) + "\n", encoding="utf-8")
-    monkeypatch.setattr(gl, "verify_overlay", lambda root=None: [])
-    monkeypatch.setattr(gl, "load_near_gold", lambda root=None: {"D1": _rec(recipient=_lab("John Doe"))})
-    monkeypatch.setattr(gl, "near_gold_fingerprint", lambda root=None: "f" * 64)
+    monkeypatch.setattr(gl, "near_gold_snapshot",
+                        lambda root=None: ({"D1": _rec(recipient=_lab("John Doe"))}, "f" * 64, []))
     off = prepare_subset(DatasetSpec(local_path=str(src)), tmp_path / "off.jsonl")
     assert "near_gold_labels" not in off["metadata"]
     on = prepare_subset(DatasetSpec(local_path=str(src), near_gold_labels=True), tmp_path / "on.jsonl")
@@ -94,19 +95,33 @@ def test_prepare_subset_applies_near_gold_only_when_asked(tmp_path, monkeypatch)
     locked = json.loads((tmp_path / "on.jsonl").read_text())
     exp = locked["expected_fields"]
     assert (json.loads(exp) if isinstance(exp, str) else exp)["recipient"] == "John Doe"
-    monkeypatch.setattr(gl, "verify_overlay", lambda root=None: ["c.jsonl: sha256 differs"])
+    monkeypatch.setattr(gl, "near_gold_snapshot", lambda root=None: ({}, "f" * 64, ["c.jsonl: sha256 differs"]))
     with pytest.raises(ValueError, match="near-gold label overlay is inconsistent"):
         prepare_subset(DatasetSpec(local_path=str(src), near_gold_labels=True), tmp_path / "bad.jsonl")
 
 
-def test_prepare_subset_refuses_an_overlay_that_changes_while_read(tmp_path, monkeypatch):
-    from mailroom_sandbox.corpus import prepare_subset
+def test_snapshot_never_pairs_records_with_another_exports_manifest(tmp_path, monkeypatch):
+    # An export writes the new JSONL before the new manifest. A reader that took manifest A
+    # and then reads JSONL B must report the mismatch, never return B's records under A's sha.
+    def write(recs):
+        data = "".join(json.dumps(r) + "\n" for r in recs).encode()
+        (tmp_path / "correspondence.jsonl").write_bytes(data)
+        return {"schema": gl.OVERLAY_SCHEMA, "files": {"correspondence.jsonl": hashlib.sha256(data).hexdigest()}}
 
-    src = tmp_path / "rows.jsonl"
-    src.write_text(json.dumps(_row()) + "\n", encoding="utf-8")
-    shas = iter(["a" * 64, "b" * 64])  # an export lands between the two reads
-    monkeypatch.setattr(gl, "verify_overlay", lambda root=None: [])
-    monkeypatch.setattr(gl, "load_near_gold", lambda root=None: {"D1": _rec(recipient=_lab("John Doe"))})
-    monkeypatch.setattr(gl, "near_gold_fingerprint", lambda root=None: next(shas))
-    with pytest.raises(ValueError, match="changed while it was read"):
-        prepare_subset(DatasetSpec(local_path=str(src), near_gold_labels=True), tmp_path / "x.jsonl")
+    man_a = write([_rec(recipient=_lab("John Doe"))])
+    (tmp_path / "MANIFEST.json").write_text(json.dumps(man_a))
+    recs, sha_a, problems = gl.near_gold_snapshot(tmp_path)
+    assert problems == [] and "D1" in recs
+
+    real = Path.read_bytes
+
+    def racing(self):
+        data = real(self)
+        if self.name == "MANIFEST.json":  # the export lands right after the manifest is read
+            write([_rec(recipient=_lab("Somebody Else"))])
+        return data
+
+    monkeypatch.setattr(Path, "read_bytes", racing)
+    recs, sha, problems = gl.near_gold_snapshot(tmp_path)
+    assert sha == sha_a and recs == {}
+    assert problems and "sha256 differs" in problems[0]
