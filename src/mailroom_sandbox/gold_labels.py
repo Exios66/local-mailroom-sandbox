@@ -53,6 +53,7 @@ Files: ``data/labels/gold/`` (``<class>.jsonl`` + ``MANIFEST.json``, schema
 """
 from __future__ import annotations
 
+import difflib
 import hashlib
 import json
 import math
@@ -503,7 +504,7 @@ def _locate_quotes(res: FieldResult, quotes: list, ftype: str, doc_text: str) ->
     return spans
 
 
-def _date_value_supported(res: FieldResult, value: Any, ev_text: str) -> bool | None:
+def _date_value_supported(res: FieldResult, value: Any, spans: list) -> bool | None:
     if not isinstance(value, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
         res.reason = f"date not ISO YYYY-MM-DD: {value!r}"
         return None
@@ -512,7 +513,7 @@ def _date_value_supported(res: FieldResult, value: Any, ev_text: str) -> bool | 
     except ValueError:
         res.reason = f"invalid date: {value!r}"
         return None
-    return _date_supported(value, ev_text)
+    return any(_date_supported(value, sp["text"]) for sp in spans)
 
 
 def _money_value_supported(res: FieldResult, value: Any, spans: list) -> bool | None:
@@ -545,7 +546,8 @@ def _value_supported(res: FieldResult, value: Any, raw_value: Any, ftype: str, s
                      ev_text: str, empty_value: Any, money_as_text: bool) -> bool | None:
     """Whether the located evidence supports the value (None = a type rule failed; ``res`` says why)."""
     if ftype == "date":
-        return _date_value_supported(res, value, ev_text)
+        # One quote must hold the whole date: "May 14" and "2020" from two quotes never make one.
+        return _date_value_supported(res, value, spans)
     if ftype == "money" and money_as_text:
         # The pipeline field is a currency phrase (contract_value: str), kept as written.
         return any(_money_text_supported(str(raw_value), sp["text"]) for sp in spans)
@@ -704,6 +706,42 @@ def _lists_match(a: list[str], b: list[str], threshold: float = 0.5) -> bool:
     return len(used_a) == len(a)
 
 
+_ROLE_ITEM = re.compile(r"^(.+?):\s*([A-Za-z][A-Za-z _-]*)$")
+
+
+def _role_map(value: Any) -> list[tuple[frozenset[str], str]] | None:
+    """``[(party tokens, role)]`` when every item reads "Party: role", else None."""
+    if not isinstance(value, list) or not value:
+        return None
+    out = []
+    for item in value:
+        m = _ROLE_ITEM.match(str(item).strip())
+        if not m:
+            return None
+        out.append((frozenset(_tokens(m.group(1))), " ".join(_tokens(m.group(2)))))
+    return out
+
+
+def _same_party(a: frozenset[str], b: frozenset[str]) -> bool:
+    """One party named twice: a name may add or drop words, or differ by a typo of the OCR kind."""
+    if a <= b or b <= a:
+        return True
+    return difflib.SequenceMatcher(None, " ".join(sorted(a)), " ".join(sorted(b))).ratio() >= 0.9
+
+
+def _role_maps_agree(a: list, b: list) -> bool:
+    """Same parties (a name may add or drop words) with the same role each."""
+    if len(a) != len(b):
+        return False
+    unused = list(b)
+    for name, role in a:
+        hit = next((x for x in unused if x[1] == role and _same_party(name, x[0])), None)
+        if hit is None:
+            return False
+        unused.remove(hit)
+    return True
+
+
 def values_agree(a: Any, b: Any, ftype: str) -> bool:
     """Whether two labels for one field say the same thing (type-aware, order-free lists)."""
     if _is_empty(a) or _is_empty(b):
@@ -712,6 +750,10 @@ def values_agree(a: Any, b: Any, ftype: str) -> bool:
         ca, cb = _canon(a), _canon(b)
         if ca == cb:
             return True
+        ra, rb = _role_map(a), _role_map(b)
+        if ra is not None and rb is not None:
+            # "Party: role" lists (contract party_roles) agree only when each party has the same role.
+            return _role_maps_agree(ra, rb)
         if ftype in ("entity_list", "entity_list:free_text"):
             return _lists_match(ca, cb)
         # same set of people/parties when one side adds a title or middle initial

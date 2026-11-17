@@ -132,8 +132,12 @@ def _validate_all(corpus: Path, paths: list[str]) -> list[tuple[dict, dict, gl.S
                 print(f"unknown doc_id {sub.get('doc_id')!r} in {path}", file=sys.stderr)
                 continue
             text = texts[row["filename"]]
+            measured = hashlib.sha256(text.encode("utf-8")).hexdigest()
+            if row.get("content_sha256") and row["content_sha256"] != measured:
+                raise SystemExit(f"{sub.get('doc_id')}: corpus text does not match its content_sha256; "
+                                 "refusing to label a document whose text is not the published one")
             doc = {"doc_id": row["document_id"], "filename": row["filename"], "doc_class": row["expected"],
-                   "subclass": row.get("expected_subclass"), "content_sha256": row.get("content_sha256")}
+                   "subclass": row.get("expected_subclass"), "content_sha256": measured}
             out.append((doc, sub, gl.validate_submission(sub, text, row["expected"]), text))
     return out
 
@@ -414,6 +418,11 @@ def _write_catalog_dir(directory: Path, data: dict[str, list[dict]], schema: str
 
 def cmd_build(args: argparse.Namespace) -> int:
     corpus = Path(args.corpus)
+    missing = [p for p in [*args.label, *(args.check or []), *(args.review or []), *(args.override or [])]
+               if not Path(p).is_file()]
+    if missing:
+        print("build refused: input files not found:\n  " + "\n  ".join(missing), file=sys.stderr)
+        return 1
     problems = _pass_problems(args)
     reviews = _load_reviews(args.review or [], problems)
     if problems:
