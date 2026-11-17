@@ -767,6 +767,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--out` | No | also write the JSON report to this path |
 | `--submit` | No | upload for real; the API process runs its models and spends with its own settings |
 | `--mock` | No | run the vendored API in process with the mock LLM and a temporary data dir (no server, no network, no spend); checks the wiring, not model quality |
+| `--floor-run` | No | also record the result as a run `sandbox floor` can open (default id: the run tag); node paths come from each document's stage audit |
+| `--base` | No | run-store base for --floor-run (default $MAILROOM_BASE_DIR, else the repo's ./data) |
 
 ### `sandbox run`
 

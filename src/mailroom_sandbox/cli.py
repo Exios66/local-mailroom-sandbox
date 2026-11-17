@@ -735,6 +735,11 @@ def build_parser() -> argparse.ArgumentParser:
     fe.add_argument("--mock", action="store_true",
                     help="run the vendored API in process with the mock LLM and a temporary data dir "
                          "(no server, no network, no spend); checks the wiring, not model quality")
+    fe.add_argument("--floor-run", nargs="?", const="", default=None, metavar="ID",
+                    help="also record the result as a run `sandbox floor` can open (default id: the run tag); "
+                         "node paths come from each document's stage audit")
+    fe.add_argument("--base", default=None,
+                    help="run-store base for --floor-run (default $MAILROOM_BASE_DIR, else the repo's ./data)")
     fe.set_defaults(handler=_cmd_api_eval)
     fam.set_defaults(handler=_cmd_api_help)
 
@@ -2606,6 +2611,20 @@ def _cmd_api_eval(args: argparse.Namespace) -> int:
         raise CLIUsageError("--timeout must be a finite number, zero or more")
     if args.mock and args.submit:
         raise CLIUsageError("--mock and --submit are exclusive: --mock never reaches a server")
+    floor_base = None
+    if args.floor_run is not None:
+        if not (args.mock or args.submit):
+            raise CLIUsageError("--floor-run records a result: add --mock or --submit")
+        from mailroom_sandbox.tui import floor_app
+
+        floor_base = floor_app.resolve_base(args.base)  # resolved before --mock swaps the environment
+        if args.floor_run and (set(args.floor_run) & {"/", "\\"} or args.floor_run in (".", "..")):
+            raise CLIUsageError(f"--floor-run {args.floor_run!r} is not a plain run id")
+        if args.floor_run and (floor_base / "runtime" / "runs" / args.floor_run).exists():
+            raise CLIUsageError(f"floor run {args.floor_run!r} already exists under {floor_base}")
+    elif args.base is not None:
+        raise CLIUsageError("--base only applies with --floor-run")
+
     if not args.mock and not args.submit:
         plan = family_api.plan_api_eval(rows, base_url=family_api.MailroomAPI().base_url)
         _write_json_out(args.out, plan)
@@ -2618,15 +2637,34 @@ def _cmd_api_eval(args: argparse.Namespace) -> int:
         kwargs["doc_timeout"] = args.timeout
     if args.poll is not None:
         kwargs["poll_seconds"] = args.poll
+
+    def _record(api: family_api.MailroomAPI) -> None:
+        if floor_base is None:
+            return
+        from mailroom_sandbox import api_floor
+
+        try:
+            run_dir = api_floor.record_floor_run(report, rows, base=floor_base,
+                                                 run_id=args.floor_run or str(report["run_tag"]), audit=api.audit)
+        except Exception as exc:  # noqa: BLE001 — the eval result still prints; only the floor copy is missing
+            report["floor_run_error"] = f"{type(exc).__name__}: {exc}"
+            print(f"floor run not recorded: {exc}", file=sys.stderr)
+            return
+        report["floor_run"] = str(run_dir)
+        print(f"floor run -> {run_dir}  (open: sandbox floor {run_dir.name} --base {floor_base})", file=sys.stderr)
+
     if args.mock:
         import contextlib
 
         # The in-process API and pipeline log to stdout; keep stdout for the JSON report.
         with contextlib.redirect_stdout(sys.stderr), family_api.offline_mock_api(rows) as api:
             report = family_api.run_api_eval(rows, api, **kwargs)
-        report["mode"] = "mock"
+            report["mode"] = "mock"
+            _record(api)
     else:
-        report = family_api.run_api_eval(rows, family_api.MailroomAPI(), **kwargs)
+        api = family_api.MailroomAPI()
+        report = family_api.run_api_eval(rows, api, **kwargs)
+        _record(api)
     _write_json_out(args.out, report)
     _print(report)
     return 0 if report["ok"] else 1
