@@ -55,11 +55,17 @@ Write one JSON object per document, one per line (JSONL):
 ## What the gate checks in a value
 
 - **Dates** must be `YYYY-MM-DD` and appear in the quote as a whole date: numeric forms stand
-  alone (no digit beside them, so `1/5/2001` is not inside `11/5/2001`), and a spelled date
-  needs the day next to the month name ("May 14", "14 May", "14th day of May") with the year in
-  the quote. A time of day or another date in the quote does not support the label.
-- **Money** is matched on the exact figure: `$218,440.00`, `218,440`, `USD 218,440` and
-  `$2.5 million` support 218440 or 2500000, never a part of the digits. `0` needs a written 0.
+  alone (no digit beside them, so `1/5/2001` is not inside `11/5/2001`; a two-digit year such as
+  `5/14/01` counts only for the years 1950 to 2049), and a spelled date must be one date
+  expression that holds the month name, the day and the year together ("May 14, 2020",
+  "May 14th 2020", "14 May 2020", "14th day of May, 2020"). Only a space, a comma or "day of" /
+  "of" may sit between the parts. A time of day or another date in the quote does not support the
+  label: "May 14, 2019 ... December 31, 2020" does not support 2020-05-14.
+- **Money** is matched on the exact figure, and the quote must show that figure as money:
+  a currency marker beside it (`$`, `US$`, `USD`, `dollars`, `€`, `£`) or one of the words
+  amount, pay, payment, sum, fee, price, owe, balance or total in the same quote. `$218,440.00`,
+  `USD 218,440` and `$2.5 million` support 218440 or 2500000, never a part of the digits;
+  "Dated May 14, 2020" supports neither 2020 nor 14. `0` needs a written 0.
   Never use `1_000`, `1e3`, `NaN` or `Infinity`. A currency-phrase field (`contract_value`) must
   repeat the phrase as written in the quote ("$250,000").
 - **`party_roles`**: every `"<party>: <role>"` item needs its role word in the quote too
@@ -73,10 +79,32 @@ it. Independent means the check labeler works from the document alone and never 
 pass; the same model family may write both. `build` refuses to run when a file is given as both
 `--label` and `--check`, when a submission's `labeler.role` is not `label` (label and override
 files) or `check` (check files), or when one document appears twice among the label files,
-the check files or the override files. Review decisions need a `reviewer`, and each one must
+the check files or the override files. It also refuses a check submission whose `fields` are
+byte-identical (sorted JSON) to the label submission's for the same document, and a label and a
+check that carry the same `labeler.batch` out of files with the same content: a copy is not a
+second reading. Two free-text readings agree only when both or neither are negated ("not",
+"no", "never", "without"). Review decisions (below) need a reviewer, and each one must
 match a catalog record. A relabel (`--override`) field replaces the earlier label only when it
 passes the gate; if it fails, the earlier label stays and the reject goes to the supplementary
 store.
+
+## Review decisions
+
+Opus settles a disputed (or single-pass) field with one line in a review file:
+`{"doc_id", "field", "verdict", "reviewer": {"model": "...", "role": "..."}, "note"?, "entry"?}`.
+The reviewer needs a non-empty `model` and `role`; a missing verdict, a `correct` without an
+`entry`, an unknown verdict or two decisions for one field stop the build.
+
+| Verdict | Effect |
+|---|---|
+| `accept` | the label stands and becomes `near_gold` |
+| `reject` | the label is dropped to the supplementary store |
+| `correct` | `entry` (`value` and `evidence`, as in a submission) replaces the label; it must pass the gate. `value_source` is `review_correction` by the reviewer |
+| `accept_check` | adopt the check pass's own entry for this field, quotes and all (write no `entry`; the build takes it from the check submission and gates it). `value_source` is `check_pass` by the check labeler; the verdict stays `accept_check` and the overlay basis is `near_gold:opus_reviewed_accept_check` |
+
+A corrected or adopted record keeps the label it replaced under `review.original`. The
+catalog check (`gold_labels.py check`) requires every `near_gold` record to rest on an agreeing
+check pass that passed the gate, or on such a review.
 
 ## Correspondence fields
 

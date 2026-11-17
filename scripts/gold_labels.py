@@ -13,12 +13,26 @@ agent sessions that read the batch files and write submission JSONL.
     # gate one or more submission files and print a report
     python scripts/gold_labels.py validate --corpus … --submissions data/runtime/gold/sub/*.jsonl
     # build the catalog from label passes, check passes and review decisions; the two passes
-    # must be independent (build refuses a file in both roles, a wrong labeler role, or a
-    # document twice in one pass) and every review decision must match a catalog record
+    # must be independent (build refuses a file in both roles, a wrong labeler role, a document
+    # twice in one pass, a check whose fields are byte-identical to the label's, or two files
+    # with the same batch and the same content) and every review decision must match a catalog
+    # record. A review line is {"doc_id", "field", "verdict", "reviewer": {"model", "role"}, ...}:
+    #   accept        the label stands (near_gold)
+    #   reject        the label is dropped to the supplementary store
+    #   correct       "entry": {"value", "evidence"} replaces the label; it must pass the gate
+    #   accept_check  adopt the check pass's own entry (value and quotes) for this field; no
+    #                 "entry" is written, build takes it from the check submission and gates it.
+    #                 The record keeps verdict "accept_check" and value_source.kind "check_pass"
+    #                 (a correct verdict gives value_source.kind "review_correction"); the
+    #                 overlay basis is near_gold:opus_reviewed_accept_check.
     python scripts/gold_labels.py build --corpus … --revision … --label L.jsonl… --check C.jsonl… \
         [--review R.jsonl…] [--override O.jsonl…]
-    # integrity of the catalog (or of data/labels/gold-supplementary via --dir)
+    # integrity of the catalog (or of data/labels/gold-supplementary via --dir), including the
+    # near_gold invariant (agreeing check pass, or a review with reviewer model and role)
     python scripts/gold_labels.py check
+    # near_gold overlay for Mailroom-Corpus-EDA; refuses a failing catalog and an --out that is a
+    # catalog directory or holds some other MANIFEST
+    python scripts/gold_labels.py overlay [--out DIR]
 """
 from __future__ import annotations
 
@@ -201,6 +215,41 @@ def _pass_problems(args: argparse.Namespace) -> list[str]:
                 if doc_id in seen:
                     problems.append(f"{path}: {doc_id} appears twice in the --{kind} files (also in {seen[doc_id]})")
                 seen[doc_id] = path
+    problems += _independence_problems(label_files, check_files)
+    return problems
+
+
+def _file_sha(path: str, cache: dict[str, str]) -> str:
+    if path not in cache:
+        cache[path] = hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    return cache[path]
+
+
+def _independence_problems(label_files: list[str], check_files: list[str]) -> list[str]:
+    """A check that is a copy of its label is not a second reading: byte-identical fields for a
+    document, or label and check labelers with one batch id out of files with identical content."""
+    labels = {}
+    for path in label_files:
+        for sub in gl.read_jsonl(Path(path)):
+            labels.setdefault(sub.get("doc_id"), (path, sub))
+    hashes: dict[str, str] = {}
+    problems = []
+    for path in check_files:
+        for chk in gl.read_jsonl(Path(path)):
+            doc_id = chk.get("doc_id")
+            if doc_id not in labels:
+                continue
+            lpath, lab = labels[doc_id]
+            fields = chk.get("fields")
+            if fields and json.dumps(fields, sort_keys=True) == json.dumps(lab.get("fields"), sort_keys=True):
+                problems.append(f"{path}: {doc_id}: check fields are identical to the label pass in {lpath}; "
+                                "not an independent pass")
+            lb, cb = (s.get("labeler") for s in (lab, chk))
+            lbatch = lb.get("batch") if isinstance(lb, dict) else None
+            cbatch = cb.get("batch") if isinstance(cb, dict) else None
+            if lbatch and lbatch == cbatch and _file_sha(lpath, hashes) == _file_sha(path, hashes):
+                problems.append(f"{path}: {doc_id}: label and check carry batch {lbatch!r} out of files "
+                                f"with the same content ({lpath}); not an independent pass")
     return problems
 
 
@@ -209,10 +258,25 @@ def cmd_build(args: argparse.Namespace) -> int:
     problems = _pass_problems(args)
     reviews: dict[tuple[str, str], dict] = {}
     for path in args.review or []:
-        for r in gl.read_jsonl(Path(path)):
-            if not r.get("reviewer"):
-                problems.append(f"{path}: review of {r.get('doc_id')}.{r.get('field')} has no reviewer")
-            reviews[(r["doc_id"], r["field"])] = r
+        for n, r in enumerate(gl.read_jsonl(Path(path)), start=1):
+            if not isinstance(r, dict) or not isinstance(r.get("doc_id"), str) or not isinstance(r.get("field"), str):
+                problems.append(f"{path}: line {n}: a review needs a doc_id and a field")
+                continue
+            where = f"{path}: review of {r['doc_id']}.{r['field']}"
+            why = gl.reviewer_problem(r.get("reviewer"))
+            if why:
+                problems.append(f"{where} {why}" if why == "has no reviewer" else f"{where}: {why}")
+            verdict = r.get("verdict")
+            if verdict is None:
+                problems.append(f"{where} has no verdict")
+            elif verdict not in gl.REVIEW_VERDICTS:
+                problems.append(f"{where}: unknown verdict {verdict!r}")
+            elif verdict == "correct" and not isinstance(r.get("entry"), dict):
+                problems.append(f"{where}: verdict 'correct' needs an entry")
+            key = (r["doc_id"], r["field"])
+            if key in reviews:
+                problems.append(f"{where}: duplicate review for {r['doc_id']}.{r['field']} (in {path})")
+            reviews[key] = r
     if problems:
         print("build refused:\n  " + "\n  ".join(problems), file=sys.stderr)
         return 1
@@ -242,14 +306,15 @@ def cmd_build(args: argparse.Namespace) -> int:
             if decision is not None:
                 applied.add((rec["doc_id"], rec["field"]))
                 if decision["verdict"] == "accept_check":
-                    # The reviewer adopts the check pass's answer, quotes and all.
+                    # The reviewer adopts the check pass's answer, quotes and all; the record
+                    # keeps the verdict and names the check labeler as the value's source.
                     entry = ((chk[0].get("fields") or {}).get(rec["field"]) if chk else None)
                     if entry is None:
                         print(f"accept_check for {rec['doc_id']}.{rec['field']}: no check answer",
                               file=sys.stderr)
                         return 1
-                    decision = {**decision, "verdict": "correct", "entry": entry, "adopted": "check"}
-                if decision["verdict"] == "correct":
+                    decision = {**decision, "entry": entry, "check_labeler": chk[0].get("labeler")}
+                if decision["verdict"] in ("correct", "accept_check"):
                     fixed = gl.validate_submission(
                         {"doc_id": doc["doc_id"], "fields": {rec["field"]: decision["entry"]}}, text,
                         doc["doc_class"])
@@ -354,6 +419,28 @@ def cmd_check(args: argparse.Namespace) -> int:
     return 1 if problems else 0
 
 
+def _overlay_out_problem(out: Path, gold: Path) -> str | None:
+    """Why the overlay may not be written to ``out`` (None = fine). The export deletes the
+    ``*.jsonl`` files already in ``out``, so it must not be a catalog directory or a directory
+    some other tool keeps (a MANIFEST of another schema, or loose JSONL with none)."""
+    resolved = out.resolve()
+    for name, directory in (("the gold catalog", gold), ("the gold catalog", gl.gold_dir()),
+                            ("the supplementary store", gl.supplementary_dir())):
+        if resolved == directory.resolve():
+            return f"overlay refused: --out {out} is {name} directory"
+    manifest = out / "MANIFEST.json"
+    if manifest.is_file():
+        try:
+            schema = json.loads(manifest.read_text(encoding="utf-8")).get("schema")
+        except (ValueError, AttributeError):
+            schema = None
+        if schema != gl.OVERLAY_SCHEMA:
+            return f"overlay refused: {manifest} has schema {schema!r}, not {gl.OVERLAY_SCHEMA!r}"
+    elif out.is_dir() and any(out.glob("*.jsonl")):
+        return f"overlay refused: {out} holds JSONL files and no MANIFEST.json"
+    return None
+
+
 def cmd_overlay(args: argparse.Namespace) -> int:
     """Export the catalog as EDA overlay records (candidates for Mailroom-Corpus-EDA)."""
     gold = Path(args.dir) if args.dir else gl.gold_dir()
@@ -361,8 +448,16 @@ def cmd_overlay(args: argparse.Namespace) -> int:
     if problems:
         print("\n".join(problems), file=sys.stderr)
         return 1
+    schema = json.loads((gold / "MANIFEST.json").read_text(encoding="utf-8")).get("schema")
+    if schema != gl.SCHEMA:
+        print(f"overlay refused: {gold} is a {schema!r} catalog, not {gl.SCHEMA!r}", file=sys.stderr)
+        return 1
     gate_run = f"gold-labels-{gl.manifest_sha(gold)[:12]}"
     out = Path(args.out) if args.out else gold.parent / "gold-overlay"
+    refusal = _overlay_out_problem(out, gold)
+    if refusal:
+        print(refusal, file=sys.stderr)
+        return 1
     out.mkdir(parents=True, exist_ok=True)
     for stale in out.glob("*.jsonl"):
         stale.unlink()

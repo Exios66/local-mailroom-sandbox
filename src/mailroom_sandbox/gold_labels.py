@@ -22,8 +22,9 @@ document::
 4. every evidence quote is a verbatim slice of the document (whitespace-insensitive), at most
    :data:`MAX_QUOTE_CHARS` long, and is recorded as ``{start, end, text}``;
 5. the value is supported by its evidence, by field type (dates: a written form of the ISO date
-   with digit boundaries, or the month name with the day beside it and the year; money: the
-   exact figure appears in the evidence; party roles: the role word appears too; name tokens;
+   with digit boundaries, or one spelled date expression holding the month name, the day and the
+   year together; money: the exact figure appears in a quote that shows it as money, by a currency
+   marker beside it or a word of payment in the quote; party roles: the role word appears too; name tokens;
    free-text token coverage; a closed label other than its default needs a quote of at least
    :data:`MIN_LABEL_QUOTE_TOKENS` tokens);
 6. the whole payload (the class's contract-empty payload with the labels applied) validates
@@ -36,7 +37,10 @@ separate agent passes that did not see each other's output; the same model famil
 both. ``scripts/gold_labels.py build`` enforces what it can: no file serves as both passes, the
 submissions' roles are ``label`` and ``check``, and no document appears twice in one pass;
 disagreements are ``disputed`` and need a review decision (:func:`apply_review`, which keeps the
-label it corrects under ``review.original``). No status here
+label it replaces under ``review.original`` and, for a ``correct`` or ``accept_check`` verdict,
+records who produced the stored value in ``value_source``). :func:`verify_catalog` enforces the
+``near_gold`` invariant: an agreeing check pass that passed the gate, or a review by a reviewer
+with a model and a role. No status here
 sets ``use_as_truth``: the refined-GT master copy lives in ``Exios66/Mailroom-Corpus-EDA``
 (its issue #65), and an agent's label becomes gold there only with a reviewer's initials.
 :func:`overlay_records` exports the ``near_gold`` labels in the overlay shape EDA's
@@ -225,14 +229,20 @@ def _date_forms(value: str) -> set[str]:
     day = d.day
     suf = "th" if 11 <= day <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
     # Day-first numeric dates count only when they cannot be read month-first (day > 12).
-    return {
-        f"{d:%Y-%m-%d}", f"{d.month}/{day}/{d.year}", f"{d:%m/%d/%Y}", f"{d.month}/{day}/{d:%y}",
-        f"{d:%m/%d/%y}", f"{m} {day}, {d.year}", f"{m} {day} {d.year}", f"{day} {m} {d.year}",
+    # A two-digit year is read only inside the window a letter or memo can plausibly mean.
+    short_year = {f"{d.month}/{day}/{d:%y}", f"{d:%m/%d/%y}", f"{day}-{s}-{d:%y}", f"{d:%d}-{s}-{d:%y}"}
+    forms = {
+        f"{d:%Y-%m-%d}", f"{d.month}/{day}/{d.year}", f"{d:%m/%d/%Y}", f"{m} {day}, {d.year}", f"{m} {day} {d.year}", f"{day} {m} {d.year}",
         f"{day} {m}, {d.year}", f"{s} {day}, {d.year}", f"{s}. {day}, {d.year}", f"{s} {day} {d.year}",
         f"{m} {day}{suf}, {d.year}", f"{day}{suf} day of {m}, {d.year}", f"{day}{suf} day of {m} {d.year}",
-        f"{day}{suf} of {m}, {d.year}", f"{day}-{s}-{d.year}", f"{day}-{s}-{d:%y}", f"{d:%d}-{s}-{d:%y}",
+        f"{day}{suf} of {m}, {d.year}", f"{day}-{s}-{d.year}",
         f"{d.year}.{d:%m}.{d:%d}", f"{d.year}/{d:%m}/{d:%d}",
-    } | ({f"{d:%d}/{d:%m}/{d.year}", f"{day}/{d.month}/{d.year}"} if day > 12 else set())
+    }
+    if 1950 <= d.year <= 2049:
+        forms |= short_year
+    if day > 12:
+        forms |= {f"{d:%d}/{d:%m}/{d.year}", f"{day}/{d.month}/{d.year}"}
+    return forms
 
 
 def _bounded(form: str, text: str) -> bool:
@@ -243,17 +253,19 @@ def _bounded(form: str, text: str) -> bool:
 
 
 def _spelled_date_supported(d: date, ev: str) -> bool:
-    """The month name with the day beside it ("May 14", "May 14th", "14 May", "14th day of May")
-    and the year somewhere in the quote. Never a bare day token far from the month."""
-    if not re.search(rf"(?<![0-9]){d.year}(?![0-9])", ev):
-        return False
+    """One spelled date expression that holds the month name, the day and the year together:
+    "May 14, 2020", "May 14th 2020", "14 May 2020", "14th day of May, 2020". Only separators
+    (spaces, a comma) and the connective "day of" / "of" may sit between the parts, so the year
+    of another date in the quote ("May 14, 2019 ... December 31, 2020") never supports this one."""
     names = {d.strftime("%B").casefold(), d.strftime("%b").casefold()}
     if d.month == 9:
         names.add("sept")
     mon = r"(?:" + "|".join(sorted((re.escape(n) for n in names), key=len, reverse=True)) + r")\.?"
     day = rf"0?{d.day}(?:st|nd|rd|th)?(?![0-9]|:[0-9])"
-    return bool(re.search(rf"(?<![a-z]){mon}\s*,?\s*{day}", ev)
-                or re.search(rf"(?<![0-9]){day}\s+(?:day\s+)?(?:of\s+)?{mon}(?![a-z])", ev))
+    year = rf"(?<![0-9]){d.year}(?![0-9])"
+    month_first = rf"(?<![a-z]){mon}(?![a-z])\s*,?\s*{day}\s*,?\s*{year}"
+    day_first = rf"(?<![0-9]){day}\s+(?:day\s+)?(?:of\s+)?{mon}(?![a-z])\s*,?\s*{year}"
+    return bool(re.search(month_first, ev) or re.search(day_first, ev))
 
 
 def _date_supported(value: str, evidence: str) -> bool:
@@ -271,13 +283,25 @@ _FIGURE = re.compile(r"(?<![\d,])(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d+))?(?!\d)(\s*(
                      r"(?!\s*%)", re.I)
 _SCALE = {"thousand": Decimal(10) ** 3, "million": Decimal(10) ** 6, "billion": Decimal(10) ** 9}
 _NOT_PLAIN_NUMBER = re.compile(r"\d_\d|\d[eE][+-]?\d")
+#: A figure is shown as money by a currency marker beside it, or by a word of payment in the quote.
+_CURRENCY_BEFORE = re.compile(r"(?:us\$|\$|usd|\u20ac|\u00a3)\s*$", re.I)
+_CURRENCY_AFTER = re.compile(r"^\s*(?:usd|dollars?|\u20ac|\u00a3)(?![a-z])", re.I)
+_MONEY_WORDS = re.compile(r"\b(?:amounts?|pay(?:s|ing|ments?|able)?|sums?|fees?|prices?|owe[sd]?|owing|"
+                          r"balances?|totals?)\b", re.I)
 
 
-def _figures(text: str) -> set[Decimal]:
+def _figures(text: str, *, as_money: bool = False) -> set[Decimal]:
     """Every numeric figure written in ``text`` ($, thousands commas, decimals, "2.5 million"),
-    exactly. A figure followed by a scale word counts only as its scaled amount."""
+    exactly. A figure followed by a scale word counts only as its scaled amount. With
+    ``as_money`` only figures the text shows as money count: a currency marker ($, US$, USD,
+    dollars, euro, pound) beside the figure, or a word of payment (amount, pay, payment, sum,
+    fee, price, owe, balance, total) anywhere in the text. "Dated May 14, 2020" shows none."""
     out = set()
+    worded = as_money and _MONEY_WORDS.search(text) is not None
     for m in _FIGURE.finditer(text):
+        if as_money and not (worded or _CURRENCY_BEFORE.search(text[:m.start()])
+                             or _CURRENCY_AFTER.search(text[m.end():])):
+            continue
         try:
             num = Decimal(m.group(1).replace(",", "") + (f".{m.group(2)}" if m.group(2) else ""))
         except InvalidOperation:  # pragma: no cover - the pattern only admits digits
@@ -288,22 +312,22 @@ def _figures(text: str) -> set[Decimal]:
 
 
 def _money_supported(value: float, evidence: str) -> bool:
-    """A finite amount equals, exactly, a figure written in the evidence."""
+    """A finite amount equals, exactly, a figure the quote shows as money."""
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
         return False
-    return Decimal(repr(float(value))) in _figures(evidence)
+    return Decimal(repr(float(value))) in _figures(evidence, as_money=True)
 
 
 def _money_text_supported(value: str, evidence: str) -> bool:
     """A currency phrase kept as text: it appears in the evidence as written (whitespace
-    normalised, not inside a longer figure) and holds a finite figure the evidence also states."""
+    normalised, not inside a longer figure) and holds a finite figure the quote shows as money."""
     phrase = _WS.sub(" ", value).strip()
     if not phrase or _NOT_PLAIN_NUMBER.search(phrase):
         return False
     ev = _WS.sub(" ", evidence)
     if not re.search(rf"(?<![\d,.]){re.escape(phrase.casefold())}(?![\d]|[,.]\d)", ev.casefold()):
         return False
-    return bool(_figures(phrase) & _figures(ev))
+    return bool(_figures(phrase) & _figures(ev, as_money=True))
 
 
 def _token_coverage(value: str, evidence: str) -> float:
@@ -489,12 +513,12 @@ def _check_field(name: str, entry: Mapping[str, Any], doc_text: str, ftype: str,
         supported = _date_supported(value, ev_text)
     elif ftype == "money" and money_as_text:
         # The pipeline field is a currency phrase (contract_value: str), kept as written.
-        supported = _money_text_supported(str(raw_value), ev_text)
+        supported = any(_money_text_supported(str(raw_value), sp["text"]) for sp in spans)
     elif ftype == "money":
         if not isinstance(value, float) or not math.isfinite(value):
             res.reason = f"money not a finite number: {value!r}"
             return res
-        supported = _money_supported(value, ev_text)
+        supported = any(_money_supported(value, sp["text"]) for sp in spans)
     elif ftype == "label":
         # Vocabulary already checked. A label other than its contract default must rest on a
         # real sentence fragment, not on a single keyword.
@@ -530,8 +554,17 @@ def _check_field(name: str, entry: Mapping[str, Any], doc_text: str, ftype: str,
 
 def validate_submission(sub: Mapping[str, Any], doc_text: str, doc_class: str) -> SubmissionResult:
     """Run the gate on one submission (see the module docstring for the order)."""
-    types, vocab, empty_payload, empty_value, model = _schema_bits(doc_class)
     result = SubmissionResult(doc_id=str(sub.get("doc_id")), doc_class=doc_class)
+    try:
+        types, vocab, empty_payload, empty_value, model = _schema_bits(doc_class)
+    except KeyError:
+        # A class the pipeline has no extraction schema for: nothing can pass the gate.
+        result.payload_error = f"no extraction schema for class {doc_class!r}"
+        fields = sub.get("fields")
+        for name in (fields if isinstance(fields, Mapping) else {}):
+            result.fields[name] = FieldResult(field=name, ok=False, evidence=[], checks={},
+                                              reason=f"no extraction schema for class {doc_class!r}")
+        return result
     allowed = set(target_fields(doc_class))
     fields = sub.get("fields")
     if fields is None:
@@ -574,6 +607,14 @@ def _canon(value: Any) -> Any:
     return value
 
 
+#: A negation in one reading of a free-text value and not in the other flips its meaning.
+_NEGATIONS = frozenset({"not", "no", "never", "without"})
+
+
+def _negated(canon: str) -> bool:
+    return not _NEGATIONS.isdisjoint(canon.split())
+
+
 def _token_f1(x: str, y: str) -> float:
     tx, ty = set(x.split()), set(y.split())
     if not tx or not ty:
@@ -587,7 +628,8 @@ def _lists_match(a: list[str], b: list[str], threshold: float = 0.5) -> bool:
     (greedy, best pair first) with token F1 at least ``threshold`` (paraphrase-tolerant)."""
     if len(a) != len(b):
         return False
-    pairs = sorted(((_token_f1(x, y), i, j) for i, x in enumerate(a) for j, y in enumerate(b)), reverse=True)
+    pairs = sorted(((_token_f1(x, y), i, j) for i, x in enumerate(a) for j, y in enumerate(b)
+                    if _negated(x) == _negated(y)), reverse=True)
     used_a, used_b = set(), set()
     for score, i, j in pairs:
         if i in used_a or j in used_b or score < threshold:
@@ -613,6 +655,8 @@ def values_agree(a: Any, b: Any, ftype: str) -> bool:
         return all(set(x.split()) <= set(y.split()) or set(y.split()) <= set(x.split())
                    for x, y in zip(ca, cb))
     if ftype in ("name", "free_text"):
+        if ftype == "free_text" and _negated(_canon(a)) != _negated(_canon(b)):
+            return False
         ta, tb = set(_canon(a).split()), set(_canon(b).split())
         if ta == tb:
             return True
@@ -672,7 +716,10 @@ def reconcile(doc: Mapping[str, Any], doc_text: str, label: SubmissionResult, ch
     agree → ``near_gold``; they disagree, or only one passed → ``disputed`` (the check's value
     is kept for review). Without a check pass → ``candidate``.
     """
-    types = _schema_bits(doc["doc_class"])[0]
+    try:
+        types = _schema_bits(doc["doc_class"])[0]
+    except KeyError:  # no extraction schema: no field passed the gate, so nothing is compared
+        types = {}
     records, rejects = [], []
     for name, fr in label.fields.items():
         if not fr.ok:
@@ -698,23 +745,50 @@ def reconcile(doc: Mapping[str, Any], doc_text: str, label: SubmissionResult, ch
     return records, rejects
 
 
+REVIEW_VERDICTS = ("accept", "reject", "correct", "accept_check")
+
+
+def reviewer_problem(reviewer: Any) -> str | None:
+    """Why ``reviewer`` cannot sign a review decision (None = fine): an object with a
+    non-empty ``model`` and ``role``."""
+    if not reviewer:
+        return "has no reviewer"
+    if not isinstance(reviewer, Mapping):
+        return "reviewer must be an object with model and role"
+    for key in ("model", "role"):
+        val = reviewer.get(key)
+        if not isinstance(val, str) or not val.strip():
+            return f"reviewer.{key} is missing or empty"
+    return None
+
+
 def apply_review(record: dict[str, Any], decision: Mapping[str, Any]) -> dict[str, Any]:
     """Settle a disputed (or candidate) record with a reviewer's decision.
 
-    ``decision``: ``{"verdict": "accept"|"reject"|"correct", "reviewer": {...} (required),
-    "value"?: corrected, "evidence"?: [spans], "note"?: str}``. A correction must already have
-    passed :func:`validate_submission` (the caller re-validates it). A correction keeps the
-    label it replaced under ``review.original``.
+    ``decision``: ``{"verdict": "accept"|"reject"|"correct"|"accept_check", "reviewer": {model,
+    role} (required), "value"?: corrected, "evidence"?: [spans], "note"?: str}``. A correction
+    (``correct``) and an adopted check answer (``accept_check``, which also carries
+    ``check_labeler``) must already have passed :func:`validate_submission` (the caller
+    re-validates them). Both keep the label they replace under ``review.original`` and set
+    ``value_source`` to who produced the value now stored: the reviewer (``review_correction``)
+    or the check labeler (``check_pass``). The stored verdict stays as given.
     """
-    if not decision.get("reviewer"):
-        raise ValueError("a review decision needs a reviewer")
+    problem = reviewer_problem(decision.get("reviewer"))
+    if problem:
+        raise ValueError(f"a review decision needs a reviewer: {problem}")
     out = dict(record)
-    verdict = decision["verdict"]
+    verdict = decision.get("verdict")
+    if verdict is None:
+        raise ValueError("a review decision needs a verdict")
     if verdict == "accept":
         out["status"] = "near_gold"
     elif verdict == "reject":
         out["status"] = "rejected"
-    elif verdict == "correct":
+    elif verdict in ("correct", "accept_check"):
+        if "value" not in decision:
+            raise ValueError(f"a {verdict} decision needs a value")
+        if verdict == "accept_check" and not decision.get("check_labeler"):
+            raise ValueError("an accept_check decision needs the check labeler")
         original = {k: record.get(k) for k in ("value", "evidence", "presence", "absent_reason", "labeler")}
         out["status"] = "near_gold"
         out["value"] = decision["value"]
@@ -723,11 +797,15 @@ def apply_review(record: dict[str, Any], decision: Mapping[str, Any]) -> dict[st
         if decision.get("presence"):
             out["presence"] = decision["presence"]
         out["absent_reason"] = decision.get("absent_reason")
+        out["value_source"] = ({"kind": "review_correction", "labeler": dict(decision["reviewer"])}
+                               if verdict == "correct"
+                               else {"kind": "check_pass", "labeler": dict(decision["check_labeler"])})
     else:
         raise ValueError(f"unknown verdict {verdict!r}")
     out["use_as_truth"] = out["status"] in TRUTH_STATUSES
-    out["review"] = {k: v for k, v in decision.items() if k not in ("value", "evidence", "absent_reason")}
-    if verdict == "correct":
+    out["review"] = {k: v for k, v in decision.items()
+                     if k not in ("value", "evidence", "absent_reason", "check_labeler")}
+    if verdict in ("correct", "accept_check"):
         out["review"]["original"] = original
     return out
 
@@ -742,7 +820,8 @@ def supplementary_dir(root: Path | None = None) -> Path:
 
 def write_jsonl(path: Path, records: Iterable[Mapping[str, Any]]) -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
-    lines = [json.dumps(r, sort_keys=True, ensure_ascii=False) for r in records]
+    # ensure_ascii: U+2028, U+2029 and U+0085 must not split a line in a splitlines() reader.
+    lines = [json.dumps(r, sort_keys=True, ensure_ascii=True) for r in records]
     text = "\n".join(lines) + ("\n" if lines else "")
     path.write_text(text, encoding="utf-8")
     return _sha(text)
@@ -751,8 +830,8 @@ def write_jsonl(path: Path, records: Iterable[Mapping[str, Any]]) -> str:
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.is_file():
         return []
-    # Split on "\n" only: str.splitlines() also breaks on U+2028, U+2029 and U+0085, which
-    # write_jsonl (ensure_ascii=False) leaves unescaped inside a record.
+    # Split on "\n" only: str.splitlines() also breaks on U+2028, U+2029 and U+0085 (older
+    # files may hold them unescaped; write_jsonl now escapes every non-ASCII character).
     return [json.loads(line) for line in path.read_text(encoding="utf-8").split("\n") if line.strip()]
 
 
@@ -806,7 +885,36 @@ def verify_catalog(directory: Path) -> list[str]:
                 problems.append(f"{where}: use_as_truth does not follow status")
             if rec.get("presence") == "populated" and not rec.get("evidence") and not rec.get("absent_reason"):
                 problems.append(f"{where}: populated without evidence")
+            if rec.get("status") == "near_gold":
+                why = _near_gold_problem(rec)
+                if why:
+                    problems.append(f"{where}: near_gold {why}")
     return problems
+
+
+def _near_gold_problem(rec: Mapping[str, Any]) -> str | None:
+    """Why a ``near_gold`` record is not what the tier promises (None = it is).
+
+    Either two independent passes agreed (``check.agrees`` and ``check.gate_ok``), or a reviewer
+    with a model and a role settled it with accept, correct or accept_check."""
+    check = rec.get("check")
+    if isinstance(check, Mapping) and check.get("agrees") is True and check.get("gate_ok") is True:
+        return None
+    review = rec.get("review")
+    if not isinstance(review, Mapping):
+        return "has neither an agreeing check pass nor a review"
+    problem = reviewer_problem(review.get("reviewer"))
+    if problem:
+        return f"review: {problem}"
+    verdict = review.get("verdict")
+    if verdict not in ("accept", "correct", "accept_check"):
+        return f"review verdict {verdict!r} does not settle a label as near_gold"
+    if verdict in ("correct", "accept_check"):
+        source = rec.get("value_source")
+        kind = {"correct": "review_correction", "accept_check": "check_pass"}[verdict]
+        if not isinstance(source, Mapping) or source.get("kind") != kind or not source.get("labeler"):
+            return f"{verdict} review without value_source {kind!r}"
+    return None
 
 
 def overlay_records(records: Iterable[Mapping[str, Any]], *, gate_run: str) -> list[dict[str, Any]]:
@@ -832,12 +940,16 @@ def overlay_records(records: Iterable[Mapping[str, Any]], *, gate_run: str) -> l
             "doc_class": rec["doc_class"], "doc_id": rec["doc_id"],
             "doc_sha256": (rec.get("content_sha256") or rec.get("doc_sha") or "")[:16],
             "doc_subclass": rec.get("subclass"), "labels": {},
+            # The first label's labeler and near_empty, for EDA's per-document reader; each
+            # label below carries its own.
             "source": {"gate_run": gate_run, "catalog": SCHEMA, "labeler": rec.get("labeler"),
                        "near_empty": bool(rec.get("near_empty"))}})
         out["labels"][rec["field"]] = {
             "value": rec.get("value"), "status": "gap_fill", "basis": basis, "hub_value": None,
             "use_as_truth": False, "presence": rec.get("presence"), "evidence": rec.get("evidence"),
-            "absent_reason": rec.get("absent_reason"), "label_id": rec.get("label_id")}
+            "absent_reason": rec.get("absent_reason"), "label_id": rec.get("label_id"),
+            "labeler": rec.get("labeler"), "near_empty": bool(rec.get("near_empty")),
+            "value_source": rec.get("value_source")}
     return [docs[k] for k in sorted(docs)]
 
 
