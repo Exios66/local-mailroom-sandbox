@@ -14,7 +14,7 @@ label.
 3. **Quote your evidence verbatim.** Every non-empty value carries one or more `evidence`
    quotes copied character for character from the document (whitespace may differ). Keep each
    quote short: the smallest span that shows the value, such as one header line or one sentence.
-   The gate rejects a quote it cannot find in the document, and a quote longer than 400
+   The gate rejects a quote it cannot find in the document, and a quote longer than 400 (1,500 for list fields such as a long cc block)
    characters ("evidence quote too long"): a whole-document quote would support anything.
 4. **Closed labels use the listed tokens only.** Never invent a new token or map one to `other`
    unless `other` is the honest answer.
@@ -42,7 +42,7 @@ Write one JSON object per document, one per line (JSONL):
   say why in `supplementary.notes`.
 - `value`: the label. Dates are `YYYY-MM-DD`. Money is a number unless the field is a currency
   phrase (contract `contract_value`). Lists are JSON arrays of strings.
-- `evidence`: a list of verbatim quotes, each at most 400 characters. Required for every
+- `evidence`: a list of verbatim quotes, each at most 400 characters (1,500 for list fields). Required for every
   non-empty value, except a closed label at its default (correspondence `urgency: routine`),
   which needs a `basis` sentence instead. A closed label that is **not** its default (`urgency`
   other than `routine`) needs at least one quote of three or more words that states the
