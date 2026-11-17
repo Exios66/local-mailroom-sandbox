@@ -87,25 +87,52 @@ State is under `reports/autoresearch/<study>/` (override with `state_dir`):
 
 | file | content |
 |:---|:---|
-| `ledger.jsonl` | append-only, one row per round and per skipped lever: lever, run id and directory, spec sha256, metrics, delta and CI, decision (`baseline`, `replicate`, `keep`, `revert`, `error`, `aborted_cap`, `skipped`, `holdout`, `warning`) and reasons, cost, round cap, estimate (both figures), `patch_before`, `usd_per_utility_point`, dependency sources, pipeline source |
+| `ledger.jsonl` | append-only, one row per round and per skipped lever: lever, run id and directory, spec sha256, metrics, delta and CI, decision (`baseline`, `replicate`, `keep`, `revert`, `error`, `aborted_cap`, `skipped`, `holdout`, `warning`, and `pending`, below) and reasons, cost, round cap, estimate (both figures), `patch_before`, `usd_per_utility_point`, dependency sources, pipeline source; a paid round also records `key_remaining_before` and `key_remaining_at_start` |
+| `.lock` | an advisory `flock` held for the whole of `step`, `run` and `holdout`: a second process on the same state directory is refused at once (`another autoresearch process holds <state_dir>`). `plan` and `status` read only and take no lock |
+| `key_start.json` | the OpenRouter key's first `limit_remaining` reading of the study, for the bill-grounded guard (Spend guards) |
 | `champion.yaml` | a convenience copy of the current champion's run spec, written before its ledger row and never read back |
 | `specs/`, `scores/` | every candidate spec (`<run_id>.yaml`), and the per-document utility and cost of every run. The champion is loaded from `specs/<champion run_id>.yaml` and checked against the ledger row's `spec_sha256`; a missing or edited spec is a clear error |
 | `weakness.md`, `report.md`, `holdout.md` | the views; the report ends with the production-parity section |
 
 The loop resumes from the ledger: re-run the same command after a stop, a crash or a changed budget. The ledger row is
 the commit point: `champion.yaml` is written just before it, and the champion's spec is read from `specs/`, so a crash
-between the two files leaves a consistent state. `status` says so plainly when nothing has run yet (`message`).
+between the two files leaves a consistent state. Spec files, `champion.yaml`, scores, the views and `key_start.json` are written through a
+temp file and `os.replace`, so a crash never leaves a torn one. `status` says so plainly when nothing has run yet (`message`).
+
+### Spend guards
+
+Before each paid round the loop checks, in order, and stops with the first that fails:
+
+1. `study_budget`: `ledger spend + the round's cap <= study_usd`. A non-finite figure fails this check (it fails closed), and a ledger
+   row whose cost is NaN, infinite or not a number stops the study with a `ledger corrupt` error; each row counts at least 0.
+2. `key_unreadable` / `key_low`: the key's `limit_remaining` (`GET /api/v1/key`) must be readable and finite, and `remaining - cap >= min_key_remaining_usd`.
+3. `key_spend`: the bill itself. The first reading of the study is kept in `key_start.json`; the loop stops when
+   `key_remaining_at_start - remaining_now + cap > study_usd`. The ledger is an estimate from recorded tokens; the key's drop is what OpenRouter billed.
+
+What a run costs in the ledger is `max(its scored cost, its own ApiBudget spend)`. The `ApiBudget` keeps no counter of its own; the runner rebuilds
+it from the run directory, and so does the loop (`autoresearch.loop.api_spend`): every `items.jsonl` row (whose token totals include the attempts the
+runner retried) plus every `api_usage_of_failed_document` event (a document that raised after a paid call has no item row), priced at the lock's
+runtime bound (`price_bound`: the dearest API model's input and output price). A round aborted by its cap is charged at least its cap.
+
+**Pending rows.** Before a paid child runs, the loop appends a `pending` row (run id, `reserved_usd` = the round's cap). The spend counts a
+`pending` row at its cap until a later final row with the same run id supersedes it, so a crash mid-run still reserves its budget. After a crash,
+the next `step` resumes the same run id (a dangling `pending` row neither takes a round number nor is reserved twice) and resolves it with its own row.
+A reservation whose run is never resumed (the lever is no longer proposed) stays counted: it is a cap's worth of unaccounted possible spend.
+Mock studies write no `pending` rows.
 
 ## The study file (`schema: sandbox.autoresearch/v1`)
 
 `study`, `base_run`, `levers`, `budget` (`study_usd`, `round_api_cap_usd`, `round_wall_seconds`,
-`min_key_remaining_usd`, `max_round_cap_usd` default 4.0), `noise_floor`, `max_consecutive_reverts`, `utility`, `holdout_dataset`; optional
-`bootstrap`, `guard_classes`, `estimate_safety` (default 1.0), `state_dir`. Paths are relative to the study file.
+`min_key_remaining_usd`, `max_round_cap_usd` default 4.0), `noise_floor` (finite, >= 0), `max_consecutive_reverts`, `utility`, `holdout_dataset`
+(only real `DatasetSpec` fields: a typo fails at load; at most twice the dev draw, see Holdout); optional
+`bootstrap`, `guard_classes`, `estimate_safety` (default 1.0; finite, 0.5 to 10), `state_dir`. Paths are relative to the study file.
+`job.mock` is read from the validated run spec: a string `"false"` is a paid study.
 
 ## Levers (`config/autoresearch/levers.yaml`)
 
 A lever is `{id, node, classes, description, patch}` (optional `round_cap_usd`, `round_cap_auto`, `estimate_safety`, below);
-`patch` maps dotted paths to values and `null` deletes a key. A lever may not patch the draw, `task`, `run_id`, or the study's own caps. `validate_catalog` checks every
+`patch` maps dotted paths to values and `null` deletes a key. A lever may not patch the draw, `task`, `run_id`, `trace` (the study's tags), `job` as a whole, or the study's own caps (`job.mock`, `job.mode`,
+`job.max_wall_seconds`, `job.api_cost_cap_usd`). A lever's `estimate_safety` is finite, 0.5 to 10. `validate_catalog` checks every
 lever against the base before any spend (invalid patched spec, a patch that changes nothing, an unknown
 `requires`, a reviewer request larger than the model's context).
 
@@ -213,11 +240,13 @@ they are the opt-in `repair-283` lever (above), proposed only with `AUTORESEARCH
 3302, same strata) with `config/production/excluded-ids.txt` plus every dev document id excluded
 (`holdout-excluded-ids.txt`), so it is the next ranked block. The loop locks the draw first (`sandbox run
 preflight`, no model call) and asserts there is no overlap before spending, and again after the run. A second
-holdout is refused: it confirms, it does not tune. The holdout row records the champion it confirmed (`champion_run_id`); if a
+holdout is refused: it confirms, it does not tune. `holdout_dataset` overrides must say how many documents they draw (strata quotas or
+`limit`) and may draw at most twice the dev draw; otherwise the holdout is refused before any spend. The holdout row records the champion it confirmed (`champion_run_id`); if a
 later keep changes the champion, `status` (`holdout_stale: true`) and `report.md` flag the holdout as **stale**: it describes the earlier champion. Add the dev ids to `config/production/excluded-ids.txt` before
 the next production slice if they should not be re-drawn.
 
 ## Secrets
 
 The OpenRouter key is read from the environment only to check its remaining limit. It is never printed, logged,
-written to the ledger or a report, and child-process output is scrubbed before it is stored.
+written to the ledger or a report, and child-process output is scrubbed before it is stored. Scrubbing covers the whole output first
+(the key, any `sk-or-...` token, any `Bearer <token>`) and only then takes the tail that is shown, so a secret that straddles the cut never survives as a partial.
