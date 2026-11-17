@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- **Insurance v4 is adopted and folded into a v5 candidate; the judge audit leaves routing alone.**
+  - The v4 A/B (40 documents): mean 0.874 → 0.880 and Part D NDC 0/5 → 5/5. `claim_type` did not move: the pipeline's structured-output schema still asks for CMS table tokens, which only llm-mailroom #280 changes.
+  - `insurance_claims_specialist_condensed_v5` is v4 plus #280's line-of-business vocabulary. Its A/B arms, `specialist-condensed-v5-insurance-claim-qwen-{v4arm,v5arm}`, run on the v4 A/B's documents after #280 is vendored. The slices stay on v3 until v5 passes.
+  - `config/production/excluded-ids.txt` adds the v4 A/B's 40 documents. Its header now names the correspondence reference arm that was actually drawn (`v2arm-r2`); the ids are unchanged. The slices' `ranked` draw keeps every slice as it was.
+  - Judge audit (26 documents paired with slice 100 r2): judging every corporate, correspondence and insurance extraction caught 1 of 6 wrong archives, sent 5 other archives to review and cost up to 3× the tokens. `judge_band_high` stays as it is.
 - **Vendor refresh: llm-mailroom `63f6841` → `f83e398`, Dojo `116da0b` → `025400f` (0.30.1, untagged).** These are the release-branch heads after llm-mailroom #281 and llm-dojo-scoring #174. llm-mailroom `f83e398` declares Dojo `025400f`.
   - Insurance `claim_type` is the product line (llm-mailroom #280, #174 §2). The structured-output description asks for `auto`, `property`, `liability`, `health`, `life`, `workers_comp` or `other`, the extract node normalizes a CMS table token to `health`, and extraction ground truth does the same. `tests/test_pipeline_handoff.py` now expects `health` for a Part D claim.
   - CUAD `agreement_date` and `expiration_date` count toward clause recall only (Dojo #173, #167). A filled date is never a false positive where CUAD left it unannotated.

@@ -94,5 +94,24 @@ def test_the_insurance_v4_arms_share_one_draw_that_avoids_every_production_slice
     # The arm list holds every tuning document plus the slice-500 draw (checked offline; CI has no Hub access).
     arm_list = _ids(root / dataset.exclude_ids_file)
     tuning = _ids(root / "config/production/excluded-ids.txt")
-    assert tuning <= arm_list
-    assert len(arm_list) == len(tuning) + 500  # a slice never draws a tuning document, so the two are disjoint
+    # The arm list is frozen; excluded-ids.txt has since gained the A/B's own 40 documents, which the
+    # arm list cannot hold (the arms drew them). Everything else in it was frozen into the arm list.
+    ab_draw = _ids(root / "tests/fixtures/insurance_v4_ab_ids.txt")
+    assert len(ab_draw) == 40 and not ab_draw & arm_list  # the arms could not draw their own exclusions
+    # Exactly the A/B's documents are missing from the arm list: a tuning id swapped out for an A/B id
+    # (same counts) would show up here.
+    assert tuning - arm_list == ab_draw
+    assert ab_draw <= tuning  # the A/B joined the held-out list
+    assert len(arm_list) == len(tuning - ab_draw) + 500  # a slice never draws a tuning document
+
+
+def test_the_insurance_v5_arms_reuse_the_v4_draw():
+    root = repo_root()
+    v4 = load_run_spec(root / "config/runs/specialist-condensed-v4-insurance-claim-qwen-v4arm.yaml")
+    specs = {arm: load_run_spec(root / f"config/runs/specialist-condensed-v5-insurance-claim-qwen-{arm}.yaml")
+             for arm in ("v4arm", "v5arm")}
+    for spec in specs.values():
+        assert spec.dataset.model_dump_json() == v4.dataset.model_dump_json()
+        assert spec.job.pipeline_handoff is True
+    assert {arm: spec.prompt["agents"]["insurance_claims_specialist"]["file"] for arm, spec in specs.items()} == {
+        "v4arm": "insurance_claims_specialist_condensed_v4", "v5arm": "insurance_claims_specialist_condensed_v5"}
