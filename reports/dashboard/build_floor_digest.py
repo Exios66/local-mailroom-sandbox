@@ -557,6 +557,186 @@ def _routing(items: list[tuple[str, dict]], ds_class: dict[str, str]) -> dict[st
     return dict(sorted(routing.items()))
 
 
+
+# ── analysis helpers (per-document flow, scores against ground truth) ───────────
+
+# A document table is kept per run for the viewer's Documents tab; bigger runs keep the
+# first DOC_ROW_CAP rows (by item order) and say so in ``docs_truncated``.
+DOC_ROW_CAP = 5000
+# A run whose checkpoint still says ``running`` but whose artifacts have not changed for
+# this long is shown as ``stalled`` (a killed process never rewrites its checkpoint).
+# ``$FLOOR_STALL_SECONDS`` overrides it.
+STALL_AFTER_S = 900.0
+# Label tiers in precedence order (Hub > interim > near_gold): the tier a document's
+# extraction score rests on is the LOWEST tier that filled any of its fields. Rows from the
+# repo's own fixture manifest (``dataset: sandbox-fixtures``) are hand-written test labels,
+# not Hub ground truth, and get their own ``fixture`` tier.
+LABEL_TIERS = ("hub", "fixture", "interim", "near_gold")
+FIXTURE_DATASETS = {"sandbox-fixtures"}
+# A document with a GT class but no predicted class counts as a miss under this label
+# once it reached a terminal outcome (an open document is still undecided).
+UNKNOWN_CLASS = "unknown"
+
+
+def _score_value(item: dict) -> float | None:
+    """The item's headline extraction score (``score.overall_extraction_score``), if numeric."""
+    score = item.get("score") if isinstance(item.get("score"), dict) else {}
+    value = _num(score.get("overall_extraction_score"))
+    return value if value is not None and 0.0 <= value <= 1.0 else None
+
+
+def _expected_fields(row: dict) -> dict:
+    """A dataset row's ``expected_fields`` as a dict (it may be a JSON string); {} if absent."""
+    exp = row.get("expected_fields")
+    if isinstance(exp, str):
+        try:
+            exp = json.loads(exp)
+        except ValueError:
+            return {}
+    return exp if isinstance(exp, dict) else {}
+
+
+def _overlay_fields(row: dict, key: str) -> list[str]:
+    """Field names an overlay (``interim_labels`` / ``near_gold_labels``) filled on a row."""
+    block = row.get(key)
+    fields = block.get("fields") if isinstance(block, dict) else None
+    return sorted(str(f) for f in fields) if isinstance(fields, (list, tuple)) else []
+
+
+def _label_provenance(row: dict | None) -> dict:
+    """Which label tier supplied each field of a row's ground truth.
+
+    ``tier`` is the lowest-precedence tier present (``near_gold`` beats ``interim`` beats
+    ``hub``), so any score that leaned on a near-gold label is shown as such; ``none``
+    means the row has a class label but no field labels, and None means no dataset row.
+    """
+    if row is None:
+        return {"tier": None, "hub": 0, "interim": [], "near_gold": []}
+    interim, near = _overlay_fields(row, "interim_labels"), _overlay_fields(row, "near_gold_labels")
+    filled = set(interim) | set(near)
+    hub = [k for k in _expected_fields(row) if k != "gt_presence" and k not in filled]
+    base_tier = "fixture" if str(row.get("dataset") or "") in FIXTURE_DATASETS else "hub"
+    tier = "near_gold" if near else "interim" if interim else base_tier if hub else "none"
+    return {"tier": tier, "hub": len(hub), "interim": interim, "near_gold": near}
+
+
+def _mean(values: list[float]) -> float | None:
+    """Mean rounded to 4 places, or None for no values."""
+    return round(sum(values) / len(values), 4) if values else None
+
+
+def _scores(docs: list[dict]) -> dict:
+    """Run scores against ground truth from the per-document rows.
+
+    Classification counts documents with a GT class that reached a terminal outcome; one
+    with no predicted class is a miss recorded as ``unknown`` (precision/recall per class, a
+    confusion matrix ``gt -> pred -> n``). Extraction
+    means use documents with a numeric ``overall_extraction_score``, split by the label
+    tier the GT came from, so near-gold-backed numbers are never read as Hub-GT ones.
+    """
+    labelled = [{**d, "pred": d["pred"] or UNKNOWN_CLASS} for d in docs if _classifiable(d)]
+    confusion: dict[str, Counter] = {}
+    for d in labelled:
+        confusion.setdefault(d["gt"], Counter())[d["pred"]] += 1
+    classes = sorted({d["gt"] for d in docs if d["gt"]}
+                     | {d["pred"] for d in labelled if d["pred"] != UNKNOWN_CLASS})
+    per_class: dict[str, dict] = {}
+    for c in classes:
+        gt_n = sum(1 for d in labelled if d["gt"] == c)
+        pred_n = sum(1 for d in labelled if d["pred"] == c)
+        tp = sum(1 for d in labelled if d["gt"] == c and d["pred"] == c)
+        mine = [d for d in docs if d["gt"] == c]
+        ext = [d["score"] for d in mine if d["score"] is not None]
+        outcome = Counter(d["outcome"] for d in mine)
+        per_class[c] = {
+            "n": len(mine), "gt_n": gt_n, "pred_n": pred_n, "correct": tp,
+            "precision": round(tp / pred_n, 4) if pred_n else None,
+            "recall": round(tp / gt_n, 4) if gt_n else None,
+            "extraction_mean": _mean(ext), "extraction_n": len(ext),
+            "near_gold_docs": sum(1 for d in mine if d["labels"]["tier"] == "near_gold"),
+            "outcomes": {k: outcome.get(k, 0) for k in ("ship", "held", "failed", "open")},
+        }
+    by_tier: dict[str, dict] = {}
+    for d in docs:
+        tier = d["labels"]["tier"]
+        if tier is None:
+            continue
+        t = by_tier.setdefault(tier, {"docs": 0, "scored": 0, "_ext": []})
+        t["docs"] += 1
+        if d["score"] is not None:
+            t["scored"] += 1
+            t["_ext"].append(d["score"])
+    for t in by_tier.values():
+        t["extraction_mean"] = _mean(t.pop("_ext"))
+    correct = sum(1 for d in labelled if d["gt"] == d["pred"])
+    ext_all = [d["score"] for d in docs if d["score"] is not None]
+    hub_only = [d["score"] for d in docs if d["score"] is not None and d["labels"]["tier"] == "hub"]
+    return {
+        "classification": {"n": len(labelled), "correct": correct,
+                           "accuracy": round(correct / len(labelled), 4) if labelled else None},
+        "extraction": {"n": len(ext_all), "mean": _mean(ext_all),
+                       "hub_n": len(hub_only), "hub_mean": _mean(hub_only)},
+        "per_class": per_class,
+        "confusion": {g: dict(sorted(c.items())) for g, c in sorted(confusion.items())},
+        "label_tiers": {k: by_tier[k] for k in (*LABEL_TIERS, "none") if k in by_tier},
+        "near_gold_fields": sum(len(d["labels"]["near_gold"]) for d in docs),
+        "interim_fields": sum(len(d["labels"]["interim"]) for d in docs),
+    }
+
+
+def _classifiable(d: dict) -> bool:
+    """True when a document counts for classification: a GT class and a terminal outcome,
+    or a predicted class even while open."""
+    return bool(d["gt"]) and (d["pred"] is not None or d["outcome"] != "open")
+
+
+def _node_outcomes(docs: list[dict]) -> dict[str, dict]:
+    """Per node: where the documents that visited it ended up, and how many were classed right."""
+    out: dict[str, dict] = {}
+    for d in docs:
+        for node in dict.fromkeys(d["path"]):
+            o = out.setdefault(node, {"ship": 0, "held": 0, "failed": 0, "open": 0, "n": 0,
+                                      "class_n": 0, "class_ok": 0})
+            o[d["outcome"]] += 1
+            o["n"] += 1
+            if _classifiable(d):
+                o["class_n"] += 1
+                o["class_ok"] += int(d["gt"] == d["pred"])
+    return dict(sorted(out.items()))
+
+
+def _last_activity(path: Path) -> float | None:
+    """Latest mtime (epoch s) of the run's progress artifacts, or None if none can be read."""
+    times = []
+    for name in ("items.jsonl", "nodes.jsonl", "checkpoint.json"):
+        try:
+            times.append((path / name).stat().st_mtime)
+        except OSError:
+            continue
+    return max(times) if times else None
+
+
+def _stall_after() -> float:
+    """``$FLOOR_STALL_SECONDS`` when it is a positive finite number, else the default."""
+    try:
+        v = float(os.environ.get("FLOOR_STALL_SECONDS") or "")
+    except ValueError:
+        return STALL_AFTER_S
+    return v if math.isfinite(v) and v > 0 else STALL_AFTER_S
+
+
+def _error_text(item: dict) -> str | None:
+    """A short error / escalation note for the document table, or None."""
+    for holder in (item, item.get("pred")):
+        if not isinstance(holder, dict):
+            continue
+        for key in ("error", "error_message", "escalation_reason"):
+            v = holder.get(key)
+            if isinstance(v, str) and v.strip():
+                return v.strip()[:200]
+    return None
+
+
 def build_run(name: str, path: Path, edge_set: set[tuple[str, str]]) -> tuple[dict, set[str]]:
     """Summarize a run's artifacts and return the summary and observed classes.
 
@@ -583,8 +763,11 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]]) -> tuple[di
     items = list(items_by_id.items())
 
     ds_class: dict[str, str] = {}
+    ds_by_id: dict[str, dict] = {}
     for row in ds_rows:
         key = row.get("id") or row.get("filename")
+        if key is not None:
+            ds_by_id[str(key)] = row  # last row wins, like ds_class below
         if key is not None and row.get("expected_doc_class"):
             ds_class[str(key)] = str(row["expected_doc_class"])
 
@@ -631,6 +814,7 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]]) -> tuple[di
     aborts: Counter = Counter()
     ok_count = 0
     item_class: dict[str, str] = {}
+    doc_rows: list[dict] = []
     for item_id, it in items:
         ok = it.get("ok")
         if ok:
@@ -639,6 +823,21 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]]) -> tuple[di
         bucket = _stage_bucket(stage, ok if isinstance(ok, bool) else None)
         cls = ds_class.get(item_id) or str(it.get("expected_doc_class") or it.get("expected") or "") or "?"
         item_class[item_id] = cls
+        recs = per_doc_records.get(item_id) or []
+        seq = visit_seq(recs)
+        doc_rows.append({
+            "id": item_id,
+            "gt": None if cls == "?" else cls,
+            "pred": _pred_class(it),
+            "outcome": bucket,
+            "stage": str(stage) if stage else None,
+            "path": [n for i, n in enumerate(seq) if i == 0 or seq[i - 1] != n],  # self-loops collapsed
+            "ms": _num(it.get("latency_ms")),
+            "score": _score_value(it),
+            "labels": _label_provenance(ds_by_id.get(item_id)),
+            "review": _review_trigger(it, recs),
+            "note": _error_text(it),
+        })
         for table, key in ((outcomes, cls), (class_outcomes, ds_class.get(item_id))):
             if key is None:
                 continue
@@ -694,9 +893,20 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]]) -> tuple[di
 
     cursor = checkpoint.get("cursor")
     routing = _routing(items, ds_class)
+    state = checkpoint.get("state") or "unknown"
+    last_activity = _last_activity(path)
+    stalled_s = None
+    if state == "running" and last_activity is not None:
+        idle = datetime.now(UTC).timestamp() - last_activity
+        if idle > _stall_after():
+            state, stalled_s = "stalled", round(idle)
     run = {
         "name": name,
-        "state": checkpoint.get("state") or "unknown",
+        "state": state,
+        "checkpoint_state": checkpoint.get("state") or "unknown",
+        "stalled_s": stalled_s,
+        "last_activity_utc": (datetime.fromtimestamp(last_activity, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+                              if last_activity is not None else None),
         "cursor": cursor if isinstance(cursor, int) and not isinstance(cursor, bool) else 0,
         "total": total,
         "items_attempted": len(items),
@@ -734,6 +944,10 @@ def build_run(name: str, path: Path, edge_set: set[tuple[str, str]]) -> tuple[di
         # per ground-truth class: items whose recorded doc_type differs from it (routing misses)
         "predicted": {c: v["gt"] - v["match"] for c, v in routing.items() if v["gt"]},
         "routing": routing,
+        "scores": _scores(doc_rows),
+        "node_outcomes": _node_outcomes(doc_rows),
+        "docs": doc_rows[:DOC_ROW_CAP],
+        "docs_truncated": max(0, len(doc_rows) - DOC_ROW_CAP),
     }
     classes = {c for c in outcomes if c != "?"} | set(ds_class.values())
     return run, classes
