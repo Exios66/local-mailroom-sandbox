@@ -14,6 +14,7 @@ input for applying it to `data/labels/gold/` and `data/labels/interim/`.
 | --- | --- |
 | `verdicts.jsonl` | One line per label: `catalog`, `source` (`gold` or `interim`), `doc_id`, `filename`, `field`, `verdict`, `value` and the evidence for the verdict. |
 | `policy_questions.json` | The questions behind each `needs_human` group, keyed by `policy_group`. |
+| `human_reviews.jsonl` | The owner's own decisions from the review desk, one line per label. These are final: see below. |
 | `interim_audit.jsonl` | One verdict per interim truth label (2,682 labels), with the recommended fix. |
 | `INTERIM_AUDIT.md` | The interim truth audit: results by stratum, the classes with no gold catalog, and the integration steps. |
 
@@ -25,16 +26,41 @@ input for applying it to `data/labels/gold/` and `data/labels/interim/`.
 | `corrected` | The label was wrong. `previous_value` holds the old value and `note` gives the reason. | The corrected value. |
 | `filled_from_original_header` | Correspondence only. The document text does not state the value, so the text-only label is empty. The original email's header (CMU Enron maildir: `X-From`, `X-To`, `X-cc`, `Date`) gives it, and it describes the labeled message. `text_only_value` keeps the text-only label. | The header value. |
 | `needs_human` | The guide does not settle the case. `policy_group` names the open question, and `suggestion` (when present) is the alternative value. | The label as it is. |
+| `human_verified` | The owner checked the label on the review desk and kept it. `claude_verdict` keeps the verdict before that review. | The label as it is. |
+| `human_corrected` | The owner changed the label on the review desk, by choosing the suggestion (`human_suggestion`) or by entering a correction. `previous_value` holds the label before that review. | The owner's value. |
 
 ## Counts
 
-| Catalog | Labels | Verified | Corrected | Filled from header | Needs a human |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Correspondence (gold, 7 fields) | 6,994 | 5,107 | 169 | 1,666 | 52 |
-| Correspondence `intent` (interim, disputed) | 72 | 46 | 23 | 0 | 3 |
-| Corporate records (gold) | 1,207 | 1,181 | 0 | 0 | 26 |
-| Contracts and merger agreements (interim, disputed) | 13 | 6 | 4 | 0 | 3 |
-| **Total** | **8,286** | **6,340** | **196** | **1,666** | **84** |
+| Catalog | Labels | Verified | Corrected | Filled from header | Decided by the owner | Needs a human |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Correspondence (gold, 7 fields) | 6,994 | 5,107 | 169 | 1,666 | 0 | 52 |
+| Correspondence `intent` (interim, disputed) | 72 | 46 | 23 | 0 | 0 | 3 |
+| Corporate records (gold) | 1,207 | 1,180 | 0 | 0 | 8 | 19 |
+| Contracts and merger agreements (interim, disputed) | 13 | 6 | 4 | 0 | 0 | 3 |
+| **Total** | **8,286** | **6,339** | **196** | **1,666** | **8** | **77** |
+
+Of the 8 labels the owner decided, 4 were kept and 4 changed (3 to the
+suggestion, 1 by a correction). One of the kept labels was one Claude had
+already verified.
+
+## Owner decisions are final
+
+`human_reviews.jsonl` is the source of record for decisions the repository
+owner made by hand. Each line names the label (`catalog`, `doc_id`, `field`),
+the `decision` (`keep`, `use_suggestion`, `correct` or `unsure`), the resulting
+`value`, the `label_before_review`, the verdict Claude had given
+(`claude_verdict`), the owner's `note` and `reviewed_at`.
+
+- No rebuild, re-review or regeneration may change these labels. Any tool that
+  rewrites `verdicts.jsonl` applies `human_reviews.jsonl` last.
+  `tests/test_label_review_human.py` fails if a decision is lost or its value
+  changed.
+- Applying the review to `data/labels/gold/` and `data/labels/interim/` writes
+  the owner's value for each of these labels and does not queue them for review
+  again.
+- A later mark on the review desk for the same label replaces the earlier one;
+  `reviewed_at` decides which is newer.
+- An `unsure` decision keeps the label in `needs_human`, with the owner's note.
 
 ## How each catalog was checked
 

@@ -132,6 +132,9 @@ For the agent that maintains `data/labels/interim/` and `data/labels/gold/`.
 The interim files are built by `scripts/interim_labels.py` and must not be edited
 by hand, so each fix goes through the builder or through label precedence.
 
+0. **Never re-review or overwrite the owner's decisions.** The labels in
+   `human_reviews.jsonl` are final (see `README.md`). Write their `value` as
+   is, and keep them out of any review queue.
 1. **Apply `verdicts.jsonl` to the gold catalogs first.** The gold values are the
    `recommended_value` for every correspondence and corporate row here, so gold
    must be final before step 2. Rebuild with `scripts/gold_labels.py` and the
