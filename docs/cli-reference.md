@@ -23,7 +23,7 @@ Local-first LLM-Mailroom experiment sandbox.
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -35,7 +35,7 @@ Local-first LLM-Mailroom experiment sandbox.
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -47,7 +47,7 @@ Local-first LLM-Mailroom experiment sandbox.
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -61,7 +61,7 @@ Local-first LLM-Mailroom experiment sandbox.
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -74,7 +74,7 @@ Local-first LLM-Mailroom experiment sandbox.
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -86,7 +86,7 @@ Local-first LLM-Mailroom experiment sandbox.
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -99,7 +99,7 @@ Local-first LLM-Mailroom experiment sandbox.
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -112,7 +112,7 @@ Local-first LLM-Mailroom experiment sandbox.
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -126,7 +126,7 @@ Local-first LLM-Mailroom experiment sandbox.
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -138,7 +138,7 @@ Local-first LLM-Mailroom experiment sandbox.
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -150,7 +150,7 @@ Local-first LLM-Mailroom experiment sandbox.
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -165,7 +165,7 @@ Local-first LLM-Mailroom experiment sandbox.
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -177,7 +177,7 @@ Local-first LLM-Mailroom experiment sandbox.
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -192,7 +192,7 @@ Local-first LLM-Mailroom experiment sandbox.
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -206,7 +206,7 @@ Local-first LLM-Mailroom experiment sandbox.
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -227,7 +227,7 @@ Local-first LLM-Mailroom experiment sandbox.
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -241,7 +241,7 @@ Local-first LLM-Mailroom experiment sandbox.
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -254,7 +254,7 @@ Local-first LLM-Mailroom experiment sandbox.
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -269,7 +269,7 @@ Local-first LLM-Mailroom experiment sandbox.
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -286,7 +286,7 @@ Local-first LLM-Mailroom experiment sandbox.
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -307,7 +307,7 @@ Local-first LLM-Mailroom experiment sandbox.
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -323,7 +323,7 @@ Local-first LLM-Mailroom experiment sandbox.
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -342,7 +342,7 @@ Local-first LLM-Mailroom experiment sandbox.
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -354,7 +354,7 @@ Local-first LLM-Mailroom experiment sandbox.
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -366,7 +366,7 @@ Local-first LLM-Mailroom experiment sandbox.
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -378,7 +378,7 @@ Local-first LLM-Mailroom experiment sandbox.
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -394,7 +394,7 @@ Local-first LLM-Mailroom experiment sandbox.
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -416,7 +416,7 @@ Primary tasks: `specialist [TARGET]` (all five live-class specialists, or one) a
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -431,7 +431,7 @@ Score the live-class specialists in isolation. TARGET: contract, merger_agreemen
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -452,7 +452,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -472,7 +472,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -495,7 +495,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -507,7 +507,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -526,7 +526,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -543,7 +543,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -557,7 +557,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -569,7 +569,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -581,7 +581,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -599,7 +599,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -613,7 +613,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -625,7 +625,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -637,7 +637,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -649,7 +649,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -661,7 +661,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -675,7 +675,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -687,7 +687,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -699,7 +699,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -712,7 +712,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -730,7 +730,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -742,7 +742,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -774,7 +774,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -806,7 +806,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -837,7 +837,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -869,7 +869,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -903,7 +903,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -934,7 +934,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -965,7 +965,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -996,7 +996,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1027,7 +1027,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1058,7 +1058,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1090,7 +1090,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1125,7 +1125,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1156,7 +1156,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1188,7 +1188,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1224,7 +1224,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1251,7 +1251,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1274,7 +1274,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1291,7 +1291,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1314,7 +1314,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1336,7 +1336,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1348,7 +1348,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1372,7 +1372,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1388,7 +1388,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1400,7 +1400,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1414,7 +1414,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1429,7 +1429,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1442,7 +1442,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1456,7 +1456,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1468,7 +1468,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1480,7 +1480,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1497,7 +1497,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1514,7 +1514,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1526,7 +1526,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1543,7 +1543,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1563,7 +1563,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1579,7 +1579,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1605,7 +1605,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1617,7 +1617,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1629,7 +1629,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1649,7 +1649,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1661,7 +1661,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1674,7 +1674,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1689,7 +1689,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1705,7 +1705,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1717,7 +1717,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1735,7 +1735,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1753,7 +1753,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1765,7 +1765,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1780,7 +1780,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1794,7 +1794,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1807,7 +1807,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1820,7 +1820,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1835,7 +1835,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1850,7 +1850,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1863,7 +1863,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1878,7 +1878,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1890,7 +1890,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1903,7 +1903,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1917,7 +1917,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1932,7 +1932,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1949,7 +1949,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1961,7 +1961,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1973,7 +1973,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -1993,7 +1993,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -2007,7 +2007,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -2022,7 +2022,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -2042,7 +2042,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -2087,7 +2087,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -2100,7 +2100,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -2113,7 +2113,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -2127,7 +2127,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -2141,7 +2141,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -2156,7 +2156,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -2168,7 +2168,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -2182,7 +2182,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -2196,7 +2196,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -2211,7 +2211,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
@@ -2224,7 +2224,7 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | Argument | Required by parser | Description |
 | --- | --- | --- |
 | `-h, --help` | No | show this help message and exit |
-| `--profile` | No |  |
+| `--profile` | No | Provider profile name (default: SANDBOX_PROFILE, then .env, then the providers default) |
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
