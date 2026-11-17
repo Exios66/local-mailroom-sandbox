@@ -103,7 +103,10 @@ below it. A signature alone ("Thanks, Jim") is not a header, but
 when the document has no header at all, the signature's name is the sender. `action_items` and
 `urgency` still describe what the document as a whole asks of its reader. A bare pointer ("please see
 the attached notice", "check it out") is not an action item; a direct question or request put to
-the reader is. A calendar entry's sender is its chairperson or organiser, and its "Date:" is the
+the reader is. Promotional or bulk mail (newsletters, fare alerts, store offers, event
+ticket announcements) has no action items: its calls to action are not requests put to the
+reader. A request in a quoted message that the reader made of someone else is not an action
+item of this document. A calendar entry's sender is its chairperson or organiser, and its "Date:" is the
 event date, not a send date. A meeting reminder or a standing invitation is `routine`; it is
 `time-sensitive` when it asks the reader to do or confirm something today, tomorrow or by a
 stated near date. Record any other

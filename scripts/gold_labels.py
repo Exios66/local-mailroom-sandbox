@@ -241,6 +241,14 @@ def cmd_build(args: argparse.Namespace) -> int:
             decision = reviews.get((rec["doc_id"], rec["field"]))
             if decision is not None:
                 applied.add((rec["doc_id"], rec["field"]))
+                if decision["verdict"] == "accept_check":
+                    # The reviewer adopts the check pass's answer, quotes and all.
+                    entry = ((chk[0].get("fields") or {}).get(rec["field"]) if chk else None)
+                    if entry is None:
+                        print(f"accept_check for {rec['doc_id']}.{rec['field']}: no check answer",
+                              file=sys.stderr)
+                        return 1
+                    decision = {**decision, "verdict": "correct", "entry": entry, "adopted": "check"}
                 if decision["verdict"] == "correct":
                     fixed = gl.validate_submission(
                         {"doc_id": doc["doc_id"], "fields": {rec["field"]: decision["entry"]}}, text,
