@@ -25,7 +25,8 @@ def render_report(loop: "Loop", state: "State") -> str:
              f"- mode: {'mock (no spend)' if study.mock else 'paid (OpenRouter)'}",
              f"- champion: `{status['champion']}`, mean utility {_f(status['champion_mean_utility'])}",
              f"- rounds run: {status['rounds']}; kept {len(status['kept'])}, reverted {len(status['reverted'])}, "
-             f"errors {len(status['errors'])}, skipped {len(status['skipped'])}",
+             f"errors {len(status['errors'])}, aborted by the API cap {len(status['aborted_cap'])}, skipped {len(status['skipped'])}",
+             f"- noise floor (keep rule): {_f(status['noise_floor'], '.4f', 'not measured yet: no lever is kept before the replicate baseline')}",
              f"- estimated spend: {status['spent_usd']:.4f} of {study.budget.study_usd:g} USD "
              f"(round cap {study.budget.round_api_cap_usd:g} USD)",
              f"- consecutive reverts: {status['consecutive_reverts']} (stop at {study.max_consecutive_reverts})",
@@ -40,6 +41,18 @@ def render_report(loop: "Loop", state: "State") -> str:
         lines.append(f"| {r.get('seq')} | {_f(r.get('round'), 'd')} | `{r.get('lever')}` | {r.get('decision')} | {ci} | "
                      f"{_f(m.get('mean_utility'))} | {_f(m.get('cost_per_doc'), '.5f')} | {_f(r.get('cost_usd'), '.4f')} | "
                      f"{_f(r.get('usd_per_utility_point'), '.4f')} | {_cell('; '.join(r.get('reasons') or []))} |")
+
+    rep_row = state.replicate
+    if rep_row:
+        n = rep_row.get("noise") or {}
+        lines += ["", "## Noise floor (replicate baseline)", "",
+                  f"The baseline's identical spec was run twice on the same draw ({n.get('n')} documents). Paired difference "
+                  f"between the two runs: |mean| {_f(n.get('abs_mean_delta'), '.4f')}, CI half-width {_f(n.get('ci_half_width'), '.4f')}; "
+                  f"configured floor {_f(n.get('configured_floor'), '.4f')}. Effective floor {_f(n.get('effective_floor'), '.4f')}: a lever "
+                  f"is kept only when its paired CI low is above it. One repeat of the champion cost "
+                  f"{_f(n.get('measured_round_cost_usd'), '.4f')} USD (the measured cost of a round)."]
+    if status["warnings"]:
+        lines += ["", "## Warnings", "", *[f"- {w}" for w in status["warnings"]]]
 
     kept = [r for r in rows if r.get("decision") == "keep"]
     lines += ["", "## Kept levers", ""]

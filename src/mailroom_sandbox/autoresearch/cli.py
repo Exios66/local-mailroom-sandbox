@@ -46,8 +46,11 @@ def _plan(args) -> int:
         print(json.dumps({k: v for k, v in out.items() if k != "weakness_md"}, indent=2, default=str))
         return 0
     print(out.get("weakness_md") or f"next: {out.get('next')}")
+    if out.get("weakness_md") and out.get("next"):
+        print(f"next: {out['next']}")
     print(f"next lever: {out.get('lever')}  (attached to {out.get('attached_to')})" if "lever" in out else "")
-    print(f"spent {out['spent_usd']} USD; consecutive reverts {out['consecutive_reverts']}")
+    print(f"spent {out['spent_usd']} USD; consecutive reverts {out['consecutive_reverts']}; "
+          f"noise floor {out['noise_floor'] if out['noise_floor'] is not None else 'not measured (the replicate runs first)'}")
     return 0
 
 

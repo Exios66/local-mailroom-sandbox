@@ -7,6 +7,12 @@ stratified paired bootstrap, and keeps or reverts. An append-only ledger records
 loop changes no pipeline code and drives the existing locked-run lifecycle through an ``Executor``.
 It stops on budget, on an exhausted catalog, or after N consecutive reverts.
 
+After the baseline the loop runs the identical champion spec once more (``replicate``). The paired difference
+between the two baseline runs is the measured noise: the study's effective noise floor is the larger of the
+configured ``noise_floor``, the absolute mean difference and the interval's half-width, and no lever may be kept
+before the replicate exists. A round the run's own API cap aborts is ``aborted_cap``: not a revert, charged its
+full cap.
+
 State, under ``reports/autoresearch/<study>/`` (or ``state_dir``):
 
 ``ledger.jsonl``   one JSON row per round (and per skipped lever); the loop resumes from it
@@ -21,7 +27,6 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
-import math
 import os
 import re
 import subprocess
@@ -32,13 +37,13 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Protocol
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from mailroom_sandbox.autoresearch import diagnose, estimate, keep, levers as lv, scoring
 from mailroom_sandbox.paths import repo_root
 
 SCHEMA = "sandbox.autoresearch/v1"
-DECIDED = ("keep", "revert", "error")
+DECIDED = ("keep", "revert", "error", "aborted_cap")
 
 
 class AutoresearchError(RuntimeError):
@@ -62,6 +67,14 @@ class Budget(BaseModel):
     round_api_cap_usd: float = Field(gt=0, allow_inf_nan=False)
     round_wall_seconds: int = Field(ge=60)
     min_key_remaining_usd: float = Field(default=3.0, ge=0, allow_inf_nan=False)
+    # The ceiling for a lever's own round cap (supervisor levers derive theirs from the runtime-bound estimate).
+    max_round_cap_usd: float = Field(default=4.0, gt=0, allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def _caps(self) -> "Budget":
+        if self.max_round_cap_usd < self.round_api_cap_usd:
+            raise ValueError("max_round_cap_usd must be at least round_api_cap_usd")
+        return self
 
 
 class Bootstrap(BaseModel):
@@ -318,6 +331,25 @@ class State:
     def spent(self) -> float:
         return spent_usd(self.rows)
 
+    @property
+    def replicate(self) -> dict[str, Any] | None:
+        """The replicate-baseline row (the champion's identical re-run), if the ledger has one."""
+        return next((r for r in self.rows if r.get("decision") == "replicate"), None)
+
+
+@dataclass
+class RoundPlan:
+    """What a candidate round will run under: its API cap and the estimate behind it."""
+    cap: float
+    est: estimate.Estimate | None = None
+
+    @property
+    def info(self) -> dict[str, Any]:
+        out: dict[str, Any] = {"round_cap_usd": self.cap}
+        if self.est is not None:
+            out["estimate"] = self.est.to_dict()
+        return out
+
 
 @dataclass
 class StepResult:
@@ -341,6 +373,7 @@ class Loop:
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._catalog: lv.Catalog | None = None
         self._base: dict[str, Any] | None = None
+        self._warned_key = False
 
     # -- inputs
     @property
@@ -378,9 +411,22 @@ class Loop:
         return (state.champ_row or {}).get("pipeline_source")
 
     # -- guards
-    def _guard(self, state: State) -> str | None:
+    def noise_floor(self, state: State) -> float | None:
+        """The effective noise floor: the configured one or the replicate's measured one, whichever is larger.
+
+        None until the replicate baseline exists (no lever may be kept before then).
+        """
+        rep = state.replicate
+        if rep is None:
+            return None
+        measured = float((rep.get("noise") or {}).get("measured_floor") or 0.0)
+        return max(float(self.study.noise_floor), measured)
+
+    def _guard(self, state: State, cap: float | None = None) -> str | None:
+        """A stop reason when a round capped at ``cap`` (default: the study's round cap) cannot start."""
         budget = self.study.budget
-        if state.spent + budget.round_api_cap_usd > budget.study_usd + 1e-9:
+        cap = budget.round_api_cap_usd if cap is None else cap
+        if state.spent + cap > budget.study_usd + 1e-9:
             return "study_budget"
         if self.study.mock:
             return None
@@ -391,16 +437,29 @@ class Loop:
             remaining = check()
         except Exception:  # noqa: BLE001 - fail closed; the message is not echoed (it may name the transport)
             return "key_unreadable"
-        if remaining is not None and remaining - budget.round_api_cap_usd < budget.min_key_remaining_usd:
+        if remaining is None:
+            self._warn_unlimited_key(state)
+        elif remaining - cap < budget.min_key_remaining_usd:
             return "key_low"
         return None
 
+    def _warn_unlimited_key(self, state: State) -> None:
+        """A key with no spend limit cannot bound the study: say so (ledger once, console once per process)."""
+        message = ("the OpenRouter key has no spend limit (limit_remaining is null): the key check cannot bound spend, "
+                   "so only the study budget does")
+        if not self._warned_key:
+            self._warned_key = True
+            self.out(f"warning: {message}")
+        if not any(r.get("decision") == "warning" and r.get("lever") == "key_check" for r in state.rows):
+            self._row(state, round=None, lever="key_check", run_id=None, decision="warning", reasons=[message],
+                      cost_usd=0.0, goal="quality")
+
     # -- spec stamping
-    def _stamp(self, spec: Mapping[str, Any], *, run_id: str, lever_id: str) -> dict[str, Any]:
+    def _stamp(self, spec: Mapping[str, Any], *, run_id: str, lever_id: str, cap: float | None = None) -> dict[str, Any]:
         out = copy.deepcopy(dict(spec))
         out["run_id"] = run_id
         job = out.setdefault("job", {})
-        job["api_cost_cap_usd"] = self.study.budget.round_api_cap_usd
+        job["api_cost_cap_usd"] = self.study.budget.round_api_cap_usd if cap is None else cap
         job["max_wall_seconds"] = self.study.budget.round_wall_seconds
         trace = out.setdefault("trace", {})
         tags = [t for t in (trace.get("tags") or []) if not str(t).startswith("lever:")]   # the champion's own lever tag goes
@@ -409,6 +468,9 @@ class Loop:
                 tags.append(tag)
         trace["tags"] = tags
         lv.validate_spec(out, where=f"candidate {run_id}")
+        problems = lv.reviewer_errors(out)
+        if problems:
+            raise AutoresearchError(f"candidate {run_id}: " + "; ".join(problems))
         return out
 
     def _write_spec(self, spec: Mapping[str, Any], run_id: str) -> tuple[Path, str]:
@@ -437,8 +499,12 @@ class Loop:
         return {"MAILROOM_SRC": str(path)}, {**meta, "commit_found": head}
 
     # -- one run
-    def _run_one(self, spec: dict[str, Any], run_id: str, env: Mapping[str, str]) -> tuple[scoring.RunScores | None, str | None, Path | None]:
-        """Execute and score; ``(scores, error, run_dir)``. A failed run is scored from whatever it wrote."""
+    def _run_one(self, spec: dict[str, Any], run_id: str, env: Mapping[str, str],
+                 ) -> tuple[scoring.RunScores | None, str | None, Path | None, bool]:
+        """Execute and score; ``(scores, error, run_dir, capped)``. A failed run is scored from whatever it wrote.
+
+        ``capped`` is true when the run's own API budget (``job.api_cost_cap_usd``) aborted it.
+        """
         spec_path, _ = self._write_spec(spec, run_id)
         error: str | None = None
         run_dir: Path | None = None
@@ -457,7 +523,7 @@ class Loop:
                 (self.dir / "scores" / f"{run_id}.json").write_text(json.dumps(scores.to_dict(), indent=1), encoding="utf-8")
         except Exception as exc:  # noqa: BLE001 - an unscorable run is an error row, not a crash of the loop
             error = error or f"scoring failed: {type(exc).__name__}: {scrub(str(exc), self.env)[:300]}"
-        return scores, error, run_dir
+        return scores, error, run_dir, _aborted_by_cap(run_dir, error)
 
     def _row(self, state: State, **fields: Any) -> dict[str, Any]:
         row = {"seq": len(state.rows) + 1, "timestamp": self._clock().strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -478,7 +544,7 @@ class Loop:
         self.dir.mkdir(parents=True, exist_ok=True)
         (self.dir / "champion.yaml").write_text(yaml.safe_dump(dict(spec), sort_keys=False), encoding="utf-8")
 
-    # -- baseline
+    # -- baseline and replicate
     def ensure_baseline(self, state: State) -> str | None:
         """Run the champion once as round 0 when the ledger has none; a stop reason when a guard refuses."""
         if any(r.get("decision") == "baseline" for r in state.rows):
@@ -486,24 +552,77 @@ class Loop:
         stop = self._guard(state)
         if stop:
             return stop
+        cap = self.study.budget.round_api_cap_usd
         run_id = run_id_for(self.study.study, 0, "baseline")
         spec = self._stamp(self.base, run_id=run_id, lever_id="baseline")
         env, source = self._source_for(None, state)
         _, sha = self._write_spec(spec, run_id)
         self.out(f"round 0: baseline champion {run_id}")
-        scores, error, run_dir = self._run_one(spec, run_id, env)
-        if scores is None or error:
+        scores, error, run_dir, capped = self._run_one(spec, run_id, env)
+        if scores is None or error or capped:
             self._row(state, round=0, lever="baseline", run_id=run_id, spec_sha256=sha, decision="error",
-                      reasons=[error or "the baseline run wrote no dataset"], cost_usd=scores.cost_usd if scores else 0.0,
-                      run_dir=str(run_dir) if run_dir else None)
-            raise AutoresearchError(f"baseline failed: {error or 'no dataset'}")
+                      reasons=[error or ("the baseline run was aborted by its API cap" if capped else "the baseline run wrote no dataset")],
+                      cost_usd=_charge(scores, cap, capped), run_dir=str(run_dir) if run_dir else None)
+            raise AutoresearchError(f"baseline failed: {error or ('aborted by its API cap' if capped else 'no dataset')}")
         row = self._row(state, round=0, lever="baseline", run_id=run_id, run_dir=str(run_dir), spec_sha256=sha,
                         champion_run_id=None, decision="baseline", reasons=["the champion's own run"],
                         metrics=scores.metrics(), delta=None, usd_per_utility_point=None, goal="quality",
-                        cost_usd=round(scores.cost_usd, 6), pipeline_source=source,
+                        cost_usd=round(scores.cost_usd, 6), pipeline_source=source, round_cap_usd=cap,
                         dependency_sources=self._lock_sources(run_dir))
         self._save_champion(spec)
         state.champ_row, state.champ_spec, state.champ_scores = row, spec, scores
+        self._write_views(state)
+        return None
+
+    def ensure_replicate(self, state: State) -> str | None:
+        """Run the baseline's identical spec again (``replicate``) and measure the noise floor from the pair.
+
+        The effective floor is ``max(noise_floor, |mean paired delta|, CI half-width)`` of the two baseline
+        runs. No lever may be kept before this row exists. A failed replicate raises (the next call retries it).
+        """
+        if state.replicate is not None:
+            return None
+        assert state.champ_row is not None and state.champ_spec is not None and state.champ_scores is not None
+        if state.champ_row.get("decision") != "baseline":
+            raise AutoresearchError("the replicate must run against the baseline, before any lever is kept")
+        stop = self._guard(state)
+        if stop:
+            return stop
+        cap = self.study.budget.round_api_cap_usd
+        base_row, base_scores = state.champ_row, state.champ_scores
+        run_id = run_id_for(self.study.study, "replicate", "")
+        spec = self._stamp(state.champ_spec, run_id=run_id, lever_id="replicate")
+        env, source = self._source_for(None, state)
+        _, sha = self._write_spec(spec, run_id)
+        self.out(f"replicate: the baseline champion again, {run_id}")
+        scores, error, run_dir, capped = self._run_one(spec, run_id, env)
+        common = dict(round=None, lever="replicate", run_id=run_id, run_dir=str(run_dir) if run_dir else None, spec_sha256=sha,
+                      champion_run_id=base_row["run_id"], goal="quality", pipeline_source=source, round_cap_usd=cap)
+        problem = None
+        if scores is None or error or capped:
+            problem = error or ("the replicate run was aborted by its API cap" if capped else "the replicate run wrote no dataset")
+        elif {d.id for d in scores.docs} != {d.id for d in base_scores.docs}:
+            problem = "the replicate drew different documents than the baseline: not the same frozen draw"
+        if problem:
+            self._row(state, **common, decision="error", reasons=[problem], metrics=scores.metrics() if scores else None,
+                      delta=None, cost_usd=_charge(scores, cap, capped), dependency_sources=self._lock_sources(run_dir))
+            raise AutoresearchError(f"replicate failed: {problem}")
+        boot = self.study.bootstrap
+        delta = scoring.paired_delta(base_scores.utilities(), scores.utilities(), base_scores.classes(),
+                                     n_boot=boot.n_boot, seed=boot.seed, ci=boot.ci)
+        half_width = (delta.ci_high - delta.ci_low) / 2.0
+        measured = max(abs(delta.mean), half_width)
+        effective = max(float(self.study.noise_floor), measured)
+        noise = {"configured_floor": float(self.study.noise_floor), "abs_mean_delta": round(abs(delta.mean), 6),
+                 "ci_half_width": round(half_width, 6), "measured_floor": round(measured, 6),
+                 "effective_floor": round(effective, 6), "n": delta.n, "ci": delta.ci,
+                 "measured_round_cost_usd": round(scores.cost_usd, 6),
+                 "baseline_round_cost_usd": round(base_scores.cost_usd, 6)}
+        self._row(state, **common, decision="replicate", reasons=[
+            f"noise floor {effective:.4f}: max(configured {self.study.noise_floor:g}, |mean delta| {abs(delta.mean):.4f}, "
+            f"CI half-width {half_width:.4f}) between the two baseline runs"],
+            metrics=scores.metrics(), delta=delta.to_dict(), noise=noise, usd_per_utility_point=None,
+            cost_usd=round(scores.cost_usd, 6), dependency_sources=self._lock_sources(run_dir))
         self._write_views(state)
         return None
 
@@ -511,11 +630,14 @@ class Loop:
     def plan(self) -> dict[str, Any]:
         """What the next round would do, without running anything."""
         state = self.state()
-        out: dict[str, Any] = {"baseline": bool(state.champ_row), "spent_usd": round(state.spent, 4),
+        out: dict[str, Any] = {"baseline": bool(state.champ_row), "replicate": state.replicate is not None,
+                               "noise_floor": self.noise_floor(state), "spent_usd": round(state.spent, 4),
                                "consecutive_reverts": consecutive_reverts(state.rows)}
         if not state.champ_scores or not state.champ_spec:
-            out["next"] = "baseline (the champion's own run)"
+            out["next"] = "baseline (the champion's own run), then the replicate (the same run again, to measure noise)"
             return out
+        if state.replicate is None:
+            out["next"] = "replicate (the baseline run again, to measure noise; no lever is kept before it)"
         weakness = diagnose.weakness_table(state.champ_scores)
         remaining = self.study.budget.study_usd - state.spent
         lever, row = propose(weakness, self.levers(state.rows), state.rows, catalog=self.catalog.levers, env=self.env,
@@ -527,54 +649,59 @@ class Loop:
 
     # -- a step
     def step(self) -> StepResult:
-        """Run the baseline if missing, then one candidate round (skipped levers do not count as a round)."""
+        """Run the baseline and replicate if missing, then one candidate round (skipped levers do not count as a round)."""
         _ = self.catalog   # a catalog that does not fit the base spec is refused before any spend
         state = self.state()
         result = StepResult()
         before = len(state.rows)
-        stop = self.ensure_baseline(state)
+
+        def done(stop: str | None = None, executed: bool = False) -> StepResult:
+            result.rows, result.stop, result.executed = state.rows[before:], stop, executed
+            return result
+
+        stop = self.ensure_baseline(state) or self.ensure_replicate(state)
         if stop:
-            result.stop = stop
-            result.rows = state.rows[before:]
-            return result
-        if len(state.rows) > before:
-            result.rows = state.rows[before:]
+            return done(stop)
         if consecutive_reverts(state.rows) >= self.study.max_consecutive_reverts:
-            result.stop = "consecutive_reverts"
-            return result
+            return done("consecutive_reverts")
         assert state.champ_scores is not None and state.champ_spec is not None
+        base_cap = self.study.budget.round_api_cap_usd
         while True:
             remaining = self.study.budget.study_usd - state.spent
             weakness = diagnose.weakness_table(state.champ_scores)
             levers = self.levers(state.rows)
             lever, weak = propose(weakness, levers, state.rows, catalog=self.catalog.levers, env=self.env,
-                                  budget_remaining=remaining, round_cap=self.study.budget.round_api_cap_usd)
+                                  budget_remaining=remaining, round_cap=base_cap)
             if lever is None:
-                result.stop = "levers_exhausted"
-                return result
-            skipped = self._maybe_skip(state, lever)
+                return done("levers_exhausted")
+            if state.spent + base_cap > self.study.budget.study_usd + 1e-9:
+                return done("study_budget")      # not even a standard round fits
+            skipped, plan = self._maybe_skip(state, lever)
             if skipped:
-                result.rows.append(skipped)
                 continue
-            stop = self._guard(state)
+            stop = self._guard(state, plan.cap)
             if stop:
-                result.stop = stop
-                return result
-            row = self._candidate_round(state, lever, weak)
-            result.rows.append(row)
-            result.executed = True
-            return result
+                return done(stop)
+            self._candidate_round(state, lever, weak, plan)
+            return done(executed=True)
 
-    def _maybe_skip(self, state: State, lever: lv.Lever) -> dict[str, Any] | None:
-        """A ledger row when the lever changes nothing, has no usable source, or would exceed the round cap."""
+    def _maybe_skip(self, state: State, lever: lv.Lever) -> tuple[dict[str, Any] | None, RoundPlan]:
+        """``(row, plan)``: a ledger row when the lever changes nothing, has no usable source, or does not fit its cap.
+
+        The cap decision uses the estimate's runtime bound (what the run's own ``ApiBudget`` will count) against
+        the lever's cap: its override, its derived supervisor cap, or the study's round cap. A lever whose cap is
+        above the standard one must also be reservable from the remaining study budget (``over_study_budget``).
+        """
         assert state.champ_spec is not None and state.champ_scores is not None
+        budget = self.study.budget
+        plan = RoundPlan(cap=budget.round_api_cap_usd)
         round_no = self._next_round(state)
         run_id = run_id_for(self.study.study, round_no, lever.id)
 
-        def skip(reason: str, **extra: Any) -> dict[str, Any]:
+        def skip(reason: str, **extra: Any) -> tuple[dict[str, Any], RoundPlan]:
             self.out(f"skip {lever.id}: {reason}")
             return self._row(state, round=None, lever=lever.id, run_id=None, decision="skipped", reasons=[reason],
-                             cost_usd=0.0, goal=lever.goal, **extra)
+                             cost_usd=0.0, goal=lever.goal, **extra), plan
 
         try:
             cand = lv.apply_lever(state.champ_spec, lever)
@@ -587,52 +714,67 @@ class Loop:
         except AutoresearchError as exc:
             return skip(str(exc))
         spec = self._stamp(cand, run_id=run_id, lever_id=lever.id)
-        est = estimate.estimate_round_cost(state.champ_scores, state.champ_spec, spec, safety=self.study.estimate_safety)
-        info = {"estimate": {"usd": None if math.isinf(est.usd) else round(est.usd, 4), "basis": est.basis,
-                             "detail": est.detail, "unpriced": est.unpriced}}
+        safety = self.study.estimate_safety * (lever.estimate_safety or 1.0)
+        est = estimate.estimate_round_cost(state.champ_scores, state.champ_spec, spec, safety=safety)
+        cap = estimate.round_cap_for(lever, est, base_cap=budget.round_api_cap_usd, max_cap=budget.max_round_cap_usd)
+        plan = RoundPlan(cap=cap, est=est)
         if est.unpriced:
-            return skip(f"unpriced model(s) {', '.join(est.unpriced)}", **info)
-        cap = self.study.budget.round_api_cap_usd
-        if est.usd > cap:
-            return skip(f"over_round_cap: worst case {est.usd:.3f} USD > round cap {cap:g} USD", **info)
-        return None
+            return skip(f"unpriced model(s) {', '.join(est.unpriced)}", **plan.info)
+        if est.cap_usd > cap + 1e-9:
+            return skip(f"over_round_cap: runtime bound {est.cap_usd:.3f} USD > round cap {cap:g} USD "
+                        f"(per-agent estimate {est.usd:.3f} USD)", **plan.info)
+        if cap > budget.round_api_cap_usd and state.spent + cap > budget.study_usd + 1e-9:
+            return skip(f"over_study_budget: the round cap {cap:g} USD cannot be reserved from the remaining "
+                        f"{budget.study_usd - state.spent:.3f} USD of the study budget", **plan.info)
+        return None, plan
 
     def _next_round(self, state: State) -> int:
         return 1 + max((r["round"] for r in state.rows if isinstance(r.get("round"), int)), default=0)
 
-    def _candidate_round(self, state: State, lever: lv.Lever, weak: diagnose.WeaknessRow | None) -> dict[str, Any]:
+    def _candidate_round(self, state: State, lever: lv.Lever, weak: diagnose.WeaknessRow | None, plan: RoundPlan) -> dict[str, Any]:
         assert state.champ_spec is not None and state.champ_scores is not None and state.champ_row is not None
+        floor = self.noise_floor(state)
+        if floor is None:
+            raise AutoresearchError("no lever runs before the replicate baseline has measured the noise floor")
+        cap = plan.cap
         round_no = self._next_round(state)
         run_id = run_id_for(self.study.study, round_no, lever.id)
-        spec = self._stamp(lv.apply_lever(state.champ_spec, lever), run_id=run_id, lever_id=lever.id)
+        spec = self._stamp(lv.apply_lever(state.champ_spec, lever), run_id=run_id, lever_id=lever.id, cap=cap)
         env, source = self._source_for(lever, state)
         _, sha = self._write_spec(spec, run_id)
         where = f" (attached to {weak.node}/{weak.doc_class})" if weak else ""
-        self.out(f"round {round_no}: {lever.id}{where} -> {run_id}")
-        champ, scores = state.champ_scores, None
-        scores, error, run_dir = self._run_one(spec, run_id, env)
+        self.out(f"round {round_no}: {lever.id}{where} -> {run_id} (cap {cap:g} USD)")
+        champ = state.champ_scores
+        scores, error, run_dir, capped = self._run_one(spec, run_id, env)
         common = dict(round=round_no, lever=lever.id, run_id=run_id, run_dir=str(run_dir) if run_dir else None, spec_sha256=sha,
                       champion_run_id=state.champ_row["run_id"], goal=lever.goal, pipeline_source=source,
-                      attached_to=weak.to_dict() if weak else None)
-        if scores is None or error:
-            return self._row(state, **common, decision="error", reasons=[error or "no dataset written"], metrics=None,
-                             delta=None, usd_per_utility_point=None, cost_usd=round(scores.cost_usd, 6) if scores else 0.0,
-                             dependency_sources=self._lock_sources(run_dir))
-        if {d.id for d in scores.docs} != {d.id for d in champ.docs}:
-            return self._row(state, **common, decision="error", metrics=scores.metrics(), delta=None, usd_per_utility_point=None,
-                             reasons=["the run drew different documents than the champion: not the same frozen draw"],
-                             cost_usd=round(scores.cost_usd, 6), dependency_sources=self._lock_sources(run_dir))
-        boot = self.study.bootstrap
-        delta = scoring.paired_delta(champ.utilities(), scores.utilities(), champ.classes(),
-                                     n_boot=boot.n_boot, seed=boot.seed, ci=boot.ci)
-        kept, reasons = keep.decide_keep(champ, scores, delta, goal=lever.goal, noise_floor=self.study.noise_floor,
-                                         guard_classes=self.study.guard_classes, tolerance=self.study.cost_goal_tolerance)
-        row = self._row(state, **common, decision="keep" if kept else "revert", reasons=reasons, metrics=scores.metrics(),
-                        delta=delta.to_dict(), usd_per_utility_point=_round(scoring.usd_per_utility_point(champ, scores, delta.mean)),
-                        cost_usd=round(scores.cost_usd, 6), dependency_sources=self._lock_sources(run_dir))
-        if kept:
-            self._save_champion(spec)
-            state.champ_row, state.champ_spec, state.champ_scores = row, spec, scores
+                      attached_to=weak.to_dict() if weak else None, patch_before={p: lv.lookup(state.champ_spec, p) for p in lever.patch},
+                      **plan.info)
+        if capped:
+            row = self._row(state, **common, decision="aborted_cap", metrics=scores.metrics() if scores else None, delta=None,
+                            usd_per_utility_point=None, cost_usd=round(cap, 6), dependency_sources=self._lock_sources(run_dir),
+                            reasons=[f"aborted by the run's API cap ({cap:g} USD): no verdict, not a revert; charged the full cap"
+                                     + (f" ({error[:200]})" if error else "")])
+        elif scores is None or error:
+            row = self._row(state, **common, decision="error", reasons=[error or "no dataset written"], metrics=None,
+                            delta=None, usd_per_utility_point=None, cost_usd=_charge(scores, cap, False),
+                            dependency_sources=self._lock_sources(run_dir))
+        elif {d.id for d in scores.docs} != {d.id for d in champ.docs}:
+            row = self._row(state, **common, decision="error", metrics=scores.metrics(), delta=None, usd_per_utility_point=None,
+                            reasons=["the run drew different documents than the champion: not the same frozen draw"],
+                            cost_usd=round(scores.cost_usd, 6), dependency_sources=self._lock_sources(run_dir))
+        else:
+            boot = self.study.bootstrap
+            delta = scoring.paired_delta(champ.utilities(), scores.utilities(), champ.classes(),
+                                         n_boot=boot.n_boot, seed=boot.seed, ci=boot.ci)
+            kept, reasons = keep.decide_keep(champ, scores, delta, goal=lever.goal, noise_floor=floor,
+                                             guard_classes=self.study.guard_classes, tolerance=self.study.cost_goal_tolerance)
+            row = self._row(state, **common, decision="keep" if kept else "revert", reasons=reasons, metrics=scores.metrics(),
+                            delta=delta.to_dict(), usd_per_utility_point=_round(scoring.usd_per_utility_point(champ, scores, delta.mean)),
+                            cost_usd=round(scores.cost_usd, 6), noise_floor=floor, dependency_sources=self._lock_sources(run_dir))
+            if kept:
+                self._save_champion(spec)
+                state.champ_row, state.champ_spec, state.champ_scores = row, spec, scores
         self._write_views(state)
         return row
 
@@ -669,6 +811,9 @@ class Loop:
                 "kept": [r["lever"] for r in decided if r["decision"] == "keep"],
                 "reverted": [r["lever"] for r in decided if r["decision"] == "revert"],
                 "errors": [r["lever"] for r in decided if r["decision"] == "error"],
+                "aborted_cap": [r["lever"] for r in decided if r["decision"] == "aborted_cap"],
+                "replicate": state.replicate is not None, "noise_floor": self.noise_floor(state),
+                "warnings": [str((r.get("reasons") or [""])[0]) for r in state.rows if r.get("decision") == "warning"],
                 "skipped": [r["lever"] for r in state.rows if r.get("decision") == "skipped"],
                 "spent_usd": round(state.spent, 4), "study_usd": self.study.budget.study_usd,
                 "consecutive_reverts": consecutive_reverts(state.rows),
@@ -684,7 +829,15 @@ class Loop:
             raise AutoresearchError("no champion yet: run `autoresearch step` first")
         if any(r.get("decision") == "holdout" for r in state.rows):
             raise AutoresearchError("the holdout has been run once already; it is a confirmation, never a tuning set")
-        stop = self._guard(state)
+        # The champion may run supervisors: its own runtime bound (every token at the dearest API model) can exceed the
+        # standard round cap, so the holdout takes the derived cap, and is refused when even the maximum cannot hold it.
+        budget = self.study.budget
+        est = estimate.estimate_round_cost(state.champ_scores, state.champ_spec, state.champ_spec, safety=self.study.estimate_safety)
+        cap = estimate.auto_round_cap(est, base_cap=budget.round_api_cap_usd, max_cap=budget.max_round_cap_usd, tier=3)
+        if est.cap_usd > cap + 1e-9:
+            raise AutoresearchError(f"holdout refused: the champion's runtime bound {est.cap_usd:.3f} USD exceeds the "
+                                    f"largest round cap {cap:g} USD (budget.max_round_cap_usd)")
+        stop = self._guard(state, cap)
         if stop:
             raise AutoresearchError(f"holdout refused: {stop}")
         dev_ids = {d.id for d in state.champ_scores.docs}
@@ -692,7 +845,7 @@ class Loop:
         spec = copy.deepcopy(state.champ_spec)
         spec["dataset"] = {**spec.get("dataset", {}), **self.study.holdout_dataset, "exclude_ids_file": str(exclude)}
         run_id = run_id_for(self.study.study, "holdout", "")
-        spec = self._stamp(spec, run_id=run_id, lever_id="holdout")
+        spec = self._stamp(spec, run_id=run_id, lever_id="holdout", cap=cap)
         env, source = self._source_for(None, state)
         spec_path, sha = self._write_spec(spec, run_id)
         assert self.executor is not None
@@ -701,12 +854,13 @@ class Loop:
             locked = Path(prepare(spec_path, env=env or None))
             assert_disjoint(dev_ids, _dataset_ids(locked))
         self.out(f"holdout: champion {state.champ_row['run_id']} on {run_id}")
-        scores, error, run_dir = self._run_one(spec, run_id, env)
-        if scores is None or error:
+        scores, error, run_dir, capped = self._run_one(spec, run_id, env)
+        if capped or scores is None or error:
             self._row(state, round=None, lever="holdout", run_id=run_id, run_dir=str(run_dir) if run_dir else None,
-                      spec_sha256=sha, decision="error", reasons=[error or "no dataset written"],
-                      cost_usd=round(scores.cost_usd, 6) if scores else 0.0)
-            raise AutoresearchError(f"holdout failed: {error or 'no dataset'}")
+                      spec_sha256=sha, decision="aborted_cap" if capped else "error", round_cap_usd=cap,
+                      reasons=[error or ("aborted by the run's API cap" if capped else "no dataset written")],
+                      cost_usd=_charge(scores, cap, capped))
+            raise AutoresearchError(f"holdout failed: {error or ('aborted by its API cap' if capped else 'no dataset')}")
         assert_disjoint(dev_ids, {d.id for d in scores.docs})
         gate = _gate_summary(run_dir)
         row = self._row(state, round=None, lever="holdout", run_id=run_id, run_dir=str(run_dir), spec_sha256=sha,
@@ -752,6 +906,32 @@ class Loop:
 
 def _round(value: float | None, digits: int = 6) -> float | None:
     return None if value is None else round(value, digits)
+
+
+def _charge(scores: scoring.RunScores | None, cap: float, capped: bool) -> float:
+    """The ledger cost of a round that did not produce a verdict.
+
+    A round the API cap aborted, or one that wrote no dataset rows, is charged its full cap: what it spent is
+    unknown, and the cap is the most it can have. A round with scored documents is charged its recorded cost.
+    """
+    if capped or scores is None or scores.n == 0:
+        return round(cap, 6)
+    return round(scores.cost_usd, 6)
+
+
+_CAP_MESSAGE = re.compile(r"api_cost_cap_usd=\S+ reached")
+
+
+def _aborted_by_cap(run_dir: Path | None, error: str | None) -> bool:
+    """Whether the run's own API budget aborted it: its checkpoint says so, else the child's message does."""
+    if run_dir is not None:
+        try:
+            checkpoint = json.loads((Path(run_dir) / "checkpoint.json").read_text(encoding="utf-8"))
+            if checkpoint.get("state") == "failed" and (checkpoint.get("last_error") or {}).get("type") == "api_cost_cap":
+                return True
+        except (OSError, ValueError, AttributeError):
+            pass
+    return bool(error and _CAP_MESSAGE.search(error))
 
 
 def _dataset_ids(run_dir: Path) -> set[str]:
