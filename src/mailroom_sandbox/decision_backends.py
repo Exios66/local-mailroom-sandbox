@@ -251,8 +251,9 @@ _BUILTIN_DECISION_MODELS: dict[str, dict[str, Any]] = {
 
 
 def _is_alias(model: str) -> bool:
-    """A moving alias (``~org/model``, ``...-latest``): never a pinned decision model."""
-    return model.startswith("~") or model.endswith("-latest")
+    """A moving alias (``~org/model``, ``...-latest``, with or without a ``:variant``): never a pinned decision model."""
+    base = model.split(":", 1)[0]
+    return base.startswith("~") or base.endswith("-latest")
 
 
 @functools.lru_cache(maxsize=1)
@@ -285,8 +286,16 @@ def is_decisions_model(model: str | None) -> bool:
 
     A name that merely looks like one is not enough (``typesafe/jev-router`` is a chat model), and a
     moving alias (``~typesafe/jev-latest``, ``...-latest``) is refused: a cutoff is tuned to one version.
+
+    An OpenRouter ``:variant`` suffix (``openai/gpt-6-luna-decisions:nitro``) is accepted when the id without it
+    is listed; an id that is itself listed with a variant (``perplexity/pplx-decider-v1.3:free``) matches exactly
+    first. An alias stays refused with a variant too (``~typesafe/jev-latest:free``). ``decision_model`` itself
+    stays exact, so pricing never assumes a variant bills like its base.
     """
-    return decision_model(model) is not None
+    if decision_model(model) is not None:
+        return True
+    base, _, variant = str(model or "").partition(":")
+    return bool(variant) and decision_model(base) is not None
 
 
 # The decision models the reviewer lane supports, by backend. A model outside this list can

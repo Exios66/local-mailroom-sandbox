@@ -159,15 +159,22 @@ def estimate_round_cost(champ: RunScores, champ_spec: Mapping[str, Any], cand_sp
 
 
 def _api_models(cand_spec: Mapping[str, Any]) -> list[str]:
-    """The token-billed models the runtime budget will price (``api_budget.spec_api_models``, else its dict form)."""
+    """The token-billed models the runtime budget will price: what ``api_budget.api_models(lock)`` finds in the lock.
+
+    ``api_budget.spec_api_models`` resolves the engine, agent models and routes the way preflight does, but it
+    leaves the reviewer out. The lock has it (any backend of ``decisions``, ``local``, ``api``, ``jev``), and the
+    extraction gate, so both are added here and the bound prices them like the run's own ``ApiBudget`` does.
+    """
     from mailroom_sandbox.autoresearch.levers import LeverError, validate_spec
     from mailroom_sandbox.job import api_budget
 
     try:
-        return api_budget.spec_api_models(validate_spec(cand_spec, where="estimate"))
+        models = set(api_budget.spec_api_models(validate_spec(cand_spec, where="estimate")))
     except LeverError:   # a partial spec (never a real candidate: those validated when the lever was applied)
-        shaped = {k: cand_spec.get(k) for k in ("engine", "agent_models", "agent_routes", "reviewer", "extraction_gate")}
-        return api_budget.api_models({k: v for k, v in shaped.items() if v})
+        shaped = {k: cand_spec.get(k) for k in ("engine", "agent_models", "agent_routes")}
+        models = set(api_budget.api_models({k: v for k, v in shaped.items() if v}))
+    oversight = {k: cand_spec[k] for k in ("reviewer", "extraction_gate") if cand_spec.get(k)}
+    return sorted(models | set(api_budget.api_models(oversight)))
 
 
 def _runtime_bound(champ: RunScores, usage: Mapping[str, Any], cand_spec: Mapping[str, Any], champ_spec: Mapping[str, Any],

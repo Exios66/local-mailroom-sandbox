@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from typing import Any
 
 
@@ -70,7 +71,10 @@ def _run(args) -> int:
 
 
 def _status(args) -> int:
-    print(json.dumps(_loop(args, need_executor=False).status(), indent=2, default=str))
+    status = _loop(args, need_executor=False).status()
+    if status.get("message"):
+        print(status["message"], file=sys.stderr)
+    print(json.dumps(status, indent=2, default=str))
     return 0
 
 

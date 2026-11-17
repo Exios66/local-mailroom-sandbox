@@ -161,6 +161,26 @@ def levers_in(loop):
     return [r["lever"] for r in loop.ledger.rows() if r["decision"] != "replicate"]
 
 
+@pytest.fixture
+def runs_in_tmp(monkeypatch, tmp_path):
+    """Failed runs are looked up by id under the runs root; point it at the Fake's ``<tmp>/runs`` (opt-in)."""
+    from mailroom_sandbox.job import spec as job_spec
+
+    monkeypatch.setattr(job_spec, "run_dir", lambda run_id: tmp_path / "runs" / run_id)
+    return tmp_path / "runs"
+
+
+def crash(tmp_path, spec, message="down", *, state="running", items=False):
+    """An ``ExecutionError`` for a run whose directory shows how far it got (``state`` None: it never started)."""
+    rd = tmp_path / "runs" / spec["run_id"]
+    rd.mkdir(parents=True, exist_ok=True)
+    if state:
+        (rd / "checkpoint.json").write_text(json.dumps({"state": state, "cursor": 0, "total": 6}))
+    if items:
+        (rd / "items.jsonl").write_text(json.dumps({"item_id": "c1"}) + "\n")
+    return lp.ExecutionError(message, spec["run_id"])
+
+
 # ---- keep / revert ----------------------------------------------------------------------------------------
 
 def test_keep_path_promotes_the_candidate_to_champion_and_records_everything(tmp_path):
@@ -751,18 +771,18 @@ def test_no_lever_is_kept_or_run_before_the_replicate_exists(tmp_path):
     assert fake.runs == ["ar-t1-r00-baseline"] and decisions(loop) == [("baseline", "baseline")]
 
 
-def test_a_failed_replicate_stops_before_any_candidate_and_is_retried(tmp_path):
+def test_a_failed_replicate_stops_before_any_candidate_and_is_retried(tmp_path, runs_in_tmp):
     state = {"fail": True}
     def script(spec, lever):
         if lever == "replicate" and state["fail"]:
-            return lp.ExecutionError("down", spec["run_id"])
+            return crash(tmp_path, spec)
         return baseline_docs()
     loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("a")]}, script=script)
     with pytest.raises(lp.AutoresearchError, match="replicate failed"):
         loop.step()
     rows = loop.ledger.rows()
     assert [(r["lever"], r["decision"]) for r in rows] == [("baseline", "baseline"), ("replicate", "error")]
-    assert rows[1]["cost_usd"] == 1.0                      # no dataset rows: charged its full round cap
+    assert rows[1]["cost_usd"] == 1.0                      # no dataset rows, but the run had started: charged its full round cap
     state["fail"] = False
     loop.step()                                             # the next call retries the replicate, then runs the lever
     assert [r["decision"] for r in loop.ledger.rows()] == ["baseline", "error", "replicate", "revert"]
@@ -903,27 +923,102 @@ def test_the_run_checkpoint_marks_an_api_cap_abort_even_when_the_child_exits_cle
     assert lp._aborted_by_cap(None, CAP_MESSAGE)
 
 
-def test_an_aborted_tier_one_lever_unblocks_tier_two_like_a_revert_does(tmp_path):
+def test_an_aborted_tier_one_lever_alone_never_opens_tier_two(tmp_path):
     def script(spec, lever):
         return lp.ExecutionError(CAP_MESSAGE, spec["run_id"]) if lever == "t1" else baseline_docs()
     t1 = reviewer_lever("t1", cutoff=0.2, tier=1, group="g")
     t2 = reviewer_lever("t2", cutoff=0.1, tier=2, group="g", requires=[{"kept": {"group": "g", "tier": 1}},
                                                                     {"all_reverted_positive": {"group": "g", "tier": 1}}])
     loop, fake, _ = make(tmp_path, {"levers": [t2, t1]}, script=script)
+    _, stop = loop.run(3)
+    assert stop == "levers_exhausted" and levers_in(loop) == ["baseline", "t1"] and row_of(loop, "t1")["decision"] == "aborted_cap"
+
+
+def test_one_positive_revert_beside_an_aborted_lever_opens_tier_two(tmp_path):
+    def script(spec, lever):
+        if lever == "t1a":
+            return lp.ExecutionError(CAP_MESSAGE, spec["run_id"])
+        return with_utils(baseline_docs(), r1=0.25) if lever == "t1b" else baseline_docs()   # positive mean, CI includes zero
+    t1a = reviewer_lever("t1a", cutoff=0.2, tier=1, group="g")
+    t1b = reviewer_lever("t1b", cutoff=0.3, tier=1, group="g")
+    t2 = reviewer_lever("t2", cutoff=0.1, tier=2, group="g", requires=[{"kept": {"group": "g", "tier": 1}},
+                                                                    {"all_reverted_positive": {"group": "g", "tier": 1}}])
+    loop, fake, _ = make(tmp_path, {"levers": [t2, t1a, t1b]}, script=script)
     loop.run(3)
-    assert levers_in(loop)[:3] == ["baseline", "t1", "t2"] and row_of(loop, "t1")["decision"] == "aborted_cap"
+    assert levers_in(loop)[:4] == ["baseline", "t1a", "t1b", "t2"]
+    assert row_of(loop, "t1a")["decision"] == "aborted_cap" and row_of(loop, "t1b")["decision"] == "revert"
+    assert row_of(loop, "t1b")["delta"]["mean"] > 0
 
 
-def test_an_error_or_aborted_round_without_dataset_rows_is_charged_its_round_cap(tmp_path):
-    loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("x")]},
-                         script=lambda s, l: lp.ExecutionError("down", s["run_id"]) if l == "x" else baseline_docs())
+def test_an_errored_lever_is_retried_once_and_the_tier_waits_for_the_retry(tmp_path):
+    runs = {"t1": 0}
+    def script(spec, lever):
+        if lever == "t1":
+            runs["t1"] += 1
+            if runs["t1"] == 1:
+                return lp.ExecutionError("provider hiccup", spec["run_id"])
+            return with_utils(baseline_docs(), r1=0.25)       # the retry: a positive revert
+        return baseline_docs()
+    t1 = reviewer_lever("t1", cutoff=0.2, tier=1, group="g")
+    t2 = reviewer_lever("t2", cutoff=0.1, tier=2, group="g", requires=[{"kept": {"group": "g", "tier": 1}},
+                                                                    {"all_reverted_positive": {"group": "g", "tier": 1}}])
+    loop, fake, _ = make(tmp_path, {"levers": [t2, t1]}, script=script)
     loop.step()
-    row = row_of(loop, "x")
-    assert row["decision"] == "error" and row["cost_usd"] == 1.0
-    assert lp._charge(None, 2.5, False) == 2.5 and lp._charge(None, 2.5, True) == 2.5
+    assert [(r["lever"], r["decision"]) for r in loop.ledger.rows()][-1] == ("t1", "error")
+    assert loop.plan()["lever"] == "t1"                       # proposed again; t2 is still closed
+    loop.run(2)
+    t1_rows = [r for r in loop.ledger.rows() if r["lever"] == "t1"]
+    assert [r["decision"] for r in t1_rows] == ["error", "revert"] and t1_rows[0]["run_id"] != t1_rows[1]["run_id"]
+    assert levers_in(loop)[-1] == "t2"                        # the retry's positive revert opened the next tier
+
+
+def test_a_lever_that_errors_twice_is_settled_without_a_verdict(tmp_path):
+    loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("bad"), reviewer_lever("good", cutoff=0.2)]},
+                         study_over={"max_consecutive_reverts": 9},
+                         script=lambda s, l: lp.ExecutionError("down", s["run_id"]) if l == "bad" else baseline_docs())
+    loop.run(4)
+    assert [(r["lever"], r["decision"]) for r in loop.ledger.rows() if r["decision"] != "replicate"] == [
+        ("baseline", "baseline"), ("bad", "error"), ("bad", "error"), ("good", "revert")]    # not a third attempt
+
+
+def test_a_failed_round_is_charged_its_cap_only_when_model_calls_started(tmp_path, runs_in_tmp):
+    cases = {"cfg": dict(state=None),                                     # no run directory contents: a config failure
+             "prepared": dict(state="prepared"),                          # preflight only: no model was called
+             "running": dict(state="running"),                            # the job started
+             "items": dict(state=None, items=True),                       # an item row proves it
+             "failed": dict(state="failed")}
+    levers = [reviewer_lever(name, cutoff=0.1 * (i + 1)) for i, name in enumerate(cases)]
+    budget = {"study_usd": 50, "round_api_cap_usd": 1, "round_wall_seconds": 600, "min_key_remaining_usd": 3}
+    loop, fake, _ = make(tmp_path, {"levers": levers}, study_over={"max_consecutive_reverts": 99, "budget": budget},
+                         script=lambda s, l: crash(tmp_path, s, **cases[l]) if l in cases else baseline_docs())
+    loop.run(10)                                                          # each lever errors, is retried once, then settles
+    errors = [(r["lever"], r["cost_usd"]) for r in loop.ledger.rows() if r["decision"] == "error"]
+    assert sorted(errors) == sorted([(n, c) for n, c in {"cfg": 0.0, "prepared": 0.0, "running": 1.0, "items": 1.0, "failed": 1.0}.items()] * 2)
+    assert loop.state().spent == pytest.approx(0.06 + 0.06 + 2 * 3.0)     # baseline + replicate + the three that started, twice
+
+
+def test_charge_rules(tmp_path):
+    run = tmp_path / "run"
+    assert lp._charge(None, 2.5, False) == 0.0 and lp._charge(None, 2.5, False, run) == 0.0    # never started, no directory
+    assert lp._charge(None, 2.5, True, None) == 2.5                       # a cap abort proves spend
+    run.mkdir()
+    (run / "checkpoint.json").write_text(json.dumps({"state": "prepared"}))
+    assert lp._charge(None, 2.5, False, run) == 0.0
+    (run / "checkpoint.json").write_text(json.dumps({"state": "running"}))
+    assert lp._charge(None, 2.5, False, run) == 2.5
     scored = RunScores(run_id="r", run_dir="/x", docs=[d("a", "contract", cost_usd=0.2)])
-    assert lp._charge(scored, 2.5, False) == 0.2 and lp._charge(scored, 2.5, True) == 2.5
-    assert lp._charge(RunScores(run_id="r", run_dir="/x", docs=[]), 2.5, False) == 2.5
+    assert lp._charge(scored, 2.5, False, run) == 0.2 and lp._charge(scored, 2.5, True, run) == 2.5
+    assert lp._charge(RunScores(run_id="r", run_dir="/x", docs=[]), 2.5, False, run) == 2.5     # started, wrote nothing
+    assert lp._charge(RunScores(run_id="r", run_dir="/x", docs=[]), 2.5, False, tmp_path / "gone") == 0.0
+
+
+def test_a_failed_baseline_that_never_started_costs_nothing(tmp_path, runs_in_tmp):
+    loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("a")]},
+                         script=lambda s, l: crash(tmp_path, s, state="prepared"))
+    with pytest.raises(lp.AutoresearchError, match="baseline failed"):
+        loop.step()
+    (row,) = loop.ledger.rows()
+    assert row["decision"] == "error" and row["cost_usd"] == 0.0 and loop.state().spent == 0.0
 
 
 # ---- a key without a limit ---------------------------------------------------------------------------------------------
@@ -989,3 +1084,141 @@ def test_the_max_round_cap_cannot_be_below_the_round_cap():
     with pytest.raises(ValueError, match="max_round_cap_usd"):
         lp.Budget(study_usd=5, round_api_cap_usd=2, round_wall_seconds=600, max_round_cap_usd=1)
     assert lp.Budget(study_usd=5, round_api_cap_usd=1, round_wall_seconds=600).max_round_cap_usd == 4.0
+
+
+# ---- crash safety: the champion comes from specs/<run_id>.yaml, checked against the ledger -------------------------------------
+
+def _fix(spec, lever):
+    return with_utils(baseline_docs(), r1=1.0, r2=1.0) if lever == "fix" else baseline_docs()
+
+
+def test_the_champion_is_read_from_its_run_spec_not_from_champion_yaml(tmp_path):
+    loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("fix")]}, script=_fix)
+    loop.step()
+    assert row_of(loop, "fix")["decision"] == "keep"
+    (loop.dir / "champion.yaml").write_text("run_id: stale\nnot: the champion\n")      # a stale convenience copy
+    state = loop.state()
+    assert state.champ_spec["run_id"] == "ar-t1-r01-fix" and state.champ_spec["reviewer"]["classes"]["correspondence"] == 0.3
+    (loop.dir / "champion.yaml").unlink()                                              # or none at all
+    assert loop.state().champ_spec == state.champ_spec
+    assert lp.Loop(loop.study, None, state_dir=loop.dir).status()["champion"] == "ar-t1-r01-fix"
+
+
+def test_a_crash_before_champion_yaml_leaves_no_keep_row_and_the_state_consistent(tmp_path, monkeypatch):
+    loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("fix")]}, script=_fix)
+    real = loop._save_champion
+
+    def die_on_the_keep(spec):
+        if spec["run_id"] == "ar-t1-r01-fix":
+            raise OSError("disk full")
+        real(spec)
+    monkeypatch.setattr(loop, "_save_champion", die_on_the_keep)
+    with pytest.raises(OSError):
+        loop.step()                       # baseline and replicate land; the keep's champion.yaml write dies BEFORE its row
+    assert [r["decision"] for r in loop.ledger.rows()] == ["baseline", "replicate"]
+    state = loop.state()                  # consistent: the baseline is still the champion, no row names a missing file
+    assert state.champ_row["lever"] == "baseline" and state.champ_spec["run_id"] == "ar-t1-r00-baseline"
+    monkeypatch.setattr(loop, "_save_champion", real)
+    loop.step()                           # the resumed round re-runs the lever and keeps it
+    assert row_of(loop, "fix")["decision"] == "keep" and loop.state().champ_spec["run_id"] == "ar-t1-r01-fix"
+    assert yaml.safe_load((loop.dir / "champion.yaml").read_text())["run_id"] == "ar-t1-r01-fix"
+
+
+def test_a_crash_after_the_keep_row_before_champion_yaml_still_yields_the_kept_champion(tmp_path):
+    loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("fix")]}, script=_fix)
+    loop.step()
+    # the crash window the old order had: the row is on disk, champion.yaml still holds the baseline
+    baseline_spec = yaml.safe_load((loop.dir / "specs" / "ar-t1-r00-baseline.yaml").read_text())
+    (loop.dir / "champion.yaml").write_text(yaml.safe_dump(baseline_spec, sort_keys=False))
+    fresh = lp.Loop(loop.study, fake, state_dir=loop.dir, out=lambda s: None).state()
+    assert fresh.champ_row["lever"] == "fix" and fresh.champ_spec["run_id"] == "ar-t1-r01-fix"
+    assert fresh.champ_scores.run_id == "ar-t1-r01-fix"
+
+
+def test_a_missing_or_edited_champion_spec_is_a_clear_error(tmp_path):
+    loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("fix")]}, script=_fix)
+    loop.step()
+    spec_path = loop.dir / "specs" / "ar-t1-r01-fix.yaml"
+    original = spec_path.read_text()
+    spec_path.write_text(original.replace("0.3", "0.9"))
+    with pytest.raises(lp.AutoresearchError, match="spec_sha256"):
+        loop.state()
+    spec_path.unlink()
+    with pytest.raises(lp.AutoresearchError, match="champion's spec is missing"):
+        loop.state()
+    spec_path.write_text(original)
+    assert loop.state().champ_row["lever"] == "fix"
+
+
+def test_status_says_plainly_when_nothing_has_run_yet(tmp_path, capsys):
+    from types import SimpleNamespace
+
+    from mailroom_sandbox.autoresearch import cli
+
+    loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("a")]}, study_over={"state_dir": str(tmp_path / "fresh")})
+    status = lp.Loop(loop.study, None).status()
+    assert status["champion"] is None and status["rounds"] == 0 and "nothing has run yet" in status["message"]
+    assert cli._status(SimpleNamespace(study=str(tmp_path / "study.yaml"))) == 0
+    captured = capsys.readouterr()
+    assert "nothing has run yet" in captured.err and json.loads(captured.out)["message"] == status["message"]
+    loop.step()
+    assert loop.status()["message"] is None
+
+
+# ---- consecutive_reverts counts lever rounds only ---------------------------------------------------------------------------
+
+def test_consecutive_reverts_ignore_baseline_replicate_and_holdout_rows():
+    r = lambda lever, decision: {"lever": lever, "decision": decision}  # noqa: E731
+    rows = [r("baseline", "baseline"), r("replicate", "replicate"), r("a", "revert"), r("b", "error")]
+    assert lp.consecutive_reverts(rows) == 2
+    assert lp.consecutive_reverts([*rows, r("holdout", "error"), r("holdout", "aborted_cap")]) == 2     # a holdout error is not a revert
+    assert lp.consecutive_reverts([*rows, r("holdout", "holdout")]) == 2
+    assert lp.consecutive_reverts([r("baseline", "error"), r("baseline", "baseline"), r("replicate", "error"),
+                                   r("replicate", "replicate")]) == 0                                    # study-level errors never count
+    # the scan stops at the replicate row: nothing before it is a lever round
+    assert lp.consecutive_reverts([r("x", "revert"), r("replicate", "replicate"), r("a", "revert")]) == 1
+    assert lp.consecutive_reverts([r("x", "revert"), r("x", "revert"), r("replicate", "replicate")]) == 0
+    assert lp.consecutive_reverts([*rows, r("c", "keep"), r("d", "revert"), r("e", "skipped"), r("f", "aborted_cap")]) == 1
+
+
+def test_a_failed_holdout_does_not_trip_the_consecutive_revert_stop(tmp_path):
+    loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("a"), reviewer_lever("b", cutoff=0.2)]},
+                         study_over={"max_consecutive_reverts": 2})
+    loop.run(1)                                                                  # one revert
+    fake.holdout_ids = ["h1"]
+    fake.script = lambda spec, lever: lp.ExecutionError("down", spec["run_id"])
+    with pytest.raises(lp.AutoresearchError, match="holdout failed"):
+        loop.holdout()
+    assert [r["decision"] for r in loop.ledger.rows()][-1] == "error"
+    assert lp.consecutive_reverts(loop.ledger.rows()) == 1                       # the holdout error is ignored
+    fake.script = lambda spec, lever: baseline_docs()
+    assert loop.step().stop is None                                              # so the loop still runs the next lever
+    assert row_of(loop, "b")["decision"] == "revert"
+
+
+# ---- the holdout names its champion; a later keep makes it stale -------------------------------------------------------------
+
+def test_a_holdout_is_stale_once_a_later_keep_changes_the_champion(tmp_path):
+    def script(spec, lever):
+        if spec["run_id"] == "ar-t1-holdout":
+            return [d("h1", "contract"), d("h2", "correspondence")]
+        gain = {"a": 0.4, "b": 1.0}.get(lever)
+        return with_utils(baseline_docs(), r1=gain, r2=gain) if gain else baseline_docs()
+    loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("a"), reviewer_lever("b", cutoff=0.2)]}, script=script)
+    loop.run(1)
+    assert row_of(loop, "a")["decision"] == "keep"
+    fake.holdout_ids = ["h1", "h2"]
+    hold = loop.holdout()
+    assert hold["champion_run_id"] == "ar-t1-r01-a"                                  # the champion the holdout confirmed
+    status = loop.status()
+    assert status["holdout"] is True and status["holdout_stale"] is False and status["holdout_champion"] == "ar-t1-r01-a"
+    report = loop.render_report()
+    assert "STALE" not in report and "champion confirmed: `ar-t1-r01-a`" in report
+    loop.step()                                                                      # a later keep moves the champion
+    assert row_of(loop, "b")["decision"] == "keep"
+    status = loop.status()
+    assert status["champion"] == "ar-t1-r02-b" and status["holdout_stale"] is True and status["holdout_champion"] == "ar-t1-r01-a"
+    report = (loop.dir / "report.md").read_text()
+    assert "STALE" in report and "`ar-t1-r01-a`" in report and "`ar-t1-r02-b`" in report
+    with pytest.raises(lp.AutoresearchError, match="once already"):                  # still never re-run
+        loop.holdout()

@@ -30,6 +30,29 @@ def test_chat_models_aliases_and_unknown_ids_are_refused(model):
     assert not db.is_decisions_model(model)
 
 
+@pytest.mark.parametrize("model", [f"{DECISIONS}:nitro", f"{DECISIONS}:floor", "typesafe/jev-1.14:nitro",
+                                   "perplexity/pplx-decider-v1.3:free"])      # the last is itself listed with its variant
+def test_a_variant_suffix_is_accepted_on_a_listed_id(model):
+    assert db.is_decisions_model(model)
+    assert not db.decision_model(f"{DECISIONS}:nitro")                       # lookup stays exact: a variant is never priced as its base
+
+
+@pytest.mark.parametrize("model", ["~typesafe/jev-latest:free", "typesafe/jev-latest:free", "~typesafe/jev-1.14:nitro",
+                                   "openai/gpt-6-luna-decisions-latest:nitro", "typesafe/jev-router:nitro",
+                                   "openai/gpt-6-luna:nitro", f"{DECISIONS}:", ":nitro", "typesafe/jev-9.9:free"])
+def test_aliases_and_unlisted_ids_stay_refused_with_a_variant(model):
+    assert not db.is_decisions_model(model)
+
+
+def test_a_variant_reviewer_freezes_but_an_alias_variant_does_not():
+    spec = ReviewerSpec(backend="decisions", model=f"{DECISIONS}:nitro", questions="reviewer_decisions_v2",
+                        classes={"contract": 0.78})
+    assert spec.model == f"{DECISIONS}:nitro"
+    with pytest.raises(ValueError, match="Decisions-API model"):
+        ReviewerSpec(backend="decisions", model="~typesafe/jev-latest:free", questions="reviewer_decisions_v2",
+                     classes={"contract": 0.78})
+
+
 def test_jev_through_openrouter_decisions_freezes_but_the_router_does_not():
     spec = ReviewerSpec(backend="decisions", model="typesafe/jev-1.14", questions="reviewer_decisions_v2",
                         classes={"contract": 0.78})

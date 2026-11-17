@@ -275,16 +275,20 @@ levers:
 
   # ---- supervisors: stronger models in the oversight roles (judge, arbiter, boss) ----
   # classification_arbiter is a graph NODE of the `arbiter` AGENT, so `agent_routes.arbiter` routes it.
-  # Tier 1 is tried first. Tier 2 opens when a tier-1 lever was kept OR every tier-1 lever was reverted with a
-  # positive mean delta (the direction is right, the model is too weak). Tier 3 opens when a tier-2 lever was kept
-  # AND the remaining study budget is at least 3 round caps. After a supervisor wins, `placements` below derive
-  # cost levers that keep it on fewer roles.
+  # Tier 1 is tried first. Tier 2 opens when a tier-1 lever was kept, OR every tier-1 lever is decided (a revert with a
+  # positive mean delta, aborted_cap, skipped, or errored twice) and at least one was reverted with a positive mean delta
+  # (the direction is right, the model is too weak); a negative revert keeps it closed, and aborts alone never open it.
+  # Tier 3 opens when a tier-2 lever was kept AND the remaining study budget is at least 3 round caps. After a supervisor
+  # wins, `placements` below derive cost levers that keep it on fewer roles.
+  # `estimate_safety: 1.5` on every supervisor: a reasoning or verbose supervisor emits more completion tokens than the
+  # champion's measured ones, which the estimate scales from.
 - id: sup-gpt-6-luna
   node: [judge, arbiter, boss]
   classes: all
   tier: 1
   group: supervisor
   round_cap_auto: true
+  estimate_safety: 1.5
   requires: []
   description: openai/gpt-6-luna as judge, arbiter and boss (supervisor tier 1).
   patch:
@@ -298,6 +302,7 @@ levers:
   tier: 1
   group: supervisor
   round_cap_auto: true
+  estimate_safety: 1.5
   requires: []
   description: qwen/qwen3.7-plus as judge, arbiter and boss (supervisor tier 1).
   patch:
@@ -311,6 +316,7 @@ levers:
   tier: 1
   group: supervisor
   round_cap_auto: true
+  estimate_safety: 1.5
   requires: []
   description: minimax/minimax-m3 as judge, arbiter and boss (supervisor tier 1).
   patch:
@@ -324,6 +330,7 @@ levers:
   tier: 1
   group: supervisor
   round_cap_auto: true
+  estimate_safety: 1.5
   requires: []
   description: z-ai/glm-5.3-flashx-legal as judge, arbiter and boss (supervisor tier 1).
   patch:
@@ -337,6 +344,7 @@ levers:
   tier: 2
   group: supervisor
   round_cap_auto: true
+  estimate_safety: 1.5
   requires:
   - kept: {group: supervisor, tier: 1}
   - all_reverted_positive: {group: supervisor, tier: 1}
@@ -352,6 +360,7 @@ levers:
   tier: 2
   group: supervisor
   round_cap_auto: true
+  estimate_safety: 1.5
   requires:
   - kept: {group: supervisor, tier: 1}
   - all_reverted_positive: {group: supervisor, tier: 1}
@@ -367,6 +376,7 @@ levers:
   tier: 2
   group: supervisor
   round_cap_auto: true
+  estimate_safety: 1.5
   requires:
   - kept: {group: supervisor, tier: 1}
   - all_reverted_positive: {group: supervisor, tier: 1}
@@ -382,6 +392,7 @@ levers:
   tier: 2
   group: supervisor
   round_cap_auto: true
+  estimate_safety: 1.5
   requires:
   - kept: {group: supervisor, tier: 1}
   - all_reverted_positive: {group: supervisor, tier: 1}
@@ -397,6 +408,7 @@ levers:
   tier: 3
   group: supervisor
   round_cap_auto: true
+  estimate_safety: 1.5
   requires:
   - kept: {group: supervisor, tier: 2}
     budget_multiple: 3
@@ -412,6 +424,7 @@ levers:
   tier: 3
   group: supervisor
   round_cap_auto: true
+  estimate_safety: 1.5
   requires:
   - kept: {group: supervisor, tier: 2}
     budget_multiple: 3
@@ -427,6 +440,7 @@ levers:
   tier: 3
   group: supervisor
   round_cap_auto: true
+  estimate_safety: 1.5
   requires:
   - kept: {group: supervisor, tier: 2}
     budget_multiple: 3

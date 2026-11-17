@@ -401,8 +401,55 @@ def test_the_five_window_levers_that_lowered_the_baseline_window_are_gone():
 
 def test_every_supervisor_lever_derives_its_round_cap_and_call_adding_levers_scale_the_estimate():
     cat = lv.load_levers(ROOT / "config/autoresearch/levers.yaml")
-    assert all(i.round_cap_auto for i in cat.levers if i.group == "supervisor")
-    scaled = {i.id for i in cat.levers if i.estimate_safety}
-    assert scaled == {"judge-all-correspondence", "judge-all-insurance-claim", "judge-all-corporate-record",
-                      "judge-rejudge-retry", "judge-max-passes-2"}
-    assert all(cat_i.estimate_safety == 2.0 for cat_i in cat.levers if cat_i.id in scaled)
+    sups = [i for i in cat.levers if i.group == "supervisor"]
+    assert sups and all(i.round_cap_auto for i in sups)
+    calls = {"judge-all-correspondence", "judge-all-insurance-claim", "judge-all-corporate-record",
+             "judge-rejudge-retry", "judge-max-passes-2"}
+    assert {i.id for i in cat.levers if i.estimate_safety} == calls | {i.id for i in sups}
+    assert all(i.estimate_safety == 2.0 for i in cat.levers if i.id in calls)
+    # a reasoning or verbose supervisor emits more completion tokens than the champion's measured ones
+    assert all(i.estimate_safety == 1.5 for i in sups)
+
+
+def test_placements_inherit_the_winners_estimate_safety():
+    cat = placement_catalog(sup("w", "strong", round_cap_auto=True, estimate_safety=1.5))
+    derived = lv.derive_placements(cat, {}, [kept("w")])
+    assert derived and all(i.estimate_safety == 1.5 for i in derived)
+
+
+# ---- the tier ladder: decided levers, one positive revert, retryable errors ------------------------------------------
+
+def _t2():
+    cat = _ladder()
+    t2 = next(item for item in cat.levers if item.id == "t2")
+    return cat, lambda rows: lv.requirement_met(t2, cat.levers, rows)
+
+
+def test_a_tier_whose_levers_were_all_aborted_stays_closed():
+    _, met = _t2()
+    aborted = lambda i: {"lever": i, "decision": "aborted_cap"}  # noqa: E731
+    assert not met([aborted("t11"), aborted("t12")])         # aborts alone never open a dearer tier
+    assert not met([aborted("t11"), {"lever": "t12", "decision": "skipped"}])   # nor aborts plus skips
+
+
+def test_one_positive_revert_with_the_rest_aborted_or_skipped_opens_the_next_tier():
+    _, met = _t2()
+    assert met([row("t11", "revert", 0.02), {"lever": "t12", "decision": "aborted_cap"}])
+    assert met([row("t11", "revert", 0.02), {"lever": "t12", "decision": "skipped"}])
+    assert not met([row("t11", "revert", 0.02)])                                          # t12 still undecided
+    assert not met([row("t11", "revert", 0.02), {"lever": "t12", "decision": "aborted_cap"},
+                    row("t12", "revert", -0.01)])                                          # the latest row of t12 is a negative revert
+
+
+def test_an_error_is_retryable_once_then_decided_without_a_verdict():
+    _, met = _t2()
+    err = lambda i: {"lever": i, "decision": "error"}  # noqa: E731
+    assert lv.settled([err("t12")]) == set()                                  # one error: proposed again
+    assert lv.settled([err("t12"), err("t12")]) == {"t12"}                    # two: settled
+    assert not met([row("t11", "revert", 0.02), err("t12")])                   # retryable: the tier waits
+    assert met([row("t11", "revert", 0.02), err("t12"), err("t12")])           # decided without a verdict
+    assert met([row("t11", "revert", 0.02), err("t12"), row("t12", "revert", 0.01)])   # the retry succeeded
+    assert not met([row("t11", "revert", 0.02), err("t12"), row("t12", "revert", -0.01)])
+    assert not met([err("t11"), err("t11"), err("t12"), err("t12")])           # no positive revert at all: closed
+    assert lv.settled([err("t12"), {"lever": "t12", "decision": "skipped"}]) == {"t12"}
+    assert met([row("t11", "revert", 0.02), err("t12"), {"lever": "t12", "decision": "skipped"}])
