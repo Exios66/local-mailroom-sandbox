@@ -4,6 +4,7 @@ This runbook covers how a production run is approved. Each run is a CLI-launched
 - Design: [`docs/superpowers/specs/2026-11-16-production-slice-gate-design.md`](../superpowers/specs/2026-11-16-production-slice-gate-design.md)
 - Tracker: Exios66/local-mailroom-sandbox#305
 - Fix backlog: Exios66/local-mailroom-sandbox#306
+- Current state and next actions: [`production-readiness-handoff.md`](production-readiness-handoff.md) (2026-11-16)
 
 This page is hand-written. It is not generated from `config/runbooks/catalog.yaml`.
 
