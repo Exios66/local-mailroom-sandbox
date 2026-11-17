@@ -1,0 +1,153 @@
+{
+  "binding": {
+    "dataset": "Lucius-Morningstar/mailroom-dataset",
+    "dataset_revision": "ccd040f6a1b6b414bdefd161cdc622b68f6dacf8",
+    "dojo_commit": "025400f3d703531c5e1a76093e4b803ccc6fb576",
+    "dojo_version": "0.30.1",
+    "extraction_schemas_sha256": "9a0e251891e73a06a020a86fba8ee9640fe6657f98c3d181627d44f6c21e2ebe",
+    "mailroom_commit": "f83e3987cf9842ebf1e3f8778e0bb6e1d869c135"
+  },
+  "builder": "scripts/gold_labels.py build",
+  "built_at": "2026-11-17T08:54:03Z",
+  "counts": {
+    "correspondence": {
+      "-": {
+        "notes": 984
+      },
+      "action_items": {
+        "rejected": 1
+      },
+      "additional_recipients": {
+        "gate_reject": 3
+      },
+      "communication_date": {
+        "gate_reject": 2
+      },
+      "sender": {
+        "rejected": 2
+      },
+      "urgency": {
+        "gate_reject": 2
+      }
+    }
+  },
+  "files": {
+    "correspondence.jsonl": "ce1f9df24adeaed8c363eb15e350f83fd5b39a10b156f2c9917ae6073126b722"
+  },
+  "note": "Supplementary labeler output. Never ground truth; no scorer reads it.",
+  "schema": "mailroom-gold-supplementary/v1",
+  "sources": {
+    "check": [
+      "check-correspondence-000.jsonl",
+      "check-correspondence-001.jsonl",
+      "check-correspondence-002.jsonl",
+      "check-correspondence-003.jsonl",
+      "check-correspondence-010.jsonl",
+      "check-correspondence-011.jsonl",
+      "check-correspondence-020.jsonl",
+      "check-correspondence-021.jsonl",
+      "check-correspondence-030.jsonl",
+      "check-correspondence-031.jsonl",
+      "check-correspondence-038.jsonl",
+      "check-correspondence-039.jsonl",
+      "check-correspondence-040.jsonl"
+    ],
+    "label": [
+      "label-correspondence-000.jsonl",
+      "label-correspondence-001.jsonl",
+      "label-correspondence-002.jsonl",
+      "label-correspondence-003.jsonl",
+      "label-correspondence-004.jsonl",
+      "label-correspondence-005.jsonl",
+      "label-correspondence-006.jsonl",
+      "label-correspondence-007.jsonl",
+      "label-correspondence-008.jsonl",
+      "label-correspondence-009.jsonl",
+      "label-correspondence-010.jsonl",
+      "label-correspondence-011.jsonl",
+      "label-correspondence-012.jsonl",
+      "label-correspondence-013.jsonl",
+      "label-correspondence-014.jsonl",
+      "label-correspondence-015.jsonl",
+      "label-correspondence-016.jsonl",
+      "label-correspondence-017.jsonl",
+      "label-correspondence-018.jsonl",
+      "label-correspondence-019.jsonl",
+      "label-correspondence-020.jsonl",
+      "label-correspondence-021.jsonl",
+      "label-correspondence-022.jsonl",
+      "label-correspondence-023.jsonl",
+      "label-correspondence-024.jsonl",
+      "label-correspondence-025.jsonl",
+      "label-correspondence-026.jsonl",
+      "label-correspondence-027.jsonl",
+      "label-correspondence-028.jsonl",
+      "label-correspondence-029.jsonl",
+      "label-correspondence-030.jsonl",
+      "label-correspondence-031.jsonl",
+      "label-correspondence-032.jsonl",
+      "label-correspondence-033.jsonl",
+      "label-correspondence-034.jsonl",
+      "label-correspondence-035.jsonl",
+      "label-correspondence-036.jsonl",
+      "label-correspondence-037.jsonl",
+      "label-correspondence-038.jsonl",
+      "label-correspondence-039.jsonl",
+      "label-correspondence-040.jsonl",
+      "label-correspondence-041.jsonl",
+      "label-correspondence-042.jsonl",
+      "label-correspondence-043.jsonl"
+    ],
+    "override": [
+      "fwd-label-correspondence-000.jsonl",
+      "fwd-label-correspondence-001.jsonl",
+      "fwd-label-correspondence-002.jsonl"
+    ],
+    "review": [
+      "review-corr-000-001.jsonl",
+      "review-corr-002-003.jsonl",
+      "review-corr-checks-2.jsonl",
+      "review-fwd.jsonl"
+    ]
+  },
+  "target_fields": {
+    "contract": {
+      "tier1": [
+        "agreement_date",
+        "expiration_date",
+        "signatories",
+        "party_roles",
+        "termination_notice_period",
+        "contract_value"
+      ],
+      "tier2": [
+        "dispute_forum",
+        "payment_terms",
+        "territory"
+      ]
+    },
+    "corporate_record": {
+      "tier1": [
+        "effective_date",
+        "signatories",
+        "jurisdiction",
+        "entity_name"
+      ],
+      "tier2": []
+    },
+    "correspondence": {
+      "tier1": [
+        "sender",
+        "recipient",
+        "communication_date",
+        "urgency",
+        "demand_amount",
+        "action_items"
+      ],
+      "tier2": [
+        "additional_recipients"
+      ]
+    }
+  },
+  "truth_statuses": []
+}
