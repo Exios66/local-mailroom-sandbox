@@ -80,9 +80,18 @@ def cmd_batch(args: argparse.Namespace) -> int:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     n = 0
-    for i in range(0, len(queue), args.size):
-        chunk = queue[i : i + args.size]
-        bdir = out / f"{args.doc_class}-{i // args.size:03d}"
+    chunks, cur, cur_chars = [], [], 0
+    for q in queue:
+        size = len(texts[q["filename"]])
+        if cur and (len(cur) >= args.size or (args.max_batch_chars and cur_chars + size > args.max_batch_chars)):
+            chunks.append(cur)
+            cur, cur_chars = [], 0
+        cur.append(q)
+        cur_chars += size
+    if cur:
+        chunks.append(cur)
+    for i, chunk in enumerate(chunks):
+        bdir = out / f"{args.doc_class}-{i:03d}"
         bdir.mkdir(parents=True, exist_ok=True)
         entries = []
         for q in chunk:
@@ -168,6 +177,15 @@ def _schema_binding(revision: str) -> dict[str, Any]:
 def cmd_build(args: argparse.Namespace) -> int:
     corpus = Path(args.corpus)
     labels = _validate_all(corpus, args.label)
+    # A relabel pass (--override) replaces the named fields of earlier label passes, for
+    # example after a guide rule changed. Its fields are catalogued with its own labeler and
+    # are not reconciled against an earlier check pass.
+    overrides = _validate_all(corpus, args.override or [])
+    replaced = {(d["doc_id"], f) for d, sub, _, _ in overrides for f in (sub.get("fields") or {})}
+    for doc, sub, res, _ in labels:
+        for name in [f for f in res.fields if (doc["doc_id"], f) in replaced]:
+            del res.fields[name]
+    labels = labels + [(d, {**sub, "relabel": True}, r, t) for d, sub, r, t in overrides]
     checks = {(d["doc_id"]): (sub, res) for d, sub, res, _ in _validate_all(corpus, args.check or [])}
     reviews: dict[tuple[str, str], dict] = {}
     for path in args.review or []:
@@ -178,7 +196,7 @@ def cmd_build(args: argparse.Namespace) -> int:
     catalog: dict[str, list[dict]] = collections.defaultdict(list)
     supplementary: dict[str, list[dict]] = collections.defaultdict(list)
     for doc, sub, res, text in labels:
-        chk = checks.get(doc["doc_id"])
+        chk = None if sub.get("relabel") else checks.get(doc["doc_id"])
         records, rejects = gl.reconcile(doc, text, res, chk[1] if chk else None, sub.get("labeler", {}),
                                         chk[0].get("labeler", {}) if chk else None, binding)
         for rec in records:
@@ -194,7 +212,7 @@ def cmd_build(args: argparse.Namespace) -> int:
                               f"{fr.reason}", file=sys.stderr)
                         return 1
                     decision = {**decision, "value": fr.value, "evidence": fr.evidence,
-                                "presence": fr.presence}
+                                "presence": fr.presence, "absent_reason": fr.absent_reason}
                 decision = {k: v for k, v in decision.items() if k not in ("doc_id", "field", "entry")}
                 rec = gl.apply_review(rec, decision)
             if rec["status"] == "rejected":
@@ -234,7 +252,8 @@ def cmd_build(args: argparse.Namespace) -> int:
             "truth_statuses": list(gl.TRUTH_STATUSES) if schema == gl.SCHEMA else [],
             "sources": {"label": sorted(Path(p).name for p in args.label),
                         "check": sorted(Path(p).name for p in args.check or []),
-                        "review": sorted(Path(p).name for p in args.review or [])},
+                        "review": sorted(Path(p).name for p in args.review or []),
+                        "override": sorted(Path(p).name for p in args.override or [])},
             "counts": counts,
             "files": files,
         }
@@ -248,12 +267,78 @@ def cmd_build(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_disputes(args: argparse.Namespace) -> int:
+    """A compact review sheet: every disputed field with both readings and nearby text."""
+    corpus = Path(args.corpus)
+    labels = _validate_all(corpus, args.label)
+    checks = {d["doc_id"]: (sub, res) for d, sub, res, _ in _validate_all(corpus, args.check)}
+    fields = set(args.fields or [])
+    rows = []
+    for doc, sub, res, text in labels:
+        chk = checks.get(doc["doc_id"])
+        records, _ = gl.reconcile(doc, text, res, chk[1] if chk else None, {}, {}, {})
+        for rec in records:
+            if rec["status"] != "disputed" or (fields and rec["field"] not in fields):
+                continue
+            spans = rec["evidence"] or []
+            lo = min((sp["start"] for sp in spans), default=0)
+            hi = max((sp["end"] for sp in spans), default=min(len(text), 300))
+            ctx = text[max(0, lo - args.context): hi + args.context]
+            rows.append({"doc_id": rec["doc_id"], "field": rec["field"], "label": rec["value"],
+                         "label_absent": rec.get("absent_reason"), "check": rec["check"]["value"],
+                         "check_gate": rec["check"]["gate_ok"], "chars": len(text),
+                         "context": " ".join(ctx.split())})
+    gl.write_jsonl(Path(args.out), rows)
+    print(f"{len(rows)} disputed fields -> {args.out}")
+    return 0
+
+
 def cmd_check(args: argparse.Namespace) -> int:
     problems = gl.verify_catalog(Path(args.dir) if args.dir else gl.gold_dir())
     for p in problems:
         print(p)
     print("ok" if not problems else f"{len(problems)} problem(s)")
     return 1 if problems else 0
+
+
+def cmd_overlay(args: argparse.Namespace) -> int:
+    """Export the catalog as EDA overlay records (candidates for Mailroom-Corpus-EDA)."""
+    gold = Path(args.dir) if args.dir else gl.gold_dir()
+    problems = gl.verify_catalog(gold)
+    if problems:
+        print("\n".join(problems), file=sys.stderr)
+        return 1
+    gate_run = f"gold-labels-{gl.manifest_sha(gold)[:12]}"
+    out = Path(args.out) if args.out else gold.parent / "gold-overlay"
+    out.mkdir(parents=True, exist_ok=True)
+    for stale in out.glob("*.jsonl"):
+        stale.unlink()
+    files, counts = {}, {}
+    for path in sorted(gold.glob("*.jsonl")):
+        recs = gl.overlay_records(gl.read_jsonl(path), gate_run=gate_run)
+        files[path.name] = gl.write_jsonl(out / path.name, recs)
+        c: collections.Counter = collections.Counter()
+        for r in recs:
+            for lab in r["labels"].values():
+                c[lab["basis"]] += 1
+        counts[path.stem] = dict(sorted(c.items()))
+    manifest = {
+        "schema": gl.OVERLAY_SCHEMA,
+        "status": "near-gold candidates for the Mailroom-Corpus-EDA master copy; gold only with a "
+                  "reviewer's initials there (EDA #65)",
+        "built_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "builder": "scripts/gold_labels.py overlay",
+        "gate_run": gate_run,
+        "catalog_manifest_sha256": gl.manifest_sha(gold),
+        "rules": {"truth_statuses": [], "exported_statuses": ["near_gold", "candidate"],
+                  "near_empty_chars": gl.NEAR_EMPTY_CHARS},
+        "counts": counts,
+        "files": files,
+    }
+    (out / "MANIFEST.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print(f"overlay: {sum(sum(v.values()) for v in counts.values())} labels; "
+          f"MANIFEST sha256 {gl.manifest_sha(out)}")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -274,6 +359,7 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--size", type=int, default=25)
     b.add_argument("--limit", type=int)
     b.add_argument("--max-chars", type=int)
+    b.add_argument("--max-batch-chars", type=int, help="start a new batch before this many characters")
     b.add_argument("--skip", nargs="*", help="submission files whose documents are already labelled")
     b.add_argument("--out", required=True)
     b.set_defaults(fn=cmd_batch)
@@ -290,11 +376,26 @@ def main(argv: list[str] | None = None) -> int:
     bd.add_argument("--label", nargs="+", required=True)
     bd.add_argument("--check", nargs="*")
     bd.add_argument("--review", nargs="*")
+    bd.add_argument("--override", nargs="*", help="relabel passes whose fields replace earlier label passes")
     bd.set_defaults(fn=cmd_build)
+
+    ds = sub.add_parser("disputes")
+    ds.add_argument("--corpus", required=True)
+    ds.add_argument("--label", nargs="+", required=True)
+    ds.add_argument("--check", nargs="+", required=True)
+    ds.add_argument("--fields", nargs="*")
+    ds.add_argument("--context", type=int, default=250)
+    ds.add_argument("--out", required=True)
+    ds.set_defaults(fn=cmd_disputes)
 
     c = sub.add_parser("check")
     c.add_argument("--dir")
     c.set_defaults(fn=cmd_check)
+
+    ov = sub.add_parser("overlay", help="export near-gold candidates in EDA's overlay shape")
+    ov.add_argument("--dir", help="catalog directory (default data/labels/gold)")
+    ov.add_argument("--out", help="output directory (default data/labels/gold-overlay)")
+    ov.set_defaults(fn=cmd_overlay)
 
     args = p.parse_args(argv)
     return args.fn(args)

@@ -139,12 +139,12 @@ def test_reconcile_and_review():
     doc = {"doc_id": "DOC-1", "doc_class": "correspondence", "filename": "f", "content_sha256": "abc"}
     records, rejects = gl.reconcile(doc, EMAIL, label, check, {"model": "a"}, {"model": "b"}, {"dataset_revision": "r"})
     by_field = {r["field"]: r for r in records}
-    assert by_field["recipient"]["status"] == "accepted" and by_field["recipient"]["use_as_truth"]
+    assert by_field["recipient"]["status"] == "near_gold" and not by_field["recipient"]["use_as_truth"]
     assert by_field["communication_date"]["status"] == "disputed"
     assert not by_field["communication_date"]["use_as_truth"]
     assert rejects == []
     settled = gl.apply_review(by_field["communication_date"], {"verdict": "accept", "reviewer": {"model": "opus"}})
-    assert settled["status"] == "accepted" and settled["use_as_truth"]
+    assert settled["status"] == "near_gold" and not settled["use_as_truth"]
     dropped = gl.apply_review(by_field["recipient"], {"verdict": "reject", "reviewer": {"model": "opus"}})
     assert dropped["status"] == "rejected" and not dropped["use_as_truth"]
 
@@ -180,12 +180,12 @@ def test_cuad_dates_need_exactly_one_calendar_date():
 
 
 def test_catalog_round_trip_and_tamper_detection(tmp_path):
-    rec = {"doc_id": "D", "field": "recipient", "status": "accepted", "use_as_truth": True,
+    rec = {"doc_id": "D", "field": "recipient", "status": "near_gold", "use_as_truth": False,
            "presence": "populated", "evidence": [{"start": 0, "end": 1, "text": "x"}]}
     sha = gl.write_jsonl(tmp_path / "correspondence.jsonl", [rec])
     (tmp_path / "MANIFEST.json").write_text(json.dumps({"schema": gl.SCHEMA, "files": {"correspondence.jsonl": sha}}))
     assert gl.verify_catalog(tmp_path) == []
-    (tmp_path / "correspondence.jsonl").write_text(json.dumps({**rec, "use_as_truth": False}) + "\n")
+    (tmp_path / "correspondence.jsonl").write_text(json.dumps({**rec, "use_as_truth": True}) + "\n")
     problems = gl.verify_catalog(tmp_path)
     assert any("sha256" in p for p in problems)
     assert any("use_as_truth" in p for p in problems)
@@ -197,3 +197,47 @@ def test_free_text_lists_agree_on_paraphrase_but_not_on_count():
     assert gl.values_agree(a, b, "entity_list")
     assert not gl.values_agree(a, a + ["Call me"], "entity_list")
     assert not gl.values_agree(["Call the bank"], ["Sign the lease"], "entity_list")
+
+
+def test_overlay_exports_near_gold_and_candidates_never_truth():
+    base = {"doc_class": "correspondence", "subclass": "email", "content_sha256": "ab" * 32,
+            "presence": "populated", "evidence": [], "labeler": {"model": "s"}}
+    recs = [
+        {**base, "doc_id": "D1", "field": "recipient", "value": "John Doe", "status": "near_gold"},
+        {**base, "doc_id": "D1", "field": "sender", "value": "Jane", "status": "near_gold",
+         "review": {"verdict": "correct"}},
+        {**base, "doc_id": "D1", "field": "urgency", "value": "routine", "status": "candidate"},
+        {**base, "doc_id": "D2", "field": "recipient", "value": "X", "status": "disputed"},
+        {**base, "doc_id": "D3", "field": "recipient", "value": "Y", "status": "rejected"},
+    ]
+    out = gl.overlay_records(recs, gate_run="gold-labels-x")
+    assert [o["doc_id"] for o in out] == ["D1"]
+    labels = out[0]["labels"]
+    assert out[0]["doc_sha256"] == "ab" * 8 and out[0]["source"]["gate_run"] == "gold-labels-x"
+    assert labels["recipient"]["basis"] == "near_gold:two_pass_agree"
+    assert labels["sender"]["basis"] == "near_gold:opus_reviewed_correct"
+    assert labels["urgency"]["basis"] == "candidate:single_pass"
+    assert all(v["status"] == "gap_fill" and v["use_as_truth"] is False for v in labels.values())
+
+
+def test_near_empty_documents_are_tagged():
+    res = gl.validate_submission(sub({"recipient": {"value": "John Doe", "evidence": ["To: John Doe"]}}),
+                                 "To: John Doe\nsee attached", "correspondence")
+    doc = {"doc_id": "DOC-1", "doc_class": "correspondence"}
+    records, _ = gl.reconcile(doc, "To: John Doe\nsee attached", res, None, {"model": "a"}, None, {})
+    assert records[0]["near_empty"] is True
+
+
+def test_review_correction_keeps_the_basis_of_a_default_label():
+    rec = {"doc_id": "D", "field": "urgency", "value": "urgent", "status": "disputed", "use_as_truth": False,
+           "presence": "populated", "evidence": [{"start": 0, "end": 1, "text": "x"}], "absent_reason": None}
+    out = gl.apply_review(rec, {"verdict": "correct", "value": "routine", "evidence": [], "presence": "populated",
+                                "absent_reason": "standing weekly invitation", "reviewer": {"model": "opus"}})
+    assert out["absent_reason"] == "standing weekly invitation" and out["evidence"] == []
+    assert "absent_reason" not in out["review"]
+
+
+def test_day_first_numeric_dates_only_when_unambiguous():
+    assert gl._date_supported("2001-03-27", "Sent: 27/03/2001 18:38")
+    assert not gl._date_supported("2000-11-02", "Sent: 02/11/2000 12:38")
+    assert gl._date_supported("2000-02-11", "Sent: 02/11/2000 12:38")
