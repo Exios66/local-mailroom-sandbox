@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- **`sandbox api`: one client for the mailroom API and the selected Dojo.**
+  - `sandbox api status` shows the pinned and selected mailroom and Dojo (source, version, commit) and the API's `/health`. `--offline` skips the API probe.
+  - `sandbox api eval` uploads fixture documents (`--class`, `--sample`) to a running API, waits until each reaches `archived`, `review` or `failed`, and scores them with the same Dojo scorers as `sandbox eval pipeline`. It works on the local `sandbox pipeline api` or on a deployment named by `MAILROOM_API_URL` (token from `MAILROOM_API_TOKEN`, never printed). It only plans unless `--submit` is given, because the API process runs its own models and this client cannot cap that spend. Each upload is renamed with a run tag, so an earlier run's same-named document is never read back. Documents that do not finish are listed as `incomplete`, not scored, and make the command exit 1.
+  - `mailroom_sandbox.family_api` exposes the same pieces (`MailroomAPI`, `family_status`, `run_api_eval`) to scripts and notebooks. `tests/test_family_api.py` also checks that the vendored API still serves every endpoint and document field the client reads, so a vendor refresh that breaks the contract fails there.
+
 - **Insurance v4 is adopted and folded into a v5 candidate; the judge audit leaves routing alone.**
   - The v4 A/B (40 documents): mean 0.874 → 0.880 and Part D NDC 0/5 → 5/5. `claim_type` did not move: the pipeline's structured-output schema still asks for CMS table tokens, which only llm-mailroom #280 changes.
   - `insurance_claims_specialist_condensed_v5` is v4 plus #280's line-of-business vocabulary. Its A/B arms, `specialist-condensed-v5-insurance-claim-qwen-{v4arm,v5arm}`, run on the v4 A/B's documents after #280 is vendored. The slices stay on v3 until v5 passes.

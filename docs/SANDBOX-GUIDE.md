@@ -204,6 +204,8 @@ flags through `sandbox modal raw -- <args>`, `sandbox hf raw -- <args>`, or
 | `sandbox run list` | List all runs |
 | `sandbox experiment create\|review\|preflight\|launch\|report` | Paired experiments: design, review, initials-gated launch, report ([experiments.md](experiments.md)) |
 | `sandbox review list\|show\|resolve` | Human review of parked documents |
+| `sandbox api status [--offline]` | Pinned vs selected mailroom and Dojo, plus the running API's `/health` |
+| `sandbox api eval [--class C] [--sample N] [--submit]` | Upload fixtures to a running or deployed mailroom API and score the results with the Dojo (plans unless `--submit`) |
 
 ### Prompt & metric commands
 
