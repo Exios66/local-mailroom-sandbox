@@ -619,6 +619,40 @@ def test_assert_disjoint_helper():
         lp.assert_disjoint({"a", "b", "c"}, {"a", "b"})
 
 
+def test_a_holdout_interrupted_after_prepare_can_be_retried(tmp_path, runs_in_tmp):
+    """prepare() writes the run directory before _run_one writes the pending row. A stop in between left a directory the
+    study owned but the ledger did not know, and the retry was refused as a stale directory (mock holdouts included)."""
+    loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("a")]})
+    loop.run(1)
+    fake.holdout_ids = ["h1", "h2"]
+    fake.script = lambda spec, lever: [d("h1", "contract"), d("h2", "correspondence")]
+    real_prepare = fake.prepare
+
+    def dies_after_writing_the_directory(spec_path, *, env=None):
+        real_prepare(spec_path, env=env)
+        raise KeyboardInterrupt("stopped after prepare")
+
+    fake.prepare = dies_after_writing_the_directory
+    with pytest.raises(KeyboardInterrupt):
+        loop.holdout()
+    assert (runs_in_tmp / "ar-t1-holdout").is_dir() and not any(r["decision"] == "holdout" for r in loop.ledger.rows())
+    fake.prepare = real_prepare
+    again = lp.Loop(loop.study, fake, state_dir=loop.dir, out=lambda s: None)       # a new process over the same state directory
+    assert again.holdout()["decision"] == "holdout"
+
+
+def test_an_unrelated_directory_still_blocks_the_holdout(tmp_path, runs_in_tmp):
+    loop, fake, _ = make(tmp_path, {"levers": [reviewer_lever("a")]})
+    loop.run(1)
+    (runs_in_tmp / "ar-t1-holdout").mkdir(parents=True)                              # not created by this study's prepare
+    fake.holdout_ids = ["h1"]
+    with pytest.raises(lp.AutoresearchError, match=r"no row for ar-t1-holdout"):
+        loop.holdout()
+    other = lp.Loop(loop.study, fake, state_dir=sub(tmp_path, "other-state"), out=lambda s: None)
+    with pytest.raises(lp.AutoresearchError):                                       # a claim in another state directory is not ours
+        other._refuse_stale_run_dir(other.state(), "ar-t1-holdout")
+
+
 def test_holdout_needs_a_champion(tmp_path):
     loop, _, _ = make(tmp_path, {"levers": [reviewer_lever("a")]})
     with pytest.raises(lp.AutoresearchError, match="no champion yet"):

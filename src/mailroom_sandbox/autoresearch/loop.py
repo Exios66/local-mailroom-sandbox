@@ -673,15 +673,37 @@ class Loop:
         Run ids repeat across restarts (study, round and lever only), and run directories live under the global runs
         root. A fresh state directory over an old run directory would resume that run and score its stored results as
         new measurements (and charge the round cap for calls never made). Run ids the ledger already records, a
-        ``pending`` row included, still resume.
+        ``pending`` row included, still resume, and so do ids this state directory claimed before ``prepare`` made the
+        directory (``_claim_run``): a stop between the two leaves a directory of the study's own with no row.
         """
         from mailroom_sandbox.job.spec import run_dir as _run_dir
 
         existing = _run_dir(run_id)
-        if existing.exists() and not any(r.get("run_id") == run_id for r in state.rows):
+        if existing.exists() and not any(r.get("run_id") == run_id for r in state.rows) and run_id not in self._claimed_runs():
             raise AutoresearchError(
                 f"run directory {existing} already exists but the ledger has no row for {run_id}: refusing to reuse "
                 "its stored results as new measurements. Move that directory aside, or give the study a new name")
+
+    def _claimed_runs(self) -> set[str]:
+        """Run ids this state directory claimed before ``prepare`` created their directories (``claimed-runs.txt``)."""
+        try:
+            return {line.strip() for line in (self.dir / "claimed-runs.txt").read_text(encoding="utf-8").splitlines() if line.strip()}
+        except OSError:
+            return set()
+
+    def _claim_run(self, run_id: str) -> None:
+        """Record that this study is about to create ``run_id``'s directory, so an interrupted retry may reuse it.
+
+        Written before ``prepare`` (which creates the directory with no ledger row yet). Mock studies reserve nothing in
+        the ledger, so the claim is a file of its own and is not spend accounting.
+        """
+        if run_id in self._claimed_runs():
+            return
+        self.dir.mkdir(parents=True, exist_ok=True)
+        with open(self.dir / "claimed-runs.txt", "a", encoding="utf-8") as fh:
+            fh.write(run_id + "\n")
+            fh.flush()
+            os.fsync(fh.fileno())
 
     def _key_start(self, remaining: float) -> float:
         """The study's first ``limit_remaining`` reading: persisted once (``key_start.json``), then read back."""
@@ -1159,6 +1181,7 @@ class Loop:
         assert self.executor is not None
         prepare = getattr(self.executor, "prepare", None)
         if prepare is not None:  # lock the draw first: no model has been called yet
+            self._claim_run(run_id)  # before prepare writes the directory: a stop in between must stay retryable
             locked = Path(prepare(spec_path, env=env or None))
             assert_disjoint(dev_ids, _dataset_ids(locked))
         self.out(f"holdout: champion {state.champ_row['run_id']} on {run_id}")
