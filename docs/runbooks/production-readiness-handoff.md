@@ -67,6 +67,12 @@ In r2, every contract went through the judge, but 34 of the 36 corporate, corres
 
 The ordered run list, with what each step needs merged first, is [`experiment-queue.md`](experiment-queue.md).
 
+**Steps 0 and 1 ran on 2026-11-17** (results in the queue, Q1 and Q2):
+
+- The judge audit leaves routing alone: it caught 1 of r2's 6 wrong archives.
+- Insurance v4 is adopted and folded into a v5 candidate, whose A/B waits for Exios66/llm-mailroom#280.
+- The slices stay on v3 until v5 passes.
+
 Every step from 1 on spends money or is reserved for the owner, so a human starts it.
 
 0. **Judge audit** (OpenRouter, $0.75 cap, 26 documents that pair with r2). This tests whether the judge catches the wrong archives the router never sends it. The offline preflight passes except for the key check.

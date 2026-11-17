@@ -8,7 +8,7 @@ Status of the fixes:
 |---|---|---|
 | Gate counts only fields the Dojo scores | #318 | Merged (`787d61e`) |
 | Re-vendor: null-`choices` judge fix, reviewer error recording, correspondence typed by content | #319 | Merged |
-| Insurance `claim_type` is the product line (#174 §2) | Exios66/llm-mailroom#280 | Open upstream |
+| Insurance `claim_type` is the product line (#174 §2) | Exios66/llm-mailroom#280 | Open upstream; blocks the v5 A/B |
 | CUAD dates count toward recall only (#167) | Exios66/llm-dojo-scoring#173 | Open upstream |
 
 ## Now: on the current pins, about $1.05 in total
@@ -35,7 +35,12 @@ for a in v3arm-plain v3arm v4arm; do .venv/bin/sandbox run start --config config
 .venv/bin/python scripts/compare_specialist_prompt.py --reference specialist-condensed-v4-insurance-claim-qwen-v3arm --candidate specialist-condensed-v4-insurance-claim-qwen-v4arm
 ```
 
-- **Then:** set v4 to `adopted` or `rejected` in `config/prompts/specialist_condensed_lineage.yaml`. If it is adopted, point `insurance_claims_specialist` at v4 in `config/runs/production/slice-*.yaml`. Add the arm ids to `config/production/excluded-ids.txt` with `scripts/build_excluded_ids.py`.
+- **Result (2026-11-17):** v4 is adopted but not deployed.
+  - Mean 0.874 → 0.880, with 22 wins, 6 ties and 12 losses, and no parse errors.
+  - Part D NDC: 0/5 → 5/5.
+  - `claim_type` did not move: 20 of 21 CMS rows kept a table token in every arm. The pipeline's structured-output schema asks for those tokens and outweighs the prompt; only Exios66/llm-mailroom#280 changes it.
+  - The handoff note helps: v3 without it scores 0.856, v3 with it 0.874.
+  - v4 is folded into v5 (v4 plus the #280 wording), and the slices stay on v3 until v5 passes. The A/B's 40 documents are now in `excluded-ids.txt`.
 
 ### Q2. Judge audit (llm-mailroom #278)
 
@@ -48,7 +53,11 @@ for a in v3arm-plain v3arm v4arm; do .venv/bin/sandbox run start --config config
 .venv/bin/sandbox run gate --run-id judge-audit-0026 --prev-run-id production-slice-0100-r2
 ```
 
-- **Then:** if the judge rejects most of r2's wrong archives, set `judge_band_high` for those classes in the slice configs. If it passes them, leave routing alone. The remaining work is then extraction and labels.
+- **Result (2026-11-17):** routing stays as it is.
+  - Of r2's 6 wrong archives in the 26 documents, the judge sent 1 to review. It passed 5, three of them the `claim_type` table token.
+  - It also sent 2 correct and 3 unscorable archives to review. One of the correct ones was a provider connection error.
+  - Review went from 1/26 to 7/26, tokens rose 1.4× to 3× per class, and field scores did not improve.
+  - The remaining work is extraction (#280) and labels: 11 of the 19 audit archives are unscorable.
 
 ## Free: after merges
 
@@ -59,6 +68,7 @@ for a in v3arm-plain v3arm v4arm; do .venv/bin/sandbox run start --config config
   1. Re-gate `production-slice-0100-r2` under the corrected count.
   2. Once Exios66/llm-dojo-scoring#173 and Exios66/llm-mailroom#280 merge, re-vendor again with `/vendor-sync`. llm-mailroom must first re-pin its Dojo dependency to the #173 merge.
   3. Re-score the stored r2 and insurance runs (Exios66/llm-mailroom#183). Do not compare runs locked on different pins without re-scoring them.
+  4. **Insurance v5 A/B** ($0.10 cap per arm, the v4 A/B's 40 documents, on the new pins): `config/runs/specialist-condensed-v5-insurance-claim-qwen-{v4arm,v5arm}.yaml`, then `scripts/compare_specialist_prompt.py --reference specialist-condensed-v5-insurance-claim-qwen-v4arm --candidate specialist-condensed-v5-insurance-claim-qwen-v5arm`. If v5 passes, make it the lineage frontrunner and point `insurance_claims_specialist` at it in `config/runs/production/slice-*.yaml` (`tests/test_production_slices.py` requires the two to match).
 
 ## Next paid slice: only after Q1 to Q3
 
@@ -67,8 +77,8 @@ for a in v3arm-plain v3arm v4arm; do .venv/bin/sandbox run start --config config
 - **Cost:** $2 cap, 100 documents.
 - **Needs:**
   - the second re-vendor (#280 and #173);
-  - the Q1 prompt decision;
-  - the Q2 routing decision.
+  - the v5 A/B decision (Q3 step 4);
+  - the Q2 routing decision (done: routing unchanged).
 - **Why it waits:** run before #280 lands, the slice pays to see the insurance `out_of_enum` failure we already know about.
 
 ```bash
