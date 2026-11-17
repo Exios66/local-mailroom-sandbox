@@ -75,6 +75,8 @@ OVERLAY_SCHEMA = "mailroom-interim-labels/v1"
 #: An evidence quote is the smallest span that shows the value; a whole-document quote supports
 #: anything, so the gate refuses quotes longer than this.
 MAX_QUOTE_CHARS = 400
+#: List fields quote whole To:/cc: blocks, which run long in distribution mail.
+MAX_LIST_QUOTE_CHARS = 1500
 #: A closed label other than its contract default needs a quote of at least this many tokens.
 MIN_LABEL_QUOTE_TOKENS = 3
 
@@ -459,9 +461,10 @@ def _check_field(name: str, entry: Mapping[str, Any], doc_text: str, ftype: str,
         return res
 
     spans = []
+    cap = MAX_LIST_QUOTE_CHARS if ftype.startswith("entity_list") else MAX_QUOTE_CHARS
     for q in quotes:
-        if len(_WS.sub(" ", str(q)).strip()) > MAX_QUOTE_CHARS:
-            res.reason = f"evidence quote too long (over {MAX_QUOTE_CHARS} characters)"
+        if len(_WS.sub(" ", str(q)).strip()) > cap:
+            res.reason = f"evidence quote too long (over {cap} characters)"
             res.checks["evidence_verbatim"] = False
             return res
         span = locate(str(q), doc_text)

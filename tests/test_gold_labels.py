@@ -520,3 +520,16 @@ def test_check_accepts_the_supplementary_directory(cli, capsys):
     assert build("--label", lab) == 0
     assert mod.main(["check", "--dir", str(tmp / "supp")]) == 0
     assert capsys.readouterr().out.strip().endswith("ok")
+
+
+def test_list_fields_may_quote_a_long_cc_block_but_names_may_not():
+    names = [f"Person{i} Surname{i}" for i in range(40)]
+    block = "cc: " + ", ".join(names)
+    text = "From: A\n" + block + "\nbody"
+    assert 400 < len(block) < 1500
+    ok = gl.validate_submission(sub({"additional_recipients": {"value": names, "evidence": [block]}}),
+                                text, "correspondence")
+    assert ok.fields["additional_recipients"].ok, ok.fields["additional_recipients"].reason
+    bad = gl.validate_submission(sub({"sender": {"value": "Person1 Surname1", "evidence": [block]}}),
+                                 text, "correspondence")
+    assert "too long" in bad.fields["sender"].reason
