@@ -87,11 +87,11 @@ def test_decisions_keep_the_owner_decisions():
         d = decisions.get(key)
         rec = catalog[key]
         if d is None:
-            assert rec["status"] == "near_gold" and gl._canon(rec["value"]) == gl._canon(h["value"]), key
+            assert rec["status"] == "near_gold" and rec["value"] == h["value"], key
             continue
         assert d["verdict"] != "reject", f"{key}: an owner decision is never rejected"
         value = d["entry"]["value"] if d["verdict"] == "correct" else rec["value"]
-        assert gl._canon(value) == gl._canon(h["value"]), f"{key}: decision differs from the owner's value"
+        assert value == h["value"], f"{key}: decision differs from the owner's value"
 
 
 def test_held_labels_are_accounted_for():
