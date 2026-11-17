@@ -722,24 +722,30 @@ def _role_map(value: Any) -> list[tuple[frozenset[str], str]] | None:
     return out
 
 
-def _same_party(a: frozenset[str], b: frozenset[str]) -> bool:
-    """One party named twice: a name may add or drop words, or differ by a typo of the OCR kind."""
+def _party_match(a: frozenset[str], b: frozenset[str]) -> float:
+    """How surely two names are one party: 2 same words, 1 one adds words, the typo ratio, or 0."""
+    if a == b:
+        return 2.0
     if a <= b or b <= a:
-        return True
-    return difflib.SequenceMatcher(None, " ".join(sorted(a)), " ".join(sorted(b))).ratio() >= 0.9
+        return 1.0
+    ratio = difflib.SequenceMatcher(None, " ".join(sorted(a)), " ".join(sorted(b))).ratio()
+    return ratio if ratio >= 0.9 else 0.0
 
 
 def _role_maps_agree(a: list, b: list) -> bool:
-    """Same parties (a name may add or drop words) with the same role each."""
+    """Same parties with the same role each. Parties are paired by name alone, best match
+    first, and only then are their roles compared, so overlapping names cannot swap roles."""
     if len(a) != len(b):
         return False
-    unused = list(b)
-    for name, role in a:
-        hit = next((x for x in unused if x[1] == role and _same_party(name, x[0])), None)
-        if hit is None:
-            return False
-        unused.remove(hit)
-    return True
+    pairs = sorted(((_party_match(na, nb), i, j) for i, (na, _) in enumerate(a) for j, (nb, _) in enumerate(b)),
+                   reverse=True)
+    left, right, matched = set(range(len(a))), set(range(len(b))), {}
+    for score, i, j in pairs:
+        if score > 0 and i in left and j in right:
+            matched[i] = j
+            left.discard(i)
+            right.discard(j)
+    return not left and all(a[i][1] == b[j][1] for i, j in matched.items())
 
 
 def values_agree(a: Any, b: Any, ftype: str) -> bool:
