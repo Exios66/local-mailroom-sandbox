@@ -11,6 +11,7 @@ import socket
 import subprocess
 import sys
 import time
+from collections.abc import Sequence
 from pathlib import Path
 
 import yaml
@@ -107,8 +108,12 @@ def _activation_knobs(spec):
         os.environ["SANDBOX_AGENT_KNOBS"] = json.dumps(knobs)
     return knobs
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, *, injected: Sequence[str] = ()) -> int:
     """Dispatch a command and translate expected operator failures to exit codes.
+
+    ``injected`` is argv a host prepends on the operator's behalf (the TUI shell's session defaults). It is parsed
+    before ``argv`` but kept out of ``args.raw_argv``, so a handler can tell a flag the operator typed from one the
+    shell supplied.
 
     Offline agent inspection suppresses dotenv discovery through parser setup;
     other commands load normal environment defaults before their final parse.
@@ -123,10 +128,11 @@ def main(argv: list[str] | None = None) -> int:
     # importing credentials from .env. Keep existing dotenv-first defaults for
     # all other commands; only preparse the subagent command family.
     raw = list(sys.argv[1:] if argv is None else argv)
+    full = [*injected, *raw]
     from mailroom_sandbox.paths import without_dotenv
 
     with without_dotenv():
-        candidate = build_parser().parse_args(raw) if "subagents" in raw else None
+        candidate = build_parser().parse_args(full) if "subagents" in full else None
     if candidate is not None and getattr(candidate, "offline_inspection", False):
         with without_dotenv():
             parser = build_parser()
@@ -134,7 +140,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         load_env_file()
         parser = build_parser()
-        args = parser.parse_args(argv)
+        args = parser.parse_args(full if injected else argv)
     args.raw_argv = tuple(raw)   # lets a handler tell an explicit flag from its argparse default
     if not hasattr(args, "handler"):
         parser.print_help()

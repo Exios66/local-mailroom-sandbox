@@ -248,7 +248,7 @@ def run_shell(default_args: list[str] | None = None) -> int:
                     print("Already in the Mailroom terminal.")
                     continue
                 try:
-                    rc = cli.main([*(default_args or []), *argv])
+                    rc = cli.main(argv, injected=default_args or [])
                 except SystemExit as exc:
                     rc = exc.code
                 if rc:
