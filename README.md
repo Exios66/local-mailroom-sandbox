@@ -8,8 +8,8 @@
 <br/>
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](pyproject.toml)
-[![Pipeline](https://img.shields.io/badge/pipeline-llm--mailroom_0.9.3_%40_63f6841-2563EB?style=for-the-badge)](vendor/llm-mailroom/VENDOR.md)
-[![Scoring](https://img.shields.io/badge/scoring-llm--dojo--scoring_0.30.0_%40_116da0b-8B5CF6?style=for-the-badge)](vendor/llm-dojo-scoring/VENDOR.md)
+[![Pipeline](https://img.shields.io/badge/pipeline-llm--mailroom_0.9.3_%40_f83e398-2563EB?style=for-the-badge)](vendor/llm-mailroom/VENDOR.md)
+[![Scoring](https://img.shields.io/badge/scoring-llm--dojo--scoring_0.30.1_%40_025400f-8B5CF6?style=for-the-badge)](vendor/llm-dojo-scoring/VENDOR.md)
 [![Tracing](https://img.shields.io/badge/tracing-Langfuse_v4-F5A623?style=for-the-badge)](docs/tracing.md)
 
 [![Hub](https://img.shields.io/badge/🏛️_hub-Digital--Mailroom-000?style=flat-square)](https://github.com/LLM-Mailroom-Services/Digital-Mailroom)
@@ -376,13 +376,13 @@ The exact snapshot commits are in
 
 | Vendored tree | Version | Source commit | What it includes |
 | --- | --- | --- | --- |
-| `vendor/llm-mailroom/` | 0.9.3 | `63f6841` (`v0.30.0` branch after llm-mailroom #271; pre-release) | `abb1ccf` plus #261 (a 200 with `choices: null` is transient, not a `judge_error`), #262 (opt-in chunk-merge evidence policy), #263 (backlog fixes), #264 (routing ignores `ground_truth` unless oracle routing is on), #265 (bounded retry handoff, every attempt recorded, opt-in keep-best) and #271 (decision-reviewer backend errors recorded; correspondence typed by content, not carrier) |
-| `vendor/llm-dojo-scoring/` | 0.30.0 | `116da0b` (tag `v0.30.1`, the `v0.30.0` branch after llm-dojo-scoring #169) | 0.30.0: production slim-down (analysis/export/grid/visualize, `dojo-*` CLIs, sync integrations and `rescore` removed), one document-class registry, decision-lane scorecards; #163 date, archive, Wilson, decision-lane and MAUD fixes; #166 correspondence `production_prompts` v8 candidate (content, not carrier); #169 a typed decision with no gold for its class is `no_gold` |
+| `vendor/llm-mailroom/` | 0.9.3 | `f83e398` (`v0.30.0` branch after llm-mailroom #281; pre-release) | `abb1ccf` plus #261 (a 200 with `choices: null` is transient, not a `judge_error`), #262 (opt-in chunk-merge evidence policy), #263 (backlog fixes), #264 (routing ignores `ground_truth` unless oracle routing is on), #265 (bounded retry handoff, every attempt recorded, opt-in keep-best) and #271 (decision-reviewer backend errors recorded; correspondence typed by content, not carrier), #280 (insurance `claim_type` is the product line; a CMS table row is `health`) and #281 (Dojo pin `025400f`) |
+| `vendor/llm-dojo-scoring/` | 0.30.1 | `025400f` (`v0.30.0` branch after llm-dojo-scoring #174; untagged) | 0.30.0: production slim-down (analysis/export/grid/visualize, `dojo-*` CLIs, sync integrations and `rescore` removed), one document-class registry, decision-lane scorecards; #163 date, archive, Wilson, decision-lane and MAUD fixes; #166 correspondence `production_prompts` v8 candidate (content, not carrier); #169 a typed decision with no gold for its class is `no_gold`; #173 CUAD agreement and expiration dates count toward recall only |
 
 <!-- /coderabbit-ai-generated:v1 -->
 
 Both pins are reviewed commits on each repository's `v0.30.0` release branch: llm-mailroom
-`63f6841` (untagged; moves to a release tag once one is cut) and Dojo `116da0b` (tag `v0.30.1`).
+`f83e398` and Dojo `025400f` (both untagged; each moves to a release tag once one is cut).
 
 With no API token, the guard serves token-protected routes only on a loopback listener and
 answers 503 to requests carrying `Forwarded`, `X-Forwarded-For` or `X-Real-IP`. `/health` and
@@ -534,8 +534,8 @@ The sandbox drives the vendored family code through these open-source projects.
 
 ### Reviewed dependency refreshes (DMR-111)
 
-The tracked snapshots contain pipeline 0.9.3 (the `v0.30.0` branch after llm-mailroom #271, `63f6841`) and
-Dojo 0.30.0 (tag `v0.30.1`, the `v0.30.0` branch after llm-dojo-scoring #169, `116da0b`), from the exact commits in their `VENDOR.md` files. `sandbox fetch-deps` remains optional: it
+The tracked snapshots contain pipeline 0.9.3 (the `v0.30.0` branch after llm-mailroom #281, `f83e398`) and
+Dojo 0.30.1 (the `v0.30.0` branch after llm-dojo-scoring #174, `025400f`), from the exact commits in their `VENDOR.md` files. `sandbox fetch-deps` remains optional: it
 uses workspace packages when available and retrieves the reviewed immutable
 commit or frozen release tag in standalone checkouts. Ref movement, fetch,
 layout and copy failures leave the previous snapshot intact. If installation
