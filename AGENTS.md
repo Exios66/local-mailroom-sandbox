@@ -199,6 +199,7 @@ sandbox modal publish-image [--tag TAG]   # publish the vLLM image to the active
 sandbox modal status                  # lists sandbox-vllm, sandbox-job and every other sandbox-* app that is not stopped (not sandbox-image-builds); containers shown for deployed apps
 sandbox vllm probe|command|serve|metrics   # endpoint probe (models/chat//health//metrics), `vllm serve` argv, local serve, metrics scrape
 sandbox experiment designs|create|review|preflight|launch|watch|report  # guided designs + initials-gated spend; docs/experiments.md
+sandbox autoresearch plan|step|run|status|holdout --study PATH [--initials XX] [--max-rounds N]  # config-only greedy lever search over the locked-run lifecycle; `--study config/autoresearch/mock-smoke/study.yaml` is offline; a paid study needs your initials; docs/autoresearch.md
 python scripts/smoke_campaign.py      # offline pre-flight: specialist, sand42 and pipeline mock campaigns must reach a 1.0 extraction headline (needs `sandbox datasets pull` once)
 sandbox doctor [--service NAME] [--live] [--publish] [--json]   # one status table for every external CLI/service (offline by default); --publish feeds the board's services strip; --live adds the active Modal account's app listing (read-only, deploys nothing)
 sandbox hf whoami|download|cache|raw   # guarded hf CLI passthrough (pinned dataset revision; --sandbox-cache = data/cache/hf)

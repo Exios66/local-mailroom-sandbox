@@ -94,3 +94,16 @@ def test_refresh_sheet_from_catalog_and_drift():
     entry["pricing"]["prompt"] = "0.00000005"
     _, changed = refresh_api_prices.refresh(doc, {"x/m": entry}, today="2026-11-02")
     assert changed == ["x/m"]
+
+
+@pytest.mark.parametrize("model,prompt", [("typesafe/jev-1.14", 0.042), ("liquid/d1.2", 0.02), ("upstage/solar-decide", 0.05),
+                                          ("google/gemini-decision-1", 0.1), ("perplexity/pplx-decider-v1.2", 0.02)])
+def test_decision_models_price_from_the_catalog_input_only(model, prompt):
+    assert metrics.call_price(model, 100_000) == pytest.approx((prompt, 0.0))
+    assert metrics.call_cost(model, 1_000_000, 0) == pytest.approx(prompt)
+    assert metrics.token_price_ceiling(model) == pytest.approx((prompt, 0.0))
+
+
+def test_unknown_decision_sibling_is_not_priced_by_prefix():
+    # liquid/d1 and liquid/d1.2 are catalog ids; a future liquid/d1.9 must stay unpriced.
+    assert metrics.price_sheet("liquid/d1.9") is None

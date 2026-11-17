@@ -1093,6 +1093,9 @@ def build_parser() -> argparse.ArgumentParser:
     vllm_cli.register(sub, leaf)
     hf_cli.register(sub, leaf)
     experiments.register(sub, leaf)
+    from mailroom_sandbox.autoresearch import cli as autoresearch_cli
+
+    autoresearch_cli.register(sub, leaf)
 
     return parser
 

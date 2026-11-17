@@ -16,6 +16,45 @@ def test_decisions_model_detection():
     assert not db.is_decisions_model(None)
 
 
+@pytest.mark.parametrize("model", ["typesafe/jev-1.14", "typesafe/jev-1.13", "liquid/d1.2", "upstage/solar-decide",
+                                   "google/gemini-decision-1", "perplexity/pplx-decider-v1.2",
+                                   "typesafe/jev-1.14-20261014"])
+def test_catalog_models_are_decisions_models(model):
+    assert db.is_decisions_model(model)
+
+
+@pytest.mark.parametrize("model", ["typesafe/jev-router", "~typesafe/jev-latest", "typesafe/jev-latest",
+                                   "~liquid/d1-latest", "openai/gpt-6-luna-decisions-latest", "qwen/qwen3.7-flash",
+                                   "typesafe/jev-9.9", "", "jev-1.13.0"])
+def test_chat_models_aliases_and_unknown_ids_are_refused(model):
+    assert not db.is_decisions_model(model)
+
+
+def test_jev_through_openrouter_decisions_freezes_but_the_router_does_not():
+    spec = ReviewerSpec(backend="decisions", model="typesafe/jev-1.14", questions="reviewer_decisions_v2",
+                        classes={"contract": 0.78})
+    assert spec.model == "typesafe/jev-1.14"
+    with pytest.raises(ValueError, match="Decisions-API model"):
+        ReviewerSpec(backend="decisions", model="typesafe/jev-router", questions="reviewer_decisions_v2",
+                     classes={"contract": 0.78})
+    with pytest.raises(ValueError, match="Decisions-API model"):
+        ReviewerSpec(backend="decisions", model="~typesafe/jev-latest", questions="reviewer_decisions_v2",
+                     classes={"contract": 0.78})
+
+
+def test_a_catalog_model_cannot_ride_a_chat_backend():
+    with pytest.raises(ValueError, match="backend decisions"):
+        ReviewerSpec(backend="local", model="typesafe/jev-1.14", classes={"contract": 0.78})
+
+
+def test_catalog_file_lists_pinned_decision_models_only():
+    catalog = db.decision_catalog()
+    assert "openai/gpt-6-luna-decisions" in catalog
+    assert not [m for m in catalog if m.startswith("~") or m.endswith("-latest")]
+    for row in catalog.values():
+        assert "/api/alpha/decisions" in row["endpoints"] and row["prompt"] >= 0
+
+
 def test_chat_model_cannot_be_the_decision_reviewer_by_default():
     with pytest.raises(ValueError, match="allow_chat_model"):
         ReviewerSpec(backend="api", model="openai/gpt-6-luna", classes={"contract": 0.9})

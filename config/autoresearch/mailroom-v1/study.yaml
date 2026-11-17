@@ -1,0 +1,27 @@
+# Autoresearch study on the production configuration. Paid: needs your initials on the command line
+#   sandbox autoresearch plan   --study config/autoresearch/mailroom-v1/study.yaml
+#   sandbox autoresearch run    --study config/autoresearch/mailroom-v1/study.yaml --initials <XX> --max-rounds 3
+#   sandbox autoresearch holdout --study config/autoresearch/mailroom-v1/study.yaml --initials <XX>
+# Spend: round_api_cap_usd becomes every candidate run's job.api_cost_cap_usd; study_usd bounds the sum of the
+# ledger's estimated costs; min_key_remaining_usd is the OpenRouter key headroom the loop leaves untouched.
+schema: sandbox.autoresearch/v1
+study: mailroom-v1
+base_run: base.yaml
+levers: ../levers.yaml
+budget:
+  study_usd: 15
+  round_api_cap_usd: 1.0
+  round_wall_seconds: 3600
+  min_key_remaining_usd: 3.0
+noise_floor: 0.0          # raise it to the measured run-to-run noise of one spec once that is known
+max_consecutive_reverts: 3
+utility:                  # per document: correct archive = its extraction score
+  review: -0.25
+  wrong_archive: -1.0
+  crashed: -1.0
+  judge_error: -1.0
+  unscorable: 0.0
+bootstrap: {n_boot: 2000, seed: 0, ci: 0.90}
+# The holdout keeps the dev draw's production settings (ranked, seed 3302, same strata). It excludes
+# config/production/excluded-ids.txt plus every dev document, so it is the next ranked block.
+holdout_dataset: {}
