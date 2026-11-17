@@ -18,7 +18,7 @@ input for applying it to `data/labels/gold/` and `data/labels/interim/`.
 | `human_reviews.jsonl` | The owner's own decisions from the review desk, one line per label. These are final: see below. |
 | `interim_audit.jsonl` | One verdict per interim truth label (2,682 labels), with the recommended fix. |
 | `INTERIM_AUDIT.md` | The interim truth audit: results by stratum, the classes with no gold catalog, and the integration steps. |
-| `decisions.jsonl` | The review as `scripts/gold_labels.py build --review` lines for the correspondence and corporate-record catalogs: 3,069 `accept` (each names the current value) and 177 `correct` (each passes the gate). See below. |
+| `decisions.jsonl` | The review as `scripts/gold_labels.py build --review` lines for the correspondence and corporate-record catalogs: 3,069 `accept` (each names the current value) and 173 `correct` (each passes the gate). See below. |
 | `decisions_held.jsonl` | The 10 reviewed labels that could not become a decision, each with the reason. |
 | `VALIDATION.md` | The validation of the truth labels that production runs score against, before and after the decisions, with the open owner decisions. |
 

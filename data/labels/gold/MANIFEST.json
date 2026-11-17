@@ -8,7 +8,7 @@
     "mailroom_commit": "8cebcd86521755a8b77502f7c1e22609ef19ae21"
   },
   "builder": "scripts/gold_labels.py build",
-  "built_at": "2026-11-17T21:59:03Z",
+  "built_at": "2026-11-17T23:06:00Z",
   "counts": {
     "contract": {
       "agreement_date": {
@@ -71,8 +71,8 @@
         "near_gold": 23
       },
       "signatories": {
-        "candidate": 349,
-        "near_gold": 23
+        "candidate": 346,
+        "near_gold": 26
       }
     },
     "correspondence": {
@@ -114,7 +114,7 @@
   },
   "files": {
     "contract.jsonl": "1d87bad9706b34a54114f6d11e5a48275a69d559ef30027e6feaf9fb6aafd316",
-    "corporate_record.jsonl": "22f7def5c4d343389c23b87e0f1238a274778e0d602689d7793e22cca9086434",
+    "corporate_record.jsonl": "9a86c4da835c3a4cf2e78570747b462fee3322fdbf54f6abbeeba80b2b2321f4",
     "correspondence.jsonl": "230410cd4f0b6a5d9d957866f5cb8750fd3fa891fa6bfa9d5ad02edf8790b31b"
   },
   "schema": "mailroom-gold-labels/v1",
@@ -374,6 +374,7 @@
       "review-corr-002-003.jsonl",
       "review-corr-checks-2.jsonl",
       "review-fwd.jsonl",
+      "review-owner-desk.jsonl",
       "review-promo-actions.jsonl",
       "review-promo-urgency.jsonl"
     ]

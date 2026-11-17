@@ -43,7 +43,7 @@ Three problems remain, and each needs a decision from the owner before the overl
 | Reviewed labels left unused as single-pass candidates | 2,652 | 1 |
 | Near-gold truth that disagrees with the review | 40 | 1 |
 
-The decisions contain 3,069 `accept` and 177 `correct` lines, and no `reject` lines. They
+The decisions contain 3,069 `accept` and 173 `correct` lines, and no `reject` lines (the four owner `signatories` decisions are already in the catalog, from #336). They
 are keyed to the catalogs exactly as `main` has them:
 
 - Each `accept` names the current value, as the gate on `main` requires.
