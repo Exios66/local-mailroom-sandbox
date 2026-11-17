@@ -5,7 +5,8 @@ prints a short digest, instead of making many tool calls that each paste raw out
 the conversation. Every tool result stays in context for the rest of the session, so
 twenty `Read`/`Grep`/`Bash` round trips cost far more tokens and time than one script
 that returns twenty lines. This applies to the orchestrator and to every subagent; put
-"use code mode" in briefs for bulk work.
+"use code mode" in briefs for bulk work (not in the pre-PR reviewer's brief, which is
+fixed). Read-only agents create scratch scripts through `Bash`, never inside the repo.
 
 ## When to use it
 
@@ -38,8 +39,8 @@ Not for a single lookup you can answer with one `Read` or `Grep`.
 - Code mode never relaxes a rule in `CLAUDE.md`: no paid or live work unprompted (no
   `sandbox run start`, `modal deploy|run`, `--real` or `--live`), no secrets printed, and
   never hand-edit `vendor/`.
-- A gate script runs only the focused single-worker checks from `CLAUDE.md`
-  (`-n 0 --no-cov`); full-suite, coverage and campaign runs stay in hosted CI. Never use a
+- A gate script runs only named test files or nodes with `-n 0 --no-cov`, as in
+  `CLAUDE.md`; full-suite, coverage and campaign runs stay in hosted CI. Never use a
   script to get around `.claude/hooks/guard_resources.py`.
 - Script output counts as evidence only with the command that produced it; keep the
   script until the PR is done and quote both.
