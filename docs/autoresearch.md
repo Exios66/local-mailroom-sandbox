@@ -92,7 +92,7 @@ State is under `reports/autoresearch/<study>/` (override with `state_dir`):
 | `ledger.jsonl` | append-only, one row per round and per skipped lever: lever, run id and directory, spec sha256, metrics, delta and CI, decision (`baseline`, `replicate`, `keep`, `revert`, `error`, `aborted_cap`, `skipped`, `holdout`, `warning`, and `pending`, below) and reasons, cost, round cap, estimate (both figures), `patch_before`, `usd_per_utility_point`, dependency sources, pipeline source; a paid round also records `key_remaining_before` and `key_remaining_at_start` |
 | `.lock` | an advisory `flock` held for the whole of `step`, `run` and `holdout`: a second process on the same state directory is refused at once (`another autoresearch process holds <state_dir>`). `plan` and `status` read only and take no lock |
 | `claimed-runs.txt` | run ids the study claimed before `prepare` created their directories (the holdout), so a retry after a stop between the two reuses its own directory instead of refusing it as stale; not spend accounting |
-| `key_start.json` | the OpenRouter key's first `limit_remaining` reading of the study, for the bill-grounded guard (Spend guards) |
+| `key_start.json` | the OpenRouter key's first `limit_remaining` reading of the study, for the bill-grounded guard (Spend guards), and `key_identity`: a 16-hex digest of the key's `label` (never the key or a hash of it) |
 | `champion.yaml` | a convenience copy of the current champion's run spec, written before its ledger row and never read back |
 | `specs/`, `scores/` | every candidate spec (`<run_id>.yaml`), and the per-document utility and cost of every run. The champion is loaded from `specs/<champion run_id>.yaml` and checked against the ledger row's `spec_sha256`; a missing or edited spec is a clear error |
 | `weakness.md`, `report.md`, `holdout.md` | the views; the report ends with the production-parity section |
@@ -116,7 +116,8 @@ Before each paid round the loop checks, in order, and stops with the first that 
    row whose cost is NaN, infinite or not a number stops the study with a `ledger corrupt` error; each row counts at least 0.
 2. `key_unreadable` / `key_low`: the key's `limit_remaining` (`GET /api/v1/key`) must be readable and finite, and `remaining - cap >= min_key_remaining_usd`.
 3. `key_spend`: the bill itself. The first reading of the study is kept in `key_start.json`; the loop stops when
-   `key_remaining_at_start - remaining_now + cap > study_usd`. The ledger is an estimate from recorded tokens; the key's drop is what OpenRouter billed.
+   `key_remaining_at_start - remaining_now + cap > study_usd`. A different key (its label digest differs) or a key with more left than the
+   recorded start takes a new first reading, with a `key_baseline` warning in the ledger; a file without an identity adopts the current key. The ledger is an estimate from recorded tokens; the key's drop is what OpenRouter billed.
 
 Checks 2 and 3 need a key with a spend limit. For a key with no limit (`limit_remaining` is null) the loop skips both and warns, so only
 `study_budget` (the ledger) bounds spend: give the study's key a limit.
