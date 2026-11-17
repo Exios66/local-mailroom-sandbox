@@ -3,7 +3,7 @@
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden}
 body{font-family:Consolas,"Cascadia Mono",monospace;background:#05070a;color:#b8c6d4;font-size:12px}
-.app{display:grid;grid-template-columns:222px 1fr 312px;grid-template-rows:30px 1fr;height:100vh}
+.app{display:grid;grid-template-columns:222px minmax(0,1fr) 312px;grid-template-rows:30px 1fr;height:100vh}
 .ribbon{grid-column:1/4;background:#0d141d;border-bottom:1px solid #1c2530;display:flex;align-items:center;gap:12px;padding:0 12px;font-size:9.5px;letter-spacing:1px;color:#5d6c80;white-space:nowrap;overflow:hidden}
 .ribbon b{color:#7fd0a2}
 .ribbon .desc{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
@@ -45,7 +45,7 @@ h3{font-size:9px;letter-spacing:2px;color:#4d5c6e;margin:9px 0 6px}
 #zoomctl{position:absolute;right:10px;bottom:10px;display:flex;flex-direction:column;gap:4px;z-index:5}
 #zoomctl div{width:24px;height:24px;background:#0d141d;border:1px solid #2e4256;border-radius:5px;color:#9fc6e8;display:flex;align-items:center;justify-content:center;font-size:14px;cursor:pointer}
 .kv{display:grid;grid-template-columns:62px 1fr;gap:2px 8px;font-size:10px;margin-bottom:8px}
-.kv span:first-child{color:#4d5c6e}
+.kv>span:first-child{color:#4d5c6e}
 .state{display:flex;justify-content:space-between;padding:4px 6px;border:1px solid #1c2530;border-radius:4px;margin-bottom:3px;font-size:10px}
 .state .n{color:#5d6c80;margin-left:6px;font-size:9px}
 .note2{font-size:9px;color:#5d6c80;margin:5px 2px 8px;line-height:1.5}
@@ -62,22 +62,52 @@ h3{font-size:9px;letter-spacing:2px;color:#4d5c6e;margin:9px 0 6px}
 .pct{color:#41d98f;font-size:10px;letter-spacing:.5px}
 .prog+.z{margin-left:0}
 .cls b .m{color:#4d5c6e;font-weight:normal;font-size:9px;margin-left:4px}
+.center{display:grid;grid-template-rows:minmax(0,1fr) auto;min-height:0;min-width:0;overflow:hidden}
+.drawer{background:#0a0e13;border-top:1px solid #1c2530;display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden}
+.drawer.open{height:38vh}
+.tabs{display:flex;align-items:center;gap:2px;padding:4px 8px 0;border-bottom:1px solid #1c2530;flex:none}
+.tab{font:inherit;font-size:10px;letter-spacing:1px;color:#7e8ca0;background:none;border:1px solid transparent;border-bottom:none;border-radius:4px 4px 0 0;padding:4px 10px;cursor:pointer}
+.tab.sel{color:#e6f0e9;background:#0d141d;border-color:#1c2530}
+.tabs .sp{flex:1}.tabs .hint{font-size:9px;color:#4d5c6e;margin-right:8px}
+.pane{overflow:auto;padding:8px 10px;flex:1;min-height:0}
+.kpis{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.kpi{border:1px solid #1c2530;border-radius:5px;padding:6px 10px;min-width:150px}
+.kpi .l{font-size:9px;color:#5d6c80;letter-spacing:1px}.kpi .v{font-size:18px;font-weight:bold;color:#7fd0a2}.kpi .s{font-size:9px;color:#5d6c80}
+table.t{border-collapse:collapse;font-size:10.5px;margin-bottom:12px}
+table.t th{position:sticky;top:0;background:#0a0e13;color:#5d6c80;font-weight:normal;text-align:left;padding:3px 8px;border-bottom:1px solid #1c2530;font-size:9px;letter-spacing:1px;white-space:nowrap}
+table.t td{padding:3px 8px;border-bottom:1px solid #121a24;white-space:nowrap}
+table.t td.num,table.t th.num{text-align:right}
+table.t tr.click{cursor:pointer}table.t tr.click:hover td{background:#0f1822}
+table.t tr.sel td{background:#123024}
+.bad{color:#e8543f}.warn{color:#e8b93f}.ok{color:#7fd0a2}.mut{color:#4d5c6e}
+.badge{display:inline-block;font-size:8.5px;padding:0 5px;border-radius:7px;border:1px solid #2e4256;color:#9fc6e8}
+.badge.near_gold{border-color:#e8b93f;color:#e8b93f}.badge.interim{border-color:#c39ae8;color:#c39ae8}.badge.hub{border-color:#41d98f;color:#7fd0a2}
+.cm td.cell{text-align:center;min-width:34px}
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:6px;font-size:10px;color:#7e8ca0}
+.filters select,.filters input{font:inherit;font-size:10px;background:#0d141d;color:#b8c6d4;border:1px solid #2e4256;border-radius:3px;padding:2px 4px}
+.path{color:#7e8ca0}.path b{color:#9fc6e8;font-weight:normal}
+.secnote{font-size:9.5px;color:#5d6c80;margin:0 0 8px;line-height:1.5}
+h4{font-size:9px;letter-spacing:2px;color:#4d5c6e;margin:4px 0 6px;font-weight:normal}
+.run small.stalled{color:#e8b93f}
+.drawer button:focus-visible,table.t tr.click:focus-visible{outline:2px solid #7fd0a2;outline-offset:-2px}
 /* narrow window (e.g. an IDE side pane): stack graph above the rails instead of squeezing it to 0px — last in the sheet so it wins over .ribbon and the rails */
-@media (max-width:900px){html,body{overflow:auto}.app{grid-template-columns:minmax(0,1fr);grid-template-rows:30px 70vh auto auto;height:auto}.ribbon{grid-column:1}#viewport{order:1}.rail{order:2;border-right:0;border-top:1px solid #1c2530}.railR{order:3;border-left:0;border-top:1px solid #1c2530}}
+@media (max-width:900px){html,body{overflow:auto}.app{grid-template-columns:minmax(0,1fr);grid-template-rows:30px auto auto auto;height:auto}.ribbon{grid-column:1}.center{order:1}#viewport{height:70vh}.rail{order:2;border-right:0;border-top:1px solid #1c2530}.railR{order:3;border-left:0;border-top:1px solid #1c2530}}
 </style></head><body>
 <div class="app">
 <div class="ribbon"><span id="bigTitle"></span><b>PIPELINE FLOOR · DIGEST-DRIVEN v10</b><span class="desc"> — topology: build_graph.py wiring · numbers: floor_digest.json · </span><em><span id="mode">ALL CLASSES</span></em><span class="prog" id="prog"><span class="pbar"><i id="pfill"></i></span><span class="pct" id="ptxt"></span></span><span class="z"><span id="gen"></span><span id="upd"></span></span></div>
 <div class="rail"><h3 style="margin-top:0">RUNS</h3><div id="runs"></div><h3>CLASSES — click = isolate</h3><div id="cl"></div>
 <div style="font-size:8.5px;color:#4d5c6e;margin-top:8px;line-height:1.6">green outline = class route · dim = untouched<br>node = docs that fired it · chip = docs crossed that edge</div></div>
-<div id="viewport"><div id="hud">arrows/drag <b>pan</b> · wheel <b>zoom</b> · click node → <b>its in/out edges light</b> · click empty canvas → <b>clear</b> · click class → <b>isolate</b></div><div id="zoomctl"><div id="zin" tabindex="0" role="button" aria-label="zoom in">+</div><div id="zout" tabindex="0" role="button" aria-label="zoom out">−</div><div id="zfit" tabindex="0" role="button" aria-label="fit graph" style="font-size:9px">fit</div></div><div id="world"><svg id="edges" width="2200" height="1400"><defs>
+<div class="center"><div id="viewport"><div id="hud">arrows/drag <b>pan</b> · wheel <b>zoom</b> · click node → <b>its in/out edges light</b> · click empty canvas → <b>clear</b> · click class → <b>isolate</b></div><div id="zoomctl"><div id="zin" tabindex="0" role="button" aria-label="zoom in">+</div><div id="zout" tabindex="0" role="button" aria-label="zoom out">−</div><div id="zfit" tabindex="0" role="button" aria-label="fit graph" style="font-size:9px">fit</div></div><div id="world"><svg id="edges" width="2200" height="1400"><defs>
 <marker id="arr" markerWidth="13" markerHeight="13" refX="11" refY="6.5" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L13,6.5 L0,13 z" fill="#7e93a8"/></marker>
 <marker id="arrHot" markerWidth="13" markerHeight="13" refX="11" refY="6.5" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L13,6.5 L0,13 z" fill="#7cc4ff"/></marker>
 <marker id="arrSel" markerWidth="15" markerHeight="15" refX="12" refY="7.5" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L15,7.5 L0,15 z" fill="#cdeaff"/></marker>
 <marker id="arrDim" markerWidth="13" markerHeight="13" refX="11" refY="6.5" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L13,6.5 L0,13 z" fill="#4a5a6e" opacity=".45"/></marker></defs></svg></div></div>
+<div class="drawer open" id="drawer"><div class="tabs" role="tablist"><button class="tab sel" data-t="scores" role="tab">SCORES vs GT</button><button class="tab" data-t="docs" role="tab">DOCUMENTS</button><button class="tab" data-t="nodes" role="tab">NODES</button><span class="sp"></span><span class="hint" id="tabHint"></span><button class="tab" id="drawerTog" aria-expanded="true">hide ▾</button></div><div class="pane" id="pane"></div></div></div>
 <div class="railR"><h3 style="margin-top:0" id="outHead"></h3><div id="outRows"></div><div class="note2" id="outRev"></div><div class="note2" id="outNote"></div>
 <h3>Node — <span id="selName">(click a node)</span></h3>
 <div class="kv"><span>agent</span><b id="kA">—</b><span>agents seen</span><b id="kAgt">—</b><span>model</span><b id="kM">—</b><span>prompt</span><b id="kP">—</b><span>fire p50</span><b id="kMs">—</b><span>docs fired</span><b id="kF">—</b><span>aborts here</span><b id="kAb">—</b></div>
 <div class="note2" id="selExtra" style="color:#8fa3b8"></div>
+<h3>Document — <span id="docName">(pick one in DOCUMENTS)</span></h3><div class="kv" id="docKv"></div>
 <div class="kv" style="margin-top:8px"><span>run tokens</span><b id="kTok"></b><span>digest</span><b id="kGen"></b></div></div>
 </div>
 <script src="floor_digest.js"></script>
@@ -99,7 +129,8 @@ const NB={w:186,h:62};
  let col=0;for(const k of known)if(!POS[k]){POS[k]=[20+(col%8)*270,1230+Math.floor(col/8)*90];col++}}
 const W=2200,H=1400, world=document.getElementById("world"), svg=document.getElementById("edges"), vp=document.getElementById("viewport");
 // default run: the last one still running, else the last run in the digest
-let runIdx=(()=>{let i=-1;D.runs.forEach((r,k)=>{if(r.state==="running")i=k});return i>=0?i:D.runs.length-1})(), CLASS=null, selNode=null, moved=0;
+let runIdx=(()=>{let i=-1;D.runs.forEach((r,k)=>{if(r.state==="running")i=k});return i>=0?i:D.runs.length-1})(), CLASS=null, selNode=null, selDoc=null, moved=0;
+let TAB="scores";const DF={outcome:"",miss:false,q:""};   // drawer tab + Documents filters (kept across refreshes)
 {const q=new URLSearchParams(location.search),ri=D.runs.findIndex(r=>r.name===q.get("run")),c=q.get("class");   // one-time deep-select: ?run=<id>&class=<name>
  if(ri>=0)runIdx=ri;
  const dr=D.runs[runIdx];   // honor ?class= only when THIS run can isolate it (same rule as the class rail's "?" state)
@@ -194,7 +225,7 @@ function paintProgress(){
 function render(){
  world.querySelectorAll(".node,.chip").forEach(e=>e.remove());
  while(svg.childNodes.length>1)svg.lastChild.remove();
- const r=run(),GR=D.graph_reference;
+ const r=run(),GR=D.graph_reference,docPath=selDocPath(),docPairs=new Set((docPath||[]).slice(1).map((n,i)=>docPath[i]+">"+n));
  // pre-compute edge traffic in current view context
  const ev=GR.edges.map(([a,b])=>({a,b,v:a==="START"?nodeVal(b):b==="END"?nodeVal(a):edgeVal(a,b)}));
  const zeroSet=new Set(ev.filter(e=>e.v===0).map(e=>e.a+">"+e.b));
@@ -203,7 +234,7 @@ function render(){
  if(selNode)for(const e of ev){ if(e.v>0){ if(e.a===selNode)neighbors.add(e.b); if(e.b===selNode)neighbors.add(e.a);} }
  for(const [id,xy] of Object.entries(POS)){
   if(id==="START"||id==="END"){
-   const lit = !selNode ? (!CLASS || (id==="START"?(r.items_attempted>0):(endCount()>0))) :
+   const lit = docPath ? (id==="START"||docPath.length>0) : !selNode ? (!CLASS || (id==="START"?(r.items_attempted>0):(endCount()>0))) :
      (neighbors.has(id) || (id==="START"?startTargets().some(t=>t===selNode||neighbors.has(t)):endSources().some(t=>t===selNode||neighbors.has(t))));
    const el=mk(`<div class="nm" style="color:#4d5c6e">${id==="START"?"▶ START":"■ END"}</div><div class="v zero">${id==="START"?r.items_attempted:endCount()}</div>`,"node"+(lit?"":" dim"));
    el.style.cssText=`left:${xy[0]}px;top:${xy[1]}px;width:110px;background:none;border:none;box-shadow:none`;
@@ -214,7 +245,8 @@ function render(){
   let ncls="node";
   if(id==="human_review")ncls+=" hold";
   if(id==="failed")ncls+=" fail";
-  if(selNode){
+  if(docPath){ ncls += docPath.includes(id)? " route":" dim"; }   // a picked document: its own path lights
+  else if(selNode){
     // selected + any node connected by a NON-ZERO edge stay lit; others grey
     const linked = id===selNode || neighbors.has(id);
     ncls += linked ? (id===selNode?" selnode":" neighbor") : " dim";
@@ -240,7 +272,8 @@ function render(){
   const v=edgeVal(a,b), active=v>0;
   const selHit=!!selNode&&(a===selNode||b===selNode);
   let cls="edge", marker="url(#arr)";
-  if(!active){ cls="edge dim"; marker="url(#arrDim)"; }                     // zero-document line: grey in ANY mode
+  if(docPath){ if(docPairs.has(a+">"+b)){cls="edge sel";marker="url(#arrSel)"}else{cls="edge dim";marker="url(#arrDim)"} }   // picked document: only its own hops
+  else if(!active){ cls="edge dim"; marker="url(#arrDim)"; }                     // zero-document line: grey in ANY mode
   else if(selNode){
     if(selHit){cls="edge sel";marker="url(#arrSel)"}                        // selected node's in/out edges light
     else {cls="edge dim";marker="url(#arrDim)"}                             // everything else greys when a node is toggled
@@ -250,7 +283,7 @@ function render(){
   ln.setAttribute("class",cls);ln.setAttribute("marker-end",marker);
   svg.appendChild(ln);
   const c=mk(v?v:"","chip");c.style.left=(p1.x+2*cxm+p2.x)/4+"px";c.style.top=(p1.y+2*cym+p2.y)/4+"px";
-  if(!active)c.classList.add("dim");
+  if(!active||(docPath&&!docPairs.has(a+">"+b)))c.classList.add("dim");
   if(selNode&&!selHit)c.classList.add("dim");   // node toggled: grey chips not on the selected node's edges
   
   if(selHit)c.classList.add("chipSel");
@@ -303,7 +336,9 @@ function render(){
  document.getElementById("kAb").textContent=sel?(r.aborts_by_last_node[sel]||0):"—";
  document.getElementById("kTok").textContent=(r.tokens.prompt+r.tokens.completion).toLocaleString()+" tokens";
  document.getElementById("selExtra").textContent=!sel?"":
-  (D.graph_reference.node_agents[sel]||"")+" · "+nodeVal(sel)+" docs fired this node"+(CLASS?" (class)":" (run)")+(Object.keys(agN).length?" · agents observed: "+Object.entries(agN).map(([a,c])=>a+" "+c).join(" · "):"");
+  (D.graph_reference.node_agents[sel]||"")+" · "+nodeVal(sel)+" docs fired this node"+(CLASS?" (class)":" (run)")+(Object.keys(agN).length?" · agents observed: "+Object.entries(agN).map(([a,c])=>a+" "+c).join(" · "):"")
+  +nodeOutcomeText(sel);
+ paintDoc();renderPane();
 }
 /** Return the routing-match suffix (predicted equals expected), or empty when the class is unavailable or has no expected count. */
 function routeSuffix(r,c,na){
@@ -311,8 +346,8 @@ function routeSuffix(r,c,na){
  return x&&x.gt>0?`<span class="m" title="routing: ${x.match}/${x.gt} predicted as this class">·${Math.round(x.match/x.gt*100)}%</span>`:""}
 /** Rebuild run and class menus and their selection handlers. */
 function menus(){
- document.getElementById("runs").innerHTML=D.runs.map((r,i)=>`<div class="run${i===runIdx?" sel":""}" data-i="${i}" tabindex="0" role="button" aria-pressed="${i===runIdx}">${esc(r.name)}<small>${esc(r.state)} · ${r.items_attempted}/${r.total==null?"?":r.total} · ok ${r.items_ok}</small></div>`).join("");
- document.querySelectorAll(".run").forEach(el=>el.onclick=()=>{runIdx=+el.dataset.i;CLASS=null;selNode=null;menus();render()});
+ document.getElementById("runs").innerHTML=D.runs.map((r,i)=>`<div class="run${i===runIdx?" sel":""}" data-i="${i}" tabindex="0" role="button" aria-pressed="${i===runIdx}">${esc(r.name)}<small${r.state==="stalled"?` class="stalled" title="checkpoint says running, but no artifact changed for ${Math.round((r.stalled_s||0)/60)} min (last ${esc(r.last_activity_utc||"?")}): the process likely died"`:""}>${esc(r.state)}${r.state==="stalled"?" ⚠":""} · ${r.items_attempted}/${r.total==null?"?":r.total} · ok ${r.items_ok}</small></div>`).join("");
+ document.querySelectorAll(".run").forEach(el=>el.onclick=()=>{runIdx=+el.dataset.i;CLASS=null;selNode=null;selDoc=null;menus();render()});
  // no dataset.jsonl -> per_class is {}: show "?" (unknown), never a fake 0, and disable isolation.
  // per_class counts dataset-labeled items only; when a class also has unlabeled items (its run
  // total is larger), its per-class view is partial: show "?" and disable isolation for it too.
@@ -323,15 +358,105 @@ function menus(){
  const bt=document.getElementById("bigTitle");bt.textContent=CLASS?CLASS.toUpperCase():"";bt.classList.toggle("on",!!CLASS);
  for(const c of D.classes){const v=classView(rr,c);agg[c]=v.agg;if(v.why)why[c]=v.why}
  document.getElementById("cl").innerHTML=D.classes.map(c=>`<div class="cls${CLASS===c?" sel":""}${why[c]?" na":""}" data-c="${esc(c)}" tabindex="0" role="button" aria-pressed="${CLASS===c}"${why[c]?` aria-disabled="true" title="${esc(why[c])}"`:""}>${esc(c)}<b>${agg[c]}${routeSuffix(rr,c,why[c])}</b></div>`).join("");
- document.querySelectorAll(".cls").forEach(el=>el.onclick=()=>{if(why[el.dataset.c])return;CLASS=CLASS===el.dataset.c?null:el.dataset.c;
+ document.querySelectorAll(".cls").forEach(el=>el.onclick=()=>{if(why[el.dataset.c])return;CLASS=CLASS===el.dataset.c?null:el.dataset.c;selDoc=null;
   menus();render()});
 }
+
+// ── analysis drawer: scores vs ground truth, per-document flow, per-node outcomes ──
+const pctS=(x)=>x==null?"—":Math.round(x*100)+"%";
+const num3=(x)=>x==null?"—":(+x).toFixed(2);
+const OUTC={ship:["ok","archived"],held:["warn","human review"],failed:["bad","failed"],open:["mut","open"]};
+/** Documents of the selected run, narrowed to the isolated class when one is set. */
+function runDocs(){const r=run();const d=r.docs||[];return CLASS?d.filter(x=>x.gt===CLASS):d}
+/** The picked document's node path (self-loops collapsed by the builder), or null. */
+function selDocPath(){if(!selDoc)return null;const d=(run().docs||[]).find(x=>x.id===selDoc);return d?(d.path||[]):null}
+function tierBadge(l){if(!l||!l.tier)return '<span class="mut">no GT row</span>';
+ const t=l.tier,tip=t==="near_gold"?"near_gold fields: "+l.near_gold.join(", "):t==="interim"?"interim fields: "+l.interim.join(", "):t==="hub"?l.hub+" Hub field(s)":"class label only";
+ return `<span class="badge ${esc(t)}" title="${esc(tip)}">${esc(t==="none"?"class only":t)}</span>`}
+function pathHtml(p){return p&&p.length?p.map(n=>"<b>"+esc(n)+"</b>").join(" → "):'<span class="mut">no node trace</span>'}
+/** Right-rail line: where the documents that visited a node ended up. */
+function nodeOutcomeText(id){
+ const o=((run().node_outcomes)||{})[id];if(!id||!o||CLASS)return "";
+ return ` · of ${o.n} doc(s) through here: ${o.ship} archived, ${o.held} review, ${o.failed} failed, ${o.open} open`+(o.class_n?` · classified right ${o.class_ok}/${o.class_n}`:"")}
+/** Right-rail Document block for the picked document. */
+function paintDoc(){
+ const kv=document.getElementById("docKv"),nm=document.getElementById("docName");
+ const d=selDoc&&(run().docs||[]).find(x=>x.id===selDoc);
+ if(!d){nm.textContent="(pick one in DOCUMENTS)";kv.innerHTML="";return}
+ nm.textContent=d.id;
+ const miss=d.gt&&d.pred&&d.gt!==d.pred,o=OUTC[d.outcome]||["mut",d.outcome];
+ kv.innerHTML=[["GT class",esc(d.gt||"?")],["predicted",`<span class="${miss?"bad":d.pred?"ok":"mut"}">${esc(d.pred||"—")}${miss?" ✗":d.pred&&d.gt?" ✓":""}</span>`],
+  ["outcome",`<span class="${o[0]}">${esc(o[1])}</span>${d.stage?" · "+esc(d.stage):""}`],["review",esc(d.review||"—")],
+  ["extraction",num3(d.score)],["labels",tierBadge(d.labels)+(d.labels&&d.labels.near_gold&&d.labels.near_gold.length?" "+esc(d.labels.near_gold.join(", ")):"")],
+  ["latency",d.ms==null?"—":(d.ms/1000).toFixed(1)+" s"],["path",pathHtml(d.path)],["note",esc(d.note||"—")]]
+  .map(([k,v])=>`<span>${k}</span><b style="font-weight:normal;white-space:normal">${v}</b>`).join("")}
+function pickDoc(id){selDoc=selDoc===id?null:id;if(selDoc)selNode=null;render()}
+function pickClass(c){if(!D.classes.includes(c)||classView(run(),c).why)return;CLASS=CLASS===c?null:c;selDoc=null;menus();render()}
+function scoresPane(){
+ const r=run(),sc=r.scores;
+ if(!sc)return '<p class="secnote">This digest predates per-document scoring: rebuild it with the current <code>build_floor_digest.py</code> (sandbox floor does this automatically).</p>';
+ const pcSel=CLASS&&(sc.per_class||{})[CLASS];   // isolated class: the KPIs describe that class, not the run
+ const cl=pcSel?{accuracy:pcSel.recall,correct:pcSel.correct,n:pcSel.gt_n}:sc.classification,ex=pcSel?{mean:pcSel.extraction_mean,n:pcSel.extraction_n}:sc.extraction,tiers=sc.label_tiers||{};
+ const pcAll=sc.per_class||{},pcKeys=Object.keys(pcAll).filter(c=>!CLASS||c===CLASS);
+ const tierRows=["hub","interim","near_gold","none"].filter(t=>tiers[t]).map(t=>`<tr><td>${tierBadge({tier:t,near_gold:[],interim:[],hub:0})}</td><td class="num">${tiers[t].docs}</td><td class="num">${tiers[t].scored}</td><td class="num">${num3(tiers[t].extraction_mean)}</td></tr>`).join("");
+ let h=`<div class="kpis"><div class="kpi"><div class="l">CLASSIFICATION vs GT${pcSel?" · "+esc(CLASS)+" recall":""}</div><div class="v">${pctS(cl.accuracy)}</div><div class="s">${cl.correct}/${cl.n} docs with both labels</div></div>
+<div class="kpi"><div class="l">EXTRACTION (mean overall)${pcSel?" · "+esc(CLASS):""}</div><div class="v">${num3(ex.mean)}</div><div class="s">${ex.n} scored doc(s)</div></div>
+<div class="kpi"><div class="l">NEAR-GOLD FIELDS USED (run)</div><div class="v ${sc.near_gold_fields?"warn":""}" style="${sc.near_gold_fields?"color:#e8b93f":""}">${sc.near_gold_fields}</div><div class="s">${(tiers.near_gold||{}).docs||0} doc(s) · interim fields ${sc.interim_fields}</div></div>
+<div class="kpi"><div class="l">OUTCOME (run)</div><div class="v" style="font-size:13px">${["ship","held","failed","open"].map(k=>`<span class="${OUTC[k][0]}">${Object.values(r.outcomes||{}).reduce((t,v)=>t+(v[k]||0),0)} ${OUTC[k][1]}</span>`).join(" · ")}</div></div></div>`;
+ h+=`<p class="secnote">Ground-truth precedence is Hub &gt; interim &gt; near_gold. A document is listed under the lowest tier that filled any of its fields, so a score that leaned on a near-gold label never reads as a Hub-GT score.${r.engine&&r.engine.kind==="mock"||r.engine&&String(r.engine.kind||"").includes("mock")?" <span class='warn'>Mock run: the fake LLM answers from ground truth, so these numbers check wiring, not model quality.</span>":""}${r.replay?" <span class='warn'>Replay: scripted numbers, not results.</span>":""}${String((r.engine||{}).kind||"").startsWith("api-eval")?" API eval: node paths come from each document's stage audit, so nodes that write no audit entry (compile_report, catalog_write, …) are missing from them.":""}</p>`;
+ h+=`<h4>PER CLASS${CLASS?" · "+esc(CLASS):""} — click a row to isolate</h4><table class="t"><tr><th>class</th><th class="num">docs</th><th class="num">recall</th><th class="num">precision</th><th class="num">extraction</th><th class="num">scored</th><th class="num">near-gold docs</th><th class="num">archived</th><th class="num">review</th><th class="num">failed</th><th class="num">open</th></tr>`+
+  pcKeys.map(c=>{const x=pcAll[c],sel=CLASS===c;return `<tr class="click${sel?" sel":""}" tabindex="0" data-cls="${esc(c)}"><td>${esc(c)}</td><td class="num">${x.n}</td><td class="num ${x.recall!=null&&x.recall<1?"warn":""}">${pctS(x.recall)}</td><td class="num">${pctS(x.precision)}</td><td class="num">${num3(x.extraction_mean)}</td><td class="num">${x.extraction_n}</td><td class="num ${x.near_gold_docs?"warn":""}">${x.near_gold_docs}</td>`+["ship","held","failed","open"].map(k=>`<td class="num ${x.outcomes[k]&&k!=="ship"?OUTC[k][0]:""}">${x.outcomes[k]}</td>`).join("")+"</tr>"}).join("")+"</table>";
+ h+=`<div style="display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start"><div><h4>LABEL TIER (GT source)</h4><table class="t"><tr><th>tier</th><th class="num">docs</th><th class="num">scored</th><th class="num">extraction</th></tr>${tierRows||'<tr><td colspan="4" class="mut">no dataset rows</td></tr>'}</table></div>`;
+ const cm=sc.confusion||{},gts=Object.keys(cm),preds=[...new Set(gts.concat(...gts.map(g=>Object.keys(cm[g]))))].sort();
+ if(gts.length)h+=`<div><h4>CONFUSION (rows = GT, columns = predicted)</h4><table class="t cm"><tr><th></th>${preds.map(p=>`<th class="num" title="${esc(p)}">${esc(p.slice(0,10))}</th>`).join("")}</tr>`+
+  gts.map(g=>`<tr><td>${esc(g)}</td>${preds.map(p=>{const v=cm[g][p]||0;return `<td class="cell ${v&&g!==p?"bad":v?"ok":"mut"}">${v||"·"}</td>`}).join("")}</tr>`).join("")+"</table></div>";
+ return h+"</div>"}
+function docsPane(){
+ const r=run();if(!r.docs)return '<p class="secnote">This digest predates per-document rows: rebuild it with the current builder.</p>';
+ const q=DF.q.toLowerCase();
+ const rows=runDocs().filter(d=>(!DF.outcome||d.outcome===DF.outcome)&&(!DF.miss||(d.gt&&d.pred&&d.gt!==d.pred)||d.outcome==="failed")&&(!q||d.id.toLowerCase().includes(q)));
+ const shown=rows.slice(0,600);
+ let h=`<div class="filters"><span>${rows.length} of ${runDocs().length} doc(s)${CLASS?" in "+esc(CLASS):""}${r.docs_truncated?` · digest keeps the first ${r.docs.length} of ${r.docs.length+r.docs_truncated}`:""}</span>
+<label>outcome <select id="fOut"><option value="">all</option>${["ship","held","failed","open"].map(k=>`<option value="${k}"${DF.outcome===k?" selected":""}>${OUTC[k][1]}</option>`).join("")}</select></label>
+<label><input type="checkbox" id="fMiss"${DF.miss?" checked":""}> misclassified or failed only</label>
+<label>id <input id="fQ" value="${esc(DF.q)}" size="16" placeholder="filter"></label><span class="mut">click a row to trace its path on the graph</span></div>`;
+ h+=`<table class="t"><tr><th>document</th><th>GT</th><th>predicted</th><th>outcome</th><th class="num">extraction</th><th>labels</th><th>review trigger</th><th class="num">s</th><th>path</th></tr>`+
+  shown.map(d=>{const miss=d.gt&&d.pred&&d.gt!==d.pred,o=OUTC[d.outcome]||["mut",d.outcome];
+   return `<tr class="click${selDoc===d.id?" sel":""}" tabindex="0" data-doc="${esc(d.id)}" title="${esc(d.note||"")}"><td>${esc(d.id)}</td><td>${esc(d.gt||"?")}</td><td class="${miss?"bad":""}">${esc(d.pred||"—")}${miss?" ✗":""}</td><td class="${o[0]}">${esc(o[1])}</td><td class="num">${num3(d.score)}</td><td>${tierBadge(d.labels)}</td><td>${esc(d.review||"")}</td><td class="num">${d.ms==null?"":(d.ms/1000).toFixed(1)}</td><td class="path">${pathHtml(d.path)}</td></tr>`}).join("")+"</table>";
+ if(rows.length>shown.length)h+=`<p class="secnote">${rows.length-shown.length} more row(s): narrow the filters.</p>`;
+ return h}
+function nodesPane(){
+ const r=run(),GR=D.graph_reference,no=r.node_outcomes||{};
+ const ids=Object.keys(POS).filter(k=>k!=="START"&&k!=="END");
+ return `<p class="secnote">Docs = distinct documents that entered the node${CLASS?" (class view)":""}. The outcome columns follow those documents to the end of the run${CLASS?" (run-wide; isolate is ignored here)":""}; "classified right" counts the ones with both a GT and a predicted class.</p><table class="t"><tr><th>node</th><th>agent</th><th class="num">docs</th><th class="num">p50 s</th><th class="num">aborts here</th><th class="num">archived</th><th class="num">review</th><th class="num">failed</th><th class="num">open</th><th class="num">classified right</th></tr>`+
+  ids.map(id=>{const o=no[id]||{ship:0,held:0,failed:0,open:0,n:0,class_n:0,class_ok:0};
+   return `<tr class="click${selNode===id?" sel":""}" tabindex="0" data-node="${esc(id)}"><td>${esc(id)}</td><td class="mut">${esc(GR.node_agents[id]||"")}</td><td class="num">${nodeVal(id)}</td><td class="num">${((r.node_ms_p50||{})[id]/1000||0).toFixed(1)}</td><td class="num ${(r.aborts_by_last_node||{})[id]?"bad":""}">${(r.aborts_by_last_node||{})[id]||0}</td>`+
+   ["ship","held","failed","open"].map(k=>`<td class="num ${o[k]&&k!=="ship"?OUTC[k][0]:""}">${o[k]}</td>`).join("")+`<td class="num">${o.class_n?o.class_ok+"/"+o.class_n:"—"}</td></tr>`}).join("")+"</table>"}
+/** Repaint the drawer's active tab and wire its rows; keeps the pane's scroll position. */
+function renderPane(){
+ const pane=document.getElementById("pane");if(!document.getElementById("drawer").classList.contains("open"))return;
+ const top=pane.scrollTop,f=document.activeElement&&document.activeElement.id;
+ pane.innerHTML=TAB==="docs"?docsPane():TAB==="nodes"?nodesPane():scoresPane();
+ pane.scrollTop=top;
+ document.getElementById("tabHint").textContent=run().name+(CLASS?" · "+CLASS:"");
+ pane.querySelectorAll("tr[data-doc]").forEach(el=>el.onclick=()=>pickDoc(el.dataset.doc));
+ pane.querySelectorAll("tr[data-cls]").forEach(el=>el.onclick=()=>pickClass(el.dataset.cls));
+ pane.querySelectorAll("tr[data-node]").forEach(el=>el.onclick=()=>{selNode=selNode===el.dataset.node?null:el.dataset.node;selDoc=null;render()});
+ const fo=document.getElementById("fOut"),fm=document.getElementById("fMiss"),fq=document.getElementById("fQ");
+ if(fo)fo.onchange=()=>{DF.outcome=fo.value;renderPane()};
+ if(fm)fm.onchange=()=>{DF.miss=fm.checked;renderPane()};
+ if(fq){fq.oninput=()=>{DF.q=fq.value;renderPane()};if(f==="fQ"){fq.focus();fq.setSelectionRange(fq.value.length,fq.value.length)}}}
+document.querySelectorAll(".tab[data-t]").forEach(b=>b.onclick=()=>{TAB=b.dataset.t;document.querySelectorAll(".tab[data-t]").forEach(x=>{x.classList.toggle("sel",x===b);x.setAttribute("aria-selected",String(x===b))});
+ const dr=document.getElementById("drawer");if(!dr.classList.contains("open"))document.getElementById("drawerTog").click();else renderPane()});
+document.getElementById("drawerTog").onclick=()=>{const dr=document.getElementById("drawer"),open=!dr.classList.contains("open");dr.classList.toggle("open",open);
+ document.getElementById("pane").style.display=open?"":"none";const t=document.getElementById("drawerTog");t.textContent=open?"hide ▾":"show ▴";t.setAttribute("aria-expanded",String(open));if(open)renderPane()};
 window.onerror=(m)=>{document.getElementById("mode").textContent="JS ERROR: "+m};
 menus();render();
 // Keyboard: Enter/Space activates a run, class, node or zoom control like a click.
 // menus()/render() rebuild those elements, so focus moves to the rebuilt one.
 document.addEventListener("keydown",e=>{
  if(e.key!=="Enter"&&e.key!==" ")return;
+ const row=e.target.closest&&e.target.closest("tr.click");if(row){e.preventDefault();const k=row.dataset.doc?"doc":row.dataset.cls?"cls":"node",v=row.dataset[k];row.click();const n=document.querySelector(`tr[data-${k}="${CSS.escape(v)}"]`);if(n)n.focus();return}
  const t=e.target.closest&&e.target.closest(".run,.cls,.node,#zoomctl>div");if(!t)return;
  e.preventDefault();
  const sel=t.id?`#${t.id}`:t.classList.contains("run")?`.run[data-i="${t.dataset.i}"]`:
@@ -340,9 +465,9 @@ document.addEventListener("keydown",e=>{
 vp.addEventListener("click",e=>{
  if(moved>4)return;
  const nd=e.target.closest(".node");
- if(nd&&nd.dataset.k&&nd.dataset.k!=="START"&&nd.dataset.k!=="END"){selNode=(selNode===nd.dataset.k)?null:nd.dataset.k;render();return}
+ if(nd&&nd.dataset.k&&nd.dataset.k!=="START"&&nd.dataset.k!=="END"){selNode=(selNode===nd.dataset.k)?null:nd.dataset.k;selDoc=null;render();return}
  if(e.target.closest(".chip,#hud,#zoomctl"))return;
- if(selNode){selNode=null;render()}  // click empty space: clear edge highlight only; class route stays lit
+ if(selNode||selDoc){selNode=null;selDoc=null;render()}  // click empty space: clear edge highlight only; class route stays lit
 });
 let tx=10,ty=40,z=.55,drag=null; // placeholder-anchor
 function apply(){world.style.transform=`translate(${tx}px,${ty}px) scale(${z})`}
@@ -362,7 +487,15 @@ document.getElementById("zin").onclick=()=>zoom(z*1.25);document.getElementById(
 // a zero-size viewport (hidden or collapsed pane) would set zoom 0 and keep the graph invisible: skip it and refit once there is room.
 // userView: the user zoomed or panned since the last fit, so a viewport resize keeps their view instead of refitting.
 let fitOk=false,userView=false;
-const fitGraph=()=>{if(!vp.clientWidth||!vp.clientHeight)return;z=Math.min(vp.clientWidth/W,vp.clientHeight/H)*0.99;tx=6;ty=6;apply();fitOk=true;userView=false};
+/** Bounding box of every drawn box (nodes, START/END, the audit box), in world pixels. */
+function contentBox(){let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;const add=(x,y,w,h)=>{x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x+w);y1=Math.max(y1,y+h)};
+ for(const [k,xy] of Object.entries(POS))add(xy[0],xy[1]-14,k==="START"||k==="END"?110:NB.w,NB.h+14);
+ if(Object.keys(D.graph_reference.audit_events||{}).length)add(1560,1120,NB.w,NB.h+30);
+ return x0<x1?{x0,y0,x1,y1}:{x0:0,y0:0,x1:W,y1:H}}
+// fit the drawn graph, not the fixed 2200x1400 canvas: the old fit left most of the pane empty and the node text unreadably small
+const fitGraph=()=>{if(!vp.clientWidth||!vp.clientHeight)return;const b=contentBox(),P=24,bw=b.x1-b.x0,bh=b.y1-b.y0;
+ z=Math.max(.2,Math.min(1.4,Math.min((vp.clientWidth-2*P)/bw,(vp.clientHeight-2*P)/bh)));
+ tx=(vp.clientWidth-bw*z)/2-b.x0*z;ty=(vp.clientHeight-bh*z)/2-b.y0*z;apply();fitOk=true;userView=false};
 document.getElementById("zfit").onclick=fitGraph;fitGraph();
 if(window.ResizeObserver)new ResizeObserver(()=>{if(!fitOk||!userView)fitGraph()}).observe(vp);
 // ── LIVE refresh (http/https + selected run running only; file:// stays static, no timer at all) ──
@@ -384,6 +517,7 @@ if(LIVE){
    const same=JSON.stringify(nd)===JSON.stringify(D),name=run().name,i=nd.runs.findIndex(x=>x.name===name);
    D=nd;runIdx=i>=0?i:Math.min(runIdx,nd.runs.length-1);
    if(CLASS&&!D.classes.includes(CLASS))CLASS=null;
+   if(selDoc&&!(run().docs||[]).some(x=>x.id===selDoc))selDoc=null;
    stale=0;wasLive=!idle;setGen();stampUpdated();
    if(!same){menus();render()}   // unchanged digest: keep the DOM (and keyboard focus) intact
   }catch(e){stale++;stampUpdated();/* transient fetch/parse failure: keep the last good view */}

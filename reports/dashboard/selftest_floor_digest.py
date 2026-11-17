@@ -14,6 +14,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 import traceback
 from pathlib import Path
 
@@ -90,7 +91,8 @@ RUN_KEYS = {
     "name", "state", "cursor", "total", "items_attempted", "items_ok", "engine", "profile", "spec_hash",
     "dataset_hash", "prompt_default", "prompts", "tokens", "node_fires", "edge_fires", "node_agents",
     "node_ms_p50", "aborts_by_last_node", "outcomes", "per_class", "inflight", "avg_doc_ms", "predicted",
-    "routing", "review_routed", "replay",
+    "routing", "review_routed", "replay", "checkpoint_state", "stalled_s", "last_activity_utc",
+    "scores", "node_outcomes", "docs", "docs_truncated",
 }
 
 
@@ -627,6 +629,87 @@ def review_stage_is_held_never_a_technical_failure():
     assert bfd._stage_bucket("review", False) == "held" and bfd._stage_bucket("human_review", None) == "held"
     assert bfd._stage_bucket("", False) == "failed"
     assert bfd._stage_bucket("failed", True) == "failed"
+
+
+@test
+def per_document_rows_carry_path_classes_outcome_and_note():
+    """The Documents tab rows: GT vs predicted class, outcome, node path with self-loops collapsed."""
+    docs = {d["id"]: d for d in CTX["runs"]["run-a"]["docs"]}
+    assert list(docs) == ["d1", "d2", "d3", "d4"] and CTX["runs"]["run-a"]["docs_truncated"] == 0
+    d1, d2, d3 = docs["d1"], docs["d2"], docs["d3"]
+    assert d1["path"] == ["intake", "classify", "extract", "archive"], d1["path"]
+    assert (d1["gt"], d1["pred"], d1["outcome"], d1["ms"]) == ("contract", "contract", "ship", 1000)
+    assert d2["outcome"] == "held" and d2["review"] == "classification" and d2["pred"] is None
+    assert d3["outcome"] == "failed" and d3["note"] == "boom" and d3["pred"] == "contract"
+    assert d1["labels"] == {"tier": "none", "hub": 0, "interim": [], "near_gold": []}
+    b = {d["id"]: d for d in CTX["runs"]["run-b"]["docs"]}
+    assert b["b1"]["gt"] is None and b["b1"]["labels"]["tier"] is None, "no dataset row: unknown, not 'none'"
+
+
+@test
+def scores_against_ground_truth_and_node_outcomes():
+    """Classification accuracy counts docs with both labels; the confusion matrix keeps the misses."""
+    sc = CTX["runs"]["run-a"]["scores"]
+    assert sc["classification"] == {"n": 2, "correct": 1, "accuracy": 0.5}, sc["classification"]
+    assert sc["confusion"] == {"contract": {"contract": 1}, "letter": {"contract": 1}}
+    pc = sc["per_class"]
+    assert pc["contract"]["precision"] == 0.5 and pc["contract"]["recall"] == 1.0
+    assert pc["letter"]["recall"] == 0.0 and pc["letter"]["precision"] is None
+    assert pc["contract"]["outcomes"] == {"ship": 1, "held": 1, "failed": 0, "open": 0}
+    no = CTX["runs"]["run-a"]["node_outcomes"]
+    assert no["classify"]["n"] == 4 and no["classify"]["failed"] == 1 and no["classify"]["class_ok"] == 1
+    assert no["archive"] == {"ship": 1, "held": 0, "failed": 0, "open": 0, "n": 1, "class_n": 1, "class_ok": 1}
+
+
+@test
+def label_tiers_follow_hub_interim_near_gold_precedence():
+    """A score that leaned on any near-gold label is reported under near_gold, never as Hub GT."""
+    lp = bfd._label_provenance
+    assert lp(None)["tier"] is None
+    assert lp({"expected_fields": {}})["tier"] == "none"
+    assert lp({"expected_fields": '{"a": 1, "gt_presence": "{}"}'}) == {"tier": "hub", "hub": 1, "interim": [], "near_gold": []}
+    row = {"expected_fields": {"a": 1, "b": 2, "c": 3}, "interim_labels": {"fields": ["b"]},
+           "near_gold_labels": {"fields": ["c"], "status": "near_gold"}}
+    assert lp(row) == {"tier": "near_gold", "hub": 1, "interim": ["b"], "near_gold": ["c"]}
+    assert lp({"expected_fields": {"a": 1, "b": 2}, "interim_labels": {"fields": ["b"]}})["tier"] == "interim"
+    with tempfile.TemporaryDirectory() as t:
+        run = Path(t) / "data" / "runtime" / "runs" / "ng"
+        _jsonl(run / "dataset.jsonl", [
+            {"id": "h", "expected_doc_class": "letter", "expected_fields": {"sender": "A"}},
+            {"id": "n", "expected_doc_class": "letter", "expected_fields": {"sender": "B", "date": "x"},
+             "near_gold_labels": {"fields": ["date"], "status": "near_gold"}},
+        ])
+        r = _live_run(Path(t), "ng", [
+            {"item_id": "h", "ok": True, "pred": {"stage": "archived", "doc_type": "letter"},
+             "score": {"overall_extraction_score": 0.8}},
+            {"item_id": "n", "ok": True, "pred": {"stage": "archived", "doc_type": "letter"},
+             "score": {"overall_extraction_score": 0.4}},
+        ], None)
+    tiers = r["scores"]["label_tiers"]
+    assert tiers == {"hub": {"docs": 1, "scored": 1, "extraction_mean": 0.8},
+                     "near_gold": {"docs": 1, "scored": 1, "extraction_mean": 0.4}}, tiers
+    assert r["scores"]["near_gold_fields"] == 1 and r["scores"]["per_class"]["letter"]["near_gold_docs"] == 1
+    assert r["scores"]["extraction"] == {"n": 2, "mean": 0.6}
+
+
+@test
+def dead_running_checkpoint_is_shown_stalled():
+    """A killed run never rewrites checkpoint.json: idle past the threshold it reads 'stalled'."""
+    with tempfile.TemporaryDirectory() as t:
+        run = Path(t) / "data" / "runtime" / "runs" / "dead"
+        _jsonl(run / "items.jsonl", [{"item_id": "x", "ok": True, "pred": {"stage": "archived"}}])
+        (run / "checkpoint.json").write_text(json.dumps({"state": "running", "cursor": 1}), encoding="utf-8")
+        old = time.time() - 3600
+        for f in run.iterdir():
+            os.utime(f, (old, old))
+        r = run_cli(Path(t) / "data", Path(t) / "out", CTX["graph"])
+        assert r.returncode == 0, r.stderr
+        d = json.loads((Path(t) / "out" / "floor_digest.json").read_text(encoding="utf-8"))["runs"][0]
+        assert (d["state"], d["checkpoint_state"]) == ("stalled", "running") and d["stalled_s"] >= 3500, d
+        r = run_cli(Path(t) / "data", Path(t) / "out", CTX["graph"], env_extra={"FLOOR_STALL_SECONDS": "7200"})
+        d = json.loads((Path(t) / "out" / "floor_digest.json").read_text(encoding="utf-8"))["runs"][0]
+        assert d["state"] == "running" and d["stalled_s"] is None, "threshold override honoured"
+    assert CTX["runs"]["run-a"]["state"] == "running", "a fresh running run is not stalled"
 
 
 def main() -> int:
