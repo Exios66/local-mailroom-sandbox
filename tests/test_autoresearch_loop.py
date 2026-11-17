@@ -743,6 +743,8 @@ def test_the_replicate_runs_right_after_the_baseline_and_records_the_noise_floor
     assert loop.noise_floor(loop.state()) == pytest.approx(noise["effective_floor"])
     assert row_of(loop, "a")["noise_floor"] == pytest.approx(noise["effective_floor"])             # the keep rule used it
     assert "Noise floor (replicate baseline)" in (loop.dir / "report.md").read_text()
+    swings = loop.class_noise(loop.state())                                       # per-class swing feeds the class guard
+    assert swings == {c: pytest.approx(abs(d["mean"]), abs=1e-5) for c, d in expected.by_class.items()} and max(swings.values()) > 0
 
 
 def test_the_configured_floor_wins_when_it_is_larger(tmp_path):

@@ -49,6 +49,18 @@ def test_a_guarded_class_dropping_more_than_005_reverts_even_with_a_pooled_gain(
     assert decide(d=delta(by_class=by_class))[0]                    # exactly the limit passes
 
 
+def test_a_class_drop_within_its_replicate_swing_is_noise_not_a_regression():
+    by_class = {"contract": {"n": 5.0, "mean": -0.238}, "correspondence": {"n": 5.0, "mean": 0.3}}
+    ok, why = decide(d=delta(by_class=by_class))
+    assert not ok and any("class drop: contract -0.238 (limit -0.050)" in r for r in why)
+    assert decide(d=delta(by_class=by_class), class_noise={"contract": 0.25})[0]
+    ok, why = decide(d=delta(by_class=by_class), class_noise={"contract": 0.2, "correspondence": 0.9})
+    assert not ok and any("class drop: contract -0.238 (limit -0.200)" in r for r in why)
+    # a swing below the configured minimum, a negative or NaN swing never loosens the limit
+    for swing in (0.01, -0.5, math.nan):
+        assert not decide(d=delta(by_class=by_class), class_noise={"contract": swing})[0]
+
+
 def test_guard_classes_restricts_the_class_check():
     by_class = {"contract": {"n": 5.0, "mean": 0.3}, "merger_agreement": {"n": 1.0, "mean": -0.9}}
     assert not decide(d=delta(by_class=by_class))[0]
