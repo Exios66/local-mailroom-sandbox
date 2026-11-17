@@ -1738,6 +1738,44 @@ def test_the_report_states_both_keep_rules_and_labels_the_cost_split_as_whole_ru
     assert "per-document cost by role" not in report
 
 
+def _shell_session(monkeypatch, capsys, lines, defaults):
+    """Drive `sandbox tui` with ``lines`` typed at its prompt and ``defaults`` injected like `sandbox --profile p tui`."""
+    from mailroom_sandbox.autoresearch import loop as lp
+    from mailroom_sandbox.tui import shell
+
+    def study_load(path):
+        raise lp.AutoresearchError("REACHED-STUDY")        # past the override check, before any run
+
+    monkeypatch.setattr(lp.Study, "load", staticmethod(study_load))
+    monkeypatch.setattr(shell.sys.stdin, "isatty", lambda: True, raising=False)
+    typed = iter([*lines, EOFError()])
+
+    def fake_input(_prompt=""):
+        value = next(typed)
+        if isinstance(value, BaseException):
+            raise value
+        return value
+
+    monkeypatch.setattr("builtins.input", fake_input)
+    shell.run_shell(defaults)
+    return capsys.readouterr()
+
+
+def test_the_tui_shells_injected_defaults_do_not_refuse_an_autoresearch_command(monkeypatch, capsys):
+    """The shell prepends its session defaults (--profile, ...) to every command, and the refusal read them as typed."""
+    out = _shell_session(monkeypatch, capsys, ["autoresearch plan --study s.yaml"],
+                         ["--profile", "zz-session", "--model", "x/y", "--prompt", "p", "--agent-model", "judge=a/b"])
+    assert "does not apply" not in out.err and "REACHED-STUDY" in out.err, out
+
+
+@pytest.mark.parametrize("typed", [["--profile", "zz-typed"], ["--prof=zz-typed"], ["--model", "m/n"], ["--prompt", "q"],
+                                   ["--agent-model", "judge=c/d"]])
+def test_a_flag_typed_in_the_tui_shell_is_still_refused(monkeypatch, capsys, typed):
+    line = " ".join(["autoresearch", "plan", "--study", "s.yaml", *typed])
+    out = _shell_session(monkeypatch, capsys, [line], ["--profile", "zz-session"])
+    assert "does not apply" in out.err and "REACHED-STUDY" not in out.err, out
+
+
 @pytest.mark.parametrize("flags", [["--model", "x/y"], ["--prompt", "sorter_local_v0"], ["--agent-model", "judge=x/y"],
                                    ["--profile", "zz-not-the-default"], ["--profile", "DEFAULT"], ["--prof=DEFAULT"]])
 def test_a_shared_model_or_prompt_override_is_refused_not_silently_ignored(tmp_path, flags, capsys):

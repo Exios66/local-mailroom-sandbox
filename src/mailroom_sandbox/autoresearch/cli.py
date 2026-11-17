@@ -19,9 +19,10 @@ def _loop(args, *, need_executor: bool):
 
     from mailroom_sandbox.autoresearch.loop import AutoresearchError
 
-    profile = _profile_given(args)
-    ignored = [flag for flag, value in (("--model", getattr(args, "model", None)), ("--prompt", getattr(args, "prompt", None)),
-                                        ("--agent-model", getattr(args, "agent_models", None)), ("--profile", profile)) if value]
+    ignored = [flag for flag, value in (("--model", _override_given(args, "model", "--model", "--mo")),
+                                        ("--prompt", _override_given(args, "prompt", "--prompt", "--prom")),
+                                        ("--agent-model", _override_given(args, "agent_models", "--agent-model", "--a")),
+                                        ("--profile", _profile_given(args))) if value]
     if ignored:
         # The study's frozen run spec sets every model and prompt; a shared override would be accepted and not take effect.
         raise AutoresearchError(f"autoresearch does not apply {', '.join(ignored)}: the study's base run spec sets the "
@@ -35,6 +36,24 @@ def _loop(args, *, need_executor: bool):
     return Loop(study, executor)
 
 
+def _typed(raw, flag: str, shortest: str) -> bool:
+    """Whether ``flag`` (or an abbreviation of at least ``shortest``, as argparse accepts) is among ``raw``."""
+    names = (tok.split("=", 1)[0] for tok in raw if tok.startswith("--"))
+    return any(len(name) >= len(shortest) and flag.startswith(name) for name in names)
+
+
+def _override_given(args, dest: str, flag: str, shortest: str) -> bool:
+    """Whether a shared ``--model`` / ``--prompt`` / ``--agent-model`` override reached this command.
+
+    With the raw arguments (``main`` sets them from what the operator typed) a value the TUI shell injected as a
+    session default does not count: the shell prepends it to every command, so refusing it would refuse every
+    autoresearch command typed in ``sandbox tui``. Without them, any value counts.
+    """
+    raw = getattr(args, "raw_argv", None)
+    value = getattr(args, dest, None)
+    return bool(value) and (raw is None or _typed(raw, flag, shortest))
+
+
 def _profile_given(args) -> bool:
     """Whether ``--profile`` was typed: argparse always fills in its default, so read the raw arguments."""
     raw = getattr(args, "raw_argv", None)
@@ -43,7 +62,7 @@ def _profile_given(args) -> bool:
 
         return bool(getattr(args, "profile", None)) and args.profile != default_profile()
     # Any unambiguous abbreviation argparse accepts (`--prof`, `--profile=x`) counts too.
-    return any(len(tok.split("=", 1)[0]) > len("--pro") and "--profile".startswith(tok.split("=", 1)[0]) for tok in raw)
+    return _typed(raw, "--profile", "--prof")
 
 
 def _guarded(fn):
