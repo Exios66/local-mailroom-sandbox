@@ -1117,7 +1117,10 @@ def _preflight(
     source_sha = (prov.get("metadata") or {}).get("sha256") if spec.dataset.is_local() else None
     # The exclusion hash is the one of the bytes the draw used, for the same reason.
     exclude_sha = (prov.get("excluded") or {}).get("sha256")
-    frozen_core = spec_core(spec, source_sha256=source_sha, exclude_ids_sha256=exclude_sha)
+    # The near-gold fingerprint is the one of the overlay the prepared rows used.
+    near_gold_sha = ((prov.get("metadata") or {}).get("near_gold_labels") or {}).get("overlay_sha256")
+    frozen_core = spec_core(spec, source_sha256=source_sha, exclude_ids_sha256=exclude_sha,
+                            near_gold_sha256=near_gold_sha)
     frozen_hash = core_hash(frozen_core)
     store.write_prompt_lock(prompt_block)
     lock = {
