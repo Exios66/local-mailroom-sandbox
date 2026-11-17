@@ -17,6 +17,10 @@ dataset or deploy task, read `.cursor/skills/sandbox-tool-router/SKILL.md` first
 then exactly one specialty skill in `.cursor/skills/`. For a full docs/README
 staleness sweep, follow `.cursor/skills/docs-audit-tool-router/SKILL.md`.
 
+Bulk work (many files, labels, traces, logs) follows
+[`.claude/rules/code-mode.md`](.claude/rules/code-mode.md): one script that prints a
+digest instead of many tool calls.
+
 PR and issue descriptions use an executive summary, never a transcript: no
 direct quotes from the requester, names, handles or credentials, and no
 `User description` section. Paraphrase the intent and use the PR template.
