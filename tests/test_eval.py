@@ -307,15 +307,15 @@ def test_dojo_pin_matches_current_vendored_snapshot():
 
     pins = {name: (ref, sha) for name, ref, _url, sha in cli_mod._VENDOR_PINS}
     assert pins["llm-dojo-scoring"] == (
-        "v0.30.1",
-        "116da0b0f5104165244ec9a4b7f068c1cf0048cf",
-    ), "dojo must consume tag v0.30.1 at 116da0b (the v0.30.0 branch after #169; package version 0.30.0)"
+        "025400f3d703531c5e1a76093e4b803ccc6fb576",
+        "025400f3d703531c5e1a76093e4b803ccc6fb576",
+    ), "dojo must consume 025400f (the v0.30.0 branch after #174, untagged; package version 0.30.1)"
     assert pins["llm-dojo-scoring"][1] in vendor_md
     # The snapshot's own version, read from its tree: DOJO_SRC may put a different
     # checkout first on sys.path, and that override is supported (source "env").
     snapshot_init = (vendor / "llm_dojo_scoring" / "__init__.py").read_text(encoding="utf-8")
     snapshot_version = re.search(r'^__version__ = "([^"]+)"', snapshot_init, re.M)
-    assert snapshot_version is not None and snapshot_version.group(1) == "0.30.0"
+    assert snapshot_version is not None and snapshot_version.group(1) == "0.30.1"
     # the new per-subclass machinery is actually IN the snapshot
     import llm_dojo_scoring.corporate_record_schema as crs
 
@@ -330,9 +330,9 @@ def test_dojo_pin_matches_current_vendored_snapshot():
     if choice.source == "vendored":
         assert str(vendor.resolve()) in sys.path, "vendored dojo must be on sys.path"
         assert str(Path(dojo.__file__).resolve()).startswith(str(vendor.resolve()))
-        assert dojo.__version__ == "0.30.0"
+        assert dojo.__version__ == "0.30.1"
     elif choice.source == "installed":
-        assert choice.version == "0.30.0" and dojo_source._origin_mismatch() is None
+        assert choice.version == "0.30.1" and dojo_source._origin_mismatch() is None
         assert not str(Path(dojo.__file__).resolve()).startswith(str(vendor.resolve()))
     version = re.match(r"(\d+)\.(\d+)", dojo.__version__)
     assert version is not None
