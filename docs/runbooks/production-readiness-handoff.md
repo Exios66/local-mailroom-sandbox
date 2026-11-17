@@ -65,6 +65,8 @@ In r2, every contract went through the judge, but 34 of the 36 corporate, corres
 
 ## Next actions
 
+The ordered run list, with what each step needs merged first, is [`experiment-queue.md`](experiment-queue.md).
+
 Every step from 1 on spends money or is reserved for the owner, so a human starts it.
 
 0. **Judge audit** (OpenRouter, $0.75 cap, 26 documents that pair with r2). This tests whether the judge catches the wrong archives the router never sends it. The offline preflight passes except for the key check.
