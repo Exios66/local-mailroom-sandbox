@@ -577,3 +577,21 @@ def test_the_context_check_resolves_a_variant_reviewer_to_its_base_window(monkey
     assert any("over its 1,000-token context" in e for e in lv.context_errors({"reviewer": block}))
     assert any("over its 1,000-token context" in e for e in lv.context_errors({"reviewer": {**block, "model": "vendor/dec"}}))
     assert lv.context_errors({"reviewer": {**block, "model": "vendor/other:nitro"}}) == []
+
+
+def test_the_context_check_prices_an_omitted_input_cap_at_what_execution_falls_back_to(monkeypatch):
+    """A question set with no max_input_chars was sized at 0 chars; execution sends up to
+    DECISIONS_MAX_INPUT_CHARS, so a small-window model was never flagged."""
+    from mailroom_sandbox import decision_backends as db
+
+    monkeypatch.setattr(db, "decision_model", lambda m: {"context_length": 100_000} if m == "vendor/dec" else None)
+    block = {"model": "vendor/dec", "questions": "q", "backend": "decisions"}
+    monkeypatch.setattr(db, "load_question_set", lambda stem: {})
+    errors = lv.context_errors({"reviewer": block})
+    assert len(errors) == 1 and f"max_input_chars {db.DECISIONS_MAX_INPUT_CHARS:,}" in errors[0], errors
+    monkeypatch.setattr(db, "load_question_set", lambda stem: {"max_input_chars": 40_000})      # an explicit smaller cap stands
+    assert lv.context_errors({"reviewer": block}) == []
+    gate = {"model": "vendor/dec", "questions": "q"}
+    monkeypatch.setattr(db, "load_question_set", lambda stem: {"max_input_chars": 40_000, "max_input_chars_by_class": {"contract": 900_000}})
+    assert any("max_input_chars 900,000" in e for e in lv.context_errors({"extraction_gate": gate}))      # a class may cap higher
+    assert lv.context_errors({"reviewer": block}) == []                                                # the reviewer has no per-class cap

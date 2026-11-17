@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- **The autoresearch context check sizes an omitted `max_input_chars` like execution does.** A question set without one was checked as 0 characters, so a small-window Decisions model passed the catalog check; the check now uses `DECISIONS_MAX_INPUT_CHARS` (explicit smaller caps stand; the extraction gate also counts its largest `max_input_chars_by_class` value).
 - **A Decisions `:variant` id is unpriced through `call_price` and `token_price_ceiling` too.** `price_sheet` already refused it, but both then reached `token_price`'s dojo and prefix fallbacks and priced it at a chat model's rate. An explicit price-sheet row of its base id, or an exact row for the variant, still prices it.
 - **`--profile` has help text.** The shared flag documents itself in `sandbox --help` and `docs/cli-reference.md` (provider profile name; default from `SANDBOX_PROFILE`, then `.env`, then the providers default).
 - **A resumed whole-run job counts the documents it billed again against `job.api_cost_cap_usd`.** A resume re-runs every locked row; a document the earlier attempt had persisted was billed a second time but never recorded again, so the next resume's budget seed missed that bill. It is now kept as an `api_usage_of_rerun_document` event (the item row stays the evidence) and `usage_records` counts it.
