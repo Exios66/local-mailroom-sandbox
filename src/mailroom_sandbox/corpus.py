@@ -706,6 +706,24 @@ def select_rows(
     return sorted(chosen, key=_stable_key)
 
 
+def _apply_near_gold_overlay(chosen: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Fill unlabelled fields from the near-gold overlay; return the rows and their provenance."""
+    from mailroom_sandbox import gold_labels as gl
+
+    overlay_sha = gl.near_gold_fingerprint()
+    problems = gl.verify_overlay()
+    if problems:
+        raise ValueError(f"near-gold label overlay is inconsistent: {problems[0]}")
+    overlay = gl.load_near_gold()
+    # Verify, load and fingerprint must see one snapshot: refuse if an export ran in between.
+    if gl.near_gold_fingerprint() != overlay_sha or gl.verify_overlay():
+        raise ValueError("near-gold label overlay changed while it was read; run again")
+    rows = [gl.apply_near_gold(r, overlay, overlay_sha=overlay_sha) for r in chosen]
+    labelled = [r for r in rows if r.get("near_gold_labels")]
+    return rows, {"overlay_sha256": overlay_sha, "status": "near_gold", "rows_with_labels": len(labelled),
+                  "fields_applied": sum(len(r["near_gold_labels"]["fields"]) for r in labelled)}
+
+
 def prepare_subset(spec: DatasetSpec, dest_file) -> dict[str, Any]:
     """Materialize the locked subset to ``dest_file``; returns provenance.
 
@@ -794,21 +812,8 @@ def prepare_subset(spec: DatasetSpec, dest_file) -> dict[str, Any]:
             "rows_with_labels": sum(1 for r in chosen if r.get("interim_labels")),
             "fields_applied": sum(len(r["interim_labels"]["fields"]) for r in chosen if r.get("interim_labels"))}}
     if getattr(spec, "near_gold_labels", False):
-        from mailroom_sandbox import gold_labels as gl
-
-        overlay_sha = gl.near_gold_fingerprint()
-        problems = gl.verify_overlay()
-        if problems:
-            raise ValueError(f"near-gold label overlay is inconsistent: {problems[0]}")
-        overlay = gl.load_near_gold()
-        # Verify, load and fingerprint must see one snapshot: refuse if an export ran in between.
-        if gl.near_gold_fingerprint() != overlay_sha or gl.verify_overlay():
-            raise ValueError("near-gold label overlay changed while it was read; run again")
-        chosen = [gl.apply_near_gold(r, overlay, overlay_sha=overlay_sha) for r in chosen]
-        source_meta = {**source_meta, "near_gold_labels": {
-            "overlay_sha256": overlay_sha, "status": "near_gold",
-            "rows_with_labels": sum(1 for r in chosen if r.get("near_gold_labels")),
-            "fields_applied": sum(len(r["near_gold_labels"]["fields"]) for r in chosen if r.get("near_gold_labels"))}}
+        chosen, meta = _apply_near_gold_overlay(chosen)
+        source_meta = {**source_meta, "near_gold_labels": meta}
 
     payload = "".join(_cache_line(r) for r in chosen)
     dest.write_text(payload, encoding="utf-8")
