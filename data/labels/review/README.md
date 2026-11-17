@@ -1,7 +1,8 @@
 # Label review verdicts
 
 A full review of the gold label catalogs and of the interim labels that the
-interim set marks `disputed`, on corpus revision `ccd040f6`. Each label got one
+interim set marks `disputed`, on corpus revision `ccd040f6`. The interim labels
+that runs use as truth are audited separately in `INTERIM_AUDIT.md`. Each label got one
 verdict. Only the labels that need a policy decision are left for a human.
 
 Nothing reads these files by default. They are a record of the review and the
@@ -13,6 +14,8 @@ input for applying it to `data/labels/gold/` and `data/labels/interim/`.
 | --- | --- |
 | `verdicts.jsonl` | One line per label: `catalog`, `source` (`gold` or `interim`), `doc_id`, `filename`, `field`, `verdict`, `value` and the evidence for the verdict. |
 | `policy_questions.json` | The questions behind each `needs_human` group, keyed by `policy_group`. |
+| `interim_audit.jsonl` | One verdict per interim truth label (2,682 labels), with the recommended fix. |
+| `INTERIM_AUDIT.md` | The interim truth audit: results by stratum, the classes with no gold catalog, and the integration steps. |
 
 ## Verdicts
 
