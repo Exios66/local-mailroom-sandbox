@@ -306,6 +306,7 @@ def test_contract_value_text_must_appear_in_the_evidence_with_its_figure():
     ("2001-05-14", "14 June 2001 and May 2001"),
     ("2001-05-14", "May 14"),                      # no year
     ("2001-05-14", "Date: May 14 at 10, 2001"),    # a time of day between the day and the year
+    ("2001-05-14", "May 14 the year 2001"),        # "th" of another word is not an ordinal
 ])
 def test_dates_need_digit_boundaries_and_the_day_beside_the_month(value, evidence):
     assert not gl._date_supported(value, evidence)
@@ -315,6 +316,7 @@ def test_dates_need_digit_boundaries_and_the_day_beside_the_month(value, evidenc
     ("2001-05-14", "May 14th, 2001"), ("2001-05-14", "the 14th day of May, 2001"),
     ("2001-05-14", "14 May 2001"), ("2001-05-14", "May 14th 2001"),
     ("2001-05-14", "2001-05-14T09:02"), ("2001-01-05", "Sent 1/5/2001"),
+    ("2024-03-27", "this 27 th day of March, 2024"), ("2017-02-21", "21 st day of February, 2017"),
 ])
 def test_dates_accept_written_forms(value, evidence):
     assert gl._date_supported(value, evidence)
