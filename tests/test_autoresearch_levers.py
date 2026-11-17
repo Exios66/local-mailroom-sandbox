@@ -436,7 +436,7 @@ def test_every_supervisor_lever_derives_its_round_cap_and_call_adding_levers_sca
     cat = lv.load_levers(ROOT / "config/autoresearch/levers.yaml")
     sups = [i for i in cat.levers if i.group == "supervisor"]
     assert sups and all(i.round_cap_auto for i in sups)
-    calls = {"judge-all-correspondence", "judge-all-insurance-claim", "judge-all-corporate-record",
+    calls = {"judge-all-merger-agreement", "judge-all-contract", "judge-all-correspondence", "judge-all-insurance-claim", "judge-all-corporate-record",
              "judge-rejudge-retry", "judge-max-passes-2"}
     assert {i.id for i in cat.levers if i.estimate_safety} == calls | {i.id for i in sups}
     assert all(i.estimate_safety == 2.0 for i in cat.levers if i.id in calls)

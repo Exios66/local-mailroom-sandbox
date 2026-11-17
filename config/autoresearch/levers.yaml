@@ -238,6 +238,23 @@ levers:
   patch: {agent_knobs.merger_agreement_specialist.max_input_chars: 400000}
 
   # ---- routing: judge every in-band extraction, more judge passes ----
+- id: judge-all-merger-agreement
+  # 2026-11-17 v1 failure analysis: 6 of 8 merger wrong archives reported extraction confidence 1.0, above the
+  # 0.97 band, so they were archived without a judge pass; DeepSeek's gain on merger came from reporting 0.95
+  # (which routes to the judge). This tests the routing on its own, with the production specialist model.
+  node: [judge, merger_agreement_specialist]
+  classes: [merger_agreement]
+  estimate_safety: 2.0   # adds judge calls: the estimate is scaled up
+  description: Judge every in-band merger_agreement extraction (judge_band_high 1.01; the production default is the taxonomy's 0.97).
+  patch: {confidence.by_class.merger_agreement.judge_band_high: 1.01}
+
+- id: judge-all-contract
+  node: [judge, contracts_specialist]
+  classes: [contract]
+  estimate_safety: 2.0   # adds judge calls: the estimate is scaled up
+  description: Judge every in-band contract extraction (judge_band_high 1.01; the production default is the taxonomy's 0.97).
+  patch: {confidence.by_class.contract.judge_band_high: 1.01}
+
 - id: judge-all-correspondence
   node: judge
   classes: [correspondence]

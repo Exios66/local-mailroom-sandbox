@@ -59,3 +59,7 @@ Do not edit rows by hand. Parse with `mailroom_sandbox.job.ledger.rows()`.
 | 2026-11-17T08:48:06Z | JJB | start | ar-mailroom-v1-replicate | reports/autoresearch/mailroom-v1/specs/ar-mailroom-v1-replicate.yaml | 48cd02fcedaf | 25 | 1.0 | ✓ |
 | 2026-11-17T08:51:16Z | JJB | start | ar-mailroom-v1-r01-merger-agreement-deepseek-v4.1-flash | reports/autoresearch/mailroom-v1/specs/ar-mailroom-v1-r01-merger-agreement-deepseek-v4.1-flash.yaml | 731afcc51eef | 25 | 1.0 | ✓ |
 | 2026-11-17T08:54:06Z | JJB | start | ar-mailroom-v1-r02-merger-prompt-maud-v2 | reports/autoresearch/mailroom-v1/specs/ar-mailroom-v1-r02-merger-prompt-maud-v2.yaml | 7f4e57bc108d | 25 | 1.0 | ✓ |
+| 2026-11-17T16:13:04Z | JJB | start | ar-mailroom-v2-r00-baseline | reports/autoresearch/mailroom-v2/specs/ar-mailroom-v2-r00-baseline.yaml | e0399c1b03f4 | 75 | 3.0 | ✓ |
+| 2026-11-17T16:19:31Z | JJB | start | ar-mailroom-v2-replicate | reports/autoresearch/mailroom-v2/specs/ar-mailroom-v2-replicate.yaml | 41f48bce2b08 | 75 | 3.0 | ✓ |
+| 2026-11-17T16:25:19Z | JJB | start | ar-mailroom-v2-r01-merger-agreement-deepseek-v4.1-flash | reports/autoresearch/mailroom-v2/specs/ar-mailroom-v2-r01-merger-agreement-deepseek-v4.1-flash.yaml | ccbe5d4685fc | 75 | 3.0 | ✓ |
+| 2026-11-17T16:31:40Z | JJB | start | ar-mailroom-v2-r02-merger-prompt-maud-v2 | reports/autoresearch/mailroom-v2/specs/ar-mailroom-v2-r02-merger-prompt-maud-v2.yaml | 52ce0f9d885b | 75 | 3.0 |   |
