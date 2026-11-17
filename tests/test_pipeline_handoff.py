@@ -70,7 +70,8 @@ def test_the_specialist_gets_the_extract_nodes_handoff_and_normalization_only_wh
         assert handoff.startswith("Sorter classification: doc_type=insurance_claim")
         assert "INSURANCE CLAIM INVENTORY" in handoff  # the vendored doc_inventories note
         assert "doc_subclass" not in handoff and "confidence=" not in handoff  # no claimed subclass
-        assert out["claim_type"] == "pde"  # the node's post-extraction inventory normalization
+        # the node's post-extraction normalization: a CMS table maps to its product line (#280)
+        assert out["claim_type"] == "health"
     else:
         assert handoff is None
         assert out["claim_type"] == "Part D"
