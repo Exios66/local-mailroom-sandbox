@@ -380,12 +380,13 @@ def test_offline_mock_api_runs_the_real_api_and_pipeline_end_to_end(tmp_path, mo
 def test_cli_eval_mock_writes_a_report_without_a_server(tmp_path, monkeypatch, capsys):
     _needs_the_vendored_api()
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    # A dead URL proves --mock never reaches a server.
+    # A dead URL proves --mock never reaches a server; stdout carries only the report.
     monkeypatch.setenv("MAILROOM_API_URL", "http://127.0.0.1:9")
     out = tmp_path / "report.json"
     rc = cli.main(["api", "eval", "--mock", "--class", "contract", "--sample", "1", "--poll", "0.2",
                    "--timeout", "60", "--out", str(out)])
     report = json.loads(out.read_text())
+    assert json.loads(capsys.readouterr().out)["run_tag"] == report["run_tag"]
     assert rc == 0, report
     assert report["mode"] == "mock" and report["ok"] and report["completed"] == 1
     assert report["classification"]["accuracy"] == pytest.approx(1.0)
@@ -405,3 +406,85 @@ def test_run_api_eval_refuses_non_finite_timing_before_uploading(kw, rows):
 def test_an_explicit_base_url_gets_the_same_check_as_the_env_var(url):
     with pytest.raises(Exception, match="without credentials"):
         family_api.MailroomAPI(url, TOKEN)
+
+
+def test_offline_mock_api_restores_the_whole_environment_even_on_error(tmp_path):
+    _needs_the_vendored_api()
+    import os
+    import sys
+
+    env, path = dict(os.environ), list(sys.path)
+    with pytest.raises(RuntimeError, match="boom"):
+        with family_api.offline_mock_api([], base_dir=tmp_path):
+            assert os.environ["OBSERVABILITY_PROVIDER"] == "none"
+            raise RuntimeError("boom")
+    assert dict(os.environ) == env
+    assert sys.path == path
+
+
+def test_offline_mock_api_sends_nothing_to_a_configured_langfuse(tmp_path, monkeypatch):
+    """Keys in the environment must not turn a mock run into hosted traces, scores or prompt fetches."""
+    _needs_the_vendored_api()
+    import http.server
+    import threading
+
+    hits: list[str] = []
+
+    class Sink(http.server.BaseHTTPRequestHandler):
+        def _any(self):
+            hits.append(f"{self.command} {self.path}")
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"{}")
+
+        do_GET = do_POST = do_PUT = do_PATCH = _any
+
+        def log_message(self, *args):
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Sink)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        host = f"http://127.0.0.1:{server.server_address[1]}"
+        monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+        monkeypatch.delenv("OBSERVABILITY_PROVIDER", raising=False)
+        for key, value in {"LANGFUSE_PUBLIC_KEY": "pk-lf-test", "LANGFUSE_SECRET_KEY": "sk-lf-test",
+                           "LANGFUSE_HOST": host, "LANGFUSE_BASE_URL": host}.items():
+            monkeypatch.setenv(key, value)
+        picked = [r for r in load_manifest() if r["filename"] == "sample_msa.txt"]
+        with family_api.offline_mock_api(picked, base_dir=tmp_path) as api:
+            report = family_api.run_api_eval(picked, api, poll_seconds=0.2, doc_timeout=60)
+        assert report["ok"], report
+    finally:
+        server.shutdown()
+    assert hits == []
+
+
+def _accepting_inner(names):
+    """A stand-in for the in-process API: every upload is accepted under the next name."""
+    queue = list(names)
+
+    def handler(request):
+        return httpx.Response(202, json={"file": queue.pop(0), "matter_id": "M"})
+
+    return httpx.MockTransport(handler)
+
+
+def test_mock_uploads_map_to_rows_by_order_even_with_duplicate_or_renamed_names(monkeypatch):
+    rows = [{"id": "a", "filename": "doc.txt"}, {"id": "b", "filename": "doc.txt"},
+            {"id": "c", "filename": "memo.docx", "doc_text": "x"}]
+    seen = []
+    monkeypatch.setattr(family_api, "_mock_process", lambda name, matter, row: seen.append((name, row["id"])) or {})
+    transport = family_api._DrainingTransport(_accepting_inner(["t-doc.txt", "t-doc-1.txt", "t-memo.txt"]), rows)
+    with httpx.Client(transport=transport, base_url="http://127.0.0.1") as client:
+        for _ in rows:
+            client.post("/upload", files={"file": ("x", b"x")})
+    assert seen == [("t-doc.txt", "a"), ("t-doc-1.txt", "b"), ("t-memo.txt", "c")]
+
+
+def test_mock_refuses_an_upload_that_is_not_the_next_row(monkeypatch):
+    monkeypatch.setattr(family_api, "_mock_process", lambda *a: {})
+    transport = family_api._DrainingTransport(_accepting_inner(["t-other.txt"]), [{"id": "a", "filename": "doc.txt"}])
+    with httpx.Client(transport=transport, base_url="http://127.0.0.1") as client:
+        with pytest.raises(family_api.FamilyAPIError, match="not the next fixture row"):
+            client.post("/upload", files={"file": ("x", b"x")})

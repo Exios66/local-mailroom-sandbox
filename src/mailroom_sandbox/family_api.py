@@ -423,18 +423,21 @@ class _DrainingTransport(httpx.BaseTransport):
         from mailroom_sandbox.eval.runners import _doc_source_name
 
         self._inner = inner
-        self._rows = [(_doc_source_name(dict(r)), dict(r)) for r in rows]
+        # run_api_eval uploads the rows one at a time, in order, so the n-th accepted upload is
+        # the n-th row. Matching by order (not by name) keeps duplicate names and renamed
+        # suffixes on the right row; the stem check below catches a caller that passed
+        # different rows here and to run_api_eval.
+        self._queue = [(Path(_doc_source_name(dict(r))).stem, dict(r)) for r in rows]
         self.processed: list[dict[str, Any]] = []
 
-    def _row_for(self, inbox_name: str) -> dict[str, Any] | None:
-        # Uploads are named ``<run-tag>-<name>``; the API may add ``-<n>`` before the suffix.
-        best = None
-        for name, row in self._rows:
-            stem, suffix = Path(name).stem, Path(name).suffix
-            if re.search(rf"-{re.escape(stem)}(-\d+)?{re.escape(suffix)}$", inbox_name):
-                if best is None or len(name) > len(best[0]):
-                    best = (name, row)
-        return best[1] if best else None
+    def _row_for(self, inbox_name: str) -> dict[str, Any]:
+        if not self._queue:
+            raise FamilyAPIError(f"mock API: upload {inbox_name!r} has no fixture row left")
+        stem, row = self._queue.pop(0)
+        if stem not in inbox_name:
+            raise FamilyAPIError(f"mock API: upload {inbox_name!r} is not the next fixture row ({stem!r}); "
+                                 "pass the same rows to offline_mock_api and run_api_eval")
+        return row
 
     def handle_request(self, request: httpx.Request) -> httpx.Response:
         raw = self._inner.handle_request(request)
@@ -443,8 +446,6 @@ class _DrainingTransport(httpx.BaseTransport):
         if request.method == "POST" and request.url.path == "/upload" and response.status_code == 202:
             body = response.json()
             row = self._row_for(str(body.get("file") or ""))
-            if row is None:
-                raise FamilyAPIError(f"mock API: no fixture row matches upload {body.get('file')!r}")
             self.processed.append(_mock_process(body["file"], body.get("matter_id") or DEFAULT_MATTER_ID, row))
         return response
 
@@ -487,20 +488,20 @@ def offline_mock_api(rows: Sequence[Mapping[str, Any]], *, base_dir: str | Path 
 
     The vendored ``api.main`` app runs under Starlette's test client with its embedded watcher
     off; :class:`_DrainingTransport` processes each upload synchronously under the mock LLM.
-    The API's bins and catalog (``MAILROOM_BASE_DIR``) go to ``base_dir``, or to a fresh
-    temporary directory that is removed afterwards, so a mock run never touches real bins.
-    Traces, if a Langfuse key is configured, are tagged with the ``mock`` environment.
-    Every environment variable it sets is restored on exit. Needs the ``observability``
-    extra (the API imports Langfuse).
+    Pass the same ``rows`` to :func:`run_api_eval`. The API's bins and catalog
+    (``MAILROOM_BASE_DIR``) go to ``base_dir``, or to a fresh temporary directory that is
+    removed afterwards, so a mock run never touches real bins. Tracing, Langfuse prompt
+    fetches and score writes are switched off, even when keys are configured. The whole
+    ``os.environ`` and ``sys.path`` are restored on exit. Needs the ``observability`` extra
+    (the API imports Langfuse).
     """
     import os
     import secrets
+    import sys
 
     from mailroom_sandbox.runtime import activate
 
-    keys = ("MAILROOM_BASE_DIR", "MAILROOM_EMBED_WATCHER", "SANDBOX_RUN_MODE", "OBSERVABILITY_ENVIRONMENT",
-            "MAILROOM_API_TOKEN", "MAILROOM_API_TOKENS")
-    previous = {k: os.environ.get(k) for k in keys}
+    saved_env, saved_path = dict(os.environ), list(sys.path)
     scratch = None if base_dir is not None else tempfile.TemporaryDirectory(prefix="sandbox-api-mock-")
     # The API serves a non-loopback client (the test client) only with a token: mint a throwaway one.
     token = secrets.token_urlsafe(24)
@@ -510,7 +511,8 @@ def offline_mock_api(rows: Sequence[Mapping[str, Any]], *, base_dir: str | Path 
     os.environ["MAILROOM_API_TOKEN"] = token
     os.environ.pop("MAILROOM_API_TOKENS", None)
     try:
-        activate(None)
+        activate(None)  # may load .env, so hosted-sink keys are dropped after it
+        _offline_observability(os.environ)
         try:
             from starlette.testclient import TestClient
 
@@ -520,14 +522,25 @@ def offline_mock_api(rows: Sequence[Mapping[str, Any]], *, base_dir: str | Path 
                 f"the offline mock API needs the vendored API's dependencies ({exc.name}): "
                 "pip install -e '.[pipeline,observability]'"
             ) from None
-        with TestClient(app, base_url="http://mailroom.mock") as client:
+        # A loopback base URL: the throwaway token never triggers the plain-HTTP warning.
+        with TestClient(app, base_url="http://127.0.0.1") as client:
             transport = _DrainingTransport(client._transport, rows)
-            yield MailroomAPI("http://mailroom.mock", token, transport=transport)
+            yield MailroomAPI("http://127.0.0.1", token, transport=transport)
     finally:
-        for key, value in previous.items():
-            if value is None:
-                os.environ.pop(key, None)
-            else:
-                os.environ[key] = value
+        os.environ.clear()
+        os.environ.update(saved_env)
+        sys.path[:] = saved_path
         if scratch is not None:
             scratch.cleanup()
+
+
+_HOSTED_SINK_KEYS = ("LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY", "LANGFUSE_INIT_PROJECT_PUBLIC_KEY",
+                     "LANGFUSE_INIT_PROJECT_SECRET_KEY", "BRAINTRUST_API_KEY")
+
+
+def _offline_observability(environ: Any) -> None:
+    """Keep a mock run off every trace sink: no spans, scores or prompt fetches leave the process."""
+    for key in _HOSTED_SINK_KEYS:
+        environ.pop(key, None)
+    environ["OBSERVABILITY_PROVIDER"] = "none"
+    environ["PHOENIX_TRACING"] = "disabled"
