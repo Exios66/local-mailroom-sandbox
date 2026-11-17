@@ -2607,6 +2607,11 @@ def _cmd_api_eval(args: argparse.Namespace) -> int:
         if args.sample <= 0:
             raise CLIUsageError("--sample must be positive")
         rows = rows[: args.sample]
+    if dataset_meta is not None:
+        # What was actually sent: the prepared draw may be filtered further here, and a
+        # --sample prefix is not a stratified draw (use the YAML's limit/strata for that).
+        dataset_meta["selected"] = {"rows": len(rows), "class": args.doc_class, "sample": args.sample,
+                                    "classes": sorted({str(r.get("expected_doc_class")) for r in rows})}
     if not rows:
         raise CLIUsageError("no fixture rows match the selection" if dataset_meta is None
                             else "no dataset rows match the selection")
@@ -2646,6 +2651,8 @@ def _cmd_api_eval(args: argparse.Namespace) -> int:
         kwargs["poll_seconds"] = args.poll
 
     def _record(api: family_api.MailroomAPI) -> None:
+        if dataset_meta is not None:
+            report["dataset"] = dataset_meta  # before the floor copy, so its spec.lock carries it
         if floor_base is None:
             return
         from mailroom_sandbox import api_floor
@@ -2672,8 +2679,6 @@ def _cmd_api_eval(args: argparse.Namespace) -> int:
         api = family_api.MailroomAPI()
         report = family_api.run_api_eval(rows, api, **kwargs)
         _record(api)
-    if dataset_meta is not None:
-        report["dataset"] = dataset_meta
     _write_json_out(args.out, report)
     _print(report)
     return 0 if report["ok"] else 1

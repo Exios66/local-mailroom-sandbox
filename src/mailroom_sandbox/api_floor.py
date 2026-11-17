@@ -140,7 +140,8 @@ def record_floor_run(
                        "node_source": "stage-audit"},
             "api_eval": {"run_tag": report.get("run_tag"), "api_url": report.get("api_url"),
                          "mode": mode, "error": report.get("error")},
-        }, indent=1),
+            **({"dataset": report["dataset"]} if report.get("dataset") else {}),
+        }, indent=1, default=str),
     }
     # Write beside runs/ and rename into place, so a failed write never leaves a half run that
     # the floor lists and a retry with the same id refuses.

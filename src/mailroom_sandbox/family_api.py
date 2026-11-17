@@ -249,9 +249,10 @@ _UPLOAD_TEXT_SUFFIXES = frozenset({".txt", ".md"})
 def _upload_ready(path: Path, row: Mapping[str, Any]) -> Path:
     """Give an inline-text row a suffix the API accepts.
 
-    Corpus rows carry the extracted text inline under a source name such as ``x.htm``
-    or ``y.html``; the in-process runner reads those as text, but the API's upload allow
-    list refuses them (HTTP 400), which stopped the eval at the first such document.
+    Corpus rows carry the extracted text inline under their source name (``x.htm``,
+    ``y.html``, ``.eml``, ``.json``, ``.csv``); the in-process runner reads those as text,
+    but the API's upload allow list refuses every one of them (HTTP 400), which stopped
+    the eval at the first such document.
     The bytes are already plain text, so they are uploaded as ``.txt``.
     """
     if (row.get("doc_text") or row.get("text")) and path.suffix.lower() not in _UPLOAD_TEXT_SUFFIXES:

@@ -613,3 +613,12 @@ def test_inline_text_rows_upload_with_an_accepted_suffix(tmp_path):
     pdf = tmp_path / "scan.pdf"
     pdf.write_bytes(b"%PDF")
     assert family_api._upload_ready(pdf, {}) == pdf  # fixture files keep their own type
+
+
+def test_eval_dataset_config_records_the_selection_after_filters(monkeypatch, tmp_path, capsys):
+    monkeypatch.setenv("MAILROOM_API_URL", "http://mailroom.test")
+    spec = _corpus_file(tmp_path)
+    assert cli.main(["api", "eval", "--dataset-config", str(spec), "--sample", "1"]) == 0
+    ds = json.loads(capsys.readouterr().out)["dataset"]
+    assert ds["rows"] == 2  # the prepared draw
+    assert ds["selected"] == {"rows": 1, "class": None, "sample": 1, "classes": ["contract"]}
