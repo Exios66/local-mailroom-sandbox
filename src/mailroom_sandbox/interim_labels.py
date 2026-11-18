@@ -344,15 +344,19 @@ def _header_body(header: str) -> str:
     return header.split(":", 1)[1].strip() if ":" in header else ""
 
 
+_BRACKETED = re.compile(r"<[^>]*>")
+
+
 def _addressees(body: str) -> int:
     """How many people a To/X-To line names ("Roe, Jane <...>" is one, "a@x, b@y" two)."""
     if not body:
         return 0
-    if "<" in body:
-        return body.count("<")
-    if "@" in body:
-        return body.count("@")
-    return len([part for part in body.split(",") if part.strip()])
+    bracketed = len(_BRACKETED.findall(body))
+    rest = _BRACKETED.sub("", body)
+    if bracketed or "@" in rest:
+        # each <...> is one person, and so is each bare address outside them
+        return bracketed + rest.count("@")
+    return len([part for part in rest.split(",") if part.strip()])
 
 
 def _empty_header_problem(field: str, headers: list[str]) -> str | None:

@@ -587,6 +587,10 @@ def test_empty_header_values_must_match_empty_headers():
     assert "names more people" in why("additional_recipients", [], "X-To: ", "X-cc: Sue Mara")
     assert "names more people" in why("additional_recipients", [], "X-To: Jeff Dasovich, Sue Mara")
     assert "names more people" in why("additional_recipients", [], "To: a@enron.com, b@enron.com")
+    # mixed forms: a bracketed address and a bare one are two people
+    assert "names more people" in why("additional_recipients", [], "To: Alice <alice@enron.com>, bob@enron.com")
+    assert il._addressees("Jacobson, Michael </O=ENRON/CN=Mjacobso>") == 1
+    assert il._addressees("Alice <alice@enron.com>, Bob <bob@enron.com>, carl@enron.com") == 3
 
 
 def test_a_correction_needs_the_hub_value_it_replaces():
