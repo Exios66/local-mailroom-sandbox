@@ -1,0 +1,495 @@
+# Autoresearch lever catalog for the mailroom-v1 study (schema sandbox.autoresearch.levers/v1).
+#
+# A lever is {id, node, classes, description, patch}; a candidate is the champion plus ONE lever's patch
+# (dotted paths, null deletes a key), validated as a RunSpec before it is run. `node` names the weakness-table
+# row the lever answers (sorter, reviewer, intake, judge, arbiter, boss or a *_specialist); the loop tries levers
+# attached to the champion's worst node first, then lower `tier` first, then catalog order.
+#
+# ROUND CAPS: a round runs under job.api_cost_cap_usd = the study's round cap, except a lever with `round_cap_usd` (explicit)
+# or `round_cap_auto: true` (every supervisor lever and the placements derived from one). The runtime ApiBudget prices
+# EVERY token of a run at the dearest API model in it, so a supervisor round costs far more than its per-agent estimate:
+# the auto cap is the runtime-bound estimate x 1.2, rounded up to $0.25, within [round cap, budget.max_round_cap_usd]
+# (1.5 / 3 / 4 USD for tier 1 / 2 / 3 until the champion has a token measurement). `estimate_safety` scales the pre-run
+# estimate of a lever that adds model calls.
+#
+# Order of the groups below is the tie-break order inside a node. Levers that need something the machine may not
+# have (`requires_env`) are never proposed without it.
+#
+# The champion's reviewer is the CHAT reviewer (the base spec has no `reviewer` block). Every reviewer lever below
+# is a TRUE Decisions-API model from config/decision_models.yaml (`scripts/refresh_decision_models.py --check`);
+# never a chat model with a similar name (typesafe/jev-router is chat), never a `~alias` or `-latest`, never the
+# `jev` or `api` backends.
+#
+# UNCALIBRATED CUTOFFS: the per-class cutoffs are reviewer_decisions_v2's, tuned for openai/gpt-6-luna-decisions on
+# question set v2. They are reused as-is for the other question sets (v3.1.0, v3.2.0, v4.0.0) and for every non-Luna
+# model: the study measures them at those cutoffs, it does not calibrate them. A cutoff that is wrong for a model
+# shows up as review-rate or wrong-archive movement, not as a bug.
+#
+# CONTEXT CAPS: no per-run override exists for a reviewer's input cap, so the question set's `max_input_chars` is the
+# cap (reviewer_decisions_v2: 120000 chars ~ 30k tokens + ~4k question tokens). `validate_catalog` checks every
+# reviewer lever's request size against the model's context_length in config/decision_models.yaml: v2 fits the 64k
+# window of liquid/d1.2; the longer question sets only fit Luna (1.05M tokens). OPEN QUESTION: a per-run
+# `reviewer.max_input_chars` would let the small-context models see longer documents; it does not exist today.
+schema: sandbox.autoresearch.levers/v1
+levers:
+
+  # ---- reviewer: Decisions-API models (the champion's chat reviewer is the baseline) ----
+- id: rev-luna-v2
+  node: [reviewer, sorter]
+  classes: all
+  group: reviewer
+  description: 'Luna Decisions reviewer, question set v2: the production reviewer (calibrated cutoffs).'
+  patch:
+    reviewer:
+      backend: decisions
+      model: openai/gpt-6-luna-decisions
+      questions: reviewer_decisions_v2
+      classes: {contract: 0.78, merger_agreement: 0.99, corporate_record: 0.96, correspondence: 0.64, insurance_claim: 0.7}
+
+- id: rev-luna-v3.1.0
+  node: [reviewer, sorter]
+  classes: all
+  group: reviewer
+  description: Luna, question set v3.1.0 (lineage frontrunner), v2 cutoffs (uncalibrated for this set).
+  patch:
+    reviewer:
+      backend: decisions
+      model: openai/gpt-6-luna-decisions
+      questions: reviewer_decisions_v3.1.0
+      classes: {contract: 0.78, merger_agreement: 0.99, corporate_record: 0.96, correspondence: 0.64, insurance_claim: 0.7}
+
+- id: rev-luna-v3.2.0
+  node: [reviewer, sorter]
+  classes: all
+  group: reviewer
+  description: Luna, question set v3.2.0, v2 cutoffs (uncalibrated for this set).
+  patch:
+    reviewer:
+      backend: decisions
+      model: openai/gpt-6-luna-decisions
+      questions: reviewer_decisions_v3.2.0
+      classes: {contract: 0.78, merger_agreement: 0.99, corporate_record: 0.96, correspondence: 0.64, insurance_claim: 0.7}
+
+- id: rev-luna-v4.0.0
+  node: [reviewer, sorter]
+  classes: all
+  group: reviewer
+  description: Luna, question set v4.0.0, v2 cutoffs (uncalibrated for this set).
+  patch:
+    reviewer:
+      backend: decisions
+      model: openai/gpt-6-luna-decisions
+      questions: reviewer_decisions_v4.0.0
+      classes: {contract: 0.78, merger_agreement: 0.99, corporate_record: 0.96, correspondence: 0.64, insurance_claim: 0.7}
+
+- id: rev-jev-1.14
+  node: [reviewer, sorter]
+  classes: all
+  group: reviewer
+  description: typesafe/jev-1.14 (Decisions API, 262k context), v2 questions and cutoffs (uncalibrated).
+  patch:
+    reviewer:
+      backend: decisions
+      model: typesafe/jev-1.14
+      questions: reviewer_decisions_v2
+      classes: {contract: 0.78, merger_agreement: 0.99, corporate_record: 0.96, correspondence: 0.64, insurance_claim: 0.7}
+
+- id: rev-jev-1.13
+  node: [reviewer, sorter]
+  classes: all
+  group: reviewer
+  description: typesafe/jev-1.13 (Decisions API), v2 questions and cutoffs (uncalibrated).
+  patch:
+    reviewer:
+      backend: decisions
+      model: typesafe/jev-1.13
+      questions: reviewer_decisions_v2
+      classes: {contract: 0.78, merger_agreement: 0.99, corporate_record: 0.96, correspondence: 0.64, insurance_claim: 0.7}
+
+- id: rev-liquid-d1.2
+  node: [reviewer, sorter]
+  classes: all
+  group: reviewer
+  description: liquid/d1.2 (Decisions API, 65k context), v2 questions and cutoffs (uncalibrated).
+  patch:
+    reviewer:
+      backend: decisions
+      model: liquid/d1.2
+      questions: reviewer_decisions_v2
+      classes: {contract: 0.78, merger_agreement: 0.99, corporate_record: 0.96, correspondence: 0.64, insurance_claim: 0.7}
+
+- id: rev-pplx-decider-v1.2
+  node: [reviewer, sorter]
+  classes: all
+  group: reviewer
+  description: perplexity/pplx-decider-v1.2 (paid; not the :free variant), v2 questions and cutoffs (uncalibrated).
+  patch:
+    reviewer:
+      backend: decisions
+      model: perplexity/pplx-decider-v1.2
+      questions: reviewer_decisions_v2
+      classes: {contract: 0.78, merger_agreement: 0.99, corporate_record: 0.96, correspondence: 0.64, insurance_claim: 0.7}
+
+- id: rev-solar-decide
+  node: [reviewer, sorter]
+  classes: all
+  group: reviewer
+  description: upstage/solar-decide (Decisions API), v2 questions and cutoffs (uncalibrated).
+  patch:
+    reviewer:
+      backend: decisions
+      model: upstage/solar-decide
+      questions: reviewer_decisions_v2
+      classes: {contract: 0.78, merger_agreement: 0.99, corporate_record: 0.96, correspondence: 0.64, insurance_claim: 0.7}
+
+- id: rev-gemini-decision-1
+  node: [reviewer, sorter]
+  classes: all
+  group: reviewer
+  description: google/gemini-decision-1 (Decisions API), v2 questions and cutoffs (uncalibrated).
+  patch:
+    reviewer:
+      backend: decisions
+      model: google/gemini-decision-1
+      questions: reviewer_decisions_v2
+      classes: {contract: 0.78, merger_agreement: 0.99, corporate_record: 0.96, correspondence: 0.64, insurance_claim: 0.7}
+
+  # ---- sorter and specialists: a cheaper worker model ----
+- id: sorter-deepseek-v4.1-flash
+  node: sorter
+  classes: all
+  description: Sorter on deepseek/deepseek-v4.1-flash-1017 (the champion's sorter runs the engine model, qwen/qwen3.7-flash).
+  patch: {agent_models.sorter: deepseek/deepseek-v4.1-flash-1017}
+
+- id: contracts-deepseek-v4.1-flash
+  node: contracts_specialist
+  classes: [contract]
+  description: contracts_specialist on deepseek/deepseek-v4.1-flash-1017.
+  patch: {agent_models.contracts_specialist: deepseek/deepseek-v4.1-flash-1017}
+
+- id: merger-agreement-deepseek-v4.1-flash
+  node: merger_agreement_specialist
+  classes: [merger_agreement]
+  description: merger_agreement_specialist on deepseek/deepseek-v4.1-flash-1017.
+  patch: {agent_models.merger_agreement_specialist: deepseek/deepseek-v4.1-flash-1017}
+
+- id: corporate-records-deepseek-v4.1-flash
+  node: corporate_records_specialist
+  classes: [corporate_record]
+  description: corporate_records_specialist on deepseek/deepseek-v4.1-flash-1017.
+  patch: {agent_models.corporate_records_specialist: deepseek/deepseek-v4.1-flash-1017}
+
+- id: correspondence-deepseek-v4.1-flash
+  node: correspondence_specialist
+  classes: [correspondence]
+  description: correspondence_specialist on deepseek/deepseek-v4.1-flash-1017.
+  patch: {agent_models.correspondence_specialist: deepseek/deepseek-v4.1-flash-1017}
+
+- id: insurance-claims-deepseek-v4.1-flash
+  node: insurance_claims_specialist
+  classes: [insurance_claim]
+  description: insurance_claims_specialist on deepseek/deepseek-v4.1-flash-1017.
+  patch: {agent_models.insurance_claims_specialist: deepseek/deepseek-v4.1-flash-1017}
+
+  # ---- specialist prompts (config/prompts, locked by content) ----
+- id: ins-prompt-v5
+  node: insurance_claims_specialist
+  classes: [insurance_claim]
+  description: Insurance specialist prompt condensed_v5 (production runs condensed_v3).
+  patch:
+    prompt.agents.insurance_claims_specialist: {source: local, file: insurance_claims_specialist_condensed_v5}
+
+- id: ins-prompt-v4
+  node: insurance_claims_specialist
+  classes: [insurance_claim]
+  description: Insurance specialist prompt condensed_v4.
+  patch:
+    prompt.agents.insurance_claims_specialist: {source: local, file: insurance_claims_specialist_condensed_v4}
+
+- id: merger-prompt-maud-v2
+  node: merger_agreement_specialist
+  classes: [merger_agreement]
+  description: Merger specialist prompt maud_v2 (production runs the code default).
+  patch:
+    prompt.agents.merger_agreement_specialist: {source: local, file: merger_agreement_specialist_maud_v2}
+
+- id: contracts-prompt-v33
+  node: contracts_specialist
+  classes: [contract]
+  description: Contracts specialist prompt v33 (production runs the code default).
+  patch:
+    prompt.agents.contracts_specialist: {source: local, file: contracts_specialist_v33}
+
+- id: corp-prompt-subclass-v2
+  node: corporate_records_specialist
+  classes: [corporate_record]
+  description: Corporate-records specialist prompt subclass_v2 (production runs condensed_v1).
+  patch:
+    prompt.agents.corporate_records_specialist: {source: local, file: corporate_records_specialist_subclass_v2}
+
+  # ---- specialist input window: a NARROWER window (the baseline is already whole-document) ----
+  # After context_fit the baseline's specialists on the 1M-context qwen/qwen3.7-flash read the whole document (up to
+  # ~2.37M chars) in one window, so there is no wider window to try. The only window lever left is a narrower one, which
+  # chunks long documents into sliding windows. E1 found chunking HURT contracts; this tests whether it helps mergers.
+- id: merger-agreement-window-400k
+  node: merger_agreement_specialist
+  classes: [merger_agreement]
+  description: 'Narrower window: tests whether chunking long mergers helps (merger_agreement_specialist max_input_chars 400000; the whole-document baseline is the control, and E1 found chunking hurt contracts).'
+  patch: {agent_knobs.merger_agreement_specialist.max_input_chars: 400000}
+
+  # ---- routing: judge every in-band extraction, more judge passes ----
+- id: judge-all-merger-agreement
+  # 2026-11-17 v1 failure analysis: 6 of 8 merger wrong archives reported extraction confidence 1.0, above the
+  # 0.97 band, so they were archived without a judge pass; DeepSeek's gain on merger came from reporting 0.95
+  # (which routes to the judge). This tests the routing on its own, with the production specialist model.
+  node: [judge, merger_agreement_specialist]
+  classes: [merger_agreement]
+  estimate_safety: 2.0   # adds judge calls: the estimate is scaled up
+  description: Judge every in-band merger_agreement extraction (judge_band_high 1.01; the production default is the taxonomy's 0.97).
+  patch: {confidence.by_class.merger_agreement.judge_band_high: 1.01}
+
+- id: judge-all-contract
+  node: [judge, contracts_specialist]
+  classes: [contract]
+  estimate_safety: 2.0   # adds judge calls: the estimate is scaled up
+  description: Judge every in-band contract extraction (judge_band_high 1.01; the production default is the taxonomy's 0.97).
+  patch: {confidence.by_class.contract.judge_band_high: 1.01}
+
+- id: judge-all-correspondence
+  node: judge
+  classes: [correspondence]
+  estimate_safety: 2.0   # adds judge calls: the estimate is scaled up
+  description: Judge every in-band correspondence extraction (judge_band_high 1.01; the production default is the taxonomy's).
+  patch: {confidence.by_class.correspondence.judge_band_high: 1.01}
+
+- id: judge-all-insurance-claim
+  node: judge
+  classes: [insurance_claim]
+  estimate_safety: 2.0   # adds judge calls: the estimate is scaled up
+  description: Judge every in-band insurance_claim extraction (judge_band_high 1.01; the production default is the taxonomy's).
+  patch: {confidence.by_class.insurance_claim.judge_band_high: 1.01}
+
+- id: judge-all-corporate-record
+  node: judge
+  classes: [corporate_record]
+  estimate_safety: 2.0   # adds judge calls: the estimate is scaled up
+  description: Judge every in-band corporate_record extraction (judge_band_high 1.01; the production default is the taxonomy's).
+  patch: {confidence.by_class.corporate_record.judge_band_high: 1.01}
+
+- id: judge-rejudge-retry
+  node: judge
+  classes: all
+  estimate_safety: 2.0   # adds judge calls: the estimate is scaled up
+  description: A retry whose earlier attempt was judged goes back to the judge while passes remain (confidence.judge_rejudge_retry).
+  patch: {confidence.judge_rejudge_retry: true}
+
+- id: judge-max-passes-2
+  node: judge
+  classes: all
+  estimate_safety: 2.0   # adds judge calls: the estimate is scaled up
+  description: 'Cap judge passes at 2 for every class (production: taxonomy default 3).'
+  patch: {confidence.judge_max_passes: 2}
+
+  # ---- supervisors: stronger models in the oversight roles (judge, arbiter, boss) ----
+  # classification_arbiter is a graph NODE of the `arbiter` AGENT, so `agent_routes.arbiter` routes it.
+  # Tier 1 is tried first. Tier 2 opens when a tier-1 lever was kept, OR every tier-1 lever is decided (a revert with a
+  # positive mean delta, aborted_cap, skipped, or errored twice) and at least one was reverted with a positive mean delta
+  # (the direction is right, the model is too weak); a negative revert keeps it closed, and aborts alone never open it.
+  # Tier 3 opens when a tier-2 lever was kept AND the remaining study budget is at least 3 round caps. After a supervisor
+  # wins, `placements` below derive cost levers that keep it on fewer roles.
+  # `estimate_safety: 1.5` on every supervisor: a reasoning or verbose supervisor emits more completion tokens than the
+  # champion's measured ones, which the estimate scales from.
+- id: sup-gpt-6-luna
+  node: [judge, arbiter, boss]
+  classes: all
+  tier: 1
+  group: supervisor
+  round_cap_auto: true
+  estimate_safety: 1.5
+  requires: []
+  description: openai/gpt-6-luna as judge, arbiter and boss (supervisor tier 1).
+  patch:
+    agent_routes.judge: {provider: openrouter, model: openai/gpt-6-luna}
+    agent_routes.arbiter: {provider: openrouter, model: openai/gpt-6-luna}
+    agent_routes.boss: {provider: openrouter, model: openai/gpt-6-luna}
+
+- id: sup-qwen3.7-plus
+  node: [judge, arbiter, boss]
+  classes: all
+  tier: 1
+  group: supervisor
+  round_cap_auto: true
+  estimate_safety: 1.5
+  requires: []
+  description: qwen/qwen3.7-plus as judge, arbiter and boss (supervisor tier 1).
+  patch:
+    agent_routes.judge: {provider: openrouter, model: qwen/qwen3.7-plus}
+    agent_routes.arbiter: {provider: openrouter, model: qwen/qwen3.7-plus}
+    agent_routes.boss: {provider: openrouter, model: qwen/qwen3.7-plus}
+
+- id: sup-minimax-m3
+  node: [judge, arbiter, boss]
+  classes: all
+  tier: 1
+  group: supervisor
+  round_cap_auto: true
+  estimate_safety: 1.5
+  requires: []
+  description: minimax/minimax-m3 as judge, arbiter and boss (supervisor tier 1).
+  patch:
+    agent_routes.judge: {provider: openrouter, model: minimax/minimax-m3}
+    agent_routes.arbiter: {provider: openrouter, model: minimax/minimax-m3}
+    agent_routes.boss: {provider: openrouter, model: minimax/minimax-m3}
+
+- id: sup-glm-5.3-flashx-legal
+  node: [judge, arbiter, boss]
+  classes: all
+  tier: 1
+  group: supervisor
+  round_cap_auto: true
+  estimate_safety: 1.5
+  requires: []
+  description: z-ai/glm-5.3-flashx-legal as judge, arbiter and boss (supervisor tier 1).
+  patch:
+    agent_routes.judge: {provider: openrouter, model: z-ai/glm-5.3-flashx-legal}
+    agent_routes.arbiter: {provider: openrouter, model: z-ai/glm-5.3-flashx-legal}
+    agent_routes.boss: {provider: openrouter, model: z-ai/glm-5.3-flashx-legal}
+
+- id: sup-deepseek-v4-pro
+  node: [judge, arbiter, boss]
+  classes: all
+  tier: 2
+  group: supervisor
+  round_cap_auto: true
+  estimate_safety: 1.5
+  requires:
+  - kept: {group: supervisor, tier: 1}
+  - all_reverted_positive: {group: supervisor, tier: 1}
+  description: deepseek/deepseek-v4-pro as judge, arbiter and boss (supervisor tier 2).
+  patch:
+    agent_routes.judge: {provider: openrouter, model: deepseek/deepseek-v4-pro}
+    agent_routes.arbiter: {provider: openrouter, model: deepseek/deepseek-v4-pro}
+    agent_routes.boss: {provider: openrouter, model: deepseek/deepseek-v4-pro}
+
+- id: sup-mistral-large-4-0
+  node: [judge, arbiter, boss]
+  classes: all
+  tier: 2
+  group: supervisor
+  round_cap_auto: true
+  estimate_safety: 1.5
+  requires:
+  - kept: {group: supervisor, tier: 1}
+  - all_reverted_positive: {group: supervisor, tier: 1}
+  description: mistralai/mistral-large-4-0 as judge, arbiter and boss (supervisor tier 2).
+  patch:
+    agent_routes.judge: {provider: openrouter, model: mistralai/mistral-large-4-0}
+    agent_routes.arbiter: {provider: openrouter, model: mistralai/mistral-large-4-0}
+    agent_routes.boss: {provider: openrouter, model: mistralai/mistral-large-4-0}
+
+- id: sup-gemini-3.8-flash
+  node: [judge, arbiter, boss]
+  classes: all
+  tier: 2
+  group: supervisor
+  round_cap_auto: true
+  estimate_safety: 1.5
+  requires:
+  - kept: {group: supervisor, tier: 1}
+  - all_reverted_positive: {group: supervisor, tier: 1}
+  description: google/gemini-3.8-flash as judge, arbiter and boss (supervisor tier 2).
+  patch:
+    agent_routes.judge: {provider: openrouter, model: google/gemini-3.8-flash}
+    agent_routes.arbiter: {provider: openrouter, model: google/gemini-3.8-flash}
+    agent_routes.boss: {provider: openrouter, model: google/gemini-3.8-flash}
+
+- id: sup-qwen4-max
+  node: [judge, arbiter, boss]
+  classes: all
+  tier: 2
+  group: supervisor
+  round_cap_auto: true
+  estimate_safety: 1.5
+  requires:
+  - kept: {group: supervisor, tier: 1}
+  - all_reverted_positive: {group: supervisor, tier: 1}
+  description: qwen/qwen4-max as judge, arbiter and boss (supervisor tier 2).
+  patch:
+    agent_routes.judge: {provider: openrouter, model: qwen/qwen4-max}
+    agent_routes.arbiter: {provider: openrouter, model: qwen/qwen4-max}
+    agent_routes.boss: {provider: openrouter, model: qwen/qwen4-max}
+
+- id: sup-claude-sonnet-5.5
+  node: [judge, arbiter, boss]
+  classes: all
+  tier: 3
+  group: supervisor
+  round_cap_auto: true
+  estimate_safety: 1.5
+  requires:
+  - kept: {group: supervisor, tier: 2}
+    budget_multiple: 3
+  description: anthropic/claude-sonnet-5.5 as judge, arbiter and boss (supervisor tier 3).
+  patch:
+    agent_routes.judge: {provider: openrouter, model: anthropic/claude-sonnet-5.5}
+    agent_routes.arbiter: {provider: openrouter, model: anthropic/claude-sonnet-5.5}
+    agent_routes.boss: {provider: openrouter, model: anthropic/claude-sonnet-5.5}
+
+- id: sup-gpt-6.1-sol
+  node: [judge, arbiter, boss]
+  classes: all
+  tier: 3
+  group: supervisor
+  round_cap_auto: true
+  estimate_safety: 1.5
+  requires:
+  - kept: {group: supervisor, tier: 2}
+    budget_multiple: 3
+  description: openai/gpt-6.1-sol as judge, arbiter and boss (supervisor tier 3).
+  patch:
+    agent_routes.judge: {provider: openrouter, model: openai/gpt-6.1-sol}
+    agent_routes.arbiter: {provider: openrouter, model: openai/gpt-6.1-sol}
+    agent_routes.boss: {provider: openrouter, model: openai/gpt-6.1-sol}
+
+- id: sup-gemini-4-carbon
+  node: [judge, arbiter, boss]
+  classes: all
+  tier: 3
+  group: supervisor
+  round_cap_auto: true
+  estimate_safety: 1.5
+  requires:
+  - kept: {group: supervisor, tier: 2}
+    budget_multiple: 3
+  description: google/gemini-4-carbon as judge, arbiter and boss (supervisor tier 3).
+  patch:
+    agent_routes.judge: {provider: openrouter, model: google/gemini-4-carbon}
+    agent_routes.arbiter: {provider: openrouter, model: google/gemini-4-carbon}
+    agent_routes.boss: {provider: openrouter, model: google/gemini-4-carbon}
+
+  # ---- extraction gate (advisory diagnostic: never changes routing, so it can only be kept for the information it adds) ----
+- id: extraction-gate-v1.3.0
+  node: judge
+  classes: all
+  description: 'Diagnostic: Luna extraction gate v1.3.0 records per-document gate answers beside the judge (advisory; routing
+    unchanged).'
+  patch:
+    extraction_gate: {model: openai/gpt-6-luna-decisions, questions: extraction_gate_v1.3.0}
+
+  # ---- pipeline source: the insurance repair branch (llm-mailroom PR 283) ----
+  # Runs the round with MAILROOM_SRC pointing at a checkout of the declared commit; the loop refuses a checkout at any other
+  # commit. Never proposed unless AUTORESEARCH_PR283_SRC names that checkout. The vendored tree is not touched.
+- id: repair-283
+  node: insurance_claims_specialist
+  classes: [insurance_claim]
+  description: Pipeline source with the insurance extraction repairs (llm-mailroom PR 283, commit 090991b3).
+  pipeline_source: {env: AUTORESEARCH_PR283_SRC, commit: 090991b34c0e4e56658a1c38f98c9d9fc414b0d4}
+
+
+# Per-role placement: after a lever of `group` is kept, derive `<winner>@<roles>` cost levers that keep the winner on
+# only those roles and put the others back on the base spec's routing. Judged by `goal: cost` (not worse, and <= 0.9x cost).
+placements:
+  - group: supervisor
+    roles: [judge, arbiter, boss]
+    keep_on: [[judge], [arbiter], [boss], [judge, arbiter], [judge, boss], [arbiter, boss]]
+    path: agent_routes.{role}

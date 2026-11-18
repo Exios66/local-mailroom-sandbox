@@ -1,0 +1,44 @@
+# Mock champion for the autoresearch smoke study: the whole pipeline on the 7-document fixture with the fake LLM.
+# No network, no spend, no key. It mirrors the production base's SHAPE (a mock reviewer instead of the chat reviewer).
+schema: sandbox.run/v1
+run_id: ar-mock-smoke-base
+task: pipeline
+profile: ollama
+
+prompt:
+  default: {source: code-default}
+
+dataset:
+  provider: file
+  local_path: data/fixtures/hf/docclass_mini.jsonl
+  sample_seed: 3302
+  draw: ranked
+  # The dev draw takes one document per class; the holdout draws the next ranked block, disjoint from it.
+  strata:
+    buckets:
+      - {doc_class: contract, count: 1}
+      - {doc_class: corporate_record, count: 1}
+      - {doc_class: correspondence, count: 1}
+      - {doc_class: insurance_claim, count: 1}
+      - {doc_class: merger_agreement, count: 1}
+
+engine:
+  kind: vllm-local
+  model: Qwen/Qwen3-8B
+  modal: null
+
+reviewer:
+  backend: mock
+  model: mock
+  classes: {contract: 0.5, corporate_record: 0.5}
+
+job:
+  mode: endpoint
+  mock: true
+  max_retries: 1
+  concurrency: 2
+  max_wall_seconds: 600
+
+trace:
+  sink: none
+  tags: [sandbox, test, autoresearch]

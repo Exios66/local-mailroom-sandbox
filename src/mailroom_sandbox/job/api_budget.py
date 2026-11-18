@@ -182,12 +182,15 @@ class ApiBudget:
 
 
 FAILED_USAGE_EVENT = "api_usage_of_failed_document"
+#: A resume re-ran (and re-billed) a document an earlier attempt had already persisted as an item.
+RERUN_USAGE_EVENT = "api_usage_of_rerun_document"
 
 
 def usage_records(store: Any) -> list[dict[str, Any]]:
-    """Every persisted item, plus each document that raised after a paid call (it has no item row)."""
-    failed = [event.get("detail") or {} for event in store.events() if event.get("event") == FAILED_USAGE_EVENT]
-    return [*store.load_items(), *failed]
+    """Every persisted item, plus each paid call without an item row: a document that raised, a resumed re-run."""
+    extra = [event.get("detail") or {} for event in store.events()
+             if event.get("event") in (FAILED_USAGE_EVENT, RERUN_USAGE_EVENT)]
+    return [*store.load_items(), *extra]
 
 
 def budget_for(lock: Mapping[str, Any], items: Iterable[Mapping[str, Any]] = ()) -> ApiBudget | None:

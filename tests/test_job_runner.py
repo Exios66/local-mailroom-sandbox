@@ -961,6 +961,30 @@ def test_a_resumed_run_counts_the_tokens_of_a_pipeline_document_that_raised(tmp_
     assert runner._api_budget(store).spent_usd == pytest.approx(0.17)
 
 
+def test_a_resumed_whole_run_counts_the_tokens_of_a_document_it_billed_again(tmp_path, monkeypatch):
+    """A whole-run resume re-runs every locked row. A document persisted by the first attempt is billed
+    again but, being already in items.jsonl, was never recorded again: the next resume's budget seed
+    (usage_records) missed that second bill, so the run was undercharged against job.api_cost_cap_usd."""
+    from mailroom_sandbox.eval import runners as eval_runners
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    store = RunStore(tmp_path / "r")
+    store.write_lock({"task": "pipeline", "profile": "openrouter", "prompt": {},
+                      "engine": {"kind": "openrouter", "model": "qwen/qwen3.5-9b"},
+                      "job": {"mock": False, "concurrency": 1, "api_cost_cap_usd": 1.0}})
+
+    def attempt(*, row_cb, **_):
+        row_cb({"id": "d0", "pred": {}, "score": {}, "prompt_tokens": 1_000_000, "completion_tokens": 0})
+        raise RuntimeError("stopped after the paid document")
+
+    monkeypatch.setattr(eval_runners, "run_pipeline_eval", attempt)
+    for _ in range(3):  # start, resume, resume: d0 is billed three times
+        out = runner._run_whole_run(store, "pipeline", mock=False, model=None, profile="openrouter")
+        assert out["state"] == "failed"
+    assert len(store.load_items()) == 1  # still one item row: the evidence is not duplicated
+    assert runner._api_budget(store).spent_usd == pytest.approx(3 * 0.17)
+
+
 def test_a_capped_api_run_is_refused_on_tasks_whose_evaluator_cannot_enforce_the_cap(tmp_path):
     """CodeRabbit: extract/chained/local_vs_api/sorter_vs_modernbert take no api_budget."""
     from mailroom_sandbox.job.checkpoint import RunStore
@@ -1084,3 +1108,22 @@ def test_a_failed_whole_run_checkpoint_keeps_the_documents_already_saved(tmp_pat
     assert (out["cursor"], out["total"], out["ok"]) == (3, 5, 3)
     failed = [e for e in store.events() if e.get("event") == "failed"]
     assert failed and (failed[-1].get("detail") or {}).get("cursor") == 3
+
+
+def test_a_pipeline_item_carries_usage_by_agent_from_the_real_capture_path_to_items_jsonl(tmp_path, job_data_dir):
+    """eval/runners captures the vendored accumulator's per-agent split; the runner's row sink persists it (autoresearch's role cost split)."""
+    from mailroom_sandbox.eval import runners as eval_runners
+    from mailroom_sandbox.job.checkpoint import RunStore
+
+    store = RunStore(tmp_path / "run")
+    rows = eval_runners.load_manifest()[:1]
+    out = eval_runners.run_pipeline_eval(mock=True, rows=rows, row_cb=lambda entry: runner._persist_isolated_items(store, [entry]))
+    assert out["n"] == 1
+    (item,) = store.load_items()
+    by_agent = item["usage_by_agent"]                       # not dropped between usage_capture, the evaluator and the sink
+    assert {"sorter"} <= set(by_agent) and any(a.endswith("_specialist") for a in by_agent)
+    for slot in by_agent.values():
+        assert slot["calls"] >= 1 and slot["prompt_tokens"] > 0 and isinstance(slot["models"], list)
+    # the split is the same accumulator the totals come from
+    assert sum(s["prompt_tokens"] for s in by_agent.values()) == item["prompt_tokens"] > 0
+    assert sum(s["completion_tokens"] for s in by_agent.values()) == item["completion_tokens"]

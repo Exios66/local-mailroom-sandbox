@@ -1,0 +1,234 @@
+# OpenRouter Decisions-API models (POST /api/alpha/decisions): the only ids a decision reviewer or
+# extraction gate may name. Refresh with scripts/refresh_decision_models.py (--check shows drift).
+# Pinned ids only: moving aliases (~org/model-latest) are excluded, and chat models never appear here.
+# prompt is USD per 1M input tokens; the Decisions API bills input only (completion is 0).
+source: https://openrouter.ai/api/v1/models?output_modalities=decisions
+checked: '2026-11-17'
+unit: USD per 1M input tokens
+models:
+  baseten/elephant-1:
+    canonical_slug: baseten/elephant-1-20261021
+    endpoints:
+    - /api/alpha/decisions
+    context_length: 16384
+    prompt: 0.035
+  baseten/joey-1:
+    canonical_slug: baseten/joey-1-20261029
+    endpoints:
+    - /api/alpha/decisions
+    context_length: 16384
+    prompt: 0.01
+  baseten/mammoth-1:
+    canonical_slug: baseten/mammoth-1-20261021
+    endpoints:
+    - /api/alpha/decisions
+    context_length: 16384
+    prompt: 0.1
+  cloudflare/clef:
+    canonical_slug: cloudflare/clef
+    endpoints:
+    - /api/alpha/decisions
+    context_length: 65537
+    prompt: 0.192
+  cloudflare/clef-flash:
+    canonical_slug: cloudflare/clef-flash
+    endpoints:
+    - /api/alpha/decisions
+    context_length: 24576
+    prompt: 0.019
+  cloudflare/clef-omni:
+    canonical_slug: cloudflare/clef-omni-20261009
+    endpoints:
+    - /api/alpha/decisions
+    context_length: 65536
+    prompt: 0.15
+  google/gemini-decision-1:
+    canonical_slug: google/gemini-decision-1-20261111
+    endpoints:
+    - /api/alpha/decisions
+    context_length: 262144
+    prompt: 0.1
+  heygen/heygen-decision-1:
+    canonical_slug: heygen/heygen-decision-1-20261112
+    endpoints:
+    - /api/alpha/decisions
+    context_length: 131072
+    prompt: 0.14
+  heygen/heygen-decision-1-turbo:
+    canonical_slug: heygen/heygen-decision-1-turbo-20261112
+    endpoints:
+    - /api/alpha/decisions
+    context_length: 262144
+    prompt: 0.09
+  jaredpalmer/kev-4b:
+    canonical_slug: jaredpalmer/kev-4b-20260924
+    endpoints:
+    - /api/alpha/decisions
+    context_length: 8192
+    prompt: 0.042
+  liquid/d1:
+    canonical_slug: liquid/d1-20260930
+    endpoints:
+    - /api/alpha/decisions
+    context_length: 65536
+    prompt: 0.02
+  liquid/d1-ultra:
+    canonical_slug: liquid/d1-ultra-20261015
+    endpoints:
+    - /api/alpha/decisions
+    context_length: 32768
+    prompt: 0.042
+  liquid/d1.1:
+    canonical_slug: liquid/d1.1-20261027
+    endpoints:
+    - /api/alpha/decisions
+    context_length: 65536
+    prompt: 0.02
+  liquid/d1.2:
+    canonical_slug: liquid/d1.2-20261116
+    endpoints:
+    - /api/alpha/decisions
+    - /api/alpha/extractions
+    context_length: 65536
+    prompt: 0.02
+  liquid/d1.2-ultra:
+    canonical_slug: liquid/d1.2-ultra-20261116
+    endpoints:
+    - /api/alpha/decisions
+    - /api/alpha/extractions
+    context_length: 65536
+    prompt: 0.042
+  microsoft/microsoft-decision-1:
+    canonical_slug: microsoft/microsoft-decision-1-20261009
+    endpoints:
+    - /api/alpha/decisions
+    context_length: 32768
+    prompt: 0.042
+  morph/reflex:
+    canonical_slug: morph/reflex-20261103
+    endpoints:
+    - /api/alpha/decisions
+    context_length: 65536
+    prompt: 0.042
+  nace-ai/drex-max:
+    canonical_slug: nace-ai/drex-max-20261016
+    endpoints:
+    - /api/alpha/decisions
+    context_length: 262144
+    prompt: 0.06
+  nace-ai/drex-max-finance:
+    canonical_slug: nace-ai/drex-max-finance-20261110
+    endpoints:
+    - /api/alpha/decisions
+    context_length: 262144
+    prompt: 0.06
+  nace-ai/drex-v1.5:
+    canonical_slug: nace-ai/drex-v1.5-20261009
+    endpoints:
+    - /api/alpha/decisions
+    context_length: 131072
+    prompt: 0.04
+  nace-ai/drex-v2.0:
+    canonical_slug: nace-ai/drex-v2.0-20261009
+    endpoints:
+    - /api/alpha/decisions
+    context_length: 131072
+    prompt: 0.06
+  openai/gpt-6-luna-decisions:
+    canonical_slug: openai/gpt-6-luna-decisions-20261006
+    endpoints:
+    - /api/alpha/decisions
+    context_length: 1050000
+    prompt: 0.1
+  parallel/decisions-fast:
+    canonical_slug: parallel/decisions-fast-20261106
+    endpoints:
+    - /api/alpha/decisions
+    context_length: 32000
+    prompt: 0.0
+  perplexity/pplx-decider-flash-v1.2:
+    canonical_slug: perplexity/pplx-decider-flash-v1.2-20261016
+    endpoints:
+    - /api/alpha/decisions
+    context_length: 262144
+    prompt: 0.01
+  perplexity/pplx-decider-flash-v1.3:free:
+    canonical_slug: perplexity/pplx-decider-flash-v1.3-20261112
+    endpoints:
+    - /api/alpha/decisions
+    - /api/alpha/extractions
+    context_length: 262144
+    prompt: 0.0
+  perplexity/pplx-decider-v1.2:
+    canonical_slug: perplexity/pplx-decider-v1.2-20261016
+    endpoints:
+    - /api/alpha/decisions
+    context_length: 262144
+    prompt: 0.02
+  perplexity/pplx-decider-v1.3:free:
+    canonical_slug: perplexity/pplx-decider-v1.3-20261112
+    endpoints:
+    - /api/alpha/decisions
+    - /api/alpha/extractions
+    context_length: 262144
+    prompt: 0.0
+  respan/span-01:
+    canonical_slug: respan/span-01-20260925
+    endpoints:
+    - /api/alpha/decisions
+    context_length: 0
+    prompt: 0.02
+  respan/span-01-lite:
+    canonical_slug: respan/span-01-lite-20260925
+    endpoints:
+    - /api/alpha/decisions
+    context_length: 0
+    prompt: 0.0
+  respan/span-01-lite:free:
+    canonical_slug: respan/span-01-lite-20260925
+    endpoints:
+    - /api/alpha/decisions
+    context_length: 0
+    prompt: 0.0
+  respan/span-02:
+    canonical_slug: respan/span-02-20261015
+    endpoints:
+    - /api/alpha/decisions
+    context_length: 131072
+    prompt: 0.01
+  scaledown/classify-1:
+    canonical_slug: scaledown/classify-1-20260928
+    endpoints:
+    - /api/alpha/decisions
+    context_length: 1000000
+    prompt: 0.04
+  togethercomputer/tev1-4b-experimental:
+    canonical_slug: togethercomputer/tev1-4b-experimental-20260923
+    endpoints:
+    - /api/alpha/decisions
+    context_length: 32768
+    prompt: 0.042
+  typesafe/jev-1.13:
+    canonical_slug: typesafe/jev-1.13-20260917
+    endpoints:
+    - /api/alpha/decisions
+    context_length: 262144
+    prompt: 0.042
+  typesafe/jev-1.14:
+    canonical_slug: typesafe/jev-1.14-20261014
+    endpoints:
+    - /api/alpha/decisions
+    context_length: 262144
+    prompt: 0.042
+  upstage/solar-decide:
+    canonical_slug: upstage/solar-decide-20260928
+    endpoints:
+    - /api/alpha/decisions
+    context_length: 524288
+    prompt: 0.05
+  upstage/solar-decide-flash:
+    canonical_slug: upstage/solar-decide-flash-20261008
+    endpoints:
+    - /api/alpha/decisions
+    context_length: 524288
+    prompt: 0.05

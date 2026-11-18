@@ -132,3 +132,12 @@ def test_parser_rejects_each_missing_required_argument(capsys):
 
 def test_generated_reference_is_current():
     assert surface.REFERENCE.read_text(encoding='utf-8') == surface.render(cli.build_parser())
+
+
+def test_the_shared_profile_flag_documents_itself():
+    """The root and every leaf copy of --profile carry help text (docs/cli-reference.md renders it)."""
+    parser = cli.build_parser()
+    for path in ((), ("health",), ("run", "status")):
+        node = _parser_at(parser, path)
+        (action,) = [a for a in node._actions if "--profile" in a.option_strings]
+        assert action.help and "SANDBOX_PROFILE" in action.help, path

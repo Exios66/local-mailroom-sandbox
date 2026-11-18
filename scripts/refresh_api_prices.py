@@ -23,6 +23,7 @@ from pathlib import Path
 
 import yaml
 
+from mailroom_sandbox.decision_backends import is_decisions_model
 from mailroom_sandbox.paths import repo_root
 
 CATALOG_URL = "https://openrouter.ai/api/v1/models"
@@ -62,8 +63,9 @@ def refresh(doc: dict, catalog: dict[str, dict], *, today: str) -> tuple[dict, l
     models = dict(doc.get("models") or {})
     for model_id, row in models.items():
         if model_id not in catalog:
-            # Decisions-API ids are not in the chat catalog: kept as written, never flagged.
-            if not model_id.endswith("-decisions") and not (row or {}).get("endpoint"):
+            # Decisions-API ids are not in the chat catalog: kept as written, never flagged. They are the ids of
+            # config/decision_models.yaml (not a name suffix) or rows that carry their own endpoint.
+            if not is_decisions_model(model_id) and not (row or {}).get("endpoint"):
                 changed.append(f"{model_id}: not in the OpenRouter catalog")
             continue
         new = {**(row or {}), **sheet_from_catalog(catalog[model_id])}

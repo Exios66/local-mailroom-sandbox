@@ -31,7 +31,7 @@ def test_shell_dispatch_and_nested_numeric_menu(monkeypatch, capsys):
     monkeypatch.setattr("builtins.input", lambda prompt: next(entries))
     real = cli.main
     seen = []
-    def dispatch(argv):
+    def dispatch(argv, injected=()):
         seen.append(argv)
         return real(argv) if "--help" in argv else 0
     monkeypatch.setattr(cli, "main", dispatch)
@@ -48,7 +48,7 @@ def test_shell_survives_parse_error_and_interrupt(monkeypatch, capsys):
     entries = iter(["run start --max-items 0", "profiles", "exit"])
     monkeypatch.setattr("builtins.input", lambda prompt: next(entries))
     real = cli.main
-    def dispatch(argv):
+    def dispatch(argv, injected=()):
         if argv == ["profiles"]:
             raise KeyboardInterrupt
         return real(argv)
