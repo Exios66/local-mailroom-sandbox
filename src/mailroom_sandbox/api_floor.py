@@ -14,6 +14,7 @@ review/arbiter hops without an entry) are absent from those paths, and the run's
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
@@ -127,10 +128,17 @@ def record_floor_run(
     dataset = [_dataset_row(by_id[str(d.get("id"))]) for d in report.get("documents") or []
                if str(d.get("id")) in by_id]
     mode = report.get("mode")
+    dataset_text = "".join(json.dumps(r, default=str, ensure_ascii=False) + "\n" for r in dataset)
+    lock_dataset = None
+    if report.get("dataset"):
+        # ``sha256`` is the hash of the rows saved here (after --class/--sample); the hash of the
+        # prepared draw stays beside it so neither is mistaken for the other.
+        lock_dataset = {**report["dataset"], "prepared_sha256": report["dataset"].get("sha256"),
+                        "sha256": hashlib.sha256(dataset_text.encode("utf-8")).hexdigest()}
     files = {
         "items.jsonl": "".join(json.dumps(i, default=str) + "\n" for i in items),
         "nodes.jsonl": "".join(json.dumps(n, default=str) + "\n" for n in nodes),
-        "dataset.jsonl": "".join(json.dumps(r, default=str, ensure_ascii=False) + "\n" for r in dataset),
+        "dataset.jsonl": dataset_text,
         "checkpoint.json": json.dumps({
             "state": "complete" if report.get("ok") else "failed",
             "cursor": len(items), "total": int(report.get("n_rows") or len(items))}),
@@ -140,7 +148,7 @@ def record_floor_run(
                        "node_source": "stage-audit"},
             "api_eval": {"run_tag": report.get("run_tag"), "api_url": report.get("api_url"),
                          "mode": mode, "error": report.get("error")},
-            **({"dataset": report["dataset"]} if report.get("dataset") else {}),
+            **({"dataset": lock_dataset} if lock_dataset else {}),
         }, indent=1, default=str),
     }
     # Write beside runs/ and rename into place, so a failed write never leaves a half run that

@@ -325,9 +325,15 @@ def run_api_eval(
     per_doc: list[dict[str, Any]] = []
     unconfirmed: str | None = None
     with tempfile.TemporaryDirectory(prefix="sandbox-api-eval-") as tmp:
-        for raw in rows:
+        used_names: set[str] = set()
+        for index, raw in enumerate(rows):
             row = _normalized_row(raw)
             local = _upload_ready(_materialize_row(row, Path(tmp)), row)
+            if local.name in used_names:
+                # ``filing.htm`` and ``filing.htm.txt`` both upload as ``filing.htm.txt``; the API
+                # answers by inbox name, so a repeat would overwrite the first row's pending entry.
+                local = local.rename(local.with_name(f"{index:04d}-{local.name}"))
+            used_names.add(local.name)
             try:
                 accepted = _upload_with_backoff(api, local, matter_id=matter_id,
                                                 filename=f"{tag}-{local.name}", sleep=sleep)
