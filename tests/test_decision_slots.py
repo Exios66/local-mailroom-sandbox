@@ -145,6 +145,24 @@ def test_an_old_vendored_mailroom_is_refused_at_preflight(monkeypatch):
     assert preflight._decision_slots_errors(_slotted(archive_gate={"mode": "baseline"})) == []
 
 
+@pytest.mark.parametrize("confidence", [
+    {"judge_complete_archives": False},
+    {"by_class": {"contract": {"arbiter_accept_archives": True}}},
+    {"judge_clears_low_confidence": True},
+])
+def test_archive_check_flags_need_a_vendor_that_reads_them(monkeypatch, confidence):
+    """An older vendored mailroom ignores the archive checks, so a run naming them is refused."""
+    from mailroom_sandbox.job import preflight
+
+    spec = _spec(confidence=confidence)
+    monkeypatch.setattr(preflight, "vendored_decision_slots", lambda: None)
+    errs = preflight._archive_check_errors(spec)
+    assert errs and "re-vendor llm-mailroom" in errs[0]
+    monkeypatch.setattr(preflight, "vendored_decision_slots", lambda: types.SimpleNamespace())
+    assert preflight._archive_check_errors(spec) == []
+    assert preflight._archive_check_errors(_spec(confidence={"judge_rejudge_retry": True})) == []
+
+
 def test_an_all_baseline_block_is_still_validated(monkeypatch):
     """A baseline block with a bad value fails preflight, not graph compilation."""
     from mailroom_sandbox.job import preflight

@@ -224,6 +224,30 @@ def _decision_slots_errors(spec: RunSpec) -> list[str]:
     return errs
 
 
+_ARCHIVE_CHECK_FLAGS = ("judge_complete_archives", "arbiter_accept_archives", "judge_clears_low_confidence")
+
+
+def _archive_check_errors(spec: RunSpec) -> list[str]:
+    """llm-mailroom's archive-check flags need a vendored mailroom that reads them.
+
+    They ship with the decision slots (llm-mailroom #309); an older vendor ignores them, so a
+    "checks on" arm and a "checks off" arm would run the same route while the lock says otherwise.
+    """
+    blocks = [("confidence", spec.confidence)]
+    blocks += [(f"confidence.by_class.{name}", b) for name, b in (spec.confidence.get("by_class") or {}).items()]
+    named = [f"{where}.{key}" for where, block in blocks for key in _ARCHIVE_CHECK_FLAGS if key in block]
+    if not named:
+        return []
+    try:
+        module = vendored_decision_slots()
+    except Exception:  # noqa: BLE001 - _decision_slots_errors reports a broken module
+        module = None
+    if module is not None:
+        return []
+    return [f"{', '.join(named)}: the vendored llm-mailroom has no archive checks and would ignore "
+            "this; re-vendor llm-mailroom at a commit that includes them"]
+
+
 def _decision_slots_lock(spec: RunSpec) -> dict[str, Any]:
     """The ``decision_slots`` block as locked: the slots verbatim, the resolver's question set frozen."""
     import hashlib
@@ -430,6 +454,7 @@ def _engine_errors(spec: RunSpec) -> list[str]:
         except (ValueError, ServiceError) as exc:
             errs.append(str(exc))
     errs.extend(_decision_slots_errors(spec))
+    errs.extend(_archive_check_errors(spec))
     if spec.reviewer:
         from mailroom_sandbox.overlay import live_doc_classes
 
