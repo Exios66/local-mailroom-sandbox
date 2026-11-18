@@ -2611,6 +2611,7 @@ def _cmd_api_eval(args: argparse.Namespace) -> int:
         # What was actually sent: the prepared draw may be filtered further here, and a
         # --sample prefix is not a stratified draw (use the YAML's limit/strata for that).
         dataset_meta["selected"] = {"rows": len(rows), "class": args.doc_class, "sample": args.sample,
+                                    "ids": [str(r.get("id")) for r in rows],
                                     "classes": sorted({str(r.get("expected_doc_class")) for r in rows})}
     if not rows:
         raise CLIUsageError("no fixture rows match the selection" if dataset_meta is None
@@ -2694,15 +2695,17 @@ def _api_eval_rows(dataset_config: str | None) -> tuple[list[dict[str, Any]], di
     on. The returned provenance (row count, file sha256, revision, overlay fingerprints)
     goes into the report so an API score is never mistaken for one on other ground truth.
     """
-    if not dataset_config:
+    if dataset_config is None:
         from mailroom_sandbox.datasets import load_manifest
 
         return load_manifest(), None
     import tempfile
 
-    from mailroom_sandbox.corpus import prepare_subset
+    from mailroom_sandbox.corpus import CorpusRefusal, prepare_subset
     from mailroom_sandbox.job.spec import DatasetSpec
 
+    if not dataset_config.strip():
+        raise CLIUsageError("--dataset-config is empty; omit it to score the bundled fixtures")
     path = Path(dataset_config)
     if not path.is_file():
         raise CLIUsageError(f"--dataset-config {dataset_config!r} is not a file")
@@ -2721,9 +2724,12 @@ def _api_eval_rows(dataset_config: str | None) -> tuple[list[dict[str, Any]], di
         dest = Path(tmp) / "dataset.jsonl"
         try:
             provenance = prepare_subset(spec, dest)
-        except (FileNotFoundError, ValueError) as exc:
+        except (FileNotFoundError, ValueError, CorpusRefusal) as exc:
             raise CLIUsageError(f"--dataset-config {dataset_config!r}: {exc}") from exc
         rows = [json.loads(line) for line in dest.read_text(encoding="utf-8").split("\n") if line.strip()]  # not splitlines(): U+2028 in text
+    for row in rows:
+        if not (row.get("doc_text") or row.get("text")):
+            raise CLIUsageError(f"--dataset-config {dataset_config!r}: row {row.get('id')!r} has no document text")
     return rows, {"config": str(path), **provenance}
 
 

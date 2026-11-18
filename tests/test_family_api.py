@@ -622,7 +622,7 @@ def test_eval_dataset_config_records_the_selection_after_filters(monkeypatch, tm
     assert cli.main(["api", "eval", "--dataset-config", str(spec), "--sample", "1"]) == 0
     ds = json.loads(capsys.readouterr().out)["dataset"]
     assert ds["rows"] == 2  # the prepared draw
-    assert ds["selected"] == {"rows": 1, "class": None, "sample": 1, "classes": ["contract"]}
+    assert ds["selected"] == {"rows": 1, "class": None, "sample": 1, "ids": ["DOC-0"], "classes": ["contract"]}
 
 
 def test_eval_dataset_config_keeps_unicode_line_separators_inside_a_row(monkeypatch, tmp_path, capsys):
@@ -639,3 +639,58 @@ def test_eval_dataset_config_keeps_unicode_line_separators_inside_a_row(monkeypa
     spec = _corpus_file(tmp_path, contract_text=text)
     assert cli.main(["api", "eval", "--dataset-config", str(spec), "--class", "contract", "--submit"]) == 0
     assert seen["rows"][0]["doc_text"] == text
+
+
+def test_eval_dataset_config_empty_value_is_not_the_fixture_default(capsys):
+    assert cli.main(["api", "eval", "--dataset-config", ""]) == 2
+    assert "empty" in capsys.readouterr().err
+
+
+def test_eval_dataset_config_refuses_a_row_without_text(tmp_path, capsys):
+    spec = _corpus_file(tmp_path, contract_text="")
+    assert cli.main(["api", "eval", "--dataset-config", str(spec)]) == 2
+    err = capsys.readouterr().err
+    assert "DOC-0" in err and "no document text" in err
+
+
+def test_eval_dataset_config_turns_a_hub_refusal_into_a_usage_error(monkeypatch, tmp_path, capsys):
+    from mailroom_sandbox import corpus
+
+    def refuse(spec, dest):
+        raise corpus.CorpusRefusal("no parquet shards for default / test at repo@rev")
+
+    monkeypatch.setattr(corpus, "prepare_subset", refuse)
+    spec = _corpus_file(tmp_path)
+    assert cli.main(["api", "eval", "--dataset-config", str(spec)]) == 2
+    assert "no parquet shards" in capsys.readouterr().err
+
+
+def test_eval_dataset_config_records_the_selected_ids(monkeypatch, tmp_path, capsys):
+    monkeypatch.setenv("MAILROOM_API_URL", "http://mailroom.test")
+    spec = _corpus_file(tmp_path)
+    assert cli.main(["api", "eval", "--dataset-config", str(spec), "--class", "contract"]) == 0
+    assert json.loads(capsys.readouterr().out)["dataset"]["selected"]["ids"] == ["DOC-0"]
+
+
+def test_upload_names_stay_unique_when_two_rows_normalize_to_one_name(tmp_path):
+    seen = []
+
+    class Api:
+        base_url = "http://mailroom.test"
+
+        def health(self):
+            return {}
+
+    def fake_upload(api, path, *, matter_id, filename, sleep):
+        seen.append(filename)
+        return {"file": filename, "upload_id": filename}
+
+    rows = [{"id": "a", "filename": "filing.htm", "doc_text": "one", "expected_doc_class": "contract"},
+            {"id": "b", "filename": "filing.htm.txt", "doc_text": "two", "expected_doc_class": "contract"}]
+    import pytest as _pytest
+
+    with _pytest.MonkeyPatch.context() as mp:
+        mp.setattr(family_api, "_upload_with_backoff", fake_upload)
+        family_api.run_api_eval(rows, Api(), run_tag="t", poll_seconds=0, doc_timeout=0.0,
+                                sleep=lambda s: None, clock=lambda: 0.0)
+    assert len(seen) == 2 and len(set(seen)) == 2

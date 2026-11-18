@@ -97,6 +97,12 @@ def _resolve_revision(repo: str, revision: str) -> str:
         )
     return resolved
 
+class CorpusRefusal(RuntimeError):
+    """The Hub revision cannot supply the requested rows (absent shard, unmatched config/split,
+    duplicate filenames): an expected refusal a CLI turns into a usage error. A failed revision
+    lookup stays a plain ``RuntimeError``."""
+
+
 GT_FIELD_LISTS = {
     "insurance_claim": [
         "claim_number", "policy_number", "insurer", "insured_party", "claim_type",
@@ -220,7 +226,7 @@ def load_hf_rows(spec: DatasetSpec) -> list[dict[str, Any]]:
             if spec.config in ("", "ground_truth"):
                 # The blind rows would be scored as unlabeled (expected_doc_class
                 # "") — a silent 0.0/unknown scorecard. Refuse instead (DMR-049).
-                raise RuntimeError(
+                raise CorpusRefusal(
                     f"ground_truth config is absent at {repo}@{resolved} for split "
                     f"{split!r} — refusing to prepare blind rows as labeled data"
                 )
@@ -228,7 +234,7 @@ def load_hf_rows(spec: DatasetSpec) -> list[dict[str, Any]]:
         else:
             cfg = read_config(spec.config, split)
             if cfg is None:
-                raise RuntimeError(
+                raise CorpusRefusal(
                     f"no parquet shards for {spec.config or 'default'} / {split} "
                     f"at {repo}@{resolved}"
                 )
@@ -236,7 +242,7 @@ def load_hf_rows(spec: DatasetSpec) -> list[dict[str, Any]]:
         for row in merged:
             fname = str(row.get("filename") or "")
             if fname in seen:
-                raise RuntimeError(
+                raise CorpusRefusal(
                     f"duplicate filename {fname!r} across splits at {repo}@{resolved}"
                 )
             seen.add(fname)
