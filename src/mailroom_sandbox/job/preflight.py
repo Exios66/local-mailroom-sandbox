@@ -164,6 +164,79 @@ def _extraction_gate_lock(spec: RunSpec) -> dict[str, Any]:
             "question_set": qset}
 
 
+def vendored_decision_slots() -> Any:
+    """The vendored llm-mailroom ``graph/decision_slots.py``, loaded by path, or ``None`` when absent.
+
+    Its top level imports only the standard library and structlog, so ``parse_slots`` runs
+    without the pipeline on ``sys.path``.
+    """
+    import importlib.util
+
+    from mailroom_sandbox.runtime import resolve_mailroom_src
+
+    src = resolve_mailroom_src()
+    path = src / "graph" / "decision_slots.py" if src is not None else None
+    if path is None or not path.is_file():
+        return None
+    spec = importlib.util.spec_from_file_location("_sandbox_vendored_decision_slots", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)  # type: ignore[union-attr]
+    return module
+
+
+def _decision_slots_errors(spec: RunSpec) -> list[str]:
+    """A non-baseline ``decision_slots`` block needs a vendored llm-mailroom that has the slots,
+    a block that llm-mailroom's own ``parse_slots`` accepts, and a loadable resolver set."""
+    slots = spec.decision_slots
+    if slots is None or slots.is_baseline():
+        return []
+    errs: list[str] = []
+    try:
+        module = vendored_decision_slots()
+    except Exception as exc:  # noqa: BLE001 - a broken vendored module is a preflight error
+        return [f"decision_slots: the vendored llm-mailroom graph/decision_slots.py does not load: {exc!r}"]
+    if module is None:
+        return ["decision_slots: the vendored llm-mailroom has no decision slots (graph/decision_slots.py); "
+                "re-vendor llm-mailroom at a commit that includes them"]
+    try:
+        module.parse_slots(slots.slots())
+    except ValueError as exc:
+        errs.append(str(exc))
+    if slots.resolver is not None:
+        from mailroom_sandbox.decision_backends import CLOSED_FIELD_RESOLVER, load_question_set
+        from mailroom_sandbox.runtime import resolve_mailroom_src
+
+        try:
+            if load_question_set(slots.resolver.questions).get("kind") != CLOSED_FIELD_RESOLVER:
+                errs.append(f"decision_slots.resolver.questions {slots.resolver.questions!r} is not a "
+                            "closed_field_resolver question set")
+        except ValueError as exc:
+            errs.append(f"decision_slots.resolver.questions: {exc}")
+        src = resolve_mailroom_src()
+        if src is None or not (src / "agents" / "closed_field_resolver.py").is_file():
+            errs.append("decision_slots.resolver: the vendored llm-mailroom has no agents.closed_field_resolver; "
+                        "re-vendor llm-mailroom")
+    decisions_calls = slots.resolver is not None or spec.extraction_gate is not None
+    if decisions_calls and not spec.job.mock and not os.environ.get("OPENROUTER_API_KEY", "").strip():
+        errs.append("decision_slots call Decisions-API models: set OPENROUTER_API_KEY")
+    return errs
+
+
+def _decision_slots_lock(spec: RunSpec) -> dict[str, Any]:
+    """The ``decision_slots`` block as locked: the slots verbatim, the resolver's question set frozen."""
+    import hashlib
+
+    from mailroom_sandbox.decision_backends import decisions_dir, load_question_set
+
+    block: dict[str, Any] = {"slots": spec.decision_slots.slots()}
+    resolver = spec.decision_slots.resolver
+    if resolver is not None:
+        path = decisions_dir() / f"{resolver.questions}.yaml"
+        block["resolver"] = {**resolver.model_dump(), "questions_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                             "question_set": load_question_set(resolver.questions)}
+    return block
+
+
 def _reviewer_lock(spec: RunSpec) -> dict[str, Any]:
     """The reviewer block as locked; a Decisions question set is frozen by content and hash."""
     block = spec.reviewer.model_dump()
@@ -354,6 +427,7 @@ def _engine_errors(spec: RunSpec) -> list[str]:
             validate(spec.agent_routes, credentials=not spec.job.mock)
         except (ValueError, ServiceError) as exc:
             errs.append(str(exc))
+    errs.extend(_decision_slots_errors(spec))
     if spec.reviewer:
         from mailroom_sandbox.overlay import live_doc_classes
 
@@ -1138,6 +1212,7 @@ def _preflight(
         **({"agent_routes": {name: route.model_dump() for name, route in spec.agent_routes.items()}} if spec.agent_routes else {}),
         **({"reviewer": _reviewer_lock(spec)} if spec.reviewer else {}),
         **({"extraction_gate": _extraction_gate_lock(spec)} if spec.extraction_gate else {}),
+        **({"decision_slots": _decision_slots_lock(spec)} if spec.decision_slots else {}),
         **({"confidence": spec.confidence} if spec.confidence else {}),
         "prompt": prompt_block,
         "engine": spec.engine.model_dump(),

@@ -65,6 +65,9 @@ def _estimated_gpu_usd(
 
 REVIEW_OUTCOME_FIELDS = ("review_causes", "review_verdict", "escalation_reason",
                         "reviewer_doc_type", "reviewer_confidence")
+# llm-mailroom decision_slots records (graph/decision_slots.py), exported per document so the
+# Dojo's analysis.risk_coverage.slot_decision_summary can score each slot.
+DECISION_SLOT_FIELDS = ("decision_slot_outcomes", "decision_slot_marks", "closed_field_resolutions", "judge_source")
 
 
 def _expect_from_row(row: dict[str, Any]) -> dict[str, Any]:
@@ -1447,6 +1450,8 @@ def _run_pipeline_doc(
         # Present only when a pipeline extraction gate is registered (advisory).
         **({"doc_subclass": result.get("doc_subclass"), "extraction_gate": result.get("extraction_gate")}
            if result.get("extraction_gate") is not None else {}),
+        # Present only when a decision slot ran (llm-mailroom decision_slots, scored per slot).
+        **{key: result.get(key) for key in DECISION_SLOT_FIELDS if result.get(key) is not None},
         "error": result.get("error") or result.get("errors"),
         # The agent exception the graph failed soft on (the run-level engine guard reads it).
         "error_message": result.get("error_message"),

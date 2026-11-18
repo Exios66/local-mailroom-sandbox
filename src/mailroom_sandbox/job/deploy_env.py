@@ -181,7 +181,7 @@ def lock_uses_openrouter(lock: Mapping) -> bool:
         return True
     if (lock.get("reviewer") or {}).get("backend") in _OPENROUTER_REVIEWERS:
         return True
-    return bool(lock.get("extraction_gate"))
+    return bool(lock.get("extraction_gate")) or bool((lock.get("decision_slots") or {}).get("resolver"))
 
 
 # The deploy Secret's key, kept out of the environment between inputs. A warm Modal

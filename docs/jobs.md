@@ -130,6 +130,27 @@ reviewer:                   # optional decision reviewer (SAND-085); see docs/ex
   model: openai/gpt-6-luna  # pinned: jev-X.Y.Z, the in-house model, or an OpenRouter id
   classes: {contract: 0.90, correspondence: 0.90}   # class -> cutoff in [0, 1]
 
+extraction_gate:            # optional pipeline extraction gate (task: pipeline; Decisions-API model)
+  model: openai/gpt-6-luna-decisions
+  questions: extraction_gate_v1.3.0
+
+decision_slots:             # optional llm-mailroom decision slots (task: pipeline). Every key but
+                            # `resolver` is written verbatim to the runtime taxonomy's
+                            # decision_slots: block and validated by the vendored mailroom at
+                            # preflight (an older vendor without graph/decision_slots.py refuses a
+                            # non-baseline block: re-vendor). archive_gate, judge_replacement and
+                            # arbiter_veto need the extraction_gate block; reference:
+                            # vendor/llm-mailroom/docs/pipeline-reference-llm-mailroom/decision-slots.md
+  archive_gate: {mode: enforce, park_cap: 0.10}
+  closed_field_resolver: {mode: resolve, min_probability: 0.9, release_cap: 0.03}
+  resolver:                 # needed when closed_field_resolver is not baseline; question set
+    model: openai/gpt-6-luna-decisions   # frozen by content in the lock
+    questions: closed_field_resolver_v1.0.0
+                            # Each document exports decision_slot_outcomes / _marks,
+                            # closed_field_resolutions and judge_source; `sandbox run gate`
+                            # adds a decision_slots section (Dojo analysis.risk_coverage:
+                            # per-slot rates and the gate key_field_score risk-coverage curve).
+
 confidence:                 # optional run-scoped routing thresholds, merged over the
                             # vendored + overlay `confidence` block. Locked; hashed
                             # only when set. Calibrate per model: self-reported

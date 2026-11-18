@@ -42,6 +42,8 @@ class Activation:
 
 _ACTIVE: Activation | None = None
 _ACTIVE_REVIEWER: dict[str, Any] | None = None
+# The decision_slots block of the last activation (None: the vendored default).
+_ACTIVE_SLOTS: dict[str, Any] | None = None
 _ACTIVE_BLIND_ROUTING = False
 _ACTIVE_PIPELINE_HANDOFF = False
 _LOCKED_RUNTIME: ContextVar[dict[str, Any] | None] = ContextVar("sandbox_locked_runtime", default=None)
@@ -292,6 +294,68 @@ def _register_extraction_gate(gate: Any) -> None:
     register_extraction_gate(gate)
 
 
+def _slots_block(decision_slots: Any) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    """``(llm-mailroom decision_slots block, locked resolver block)`` from a spec or a lock entry."""
+    if decision_slots is None:
+        return None, None
+    if hasattr(decision_slots, "slots"):  # a DecisionSlotsSpec (unlocked caller)
+        resolver = decision_slots.resolver
+        return decision_slots.slots(), (resolver.model_dump() if resolver is not None else None)
+    block = dict(decision_slots)
+    return deepcopy(block.get("slots") or {}), deepcopy(block.get("resolver"))
+
+
+def _closed_field_resolver_backend(resolver: Any, *, mock: bool = False) -> Any:
+    """The resolver callable for a locked ``decision_slots.resolver`` block (frozen question set), or None."""
+    if not resolver:
+        return None
+    from mailroom_sandbox.decision_backends import (
+        closed_field_resolver_backend,
+        load_question_set,
+        mock_closed_field_resolver_backend,
+    )
+
+    qset = resolver.get("question_set")
+    if mock:
+        return mock_closed_field_resolver_backend(str(resolver.get("model") or ""), qset or {})
+    if not qset:
+        if _LOCKED_RUNTIME.get() is not None:
+            raise ValueError("decision_slots.resolver needs its frozen question set; re-run sandbox run preflight")
+        qset = load_question_set(str(resolver["questions"]))
+    return closed_field_resolver_backend(str(resolver["model"]), qset)
+
+
+def _register_closed_field_resolver(resolver: Any) -> None:
+    """Replace the process-wide closed-field resolver (None clears it)."""
+    try:
+        from agents.closed_field_resolver import register_closed_field_resolver
+    except ImportError:
+        if resolver is not None:
+            raise RuntimeError("the vendored llm-mailroom has no closed-field resolver hook "
+                               "(agents.closed_field_resolver); re-vendor llm-mailroom at a commit that includes it") from None
+        return
+    register_closed_field_resolver(resolver)
+
+
+def _restart_decision_slots(slots: dict[str, Any] | None) -> None:
+    """A new slot block: drop the compiled graph (its wrappers and rules) and start a fresh cap ledger."""
+    global _ACTIVE_SLOTS
+    if slots == _ACTIVE_SLOTS:
+        return
+    _ACTIVE_SLOTS = deepcopy(slots)
+    try:
+        from graph.decision_slots import reset_ledger
+    except ImportError:
+        if slots:
+            raise RuntimeError("the vendored llm-mailroom has no decision slots (graph.decision_slots); "
+                               "re-vendor llm-mailroom at a commit that includes them") from None
+        return
+    reset_ledger()
+    from graph.build_graph import reset_compiled_graph
+
+    reset_compiled_graph()
+
+
 def _register_reviewer(backend: Any) -> None:
     """Replace the process-wide decision backend (None clears it)."""
     try:
@@ -316,6 +380,7 @@ def activate(
     reviewer: Any = None,
     extraction_gate: Any = None,
     confidence: dict | None = None,
+    decision_slots: Any = None,
 ) -> Activation:
     """Load overlay, write runtime taxonomy, patch mailroom, set env.
 
@@ -330,6 +395,10 @@ def activate(
 
     ``extraction_gate`` (a locked block with its frozen question set) registers the
     advisory pipeline extraction gate with llm-mailroom; without it any earlier gate is cleared.
+    ``decision_slots`` (a ``DecisionSlotsSpec`` or its locked block) becomes the runtime
+    taxonomy's ``decision_slots:`` and registers the closed-field resolver; a changed block
+    drops the compiled graph and starts a fresh cap ledger. Without it the vendored block
+    (every slot baseline) stands and any earlier resolver is cleared.
     ``reviewer`` (a ``ReviewerSpec`` or its dict form) selects the decision-model
     reviewer: its classes become ``decision_only`` in the runtime taxonomy and
     its backend is registered with the graph. There is no deactivate step, so
@@ -358,6 +427,7 @@ def activate(
         agent_routes = deepcopy(lock.get("agent_routes") or {})
         reviewer = deepcopy(lock.get("reviewer"))
         extraction_gate = deepcopy(lock.get("extraction_gate"))
+        decision_slots = deepcopy(lock.get("decision_slots"))
         # The block preflight froze (vendored + overlay + run), when present: an overlay edited
         # after preflight must not change a locked run's routing, and the routing audit reports
         # this same block. Older locks only carry the run's own overrides.
@@ -420,6 +490,9 @@ def activate(
         # Run-scoped routing thresholds (locked); they win over vendored + overlay values.
         extra_overlay={"confidence": deepcopy(confidence)} if confidence else None,
     )
+    slot_block, resolver_block = _slots_block(decision_slots)
+    if slot_block is not None:
+        taxonomy["decision_slots"] = deepcopy(slot_block)
     if frozen_confidence:
         # Replace, not merge: a key a later overlay added (a class-level judge_rejudge_retry)
         # must not reach a run whose frozen block never had it.
@@ -438,6 +511,8 @@ def activate(
     _register_reviewer(reviewer_backend)
     # Always replaced, so a gate from an earlier activation never carries over.
     _register_extraction_gate(_extraction_gate_backend(extraction_gate, mock=gate_mock))
+    _register_closed_field_resolver(_closed_field_resolver_backend(resolver_block, mock=gate_mock))
+    _restart_decision_slots(slot_block)
 
     # SAND-018: the vendored LangChain agents hardcode timeout=120 (drift-
     # guarded). Apply the taxonomy's run_limits pin so a long L4 generation does

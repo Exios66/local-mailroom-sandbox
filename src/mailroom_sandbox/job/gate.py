@@ -397,7 +397,12 @@ def gate_report(run_dir: Path, bars: Bars, *, traces_dir: Path | None = None, ar
     if judge_errors:
         reasons.append(f"{judge_errors} judge_error document(s)")
     reasons += trail["reasons"] if trail else []
+    from mailroom_sandbox.job.gate_slots import decision_slot_report
+
+    slots = decision_slot_report(docs, statuses, max_wrong_archive_rate=bars.wrong_archive_max)
     return {
+        # Present only when the run used llm-mailroom decision slots (job/gate_slots.py).
+        **({"decision_slots": slots} if slots is not None else {}),
         "run_id": run_dir.name, "n": len(statuses), "bars": {**asdict(bars), "gated": list(bars.gated)},
         "classes": classes,
         "pooled": {"review_rate": review_rate, "wrong_archive_rate": wrong_rate,
