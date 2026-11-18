@@ -1,6 +1,7 @@
 """llm-mailroom decision slots in a sandbox run: spec, resolver backend, lock, activation, spend and scoring."""
 from __future__ import annotations
 
+import json
 import sys
 import types
 
@@ -89,9 +90,11 @@ def test_decide_closed_field_reads_the_pick_and_counts_usage(monkeypatch):
     ])
     monkeypatch.setattr(db, "_post_decision", lambda body, **kw: sent.append(body) or next(answers))
     monkeypatch.setattr(db, "_record_usage", lambda model, u, agent: usage.append(agent))
-    out = db.decide_closed_field("Card 4111 1111 1111 1111 complaint", HANDOFF, model=RESOLVER["model"], qset=qset)
+    card = {**HANDOFF, "value": "4111 1111 1111 1111"}
+    out = db.decide_closed_field("Card 4111 1111 1111 1111 complaint", card, model=RESOLVER["model"], qset=qset)
     assert (out["value"], out["probability"]) == ("complaint", 0.93)
-    assert "4111" not in sent[0]["state"]["document"]  # card numbers are masked before sending
+    # Card numbers are masked in the document, the handoff and the question text quoting the value.
+    assert "4111" not in json.dumps(sent[0])
     assert sent[0]["state"]["closed_field_handoff"]["allowed"] == ["complaint", "inquiry"]
     out = db.decide_closed_field("text", HANDOFF, model=RESOLVER["model"], qset=qset)
     assert out["value"] is None and out["probability"] == 0.8
@@ -140,6 +143,18 @@ def test_an_old_vendored_mailroom_is_refused_at_preflight(monkeypatch):
     errs = preflight._decision_slots_errors(_slotted(archive_gate={"mode": "enforce"}))
     assert errs and "re-vendor llm-mailroom" in errs[0]
     assert preflight._decision_slots_errors(_slotted(archive_gate={"mode": "baseline"})) == []
+
+
+def test_an_all_baseline_block_is_still_validated(monkeypatch):
+    """A baseline block with a bad value fails preflight, not graph compilation."""
+    from mailroom_sandbox.job import preflight
+
+    def parse_slots(raw):
+        raise ValueError("decision_slots.cap_warmup must be a positive integer, got 0")
+
+    monkeypatch.setattr(preflight, "vendored_decision_slots", lambda: types.SimpleNamespace(parse_slots=parse_slots))
+    errs = preflight._decision_slots_errors(_slotted(cap_warmup=0, archive_gate={"mode": "baseline"}))
+    assert errs and "cap_warmup" in errs[0]
 
 
 def test_preflight_uses_the_vendored_parser(monkeypatch):
@@ -204,8 +219,8 @@ def test_slots_block_reads_a_spec_and_a_lock():
     assert runtime._slots_block(None) == (None, None)
 
 
-def test_a_new_block_drops_the_compiled_graph_and_the_ledger(monkeypatch):
-    """A changed slot block rebuilds the graph and starts a fresh cap ledger; the same block does nothing."""
+def test_every_run_gets_a_fresh_ledger_and_a_new_block_a_new_graph(monkeypatch):
+    """Caps are per run: every activation resets the ledger; only a changed block rebuilds the graph."""
     from mailroom_sandbox import runtime
 
     calls = []
@@ -217,13 +232,15 @@ def test_a_new_block_drops_the_compiled_graph_and_the_ledger(monkeypatch):
     monkeypatch.setitem(sys.modules, "graph.build_graph", build_mod)
     monkeypatch.setattr(runtime, "_ACTIVE_SLOTS", None)
     runtime._restart_decision_slots({"archive_gate": {"mode": "enforce"}})
-    runtime._restart_decision_slots({"archive_gate": {"mode": "enforce"}})
-    assert calls == ["ledger", "graph"]
+    runtime._restart_decision_slots({"archive_gate": {"mode": "enforce"}})  # a second run, same block
+    assert calls == ["ledger", "graph", "ledger"]
     runtime._restart_decision_slots(None)
-    assert calls == ["ledger", "graph", "ledger", "graph"]
+    assert calls == ["ledger", "graph", "ledger", "ledger", "graph"]
     monkeypatch.setitem(sys.modules, "graph.decision_slots", None)
-    with pytest.raises(RuntimeError, match="re-vendor llm-mailroom"):
-        runtime._restart_decision_slots({"arbiter_veto": {"mode": "enforce"}})
+    block = {"arbiter_veto": {"mode": "enforce"}}
+    for _ in range(2):  # a failed activation never turns a retry with the same block into a no-op
+        with pytest.raises(RuntimeError, match="re-vendor llm-mailroom"):
+            runtime._restart_decision_slots(block)
 
 
 # ---------------------------------------------------------------------------
@@ -274,6 +291,7 @@ def test_scoring_reads_slot_outcomes_and_the_gate_score():
     ]
     docs, statuses = [p[0] for p in pairs], [p[1] for p in pairs]
     out = decision_slot_report(docs, statuses, max_wrong_archive_rate=0.0)
+    out["gate_operating_point"] = out["gate_operating_point"]["upper95"]
     gate = out["summary"]["slots"]["archive_gate"]
     assert gate["n_seen"] == 3 and gate["actions"] == {"agree": 1, "capped": 1, "park": 1}
     assert out["summary"]["pipeline"]["wrong_archive_rate"] == 0.5
@@ -295,8 +313,9 @@ def test_scoring_hands_the_dojo_one_record_per_document(monkeypatch):
     pairs = [_doc("archived", "wrong_archive", marks=["seen:archive_gate"], gate_score=0.3),
              _doc("review", "review", marks=["seen:archive_gate"]),
              _doc("archived", "unscorable_archive", marks=["seen:archive_gate"])]
+    fake.operating_point = lambda curve, max_wrong_archive_rate, use_upper=True: (use_upper, max_wrong_archive_rate)
     out = decision_slot_report([p[0] for p in pairs], [p[1] for p in pairs], max_wrong_archive_rate=0.02)
-    assert out["available"] and out["gate_operating_point"] == ("point", 0.02)
+    assert out["available"] and out["gate_operating_point"] == {"observed": (False, 0.02), "upper95": (True, 0.02)}
     assert [(r["final_stage"], r["wrong_archive"]) for r in seen["records"]] == [
         ("archived", True), ("review", None), ("archived", None)]
     assert [(r["score"], r["wrong"]) for r in seen["rows"]] == [(0.3, True), (None, None)]
@@ -320,3 +339,48 @@ def test_runs_export_the_slot_fields():
 
     assert DECISION_SLOT_FIELDS == ("decision_slot_outcomes", "decision_slot_marks", "closed_field_resolutions",
                                     "judge_source")
+
+
+def test_the_gate_report_scores_the_gated_classes_aligned(tmp_path, monkeypatch):
+    """The slice gate passes each gated document with its own status; ungated classes stay out."""
+    from mailroom_sandbox.job import gate, gate_slots
+    from mailroom_sandbox.job.gate import Bars
+
+    monkeypatch.setattr(gate, "_score", lambda row, pred: pred.get("_score"))
+    run = tmp_path / "slice"
+    run.mkdir()
+    labels = {"insurance_claim": {"claim_number": "C-1", "policy_number": "P-9"},
+              "correspondence": {"sender": "A. Smith", "recipient": "B. Jones"},
+              "merger_agreement": {"parties": "A"}}
+    docs = [("c1", "insurance_claim", 0.95, "agree"), ("k1", "correspondence", 0.2, "capped"),
+            ("m1", "merger_agreement", 0.95, "park")]
+    with open(run / "dataset.jsonl", "w") as ds, open(run / "items.jsonl", "w") as it:
+        for doc_id, cls, score, action in docs:
+            ds.write(json.dumps({"id": doc_id, "expected_doc_class": cls,
+                                 "expected_fields": json.dumps(labels[cls])}) + "\n")
+            pred = {"stage": "archived", "extracted_data": {}, "_score": score,
+                    "decision_slot_marks": ["seen:archive_gate"],
+                    "decision_slot_outcomes": {"archive_gate": {"action": action}}}
+            it.write(json.dumps({"item_id": doc_id, "ok": True, "pred": pred}) + "\n")
+    seen = {}
+    monkeypatch.setattr(gate_slots, "decision_slot_report",
+                        lambda d, s, **kw: seen.update(pairs=[(x["item"]["pred"]["decision_slot_outcomes"]
+                                                               ["archive_gate"]["action"], y["outcome"])
+                                                              for x, y in zip(d, s)]) or {"available": True})
+    bars = Bars(gated=("insurance_claim", "correspondence"), min_labelled=1)
+    report = gate.gate_report(run, bars, audit=False)
+    assert report["decision_slots"] == {"available": True}
+    assert seen["pairs"] == [("agree", "correct_archive"), ("capped", "wrong_archive")]
+
+
+def test_a_mock_override_of_a_live_decisions_lock_is_refused():
+    """Activation registers live Decisions models from a non-mock lock, so mock=True must not bypass the budget."""
+    from mailroom_sandbox.job import runner
+
+    lock = {"task": "pipeline", "job": {"mock": False}, "extraction_gate": {"model": GATE["model"]}}
+    store = types.SimpleNamespace(read_lock=lambda: lock, verify_generation=lambda: None)
+    with pytest.raises(ValueError, match="mock override would still call them"):
+        runner.run_job(store, task="pipeline", model="m", profile="openrouter", mock=True)
+    runner._refuse_mock_override(store, False)  # the lock's own live run is fine
+    lock["job"]["mock"] = True
+    runner._refuse_mock_override(store, True)  # a mock lock registers only offline stubs

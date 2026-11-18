@@ -338,22 +338,24 @@ def _register_closed_field_resolver(resolver: Any) -> None:
 
 
 def _restart_decision_slots(slots: dict[str, Any] | None) -> None:
-    """A new slot block: drop the compiled graph (its wrappers and rules) and start a fresh cap ledger."""
+    """Start a fresh cap ledger on every activation (caps are per run); on a changed slot
+    block also drop the compiled graph, whose wrappers and rules were built from the old one."""
     global _ACTIVE_SLOTS
-    if slots == _ACTIVE_SLOTS:
-        return
-    _ACTIVE_SLOTS = deepcopy(slots)
     try:
         from graph.decision_slots import reset_ledger
     except ImportError:
         if slots:
             raise RuntimeError("the vendored llm-mailroom has no decision slots (graph.decision_slots); "
                                "re-vendor llm-mailroom at a commit that includes them") from None
+        _ACTIVE_SLOTS = deepcopy(slots)
         return
     reset_ledger()
-    from graph.build_graph import reset_compiled_graph
+    if slots != _ACTIVE_SLOTS:
+        from graph.build_graph import reset_compiled_graph
 
-    reset_compiled_graph()
+        reset_compiled_graph()
+    # Only after success: a failed activation must not make a retry with the same block a no-op.
+    _ACTIVE_SLOTS = deepcopy(slots)
 
 
 def _register_reviewer(backend: Any) -> None:

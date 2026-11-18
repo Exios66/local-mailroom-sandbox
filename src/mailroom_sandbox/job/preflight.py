@@ -188,7 +188,7 @@ def _decision_slots_errors(spec: RunSpec) -> list[str]:
     """A non-baseline ``decision_slots`` block needs a vendored llm-mailroom that has the slots,
     a block that llm-mailroom's own ``parse_slots`` accepts, and a loadable resolver set."""
     slots = spec.decision_slots
-    if slots is None or slots.is_baseline():
+    if slots is None:
         return []
     errs: list[str] = []
     try:
@@ -196,8 +196,10 @@ def _decision_slots_errors(spec: RunSpec) -> list[str]:
     except Exception as exc:  # noqa: BLE001 - a broken vendored module is a preflight error
         return [f"decision_slots: the vendored llm-mailroom graph/decision_slots.py does not load: {exc!r}"]
     if module is None:
-        return ["decision_slots: the vendored llm-mailroom has no decision slots (graph/decision_slots.py); "
-                "re-vendor llm-mailroom at a commit that includes them"]
+        # An all-baseline block changes nothing, so an older vendor may run it.
+        return [] if slots.is_baseline() else [
+            "decision_slots: the vendored llm-mailroom has no decision slots (graph/decision_slots.py); "
+            "re-vendor llm-mailroom at a commit that includes them"]
     try:
         module.parse_slots(slots.slots())
     except ValueError as exc:

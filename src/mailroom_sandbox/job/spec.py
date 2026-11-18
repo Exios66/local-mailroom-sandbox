@@ -824,7 +824,7 @@ class ClosedFieldResolverSpec(BaseModel):
 # names only catch a typo before anything is loaded.
 DECISION_SLOT_NAMES = ("sorter_reviewer", "archive_gate", "judge_replacement", "arbiter_veto",
                        "closed_field_resolver", "field_review")
-_DECISION_SLOT_SHARED = ("gate_support_min", "cap_warmup")
+_DECISION_SLOT_SHARED = ("gate_support_min", "cap_warmup", "gate_key_fields")
 # Slots that read the pipeline extraction gate's field_support.
 GATE_SLOTS = ("archive_gate", "judge_replacement", "arbiter_veto")
 

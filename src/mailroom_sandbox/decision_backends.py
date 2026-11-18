@@ -470,10 +470,10 @@ def decide_closed_field(doc_text: str, handoff: Mapping[str, Any], *, model: str
         raise ValueError(f"{model!r} is not a Decisions-API model")
     limit = int(qset.get("max_input_chars") or DECISIONS_MAX_INPUT_CHARS)
     text = mask_card_numbers((doc_text or "")[:limit])
+    masked = _mask_card_values(dict(handoff))  # the value is quoted in the question text too
     body = {"model": model,
-            "state": {"document": text if text.strip() else "(empty document)",
-                      "closed_field_handoff": _mask_card_values(dict(handoff))},
-            "questions": resolver_question(qset, handoff)}
+            "state": {"document": text if text.strip() else "(empty document)", "closed_field_handoff": masked},
+            "questions": resolver_question(qset, masked)}
     data = _post_decision(body, timeout=max(timeout, 60.0 + len(text) / 4_000), attempts=attempts)
     usage = data.get("usage") or {}
     _record_usage(model, usage, agent=CLOSED_FIELD_RESOLVER)
@@ -587,8 +587,8 @@ def decide_extraction(doc_text: str, handoff: Mapping[str, Any], *, model: str, 
         "accept_probability": probs.get("accept"),
         "human_review_probability": sum(v for k, v in probs.items() if k in human) if probs else None,
         "field_support": fields,
-        # The key fields asked: llm-mailroom's decision slots count an asked field with no
-        # answer as unsupported, and release nothing without this list.
+        # The key fields asked, kept as evidence (llm-mailroom's decision slots judge coverage
+        # from their own taxonomy gate_key_fields, never from this list).
         "fields_asked": (asked := [k.removeprefix("field__") for k in questions if k.startswith("field__")]),
         "key_field_score": key_field_score(fields, asked),
         "confidence": probs.get("accept"),

@@ -5,9 +5,11 @@ A run with decision slots exports, per document, ``decision_slot_outcomes`` and
 turns the slice gate's per-document outcomes into the Dojo's per-slot summary (park,
 release, capped and unavailable rates beside the pipeline's review and wrong-archive
 rates) and a risk-coverage curve of the extraction gate's ``key_field_score`` over the
-scorable archives: what review rate a further cutoff on that score would cost and what
-wrong-archive rate it would leave. Parked documents are not on the curve: whether
-archiving them would have been wrong is not scored.
+scorable archives: what share of those archives a further cutoff on that score would send
+to review (the curve's ``review_rate``, NOT the run's) and what wrong-archive rate it would
+leave. Parked documents are not on the curve: whether archiving them would have been wrong
+is not scored. The caller passes the gated classes only, so the summary's pipeline rates
+match the gate's pooled block; crashed documents are neither archived nor reviewed.
 
 The scoring lives in llm-dojo-scoring (``analysis.risk_coverage``); a Dojo snapshot
 without it gives ``available: False`` and the reason, never an error.
@@ -76,5 +78,9 @@ def decision_slot_report(docs: Sequence[Mapping[str, Any]], statuses: Sequence[M
     out: dict[str, Any] = {"available": True, "summary": slot_decision_summary(slot_records(docs, statuses)),
                            "gate_risk_coverage": curve}
     if max_wrong_archive_rate is not None:
-        out["gate_operating_point"] = operating_point(curve, max_wrong_archive_rate=max_wrong_archive_rate)
+        # The slice gate compares the observed rate with its bar; the Wilson point is the stricter read.
+        out["gate_operating_point"] = {
+            "observed": operating_point(curve, max_wrong_archive_rate=max_wrong_archive_rate, use_upper=False),
+            "upper95": operating_point(curve, max_wrong_archive_rate=max_wrong_archive_rate),
+        }
     return out

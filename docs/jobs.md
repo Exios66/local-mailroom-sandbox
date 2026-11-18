@@ -139,8 +139,12 @@ decision_slots:             # optional llm-mailroom decision slots (task: pipeli
                             # decision_slots: block and validated by the vendored mailroom at
                             # preflight (an older vendor without graph/decision_slots.py refuses a
                             # non-baseline block: re-vendor). archive_gate, judge_replacement and
-                            # arbiter_veto need the extraction_gate block; reference:
-                            # vendor/llm-mailroom/docs/pipeline-reference-llm-mailroom/decision-slots.md
+                            # arbiter_veto need the extraction_gate block; reference: llm-mailroom
+                            # docs/pipeline-reference-llm-mailroom/decision-slots.md. Caps count
+                            # per process from a fresh ledger each run: a resume restarts them,
+                            # and with job.concurrency > 1 which documents hit a cap depends on
+                            # thread order. Mock runs never exercise the gate slots (the mock gate
+                            # answers no field_support, so they record `unavailable`).
   archive_gate: {mode: enforce, park_cap: 0.10}
   closed_field_resolver: {mode: resolve, min_probability: 0.9, release_cap: 0.03}
   resolver:                 # needed when closed_field_resolver is not baseline; question set
