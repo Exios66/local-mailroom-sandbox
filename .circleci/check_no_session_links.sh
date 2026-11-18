@@ -37,23 +37,28 @@ else
 fi
 
 # Pull request description: it becomes the squash-merge body.
-pr_url="${CIRCLE_PULL_REQUEST:-}"
-if [ -n "$pr_url" ]; then
-  api="https://api.github.com/repos/${pr_url#https://github.com/}"
-  api="${api/\/pull\//\/pulls\/}"
+# CircleCI exposes every PR that contains the build in CIRCLE_PULL_REQUESTS (comma separated);
+# CIRCLE_PULL_REQUEST names only one of them. Check them all.
+prs="${CIRCLE_PULL_REQUESTS:-${CIRCLE_PULL_REQUEST:-}}"
+if [ -n "$prs" ]; then
   auth=()
   [ -n "${GITHUB_TOKEN:-}" ] && auth=(-H "Authorization: Bearer $GITHUB_TOKEN")
-  if body=$(curl -fsSL "${auth[@]}" -H "Accept: application/vnd.github+json" "$api" \
-      | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("title") or ""); print(d.get("body") or "")'); then
-    if printf '%s\n' "$body" | grep -Ei "$PATTERN" >/dev/null; then
-      echo "error: the pull request title or description carries a claude.ai link or a Claude Code footer. Edit it, then re-run this job." >&2
-      status=1
+  IFS=',' read -ra pr_list <<< "$prs"
+  for pr_url in "${pr_list[@]}"; do
+    api="https://api.github.com/repos/${pr_url#https://github.com/}"
+    api="${api/\/pull\//\/pulls\/}"
+    if body=$(curl -fsSL "${auth[@]}" -H "Accept: application/vnd.github+json" "$api" \
+        | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("title") or ""); print(d.get("body") or "")'); then
+      if printf '%s\n' "$body" | grep -Ei "$PATTERN" >/dev/null; then
+        echo "error: the title or description of $pr_url carries a claude.ai link or a Claude Code footer. Edit it, then re-run this job." >&2
+        status=1
+      else
+        echo "ok: no session links or footers in the description of $pr_url"
+      fi
     else
-      echo "ok: no session links or footers in the pull request description"
+      echo "warning: could not read $pr_url from the GitHub API; description not checked" >&2
     fi
-  else
-    echo "warning: could not read $pr_url from the GitHub API; description not checked" >&2
-  fi
+  done
 else
   echo "note: no pull request for this build yet; description not checked"
 fi
