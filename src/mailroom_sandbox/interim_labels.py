@@ -552,18 +552,25 @@ def verify(root: Path | None = None, *, reviews: bool = True) -> list[str]:
     extra = sorted(p.name for p in root.glob("*.jsonl") if p.name not in (man.get("files") or {}))
     problems += [f"{name}: not in the manifest" for name in extra]
     if reviews and not problems:
-        overlay = None
-        for entry in man.get("reviews") or []:
-            path = repo_root() / entry["path"]
-            if not path.exists():
-                problems.append(f"{entry['path']}: review file listed in the manifest but missing")
-                continue
-            if _sha(path.read_text(encoding="utf-8")) != entry.get("sha256"):
-                problems.append(f"{entry['path']}: changed since it was applied; run scripts/interim_labels.py review")
-                continue
-            lines, bad = read_reviews(path)
-            overlay = load_overlay(root) if overlay is None else overlay
-            problems += bad + reviews_reflected(overlay, lines)
+        problems += _review_file_problems(root, man.get("reviews") or [])
+    return problems
+
+
+def _review_file_problems(root: Path, entries: Iterable[Mapping[str, Any]]) -> list[str]:
+    """Each listed review file unchanged since it was applied, and every one of its lines in the overlay."""
+    problems: list[str] = []
+    overlay = None
+    for entry in entries:
+        path = repo_root() / entry["path"]
+        if not path.exists():
+            problems.append(f"{entry['path']}: review file listed in the manifest but missing")
+            continue
+        if _sha(path.read_text(encoding="utf-8")) != entry.get("sha256"):
+            problems.append(f"{entry['path']}: changed since it was applied; run scripts/interim_labels.py review")
+            continue
+        lines, bad = read_reviews(path)
+        overlay = load_overlay(root) if overlay is None else overlay
+        problems += bad + reviews_reflected(overlay, lines)
     return problems
 
 

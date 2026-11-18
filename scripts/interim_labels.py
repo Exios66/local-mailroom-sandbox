@@ -120,7 +120,6 @@ def build(run_ids: list[str], root: Path, reviews: list[Path] | None = None) -> 
             if doc not in best or (key, order) >= best[doc][:2]:
                 best[doc] = (key, order, run, d)
     by_class: dict[str, list[dict[str, Any]]] = collections.defaultdict(list)
-    counts: dict[str, dict[str, collections.Counter]] = collections.defaultdict(lambda: collections.defaultdict(collections.Counter))
     # Precision proxy of the admission rule: on fields the Hub DOES label, how often a value the
     # gate accepts at >= SUPPORT_MIN is right by the dojo (the same rule admits the gap fills).
     proxy: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
@@ -134,8 +133,6 @@ def build(run_ids: list[str], root: Path, reviews: list[Path] | None = None) -> 
                 proxy[cls]["n"] += 1
                 proxy[cls]["right"] += int(bool(ok))
         labels = il.labels_for(row, d["fields"], gate, d["truth"])
-        for field, lab in labels.items():
-            counts[cls][field][lab["status"]] += 1
         if not labels:
             continue
         by_class[cls].append({
@@ -146,19 +143,7 @@ def build(run_ids: list[str], root: Path, reviews: list[Path] | None = None) -> 
                        "verdict": gate.get("verdict"), "accept_probability": gate.get("accept_probability")},
         })
     # Reviewed labels (a committed review file) outrank the gate's: re-apply them on every build.
-    review_entries = []
-    for path in reviews or []:
-        lines, problems = il.read_reviews(path)
-        records = {r["doc_id"]: r for recs in by_class.values() for r in recs}
-        new = [doc for doc in {line["doc_id"] for line in lines} if doc not in records]
-        _, bad = il.apply_reviews(records, lines, _rel(path))
-        if problems or bad:
-            raise SystemExit("build refused: the review file does not apply:\n  " + "\n  ".join(problems + bad))
-        for doc in sorted(new):
-            by_class[records[doc]["doc_class"]].append(records[doc])
-        for cls, recs in by_class.items():
-            recs.sort(key=lambda r: r["doc_id"])
-        review_entries.append(_review_entry(path, lines))
+    review_entries = _apply_review_files(by_class, reviews or [])
     counts = _label_counts(by_class)
     root.mkdir(parents=True, exist_ok=True)
     files = {}
@@ -192,6 +177,24 @@ def build(run_ids: list[str], root: Path, reviews: list[Path] | None = None) -> 
         manifest["reviews"] = review_entries
     _replace(root / "MANIFEST.json", json.dumps(manifest, indent=2, sort_keys=False) + "\n")
     return manifest
+
+
+def _apply_review_files(by_class: dict[str, list[dict[str, Any]]], paths: list[Path]) -> list[dict[str, Any]]:
+    """Apply review files to freshly built records (``by_class`` changed in place); the manifest entries."""
+    entries = []
+    for path in paths:
+        lines, problems = il.read_reviews(path)
+        records = {r["doc_id"]: r for recs in by_class.values() for r in recs}
+        new = [doc for doc in {line["doc_id"] for line in lines} if doc not in records]
+        _, bad = il.apply_reviews(records, lines, _rel(path))
+        if problems or bad:
+            raise SystemExit("build refused: the review file does not apply:\n  " + "\n  ".join(problems + bad))
+        for doc in sorted(new):
+            by_class[records[doc]["doc_class"]].append(records[doc])
+        for recs in by_class.values():
+            recs.sort(key=lambda r: r["doc_id"])
+        entries.append(_review_entry(path, lines))
+    return entries
 
 
 def _rel(path: Path) -> str:
@@ -377,6 +380,49 @@ def apply_parquet(root: Path, source: Path, out: Path) -> int:
     return 0
 
 
+def _superseded_split(rows: list[dict[str, Any]], overlay: dict[str, dict[str, Any]]
+                      ) -> tuple[list[tuple[str, str]], list[str]]:
+    """The superseded (doc, field) labels prune may drop, and the reviewed ones it keeps.
+
+    A reviewed label belongs to its review file: prune never drops it (check would then fail on
+    the unapplied review line). The Hub wins over it anyway, and a record whose text changed is
+    skipped by its hash, so it is reported and kept.
+    """
+    gone, reviewed = [], []
+    for doc, field in il.superseded(rows, overlay):
+        labels = overlay[doc]["labels"]
+        if field != "*" and "review" in labels[field]:
+            reviewed.append(f"{doc}.{field}")
+        elif field == "*" and any("review" in lab for lab in labels.values()):
+            reviewed.append(f"{doc} (text changed)")
+            gone += [(doc, f) for f, lab in labels.items() if "review" not in lab]
+        else:
+            gone.append((doc, field))
+    return gone, reviewed
+
+
+def _prune(root: Path, man: dict[str, Any], gone: list[tuple[str, str]]) -> None:
+    """Drop the ``gone`` labels (``*``: the whole record) and rewrite the files and the manifest."""
+    drop = collections.defaultdict(set)
+    for doc, field in gone:
+        drop[doc].add(field)
+    for name in list(man.get("files") or {}):
+        recs = []
+        for rec in il._jsonl(root / name):
+            fields = drop.get(rec["doc_id"], set())
+            if "*" in fields:
+                continue
+            rec["labels"] = {f: v for f, v in rec["labels"].items() if f not in fields}
+            if rec["labels"]:
+                recs.append(rec)
+        text = "".join(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n" for r in recs)
+        _replace(root / name, text)
+        man["files"][name] = il._sha(text)
+    man["counts"] = _counts(root, man["files"])
+    man["pruned_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    _replace(root / "MANIFEST.json", json.dumps(man, indent=2) + "\n")
+
+
 def check(root: Path, rows_path: Path | None, prune: bool) -> int:
     integrity = il.verify(root)
     problems = list(integrity)
@@ -388,21 +434,7 @@ def check(root: Path, rows_path: Path | None, prune: bool) -> int:
     problems += stale
     if rows_path:
         rows = _read_rows(rows_path)
-        overlay = il.load_overlay(root)
-        gone, reviewed = [], []
-        for doc, field in il.superseded(rows, overlay):
-            labels = overlay[doc]["labels"]
-            # A reviewed label belongs to its review file: prune never drops it (check would then
-            # fail on the unapplied review line). The Hub wins over it anyway, and a record whose
-            # text changed is skipped by its hash, so it is reported and kept.
-            if field != "*" and "review" in labels[field]:
-                reviewed.append(f"{doc}.{field}")
-                continue
-            if field == "*" and any("review" in lab for lab in labels.values()):
-                reviewed.append(f"{doc} (text changed)")
-                gone += [(doc, f) for f, lab in labels.items() if "review" not in lab]
-                continue
-            gone.append((doc, field))
+        gone, reviewed = _superseded_split(rows, il.load_overlay(root))
         for note in reviewed:
             print(f"note: {note}: a reviewed label the Hub rows supersede is kept; drop its review line to retire it")
         for doc, field in gone:
@@ -411,24 +443,7 @@ def check(root: Path, rows_path: Path | None, prune: bool) -> int:
             # Rewriting would re-hash files that already fail verification and hide the mismatch.
             print("prune refused: the overlay fails its integrity check; rebuild with scripts/interim_labels.py build")
         elif prune and gone:
-            drop = collections.defaultdict(set)
-            for doc, field in gone:
-                drop[doc].add(field)
-            for name in list(man.get("files") or {}):
-                recs = []
-                for rec in il._jsonl(root / name):
-                    fields = drop.get(rec["doc_id"], set())
-                    if "*" in fields:
-                        continue
-                    rec["labels"] = {f: v for f, v in rec["labels"].items() if f not in fields}
-                    if rec["labels"]:
-                        recs.append(rec)
-                text = "".join(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n" for r in recs)
-                _replace(root / name, text)
-                man["files"][name] = il._sha(text)
-            man["counts"] = _counts(root, man["files"])
-            man["pruned_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-            _replace(root / "MANIFEST.json", json.dumps(man, indent=2) + "\n")
+            _prune(root, man, gone)
             print(f"pruned {len(gone)} superseded labels")
             # The superseded labels are gone; integrity and staleness problems still fail the check.
             problems = [p for p in problems if "superseded by the Hub rows" not in p]
