@@ -116,7 +116,7 @@ then the near-gold overlay (`interim_labels` / `near_gold_labels` on the run's
 `dataset.jsonl` rows). A document is counted under the lowest tier that filled
 any of its fields, so an extraction score that used a near-gold label is shown
 as `near_gold`, never as a Hub-GT score. Rows from the repository's own
-fixture manifest (`dataset: sandbox-fixtures`, used by `sandbox api eval`) are
+fixture manifest (`dataset: sandbox-fixtures`, used by `sandbox api eval` without `--dataset-config`) are
 hand-written test labels and show as `fixture`, not `hub`. `class only` means the row labels the
 class but no fields; `no GT row` means the run has no dataset row for it.
 
@@ -135,9 +135,11 @@ sandbox floor api-mock --base /tmp/floor-base
 ```
 
 `--floor-run [ID]` (default id: the eval's run tag) writes
-`<base>/runtime/runs/<ID>/` with `items.jsonl`, `dataset.jsonl` (fixture rows
-without document text), `checkpoint.json`, `spec.lock.json`
-(`engine.kind: api-eval-mock` or `api-eval`) and `nodes.jsonl`. The API has no
+`<base>/runtime/runs/<ID>/` with `items.jsonl`, `dataset.jsonl` (the eval's rows
+without document text: fixtures, or corpus rows with their hub / interim / near-gold
+tiers under `--dataset-config`), `checkpoint.json`, `spec.lock.json`
+(`engine.kind: api-eval-mock` or `api-eval`, plus the `dataset` provenance under
+`--dataset-config`) and `nodes.jsonl`. The API has no
 per-node trace, so each document's path is rebuilt from its stage audit
 (`GET /audit/{doc_id}`): nodes that write no audit entry, such as
 `compile_report` and `catalog_write`, are missing from those paths. An

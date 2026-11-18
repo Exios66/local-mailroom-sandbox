@@ -13,6 +13,7 @@ import sys
 import time
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -735,7 +736,11 @@ def build_parser() -> argparse.ArgumentParser:
     fe = fam_sub.add_parser("eval", parents=[leaf],
                             help="upload fixture documents to the API, wait for results, score them with the Dojo "
                                  "(plans only unless --submit)")
-    fe.add_argument("--sample", type=int, default=None, help="first N fixture rows (after --class)")
+    fe.add_argument("--sample", type=int, default=None, help="first N rows (after --class)")
+    fe.add_argument("--dataset-config", default=None, metavar="YAML",
+                    help="score corpus documents instead of the bundled fixtures: a YAML file holding a "
+                         "`dataset:` block (a run spec works as is) or the dataset mapping itself; the draw, "
+                         "content-hash check and interim / near-gold overlays are the same as a run's")
     fe.add_argument("--class", dest="doc_class", default=None, help="only rows whose expected class is this")
     fe.add_argument("--matter-id", default=None, help="matter id the uploads are filed under")
     fe.add_argument("--timeout", type=float, default=None,
@@ -2609,17 +2614,23 @@ def _cmd_api_status(args: argparse.Namespace) -> int:
 
 def _cmd_api_eval(args: argparse.Namespace) -> int:
     from mailroom_sandbox import family_api
-    from mailroom_sandbox.datasets import load_manifest
 
-    rows = load_manifest()
+    rows, dataset_meta = _api_eval_rows(args.dataset_config)
     if args.doc_class:
         rows = [r for r in rows if (r.get("expected_doc_class") or r.get("doc_type")) == args.doc_class]
     if args.sample is not None:
         if args.sample <= 0:
             raise CLIUsageError("--sample must be positive")
         rows = rows[: args.sample]
+    if dataset_meta is not None:
+        # What was actually sent: the prepared draw may be filtered further here, and a
+        # --sample prefix is not a stratified draw (use the YAML's limit/strata for that).
+        dataset_meta["selected"] = {"rows": len(rows), "class": args.doc_class, "sample": args.sample,
+                                    "ids": [str(r.get("id")) for r in rows],
+                                    "classes": sorted({str(r.get("expected_doc_class")) for r in rows})}
     if not rows:
-        raise CLIUsageError("no fixture rows match the selection")
+        raise CLIUsageError("no fixture rows match the selection" if dataset_meta is None
+                            else "no dataset rows match the selection")
     if args.poll is not None and not (math.isfinite(args.poll) and args.poll > 0):
         raise CLIUsageError("--poll must be a positive number")
     if args.timeout is not None and not (math.isfinite(args.timeout) and args.timeout >= 0):
@@ -2642,6 +2653,8 @@ def _cmd_api_eval(args: argparse.Namespace) -> int:
 
     if not args.mock and not args.submit:
         plan = family_api.plan_api_eval(rows, base_url=family_api.MailroomAPI().base_url)
+        if dataset_meta is not None:
+            plan["dataset"] = dataset_meta
         _write_json_out(args.out, plan)
         _print(plan)
         return 0
@@ -2654,6 +2667,8 @@ def _cmd_api_eval(args: argparse.Namespace) -> int:
         kwargs["poll_seconds"] = args.poll
 
     def _record(api: family_api.MailroomAPI) -> None:
+        if dataset_meta is not None:
+            report["dataset"] = dataset_meta  # before the floor copy, so its spec.lock carries it
         if floor_base is None:
             return
         from mailroom_sandbox import api_floor
@@ -2683,6 +2698,54 @@ def _cmd_api_eval(args: argparse.Namespace) -> int:
     _write_json_out(args.out, report)
     _print(report)
     return 0 if report["ok"] else 1
+
+
+def _api_eval_rows(dataset_config: str | None) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+    """Rows for ``sandbox api eval``: the bundled fixtures, or a prepared corpus draw.
+
+    With ``--dataset-config`` the YAML's ``dataset:`` block (or the whole file, when it is
+    the mapping itself) is validated as a :class:`DatasetSpec` and prepared exactly as a run
+    prepares it (``corpus.prepare_subset``): the pinned revision, the seeded draw, the
+    ``content_sha256`` check, and the interim / near-gold overlays when the spec turns them
+    on. The returned provenance (row count, file sha256, revision, overlay fingerprints)
+    goes into the report so an API score is never mistaken for one on other ground truth.
+    """
+    if dataset_config is None:
+        from mailroom_sandbox.datasets import load_manifest
+
+        return load_manifest(), None
+    import tempfile
+
+    from mailroom_sandbox.corpus import CorpusRefusal, prepare_subset
+    from mailroom_sandbox.job.spec import DatasetSpec
+
+    if not dataset_config.strip():
+        raise CLIUsageError("--dataset-config is empty; omit it to score the bundled fixtures")
+    path = Path(dataset_config)
+    if not path.is_file():
+        raise CLIUsageError(f"--dataset-config {dataset_config!r} is not a file")
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError as exc:
+        raise CLIUsageError(f"--dataset-config {dataset_config!r} is not valid YAML: {exc}") from exc
+    block = data.get("dataset", data) if isinstance(data, dict) else None
+    if not isinstance(block, dict) or not block:  # an empty mapping would silently draw the whole Hub corpus
+        raise CLIUsageError(f"--dataset-config {dataset_config!r} holds no dataset mapping")
+    try:
+        spec = DatasetSpec.model_validate(block)
+    except ValueError as exc:
+        raise CLIUsageError(f"--dataset-config {dataset_config!r}: {exc}") from exc
+    with tempfile.TemporaryDirectory(prefix="sandbox-api-eval-data-") as tmp:
+        dest = Path(tmp) / "dataset.jsonl"
+        try:
+            provenance = prepare_subset(spec, dest)
+        except (FileNotFoundError, ValueError, CorpusRefusal) as exc:
+            raise CLIUsageError(f"--dataset-config {dataset_config!r}: {exc}") from exc
+        rows = [json.loads(line) for line in dest.read_text(encoding="utf-8").split("\n") if line.strip()]  # not splitlines(): U+2028 in text
+    for row in rows:
+        if not (row.get("doc_text") or row.get("text")):
+            raise CLIUsageError(f"--dataset-config {dataset_config!r}: row {row.get('id')!r} has no document text")
+    return rows, {"config": str(path), **provenance}
 
 
 def _write_json_out(path: str | None, payload: object) -> None:

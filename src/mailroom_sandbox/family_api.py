@@ -242,6 +242,26 @@ def _normalized_row(row: Mapping[str, Any]) -> dict[str, Any]:
     return out
 
 
+#: Text suffixes the mailroom API's ``/upload`` accepts by default (``file_extensions``).
+_UPLOAD_TEXT_SUFFIXES = frozenset({".txt", ".md"})
+
+
+def _upload_ready(path: Path, row: Mapping[str, Any]) -> Path:
+    """Give an inline-text row a suffix the API accepts.
+
+    Corpus rows carry the extracted text inline under their source name (``x.htm``,
+    ``y.html``, ``.eml``, ``.json``, ``.csv``); the in-process runner reads those as text,
+    but the API's upload allow list refuses every one of them (HTTP 400), which stopped
+    the eval at the first such document.
+    The bytes are already plain text, so they are uploaded as ``.txt``.
+    """
+    if (row.get("doc_text") or row.get("text")) and path.suffix.lower() not in _UPLOAD_TEXT_SUFFIXES:
+        renamed = path.with_name(path.name + ".txt")
+        path.rename(renamed)
+        return renamed
+    return path
+
+
 def _upload_with_backoff(api: MailroomAPI, path: Path, *, matter_id: str, filename: str,
                          sleep: Callable[[float], None]) -> dict[str, Any]:
     for attempt in range(RATE_LIMIT_RETRIES + 1):
@@ -305,9 +325,15 @@ def run_api_eval(
     per_doc: list[dict[str, Any]] = []
     unconfirmed: str | None = None
     with tempfile.TemporaryDirectory(prefix="sandbox-api-eval-") as tmp:
-        for raw in rows:
+        used_names: set[str] = set()
+        for index, raw in enumerate(rows):
             row = _normalized_row(raw)
-            local = _materialize_row(row, Path(tmp))
+            local = _upload_ready(_materialize_row(row, Path(tmp)), row)
+            if local.name in used_names:
+                # ``filing.htm`` and ``filing.htm.txt`` both upload as ``filing.htm.txt``; the API
+                # answers by inbox name, so a repeat would overwrite the first row's pending entry.
+                local = local.rename(local.with_name(f"{index:04d}-{local.name}"))
+            used_names.add(local.name)
             try:
                 accepted = _upload_with_backoff(api, local, matter_id=matter_id,
                                                 filename=f"{tag}-{local.name}", sleep=sleep)

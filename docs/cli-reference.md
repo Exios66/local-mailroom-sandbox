@@ -759,7 +759,8 @@ Run documents through the full 13-node graph and score class, stage, extraction 
 | `--model` | No | Override every agent's model tag |
 | `--prompt` | No | Local prompt variant stem (e.g. sorter_local_v0) |
 | `--agent-model` | No | Surgical per-agent model override (repeatable) |
-| `--sample` | No | first N fixture rows (after --class) |
+| `--sample` | No | first N rows (after --class) |
+| `--dataset-config` | No | score corpus documents instead of the bundled fixtures: a YAML file holding a `dataset:` block (a run spec works as is) or the dataset mapping itself; the draw, content-hash check and interim / near-gold overlays are the same as a run's |
 | `--class` | No | only rows whose expected class is this |
 | `--matter-id` | No | matter id the uploads are filed under |
 | `--timeout` | No | seconds to wait for the documents after the last upload (default 600) |
