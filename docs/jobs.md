@@ -163,9 +163,15 @@ confidence:                 # optional run-scoped routing thresholds, merged ove
                             # from `sandbox run routing`.
   arbiter_retry_max: 1      # global keys: high, low, judge_band_high (<= 1.01),
   judge_max_passes: 2       #   retry_max, arbiter_retry_max, judge_max_passes,
-                            #   judge_rejudge_retry (true/false only)
+                            #   and the true/false flags judge_rejudge_retry,
+                            #   judge_complete_archives, arbiter_accept_archives,
+                            #   judge_clears_low_confidence
   judge_rejudge_retry: false  # llm-mailroom #241, ships false: true re-judges a retry
                             # whose earlier attempt was judged, while judge passes remain
+  judge_complete_archives: false  # llm-mailroom archive checks, ship false (checks on): true lets a
+                            # judge `complete` (and an unjudged retry it doubted) archive as before;
+                            # arbiter_accept_archives does the same for accept_with_caveats.
+                            # judge_check / boss_check / arbiter_veto matter only where these are true.
   by_class:
     contract: {high: 0.95}  # live doc classes only; unknown classes fail preflight
     corporate_record: {judge_rejudge_retry: true}   # per-class override (E2 treatment arm)

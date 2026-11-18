@@ -890,8 +890,11 @@ _THRESHOLD_COUNT = ("retry_max", "arbiter_retry_max", "judge_max_passes")
 # Routing flags. judge_rejudge_retry (llm-mailroom #241, ships false): a retry whose
 # earlier attempt was judged goes back to judge_verify while judge passes remain.
 # Upstream reads it by truthiness, so only a real boolean is accepted here: a quoted
-# "false" would otherwise switch it on.
-_THRESHOLD_FLAG = ("judge_rejudge_retry",)
+# "false" would otherwise switch it on. The archive checks (llm-mailroom #309, all ship
+# false, which keeps the checks on): judge_complete_archives, arbiter_accept_archives and
+# judge_clears_low_confidence; true restores the old route, e.g. for a baseline arm.
+_THRESHOLD_FLAG = ("judge_rejudge_retry", "judge_complete_archives", "arbiter_accept_archives",
+                   "judge_clears_low_confidence")
 
 
 def _threshold_error(key: str, v: Any) -> str | None:
