@@ -168,7 +168,8 @@ confidence:                 # optional run-scoped routing thresholds, merged ove
                             #   judge_clears_low_confidence
   judge_rejudge_retry: false  # llm-mailroom #241, ships false: true re-judges a retry
                             # whose earlier attempt was judged, while judge passes remain
-  judge_complete_archives: false  # llm-mailroom archive checks, ship false (checks on): true lets a
+  judge_complete_archives: false  # llm-mailroom #309 archive checks (need the vendor refresh: the
+                            # current vendored mailroom ignores them); false keeps the checks on, true lets a
                             # judge `complete` (and an unjudged retry it doubted) archive as before;
                             # arbiter_accept_archives does the same for accept_with_caveats.
                             # judge_check / boss_check / arbiter_veto matter only where these are true.
