@@ -622,3 +622,38 @@ def test_review_keeps_earlier_files_and_refuses_a_label_reviewed_twice(tmp_path,
     by_class = {"correspondence": [json.loads(line) for line in (root / "correspondence.jsonl").read_text().splitlines()]}
     with pytest.raises(SystemExit, match="also reviewed in"):
         mod._apply_review_files(by_class, [review, clash])
+
+
+def test_review_retires_a_label_whose_line_was_removed(tmp_path, monkeypatch, capsys):
+    root, mod, review = _review_overlay(tmp_path, monkeypatch)
+    gate_record = il.load_overlay(root)["E1"]  # the record as the gate build left it
+    assert mod.review(root, [review]) == 0
+    assert il.load_overlay(root)["E1"]["labels"].keys() == {"intent", "sender"}
+    # Drop the intent line: the next review takes its label out, so the Hub intent applies again.
+    review.write_text(json.dumps(_header_line()) + "\n", encoding="utf-8")
+    capsys.readouterr()
+    assert mod.review(root, [review]) == 0
+    assert "E1.intent: retired" in capsys.readouterr().out
+    assert il.load_overlay(root)["E1"]["labels"].keys() == {"sender"}
+    assert il.load_manifest(root)["counts"]["correspondence"] == {"sender": {"gap_fill": 1}}
+    assert il.verify(root) == []
+    # A later prune or check finds nothing left to keep, and a rebuild does not bring it back.
+    by_class = {"correspondence": [json.loads(json.dumps(gate_record))]}
+    mod._apply_review_files(by_class, [review])
+    assert by_class["correspondence"][0]["labels"].keys() == {"sender"}
+    # A record the review created goes when its last reviewed label is retired.
+    other = _header_line(doc_id="E9")
+    review.write_text(json.dumps(_header_line()) + "\n" + json.dumps(other) + "\n", encoding="utf-8")
+    assert mod.review(root, [review]) == 0 and "E9" in il.load_overlay(root)
+    review.write_text(json.dumps(_header_line()) + "\n", encoding="utf-8")
+    assert mod.review(root, [review]) == 0 and "E9" not in il.load_overlay(root)
+    assert il.verify(root) == []
+
+
+def test_retire_reviews_notes_the_label_a_retired_review_had_replaced():
+    gate = {"value": "Ann", "status": "gap_fill", "basis": "gate_accepted_grounded", "support": 0.97}
+    records = {"E1": {"doc_id": "E1", "labels": {"sender": il.review_label(_header_line(), "r.jsonl", gate)},
+                      "source": {"gate_run": "g"}}}
+    notes = il.retire_reviews(records, [])
+    assert notes == ["E1.sender: retired (no review line makes it); it had replaced a gap_fill label, which build restores"]
+    assert records["E1"]["labels"] == {}  # a gate record stays, even when empty

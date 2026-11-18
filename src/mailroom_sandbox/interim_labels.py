@@ -480,6 +480,27 @@ def apply_reviews(records: dict[str, dict[str, Any]], lines: Iterable[Mapping[st
     return changed, problems
 
 
+def retire_reviews(records: dict[str, dict[str, Any]], lines: Iterable[Mapping[str, Any]]) -> list[str]:
+    """Drop the reviewed labels that no line of the review set makes any more (``records`` changed in place).
+
+    A label whose review line was removed is retired: it leaves the overlay, so the Hub value (or
+    near-gold) applies again. A record the review created that is left with no labels goes too.
+    Returns one note per retired label; a label it had replaced comes back only with a rebuild.
+    """
+    keep = {(line["doc_id"], line["field"]) for line in lines}
+    notes = []
+    for doc in sorted(records):
+        rec = records[doc]
+        for field in sorted(f for f, lab in rec["labels"].items() if "review" in lab and (doc, f) not in keep):
+            lab = rec["labels"].pop(field)
+            was = lab.get("replaced")
+            notes.append(f"{doc}.{field}: retired (no review line makes it)"
+                         + (f"; it had replaced a {was.get('status')} label, which build restores" if was else ""))
+        if not rec["labels"] and "review" in (rec.get("source") or {}):
+            del records[doc]
+    return notes
+
+
 def reviews_reflected(overlay: Mapping[str, Mapping[str, Any]], lines: Iterable[Mapping[str, Any]]) -> list[str]:
     """Review lines whose label is missing from, or differs in, the overlay."""
     out = []

@@ -276,7 +276,9 @@ def review(root: Path, paths: list[Path]) -> int:
     seen = {p.resolve() for p in paths}
     paths = [p for p in listed if p.resolve() not in seen] + list(paths)
     read, problems = _read_review_set(paths)
-    entries, changed = [], 0
+    # A label whose review line was removed leaves the overlay (a rebuild would not make it either).
+    retired = il.retire_reviews(records, [line for _, lines in read for line in lines]) if not problems else []
+    entries, changed = [], len(retired)
     for path, lines in read:
         n, bad = il.apply_reviews(records, lines, _rel(path))
         problems += bad
@@ -297,6 +299,10 @@ def review(root: Path, paths: list[Path]) -> int:
     if unknown:  # a review never creates a class file: the build owns which classes exist
         print(f"review refused: no overlay file for {', '.join(unknown)}")
         return 1
+    for name in sorted(set(names) - set(texts)):  # a class whose every record was retired keeps its file
+        texts[name] = ""
+    for note in retired:
+        print(f"  {note}")
     for name, text in texts.items():
         man["files"][name] = il._sha(text)
     man["counts"] = _label_counts(by_class)
@@ -463,7 +469,7 @@ def check(root: Path, rows_path: Path | None, prune: bool) -> int:
         rows = _read_rows(rows_path)
         gone, reviewed = _superseded_split(rows, il.load_overlay(root))
         for note in reviewed:
-            print(f"note: {note}: a reviewed label the Hub rows supersede is kept; drop its review line to retire it")
+            print(f"note: {note}: a reviewed label the Hub rows supersede is kept; drop its review line and run review to retire it")
         for doc, field in gone:
             problems.append(f"{doc}.{field}: superseded by the Hub rows ({'text changed' if field == '*' else 'now labelled'})")
         if prune and gone and integrity:
