@@ -42,7 +42,9 @@ dataset:
   interim_labels: true
 ```
 
-The run then merges the truth labels into its locked rows' `expected_fields`; Hub labels always win. It records the overlay's sha256 in both the spec hash and the lock (`dataset.metadata.interim_labels`).
+The run then merges the truth labels into its locked rows' `expected_fields`; Hub labels always win, except that a `correction` replaces the Hub value it names. It records the overlay's sha256 in both the spec hash and the lock (`dataset.metadata.interim_labels`).
+
+`apply_overlay` also takes a Hub `ground_truth` parquet row as it is. It matches the row on `document_id`, and on `content_sha256` when the row has no `doc_text`, then writes the labels back into `gt_fields`. `interim_labels.apply_overlay_parquet` (or `scripts/interim_labels.py apply`) does the same for a whole shard. The output keeps the shard's columns and types and adds an `interim_labels` column, which holds JSON `{"fields", "overlay_sha256"}` on rows that took labels and null on the rest. `check --prune` never drops a reviewed label: it reports one the Hub supersedes, and keeps it.
 
 ## Updates
 
@@ -52,7 +54,8 @@ python scripts/interim_labels.py build                            # rebuild from
 python scripts/interim_labels.py check                            # integrity + staleness
 python scripts/interim_labels.py review                           # apply the listed review files again
 python scripts/interim_labels.py review --apply <file.jsonl>      # apply a new review file
-python scripts/interim_labels.py check --rows <hub rows.jsonl> --prune   # after a Hub revision
+python scripts/interim_labels.py check --rows <hub rows.jsonl | ground_truth.parquet> --prune   # after a Hub revision
+python scripts/interim_labels.py apply --parquet <ground_truth.parquet> --out <overlaid.parquet>
 ```
 
 Rules and evidence: `docs/EXTRACTION_GATE_VETTING.md`.

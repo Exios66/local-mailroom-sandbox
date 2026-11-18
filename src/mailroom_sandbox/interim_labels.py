@@ -96,9 +96,37 @@ def doc_sha(doc_text: str | None) -> str:
     return _sha(doc_text or "")[:16]
 
 
+#: Where a row keeps its field labels: the prepared row shape, then the Hub ``ground_truth`` column.
+_LABEL_KEYS = ("expected_fields", "gt_fields")
+_HEX64 = re.compile(r"[0-9a-f]{64}")
+
+
+def _labels_key(row: Mapping[str, Any]) -> str:
+    return next((k for k in _LABEL_KEYS if k in row), _LABEL_KEYS[0])
+
+
 def _expected(row: Mapping[str, Any]) -> dict[str, Any]:
-    raw = row.get("expected_fields") or {}
-    return json.loads(raw) if isinstance(raw, str) else dict(raw)
+    raw = row.get(_labels_key(row)) or {}
+    if isinstance(raw, str):
+        return json.loads(raw) if raw.strip() else {}
+    return dict(raw)
+
+
+def row_id(row: Mapping[str, Any]) -> str:
+    """The document id of a prepared row (``id``) or of a Hub parquet row (``document_id``)."""
+    return str(row.get("id") or row.get("document_id") or "")
+
+
+def row_doc_sha(row: Mapping[str, Any]) -> str:
+    """The text hash of a row, comparable with a record's ``doc_sha256``.
+
+    The document text when the row carries it. A Hub ``ground_truth`` row has no text, so its
+    ``content_sha256`` (the sha256 of that same text, which ``doc_sha`` shortens) stands in.
+    """
+    if row.get("doc_text") is not None:
+        return doc_sha(row.get("doc_text"))
+    content = str(row.get("content_sha256") or "")
+    return content[:16] if _HEX64.fullmatch(content) else doc_sha(None)
 
 
 def _presence(exp: Mapping[str, Any]) -> dict[str, str]:
@@ -544,10 +572,10 @@ def superseded(rows: Iterable[Mapping[str, Any]], overlay: Mapping[str, Mapping[
     overlay = load_overlay() if overlay is None else overlay
     out: list[tuple[str, str]] = []
     for row in rows:
-        rec = overlay.get(str(row.get("id")))
+        rec = overlay.get(row_id(row))
         if not rec:
             continue
-        if rec.get("doc_sha256") != doc_sha(row.get("doc_text")):
+        if rec.get("doc_sha256") != row_doc_sha(row):
             out.append((rec["doc_id"], "*"))
             continue
         exp = _expected(row)
@@ -556,14 +584,17 @@ def superseded(rows: Iterable[Mapping[str, Any]], overlay: Mapping[str, Mapping[
 
 
 def apply_overlay(row: Mapping[str, Any], overlay: Mapping[str, Mapping[str, Any]], *, overlay_sha: str) -> dict[str, Any]:
-    """The row with its truth labels merged into ``expected_fields`` (Hub labels win).
+    """The row with its truth labels merged into its field labels (Hub labels win).
 
-    A gap fill never overrides a Hub label; a correction replaces the Hub value it names. A
-    document whose text no longer matches the label's ``doc_sha256`` is left untouched.
+    ``row`` is a prepared row (``id``, ``doc_text``, ``expected_fields``) or a Hub parquet row
+    (``document_id``, ``gt_fields``, and ``content_sha256`` or ``doc_text``); the labels are
+    written back to the same key, as a JSON string when they were one. A gap fill never
+    overrides a Hub label; a correction replaces the Hub value it names. A document whose text
+    no longer matches the label's ``doc_sha256`` is left untouched.
     """
     out = dict(row)
-    rec = overlay.get(str(row.get("id")))
-    if not rec or rec.get("doc_sha256") != doc_sha(row.get("doc_text")):
+    rec = overlay.get(row_id(row))
+    if not rec or rec.get("doc_sha256") != row_doc_sha(row):
         return out
     exp = _expected(row)
     pres = _presence(exp)
@@ -583,9 +614,49 @@ def apply_overlay(row: Mapping[str, Any], overlay: Mapping[str, Mapping[str, Any
         return out
     if "gt_presence" in exp or pres:
         exp["gt_presence"] = json.dumps(pres, sort_keys=True)
-    out["expected_fields"] = json.dumps(exp, ensure_ascii=False, sort_keys=True) if isinstance(row.get("expected_fields"), str) else exp
+    key = _labels_key(row)
+    out[key] = json.dumps(exp, ensure_ascii=False, sort_keys=True) if isinstance(row.get(key), str) else exp
     out["interim_labels"] = {"fields": applied, "overlay_sha256": overlay_sha}
     return out
+
+
+def apply_overlay_parquet(source: Any, out: Path | str | None = None, *,
+                          overlay: Mapping[str, Mapping[str, Any]] | None = None,
+                          overlay_sha: str | None = None) -> Any:
+    """Apply the overlay to a Hub ``ground_truth`` parquet shard (a path or a ``pyarrow.Table``).
+
+    Returns a table with the shard's columns in the same order and types (``gt_fields`` holds
+    the merged labels) plus ``interim_labels``: a JSON string ``{"fields", "overlay_sha256"}``
+    on rows that took labels, else null. Rows are matched by ``document_id`` and text hash, as
+    in ``apply_overlay``. Without ``overlay`` the committed overlay is used and must pass
+    ``verify()``. With ``out`` the table is also written there (never over the source file).
+    """
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    table = source if isinstance(source, pa.Table) else pq.read_table(source)
+    names = table.column_names
+    if not ({"document_id", "id"} & set(names)) or not (set(_LABEL_KEYS) & set(names)):
+        raise ValueError("not a ground_truth shard: it needs document_id (or id) and gt_fields (or expected_fields)")
+    if "interim_labels" in names:
+        raise ValueError("the table already has an interim_labels column: the overlay was applied before")
+    if out is not None and not isinstance(source, pa.Table) and Path(out).resolve() == Path(source).resolve():
+        raise ValueError("refusing to overwrite the source shard; write the overlaid table elsewhere")
+    if overlay is None:
+        problems = verify()
+        if problems:
+            raise ValueError(f"interim label overlay is inconsistent: {problems[0]}")
+        overlay, overlay_sha = load_overlay(), overlay_fingerprint()
+    sha = overlay_sha or ""
+    rows = [apply_overlay(r, overlay, overlay_sha=sha) for r in table.to_pylist()]
+    marks = [json.dumps(r["interim_labels"], sort_keys=True) if r.get("interim_labels") else None for r in rows]
+    schema = table.schema.append(pa.field("interim_labels", pa.string()))
+    result = pa.Table.from_pylist([{**{n: r.get(n) for n in names}, "interim_labels": m}
+                                   for r, m in zip(rows, marks)], schema=schema)
+    if out is not None:
+        Path(out).parent.mkdir(parents=True, exist_ok=True)
+        pq.write_table(result, out)
+    return result
 
 
 def overlay_fingerprint(root: Path | None = None) -> str:

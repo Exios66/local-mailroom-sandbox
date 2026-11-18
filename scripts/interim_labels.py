@@ -10,9 +10,11 @@ from gate-accepted real extractions (see ``mailroom_sandbox.interim_labels`` for
     python scripts/interim_labels.py build --add-run extraction-gate-luna-v1.4.0
     # integrity, staleness (a newer local gate run not yet folded in), Hub supersession, and
     # every listed review file applied as written
-    python scripts/interim_labels.py check [--rows hub-rows.jsonl] [--prune]
+    python scripts/interim_labels.py check [--rows hub-rows.jsonl|ground_truth.parquet] [--prune]
     # apply reviewed labels (data/labels/review/interim_reviews.jsonl) in place; build re-applies them
     python scripts/interim_labels.py review [--apply FILE ...]
+    # a Hub ground_truth parquet shard with the overlay merged into gt_fields
+    python scripts/interim_labels.py apply --parquet ground_truth_train.parquet --out overlaid.parquet
 
 ``build`` reads finished gate runs from ``data/runtime/runs`` (their locked dataset rows, the
 specialist extractions they reviewed and the gate answers). ``check`` needs only the committed
@@ -346,6 +348,35 @@ def rederive(root: Path) -> int:
     return 0
 
 
+def _read_rows(path: Path) -> list[dict[str, Any]]:
+    """Hub rows from JSONL, or from a parquet shard (``ground_truth`` rows need no text)."""
+    if path.suffix == ".parquet":
+        import pyarrow.parquet as pq
+
+        return pq.read_table(path).to_pylist()
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").split("\n") if line.strip()]
+
+
+def apply_parquet(root: Path, source: Path, out: Path) -> int:
+    """Write ``source`` (a Hub ground_truth shard) with the overlay merged into ``out``."""
+    problems = il.verify(root)
+    if problems:
+        print("apply refused: the overlay fails its check")
+        for p in problems:
+            print(f"  {p}")
+        return 1
+    try:
+        table = il.apply_overlay_parquet(source, out, overlay=il.load_overlay(root),
+                                         overlay_sha=il.overlay_fingerprint(root))
+    except (OSError, ValueError) as exc:
+        print(f"apply refused: {exc}")
+        return 1
+    marks = [m for m in table.column("interim_labels").to_pylist() if m]
+    fields = sum(len(json.loads(m)["fields"]) for m in marks)
+    print(f"applied: {fields} labels on {len(marks)} of {table.num_rows} rows -> {out}")
+    return 0
+
+
 def check(root: Path, rows_path: Path | None, prune: bool) -> int:
     integrity = il.verify(root)
     problems = list(integrity)
@@ -356,8 +387,24 @@ def check(root: Path, rows_path: Path | None, prune: bool) -> int:
              for run, v in _local_gate_runs().items() if run not in listed and _version(v) >= top]
     problems += stale
     if rows_path:
-        rows = [json.loads(line) for line in rows_path.read_text(encoding="utf-8").splitlines() if line.strip()]
-        gone = il.superseded(rows, il.load_overlay(root))
+        rows = _read_rows(rows_path)
+        overlay = il.load_overlay(root)
+        gone, reviewed = [], []
+        for doc, field in il.superseded(rows, overlay):
+            labels = overlay[doc]["labels"]
+            # A reviewed label belongs to its review file: prune never drops it (check would then
+            # fail on the unapplied review line). The Hub wins over it anyway, and a record whose
+            # text changed is skipped by its hash, so it is reported and kept.
+            if field != "*" and "review" in labels[field]:
+                reviewed.append(f"{doc}.{field}")
+                continue
+            if field == "*" and any("review" in lab for lab in labels.values()):
+                reviewed.append(f"{doc} (text changed)")
+                gone += [(doc, f) for f, lab in labels.items() if "review" not in lab]
+                continue
+            gone.append((doc, field))
+        for note in reviewed:
+            print(f"note: {note}: a reviewed label the Hub rows supersede is kept; drop its review line to retire it")
         for doc, field in gone:
             problems.append(f"{doc}.{field}: superseded by the Hub rows ({'text changed' if field == '*' else 'now labelled'})")
         if prune and gone and integrity:
@@ -399,14 +446,19 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--run", action="append", default=[], help="gate run (replaces the manifest's list; repeat)")
     b.add_argument("--add-run", action="append", default=[], help="gate run added to the manifest's list")
     c = sub.add_parser("check", help="integrity, staleness and Hub supersession")
-    c.add_argument("--rows", type=Path, help="Hub rows (JSONL) to test for superseded labels")
+    c.add_argument("--rows", type=Path, help="Hub rows (JSONL, or a ground_truth .parquet shard) to test for superseded labels")
     c.add_argument("--prune", action="store_true", help="drop superseded labels and rewrite the manifest")
     sub.add_parser("rederive", help="recompute the derived subclass labels with the current mapping")
     r = sub.add_parser("review", help="apply review files (reviewed corrections and header fills) in place")
     r.add_argument("--apply", action="append", type=Path, default=[],
                    help="review file (repeat); default: the manifest's list, else data/labels/review/interim_reviews.jsonl")
+    a = sub.add_parser("apply", help="write a Hub ground_truth parquet shard with the overlay merged into gt_fields")
+    a.add_argument("--parquet", type=Path, required=True, help="Hub ground_truth shard")
+    a.add_argument("--out", type=Path, required=True, help="output parquet (not the source)")
     args = ap.parse_args(argv)
     root = args.root or il.overlay_dir()
+    if args.cmd == "apply":
+        return apply_parquet(root, args.parquet, args.out)
     if args.cmd == "rederive":
         return rederive(root)
     listed = [_repo_path(e["path"]) for e in il.load_manifest(root).get("reviews") or []]

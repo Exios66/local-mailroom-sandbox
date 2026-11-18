@@ -463,3 +463,109 @@ def test_reviewed_labels_reach_production_rows_over_the_hub_intent():
     exp = json.loads(il.apply_overlay(row, {"D1": rec}, overlay_sha="abc")["expected_fields"])
     assert exp["intent"] == "request"            # the reviewed correction replaces the Hub value
     assert exp["sender"] == "Ann M Schmidt"      # the header fill labels a field the Hub leaves empty
+
+
+# ── Hub parquet rows ───────────────────────────────────────────────────────
+
+
+def _hub_gt_row(doc="D1", text="Please send the report.", **fields):
+    """A Hub ``ground_truth`` row: document_id, gt_fields as a JSON string, no document text."""
+    import hashlib
+
+    gt = {"intent": "notice", "intent_source": "heuristic", "sender": "",
+          "gt_presence": json.dumps({"intent": "populated"}), **fields}
+    return {"filename": f"{doc}.txt", "document_id": doc, "expected": "correspondence", "expected_subclass": "notice",
+            "gt_fields": json.dumps(gt), "content_sha256": hashlib.sha256(text.encode()).hexdigest()}
+
+
+def _reviewed_overlay(text="Please send the report."):
+    rec = {"doc_id": "D1", "doc_class": "correspondence", "doc_subclass": "notice", "doc_sha256": il.doc_sha(text),
+           "labels": {}, "source": {"review": "r.jsonl"}}
+    lines = [_intent_line(doc_id="D1", doc_sha256=il.doc_sha(text)),
+             _header_line(doc_id="D1", doc_sha256=il.doc_sha(text))]
+    assert il.apply_reviews({"D1": rec}, lines, "r.jsonl") == (2, [])
+    return {"D1": rec}
+
+
+def test_apply_overlay_takes_a_hub_ground_truth_row_without_text():
+    overlay = _reviewed_overlay()
+    row = _hub_gt_row()
+    out = il.apply_overlay(row, overlay, overlay_sha="abc")
+    gt = json.loads(out["gt_fields"])  # written back where the Hub keeps it, still a JSON string
+    assert "expected_fields" not in out
+    assert gt["intent"] == "request" and gt["sender"] == "Ann M Schmidt"
+    assert json.loads(gt["gt_presence"])["sender"] == "populated"
+    assert out["interim_labels"] == {"fields": ["intent", "sender"], "overlay_sha256": "abc"}
+    # The text, when the row has it, decides; a content hash of other text never matches.
+    assert il.apply_overlay({**row, "doc_text": "Other text."}, overlay, overlay_sha="abc") == {**row, "doc_text": "Other text."}
+    assert il.apply_overlay(_hub_gt_row(text="Other text."), overlay, overlay_sha="abc").get("interim_labels") is None
+    assert il.apply_overlay({**row, "content_sha256": "not-a-hash"}, overlay, overlay_sha="abc").get("interim_labels") is None
+    assert il.row_id(row) == "D1" and il.row_doc_sha(row) == overlay["D1"]["doc_sha256"]
+    # superseded() reads the same shape: a Hub sender label now supersedes nothing reviewed,
+    # but a gap fill the Hub labels is reported.
+    gate = {"D1": {**overlay["D1"], "labels": {"recipient": {"value": "Bo", "status": "gap_fill", "use_as_truth": True}}}}
+    assert il.superseded([_hub_gt_row(recipient="Bo", gt_presence=json.dumps({"recipient": "populated"}))], gate) == [
+        ("D1", "recipient")]
+
+
+def test_apply_overlay_parquet_keeps_the_shard_schema(tmp_path):
+    pa = pytest.importorskip("pyarrow")
+    pq = pytest.importorskip("pyarrow.parquet")
+    src = tmp_path / "ground_truth.parquet"
+    pq.write_table(pa.Table.from_pylist([_hub_gt_row(), _hub_gt_row("D2")]), src)
+    out = tmp_path / "out" / "overlaid.parquet"
+    table = il.apply_overlay_parquet(src, out, overlay=_reviewed_overlay(), overlay_sha="abc")
+    assert table.column_names == [*pq.read_schema(src).names, "interim_labels"]
+    assert pq.read_table(out).equals(table)
+    rows = table.to_pylist()
+    assert json.loads(rows[0]["gt_fields"])["intent"] == "request"
+    assert json.loads(rows[0]["interim_labels"]) == {"fields": ["intent", "sender"], "overlay_sha256": "abc"}
+    assert rows[1]["interim_labels"] is None and json.loads(rows[1]["gt_fields"])["intent"] == "notice"
+    with pytest.raises(ValueError, match="applied before"):
+        il.apply_overlay_parquet(out, overlay={}, overlay_sha="")
+    with pytest.raises(ValueError, match="overwrite the source"):
+        il.apply_overlay_parquet(src, src, overlay={}, overlay_sha="")
+    with pytest.raises(ValueError, match="not a ground_truth shard"):
+        il.apply_overlay_parquet(pa.table({"filename": ["a"], "doc_text": ["x"]}), overlay={}, overlay_sha="")
+
+
+def test_apply_overlay_parquet_refuses_an_inconsistent_committed_overlay(monkeypatch):
+    pa = pytest.importorskip("pyarrow")
+    monkeypatch.setattr(il, "verify", lambda root=None, **_: ["x.jsonl: sha256 differs"])
+    with pytest.raises(ValueError, match="inconsistent"):
+        il.apply_overlay_parquet(pa.Table.from_pylist([_hub_gt_row()]))
+
+
+def test_apply_and_check_commands_read_parquet(tmp_path, monkeypatch, capsys):
+    pa = pytest.importorskip("pyarrow")
+    pq = pytest.importorskip("pyarrow.parquet")
+    root, mod, review = _review_overlay(tmp_path, monkeypatch)
+    assert mod.review(root, [review]) == 0
+    src = tmp_path / "gt.parquet"
+    pq.write_table(pa.Table.from_pylist([_hub_gt_row("E1", sender="Ann M Schmidt",
+                                                     gt_presence=json.dumps({"sender": "populated"}))]), src)
+    monkeypatch.setattr(il, "row_doc_sha", lambda row: _EMAIL_SHA)  # the fixture record's text hash
+    capsys.readouterr()
+    assert mod.main(["--root", str(root), "apply", "--parquet", str(src), "--out", str(tmp_path / "o.parquet")]) == 0
+    # The Hub labels sender here, so only the intent correction applies: a gap fill never overrides it.
+    assert "applied: 1 labels on 1 of 1 rows" in capsys.readouterr().out
+    gt = json.loads(pq.read_table(tmp_path / "o.parquet").to_pylist()[0]["gt_fields"])
+    assert gt["intent"] == "request" and gt["sender"] == "Ann M Schmidt"
+    assert mod.main(["--root", str(root), "apply", "--parquet", str(src), "--out", str(src)]) == 1
+    assert "overwrite the source" in capsys.readouterr().out
+    monkeypatch.setattr(mod, "_local_gate_runs", lambda: {})
+    # The Hub now labels sender: the reviewed fill is reported, kept by --prune, and fails nothing.
+    assert mod.main(["--root", str(root), "check", "--rows", str(src), "--prune"]) == 0
+    assert "note: E1.sender: a reviewed label the Hub rows supersede is kept" in capsys.readouterr().out
+    assert "sender" in il.load_overlay(root)["E1"]["labels"] and il.verify(root) == []
+    # A text change keeps the reviewed labels and prunes only the gate labels of the record.
+    rec = json.loads((root / "correspondence.jsonl").read_text())
+    rec["labels"]["recipient"] = {"value": "Bo", "status": "gap_fill", "use_as_truth": True}
+    text = json.dumps(rec, sort_keys=True) + "\n"
+    (root / "correspondence.jsonl").write_text(text, encoding="utf-8")
+    man = il.load_manifest(root)
+    man["files"]["correspondence.jsonl"] = il._sha(text)
+    (root / "MANIFEST.json").write_text(json.dumps(man), encoding="utf-8")
+    monkeypatch.setattr(il, "row_doc_sha", lambda row: "f" * 16)
+    assert mod.main(["--root", str(root), "check", "--rows", str(src), "--prune"]) == 0
+    assert il.load_overlay(root)["E1"]["labels"].keys() == {"intent", "sender"} and il.verify(root) == []
