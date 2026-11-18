@@ -1018,3 +1018,18 @@ def test_review_command_writes_nothing_when_the_reviewed_catalog_fails(cli, caps
     # Once the catalog passes, the same review applies (it was never recorded as done).
     monkeypatch.setattr(gl, "verify_catalog", real)
     assert mod.main(["review", "--corpus", "ignored", "--review", review]) == 0
+
+
+def test_build_writes_nothing_when_the_built_catalog_fails(cli, capsys, monkeypatch):
+    mod, write, _, tmp = cli
+    assert _built(cli, RECIPIENT, RECIPIENT2) == 0
+    stores = (tmp / "gold", tmp / "supp")
+    before = {p: p.read_bytes() for d in stores for p in d.iterdir()}
+    # A build whose catalog fails verify_catalog (e.g. a near_gold contract_value the Dojo cannot
+    # parse, kept by a `correct` review) is refused before either store is replaced.
+    monkeypatch.setattr(gl, "verify_catalog", lambda d: ["contract.jsonl: unparseable near_gold value"])
+    capsys.readouterr()
+    assert _built(cli, RECIPIENT, DISPUTE_CHECK) == 1
+    assert "nothing was written" in capsys.readouterr().err
+    assert {p: p.read_bytes() for d in stores for p in d.iterdir()} == before
+    assert not [p for p in tmp.iterdir() if p.name.startswith(".")]

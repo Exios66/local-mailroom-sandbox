@@ -15,7 +15,7 @@ Each label has a `status`:
 
 | Status | Truth | Meaning |
 | --- | --- | --- |
-| `gap_fill` | yes | The Hub has no label. A real extraction the gate supports (field support >= 0.9) and whose every token is in the document. |
+| `gap_fill` | yes | The Hub has no label. Either a real extraction the gate supports (field support >= 0.9) and whose every token is in the document, or a reviewed correspondence header field (basis `original_header`, see below) that quotes the original email header it reads; header values are not in the corpus text. |
 | `derived` | yes | Computed from the row, with no model involved: `cms_source_table`, `record_type` and `communication_type` from `expected_subclass`. |
 | `correction` | yes | The Hub label is a known defect. The value is checked against the Hub's own CUAD evidence (`cuad_party_spans`, `cuad_agreement_date`), or comes from a reviewed read of the message (see below). |
 | `disputed` | **no** | The Hub label and a gate-supported extraction disagree. It carries `hub_value` (and `hub_source`) for human review. |

@@ -48,6 +48,7 @@ import json
 import os
 import sys
 import tempfile
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -392,6 +393,32 @@ def _class_counts(data: dict[str, list[dict]]) -> dict[str, Any]:
     return counts
 
 
+@contextmanager
+def _staging(directory: Path):
+    """A temporary directory beside ``directory`` (same filesystem, so files move atomically)."""
+    directory.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=directory.parent, prefix=f".{directory.name}-stage-") as tmp:
+        yield Path(tmp)
+
+
+def _swap_in(stage: Path, directory: Path) -> None:
+    """Replace ``directory``'s jsonl files and MANIFEST with the staged ones; restore them on failure."""
+    directory.mkdir(parents=True, exist_ok=True)
+    owned = [*directory.glob("*.jsonl"), directory / "MANIFEST.json"]
+    previous = {p.name: p.read_bytes() for p in owned if p.exists()}
+    try:
+        for stale in directory.glob("*.jsonl"):
+            stale.unlink()
+        for staged in sorted(stage.iterdir()):
+            os.replace(staged, directory / staged.name)
+    except BaseException:
+        for stale in directory.glob("*.jsonl"):
+            stale.unlink()
+        for name, blob in previous.items():
+            (directory / name).write_bytes(blob)
+        raise
+
+
 def _write_catalog_dir(directory: Path, data: dict[str, list[dict]], schema: str, now: str,
                        binding: dict[str, Any], args: argparse.Namespace) -> None:
     """Replace one catalog directory's jsonl files and MANIFEST."""
@@ -445,8 +472,18 @@ def cmd_build(args: argparse.Namespace) -> int:
 
     gold, supp = gl.gold_dir(), gl.supplementary_dir()
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    for directory, data, schema in ((gold, catalog, gl.SCHEMA), (supp, supplementary, gl.SUPPLEMENTARY_SCHEMA)):
-        _write_catalog_dir(directory, data, schema, now, binding, args)
+    # Build both stores beside their directories and verify the catalog there; nothing is
+    # replaced unless it passes (a near_gold value the Dojo cannot parse is refused before writing).
+    with _staging(gold) as gold_stage, _staging(supp) as supp_stage:
+        _write_catalog_dir(gold_stage, catalog, gl.SCHEMA, now, binding, args)
+        left = gl.verify_catalog(gold_stage)
+        if left:
+            print("build refused: the built catalog fails its check; nothing was written:\n  "
+                  + "\n  ".join(left), file=sys.stderr)
+            return 1
+        _write_catalog_dir(supp_stage, supplementary, gl.SUPPLEMENTARY_SCHEMA, now, binding, args)
+        _swap_in(gold_stage, gold)
+        _swap_in(supp_stage, supp)
     print(f"catalog: {sum(len(v) for v in catalog.values())} labels; "
           f"supplementary: {sum(len(v) for v in supplementary.values())} rows")
     print(f"MANIFEST sha256 {gl.manifest_sha(gold)}")
@@ -501,8 +538,7 @@ def cmd_review(args: argparse.Namespace) -> int:
         return 1
     # Stage the new catalog beside the old one and verify it there; the committed files are
     # replaced only when it passes (a failing review leaves the catalog and its reviews as they were).
-    with tempfile.TemporaryDirectory(dir=gold.parent, prefix=".gold-review-") as tmp:
-        stage = Path(tmp)
+    with _staging(gold) as stage:
         files = {f"{cls}.jsonl": gl.write_jsonl(stage / f"{cls}.jsonl", recs) for cls, recs in data.items()}
         manifest["files"] = files
         manifest["counts"] = _class_counts(data)
@@ -515,15 +551,7 @@ def cmd_review(args: argparse.Namespace) -> int:
             print("review refused: the reviewed catalog fails its check; nothing was written:\n  "
                   + "\n  ".join(left), file=sys.stderr)
             return 1
-        names = [*files, "MANIFEST.json"]
-        previous = {name: (gold / name).read_bytes() for name in names if (gold / name).exists()}
-        try:
-            for name in names:
-                os.replace(stage / name, gold / name)
-        except BaseException:
-            for name, blob in previous.items():
-                (gold / name).write_bytes(blob)
-            raise
+        _swap_in(stage, gold)
     print(f"reviewed {len(reviews)} labels in place; MANIFEST sha256 {gl.manifest_sha(gold)}")
     return 0
 
