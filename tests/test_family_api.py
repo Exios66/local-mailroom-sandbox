@@ -526,11 +526,11 @@ def test_eval_base_needs_floor_run(capsys):
 # --- --dataset-config: corpus rows instead of the bundled fixtures --------------------------
 
 
-def _corpus_file(tmp_path, *, tamper: bool = False):
+def _corpus_file(tmp_path, *, tamper: bool = False, contract_text: str = "MASTER SERVICES AGREEMENT between A and B."):
     import hashlib
 
     rows = []
-    for i, (cls, text) in enumerate([("contract", "MASTER SERVICES AGREEMENT between A and B."),
+    for i, (cls, text) in enumerate([("contract", contract_text),
                                      ("correspondence", "Dear Pat, please send the report. Regards, Lee")]):
         sha = hashlib.sha256(text.encode("utf-8")).hexdigest()
         rows.append({"id": f"DOC-{i}", "filename": f"doc{i}.txt", "doc_text": text, "expected": cls,
@@ -588,7 +588,8 @@ def test_eval_dataset_config_applies_the_near_gold_overlay_when_asked(monkeypatc
 
 
 @pytest.mark.parametrize("body,needle", [("", "no dataset mapping"), ("dataset: [1, 2]\n", "no dataset mapping"),
-                                         ("dataset:\n  provider: nope\n", "--dataset-config")])
+                                         ("dataset:\n  provider: nope\n", "--dataset-config"),
+                                         ("dataset: [unclosed\n", "not valid YAML")])
 def test_eval_dataset_config_rejects_bad_files(tmp_path, capsys, body, needle):
     bad = tmp_path / "bad.yaml"
     bad.write_text(body, encoding="utf-8")
@@ -622,3 +623,19 @@ def test_eval_dataset_config_records_the_selection_after_filters(monkeypatch, tm
     ds = json.loads(capsys.readouterr().out)["dataset"]
     assert ds["rows"] == 2  # the prepared draw
     assert ds["selected"] == {"rows": 1, "class": None, "sample": 1, "classes": ["contract"]}
+
+
+def test_eval_dataset_config_keeps_unicode_line_separators_inside_a_row(monkeypatch, tmp_path, capsys):
+    """The prepared JSONL keeps U+2028/U+2029 raw; reading it with splitlines() broke the row."""
+    monkeypatch.setenv("MAILROOM_API_URL", "http://mailroom.test")
+    seen = {}
+
+    def fake_run(rows, api, **kwargs):
+        seen["rows"] = list(rows)
+        return {"ok": True, "n": len(rows)}
+
+    monkeypatch.setattr(family_api, "run_api_eval", fake_run)
+    text = "MASTER SERVICES AGREEMENT\u2028between A\u2029and B."
+    spec = _corpus_file(tmp_path, contract_text=text)
+    assert cli.main(["api", "eval", "--dataset-config", str(spec), "--class", "contract", "--submit"]) == 0
+    assert seen["rows"][0]["doc_text"] == text

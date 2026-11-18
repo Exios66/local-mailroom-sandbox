@@ -2706,7 +2706,10 @@ def _api_eval_rows(dataset_config: str | None) -> tuple[list[dict[str, Any]], di
     path = Path(dataset_config)
     if not path.is_file():
         raise CLIUsageError(f"--dataset-config {dataset_config!r} is not a file")
-    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError as exc:
+        raise CLIUsageError(f"--dataset-config {dataset_config!r} is not valid YAML: {exc}") from exc
     block = data.get("dataset", data) if isinstance(data, dict) else None
     if not isinstance(block, dict) or not block:  # an empty mapping would silently draw the whole Hub corpus
         raise CLIUsageError(f"--dataset-config {dataset_config!r} holds no dataset mapping")
@@ -2720,7 +2723,7 @@ def _api_eval_rows(dataset_config: str | None) -> tuple[list[dict[str, Any]], di
             provenance = prepare_subset(spec, dest)
         except (FileNotFoundError, ValueError) as exc:
             raise CLIUsageError(f"--dataset-config {dataset_config!r}: {exc}") from exc
-        rows = [json.loads(line) for line in dest.read_text(encoding="utf-8").splitlines() if line.strip()]
+        rows = [json.loads(line) for line in dest.read_text(encoding="utf-8").split("\n") if line.strip()]  # not splitlines(): U+2028 in text
     return rows, {"config": str(path), **provenance}
 
 
