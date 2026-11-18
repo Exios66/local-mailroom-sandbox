@@ -24,12 +24,33 @@ The near-gold layer is ready once `decisions.jsonl` is built into the catalogs:
 - Every label is grounded in the current document text.
 - Every label agrees with the review, apart from one held label.
 
-Three problems remain, and each needs a decision from the owner before the overlays change
+Three problems remained, and each needed a decision from the owner before the overlays could change
 (see the caveats below):
 
 - the interim overlay wins over reviewed gold;
 - 52 Hub `intent` values are wrong;
 - six contract amounts are written in a form that Dojo cannot score.
+
+### Resolved since this validation
+
+The owner decided issues 2, 3 and 6. The fixes are committed:
+
+- **Issue 2.** The 52 wrong Hub `intent` values are interim `correction` labels (basis
+  `review_read_message`) from `interim_reviews.jsonl`.
+- **Issue 6.** Correspondence header fields take the original email header. 1,795 interim
+  `gap_fill` labels (basis `original_header`) from `interim_reviews.jsonl` quote the maildir
+  header lines. They replace 329 gate gap fills (315 of them with a different value) and win over the text-only
+  near-gold labels of the same fields. This also covers 45 of the 82 audit "wrong"
+  correspondence values in issue 1.
+- **Issue 3.** The contract amounts are plain dollar figures that Dojo parses. The new catalog
+  check found a seventh one ("$0.05 per Unit"), so `contract_value_review.jsonl` corrects 7
+  near-gold labels. Each one now scores 1.0 against itself.
+
+Issue 1 is still open for the 37 remaining correspondence values (26 `recipient`, 10 `sender`,
+1 `communication_date`), 12 corporate-record values and 3 merger values.
+
+**Caveat:** the header values are not in the corpus text. An extraction from that text cannot find
+them, so scores on those fields drop until mailroom-dataset restores the headers.
 
 ## What changes when `decisions.jsonl` is built
 
@@ -109,11 +130,11 @@ that field is empty.
    The interim builder has no override input, so only a change of precedence can fix this.
    That change is step 2 of `INTERIM_AUDIT.md`: reviewed gold supersedes interim gap fills.
    The alternative is a new interim gate run. **Owner decision.**
-2. **[High] 52 Hub `intent` labels on correspondence are wrong.** The review found them wrong,
+2. **[High, resolved] 52 Hub `intent` labels on correspondence are wrong.** The review found them wrong,
    and the disputed interim intents that would correct them are not applied. They need
    interim corrections. **Owner decision** on whether the interim set may carry corrections
    of Hub values.
-3. **[Medium] Six contract `contract_value` labels that Dojo cannot score fully.** These are
+3. **[Medium, resolved: 7 rewritten] Six contract `contract_value` labels that Dojo cannot score fully.** These are
    near-gold, from #323:
    - DOC-11d813797d4c1723 and DOC-10357f1d86b3081e: "$5 million"
    - DOC-589f96335e2a27da: "$10 million"
@@ -132,7 +153,7 @@ that field is empty.
    0–50% token coverage. They are the EDGAR filer name rather than a name the exhibit states.
    For example, "LIME ENERGY CO." is on a certificate that amends Electric City Corp. Hub
    truth, not reviewed here.
-6. **[Medium] The header-fill policy is still open.** Under the text-only reading, 1,358
+6. **[Medium, resolved: header values adopted] The header-fill policy is still open.** Under the text-only reading, 1,358
    near-gold correspondence labels agree with the review, and the original header would add a
    value to them. The decisions keep the text-only labels.
 7. **[Low] Format only, and Dojo parses all of it:**

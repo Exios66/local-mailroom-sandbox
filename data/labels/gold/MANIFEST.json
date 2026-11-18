@@ -113,10 +113,11 @@
     }
   },
   "files": {
-    "contract.jsonl": "1d87bad9706b34a54114f6d11e5a48275a69d559ef30027e6feaf9fb6aafd316",
+    "contract.jsonl": "edf2401362b5885d1cae98927ee72c75334214722602f29d086de127d8b357d3",
     "corporate_record.jsonl": "9a86c4da835c3a4cf2e78570747b462fee3322fdbf54f6abbeeba80b2b2321f4",
     "correspondence.jsonl": "230410cd4f0b6a5d9d957866f5cb8750fd3fa891fa6bfa9d5ad02edf8790b31b"
   },
+  "reviewed_at": "2026-11-18T23:01:55Z",
   "schema": "mailroom-gold-labels/v1",
   "sources": {
     "check": [
@@ -368,6 +369,7 @@
       "fwd-label-correspondence-002.jsonl"
     ],
     "review": [
+      "contract_value_review.jsonl",
       "review-audit-1.jsonl",
       "review-corp-1.jsonl",
       "review-corr-000-001.jsonl",

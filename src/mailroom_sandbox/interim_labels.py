@@ -23,6 +23,20 @@ Every label carries its status and basis:
                 is right, and no rule decides: NOT ground truth (``use_as_truth`` false), kept
                 for the human review that the dataset revision needs.
 
+Reviewed labels come from a committed review file (``data/labels/review/interim_reviews.jsonl``),
+not from a gate run, and carry a ``review`` block (reviewer, note, file). They use the same
+statuses, with a basis of their own (``REVIEW_BASES``):
+
+``correction`` / ``review_read_message``  a heuristic Hub ``intent`` the review found wrong after
+                reading the message; it replaces the Hub value, which the label keeps as
+                ``hub_value``.
+``gap_fill`` / ``original_header``  a correspondence header field the corpus text omits because
+                the email header was stripped; the value is read from the original message's
+                header (CMU Enron maildir), and the label quotes that header line as evidence.
+
+A reviewed label replaces any gate label of the same field; the replaced label is kept as
+``replaced``. ``scripts/interim_labels.py review`` applies the file, and ``build`` re-applies it.
+
 Files live in ``data/labels/interim/`` (one JSONL per class plus ``MANIFEST.json`` with hashes,
 sources and counts), built only by ``scripts/interim_labels.py build`` and verified by
 ``scripts/interim_labels.py check`` and ``tests/test_interim_labels.py``. Nothing reads them
@@ -231,6 +245,184 @@ def derived_value(cls: str, subclass: str) -> str:
     return subclass
 
 
+# ── reviewed labels ────────────────────────────────────────────────────────
+
+#: Correspondence fields an email header states: the corpus text lost them with the header.
+HEADER_FIELDS = ("sender", "recipient", "additional_recipients", "communication_date")
+#: basis -> (status, {doc_class: fields}) a reviewed label may take.
+REVIEW_BASES: dict[str, tuple[str, dict[str, tuple[str, ...]]]] = {
+    "review_read_message": ("correction", {"correspondence": ("intent",)}),
+    "original_header": ("gap_fill", {"correspondence": HEADER_FIELDS}),
+}
+#: Where an ``original_header`` quote must come from, and the header lines each field reads.
+HEADER_SOURCE = "cmu_enron_maildir"
+HEADER_LINES = {"sender": ("X-From", "From"), "recipient": ("X-To", "To"),
+                "additional_recipients": ("X-To", "X-cc", "To", "Cc"), "communication_date": ("Date",)}
+_HEX16 = re.compile(r"[0-9a-f]{16}")
+_REVIEW_KEYS = ("doc_id", "doc_class", "doc_subclass", "doc_sha256", "field", "status", "basis", "value",
+                "evidence", "reviewer", "note")
+
+
+def review_path() -> Path:
+    """The committed review file ``scripts/interim_labels.py review`` applies by default."""
+    return repo_root() / "data" / "labels" / "review" / "interim_reviews.jsonl"
+
+
+def _intent_vocabulary() -> tuple[str, ...]:
+    from mailroom_sandbox import gold_labels as gl
+
+    return gl._schema_bits("correspondence")[1]["intent"]
+
+
+def _header_date(header: str) -> str | None:
+    from email.utils import parsedate_to_datetime
+
+    try:
+        return parsedate_to_datetime(header.split(":", 1)[1].strip()).date().isoformat()
+    except (IndexError, TypeError, ValueError):
+        return None
+
+
+def _header_problem(field: str, value: Any, evidence: Any) -> str | None:
+    """Why the quoted header lines do not show ``value`` (None: they do)."""
+    if not isinstance(evidence, list) or not evidence:
+        return "an original_header label needs the header lines as evidence"
+    headers = []
+    for ev in evidence:
+        if not isinstance(ev, dict) or ev.get("source") != HEADER_SOURCE or not ev.get("file") \
+                or not isinstance(ev.get("header"), str):
+            return f"evidence must be {{source: {HEADER_SOURCE!r}, file, header}}: {ev!r}"
+        name = ev["header"].split(":", 1)[0]
+        if name not in HEADER_LINES[field]:
+            return f"{field} is read from {'/'.join(HEADER_LINES[field])}, not {name}"
+        headers.append(ev["header"])
+    if field == "communication_date":
+        if value is not None and value not in {_header_date(h) for h in headers}:
+            return f"{value!r} is not the date the Date header states"
+        return None
+    # Each token of each name occurs in the quoted header lines (a mangled export can fuse a
+    # name with its mail domain, "Michael GrimesCORPENRON", so a token match is too strict).
+    text = " ".join(h.split(":", 1)[1] for h in headers).casefold()
+    for item in value if isinstance(value, list) else ([] if value is None else [value]):
+        missing = [t for t in _TOKEN.findall(str(item).casefold()) if t not in text]
+        if missing:
+            return f"{item!r} is not in the quoted header ({', '.join(missing)} missing)"
+    return None
+
+
+def _review_value_problem(field: str, value: Any) -> str | None:
+    if field == "intent":
+        return None if value in _intent_vocabulary() else f"intent {value!r} is not in the vocabulary"
+    if field == "additional_recipients":
+        ok = isinstance(value, list) and all(isinstance(v, str) and v.strip() for v in value)
+        return None if ok else "additional_recipients must be a list of names"
+    if field == "communication_date":
+        if value is None:
+            return None
+        ok = isinstance(value, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", value) is not None
+        return None if ok else "communication_date must be YYYY-MM-DD or null"
+    return None if value is None or (isinstance(value, str) and value.strip()) else f"{field} must be a name or null"
+
+
+def review_line_problem(line: Mapping[str, Any]) -> str | None:
+    """Why one review line cannot become an overlay label (None: it can)."""
+    missing = [k for k in _REVIEW_KEYS if k not in line]
+    if missing:
+        return f"missing {', '.join(missing)}"
+    basis, status = line["basis"], line["status"]
+    if basis not in REVIEW_BASES:
+        return f"unknown basis {basis!r}"
+    want, allowed = REVIEW_BASES[basis]
+    if status != want:
+        return f"basis {basis} takes status {want}, not {status!r}"
+    if line["field"] not in allowed.get(line["doc_class"], ()):
+        return f"basis {basis} does not cover {line['doc_class']}.{line['field']}"
+    if not isinstance(line["doc_sha256"], str) or not _HEX16.fullmatch(line["doc_sha256"]):
+        return "doc_sha256 must be the 16-hex doc_sha of the document text"
+    reviewer = line["reviewer"]
+    if not isinstance(reviewer, dict) or not reviewer.get("model") or not reviewer.get("role"):
+        return "reviewer needs a model and a role"
+    if not str(line["note"] or "").strip():
+        return "a review needs a note"
+    problem = _review_value_problem(line["field"], line["value"])
+    if problem:
+        return problem
+    if basis == "original_header":
+        return _header_problem(line["field"], line["value"], line["evidence"])
+    return None
+
+
+def read_reviews(path: Path) -> tuple[list[dict[str, Any]], list[str]]:
+    """The review lines of ``path`` and what is wrong with them (duplicates included)."""
+    lines, problems, seen = [], [], set()
+    for n, line in enumerate(_jsonl(path), start=1):
+        where = f"{path.name}:{n} {line.get('doc_id')}.{line.get('field')}"
+        why = review_line_problem(line)
+        if why:
+            problems.append(f"{where}: {why}")
+            continue
+        key = (line["doc_id"], line["field"])
+        if key in seen:
+            problems.append(f"{where}: a second review of the same label")
+            continue
+        seen.add(key)
+        lines.append(line)
+    return lines, problems
+
+
+def review_label(line: Mapping[str, Any], file: str, previous: Mapping[str, Any] | None) -> dict[str, Any]:
+    """The overlay label a review line makes; ``previous`` is the label it replaces, if any."""
+    lab: dict[str, Any] = {"value": line["value"], "status": line["status"], "basis": line["basis"],
+                           "evidence": line["evidence"], "use_as_truth": True,
+                           "review": {"reviewer": line["reviewer"], "note": line["note"], "file": file}}
+    if line["status"] == "correction":
+        lab["hub_value"] = line.get("hub_value")
+    if previous:
+        if "review" in previous:  # applied before: keep what the first review replaced
+            previous = previous.get("replaced")
+        else:
+            previous = {k: previous.get(k) for k in ("status", "basis", "value")}
+        if previous:
+            lab["replaced"] = previous
+    return lab
+
+
+def apply_reviews(records: dict[str, dict[str, Any]], lines: Iterable[Mapping[str, Any]], file: str
+                  ) -> tuple[int, list[str]]:
+    """Put the review lines' labels into ``records`` (``{doc_id: record}``, changed in place).
+
+    A line replaces any label of its field; a document without a record gets one. A record whose
+    text hash differs from the line's is refused (the review read other text). Returns the number
+    of labels added or changed, and the problems.
+    """
+    changed, problems = 0, []
+    for line in lines:
+        doc = line["doc_id"]
+        rec = records.get(doc)
+        if rec is None:
+            rec = records[doc] = {"doc_id": doc, "doc_class": line["doc_class"], "doc_subclass": line["doc_subclass"],
+                                  "doc_sha256": line["doc_sha256"], "labels": {}, "source": {"review": file}}
+        if rec.get("doc_sha256") != line["doc_sha256"] or rec.get("doc_class") != line["doc_class"]:
+            problems.append(f"{doc}.{line['field']}: the review read other text or another class than the overlay record")
+            continue
+        old = rec["labels"].get(line["field"])
+        lab = review_label(line, file, old)
+        if lab != old:
+            rec["labels"][line["field"]] = lab
+            changed += 1
+    return changed, problems
+
+
+def reviews_reflected(overlay: Mapping[str, Mapping[str, Any]], lines: Iterable[Mapping[str, Any]]) -> list[str]:
+    """Review lines whose label is missing from, or differs in, the overlay."""
+    out = []
+    for line in lines:
+        lab = ((overlay.get(line["doc_id"]) or {}).get("labels") or {}).get(line["field"])
+        if not lab or "review" not in lab or any(lab.get(k) != line[k] for k in ("value", "status", "basis", "evidence")):
+            out.append(f"{line['doc_id']}.{line['field']}: the review is not applied (run scripts/interim_labels.py review)")
+    return out
+
+
 def labels_for(row: Mapping[str, Any], fields: Mapping[str, Any], gate: Mapping[str, Any],
                truth: Mapping[str, bool]) -> dict[str, dict[str, Any]]:
     """The overlay labels of one document.
@@ -302,8 +494,12 @@ def load_overlay(root: Path | None = None) -> dict[str, dict[str, Any]]:
     return out
 
 
-def verify(root: Path | None = None) -> list[str]:
-    """Integrity problems of the committed overlay (empty list: consistent)."""
+def verify(root: Path | None = None, *, reviews: bool = True) -> list[str]:
+    """Integrity problems of the committed overlay (empty list: consistent).
+
+    With ``reviews`` (the default) every review file the manifest lists must be unchanged since it
+    was applied (its sha256) and every one of its lines must be in the overlay as written.
+    """
     root = root or overlay_dir()
     man = load_manifest(root)
     problems: list[str] = []
@@ -322,8 +518,24 @@ def verify(root: Path | None = None) -> list[str]:
                     problems.append(f"{rec.get('doc_id')}.{field}: unknown status {lab.get('status')!r}")
                 if lab.get("use_as_truth") != (lab.get("status") in TRUTH_STATUSES):
                     problems.append(f"{rec.get('doc_id')}.{field}: use_as_truth does not follow its status")
+                if "review" in lab and REVIEW_BASES.get(lab.get("basis"), ("",))[0] != lab.get("status"):
+                    problems.append(f"{rec.get('doc_id')}.{field}: a reviewed label with basis {lab.get('basis')!r} "
+                                    f"cannot have status {lab.get('status')!r}")
     extra = sorted(p.name for p in root.glob("*.jsonl") if p.name not in (man.get("files") or {}))
     problems += [f"{name}: not in the manifest" for name in extra]
+    if reviews and not problems:
+        overlay = None
+        for entry in man.get("reviews") or []:
+            path = repo_root() / entry["path"]
+            if not path.exists():
+                problems.append(f"{entry['path']}: review file listed in the manifest but missing")
+                continue
+            if _sha(path.read_text(encoding="utf-8")) != entry.get("sha256"):
+                problems.append(f"{entry['path']}: changed since it was applied; run scripts/interim_labels.py review")
+                continue
+            lines, bad = read_reviews(path)
+            overlay = load_overlay(root) if overlay is None else overlay
+            problems += bad + reviews_reflected(overlay, lines)
     return problems
 
 

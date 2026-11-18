@@ -28,6 +28,10 @@ agent sessions that read the batch files and write submission JSONL.
     #                 overlay basis is near_gold:opus_reviewed_accept_check.
     python scripts/gold_labels.py build --corpus … --revision … --label L.jsonl… --check C.jsonl… \
         [--review R.jsonl…] [--override O.jsonl…]
+    # apply accept/correct review lines to the committed catalog in place (no label or check
+    # passes needed); the correction is gated on the corpus text as in build, and the file joins
+    # the manifest's sources.review so the next full build is given it too
+    python scripts/gold_labels.py review --corpus … --review R.jsonl…
     # integrity of the catalog (or of data/labels/gold-supplementary via --dir), including the
     # near_gold invariant (agreeing check pass, or a review with reviewer model and role)
     python scripts/gold_labels.py check
@@ -447,6 +451,63 @@ def cmd_build(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_review(args: argparse.Namespace) -> int:
+    """Apply review files to the committed catalog in place, without the label and check passes.
+
+    Only ``accept`` and ``correct`` lines, each for a record no review has settled yet; a
+    correction passes the same gate as in ``build`` (on the corpus text). The file names join
+    ``sources.review`` in the manifest, so the next full ``build`` must be given them too.
+    """
+    gold = gl.gold_dir()
+    problems: list[str] = []
+    reviews = _load_reviews(args.review, problems)
+    # A problem of a record this run reviews is what the review fixes; the result is verified below.
+    problems += [p for p in gl.verify_catalog(gold) if not any(p.startswith(f"{d}.{f}:") for d, f in reviews)]
+    problems += [f"{d}.{f}: in-place review takes accept or correct, not {r['verdict']!r} (use build)"
+                 for (d, f), r in reviews.items() if r.get("verdict") not in ("accept", "correct")]
+    if problems:
+        print("review refused:\n  " + "\n  ".join(problems), file=sys.stderr)
+        return 1
+    manifest = json.loads((gold / "MANIFEST.json").read_text(encoding="utf-8"))
+    data = {Path(name).stem: gl.read_jsonl(gold / name) for name in sorted(manifest["files"])}
+    index = {(r["doc_id"], r["field"]): (cls, i) for cls, recs in data.items() for i, r in enumerate(recs)}
+    _, texts = _load_corpus(Path(args.corpus))
+    for key, decision in sorted(reviews.items()):
+        if key not in index:
+            problems.append(f"{key[0]}.{key[1]}: no catalog record")
+            continue
+        cls, i = index[key]
+        rec = data[cls][i]
+        if rec.get("review"):
+            problems.append(f"{key[0]}.{key[1]}: already reviewed; change that review in its own file and rebuild")
+            continue
+        text = texts.get(rec.get("filename"))
+        if text is None or gl.doc_sha(text) != rec.get("doc_sha"):
+            problems.append(f"{key[0]}.{key[1]}: the corpus text is missing or differs from the label's")
+            continue
+        try:
+            resolved = _resolve_decision(rec, decision, None, {"doc_id": rec["doc_id"], "doc_class": cls}, text)
+        except _BuildError as exc:
+            problems.append(str(exc))
+            continue
+        data[cls][i] = gl.apply_review(rec, resolved)
+    if problems:
+        print("review refused:\n  " + "\n  ".join(problems), file=sys.stderr)
+        return 1
+    files = {f"{cls}.jsonl": gl.write_jsonl(gold / f"{cls}.jsonl", recs) for cls, recs in data.items()}
+    manifest["files"] = files
+    manifest["counts"] = _class_counts(data)
+    manifest["sources"]["review"] = sorted({*manifest["sources"].get("review", []),
+                                            *(Path(p).name for p in args.review)})
+    manifest["reviewed_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    (gold / "MANIFEST.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    left = gl.verify_catalog(gold)
+    for p in left:
+        print(p, file=sys.stderr)
+    print(f"reviewed {len(reviews)} labels in place; MANIFEST sha256 {gl.manifest_sha(gold)}")
+    return 1 if left else 0
+
+
 def cmd_disputes(args: argparse.Namespace) -> int:
     """A compact review sheet: every disputed field with both readings and nearby text."""
     corpus = Path(args.corpus)
@@ -588,6 +649,11 @@ def main(argv: list[str] | None = None) -> int:
     bd.add_argument("--review", nargs="*")
     bd.add_argument("--override", nargs="*", help="relabel passes whose fields replace earlier label passes")
     bd.set_defaults(fn=cmd_build)
+
+    rv = sub.add_parser("review", help="apply accept/correct review files to the committed catalog in place")
+    rv.add_argument("--corpus", required=True)
+    rv.add_argument("--review", nargs="+", required=True)
+    rv.set_defaults(fn=cmd_review)
 
     ds = sub.add_parser("disputes")
     ds.add_argument("--corpus", required=True)

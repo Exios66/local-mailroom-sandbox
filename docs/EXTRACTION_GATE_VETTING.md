@@ -104,7 +104,7 @@ The two regressions are false "no" answers on correct values. They cost re-extra
 | **Corporate `record_type` and correspondence `communication_type` have no GT field, but the Hub subclass is exactly that label.** A model-read record_type ("bylaws" off a board consent's exhibit title) contradicts the subclass. | Interim label derived from `expected_subclass` (200 + 300). The question should name the subclass vocabulary: 1.4.0. | overlay |
 | **Corporate entity, jurisdiction, effective date, filing number and signatories have no GT** (#52). | Interim gap fills: 806 labels on 200 documents | overlay |
 | **Correspondence sender, recipient and date have no GT; subject_matter/keywords are templated** (#94). | Interim gap fills: 702 labels. subject_matter and keywords stay out of every target. | overlay |
-| **Correspondence intent labels are noisy by source.** Extraction agrees with the label: manual 0.69, llm_zero_shot 0.61, aeslc_join 0.55, heuristic **0.31**. The gate supports the extraction on 89% of the heuristic rows. | Not tuned toward the labels. 72 `disputed` labels, carrying the Hub value and source, are exported for human review; they are not truth. | overlay (`disputed`) |
+| **Correspondence intent labels are noisy by source.** Extraction agrees with the label: manual 0.69, llm_zero_shot 0.61, aeslc_join 0.55, heuristic **0.31**. The gate supports the extraction on 89% of the heuristic rows. | Not tuned toward the labels. 72 `disputed` labels, carrying the Hub value and source, were exported for review. The 52 the review found wrong are now reviewed `correction` labels (`data/labels/review/interim_reviews.jsonl`); 20 stay `disputed` and are not truth. | overlay (`correction`, `disputed`) |
 | **CUAD `Parties` spans mix legal names, defined terms and pronouns** ("we", "you", "Seller"). The dojo's parties truth is 34% right on extractions that name every party correctly. | `correction` when every extracted party is a CUAD Parties span (32). `--corrected-truth` raises the parties truth rate to 0.825. | overlay, `extraction_gate.py` |
 | **CUAD `Effective Date` is empty when only an agreement date is given;** the dojo marks the agreement date wrong. | `correction` when the value equals the CUAD Agreement Date (13) | overlay, `--corrected-truth` |
 | **CUAD clause presence is a recall measure over 41 categories, which a reader cannot verify.** | The gate judges precision only: every listed clause is present with its own evidence. The dojo keeps scoring recall. | 1.3.0 |
@@ -120,7 +120,7 @@ The two regressions are false "no" answers on correct values. They cost re-extra
 | Class | Truth labels | Disputed |
 | --- | --- | ---: |
 | corporate_record | 806 gap fills + 200 derived | — |
-| correspondence | 702 gap fills + 300 derived | 72 |
+| correspondence | 2,168 gap fills (1,795 from the original email header, reviewed) + 52 reviewed `intent` corrections + 300 derived | 20 |
 | insurance_claim | 536 derived | — |
 | contract | 45 corrections | 12 |
 | merger_agreement | 93 gap fills | 1 |
