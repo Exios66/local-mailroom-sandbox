@@ -138,8 +138,9 @@ decision_slots:             # optional llm-mailroom decision slots (task: pipeli
                             # `resolver` is written verbatim to the runtime taxonomy's
                             # decision_slots: block and validated by the vendored mailroom at
                             # preflight (an older vendor without graph/decision_slots.py refuses a
-                            # non-baseline block: re-vendor). archive_gate, judge_replacement and
-                            # arbiter_veto need the extraction_gate block; reference: llm-mailroom
+                            # non-baseline block: re-vendor). archive_gate, judge_replacement,
+                            # arbiter_veto, judge_check and boss_check need the extraction_gate
+                            # block; reference: llm-mailroom
                             # docs/pipeline-reference-llm-mailroom/decision-slots.md. Caps count
                             # per process from a fresh ledger each run: a resume restarts them,
                             # and with job.concurrency > 1 which documents hit a cap depends on

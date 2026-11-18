@@ -823,10 +823,27 @@ class ClosedFieldResolverSpec(BaseModel):
 # ``decision_slots:`` block. The vendored module validates the values (preflight); these
 # names only catch a typo before anything is loaded.
 DECISION_SLOT_NAMES = ("sorter_reviewer", "archive_gate", "judge_replacement", "arbiter_veto",
-                       "closed_field_resolver", "field_review")
+                       "judge_check", "boss_check", "closed_field_resolver", "field_review")
 _DECISION_SLOT_SHARED = ("gate_support_min", "cap_warmup", "gate_key_fields")
 # Slots that read the pipeline extraction gate's field_support.
-GATE_SLOTS = ("archive_gate", "judge_replacement", "arbiter_veto")
+GATE_SLOTS = ("archive_gate", "judge_replacement", "arbiter_veto", "judge_check", "boss_check")
+
+
+def _slot_mode(slots: dict[str, Any], slot: str) -> str:
+    block = slots.get(slot) or {}
+    return str(block.get("mode", "baseline")) if isinstance(block, dict) else "baseline"
+
+
+def slots_are_baseline(slots: dict[str, Any] | None) -> bool:
+    """True when a ``decision_slots`` mapping changes nothing: every mode baseline, no reviewer park cap.
+
+    Shared by preflight and runtime activation, so an older vendored mailroom without slot
+    support runs exactly the blocks preflight accepted.
+    """
+    slots = slots or {}
+    reviewer = slots.get("sorter_reviewer") or {}
+    park_cap = reviewer.get("park_cap") if isinstance(reviewer, dict) else None
+    return all(_slot_mode(slots, s) == "baseline" for s in DECISION_SLOT_NAMES) and park_cap is None
 
 
 class DecisionSlotsSpec(BaseModel):
@@ -860,13 +877,11 @@ class DecisionSlotsSpec(BaseModel):
         return {k: v for k, v in sorted((self.model_extra or {}).items())}
 
     def mode(self, slot: str) -> str:
-        block = self.slots().get(slot) or {}
-        return str(block.get("mode", "baseline")) if isinstance(block, dict) else "baseline"
+        return _slot_mode(self.slots(), slot)
 
     def is_baseline(self) -> bool:
         """True when no slot would change anything (every mode baseline, no reviewer park cap)."""
-        reviewer = self.slots().get("sorter_reviewer") or {}
-        return all(self.mode(s) == "baseline" for s in DECISION_SLOT_NAMES) and reviewer.get("park_cap") is None
+        return slots_are_baseline(self.slots())
 
 
 # Routing thresholds a run may override (vendored graph/routing.py reads them per class).

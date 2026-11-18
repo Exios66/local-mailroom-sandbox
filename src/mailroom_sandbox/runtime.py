@@ -344,7 +344,11 @@ def _restart_decision_slots(slots: dict[str, Any] | None) -> None:
     try:
         from graph.decision_slots import reset_ledger
     except ImportError:
-        if slots:
+        from mailroom_sandbox.job.spec import slots_are_baseline
+
+        # Preflight lets an older vendor run an all-baseline block; only a block that would
+        # change something needs the slots.
+        if not slots_are_baseline(slots):
             raise RuntimeError("the vendored llm-mailroom has no decision slots (graph.decision_slots); "
                                "re-vendor llm-mailroom at a commit that includes them") from None
         _ACTIVE_SLOTS = deepcopy(slots)

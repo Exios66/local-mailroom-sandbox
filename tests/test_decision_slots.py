@@ -241,6 +241,20 @@ def test_every_run_gets_a_fresh_ledger_and_a_new_block_a_new_graph(monkeypatch):
     for _ in range(2):  # a failed activation never turns a retry with the same block into a no-op
         with pytest.raises(RuntimeError, match="re-vendor llm-mailroom"):
             runtime._restart_decision_slots(block)
+    # What preflight accepts on an older vendor activates there too.
+    runtime._restart_decision_slots({"archive_gate": {"mode": "baseline"}, "cap_warmup": 30})
+    with pytest.raises(RuntimeError, match="re-vendor llm-mailroom"):
+        runtime._restart_decision_slots({"sorter_reviewer": {"park_cap": 0.2}})
+    with pytest.raises(RuntimeError, match="re-vendor llm-mailroom"):
+        runtime._restart_decision_slots({"boss_check": {"mode": "enforce"}})
+
+
+def test_the_approval_check_slots_need_the_gate():
+    """judge_check and boss_check are slot names the spec accepts, and they read the gate."""
+    with pytest.raises(ValueError, match="extraction_gate"):
+        _spec(job={"mock": True}, decision_slots={"judge_check": {"mode": "enforce"}})
+    spec = _slotted(boss_check={"mode": "enforce", "on_unverified": "park"})
+    assert spec.decision_slots.mode("boss_check") == "enforce" and not spec.decision_slots.is_baseline()
 
 
 # ---------------------------------------------------------------------------
