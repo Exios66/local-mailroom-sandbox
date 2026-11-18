@@ -182,19 +182,43 @@ def build(run_ids: list[str], root: Path, reviews: list[Path] | None = None) -> 
 def _apply_review_files(by_class: dict[str, list[dict[str, Any]]], paths: list[Path]) -> list[dict[str, Any]]:
     """Apply review files to freshly built records (``by_class`` changed in place); the manifest entries."""
     entries = []
-    for path in paths:
-        lines, problems = il.read_reviews(path)
+    read, problems = _read_review_set(paths)
+    if problems:
+        raise SystemExit("build refused: the review files do not apply:\n  " + "\n  ".join(problems))
+    for path, lines in read:
         records = {r["doc_id"]: r for recs in by_class.values() for r in recs}
         new = [doc for doc in {line["doc_id"] for line in lines} if doc not in records]
         _, bad = il.apply_reviews(records, lines, _rel(path))
-        if problems or bad:
-            raise SystemExit("build refused: the review file does not apply:\n  " + "\n  ".join(problems + bad))
+        if bad:
+            raise SystemExit("build refused: the review file does not apply:\n  " + "\n  ".join(bad))
         for doc in sorted(new):
             by_class[records[doc]["doc_class"]].append(records[doc])
         for recs in by_class.values():
             recs.sort(key=lambda r: r["doc_id"])
         entries.append(_review_entry(path, lines))
     return entries
+
+
+def _read_review_set(paths: list[Path]) -> tuple[list[tuple[Path, list[dict[str, Any]]]], list[str]]:
+    """Read review files as one set: each label may be reviewed in one file only.
+
+    Two files reviewing the same label would leave one of them unapplied (the last wins), which
+    ``check`` then fails on, so the overlap is refused before anything is written.
+    """
+    read, problems, owner = [], [], {}
+    for path in paths:
+        if not path.is_file():
+            problems.append(f"{path}: not found")
+            continue
+        lines, bad = il.read_reviews(path)
+        problems += bad
+        for line in lines:
+            key = (line["doc_id"], line["field"])
+            if key in owner:
+                problems.append(f"{path.name}: {key[0]}.{key[1]} is also reviewed in {owner[key].name}")
+            owner.setdefault(key, path)
+        read.append((path, lines))
+    return read, problems
 
 
 def _rel(path: Path) -> str:
@@ -232,8 +256,10 @@ def review(root: Path, paths: list[Path]) -> int:
     """Apply review files to the committed overlay in place; no gate run needed.
 
     Each line replaces the label of its field (or adds one, and a record if the document has
-    none). The manifest lists each file with its sha256, so ``check`` fails once a file changes
-    without being re-applied, and ``build`` re-applies them after a rebuild.
+    none). The files the manifest already lists are applied with ``paths`` as one set, so a new
+    file never drops an earlier one, and a label reviewed in two files is refused. The manifest
+    lists each file with its sha256, so ``check`` fails once a file changes without being
+    re-applied, and ``build`` re-applies them after a rebuild.
     """
     integrity = il.verify(root, reviews=False)
     if integrity:
@@ -245,14 +271,15 @@ def review(root: Path, paths: list[Path]) -> int:
     names = list(man.get("files") or {})
     by_name = {name: il._jsonl(root / name) for name in names}
     records = {r["doc_id"]: r for recs in by_name.values() for r in recs}
-    entries, changed, problems = [], 0, []
-    for path in paths:
-        if not path.is_file():
-            problems.append(f"{path}: not found")
-            continue
-        lines, bad = il.read_reviews(path)
-        n, bad2 = il.apply_reviews(records, lines, _rel(path))
-        problems += bad + bad2
+    # The files the manifest already lists stay applied and tracked: a new file joins them.
+    listed = [_repo_path(e["path"]) for e in man.get("reviews") or []]
+    seen = {p.resolve() for p in paths}
+    paths = [p for p in listed if p.resolve() not in seen] + list(paths)
+    read, problems = _read_review_set(paths)
+    entries, changed = [], 0
+    for path, lines in read:
+        n, bad = il.apply_reviews(records, lines, _rel(path))
+        problems += bad
         changed += n
         entries.append(_review_entry(path, lines))
     if problems:

@@ -569,3 +569,52 @@ def test_apply_and_check_commands_read_parquet(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(il, "row_doc_sha", lambda row: "f" * 16)
     assert mod.main(["--root", str(root), "check", "--rows", str(src), "--prune"]) == 0
     assert il.load_overlay(root)["E1"]["labels"].keys() == {"intent", "sender"} and il.verify(root) == []
+
+
+def test_empty_header_values_must_match_empty_headers():
+    def why(field, value, *headers, **over):
+        ev = [{"source": il.HEADER_SOURCE, "file": "f/1.", "header": h} for h in headers]
+        return il.review_line_problem(_header_line(field, value, headers[0], evidence=ev, **over))
+    assert why("sender", None, "X-From: ") is None
+    assert "header states it" in why("sender", None, "X-From: Ann M Schmidt")
+    assert why("recipient", None, "X-To: ") is None
+    assert "header states it" in why("recipient", None, "X-To: ", "To: bo@enron.com")
+    assert why("communication_date", None, "Date: ") is None
+    assert "states a date" in why("communication_date", None, "Date: Mon, 14 May 2001 09:02:00 -0700")
+    # additional_recipients may be empty when the To line names only the recipient and no one is cc'd.
+    assert why("additional_recipients", [], "X-To: Jacobson, Michael </O=ENRON/CN=Mjacobso>", "X-cc: ",
+               "To: michael.jacobson@enron.com") is None
+    assert "names more people" in why("additional_recipients", [], "X-To: ", "X-cc: Sue Mara")
+    assert "names more people" in why("additional_recipients", [], "X-To: Jeff Dasovich, Sue Mara")
+    assert "names more people" in why("additional_recipients", [], "To: a@enron.com, b@enron.com")
+
+
+def test_a_correction_needs_the_hub_value_it_replaces():
+    for missing in ({}, {"hub_value": None}, {"hub_value": ""}):
+        line = {k: v for k, v in _intent_line().items() if k != "hub_value"}
+        assert "hub_value" in il.review_line_problem({**line, **missing})
+    assert il.review_line_problem(_header_line()) is None  # a header gap fill has no Hub value
+
+
+def test_review_keeps_earlier_files_and_refuses_a_label_reviewed_twice(tmp_path, monkeypatch, capsys):
+    root, mod, review = _review_overlay(tmp_path, monkeypatch)
+    assert mod.review(root, [review]) == 0
+    second = tmp_path / "more.jsonl"
+    second.write_text(json.dumps(_header_line("recipient", "Jeff Dasovich", "X-To: Jeff Dasovich")) + "\n",
+                      encoding="utf-8")
+    assert mod.review(root, [second]) == 0  # a disjoint file joins the first one
+    man = il.load_manifest(root)
+    assert sorted(e["path"].rsplit("/", 1)[-1] for e in man["reviews"]) == ["more.jsonl", "reviews.jsonl"]
+    assert il.load_overlay(root)["E1"]["labels"].keys() == {"intent", "recipient", "sender"}
+    assert il.verify(root) == []
+    before = {p.name: p.read_bytes() for p in root.iterdir()}
+    clash = tmp_path / "clash.jsonl"
+    clash.write_text(json.dumps(_header_line(value=None, header="X-From: ")) + "\n", encoding="utf-8")
+    capsys.readouterr()
+    assert mod.review(root, [clash]) == 1
+    assert "E1.sender is also reviewed in reviews.jsonl" in capsys.readouterr().out
+    assert {p.name: p.read_bytes() for p in root.iterdir()} == before
+    # build refuses the same overlap.
+    by_class = {"correspondence": [json.loads(line) for line in (root / "correspondence.jsonl").read_text().splitlines()]}
+    with pytest.raises(SystemExit, match="also reviewed in"):
+        mod._apply_review_files(by_class, [review, clash])

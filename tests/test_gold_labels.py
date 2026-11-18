@@ -987,3 +987,34 @@ def test_review_command_refuses_text_that_changed_since_labelling(cli, capsys, m
                                   "note": "n", "entry": {"value": "John Doe", "evidence": ["To: John Doe"]}}])
     assert mod.main(["review", "--corpus", "ignored", "--review", review]) == 1
     assert "differs from the label's" in capsys.readouterr().err
+
+
+def test_review_command_accept_must_name_the_current_value(cli, capsys):
+    mod, write, _, tmp = cli
+    assert _built(cli, RECIPIENT, DISPUTE_CHECK) == 0
+    bare = write("acc.jsonl", [{"doc_id": "DOC-1", "field": "recipient", "verdict": "accept", "reviewer": OPUS}])
+    assert mod.main(["review", "--corpus", "ignored", "--review", bare]) == 1
+    assert "does not name the current value" in capsys.readouterr().err
+    named = write("acc2.jsonl", [{"doc_id": "DOC-1", "field": "recipient", "verdict": "accept", "reviewer": OPUS,
+                                  "value": "John Doe"}])
+    assert mod.main(["review", "--corpus", "ignored", "--review", named]) == 0
+
+
+def test_review_command_writes_nothing_when_the_reviewed_catalog_fails(cli, capsys, monkeypatch):
+    mod, write, _, tmp = cli
+    assert _built(cli, RECIPIENT, DISPUTE_CHECK) == 0
+    gold = tmp / "gold"
+    before = {p.name: p.read_bytes() for p in gold.iterdir()}
+    real = gl.verify_catalog
+    # The committed catalog verifies; the staged, reviewed one does not.
+    monkeypatch.setattr(gl, "verify_catalog", lambda d: real(d) if Path(d) == gold else ["c.jsonl: staged failure"])
+    review = write("fix.jsonl", [{"doc_id": "DOC-1", "field": "recipient", "verdict": "correct", "reviewer": OPUS,
+                                  "note": "n", "entry": {"value": "John Doe", "evidence": ["To: John Doe"]}}])
+    capsys.readouterr()
+    assert mod.main(["review", "--corpus", "ignored", "--review", review]) == 1
+    assert "nothing was written" in capsys.readouterr().err
+    assert {p.name: p.read_bytes() for p in gold.iterdir()} == before
+    assert not [p for p in tmp.iterdir() if p.name.startswith(".gold-review-")]
+    # Once the catalog passes, the same review applies (it was never recorded as done).
+    monkeypatch.setattr(gl, "verify_catalog", real)
+    assert mod.main(["review", "--corpus", "ignored", "--review", review]) == 0

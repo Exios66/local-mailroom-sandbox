@@ -324,8 +324,10 @@ def _header_problem(field: str, value: Any, evidence: Any) -> str | None:
         if name not in HEADER_LINES[field]:
             return f"{field} is read from {'/'.join(HEADER_LINES[field])}, not {name}"
         headers.append(ev["header"])
+    if value is None or value == []:
+        return _empty_header_problem(field, headers)
     if field == "communication_date":
-        if value is not None and value not in {_header_date(h) for h in headers}:
+        if value not in {_header_date(h) for h in headers}:
             return f"{value!r} is not the date the Date header states"
         return None
     # Each token of each name occurs in the quoted header lines (a mangled export can fuse a
@@ -336,6 +338,37 @@ def _header_problem(field: str, value: Any, evidence: Any) -> str | None:
         if missing:
             return f"{item!r} is not in the quoted header ({', '.join(missing)} missing)"
     return None
+
+
+def _header_body(header: str) -> str:
+    return header.split(":", 1)[1].strip() if ":" in header else ""
+
+
+def _addressees(body: str) -> int:
+    """How many people a To/X-To line names ("Roe, Jane <...>" is one, "a@x, b@y" two)."""
+    if not body:
+        return 0
+    if "<" in body:
+        return body.count("<")
+    if "@" in body:
+        return body.count("@")
+    return len([part for part in body.split(",") if part.strip()])
+
+
+def _empty_header_problem(field: str, headers: list[str]) -> str | None:
+    """Why an empty value contradicts the quoted header lines (None: they are empty too)."""
+    if field == "communication_date":
+        dated = [h for h in headers if _header_date(h)]
+        return f"null, but the header states a date: {dated[0]!r}" if dated else None
+    if field == "additional_recipients":
+        # No one besides the recipient: every cc line is empty and each To line names one person at most.
+        for h in headers:
+            name, body = h.split(":", 1)[0], _header_body(h)
+            if (name in ("X-cc", "Cc") and body) or (name in ("X-To", "To") and _addressees(body) > 1):
+                return f"empty, but the header names more people: {h!r}"
+        return None
+    filled = [h for h in headers if _header_body(h)]
+    return f"null, but the header states it: {filled[0]!r}" if filled else None
 
 
 def _review_value_problem(field: str, value: Any) -> str | None:
@@ -372,6 +405,8 @@ def review_line_problem(line: Mapping[str, Any]) -> str | None:
         return "reviewer needs a model and a role"
     if not str(line["note"] or "").strip():
         return "a review needs a note"
+    if status == "correction" and line.get("hub_value") in (None, "", [], {}):
+        return "a correction needs the hub_value it replaces"
     problem = _review_value_problem(line["field"], line["value"])
     if problem:
         return problem

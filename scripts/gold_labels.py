@@ -45,7 +45,9 @@ import argparse
 import collections
 import hashlib
 import json
+import os
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -486,7 +488,10 @@ def cmd_review(args: argparse.Namespace) -> int:
             problems.append(f"{key[0]}.{key[1]}: the corpus text is missing or differs from the label's")
             continue
         try:
-            resolved = _resolve_decision(rec, decision, None, {"doc_id": rec["doc_id"], "doc_class": cls}, text)
+            # relabel=True: the catalog does not mark a field an --override pass relabelled, so an
+            # in-place accept always names the value it reviewed (the build replays it either way).
+            resolved = _resolve_decision(rec, decision, None, {"doc_id": rec["doc_id"], "doc_class": cls}, text,
+                                         relabel=True)
         except _BuildError as exc:
             problems.append(str(exc))
             continue
@@ -494,18 +499,33 @@ def cmd_review(args: argparse.Namespace) -> int:
     if problems:
         print("review refused:\n  " + "\n  ".join(problems), file=sys.stderr)
         return 1
-    files = {f"{cls}.jsonl": gl.write_jsonl(gold / f"{cls}.jsonl", recs) for cls, recs in data.items()}
-    manifest["files"] = files
-    manifest["counts"] = _class_counts(data)
-    manifest["sources"]["review"] = sorted({*manifest["sources"].get("review", []),
-                                            *(Path(p).name for p in args.review)})
-    manifest["reviewed_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    (gold / "MANIFEST.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    left = gl.verify_catalog(gold)
-    for p in left:
-        print(p, file=sys.stderr)
+    # Stage the new catalog beside the old one and verify it there; the committed files are
+    # replaced only when it passes (a failing review leaves the catalog and its reviews as they were).
+    with tempfile.TemporaryDirectory(dir=gold.parent, prefix=".gold-review-") as tmp:
+        stage = Path(tmp)
+        files = {f"{cls}.jsonl": gl.write_jsonl(stage / f"{cls}.jsonl", recs) for cls, recs in data.items()}
+        manifest["files"] = files
+        manifest["counts"] = _class_counts(data)
+        manifest["sources"]["review"] = sorted({*manifest["sources"].get("review", []),
+                                                *(Path(p).name for p in args.review)})
+        manifest["reviewed_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        (stage / "MANIFEST.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        left = gl.verify_catalog(stage)
+        if left:
+            print("review refused: the reviewed catalog fails its check; nothing was written:\n  "
+                  + "\n  ".join(left), file=sys.stderr)
+            return 1
+        names = [*files, "MANIFEST.json"]
+        previous = {name: (gold / name).read_bytes() for name in names if (gold / name).exists()}
+        try:
+            for name in names:
+                os.replace(stage / name, gold / name)
+        except BaseException:
+            for name, blob in previous.items():
+                (gold / name).write_bytes(blob)
+            raise
     print(f"reviewed {len(reviews)} labels in place; MANIFEST sha256 {gl.manifest_sha(gold)}")
-    return 1 if left else 0
+    return 0
 
 
 def cmd_disputes(args: argparse.Namespace) -> int:
