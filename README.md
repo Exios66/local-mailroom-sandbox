@@ -295,6 +295,7 @@ reference — every command, subcommand and argument — is
 | Guide | Description |
 | :--- | :--- |
 | [Experiment workflow](docs/experiments.md) | Paired designs, pipeline/hybrid agent models, initials-gated spend, smoke, observer, and reports |
+| [Autoresearch](docs/autoresearch.md) | Config-only greedy lever search over locked runs: weakness table, paired bootstrap, ledger, held-out confirmation |
 | [Quickstart](docs/setting-up/QUICKSTART.md) | **Start here** — install, full CLI reference, canonical workflows |
 | [Providers](docs/setting-up/providers.md) | Ollama, vLLM, Modal, llama.cpp, LM Studio, OpenRouter |
 | [Evals](docs/evals.md) | Runners, matrix, scoring, experiment log |

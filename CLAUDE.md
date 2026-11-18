@@ -103,7 +103,8 @@ sandbox doctor                                              # offline status of 
   then they are imported into Digital-Mailroom. Never export hub edits back into the
   standalone repos, and never patch scoring or pipeline logic in `vendor/`.
 - `sandbox` flags such as `--profile`, `--model`, `--prompt` work before or after the
-  subcommand; a flag after the subcommand wins.
+  subcommand; a flag after the subcommand wins. `sandbox autoresearch` refuses them
+  (its frozen study spec sets provider, models and prompts).
 - The reporter agent is retired here: `compile_report` is the deterministic
   procedural reporter (no LLM). Reviewers (`sorter_reviewer`) stay enabled.
 - Experiment log is `reports/experiment_log.jsonl` (sandbox-local). Reports under

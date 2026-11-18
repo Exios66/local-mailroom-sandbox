@@ -1,0 +1,34 @@
+# mailroom-v2 (2026-11-17): mailroom-v1 at 15 documents per class, chosen so a real gain can clear the replicate noise floor
+# (v1 at 5 per class measured a floor of 0.148). Same production settings and $15 study cap; round cap raised for 3x the documents.
+# Autoresearch study on the production configuration. Paid: needs your initials on the command line
+#   sandbox autoresearch plan   --study config/autoresearch/mailroom-v2/study.yaml
+#   sandbox autoresearch run    --study config/autoresearch/mailroom-v2/study.yaml --initials <XX> --max-rounds 3
+#   sandbox autoresearch holdout --study config/autoresearch/mailroom-v2/study.yaml --initials <XX>
+# Spend: round_api_cap_usd becomes every candidate run's job.api_cost_cap_usd (a supervisor lever derives a larger
+# cap, up to max_round_cap_usd, from the runtime ApiBudget bound); study_usd bounds the sum of the ledger's costs (a
+# round aborted by its cap, or one with no dataset rows, is charged its full cap); min_key_remaining_usd is the
+# OpenRouter key headroom the loop leaves untouched.
+schema: sandbox.autoresearch/v1
+study: mailroom-v2
+base_run: base.yaml
+levers: ../levers.yaml
+budget:
+  study_usd: 15
+  round_api_cap_usd: 3.0
+  round_wall_seconds: 7200
+  min_key_remaining_usd: 3.0
+  max_round_cap_usd: 6.0    # ceiling for a supervisor lever's derived round cap
+# The loop re-runs the baseline once (round "replicate") and uses max(this, |mean paired delta|, CI half-width) of the
+# two baseline runs as the effective noise floor. No lever is kept before the replicate exists.
+noise_floor: 0.0
+max_consecutive_reverts: 7   # raised from 3 after round 3 (2026-11-17) to test the judge-routing levers added from the v1 failure analysis
+utility:                  # per document: correct archive = its extraction score
+  review: -0.25
+  wrong_archive: -1.0
+  crashed: -1.0
+  judge_error: -1.0
+  unscorable: 0.0
+bootstrap: {n_boot: 2000, seed: 0, ci: 0.90}
+# The holdout keeps the dev draw's production settings (ranked, seed 3302, same strata). It excludes
+# config/production/excluded-ids.txt plus every dev document, so it is the next ranked block.
+holdout_dataset: {}

@@ -23,6 +23,7 @@ types (``DecisionAnswer``) are imported lazily too, after
 
 from __future__ import annotations
 
+import functools
 import re
 from typing import TYPE_CHECKING, Any, Callable, Iterable, Literal, Mapping, Optional
 
@@ -240,16 +241,72 @@ ABSTAIN_KEYS = ("margin", "subclass_not_this_class_max", "unknown_max")
 SUBCLASS_POLICIES = ("park", "keep_sorter")
 
 
+# Built-in floor for the catalog: the one model every locked run so far used. config/decision_models.yaml
+# (OpenRouter ``GET /api/v1/models?output_modalities=decisions``) is the real list.
+_BUILTIN_DECISION_MODELS: dict[str, dict[str, Any]] = {
+    "openai/gpt-6-luna-decisions": {"canonical_slug": "openai/gpt-6-luna-decisions-20261006",
+                                    "endpoints": ["/api/alpha/decisions"], "context_length": 1_050_000,
+                                    "prompt": 0.10},
+}
+
+
+def _is_alias(model: str) -> bool:
+    """A moving alias (``~org/model``, ``...-latest``, with or without a ``:variant``): never a pinned decision model."""
+    base = model.split(":", 1)[0]
+    return base.startswith("~") or base.endswith("-latest")
+
+
+@functools.lru_cache(maxsize=1)
+def decision_catalog() -> dict[str, dict[str, Any]]:
+    """The Decisions-API models from ``config/decision_models.yaml``, by id (built-in floor if unreadable)."""
+    import yaml
+
+    from mailroom_sandbox.paths import config_dir
+
+    try:
+        doc = yaml.safe_load((config_dir() / "decision_models.yaml").read_text(encoding="utf-8")) or {}
+        models = {str(k): dict(v or {}) for k, v in (doc.get("models") or {}).items() if not _is_alias(str(k))}
+    except (OSError, ValueError, AttributeError, yaml.YAMLError):
+        models = {}
+    return {**_BUILTIN_DECISION_MODELS, **models}
+
+
+def decision_model(model: str | None) -> dict[str, Any] | None:
+    """The catalog row of a pinned Decisions-API model (by id or canonical slug), else None."""
+    if not model or _is_alias(str(model)):
+        return None
+    catalog = decision_catalog()
+    if str(model) in catalog:
+        return catalog[str(model)]
+    return next((row for row in catalog.values() if row.get("canonical_slug") == model), None)
+
+
 def is_decisions_model(model: str | None) -> bool:
-    """True for a Decisions-API model id (``openai/gpt-6-luna-decisions``), which has no chat route."""
-    return bool(model) and str(model).split(":", 1)[0].endswith("-decisions")
+    """True for a pinned Decisions-API model id listed in ``config/decision_models.yaml``.
+
+    A name that merely looks like one is not enough (``typesafe/jev-router`` is a chat model), and a
+    moving alias (``~typesafe/jev-latest``, ``...-latest``) is refused: a cutoff is tuned to one version.
+
+    An OpenRouter ``:variant`` suffix (``openai/gpt-6-luna-decisions:nitro``) is accepted when the id without it
+    is listed; an id that is itself listed with a variant (``perplexity/pplx-decider-v1.3:free``) matches exactly
+    first. An alias stays refused with a variant too (``~typesafe/jev-latest:free``). ``decision_model`` itself
+    stays exact, so pricing never assumes a variant bills like its base.
+    """
+    if decision_model(model) is not None:
+        return True
+    base, _, variant = str(model or "").partition(":")
+    return bool(variant) and decision_model(base) is not None
 
 
 # The decision models the reviewer lane supports, by backend. A model outside this list can
 # still be frozen (the spec guards check its shape), but these are the ones calibrated here.
+# Only openai/gpt-6-luna-decisions is calibrated; the others are the ones the autoresearch
+# loop measures (config/autoresearch/levers.yaml). Jev goes through OpenRouter Decisions
+# (typesafe/jev-1.14, typesafe/jev-1.13); the ``jev`` backend calls TypeSafe directly.
 SUPPORTED_DECISION_MODELS: dict[str, tuple[str, ...]] = {
     "jev": ("jev-1.13.0",),
-    "decisions": ("openai/gpt-6-luna-decisions",),
+    "decisions": ("openai/gpt-6-luna-decisions", "typesafe/jev-1.14", "typesafe/jev-1.13", "liquid/d1.2",
+                  "perplexity/pplx-decider-v1.2", "upstage/solar-decide", "google/gemini-decision-1"),
 }
 
 

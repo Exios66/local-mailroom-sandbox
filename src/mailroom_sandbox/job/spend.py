@@ -164,7 +164,7 @@ def key_headroom() -> dict[str, Any]:
     resp.raise_for_status()
     data = resp.json().get("data") or {}
     return {"limit": data.get("limit"), "limit_remaining": data.get("limit_remaining"),
-            "usage": data.get("usage"), "limit_reset": data.get("limit_reset")}
+            "usage": data.get("usage"), "limit_reset": data.get("limit_reset"), "label": data.get("label")}
 
 
 def require_key_headroom(lock: dict) -> None:

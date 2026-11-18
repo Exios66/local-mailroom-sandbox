@@ -1,0 +1,36 @@
+# Offline-safe lever catalog for the mock smoke study: every patch is valid on the mock base, none names a paid model
+# or a provider, and the tier/requires ladder is exercised with mock reviewer cutoffs.
+schema: sandbox.autoresearch.levers/v1
+levers:
+  - id: mock-cutoff-low
+    node: reviewer
+    classes: [contract, corporate_record]
+    description: Lower the mock reviewer's cutoffs.
+    patch: {reviewer.classes: {contract: 0.3, corporate_record: 0.3}}
+  - id: mock-judge-all-insurance
+    node: judge
+    classes: [insurance_claim]
+    description: Judge every in-band insurance extraction.
+    patch: {confidence.by_class.insurance_claim.judge_band_high: 1.01}
+  - id: mock-judge-passes-2
+    node: judge
+    classes: all
+    description: Cap judge passes at 2.
+    patch: {confidence.judge_max_passes: 2}
+  - id: mock-tier1-cutoff
+    node: reviewer
+    classes: all
+    tier: 1
+    group: mock-ladder
+    description: Tier 1 of a demo ladder (mock reviewer, third class).
+    patch: {reviewer.classes.correspondence: 0.4}
+  - id: mock-tier2-cutoff
+    node: reviewer
+    classes: all
+    tier: 2
+    group: mock-ladder
+    requires:
+      - {kept: {group: mock-ladder, tier: 1}}
+      - {all_reverted_positive: {group: mock-ladder, tier: 1}}
+    description: Tier 2, opened only after tier 1 was kept or reverted with a positive mean delta.
+    patch: {reviewer.classes.insurance_claim: 0.4}

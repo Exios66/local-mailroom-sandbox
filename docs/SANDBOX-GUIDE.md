@@ -207,6 +207,7 @@ flags through `sandbox modal raw -- <args>`, `sandbox hf raw -- <args>`, or
 | `sandbox api status [--offline]` | Pinned vs selected mailroom and Dojo, plus the running API's `/health` |
 | `sandbox api eval [--class C] [--sample N] [--submit]` | Upload fixtures to a running or deployed mailroom API and score the results with the Dojo (plans unless `--submit`) |
 | `sandbox api eval --mock [--class C] [--sample N]` | The same loop against the vendored API app in process, with the mock LLM and a temporary data dir: an offline wiring check, no spend |
+| `sandbox api eval --dataset-config <run.yaml> [--mock\|--submit]` | Score corpus documents instead of the fixtures. The YAML's `dataset:` block (a production slice works as is) is prepared as a run prepares it: pinned revision, seeded draw, `content_sha256` check, and the interim and near-gold overlays when the block turns them on (`interim_labels: true`, `near_gold_labels: true`). The report's `dataset` key records the provenance |
 
 ### Prompt & metric commands
 

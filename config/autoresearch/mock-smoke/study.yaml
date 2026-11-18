@@ -1,0 +1,19 @@
+# Mock autoresearch study: runs offline in seconds, spends nothing, needs no initials and no key.
+#   sandbox autoresearch run --study config/autoresearch/mock-smoke/study.yaml --max-rounds 3
+schema: sandbox.autoresearch/v1
+study: mock-smoke
+base_run: base.yaml
+levers: levers.yaml
+budget:
+  study_usd: 5
+  round_api_cap_usd: 1
+  round_wall_seconds: 600
+  min_key_remaining_usd: 0
+noise_floor: 0.0
+max_consecutive_reverts: 3
+bootstrap: {n_boot: 500, seed: 0, ci: 0.90}
+# Holdout: the two documents the dev draw left (an insurance claim pair).
+holdout_dataset:
+  strata:
+    buckets:
+      - {doc_class: insurance_claim, count: 2}
