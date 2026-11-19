@@ -297,7 +297,7 @@ def ungrounded(findings: Iterable[GroundingFinding]) -> list[GroundingFinding]:
 
 #: Hosts a notebook probe may call: this machine and the Compose services of the offline stack.
 LOCAL_PROBE_HOSTS: frozenset[str] = frozenset(
-    {"localhost", "127.0.0.1", "::1", "0.0.0.0", "host.docker.internal", "ollama", "vllm", "llamacpp"}
+    {"localhost", "127.0.0.1", "::1", "0.0.0.0", "host.docker.internal", "ollama", "vllm", "llamacpp"}  # nosec B104 -- hosts a probe connects to; nothing binds here
 )
 
 
