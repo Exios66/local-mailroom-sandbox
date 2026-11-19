@@ -712,3 +712,15 @@ def test_isolated_items_keep_the_call_count():
     _persist_isolated_items(store, [{"id": "D", "pred": {}, "score": {}, "prompt_tokens": 9, "completion_tokens": 1,
                                      "llm_calls": 4}])
     assert store.items[0]["llm_calls"] == 4
+
+
+def test_decide_records_document_form_probabilities_without_changing_routing(monkeypatch):
+    answers = _v4_answers(form="fragment_or_excerpt")
+    answers["document_form"]["probabilities"] = {"complete_instrument": 0.45, "fragment_or_excerpt": 0.5,
+                                                 "multiple_documents": 0.05}
+    out = _decide(monkeypatch, answers)
+    assert out["document_form_probabilities"]["complete_instrument"] == 0.45
+    assert out["document_form_human_mass"] == 0.55
+    assert out["abstained"] and "document_form:fragment_or_excerpt" in out["abstain_reasons"]  # still parks
+    bare = _decide(monkeypatch, _v4_answers())  # no probabilities on the answer: nothing recorded
+    assert "document_form_probabilities" not in bare and "document_form_human_mass" not in bare

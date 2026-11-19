@@ -14,6 +14,7 @@ Status: **2 done**
 - `config/runs/rb1-r13b-smoke20-llm-sorter-qwen3.7-flash.yaml`
 - `config/runs/rb1-r13b-smoke20b-decision-sorter-luna-v4.0.1.yaml`
 - `config/runs/rb1-r13b-smoke20b-llm-sorter-qwen3.7-flash.yaml`
+- `config/runs/rb1-r13b-smoke20c-decision-sorter-luna-v4.0.1.yaml`
 
 ## Runs
 

@@ -864,7 +864,26 @@ def decide(doc_text: str, *, model: str, questions: Mapping[str, Any], timeout: 
         result = apply_question_set_contract(result, answers, qset or {}, handoff=handoff,
                                              truncated=original_chars > max_input_chars,
                                              original_chars=original_chars, window_chars=max_input_chars)
+    result.update(document_form_evidence(answers, qset))
     return result
+
+
+def document_form_evidence(answers: Mapping[str, Any], qset: Mapping[str, Any] | None) -> dict[str, Any]:
+    """Record-only: the ``document_form`` answer's probabilities and their mass on ``human_forms``.
+
+    Calibration evidence for a future probability floor on form parks. It changes no routing
+    or score (the SHF-009 contract still parks on the chosen form); empty when the question
+    set asks no form question or the answer carries no probabilities.
+    """
+    raw = (answers.get("document_form") or {}).get("probabilities")
+    if not isinstance(raw, Mapping):
+        return {}
+    probs = {str(k): float(v) for k, v in raw.items() if isinstance(v, (int, float)) and not isinstance(v, bool)}
+    if not probs:
+        return {}
+    human = set((qset or {}).get("human_forms") or [])
+    return {"document_form_probabilities": probs,
+            "document_form_human_mass": round(sum(v for k, v in probs.items() if k in human), 6)}
 
 
 #: Doc-type options that are not a class: probability on them is abstention mass (4.0.0 ``unknown_max``).
