@@ -713,3 +713,13 @@ def test_normalize_keeps_control_labels_and_unscores_a_bundle_class():
     assert j["expected_doc_class"] is None and j["expected_subclass"] is None
     assert (j["placeholder_doc_class"], j["placeholder_subclass"]) == ("contract", "x")
     assert not set(p) & {"control", "class_label_scored", "placeholder_doc_class"}
+
+
+def test_renormalizing_a_locked_bundle_keeps_its_placeholders():
+    join = {"id": "CAL-join-a-b", "doc_text": "A then B", "expected_doc_class": "contract", "expected_subclass": "x",
+            "expected_document_form": "multiple_documents", "control": "join", "derived_from": ["DOC-a", "DOC-b"],
+            "class_label_scored": False}
+    (locked,) = normalize_rows([join])
+    (again,) = normalize_rows([locked])  # a locked dataset reused as local JSONL input
+    assert again["expected_doc_class"] is None and again["expected_subclass"] is None
+    assert (again["placeholder_doc_class"], again["placeholder_subclass"]) == ("contract", "x")

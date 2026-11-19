@@ -333,10 +333,14 @@ def normalize_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         # A bundle of two documents has no one true class: its class labels are placeholders
         # (``class_label_scored: false``). The row gets no truth class, so scoring leaves it
         # unscored (SHF-007) instead of calling the model's answer wrong; the placeholders stay.
+        # A row that was already normalized (a locked bundle reused as local input) carries its
+        # placeholders and no truth class; keep them rather than overwrite them with None.
         if row.get("class_label_scored") is False:
-            normalized["placeholder_doc_class"] = normalized.pop("expected_doc_class")
-            normalized["placeholder_subclass"] = normalized.pop("expected_subclass")
-            normalized["expected_doc_class"] = normalized["expected_subclass"] = None
+            for truth, placeholder in (("expected_doc_class", "placeholder_doc_class"),
+                                       ("expected_subclass", "placeholder_subclass")):
+                value = normalized.pop(truth)
+                normalized[placeholder] = value if value not in (None, "") else row.get(placeholder)
+                normalized[truth] = None
         # LegalBench-style rows keep their question/answer for the live path.
         if row.get("question") is not None:
             normalized["question"] = row.get("question")
