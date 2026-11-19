@@ -10,7 +10,7 @@ import pytest
 import yaml
 
 from mailroom_sandbox.corpus import prepare_subset, read_id_list
-from mailroom_sandbox.job.spec import load_run_spec
+from mailroom_sandbox.job.spec import FAMILY_HF_REVISION, load_run_spec
 
 ROOT = Path(__file__).resolve().parents[1]
 PROD = ROOT / "config" / "runs" / "production"
@@ -21,7 +21,7 @@ LINEAGE = ROOT / "config" / "prompts" / "specialist_condensed_lineage.yaml"
 SIZES = ("0100", "0250", "0500")
 SLICES = [f"slice-{s}" for s in SIZES] + ["slice-full"]
 TWINS = [f"slice-{s}-modal-host" for s in SIZES]
-CACHE_REL = "data/cache/Lucius-Morningstar__mailroom-dataset__bc9eab280044/ground_truth_all.jsonl"
+CACHE_REL = f"data/cache/Lucius-Morningstar__mailroom-dataset__{FAMILY_HF_REVISION[:12]}/ground_truth_all.jsonl"
 # Requested per-class counts (contract, corporate, correspondence, insurance, merger).
 COUNTS = {
     "0100": (18, 14, 30, 33, 5),
@@ -73,7 +73,9 @@ def test_slices_validate_and_share_settings():
         assert spec.job.mock is False
         assert spec.dataset.interim_labels is True
         assert spec.dataset.require_task_gt is True
-        assert spec.dataset.revision == r3.dataset.revision
+        # Slices draw from the current family pin; r3 (the tuning source) stays on the
+        # revision it was measured against, so the slices no longer share its revision.
+        assert spec.dataset.revision == FAMILY_HF_REVISION
         assert spec.dataset.repo == r3.dataset.repo and spec.dataset.config == "ground_truth"
         assert spec.dataset.sample_seed == 3302
         assert spec.dataset.exclude_ids_file == "config/production/excluded-ids.txt"

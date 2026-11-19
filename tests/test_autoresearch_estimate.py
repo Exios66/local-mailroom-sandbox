@@ -10,6 +10,7 @@ from mailroom_sandbox.autoresearch import estimate as est
 from mailroom_sandbox.autoresearch import parity
 from mailroom_sandbox.autoresearch import scoring as sc
 from mailroom_sandbox.paths import repo_root
+from mailroom_sandbox.job.spec import LEGACY_FAMILY_HF_REVISIONS
 
 SPEC = {"engine": {"model": "qwen/qwen3.7-flash"},
         "agent_routes": {"judge": {"provider": "openrouter", "model": "qwen/qwen3.7-flash"}}}
@@ -99,7 +100,9 @@ def test_production_base_differs_from_slice_0100_only_where_documented():
     differs = {p for p, *_ in parity.compare(base, parity.load_production())["differs"]}
     # dataset.near_gold_labels: production adopted near-gold labels after the v1/v2 studies ran;
     # their frozen bases keep the labels they were scored with.
-    allowed_prefix = ("reviewer.", "dataset.strata", "dataset.near_gold_labels", "job.api_cost_cap_usd", "job.max_wall_seconds", "run_id", "trace.tags")
+    # dataset.revision: production moved to Hub tag v9.3; the frozen v1/v2 bases keep the v9.1 pin
+    # they were measured on (scores compare only on the same label revision).
+    allowed_prefix = ("reviewer.", "dataset.strata", "dataset.near_gold_labels", "dataset.revision", "job.api_cost_cap_usd", "job.max_wall_seconds", "run_id", "trace.tags")
     stray = {p for p in differs if not p.startswith(allowed_prefix)}
     assert not stray, f"undocumented differences from production-slice-0100: {sorted(stray)}"
     # production comparability wins over determinism: no agent_knobs difference, in particular no temperature override
@@ -107,7 +110,8 @@ def test_production_base_differs_from_slice_0100_only_where_documented():
     assert "temperature" not in yaml.safe_dump(base) and base["agent_knobs"] == parity.load_production()["agent_knobs"]
     assert "reviewer" not in base                       # the chat reviewer baseline: no decisions block
     inherited = dict(parity.compare(base, parity.load_production())["inherited"])
-    for key in ("dataset.revision", "dataset.sample_seed", "dataset.draw", "dataset.exclude_ids_file", "dataset.interim_labels",
+    assert base["dataset"]["revision"] == LEGACY_FAMILY_HF_REVISIONS["v9.1"][0]
+    for key in ("dataset.sample_seed", "dataset.draw", "dataset.exclude_ids_file", "dataset.interim_labels",
                 "dataset.require_task_gt", "job.blind_routing", "engine.model", "profile"):
         assert key in inherited, key
 

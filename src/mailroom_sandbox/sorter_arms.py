@@ -58,9 +58,39 @@ class ArmError(ValueError):
 
 
 def _default_split_dir() -> Path:
-    from mailroom_sandbox.paths import repo_root
+    from mailroom_sandbox.experiment_splits import current_split_dir
 
-    return repo_root() / "config" / "splits" / "runbook-v1"
+    return current_split_dir()
+
+
+def _arms_split_dir(arms: Sequence["Arm"], given: Path | None = None) -> Path:
+    """The split the arms drew from (each lock's ``exclude_ids_file``).
+
+    Arms drawn from two splits cannot be paired, and a ``--split-dir`` other than theirs
+    would read another split's sets as theirs (held-out, looks, units), so both are refused.
+    With no split file recorded, the given split is used, else the one committed split on the
+    arms' revision, else the current one.
+    """
+    drawn = {a.run_id: a.split_dir for a in arms if a.split_dir is not None}
+    names = {Path(d).resolve() for d in drawn.values()}
+    if len(names) > 1:
+        raise ArmError(f"the runs drew from different splits: { {k: Path(v).name for k, v in drawn.items()} }")
+    if given is not None:
+        if names and Path(given).resolve() not in names:
+            raise ArmError(f"--split-dir {Path(given).name} is not the split the runs drew from "
+                           f"({Path(next(iter(drawn.values()))).name})")
+        return Path(given)
+    if drawn:
+        return Path(next(iter(drawn.values())))
+    from mailroom_sandbox.experiment_splits import SplitError, split_dir_for_revision
+
+    revisions = {a.revision for a in arms if a.revision}
+    if len(revisions) == 1:
+        try:
+            return split_dir_for_revision(next(iter(revisions)))
+        except SplitError:
+            pass
+    return _default_split_dir()
 
 
 def _jsonl(path: Path) -> list[dict[str, Any]]:
@@ -86,6 +116,7 @@ class Arm:
     truth: dict[str, tuple[str, str | None]]
     concurrency: int | None = None
     run_wall_seconds: float | None = None  # the run's start event to its done event
+    split_dir: Path | None = None  # the split its draw names (lock dataset), when one does
 
 
 def _resolve(ref: str | Path, runs_root: Path | None) -> Path:
@@ -156,11 +187,14 @@ def load_arm(ref: str | Path, *, runs_root: Path | None = None) -> Arm:
     events = {str(e.get("event")): e.get("ts") for e in _jsonl(path / "events.jsonl")} if (path / "events.jsonl").is_file() else {}
     start, done = _epoch(events.get("start")), _epoch(events.get("done"))
     concurrency = (lock.get("job") or {}).get("concurrency")
+    from mailroom_sandbox.experiment_splits import split_dir_of_spec
+
     return Arm(run_id=str(lock.get("run_id") or path.name), path=path, task=task, model=model,
                mock=bool((lock.get("job") or {}).get("mock")), revision=revision or (sorted(revisions)[0] if revisions else None),
                identity=identity, items=items, truth=truth,
                concurrency=int(concurrency) if isinstance(concurrency, (int, float)) else None,
-               run_wall_seconds=(done - start) if start is not None and done is not None and done >= start else None)
+               run_wall_seconds=(done - start) if start is not None and done is not None and done >= start else None,
+               split_dir=split_dir_of_spec(dataset, by_revision=False))
 
 
 def _ns_epoch(value: Any) -> float | None:
@@ -191,7 +225,7 @@ def set_ids(name: str, split_dir: Path | None = None) -> set[str]:
     """Document ids of a split set, or of a held-out exposure stratum.
 
     ``heldout-never-tuned``: held-out documents from the HF test split and not on the production
-    tuning list (305 on runbook-v1); ``heldout-train``: the rest of held-out (695).
+    tuning list (305 on runbook-v1 and runbook-v2); ``heldout-train``: the rest of held-out (695).
     """
     split_dir = Path(split_dir or _default_split_dir())
     if name not in SPLIT_SETS:
@@ -221,7 +255,7 @@ def pair(arms: Sequence[Arm], *, set_name: str | None = None, split_dir: Path | 
     """The paired document ids (sorted), or an ``ArmError`` naming why they cannot be paired."""
     if len(arms) < 2:
         raise ArmError("a comparison needs at least two runs")
-    split_dir = Path(split_dir or _default_split_dir())
+    split_dir = _arms_split_dir(arms, split_dir)
     mocks = [a.run_id for a in arms if a.mock]
     if mocks and not allow_mock:
         raise ArmError(f"mock runs are simulated output, not evidence: {mocks}")
@@ -861,10 +895,10 @@ def compare(refs: Sequence[str | Path], *, set_name: str | None = None, split_di
     """The full report: the first run is arm A (reference), every other run is a B arm compared with it."""
     from mailroom_sandbox.experiment_splits import load_unit_table
 
-    split_dir = Path(split_dir or _default_split_dir())
     arms = [load_arm(r, runs_root=runs_root) for r in refs]
     if len({a.run_id for a in arms}) != len(arms):
         raise ArmError("the same run is named twice")
+    split_dir = _arms_split_dir(arms, split_dir)
     ids = pair(arms, set_name=set_name, split_dir=split_dir, confirmatory=confirmatory, allow_mock=allow_mock)
     units = load_unit_table(split_dir)
     labels = sorted({arms[0].truth[i][0] for i in ids})

@@ -2,7 +2,7 @@
 title: "Mailroom sorter and extraction evaluation runbook — research plan"
 type: plan
 created: 2026-11-18
-updated: 2026-11-18
+updated: 2026-11-19
 status: draft  # becomes pre-registered once hypotheses H1-H5 and their falsification criteria are signed off
 author: mixed
 design: "Mailroom Sorter & Extraction Evaluation Design (Claude doc, tabs: design, Statistical review, EXPERIMENT CHECKLIST, Prompt iteration experiments, Decision model cycles)"
@@ -59,7 +59,7 @@ Arithmetic checks that hold: R13 (6 × 300 = 1,800), R15 (900 + 1,200 = 2,100), 
 | 6 | R14 | The listed grid gives 3,600 calls (Qwen 6 configs + temperature-0 run 3× = 8 runs × 300; DeepSeek and GLM 2 configs × 300 each), not 4,200. | Budget ambiguity. | **Decided (4):** R14 is 3,600 calls: Qwen 8 runs × 300 = 2,400, DeepSeek 2 × 300 = 600, GLM 2 × 300 = 600. |
 | 7 | R15 | A 4K/8K cap only changes documents over 4k tokens. After the class-gate rebuild the pool holds 4 of them (contract, corporate and merger, the long classes, now keep their remainder in calibration); dev holds 294 (163 ≤16k, 50 ≤32k, 81 >32k). | The pool alone cannot power the sweep. | **Decided (5):** score R15 on dev + pool long documents (298). Report the long-document scores as their own stratum, with a separate analysis of their effect on the all-document averages; no long-document figure is folded into a headline mean without that split. |
 | 8 | R51, G5 | Dev and held-out quotas (20 per unit) left calibration with 75 contracts and 24 mergers. Certifying 2% at 95% needs ≥149 zero-error accepts. | The global gate would hide per-class error. | **Decided (6): every class gets its own gate.** `families.yaml` `calibration` sets 2% at 95%; a class that cannot fund 149 accepts keeps its whole remainder in calibration (audit gate). Calibration now holds contract 105, corporate_record 137, correspondence 348, insurance_claim 376, merger_agreement 34; best certifiable bounds 2.81%, 2.16%, 0.86%, 0.79%, 8.43% (`sandbox splits show`, `experiment_stats.class_gate_plan`). Reaching 2% for contract and corporate needs smaller dev/held-out quotas for those classes (open, owner). |
-| 9 | R00 | The ±5-pt `source_corpus` / `annotation_method` rule conflicts with oversampling small classes (raw gaps 5-8.5 pts). | The rule cannot hold on raw mixes. | Gate within class on dev and held-out (max gap 3.0 pts); report raw and calibration gaps as information. |
+| 9 | R00 | The ±5-pt `source_corpus` / `annotation_method` rule conflicts with oversampling small classes (raw gaps 5-8.5 pts). | The rule cannot hold on raw mixes. | Gate within class on dev and held-out (max gap 3.0 pts); report raw and calibration gaps as information. Revised for runbook-v2 (D1): v9.3's `annotation_method` follows the subclass (89% of emails are LLM-labelled), so the per-unit quotas move the plain within-class mix by design (15 pts). The gate now compares each set's within-class mix with the mix its units imply in the corpus (runbook-v2: 1.9 pts `source_corpus`, 3.7 pts `annotation_method`; runbook-v1 unchanged at 1.9 / not testable), the draw balances the method inside each unit, and the plain within-class gap is reported as information. |
 | 10 | R00 | Only 23 docs carry `matter_id` / `group_id`. | Thread leakage is not covered by those fields alone. | The leak audit also links correspondence by normalized subject (reply/forward prefixes stripped) and identical normalized text: 24 components, largest 6, none crossing sets. `message_id` / `in_reply_to` / `related_document_ids` are linked when present, but never fire on this corpus (unique message ids, no replies or related ids recorded), so subject is the only thread signal. |
 | 11 | All | Insurance claims (1,100) are 100% `synthetic`. The design's "637 correspondence labels are DeepSeek zero-shot" cannot be verified from the Hub (`annotation_model` is empty). DeepSeek is also a transfer target. | Possible label-model bias toward DeepSeek on correspondence; insurance results may not transfer to live traffic. | **Decision 7:** the repaired correspondence labels (52 intent corrections, 1,795 header gap fills from the original maildir headers) came from PR #341, merged into this branch with the registry rebuilt (`sandbox schemas build`): 0 mismatches, 0 problems, 35 correspondence field cells changed. Five subclass verdicts moved: demand and letter `additional_recipients` constant → thin, and demand `communication_date` and `sender` and meeting_request `sender` thin → iterate. Correspondence first in R03; insurance reported separately in R80. |
 | 12 | R01 | "all 10 + 4" models is undefined. `typesafe/jev-1.14` is in `config/decision_models.yaml` (this finding said otherwise; corrected 2026-11-18). GLM is priced and profiled under the alias `z-ai/glm-5.3-flashx-legal`, while the design pins `-20261102`. | Smoke test scope and pins are unclear. | **Decision 9:** Jev 1.14 is a `candidate_models` entry in `config/decisions/LINEAGE.yaml` (262k context, below 4.0.0's whole-document window). Both catalogs refreshed 2026-11-18 (`microsoft/microsoft-decision-1.1` added; `qwen3.5-9b`, `deepseek-v4-flash`, `deepseek-v4.1-flash-1017` prices changed). The 14 models still need listing. |
@@ -80,19 +80,22 @@ Arithmetic checks that hold: R13 (6 × 300 = 1,800), R15 (900 + 1,200 = 2,100), 
 | R01 pins + served provider | `config/provider_pins.yaml`, `scripts/refresh_provider_pins.py` (`--write-order` pins endpoint `tag` slugs, exits 1 and writes nothing on a failed lookup), `SANDBOX_SERVED_LOG=<file>` | Hook installed at activation for the wrapped `retry_chat_completion` calls; each ledger row carries `status: verified / unverified / mismatch`; `order` empty until the endpoints are chosen |
 | R02 statistics | `mailroom_sandbox.experiment_stats`: exact McNemar (exact past 1,024 discordant pairs), paired macro-F1 swap permutation, sign-flip permutation (rejects NaN scores), Holm, sequential-look keep rule, cost-weighted error, Brier/ECE null floors; Clopper-Pearson / ECE / Brier / AUROC re-exported from the Dojo | Unit-tested |
 | Offline corpus access | `corpus.load_hf_rows` falls back to the local HF cache for a pinned sha | Preflight and prepare work with `HF_HUB_OFFLINE=1` once both the `default` and `ground_truth` shards of the pin are cached (`sandbox datasets pull`); an uncached `ground_truth` shard is refused, not read as blind rows |
-| R00+ label readiness | `sandbox schemas build`, `sandbox schemas build --check`, `sandbox schemas show`; `config/extraction/subclass_schemas.json` | Per-class and per-subclass field schemas graded against Hub + interim + near-gold truth (finding 15) |
+| R00+ label readiness | `sandbox schemas build`, `sandbox schemas build --check`, `sandbox schemas show`; `config/extraction/subclass_schemas.json` | Per-class and per-subclass field schemas graded against Hub + interim + near-gold truth (finding 15). `subclass_schemas.json` follows the family pin (v9.3 since #362) and counts runbook-v2's sets; the frozen `subclass_schemas-runbook-v1.json` is graded on bc9eab28 and runbook-v1. `build_gold_audit_sheet.py` picks, by default, the split the run drew from and the one registry graded on that revision and split, and refuses a registry graded on another revision than the run drew |
 | Prompt and schema alignment | `job.schema_guide: true`; candidates `corporate_records_specialist_condensed_v2`, `correspondence_specialist_condensed_v4`, `contracts_specialist_condensed_v1`, `insurance_claims_specialist_condensed_v5` (#280 is vendored), each parented on its frontrunner (decision 3); `job.specialist_subclass` (`none` / `gold` / `sorter`) names the subclass an isolated run's handoff carries, so `cms_source_table` and the corporate `record_type` are derived as in the pipeline | Off by default and hashed only when set; candidates need an A/B on dev before adoption (finding 16) |
+
+**Dataset revision.** The family pin moved to Hub tag v9.3 (`ff4ca546`) in #362, and rb1 moved with it before any further look (owner decision, 2026-11-19; Deviations log D1). Its split is now `config/splits/runbook-v2`, drawn on v9.3 with the same seed, families and set sizes as runbook-v1. Every rb1 config that has not run pins `ff4ca546` and reads runbook-v2; the five R13b smoke20/20b/20c runs keep runbook-v1 and bc9eab28, as recorded. runbook-v2's exposure list (`config/splits/runbook-v2-exposure.txt`, `scripts/build_split_exposure.py`) adds runbook-v1's spent dev-look1 and the R02 and smoke documents to the production tuning list, so none of them is in the new held-out set. The R03 registry is `config/extraction/subclass_schemas.json` (v9.3, runbook-v2 sets); `subclass_schemas-runbook-v1.json` stays for re-checking v9.1 runs.
 
 ## Tasks — Phase 0
 
 ### Task 1: Freeze the split (R00)
 
-**Files:** `config/splits/families.yaml`, `config/splits/runbook-v1/*`
+**Files:** `config/splits/families.yaml`, `config/splits/runbook-v2/*` (current), `config/splits/runbook-v1/*` (frozen, v9.1)
 
-- [ ] Owner sign-off on the 8 groupings in `config/splits/families.yaml` (decision 8; listed in the Discussion reply): contract `licensing_ip` (pooled, 29), `supply_distribution` (55), `services_outsourcing` (66), `alliances_jv` (49), `marketing_sponsorship` (75); corporate_record `governance_instruments` (59); correspondence `legal_demand_rare` (pooled, 3); merger_agreement `stock_or_mixed` (38)
+- [ ] Owner sign-off on the 8 groupings in `config/splits/families.yaml` (decision 8; listed in the Discussion reply): contract `licensing_ip` (pooled, 29), `supply_distribution` (55), `services_outsourcing` (66), `alliances_jv` (49), `marketing_sponsorship` (75); corporate_record `governance_instruments` (59 on runbook-v1; 28 and pooled on runbook-v2, where `bylaws`, 36 documents on v9.3, reaches `min_scored` and becomes its own unit); correspondence `legal_demand_rare` (pooled, 3); merger_agreement `stock_or_mixed` (38)
 - [ ] If families change: `HF_HUB_OFFLINE=1 sandbox splits build --force` (only before any run uses the split)
 - [x] `HF_HUB_OFFLINE=1 sandbox splits audit` exits 0 (re-checked 2026-11-18 on main after #342; `scripts/check_g0.py` runs it)
 - [x] Commit `config/splits/runbook-v1` (gate: split hashes committed; landed with #342)
+- [x] D1: build and commit `config/splits/runbook-v2` on v9.3 (`sandbox splits build --name runbook-v2 --revision ff4ca546d4346991628c2616ae014afc15e9fe04 --exposure config/splits/runbook-v2-exposure.txt`); `HF_HUB_OFFLINE=1 sandbox splits audit` (now runbook-v2) and `sandbox splits audit --name runbook-v1` both exit 0. runbook-v2 has 40 units (runbook-v1: 39): `articles_of_incorporation` 54, `rights_instrument` 49, `bylaws` 36 (new), `governance_instruments` 28 (pooled)
 
 ### Task 2: Pin models and providers (R01)
 
@@ -303,4 +306,20 @@ These are compared with the current band rule as the baseline.
 ## Deviations log
 
 Append to `reports/experiment_log.jsonl` (sandbox-local) whenever scope, method, data
-or the split changes after sign-off, citing this plan's path.
+or the split changes after sign-off, citing this plan's path. Entries made in a cloud or
+agent session, which has no copy of that local log, are listed here and copied into it
+by the owner.
+
+- **D1 (2026-11-19, data and split).** rb1 moves from runbook-v1 (dataset v9.1, `bc9eab28`)
+  to runbook-v2 (v9.3, `ff4ca546`) before any further look. Why: v9.3 repairs every corporate
+  record, moves 12 subclasses and relabels `annotation_method` on 1,541 rows, so v9.1 truth
+  would grade every later look on superseded labels. What: `sandbox splits build --name
+  runbook-v2 --revision ff4ca546… --exposure config/splits/runbook-v2-exposure.txt`, seed
+  20261118. 820 of 900 dev, 265 of 300 dev-look1 and 969 of 1,000 held-out documents are the
+  same as runbook-v1's. Calibration shares 633 of 1,000. The corporate units move with the
+  subclass repair: `bylaws` (36) becomes its own unit and `governance_instruments` drops to
+  28, pooled. Held-out holds none of runbook-v1's
+  spent dev-look1, the R02 and smoke documents, or the 50 draw-1 calibration documents used to write question set 4.0.2. Spent so far, on runbook-v1: the R13b
+  smoke20/20b/20c runs (20 dev-look1 documents) and the R02 sheet (20 dev documents); their
+  configs and reports stay on v9.1. Because 4.0.1's wording was shaped on runbook-v1
+  dev-look1, runbook-v2 dev-look1 figures stay in-sample for it. The draw-1 intact config also stays on v9.1: it already ran. Before this repair one of its 50 documents entered the proposed v9.3 held-out set; the exposure list now excludes all 50 and the split and registry have been rebuilt. Nothing that ran is re-run.

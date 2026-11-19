@@ -106,6 +106,27 @@ def _cmp(tmp_path, split, **kw):
 # ---------------------------------------------------------------- refusals
 
 
+def _draw_from(run: Path, split_name: str) -> None:
+    lock = json.loads((run / "spec.lock.json").read_text())
+    lock["dataset"]["exclude_ids_file"] = f"config/splits/{split_name}/dev-look1.exclude.ids"
+    (run / "spec.lock.json").write_text(json.dumps(lock))
+
+
+def test_runs_from_two_splits_or_another_split_dir_are_refused(tmp_path, split):
+    """A run drawn from runbook-v1 is never read against runbook-v2's sets (or a mix of both)."""
+    _write_run(tmp_path / "runs", "A", ids=_dev_ids())
+    _write_run(tmp_path / "runs", "B", task="sorter_reviewer", model=LUNA, ids=_dev_ids())
+    _draw_from(tmp_path / "runs" / "A", "runbook-v1")
+    _draw_from(tmp_path / "runs" / "B", "runbook-v2")
+    with pytest.raises(sa.ArmError, match="different splits"):
+        _cmp(tmp_path, split)
+    _draw_from(tmp_path / "runs" / "B", "runbook-v1")
+    with pytest.raises(sa.ArmError, match="is not the split the runs drew from"):
+        _cmp(tmp_path, split)
+    arms = [sa.load_arm(r, runs_root=tmp_path / "runs") for r in ("A", "B")]
+    assert sa._arms_split_dir(arms).name == "runbook-v1"
+
+
 def test_unpaired_runs_are_refused(tmp_path, split):
     _write_run(tmp_path / "runs", "A", ids=_dev_ids())
     _write_run(tmp_path / "runs", "B", task="sorter_reviewer", model=LUNA, ids=_dev_ids()[:-1])
@@ -584,7 +605,7 @@ def test_h5_configs_are_handoff_free_capped_and_counted_by_the_r01_gate():
         assert "--initials <XX>" in text and "compare_sorter_arms.py" in text
         heldout = "r70b" in path.stem
         want_set = "heldout" if heldout else "dev-look1"
-        assert spec.dataset.exclude_ids_file == f"config/splits/runbook-v1/{want_set}.exclude.ids"
+        assert spec.dataset.exclude_ids_file == f"config/splits/runbook-v2/{want_set}.exclude.ids"
         assert spec.dataset.limit == (1000 if heldout else 300)
         assert heldout == heldout_seal.is_sealed_draw(spec)
         if heldout:

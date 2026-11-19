@@ -3,7 +3,7 @@
 # (isolated) at its decided v0 stem contracts_specialist_v33_simplified on qwen/qwen3.7-flash (the
 # iteration model), the whole document in one call (longest dev contract 616,016 chars; the
 # 18,000-char overlay cap would cut 178), on the 247 contract documents of
-# config/splits/runbook-v1 dev (corpus revision bc9eab28). Truth is the repaired overlay (interim
+# config/splits/runbook-v2 dev (corpus revision ff4ca546). Truth is the repaired overlay (interim
 # + near-gold).
 # job.pipeline_handoff with job.specialist_subclass: gold hands the specialist the gold subclass
 # (the pipeline behind a correct sorter), so the fields derived from it copy the truth; the audit
@@ -40,8 +40,8 @@ dataset:
   split: all
   draw: ranked
   require_task_gt: false
-  revision: bc9eab280044befb51e19dda3071d290a8677f42
-  exclude_ids_file: config/splits/runbook-v1/dev.exclude.ids
+  revision: ff4ca546d4346991628c2616ae014afc15e9fe04
+  exclude_ids_file: config/splits/runbook-v2/dev.exclude.ids
   strata:
     buckets:
       - {doc_class: contract, count: 247}
