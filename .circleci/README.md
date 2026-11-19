@@ -136,3 +136,10 @@ make real LLM/Hub calls; live LLM tests remain opt-in via
 `SANDBOX_LOCAL_LLM=1`. Merge only after required checks pass on the current
 head, with review findings resolved and the stack's final diff inspected.
 See [agent test policy](../AGENTS.md#tests).
+
+## Notebook execution
+
+The `notebook-regressions` job installs nbclient, nbformat, ipykernel, pandas and matplotlib
+into its dev environment, then executes the four offline notebooks and their bootstrap/prep
+regressions with one worker. This prevents the base dev suite from silently skipping notebook
+runtime checks. The existing parallel full suite and combined 84% coverage gate remain required.

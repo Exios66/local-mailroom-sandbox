@@ -1,8 +1,8 @@
 version: 2.1
 
 # One workflow: lint, generated-file checks, a 4-way parallel test job, a
-# coverage gate and the no-session-links guard (.circleci/check_no_session_links.sh).
-# lint, checks, test and no-session-links start together; coverage waits for test.
+# notebook execution job, coverage gate and the no-session-links guard (.circleci/check_no_session_links.sh).
+# lint, checks, test, notebooks and no-session-links start together; coverage waits for test.
 #
 # Where the time went before (hosted runs, about 10-11 minutes per PR): the
 # whole suite ran on one medium container (pytest step about 560s) after a
@@ -173,6 +173,26 @@ jobs:
           paths:
             - coverage-data
 
+  notebook-regressions:
+    executor: py
+    steps:
+      - checkout
+      - venv
+      - run:
+          name: Install notebook execution dependencies
+          command: pip install --quiet nbclient nbformat ipykernel pandas matplotlib
+      - run:
+          name: Execute offline notebooks and their bootstrap regressions
+          command: |
+            pytest -q -n 0 --no-cov tests/test_notebook.py tests/test_notebooks.py tests/test_prep.py \
+              --junitxml=test-results/notebooks.xml
+      - store_test_results:
+          path: test-results
+          when: always
+      - store_artifacts:
+          path: test-results
+          when: always
+
   coverage:
     executor: py
     steps:
@@ -198,6 +218,7 @@ workflows:
       - lint
       - checks
       - test
+      - notebook-regressions
       - coverage:
           requires:
             - test
