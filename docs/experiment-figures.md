@@ -103,7 +103,7 @@ Cost is the easiest number to misread, so the figures and digest follow one rule
   cost estimated".
 - The digest's cost lines are list price × tokens ("list-price cost per 1k docs"). Even on a
   clean billed sample, they stand for the billed direction only when both agree; otherwise the
-  digest says "list-price and billed costs disagree on direction for <arm> and <arm>". Every pair
+  digest says `list-price and billed costs disagree on direction for <arm> and <arm>`. Every pair
   of arms is checked, so a reversed ranking between two candidates also blocks the claim.
 - H5's lower-cost leg is a cost claim too. An arm whose three tests pass on list-price cost is
   reported as `undecided`, not `SUPPORTED`, until its costs are a comparison.
