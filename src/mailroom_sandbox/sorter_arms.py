@@ -441,6 +441,57 @@ def _ci(values: Sequence[float], level: float = 0.95) -> tuple[float, float]:
             ordered[max(0, int(math.ceil((1 - lo) * len(ordered))) - 1)])
 
 
+def _binom_cdf(k: int, n: int, p: float) -> float:
+    """P(X <= k) for X ~ Binomial(n, p), summed in log space."""
+    if k < 0:
+        return 0.0
+    if k >= n or p <= 0.0:
+        return 1.0
+    if p >= 1.0:
+        return 0.0
+    lp, lq = math.log(p), math.log1p(-p)
+    total = 0.0
+    for i in range(k + 1):
+        total += math.exp(math.lgamma(n + 1) - math.lgamma(i + 1) - math.lgamma(n - i + 1) + i * lp + (n - i) * lq)
+    return min(1.0, total)
+
+
+def _cp_upper(k: int, n: int, alpha: float = ALPHA) -> float:
+    """One-sided Clopper-Pearson upper bound on a binomial rate after ``k`` of ``n`` (bisection)."""
+    if n <= 0 or k >= n:
+        return 1.0
+    lo, hi = k / n, 1.0
+    for _ in range(80):
+        mid = (lo + hi) / 2
+        if _binom_cdf(k, n, mid) > alpha:
+            lo = mid
+        else:
+            hi = mid
+    return hi
+
+
+def exact_noninferiority(ok_a: Sequence[bool], ok_b: Sequence[bool], margin: float) -> dict[str, Any]:
+    """Exact floor for paired non-inferiority of B against A from the discordant pairs.
+
+    A bootstrap over documents cannot see a loss it never observed: with no document where A is right
+    and B wrong, every resample's difference is >= 0 and it reports p ~ 1/(B+1) whatever n is, so 20
+    agreeing documents "prove" non-inferiority as strongly as 900. Here B's per-document loss rate gets
+    a one-sided Clopper-Pearson upper bound, the lower bound on the difference is the observed gain rate
+    minus that bound, and the p-value is the chance of seeing at most the observed losses if the loss
+    rate were the gain rate plus the margin. With no losses this is the rule of three: n=20 gives a
+    lower bound near -14 points, n=900 near -0.3.
+    """
+    n = len(ok_a)
+    gains = sum(1 for x, y in zip(ok_a, ok_b) if y and not x)
+    losses = sum(1 for x, y in zip(ok_a, ok_b) if x and not y)
+    if n == 0:
+        return {"n": 0, "gains": 0, "losses": 0, "lower95_one_sided": None, "p_value": 1.0}
+    lower = gains / n - _cp_upper(losses, n)
+    null_loss_rate = min(1.0, gains / n + margin)
+    return {"n": n, "gains": gains, "losses": losses, "lower95_one_sided": lower,
+            "p_value": _binom_cdf(losses, n, null_loss_rate)}
+
+
 def compare_pair(a: Sequence[Outcome], b: Sequence[Outcome], *, labels: Sequence[str],
                  margin_macro_f1: float = MARGIN_MACRO_F1, margin_unit: float = MARGIN_UNIT,
                  n_boot: int = N_BOOT, n_perm: int = N_PERM, seed: int = SEED,
@@ -483,11 +534,16 @@ def compare_pair(a: Sequence[Outcome], b: Sequence[Outcome], *, labels: Sequence
         lo, hi = _ci(boots[key])
         return {"estimate": observed[key] * scale, "ci95": [lo * scale, hi * scale]}
 
-    def ni(key: str, margin: float) -> dict[str, Any]:
-        lower = _quantile(boots[key], ALPHA) or 0.0  # one-sided 95% lower bound
+    def ni(key: str, margin: float, ok_a: Sequence[bool], ok_b: Sequence[bool]) -> dict[str, Any]:
+        boot_lower = _quantile(boots[key], ALPHA) or 0.0  # one-sided 95% lower bound
         below = sum(1 for v in boots[key] if v <= -margin)
-        return {"margin": margin, "estimate": observed[key], "lower95_one_sided": lower,
-                "p_value": (below + 1) / (n_boot + 1), "non_inferior": lower > -margin}
+        boot_p = (below + 1) / (n_boot + 1)
+        exact = exact_noninferiority(ok_a, ok_b, margin)
+        lower = min(boot_lower, exact["lower95_one_sided"])
+        p_value = max(boot_p, exact["p_value"])
+        return {"margin": margin, "estimate": observed[key], "lower95_one_sided": lower, "p_value": p_value,
+                "non_inferior": lower > -margin and p_value < ALPHA,
+                "bootstrap": {"lower95_one_sided": boot_lower, "p_value": boot_p}, "exact": exact}
 
     diff_mf1, p_perm = paired_macro_f1(truth, pa, pb, n_perm=n_perm, seed=seed)
     mc_class = mcnemar([r.class_ok for r in a], [r.class_ok for r in b])
@@ -503,8 +559,12 @@ def compare_pair(a: Sequence[Outcome], b: Sequence[Outcome], *, labels: Sequence
             "paired_macro_f1_permutation": {"difference": diff_mf1, "p_value": p_perm},
             "mcnemar_class": {"b": mc_class.b, "c": mc_class.c, "p_value": mc_class.p_value, "gain": mc_class.gain},
             "mcnemar_unit": {"b": mc_unit.b, "c": mc_unit.c, "p_value": mc_unit.p_value, "gain": mc_unit.gain},
-            "noninferiority_macro_f1": ni("class_macro_f1", margin_macro_f1),
-            "noninferiority_unit": ni("unit_accuracy", margin_unit),
+            # The exact floor for macro-F1 uses the class-level discordant pairs (a proxy: macro-F1 has no
+            # per-document decomposition); for unit accuracy it uses the unit-level pairs themselves.
+            "noninferiority_macro_f1": ni("class_macro_f1", margin_macro_f1,
+                                          [r.class_ok for r in a], [r.class_ok for r in b]),
+            "noninferiority_unit": ni("unit_accuracy", margin_unit,
+                                      [a[i].unit_ok for i in unit_idx], [b[i].unit_ok for i in unit_idx]),
         },
     }
     if cost_ok:
@@ -735,7 +795,8 @@ def render(report: Mapping[str, Any]) -> str:
         for key in ("noninferiority_macro_f1", "noninferiority_unit"):
             ni = t[key]
             lines.append(f"  {key:24} margin -{_pct(ni['margin'])} pts: lower95 {_pct(ni['lower95_one_sided'], 2)}, "
-                         f"p={ni['p_value']:.4f} -> {'non-inferior' if ni['non_inferior'] else 'not shown'}")
+                         f"p={ni['p_value']:.4f} -> {'non-inferior' if ni['non_inferior'] else 'not shown'} "
+                         f"(B worse on {(ni.get('exact') or {}).get('losses', '?')}/{(ni.get('exact') or {}).get('n', '?')} docs)")
         cost = p.get("cost")
         if cost:
             lo, hi = cost["per_1k_docs"]["ci95"]
@@ -766,6 +827,6 @@ def render(report: Mapping[str, Any]) -> str:
 
 
 __all__ = ["Arm", "ArmError", "Outcome", "arm_model", "arm_summary", "compare", "compare_pair", "exposure_of",
-           "fast_macro_f1", "frontier", "h5_family", "item_cost", "load_arm", "noninferiority_n",
+           "exact_noninferiority", "fast_macro_f1", "frontier", "h5_family", "item_cost", "load_arm", "noninferiority_n",
            "noninferiority_power", "outcomes", "pair", "render", "set_ids", "simulate_macro_f1_se",
            "strata_differences", "SEED", "MARGIN_MACRO_F1", "MARGIN_UNIT"]

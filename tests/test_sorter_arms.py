@@ -283,14 +283,35 @@ def test_noninferiority_decides_on_constructed_examples(tmp_path, split):
     _write_run(tmp_path / "runs", "A", ids=ids)
     _write_run(tmp_path / "runs", "B", task="sorter_reviewer", model=LUNA, ids=ids, tokens=(1_000, 0))
     same = _cmp(tmp_path, split)["pairs"]["B"]["tests"]
-    assert same["noninferiority_macro_f1"]["non_inferior"] and same["noninferiority_unit"]["non_inferior"]
-    assert same["noninferiority_macro_f1"]["p_value"] < 0.01
+    # 30 agreeing documents cannot rule out a 2-point loss: the bootstrap alone said p ~ 0.003 here.
+    for key in ("noninferiority_macro_f1", "noninferiority_unit"):
+        assert not same[key]["non_inferior"] and same[key]["bootstrap"]["p_value"] < 0.01
+        assert same[key]["exact"]["losses"] == 0 and same[key]["lower95_one_sided"] < -0.09
     worse = tmp_path / "w"
     _write_run(worse / "runs", "A", ids=ids)
     _write_run(worse / "runs", "B", task="sorter_reviewer", model=LUNA, ids=ids, wrong=set(ids[:6]))
     tests = sa.compare(["A", "B"], split_dir=split, runs_root=worse / "runs", n_boot=300, n_perm=300)["pairs"]["B"]["tests"]
     assert not tests["noninferiority_macro_f1"]["non_inferior"] and tests["noninferiority_macro_f1"]["p_value"] > 0.5
     assert not tests["noninferiority_unit"]["non_inferior"]
+
+
+def test_exact_noninferiority_floor_scales_with_n():
+    # No losses: rule of three. 20 docs cannot show a 4-point margin; 900 can show 2 points.
+    small = sa.exact_noninferiority([True] * 20, [True] * 20, 0.04)
+    assert small["lower95_one_sided"] == pytest.approx(-(1 - 0.05 ** (1 / 20)), abs=1e-6)
+    assert small["p_value"] == pytest.approx(0.96 ** 20) and small["p_value"] > 0.05
+    big = sa.exact_noninferiority([True] * 900, [True] * 900, 0.02)
+    assert big["p_value"] < 1e-6 and big["lower95_one_sided"] > -0.004
+    # Losses outweighing gains are never non-inferior at a 2-point margin.
+    a = [True] * 900
+    b = [False] * 40 + [True] * 860
+    worse = sa.exact_noninferiority(a, b, 0.02)
+    assert worse["losses"] == 40 and worse["p_value"] > 0.5
+    # Gains offset losses: 10 losses and 10 gains in 900 is a zero difference, non-inferior at 2 points.
+    a2 = [True] * 10 + [False] * 10 + [True] * 880
+    b2 = [False] * 10 + [True] * 10 + [True] * 880
+    even = sa.exact_noninferiority(a2, b2, 0.02)
+    assert (even["gains"], even["losses"]) == (10, 10) and even["p_value"] < 0.001
 
 
 def test_compare_is_deterministic(tmp_path, split):
