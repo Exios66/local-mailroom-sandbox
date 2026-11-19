@@ -14,7 +14,8 @@ numbers per class without re-deriving them:
 A document is only flagged when it **finished archived** (stage ``archived``); a document
 that went to review, crashed or failed can be many things, but it was never wrongly
 archived. Without an expected class on the row the metric stays silent: no blind labels
-(``docs/critical-regressions.md`` row 1). Reasons, in gate precedence order:
+(``docs/critical-regressions.md`` row 1). Reasons, in severity order (which ones are
+gate-aligned is documented on :func:`archive_reasons`):
 
 - ``wrong_class_archive``: archived under another class than the row's expected class.
 - ``stage_should_review``: archived although the row's expected stage is ``review``.
@@ -51,13 +52,25 @@ def archive_reasons(
     parse_error: bool | None = None,
     quality: float = DEFAULT_QUALITY_BAR,
 ) -> list[str]:
-    """Every reason this finished document is an incorrect archive, in gate precedence order."""
-    expected = str(row.get("expected_doc_class") or "").strip()
+    """Every reason this finished document is an incorrect archive.
+
+    The class comparison mirrors the gate's ``is_wrong_class`` exactly (lowercased, no
+    alias map). Two of the reasons go beyond the gate's ``wrong_archive`` on purpose and
+    are reported as separate keys, never folded into it: ``stage_should_review`` (the
+    gate would count an archived should-review document that passes class and score as a
+    correct archive) and ``parse_error_archive``. ``incomplete_extraction_archive`` is the
+    gate's under-quality-bar rule applied per document without the gate's scorable
+    threshold (``Bars.min_labelled``): the per-run metric flags the document, the gate
+    still owns the run-level verdict, so thin-GT classes read as flagged here and
+    ``unscorable_archive`` there. Read ``incorrect_archives`` as the debugging surface,
+    ``job/gate.py`` as the run gate.
+    """
+    expected = str(row.get("expected_doc_class") or "").strip().lower()
     stage = str(result.get("stage") or "")
     if not expected or stage != "archived":
         return []
     reasons: list[str] = []
-    doc_type = result.get("doc_type")
+    doc_type = str(result.get("doc_type") or "").strip().lower()
     if doc_type and doc_type != expected:
         reasons.append("wrong_class_archive")
     if str(row.get("expected_stage") or "archived") == "review":
@@ -113,9 +126,12 @@ def for_pipeline(
 
     ``extraction_rows`` are the per-document scored rows (``eval/runners.py``'s
     ``_score_pipeline_extraction`` output); a row without field ground truth is ``None``
-    and its completeness is never judged. Rows and results must line up pairwise — the
-    metric is silent for a result whose row is missing rather than guess.
+    and its completeness is never judged. Rows and results must line up pairwise — a
+    length mismatch raises rather than silently truncating a denominator.
     """
+    rows = list(rows)
+    results = list(results)
+    extraction_rows = list(extraction_rows) if extraction_rows is not None else None
     pairs = (
         (archive_reasons(row, result, scored=scored, quality=quality), row.get("expected_doc_class"))
         for row, result, scored in _zip_strict(rows, results, extraction_rows)
@@ -124,10 +140,20 @@ def for_pipeline(
 
 
 def _zip_strict(rows, results, extraction_rows):
-    """Pair rows/results/extraction_rows one-to-one; a missing row silences, never shifts."""
-    extraction_rows = iter(extraction_rows) if extraction_rows is not None else None
-    for row, result in zip(rows, results):
-        scored = next(extraction_rows, None) if extraction_rows is not None else None
+    """Pair rows/results/extraction_rows one-to-one; a length mismatch is loud, never a
+    silent truncation (a shortened denominator is exactly the row-1/row-2 failure shape)."""
+    if extraction_rows is None:
+        if not len(rows) == len(results):
+            raise ValueError(
+                f"for_pipeline needs one result per row: {len(rows)} rows, {len(results)} results")
+        for row, result in zip(rows, results):
+            yield row, result, None
+        return
+    if not (len(rows) == len(results) == len(extraction_rows)):
+        raise ValueError(
+            f"for_pipeline needs one result and one scored row per row: {len(rows)} rows, "
+            f"{len(results)} results, {len(extraction_rows)} scored rows")
+    for row, result, scored in zip(rows, results, extraction_rows):
         yield row, result, scored
 
 

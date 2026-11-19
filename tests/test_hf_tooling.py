@@ -146,11 +146,39 @@ class TestCardAndFiles:
         assert all("size" not in row or row.get("type") != "directory" for row in lines) or lines[1].get("size") is None
 
     def test_status_reports_offline_cache_without_network(self, capsys, monkeypatch, tmp_path):
-        monkeypatch.delenv("HF_HUB_OFFLINE", raising=False)
+        monkeypatch.setenv("HF_HUB_OFFLINE", "1")
         missing = tmp_path / "no-cache-here"
         monkeypatch.setattr(hf_tool, "cache_root", lambda: missing)
+        recorder = Recorder()  # a call would prove an offline leak: the suite must stay network-free
+        monkeypatch.setattr(hf_tool, "TRANSPORT", recorder)
         run(["status"])
         record = json.loads(capsys.readouterr().out)
         assert record["cache"]["root"] == str(missing)
         assert record["cache"]["exists"] is False
+        assert record["hub_head"] is None
         assert "revision" in record
+        assert recorder.calls == []
+
+    def test_status_online_reports_pin_is_head(self, capsys, monkeypatch, tmp_path):
+        from mailroom_sandbox.job.spec import FAMILY_HF_REVISION, HF_DEFAULT_REPO
+
+        monkeypatch.delenv("HF_HUB_OFFLINE", raising=False)
+        monkeypatch.setattr(hf_tool, "cache_root", lambda: tmp_path)
+        recorder = Recorder(json.dumps({"sha": FAMILY_HF_REVISION}).encode())
+        monkeypatch.setattr(hf_tool, "TRANSPORT", recorder)
+        run(["status"])
+        record = json.loads(capsys.readouterr().out)
+        assert record["pin_is_head"] is True
+        assert record["hub_head"] == FAMILY_HF_REVISION
+        url, headers = recorder.calls[0]
+        assert url == f"https://huggingface.co/api/datasets/{HF_DEFAULT_REPO}"
+
+    def test_status_online_flags_a_stale_pin(self, capsys, monkeypatch, tmp_path):
+        monkeypatch.delenv("HF_HUB_OFFLINE", raising=False)
+        monkeypatch.setattr(hf_tool, "cache_root", lambda: tmp_path)
+        recorder = Recorder(json.dumps({"sha": "e" * 40}).encode())
+        monkeypatch.setattr(hf_tool, "TRANSPORT", recorder)
+        run(["status"])
+        record = json.loads(capsys.readouterr().out)
+        assert record["pin_is_head"] is False
+        assert record["hub_head"] == "e" * 40

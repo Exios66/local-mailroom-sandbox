@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import pytest
 
+from mailroom_sandbox.eval import archive_correctness as ac
 from mailroom_sandbox.stress import Scenario, FailureMix, default_scenarios, run_scenario
 
 
@@ -144,3 +145,52 @@ class TestReportShape:
         for key in ("review_rate", "incorrect_archives", "incorrect_archives_by_class",
                     "failure_report", "outcomes", "invariants"):
             assert key in report
+
+
+class TestInvariantsCanFail:
+    """Each invariant must be capable of failing, not just capable of passing."""
+
+    def _broken(self, **overrides):
+        spec = Scenario(name="broken", documents=3, api_cap_usd=10.0)
+        kwargs = dict(
+            spec=spec, admitted=3, held=0, error_rows=0, injected_failures=0,
+            doc_calls=[2], budget=_fake_budget(1.0), archive={ac.KEY: 0}, failure={"n": 3},
+            results=[{"stage": "archived", "doc_type": "contract"}],
+        )
+        kwargs.update(overrides)
+        from mailroom_sandbox import stress
+
+        return stress._invariants(**kwargs)
+
+    def test_broken_admission_fails_nothing_dropped(self):
+        checks = self._broken(admitted=3, held=0)  # dispatch_limit=0 says all admitted, so use a limited spec
+        assert checks[0]["ok"] is True
+        limited = Scenario(name="limited", documents=10, dispatch_limit=4, api_cap_usd=10.0)
+        checks = self._broken(spec=limited, admitted=10, held=0)
+        assert checks[0]["ok"] is False
+
+    def test_over_ceiling_calls_fail_the_ceiling_invariant(self):
+        checks = self._broken(doc_calls=[99])
+        assert any(not c["ok"] and c["name"] == "per_document_call_ceiling_respected" for c in checks)
+
+    def test_miscounted_error_rows_fail_the_failure_invariant(self):
+        checks = self._broken(error_rows=1, injected_failures=3)
+        assert any(not c["ok"] and c["name"] == "injected_failures_are_error_rows" for c in checks)
+
+    def test_error_on_a_scored_document_fails_the_error_invariant(self):
+        checks = self._broken(results=[{"stage": "archived", "doc_type": "contract", "error": "boom"}])
+        assert any(not c["ok"] and c["name"] == "scored_documents_carry_no_error" for c in checks)
+
+    def test_over_cap_spend_fails_the_spend_invariant(self):
+        checks = self._broken(budget=_fake_budget(50.0))
+        assert any(not c["ok"] and c["name"] == "spend_within_one_call_of_cap" for c in checks)
+
+
+class _fake_budget:
+    """Stand-in for ApiBudget in invariant tests (offline, no calls)."""
+
+    def __init__(self, total: float):
+        self.total = total
+
+    def live_total_usd(self) -> float:
+        return self.total

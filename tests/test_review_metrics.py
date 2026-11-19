@@ -66,6 +66,20 @@ class TestArchiveFlag:
         # Without an expected class the metric stays silent: no blind labels (row 1).
         assert ac.archive_reasons(_row(""), _result(doc_type="unknown")) == []
 
+    def test_class_comparison_matches_the_gate_case_insensitively(self):
+        # The gate lowercases both sides (job/gate.py is_wrong_class); so must the metric.
+        assert ac.archive_reasons(_row("Contract"), _result(doc_type="contract")) == []
+        assert ac.archive_reasons(_row("contract"), _result(doc_type="Contract")) == []
+
+    def test_row_result_length_mismatch_raises(self):
+        with pytest.raises(ValueError):
+            ac.for_pipeline([_row("contract"), _row("contract")], [_result(doc_type="contract")])
+        with pytest.raises(ValueError):
+            ac.for_pipeline(
+                [_row("contract")], [_result(doc_type="contract")],
+                extraction_rows=[{"overall_extraction_score": 1.0}, {"overall_extraction_score": 1.0}],
+            )
+
 
 class TestSummarize:
     def test_counts_rate_and_reasons(self):

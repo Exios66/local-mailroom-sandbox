@@ -161,6 +161,8 @@ def run_scenario(spec: Scenario) -> dict[str, Any]:
     results: list[dict[str, Any]] = []
     error_rows = 0
     calls = 0
+    injected_failures = 0  # crash, loop or refused-by-guard documents that must all be error rows
+    doc_calls: list[int] = []
     call_guard.arm(budget, spec.call_ceiling)
     try:
         for index in range(admitted):
@@ -175,10 +177,11 @@ def run_scenario(spec: Scenario) -> dict[str, Any]:
                      and rng.random() < spec.failure.wrong_class_rate)
             parse_error = (not crashed and not looping and not reviewing
                            and rng.random() < spec.failure.parse_error_rate)
-            with call_guard.document():
+            with call_guard.document() as doc:
                 if crashed:
                     results.append({"stage": "failed", "doc_type": cls, "error": "simulated crash"})
                     error_rows += 1
+                    injected_failures += 1
                     continue
                 if looping:
                     # Keep calling until the guard refuses: a document cut short by the
@@ -195,6 +198,8 @@ def run_scenario(spec: Scenario) -> dict[str, Any]:
                     results.append({"stage": "failed", "doc_type": cls,
                                     "error": refused or "simulated loop"})
                     error_rows += 1
+                    injected_failures += 1
+                    doc_calls.append(doc["calls"])
                     continue
                 try:
                     for _ in range(spec.failure.calls_per_doc):
@@ -206,7 +211,10 @@ def run_scenario(spec: Scenario) -> dict[str, Any]:
                     # an error row, exactly like a looping document cut by the ceiling.
                     results.append({"stage": "failed", "doc_type": cls, "error": str(exc)})
                     error_rows += 1
+                    injected_failures += 1
+                    doc_calls.append(doc["calls"])
                     continue
+                doc_calls.append(doc["calls"])
                 results.append({
                     "stage": "review" if reviewing else "archived",
                     "doc_type": (next(c for c in CLASSES if c != cls) if wrong else cls),
@@ -223,7 +231,8 @@ def run_scenario(spec: Scenario) -> dict[str, Any]:
     finally:
         call_guard.disarm()
 
-    invariants = _invariants(spec, admitted, held, error_rows, budget, archive, failure, results)
+    invariants = _invariants(spec, admitted, held, error_rows, injected_failures,
+                             doc_calls, budget, archive, failure, results)
     return {
         "scenario": spec.name,
         "documents": spec.documents,
@@ -260,25 +269,40 @@ def _cause(result: Mapping[str, Any]) -> str:
     return ""
 
 
-def _invariants(spec: Scenario, admitted: int, held: int, error_rows: int, budget: Any,
-                archive: dict[str, Any], failure: dict[str, Any],
-                results: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """The checks a paid experiment depends on; every one must hold for the run to count."""
+def _invariants(spec: Scenario, admitted: int, held: int, error_rows: int, injected_failures: int,
+                doc_calls: list[int], budget: Any, archive: dict[str, Any],
+                failure: dict[str, Any], results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The checks a paid experiment depends on; every one must hold for the run to count.
+
+    Each check compares an observed value against a bound computed independently of the
+    seam under test, so a broken seam (not just a broken report) makes it fail.
+    """
     # The guard refuses a call when the projected spend has reached the cap, so the true
     # bound is "within one call of the cap" (plus float noise in the cumulative sum),
     # not strict <=. A spend over that bound means the refusal did not fire.
     one_call_usd = spec.tokens_per_call / 1e6 * 0.005
+    # Admission bound recomputed from the spec alone: a `saturated` seam that never fires
+    # would admit everything (violating this), not just pass an arithmetic identity.
+    expected_admitted = min(spec.documents, spec.dispatch_limit) if spec.dispatch_limit > 0 else spec.documents
     return [
         {"name": "nothing_dropped",
-         "ok": admitted + held == spec.documents,
-         "detail": f"admitted {admitted} + held {held} == {spec.documents}"},
+         "ok": (admitted, held) == (expected_admitted, spec.documents - expected_admitted),
+         "detail": (f"admitted {admitted} + held {held} against the spec bound "
+                    f"{expected_admitted} admitted / {spec.documents - expected_admitted} held")},
         {"name": "spend_within_one_call_of_cap",
          "ok": budget.live_total_usd() <= spec.api_cap_usd + one_call_usd,
          "detail": (f"spend {budget.live_total_usd():.6f} <= cap {spec.api_cap_usd} "
                     f"+ one call ({one_call_usd:.6f})")},
-        {"name": "refused_documents_are_error_rows",
+        {"name": "per_document_call_ceiling_respected",
+         "ok": not doc_calls or max(doc_calls) <= spec.call_ceiling,
+         "detail": (f"max calls by one document {max(doc_calls, default=0)} <= ceiling "
+                    f"{spec.call_ceiling}")},
+        {"name": "injected_failures_are_error_rows",
+         "ok": error_rows == injected_failures,
+         "detail": f"{injected_failures} injected failure documents -> {error_rows} error rows"},
+        {"name": "scored_documents_carry_no_error",
          "ok": all(not r.get("error") for r in results if r.get("stage") != "failed"),
-         "detail": f"{error_rows} error rows, no scored document carries an error"},
+         "detail": "no finished document in a stage other than failed carries an error"},
         {"name": "metrics_reported",
          "ok": ac.KEY in archive and "n" in failure,
          "detail": "incorrect-archive and failure-taxonomy surfaces present"},

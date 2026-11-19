@@ -186,8 +186,8 @@ def _pin_revision() -> str:
 
 
 def _dataset_repo() -> str:
-    from mailroom_sandbox.job.spec import FAMILY_HF_REPO
-    return FAMILY_HF_REPO
+    from mailroom_sandbox.job.spec import HF_DEFAULT_REPO
+    return HF_DEFAULT_REPO
 
 
 def cmd_whoami(args) -> int:
