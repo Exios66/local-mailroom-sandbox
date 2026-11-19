@@ -246,7 +246,7 @@ def test_scores_failures_subclass_and_units(tmp_path, split):
 
 def test_routing_reports_parked_share_and_auto_routed_accuracy(tmp_path, split):
     ids = _dev_ids()
-    _write_run(tmp_path / "runs", "A", ids=ids)
+    _write_run(tmp_path / "runs", "A", ids=ids, conf=1.0)
     parked = {"DOC-000": "document_form: unknown", "DOC-001": "subclass_gate: contract",
               "DOC-005": "document_form: unknown"}
     _write_run(tmp_path / "runs", "B", task="sorter_reviewer", model=LUNA, ids=ids,
@@ -262,12 +262,49 @@ def test_routing_reports_parked_share_and_auto_routed_accuracy(tmp_path, split):
     assert r["abstain_reasons"] == {"document_form": 1, "subclass_gate": 1}
     # Forced-choice accuracy still counts the parked documents.
     assert b["class_accuracy"] == pytest.approx(27 / 30)
-    assert "parked 2/29" in sa.render(report)
-    # A decision arm with no abstentions still reports its 0% routing rate; the LLM arm does not.
-    _write_run(tmp_path / "runs2", "A", ids=ids)
+    assert "to a person 2/29" in sa.render(report)
+    # Every arm reports its routing line, a measured 0% included.
+    _write_run(tmp_path / "runs2", "A", ids=ids, conf=1.0)
     _write_run(tmp_path / "runs2", "B", task="sorter_reviewer", model=LUNA, ids=ids)
     quiet = sa.render(sa.compare(["A", "B"], split_dir=split, runs_root=tmp_path / "runs2", n_boot=50, n_perm=50))
-    assert "B: parked 0/30" in quiet and "A: parked" not in quiet
+    assert "B: to a person 0/30" in quiet and "A: to a person 0/30" in quiet
+
+
+def test_llm_arm_routes_by_its_class_band(tmp_path, split):
+    # The LLM sorter's answer goes to a person under its class's `high` band (the pipeline rule the
+    # run report counts): 0.9 is under every class's band (correspondence is 0.95), 1.0 is over all of them.
+    ids = _dev_ids()
+    _write_run(tmp_path / "runs", "A", ids=ids, conf=0.9)
+    _write_run(tmp_path / "runs", "B", task="sorter_reviewer", model=LUNA, ids=ids)
+    a = _cmp(tmp_path, split)["arms"][0]["routing"]
+    assert (a["answered"], a["abstained"], a["auto_routed"]) == (30, 30, 0)
+    assert set(a["abstain_reasons"]) == {"below_high_band"} and a["abstain_reasons"]["below_high_band"] == 30
+
+
+def test_runtime_reports_wall_time_throughput_and_concurrency(tmp_path, split):
+    ids = _dev_ids(10)
+    for run_id, task, model, lat_s in (("A", "isolated", QWEN, 10.0), ("B", "sorter_reviewer", LUNA, 1.0)):
+        run = _write_run(tmp_path / "runs", run_id, task=task, model=model, ids=ids)
+        lock = json.loads((run / "spec.lock.json").read_text())
+        lock["job"]["concurrency"] = 5
+        (run / "spec.lock.json").write_text(json.dumps(lock))
+        items = [json.loads(line) for line in (run / "items.jsonl").read_text().splitlines()]
+        for k, item in enumerate(items):  # two waves of 5 parallel calls, each lat_s long
+            item["latency_ms"] = lat_s * 1000
+            item["ts"] = f"2026-11-19T08:00:{int(lat_s * (1 + k // 5)):02d}.000+00:00"
+        (run / "items.jsonl").write_text("".join(json.dumps(i) + "\n" for i in items))
+        (run / "events.jsonl").write_text(
+            json.dumps({"event": "start", "ts": "2026-11-19T07:59:59.000+00:00"}) + "\n"
+            + json.dumps({"event": "done", "ts": f"2026-11-19T08:00:{int(2 * lat_s) + 1:02d}.000+00:00"}) + "\n")
+    report = sa.compare(["A", "B"], split_dir=split, runs_root=tmp_path / "runs", set_name=None, n_boot=50, n_perm=50)
+    a, b = (arm["runtime"] for arm in report["arms"])
+    assert a["concurrency"] == b["concurrency"] == 5
+    assert a["active_seconds"] == pytest.approx(20.0) and b["active_seconds"] == pytest.approx(2.0)
+    assert a["run_wall_seconds"] == pytest.approx(22.0) and b["run_wall_seconds"] == pytest.approx(4.0)
+    assert a["latency_sum_seconds"] == pytest.approx(100.0) and a["docs_per_minute_per_worker"] == pytest.approx(6.0)
+    assert b["docs_per_minute"] == pytest.approx(300.0) and b["hours_per_100k_docs"] == pytest.approx(100_000 / 300 / 60)
+    text = sa.render(report)
+    assert "runtime (compared documents)" in text and "10.0x" in text
 
 
 def test_fast_macro_f1_matches_experiment_stats():

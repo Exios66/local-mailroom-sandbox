@@ -84,6 +84,8 @@ class Arm:
     identity: dict[str, Any]
     items: dict[str, dict[str, Any]]
     truth: dict[str, tuple[str, str | None]]
+    concurrency: int | None = None
+    run_wall_seconds: float | None = None  # the run's start event to its done event
 
 
 def _resolve(ref: str | Path, runs_root: Path | None) -> Path:
@@ -151,9 +153,26 @@ def load_arm(ref: str | Path, *, runs_root: Path | None = None) -> Arm:
         "dataset_sha256": dataset.get("sha256"),
         "dependency_sources": {k: (v or {}).get("commit") for k, v in (lock.get("dependency_sources") or {}).items()},
     }
+    events = {str(e.get("event")): e.get("ts") for e in _jsonl(path / "events.jsonl")} if (path / "events.jsonl").is_file() else {}
+    start, done = _epoch(events.get("start")), _epoch(events.get("done"))
+    concurrency = (lock.get("job") or {}).get("concurrency")
     return Arm(run_id=str(lock.get("run_id") or path.name), path=path, task=task, model=model,
                mock=bool((lock.get("job") or {}).get("mock")), revision=revision or (sorted(revisions)[0] if revisions else None),
-               identity=identity, items=items, truth=truth)
+               identity=identity, items=items, truth=truth,
+               concurrency=int(concurrency) if isinstance(concurrency, (int, float)) else None,
+               run_wall_seconds=(done - start) if start is not None and done is not None and done >= start else None)
+
+
+def _epoch(ts: Any) -> float | None:
+    """Seconds since the epoch for an ISO-8601 timestamp (``Z`` or offset); None when absent or unparsable."""
+    if not ts:
+        return None
+    from datetime import datetime
+
+    try:
+        return datetime.fromisoformat(str(ts).replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
 
 
 # --------------------------------------------------------------------------- sets
@@ -261,9 +280,10 @@ class Outcome:
     cost_usd: float | None
     reported_cost_usd: float | None
     tokens: tuple[int, int] = (0, 0)
-    # A 4.0.0+ Decisions answer the routing contract parked (abstained / route_to_human). Its
-    # forced-choice doc_type still scores above; ``routing`` reports the parked share and the
-    # accuracy of the documents it would auto-route.
+    # Sent to a person by the arm's own rule (_human_route): a decision arm's routing contract
+    # (4.0.0+ abstained / route_to_human), or an LLM sorter answer under its class's ``high`` band.
+    # The forced-choice answer still scores above; ``routing`` reports the routed share and the
+    # accuracy of the documents the arm would send on unattended.
     abstained: bool = False
     abstain_reasons: tuple[str, ...] = ()
     # SHF-013: a reviewed correction replaced the Hub subclass (sub_ok / unit_ok score the corrected
@@ -272,6 +292,7 @@ class Outcome:
     hub_sub_ok: bool = False
     hub_unit_scored: bool = False
     hub_unit_ok: bool = False
+    finished_ts: float | None = None  # epoch seconds of the answer (items.jsonl ``ts``), for wall time
 
 
 def _num(value: Any) -> float | None:
@@ -333,18 +354,70 @@ def outcomes(arm: Arm, ids: Iterable[str], units: Mapping[tuple[str, str], str])
         sub_ok, unit_scored, unit_ok = scored(truth_sub)
         hub_sub_ok, hub_unit_scored, hub_unit_ok = scored(hub_sub) if corrected else (sub_ok, unit_scored, unit_ok)
         usage = pred.get("usage") if isinstance(pred.get("usage"), Mapping) else {}
+        routed, reasons = _human_route(arm.task, pred, failed)
         out.append(Outcome(
             doc_id=doc_id, truth_class=truth_class, pred_class=pred_class, class_ok=class_ok,
             sub_scored=sub_scored, sub_ok=sub_ok, unit_scored=unit_scored, unit_ok=unit_ok, failed=failed,
             confidence=None if failed else _confidence(pred), latency_ms=_num(item.get("latency_ms")),
             cost_usd=item_cost(arm.model, item), reported_cost_usd=_num(usage.get("cost")),
             tokens=(int(item.get("prompt_tokens") or 0), int(item.get("completion_tokens") or 0)),
-            abstained=bool(not failed and (pred.get("abstained") or pred.get("route_to_human"))),
-            abstain_reasons=tuple(str(r) for r in (pred.get("abstain_reasons") or ()) if not failed),
+            abstained=routed,
+            abstain_reasons=reasons,
+            finished_ts=_epoch(item.get("ts")),
             sub_corrected=corrected is not None, hub_sub_ok=hub_sub_ok, hub_unit_scored=hub_unit_scored,
             hub_unit_ok=hub_unit_ok,
         ))
     return out
+
+
+def _human_route(task: str, pred: Mapping[str, Any], failed: bool) -> tuple[bool, tuple[str, ...]]:
+    """Whether this answer goes to a person, and why, by the arm's own routing rule.
+
+    A decision arm parks by its question set's contract (``abstained`` / ``route_to_human``, with
+    ``abstain_reasons``). An LLM sorter arm routes by the pipeline's rule for a lone sorter answer
+    (``eval.human_review.sorter_routes_to_human``: unknown class, no confidence, or a confidence
+    under the class's ``high`` band), the same rule its run report counts. Failures are neither.
+    """
+    if failed:
+        return False, ()
+    if task == DECISION_SORTER_TASK:
+        return (bool(pred.get("abstained") or pred.get("route_to_human")),
+                tuple(str(r) for r in (pred.get("abstain_reasons") or ())))
+    from mailroom_sandbox.eval.human_review import sorter_routes_to_human
+
+    if not sorter_routes_to_human(pred):
+        return False, ()
+    doc_type = pred.get("doc_type")
+    if not doc_type or doc_type == "unknown":
+        return True, ("unknown_class",)
+    if not isinstance(pred.get("confidence"), (int, float)):
+        return True, ("no_confidence",)
+    return True, (f"below_high_band:{doc_type}",)
+
+
+def _runtime(arm: Arm, rows: Sequence[Outcome]) -> dict[str, Any]:
+    """Wall time and throughput of an arm over the compared documents.
+
+    ``active_seconds`` runs from the first compared document's request (its finish time less its
+    latency) to the last one's answer, so start-up and scoring are excluded and a ``--set`` subset
+    is timed on its own documents. Throughput depends on concurrency, which is reported with it;
+    ``docs_per_minute_per_worker`` (documents over summed latency) is the concurrency-free rate.
+    """
+    spans = [(r.finished_ts - (r.latency_ms or 0.0) / 1000.0, r.finished_ts) for r in rows
+             if r.finished_ts is not None and not r.failed]
+    latency_sum = sum((r.latency_ms or 0.0) for r in rows if not r.failed) / 1000.0
+    active = (max(e for _, e in spans) - min(s for s, _ in spans)) if spans else None
+    n = len(rows)
+    per_min = n / active * 60.0 if active else None
+    return {
+        "concurrency": arm.concurrency,
+        "run_wall_seconds": arm.run_wall_seconds,
+        "active_seconds": active,
+        "latency_sum_seconds": latency_sum,
+        "docs_per_minute": per_min,
+        "docs_per_minute_per_worker": n / latency_sum * 60.0 if latency_sum else None,
+        "hours_per_100k_docs": 100_000 / per_min / 60.0 if per_min else None,
+    }
 
 
 def _routing(rows: Sequence[Outcome]) -> dict[str, Any]:
@@ -450,6 +523,7 @@ def arm_summary(arm: Arm, rows: Sequence[Outcome], *, labels: Sequence[str], see
         },
         "calibration": calibration,
         "routing": _routing(rows),
+        "runtime": _runtime(arm, rows),
         "latency_ms": {"n": len(latencies), "p50": _quantile(latencies, 0.50), "p95": _quantile(latencies, 0.95)},
         "tokens": {"prompt": sum(r.tokens[0] for r in rows), "completion": sum(r.tokens[1] for r in rows)},
         "cost": {
@@ -816,11 +890,27 @@ def render(report: Mapping[str, Any]) -> str:
                          f"unit {_pct(hub['unit_accuracy'])}")
     for s in report["arms"]:
         r = s.get("routing") or {}
-        # Decision arms always show their routing line, so a measured 0% is not mistaken for missing data.
-        if r.get("abstained") or s.get("task") == "sorter_reviewer":
-            lines.append(f"  {s['run_id'][:44]}: parked {r['abstained']}/{r['answered']} ({_pct(r['abstain_rate'])}), "
+        # Every arm shows its routing line, so a measured 0% is not mistaken for missing data.
+        if r:
+            lines.append(f"  {s['run_id'][:44]}: to a person {r['abstained']}/{r['answered']} ({_pct(r['abstain_rate'])}), "
                          f"auto-routed acc {_pct(r['auto_class_accuracy'])}, unit {_pct(r['auto_unit_accuracy'])}; "
                          f"reasons {r['abstain_reasons']}")
+    ref = next((a for a in report["arms"] if a["run_id"] == report["reference"]), None)
+    ref_rt = (ref or {}).get("runtime") or {}
+    lines.append(f"runtime (compared documents)                 {'conc':>4} {'active s':>9} {'run s':>7} "
+                 f"{'latency s':>10} {'docs/min':>9} {'/worker':>8} {'h/100k':>7} {'speed-up':>9}")
+    for s in report["arms"]:
+        rt = s.get("runtime") or {}
+        speed = (ref_rt["active_seconds"] / rt["active_seconds"]
+                 if ref_rt.get("active_seconds") and rt.get("active_seconds") else None)
+        lines.append(f"  {s['run_id'][:43]:43} {_fmt(rt.get('concurrency'), 'd') if rt.get('concurrency') else '-':>4} "
+                     f"{_fmt(rt.get('active_seconds'), '.1f'):>9} {_fmt(rt.get('run_wall_seconds'), '.1f'):>7} "
+                     f"{_fmt(rt.get('latency_sum_seconds'), '.1f'):>10} {_fmt(rt.get('docs_per_minute'), '.0f'):>9} "
+                     f"{_fmt(rt.get('docs_per_minute_per_worker'), '.1f'):>8} {_fmt(rt.get('hours_per_100k_docs'), '.1f'):>7} "
+                     f"{(_fmt(speed, '.1f') + 'x') if speed else '-':>9}")
+    concs = {(s.get("runtime") or {}).get("concurrency") for s in report["arms"]}
+    if len(concs) > 1:
+        lines.append("  arms ran at different concurrency: compare docs/min/worker, not docs/min or active seconds")
     for b, p in report["pairs"].items():
         d, t = p["differences"], p["tests"]
         lines.append(f"\n{b} minus {report['reference']} (points; 95% paired bootstrap, B={p['n_boot']}, seed {p['seed']}):")
