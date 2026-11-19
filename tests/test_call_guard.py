@@ -107,6 +107,51 @@ def test_a_document_the_guard_cut_short_is_an_error_row_not_a_score(monkeypatch)
     assert not [i for i in items if not i.get("error")]  # nothing scored as a pipeline outcome
 
 
+def test_a_decisions_call_is_charged_once_when_hf004_wraps_record_usage(monkeypatch):
+    """One Decisions HTTP 200 is one ceiling slot and one live price.
+
+    ``decide`` records the call through ``record_usage`` and ``_post_decision``
+    charges the guard. With HF-004 applied, both used to call ``after_call``, so
+    a reviewer-calibration run (almost entirely Decisions calls) tripped
+    ``api_cost_cap_usd`` at about half the configured cap and a long document
+    hit the per-document ceiling early.
+    """
+    from mailroom_sandbox import decision_backends as db
+
+    assert vh.apply_hotfixes()["HF-004"] == "applied"
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test")
+    posts: list[int] = []
+
+    class Resp:
+        status_code = 200
+        text = ""
+
+        @staticmethod
+        def json():
+            return {"model": "openai/gpt-6-luna-decisions", "answers": {},
+                    "usage": {"input_tokens": 1_000_000, "output_tokens": 0}}
+
+    def post(*_args, **_kwargs):
+        posts.append(1)
+        return Resp()
+
+    monkeypatch.setattr("httpx.post", post)
+    from pipeline import limits
+
+    limits.reset_run_usage()
+    budget = api_budget.ApiBudget(10.0, 0.10, 0.0, ["openai/gpt-6-luna-decisions"])
+    call_guard.arm(budget, ceiling=1)
+    with call_guard.document() as doc:
+        db.decide("hello", model="openai/gpt-6-luna-decisions", questions={"doc_type": {}})
+        assert doc["calls"] == 1
+        assert budget.live_usd == pytest.approx(0.10)
+        assert limits.usage_summary()["calls"] == 1
+        assert limits.usage_summary()["prompt_tokens"] == 1_000_000
+        with pytest.raises(Exception, match="per-document ceiling"):
+            db.decide("again", model="openai/gpt-6-luna-decisions", questions={"doc_type": {}})
+    assert posts == [1]
+
+
 def test_decisions_transport_obeys_the_run_guard_before_each_attempt(monkeypatch):
     from mailroom_sandbox import decision_backends as db
 
