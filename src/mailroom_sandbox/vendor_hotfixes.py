@@ -83,7 +83,7 @@ HOTFIXES: tuple[Hotfix, ...] = (
         module="langchain_agents.doc_inventories",
         attr="enrich_extraction",
         source_sha256="a9986cab125fc26e76d36de77ccd4a18d0537f5fa93f6ce146e9389186d20a90",
-        upstream="Exios66/llm-mailroom (issue pending)",
+        upstream="Exios66/llm-mailroom#313",
         summary="corporate_record: a null record_type is filled from every corporate subclass "
                 "through Dojo's subclass -> record_type map, not only the five Hub tokens",
         install=_install_record_type_from_subclass,
