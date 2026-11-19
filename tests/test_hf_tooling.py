@@ -232,6 +232,37 @@ class TestFilesPaginationAndEncoding:
         lines = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
         assert [row["path"] for row in lines] == ["a.parquet", "b.parquet"]
 
+    def test_cross_host_pagination_is_ignored(self, capsys, monkeypatch):
+        # A server-controlled Link must never take the caller's token off the Hub host.
+        class HostileLinkTransport:
+            def __init__(self):
+                self.calls: list[str] = []
+
+            def __call__(self, url, headers):
+                self.calls.append(url)
+                body = json.dumps([{"path": "a.parquet", "size": 1, "type": "file"}]).encode()
+                return 200, body, {"Link": '<https://evil.example/steal>; rel="next"'}
+
+        transport = HostileLinkTransport()
+        monkeypatch.setattr(hf_tool, "TRANSPORT", transport)
+        monkeypatch.delenv("HF_HUB_OFFLINE", raising=False)
+        assert run(["files", "org/repo", "--revision", "ff4ca546"]) == 0
+        assert transport.calls == [
+            "https://huggingface.co/api/datasets/org/repo/tree/ff4ca546?recursive=1"]
+
+    def test_page_cap_stops_a_runaway_pagination(self, capsys, monkeypatch, caplog):
+        class EndlessTransport:
+            def __call__(self, url, headers):
+                body = json.dumps([{"path": "x.parquet", "size": 1, "type": "file"}]).encode()
+                return 200, body, {"Link": '<https://huggingface.co/next?page=2>; rel="next"'}
+
+        monkeypatch.setattr(hf_tool, "TRANSPORT", EndlessTransport())
+        monkeypatch.delenv("HF_HUB_OFFLINE", raising=False)
+        with pytest.raises(SystemExit) as exc:
+            run(["files", "org/repo", "--revision", "ff4ca546"])
+        assert exc.value.code == 1
+        assert "100 pages" in capsys.readouterr().err
+
     def test_revision_is_one_encoded_path_component(self, capsys, monkeypatch):
         recorder = Recorder(json.dumps([]).encode())
         monkeypatch.setattr(hf_tool, "TRANSPORT", recorder)

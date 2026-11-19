@@ -50,8 +50,10 @@ class HubHTTPError(Exception):
 
 def _default_transport(url: str, headers: dict[str, str]) -> tuple[int, bytes, dict[str, str]]:
     request = urllib.request.Request(url, headers=headers)
+    # The URL is built in this module against the fixed https://huggingface.co base
+    # (or a same-host Link continuation _next_link vetted); quoted path/query; read-only GETs.
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:  # nosec B310 - the URL is always built by _hub_get against the fixed https://huggingface.co base (a single path segment plus quoted query/path values); read-only GETs
+        with urllib.request.urlopen(request, timeout=30) as response:  # nosec B310 - fixed-base, read-only GET
             return response.status, response.read(), {"Link": response.headers.get("Link") or ""}
     except urllib.error.HTTPError as exc:
         return exc.code, exc.read(), {"Link": exc.headers.get("Link") or ""}
@@ -116,14 +118,24 @@ def _hub_get_or_die(path: str, token: str | None) -> bytes:
 
 
 def _next_link(links: Mapping[str, str]) -> str | None:
-    """The Hub's ``Link: <...>; rel="next"`` continuation URL, if any."""
+    """The Hub's ``Link: <...>; rel="next"`` continuation URL, if any.
+
+    A continuation is accepted only on the same https host: the ``Link`` header is
+    server-controlled, and the request would carry the caller's ``HF_TOKEN``. A
+    cross-host or non-https target is ignored (treated as the last page) rather than
+    followed with credentials.
+    """
     value = links.get("Link") or ""
     for part in value.split(","):
         fields = part.split(";")
         if any(field.strip().replace(" ", "") in ('rel="next"', "rel=next") for field in fields[1:]):
             target = fields[0].strip()
             if target.startswith("<") and target.endswith(">"):
-                return target[1:-1]
+                url = target[1:-1]
+                if url.startswith("https://huggingface.co/"):
+                    return url
+                print(f"{PROG}: ignoring cross-host pagination target {url}", file=sys.stderr)
+                return None
     return None
 
 
