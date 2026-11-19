@@ -97,6 +97,29 @@ def check_sets(doc_ids: Iterable[str], assignments: Mapping[str, str]) -> None:
                          "Point --run at a dev or pool v0 pass")
 
 
+def _tag_commit(sha: str) -> str:
+    """The Hub tag commit for a family SHA (a tag's parquet parent maps to its tag); others unchanged."""
+    from mailroom_sandbox.job.spec import FAMILY_HF_DATA_REVISION, FAMILY_HF_REVISION, LEGACY_FAMILY_HF_REVISIONS
+
+    pairs = [(FAMILY_HF_REVISION, FAMILY_HF_DATA_REVISION), *LEGACY_FAMILY_HF_REVISIONS.values()]
+    return next((tag for tag, data in pairs if sha in (tag, data)), sha)
+
+
+def check_schemas_revision(rows: list[Mapping[str, Any]], schemas: Mapping[str, Any], schemas_path: Path) -> None:
+    """Refuse a registry graded on another dataset revision than the run drew.
+
+    Its ``iterate`` verdicts come from that revision's labels, so a mismatch samples the wrong fields.
+    A registry or run that records no revision is not checked.
+    """
+    want = str((schemas.get("inputs") or {}).get("dataset_revision") or "")
+    have = sorted({_tag_commit(str(r.get("source_revision") or "")) for r in rows} - {""})
+    if want and have and have != [_tag_commit(want)]:
+        drew = ", ".join(h[:12] for h in have)
+        raise AuditError(f"{schemas_path.name} grades dataset revision {want[:12]}, but the run drew {drew}; "
+                         "pass a registry built on the run's revision with --schemas "
+                         "(sandbox schemas build --revision <sha> --out <file>)")
+
+
 def iterate_fields(schemas: Mapping[str, Any], doc_class: str, subclass: str | None = None,
                    level: str = "class") -> frozenset[str]:
     """Fields with verdict ``iterate`` for ``doc_class`` (or its subclass entry, at ``level=subclass``)."""
@@ -281,6 +304,8 @@ def build_sheet(run_dir: Path, lineage: str, *, split_dir: Path, schemas_path: P
         if other:
             raise AuditError(f"lineage {lineage} audits {doc_class} documents; the run also holds {other}")
     schemas = json.loads(Path(schemas_path).read_text(encoding="utf-8")) if doc_class else {}
+    if schemas:
+        check_schemas_revision(rows, schemas, Path(schemas_path))
     counts: Counter = Counter()
     candidates: list[dict[str, Any]] = []
     scorer_errors: list[str] = []

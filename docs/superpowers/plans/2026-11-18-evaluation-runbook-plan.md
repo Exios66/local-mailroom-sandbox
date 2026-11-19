@@ -2,7 +2,7 @@
 title: "Mailroom sorter and extraction evaluation runbook — research plan"
 type: plan
 created: 2026-11-18
-updated: 2026-11-18
+updated: 2026-11-19
 status: draft  # becomes pre-registered once hypotheses H1-H5 and their falsification criteria are signed off
 author: mixed
 design: "Mailroom Sorter & Extraction Evaluation Design (Claude doc, tabs: design, Statistical review, EXPERIMENT CHECKLIST, Prompt iteration experiments, Decision model cycles)"
@@ -80,8 +80,10 @@ Arithmetic checks that hold: R13 (6 × 300 = 1,800), R15 (900 + 1,200 = 2,100), 
 | R01 pins + served provider | `config/provider_pins.yaml`, `scripts/refresh_provider_pins.py` (`--write-order` pins endpoint `tag` slugs, exits 1 and writes nothing on a failed lookup), `SANDBOX_SERVED_LOG=<file>` | Hook installed at activation for the wrapped `retry_chat_completion` calls; each ledger row carries `status: verified / unverified / mismatch`; `order` empty until the endpoints are chosen |
 | R02 statistics | `mailroom_sandbox.experiment_stats`: exact McNemar (exact past 1,024 discordant pairs), paired macro-F1 swap permutation, sign-flip permutation (rejects NaN scores), Holm, sequential-look keep rule, cost-weighted error, Brier/ECE null floors; Clopper-Pearson / ECE / Brier / AUROC re-exported from the Dojo | Unit-tested |
 | Offline corpus access | `corpus.load_hf_rows` falls back to the local HF cache for a pinned sha | Preflight and prepare work with `HF_HUB_OFFLINE=1` once both the `default` and `ground_truth` shards of the pin are cached (`sandbox datasets pull`); an uncached `ground_truth` shard is refused, not read as blind rows |
-| R00+ label readiness | `sandbox schemas build`, `sandbox schemas build --check`, `sandbox schemas show`; `config/extraction/subclass_schemas.json` | Per-class and per-subclass field schemas graded against Hub + interim + near-gold truth (finding 15) |
+| R00+ label readiness | `sandbox schemas build`, `sandbox schemas build --check`, `sandbox schemas show`; `config/extraction/subclass_schemas.json` | Per-class and per-subclass field schemas graded against Hub + interim + near-gold truth (finding 15). rb1 reads the frozen `config/extraction/subclass_schemas-runbook-v1.json`, graded on the split's revision bc9eab28 (v9.1); `subclass_schemas.json` follows the family pin (v9.3 since #362). `build_gold_audit_sheet.py` defaults to the frozen file and refuses a registry graded on another revision than the run drew |
 | Prompt and schema alignment | `job.schema_guide: true`; candidates `corporate_records_specialist_condensed_v2`, `correspondence_specialist_condensed_v4`, `contracts_specialist_condensed_v1`, `insurance_claims_specialist_condensed_v5` (#280 is vendored), each parented on its frontrunner (decision 3); `job.specialist_subclass` (`none` / `gold` / `sorter`) names the subclass an isolated run's handoff carries, so `cms_source_table` and the corporate `record_type` are derived as in the pipeline | Off by default and hashed only when set; candidates need an A/B on dev before adoption (finding 16) |
+
+**Dataset revision.** The family pin moved to Hub tag v9.3 (`ff4ca546`) in #362. Campaign rb1 stays on bc9eab28 (v9.1) for every phase: the split, its leak audit, the R03 registry and every look are graded on one label revision, and v9.3 changes corporate labels (all 14 corporate documents of a 100-document draw, 13 corporate subclass verdicts). `sandbox splits audit` reads the split manifest's revision and passes. Moving rb1 to v9.3 means a new split (runbook-v2) and an owner decision, logged under Deviations.
 
 ## Tasks — Phase 0
 

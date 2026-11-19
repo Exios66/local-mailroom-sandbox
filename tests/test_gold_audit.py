@@ -276,3 +276,33 @@ def test_cli_builds_refuses_overwrite_and_summarizes(env, capsys):
     assert cli.main(["--run", str(bad), "--lineage", "correspondence", "--seed", "1", "--out", str(env["tmp"] / "x.csv"),
                      "--split", str(env["split"]), "--schemas", str(env["schemas"])]) == 2
     assert not (env["tmp"] / "x.csv").exists()
+
+
+# --- registry revision --------------------------------------------------------------------------
+
+def test_a_registry_graded_on_another_revision_is_refused(env):
+    from mailroom_sandbox.job.spec import FAMILY_HF_REVISION, LEGACY_FAMILY_HF_REVISIONS
+
+    v91_tag, v91_data = LEGACY_FAMILY_HF_REVISIONS["v9.1"]
+    rows = [{**_letter("DOC-d1"), "source_revision": v91_data}]   # the parquet parent maps to its tag
+    run = _write_run(env["tmp"], "rev", rows, {"DOC-d1": {"sender": "Andrew Fastow", "recipient": "Ken Lay"}})
+    env["schemas"].write_text(json.dumps({**SCHEMAS, "inputs": {"dataset_revision": v91_tag}}), encoding="utf-8")
+    assert _build(env, run, "correspondence").digest["sampled"] == 1
+    env["schemas"].write_text(json.dumps({**SCHEMAS, "inputs": {"dataset_revision": FAMILY_HF_REVISION}}),
+                              encoding="utf-8")
+    with pytest.raises(ga.AuditError, match="grades dataset revision"):
+        _build(env, run, "correspondence")
+
+
+def test_the_frozen_runbook_v1_registry_matches_its_split():
+    from mailroom_sandbox import subclass_schemas as ss
+    from mailroom_sandbox.paths import repo_root
+
+    root = repo_root()
+    reg = json.loads((root / "config/extraction/subclass_schemas-runbook-v1.json").read_text(encoding="utf-8"))
+    split = root / "config/splits/runbook-v1"
+    manifest = json.loads((split / "manifest.json").read_text(encoding="utf-8"))
+    assert reg["schema"] == ss.SCHEMA and reg["problems"] == []
+    assert reg["inputs"]["dataset_revision"] == manifest["dataset"]["revision"]
+    assert reg["inputs"]["split_assignments_sha256"] == ss._read_sets(split)[1]
+    assert "subclass_schemas-runbook-v1.json" in Path(cli.__file__).read_text(encoding="utf-8")  # the CLI default

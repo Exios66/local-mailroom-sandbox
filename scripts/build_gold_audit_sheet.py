@@ -54,7 +54,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--verdict-level", choices=("class", "subclass"), default="class",
                         help="read the iterate verdict per class (default) or per gold subclass")
     parser.add_argument("--split", default="config/splits/runbook-v1")
-    parser.add_argument("--schemas", default="config/extraction/subclass_schemas.json")
+    parser.add_argument("--schemas", default="config/extraction/subclass_schemas-runbook-v1.json",
+                        help="field registry graded on the run's revision (default: the frozen runbook-v1 one)")
     parser.add_argument("--out", help="sheet path (default data/labels/review/r03-<lineage>-audit.csv)")
     parser.add_argument("--force", action="store_true", help="overwrite an existing sheet (loses its verdicts)")
     args = parser.parse_args(argv)
