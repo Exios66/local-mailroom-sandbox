@@ -33,6 +33,10 @@ statuses, with a basis of their own (``REVIEW_BASES``):
 ``gap_fill`` / ``original_header``  a correspondence header field the corpus text omits because
                 the email header was stripped; the value is read from the original message's
                 header (CMU Enron maildir), and the label quotes that header line as evidence.
+``correction`` / ``review_read_record``  a corporate ``entity_name`` the review found wrong after
+                reading the record (the Hub took the filer's name from the EDGAR template, not
+                the entity the record names); it replaces the Hub value, kept as ``hub_value``.
+                A name quotes the text that states it; null means the record names no entity.
 
 A reviewed label replaces any gate label of the same field; the replaced label is kept as
 ``replaced``. ``scripts/interim_labels.py review`` applies the file, and ``build`` re-applies it.
@@ -281,6 +285,7 @@ HEADER_FIELDS = ("sender", "recipient", "additional_recipients", "communication_
 REVIEW_BASES: dict[str, tuple[str, dict[str, tuple[str, ...]]]] = {
     "review_read_message": ("correction", {"correspondence": ("intent",)}),
     "original_header": ("gap_fill", {"correspondence": HEADER_FIELDS}),
+    "review_read_record": ("correction", {"corporate_record": ("entity_name",)}),
 }
 #: Where an ``original_header`` quote must come from, and the header lines each field reads.
 HEADER_SOURCE = "cmu_enron_maildir"
@@ -421,6 +426,19 @@ def review_line_problem(line: Mapping[str, Any]) -> str | None:
         return problem
     if basis == "original_header":
         return _header_problem(line["field"], line["value"], line["evidence"])
+    if basis == "review_read_record":
+        return _record_quote_problem(line["value"], line["evidence"])
+    return None
+
+
+def _record_quote_problem(value: Any, evidence: Any) -> str | None:
+    """A ``review_read_record`` name quotes the text that states it; a null quotes nothing."""
+    if not isinstance(evidence, list) or not all(isinstance(q, str) and q.strip() for q in evidence):
+        return "a review_read_record label's evidence must be a list of quotes from the text"
+    if value is None:
+        return "a null review_read_record label quotes nothing" if evidence else None
+    if not evidence:
+        return "a review_read_record name needs a quote from the text as evidence"
     return None
 
 
@@ -653,6 +671,44 @@ def superseded(rows: Iterable[Mapping[str, Any]], overlay: Mapping[str, Mapping[
         exp = _expected(row)
         out += [(rec["doc_id"], f) for f, lab in rec["labels"].items() if lab["status"] == "gap_fill" and hub_has(exp, f)]
     return out
+
+
+def _same_label(a: Any, b: Any) -> bool:
+    """Two label values say the same (token-normalised, order-free lists; every empty is alike)."""
+    from mailroom_sandbox import gold_labels as gl
+
+    if _empty(a) or _empty(b):
+        return _empty(a) and _empty(b)
+    return gl._canon(a) == gl._canon(b)
+
+
+def gold_conflicts(overlay: Mapping[str, Mapping[str, Any]] | None = None,
+                   near_gold: Mapping[str, Mapping[str, Any]] | None = None
+                   ) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
+    """Gap fills whose value reviewed gold (the near-gold overlay) contradicts.
+
+    At run time an interim truth label is merged before near-gold and wins over it, so a gate gap
+    fill that the reviewed gold catalog labels differently for the same text would replace the
+    reviewed value. Returns ``(gone, kept)``: the gate gap fills to drop (reviewed gold then fills
+    the field), and the reviewed labels (a review file's own, e.g. ``original_header``) that
+    disagree with gold but stay, because their review file decides them.
+    """
+    from mailroom_sandbox import gold_labels as gl
+
+    overlay = load_overlay() if overlay is None else overlay
+    near_gold = gl.load_near_gold() if near_gold is None else near_gold
+    gone: list[tuple[str, str]] = []
+    kept: list[tuple[str, str]] = []
+    for doc, rec in sorted(overlay.items()):
+        gold = near_gold.get(doc)
+        if not gold or gold.get("doc_sha256") != rec.get("doc_sha256"):
+            continue
+        for field, lab in sorted(rec["labels"].items()):
+            ref = (gold.get("labels") or {}).get(field)
+            if lab.get("status") != "gap_fill" or ref is None or _same_label(lab.get("value"), ref.get("value")):
+                continue
+            (kept if "review" in lab else gone).append((doc, field))
+    return gone, kept
 
 
 def apply_overlay(row: Mapping[str, Any], overlay: Mapping[str, Mapping[str, Any]], *, overlay_sha: str) -> dict[str, Any]:

@@ -28,6 +28,7 @@ Each label has a `status`:
 | --- | --- | --- | --- |
 | `review_read_message` | `correction` | correspondence `intent` | The review read the message and found the Hub value wrong. The label keeps `hub_value`. The value must be in the intent vocabulary. |
 | `original_header` | `gap_fill` | correspondence `sender`, `recipient`, `additional_recipients`, `communication_date` | The corpus text lost the email header. The value comes from the original message in the CMU Enron maildir. `evidence` quotes the header lines (`X-From`/`From`, `X-To`/`To`, `X-cc`/`Cc`, `Date`) with the maildir file. Every name token must be in the quoted lines, and a date must equal the `Date` header. |
+| `review_read_record` | `correction` | corporate record `entity_name` | The review read the record and found the Hub value wrong (it is the EDGAR filer's name). The label keeps `hub_value`. A name quotes the text that states it in `evidence`; null quotes nothing and means the record names no entity. |
 
 The manifest lists each review file with its sha256 (`reviews`). `check` fails when a listed file changed and was not applied again, or when one of its labels is missing or differs in the overlay. `build` applies the listed files again after a rebuild, so a new gate run never drops a reviewed label.
 
@@ -46,12 +47,15 @@ The run then merges the truth labels into its locked rows' `expected_fields`; Hu
 
 `apply_overlay` also takes a Hub `ground_truth` parquet row as it is. It matches the row on `document_id`, and on `content_sha256` when the row has no `doc_text`, then writes the labels back into `gt_fields`. `interim_labels.apply_overlay_parquet` (or `scripts/interim_labels.py apply`) does the same for a whole shard. The output keeps the shard's columns and types and adds an `interim_labels` column, which holds JSON `{"fields", "overlay_sha256"}` on rows that took labels and null on the rest. `check --prune` never drops a reviewed label: it reports one the Hub supersedes, and keeps it.
 
+Reviewed gold outranks a gate label. At run time the interim overlay is merged before the near-gold overlay (`data/labels/gold-overlay/`) and wins, so a gate `gap_fill` whose value the near-gold overlay labels otherwise for the same text is superseded: `check` reports it, `check --prune` drops it and `build` drops it on every rebuild, and near-gold then fills the field. Values are compared token by token, and all empty values are alike. A reviewed label (for example an `original_header` fill) stays, since its review file decides it; `check` only counts those that differ from gold.
+
 ## Updates
 
 ```bash
 python scripts/interim_labels.py build --add-run <new gate run>   # after every gate run
 python scripts/interim_labels.py build                            # rebuild from the listed runs
-python scripts/interim_labels.py check                            # integrity + staleness
+python scripts/interim_labels.py check                            # integrity, staleness, gold supersession
+python scripts/interim_labels.py check --prune                    # after a gold overlay export
 python scripts/interim_labels.py review                           # apply the listed review files again
 python scripts/interim_labels.py review --apply <file.jsonl>      # apply a new review file
 python scripts/interim_labels.py check --rows <hub rows.jsonl | ground_truth.parquet> --prune   # after a Hub revision

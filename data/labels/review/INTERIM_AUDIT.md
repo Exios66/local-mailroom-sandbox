@@ -147,6 +147,9 @@ by hand, so each fix goes through the builder or through label precedence.
    those gap fills from the interim overlay the way `check --prune` drops
    Hub-superseded ones. This one change resolves every `replace`, `clear` and
    `normalize` row whose `method` is `gold_compare`.
+   **Done 2026-11-18** (with step 1): `scripts/interim_labels.py check --prune` dropped 111
+   contradicted gate gap fills (99 correspondence, 12 corporate) and `build` drops them on every
+   rebuild; reviewed `original_header` labels are kept. See `VALIDATION.md`, issue 1.
 3. **Regenerate the six stale `record_type` labels.** `rederive` will not fix
    them, because it reads each record's own `doc_subclass`, which is the stale
    value. Rebuild those records from the current Hub rows

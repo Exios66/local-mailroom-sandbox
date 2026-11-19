@@ -1,30 +1,31 @@
 {
   "builder": "scripts/gold_labels.py overlay",
-  "built_at": "2026-11-18T23:02:03Z",
-  "catalog_manifest_sha256": "289a0e71ec95b140790ce5fdf1f84a8f72c06d774875c6c1ec32f3998d22d466",
+  "built_at": "2026-11-19T04:22:02Z",
+  "catalog_manifest_sha256": "02d363302404c26c1d5bf248d99d29b3b14a843f9e911d591247e8fd36bffc26",
   "counts": {
     "contract": {
       "near_gold:opus_reviewed_correct": 7,
       "near_gold:two_pass_agree": 893
     },
     "corporate_record": {
+      "near_gold:opus_reviewed_accept": 1087,
       "near_gold:opus_reviewed_accept_check": 1,
-      "near_gold:opus_reviewed_correct": 4,
+      "near_gold:opus_reviewed_correct": 13,
       "near_gold:two_pass_agree": 106
     },
     "correspondence": {
-      "near_gold:opus_reviewed_accept": 62,
+      "near_gold:opus_reviewed_accept": 2055,
       "near_gold:opus_reviewed_accept_check": 18,
-      "near_gold:opus_reviewed_correct": 1111,
-      "near_gold:two_pass_agree": 3644
+      "near_gold:opus_reviewed_correct": 1326,
+      "near_gold:two_pass_agree": 3595
     }
   },
   "files": {
-    "contract.jsonl": "a68f5e9b9a83092b080934e493fe1ae14d17a36778fbd16382c81dfd0c29da79",
-    "corporate_record.jsonl": "46d5393810f3bc3fafb65f43e3402e23c9a6d6e34e22d38ba5ce61135d925aed",
-    "correspondence.jsonl": "8bc89a47b27f312c79b8df903351dc12da162c9884b8677f2ebf7859274201a5"
+    "contract.jsonl": "46930027eae7579db19dd12ec08c8f5ab9b36dcab3b202d1e979e51b631f861b",
+    "corporate_record.jsonl": "432a99f5b931e759e48b1c47c2e3e13b9c0a098b6b88ef892751c6c56fabf79a",
+    "correspondence.jsonl": "b9a8a001095a1eb08af3a94b95927daffea7325c6c3f32b0f5f62a62b2b42f1b"
   },
-  "gate_run": "gold-labels-289a0e71ec95",
+  "gate_run": "gold-labels-02d363302404",
   "rules": {
     "exported_statuses": [
       "near_gold"
