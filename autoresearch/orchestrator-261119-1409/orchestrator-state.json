@@ -22,7 +22,9 @@
      "evidence": ["scripts/hf_tool.py: pins/verify-pin/status/whoami/search/card/files, NDJSON, HF_TOKEN, offline refusal exit 3", "tests/test_hf_tooling.py 16 passed, transport-injected, network-free"]},
     {"hop": 4, "subcommand": "regression", "outcome": "progressed",
      "evidence": ["ruff clean on all new/changed files", "test_vendor_drift + test_autoresearch_keep + test_gate + test_human_review_metric + test_eval: 74 passed / 3 skipped"]},
-    {"hop": 5, "subcommand": "verify (pending_verify -> adversarial review)", "outcome": "pending"}
+    {"hop": 5, "subcommand": "verify (pending_verify -> adversarial review round 1)", "outcome": "progressed",
+     "evidence": ["adversarial-reviewer verdict NEEDS-FIXES: B-1 dead FAMILY_HF_REPO import (status pin check), B-2 network-by-accident offline status test, B-3 tautological invariants (mutation-proven), B-4 metric drift (case sensitivity, scorable gate, silent zip truncation)", "all fixed in 5b56d4dd: HF_DEFAULT_REPO + online-branch tests, transport-injected offline test with zero-call assert, spec-derived invariant bounds + mutation-style failure tests, gate-faithful lowercase comparison, loud length mismatch, docstring framing, CHANGELOG"]},
+    {"hop": 6, "subcommand": "verify round 2 (re-review of fixes)", "outcome": "pending"}
   ],
   "pending_verify": true,
   "fork_rounds_since_progress": 0,
