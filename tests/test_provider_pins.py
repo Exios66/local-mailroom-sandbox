@@ -497,3 +497,79 @@ def test_preimported_pdf_transcriber_uses_pinned_guarded_transport(vendored, mon
     pdf.retry_chat_completion(_Client("https://openrouter.ai/api/v1"), model="qwen/qwen3.7-flash")
     assert seen[-1]["extra_body"]["provider"]["order"] == ["Alibaba"]
     assert len(pp.ledger()) == 1
+
+
+def test_every_preimported_by_name_alias_is_swept_and_restored(vendored, monkeypatch):
+    """The PDF transcriber was the known case; the sweep covers every such module."""
+    seen, base = vendored
+    custom = types.ModuleType("agents.custom")
+    custom.retry_chat_completion = base.retry_chat_completion
+    monkeypatch.setitem(sys.modules, "agents.custom", custom)
+    foreign = types.ModuleType("agents.foreign")
+    foreign_fn = lambda client, **kwargs: None  # noqa: E731 — an unrelated replacement
+    foreign.retry_chat_completion = foreign_fn
+    monkeypatch.setitem(sys.modules, "agents.foreign", foreign)
+
+    assert pp.apply_provider_pins(PINS) == 1
+    # The alias tracks the installed wrapper, and the LangChain-free path is pinned + recorded.
+    assert custom.retry_chat_completion is base.retry_chat_completion
+    assert foreign.retry_chat_completion is foreign_fn
+    custom.retry_chat_completion(_Client("https://openrouter.ai/api/v1"), model="qwen/qwen3.7-flash")
+    assert seen[-1]["extra_body"]["provider"]["order"] == ["Alibaba"]
+    assert len(pp.ledger()) == 1
+
+    # Re-activation swaps the wrapper; the alias follows, never stacks.
+    first = custom.retry_chat_completion
+    pp.apply_provider_pins(PINS)
+    second = custom.retry_chat_completion
+    assert second is base.retry_chat_completion and second is not first
+    pp.restore()
+    assert custom.retry_chat_completion is base.retry_chat_completion
+    assert getattr(custom.retry_chat_completion, "__wrapped__", None) is None  # the original again
+    assert foreign.retry_chat_completion is foreign_fn
+
+
+def test_a_failed_openrouter_request_is_recorded_not_a_verified_zero(vendored, monkeypatch):
+    seen, base = vendored
+
+    def failing(client, **kwargs):
+        raise RuntimeError("upstream 502")
+
+    retry_mod = sys.modules["llm.retry"]
+    monkeypatch.setattr(retry_mod, "retry_chat_completion", failing)
+    monkeypatch.setattr(base, "retry_chat_completion", failing)
+    pp.reset_ledger()
+    pp.apply_provider_pins(PINS)  # captures the failing function as the original
+    with pytest.raises(RuntimeError, match="upstream 502"):
+        base.retry_chat_completion(_Client("https://openrouter.ai/api/v1"), model="qwen/qwen3.7-flash")
+    row = pp.ledger()[-1]
+    assert row["status"] == "unverified" and "upstream 502" in row["error"]
+    assert row["call_path"] == "retry_chat_completion"
+    assert row["pinned_order"] == ["Alibaba"]  # the route the request was pinned to
+    assert "prompt_tokens" not in row and "completion_tokens" not in row
+    assert "reported_cost_usd" not in row  # unknown spend is never a zero
+
+    # A non-OpenRouter failure is not the ledger's business.
+    before = len(pp.ledger())
+    with pytest.raises(RuntimeError, match="upstream 502"):
+        base.retry_chat_completion(_Client("https://api.openai.com/v1"), model="qwen/qwen3.7-flash")
+    assert len(pp.ledger()) == before
+
+
+def test_a_failed_langchain_request_is_recorded_not_a_verified_zero(vendored, monkeypatch):
+    class _FailingGenerate:
+        def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+            raise RuntimeError("connection reset")
+
+    lc_base = sys.modules["langchain_agents.base_agent"]
+    monkeypatch.setattr(lc_base, "ChatOpenAI", _FailingGenerate)
+    pp.reset_ledger()
+    assert pp.apply_provider_pins(PINS)  # installs the pin subclass over _FailingGenerate
+    client = lc_base.ChatOpenAI()
+    pp._LC_PENDING.set(("qwen/qwen3.7-flash", PINS, []))
+    with pytest.raises(RuntimeError, match="connection reset"):
+        client._generate([{"role": "user", "content": "hi"}])
+    row = pp.ledger()[-1]
+    assert row["call_path"] == "langchain" and row["status"] == "unverified"
+    assert "connection reset" in row["error"] and "prompt_tokens" not in row
+    assert pp._LC_PENDING.get() is None  # the pending route does not leak to the next request

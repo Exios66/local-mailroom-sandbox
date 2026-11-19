@@ -282,6 +282,7 @@ def run_isolated_eval(
     import statistics
     import time
 
+    from mailroom_sandbox.job import call_guard
     from mailroom_sandbox.job.usage_capture import (
         call_usage_from_pipeline,
         merge_item_metrics,
@@ -351,7 +352,15 @@ def run_isolated_eval(
                     as_type=tracing.observation_type_for(spec.observation),
                     input=tracing.public_ground_truth(row),
                 ):
-                    pred, fell_back = _predict_spec(spec, row, mock=mock)
+                    # One row's scope of the API call guard, so the per-document call
+                    # ceiling applies to isolated agents too (it was pipeline documents
+                    # only) and a refusal turns the row into an error, never a scored
+                    # outcome — the same contract as the pipeline document path (rb1 R01).
+                    with call_guard.document() as scope:
+                        pred, fell_back = _predict_spec(spec, row, mock=mock)
+                    if scope["refused"]:
+                        raise RuntimeError(
+                            f"row stopped by the API call guard ({scope['calls']} calls): {scope['refused']}")
                 scored = spec.score_one(row, pred)
             # SAND-018: per-item token capture — the isolated path used to drop
             # usage entirely, so a specialist run had no tokens/latency to report.

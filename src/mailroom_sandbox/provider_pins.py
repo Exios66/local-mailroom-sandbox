@@ -42,11 +42,13 @@ Decisions-API calls (``decision_backends.decide`` / ``decide_extraction``) are r
 served model equals the requested id or that slug, ``mismatch`` when it differs, and
 ``unverified`` when the response omits it or the catalog has no slug.
 
-Not covered: other modules that import ``retry_chat_completion`` by name before
-activation, and LangChain requests sent through the Responses API or streamed (the vendored
-agents do neither). The known PDF transcriber binding is updated when already imported. A smoke run that relies on
-those paths leaves rows missing, and the R01 gate (``scripts/check_r01_smoke.py``) fails
-on missing rows.
+Not covered: LangChain requests sent through the Responses API or streamed (the vendored
+agents do neither). Every already-imported module that imported ``retry_chat_completion`` by
+name before activation (the PDF transcriber, ``agents.base``, …) is rebound at activation and
+restored symmetrically. A failed OpenRouter request is recorded as its own ledger row —
+``status: unverified`` with an ``error`` and no usage keys — so its unknown cost can never be
+read as a verified zero; the R01 gate (``scripts/check_r01_smoke.py``) still fails on rows
+without a verified route.
 """
 
 from __future__ import annotations
@@ -60,7 +62,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Sequence
 
 import yaml
 
@@ -306,6 +308,61 @@ def summarize(entries: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     return out
 
 
+def _rebind_aliases(original: Callable[..., Any], wrapper: Callable[..., Any]) -> int:
+    """Rebind every imported module's by-name ``retry_chat_completion`` alias to ``wrapper``.
+
+    A module that did ``from llm.retry import retry_chat_completion`` keeps the function it
+    bound at import time; activation can run after such an import, and the stale alias then
+    bypasses pinning, the call guard and the served ledger. When the alias still holds the
+    vendored original (or a previous sandbox wrapper of it, ``__wrapped__``) it is updated in
+    place; anything else — the sampling wrapper, a test double, an unrelated replacement — is
+    left alone. ``llm.retry`` itself holds the canonical binding and is skipped. Returns the
+    number of modules rebound.
+    """
+    count = 0
+    for name, module in list(sys.modules.items()):
+        if module is None or name == "llm.retry":
+            continue
+        current = getattr(module, "retry_chat_completion", None)
+        if current is None or not (current is original or getattr(current, "__wrapped__", None) is original):
+            continue
+        try:
+            module.retry_chat_completion = wrapper
+        except (AttributeError, TypeError):  # pragma: no cover — frozen / C extension modules
+            continue
+        count += 1
+    return count
+
+
+def record_failed_request(model: str, error: BaseException, *, call_path: str,
+                          canonical_slug: str | None = None,
+                          fallback_models: Sequence[str] | tuple[str, ...] = ()) -> dict[str, Any]:
+    """Ledger row for an OpenRouter request that never returned (``status: unverified``).
+
+    A transport failure, non-200 or refusal may still have consumed billed provider capacity
+    whose usage never reached us. The row carries the ``error`` and no usage keys, so no
+    consumer can read it as a verified zero cost; ``summarize`` counts it under ``unverified``.
+    """
+    fallback = [str(m) for m in fallback_models]
+    entry = {
+        "requested_model": str(model),
+        "served_model": None,
+        "served_provider": None,
+        "pinned_order": [] if fallback else list((_ACTIVE.get(str(model)) or {}).get("order") or []),
+        "canonical_slug": canonical_slug,
+        "fallback_models": fallback,
+        "provider_mismatch": False,
+        "model_mismatch": False,
+        "mismatch": False,
+        "status": "unverified",
+        "call_path": call_path,
+        "error": f"{type(error).__name__}: {error}"[:300],
+    }
+    _append(entry)
+    _log.warning("failed OpenRouter request recorded (%s, %s): %s", call_path, model, entry["error"])
+    return entry
+
+
 def apply_provider_pins(pins: dict[str, dict[str, Any]] | None = None) -> int:
     """Wrap the vendored ``retry_chat_completion``; returns the number of pinned models.
 
@@ -331,7 +388,16 @@ def apply_provider_pins(pins: dict[str, dict[str, Any]] | None = None) -> int:
 
             call_guard.before_call()  # rb1 R01: no API call past the run's cap or the document's ceiling
             kwargs = pinned_kwargs(model, kwargs, pins)
-        response = original(client, **kwargs)
+        try:
+            response = original(client, **kwargs)
+        except Exception as exc:  # noqa: BLE001 — the failure itself must still propagate
+            if openrouter:
+                try:
+                    record_failed_request(model, exc, call_path="retry_chat_completion",
+                                          fallback_models=fallback)
+                except Exception as record_exc:  # noqa: BLE001 — recording never fails a call
+                    _log.warning("failed-request record failed: %s", record_exc)
+            raise
         if openrouter:
             try:
                 _record(model, response, pins, fallback_models=fallback)
@@ -342,12 +408,10 @@ def apply_provider_pins(pins: dict[str, dict[str, Any]] | None = None) -> int:
     pinned_retry_chat_completion.__wrapped__ = original  # type: ignore[attr-defined]
     retry.retry_chat_completion = pinned_retry_chat_completion
     base.retry_chat_completion = pinned_retry_chat_completion
-    # The PDF transcriber imports this function by value; it may have loaded
-    # before activation. Future imports see the patched retry module directly.
-    pdf = sys.modules.get("agents.pdf_transcriber")
-    pdf_retry = getattr(pdf, "retry_chat_completion", None)
-    if pdf is not None and (pdf_retry is original or getattr(pdf_retry, "__wrapped__", None) is original):
-        pdf.retry_chat_completion = pinned_retry_chat_completion
+    # Modules that imported the function by name before activation (the PDF transcriber,
+    # agents.base, ...) still hold the original or a previous wrapper of it; every such
+    # alias is rebound. Future imports see the patched retry module directly.
+    _rebind_aliases(original, pinned_retry_chat_completion)
     apply_langchain_pins()
     return sum(1 for p in _ACTIVE.values() if p["order"])
 
@@ -387,6 +451,22 @@ def pinned_chat_openai(parent: type) -> type:
                 except Exception as exc:  # noqa: BLE001 — recording never fails a call
                     _log.warning("served-provider record failed: %s", exc)
             return super()._create_chat_result(response, generation_info)
+
+        def _generate(self, messages: Any, stop: list[str] | None = None,
+                      run_manager: Any = None, **kwargs: Any) -> Any:
+            """Mirror ``_create_chat_result`` for requests that never returned."""
+            try:
+                return super()._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
+            except Exception as exc:  # noqa: BLE001 — the failure itself must still propagate
+                pending = _LC_PENDING.get()
+                _LC_PENDING.set(None)
+                if pending is not None:
+                    model, _pins, fallback = pending
+                    try:
+                        record_failed_request(model, exc, call_path="langchain", fallback_models=fallback)
+                    except Exception as record_exc:  # noqa: BLE001 — recording never fails a call
+                        _log.warning("failed-request record failed: %s", record_exc)
+                raise
 
     PinnedChatOpenAI.__name__ = "ChatOpenAI"
     PinnedChatOpenAI.__qualname__ = "ChatOpenAI"
@@ -442,7 +522,7 @@ def restore() -> None:
 
     retry.retry_chat_completion = _ORIGINAL
     base.retry_chat_completion = _ORIGINAL
-    pdf = sys.modules.get("agents.pdf_transcriber")
-    if pdf is not None and getattr(getattr(pdf, "retry_chat_completion", None), "__wrapped__", None) is _ORIGINAL:
-        pdf.retry_chat_completion = _ORIGINAL
+    # Revert every by-name alias still holding a wrapper of the original (symmetric to
+    # activation's sweep); an alias already pointing elsewhere is left alone.
+    _rebind_aliases(_ORIGINAL, _ORIGINAL)
     _ORIGINAL = None
